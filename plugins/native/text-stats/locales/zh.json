@@ -1,0 +1,20 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.text-stats",
+  "locale": "zh",
+  "messages": {
+    "text-stats.count.bytes": "UTF-8 字节",
+    "text-stats.count.characters": "字符",
+    "text-stats.count.lines": "行",
+    "text-stats.empty.waiting-detail": "统计 Files 中固定为对比前的文本快照。重新固定后更新，磁盘变化不会改写已保存的内容。",
+    "text-stats.error.unreadable": "无法读取文件工作区",
+    "text-stats.stage.add-files": "到插件市场添加 Files",
+    "text-stats.stage.open-files": "打开 Files",
+    "text-stats.stage.reading": "正在读取固定内容…",
+    "text-stats.stage.refresh": "刷新",
+    "text-stats.stage.retry": "。请点击刷新重试。",
+    "text-stats.empty.waiting": "固定一份文件快照后，这里会显示该版本的文本统计",
+    "text-stats.empty.unavailable": "捕获的快照已经不在了",
+    "text-stats.empty.recapture": "重新捕获一次，或者在 Sources 里换一个输入"
+  }
+}

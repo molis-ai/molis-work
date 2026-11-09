@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { installCommands } from "./commands.js";
 import { installCompose } from "./compose.js";
 import { installConnections, loadConnections, syncSaving } from "./connections.js";
@@ -12,7 +13,7 @@ export function mountImages(host: ImagesHost): void {
   const life = host.mountPluginClient(root);
   if (!life) return;
   const page = createPage(host, life, root);
-  const { s, L } = page;
+  const { s } = page;
   installConnections(page);
   installCompose(page);
   installCommands(page);
@@ -26,7 +27,7 @@ export function mountImages(host: ImagesHost): void {
     ensureContext(page);
     page.syncGenerate();
     void Promise.all([loadConnections(page, signal), loadJobs(page, signal)]).catch((error: unknown) => {
-      if (!signal.aborted) page.say(error instanceof Error && error.message ? error.message : L("images.error.request"), true);
+      if (!signal.aborted) page.say(error instanceof Error && error.message ? error.message : uiText.text("images.error.request"), true);
     });
     return () => { life.clearTimeout(s.timer); s.listSeq++; s.loadSeq++; };
   });

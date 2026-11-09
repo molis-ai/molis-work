@@ -52,7 +52,7 @@ export interface WorkflowsPage {
 export function createPage(host: WorkflowsHost, root: HTMLElement): WorkflowsPage {
   const L = host.translate;
   return {
-    host, L, api: workflowsRequest(host, L), root,
+    host, L, api: workflowsRequest(host), root,
     listEl: required(root, "[data-wf-list]"),
     space: required(root, "[data-wf-workspace]"),
     view: required(root, "[data-wf-view]"),

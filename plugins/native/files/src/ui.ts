@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type {
   UiContribution,
   UiContributionDeclaration,
@@ -12,25 +13,25 @@ import type { FileTreeNode } from "./tree.js";
 export const FILES_UI_CONTRIBUTION_ID = "io.molis.work.native.files.ui.v1";
 
 /** Host mounts these fragments in the existing directory and result slots, worded through its translator. */
-export function renderFilesBrowserDirectory(text: (key: string) => string): string {
+export function renderFilesBrowserDirectory(): string {
   return `<section data-files-browser hidden class="files-browser mw-dir">
-    <p class="mw-field__label">${text("files.directory.label")}</p>
-    <p class="files-notice">${text("files.directory.help")}</p>
-    <div class="mw-toolbar files-directory-toolbar"><span class="mw-dir__label">${text("files.directory.title")}</span><button class="mw-btn mw-btn--ghost" type="button" data-files-refresh><span class="mw-spinner" hidden></span><span>${text("files.directory.refresh")}</span></button></div>
+    <p class="mw-field__label">${uiText.text("files.directory.label")}</p>
+    <p class="files-notice">${uiText.text("files.directory.help")}</p>
+    <div class="mw-toolbar files-directory-toolbar"><span class="mw-dir__label">${uiText.text("files.directory.title")}</span><button class="mw-btn mw-btn--ghost" type="button" data-files-refresh><span class="mw-spinner" hidden></span><span>${uiText.text("files.directory.refresh")}</span></button></div>
     <p data-files-status role="status"></p><div class="mw-dir__list" data-files-tree></div>
   </section>`;
 }
 
-export function renderFilesBrowserResult(text: (key: string) => string): string {
-  return `<section data-files-results hidden class="files-results mw-frame" data-slot="frame" aria-label="${text("files.reader.label")}">
-    <header class="files-reader-head mw-frame__header"><button class="mw-btn mw-btn--ghost" type="button" data-files-close>${text("files.reader.back")}</button><div class="mw-frame__heading"><h2 data-files-title>${text("files.reader.choose")}</h2><p>${text("files.reader.read-only")}</p></div><div class="mw-group"><button class="mw-btn mw-btn--ghost" type="button" data-files-reload disabled aria-label="${text("files.reader.reload-label")}">${text("files.reader.reload")}</button><button class="mw-btn mw-btn--ghost" type="button" data-files-copy disabled>${text("files.reader.copy")}</button></div></header>
-    <div class="files-reader-body mw-scroll mw-frame__panel"><p data-files-notice role="status">${text("files.reader.pick")}</p>
-    <textarea readonly class="files-preview mw-textarea" data-files-text aria-label="${text("files.reader.text-label")}" spellcheck="false" hidden></textarea>
-    <section class="files-snapshots" aria-label="${text("files.snapshot.title")}"><div class="files-snapshot-heading"><h4>${text("files.snapshot.title")}</h4><span data-files-selection-hint>${text("files.snapshot.select-hint")}</span></div>
-    <div class="files-actions"><div class="mw-group" aria-label="${text("files.snapshot.sides")}"><button class="mw-btn mw-btn--secondary" type="button" data-files-capture="before" disabled>${text("files.snapshot.before")}</button><button class="mw-btn mw-btn--secondary" type="button" data-files-capture="after" disabled>${text("files.snapshot.after")}</button></div><button class="mw-btn mw-btn--ghost" type="button" data-files-capture="selection" disabled>${text("files.snapshot.selection")}</button></div>
+export function renderFilesBrowserResult(): string {
+  return `<section data-files-results hidden class="files-results mw-frame" data-slot="frame" aria-label="${uiText.text("files.reader.label")}">
+    <header class="files-reader-head mw-frame__header"><button class="mw-btn mw-btn--ghost" type="button" data-files-close>${uiText.text("files.reader.back")}</button><div class="mw-frame__heading"><h2 data-files-title>${uiText.text("files.reader.choose")}</h2><p>${uiText.text("files.reader.read-only")}</p></div><div class="mw-group"><button class="mw-btn mw-btn--ghost" type="button" data-files-reload disabled aria-label="${uiText.text("files.reader.reload-label")}">${uiText.text("files.reader.reload")}</button><button class="mw-btn mw-btn--ghost" type="button" data-files-copy disabled>${uiText.text("files.reader.copy")}</button></div></header>
+    <div class="files-reader-body mw-scroll mw-frame__panel"><p data-files-notice role="status">${uiText.text("files.reader.pick")}</p>
+    <textarea readonly class="files-preview mw-textarea" data-files-text aria-label="${uiText.text("files.reader.text-label")}" spellcheck="false" hidden></textarea>
+    <section class="files-snapshots" aria-label="${uiText.text("files.snapshot.title")}"><div class="files-snapshot-heading"><h4>${uiText.text("files.snapshot.title")}</h4><span data-files-selection-hint>${uiText.text("files.snapshot.select-hint")}</span></div>
+    <div class="files-actions"><div class="mw-group" aria-label="${uiText.text("files.snapshot.sides")}"><button class="mw-btn mw-btn--secondary" type="button" data-files-capture="before" disabled>${uiText.text("files.snapshot.before")}</button><button class="mw-btn mw-btn--secondary" type="button" data-files-capture="after" disabled>${uiText.text("files.snapshot.after")}</button></div><button class="mw-btn mw-btn--ghost" type="button" data-files-capture="selection" disabled>${uiText.text("files.snapshot.selection")}</button></div>
     <p data-files-capture-status role="status"></p></section>
-    <details class="mw-collapsible"><summary>${text("files.snapshot.stats")}</summary><div data-files-stats></div></details>
-    <details class="mw-collapsible" open><summary>${text("files.snapshot.diff")}</summary><p>${text("files.snapshot.diff-help")}</p><div data-files-diff></div></details></div>
+    <details class="mw-collapsible"><summary>${uiText.text("files.snapshot.stats")}</summary><div data-files-stats></div></details>
+    <details class="mw-collapsible" open><summary>${uiText.text("files.snapshot.diff")}</summary><p>${uiText.text("files.snapshot.diff-help")}</p><div data-files-diff></div></details></div>
   </section>`;
 }
 
@@ -71,9 +72,9 @@ export const filesUiContribution: UiContribution<FilesUiModel | CompanionStageMo
     const stage = request.model as CompanionStageModel;
     switch (request.surface) {
       case "workbench": return renderFilesStage(stage);
-      case "tree": return "nodes" in request.model ? renderFilesTree(request.model) : renderFilesBrowserDirectory(stage.primitives.text);
-      case "browser-directory": return renderFilesBrowserDirectory(stage.primitives.text);
-      case "browser-result": return renderFilesBrowserResult(stage.primitives.text);
+      case "tree": return "nodes" in request.model ? renderFilesTree(request.model) : renderFilesBrowserDirectory();
+      case "browser-directory": return renderFilesBrowserDirectory();
+      case "browser-result": return renderFilesBrowserResult();
       case "reader": return renderFilesReader(request.model as FilesUiModel);
       default: return renderFilesTree(request.model as FilesUiModel);
     }
@@ -82,9 +83,8 @@ export const filesUiContribution: UiContribution<FilesUiModel | CompanionStageMo
 
 /** Files' stage in the project page: its browser beside a note while no file is open. */
 export function renderFilesStage(model: CompanionStageModel): string {
-  const { text } = model.primitives;
-  return renderCompanionBrowserStage({ surface: "files", label: "Files", icon: "file", route_prefix: model.route_prefix, manage: text("files.stage.manage"),
-    empty: { title: text("files.stage.empty-title"), body: text("files.stage.empty-body") }, directory: renderFilesBrowserDirectory(text), result: renderFilesBrowserResult(text) });
+  return renderCompanionBrowserStage({ surface: "files", label: "Files", icon: "file", route_prefix: model.route_prefix, manage: uiText.text("files.stage.manage"),
+    empty: { title: uiText.text("files.stage.empty-title"), body: uiText.text("files.stage.empty-body") }, directory: renderFilesBrowserDirectory(), result: renderFilesBrowserResult() });
 }
 
 export function renderFilesTree(model: FilesUiModel): string {

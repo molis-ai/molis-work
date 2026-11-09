@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { editConnection, loadConnections, openConnections, paintConn, paintConnections, syncParameters, usePreset } from "./connections.js";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { loadJobs, rememberJob, schedulePoll } from "./jobs.js";
@@ -15,22 +16,22 @@ async function whileBusy(page: ImagesPage, target: HTMLButtonElement, work: () =
 }
 
 async function deleteConnection(page: ImagesPage, target: HTMLButtonElement, id: string): Promise<void> {
-  const { s, L } = page;
-  if (!await page.host.confirm(L("images.service.delete-confirm"))) return;
+  const { s } = page;
+  if (!await page.host.confirm(uiText.text("images.service.delete-confirm"))) return;
   await whileBusy(page, target, async () => {
     await page.request("DELETE", `/connections/${encodeURIComponent(id)}`);
     s.conns = s.conns.filter((item) => item.id !== id);
     if (s.editingId === id) editConnection(page, "");
     paintConnections(page);
     page.saveDraft();
-    page.say(L("images.service.deleted"), false, "[data-images-connection-note]");
+    page.say(uiText.text("images.service.deleted"), false, "[data-images-connection-note]");
   });
 }
 
 async function deleteJob(page: ImagesPage, target: HTMLButtonElement, id: string): Promise<void> {
-  const { s, L } = page;
+  const { s } = page;
   const currentContext = s.context;
-  if (!await page.host.confirm(L("images.result.delete-confirm"))) return;
+  if (!await page.host.confirm(uiText.text("images.result.delete-confirm"))) return;
   await whileBusy(page, target, async () => {
     await page.request("DELETE", `/jobs/${encodeURIComponent(id)}`);
     if (currentContext !== page.projectId()) return;
@@ -134,7 +135,7 @@ async function click(page: ImagesPage, event: Event): Promise<void> {
   const command = COMMANDS.find(({ attr }) => target.hasAttribute(attr));
   if (!command) return;
   try { await command.run(page, target, target.getAttribute(command.attr) ?? ""); }
-  catch (error) { page.say(messageOf(error) || page.L("images.error.request"), true); }
+  catch (error) { page.say(messageOf(error) || uiText.text("images.error.request"), true); }
 }
 
 export function installCommands(page: ImagesPage): void {

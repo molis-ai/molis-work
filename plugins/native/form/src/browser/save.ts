@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { FormRecord } from "../contract.js";
 import { remember } from "./list.js";
 import type { FormAnswer, FormPage } from "./page.js";
@@ -46,5 +47,5 @@ export const queueSave = (page: FormPage) => {
   page.editRev += 1;
   if (page.sel) paintStatus(page, page.sel);
   clearTimeout(page.saveTimer);
-  if (!page.saveError) page.saveTimer = setTimeout(() => { void save(page).catch((error: Error) => showNote(page, error.message || page.L("form.save.failed"), true, "save")); }, 400);
+  if (!page.saveError) page.saveTimer = setTimeout(() => { void save(page).catch((error: Error) => showNote(page, error.message || uiText.text("form.save.failed"), true, "save")); }, 400);
 };

@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { installBatch } from "./batch.js";
 import { installDetail } from "./detail.js";
 import { listen } from "./events.js";
@@ -32,5 +33,5 @@ export function todoClient(host: TodoClientHost): void {
   if (batchProject) { batchProject.textContent = page.hereName(); batchProject.hidden = !page.projectId(); }
   page.paintPlaces(page.el.quickPlacement, page.quickDefaultPlacement(), "data-todo-quick-placement-choice");
   page.publishContext();
-  void page.load().catch((error: Error) => { page.el.loading.hidden = true; page.showNote(error.message || host.translate("todo.error.not-open"), { error: true }); });
+  void page.load().catch((error: Error) => { page.el.loading.hidden = true; page.showNote(error.message || uiText.text("todo.error.not-open"), { error: true }); });
 }

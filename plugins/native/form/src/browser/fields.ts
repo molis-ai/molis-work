@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { FormQuestion, FormRecord } from "../contract.js";
 import { FORM_ANSWER_LIMIT } from "../fillpage.js";
 import { make } from "./dom.js";
@@ -41,7 +42,7 @@ const ratingField = (question: FormQuestion) => {
 
 /** The limit said in the page's words: "每题回答最多 4000 个字：<题>" / "Keep each answer within 4000 characters: <题>", the same
  * sentence and number the offline fill page uses (fillpage.ts), translated through the plugin's own dictionary (messages.ts). */
-const tooLongText = (L: Translate, title: string) => L("form.fill.too-long", { count: FORM_ANSWER_LIMIT, title });
+const tooLongText = (_L: Translate, title: string) => uiText.text("form.fill.too-long", { count: FORM_ANSWER_LIMIT, title });
 
 /** Where this page says a field's problem: the full-screen fill page's error line or the preview's note line. */
 const problemSlot = (container: Element) =>
@@ -82,7 +83,7 @@ export const buildFields = (L: Translate, container: Element, questions: readonl
   questions.forEach((question) => {
     const field = make("div", "form-field");
     const title = document.createElement(["singleChoice", "multiChoice", "rating"].includes(question.type) ? "span" : "label");
-    title.id = "form-question-" + crypto.randomUUID(); title.textContent = question.title + (question.required ? "（" + L("form.question.required") + "）" : "");
+    title.id = "form-question-" + crypto.randomUUID(); title.textContent = question.title + (question.required ? "（" + uiText.text("form.question.required") + "）" : "");
     field.setAttribute("role", ["singleChoice", "rating"].includes(question.type) ? "radiogroup" : "group"); field.setAttribute("aria-labelledby", title.id);
     if (field.getAttribute("role") === "radiogroup") field.setAttribute("aria-required", String(question.required)); field.append(title);
     field.append(answerField(question));
@@ -125,7 +126,7 @@ export const renderPreview = (page: FormPage, record: FormRecord) => {
   const submitBtn = page.previewForm.querySelector<HTMLElement>("[data-form-submit]");
   if (submitBtn) submitBtn.hidden = !(record.questions || []).length;
   if (!(record.questions || []).length) {
-    const emptyPreview = make("p", "form-preview-empty", page.L("form.preview.empty"));
+    const emptyPreview = make("p", "form-preview-empty", uiText.text("form.preview.empty"));
     page.previewEl.append(emptyPreview);
     return;
   }

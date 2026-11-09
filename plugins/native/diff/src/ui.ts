@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type {
   UiContribution,
   UiContributionDeclaration,
@@ -54,7 +55,6 @@ export const diffUiContribution: UiContribution<DiffUiModel | CompanionStageMode
 
 /** Diff's stage in the project page: a refresh, a way to Files, and the comparison the page's client fills. */
 export function renderDiffStage(model: CompanionStageModel): string {
-  const { text } = model.primitives;
-  return renderCompanionListStage({ surface: "diff", label: "Diff", refresh: text("diff.stage.refresh"),
-    files: { enabled: model.shown_plugins?.includes("files") ?? false, open: text("diff.stage.open-files"), add: text("diff.stage.add-files") } });
+  return renderCompanionListStage({ surface: "diff", label: "Diff", refresh: uiText.text("diff.stage.refresh"),
+    files: { enabled: model.shown_plugins?.includes("files") ?? false, open: uiText.text("diff.stage.open-files"), add: uiText.text("diff.stage.add-files") } });
 }

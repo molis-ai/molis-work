@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { handleCalendarClick } from "./calendar-clicks.js";
 import { openCategories } from "./categories.js";
 import { openItem } from "./item.js";
@@ -38,14 +39,14 @@ async function undoRedo(page: JellyPage, target: HTMLElement): Promise<void> {
   await flushEditor(page);
   await command(page, { type: target.hasAttribute("data-jelly-undo") ? "undo" : "redo" });
   if (page.selected) openRecord(page, page.selected.kind, page.selected.id);
-  showNote(page, page.L("jelly.workspace.updated"));
+  showNote(page, uiText.text("jelly.workspace.updated"));
 }
 
 async function exportWorkspace(page: JellyPage): Promise<void> {
   await flushEditor(page);
   const result = await page.request<{ workspace: unknown }>("GET", `${API}/export`);
   await download(page, `Jelly-${civil()}.json`, JSON.stringify(result.workspace, null, 2), "application/json");
-  showNote(page, page.L("jelly.workspace.exported"));
+  showNote(page, uiText.text("jelly.workspace.exported"));
 }
 
 const closeMenu = (page: JellyPage): void => { page.$("[data-jelly-menu]").hidden = true; };

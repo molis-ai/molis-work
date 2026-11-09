@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { filesClient } from "./client.js";
 import { filesRequests } from "./request.js";
 import type { FilesBrowser, FilesFactoryHost, FilesHost } from "./types.js";
@@ -17,7 +18,7 @@ function onOwnPage(host: FilesFactoryHost, icons: Icons, root: HTMLElement): Fil
     openResult: () => { root.dataset.companionDetail = "true"; }, closeResult: () => { root.dataset.companionDetail = "false"; } });
   const panel = root.querySelector<HTMLElement>("[data-files-browser]"), back = root.querySelector("[data-files-close]");
   if (panel) panel.hidden = false;
-  if (back) back.textContent = host.translate("files.directory.back");
+  if (back) back.textContent = uiText.text("files.directory.back");
   return browser;
 }
 

@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { openGeneric } from "./dialog.js";
 import { queueSave } from "./notes.js";
 import { showNote } from "./page.js";
@@ -117,7 +118,7 @@ export function changeBlockKind(page: JellyPage, kind: JellyBlockKind): void {
   page.draftBlocks = collectBlocks(page);
   const block = selectedBlock(page);
   if (!block) return;
-  if (block.kind === "task" && kind !== "task" && hasTaskLink(page, block.id)) { showNote(page, page.L("jelly.block.unlink-first-convert"), true); return; }
+  if (block.kind === "task" && kind !== "task" && hasTaskLink(page, block.id)) { showNote(page, uiText.text("jelly.block.unlink-first-convert"), true); return; }
   block.kind = kind;
   renderBlocks(page);
   if (kind === "divider") insertBlock(page, block.id); else focusBlock(page, block.id);
@@ -150,12 +151,12 @@ const wrapperFor = (kind: string, href?: string): HTMLElement => {
 
 export function applyInline(page: JellyPage, kind: string, href?: string): void {
   const last = page.lastRange;
-  if (!last || last.collapsed) { showNote(page, page.L("jelly.format.select-first")); return; }
+  if (!last || last.collapsed) { showNote(page, uiText.text("jelly.format.select-first")); return; }
   if (!page.documentEl.contains(last.commonAncestorContainer)) return;
   const badLink = kind === "link" && !LINK.test(href || "");
   const ranges = rangesForSelection(page, last);
   if (ranges.length > 1) {
-    if (badLink) throw new Error(page.L("jelly.format.link-scheme"));
+    if (badLink) throw new Error(uiText.text("jelly.format.link-scheme"));
     for (const entry of [...ranges].reverse()) {
       const wrap = wrapperFor(kind, href);
       wrap.appendChild(entry.range.extractContents());
@@ -167,7 +168,7 @@ export function applyInline(page: JellyPage, kind: string, href?: string): void 
     return;
   }
   const range = last.cloneRange();
-  if (badLink) throw new Error(page.L("jelly.format.link-scheme"));
+  if (badLink) throw new Error(uiText.text("jelly.format.link-scheme"));
   const element = wrapperFor(kind, href);
   element.appendChild(range.extractContents());
   range.insertNode(element);

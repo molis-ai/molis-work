@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { button, dateLabel, text } from "./dom.js";
 import type { ImageJob, ImagesPage } from "./types.js";
 
@@ -56,7 +57,7 @@ export function showCompose(page: ImagesPage, focus = false): void {
   el.result.hidden = true;
   el.compose.hidden = false;
   page.publishContext(null);
-  page.field("title").textContent = page.L("images.compose.new");
+  page.field("title").textContent = uiText.text("images.compose.new");
   page.expand();
   paintList(page);
   page.saveDraft();

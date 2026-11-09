@@ -87,7 +87,7 @@ export function createPage(host: PagesHost, Editor: PagesEditorApi): PagesPage |
   if (!bench) return null;
   const el = <T extends HTMLElement = HTMLElement>(selector: string) => bench.querySelector<T>(selector);
   return {
-    host, L: host.translate, api: pagesRequest(host, host.translate), Editor, bench, el,
+    host, L: host.translate, api: pagesRequest(host), Editor, bench, el,
     els: (selector) => bench.querySelectorAll<HTMLElement>(selector),
     list: el("[data-pages=directory]"), rowsEl: el("[data-pages-rows]")!, empty: el("[data-pages-empty]")!, searchEmpty: el("[data-pages-search-empty]")!,
     searchInput: el<HTMLInputElement>("[data-pages-search]"), workspace: el("[data-pages-stage-workspace]")!, titleEl: el("[data-pages-editor-title]")!,

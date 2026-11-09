@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { Translate } from "./types.js";
 import type { WorkflowLinkKind } from "../model.js";
@@ -7,10 +8,10 @@ export const ico = (name: string) => `<svg aria-hidden="true"><use href="#icon-$
 /** Words the Host or another plugin wrote (a plugin's name, a reason, what an action returned), or one of our own keys carried in a reason: the Host's dictionary translates them. */
 export const said = (L: Translate, text: string) => L(text);
 
-export const kindName = (L: Translate, kind: WorkflowLinkKind) =>
-  kind === "judgment" ? L("workflows.kind.judgment") : kind === "function" ? L("workflows.kind.function") : kind === "manual" ? L("workflows.kind.manual") : "AI";
-export const kindHelp = (L: Translate, kind: WorkflowLinkKind) =>
-  kind === "judgment" ? L("workflows.kind.judgment-help") : kind === "function" ? L("workflows.kind.function-help") : kind === "manual" ? L("workflows.kind.manual-help") : L("workflows.kind.ai-help");
+export const kindName = (_L: Translate, kind: WorkflowLinkKind) =>
+  kind === "judgment" ? uiText.text("workflows.kind.judgment") : kind === "function" ? uiText.text("workflows.kind.function") : kind === "manual" ? uiText.text("workflows.kind.manual") : "AI";
+export const kindHelp = (_L: Translate, kind: WorkflowLinkKind) =>
+  kind === "judgment" ? uiText.text("workflows.kind.judgment-help") : kind === "function" ? uiText.text("workflows.kind.function-help") : kind === "manual" ? uiText.text("workflows.kind.manual-help") : uiText.text("workflows.kind.ai-help");
 
 export const MOD = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent || "") ? "⌘" : "Ctrl";
 

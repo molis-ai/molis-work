@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type {
   UiContribution,
   UiContributionDeclaration,
@@ -12,64 +13,64 @@ import { GIT_SENTENCE_TABLE, sayHostSentence, sayUpstream } from "./sentences.js
 export const GIT_UI_CONTRIBUTION_ID = "io.molis.work.native.git.ui.v1";
 
 /** Composed beside Files; the existing directory/result shell remains the owner. */
-export function renderGitBrowserDirectory(text: (key: string) => string): string {
-  return `<section class="git-browser mw-dir" data-git-browser hidden><div class="mw-toolbar git-directory-toolbar"><span class="mw-dir__label">${text("git.dir.title")}</span><button class="mw-btn mw-btn--ghost" type="button" data-git-refresh><span class="mw-spinner" hidden></span><span>${text("git.dir.refresh")}</span></button></div>
-    <section class="git-sc" data-git-sc aria-label="${text("git.dir.source-control")}" hidden>
-      <div class="git-sc-branch"><strong data-git-branch></strong><span class="git-sc-sync" data-git-sync></span><button class="mw-btn mw-btn--ghost" type="button" data-git-branch-toggle aria-expanded="false">${text("git.branch.toggle")}</button></div>
+export function renderGitBrowserDirectory(): string {
+  return `<section class="git-browser mw-dir" data-git-browser hidden><div class="mw-toolbar git-directory-toolbar"><span class="mw-dir__label">${uiText.text("git.dir.title")}</span><button class="mw-btn mw-btn--ghost" type="button" data-git-refresh><span class="mw-spinner" hidden></span><span>${uiText.text("git.dir.refresh")}</span></button></div>
+    <section class="git-sc" data-git-sc aria-label="${uiText.text("git.dir.source-control")}" hidden>
+      <div class="git-sc-branch"><strong data-git-branch></strong><span class="git-sc-sync" data-git-sync></span><button class="mw-btn mw-btn--ghost" type="button" data-git-branch-toggle aria-expanded="false">${uiText.text("git.branch.toggle")}</button></div>
       <form class="git-sc-form" data-git-branch-form hidden>
-        <label class="mw-field"><span class="mw-field__label">${text("git.branch.switch-to")}</span><select class="mw-select" data-git-branch-choice aria-label="${text("git.branch.switch-label")}"></select></label>
-        <button class="mw-btn mw-btn--secondary" type="button" data-git-branch-switch>${text("git.branch.switch")}</button>
-        <label class="mw-field"><span class="mw-field__label">${text("git.branch.new")}</span><input class="mw-input" data-git-branch-name placeholder="${text("git.branch.new-example")}" autocomplete="off" spellcheck="false"></label>
-        <label class="mw-check-row"><input class="mw-check" type="checkbox" data-git-branch-checkout checked><span>${text("git.branch.checkout")}</span></label>
-        <button class="mw-btn mw-btn--secondary" type="button" data-git-branch-create>${text("git.branch.create")}</button>
-        <label class="mw-field"><span class="mw-field__label">${text("git.branch.merge-into")}</span><select class="mw-select" data-git-merge-choice aria-label="${text("git.branch.merge-label")}"></select></label>
-        <button class="mw-btn mw-btn--secondary" type="button" data-git-merge>${text("git.branch.merge")}</button>
+        <label class="mw-field"><span class="mw-field__label">${uiText.text("git.branch.switch-to")}</span><select class="mw-select" data-git-branch-choice aria-label="${uiText.text("git.branch.switch-label")}"></select></label>
+        <button class="mw-btn mw-btn--secondary" type="button" data-git-branch-switch>${uiText.text("git.branch.switch")}</button>
+        <label class="mw-field"><span class="mw-field__label">${uiText.text("git.branch.new")}</span><input class="mw-input" data-git-branch-name placeholder="${uiText.text("git.branch.new-example")}" autocomplete="off" spellcheck="false"></label>
+        <label class="mw-check-row"><input class="mw-check" type="checkbox" data-git-branch-checkout checked><span>${uiText.text("git.branch.checkout")}</span></label>
+        <button class="mw-btn mw-btn--secondary" type="button" data-git-branch-create>${uiText.text("git.branch.create")}</button>
+        <label class="mw-field"><span class="mw-field__label">${uiText.text("git.branch.merge-into")}</span><select class="mw-select" data-git-merge-choice aria-label="${uiText.text("git.branch.merge-label")}"></select></label>
+        <button class="mw-btn mw-btn--secondary" type="button" data-git-merge>${uiText.text("git.branch.merge")}</button>
       </form>
-      <label class="mw-sr-only" for="git-commit-message">${text("git.commit.label")}</label>
-      <textarea class="mw-textarea git-sc-message" id="git-commit-message" data-git-commit-message rows="3" placeholder="${text("git.commit.placeholder")}" spellcheck="false"></textarea>
-      <div class="git-sc-actions"><button class="mw-btn mw-btn--ghost" type="button" data-git-commit-draft>${text("git.commit.draft")}</button><button class="mw-btn mw-btn--primary" type="button" data-git-commit disabled>${text("git.commit.submit")}</button></div>
-      <div class="git-sc-actions"><button class="mw-btn mw-btn--secondary" type="button" data-git-pull disabled>${text("git.pull.any")}</button><button class="mw-btn mw-btn--secondary" type="button" data-git-push disabled>${text("git.push.button")}</button><button class="mw-btn mw-btn--ghost" type="button" data-git-pr-toggle aria-expanded="false">${text("git.pr.toggle")}</button></div>
+      <label class="mw-sr-only" for="git-commit-message">${uiText.text("git.commit.label")}</label>
+      <textarea class="mw-textarea git-sc-message" id="git-commit-message" data-git-commit-message rows="3" placeholder="${uiText.text("git.commit.placeholder")}" spellcheck="false"></textarea>
+      <div class="git-sc-actions"><button class="mw-btn mw-btn--ghost" type="button" data-git-commit-draft>${uiText.text("git.commit.draft")}</button><button class="mw-btn mw-btn--primary" type="button" data-git-commit disabled>${uiText.text("git.commit.submit")}</button></div>
+      <div class="git-sc-actions"><button class="mw-btn mw-btn--secondary" type="button" data-git-pull disabled>${uiText.text("git.pull.any")}</button><button class="mw-btn mw-btn--secondary" type="button" data-git-push disabled>${uiText.text("git.push.button")}</button><button class="mw-btn mw-btn--ghost" type="button" data-git-pr-toggle aria-expanded="false">${uiText.text("git.pr.toggle")}</button></div>
       <form class="git-sc-form" data-git-pr-form hidden>
         <p class="git-sc-note" data-git-pr-support></p>
-        <label class="mw-field"><span class="mw-field__label">${text("git.pr.base")}</span><select class="mw-select" data-git-pr-base aria-label="${text("git.pr.base-label")}"></select></label>
-        <label class="mw-field"><span class="mw-field__label">${text("git.pr.title")}</span><input class="mw-input" data-git-pr-title maxlength="256"></label>
-        <label class="mw-field"><span class="mw-field__label">${text("git.pr.body")}</span><textarea class="mw-textarea" rows="4" data-git-pr-body></textarea></label>
-        <label class="mw-check-row"><input class="mw-check" type="checkbox" data-git-pr-draft><span>${text("git.pr.draft")}</span></label>
-        <button class="mw-btn mw-btn--secondary" type="button" data-git-pr-create>${text("git.pr.toggle")}</button>
+        <label class="mw-field"><span class="mw-field__label">${uiText.text("git.pr.base")}</span><select class="mw-select" data-git-pr-base aria-label="${uiText.text("git.pr.base-label")}"></select></label>
+        <label class="mw-field"><span class="mw-field__label">${uiText.text("git.pr.title")}</span><input class="mw-input" data-git-pr-title maxlength="256"></label>
+        <label class="mw-field"><span class="mw-field__label">${uiText.text("git.pr.body")}</span><textarea class="mw-textarea" rows="4" data-git-pr-body></textarea></label>
+        <label class="mw-check-row"><input class="mw-check" type="checkbox" data-git-pr-draft><span>${uiText.text("git.pr.draft")}</span></label>
+        <button class="mw-btn mw-btn--secondary" type="button" data-git-pr-create>${uiText.text("git.pr.toggle")}</button>
       </form>
-      <section class="git-sc-conflicts" data-git-conflicts aria-label="${text("git.conflict.region")}" hidden>
+      <section class="git-sc-conflicts" data-git-conflicts aria-label="${uiText.text("git.conflict.region")}" hidden>
         <p class="git-sc-note" data-git-conflict-note></p>
         <ul class="git-sc-conflict-list" data-git-conflict-list></ul>
         <div class="git-sc-conflict-editor" data-git-conflict-editor hidden>
           <p class="git-sc-note" data-git-conflict-file></p>
           <div class="git-sc-picks" data-git-conflict-picks></div>
-          <textarea class="mw-textarea git-sc-conflict-text" rows="14" data-git-conflict-text spellcheck="false" aria-label="${text("git.conflict.text-label")}"></textarea>
+          <textarea class="mw-textarea git-sc-conflict-text" rows="14" data-git-conflict-text spellcheck="false" aria-label="${uiText.text("git.conflict.text-label")}"></textarea>
           <p class="git-sc-note" data-git-conflict-state role="status"></p>
-          <div class="git-sc-actions"><button class="mw-btn mw-btn--primary" type="button" data-git-conflict-resolve disabled>${text("git.conflict.resolve")}</button></div>
+          <div class="git-sc-actions"><button class="mw-btn mw-btn--primary" type="button" data-git-conflict-resolve disabled>${uiText.text("git.conflict.resolve")}</button></div>
         </div>
-        <div class="git-sc-actions"><button class="mw-btn mw-btn--ghost" type="button" data-git-merge-abort>${text("git.conflict.abort")}</button></div>
+        <div class="git-sc-actions"><button class="mw-btn mw-btn--ghost" type="button" data-git-merge-abort>${uiText.text("git.conflict.abort")}</button></div>
       </section>
       <p class="git-sc-note" data-git-sc-status role="status"></p>
-      <ol class="git-sc-log" data-git-operations aria-label="${text("git.ops.label")}"></ol>
+      <ol class="git-sc-log" data-git-operations aria-label="${uiText.text("git.ops.label")}"></ol>
     </section>
-    <button class="mw-btn mw-btn--ghost" type="button" data-git-history disabled>${text("git.history.title")}</button>
-    <button class="mw-btn mw-btn--ghost" type="button" data-git-reopen hidden>${text("git.dir.reopen")}</button>
+    <button class="mw-btn mw-btn--ghost" type="button" data-git-history disabled>${uiText.text("git.history.title")}</button>
+    <button class="mw-btn mw-btn--ghost" type="button" data-git-reopen hidden>${uiText.text("git.dir.reopen")}</button>
     <p data-git-status role="status"></p><div class="mw-dir__list" data-git-list></div>
   </section>`;
 }
-export function renderGitBrowserResult(text: (key: string) => string): string {
-  return `<section class="git-results mw-frame" data-slot="frame" data-git-results hidden aria-label="${text("git.diff.label")}">
-    <header class="git-reader-head mw-frame__header"><button class="mw-btn mw-btn--ghost" type="button" data-git-close>${text("git.diff.back")}</button><div class="mw-frame__heading"><h2 data-git-title>${text("git.diff.title")}</h2><p data-git-kind>${text("git.diff.kind")}</p></div></header><div class="mw-frame__panel">
+export function renderGitBrowserResult(): string {
+  return `<section class="git-results mw-frame" data-slot="frame" data-git-results hidden aria-label="${uiText.text("git.diff.label")}">
+    <header class="git-reader-head mw-frame__header"><button class="mw-btn mw-btn--ghost" type="button" data-git-close>${uiText.text("git.diff.back")}</button><div class="mw-frame__heading"><h2 data-git-title>${uiText.text("git.diff.title")}</h2><p data-git-kind>${uiText.text("git.diff.kind")}</p></div></header><div class="mw-frame__panel">
     <p data-git-scope></p><p data-git-notice role="status"></p>
     <button class="mw-btn mw-btn--secondary" type="button" data-git-index-action hidden></button>
-    <section data-git-saved-results hidden aria-label="${text("git.result.region")}">
-      <label class="mw-field"><span class="mw-field__label">${text("git.result.save-label")}</span><select class="mw-select" data-git-result-choice aria-label="${text("git.result.choice-label")}"></select></label>
-      <p>${text("git.result.save-help")}</p>
+    <section data-git-saved-results hidden aria-label="${uiText.text("git.result.region")}">
+      <label class="mw-field"><span class="mw-field__label">${uiText.text("git.result.save-label")}</span><select class="mw-select" data-git-result-choice aria-label="${uiText.text("git.result.choice-label")}"></select></label>
+      <p>${uiText.text("git.result.save-help")}</p>
       <p data-git-result-summary></p><p data-git-result-paths></p><p data-git-result-provenance></p>
-      <button class="mw-btn" type="button" data-git-result-save disabled>${text("git.result.save")}</button>
+      <button class="mw-btn" type="button" data-git-result-save disabled>${uiText.text("git.result.save")}</button>
       <p data-git-result-status role="status"></p>
     </section>
-    <section data-git-reviews aria-label="${text("git.result.reviews")}" hidden></section>
+    <section data-git-reviews aria-label="${uiText.text("git.result.reviews")}" hidden></section>
     <div data-git-diff></div></div>
   </section>`;
 }
@@ -109,9 +110,9 @@ export const gitUiContribution: UiContribution<GitUiModel | CompanionStageModel>
     const model = request.model as CompanionStageModel;
     switch (request.surface) {
       case "workbench": return renderGitStage(model);
-      case "changes": return "view" in request.model ? renderGitChanges(request.model) : renderGitBrowserDirectory(model.primitives.text);
-      case "browser-directory": return renderGitBrowserDirectory(model.primitives.text);
-      case "browser-result": return renderGitBrowserResult(model.primitives.text);
+      case "changes": return "view" in request.model ? renderGitChanges(request.model) : renderGitBrowserDirectory();
+      case "browser-directory": return renderGitBrowserDirectory();
+      case "browser-result": return renderGitBrowserResult();
       default: return renderGitChanges(request.model as GitUiModel);
     }
   },
@@ -119,9 +120,8 @@ export const gitUiContribution: UiContribution<GitUiModel | CompanionStageModel>
 
 /** Git's stage in the project page: its browser beside a note while no change is open. */
 export function renderGitStage(model: CompanionStageModel): string {
-  const { text } = model.primitives;
-  return renderCompanionBrowserStage({ surface: "git", label: "Git", icon: "git-branch", route_prefix: model.route_prefix, manage: text("git.stage.manage"),
-    empty: { title: text("git.stage.empty-title"), body: text("git.stage.empty-body") }, directory: renderGitBrowserDirectory(text), result: renderGitBrowserResult(text) });
+  return renderCompanionBrowserStage({ surface: "git", label: "Git", icon: "git-branch", route_prefix: model.route_prefix, manage: uiText.text("git.stage.manage"),
+    empty: { title: uiText.text("git.stage.empty-title"), body: uiText.text("git.stage.empty-body") }, directory: renderGitBrowserDirectory(), result: renderGitBrowserResult() });
 }
 
 export function renderGitChanges(model: GitUiModel): string {
@@ -140,11 +140,11 @@ export function renderGitChanges(model: GitUiModel): string {
     + `</header>`;
   const body = view.message !== ""
     ? `<p class="git-clean">${escape(p.text(view.message))}</p>`
-    : renderList(p.text("git.group.conflicts"), view.conflicts, model)
-      + renderList(p.text("git.group.staged"), view.staged, model)
-      + renderList(p.text("git.group.unstaged"), view.changes, model);
+    : renderList(uiText.text("git.group.conflicts"), view.conflicts, model)
+      + renderList(uiText.text("git.group.staged"), view.staged, model)
+      + renderList(uiText.text("git.group.unstaged"), view.changes, model);
   const truncated = view.truncated
-    ? `<p class="git-truncated">${escape(p.text("git.group.truncated"))}</p>`
+    ? `<p class="git-truncated">${escape(uiText.text("git.group.truncated"))}</p>`
     : "";
   return `<section class="git" data-phase="ready" data-route="${escape(model.route_prefix)}">`
     + `${header}${body}${truncated}${renderCommit(model)}</section>`;
@@ -164,9 +164,9 @@ function renderList(title: string, items: readonly GitListItem[], model: GitUiMo
 }
 
 function renderCommit(model: GitUiModel): string {
-  const { escape } = model.primitives, p = model.primitives;
+  const { escape } = model.primitives;
   return `<form class="git-commit" data-committable="${model.view.committable}">`
-    + `<textarea name="message" rows="3" placeholder="${escape(p.text("git.commit.message"))}">${escape(model.commit_message)}</textarea>`
-    + `<button type="submit" data-action="git.commit"${model.view.committable ? "" : " disabled"}>${escape(p.text("git.commit.plain"))}</button>`
+    + `<textarea name="message" rows="3" placeholder="${escape(uiText.text("git.commit.message"))}">${escape(model.commit_message)}</textarea>`
+    + `<button type="submit" data-action="git.commit"${model.view.committable ? "" : " disabled"}>${escape(uiText.text("git.commit.plain"))}</button>`
     + `</form>`;
 }

@@ -288,10 +288,15 @@ test("FSS-53 FSS-60 a real signed installation binds words to its authorized pag
   ], "a promise left behind by the English call cannot borrow the later Chinese scope");
 });
 
-test("FSS-53 the built-in Issue registration uses the same declared language files as a plugin project", () => {
-  const entry = BUILTIN_PLUGIN_CATALOG.find(entry => entry.manifest.plugin_id === "io.molis.work.issues");
-  assert.ok(entry?.manifest.ui.locales);
-  assert.deepEqual(inspectPluginLocales(entry.manifest, file => readFileSync(path.join("plugins/native/issues", file), "utf8")), []);
+test("FSS-53 built-in registrations use the same declared language files as a plugin project", () => {
+  const entries = BUILTIN_PLUGIN_CATALOG.filter(entry => entry.manifest.ui.locales);
+  assert.ok(entries.length > 1);
+  for (const entry of entries) {
+    assert.equal(entry.manifest.ui.messages, undefined, entry.manifest.plugin_id);
+    assert.equal(entry.manifest.ui.translations, undefined, entry.manifest.plugin_id);
+    const directory = entry.project_plugin_id === "plugin-builder" ? "plugin-builder" : entry.project_plugin_id;
+    assert.deepEqual(inspectPluginLocales(entry.manifest, file => readFileSync(path.join("plugins/native", directory, file), "utf8")), [], entry.manifest.plugin_id);
+  }
 });
 
 test("FSS-53 a package with no ui.locales is what it always was: no language file is asked for", withProject(async (directory) => {

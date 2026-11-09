@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { Ppt, PptPage, Slide } from "./types.js";
 
 const textOf = (tag: string, className: string, text: string): HTMLElement => {
@@ -19,7 +20,7 @@ const iconButton = (label: string, svg: string, dataset: Record<string, string>)
 
 /** The deck's pieces on screen: colors, the slide being edited, the slide strip and the preview, and the deck they add up to. */
 export function installSlides(page: PptPage): void {
-  const { L, el, s } = page;
+  const { el, s } = page;
 
   page.currentSlide = () => (s.selected?.slides || []).find((slide) => slide.id === s.slideKey) || s.selected?.slides?.[0];
 
@@ -74,14 +75,14 @@ export function installSlides(page: PptPage): void {
       kicker.textContent = String(index + 1);
       kicker.style.color = record.color_primary;
       const heading = document.createElement("h2");
-      heading.textContent = slide.title || L("ppt.slide.untitled");
+      heading.textContent = slide.title || uiText.text("ppt.slide.untitled");
       const bullets = document.createElement("ul");
       (slide.bullets || []).forEach((text) => {
         const li = document.createElement("li");
         li.textContent = text;
         bullets.append(li);
       });
-      if (!bullets.childElementCount) card.append(kicker, heading, textOf("p", "ppt-card-empty", L("ppt.slide.no-bullets")));
+      if (!bullets.childElementCount) card.append(kicker, heading, textOf("p", "ppt-card-empty", uiText.text("ppt.slide.no-bullets")));
       else card.append(kicker, heading, bullets);
       const item = document.createElement("div");
       item.className = "ppt-preview-item";
@@ -100,12 +101,12 @@ export function installSlides(page: PptPage): void {
       const button = document.createElement("button");
       button.type = "button";
       button.dataset.slideSelect = "true";
-      button.append(textOf("span", "ppt-slide-index", String(index + 1)), textOf("span", "ppt-slide-title", slide.title || L("ppt.slide.untitled")));
+      button.append(textOf("span", "ppt-slide-index", String(index + 1)), textOf("span", "ppt-slide-title", slide.title || uiText.text("ppt.slide.untitled")));
       row.append(
         button,
-        iconButton(L("ppt.slide.up"), "icon-chevron-up", { slideMove: "-1" }),
-        iconButton(L("ppt.slide.down"), "icon-chevron-down", { slideMove: "1" }),
-        iconButton(L("ppt.slide.remove"), "icon-x", { slideRemove: "true" }),
+        iconButton(uiText.text("ppt.slide.up"), "icon-chevron-up", { slideMove: "-1" }),
+        iconButton(uiText.text("ppt.slide.down"), "icon-chevron-down", { slideMove: "1" }),
+        iconButton(uiText.text("ppt.slide.remove"), "icon-x", { slideRemove: "true" }),
       );
       el.slideList.append(row);
     });
@@ -118,7 +119,7 @@ export function installSlides(page: PptPage): void {
     const indexMark = button.querySelector(".ppt-slide-index");
     const label = button.querySelector(".ppt-slide-title");
     if (indexMark) indexMark.textContent = String(index + 1);
-    if (label) label.textContent = el.slideTitle.value.trim() || L("ppt.slide.untitled");
+    if (label) label.textContent = el.slideTitle.value.trim() || uiText.text("ppt.slide.untitled");
   };
 
   page.fillSlideFields = (slide) => {

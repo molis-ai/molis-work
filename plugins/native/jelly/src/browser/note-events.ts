@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { applyInline, collectBlocks, hasTaskLink, insertBlock, focusBlock, openBlockFormat, renderBlocks } from "./blocks.js";
 import { completeTaskBlock, importNoteFile } from "./note-actions.js";
 import { queueSave } from "./notes.js";
@@ -43,7 +44,7 @@ function mergeBackward(page: JellyPage, textEl: HTMLElement, id: string, event: 
   const index = page.draftBlocks.findIndex((entry) => entry.id === id);
   if (range.toString().length !== 0 || index <= 0) return;
   event.preventDefault();
-  if (hasTaskLink(page, id)) { showNote(page, page.L("jelly.block.unlink-first-delete"), true); return; }
+  if (hasTaskLink(page, id)) { showNote(page, uiText.text("jelly.block.unlink-first-delete"), true); return; }
   page.draftBlocks = collectBlocks(page);
   const prior = page.draftBlocks[index - 1];
   const current = page.draftBlocks[index];

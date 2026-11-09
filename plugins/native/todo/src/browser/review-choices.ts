@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { TodoBatch, TodoCandidate } from "../contract.js";
 import type { CandidateChoice, CandidateDecision, TodoPage } from "./types.js";
 
@@ -20,15 +21,14 @@ export const actionFor = (candidate: TodoCandidate): ApplyAction => (candidate.e
 
 /** What "apply" would do for the candidates the person kept, in words ("加入 2 项待办、合并 1 项"); empty when none is kept. */
 export function applyLabel(page: TodoPage, batch: TodoBatch): string {
-  const { L } = page;
   const counts: Record<ApplyAction, number> = { add: 0, merge: 0, update: 0, complete: 0, reopen: 0 };
   for (const candidate of batch.candidates) if (!candidate.decision && choiceFor(page, candidate).picked) counts[actionFor(candidate)] += 1;
   const parts: string[] = [];
-  if (counts.add) parts.push(L("todo.review.apply-add", { count: counts.add }));
-  if (counts.merge) parts.push(L("todo.review.apply-merge", { count: counts.merge }));
-  if (counts.update) parts.push(L("todo.review.apply-update", { count: counts.update }));
-  if (counts.complete) parts.push(L("todo.review.apply-complete", { count: counts.complete }));
-  if (counts.reopen) parts.push(L("todo.review.apply-reopen", { count: counts.reopen }));
+  if (counts.add) parts.push(uiText.text("todo.review.apply-add", { count: counts.add }));
+  if (counts.merge) parts.push(uiText.text("todo.review.apply-merge", { count: counts.merge }));
+  if (counts.update) parts.push(uiText.text("todo.review.apply-update", { count: counts.update }));
+  if (counts.complete) parts.push(uiText.text("todo.review.apply-complete", { count: counts.complete }));
+  if (counts.reopen) parts.push(uiText.text("todo.review.apply-reopen", { count: counts.reopen }));
   return parts.join("、");
 }
 

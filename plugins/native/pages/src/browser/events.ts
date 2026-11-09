@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { loadGoals, closeCreate, closeMore, closeMove } from "./menus.js";
 import { bindClick } from "./click.js";
 import { enqueueSave, draftOf, fillEditor, remember } from "./editor.js";
@@ -17,13 +18,12 @@ async function recheckOpen(page: PagesPage) {
   const payload = await page.api<DocumentAnswer>("GET", pageTail(id));
   const next = payload && payload.document;
   if (!next || !page.sel || page.sel.id !== id || next.version === version) return;
-  if (page.saveTimer || page.dirty) { showNote(page, page.L("pages.note.changed-elsewhere"), true); return; }
+  if (page.saveTimer || page.dirty) { showNote(page, uiText.text("pages.note.changed-elsewhere"), true); return; }
   remember(page, next, true);
   page.editRev += 1;
 }
 
 function bindWindow(page: PagesPage) {
-  const { L } = page;
   window.addEventListener?.("focus", () => { void recheckOpen(page).catch(() => {}); });
   document.addEventListener?.("visibilitychange", () => { void recheckOpen(page).catch(() => {}); });
   // The Assistant changed a Pages document: show the saved version, unless the person has edits of their own in flight.
@@ -36,7 +36,7 @@ function bindWindow(page: PagesPage) {
       if (!before || !page.sel || page.sel.id !== before.id) return;
       const next = page.records.find((item) => item.id === before.id);
       if (!next || next.version === before.version) return;
-      if (page.saveTimer || page.dirty) { showNote(page, L("pages.note.assistant-changed"), true); return; }
+      if (page.saveTimer || page.dirty) { showNote(page, uiText.text("pages.note.assistant-changed"), true); return; }
       fillEditor(page, next);
       page.dirty = false;
       page.editRev += 1;
@@ -45,9 +45,9 @@ function bindWindow(page: PagesPage) {
 }
 
 function bindFields(page: PagesPage) {
-  const { titleInput, titleEl, searchInput, goalSelect, L } = page;
+  const { titleInput, titleEl, searchInput, goalSelect } = page;
   titleInput.addEventListener("input", () => {
-    if (titleEl) titleEl.textContent = titleInput.value || L("pages.doc.name");
+    if (titleEl) titleEl.textContent = titleInput.value || uiText.text("pages.doc.name");
     queueSave(page);
   });
   titleInput.addEventListener("keydown", (event) => {
@@ -68,7 +68,7 @@ function bindFields(page: PagesPage) {
     void enqueueSave(page, draft, { goal_id: goalSelect.value })
       .catch((error) => {
         page.dirty = true;
-        noteFailure(page, error, L("pages.error.save"));
+        noteFailure(page, error, uiText.text("pages.error.save"));
       });
   });
 }
@@ -78,7 +78,7 @@ const clearDrop = (page: PagesPage) => {
 };
 
 function bindDrag(page: PagesPage) {
-  const { bench, L } = page;
+  const { bench } = page;
   const foldOf = (event: Event) => (event.target as HTMLElement).closest<HTMLElement>("[data-pages-drop=folder]");
   bench.addEventListener("dragstart", (event) => {
     if ((event.target as HTMLElement).closest(".pages-row-act, .pages-folder-actions, .creative-artifact-act")) {
@@ -114,7 +114,7 @@ function bindDrag(page: PagesPage) {
     stop(event);
     page.suppressFoldToggleUntil = Date.now() + 400;
     const id = event.dataTransfer.getData("text/plain");
-    void movePage(page, id, fold.dataset.folderId || "").catch((error) => noteFailure(page, error, L("pages.error.save")));
+    void movePage(page, id, fold.dataset.folderId || "").catch((error) => noteFailure(page, error, uiText.text("pages.error.save")));
   });
   bench.addEventListener("dragend", () => {
     clearDrop(page);
@@ -157,12 +157,11 @@ function bindMenus(page: PagesPage) {
 
 /** Wires every listener of the page and reads the list and the goals. */
 export function bindEvents(page: PagesPage) {
-  const { L } = page;
   bindWindow(page);
   bindFields(page);
   bindClick(page);
   bindDrag(page);
   bindMenus(page);
-  void loadList(page).catch((error) => { noteFailure(page, error, L("pages.error.request")); listFailed(page, error, () => loadList(page)); });
+  void loadList(page).catch((error) => { noteFailure(page, error, uiText.text("pages.error.request")); listFailed(page, error, () => loadList(page)); });
   void loadGoals(page);
 }

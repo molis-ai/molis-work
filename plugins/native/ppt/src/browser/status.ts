@@ -1,8 +1,9 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { Ppt, PptPage } from "./types.js";
 
 /** What the person sees of the open deck's state, and what the Assistant is told about it. */
 export function installStatus(page: PptPage): void {
-  const { L, el, s } = page;
+  const { el, s } = page;
 
   /** The deck on screen, for the placement bar and the Assistant: identity, version, unsaved edits. */
   page.publishContext = () => {
@@ -17,14 +18,14 @@ export function installStatus(page: PptPage): void {
   };
 
   const stateOf = () => s.saveError ? "failed" : s.saveRun ? "saving" : s.editRev > s.savedRev ? "unsaved" : s.busy ? "running" : "saved";
-  const wordOf = () => s.saveError ? L("ppt.save.failed") : s.saveRun ? L("ppt.save.saving") : s.editRev > s.savedRev ? L("ppt.save.unsaved") : s.busy ? L("ppt.save.busy") : L("ppt.save.saved");
+  const wordOf = () => s.saveError ? uiText.text("ppt.save.failed") : s.saveRun ? uiText.text("ppt.save.saving") : s.editRev > s.savedRev ? uiText.text("ppt.save.unsaved") : s.busy ? uiText.text("ppt.save.busy") : uiText.text("ppt.save.saved");
 
   page.paintStatus = (record: Ppt) => {
     el.statusEl.className = "mw-status mw-status--" + (s.saveError ? "blocked" : "quiet");
     el.statusEl.dataset.mwState = stateOf();
-    el.statusEl.textContent = L("ppt.slides.count", { count: (record.slides || []).length }) + " · " + wordOf();
+    el.statusEl.textContent = uiText.text("ppt.slides.count", { count: (record.slides || []).length }) + " · " + wordOf();
     el.pendingNote.hidden = !record.publication_pending;
-    el.pendingNote.textContent = record.publication_pending ? L("ppt.fixed.pending-note") : "";
+    el.pendingNote.textContent = record.publication_pending ? uiText.text("ppt.fixed.pending-note") : "";
     if (s.selected && s.selected.id === record.id) page.publishContext();
   };
 

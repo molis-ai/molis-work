@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { UiContribution, UiContributionDeclaration, UiRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import { icon, renderDatePicker, renderPluginStageShell } from "@molis-ai/molis-work-plugin-sdk/ui";
 
@@ -24,9 +25,8 @@ export const jellyUiContribution: UiContribution<JellyUiModel> = {
   },
 };
 
-export function renderJellyWorkbench(model: JellyUiModel): string {
-  const { primitives: p } = model;
-  const t = (s: string) => p.escape(p.text(s));
+export function renderJellyWorkbench(_model: JellyUiModel): string {
+  const t = uiText;
   const now = new Date();
   const dateField = (name: string, required = false) => renderDatePicker({
     name, placeholder: "YYYY-MM-DD", className: "jelly-date-picker",

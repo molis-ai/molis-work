@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { syncParameters } from "./connections.js";
 import { paintList, showCompose } from "./list.js";
@@ -43,7 +44,7 @@ export function rememberJob(page: ImagesPage, job: ImageJob): void {
 }
 
 export async function loadJobs(page: ImagesPage, signal = page.s.viewSignal): Promise<void> {
-  const { s, life, L } = page;
+  const { s, life } = page;
   if (!life.visible) return;
   ensureContext(page);
   const ctx = s.context;
@@ -60,8 +61,8 @@ export async function loadJobs(page: ImagesPage, signal = page.s.viewSignal): Pr
     page.say("", false, "[data-images-list-note]");
   } catch (error) {
     if (!life.alive || signal?.aborted || ctx !== page.projectId() || seq !== s.listSeq) return;
-    page.say(`${messageOf(error) || L("images.error.history")} ${L("images.history.retry")}`, true, "[data-images-list-note]");
-    if (s.jobId) page.say(`${L("images.error.progress")} ${L("images.history.retry")}`, true);
+    page.say(`${messageOf(error) || uiText.text("images.error.history")} ${uiText.text("images.history.retry")}`, true, "[data-images-list-note]");
+    if (s.jobId) page.say(`${uiText.text("images.error.progress")} ${uiText.text("images.history.retry")}`, true);
     throw error;
   } finally {
     if (!signal?.aborted && ctx === page.projectId() && seq === s.listSeq) schedulePoll(page);

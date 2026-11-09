@@ -1,0 +1,31 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.diff",
+  "locale": "zh",
+  "messages": {
+    "diff.board.files": "一轮的文件行 · 增删行数与长路径",
+    "diff.error.unreadable": "无法读取文件工作区",
+    "diff.fold.reveal": "展开 {count} 行未改变",
+    "diff.line.comment-after": "评论修改后第 {number} 行",
+    "diff.line.comment-before": "评论修改前第 {number} 行",
+    "diff.msg.no-change-in": "这一轮没有改动 {path}",
+    "diff.msg.renamed": "重命名：{from} → {to}",
+    "diff.notice.coarse": "差异太大，只能整体列出删除和新增",
+    "diff.notice.created": "这个文件是新建的",
+    "diff.notice.identical": "两侧完全相同",
+    "diff.notice.mismatch": "两侧来自不同的工作目录",
+    "diff.notice.partial": "这里只有改动的片段，不是整份文件",
+    "diff.notice.removed": "这个文件被删除了",
+    "diff.sides.after": "对比后：{path} · v{version}",
+    "diff.sides.before": "对比前：{path} · v{version}",
+    "diff.sides.pinned": "{workspace} · 固定内容",
+    "diff.sign.delete": "删除",
+    "diff.sign.insert": "新增",
+    "diff.sign.same": "未改变",
+    "diff.stage.add-files": "到插件市场添加 Files",
+    "diff.stage.open-files": "打开 Files",
+    "diff.stage.reading": "正在读取固定内容…",
+    "diff.stage.refresh": "刷新",
+    "diff.stage.retry": "。请点击刷新重试。"
+  }
+}

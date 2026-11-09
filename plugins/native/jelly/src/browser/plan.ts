@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { openGeneric } from "./dialog.js";
 import { extractMaterial } from "./material.js";
 import { openRecord } from "./notes.js";
@@ -52,35 +53,34 @@ function actionHtml(page: JellyPage, action: JellyPlanAction, index: number): st
     + `<label class="jelly-check"><input type="checkbox" class="mw-check" data-jelly-plan-schedule="${id}" ${ui.arrange ? "checked" : ""}>${tx("jelly.block.schedule")}</label>`
     + `<div class="jelly-form-grid" style="margin-top:8px"><label class="jelly-field">${tx("jelly.field.start-date")}<input class="mw-input" data-jelly-plan-date="${id}" value="${esc(ui.date)}" placeholder="YYYY-MM-DD"></label><label class="jelly-field">${tx("jelly.field.start-time")}<input class="mw-input" data-jelly-plan-time="${id}" value="${esc(ui.time)}" placeholder="HH:MM"></label></div>`
     + `<label class="jelly-field" style="margin-top:8px">${tx("jelly.plan.duration-minutes")}<input type="number" class="mw-input" min="15" max="720" step="15" data-jelly-plan-minutes="${id}" value="${ui.duration}"></label>`
-    + `<div class="jelly-choice-row" style="margin-top:6px">${DURATIONS.map((minutes) => btn(String(minutes), `data-jelly-plan-duration="${minutes}" data-plan-action="${id}"`)).join("")}</div>`
+    + `<div class="jelly-choice-row" style="margin-top:6px">${DURATIONS.map((minutes) => btn({ original: String(minutes) }, `data-jelly-plan-duration="${minutes}" data-plan-action="${id}"`)).join("")}</div>`
     + `<details class="jelly-plan-locks"><summary>${tx("jelly.plan.keep-fields")}</summary><div class="jelly-choice-row">${locks}</div></details></div></div>`;
 }
 
 /** The checked candidates become the plan's actions, each with a validated schedule; the first problem stops the whole apply. */
 function selectedActions(page: JellyPage, plan: JellyPlan): string[] {
-  const { L } = page;
   const ids: string[] = [];
   for (const action of plan.actions) {
     const ui = planState(page, action);
     if (!ui.create) continue;
     ids.push(action.id);
     action.title = action.title.trim();
-    if (!action.title) throw new Error(L("jelly.plan.error-title"));
+    if (!action.title) throw new Error(uiText.text("jelly.plan.error-title"));
     if (!ui.arrange) { action.schedule = null; continue; }
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(ui.date)) throw new Error(L("jelly.plan.error-date"));
-    if (ui.time && !/^([01]\d|2[0-3]):[0-5]\d$/.test(ui.time)) throw new Error(L("jelly.plan.error-time"));
-    if (!Number.isFinite(ui.duration) || ui.duration < 15 || ui.duration > 720) throw new Error(L("jelly.plan.error-duration"));
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(ui.date)) throw new Error(uiText.text("jelly.plan.error-date"));
+    if (ui.time && !/^([01]\d|2[0-3]):[0-5]\d$/.test(ui.time)) throw new Error(uiText.text("jelly.plan.error-time"));
+    if (!Number.isFinite(ui.duration) || ui.duration < 15 || ui.duration > 720) throw new Error(uiText.text("jelly.plan.error-duration"));
     const start = parseClock(ui.time);
     const total = start === null ? 0 : start + ui.duration;
     action.schedule = { start_date: ui.date, end_date: start === null ? ui.date : addDays(ui.date, Math.floor(total / 1440)), start_time: start, end_time: start === null ? null : total % 1440 };
     if ((DURATIONS as readonly number[]).includes(ui.duration)) action.duration_minutes = ui.duration as JellyPlanAction["duration_minutes"];
   }
-  if (!ids.length) throw new Error(L("jelly.plan.error-none"));
+  if (!ids.length) throw new Error(uiText.text("jelly.plan.error-none"));
   return ids;
 }
 
 export function openPlan(page: JellyPage, plan: JellyPlan, source: PlanSource, preserve = false): void {
-  const { btn, tx, L } = page;
+  const { btn, tx } = page;
   if (!preserve) page.planUi = new Map();
   page.currentPlan = plan;
   page.currentPlanSource = source;
@@ -95,7 +95,7 @@ export function openPlan(page: JellyPage, plan: JellyPlan, source: PlanSource, p
     await command(page, { type: "plan.apply", plan, note_id: source.kind === "note" ? source.id : undefined, selected_action_ids: ids });
     if (page.selected?.kind === "note" && page.selected.id === source.id) openRecord(page, "note", source.id);
     page.currentPlan = null;
-    showNote(page, L("jelly.plan.applied"));
+    showNote(page, uiText.text("jelly.plan.applied"));
   });
 }
 

@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderResumePrompt } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { UiReturnOutcome } from "@molis-ai/molis-work-plugin-sdk";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
@@ -35,7 +36,7 @@ function offer(page: CogniaPage, ask: () => void): void {
   const holder = document.createElement("div");
   holder.dataset.cogniaResume = "";
   holder.className = "cognia-resume";
-  holder.innerHTML = renderResumePrompt({ title: page.L("cognia.resume.model-ready"), resume: page.L("cognia.resume.ask"), dismiss: page.L("cognia.resume.dismiss") });
+  holder.innerHTML = renderResumePrompt({ title: uiText.text("cognia.resume.model-ready"), resume: uiText.text("cognia.resume.ask"), dismiss: uiText.text("cognia.resume.dismiss") });
   q(page, "[data-cognia-model]").before(holder);
   holder.addEventListener("click", event => {
     const choice = (event.target as Element | null)?.closest<HTMLElement>("[data-resume-prompt]")?.dataset.resumePrompt;

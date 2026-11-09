@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { applyInline, changeBlockKind, collectBlocks, focusBlock, hasTaskLink, insertBlock, newBlock, renderBlocks } from "./blocks.js";
 import { openGeneric } from "./dialog.js";
 import { openItem } from "./item.js";
@@ -26,7 +27,7 @@ function recoverDraft(page: JellyPage): void {
 }
 
 function deleteBlock(page: JellyPage, id: string): void {
-  if (hasTaskLink(page, id)) { showNote(page, page.L("jelly.block.unlink-first-delete"), true); return; }
+  if (hasTaskLink(page, id)) { showNote(page, uiText.text("jelly.block.unlink-first-delete"), true); return; }
   page.draftBlocks = collectBlocks(page);
   const index = page.draftBlocks.findIndex((entry) => entry.id === id);
   if (index < 0) return;

@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { findOccurrence } from "./calendar.js";
 import { handleDatePickerClick } from "./datepicker.js";
 import { openGeneric } from "./dialog.js";
@@ -17,7 +18,7 @@ const itemDialog = (page: JellyPage): HTMLDialogElement => page.$<HTMLDialogElem
 const owner = (page: JellyPage): string => page.editingItem?.series_id || page.editingItem?.id || "";
 
 function moveSelected(page: JellyPage): void {
-  if (!page.calendarSelected.size) { showNote(page, page.L("jelly.move.pick-first")); return; }
+  if (!page.calendarSelected.size) { showNote(page, uiText.text("jelly.move.pick-first")); return; }
   openGeneric(page, "jelly.move.title", `<label class="jelly-field">${page.tx("jelly.move.to-date")}<input class="mw-input" data-jelly-bulk-date value="${civil()}" placeholder="YYYY-MM-DD"></label>`, "jelly.action.move", async () => {
     await command(page, { type: "item.move_many", ids: [...page.calendarSelected], date: page.$<HTMLInputElement>("[data-jelly-bulk-date]").value });
     page.calendarSelected.clear();
@@ -27,7 +28,7 @@ function moveSelected(page: JellyPage): void {
 
 function reviewMove(page: JellyPage, target: HTMLElement): void {
   void run(page, async () => {
-    if (!page.calendarSelected.size) { showNote(page, page.L("jelly.move.pick-first")); return; }
+    if (!page.calendarSelected.size) { showNote(page, uiText.text("jelly.move.pick-first")); return; }
     let date: string;
     if (data(target, "data-jelly-review-move") === "week") date = addDays(civil(), 7 - mondayIndex(new Date()));
     else {
@@ -39,7 +40,7 @@ function reviewMove(page: JellyPage, target: HTMLElement): void {
     await command(page, { type: "item.move_many", ids: [...page.calendarSelected], date });
     page.calendarSelected.clear();
     await renderView(page);
-    showNote(page, page.L("jelly.move.done"));
+    showNote(page, uiText.text("jelly.move.done"));
   });
 }
 
@@ -65,7 +66,7 @@ function copyItem(page: JellyPage): void {
     const { id: _id, created_at: _created, updated_at: _updated, series_id: _series, original_date: _original, ...fields } = editing;
     await command(page, { type: "item.create", item: { ...fields, completed_at: null, completion_description: "" } });
     itemDialog(page).close();
-    showNote(page, page.L("jelly.item.copied"));
+    showNote(page, uiText.text("jelly.item.copied"));
   });
 }
 
@@ -84,7 +85,7 @@ function migrateNotes(page: JellyPage): void {
   const notes = page.ws().notes.filter((note) => !note.archived_at);
   const { btn, tx } = page;
   openGeneric(page, "jelly.migrate.title", `<p class="jelly-muted">${tx("jelly.migrate.help")}</p><pre class="jelly-import-preview">${esc(page.editingItem?.notes)}</pre>`
-    + btn("jelly.migrate.new-primary", "data-jelly-migrate-new", "plus") + notes.map((note) => btn(note.title || "jelly.note.untitled", `data-jelly-migrate-append="${esc(note.id)}"`, "note")).join(""), "", null);
+    + btn("jelly.migrate.new-primary", "data-jelly-migrate-new", "plus") + notes.map((note) => btn(note.title ? { original: note.title } : "jelly.note.untitled", `data-jelly-migrate-append="${esc(note.id)}"`, "note")).join(""), "", null);
 }
 
 function migrateChosen(page: JellyPage, target: HTMLElement): void {
@@ -97,7 +98,7 @@ function migrateChosen(page: JellyPage, target: HTMLElement): void {
     itemField(page, "notes").value = "";
     page.$<HTMLDialogElement>("[data-jelly-dialog]").close();
     renderItemRelations(page);
-    showNote(page, page.L("jelly.migrate.done"));
+    showNote(page, uiText.text("jelly.migrate.done"));
   });
 }
 
@@ -105,7 +106,7 @@ function attachNote(page: JellyPage): void {
   const notes = page.ws().notes.filter((note) => !note.archived_at);
   const { btn, tx } = page;
   page.relationRole = "reference";
-  const choices = notes.length ? notes.map((note) => btn(note.title || "jelly.note.untitled", `data-jelly-choose-note="${esc(note.id)}"`, "note")).join("") : `<p class="jelly-muted">${tx("jelly.relation.create-note-first")}</p>`;
+  const choices = notes.length ? notes.map((note) => btn(note.title ? { original: note.title } : "jelly.note.untitled", `data-jelly-choose-note="${esc(note.id)}"`, "note")).join("") : `<p class="jelly-muted">${tx("jelly.relation.create-note-first")}</p>`;
   openGeneric(page, "jelly.relation.link-note", `<div class="jelly-choice-row">${btn("jelly.relation.reference-note", 'data-jelly-relation-role="reference" aria-pressed="true"')}${btn("jelly.relation.primary-note", 'data-jelly-relation-role="primary" aria-pressed="false"')}</div>`
     + `<p class="jelly-muted">${tx("jelly.relation.primary-help")}</p>${choices}`, " ", null);
 }

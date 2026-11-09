@@ -28,7 +28,7 @@ export function createPage(host: LingguangHost, life: Scope, workbench: HTMLElem
   const L = host.translate;
   const el = elementsOf(workbench);
   const page = {
-    host, L, life, el, s: freshState(), request: lingguangRequest(host, life, L), api: "/sparks",
+    host, L, life, el, s: freshState(), request: lingguangRequest(host, life), api: "/sparks",
     showNote(text: string, isError?: boolean) {
       el.note.hidden = !text;
       el.note.textContent = text || "";

@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { sayHostSentence, sayUpstream } from "../say.js";
 import type { GitSentenceTable } from "../say.js";
@@ -90,7 +91,7 @@ export function createPage(host: GitHost, sentences: GitSentenceTable): GitPage 
     viewSignal: undefined, initialRead: true, opener: null, workspace: "", folder: "", generation: 0, ticket: 0, selected: null, displayed: null, preparing: false,
     resultRows: [], resultsTicket: 0, resultSaving: false,
     summary: null, draft: "", scWorkspace: "", busy: false, lastPrepared: null,
-    conflictTicket: 0, conflictPath: "", conflictSides: { ours: L("git.conflict.ours"), theirs: L("git.conflict.theirs") },
+    conflictTicket: 0, conflictPath: "", conflictSides: { ours: uiText.text("git.conflict.ours"), theirs: uiText.text("git.conflict.theirs") },
   };
 }
 
@@ -144,7 +145,7 @@ export function sayRefusal(page: GitPage, target: HTMLElement, error: unknown, w
   const workspaces = page.host.workspaces;
   if ((error as { code?: unknown } | null)?.code !== "projects.directory_input_only" || !workspaces || !workspaceId) return;
   const button = document.createElement("button");
-  button.type = "button"; button.className = "mw-btn mw-btn--secondary mw-btn--sm git-set-output"; button.textContent = page.L("git.output.set");
+  button.type = "button"; button.className = "mw-btn mw-btn--secondary mw-btn--sm git-set-output"; button.textContent = uiText.text("git.output.set");
   page.lifetime.listen(button, "click", () => {
     button.disabled = true;
     void workspaces.setOutput(workspaceId).then(() => { if (page.lifetime.alive) again(); },

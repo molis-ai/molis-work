@@ -1,11 +1,12 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { UiContribution, UiContributionDeclaration } from "@molis-ai/molis-work-contracts/platform/ui";
 import { icon, renderPluginStageShell } from "@molis-ai/molis-work-plugin-sdk/ui";
 export const COGNIA_UI_CONTRIBUTION_ID = "io.molis.work.cognia.ui.v1";
 export interface CogniaUiModel { primitives: { escape(value: unknown): string; text(value: string): string } }
 export const cogniaUiDescriptor: UiContributionDeclaration = { contribution_id: COGNIA_UI_CONTRIBUTION_ID, kind: "primary-page", navigation_id: "cognia", label: "Cognia", surfaces: [{ surface_id: "directory", target_slot_id: "workbench.directory", format: "declarative-html" }, { surface_id: "workbench", target_slot_id: "workbench.main", format: "declarative-html" }], slots: [] };
 export const cogniaUiContribution: UiContribution<CogniaUiModel> = { descriptor: cogniaUiDescriptor, render(request) { return request.surface === "directory" ? "" : renderCogniaWorkbench(request.model); } };
-export function renderCogniaWorkbench({ primitives: p }: CogniaUiModel): string {
-  const t = (value: string) => p.escape(p.text(value));
+export function renderCogniaWorkbench(_model: CogniaUiModel): string {
+  const t = uiText;
   const button = (label: string, action: string, primary = false) => `<button type="button" class="mw-btn mw-btn--${primary ? "primary" : "ghost"}" data-cognia-action="${action}">${t(label)}</button>`;
   const tool = (label: string, action: string, glyph: Parameters<typeof icon>[0], create = false) => `<button type="button" class="mw-btn mw-btn--ghost${create ? " tree-create" : ""}" data-cognia-action="${action}">${icon(glyph)}<span>${t(label)}</span></button>`;
   return renderPluginStageShell({ surface: "cognia", label: "Cognia", dataset: "cognia", body: `

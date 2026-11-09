@@ -1,0 +1,31 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.diff",
+  "locale": "en",
+  "messages": {
+    "diff.board.files": "A turn’s file rows · lines added and removed, long paths",
+    "diff.error.unreadable": "Couldn’t read the file workspace",
+    "diff.fold.reveal": "Show {count} unchanged lines",
+    "diff.line.comment-after": "Comment on line {number} after the change",
+    "diff.line.comment-before": "Comment on line {number} before the change",
+    "diff.msg.no-change-in": "This turn didn’t change {path}",
+    "diff.msg.renamed": "Renamed: {from} → {to}",
+    "diff.notice.coarse": "Too different to line up: listed as removed and added in full",
+    "diff.notice.created": "This file is new",
+    "diff.notice.identical": "Both sides are the same",
+    "diff.notice.mismatch": "The two sides come from different working folders",
+    "diff.notice.partial": "Only the changed parts are here, not the whole file",
+    "diff.notice.removed": "This file was deleted",
+    "diff.sides.after": "After: {path} · v{version}",
+    "diff.sides.before": "Before: {path} · v{version}",
+    "diff.sides.pinned": "{workspace} · pinned",
+    "diff.sign.delete": "Removed",
+    "diff.sign.insert": "Added",
+    "diff.sign.same": "Unchanged",
+    "diff.stage.add-files": "Add Files from the plugin market",
+    "diff.stage.open-files": "Open Files",
+    "diff.stage.reading": "Reading the pinned versions…",
+    "diff.stage.refresh": "Refresh",
+    "diff.stage.retry": ". Select Refresh to try again."
+  }
+}

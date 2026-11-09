@@ -42,7 +42,7 @@ const notInstalled = (name: string) => () => { throw new Error(`PPT page: ${name
 export function createPage(host: PptHost, bench: HTMLElement): PptPage {
   const L = host.translate, el = elementsOf(bench), s = initialState();
   const page: PptPage = {
-    host, L, el, s, request: pptRequest(host, L), api: "/ppt",
+    host, L, el, s, request: pptRequest(host), api: "/ppt",
     showNote(text, isError) {
       const { note } = el;
       if (!note) return;

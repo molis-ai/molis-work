@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { blankLeaving, dropBlank, leaveOnFold } from "./blank.js";
 import { publishContext, syncEditorChrome } from "./context.js";
 import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
@@ -43,7 +44,7 @@ export async function save(page: PagesPage): Promise<PagesRecord | null> {
     return saved;
   } catch (error) {
     page.dirty = true;
-    page.statusEl.textContent = page.L("pages.error.save"); page.statusEl.dataset.mwState = "failed";
+    page.statusEl.textContent = uiText.text("pages.error.save"); page.statusEl.dataset.mwState = "failed";
     throw error;
   }
 }
@@ -51,12 +52,12 @@ export async function save(page: PagesPage): Promise<PagesRecord | null> {
 /** A change was made: say so, and save it after a short quiet. */
 export function queueSave(page: PagesPage) {
   if (page.unshowable) return;
-  page.statusEl.textContent = page.L("pages.status.saving"); page.statusEl.dataset.mwState = "saving";
+  page.statusEl.textContent = uiText.text("pages.status.saving"); page.statusEl.dataset.mwState = "saving";
   page.editRev += 1;
   page.dirty = true;
   publishContext(page);
   clearTimeout(page.saveTimer);
-  page.saveTimer = setTimeout(() => { void save(page).catch((error) => noteFailure(page, error, page.L("pages.error.save"))); }, 400);
+  page.saveTimer = setTimeout(() => { void save(page).catch((error) => noteFailure(page, error, uiText.text("pages.error.save"))); }, 400);
 }
 
 export async function persist(page: PagesPage) {
@@ -88,7 +89,7 @@ export async function openDocument(page: PagesPage, record: PagesRecord | null |
 /** Tell the workbench what just happened, so it can say where the result is and what comes next. */
 export const placed = (detail: PlacedDetail) => { window.dispatchEvent(new CustomEvent("molis:placement-result", { detail })); };
 
-const safeName = (page: PagesPage, value: string | undefined) => [...String(value || page.L("pages.doc.untitled")).replace(/[\\/:*?"<>|]/g, "_")].slice(0, 80).join("");
+const safeName = (_page: PagesPage, value: string | undefined) => [...String(value || uiText.text("pages.doc.untitled")).replace(/[\\/:*?"<>|]/g, "_")].slice(0, 80).join("");
 
 const htmlDocument = (page: PagesPage, body: unknown) => {
   const title = escapeHtml(page.sel!.title);
@@ -98,19 +99,19 @@ const htmlDocument = (page: PagesPage, body: unknown) => {
 };
 
 export const assertReadable = (page: PagesPage, record: PagesRecord | null = page.sel) => {
-  if (record?.body && !page.Editor.canShow(record.body)) throw new Error(page.L("pages.note.unsupported-op"));
+  if (record?.body && !page.Editor.canShow(record.body)) throw new Error(uiText.text("pages.note.unsupported-op"));
 };
 
 export function exportDocument(page: PagesPage, format: string) {
-  const { sel, editor, Editor, L } = page;
+  const { sel, editor, Editor } = page;
   assertReadable(page); if (!sel) return;
   const body = editor ? Editor.getDoc(editor) : sel.body;
   const markdown = format === "md";
-  const content = markdown ? "# " + (sel.title || L("pages.doc.untitled")) + "\n\n" + Editor.toMarkdown(body) : htmlDocument(page, body);
+  const content = markdown ? "# " + (sel.title || uiText.text("pages.doc.untitled")) + "\n\n" + Editor.toMarkdown(body) : htmlDocument(page, body);
   const blob = new Blob([content], { type: markdown ? "text/markdown;charset=utf-8" : "text/html;charset=utf-8" });
   const name = safeName(page, sel.title) + (markdown ? ".md" : ".html");
   void page.host.download(blob, name).catch((error: unknown) => showNote(page, said(error, ""), true));
-  placed({ verb: "exported", title: sel.title, file: { name, format: markdown ? "Markdown" : L("pages.export.web") } });
+  placed({ verb: "exported", title: sel.title, file: { name, format: markdown ? "Markdown" : uiText.text("pages.export.web") } });
 }
 
 export function printDocument(page: PagesPage) {
@@ -122,14 +123,13 @@ export function printDocument(page: PagesPage) {
 
 /** Makes a document (blank, from a template, in a folder, from a text) and opens it with its title selected. */
 export async function createPage(page: PagesPage, body?: Record<string, unknown>) {
-  const { L } = page;
   const epoch = page.editorEpoch;
   if (page.sel && (page.saveTimer || page.dirty)) await persist(page);
   if (page.editorEpoch !== epoch) return;
   const left = blankLeaving(page);
   const payload = await page.api<DocumentAnswer>("POST", "", body || {});
   if (!body || !(body.template_id || body.body || body.title)) page.fresh.set(payload.document.id, { title: payload.document.title, version: payload.document.version });
-  storeDocument(page, payload.document); placed({ verb: "created", title: payload.document.title || L("pages.doc.untitled"), object: { kind: "pages_document", id: payload.document.id } });
+  storeDocument(page, payload.document); placed({ verb: "created", title: payload.document.title || uiText.text("pages.doc.untitled"), object: { kind: "pages_document", id: payload.document.id } });
   await loadList(page);
   void dropBlank(page, left);
   if (page.editorEpoch === epoch) { await openDocument(page, payload.document); page.titleInput.focus(); page.titleInput.select(); }
@@ -153,7 +153,6 @@ export async function movePage(page: PagesPage, id: string, folderId: string) {
 
 /** Saves the document as a fixed version (an artifact); a half-finished earlier save is picked up where it stopped. */
 export async function publishPage(page: PagesPage, id: string) {
-  const { L } = page;
   if (page.publishing.has(id)) return;
   page.publishing.add(id);
   let draft = null;
@@ -167,9 +166,9 @@ export async function publishPage(page: PagesPage, id: string) {
       goal_id: current.publication_pending?.goal_id ?? current.goal_id ?? "", expected_version: current.version,
     });
     if (draft) adoptSaved(page, draft, payload.document); else storeDocument(page, payload.document);
-    if (payload.recovered) showNote(page, L("pages.version.recovered"), false);
+    if (payload.recovered) showNote(page, uiText.text("pages.version.recovered"), false);
     placed({ verb: "versioned", title: payload.document.title, object: { kind: "pages_document", id: payload.document.id }, artifact: payload.artifact,
-      note: L("pages.version.saved-note", { version: payload.document.artifact_version }) });
+      note: uiText.text("pages.version.saved-note", { version: payload.document.artifact_version }) });
   } catch (error) {
     // A failed response may follow a committed version: refresh recovery state, keep local edits.
     try {
@@ -209,8 +208,8 @@ export function bindDocument(page: PagesPage) {
       if (seq !== page.selectionSeq) return;
       const status = statusOf(error);
       if (status === 404 || status === 403) bench.dispatchEvent(new CustomEvent("molis-work:item-unreadable", { bubbles: true, detail: { itemId: id } }));
-      if (!page.sel && (!detail?.quiet || status === 403)) { bench.setAttribute("data-expanded", "true"); page.workspace.hidden = false; page.workspace.dataset.missing = ""; page.titleEl.textContent = L("pages.doc.name"); }
-      showNote(page, said(error, L("pages.error.save")), true);
+      if (!page.sel && (!detail?.quiet || status === 403)) { bench.setAttribute("data-expanded", "true"); page.workspace.hidden = false; page.workspace.dataset.missing = ""; page.titleEl.textContent = uiText.text("pages.doc.name"); }
+      showNote(page, said(error, uiText.text("pages.error.save")), true);
     }).finally(() => { if (seq === page.selectionSeq) page.openingId = null; });
   });
   window.addEventListener?.("molis:placement-flush", (event) => {
@@ -223,6 +222,6 @@ export function bindDocument(page: PagesPage) {
     void (async () => {
       if (detail.mode === "move" && detail.from && page.sel && page.sel.id === detail.from.id) closeEditor(page);
       await loadList(page);
-    })().catch((error: unknown) => noteFailure(page, error, L("pages.error.request")));
+    })().catch((error: unknown) => noteFailure(page, error, uiText.text("pages.error.request")));
   });
 }

@@ -7,8 +7,6 @@ import { IMAGES_DATABASE } from "./database.js";
 import { IMAGES_IMAGE_GENERATION } from "./image-generation.js";
 import { imagesSync } from './replication.js';
 
-import { IMAGES_MESSAGES } from "./messages.js";
-import { IMAGES_EN } from "./en.js";
 export const IMAGES_UI_CONTRIBUTION_ID = "io.molis.work.native.images.ui.v1";
 const routes: PluginRouteDeclaration[] = [
   {route_id:"images.connections.list",method:"GET",path:"/connections",permission:"images:connections:read"},
@@ -49,9 +47,7 @@ export const imagesManifest: PluginManifest = {
   ],
   capabilities: { provides: [], consumes: [SHELF_ADMIT_ID] },
   artifacts: { produces: [], consumes: [] },
-  ui: {
-    messages: IMAGES_MESSAGES,
-    translations: IMAGES_EN,
+  ui: { locales: { default: "zh", available: ["zh", "en"] },
     contributions: [IMAGES_UI_CONTRIBUTION_ID],
     views: [{ view_id: "directory", slot: "navigator", title: "图片", title_en: "Images", contribution_id: IMAGES_UI_CONTRIBUTION_ID, icon: "image", hue: "pink", order: 60, group: "make" }],
   },

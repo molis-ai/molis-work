@@ -1,9 +1,10 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import type { LingguangPage, Spark } from "./types.js";
 
 /** Loading the list: the read, the failure card with its retry, and the spark a link asked for. */
 export function installLoad(page: LingguangPage): void {
-  const { L, el, s, request, api } = page;
+  const { el, s, request, api } = page;
   // A list that cannot be read says so where the list is, with a way to try again (the note lives in the editor).
   page.listFailed = (error) => {
     el.empty.hidden = true;
@@ -13,12 +14,12 @@ export function installLoad(page: LingguangPage): void {
     box.innerHTML = '<span class="mw-empty__mark"><svg aria-hidden="true"><use href="#icon-circle-alert"></use></svg></span><strong></strong><p></p><button class="mw-btn mw-btn--secondary" type="button"></button>';
     const heading = box.querySelector("strong"), text = box.querySelector("p"), retry = box.querySelector("button");
     if (!heading || !text || !retry) return;
-    heading.textContent = L("lingguang.list.failed-title");
-    text.textContent = messageOf(error) || L("lingguang.list.failed-hint");
-    retry.textContent = L("lingguang.list.retry");
+    heading.textContent = uiText.text("lingguang.list.failed-title");
+    text.textContent = messageOf(error) || uiText.text("lingguang.list.failed-hint");
+    retry.textContent = uiText.text("lingguang.list.retry");
     retry.addEventListener("click", () => {
       retry.disabled = true;
-      void page.loadList().then(() => box.remove(), (next: unknown) => { retry.disabled = false; text.textContent = messageOf(next) || L("lingguang.list.failed-hint"); });
+      void page.loadList().then(() => box.remove(), (next: unknown) => { retry.disabled = false; text.textContent = messageOf(next) || uiText.text("lingguang.list.failed-hint"); });
     });
     el.rowsEl.replaceChildren(box);
   };
@@ -58,7 +59,7 @@ export function installLoad(page: LingguangPage): void {
       s.wantedId = null;
       s.wantedByLink = false;
       el.workbench.dispatchEvent(new CustomEvent("molis-work:item-unreadable", { bubbles: true, detail: { itemId: wanted } }));
-      if (!quiet) page.showNote(L("lingguang.error.gone"), true);
+      if (!quiet) page.showNote(uiText.text("lingguang.error.gone"), true);
     }
   };
 }

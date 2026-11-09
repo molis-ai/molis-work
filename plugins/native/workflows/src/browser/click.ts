@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { handLink } from "./chain.js";
 import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
@@ -17,7 +18,7 @@ import type { Chain, InstanceAnswer, SaveAnswer } from "./types.js";
 
 /** Everything the person presses on the page, by the `data-wf-*` attribute the server drew on it. */
 export function wireClicks(page: WorkflowsPage) {
-  const { root, pop, ui, view, dlg, L } = page;
+  const { root, pop, ui, view, dlg } = page;
   root.addEventListener("click", async (event) => {
     const tgt = targetOf(event)?.closest<HTMLElement>("[data-wf-action], [data-wf-open], [data-wf-open-instance], [data-wf-step]");
     if (!tgt || !root.contains(tgt) || pop.contains(tgt)) return;
@@ -30,9 +31,9 @@ export function wireClicks(page: WorkflowsPage) {
         const example = act === "example";
         const chain: Chain = example
           ? { stations: [{ station_id: uid(), plugin: "feed" }, { station_id: uid(), plugin: "inbox" }, { station_id: uid(), plugin: "pages" }],
-              links: [handLink(), { kind: "ai", title_template: "", body_template: "", instructions: L("workflows.example.instructions") }] }
+              links: [handLink(), { kind: "ai", title_template: "", body_template: "", instructions: uiText.text("workflows.example.instructions") }] }
           : { stations: [], links: [] };
-        const created = await page.api<SaveAnswer>("", { title: example ? L("workflows.example.title") : L("workflows.flow.new-title"), chain });
+        const created = await page.api<SaveAnswer>("", { title: example ? uiText.text("workflows.example.title") : uiText.text("workflows.flow.new-title"), chain });
         await loadList(page);
         await showFlow(page, created.workflow.workflow_id);
         if (!example) view.querySelector<HTMLInputElement>("[data-wf-title]")?.select();
@@ -43,7 +44,7 @@ export function wireClicks(page: WorkflowsPage) {
       if (act === "return-to-run") { const back = ui.returnTo; if (back) await openRun(page, back.instance, back.step); return; }
       if (act === "retry-save") { retrySave(page); return; }
       if (act === "delete") {
-        showForm(page, L("workflows.editor.delete"), `<p>${esc(L("workflows.dialog.delete-body", { title: ui.workflow!.title }))}</p>`, L("workflows.dialog.delete"), async () => {
+        showForm(page, uiText.text("workflows.editor.delete"), `<p>${esc(uiText.text("workflows.dialog.delete-body", { title: ui.workflow!.title }))}</p>`, uiText.text("workflows.dialog.delete"), async () => {
           await page.api("/" + ui.workflow!.workflow_id + "/delete", {}); dlg.close(); ui.workflow = null; ui.returnTo = null; remember(page); setMode(page, "list"); await loadList(page);
         }, { tone: "danger" });
         return;
@@ -51,7 +52,7 @@ export function wireClicks(page: WorkflowsPage) {
       if (act === "gap") { openGapPicker(page, Number(tgt.dataset.gap)); return; }
       if (act === "append") { insertAt(page, ui.workflow!.stations.length, tgt.dataset.wfPlugin!); return; }
       if (act === "add-step") {
-        if (!ui.workflow!.stations.length) { toast(page, L("workflows.step.start-with-picker"), "error"); return; }
+        if (!ui.workflow!.stations.length) { toast(page, uiText.text("workflows.step.start-with-picker"), "error"); return; }
         await openStep(page, null, () => view.querySelector("[data-wf-action=add-step]")); return;
       }
       if (act === "edit-step") { const index = Number(tgt.dataset.index); await openStep(page, index, () => view.querySelector(`[data-wf-chain] [data-wf-action=edit-step][data-index="${index}"]`)); return; }
@@ -75,7 +76,7 @@ export function wireClicks(page: WorkflowsPage) {
       if (act === "dialog-close") { if (!dlg.querySelector("[data-loading]")) dlg.close(); return; }
       if (act === "stop") {
         const run = ui.instance!;
-        showForm(page, L("workflows.dialog.end-title"), `<p>${esc(L("workflows.dialog.end-body"))}</p>`, L("workflows.run.end"), async () => {
+        showForm(page, uiText.text("workflows.dialog.end-title"), `<p>${esc(uiText.text("workflows.dialog.end-body"))}</p>`, uiText.text("workflows.run.end"), async () => {
           const answer = await page.api<InstanceAnswer>("/instances/" + run.instance_id + "/stop", {});
           dlg.close(); ui.instance = answer.instance; ui.handoff = null; drawRun(page); refreshFlow(page);
         });

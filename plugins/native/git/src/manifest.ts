@@ -18,8 +18,6 @@ import {
 } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { GIT_UI_CONTRIBUTION_ID } from "./ui.js";
 
-import { GIT_MESSAGES } from "./messages.js";
-import { GIT_EN } from "./en.js";
 export const GIT_PLUGIN_ID = "io.molis.work.git";
 /** Named, not imported: subscribing to a Plugin is not depending on its code. */
 const CODING_PLUGIN_ID = "io.molis.work.coding";
@@ -128,9 +126,7 @@ export const gitManifest: PluginManifest = {
     { route_id: "git.operations", method: "GET", path: "/operations" },
     { route_id: "git.prepare-operation", method: "POST", path: "/operations" },
   ],
-  ui: {
-    messages: GIT_MESSAGES,
-    translations: GIT_EN,
+  ui: { locales: { default: "zh", available: ["zh", "en"] },
     embedded_plugins: ["io.molis.work.diff"],
     contributions: [GIT_UI_CONTRIBUTION_ID],
     views: [

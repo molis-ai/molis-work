@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderCalendar } from "./calendar.js";
 import { flushEditor, renderRecords } from "./notes.js";
 import { renderProgress } from "./progress.js";
@@ -6,7 +7,7 @@ import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { JellyPage, View } from "./types.js";
 
 export function renderFilters(page: JellyPage): void {
-  const { $, $$, L, btn, state } = page;
+  const { $, $$ , btn, state } = page;
   if (!state) return;
   const filters = btn("jelly.filter.all", `data-jelly-filter="" aria-pressed="${!page.filterCategory}"`)
     + state.categories.map((entry) => `<button type="button" class="mw-btn mw-btn--ghost" data-jelly-filter="${esc(entry.id)}" aria-pressed="${entry.id === page.filterCategory}">${page.categoryDot(entry.id)}${page.catName(entry)}</button>`).join("");
@@ -20,7 +21,7 @@ export function renderFilters(page: JellyPage): void {
   $("[data-jelly-hide-completed]").setAttribute("aria-pressed", String(page.hideCompleted));
   const create = $("[data-jelly-new]");
   create.hidden = page.view === "progress";
-  const label = L(page.view === "notes" ? "jelly.note.new" : "jelly.item.new");
+  const label = uiText.text(page.view === "notes" ? "jelly.note.new" : "jelly.item.new");
   const span = create.querySelector("span");
   if (span) span.textContent = label;
   create.setAttribute("aria-label", label);

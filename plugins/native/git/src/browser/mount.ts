@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { gitClient } from "./client.js";
 import { gitRequests } from "./request.js";
 import type { GitSentenceTable } from "../say.js";
@@ -21,7 +22,7 @@ function onOwnPage(host: GitFactoryHost, sentences: GitSentenceTable, root: HTML
   const browser: GitBrowser | null = gitClient({ ...ports(host, false, () => { root.dataset.companionDetail = "true"; }, () => { root.dataset.companionDetail = "false"; }, () => browser), root }, sentences);
   const panel = root.querySelector<HTMLElement>("[data-git-browser]"), back = root.querySelector("[data-git-close]");
   if (panel) panel.hidden = false;
-  if (back) back.textContent = host.translate("git.list.back");
+  if (back) back.textContent = uiText.text("git.list.back");
   return browser;
 }
 

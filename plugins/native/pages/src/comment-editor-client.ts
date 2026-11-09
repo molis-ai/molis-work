@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { EditorView } from "prosemirror-view";
 import type { UiSideContext, UiPageMessages } from "@molis-ai/molis-work-contracts/platform/ui";
 import { focusComment, commentBlock } from "./editor-comments.js";
@@ -19,7 +20,7 @@ interface CommentAnswer {
 }
 /** The editor owns notes and anchors. The side view only requests operations on the currently bound document. */
 export function bindComments(state: CommentEditorState): (markId: string|null) => Promise<void> {
-  const { workbench, persistCurrent, showNote, translate: L }=state;
+  const { workbench, persistCurrent, showNote }=state;
   const commentOpen = async (markId: string|null) => {
     if (!state.selected || !state.editor || state.unshowable) return;
     const id = state.selected.id;
@@ -49,16 +50,16 @@ export function bindComments(state: CommentEditorState): (markId: string|null) =
         answer.notes = notes; answer.version = state.selected.version;
       } else if (command.kind === 'focus-mark') {
         answer.found = focusComment(state.editor, command.mark_id);
-        if(!answer.found) throw new Error(L('pages.comments.detached'));
+        if(!answer.found) throw new Error(uiText.text('pages.comments.detached'));
       } else if (command.kind === 'discuss-note') {
-        if (state.dirty || state.selected.version !== command.version) throw new Error(L('pages.comments.doc-changed'));
+        if (state.dirty || state.selected.version !== command.version) throw new Error(uiText.text('pages.comments.doc-changed'));
         const markId = commentBlock(state.editor, command.index);
-        if (!markId) throw new Error(L('pages.comments.pick-text'));
+        if (!markId) throw new Error(uiText.text('pages.comments.pick-text'));
         await commentOpen(markId);answer.opened = true;
       } else if (command.kind === 'save-note') {
-        if (state.dirty || state.selected.version !== command.version) throw new Error(L('pages.comments.doc-changed'));
+        if (state.dirty || state.selected.version !== command.version) throw new Error(uiText.text('pages.comments.doc-changed'));
         const node = state.editor.view.state.doc.maybeChild(command.index);
-        if (!node || !('note' in node.attrs) || typeof command.note !== 'string' || command.note.length > 20000) throw new Error(L('pages.error.request'));
+        if (!node || !('note' in node.attrs) || typeof command.note !== 'string' || command.note.length > 20000) throw new Error(uiText.text('pages.error.request'));
         let pos = 0; for (let i=0;i<command.index;i++) pos += state.editor.view.state.doc.child(i).nodeSize;
         state.editor.view.dispatch(state.editor.view.state.tr.setNodeMarkup(pos, undefined, { ...node.attrs, note: command.note.trim() }));
         await persistCurrent(); answer.saved = true;

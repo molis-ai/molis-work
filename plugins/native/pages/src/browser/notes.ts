@@ -1,13 +1,14 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { required, said } from "./dom.js";
 import type { PagesPage } from "./page.js";
 
 /** The line under the editor: what is wrong or pending, or nothing. */
 export function showNote(page: PagesPage, text: string, isError?: boolean) {
-  const { note, L } = page;
+  const { note } = page;
   if (!note) return;
-  if (!text && page.sel?.publication_pending) text = L("pages.note.publication-pending");
+  if (!text && page.sel?.publication_pending) text = uiText.text("pages.note.publication-pending");
   // While the open body cannot be shown, clearing other notes leaves this one: the page is read-only for that reason.
-  if (!text && page.unshowable) { text = L("pages.note.unshowable"); isError = true; }
+  if (!text && page.unshowable) { text = uiText.text("pages.note.unshowable"); isError = true; }
   note.hidden = !text;
   note.textContent = text || "";
   note.classList.toggle("is-error", Boolean(isError && text));

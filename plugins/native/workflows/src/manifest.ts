@@ -5,8 +5,6 @@ import { WORKFLOWS_ACTIONS } from "./actions.js";
 import { workflowsSync } from "./replication.js";
 import { WORKFLOWS_DATABASE } from "./database.js";
 
-import { WORKFLOWS_MESSAGES } from "./messages.js";
-import { WORKFLOWS_EN } from "./en.js";
 /** The largest body any Workflows route reads: the same 400 000 bytes the Host's own route gave them. */
 const WORKFLOWS_BODY_BYTES = 400_000;
 
@@ -48,9 +46,7 @@ export const workflowsManifest: PluginManifest = {
     { route_id: "workflows.instance_start", method: "POST", path: "/workflows/:id/instances", max_body_bytes: WORKFLOWS_BODY_BYTES },
   ],
   artifacts: { produces: [], consumes: [] },
-  ui: {
-    messages: WORKFLOWS_MESSAGES,
-    translations: WORKFLOWS_EN,
+  ui: { locales: { default: "zh", available: ["zh", "en"] },
     contributions: [WORKFLOWS_UI_CONTRIBUTION_ID],
     views: [
       { view_id: "directory", slot: "navigator", title: "工作流程", title_en: "Workflows", contribution_id: WORKFLOWS_UI_CONTRIBUTION_ID, icon: "workflow", hue: "orange", order: 25, group: "advance", accepts_objects: true },

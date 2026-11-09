@@ -24,17 +24,3 @@ export function field(value: unknown, key: string): unknown {
 export function readsBack(answer: unknown, marker: string): void {
   assert.ok(JSON.stringify(answer ?? null).includes(marker), "the write did not come back through the owner's read");
 }
-
-/** Keep a transport failure diagnosable without logging routes, bodies, secrets or service messages. The refusal still propagates. */
-export function diagnoseGoldenHttp(http: GoldenWriteContext["http"]): GoldenWriteContext["http"] {
-  return async (...args) => {
-    try { return await http(...args); }
-    catch (error) {
-      const cause = error instanceof Error ? error.cause : undefined;
-      const code = cause && typeof cause === "object" && "code" in cause && typeof cause.code === "string" && /^[A-Z_]{1,64}$/.test(cause.code)
-        ? cause.code : "unclassified";
-      process.stderr.write(`golden HTTP failure: ${error instanceof TypeError ? "type_error" : error instanceof SyntaxError ? "syntax_error" : "error"}; cause=${code}\n`);
-      throw error;
-    }
-  };
-}

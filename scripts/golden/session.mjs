@@ -93,10 +93,20 @@ export async function openGoldenHost(home, { web = true } = {}) {
   let cookie;
   const http = async (route, { method = "POST", body } = {}) => {
     const token = readFileSync(path.join(real, "config/web-control-token"), "utf8").trim();
-    const response = await fetch(origin + route, { method, headers: { origin, "content-type": "application/json", "x-molis-work-control-token": token, "x-molis-work-idempotency-key": crypto.randomUUID(), ...(cookie ? { cookie } : {}) },
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
-    cookie = response.headers.get("set-cookie")?.split(";")[0] ?? cookie;
-    return respond(response, await response.text(), route);
+    // Data replay does not depend on a socket pool; each request has its own connection lifetime.
+    try {
+      const response = await fetch(origin + route, { method, headers: { connection: "close", origin, "content-type": "application/json", "x-molis-work-control-token": token, "x-molis-work-idempotency-key": crypto.randomUUID(), ...(cookie ? { cookie } : {}) },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+      cookie = response.headers.get("set-cookie")?.split(";")[0] ?? cookie;
+      return respond(response, await response.text(), route);
+    } catch (error) {
+      if (error instanceof TypeError) {
+        const cause = error.cause;
+        const code = cause && typeof cause === "object" && "code" in cause && typeof cause.code === "string" && /^[A-Z_]{1,64}$/.test(cause.code) ? cause.code : "unclassified";
+        process.stderr.write(`golden HTTP failure: type_error; cause=${code}\n`);
+      }
+      throw error;
+    }
   };
   return { ...resident, home: real, http };
 }

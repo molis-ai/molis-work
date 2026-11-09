@@ -17,6 +17,7 @@
 // Out (default .impeccable/qa/review/first-screen, ignored): http.json and the measured HTML; browser.json, every
 // request of each cold (fresh profile) and warm (new tab) run; audit.json, the differences between observed and measured
 // requests; catalog-use.json, which language entries the code of every frame of the first screen read.
+// http.json counts the first data event of each registered stream. The browser's still-open streams have no final wire count.
 //
 // `--http-only` reads the same paths as the budget checker without running a browser. `--summarize` reads browser.json.
 // `--reads-only` skips the timed visits and only writes catalog-use.json (still a browser, still the slot).
@@ -35,7 +36,7 @@ import { BASELINE_REGISTRY } from "@molis-ai/molis-work-design-system";
 import { ChromeHarness, locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
 import { LOCALES, LOCALE_COOKIE, withFirstScreenHost } from "./first-screen/host.mjs";
 import { auditFirstScreen } from "./first-screen/audit.mjs";
-import { sampleFirstScreen } from "./first-screen/http.mjs";
+import { pageSessionRedactor, sampleFirstScreen } from "./first-screen/http.mjs";
 import { currentRows, readManifest, registeredPaths } from "./first-screen/manifest.mjs";
 
 const ROOT = resolve(import.meta.dirname, "..");
@@ -118,17 +119,22 @@ async function readHttp(host, pages) {
       const samples = await sampleFirstScreen(host.origin, page, locale, paths, { signal: host.signal, inspect: true });
       const { cold, links } = samples.get(page.path);
       const html = cold.body.toString("utf8");
-      documents[`${page.id}.${locale}.html`] = html;
-      const inline = inlineBlocks(html);
+      const htmlSize = { raw: cold.body.length, gzip: gzipSync(cold.body, { level: 9 }).length };
+      const redact = pageSessionRedactor(html);
+      documents[`${page.id}.${locale}.html`] = redact(html);
+      const inline = inlineBlocks(html).map(block => ({ ...block, label: redact(block.label) }));
       const assets = {};
       for (const link of links) {
         const { status, headers, body } = samples.get(link).cold;
         assets[link] = { status, raw: body.length, gzip: gzipSync(body, { level: 9 }).length, encoding: headers["content-encoding"] ?? null, cache: headers["cache-control"] ?? null };
       }
-      const responses = Object.fromEntries([...samples].map(([path, sample]) => [path, { cold: sample.cold.wire, warm: sample.warm.wire }]));
+      const responses = Object.fromEntries([...samples].map(([key, sample]) => [key, {
+        cold: sample.cold.wire, warm: sample.warm.wire,
+        ...(sample.document ? { path: sample.path, document: sample.document, response: sample.response } : {}),
+      }]));
       report[`${page.id}/${locale}`] = {
         status: cold.status, encoding: cold.headers["content-encoding"] ?? null, cache: cold.headers["cache-control"] ?? null,
-        html: sized(html), inline, inline_total: inline.reduce((sum, block) => sum + block.raw, 0), assets, responses,
+        html: htmlSize, inline, inline_total: inline.reduce((sum, block) => sum + block.raw, 0), assets, responses,
       };
     }
   }
@@ -151,6 +157,7 @@ const kindOf = (url, type) => {
 /** One visit: navigates, waits for load and for the network to go quiet, and returns every request with its bytes. */
 async function visit(browser, session, url, { signal, mayRedirect }) {
   const requests = new Map();
+  const frameDocuments = new Map();
   const redirects = [];
   let loadFired = false;
   let lastActivity = Date.now();
@@ -163,7 +170,12 @@ async function visit(browser, session, url, { signal, mayRedirect }) {
       if (previous && params.redirectResponse) {
         redirects.push({ ...previous, status: params.redirectResponse.status, wire: params.redirectResponse.encodedDataLength, finished: true });
       }
-      requests.set(params.requestId, { url: params.request.url, type: params.type, method: params.request.method, status: 0, wire: 0, body: 0, finished: false, after_load: loadFired });
+      const { frameId, request, type } = params;
+      if (frameId && type === "Document") frameDocuments.set(frameId, request.url);
+      const accept = Object.entries(request.headers).find(([name]) => name.toLowerCase() === "accept")?.[1] ?? "";
+      const requested_stream = String(accept).split(",").some(value => /^text\/event-stream(?:\s*;|\s*$)/i.test(value.trim()));
+      requests.set(params.requestId, { url: request.url, type, method: request.method, status: 0, wire: 0, body: 0,
+        frame_id: frameId, document: params.documentURL || frameDocuments.get(frameId), requested_stream, finished: false, after_load: loadFired });
     })),
     browser.on("Network.responseReceived", own((params) => {
       touch();
@@ -205,7 +217,10 @@ async function visit(browser, session, url, { signal, mayRedirect }) {
       if (target.protocol !== "http:" && target.protocol !== "https:") return [];
       const same_origin = target.origin === origin;
       const path = target.pathname + target.search;
-      return [{ ...entry, kind: kindOf(entry.url, entry.type), same_origin, url: same_origin ? path : target.origin + path }];
+      const source = entry.document ? new URL(entry.document) : null;
+      const document = source?.origin === origin ? source.pathname + source.search : undefined;
+      return [{ ...entry, document, kind: kindOf(entry.url, entry.type), same_origin, url: same_origin ? path : target.origin + path,
+        wire: entry.stream && !entry.finished ? null : entry.wire }];
     });
     return { timing, requests: list, load_average: loadavg()[0] };
   } finally { for (const stop of stops) stop(); }
@@ -374,11 +389,12 @@ function summarize(dir) {
   for (const [page, samples] of Object.entries(report)) {
     for (const state of ["cold", "warm"]) {
       const visits = samples.map((sample) => sample[state]);
-      const wire = (keep) => median(visits.map((visited) => visited.requests.filter(keep).reduce((sum, request) => sum + request.wire, 0)));
+      const total = requests => requests.reduce((sum, request) => sum + (request.wire ?? 0), 0);
+      const wire = (keep) => median(visits.map((visited) => total(visited.requests.filter(keep))));
       const count = (keep) => median(visits.map((visited) => visited.requests.filter(keep).length));
       const parts = KINDS.map((kind) => `${kind} ${wire((request) => request.kind === kind)}/${count((request) => request.kind === kind)}`);
       const times = ["dcl", "fcp", "load"].map((name) => `${name} ${median(visits.map((visited) => visited.timing[name]))}`);
-      const shares = visits.map((visited) => visited.requests.filter(GATED).reduce((sum, request) => sum + request.wire, 0) / visited.requests.reduce((sum, request) => sum + request.wire, 0));
+      const shares = visits.map((visited) => total(visited.requests.filter(GATED)) / total(visited.requests));
       process.stdout.write(`${page} ${state}: total ${wire(() => true)}/${count(() => true)} | page-assets ${(median(shares) * 100).toFixed(1)}% | ${parts.join(" ")} | ${times.join(" ")} ms | load average ${median(visits.map((visited) => visited.load_average)).toFixed(1)}\n`);
     }
   }

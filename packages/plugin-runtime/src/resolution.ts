@@ -2,6 +2,7 @@ import type {
   PluginManifest,
   PluginRequirementDeclaration,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { declaresOnly } from "./runtime-rules.js";
 
 /**
  * Static dependency resolution over Manifests.
@@ -68,8 +69,12 @@ function portTypeKey(artifactTypeId: string, schemaVersion: number): string {
   return `${artifactTypeId}@${schemaVersion}`;
 }
 
+/**
+ * A plugin with only declarations never starts, so its `requires` hold nothing back: they say what its Skills need, and the Skill
+ * catalog marks a Skill whose requirement is unmet as unavailable (`requires_unmet`, specs/skill-packs/contract-design.md §8).
+ */
 function requirementsOf(manifest: PluginManifest): readonly PluginRequirementDeclaration[] {
-  return manifest.requires ?? [];
+  return declaresOnly(manifest) ? [] : manifest.requires ?? [];
 }
 
 export function resolvePluginActivation(input: PluginResolutionInput): PluginResolution {

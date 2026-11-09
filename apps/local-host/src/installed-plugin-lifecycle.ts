@@ -46,7 +46,7 @@ export interface InstalledLifecycleContext {
 }
 
 type Secret = { name: string; header: string; value: string };
-type Grants = { consent?: unknown; keepData?: unknown; discardKeptData?: unknown; secrets?: unknown };
+type Grants = { assertCurrent?: () => void; consent?: unknown; keepData?: unknown; discardKeptData?: unknown; secrets?: unknown };
 
 /** The secrets the consent dialog collected, each for a reference the release declared. */
 function secretsOf(value: unknown, release: InstalledRelease): Secret[] {
@@ -98,19 +98,24 @@ export function installedLifecycle(c: InstalledLifecycleContext): AgentBuilderPo
    */
   const install = async (release: InstalledRelease, grants: Grants) => {
     const pluginId = release.pluginId, secrets = secretsOf(grants.secrets, release);
-    const entry = { definition: c.definition(release, release.permissions), grants: ['storage:private'], trust: release.packaged?.trust ?? UNSIGNED_TRUST };
+    // What its Manifest requires and nothing optional: a sandbox plugin's own storage, nothing for a plugin with only declarations.
+    const definition = c.definition(release, release.permissions), required = definition.manifest.permissions.filter(item => item.required).map(item => item.permission);
+    const entry = { definition, grants: required, trust: release.packaged?.trust ?? UNSIGNED_TRUST };
     const found = platform.runtime.list().find(item => item.plugin_id === pluginId && item.publisher_signature === entry.definition.manifest.publisher.signature);
     const earlier = found?.state === 'uninstalled' ? found : undefined, kept = earlier?.retain_private_data === true;
     const before = earlier && kept ? c.privateStorage.snapshotInstallationData(earlier.install_id) : undefined;
+    grants.assertCurrent?.();
     const { install } = platform.runtime.install({ ...entry, deployment: 'local', ...(grants.discardKeptData === true ? { discard_kept_data: true } : {}) });
     try {
       if (before && grants.discardKeptData === true) c.privateStorage.deleteInstallationData(install.install_id);
       for (const secret of secrets) c.secrets.save(pluginId, secret);
       c.storage.set(APPROVED_KEY + pluginId, JSON.stringify(release.permissions));
-      await platform.start([entry]);
+      await platform.start([entry], { assertCurrent: grants.assertCurrent });
+      grants.assertCurrent?.();
       const state = platform.supervisor.state(pluginId)?.code === 'plugin.revoked' ? await platform.supervisor.enable(pluginId) : platform.supervisor.state(pluginId);
+      grants.assertCurrent?.();
       if (state?.status !== 'running') throw new Error('安装没有完成：' + (state?.message ?? '插件未能启动'));
-      await c.expose(release); c.registerPrompts(release, 'enabled'); c.recoveryErrors.delete(pluginId);
+      await c.expose(release); grants.assertCurrent?.(); c.registerPrompts(release, 'enabled'); c.recoveryErrors.delete(pluginId);
     } catch (error) {
       const unfinished: unknown[] = [];
       let ours = true;
@@ -136,7 +141,7 @@ export function installedLifecycle(c: InstalledLifecycleContext): AgentBuilderPo
     if (!approved) throw new Error('找不到此安装的批准记录，请先卸载并重新确认安装');
     const next = release.packaged.manifest;
     assertUpgradeOf(next, record.version);
-    return changeInstalledVersion(c, 'upgrade', release, record, release.permissions, secretsOf(grants.secrets, release));
+    return changeInstalledVersion(c, 'upgrade', release, record, release.permissions, secretsOf(grants.secrets, release), grants.assertCurrent);
   };
   return async (action, release, input) => {
     if (c.closed()) throw new Error('安装运行入口已关闭');

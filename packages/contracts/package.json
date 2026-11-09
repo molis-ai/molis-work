@@ -218,6 +218,10 @@
       "types": "./dist/services/memory.d.ts",
       "import": "./dist/services/memory.js"
     },
+    "./services/skills": {
+      "types": "./dist/services/skills.d.ts",
+      "import": "./dist/services/skills.js"
+    },
     "./modules/characters": {
       "types": "./dist/modules/characters.d.ts",
       "import": "./dist/modules/characters.js"

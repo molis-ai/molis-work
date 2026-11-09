@@ -638,7 +638,7 @@ test("VG-11 one package's entry cannot be borrowed by another", () => {
 
   // The entries that really are public contracts pass with any two users, without a list of them here or in the gate.
   for (const key of [
-    "format.sandbox.agent-prompt", "format.sandbox.agent-method", "format.sandbox.contract", "type.character.definition", "type.search-intent", "artifact.io.molis.work.document",
+    "format.sandbox.agent-prompt", "format.sandbox.agent-role", "format.sandbox.contract", "type.character.definition", "type.search-intent", "artifact.io.molis.work.document",
     "artifact.io.molis.work.pages.document", "format.project.portable", "format.plugin.build-lock", "format.builder.build-manifest", "format.plugin.package", "format.sync.round",
     "type.coding.changeset", "type.coding.report", "type.molis.behavior-recommendation", "format.memory.export", "format.plugin.presentation", "format.asset.bundle",
     "manifest.schema", "host.api", "sync.protocol", "protocol.workflow-content", "type.molis.workflow.content.list.output", "event.host.connection.changed", "event.io.molis.work.coding.run-updated",

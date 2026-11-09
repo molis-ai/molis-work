@@ -1,5 +1,6 @@
+import { reconcileSkillSettings } from "./agent-definitions/skill-settings-lifecycle.js";
 import { effectsFromContract } from '@molis-ai/molis-work-plugin-sdk';
-import { pluginAgentRegistration, registerPluginAgentDefinitions, updatePluginAgentDefinitions, forgetPluginAgentDefinitions } from "./plugin-instructions.js";
+import { declaredOnlyHolds, pluginAgentRegistration, registerPluginAgentDefinitions, updatePluginAgentDefinitions, forgetPluginAgentDefinitions } from "./plugin-instructions.js";
 import { pluginHomeFor } from "./home-side.js";
 import { installedPluginExposure } from './installed-plugin-exposure.js';
 import { installedDefinitions } from './installed-plugin-definition.js';
@@ -172,17 +173,18 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
   const { definition, manifestOf, forget: forgetDefinitions } = installedDefinitions({ catalog, capabilityFor, network, assertInstalled,
     holdAgentDefinitions: (definition, installId) => registerPluginAgentDefinitions(pluginHomeFor(homeDirectory), definition, installId),
     earlier: release => release.packaged ? [] : releases.versions(release.buildId).map(item => item.version).filter(version => version < release.version) });
-  const promptScope = (installationId: string) => JSON.stringify([actions.project_id, projectId, installationId]);
+  const promptScope = (installationId: string) => JSON.stringify([actions.project_id, projectId, installationId]), declared = declaredOnlyHolds(pluginHomeFor(homeDirectory));
   const registerPrompts = (release: InstalledRelease, state: 'enabled' | 'disabled', restored = false) => {
     const record = recordFor(release.pluginId);
     if (!record || record.version !== installedVersion(release)) return;
-    if (release.packaged) updatePluginAgentDefinitions(pluginHomeFor(homeDirectory), definition(release, approvedFor(release.pluginId) ?? release.permissions), record.install_id, state, restored);
+    const value = release.packaged && definition(release, approvedFor(release.pluginId) ?? release.permissions);
+    if (value) { declared.set(value, record.install_id, state); updatePluginAgentDefinitions(pluginHomeFor(homeDirectory), value, record.install_id, state, restored); reconcileSkillSettings(homeDirectory, projectId, record.install_id, (value.manifest.methods ?? []).map(method => method.skill_id)); }
     else registerGeneratedPrompts(homeDirectory, generatedRegistration(release, releases.versions(release.buildId), state, installedVersion(release)), promptScope(record.install_id));
   };
-  const stops = publisherStops({ standing, platform, recoveryErrors, withdraw, records });
+  const stops = publisherStops({ standing, platform, recoveryErrors, withdraw: id => { withdraw(id); declared.release(id); }, records });
   const lifecycle = installedLifecycle({ platform, storage, privateStorage, secrets, recoveryErrors, closed: () => closed, trusted: standing.trusted, recordFor, releaseFor, approvedFor, definition, expose, withdraw, registerPrompts,
     async forget(pluginId, installId) {
-      unregisterGeneratedPrompts(homeDirectory, pluginId, promptScope(installId));
+      unregisterGeneratedPrompts(homeDirectory, pluginId, promptScope(installId)); declared.release(pluginId);
       forgetPluginAgentDefinitions(pluginHomeFor(homeDirectory), installId);
       forgetDefinitions(pluginId);
       // The account it used for each of its records here goes with it; its installation slot's account is every project's, and goes with the last one (BL-596).
@@ -192,7 +194,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
     } });
   const close = async () => {
     if (closed) return;
-    closed = true; disposePlatform();
+    closed = true; disposePlatform(); declared.releaseAll();
     await platform.stopProjectJobs(projectId);
     await platform.closeCoordination();
     for (const id of [...exposed.keys()]) withdraw(id);
@@ -222,7 +224,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
 
     return { platform, storage, actions, releases, catalog, capabilityFor, network, secrets, lifecycle, close, records, releaseFor, recoveryErrors,
       /** Installs a release read from a signed package, under the trust it carries; the person's approval of its permissions is `consent`. A package of a plugin already installed here is its upgrade (BL-623). */
-      installPackage: (release: InstalledRelease, input: { consent: true }) => lifecycle(recordFor(release.pluginId) ? 'upgrade' : 'install', release, input),
+      installPackage: (release: InstalledRelease, input: { consent: true; assertCurrent?: () => void }) => lifecycle(recordFor(release.pluginId) ? 'upgrade' : 'install', release, input),
       packageOf: (pluginId: string) => signedPackageOf(packages, recordFor(pluginId)),
       refreshPublicActions: async () => { await stops.reconcile(); if (exposed.size) await catalog(); }, reconcilePublishers: stops.reconcile,
       installations: () => records().map(item => ({ pluginId: item.plugin_id, buildId: item.publisher_signature.startsWith(SIGNATURE) ? item.publisher_signature.slice(SIGNATURE.length) : item.publisher_signature, version: Number(item.version.split('.')[0]),

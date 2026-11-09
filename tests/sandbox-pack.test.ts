@@ -9,7 +9,7 @@ import { ActionError } from '@molis-ai/molis-work-contracts/platform/actions';
 import { readSandboxPackage } from '@molis-ai/molis-work-app-local-host';
 import { effectsFromContract, sandboxPluginManifest } from '@molis-ai/molis-work-plugin-sdk';
 import { parsePluginPackage, verifyPluginPackageSignature } from '@molis-ai/molis-work-plugin-runtime';
-import { packageContract, packageFiles, newPublisher } from './fixtures/sandbox-package.js';
+import { packageContract, packageFiles, packageMethod, newPublisher } from './fixtures/sandbox-package.js';
 
 const cli = fileURLToPath(new URL('../tooling/plugin-cli/dist/main.js', import.meta.url));
 const refused = (code: string) => (error: unknown) => error instanceof ActionError && error.code === code;
@@ -43,20 +43,24 @@ test('PACK-1 real pack-sandbox, sign, verify and Host reader preserve declared t
     writeFileSync(join(root, 'unrelated.txt'), 'not distributed');
     mkdirSync(join(root, 'agent')); const body = '  审核证据。\n保留原文空白。  ';
     writeFileSync(join(root, 'agent', 'review.md'), body);
+    // SKP-08 SKC-03: a method is a complete Skill declaration, its body at skills/<skill_id>/SKILL.md.
+    mkdirSync(join(root, 'skills', 'proofread'), { recursive: true }); writeFileSync(join(root, 'skills', 'proofread', 'SKILL.md'), '逐条核对可验证的事实。');
+    const method = packageMethod('proofread', '校对', '逐项核对事实');
     const privateFile = join(directory, 'private.pem'), publicFile = join(directory, 'public.pem');
     writeFileSync(privateFile, publisher.keys.privateKey.export({ type: 'pkcs8', format: 'pem' }), { mode: 0o600 });
     writeFileSync(publicFile, publisher.keys.publicKey.export({ type: 'spki', format: 'pem' }));
     const unsigned = join(directory, 'unsigned.json'), signed = join(directory, 'signed.json');
     const invoke = (...args: string[]) => spawnSync(process.execPath, [cli, ...args], { encoding: 'utf8' });
     const args = ['--name', 'Authored notes', '--version', '2.0.0', '--publisher-id', 'author', '--publisher-key-id', publisher.identity,
-      '--scope', 'home', '--icon', 'package', '--compatible-from', '1.0.0', '--agent', JSON.stringify([{ name: '审核', purpose: '检查证据', body: 'agent/review.md' }])];
+      '--scope', 'home', '--icon', 'package', '--compatible-from', '1.0.0', '--agent', JSON.stringify([{ name: '审核', purpose: '检查证据', body: 'agent/review.md' }]), '--methods', JSON.stringify([method])];
     const packed = invoke('pack-sandbox', root, unsigned, ...args); assert.equal(packed.status, 0, packed.stderr);
     assert.equal(invoke('sign', unsigned, privateFile, signed).status, 0);
     assert.equal(invoke('verify', signed, publicFile).status, 0);
     const bundle = verifyPluginPackageSignature(JSON.parse(readFileSync(signed, 'utf8'))).bundle, kept = readSandboxPackage(bundle.payload);
     assert.equal(kept.manifest.runtime?.scope, 'home'); assert.equal(kept.manifest.version, '2.0.0');
     assert.deepEqual(kept.permissions, { storage: ['read', 'write'] });
-    assert.deepEqual(bundle.payload.files.map(file => file.path).sort(), ['agent/review.md', 'contract.json', 'interface.json', 'manifest.json', 'plugin.mjs', 'prompts.json']);
+    assert.deepEqual(bundle.payload.files.map(file => file.path).sort(), ['agent/review.md', 'contract.json', 'interface.json', 'manifest.json', 'plugin.mjs', 'prompts.json', 'skills/proofread/SKILL.md']);
+    assert.deepEqual(kept.manifest.methods, [method], 'the method is carried as declared, its id and version its own');
     assert.equal(Buffer.from(bundle.payload.files.find(file => file.path === 'agent/review.md')!.content_base64, 'base64').toString('utf8'), body);
     assert.deepEqual(kept.manifest.agent?.roles?.map(role => role.name), ['审核']);
     assert.deepEqual(kept.manifest.upgrade_compatibility, { compatible_from_versions: ['1.0.0'] });
@@ -89,7 +93,14 @@ test('PACK-1 pack-sandbox rejects missing, unsafe and oversized inputs without c
     reset(); writeFileSync(join(root, 'plugin.mjs'), Buffer.alloc(8 * 1024 * 1024 + 1, 32)); reject();
     reset(); reject(['--agent', JSON.stringify([{ name: 'x', purpose: 'x', body: 'agent/../../outside' }])]);
     writeFileSync(join(directory, 'outside'), 'outside'); symlinkSync(join(directory, 'outside'), join(root, 'agent', 'linked.md'));
-    reject(['--methods', JSON.stringify([{ name: 'x', purpose: 'x', body: 'agent/linked.md' }])]);
+    mkdirSync(join(root, 'skills', 'linked'), { recursive: true }); symlinkSync(join(directory, 'outside'), join(root, 'skills', 'linked', 'SKILL.md'));
+    reject(['--methods', JSON.stringify([packageMethod('linked', 'x', 'x')])]);
+    // SKP-08 SKC-03: the three-key method of the earlier format, and a method without when to use it or who may, are refused.
+    writeFileSync(join(root, 'agent', 'method.md'), '正文');
+    reject(['--methods', JSON.stringify([{ name: 'x', purpose: 'x', body: 'agent/method.md' }])]);
+    mkdirSync(join(root, 'skills', 'plain'), { recursive: true }); writeFileSync(join(root, 'skills', 'plain', 'SKILL.md'), '正文');
+    const { description: _description, ...undescribed } = packageMethod('plain', 'x', 'x'); reject(['--methods', JSON.stringify([undescribed])]);
+    const { applies_to: _appliesTo, ...unassigned } = packageMethod('plain', 'x', 'x'); reject(['--methods', JSON.stringify([unassigned])]);
     writeFileSync(join(root, 'agent', 'large.md'), Buffer.alloc(32_001, 32));
     reject(['--agent', JSON.stringify([{ name: 'x', purpose: 'x', body: 'agent/large.md' }])]);
     reject(['--agent', 'null']); reject(['--scope', 'unknown']); reject(['--permission', 'all']);

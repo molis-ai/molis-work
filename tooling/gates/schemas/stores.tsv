@@ -4,7 +4,7 @@
 # row whose structure changed while its version stayed.
 store	owner	version	structure	upgrades
 agent-declarations/agent-declarations.db	apps/local-host	1	90aa329cbf64815e	-
-agent-definitions/agent-definitions.db	apps/local-host	1	daa528698242c1c8	-
+agent-definitions/agent-definitions.db	apps/local-host	2	f9bb7a644cbb6051	1
 alchemist/projects/*/search.sqlite	apps/local-host	1	d7365cb6761c89e8	-
 alchemist/projects/*/studio.sqlite	apps/local-host	1	d7686ca8b5832e96	-
 assistant/assistant.db	apps/local-host	1	5fe9a8806f24bf58	-

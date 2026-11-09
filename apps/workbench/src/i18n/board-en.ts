@@ -1,4 +1,4 @@
-import { COMPOSER_BOARD_EN, KEEP_EDITS_BOARD_EN, LOOK_BOARD_EN } from "@molis-ai/molis-work-design-system";
+import { COMPOSER_BOARD_EN, KEEP_EDITS_BOARD_EN, LOOK_BOARD_EN, SKILL_PACK_BOARD_EN } from "@molis-ai/molis-work-design-system";
 
 /**
  * English for the component board's conditions section and its frame (apps/workbench/src/condition-*.ts, specs/visual-ui-experience
@@ -8,6 +8,7 @@ export const BOARD_EN: Record<string, string> = {
   ...COMPOSER_BOARD_EN,
   ...KEEP_EDITS_BOARD_EN,
   ...LOOK_BOARD_EN,
+  ...SKILL_PACK_BOARD_EN,
   "条件与状态": "Conditions and states",
   "正文语言": "Body language",
   "混排": "Mixed",

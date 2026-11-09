@@ -1,3 +1,4 @@
+import { renderSkillSettings, SKILL_SETTINGS_CLIENT_SCRIPT } from "./settings-skills.js";
 import type { ProjectGuidanceView } from "@molis-ai/molis-work-plugin-goals/contract";
 import type { PlanningMethodPack } from "@molis-ai/molis-work-plugin-goals/contract";
 import type { PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
@@ -71,6 +72,7 @@ export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePo
     if (section === "guidance") return content("guidance", { guidance: guidance! }, {}, view);
     if (section === "memory") return renderMemorySettings({ L, scope: "project", projectId: view.project!.project_id });
     if (section === "knowledge") return renderKnowledgeSettings({ L, projectId: escapeHtml(view.project!.project_id) });
+    if (section === "skills") return renderSkillSettings({ L, lang: htmlLang(), projectId: escapeHtml(view.project!.project_id) });
     if (section === "plugins") return renderPluginTrustSettings({ L, projectId: escapeHtml(view.project!.project_id), chevron: icon("chevron-down") });
     if (section === "grants") return renderTaskGrantsSettings({ L, projectId: escapeHtml(view.project!.project_id) });
     if (section === "rules") return content("rules", { policy_bindings: view.policy_bindings }, {}, view);
@@ -104,7 +106,7 @@ export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePo
     <div class="settings-content" id="settings-content">${page}</div>
   </main>
   <div class="mw-toast toast" data-settings-toast role="status" aria-live="polite"></div>
-  <script>${clientI18nScript()}${UI_REQUEST_CLIENT_SCRIPT}${WRITE_CHECKERS_CLIENT_SCRIPT}${PROJECT_DIRECTORIES_CLIENT_SCRIPT}${PROJECT_SETTINGS_CLIENT_SCRIPT}${PROJECT_GUIDANCE_CLIENT_SCRIPT}${MEMORY_SETTINGS_CLIENT_SCRIPT}${PLUGIN_TRUST_SETTINGS_CLIENT_SCRIPT}${TASK_GRANTS_SETTINGS_CLIENT_SCRIPT}${pluginSettingsClients()}${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>${knowledgeClientTag()}
+  <script>${clientI18nScript()}${UI_REQUEST_CLIENT_SCRIPT}${WRITE_CHECKERS_CLIENT_SCRIPT}${PROJECT_DIRECTORIES_CLIENT_SCRIPT}${PROJECT_SETTINGS_CLIENT_SCRIPT}${PROJECT_GUIDANCE_CLIENT_SCRIPT}${MEMORY_SETTINGS_CLIENT_SCRIPT}${SKILL_SETTINGS_CLIENT_SCRIPT}${PLUGIN_TRUST_SETTINGS_CLIENT_SCRIPT}${TASK_GRANTS_SETTINGS_CLIENT_SCRIPT}${pluginSettingsClients()}${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>${knowledgeClientTag()}
 </body></html>`;
   }
 

@@ -139,7 +139,8 @@ export class PluginSupervisor implements PluginHostLifecycle {
     this.#releaseArtifacts = options.releaseArtifacts;
   }
 
-  async start(entries: readonly PluginSupervisorEntry[]): Promise<PluginSupervisorReport> {
+  async start(entries: readonly PluginSupervisorEntry[], control?: { assertCurrent?: () => void }): Promise<PluginSupervisorReport> {
+    control?.assertCurrent?.();
     const admitted: PluginSupervisorEntry[] = [];
     for (const given of entries) {
       const entry = { ...given, definition: platformDefinition(given.definition) }, pluginId = entry.definition.manifest.plugin_id;
@@ -147,8 +148,10 @@ export class PluginSupervisor implements PluginHostLifecycle {
       if (entry.enabled === false) this.revoke(pluginId);
       let active: PluginSupervisorEntry;
       try {
-        active = await this.#resolveInstalledEntry(entry);
+        active = await this.#resolveInstalledEntry(entry, control?.assertCurrent);
+        control?.assertCurrent?.();
       } catch (error) {
+        control?.assertCurrent?.();
         // Keep the candidate registered for the market even when its old
         // installed implementation cannot be restored in this process.
         this.#activeEntries.delete(pluginId);
@@ -189,7 +192,7 @@ export class PluginSupervisor implements PluginHostLifecycle {
 
     for (const pluginId of resolution.order) {
       this.#begin(pluginId);
-      const activation = this.#activate(pluginId);
+      const activation = this.#activate(pluginId, control?.assertCurrent);
       this.#finish(pluginId, activation);
       await activation;
     }
@@ -366,15 +369,16 @@ export class PluginSupervisor implements PluginHostLifecycle {
     return candidates.sort((left, right) => left.plugin_id.localeCompare(right.plugin_id));
   }
 
-  async upgrade(pluginId: string, definition?: PluginDefinition, options?: { grants?: string[] }): Promise<PluginSupervisorState> {
-    return this.#changeVersion(pluginId, definition, false, options?.grants);
+  async upgrade(pluginId: string, definition?: PluginDefinition, options?: { grants?: string[]; assertCurrent?: () => void }): Promise<PluginSupervisorState> {
+    return this.#changeVersion(pluginId, definition, false, options?.grants, options?.assertCurrent);
   }
 
   async rollback(pluginId: string, definition: PluginDefinition): Promise<PluginSupervisorState> {
     return this.#changeVersion(pluginId, definition, true);
   }
 
-  async #changeVersion(pluginId: string, definition: PluginDefinition | undefined, rollbackCode: boolean, grants?: string[]): Promise<PluginSupervisorState> {
+  async #changeVersion(pluginId: string, definition: PluginDefinition | undefined, rollbackCode: boolean, grants?: string[], assertCurrent?: () => void): Promise<PluginSupervisorState> {
+    assertCurrent?.();
     const prior = this.#entries.get(pluginId), entry = definition ? { ...prior, definition: platformDefinition(definition) } : prior;
     // A switched-off install is not registered after a Host restart: the target stands in for its entry, and an
     // answer about a plugin nobody registered is not remembered.
@@ -405,13 +409,15 @@ export class PluginSupervisor implements PluginHostLifecycle {
     this.#entries.set(pluginId, entry);
     this.#contracts.set(pluginId, candidateContract);
     try {
-      await persistReleaseArtifact(entry, this.#releaseArtifacts);
+      await persistReleaseArtifact(entry, this.#releaseArtifacts, assertCurrent);
+      assertCurrent?.();
       const receipt = rollbackCode ? await this.#runtime.rollback({ install_id: current.install_id, definition: entry.definition }) : await this.#runtime.upgrade({
         install_id: current.install_id,
         definition: entry.definition,
         deployment: entry.deployment ?? "local",
-        ...(grants ? { grants } : {}),
+        ...(grants ? { grants } : {}), assertCurrent,
       });
+      assertCurrent?.();
       this.#activeEntries.set(pluginId, { ...entry, grants: receipt.install.grants });
       if (off) { this.revoke(pluginId); return this.#revokedState(pluginId, receipt.install.install_id); }
       return this.#running(pluginId, receipt.install.install_id);
@@ -421,6 +427,7 @@ export class PluginSupervisor implements PluginHostLifecycle {
       // The failed attempt did not move the installation, so the old implementation, running or not, keeps its own
       // event declarations; only the candidate entry stays registered for a retry.
       if (recovered.version === current.version) { if (activeContract) this.#contracts.set(pluginId, activeContract); else this.#contracts.delete(pluginId); }
+      assertCurrent?.();
       if (off) { if (!prior) this.#entries.delete(pluginId); return failure; } // still switched off, as the person left it
       if (!this.#revoked.has(pluginId) && recovered.state === "running" && active?.status === "running" && active.install_id === current.install_id) {
         // Return the failed upgrade operation to its caller without marking the restored old implementation unhealthy.
@@ -485,7 +492,7 @@ export class PluginSupervisor implements PluginHostLifecycle {
     return await this.#activate(pluginId);
   }
 
-  async #resolveInstalledEntry(candidate: PluginSupervisorEntry): Promise<PluginSupervisorEntry> {
+  async #resolveInstalledEntry(candidate: PluginSupervisorEntry, assertCurrent?: () => void): Promise<PluginSupervisorEntry> {
     const manifest = candidate.definition.manifest;
     const installed = this.#runtime.list().find(record => record.plugin_id === manifest.plugin_id
       && record.publisher_signature === manifest.publisher.signature
@@ -493,7 +500,7 @@ export class PluginSupervisor implements PluginHostLifecycle {
     if (!installed || !candidate.releaseArtifact) return candidate;
 
     if (directlyUsable(manifest, isHostTrust(candidate.trust ?? UNSIGNED_TRUST), installed)) {
-      await persistReleaseArtifact(candidate, this.#releaseArtifacts);
+      await persistReleaseArtifact(candidate, this.#releaseArtifacts, assertCurrent);
       return candidate;
     }
 
@@ -532,7 +539,8 @@ export class PluginSupervisor implements PluginHostLifecycle {
     throw codedError("plugin.release_artifact_missing", `找不到 ${installed.version} 的可运行 Native 发行物；未启动不兼容的新版本`);
   }
 
-  async #activate(pluginId: string): Promise<PluginSupervisorState> {
+  async #activate(pluginId: string, assertCurrent?: () => void): Promise<PluginSupervisorState> {
+    assertCurrent?.();
     if (this.#revoked.has(pluginId)) return this.#revokedState(pluginId);
     const entry = this.#activeEntries.get(pluginId);
     if (!entry) {
@@ -543,20 +551,23 @@ export class PluginSupervisor implements PluginHostLifecycle {
     try {
       if (installId === null) {
         if (entry.definition.execution === "sandbox" && entry.grants === undefined) throw new Error("生成插件必须先确认安装权限，不能自动授予全部必需权限");
-        await persistReleaseArtifact(entry, this.#releaseArtifacts);
+        await persistReleaseArtifact(entry, this.#releaseArtifacts, assertCurrent);
+      assertCurrent?.();
         const installed = this.#runtime.install(startInstallInput(entry, this.#runtime.list(), this.#releaseArtifacts, this.#entries));
         installId = installed.install.install_id;
         if (this.#revoked.has(pluginId) || (this.#epochs.get(pluginId) ?? 0) !== epoch) {
           return this.#revokedState(pluginId, installId);
         }
       }
-      const receipt = await this.#runtime.start(installId);
+      const receipt = await this.#runtime.start(installId, { assertCurrent });
+      assertCurrent?.();
       if (this.#revoked.has(pluginId) || (this.#epochs.get(pluginId) ?? 0) !== epoch) {
         await this.#rollback(receipt.install.install_id);
         return this.#revokedState(pluginId, receipt.install.install_id);
       }
       return this.#running(pluginId, receipt.install.install_id);
     } catch (error) {
+      assertCurrent?.();
       if (this.#revoked.has(pluginId)) return this.#revokedState(pluginId, installId);
       return this.#fail(pluginId, installId, safeCode(error), safeMessage(error));
     }

@@ -28,6 +28,7 @@ tests/shell-direct-links.e2e.test.ts
 
 # Main flows: the main action or HTTP flow of each product area, and the i18n test (W2-16).
 tests/assistant-business-gateway.test.ts
+tests/call-budget.test.ts
 tests/coding-actions.test.ts
 tests/coding-product-http.test.ts
 tests/feed-item-actions.test.ts

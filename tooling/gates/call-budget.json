@@ -1,0 +1,90 @@
+{
+  "projectHome": {
+    "prepareContext": 3,
+    "inspectActions": 0,
+    "discover": 3,
+    "discoverScenes": 0,
+    "projectPluginReads": 20,
+    "sqliteOpens": 18
+  },
+  "projectBrief": {
+    "prepareContext": 1,
+    "inspectActions": 0,
+    "discover": 3,
+    "discoverScenes": 4,
+    "projectPluginReads": 16,
+    "sqliteOpens": 34
+  },
+  "rightSide": {
+    "prepareContext": 4,
+    "inspectActions": 0,
+    "discover": 6,
+    "discoverScenes": 6,
+    "projectPluginReads": 44,
+    "sqliteOpens": 85
+  },
+  "contextual": {
+    "prepareContext": 1,
+    "inspectActions": 0,
+    "discover": 1,
+    "discoverScenes": 1,
+    "projectPluginReads": 3,
+    "sqliteOpens": 9
+  },
+  "sideFileSources": {
+    "prepareContext": 1,
+    "inspectActions": 0,
+    "discover": 1,
+    "discoverScenes": 1,
+    "projectPluginReads": 4,
+    "sqliteOpens": 10
+  },
+  "sideFileEntries": {
+    "prepareContext": 1,
+    "inspectActions": 0,
+    "discover": 1,
+    "discoverScenes": 1,
+    "projectPluginReads": 6,
+    "sqliteOpens": 12
+  },
+  "sideFilePreview": {
+    "prepareContext": 1,
+    "inspectActions": 0,
+    "discover": 1,
+    "discoverScenes": 1,
+    "projectPluginReads": 6,
+    "sqliteOpens": 12
+  },
+  "sideFileMissingSource": {
+    "prepareContext": 1,
+    "inspectActions": 0,
+    "discover": 1,
+    "discoverScenes": 1,
+    "projectPluginReads": 4,
+    "sqliteOpens": 10
+  },
+  "sideFileMissingKind": {
+    "prepareContext": 1,
+    "inspectActions": 0,
+    "discover": 1,
+    "discoverScenes": 1,
+    "projectPluginReads": 4,
+    "sqliteOpens": 10
+  },
+  "sideFileMissingId": {
+    "prepareContext": 1,
+    "inspectActions": 0,
+    "discover": 1,
+    "discoverScenes": 1,
+    "projectPluginReads": 4,
+    "sqliteOpens": 10
+  },
+  "goalPanes": {
+    "prepareContext": 10,
+    "inspectActions": 0,
+    "discover": 6,
+    "discoverScenes": 0,
+    "projectPluginReads": 70,
+    "sqliteOpens": 68
+  }
+}

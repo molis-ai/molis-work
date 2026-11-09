@@ -1,5 +1,5 @@
-// The Skill catalog, settings and import actions (specs/skill-packs/contract-design.md §6–§8, C-2): the contract alone. Nothing registers
-// these actions in the product yet, so the provider here is a stand-in that answers what each test gives it. Every refusal is asserted as
+// The Skill catalog, settings and import actions (specs/skill-packs/contract-design.md §6–§8, C-2): the contract alone.
+// Product runtime behaviour is covered separately; the provider here answers the contract fixtures. Every refusal is asserted as
 // a refusal: the schema's own `actions.input_invalid` before the stand-in is reached, `actions.output_invalid` for an answer of the wrong
 // shape, or `actions.forbidden` for a caller the action is not offered to. The behaviour behind the actions (the frozen list of named
 // Skills, the checks of the installation and its generation, the digests) is the catalog slice's (08-7), with the rest of SKC-05 to SKC-09.
@@ -74,7 +74,7 @@ test("who may call each: the catalog and its reads are the person's, a plugin's 
 });
 
 test("SKC-05: an Agent or a plugin cannot change a state or import, whatever permission it holds; the same input from the person reaches the provider", async () => {
-  const { service, calls } = serving(capability => capability === "skills.settings.set" ? entry : { preview_id: "pv", package: { plugin_id: "x", version: "1.0.0", installed_version: null }, candidates: [] });
+  const { service, calls } = serving(capability => capability === "skills.settings.set" ? entry : { preview_id: "pv", package: { plugin_id: "x", version: "1.0.0", installed_version: null }, applies_to: "coding", candidates: [] });
   for (const caller of [context("agent"), context("plugin")]) {
     await assert.rejects(service.invoke(caller, reference(skillCatalogActions.setState), setInput), code("actions.forbidden"));
     await assert.rejects(service.invoke(caller, reference(skillImportActions.preview), { source: { kind: "runtime", runtime_id: "codex" } }), code("actions.forbidden"));
@@ -124,7 +124,7 @@ test("SKC-05: installing and importing enable nothing: import.confirm takes no s
 });
 
 test("import.preview reads from one source: a known local Runtime, or a directory granted to this project", async () => {
-  const { service, calls } = serving(() => ({ preview_id: "pv", package: { plugin_id: "x", version: "1.0.0", installed_version: null }, candidates: [] }));
+  const { service, calls } = serving(() => ({ preview_id: "pv", package: { plugin_id: "x", version: "1.0.0", installed_version: null }, applies_to: "coding", candidates: [] }));
   const refused = [
     { source: { kind: "runtime", runtime_id: "unknown-agent" } },
     { source: { kind: "path", path: "/Users/someone/.claude/skills" } },

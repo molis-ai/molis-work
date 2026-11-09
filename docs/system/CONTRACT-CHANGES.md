@@ -56,6 +56,7 @@
 
 | 机制 | 目的与允许边界 | owner 与移除条件 |
 | --- | --- | --- |
+| 技能设置与用量建表（08-7，用户 2026-11-06 同意） | `agent-definitions` 1 → 2 只创建空的 `skill_settings`、`skill_uses` 及用量索引；既有提示词覆盖、历史和用量不变。由 U1 升级执行，普通打开仍拒绝旧版本 | 宿主 Agent 定义；最早支持的金样不再需要第 1 版时移除此升级段，不保留旧结构读取 |
 | 插件升级声明（`upgrade_compatibility.compatible_from_versions`、`migratable_from_versions`）、同版本重装与发行物留存 | 插件版本之间的升级是现行产品功能，不是读取旧业务数据；内置插件为过去版本写的旧声明不因此保留 | Manifest 合同与 plugin SDK，使用规则见 [插件开发手册](../platform/PLUGIN-DEVELOPMENT.md)；随该现行升级功能或相应发行物生命周期处理，不作为永久历史读取许可 |
 | pdfjs 的 `legacy/build` 路径 | 第三方包给 Node 的构建名，不是本产品的旧格式读取分支 | 引用 pdfjs 的现行功能及该依赖；上游构建入口改变或功能移除时随之修改 |
 | 产品文案中的「回填」与规划方法说明 | 给人看的现行文字，不是数据转换逻辑 | 各文案的功能 owner；随文案修改或功能移除，不据词面保留旧读取代码 |
@@ -76,6 +77,7 @@
 
 | 位置 | 版本 | 改版本的提交 | 维护 |
 | --- | --- | --- | --- |
+| `agent-definitions/agent-definitions.db` | 1 → 2 | 第08批 #1984；2026-11-06 已授权新增空表 | `apps/local-host/src/agent-definitions/agent-definitions.ts#AGENT_DEFINITIONS_BASELINE#1→2` |
 | `projects/<project_id>/molis-work.db` | 17 → 1 | 第02批 #1837（`67d04ce981`，接 Personal 后复位） | 保留当前完整结构与同步表。2026-11-07 旧Home完整备份、搬开后新建，统一起点已登记（[发布检查单第 4 节](../releases/CHECKLIST.md#4-真实-home搬开后干净重建)）；错版和不符所属结构仍拒绝，不就地升级。 |
 | `projects/<project_id>/molis-work.db#coding` | 3 → 1 | 同上 | 同上 |
 | `projects/<project_id>/molis-work.db#goals` | 2 → 1 | 同上 | 同上 |

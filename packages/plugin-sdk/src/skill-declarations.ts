@@ -13,11 +13,11 @@ const SHA256 = /^[0-9a-f]{64}$/u;
 const MEDIA_TYPE = /^[a-z0-9][a-z0-9!#$&^_.+-]*\/[a-z0-9][a-z0-9!#$&^_.+-]*$/iu;
 const RESOURCE_ROLES = Object.keys(SKILL_RESOURCE_FOLDERS) as Array<keyof typeof SKILL_RESOURCE_FOLDERS>;
 /** Only a method offered to other Agents says who may pick it and how a person names it; the Plugin's own Agent picks its own. */
-const METHODS_ONLY = ["applies_to", "user_invocable", "argument_hint"] as const;
+const METHODS_ONLY = ["applies_to", "user_invocable", "argument_hint", "native_only_reason"] as const;
 /** Every key a method in Manifest `methods` may write; any other is refused by name, so a signed package carries nothing unread. */
 const METHOD_KEYS: ReadonlySet<string> = new Set<keyof PluginMethodDeclaration>([
   "skill_id", "version", "name", "summary", "tools", "description", "when_to_use", "when_not_to_use", "applies_to", "user_invocable",
-  "argument_hint", "body", "resources", "connector_categories",
+  "argument_hint", "native_only_reason", "body", "resources", "connector_categories",
 ]);
 
 type Where = "methods" | "agent";
@@ -87,6 +87,7 @@ export function skillFieldProblems(skill: AgentSkillDeclaration, where: Where): 
     if (skill.user_invocable !== undefined && typeof skill.user_invocable !== "boolean") say("的 user_invocable 只能是布尔值");
     if (skill.argument_hint !== undefined && !boundedText(skill.argument_hint, SKILL_LIMITS.argumentHintChars)) say(`的 argument_hint 限 1～${SKILL_LIMITS.argumentHintChars} 字`);
   }
+  if (skill.native_only_reason !== undefined && !boundedText(skill.native_only_reason, 512)) say("的 native_only_reason 限 1～512 字");
   if (skill.description !== undefined && !boundedText(skill.description, SKILL_LIMITS.descriptionChars)) say(`的 description 限 1～${SKILL_LIMITS.descriptionChars} 字`);
   for (const key of ["when_to_use", "when_not_to_use"] as const) {
     if (skill[key] !== undefined && !boundedText(skill[key], SKILL_LIMITS.whenChars)) say(`的 ${key} 限 1～${SKILL_LIMITS.whenChars} 字`);

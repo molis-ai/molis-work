@@ -35,6 +35,7 @@ function preview(skill: Skill, change?: SkillInstallPreview['change']): SkillIns
     ...(declaration.when_to_use ? { when_to_use: declaration.when_to_use } : {}), ...(declaration.when_not_to_use ? { when_not_to_use: declaration.when_not_to_use } : {}),
     // Not written means it can be named (§4.2).
     applies_to: declaration.applies_to, user_invocable: declaration.user_invocable ?? true,
+    ...(declaration.native_only_reason ? { native_only_reason: declaration.native_only_reason } : {}),
     ...(declaration.argument_hint ? { argument_hint: declaration.argument_hint } : {}), tools: [...declaration.tools],
     resources: resources.map(item => ({ path: item.path, role: item.role, bytes: item.bytes })), runs_scripts: resources.some(item => item.role === 'script'),
     connector_categories: [...declaration.connector_categories ?? []], excerpt: Array.from(skill.body).slice(0, SKILL_EXCERPT_CHARS).join(''),

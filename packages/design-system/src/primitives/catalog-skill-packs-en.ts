@@ -79,7 +79,7 @@ export const SKILL_PACK_BOARD_EN: Readonly<Record<string, string>> = {
 
   "暂时用不了": "Unavailable for now",
   // User 11-07: Retracted. On the board the served dictionaries' 已撤销 (Undone) wins, since the old flat format lets a later entry
-  // override an earlier one; the product (08-9) gives this status its owner's stable key, and its browser case asserts Retracted.
+  // override an earlier one; the product (08-9) carries this owner's exact word in its settings root until batch 16 moves host words to stable keys.
   "已撤销": "Retracted",
   "坏了": "Broken",
   "只限本地 Agent": "Local agents only",

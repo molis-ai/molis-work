@@ -295,7 +295,7 @@ export function listDetailSection(say: Say): string {
   </div>`);
 }
 
-export function alertActionsSection(say: Say): string {
+export function skillAlertSpecimens(say: Say): string {
   const bad = alertWithActions({ tone: "danger", title: say("这个包装不上"), body: say("下面这几处不对，什么都没装，原来的也没动。"),
     problems: [`<code>skills/meeting-notes/SKILL.md</code>${escapeHtml(say("：包里找不到"))}`, `<code>skills/weekly/scripts/run.sh</code>${escapeHtml(say("：声明了却没有这个文件"))}`],
     actions: renderButton({ label: say("重新选文件"), variant: "secondary", size: "sm" }) });
@@ -303,9 +303,8 @@ export function alertActionsSection(say: Say): string {
   const done = alertWithActions({ tone: "success", title: say("已装好「{name}」{version}", { name: say("周报与复盘"), version: "1.4" }), body: say("{count} 个技能都还没启用。到「技能」里选哪些要用。", { count: 4 }), actions: renderButton({ label: say("去「技能」"), variant: "primary", size: "sm" }) });
   const two = alertWithActions({ tone: "warning", title: say("有 1 个技能只有本地 Agent 能用"), body: say("「整理仓库提交」要执行本机命令，内置助理用不了；导入后在 Coding 里可以点名用它。"),
     actions: renderButton({ label: say("照样导入"), variant: "secondary", size: "sm" }) + renderButton({ label: say("不导入这一个"), variant: "ghost", size: "sm" }) });
-  return section("alert-actions", say("提示里的按钮 / Alert Actions"), `<div class="mw-catalog__specimens">
-    ${specimen(say("装不上：逐条列出原因"), bad)}${specimen(say("保存失败"), failed)}${specimen(say("完成后的下一步"), done)}${specimen(say("两个按钮，长句"), two)}
-  </div>`);
+  const stack = (body: string) => `<div class="mw-keep-stack">${body}</div>`;
+  return `${specimen(say("装不上：逐条列出原因"), stack(bad))}${specimen(say("保存失败"), stack(failed))}${specimen(say("完成后的下一步"), stack(done))}${specimen(say("两个按钮，长句"), stack(two))}`;
 }
 
 export function statusLinkSection(say: Say): string {

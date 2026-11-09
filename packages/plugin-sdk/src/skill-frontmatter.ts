@@ -11,7 +11,7 @@ const FIELD = /^([A-Za-z_][A-Za-z0-9_-]*):(?:[ \t]+(.*))?$/u;
 /** The longest `summary`, as `inspectSkillDeclarations` counts it. */
 const SUMMARY_UNITS = 300;
 /** The keys this reading takes. Each is written with underscores, as in the declaration: `argument-hint` is not `argument_hint`. */
-const KEYS = new Set(["name", "version", "summary", "description", "when_to_use", "when_not_to_use", "applies_to", "user_invocable", "argument_hint", "tools", "connector_categories"]);
+const KEYS = new Set(["name", "version", "summary", "description", "when_to_use", "when_not_to_use", "applies_to", "user_invocable", "argument_hint", "native_only_reason", "tools", "connector_categories"]);
 
 type Scalar = string | number | boolean;
 type Value = Scalar | Scalar[];
@@ -50,6 +50,7 @@ export function skillDeclarationFromFrontmatter(markdown: string, options: Skill
     ...optional("description", description), ...optional("when_to_use", text("when_to_use")), ...optional("when_not_to_use", text("when_not_to_use")),
     ...optional("applies_to", (fields.get("applies_to") as AgentSkillDeclaration["applies_to"]) ?? options.applies_to),
     ...optional("user_invocable", fields.get("user_invocable") as boolean | undefined), ...optional("argument_hint", text("argument_hint")),
+    ...optional("native_only_reason", text("native_only_reason")),
     body: skillBodyPath(skill_id),
     ...optional("resources", options.resources?.map(resource => ({ ...resource }))),
     ...optional("connector_categories", listOf(fields.get("connector_categories"))),

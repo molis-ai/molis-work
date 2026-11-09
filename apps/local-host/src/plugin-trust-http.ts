@@ -1,3 +1,4 @@
+import { skillImportActions } from "@molis-ai/molis-work-contracts/services/skills";
 import { randomUUID } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -48,6 +49,11 @@ export async function handlePluginTrustHttp(request: IncomingMessage, response: 
         return { status: 200, body: { ...(installed as object), ...(publishers as object), home_managed_install_ids: managed } };
       }
       if (method !== "POST") return null;
+      if (route === "skills/import/preview" || route === "skills/import/confirm") {
+        if (pluginPageRequest(request)) throw new ActionError("actions.forbidden", "插件页面不能代本人导入技能");
+        return { status: 200, body: await call(PLUGIN_INSTALL_PROVIDER_ID, route.endsWith("/preview") ? skillImportActions.preview : skillImportActions.confirm, body) };
+      }
+      if (route === "bundled/list") return { status: 200, body: await call(PLUGIN_INSTALL_PROVIDER_ID, pluginInstallActions.bundled, {}) };
       if (route === "install/preview") return { status: 200, body: await call(PLUGIN_INSTALL_PROVIDER_ID, pluginInstallActions.preview, body) };
       if (route === "install/confirm") return { status: 200, body: await call(PLUGIN_INSTALL_PROVIDER_ID, pluginInstallActions.confirm, body) };
       if (route === "installed/disable") return { status: 200, body: await call(PLUGIN_INSTALL_PROVIDER_ID, pluginControlActions.disable, body) };

@@ -48,9 +48,9 @@ export interface SkillImportPorts {
 }
 
 /** The person's own local Agents under `userHome`, read as Character import reads them: the Skills only, the rules are not this import's. */
-export function localSkillScan(userHome: string): SkillImportPorts['scan'] {
+export function localSkillScan(userHome: string, env: NodeJS.ProcessEnv = process.env): SkillImportPorts['scan'] {
   return runtime => {
-    const [found] = createCharacterDiscovery({ userHome }).discover({ runtime_id: runtime });
+    const [found] = createCharacterDiscovery({ userHome, env }).discover({ runtime_id: runtime });
     return found ? { root: found.snapshot.config_root, skills: found.snapshot.skills } : null;
   };
 }
@@ -71,7 +71,11 @@ const bytesOf = (file: CharacterImportSkill['files'][number]) => Buffer.from(fil
 function folderSkill(skill: CharacterImportSkill, suggested: SkillAppliesTo): HeldSkill | string {
   if (lstatSync(skill.path, { throwIfNoEntry: false })?.isSymbolicLink()) return '技能目录是一个符号链接：导入只读来源目录之内，请从它实际所在的目录导入';
   const files = new Map(skill.files.map((file): [string, Uint8Array] => [file.path, bytesOf(file)]));
-  try { return { read: skillFromFolder(files, { applies_to: suggested }), files }; }
+  try {
+    const read = skillFromFolder(files, { applies_to: suggested });
+    if (skill.compatibility === 'native-only') read.declaration.native_only_reason = skill.reason ?? '包含本地 Agent 才能使用的依赖。';
+    return { read, files };
+  }
   catch (error) {
     if (!(error instanceof ActionError)) throw error;
     const problems = (error.details as { problems?: Array<{ path?: string; reason: string }> } | undefined)?.problems;
@@ -80,16 +84,16 @@ function folderSkill(skill: CharacterImportSkill, suggested: SkillAppliesTo): He
 }
 
 /** What an installed version of a Skill is made of: its body, each resource's path and digest, and who it is for. */
-const contentKey = (body: string | Uint8Array | undefined, resources: ReadonlyArray<{ path: string; sha256: string }> = [], appliesTo: string | undefined) =>
+const contentKey = (body: string | Uint8Array | undefined, resources: ReadonlyArray<{ path: string; sha256: string }> = [], appliesTo: string | undefined, nativeOnly: string | undefined) =>
   createHash('sha256').update(JSON.stringify([typeof body === 'string' ? body : body === undefined ? null : Buffer.from(body).toString('utf8'),
-    resources.map(item => [item.path, item.sha256]).sort(), appliesTo ?? null])).digest('hex');
+    resources.map(item => [item.path, item.sha256]).sort(), appliesTo ?? null, nativeOnly ?? null])).digest('hex');
 
 /** The version an imported Skill takes: 1 when new, the installed one when nothing changed, one more when its body, resources or 「给谁用」 did. */
 function versionOf(skill: FolderSkill, installed: NonNullable<InstalledRelease['packaged']> | undefined): number {
   const held = installed?.manifest.methods?.find(method => method.skill_id === skill.declaration.skill_id);
   if (!held) return 1;
   const body = (installed!.agentBodies as readonly SandboxAgentBody[] | undefined)?.find(item => item.kind === 'method' && item.entry_id === held.skill_id)?.body;
-  const same = contentKey(body, held.resources, held.applies_to) === contentKey(skill.files.get(skill.declaration.body!), skill.declaration.resources, skill.declaration.applies_to);
+  const same = contentKey(body, held.resources, held.applies_to, held.native_only_reason) === contentKey(skill.files.get(skill.declaration.body!), skill.declaration.resources, skill.declaration.applies_to, skill.declaration.native_only_reason);
   return same ? held.version : held.version + 1;
 }
 
@@ -148,7 +152,9 @@ export class SkillImportService {
         return skill.read;
       }
       if (!choice) throw skillErrors.import_applies_to_invalid(`${id} 的 SKILL.md 没写给谁用：请为它选一个`);
-      return skillFromFolder(skill.files, { applies_to: choice });
+      const selected = skillFromFolder(skill.files, { applies_to: choice });
+      if (skill.read.declaration.native_only_reason) selected.declaration.native_only_reason = skill.read.declaration.native_only_reason;
+      return selected;
     });
     const installed = await this.ports.installed(held.plugin_id, input.scope, who.project_id);
     const skills = chosen.map(skill => ({ ...skill, declaration: { ...skill.declaration, version: versionOf(skill, installed) } }));

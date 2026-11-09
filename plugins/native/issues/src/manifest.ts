@@ -1,3 +1,4 @@
+import { ISSUES_EN } from "./en.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ISSUES_ACTIONS } from "./actions.js";
 import { issuesSkills } from "./skills.js";
@@ -34,7 +35,7 @@ export const issuesManifest: PluginManifest = {
     { route_id: "issues.update", method: "POST", path: "/update", permission: "issues:write" },
     { route_id: "issues.delete", method: "POST", path: "/delete", permission: "issues:write" },
   ],
-  ui: { messages: ISSUES_MESSAGES, contributions: [ISSUES_UI_CONTRIBUTION_ID], views: [
+  ui: { translations: ISSUES_EN, messages: ISSUES_MESSAGES, contributions: [ISSUES_UI_CONTRIBUTION_ID], views: [
     { view_id: "directory", slot: "navigator", title: "Issue", contribution_id: ISSUES_UI_CONTRIBUTION_ID, icon: "circle-alert", order: 57 },
     { view_id: "issues", slot: "stage", title: "Issue", contribution_id: ISSUES_UI_CONTRIBUTION_ID },
     { view_id: "capture", slot: "side", title: "Issue", contribution_id: ISSUES_UI_CONTRIBUTION_ID, icon: "circle-alert" },

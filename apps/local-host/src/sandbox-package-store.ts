@@ -87,7 +87,7 @@ export class SandboxPackageStore {
     return manifest;
   }
 
-  load(pluginId: string, keyId: string, version: string): InstalledRelease {
+  private read(pluginId: string, keyId: string, version: string) {
     const directory = this.directory(pluginId, keyId, version);
     let raw: unknown;
     try { raw = JSON.parse(readFileSync(join(directory, BUNDLE_FILE), 'utf8')); } catch { throw new Error('找不到已安装的插件包：' + pluginId + ' ' + version); }
@@ -96,6 +96,21 @@ export class SandboxPackageStore {
     if (key_id !== keyId || manifest.plugin_id !== pluginId || manifest.version !== version) throw new Error('已存的插件包与安装记录对不上：' + pluginId + ' ' + version);
     const pkg = readKeptPackage(bundle.payload);
     if ('entrypoint' in pkg && !Buffer.from(readFileSync(join(directory, SANDBOX_PACKAGE_FILES.entrypoint))).equals(Buffer.from(pkg.entrypoint))) throw new Error('已存的插件代码被改过：' + pluginId + ' ' + version);
+    return { pkg, bundle, directory };
+  }
+
+  load(pluginId: string, keyId: string, version: string): InstalledRelease {
+    const { pkg, directory } = this.read(pluginId, keyId, version);
     return packagedRelease(pkg, directory, statSync(join(directory, BUNDLE_FILE)).mtime.toISOString());
+  }
+
+  /** SKC-09: only a declared resource from the currently verified signed package, never a filesystem path from the caller. */
+  skillResource(pluginId: string, keyId: string, version: string, skillId: string, resourcePath: string): Uint8Array {
+    const { pkg, bundle } = this.read(pluginId, keyId, version);
+    const declaration = pkg.manifest.methods?.find(skill => skill.skill_id === skillId)?.resources?.find(resource => resource.path === resourcePath);
+    if (!declaration) throw pluginErrors.package_invalid("技能没有声明这个附带文件");
+    const file = bundle.payload.files.find(item => item.path === resourcePath);
+    if (!file) throw pluginErrors.package_invalid("技能的附带文件缺失");
+    return Buffer.from(file.content_base64, "base64");
   }
 }

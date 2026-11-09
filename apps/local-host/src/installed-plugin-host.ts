@@ -1,3 +1,4 @@
+import { reconcileSkillSettings } from "./agent-definitions/skill-settings-lifecycle.js";
 import { effectsFromContract } from '@molis-ai/molis-work-plugin-sdk';
 import { declaredOnlyHolds, pluginAgentRegistration, registerPluginAgentDefinitions, updatePluginAgentDefinitions, forgetPluginAgentDefinitions } from "./plugin-instructions.js";
 import { pluginHomeFor } from "./home-side.js";
@@ -177,7 +178,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
     const record = recordFor(release.pluginId);
     if (!record || record.version !== installedVersion(release)) return;
     const value = release.packaged && definition(release, approvedFor(release.pluginId) ?? release.permissions);
-    if (value) { declared.set(value, record.install_id, state); updatePluginAgentDefinitions(pluginHomeFor(homeDirectory), value, record.install_id, state, restored); }
+    if (value) { declared.set(value, record.install_id, state); updatePluginAgentDefinitions(pluginHomeFor(homeDirectory), value, record.install_id, state, restored); reconcileSkillSettings(homeDirectory, projectId, record.install_id, (value.manifest.methods ?? []).map(method => method.skill_id)); }
     else registerGeneratedPrompts(homeDirectory, generatedRegistration(release, releases.versions(release.buildId), state, installedVersion(release)), promptScope(record.install_id));
   };
   const stops = publisherStops({ standing, platform, recoveryErrors, withdraw: id => { withdraw(id); declared.release(id); }, records });

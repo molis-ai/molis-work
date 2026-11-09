@@ -297,14 +297,14 @@ CREATE TABLE skill_settings (
   state TEXT NOT NULL,              -- 'auto' | 'manual'；没有行就是 off
   enabled_at TEXT NOT NULL,         -- 从 off 变成启用的时间；auto 与 manual 之间切换不改
   enabled_by TEXT NOT NULL,         -- 启用时的操作者
-  revision INTEGER NOT NULL,
+  revision INTEGER PRIMARY KEY AUTOINCREMENT, -- 每次设置取得新编号，删行后也不复用
   updated_at TEXT NOT NULL,
   actor_id TEXT NOT NULL,
-  PRIMARY KEY (scope_ref, install_id, skill_id)
+  UNIQUE (scope_ref, install_id, skill_id)
 );
 ```
 
-**动作**：`skills.settings.set@1`，只给本人。输入 `{ scope, install_id, skill_id, state: "off" | "auto" | "manual", expected_revision }`，冲突时拒绝；改成 `off` 就删行。项目、操作者从上下文来。不可用原因是 `plugin_disabled`、`publisher_revoked`、`resource_invalid` 时拒绝改状态（界面三档变灰）；`requires_unmet`、`connection_missing`、`native_only` 时照常可改。
+**动作**：`skills.settings.set@1`，只给本人。输入 `{ scope, install_id, skill_id, state: "off" | "auto" | "manual", expected_revision }`，冲突时拒绝；改成 `off` 就删行。启用行的修订号由 SQLite 自增键分配，每次写入新号，关掉再开启或重新安装后不复用旧号，旧窗口不能覆盖新设置；这不是公开的连续计数。项目、操作者从上下文来。不可用原因是 `plugin_disabled`、`publisher_revoked`、`resource_invalid` 时拒绝改状态（界面三档变灰）；`requires_unmet`、`connection_missing`、`native_only` 时照常可改。
 
 **保留规则（SKP-10）**：
 
@@ -461,3 +461,7 @@ interface SkillCatalogEntry {
 | SKC-11 | 代码里没有只给技能包用的注册表或安装入口；Coding 的 `agent.skills.discover.v1`、`agent.skills.install.v1` 与 `molis-coding-method` 已删 | SKP-04 |
 | SKC-12 | 被拒或取消的轮次不记 `skill_uses`；卸载以后用量历史仍可读，保留当时的名称和版本 | SKP-07 |
 | SKC-13 | 方法的 `tools` 不扩大 Coding 角色的 `host_tools`：选一个声明了角色没有的工具的方法，开轮后那个工具仍不可用 | SKP-06；统筹 2026-11-04 |
+
+### 2026-11-09 接续：保留本地执行限制
+
+导入预览的 native-only 原因（特别是发现时部分资源未读取）不能仅从已复制文件重新推断。methods 增加可选 `native_only_reason`（1～512 字），随签名声明保存；SDK 与 SKILL.md 共用校验，agent.skills 不收。导入把发现时的限制合入该字段；重新选择 applies_to 不丢失它。限制变化计入导入 Skill 版本。安装预览展示原因，目录显示 native_only；只有可信轮次的 local 引擎选择能读，模型输入不能改变引擎。没有该字段的完整普通技能合同不变。这是08已约定的“native-only导入后仍受限”的必要载体，不另建来源登记表。

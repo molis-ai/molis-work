@@ -162,6 +162,7 @@ export interface SkillInstallPreview {
     applies_to: SkillAppliesTo;
     user_invocable: boolean;
     argument_hint?: string;
+    native_only_reason?: string;
     tools: string[];
     resources: SkillResourceSummary[];
     runs_scripts: boolean;
@@ -215,7 +216,7 @@ export declare const servicesSkillsContract: {
     readonly contractId: "io.molis.work.service.skills.v1";
     readonly kind: "service";
     readonly schemaVersion: 1;
-    readonly maturity: "contract-only";
+    readonly maturity: "partial";
     readonly ssot: "specs/skill-packs/contract-design.md";
 };
 

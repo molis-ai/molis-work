@@ -400,3 +400,6 @@ export { verifySyncPluginDistribution } from "./sync-distribution.js";
 export {connectResidentAccount,ACCOUNT_CONNECT_PATH,type ResidentAccountConnection} from "./resident-account-connection.js";
 
 export { WebSessions } from "./web-sessions.js";
+
+export { withSkillSelection, type SkillSelection } from "./agent-definitions/skill-selection.js";
+export { SkillCatalog, type CatalogSkill, type SkillCatalogPorts } from "./agent-definitions/skill-catalog.js";

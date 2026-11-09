@@ -194,6 +194,8 @@ export interface AgentSkillDeclaration {
   user_invocable?: boolean;
   /** `methods` only: what to write after the name when naming it, at most 80 characters. */
   argument_hint?: string;
+  /** methods only: this Skill requires a local Agent; the signed reason survives import and restart (1–512 characters). */
+  native_only_reason?: string;
   /** The body's path in the package, always `skills/<skill_id>/SKILL.md`; required in a signed package. */
   body?: string;
   resources?: SkillResourceDeclaration[];

@@ -8,7 +8,7 @@ import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@mol
 import type { PluginInstanceRecord, PluginPackageBundle, PluginPackageSigner } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { SKILL_LIMITS } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { CHARACTER_IMPORT_RUNTIMES } from "@molis-ai/molis-work-contracts/modules/characters";
-import { skillImportActions, SKILLS_MANAGE_PERMISSION } from "@molis-ai/molis-work-contracts/services/skills";
+import { skillImportActions, skillCatalogActions, SKILLS_READ_PERMISSION, type SkillCatalogEntry, SKILLS_MANAGE_PERMISSION } from "@molis-ai/molis-work-contracts/services/skills";
 import { MemoryPluginConsentLedger, signPluginPackage, verifyPluginPackageSignature } from "@molis-ai/molis-work-plugin-runtime";
 import { contentPackagePayload, parseContentPackage, skillDeclarationFromFrontmatter, skillFromFolder } from "@molis-ai/molis-work-plugin-sdk";
 import { runPluginCli } from "@molis-ai/molis-work-plugin-cli";
@@ -62,7 +62,7 @@ async function harness() {
   const publisher = newPublisher();
   let signed = 0;
   const signer: PluginPackageSigner = { ...publisher.signer, sign: bytes => { signed += 1; return publisher.signer.sign(bytes); } };
-  const service = new SkillImportService({ install, scan: localSkillScan(userHome), signer: async () => signer,
+  const service = new SkillImportService({ install, scan: localSkillScan(userHome, {}), signer: async () => signer,
     installed: async (pluginId, scope) => {
       const record = scope === "project" ? records.find(item => item.plugin_id === pluginId) : undefined;
       return record && packages.load(pluginId, record.publisher_signature, record.version).packaged;
@@ -134,6 +134,10 @@ test("SKC-10 S-skill-import the preview lists every Skill found, each that canno
     await assert.rejects(h.service.preview({ source: { kind: "runtime", runtime_id: "codex" } }, who), refused("skills.import_source_unavailable"));
     await assert.rejects(h.service.preview({ source: { kind: "project_directory", directory_id: "any" } }, who), refused("skills.import_source_unavailable"));
     h.nothingWritten();
+    const native = await h.service.preview({ source: { kind: "runtime", runtime_id: "claude-code" } }, who);
+    await h.service.confirm({ preview_id: native.preview_id, skill_ids: ["leaky"], scope: "project" }, who);
+    assert.equal(h.kept()[0]?.manifest.methods?.[0]?.native_only_reason, by.get("leaky")!.reason);
+
   } finally { await h.done(); }
 });
 
@@ -255,7 +259,7 @@ test("SKC-10 S-skill-import in a real Host the person imports a local Skills fol
   const userHome = await mkdtemp(join(tmpdir(), "molis-work-user-")), was = process.env.HOME;
   process.env.HOME = userHome;
   try {
-    await writeSkill(join(userHome, ".claude", "skills"), "notes", good("notes"));
+    await writeSkill(join(userHome, ".claude", "skills"), "notes", good("notes"), { "scripts/run.sh": "echo test\n" });
     await writeSkill(join(userHome, ".claude", "skills"), "plain", skillMd(["name: plain", "description: 用户要整理时使用。"]));
     const h = await installedPackageHost();
     try {
@@ -275,6 +279,15 @@ test("SKC-10 S-skill-import in a real Host the person imports a local Skills fol
       assert.deepEqual(listed.plugins.filter(item => item.plugin_id === result.plugin_id).map(item => [item.version, item.state]), [["1.0.0", "running"]]);
       assert.deepEqual(homeAgentDefinitions(h.home).methods().filter(item => item.owner_id === result.plugin_id).map(item => item.name).sort(), ["notes", "plain"]);
       assert.deepEqual(h.ledger.publishers().map(pin => pin.label), ["这台电脑"]);
+      await h.reopen();
+      const catalog = await h.client.invoke({ ...person, permissions: [...person.permissions, SKILLS_READ_PERMISSION] },
+        { capability_id: skillCatalogActions.list.capability_id, version: skillCatalogActions.list.version }, {}) as { skills: SkillCatalogEntry[] };
+      const imported = catalog.skills.find(skill => skill.pack.plugin_id === result.plugin_id && skill.ref.skill_id === "notes")!;
+      assert.equal(imported.pack.trust, "home_local");
+      assert.equal(imported.state, "off");
+      assert.equal(imported.availability.available, false);
+      if (!imported.availability.available) assert.equal(imported.availability.reason, "native_only");
+
     } finally { await h.close(); }
   } finally {
     if (was === undefined) delete process.env.HOME; else process.env.HOME = was;

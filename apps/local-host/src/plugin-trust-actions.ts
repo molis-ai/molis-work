@@ -1,3 +1,4 @@
+import { homeAgentDefinitions } from "./agent-definitions/builtin-registrations.js";
 import { homedir } from "node:os";
 import type { ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import { homeIntegrationRegistry } from "./builtin-integrations.js";
@@ -38,7 +39,7 @@ export function pluginInstallProviderFor(home: string, source: ProjectPluginHost
 }
 
 function pluginInstallServiceFor(home: string, source: ProjectPluginHost): PluginInstallService {
-  return new PluginInstallService({ ledger: new HomeConsentLedger(home), packages: new SandboxPackageStore(home),
+  return new PluginInstallService({ skillStates: (scope, install) => new Map(homeAgentDefinitions(home).skills.settings(scope).filter(row => row.install_id === install).map(row => [row.skill_id, row.state])), ledger: new HomeConsentLedger(home), packages: new SandboxPackageStore(home),
     installInProject: (projectId, release) => installPackageInProject(source, projectId, release), installInHome: release => installPackageInHome(source, release),
     assertIntegrationsFree: async manifest => (await homeIntegrationRegistry(home)).assertFree(manifest),
     installed: projectId => installedPluginsInProject(source, projectId),

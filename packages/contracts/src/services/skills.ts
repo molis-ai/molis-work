@@ -9,14 +9,14 @@ import type { SkillRef } from "./agent-definitions.js";
 /**
  * The Skill catalog (specs/skill-packs/contract-design.md §6–§8): every installed Skill a scope (a project, or the personal space)
  * can see, with its state there, read on demand. Not a second registry: the Host's register of Agent definitions keeps it, and the
- * Skills come from installed Plugins' Manifest `methods`. Declared here only: no provider registers these actions yet, so a call
- * answers `actions.missing` until the catalog slice (batch 08, 08-7) and the import slice (08-8) do.
+ * Skills come from installed Plugins' Manifest `methods`. The Host registers catalog, read, settings and import actions;
+ * Assistant and Coding consumption is delivered separately in batch 09.
  */
 export const servicesSkillsContract = {
   contractId: /* @version contract.io.molis.work.service.skills "io.molis.work.service.skills.v{version}" */ "io.molis.work.service.skills.v1",
   kind: "service",
   schemaVersion: /* @version contract.io.molis.work.service.skills */ 1,
-  maturity: "contract-only",
+  maturity: "partial",
   ssot: "specs/skill-packs/contract-design.md",
 } as const satisfies ContractDescriptor;
 
@@ -129,6 +129,7 @@ export interface SkillInstallPreview {
   applies_to: SkillAppliesTo;
   user_invocable: boolean;
   argument_hint?: string;
+  native_only_reason?: string;
   /** Declared, not granted. */
   tools: string[];
   resources: SkillResourceSummary[];
@@ -302,7 +303,7 @@ export const SKILL_CATALOG_ENTRY_SCHEMA: ActionSchema = object({
 /** `SkillInstallPreview`, closed: the install preview's `skills` items. */
 export const SKILL_INSTALL_PREVIEW_SCHEMA: ActionSchema = object({
   skill_id: text, version: skillVersion, name: text, description: text, when_to_use: text, when_not_to_use: text, applies_to: appliesTo,
-  user_invocable: { type: "boolean" }, argument_hint: text, tools: { type: "array", items: text }, resources: { type: "array", items: resourceSummary },
+  user_invocable: { type: "boolean" }, argument_hint: text, native_only_reason: text, tools: { type: "array", items: text }, resources: { type: "array", items: resourceSummary },
   runs_scripts: { type: "boolean" }, connector_categories: { type: "array", items: text }, excerpt: { type: "string", maxLength: SKILL_EXCERPT_CHARS },
   change: { enum: ["added", "body_changed", "resources_changed", "removed"] }, state,
 }, ["skill_id", "version", "name", "description", "applies_to", "user_invocable", "tools", "resources", "runs_scripts", "connector_categories", "excerpt", "state"]);

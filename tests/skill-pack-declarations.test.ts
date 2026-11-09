@@ -360,3 +360,10 @@ test("skillDeclarationFromFrontmatter refuses what the Manifest check refuses, a
     ["SKILL.md 的 frontmatter 第 3 行要写成一行的 key: value（不支持嵌套和多行值）"]);
   assert.deepEqual(reasons(refused(() => skillDeclarationFromFrontmatter("# 没有 frontmatter"))), ["SKILL.md 要以 --- 包起的 frontmatter 开头"]);
 });
+
+test("SKC-03: signed local-only reasons are bounded declarations and survive content parsing", () => {
+  const reason = "Requires local files and tools";
+  const manifest = parsePluginManifest(contentManifest({ methods: [skill({ native_only_reason: reason })] }));
+  assert.equal(manifest.methods?.[0]?.native_only_reason, reason);
+  for (const value of ["", "x".repeat(513), false]) assert.ok(refused(() => parsePluginManifest(contentManifest({ methods: [skill({ native_only_reason: value })] }))).some(item => item.reason.includes("native_only_reason")));
+});

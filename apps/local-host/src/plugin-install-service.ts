@@ -32,6 +32,7 @@ const PREVIEW_TTL_MS = 15 * 60_000;
 const MAX_PREVIEWS = 16;
 
 export interface PluginInstallPorts {
+  skillStates?(scopeRef: string, installId: string): ReadonlyMap<string, import("@molis-ai/molis-work-contracts/services/skills").SkillState>;
   ledger: PluginConsentLedger;
   packages: SandboxPackageStore;
   /** Installs a release in the project the person is in. */
@@ -203,6 +204,10 @@ export class PluginInstallService {
     // Only an upgrade has bodies to compare: any other package is refused at the confirmation (S-84), even when the kept one is gone.
     const installed = current && !upgradeRefusal(manifest, current.record.version) ? this.ports.packages.load(manifest.plugin_id, manifest.publisher.signature, current.record.version).packaged : undefined;
     const skills = skillInstallPreviews(pkg, installed), agent_bodies = rolePreviews('agentBodies' in pkg ? pkg.agentBodies : [], installed && (installed.agentBodies ?? []));
+    if (current) {
+      const states = this.ports.skillStates?.(who.project_id, current.record.install_id);
+      for (const skill of skills) skill.state = states?.get(skill.skill_id) ?? "off";
+    }
     const requires = (manifest.requires ?? []).map(({ capability_id, version, optional, reason }) => ({ capability_id, version, optional: optional === true, reason,
       satisfied: this.offers(who.project_id, { capability_id, version }) }));
     const preview_id = randomUUID();

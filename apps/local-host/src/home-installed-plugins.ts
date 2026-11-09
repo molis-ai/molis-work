@@ -1,3 +1,4 @@
+import { reconcileSkillSettings } from "./agent-definitions/skill-settings-lifecycle.js";
 /**
  * The signed sandbox packages installed in the Home (BL-628; S-80, S-84, S-91; specs/archive/repository-anti-corruption/slices/bl628-sandboxed-home-plugins.md).
  * The Home's counterpart of `openInstalledPlugins`: the same install lifecycle and the same sandboxed definition, over the Home's Runtime
@@ -192,7 +193,7 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
     const record = recordFor(release.pluginId);
     if (!record || record.version !== installedVersion(release)) return;
     const value = definition(release, approvedFor(release.pluginId) ?? release.permissions); declared.set(value, record.install_id, state);
-    updatePluginAgentDefinitions(pluginHomeFor(home), value, record.install_id, state, restored);
+    updatePluginAgentDefinitions(pluginHomeFor(home), value, record.install_id, state, restored); reconcileSkillSettings(home, "home", record.install_id, (value.manifest.methods ?? []).map(method => method.skill_id));
   };
   const stops = publisherStops({ standing, platform, recoveryErrors, withdraw: id => { withdraw(id); declared.release(id); }, records });
   const lifecycle = installedLifecycle({ platform, storage, privateStorage: options.privateStorage, secrets, recoveryErrors, closed: isClosed, trusted: standing.trusted, recordFor, releaseFor, approvedFor,

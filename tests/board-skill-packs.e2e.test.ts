@@ -12,7 +12,7 @@ import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
 // another entry is chosen (never on the first view), has a reduced-motion way out, and on a narrow width shows one side at a
 // time with the focus following. MOLIS_WORK_BOARD_SHOTS=1 also writes shots (both themes) into the ignored review folder.
 
-const SECTIONS = ["item-choice", "item-details", "list-detail", "alert-actions", "status-link"];
+const SECTIONS = ["alert-actions", "item-choice", "item-details", "list-detail", "status-link"];
 const WIDTHS = [1440, 1024, 390] as const;
 const SCOPE = SECTIONS.map((id) => `#${id}`).join(", ");
 

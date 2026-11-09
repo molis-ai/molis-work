@@ -1,5 +1,11 @@
 [
   {
+    "file": "packages/design-system/src/primitives/catalog-skill-packs.ts",
+    "name": "version",
+    "values": { "1.4": 1 },
+    "reason": "Component board fixture package version for the install success example; not a product or contract version."
+  },
+  {
     "file": "apps/local-host/src/agent-host-composition.ts",
     "name": "appVersion",
     "values": { "0.0.0": 1 },
@@ -468,22 +474,6 @@
   {
     "entry": "action.surfaces.correct",
     "reason": "C-3 合同片只声明，提供方 system.surfaces 由第 15 批 S-1 登记，所以动作快照里还没有行；登记之后这条例外不再需要，门禁会要求删掉。"
-  },
-  {
-    "entry": "action.skills.body.read",
-    "reason": "第 08 批 C-2 合同片只声明，还没有提供方登记，所以动作快照里没有行；提供方在 08-7 登记后删掉这条例外，门禁会要求删。"
-  },
-  {
-    "entry": "action.skills.catalog.list",
-    "reason": "第 08 批 C-2 合同片只声明，还没有提供方登记，所以动作快照里没有行；提供方在 08-7 登记后删掉这条例外，门禁会要求删。"
-  },
-  {
-    "entry": "action.skills.resource.read",
-    "reason": "第 08 批 C-2 合同片只声明，还没有提供方登记，所以动作快照里没有行；提供方在 08-7 登记后删掉这条例外，门禁会要求删。"
-  },
-  {
-    "entry": "action.skills.settings.set",
-    "reason": "第 08 批 C-2 合同片只声明，还没有提供方登记，所以动作快照里没有行；提供方在 08-7 登记后删掉这条例外，门禁会要求删。"
   },
   {
     "row": "functions.published.system_admit_inbox",

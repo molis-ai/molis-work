@@ -15,7 +15,7 @@ import { keepEditsSections, KEEP_EDITS_BOARD_STYLES } from "./catalog-keep-edits
 import { buttonGroupSection, CATALOG_PATTERN_STYLES, dataTableSection, dropZoneSection, rowsSection, statSection, tagInputSection } from "./catalog-patterns.js";
 import { lookSections } from "./catalog-appearance.js";
 import { APPEARANCE_BOARD_STYLES } from "./catalog-appearance-styles.js";
-import { alertActionsSection, itemChoiceSection, itemDetailsSection, listDetailSection, SKILL_PACK_BOARD_STYLES, statusLinkSection } from "./catalog-skill-packs.js";
+import { itemChoiceSection, itemDetailsSection, listDetailSection, SKILL_PACK_BOARD_STYLES, statusLinkSection } from "./catalog-skill-packs.js";
 
 export const PRIMITIVE_CATALOG_IDS = [
   "accordion", "alert", "alert-dialog", "autocomplete", "avatar", "badge", "breadcrumb", "button",
@@ -252,7 +252,6 @@ export function renderPrimitiveCatalog(options: { readonly plugins?: readonly Ca
     ${itemChoiceSection(say)}
     ${itemDetailsSection(say)}
     ${listDetailSection(say)}
-    ${alertActionsSection(say)}
     ${statusLinkSection(say)}
     ${layoutSection()}
     ${dataTableSection()}`;

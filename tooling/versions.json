@@ -920,7 +920,7 @@
     "contract.io.molis.work.service.search": 1,
     "contract.io.molis.work.service.skills": 1,
     "database.agent_declarations_baseline": 1,
-    "database.agent_definitions_baseline": 1,
+    "database.agent_definitions_baseline": 2,
     "database.alchemist_search_baseline": 1,
     "database.alchemist_studio_baseline": 1,
     "database.assistant_store_baseline": 1,

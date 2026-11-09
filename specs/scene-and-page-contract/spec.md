@@ -452,6 +452,8 @@ SDK 根入口 `inspectHomePageDraft(value: unknown)` 返回带字段路径的声
 
 `plugins.local_packages.sign@1` 只签内容包，统一登记在宿主的 `plugin-install`（合同台 2026-11-04 定）。P-3c 先交公共合同。这是只给 `user` 的命令，收闭合的 `{ manifest, files }`，文件项沿 `{ path, content_base64 }`，返回普通安装预览的 `{ preview_id }`。调用方在本人明确发布的操作里嵌套调用。宿主复用已有 Home 发布身份和内容包签名。私钥由宿主签名函数持有，安装预览展示验签后的发布者信息，安装和发布者固定仍走 S-84 的确认入口。
 
+输入的 `manifest` 是待签内容声明，`files` 只收声明的正文和资源。签名入口拒绝调用方传入 `publisher` 或 `manifest.json`。经 `beforeEffect()` 和同步授权尾检后，宿主按现有规则取得或首次创建 Home 发布身份，写入真实的 `publisher` 并生成唯一匹配的 `manifest.json`。成包后沿现有内容包解析、签名和验签预览。SDK 从现有 `contentPackagePayload` 提取共用组包步骤供 08 导入使用，内容校验统一走 `parseContentPackage`。
+
 本批先接 08 的真实导入。`apps/local-host/src/skill-import.ts` 组包后，通过 `skills.import.confirm@1` 的本人发布调用进入签名命令。宿主复用 `apps/local-host/src/plugin-builder/publisher-identity.ts` 的签名函数和普通安装预览。原导入控制器沿「同意并导入」已取得的本人确认，持预览 ID 调同一安装服务完成安装。验收覆盖缺少本人发布确认、撤权及取消后的签名拒绝。
 
 第 44 批的场景主人接入 `blueprints.packs.save@1` 时，按确切草稿 revision 或采用快照组包并调用签名命令。个人另存从同一安装服务按本人、原作用域和有效期只读回取预览，沿实际个人空间或 Home 上下文完成本人确认。SPC-15 按 08 导入和 44 另存的真实路径验收，公共合同的静态验证单独记证据。

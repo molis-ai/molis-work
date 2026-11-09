@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, writeFileSync, realpathSync } from "node:fs";
 import { dirname, isAbsolute, join, relative } from "node:path";
 import { characterErrors, type CharacterContent, type CharacterImportRuntimeId } from "@molis-ai/molis-work-contracts/modules/characters";
-import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
+import { directoryInputOnly, type ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { openCharacterRuns, type CharactersImportPorts, type CharacterRunRecord } from "@molis-ai/molis-work-module-characters";
 import type { PtySpawnRequest, PtySpawnResult } from "@molis-ai/molis-work-contracts/services/runtime-host";
@@ -58,8 +58,14 @@ function sameRequest(previous: CharacterRunRecord, owner: { actorId: string; pro
 /**
  * Native launches of a published Character. Characters records each run in its own store (`openCharacterRuns`); the terminal
  * is reached by the run's panel alone, so nothing of the run goes to the Sessions registry and its output is not recorded.
+ * A native Agent writes where it runs, so it starts only in the project's output (SSC-15): a folder that is only an input is refused.
  */
-export function characterNativeExecution(options: { home: string; actorId: string; projectId: string; workspaces(): Promise<readonly ProjectWorkspaceRef[]>; spawn(request: PtySpawnRequest): PtySpawnResult; executable(runtime: CharacterImportRuntimeId): string | null }): Pick<CharactersImportPorts, "execution" | "launch" | "runs"> {
+export function characterNativeExecution(options: { home: string; actorId: string; projectId: string; workspaces(): Promise<readonly ProjectWorkspaceRef[]>;
+  /** The project's output directory, read now: the one folder a native run may start in. */
+  output(): Promise<ProjectWorkspaceRef | null>;
+  /** Makes the output on disk if it is a default output directory not made yet, before a run starts there (§3 「碰磁盘的调用方」). */
+  prepare?(workspaceId: string): Promise<void>;
+  spawn(request: PtySpawnRequest): PtySpawnResult; executable(runtime: CharacterImportRuntimeId): string | null }): Pick<CharactersImportPorts, "execution" | "launch" | "runs"> {
   const runs = <T>(action: (store: ReturnType<typeof openCharacterRuns>["runs"]) => T): T => {
     const handle = openCharacterRuns(options.home, options.actorId, options.projectId);
     try { return action(handle.runs); } finally { handle.close(); }
@@ -77,15 +83,18 @@ export function characterNativeExecution(options: { home: string; actorId: strin
       if (typeof input.request_id !== "string" || !/^[a-zA-Z0-9-]{20,80}$/.test(input.request_id)) throw characterErrors.invalid("执行请求标识无效");
       const workspace = (await options.workspaces()).find(item => item.workspace_id === input.workspace_id);
       if (!workspace) throw characterErrors.invalid("请选择当前项目已绑定的工作目录");
+      if ((await options.output())?.workspace_id !== workspace.workspace_id) throw directoryInputOnly(workspace.workspace_id);
+      const executable = options.executable(snapshot.runtime_id);
+      if (!executable) throw characterErrors.invalid("未发现对应 Agent CLI，请安装后重新检查；不会替换为其他引擎");
+      await control?.beforeStart();
+      // The caller still may: a default output directory not made yet is made for the run (§3 「碰磁盘的调用方」), then read where it is.
+      await options.prepare?.(workspace.workspace_id);
       const cwd = realpathSync(workspace.canonical_path);
       const source = snapshot.project_root;
       if (source) {
         const path = relative(realpathSync(source), cwd);
         if (path === ".." || path.startsWith("../") || isAbsolute(path)) throw characterErrors.invalid("此角色包含项目范围内容，不能在其他项目执行");
       }
-      const executable = options.executable(snapshot.runtime_id);
-      if (!executable) throw characterErrors.invalid("未发现对应 Agent CLI，请安装后重新检查；不会替换为其他引擎");
-      await control?.beforeStart();
       control?.assert_current();
       // From here on nothing waits: the record, the bundle and the dispatch happen for the call that was just checked.
       const panelId = `character-${input.request_id}`, spawn = { panelId, attachOnly: true } as const;

@@ -537,6 +537,7 @@ export interface ActionMetadata {
     readonly workflow_content?: WorkflowContentStation;
     readonly search_source?: SearchSourceDeclaration;
     readonly file_source?: FileSourceDeclaration;
+    readonly composer_source?: ComposerSourceDeclaration;
     readonly thread_source?: {
         readonly role: "context" | "reply";
         readonly subject_kind: string;
@@ -881,9 +882,19 @@ export interface AgentSkillDeclaration {
     name: string;
     summary: string;
     tools: string[];
+    description?: string;
+    when_to_use?: string;
+    when_not_to_use?: string;
+    applies_to?: SkillAppliesTo;
+    user_invocable?: boolean;
+    argument_hint?: string;
+    native_only_reason?: string;
+    body?: string;
+    resources?: SkillResourceDeclaration[];
+    connector_categories?: string[];
 }
 
-export interface AgentSkillDefinition extends AgentSkillDeclaration {
+export interface AgentSkillDefinition extends Omit<AgentSkillDeclaration, "body"> {
     body: string;
 }
 
@@ -1002,6 +1013,12 @@ export interface BoundActionClient {
     discover(): Promise<readonly ActionView[]>;
     invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "locale" | "assert_authority_current" | "retainBackgroundAuthority" | "query_only">, transport?: ActionInvokeTransport): Promise<Output>;
 }
+
+export declare const CONTENT_PACKAGE_FILES: {
+    readonly manifest: "manifest.json";
+    readonly skills: "skills";
+    readonly body: "SKILL.md";
+};
 
 export declare const DUE_REMINDERS_INPUT_TYPE = "molis.reminders.window.v1";
 
@@ -2295,6 +2312,16 @@ export interface HomePluginDatabaseDeclaration extends PluginDatabaseDeclaration
     readonly project_rows?: PluginProjectRowsDeclaration;
 }
 
+export interface HomeStoreBaseline {
+    readonly version: number;
+    readonly schema: string;
+    readonly upgrades?: readonly {
+        readonly from: number;
+        readonly sql?: string;
+        readonly reduces_rows?: readonly string[];
+    }[];
+}
+
 export interface HomeStoreDeclaration {
     readonly replication?: (home: string, ownerId: string) => {
         close(): void;
@@ -2302,10 +2329,7 @@ export interface HomeStoreDeclaration {
     };
     readonly path: string;
     readonly library?: {
-        readonly baseline: {
-            readonly version: number;
-            readonly schema: string;
-        };
+        readonly baseline: HomeStoreBaseline;
         readonly file?: string;
         readonly partition?: "project";
     };
@@ -2460,6 +2484,8 @@ export type IntegrationProviderSyncResult = {
 export type ItemAttachPosition = (typeof ITEM_ATTACH_POSITIONS)[number];
 
 export declare const LOCAL_PERSON_ACTOR_ID = "web-user";
+
+export declare const MAX_SKILL_BODY_CHARS = 20000;
 
 export interface MaterialSourceContent {
     text: string;
@@ -2814,6 +2840,7 @@ export interface PluginDatabaseDeclaration {
     readonly schema: string;
     readonly read_permission: string;
     readonly write_permission: string;
+    readonly upgrades?: readonly PluginDatabaseUpgradeStep[];
 }
 
 export interface PluginDatabaseReader {
@@ -2831,6 +2858,18 @@ export interface PluginDatabaseTransaction extends PluginDatabaseReader {
     }): T;
 }
 
+export interface PluginDatabaseUpgradeStep {
+    readonly from: number;
+    readonly sql: string;
+    readonly reduces_rows?: readonly string[];
+}
+
+export interface PluginDeclarationProblem {
+    skill_id?: string;
+    path?: string;
+    reason: string;
+}
+
 export interface PluginDefinition {
     manifest: PluginManifest;
     execution?: "host" | "sandbox";
@@ -2842,7 +2881,7 @@ export interface PluginDefinition {
     }>>;
     agent_skills?: readonly AgentSkillDefinition[];
     instructions?: readonly InstructionPrompt[];
-    methods?: readonly AgentSkillDefinition[];
+    methods?: readonly PluginMethodDefinition[];
     start(context: PluginStartContext): Promise<PluginContribution>;
     stop?(context: PluginStartContext): Promise<void>;
     health?(context: PluginStartContext): Promise<{
@@ -3390,7 +3429,7 @@ export interface PluginKeptJob {
     cancel(): void;
 }
 
-export type PluginKind = "native" | "integration" | "app";
+export type PluginKind = "native" | "integration" | "app" | "content";
 
 export interface PluginLifecycleReceipt {
     receipt_id: string;
@@ -3510,7 +3549,7 @@ export interface PluginManifest {
     routes?: PluginRouteDeclaration[];
     requires?: PluginRequirementDeclaration[];
     agent?: AgentManifest;
-    methods?: import("@molis-ai/molis-work-contracts/platform/plugin-agent").AgentSkillDeclaration[];
+    methods?: import("@molis-ai/molis-work-contracts/platform/plugin-agent").PluginMethodDeclaration[];
     upgrade_compatibility?: PluginUpgradeCompatibilityDeclaration;
     databases?: import("platform/plugin-database").PluginManifestDatabases;
     owner_files?: import("platform/plugin-owner-files").PluginOwnerFilesDeclaration;
@@ -3532,6 +3571,7 @@ export interface PluginManifest {
     action_scenes?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneDefinition[];
     read_groups?: readonly import("platform/plugin-read-groups").PluginReadGroupDeclaration[];
     task_subjects?: import("platform/plugin-task-subjects").PluginTaskSubjectsDeclaration;
+    presentation?: import("@molis-ai/molis-work-contracts/platform/presentation").PresentationDeclaration;
 }
 
 export interface PluginManifestDatabases {
@@ -3563,6 +3603,15 @@ export type PluginMessagesDeclaration = Readonly<Record<string, {
     readonly zh: string;
     readonly en: string;
 }>>;
+
+export interface PluginMethodDeclaration extends AgentSkillDeclaration {
+    description: string;
+    applies_to: SkillAppliesTo;
+}
+
+export interface PluginMethodDefinition extends Omit<PluginMethodDeclaration, "body"> {
+    body: string;
+}
 
 export type PluginModelAvailability = ActionAvailability & {
     readonly runtime_label?: string;
@@ -4060,6 +4109,7 @@ export interface PluginRuntimeApi {
         definition: PluginDefinition;
         deployment?: PluginDeployment;
         grants?: string[];
+        assertCurrent?: () => void;
     }): Promise<PluginLifecycleReceipt>;
     rollback(input: {
         install_id: string;
@@ -4067,7 +4117,9 @@ export interface PluginRuntimeApi {
     }): Promise<PluginLifecycleReceipt>;
     grant(installId: string, permissions: string[]): PluginLifecycleReceipt;
     regrant(installId: string, permission: string, granted: boolean): Promise<PluginLifecycleReceipt>;
-    start(installId: string): Promise<PluginLifecycleReceipt>;
+    start(installId: string, control?: {
+        assertCurrent?: () => void;
+    }): Promise<PluginLifecycleReceipt>;
     stop(installId: string, options?: {
         preserve_enabled?: boolean;
     }): Promise<PluginLifecycleReceipt>;
@@ -4607,6 +4659,28 @@ export declare const SEARCH_OPEN_TARGET_SCHEMA: {
 
 export declare const SEARCH_SOURCE_AUDIENCES: readonly ActionAudience[];
 
+export declare const SKILL_APPLIES_TO: readonly ["assistant", "coding", "both"];
+
+export declare const SKILL_LIMITS: {
+    readonly skillIdChars: 64;
+    readonly descriptionChars: 1024;
+    readonly whenChars: 500;
+    readonly argumentHintChars: 80;
+    readonly bodyLines: 500;
+    readonly bodyChars: 20000;
+    readonly resourcesPerSkill: 300;
+    readonly skillsPerPackage: 128;
+    readonly filesPerPackage: 4000;
+    readonly fileBytes: number;
+    readonly packageBytes: number;
+};
+
+export declare const SKILL_RESOURCE_FOLDERS: {
+    readonly reference: "references";
+    readonly script: "scripts";
+    readonly asset: "assets";
+};
+
 export declare const SKILL_TOOLS: readonly ["find-capabilities", "read-capability", "change-capability", "suggest-action", "ask-user", "update-todo", "find-tools", "context-remaining", "board-wait", "acknowledge-inputs"];
 
 export declare const SUBJECT_CONTEXT_INPUT_SCHEMA: {
@@ -4953,9 +5027,8 @@ export interface SandboxPackageInterface {
     acceptance?: SandboxJson[];
 }
 
-export type SandboxPackageManifest = Omit<PluginManifest, "agent" | "methods"> & {
+export type SandboxPackageManifest = Omit<PluginManifest, "agent"> & {
     agent?: SandboxAgentBodyDeclaration[];
-    methods?: SandboxAgentBodyDeclaration[];
 };
 
 export interface SandboxPackagePrompt {
@@ -5009,6 +5082,18 @@ export interface SearchSourceKind {
     surface: string;
 }
 
+export type SkillAppliesTo = (typeof SKILL_APPLIES_TO)[number];
+
+export interface SkillResourceDeclaration {
+    path: string;
+    role: SkillResourceRole;
+    media_type: string;
+    bytes: number;
+    sha256: string;
+}
+
+export type SkillResourceRole = keyof typeof SKILL_RESOURCE_FOLDERS;
+
 export interface StageSceneMetadataAuthority {
     readonly actor_id: string;
     readonly audience: ActionAudience;
@@ -5051,6 +5136,18 @@ export interface SubjectOffersInput {
     subject: ActionSubject;
     request_id: string;
 }
+
+export type SubjectReaderLookup = {
+    found: "one";
+    view: ActionView;
+} | {
+    found: "unavailable";
+    view: ActionView;
+} | {
+    found: "ambiguous";
+} | {
+    found: "none";
+};
 
 export interface SyncActionClient {
     invokeSync(context: ActionCallContext, reference: ActionReference, input: unknown): unknown;
@@ -5560,6 +5657,8 @@ export declare function fileContentOf(input: {
 }): FileContent;
 
 export declare function fileEntriesPage(entries: readonly FileEntry[], input: FileEntriesInput): FileEntriesPage;
+
+export declare function findSubjectReader(views: readonly ActionView[], kind: string): SubjectReaderLookup;
 
 export declare function hostEventType(eventTypeId: string, typeVersion: number): HostEventType | undefined;
 

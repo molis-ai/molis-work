@@ -7,7 +7,7 @@ import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
 export type {PluginRegistration as BuiltinPluginEntry} from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { ARTIFACT_NAVIGATION } from "./artifacts/navigation.js";
 import { ARTIFACTS_PROVIDER_ID } from "@molis-ai/molis-work-module-artifacts";
-import { sanitizePluginDirectory, type PluginDirectory, type PluginDirectoryEntry } from "./plugin-directory.js";
+import { isPersonalPlugin, sanitizePluginDirectory, type PluginDirectory, type PluginDirectoryEntry } from "./plugin-directory.js";
 export { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
 
 export interface PluginMarketCard {
@@ -149,7 +149,10 @@ function placedViews(directory: PluginDirectory, enabled: readonly ProjectPlugin
 
 function railEntry({ id, entry, view }: { id: ProjectPluginId; entry: PluginDirectoryEntry; view: UiPlacedView }): RailEntry {
   const english = view.slot === "stage" ? view.plugin_title_en : view.title_en;
-  return { id, surface: id, label: view.slot === "stage" ? entry.name : view.title, ...(english !== undefined ? { label_en: english } : {}), glyph: view.icon ?? "package", group: view.group,
+  return { id, surface: id, label: view.slot === "stage" ? entry.name : view.title, ...(english !== undefined ? { label_en: english } : {}), glyph: view.icon ?? "package",
+    // The 个人 group is the person's own plugins, by the one rule ＋ and the bar's right tray use too (isPersonalPlugin; 07-1 S4b):
+    // a view does not put itself there, nor keep another group once it is the person's.
+    group: isPersonalPlugin(entry) ? "personal" : view.group === "personal" ? null : view.group ?? null,
     // Only a plugin the project chooses can be the backbone, an extend entry or pinned by default, whoever built the directory.
     rail: entry.chosen ? view.rail ?? null : null, pinned_default: entry.chosen && view.pinned_default === true, chosen: entry.chosen };
 }

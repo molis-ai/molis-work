@@ -1,3 +1,4 @@
+import { handleSkillSettingsHttp } from "./agent-definitions/skill-settings-http.js";
 import { withReadOnlyPluginDirectory } from "./always-on-plugins.js";
 import { handlePluginConsentSettingsHttp } from "./plugin-consent-settings-http.js";
 import { handleTaskGrantsSettingsHttp } from "./task-grants-settings-http.js";
@@ -49,7 +50,7 @@ import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { bindGoalsWebActions } from "./goal-callers.js";
 import {
   agentReviewsRoute, boardRoute, directoryGrantRoute, pluginPageRoute, directoryRoutes, homeDockRoute, pluginStudioRoute, projectAssistantRoutes, projectNotFoundRoute,
-  projectProbeRoutes, projectRuntimeRoute, projectWorkspacesRoute, projectWriteCheckersRoute, runtimePluginsRoute, sideFilesRoute, sideViewRoute,
+  projectProbeRoutes, projectRuntimeRoute, projectWriteCheckersRoute, runtimePluginsRoute, sideFilesRoute, sideViewRoute,
   workspaceMembershipRoute,
 } from "./web-project-platform-routes.js";
 
@@ -89,6 +90,7 @@ export async function handleMolisWorkWebRequest(
     // Every registered prompt and role, and the person's edits of them: one register per Home, whichever page asks.
     if (serverOptions.homeDirectory && url.pathname.startsWith("/api/agent-definitions/")
       && await handleAgentDefinitionsHttp(request, response, url, agentDefinitionsFor(serverOptions.homeDirectory, builtinRegistrations))) return;
+    if (url.pathname.startsWith("/api/skills/") && await handleSkillSettingsHttp(request, response, url, localHost)) return;
     if (resolved.kind === "catalog_index") {
       const assistant = serverOptions.homeDirectory ? assistantPortsFor(serverOptions.homeDirectory, composition, localHost, agentHost, agentReady) : null;
       await withHomePluginStorePageRecovery(context, null, () => dispatchWebRoutes(CATALOG_INDEX_ROUTES, { ...context, projects: resolved.projects, assistant }));
@@ -186,7 +188,6 @@ function projectWebView({ options, webViewCache, store, homeActions, localHost, 
       model: id => composition.workbenchRenderer.declaredStageModel(id, view) });
     return { ...view, plugin_stages: homeStages.html, plugin_panels: homeStages.panels, plugin_overlays: homeStages.overlays,
       plugin_stage_surfaces: homeStages.surfaces, ...(homeStages.page ? { page_stage: homeStages.page } : {}), unavailable_plugin_stages: homeStages.unavailable,
-      home_plugin_nav: await localHost.homePlugins?.navigation() ?? [],
       plugin_directory: mergePluginDirectories(await homePluginDirectory(localHost.homePlugins, serverOptions.homeDirectory), builtinMarketDirectory(serverOptions.homeDirectory)) };
   };
 }
@@ -253,7 +254,6 @@ const goalsAndArtifactRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
 
 /** Inside the project's open runtime, tried in this order; the last entry answers every address the project does not have. */
 const PROJECT_RUNTIME_ROUTES: readonly WebRoute<ProjectRuntimeContext>[] = [
-  projectWorkspacesRoute,
   projectRuntimeRoute,
   projectWriteCheckersRoute,
   pluginStudioRoute,

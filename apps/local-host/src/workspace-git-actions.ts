@@ -2,7 +2,7 @@ import { readFile, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { ActionError, defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
+import { directoryInputOnly, type ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { prepareGitIndexCapability, prepareGitOperationCapability, readGitOperationsCapability, readGitResultsCapability, type GitOperationRecord, type GitReviewedResult } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import type { MolisWorkLocalHost } from "./project-host.js";
 import { prepareGitOperation } from "./workspace-git-operations.js";
@@ -12,6 +12,8 @@ import { reviewAuthority } from "./plugin-callers.js";
 const workspaceGitErrors = defineErrorCodes("workspace_git", {
   /** The workspace the call names is no longer authorized for this project (or its folder no longer matches). */
   workspace_unavailable: "unavailable",
+  /** The project's default output directory is not made yet, so there is no repository to stage or commit in. */
+  not_a_repository: "invalid",
 });
 
 type GitReviewPort = NonNullable<Awaited<ReturnType<typeof createPrologueNodeAdapter>>["gitReviews"]>;
@@ -25,6 +27,10 @@ export interface WorkspaceGitActionPorts {
   reviews(): Promise<AgentReviewQueue>;
   /** The project's authorized workspaces. */
   workspaces(projectId: string): Promise<readonly ProjectWorkspaceRef[]>;
+  /** The project's output directory, the only folder Git writes in (SSC-15). */
+  output(projectId: string): Promise<ProjectWorkspaceRef | null>;
+  /** Whether the folder is on disk: a default output directory is made the first time something writes or runs there. Absent, it always is. */
+  made?(projectId: string, workspaceId: string): Promise<boolean>;
 }
 
 const notWired = () => new ActionError("actions.connection_required", "Git 宿主审查执行方尚未接通");
@@ -34,16 +40,33 @@ const notWired = () => new ActionError("actions.connection_required", "Git 宿�
  * approves, under the calling installation's `review:<kind>` (PG-009, S-50); the two reads list what became of them.
  */
 export function registerWorkspaceGitActions(ports: WorkspaceGitActionPorts): () => void {
+  const verifiedWorkspace = async (projectId: string, workspaceId: string, refusal: string) => {
+    const workspace = (await ports.workspaces(projectId)).find(item => item.workspace_id === workspaceId && item.realpath_verified);
+    if (!workspace) throw workspaceGitErrors.workspace_unavailable(refusal);
+    return workspace;
+  };
+  // Git writes only in the output: an input-only folder is read, never staged, committed, branched or pushed in (SSC-15). It is checked
+  // when the review is prepared and again right before an approved one runs, so a folder made input-only in between is refused then.
+  const writable = async (projectId: string, workspaceId: string) => {
+    if ((await ports.output(projectId))?.workspace_id !== workspaceId) throw directoryInputOnly(workspaceId);
+    // A default output directory not made yet holds no repository: answered before git runs, and nothing makes it (§3 「碰磁盘的调用方」).
+    if (ports.made && !await ports.made(projectId, workspaceId)) throw workspaceGitErrors.not_a_repository("这个文件夹还没有建立，不是 Git 仓库");
+  };
+  const writing = (projectId: string, workspaceId: string, prepared: { check(): Promise<void>; execute(): Promise<unknown> }) => ({
+    async check() { await writable(projectId, workspaceId); await prepared.check(); },
+    async execute() { await writable(projectId, workspaceId); await prepared.execute(); },
+  });
+
   const unregisterIndex = ports.localHost.registerAction(prepareGitIndexCapability, async (project, input, invocation) => {
     const reviews = await ports.gitReviews();
     if (!reviews) throw notWired();
-    const current = () => ports.workspaces(project.project_id);
-    const prepared = await prepareGitIndex(input, current);
-    const workspace = (await current()).find(item => item.workspace_id === input.workspace_id);
-    if (!workspace) throw workspaceGitErrors.workspace_unavailable("工作区已取消授权");
+    const workspace = await verifiedWorkspace(project.project_id, input.workspace_id, "工作区已取消授权");
+    await writable(project.project_id, input.workspace_id);
+    const prepared = await prepareGitIndex(input, () => ports.workspaces(project.project_id));
     await invocation.beforeEffect();
     const request = await reviews.prepare({ project_id: project.project_id, workspace_id: input.workspace_id, operation_id: input.operation_id,
-      document: { kind: "git-index", action: input.action, workspace_name: workspace.display_name ?? "当前仓库", files: prepared.files } }, { ...prepared, authority: reviewAuthority(invocation.plugin, "git-index") });
+      document: { kind: "git-index", action: input.action, workspace_name: workspace.display_name ?? "当前仓库", files: prepared.files } },
+      { ...writing(project.project_id, input.workspace_id, prepared), authority: reviewAuthority(invocation.plugin, "git-index") });
     return { review_id: request.review_id };
   });
 
@@ -62,26 +85,22 @@ export function registerWorkspaceGitActions(ports: WorkspaceGitActionPorts): () 
     saving = save.catch(() => undefined);
     return save;
   };
-  const verifiedWorkspace = async (projectId: string, workspaceId: string, refusal: string) => {
-    const workspace = (await ports.workspaces(projectId)).find(item => item.workspace_id === workspaceId && item.realpath_verified);
-    if (!workspace) throw workspaceGitErrors.workspace_unavailable(refusal);
-    return workspace;
-  };
   const unregisterOperation = ports.localHost.registerAction(prepareGitOperationCapability, async (project, input, invocation) => {
     const reviews = await ports.gitReviews();
     if (!reviews) throw notWired();
     // The action's schema refuses it first; kept here for whoever reaches this handler another way.
     if (!/^[a-zA-Z0-9-]{8,80}$/.test(input.operation_id)) throw new ActionError("actions.input_invalid", "Git 操作标识无效");
     const workspace = await verifiedWorkspace(project.project_id, input.workspace_id, "工作区已取消授权");
+    await writable(project.project_id, input.workspace_id);
     const prepared = await prepareGitOperation(workspace, input.revision, input.operation);
     // The caller's authority is checked again right before the review is created, as for staging.
     await invocation.beforeEffect();
     const request = await reviews.prepare({ project_id: project.project_id, workspace_id: input.workspace_id, operation_id: input.operation_id,
       operation_kind: "git-operation", document: { kind: "tool-operation", tool: prepared.tool, summary: prepared.summary, fields: prepared.fields } },
-      { authority: reviewAuthority(invocation.plugin, "git-operation"), check: prepared.check, async execute() {
+      { authority: reviewAuthority(invocation.plugin, "git-operation"), ...writing(project.project_id, input.workspace_id, { check: prepared.check, async execute() {
         const detail = await prepared.execute();
         try { await saveDetail(`${project.project_id}:${input.operation_id}`, detail); } catch { /* the operation happened; only its description is missing */ }
-      } });
+      } }) });
     return { review_id: request.review_id };
   });
 

@@ -15,8 +15,8 @@ test("a file changed on both sides is never overwritten as-is: a clean three-way
   await writeFile(path.join(root, "clean.txt"), "one\ntwo\nthree\n"); await writeFile(path.join(root, "clash.txt"), "alpha\nbeta\n"); await writeFile(path.join(root, "append.ts"), "function a() {\n  return 1;\n}\n");
   await git("add", "."); await git("commit", "-qm", "base");
   const tree = await createGitWorktreePort(root).create("child"), childRoot = path.resolve(root, tree.directory);
-  const grants = async () => [{ workspace_id: "main", canonical_path: root, realpath_verified: true, display_name: "Main" }, { workspace_id: "child", canonical_path: childRoot, realpath_verified: true, display_name: "Child" }] as never;
-  const selection = { workspace_id: "main", writer_workspace_id: "child" };
+  const grants = async () => [{ workspace_id: "main", canonical_path: root, realpath_verified: true, display_name: "Main" }] as never;
+  const selection = { workspace_id: "main", worktree_id: tree.worktree_id };
   try {
     // The child edits the last line of one file and the first line of another; the main workspace edits too.
     await writeFile(path.join(childRoot, "clean.txt"), "one\ntwo\nthree (child)\n"); await writeFile(path.join(childRoot, "clash.txt"), "alpha (child)\nbeta\n");

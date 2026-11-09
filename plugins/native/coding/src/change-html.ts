@@ -109,5 +109,5 @@ function drawIntegration(body: IntegrationBody & { files: NonNullable<Integratio
 export function codingChangeHtml(body: unknown, request: { route_id: string; query: Readonly<Record<string, string>> }, locale: ActionLocale | undefined): void {
   const page = body as (ChangeBody & IntegrationBody) | undefined;
   if (page?.change) drawChange(page as ChangeBody & { change: CodingChangeSet }, request.query, locale);
-  if (request.route_id === "coding.read-integration" && Array.isArray(page?.files)) drawIntegration(page as IntegrationBody & { files: NonNullable<IntegrationBody["files"]> }, locale);
+  if ((request.route_id === "coding.read-integration" || request.route_id === "coding.read-worktree-integration") && Array.isArray(page?.files)) drawIntegration(page as IntegrationBody & { files: NonNullable<IntegrationBody["files"]> }, locale);
 }

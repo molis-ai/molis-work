@@ -12,7 +12,7 @@ test("the bar toggles back, covers close four ways, and history walks covers and
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
-  await waitFor("document.body.dataset.desktopSurface === 'home' && document.querySelector('.tab-item[data-tab-kind=home][aria-current]')");
+  await waitFor("document.body.dataset.desktopSurface === 'home' && !document.querySelector(':is([data-titlebar-tabs], [data-tab-strip]) .tab-item[aria-current]')");
   const exclusive = "(document.querySelector('[data-tab-workspace]').dataset.exclusive || '')";
   const shows = (plugin: string) => `document.querySelector('[data-titlebar-tabs] [data-tab-kind="plugin"][aria-current][data-plugin="${plugin}"]')`;
 
@@ -27,10 +27,10 @@ test("the bar toggles back, covers close four ways, and history walks covers and
   await click('[data-dock-pin="inbox"]');
   await waitFor(shows("goals"));
   await click('[data-dock-pin="goals"]');
-  await waitFor("document.querySelector('.tab-item[data-tab-kind=home][aria-current]')");
+  await waitFor("document.body.dataset.desktopSurface === 'home' && !document.querySelector(':is([data-titlebar-tabs], [data-tab-strip]) .tab-item[aria-current]')");
   // Home is where panes start: pressing it again changes nothing.
   await click('[data-dock-pin="home"]');
-  await waitFor("document.querySelector('.tab-item[data-tab-kind=home][aria-current]')");
+  await waitFor("document.body.dataset.desktopSurface === 'home' && !document.querySelector(':is([data-titlebar-tabs], [data-tab-strip]) .tab-item[aria-current]')");
 
   // Settings: named in the switcher and the title, not claimed by the Dock underneath.
   await click('[data-directory-open="settings"]');
@@ -45,7 +45,7 @@ test("the bar toggles back, covers close four ways, and history walks covers and
   // 1. Esc.
   await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, sessionId);
   await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, sessionId);
-  await waitFor(`${exclusive} === '' && document.querySelector('.tab-item[data-tab-kind=home][aria-current]')`);
+  await waitFor(`${exclusive} === '' && document.body.dataset.desktopSurface === 'home' && !document.querySelector(':is([data-titlebar-tabs], [data-tab-strip]) .tab-item[aria-current]')`);
   // 2. The same menu entry again, and the menu closes with it.
   await click('[data-directory-open="settings"]');
   await waitFor(`${exclusive} === 'settings'`);
@@ -66,8 +66,8 @@ test("the bar toggles back, covers close four ways, and history walks covers and
   await click('[data-directory-open="settings"]');
   await waitFor(`${exclusive} === 'settings'`);
   // 能力 is four of the categories (specs/artifact-positioning S6b).
-  assert.deepEqual(await evaluate("[...document.querySelectorAll('[data-directory-panel=settings] [data-settings-section]')].map(row => row.dataset.settingsSection).slice(0, 14)"),
-    ["appearance", "directories", "memory", "sync", "models", "assistant", "characters", "prompts", "runtimes", "library", "connections", "access", "history", "diagnostics"]);
+  assert.deepEqual(await evaluate("[...document.querySelectorAll('[data-directory-panel=settings] [data-settings-section]')].map(row => row.dataset.settingsSection).slice(0, 15)"),
+    ["appearance", "directories", "memory", "sync", "models", "assistant", "characters", "prompts", "skills", "runtimes", "library", "connections", "access", "history", "diagnostics"]);
   await click('[data-directory-panel=settings] [data-settings-section="characters"]');
   await waitFor("!document.querySelector('[data-settings-page=characters]').hidden && document.querySelector('[data-settings-page=characters]').closest('[data-work-surface=settings]')");
   await waitFor("!!document.querySelector('[data-character-builtin-list] a.characters-row')");
@@ -88,11 +88,13 @@ test("the bar toggles back, covers close four ways, and history walks covers and
       const box = selector => document.querySelector(selector).getBoundingClientRect();
       const shown = [...document.querySelectorAll('.bar-start :is([data-dock-pin]:not([hidden]), [data-dock-more])')].map(node => node.getBoundingClientRect().right);
       resolve({ fold: Math.max(...shown), start: box('.workbench-bar .bar-start').right, centre: box('.workbench-bar .bar-center').left,
-        centreEnd: box('.workbench-bar .bar-center').right, side: box('.workbench-bar .bar-side').left, end: box('.workbench-bar .bar-end').right });
+        // 07-1 S4b: the right group is the person's own tray (hidden while it holds nothing) and the project; its first shown part.
+        centreEnd: box('.workbench-bar .bar-center').right, side: Math.min(...[...document.querySelectorAll('.workbench-bar .bar-end > *')].filter(node => node.getClientRects().length).map(node => node.getBoundingClientRect().left)),
+        end: box('.workbench-bar .bar-end').right });
     }, 250))`);
     assert.ok(geometry.fold <= geometry.start + 0.5, `${width}: the Dock's last shown entry stays inside its tray`);
     assert.ok(geometry.start <= geometry.centre, `${width}: the left tray ends before the composer`);
-    assert.ok(geometry.centreEnd <= geometry.side, `${width}: the composer ends before the right tray`);
+    assert.ok(geometry.centreEnd <= geometry.side, `${width}: the composer ends before the right group (${JSON.stringify(geometry)})`);
     assert.ok(geometry.end <= width, `${width}: the bar stays inside the window`);
   }
 });

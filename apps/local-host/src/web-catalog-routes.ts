@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { WebProjectNavigation } from "@molis-ai/molis-work-app-workbench";
 import type { AgentRuntimeDescriptor } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { handleSearchHttp } from "./search-http.js";
+import { handleComposerDraftsHttp, handleComposerSourcesHttp } from "./composer-sources-http.js";
 import { refreshOpenProjectPlugins } from "./project-plugin-enablement.js";
 import { handlePluginSlotsHttp } from "./plugin-connection-slots-http.js";
 import { handlePlacementHttp } from "./placement-http.js";
@@ -79,6 +80,12 @@ export const CATALOG_ROUTES: readonly WebRoute<CatalogRequestContext>[] = [
   } },
   // Without a project, search covers personal content only; the caller's context has no project to widen it.
   { id: "search", handle: ({ request, response, url, localHost }) => handleSearchHttp(request, response, url, () => homeActions(localHost)) },
+  // Outside a project the unified input lists the Home sources only (S-composer-source-call).
+  { id: "composer-sources", handle: ({ request, response, url, localHost }) => handleComposerSourcesHttp(request, response, url,
+    (signal) => bindLocalWebActions(localHost, undefined, LOCAL_OWNER_PERMISSIONS, { signal })) },
+  // The unified input's start-up sweep (UIC-10): which of this machine's draft places are for a project or plugin now gone.
+  { id: "composer-drafts", handle: ({ request, response, url, localHost, projects }) => handleComposerDraftsHttp(request, response, url,
+    { projects: () => projects.map((project) => project.project_id), reach: (project) => localHost.projectPluginReach(project) }) },
   { id: "placement", handle: ({ request, response, url, localHost }) => handlePlacementHttp(request, response, url, () => homeActions(localHost)) },
   { id: "functions", handle: async ({ request, response, url, serverOptions, localHost }) => Boolean(serverOptions.homeDirectory && await handleFunctionsHttp(request, response, url, serverOptions.homeDirectory, {
     actions: bindLocalWebActions(localHost, undefined, ["functions:invoke", "functions:manage"]),
@@ -122,7 +129,7 @@ export const CATALOG_ROUTES: readonly WebRoute<CatalogRequestContext>[] = [
     sendJson(response, 200, { status: "ok", process_id: process.pid, service_process_id: serviceProcessId(), project_count: projects.length, desktop_tui: true });
     return true;
   } },
-  { id: "project-index", handle: async ({ request, response, url, serverOptions, projects, controlToken, composition, localHost }) => {
+  { id: "project-index", handle: ({ request, response, url, serverOptions, projects, controlToken, composition }) => {
     if (!(request.method === "GET" && url.pathname === "/")) return false;
     const desktopShell = composition.isDesktopShellRequest(request, url);
     const onboarding = molisWorkOnboardingStatus(serverOptions.homeDirectory, projects.length);
@@ -133,13 +140,11 @@ export const CATALOG_ROUTES: readonly WebRoute<CatalogRequestContext>[] = [
       response.end();
       return true;
     }
-    const homePlugins = await localHost.homePlugins?.navigation() ?? [];
     response.writeHead(200, { "content-type": "text/html; charset=utf-8", ...noStore, "content-security-policy": composition.PAGE_CSP });
     const remembered = pruneProjectArrival(serverOptions.homeDirectory, new Set(projects.map(project => project.project_id)));
     response.end(composition.workbenchRenderer.renderMolisWorkProjectIndex(projects, controlToken, desktopShell, {
       now: new Date().toISOString(), last_project_id: remembered.last_project_id,
       opened: Object.fromEntries(Object.entries(remembered.projects).flatMap(([id, record]) => record.last_opened_at ? [[id, record.last_opened_at]] : [])),
-      ...homePlugins.length ? { home_plugins: homePlugins } : {},
     }));
     return true;
   } },

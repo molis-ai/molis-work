@@ -3,9 +3,8 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import vm from "node:vm";
-import { icon } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { MolisWorkLocalHost, installedStageSection } from "@molis-ai/molis-work-app-local-host";
-import { CLIENT_SCRIPT, renderHomePluginNavigation } from "@molis-ai/molis-work-app-workbench";
+import { MolisWorkLocalHost, builtinMarketDirectory, homePluginDirectory, installedStageSection } from "@molis-ai/molis-work-app-local-host";
+import { CLIENT_SCRIPT, clientPluginDirectory, isPersonalPlugin, pluginDirectoryFor, railEntries, type PluginDirectoryEntry } from "@molis-ai/molis-work-app-workbench";
 import { openTestHome, serveTestHost } from "./fixtures/test-home.js";
 import { openDualHome } from "./fixtures/dual-home.js";
 import { dualPlugin } from "./fixtures/dual-plugin.js";
@@ -14,10 +13,14 @@ import { dualPlugin } from "./fixtures/dual-plugin.js";
 // no sandbox, so they run on Linux CI as well. `home-plugin-stage-navigation.test.ts` installs a signed package and runs it in the macOS
 // sandbox, which only a Mac has.
 
-/** The tool-bar entry a page draws for a package: the whole element, or none. */
-const entryOf = (html: string, pluginId: string) => new RegExp(`<(a|button) [^>]*data-home-plugin-open="${pluginId.replaceAll(".", "\\.")}"[^>]*>.*?</\\1>`, "s").exec(html)?.[0];
+// 07-1 S4b removed the titlebar's and the arrival page's personal-tool slot, and with it `HomePluginHost.navigation()` and
+// `renderHomePluginNavigation`: a Home package is offered by the plugin directory the Host gives every page, as every plugin is, in the
+// switcher's 个人 group and ＋'s 「个人 · 所有项目共用」 (口径 9). The cases below read that directory instead.
 
-test("RAC-2682 Home navigation uses the actual dual stage owner and never fills a missing Home stage from the Manifest", async t => {
+/** The Home directory's entry for a plugin, or none. */
+const homeEntry = async (host: MolisWorkLocalHost, pluginId: string) => (await homePluginDirectory(host.homePlugins)).find(entry => entry.plugin_id === pluginId);
+
+test("RAC-2682 a dual plugin is never offered as the person's own, whichever half supplies its stage and whether it runs, stopped or failed", async t => {
   for (const mode of ["home", "project", "wrong-contribution", "wrong-target"] as const) await t.test(mode, async t => {
     const dual = dualPlugin(`nav-${mode}`, false, mode === "project" ? "project" : "home");
     const expected = dual.view;
@@ -36,36 +39,40 @@ test("RAC-2682 Home navigation uses the actual dual stage owner and never fills 
     await h.page();
     const host = h.home.host.homePlugins!, platform = await host.ready();
     assert.equal(platform.supervisor.state(dual.id)?.status, "running", JSON.stringify(platform.supervisor.state(dual.id)));
-    const entries = () => host.navigation().then(rows => rows.filter(row => row.plugin_id === dual.id));
-    if (mode !== "home") { assert.deepEqual(await entries(), [], mode); return; }
-    assert.equal((await entries()).length, 1, "the matching actual Home main is offered once");
-    assert.ok(entryOf(renderHomePluginNavigation(undefined, await host.navigation()), dual.id));
+    // Before 07-1 S4b the titlebar offered a dual plugin's Home stage as a Home tool when that half supplied it. There is no Home tool
+    // any more: a dual plugin is reached as a project plugin, and the Home directory never marks it the person's.
+    const own = async () => { const entry = await homeEntry(h.home.host, dual.id); return entry ? isPersonalPlugin(entry) : false; };
+    assert.equal(await own(), false, `${mode}: running, not the person's own`);
     await platform.runtime.stop(h.provider());
-    assert.deepEqual(await entries(), [], "stopped Home never borrows the declaration");
+    assert.equal(await own(), false, `${mode}: stopped, not the person's own`);
     fail = true;
     assert.equal((await platform.supervisor.restart(dual.id)).status, "failed");
-    assert.deepEqual(await entries(), [], "a failed Home never borrows the declaration");
+    assert.equal(await own(), false, `${mode}: failed, not the person's own`);
   });
 });
 
-test("RAC-2620.1 an installed stage is drawn with the string a project's agent plugin has always had, and the tool bar's entry is a link on the arrival page and a stage button in a project", () => {
+test("RAC-2620.1 an installed stage is drawn with the string a project's agent plugin has always had, and a Home package is a 个人 entry of the switcher and ＋ with the icon it picked", () => {
   const pluginId = "io.molis.work.generated.00000000-0000-4000-8000-000000000000";
   assert.equal(installedStageSection({ pluginId, surface: "app-b1", label: "Notes & <Tasks>", prefix: "/projects/p" }),
     '<section class="desktop-work-surface pb-surface" data-work-surface="app-b1" data-work-surface-label="Notes &amp; &lt;Tasks&gt;" data-installed-plugin="' + pluginId + '" hidden>'
     + '<iframe src="/projects/p/plugins/' + pluginId + '?frame=workbench" title="Notes &amp; &lt;Tasks&gt;" loading="lazy" style="display:block;width:100%;height:100%;border:0;background:#fff"></iframe></section>');
-  const installed = [
-    { plugin_id: "io.molis.work.example.notes", name: "Notes <1>", surface: "io.molis.work.example.notes" },
-    { plugin_id: "io.molis.work.example.books", name: "Books", icon: "book", surface: "io.molis.work.example.books" },
-  ];
-  const arrival = renderHomePluginNavigation(path => path, installed), inProject = renderHomePluginNavigation(undefined, installed);
-  assert.equal(entryOf(inProject, "goals"), undefined, "the dual plugin's project-only stage is no Home toolbar tool");
-  assert.ok(entryOf(inProject, "issues"), "the existing Home tool stays present");
-  const notes = entryOf(arrival, "io.molis.work.example.notes")!, books = entryOf(arrival, "io.molis.work.example.books")!;
-  assert.ok(notes.startsWith("<a ") && notes.includes('href="/plugins/io.molis.work.example.notes"') && !notes.includes("data-work-surface-open"), "a link to the package's page");
-  assert.ok(notes.includes(icon("package")) && notes.includes("Notes &lt;1&gt;"), "the default icon, the name escaped");
-  assert.ok(books.includes(icon("book")) && !books.includes(icon("package")), "the icon the package picked");
-  const openStage = entryOf(inProject, "io.molis.work.example.books")!;
-  assert.ok(openStage.startsWith("<button ") && openStage.includes('type="button"') && openStage.includes('data-work-surface-open="io.molis.work.example.books"') && !openStage.includes('href="/plugins/'), "a button that opens the stage, not a link");
+  // The Host's directory entries for two packages installed in the Home (marked personal and home) and one a project runs.
+  const pkg = (id: string, name: string, marks: Partial<PluginDirectoryEntry>, glyph?: string): PluginDirectoryEntry => ({ id, plugin_id: id, name, chosen: false, ...marks,
+    ui: { views: [{ view_id: "app", slot: "stage", title: name, ...glyph ? { icon: glyph } : {} }] } } as PluginDirectoryEntry);
+  const notes = "io.molis.work.example.notes", books = "io.molis.work.example.books", local = "io.molis.work.example.local";
+  const directory = pluginDirectoryFor([pkg(notes, "Notes <1>", { personal: true, home: true }), pkg(books, "Books", { personal: true, home: true }, "book"), pkg(local, "Local", {})]);
+  const rail = railEntries([], directory), entry = (id: string) => rail.find(item => item.id === id);
+  assert.deepEqual({ group: entry(notes)?.group, glyph: entry(notes)?.glyph, label: entry(notes)?.label, surface: entry(notes)?.surface },
+    { group: "personal", glyph: "package", label: "Notes <1>", surface: notes }, "the default icon; the name is escaped where the switcher writes it");
+  assert.deepEqual({ group: entry(books)?.group, glyph: entry(books)?.glyph }, { group: "personal", glyph: "book" }, "the icon the package picked");
+  assert.equal(entry(local)?.group, null, "a package a project runs is not the person's own");
+  const plus = clientPluginDirectory(directory);
+  assert.deepEqual([notes, books, local].map(id => plus.find(item => item.id === id)?.personal === true), [true, true, false], "＋ lists the two Home packages with the person's own");
+  // The built-ins by the same rule, from the Host's own registrations (registered personal and run in the Home), as the coordinator
+  // listed them for 07-1 S4b: Cognia, Images, Issue, Jelly, Shelf and Todo are the person's own; Goals and Feed (dual, not personal)
+  // and 灵光, Pages, PPT, Dataset, Forms, Workflows, Alchemist and the studio (personal, but per project) are not.
+  const own = builtinMarketDirectory().filter(isPersonalPlugin).map(item => item.id).sort();
+  assert.deepEqual(own, ["cognia", "images", "issues", "jelly", "shelf", "todo"]);
 });
 
 test("BL-912 an installed stage tells the tab strip the icon its package picked, and says nothing when it picked none", () => {
@@ -108,21 +115,22 @@ test("RAC-2621.4 a page key nothing registers has no page, framed or not, even a
   } finally { await served.close(); await host.close(); }
 });
 
-test("RAC-2621.5 a Home whose plugin library breaks after it started offers no package on the tool bar, and the tool bar's call does not throw", async t => {
+test("RAC-2621.5 a Home whose plugin library breaks after it started offers no package in its directory, and the directory's read does not throw", async t => {
   const first = await openTestHome(t);
   await first.close(); await first.host.close();
   const host = new MolisWorkLocalHost({ homeDirectory: first.home, completeText: null });
   try {
     const homePlugins = host.homePlugins!;
     await homePlugins.ready();
-    assert.deepEqual(await homePlugins.navigation(), [], "a Home that started and holds no package offers none");
+    const packages = async () => (await homePluginDirectory(homePlugins)).filter(entry => !entry.chosen);
+    assert.deepEqual(await packages(), [], "a Home that started and holds no package offers none");
     // The library breaks while the Home runs: the next read of its installations fails, and the tool bar has nothing to offer for them.
     const library = new DatabaseSync(join(first.home, "plugin-runtime", "plugin-runtime.db"));
     const away = (from: string, to: string) => library.exec(`ALTER TABLE ${from} RENAME TO ${to}`);
     try {
       away("plugin_runtime_installs", "plugin_runtime_installs_away");
       assert.throws(() => homePlugins.registered(), "the library really is unreadable now");
-      assert.deepEqual(await homePlugins.navigation(), []);
+      assert.deepEqual(await packages(), []);
     } finally { away("plugin_runtime_installs_away", "plugin_runtime_installs"); library.close(); }
   } finally { await host.close(); }
 });

@@ -291,3 +291,49 @@ test("PMAT-25 PMAT-30 the Assistant's and Coding's base say once when to look in
   }
   for (const id of ["assistant-work", "assistant-delegated"]) assert.doesNotMatch(ASSISTANT_PROMPTS.find(prompt => prompt.prompt_id === id)!.body, /项目资料/u, "said once, in the base");
 });
+
+
+test("SKC-05: Skill settings isolate scopes, reject stale writes and retain the original enablement", () => {
+  const db = new DatabaseSync(":memory:");
+  try {
+    let at = "2026-11-08T10:00:00.000Z";
+    const definitions = new AgentDefinitions(db, () => new Date(at));
+    const store = definitions.skills;
+    assert.equal(store.setting("project-a", "install", "review"), undefined);
+    assert.equal(store.set("project-a", "install", "review", "auto", 0, "person"), "ok");
+    at = "2026-11-08T11:00:00.000Z";
+    assert.equal(store.set("project-a", "install", "review", "manual", 1, "person"), "ok");
+    assert.equal(store.set("project-a", "install", "review", "auto", 1, "person"), "conflict");
+    assert.equal(store.setting("project-a", "install", "review")?.state, "manual");
+    assert.equal(store.setting("project-a", "install", "review")?.enabled_at, "2026-11-08T10:00:00.000Z");
+    assert.equal(store.setting("project-b", "install", "review"), undefined);
+    assert.equal(store.set("project-b", "install", "review", "auto", 0, "person"), "ok");
+    store.keep("project-a", "install", ["review"]);
+    assert.equal(store.setting("project-a", "install", "review")?.state, "manual");
+    store.forget("project-a", "install");
+    assert.equal(store.setting("project-a", "install", "review"), undefined);
+    assert.equal(store.setting("project-b", "install", "review")?.state, "auto");
+    assert.equal(store.set("project-a", "install", "review", "auto", 0, "person"), "ok");
+    assert.equal(store.set("project-a", "install", "review", "manual", 1, "stale-window"), "conflict", "SKC-05: uninstall and reinstall never reuse the old revision");
+    const beforeOff = store.setting("project-a", "install", "review")!.revision;
+    assert.equal(store.set("project-a", "install", "review", "off", beforeOff, "person"), "ok");
+    assert.equal(store.set("project-a", "install", "review", "manual", 0, "person"), "ok");
+    assert.equal(store.set("project-a", "install", "review", "auto", beforeOff, "stale-window"), "conflict", "SKC-05: off and on never reuse the old revision");
+    store.keep("project-a", "install", []);
+    assert.equal(store.setting("project-a", "install", "review"), undefined);
+    assert.equal(store.setting("project-b", "install", "review")?.state, "auto");
+  } finally { db.close(); }
+});
+
+test("SKC-12: Skill use history retains the accepted reference after uninstall", () => {
+  const db = new DatabaseSync(":memory:");
+  try {
+    const store = new AgentDefinitions(db).skills;
+    const ref = { source: { kind: "plugin" as const, plugin_id: "example.review", plugin_version: "1.0.0", publisher_signature: "signer" },
+      skill_id: "review", version: 1, install_id: "install", installation_generation: "generation" };
+    store.set("project-a", "install", "review", "manual", 0, "person");
+    store.recordUse({ ref, name: "Review", scope_ref: "project-a", caller: "assistant", run_ref: "round-1", at: "2026-11-08T10:00:00.000Z" });
+    store.forget("project-a", "install");
+    assert.deepEqual(store.uses("install", "review"), [{ ref, name: "Review", scope_ref: "project-a", caller: "assistant", run_ref: "round-1", at: "2026-11-08T10:00:00.000Z" }]);
+  } finally { db.close(); }
+});

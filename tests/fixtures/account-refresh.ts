@@ -1,5 +1,6 @@
+import {personalStorageSpace} from "@molis-ai/molis-work-storage";
 import assert from 'node:assert/strict';
-import {mkdtempSync,rmSync} from 'node:fs';
+import {mkdtempSync,rmSync,readFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createServer} from 'node:http';
@@ -32,7 +33,7 @@ export async function accountRefreshFixture(t:TestContext,createCore:(home:strin
   const set=response.headers.get('set-cookie');if(set?.startsWith('molis-work-session='))cookie=set.split(';')[0]!;
   return response;
  };
- const status=async()=>{const response=await request('/api/personal/status?page='+page);assert.equal(response.status,200);const value=await response.json();if(value.viewToken)control=value.viewToken;return value;};
+ const status=async()=>{const response=await request('/api/personal/status?page='+page);assert.equal(response.status,200);const value=await response.json();if(value.identity)control=readFileSync(join(home,"spaces",personalStorageSpace(authOrigin,value.identity.applicationId,value.identity.userId).spaceId,"config/web-control-token"),"utf8").trim();return value;};
  const prepare=async(intent:'switch'|'logout')=>{
   await status();const started=await request('/api/personal/prepare?action=start&page='+page+'&intent='+intent,'POST');assert.equal(started.status,200,await started.clone().text());
   const {id}=await started.json();const ack=await request('/api/personal/prepare?action=ack&page='+page+'&id='+id,'POST');assert.equal(ack.status,200);assert.equal((await ack.json()).ready,true);return '&page='+page+'&preparation='+id;

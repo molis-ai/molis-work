@@ -59,7 +59,7 @@ function fixture(failure?: "preview" | "confirm" | "restart" | "timeout" | "unow
         return answer({ status: "ok", service_process_id: failure === "timeout" || healthReads === 2 ? 100 : 200 });
       }
       if (path === "/api/settings/web-service") return answer({ state: "running", owned: failure !== "unowned" });
-      assert.equal(init.headers["x-molis-work-control-token"], "token");
+      assert.equal(init.headers["x-molis-work-page-session"], "token");
       const suffix = path.split("/").at(-1)!; const input = JSON.parse(init.body!);
       requests.push({ suffix, body: input });
       const failed = failure === "preview" && suffix === "plan" || failure === "confirm" && suffix === "confirm";

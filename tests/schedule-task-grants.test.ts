@@ -4,9 +4,10 @@
 // answers through a fake action client, so nothing below depends on how the Host keeps a grant.
 import assert from "node:assert/strict";
 import test from "node:test";
+import { setTimeout } from "node:timers/promises";
 import { openTestSqlite, type SqliteDatabase } from "@molis-ai/molis-work-test-kit/sqlite";
 import { actionEffect, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginJobControl, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentTaskGrantActions, TASK_GRANT_SUBJECT_KEY_PATTERN, type TaskGrantListResult, type TaskGrantSubject } from "@molis-ai/molis-work-contracts/services/agent-task-grants";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { todoManifest } from "@molis-ai/molis-work-plugin-todo";
@@ -15,9 +16,10 @@ import { goalsManifest } from "@molis-ai/molis-work-plugin-goals";
 import { jellyManifest } from "@molis-ai/molis-work-plugin-jelly";
 import {
   SCHEDULE_BRIEF_ROLE, SCHEDULE_PROJECT_DATABASE, SCHEDULE_READER_ROLE, SCHEDULE_TASK_GRANT_ACTIONS, createScheduleActionHandlers, createScheduleConversationTask,
-  createScheduleRouteHandlers, createScheduleTaskGrants, getScheduleConversationTask, handleScheduleTaskWakeup, roundRole, scheduleActions, scheduleAgentManifest,
+  createSchedulePlugin, createScheduleRouteHandlers, createScheduleTaskGrants, getScheduleConversationTask, handleScheduleTaskWakeup, roundRole, scheduleActions, scheduleAgentManifest,
   scheduleManifest, schedulePrompts, scheduledTaskRunner, scheduleTaskReads, type ScheduleActionPorts,
 } from "@molis-ai/molis-work-plugin-schedule";
+import { memoryPluginDatabase } from "./fixtures/plugin-database.js";
 import { SchedulePluginRouteTable } from "./schedule-direct-actions.js";
 
 const MANIFESTS: Record<string, PluginManifest> = { todo: todoManifest, inbox: inboxManifest, goals: goalsManifest, jelly: jellyManifest, schedule: scheduleManifest };
@@ -195,6 +197,10 @@ test("PWA-149 a due round asks the platform once and starts the role its grants 
   await assert.rejects(handleScheduleTaskWakeup(db, data.task_id, scheduledTaskRunner(agents, grants)), /平台暂时不可用/);
   assert.equal(runs.length, 2, "no round started");
   assert.ok(turnsOf("system").some(text => /这一轮没跑成：平台暂时不可用/.test(text)), turnsOf("system").join(" / "));
+  // N0705: the failed round consumed nothing, so the platform answering again lets the next due round run.
+  fake.state.listFails = false;
+  await handleScheduleTaskWakeup(db, data.task_id, scheduledTaskRunner(agents, grants));
+  assert.equal(runs.length, 3, "the next due round runs once the platform answers again");
 });
 
 /** Schedule's own task actions over a library, with `archived` going to the platform as the Runtime binds it. */
@@ -279,3 +285,89 @@ test("PWA-152 the page reads the grants once for the whole list, as counts by st
   assert.deepEqual((answer?.body as { tasks: Array<{ task_id: string }> }).tasks.map(item => item.task_id), ["sct_a", "sct_b"]);
   assert.deepEqual(fake.calls.map(call => call.capability_id), [agentTaskGrantActions.list.capability_id, agentTaskGrantActions.list.capability_id]);
 });
+
+/** N0704: exercise the plugin's public health and archive binding, with the Host's kept job and database contracts. */
+async function reconcileHealthFixture() {
+  const fake = platform([]), db = memoryPluginDatabase(SCHEDULE_PROJECT_DATABASE.schema, ["p1"]);
+  const controller = new AbortController();
+  let authority = true, closed = false, onClear: (() => Promise<void>) | undefined;
+  let work: ((control: PluginJobControl) => Promise<void>) | undefined, running: Promise<unknown> | undefined;
+  const check = () => { controller.signal.throwIfAborted(); if (!authority) throw new Error("authority withdrawn"); };
+  const unused = () => { throw new Error("unexpected service call"); };
+  const writer = { register: unused, cancel: unused, setEnabled: unused };
+  const actions = { dependencies: {}, invoke: async <Input, Output>(definition: ActionDefinition<Input, Output>, input: Input): Promise<Output> => {
+    if (definition.capability_id === agentTaskGrantActions.clear.capability_id) await onClear?.();
+    return fake.actions.invoke(definition, input);
+  } };
+  const plugin = createSchedulePlugin();
+  const started = await plugin.start({ project_id: "p1", install_id: "install-schedule", requireGrant() {}, services: {
+    actions, project_database: db,
+    scheduler: { list: () => [], get: () => null, isExecuting: () => false,
+      join: (_transaction: object, write: (value: typeof writer) => unknown) => write(writer) },
+    installations: { list: () => [], get: () => undefined }, notifications: { deliver: unused },
+    background: { keep: (job: string, callback: (control: PluginJobControl) => Promise<void>) => {
+      assert.equal(job, "schedule-reconcile"); work = callback; return { done: Promise.resolve(), cancel: unused };
+    } },
+  } } as never);
+  assert.equal(started.kind, "app");
+  if (started.kind !== "app") throw new Error("expected app contribution");
+  const archive = started.actions?.find(item => item.capability_id === scheduleActions.archiveTask.capability_id);
+  assert.ok(archive); assert.ok(plugin.health); assert.ok(work);
+  const health = () => plugin.health!({} as never);
+  const waitFor = async (predicate: () => boolean | Promise<boolean>) => {
+    const deadline = Date.now() + 8_000;
+    while (!await predicate()) {
+      assert.ok(Date.now() < deadline, "expected observed job state before deadline");
+      await setTimeout(5);
+    }
+  };
+  return { fake, health, waitFor,
+    async archive() {
+      db.raw.prepare("INSERT INTO schedule_conversation_tasks (task_id,title,instructions,hour,minute,notify_important,enabled,archived,unread,job_id,last_run_at,last_error,created_at,updated_at) VALUES ('sct_owed','owed','read',8,0,1,1,0,0,NULL,NULL,NULL,'2026-11-01','2026-11-01')").run();
+      fake.state.refuse = true;
+      assert.deepEqual(await archive.handle({ actor_id: "person", project_id: "p1", audience: "user", permissions: [], beforeEffect: async () => {} }, { task_id: "sct_owed" }), { archived: true });
+      assert.equal(fake.calls.filter(call => call.capability_id === agentTaskGrantActions.clear.capability_id).length, 1);
+    },
+    start() {
+      assert.equal(running, undefined);
+      running = work!({ job: "schedule-reconcile", signal: controller.signal, beforeEffect: async () => check(), assert_authority_current: check }).then(() => null, error => error);
+    },
+    holdClear() {
+      let release!: () => void, entered = false;
+      const gate = new Promise<void>(resolve => { release = resolve; });
+      onClear = async () => { entered = true; await gate; };
+      return { reached: () => entered, release };
+    },
+    revoke: () => { authority = false; }, cancel: () => controller.abort(),
+    async close() { if (closed) return; closed = true; controller.abort(); await running; db.close(); },
+  };
+}
+
+test("N0704 failed grant cleanup makes public health unhealthy; the next successful pass clears it", async () => {
+  const f = await reconcileHealthFixture();
+  try {
+    await f.archive(); f.start();
+    await f.waitFor(async () => !(await f.health()).ok);
+    assert.equal((await f.health()).message, "授权清理尚未完成，稍后重试");
+    f.fake.state.refuse = false;
+    await f.waitFor(async () => (await f.health()).ok);
+    assert.ok(f.fake.calls.filter(call => call.capability_id === agentTaskGrantActions.clear.capability_id).length >= 3);
+  } finally { await f.close(); }
+});
+
+for (const interruption of ["cancel", "revoke"] as const) {
+  test(`N0704 ${interruption} during grant cleanup preserves the last health report`, async () => {
+    const f = await reconcileHealthFixture();
+    let retry: ReturnType<typeof f.holdClear> | undefined;
+    try {
+      await f.archive(); f.start();
+      await f.waitFor(async () => !(await f.health()).ok);
+      const previous = await f.health();
+      retry = f.holdClear(); f.fake.state.refuse = false;
+      await f.waitFor(() => retry!.reached());
+      if (interruption === "cancel") f.cancel(); else f.revoke();
+      retry.release(); await f.close();
+      assert.deepEqual(await f.health(), previous, "successful cleanup must not publish a late healthy report after authority is lost");
+    } finally { retry?.release(); await f.close(); }
+  });
+}

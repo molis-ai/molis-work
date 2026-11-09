@@ -43,10 +43,12 @@ async function oneRound(t: test.TestContext, width: number, locale: "zh" | "en")
   await click(".navigator-project-settings");
   await waitFor("!!document.querySelector('[data-directory-panel=project-settings] [data-settings-section=workspaces]')");
   await click("[data-directory-panel=project-settings] [data-settings-section=workspaces]");
-  await waitFor("!!document.querySelector('[data-project-workspaces-add]') && !document.querySelector('[data-project-workspaces-refresh]').disabled");
-  await fill("[data-project-workspaces-add] [name=path]", workspace);
-  await click("[data-project-workspaces-add] [type=submit]");
-  await waitFor("document.querySelector('[data-project-workspaces-list]').textContent.includes('steady')");
+  await waitFor("!!document.querySelector('[data-directories-add]') && document.querySelector('[data-project-directories]')?.dataset.state==='ready'");
+  await fill("[data-directories-add] [name=path]", workspace);
+  await click("[data-directories-add] [type=submit]");
+  await waitFor("document.querySelector('[data-directories-inputs]').textContent.includes('steady')");
+  await click("[data-directories-inputs] [data-directory-row]:has([title$='/steady']) [data-act=set-output]");
+  await waitFor("document.querySelector('[data-directories-output] [data-directory-row] [data-text=path]')?.title.endsWith('/steady')");
   await click(`[data-plugin-strip] [data-plugin-id="coding"]`);
   await waitFor(`document.querySelector('[data-work-surface="coding"]')?.getBoundingClientRect().width > 100`);
   active = child;
@@ -104,35 +106,48 @@ test("VUX-16: a narrow composer keeps its settings on their own row, idle or run
   assert.deepEqual([ended.task, ended.send], [running.task, running.send]);
 });
 
+// K3 (UIV-12): the Assistant's input is the unified composer, whose files sit on its own strip inside the box, right above the
+// words; the bar grows upward, so the words and send do not move. While a turn runs the send is the composer's 补充 with ▾ and Stop
+// beside it (UIC-08), and the group keeps its corner: its right edge stays where send was.
 test("VUX-16: the Assistant's box and send stay put as a file is added and a round runs, and the file sits right above the box", { timeout: 180_000 }, async (t) => {
   let model!: Awaited<ReturnType<typeof assistantTextModel>>;
   const browser = await openGoalBrowser(t, true, undefined, undefined, undefined, undefined, {
     prepareHome: async homeDirectory => { model = await assistantTextModel(t, homeDirectory, "这一段写完了。", { pieces: 2, pause: 100 }); },
   }); if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, origin, projectId } = browser;
-  type Place = { input: number[]; send: number[]; top: number; strip: number[] | null };
+  type Place = { input: number[]; send: number[]; top: number; strip: number[] | null; status: number; corner: number };
   const place = () => evaluate<Place>(`(() => { const box = (node) => { if (!node || !node.getClientRects().length) return null; const b = node.getBoundingClientRect(); return [b.x, b.y, b.width, b.height].map(Math.round); };
-    return { input: box(document.querySelector('[data-assistant-input]')), send: box(document.querySelector('[data-assistant-send]')),
-      top: Math.round(document.querySelector('[data-assistant-composer]').getBoundingClientRect().top), strip: box(document.querySelector('[data-assistant-context-strip]')) }; })()`);
+    return { input: box(document.querySelector('[data-assistant-composer] .mw-composer__input')), send: box(document.querySelector('[data-assistant-composer] [data-composer-send]')),
+      top: Math.round(document.querySelector('[data-assistant-composer] .mw-composer__input').getBoundingClientRect().top), strip: box(document.querySelector('[data-assistant-composer] .mw-composer__files')),
+      status: Math.round(document.querySelector('[data-assistant-composer] .mw-composer__status')?.getBoundingClientRect().height ?? 0),
+      corner: Math.round([...document.querySelectorAll('[data-assistant-composer] .mw-composer__end button')].filter((b) => b.getClientRects().length).at(-1).getBoundingClientRect().right) }; })()`);
   await command("Emulation.setDeviceMetricsOverride", { width: 1360, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-  await waitFor("document.querySelector('[data-assistant-composer] [data-assistant-input]')", 20_000);
+  await waitFor("document.querySelector('[data-assistant-composer] .mw-composer__input')", 20_000);
   const idle = await place();
-  await evaluate("document.querySelector('[data-assistant-input]').focus()");
+  await evaluate("document.querySelector('[data-assistant-composer] .mw-composer__input').focus()");
   await command("Input.insertText", { text: "看看这个文件" }, sessionId);
   await evaluate(`(() => { const data = new DataTransfer(); data.items.add(new File(['hello'], 'notes.txt', { type: 'text/plain' }));
-    document.querySelector('[data-assistant-composer]').dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: data })); })()`);
-  await waitFor("document.querySelector('[data-assistant-context-strip]')?.textContent.includes('notes.txt')");
+    document.querySelector('[data-assistant-composer] .mw-composer__box').dispatchEvent(new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: data })); })()`);
+  await waitFor("document.querySelector('[data-assistant-composer] .mw-composer__files')?.textContent.includes('notes.txt')");
   const attached = await place();
   assert.deepEqual([attached.input, attached.send], [idle.input, idle.send], "adding a file does not move the box or send");
-  assert.ok(attached.strip && attached.top - (attached.strip[1]! + attached.strip[3]!) <= 8 && attached.top - (attached.strip[1]! + attached.strip[3]!) >= 0, `the file sits right above the box: ${JSON.stringify(attached)}`);
-  await evaluate("document.querySelector('[data-assistant-send]').click()");
+  assert.ok(attached.strip && attached.top - (attached.strip[1]! + attached.strip[3]!) <= 12 && attached.top - (attached.strip[1]! + attached.strip[3]!) >= 0, `the file sits right above the words: ${JSON.stringify(attached)}`);
+  await evaluate("document.querySelector('[data-assistant-composer] [data-composer-send]').click()");
   await waitFor("document.body.textContent.includes('第一段')", 60_000);
   const running = await place();
   model.finish();
   await waitFor("document.body.textContent.includes('这一段写完了')", 60_000);
   const ended = await place();
-  assert.deepEqual([running.input, running.send, ended.input, ended.send], [idle.input, idle.send, idle.input, idle.send], "through the round the box and send stay where they were");
+  const right = (one: number[]) => one[0]! + one[2]!;
+  // While the turn runs the composer says so on its one status line (运行中 · …), under the words: the bar grows upward by that
+  // line, so the words rise by exactly its height and nothing else of the box moves; when the turn ends the line goes.
+  assert.ok(running.status > 0, "while it runs the composer's status line says so");
+  assert.deepEqual([running.input[0], running.input[2], running.input[3]], [idle.input[0], idle.input[2], idle.input[3]], `while it runs the words keep their size and column: ${JSON.stringify({ idle, running })}`);
+  // Both are rounded from fractional pixels, so the rise and the line's height may differ by one.
+  assert.ok(Math.abs(idle.input[1]! - running.input[1]! - running.status) <= 1, `while it runs the words rise only by the status line: ${JSON.stringify({ idle, running })}`);
+  assert.deepEqual([ended.input, ended.send, running.send[1]], [idle.input, idle.send, idle.send[1]], "through the round the box and send stay where they were");
+  assert.deepEqual([running.corner, idle.corner], [right(idle.send), right(idle.send)], "while it runs, 补充 and the buttons beside it keep send's corner");
 });
 
 test("VUX-16: the discussion's send stays at the composer's corner when the status beside it speaks", { timeout: 120_000 }, async (t) => {
@@ -141,8 +156,9 @@ test("VUX-16: the discussion's send stays at the composer's corner when the stat
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId } = browser;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-  await waitFor("document.querySelector('[data-side-toggle]')");
-  await click("[data-side-toggle]");
+  await waitFor("document.querySelector('[data-side-tabs] [data-side-tab][aria-selected=true]')");
+  // 07-1 S4b: the bar's side button is gone; the side opens from its current glyph in the titlebar.
+  await click("[data-side-tabs] [data-side-tab][aria-selected=true]");
   await waitFor("document.querySelector('[data-side-tab=\"discussion\"]')?.checkVisibility()");
   await click("[data-side-tab=\"discussion\"]");
   const im = "document.querySelector('[data-side-body=\"discussion\"] iframe')?.contentDocument";

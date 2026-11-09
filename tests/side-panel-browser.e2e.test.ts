@@ -149,6 +149,29 @@ test("RAC-115: a real input protocol refusal reaches the existing socket, stays 
   }
 });
 
+// The panel sends what follows a binding right behind it (attach, visible and a queued navigate in one go; with the side open on
+// load, the first address can follow the attach within milliseconds). The binding waits on the project check, and a message that
+// arrived meanwhile used to find no page and be dropped (07-S1 full run 42266539848). A refused scheme answers without starting a
+// browser, so the answer shows the navigate reached the page.
+test("PFG-22: a navigate sent in the same tick as the watch that binds the page reaches that page", { timeout: 60_000 }, async t => {
+  const ui = await openGoalBrowser(t, true, undefined, null); if (!ui) return;
+  assert.ok(ui.projectId);
+  const messages: BrowserServerMessage[] = [];
+  const socket = new WebSocket(ui.origin.replace(/^http/u, "ws") + BROWSER_SOCKET_PATH, { headers: { Origin: ui.origin } });
+  t.after(() => new Promise<void>(resolve => { if (socket.readyState === WebSocket.CLOSED) resolve(); else { socket.once("close", () => resolve()); socket.terminate(); } }));
+  socket.on("message", (bytes, binary) => { if (!binary) messages.push(JSON.parse(String(bytes)) as BrowserServerMessage); });
+  await new Promise<void>((resolve, reject) => { socket.once("open", () => resolve()); socket.once("error", reject); });
+  const send = (message: BrowserClientMessage) => socket.send(JSON.stringify(message));
+  send({ type: "auth", token: ui.controlToken });
+  await until(() => messages.some(message => message.type === "ready"), Boolean, "authenticated browser socket");
+  send({ type: "watch", project_id: ui.projectId });
+  send({ type: "navigate", input: "javascript:void(0)" });
+  const refused = await until(() => messages.find(message => message.type === "state" && message.state.problem?.code === "browser.blocked_scheme"), Boolean, "the navigate answered on the page the watch bound", 5_000);
+  assert.ok(refused && refused.type === "state");
+  assert.equal(refused.state.project_id, ui.projectId);
+  assert.equal(messages.some(message => message.type === "error"), false, JSON.stringify(messages.filter(message => message.type === "error")));
+});
+
 test("R5B-01/03: real page and browser process crashes retain their distinct recovery controls", { timeout: 120_000 }, async t => {
   const ui = await openGoalBrowser(t, true, undefined, null); if (!ui) return;
   await ui.command("Page.addScriptToEvaluateOnNewDocument", { source: `(() => {

@@ -1,3 +1,4 @@
+import { createMcpClientProof } from "@molis-ai/molis-work-app-local-host";
 import assert from "node:assert/strict";
 import { createHash, randomUUID } from "node:crypto";
 import test from "node:test";
@@ -30,7 +31,8 @@ test("W3-02-G1-01 real gateway preserves owner kind and details and marks only t
   const homeId = createHash("sha256").update(home).digest("hex");
   const send = (body: Record<string, unknown>) => fetch(origin + "/api/internal/action-service", { method: "POST", headers: {
     origin, "content-type": "application/json", "x-molis-work-control-token": controlToken, "x-molis-work-idempotency-key": randomUUID(),
-  }, body: JSON.stringify({ home_id: homeId, client_id: clientId, project_id: project.project_id, ...body }) });
+    "x-molis-work-client-proof": createMcpClientProof(home, clientId, home, typeof body.instance_id === "string" ? body.instance_id : null),
+  }, body: JSON.stringify({ home_id: homeId, project_id: project.project_id, ...body }) });
   const directory = await send({ operation: "discover" });
   const { instance_id } = await directory.json();
   const rawId = randomUUID();

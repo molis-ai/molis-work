@@ -51,16 +51,16 @@ test("the Assistant's panel follows a running work by waiting for it to change, 
 
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-  await waitFor("Boolean(document.querySelector('[data-assistant-input]'))");
+  await waitFor("Boolean(document.querySelector('[data-assistant-composer] .mw-composer__input'))");
   // Every request the page makes about a work: a plain read of it, or a wait for it to change.
   await evaluate(`(() => { window.__workRequests = []; const fetch0 = window.fetch; window.fetch = (input, init) => {
     const path = new URL(typeof input === "string" ? input : input.url, location.href).pathname;
     if (/\\/api\\/assistant\\/works\\/[^/]+(\\/wait)?$/.test(path) && (!init || !init.method || init.method === "GET")) window.__workRequests.push({ at: Date.now(), wait: path.endsWith("/wait") });
     return fetch0(input, init); }; })()`);
-  await click("[data-assistant-input]");
+  await click("[data-assistant-composer] .mw-composer__input");
   await command("Input.insertText", { text: "整理一下今天的会议纪要" }, sessionId);
-  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
-  await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
+  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, sessionId);
+  await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, sessionId);
   await asked.promise;
   await waitFor("window.__workRequests.some(request => request.wait)", 10_000);
   // The model thinks for four seconds; the page only waits.

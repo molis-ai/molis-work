@@ -32,8 +32,11 @@ const { SYNC_STORE_BASELINE } = await import("@molis-ai/molis-work-module-sync-r
 const { readEveryParameterlessAction, unavailableInFixture } = await import(new URL("../tests/fixtures/parameterless-reads.ts", import.meta.url).href);
 const { expectAnswer, installedPluginSession } = await import("./replay-plugins/signed-session.mjs");
 const { thirdPartySample } = await import("./golden/populate.mjs");
-const { assertStoredReleasesRun } = await import("./golden/stored-releases.mjs");
+const { replayHomeLibrarySample } = await import("./golden/home-library-sample.mjs");
 const { assertVersionedFilesRead } = await import("./golden/versioned-files.mjs");
+const { assertRecordedVersions } = await import("./golden/formats.mjs");
+const storage = await import("@molis-ai/molis-work-storage");
+const { versionsNewestLast } = await import("./golden/versions.mjs");
 
 /** A golden Home has neither a managed workspace nor a model a read could reach. The table of the shared read, and nothing wider. */
 const UNAVAILABLE = unavailableInFixture;
@@ -43,11 +46,6 @@ const KNOWLEDGE_CATCH_UP_MILLISECONDS = 30_000;
  * its stride. This is not a pass: `ok` says only that what ran passed, and a run that left this out says so in its result, for the job that adds it.
  */
 const THIRD_PARTY_NOT_RUN = "not-run";
-
-function versionsNewestLast(names) {
-  const parts = name => { const [main, dev] = name.split("-dev."); return [...main.split(".").map(Number), dev === undefined ? Infinity : Number(dev)]; };
-  return [...names].sort((a, b) => { const x = parts(a), y = parts(b); for (let i = 0; i < 4; i++) if (x[i] !== y[i]) return x[i] - y[i]; return 0; });
-}
 
 function selectedGoldens() {
   let names;
@@ -63,13 +61,26 @@ const homesOf = (manifest, home) => manifest.homes.map(item => {
   return { path: item.path, at, account: item.space.kind === "personal", projects: Object.values(item.projects).map(project => ({ project_id: project.project_id, database_path: path.join(at, project.database) })) };
 });
 
+/**
+ * The tables an owner's upgrade steps say they delete or merge, from the version the golden recorded on: they may lose rows or go (§4 step 5,
+ * the declaration beside the step). Read from the descriptors the upgrade itself runs, so a step that does not declare it fails here.
+ */
+function declaredReductions(entry) {
+  const relative = entry.path.replace(/^spaces\/[^/]+\//u, "");
+  const pattern = location => new RegExp(`^${location.split(path.sep).map(part => part === "*" ? "[^/]+" : part.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&")).join("/")}$`, "u");
+  const descriptor = local.homeUpgradeDescriptors().find(item => "baseline" in item && pattern(item.pattern).test(relative));
+  return new Set((descriptor?.baseline.upgrades ?? []).filter(step => step.from >= entry.schema_version).flatMap(step => step.reduces_rows ?? []));
+}
+
 /** Every recorded table of every library still has at least its recorded rows (§4 step 5). Only numbers leave this function. */
 function assertRowsKept(manifest, home) {
   for (const entry of manifest.stores) {
     const db = new DatabaseSync(path.join(home, entry.path), { readOnly: true });
     let now;
     try { now = countSqliteRows(db); } finally { db.close(); }
+    const reduced = declaredReductions(entry);
     for (const [table, recorded] of Object.entries(entry.tables)) {
+      if (reduced.has(table)) continue;
       if (now[table] === undefined) throw goldenFailure("golden.table_missing", `${entry.path}#${table}`);
       if (now[table] < recorded) throw goldenFailure("golden.rows_decreased", `${entry.path}#${table}`);
     }
@@ -189,15 +200,31 @@ async function replayThirdParty(manifest, homes) {
   } finally { await session.close(); }
 }
 
+/** The signed sample that holds a library of its own. Only the root Home has it, and only macOS can run it at all. */
+async function replayHomeLibrary(manifest, [item]) {
+  if (!manifest.home_library) return "absent";
+  if (process.platform !== "darwin") return THIRD_PARTY_NOT_RUN;
+  const session = await openGoldenHost(item.at);
+  try {
+    // The install entry takes a project this Host has open, though the package is the Home's.
+    await goldenActions(session, item.projects[0], "replay").call("goals.list");
+    return await replayHomeLibrarySample(session, item.projects[0], manifest.home_library);
+  } finally { await session.close(); }
+}
+
 async function replayGolden(name) {
   const source = path.join(directory, name), restored = createTemporaryHome("golden-replay-");
-  const steps = {};
+  // UPG2-05: the restart is a step of its own. What ran is kept here, so a result cannot say `ok` for a replay whose second structure check
+  // and second read never happened; the failure path below still returns the step, position and code only (UPG2-03).
+  const steps = { restarts: [] };
   let step = "restore";
   try {
     const manifest = readManifest(source);
     if (manifest.test_key.value !== GOLDEN_TEST_KEY) throw goldenFailure("golden.test_key_changed", "manifest.json");
     enterHome(restored.home);
     restoreGolden(source, manifest, restored.home);
+    // The gates take a golden's versions from its manifest; before anything upgrades them, they are read from what was restored.
+    step = "recorded-versions"; assertRecordedVersions(storage, manifest, restored.home);
     const homes = homesOf(manifest, restored.home);
     step = "upgrade"; await openEveryProject(homes);
     step = "rows-after-upgrade"; assertRowsKept(manifest, restored.home);
@@ -207,11 +234,11 @@ async function replayGolden(name) {
     step = "rows"; assertRowsKept(manifest, restored.home);
     step = "write"; steps.writes = await writeEverything(homes);
     step = "third-party"; steps.third_party = await replayThirdParty(manifest, homes);
-    step = "stored-releases"; steps.stored_releases = await assertStoredReleasesRun(manifest, homes, restored.home);
-    step = "restart-structure"; await assertStructure(homes);
-    step = "restart-read"; await readEverything(manifest, homes);
+    step = "home-library"; steps.home_library = await replayHomeLibrary(manifest, homes);
+    step = "restart-structure"; await assertStructure(homes); steps.restarts.push(step);
+    step = "restart-read"; steps.restart_reads = await readEverything(manifest, homes); steps.restarts.push(step);
     if (refusedNetwork().length) { step = "network"; throw goldenFailure("golden.network_refused", refusedNetwork()[0]); }
-    return { golden: name, ok: true, steps, not_run: steps.third_party === THIRD_PARTY_NOT_RUN ? ["third-party"] : [] };
+    return { golden: name, ok: true, steps, not_run: [["third-party", steps.third_party], ["home-library", steps.home_library]].filter(([, result]) => result === THIRD_PARTY_NOT_RUN).map(([what]) => what) };
   } catch (error) {
     if (debug) process.stderr.write(`${error?.stack ?? error}\n`);
     return { golden: name, ok: false, step, where: error?.where ?? "-", code: typeof error?.code === "string" ? error.code : "golden.unexpected_error" };
@@ -221,9 +248,10 @@ async function replayGolden(name) {
 refuseNetwork();
 scriptModel();
 const results = [];
+const said = result => result === THIRD_PARTY_NOT_RUN ? `not run on ${process.platform}, not a pass` : result;
 for (const name of selectedGoldens()) results.push(await replayGolden(name));
 if (json) writeFileSync(1, `${JSON.stringify({ results })}\n`);
 else if (!results.length) writeFileSync(1, "no golden Homes to replay\n");
-else for (const item of results) writeFileSync(1, item.ok ? `ok   ${item.golden} (${item.steps.reads} reads, ${item.steps.writes} writes, third-party: ${item.not_run.length ? `not run on ${process.platform}, not a pass` : item.steps.third_party})\n` : `FAIL ${item.golden} ${item.step} ${item.where} ${item.code}\n`);
+else for (const item of results) writeFileSync(1, item.ok ? `ok   ${item.golden} (${item.steps.reads} reads, ${item.steps.writes} writes, third-party: ${said(item.steps.third_party)}, home library: ${said(item.steps.home_library)})\n` : `FAIL ${item.golden} ${item.step} ${item.where} ${item.code}\n`);
 // The Host's background work has no reason to outlive a finished replay.
 process.exit(results.every(item => item.ok) ? 0 : 1);

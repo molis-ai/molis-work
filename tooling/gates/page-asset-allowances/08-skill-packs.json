@@ -1,0 +1,10 @@
+{
+  "reason": "第08批技能安装后独立启用、目录详情与状态、导入、撤销及冲突恢复；复用现有UI与请求助手，来源名单从登记表服务端渲染。相对c902b9aa真实Host测量，workbench.js增长12714字节，两个已有CSS各增长7725字节，无新资源。",
+  "review": "08本机独立只读复核及最终真实浏览器回归；公共合同/D轨/统筹评审随PR1984最终head完成。",
+  "assets": {
+    "/assets/molis-work-workbench.js": 12714,
+    "/assets/molis-work-workbench.css": 7725,
+    "/assets/molis-work-settings.css": 7725
+  },
+  "userApproval": "用户 2026-11-08 在本机 08 接续会话明确批准：workbench.js +12,714 字节、settings.css 与 workbench.css 各 +7,725 字节的一次性资源增长，并答复「批准，继续推进 08 交付」。"
+}

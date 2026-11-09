@@ -110,7 +110,7 @@ async function serve(handle: (request: http.IncomingMessage, response: http.Serv
   return { origin, close: () => new Promise<void>(resolve => server.close(() => resolve())) };
 }
 
-test("W5-13-11 the project brief: a project the catalog does not have is still a 404; a catalog that cannot be read is a 500 and one record, and the next request is served", async () => {
+test("D0070 W5-13-11 the project brief: a project the catalog does not have is still a 404; a catalog that cannot be read is a 500 and one record, and the next request is served", async () => {
   let catalog: { getProject(id: string): never } = failingCatalog(projectCatalogErrors.project_not_found("找不到"));
   const handle = createProjectArrivalHttp({ localHost: {} as never, renderBrief: () => "", withCatalog: (async (_options: unknown, operation: (c: never) => unknown) => operation(catalog as never)) as never });
   const site = await serve((request, response, url) => handle(request, response, url, undefined));
@@ -120,7 +120,9 @@ test("W5-13-11 the project brief: a project the catalog does not have is still a
     assert.equal((await fetch(`${site.origin}/api/projects/p-gone/brief`)).status, 404);
     assert.deepEqual(entries, [], "absent is an answer, not a failure");
     catalog = failingCatalog(unreadable());
-    assert.equal((await fetch(`${site.origin}/api/projects/p-broken/brief`)).status, 500);
+    const broken = await fetch(`${site.origin}/api/projects/p-broken/brief`);
+    assert.equal(broken.status, 500);
+    assert.deepEqual(await broken.json(), { error: "项目简介暂时读不到" }, "the 500 body is the fixed wording, not the internal error");
     assert.deepEqual(entries.map(entry => [entry.level, entry.area, entry.event, entry.error]), [["error", "projects", "catalog_lookup_failed", { name: "Error", code: "ERR_SQLITE_CORRUPT" }]]);
     catalog = failingCatalog(projectCatalogErrors.project_not_found("找不到"));
     assert.equal((await fetch(`${site.origin}/api/projects/p-other/brief`)).status, 404, "the service still answers");

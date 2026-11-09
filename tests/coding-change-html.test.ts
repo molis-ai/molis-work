@@ -61,7 +61,7 @@ test("PG062-09: Coding's change reader and integration preview draw their own ma
     { path: ["image.png"], target: "modified", selectable: false, reason: "binary" }];
   const actions = fakeWriterActions(pluginActions(store, DEMO_PROJECT_ID), definition => {
     if (definition.capability_id !== writerIntegrationCapabilities.read.capability_id) throw new Error(`Unexpected action ${definition.capability_id}`);
-    return { workspace_id: "work", writer_workspace_id: "child", source_path: `${root}-child`, target_path: root, branch: "writer/child", base_commit: "abc123", files: structuredClone(files) };
+    return { workspace_id: "work", worktree_id: "child", source_path: `${root}-child`, target_path: root, branch: "writer/child", base_commit: "abc123", files: structuredClone(files) };
   });
   const host = () => ({ store, ...openProjectVersionStores(store), homeDirectory: root, projectId: DEMO_PROJECT_ID, actions, actorId: "web-user", escapeHtml: String, translate: (value: string) => value,
     agentHost: { async invoke<I, O>(definition: { capability_id: string }, args: I): Promise<O> {

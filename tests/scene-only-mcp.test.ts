@@ -1,3 +1,4 @@
+import { changeMcpClientCredential } from "@molis-ai/molis-work-app-local-host";
 import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -85,6 +86,7 @@ test("scene-only plugin receives exact MCP configuration grants through existing
     assert.equal(settings.actions.filter((row: { provider: { provider_id: string } }) => row.provider.provider_id === installed.install_id).length, 3);
     await grant(management.targets, true, false);
     await grant(management.targets);
+    changeMcpClientCredential(home, "runtime:scene-only", "connect");
     external = new LocalMcpServer(withMolisWorkProjectCatalog, "runtime", { projectId: project.project_id,
       databasePath: project.database_path, webBaseUrl: origin }, { homeDirectory: home,
       runtimeContext: { runtime_id: "scene-only", stable_work_context_id: null, host_declares_stable: false } }, host);

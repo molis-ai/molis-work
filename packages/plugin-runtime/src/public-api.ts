@@ -9,6 +9,10 @@ export { HOST_BUILD_TRUST, UNSIGNED_TRUST, assertConsentsDeclared, assertHomeSco
 export type { PluginRuntimeDatabase } from "./repository.js";
 export { PLUGIN_PROJECT_DATABASES_SCHEMA_SQL, PROJECT_ROOT_REFERENCE, inspectPluginProjectSchema, inspectPluginProjectDatabase, openPluginProjectDatabase, listPluginProjectDatabases, pluginProjectDatabaseErrors, type PluginProjectDatabaseRecord, type PluginProjectSchemaInspector, type PluginSchemaObject, type PluginSchemaShape } from "./project-database.js";
 export { SANDBOX_HOME_SCHEMA_LIMITS, assertPluginHomeSchema, assertPluginHomeSnapshotSchema, inspectPluginHomeSchema } from "./project-database.js";
+export {
+  PLUGIN_UPGRADE_NONDETERMINISTIC_FUNCTIONS, assertPluginUpgradeStepsAdmitted, pluginProjectTablesVersion, pluginUpgradeErrors, pluginUpgradeSteps, upgradePluginHomeLibrary, upgradePluginProjectTables,
+  type PluginUpgradeExecution, type PluginUpgradeInspector, type PluginUpgradeResult, type PluginUpgradeStatement, type PluginUpgradeStepStatements,
+} from "./plugin-upgrade-steps.js";
 export { PLUGIN_STATEMENT_SQLITE_VERSION, pluginStatementGuard, type PluginStatementMode } from "./project-database-statements.js";
 export {
   createPluginRuntimeReleaseArtifact,
@@ -40,7 +44,8 @@ export type { PluginModelDispatch, PluginModelGate, PluginModelPort } from "./mo
 export { MemoryPluginRuntimeRepository } from "./memory-repository.js";
 export { NativePluginExecutor } from "./native-executor.js";
 export { pluginManifestDigest } from "./identity.js";
-export { loadDevelopmentPlugin } from "./development-loader.js";
+export { loadDevelopmentLocalePacks, loadDevelopmentPlugin } from "./development-loader.js";
+export { assertPluginLocales, inspectPluginLocales, refuseLocaleProblems, pluginLocaleFilePaths, pluginLocaleReader, type PluginLocaleManifest, type PluginLocaleRead, type PluginLocaleReader } from "./locale-packs.js";
 export { assertContributionMatchesManifest, offeredManifest, viewContributionId, type RedemptionScope } from "./contribution.js";
 export { bindRuntimeSyncCollection } from './sync-binding.js';
 export type { RuntimeSyncCollection, RuntimeSyncAuthority } from './sync-binding.js';

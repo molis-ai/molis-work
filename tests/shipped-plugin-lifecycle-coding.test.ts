@@ -4,14 +4,14 @@
 // taking it out stops its installation in that project and adding it back runs it again. Coding keeps sessions; Git and Files each
 // keep one choice the person made in a bound workspace (the change being looked at, the file last read); Diff and Text Stats keep
 // nothing of their own, so what the walk follows is that their page keeps answering the same.
-import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
-import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { after, before } from "node:test";
 import { promisify } from "node:util";
 import { walk, type Shipped, type Web } from "./fixtures/shipped-lifecycle.js";
+import { projectOutputOf, readProjectDirectories, setProjectOutputFolder } from "./fixtures/project-directories-http.js";
 
 const exec = promisify(execFile);
 let directory = "";
@@ -26,16 +26,13 @@ before(async () => {
 });
 after(() => rm(directory, { recursive: true, force: true }));
 
-/** The workspace the project has linked to `directory`: linked the first time it is asked for. */
+/** The project's output, made `directory` in the project's settings the first time it is asked for. */
 async function workspaceOf(web: Web, routes: string): Promise<string> {
-  const project = encodeURIComponent(decodeURIComponent(routes.split("/")[2] ?? ""));
-  const linked = async () => (await web.get<{ workspaces: Array<{ workspace_id: string }> }>(`/projects/${project}/api/project-settings/workspaces`)).workspaces[0]?.workspace_id;
-  const known = await linked();
-  if (known) return known;
-  await web.post(`/projects/${project}/api/workspaces`, { workspace_path: directory, user_confirmed: true });
-  const workspace = await linked();
-  assert.ok(workspace, "the project linked the workspace");
-  return workspace;
+  const project = decodeURIComponent(routes.split("/")[2] ?? "");
+  const canonical = await realpath(directory);
+  const output = projectOutputOf(await readProjectDirectories(web, project));
+  if (output.canonical_path === canonical) return output.workspace_id;
+  return (await setProjectOutputFolder(web, project, directory)).workspace_id;
 }
 const phase = async (web: Web, routes: string) => [(await web.get<{ view: { phase: string } }>(`${routes}/state`)).view.phase];
 

@@ -24,8 +24,10 @@ export function applyConfiguration(page: Page) {
     s.workspaceId = config.workspace_id ?? "";
     composerModels.apply(config);
   }
+  s.worktree = config?.worktree ?? null;
+  // A session pointed at one of the Host's worktrees names that worktree: it is where its next round runs.
   const workspace = s.state.workspaces?.find(item => item.workspace_id === s.workspaceId);
-  showWorkspace(page, workspace?.canonical_path, s.workspaceId ? L("coding.workspace.unavailable") : L("coding.workspace.choose-first"));
+  showWorkspace(page, workspace ? s.worktree?.canonical_path ?? workspace.canonical_path : undefined, s.workspaceId ? L("coding.workspace.unavailable") : L("coding.workspace.choose-first"));
   if (!q<HTMLDialogElement>("[data-coding-workspace-dialog]").open) q<HTMLSelectElement>("[data-coding-workspace-choice]").value = s.workspaceId;
 }
 
@@ -37,6 +39,7 @@ export function rememberConfiguration(page: Page) {
   const writers = s.configurations.get(s.current)?.writer_assignments;
   s.configurations.set(s.current, {
     intent: q<HTMLSelectElement>("[data-coding-intent]").value, provider_id: provider || "", model_id: model || "", ...composerModels.effort(), workspace_id: s.workspaceId, ...(writers ? { writer_assignments: writers } : {}),
+    ...(s.worktree ? { worktree: s.worktree } : {}),
   });
 }
 

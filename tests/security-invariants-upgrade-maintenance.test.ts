@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
 import { mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { request as httpRequest } from "node:http";
+import { connect } from "node:net";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { planHomeUpgrade, runHomeUpgrade, runUpgradeMaintenance, WEB_CONTROL_TOKEN_RELATIVE_PATH, webHealthProof } from "@molis-ai/molis-work-app-local-host";
@@ -70,6 +71,30 @@ test("S-upgrade-maintenance-listener: no proof without a valid challenge, and wi
     const challenge = randomBytes(32).toString("base64url"), answer = await ask(origin, `/health?challenge=${challenge}`);
     assert.equal(answer.status, 503);
     assert.equal(answer.headers["x-molis-work-proof"], webHealthProof(TOKEN, challenge, answer.body).toString("base64url"));
+  });
+});
+
+/** What the desktop shell sends (`web_identity.rs`), read back as the bytes it checks one by one. */
+const raw = (origin: string, challenge: string) => new Promise<string>((resolve, reject) => {
+  const { hostname, port } = new URL(origin), socket = connect(Number(port), hostname), chunks: Buffer[] = [];
+  socket.on("data", (chunk: Buffer) => chunks.push(chunk));
+  socket.once("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
+  socket.once("error", reject);
+  socket.write(`GET /health?challenge=${challenge} HTTP/1.1\r\nHost: ${hostname}:${port}\r\nConnection: close\r\n\r\n`);
+});
+
+test("UPG-19 S-upgrade-maintenance-listener: `/health` is the answer the desktop shell waits on: its status line, one length, no chunks, the proof", async t => {
+  await during(t, { token: true }, async origin => {
+    const challenge = randomBytes(32).toString("base64url"), answer = await raw(origin, challenge);
+    const end = answer.indexOf("\r\n\r\n"), body = answer.slice(end + 4), [status, ...lines] = answer.slice(0, end).split("\r\n");
+    const named = (name: string) => lines.filter(line => line.toLowerCase().startsWith(`${name}:`)).map(line => line.slice(name.length + 1).trim());
+    // `verify_response` takes exactly these two status lines, a head under MAX_HEAD and a body under MAX_BODY.
+    assert.equal(status, "HTTP/1.1 503 Service Unavailable");
+    assert.ok(end + 4 < 8192 && Buffer.byteLength(body) <= 4096);
+    assert.deepEqual(named("content-length"), [String(Buffer.byteLength(body))]);
+    assert.deepEqual(named("transfer-encoding"), []);
+    assert.deepEqual(named("x-molis-work-proof"), [webHealthProof(TOKEN, challenge, body).toString("base64url")]);
+    assert.equal(JSON.parse(body).status, "upgrading");
   });
 });
 

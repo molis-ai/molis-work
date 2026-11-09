@@ -252,3 +252,39 @@ test("contextual actions: a command that cannot run keeps its name on one line a
     assert.equal(row.reasonBelowLabel, true, `${row.label}: the reason sits under the name`);
   }
 });
+
+test("D0302 the fragment heading path only names what is shown: aria-hidden and folded bodies are out, a closed fold's own summary stays", { timeout: 120_000 }, async t => {
+  const browser = await openGoalBrowser(t, true, undefined, null);
+  if (!browser) return;
+  const { command, sessionId, evaluate, navigate, origin, projectId, homeDirectory } = browser;
+  const child = await pluginFrameBrowser(t, browser, "pages");
+  await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  const setup = openPagesStore(homeDirectory);
+  const page = (() => { try { return setup.create({ project_id: projectId!, title: "标题路径", body: { type: "doc", content: [paragraph(FIRST)] } }); } finally { setup.close(); } })();
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${page.id}` }, sessionId));
+  await child.waitFor(`document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(FIRST)})`);
+  // A declared surface of the child's own, holding every hidden shape the path must tell apart. The selection sits
+  // after every heading under test (the path only names headings before the selection). The nested fold is the sharp
+  // case: a heading in the inner summary is still inside the outer closed fold's body, so it stays out — and of a
+  // details with two summary children, only the first one is the shown summary line.
+  await child.evaluate(`(() => {
+    const host = document.createElement('div');
+    host.setAttribute('data-assistant-context', JSON.stringify({ plugin_id: 'io.molis.work.goals', object: { kind: 'goal', id: 'D0302' } }));
+    host.innerHTML = [
+      '<h2>可见标题</h2>',
+      '<div aria-hidden="true"><h3>隐藏标题</h3><p>隐藏正文。</p></div>',
+      '<details><summary><h3>摘要标题</h3></summary><div><h3>折叠标题</h3><p>折叠正文。</p></div></details>',
+      '<details><summary>第一个摘要没有自己的标题</summary><summary><h4>第二个摘要标题</h4></summary><div><p>第二个摘要的正文。</p></div></details>',
+      '<details><summary>外层摘要</summary><div><details><summary><h3>内层摘要标题</h3></summary><div><h3>内层正文标题</h3><p>内层正文。</p></div></details></div></details>',
+      '<p id="d0302-target">可选的一段正文。</p>',
+    ].join('');
+    document.body.append(host);
+    document.addEventListener('molis:surface-focus', event => { window.__headingPath = event.detail?.surroundings?.heading_path ?? null; });
+  })()`);
+  await child.evaluate(`(() => { const target = document.querySelector('#d0302-target').firstChild;
+    const range = document.createRange(); range.setStart(target, 0); range.setEnd(target, target.length);
+    const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range);
+    document.dispatchEvent(new Event('selectionchange')); })()`);
+  await child.waitFor("Array.isArray(window.__headingPath)");
+  assert.deepEqual(await child.evaluate<string[]>("window.__headingPath"), ["可见标题", "摘要标题"]);
+});

@@ -62,6 +62,64 @@ export function nativeSqliteOwnerBoundary(connection: SqliteBaselineDatabase, ta
   };
 }
 
+/** SQLite's own bookkeeping that a schema change rewrites inside itself, by the database it is in. `sqlite_sequence` holds the AUTOINCREMENT counter of a table renamed or dropped. */
+const SCHEMA_BOOKKEEPING: ReadonlyMap<string, string> = new Map([['sqlite_master', 'main'], ['sqlite_temp_master', 'temp'], ['sqlite_sequence', 'main']]);
+/** What SQLite calls in the statements it runs inside the `ALTER` of a table (read on SQLite 3.51.3). None of them can be written in a schema change's own text. */
+const SCHEMA_FUNCTIONS = new Set(['like', 'length', 'printf', 'substr', 'sqlite_drop_column', 'sqlite_rename_column', 'sqlite_rename_quotefix', 'sqlite_rename_table', 'sqlite_rename_test']);
+
+/**
+ * The same native authorizer for one statement that changes a table or an index (upgrade-chain-design §2.4, second layer): it may alter,
+ * drop or index only a table of `tables`, create a table of a new name, and read or write nothing else but SQLite's own bookkeeping that the
+ * statement rewrites inside itself. That last allowance is why a caller sends here only what it has read as a schema change (`ALTER`,
+ * `CREATE` or `DROP` of a table or an index), never a statement of rows: SQLite asks about its own internal statements the same way it asks
+ * about the caller's, with no trigger or view to tell them apart. Every other question is refused, one never seen here included, so a newer
+ * SQLite can only refuse a legal step. A refusal is SQLite's own: the prepare fails (`SQLITE_AUTH`, or `SQLITE_ERROR` for a refused function) before any of it runs.
+ */
+export function nativeSqliteSchemaBoundary(connection: SqliteBaselineDatabase, tables: ReadonlySet<string>): PluginSqlExecution {
+  if (!('setAuthorizer' in connection) || typeof connection.setAuthorizer !== 'function' || codes.SQLITE_DENY === undefined) {
+    throw new ActionError('actions.service_unavailable', '此宿主缺少 SQLite 原生语句授权，需要 Node 24.10 或更新版本');
+  }
+  const db = connection as AuthorizedConnection, own = new Set([...tables].map(fold));
+  let active = false;
+  return <T>(_sql: string, _parameters: readonly PluginSqlValue[], mode: 'read' | 'write', execute: () => T): T => {
+    if (active || mode !== 'write') throw forbidden();
+    // What this statement itself makes: a new table may be read by its own CHECK, and a new index is rebuilt (REINDEX) as it is made.
+    const created = new Set<string>(), indexed = new Set<string>();
+    const ours = (name: string | null) => name !== null && (own.has(fold(name)) || created.has(fold(name)));
+    const bookkeeping = (name: string | null, database: string | null) => name !== null && SCHEMA_BOOKKEEPING.get(fold(name)) === database;
+    const authorize: Authorizer = (action, first, second, database, origin) => {
+      const denied = codes.SQLITE_DENY!, allowed = codes.SQLITE_OK!;
+      if (origin !== null) return denied;
+      switch (action) {
+        case codes.SQLITE_SELECT: return allowed;
+        case codes.SQLITE_FUNCTION: return second && (SCHEMA_FUNCTIONS.has(fold(second)) || safeFunctions.has(fold(second))) ? allowed : denied;
+        case codes.SQLITE_READ: return (database === 'main' && ours(first)) || bookkeeping(first, database) ? allowed : denied;
+        case codes.SQLITE_INSERT: case codes.SQLITE_UPDATE:
+          return bookkeeping(first, database) && !(action === codes.SQLITE_INSERT && fold(first!) === 'sqlite_sequence') ? allowed : denied;
+        case codes.SQLITE_DELETE: return (database === 'main' && ours(first)) || bookkeeping(first, database) ? allowed : denied;
+        // The database is in the first slot here; in DROP COLUMN SQLite puts the column's name where the database usually goes.
+        case codes.SQLITE_ALTER_TABLE: return first === 'main' && ours(second) ? allowed : denied;
+        case codes.SQLITE_CREATE_TABLE:
+          if (database !== 'main' || first === null || fold(first).startsWith('sqlite_')) return denied;
+          created.add(fold(first));
+          return allowed;
+        case codes.SQLITE_CREATE_INDEX:
+          if (database !== 'main' || first === null || !ours(second)) return denied;
+          indexed.add(fold(first));
+          return allowed;
+        case codes.SQLITE_REINDEX: return database === 'main' && first !== null && indexed.has(fold(first)) ? allowed : denied;
+        case codes.SQLITE_DROP_INDEX: return database === 'main' && ours(second) ? allowed : denied;
+        case codes.SQLITE_DROP_TABLE: return database === 'main' && ours(first) ? allowed : denied;
+        // Triggers, views, temporary and virtual tables, pragmas, ATTACH, transactions, recursive queries.
+        default: return denied;
+      }
+    };
+    active = true;
+    try { db.setAuthorizer(authorize); return execute(); }
+    finally { try { db.setAuthorizer(null); } finally { active = false; } }
+  };
+}
+
 /** A null-schema authorizer read is safe only when that name resolves uniquely to a real main table. */
 function unambiguousMainTables(db: SqliteBaselineDatabase, schema: readonly SchemaRow[]): ReadonlySet<string> {
   const main = new Set(schema.filter(row => row.type === 'table').map(row => fold(row.name)));

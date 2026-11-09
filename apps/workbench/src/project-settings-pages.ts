@@ -1,3 +1,4 @@
+import { renderSkillSettings, SKILL_SETTINGS_CLIENT_SCRIPT } from "./settings-skills.js";
 import type { ProjectGuidanceView } from "@molis-ai/molis-work-plugin-goals/contract";
 import type { PlanningMethodPack } from "@molis-ai/molis-work-plugin-goals/contract";
 import type { PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
@@ -11,7 +12,8 @@ import { pluginSettingsClients } from "./plugin-workbench.js";
 import { CONTROL_CLIENT_SCRIPT as UI_REQUEST_CLIENT_SCRIPT } from "./scripts/control.js";
 import { PROJECT_SETTINGS_CLIENT_SCRIPT } from "./scripts/project-settings.js";
 import { WRITE_CHECKERS_CLIENT_SCRIPT } from "./scripts/write-checkers-client.js";
-import { renderWriteCheckersSection } from "./write-checkers-section.js";
+import { renderProjectDirectoriesSection } from "./project-directories-section.js";
+import { PROJECT_DIRECTORIES_CLIENT_SCRIPT } from "./scripts/project-directories-client.js";
 import { MEMORY_SETTINGS_CLIENT_SCRIPT, renderMemorySettings } from "./settings-memory.js";
 import { knowledgeClientTag, renderKnowledgeSettings } from "./settings-knowledge.js";
 import { PLUGIN_TRUST_SETTINGS_CLIENT_SCRIPT, renderPluginTrustSettings } from "./settings-plugins.js";
@@ -65,15 +67,12 @@ export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePo
   }
 
   function renderHubSection(view: MolisWorkWebView, guidance: ProjectGuidanceView | null, methods: readonly PlanningMethodPack[], section: ProjectSettingsFoldId, desktopShell: boolean): string {
-    if (section === "workspaces") return `<section class="project-settings-page" data-project-workspaces data-workspace-prefix="${escapeHtml(view.route_prefix || `/projects/${encodeURIComponent(view.project!.project_id)}`)}">
-      <header class="settings-page-heading"><h1>${L("工作目录")}</h1><p>${L("关联本机文件夹，并选择 Files 和 Git 浏览的目录。Coding 在每个会话中单独选择执行目录。")}</p></header>
-      <section class="settings-section"><div class="settings-setting-row"><span class="setting-copy"><strong>${L("已关联目录")}</strong><span>${L("浏览选择对当前项目生效。")}</span></span><button class="mw-btn mw-btn--secondary" type="button" data-project-workspaces-refresh>${L("刷新")}</button></div><div data-project-workspaces-list></div><p data-project-workspaces-status role="status" aria-live="polite"></p></section>
-      <section class="settings-section"><h2>${L("关联新目录")}</h2><form data-project-workspaces-add><div class="settings-setting-row"><label class="setting-copy" for="project-workspace-path"><strong>${L("文件夹路径")}</strong><span>${L("选择本机文件夹或填写绝对路径。")}</span></label><div class="setting-value"><input id="project-workspace-path" name="path" required placeholder="/path/to/project"><button class="mw-btn mw-btn--secondary" type="button" data-project-workspaces-pick>${L("选择目录")}</button></div></div><div class="settings-setting-row"><span class="setting-copy">${L("关联后可用于当前项目的浏览与 Coding 会话。")}</span><button class="mw-btn mw-btn--primary" type="submit">${L("关联目录")}</button></div><p data-project-workspaces-add-status role="status" aria-live="polite"></p></form></section>${renderWriteCheckersSection(L)}
-    </section>`;
+    if (section === "workspaces") return renderProjectDirectoriesSection(L, view.route_prefix || `/projects/${encodeURIComponent(view.project!.project_id)}`);
     if (section === "general" || guidance === null && GOALS_SETTINGS_SECTIONS.has(section)) return folds.renderGeneralPage(hubProject(view), desktopShell);
     if (section === "guidance") return content("guidance", { guidance: guidance! }, {}, view);
     if (section === "memory") return renderMemorySettings({ L, scope: "project", projectId: view.project!.project_id });
     if (section === "knowledge") return renderKnowledgeSettings({ L, projectId: escapeHtml(view.project!.project_id) });
+    if (section === "skills") return renderSkillSettings({ L, lang: htmlLang(), projectId: escapeHtml(view.project!.project_id) });
     if (section === "plugins") return renderPluginTrustSettings({ L, projectId: escapeHtml(view.project!.project_id), chevron: icon("chevron-down") });
     if (section === "grants") return renderTaskGrantsSettings({ L, projectId: escapeHtml(view.project!.project_id) });
     if (section === "rules") return content("rules", { policy_bindings: view.policy_bindings }, {}, view);
@@ -107,7 +106,7 @@ export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePo
     <div class="settings-content" id="settings-content">${page}</div>
   </main>
   <div class="mw-toast toast" data-settings-toast role="status" aria-live="polite"></div>
-  <script>${clientI18nScript()}${UI_REQUEST_CLIENT_SCRIPT}${WRITE_CHECKERS_CLIENT_SCRIPT}${PROJECT_SETTINGS_CLIENT_SCRIPT}${PROJECT_GUIDANCE_CLIENT_SCRIPT}${MEMORY_SETTINGS_CLIENT_SCRIPT}${PLUGIN_TRUST_SETTINGS_CLIENT_SCRIPT}${TASK_GRANTS_SETTINGS_CLIENT_SCRIPT}${pluginSettingsClients()}${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>${knowledgeClientTag()}
+  <script>${clientI18nScript()}${UI_REQUEST_CLIENT_SCRIPT}${WRITE_CHECKERS_CLIENT_SCRIPT}${PROJECT_DIRECTORIES_CLIENT_SCRIPT}${PROJECT_SETTINGS_CLIENT_SCRIPT}${PROJECT_GUIDANCE_CLIENT_SCRIPT}${MEMORY_SETTINGS_CLIENT_SCRIPT}${SKILL_SETTINGS_CLIENT_SCRIPT}${PLUGIN_TRUST_SETTINGS_CLIENT_SCRIPT}${TASK_GRANTS_SETTINGS_CLIENT_SCRIPT}${pluginSettingsClients()}${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>${knowledgeClientTag()}
 </body></html>`;
   }
 

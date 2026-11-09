@@ -192,6 +192,8 @@ node scripts/run-tests.mjs tests/action-before-effect.test.ts tests/agent-budget
 
 这些示例证明工程调用和恢复边界，不代表真实供应商或生成质量已验收。产品接入复用常驻 Host 的 Runtime，不能把测试里新建 adapter 的做法复制到每次按钮调用。
 
+项目资料后台整理（D0244）的材料从 Search 公开的授权索引目录进入 Knowledge：发出前保留原来源检查，模型返回后重读可用目录与版本，再同步核原检查，才提交卡片或失败。来源停用、撤权、重新登记或 catch-up 失败不派出新材料或写迟到结果；仍用原 hostTextGeneration，不改变提示词与模型质量口径。
+
 ## 5. 模型、凭据、上下文
 
 - 模型来自设置里的 `catalog.models` 与服务连接；`hostCompleteText` 发现阶段只读元数据，执行前才解密，派发前与返回后都核对「这次固定的供应商/模型/凭据」没变，变了报 `actions.configuration_changed` 且不提交结果。
@@ -406,6 +408,8 @@ prompt 和执行机制「好」，是看得见的：
 
 **长度与语气。** 长度由必要的信息决定，不定字数，也不追求越短越好。不要求模型展示内部推理：让它用可核对的结论、依据、产物和执行结果说明工作（`coding-base` 最后一句「用户看到的是结论与必要证据，不是内部推理」）。
 
+**回复语言不写进提示词。** 一轮用哪种语言回复，由宿主在一处给模型（`AgentStartAuthority.reply_language`，第 14 节「回复语言」一行；今天只接了个人助理，Coding、创作台第 16 批接）。角色提示词、Skill、方法和插件里不写「用中文回复」，也不按语言分支：多一处判断，回复就可能和用户选的语言对不上。用户这一轮明说要别的语言时照用户的。规则见[字体、皮肤与语言设计稿](../../specs/font-and-skin-system/a-section-contract.md)第 15 节。
+
 **带理由的「不要」是好的。** `coding-base` 的「看文件内容用 read 和 search，不要用 cat、sed -n、grep、wc 这类命令代替：命令每条都要用户审查，读取工具不用」有来由、对应真实机制，模型能举一反三。判断标准是有没有来由，不是有没有「不要」两个字。
 
 **一段改写示意。** 下面的「改写前」是项目上手的「项目建议」指令（`apps/local-host/src/agent-definitions/system-prompts.ts` 的 `ONBOARDING_PROPOSAL`）里的一类写法，摘取并压缩：
@@ -544,6 +548,7 @@ Molis 没有「录下过程生成 Skill」的功能（2026-10-19 核对），下
 | 收尾核对 | 回复说做了、记住了、按钮好了或接下来要做，而这一轮其实没做 | `horizontal/agent-host/src/adapters/prologue-stop-guard.ts` 的收工钩子：可写的一轮没有任何成功的改动时，`ending-review.ts` 把结尾和宿主记的事实（`announce-guard.ts` 的 `RoundFacts`：调用过什么、结果如何）交给这一轮的模型核对一次；对不上的按种类各拦一次、接着做一次（用户 2026-09-28、2026-10-16）。核对的指令是这一轮的主人登记的提示词：Manifest 的 `ending_review` 指向它（`assistant-ending-review`、`coding-ending-review`），在「设置 › 提示词」里叫「收尾核对」，用用户改过的版本，版本记进开跑时冻结的记录（`frozen.ending_review`）；agent-host 自己不带提示词，只读回答里约定的那一行 JSON。内部标识只认宿主交给模型的；把调用写成文字按工具格式认 | 让模型读说法，宿主给事实；判断出错、超时或答得不对一律放行；有改动的一轮不核对 | 只在 Manifest 声明了 `ending_review` 的 Agent 上（现在是 Assistant 与 Coding）；有改动的一轮里多出来的假话不查；核对的用量不计入这一轮的预算 | 确定性：`tests/announce-guard.test.ts`、`tests/assistant-business-gateway.test.ts`、`tests/assistant-memory.test.ts`、`tests/agent-definitions.test.ts`；真实模型：手册需求书 §9.5 的 D1② 记录 |
 | 材料筛查 | 出机前去掉形似密钥的文字，报告像指令的文字 | `prologue-screening.ts` 的 `screenModelMaterial` | 文字仍是数据；说明写进回执 | 不是唯一防线 | 确定性：`tests/security-invariants-injection.test.ts` |
 | 材料的不可信声明 | 单次推理把材料交给模型时，声明写在代码里，不在用户可改的指令里 | `packages/contracts/src/platform/model-prompts.ts` 的 `fencedMaterials`：固定的一行声明，加随机围栏里的一行 JSON（项目上手、Cognia、Todo 整理）；Runtime 插件经 `services.materials` 读到的文件，也由插件用它放进 `instructed(自己的指令, 数据)` 的数据里再交给 `services.model` | 用户怎么改指令，声明都在；指令里不再重复这句 | 起草（`draft-data.ts` 的 `声明`）、Jev 题面、Alchemist 各有自己的写法，还没并过来；灵光的对话把这句写在可改的指令 `lingguang.conversation` 里，待换成 `fencedMaterials` | 确定性：`tests/security-invariants-injection.test.ts`（S-13 的项目上手、Cognia、Todo 整理三条，以及材料服务读到的文件经 Runtime 插件自己的指令交给模型、用户改掉指令里的提醒后声明照样在的一条） |
+| 回复语言 | 一轮用哪种语言回复，不靠模型猜 | `apps/local-host/src/reply-language.ts` 的 `replyLanguagePrompt`；只有宿主放进 `AgentStartAuthority.reply_language`，`composeRolePrompts` 接在各层之后 | **例外：和上一行一样是代码里的固定文字，不登记、不进「设置 › 提示词」。** 它只说用哪种语言，要换语言去换界面语言；能改这句，改出来的只是回复和所选语言对不上。版本仍记进这一轮的 `frozen.prompts`（`prompt.reply-language`） | 只接了个人助理，Coding、创作台在第 16 批；它之后还有中文的子角色说明、侧栏浏览器和桌面说明、步骤板，真实模型下的效果还没验证（FSS-71） | 确定性：`tests/reply-language.test.ts`、`tests/security-invariants-ui-locale-memory.test.ts` |
 | 创作台的 Skill 与回放 | 生成插件的做法怎样教给 Agent、怎样验证 | `apps/local-host/src/plugin-builder/skill.ts` 的 `CHAPTERS`、`plugins/native/plugin-builder/src/agent-prompts.ts`；`pnpm studio:replay` | 离线回放加隔离 Home 冒烟的两步法 | 回放不证明文字对模型的影响 | 回放：380 份真实答卷（`docs/platform/STUDIO-SKILL-REPLAY.md`） |
 | 生成插件的 `prompts` | 作者写业务意图，平台负责模型 | `skills/molis-plugin-dev/generated-ai.md`；宿主 `apps/local-host/src/plugin-builder/model.ts` | 声明 prompts、按 id 调用、会变的内容放 `input` | 只承诺一次文字生成 | 确定性：`tests/generated-plugin-prompts.test.ts`、`tests/plugin-model-generation.test.ts` |
 | Runtime 插件的 `services.model` | 宿主自己运行的插件调模型 | 第 4 节 | 只收自己登记的指令 | 见第 4 节「不在这一片里」 | 确定性：`tests/plugin-model-service.test.ts` |

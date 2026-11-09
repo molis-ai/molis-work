@@ -15,6 +15,7 @@ import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/a
 import { bindActionClient, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { seedConfiguredModels } from "./fixtures/configured-models.js";
 import { goalApplicationOf, seedBoard } from "./fixtures/goal-application.js";
+import { directoriesOf } from "./fixtures/catalog-host.js";
 
 function codingHostFixture(root: string) {
   const starts: AgentStartRequest[] = [], runs: AgentRunView[] = [];
@@ -23,7 +24,8 @@ function codingHostFixture(root: string) {
   let heldProgress: { enter(): void; wait: Promise<void> } | undefined;
   const host = new MolisWorkLocalHost({ actionAvailability: (caller, action) => { if (caller.audience === "plugin" && action.capability_id === goalPluginActions.contract.capability_id) captured = caller.host_plugin; if (heldProgress && caller.audience === "plugin" && action.capability_id === goalPluginActions.progress.capability_id && caller.allowed_capability_ids?.includes(action.capability_id)) {
       const held = heldProgress; heldProgress = undefined; held.enter(); return held.wait.then(() => ({ available: true as const }));
-    } return { available: true }; }, homeDirectory: root, workspacesFor: () => [{ workspace_id: "work", canonical_path: root, display_name: "fixture", realpath_verified: true }] });
+    } return { available: true }; }, homeDirectory: root, workspacesFor: () => [{ workspace_id: "work", canonical_path: root, display_name: "fixture", realpath_verified: true }],
+    directoriesFor: directoriesOf([{ workspace_id: "work", canonical_path: root, display_name: "fixture", realpath_verified: true }]) });
   // A Host with a Home composes its own Agent service (and registers its agent.* capabilities); the Home is what gives Coding's
   // `services.model` the provider catalog (PG-047). This test stands in the Agent capabilities, so it releases the real ones first.
   // The Host's own close disposes that service again; it is released once, so that second call answers the first.

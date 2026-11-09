@@ -1,4 +1,4 @@
-import { projectSettingsCapabilities, type ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
+import { projectDirectoryActions, type ProjectDirectories } from "@molis-ai/molis-work-contracts/modules/projects";
 import { HOST_WORKSPACE_CHANGED_EVENT } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { hostLog } from "./host-log.js";
 import type { PluginPlatform } from "./plugin-platform.js";
@@ -7,7 +7,7 @@ import { projectCallCaller } from "./project-call-caller.js";
 import { runningProjectPlatform, type ProjectPluginPorts } from "./project-plugins.js";
 
 /**
- * The project's folder settings changed (BL-521): a folder was linked, repaired or unlinked, or the browsing folder was chosen. It goes
+ * The project's folders changed (BL-521): one was added or removed as an input, made the output, repaired or named for another device's. It goes
  * out as `host.workspace.changed@1` with `cause: "workspace-settings"` to the installations of this project that subscribe and hold
  * `workspace:read`, the way an Agent's approved write does (`review-settlement-events.ts`), so a plugin holding the old folder's
  * files reads again. It uses the project platform's own `hostEvents` and only while that platform runs: the event is not stored and
@@ -26,10 +26,10 @@ const opened = new WeakMap<PluginPlatform, Promise<void>>();
  * The project's plugin platform has just been opened through the Host's web entry (BL-521). A change to the folder settings is
  * announced only to the platform that runs (`announceWorkspaceSettingsChange`), so one made while none ran was heard by nobody.
  * Once successfully per platform, before its first plugin route is answered, the Host broadcasts `host.workspace.changed@1` with
- * `cause: "project-opened"` and the folder the project browses (empty when it has none); a plugin that holds files of an earlier
+ * `cause: "project-opened"` and the project's output directory; a plugin that holds files of an earlier
  * folder looks again, and the route waits for the deliveries to finish so a plugin that reads its outputs does not read the old
  * ones. Starting a platform headlessly (discovering actions) reads and sends nothing: only this entry does, because only it is
- * followed by a person's reads. The folder is the one `projectSettingsCapabilities.browsingWorkspace` answers, asked through the Host's
+ * followed by a person's reads. The folder is the output `projectDirectoryActions.get` answers, asked through the Host's
  * own action client as the Host itself (`local-host`, the person's audience, as `host.client` asks) for the project this entry was
  * opened for, within this request's operation: the folders come from whatever owns them for this Host, a failed or missing read leaves
  * its row under the request's id, and a successful one leaves none. A failed announcement is logged, not the route's failure; the next
@@ -39,8 +39,9 @@ export function announceProjectOpened(platform: PluginPlatform, ports: Pick<Proj
   const earlier = opened.get(platform);
   if (earlier) return earlier;
   const announcing: Promise<void> = Promise.resolve().then(async () => {
-    const selected = await ports.actions.client.invoke(projectCallCaller(ports.projectId, () => ({})), projectSettingsCapabilities.browsingWorkspace, []) as ProjectWorkspaceRef | null;
-    platform.hostEvents.broadcast({ event_type_id: HOST_WORKSPACE_CHANGED_EVENT, type_version: /* @version event.host.workspace.changed */ 1, payload: { workspace_id: selected?.workspace_id ?? "", cause: "project-opened" } });
+    const directories = await ports.actions.client.invoke(projectCallCaller(ports.projectId, () => ({})), projectDirectoryActions.get, {}) as ProjectDirectories;
+    const output = directories.directories.find(item => item.roles.includes("output"));
+    platform.hostEvents.broadcast({ event_type_id: HOST_WORKSPACE_CHANGED_EVENT, type_version: /* @version event.host.workspace.changed */ 1, payload: { workspace_id: output?.workspace_id ?? "", cause: "project-opened" } });
     await platform.hostEvents.drain();
   }).catch(error => {
     if (opened.get(platform) === announcing) opened.delete(platform);

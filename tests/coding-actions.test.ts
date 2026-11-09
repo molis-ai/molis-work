@@ -5,16 +5,19 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { codingManifest, codingRouteActions } from "@molis-ai/molis-work-plugin-coding";
-import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 
 test("Coding's business surface is redeemed by the project Runtime, owner-bound, and the same code answers its routes", { timeout: 60_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "coding-actions-"));
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const project = await catalog.createProject({ display_name: "编码动作", actor_id: "web-user" });
+  catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "coding", actor_id: "web-user" });
   catalog.close();
   const workspace = { workspace_id: "fixture", canonical_path: await realpath(home), realpath_verified: true as const, display_name: "fixture" };
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, workspaceFor: async () => workspace, workspacesFor: async () => [workspace] });
+  // Coding reads the project's folders through `projects.directories.get`, which the Home catalog answers.
+  host.configurePersonalPlanning(home, withMolisWorkProjectCatalog);
   const ref = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   const owner: ActionCallContext = { actor_id: "web-user", project_id: project.project_id, audience: "user", permissions: ["artifact:read", "artifact:write", "storage:private"] };
   const client = host.actionClient(ref);

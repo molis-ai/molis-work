@@ -2,13 +2,16 @@ import { readFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { CONTINUITY_ACTIONS, memberClientId } from "@molis-ai/molis-work-server";
 import { isLoopbackHttpOrigin } from "@molis-ai/molis-work-contracts/platform/loopback";
+import { changeMcpClientCredential } from "@molis-ai/molis-work-app-local-host";
 
 /** Local administrator operation. Delegates to the existing protected Host grant owner. Never a mobile endpoint. */
-export async function configureMemberActions(input:{hostUrl:string;controlTokenFile:string;memberId:string;projectId:string;role:"owner"|"editor"|"viewer"|"revoked"}) {
+export async function configureMemberActions(input:{hostUrl:string;homeDirectory:string;controlTokenFile:string;memberId:string;projectId:string;role:"owner"|"editor"|"viewer"|"revoked"}) {
   const url=new URL(input.hostUrl);
   if(!isLoopbackHttpOrigin(url,{numeric:true}))throw Error("Host URL must be a numeric loopback HTTP origin");
   const token=(await readFile(input.controlTokenFile,"utf8")).trim();
   if(token.length<32 || token.length>512 || /[\r\n\0]/.test(token))throw Error("Invalid Host control token file");
+  // This is an explicit local administrator operation, not a request by the forwarding client.
+  if(input.role!=="revoked")changeMcpClientCredential(input.homeDirectory,memberClientId(input.memberId),"connect");
   const results:{capability_id:string;enabled:boolean;status:string}[]=[];
   for(const action of CONTINUITY_ACTIONS){
     const enabled=input.role!=="revoked" && (input.role!=="viewer" || action.capability_id!=="goals.progress.record");

@@ -49,8 +49,8 @@ test("VUX-40: switching the language from Settings keeps the split window and la
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   const project = `${origin}/projects/${projectId}/?openPlugin=goals`;
   await navigate(() => command("Page.navigate", { url: project }, sessionId));
-  await waitFor("document.readyState === 'complete' && document.querySelector('[data-titlebar-tabs] [data-tab-split], .tab-pane.is-focused [data-tab-split]')", 20_000);
-  await click(".tab-pane.is-focused [data-tab-split], [data-titlebar-tabs] [data-tab-split]");
+  await waitFor("document.readyState === 'complete' && document.querySelector('[data-layout-open]')", 20_000);
+  await click("[data-layout-open]");
   await click("[data-layout-split=right]");
   await waitFor("document.querySelectorAll('[data-tab-pane]').length === 2");
   const panes = () => evaluate<string[]>("[...document.querySelectorAll('[data-tab-pane]')].map((pane) => pane.querySelector('[data-tab-id][aria-selected=true], [aria-selected=true]')?.textContent?.trim() || '')");

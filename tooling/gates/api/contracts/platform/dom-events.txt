@@ -173,6 +173,13 @@ export declare const DOM_EVENTS: readonly [{
     readonly detail: "{ came, gone, next, failed }; a listener sets failed to true when it could not bring its page in line";
     readonly summary: "The project's plugins changed in place; plugins whose pages fill when the project has them fill them from next.";
 }, {
+    readonly name: "molis-work:record-gone";
+    readonly kind: "request";
+    readonly owner: "tab-workspace";
+    readonly on: "document";
+    readonly detail: "{ plugin, itemId }";
+    readonly summary: "A record a tab opens is no longer there: strike its tab through and say so in its pane, with a way to close it. Sent by a plugin's page when its read of the record answers 404 (Goals' document read first).";
+}, {
     readonly name: "molis-work:return-claim";
     readonly kind: "request";
     readonly owner: "settings-return";
@@ -376,13 +383,6 @@ export declare const DOM_EVENTS: readonly [{
     readonly detail: "{ action: takeover | handback, project_id, session_id }";
     readonly summary: "The person took the side panel's browser over from a Work, or handed it back; the Assistant tells the Work.";
 }, {
-    readonly name: "molis:side-close";
-    readonly kind: "request";
-    readonly owner: "side-panel";
-    readonly on: "document";
-    readonly detail: "none";
-    readonly summary: "Close the side panel.";
-}, {
     readonly name: "molis:side-context-command";
     readonly kind: "announcement";
     readonly owner: "side-panel";
@@ -479,7 +479,7 @@ export type DomEventTarget = "window" | "document" | "element";
 export declare const PAGE_STATE_OWNERS: {
     readonly "side-panel": {
         readonly files: readonly ["apps/workbench/src/side-panel-context.ts", "apps/workbench/src/side-panel.ts", "apps/workbench/src/side-panel-browser.ts", "apps/workbench/src/side-panel-files.ts"];
-        readonly state: "Whether the right-hand panel is open, which tab it shows and what that tab was asked to show (a file, a web page, the browser held by the person or by a Work). The last tab is kept in localStorage as molis:side-tab.";
+        readonly state: "The right side's views, their documents and what each was asked to show (a file, a web page, the browser held by the person or by a Work). Whether it is open, its tabs, the current one and its width are the tab workspace's state, not this owner's.";
     };
     readonly assistant: {
         readonly files: readonly ["apps/workbench/src/scripts/client/assistant-island.ts", "apps/workbench/src/scripts/client/assistant-choosers.ts", "apps/workbench/src/scripts/client/assistant-browser-handback.ts", "apps/workbench/src/scripts/client/assistant-conversation.ts", "apps/workbench/src/scripts/client/assistant-page-messages.ts", "apps/workbench/src/scripts/client/assistant-send.ts", "apps/workbench/src/scripts/client/assistant-stage.ts", "apps/workbench/src/scripts/client/assistant-work-objects.ts", "apps/workbench/src/browser/plugin-frame/context-child.ts"];
@@ -499,7 +499,7 @@ export declare const PAGE_STATE_OWNERS: {
     };
     readonly "tab-workspace": {
         readonly files: readonly ["apps/workbench/src/scripts/client/tab-workspace.ts", "apps/workbench/src/scripts/client/tab-workspace-panes.ts", "apps/workbench/src/scripts/client/tab-workspace-places.ts", "apps/workbench/src/scripts/client/tab-workspace-plugins.ts", "apps/workbench/src/scripts/client/system-tabs.ts", "apps/workbench/src/side-view-document.ts", "apps/workbench/src/browser/plugin-frame/view.ts"];
-        readonly state: "The open tabs and panes of the work area, the current place, and which item each plugin surface has been asked to show (a plugin's side tab is its own document, which asks its one surface the same way).";
+        readonly state: "The open tabs and panes of the work area and of the right side (whether it is open, its tabs, the current one and its width: `side`, per project), the current place, and which item each plugin surface has been asked to show (a plugin's side tab is its own document, which asks its one surface the same way).";
     };
     readonly "settings-directory": {
         readonly files: readonly ["apps/workbench/src/scripts/client/settings-directory.ts", "apps/workbench/src/scripts/home-model-settings.ts", "apps/workbench/src/browser/plugin-frame/child.ts"];
@@ -511,7 +511,7 @@ export declare const PAGE_STATE_OWNERS: {
     };
     readonly attention: {
         readonly files: readonly ["apps/workbench/src/scripts/client/attention.ts"];
-        readonly state: "What waits on the person, read once for the whole page (W4-10): the background tasks the title bar lists, the Assistant's notices for the plugin in front, the plugin deliveries waiting in the market and, on a project page, the board's event cursor.";
+        readonly state: "What waits on the person, read once for the whole page (W4-10): the background tasks the right side's background-tasks tab counts and lists, the Assistant's notices for the plugin in front, the plugin deliveries waiting in the market and, on a project page, the board's event cursor.";
     };
     readonly "plugin-notifications": {
         readonly files: readonly ["apps/workbench/src/scripts/client/plugin-notifications.ts"];

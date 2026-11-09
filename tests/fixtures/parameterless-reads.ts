@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { copyFileSync, mkdirSync } from "node:fs";
-import { dirname } from "node:path";
+import { dirname, join } from "node:path";
 import type { ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { BUILTIN_PLUGIN_REGISTRY, PROJECT_SCOPED_PLUGIN_IDS, molisWorkHostProjectReference, type MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { ProjectsModule } from "@molis-ai/molis-work-module-projects";
@@ -50,7 +50,7 @@ export function registerProjectCopy(host: MolisWorkLocalHost, home: string, with
     let copy: string;
     const storage = new LocalSqliteStorage(catalog.databasePath);
     try {
-      const projects = new ProjectsModule({ db: storage.db, projects_directory: catalog.projectsDirectory, plugins: BUILTIN_PLUGIN_REGISTRY });
+      const projects = new ProjectsModule({ db: storage.db, projects_directory: catalog.projectsDirectory, outputs_directory: join(dirname(catalog.projectsDirectory), "outputs"), plugins: BUILTIN_PLUGIN_REGISTRY });
       const record = projects.lifecycle.prepareRecord({ project_id: projectId, display_name: displayName, data_class: "user" });
       copy = record.database_path;
       mkdirSync(dirname(copy), { recursive: true }); copyFileSync(databasePath, copy);

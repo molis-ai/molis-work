@@ -1,0 +1,66 @@
+{
+  "format_version": 1,
+  "id": "system-sans",
+  "revision": 1,
+  "name": {"key": "workbench.font.system-sans"},
+  "roles": {
+    "body": {
+      "families": [
+        {"system": "-apple-system"},
+        {"system": "BlinkMacSystemFont"},
+        {"system": "SF Pro Text"},
+        {"system": "Segoe UI Variable Text"},
+        {"system": "Segoe UI"},
+        {"system": "PingFang SC"},
+        {"system": "Hiragino Sans GB"},
+        {"system": "Microsoft YaHei UI"},
+        {"system": "Microsoft YaHei"},
+        {"system": "Noto Sans CJK SC"},
+        {"system": "Source Han Sans SC"},
+        {"face": "Inter Variable"},
+        {"system": "Inter"},
+        {"face": "Noto Sans SC"},
+        {"system": "system-ui"},
+        {"system": "sans-serif"}
+      ],
+      "weight": 400,
+      "tracking_em": -0.011
+    },
+    "control": {
+      "weight": 500
+    },
+    "title": {
+      "weight": 600,
+      "tracking_em": -0.02
+    },
+    "display": {
+      "tracking_em": -0.03
+    },
+    "code": {
+      "families": [
+        {"system": "ui-monospace"},
+        {"system": "SF Mono"},
+        {"system": "SFMono-Regular"},
+        {"system": "Menlo"},
+        {"system": "Monaco"},
+        {"system": "Consolas"},
+        {"system": "Liberation Mono"},
+        {"system": "monospace"}
+      ]
+    }
+  },
+  "faces": [
+    {
+      "family": "Inter Variable",
+      "weight": [100, 900],
+      "unicode_range": ["U+0000-00FF", "U+0131", "U+0152-0153", "U+02BB-02BC", "U+02C6", "U+02DA", "U+02DC", "U+0304", "U+0308", "U+0329", "U+2000-206F", "U+20AC", "U+2122", "U+2191", "U+2193", "U+2212", "U+2215", "U+FEFF", "U+FFFD"],
+      "resource": "font.inter-latin-variable"
+    },
+    {
+      "family": "Noto Sans SC",
+      "weight": 400,
+      "unicode_range": ["U+2E80-2EFF", "U+3000-303F", "U+31C0-31EF", "U+3400-4DBF", "U+4E00-9FFF", "U+F900-FAFF", "U+FE10-FE1F", "U+FE30-FE4F", "U+FF00-FFEF"],
+      "resource": "font.noto-sans-sc-400"
+    }
+  ]
+}

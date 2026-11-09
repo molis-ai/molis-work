@@ -106,7 +106,7 @@ test('studio: a request becomes a working, published plugin that the person can 
     // The models and the canvas load separately; wait for the canvas's own empty state instead of reading it at once.
     await page.wait(`/这里会出现你的插件/.test(document.querySelector('[data-as-empty]')?.innerText || '')`);
     // SYS-15: plugin code cannot read the host DOM or its control credential.
-    assert.deepEqual(await page.evaluate(`(()=>{let parentDenied=false;try{void parent.document.body}catch{parentDenied=true}return {parentDenied,token:document.querySelector('meta[name=molis-work-control-token]')?.content??null,ipc:typeof globalThis.__TAURI__};})()`), {parentDenied:true,token:null,ipc:'undefined'});
+    assert.deepEqual(await page.evaluate(`(()=>{let parentDenied=false;try{void parent.document.body}catch{parentDenied=true}return {parentDenied,token:document.querySelector('meta[name=molis-work-page-session]')?.content??null,ipc:typeof globalThis.__TAURI__};})()`), {parentDenied:true,token:null,ipc:'undefined'});
     assert.equal(await page.evaluate('Math.round(document.querySelector(".as-shell").getBoundingClientRect().top)'), 0, 'nothing pushes the studio down (e.g. an unstyled icon sprite)');
 
     // Choose the model the build will use, then describe the plugin.
@@ -228,7 +228,7 @@ test('studio: a request becomes a working, published plugin that the person can 
     await installedPage.command('Page.navigate', { url: origin + pluginHref + '?frame=workbench' });
     await installedPage.wait('globalThis.__molisPluginReady===true');
     // SYS-15: a generated plugin is equally isolated and cannot call the authoring or another plugin API.
-    assert.deepEqual(await installedPage.evaluate(`(async()=>{let parentDenied=false;try{void parent.document.body}catch{parentDenied=true}const denied=[];for(const path of ['/api/plugin-builder/studio/state','/api/plugins/io.molis.work.schedule/tasks']){try{const r=await fetch('${options.routePrefix}'+path);denied.push(r.status)}catch{denied.push(403)}}return {parentDenied,token:document.querySelector('meta[name=molis-work-control-token]')?.content??null,denied};})()`), {parentDenied:true,token:null,denied:[403,403]});
+    assert.deepEqual(await installedPage.evaluate(`(async()=>{let parentDenied=false;try{void parent.document.body}catch{parentDenied=true}const denied=[];for(const path of ['/api/plugin-builder/studio/state','/api/plugins/io.molis.work.schedule/tasks']){try{const r=await fetch('${options.routePrefix}'+path);denied.push(r.status)}catch{denied.push(403)}}return {parentDenied,token:document.querySelector('meta[name=molis-work-page-session]')?.content??null,denied};})()`), {parentDenied:true,token:null,denied:[403,403]});
     assert.equal(await installedPage.evaluate(`Boolean(document.querySelector('.as-installed-bar, a[href*="/plugin-builder/studio"]'))`), false, 'the frame shows only the plugin: no own header or link back');
     await installedPage.wait(`globalThis.__molisPluginReady===true&&document.querySelector('[data-component-id="notes"] .pc-output')?.innerText.includes('还没有笔记')`);
     const oldCallStatus = await installedPage.evaluate<number>(`(async()=>{const r=await fetch(${JSON.stringify(origin + pluginHref.replace('/plugins/', '/api/plugin-builder/installed/') + '/call')},{method:'POST',headers:globalThis.molisWorkControlHeaders(),body:JSON.stringify({componentId:'notes',binding:'read',payload:{}})});await r.text();return r.status})()`);

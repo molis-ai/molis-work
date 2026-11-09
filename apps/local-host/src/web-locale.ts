@@ -2,9 +2,58 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { createWorkbenchLocale, type WebLocale } from "@molis-ai/molis-work-app-workbench";
 export { EN, LOCALE_COOKIE, WEB_LOCALES, LOCALE_SWITCH_STYLES, type WebLocale } from "@molis-ai/molis-work-app-workbench";
 const localeStore = new AsyncLocalStorage<WebLocale>();
-export function runWithLocale<T>(locale: WebLocale, fn: () => T): T {
-  return localeStore.run(locale, fn);
+
+/**
+ * One language scope, ended when the function that opened it is done (`activeLocale`, `textScope`). `noContext` is how the text tools answer a sentence
+ * with no language (specs/font-and-skin-system/a-section-contract.md §5.2): it outlives the scope, so a timer a developer's run left behind still throws.
+ */
+interface LocaleScope { readonly locale: string | null; readonly noContext: "default" | "throw"; ended: boolean }
+const scopeStore = new AsyncLocalStorage<LocaleScope>();
+
+function inLocaleScope<T>(locale: string | null, fn: () => T, noContext: LocaleScope["noContext"] = scopeStore.getStore()?.noContext ?? "default"): T {
+  const scope: LocaleScope = { locale, noContext, ended: false };
+  const end = () => { scope.ended = true; };
+  let result: T;
+  try { result = scopeStore.run(scope, fn); } catch (error) { end(); throw error; }
+  if (result instanceof Promise) result.then(end, end); else end();
+  return result;
 }
-/** The language of the page whose request this is; none outside a page's request (a timer, a background loop). */
+
+export function runWithLocale<T>(locale: WebLocale, fn: () => T): T {
+  return localeStore.run(locale, () => inLocaleScope(locale, fn));
+}
+
+/**
+ * Work no page started (a timed round, a continuation, a periodic look) in a language scope of its own. The caller reads the language
+ * when this run starts (`lastUsedLocale`), so a change reaches the next run. `pageLocale` and `L` do not see it.
+ */
+export function runBackgroundWork<T>(locale: WebLocale, fn: () => T): T {
+  return inLocaleScope(locale, fn);
+}
+
+/**
+ * A developer's run (`molis-work plugin dev`, `runPluginDevelopment`): its language is any the plugin declares, or `null` for the work around the page.
+ * Inside it, and in what it leaves running, a sentence with no language throws `ui.text_no_context` instead of falling back to a default.
+ */
+export function runDevelopmentText<T>(locale: string | null, fn: () => T): T {
+  return inLocaleScope(locale, fn, "throw");
+}
+
+/** The language of the scope still under way here: `null` once it ended, so a timer started in a request does not keep that page's language. */
+export function activeLocale(): WebLocale | null {
+  const scope = scopeStore.getStore();
+  return scope && !scope.ended && isWebLocale(scope.locale) ? scope.locale : null;
+}
+
+/** What the text tools read (`ui-text-provider.ts`): the language of the scope under way, `null` once it ended; and how a missing one is answered. */
+export function textScope(): { readonly locale: string | null; readonly noContext: "default" | "throw" } {
+  const scope = scopeStore.getStore();
+  return { locale: scope && !scope.ended ? scope.locale : null, noContext: scope?.noContext ?? "default" };
+}
+
+/**
+ * The language of the page whose request began this async chain. A timer or a lazily opened object started there inherits it and keeps
+ * it after the request ended, so it says which page began the chain, not that a page is still asking.
+ */
 export const pageLocale = (): WebLocale | undefined => localeStore.getStore();
 export const { currentLocale, isWebLocale, htmlLang, dateTimeLocale, listJoin, resolveWebLocale, safeNextPath, localeSetCookie, localeSwitchHref, L, renderLocaleSwitch, englishCatalogJson, clientI18nScript } = createWorkbenchLocale(() => localeStore.getStore() ?? "zh");

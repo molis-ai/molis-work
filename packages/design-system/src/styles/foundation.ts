@@ -1,3 +1,4 @@
+import { baselineTerminal, baselineToken } from "../baseline.js";
 import { renderControlMetrics, renderShapeTokens, renderShellTokens } from "../palette.js";
 import { FONT_STACK } from "../typeface.js";
 
@@ -7,45 +8,25 @@ export const FOUNDATION_STYLES = `  :root {
     ${renderShellTokens("light")}
     ${renderShapeTokens()}
     ${renderControlMetrics()}
-    --terminal: #171719;
-    --terminal-ink: #f1f1f3;
-    --terminal-muted: #b5b5bd;
-    --terminal-faint: #92929b;
-    --terminal-border: #303036;
-    --terminal-selection: #4a3d36;
-    --danger: var(--red);
-    --danger-action: var(--red);
-    --danger-action-ink: var(--page);
+    ${baselineTerminal("unset")}
+    ${baselineToken("danger")}
+    ${baselineToken("danger-action")}
+    ${baselineToken("danger-action-ink")}
     --font: ${FONT_STACK};
   }
 
   html[data-resolved-theme="dark"] {
     color-scheme: dark;
     ${renderShellTokens("dark")}
-    --terminal: #101012;
-    --terminal-ink: #f0f0f2;
-    --terminal-muted: #b5b5bd;
-    --terminal-faint: #92929b;
-    --terminal-border: #303036;
-    --terminal-selection: #4a3d36;
+    ${baselineTerminal("dark")}
   }
 
   html[data-resolved-terminal-theme="light"] {
-    --terminal: #fbfbfc;
-    --terminal-ink: #202023;
-    --terminal-muted: #65656e;
-    --terminal-faint: #7b7b84;
-    --terminal-border: #dedee3;
-    --terminal-selection: #efe2d9;
+    ${baselineTerminal("light")}
   }
 
   html[data-resolved-terminal-theme="dark"] {
-    --terminal: #101012;
-    --terminal-ink: #f0f0f2;
-    --terminal-muted: #b5b5bd;
-    --terminal-faint: #92929b;
-    --terminal-border: #303036;
-    --terminal-selection: #4a3d36;
+    ${baselineTerminal("dark")}
   }
 
   body {
@@ -518,7 +499,7 @@ export const FOUNDATION_STYLES = `  :root {
 
   /* Form fields and floating surfaces: one border, corner and ground. */
   .tree-search input,
-  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not(.mw-slider):not(.mw-input):not(.mw-textarea):not(.mw-select):not(.global-search-query):not(.assistant-composer-input):not([data-feed-search]),
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not(.mw-slider):not(.mw-input):not(.mw-textarea):not(.mw-select):not(.global-search-query):not([data-feed-search]),
   textarea:not(.mw-textarea),
   select:not(.mw-select) { border: 1px solid var(--line-strong); border-radius: 8px; background: var(--paper); color: var(--ink); box-shadow: none; }
   .theme-menu,

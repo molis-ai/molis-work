@@ -18,10 +18,12 @@ for (const holdLayout of [false, true]) test(`SYS-15-U10 S-47 Git reviews remain
   git("add", "."); git("commit", "-q", "-m", "first"); await writeFile(join(repo, "note.md"), "first\nsecond\n");
   await browser.navigate(() => browser.command("Page.navigate", { url: browser.origin + prefix + "/" }, browser.sessionId));
   await browser.click(".navigator-project-settings"); await browser.click("[data-directory-panel=project-settings] [data-settings-section=workspaces]");
-  await browser.waitFor("document.querySelector('[data-project-workspaces-add]') && !document.querySelector('[data-project-workspaces-refresh]').disabled");
-  await browser.evaluate(`document.querySelector('[data-project-workspaces-add] [name=path]').value=${JSON.stringify(repo)}`);
-  await browser.click("[data-project-workspaces-add] [type=submit]");
-  await browser.waitFor("document.querySelector('[data-project-workspaces-list]').textContent.includes('review-repo')");
+  await browser.waitFor("document.querySelector('[data-directories-add]') && document.querySelector('[data-project-directories]')?.dataset.state==='ready'");
+  await browser.evaluate(`document.querySelector('[data-directories-add] [name=path]').value=${JSON.stringify(repo)}`);
+  await browser.click("[data-directories-add] [type=submit]");
+  await browser.waitFor("document.querySelector('[data-directories-inputs]').textContent.includes('review-repo')");
+  await browser.click("[data-directories-inputs] [data-directory-row]:has([title$='/review-repo']) [data-act=set-output]");
+  await browser.waitFor("document.querySelector('[data-directories-output] [data-directory-row] [data-text=path]')?.title.endsWith('/review-repo')");
   await browser.navigate(() => browser.command("Page.navigate", { url: browser.origin + prefix + "/?openPlugin=git" }, browser.sessionId));
   await browser.surfaceReady("git"); await child.click("[data-git-path]"); await child.click("[data-git-index-action]");
   await browser.waitFor("document.querySelector('[data-host-review-slot] [data-agent-review-approve]')?.getClientRects().length");

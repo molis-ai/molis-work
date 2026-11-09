@@ -18,6 +18,9 @@ export interface UnavailablePluginStage {
   restart?: PluginRestartOffer | null;
 }
 
+/** A stage drawn for a plugin that did not start, either scope (`renderUnavailablePluginStage`): the shell's amber marks find it by this. */
+export const UNAVAILABLE_STAGE = ":is([data-home-plugin-unavailable], [data-project-plugin-unavailable])";
+
 /** An unavailable instance has no page authority or client; only the Host explains why it cannot open, and may offer to start it again. */
 export function renderUnavailablePluginStatus(stage: UnavailablePluginStage,
   L: (text: string, values?: Record<string, string | number>) => string): string {

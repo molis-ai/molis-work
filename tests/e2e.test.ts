@@ -61,7 +61,7 @@ async function stopChild(child: ChildProcessWithoutNullStreams): Promise<void> {
 }
 
 function controlTokenFrom(html: string): string {
-  const token = html.match(/<meta name="molis-work-control-token" content="([^"]+)">/)?.[1];
+  const token = html.match(/<meta name="molis-work-page-session" content="([^"]+)">/)?.[1];
   assert.ok(token, "设置页必须包含本地控制 token");
   return token;
 }
@@ -277,7 +277,8 @@ test("packed release completes fresh install, Web setup, Runtime dialogue, resta
     });
     let token: string;
     try {
-      token = controlTokenFrom(await waitForWeb(origin, web));
+      controlTokenFrom(await waitForWeb(origin, web));
+      token = (await readFile(join(molisWorkHome, "config/web-control-token"), "utf8")).trim();
       assert.equal((await globalThis.fetch(`${origin}/api/settings/projects`)).status, 401,
         "a real fresh installation refuses anonymous business before login");
       const account = await auth.login(molisWorkHome, token); token = account.token;

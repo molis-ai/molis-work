@@ -1,3 +1,5 @@
+import { captureHostLog, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
+import { definePlugin, defineSearchEntriesAction, bindSearchEntriesHandler, defineSubjectContextAction, subjectContext } from "@molis-ai/molis-work-plugin-sdk";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
@@ -120,4 +122,40 @@ test("RAC-2446: what the Host measures for knowledge.locate is exactly the data 
   assert.deepEqual(Object.keys(parsed), ["question", "pieces"], "RAC-2741 the sent data carries exactly the question and the pieces, no other key");
   assert.equal(parsed.question, "这份资料讲什么？", "the question asked is the question sent");
   assert.equal(parsed.pieces[0]!.piece, 1, "the first piece is piece 1");
+});
+
+test("D0244-05 S-41 real Host and SDK refuse an old source's held model result and allow a new explicit organize", { timeout: 60_000 }, async t => {
+  const id = "io.molis.work.example.quality-source", permission = "quality:read";
+  const entries = defineSearchEntriesAction("quality.entries", 1, [{ kind: "quality_piece", title: "资料", surface: "quality" }], "资料", [permission]);
+  const reader = defineSubjectContextAction("quality.read", 1, "quality_piece", "资料", [permission]);
+  const definition = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: id, version: "1.0.0", name: "来源探针", kind: "app",
+    publisher: { publisher_id: "example", signature: "quality-source" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
+    permissions: [{ permission, required: true, reason: "读取测试资料" }], actions: [entries, reader], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] } },
+    async start() { return { kind: "app", actions: [
+      { ...entries, ...bindSearchEntriesHandler(entries, () => [{ subject: { kind: "quality_piece", id: "one" }, revision: "1", title: "来源探针资料", summary: "", updated_at: null, content: "context", open: null }]) },
+      { ...reader, handle: () => subjectContext({ subject: { kind: "quality_piece", id: "one" }, revision: "1", title: "来源探针资料", content: "只有当前来源获准时才交模型。", goal_ids: [] }) },
+    ] }; } });
+  const home = await openTestHome(t, { host: { pluginFixtures: { home: [definition] } } }), project = await home.createProject("来源撤销");
+  const platform = await home.host.homePlugins!.ready(), install = home.host.homePlugins!.installation(id)!;
+  const prefix = `/projects/${project.project_id}`;
+  const listed = await untilSetup(async () => {
+    const result = await home.web.get<KnowledgeCardsResponse>(prefix + "/api/knowledge/overview");
+    return !result.listing && result.cards.some(card => card.subject.kind === "quality_piece") ? result : undefined;
+  }, "the actual source is indexed before any model is configured");
+  const subject = listed.cards.find(card => card.subject.kind === "quality_piece")!.subject;
+  const logs: HostLogEntry[] = []; t.after(captureHostLog(logs));
+  const model = await heldModel(t, home.home, home.host.ensureWebCatalog(home.home, openMolisWorkProjectCatalog).withCatalog);
+  const cards = openKnowledgeCards({ homeDirectory: home.home });
+  try {
+    await home.web.post(prefix + "/api/knowledge/organize", {}); await model.started;
+    await platform.runtime.stop(install.install_id);
+    await platform.supervisor.restart(id);
+    model.release();
+    await untilSetup(async () => logs.some(entry => entry.fields?.where === "knowledge.organize" && entry.error?.code === "actions.forbidden") || undefined,
+      "the real model returned and the original source fence refused its result");
+    assert.ok(!["ready", "failed"].includes(cards.get(project.project_id, subject)?.state ?? "missing"), "no late draft or business failure was saved");
+    await home.web.get(prefix + "/api/knowledge/overview"); await home.web.post(prefix + "/api/knowledge/organize", {});
+    await untilSetup(async () => cards.get(project.project_id, subject)?.state === "ready" || undefined, "a new authorized organize can complete");
+    assert.ok(model.sent.length >= 2, "the fresh call actually used the real SDK model path");
+  } finally { model.release(); cards.close(); }
 });

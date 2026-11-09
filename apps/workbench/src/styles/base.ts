@@ -1,4 +1,4 @@
-import { renderControlMetrics, renderShapeTokens, renderShellTokens, FONT_STACK } from "@molis-ai/molis-work-design-system";
+import { renderControlMetrics, renderShapeTokens, renderShellTokens, renderTerminalBase, FONT_STACK } from "@molis-ai/molis-work-design-system";
 
 export const STYLES = `
   :root {
@@ -6,7 +6,7 @@ export const STYLES = `
     ${renderShellTokens("light")}
     ${renderShapeTokens()}
     ${renderControlMetrics()}
-    --terminal: #171719; --terminal-ink: #f1f1f3;
+    ${renderTerminalBase()}
     --font: ${FONT_STACK};
   }
   * { box-sizing: border-box; }

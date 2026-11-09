@@ -5,7 +5,7 @@ import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plu
 import { agentHostCapabilities, agentOfferActions } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentCollaborationActions } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
 import { agentInputActions } from "@molis-ai/molis-work-contracts/services/agent-inputs";
-import { projectsCapabilities, projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
+import { projectDirectoryActions, projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { GOALS_ACTIONS } from "./goals-actions.js";
 import { KNOWLEDGE_READ_PERMISSION, knowledgeActions } from "@molis-ai/molis-work-contracts/services/knowledge";
 import { CODING_GOAL_CONTEXT_TYPE, CODING_PLAN_TYPE } from "./artifacts.js";
@@ -94,11 +94,9 @@ export const codingManifest: PluginManifest = {
       ...Object.values(characterPluginActions).map(entry => entry.capability_id),
       knowledgeActions.read.capability_id,
       knowledgeActions.list.capability_id,
-      projectsCapabilities.readWorkspace.capability_id,
+      projectDirectoryActions.get.capability_id,
       workspaceReadActions.file.capability_id,
       workspaceReadActions.git.capability_id,
-      projectSettingsCapabilities.workspaces.capability_id,
-      projectSettingsCapabilities.browsingWorkspace.capability_id,
       projectSettingsCapabilities.runtime.capability_id,
       ...Object.values(writerDirectoryCapabilities).map(entry => entry.capability_id),
       ...Object.values(writerIntegrationCapabilities).map(entry => entry.capability_id),
@@ -151,6 +149,8 @@ export const codingManifest: PluginManifest = {
     { route_id: "coding.prepare-writer-directory", method: "POST", path: "/workspaces/:workspaceId/writers" },
     { route_id: "coding.read-integration", method: "GET", path: "/sessions/:sessionId/runs/:runId/subagents/:childId/integration" },
     { route_id: "coding.prepare-integration", method: "POST", path: "/sessions/:sessionId/runs/:runId/subagents/:childId/integration" },
+    { route_id: "coding.read-worktree-integration", method: "GET", path: "/sessions/:sessionId/worktrees/:worktreeId/integration" },
+    { route_id: "coding.prepare-worktree-integration", method: "POST", path: "/sessions/:sessionId/worktrees/:worktreeId/integration" },
     { route_id: "coding.control-subagent", method: "POST", path: "/sessions/:sessionId/runs/:runId/subagents/:childId" },
     { route_id: "coding.read-plan", method: "GET", path: "/sessions/:sessionId/plan" },
     { route_id: "coding.save-plan", method: "POST", path: "/sessions/:sessionId/plan" },

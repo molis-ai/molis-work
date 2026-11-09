@@ -39,10 +39,10 @@ for (const width of [1440, 390]) test(`Todo ${width}px: a todo is handed to the 
   const [asked] = (await heard()).filter(message => message.purpose === "delegate");
   assert.deepEqual([asked!.object!.kind, asked!.object!.id, asked!.text, asked!.work_id], ["todo_item", item.id, undefined, undefined]);
   assert.match(asked!.materials![0]!.text, /说明：问预算/u);
-  await browser.waitFor("(document.querySelector('[data-assistant-context-strip]:not([hidden])')?.textContent || '').includes('给王总回电话') && document.activeElement?.matches('[data-assistant-input]')", 10_000);
-  assert.equal(await browser.evaluate("document.querySelector('[data-assistant-input]').value"), "", "nothing is typed for the person");
+  await browser.waitFor("(document.querySelector('[data-assistant-context-strip]:not([hidden])')?.textContent || '').includes('给王总回电话') && document.activeElement?.matches('[data-assistant-composer] .mw-composer__input')", 10_000);
+  assert.equal(await browser.evaluate("document.querySelector('[data-assistant-composer] .mw-composer__input').value"), "", "nothing is typed for the person");
   assert.equal(await evaluate("document.querySelector('[data-todo-works-section]').hidden"), true, "and nothing starts before they send");
-  await browser.evaluate(`(() => { const input = document.querySelector('[data-assistant-input]'); input.value = '帮我推进这件事'; input.dispatchEvent(new Event('input', { bubbles: true })); document.querySelector('[data-assistant-composer]').requestSubmit(document.querySelector('[data-assistant-send]')); })()`);
+  await browser.evaluate(`(() => { const input = document.querySelector('[data-assistant-composer] .mw-composer__input'); input.value = '帮我推进这件事'; input.dispatchEvent(new Event('input', { bubbles: true })); document.querySelector('[data-assistant-composer] [data-composer-send]').click(); })()`);
 
   // The Assistant records the work against the todo; the todo lists it once, with where it stands.
   await waitFor("!document.querySelector('[data-todo-works-section]').hidden", 10_000);

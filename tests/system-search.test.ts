@@ -593,3 +593,31 @@ test("RAC-2737 a discarded reader's record carries the code only, never the deta
   assert.equal("details" in record.error, false, "the refusal's details are not carried");
   assert.equal("cause" in record.error, false, "the refusal's cause is not carried");
 });
+
+test("D0244-02 indexed catalogs omit unavailable, failed and foreign sources and withhold body without the reader", async t => {
+  const f = await fixture(t), notes = source([{ id: "n1", title: "试用资料", body: "private indexed body", version: 1 }]);
+  register(f.actions, notes, { provider_id: "notes", project_id: "a" });
+  const caller = owner("a"), access = { client: f.actions, caller };
+  await ask(f, caller, "试用");
+  assert.equal((await f.search.indexedCatalog(access)).documents("a")[0]?.content, "private indexed body");
+  assert.deepEqual((await f.search.indexedCatalog(access)).documents("b"), []);
+  const listingOnly = { ...caller, allowed_actions: [{ capability_id: entries.capability_id, version: 1, provider_id: "notes" }] };
+  const limited = await f.search.indexedCatalog({ client: f.actions, caller: listingOnly });
+  assert.equal(limited.documents("a")[0]?.content, ""); assert.equal(limited.documents("a")[0]?.content_policy, "summary");
+  notes.availability = { available: false, code: "actions.plugin_disabled", reason: "disabled" };
+  assert.deepEqual((await f.search.indexedCatalog(access)).documents("a"), [], "stale indexed bytes are never catalog material");
+  notes.availability = { available: true }; notes.fail = true;
+  f.tick(60_001); await ask(f, caller, "试用");
+  assert.deepEqual((await f.search.indexedCatalog(access)).documents("a"), [], "failed catch-up does not give stale content to a model");
+});
+
+for (const scope of ["project", "home"] as const) test(`D0244-03 ${scope} indexed catalog authority is not restored by a later provider registration`, async t => {
+  const f = await fixture(t), notes = source([{ id: "n1", title: "试用资料", body: "body", version: 1 }]);
+  register(f.actions, notes, { provider_id: "notes", ...(scope === "project" ? { project_id: "a" } : {}) });
+  await ask(f, owner("a"), "试用");
+  const snapshot = await f.search.indexedCatalog({ client: f.actions, caller: owner("a") });
+  snapshot.assertCurrent(); f.search.markRegistration("notes", scope === "project" ? "a" : null);
+  assert.throws(() => snapshot.assertCurrent(), { code: "actions.forbidden" });
+  assert.throws(() => snapshot.documents("a"), { code: "actions.forbidden" });
+  const fresh = await f.search.indexedCatalog({ client: f.actions, caller: owner("a") }); fresh.assertCurrent();
+});

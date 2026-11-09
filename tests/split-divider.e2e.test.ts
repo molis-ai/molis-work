@@ -15,8 +15,8 @@ test("VUX-23/24: the split divider has a dead zone, follows, snaps with hysteres
   const { evaluate, waitFor, click, command, sessionId, navigate, origin, projectId } = browser;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-  await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item')");
-  await click("[data-titlebar-tabs] [data-tab-split]");
+  await waitFor("document.querySelector('[data-titlebar-tabs] .tab-add-button')");
+  await click("[data-layout-open]");
   await click("[data-layout-split=right]");
   await waitFor("document.querySelectorAll('[data-tab-pane]').length === 2 && document.querySelector('[data-direction=row] [data-tab-sash]')");
   const sash = "document.querySelector('[data-direction=row] [data-tab-sash]')", root = "document.querySelector('[data-tab-workspace]')";
@@ -121,7 +121,7 @@ test("VUX-23/24: the split divider has a dead zone, follows, snaps with hysteres
 
   // Four columns on a stage too narrow for four panes (4 × 240 px and the gaps) take the narrow layout; widening gives the split back.
   for (const count of [3, 4]) {
-    await click(".tab-pane.is-focused [data-tab-split]");
+    await click("[data-layout-open]");
     await click("[data-layout-split=right]");
     await waitFor(`document.querySelectorAll('[data-tab-pane]').length === ${count}`);
   }
@@ -130,12 +130,12 @@ test("VUX-23/24: the split divider has a dead zone, follows, snaps with hysteres
   await waitFor(`${root}.hasAttribute('data-split-narrow') || document.querySelector('[data-tab-panes]').getBoundingClientRect().width > 984`, 5_000);
   assert.equal(await evaluate(`${root}.hasAttribute('data-split-narrow')`), true, `the stage is ${await evaluate("Math.round(document.querySelector('[data-tab-panes]').getBoundingClientRect().width)")} px`);
   const narrow = await evaluate<{ shown: number; stage: number; pane: number; split: boolean }>(`(() => { const shown = [...document.querySelectorAll('[data-tab-pane]')].filter(pane => pane.getBoundingClientRect().width > 0);
-    return { shown: shown.length, stage: Math.round(document.querySelector('[data-tab-panes]').getBoundingClientRect().width), pane: Math.round(shown[0].getBoundingClientRect().width), split: document.querySelector('.tab-pane.is-focused [data-tab-split]') !== null }; })()`);
+    return { shown: shown.length, stage: Math.round(document.querySelector('[data-tab-panes]').getBoundingClientRect().width), pane: Math.round(shown[0].getBoundingClientRect().width), split: document.querySelector('[data-layout-open]') !== null }; })()`);
   const evidence = reviewEvidenceUrl("split-divider/"); await mkdir(evidence, { recursive: true });
   await writeFile(new URL("narrow.png", evidence), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
   assert.equal(narrow.shown, 1, "only the focused pane shows");
   assert.equal(narrow.pane, narrow.stage, "and it takes the whole stage");
-  await click(".tab-pane.is-focused [data-tab-split]");
+  await click("[data-layout-open]");
   assert.equal(await evaluate("document.querySelector('[data-layout-split=right]').disabled"), true, "no further split is offered");
   assert.ok(await evaluate<number>("document.querySelectorAll('[data-focus-pane]').length") >= 4, "every pane can still be switched to");
   await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, sessionId);

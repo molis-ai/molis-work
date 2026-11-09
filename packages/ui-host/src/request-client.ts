@@ -29,7 +29,7 @@ export interface UiRequestPorts {
   readonly fetch: (input: string, init: UiFetchInit) => Promise<Response>;
   /** The page's own origin (`location.origin`): the only one a request may go to. */
   readonly origin: string;
-  /** The page's control token, read from the page. */
+  /** The page's cookie-bound CSRF proof; never the Host control credential. */
   readonly token: () => string;
   /** Bind reads to a page scope without changing the caller's global fetch. */
   readonly readHeaders?: () => Record<string,string>;
@@ -69,8 +69,8 @@ export interface UiFailureViewPorts {
  * may not have been done, and the helper does not guess. (Notes live here, not in the body: the body is sent to the page.)
  */
 export function createUiRequest(ports: UiRequestPorts): UiRequestCall {
-  const controlTokenHeader = "x-molis-work-control-token";
-  const controlHeaders = ["content-type", controlTokenHeader, "x-molis-work-idempotency-key"];
+  const controlTokenHeader = "x-molis-work-page-session";
+  const controlHeaders = ["content-type", controlTokenHeader, "x-molis-work-control-token", "x-molis-work-idempotency-key"];
   const failure = (message: string, code: string, status: number, callId: string | null, body: unknown): UiRequestFailure =>
     Object.assign(new Error(message), { code, status, callId, body });
   const text = (value: unknown): string | null => (typeof value === "string" && value !== "" ? value : null);
@@ -293,8 +293,8 @@ export const UI_REQUEST_CLIENT_SCRIPT = `
   const call = (${compact(createUiRequest.toString())})({
     fetch: (input, init) => fetch(input, init), origin: location.origin,
     intercept: (input, init) => globalThis.molisWorkUiTransport?.(input, init),
-    token: () => document.querySelector('meta[name="molis-work-control-token"]')?.content || "",
-    readHeaders: () => ({"x-molis-work-control-token": document.querySelector('meta[name="molis-work-control-token"]')?.content || ""}),
+    token: () => document.querySelector('meta[name="molis-work-page-session"]')?.content || "",
+    readHeaders: () => ({"x-molis-work-page-session": document.querySelector('meta[name="molis-work-page-session"]')?.content || ""}),
     newKey: () => crypto.randomUUID(), translate,
   });
   const view = (${compact(createUiFailureView.toString())})({

@@ -1,3 +1,4 @@
+import { changeMcpClientCredential } from "@molis-ai/molis-work-app-local-host";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { randomUUID } from "node:crypto";
@@ -71,6 +72,7 @@ test("formal MCP Home judgment and subject actions share Web facts and revocable
       MOLIS_WORK_WORK_CONTEXT_ID: context.stable_work_context_id, MOLIS_WORK_WORK_CONTEXT_STABLE: "true",
     }, stderr: "pipe" });
     let errors = ""; transport.stderr?.on("data", chunk => { errors += String(chunk); });
+    changeMcpClientCredential(home, clientId, "connect");
     await sdk.connect(transport).catch(error => { throw new Error(String(error) + errors); });
     const name = molisWorkActionToolName(homeActions.evaluate);
     assert.equal((await sdk.listTools()).tools.some(tool => tool.name === name), false);

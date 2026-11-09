@@ -6,7 +6,11 @@ import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-def
 export interface SkillSelection {
   actor_id: string;
   project_id: string | null;
-  consumer: "assistant" | "coding" | "agent";
+  /**
+   * Who consumes it in this round. Omitted for the person's own protected page view: that click names one Skill to read, so it may
+   * view a `manual` Skill's body but is not a round and records no use.
+   */
+  consumer?: "assistant" | "coding" | "agent";
   named: readonly SkillRef[];
   engine?: "builtin" | "local";
 }

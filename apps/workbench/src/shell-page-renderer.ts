@@ -25,16 +25,26 @@ function projectSideTabs(enabled: readonly string[], routePrefix: string) {
     .map(side => ({ key: `${side.project_plugin_id}/${side.view_id}`, title: side.title, ...(side.context_binding ? { contextOwner: side.plugin_id, contextSurface: side.project_plugin_id } : {}), icon: (side.icon ?? "package") as PageIcon, order: side.order,
       src: `${routePrefix}/side/${encodeURIComponent(side.project_plugin_id)}/${encodeURIComponent(side.view_id)}` }))];
 }
-function deferredSurfaces(L: Translate, enabledPlugins: readonly string[], panePlugin: string | undefined) {
+function stagedFrameSource(view: WorkbenchShellPageView, id: string) {
+  const drawn = view.plugin_stage_views?.[`project:${id}`] ?? view.plugin_stage_views?.[`home:${id}`];
+  const descriptor = drawn?.descriptor;
+  const main = descriptor?.surfaces?.find(surface => surface.surface_id === "workbench" && surface.target_slot_id === "workbench.main");
+  if (!drawn?.producer || !descriptor || !main) return null;
+  return { producer: drawn.producer, mount: { contribution_id: descriptor.contribution_id, surface: main.surface_id, target_slot_id: main.target_slot_id } };
+}
+
+function deferredSurfaces(L: Translate, enabledPlugins: readonly string[], view: WorkbenchShellPageView) {
   const deferredIds = new Set(deferredSurfaceClients().map(client => client.id));
   const isolatedIds = new Set(pluginSurfaceClients().map(client => client.id));
   return (html: string): string => {
     if (html.includes("data-plugin-client=")) return html;
     const match = html.match(/^(\s*<([a-z][a-z0-9-]*)\b[^>]*data-work-surface="([^"]+)"[^>]*>)([\s\S]*)(<\/\2>\s*)$/);
     if (!match || !deferredIds.has(match[3]!)) return html;
-    if (panePlugin && panePlugin !== match[3]) return match[1]!.replace(/>$/, ' data-pane-placeholder>') + match[5];
+    if (view.pane_plugin && view.pane_plugin !== match[3]) return match[1]!.replace(/>$/, ' data-pane-placeholder>') + match[5];
     if (!isolatedIds.has(match[3]!)) return match[1]!.replace(/>$/, ' data-deferred-surface>') + '<template data-deferred-content>' + match[4] + '</template>' + match[5];
-    return renderPluginFrameSurface(html, match[3]!, L(BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === match[3])?.manifest.name ?? match[3]!), true, listPluginSettingsNavItems(enabledPlugins).some(item => item.section_id === match[3]));
+    const id = match[3]!, entry = BUILTIN_PLUGIN_CATALOG.find(plugin => plugin.project_plugin_id === id);
+    const source = stagedFrameSource(view, id), settings = listPluginSettingsNavItems(enabledPlugins).some(item => item.section_id === id);
+    return renderPluginFrameSurface(html, id, L(entry?.manifest.name ?? id), true, settings, id, source?.mount, entry?.manifest.plugin_id, source?.producer, Boolean(source));
   };
 }
 
@@ -52,7 +62,7 @@ export interface WorkbenchShellPageView {
   /** Presentation-only URL intent; it never grants access to a plugin or a surface. */
   initial_plugin?: string;
   /** The actual owner contributions already read for this request. */
-  plugin_stage_views?: Readonly<Record<string, UiContribution | null>>;
+  plugin_stage_views?: Readonly<Record<string, (UiContribution & { readonly producer?: string }) | null>>;
   enabled_plugins?: readonly string[];
   /** Personal plugins this project has hidden. They stay installed; the rail omits them. */
   hidden_plugins?: readonly string[];
@@ -161,7 +171,7 @@ function renderMolisWorkWeb(
   const settingsDirectory = `${renderSettingsDirectorySection(primitives, enabledPlugins)}${view.project ? renderProjectSettingsDirectorySection(primitives, goalsEnabled) : ""}`;
   const settingsSurfaces = `${renderSettingsWorkSurface(primitives, `${view.route_prefix || ""}/?settings=appearance`,
     appearance && owners.appearance ? { current: appearance, choices: owners.appearance.choices() } : undefined)}${view.project ? renderProjectSettingsWorkSurface(primitives, view.project, desktopShell) : ""}`;
-  const defer = deferredSurfaces(L, enabledPlugins, view.pane_plugin);
+  const defer = deferredSurfaces(L, enabledPlugins, view);
   const projectTitlebarChrome = renderDesktopProjectChrome(view.project ?? null, projectOptions, desktopShell, view.project ? "__PROJECT_SETTINGS__" : null, { switcherClass: "desktop-project-switcher", manageHref: "__PROJECT_INDEX__", directoryToggle: true, globalSearch: true });
   const directoryEmpty = initialDesktopDirectory === "root";
   const sideTabs = projectSideTabs(enabledPlugins, view.route_prefix);

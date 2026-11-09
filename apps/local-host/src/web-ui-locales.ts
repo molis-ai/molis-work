@@ -35,16 +35,16 @@ export async function handlePageLocales({ request, response, url, serverOptions 
       serverOptions.assertAccountCurrent?.();
       const common = pluginTextForOwner("workbench");
       if (!common) throw new ActionError("actions.unavailable", "共有界面语言包不可用，请重试");
-      const owners = new Map<PluginTextReader | PluginManifest, { owner: string; pages: string[]; packs: UiLocalePack[] }>();
-      for (const { id, manifest, reader } of sources) {
+      const owners = new Map<PluginTextReader | PluginManifest, { owner: string; pages: string[]; embedded: string[]; packs: UiLocalePack[] }>();
+      for (const { id, manifest, reader, embedded } of sources) {
         if (manifest.ui.locales && !reader) throw new ActionError("actions.unavailable", "插件语言包不可用，请重新打开");
         const identity = reader ?? manifest;
         let existing = owners.get(identity);
         if (!existing) {
-          existing = { owner: manifest.plugin_id, pages: [], packs: reader ? projectTextPacks(reader, locale, manifest.ui.locales?.available.includes(locale) === true) : [] };
+          existing = { owner: manifest.plugin_id, pages: [], embedded: [], packs: reader ? projectTextPacks(reader, locale, manifest.ui.locales?.available.includes(locale) === true) : [] };
           owners.set(identity, existing);
         }
-        existing.pages.push(id);
+        (embedded ? existing.embedded : existing.pages).push(id);
       }
       sendLocalWebJson(response, 200, { locale, shared: projectTextPacks(common, locale, true, true), owners: [...owners.values()] });
     });

@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { pluginPagesFor } from "@molis-ai/molis-work-app-local-host";
-import { registerPluginText } from "@molis-ai/molis-work-app-workbench";
+import { captureRuntimeStageOwner, pluginPagesFor, runningProjectPlatform } from "@molis-ai/molis-work-app-local-host";
+import { BUILTIN_PLUGIN_CATALOG, registerPluginText } from "@molis-ai/molis-work-app-workbench";
 import { pluginLocaleReader } from "@molis-ai/molis-work-plugin-runtime";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 
@@ -115,4 +115,59 @@ test("S-ui-text-page FSS-09 a scope that ends during the batch check delivers no
       assert.deepEqual(fixture.read, [], end + " withdrawal stops the batch before reading");
     } finally { release.resolve(); fixture.close(); }
   }
+});
+
+test("S-ui-text-page FSS-09 the Coding page cannot borrow a restarted embedded Git activation", { timeout: 40_000 }, async t => {
+  const f = await serveHomeRuntime(t), project = await f.project("Embedded Git");
+  const prefix = "/projects/" + project.project_id;
+  for (const plugin_id of ["coding", "git", "files"]) {
+    const membership = await f.request("/api/settings/projects/" + project.project_id + "/plugins", { method: "POST", body: { plugin_id } });
+    assert.equal(membership.status, 200, await membership.clone().text());
+  }
+  const headers = await pageSession(f.origin, prefix + "/?openPlugin=coding");
+  const platform = await f.host.withProject(project.reference, runtime => runningProjectPlatform(runtime.store, runtime.project_id));
+  const entry = BUILTIN_PLUGIN_CATALOG.find(row => row.project_plugin_id === "coding");
+  assert.ok(platform && entry);
+  const coding = captureRuntimeStageOwner(platform, "project", entry);
+  const git = platform.supervisor.state("io.molis.work.git");
+  assert.ok(coding, JSON.stringify(platform.supervisor.state(entry.manifest.plugin_id)));
+  assert.ok(git?.status === "running" && git.install_id, JSON.stringify(git));
+  const { contribution_id, surfaces } = coding.view.descriptor;
+  const main = surfaces?.find(surface => surface.surface_id === "workbench");
+  assert.ok(main);
+  const open = () => f.request(prefix + "/api/host/plugin-pages", { authorized: false, method: "POST", headers, body: {
+    plugin_id: entry.manifest.plugin_id, producer: coding.producer, mount: { contribution_id, surface: main.surface_id, target_slot_id: main.target_slot_id },
+  } });
+  const grant = async () => {
+    const response = await open();
+    assert.equal(response.status, 200, await response.clone().text());
+    return (await response.json()).page_id as string;
+  };
+  const read = (id: string) => f.request(prefix + "/api/ui/locales?" + new URLSearchParams({ locale: "en", page: id }), { authorized: false, headers });
+  const old = await grant(), first = await read(old);
+  assert.equal(first.status, 200, await first.clone().text());
+  const projection = (await first.json()).owners.find((item: { owner: string }) => item.owner === "io.molis.work.git");
+  assert.deepEqual(projection.embedded, [old]);
+  assert.deepEqual(projection.pages, []);
+  assert.equal(projection.packs[0].messages["git.commit.submit"], "Commit…");
+  await platform.runtime.stop(git.install_id);
+  await platform.supervisor.restart("io.molis.work.git");
+  assert.equal(platform.supervisor.state("io.molis.work.git")?.status, "running");
+  const late = await read(old);
+  assert.equal(late.status, 403, await late.clone().text());
+  assert.doesNotMatch(await late.text(), /git\.commit\.submit/u);
+  const fresh = await read(await grant());
+  assert.equal(fresh.status, 200, await fresh.clone().text());
+  const inspect = f.host.inspectActions.bind(f.host), selected = Promise.withResolvers<void>(), resume = Promise.withResolvers<void>();
+  f.host.inspectActions = async (...args) => { selected.resolve(); await resume.promise; return inspect(...args); };
+  const opening = open();
+  try {
+    await selected.promise;
+    await platform.runtime.stop(git.install_id);
+    await platform.supervisor.restart("io.molis.work.git");
+    resume.resolve();
+    const changed = await opening;
+    assert.equal(changed.status, 409, await changed.clone().text());
+    assert.equal((await changed.json()).code, "actions.provider_changed");
+  } finally { resume.resolve(); f.host.inspectActions = inspect; }
 });

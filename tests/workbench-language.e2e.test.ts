@@ -160,3 +160,35 @@ test("FSS-20 FSS-37 a frame still opening when Settings changes the language dra
   ]`);
   assert.deepEqual(result, ["en", "What went wrong? Write it here, or paste a screenshot", "原文 from a previous opening", "3 minutes ago"]);
 });
+
+test("S-ui-text-page FSS-37 Coding receives only the words of its actual embedded Git and Files instances", { timeout: 120_000 }, async t => {
+  const b = await openGoalBrowser(t, "seeded", undefined, null); if (!b) return;
+  const child = await pluginFrameBrowser(t, b, "coding");
+  const route = "/projects/" + b.projectId + "/?openPlugin=coding";
+  await b.navigate(() => b.command("Page.navigate", { url: b.origin + "/locale?lang=zh&next=" + encodeURIComponent(route) }, b.sessionId));
+  await child.waitFor("typeof t === 'function'", 25000);
+  assert.deepEqual(await child.evaluate("[!!document.querySelector('[data-coding-workbench]'), !!document.querySelector('[data-git-browser]'), !!document.querySelector('[data-files-browser]')]"), [true, true, true]);
+  const words = "[t.text('git.commit.submit'),t.text('files.reader.copy'),t.text('issues.when.minutes-ago',{count:1})]";
+  assert.deepEqual(await child.evaluate(words), ["提交…", "复制全文", "这句话暂时显示不了"]);
+  await chooseEnglishInSettings(t, b);
+  await child.waitFor("document.documentElement.lang === 'en'", 25000);
+  assert.deepEqual(await child.evaluate(words), ["Commit…", "Copy all", "This text cannot be shown right now"]);
+  await child.evaluate("document.querySelector('[data-coding-face=files]').click()");
+  await child.waitFor("!document.querySelector('[data-git-browser]').hidden && !document.querySelector('[data-git-refresh]').disabled");
+  await b.evaluate(`(() => {
+    const transport = window.molisWorkUiTransport;
+    window.finishCompanionReads = [];
+    window.molisWorkUiTransport = (url, init) => {
+      if (new URL(url).pathname.endsWith("/api/host/plugin-page-actions") && ["git.state", "files.state"].includes(JSON.parse(init.body).reference?.capability_id)) {
+        return new Promise(resolve => window.finishCompanionReads.push(() => resolve(transport(url, init))));
+      }
+      return transport(url, init);
+    };
+  })()`);
+  try {
+    await child.evaluate("document.querySelector('[data-git-refresh]').click(); document.querySelector('[data-files-refresh]').click()");
+    await b.waitFor("finishCompanionReads.length >= 2");
+    assert.deepEqual(await child.evaluate("[document.querySelector('[data-git-status]').textContent, document.querySelector('[data-files-status]').textContent, document.querySelector('[data-files-copy]').textContent]"),
+      ["Reading Git…", "Reading the workspace…", "Copy all"], "the actual Git and Files client listeners consume their own words");
+  } finally { await b.evaluate("finishCompanionReads.splice(0).forEach(finish => finish())"); }
+});

@@ -179,17 +179,35 @@ function nestedContent(state: ProjectPluginState, entry: StageEntry, view: UiCon
   return Object.keys(nested).length ? nested : undefined;
 }
 
-function embeddedFragments(state: ProjectPluginState, embeddedId: string, slot: UiSlotDescriptor, model: unknown): string[] {
-  const contribution = state.platform?.supervisor.contribution(embeddedId);
-  if (contribution?.kind !== "app") return [];
-  return (contribution.views ?? []).flatMap(view => (view.descriptor.surfaces ?? [])
-    .filter(surface => surface.target_slot_id === slot.slot_id && slot.accepts.includes(surface.format))
-    .flatMap(surface => {
-      try { return [view.render({ contribution_id: view.descriptor.contribution_id, surface: surface.surface_id, model: withoutPagePublisher(model) })]; }
-      catch (error) { hostLog.warn("plugins", "embedded_surface_failed", error, { plugin_id: embeddedId, surface: surface.surface_id }); return []; }
-    }));
+function embeddedViews(platform: ProjectPluginState["platform"], embeddedId: string, slot: UiSlotDescriptor) {
+  const contribution = platform?.supervisor.contribution(embeddedId);
+  return contribution?.kind === "app" ? (contribution.views ?? []).flatMap(view => (view.descriptor.surfaces ?? [])
+    .filter(surface => surface.target_slot_id === slot.slot_id && slot.accepts.includes(surface.format)).map(surface => ({ view, surface }))) : [];
 }
 
+function embeddedFragments(state: ProjectPluginState, embeddedId: string, slot: UiSlotDescriptor, model: unknown): string[] {
+  return embeddedViews(state.platform, embeddedId, slot).flatMap(({ view, surface }) => {
+    try { return [view.render({ contribution_id: view.descriptor.contribution_id, surface: surface.surface_id, model: withoutPagePublisher(model) })]; }
+    catch (error) { hostLog.warn("plugins", "embedded_surface_failed", error, { plugin_id: embeddedId, surface: surface.surface_id }); return []; }
+  });
+}
+
+/** The same project instances as the nested renderer, captured before any further page-open awaits. */
+export function embeddedStageTextOwners(platform: ProjectPluginState["platform"], owner: RuntimeStageOwner) {
+  if (!platform || owner.scope !== "project") return [];
+  return [...new Set(owner.entry.manifest.ui.embedded_plugins ?? [])].flatMap(plugin_id => {
+    const active = platform.supervisor.state(plugin_id), contribution = platform.supervisor.contribution(plugin_id);
+    if (active?.status !== "running" || !active.install_id || !contribution || !owner.view.descriptor.slots.some(slot => embeddedViews(platform, plugin_id, slot).length)) return [];
+    const record = platform.runtime.get(active.install_id);
+    if (record.state !== "running") return [];
+    const assertCurrent = () => {
+      const current = platform.runtime.get(record.install_id);
+      if (current.state !== "running" || current.installation_generation !== record.installation_generation
+        || platform.supervisor.contribution(plugin_id) !== contribution) throw new ActionError("actions.provider_changed", "原嵌入实例已变化，请重新打开");
+    };
+    return [{ plugin_id, install_id: record.install_id, installation_generation: record.installation_generation, assertCurrent }];
+  });
+}
 
 /** An actual running stage owner, retained for one request only. */
 export interface RuntimeStageOwner {

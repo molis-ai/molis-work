@@ -235,6 +235,21 @@ export type { InferActionInput } from "@molis-ai/molis-work-contracts/platform/a
 export type { InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 export type { InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 export type { ItemAttachPosition } from "@molis-ai/molis-work-contracts/platform/actions";
+export { KIT_KINDS } from "@molis-ai/molis-work-contracts/platform/kit-report";
+export { KIT_TOOL_ORIGINS } from "@molis-ai/molis-work-contracts/platform/kit-report";
+export type { KitAvailability } from "@molis-ai/molis-work-contracts/platform/kit-report";
+export type { KitDeclared } from "@molis-ai/molis-work-contracts/platform/kit-report";
+export type { KitKind } from "@molis-ai/molis-work-contracts/platform/kit-report";
+export type { KitManageLink } from "@molis-ai/molis-work-contracts/platform/kit-report";
+export type { KitMcpRef } from "@molis-ai/molis-work-contracts/platform/kit-report";
+export type { KitMcpState } from "@molis-ai/molis-work-contracts/platform/kit-report";
+export type { KitReport } from "@molis-ai/molis-work-contracts/platform/kit-report";
+export type { KitReportInput } from "@molis-ai/molis-work-contracts/platform/kit-report";
+export type { KitReportedEntry } from "@molis-ai/molis-work-contracts/platform/kit-report";
+export type { KitRoleRef } from "@molis-ai/molis-work-contracts/platform/kit-report";
+export type { KitToolOrigin } from "@molis-ai/molis-work-contracts/platform/kit-report";
+export type { KitUsage } from "@molis-ai/molis-work-contracts/platform/kit-report";
+export type { KitVersion } from "@molis-ai/molis-work-contracts/platform/kit-report";
 
 export declare const MATERIAL_EXTENSIONS: {
     readonly text: readonly [".txt", ".md", ".markdown", ".html", ".htm", ".csv", ".json", ".log"];
@@ -646,6 +661,7 @@ export { defineFragmentOffersAction } from "@molis-ai/molis-work-contracts/platf
 export { defineHomeBackgroundTasksAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineHomeEventsAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineInstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
+export { defineKitReportAction } from "@molis-ai/molis-work-contracts/platform/kit-report";
 export { defineObjectCopyAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineObjectMoveAction } from "@molis-ai/molis-work-contracts/platform/actions";
 

@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import test from "node:test";
 import type { PluginInstalledView } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import { HomeConsentLedger } from "@molis-ai/molis-work-app-local-host";
@@ -63,6 +65,21 @@ test("RAC-408 a package is previewed (nothing is written), then installed under 
   assert.deepEqual([plugin.trust, plugin.publisher_label, plugin.manifest_available, plugin.permissions.map(item => item.permission)], ["pinned", "Example", true, ["storage:private"]]);
   assert.deepEqual(after.publishers.map(pin => [pin.key_id, pin.label]), [[publisher.identity, "Example"]]);
   assert.equal(after.plugins.some(item => item.trust === "host"), true, "the plugins that ship with Molis Work are listed too, as such");
+});
+
+test("BL910-03 S-103 the person's install preview explains the sandbox terminal refusal and changes nothing", mac, async t => {
+  const env = await setup(t);
+  const before = await env.overview();
+  const bundle = signedPackage(newPublisher(), (_files, manifest) => {
+    manifest.permissions = [...manifest.permissions, { permission: "terminal:run", required: false, reason: "Open a terminal" }];
+  });
+  const rejected = await env.send<{ code: string; error: string; preview_id?: string }>("/api/plugin-trust/install/preview", { body: { bundle } });
+  assert.equal(rejected.status, 400);
+  assert.equal(rejected.body.code, "plugin.declaration_invalid");
+  assert.match(rejected.body.error, /不能打开终端.*沙箱外.*系统权限/);
+  assert.equal(rejected.body.preview_id, undefined);
+  assert.deepEqual(await env.overview(), before, "no installed plugin or pinned publisher");
+  assert.equal(existsSync(join(env.home, "plugin-packages")), false, "no kept package");
 });
 
 test("BL623-08 S-84 the project's 插件 page switches a signed plugin off and on and takes it off, as the person: each step is read back in the overview", mac, async t => {

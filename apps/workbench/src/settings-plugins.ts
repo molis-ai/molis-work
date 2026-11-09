@@ -18,7 +18,8 @@ export function renderPluginTrustSettings({ L, projectId, chevron }: { L(text: s
     <section class="settings-section" aria-labelledby="plugin-trust-install-title">
       <h2 id="plugin-trust-install-title">${L("安装插件包")}</h2>
       <p class="settings-muted">${L("选一个签过名的插件包。装之前会先列出它要的权限，由你决定；选好文件本身不会安装任何东西。")}</p>
-      <label class="mw-btn mw-btn--secondary mw-btn--sm">${L("选择插件包")}<input type="file" accept=".json,application/json" hidden data-plugin-trust-pick></label>
+      <button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-plugin-trust-choose>${L("选择插件包")}</button>
+      <input type="file" accept=".json,application/json" hidden data-plugin-trust-pick>
       <div data-plugin-trust-bundled hidden></div>
       <div class="plugin-trust-preview" data-plugin-trust-preview hidden></div>
     </section>
@@ -64,7 +65,8 @@ const day = (iso) => String(iso || "").slice(0, 10);
 const short = (id) => String(id).replace(/^ed25519:sha256:/, "").slice(0, 12);
 const error = $("error");
 const board = () => document.querySelector("[data-settings-toast], [data-toast]");
-const fail = (failure, nothingInstalled = false) => { const shown = nothingInstalled && failure?.message ? new Error(L("什么都没装，原来的也没动。") + " " + failure.message) : failure; molisWorkRequest.show(error, shown); error.hidden = false; if (board()) molisWorkRequest.toast(board(), shown, undefined, { ms: 5000 }); };
+const showFailure = (failure, nothingInstalled = false) => { const shown = nothingInstalled && failure?.message ? new Error(L("什么都没装，原来的也没动。") + " " + L(failure.message)) : failure; molisWorkRequest.show(error, shown); error.hidden = false; return shown; };
+const fail = (failure, nothingInstalled) => { const shown = showFailure(failure, nothingInstalled), target = board(); if (target) molisWorkRequest.toast(target, shown, undefined, { ms: 5000 }); };
 // A package the Host read and refused: nothing was pinned, kept or installed (SKP-08). Say so next to its problems.
 const badPackage = (failure) => failure && (failure.code === "plugin.declaration_invalid" || failure.code === "plugin.package_invalid");
 const toast = (text) => { const box = board(); if (!box) return; box.textContent = text; box.classList.remove("is-error"); box.classList.add("is-visible"); setTimeout(() => box.classList.remove("is-visible"), 2600); };
@@ -278,6 +280,7 @@ catch (failure) { fail(failure, badPackage(failure)); install.disabled = false; 
 footer.append(cancel, install); panel.append(footer);
 preview.replaceChildren(panel); preview.hidden = false; panel.scrollIntoView?.({ block: "nearest" });
 };
+$("choose").addEventListener("click", () => $("pick").click());
 $("pick").addEventListener("change", async (event) => {
 const file = event.target.files && event.target.files[0];
 event.target.value = ""; if (!file) return;
@@ -286,7 +289,7 @@ try {
 let bundle;
 try { bundle = JSON.parse(await file.text()); } catch { throw new Error(L("这个文件不是插件包")); }
 review(await api("/install/preview", { bundle }));
-} catch (failure) { fail(failure, badPackage(failure)); }
+} catch (failure) { showFailure(failure, badPackage(failure)); }
 });
 api("/bundled/list", {}).then(data => {
 const box = $("bundled"); if (!data.plugins.length && !data.refused.length) return; box.hidden = false;

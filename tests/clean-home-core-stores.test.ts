@@ -13,7 +13,7 @@ const cases = [
   { name: "functions", version: 1, file: "functions/functions.db", table: "function_scene_bindings",
     seed: "INSERT INTO function_scene_bindings VALUES ('scene', 'project', '{}', 'revision', 'time')",
     open: (home: string) => { const service = createFunctionsService({ home, credential: () => null }); return () => service.close(); } },
-  { name: "assistant", version: 1, file: "assistant/assistant.db", table: "assistant_settings",
+  { name: "assistant", version: 2, file: "assistant/assistant.db", table: "assistant_settings",
     seed: "INSERT INTO assistant_settings VALUES ('owner', 'setting', 1, 'retained')",
     open: (home: string) => { const db = openBaselineHomeSqlite(home, "assistant", ASSISTANT_STORE_BASELINE); try { new AssistantStore(db); return () => db.close(); } catch (error) { db.close(); throw error; } } },
   { name: "characters", version: 1, file: "characters/characters.sqlite", table: "character_drafts",
@@ -36,14 +36,15 @@ for (const item of cases) {
       } finally { db.close(); }
     } finally { rmSync(home, { recursive: true, force: true }); }
   });
-  for (const version of [0, 2]) test(`RAC-2365 ${item.name} refuses current nonempty schema at version ${version} without changing facts or bytes`, () => {
+  // B10-R3: v2 still refuses the old format on open; only the explicit upgrade runner may advance it.
+  for (const version of [0, ...(item.version > 1 ? [item.version - 1] : []), item.version + 1]) test(`RAC-2365 ${item.name} refuses current nonempty schema at version ${version} without changing facts or bytes`, () => {
     const home = mkdtempSync(join(tmpdir(), `clean-home-${item.name}-refusal-`)), file = join(home, item.file);
     try {
       mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
       const seeded = new DatabaseSync(file); seeded.exec(sql); seeded.exec(item.seed); seeded.exec(`PRAGMA user_version = ${version}`); seeded.close(); chmodSync(file, 0o600);
       const before = readFileSync(file);
       assert.throws(() => item.open(home), (error: { code?: string; details?: { found?: number; expected?: number } }) =>
-        error.code === (version === 0 ? "storage.schema_version_mismatch" : "storage.store_too_new") && error.details?.found === version && error.details?.expected === item.version);
+        error.code === (version === 0 ? "storage.schema_version_mismatch" : version < item.version ? "storage.upgrade_pending" : "storage.store_too_new") && error.details?.found === version && error.details?.expected === item.version);
       assert.deepEqual(readFileSync(file), before);
       const kept = new DatabaseSync(file, { readOnly: true });
       try {

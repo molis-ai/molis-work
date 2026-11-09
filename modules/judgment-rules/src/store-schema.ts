@@ -1,8 +1,8 @@
 import type { HomeStoreDeclaration, SqliteBaseline } from "@molis-ai/molis-work-storage";
 
 /**
- * The Functions store's one current schema (repository-anti-corruption §4.1): new stores are created from it, existing
- * ones must already be at its version, in the column order existing stores have; registered as `FUNCTIONS_HOME_STORE` (W4-11).
+ * The Functions baseline registered as `FUNCTIONS_HOME_STORE` defines the schema for new stores and the expected
+ * version and column order for existing stores.
  * Current schema (PG-032 P2, S-90): `function_judgments.install_id` names the plugin installation that recorded a judgment through
  * `services.judgments` and is empty for a judgment the Host recorded itself; a plugin reads and loses only its own.
  */

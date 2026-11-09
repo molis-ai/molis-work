@@ -265,13 +265,15 @@ export class AssistantRoundMaterials {
    * list, read together in one catalog read; role material is read from its signed installation.
    */
   async chosenMethods(work: StoredWork, materials: AssistantMaterial[], handoffs: MethodHandoff[] = []): Promise<AssistantMaterial[]> {
-    const refs = [...new Map(materials.flatMap(item => item.kind === "method" && item.method?.kind === "skill" ? [[methodKey(item.method), item.method.ref] as const] : [])).values()];
+    // A work an executor carries hands its Skills over by reference (§2.3): the executor's round reads them, as itself, not this one.
+    const handedOver = work.executor.kind === "plugin";
+    const refs = handedOver ? [] : [...new Map(materials.flatMap(item => item.kind === "method" && item.method?.kind === "skill" ? [[methodKey(item.method), item.method.ref] as const] : [])).values()];
     const read = refs.length ? await this.link.readSkills(work, refs) : undefined;
     if (read) handoffs.push(read.handoff);
     const out: AssistantMaterial[] = [];
     for (const material of materials) {
       const chosen = material.kind === "method" ? material.method : undefined;
-      if (!chosen) { out.push(material); continue; }
+      if (!chosen || (chosen.kind === "skill" && handedOver)) { out.push(material); continue; }
       if (chosen.kind === "skill") {
         const skill = read!.skills.find(item => methodKey({ kind: "skill", ref: item.ref }) === methodKey(chosen))!;
         out.push({ ...material, title: `方法：${skill.name}`, method: { kind: "skill", ref: skill.ref, name: skill.name },

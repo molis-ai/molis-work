@@ -203,11 +203,11 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
       readSkills: async (project, refs) => (await skillReader(project, refs)).invoke(skillCatalogActions.readBodies, { refs: [...refs] }).then(read => read.results) },
     // The person's own actions in the work's project, as the page there would use them. A dispatch, a follow-up's round among them,
     // binds the person's client anew when it acts, never the snapshot the reads share: what was granted or withdrawn by then counts.
-    personActions: async (work, use, original, executorPluginId) => {
+    personActions: async (work, use, handed, executorPluginId) => {
       if (!work.project_ref) throw assistantErrors.scope("执行方插件在项目里工作");
-      if (original) {
-        if (!executorPluginId) throw assistantErrors.scope("补充原件没有明确的执行方");
-        return executorInputActions(ports.localHost, work.project_ref, LOCAL_OWNER_PERMISSIONS, original, executorPluginId);
+      if (handed?.original || handed?.skills?.length) {
+        if (!executorPluginId) throw assistantErrors.scope("交给执行方的内容没有明确的执行方");
+        return executorInputActions(ports.localHost, work.project_ref, LOCAL_OWNER_PERMISSIONS, handed, executorPluginId);
       }
       return use === "dispatch" ? bindLocalWebActions(ports.localHost, work.project_ref, LOCAL_OWNER_PERMISSIONS) : personBound(work.project_ref);
     },

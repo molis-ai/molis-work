@@ -27,6 +27,7 @@ import { HomeConsentLedger } from "./home-plugin-store.js";
 import { pluginConsentProvider } from "./installed-plugin-consent-actions.js";
 import { pluginInstallProviderFor } from "./plugin-trust-actions.js";
 import { taskGrantActionProvider, taskGrantHostPorts } from "./task-grant-actions.js";
+import { appearanceForHome, closeHomeAppearance } from "./ui-locale-memory.js";
 import type { HostCompleteText } from "./host-complete-text.js";
 import { SystemFunctionsActions } from "./judgment-rules-actions.js";
 import { seedSceneRules, type FunctionsHostOptions } from "./judgment-rules-host.js";
@@ -228,6 +229,7 @@ export class MolisWorkLocalHost {
     // What the Host offers for as long as it runs, registered here and nowhere else: all `system`, none a plugin's (a plugin registers its own through the Plugin Runtime).
     const platform: ActionProviderRegistration[] = [
       accountActionProvider(() => accountSessionForHost(this)),
+      ...(options.homeDirectory ? [appearanceForHome(options.homeDirectory).provider()] : []),
       actionUsagesProvider(caller => {
         const project = caller.project_id ? this.host.projects().find(row => row.project_id === caller.project_id) : undefined;
         if (caller.project_id && !project) throw new ActionError("actions.scope_mismatch", "使用位置查询缺少当前项目运行环境");
@@ -424,7 +426,7 @@ export class MolisWorkLocalHost {
     return closeHomeStorageLifetime(this, this.closing, [
         ["search", () => this.search?.close()], ["placement", () => this.placement?.close()],
         ["projects", () => this.host?.close()], ["functions", () => this.systemFunctions?.dispose()],
-        ["agents", () => this.agents?.service.dispose()], ["home-plugins", () => this.homePlugins?.close()],
+        ["agents", () => this.agents?.service.dispose()], ["home-plugins", () => this.homePlugins?.close()], ["appearance", () => closeHomeAppearance(this.personalPlanningHome)],
     ], () => this.webCatalog?.access.close(), [["connectors", () => closeConnectorResources(this.options.homeDirectory, this.connectorMcp)],
       ["home-side", () => releaseHomeSide(this)], ["alchemist", () => this.alchemist?.close()]]);
   }

@@ -20,6 +20,10 @@
       ],
       "reason": "The central account client and its trusted Host protocol map Auth failures to the account owner without exposing credentials."
     },
+    "appearance": {
+      "paths": ["horizontal/appearance/"],
+      "reason": "The Home appearance service owns selection, receipt and persistence failures."
+    },
     "sample_notes": {
       "paths": [
         "examples/personal-sync-plugin/"

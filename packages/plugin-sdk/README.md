@@ -183,6 +183,8 @@ Home 判断前会读取原对象、准备其实际可用动作，并把当前选
 
 角色新建输入先过动作 schema，已确认的文字转成 literal，再用 `inspectCharacterTemplateAdoption` 检查模板语义和实际角色标题。复用分支不传模板；采用选择、版本和权限仍由角色主人核对。
 
+`validateAdoptsDeclaration` 用声明者的动作列表核对每种内容的采用、批读和可选撤销。正文 schema 由主人声明，外层输入、CAS 和回执用场景合同的公共形状。校验通过只表示声明可用，实际采用、保存回执及授权由主人兑现。
+
 ## 本地开发
 
 以下命令在**仓库根目录**执行，使用 Node.js 24+ 与仓库配置的 pnpm。首次准备运行 `pnpm install --frozen-lockfile` 和 `pnpm build`；之后可单独检查此包。

@@ -17,6 +17,7 @@ export { inspectContentPlugin } from "./content-plugin.js";
 export { parseContentPackage, type ContentPackage, type ContentPackageSkill } from "./content-package.js";
 export { inspectCharacterTemplateAdoption, inspectRoleTemplate, type RoleTemplateInspectionOptions } from "./role-template.js";
 export { inspectBlueprint, inspectBlueprintLocales } from "./blueprints.js";
+export { validateAdoptsDeclaration } from "./adopts-declaration.js";
 export { defineSettingsActions, validateSettingsDeclaration, type SettingsActions, type SettingsActionsOptions } from "./settings-declaration.js";
 export { bindSettingsHandlers, resolveEffectiveSetting, type SettingSnapshot, type SettingsOwner, type SettingsOwnerScope,
   type SettingsRequestIdentity, type SettingsTransaction, type SettingsWriteReceipt } from "./settings.js";

@@ -931,6 +931,12 @@ export declare function syncTupleLocation(surface: string, project: boolean, ind
 
 export declare function textDiffRow(op: DiffOp): TextDiffRow;
 
+export declare function validateAdoptsDeclaration(manifest: {
+    readonly adopts?: unknown;
+    readonly actions?: unknown;
+    readonly plugin_id?: unknown;
+}): readonly PluginDeclarationProblem[];
+
 export declare function validateSettingsDeclaration(manifest: {
     readonly settings_entries?: unknown;
     readonly actions?: unknown;

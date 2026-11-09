@@ -72,6 +72,8 @@ node scripts/run-tests.mjs tests/plugin-authoring.test.ts
 
 `/modules/characters` 的 `characterRoleActions` 定义角色模板采用和同主人批读。新建交模板，复用交固定的个人版本或项目成员的两项观察值；来源只是记录。声明尚未绑定角色层次服务，项目和调用者由实际主人从可信上下文取得。
 
+`/services/blueprints` 的 `blueprintActions` 定义草稿、预览、应用、回读、撤销、移除和另存，供场景服务登记。通用内容采用从 `/platform/blueprints` 取来源、选择、批读和撤销合同，正文 schema 由声明的主人给出。按操作和请求键回读的是原回执，当前状态独立返回。
+
 同步声明解析与依赖展开实现在 plugin-sdk；空间策略解析实现在 sync-replication。这里不定义同步 Error 子类，失败统一使用各 owner 声明的 ActionError。
 
 `SyncRoundSummary` 是现行格式 1 的只读轮次提示，包含策略、容量和每个所选 namespace 的普通变更 head；不是接收回执，不授予推进游标或确认上传的权力。Worker 与协调器同步更新，缺失或错误格式拒绝，不提供旧接口兜底。

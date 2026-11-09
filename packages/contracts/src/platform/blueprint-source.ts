@@ -9,14 +9,15 @@ export type BlueprintSource =
 export type BlueprintPartOrigin = { source: BlueprintSource; part_id: string };
 
 const nonEmptyString = { type: "string", minLength: 1 } as const;
+export const blueprintDraftSourceSchema = closedObjectSchema({
+  kind: { const: "draft" },
+  draft_id: nonEmptyString,
+  revision: { type: "integer", minimum: 1, maximum: Number.MAX_SAFE_INTEGER },
+});
 
 export const BLUEPRINT_SOURCE_SCHEMA = { oneOf: [
   closedObjectSchema({ kind: { const: "package" }, plugin_id: nonEmptyString, version: nonEmptyString }),
-  closedObjectSchema({
-    kind: { const: "draft" },
-    draft_id: nonEmptyString,
-    revision: { type: "integer", minimum: 1, maximum: Number.MAX_SAFE_INTEGER },
-  }),
+  blueprintDraftSourceSchema,
 ] } as const satisfies ActionSchema;
 
 export const BLUEPRINT_PART_ORIGIN_SCHEMA = closedObjectSchema({

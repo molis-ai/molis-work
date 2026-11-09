@@ -1,6 +1,6 @@
 import { parseExactActionReferences } from "@molis-ai/molis-work-contracts/platform/actions";
 import { writerDirectoryCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
-import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
+import { projectFolders } from "./project-folders.js";
 import { agentHostCapabilities as agent, type AgentRunView, type AgentSubagentWorkspace } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { characterSelection, characterSkillSelection, savedCharacter, savedCharacterSkills } from "./characters.js";
 import { CONTINUATION_MARKER } from "./continuation.js";
@@ -108,6 +108,20 @@ function continuedOriginal(body: Record<string, unknown>, sessionId: string | nu
 }
 
 /**
+ * The Host worktree of the session's folder the session was pointed at (「用这个」), when it was: the round runs there. One that is gone is
+ * refused, never swapped for the folder itself: the person switches back to the output or picks another (coordinator 2026-11-08).
+ */
+async function chosenWorktree(a: CodingActivation, body: Record<string, unknown>, workspaceId: string, writers: boolean, beforeWrite: CodingBeforeWrite) {
+  if (body.worktree_id === undefined) return undefined;
+  const worktreeId = text(body.worktree_id, "coding.field.worktree", 200);
+  if (writers) throw codingFailure("coding.server.worktree-parallel");
+  const tree = (await a.context.services!.actions!.invoke(writerDirectoryCapabilities.list, { workspace_id: workspaceId }, codingActionControl(beforeWrite)))
+    .find(child => child.worktree_id === worktreeId && !child.problem);
+  if (!tree) throw codingFailure("coding.server.worktree-gone");
+  return tree;
+}
+
+/**
  * Start a round in a session: from the person's send, or later from a queued round when the work it waited for is
  * done. The same checks run either way; nothing about a queued round is decided at the moment it starts.
  */
@@ -137,24 +151,25 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
   }
   const role = body.intent === "parallel" ? "writers" : body.intent === "collaborate" ? "coordinator" : body.intent === "plan" ? "planner" : body.intent === "review" ? "reviewer" : body.intent === "execute" ? "builder" : body.intent === "edit" ? "writer" : body.intent === "discuss" ? "reader" : null;
   if (!role) throw codingFailure("coding.server.pick-intent");
-  const workspaces = await api!.invoke(projectSettingsCapabilities.workspaces, []);
+  const workspaces = await projectFolders(api!);
   const workspace = workspaces.find(entry => entry.workspace_id === body.workspace_id);
   if (!workspace?.realpath_verified) throw codingFailure("coding.server.authorize-workspace");
-  const directory = { canonical_path: workspace.canonical_path, realpath_verified: true };
+  const tree = await chosenWorktree(a, body, workspace.workspace_id, role === "writers", beforeWrite);
+  const directory = { canonical_path: tree?.canonical_path ?? workspace.canonical_path, realpath_verified: true };
   if (plan) await requireLocalPlanningRun(api, record, plan, directory.canonical_path);
   // Files named with @ travel with the task, as they read at this moment.
   task = (await attachMentions(workspaceFileReader(context), workspace.workspace_id, task)).task;
   const subagent_workspaces: AgentSubagentWorkspace[] = [];
   if (role === "writers") {
     const assignments = codingWriterAssignments(body.writer_assignments, true);
-    // A listed directory with a problem (its branch was switched by hand) is shown to the person, never assigned.
+    // A listed directory with a problem (its branch was switched by hand) is shown to the person, never assigned. Each writer works in a
+    // worktree the Host made of this folder, named by its `worktree_id`; agent-host checks it is still one when the round starts.
     const owned = (await context.services!.actions!.invoke(writerDirectoryCapabilities.list, { workspace_id: workspace.workspace_id }, codingActionControl(beforeWrite))).filter(child => !child.problem);
     const tasks = assignments.map(assignment => {
-      const child = owned.find(child => child.workspace_id === assignment.workspace_id);
-      const grant = child && workspaces.find(grant => grant.workspace_id === child.workspace_id && grant.realpath_verified && grant.canonical_path === child.canonical_path);
-      if (!child || !grant) throw codingFailure("coding.server.worktree-unauthorized");
-      subagent_workspaces.push({ workspace_id: grant.workspace_id, directory: { canonical_path: grant.canonical_path, realpath_verified: true as const } });
-      return { ...assignment, directory: grant.canonical_path, branch: child.branch, base_commit: child.base_commit };
+      const child = owned.find(child => child.worktree_id === assignment.worktree_id);
+      if (!child) throw codingFailure("coding.server.worktree-unauthorized");
+      subagent_workspaces.push({ worktree_id: child.worktree_id, directory: { canonical_path: child.canonical_path, realpath_verified: true as const } });
+      return { ...assignment, directory: child.canonical_path, branch: child.branch, base_commit: child.base_commit };
     });
     task += WRITER_SPLIT_HEAD + JSON.stringify(tasks, null, 2);
     if (task.length > 100_000) throw codingFailure("coding.server.task-too-long");
@@ -245,7 +260,7 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
     const continued = typeof body.task === "string" && body.task.startsWith(CONTINUATION_MARKER) && typeof lastStart?.origin_task === "string";
     context.services!.storage!.set(`last-start:${record.session_id}`, JSON.stringify({ intent: body.intent === "parallel" ? "execute" : body.intent, provider_id: body.provider_id, model_id: body.model_id,
       ...(effort ? { reasoning_effort: effort } : {}),
-      workspace_id: body.workspace_id,
+      workspace_id: body.workspace_id, ...(tree ? { worktree_id: tree.worktree_id } : {}),
       origin_task: typeof body.origin_task === "string" ? body.origin_task : continued ? lastStart!.origin_task : plan ? plan.source.task : body.reask !== undefined ? QUESTION_REASK.task : text(body.task, "coding.field.task", 100_000) }));
     receipted = true;
     return { run, history, ...(cleared_input_revision===undefined?{}:{cleared_input_revision}), ...(historyReason ? { history_reason: historyReason } : {}),

@@ -77,8 +77,12 @@ export const catalogFile = (home: string) => join(home, "projects", "catalog.db"
 export const PROBE_TABLE = "CREATE TABLE upgrade_probe (id INTEGER)";
 export const catalogVersionOf = (file: string) => onStore(file, db => Number((db.prepare("SELECT value FROM catalog_meta WHERE key = 'schema_version'").get() as { value: string }).value));
 
+/** The catalog version this build really reads, taken before any test raises it. */
+export const REAL_CATALOG_VERSION = CATALOG_BASELINE.version;
+const REAL_CATALOG_UPGRADES = CATALOG_BASELINE.upgrades ?? [];
+
 /** A Home with a real project in its real catalog, at `version`, which is one older once `raiseCatalogBaseline` has run. */
-export async function catalogHome(t: TestContext, version = 1) {
+export async function catalogHome(t: TestContext, version = REAL_CATALOG_VERSION) {
   const f = upgradeTestHome(t);
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: f.home });
   const project = await catalog.createProject({ display_name: "Kept project", actor_id: "fixture" });
@@ -87,19 +91,22 @@ export async function catalogHome(t: TestContext, version = 1) {
   return { ...f, project, catalog: catalogFile(f.home) };
 }
 
-/** Every project store one version older, as `raiseCatalogBaseline` does for the catalog. The real baseline carries no steps, so they are added and taken away. */
+/** The project library version this build really reads, taken before any test raises it. */
+export const REAL_PROJECT_VERSION = PROJECT_DATABASE_BASELINE.version;
+
+/** Every project store one version older, as `raiseCatalogBaseline` does for the catalog: one probe step past the real ones. */
 export function raiseProjectBaseline(t: TestContext): void {
-  t.mock.property(PROJECT_DATABASE_BASELINE, "version", 2);
-  Object.defineProperty(PROJECT_DATABASE_BASELINE, "upgrades", { value: [{ from: 1, sql: PROBE_TABLE }], configurable: true });
-  t.after(() => { Reflect.deleteProperty(PROJECT_DATABASE_BASELINE, "upgrades"); });
+  t.mock.property(PROJECT_DATABASE_BASELINE, "version", REAL_PROJECT_VERSION + 1);
+  t.mock.property(PROJECT_DATABASE_BASELINE, "upgrades", [...PROJECT_DATABASE_BASELINE.upgrades ?? [], { from: REAL_PROJECT_VERSION, sql: PROBE_TABLE }]);
 }
 
 /**
- * Every real store is at its first version, so nothing real is ever older. This raises what this build reads the real catalog by, for one
+ * A Home made by this build is never older than it. This raises what this build reads the real catalog by, for one
  * test, with the steps to get there; every open path and the upgrade process read the same object. The step only adds a table, which the
  * comparison with the baseline lets through.
  */
 export function raiseCatalogBaseline(t: TestContext, upgrades: readonly SqliteUpgradeStep[] = [{ from: 1, sql: PROBE_TABLE }]): void {
-  t.mock.property(CATALOG_BASELINE, "version", 2);
-  t.mock.property(CATALOG_BASELINE, "upgrades", upgrades);
+  // A step given `from: 1` starts at the real version: the raised baseline is one past it, after the real steps.
+  t.mock.property(CATALOG_BASELINE, "version", REAL_CATALOG_VERSION + 1);
+  t.mock.property(CATALOG_BASELINE, "upgrades", [...REAL_CATALOG_UPGRADES, ...upgrades.map(step => ({ ...step, from: step.from + REAL_CATALOG_VERSION - 1 }))]);
 }

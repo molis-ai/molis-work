@@ -277,6 +277,32 @@ test("RAC2884 MCP OAuth DCR and PKCE survive a new host instance; refresh and 40
   } finally { await remote.close(); rmSync(temp, { recursive: true, force: true }); }
 });
 
+test("S-upgrade-too-new-untouched: an entry in the vault that is not sealed stops MCP's code exchange and its refresh before either is sent", async () => {
+  const temp = home(); const remote = await fixture({ oauth: true });
+  let clock = Date.now();
+  const options = { testServers: { notion: { endpoint: remote.endpoint, auth: "oauth" as const } }, now: () => clock };
+  try {
+    const host = createConnectorMcpHost(options);
+    const first = await host.startMcpConnection(temp, { serviceId: "notion", displayName: "Connected", origin: callbackOrigin });
+    const connected = await host.completeMcpAuthorization(temp, { state: remote.authorize(first.authorizationUrl!), code: "valid-code", origin: callbackOrigin });
+    const second = await host.startMcpConnection(temp, { serviceId: "notion", displayName: "Pending", origin: callbackOrigin });
+    const state = remote.authorize(second.authorizationUrl!);
+    const tokenRequests = remote.stats().tokenRequestCount;
+    // Version and structure are fine; one entry of another owner's is not a current envelope, which only the check `put` makes finds.
+    const vault = join(temp, "feed", "secrets.json"), file = JSON.parse(readFileSync(vault, "utf8")) as { entries: Record<string, string> };
+    writeFileSync(vault, JSON.stringify({ ...file, entries: { ...file.entries, "another-owner:entry": "not-sealed" } }));
+    const before = readFileSync(vault, "utf8");
+    // MCP answers every failure without a code of its own in one generic sentence (`safeError`), so what proves the vault refused is that nothing went.
+    await assert.rejects(host.completeMcpAuthorization(temp, { state, code: "valid-code", origin: callbackOrigin }));
+    clock += 3_600_000;
+    await assert.rejects(host.inspectMcpConnection(temp, connected.connectionId));
+    assert.equal(remote.stats().tokenRequestCount, tokenRequests, "neither the code nor the refresh token reached the token endpoint");
+    assert.equal(remote.stats().refreshCount, 0);
+    assert.equal(readFileSync(vault, "utf8"), before);
+    assert.equal(connectorProtocolSecrets(temp, connected.connectionId).get("access"), "oauth-access-initial", "a read still finds the connection's own entry");
+  } finally { await remote.close(); rmSync(temp, { recursive: true, force: true }); }
+});
+
 test("S-37 ASC-19 ASC-35: MCP token resolution refuses a refresh completed after disable and reenable", { timeout: 30_000 }, async () => {
   const temp = home();
   let hold = false, entered!: () => void, release!: () => void;

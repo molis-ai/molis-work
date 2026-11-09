@@ -124,7 +124,8 @@ export class DemoProjectLifecycle {
     if (project.data_class !== "regenerable_demo") {
       throw catalogErrors.not_demo("只有明确标记为可重建演示数据的项目能走 demo 删除流程");
     }
-    return this.deletion.deleteProject(input);
+    // Removing the demo (the CLI, the settings page, uninstall) never deletes the files in its default output directory (SSC-23).
+    return this.deletion.deleteProject({ ...input, output_files: "keep" });
   }
 
   requireDemoConfirmation(userConfirmed: boolean): void {

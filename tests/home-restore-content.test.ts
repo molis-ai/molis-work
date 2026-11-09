@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { randomBytes } from "node:crypto";
-import { lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
-import { createHomeSnapshot, restoreHomeSnapshot, MolisWorkLocalHost, LocalProjectDatabase, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { createHomeSnapshot, restoreHomeSnapshot, MolisWorkLocalHost, LocalProjectDatabase, molisWorkHostProjectReference, type HomeSnapshotManifest } from "@molis-ai/molis-work-app-local-host";
 import { inspectMolisWorkProjectCatalogSnapshot, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ensureStorageSpace, personalStorageSpace, inspectMemoryLedger, openMemoryLedger } from "@molis-ai/molis-work-storage";
@@ -133,6 +133,24 @@ test("RAC-2914: the built CLI restores populated project/Memory/plugin facts and
   const sdk = snapshotSdk(f.sdkRoot, "snapshot-person");
   try { assert.ok((await (await sdk).memory!.withCaller(snapshotMemoryCaller("snapshot-person")).list("user", "snapshot-person")).some(memory => memory.memory_id === f.memoryId)); }
   finally { await sdk.close(); }
+});
+
+test("SSC-23 the default output directories are not in a Home snapshot, a symbolic link or a .sqlite file in them included, and a restore leaves them as they are", async t => {
+  const f = await restoreFixture(t), output = join(f.home, "outputs", "project-kept");
+  mkdirSync(output, { recursive: true });
+  writeFileSync(join(output, "notes.md"), "at capture");
+  writeFileSync(join(output, "data.sqlite"), "not a database the snapshot opens");
+  symlinkSync(f.directory, join(output, "outside"));
+  assert.equal((await createHomeSnapshot({ homeDirectory: f.home, destination: f.snapshot })).status, "created");
+  const manifest = JSON.parse(readFileSync(join(f.snapshot, "manifest.json"), "utf8")) as HomeSnapshotManifest;
+  assert.deepEqual(manifest.stores.find(store => store.path === "outputs")?.entries ?? [], []);
+  assert.doesNotMatch(JSON.stringify(manifest), /notes\.md|data\.sqlite|project-kept/u);
+  assert.equal(lstatSync(join(f.snapshot, "data", "outputs"), { throwIfNoEntry: false }), undefined);
+  writeFileSync(join(output, "notes.md"), "after capture");
+  assert.equal((await restoreHomeSnapshot({ homeDirectory: f.home, source: f.snapshot, inspectCatalog: inspectMolisWorkProjectCatalogSnapshot })).status, "restored");
+  assert.equal(readFileSync(join(output, "notes.md"), "utf8"), "after capture", "the restore did not touch the folder");
+  assert.equal(readFileSync(join(output, "data.sqlite"), "utf8"), "not a database the snapshot opens");
+  assert.equal(lstatSync(join(output, "outside")).isSymbolicLink(), true);
 });
 
 test("personal restore preserves device state and never exports other spaces or rebinds the same path to another account", async t => {

@@ -22,5 +22,5 @@ for (const pack of pluginSurfaceClients()) test(`SYS-15 ${pack.id} opens its iso
     throw error;
   }
   assert.equal(await child.evaluate("(()=>{try{return Boolean(parent.document)}catch(error){return error.name}})()"), "SecurityError");
-  assert.equal(await child.evaluate("Boolean(document.querySelector('meta[name=molis-work-control-token]'))"), false);
+  assert.equal(await child.evaluate("Boolean(document.querySelector('meta[name=molis-work-page-session]'))"), false);
 });

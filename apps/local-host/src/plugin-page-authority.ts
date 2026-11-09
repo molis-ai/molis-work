@@ -1,3 +1,4 @@
+import { captureWebSessionAuthority } from "./web-sessions.js";
 import { matchPluginRoute, PLUGIN_MANAGEMENT_OPERATIONS } from "./plugin-route-operations.js";
 import { createHash, randomUUID } from "node:crypto";
 import { realpathSync } from "node:fs";
@@ -29,6 +30,7 @@ interface Page {
   readonly requests: Set<AbortController>;
   readonly match: ReturnType<typeof pluginRouteMatcher>;
   expiresAt: number;
+  sessionCurrent(): void;
   closing?: boolean;
   assertScope?(): Promise<void>;
   selection?: { project_key?: string; objectPresentation?: { surfaces: readonly string[]; permissions: readonly string[] }; assertCurrent(): void };
@@ -77,7 +79,7 @@ export class PluginPageAuthority {
     for (const [id, page] of this.pages) if (page.expiresAt < Date.now()) this.close(id);
     if (this.pages.size >= 256) throw new ActionError("actions.unavailable", "打开的插件页面过多，请关闭不用的页面");
     const id = randomUUID();
-    this.pages.set(id, { activation, project_id: projectId, requests: new Set(), expiresAt: Date.now() + 30 * 60_000,
+    this.pages.set(id, { activation, project_id: projectId, requests: new Set(), sessionCurrent: captureWebSessionAuthority(), expiresAt: Date.now() + 30 * 60_000,
       match: activation.install_id ? pluginRouteMatcher(activation.manifest) : () => null, assertScope, selection: selected });
     return { page_id: id, storage_scope: `${this.storageScope}:${activation.install_id ?? activation.manifest.plugin_id}:${activation.project_id ?? "home"}` };
   }
@@ -106,7 +108,7 @@ export class PluginPageAuthority {
     // Only the page's own authority, no route permission: a page's grant is fixed when it is activated, and every withdrawal goes
     // through `revoke` (`withdrawPages`), which closes the page as forbidden. If a grant could change while the page is open, this
     // would have to check the route's permission too, or a page that lost it would still leave as a cancellation (T-218 S3).
-    try { page.activation.assertCurrent(); page.selection?.assertCurrent(); } catch { return refused(); }
+    try { page.sessionCurrent(); page.activation.assertCurrent(); page.selection?.assertCurrent(); } catch { return refused(); }
     return cancelled();
   }
 
@@ -121,7 +123,7 @@ export class PluginPageAuthority {
     const check = () => {
       controller.signal.throwIfAborted();
       if (this.pages.get(id) !== page || !this.activations.has(page.activation) || page.expiresAt < Date.now()) throw refused();
-      page.activation.assertCurrent(); page.selection?.assertCurrent();
+      page.sessionCurrent(); page.activation.assertCurrent(); page.selection?.assertCurrent();
     };
     const beforeEffect = async () => { check(); await page.assertScope?.(); check(); };
     try {
@@ -144,7 +146,7 @@ export class PluginPageAuthority {
     if (!page || !page.activation.install_id) throw refused();
     const check = () => {
       if (this.pages.get(id) !== page || !this.activations.has(page.activation) || page.expiresAt < Date.now()) throw refused();
-      page.activation.assertCurrent(); page.selection?.assertCurrent();
+      page.sessionCurrent(); page.activation.assertCurrent(); page.selection?.assertCurrent();
     };
     check();
     return { install_id: page.activation.install_id, project_id: page.project_id, actor_id: page.activation.actor_id,
@@ -195,7 +197,7 @@ export class PluginPageAuthority {
     const check = () => {
       controller.signal.throwIfAborted();
       if (this.pages.get(id as string) !== page || !this.activations.has(page.activation)) throw refused();
-      page.activation.assertCurrent(permission);
+      page.sessionCurrent(); page.activation.assertCurrent(permission);
       page.selection?.assertCurrent();
     };
     await page.assertScope?.(); check(); page.expiresAt = Date.now() + 30 * 60_000; page.requests.add(controller);

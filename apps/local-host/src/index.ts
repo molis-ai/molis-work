@@ -43,7 +43,8 @@ export { BROWSER_SITES_FILE, BrowserSiteDecisions } from "./browser/browser-surf
 export { ensureHomeUpgraded, pendingUpgradeUnits, runHomeUpgrade, type HomeUpgradeReport } from "./home-upgrade.js";
 export { planHomeUpgrade, runUpgradeMaintenance, upgradeHomesForMaintenance, type HomeUpgradePlan, type UpgradeMaintenanceMessage, type UpgradeMaintenanceOptions } from "./upgrade-maintenance.js";
 export { configuredModelChoices } from "./configured-models.js";
-export { homeUpgradeDescriptors, registerHomeUpgradeDescriptors, upgradeFingerprint, upgradeTarget, type HomeUpgradeDescriptor, type HomeUpgradeDescriptorSource, type HomeUpgradeFileDescriptor, type HomeUpgradeStoreDescriptor } from "./home-upgrade-stores.js";
+export { homeUpgradeDescriptors, registerHomeUpgradeDescriptors, upgradeFingerprint, upgradeTarget, type HomeUpgradeDescriptor, type HomeUpgradeDescriptorSource, type HomeUpgradeFileDescriptor, type HomeUpgradeStoreDescriptor, type HomeUpgradeTablesDescriptor } from "./home-upgrade-stores.js";
+export { pluginTablesDescriptor, upgradePluginLibraryFile, type PluginTablesLibrary } from "./platform-upgrade-stores.js";
 export { acquireUpgradedHomeOwner } from "./home-storage-lifetime.js";
 export { catalogManagementProject, upgradeOlderCatalog } from "./management-action-client.js";
 export { createHomeSnapshot, type HomeSnapshotOptions } from "./home-snapshot.js";
@@ -51,6 +52,9 @@ export { restoreHomeSnapshot, recoverHomeRestore, type HomeRestoreOptions, type 
 export type { HomeRestoreCatalogInspector, HomeRestoreResult } from "./home-restore-contract.js";
 export type { HomeSnapshotManifest, HomeSnapshotResult } from "./home-snapshot-contract.js";
 export { readMaterialLocalPage } from "./material-local-page.js";
+export { readMaterialOrigins, MATERIAL_ORIGINS_DEADLINE_MS, type MaterialOriginPorts, type ProjectFolders } from "./material-origins.js";
+export { projectWorkspaceActionProvider, type ProjectMaterialPorts } from "./project-workspace-actions.js";
+export { checkWorkspaceFile, type WorkspaceFileCheck } from "./workspace-files.js";
 export { isHostEndpointPort, trackHostChildEndpoint, trackHostPort } from "./host-endpoints.js";
 export { ORIGINAL_FILE_MAX_BYTES, ORIGINAL_RANGE_MAX_BYTES, readOriginalFile, readOriginalRange, registerOriginalFile, releaseOriginalFile } from "./material-original-files.js";
 export type { PluginPlatform, PluginPlatformDatabase, PluginPlatformEntry, PluginPlatformOptions } from "./plugin-platform.js";
@@ -77,7 +81,7 @@ export { createPersonalSync } from './personal-sync.js';
 export {createPersonalPluginRegistrations} from './personal-plugin-sync.js';
 export {createPersonalCatalogRegistration} from './personal-catalog-sync.js';
 export { discoverRuntimeSyncCollections } from './runtime-sync-discovery.js';
-export { isProjectPluginDatabaseRefusal, openProjectPluginDatabases } from "./project-plugin-databases.js";
+export { isProjectPluginDatabaseRefusal, openProjectPluginDatabases, upgradePluginLibrary, upgradePluginTables } from "./project-plugin-databases.js";
 export { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";
 
 export { openProjectVersionStores, restoreArtifactVersions, assertRestorableArtifactVersions, WORK_ASSET_RESTORE_ACTOR_ID, type RestoredArtifactVersion, type ProjectVersionStores } from "./project-version-stores.js";
@@ -86,7 +90,7 @@ export * from "./web-locale.js";
 
 export { createLocalHostWorkbenchRenderer } from "./workbench-renderer.js";
 
-export { CATALOG_SCHEMA_VERSION, CATALOG_OWNER, isOwnedCatalogOwner, catalogSchemaCompatibilityError } from "./project-catalog-contract.js";
+export { CATALOG_SCHEMA_VERSION, CATALOG_OWNER, CATALOG_UPGRADES, isOwnedCatalogOwner, catalogSchemaCompatibilityError } from "./project-catalog-contract.js";
 export { initializeProjectDatabase, validateManagedProject } from "./managed-project-database.js";
 
 export { ManagedProjectFiles } from "./managed-project-files.js";
@@ -199,6 +203,7 @@ export * from "./onboarding.js";
 export { createLocalHostCapsule } from "./capsule.js";
 
 export { attachMolisWorkPtySocket } from "./pty-socket.js";
+export { characterNativeExecution } from "./character-native-execution.js";
 
 export { buildMolisWorkWebView, cachedMolisWorkWebView, type MolisWorkWebViewCache, type WebViewOptions } from "./web-view.js";
 export { declaredStageData, declaredStageRequests } from "./project-stage-data.js";
@@ -269,7 +274,7 @@ export { ensureProjectPlugins, projectPluginProblem, releaseProjectPlugins, runn
 export { announceConnectionChanged } from "./connection-change-events.js";
 export { builtinMarketDirectory, homePluginDirectory, mergePluginDirectories, runningPluginDirectory, type DirectorySource } from "./plugin-directory.js";
 export { observeReviewSettlements, reviewSettlementForwarder, type AgentWritePlaces, type ObserveReviewSettlements, type ReviewSettlement } from "./review-settlement-events.js";
-export { createGitWorktreePort, type GitWorktreePort } from "./workspace-git-worktrees.js";
+export { createGitWorktreePort, hostWriterId, type GitWorktreePort } from "./workspace-git-worktrees.js";
 export { readWriterIntegration, prepareWriterIntegration } from "./workspace-git-integration.js";
 export { draftText } from "./model-draft.js";
 
@@ -287,7 +292,7 @@ export { AGENT_DEFINITIONS_BASELINE } from "./agent-definitions/agent-definition
 export { homeAgentDefinitions } from "./agent-definitions/builtin-registrations.js";
 export { PLACEMENT_BASELINE } from "./placement-actions.js";
 export { placementCallPorts } from "./placement-call.js";
-export { ALCHEMIST_SEARCH_BASELINE, createAlchemistSearchPort } from "./alchemist-search.js";
+export { ALCHEMIST_SEARCH_BASELINE, ALCHEMIST_STUDIO_BASELINE, createAlchemistSearchPort } from "./alchemist-search.js";
 export { ASSISTANT_STORE_BASELINE, ASSISTANT_STORE_NAME, AssistantStore } from "./assistant/assistant-store.js";
 export { raiseConnectionNotice } from "./assistant/assistant-connection-notices.js";
 export { assistantConnectionCard } from "./assistant/assistant-connection-card.js";
@@ -338,7 +343,7 @@ export {
 } from "./computer/computer-policy.js";
 export { ASSISTANT_RULES_PROVIDER } from "./assistant/assistant-rule-actions.js";
 
-export {PersonalAuth,personalCloudConfig} from './personal-auth.js';
+export {fileAccountSecrets,PersonalAuth,personalCloudConfig} from './personal-auth.js';
 export {personalReturnPath} from './personal-http.js';
 export {PersonalWebSessions} from './personal-web-sessions.js';
 export {createPersonalNativeSession,NATIVE_SESSION_FILE,NATIVE_SESSION_HEADER} from './personal-native-session.js';
@@ -393,3 +398,5 @@ export { createSpaceWebServer, type SpaceWebSurface } from "./space-web-server.j
 export { verifySyncPluginDistribution } from "./sync-distribution.js";
 
 export {connectResidentAccount,ACCOUNT_CONNECT_PATH,type ResidentAccountConnection} from "./resident-account-connection.js";
+
+export { WebSessions } from "./web-sessions.js";

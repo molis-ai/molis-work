@@ -3,7 +3,9 @@ import { mkdir, writeFile } from "node:fs/promises";
 import test, { type TestContext } from "node:test";
 import { join } from "node:path";
 import type { AgentWriteCheckerList } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { createProject } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { addProjectInputFolder, changeProjectDirectories, projectOutputOf, setProjectOutputFolder } from "./fixtures/project-directories-http.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
 const section = "[data-write-checkers]";
@@ -19,7 +21,11 @@ async function fixture(t: TestContext) {
   const path = join(homeDirectory, "workspace");
   await mkdir(path);
   const prefix = `/projects/${projectId}`;
-  const linked = await web.post<{ workspace: { workspace_id: string } }>(prefix + "/api/workspaces", { workspace_path: path, user_confirmed: true });
+  // The folder is this project's output, where a round writes and the checks run (SSC-15); another project also reads it, so taking it
+  // back from this one keeps the folder's row and its id, and with them the list saved for it.
+  const neighbour = await createProject(web, "也读这个文件夹");
+  await addProjectInputFolder(web, neighbour.project_id, path);
+  const linked = { workspace: await setProjectOutputFolder(web, projectId, path) };
   const route = prefix + "/api/project-settings/write-checkers";
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
@@ -153,14 +159,15 @@ test("PA-41 PA-43 conflict and failed reread preserve the form; revoking the fol
   await waitFor(`document.querySelector('${row("node")}')`);
   await click(`${row("node")} [data-act=edit]`);
   await fields({ display_name: "Must not be saved" });
-  await web.post(`${f.prefix}/api/workspaces/${f.workspace}/unlink`, { user_confirmed: true });
+  // The person sets the output back to the default location: the folder leaves this project, and the default output is its one group.
+  const defaultOutput = projectOutputOf(await changeProjectDirectories(web, f.projectId, "set_output", { default_output: true })).workspace_id;
   await click(submit);
   await waitFor(`!document.querySelector('${editor} [data-wc=error]').hidden && !document.querySelector('${submit}').disabled`);
   assert.equal(await evaluate(`document.querySelector('${editor}').open`), true);
   assert.equal(await evaluate(`document.querySelector('${editor} [name=display_name]').value`), "Must not be saved");
-  assert.deepEqual(await f.lists(), []);
-  const linked = await web.post<{ workspace: { workspace_id: string } }>(f.prefix + "/api/workspaces", { workspace_path: f.path, user_confirmed: true });
-  assert.equal(linked.workspace.workspace_id, f.workspace);
+  assert.deepEqual(await f.lists(), [{ workspace_id: defaultOutput, version: 0, checkers: [] }]);
+  const linked = await setProjectOutputFolder(web, f.projectId, f.path);
+  assert.equal(linked.workspace_id, f.workspace);
   assert.deepEqual(await f.lists(), [latest], "re-authorizing reveals the unchanged saved list and version");
 });
 

@@ -102,9 +102,10 @@ async function closeSocket(socket: WebSocket): Promise<void> {
 /**
  * A folder outside the Home linked to the project as its workspace, with a sub-folder, a file, a link that leaves it, and a folder named
  * `trail ` (ending in a space) beside a link `trail` that leaves it. (The catalog trims a linked folder's path, so the workspace's own name
- * never ends in a space.)
+ * never ends in a space.) A linked folder is an input; a terminal runs only in the output (SSC-15), so it is made the output, as the person
+ * does on the settings page, unless `role` says it stays an input.
  */
-async function linkWorkspace(t: TestContext, f: Served, project: Project) {
+async function linkWorkspace(t: TestContext, f: Served, project: Project, role: "output" | "input" = "output") {
   const folder = await realpath(await mkdtemp(join(tmpdir(), "terminal-workspace-")));
   t.after(() => rm(folder, { recursive: true, force: true }));
   await mkdir(join(folder, "sub")); await writeFile(join(folder, "file.txt"), "not a folder");
@@ -112,7 +113,10 @@ async function linkWorkspace(t: TestContext, f: Served, project: Project) {
   await mkdir(join(folder, "trail ")); await symlink(tmpdir(), join(folder, "trail"));
   const workspace = await f.withCatalog({ homeDirectory: f.home }, async catalog => {
     await catalog.commit(() => catalog.addWorkspaceProject({ canonical_path: folder, project_id: project.project_id, actor_id: "test-user", user_confirmed: true }));
-    return catalog.listWorkspaceDirectory(project.project_id).find(record => record.canonical_path === folder)!;
+    const linked = catalog.listWorkspaceDirectory(project.project_id).find(record => record.canonical_path === folder)!;
+    if (role === "output") await catalog.commit(() => catalog.changeDirectories({ project_id: project.project_id, actor_id: "test-user",
+      change: { kind: "set_output", target: { workspace_id: linked.workspace_id } }, expected_revision: catalog.projectDirectories(project.project_id).revision }));
+    return linked;
   });
   assert.ok(workspace, "the folder is linked to the project");
   return { folder, workspace_id: workspace.workspace_id };
@@ -383,6 +387,21 @@ test("RAC-2554 S-103 the folder must be in the project's own linked workspace (w
   await refused(f, answer, "actions.forbidden", marker, panelOf(homeInstall.install_id, null, "homeless"), "a Home call has no project, so no workspace");
 });
 
+test("S-directory-output-only SSC-15 a terminal does not start in a folder that is only an input: nothing runs; in the output it does", { timeout: 60_000 }, async t => {
+  const probe = launchProbe("launchinput");
+  const f = await open(t, [probe]), project = await f.project("只作输入");
+  const input = await linkWorkspace(t, f, project, "input"), output = await linkWorkspace(t, f, project);
+  const { install } = await grantInProject(f, project, probe);
+  const marker = f.marker();
+  const answer = await run(f, probe, "project", "run", own => opened(own, launch(f, "input", marker, { root: "workspace", workspace_id: input.workspace_id })), { project });
+  await refused(f, answer, "projects.directory_input_only", marker, panelOf(install.install_id, project.project_id, "input"), "a folder that is only an input");
+  // The same start in the output runs there: the refusal is the folder's role, not the fixture.
+  const ran = f.marker();
+  const started = await run(f, probe, "project", "run", own => opened(own, launch(f, "output", ran, { root: "workspace", workspace_id: output.workspace_id })), { project });
+  assert.equal(started.outcome, "ok", started.message);
+  assert.equal(await ranIn(ran), output.folder);
+});
+
 test("RAC-2555 S-103 the input is the five keys and nothing else, bounded, the program one of two shapes; the identity is the call's", { timeout: 60_000 }, async t => {
   const probe = launchProbe("launchinput");
   const f = await open(t, [probe]), project = await f.project("输入不对");
@@ -625,7 +644,7 @@ test("RAC-2565 S-103 a session a runtime reports or a record holds reaches the r
     }
     // A record that holds one anyway (written past the service here) is checked again on the way out, and starts a new session.
     assert.equal(await start("recorded-option"), "[]");
-    // The catalog's own SQLite (better-sqlite3): a second SQLite copy in this process would drop the Host's file locks when it closes.
+    // The Host's own kind of connection: a second SQLite library in this process would drop the Host's file locks when it closes.
     const db = openTestSqlite(join(f.home, "projects", "catalog.db"), { timeout: 5000 });
     try {
       db.prepare("UPDATE plugin_terminal_panels SET host_session_id = ? WHERE panel_id = ?").run("--dangerously-bypass-approvals-and-sandbox", panelId("recorded-option"));
@@ -738,7 +757,7 @@ test("TERM-CATALOG-01 TERM-CATALOG-02 TERM-CATALOG-03 terminal list hides a real
   assert.equal(logged.length, 1);
   const warning = logged[0]!;
   assert.equal(warning.level, "warn"); assert.equal(warning.area, "terminal"); assert.equal(warning.event, "catalog_unreadable");
-  assert.deepEqual(warning.error, { name: "SqliteError", code: "SQLITE_ERROR" });
+  assert.deepEqual(warning.error, { name: "Error", code: "SQLITE_ERROR" });
   assert.equal(warning.fields, undefined);
   assert.doesNotMatch(JSON.stringify(warning), /catalog\.db|actor_id|home-runtime-|\/(?:Users|private|var)\//u);
   assert.deepEqual(await list(), before, "the same plugin action reads its unchanged row after recovery");

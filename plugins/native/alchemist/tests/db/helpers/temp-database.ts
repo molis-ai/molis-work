@@ -12,7 +12,7 @@ export function createTempDatabase(): TempDatabase {
   const directory = mkdtempSync(join(tmpdir(), "alchemist-db-test-"));
   return {
     directory,
-    path: join(directory, "alchemist.sqlite"),
+    path: join(directory, "studio.sqlite"),
     cleanup() {
       rmSync(directory, { force: true, recursive: true });
     },

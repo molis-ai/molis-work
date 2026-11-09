@@ -7,18 +7,18 @@ import { createServer } from "node:http";
 import { AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard, handleProjectPluginHttp, observeReviewSettlements, openProjectVersionStores, type ReviewSettlement } from "@molis-ai/molis-work-app-local-host";
 import { ensureProjectPlugins, releaseProjectPlugins } from "../apps/local-host/dist/project-plugins.js";
-import { pluginActions } from "./fixtures/plugin-actions.js";
-import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
+import { pluginActions, projectDirectories } from "./fixtures/plugin-actions.js";
+import { projectDirectoryActions, type ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 
 const FILES = "io.molis.work.files", GIT = "io.molis.work.git", EVENT = `${GIT}.operation-updated`;
 
 /**
- * The project's browsing folder as the Host's own action answers it (Files asks it through `services.actions` whenever the workspace
- * changes); `answer` stands in for the project's settings, by default none chosen.
+ * The project's folders as the Host's own action answers them (`projects.directories.get@1`; Files asks it through `services.actions`
+ * whenever the workspace changes); `answer` stands in for the project's output, by default none.
  */
-function browsingFolder(actions: ReturnType<typeof pluginActions>, answer: () => unknown = () => null) {
+function projectOutput(actions: ReturnType<typeof pluginActions>, answer: () => ProjectWorkspaceRef | null = () => null) {
   actions.registry.registerProvider({ provider: { provider_id: "project-settings-fixture", title: "项目设置", kind: "system" },
-    definitions: [projectSettingsCapabilities.browsingWorkspace], handlers: [{ ...projectSettingsCapabilities.browsingWorkspace, handle: () => answer() }] });
+    definitions: [projectDirectoryActions.get], handlers: [{ ...projectDirectoryActions.get, handle: () => { const output = answer(); return projectDirectories(DEMO_PROJECT_ID, output ? [output] : []); } }] });
   return actions;
 }
 // G2b (PG-044): the Host sends a settled review to the installation that asked for it as `host.review.settled@1` (S-54); Git
@@ -32,7 +32,7 @@ test("committed SDK receipts notify real project consumers once; history, other 
   const makeAdapter = () => createPrologueNodeAdapter({ app: { appId: "molis.events.test", appVersion: "1.0.0" }, storageRoot: join(root, "sdk"), reviewQueue: queue,
     modelConfiguration: async () => { throw new Error("manual Effects must not request a model"); } });
   let adapter = await makeAdapter();
-  const base = { store, ...openProjectVersionStores(store), projectId: DEMO_PROJECT_ID, actions: browsingFolder(pluginActions(store, DEMO_PROJECT_ID)), actorId: "web-user" };
+  const base = { store, ...openProjectVersionStores(store), projectId: DEMO_PROJECT_ID, actions: projectOutput(pluginActions(store, DEMO_PROJECT_ID)), actorId: "web-user" };
   const ports = { ...base, observeReviewSettlements: (listener: (settlement: ReviewSettlement) => void) => observeReviewSettlements(queue, DEMO_PROJECT_ID, listener),
     escapeHtml: String, translate: (value: string) => value };
   const server = createServer((request, response) => { void handleProjectPluginHttp(request, response, new URL(request.url!, "http://fixture"), ports)
@@ -112,7 +112,7 @@ test("a settled operation reaches Git even when another installation's action se
   const store = new LocalProjectDatabase(file);
   let settle: ((settlement: ReviewSettlement) => void) | undefined, armed = false, gitInstall = "";
   const failures: unknown[] = [], update = { workspace_id: "inside", operation_id: "inside-files", outcome: "succeeded" } as const;
-  const actions = browsingFolder(pluginActions(store, DEMO_PROJECT_ID), () => {
+  const actions = projectOutput(pluginActions(store, DEMO_PROJECT_ID), () => {
     // Host work a Files action set off settles a Git operation while that action is still running.
     if (armed) {
       armed = false;
@@ -120,9 +120,9 @@ test("a settled operation reaches Git even when another installation's action se
     }
     return { workspace_id: "one", display_name: "One", canonical_path: "/one", realpath_verified: true };
   });
-  const browsing = (dependency: { capability_id: string }) => dependency.capability_id === projectSettingsCapabilities.browsingWorkspace.capability_id;
+  const folders = (dependency: { capability_id: string }) => dependency.capability_id === projectDirectoryActions.get.capability_id;
   const ports = { store, ...openProjectVersionStores(store), projectId: DEMO_PROJECT_ID, actions, actorId: "web-user",
-    dependencyCheck: (dependency: { capability_id: string }) => browsing(dependency) ? { available: true } : { available: false, code: "fixture.missing", reason: "Fixture has only browsing settings" },
+    dependencyCheck: (dependency: { capability_id: string }) => folders(dependency) ? { available: true } : { available: false, code: "fixture.missing", reason: "Fixture has only the project's folders" },
     observeReviewSettlements: (listener: (settlement: ReviewSettlement) => void) => { settle = listener; return () => { settle = undefined; }; } };
   try {
     const platform = (await ensureProjectPlugins(ports)).platform!;
@@ -147,7 +147,7 @@ test("BL-379 a settled workspace operation another installation asked for makes 
   seedDemoBoard(file);
   const store = new LocalProjectDatabase(file);
   let settle: ((settlement: ReviewSettlement) => void) | undefined;
-  const ports = { store, projectId: DEMO_PROJECT_ID, actions: browsingFolder(pluginActions(store, DEMO_PROJECT_ID)), actorId: "web-user",
+  const ports = { store, projectId: DEMO_PROJECT_ID, actions: projectOutput(pluginActions(store, DEMO_PROJECT_ID)), actorId: "web-user",
     observeReviewSettlements: (listener: (settlement: ReviewSettlement) => void) => { settle = listener; return () => { settle = undefined; }; } };
   try {
     const platform = (await ensureProjectPlugins(ports)).platform!;

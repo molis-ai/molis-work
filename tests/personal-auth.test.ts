@@ -23,7 +23,7 @@ test('Auth profiles for another login client are rejected without saving tokens'
 function fixture(desktop = false) {
   const activeConfig={...config,...(desktop?{desktopClientId:'molis-work-desktop-local'}:{})};
   const values=new Map<string,string>();let transaction!:{state:string;codeChallenge:string;clientId:string;forceLogin?:boolean};let tokenCalls=0;let now=1000;let failRefresh=false;let identityFailure='';let logoutFailure=false;
-  const store={get:(key:string)=>values.get(key)??null,put:(key:string,value:string)=>values.set(key,value),delete:(key:string)=>values.delete(key)};
+  const store={get:(key:string)=>values.get(key)??null,put:(key:string,value:string)=>values.set(key,value),delete:(key:string)=>values.delete(key),assertWritable:()=>{}};
   const http:typeof fetch=async(url,init)=>{
     if(String(url).endsWith('/transactions')){transaction=JSON.parse(String(init?.body));return Response.json({data:{loginUrl:'https://auth.example/login#transaction=synthetic'}});}
     if(String(url).endsWith('/oauth2/token')){

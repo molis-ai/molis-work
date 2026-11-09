@@ -21,6 +21,7 @@ import { NativePluginExecutor } from "./native-executor.js";
 import { assertRecoverableState, assertRequiredGrants, cloneRecord, declaresOnly, definitionKey, installIdentity, normalizeErrorCode, requireDefinition, requireInstall, safeErrorCode, safeErrorMessage, sameStrings, selectedEntrypoint, validateManifest } from "./runtime-rules.js";
 import { createActivationContext, releaseUnrecorded } from "./activation-context.js";
 import { regrantInstall } from "./regrant.js";
+import { assertPluginUpgradeStepsAdmitted } from "./plugin-upgrade-steps.js";
 
 export * from "./public-api.js";
 
@@ -122,6 +123,7 @@ export class PluginRuntime implements PluginRuntimeApi {
     const host = isHostTrust(trust);
     const manifest = input.definition.manifest;
     validateInstalledManifest(manifest, this.options.declarationOwners);
+    assertPluginUpgradeStepsAdmitted(manifest, trust.level);
     const entrypoint = selectedEntrypoint(manifest, input.deployment);
     const installId = installIdentity(manifest);
     const current = this.repository.get(installId);
@@ -231,6 +233,7 @@ export class PluginRuntime implements PluginRuntimeApi {
       const target = input.definition.manifest;
       validateInstalledManifest(target, this.options.declarationOwners);
       const current = requireInstall(this.repository, input.install_id);
+      assertPluginUpgradeStepsAdmitted(target, current.publisher_trust);
       if (current.execution !== (input.definition.execution ?? "host")) throw pluginErrors.definition_conflict("不能在升级时改变执行信任边界");
       if (rollbackCode && current.execution !== "sandbox") throw pluginErrors.state_invalid("代码回滚只适用于隔离的生成插件");
       if (current.state === "uninstalled" || current.state === "quarantined") {

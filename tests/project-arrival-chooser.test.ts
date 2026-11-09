@@ -112,7 +112,7 @@ test("inside the desktop app every way on keeps the desktop shell", () => {
 test("the control token rides in the page head and nowhere else", () => {
   const html = renderMolisWorkProjectIndex(projects, "token-123", false, arrival());
   assert.equal(html.match(/token-123/g)?.length, 1);
-  assert.match(html, /<meta name="molis-work-control-token" content="token-123">/);
+  assert.match(html, /<meta name="molis-work-page-session" content="token-123">/);
 });
 
 test("in English the page says nothing in Chinese except what a person named", () => {

@@ -8,14 +8,35 @@ import type { FilesBrowser, FilesHost, StateAnswer } from "./types.js";
 
 const open = (page: FilesPage) => (path: string[]) => openFile(page, path);
 
-/** Opens the file the shell asked for, in the folder being browsed only. */
+/** The state of the folder the page asks for ("" for the project's output). */
+const stateOf = (page: FilesPage, id: string) => request<StateAnswer>(page, "/state" + (id ? "?workspace_id=" + encodeURIComponent(id) : ""));
+
+/**
+ * Opens the file the shell asked for. In another of the project's folders, or one named by another device's folder that the person
+ * pointed at one here, the page browses that folder first (where it looks is the page's own state).
+ */
 function openWanted(page: FilesPage): void {
   const { wanted, workspace, L } = page;
   if (!wanted || !workspace) return;
   const [id = "", ...rest] = wanted.split(":"), path = rest.join(":").split("/").filter(Boolean);
   page.wanted = null;
-  if (id !== workspace || !path.length) { page.notice(L("files.directory.outside")); return; }
+  if (!path.length) { page.notice(L("files.directory.outside")); return; }
+  if (id !== workspace) { void browseFor(page, id, path); return; }
   page.host.openResult(); page.result.hidden = false; void openFile(page, path);
+}
+
+async function browseFor(page: FilesPage, id: string, path: string[]): Promise<void> {
+  const ticket = page.generation;
+  try {
+    const state = await stateOf(page, id);
+    if (ticket !== page.generation) return;
+    if (!state.resolved) { page.notice(page.L("files.directory.outside")); return; }
+    page.wanted = state.resolved + ":" + path.join("/");
+    if (state.resolved === page.workspace) openWanted(page);
+    else await choose(page, state.resolved);
+  } catch (error) {
+    if (ticket === page.generation) page.notice(said(page.L, messageOf(error)));
+  }
 }
 
 /** Browses one workspace: its top folder, then the file the person left open (or the one asked for), then the companions. */
@@ -28,7 +49,7 @@ async function choose(page: FilesPage, id: string): Promise<void> {
     await list(page, [], tree, ticket, open(page));
     if (!active(page, ticket)) return;
     page.notice("");
-    const state = await request<StateAnswer>(page, "/state");
+    const state = await stateOf(page, id);
     if (!active(page, ticket)) return;
     if (page.wanted) openWanted(page);
     else if (state.position?.workspace_id === id) await openFile(page, state.position.path);
@@ -45,14 +66,14 @@ const loading = (page: FilesPage, on: boolean) => {
   page.tree.setAttribute("aria-busy", String(on));
 };
 
-/** Reads the project's browsing workspace and shows it. */
+/** Reads the folder the page browses (the project's output until it browses another) and shows it again. */
 async function load(page: FilesPage): Promise<void> {
   const { L, lifetime } = page;
   if (!lifetime.visible || page.refresh.disabled) return;
   const serial = ++page.loadingTicket;
   loading(page, true); page.notice(L("files.directory.reading-workspace"));
   try {
-    const state = await request<StateAnswer>(page, "/state");
+    const state = await stateOf(page, page.workspace);
     if (serial !== page.loadingTicket) return;
     await choose(page, state.workspace?.workspace_id ?? "");
   } catch (error) {
@@ -84,7 +105,8 @@ function listen(page: FilesPage): void {
 
 /**
  * The Files directory and reader: a folder tree, the file read as text (read-only), and pinning of the text or a selection as a
- * snapshot. Its own page mounts it, and so does Coding for its panel; what it shows follows the project's browsing workspace.
+ * snapshot. Its own page mounts it, and so does Coding for its panel. Which folder it shows is the page's own: the project's output
+ * until the page that mounts it asks for another (`browse`) or the shell opens a file elsewhere.
  */
 export function filesClient(host: FilesHost): FilesBrowser | null {
   const scope = host.root ?? document;
@@ -106,6 +128,7 @@ export function filesClient(host: FilesHost): FilesBrowser | null {
   });
   return {
     refresh: () => load(page),
+    browse(id) { if (id && id !== page.workspace) void choose(page, id); },
     show(face) {
       if (!["files", "sessions"].includes(face)) return false;
       const visible = face === "files";

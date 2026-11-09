@@ -10,7 +10,7 @@ import { charactersActions, openCharacters, type CharactersAgentCatalog } from "
 import { CHARACTER_ARTIFACT_TYPE, CHARACTER_PLUGIN_ID, CHARACTER_PUBLISHER_SIGNATURE } from "@molis-ai/molis-work-contracts/modules/characters";
 import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, handleProjectPluginHttp, charactersProvider, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { AGENT_RUNTIME_CAPABILITIES, agentHostCapabilities as agent, defaultAgentRuntime, type AgentRuntimeDescriptor, type AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { projectSettingsCapabilities, projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
+import { projectDirectoryActions, projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
@@ -56,8 +56,7 @@ async function environment(runtimes: AgentRuntimeDescriptor[], catalog?: Charact
     agentHost: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
       if (definition.capability_id === agent.listRuntimes.capability_id) return runtimes as Output;
       if (definition.capability_id === projectSettingsCapabilities.runtime.capability_id) return picked as Output;
-      if (definition.capability_id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "work", canonical_path: home, realpath_verified: true }] as Output;
-      if (definition.capability_id === projectSettingsCapabilities.browsingWorkspace.capability_id || definition.capability_id === projectsCapabilities.readWorkspace.capability_id) return null as Output;
+      if (definition.capability_id === projectDirectoryActions.get.capability_id) return [{ workspace_id: "work", canonical_path: home }] as Output;
       if (definition.capability_id === agent.availableRoles.capability_id) return [{ role_id: "reader", available: true }] as Output;
       if (definition.capability_id === agent.listActions.capability_id) return [] as Output;
       if (definition.capability_id === agent.createSession.capability_id) { created++; return { runtime_id: (args as unknown[])[0], session_id: `sdk-${created}` } as Output; }

@@ -21,6 +21,7 @@ function openProjects(directory: string, plugins: ProjectPluginRegistry = shippe
   const projects = new ProjectsModule({
     db,
     projects_directory: directory,
+    outputs_directory: join(directory, "outputs"),
     plugins,
   });
   return { db, projects };

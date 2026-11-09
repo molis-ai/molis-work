@@ -14,7 +14,7 @@ and a parallel writer's result comes back through Coding's integration review
 (`review:git-integration`).
 
 
-Directory candidates and browsing preferences come from the [current-project settings protocol](../../../docs/platform/PROJECT-SETTINGS.md). Files/Git consume `projectSettingsCapabilities.browsingWorkspace`; Coding consumes `workspaces` and keeps its execution directory per session. Manage directories in Project Settings → Workspaces.
+The folders come from the [current-project settings protocol](../../../docs/platform/PROJECT-SETTINGS.md): Git reads them through `projects.directories.get` (declared in `capabilities.consumes`), each folder an input (read-only) or the project's one output. The page keeps which folder it shows and names it; with none named, Git works in the output. Reads work in any of the project's folders, but a write (stage, commit and the other operations) is refused in a folder that is only an input (`projects.directory_input_only`), and the page offers to set that folder as the output. The default output directory is created the first time something is written or run in it: until then reads answer empty and stage and commit answer `workspace_git.not_a_repository`. The project keeps no browsing choice. Manage the folders in Project Settings → Workspaces.
 
 ## 开发要求
 

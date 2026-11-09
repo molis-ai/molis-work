@@ -23,7 +23,7 @@ const FACTS = ["jobs", "job_events", "pulse_runs", "source_fetches", "supply_sig
 
 for (const entry of ["page", "mcp"] as const) test(`W5-01-ALC-RES11 QA-023 RES07: a Pulse stopped from the ${entry === "page" ? "page's HTTP route" : "MCP"} while a source waits records nothing after the stop`, async t => {
   for (const fail of [false, true]) await t.test(fail ? "the source fails late" : "the source answers late", async t => {
-    const home = await mkdtemp(join(tmpdir(), "alchemist-pulse-cancel-")), library = join(home, "a.sqlite");
+    const home = await mkdtemp(join(tmpdir(), "alchemist-pulse-cancel-")), library = join(home, "a", "studio.sqlite");
     const entered = Promise.withResolvers<AbortSignal>(), release = Promise.withResolvers<void>();
     // Watcha, asked second, leaves through the process's own fetch: a stopped Pulse never gets that far.
     let laterCalls = 0;

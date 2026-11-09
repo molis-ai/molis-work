@@ -14,7 +14,7 @@ import type { PtySpawnRequest } from "@molis-ai/molis-work-contracts/services/ru
 import type { MolisWorkLocalHostOptions, MolisWorkProjectRuntime } from "./project-host.js";
 
 /** What the Host gives Characters in one project besides its own stores: the project's folders and the native terminal. */
-export type CharactersHostOptions = Pick<MolisWorkLocalHostOptions, "characterSpawn" | "workspacesFor" | "workspaceFor"> & { readonly homeDirectory: string };
+export type CharactersHostOptions = Pick<MolisWorkLocalHostOptions, "characterSpawn" | "workspacesFor" | "workspaceFor" | "prepareDirectory"> & { readonly homeDirectory: string };
 
 /**
  * Characters in one project, registered by the Host as its own provider: the person's drafts in the Home, publications in the
@@ -91,7 +91,9 @@ function characterActionPorts(options: CharactersHostOptions, actorId: string, p
         if (!snapshot) throw characterErrors.invalid("预览已过期，请重新扫描本地 Agent");
         return use(service => service.import(snapshot, selection, existing));
       },
-      ...characterNativeExecution({ home, actorId, projectId, workspaces, spawn, executable: runtime => discovery.executable(runtime) }),
+      ...characterNativeExecution({ home, actorId, projectId, workspaces, spawn, executable: runtime => discovery.executable(runtime),
+        output: async () => options.workspaceFor ? await options.workspaceFor(projectId) : null,
+        prepare: async workspaceId => { await options.prepareDirectory?.(projectId, workspaceId, "write"); } }),
     },
     drafts: {
       list: () => use(service => service.list()), get: id => use(service => service.get(id)),

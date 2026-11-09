@@ -63,7 +63,8 @@ export function pluginAgentsFor(home: PluginPlatformHome | null | undefined, man
           if (input.workspace_id !== undefined) throw new ActionError("actions.input_invalid", "此角色不接收工作区");
           workspace = { workspace: role.workspace };
         } else {
-          const chosen = input.workspace_id ? prepared.workspaces.find(item => item.workspace_id === input.workspace_id) : prepared.workspaces[0];
+          // What names no folder runs in the output (SSC-17); a named input folder is refused as only an input when the round starts (SSC-15).
+          const chosen = input.workspace_id ? prepared.workspaces.find(item => item.workspace_id === input.workspace_id) : prepared.output;
           if (!chosen?.realpath_verified) throw new ActionError("actions.forbidden", "这个项目没有授权的工作区");
           workspace = { directory: { canonical_path: chosen.canonical_path, realpath_verified: true } };
         }

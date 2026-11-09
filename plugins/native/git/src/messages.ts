@@ -144,6 +144,7 @@ export const GIT_MESSAGES = {
   "git.op.done": { zh: "「{op}」已完成，结果见下方记录。", en: "“{op}” is done; see the record below." },
   "git.op.recorded": { zh: "决定已记录，结果尚未确认。", en: "The decision is recorded; the result isn't confirmed yet." },
   "git.op.preparing": { zh: "正在准备「{op}」的审查，仓库尚未改动…", en: "Preparing the review of “{op}”; the repository isn't changed yet…" },
+  "git.output.set": { zh: "设为输出", en: "Make it the output" },
   "git.op.review": { zh: "请核对「{op}」的宿主审查；批准并执行成功后才会生效。", en: "Check the host review of “{op}”. It takes effect only if approved and it runs." },
   "git.op.review-kind": { zh: "宿主审查", en: "Host review" },
   "git.op.review-note": { zh: "只有批准并执行成功，仓库才会改变。", en: "The repository changes only if it's approved and runs." },

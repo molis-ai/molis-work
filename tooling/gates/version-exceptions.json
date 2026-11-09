@@ -177,7 +177,7 @@
     "file": "packages/plugin-runtime/src/project-database-statements.ts",
     "name": "PLUGIN_STATEMENT_SQLITE_VERSION",
     "values": { "3.51.3": 1 },
-    "reason": "随宿主打包的 SQLite 版本号，由依赖决定，不是自有版本。"
+    "reason": "Node 自带的 SQLite 版本号，由锁定的 Node 决定，不是自有版本；升 Node 时由 tests/sqlite-version-notice.test.ts 核对它和 .nvmrc 对得上。"
   },
   {
     "file": "packages/plugin-runtime/src/resolution.ts",
@@ -458,60 +458,16 @@
     "reason": "电脑记录来源只在 Home 层登记，动作快照读的是一个项目的目录，所以没有行。"
   },
   {
-    "entry": "action.projects.settings.browsing-workspace.read",
-    "reason": "宿主的项目设置动作，只由设置页走自己的路由，不进动作目录，所以快照里没有行。"
-  },
-  {
-    "entry": "action.projects.settings.browsing-workspace.select",
-    "reason": "宿主的项目设置动作，只由设置页走自己的路由，不进动作目录，所以快照里没有行。"
-  },
-  {
-    "entry": "action.projects.settings.workspaces.read",
-    "reason": "宿主的项目设置动作，只由设置页走自己的路由，不进动作目录，所以快照里没有行。"
-  },
-  {
-    "entry": "action.projects.workspaces.list",
-    "reason": "宿主的项目设置动作，只由设置页走自己的路由，不进动作目录，所以快照里没有行。"
-  },
-  {
     "entry": "action.ui.plugin-presentation",
     "reason": "页面展示能力的合同常量，由工作台在页面里提供，不经动作目录登记，所以快照里没有行。"
   },
   {
-    "entry": "action.materials.recent",
-    "reason": "C-1 合同片只声明，提供方由目录实现片登记，所以动作快照里还没有行；登记之后这条例外不再需要，门禁会要求删掉。"
+    "entry": "action.surfaces.compose",
+    "reason": "C-3 合同片只声明，提供方 system.surfaces 由第 15 批 S-1 登记，所以动作快照里还没有行；登记之后这条例外不再需要，门禁会要求删掉。"
   },
   {
-    "entry": "action.materials.recent.record",
-    "reason": "C-1 合同片只声明，提供方由目录实现片登记，所以动作快照里还没有行；登记之后这条例外不再需要，门禁会要求删掉。"
-  },
-  {
-    "entry": "action.projects.directories.add_input",
-    "reason": "C-1 合同片只声明，提供方由目录实现片登记，所以动作快照里还没有行；登记之后这条例外不再需要，门禁会要求删掉。"
-  },
-  {
-    "entry": "action.projects.directories.get",
-    "reason": "C-1 合同片只声明，提供方由目录实现片登记，所以动作快照里还没有行；登记之后这条例外不再需要，门禁会要求删掉。"
-  },
-  {
-    "entry": "action.projects.directories.map_source",
-    "reason": "C-1 合同片只声明，提供方由「实现（指定文件夹）」片登记，所以动作快照里还没有行；登记之后这条例外不再需要，门禁会要求删掉。"
-  },
-  {
-    "entry": "action.projects.directories.remove_input",
-    "reason": "C-1 合同片只声明，提供方由目录实现片登记，所以动作快照里还没有行；登记之后这条例外不再需要，门禁会要求删掉。"
-  },
-  {
-    "entry": "action.projects.directories.repair",
-    "reason": "C-1 合同片只声明，提供方由目录实现片登记，所以动作快照里还没有行；登记之后这条例外不再需要，门禁会要求删掉。"
-  },
-  {
-    "entry": "action.projects.directories.set_output",
-    "reason": "C-1 合同片只声明，提供方由目录实现片登记，所以动作快照里还没有行；登记之后这条例外不再需要，门禁会要求删掉。"
-  },
-  {
-    "entry": "action.projects.directories.unmap_source",
-    "reason": "C-1 合同片只声明，提供方由「实现（指定文件夹）」片登记，所以动作快照里还没有行；登记之后这条例外不再需要，门禁会要求删掉。"
+    "entry": "action.surfaces.correct",
+    "reason": "C-3 合同片只声明，提供方 system.surfaces 由第 15 批 S-1 登记，所以动作快照里还没有行；登记之后这条例外不再需要，门禁会要求删掉。"
   },
   {
     "entry": "action.skills.body.read",
@@ -1002,5 +958,11 @@
     "name": "provider_version",
     "values": { "0.0.0-rc.1": 1 },
     "reason": "调用方没有给版本时的占位值，Prologue 只校验格式，不读取也不比较，不是自有版本。"
+  },
+  {
+    "file": "modules/projects/src/catalog-upgrade.ts",
+    "name": "workspace_project_memberships_v1",
+    "values": { "workspace_project_memberships_v1": 4 },
+    "reason": "目录库第 1 版升到第 2 版时重建成员表的临时表名，指的是升级出发的那一版，升完即删，不是当前版本；目录库的当前版本是 database.home.catalog。"
   }
 ]

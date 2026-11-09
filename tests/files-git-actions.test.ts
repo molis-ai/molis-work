@@ -11,6 +11,7 @@ import { gitActions, GIT_ACTIONS } from "@molis-ai/molis-work-plugin-git";
 import { prepareGitIndexCapability, prepareGitOperationCapability, readGitOperationsCapability, readGitResultsCapability } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { bindActionClient, ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { directoriesOf } from "./fixtures/catalog-host.js";
 
 test("Files/Git production Host actions keep fixed ownership, reject impersonation and revalidate before publishing", { timeout: 30_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "files-git-actions-"));
@@ -25,6 +26,7 @@ test("Files/Git production Host actions keep fixed ownership, reject impersonati
     actionAvailability: (_caller, action) => !enabled && action.provider.plugin_id === "io.molis.work.files"
       ? { available: false, code: "actions.plugin_disabled", reason: "已停用" } : { available: true },
     workspacesFor: async () => { if (++reads === pauseAt) { enter(); await barrier; } return [workspace]; },
+    directoriesFor: directoriesOf([workspace]),
   });
   const reference = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "project" });
   const caller: ActionCallContext = { actor_id: "web-user", project_id: "project", audience: "user", permissions: ["artifact:read", "artifact:write", "storage:private", "workspace:read"],
@@ -76,7 +78,11 @@ test("Files/Git production Host actions keep fixed ownership, reject impersonati
     assert.equal(opened.result.outcome, "text");
     if (opened.result.outcome !== "text") throw new Error("expected text");
     const input = { workspace_id: "fixture", path: ["note.txt"], port: "before" as const, fingerprint: opened.result.fingerprint };
+    const readsBefore = reads;
     const first = await bound.invoke(filesActions.capture, input);
+    // A capture reads the folders a few times; its last read is the check right before its fixed publication.
+    const readsPerCapture = reads - readsBefore;
+    assert.ok(readsPerCapture >= 1, "a capture checks the folder before it publishes");
     assert.equal(first.saved.artifact.artifact_id, "io.molis.work.files:before");
     assert.equal(first.saved.artifact.owner_actor_id, "web-user");
     assert.equal(first.saved.artifact.created_by, "web-user");
@@ -93,7 +99,7 @@ test("Files/Git production Host actions keep fixed ownership, reject impersonati
     for (const mode of ["revoked", "disabled", "cancelled"] as const) {
       const entered = new Promise<void>(resolve => { enter = resolve; });
       barrier = new Promise<void>(resolve => { release = resolve; });
-      pauseAt = reads + 3; // selected workspace after the real file read, before its fixed publication
+      pauseAt = reads + readsPerCapture; // the folder checked after the real file read, right before its fixed publication
       const controller = new AbortController();
       const pending = client.invoke({ ...caller, signal: controller.signal }, filesActions.capture, input);
       const rejection = assert.rejects(pending, mode === "revoked" ? { code: "actions.revoked" }

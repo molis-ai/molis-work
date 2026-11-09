@@ -164,7 +164,7 @@ test("W2-18-BROWSER-GRANT-01: a real Host rejection of the site save does not ap
   await browser.waitFor("!!document.querySelector('[data-browser-action=approve-site]')", 15_000);
   await browser.evaluate(`(() => { const send=window.fetch;
     window.fetch=(input,init={})=>{if(String(input).endsWith('/api/browser/sites')&&init.method==='POST') {
-      init={...init,headers:{...init.headers,'x-molis-work-control-token':'fixture-invalid-control'}};
+      init={...init,headers:{...init.headers,'x-molis-work-page-session':'fixture-invalid-proof'}};
     } return send(input,init);}; })()`);
   await armResponse(browser, "denied-grant", "/api/browser/sites", "POST");
   await browser.click("[data-browser-action=approve-site]"); await waitHeld(browser, "denied-grant");

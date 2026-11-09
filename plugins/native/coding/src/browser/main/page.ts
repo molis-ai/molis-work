@@ -128,7 +128,12 @@ export interface State {
   viewSignal: AbortSignal | undefined;
   windowRuns: RunView[];
   workspaceId: string;
+  /** The Host's worktree of `workspaceId` the session's rounds run in, when the person chose one (「用于下一轮」); the folder stays the output. */
+  worktree: WorktreeChoice | null;
 }
+
+/** A worktree the session's rounds run in: its id is what a round is started with, its path only says where. */
+export interface WorktreeChoice { readonly worktree_id: string; readonly canonical_path: string }
 
 /** The pieces the page is made of, each built once when the page mounts. */
 export interface Refs {

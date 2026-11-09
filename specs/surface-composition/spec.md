@@ -469,7 +469,7 @@ surface_corrections        项目库
 
 **文件与交接。** 写手可改 contracts 的 `plugin-sandbox.ts`、SDK `sandbox-actions.ts`／`sandbox-manifest.ts` 及专用协议工具、sandbox 的 schema／runner、正常包依赖登记与独立 `tests/security-invariants-sandbox-presentation.test.ts`。第 10、16 批均核实并释放了 design-system 的 `plugin-components.ts`／`plugin-component-records.ts`，只在普通组件绑定中排除固定读取协议，不改界面或样式。创作台 `build-checks.ts` 的 G5 合成测试壳只移除真实 query 的协议标记；生产声明、样例和 G6 的真实权限保持。#1984 正占用的 SDK 根导出与共享 API 快照、Host `sandbox-package.ts`、CLI、两包 README、`tests/sandbox-pack.test.ts` 及其公共 fixture 保持串行交接；可读取复用，不覆盖。本批独立代码不得绕开原入口来避开占用。
 
-隔离作者开发入口 `apps/local-host/src/plugin-development.ts` 也向原 Runtime 安装路径注入同一可信呈现检查器，避免正式安装能用、作者预览却因缺 hook 被拒；不能为开发路径关闭检查或默认放行。该接点只装配现有目录和 checker，不引入另一份声明目录。
+现有 `apps/local-host/src/plugin-development.ts` 明确只运行 Integration；app 作者预览走真实沙箱预览及项目 Host 装配。该 Integration 入口不新增呈现 checker，也不把它当作 app 预览证据；签名 Integration 的呈现／读取协议仍在包边界拒绝。app 的正式安装和项目 Host 共用可信检查器，Runtime 遇到声明呈现却缺检查器时拒绝，不能为开发用途默认放行。
 
 **验证。** SCS-11／16：上述同包预览、安装、运行与重开均须保留呈现、values、reader 与 external；伪造投影、未知协议、普通操作中的开放 schema、协议写入／联网／计费 effects、坏输入输出与撤权都被拒。没有新增声明的旧包原样回放。服务测试与真实安装证据分开；未完成安装、运行和重开前，不宣称第三方同等待遇已实现。
 

@@ -128,6 +128,92 @@ export interface CharactersQuery {
     get(characterId: string): CharacterDraft | null;
 }
 
+export declare const ROLE_TEMPLATE_SCHEMA: {
+    readonly type: "object";
+    readonly properties: {
+        readonly title: import("@molis-ai/molis-work-contracts/platform/plugin-sandbox").SandboxSchema;
+        readonly instructions: {
+            readonly type: "string";
+            readonly maxLength: 20000;
+        };
+        readonly host_tools: {
+            readonly type: readonly ["array", "null"];
+            readonly maxItems: 100;
+            readonly items: {
+                readonly type: "string";
+            };
+        };
+        readonly action_tools: {
+            readonly type: readonly ["array", "null"];
+            readonly maxItems: 100;
+            readonly items: {
+                readonly required: readonly ["capability_id", "version", "provider_id"];
+                readonly type: "object";
+                readonly properties: {
+                    readonly capability_id: {
+                        readonly type: "string";
+                        readonly minLength: 1;
+                    };
+                    readonly version: {
+                        readonly type: "integer";
+                        readonly minimum: 1;
+                    };
+                    readonly provider_id: {
+                        readonly type: "string";
+                        readonly minLength: 1;
+                    };
+                };
+                readonly additionalProperties: false;
+            };
+        };
+        readonly skills: {
+            readonly type: "array";
+            readonly items: {
+                readonly type: "object";
+                readonly properties: {
+                    readonly pack: {
+                        readonly type: "string";
+                        readonly pattern: "^io\\.molis\\.work\\.[a-z0-9][a-z0-9.-]*$";
+                        readonly maxLength: 200;
+                    };
+                    readonly skill_id: {
+                        readonly type: "string";
+                        readonly pattern: "^[a-z0-9][a-z0-9-]*$";
+                    };
+                };
+                readonly required: readonly ["pack", "skill_id"];
+                readonly additionalProperties: false;
+            };
+        };
+        readonly materials: import("@molis-ai/molis-work-contracts/platform/plugin-sandbox").SandboxSchema;
+        readonly outputs: import("@molis-ai/molis-work-contracts/platform/plugin-sandbox").SandboxSchema;
+        readonly works_with: {
+            readonly type: "array";
+            readonly items: {
+                readonly type: "string";
+                readonly minLength: 1;
+            };
+            readonly uniqueItems: true;
+        };
+    };
+    readonly required: readonly ["title", "instructions"];
+    readonly additionalProperties: false;
+};
+
+export interface RoleTemplate {
+    title: TextRef;
+    instructions: string;
+    host_tools?: string[] | null;
+    action_tools?: ExactActionReference[] | null;
+    skills?: Array<{
+        pack: string;
+        skill_id: string;
+    }>;
+    materials?: TextRef;
+    outputs?: TextRef;
+    works_with?: string[];
+}
+
 export declare const characterArtifactPreviewAction: ActionDefinition<import("platform/file-sources").ArtifactPreviewInput, import("platform/file-sources").FileContent>;
 
 export declare const characterErrors: import("platform/action-errors").ErrorCodeRaisers<{

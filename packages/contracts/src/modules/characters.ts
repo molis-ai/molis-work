@@ -1,4 +1,6 @@
 import { defineArtifactPreviewAction, parseExactActionReferences, type ActionDefinition, type ActionSchema, type ExactActionReference } from "../platform/actions.js";
+import { ACTION_REFERENCE_SCHEMA } from "../platform/action-offers.js";
+import { TEXT_REF_LIMITS, TEXT_REF_SCHEMA, type TextRef } from "../platform/ui-text.js";
 import type { ArtifactReference } from "./artifacts.js";
 import { parseCharacterImportSnapshot, type CharacterImportSnapshot } from "./character-import.js";
 export * from "./character-import.js";
@@ -28,6 +30,52 @@ export const CHARACTER_ARTIFACT_PRODUCER = {
 } as const;
 
 export type CharacterState = "active" | "disabled" | "tombstoned";
+
+/** Reusable character content declared by a scene package or draft. */
+export interface RoleTemplate {
+  title: TextRef;
+  instructions: string;
+  /** Omitted or null inherits the caller's selection. An empty list removes all Host tools. */
+  host_tools?: string[] | null;
+  /** Omitted or null inherits the explicit run selection. An empty list removes all actions. */
+  action_tools?: ExactActionReference[] | null;
+  skills?: Array<{ pack: string; skill_id: string }>;
+  materials?: TextRef;
+  outputs?: TextRef;
+  works_with?: string[];
+}
+
+/** Wire shape. TextRef combinations, parser semantics and UTF-16 limits belong to SDK validation. */
+export const ROLE_TEMPLATE_SCHEMA = {
+  type: "object",
+  properties: {
+    title: TEXT_REF_SCHEMA,
+    instructions: { type: "string", maxLength: 20_000 },
+    host_tools: { type: ["array", "null"], maxItems: 100, items: { type: "string" } },
+    action_tools: {
+      type: ["array", "null"],
+      maxItems: 100,
+      items: { ...ACTION_REFERENCE_SCHEMA, required: ["capability_id", "version", "provider_id"] },
+    },
+    skills: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          pack: { type: "string", pattern: "^io\\.molis\\.work\\.[a-z0-9][a-z0-9.-]*$", maxLength: TEXT_REF_LIMITS.owner },
+          skill_id: { type: "string", pattern: "^[a-z0-9][a-z0-9-]*$" },
+        },
+        required: ["pack", "skill_id"],
+        additionalProperties: false,
+      },
+    },
+    materials: TEXT_REF_SCHEMA,
+    outputs: TEXT_REF_SCHEMA,
+    works_with: { type: "array", items: { type: "string", minLength: 1 }, uniqueItems: true },
+  },
+  required: ["title", "instructions"],
+  additionalProperties: false,
+} as const satisfies ActionSchema;
 
 /** A personal draft. Its revision is NOT an Artifact publication version. */
 export interface CharacterDraft {

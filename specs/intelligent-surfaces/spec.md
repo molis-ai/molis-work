@@ -283,7 +283,7 @@ flowchart LR
 
 排期依据：[52](../post-anticorruption-roadmap/reference/batches/52.md)、[63](../post-anticorruption-roadmap/reference/batches/63.md)、[67](../post-anticorruption-roadmap/reference/batches/67.md)、[06](../post-anticorruption-roadmap/reference/batches/06.md)。平台成果库的 `artifact` reader、角色的 `character` reader 不属于这 23 个插件；Skill、连接和 MCP 的列表／读取动作也不等于通用 subject reader。跨 Skill/MCP 操作面归 61／63，平台对象的具体呈现接点仍待核定。风险、Work Brief 和 Sessions 重做不在现行登记中，按各自批次声明，不补占位插件。
 
-现有组件板使用同一份 `inbox_item` 示例切换三个主人，证明共用 renderer 的显示与交互，不能冒充真实 `inbox_entry`、`goal`、`coding_session` 的登记或消费。生产接入时按可信登记表列出所有内置插件，缺声明的直接标缺口与去处，不在产品里再维护第二份静态插件名单。IUI-24 的这次源码核查不替代 IUI-21 的真实组件板或 IUI-26 的本人验收。
+现有组件板使用同一份 `inbox_item` 示例切换三个主人，证明共用 renderer 的显示与交互。IUI-21 补片在原「呈现形态」一节明确标示例，另外用现有只读行显示内置登记状态。工作台从生成的 `BUILTIN_PLUGIN_CATALOG` 投影插件身份、显示名和 `Manifest.presentation.objects` 是否有声明，组件板只按这份投影画一行一个插件。仅有概况的插件仍标明缺对象呈现，去处查本节。该清单只读构建登记，零运行时请求和业务副作用，也不另造资源或插件名单。真实浏览器核对名单与登记一致、中英缺口可读、窄屏可用；生产的 `inbox_entry`、`goal`、`coding_session` 消费与本人验收另验。
 
 ## 10. 与现有需求的分工
 
@@ -312,7 +312,7 @@ flowchart LR
   - §4.2 每种形态 × 常见状态（进行中、要你决定、要你验收、失败、部分完成、过期、撤权、已删除）× 几个位置（正文、列表、对话、讨论、侧栏、通知）各一张样张；
   - 用真实组件和标明「示例」的数据；
   - 每个内置插件至少一行，没声明的标成缺口。
-- **插件开发 Skill**（`skills/molis-plugin-dev/`）写清怎样声明对象、字段、形态、操作和挂载位，以及在组件板上自查。
+- **插件开发 Skill** 的[对象呈现章节](../../skills/molis-plugin-dev/ui.md#对象的呈现)写清怎样声明对象、字段、形态、操作和挂载位，以及在组件板上自查。原生与手写签名 app 包说明已补，生产挂载随页面消费片接通。
 - **插件创作台**：生成插件时一并生成呈现声明，走同一套校验。
 
 ## 12. 合同与落点

@@ -40,6 +40,15 @@ test("builtin-methods: a method with business tools is the Assistant's, never Co
   }
 });
 
+test("builtin-methods: every method's words the catalog shows have an English entry", () => {
+  for (const manifest of PLUGINS) {
+    const words = manifest.ui?.translations ?? {};
+    for (const method of manifest.methods ?? []) for (const text of [method.name, method.description, method.when_to_use, method.when_not_to_use]) {
+      if (text) assert.ok(words[text], `${manifest.plugin_id} / ${method.skill_id}: no English for "${text}"`);
+    }
+  }
+});
+
 test("builtin-methods: the Manifests still parse with the new fields", () => {
   for (const manifest of PLUGINS) {
     const parsed = parsePluginManifest(JSON.parse(JSON.stringify(manifest)));

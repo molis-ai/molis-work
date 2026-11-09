@@ -459,7 +459,10 @@ test("07-AUDIT a record gone in a pane page marks its tab only after the page ta
   // only from that frame. Wait for it to be the workbench's pane page, then let the record it shows go missing (the record-gone it
   // dispatches is the one a plugin's page sends when its read answers 404).
   await waitFor(`(() => { const frame = document.querySelector('iframe[data-side-pane-src]'); try {
-    return frame.contentDocument?.readyState === 'complete' && frame.contentDocument.body.dataset.paneEmbedded === 'true'; } catch { return false; } })()`, 15_000);
+    // The pane page starts the same tab workspace after its body says it is embedded: the workspace's public entry is up when
+    // its record-gone listener is, so the report below cannot be sent before there is anyone to send it.
+    return frame.contentDocument?.readyState === 'complete' && frame.contentDocument.body.dataset.paneEmbedded === 'true'
+      && typeof frame.contentWindow.molisWorkOpenPlugin === 'function'; } catch { return false; } })()`, 15_000);
   const marked = "document.querySelectorAll('[data-side-tabs] .tab-item[data-tab-state=gone]').length";
   assert.equal(await evaluate(marked), 0, "no tab is marked before the pane reports");
   await evaluate(`(() => { const frame = document.querySelector('iframe[data-side-pane-src]');

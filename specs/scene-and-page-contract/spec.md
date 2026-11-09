@@ -653,7 +653,7 @@ SPC-C06／C07 用公开 schema 验批准请求键、按请求返回原回执、�
 
 保存后的 `refreshOpenProjectPlugins` 需直接取得这一次刷新结果。现有 `inspectActions` 只返回动作目录。Host 装配可复用 `LocalHost.withExistingRuntime`，由 `project-plugins.ts` 从已有 `started` 记录调用同一个 `state.refreshEnablement`。没有插件平台时由下次打开项目读最新成员并启动。严格保存入口只对本次成员变更涉及的切换报告同步失败，关联范围从事务内提交前后快照和现有插件登记取得，含随行项。项目页与保存进入同一个串行刷新队列，只有保存把本次相关的未完成结果转换为提交后的 503。
 
-未完成切换可在现有刷新闭包内临时记住，仅用于完成仍符合最新成员选择的切换。已有安装用 `runtime.get(installId)` 返回的 `PluginInstanceRecord.install_id`、`installation_generation` 和 `state` 核对身份与当前生命周期。启用沿 `supervisor.state()` 和 `enable()`，后者按需调用 `restart()`。停用沿 `runtime.stop()` 收尾。反向修改或安装换代时丢弃过时标记，按现状处理。既有取消与撤权检查继续生效，其他崩溃、隔离解除和重新安装各走原授权入口。成员意图始终来自 Catalog，进程重开走现有启动流程。市场已有「重试」继续重读列表，运行恢复走现有项目重开或刷新入口。
+未完成切换可在现有刷新闭包内临时记住，仅用于完成仍符合最新成员选择的切换。已有安装用 `runtime.get(installId)` 返回的 `PluginInstanceRecord.install_id`、`installation_generation` 和 `state` 核对身份与当前生命周期。启用沿 `supervisor.state()` 和 `enable()`，后者按需调用 `restart()`。停用沿 `runtime.stop()` 收尾。反向修改或安装换代时丢弃过时标记，按现状处理。既有取消与撤权检查继续生效，其他崩溃、隔离解除和重新安装各走原授权入口。已明确卸载的安装仍由原卸载记录阻止启动。把该插件重新加入项目只保存成员，返回成功并清掉过期的切换重试，不尝试重装，也不返回运行同步失败。RAC-1034 通过真实成员 HTTP 验证重新加入返回 200，卸载记录与路由拒绝保持。成员意图始终来自 Catalog，进程重开走现有启动流程。市场已有「重试」继续重读列表，运行恢复走现有项目重开或刷新入口。
 
 **实现顺序。** #1984 核对头 `cbbeb06` 未占 `project-plugin-enablement.ts`、`project-plugins.ts` 或 `packages/plugin-runtime/src/supervisor.ts`。运行协调的结果与重试修复经设计审核后可先做独立段。Host 动作装配、页面接入及共享快照等 #1984 交接。临时切换状态不持久化，也不增加公开恢复动作、路由或布局。
 

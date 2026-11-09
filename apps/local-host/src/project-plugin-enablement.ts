@@ -60,7 +60,12 @@ export function projectPluginEnablementRefresh(platform: PluginPlatform, home: s
         if (!resuming) pending.delete(plugin_id);
         const isActive = platform.supervisor.enabledPluginIds().includes(plugin_id);
         if (!resuming && wanted === isActive) continue;
-        const refusal = wanted ? enableRefusal(platform, state, install) : undefined;
+        // Membership alone cannot restart an explicitly uninstalled plugin (BL-755).
+        if (wanted && (install?.state === "uninstalled" || (!install && installationSwitchedOff(platform, plugin_id)))) {
+          pending.delete(plugin_id);
+          continue;
+        }
+        const refusal = wanted ? enableRefusal(state, install) : undefined;
         if (refusal !== undefined) { unfinished.push({ plugin_id, desired_enabled: wanted, reason: refusal }); continue; }
         pending.set(plugin_id, { desired: wanted, install: installationIdentity(install) });
         const reason = wanted ? await enableProjectPlugin(platform, plugin_id) : await disableProjectPlugin(platform, plugin_id, install, isActive);
@@ -102,10 +107,9 @@ function readInstallation(platform: PluginPlatform, pluginId: string, installId:
   return record;
 }
 
-function enableRefusal(platform: PluginPlatform, state: PluginSupervisorState, install: PluginInstanceRecord | null): string | undefined {
+function enableRefusal(state: PluginSupervisorState, install: PluginInstanceRecord | null): string | undefined {
   if (state.status === "blocked") return state.message ?? "插件的依赖未满足";
   if (install?.state === "quarantined") return "插件已隔离，需要解除隔离后才能启用";
-  if (install?.state === "uninstalled" || (!install && installationSwitchedOff(platform, state.plugin_id))) return "插件已卸载";
 }
 
 async function enableProjectPlugin(platform: PluginPlatform, pluginId: string): Promise<string | undefined> {

@@ -505,7 +505,7 @@ surface_corrections        项目库
 
 “描述只有引用”在首页的准确含义是：不带对象字段值或准备输入值；本轮已授权的插件概况与静态说明允许带文字引用及参数，不带译好的句子。`summary` 来自本轮概况，`note` 来自确切 Manifest；文字 owner 从该读取器的可信插件身份绑定，不信返回值自报 owner。完整引用与参数、概况状态、目录与授权版本进入本轮 revision。现有描述缓存只有在本次所有读取和授权复核后才可命中；概况失败／被拒的卡不回退旧 summary，不能借命中跳过读取或 retain。无须另加与 groups 平行的展示结果。
 
-**目录与顺序。** 只为当前可信项目的本人调用组合首页，插件 audience 在任何首页事实读取前被拒。Host 给服务同一份当前安装、项目成员关系和工作台主区投影；canonical plugin id 是唯一 owner，shell key 只留在导航适配。双实例只出一张卡；打开复用现有 `dualStageOwner` 的实际 view owner，概况独立绑定唯一可用的声明、scope、install 和 provider，不拿没有概况的 Home 半部替代项目半部。两份有效概况无法按现有可信路由唯一决定时不任选，卡为 unreadable。真正 disabled、项目隐藏、卸载、启动失败不能互相替代。
+**目录与顺序。** 只为当前可信项目的本人调用组合首页，插件 audience 在任何首页事实读取前被拒。Host 给服务同一份当前安装、项目成员关系和工作台主区投影；canonical plugin id 是唯一 owner，shell key 只留在导航适配。双实例只出一张卡；打开复用现有 `dualStageOwner` 的实际 view owner，概况独立绑定唯一可用的声明、scope、install 和 provider，不拿没有概况的 Home 半部替代项目半部。 当前签包的同一插件 id 由安装服务 `assertScopeKept` 保持首次安装范围，不能用“同 id 在 Home 与项目各装一包”构造双实例；双实例用实际支持两半的内置登记验证，签包分别验证各自真实范围及伪造范围的拒绝。两份有效概况无法按现有可信路由唯一决定时不任选，卡为 unreadable。真正 disabled、项目隐藏、卸载、启动失败不能互相替代。
 
 Dock 的个人固定顺序目前只在浏览器，不在 Host 存储。首页请求可给有界、去重的 `home_order`（canonical plugin id 列表）；页面沿已有目录把 shell key 投影为 canonical id，不另存一份顺序。该输入只排序服务已经取得的可见候选，未知或已不可见 id 不产生卡片或权限。可读「等你」所在插件优先，其余按当前固定顺序及既有导航默认顺序；不能宣称 Host 已持有浏览器 pin 状态。
 
@@ -526,6 +526,10 @@ Dock 的个人固定顺序目前只在浏览器，不在 Host 存储。首页请
 **点击。** 开始动作必须同时属于 Manifest 的 start 白名单和本轮概况返回，固定同一 owner／install／provider，当前可用。声明项增加可选 `open: { view_id, panel }`，概况仍只选择动作引用，不另回路由。无 `open` 时，空输入须通过实际 schema 才可生成 `invoke`；有必填业务字段的动作不假造输入。有 `open` 时只生成 `form`，点击复核当前安装、声明、概况选择、动作权限与实际表单后，沿已有 `UiViewSelection.panel` 和 `molis-work:select-item` 导航；仅打开和取消均零业务写入，用户填表并提交后才走既有动作网关。
 
 Goals 在自身声明中把 `goals.create@1` 指向 `stage/create-dialog`，自身页面消费选择并调用原 `openCreate()`。Host 不识别 Goals 名字：SDK 校验只接受本 Manifest 的主区与有界 panel，Host 匹配同贡献的实际浮层；签名包匹配其已签组件中绑定该动作的真实输入表单。签名页面只接受当前父 pane 的选择，复用组件已有打开和聚焦行为。原生与签名安装共用声明、权限与点击复核，不能以 Goals 专用分支绕过第三方同等待遇。
+
+**首页表单的现有授权证明。** 接线核对发现，合法的委托能力表单可能在普通本人目录中缺少目标权限，尽管原页面提交网关能够证明原安装的自身服务授权与精确委托批准。首页不能把它永久降为无开始入口，也不能扩大普通动作客户端。Host 从 `installedComponentSubmit` 抽取与 payload 无关的原组件绑定、exposure／`retainOperation` 与两份授权证明，由真实输入表单复用；提交仍单独解析用户填写的真实 payload，不传假值探测权限。原 activation 的 `requireGrant` 由现有页面授权 owner 按完整发行物取得，不只看持久 grants，也不为导航造一个页面凭据。
+
+受保护首页入口在 compose 之前同步取同一份可信目录，构造仅供本请求读取候选的 caller：普通引用继续按原本人授权检查，额外证明只对应确切 form 动作／提供方／安装，不能让另一项动作借用同名权限。目录与服务共用这份取样及一次 `discoverRetained`，由 Kernel 保留原登记；不能事后拼装“可用”目录行，也不能在 discovery 内临时换 caller，绕过已绑定原 caller 的保留检查。只保留本次实际返回的依赖，未选表单的变化不拖累整页；已选表单的原激活、policy、自身授权或精确批准在等待后变化则拒绝。首页只把这份证明用于表单导航；直接执行仍用原本人授权，真正提交仍只走原 `component_submit`，打开和取消零业务写入。定向验证包含合法委托表单、缺自身授权／缺精确批准／另一 capability 的同名权限、晚撤权与换包、伪组件／panel／动作／安装、普通客户端仍拒绝越权及一次目录取样。这是独立实现核对后的接线补充，公共合同最终合审与生产首页实操仍待全批交付。
 
 **签名表单提交。** 源码核对发现，当前已装签名组件的 `submit` 仍把组件和表单值送到 `/call` 后直接执行，不能仅接通首页导航便宣称经过统一动作网关。本片让所有已安装签名页的表单提交共用现有 `/api/host/plugin-page-actions`，增加封闭模式 `{ mode: "component_submit", component_id, payload }`；不收客户端给的动作、提供方、安装或项目身份，不保留首页专用提交分支。普通组件读取及未安装的创作台预览仍走各自现有读取／试运行路径。
 

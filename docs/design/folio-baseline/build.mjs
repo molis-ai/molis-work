@@ -1,0 +1,22 @@
+import { readFile,writeFile,mkdir,copyFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
+import { parseSkinFile,resolveSkin,renderRadioGroup,parseFontScheme,resolveFontScheme } from '@molis-ai/molis-work-plugin-sdk/ui';
+import { BASELINE_SPEC } from '../../../packages/design-system/dist/baseline.js';
+import { lookRules } from '../../../packages/design-system/dist/primitives/catalog-appearance-looks.js';
+import { APPEARANCE_BOARD_STYLES } from '../../../packages/design-system/dist/primitives/catalog-appearance-styles.js';
+import { lookCardSection,lookProofSection } from '../../../packages/design-system/dist/primitives/catalog-appearance.js';
+import { renderSheet } from '../../../packages/design-system/dist/primitives/overlay.js';
+import { EN } from '../../../apps/workbench/dist/i18n/en.js';
+import { directions,skinFile } from './directions.mjs';
+const out=resolve('.impeccable/qa/folio-baseline/site'); await mkdir(out,{recursive:true});
+const baseline=JSON.parse(await readFile('packages/design-system/resources/skins/soft-workbench.json','utf8'));
+const fontFile={format_version:1,id:'folio-rounded',revision:1,name:{literal:'Folio Rounded'},roles:{body:{families:[{face:'Folio Latin'},{face:'Folio Rounded'},{system:'system-ui'},{system:'sans-serif'}],weight:400,tracking_em:0},control:{weight:500},title:{weight:600},display:{weight:600},code:{families:[{system:'ui-monospace'},{system:'monospace'}]}},faces:[400,500,600,700].flatMap(weight=>[{family:'Folio Latin',weight,unicode_range:['U+0000-024F','U+2000-206F','U+20AC'],resource:`font.folio-latin-${weight}`},{family:'Folio Rounded',weight,unicode_range:['U+2E80-2EFF','U+3000-303F','U+31C0-31EF','U+4E00-9FFF','U+FE10-FE1F','U+FE30-FE4F','U+FF00-FFEF'],resource:`font.folio-rounded-${weight}`}])};
+const parsedFont=parseFontScheme(JSON.stringify(fontFile),{file:'folio-rounded.json'});if(!parsedFont.ok)throw Error(JSON.stringify(parsedFont.problems));const resolvedFont=resolveFontScheme(BASELINE_SPEC,JSON.parse(await readFile('packages/design-system/resources/fonts/system-sans.json','utf8')),parsedFont.value);if(!resolvedFont.ok)throw Error(JSON.stringify(resolvedFont.problems));
+const looks=directions.map(d=>{const file=skinFile(d,BASELINE_SPEC);const parsed=parseSkinFile(JSON.stringify(file),BASELINE_SPEC,{file:`${d.id}.json`});if(!parsed.ok)throw Error(JSON.stringify(parsed.problems));const resolved=resolveSkin(BASELINE_SPEC,baseline,parsed.value);if(!resolved.ok)throw Error(JSON.stringify(resolved.problems));return {id:d.id,name:d.name,by:'内置',skin:resolved.value,font:resolvedFont.value};});
+const templates={};
+const radio=renderRadioGroup({legend:'字体',name:'font-policy',items:[{value:'follow',label:'跟随皮肤推荐',checked:true},{value:'system',label:'系统无衬线'}]});
+for(const lang of ['zh','en']){const say=(text,values={})=>{let result=lang==='en'?(EN[text]??text):text;return result.replace(/\{([^{}|]+)\}/g,(_,k)=>String(values[k]??`{${k}}`));};templates[lang]={cards:lookCardSection(say),proof:lookProofSection(say)};}
+await writeFile(resolve(out,'components.js'),`window.folioComponents=${JSON.stringify(templates)};window.folioRadio=${JSON.stringify(radio)};window.folioSheet=${JSON.stringify(renderSheet({labelledBy:'sheet-title',title:'样张',body:'<div id="sheet-body"></div>',footer:'',attrs:{id:'mobile-sheet'}}))};window.folioDirections=${JSON.stringify(directions.map(({id,name,en,note,enNote})=>({id,name,en,note,enNote})))};`);
+await writeFile(resolve(out,'appearance.css'),APPEARANCE_BOARD_STYLES+'\n'+lookRules(looks));
+for(const file of ['index.html','app.js','layout.css'])await copyFile(resolve('docs/design/folio-baseline',file),resolve(out,file));
+console.log(out);

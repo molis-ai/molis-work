@@ -275,8 +275,7 @@ function normalizeOperation(raw: unknown, index: number, dropped: string[], with
     if (left.length) { input.required = (input.required ?? []).filter(field => !left.includes(field)); dropped.push(`${at} 的 ${left.join('、')} 是筛选条件，示例里没给，改为可选`); }
   }
   const examples = withExamples ? withinOutput(normalizeExamples(raw.examples, base, at, dropped), output, at, dropped) : [];
-  const settled = withExamples ? reachable(examples, base, at, dropped) : [];
-  return { ...base, examples: settled };
+  return { ...base, examples: withExamples ? reachable(examples, base, at, dropped) : [] };
 }
 /**
  * Each operation's examples run on its own empty store. When a design says a missing record is an error (it has an

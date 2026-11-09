@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { escText, escapeAttr, said } from "./dom.js";
 import { actIdFor, agentMissing, ai, actionOrder, batch, hasFile, hiddenActions, recipeFor, runtime, shortcutFor, stageBusy } from "./model.js";
 import { opSvg } from "./rows.js";
@@ -19,27 +20,26 @@ export function actButton(page: ShelfPage, label: string, id: string, enabled: b
 function actChip(page: ShelfPage, id: string, label: string, enabled: boolean, title: string, tone: string, slot: string): string {
   const key = slot || id;
   const hide = page.arranging
-    ? '<span class="shelf-act-hide" role="button" tabindex="0" data-shelf-hide-act="' + escapeAttr(key) + '" title="' + escapeAttr(page.L("shelf.bar.remove-from-bar")) + '">' + opSvg("hide") + "</span>"
+    ? '<span class="shelf-act-hide" role="button" tabindex="0" data-shelf-hide-act="' + escapeAttr(key) + '" title="' + escapeAttr(uiText.text("shelf.bar.remove-from-bar")) + '">' + opSvg("hide") + "</span>"
     : "";
   const grip = page.arranging ? '<span class="shelf-act-grip" aria-hidden="true"></span>' : "";
   return '<span class="shelf-act-wrap" data-shelf-act-slot="' + escapeAttr(key) + '"' + (page.arranging ? ' draggable="true"' : "") + ">" + grip + actButton(page, label, id, enabled, title, tone) + hide + "</span>";
 }
 
 function moreButton(page: ShelfPage): string {
-  const { L } = page;
-  return '<span class="shelf-more"><span class="shelf-act" role="button" tabindex="0" data-shelf-more title="' + escapeAttr(L("shelf.bar.manage-actions")) + '" aria-haspopup="menu">···</span><div class="shelf-more-menu" data-shelf-more-menu hidden><span class="shelf-more-item" role="menuitem" tabindex="0" data-shelf-arrange>'
-    + escText(page.arranging ? L("shelf.bar.done-arranging") : L("shelf.bar.arrange-actions")) + '</span><span class="shelf-more-item" role="menuitem" tabindex="0" data-shelf-new-action>' + escText(L("shelf.bar.new-action")) + "</span></div></span>";
+  return '<span class="shelf-more"><span class="shelf-act" role="button" tabindex="0" data-shelf-more title="' + escapeAttr(uiText.text("shelf.bar.manage-actions")) + '" aria-haspopup="menu">···</span><div class="shelf-more-menu" data-shelf-more-menu hidden><span class="shelf-more-item" role="menuitem" tabindex="0" data-shelf-arrange>'
+    + escText(page.arranging ? uiText.text("shelf.bar.done-arranging") : uiText.text("shelf.bar.arrange-actions")) + '</span><span class="shelf-more-item" role="menuitem" tabindex="0" data-shelf-new-action>' + escText(uiText.text("shelf.bar.new-action")) + "</span></div></span>";
 }
 
 /** The words under a recipe or shortcut chip: why it is greyed out, or what it does. */
 function chipTitle(page: ShelfPage, action: Shortcut | null, recipe: Recipe | null, enough: boolean, needsVision: boolean): string {
   const { L } = page;
   const name = action ? said(L, action.name) : said(L, recipe?.short_title || recipe?.label || "");
-  if (!enough) return L("shelf.bar.name-needs-at-least-two", { name });
-  if (needsVision) return L("shelf.bar.this-mac-has-no-on");
+  if (!enough) return uiText.text("shelf.bar.name-needs-at-least-two", { name });
+  if (needsVision) return uiText.text("shelf.bar.this-mac-has-no-on");
   if (action) {
     const reason = ai(page).reason;
-    return ai(page).available === true ? L("shelf.bar.run-on-a-copy-and") : reason ? said(L, reason) : L("shelf.bar.configure-an-ai-model-first");
+    return ai(page).available === true ? uiText.text("shelf.bar.run-on-a-copy-and") : reason ? said(L, reason) : uiText.text("shelf.bar.configure-an-ai-model-first");
   }
   if (recipe?.available === false) return recipe.reason ? said(L, recipe.reason) : "";
   return recipe?.blurb ? said(L, recipe.blurb) : "";
@@ -57,7 +57,7 @@ function actionChip(page: ShelfPage, slot: string, picked: Item[], hidden: Set<s
   if (!spec || !(picked.length > 0 && picked.every((item) => (spec.accepts as readonly string[]).includes(item.kind)))) return "";
   const enough = picked.length >= spec.minimum;
   if (hidden.has(slot)) {
-    return page.arranging ? '<span class="shelf-act" role="button" tabindex="0" data-shelf-restore-act="' + escapeAttr(slot) + '">' + recipeSvg(spec.id, spec.tone) + escText(L("shelf.bar.add-back-to-bar")) + "</span>" : "";
+    return page.arranging ? '<span class="shelf-act" role="button" tabindex="0" data-shelf-restore-act="' + escapeAttr(slot) + '">' + recipeSvg(spec.id, spec.tone) + escText(uiText.text("shelf.bar.add-back-to-bar")) + "</span>" : "";
   }
   const imageOnly = recipe?.recipe === "extract_text" && picked.some((item) => item.kind === "image");
   const needsVision = imageOnly && runtime(page).image_text === false;
@@ -71,7 +71,7 @@ function paintHint(page: ShelfPage, kind: BarKind): void {
   if (page.stickyHint) {
     hint.hidden = false;
     hint.textContent = page.stickyHint;
-    if (page.admitRetry?.hint === page.stickyHint) hint.insertAdjacentHTML("beforeend", ' <button type="button" class="mw-btn mw-btn--link mw-btn--sm" data-shelf-retry-admit>' + escText(page.L("shelf.bar.try-the-ones-not-added")) + "</button>");
+    if (page.admitRetry?.hint === page.stickyHint) hint.insertAdjacentHTML("beforeend", ' <button type="button" class="mw-btn mw-btn--link mw-btn--sm" data-shelf-retry-admit>' + escText(uiText.text("shelf.bar.try-the-ones-not-added")) + "</button>");
     return;
   }
   hint.textContent = page.hintDefault;
@@ -80,11 +80,11 @@ function paintHint(page: ShelfPage, kind: BarKind): void {
 
 /** The actions of the bar for the kind of thing chosen. */
 function barActions(page: ShelfPage, kind: BarKind): string[] {
-  const { L, selected } = page;
-  if (kind === "result") return [actButton(page, L("shelf.bar.use-as-material"), "use", hasFile(selected))];
+  const { selected } = page;
+  if (kind === "result") return [actButton(page, uiText.text("shelf.bar.use-as-material"), "use", hasFile(selected))];
   if (kind === "clipboard") {
     const count = Math.max(page.clipSelection.size, page.selClip ? 1 : 0);
-    return [actButton(page, count > 1 ? L("shelf.bar.add-to-materials") + " · " + count : L("shelf.bar.add-to-materials"), "join", true)];
+    return [actButton(page, count > 1 ? uiText.text("shelf.bar.add-to-materials") + " · " + count : uiText.text("shelf.bar.add-to-materials"), "join", true)];
   }
   const picked = batch(page);
   const hidden = hiddenActions(page);
@@ -92,17 +92,17 @@ function barActions(page: ShelfPage, kind: BarKind): string[] {
 }
 
 export function renderBar(page: ShelfPage, kind: BarKind): void {
-  const { L, bar } = page;
+  const { bar } = page;
   if (!page.lifetime.alive) return;
   page.lastBarKind = kind;
   paintHint(page, kind);
   if (kind === "empty") {
-    bar.innerHTML = actButton(page, L("shelf.bar.new"), "pick", true);
+    bar.innerHTML = actButton(page, uiText.text("shelf.bar.new"), "pick", true);
     return;
   }
   bar.innerHTML = '<div class="shelf-bar-scroll">' + barActions(page, kind).join("") + "</div>"
     + '<span class="shelf-act-rule" data-shelf-act-rule aria-hidden="true"></span>'
-    + actButton(page, L("shelf.bar.conversation"), "talk", true, L("shelf.bar.open-the-terminal-session-this"))
+    + actButton(page, uiText.text("shelf.bar.conversation"), "talk", true, uiText.text("shelf.bar.open-the-terminal-session-this"))
     + moreButton(page);
 }
 

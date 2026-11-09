@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderBar } from "./bar.js";
 import { admitFiles } from "./admit.js";
 import { flushEdit } from "./edit.js";
@@ -18,7 +19,7 @@ function hint(page: ShelfPage, text: string): false {
 export function openTui(page: ShelfPage): void {
   const live = runtime(page);
   const actor = page.bench.querySelector("[data-shelf-tty-actor]");
-  if (actor) actor.textContent = live.runtime_key ? page.L("shelf.tui.agent-sent-to-the-terminal", { agent: live.title }) : page.L("shelf.tui.no-terminal-agent-found");
+  if (actor) actor.textContent = live.runtime_key ? uiText.text("shelf.tui.agent-sent-to-the-terminal", { agent: live.title }) : uiText.text("shelf.tui.no-terminal-agent-found");
   tui()?.open();
 }
 
@@ -26,14 +27,14 @@ export function openTui(page: ShelfPage): void {
 export function sendToTui(page: ShelfPage, text: string): boolean {
   const line = String(text || "").trim();
   if (!line) return false;
-  if (!runtime(page).executable) return hint(page, page.L("shelf.tui.no-terminal-agent-found-the"));
+  if (!runtime(page).executable) return hint(page, uiText.text("shelf.tui.no-terminal-agent-found-the"));
   const bridge = tui();
-  if (!bridge) return hint(page, page.L("shelf.tui.the-terminal-is-not-connected"));
+  if (!bridge) return hint(page, uiText.text("shelf.tui.the-terminal-is-not-connected"));
   page.stage.classList.add("is-talk");
   expandShelfStage(page, true);
   openTui(page);
   renderBar(page, page.lastBarKind);
-  if (bridge.send(line) === false) return hint(page, page.L("shelf.tui.the-terminal-is-not-connected"));
+  if (bridge.send(line) === false) return hint(page, uiText.text("shelf.tui.the-terminal-is-not-connected"));
   return true;
 }
 
@@ -80,7 +81,7 @@ async function sendFromWheel(page: ShelfPage, event: Event): Promise<void> {
   }
   const live = runtime(page);
   if (live.runtime_key === "" || !live.executable) {
-    page.stickyHint = page.L("shelf.tui.no-terminal-agent-found-the");
+    page.stickyHint = uiText.text("shelf.tui.no-terminal-agent-found-the");
     paintPreview(page);
     return;
   }
@@ -118,7 +119,7 @@ export function installTui(page: ShelfPage): void {
     const detail = (event as CustomEvent<{ texts?: string[]; message?: string } | null>).detail;
     const field = ttyInput(page);
     if (field) { field.value = [...(detail?.texts || []), field.value].filter(Boolean).join(" "); field.focus(); }
-    page.stickyHint = String(detail?.message || page.L("shelf.tui.the-terminal-is-not-connected"));
+    page.stickyHint = String(detail?.message || uiText.text("shelf.tui.the-terminal-is-not-connected"));
     renderBar(page, page.lastBarKind);
   });
   lifetime.listen(window, "molis-shelf-send-tui", (event) => sendFromWheel(page, event));

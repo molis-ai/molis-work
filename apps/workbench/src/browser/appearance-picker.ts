@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { UiAppearanceReceipt, UiAppearanceSelection } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { WorkbenchAppearance, WorkbenchAppearanceChoices } from "../appearance-document.js";
 import type { createAppearanceSync } from "./appearance-sync.js";
@@ -43,7 +44,7 @@ function drawPickerChoices(root: HTMLElement, current: WorkbenchAppearance, draf
   }
 }
 
-export function mountAppearancePicker(root: HTMLElement, initial: WorkbenchAppearance, sync: Sync, L: AppearanceText) {
+export function mountAppearancePicker(root: HTMLElement, initial: WorkbenchAppearance, sync: Sync, _L: AppearanceText) {
   const choices = JSON.parse(root.querySelector("[data-appearance-choices]")!.textContent!) as WorkbenchAppearanceChoices;
   const proof = root.querySelector<HTMLElement>(".mw-look-proof")!, canvas = proof.querySelector<HTMLElement>(".mw-look-proof__canvas")!;
   const home = root.querySelector("[data-appearance-proof-home]")!, sheet = root.querySelector<HTMLDialogElement>("[data-appearance-proof-sheet]")!;
@@ -71,26 +72,26 @@ export function mountAppearancePicker(root: HTMLElement, initial: WorkbenchAppea
     reopen.hidden = !draft;
     proof.dataset.state = phase === "ready" && conflict ? "conflict" : phase;
     const label = name(selection);
-    title.textContent = L(draft ? "试：{name}" : "现在用的：{name}", { name: label });
-    canvas.parentElement?.setAttribute("aria-label", L("样张：{name}（示意，不可操作）", { name: label }));
+    title.textContent = uiText.text(draft ? "workbench.appearance-picker.trying-name" : "workbench.appearance-picker.use-name", { name: label });
+    canvas.parentElement?.setAttribute("aria-label", uiText.text("workbench.appearance-picker.specimen-name-picture-not-operable", { name: label }));
     canvas.querySelector("[data-look-code-name]")!.textContent = selection.skin.id;
-    badge.textContent = L(draft ? "没用上" : "在用");
+    badge.textContent = uiText.text(draft ? "workbench.appearance-picker.not-applied" : "workbench.appearance-picker.use");
     badge.classList.toggle("mw-badge--success", !draft);
     badge.classList.toggle("mw-badge--info", Boolean(draft));
-    apply.querySelector("[data-slot=button-label]")!.textContent = L(resuming ? "继续这次操作" : conflict ? "仍然用上" : "用上");
+    apply.querySelector("[data-slot=button-label]")!.textContent = uiText.text(resuming ? "workbench.appearance-picker.continue-change" : conflict ? "workbench.appearance-picker.use-mine-anyway" : "workbench.appearance-picker.use-2");
     apply.disabled = phase !== "ready" || writing || blocked;
     cancel.disabled = !draft || writing;
     retry.hidden = !sync.available || (phase !== "failed" && !sync.uncertain);
-    status.textContent = writing ? L("正在保存外观…")
-      : !sync.available ? L("此页面的会话已结束。")
-      : sync.uncertain ? L("还无法确认外观是否已保存，请再查一次。")
-      : current.selection_revision === null ? L("当前外观设置无法读取，暂时无法保存。")
-      : phase === "loading" ? L("字体加载中，样张先用后备字体")
-      : phase === "failed" ? L("字体没加载上，样张先用后备字体；这个组合还不能用上")
-      : refused ? L("外观未保存，可以再试一次。")
-      : conflict ? L("另一个窗口刚换成了「{name}」；用上会替换它", { name: name(current.selection) })
-      : draft ? L("页面没变；用上之后这个 Home 的所有窗口一起换。")
-      : L("点一个皮肤或字体，样张先换，页面不变。");
+    status.textContent = writing ? uiText.text("workbench.appearance-picker.saving-appearance")
+      : !sync.available ? uiText.text("workbench.appearance-picker.pages-session-has-ended")
+      : sync.uncertain ? uiText.text("workbench.appearance-picker.change-unconfirmed-check-again")
+      : current.selection_revision === null ? uiText.text("workbench.appearance-picker.current-appearance-settings-cant-be-read-changes-cant")
+      : phase === "loading" ? uiText.text("workbench.appearance-picker.font-loading-specimen-uses-fallback-font")
+      : phase === "failed" ? uiText.text("workbench.appearance-picker.font-didnt-load-specimen-uses-fallback-font-combination")
+      : refused ? uiText.text("workbench.appearance-picker.appearance-wasnt-saved-can-try-again")
+      : conflict ? uiText.text("workbench.appearance-picker.another-window-just-switched-name-using-replaces", { name: name(current.selection) })
+      : draft ? uiText.text("workbench.appearance-picker.page-hasnt-changed-once-used-every-window-home")
+      : uiText.text("workbench.appearance-picker.pick-skin-font-specimen-changes-first-page-stays");
   }
 
   function leaveSheet(): void {

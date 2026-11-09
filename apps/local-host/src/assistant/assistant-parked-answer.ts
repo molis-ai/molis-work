@@ -1,6 +1,6 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { isTerminalAgentPhase, type AgentSessionView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
-import { L } from "../web-locale.js";
 import { assistantFailure } from "./assistant-error.js";
 
 /**
@@ -44,4 +44,4 @@ export async function roundAfterParkedAnswer(start: () => Promise<unknown>, look
  * already in the page's language, so the words around it are too (QA-001); the action stays the key the page translates.
  */
 export const afterParkedAnswer = (refused: string | undefined, view: AssistantWorkView): AssistantWorkView =>
-  refused ? { ...view, problem: { message: `${L("已回答，下一轮没能开始：")}${refused}`, action: "说“继续”接着做" } } : view;
+  refused ? { ...view, problem: { message: `${uiText.text("workbench.assistant-parked-answer.answered-but-next-turn-couldn-t-start")}${refused}`, action: "说“继续”接着做" } } : view;

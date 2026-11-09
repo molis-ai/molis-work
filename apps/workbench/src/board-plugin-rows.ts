@@ -1,4 +1,4 @@
-import { escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t as uiText, escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { PluginBoardSpecimenPorts, PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { inWordsOf } from "./i18n.js";
 import { BUILTIN_PLUGIN_CATALOG } from "./plugin-catalog.js";
@@ -18,10 +18,10 @@ export function renderBoardPluginRows(L: Say, sample: PluginBoardSpecimenPorts["
   // a date as Coding's Host writes it on the first paint (its day), the one plugin that shows one here.
   const portsOf = (pluginId: string): PluginBoardSpecimenPorts => ({ escape: escapeHtml, text: inWordsOf(pluginId, L), icon: (name) => icon(name as Parameters<typeof icon>[0]), formatDate: (value) => value.slice(0, 10), sample });
   const figures = catalog.flatMap((entry) => (entry.workbench.specimens?.(portsOf(entry.manifest.plugin_id)) ?? []).map((one) => `<figure class="mw-cond-plugin" data-board-plugin="${escapeHtml(entry.project_plugin_id)}" data-board-specimen="${escapeHtml(one.id)}" data-place="${one.place}">
-      <figcaption><strong>${escapeHtml(L(entry.manifest.name))}</strong><span>${escapeHtml(one.title)}</span><span class="mw-cond-tag">${escapeHtml(L("样例数据（模拟）"))}</span></figcaption>
+      <figcaption><strong>${escapeHtml(L(entry.manifest.name))}</strong><span>${escapeHtml(one.title)}</span><span class="mw-cond-tag">${escapeHtml(uiText.text("workbench.board-plugin-rows.sample-data-simulated"))}</span></figcaption>
       <div class="mw-cond-plugin__body">${one.html}</div>
     </figure>`));
-  return `<section data-board-plugin-rows><h2>${escapeHtml(L("插件行视图"))}</h2><p class="mw-cond-note">${escapeHtml(L("插件自己的行渲染器画出的样例：数据是固定样例，行就是插件页面画的那一行。目录里的行按一栏的宽度排，主区的视图占满。"))}</p>
+  return `<section data-board-plugin-rows><h2>${escapeHtml(uiText.text("workbench.board-plugin-rows.plugin-rows"))}</h2><p class="mw-cond-note">${escapeHtml(uiText.text("workbench.board-plugin-rows.drawn-each-plugin-s-own-row-renderer-data"))}</p>
     <div class="mw-cond-plugins">${figures.join("")}</div></section>`;
 }
 

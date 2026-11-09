@@ -56,13 +56,13 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
         node.setAttribute('role', error ? 'alert' : 'status');
         const text = make('p'); text.textContent = message; node.replaceChildren(text);
         if (details !== undefined) {
-          const fold = make('details'); const summary = make('summary'); summary.textContent = L('技术详情');
+          const fold = make('details'); const summary = make('summary'); summary.textContent = globalThis.t.text("workbench.connectors-settings.technical-details");
           const pre = make('pre'); pre.className = 'settings-connection-output'; pre.textContent = typeof details === 'string' ? details : JSON.stringify(details, null, 2);
           fold.append(summary, pre); node.append(fold);
         }
       };
-      const fail = (node, error) => { if (!node) return; output(node, '', true); molisWorkRequest.show(node.querySelector('p'), error, L('操作未完成，请重试。')); };
-      const api = (path, body, method = 'POST', timeout = 45000) => molisWorkRequest('/api/settings/connectors/' + path, {method, body, signal: AbortSignal.timeout(timeout), fallback: L('服务暂时无法连接，请重试。')});
+      const fail = (node, error) => { if (!node) return; output(node, '', true); molisWorkRequest.show(node.querySelector('p'), error, globalThis.t.text("workbench.connectors-settings.that-didn-t-finish-please-retry")); };
+      const api = (path, body, method = 'POST', timeout = 45000) => molisWorkRequest('/api/settings/connectors/' + path, {method, body, signal: AbortSignal.timeout(timeout), fallback: globalThis.t.text("workbench.connectors-settings.can-t-reach-service-right-now-please-retry")});
       const template = name => box.querySelector('[data-connector-template="' + name + '"]')?.content.firstElementChild?.cloneNode(true);
       const pageUrl = id => {
         const next = new URL('/capabilities/connections', location.origin);
@@ -82,10 +82,10 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
         try {
           const read = await usagesOf(node.dataset.connectionUsages);
           const titles = (read.usages || []).map(usage => usage.title).filter(Boolean), issues = read.issues || [];
-          node.textContent = titles.length > 2 ? L('{list} 等 {count} 处', { list: titles.slice(0, 2).join(L('、')), count: titles.length })
-            : titles.length ? titles.join(L('、')) : issues.length ? L('没能全部查到') : L('还没有地方在用');
+          node.textContent = titles.length > 2 ? globalThis.t.text("workbench.connectors-settings.list-more-count", { list: titles.slice(0, 2).join(L('、')), count: titles.length })
+            : titles.length ? titles.join(L('、')) : issues.length ? globalThis.t.text("workbench.connectors-settings.couldn-t-check-everywhere") : globalThis.t.text("workbench.connectors-settings.nothing-uses-yet");
           node.title = [...titles, ...issues].join('\\n');
-        } catch { node.textContent = L('暂时读不到'); delete node.dataset.loaded; }
+        } catch { node.textContent = globalThis.t.text("workbench.connectors-settings.cannot-be-read-now"); delete node.dataset.loaded; }
       });
       // After a switch (done, failed or timed out: the service may have moved some uses anyway), every account of the service reads again.
       const rereadUsages = item => { usagesRead.clear(); if (!item) return; item.querySelectorAll('[data-connection-usages]').forEach(node => delete node.dataset.loaded); loadUsages(item); };
@@ -136,11 +136,11 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
       const reload = async (id, notice) => {
         stopWaiting();
         if (notice) { remember(noticeKey, { service: id, ...notice }); remember(draftKey(id), null); }
-        const html = await molisWorkRequest(pageUrl(id), {as:'text', headers:{Accept:'text/html'}, signal:AbortSignal.timeout(45000), fallback:L('连接已更新，但页面未能刷新。请重新打开服务连接。')});
+        const html = await molisWorkRequest(pageUrl(id), {as:'text', headers:{Accept:'text/html'}, signal:AbortSignal.timeout(45000), fallback:globalThis.t.text("workbench.connectors-settings.connection-was-updated-but-page-couldn-t-refresh")});
         if (!box.isConnected) return;
         const doc = new DOMParser().parseFromString(html, 'text/html');
         const next = doc.querySelector('[data-connectors-settings]');
-        if (!next) throw new Error(L('页面未能刷新，请重新打开服务连接。'));
+        if (!next) throw new Error(globalThis.t.text("workbench.connectors-settings.page-couldn-t-refresh-reopen-service-connections"));
         next.dataset.openConnector = id;
         box.replaceWith(next); bind(next, page);
       };
@@ -170,24 +170,24 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
       const reserveBrowser = () => {
         if (globalThis.molisWorkOpenExternalUrl) return null;
         const popup = window.open('', '_blank');
-        if (popup) { popup.opener = null; popup.document.title = L('正在打开官方授权页…'); popup.document.body.textContent = L('正在准备登录，请稍候。'); }
+        if (popup) { popup.opener = null; popup.document.title = globalThis.t.text("workbench.connectors-settings.opening-official-authorization-page"); popup.document.body.textContent = globalThis.t.text("workbench.connectors-settings.preparing-sign-please-wait"); }
         return popup;
       };
       const openAuthorization = async (url, popup) => {
         const target = new URL(url);
-        if ((target.protocol !== 'https:' && !isLoopbackHttpUrl(target)) || target.username || target.password) throw new Error(L('服务返回的授权地址无效，请重试。'));
+        if ((target.protocol !== 'https:' && !isLoopbackHttpUrl(target)) || target.username || target.password) throw new Error(globalThis.t.text("workbench.connectors-settings.service-returned-invalid-authorization-address-please-retry"));
         if (globalThis.molisWorkOpenExternalUrl) { await globalThis.molisWorkOpenExternalUrl(target.href); return true; }
         if (popup && !popup.closed) { popup.location.replace(target.href); return true; }
         return false;
       };
       const waitControls = (area, url, session, poll) => {
         const result = resultFor(area);
-        output(result, L('正在等你在浏览器里登录。登录、点同意后会自动回到这里；关掉这个页面也没关系，回来时接着走。'));
+        output(result, globalThis.t.text("workbench.connectors-settings.waiting-sign-browser-after-sign-approve-ll-come"));
         const actions = make('div'); actions.className = 'settings-connector-actions';
-        if (url) { const link = make('a'); link.href = url; link.target = '_blank'; link.rel = 'noopener noreferrer'; link.textContent = L('再打开一次登录页'); link.className = 'mw-btn mw-btn--secondary'; actions.append(link); }
-        const check = make('button'); check.type = 'button'; check.className = 'mw-btn mw-btn--secondary'; check.textContent = L('我已授权，检查结果');
+        if (url) { const link = make('a'); link.href = url; link.target = '_blank'; link.rel = 'noopener noreferrer'; link.textContent = globalThis.t.text("workbench.connectors-settings.open-sign-page-again"); link.className = 'mw-btn mw-btn--secondary'; actions.append(link); }
+        const check = make('button'); check.type = 'button'; check.className = 'mw-btn mw-btn--secondary'; check.textContent = globalThis.t.text("workbench.connectors-settings.i-ve-authorized-check-result");
         check.addEventListener('click', () => { clearTimeout(session.timer); poll(); });
-        const cancel = make('button'); cancel.type = 'button'; cancel.className = 'mw-btn mw-btn--secondary'; cancel.textContent = L('取消这次接入');
+        const cancel = make('button'); cancel.type = 'button'; cancel.className = 'mw-btn mw-btn--secondary'; cancel.textContent = globalThis.t.text("workbench.connectors-settings.cancel-connection-request");
         cancel.addEventListener('click', async () => { try { if(session.authorizationId) await api('authorizations/' + session.authorizationId, undefined, 'DELETE'); stopWaiting(); await reload(area.dataset.protocolService); } catch(error) { fail(result, error); } });
         actions.append(check, cancel); result.append(actions);
       };
@@ -198,25 +198,25 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
         const start = area.querySelector('[data-protocol-start]'); busy(start, true);
         step(area, 'login', 0, 'running'); showState(item, 'running');
         const finish = () => { stopWaiting(); busy(start, false); };
-        const notice = { id, message: L('登录好了，下面是这个账号现在能做什么。'), ...(replaces ? { replaces } : {}) };
+        const notice = { id, message: globalThis.t.text("workbench.connectors-settings.signed-below-what-account-can-do-now"), ...(replaces ? { replaces } : {}) };
         const refreshFailed = error => {
           finish();
           const result = resultFor(area);
-          output(result, L('账号已授权，但页面刷新失败。请重新加载连接信息，无需再次授权。'), true);
+          output(result, globalThis.t.text("workbench.connectors-settings.account-authorized-but-page-failed-refresh-reload-connection"), true);
           if(error){const detail=make('p');molisWorkRequest.show(detail,error);result.append(detail);}
-          const retry = make('button'); retry.type = 'button'; retry.className = 'mw-btn mw-btn--secondary'; retry.textContent = L('重新加载连接信息');
+          const retry = make('button'); retry.type = 'button'; retry.className = 'mw-btn mw-btn--secondary'; retry.textContent = globalThis.t.text("workbench.connectors-settings.reload-connection-info");
           retry.addEventListener('click', async () => { busy(retry, true); try { await reload(service, notice); } catch(error) { refreshFailed(error); } });
           result.append(retry);
         };
         const monitor = createAuthorizationMonitor({
           read: async () => {
-            try { const state = await api('authorizations/' + encodeURIComponent(authorizationId), undefined, 'GET'); if (state.commit_held) output(box.querySelector('[data-connector-feedback]'), L('正在核对你刚提出的新要求，接入暂不提交。请回到原对话继续。')); return state.status; } catch (error) { if (error.status === 404) return 'expired'; throw error; }
+            try { const state = await api('authorizations/' + encodeURIComponent(authorizationId), undefined, 'GET'); if (state.commit_held) output(box.querySelector('[data-connector-feedback]'), globalThis.t.text("workbench.connectors-settings.latest-request-being-checked-before-connection-saved-continue")); return state.status; } catch (error) { if (error.status === 404) return 'expired'; throw error; }
           },
           connected: async () => { busy(start, false); step(area, 'login', 1, 'running'); await reload(service, notice); settled(); },
           ended: status => {
             finish(); restoreState(item); step(area, 'login', 0, status === 'cancelled' ? 'cancelled' : 'failed');
             if (box.dataset.setupId) { reload(service).catch(refreshFailed); return; }
-            output(resultFor(area), L(status === 'cancelled' ? '没有连上：登录页关了，或在服务那边点了取消。这里什么都没改，已有连接照常可用。' : status === 'expired' ? '等待登录超时了。这里什么都没改，可以再连一次。' : '登录没有完成。这里什么都没改；如果再试还不行，请检查服务的权限设置。'), status !== 'cancelled');
+            output(resultFor(area), globalThis.t.text(status === 'cancelled' ? "workbench.connectors-settings.not-connected-sign-page-was-closed-cancelled-service" : status === 'expired' ? "workbench.connectors-settings.signing-timed-out-nothing-changed-here-can-connect" : "workbench.connectors-settings.sign-didn-t-finish-nothing-changed-here-if"), status !== 'cancelled');
           },
           refreshFailed, alive: () => box.isConnected, expires, now: Date.now,
           schedule: (run, delay) => setTimeout(run, delay), unschedule: timer => clearTimeout(timer),
@@ -227,14 +227,14 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
       const deviceFlow = async (area, body, popup, name) => {
         const started = await api('methods/device/start', body);
         watchConnection(area, undefined, started.verification_uri, Date.now() + started.expires_in * 1000, started.authorization_id);
-        const code = make('p'); code.textContent = L('在 {name} 输入设备码：{code}', { name, code: started.user_code }); resultFor(area).prepend(code);
+        const code = make('p'); code.textContent = globalThis.t.text("workbench.connectors-settings.enter-device-code-name-code", { name, code: started.user_code }); resultFor(area).prepend(code);
         await openAuthorization(started.verification_uri, popup);
       };
       click('[data-protocol-start]', async button => {
         const area = button.closest('[data-protocol]'); const body = protocolBody(area), item = itemOf(area);
         if (!area.dataset.connectionId && !validate(area)) return;
         const popup = reserveBrowser(); busy(button, true);
-        output(resultFor(area), L('正在准备官方授权…'));
+        output(resultFor(area), globalThis.t.text("workbench.connectors-settings.preparing-official-authorization"));
         try {
           let authorizationFlow;
           if (body.connection_id) {
@@ -250,21 +250,21 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
           if (url) {
             const opened = await openAuthorization(url, popup);
             watchConnection(area, id, url, undefined, payload.authorization_id);
-            if (!opened) resultFor(area).querySelector('p').textContent = L('浏览器拦截了新窗口。点「再打开一次登录页」继续登录。');
+            if (!opened) resultFor(area).querySelector('p').textContent = globalThis.t.text("workbench.connectors-settings.browser-blocked-new-window-click-open-sign-page");
             const manual = area.querySelector('[data-oauth-return]');
             if (manual) manual.hidden = !(payload.manual_callback || body.redirect_uri);
-          } else { popup?.close(); await completed(payload, body.service_id, L('工具已连接，可以查看可用工具。'), area.dataset.replaces); }
+          } else { popup?.close(); await completed(payload, body.service_id, globalThis.t.text("workbench.connectors-settings.tools-connected-can-now-view-available-tools"), area.dataset.replaces); }
         } catch (error) { popup?.close(); restoreState(item); if (area.querySelector('[data-connection-progress]')) step(area, 'login', 0, 'failed'); fail(resultFor(area), error); }
         finally { if (!waiting) busy(button, false); }
       });
       protocolAction('[data-oauth-complete]', async area => {
         const result = await api('methods/' + area.dataset.protocol + '/complete', protocolBody(area));
-        await completed(result, area.dataset.protocolService, L('授权已完成。'), area.dataset.replaces);
+        await completed(result, area.dataset.protocolService, globalThis.t.text("workbench.connectors-settings.authorization-complete"), area.dataset.replaces);
       });
       click('[data-copy-callback]', async button => {
         // Refused: the address is selected, ready to copy by hand.
         const code = button.parentElement.querySelector('code');
-        if (await window.molisCopy?.(button, code.textContent, { done: L('已复制'), failed: L('复制失败') }) === false) { const range = document.createRange(); range.selectNodeContents(code); getSelection().removeAllRanges(); getSelection().addRange(range); }
+        if (await window.molisCopy?.(button, code.textContent, { done: globalThis.t.text("workbench.connectors-settings.copied"), failed: globalThis.t.text("workbench.connectors-settings.could-not-copy") }) === false) { const range = document.createRange(); range.selectNodeContents(code); getSelection().removeAllRanges(); getSelection().addRange(range); }
       });
       box.querySelectorAll('[data-oauth-callback], [data-mcp-callback]').forEach(node => {
         const kind = node.hasAttribute('data-mcp-callback') ? 'mcp' : 'oauth';
@@ -275,23 +275,23 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
       const summarize = (node, result) => {
         const account = result.account || result.login || result.email;
         const tools = Array.isArray(result.tools) ? result.tools : null;
-        output(node, tools ? L('已连接，可用工具 {count} 个。', { count: tools.length }) : account ? L('连接检查通过：{account}', { account }) : L('连接检查通过。'), false, result);
+        output(node, tools ? globalThis.t.text("workbench.connectors-settings.connected-count-tool-s-available", { count: tools.length }) : account ? globalThis.t.text("workbench.connectors-settings.connection-check-passed-account", { account }) : globalThis.t.text("workbench.connectors-settings.connection-check-passed"), false, result);
         const rows = tools || (Array.isArray(result.items) ? result.items : null);
-        if (rows) { const ul = make('ul'); for (const row of rows.slice(0, 5)) { const li = make('li'); li.textContent = row.title || row.name || row.subject || L('已读取内容'); ul.append(li); } node.prepend(ul); }
+        if (rows) { const ul = make('ul'); for (const row of rows.slice(0, 5)) { const li = make('li'); li.textContent = row.title || row.name || row.subject || globalThis.t.text("workbench.connectors-settings.content-read"); ul.append(li); } node.prepend(ul); }
       };
       box.querySelector('[data-connector-local]')?.addEventListener('submit', event => {
         event.preventDefault(); const form = event.currentTarget;
         return perform(form.querySelector('button[type=submit]'), resultFor(form), async () => {
           const environment = Object.fromEntries([...form.querySelectorAll('[data-local-secret]')].map(input => [input.dataset.localSecret, input.value]));
-          output(resultFor(form), L('正在安装或验证本地工具。关闭页面不会取消；可以稍后重新打开查看结果。'));
+          output(resultFor(form), globalThis.t.text("workbench.connectors-settings.installing-checking-local-tool-closing-page-does-not"));
           const result = await api('methods/' + form.dataset.protocol + (form.dataset.protocol === 'cli' ? '/install' : '/connect'), { setup_id: box.dataset.setupId, environment }, 'POST', 600000);
           form.querySelectorAll('input').forEach(input => { input.value = ''; });
-          await completed(result, form.dataset.protocolService, L(result.status === 'needs_person' ? '客户端已就绪，可以登录。' : '连接已保存。实际可用范围以连接检查和业务调用为准。'));
+          await completed(result, form.dataset.protocolService, globalThis.t.text(result.status === 'needs_person' ? "workbench.connectors-settings.client-ready-can-sign" : "workbench.connectors-settings.connection-saved-check-use-its-capabilities-verify-what"));
         });
       });
       click('[data-connection-check], [data-connection-preview]', async button => {
         const scope = button.closest('[data-connection-scope]'), id = scope.dataset.connectionScope, checking = button.hasAttribute('data-connection-check'); busy(button, true);
-        const result = scope.querySelector('[data-connection-result]'); output(result, L('正在检查账号与权限…'));
+        const result = scope.querySelector('[data-connection-result]'); output(result, globalThis.t.text("workbench.connectors-settings.checking-account-permissions"));
         try { summarize(result, await api(connectionPath(id) + (checking ? '/verify' : '/preview'), {})); if (checking) reach(id, 'connected', new Date().toISOString()); }
         catch (error) {
           fail(result, error);
@@ -317,13 +317,13 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
       };
       const unsaved = (form, result, error, replacing) => {
         if (!unsavedCodes.includes(error?.code)) return false;
-        const name = form.closest('[data-connection-item]')?.querySelector('.settings-connection-row__identity strong')?.textContent || L('这个服务');
-        const kept = replacing ? L('新密钥没有换上，旧密钥照常在用。') : L('还没保存，填的还在。');
+        const name = form.closest('[data-connection-item]')?.querySelector('.settings-connection-row__identity strong')?.textContent || globalThis.t.text("workbench.connectors-settings.service");
+        const kept = replacing ? globalThis.t.text("workbench.connectors-settings.new-key-wasn-t-put-current-key-keeps") : globalThis.t.text("workbench.connectors-settings.not-saved-yet-what-typed-still-here");
         if (error.code === 'connector.read.refused') {
           const input = keyInput(form), note = make('p');
           note.className = 'mw-field__error'; note.setAttribute('role', 'alert'); note.dataset.connectorKeyError = '';
-          note.textContent = replacing ? L('{name}拒绝了新密钥。旧密钥照常在用；新的没保存，填的还在。', { name })
-            : L('{name}拒绝了这把密钥，可能过期了或少复制了字符。还没保存，换一把再试。', { name });
+          note.textContent = replacing ? globalThis.t.text("workbench.connectors-settings.name-refused-new-key-current-key-keeps-working", { name })
+            : globalThis.t.text("workbench.connectors-settings.name-refused-key-may-have-expired-been-copied", { name });
           input?.setAttribute('aria-invalid', 'true');
           (form.matches('.settings-connection-inline') ? form : input?.closest('label') || form).append(note);
           output(result, kept, true);
@@ -333,13 +333,13 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
         if (error.code === 'connector.check.rate_limited') {
           const at = Date.parse(error.body?.details?.retry_at || '');
           const time = at > Date.now() ? new Date(at).toLocaleTimeString(document.documentElement.lang || undefined, { hour: '2-digit', minute: '2-digit' }) : '';
-          output(result, glue(time ? L('{name}说请求太多，这是服务那边的原因，不是你填错了。{time} 自动再查一次。', { name, time })
-            : L('{name}说请求太多，这是服务那边的原因，不是你填错了。稍后再试。', { name }), kept), true);
+          output(result, glue(time ? globalThis.t.text("workbench.connectors-settings.name-says-there-too-many-requests-that-s", { name, time })
+            : globalThis.t.text("workbench.connectors-settings.name-says-there-too-many-requests-that-s-2", { name }), kept), true);
           if (time) form.molisRetry = setTimeout(() => { if (form.isConnected && !form.querySelector('button[type=submit]')?.disabled) form.requestSubmit(); }, Math.min(at - Date.now(), 3600000) + 500);
           return true;
         }
-        output(result, glue(error.code === 'connector.read.unreachable' ? L('暂时连不上{name}，所以没有检查成。稍后再试。', { name })
-          : L('{name}没有确认这把密钥。检查有没有填对，再试一次。', { name }), kept), true);
+        output(result, glue(error.code === 'connector.read.unreachable' ? globalThis.t.text("workbench.connectors-settings.couldn-t-reach-name-so-key-wasn-t", { name })
+          : globalThis.t.text("workbench.connectors-settings.name-didn-t-confirm-key-check-that-s", { name }), kept), true);
         return true;
       };
       box.querySelectorAll('[data-connector-auth], [data-connection-replace]').forEach(form => form.addEventListener('input', () => clearTimeout(form.molisRetry)));
@@ -348,7 +348,7 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
         clearUnsaved(form); step(form, 'key', 1, 'running'); showState(item, 'running');
         return perform(form.querySelector('button[type=submit]'), result, async () => {
           const token = credentialValue(form);
-          output(result, L(pluginKeys.has(service) ? '正在保存这把密钥…' : '正在检查这把密钥，通过了才保存…'));
+          output(result, globalThis.t.text(pluginKeys.has(service) ? "workbench.connectors-settings.saving-key" : "workbench.connectors-settings.checking-key-s-saved-only-once-passes"));
           const target = form.dataset.savedConnection || box.dataset.setupConnection;
           let saved;
           try {
@@ -363,8 +363,8 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
           if (saved.awaiting_intent) { await reload(service); return; }
           form.dataset.savedConnection = saved.connection.connection_id;
           step(form, 'key', 2, 'done');
-          await reload(service, { id: saved.connection.connection_id, message: L(saved.verification ? '密钥检查通过，已经存好。'
-            : pluginKeys.has(service) ? '密钥已保存。请在使用它的功能中完成配置和验证。' : '密钥已保存。请在用它的地方检查。') });
+          await reload(service, { id: saved.connection.connection_id, message: globalThis.t.text(saved.verification ? "workbench.connectors-settings.key-checked-saved"
+            : pluginKeys.has(service) ? "workbench.connectors-settings.key-saved-finish-setting-up-check-where-used" : "workbench.connectors-settings.key-saved-check-where-used") });
           settled();
         }, () => { restoreState(item); step(form, 'key', 0, 'failed'); });
       }));
@@ -376,32 +376,32 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
           let saved;
           try { saved = await api(connectionPath(scope.dataset.connectionScope), replacing ? { token: credentialValue(form) } : { display_name: form.querySelector('input').value.trim() }, 'PATCH'); }
           catch (error) { if (replacing && unsaved(form, result, error, true)) return; throw error; }
-          await reload(scope.dataset.connectionService, { message: !replacing ? L('连接名称已更新。') : L(saved.verification ? '新密钥检查通过，已经换上。' : '新密钥换上了。请在用它的地方检查。') });
+          await reload(scope.dataset.connectionService, { message: !replacing ? globalThis.t.text("workbench.connectors-settings.connection-name-updated") : globalThis.t.text(saved.verification ? "workbench.connectors-settings.new-key-checked-place" : "workbench.connectors-settings.new-key-place-check-where-used") });
         });
       }));
       connectionAction('[data-connection-disconnect], [data-connection-manage]', async (scope, button) => {
         const action = button.dataset.connectionManage;
         const result = await api(connectionPath(scope.dataset.connectionScope) + (action ? '/manage' : ''), action ? { action, expected_revision: scope.dataset.connectionRevision } : undefined, action ? 'POST' : 'DELETE');
-        await reload(scope.dataset.connectionService, { message: result.cleanup?.message || result.verification?.reason || L(action ? '连接状态已更新' : '此账号已断开。其他账号不受影响；使用此账号的来源需要重新选择连接。') });
+        await reload(scope.dataset.connectionService, { message: result.cleanup?.message || result.verification?.reason || globalThis.t.text(action ? "workbench.connectors-settings.connection-status-updated" : "workbench.connectors-settings.account-disconnected-other-accounts-unaffected-sources-that-used") });
       });
       // After a new MCP login or another account added to switch to (§13.2, ASC-59), the new connection offers to take over the old one's
       // uses; the pair only decides what is offered, the switch and removal check both connections themselves.
       const switchReasons = {
-        'connector.plugin_slots.installation_missing': L('用它的插件已不在'), 'connector.plugin_slots.usage_missing': L('这里已经不用原来那条了'),
-        'connector.plugin_slots.project_required': L('请到它所在的项目里，在插件的连接设置中改选这条'), 'connector.switch.target_unavailable': L('新连接现在不可用，请先检查它'),
+        'connector.plugin_slots.installation_missing': globalThis.t.text("workbench.connectors-settings.plugin-that-used-gone"), 'connector.plugin_slots.usage_missing': globalThis.t.text("workbench.connectors-settings.no-longer-uses-old-connection"),
+        'connector.plugin_slots.project_required': globalThis.t.text("workbench.connectors-settings.open-project-belongs-choose-connection-plugin-s-connection"), 'connector.switch.target_unavailable': globalThis.t.text("workbench.connectors-settings.new-connection-isn-t-available-right-now-check"),
       };
       // What a switch did, against the uses read before it. Places the read could not check (its issues) and plugins that failed the
       // switch as a whole without a use read for them are said too: then it is never "nothing to switch" nor "all moved" (ASC-77).
       const switchNotes = (read, report) => {
         const providers = new Set((read.usages || []).map(usage => usage.source?.provider_id));
         const unseen = (report?.failed || []).filter(entry => !providers.has(entry.provider_id)).length;
-        return [...(read.issues || []).map(issue => L('没能查：{issue}', { issue })), ...(unseen ? [L('{count} 个用它的插件没换成，那里可能还用着原来那条。', { count: unseen })] : [])];
+        return [...(read.issues || []).map(issue => globalThis.t.text("workbench.connectors-settings.couldn-t-check-issue", { issue })), ...(unseen ? [globalThis.t.text("workbench.connectors-settings.count-count-using-did-not-switch-may-still", { count: unseen })] : [])];
       };
       const switchOutcome = (outcome, total, notes = []) => {
-        const lines = [...outcome.left.map(entry => L('{title}：{reason}', { title: entry.title, reason: switchReasons[entry.code] || L('还不能一步换，请到用它的地方改选这条') })), ...notes];
-        if (outcome.left.length) return [L('换过去 {switched} 处，{count} 处没换：', { switched: outcome.switched, count: outcome.left.length }), lines];
-        if (notes.length) return [L('换过去 {count} 处，没能全部查到或换到：', { count: outcome.switched }), lines];
-        return [total || outcome.switched ? L('{count} 处都换过去了。', { count: outcome.switched }) : L('没有查到用它的地方，不用换。'), []];
+        const lines = [...outcome.left.map(entry => L('{title}：{reason}', { title: entry.title, reason: switchReasons[entry.code] || globalThis.t.text("workbench.connectors-settings.can-t-be-switched-one-step-yet-choose") })), ...notes];
+        if (outcome.left.length) return [globalThis.t.text("workbench.connectors-settings.moved-switched-count-not-moved", { switched: outcome.switched, count: outcome.left.length }), lines];
+        if (notes.length) return [globalThis.t.text("workbench.connectors-settings.moved-count-not-everything-could-be-checked-moved", { count: outcome.switched }), lines];
+        return [total || outcome.switched ? globalThis.t.text("workbench.connectors-settings.all-moved-count", { count: outcome.switched }) : globalThis.t.text("workbench.connectors-settings.nothing-was-found-using-so-there-nothing-switch"), []];
       };
       const listInto = (node, lines) => { if (!lines.length) return; const list = make('ul'); for (const line of lines) { const item = make('li'); item.textContent = line; list.append(item); } node.append(list); };
       // Only for another connection of this service made the same way; for MCP, at the same known address.
@@ -412,7 +412,7 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
         if (mcp ? !row.dataset.connectionEndpoint || row.dataset.connectionEndpoint !== old.dataset.connectionEndpoint || !old.querySelector('[data-connection-method="mcp"]') : !old.querySelector('[data-connection-switch]')) return false;
         const result = row.querySelector('[data-connection-result]'), name = old.dataset.connectionName || '';
         // Coding's MCP settings do not report their usages yet (BL-1050), so what the page counts is never all there is.
-        const coding = mcp ? [L('Coding 的 MCP 设置这里还查不到；如果那里选了「{name}」，请到那里改选这条。', { name })] : [];
+        const coding = mcp ? [globalThis.t.text("workbench.connectors-settings.coding-s-mcp-settings-can-t-be-checked", { name })] : [];
         const link = () => mcp ? panel.querySelector('[data-connector-next-link][href^="/settings/coding-settings"]')?.cloneNode(true) : null;
         let shown, left = 0;
         const controls = nodes => {
@@ -431,27 +431,27 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
           const node = make('button'); node.type = 'button'; node.className = 'mw-btn mw-btn--' + tone; node.textContent = label;
           node.addEventListener('click', () => run(node, () => step(node))); return node;
         };
-        const keep = button(L('留着'), 'secondary', async () => { output(result, L('原来那条「{name}」留着，两条连接都能用；不再用时可以在它那一行移除。', { name })); result.focus(); });
-        const confirm = button(L('确认移除'), 'danger', async () => {
+        const keep = button(globalThis.t.text("workbench.connectors-settings.keep"), 'secondary', async () => { output(result, globalThis.t.text("workbench.connectors-settings.old-name-kept-both-connections-work-remove-its", { name })); result.focus(); });
+        const confirm = button(globalThis.t.text("workbench.connectors-settings.confirm-removal"), 'danger', async () => {
           await api(connectionPath(oldId) + '/manage', { action: 'remove', expected_revision: old.dataset.connectionRevision });
-          await reload(service, { message: L('已移除「{name}」。', { name }) });
+          await reload(service, { message: globalThis.t.text("workbench.connectors-settings.removed-name", { name }) });
         });
         // Removing cuts off whatever still uses the old connection, and the page cannot see all of it, so it asks once first. Cancel puts back
         // what was there (its words, tone and role), so a switch still to do is not lost.
-        const remove = button(L('移除旧连接'), 'danger-outline', async () => {
+        const remove = button(globalThis.t.text("workbench.connectors-settings.remove-old-connection"), 'danger-outline', async () => {
           const back = [...result.childNodes], before = shown, tone = result.dataset.tone, role = result.getAttribute('role');
-          const cancel = button(L('取消'), 'secondary', async () => { result.replaceChildren(...back); result.dataset.tone = tone; result.setAttribute('role', role); shown = before; result.focus(); });
-          show(glue(L('移除原来那条「{name}」后，还在用它的地方会断开。', { name }), left ? L('已知 {count} 处没换过来。', { count: left }) : ''), [], [cancel, confirm]);
+          const cancel = button(globalThis.t.text("common.control.cancel"), 'secondary', async () => { result.replaceChildren(...back); result.dataset.tone = tone; result.setAttribute('role', role); shown = before; result.focus(); });
+          show(glue(globalThis.t.text("workbench.connectors-settings.removing-old-name-disconnects-whatever-still-uses", { name }), left ? globalThis.t.text("workbench.connectors-settings.count-known-count-not-moved", { count: left }) : ''), [], [cancel, confirm]);
         });
-        const intro = L(mcp ? '这条是替「{name}」重新登录的。' : '这是替「{name}」再加的账号。', { name });
+        const intro = globalThis.t.text(mcp ? "workbench.connectors-settings.logged-again-place-name" : "workbench.connectors-settings.account-was-added-replace-name", { name });
         result.tabIndex = -1; result.dataset.connectionReplacement = oldId; shown = [remove, keep];
-        output(result, L('正在查看哪里用到「{name}」…', { name }));
+        output(result, globalThis.t.text("workbench.connectors-settings.checking-what-uses-name", { name }));
         run(null, async () => {
           const read = await usagesOf(oldId), usages = read.usages || [], item = itemOf(panel);
-          const issues = (read.issues || []).map(issue => L('没能查：{issue}', { issue }));
+          const issues = (read.issues || []).map(issue => globalThis.t.text("workbench.connectors-settings.couldn-t-check-issue", { issue }));
           left = usages.length; result.scrollIntoView({ block: 'center' });
-          if (!left) return show(glue(intro, L('能查的地方里，没有查到用它的。')), [], [remove, keep, link()], false, issues);
-          const move = button(L('把用到「{name}」的 {count} 个地方换到这条', { name, count: left }), 'primary', async node => {
+          if (!left) return show(glue(intro, globalThis.t.text("workbench.connectors-settings.nothing-that-can-be-checked-was-found-using")), [], [remove, keep, link()], false, issues);
+          const move = button(globalThis.t.text("workbench.connectors-settings.move-what-uses-name-one-count", { name, count: left }), 'primary', async node => {
             let report;
             try { report = await api(connectionPath(newId) + '/switch', { from_connection_id: oldId }); } finally { rereadUsages(item); }
             const outcome = switchLeft(report, usages);
@@ -459,7 +459,7 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
             const [message, lines] = switchOutcome(outcome, usages.length, switchNotes(read, report));
             show(message, lines, [remove, keep, link()], lines.length > 0 && !outcome.switched);
           });
-          show(glue(intro, L('能查的地方里有 {count} 处用它，可以一步换到这条。', { count: left })), usages.slice(0, 5).map(usage => usage.title), [move, remove, keep, link()], false, issues);
+          show(glue(intro, globalThis.t.text("workbench.connectors-settings.found-count-count-where-could-be-checked-can", { count: left })), usages.slice(0, 5).map(usage => usage.title), [move, remove, keep, link()], false, issues);
         });
         return true;
       };
@@ -476,11 +476,11 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
           // A name told apart from the old one's where only names show (Coding's MCP settings), within a name's 100 characters.
           const named = panel.querySelector('[data-connector-new-name]');
           if (named && !named.value.trim()) {
-            const label = L('{name}（重新登录 {date}）', { name: old.dataset.connectionName || '', date: new Date().toLocaleDateString(document.documentElement.lang || undefined, { month: 'short', day: 'numeric' }) });
+            const label = globalThis.t.text("workbench.connectors-settings.name-logged-again-date", { name: old.dataset.connectionName || '', date: new Date().toLocaleDateString(document.documentElement.lang || undefined, { month: 'short', day: 'numeric' }) });
             expand(named); named.value = named.dataset.prefilled = [...label].slice(0, 100).join('');
           }
         }
-        output(resultFor(area), L(method === 'oauth' ? '请用原来的账号登录；要连另一个账号，用「换账号」。' : '重新登录会新建一条连接，原来的这条不动。登录回来后，可以把用到原来那条的地方一步换过去。'));
+        output(resultFor(area), globalThis.t.text(method === 'oauth' ? "workbench.connectors-settings.sign-same-account-connect-another-one-use-switch" : "workbench.connectors-settings.logging-again-makes-new-connection-leaves-one-once"));
         reveal(area); area.querySelector('[data-protocol-start]')?.focus({ preventScroll: true });
       });
       // 换账号 (§13.2): pick another connected account, or log in one more; the account switched from stays and keeps working.
@@ -512,7 +512,7 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
           const report = await api(connectionPath(to) + '/switch', { from_connection_id: from }), outcome = switchLeft(report, usages);
           closeSwitch(scope, true);
           const [message, lines] = switchOutcome(outcome, usages.length, switchNotes(read, report));
-          output(result, glue(message, lines.length ? '' : L('原来的账号留着，照常可用。')), lines.length > 0 && !outcome.switched); listInto(result, lines);
+          output(result, glue(message, lines.length ? '' : globalThis.t.text("workbench.connectors-settings.original-account-stays-keeps-working")), lines.length > 0 && !outcome.switched); listInto(result, lines);
           rereadUsages(item);
         }, () => rereadUsages(item));
       });
@@ -551,21 +551,21 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
         note.querySelector('[data-draft-drop]').addEventListener('click', () => { remember(draftKey(service), null); note.remove(); advanced.querySelector('summary')?.focus(); });
         advanced.before(note);
       });
-      const connectCli = async area => completed(await api('methods/cli/connect', protocolBody(area)), area.dataset.protocolService, L('本机账号检查通过，连接已保存。'));
+      const connectCli = async area => completed(await api('methods/cli/connect', protocolBody(area)), area.dataset.protocolService, globalThis.t.text("workbench.connectors-settings.local-account-check-passed-connection-saved"));
       protocolAction('[data-cli-detect]', async area => {
-        const status = await api('methods/cli/status', protocolBody(area)); area.querySelector('[data-cli-availability]').textContent = status.binary + ' · ' + L(status.installed ? '已安装' : '尚未安装'); area.querySelectorAll('[data-cli-login], [data-cli-connect], [data-cli-configure]').forEach(b => { b.disabled = !status.installed; }); output(resultFor(area), L(status.installed ? '客户端已就绪，可以登录。' : '尚未检测到客户端，请按官方说明安装后重试。'), !status.installed);
+        const status = await api('methods/cli/status', protocolBody(area)); area.querySelector('[data-cli-availability]').textContent = status.binary + ' · ' + globalThis.t.text(status.installed ? "workbench.connectors-settings.installed" : "workbench.connectors-settings.not-installed"); area.querySelectorAll('[data-cli-login], [data-cli-connect], [data-cli-configure]').forEach(b => { b.disabled = !status.installed; }); output(resultFor(area), globalThis.t.text(status.installed ? "workbench.connectors-settings.client-ready-can-sign" : "workbench.connectors-settings.client-wasn-t-detected-install-following-official-instructions"), !status.installed);
       });
       protocolAction('[data-cli-connect]', connectCli);
       const watchCli = (area, id) => perform(null, resultFor(area), async () => {
         const controls = on => area.querySelectorAll('[data-cli-login], [data-cli-connect], [data-cli-configure], [data-cli-detect]').forEach(button => busy(button, on)); controls(true);
         try {
         area.dataset.cliJob = id; area.querySelector('[data-cli-session]').hidden = false;
-        output(resultFor(area), L('正在等待客户端操作。完成后会自动更新。'));
+        output(resultFor(area), globalThis.t.text("workbench.connectors-settings.waiting-client-page-will-update-when-finishes"));
         while (box.isConnected) {
           const result = await api('methods/cli/job', { job_id: id }); area.querySelector('[data-cli-output]').textContent = result.output;
           if (result.status !== 'running') {
             if (result.status === 'succeeded') await (box.dataset.setupId || result.operation === 'configure' ? reload(area.dataset.protocolService) : connectCli(area));
-            else output(resultFor(area), L('客户端操作未完成。请查看提示后重试。'), true);
+            else output(resultFor(area), globalThis.t.text("workbench.connectors-settings.client-operation-did-not-finish-check-its-prompt"), true);
             return;
           }
           await new Promise(resolve => setTimeout(resolve, 1500));
@@ -580,7 +580,7 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
       });
       connectionAction('[data-mcp-tool-call], [data-mcp-resource-read]', async (scope, button) => {
         const body = button.hasAttribute('data-mcp-tool-call') ? { action: 'call', name: scope.querySelector('[data-mcp-tool-name]').value.trim(), arguments: JSON.parse(scope.querySelector('[data-mcp-tool-arguments]').value) } : { action: 'read', uri: scope.querySelector('[data-mcp-resource-uri]').value.trim() };
-        output(scope.querySelector('[data-connection-result]'), L('操作已完成。'), false, await api(connectionPath(scope.dataset.connectionScope) + '/mcp', body));
+        output(scope.querySelector('[data-connection-result]'), globalThis.t.text("workbench.connectors-settings.done"), false, await api(connectionPath(scope.dataset.connectionScope) + '/mcp', body));
       });
       const filter = () => {
         const query = search.value.trim().toLocaleLowerCase(); let total = 0;
@@ -601,7 +601,7 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
           select.dataset.saved = select.value;
           const reconnect = select.selectedOptions[0]?.hasAttribute('data-needs-reconnect');
           select.querySelectorAll('[data-needs-reconnect]').forEach(option => { option.disabled = option.value !== select.value; });
-          output(result, L(reconnect ? '已保存绑定；这个账号需要重新连接确认站点，插件暂时不能请求。' : select.value ? '已保存，插件之后的请求用这个账号。' : 'tenant' in select.dataset ? '已解除，插件不能再请求这个服务。' : '已解除，插件之后的请求不带凭据。'));
+          output(result, globalThis.t.text(reconnect ? "workbench.connectors-settings.binding-saved-reconnect-account-confirm-its-site-before" : select.value ? "workbench.connectors-settings.saved-plugin-s-requests-now-use-account" : 'tenant' in select.dataset ? "workbench.connectors-settings.removed-plugin-can-no-longer-send-requests-service" : "workbench.connectors-settings.removed-plugin-s-requests-now-carry-no-credentials"));
         }, () => { select.value = select.dataset.saved || ''; });
       }));
       box.querySelectorAll('[data-connection-retry-at]').forEach(recheck);
@@ -613,19 +613,19 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
       const opened = id ? openService(id, !notice) : null;
       click('[data-setup-cancel]', button => perform(button, box.querySelector('[data-connector-feedback]'), async () => { await api('authorizations/' + box.dataset.setupId, undefined, 'DELETE'); await reload(id); }));
       if (errorCode) {
-        output(box.querySelector('[data-connectors-error]'), L(errorCode === 'cancelled' ? '授权已取消。已有连接不受影响，可以选择服务重新登录。' : '授权未完成。请检查应用的回调地址、权限和授权是否过期，然后重新登录。'), true);
+        output(box.querySelector('[data-connectors-error]'), globalThis.t.text(errorCode === 'cancelled' ? "workbench.connectors-settings.authorization-was-canceled-existing-connections-unaffected-choos" : "workbench.connectors-settings.authorization-didn-t-finish-check-app-s-callback"), true);
       }
       if (notice && panelFor(notice.service)) {
         const panel = panelFor(notice.service), feedback = panel.querySelector('[data-connector-feedback]'), offered = notice.replaces && !box.dataset.setupId && offerReplacement(panel, notice.id, notice.replaces);
         openService(notice.service, false);
-        output(feedback, box.dataset.setupId ? glue(feedback.textContent, notice.message) : glue(notice.message, offered ? L('下面可以把用到原来那条的地方换到新连接。') : '')); remember(noticeKey, null);
+        output(feedback, box.dataset.setupId ? glue(feedback.textContent, notice.message) : glue(notice.message, offered ? globalThis.t.text("workbench.connectors-settings.below-can-move-what-used-old-connection-new") : '')); remember(noticeKey, null);
         if (!offered) requestAnimationFrame(() => { reveal(feedback); feedback.focus?.({ preventScroll: true }); });
       } else if (opened && box.dataset.openConnector) requestAnimationFrame(() => opened.querySelector('[data-connection-toggle]')?.focus({ preventScroll: true }));
-      if (connected && panelFor(connected)) output(panelFor(connected).querySelector('[data-connector-feedback]'), L('已连上。回到 Molis Work 的窗口继续；这一页可以关掉。'));
+      if (connected && panelFor(connected)) output(panelFor(connected).querySelector('[data-connector-feedback]'), globalThis.t.text("workbench.connectors-settings.connected-carry-molis-work-window-can-close-page"));
       box.querySelectorAll('[data-connector-next-link]').forEach(link => {
         const project = params.get('project') || /^\\/projects\\/([^/]+)/.exec(location.pathname)?.[1];
         const plugin = link.dataset.connectorNextLink; const next = new URL(link.getAttribute('href'), location.origin);
-        if (project && plugin) { next.pathname = '/projects/' + encodeURIComponent(project) + '/'; next.searchParams.set('openPlugin', plugin); link.textContent = L(plugin === 'feed' ? '打开 Feed，添加来源' : plugin === 'images' ? '打开 Images' : '打开 Coding'); }
+        if (project && plugin) { next.pathname = '/projects/' + encodeURIComponent(project) + '/'; next.searchParams.set('openPlugin', plugin); link.textContent = globalThis.t.text(plugin === 'feed' ? "workbench.connectors-settings.open-feed-add-source" : plugin === 'images' ? "workbench.connectors-settings.open-images" : "workbench.connectors-settings.open-coding"); }
         else if (project && next.pathname.startsWith('/settings/')) next.searchParams.set('project', project);
         if (params.get('desktop')) next.searchParams.set('desktop', params.get('desktop'));
         link.href = next.pathname + next.search;

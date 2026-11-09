@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { admitFiles, admitFolderEntry, showAdmissionError } from "./admit.js";
 import { renderBar } from "./bar.js";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
@@ -57,7 +58,7 @@ async function pasteIntoShelf(page: ShelfPage, event: Event): Promise<void> {
     const admitted = await post<SnapshotAnswer>(page, "/items", { text });
     applySnapshot(page, admitted.snapshot, admitted.item?.item_id);
   } catch (error) {
-    if (page.lifetime.alive) showProblem(page, page.L("shelf.directory.could-not-read-the-shelf"), messageOf(error));
+    if (page.lifetime.alive) showProblem(page, uiText.text("shelf.directory.could-not-read-the-shelf"), messageOf(error));
   }
 }
 
@@ -92,7 +93,7 @@ async function deleteSelection(page: ShelfPage): Promise<void> {
       applySnapshot(page, (await post<SnapshotAnswer>(page, "/items/" + encodeURIComponent(page.selected.item_id) + "/hide")).snapshot);
     }
   } catch (error) {
-    if (page.lifetime.alive) showProblem(page, page.L("shelf.directory.could-not-read-the-shelf"), messageOf(error));
+    if (page.lifetime.alive) showProblem(page, uiText.text("shelf.directory.could-not-read-the-shelf"), messageOf(error));
   }
 }
 

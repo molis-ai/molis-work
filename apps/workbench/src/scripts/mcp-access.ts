@@ -32,9 +32,9 @@ export const MCP_ACCESS_CLIENT_SCRIPT = `
   const setBusy = value => { busy = value; root.setAttribute('aria-busy', String(value)); root.querySelectorAll('button,select,input').forEach(node => { node.disabled = value; }); };
   async function update() {
     const query = new URLSearchParams({ client_id: root.dataset.clientId, project_id: root.dataset.projectId, format: 'html', q: form.elements.q.value, filter: form.elements.filter.value });
-    const payload = await molisWorkRequest('/api/settings/mcp/actions?' + query.toString(), {fallback:L('无法读取授权状态')});
+    const payload = await molisWorkRequest('/api/settings/mcp/actions?' + query.toString(), {fallback:globalThis.t.text("workbench.mcp-access.could-not-read-access-status")});
     if (!root.isConnected) return;
-    if (typeof payload.html !== 'string') throw new Error(L('无法读取授权状态'));
+    if (typeof payload.html !== 'string') throw new Error(globalThis.t.text("workbench.mcp-access.could-not-read-access-status"));
     const opened = Array.from(rows.querySelectorAll('details[open]')).map(node => node.closest('[data-grant-row]').dataset.grantRow);
     rows.innerHTML = payload.html;
     rows.querySelectorAll('[data-grant-row]').forEach(node => { if (opened.includes(node.dataset.grantRow)) node.querySelector('details').open = true; });
@@ -54,11 +54,11 @@ export const MCP_ACCESS_CLIENT_SCRIPT = `
     const [capability_id,version,provider_id] = JSON.parse(button.dataset.mcpGrant);
     const enabled = button.dataset.grantEnabled === 'true';
     const rowKey = button.dataset.mcpGrant;
-    setBusy(true); message(L('正在保存…'));
+    setBusy(true); message(globalThis.t.text("workbench.mcp-access.saving"));
     try {
-      await molisWorkRequest('/api/settings/mcp/actions', {body:{client_id:root.dataset.clientId,project_id:root.dataset.projectId || null,capability_id,version,provider_id,enabled},fallback:L('无法保存授权')});
+      await molisWorkRequest('/api/settings/mcp/actions', {body:{client_id:root.dataset.clientId,project_id:root.dataset.projectId || null,capability_id,version,provider_id,enabled},fallback:globalThis.t.text("workbench.mcp-access.could-not-save-access")});
       if (!root.isConnected) return;
-      await update(); message(L(enabled ? '授权已保存' : '授权已撤销'));
+      await update(); message(globalThis.t.text(enabled ? "workbench.mcp-access.access-saved" : "workbench.mcp-access.access-revoked"));
       const row = Array.from(rows.querySelectorAll('[data-grant-row]')).find(node => node.dataset.grantRow === rowKey);
       row?.querySelector('button,summary')?.focus();
     } catch(error) { message(error,true); refresh.hidden=false; }

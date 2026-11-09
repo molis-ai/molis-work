@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { codeLanguage, codeTokens, growCodeTokens } from "@molis-ai/molis-work-plugin-sdk/highlight";
 import { createCodingCodePaint } from "../../code-paint-client.js";
 import { actionsClient } from "../actions.js";
@@ -23,13 +24,13 @@ function mountWriterDirectories(page: Page) {
     workspaceLabel: () => s.state.workspaces.find(item => item.workspace_id === s.workspaceId)?.canonical_path || s.workspaceId, status: s.ports.status,
     assignments: () => s.configurations.get(s.current)?.writer_assignments || [],
     saveAssignments: async (owner, parent, assignments) => {
-      if (owner !== s.current || parent !== s.workspaceId) throw new Error(L("coding.error.split-changed"));
+      if (owner !== s.current || parent !== s.workspaceId) throw new Error(uiText.text("coding.error.split-changed"));
       rememberConfiguration(page);
       const previous = s.configurations.get(s.current);
       s.configurations.set(s.current, { ...previous, writer_assignments: assignments });
       try {
         await refs.draft.flush();
-        status(page, L("coding.worktrees.split-saved"));
+        status(page, uiText.text("coding.worktrees.split-saved"));
       } catch (error) {
         if (!lifetime.alive) return;
         s.configurations.set(owner, previous);
@@ -38,7 +39,7 @@ function mountWriterDirectories(page: Page) {
     },
     // The session's next rounds run in the Host's worktree of its folder; the folder, and what the embedded Files and Git show, stay as they are.
     select: async (owner, parent, worktree) => {
-      if (owner !== s.current || parent !== s.workspaceId) throw new Error(L("coding.error.worktree-changed"));
+      if (owner !== s.current || parent !== s.workspaceId) throw new Error(uiText.text("coding.error.worktree-changed"));
       const previous = s.worktree;
       s.worktree = { worktree_id: worktree.worktree_id, canonical_path: worktree.canonical_path };
       rememberConfiguration(page);
@@ -51,7 +52,7 @@ function mountWriterDirectories(page: Page) {
         throw error;
       }
       await refreshState(page);
-      status(page, L("coding.worktrees.used-next"));
+      status(page, uiText.text("coding.worktrees.used-next"));
     },
     chosen: () => s.worktree?.worktree_id,
     // Opened for the session it was asked on; the dialog reads where the session ran from the Host.
@@ -61,8 +62,8 @@ function mountWriterDirectories(page: Page) {
 
 /** Starts a round that carries out a revision of the session's plan. */
 async function executePlan(page: Page, revision: number) {
-  const { L, q, refs, s } = page;
-  if (s.sending || s.recovery || s.checkpointBusy || !s.current) throw new Error(L("coding.error.busy"));
+  const { q, refs, s } = page;
+  if (s.sending || s.recovery || s.checkpointBusy || !s.current) throw new Error(uiText.text("coding.error.busy"));
   const id = s.current, [provider_id, model_id] = JSON.parse(q<HTMLSelectElement>("[data-coding-model]").value) as [string, string];
   const intent = q<HTMLSelectElement>("[data-coding-intent]").value === "parallel" ? "parallel" : "execute";
   const request = {
@@ -94,10 +95,10 @@ function mountReview(page: Page) {
     onRunOpen: () => { s.changeItem = ""; s.reportItem = ""; renderArtifacts(page); },
     appendDraft: task => refs.draft.append(s.current, text => {
       const next = text.endsWith(task) ? text : (text ? text + "\n\n" : "") + task;
-      if (next.length > 100000) throw new Error(L("coding.feedback.too-long"));
+      if (next.length > 100000) throw new Error(uiText.text("coding.feedback.too-long"));
       return next;
-    }, L("coding.feedback.still-loading")),
-    focusDraft: () => { returnFromChange(page); input.focus(); status(page, L("coding.feedback.added")); },
+    }, uiText.text("coding.feedback.still-loading")),
+    focusDraft: () => { returnFromChange(page); input.focus(); status(page, uiText.text("coding.feedback.added")); },
   });
 }
 

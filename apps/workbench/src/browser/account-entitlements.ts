@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { Feature, EntitlementCheckResult, EntitlementDecision, Subscription, PlanVersion, TenantView } from "@molis-ai/molis-work-contracts/services/account";
 import type { TenantPanel } from "./account-tenant-panel.js";
 import { tenantPath } from "./account-tenant-panel.js";
@@ -5,12 +6,12 @@ import { planName, seatName } from "./account-billing-fields.js";
 
 /** Display-only snapshot. Every action queries Auth again; this view never grants a local permission. */
 export async function renderEntitlements(panel: TenantPanel, tenant: TenantView | undefined, back: () => Promise<void>) {
-  const { ui, list } = panel, { form, node, L, button, perform, request } = ui;
+  const { ui, list } = panel, { form, node, button, perform, request } = ui;
   const current = panel.begin('当前权益'), reload = () => renderEntitlements(panel, tenant, back);
   button('返回订阅与席位', () => perform(back)); button('刷新权益', () => perform(reload));
-  form.append(node('p', tenant?.name ?? L('个人空间')));
+  form.append(node('p', tenant?.name ?? uiText.text("workbench.account-entitlements.personal-space")));
   const content = node('div'); content.setAttribute('aria-live', 'polite'); form.append(content);
-  const unknown = () => { if (current()) content.replaceChildren(node('p', L('权益暂不可确认，请联网后刷新。'))); };
+  const unknown = () => { if (current()) content.replaceChildren(node('p', uiText.text("workbench.account-entitlements.entitlements-cannot-be-confirmed-reconnect-refresh"))); };
   let timer: ReturnType<typeof setTimeout> | undefined, deadline = 0;
   const expire = () => { if (current()) { unknown(); void perform(reload); } };
   const focus = () => { if (deadline && Date.now() >= deadline) expire(); };
@@ -32,17 +33,17 @@ export async function renderEntitlements(panel: TenantPanel, tenant: TenantView 
     deadline = Math.min(...decisions.map(d => Date.parse(d.validUntil)));
     if (!navigator.onLine || (decisions.length && deadline <= Date.now())) { unknown(); return; }
     content.replaceChildren();
-    if (!features.length) { content.append(node('p', L('暂无功能目录。'))); return; }
+    if (!features.length) { content.append(node('p', uiText.text("workbench.account-entitlements.no-features-available"))); return; }
     const subscriptions = [...personal, ...shared];
     for (const d of decisions) {
       const row = node('div', '', 'account-method'); row.dataset.entitlement = d.featureId;
-      row.append(node('strong', features.find(f => f.featureId === d.featureId)!.name), node('p', L(d.allowed ? '已获得权益' : '未获得权益')));
+      row.append(node('strong', features.find(f => f.featureId === d.featureId)!.name), node('p', uiText.text(d.allowed ? "workbench.account-entitlements.granted" : "workbench.account-entitlements.not-granted")));
       for (const s of d.sources) { const sub = subscriptions.find(v => v.subscriptionId === s.subscriptionId);
-        row.append(node('p', s.kind === 'PERSONAL_SUBSCRIPTION' ? L('个人订阅') + ' · ' + (sub ? planName(sub, plans) : s.subscriptionId) : L('当前租户席位') + ' · ' + seatName(s.subscriptionId, s.seatTypeId, subscriptions, plans)));
+        row.append(node('p', s.kind === 'PERSONAL_SUBSCRIPTION' ? uiText.text("workbench.account-entitlements.personal-subscriptions") + ' · ' + (sub ? planName(sub, plans) : s.subscriptionId) : uiText.text("workbench.account-entitlements.current-tenant-seat") + ' · ' + seatName(s.subscriptionId, s.seatTypeId, subscriptions, plans)));
       }
       content.append(row);
     }
-    content.append(node('p', L('校验有效至') + ' ' + new Date(deadline).toLocaleString()));
+    content.append(node('p', uiText.text("workbench.account-entitlements.valid-until") + ' ' + new Date(deadline).toLocaleString()));
     timer = setTimeout(expire, Math.max(1, deadline - Date.now()));
   } catch { unknown(); }
 }

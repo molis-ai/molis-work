@@ -1,5 +1,5 @@
 import { ACCOUNT_CLIENT_SCRIPT } from "../scripts/account.js";
-import { escapeHtml, icon, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t as uiText, escapeHtml, icon, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderCaption, renderIconSprite, renderWordmark, THEME_BOOTSTRAP_SCRIPT } from "@molis-ai/molis-work-design-system";
 import { homePluginSideTabs } from "../home-plugin-navigation.js";
 import { renderSidePanel, renderSideStrip, SIDE_PANEL_SCRIPT, SIDE_PANEL_STYLES } from "../side-panel.js";
@@ -71,19 +71,19 @@ export function createArrivalShell(p: ArrivalShellPrimitives) {
   const { L, escapeHtml, icon } = p;
   const href = (desktopShell: boolean, path: string) => desktopShell ? p.withDesktopQuery(path) : path;
 
-  const caption = () => renderCaption({ label: L("暂停标题动画"), playLabel: L("播放标题动画"), title: L("点按暂停或播放") });
+  const caption = () => renderCaption({ label: uiText.text("workbench.shell.pause-title-animation"), playLabel: uiText.text("workbench.shell.play-title-animation"), title: uiText.text("workbench.shell.click-pause-play") });
 
   function tools(desktopShell: boolean, options: ArrivalTitlebarOptions): string {
     const link = (path: string, glyph: PluginIconName, label: string, aria: string) =>
       `<a class="mw-btn mw-btn--ghost mw-btn--md" data-slot="button" href="${href(desktopShell, path)}" aria-label="${escapeHtml(aria)}">${icon(glyph)}<span data-slot="button-label">${escapeHtml(label)}</span></a>`;
     const theme = options.theme
-      ? `<span class="arrival-theme"><button class="mw-btn mw-btn--ghost mw-btn--md" data-slot="button" type="button" id="cx-theme" aria-label="${L("切换主题")}">${icon("switch")}<span data-slot="button-label">${L("切换主题")}</span></button></span>` : "";
+      ? `<span class="arrival-theme"><button class="mw-btn mw-btn--ghost mw-btn--md" data-slot="button" type="button" id="cx-theme" aria-label="${uiText("workbench.shell.switch-theme")}">${icon("switch")}<span data-slot="button-label">${uiText("workbench.shell.switch-theme")}</span></button></span>` : "";
     // The right side's tabs end the bar, as on a project page: the Home's side views, and the background tasks where they are read.
     const side = renderSideStrip(p, homePluginSideTabs(), { projectTools: false, tasks: options.tasks === true });
-    const unifiedAccount = options.account ? `<button class="mw-btn mw-btn--ghost mw-btn--md" type="button" data-slot="button" data-unified-account-link aria-label="${L("Molis 账号")}">${icon("user")}<span data-slot="button-label" data-unified-account-name>${L("Molis 账号")}</span></button>` : "";
-    const global = options.tools === false ? "" : `<span class="arrival-global">${unifiedAccount}${link("/capabilities/library", "sparkles", L("能力"), L("打开能力服务"))}${link("/settings/appearance", "settings", L("设置"), L("打开系统设置"))}${side.includes("data-side-tab=") ? side : ""}</span>`;
-    const account = options.account ? `<button class="mw-btn mw-btn--ghost mw-btn--md" data-slot="button" type="button" data-account-link aria-label="${L("账号管理")}">${icon("user")}<span data-slot="button-label" data-personal-name>${L("未登录")}</span></button>` : "";
-    return `<nav class="arrival-tools" aria-label="${L("全局")}">${theme}${account}${global}</nav>`;
+    const unifiedAccount = options.account ? `<button class="mw-btn mw-btn--ghost mw-btn--md" type="button" data-slot="button" data-unified-account-link aria-label="${uiText("workbench.shell.molis-account")}">${icon("user")}<span data-slot="button-label" data-unified-account-name>${uiText("workbench.shell.molis-account")}</span></button>` : "";
+    const global = options.tools === false ? "" : `<span class="arrival-global">${unifiedAccount}${link("/capabilities/library", "sparkles", uiText.text("workbench.shell.capabilities"), uiText.text("workbench.shell.open-capabilities"))}${link("/settings/appearance", "settings", uiText.text("workbench.shell.settings"), uiText.text("workbench.shell.open-system-settings"))}${side.includes("data-side-tab=") ? side : ""}</span>`;
+    const account = options.account ? `<button class="mw-btn mw-btn--ghost mw-btn--md" data-slot="button" type="button" data-account-link aria-label="${uiText("workbench.shell.account")}">${icon("user")}<span data-slot="button-label" data-personal-name>${uiText("workbench.shell.not-signed")}</span></button>` : "";
+    return `<nav class="arrival-tools" aria-label="${uiText("workbench.shell.everywhere")}">${theme}${account}${global}</nav>`;
   }
 
   /** The titlebar: the mark and its wordmark, the caption on the chooser, and what is within reach on the right. */
@@ -94,7 +94,7 @@ export function createArrivalShell(p: ArrivalShellPrimitives) {
 
   /** The bar: three blocks on the desk. The center is a whole element (the Assistant's island, or a status). */
   function bar(options: { kind: string; start?: string; center?: string; end?: string }): string {
-    return `<div class="workbench-bar arrival-bar" data-dock data-bar="${escapeHtml(options.kind)}" aria-label="${L("底栏")}"><div class="bar-start">${options.start ?? ""}</div>${options.center ?? '<div class="bar-center"></div>'}<div class="bar-end">${options.end ?? ""}</div></div>`;
+    return `<div class="workbench-bar arrival-bar" data-dock data-bar="${escapeHtml(options.kind)}" aria-label="${uiText("workbench.shell.bottom-bar")}"><div class="bar-start">${options.start ?? ""}</div>${options.center ?? '<div class="bar-center"></div>'}<div class="bar-end">${options.end ?? ""}</div></div>`;
   }
 
   function document(options: ArrivalDocumentOptions): string {
@@ -133,13 +133,12 @@ export function createArrivalShell(p: ArrivalShellPrimitives) {
 /** The same workbench document and account controls, without opening an anonymous business Home. */
 export function renderPersonalAccountEntry(controlToken: string, desktop: boolean, message?: string,
   locale: Pick<ReturnType<typeof createWorkbenchLocale>, "L" | "htmlLang" | "clientI18nScript"> = createWorkbenchLocale(() => "zh"), nativeBootstrap = ""): string {
-  const { L } = locale;
   return renderWorkbenchDocument({lang: locale.htmlLang(), title: "Molis Work",
     body_attributes: {class: "arrival-page immersive-workbench", "data-arrival": "welcome", "data-account-entry": true, "data-native-desktop": desktop ? "true" : null},
     head_html: `<meta name="molis-work-page-session" content="${escapeHtml(controlToken)}"><script>${THEME_BOOTSTRAP_SCRIPT}${desktop ? nativeBootstrap : ""}</script><link rel="stylesheet" href="/assets/molis-work-arrival.css">`,
     body_html: `${renderIconSprite()}<div class="arrival" data-screen="welcome"><header class="arrival-titlebar"${desktop ? ' data-tauri-drag-region="deep"' : ""}><span class="arrival-brand">${icon("brand")}${renderWordmark()}</span></header>
-      <main class="arrival-stage"><section class="mw-empty"><h1>${escapeHtml(L("登录 / 注册 molis AI"))}</h1><p>${escapeHtml(L("登录后可管理你的 molis 账号"))}</p>
-      <button class="mw-btn mw-btn--primary" type="button" data-account-link aria-label="${escapeHtml(L("账号管理"))}">${icon("user")}<span data-personal-name>${escapeHtml(L("未登录"))}</span></button>
-      <p role="status" data-account-entry-status>${escapeHtml(message ?? "")}</p><button class="mw-btn mw-btn--secondary" type="button" data-personal-action="retry"${message ? "" : " hidden"}>${escapeHtml(L("重试"))}</button></section></main></div>
+      <main class="arrival-stage"><section class="mw-empty"><h1>${escapeHtml(uiText.text("workbench.shell.sign-sign-up-molis-ai"))}</h1><p>${escapeHtml(uiText.text("workbench.shell.sign-manage-molis-account"))}</p>
+      <button class="mw-btn mw-btn--primary" type="button" data-account-link aria-label="${escapeHtml(uiText.text("workbench.shell.account"))}">${icon("user")}<span data-personal-name>${escapeHtml(uiText.text("workbench.shell.not-signed"))}</span></button>
+      <p role="status" data-account-entry-status>${escapeHtml(message ?? "")}</p><button class="mw-btn mw-btn--secondary" type="button" data-personal-action="retry"${message ? "" : " hidden"}>${escapeHtml(uiText.text("common.control.retry"))}</button></section></main></div>
       <script>${locale.clientI18nScript()}${CONTROL_CLIENT_SCRIPT}</script>`});
 }

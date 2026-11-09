@@ -14,6 +14,7 @@ import { pageConnectionSlot } from "./plugin-connection-slots-http.js";
 import { pageConnectionNeed } from "./plugin-connection-need-http.js";
 import { pageTaskGrants } from "./plugin-page-task-grants-http.js";
 import { stageObjectAction } from "@molis-ai/molis-work-app-workbench";
+import { registeredBuiltinText } from "./ui-text-provider.js";
 import { handlePageLocales } from "./web-ui-locales.js";
 
 /** Resolve the same running stage half as rendering; the request names a surface, never an installation. */
@@ -120,7 +121,7 @@ export async function handlePluginPageHttp(context: WebRequestContext, project?:
     if (project) await localHost.inspectActions({actor_id: LOCAL_PERSON_ACTOR_ID, project_id: project.project_id, permissions: [], audience: "user"}, project);
     const registered = entry?.workbench.pageRequests && project ? {
       manifest: entry.manifest, install_id: null, project_id: project.project_id, actor_id: LOCAL_PERSON_ACTOR_ID,
-      requestAllowed: registeredPageRoutes(entry.workbench.pageRequests),
+      requestAllowed: registeredPageRoutes(entry.workbench.pageRequests), registeredText: registeredBuiltinText(entry.manifest) ?? undefined,
       assertCurrent() { if (localHost.lifecycle() !== "running") throw new ActionError("actions.host_closed", "宿主已关闭"); },
     } : undefined;
     await assertScope();

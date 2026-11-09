@@ -1,4 +1,4 @@
-import { L } from "./common.js";
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { bindKnowledgeImport } from "./import.js";
 import { bindKnowledgePicker } from "./picker.js";
 import { bindKnowledgeSettings } from "./settings-page.js";
@@ -12,7 +12,7 @@ bindKnowledgePicker();
 document.addEventListener("molis-work:knowledge-picked", event => {
   const detail = (event as CustomEvent<{ request_id?: string; picks?: Array<{ kind: string; id: string; title: string }> }>).detail;
   if (!detail?.request_id?.startsWith("assistant:") || !detail.picks?.length) return;
-  document.dispatchEvent(new CustomEvent("molis:assistant-open", { detail: { source: { surface: "knowledge", title: L("项目资料") },
+  document.dispatchEvent(new CustomEvent("molis:assistant-open", { detail: { source: { surface: "knowledge", title: uiText.text("workbench.knowledge-entry.project-knowledge") },
     materials: detail.picks.map(pick => ({ title: pick.title, subject: { kind: pick.kind, id: pick.id } })) } }));
 });
 const bindAll = (container: ParentNode) => {

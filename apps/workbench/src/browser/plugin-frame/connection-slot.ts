@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { UiConnectionSlotChoice, UiConnectionSlotRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { ConnectorConnectionView } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { childConnectionNeed } from "./connection-need.js";
@@ -58,7 +59,7 @@ function renderedRecord(root: HTMLElement, slot: string, record: string): boolea
 
 /** One request owns its reads, dialog and bind. Superseding it is effective before the first await. */
 export function pageConnectionSlot(port: MessagePort, scope: FrameScope, frame: HTMLIFrameElement, root: HTMLElement,
-  pageId: string, route: (path: string) => string, translate: Translate) {
+  pageId: string, route: (path: string) => string, _translate: Translate) {
   let current: { id: number; finish(value: UiConnectionSlotChoice | null): void } | null = null;
   const cancel = (id?: number) => { if (current && (id === undefined || current.id === id)) current.finish(null); };
   scope.own(cancel); scope.whenVisible(() => () => cancel());
@@ -74,14 +75,14 @@ export function pageConnectionSlot(port: MessagePort, scope: FrameScope, frame: 
     const request = { id: message.id, finish }; current = request;
     const check = () => { scope.assertCurrent(); if (!scope.visible || frame.hidden || current !== request || settled || controller.signal.aborted) throw new DOMException("View changed", "AbortError"); };
     const read = async (mode: "read" | "bind", connection_id?: string) => {
-      check(); if (!renderedRecord(root, message.slot_id, message.record_key)) throw new Error(translate("原连接已不可用"));
+      check(); if (!renderedRecord(root, message.slot_id, message.record_key)) throw new Error(uiText.text("common.connection-slot.previous-connection-no-longer-available"));
       const result = await molisWorkRequest<{ service_id: string; connection: UiConnectionSlotChoice | null }>(route("/api/host/plugin-page-slot"), {
         headers: { "x-molis-context-page": pageId }, scope, signal: controller.signal,
         body: { slot_id: message.slot_id, record_key: message.record_key, mode, ...(connection_id ? { connection_id } : {}) },
       }); check(); return result;
     };
     try {
-      check(); if (!["read", "choose"].includes(message.mode) || typeof message.slot_id !== "string" || typeof message.record_key !== "string") throw new Error(translate("原连接已不可用"));
+      check(); if (!["read", "choose"].includes(message.mode) || typeof message.slot_id !== "string" || typeof message.record_key !== "string") throw new Error(uiText.text("common.connection-slot.previous-connection-no-longer-available"));
       const bound = await read("read"); check();
       if (message.mode === "read" || bound.connection) { finish(bound.connection); return; }
       const directory = await molisWorkRequest<{ connections: Array<ConnectorConnectionView | { project_id: string }> }>(
@@ -90,12 +91,12 @@ export function pageConnectionSlot(port: MessagePort, scope: FrameScope, frame: 
       const accounts = directory.connections.filter((connection): connection is ConnectorConnectionView => !("project_id" in connection));
       // No account at all: the connection card on the page instead of a dialog with nothing to pick (ASC-70, §13.5).
       if (!accounts.length) { finish(null, undefined, true); return; }
-      popup = document.createElement("dialog"); popup.className = "mw-dialog mw-dialog--form"; popup.setAttribute("aria-label", translate("请选择账号连接"));
+      popup = document.createElement("dialog"); popup.className = "mw-dialog mw-dialog--form"; popup.setAttribute("aria-label", uiText.text("common.connection-slot.choose-account-connection"));
       const area = document.createElement("div"); area.className = "mw-dialog__body"; area.style.cssText = "display:grid;gap:8px;overflow:auto"; popup.append(area);
       popup.addEventListener("cancel", event => { event.preventDefault(); finish(null); });
       for (const account of accounts) {
         const button = document.createElement("button"); button.type = "button"; button.className = "mw-btn mw-btn--ghost";
-        button.textContent = (account.account_label || account.display_name) + " · " + account.auth_method + " · " + translate(account.state === "connected" ? "可用" : account.state === "reauth_required" ? "需要重新授权" : "已断开");
+        button.textContent = (account.account_label || account.display_name) + " · " + account.auth_method + " · " + uiText.text(account.state === "connected" ? "common.connection-slot.available" : account.state === "reauth_required" ? "common.connection-slot.reauthorization-required" : "common.connection-slot.disconnected");
         button.disabled = account.state !== "connected";
         button.style.cssText = "max-width:100%;white-space:normal;text-align:left";
         button.addEventListener("click", () => {
@@ -105,7 +106,7 @@ export function pageConnectionSlot(port: MessagePort, scope: FrameScope, frame: 
             .catch(error => { if (current === request && !settled) finish(null, error instanceof Error ? error.message : String(error)); });
         }); area.append(button);
       }
-      const back = document.createElement("button"); back.type = "button"; back.className = "mw-btn"; back.textContent = translate("取消"); back.addEventListener("click", () => finish(null)); area.append(back);
+      const back = document.createElement("button"); back.type = "button"; back.className = "mw-btn"; back.textContent = uiText.text("common.control.cancel"); back.addEventListener("click", () => finish(null)); area.append(back);
       popup.style.cssText = "max-height:min(400px,80vh);max-width:min(440px,90vw)";
       const box = frame.getBoundingClientRect(), anchor = message.box;
       if (anchor && Object.values(anchor).every(Number.isFinite)) popup.style.cssText += ";position:fixed;inset:auto;margin:0;translate:none;transform:none;width:min(440px,90vw)";

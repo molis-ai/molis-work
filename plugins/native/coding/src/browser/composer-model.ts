@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { errorMessage } from "./dom.js";
 import type { PagePorts } from "./types.js";
 
@@ -39,11 +40,11 @@ export interface ComposerModels {
  * to the chosen model from its next model call. A note beside them says what the round on show is really using.
  */
 export function composerModels(ports: ComposerModelPorts): ComposerModels {
-  const { q, lifetime, switchModel, status, translate: L } = ports;
+  const { q, lifetime, switchModel, status } = ports;
   // The effort select is enhanced into a picker, so it is shown and hidden through its wrapper.
   const models = q<HTMLSelectElement>("[data-coding-model]"), effort = q<HTMLSelectElement>("[data-coding-effort]"), effortWrap = q("[data-coding-effort-wrap]");
   const swap = q<HTMLButtonElement>("[data-coding-model-switch]"), note = q("[data-coding-model-note]");
-  const EFFORT: Readonly<Record<string, string>> = { low: L("coding.effort.low"), medium: L("coding.effort.medium"), high: L("coding.effort.high") };
+  const EFFORT: Readonly<Record<string, string>> = { low: uiText.text("coding.effort.low"), medium: uiText.text("coding.effort.medium"), high: uiText.text("coding.effort.high") };
   let list: readonly ModelChoice[] = [], live: ComposerRun | null = null, busy = false, round: ComposerRun | null = null;
   const chosen = () => {
     try {
@@ -56,10 +57,10 @@ export function composerModels(ports: ComposerModelPorts): ComposerModels {
   };
   /** What the round on show really uses: its start model, a switch taken or asked for, its effort and thinking. */
   const noteOf = (on: ComposerRun) => [
-    L("coding.model.round", { model: on.model_switch?.now ? L("coding.model.switched", { now: on.model_switch.now, start: on.frozen?.model_id ?? "" }) : on.frozen?.model_id || "" }),
-    ...(on.frozen?.reasoning_effort ? [L("coding.model.effort", { effort: EFFORT[on.frozen.reasoning_effort] ?? on.frozen.reasoning_effort })] : []),
-    ...(on.frozen?.thinking ? [L("coding.model.thinking")] : []),
-    ...(on.model_switch?.requested ? [L("coding.model.requested", { model: on.model_switch.requested })] : []),
+    uiText.text("coding.model.round", { model: on.model_switch?.now ? uiText.text("coding.model.switched", { now: on.model_switch.now, start: on.frozen?.model_id ?? "" }) : on.frozen?.model_id || "" }),
+    ...(on.frozen?.reasoning_effort ? [uiText.text("coding.model.effort", { effort: EFFORT[on.frozen.reasoning_effort] ?? on.frozen.reasoning_effort })] : []),
+    ...(on.frozen?.thinking ? [uiText.text("coding.model.thinking")] : []),
+    ...(on.model_switch?.requested ? [uiText.text("coding.model.requested", { model: on.model_switch.requested })] : []),
   ];
   const paint = () => {
     const model = chosen();
@@ -70,7 +71,7 @@ export function composerModels(ports: ComposerModelPorts): ComposerModels {
     const using = live?.model_switch?.now || live?.frozen?.model_id;
     swap.hidden = !live || !model || model.model_id === using || live.model_switch?.requested === model.model_id;
     swap.disabled = busy;
-    swap.title = model ? L("coding.model.switch-title", { model: model.label }) : "";
+    swap.title = model ? uiText.text("coding.model.switch-title", { model: model.label }) : "";
     const parts = round ? noteOf(round) : [];
     note.hidden = !parts.length;
     note.textContent = parts.join(" · ");
@@ -86,7 +87,7 @@ export function composerModels(ports: ComposerModelPorts): ComposerModels {
     });
     if (!options.length) {
       const option = document.createElement("option");
-      option.textContent = L("coding.model.none");
+      option.textContent = uiText.text("coding.model.none");
       option.value = "";
       options.push(option);
     }
@@ -107,9 +108,9 @@ export function composerModels(ports: ComposerModelPorts): ComposerModels {
     paint();
     try {
       await switchModel(live, { provider_id: model.provider_id, model_id: model.model_id });
-      status(L("coding.model.switch-asked", { model: model.label }));
+      status(uiText.text("coding.model.switch-asked", { model: model.label }));
     } catch (error) {
-      if (lifetime.alive) status(L("coding.model.switch-failed", { reason: errorMessage(error) }), true);
+      if (lifetime.alive) status(uiText.text("coding.model.switch-failed", { reason: errorMessage(error) }), true);
     } finally {
       busy = false;
       paint();

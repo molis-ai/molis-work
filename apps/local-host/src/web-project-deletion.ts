@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import {handleProjectRecycleHttp} from './web-project-recycle.js';
 import { randomBytes } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
@@ -65,12 +66,12 @@ export function createProjectDeletionHttp(withMolisWorkProjectCatalog: LocalWebC
       const body = await readBody(request);
       const deletionKey = typeof body.idempotency_key === "string" ? body.idempotency_key.trim() : "";
       if (body.delete_confirmed !== true || deletionKey.length < 8 || deletionKey.length > 200) {
-        sendJson(response, 400, { error: L("请明确确认删除项目，并提供有效的删除请求键。") });
+        sendJson(response, 400, { error: uiText.text("workbench.project-deletion.confirm-project-deletion-provide-valid-deletion-request-key") });
         return true;
       }
       // Only this page asks the person what happens to the files in the default output directory; nothing else is taken (SSC-23).
       if (body.output_files !== undefined && body.output_files !== "keep" && body.output_files !== "delete") {
-        sendJson(response, 400, { error: L("默认输出目录里的文件只能选择留下或删除。") });
+        sendJson(response, 400, { error: uiText.text("workbench.project-deletion.files-default-output-folder-can-only-be-kept") });
         return true;
       }
       try {

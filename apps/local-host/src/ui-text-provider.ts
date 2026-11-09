@@ -1,14 +1,16 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
+import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { UiLocalePack, UiResourceRow, UiTextProvider } from "@molis-ai/molis-work-contracts/platform/ui";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { BASELINE_REGISTRY } from "@molis-ai/molis-work-design-system";
 import { pluginLocaleReader, type PluginLocaleReader } from "@molis-ai/molis-work-plugin-runtime";
-import { installUiText } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { pluginTextForOwner, pluginTextOwnerOfPrefix, registerPlatformText, type PluginTextReader } from "@molis-ai/molis-work-app-workbench";
+import { installUiText, textKeyPrefix } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { installCatalogTextScope, pluginTextForOwner, pluginTextOwnerOfPrefix, registerPlatformText, type PluginTextReader } from "@molis-ai/molis-work-app-workbench";
 import { hostLog } from "./host-log.js";
-import { textScope, WEB_LOCALES } from "./web-locale.js";
-import { registeredPackageDirectory } from "./registered-plugin-files.js";
+import { runWithRegisteredText, textScope, WEB_LOCALES } from "./web-locale.js";
+import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
+import { registeredPackageDirectory, registeredPluginLocaleFiles } from "./registered-plugin-files.js";
 
 // The text context of this process (specs/font-and-skin-system/a-section-contract.md §5.2, §8.3): what `t`, `say` and `format` find on the global. The
 // language is the scope's (`web-locale.ts`), which ends with the request or the run that opened it; plugin words come only from the exact activation. It does
@@ -26,12 +28,18 @@ const problems: TextProblem[] = [];
 const LOGGED_LIMIT = 1000;
 const logged = new Set<string>();
 
-const readerFor = (owner: string) => pluginTextForOwner(owner, textScope().activation);
+const readerFor = (owner: string) => {
+  const { activation, registered } = textScope();
+  return registered?.owner === owner ? registered : pluginTextForOwner(owner, activation);
+};
 
 const provider: UiTextProvider = {
   locale: () => textScope().locale,
   noContext: () => textScope().noContext,
-  ownerOfPrefix: prefix => pluginTextOwnerOfPrefix(prefix, textScope().activation),
+  ownerOfPrefix(prefix) {
+    const { activation, registered } = textScope();
+    return registered && textKeyPrefix(registered.owner) === prefix ? registered.owner : pluginTextOwnerOfPrefix(prefix, activation);
+  },
   message(owner, key, locale) {
     const messages = readerFor(owner)?.pack(locale)?.messages;
     return messages && Object.hasOwn(messages, key) ? messages[key]! : null;
@@ -85,6 +93,22 @@ function platformLocaleReader(row: UiResourceRow): PluginTextReader {
 }
 
 let platformText: readonly PluginTextReader[] | null = null;
+const registeredWords = new WeakMap<PluginManifest, PluginLocaleReader | null>();
+
+/** Only the actual build registration has this source. A Manifest with the same id is not that registration. */
+export function registeredBuiltinText(manifest: PluginManifest): PluginLocaleReader | null {
+  if (registeredWords.has(manifest)) return registeredWords.get(manifest)!;
+  const entry = PLATFORM_PLUGIN_REGISTRATIONS.find(item => item.manifest === manifest);
+  if (!entry) return null;
+  const reader = pluginLocaleReader(manifest, registeredPluginLocaleFiles(entry.package_name, manifest));
+  registeredWords.set(manifest, reader);
+  return reader;
+}
+
+export function drawRegisteredText<T>(manifest: PluginManifest, draw: () => T): T {
+  const reader = registeredBuiltinText(manifest);
+  return reader ? runWithRegisteredText(reader, draw) : draw();
+}
 
 /**
  * Installs the context, once a process: an application Host as it starts, the developer door before it runs a plugin. The platform's own owners are
@@ -94,6 +118,7 @@ export function installHostUiText(): void {
   if (platformText === null) {
     platformText = BASELINE_REGISTRY.resources.filter(row => row.kind === "locale").map(platformLocaleReader);
     platformText.forEach(registerPlatformText);
+    installCatalogTextScope(drawRegisteredText);
   }
   installUiText(provider);
 }

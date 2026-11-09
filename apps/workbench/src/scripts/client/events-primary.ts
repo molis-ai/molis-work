@@ -110,7 +110,7 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
       const line = document.createElement("p");
       line.className = "mw-loading";
       line.setAttribute("role", "status");
-      line.textContent = L("正在加载设置");
+      line.textContent = globalThis.t.text("workbench.events-primary.loading-settings");
       return line;
     };
     const settingsLoadFailed = (message, retry) => {
@@ -118,16 +118,16 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
       box.className = "mw-empty mw-empty--error";
       box.setAttribute("role", "alert");
       box.innerHTML = '<span class="mw-empty__mark"><svg aria-hidden="true"><use href="#icon-circle-alert"></use></svg></span><strong></strong><p></p><button class="mw-btn mw-btn--secondary" type="button"></button>';
-      box.querySelector("strong").textContent = L("无法加载设置");
-      if(typeof message==="string")box.querySelector("p").textContent=message && message!==L("无法加载设置")?message:L("请稍后重试");else molisWorkRequest.show(box.querySelector("p"),message,L("请稍后重试"));
+      box.querySelector("strong").textContent = globalThis.t.text("workbench.events-primary.couldn-t-load-settings");
+      if(typeof message==="string")box.querySelector("p").textContent=message && message!==globalThis.t.text("workbench.events-primary.couldn-t-load-settings")?message:globalThis.t.text("workbench.events-primary.try-again-moment");else molisWorkRequest.show(box.querySelector("p"),message,globalThis.t.text("workbench.events-primary.try-again-moment"));
       const button = box.querySelector(":scope > button");
-      button.textContent = L("重试");
+      button.textContent = globalThis.t.text("common.control.retry");
       button.addEventListener("click", () => { button.disabled = true; void retry(); });
       return box;
     };
     const fillGoalOverlay = async (pane, path, bind) => {
       pane.replaceChildren(settingsLoadingLine());
-      const html = await molisWorkRequest(path,{as:"text",headers:{Accept:"text/html"},fallback:L("无法加载设置")});
+      const html = await molisWorkRequest(path,{as:"text",headers:{Accept:"text/html"},fallback:globalThis.t.text("workbench.events-primary.couldn-t-load-settings")});
       if(!pane.isConnected)return;
       const parsed = new DOMParser().parseFromString(html, "text/html");
       const content = parsed.querySelector(".work-planning, .planning-detail, .planning-edit, .project-rules-document, .settings-document") || parsed.querySelector(".settings-content") || parsed.body;

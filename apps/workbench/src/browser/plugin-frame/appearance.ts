@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { announceAppearance, prepareAppearance, readDocumentAppearance, setAppearanceScope, withDocumentDevice, type AppearanceProjection } from "../appearance-view.js";
 import type { FrameScope, Translate } from "./types.js";
 
@@ -45,7 +46,7 @@ export function frameEnvironment(port: MessagePort, scope: FrameScope, root: HTM
 }
 
 /** An opaque child reads the parent's bound projection. It keeps its own last successfully rendered scope. */
-export function frameAppearance(origin: string, initial: AppearanceProjection | undefined, scope: FrameScope, translate: Translate) {
+export function frameAppearance(origin: string, initial: AppearanceProjection | undefined, scope: FrameScope, _translate: Translate) {
   let desired = initial, displayed = initial;
   let verified = initial?.stylesheet ? "" : initial?.snapshot.revision;
   let preparing: string | undefined, generation = 0;
@@ -76,9 +77,9 @@ export function frameAppearance(origin: string, initial: AppearanceProjection | 
       notice.className = "mw-toast appearance-notice is-visible";
       const message = document.createElement("span");
       message.role = "status";
-      message.textContent = translate("此窗口未能加载新外观，保留了可用的样式。");
+      message.textContent = uiText.text("common.appearance.window-couldnt-load-new-appearance-keeping-current-look");
       const retry = document.createElement("button");
-      retry.type = "button"; retry.className = "mw-toast__action"; retry.textContent = translate("再试一次");
+      retry.type = "button"; retry.className = "mw-toast__action"; retry.textContent = uiText.text("common.appearance.try-again");
       retry.addEventListener("click", () => update(desired));
       notice.append(message, retry);
       document.body.append(notice);

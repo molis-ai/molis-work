@@ -1,7 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { t } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { createWorkbenchLocale, type WebLocale } from "@molis-ai/molis-work-app-workbench";
+import { createWorkbenchLocale, type PluginTextReader, type WebLocale } from "@molis-ai/molis-work-app-workbench";
 import { currentPluginTextCall, pluginActivationOpen, type PluginInstance } from "@molis-ai/molis-work-plugin-runtime";
 export { EN, LOCALE_COOKIE, WEB_LOCALES, LOCALE_SWITCH_STYLES, type WebLocale, type WebLocalePreference } from "@molis-ai/molis-work-app-workbench";
 type WebLocaleChoice = ReturnType<ReturnType<typeof createWorkbenchLocale>["resolveWebLocaleChoice"]>;
@@ -15,15 +15,16 @@ interface LocaleScope {
   readonly locale: string | null;
   readonly noContext: "default" | "throw";
   readonly activation?: PluginInstance;
+  readonly registered?: PluginTextReader;
   readonly call?: object;
   readonly preview?: boolean;
   ended: boolean;
 }
 const scopeStore = new AsyncLocalStorage<LocaleScope>();
 
-function inLocaleScope<T>(locale: string | null, fn: () => T, options?: Partial<Pick<LocaleScope, "activation" | "noContext" | "preview">>): T {
+function inLocaleScope<T>(locale: string | null, fn: () => T, options?: Partial<Pick<LocaleScope, "activation" | "registered" | "noContext" | "preview">>): T {
   const scope: LocaleScope = { locale, noContext: options?.noContext ?? scopeStore.getStore()?.noContext ?? "default",
-    activation: options?.activation, call: currentPluginTextCall()?.token, preview: options?.preview ?? scopeStore.getStore()?.preview, ended: false };
+    activation: options?.activation, registered: options?.registered, call: currentPluginTextCall()?.token, preview: options?.preview ?? scopeStore.getStore()?.preview, ended: false };
   const end = () => { scope.ended = true; };
   let result: T;
   try { result = scopeStore.run(scope, fn); } catch (error) { end(); throw error; }
@@ -62,6 +63,12 @@ export function runWithPluginText<T>(activation: PluginInstance, fn: () => T): T
   return inLocaleScope(locale, fn, { activation, noContext });
 }
 
+/** A static catalog contribution uses its exact shipped package, independently of a running installation with the same id. */
+export function runWithRegisteredText<T>(registered: PluginTextReader, fn: () => T): T {
+  const { locale, noContext } = textScope();
+  return inLocaleScope(locale, fn, { registered, noContext });
+}
+
 /** The language of the scope still under way here: `null` once it ended, so a timer started in a request does not keep that page's language. */
 export function activeLocale(): WebLocale | null {
   const { locale } = textScope();
@@ -69,7 +76,7 @@ export function activeLocale(): WebLocale | null {
 }
 
 /** What the text tools read (`ui-text-provider.ts`): the language of the scope under way, `null` once it ended; and how a missing one is answered. */
-export function textScope(): Pick<LocaleScope, "locale" | "noContext" | "activation"> {
+export function textScope(): Pick<LocaleScope, "locale" | "noContext" | "activation" | "registered"> {
   const scope = scopeStore.getStore(), call = currentPluginTextCall();
   const insideCall = call && scope?.call === call.token;
   const activation = !call || insideCall ? scope?.activation ?? call?.activation : call.activation;
@@ -77,6 +84,7 @@ export function textScope(): Pick<LocaleScope, "locale" | "noContext" | "activat
   return {
     locale: call ? !call.live ? null : insideCall ? scopedLocale : call.locale ?? scopedLocale : scopedLocale,
     noContext: scope?.noContext ?? "default",
+    registered: scope && !scope.ended && (!call || insideCall && call.live) ? scope.registered : undefined,
     activation: call?.available !== false && activation && pluginActivationOpen(activation) ? activation : undefined,
   };
 }

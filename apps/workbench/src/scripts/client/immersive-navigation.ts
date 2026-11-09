@@ -56,7 +56,7 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
     documentPane.hidden = !open;
     const button = frame.querySelector("[data-goal-details-toggle]");
     button?.setAttribute("aria-expanded", String(open));
-    button?.setAttribute("aria-label", open ? L("收起 Goal 信息与时间线") : L("展开 Goal 信息与时间线"));
+    button?.setAttribute("aria-label", open ? globalThis.t.text("workbench.immersive-navigation.collapse-goal-info-timeline") : globalThis.t.text("workbench.immersive-navigation.expand-goal-info-timeline"));
     if (persist && getSelected()) {
       modes[getSelected()] = { ...modes[getSelected()], details: open };
       persistModes();
@@ -152,14 +152,14 @@ export const IMMERSIVE_NAVIGATION_FACTORY_SCRIPT = `(host) => {
     if (projectGear) {
       if (plugin === "project-settings") {
         projectGear.setAttribute("aria-current", "page");
-        projectGear.setAttribute("aria-label", L("当前项目设置"));
+        projectGear.setAttribute("aria-label", globalThis.t.text("workbench.immersive-navigation.current-project-settings"));
       } else {
         projectGear.removeAttribute("aria-current");
-        projectGear.setAttribute("aria-label", L("打开当前项目设置"));
+        projectGear.setAttribute("aria-label", globalThis.t.text("workbench.immersive-navigation.open-current-project-settings"));
       }
     }
     const surface = getSurface();
-    const labels = { home: document.body.dataset.projectId === "personal" ? L("个人首页") : L("项目首页"), market: L("插件市场"), "project-settings": L("项目设置"), ...PLUGIN_TAB_TITLES };
+    const labels = { home: document.body.dataset.projectId === "personal" ? globalThis.t.text("workbench.immersive-navigation.personal-home") : globalThis.t.text("workbench.immersive-navigation.project-home"), market: globalThis.t.text("workbench.immersive-navigation.plugin-market"), "project-settings": globalThis.t.text("workbench.immersive-navigation.project-settings"), ...PLUGIN_TAB_TITLES };
     const pluginTitle = document.querySelector("[data-immersive-plugin-title]");
     if (pluginTitle) {
       pluginTitle.hidden = true;

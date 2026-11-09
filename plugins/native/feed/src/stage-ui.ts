@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { StagePageModel } from "@molis-ai/molis-work-contracts/platform/ui";
 import { renderRichText, richPlainText } from "@molis-ai/molis-work-plugin-sdk/rich-text";
@@ -63,7 +64,7 @@ function buildFeedModel(
   };
 }
 
-function feedEntries(view: FeedStageView, L: FeedText["L"]): FeedUiEntry[] {
+function feedEntries(view: FeedStageView, _L: FeedText["L"]): FeedUiEntry[] {
   return [
     ...view.data.snapshot.feed_items.map((item): FeedUiEntry => ({
       entry_id: item.item_id,
@@ -76,7 +77,7 @@ function feedEntries(view: FeedStageView, L: FeedText["L"]): FeedUiEntry[] {
       source_label: item.source_label || item.source_kind,
       disposition: item.disposition === "inbox" ? "feed" : item.disposition,
       title: item.title,
-      summary: richPlainText(item.summary || item.body) || L("没有附加摘要"),
+      summary: richPlainText(item.summary || item.body) || uiText.text("feed.stage-ui.no-additional-summary"),
       updated_at: item.source_updated_at || item.updated_at,
       read: Boolean(item.read_at),
       attention_rank: 0,
@@ -136,7 +137,7 @@ function sourceModel(source: FeedSourceRecord, view: FeedStageView, L: FeedText[
       : String(source.config.repository ?? source.config.url ?? source.config.feed_url ?? catalogFeedUrl ?? source.config.query ?? source.account_label ?? source.kind);
   const scope = typeof source.config.scope === "string" && source.config.scope
     ? source.config.scope
-    : uiKind === "github" ? L("通知、PR 与 Review 请求") : uiKind === "gmail" ? L("指定标签与未读邮件") : uiKind === "connector" ? L("账号入站更新") : L("公开 Feed 更新");
+    : uiKind === "github" ? uiText.text("feed.stage-ui.notifications-prs-review-requests") : uiKind === "gmail" ? uiText.text("feed.stage-ui.selected-labels-unread-mail") : uiKind === "connector" ? uiText.text("feed.stage-ui.account-inbound-updates") : uiText.text("feed.stage-ui.public-feed-updates");
   return {
     project_id: source.project_id,
     source_id: source.source_id,
@@ -159,20 +160,20 @@ function sourceModel(source: FeedSourceRecord, view: FeedStageView, L: FeedText[
     updated_at: source.updated_at,
     item_count: source.item_count,
     ui_kind: uiKind,
-    type_label: source.kind === "research_library" ? L("共享研究库") : uiKind === "github" ? "GitHub" : uiKind === "gmail" ? "Gmail" : uiKind === "rss" ? "RSS / Atom" : uiKind === "connector" ? source.name : L("其他来源"),
+    type_label: source.kind === "research_library" ? uiText.text("feed.stage-ui.research-library") : uiKind === "github" ? "GitHub" : uiKind === "gmail" ? "Gmail" : uiKind === "rss" ? "RSS / Atom" : uiKind === "connector" ? source.name : uiText.text("feed.stage-ui.other-source"),
     status_kind: statusKind,
-    status_label: running ? L("正在拉取") : sourceStatusLabel(source.status, L),
-    last_fetch_label: source.last_sync_at ? ui.formatDate(source.last_sync_at) : L("尚未拉取"),
+    status_label: running ? uiText.text("feed.stage-ui.pulling") : sourceStatusLabel(source.status, L),
+    last_fetch_label: source.last_sync_at ? ui.formatDate(source.last_sync_at) : uiText.text("feed.stage-ui.not-pulled-yet"),
     next_fetch_label: !source.enabled || source.status === "paused"
-      ? L("已暂停")
+      ? uiText.text("feed.stage-ui.paused")
       : typeof retryAfterAt === "string" && Number.isFinite(Date.parse(retryAfterAt))
-        ? L("限流后 {time} 可重试", { time: ui.formatDate(retryAfterAt) })
+        ? uiText.text("feed.stage-ui.retry-after-rate-limit-time", { time: ui.formatDate(retryAfterAt) })
         : source.schedule.mode === "interval" && source.schedule.enabled && source.schedule.next_pull_at
           ? ui.formatDate(source.schedule.next_pull_at)
-          : L("等待手动拉取"),
+          : uiText.text("feed.stage-ui.waiting-manual-pull"),
     schedule_label: source.schedule.mode === "manual"
-      ? L("仅手动拉取")
-      : source.schedule.enabled ? L("每 {count} 分钟", { count: source.schedule.interval_minutes }) : L("定时拉取已关闭"),
+      ? uiText.text("feed.stage-ui.manual-pulls-only")
+      : source.schedule.enabled ? uiText.text("feed.stage-ui.every-count-count", { count: source.schedule.interval_minutes }) : uiText.text("feed.stage-ui.scheduled-pulls-off"),
     scope_label: source.kind === "research_library" ? String(source.config.research_source ?? "") : L(scope),
     scope_options: (presentation?.scope_options ?? []).map((preset) => ({ value: preset.value, label: L(preset.label) })),
     configured_endpoint: configuredEndpoint,
@@ -194,8 +195,8 @@ function sourceModel(source: FeedSourceRecord, view: FeedStageView, L: FeedText[
   };
 }
 
-function sourceStatusLabel(status: FeedSourceRecord["status"], L: FeedText["L"]): string {
-  return ({ active: L("已连接"), paused: L("已暂停"), error: L("需处理"), disconnected: L("未连接") } as const)[status];
+function sourceStatusLabel(status: FeedSourceRecord["status"], _L: FeedText["L"]): string {
+  return ({ active: uiText.text("feed.stage-ui.connected"), paused: uiText.text("feed.stage-ui.paused"), error: uiText.text("feed.stage-ui.needs-attention"), disconnected: uiText.text("feed.stage-ui.disconnected") } as const)[status];
 }
 
 function provider(item: FeedItemRecord): FeedUiEntry["provider"] {

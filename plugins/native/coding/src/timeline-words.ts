@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 /**
  * The words the Coding timeline reads tool calls and failures with. Like `createCodingTimeline`, it is injected into the
  * browser with `toString()` and must stay self-contained; the client hands its result to the timeline factory.
@@ -40,7 +41,7 @@ export function codingTimelineWords(L: (text: string, values?: Record<string, st
   };
   /** A call the timeline has no words for reads as its own name. */
   const other = (name: string): ReturnType<typeof kind> =>
-    ({ key: "other", icon: "activity", tally: "calls", verb: name, doing: L("coding.call.other.doing", { name }) });
+    ({ key: "other", icon: "activity", tally: "calls", verb: name, doing: uiText.text("coding.call.other.doing", { name }) });
   /** "读取 4 个文件" / "Files read: 4" for a run of one kind; a kind that is not counted is just its verb. */
   const tally = (entry: ReturnType<typeof kind>, count: number) => entry.tally === "" ? entry.verb
     : L(`coding.call.${entry.key}.count`, { count, name: entry.verb });
@@ -72,9 +73,9 @@ export function codingTimelineWords(L: (text: string, values?: Record<string, st
    */
   const toolHint = (output: string): string => {
     const code = /^([A-Z][A-Z0-9_]+):/.exec(output)?.[1];
-    return code === "WORKSPACE_SECRET_DETECTED" ? L("coding.tool-hint.secret")
-      : code === "PATCH_BASE_CHANGED" || code === "WORKSPACE_NOT_OBSERVED" ? L("coding.tool-hint.stale")
-      : code === "COMMAND_DENIED" ? L("coding.tool-hint.denied")
+    return code === "WORKSPACE_SECRET_DETECTED" ? uiText.text("coding.tool-hint.secret")
+      : code === "PATCH_BASE_CHANGED" || code === "WORKSPACE_NOT_OBSERVED" ? uiText.text("coding.tool-hint.stale")
+      : code === "COMMAND_DENIED" ? uiText.text("coding.tool-hint.denied")
       : "";
   };
   return { KIND, FAILURES, toolHint, other, tally, t: L };

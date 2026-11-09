@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { SidePanelPrimitives } from "./side-panel.js";
 import { FILE_PREVIEW_CLIENT_SCRIPT } from "@molis-ai/molis-work-design-system";
 
@@ -11,23 +12,23 @@ import { FILE_PREVIEW_CLIENT_SCRIPT } from "@molis-ai/molis-work-design-system";
  */
 export function renderSideFiles({ L, icon }: SidePanelPrimitives): string {
   return `<div class="side-files" data-side-files-root>
-      <section class="side-files-browse" data-side-files-browse aria-label="${L("文件列表")}">
+      <section class="side-files-browse" data-side-files-browse aria-label="${uiText("workbench.side-panel-files.file-list")}">
         <div class="side-files-head">
-          <label class="side-files-filter">${icon("search")}<input type="search" data-side-files-filter placeholder="${L("查找资料")}" aria-label="${L("查找资料")}" autocomplete="off"></label>
-          <button class="side-files-tool" type="button" data-knowledge-import-open aria-label="${L("导入资料")}" title="${L("导入资料")}">${icon("upload")}</button>
-          <button class="side-files-tool" type="button" data-side-files-action="refresh" aria-label="${L("刷新资料列表")}" title="${L("刷新资料列表")}">${icon("refresh")}</button>
+          <label class="side-files-filter">${icon("search")}<input type="search" data-side-files-filter placeholder="${uiText("workbench.side-panel-files.find-knowledge")}" aria-label="${uiText("workbench.side-panel-files.find-knowledge")}" autocomplete="off"></label>
+          <button class="side-files-tool" type="button" data-knowledge-import-open aria-label="${uiText("workbench.side-panel-files.import")}" title="${uiText("workbench.side-panel-files.import")}">${icon("upload")}</button>
+          <button class="side-files-tool" type="button" data-side-files-action="refresh" aria-label="${uiText("workbench.side-panel-files.refresh-list")}" title="${uiText("workbench.side-panel-files.refresh-list")}">${icon("refresh")}</button>
         </div>
-        <div class="side-files-list" data-side-files-list aria-busy="true"><p class="side-files-note">${L("正在读取资料…")}</p></div>
+        <div class="side-files-list" data-side-files-list aria-busy="true"><p class="side-files-note">${uiText("workbench.side-panel-files.loading-materials")}</p></div>
       </section>
       ${renderKnowledgeImportDialog(L)}
       <template data-side-files-icon>${icon("file")}</template>
-      <section class="side-files-preview" data-side-files-preview aria-label="${L("文件预览")}" hidden>
+      <section class="side-files-preview" data-side-files-preview aria-label="${uiText("workbench.side-panel-files.file-preview")}" hidden>
         <header class="side-files-preview-head">
-          <button class="side-files-tool side-files-back" type="button" data-side-files-action="back" aria-label="${L("返回文件列表")}" title="${L("返回文件列表")}">${icon("chevron-left")}</button>
+          <button class="side-files-tool side-files-back" type="button" data-side-files-action="back" aria-label="${uiText("workbench.side-panel-files.back-files")}" title="${uiText("workbench.side-panel-files.back-files")}">${icon("chevron-left")}</button>
           <div class="side-files-preview-title"><strong data-side-files-title></strong><small data-side-files-meta></small></div>
-          <button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-side-files-action="open" hidden>${icon("external")}<span>${L("在插件中打开")}</span></button>
+          <button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-side-files-action="open" hidden>${icon("external")}<span>${uiText("workbench.side-panel-files.open-its-plugin")}</span></button>
         </header>
-        <section class="side-files-card" data-side-files-card aria-label="${L("资料卡片")}" hidden></section>
+        <section class="side-files-card" data-side-files-card aria-label="${uiText("workbench.side-panel-files.card")}" hidden></section>
         <div class="side-files-body" data-side-files-body tabindex="0"></div>
       </section>
     </div>`;
@@ -38,42 +39,42 @@ export function renderSideFiles({ L, icon }: SidePanelPrimitives): string {
  * on the list) and online documents, each saved through the 成果库's import (`/api/artifacts/import`) and organized after.
  * Bound by the knowledge bundle (`src/browser/knowledge/import.ts`).
  */
-function renderKnowledgeImportDialog(L: SidePanelPrimitives["L"]): string {
+function renderKnowledgeImportDialog(_L: SidePanelPrimitives["L"]): string {
   return `<dialog class="mw-dialog mw-dialog--form knowledge-import" data-knowledge-import-dialog aria-labelledby="knowledge-import-title">
         <form method="dialog" class="knowledge-import-form" data-knowledge-import-form>
-          <header><h2 id="knowledge-import-title">${L("导入资料")}</h2><button class="mw-btn mw-btn--ghost mw-btn--sm" type="button" data-knowledge-import-close>${L("关闭")}</button></header>
-          <p class="knowledge-import-intro">${L("导入的文件和文档存进项目，项目里的 Agent 都能找到；PDF、Office 文档和电子书读出正文，图片识别文字，音视频转成文字。原文后续修改不会自动同步。")}</p>
-          <div class="knowledge-import-kinds" role="radiogroup" aria-label="${L("来源")}">
-            <label><input type="radio" name="kind" value="files" checked> ${L("本地文件")}</label>
-            <label><input type="radio" name="kind" value="online"> ${L("在线文档")}</label>
+          <header><h2 id="knowledge-import-title">${uiText("workbench.side-panel-files.import")}</h2><button class="mw-btn mw-btn--ghost mw-btn--sm" type="button" data-knowledge-import-close>${uiText("common.control.close")}</button></header>
+          <p class="knowledge-import-intro">${uiText("workbench.side-panel-files.imported-files-documents-saved-project-where-its-agents")}</p>
+          <div class="knowledge-import-kinds" role="radiogroup" aria-label="${uiText("workbench.side-panel-files.sources")}">
+            <label><input type="radio" name="kind" value="files" checked> ${uiText("workbench.side-panel-files.local-file")}</label>
+            <label><input type="radio" name="kind" value="online"> ${uiText("workbench.side-panel-files.online-document")}</label>
           </div>
           <div class="knowledge-import-files" data-knowledge-import-local>
             <div class="knowledge-import-drop" data-knowledge-import-drop>
-              <span>${L("把文件或文件夹拖到这里，或者")}</span>
-              <label class="mw-btn mw-btn--secondary mw-btn--sm">${L("选择文件")}<input type="file" multiple hidden data-knowledge-import-pick></label>
-              <label class="mw-btn mw-btn--secondary mw-btn--sm">${L("选择文件夹")}<input type="file" multiple webkitdirectory hidden data-knowledge-import-folder></label>
+              <span>${uiText("workbench.side-panel-files.drop-files-folders-here")}</span>
+              <label class="mw-btn mw-btn--secondary mw-btn--sm">${uiText("workbench.side-panel-files.choose-file")}<input type="file" multiple hidden data-knowledge-import-pick></label>
+              <label class="mw-btn mw-btn--secondary mw-btn--sm">${uiText("workbench.side-panel-files.choose-folder")}<input type="file" multiple webkitdirectory hidden data-knowledge-import-folder></label>
             </div>
-            <p class="knowledge-import-help">${L("单个文件不超过 6 MB，一次最多 200 个；文件夹里以点开头的文件和 node_modules 一类的目录会跳过。")}</p>
+            <p class="knowledge-import-help">${uiText("workbench.side-panel-files.up-6-mb-per-file-200-files-time")}</p>
             <ul class="knowledge-import-picked" data-knowledge-import-picked></ul>
           </div>
           <div class="knowledge-import-online" data-knowledge-import-online hidden>
-            <label>${L("文档来源")}<select class="mw-select" name="source" data-knowledge-import-source>
-              <option value="notion">Notion</option><option value="feishu">${L("飞书")}</option><option value="lark">Lark</option><option value="google-docs">Google Docs</option></select></label>
-            <label>${L("账号连接")}<select class="mw-select" name="connection_id" data-knowledge-import-connection></select></label>
+            <label>${uiText("workbench.side-panel-files.document-source")}<select class="mw-select" name="source" data-knowledge-import-source>
+              <option value="notion">Notion</option><option value="feishu">${uiText("workbench.side-panel-files.feishu")}</option><option value="lark">Lark</option><option value="google-docs">Google Docs</option></select></label>
+            <label>${uiText("workbench.side-panel-files.account-connection")}<select class="mw-select" name="connection_id" data-knowledge-import-connection></select></label>
             <p class="knowledge-import-help" data-knowledge-import-connection-note></p>
-            <label>${L("文档链接")}<input class="mw-input" name="url" type="url" autocomplete="off" spellcheck="false" placeholder="https://" data-knowledge-import-url></label>
+            <label>${uiText("workbench.side-panel-files.document-url")}<input class="mw-input" name="url" type="url" autocomplete="off" spellcheck="false" placeholder="https://" data-knowledge-import-url></label>
           </div>
           <p class="knowledge-import-status" data-knowledge-import-status role="status" aria-live="polite"></p>
           <div class="knowledge-import-model" data-knowledge-import-model hidden>
             <p data-knowledge-import-model-text role="status" aria-live="polite"></p>
             <progress max="1" data-knowledge-import-model-progress hidden></progress>
             <div class="knowledge-import-model-choices" data-knowledge-import-model-choices>
-              <button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-knowledge-import-model-no>${L("先不转写")}</button>
-              <button class="mw-btn mw-btn--primary mw-btn--sm" type="button" data-knowledge-import-model-yes>${L("下载并继续")}</button>
+              <button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-knowledge-import-model-no>${uiText("workbench.side-panel-files.not-now")}</button>
+              <button class="mw-btn mw-btn--primary mw-btn--sm" type="button" data-knowledge-import-model-yes>${uiText("workbench.side-panel-files.download-continue")}</button>
             </div>
           </div>
-          <footer><button class="mw-btn mw-btn--secondary mw-btn--md" type="button" data-knowledge-import-close>${L("取消")}</button>
-            <button class="mw-btn mw-btn--primary mw-btn--md" type="button" data-knowledge-import-submit>${L("导入")}</button></footer>
+          <footer><button class="mw-btn mw-btn--secondary mw-btn--md" type="button" data-knowledge-import-close>${uiText("common.control.cancel")}</button>
+            <button class="mw-btn mw-btn--primary mw-btn--md" type="button" data-knowledge-import-submit>${uiText("workbench.side-panel-files.imported")}</button></footer>
         </form>
       </dialog>`;
 }
@@ -190,10 +191,10 @@ export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
   const icons={file:root.querySelector('[data-side-files-icon]')?.innerHTML||''};
   const cardBox=$('[data-side-files-card]');
   let sources=[],entries=new Map(),loadedAt=0,loading=null,current=null,wide=false,states=new Map(),modelReady=true,found=null,searchTimer=0;
-  const get=(path)=>molisWorkRequest(host.route(path),{fallback:L('文件没有读到')});
-  const post=(path,body)=>molisWorkRequest(host.route(path),{body,fallback:L('操作没有完成')});
+  const get=(path)=>molisWorkRequest(host.route(path),{fallback:globalThis.t.text("workbench.side-panel-files.file-could-not-be-read")});
+  const post=(path,body)=>molisWorkRequest(host.route(path),{body,fallback:globalThis.t.text("workbench.side-panel-files.that-did-not-finish")});
   // How far each piece's card is organized (project knowledge): only what needs the person's eye is shown on a row.
-  const stateText=(item)=>!item?'':item.excluded?L('不给 Agent 用'):item.state==='pending'?(modelReady?L('整理中'):L('等待整理')):item.state==='failed'?L('整理失败'):item.state==='over_quota'?L('等额度'):item.changed?L('有新建议'):'';
+  const stateText=(item)=>!item?'':item.excluded?globalThis.t.text("workbench.side-panel-files.kept-agents"):item.state==='pending'?(modelReady?globalThis.t.text("workbench.side-panel-files.sorting"):globalThis.t.text("workbench.side-panel-files.waiting")):item.state==='failed'?globalThis.t.text("workbench.side-panel-files.failed"):item.state==='over_quota'?globalThis.t.text("workbench.side-panel-files.over-allowance"):item.changed?globalThis.t.text("workbench.side-panel-files.new-suggestion"):'';
   const stateOf=(kind,id)=>states.get(kind+'\u0000'+id);
   const sizeText=(bytes)=>bytes==null?'':bytes<1024?bytes+' B':bytes<1048576?(bytes/1024).toFixed(bytes<10240?1:0)+' KB':(bytes/1048576).toFixed(1)+' MB';
   // While the project's sources are still being listed for the first time, the labels are read again shortly after.
@@ -243,13 +244,13 @@ export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
         const state=stateText(stateOf(item.subject.kind,item.subject.id));
         return '<button class="side-files-row" type="button" data-side-file data-source="'+esc(source.id)+'" data-kind="'+esc(item.subject.kind)+'" data-id="'+esc(item.subject.id)+'" aria-current="'+(on?'true':'false')+'">'+icons.file+'<span>'+esc(item.title)+'</span>'+(state?'<small class="side-files-state">'+esc(state)+'</small>':'')+'<small>'+esc(sizeText(item.size))+'</small></button>';
       }).join('')).join('');
-      return '<section class="side-files-group"><h3>'+esc(source.title)+'</h3>'+(held.error?'<p class="side-files-note">'+esc(held.error)+'</p>':'')+rows+(held.next&&!query?'<button class="mw-btn mw-btn--ghost mw-btn--sm side-files-more" type="button" data-side-files-more="'+esc(source.id)+'">'+esc(L('加载更多'))+'</button>':'')+'</section>';
+      return '<section class="side-files-group"><h3>'+esc(source.title)+'</h3>'+(held.error?'<p class="side-files-note">'+esc(held.error)+'</p>':'')+rows+(held.next&&!query?'<button class="mw-btn mw-btn--ghost mw-btn--sm side-files-more" type="button" data-side-files-more="'+esc(source.id)+'">'+esc(globalThis.t.text("workbench.side-panel-files.load-more"))+'</button>':'')+'</section>';
     }).join('');
     // Pieces found by their content and cards (knowledge.search: what an agent asking the same words finds), above the names that match.
     const hits=query&&found&&found.query===query?found.cards.map(card=>'<button class="side-files-row side-files-hit" type="button" data-knowledge-hit data-kind="'+esc(card.subject.kind)+'" data-id="'+esc(card.subject.id)+'" data-surface="'+esc(card.open?.surface||'')+'" data-open="'+esc(card.open?.id||'')+'">'+icons.file+'<span><strong>'+esc(card.title)+'</strong><em>'+esc(card.hint||card.brief||'')+'</em></span><small>'+esc(card.plugin_title)+'</small></button>').join(''):'';
-    const hitGroup=hits?'<section class="side-files-group"><h3>'+esc(L('按内容找到'))+'</h3>'+hits+'</section>':'';
+    const hitGroup=hits?'<section class="side-files-group"><h3>'+esc(globalThis.t.text("workbench.side-panel-files.found-content"))+'</h3>'+hits+'</section>':'';
     const searching=query&&query.length>=2&&(!found||found.query!==query);
-    list.innerHTML=(hitGroup+groups)||'<p class="side-files-note">'+esc(searching?L('正在按内容查找…'):query?L('没有找到相关的资料'):sources.length?L('这些插件里还没有资料'):L('这个项目里还没有提供资料的插件。Files、Pages、成果等插件启用后，它们的资料会出现在这里；也可以点上面的导入。'))+'</p>';
+    list.innerHTML=(hitGroup+groups)||'<p class="side-files-note">'+esc(searching?globalThis.t.text("workbench.side-panel-files.searching-contents"):query?globalThis.t.text("workbench.side-panel-files.nothing-found"):sources.length?globalThis.t.text("workbench.side-panel-files.these-plugins-have-no-pieces-yet"):globalThis.t.text("workbench.side-panel-files.no-plugin-project-provides-pieces-yet-once-files"))+'</p>';
   };
   const find=(source,kind,id)=>(entries.get(source)?.items||[]).find(item=>item.subject.kind===kind&&item.subject.id===id);
   const show=(on)=>{preview.hidden=!on;browse.hidden=on&&!wide;};
@@ -259,14 +260,14 @@ export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
   const render=(file,note)=>{
     body.classList.remove('is-frame');
     // Where a handed-over page came from: the page itself opens again in the side panel's browser.
-    const source=/^https?:\/\//.test(file.source_url||'')?'<p class="side-files-source">'+esc(L('原页面'))+'：<button class="side-files-link" type="button" data-side-files-action="source" data-url="'+esc(file.source_url)+'">'+esc(file.source_url)+'</button></p>':'';
-    const head=source+(note?'<p class="side-files-problem">'+esc(note)+'</p>':'')+(file.truncated?'<p class="side-files-truncated">'+esc(L('只显示了开头一部分。完整内容请在插件中打开。'))+'</p>':'');
+    const source=/^https?:\/\//.test(file.source_url||'')?'<p class="side-files-source">'+esc(globalThis.t.text("workbench.side-panel-files.original-page"))+'：<button class="side-files-link" type="button" data-side-files-action="source" data-url="'+esc(file.source_url)+'">'+esc(file.source_url)+'</button></p>':'';
+    const head=source+(note?'<p class="side-files-problem">'+esc(note)+'</p>':'')+(file.truncated?'<p class="side-files-truncated">'+esc(globalThis.t.text("workbench.side-panel-files.only-beginning-shown-open-its-plugin-full-content"))+'</p>':'');
     const type=file.media_type||'text/plain';
     if(file.url&&type==='application/pdf'){body.classList.add('is-frame');body.innerHTML=head+'<iframe title="'+esc(file.title)+'" src="'+esc(file.url)+'"></iframe>';return;}
     if(file.url&&/^image\//.test(type)){body.innerHTML=head+'<img alt="'+esc(file.title)+'" src="'+esc(file.url)+'">';return;}
     if(file.encoding==='base64'&&/^image\/(png|jpeg|gif|webp|avif|svg\+xml)$/.test(type)){body.innerHTML=head+'<img alt="'+esc(file.title)+'" src="data:'+type+';base64,'+file.data+'">';return;}
     if(file.encoding==='base64'&&type==='application/pdf'&&file.raw){body.classList.add('is-frame');body.innerHTML=head+'<iframe title="'+esc(file.title)+'" src="'+esc(file.raw)+'"></iframe>';return;}
-    if(file.encoding==='base64'){body.innerHTML=head+'<p class="side-files-note">'+esc(L('这种文件（{type}）不能在侧栏里预览，可以在插件中打开。',{type}))+'</p>';return;}
+    if(file.encoding==='base64'){body.innerHTML=head+'<p class="side-files-note">'+esc(globalThis.t.text("workbench.side-panel-files.kind-file-type-cannot-be-previewed-here-can",{type}))+'</p>';return;}
     body.innerHTML=head+renderFilePreview({...file,truncated:false},{escape:esc,text:L});
   };
   // The piece's card above its preview: how far it is organized, its brief and keywords, and what the person can do with it.
@@ -277,12 +278,12 @@ export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
     paintCard(card,false);
   };
   const paintCard=(card,editing)=>{
-    const state=stateText({state:card.state,excluded:card.excluded,changed:!!card.suggestion})||(card.state==='listed'?L('只列标题'):L('已整理'));
+    const state=stateText({state:card.state,excluded:card.excluded,changed:!!card.suggestion})||(card.state==='listed'?globalThis.t.text("workbench.side-panel-files.title-only"):globalThis.t.text("workbench.side-panel-files.organized"));
     const words=(card.keywords||[]).join('、');
     cardBox.innerHTML=editing
-      ?'<form class="side-files-card-form" data-side-card-form><label>'+esc(L('标题'))+'<input class="mw-input" name="title" value="'+esc(card.title)+'" required maxlength="120"></label><label>'+esc(L('简介'))+'<textarea class="mw-textarea" name="brief" rows="3" maxlength="300">'+esc(card.brief)+'</textarea></label><label>'+esc(L('关键词'))+'<input class="mw-input" name="keywords" value="'+esc(words)+'"></label><div class="side-files-card-actions"><button class="mw-btn mw-btn--primary mw-btn--sm" type="submit">'+esc(L('保存卡片'))+'</button><button class="mw-btn mw-btn--ghost mw-btn--sm" type="button" data-side-card="cancel">'+esc(L('取消'))+'</button></div></form>'
+      ?'<form class="side-files-card-form" data-side-card-form><label>'+esc(globalThis.t.text("workbench.side-panel-files.title"))+'<input class="mw-input" name="title" value="'+esc(card.title)+'" required maxlength="120"></label><label>'+esc(globalThis.t.text("workbench.side-panel-files.brief"))+'<textarea class="mw-textarea" name="brief" rows="3" maxlength="300">'+esc(card.brief)+'</textarea></label><label>'+esc(globalThis.t.text("workbench.side-panel-files.keyword"))+'<input class="mw-input" name="keywords" value="'+esc(words)+'"></label><div class="side-files-card-actions"><button class="mw-btn mw-btn--primary mw-btn--sm" type="submit">'+esc(globalThis.t.text("workbench.side-panel-files.save-card"))+'</button><button class="mw-btn mw-btn--ghost mw-btn--sm" type="button" data-side-card="cancel">'+esc(globalThis.t.text("common.control.cancel"))+'</button></div></form>'
       :'<p class="side-files-card-head"><span class="mw-badge mw-badge--neutral">'+esc(state)+'</span>'+(card.state==='failed'&&card.error?'<span class="side-files-card-error">'+esc(card.error)+'</span>':'')+'</p>'+(card.brief?'<p class="side-files-card-brief">'+esc(card.brief)+'</p>':'')+(words?'<p class="side-files-card-words">'+esc(words)+'</p>':'')
-        +'<div class="side-files-card-actions"><button class="mw-btn mw-btn--ghost mw-btn--sm" type="button" data-side-card="edit">'+esc(L('编辑卡片'))+'</button><button class="mw-btn mw-btn--ghost mw-btn--sm" type="button" data-side-card="organize">'+esc(L('重新整理'))+'</button><label class="side-files-card-keep"><input type="checkbox" data-side-card="exclude"'+(card.excluded?' checked':'')+'> '+esc(L('不给 Agent 用'))+'</label></div>';
+        +'<div class="side-files-card-actions"><button class="mw-btn mw-btn--ghost mw-btn--sm" type="button" data-side-card="edit">'+esc(globalThis.t.text("workbench.side-panel-files.edit-card"))+'</button><button class="mw-btn mw-btn--ghost mw-btn--sm" type="button" data-side-card="organize">'+esc(globalThis.t.text("workbench.side-panel-files.organize-again"))+'</button><label class="side-files-card-keep"><input type="checkbox" data-side-card="exclude"'+(card.excluded?' checked':'')+'> '+esc(globalThis.t.text("workbench.side-panel-files.kept-agents"))+'</label></div>';
     cardBox.hidden=false;cardBox.dataset.kind=card.subject.kind;cardBox.dataset.id=card.subject.id;cardBox.cardRecord=card;
   };
   const cardAction=async(action,control)=>{
@@ -309,14 +310,14 @@ export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
     const request=current={source:sourceId,kind,id};paint();show(true);
     // The file shown is the object a selection in it is about: what is in hand on the right (context-landing.ts); one it could not read is not.
     if(source?.plugin_id)body.dataset.assistantContext=JSON.stringify({plugin_id:source.plugin_id,object:{kind,id,title:item?.title||''}});else delete body.dataset.assistantContext;
-    title.textContent=item?.title||L('文件');
+    title.textContent=item?.title||globalThis.t.text("workbench.side-panel-files.files");
     meta.textContent=[source?.title,item?.updated_at?new Date(item.updated_at).toLocaleString():'',sizeText(item?.size)].filter(Boolean).join(' · ');
-    setOpen(item?.open||null);body.innerHTML='<p class="side-files-note">'+esc(L('正在读取…'))+'</p>';body.scrollTop=0;
+    setOpen(item?.open||null);body.innerHTML='<p class="side-files-note">'+esc(globalThis.t.text("workbench.side-panel-files.reading"))+'</p>';body.scrollTop=0;
     void showCard(kind,id,request);
     try{
       const result=await get('/api/side/files/content?source='+encodeURIComponent(sourceId)+'&kind='+encodeURIComponent(kind)+'&id='+encodeURIComponent(id)+'&media_type='+encodeURIComponent(item?.media_type||''));
       if(current!==request)return;
-      if(!result.content){body.innerHTML='<p class="side-files-note">'+esc(L('这个插件没有提供预览，可以在插件中打开。'))+'</p>';return;}
+      if(!result.content){body.innerHTML='<p class="side-files-note">'+esc(globalThis.t.text("workbench.side-panel-files.plugin-offers-no-preview-can-open-its-plugin"))+'</p>';return;}
       const raw=host.route('/api/side/files/raw?source='+encodeURIComponent(sourceId)+'&kind='+encodeURIComponent(kind)+'&id='+encodeURIComponent(id));
       render({...result.content,raw});
     }catch(error){if(current===request){delete body.dataset.assistantContext;body.innerHTML='<p class="side-files-problem">'+esc(error.message)+'</p>';}}
@@ -326,7 +327,7 @@ export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
   const safeUrl=(url)=>typeof url==='string'&&(/^\/(?!\/)/.test(url)||/^data:image\/(png|jpeg|gif|webp);base64,/.test(url))?url:'';
   const openGiven=(given)=>{
     current={source:'',kind:'',id:given.id||given.title||''};paint();show(true);delete body.dataset.assistantContext;cardBox.hidden=true;
-    title.textContent=given.title||L('文件');meta.textContent=given.meta||'';setOpen(given.open||null);body.scrollTop=0;
+    title.textContent=given.title||globalThis.t.text("workbench.side-panel-files.files");meta.textContent=given.meta||'';setOpen(given.open||null);body.scrollTop=0;
     render({title:given.title||'',media_type:given.media_type||'text/plain',encoding:'utf8',data:given.text||'',url:safeUrl(given.url),truncated:!!given.truncated,source_url:given.source_url||''},given.problem||'');
   };
   root.addEventListener('click',event=>{
@@ -358,7 +359,7 @@ export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
       const request=current={source:target.source||'',kind:target.subject.kind,id:target.subject.id};await load(false);if(current!==request)return;
       const source=target.source||sources.find(item=>item.kinds.some(kind=>kind.kind===target.subject.kind))?.id;
       if(source)void openFile(source,target.subject.kind,target.subject.id,target.entry||(target.title?{title:target.title,open:target.open||null}:null));
-      else openGiven({title:target.title||L('文件'),problem:L('这个文件所在的插件没有向侧栏提供文件，或当前没有读取权限。'),open:target.open});
+      else openGiven({title:target.title||globalThis.t.text("workbench.side-panel-files.files"),problem:globalThis.t.text("workbench.side-panel-files.plugin-file-belongs-offers-no-files-side-panel"),open:target.open});
     }else await load(false);
   });
 }`.replace(/^[ \t]*\/\/.*\n/gm, "");

@@ -1,5 +1,6 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { el } from "../dom.js";
-import { codingRequest, errorMessage, translate as L, type Workspace } from "./page.js";
+import { codingRequest, errorMessage, type Workspace } from "./page.js";
 
 interface Method { readonly source: string; readonly name: string; readonly version: number; readonly skill_id: string }
 interface Candidate { readonly candidate_id: string; readonly name: string; readonly source_label: string; readonly body: string; readonly files: readonly string[] }
@@ -14,7 +15,7 @@ interface Library {
 
 const showBody = (target: Element, name: string, body: string, files: readonly string[] = []) => {
   const content = el("pre", body, "coding-method-body");
-  target.replaceChildren(el("h3", name), el("p", files.length ? L("coding.library.files", { files: files.join(L("coding.list.joiner")) }) : ""), content);
+  target.replaceChildren(el("h3", name), el("p", files.length ? uiText.text("coding.library.files", { files: files.join(uiText.text("coding.list.joiner")) }) : ""), content);
 };
 
 /** One installed method: its name, and its text once the row is opened. */
@@ -23,7 +24,7 @@ function installedRow(library: Library, method: Method) {
   row.append(el("summary", method.name + " · v" + method.version), content);
   row.addEventListener("toggle", async () => {
     if (!row.open || content.dataset.loaded) return;
-    content.textContent = L("coding.library.reading");
+    content.textContent = uiText.text("coding.library.reading");
     try {
       const result = await library.api<{ method: { name: string; body: string } }>("/methods/" + encodeURIComponent(method.skill_id) + "/" + method.version);
       showBody(content, result.method.name, result.method.body);
@@ -51,9 +52,9 @@ async function refresh(library: Library) {
   const list = q("[data-installed-methods]");
   list.replaceChildren();
   for (const method of state.methods.filter(item => item.source === "installed")) list.append(installedRow(library, method));
-  if (!list.childElementCount) list.textContent = L("coding.library.none");
-  if ("methodLibraryLoading" in q("[data-method-library-status]").dataset) status(L("coding.library.read"));
-  if (!state.workspaces.length) status(L("coding.library.no-workspace"));
+  if (!list.childElementCount) list.textContent = uiText.text("coding.library.none");
+  if ("methodLibraryLoading" in q("[data-method-library-status]").dataset) status(uiText.text("coding.library.read"));
+  if (!state.workspaces.length) status(uiText.text("coding.library.no-workspace"));
 }
 
 /** One method found in a directory: its text, and the button that installs it. */
@@ -61,20 +62,20 @@ function candidateRow(library: Library, candidate: Candidate) {
   const row = el("details"), content = el("div");
   row.append(el("summary", candidate.name + " · " + candidate.source_label));
   showBody(content, candidate.name, candidate.body, candidate.files);
-  const install = el("button", L("coding.library.install"), "mw-btn mw-btn--primary"), outcome = el("p");
+  const install = el("button", uiText.text("coding.library.install"), "mw-btn mw-btn--primary"), outcome = el("p");
   install.type = "button";
-  install.setAttribute("aria-label", L("coding.library.install-label", { name: candidate.name }));
+  install.setAttribute("aria-label", uiText.text("coding.library.install-label", { name: candidate.name }));
   outcome.setAttribute("role", "status");
   row.append(content, install, outcome);
   install.addEventListener("click", async () => {
     if (install.disabled) return;
     install.disabled = true;
-    outcome.textContent = L("coding.library.installing");
+    outcome.textContent = uiText.text("coding.library.installing");
     try {
       const installed = await library.api<{ method: { name: string; version: number } }>("/methods/install", { candidate_id: candidate.candidate_id });
-      outcome.textContent = L("coding.library.installed", { name: installed.method.name, version: installed.method.version });
-      install.textContent = L("coding.library.installed-button");
-      try { await refresh(library); } catch (error) { outcome.textContent += L("coding.library.refresh-failed", { reason: errorMessage(error) }); }
+      outcome.textContent = uiText.text("coding.library.installed", { name: installed.method.name, version: installed.method.version });
+      install.textContent = uiText.text("coding.library.installed-button");
+      try { await refresh(library); } catch (error) { outcome.textContent += uiText.text("coding.library.refresh-failed", { reason: errorMessage(error) }); }
     } catch (error) {
       outcome.textContent = errorMessage(error);
       install.disabled = false;
@@ -92,11 +93,11 @@ async function discover(library: Library, event: Event) {
   button.disabled = true;
   const list = q("[data-method-candidates]");
   list.replaceChildren();
-  status(L("coding.library.discovering"));
+  status(uiText.text("coding.library.discovering"));
   try {
     const result = await api<{ candidates: Candidate[] }>("/methods/discover", { workspace_id: q<HTMLSelectElement>("[data-method-workspace]").value, path: q<HTMLInputElement>("[data-method-path]").value });
     for (const candidate of result.candidates) list.append(candidateRow(library, candidate));
-    status(result.candidates.length ? L("coding.library.candidates") : L("coding.library.no-candidates"));
+    status(result.candidates.length ? uiText.text("coding.library.candidates") : uiText.text("coding.library.no-candidates"));
   } catch (error) {
     status(errorMessage(error));
   } finally {
@@ -119,15 +120,15 @@ export function bindMethods(scope: ParentNode) {
     delete node.dataset.methodLibraryLoading;
     node.textContent = text;
   };
-  const library: Library = { root, q, status, api: (path, body) => codingRequest(root, path, body, L("coding.library.failed")) };
+  const library: Library = { root, q, status, api: (path, body) => codingRequest(root, path, body, uiText.text("coding.library.failed")) };
   for (const field of [q("[data-method-workspace]"), q("[data-method-path]")]) {
     field.addEventListener("input", () => {
       if (q("[data-method-candidates]").childElementCount) {
         q("[data-method-candidates]").replaceChildren();
-        status(L("coding.library.source-changed"));
+        status(uiText.text("coding.library.source-changed"));
       }
     });
   }
   q("[data-method-discovery-form]").addEventListener("submit", event => void discover(library, event));
-  void refresh(library).catch(error => status(L("coding.library.unreadable", { reason: errorMessage(error) })));
+  void refresh(library).catch(error => status(uiText.text("coding.library.unreadable", { reason: errorMessage(error) })));
 }

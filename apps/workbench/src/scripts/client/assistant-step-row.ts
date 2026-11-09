@@ -42,8 +42,8 @@ export const ASSISTANT_STEP_ROW_FACTORY_SCRIPT = String.raw`(input) => {
   const offerStep = () => {
     const step = el("button", "mw-ix-step"); step.type = "button"; step.dataset.stepOffer = ""; step.dataset.secondary = "";
     const reply = Boolean(offer.message.thread && offer.message.source.plugin_id && offer.message.object);
-    step.title = reply ? L("助理读这篇内容和这条评论线程，回复写回原评论。") : offer.message.text + (offer.unconfirmed ? "\n" + L("没有确认是你刚才在那里发起的：放进输入框后，请你确认再发送。") : "");
-    step.append(el("span", "", (reply ? L("让助理回复{source}的评论") : offer.unconfirmed ? L("{source}想交给助理") : L("{source}的建议")).replace("{source}", offer.message.source.title)));
+    step.title = reply ? globalThis.t.text("workbench.assistant-step-row.assistant-reads-content-comment-thread-posts-its-reply") : offer.message.text + (offer.unconfirmed ? "\n" + globalThis.t.text("workbench.assistant-step-row.not-confirmed-something-just-asked-there-put-input") : "");
+    step.append(el("span", "", (reply ? globalThis.t.text("workbench.assistant-step-row.ask-assistant-reply-source") : offer.unconfirmed ? globalThis.t.text("workbench.assistant-step-row.source-wants-hand-over") : globalThis.t.text("workbench.assistant-step-row.suggested-source")).replace("{source}", offer.message.source.title)));
     step.addEventListener("click", () => { const taken = offer.message; offer = offerNode = null; step.remove(); paint(); if (reply) input.reply(taken); else input.take(taken); });
     return step;
   };
@@ -56,7 +56,7 @@ export const ASSISTANT_STEP_ROW_FACTORY_SCRIPT = String.raw`(input) => {
     // The suggestion keeps its one button while it stands: a new button on every paint (a resize, a poll) would play its entrance again.
     if (offer) {
       let group = row.querySelector(".mw-ix-steps");
-      if (!group) { group = el("div", "mw-ix-steps"); group.dataset.overflowFade = ""; group.role = "group"; group.ariaLabel = L("下一步"); row.append(group); }
+      if (!group) { group = el("div", "mw-ix-steps"); group.dataset.overflowFade = ""; group.role = "group"; group.ariaLabel = globalThis.t.text("workbench.assistant-step-row.next"); row.append(group); }
       if (offerNode?.parentNode !== group) group.append(offerNode ||= offerStep());
     }
     row.hidden = !row.querySelector(".mw-ix-step");

@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import type { Dataset, DatasetPage, Failure } from "./types.js";
 
@@ -8,7 +9,7 @@ const MAX_CSV_BYTES = 2_000_000;
  * placement closes the editor, so a late answer never opens an editor the person has left.
  */
 export function installFileImport(page: DatasetPage): void {
-  const { L, el, s } = page;
+  const { el, s } = page;
   const input = el.importInput;
   input?.addEventListener("change", async () => {
     const file = input.files?.[0];
@@ -17,8 +18,8 @@ export function installFileImport(page: DatasetPage): void {
     let seq = s.editorSeq;
     const current = () => seq === s.editorSeq && el.bench.isConnected;
     try {
-      if (file.size > MAX_CSV_BYTES) throw new Error(L("dataset.import.too-large"));
-      if (!await page.ask(L("dataset.import.confirm"), L("dataset.import.action"))) return;
+      if (file.size > MAX_CSV_BYTES) throw new Error(uiText.text("dataset.import.too-large"));
+      if (!await page.ask(uiText.text("dataset.import.confirm"), uiText.text("dataset.import.action"))) return;
       if (!current()) return;
       const target = await page.save();
       if (!current() || !target) return;
@@ -32,11 +33,11 @@ export function installFileImport(page: DatasetPage): void {
       await page.loadList();
       if (s.selected?.id !== target.id || !el.bench.isConnected) return;
       input.value = "";
-      page.showNote(L("dataset.import.done", { count: (payload.dataset.rows || []).length }), false);
+      page.showNote(uiText.text("dataset.import.done", { count: (payload.dataset.rows || []).length }), false);
     } catch (error) {
       if (current()) {
         if ((error as Failure).code === "dataset.conflict") s.saveError = error;
-        page.showNote(messageOf(error) || L("dataset.import.failed"), true);
+        page.showNote(messageOf(error) || uiText.text("dataset.import.failed"), true);
       }
     } finally { page.setBusy(false); }
   });

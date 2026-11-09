@@ -1,3 +1,5 @@
+import { htmlLang } from "../web-locale.js";
+import { registeredBuiltinText } from "../ui-text-provider.js";
 import { withPassiveSyncExecution } from '../passive-sync-execution.js';
 import { prepareStudioAction } from "./storage.js";
 import { publicBuild, publicRelease } from './authoring-view.js';
@@ -134,11 +136,11 @@ function page(title: string, body: string, configuration: Record<string, unknown
   const installed = configuration.mode === 'installed', pluginId = installed ? String(configuration.plugin_id) : BUILDER_PLUGIN_ID;
   const active = studios.get(options.store)?.get(options.projectId), buildPath = '/api/plugin-builder/studio/builds/' + configuration.build;
   const authorization = pluginPagesFor(options.homeDirectory).open(pluginId, options.projectId, options.actorId ?? 'web-user', undefined, installed ? undefined : {
-    manifest: builderManifest, install_id: null, project_id: options.projectId, actor_id: options.actorId ?? 'web-user',
+    manifest: builderManifest, registeredText: registeredBuiltinText(builderManifest) ?? undefined, install_id: null, project_id: options.projectId, actor_id: options.actorId ?? 'web-user',
     assertCurrent() { if (!active || studios.get(options.store)?.get(options.projectId) !== active) throw new Error('试用页面已关闭'); },
     requestAllowed: (method, path) => method === 'GET' && path === buildPath || method === 'POST' && path === buildPath + '/call',
   });
-  return renderPluginDocumentShell({ id: installed ? pluginId : 'plugin-builder-preview', plugin_id: pluginId, bundle: 'plugin-builder',
+  return renderPluginDocumentShell({ id: installed ? pluginId : 'plugin-builder-preview', plugin_id: pluginId, bundle: 'plugin-builder', lang: htmlLang(),
     title, html: body, accountRegistration:options.accountRegistration, project_id: options.projectId, route_prefix: options.routePrefix ?? '', page: configuration, control_token: controlToken, authorization });
 }
 function html(response: ServerResponse, body: string) {
@@ -174,7 +176,7 @@ export function renderHomePackageDocument(input: { home: string; actorId: string
   const projectId = input.projectId ?? null, prefix = projectId ? '/projects/' + encodeURIComponent(projectId) : '';
   const view = { contract: release.design.contract, nodes: inDesignOrder(release.design, release.nodes), presentation: release.design.presentation,
     connected: release.design.contract.operations.map(item => item.id) };
-  return renderPluginDocumentShell({ id: pluginId, plugin_id: pluginId, bundle: 'plugin-builder', title: release.design.title, accountRegistration:input.accountRegistration,
+  return renderPluginDocumentShell({ id: pluginId, plugin_id: pluginId, bundle: 'plugin-builder', lang: htmlLang(), title: release.design.title, accountRegistration:input.accountRegistration,
     html: '<main class="as-preview-page" data-installed-plugin="' + escapeHtml(pluginId) + '"></main>', project_id: projectId ?? '', route_prefix: prefix, control_token: input.controlToken,
     page: { mode: 'installed', plugin_id: pluginId, call: prefix + '/api/plugins/' + pluginId + '/call', view },
     authorization: pluginPagesFor(input.home).open(pluginId, projectId, input.actorId, input.assertProject) });

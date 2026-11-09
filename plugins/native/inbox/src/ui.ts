@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { InboxStageData } from "./actions.js";
 import type { InboxJudgmentSummary } from "./route-handlers.js";
@@ -73,11 +74,11 @@ function inboxStageModel(model: StagePageModel<InboxStageData>): InboxUiModel {
       return { ...entry, next_judgment: current, suggested_behavior_ids: current?.outcome === "ok" ? current.suggested_behavior_ids : [] };
     }), entry => {
       const subject = names.get(entry.entry_id), available = subject?.title !== undefined && subject.title !== null;
-      if (entry.subject_type === "feed_item") return { available, title: subject?.title || p.text("原 Feed Item 已不可用"),
+      if (entry.subject_type === "feed_item") return { available, title: subject?.title || uiText.text("inbox.ui.original-feed-item-unavailable"),
         source_label: subject?.source_label || "Feed", open: available ? { kind: "feed", item_id: entry.subject_id } : null };
-      if (entry.subject_type === "source_fault") return { available, title: available ? p.text("来源「{source}」需要处理", { source: subject!.title! }) : p.text("原来源已不可用"),
-        source_label: subject?.source_label || p.text("其他来源"), open: available ? { kind: "source", source_id: entry.subject_id } : null };
-      return { available, title: subject?.title || p.text("原 Goal 已不可用"), source_label: "Molis Work",
+      if (entry.subject_type === "source_fault") return { available, title: available ? uiText.text("inbox.ui.source-source-needs-attention", { source: subject!.title! }) : uiText.text("inbox.ui.original-source-unavailable"),
+        source_label: subject?.source_label || uiText.text("inbox.ui.other-source"), open: available ? { kind: "source", source_id: entry.subject_id } : null };
+      return { available, title: subject?.title || uiText.text("inbox.ui.original-goal-unavailable"), source_label: "Molis Work",
         open: available ? { kind: "goal", href: `${model.route_prefix}/goals/${encodeURIComponent(entry.subject_id)}` } : null };
     }, p.text) };
 }
@@ -93,25 +94,25 @@ export function renderInboxWorkbench(model: InboxUiModel): string {
   const details = model.entries.map((entry) => renderInboxDetail(entry, false, p)).join("");
   return `<section class="desktop-work-surface plugin-stage-shell" data-work-surface="inbox" data-work-surface-label="Inbox" hidden data-inbox-workbench data-inbox-directory data-inbox-stage-shell data-expanded="false" data-inbox-current-filter="active">
     <div class="plugin-stage-list feed-stage-list feed-stage-tree" data-inbox-list>
-      <header class="plugin-stage-chrome inbox-compose-toolbar"><button class="mw-btn mw-btn--ghost inbox-compose-trigger" type="button" data-inbox-compose-open="">${p.icon("note")}<span>${p.text("整理材料到 Pages")}</span></button></header>
-      ${model.judgment ? `<details class="inbox-next-config"><summary><span class="goal-collection-caret" aria-hidden="true">${p.icon("chevron-down")}</span>${p.text("下一步建议")}</summary><p>${p.escape(model.judgment.name || p.text("尚未绑定规则"))}${model.judgment.name && model.judgment.reason ? ` · ${p.escape(p.text(model.judgment.reason))}` : ""}</p><button class="mw-btn mw-btn--secondary" type="button" data-inbox-functions>${p.text("配置判断规则")}</button><button class="mw-btn mw-btn--secondary" type="button" data-inbox-evaluate${model.judgment.available && active.length ? "" : " disabled"}>${p.text("更新前 20 条待处理建议")}</button><p role="status" data-inbox-evaluate-status></p></details>` : ""}
-      ${renderInboxFold("active", p.text("待处理"), "alert", active, p)}
-      ${renderInboxFold("history", p.text("历史"), "check", history, p)}
+      <header class="plugin-stage-chrome inbox-compose-toolbar"><button class="mw-btn mw-btn--ghost inbox-compose-trigger" type="button" data-inbox-compose-open="">${p.icon("note")}<span>${uiText("inbox.ui.write-materials-pages")}</span></button></header>
+      ${model.judgment ? `<details class="inbox-next-config"><summary><span class="goal-collection-caret" aria-hidden="true">${p.icon("chevron-down")}</span>${uiText("inbox.ui.suggested-next-step")}</summary><p>${p.escape(model.judgment.name || uiText.text("inbox.ui.no-rule-selected"))}${model.judgment.name && model.judgment.reason ? ` · ${p.escape(p.text(model.judgment.reason))}` : ""}</p><button class="mw-btn mw-btn--secondary" type="button" data-inbox-functions>${uiText("inbox.ui.configure-judgment-rule")}</button><button class="mw-btn mw-btn--secondary" type="button" data-inbox-evaluate${model.judgment.available && active.length ? "" : " disabled"}>${uiText("inbox.ui.update-suggestions-first-20-open-items")}</button><p role="status" data-inbox-evaluate-status></p></details>` : ""}
+      ${renderInboxFold("active", uiText.text("inbox.ui.open"), "alert", active, p)}
+      ${renderInboxFold("history", uiText.text("inbox.ui.history"), "check", history, p)}
     </div>
     <div class="plugin-stage-workspace" data-inbox-stage-workspace hidden>
       ${details}
-      <div class="feed-detail-empty mw-empty" data-inbox-detail-empty>${p.icon("inbox")}<h1>${p.text("现在没有需要你介入的事项")}</h1></div>
+      <div class="feed-detail-empty mw-empty" data-inbox-detail-empty>${p.icon("inbox")}<h1>${uiText("inbox.ui.nothing-needs-attention-right-now")}</h1></div>
     </div>
     <dialog class="inbox-compose-dialog" data-inbox-compose>
       <form data-inbox-compose-form>
-        <header><h2>${p.text("整理材料到 Pages")}</h2><button class="mw-btn mw-btn--ghost mw-btn--icon-only" type="button" data-inbox-compose-close aria-label="${p.text("关闭")}">${p.icon("x")}</button></header>
-        <p>${p.text("选择 Inbox 中的原始材料，补充要求，生成后在 Pages 继续编辑。")}</p>
-        <fieldset data-inbox-compose-materials><legend>${p.text("使用的材料")}</legend></fieldset>
-        <label>${p.text("文稿标题")}<input class="mw-input" name="title" required maxlength="80" autocomplete="off"></label>
-        <label>${p.text("处理要求")}<textarea class="mw-textarea" name="instructions" required maxlength="4000" rows="4" placeholder="${p.text("例如：整理为 AI 产品观察，区分事实、推断和待验证问题，并保留来源。")}"></textarea></label>
+        <header><h2>${uiText("inbox.ui.write-materials-pages")}</h2><button class="mw-btn mw-btn--ghost mw-btn--icon-only" type="button" data-inbox-compose-close aria-label="${uiText("inbox.ui.close")}">${p.icon("x")}</button></header>
+        <p>${uiText("inbox.ui.select-original-materials-inbox-add-instructions-then-continue")}</p>
+        <fieldset data-inbox-compose-materials><legend>${uiText("inbox.ui.selected-materials")}</legend></fieldset>
+        <label>${uiText("inbox.ui.document-title")}<input class="mw-input" name="title" required maxlength="80" autocomplete="off"></label>
+        <label>${uiText("inbox.ui.instructions")}<textarea class="mw-textarea" name="instructions" required maxlength="4000" rows="4" placeholder="${uiText("inbox.ui.example-write-ai-product-observation-separating-facts-inferences")}"></textarea></label>
         <p role="status" data-inbox-compose-status></p>
-        <footer><button class="mw-btn mw-btn--secondary" type="button" data-inbox-compose-close>${p.text("稍后继续")}</button><button class="mw-btn mw-btn--primary" type="submit" data-inbox-compose-submit>${p.text("生成文稿")}</button></footer>
-        <section data-inbox-compose-results aria-label="${p.text("处理记录")}"></section>
+        <footer><button class="mw-btn mw-btn--secondary" type="button" data-inbox-compose-close>${uiText("inbox.ui.continue-later")}</button><button class="mw-btn mw-btn--primary" type="submit" data-inbox-compose-submit>${uiText("inbox.ui.generate-document")}</button></footer>
+        <section data-inbox-compose-results aria-label="${uiText("inbox.ui.decision-history")}"></section>
       </form>
     </dialog>
   </section>`;
@@ -133,7 +134,7 @@ function renderInboxFold(
       <strong>${p.escape(label)}</strong>
       <small data-inbox-stage-group-count>${entries.length}</small>
     </summary>
-    <div class="inbox-stage-group-body" role="list" aria-label="${p.escape(label)}">${rows}<p class="goal-collection-empty" data-inbox-stage-group-empty${entries.length ? " hidden" : ""}>${p.text(id === "history" ? "没有已完成或已忽略的事项" : "现在没有需要你介入的事项")}</p></div>
+    <div class="inbox-stage-group-body" role="list" aria-label="${p.escape(label)}">${rows}<p class="goal-collection-empty" data-inbox-stage-group-empty${entries.length ? " hidden" : ""}>${uiText(id === "history" ? "inbox.ui.no-completed-ignored-items" : "inbox.ui.nothing-needs-attention-right-now")}</p></div>
   </details>`;
 }
 
@@ -150,10 +151,10 @@ function renderInboxStageRow(entry: InboxUiEntry, p: InboxUiPrimitives): string 
 function renderInboxDetail(entry: InboxUiEntry, selected: boolean, p: InboxUiPrimitives): string {
   const openAction = openButton(entry, p);
   return `<article class="feed-detail feed-detail--attention inbox-reference-detail" data-inbox-detail="${p.escape(entry.entry_id)}" data-inbox-subject-type="${entry.subject_type}" ${selected ? "" : " hidden"}>
-    <header class="plugin-stage-detail-bar"><button class="plugin-stage-back" type="button" data-inbox-collapse aria-label="${p.text("返回 Inbox 列表")}" title="${p.text("返回 Inbox 列表")}">${p.icon("chevron-right")}</button><div class="feed-detail-kicker"><span class="mw-status mw-status--attention">${p.escape(entry.kind_label)}</span><span class="mw-status mw-status--quiet">${p.escape(entry.source_label)}</span><span class="mw-status mw-status--${entry.status === "open" ? "attention" : entry.status === "in_progress" ? "progress" : entry.status === "done" ? "done" : "quiet"}" data-mw-state="${entry.status === "open" ? "answer" : entry.status === "in_progress" ? "doing" : entry.status === "done" ? "done" : "cancelled"}">${p.escape(entry.status_label)}</span></div></header>
+    <header class="plugin-stage-detail-bar"><button class="plugin-stage-back" type="button" data-inbox-collapse aria-label="${uiText("inbox.ui.back-inbox-list")}" title="${uiText("inbox.ui.back-inbox-list")}">${p.icon("chevron-right")}</button><div class="feed-detail-kicker"><span class="mw-status mw-status--attention">${p.escape(entry.kind_label)}</span><span class="mw-status mw-status--quiet">${p.escape(entry.source_label)}</span><span class="mw-status mw-status--${entry.status === "open" ? "attention" : entry.status === "in_progress" ? "progress" : entry.status === "done" ? "done" : "quiet"}" data-mw-state="${entry.status === "open" ? "answer" : entry.status === "in_progress" ? "doing" : entry.status === "done" ? "done" : "cancelled"}">${p.escape(entry.status_label)}</span></div></header>
     <header class="feed-detail-header"><h1>${p.escape(entry.title)}</h1></header>
     <div class="inbox-reference-footer">${renderNextSuggestion(entry, p)}<div class="feed-detail-actions">${openAction}${entry.subject_type === "feed_item" && entry.available ? renderMaterialActions(entry, p) : ""}${todoButton(entry, p)}${resultActions(entry, p)}</div><p class="feed-action-status" data-inbox-action-status role="status" hidden></p></div>
-    <div class="inbox-reference-body"><section class="inbox-attention-context" aria-label="${p.text("处理上下文")}"><dl><div><dt>${p.text("为什么进入 Inbox")}</dt><dd>${p.escape(entry.reason_label)}</dd></div><div><dt>${p.text("关联对象")}</dt><dd>${p.escape(entry.relation_label)}</dd></div><div class="inbox-attention-next"><dt>${p.text("下一步")}</dt><dd>${p.escape(entry.next_action)}</dd></div><div><dt>${p.text("当前状态")}</dt><dd>${p.escape(entry.status_label)}</dd></div></dl></section><section data-inbox-entry-results="${p.escape(entry.entry_id)}" aria-label="${p.text("处理结果")}"></section></div>
+    <div class="inbox-reference-body"><section class="inbox-attention-context" aria-label="${uiText("inbox.ui.processing-context")}"><dl><div><dt>${uiText("inbox.ui.why-entered-inbox")}</dt><dd>${p.escape(entry.reason_label)}</dd></div><div><dt>${uiText("inbox.ui.related-object")}</dt><dd>${p.escape(entry.relation_label)}</dd></div><div class="inbox-attention-next"><dt>${uiText("inbox.ui.next")}</dt><dd>${p.escape(entry.next_action)}</dd></div><div><dt>${uiText("inbox.ui.current-state")}</dt><dd>${p.escape(entry.status_label)}</dd></div></dl></section><section data-inbox-entry-results="${p.escape(entry.entry_id)}" aria-label="${uiText("inbox.ui.processed-result")}"></section></div>
   </article>`;
 }
 
@@ -163,12 +164,12 @@ function renderInboxDetail(entry: InboxUiEntry, selected: boolean, p: InboxUiPri
  * not handle the entry.
  */
 function todoButton(entry: InboxUiEntry, p: InboxUiPrimitives): string {
-  return `<button class="mw-btn mw-btn--secondary" type="button" data-context-intake="todo" data-context-id="${p.escape(entry.entry_id)}" data-context-title="${p.escape(entry.title)}">${p.icon("list")}${p.text("转为待办")}</button>`;
+  return `<button class="mw-btn mw-btn--secondary" type="button" data-context-intake="todo" data-context-id="${p.escape(entry.entry_id)}" data-context-title="${p.escape(entry.title)}">${p.icon("list")}${uiText("inbox.ui.make-todo")}</button>`;
 }
 
 function resultActions(entry: InboxUiEntry, p: InboxUiPrimitives): string {
   if (!isActiveInboxStatus(entry.status)) {
-    return `<button class="mw-btn mw-btn--secondary" type="button" data-inbox-action="open" data-inbox-entry-id="${p.escape(entry.entry_id)}" data-inbox-entry-revision="${entry.revision}">${p.text("重新打开")}</button>`;
+    return `<button class="mw-btn mw-btn--secondary" type="button" data-inbox-action="open" data-inbox-entry-id="${p.escape(entry.entry_id)}" data-inbox-entry-revision="${entry.revision}">${uiText("inbox.ui.reopen")}</button>`;
   }
   // Recommendations do not remove the person's other valid choices.
   return defaultInboxNextOptionIds(true).map(id => writeButton(entry, id, entry.suggested_behavior_ids.includes(id), p)).join("");
@@ -182,31 +183,31 @@ function renderMaterialActions(entry: InboxUiEntry, p: InboxUiPrimitives): strin
 function renderNextSuggestion(entry: InboxUiEntry, p: InboxUiPrimitives): string {
   const judgment = entry.next_judgment;
   if (!judgment || !isActiveInboxStatus(entry.status)) return "";
-  const names: Record<string, string> = { [INBOX_COMPOSE_OPTION_ID]: "整理成文稿", [INBOX_VERIFY_OPTION_ID]: "先核查", [INBOX_DISMISS_OPTION_ID]: "忽略", [INBOX_DONE_OPTION_ID]: "做完了" };
-  const label = judgment.outcome === "needs_review" ? p.text("判断未完成，请人工复核或重试")
-    : p.text("建议：{action}，由你确认执行", { action: p.text(names[judgment.suggested_behavior_ids[0] ?? ""] ?? "查看原消息") });
-  return `<p class="inbox-next-suggestion">${p.escape(label)} <small>v${judgment.function_version} · ${p.escape(p.formatDate(judgment.created_at))}</small><button class="mw-btn mw-btn--ghost" type="button" data-inbox-evaluate="${p.escape(entry.entry_id)}">${p.text("重新判断")}</button></p>`;
+  const names: Record<string, string> = { [INBOX_COMPOSE_OPTION_ID]: "inbox.ui.create-document", [INBOX_VERIFY_OPTION_ID]: "inbox.ui.verify-first", [INBOX_DISMISS_OPTION_ID]: "inbox.ui.ignore", [INBOX_DONE_OPTION_ID]: "inbox.ui.done" };
+  const label = judgment.outcome === "needs_review" ? uiText.text("inbox.ui.judgment-incomplete-review-manually-retry")
+    : uiText.text("inbox.ui.suggested-action-choose-whether-proceed", { action: uiText.text(names[judgment.suggested_behavior_ids[0] ?? ""] ?? "inbox.ui.view-original-message") });
+  return `<p class="inbox-next-suggestion">${p.escape(label)} <small>v${judgment.function_version} · ${p.escape(p.formatDate(judgment.created_at))}</small><button class="mw-btn mw-btn--ghost" type="button" data-inbox-evaluate="${p.escape(entry.entry_id)}">${uiText("inbox.ui.evaluate-again")}</button></p>`;
 }
 
 function writeButton(entry: InboxUiEntry, optionId: string, primary: boolean, p: InboxUiPrimitives): string {
   if (optionId === INBOX_DISMISS_OPTION_ID) {
     const cls = primary ? "mw-btn mw-btn--primary" : "mw-btn mw-btn--ghost feed-action-subtle";
-    return `<button class="${cls}" type="button" data-inbox-action="dismissed" data-inbox-entry-id="${p.escape(entry.entry_id)}" data-inbox-entry-revision="${entry.revision}">${p.text("忽略")}</button>`;
+    return `<button class="${cls}" type="button" data-inbox-action="dismissed" data-inbox-entry-id="${p.escape(entry.entry_id)}" data-inbox-entry-revision="${entry.revision}">${uiText("inbox.ui.ignore")}</button>`;
   }
   if (optionId !== INBOX_DONE_OPTION_ID) return "";
   const cls = primary ? "mw-btn mw-btn--primary" : "mw-btn mw-btn--secondary";
-  return `<button class="${cls}" type="button" data-inbox-action="done" data-inbox-entry-id="${p.escape(entry.entry_id)}" data-inbox-entry-revision="${entry.revision}">${p.icon("check")}${p.text("标记已处理")}</button>`;
+  return `<button class="${cls}" type="button" data-inbox-action="done" data-inbox-entry-id="${p.escape(entry.entry_id)}" data-inbox-entry-revision="${entry.revision}">${p.icon("check")}${uiText("inbox.ui.mark-handled")}</button>`;
 }
 
 function openButton(entry: InboxUiEntry, p: InboxUiPrimitives): string {
   if (!entry.open || !entry.available) {
-    return `<button class="mw-btn mw-btn--secondary" type="button" disabled aria-disabled="true">${p.text("原对象不可用")}</button>`;
+    return `<button class="mw-btn mw-btn--secondary" type="button" disabled aria-disabled="true">${uiText("inbox.ui.original-object-unavailable")}</button>`;
   }
   if (entry.open.kind === "feed") {
-    return `<button class="mw-btn mw-btn--secondary" type="button" data-inbox-open-feed="${p.escape(entry.open.item_id)}">${p.icon("rss")}${p.text("查看原消息")}</button>`;
+    return `<button class="mw-btn mw-btn--secondary" type="button" data-inbox-open-feed="${p.escape(entry.open.item_id)}">${p.icon("rss")}${uiText("inbox.ui.view-original-message")}</button>`;
   }
   if (entry.open.kind === "source") {
-    return `<button class="mw-btn mw-btn--secondary" type="button" data-feed-task-config-open="${p.escape(entry.open.source_id)}">${p.icon("settings")}${p.text("处理任务配置")}</button>`;
+    return `<button class="mw-btn mw-btn--secondary" type="button" data-feed-task-config-open="${p.escape(entry.open.source_id)}">${p.icon("settings")}${uiText("inbox.ui.handling-task-configuration")}</button>`;
   }
-  return `<a class="feed-linked-goal" href="${p.escape(entry.open.href)}">${p.icon("target")}${p.text("打开 Goal")}</a>`;
+  return `<a class="feed-linked-goal" href="${p.escape(entry.open.href)}">${p.icon("target")}${uiText("inbox.ui.open-goal")}</a>`;
 }

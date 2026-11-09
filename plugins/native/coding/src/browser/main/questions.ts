@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { InteractionValues } from "@molis-ai/molis-work-plugin-sdk/page-globals";
 import { errorMessage } from "../dom.js";
 import { terminal } from "./composer-state.js";
@@ -47,12 +48,12 @@ function remember(asking: Asking, values: Record<string, unknown> | null = askin
 
 /** The card was answered: it becomes the receipt, and the session is read again. */
 async function submit(asking: Asking) {
-  const { page, card, note, id, key, run, question } = asking, { L, input, lifetime } = page, { draft } = page.refs, { s } = page, client = asking.client;
+  const { page, card, note, id, key, run, question } = asking, { input, lifetime } = page, { draft } = page.refs, { s } = page, client = asking.client;
   if (!client || card.dataset.busy === "true" || !answerable(card)) return;
   remember(asking);
   card.dataset.busy = "true";
   lock(card, true);
-  note.textContent = L("coding.question.sending");
+  note.textContent = uiText.text("coding.question.sending");
   try {
     const { message } = await api<{ message: string }>(page, sessionPath(id) + "/control", "POST", { kind: "answer", run_id: run.ref.run_id, pending_id: question.pending_id, pending_revision: question.pending_revision, values: client.read() });
     s.answeredQuestions.add(key);
@@ -95,7 +96,7 @@ function refuse(asking: Asking, client: HostInteraction, error: unknown) {
 
 /** Binds the Host's client to a new card; what was written before a reload comes back. */
 function bind(page: Page, card: QuestionCard, key: string, run: QuestionRun, question: PendingQuestion) {
-  const { L, host } = page, { draft } = page.refs, { s } = page;
+  const { host } = page, { draft } = page.refs, { s } = page;
   const id = s.current, note = card.querySelector<HTMLElement>("[data-ix-note]");
   if (!note) return;
   const asking: Asking = { page, card, note, id, key, run, question, client: null };
@@ -105,7 +106,7 @@ function bind(page: Page, card: QuestionCard, key: string, run: QuestionRun, que
       remember(asking);
       draft.later(() => {
         void draft.save(id, draft.local(id) || "").catch(error => {
-          note.textContent = L("coding.question.unsaved", { reason: errorMessage(error) });
+          note.textContent = uiText.text("coding.question.unsaved", { reason: errorMessage(error) });
         });
       });
     },
@@ -138,8 +139,8 @@ function questionCard(page: Page, block: HTMLElement, run: QuestionRun, question
 }
 
 /** Whether the card can still be answered, and what it says if not. */
-function syncCard(page: Page, form: HTMLElement, run: QuestionRun, question: PendingQuestion) {
-  const { L } = page, canAnswer = (question.parked || !terminal(run.phase)) && question.answerable !== false;
+function syncCard(_page: Page, form: HTMLElement, run: QuestionRun, question: PendingQuestion) {
+  const canAnswer = (question.parked || !terminal(run.phase)) && question.answerable !== false;
   form.dataset.answerable = String(canAnswer);
   const ring = form.querySelector<HTMLElement>(".mw-ix-kicker .mw-state-ring");
   if (ring) ring.dataset.mwState = canAnswer ? "answer" : "unavailable";
@@ -148,7 +149,7 @@ function syncCard(page: Page, form: HTMLElement, run: QuestionRun, question: Pen
     node.disabled = !canAnswer;
   });
   const note = form.querySelector("[data-ix-note]");
-  if (!canAnswer && note) note.textContent = question.unavailable_reason || L("coding.question.closed");
+  if (!canAnswer && note) note.textContent = question.unavailable_reason || uiText.text("coding.question.closed");
 }
 
 /**

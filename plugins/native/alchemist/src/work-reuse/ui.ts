@@ -1,15 +1,16 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { ReuseCandidates } from "./contracts.js";
 
 /** The same partial is used in the research dialog and the interactive design fixture. */
-export function renderReuseChoices(data: ReuseCandidates, escape: (value: unknown) => string, translate: (text: string) => string = text => text): string {
-  const t = (value: string) => escape(translate(value));
-  return `<section class="alc-reuse"><h3>${t("接着上次做")}</h3><p class="alc-muted">${t("选择这次能沿用的成果和方法。旧结论会作为背景，本次研究仍会核对新的证据。")}</p>
-    ${!data.available ? `<p role="status">${t("成果入口尚未连接；可以先沿用研究方法。")}</p>` : ""}
-    ${!data.artifacts.length && data.available ? `<p class="alc-muted">${t("还没有可读取的历史成果。完成研究后，可以保存一个固定版本。")}</p>` : data.artifacts.map((item, index) => `<label class="alc-reuse-choice"><input class="mw-checkbox" type="checkbox" name="reuse-artifact" value="${index}"><span><strong>${escape(item.title)}</strong><small>${t("固定版本")} ${item.reference.version} · ${escape(item.sourcePlugin)} · ${escape(item.createdAt.slice(0, 10))}</small><span>${escape(item.excerpt)}</span>${item.warnings.map(w => `<small class="alc-reuse-warning">${escape(w)}</small>`).join("")}</span></label>`).join("")}
-    ${data.truncated ? `<p class="alc-muted">${t("只显示最近 40 份可读取成果；可以用固定版本引用继续查找。")}</p>` : ""}
-    ${data.methods.length ? `<h3>${t("这次的研究方法")}</h3>${data.methods.map(item => `<label class="alc-reuse-choice"><input class="mw-checkbox" type="checkbox" name="reuse-method" value="${escape(item.id)}" checked><span><strong>${escape(item.methodChange)}</strong><small>${t("方法版本")} ${item.version}</small><span>${t("适用示例")}：${escape(item.positiveExamples.join("；") || translate("尚未填写，采用前请核对"))}</span><span>${t("不适用示例")}：${escape(item.negativeExamples.join("；") || translate("尚未填写，采用前请核对"))}</span></span></label>`).join("")}` : `<p class="alc-muted">${t("本次没有适用的已确认方法。你可以在研究报告中批注，再确认保存。")}</p>`}
-    <label class="alc-field">${t("沿用成果的理由与仍需重核的内容")}<textarea class="mw-textarea" name="reuse-reason" rows="2" maxlength="2000" placeholder="${t("例如：沿用访谈问题；价格和竞品变化重新核对。")}"></textarea></label>
-    <button type="button" class="mw-btn mw-btn--ghost" data-alc-action="reuse-assess">${t("检查所选内容的适用性")}</button><div data-reuse-assessment role="status" aria-live="polite"></div></section>`;
+export function renderReuseChoices(data: ReuseCandidates, escape: (value: unknown) => string, _translate: (text: string) => string = text => text): string {
+  const t = (value: string) => escape(uiText.text(value));
+  return `<section class="alc-reuse"><h3>${t("alchemist.ui.pick-up-where-left-off")}</h3><p class="alc-muted">${t("alchemist.ui.choose-results-methods-reuse-time-earlier-conclusions-serve")}</p>
+    ${!data.available ? `<p role="status">${t("alchemist.ui.results-entry-isn-t-connected-yet-can-reuse")}</p>` : ""}
+    ${!data.artifacts.length && data.available ? `<p class="alc-muted">${t("alchemist.ui.no-earlier-results-read-yet-after-research-run")}</p>` : data.artifacts.map((item, index) => `<label class="alc-reuse-choice"><input class="mw-checkbox" type="checkbox" name="reuse-artifact" value="${index}"><span><strong>${escape(item.title)}</strong><small>${t("alchemist.ui.fixed-version")} ${item.reference.version} · ${escape(item.sourcePlugin)} · ${escape(item.createdAt.slice(0, 10))}</small><span>${escape(item.excerpt)}</span>${item.warnings.map(w => `<small class="alc-reuse-warning">${escape(w)}</small>`).join("")}</span></label>`).join("")}
+    ${data.truncated ? `<p class="alc-muted">${t("alchemist.ui.only-40-most-recent-readable-results-shown-keep")}</p>` : ""}
+    ${data.methods.length ? `<h3>${t("alchemist.ui.research-s-methods")}</h3>${data.methods.map(item => `<label class="alc-reuse-choice"><input class="mw-checkbox" type="checkbox" name="reuse-method" value="${escape(item.id)}" checked><span><strong>${escape(item.methodChange)}</strong><small>${t("alchemist.ui.method-version")} ${item.version}</small><span>${t("alchemist.ui.examples-where-applies")}：${escape(item.positiveExamples.join("；") || uiText.text("alchemist.ui.not-filled-check-before-adopting"))}</span><span>${t("alchemist.ui.examples-where-doesn-t-apply")}：${escape(item.negativeExamples.join("；") || uiText.text("alchemist.ui.not-filled-check-before-adopting"))}</span></span></label>`).join("")}` : `<p class="alc-muted">${t("alchemist.ui.no-confirmed-method-applies-time-can-annotate-research")}</p>`}
+    <label class="alc-field">${t("alchemist.ui.why-results-reused-what-still-needs-rechecking")}<textarea class="mw-textarea" name="reuse-reason" rows="2" maxlength="2000" placeholder="${t("alchemist.ui.example-reuse-interview-questions-recheck-pricing-competitor-cha")}"></textarea></label>
+    <button type="button" class="mw-btn mw-btn--ghost" data-alc-action="reuse-assess">${t("alchemist.ui.check-whether-selected-items-apply")}</button><div data-reuse-assessment role="status" aria-live="polite"></div></section>`;
 }
 
 export const WORK_REUSE_STYLES = `

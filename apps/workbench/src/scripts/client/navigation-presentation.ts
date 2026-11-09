@@ -63,7 +63,7 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
   const current = dock.querySelector('[data-plugin-picker-current]');
   // The switcher is its glyph alone: its name says what the work area shows, so a screen reader hears where it is.
   const nameSwitcher = (names) => {
-    const label = L('切换插件 · 现在：{now}').replace('{now}', names.join(L('、')));
+    const label = globalThis.t.text("workbench.navigation-presentation.switch-plugin-now-now").replace('{now}', names.join(L('、')));
     if (pickerToggle && pickerToggle.getAttribute('aria-label') !== label) pickerToggle.setAttribute('aria-label', label);
   };
   const setPicker = (open) => {
@@ -144,7 +144,7 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
     const pin = document.createElement('button');
     pin.type = 'button'; pin.className = 'dock-pin' + (fixed ? ' is-fixed' : '') + (arriving ? ' is-arriving' : ''); pin.dataset.dockPin = id;
     if (arriving) pin.addEventListener('animationend', () => pin.classList.remove('is-arriving'), { once: true });
-    pin.title = labelOf(source); pin.setAttribute('aria-label', labelOf(source) + (failed(id) ? ' · ' + L('没能启动') : ''));
+    pin.title = labelOf(source); pin.setAttribute('aria-label', labelOf(source) + (failed(id) ? ' · ' + globalThis.t.text("workbench.navigation-presentation.didn-t-start") : ''));
     const glyph = glyphOf(id); if (glyph) pin.append(glyph);
     warn(pin, id);
     return pin;
@@ -195,7 +195,7 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
     };
     return tray;
   };
-  const trays = [makeTray(pins, L('更多常驻插件')), makeTray(own, L('你自己的'))].filter(Boolean);
+  const trays = [makeTray(pins, globalThis.t.text("workbench.navigation-presentation.more-pinned-plugins")), makeTray(own, globalThis.t.text("workbench.navigation-presentation.own"))].filter(Boolean);
   const fit = () => { trays.forEach((tray) => tray.fit()); paintCurrent(); };
   const closeOverflows = (except) => trays.forEach((tray) => { if (tray !== except && !tray.overflow.hidden) tray.setOverflow(false); });
   // The trays keep the buttons they have: one that is kept stays where it is, a new one lands, one that goes lets go.
@@ -268,12 +268,12 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
     if (asking && asking.tile === tile) { stopAsking(); void host.membership?.change(id, 'remove'); return; }
     stopAsking();
     const list = (tile.dataset.dependents || '').split('|').filter(Boolean).join('、');
-    const message = list ? L('再点一次移除；同时移除：{list}').replace('{list}', list) : L('再点一次移除');
+    const message = list ? globalThis.t.text("workbench.navigation-presentation.press-again-remove-also-removes-list").replace('{list}', list) : globalThis.t.text("workbench.navigation-presentation.press-again-remove");
     tile.querySelector('.plugin-rail-confirm').textContent = message;
     const title = toggle.getAttribute('title');
     toggle.setAttribute('title', message);
     const label = toggle.getAttribute('aria-label') || '';
-    const sure = L('确认移除') + label.slice(label.indexOf('：'));
+    const sure = globalThis.t.text("workbench.navigation-presentation.confirm-removal") + label.slice(label.indexOf('：'));
     toggle.setAttribute('aria-label', sure);
     const words = toggle.querySelector('.mw-sr-only'); if (words) words.textContent = sure;
     tile.classList.add('is-confirming');

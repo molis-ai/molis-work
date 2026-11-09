@@ -1,4 +1,4 @@
-import { escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t as uiText, escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { buildDecisionGroups, countGoalDecisions } from "../decision-groups.js";
 import type { GoalsDocumentView as WebGoalView } from "../document-view.js";
 import { buildGoalsNavigationItems } from "../navigation-model.js";
@@ -74,7 +74,7 @@ export function createGoalsDocuments<TView extends GoalsPageView>(
       decisionCount: countGoalDecisions(view, item.goal.goal_id),
       relatedWorkHtml: renderGoalFactors(item, view),
       artifactHtml: item.artifact_embed_html
-        ? `<h3>${L("交付物")}</h3>${item.artifact_embed_html}`
+        ? `<h3>${uiText("goals.documents.deliverable")}</h3>${item.artifact_embed_html}`
         : "",
       coverageHtml: `${renderInputBindingsHtml(item, view)}${renderContractCoverage(item, view)}${renderChildProgress(item, view)}`,
       decisionHtml: renderGoalDecisionHtml(item, view),

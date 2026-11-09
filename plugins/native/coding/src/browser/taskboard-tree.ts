@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { stepActorText } from "./step-actor.js";
 import type { PlanEntry, StepNode } from "./shapes.js";
 import { clip, firstLine, oneLine, when } from "./taskboard-format.js";
@@ -27,13 +28,13 @@ const LIVE_PHASES = ["starting", "running", "compacting"];
 const HELD_PHASES = ["paused", "pausing", "awaiting-input", "awaiting-review"];
 
 
-const unknown = (L: Translate): StateMark => [L("coding.board.state.unknown"), "verify", "idle"];
+const unknown = (_L: Translate): StateMark => [uiText.text("coding.board.state.unknown"), "verify", "idle"];
 
 /** The Agent that does the work: the round's own Character when one was chosen, otherwise its role; a subagent is its role. */
-function executorOf({ translate: L, ports }: TreeInput, run: BoardRun): Executor {
+function executorOf({ ports }: TreeInput, run: BoardRun): Executor {
   const character = run.frozen?.character?.title, role = ports.roleName(run.frozen?.role_id);
-  if (character) return { name: character, detail: L("coding.board.by-character", { character, role }) };
-  return { name: role, detail: L("coding.board.by-role", { role }) + (run.frozen?.model_id ? " · " + L("coding.board.model", { model: run.frozen.model_id }) : "") };
+  if (character) return { name: character, detail: uiText.text("coding.board.by-character", { character, role }) };
+  return { name: role, detail: uiText.text("coding.board.by-role", { role }) + (run.frozen?.model_id ? " · " + uiText.text("coding.board.model", { model: run.frozen.model_id }) : "") };
 }
 
 const startedAt = (child: BoardChild) => {
@@ -65,9 +66,9 @@ function childRow({ translate: L, words, ports }: TreeInput, run: BoardRun, { ch
   const own = child.workspace_path && here && child.workspace_path !== here ? child.workspace_path.split("/").filter(Boolean).at(-1) : "";
   const state = verdict === "accepted" ? words.state.accepted! : verdict === "needs-work" ? words.state["needs-work"]! : words.child[child.state] || unknown(L);
   return {
-    key: "child-" + child.subagent_id, label: L("coding.board.subtask"), title: oneLine(child.task), hint: child.task, state, progress: null,
-    note: own ? L("coding.board.own-directory", { path: own }) : "",
-    executor: { name: role, detail: L("coding.board.by-role", { role }) + (child.error ? " · " + child.error : "") },
+    key: "child-" + child.subagent_id, label: uiText.text("coding.board.subtask"), title: oneLine(child.task), hint: child.task, state, progress: null,
+    note: own ? uiText.text("coding.board.own-directory", { path: own }) : "",
+    executor: { name: role, detail: uiText.text("coding.board.by-role", { role }) + (child.error ? " · " + child.error : "") },
     time: Number.isFinite(at) ? when(at) : null, target: { kind: "child", run_id, child_id: child.subagent_id }, children: [],
   };
 }
@@ -79,19 +80,19 @@ function childRow({ translate: L, words, ports }: TreeInput, run: BoardRun, { ch
 function doerOf({ input: { translate: L, ports }, executor }: StepScope, holder: StepNode["owner"], held: BoardChild | undefined): Executor {
   if (!holder) return executor;
   const label = stepActorText(L, holder), expired = holder.expired ? { expired: true } : {};
-  if (holder.kind === "session") return { name: executor.name, detail: L("coding.board.holder", { holder: label }) + " · " + executor.detail, ...expired };
-  if (holder.kind === "subtask") return { name: label, detail: L("coding.board.holder", { holder: label }) + (held ? " · " + L("coding.board.by-role", { role: ports.roleName(held.role_id) || held.role_name || "" }) : "") };
-  if (holder.kind === "person") return { name: L("coding.board.you"), detail: L("coding.board.holder-you"), person: true };
-  if (holder.kind === "none") return { name: L("coding.board.unclaimed"), detail: L("coding.board.no-holder"), none: true };
-  return { name: label, detail: L("coding.board.holder", { holder: label }), ...expired };
+  if (holder.kind === "session") return { name: executor.name, detail: uiText.text("coding.board.holder", { holder: label }) + " · " + executor.detail, ...expired };
+  if (holder.kind === "subtask") return { name: label, detail: uiText.text("coding.board.holder", { holder: label }) + (held ? " · " + uiText.text("coding.board.by-role", { role: ports.roleName(held.role_id) || held.role_name || "" }) : "") };
+  if (holder.kind === "person") return { name: uiText.text("coding.board.you"), detail: uiText.text("coding.board.holder-you"), person: true };
+  if (holder.kind === "none") return { name: uiText.text("coding.board.unclaimed"), detail: uiText.text("coding.board.no-holder"), none: true };
+  return { name: label, detail: uiText.text("coding.board.holder", { holder: label }), ...expired };
 }
 
 /** A step's state: the person's verdict, their skip, their own mark, else the graph's; a running step draws as its round is. */
-function stepState({ input: { translate: L, words }, run, entry, board }: StepScope, node: StepNode): { state: StateMark; decided: string | null } {
+function stepState({ input: { words }, run, entry, board }: StepScope, node: StepNode): { state: StateMark; decided: string | null } {
   const verdict = entry.verdicts?.[node.id], decided = verdict && verdict.board_version === board.version ? verdict.status : null;
   // A step you hold ends by your own mark, not by a model's report.
   const yours: StateMark | null = node.owner?.kind === "person" && (node.state === "succeeded" || node.state === "failed")
-    ? (node.state === "succeeded" ? [L("coding.board.state.you-done"), "done", "done"] : [L("coding.board.state.you-failed"), "failed", "blocked"]) : null;
+    ? (node.state === "succeeded" ? [uiText.text("coding.board.state.you-done"), "done", "done"] : [uiText.text("coding.board.state.you-failed"), "failed", "blocked"]) : null;
   const state = decided === "accepted" ? words.state.accepted! : decided === "needs-work" ? words.state["needs-work"]! : skipped(node) ? words.state.skipped! : yours || words.state[node.state] || words.state.pending!;
   if (node.state !== "running" || decided) return { state, decided };
   const mark = node.owner?.kind === "person" ? "doing" : LIVE_PHASES.includes(run.phase) ? "running" : HELD_PHASES.includes(run.phase) ? words.phase[run.phase]![1] : "doing";
@@ -99,8 +100,8 @@ function stepState({ input: { translate: L, words }, run, entry, board }: StepSc
 }
 
 function stepHint(L: Translate, acceptance: string, holderLabel: string, last: StepNode["reports"][number] | undefined): string {
-  return (acceptance ? L("coding.board.acceptance", { acceptance }) : "") + (holderLabel ? "\n" + L("coding.board.holder", { holder: holderLabel }) : "")
-    + (last ? "\n" + L("coding.board.last-report", { report: (last.by ? stepActorText(L, last.by) + L("coding.timeline.colon") : "") + last.note }) : "");
+  return (acceptance ? uiText.text("coding.board.acceptance", { acceptance }) : "") + (holderLabel ? "\n" + uiText.text("coding.board.holder", { holder: holderLabel }) : "")
+    + (last ? "\n" + uiText.text("coding.board.last-report", { report: (last.by ? stepActorText(L, last.by) + uiText.text("coding.timeline.colon") : "") + last.note }) : "");
 }
 
 function stepRow(scope: StepScope, node: StepNode, position: number): BoardRow {
@@ -112,7 +113,7 @@ function stepRow(scope: StepScope, node: StepNode, position: number): BoardRow {
   const held = holder?.kind === "subtask" ? children.find(item => item.child.subagent_id === holder.subagent_id)?.child : undefined;
   const done = mine.length ? mine.filter(row => ["done", "accepted"].includes(row.state[2])).length : settled(node) || decided === "accepted" ? 1 : 0;
   return {
-    key: "step-" + id + "-" + node.id, label: node.inserted ? L("coding.board.inserted") : "S" + (Number(node.id.replace("step-", "")) || position + 1), title: step.title,
+    key: "step-" + id + "-" + node.id, label: node.inserted ? uiText.text("coding.board.inserted") : "S" + (Number(node.id.replace("step-", "")) || position + 1), title: step.title,
     hint: stepHint(L, step.acceptance, holder ? stepActorText(L, holder) : "", last), state, progress: { done, total: mine.length || 1 }, deps,
     executor: doerOf(scope, holder, held), time: last ? when(last.at_ms) : null, target: { kind: "step", run_id: id, step_id: node.id }, children: mine, node,
     ...(editable ? { edit: { board, runId: id, position, live } } : {}),
@@ -154,11 +155,11 @@ function roundRow(input: TreeInput, index: number, entry: PlanEntry | undefined,
   // A skipped step leaves the count altogether: it is neither done nor still to do.
   const doneSteps = nodes.filter(node => settled(node) && !skipped(node)).length, counted = nodes.filter(node => !skipped(node)).length;
   const asked = ports.ownTask(run.turns?.find(turn => turn.kind === "user" && !turn.steer)?.text || "");
-  const name = entry?.plan?.content.title || clip(firstLine(run.task ?? asked), 90) || L("coding.turn.number", { number: index + 1 });
+  const name = entry?.plan?.content.title || clip(firstLine(run.task ?? asked), 90) || uiText.text("coding.turn.number", { number: index + 1 });
   const first = runs[span[0]!]!, turns = span.map(at => "#" + (at + 1));
   return {
     key: "run-" + id, label: span.length > 1 ? "#" + (span[0]! + 1) + "–" + (index + 1) : "#" + (index + 1), title: name,
-    hint: [entry ? L("coding.board.plan-revision", { revision: entry.revision ?? "?" }) : "", span.length > 1 ? L("coding.board.continued-turns", { turns: turns.join(L("coding.list.joiner")) }) : ""].filter(Boolean).join("\n"),
+    hint: [entry ? uiText.text("coding.board.plan-revision", { revision: entry.revision ?? "?" }) : "", span.length > 1 ? uiText.text("coding.board.continued-turns", { turns: turns.join(uiText.text("coding.list.joiner")) }) : ""].filter(Boolean).join("\n"),
     state: input.words.phase[run.phase] || unknown(L),
     progress: nodes.length ? { done: doneSteps, total: counted || nodes.length } : children.length ? { done: children.filter(item => item.child.state === "completed").length, total: children.length } : null,
     executor, time: when(first.started_at), target: { kind: "run", run_id: id }, children: [...steps, ...loose.map(item => childRow(input, run, item))], note: entry?.error || group?.error || "",
@@ -183,33 +184,33 @@ function roundRows(input: TreeInput): BoardRow[] {
 }
 
 /** What needs a decision before the session goes on. */
-function attentionGroup({ data, translate: L, words }: TreeInput): BoardGroup | null {
+function attentionGroup({ data, words }: TreeInput): BoardGroup | null {
   if (!data.recovery_required && !data.checkpoint_busy) return null;
   const items: BoardRow[] = [];
-  if (data.recovery_required) items.push({ key: "recovery", title: L("coding.recovery.title"), state: words.phase["reconcile-required"]!, progress: null, target: { kind: "recovery" }, executor: null, children: [] });
-  if (data.checkpoint_busy) items.push({ key: "rewind", title: L("coding.board.rewind"), state: words.phase["awaiting-review"]!, progress: null, target: { kind: "reviews" }, executor: null, children: [] });
-  return { id: "attention", label: L("coding.board.group.attention"), mark: "circle-alert", items };
+  if (data.recovery_required) items.push({ key: "recovery", title: uiText.text("coding.recovery.title"), state: words.phase["reconcile-required"]!, progress: null, target: { kind: "recovery" }, executor: null, children: [] });
+  if (data.checkpoint_busy) items.push({ key: "rewind", title: uiText.text("coding.board.rewind"), state: words.phase["awaiting-review"]!, progress: null, target: { kind: "reviews" }, executor: null, children: [] });
+  return { id: "attention", label: uiText.text("coding.board.group.attention"), mark: "circle-alert", items };
 }
 
 /** The plan not yet run: its steps as they would be run. */
-function planGroup({ data, translate: L, words }: TreeInput): BoardGroup | null {
+function planGroup({ data, words }: TreeInput): BoardGroup | null {
   const plan = data.plan, plans = data.taskboard_plans || [];
   if (!plan || plans.some(entry => entry.revision === plan.revision && entry.board)) return null;
   const steps: BoardRow[] = plan.content.steps.map((step, index) => ({
-    key: "plan-" + index, label: "S" + (index + 1), title: step.title, hint: L("coding.board.acceptance", { acceptance: step.acceptance }), state: words.state.pending!,
+    key: "plan-" + index, label: "S" + (index + 1), title: step.title, hint: uiText.text("coding.board.acceptance", { acceptance: step.acceptance }), state: words.state.pending!,
     progress: { done: 0, total: 1 }, executor: null, target: { kind: "plan" }, children: [],
   }));
-  const state: StateMark = plan.content.blockers ? [L("coding.board.plan.blocked"), "blocked", "blocked"] : plan.confirmed ? [L("coding.board.plan.confirmed"), "ready", "ready"] : [L("coding.board.plan.unconfirmed"), "approval", "attention"];
-  const row: BoardRow = { key: "plan", label: L("coding.board.plan"), title: plan.content.title, hint: plan.content.change_reason || "", state, progress: { done: 0, total: steps.length }, executor: null, target: { kind: "plan" }, children: steps };
-  return { id: "plan", label: L("coding.board.group.plan"), mark: "list", count: L("coding.board.revision", { revision: plan.revision }), items: [row] };
+  const state: StateMark = plan.content.blockers ? [uiText.text("coding.board.plan.blocked"), "blocked", "blocked"] : plan.confirmed ? [uiText.text("coding.board.plan.confirmed"), "ready", "ready"] : [uiText.text("coding.board.plan.unconfirmed"), "approval", "attention"];
+  const row: BoardRow = { key: "plan", label: uiText.text("coding.board.plan"), title: plan.content.title, hint: plan.content.change_reason || "", state, progress: { done: 0, total: steps.length }, executor: null, target: { kind: "plan" }, children: steps };
+  return { id: "plan", label: uiText.text("coding.board.group.plan"), mark: "list", count: uiText.text("coding.board.revision", { revision: plan.revision }), items: [row] };
 }
 
 /** The session's work as groups of rows: what needs deciding, the plan not yet run, and the rounds. */
 export function buildTree(input: TreeInput): BoardGroup[] {
-  const groups: BoardGroup[] = [], rounds = roundRows(input), L = input.translate;
+  const groups: BoardGroup[] = [], rounds = roundRows(input);
   const attention = attentionGroup(input), plan = planGroup(input);
   if (attention) groups.push(attention);
   if (plan) groups.push(plan);
-  if (rounds.length) groups.push({ id: "rounds", label: L("coding.board.group.run"), mark: "play", count: L("coding.board.turns", { count: rounds.length }), items: rounds });
+  if (rounds.length) groups.push({ id: "rounds", label: uiText.text("coding.board.group.run"), mark: "play", count: uiText.text("coding.board.turns", { count: rounds.length }), items: rounds });
   return groups;
 }

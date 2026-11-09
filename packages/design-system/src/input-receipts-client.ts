@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 /// <reference lib="dom" />
 import type { AgentStepBoard, AgentStepOwner } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentInputModelClaim, AgentInputQuestion, AgentInputTreatment, AgentTurnSteer } from "@molis-ai/molis-work-contracts/services/agent-inputs";
@@ -97,7 +98,7 @@ export function createInputReceipts(L: InputReceiptParts["L"], tray: (parts: Inp
     });
     pending.push(words);
   };
-  const row = (list: HTMLElement, term: string, value: string) => { list.append(make("dt", "", L(term)), make("dd", "", value)); };
+  const row = (list: HTMLElement, term: string, value: string) => { list.append(make("dt", "", uiText.text(term)), make("dd", "", value)); };
   const quote = (text: string) => text.length > 12 ? text.slice(0, 12) + "…" : text;
   const of = (at: Surface, inputId: string) => at.byInput.get(inputId);
   /** Both ends of a correction, as drawn on the same surface: the input this one corrects, and the latest one correcting it. */
@@ -108,31 +109,31 @@ export function createInputReceipts(L: InputReceiptParts["L"], tray: (parts: Inp
   const reveal = (entry: Shown | undefined) => { if (!entry) return; entry.root.open = true; entry.root.scrollIntoView({ block: "nearest" }); entry.root.querySelector("summary")?.focus(); };
   const treatment = (claim: AgentInputModelClaim) => L(TREATMENT[claim.treatment]);
   const impacts = (claim: AgentInputModelClaim) => claim.impacts.map(one => L(IMPACT[one])).join(L("、"));
-  const claimLine = (claim: AgentInputModelClaim) => treatment(claim) + (claim.impacts.length ? L(" · 影响") + impacts(claim) : "");
+  const claimLine = (claim: AgentInputModelClaim) => treatment(claim) + (claim.impacts.length ? uiText.text("workbench.input-receipts-client.affects") + impacts(claim) : "");
   const asking = (questions: readonly AgentInputQuestion[]) => {
     const open = questions.filter(one => one.state === "open").length;
-    return open ? L("为这条问了你问题，等你回答") : questions.some(one => one.state === "unresolved") ? L("为这条问的问题没等到回答") : "";
+    return open ? uiText.text("workbench.input-receipts-client.question-about-waits-answer") : questions.some(one => one.state === "unresolved") ? uiText.text("workbench.input-receipts-client.question-about-was-never-answered") : "";
   };
   const word = (state: AgentStepState, mine?: boolean) => L(mine && MARK[state] || STEP[state]), { cites, added } = board(L, word);
   const body = (steer: AgentTurnSteer, cited: string[][], steps: string[]) => {
     const part = make("div", "mw-receipt__body"), facts = make("dl", "mw-receipt__facts"), claim = steer.model_claim, beside = Boolean(claim || cited.length);
     // Side by side with what the AI says, the facts say whose they are.
-    part.append(make("p", "mw-receipt__note", L("读到不代表已遵循，也不撤销先前操作；补充要求不代替回答问题。")), ...beside ? [make("p", "mw-receipt__who", L("记录里的"))] : [], facts);
-    row(facts, "运行记录", L(FACT[steer.state]) + L(" · 输入 ") + steer.id);
-    for (const [index, question] of (steer.questions ?? []).entries()) row(facts, index ? "" : "为它问的问题", L(QUESTION[question.state]) + L(" · 问题 ") + question.pending_id);
-    for (const [index, line] of steps.entries()) row(facts, index ? "" : "为它加的步骤", line);
+    part.append(make("p", "mw-receipt__note", uiText.text("workbench.input-receipts-client.read-does-not-mean-followed-does-not-undo")), ...beside ? [make("p", "mw-receipt__who", uiText.text("workbench.input-receipts-client.records"))] : [], facts);
+    row(facts, "workbench.input-receipts-client.run-record", L(FACT[steer.state]) + uiText.text("workbench.input-receipts-client.input") + steer.id);
+    for (const [index, question] of (steer.questions ?? []).entries()) row(facts, index ? "" : "workbench.input-receipts-client.questions-about", L(QUESTION[question.state]) + uiText.text("workbench.input-receipts-client.question") + question.pending_id);
+    for (const [index, line] of steps.entries()) row(facts, index ? "" : "workbench.input-receipts-client.step-added", line);
     if (!beside) return part;
     const group = make("div", "mw-receipt__claimed"), said = make("dl", "");
-    group.append(make("p", "mw-receipt__who", L("AI 自己说的，Molis 没有核对")), said);
+    group.append(make("p", "mw-receipt__who", uiText.text("workbench.input-receipts-client.what-ai-says-itself-molis-has-not-checked")), said);
     if (claim) {
-      row(said, "怎么处理", (claim.kind ? L(KIND[claim.kind]) + L(" · ") : "") + treatment(claim));
-      if (claim.targets.length) row(said, "指向", claim.targets.map(target => L(TARGET[target.kind]) + " " + target.id).join(L("、")));
-      if (claim.impacts.length) row(said, "说会改变", impacts(claim));
-      if (claim.note) row(said, "AI 的原话", L("“") + claim.note + L("”"));
-      row(said, "出处", (claim.revisions > 1 ? L("说明过 ") + claim.revisions + L(" 次，以最新一次为准") : L("说明过 1 次")) + (claim.tool_call_id ? L(" · 工具调用 ") + claim.tool_call_id : ""));
+      row(said, "workbench.input-receipts-client.handling", (claim.kind ? L(KIND[claim.kind]) + L(" · ") : "") + treatment(claim));
+      if (claim.targets.length) row(said, "workbench.input-receipts-client.points", claim.targets.map(target => L(TARGET[target.kind]) + " " + target.id).join(L("、")));
+      if (claim.impacts.length) row(said, "workbench.input-receipts-client.says-changes", impacts(claim));
+      if (claim.note) row(said, "workbench.input-receipts-client.ai-s-words", L("“") + claim.note + L("”"));
+      row(said, "workbench.input-receipts-client.provenance", (claim.revisions > 1 ? uiText.text("workbench.input-receipts-client.stated") + claim.revisions + uiText.text("workbench.input-receipts-client.times-latest-stands") : uiText.text("workbench.input-receipts-client.stated-once")) + (claim.tool_call_id ? uiText.text("workbench.input-receipts-client.tool-call") + claim.tool_call_id : ""));
     }
     // A step's report is the AI's words about the step, quoted like its own note: it says nothing took effect (D21).
-    for (const [index, [step, note]] of cited.entries()) row(said, index ? "" : "步骤报告提到它", step + " " + L("“") + note + L("”"));
+    for (const [index, [step, note]] of cited.entries()) row(said, index ? "" : "workbench.input-receipts-client.step-reports-naming", step + " " + L("“") + note + L("”"));
     part.append(group);
     return part;
   };
@@ -140,13 +141,13 @@ export function createInputReceipts(L: InputReceiptParts["L"], tray: (parts: Inp
     const steer = entry.turn.steer!, act = entry.act;
     const [about, latest] = ends(entry);
     const links = make("div", "mw-receipt__acts");
-    if (about) links.append(button("mw-btn--link", L("看原来那条"), () => reveal(about)));
-    if (latest) links.append(button("mw-btn--link", L("看更正"), () => reveal(latest)));
+    if (about) links.append(button("mw-btn--link", uiText.text("workbench.input-receipts-client.see-original"), () => reveal(about)));
+    if (latest) links.append(button("mw-btn--link", uiText.text("workbench.input-receipts-client.see-correction"), () => reveal(latest)));
     if (act && steer.state !== "withdrawn") {
       // Only a round under way can give one back from its receipt; one left waiting in the session is the session's to give back.
-      if (steer.state === "received") links.append(button("mw-btn--secondary", L("撤回"), () => withdraw(entry)));
-      else if (steer.state !== "unread") part.append(make("p", "mw-receipt__note", L("AI 已看到，不能撤回；要改口就发更正。")));
-      if (!entry.form) links.append(button("mw-btn--ghost", L("更正…"), () => correct(entry)));
+      if (steer.state === "received") links.append(button("mw-btn--secondary", uiText.text("workbench.input-receipts-client.withdraw"), () => withdraw(entry)));
+      else if (steer.state !== "unread") part.append(make("p", "mw-receipt__note", uiText.text("workbench.input-receipts-client.ai-has-seen-so-can-t-be-withdrawn")));
+      if (!entry.form) links.append(button("mw-btn--ghost", uiText.text("workbench.input-receipts-client.correct"), () => correct(entry)));
     }
     if (entry.problem) part.append(make("p", "mw-receipt__problem", entry.problem));
     if (links.childElementCount) part.append(links);
@@ -172,15 +173,15 @@ export function createInputReceipts(L: InputReceiptParts["L"], tray: (parts: Inp
   const draw = (entry: Shown, force = false) => {
     const { turn, round, root } = entry, steer = turn.steer!;
     const waits = (round?.awaiting_input ?? []).length > 0 && (steer.state === "received" || steer.state === "applied");
-    const fact = L(waits ? "已补充到这一轮；问题仍在等你回答" : FACT[steer.state]);
+    const fact = uiText.text(waits ? "workbench.input-receipts-client.added-turn-question-still-waits-answer" : FACT[steer.state]);
     const claim = steer.model_claim ? claimLine(steer.model_claim) : "", ask = asking(steer.questions ?? []);
     const [about, fixed] = ends(entry), cited = cites(steer, round?.step_board), steps = added(steer, round?.step_board);
-    const link = steer.about ? L("纠正：针对") + (about ? L("「") + quote(about.turn.text) + L("」") : L("更早的一条")) : fixed ? L("你改为：「") + quote(fixed.turn.text) + L("」") : "";
+    const link = steer.about ? uiText.text("workbench.input-receipts-client.corrects") + (about ? L("「") + quote(about.turn.text) + L("」") : uiText.text("workbench.input-receipts-client.earlier-one")) : fixed ? uiText.text("workbench.input-receipts-client.changed") + quote(fixed.turn.text) + L("」") : "";
     const key = JSON.stringify([fact, claim, ask, steer, link, Boolean(entry.act), cited, steps]), before = entry.said ? JSON.parse(entry.said) as string[] : null;
     if (!force && entry.said === key) return;
     const summary = make("summary", ""), head = make("span", "mw-receipt__fact", fact), part = body(steer, cited, steps);
     summary.append(head);
-    if (claim) { const line = make("span", "mw-receipt__claim"); line.append(make("b", "", L("AI 说")), claim); summary.append(line); }
+    if (claim) { const line = make("span", "mw-receipt__claim"); line.append(make("b", "", uiText.text("workbench.input-receipts-client.ai-says")), claim); summary.append(line); }
     if (ask) summary.append(make("span", "mw-receipt__ask", ask));
     if (link) summary.append(make("span", "mw-receipt__link", link));
     acts(entry, part);
@@ -190,8 +191,8 @@ export function createInputReceipts(L: InputReceiptParts["L"], tray: (parts: Inp
     redraw(root, summary, part, entry.form);
     if (before) {
       const words = quote(turn.text);
-      if (before[0] !== fact) say(L("你的补充「") + words + L("」：") + fact);
-      if (claim && before[1] !== claim) say(L("AI 说你的补充「") + words + L("」：") + claim);
+      if (before[0] !== fact) say(uiText.text("workbench.input-receipts-client.supplement") + words + L("」：") + fact);
+      if (claim && before[1] !== claim) say(uiText.text("workbench.input-receipts-client.ai-says-supplement") + words + L("」：") + claim);
       if (ask && before[2] !== ask) say(ask);
     }
     entry.said = key;
@@ -210,12 +211,12 @@ export function createInputReceipts(L: InputReceiptParts["L"], tray: (parts: Inp
     step: word,
     link(owner, inputId, first, lead = "关于补充「") {
       const at = surfaces.get(owner), entry = at && of(at, inputId);
-      return entry ? button("mw-btn--link", L(lead) + quote(entry.turn.text) + L("」"), () => { first?.(); reveal(entry); }) : null;
+      return entry ? button("mw-btn--link", uiText.text(lead) + quote(entry.turn.text) + L("」"), () => { first?.(); reveal(entry); }) : null;
     },
     line(owner, turn, round, act) {
       const steer = turn.steer;
       if (!steer) return null;
-      if (turn.kind === "notice") return make("small", "mw-receipt mw-receipt--host", L("Molis 的说明，不是你发的话"));
+      if (turn.kind === "notice") return make("small", "mw-receipt mw-receipt--host", uiText.text("workbench.input-receipts-client.note-molis-not-words"));
       if (turn.kind !== "user") return null;
       // Known by its round and input id: a turn id only counts within one round, the page draws every round, and a supplement
       // a round did not read is carried into the next under the same input id (decision D28).
@@ -242,27 +243,27 @@ export function createCorrection<E extends CorrectionEntry>({ L, say, make, butt
   return (entry: E) => {
     const steer = entry.turn.steer!, claim = steer.model_claim;
     const form = entry.form = make("form", "mw-receipt__body"), area = make("textarea", "mw-textarea"), status = make("p", "mw-receipt__note");
-    const phrases = [claim ? L("不是「") + treatment(claim) + L("」，而是：") : L("不是这个意思，而是："), L("这条针对的是："), L("补充一句：")];
-    const choices = make("div", "mw-receipt__acts"), send = make("button", "mw-btn mw-btn--sm mw-btn--primary", L("发送更正"));
+    const phrases = [claim ? uiText.text("workbench.input-receipts-client.not") + treatment(claim) + uiText.text("workbench.input-receipts-client.but") : uiText.text("workbench.input-receipts-client.not-what-i-meant-instead"), uiText.text("workbench.input-receipts-client.about"), uiText.text("workbench.input-receipts-client.one-more-thing")];
+    const choices = make("div", "mw-receipt__acts"), send = make("button", "mw-btn mw-btn--sm mw-btn--primary", uiText.text("workbench.input-receipts-client.send-correction"));
     for (const phrase of phrases) choices.append(button("mw-btn--secondary", phrase, () => {
       area.value = !area.value.trim() || phrases.includes(area.value) ? phrase : area.value + "\n" + phrase; area.focus(); area.selectionStart = area.value.length;
     }));
     const close = () => { entry.form = undefined; form.remove(); again(entry); entry.root.querySelector<HTMLElement>(".mw-receipt__acts .mw-btn--ghost")?.focus(); };
     const done = make("div", "mw-receipt__acts");
-    done.append(send, button("mw-btn--ghost", L("取消"), close));
-    area.setAttribute("aria-label", L("更正「") + quote(entry.turn.text) + L("」"));
+    done.append(send, button("mw-btn--ghost", uiText.text("common.control.cancel"), close));
+    area.setAttribute("aria-label", uiText.text("workbench.input-receipts-client.correct-2") + quote(entry.turn.text) + L("」"));
     status.setAttribute("role", "status"); status.hidden = true;
-    form.append(make("p", "mw-receipt__note", L("更正会作为一条新补充发出，指向这条。")), choices, area, status, done);
+    form.append(make("p", "mw-receipt__note", uiText.text("workbench.input-receipts-client.correction-goes-out-new-supplement-that-points-one")), choices, area, status, done);
     form.addEventListener("keydown", event => { if (event.key === "Escape") { event.stopPropagation(); close(); } });
     form.addEventListener("submit", async event => {
       event.preventDefault();
       const text = area.value.trim();
       const tell = (words: string, problem = false) => { status.textContent = words; status.hidden = false; status.className = problem ? "mw-receipt__problem" : "mw-receipt__note"; };
-      if (!text || phrases.includes(area.value)) { tell(L("写上要改成什么"), true); return; }
+      if (!text || phrases.includes(area.value)) { tell(uiText.text("workbench.input-receipts-client.write-what-should-change"), true); return; }
       // The same words sent again after a lost answer keep their key, so the runtime counts them once (§7).
       if (entry.fix?.text !== text) entry.fix = { key: crypto.randomUUID(), text };
-      send.disabled = true; tell(L("发送中…"));
-      try { const words = await entry.act!.correct(steer.id, text, entry.fix.key); entry.fix = undefined; say(words || L("更正已发出")); close(); }
+      send.disabled = true; tell(uiText.text("workbench.input-receipts-client.sending"));
+      try { const words = await entry.act!.correct(steer.id, text, entry.fix.key); entry.fix = undefined; say(words || uiText.text("workbench.input-receipts-client.correction-sent")); close(); }
       catch (error) { tell((error as Error).message, true); send.disabled = false; }
     });
     again(entry);
@@ -291,8 +292,8 @@ export interface InputReceiptParts {
  * (its own words, marked so), and what a question asked about it still waits on. Each item opens its receipt; its count is
  * said once when it changes, never on the first paint.
  */
-export function createInputTray({ L, say, make, button, quote, latest, attempt, redraw }: InputReceiptParts): InputReceipts["tray"] {
-  const GROUPS = ["排着，下一轮开始时带上", "AI 读到了，没说怎么处理", "AI 说暂不采纳或需要你澄清", "为它问的问题还没回答"];
+export function createInputTray({ say, make, button, quote, latest, attempt, redraw }: InputReceiptParts): InputReceipts["tray"] {
+  const GROUPS = ["workbench.input-receipts-client.waiting-next-turn-takes-them", "workbench.input-receipts-client.read-ai-no-word-how-handles-them", "workbench.input-receipts-client.ai-says-does-not-adopt-them-yet-needs", "workbench.input-receipts-client.question-about-them-still-waits-answer"];
   // One tray per surface that draws it, so a Coding page and the Assistant beside it showing the same round each keep their own.
   type Tray = { root: HTMLDetailsElement; said: string; run?: string; count?: number; problem?: string };
   const trays = new WeakMap<Element, Tray>();
@@ -310,7 +311,7 @@ export function createInputTray({ L, say, make, button, quote, latest, attempt, 
     return groups;
   };
   const take = async (tray: Tray, inputId: string, act: Pick<InputReceiptActions, "withdraw">) => {
-    await attempt(tray, async () => (await act.withdraw(inputId)) || L("已撤回"));
+    await attempt(tray, async () => (await act.withdraw(inputId)) || uiText.text("workbench.input-receipts-client.withdrawn"));
     tray.said = "";
   };
   return (owner, queued, round, act) => {
@@ -320,27 +321,27 @@ export function createInputTray({ L, say, make, button, quote, latest, attempt, 
     const { root } = tray;
     const groups = open(owner, queued ?? [], round), total = groups.flat().length;
     // With the queue unread, none open in the round is not none open at all.
-    if (tray.count !== undefined && tray.count !== total && (total || queued)) say(total ? total + L(" 条还没处理完") : L("没有还没处理完的了"));
+    if (tray.count !== undefined && tray.count !== total && (total || queued)) say(total ? total + uiText.text("workbench.input-receipts-client.still-open") : uiText.text("workbench.input-receipts-client.nothing-still-open"));
     tray.count = total;
     if (!total) { tray.said = ""; return null; }
     const key = JSON.stringify([groups.map(group => group.map(item => [item.id, item.text, Boolean(item.open)])), tray.problem, Boolean(act)]);
     if (tray.said === key) return root;
     const summary = make("summary", ""), part = make("div", "mw-receipt__body");
-    summary.append(make("span", "mw-receipt__fact", total + L(" 条还没处理完")));
+    summary.append(make("span", "mw-receipt__fact", total + uiText.text("workbench.input-receipts-client.still-open")));
     for (const [index, group] of groups.entries()) {
       if (!group.length) continue;
       const list = make("ul", "mw-tray__list");
-      list.setAttribute("aria-label", L(GROUPS[index]!));
+      list.setAttribute("aria-label", uiText.text(GROUPS[index]!));
       for (const item of group) {
         const li = make("li", "mw-receipt__acts");
         // An item with a receipt opens it; one that only waits in the session has nothing to open, so taking it back is its button.
         li.append(item.open ? button("mw-btn--link", quote(item.text), item.open) : make("span", "", quote(item.text)));
-        if (item.queued && act) li.append(button("mw-btn--secondary", L("撤回"), () => void take(tray, item.id, act)));
+        if (item.queued && act) li.append(button("mw-btn--secondary", uiText.text("workbench.input-receipts-client.withdraw"), () => void take(tray, item.id, act)));
         list.append(li);
       }
-      part.append(make("p", "mw-receipt__who", L(GROUPS[index]!)), list);
+      part.append(make("p", "mw-receipt__who", uiText.text(GROUPS[index]!)), list);
     }
-    if (groups[2]!.length) part.append(make("p", "mw-receipt__note", L("AI 自己说的，Molis 没有核对")));
+    if (groups[2]!.length) part.append(make("p", "mw-receipt__note", uiText.text("workbench.input-receipts-client.what-ai-says-itself-molis-has-not-checked")));
     if (tray.problem) part.append(make("p", "mw-receipt__problem", tray.problem));
     redraw(root, summary, part);
     tray.said = key;
@@ -365,16 +366,16 @@ export function createAgreements({ L, make, button, latest }: InputReceiptParts,
       const as = KEPT.filter(one => claim.impacts.includes(one) || (one === "constraint" && claim.kind === "constraint"));
       if (!as.length) continue;
       const item = make("li", ""), said = make("p", "mw-receipt__claim");
-      said.append(make("b", "", L("AI 说")), L("采纳为") + as.map(one => L(IMPACT[one])).join(L("、")));
+      said.append(make("b", "", uiText.text("workbench.input-receipts-client.ai-says")), uiText.text("workbench.input-receipts-client.taken") + as.map(one => L(IMPACT[one])).join(L("、")));
       item.append(button("mw-btn--link", turn.text, open), said);
-      if (drawn.some(other => other.turn.steer!.about === steer.id)) item.append(make("p", "mw-receipt__link", L("后来有一条更正指向它")));
+      if (drawn.some(other => other.turn.steer!.about === steer.id)) item.append(make("p", "mw-receipt__link", uiText.text("workbench.input-receipts-client.later-correction-points")));
       list.append(item);
     }
     if (!list.childElementCount) return null;
     const part = make("div", "mw-receipt mw-receipt__body");
     // Whole sentences, each translated as one: the count has its own for one round, which English does not say as 「rounds」.
-    const seen = runs.length === 1 ? L("只看了最近 1 轮") : L("只看了最近 {n} 轮", { n: runs.length });
-    part.append(list, make("p", "mw-receipt__note", L("AI 自己说的，Molis 没有核对；要改，打开那条发更正。{seen}", { seen })));
+    const seen = runs.length === 1 ? uiText.text("workbench.input-receipts-client.only-latest-turn-was-read") : uiText.text("workbench.input-receipts-client.only-latest-n-n-read", { n: runs.length });
+    part.append(list, make("p", "mw-receipt__note", uiText.text("workbench.input-receipts-client.what-ai-says-itself-molis-has-not-checked-2", { seen })));
     return part;
   };
 }
@@ -386,7 +387,7 @@ export function createAgreements({ L, make, button, latest }: InputReceiptParts,
  */
 function readBoard(L: (text: string) => string, word: (state: AgentStepState, mine?: boolean) => string) {
   // Each step's key on the plan card (S1, S2…, 插入).
-  const step = (node: InputReceiptBoard["nodes"][number], index: number) => node.inserted ? L("插入") : "S" + (index + 1);
+  const step = (node: InputReceiptBoard["nodes"][number], index: number) => node.inserted ? uiText.text("workbench.input-receipts-client.inserted") : "S" + (index + 1);
   // The reports on the round's board that name this input, each under its step's key.
   const cites = (steer: AgentTurnSteer, board?: InputReceiptBoard) => (board?.nodes ?? []).flatMap((node, index) =>
     node.reports.filter(report => report.inputs?.some(one => one.input_id === steer.id)).map(report => [step(node, index), report.note]));
@@ -394,7 +395,7 @@ function readBoard(L: (text: string) => string, word: (state: AgentStepState, mi
   // that a person added it, and its state now, said as whoever holds it ended it. Not when it was added or at which version:
   // the board does not keep those.
   const added = (steer: AgentTurnSteer, board?: InputReceiptBoard) => (board?.nodes ?? []).flatMap((node, index) =>
-    node.origins?.some(one => one.input_id === steer.id) ? [step(node, index) + (node.title ? L("「") + node.title + L("」") : "") + (node.inserted ? L(" · 你加的") : "") + L(" · 现在：") + word(node.state, node.owner?.kind === "person")] : []);
+    node.origins?.some(one => one.input_id === steer.id) ? [step(node, index) + (node.title ? L("「") + node.title + L("」") : "") + (node.inserted ? uiText.text("workbench.input-receipts-client.added") : "") + uiText.text("workbench.input-receipts-client.now") + word(node.state, node.owner?.kind === "person")] : []);
   return { cites, added };
 }
 

@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import {readStorageSpace} from '@molis-ai/molis-work-storage';
 import {admitProjectSync} from './project-sync-admission.js';
 import { withPassiveProjectChange } from './passive-sync-execution.js';
@@ -5,7 +6,6 @@ import type { DeleteProjectInput, ProjectDeletionResult } from "@molis-ai/molis-
 import { requireDeletionConfirmed, requiredDeletionIdempotencyKey, requiredOutputFiles } from "./managed-project-deletion.js";
 import { catalogErrors } from "./project-catalog-contract.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
-import { L } from "./web-locale.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import type { ProjectRecycleInput } from '@molis-ai/molis-work-module-projects';
 import { PERSONAL_SPACE_PROJECT_ID } from './personal-space.js';
@@ -51,7 +51,7 @@ export class ProjectDeletionService {
         if (!this.ports.isProjectBusy) throw catalogErrors.project_storage_invalid('项目运行状态尚未接入，原件已保留');
         if (this.ports.isProjectBusy(observed.database_path)) throw catalogErrors.project_task_live('项目仍有运行或排队的任务，请结束后重试', {sync_waiting:true});
         if (input.recycled && catalog.terminalPanels.listIds(input.project_id).some(panelId => this.ports.isPanelAlive(panelId))) {
-          throw catalogErrors.project_terminal_live(L('请先关闭这个项目中正在运行的终端，再删除项目。'));
+          throw catalogErrors.project_terminal_live(uiText.text("workbench.project-deletion-service.close-running-terminals-project-before-deleting"));
         }
       };
       assertReady();
@@ -77,7 +77,7 @@ export class ProjectDeletionService {
       if (project) {
         const assertNoLiveTerminal = () => {
           if (catalog.terminalPanels.listIds(project.project_id).some(panelId => this.ports.isPanelAlive(panelId))) {
-            throw catalogErrors.project_terminal_live(L("请先关闭这个项目中正在运行的终端，再删除项目。"));
+            throw catalogErrors.project_terminal_live(uiText.text("workbench.project-deletion-service.close-running-terminals-project-before-deleting"));
           }
         };
         assertNoLiveTerminal();

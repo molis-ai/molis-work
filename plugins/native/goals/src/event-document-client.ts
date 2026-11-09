@@ -16,7 +16,7 @@ export const GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT = `(host) => {
     const postForm = (goal, path, body) => molisWorkRequest(route("${GOALS_PLUGIN_API}/goals/" + encodeURIComponent(goal) + path), {
       method: "POST", headers: { accept: "application/json" }, body, as: "response",
     }).catch((error) => {
-      if (error?.code === "ui_host.outcome_unknown") error.message = L("无法连接本地服务，输入已保留，请重试。");
+      if (error?.code === "ui_host.outcome_unknown") error.message = globalThis.t.text("goals.event-document-client.could-not-reach-local-service-input-kept-please");
       throw error;
     });
     const captureRestore = () => ({
@@ -47,8 +47,8 @@ export const GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT = `(host) => {
     const readBreak = (s, e) => {
       if (!s) return;
       s.hidden = false;
-      s.innerHTML = escapeText((e.message || L("读取断线")) + " · " + L("已保存，请重试读取，不会再写一条。"))
-        + '<button type="button" class="mw-btn mw-btn--secondary" data-retry-read>' + escapeText(L("重试读取")) + "</button>";
+      s.innerHTML = escapeText((e.message || globalThis.t.text("goals.event-document-client.read-disconnected")) + " · " + globalThis.t.text("goals.event-document-client.saved-retry-reading-will-not-write-another-record"))
+        + '<button type="button" class="mw-btn mw-btn--secondary" data-retry-read>' + escapeText(globalThis.t.text("goals.event-document-client.retry-reading")) + "</button>";
     };
     const applyLaneFilter = (node) => {
       const filter = reading.filter || "all";
@@ -114,16 +114,16 @@ export const GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT = `(host) => {
       showDetail(true);
       hidePanels();
       if (!itemId) return;
-      renderEventHtml("<p class=\\"no-results\\">" + escapeText(L("正在载入原文…")) + "</p>");
+      renderEventHtml("<p class=\\"no-results\\">" + escapeText(globalThis.t.text("goals.event-document-client.loading-original-text")) + "</p>");
       try {
-        const body = await molisWorkRequest(route("${GOALS_PLUGIN_API}/goals/" + encodeURIComponent(currentGoal) + "/history/" + encodeURIComponent(itemId)), { fallback: L("无法读取事件") }) ?? {};
+        const body = await molisWorkRequest(route("${GOALS_PLUGIN_API}/goals/" + encodeURIComponent(currentGoal) + "/history/" + encodeURIComponent(itemId)), { fallback: globalThis.t.text("goals.event-document-client.could-not-read-event") }) ?? {};
         if (requestId !== selectedRequest || goalId() !== currentGoal || reading.goal !== currentGoal) return;
         if (!explicit && (reading.form || reading.reader)) return;
         renderEventHtml(body.html || "");
       } catch (error) {
         if (isAbortError?.(error) || requestId !== selectedRequest || goalId() !== currentGoal || reading.goal !== currentGoal) return;
         if (!explicit && (reading.form || reading.reader)) return;
-        renderEventHtml("<p class=\\"no-results\\" role=\\"alert\\">" + escapeText(error.message || L("无法读取事件")) + "</p><button type=\\"button\\" class=\\"mw-btn mw-btn--link\\" data-retry-event>" + escapeText(L("重试读取事件")) + "</button>");
+        renderEventHtml("<p class=\\"no-results\\" role=\\"alert\\">" + escapeText(error.message || globalThis.t.text("goals.event-document-client.could-not-read-event")) + "</p><button type=\\"button\\" class=\\"mw-btn mw-btn--link\\" data-retry-event>" + escapeText(globalThis.t.text("goals.event-document-client.retry-loading-event")) + "</button>");
       }
     };
 
@@ -165,7 +165,7 @@ export const GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT = `(host) => {
         article.querySelectorAll("[data-event-panel]").forEach((panel) => { panel.hidden = panel.dataset.eventPanel !== name; });
         const title = q(article, "[data-reader-title]");
         if (title) {
-          title.textContent = name === "planning" ? L("记录模板") : name === "description" ? L("目标与要求") : L("完成要求");
+          title.textContent = name === "planning" ? globalThis.t.text("goals.event-document-client.record-templates") : name === "description" ? globalThis.t.text("goals.event-document-client.goal-requirements") : globalThis.t.text("goals.event-document-client.completion-requirement");
           title.tabIndex = -1;
           requestAnimationFrame(() => { if (title.isConnected && reading.reader === name) title.focus({ preventScroll: true }); });
         }
@@ -332,13 +332,13 @@ ${GOALS_DELIVERABLES_SCRIPT}
       if (status) { status.hidden = true; status.textContent = ""; }
       fieldError(form, "", "");
       if ((kind === "type" || kind === "type-edit") && !typeFields(form).length) {
-        if (status) { status.hidden = false; status.textContent = L("至少保留一个字段。"); }
+        if (status) { status.hidden = false; status.textContent = globalThis.t.text("goals.event-document-client.keep-least-one-field"); }
         return;
       }
       if (kind === "decision" && q(form, '[name="agreement_change_decision"]')) {
         const choice = q(form, '[name="agreement_change_decision"]:checked')?.value;
         if (choice !== "authorize" && choice !== "deny") {
-          if (status) { status.hidden = false; status.textContent = L("必须选择批准或拒绝这一份约定变更"); }
+          if (status) { status.hidden = false; status.textContent = globalThis.t.text("goals.event-document-client.must-approve-reject-agreement-change"); }
           return;
         }
       }
@@ -352,7 +352,7 @@ ${GOALS_DELIVERABLES_SCRIPT}
       buttons.forEach(button => { button.disabled = true; });
       const submit = q(form, "[type=submit]");
       const submitLabel = submit?.textContent;
-      if (submit) submit.textContent = L("正在保存…");
+      if (submit) submit.textContent = globalThis.t.text("goals.event-document-client.saving");
       const restore = { ...captureRestore(), form: kind };
       let typeSaved = false;
       try {
@@ -363,11 +363,11 @@ ${GOALS_DELIVERABLES_SCRIPT}
         if (response.status === 409) {
           const versionConflict = /version_conflict|stale_version/.test(String(body.code || ""));
           if (!versionConflict) {
-            if (status) { status.hidden = false; status.textContent = body.error || L("已保存，正在读回当前事实。"); }
+            if (status) { status.hidden = false; status.textContent = body.error || globalThis.t.text("goals.event-document-client.saved-reading-current-facts-back"); }
             try {
               if (typeof reloadDocument === "function") {
                 const replaced = await reloadDocument(currentGoal, restore);
-                if (replaced === false) throw new Error(L("读取断线"));
+                if (replaced === false) throw new Error(globalThis.t.text("goals.event-document-client.read-disconnected"));
               }
             } catch (readError) { readBreak(status, readError); }
             return;
@@ -376,17 +376,17 @@ ${GOALS_DELIVERABLES_SCRIPT}
           try { current = await molisWorkRequest(route("${GOALS_PLUGIN_API}/goals/" + encodeURIComponent(currentGoal) + "/event-state")) ?? {}; } catch {}
           if (conflict) {
             conflict.hidden = false;
-            conflict.innerHTML = "<p>" + escapeText(body.error || L("当前约定已变化。输入已保留。")) + "</p>"
-              + "<p>" + escapeText(L("当前预期结果")) + "：" + escapeText(current.agreement?.outcome || L("未填写")) + "</p>"
-              + "<p>" + escapeText(L("约定版本")) + " " + escapeText(current.agreement?.version ?? "") + " · " + escapeText(L("配置版本")) + " " + escapeText(current.config?.version ?? "") + "</p>"
-              + '<button type="button" class="mw-btn mw-btn--secondary" data-conflict-retry>' + escapeText(L("按当前版本重新审阅后提交")) + "</button>";
+            conflict.innerHTML = "<p>" + escapeText(body.error || globalThis.t.text("goals.event-document-client.current-agreement-has-changed-input-kept")) + "</p>"
+              + "<p>" + escapeText(globalThis.t.text("goals.event-document-client.current-expected-result")) + "：" + escapeText(current.agreement?.outcome || globalThis.t.text("goals.event-document-client.not-filled")) + "</p>"
+              + "<p>" + escapeText(globalThis.t.text("goals.event-document-client.agreement-version")) + " " + escapeText(current.agreement?.version ?? "") + " · " + escapeText(globalThis.t.text("goals.event-document-client.configuration-version")) + " " + escapeText(current.config?.version ?? "") + "</p>"
+              + '<button type="button" class="mw-btn mw-btn--secondary" data-conflict-retry>' + escapeText(globalThis.t.text("goals.event-document-client.review-against-current-version-then-submit")) + "</button>";
           }
           form.setAttribute("data-live-dirty", "true");
           return;
         }
         if (!response.ok) {
-          fieldError(form, body.details?.field_id, body.error || L("保存失败"));
-          if (status) { status.hidden = false; status.textContent = body.error || L("保存失败"); }
+          fieldError(form, body.details?.field_id, body.error || globalThis.t.text("goals.event-document-client.could-not-save"));
+          if (status) { status.hidden = false; status.textContent = body.error || globalThis.t.text("goals.event-document-client.could-not-save"); }
           return;
         }
         typeSaved = kind === "type";
@@ -394,7 +394,7 @@ ${GOALS_DELIVERABLES_SCRIPT}
           const extraData = new FormData(form);
           const extraStatement = String(extraData.get("requirement_statement") || "").trim();
           if (!extraStatement) {
-            if (status) { status.hidden = false; status.textContent = L("类型已登记，但完成要求没有写上。"); }
+            if (status) { status.hidden = false; status.textContent = globalThis.t.text("goals.event-document-client.type-was-registered-but-no-completion-requirement-was"); }
             return;
           }
           const extraKey = key + ":req";
@@ -410,43 +410,43 @@ ${GOALS_DELIVERABLES_SCRIPT}
           });
           const extraBody = await extraRes.json().catch(() => ({}));
           if (!extraRes.ok) {
-            fieldError(form, extraBody.details?.field_id, extraBody.error || L("保存失败"));
-            if (status) { status.hidden = false; status.textContent = L("类型已登记，但完成要求没有写上。") + " " + (extraBody.error || L("保存失败")) + " " + L("输入已保留，重试将继续保存完成要求。"); }
+            fieldError(form, extraBody.details?.field_id, extraBody.error || globalThis.t.text("goals.event-document-client.could-not-save"));
+            if (status) { status.hidden = false; status.textContent = globalThis.t.text("goals.event-document-client.type-was-registered-but-no-completion-requirement-was") + " " + (extraBody.error || globalThis.t.text("goals.event-document-client.could-not-save")) + " " + globalThis.t.text("goals.event-document-client.input-kept-retrying-will-continue-saving-completion-requirements"); }
             return;
           }
         }
         form.dataset.writeReceipt = body.event_id || "recorded";
         const refused = kind === "closure" && body.completion_applied === false && body.unmet_reasons?.length;
         if (refused) {
-          reading.hold = escapeText(L("收尾未生效")) + "<ul>" + body.unmet_reasons.map((item) => "<li>" + escapeText(item.message) + "</li>").join("") + "</ul>";
+          reading.hold = escapeText(globalThis.t.text("goals.event-document-client.close-out-did-not-take-effect")) + "<ul>" + body.unmet_reasons.map((item) => "<li>" + escapeText(item.message) + "</li>").join("") + "</ul>";
           if (status) { status.hidden = false; status.innerHTML = reading.hold; }
         }
         try {
           if (typeof reloadDocument === "function") {
             const replaced = await reloadDocument(currentGoal, { ...restore, form: body.completion_applied === false ? restore.form : "" });
-            if (replaced === false) throw new Error(L("读取断线"));
+            if (replaced === false) throw new Error(globalThis.t.text("goals.event-document-client.read-disconnected"));
             if (!replaced) return;
             form.removeAttribute("data-live-dirty");
           }
         } catch (readError) {
           if (status?.isConnected) reading.hold = "";
           readBreak(status, readError);
-          showError?.(L("已保存，但当前页面还没读回。"));
+          showError?.(globalThis.t.text("goals.event-document-client.saved-but-page-has-not-read-back-yet"));
           return;
         }
         delete form.dataset.idempotencyKey;
         if (goalId() !== currentGoal) return;
         if (refused) {
-          showStatus?.(L("收尾未生效。顶部已按当前权威状态更新。"));
+          showStatus?.(globalThis.t.text("goals.event-document-client.close-out-did-not-take-effect-top-now"));
           return;
         }
-        showStatus?.(L("已保存。顶部已按当前权威状态更新。"));
+        showStatus?.(globalThis.t.text("goals.event-document-client.saved-top-now-shows-current-authoritative-state"));
         reading.form = "";
         reading.reader = "";
         hidePanels(true);
       } catch (error) {
-        const message = error instanceof TypeError ? L("无法连接本地服务，输入已保留，请重试。") : error.message || L("保存失败");
-        if (status) { status.hidden = false; status.textContent = typeSaved ? L("类型已登记，但完成要求没有写上。") + " " + message : message; }
+        const message = error instanceof TypeError ? globalThis.t.text("goals.event-document-client.could-not-reach-local-service-input-kept-please") : error.message || globalThis.t.text("goals.event-document-client.could-not-save");
+        if (status) { status.hidden = false; status.textContent = typeSaved ? globalThis.t.text("goals.event-document-client.type-was-registered-but-no-completion-requirement-was") + " " + message : message; }
         else showError?.(message);
       } finally {
         form.removeAttribute("aria-busy");
@@ -470,7 +470,7 @@ ${GOALS_DELIVERABLES_SCRIPT}
         const date = new Date(received);
         const validDate = !Number.isNaN(date.getTime());
         const pad = (value) => String(value).padStart(2, "0");
-        const day = validDate ? date.getFullYear() + "-" + pad(date.getMonth() + 1) + "-" + pad(date.getDate()) : L("未标注日期");
+        const day = validDate ? date.getFullYear() + "-" + pad(date.getMonth() + 1) + "-" + pad(date.getDate()) : globalThis.t.text("goals.event-document-client.no-date");
         if (day !== lastDay) {
           const heading = document.createElement("div");
           heading.className = "day-label";
@@ -491,7 +491,7 @@ ${GOALS_DELIVERABLES_SCRIPT}
         button.setAttribute("aria-expanded", "false");
         applyLaneFilter(button);
         const time = validDate ? pad(date.getHours()) + ":" + pad(date.getMinutes()) : "--:--";
-        const status = item.type_label === "请求决定" ? pending.has(item.event_id) ? L("待你决定") : L("已处理") : item.status_label;
+        const status = item.type_label === "请求决定" ? pending.has(item.event_id) ? globalThis.t.text("goals.event-document-client.needs-decision") : globalThis.t.text("goals.event-document-client.handled") : item.status_label;
         const mark = item.relation ? "↗" : item.lane === "result" ? "✓" : item.lane === "decision" ? "◇" : item.lane === "problem" ? "!" : "·";
         button.innerHTML = "<time></time><span class=timeline-dot aria-hidden=true><span class=timeline-mark>" + mark + "</span></span><span class=timeline-copy><strong>" + escapeText(item.title || "") + "</strong><small><b class=timeline-type>" + escapeText(item.type_label || "") + "</b> <span class=timeline-actor>" + escapeText(item.actor_id || "") + "</span></small>" + (status ? "<em class=history-state>" + escapeText(status) + "</em>" : "") + "</span>";
         q(button, "time").dateTime = received;
@@ -533,11 +533,11 @@ ${GOALS_DELIVERABLES_SCRIPT}
           const status = form?.querySelector("[data-form-status]");
           try {
             const replaced = await reloadDocument(goalId(), captureRestore());
-            if (replaced === false) throw new Error(L("读取断线"));
-            if (replaced) showStatus?.(L("已保存。顶部已按当前权威状态更新。"));
+            if (replaced === false) throw new Error(globalThis.t.text("goals.event-document-client.read-disconnected"));
+            if (replaced) showStatus?.(globalThis.t.text("goals.event-document-client.saved-top-now-shows-current-authoritative-state"));
           } catch (error) {
-            if (status) { status.hidden = false; status.textContent = error.message || L("读取断线"); }
-            showError?.(error.message || L("读取断线"));
+            if (status) { status.hidden = false; status.textContent = error.message || globalThis.t.text("goals.event-document-client.read-disconnected"); }
+            showError?.(error.message || globalThis.t.text("goals.event-document-client.read-disconnected"));
           }
         })();
         return;
@@ -558,9 +558,9 @@ ${GOALS_DELIVERABLES_SCRIPT}
           const box = q(article, "[data-event-conflict]");
           if (box) {
             box.hidden = false;
-            box.innerHTML = "<p>" + escapeText(L("已换成当前版本。请核对输入后再提交。")) + "</p>"
-              + "<p>" + escapeText(L("当前预期结果")) + "：" + escapeText(state.agreement?.outcome || L("未填写")) + "</p>"
-              + "<p>" + escapeText(L("约定版本")) + " " + escapeText(state.agreement?.version ?? "") + " · " + escapeText(L("配置版本")) + " " + escapeText(state.config?.version ?? "") + "</p>";
+            box.innerHTML = "<p>" + escapeText(globalThis.t.text("goals.event-document-client.switched-current-version-check-inputs-before-submitting")) + "</p>"
+              + "<p>" + escapeText(globalThis.t.text("goals.event-document-client.current-expected-result")) + "：" + escapeText(state.agreement?.outcome || globalThis.t.text("goals.event-document-client.not-filled")) + "</p>"
+              + "<p>" + escapeText(globalThis.t.text("goals.event-document-client.agreement-version")) + " " + escapeText(state.agreement?.version ?? "") + " · " + escapeText(globalThis.t.text("goals.event-document-client.configuration-version")) + " " + escapeText(state.config?.version ?? "") + "</p>";
           }
         })();
         return;
@@ -572,13 +572,13 @@ ${GOALS_DELIVERABLES_SCRIPT}
           const currentGoal = goalId();
           more.disabled = true;
           try {
-            const body = await molisWorkRequest(route("${GOALS_PLUGIN_API}/goals/" + encodeURIComponent(currentGoal) + "/event-timeline?before_cursor=" + encodeURIComponent(more.dataset.nextCursor || "") + "&limit=40"), { fallback: L("无法读取更早记录，请重试。") }) ?? {};
+            const body = await molisWorkRequest(route("${GOALS_PLUGIN_API}/goals/" + encodeURIComponent(currentGoal) + "/event-timeline?before_cursor=" + encodeURIComponent(more.dataset.nextCursor || "") + "&limit=40"), { fallback: globalThis.t.text("goals.event-document-client.could-not-load-earlier-records-please-retry") }) ?? {};
             if (requestId !== moreRequest || goalId() !== currentGoal) return;
             appendTimelineItems(body.items || []);
             if (!body.next_cursor) { more.hidden = true; more.dataset.nextCursor = ""; }
             else more.dataset.nextCursor = String(body.next_cursor);
           } catch (error) {
-            if (requestId === moreRequest && goalId() === currentGoal) showError?.(error.message || L("无法读取更早记录，请重试。"));
+            if (requestId === moreRequest && goalId() === currentGoal) showError?.(error.message || globalThis.t.text("goals.event-document-client.could-not-load-earlier-records-please-retry"));
           } finally { more.disabled = false; }
         })();
         return;
@@ -609,7 +609,7 @@ ${GOALS_DELIVERABLES_SCRIPT}
         const wrap = document.createElement("div");
         wrap.className = "type-field-row";
         const id = "field-" + (globalThis.crypto?.randomUUID?.().slice(0, 8) || String(Date.now()));
-        wrap.innerHTML = '<input type="hidden" name="field_id" value="' + id + '"><label><span>' + escapeText(L("字段名")) + '</span><input name="field_name" required></label><label><span>' + escapeText(L("说明")) + '</span><input name="field_purpose" required value="' + escapeText(L("记录原文")) + '"></label><div class="type-field-tools"><label><span>' + escapeText(L("内容形式")) + '</span><select name="field_format"><option value="text">' + escapeText(L("短文本")) + '</option><option value="longtext" selected>' + escapeText(L("长文本")) + '</option></select></label><label class="check-row"><input type="checkbox" name="field_required" checked><span>' + escapeText(L("必填")) + '</span></label><button type="button" class="mw-btn mw-btn--link" data-remove-type-field>' + escapeText(L("移除")) + '</button></div>';
+        wrap.innerHTML = '<input type="hidden" name="field_id" value="' + id + '"><label><span>' + escapeText(globalThis.t.text("goals.event-document-client.field-name")) + '</span><input name="field_name" required></label><label><span>' + escapeText(globalThis.t.text("goals.event-document-client.description")) + '</span><input name="field_purpose" required value="' + escapeText(globalThis.t.text("goals.event-document-client.record-original-text")) + '"></label><div class="type-field-tools"><label><span>' + escapeText(globalThis.t.text("goals.event-document-client.content-form")) + '</span><select name="field_format"><option value="text">' + escapeText(globalThis.t.text("goals.event-document-client.short-text")) + '</option><option value="longtext" selected>' + escapeText(globalThis.t.text("goals.event-document-client.long-text")) + '</option></select></label><label class="check-row"><input type="checkbox" name="field_required" checked><span>' + escapeText(globalThis.t.text("goals.event-document-client.required")) + '</span></label><button type="button" class="mw-btn mw-btn--link" data-remove-type-field>' + escapeText(globalThis.t.text("goals.event-document-client.remove")) + '</button></div>';
         box.append(wrap);
         return;
       }
@@ -619,7 +619,7 @@ ${GOALS_DELIVERABLES_SCRIPT}
         const rows = form?.querySelectorAll(".type-field-row") || [];
         if (rows.length < 2) {
           const box = form?.querySelector("[data-form-status]");
-          if (box) { box.hidden = false; box.textContent = L("至少保留一个字段。"); }
+          if (box) { box.hidden = false; box.textContent = globalThis.t.text("goals.event-document-client.keep-least-one-field"); }
           return;
         }
         removeField.closest(".type-field-row")?.remove();

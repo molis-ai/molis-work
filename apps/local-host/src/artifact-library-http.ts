@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { createWriteStream } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -47,7 +48,7 @@ const typeTitle = (declaration: ArtifactTypeDeclaration): string => withPluginWo
 const typeTitlesOf = (declarations: ReadonlyMap<string, ArtifactTypeDeclaration>) => Object.fromEntries([...declarations].map(([type, declaration]) => [type, typeTitle(declaration)]));
 const typeTitleOf = (declarations: ReadonlyMap<string, ArtifactTypeDeclaration>, type: string): string => { const declaration = declarations.get(type); return declaration ? typeTitle(declaration) : type; };
 /** The platform's own pages and answers use the Workbench's current dictionary. */
-const primitives = { escape, text: (value: string) => escape(L(value)), formatDate: (value: string) => new Date(value).toLocaleString(dateTimeLocale()) };
+const primitives = { escape, text: (value: string) => escape(uiText.text(value)), formatDate: (value: string) => new Date(value).toLocaleString(dateTimeLocale()) };
 
 /**
  * The owner's preview of a 成果 version (specs/artifact-positioning A4): the type's declared preview action turns the

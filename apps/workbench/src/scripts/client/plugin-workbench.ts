@@ -30,7 +30,7 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
     return heading ? heading.textContent : id;
   };
   // One sentence with the names filled in; no sentence when the list is empty (so a button has no empty title).
-  const relation = (ids, template) => ids.length ? L(template).replace("{list}", ids.map(marketName).join(L("、"))) : "";
+  const relation = (ids, template) => ids.length ? globalThis.t.text(template).replace("{list}", ids.map(marketName).join(L("、"))) : "";
   const paintUpdateCount = () => {
     if (updateCount) {
       updateCount.hidden = updates.length === 0;
@@ -38,15 +38,15 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
       updateCount.closest(".plugin-picker")?.toggleAttribute("data-market-updates", updates.length > 0);
     }
     if (marketLink) marketLink.setAttribute("aria-label", updates.length
-      ? L("插件市场") + "，" + updates.length + L("个可用更新")
-      : L("插件市场"));
+      ? globalThis.t.text("workbench.plugin-workbench.plugin-market") + "，" + updates.length + globalThis.t.text("workbench.plugin-workbench.available-updates")
+      : globalThis.t.text("workbench.plugin-workbench.plugin-market"));
   };
   const refreshUpdates = () => {
     if (updatesRequest) return updatesRequest;
     updatesRequest = (async () => {
       try {
         if (!projectId) { updates = []; return; }
-        updates=(await molisWorkRequest(route("/api/plugins/runtime/updates"),{fallback:L("无法读取插件更新")})).updates||[];
+        updates=(await molisWorkRequest(route("/api/plugins/runtime/updates"),{fallback:globalThis.t.text("workbench.plugin-workbench.could-not-check-plugin-updates")})).updates||[];
       } catch { updates = []; }
       finally { paintUpdateCount(); }
     })().finally(() => { updatesRequest = null; });
@@ -126,7 +126,7 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
       const button = card.querySelector("[data-market-add]");
       button.disabled = !current || pending || marketDirty;
       button.dataset.marketMembership = added ? "added" : "available";
-      const action = added ? L("移除") : L("添加");
+      const action = added ? globalThis.t.text("workbench.plugin-workbench.remove") : globalThis.t.text("workbench.plugin-workbench.add");
       button.textContent = action;
       const currentProject = selector.value === projectId;
       const openButton = card.querySelector('[data-market-open]');
@@ -138,9 +138,9 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
       // What the operation brings or takes: said on the button before it is pressed, and only when there is something to say.
       const needs = listOf(card.dataset.marketNeeds), neededBy = listOf(card.dataset.marketNeededBy);
       const title = added
-        ? relation(neededBy.filter(id => addedIds.includes(id)), "移除会同时移除：{list}")
-        : [relation(needs.filter(id => !addedIds.includes(id)), "添加会同时添加：{list}"),
-          relation(neededBy.filter(id => !addedIds.includes(id)), "依赖它的插件不会一并添加：{list}")].filter(Boolean).join(L("；"));
+        ? relation(neededBy.filter(id => addedIds.includes(id)), "workbench.plugin-workbench.removing-also-removes-list")
+        : [relation(needs.filter(id => !addedIds.includes(id)), "workbench.plugin-workbench.also-adds-list"),
+          relation(neededBy.filter(id => !addedIds.includes(id)), "workbench.plugin-workbench.plugins-that-depend-not-added-list")].filter(Boolean).join(L("；"));
       if (title) button.title = title; else button.removeAttribute("title");
       const update = added && currentProject ? updates.find(item => item.project_plugin_id === card.dataset.marketPlugin && item.plugin_id === card.dataset.marketRuntimeId) : null;
       const upgradeButton = card.querySelector("[data-market-upgrade]");
@@ -150,9 +150,9 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
       const version = card.querySelector("[data-market-version]");
       if (update) {
         version.hidden = false;
-        version.textContent = L("已安装") + " v" + update.installed_version + " · " + L("可升级至") + " v" + update.target_version;
-        upgradeButton.textContent = update.can_upgrade ? L("升级") : L("暂不可升级");
-        upgradeButton.title = update.can_upgrade ? L("保留现有数据与已授予权限") : L("目标版本尚未声明支持此来源版本");
+        version.textContent = globalThis.t.text("workbench.plugin-workbench.installed") + " v" + update.installed_version + " · " + globalThis.t.text("workbench.plugin-workbench.upgrade-available") + " v" + update.target_version;
+        upgradeButton.textContent = update.can_upgrade ? globalThis.t.text("workbench.plugin-workbench.upgrade") : globalThis.t.text("workbench.plugin-workbench.cannot-upgrade-yet");
+        upgradeButton.title = update.can_upgrade ? globalThis.t.text("workbench.plugin-workbench.existing-data-granted-permissions-will-be-preserved") : globalThis.t.text("workbench.plugin-workbench.target-release-does-not-yet-declare-support-installed");
       } else {
         version.hidden = true;
         version.textContent = "";
@@ -166,10 +166,10 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
     if (marketRequest || pending) return marketRequest;
     const revision = marketRevision, selectedProject = selector.value;
     marketDirty = true; selector.disabled = true;
-    status.textContent = L("正在读取项目…"); retry.hidden = true;
+    status.textContent = globalThis.t.text("workbench.plugin-workbench.loading-projects"); retry.hidden = true;
     marketRequest = (async () => {
       try {
-        const latest=(await molisWorkRequest("/api/settings/project-plugins",{fallback:L("无法读取项目插件")})).projects;
+        const latest=(await molisWorkRequest("/api/settings/project-plugins",{fallback:globalThis.t.text("workbench.plugin-workbench.could-not-load-project-plugins")})).projects;
         await refreshUpdates();
         if (revision !== marketRevision) return;
         projects = latest; marketDirty = false;
@@ -177,7 +177,7 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
         if (projects.some(project => project.project_id === selectedProject)) selector.value = selectedProject;
         else if (projects.some(project => project.project_id === projectId)) selector.value = projectId;
         selector.disabled = !projects.length;
-        status.textContent = projects.length ? "" : L("先创建一个项目，再添加插件。");
+        status.textContent = projects.length ? "" : globalThis.t.text("workbench.plugin-workbench.create-project-before-adding-plugins");
         filter();
       } catch (error) { if (revision === marketRevision) { molisWorkRequest.show(status,error); retry.hidden = false; } }
     })().finally(() => {
@@ -245,11 +245,11 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
     if (upgrade?.dataset.marketUpgrade && !upgrade.disabled && !pending) {
       const pluginId = upgrade.dataset.marketUpgrade;
       pending = true; selector.disabled = true; filter();
-      status.textContent = L("正在升级插件…");
+      status.textContent = globalThis.t.text("workbench.plugin-workbench.upgrading-plugin");
       try {
-        const result=await molisWorkRequest(route("/api/plugins/"+encodeURIComponent(pluginId)+"/upgrade"),{body:{},fallback:L("插件升级失败")});
+        const result=await molisWorkRequest(route("/api/plugins/"+encodeURIComponent(pluginId)+"/upgrade"),{body:{},fallback:globalThis.t.text("workbench.plugin-workbench.plugin-upgrade-failed")});
         updates = updates.filter(item => item.plugin_id !== pluginId);
-        status.textContent = L("已升级至") + " v" + result.version;
+        status.textContent = globalThis.t.text("workbench.plugin-workbench.upgraded") + " v" + result.version;
         filter();
       } catch (error) { molisWorkRequest.show(status,error); }
       finally { pending = false; selector.disabled = !projects?.length; filter(); if (marketDirty) void loadMarket(); }
@@ -263,7 +263,7 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
     const clickedCard = button.closest("[data-market-plugin]");
     const clickedNeededBy = clickedCard ? listOf(clickedCard.dataset.marketNeededBy) : [];
     pending = true; selector.disabled = true; filter();
-    status.textContent = removing ? L("正在移除…") : L("正在添加…");
+    status.textContent = removing ? globalThis.t.text("workbench.plugin-workbench.removing") : globalThis.t.text("workbench.plugin-workbench.adding");
     try {
       let result;
       if (targetProject === projectId && host.membership) {
@@ -272,7 +272,7 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
         if(!outcome.ok)throw outcome.error;
         result = outcome.result;
       } else {
-        result=await molisWorkRequest("/api/settings/projects/"+encodeURIComponent(targetProject)+"/plugins",{method:removing?"DELETE":"POST",body:{plugin_id:button.dataset.marketAdd},fallback:removing?L("无法移除插件"):L("无法添加插件")});
+        result=await molisWorkRequest("/api/settings/projects/"+encodeURIComponent(targetProject)+"/plugins",{method:removing?"DELETE":"POST",body:{plugin_id:button.dataset.marketAdd},fallback:removing?globalThis.t.text("workbench.plugin-workbench.could-not-remove-plugin"):globalThis.t.text("workbench.plugin-workbench.could-not-add-plugin")});
       }
       const project = projects.find(project => project.project_id === targetProject);
       project.plugins = result.plugins;
@@ -281,10 +281,10 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
       // that depends on it is not added with it, and the line says so when it happened.
       const also = (removing ? beforeIds.filter(id => !result.plugins.includes(id)) : result.plugins.filter(id => !beforeIds.includes(id)))
         .filter(id => id !== button.dataset.marketAdd);
-      const came = targetProject === projectId ? "" : relation(also, removing ? "同时移除了：{list}" : "同时添加了：{list}");
-      const missing = removing ? "" : relation(clickedNeededBy.filter(id => !result.plugins.includes(id)), "依赖它的插件不会一并添加：{list}");
+      const came = targetProject === projectId ? "" : relation(also, removing ? "workbench.plugin-workbench.also-removed-list" : "workbench.plugin-workbench.also-added-list");
+      const missing = removing ? "" : relation(clickedNeededBy.filter(id => !result.plugins.includes(id)), "workbench.plugin-workbench.plugins-that-depend-not-added-list");
       const note = [came, missing].filter(Boolean).map(part => L("；") + part).join("");
-      status.textContent = (removing ? L("已移除自") : L("已添加到")) + " " + project.display_name + note;
+      status.textContent = (removing ? globalThis.t.text("workbench.plugin-workbench.removed") : globalThis.t.text("workbench.plugin-workbench.added")) + " " + project.display_name + note;
       if (targetProject === projectId && !host.membership) { saveUiState(); location.reload(); }
     } catch (error) { molisWorkRequest.show(status,error); }
     finally { pending = false; selector.disabled = !projects?.length; filter(); if (marketDirty) void loadMarket(); }
@@ -309,14 +309,14 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
     }
     artifactRequest?.abort();
     const controller = new AbortController(); artifactRequest = controller;
-    const message = document.createElement("p"); message.textContent = L("正在读取成果…"); message.role = "status";
+    const message = document.createElement("p"); message.textContent = globalThis.t.text("workbench.plugin-workbench.loading-artifacts"); message.role = "status";
     detail.replaceChildren(message);
     try {
-      const html=await molisWorkRequest(path,{as:"text",accept:[404],headers:{"x-molis-work-fragment":"artifact-workbench"},signal:controller.signal,fallback:L("无法读取成果")});
+      const html=await molisWorkRequest(path,{as:"text",accept:[404],headers:{"x-molis-work-fragment":"artifact-workbench"},signal:controller.signal,fallback:globalThis.t.text("workbench.plugin-workbench.could-not-load-artifacts")});
       const template=document.createElement("template");template.innerHTML=html;
       const nextDirectory = template.content.querySelector("[data-artifact-directory]");
       const nextDetail = template.content.querySelector("[data-artifact-detail]");
-      if (!nextDirectory || !nextDetail) throw new Error(L("无法读取成果"));
+      if (!nextDirectory || !nextDetail) throw new Error(globalThis.t.text("workbench.plugin-workbench.could-not-load-artifacts"));
       if (controller !== artifactRequest) return;
       directory.replaceChildren(...nextDirectory.childNodes); detail.replaceChildren(...nextDetail.childNodes);
       artifactPath = path;
@@ -331,7 +331,7 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
     } catch (error) {
       if (controller.signal.aborted) return;
       molisWorkRequest.show(message,error);
-      const button = document.createElement("button"); button.type = "button"; button.dataset.artifactRetry = path; button.textContent = L("重试");
+      const button = document.createElement("button"); button.type = "button"; button.dataset.artifactRetry = path; button.textContent = globalThis.t.text("common.control.retry");
       detail.replaceChildren(message, button);
     } finally { if (controller === artifactRequest) artifactRequest = null; }
   };
@@ -344,8 +344,8 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
     if (!status) { status = document.createElement("span"); status.dataset.artifactContinueStatus = ""; status.role = "status"; button.parentElement.append(status); }
     status.textContent = "";
     try {
-      const payload=await molisWorkRequest(route("/api/artifacts/continue"),{body:{reference:JSON.parse(button.dataset.artifactReference),plugin_id:button.dataset.artifactContinue},fallback:L("没能从这一版继续")});
-      if(!payload?.open?.id)throw new Error(L("没能从这一版继续"));
+      const payload=await molisWorkRequest(route("/api/artifacts/continue"),{body:{reference:JSON.parse(button.dataset.artifactReference),plugin_id:button.dataset.artifactContinue},fallback:globalThis.t.text("workbench.plugin-workbench.could-not-continue-version")});
+      if(!payload?.open?.id)throw new Error(globalThis.t.text("workbench.plugin-workbench.could-not-continue-version"));
       openTabItem?.(payload.open.surface, payload.open.id, payload.open.title);
     } catch (error) { molisWorkRequest.show(status,error); }
     finally { button.disabled = false; }

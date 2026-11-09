@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { errorMessage } from "./dom.js";
 import type { PagePorts } from "./types.js";
 
@@ -64,33 +65,33 @@ const section = (panel: HTMLElement, title: string) => {
 
 /** The context bar, what the next round will send, and the compact button. */
 function drawContext({ ports, panel }: PanelParts, { data, run }: MeterView) {
-  const { translate: L, lifetime, api, current, status, refresh } = ports;
+  const { lifetime, api, current, status, refresh } = ports;
   const context = contextOf(run);
-  const box = section(panel, L("coding.meter.context"));
+  const box = section(panel, uiText.text("coding.meter.context"));
   if (context.used === undefined) {
-    box.append(el("p", "coding-meter-note", L("coding.meter.no-count")));
+    box.append(el("p", "coding-meter-note", uiText.text("coding.meter.no-count")));
   } else {
     const bar = el("div", "coding-meter-bar"), level = el("span");
     level.style.width = (context.share === null ? 0 : Math.min(100, context.share * 100)) + "%";
     bar.append(level);
     bar.dataset.tone = (context.share ?? 0) >= 0.85 ? "attention" : (context.share ?? 0) >= 0.6 ? "notice" : "";
-    const figure = (context.coverage === "reported" ? "" : L("coding.meter.about")) + n(context.used) + (context.windowTokens ? " / " + n(context.windowTokens) : "") + " tokens" + (context.share === null ? "" : " · " + Math.round(context.share * 100) + "%");
-    const source = context.coverage === "reported" ? L("coding.meter.prompt-reported", { number: data.run_count })
-      : context.coverage === "partial" ? L("coding.meter.prompt-partial", { number: data.run_count })
-      : L("coding.meter.prompt-estimated", { number: data.run_count });
-    box.append(el("p", "coding-meter-figure", figure), bar, el("p", "coding-meter-note", source + (context.windowTokens ? "" : L("coding.meter.no-window"))));
+    const figure = (context.coverage === "reported" ? "" : uiText.text("coding.meter.about")) + n(context.used) + (context.windowTokens ? " / " + n(context.windowTokens) : "") + " tokens" + (context.share === null ? "" : " · " + Math.round(context.share * 100) + "%");
+    const source = context.coverage === "reported" ? uiText.text("coding.meter.prompt-reported", { number: data.run_count })
+      : context.coverage === "partial" ? uiText.text("coding.meter.prompt-partial", { number: data.run_count })
+      : uiText.text("coding.meter.prompt-estimated", { number: data.run_count });
+    box.append(el("p", "coding-meter-figure", figure), bar, el("p", "coding-meter-note", source + (context.windowTokens ? "" : uiText.text("coding.meter.no-window"))));
   }
   const next = data.next_history || { history: "session", reason: undefined };
-  box.append(el("p", "", next.history === "digest" ? L("coding.meter.next-digest", { reason: next.reason ?? "" }) : L("coding.meter.next-full")));
+  box.append(el("p", "", next.history === "digest" ? uiText.text("coding.meter.next-digest", { reason: next.reason ?? "" }) : uiText.text("coding.meter.next-full")));
   if (!data.run_count) return;
-  const compact = el("button", "mw-btn mw-btn--ghost", data.compact_requested ? L("coding.meter.compact-cancel") : L("coding.meter.compact"));
+  const compact = el("button", "mw-btn mw-btn--ghost", data.compact_requested ? uiText.text("coding.meter.compact-cancel") : uiText.text("coding.meter.compact"));
   compact.type = "button";
   lifetime.listen(compact, "click", async () => {
     compact.disabled = true;
     try {
       await api("/sessions/" + encodeURIComponent(current()) + "/compact", "POST", { on: !data.compact_requested });
       await refresh();
-      status(data.compact_requested ? L("coding.meter.compact-cancelled") : L("coding.meter.compact-set"));
+      status(data.compact_requested ? uiText.text("coding.meter.compact-cancelled") : uiText.text("coding.meter.compact-set"));
     } catch (error) {
       if (!lifetime.alive) return;
       status(errorMessage(error), true);
@@ -102,47 +103,46 @@ function drawContext({ ports, panel }: PanelParts, { data, run }: MeterView) {
 }
 
 /** What the session has used, as a list. */
-function drawUsage({ ports, panel }: PanelParts, total: UsageTotal) {
-  const L = ports.translate;
-  const usage = section(panel, L("coding.meter.usage")), list = el("dl");
+function drawUsage({ panel }: PanelParts, total: UsageTotal) {
+  const usage = section(panel, uiText.text("coding.meter.usage")), list = el("dl");
   const row = (key: string, value: string) => list.append(el("dt", "", key), el("dd", "", value));
-  row(L("coding.meter.rounds"), n(total.rounds));
-  row(L("coding.usage-line.input"), n(total.tokens.input) + " tokens");
-  row(L("coding.usage-line.output"), n(total.tokens.output) + " tokens");
-  if (total.tokens.cached_input !== undefined) row(L("coding.usage-line.cached_input"), n(total.tokens.cached_input) + " tokens");
-  if (total.digests) row(L("coding.meter.digests"), L("coding.meter.digests-value", { calls: total.digests.calls, tokens: n(total.digests.tokens.input + total.digests.tokens.output) }));
-  row(L("coding.usage-line.cost_usd"), total.cost_usd !== undefined ? "$" + total.cost_usd.toFixed(4) : L("coding.meter.cost-unknown"));
+  row(uiText.text("coding.meter.rounds"), n(total.rounds));
+  row(uiText.text("coding.usage-line.input"), n(total.tokens.input) + " tokens");
+  row(uiText.text("coding.usage-line.output"), n(total.tokens.output) + " tokens");
+  if (total.tokens.cached_input !== undefined) row(uiText.text("coding.usage-line.cached_input"), n(total.tokens.cached_input) + " tokens");
+  if (total.digests) row(uiText.text("coding.meter.digests"), uiText.text("coding.meter.digests-value", { calls: total.digests.calls, tokens: n(total.digests.tokens.input + total.digests.tokens.output) }));
+  row(uiText.text("coding.usage-line.cost_usd"), total.cost_usd !== undefined ? "$" + total.cost_usd.toFixed(4) : uiText.text("coding.meter.cost-unknown"));
   usage.append(list);
-  if (total.uncertain_rounds) usage.append(el("p", "coding-meter-note", L("coding.meter.uncertain", { count: total.uncertain_rounds })));
-  if (total.digests && total.cost_usd !== undefined) usage.append(el("p", "coding-meter-note", L("coding.meter.digest-cost")));
+  if (total.uncertain_rounds) usage.append(el("p", "coding-meter-note", uiText.text("coding.meter.uncertain", { count: total.uncertain_rounds })));
+  if (total.digests && total.cost_usd !== undefined) usage.append(el("p", "coding-meter-note", uiText.text("coding.meter.digest-cost")));
 }
 
 /** The line the person sets for the session, and how much of it is spent. */
 function drawBudget({ ports, panel, budgetSaved }: PanelParts, data: UsageData) {
-  const { translate: L, lifetime, api, current, status, refresh } = ports;
+  const { lifetime, api, current, status, refresh } = ports;
   const budget = data.budget, spent = spentOf(data);
-  const limit = section(panel, L("coding.meter.budget")), form = el("form", "coding-meter-budget"), input = el("input", "mw-input"), save = el("button", "mw-btn mw-btn--secondary", L("coding.meter.save"));
+  const limit = section(panel, uiText.text("coding.meter.budget")), form = el("form", "coding-meter-budget"), input = el("input", "mw-input"), save = el("button", "mw-btn mw-btn--secondary", uiText.text("coding.meter.save"));
   input.type = "number";
   input.min = "0.1";
   input.step = "any";
   input.inputMode = "decimal";
-  input.placeholder = L("coding.meter.no-budget");
+  input.placeholder = uiText.text("coding.meter.no-budget");
   input.value = budget ? String(budget.tokens / 1e4) : "";
-  input.setAttribute("aria-label", L("coding.meter.budget-label"));
+  input.setAttribute("aria-label", uiText.text("coding.meter.budget-label"));
   save.type = "submit";
-  form.append(input, el("span", "", L("coding.meter.budget-unit")), save);
+  form.append(input, el("span", "", uiText.text("coding.meter.budget-unit")), save);
   lifetime.listen(form, "submit", async (event) => {
     event.preventDefault();
     const value = input.value.trim(), tokens = value ? Math.round(Number(value) * 1e4) : null;
     if (value && !(tokens !== null && tokens >= 1000)) {
-      status(L("coding.meter.budget-min"), true);
+      status(uiText.text("coding.meter.budget-min"), true);
       return;
     }
     save.disabled = true;
     try {
       await api("/sessions/" + encodeURIComponent(current()), "PATCH", { budget: tokens === null ? null : { tokens } });
       budgetSaved();
-      status(tokens ? L("coding.meter.budget-saved") : L("coding.meter.budget-cleared"));
+      status(tokens ? uiText.text("coding.meter.budget-saved") : uiText.text("coding.meter.budget-cleared"));
       await refresh();
     } catch (error) {
       if (!lifetime.alive) return;
@@ -151,7 +151,7 @@ function drawBudget({ ports, panel, budgetSaved }: PanelParts, data: UsageData) 
       save.disabled = false;
     }
   });
-  const used = budget ? L("coding.meter.budget-used", { spent: short(spent), budget: short(budget.tokens), percent: Math.round(spent / budget.tokens * 100) }) : L("coding.meter.budget-how");
+  const used = budget ? uiText.text("coding.meter.budget-used", { spent: short(spent), budget: short(budget.tokens), percent: Math.round(spent / budget.tokens * 100) }) : uiText.text("coding.meter.budget-how");
   limit.append(form, el("p", "coding-meter-note", used));
 }
 
@@ -162,7 +162,7 @@ function drawBudget({ ports, panel, budgetSaved }: PanelParts, data: UsageData) 
  * The budget is the person's own line; reaching it is reported and never stops a round.
  */
 export function usageMeter(ports: UsageMeterPorts): UsageMeter {
-  const { translate: L, lifetime, q, current, status } = ports;
+  const { lifetime, q, current, status } = ports;
   const root = q("[data-coding-meter]"), toggle = q("[data-coding-meter-toggle]"), panel = q("[data-coding-meter-panel]"), fill = q<SVGElement>("[data-coding-meter-fill]"), label = q("[data-coding-meter-label]");
   let view: MeterView | null = null, owner = "", warned = "";
   const parts: PanelParts = { ports, panel, budgetSaved: () => { warned = ""; } };
@@ -208,13 +208,13 @@ export function usageMeter(ports: UsageMeterPorts): UsageMeter {
       const share = context.share === null ? null : Math.min(1, context.share);
       fill.style.strokeDasharray = (share === null ? 0 : share * RING) + " " + RING;
       root.dataset.tone = over ? "attention" : data.next_history?.history === "digest" ? "notice" : (share ?? 0) >= 0.85 ? "attention" : "";
-      label.textContent = over ? L("coding.meter.over") : share === null ? L("coding.meter.context") : Math.round(share * 100) + "%";
-      toggle.setAttribute("aria-label", L("coding.meter.toggle", { state: share === null ? L("coding.meter.share-unknown") : L("coding.meter.share", { percent: Math.round(share * 100) }) }) + (data.next_history?.history === "digest" ? L("coding.meter.toggle-digest") : "") + (over ? L("coding.meter.toggle-over") : ""));
+      label.textContent = over ? uiText.text("coding.meter.over") : share === null ? uiText.text("coding.meter.context") : Math.round(share * 100) + "%";
+      toggle.setAttribute("aria-label", uiText.text("coding.meter.toggle", { state: share === null ? uiText.text("coding.meter.share-unknown") : uiText.text("coding.meter.share", { percent: Math.round(share * 100) }) }) + (data.next_history?.history === "digest" ? uiText.text("coding.meter.toggle-digest") : "") + (over ? uiText.text("coding.meter.toggle-over") : ""));
       // Crossing the budget is said once, where the person is looking; the round carries on.
       const mark = over ? "over" : near ? "near" : "";
       if (mark && warned !== mark) {
         warned = mark;
-        const message = over ? L("coding.meter.over-status", { spent: short(spent), budget: short(budget?.tokens ?? 0) }) : L("coding.meter.near-status", { spent: short(spent), budget: short(budget?.tokens ?? 0) });
+        const message = over ? uiText.text("coding.meter.over-status", { spent: short(spent), budget: short(budget?.tokens ?? 0) }) : uiText.text("coding.meter.near-status", { spent: short(spent), budget: short(budget?.tokens ?? 0) });
         status(message);
       }
       if (!panel.hidden) draw();

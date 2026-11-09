@@ -22,13 +22,13 @@ export const ASSISTANT_ATTACHMENTS_FACTORY_SCRIPT = String.raw`(input) => {
   const isText = (file) => /^text\//.test(file.type) || /\.(txt|md|markdown|csv|tsv|json|jsonl|ya?ml|xml|html?|css|js|mjs|ts|tsx|jsx|py|rb|go|rs|java|kt|swift|c|h|cpp|sql|sh|log|ini|toml)$/i.test(file.name);
   const refused = (file) => {
     if (isImage(file)) {
-      if (!/^image\/(png|jpeg|gif|webp)$/.test(file.type)) return L("只能带 PNG、JPEG、GIF 或 WebP 图片");
-      if (file.size > 5 * 1024 * 1024) return L("图片超过 5 MB，请压缩或截取需要的部分");
+      if (!/^image\/(png|jpeg|gif|webp)$/.test(file.type)) return globalThis.t.text("workbench.assistant-attachments.only-png-jpeg-gif-web-p-images-can");
+      if (file.size > 5 * 1024 * 1024) return globalThis.t.text("workbench.assistant-attachments.image-over-5-mb-compress-crop-part-need");
       return "";
     }
-    if (isPdf(file)) return file.size > 8 * 1024 * 1024 ? L("文件超过 8 MB，请只带需要的部分") : "";
-    if (!isText(file)) return L("暂时只能读取文本文件、PDF 和图片");
-    return file.size > 400000 ? L("文件太大，请只带需要的部分") : "";
+    if (isPdf(file)) return file.size > 8 * 1024 * 1024 ? globalThis.t.text("workbench.assistant-attachments.file-over-8-mb-bring-only-part-need") : "";
+    if (!isText(file)) return globalThis.t.text("workbench.assistant-attachments.only-text-files-pdfs-images-can-be-read");
+    return file.size > 400000 ? globalThis.t.text("workbench.assistant-attachments.file-too-large-bring-only-part-need") : "";
   };
   const read = async (file) => {
     if (isImage(file)) {
@@ -40,7 +40,7 @@ export const ASSISTANT_ATTACHMENTS_FACTORY_SCRIPT = String.raw`(input) => {
       return { material_id: material.material_id, kind: "file", title: material.title, text: material.text, explicit: true };
     }
     try { return { material_id: "file-" + crypto.randomUUID(), kind: "file", title: file.name, text: await file.text(), explicit: true }; }
-    catch { throw new Error(L("读不了这个文件")); }
+    catch { throw new Error(globalThis.t.text("workbench.assistant-attachments.can-t-read-file")); }
   };
   const settle = async (entry) => {
     entry.state = "reading"; entry.reason = ""; paint();
@@ -59,8 +59,8 @@ export const ASSISTANT_ATTACHMENTS_FACTORY_SCRIPT = String.raw`(input) => {
     const started = [];
     for (const file of chosen) {
       const held = files().length + incoming.filter((item) => item.state === "reading").length;
-      if (held >= 5) { toast(L("一次最多带 5 个文件")); break; }
-      if (isImage(file) && files().filter((item) => item.kind === "image").length + incoming.filter((item) => item.state === "reading" && isImage(item.file)).length >= 4) { toast(L("一次最多带 4 张图片")); continue; }
+      if (held >= 5) { toast(globalThis.t.text("workbench.assistant-attachments.most-5-files-time")); break; }
+      if (isImage(file) && files().filter((item) => item.kind === "image").length + incoming.filter((item) => item.state === "reading" && isImage(item.file)).length >= 4) { toast(globalThis.t.text("workbench.assistant-attachments.most-4-images-time")); continue; }
       const entry = { chip: "in-" + crypto.randomUUID(), file, kind: isImage(file) ? "image" : "file", state: "reading", reason: "", again: false };
       incoming.push(entry);
       const why = refused(file);
@@ -72,7 +72,7 @@ export const ASSISTANT_ATTACHMENTS_FACTORY_SCRIPT = String.raw`(input) => {
   const find = (key) => incoming.find((entry) => "file:" + entry.chip === key);
   return {
     add,
-    items: () => incoming.map((entry) => ({ key: "file:" + entry.chip, label: (entry.kind === "image" ? L("图片") + "：" : "") + entry.file.name, put: true, state: entry.state, note: entry.reason, again: entry.again })),
+    items: () => incoming.map((entry) => ({ key: "file:" + entry.chip, label: (entry.kind === "image" ? globalThis.t.text("workbench.assistant-attachments.images") + "：" : "") + entry.file.name, put: true, state: entry.state, note: entry.reason, again: entry.again })),
     reading: () => incoming.some((entry) => entry.state === "reading"),
     drop: (key) => { const entry = find(key); if (entry) incoming = incoming.filter((item) => item !== entry); return Boolean(entry); },
     retry: (key) => { const entry = find(key); if (entry && entry.state === "failed" && entry.again) void settle(entry); },

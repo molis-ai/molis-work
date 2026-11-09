@@ -1,10 +1,10 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { webRequestAuthenticated, webBrowserReadAuthenticated, handleWebSessionHttp } from "./web-sessions.js";
 import { currentCallId } from "@molis-ai/molis-work-kernel";
 import type { IncomingMessage, OutgoingHttpHeaders, ServerResponse } from "node:http";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { isLoopbackHostname, isLoopbackHttpOrigin, loopbackHost } from "@molis-ai/molis-work-contracts/platform/loopback";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
-import { L } from "./web-locale.js";
 import { withRecordedCallId } from "./call-id-response.js";
 import { hostLog } from "./host-log.js";
 import { hostErrors } from "./host-errors.js";
@@ -60,7 +60,7 @@ export function sendUnhandledWebError(response: ServerResponse, error: unknown, 
   // A reset of this aborted body is request cancellation; unrelated upstream or handler errors retain their diagnostic.
   if(request?.aborted&&request.errored===error&&error instanceof Error&&"code" in error&&error.code==="ECONNRESET")return;
   hostLog.error("web", "request_failed", error);
-  const failed = error instanceof ActionError ? error : new ActionError("actions.execution_failed", L("请求未能完成，请重试。"));
+  const failed = error instanceof ActionError ? error : new ActionError("actions.execution_failed", uiText.text("workbench.http.request-could-not-be-completed-please-try-again"));
   const answer = actionErrorResponse(failed);
   sendLocalWebJson(response, answer.status, { ...answer.body, diagnostic_id: currentCallId() });
 }
@@ -69,7 +69,7 @@ export type LocalMutationState = "in_flight" | "complete";
 
 /** Every refusal of the Host, Origin and control-token checks is this one answer, so a refused caller cannot tell which check it failed. Returns false: the request is not allowed. */
 function refuse(response: ServerResponse): false {
-  const refusal = actionErrorResponse(hostErrors.request_refused(L("本地控制请求校验失败")));
+  const refusal = actionErrorResponse(hostErrors.request_refused(uiText.text("workbench.http.local-control-request-was-rejected")));
   sendLocalWebJson(response, refusal.status, refusal.body);
   return false;
 }
@@ -195,16 +195,16 @@ export function authorizeLocalWebRequest(
     || idempotencyKey.length < 8
     || idempotencyKey.length > 200
   ) {
-    sendLocalWebJson(response, 400, { error: L("请求缺少有效的一次性操作键") });
+    sendLocalWebJson(response, 400, { error: uiText.text("workbench.http.request-missing-valid-one-time-operation-key") });
     return false;
   }
   const prior = mutationKeys.get(idempotencyKey);
   if (prior === "in_flight") {
-    sendLocalWebJson(response, 409, { error: L("这次操作正在提交"), code: "request.in_flight" });
+    sendLocalWebJson(response, 409, { error: uiText.text("workbench.http.action-already-being-submitted"), code: "request.in_flight" });
     return false;
   }
   if (prior === "complete") {
-    sendLocalWebJson(response, 409, { error: L("这次操作已经提交，不会重复执行") });
+    sendLocalWebJson(response, 409, { error: uiText.text("workbench.http.action-was-already-submitted-will-not-run-again") });
     return false;
   }
   mutationKeys.set(idempotencyKey, "in_flight");

@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import * as record from "./record-commands.js";
 import * as grid from "./table-commands.js";
@@ -41,7 +42,7 @@ const COMMANDS: readonly Command[] = [
 
 /** Runs the command a click means, holding the editor busy for its whole length. */
 async function onClick(page: DatasetPage, event: Event): Promise<void> {
-  const { L, s } = page;
+  const { s } = page;
   const target = event.target as Element;
   const button = target.closest("button");
   if (!button || button.closest("dialog") || button.disabled || s.busy) return;
@@ -55,7 +56,7 @@ async function onClick(page: DatasetPage, event: Event): Promise<void> {
     }
   } catch (error) {
     if ((error as Failure).code === "dataset.conflict") s.saveError = error;
-    page.showNote(messageOf(error) || L("dataset.error.request"), true);
+    page.showNote(messageOf(error) || uiText.text("dataset.error.request"), true);
   } finally {
     page.setBusy(false);
   }

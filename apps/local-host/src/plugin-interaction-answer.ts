@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { isRecord } from "@molis-ai/molis-work-plugin-sdk";
 import type { AgentQuestion, AgentQuestionProblem, InteractionRequestResult } from "@molis-ai/molis-work-contracts/services/agent-interaction";
 import { agentQuestionHtml, questionErrors } from "./agent-question-card.js";
@@ -25,7 +26,7 @@ export function withPluginInteraction(body: unknown): unknown {
   if (isInteractionRequest(body)) {
     const { interaction } = body;
     const html = agentQuestionHtml({ pending_id: interaction.interaction_id, kind: "plugin-interaction", prompt: interaction.why, options: [], allows_free_text: false,
-      questions: interaction.questions }, L, {}, interaction.note ? L(interaction.note) : L("回答后接着做。"));
+      questions: interaction.questions }, L, {}, interaction.note ? L(interaction.note) : uiText.text("workbench.plugin-interaction-answer.once-answer-goes"));
     return { ...body, interaction: { ...interaction, html } };
   }
   const details = body.details;

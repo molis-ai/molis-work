@@ -86,62 +86,62 @@ export function renderPagesWorkbench(model: PagesUiModel): string {
     <div class="plugin-stage-list feed-stage-list feed-stage-tree" data-pages="directory">
       <header class="plugin-stage-chrome pages-stage-chrome">
         <div class="pages-create">
-          <button class="mw-btn mw-btn--ghost tree-create" type="button" data-pages-new>${icon("plus")}<span>${uiText.text("pages.action.new-doc")}</span></button>
-          <button class="mw-btn mw-btn--ghost pages-create-more" type="button" data-pages-create-more aria-expanded="false" aria-haspopup="true" aria-label="${uiText.text("pages.action.more-new")}" title="${uiText.text("pages.action.more-new")}">${icon("chevron-down")}</button>
+          <button class="mw-btn mw-btn--ghost tree-create" type="button" data-pages-new>${icon("plus")}<span>${uiText("pages.action.new-doc")}</span></button>
+          <button class="mw-btn mw-btn--ghost pages-create-more" type="button" data-pages-create-more aria-expanded="false" aria-haspopup="true" aria-label="${uiText("pages.action.more-new")}" title="${uiText("pages.action.more-new")}">${icon("chevron-down")}</button>
           <div class="mw-menu pages-create-menu" data-pages-create-menu hidden>
-            <button class="mw-menu__item" type="button" data-pages-templates>${icon("library")}${uiText.text("pages.action.from-template")}</button>
-            <button class="mw-menu__item" type="button" data-pages-new-folder>${icon("folder")}${uiText.text("pages.folder.new")}</button>
+            <button class="mw-menu__item" type="button" data-pages-templates>${icon("library")}${uiText("pages.action.from-template")}</button>
+            <button class="mw-menu__item" type="button" data-pages-new-folder>${icon("folder")}${uiText("pages.folder.new")}</button>
           </div>
         </div>
-        <button class="mw-btn mw-btn--ghost pages-import-trigger" type="button" data-pages-import>${icon("upload")}<span>${uiText.text("pages.import.open")}</span></button>
+        <button class="mw-btn mw-btn--ghost pages-import-trigger" type="button" data-pages-import>${icon("upload")}<span>${uiText("pages.import.open")}</span></button>
       </header>
       <label class="pages-search mw-input-group">
         ${icon("search")}
-        <input class="mw-input" data-pages-search type="search" autocomplete="off" placeholder="${uiText.text("pages.list.search")}" aria-label="${uiText.text("pages.list.search")}">
+        <input class="mw-input" data-pages-search type="search" autocomplete="off" placeholder="${uiText("pages.list.search")}" aria-label="${uiText("pages.list.search")}">
       </label>
       <div class="mw-empty" data-pages-empty>
         <span class="mw-empty__mark">${icon("note")}</span>
-        <strong>${uiText.text("pages.list.empty")}</strong>
-        <p>${uiText.text("pages.list.empty-hint")}</p>
+        <strong>${uiText("pages.list.empty")}</strong>
+        <p>${uiText("pages.list.empty-hint")}</p>
         <p data-placement-target></p>
         <div class="mw-empty__actions">
-          <button class="mw-btn mw-btn--secondary" type="button" data-pages-templates>${icon("library")}<span>${uiText.text("pages.action.from-template")}</span></button>
-          <button class="mw-btn mw-btn--secondary" type="button" data-pages-import>${icon("upload")}<span>${uiText.text("pages.import.existing")}</span></button>
+          <button class="mw-btn mw-btn--secondary" type="button" data-pages-templates>${icon("library")}<span>${uiText("pages.action.from-template")}</span></button>
+          <button class="mw-btn mw-btn--secondary" type="button" data-pages-import>${icon("upload")}<span>${uiText("pages.import.existing")}</span></button>
         </div>
       </div>
       <p class="pages-placement-line" data-placement-target></p>
-      <p class="pages-search-empty" data-pages-search-empty hidden>${uiText.text("pages.list.no-match")}</p>
-      <div data-pages-rows role="listbox" aria-multiselectable="true" aria-label="${uiText.text("pages.doc.name")}"></div>
+      <p class="pages-search-empty" data-pages-search-empty hidden>${uiText("pages.list.no-match")}</p>
+      <div data-pages-rows role="listbox" aria-multiselectable="true" aria-label="${uiText("pages.doc.name")}"></div>
     </div>
     <div class="plugin-stage-workspace" data-pages-stage-workspace data-floating-stage hidden>
       <div class="plugin-stage-detail-bar">
-        <button class="plugin-stage-back" type="button" data-pages-back aria-label="${uiText.text("pages.doc.back")}" title="${uiText.text("pages.doc.back")}">${icon("chevron-right")}</button>
-        <h1 data-pages-editor-title>${uiText.text("pages.doc.name")}</h1>
+        <button class="plugin-stage-back" type="button" data-pages-back aria-label="${uiText("pages.doc.back")}" title="${uiText("pages.doc.back")}">${icon("chevron-right")}</button>
+        <h1 data-pages-editor-title>${uiText("pages.doc.name")}</h1>
         <span data-pages-editor-status></span>
         <span data-placement-slot data-placement-saved="off"></span>
         <div class="pages-editor-tools">
-          <button class="mw-btn mw-btn--ghost pages-chrome-icon" type="button" data-pages-comments-open aria-label="${uiText.text("pages.comments.label")}" title="${uiText.text("pages.comments.label")}">${icon("message")}</button>
-          <button class="mw-btn mw-btn--ghost" type="button" data-pages-promote data-pages-artifact-bar title="${uiText.text("pages.version.save-hint")}">${uiText.text("pages.version.save")}</button>
-          <button class="mw-btn mw-btn--ghost pages-chrome-icon" type="button" data-pages-star-editor aria-label="${uiText.text("pages.star.add")}" title="${uiText.text("pages.star.add")}">${icon("star")}</button>
-          <button class="mw-btn mw-btn--ghost pages-chrome-icon" type="button" data-pages-more aria-expanded="false" aria-haspopup="true" aria-label="${uiText.text("pages.action.more")}" title="${uiText.text("pages.action.more")}">${icon("more")}</button>
+          <button class="mw-btn mw-btn--ghost pages-chrome-icon" type="button" data-pages-comments-open aria-label="${uiText("pages.comments.label")}" title="${uiText("pages.comments.label")}">${icon("message")}</button>
+          <button class="mw-btn mw-btn--ghost" type="button" data-pages-promote data-pages-artifact-bar title="${uiText("pages.version.save-hint")}">${uiText("pages.version.save")}</button>
+          <button class="mw-btn mw-btn--ghost pages-chrome-icon" type="button" data-pages-star-editor aria-label="${uiText("pages.star.add")}" title="${uiText("pages.star.add")}">${icon("star")}</button>
+          <button class="mw-btn mw-btn--ghost pages-chrome-icon" type="button" data-pages-more aria-expanded="false" aria-haspopup="true" aria-label="${uiText("pages.action.more")}" title="${uiText("pages.action.more")}">${icon("more")}</button>
           <div class="mw-menu pages-more-menu" data-pages-more-menu hidden>
-            <label class="pages-more-field">${uiText.text("pages.goal.attach")}
-              <select class="mw-select pages-folder-select" data-pages-goal aria-label="${uiText.text("pages.goal.attach")}"></select>
+            <label class="pages-more-field">${uiText("pages.goal.attach")}
+              <select class="mw-select pages-folder-select" data-pages-goal aria-label="${uiText("pages.goal.attach")}"></select>
             </label>
             <hr>
-            <button class="mw-menu__item" type="button" data-pages-extract>${icon("sparkles")}${uiText.text("pages.action.extract")}</button>
-            <button class="mw-menu__item" type="button" data-pages-promote>${icon("upload")}${uiText.text("pages.version.save")}</button>
+            <button class="mw-menu__item" type="button" data-pages-extract>${icon("sparkles")}${uiText("pages.action.extract")}</button>
+            <button class="mw-menu__item" type="button" data-pages-promote>${icon("upload")}${uiText("pages.version.save")}</button>
             <hr>
-            <button class="mw-menu__item" type="button" data-pages-export="md">${icon("download")}${uiText.text("pages.export.markdown")}</button>
-            <button class="mw-menu__item" type="button" data-pages-export="html">${icon("download")}${uiText.text("pages.export.html")}</button>
-            <button class="mw-menu__item" type="button" data-pages-print>${icon("download")}${uiText.text("pages.export.print")}</button>
+            <button class="mw-menu__item" type="button" data-pages-export="md">${icon("download")}${uiText("pages.export.markdown")}</button>
+            <button class="mw-menu__item" type="button" data-pages-export="html">${icon("download")}${uiText("pages.export.html")}</button>
+            <button class="mw-menu__item" type="button" data-pages-print>${icon("download")}${uiText("pages.export.print")}</button>
             <hr>
-            <button class="mw-menu__item mw-menu__item--danger" type="button" data-pages-delete>${icon("trash")}${uiText.text("pages.action.delete")}</button>
+            <button class="mw-menu__item mw-menu__item--danger" type="button" data-pages-delete>${icon("trash")}${uiText("pages.action.delete")}</button>
           </div>
         </div>
       </div>
       <div class="pages-workspace" data-pages-pane="editor">
-        <input class="pages-title" data-pages-title data-plain-field autocomplete="off" placeholder="${uiText.text("pages.doc.untitled")}">
+        <input class="pages-title" data-pages-title data-plain-field autocomplete="off" placeholder="${uiText("pages.doc.untitled")}">
         <div class="pages-editor-host" data-pages-editor></div>
       </div>
       <p class="pages-note" data-pages-note hidden></p>
@@ -150,8 +150,8 @@ export function renderPagesWorkbench(model: PagesUiModel): string {
       <form class="mw-form" method="dialog">
         <div class="mw-form__body"><p data-confirm-text></p><div class="mw-field__error" role="alert" hidden></div></div>
         <div class="mw-form__footer">
-          <button class="mw-btn mw-btn--ghost" value="cancel">${uiText.text("pages.action.cancel")}</button>
-          <button class="mw-btn mw-btn--primary" value="ok" data-confirm-ok>${uiText.text("pages.action.delete")}</button>
+          <button class="mw-btn mw-btn--ghost" value="cancel">${uiText("pages.action.cancel")}</button>
+          <button class="mw-btn mw-btn--primary" value="ok" data-confirm-ok>${uiText("pages.action.delete")}</button>
         </div>
       </form>
     </dialog>
@@ -163,54 +163,54 @@ export function renderPagesWorkbench(model: PagesUiModel): string {
           <div class="mw-field__error" data-name-error role="alert" hidden></div>
         </div>
         <div class="mw-form__footer">
-          <button class="mw-btn mw-btn--ghost" type="button" data-name-cancel>${uiText.text("pages.action.cancel")}</button>
-          <button class="mw-btn mw-btn--primary" value="ok" data-name-ok>${uiText.text("pages.action.ok")}</button>
+          <button class="mw-btn mw-btn--ghost" type="button" data-name-cancel>${uiText("pages.action.cancel")}</button>
+          <button class="mw-btn mw-btn--primary" value="ok" data-name-ok>${uiText("pages.action.ok")}</button>
         </div>
       </form>
     </dialog>
     <div class="mw-menu pages-move-menu" data-pages-move-menu hidden role="menu"></div>
     <dialog class="mw-dialog mw-dialog--form pages-import-dialog" data-pages-import-dialog aria-labelledby="pages-import-title">
       <div class="mw-form pages-import-content">
-        <header class="mw-form__header"><div><h2 id="pages-import-title">${uiText.text("pages.import.title")}</h2><p>${uiText.text("pages.import.lead")}</p></div></header>
+        <header class="mw-form__header"><div><h2 id="pages-import-title">${uiText("pages.import.title")}</h2><p>${uiText("pages.import.lead")}</p></div></header>
         <div class="mw-form__body pages-import-fields">
-          <label class="pages-import-field">${uiText.text("pages.import.from")}
+          <label class="pages-import-field">${uiText("pages.import.from")}
             <select class="mw-select" data-pages-import-source>
               <option value="notion">Notion</option>
-              <option value="feishu">${uiText.text("pages.import.feishu")}</option>
-              <option value="other">${uiText.text("pages.import.other")}</option>
+              <option value="feishu">${uiText("pages.import.feishu")}</option>
+              <option value="other">${uiText("pages.import.other")}</option>
             </select>
           </label>
           <p class="pages-import-help" data-pages-import-help></p>
           <label class="pages-import-drop" data-pages-import-drop>
-            ${icon("upload")}<strong>${uiText.text("pages.import.choose")}</strong>
+            ${icon("upload")}<strong>${uiText("pages.import.choose")}</strong>
             <span>ZIP · DOCX · Markdown · HTML · TXT · CSV</span>
-            <small>${uiText.text("pages.import.limits")}</small>
-            <input type="file" data-pages-import-files multiple accept=".zip,.docx,.md,.markdown,.html,.htm,.txt,.csv" aria-label="${uiText.text("pages.import.files-label")}">
+            <small>${uiText("pages.import.limits")}</small>
+            <input type="file" data-pages-import-files multiple accept=".zip,.docx,.md,.markdown,.html,.htm,.txt,.csv" aria-label="${uiText("pages.import.files-label")}">
           </label>
-          <p class="pages-import-limit">${uiText.text("pages.import.not-imported")}</p>
+          <p class="pages-import-limit">${uiText("pages.import.not-imported")}</p>
           <p class="pages-import-status" data-pages-import-status role="status" aria-live="polite"></p>
           <div data-pages-import-preview hidden>
             <div class="pages-import-options">
-              <label class="mw-check-row"><input type="checkbox" data-pages-import-all checked> ${uiText.text("pages.import.all")}</label>
-              <label class="pages-import-field">${uiText.text("pages.import.to")}<select class="mw-select" data-pages-import-folder aria-label="${uiText.text("pages.import.to")}"></select></label>
+              <label class="mw-check-row"><input type="checkbox" data-pages-import-all checked> ${uiText("pages.import.all")}</label>
+              <label class="pages-import-field">${uiText("pages.import.to")}<select class="mw-select" data-pages-import-folder aria-label="${uiText("pages.import.to")}"></select></label>
             </div>
             <ul class="pages-import-warnings" data-pages-import-warnings></ul>
             <div class="pages-import-documents" data-pages-import-documents></div>
           </div>
         </div>
         <footer class="mw-form__footer">
-          <button class="mw-btn mw-btn--ghost" type="button" data-pages-import-close>${uiText.text("pages.action.cancel")}</button>
-          <button class="mw-btn mw-btn--primary" type="button" data-pages-import-submit disabled>${uiText.text("pages.import.submit")}</button>
-          <button class="mw-btn mw-btn--primary" type="button" data-pages-import-open hidden>${uiText.text("pages.import.open-doc")}</button>
+          <button class="mw-btn mw-btn--ghost" type="button" data-pages-import-close>${uiText("pages.action.cancel")}</button>
+          <button class="mw-btn mw-btn--primary" type="button" data-pages-import-submit disabled>${uiText("pages.import.submit")}</button>
+          <button class="mw-btn mw-btn--primary" type="button" data-pages-import-open hidden>${uiText("pages.import.open-doc")}</button>
         </footer>
       </div>
     </dialog>
     <dialog class="mw-dialog mw-dialog--form pages-template-dialog" data-pages-template-dialog>
       <form class="mw-form" method="dialog">
-        <header class="mw-form__header"><h2>${uiText.text("pages.action.from-template")}</h2></header>
+        <header class="mw-form__header"><h2>${uiText("pages.action.from-template")}</h2></header>
         <div class="mw-form__body pages-template-list" data-pages-template-list>${templates}</div>
         <div class="mw-form__footer">
-          <button class="mw-btn mw-btn--ghost" value="cancel">${uiText.text("pages.action.cancel")}</button>
+          <button class="mw-btn mw-btn--ghost" value="cancel">${uiText("pages.action.cancel")}</button>
         </div>
       </form>
     </dialog>

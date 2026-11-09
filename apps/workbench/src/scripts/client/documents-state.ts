@@ -105,8 +105,8 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
       workspace.classList.toggle("is-directory-collapsed", nextCollapsed);
       document.querySelectorAll("[data-directory-toggle]").forEach((button) => {
         button.setAttribute("aria-expanded", String(!nextCollapsed));
-        button.setAttribute("aria-label", nextCollapsed ? L("展开目录") : L("收起目录"));
-        button.setAttribute("title", nextCollapsed ? L("展开目录") : L("收起目录"));
+        button.setAttribute("aria-label", nextCollapsed ? globalThis.t.text("workbench.documents-state.expand-directory") : globalThis.t.text("workbench.documents-state.collapse-directory"));
+        button.setAttribute("title", nextCollapsed ? globalThis.t.text("workbench.documents-state.expand-directory") : globalThis.t.text("workbench.documents-state.collapse-directory"));
       });
       treeResizer?.setAttribute("aria-hidden", String(nextCollapsed));
       immersiveNavigation?.sync();

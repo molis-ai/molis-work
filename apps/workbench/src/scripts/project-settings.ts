@@ -23,7 +23,7 @@ export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
           error.hidden = true;
           try {
             await molisWorkRequest("/api/settings/projects/" + encodeURIComponent(form.dataset.projectRename) + "/rename", {
-              body: { display_name: String(new FormData(form).get("display_name") || "").trim(), expected_display_name: form.dataset.projectObservedName }, fallback: L("项目改名失败"),
+              body: { display_name: String(new FormData(form).get("display_name") || "").trim(), expected_display_name: form.dataset.projectObservedName }, fallback: globalThis.t.text("workbench.project-settings.could-not-rename-project"),
             });
             location.reload();
           } catch (caught) {
@@ -40,10 +40,10 @@ export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
       const show=state=>{
         const gone=state.selected&&!state.runtimes.some(item=>item.runtime_id===state.selected);
         root.hidden=state.runtimes.length<2&&!state.problem;
-        select.replaceChildren(new Option(L('默认运行时'),''),...state.runtimes.map(item=>new Option(item.display_name,item.runtime_id)),...(gone?[new Option(state.selected+L('（不可用）'),state.selected)]:[]));
+        select.replaceChildren(new Option(globalThis.t.text("workbench.project-settings.default-runtime"),''),...state.runtimes.map(item=>new Option(item.display_name,item.runtime_id)),...(gone?[new Option(state.selected+globalThis.t.text("workbench.project-settings.unavailable"),state.selected)]:[]));
         select.value=state.selected||'';error.textContent=state.problem||'';error.hidden=!state.problem;
       };
-      select.addEventListener('change',()=>molisWorkRequest(path,{body:{runtime_id:select.value||null},fallback:L('运行时选择失败')}).then(show,caught=>{molisWorkRequest.show(error,caught);error.hidden=false;}));
+      select.addEventListener('change',()=>molisWorkRequest(path,{body:{runtime_id:select.value||null},fallback:globalThis.t.text("workbench.project-settings.could-not-change-runtime")}).then(show,caught=>{molisWorkRequest.show(error,caught);error.hidden=false;}));
       molisWorkRequest(path).then(show,()=>null);
     });};
     const bindDelete = (scope) => {
@@ -80,11 +80,11 @@ export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
         // Once the deletion may have started the choice is fixed: another choice under the same key is refused.
         const locked = () => cleanupPending || unsure;
         const ready = () => !busy && (cleanupPending || (asks ? choice !== null : confirmation.checked));
-        const label = () => cleanupPending ? L("重试清理") : asks && choice === "delete" ? L("删除项目和文件") : asks && choice === "keep" ? L("删除项目") : L("确认删除项目");
+        const label = () => cleanupPending ? globalThis.t.text("workbench.project-settings.retry-cleanup") : asks && choice === "delete" ? globalThis.t.text("workbench.project-settings.delete-project-files") : asks && choice === "keep" ? globalThis.t.text("workbench.project-settings.delete-project") : globalThis.t.text("workbench.project-settings.confirm-project-deletion");
         const paint = () => {
           question.hidden = !asks;
           confirmRow.hidden = asks;
-          description.textContent = asks ? L("永久删除这个项目在 Molis Work 中的目标、记录和关联。你自己选的文件夹里的代码和文件会保留。") : plainDescription;
+          description.textContent = asks ? globalThis.t.text("workbench.project-settings.permanently-delete-project-s-goals-records-links-molis") : plainDescription;
           options.forEach((option) => {
             const on = option.dataset.ixOption === choice;
             option.setAttribute("aria-checked", on ? "true" : "false");
@@ -123,19 +123,19 @@ export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
             if (!deletionKey) { asks = result.default_output === "has_files"; paint(); }
           }).catch(() => null);
         const showKept = (path) => {
-          title.textContent = L("项目已删除");
+          title.textContent = globalThis.t.text("workbench.project-settings.project-deleted");
           formBody.hidden = actions.hidden = true;
           kept.hidden = done.hidden = false;
           kept.querySelector("[data-project-delete-kept-path]").textContent = path;
           const note = kept.querySelector("[data-project-delete-kept-note]");
-          if (!asks) note.textContent = L("里面有文件，删除时没有动它们。") + note.textContent;
+          if (!asks) note.textContent = globalThis.t.text("workbench.project-settings.had-files-so-they-were-left-alone") + note.textContent;
           busy = true;
           requestAnimationFrame(() => done.querySelector("a")?.focus({ preventScroll: true }));
         };
         kept.querySelector("[data-project-delete-copy]").addEventListener("click", async (event) => {
           const path = kept.querySelector("[data-project-delete-kept-path]").textContent;
           const button = event.currentTarget;
-          if (window.molisCopy) { await window.molisCopy(button, () => path, { done: L("已复制"), failed: L("没能复制") }); return; }
+          if (window.molisCopy) { await window.molisCopy(button, () => path, { done: globalThis.t.text("workbench.project-settings.copied"), failed: globalThis.t.text("workbench.project-settings.couldn-t-copy") }); return; }
           try { await navigator.clipboard.writeText(path); } catch (caught) { molisWorkRequest.show(error, caught); }
         });
         done.querySelector("a").addEventListener("click", (event) => {
@@ -165,14 +165,14 @@ export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
           cancel.disabled = true;
           error.hidden = true;
           paint();
-          submit.textContent = L("正在删除…");
+          submit.textContent = globalThis.t.text("workbench.project-settings.deleting");
           try {
             const result = await molisWorkRequest("/api/settings/projects/" + encodeURIComponent(form.dataset.projectDelete) + "/delete", {
-              body: { delete_confirmed: true, idempotency_key: deletionKey, ...(asks && choice ? { output_files: choice } : {}) }, fallback: L("项目删除失败"),
+              body: { delete_confirmed: true, idempotency_key: deletionKey, ...(asks && choice ? { output_files: choice } : {}) }, fallback: globalThis.t.text("workbench.project-settings.could-not-delete-project"),
             });
             unsure = false;
             cleanupPending = result.deletion.cleanup_state !== "complete";
-            if (cleanupPending) throw new Error(L("项目已从目录移除，但本机数据清理未完成。请重试清理。"));
+            if (cleanupPending) throw new Error(globalThis.t.text("workbench.project-settings.project-has-been-removed-directory-but-local-data"));
             busyNotice.hidden = true;
             if (result.kept_output_directory) { showKept(result.kept_output_directory); return; }
             location.assign(globalThis.molisWorkNavigationUrl(form.dataset.projectDirectoryHref));
@@ -218,19 +218,19 @@ export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
           const error = button.closest("section, details")?.querySelector("[data-demo-error]") || document.querySelector("[data-demo-error]");
           const toast = document.querySelector("[data-settings-toast]");
           const message = action === "create"
-            ? L("创建一份明确标记为可重建数据的示例项目？")
+            ? globalThis.t.text("workbench.project-settings.create-demo-project-that-clearly-marked-regenerable")
             : action === "reset"
-              ? L("重建 demo 会清除其中的所有改动，但不会影响用户项目。确认继续？")
-              : L("删除这个可重建 demo？用户项目不会被删除。");
+              ? globalThis.t.text("workbench.project-settings.rebuilding-demo-clears-every-change-does-not-touch")
+              : globalThis.t.text("workbench.project-settings.delete-regenerable-demo-user-projects-will-not-be");
           if (!window.confirm(message)) return;
           disable(true);
           if (error) error.hidden = true;
           try {
-            const result = await molisWorkRequest("/api/settings/demo", { body: { action, user_confirmed: true }, fallback: L("demo 操作失败") });
-            const message = result.message || L("demo 已更新");
+            const result = await molisWorkRequest("/api/settings/demo", { body: { action, user_confirmed: true }, fallback: globalThis.t.text("workbench.project-settings.demo-action-failed") });
+            const message = result.message || globalThis.t.text("workbench.project-settings.demo-updated");
             if (result.warning && error) {
               error.textContent = message + ' ' + result.warning + ' ';
-              const refresh = document.createElement('a');refresh.href = location.href;refresh.textContent = L('刷新');
+              const refresh = document.createElement('a');refresh.href = location.href;refresh.textContent = globalThis.t.text("workbench.project-settings.refresh");
               refresh.onclick = event => {event.preventDefault();location.reload();};error.append(refresh);error.hidden = false;
               return;
             }
@@ -297,7 +297,7 @@ export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
         const values = new FormData(createForm);
         const error = createForm.querySelector(".settings-form-error");
         if (values.get("user_confirmed") !== "on") {
-          error.textContent = L("请先确认创建这个项目。");
+          error.textContent = globalThis.t.text("workbench.project-settings.confirm-that-want-create-project");
           error.hidden = false;
           return;
         }
@@ -305,7 +305,7 @@ export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
         submit.disabled = true;
         error.hidden = true;
         try {
-          const result = await molisWorkRequest("/api/settings/projects", { body: { display_name: String(values.get("display_name") || "").trim(), user_confirmed: true }, fallback: L("项目创建失败") });
+          const result = await molisWorkRequest("/api/settings/projects", { body: { display_name: String(values.get("display_name") || "").trim(), user_confirmed: true }, fallback: globalThis.t.text("workbench.project-settings.could-not-create-project") });
           location.assign(globalThis.molisWorkNavigationUrl(result.project_path));
         } catch (caught) {
           molisWorkRequest.show(error, caught);
@@ -337,14 +337,14 @@ export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
       const target = details.querySelector("[data-settings-embed-target]");
       if (!target) return;
       details.dataset.loaded = "pending";
-      target.innerHTML = "<p class=\\"project-settings-embed-pending\\">" + L("正在打开…") + "</p>";
+      target.innerHTML = "<p class=\\"project-settings-embed-pending\\">" + globalThis.t.text("workbench.project-settings.opening") + "</p>";
       try {
         target.innerHTML = await molisWorkRequest(details.dataset.settingsEmbed, { as: "text", headers: { Accept: "text/html" } });
         details.dataset.loaded = "1";
         bindEmbedded(details);
       } catch {
         delete details.dataset.loaded;
-        target.innerHTML = "<p class=\\"settings-form-error\\" role=\\"alert\\">" + L("无法打开这一段设置") + "</p>";
+        target.innerHTML = "<p class=\\"settings-form-error\\" role=\\"alert\\">" + globalThis.t.text("workbench.project-settings.could-not-open-settings-section") + "</p>";
       }
     };
     document.querySelectorAll("[data-settings-embed]").forEach((details) => {

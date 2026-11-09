@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { ActionError, type ActionDefinition, type BoundActionClient, type HostOfferedOriginalFile } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { Readable } from "node:stream";
 import { fencedMaterials, instructed, type InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
@@ -15,7 +16,6 @@ import { assertOnboardingWritable, completeMolisWorkOnboarding } from "./onboard
 import { descriptionFromSummary, setProjectDescription } from "./project-arrival.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import { L } from "./web-locale.js";
 import { hostLog } from "./host-log.js";
 
 export interface ContextOnboardingPorts {
@@ -344,7 +344,7 @@ function partEndByCharacters(text: string, offset: number, size: number): number
  * (a 🙂 is one, though two UTF-16 units), the way Todo and Pages count a title, so a cut never ends inside a character.
  */
 function partTitle(title: string, part: number, parts: number, max: number): string {
-  const suffix = parts > 1 ? L(" · 第 {k} / {n} 部分", { k: part, n: parts }) : "";
+  const suffix = parts > 1 ? uiText.text("workbench.context-onboarding-service.part-k-n", { k: part, n: parts }) : "";
   const characters = [...title], room = max - [...suffix].length;
   return (characters.length <= room ? title : characters.slice(0, room - 1).join("") + "…") + suffix;
 }
@@ -400,7 +400,7 @@ async function draftTodos(home: string, journey: ContextJourney, references: Con
         const todoActions = index === completed + 1 ? firstActions : ports.homeActions(home, AbortSignal.timeout(20 * 60_000));
         // The journey id and the batch number make a retried pass return the same drafts instead of organizing twice.
         const { batch } = await timedCall(todo.timing, () => todoActions.invoke(extract, { origin: "onboarding",
-          title: total > 1 ? L("开始使用时整理的待办（第 {k} / {n} 批）", { k: index, n: total }) : L("开始使用时整理的待办"), request_id: `onboarding:${journey.id}:${key}:${index}`, materials }));
+          title: total > 1 ? uiText.text("workbench.context-onboarding-service.todos-found-while-getting-started-batch-k-n", { k: index, n: total }) : uiText.text("workbench.context-onboarding-service.todos-found-while-getting-started"), request_id: `onboarding:${journey.id}:${key}:${index}`, materials }));
         todo.batches.push(batch); save();
       }
     }
@@ -505,10 +505,10 @@ export async function adoptContextJourney(home: string, id: string, input: Recor
         }
         const sources = refs.map(r => `[${r.label}] [${r.title.replace(/[\[\]]/gu, "")}](/projects/${journey.project_id}/?openPlugin=pages&openItem=${r.documents![0]}&openTitle=${encodeURIComponent(r.title)}) · ${r.path} · 版本 ${r.version}`).join("\n\n");
         // The page is the person's, written in the interface language they made the project in (user decision 2026-10-15).
-        const text = journey.adoption!.body + (sources ? "\n\n## " + L("资料来源") + "\n\n" + sources : "");
-        const summaryTitle = L("{title} · 工作摘要", { title: journey.adoption!.title });
+        const text = journey.adoption!.body + (sources ? "\n\n## " + uiText.text("workbench.context-onboarding-service.sources") + "\n\n" + sources : "");
+        const summaryTitle = uiText.text("workbench.context-onboarding-service.title-work-summary", { title: journey.adoption!.title });
         // Pages holds 80 whole characters of a title: a longer one is cut by pageTitle, and the project's name then leads the body instead.
-        const summaryText = [...summaryTitle].length > 80 ? `${L("项目：{title}", { title: journey.adoption!.title })}\n\n${text}` : text;
+        const summaryText = [...summaryTitle].length > 80 ? `${uiText.text("workbench.context-onboarding-service.project-title", { title: journey.adoption!.title })}\n\n${text}` : text;
         const summary = (await actions.invoke(importDocuments, { request_id: id + ":summary", request_hash: createHash("sha256").update(JSON.stringify(journey.adoption)).digest("hex"), documents: [{ title: pageTitle(summaryTitle), body: summaryText ? await pageBody(summaryText) : { type: "doc", content: [{ type: "paragraph" }] } }] })).documents[0]!;
         journey.document_id = summary.id;
         if (text.trim()) {

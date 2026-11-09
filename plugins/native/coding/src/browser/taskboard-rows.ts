@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { el, errorMessage } from "./dom.js";
 import { hue, svg } from "./taskboard-format.js";
 import { rowTools } from "./taskboard-tools.js";
@@ -13,7 +14,7 @@ function drawState(state: StateMark): HTMLElement {
   return node;
 }
 
-function drawProgress(L: Translate, progress: BoardRow["progress"]): HTMLElement {
+function drawProgress(_L: Translate, progress: BoardRow["progress"]): HTMLElement {
   const node = el("span", "", "coding-board-progress");
   if (!progress) {
     node.classList.add("is-empty");
@@ -24,12 +25,12 @@ function drawProgress(L: Translate, progress: BoardRow["progress"]): HTMLElement
   fill.style.setProperty("--board-progress", Math.round(progress.done / Math.max(1, progress.total) * 100) + "%");
   track.append(fill);
   node.append(el("span", progress.done + "/" + progress.total), track);
-  node.setAttribute("aria-label", L("coding.board.progress", { done: progress.done, total: progress.total }));
+  node.setAttribute("aria-label", uiText.text("coding.board.progress", { done: progress.done, total: progress.total }));
   return node;
 }
 
 /** What the step waits on, folded: a count and whether any of it is blocked. A row without steps may carry a note instead. */
-function drawDeps(L: Translate, row: BoardRow): HTMLElement {
+function drawDeps(_L: Translate, row: BoardRow): HTMLElement {
   const deps = row.deps;
   if (!deps?.length) {
     const node = el("span", "", "coding-board-deps is-empty");
@@ -42,14 +43,14 @@ function drawDeps(L: Translate, row: BoardRow): HTMLElement {
   }
   const waiting = deps.filter(dep => !dep.ready), blocked = waiting.filter(dep => dep.blocked);
   const node = el("details", "", "coding-board-deps " + (blocked.length ? "is-blocked" : waiting.length ? "is-waiting" : "is-ready")), summary = el("summary");
-  summary.textContent = L("coding.board.deps", { count: deps.length }) + " · " + (blocked.length ? L("coding.board.deps-blocked", { count: blocked.length }) : waiting.length ? L("coding.board.deps-waiting", { count: waiting.length }) : L("coding.board.deps-ready"));
-  summary.setAttribute("aria-label", L("coding.board.deps-open", { count: deps.length }));
+  summary.textContent = uiText.text("coding.board.deps", { count: deps.length }) + " · " + (blocked.length ? uiText.text("coding.board.deps-blocked", { count: blocked.length }) : waiting.length ? uiText.text("coding.board.deps-waiting", { count: waiting.length }) : uiText.text("coding.board.deps-ready"));
+  summary.setAttribute("aria-label", uiText.text("coding.board.deps-open", { count: deps.length }));
   node.append(summary);
   const box = el("div", "", "coding-board-dep-list");
   for (const dep of deps) {
     const item = el("p", "", "coding-board-dep " + (dep.ready ? "is-ready" : dep.blocked ? "is-blocked" : "is-waiting"));
     item.innerHTML = svg("link");
-    item.append(el("strong", dep.title), el("em", dep.ready ? L("coding.board.dep.ready") : dep.blocked ? L("coding.board.dep.blocked") : L("coding.board.dep.waiting")));
+    item.append(el("strong", dep.title), el("em", dep.ready ? uiText.text("coding.board.dep.ready") : dep.blocked ? uiText.text("coding.board.dep.blocked") : uiText.text("coding.board.dep.waiting")));
     box.append(item);
   }
   node.append(box);
@@ -57,17 +58,17 @@ function drawDeps(L: Translate, row: BoardRow): HTMLElement {
 }
 
 /** The mark of whoever does the work: their first letter on a colour of their name, or the unknown mark. */
-function drawAvatar(L: Translate, executor: NonNullable<BoardRow["executor"]> | null): HTMLElement {
+function drawAvatar(_L: Translate, executor: NonNullable<BoardRow["executor"]> | null): HTMLElement {
   const avatar = el("span", "", "coding-board-avatar" + (executor && !executor.none ? "" : " is-unknown") + (executor?.person ? " is-person" : ""));
   if (executor?.none) {
     avatar.innerHTML = svg("user");
     avatar.title = executor.detail;
-    avatar.setAttribute("aria-label", L("coding.board.unclaimed"));
+    avatar.setAttribute("aria-label", uiText.text("coding.board.unclaimed"));
   } else if (executor) {
     avatar.textContent = Array.from(executor.name)[0] || "?";
     avatar.style.setProperty("--board-avatar-hue", String(hue(executor.name)));
-    avatar.title = L("coding.board.executor", { detail: executor.detail });
-    avatar.setAttribute("aria-label", L("coding.board.executor-name", { name: executor.name }));
+    avatar.title = uiText.text("coding.board.executor", { detail: executor.detail });
+    avatar.setAttribute("aria-label", uiText.text("coding.board.executor-name", { name: executor.name }));
   }
   return avatar;
 }
@@ -79,10 +80,10 @@ function drawMeta(L: Translate, row: BoardRow): HTMLElement {
   if (executor?.none) node.dataset.owner = "none";
   else if (executor?.person) node.dataset.owner = "person";
   const avatar = drawAvatar(L, executor), name = el("span", executor?.name || "", "coding-board-agent");
-  if (executor) name.title = L("coding.board.executor", { detail: executor.detail });
+  if (executor) name.title = uiText.text("coding.board.executor", { detail: executor.detail });
   if (executor?.expired) {
     node.dataset.expired = "true";
-    const flag = el("span", L("coding.board.expired"), "coding-board-expired");
+    const flag = el("span", uiText.text("coding.board.expired"), "coding-board-expired");
     flag.title = executor.detail;
     node.append(time, name, flag, avatar);
     return node;
@@ -93,7 +94,7 @@ function drawMeta(L: Translate, row: BoardRow): HTMLElement {
 
 /** The fold toggle of a row with children, or the blank guide that keeps the columns. */
 function drawLead(view: RowView, row: BoardRow, open: boolean): HTMLElement {
-  const { ports, collapsed } = view, L = ports.translate, lead = el("span", "", "coding-board-lead");
+  const { ports, collapsed } = view, lead = el("span", "", "coding-board-lead");
   if (!row.children.length) {
     lead.append(el("span", "", "coding-board-guide"));
     return lead;
@@ -102,7 +103,7 @@ function drawLead(view: RowView, row: BoardRow, open: boolean): HTMLElement {
   toggle.type = "button";
   toggle.innerHTML = svg("chevron-down");
   toggle.setAttribute("aria-expanded", String(open));
-  toggle.setAttribute("aria-label", open ? L("coding.board.collapse", { title: row.title }) : L("coding.board.expand", { title: row.title }));
+  toggle.setAttribute("aria-label", open ? uiText.text("coding.board.collapse", { title: row.title }) : uiText.text("coding.board.expand", { title: row.title }));
   ports.lifetime.listen(toggle, "click", () => {
     if (collapsed.has(row.key)) collapsed.delete(row.key);
     else collapsed.add(row.key);

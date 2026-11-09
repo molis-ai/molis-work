@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { UiPageWorkspaces } from "@molis-ai/molis-work-contracts/platform/ui";
 import { pageDialogs } from "./dialogs.js";
 import type { FrameDown, FrameScope, FrameUp, Translate } from "./types.js";
@@ -28,12 +29,12 @@ interface DirectoryRow { workspace_id: string; display_name: string; roles: stri
  * What the person is asked before a folder becomes the output, with what happens to the output now (specs/shared-sources-and-surfaces §3):
  * it is no longer written and its files stay; one that is only the output also leaves the project, one that is an input as well stays one.
  */
-function outputQuestion(L: Translate, asked: { plugin: string; project: string; folder: DirectoryRow }, current: DirectoryRow | undefined): string {
+function outputQuestion(_L: Translate, asked: { plugin: string; project: string; folder: DirectoryRow }, current: DirectoryRow | undefined): string {
   const names = { plugin: asked.plugin, project: asked.project, folder: asked.folder.display_name };
-  if (!current) return L("允许 {plugin} 把「{folder}」设为项目 {project} 的输出目录？Agent、终端和 Git 以后只在这里写入。", names);
+  if (!current) return uiText.text("common.workspaces.allow-plugin-make-folder-output-folder-project-project", names);
   return current.roles.includes("input")
-    ? L("允许 {plugin} 把「{folder}」设为项目 {project} 的输出目录？Agent、终端和 Git 以后只在这里写入。现在的输出目录「{current}」不再写入，里面的文件不动。", { ...names, current: current.display_name })
-    : L("允许 {plugin} 把「{folder}」设为项目 {project} 的输出目录？Agent、终端和 Git 以后只在这里写入。现在的输出目录「{current}」不再写入，里面的文件不动，它会从项目里移出。", { ...names, current: current.display_name });
+    ? uiText.text("common.workspaces.allow-plugin-make-folder-output-folder-project-project-2", { ...names, current: current.display_name })
+    : uiText.text("common.workspaces.allow-plugin-make-folder-output-folder-project-project-3", { ...names, current: current.display_name });
 }
 
 /**
@@ -50,23 +51,23 @@ export function pageWorkspaces(port: MessagePort, scope: FrameScope, pageId: str
     let stop = () => {};
     try {
       if (!["add", "set_output"].includes(message.operation) || typeof message.value !== "string" || !message.value.trim() || message.value.length > 4096)
-        throw new Error(L("工作目录操作失败"));
+        throw new Error(uiText.text("common.workspaces.workspace-operation-failed"));
       scope.assertCurrent();
-      if (adding || !scope.visible || !navigator.userActivation.isActive) throw new Error(L("请重新点击或拖动文件"));
+      if (adding || !scope.visible || !navigator.userActivation.isActive) throw new Error(uiText.text("common.workspaces.click-drag-file-again"));
       adding = ownsAdd = true;
       stop = scope.whenVisible(() => () => visible.abort());
       await molisWorkRequest(route("/api/host/plugin-page-check"), { body: {}, headers: { "x-molis-plugin-page": pageId }, scope });
       if (message.operation === "set_output") {
-        const read = await molisWorkRequest<{ directories: DirectoryRow[] }>(route("/api/project-settings/directories"), { method: "GET", scope, fallback: L("读不到项目目录") });
+        const read = await molisWorkRequest<{ directories: DirectoryRow[] }>(route("/api/project-settings/directories"), { method: "GET", scope, fallback: uiText.text("common.workspaces.couldn-t-read-project-s-folders") });
         const folder = read.directories.find(item => item.workspace_id === message.value);
-        if (!folder) throw new Error(L("这个文件夹已经不是当前项目的目录"));
+        if (!folder) throw new Error(uiText.text("common.workspaces.folder-no-longer-one-project-s-folders"));
         if (folder.roles.includes("output")) { port.postMessage({ type: "workspace-result", id: message.id, workspace: { workspace_id: folder.workspace_id } } satisfies FrameDown); return; }
-        if (!await dialogs.confirm(outputQuestion(L, { plugin, project, folder }, read.directories.find(item => item.roles.includes("output"))))) throw new Error(L("已取消"));
-      } else if (!await dialogs.confirm(L("允许 {plugin} 为项目 {project} 关联目录？\n{path}", { plugin, project, path: message.value }))) throw new Error(L("已取消"));
-      scope.assertCurrent(); if (!scope.visible) throw new Error(L("已取消"));
+        if (!await dialogs.confirm(outputQuestion(L, { plugin, project, folder }, read.directories.find(item => item.roles.includes("output"))))) throw new Error(uiText.text("common.workspaces.cancelled"));
+      } else if (!await dialogs.confirm(uiText.text("common.workspaces.allow-plugin-link-folder-project-project-path", { plugin, project, path: message.value }))) throw new Error(uiText.text("common.workspaces.cancelled"));
+      scope.assertCurrent(); if (!scope.visible) throw new Error(uiText.text("common.workspaces.cancelled"));
       const result = await molisWorkRequest<{ workspace?: { workspace_id: string } }>(route("/api/host/plugin-page-workspaces"), {
         body: { operation: message.operation, value: message.value }, headers: { "x-molis-context-page": pageId }, scope, signal: visible.signal,
-        fallback: L("无法关联工作区"),
+        fallback: uiText.text("common.workspaces.unable-link-workspace"),
       });
       scope.assertCurrent(); port.postMessage({ type: "workspace-result", id: message.id, workspace: result.workspace } satisfies FrameDown);
     } catch (error) {

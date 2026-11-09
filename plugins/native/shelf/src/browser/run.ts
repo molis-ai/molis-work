@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderBar } from "./bar.js";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { said, setText } from "./dom.js";
@@ -13,7 +14,7 @@ export function watchRun(page: ShelfPage): void {
   page.runWatch?.();
   page.runWatch = page.lifetime.poll(async (signal) => {
     if (!page.stage.classList.contains("is-run")) { page.runWatch?.(); page.runWatch = null; return; }
-    const next = await read<Snapshot>(page, "/", page.L("shelf.directory.could-not-read-the-shelf"), signal);
+    const next = await read<Snapshot>(page, "/", uiText.text("shelf.directory.could-not-read-the-shelf"), signal);
     page.lifetime.assertCurrent(signal);
     page.runningJob = (next.running_jobs || [])[0]?.job_id ?? null;
     const cancel = page.bench.querySelector<HTMLElement>("[data-shelf-cancel]");
@@ -23,8 +24,8 @@ export function watchRun(page: ShelfPage): void {
 
 function runLine(page: ShelfPage, recipe: ConfirmRecipe): string {
   const { L } = page;
-  if (isLocalRecipe(recipe)) return page.selected?.kind === "image" ? L("shelf.run.reading-the-text-in-this") : L("shelf.run.extracting-selectable-text-from-the");
-  return L("shelf.run.agent-is-running-recipe-on", { agent: aiLabel(page), recipe: said(L, recipe.short_title || recipe.label) });
+  if (isLocalRecipe(recipe)) return page.selected?.kind === "image" ? uiText.text("shelf.run.reading-the-text-in-this") : uiText.text("shelf.run.extracting-selectable-text-from-the");
+  return uiText.text("shelf.run.agent-is-running-recipe-on", { agent: aiLabel(page), recipe: said(L, recipe.short_title || recipe.label) });
 }
 
 /** The job could not be done: the stage says why, or goes back when the person cancelled it. */
@@ -40,7 +41,7 @@ function showRunFailure(page: ShelfPage, error: unknown, line: HTMLElement | nul
   page.stage.classList.remove("is-run");
   page.stage.classList.add("is-fail");
   if (line) { line.hidden = false; line.textContent = messageOf(error); }
-  setText(page.bench, "[data-shelf-back]", page.L("shelf.panes.back-to-materials-then-retry"));
+  setText(page.bench, "[data-shelf-back]", uiText.text("shelf.panes.back-to-materials-then-retry"));
   paintLists(page);
   renderBar(page, page.lastBarKind);
 }

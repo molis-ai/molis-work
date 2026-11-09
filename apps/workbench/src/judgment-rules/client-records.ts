@@ -9,16 +9,16 @@ export const FUNCTIONS_CLIENT_RECORDS_PART = `  const fillEditor = (rec) => {
       setStep(rec.status === "published" ? "use" : "look");
       paletteFind.value = "";
     }
-    saveStatus.textContent = rec.status === "published" ? L("已发布 · 规则只读") : L("草稿自动保存");
+    saveStatus.textContent = rec.status === "published" ? globalThis.t.text("workbench.client-records.published-read-only-rules") : globalThis.t.text("workbench.client-records.drafts-save-automatically");
     bench.querySelector("[data-functions-kind-description]").textContent = prim(rec) === "noul"
-      ? L("是非判断：返回成立的概率，例如材料是否足够。")
-      : prim(rec) === "score" ? L("等级评分：按你定义的档位返回分数，例如紧急程度。")
-      : L("结果选择：从你定义的结果中选出一个，例如跟进、保存或忽略。");
-    releaseHint.textContent = rec.status === "published" ? L("规则已锁定，可以继续试跑，并查看或调整使用状态。") : L("发布会锁定名称、规则和用途。确认试跑符合预期后再发布；发布不会自动启用页面判断。");
+      ? globalThis.t.text("workbench.client-records.yes-no-returns-probability-statement-such-whether-material")
+      : prim(rec) === "score" ? globalThis.t.text("workbench.client-records.rating-returns-score-scale-such-urgency")
+      : globalThis.t.text("workbench.client-records.choice-picks-one-results-such-follow-up-save");
+    releaseHint.textContent = rec.status === "published" ? globalThis.t.text("workbench.client-records.rules-locked-can-still-test-manage-usage") : globalThis.t.text("workbench.client-records.publishing-locks-name-rules-use-check-test-result");
     bench.setAttribute("data-expanded", "true");
     workspace.hidden = false;
     titleEl.textContent = rec.name;
-    statusEl.textContent = rec.status === "published" ? "v" + (rec.version || 1) : L("草稿");
+    statusEl.textContent = rec.status === "published" ? "v" + (rec.version || 1) : globalThis.t.text("workbench.client-records.draft");
     nameInput.value = rec.name;
     keyInput.value = rec.function_key;
     const locked = rec.status === "published";
@@ -28,14 +28,14 @@ export const FUNCTIONS_CLIENT_RECORDS_PART = `  const fillEditor = (rec) => {
     promptInput.value = rec.instructions;
     deleteBtn.hidden = locked;
     pubBtn.hidden = locked;
-    pubBtn.textContent = L("发布 v1");
+    pubBtn.textContent = globalThis.t.text("workbench.client-records.publish-v1");
     if (switching) sampleText.value = rec.last_preview?.input || "";
     renderRoute(rec);
     renderCriteria(rec);
     renderSamples(rec);
     renderPreview(rec);
     void paintUses(rec);
-    showNote(locked ? L("已发布。") : "", false);
+    showNote(locked ? globalThis.t.text("workbench.client-records.published") : "", false);
     list.querySelectorAll("[data-function-id]").forEach((row) => {
       const on = row.dataset.functionId === rec.id;
       row.classList.toggle("is-selected", on);
@@ -79,11 +79,11 @@ export const FUNCTIONS_CLIENT_RECORDS_PART = `  const fillEditor = (rec) => {
       title.title = rec.name;
       title.textContent = rec.name;
       leading.append(title);
-      const primitive = rec.primitive === "noul" ? L("是非") : rec.primitive === "score" ? L("评分") : L("选择");
+      const primitive = rec.primitive === "noul" ? globalThis.t.text("workbench.client-records.yes-no") : rec.primitive === "score" ? globalThis.t.text("workbench.client-records.rating") : globalThis.t.text("workbench.client-records.choice");
       const published = rec.status === "published";
       const status = document.createElement("span");
       status.className = "mw-status mw-status--" + (published ? "done" : "quiet") + " feed-entry-status";
-      status.dataset.mwState = published ? "ready" : "draft"; status.textContent = published ? "v" + (rec.version || 1) : L("草稿");
+      status.dataset.mwState = published ? "ready" : "draft"; status.textContent = published ? "v" + (rec.version || 1) : globalThis.t.text("workbench.client-records.draft");
       row.append(
         leading,
         kindChip(rec.primitive || "choice", primitive),
@@ -163,7 +163,7 @@ export const FUNCTIONS_CLIENT_RECORDS_PART = `  const fillEditor = (rec) => {
     try { return await operation; } finally { if (saving === operation) saving = null; }
   };
   const persistDraft = async (savingId, body, revision, again = true) => {
-    if (sel?.id === savingId) saveStatus.textContent = L("正在保存…");
+    if (sel?.id === savingId) saveStatus.textContent = globalThis.t.text("workbench.client-records.saving");
     try {
       const payload = await req("POST", "/api/functions/" + encodeURIComponent(savingId), body);
       const saved = payload.function;
@@ -171,7 +171,7 @@ export const FUNCTIONS_CLIENT_RECORDS_PART = `  const fillEditor = (rec) => {
       if (sel?.id !== savingId) return saved;
       sel = saved; base = saved;
       if (revision === editRevision) dirty = false;
-      saveStatus.textContent = dirty ? L("有更改，等待保存…") : L("已保存");
+      saveStatus.textContent = dirty ? globalThis.t.text("workbench.client-records.changes-waiting-save") : globalThis.t.text("workbench.client-records.saved");
       titleEl.textContent = sel.name;
       showNote("", false);
       return sel;
@@ -181,7 +181,7 @@ export const FUNCTIONS_CLIENT_RECORDS_PART = `  const fillEditor = (rec) => {
         // Changed elsewhere and back again: the same content goes onto the new version, once.
         if (outcome === "retry" && again && sel?.id === savingId) return persistDraft(savingId, { ...body, ...revisionOf(sel) }, revision, false);
         if (outcome) throw answered(error);
-        saveStatus.textContent = L("未保存 · 请修正后重试");
+        saveStatus.textContent = globalThis.t.text("workbench.client-records.not-saved-fix-issue-retry");
         await loadList({ preserveForm: true }).catch(() => {});
       }
       throw error;
@@ -195,7 +195,7 @@ export const FUNCTIONS_CLIENT_RECORDS_PART = `  const fillEditor = (rec) => {
     // While a change elsewhere waits on you, auto-save rests and what you write is kept for this tab (client-keep).
     if (owes()) { mineDef = formDef(); store(); return; }
     if (!quiet && ["clean", "settled", "saved-new", "loaded"].includes(phase)) enter("");
-    saveStatus.textContent = L("有更改，等待保存…");
+    saveStatus.textContent = globalThis.t.text("workbench.client-records.changes-waiting-save");
     clearTimeout(saveTick);
     saveTick = setTimeout(() => {
       void saveDraft().catch((error) => {

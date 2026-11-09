@@ -78,14 +78,14 @@ export const ASSISTANT_MATERIALS_PART = String.raw`  /* ─── Sending ──
     const page = pageObject();
     // The page's object is named once; the sentence around it is the translation's own, so it keeps its own colon.
     // Not added, it is offered — unless something handed over from it already brings it along.
-    const name = page && (page.object.title || page.object.id), label = page && L("正在看：{title}", { title: name });
-    if (page && page.included) items.push({ key: "object", label, object: page.object, auto: !joined.has(objectKey(page.object)), note: page.related ? L("这项工作的对象") : "" });
+    const name = page && (page.object.title || page.object.id), label = page && globalThis.t.text("workbench.assistant-materials.viewing-title", { title: name });
+    if (page && page.included) items.push({ key: "object", label, object: page.object, auto: !joined.has(objectKey(page.object)), note: page.related ? globalThis.t.text("workbench.assistant-materials.objects-work") : "" });
     else if (page && !files.some((file) => file.object && objectKey(file.object) === objectKey(page.object))) items.push({ key: "object", label, optional: true });
-    if (page && page.included && ctx.unsaved && ctx.draft_text && !removed.has("draft")) items.push({ key: "draft", label: L("未保存的修改"), auto: true });
+    if (page && page.included && ctx.unsaved && ctx.draft_text && !removed.has("draft")) items.push({ key: "draft", label: globalThis.t.text("workbench.assistant-materials.unsaved-edits"), auto: true });
     if (page) relatedWorks(page.object).filter((row) => row.work_id !== curId).slice(0, 2)
-      .forEach((row) => items.push({ key: "work:" + row.work_id, label: L("这个对象属于工作") + "「" + row.title + "」", optional: true, work: row }));
-    if (sel && !removed.has("selection")) items.push({ key: "selection", label: L("选中的内容") + "：" + clip(sel.text.replace(/\s+/g, " "), 28), auto: true });
-    files.forEach((file) => items.push({ key: "file:" + (file.chip || file.material_id), label: (file.kind === "image" ? L("图片") + "：" : file.reference ? L("引用") + "：" : "") + file.title, auto: false, put: true, thumb: file.preview }));
+      .forEach((row) => items.push({ key: "work:" + row.work_id, label: globalThis.t.text("workbench.assistant-materials.belongs-work") + "「" + row.title + "」", optional: true, work: row }));
+    if (sel && !removed.has("selection")) items.push({ key: "selection", label: globalThis.t.text("workbench.assistant-materials.selection") + "：" + clip(sel.text.replace(/\s+/g, " "), 28), auto: true });
+    files.forEach((file) => items.push({ key: "file:" + (file.chip || file.material_id), label: (file.kind === "image" ? globalThis.t.text("workbench.assistant-materials.images") + "：" : file.reference ? globalThis.t.text("workbench.assistant-materials.quote") + "：" : "") + file.title, auto: false, put: true, thumb: file.preview }));
     return items.concat(attachments ? attachments.items() : []);
   };
   /** Leaves an item out of this Send: a page object the person added goes back to optional; the rest are removed. */
@@ -131,7 +131,7 @@ export const ASSISTANT_MATERIALS_PART = String.raw`  /* ─── Sending ──
         source: { surface: ctx.plugin_id || "page", ...(ctx.plugin_id ? { plugin_id: ctx.plugin_id } : {}) } });
     }
     if (page && page.included && ctx.unsaved && ctx.draft_text && !removed.has("draft")) {
-      list.unshift({ material_id: "draft", kind: "text", title: L("未保存的修改") + "：" + ((ctx.object && ctx.object.title) || ""), text: ctx.draft_text,
+      list.unshift({ material_id: "draft", kind: "text", title: globalThis.t.text("workbench.assistant-materials.unsaved-edits") + "：" + ((ctx.object && ctx.object.title) || ""), text: ctx.draft_text,
         explicit: false, draft: true, source: { surface: ctx.plugin_id, plugin_id: ctx.plugin_id }, object: ctx.object });
     }
     return list;

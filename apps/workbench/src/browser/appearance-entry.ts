@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { UiAppearanceReceipt, UiRequestFailure } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { WorkbenchAppearance } from "../appearance-document.js";
 import { mountAppearancePicker } from "./appearance-picker.js";
@@ -23,7 +24,7 @@ function mount(initial: WorkbenchAppearance): void {
   let picker: ReturnType<typeof mountAppearancePicker> | undefined;
   let receipt: UiAppearanceReceipt | undefined, feedback = "", readError = "", renderError = "";
   let recovering = false, recoveryWrite = false, recoveryRevision = initial.selection_revision;
-  const unconfirmedText = () => L("还无法确认外观是否已保存，请再查一次。");
+  const unconfirmedText = () => uiText.text("workbench.appearance-entry.change-unconfirmed-check-again");
 
   function drawNotice(): void {
     const pending = sync.uncertain && !sync.submitting;
@@ -40,7 +41,7 @@ function mount(initial: WorkbenchAppearance): void {
     recoveryStatus.hidden = !text;
     const resuming = recovering && sync.canContinue;
     recoveryButton.disabled = !sync.available || recoveryWrite || recoveryRevision === null || (sync.uncertain && !resuming);
-    recoveryButton.querySelector("[data-slot=button-label]")!.textContent = L(resuming ? "继续这次操作" : "恢复内置外观");
+    recoveryButton.querySelector("[data-slot=button-label]")!.textContent = uiText.text(resuming ? "workbench.appearance-entry.continue-change" : "workbench.appearance-entry.restore-built-appearance");
     recovery.querySelector<HTMLElement>("[data-appearance-check]")!.hidden = !sync.available || !sync.uncertain;
   }
 
@@ -52,20 +53,20 @@ function mount(initial: WorkbenchAppearance): void {
       page.present(next);
       if (recovery.open && recoveryRevision !== next.selection_revision) {
         recoveryRevision = next.selection_revision;
-        updateRecovery(recoveryRevision === null ? L("当前外观设置无法读取，暂时无法保存。") : L("另一个窗口已更新外观，请重新确认。"));
+        updateRecovery(recoveryRevision === null ? uiText.text("workbench.appearance-entry.current-appearance-settings-cant-be-read-changes-cant") : uiText.text("workbench.appearance-entry.another-window-updated-appearance-confirm-again"));
       }
       drawNotice();
     },
     failed(error) {
       const status = (error as Partial<UiRequestFailure> | null)?.status;
-      readError = status === 401 || status === 403 ? L("此页面的会话已结束。") : L("暂时无法读取外观，请再试一次。");
+      readError = status === 401 || status === 403 ? uiText.text("workbench.appearance-entry.pages-session-has-ended") : uiText.text("workbench.appearance-entry.appearance-couldnt-be-read-try-again");
       if (!sync.available && recovery.open) updateRecovery(readError);
       picker?.redraw();
       drawNotice();
     },
     confirmed(result, kind) {
       receipt = kind === "apply" ? result : undefined;
-      feedback = L(kind === "apply" ? "外观已保存" : "已撤销外观变更");
+      feedback = uiText.text(kind === "apply" ? "workbench.appearance-entry.appearance-saved" : "workbench.appearance-entry.appearance-change-undone");
       if (recovering && kind === "apply") {
         recovering = false;
         recovery.close();
@@ -74,7 +75,7 @@ function mount(initial: WorkbenchAppearance): void {
     },
     absent() {
       recovering = false;
-      feedback = L("上次外观变更未保存。");
+      feedback = uiText.text("workbench.appearance-entry.last-appearance-change-wasnt-saved");
       if (recovery.open) updateRecovery(feedback);
       drawNotice();
     },
@@ -86,14 +87,14 @@ function mount(initial: WorkbenchAppearance): void {
   });
   if (settings) picker = mountAppearancePicker(settings, initial, sync, L);
   const page = mountDocumentAppearance(initial, problem => {
-    renderError = problem === "partial" ? L("部分外观设置不可用，已使用可用的组合。")
-      : problem === "loading-failed" ? L("此窗口未能加载新外观，保留了可用的样式。") : "";
+    renderError = problem === "partial" ? uiText.text("workbench.appearance-entry.some-appearance-settings-unavailable-showing-available-combinati")
+      : problem === "loading-failed" ? uiText.text("workbench.appearance-entry.window-couldnt-load-new-appearance-keeping-current-look") : "";
     drawNotice();
   });
   const open = () => {
     if (recovery.open || document.body.inert) return;
     recoveryRevision = current.selection_revision;
-    updateRecovery(sync.uncertain ? unconfirmedText() : recoveryRevision === null ? L("当前外观设置无法读取，暂时无法保存。") : "");
+    updateRecovery(sync.uncertain ? unconfirmedText() : recoveryRevision === null ? uiText.text("workbench.appearance-entry.current-appearance-settings-cant-be-read-changes-cant") : "");
     recovery.showModal();
   };
   globalThis.molisWorkRestoreAppearance = open;
@@ -108,13 +109,13 @@ function mount(initial: WorkbenchAppearance): void {
   recoveryButton.addEventListener("click", () => {
     if (recoveryRevision === null || recoveryWrite) return;
     recovering = true; recoveryWrite = true;
-    updateRecovery(L("正在保存外观…"));
+    updateRecovery(uiText.text("workbench.appearance-entry.saving-appearance"));
     const save = sync.uncertain ? sync.continue() : sync.apply({ kind: "restore" }, recoveryRevision);
     void save.then(result => {
       if (!result && sync.uncertain) updateRecovery(unconfirmedText());
     }, () => {
       recovering = false;
-      updateRecovery(L("外观未保存，可以再试一次。"));
+      updateRecovery(uiText.text("workbench.appearance-entry.appearance-wasnt-saved-can-try-again"));
     }).finally(() => {
       recoveryWrite = false;
       if (!sync.uncertain) recovering = false;
@@ -124,7 +125,7 @@ function mount(initial: WorkbenchAppearance): void {
   undo.addEventListener("click", () => {
     if (!receipt) return;
     undo.disabled = true;
-    void sync.undo(receipt).catch(() => { feedback = L("外观已更新，无法撤销这次变更。"); drawNotice(); }).finally(() => { undo.disabled = false; });
+    void sync.undo(receipt).catch(() => { feedback = uiText.text("workbench.appearance-entry.appearance-has-changed-since-then-change-can-no"); drawNotice(); }).finally(() => { undo.disabled = false; });
   });
   reread.addEventListener("click", sync.retry);
   resume.addEventListener("click", () => { void sync.continue().catch(() => { /* The common operation feedback owns the message. */ }); });

@@ -1,8 +1,9 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { Dataset, DatasetPage } from "./types.js";
 
 /** What the person sees of the open table's state, and what the Assistant is told about it. */
 export function installStatus(page: DatasetPage): void {
-  const { L, el, s } = page;
+  const { el, s } = page;
 
   /** The table on screen, for the placement bar and the Assistant. */
   page.publishContext = () => {
@@ -17,7 +18,7 @@ export function installStatus(page: DatasetPage): void {
   };
 
   const stateOf = () => s.saveError ? "failed" : s.saveRun ? "saving" : s.editRev > s.savedRev ? "unsaved" : s.busy ? "running" : "saved";
-  const wordOf = () => s.saveError ? L("dataset.save.failed") : s.saveRun ? L("dataset.save.saving") : s.editRev > s.savedRev ? L("dataset.save.unsaved") : s.busy ? L("dataset.save.busy") : L("dataset.save.saved");
+  const wordOf = () => s.saveError ? uiText.text("dataset.save.failed") : s.saveRun ? uiText.text("dataset.save.saving") : s.editRev > s.savedRev ? uiText.text("dataset.save.unsaved") : s.busy ? uiText.text("dataset.save.busy") : uiText.text("dataset.save.saved");
 
   page.paintStatus = (record: Dataset) => {
     if (s.selected && s.selected.id === record.id) page.publishContext();
@@ -26,7 +27,7 @@ export function installStatus(page: DatasetPage): void {
     el.statusEl.dataset.mwState = stateOf();
     el.statusEl.textContent = wordOf();
     el.pendingNote.hidden = !record.publication_pending;
-    el.pendingNote.textContent = record.publication_pending ? L("dataset.fixed.pending-note") : "";
+    el.pendingNote.textContent = record.publication_pending ? uiText.text("dataset.fixed.pending-note") : "";
   };
 
   // Keep confirmation dialogs usable while preventing competing editor commands.

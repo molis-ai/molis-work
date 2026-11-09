@@ -1,6 +1,7 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { PlanningMethodPack, GoalsPlanningProject, GoalsPlanningPrimitives } from "./planning-ui-model.js";
 export function createPlanningPresentation(primitives: GoalsPlanningPrimitives) {
-    const { translate: L, escapeHtml, icon, settingsContextHref, withDesktopQuery } = primitives;
+    const { escapeHtml, icon, settingsContextHref, withDesktopQuery } = primitives;
     const PLANNING_DEPENDENCY_HINTS: Record<string, string> = {
         "analysis depends_on validated data": "先确认数据可用，再开始分析", "commitment depends_on decision": "先完成关键决定，再开始不可逆投入", "consumer depends_on provider": "先完成可交付结果，再开始使用它的工作", "consumer depends_on provider contract": "先确认提供方契约，再实现使用方", "cutover depends_on validation and rollback": "先验证并准备回退，再执行切换", "decision depends_on evidence": "先形成可信证据，再做决定", "fix depends_on root-cause evidence": "先确认根因证据，再实施修复", "full build depends_on validated slice": "先验证最小切片，再扩展完整实现", "implementation depends_on validated direction": "先验证方向，再进入实现", "production depends_on playable loop": "先验证可玩循环，再扩展生产内容", "publication depends_on review": "先完成审核，再发布", "recommendation depends_on market evidence": "先取得市场证据，再给出建议", "runtime capability depends_on data and evaluation": "先准备数据与评测，再扩展 Runtime 能力", "verification depends_on deliverable": "先产生可验收结果，再开始验证",
         "task decomposition depends_on validated method pack": "先验证领域方法，再拆实际任务",
@@ -29,18 +30,18 @@ export function createPlanningPresentation(primitives: GoalsPlanningPrimitives) 
         "use part_of for hierarchy; keep independent goals parallel": "父子层级使用归属关系；没有产出消费的 Goal 保持并行",
     };
     function friendlyPlanningDependencyHint(value: string): string { return PLANNING_DEPENDENCY_HINTS[value] ?? value.replace(" depends_on ", " 依赖 "); }
-    function friendlyPlanningDependencyStatement(value: string): string { return value.replaceAll("depends_on", L("依赖关系")); }
-    function planningMethodKindLabel(kind: PlanningMethodPack["kind"]): string { return kind === "work_type" ? L("工作类型") : kind === "domain" ? L("专业领域") : kind === "industry" ? L("行业方法") : kind === "overlay" ? L("场景叠加层") : kind === "meta" ? L("元方法") : L("自定义"); }
-    function planningMethodScopeLabel(scope: PlanningMethodPack["scope"]): string { return scope === "built_in" ? L("系统模板") : scope === "personal" ? L("我的方法") : L("项目专用"); }
+    function friendlyPlanningDependencyStatement(value: string): string { return value.replaceAll("depends_on", uiText.text("goals.planning-presentation.dependency")); }
+    function planningMethodKindLabel(kind: PlanningMethodPack["kind"]): string { return kind === "work_type" ? uiText.text("goals.planning-presentation.work-type") : kind === "domain" ? uiText.text("goals.planning-presentation.domain") : kind === "industry" ? uiText.text("goals.planning-presentation.industry") : kind === "overlay" ? uiText.text("goals.planning-presentation.overlay") : kind === "meta" ? uiText.text("goals.planning-presentation.meta-method") : uiText.text("goals.planning-presentation.custom"); }
+    function planningMethodScopeLabel(scope: PlanningMethodPack["scope"]): string { return scope === "built_in" ? uiText.text("goals.planning-presentation.system-template") : scope === "personal" ? uiText.text("goals.planning-presentation.my-methods") : uiText.text("goals.planning-presentation.project-specific"); }
     function planningSettingsHref(path: string, project: GoalsPlanningProject | null, desktop: boolean): string { return settingsContextHref(path, project, desktop); }
     function renderPlanningMethodCards(methods: readonly PlanningMethodPack[], basePath: string, project: GoalsPlanningProject | null, desktop: boolean): string {
-        return methods.map((method) => { const path = `${basePath}/${encodeURIComponent(method.method_id)}`; const href = path.startsWith("/settings/") ? planningSettingsHref(path, project, desktop) : desktop ? withDesktopQuery(path) : path; return `<a class="planning-card" href="${href}" data-planning-method data-kind="${escapeHtml(method.kind)}" data-scope="${escapeHtml(method.scope)}"><div class="planning-card-top"><span class="planning-card-kind">${escapeHtml(planningMethodKindLabel(method.kind))}</span><span class="planning-card-scope planning-card-scope--${escapeHtml(method.scope)}">${escapeHtml(planningMethodScopeLabel(method.scope))}</span></div><div><h2>${escapeHtml(method.name)}</h2><p>${escapeHtml(method.summary)}</p></div>${method.applies_to.length ? `<div class="planning-card-tags">${method.applies_to.slice(0, 3).map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</div>` : ""}<div class="planning-card-footer"><span>${L("{steps} 个规划阶段 · {checks} 个必答问题", { steps: method.steps.length, checks: method.required_coverage.length })}</span>${icon("arrow")}</div></a>`; }).join("");
+        return methods.map((method) => { const path = `${basePath}/${encodeURIComponent(method.method_id)}`; const href = path.startsWith("/settings/") ? planningSettingsHref(path, project, desktop) : desktop ? withDesktopQuery(path) : path; return `<a class="planning-card" href="${href}" data-planning-method data-kind="${escapeHtml(method.kind)}" data-scope="${escapeHtml(method.scope)}"><div class="planning-card-top"><span class="planning-card-kind">${escapeHtml(planningMethodKindLabel(method.kind))}</span><span class="planning-card-scope planning-card-scope--${escapeHtml(method.scope)}">${escapeHtml(planningMethodScopeLabel(method.scope))}</span></div><div><h2>${escapeHtml(method.name)}</h2><p>${escapeHtml(method.summary)}</p></div>${method.applies_to.length ? `<div class="planning-card-tags">${method.applies_to.slice(0, 3).map((item) => `<span>${escapeHtml(item)}</span>`).join("")}</div>` : ""}<div class="planning-card-footer"><span>${uiText("goals.planning-presentation.planning-stages-steps-required-questions-checks", { steps: method.steps.length, checks: method.required_coverage.length })}</span>${icon("arrow")}</div></a>`; }).join("");
     }
     function renderPlanningCompositionRows(methods: readonly PlanningMethodPack[], basePath: string, desktop: boolean): string {
         return methods.map((method) => {
             const path = `${basePath}/${encodeURIComponent(method.method_id)}`;
             const detailPath = desktop ? withDesktopQuery(path) : path;
-            return `<button type="button" class="planning-composition-row" data-planning-open data-planning-detail-path="${detailPath}"><span class="planning-card-kind">${escapeHtml(planningMethodKindLabel(method.kind))}</span><span class="planning-composition-row-copy"><strong>${escapeHtml(method.name)}</strong><small>${escapeHtml(method.summary)}</small></span><span class="planning-composition-row-meta">${L("{steps} 个阶段 · {checks} 个问题", { steps: method.steps.length, checks: method.required_coverage.length })}${icon("arrow")}</span></button>`;
+            return `<button type="button" class="planning-composition-row" data-planning-open data-planning-detail-path="${detailPath}"><span class="planning-card-kind">${escapeHtml(planningMethodKindLabel(method.kind))}</span><span class="planning-composition-row-copy"><strong>${escapeHtml(method.name)}</strong><small>${escapeHtml(method.summary)}</small></span><span class="planning-composition-row-meta">${uiText("goals.planning-presentation.stages-steps-questions-checks", { steps: method.steps.length, checks: method.required_coverage.length })}${icon("arrow")}</span></button>`;
         }).join("");
     }
     function renderPlanningDirectory(methods: readonly PlanningMethodPack[], project: GoalsPlanningProject, adoptedIds: ReadonlySet<string>): string {
@@ -48,14 +49,14 @@ export function createPlanningPresentation(primitives: GoalsPlanningPrimitives) 
         const detailPath = (methodId: string) => `/settings/planning/${encodeURIComponent(methodId)}?project=${encodeURIComponent(project.project_id)}`;
         const item = (method: PlanningMethodPack) => {
             const joined = adoptedIds.has(method.method_id);
-            const action = joined ? "" : `<button type="button" data-adopt-planning-method="${escapeHtml(method.method_id)}" data-adopt-endpoint="${endpoint}">${L("加入组合")}</button>`;
-            return `<div class="planning-list-item" data-planning-method data-kind="${escapeHtml(method.kind)}" data-scope="${escapeHtml(method.scope)}"><button type="button" class="planning-list-item-open" data-planning-open data-planning-detail-path="${detailPath(method.method_id)}">${escapeHtml(method.name)}</button><span class="planning-membership" data-joined="${joined ? "true" : "false"}">${joined ? L("已加入") : L("未加入")}</span>${action}</div>`;
+            const action = joined ? "" : `<button type="button" data-adopt-planning-method="${escapeHtml(method.method_id)}" data-adopt-endpoint="${endpoint}">${uiText("goals.planning-presentation.add-composition")}</button>`;
+            return `<div class="planning-list-item" data-planning-method data-kind="${escapeHtml(method.kind)}" data-scope="${escapeHtml(method.scope)}"><button type="button" class="planning-list-item-open" data-planning-open data-planning-detail-path="${detailPath(method.method_id)}">${escapeHtml(method.name)}</button><span class="planning-membership" data-joined="${joined ? "true" : "false"}">${joined ? uiText("goals.planning-presentation.added") : uiText("goals.planning-presentation.not-added")}</span>${action}</div>`;
         };
         const fold = (id: string, title: string, group: readonly PlanningMethodPack[]) => {
             const body = group.length
                 ? group.map(item).join("")
-                : `<p class="planning-fold-empty">${L("这个分类里还没有方法。")}</p>`;
-            return `<details class="planning-fold" data-planning-fold="${id}" open><summary><span class="planning-fold-caret" aria-hidden="true">${icon("chevron-down")}</span><strong>${L(title)}</strong><small>${group.length}</small></summary><div class="planning-fold-items">${body}</div></details>`;
+                : `<p class="planning-fold-empty">${uiText("goals.planning-presentation.there-no-methods-category-yet")}</p>`;
+            return `<details class="planning-fold" data-planning-fold="${id}" open><summary><span class="planning-fold-caret" aria-hidden="true">${icon("chevron-down")}</span><strong>${uiText(title)}</strong><small>${group.length}</small></summary><div class="planning-fold-items">${body}</div></details>`;
         };
         const builtIn = methods.filter((method) => method.scope === "built_in");
         const mine = methods.filter((method) => method.scope !== "built_in");
@@ -68,7 +69,7 @@ export function createPlanningPresentation(primitives: GoalsPlanningPrimitives) 
         for (const method of builtIn) {
             if (!kinds.some(([kind]) => kind === method.kind)) kinds.push([method.kind, planningMethodKindLabel(method.kind)]);
         }
-        return `${kinds.map(([kind, title]) => fold(kind, title, builtIn.filter((method) => method.kind === kind))).join("")}${fold("mine", "我的方法", mine)}`;
+        return `${kinds.map(([kind, title]) => fold(kind, title, builtIn.filter((method) => method.kind === kind))).join("")}${fold("mine", "goals.planning-presentation.my-methods", mine)}`;
     }
     return { friendlyPlanningDependencyHint, friendlyPlanningDependencyStatement, planningMethodKindLabel, planningMethodScopeLabel, planningSettingsHref, renderPlanningMethodCards, renderPlanningCompositionRows, renderPlanningDirectory };
 }

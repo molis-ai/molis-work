@@ -1,4 +1,4 @@
-import { icon, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t as uiText, icon, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 export interface FocusSectionCardOptions {
   key: string;
   iconName: PluginIconName;
@@ -20,16 +20,16 @@ export function createFocusSections(primitives: {
   L: (text: string) => string;
   escapeHtml: (value: unknown) => string;
 }) {
-  const { L, escapeHtml } = primitives;
+  const { escapeHtml } = primitives;
 function sectionHeading(iconName: PluginIconName, title: string, description = ""): string {
-  return `<header class="section-heading"><span>${icon(iconName)}</span><div><h2>${escapeHtml(L(title))}</h2>${
-    description ? `<p>${escapeHtml(L(description))}</p>` : ""
+  return `<header class="section-heading"><span>${icon(iconName)}</span><div><h2>${escapeHtml(uiText.text(title))}</h2>${
+    description ? `<p>${escapeHtml(uiText.text(description))}</p>` : ""
   }</div></header>`;
 }
 
 function subsectionHeading(iconName: PluginIconName, title: string, description = ""): string {
-  return `<header class="subsection-heading"><span>${icon(iconName)}</span><div><h3>${escapeHtml(L(title))}</h3>${
-    description ? `<p>${escapeHtml(L(description))}</p>` : ""
+  return `<header class="subsection-heading"><span>${icon(iconName)}</span><div><h3>${escapeHtml(uiText.text(title))}</h3>${
+    description ? `<p>${escapeHtml(uiText.text(description))}</p>` : ""
   }</div></header>`;
 }
 

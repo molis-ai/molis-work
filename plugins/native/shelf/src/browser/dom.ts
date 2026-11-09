@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { Translate } from "./types.js";
 
 export const escText = (value: unknown): string => String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
@@ -11,7 +12,7 @@ export function bufferToBase64(bytes: Uint8Array): string {
 }
 
 /** Words the Host or this plugin's routes wrote (a recipe's name, a reason, a refusal) go through the translator here, and only here. */
-export const said = (L: Translate, text: string): string => L(text);
+export const said = (_L: Translate, text: string): string => uiText.text(text);
 
 /** The nearest element of the event's target that matches `selector`. */
 export const closest = (event: Event, selector: string): HTMLElement | null => {

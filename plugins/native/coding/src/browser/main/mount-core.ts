@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { CODING_SESSION_MARKS } from "../../session-marks.js";
 import { createCodingTimeline } from "../../timeline.js";
 import { codingTimelineWords } from "../../timeline-words.js";
@@ -9,21 +10,21 @@ import { api, status } from "./request.js";
 import { mountResultsIndex } from "./results-index.js";
 
 /** The words of a round's state, as the header, the directory and the facts name it. */
-function phaseWords(L: Page["L"]): Record<string, string> {
+function phaseWords(_L: Page["L"]): Record<string, string> {
   return {
-    starting: L("coding.phase.starting"), running: L("coding.state.running"), compacting: L("coding.phase.compacting"), pausing: L("coding.phase.pausing"),
-    paused: L("coding.state.paused"), "awaiting-input": L("coding.phase.awaiting-input"), "awaiting-review": L("coding.phase.awaiting-review"),
-    completed: L("coding.state.done"), failed: L("coding.phase.failed"), stopped: L("coding.phase.stopped"), cancelled: L("coding.state.cancelled"),
-    "reconcile-required": L("coding.phase.reconcile-required"),
+    starting: uiText.text("coding.phase.starting"), running: uiText.text("coding.state.running"), compacting: uiText.text("coding.phase.compacting"), pausing: uiText.text("coding.phase.pausing"),
+    paused: uiText.text("coding.state.paused"), "awaiting-input": uiText.text("coding.phase.awaiting-input"), "awaiting-review": uiText.text("coding.phase.awaiting-review"),
+    completed: uiText.text("coding.state.done"), failed: uiText.text("coding.phase.failed"), stopped: uiText.text("coding.phase.stopped"), cancelled: uiText.text("coding.state.cancelled"),
+    "reconcile-required": uiText.text("coding.phase.reconcile-required"),
   };
 }
 
 /** What each role is called where the page names a round's or a subtask's role. */
-function roleNames(L: Page["L"]): Record<string, string> {
+function roleNames(_L: Page["L"]): Record<string, string> {
   return {
-    planner: L("coding.role.planner"), reader: L("coding.role.reader"), reviewer: L("coding.role.reviewer"), coordinator: L("coding.role.coordinator"), writers: L("coding.role.writers"),
-    builder: L("coding.role.builder"), writer: L("coding.role.writer"), "coding-reader": L("coding.role.coding-reader"), "coding-reviewer": L("coding.role.coding-reviewer"),
-    "coding-builder": L("coding.role.coding-builder"),
+    planner: uiText.text("coding.role.planner"), reader: uiText.text("coding.role.reader"), reviewer: uiText.text("coding.role.reviewer"), coordinator: uiText.text("coding.role.coordinator"), writers: uiText.text("coding.role.writers"),
+    builder: uiText.text("coding.role.builder"), writer: uiText.text("coding.role.writer"), "coding-reader": uiText.text("coding.role.coding-reader"), "coding-reviewer": uiText.text("coding.role.coding-reviewer"),
+    "coding-builder": uiText.text("coding.role.coding-builder"),
   };
 }
 

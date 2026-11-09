@@ -10,8 +10,6 @@ import { DATASET_UI_CONTRIBUTION_ID } from "./ui.js";
 import { datasetActions, datasetContentActions, DATASET_ACTION_PERMISSIONS } from "./actions.js";
 import { DATASET_DATABASE } from "./database.js";
 
-import { DATASET_MESSAGES } from "./messages.js";
-import { DATASET_EN } from "./en.js";
 export { DATASET_PLUGIN_ID, DATASET_PROJECT_PLUGIN_ID };
 
 /** The Host's current HTTP body bound for Dataset's project routes; the import action's 2,000,000 characters are another layer. */
@@ -59,9 +57,7 @@ export const datasetManifest: PluginManifest = {
       compare: { capability_id: "dataset.artifacts.compare", version: /* @version action.dataset.artifacts.compare */ 1 }, continue: { capability_id: "dataset.artifacts.continue", version: /* @version action.dataset.artifacts.continue */ 1 } }],
     consumes: [],
   },
-  ui: {
-    messages: DATASET_MESSAGES,
-    translations: DATASET_EN,
+  ui: { locales: { default: "zh", available: ["zh", "en"] },
     contributions: [DATASET_UI_CONTRIBUTION_ID],
     views: [
       { view_id: "directory", slot: "navigator", title: "Dataset", contribution_id: DATASET_UI_CONTRIBUTION_ID, icon: "database", hue: "green", order: 58, group: "make",

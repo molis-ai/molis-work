@@ -12,14 +12,14 @@ import { CARD_RESULT_OPEN } from "../agent-next-steps.js";
  */
 export const cardView = (card: StoredCard): AssistantCard => actionCardView(card);
 
-const EFFECT = { read: "只读取，不改数据", write: "会修改，可在原处撤回", irreversible: "会修改，不能撤回" } as const;
+const EFFECT = { read: "workbench.assistant-card-view.reads-only-changes-nothing", write: "workbench.assistant-card-view.changes-data-can-be-taken-back", irreversible: "workbench.assistant-card-view.changes-data-cannot-be-undone" } as const;
 const CARD_RING = { ready: "ready", running: "running", done: "done", failed: "failed", unknown: "verify", stale: "stale", dismissed: "cancelled", "needs-input": "answer" } as const;
 const STATUS: Partial<Record<AssistantCard["status"], string>> = { running: "正在执行…", done: "已完成", failed: "没有完成", unknown: "结果未确认，请到原处核对，不会自动重试",
   stale: "已失效", dismissed: "已忽略", "needs-input": "还需要你填写" };
 
 
 /** The weekday beside a day, as the page's client writes it while the person types. */
-const WEEKDAYS = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"] as const;
+const WEEKDAYS = ["workbench.assistant-card-view.sun", "workbench.assistant-card-view.mon", "workbench.assistant-card-view.tue", "workbench.assistant-card-view.wed", "workbench.assistant-card-view.thu", "workbench.assistant-card-view.fri", "workbench.assistant-card-view.sat"] as const;
 const weekdayOf = (day: string, say: (text: string, values?: Record<string, string | number>) => string) =>
   /^\d{4}-\d{2}-\d{2}$/.test(day) && Number.isFinite(Date.parse(`${day}T12:00:00Z`)) ? say(WEEKDAYS[new Date(`${day}T12:00:00Z`).getUTCDay()]!) : "";
 
@@ -32,7 +32,7 @@ function cardField(field: AssistantCard["fields"][number], question: string | un
     const at = Date.parse(field.raw ?? ""), clock = wallClockIn(Number.isFinite(at) ? at : Date.now(), zone);
     return { id: field.key, label, control: { kind: "datetime", date: Number.isFinite(at) ? clock.day : "", time: Number.isFinite(at) ? clock.time : "", zone: clock.offset,
       weekday: Number.isFinite(at) ? weekdayOf(clock.day, say) : "",
-      dateLabel: say("日期"), timeLabel: say("时刻（24 小时制）") } };
+      dateLabel: say("workbench.assistant-card-view.date"), timeLabel: say("workbench.assistant-card-view.time-24-hour") } };
   }
   return { id: field.key, label, control: { kind: "text", value: field.value, multiline: field.value.includes("\n") || field.value.length > 60 } };
 }
@@ -50,19 +50,19 @@ export function assistantCardHtml(card: AssistantCard, say: (text: string, value
   const shown = card.fields.filter(field => !editable.includes(field));
   const state = STATUS[card.status];
   const result = card.status === "done" ? card.presentation : undefined;
-  const actions = open ? [{ id: "run", label: card.status === "failed" ? `${say("再试一次")}：${card.title}` : card.title, variant: "primary" as const }, { id: "dismiss", label: say("忽略") }] : [];
-  const origin = card.from ? say("来自「{title}」页面", { title: card.from.title || card.from.surface })
-    + (card.source_object?.title ? ` · ${say("选中自《{title}》", { title: card.source_object.title })}` : "") : "";
+  const actions = open ? [{ id: "run", label: card.status === "failed" ? `${say("workbench.assistant-card-view.try-again")}：${card.title}` : card.title, variant: "primary" as const }, { id: "dismiss", label: say("workbench.assistant-card-view.dismiss") }] : [];
+  const origin = card.from ? say("workbench.assistant-card-view.title-page", { title: card.from.title || card.from.surface })
+    + (card.source_object?.title ? ` · ${say("workbench.assistant-card-view.selected-title", { title: card.source_object.title })}` : "") : "";
   // A result that left a connection to finish gets the platform's connection card under it (ASC-69); the page fills it from the
   // request's real state, and until then, or when it cannot be drawn, the result's own 「继续接入」 link stays the way on.
   const pending = result?.pending_connection ? '<div class="mw-platform-area connection-need-area assistant-connection-need" data-assistant-connection hidden></div>' : "";
   return renderInteractionOperation({
-    id: card.card_id, kicker: open ? say("可以执行") : say("操作"), state: CARD_RING[card.status], title: card.title,
+    id: card.card_id, kicker: open ? say("workbench.assistant-card-view.ready-run") : say("workbench.assistant-card-view.action"), state: CARD_RING[card.status], title: card.title,
     badge: { label: say(EFFECT[card.effect]), tone: card.effect === "irreversible" ? "failed" : "quiet", state: null },
     target: { prefix: card.provider, label: card.capability_title }, ...(origin ? { about: origin } : {}), impact: card.summary,
     ...(editable.length ? { fields: editable.map(field => cardField(field, asked(field.key), say, zone)) } : {}),
     // The buttons come after everything that would run: under the exact values when there are any, else under the fields.
-    ...(shown.length ? { preview: { title: say("将使用这些内容"), rows: shown.map((field): [string, string] => [asked(field.key) ?? say(field.label), field.value]), ...(actions.length ? { actions } : {}) } }
+    ...(shown.length ? { preview: { title: say("workbench.assistant-card-view.what-will-be-used"), rows: shown.map((field): [string, string] => [asked(field.key) ?? say(field.label), field.value]), ...(actions.length ? { actions } : {}) } }
       : actions.length ? { actions } : {}),
     ...((state && !open) || card.outcome ? { status: { text: (state ? say(state) : "") + (card.outcome ? `${state ? "：" : ""}${card.outcome}` : ""), busy: card.status === "running",
       ...(card.status === "failed" ? { tone: "failed" as const } : ["unknown", "stale", "needs-input"].includes(card.status) ? { tone: "waiting" as const } : {}) } } : {}),
@@ -70,6 +70,6 @@ export function assistantCardHtml(card: AssistantCard, say: (text: string, value
       ...(result.link ? { actions: [{ id: "result", label: say(result.link.label), href: result.link.href, variant: "primary" as const, attrs: { "data-ix-press": CARD_RESULT_OPEN,
         // 继续接入 names what the settings must make true, so the way back waits for it (specs/draft-and-return §4, R4): never read from the address.
         ...(result.pending_connection ? { "data-return-setup": result.pending_connection.authorization_id } : {}) } }] } : {}) } } : {}),
-    ...(card.status === "stale" && redo ? { recovery: [{ id: "redo", label: say("请助理按最新状态重新准备") }] } : {}),
+    ...(card.status === "stale" && redo ? { recovery: [{ id: "redo", label: say("workbench.assistant-card-view.ask-assistant-prepare-again-latest-state") }] } : {}),
   }) + pending;
 }

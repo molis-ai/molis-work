@@ -6,7 +6,7 @@ import { deferredSurfaceClients } from "../../plugin-workbench.js";
  */
 export const DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT = `(host) => {
   const { translate: L } = host;
-  const failure = () => L('无法加载界面，请重试');
+  const failure = () => globalThis.t.text("workbench.deferred-plugin-client.could-not-load-view-retry");
   const packs = ${JSON.stringify(deferredSurfaceClients().map(({ id, plugin_id, bundle, assets, searchRow, recordRow }) => [id, plugin_id, bundle, assets, searchRow, recordRow]))}.map(([id, plugin_id, bundle, assets, searchRow, recordRow]) => ({ id, plugin_id, bundle, assets, searchRow, recordRow }));
   const scripts = new Map(), mounting = new WeakMap(), selections = new WeakMap();
   const scope = host.scope;

@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { commandsClient } from "../commands.js";
 import { errorMessage } from "../dom.js";
 import { codingCommands } from "./commands.js";
@@ -33,15 +34,15 @@ function mountCommands(page: Page) {
 
 /** Marks the session as one other sessions working on the same files should wait for, or clears the mark. */
 async function togglePriority(page: Page, button: HTMLButtonElement) {
-  const { L } = page, id = button.dataset.session;
+  const id = button.dataset.session;
   if (!id) return;
   const on = button.getAttribute("aria-pressed") !== "true";
   button.disabled = true;
   try {
     const result = await api<{ priority: boolean; notified: string[]; paths: string[] }>(page, sessionPath(id) + "/priority", "POST", { on });
     renderPriority(page, id, result.priority);
-    status(page, !on ? L("coding.priority.cleared") : result.notified.length
-      ? L("coding.priority.notified", { sessions: result.notified.map(title => L("coding.quote", { title })).join(L("coding.list.joiner")), paths: result.paths.join(L("coding.list.joiner")) }) : L("coding.priority.no-one"));
+    status(page, !on ? uiText.text("coding.priority.cleared") : result.notified.length
+      ? uiText.text("coding.priority.notified", { sessions: result.notified.map(title => uiText.text("coding.quote", { title })).join(uiText.text("coding.list.joiner")), paths: result.paths.join(uiText.text("coding.list.joiner")) }) : uiText.text("coding.priority.no-one"));
     await refreshState(page);
   } catch (error) {
     status(page, errorMessage(error), true);
@@ -52,14 +53,13 @@ async function togglePriority(page: Page, button: HTMLButtonElement) {
 
 /** Starts a round for the words in the composer, once the person has said who goes first when other work names the same files. */
 async function startFromComposer(page: Page, id: string, task: string, selection: RoundSelection, intent: string, modelValue: string) {
-  const { L } = page;
   // Another session already working on the same files in this directory: the person decides who goes first.
   const { overlaps } = await api<{ overlaps: Overlap[] }>(page, sessionPath(id) + "/scope-check", "POST", { task, workspace_id: selection.workspace_id });
   const choice = overlaps.length ? await askOverlap(page, overlaps) : "parallel";
-  if (choice === "cancel") { status(page, L("coding.overlap.not-sent")); return false; }
+  if (choice === "cancel") { status(page, uiText.text("coding.overlap.not-sent")); return false; }
   if (choice === "wait") {
     await startRound(page, id, task, intent, modelValue, selection, { wait_for: overlaps[0].work_id });
-    status(page, L("coding.overlap.will-wait", { title: overlaps[0].title }));
+    status(page, uiText.text("coding.overlap.will-wait", { title: overlaps[0].title }));
   } else await startRound(page, id, task, intent, modelValue, selection);
   return true;
 }

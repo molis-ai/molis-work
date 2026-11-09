@@ -1,6 +1,6 @@
 import { GOAL_DISPLAY_STATUSES, createGoalActionPresenter } from "./action-presentation.js";
 import type { GoalsMomentumBoardView, GoalsMomentumItem, GoalsMomentumUiPrimitives } from "./momentum-ui-model.js";
-import { renderStateRing } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t as uiText, renderStateRing } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { DISPLAY_STATUS_MARKS } from "./status-rings.js";
 import { sortGoalTreeItems } from "./tree-order.js";
 
@@ -19,21 +19,21 @@ export function createKanbanRenderer(primitives: GoalsMomentumUiPrimitives) {
         const parentTitle = parent ? byId.get(parent.to_goal_id)?.goal.title : "";
         const selected = entry.goal.goal_id === selectedGoalId;
         const complete = entry.display_status === "completed";
-        return `<article tabindex="0" role="button" data-kanban-card data-goal-id="${escapeHtml(entry.goal.goal_id)}" class="goal-kanban-card${complete ? " is-complete" : ""}${selected ? " is-selected" : ""}" draggable="false" aria-label="${escapeHtml(L("展开 Goal：{title}", { title: entry.goal.title }))}">
+        return `<article tabindex="0" role="button" data-kanban-card data-goal-id="${escapeHtml(entry.goal.goal_id)}" class="goal-kanban-card${complete ? " is-complete" : ""}${selected ? " is-selected" : ""}" draggable="false" aria-label="${escapeHtml(uiText.text("goals.kanban-ui.open-goal-title", { title: entry.goal.title }))}">
         <span class="goal-kanban-status" aria-hidden="true">${mark}</span>
         <strong>${escapeHtml(entry.goal.title)}</strong>
-        <span class="goal-kanban-card-outcome">${escapeHtml(entry.goal.outcome || L("还没有写清预期结果"))}</span>
-        <div class="goal-kanban-card-meta">${renderVisibleGoalStatus(entry)}${parentTitle ? `<small>${escapeHtml(L("属于：{title}", { title: parentTitle }))}</small>` : ""}</div>
+        <span class="goal-kanban-card-outcome">${escapeHtml(entry.goal.outcome || uiText.text("goals.kanban-ui.expected-result-has-not-been-defined"))}</span>
+        <div class="goal-kanban-card-meta">${renderVisibleGoalStatus(entry)}${parentTitle ? `<small>${escapeHtml(uiText.text("goals.kanban-ui.part-title", { title: parentTitle }))}</small>` : ""}</div>
       </article>`;
       }).join("");
       return `<section class="goal-kanban-column" data-kanban-column="${status}" aria-label="${escapeHtml(goalDisplayStatusLabel(status))}">
       <details${columnItems.length ? " open" : ""} data-kanban-group>
         <summary><span class="goal-kanban-chevron" aria-hidden="true">${KANBAN_CARET}</span><span class="goal-kanban-status" aria-hidden="true">${mark}</span><span class="goal-kanban-group-name">${escapeHtml(goalDisplayStatusLabel(status))}</span><span class="goal-kanban-count">${columnItems.length}</span></summary>
-        <div data-kanban-cards>${cards || `<p class="goal-kanban-empty">${escapeHtml(L("暂无 Goal"))}</p>`}</div>
+        <div data-kanban-cards>${cards || `<p class="goal-kanban-empty">${escapeHtml(uiText.text("goals.kanban-ui.no-goals"))}</p>`}</div>
       </details>
     </section>`;
     }).join("");
-    return `<section class="goal-kanban" data-goal-kanban aria-label="${L("看板")}">
+    return `<section class="goal-kanban" data-goal-kanban aria-label="${uiText("goals.kanban-ui.board")}">
       <div class="goal-kanban-board">${columns}</div>
     </section>`;
   }

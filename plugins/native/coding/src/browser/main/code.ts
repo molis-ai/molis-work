@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { codeLanguage, codeTokens, diffRowTokens } from "@molis-ai/molis-work-plugin-sdk/highlight";
 import { el } from "../dom.js";
 import { paintable } from "./boundary.js";
@@ -54,15 +55,15 @@ export function paintDiffs(page: Page, scope: ParentNode) {
 
 /** Code blocks of a turn get colours and a copy button; the copy is the text as written, not from the colours. */
 export function enrichCode(page: Page, node: ParentNode) {
-  const { L, lifetime } = page, { codeSource, paintBlock } = page.refs;
+  const { lifetime } = page, { codeSource, paintBlock } = page.refs;
   node.querySelectorAll<HTMLElement>("pre:not([data-enriched])").forEach(pre => {
     pre.dataset.enriched = "";
     const code = pre.querySelector("code");
     codeSource.set(paintable(pre), (code || pre).textContent ?? "");
     if (code) paintBlock(paintable(code));
-    const button = el("button", L("coding.copy.label"), "mw-btn coding-code-copy");
+    const button = el("button", uiText.text("coding.copy.label"), "mw-btn coding-code-copy");
     button.type = "button";
-    lifetime.listen(button, "click", () => window.molisCopy?.(button, () => codeSource.get(paintable(pre)) ?? "", { done: L("coding.copy.done"), failed: L("coding.copy.failed") }));
+    lifetime.listen(button, "click", () => window.molisCopy?.(button, () => codeSource.get(paintable(pre)) ?? "", { done: uiText.text("coding.copy.done"), failed: uiText.text("coding.copy.failed") }));
     pre.append(button);
   });
 }

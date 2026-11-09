@@ -9,7 +9,7 @@ const GOALS_POLICY_SUBMIT_SCRIPT = `      const policyForm = submittedForm.close
         const values = new FormData(policyForm);
         const submitLabel = submit.textContent;
         submit.disabled = true;
-        submit.textContent = L("正在保存…");
+        submit.textContent = globalThis.t.text("goals.policy-client.saving");
         errorBox.hidden = true;
         try {
           await molisWorkRequest(route("${GOALS_PLUGIN_API}/policy-bindings"), {
@@ -18,12 +18,12 @@ const GOALS_POLICY_SUBMIT_SCRIPT = `      const policyForm = submittedForm.close
               scope: "project_default",
               policy: { human_approval: values.has("human_approval") },
             },
-            fallback: L("工作规则保存失败"),
+            fallback: globalThis.t.text("goals.policy-client.could-not-save-work-rules"),
           });
           await refreshBoard(true);
-          showToast(L("项目默认工作规则已保存"));
+          showToast(globalThis.t.text("goals.policy-client.project-default-work-rules-saved"));
         } catch (error) {
-          errorBox.textContent = humanDecisionError(error.message, L("工作规则保存失败，请检查输入后重试"));
+          errorBox.textContent = humanDecisionError(error.message, globalThis.t.text("goals.policy-client.could-not-save-work-rules-check-input-try"));
           errorBox.hidden = false;
           submit.disabled = false;
           submit.textContent = submitLabel;

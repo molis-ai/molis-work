@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { codingUsageSummary } from "../../usage.js";
 import { el } from "../dom.js";
 import { terminal } from "./composer-state.js";
@@ -10,47 +11,47 @@ type Fact = readonly [label: string, value: string];
 
 /** What a round was set up with: each part it used is a line, and what it did not use is named once. */
 function factsOf(page: Page, run: RunView): { values: Fact[]; unused: string[] } {
-  const { L } = page, f: FrozenSetup = run.frozen, values: Fact[] = [[L("coding.facts.model"), f.model_id], [L("coding.facts.usage"), codingUsageSummary(run.usage, L)], [L("coding.facts.scope"), f.directory?.canonical_path || L("coding.facts.no-directory")]], unused: string[] = [];
-  const joiner = L("coding.list.joiner");
-  if (f.subagent_workspaces?.length) values.push([L("coding.facts.subagent-dirs"), f.subagent_workspaces.map(item => item.directory.canonical_path).join(L("coding.list.semicolon"))]);
-  values.push([L("coding.facts.role"), f.role_id + " · v" + f.role_version]);
-  if (f.skills.length) values.push([L("coding.facts.methods"), f.skills.map(method => L(method.name) + " · v" + method.version).join(joiner)]);
-  else unused.push(L("coding.attach.method"));
-  if ((f.action_tools || []).length) values.push([L("coding.facts.actions"), (f.action_tools || []).map(ref => ref.capability_id + " · v" + ref.version + " · " + ref.provider_id).join(joiner)]);
-  else unused.push(L("coding.attach.actions"));
-  if (f.mcp_tools?.length) values.push([L("coding.facts.mcp"), f.mcp_tools.map(tool => (tool.server_label || tool.server) + " / " + tool.tool + " · " + L("coding.facts.configuration", { version: tool.configuration_version }) + " · " + tool.version).join(joiner)]);
+  const { L } = page, f: FrozenSetup = run.frozen, values: Fact[] = [[uiText.text("coding.facts.model"), f.model_id], [uiText.text("coding.facts.usage"), codingUsageSummary(run.usage, L)], [uiText.text("coding.facts.scope"), f.directory?.canonical_path || uiText.text("coding.facts.no-directory")]], unused: string[] = [];
+  const joiner = uiText.text("coding.list.joiner");
+  if (f.subagent_workspaces?.length) values.push([uiText.text("coding.facts.subagent-dirs"), f.subagent_workspaces.map(item => item.directory.canonical_path).join(uiText.text("coding.list.semicolon"))]);
+  values.push([uiText.text("coding.facts.role"), f.role_id + " · v" + f.role_version]);
+  if (f.skills.length) values.push([uiText.text("coding.facts.methods"), f.skills.map(method => uiText.text(method.name) + " · v" + method.version).join(joiner)]);
+  else unused.push(uiText.text("coding.attach.method"));
+  if ((f.action_tools || []).length) values.push([uiText.text("coding.facts.actions"), (f.action_tools || []).map(ref => ref.capability_id + " · v" + ref.version + " · " + ref.provider_id).join(joiner)]);
+  else unused.push(uiText.text("coding.attach.actions"));
+  if (f.mcp_tools?.length) values.push([uiText.text("coding.facts.mcp"), f.mcp_tools.map(tool => (tool.server_label || tool.server) + " / " + tool.tool + " · " + uiText.text("coding.facts.configuration", { version: tool.configuration_version }) + " · " + tool.version).join(joiner)]);
   else unused.push("MCP");
-  if ((f.mcp_sources || []).length) values.push([L("coding.facts.mcp-sources"), (f.mcp_sources || []).map(source => (source.server_label || source.server) + " · " + L("coding.facts.configuration", { version: source.configuration_version })).join(joiner)]);
-  else unused.push(L("coding.facts.mcp-source-kind"));
-  if (f.character) values.push([L("coding.facts.character"), f.character.title + " · v" + f.character.reference.version], [L("coding.facts.host-tools"), f.host_tools?.join(joiner) || L("coding.facts.no-host-tools")]);
+  if ((f.mcp_sources || []).length) values.push([uiText.text("coding.facts.mcp-sources"), (f.mcp_sources || []).map(source => (source.server_label || source.server) + " · " + uiText.text("coding.facts.configuration", { version: source.configuration_version })).join(joiner)]);
+  else unused.push(uiText.text("coding.facts.mcp-source-kind"));
+  if (f.character) values.push([uiText.text("coding.facts.character"), f.character.title + " · v" + f.character.reference.version], [uiText.text("coding.facts.host-tools"), f.host_tools?.join(joiner) || uiText.text("coding.facts.no-host-tools")]);
   else unused.push("Character");
-  if (f.text_materials.length) values.push([L("coding.facts.materials"), f.text_materials.map(material => material.title || material.material_id).join(joiner)]);
-  else unused.push(L("coding.attach.material"));
-  if (f.compaction) values.push([L("coding.facts.compaction"), L("coding.facts.compaction-value", { tokens: f.compaction.above_tokens, version: f.compaction.version })]);
-  if (!run.usage.compaction && run.activity.some(item => item.name === "上下文整理")) values.push([L("coding.facts.usage-scope"), L("coding.facts.usage-scope-value")]);
+  if (f.text_materials.length) values.push([uiText.text("coding.facts.materials"), f.text_materials.map(material => material.title || material.material_id).join(joiner)]);
+  else unused.push(uiText.text("coding.attach.material"));
+  if (f.compaction) values.push([uiText.text("coding.facts.compaction"), uiText.text("coding.facts.compaction-value", { tokens: f.compaction.above_tokens, version: f.compaction.version })]);
+  if (!run.usage.compaction && run.activity.some(item => item.name === "上下文整理")) values.push([uiText.text("coding.facts.usage-scope"), uiText.text("coding.facts.usage-scope-value")]);
   return { values, unused };
 }
 
 /** The facts panel: the round's state, then one line per fact. */
 function drawFacts(page: Page, result: HTMLElement, run: RunView, count: number, facts: { values: Fact[]; unused: string[] }) {
-  const { L, s } = page, phaseLabel = s.phases[run.phase] || run.phase;
+  const { s } = page, phaseLabel = s.phases[run.phase] || run.phase;
   const tone = run.phase === "completed" ? "done" : run.phase === "failed" ? "failed" : terminal(run.phase) ? "idle" : "live";
   const head = el("header", "", "coding-facts-head"), phase = el("span", phaseLabel, "coding-facts-phase"), list = el("dl");
   phase.dataset.tone = tone;
   phase.dataset.mwState = phaseRing(run.phase);
-  head.append(el("h3", L("coding.results.facts")), phase, el("span", L("coding.turn.number", { number: count }), "coding-facts-round"));
+  head.append(el("h3", uiText.text("coding.results.facts")), phase, el("span", uiText.text("coding.turn.number", { number: count }), "coding-facts-round"));
   for (const [label, value] of facts.values) {
-    list.append(el("dt", label), el("dd", value, label === L("coding.facts.scope") || label === L("coding.facts.subagent-dirs") ? "is-path" : ""));
+    list.append(el("dt", label), el("dd", value, label === uiText.text("coding.facts.scope") || label === uiText.text("coding.facts.subagent-dirs") ? "is-path" : ""));
   }
   result.replaceChildren(head, list);
-  if (facts.unused.length) result.append(el("p", L("coding.facts.unused", { what: facts.unused.join(L("coding.list.joiner")) }), "coding-facts-unused"));
+  if (facts.unused.length) result.append(el("p", uiText.text("coding.facts.unused", { what: facts.unused.join(uiText.text("coding.list.joiner")) }), "coding-facts-unused"));
 }
 
 /** The results panel's facts of the latest round; with no round it says there is nothing yet. */
 export function renderFacts(page: Page, all: readonly RunView[]) {
-  const { L, q, s } = page, result = q("[data-coding-result]"), run = s.lastRun;
+  const { q, s } = page, result = q("[data-coding-result]"), run = s.lastRun;
   if (!run) {
-    result.textContent = L("coding.facts.empty");
+    result.textContent = uiText.text("coding.facts.empty");
     delete result.dataset.content;
     if (s.statusKey !== "idle") {
       s.statusKey = "idle";

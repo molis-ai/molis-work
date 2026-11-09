@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { errorMessage } from "../dom.js";
 import type { Page } from "./page.js";
 
@@ -15,11 +16,11 @@ type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
 /** One request to the Coding routes (the path is under the plugin's own route). A read goes with the view's signal while it is on show. */
 export async function api<Answer = unknown>(page: Page, path: string, method: HttpMethod = "GET", body?: unknown, requestSignal?: AbortSignal): Promise<Answer> {
-  const { L, host, lifetime } = page;
+  const { host, lifetime } = page;
   const { s } = page;
   const signal = requestSignal || (method === "GET" && lifetime.visible && !s.viewSignal?.aborted ? s.viewSignal : undefined);
   try {
-    return await molisWorkRequest<Answer>(host.pluginRoute(path), { method, body: method === "GET" ? undefined : body ?? {}, signal, scope: lifetime, fallback: L("coding.error.request") });
+    return await molisWorkRequest<Answer>(host.pluginRoute(path), { method, body: method === "GET" ? undefined : body ?? {}, signal, scope: lifetime, fallback: uiText.text("coding.error.request") });
   } catch (error) {
     const refused = refusalOf(error);
     const said = method === "GET" && refused ? host.readRefusal?.(refused.status ?? 0, refused.code) : undefined;

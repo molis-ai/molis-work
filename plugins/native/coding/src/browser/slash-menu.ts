@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { el, errorMessage } from "./dom.js";
 import { matches } from "./matching.js";
 import type { PagePorts } from "./types.js";
@@ -56,12 +57,12 @@ function close(menu: Menu) {
 }
 
 function itemRow(menu: Menu, item: Item, index: number) {
-  const L = menu.ports.translate, option = el("div", "", "coding-slash-item" + (menu.mention ? " is-file" : ""));
+  const option = el("div", "", "coding-slash-item" + (menu.mention ? " is-file" : ""));
   option.id = "coding-slash-" + index;
   option.setAttribute("role", "option");
   option.setAttribute("aria-selected", String(index === menu.active));
   if (item.kind === "symbol") {
-    option.append(el("span", item.symbol.name, "coding-slash-label"), el("span", L("coding.palette.symbol-line", { kind: item.symbol.kind, line: item.symbol.line }), "coding-slash-hint"));
+    option.append(el("span", item.symbol.name, "coding-slash-label"), el("span", uiText.text("coding.palette.symbol-line", { kind: item.symbol.kind, line: item.symbol.line }), "coding-slash-hint"));
   } else if (item.kind === "file") {
     const slash = item.path.lastIndexOf("/");
     option.append(el("span", item.path.slice(slash + 1), "coding-slash-label"), el("span", slash > 0 ? item.path.slice(0, slash) : "", "coding-slash-hint"));
@@ -76,15 +77,15 @@ function itemRow(menu: Menu, item: Item, index: number) {
 }
 
 function draw(menu: Menu) {
-  const { ports, node, mention } = menu, L = ports.translate;
+  const { ports, node, mention } = menu;
   node.replaceChildren();
   node.hidden = false;
-  node.setAttribute("aria-label", mention ? L("coding.palette.files") : L("coding.slash.label"));
+  node.setAttribute("aria-label", mention ? uiText.text("coding.palette.files") : uiText.text("coding.slash.label"));
   menu.items.forEach((item, index) => node.append(itemRow(menu, item, index)));
   if (mention && !menu.items.length) {
     const none = mention.file !== undefined
-      ? (menu.symbolsError || (menu.symbols.has(symbolKey(menu)) ? L("coding.palette.no-symbols") : L("coding.palette.reading-symbols")))
-      : (menu.filesError || (menu.files ? L("coding.palette.no-files") : L("coding.palette.reading-files")));
+      ? (menu.symbolsError || (menu.symbols.has(symbolKey(menu)) ? uiText.text("coding.palette.no-symbols") : uiText.text("coding.palette.reading-symbols")))
+      : (menu.filesError || (menu.files ? uiText.text("coding.palette.no-files") : uiText.text("coding.palette.reading-files")));
     node.append(el("p", none, "coding-slash-empty"));
   }
   ports.input.setAttribute("aria-activedescendant", menu.items.length ? "coding-slash-" + menu.active : "");
@@ -100,7 +101,7 @@ async function loadSymbols(menu: Menu, file: string) {
   try {
     const value = await ports.symbols(ports.workspace(), file);
     menu.symbols.set(key, value.symbols || []);
-    if (value.unreadable) menu.symbolsError = ports.translate("coding.palette.unreadable");
+    if (value.unreadable) menu.symbolsError = uiText.text("coding.palette.unreadable");
     refresh(menu);
   } catch (error) {
     if (!ports.lifetime.alive) return;
@@ -114,7 +115,7 @@ async function loadSymbols(menu: Menu, file: string) {
 async function loadFiles(menu: Menu) {
   const { ports } = menu, key = ports.workspace();
   if (!key) {
-    menu.filesError = ports.translate("coding.palette.choose-workspace");
+    menu.filesError = uiText.text("coding.palette.choose-workspace");
     return;
   }
   if (menu.filesFor === key && (menu.files || !menu.filesError)) return;

@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 /**
  * The component board's conditions frame (apps/workbench/src/condition-frame.ts, specs/visual-ui-experience VUX-39): what the
  * Assistant's island does with a reply (`bindText`: the code figure's copy from `data-code` and its fold; `molisStreamText`
@@ -5,10 +6,8 @@
  * reply starts written, so nothing moves until 重播; 停止 is the cancel. A copy refused by the query is the clipboard refusing,
  * through the same `molisCopy`. What the browser gives (zoom, pointer, reduced motion) is read out, never set.
  */
-type Translate = (text: string, values?: Record<string, string>) => string;
 type Follower = { readonly state: string; pin(): void; toLatest(): void };
 type PagePrograms = {
-  L?: Translate;
   molisBoardCodeGrow?: CodeGrow;
   molisCopy?: (button: HTMLElement, source: () => string | Promise<string>, labels?: { done?: string; failed?: string }) => Promise<boolean>;
   molisFollow?: (scroller: HTMLElement, options?: { onChange?: (state: string) => void }) => Follower;
@@ -17,19 +16,18 @@ type PagePrograms = {
 };
 type Frame = { steps: string[]; reply: string; copy: "ok" | "fail"; pace: number };
 /** The island's own code-figure program (`createAssistantCodeGrow`), which the page carries as written (condition-frame.ts). */
-type CodeGrow = (L: Translate) => { bindMore(figure: HTMLElement): void; growCode(kept: Element, next: Element): boolean; paint(figure: HTMLElement): void };
+type CodeGrow = (text: typeof uiText.text) => { bindMore(figure: HTMLElement): void; growCode(kept: Element, next: Element): boolean; paint(figure: HTMLElement): void };
 
 const page = window as Window & PagePrograms;
-const L: Translate = (text, values) => page.L ? page.L(text, values) : text;
 const one = <T extends Element = HTMLElement>(selector: string) => document.querySelector<T>(selector)!;
 
 const S = JSON.parse(one("#mw-cond-data").textContent ?? "{}") as Frame;
 const reply = one("[data-cond-reply]"), thread = one("[data-cond-thread]"), latest = one("[data-cond-latest]");
 const status = one("[data-cond-state]"), stop = one<HTMLButtonElement>("[data-cond-stop]");
-const code = page.molisBoardCodeGrow!(L);
+const code = page.molisBoardCodeGrow!(uiText.text);
 
 const source = (read: () => string) => S.copy === "fail" ? () => Promise.reject(new Error("simulated")) : read;
-const copyFrom = (button: HTMLElement, read: () => string) => page.molisCopy?.(button, source(read), { done: L("已复制"), failed: L("复制失败") });
+const copyFrom = (button: HTMLElement, read: () => string) => page.molisCopy?.(button, source(read), { done: uiText.text("workbench.conditions-frame.copied"), failed: uiText.text("workbench.conditions-frame.could-not-copy") });
 const bindText = (root: HTMLElement) => root.querySelectorAll<HTMLElement>(".assistant-code:not([data-bound])").forEach((figure) => {
   figure.dataset.bound = "";
   const copy = figure.querySelector<HTMLElement>(".assistant-code-copy")!;
@@ -47,7 +45,7 @@ const show = (html: string, reveal: boolean) => {
 const setState = (name: "writing" | "stopped" | "done") => {
   status.dataset.condState = name;
   stop.disabled = name !== "writing";
-  status.textContent = name === "writing" ? L("正在写回复") : name === "stopped" ? L("已停止，写出的部分留着") : L("已写完");
+  status.textContent = name === "writing" ? uiText.text("workbench.conditions-frame.writing-reply") : name === "stopped" ? uiText.text("workbench.conditions-frame.stopped-what-was-written-stays") : uiText.text("workbench.conditions-frame.finished");
 };
 
 let timer = 0;
@@ -70,13 +68,13 @@ one("[data-cond-copy-reply]").addEventListener("click", (event) => { void copyFr
 show(S.steps[S.steps.length - 1]!, false);
 setState("done");
 for (const [selector, key] of [["[data-cond-tools]", "cond-tools"], ["[data-cond-tools-edge]", "cond-tools-edge"]] as const) {
-  page.molisShowMore?.(one(selector), { key, label: L("再显示 {n} 项"), keep: "[data-cond-kept]" });
+  page.molisShowMore?.(one(selector), { key, label: uiText.text("workbench.conditions-frame.show-n-more"), keep: "[data-cond-kept]" });
 }
 
 const env = () => {
   one("[data-cond-env-zoom]").textContent = "×" + Math.round(devicePixelRatio * 100) / 100;
-  one("[data-cond-env-pointer]").textContent = matchMedia("(pointer: coarse)").matches ? L("触控") : L("精确");
-  one("[data-cond-env-motion]").textContent = matchMedia("(prefers-reduced-motion: reduce)").matches ? L("减少") : L("照常");
+  one("[data-cond-env-pointer]").textContent = matchMedia("(pointer: coarse)").matches ? uiText.text("workbench.conditions-frame.touch") : uiText.text("workbench.conditions-frame.fine");
+  one("[data-cond-env-motion]").textContent = matchMedia("(prefers-reduced-motion: reduce)").matches ? uiText.text("workbench.conditions-frame.reduced") : uiText.text("workbench.conditions-frame.full");
 };
 env();
 addEventListener("resize", env);

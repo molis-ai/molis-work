@@ -39,7 +39,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     if (key) sidePane?.open(key, item ? { item, title } : null);
     return Boolean(key);
   };
-  const PLUGIN_TAB_TITLES = { home: "项目首页", market: L("插件市场"), ...globalThis.MOLIS_WORK_PLUGIN_TITLES };
+  const PLUGIN_TAB_TITLES = { home: "项目首页", market: globalThis.t.text("workbench.tab-workspace.plugin-market"), ...globalThis.MOLIS_WORK_PLUGIN_TITLES };
   // Plugins installed at run time (built in the studio) name their own stage.
   document.querySelectorAll("[data-work-surface]").forEach((surface) => { const id = surface.dataset.workSurface; if (surface.dataset.workSurfaceLabel) PLUGIN_TAB_TITLES[id] = surface.dataset.workSurfaceLabel; if (!PLUGIN_TAB_ICON[id]) PLUGIN_TAB_ICON[id] = surface.dataset.installedPluginIcon || PLUGIN_TAB_ICON[surface.dataset.pluginClient] || "package"; });
   const GROUP_COLOR = { grey: "var(--hue-gray)", blue: "var(--hue-blue)", red: "var(--hue-red)", yellow: "var(--hue-yellow)", green: "var(--hue-green)", pink: "var(--hue-pink)", purple: "var(--hue-purple)", cyan: "var(--hue-cyan)" };
@@ -93,8 +93,8 @@ ${TAB_WORKSPACE_DRAG_PART}
     if (stage.dataset.tabRemovedStage === plugin) return;
     stage.dataset.tabRemovedStage = plugin;
     const title = document.createElement("h2"), note = document.createElement("p");
-    title.textContent = L("{plugin} 已从这个项目移除", { plugin: L(ops.pluginTitle(plugin)) });
-    note.textContent = L("标签和内容都还在；把它加回这个项目，就能接着用。");
+    title.textContent = globalThis.t.text("workbench.tab-workspace.plugin-was-removed-project", { plugin: L(ops.pluginTitle(plugin)) });
+    note.textContent = globalThis.t.text("workbench.tab-workspace.its-tabs-content-still-here-add-back-project");
     stage.replaceChildren(title, note);
   };
   // A plugin that did not start draws its placeholder stage marked unavailable (plugin-store-unavailable.ts, project-plugin-stages);
@@ -119,12 +119,12 @@ ${TAB_WORKSPACE_DRAG_PART}
     if (stage.dataset.tabGoneStage === tab.id) return;
     stage.dataset.tabGoneStage = tab.id;
     const title = document.createElement("h2"), note = document.createElement("p"), actions = document.createElement("div");
-    title.textContent = L("这一条已经不在了");
-    note.textContent = L("可能已被删除，或移到了别的项目。标签先留着，关掉它不影响别的。");
+    title.textContent = globalThis.t.text("workbench.tab-workspace.one-no-longer-here");
+    note.textContent = globalThis.t.text("workbench.tab-workspace.may-have-been-deleted-moved-another-project-tab");
     const button = (label, variant, run) => { const node = document.createElement("button"); node.type = "button"; node.className = "mw-btn mw-btn--" + variant; node.textContent = label; node.addEventListener("click", run); return node; };
     actions.className = "mw-empty__actions";
-    actions.append(button(L("关闭标签"), "secondary", () => { closeTabBack(pane.id, tab.id); focusActiveTab(); }),
-      button(L("回到 {plugin} 列表", { plugin: L(ops.pluginTitle(tab.plugin)) }), "ghost", () => openPlugin(tab.plugin)));
+    actions.append(button(globalThis.t.text("workbench.tab-workspace.close-tab"), "secondary", () => { closeTabBack(pane.id, tab.id); focusActiveTab(); }),
+      button(globalThis.t.text("workbench.tab-workspace.back-plugin-list", { plugin: L(ops.pluginTitle(tab.plugin)) }), "ghost", () => openPlugin(tab.plugin)));
     stage.replaceChildren(title, note, actions);
   };
   let state = ops.create(), column = "main";

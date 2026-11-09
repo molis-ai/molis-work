@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { admitFiles, showAdmissionError } from "./admit.js";
 import { renderBar } from "./bar.js";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
@@ -69,7 +70,7 @@ async function rowOperation(page: ShelfPage, event: Event, action: HTMLElement, 
     else if (what === "join" && shelfClip) await joinClips(page, page.clipSelection.has(id) && page.clipSelection.size > 1 ? [...page.clipSelection] : [id]);
     else if (what === "copy") await (shelfItem ? copyShelfItem(page, id) : makeClipCurrent(page, id));
   } catch (error) {
-    if (page.lifetime.alive) showProblem(page, page.L("shelf.directory.could-not-read-the-shelf"), messageOf(error));
+    if (page.lifetime.alive) showProblem(page, uiText.text("shelf.directory.could-not-read-the-shelf"), messageOf(error));
   }
 }
 
@@ -123,7 +124,7 @@ async function directoryDoubleClick(page: ShelfPage, event: Event): Promise<void
   try {
     await makeClipCurrent(page, row.dataset.shelfClip);
   } catch (error) {
-    if (page.lifetime.alive) showProblem(page, page.L("shelf.directory.could-not-read-the-shelf"), messageOf(error));
+    if (page.lifetime.alive) showProblem(page, uiText.text("shelf.directory.could-not-read-the-shelf"), messageOf(error));
   }
 }
 

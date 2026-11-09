@@ -1,4 +1,4 @@
-import { renderButton, renderCard, renderChoice, renderStateRing, renderStatusMark, renderSwitch, type MwStatusTone, type PluginIconName, type StateRingState } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t as uiText, renderButton, renderCard, renderChoice, renderStateRing, renderStatusMark, renderSwitch, type MwStatusTone, type PluginIconName, type StateRingState } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type {
   ModelApiFormat,
   ModelProviderCheck,
@@ -111,17 +111,17 @@ export function renderModelSettingsDocument(model: ModelSettingsModel): string {
   ) ?? model.providers[0];
   return `<section class="settings-document model-settings-document" aria-labelledby="settings-title" data-model-settings>
     <header class="settings-heading">
-      <div class="settings-heading-title"><h1 id="settings-title">${p.L("模型设置")}</h1></div>
+      <div class="settings-heading-title"><h1 id="settings-title">${uiText("workbench.settings-models.models")}</h1></div>
       <div class="model-settings-head">
-        <p>${p.L("管理自定义模型供应商，配置后可在聊天时选择使用。")}</p>
+        <p>${uiText("workbench.settings-models.configure-model-providers-coding-conversations")}</p>
         <div class="model-settings-actions">
-          <button type="button" class="mw-btn" data-model-refresh aria-label="${p.L("重新检查所有供应商")}">${p.icon("refresh")}</button>
-          <button type="button" class="mw-btn mw-btn--primary" data-model-add-provider>${p.icon("plus")}${p.L("添加供应商")}</button>
+          <button type="button" class="mw-btn" data-model-refresh aria-label="${uiText("workbench.settings-models.refresh-provider-configuration")}">${p.icon("refresh")}</button>
+          <button type="button" class="mw-btn mw-btn--primary" data-model-add-provider>${p.icon("plus")}${uiText("workbench.settings-models.add-provider")}</button>
         </div>
       </div>
     </header>
     <p role="status" aria-live="polite" data-model-status></p>
-    <div data-model-released hidden><p></p><button class="mw-btn" type="button" data-model-released-remove>${p.L("移除旧密钥")}</button><button class="mw-btn mw-btn--ghost" type="button" data-model-released-keep>${p.L("留着")}</button></div>
+    <div data-model-released hidden><p></p><button class="mw-btn" type="button" data-model-released-remove>${uiText("workbench.settings-models.remove-old-key")}</button><button class="mw-btn mw-btn--ghost" type="button" data-model-released-keep>${uiText("workbench.settings-models.keep")}</button></div>
     ${renderModelBody(model, selected)}
   </section>`;
 }
@@ -152,8 +152,8 @@ function renderProviderList(model: ModelSettingsModel, selectedId: string | null
       <span class="mw-status" data-tone="${STATUS_TONE[status]}" title="${p.escape(health?.detail ?? "")}">${renderStateRing({ state: STATUS_RING[status] })}</span>
     </button>`;
   }).join("");
-  return `<nav class="model-provider-list" aria-label="${p.L("供应商")}">
-    <h2 class="model-provider-group">${p.L("自定义供应商")}</h2>
+  return `<nav class="model-provider-list" aria-label="${uiText("workbench.settings-models.providers")}">
+    <h2 class="model-provider-group">${uiText("workbench.settings-models.custom-providers")}</h2>
     ${rows}
   </nav>`;
 }
@@ -161,15 +161,15 @@ function renderProviderList(model: ModelSettingsModel, selectedId: string | null
 function renderEmptyDetail(model: ModelSettingsModel): string {
   const { primitives: p } = model;
   return `<div class="model-provider-detail mw-empty" data-model-detail-empty>
-    <span class="mw-empty__mark">${p.icon("package")}</span><strong>${p.L("还没有配置供应商")}</strong>
-    <p>${p.L("选一个常用供应商，替你填好地址和格式，再填上 API Key 就能用。不在列表里的，选最后两个通用格式。")}</p>
+    <span class="mw-empty__mark">${p.icon("package")}</span><strong>${uiText("workbench.settings-models.no-providers-configured-yet")}</strong>
+    <p>${uiText("workbench.settings-models.pick-common-provider-its-address-format-filled-add")}</p>
     ${renderTemplateChoices(model.templates, p, null)}
   </div>`;
 }
 
 /** One click per common provider; the form it opens is the same one a hand-made provider uses. */
 function renderTemplateChoices(templates: readonly ModelTemplateChoice[], p: ModelSettingsPrimitives, chosen: string | null): string {
-  return `<div class="mw-choice-group" role="group" aria-label="${p.L("常用供应商")}">${templates.map((template) => renderChoice({
+  return `<div class="mw-choice-group" role="group" aria-label="${uiText("workbench.settings-models.common-providers")}">${templates.map((template) => renderChoice({
     label: p.L(template.display_name), selected: template.template_id === chosen, attrs: { "data-model-template": template.template_id },
   })).join("")}</div>`;
 }
@@ -183,9 +183,9 @@ function renderProviderDetail(provider: ModelProviderRecord, model: ModelSetting
   const template = draft ? model.templates.find((choice) => choice.template_id === model.draft_template_id) ?? null : undefined;
   const askAddress = draft && template?.fills_base_url !== true, askFormat = draft && template === null;
   const advanced = [
-    `<div class="model-field"><label for="model-provider-name">${p.L("名称")}</label><input class="mw-input" id="model-provider-name" data-model-name value="${p.escape(provider.display_name)}" maxlength="120"></div>`,
+    `<div class="model-field"><label for="model-provider-name">${uiText("workbench.settings-models.name")}</label><input class="mw-input" id="model-provider-name" data-model-name value="${p.escape(provider.display_name)}" maxlength="120"></div>`,
     askAddress ? "" : renderAddressField(provider, p, model.address_from_template === true
-      ? p.L("模板已经填好；只有用代理或自己部署的服务才改。") : p.L("这个服务的接口地址；换代理或自己部署的服务时改这里。")),
+      ? uiText.text("workbench.settings-models.filled-template-change-only-proxy-own-deployment") : uiText.text("workbench.settings-models.services-api-address-change-here-when-switch-proxy")),
     askFormat ? "" : renderFormatField(provider, p),
     renderPromptCacheField(provider, p),
     renderThinkingField(provider, p),
@@ -195,34 +195,34 @@ function renderProviderDetail(provider: ModelProviderRecord, model: ModelSetting
     <header class="model-provider-detail-head">
       ${p.icon("package")}
       <h2>${p.escape(provider.display_name)}</h2>
-      ${renderSwitch({ label: p.L("启用供应商"), checked: provider.enabled, attrs: { "data-model-provider-enabled": provider.provider_id } })}
-      <button type="button" class="mw-btn" data-model-provider-remove="${id}">${p.icon("trash")}${p.L("移除供应商")}</button>
+      ${renderSwitch({ label: uiText.text("workbench.settings-models.enable-provider"), checked: provider.enabled, attrs: { "data-model-provider-enabled": provider.provider_id } })}
+      <button type="button" class="mw-btn" data-model-provider-remove="${id}">${p.icon("trash")}${uiText("workbench.settings-models.remove-provider")}</button>
     </header>
     ${draft ? renderDraftTemplates(model, p) : renderFacts(provider, health, model)}
     ${health?.status === "credential-unavailable" ? `<p class="mw-alert mw-alert--danger" role="alert">${p.escape(p.L(health.detail))}</p>` : ""}
-    <section class="model-section" aria-label="${p.L("用的密钥")}">
+    <section class="model-section" aria-label="${uiText("workbench.settings-models.key")}">
       ${renderCredentialField(provider, hasCredential, model)}
-      ${askAddress ? renderAddressField(provider, p, p.L("在这个服务的文档里找 Base URL，填到域名或版本号为止。")) : ""}
+      ${askAddress ? renderAddressField(provider, p, uiText.text("workbench.settings-models.find-base-url-services-documentation-stop-domain-version")) : ""}
       ${askFormat ? renderFormatField(provider, p) : ""}
     </section>
-    <section class="model-section" aria-label="${p.L("模型")}">
+    <section class="model-section" aria-label="${uiText("workbench.settings-models.model")}">
       ${renderModelList(provider, p)}
     </section>
-    ${renderCollapsible({ summary: p.L("高级 · 名称、地址、接口格式、提示缓存、思考"), body: advanced, className: "model-advanced" })}
-    <div class="mw-alert mw-alert--warning" role="status" data-model-limited hidden><strong>${p.L("{name} 那边请求太多或额度用完", { name: p.escape(provider.display_name) })}</strong><p></p>${renderButton({ label: p.L("现在再查"), variant: "secondary", size: "sm", attrs: { "data-model-recheck": "" } })}</div>
-    <div data-model-delete-confirm hidden><p>${p.L("移除这个供应商？后续任务将无法再选择它，历史记录会保留。它的密钥留在服务连接里，没有别的模型在用时可以一起移除。")}</p><button class="mw-btn" type="button" data-model-delete-cancel>${p.L("取消")}</button><button class="mw-btn" type="button" data-model-delete>${p.L("确认移除")}</button></div>
+    ${renderCollapsible({ summary: uiText.text("workbench.settings-models.advanced-name-address-api-format-prompt-cache-thinking"), body: advanced, className: "model-advanced" })}
+    <div class="mw-alert mw-alert--warning" role="status" data-model-limited hidden><strong>${uiText("workbench.settings-models.name-says-too-many-requests-out-credit", { name: provider.display_name })}</strong><p></p>${renderButton({ label: uiText.text("workbench.settings-models.check-now"), variant: "secondary", size: "sm", attrs: { "data-model-recheck": "" } })}</div>
+    <div data-model-delete-confirm hidden><p>${uiText("workbench.settings-models.remove-provider-future-tasks-cannot-select-history-preserved")}</p><button class="mw-btn" type="button" data-model-delete-cancel>${uiText("common.control.cancel")}</button><button class="mw-btn" type="button" data-model-delete>${uiText("workbench.settings-models.confirm-removal")}</button></div>
     <footer class="model-settings-actions model-save-bar">
       ${draft ? renderConnectionProgress({ steps: KEY_STEPS.map((step) => p.L(step)), at: 0, state: "running" }, p.L) : ""}
-      <span class="model-save-note">${draft ? p.L("保存前先检查；检查不过就不保存，填的还在。") : p.L("保存前先检查；检查不过不保存，原来的照常在用。")}</span>
-      <button class="mw-btn" type="button" data-model-discard>${p.L("撤销未保存修改")}</button>
-      ${renderButton({ label: p.L("保存并检查"), variant: "primary", key: "↵", attrs: { "data-model-save": "" } })}
+      <span class="model-save-note">${draft ? uiText("workbench.settings-models.checks-before-saving-if-check-fails-nothing-saved") : uiText("workbench.settings-models.checks-before-saving-if-check-fails-nothing-saved-2")}</span>
+      <button class="mw-btn" type="button" data-model-discard>${uiText("workbench.settings-models.discard-unsaved-changes")}</button>
+      ${renderButton({ label: uiText.text("workbench.settings-models.save-check"), variant: "primary", key: "↵", attrs: { "data-model-save": "" } })}
     </footer>
   </div>`;
 }
 
 function renderAddressField(provider: ModelProviderRecord, p: ModelSettingsPrimitives, note: string): string {
   return `<div class="model-field">
-      <label for="model-base-url">${p.L("地址（Base URL）")}</label>
+      <label for="model-base-url">${uiText("workbench.settings-models.address-base-url")}</label>
       <input class="mw-input" id="model-base-url" type="url" inputmode="url" spellcheck="false" placeholder="https://"
         value="${p.escape(provider.base_url)}" data-model-base-url="${p.escape(provider.provider_id)}">
       <p class="model-field-note">${note}</p>
@@ -232,7 +232,7 @@ function renderAddressField(provider: ModelProviderRecord, p: ModelSettingsPrimi
 function renderFormatField(provider: ModelProviderRecord, p: ModelSettingsPrimitives): string {
   const formats = API_FORMATS.map((format) => `<option value="${format.value}"${format.value === provider.api_format ? " selected" : ""}>${p.escape(format.label)}</option>`).join("");
   return `<div class="model-field">
-      <label for="model-api-format">${p.L("接口格式")}</label>
+      <label for="model-api-format">${uiText("workbench.settings-models.api-format")}</label>
       <select class="mw-select" id="model-api-format" data-model-api-format="${p.escape(provider.provider_id)}">${formats}</select>
     </div>`;
 }
@@ -241,11 +241,11 @@ function renderFormatField(provider: ModelProviderRecord, p: ModelSettingsPrimit
 function renderDraftTemplates(model: ModelSettingsModel, p: ModelSettingsPrimitives): string {
   const template = model.templates.find((choice) => choice.template_id === model.draft_template_id) ?? null;
   const name = template === null ? "" : p.escape(p.L(template.display_name));
-  const note = template === null ? "" : !template.fills_base_url ? p.L("{name} 的格式已经选好，还差 Base URL、API Key 和模型 ID。", { name })
-    : !template.fills_model ? p.L("{name} 的地址和格式已经填好，还差 API Key 和模型 ID。", { name })
-    : p.L("{name} 的地址、格式和模型已经填好，还差 API Key。", { name });
-  return `<section class="model-section" aria-label="${p.L("常用供应商")}">
-      <h3>${p.L("从常用供应商开始")}</h3>
+  const note = template === null ? "" : !template.fills_base_url ? uiText.text("workbench.settings-models.name-format-chosen-still-needed-base-url-api", { name })
+    : !template.fills_model ? uiText.text("workbench.settings-models.name-address-format-filled-still-needed-api-key", { name })
+    : uiText.text("workbench.settings-models.name-address-format-model-filled-still-needed-api", { name });
+  return `<section class="model-section" aria-label="${uiText("workbench.settings-models.common-providers")}">
+      <h3>${uiText("workbench.settings-models.start-common-provider")}</h3>
       ${renderTemplateChoices(model.templates, p, template?.template_id ?? null)}
       ${note === "" ? "" : `<p class="model-field-note">${note}</p>`}
     </section>`;
@@ -262,16 +262,16 @@ function checkTime(at: string): string {
 /** Whether the provider answers, from its health and its last real check: never verified, verified, or why not, with when. */
 function reachability(health: ModelProviderHealth | undefined, p: ModelSettingsPrimitives): string {
   const mark = (label: string, state: StateRingState, tone: MwStatusTone) => renderStatusMark({ label, state, tone, plain: true });
-  if (!health || health.status === "disabled") return mark(p.L("已关闭"), "disabled", "quiet");
-  if (health.status === "needs-credential") return mark(p.L("还没有密钥"), "reauth", "attention");
-  if (health.status === "credential-unavailable") return mark(p.L("读不到密钥"), "unavailable", "blocked");
+  if (!health || health.status === "disabled") return mark(uiText.text("workbench.settings-models.switched-off"), "disabled", "quiet");
+  if (health.status === "needs-credential") return mark(uiText.text("workbench.settings-models.no-key-yet"), "reauth", "attention");
+  if (health.status === "credential-unavailable") return mark(uiText.text("workbench.settings-models.cant-read-key"), "unavailable", "blocked");
   const last: ModelProviderCheck | undefined = health.last_check;
-  if (!last) return mark(p.L("还没检查过 · 下次保存时检查"), "idle", "quiet");
+  if (!last) return mark(uiText.text("workbench.settings-models.not-checked-yet-checked-next-save"), "idle", "quiet");
   const time = checkTime(last.at);
-  if (last.outcome === "connected") return last.current ? mark(p.L("连得上 · {time} 检查", { time }), "connected", "done")
-    : mark(p.L("改过之后还没检查 · 上次 {time} 连得上", { time }), "idle", "quiet");
+  if (last.outcome === "connected") return last.current ? mark(uiText.text("workbench.settings-models.reachable-checked-time", { time }), "connected", "done")
+    : mark(uiText.text("workbench.settings-models.not-checked-since-change-reachable-time", { time }), "idle", "quiet");
   const [words, state, tone] = CHECK_FAILURES[last.code ?? ""] ?? ["检查没有完成", "failed", "attention"] as const;
-  const retry = last.retry_at ? ` · ${p.L("{time} 后再查", { time: checkTime(last.retry_at) })}` : "";
+  const retry = last.retry_at ? ` · ${uiText.text("workbench.settings-models.checks-again-after-time", { time: checkTime(last.retry_at) })}` : "";
   return mark(`${p.L(words)} · ${time}${retry}`, state, tone);
 }
 
@@ -286,17 +286,17 @@ function renderFacts(provider: ModelProviderRecord, health: ModelProviderHealth 
   const key = connections.find((connection) => connection.connection_id === keys[provider.provider_id]);
   const enabled = provider.models.filter((entry) => entry.enabled).map((entry) => entry.model_id);
   const named = enabled.slice(0, 2).join(p.L("、"));
-  const models = enabled.length === 0 ? p.L("还没有启用的模型") : enabled.length <= 2 ? p.L("用 {list}", { list: named })
-    : p.L("用 {list} 等 {count} 个模型", { list: named, count: enabled.length });
+  const models = enabled.length === 0 ? uiText.text("workbench.settings-models.no-model-turned") : enabled.length <= 2 ? uiText.text("workbench.settings-models.uses-list", { list: named })
+    : uiText.text("workbench.settings-models.uses-list-more-count-count", { list: named, count: enabled.length });
   const ready = (one: ModelProviderRecord) => model.health.find((entry) => entry.provider_id === one.provider_id)?.status === "ready";
   const sharing = model.providers.filter((one) => one.provider_id !== provider.provider_id && key && keys[one.provider_id] === key.connection_id).map((one) => one.display_name);
-  const users = !ready(provider) ? p.L("现在没有地方能用它")
-    : model.providers.find(ready)?.provider_id === provider.provider_id ? p.L("默认模型：没指定模型的地方都用它") : p.L("只在选了它的地方用");
+  const users = !ready(provider) ? uiText.text("workbench.settings-models.nothing-can-use-right-now")
+    : model.providers.find(ready)?.provider_id === provider.provider_id ? uiText.text("workbench.settings-models.default-used-wherever-no-model-chosen") : uiText.text("workbench.settings-models.used-only-where-chosen");
   return renderCard({ className: "model-facts", body: [
-    row(p.L("用的密钥"), p.L("加密存在这台电脑，页面和助理都看不到原文"), `<strong>${key ? p.escape(key.display_name) : p.L("还没有密钥")}</strong>`),
-    row(p.L("连得上吗"), p.L("保存时先检查一次"), reachability(health, p)),
-    row(p.L("能做什么"), p.L("每次调用按你在这个服务的账户计费"), `<span>${p.escape(models)}</span>`),
-    row(p.L("谁在用"), sharing.length ? p.escape(p.L("同一把密钥也给 {names} 用", { names: sharing.join(p.L("、")) })) : p.L("换密钥或关掉会影响这些"), `<span>${users}</span>`),
+    row(uiText.text("workbench.settings-models.key"), uiText.text("workbench.settings-models.encrypted-computer-neither-page-nor-assistant-sees"), `<strong>${key ? p.escape(key.display_name) : uiText("workbench.settings-models.no-key-yet")}</strong>`),
+    row(uiText.text("workbench.settings-models.reachable"), uiText.text("workbench.settings-models.checked-before-each-save"), reachability(health, p)),
+    row(uiText.text("workbench.settings-models.what-can-do"), uiText.text("workbench.settings-models.each-call-billed-account-service"), `<span>${p.escape(models)}</span>`),
+    row(uiText.text("workbench.settings-models.used"), sharing.length ? p.escape(uiText.text("workbench.settings-models.same-key-also-serves-names", { names: sharing.join(p.L("、")) })) : uiText.text("workbench.settings-models.changing-key-turning-off-affects-these"), `<span>${users}</span>`),
   ].join("") });
 }
 
@@ -304,12 +304,12 @@ function renderFacts(provider: ModelProviderRecord, health: ModelProviderHealth 
 function renderDiagnostics(provider: ModelProviderRecord, health: ModelProviderHealth | undefined, model: ModelSettingsModel, p: ModelSettingsPrimitives): string {
   const last = health?.last_check;
   const lines = [
-    [p.L("供应商 ID"), provider.provider_id],
-    [p.L("最近检查"), last ? `${last.at}  ${last.outcome}${last.code ? `  ${last.code}` : ""}${last.current ? "" : `  (${p.L("之后改过")})`}` : "—"],
-    ...(last?.retry_at ? [[p.L("等到"), last.retry_at]] : []),
-    [p.L("密钥连接"), model.selected_connection_ids?.[provider.provider_id] || "—"],
+    [uiText.text("workbench.settings-models.provider-id"), provider.provider_id],
+    [uiText.text("workbench.settings-models.last-check"), last ? `${last.at}  ${last.outcome}${last.code ? `  ${last.code}` : ""}${last.current ? "" : `  (${uiText.text("workbench.settings-models.changed-since")})`}` : "—"],
+    ...(last?.retry_at ? [[uiText.text("workbench.settings-models.wait-until"), last.retry_at]] : []),
+    [uiText.text("workbench.settings-models.key-connection"), model.selected_connection_ids?.[provider.provider_id] || "—"],
   ];
-  return `<div class="model-field"><span class="model-field-label">${p.L("诊断")}</span><pre class="model-diagnostics">${lines.map(([label, value]) => `${p.escape(label)}  ${p.escape(value)}`).join("\n")}</pre></div>`;
+  return `<div class="model-field"><span class="model-field-label">${uiText("workbench.settings-models.diagnostics")}</span><pre class="model-diagnostics">${lines.map(([label, value]) => `${p.escape(label)}  ${p.escape(value)}`).join("\n")}</pre></div>`;
 }
 
 /**
@@ -330,10 +330,10 @@ function renderPromptCacheField(
     .map((mode) => `<option value="${mode.value}"${mode.value === current ? " selected" : ""}>${p.escape(p.L(mode.label))}</option>`)
     .join("");
   const note = controllable
-    ? p.L("请求缓存不保证命中；供应商返回的缓存用量会显示在这一轮的记录里。")
-    : p.L("这个格式由对方自动做前缀缓存，没有我们能打开的开关，所以给不了「要求缓存支持」。");
+    ? uiText.text("workbench.settings-models.requesting-cache-does-not-guarantee-hit-provider-reported")
+    : uiText.text("workbench.settings-models.provider-manages-prefix-caching-format-required-cache-mode");
   return `<div class="model-field">
-      <label for="model-prompt-cache">${p.L("提示缓存")}</label>
+      <label for="model-prompt-cache">${uiText("workbench.settings-models.prompt-cache")}</label>
       <select class="mw-select" id="model-prompt-cache" data-model-prompt-cache="${p.escape(provider.provider_id)}">${options}</select>
       <p class="model-field-note">${p.escape(note)}</p>
     </div>`;
@@ -346,16 +346,16 @@ function renderPromptCacheField(
 function renderThinkingField(provider: ModelProviderRecord, p: ModelSettingsPrimitives): string {
   const current: ModelThinkingMode = provider.thinking ?? "off";
   if (provider.api_format !== "anthropic-messages") return `<div class="model-field">
-      <label for="model-thinking">${p.L("思考")}</label>
-      <select class="mw-select" id="model-thinking" data-model-thinking="${p.escape(provider.provider_id)}" disabled><option value="off" selected>${p.escape(p.L("关闭"))}</option></select>
-      <p class="model-field-note">${p.escape(p.L("这个格式没有思考档可以打开。"))}</p>
+      <label for="model-thinking">${uiText("workbench.settings-models.thinking")}</label>
+      <select class="mw-select" id="model-thinking" data-model-thinking="${p.escape(provider.provider_id)}" disabled><option value="off" selected>${p.escape(uiText.text("common.control.close"))}</option></select>
+      <p class="model-field-note">${p.escape(uiText.text("workbench.settings-models.format-has-no-thinking-level-turn"))}</p>
     </div>`;
   const options = ([["off", "关闭"], ["adaptive", "开启（由模型决定想多少）"]] as const)
     .map(([value, label]) => `<option value="${value}"${value === current ? " selected" : ""}>${p.escape(p.L(label))}</option>`).join("");
   return `<div class="model-field">
-      <label for="model-thinking">${p.L("思考")}</label>
+      <label for="model-thinking">${uiText("workbench.settings-models.thinking")}</label>
       <select class="mw-select" id="model-thinking" data-model-thinking="${p.escape(provider.provider_id)}">${options}</select>
-      <p class="model-field-note">${p.escape(p.L("开启后模型先思考再回答，用量和等待时间都会增加；思考过程会显示在每一轮里。"))}</p>
+      <p class="model-field-note">${p.escape(uiText.text("workbench.settings-models.when-model-thinks-before-answering-usage-waiting-time"))}</p>
     </div>`;
 }
 
@@ -370,32 +370,32 @@ function renderCredentialField(provider: ModelProviderRecord, hasCredential: boo
   const usable = connections.filter((row) => row.service_id === "model-api" && (row.state === "connected" || row.connection_id === selectedId));
   const missing = selectedId && !connections.some(row => row.service_id === "model-api" && row.connection_id === selectedId);
   const replacing = hasCredential || Boolean(selectedId);
-  const where = p.L(model.key_hint ?? "在你用的服务的控制台里找 API 密钥");
+  const where = model.key_hint ?? uiText.text("workbench.settings-models.find-api-key-services-console");
   const keyField = `<div class="model-field" data-model-key-field${selectedId ? " hidden" : ""}>
-      <label for="model-api-key">${replacing ? p.L("新的 API 密钥") : p.L("{name} 的 API 密钥", { name: p.escape(provider.display_name) })}</label>
+      <label for="model-api-key">${replacing ? uiText("workbench.settings-models.new-api-key") : uiText("workbench.settings-models.name-api-key", { name: provider.display_name })}</label>
       <input class="mw-input" id="model-api-key" type="password" autocomplete="off" spellcheck="false" placeholder="sk-…" data-model-api-key>
-      <p class="model-field-note">${replacing ? p.L("旧密钥照常在用，新的检查通过才换上。") : `${p.escape(where)}${p.L("。加密存在这台电脑，保存后不再显示。")}`}</p>
+      <p class="model-field-note">${replacing ? uiText("workbench.settings-models.current-key-keeps-working-new-one-replaces-only") : `${p.escape(where)}${uiText.text("workbench.settings-models.encrypted-computer-never-shown-again-after-saving")}`}</p>
     </div>`;
   if (!usable.length && !missing) return keyField;
-  return `<div class="model-field"><label for="model-connection">${p.L("用哪把密钥")}</label>
+  return `<div class="model-field"><label for="model-connection">${uiText("workbench.settings-models.which-key")}</label>
     <select class="mw-select" id="model-connection" data-model-connection>
-      <option value="">${p.L(replacing ? "换一把新密钥" : "填一把新密钥")}</option>
-      ${usable.map((row) => `<option value="${p.escape(row.connection_id)}"${row.connection_id === selectedId ? " selected" : ""}${row.state !== "connected" ? " disabled" : ""}>${p.escape(row.display_name)}${row.state !== "connected" ? ` · ${p.L("连接不可用")}` : ""}</option>`).join("")}
-      ${missing ? `<option value="${p.escape(selectedId)}" selected disabled>${p.L("原连接已不可用，请重新选择")}</option>` : ""}
-    </select><a class="mw-btn mw-btn--link" href="/settings/connectors?connector=model-api">${p.L("在服务连接里管理密钥")}</a>
+      <option value="">${uiText(replacing ? "workbench.settings-models.use-new-key" : "workbench.settings-models.enter-new-key")}</option>
+      ${usable.map((row) => `<option value="${p.escape(row.connection_id)}"${row.connection_id === selectedId ? " selected" : ""}${row.state !== "connected" ? " disabled" : ""}>${p.escape(row.display_name)}${row.state !== "connected" ? ` · ${uiText.text("workbench.settings-models.connection-unavailable")}` : ""}</option>`).join("")}
+      ${missing ? `<option value="${p.escape(selectedId)}" selected disabled>${uiText("workbench.settings-models.previous-connection-unavailable-choose-another")}</option>` : ""}
+    </select><a class="mw-btn mw-btn--link" href="/settings/connectors?connector=model-api">${uiText("workbench.settings-models.manage-keys-service-connections")}</a>
   </div>
     ${keyField}`;
 }
 
 function renderModelList(provider: ModelProviderRecord, p: ModelSettingsPrimitives): string {
   const rows = provider.models.length === 0
-    ? `<p class="model-field-hint">${p.L("还没有添加模型")}</p>`
+    ? `<p class="model-field-hint">${uiText("workbench.settings-models.no-models-added-yet")}</p>`
     : provider.models.map((model) => renderModelRow(provider.provider_id, model, p)).join("");
-  return `<section class="model-list" aria-label="${p.L("模型列表")}">
+  return `<section class="model-list" aria-label="${uiText("workbench.settings-models.models-2")}">
     <header class="model-list-head">
-      <h3>${p.L("模型列表")}</h3>
-      <button type="button" class="mw-btn" data-model-fetch="${p.escape(provider.provider_id)}">${p.icon("download")}${p.L("从服务取模型")}</button>
-      <button type="button" class="mw-btn" data-model-add="${p.escape(provider.provider_id)}">${p.icon("plus")}${p.L("添加模型")}</button>
+      <h3>${uiText("workbench.settings-models.models-2")}</h3>
+      <button type="button" class="mw-btn" data-model-fetch="${p.escape(provider.provider_id)}">${p.icon("download")}${uiText("workbench.settings-models.fetch-models")}</button>
+      <button type="button" class="mw-btn" data-model-add="${p.escape(provider.provider_id)}">${p.icon("plus")}${uiText("workbench.settings-models.add-model")}</button>
     </header>
     ${renderModelPicker(provider.provider_id, p)}
     <div data-model-rows>${rows}</div>
@@ -411,8 +411,8 @@ function renderModelList(provider: ModelProviderRecord, p: ModelSettingsPrimitiv
 function renderModelPicker(providerId: string, p: ModelSettingsPrimitives): string {
   const label = `model-picker-label-${providerId}`;
   return `<div class="model-field model-picker" data-model-picker hidden>
-    <p class="model-field-note" id="${p.escape(label)}" data-model-picker-note>${p.L("选一个加进列表，可以接着选；列表里没有的照样手填。")}</p>
-    ${renderCombobox({ labelledBy: label, placeholder: p.L("筛选模型"), items: "", attrs: { "data-model-picker-box": "" } })}
+    <p class="model-field-note" id="${p.escape(label)}" data-model-picker-note>${uiText("workbench.settings-models.pick-one-add-can-keep-picking-anything-not")}</p>
+    ${renderCombobox({ labelledBy: label, placeholder: uiText.text("workbench.settings-models.filter-models"), items: "", attrs: { "data-model-picker-box": "" } })}
   </div>`;
 }
 
@@ -420,21 +420,21 @@ function renderModelRow(providerId: string, model: ModelRecord, p: ModelSettings
   // Badges show saved model metadata; an unknown context window has no badge.
   const badges = [
     model.context_tokens === undefined ? "" : `<span class="model-badge">${p.escape(formatContext(model.context_tokens))}</span>`,
-    model.vision === true ? `<span class="model-badge">${p.L("视觉")}</span>` : "",
+    model.vision === true ? `<span class="model-badge">${uiText("workbench.settings-models.vision")}</span>` : "",
   ].join("");
   return `<div class="model-row" data-model-row="${p.escape(model.model_id)}" data-model-record="${p.escape(JSON.stringify(model))}">
-    <input class="mw-input model-row-id" data-model-id value="${p.escape(model.model_id)}" aria-label="${p.L("模型 ID")}" placeholder="MiniMax-M3" maxlength="200">
+    <input class="mw-input model-row-id" data-model-id value="${p.escape(model.model_id)}" aria-label="${uiText("workbench.settings-models.model-id")}" placeholder="MiniMax-M3" maxlength="200">
     ${badges}
     <span class="model-row-spacer"></span>
-    <label class="model-row-flag">${p.L("读图能力")}<select class="mw-select" data-model-vision>
-      <option value="">${p.L("未声明")}</option>
-      <option value="true"${model.vision === true ? " selected" : ""}>${p.L("能看图")}</option>
-      <option value="false"${model.vision === false ? " selected" : ""}>${p.L("不能看图")}</option>
+    <label class="model-row-flag">${uiText("workbench.settings-models.image-input")}<select class="mw-select" data-model-vision>
+      <option value="">${uiText("workbench.settings-models.not-declared")}</option>
+      <option value="true"${model.vision === true ? " selected" : ""}>${uiText("workbench.settings-models.can-read-images")}</option>
+      <option value="false"${model.vision === false ? " selected" : ""}>${uiText("workbench.settings-models.cannot-read-images")}</option>
     </select></label>
-    <label class="model-row-flag" title="${p.L("这个模型接受思考力度（快速 / 平衡 / 深入）时才勾上；勾上后 Coding 发送一轮时可以选力度")}"><input type="checkbox" data-model-effort${model.reasoning_effort === true ? " checked" : ""}>${p.L("可调思考力度")}</label>
-    <button type="button" class="mw-btn" data-model-test="${p.escape(model.model_id)}" aria-label="${p.L("测试这个模型")}">${p.icon("link")}</button>
-    <button type="button" class="mw-btn" data-model-remove="${p.escape(model.model_id)}" aria-label="${p.L("删除")}">${p.icon("trash")}</button>
-    ${renderSwitch({ checked: model.enabled, attrs: { "data-model-enabled": `${providerId}:${model.model_id}`, "aria-label": p.L("启用模型") } })}
+    <label class="model-row-flag" title="${uiText("workbench.settings-models.tick-only-when-model-accepts-reasoning-effort-quick")}"><input type="checkbox" data-model-effort${model.reasoning_effort === true ? " checked" : ""}>${uiText("workbench.settings-models.reasoning-effort")}</label>
+    <button type="button" class="mw-btn" data-model-test="${p.escape(model.model_id)}" aria-label="${uiText("workbench.settings-models.test-model")}">${p.icon("link")}</button>
+    <button type="button" class="mw-btn" data-model-remove="${p.escape(model.model_id)}" aria-label="${uiText("common.control.delete")}">${p.icon("trash")}</button>
+    ${renderSwitch({ checked: model.enabled, attrs: { "data-model-enabled": `${providerId}:${model.model_id}`, "aria-label": uiText.text("workbench.settings-models.enable-model") } })}
   </div>`;
 }
 

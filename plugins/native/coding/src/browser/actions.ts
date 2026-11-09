@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { UiPageInteraction } from "@molis-ai/molis-work-contracts/platform/ui";
 import { errorMessage } from "./dom.js";
 import type { PagePorts } from "./types.js";
@@ -43,7 +44,6 @@ export interface ActionPorts extends PagePorts {
  * presses a card's run only while it holds no edits the person has not sent (FLOW-03), so `ixBase` keeps what it showed.
  */
 export function actionsClient(ports: ActionPorts) {
-  const L = ports.translate;
   const { lifetime, q, api, current, selections, save, controls, status } = ports;
   const dialog = q<HTMLDialogElement>('[data-coding-actions-dialog]'), list = q('[data-coding-actions-list]'), error = q('[data-coding-actions-error]'), submit = q<HTMLButtonElement>('[data-coding-actions-save]');
   const key = (ref: ActionRef) => JSON.stringify([ref.capability_id, ref.version, ref.provider_id]);
@@ -57,7 +57,7 @@ export function actionsClient(ports: ActionPorts) {
     const id = current(), request = ++ticket;
     session = id;
     chosen = structuredClone(selections.get(id) || []) as ActionRef[];
-    list.textContent = L('coding.actions.reading');
+    list.textContent = uiText.text('coding.actions.reading');
     error.textContent = '';
     submit.disabled = true;
     dialog.showModal();
@@ -70,10 +70,10 @@ export function actionsClient(ports: ActionPorts) {
       const rows: ActionRow[] = data.actions.filter(view => view.action.audiences.includes('agent')).map(view => ({ ref: { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id },
         title: view.action.title, source: view.provider.title,
         available: view.availability.available && (canWrite || view.operation === 'query'),
-        reason: !view.availability.available ? view.availability.reason ?? '' : !canWrite && view.operation !== 'query' ? L('coding.actions.query-only') : view.action.description }));
+        reason: !view.availability.available ? view.availability.reason ?? '' : !canWrite && view.operation !== 'query' ? uiText.text('coding.actions.query-only') : view.action.description }));
       for (const ref of chosen)
         if (!rows.some(row => key(row.ref) === key(ref)))
-          rows.push({ ref, title: ref.capability_id, source: ref.provider_id, available: false, reason: L('coding.actions.gone') });
+          rows.push({ ref, title: ref.capability_id, source: ref.provider_id, available: false, reason: uiText.text('coding.actions.gone') });
       list.replaceChildren();
       for (const row of rows) {
         const label = document.createElement('label'), check = document.createElement('input'), copy = document.createElement('span'), title = document.createElement('strong'), description = document.createElement('span');
@@ -91,12 +91,12 @@ export function actionsClient(ports: ActionPorts) {
         list.append(label);
       }
       if (!rows.length)
-        list.textContent = L('coding.actions.none');
+        list.textContent = uiText.text('coding.actions.none');
       submit.disabled = false;
     }
     catch (failure) {
       if (request === ticket && current() === id)
-        error.textContent = L('coding.actions.read-failed', { reason: errorMessage(failure) });
+        error.textContent = uiText.text('coding.actions.read-failed', { reason: errorMessage(failure) });
     }
   };
   q('[data-coding-actions-open]').onclick = () => void open();
@@ -107,7 +107,7 @@ export function actionsClient(ports: ActionPorts) {
     if (busy || submit.disabled)
       return;
     if (current() !== session) {
-      error.textContent = L('coding.actions.session-changed');
+      error.textContent = uiText.text('coding.actions.session-changed');
       return;
     }
     const id = session;
@@ -121,10 +121,10 @@ export function actionsClient(ports: ActionPorts) {
       await save(id);
       dialog.close();
       ticket++;
-      status(L('coding.actions.saved'));
+      status(uiText.text('coding.actions.saved'));
     }
     catch (failure) {
-      error.textContent = L('coding.choice.save-failed', { reason: errorMessage(failure) });
+      error.textContent = uiText.text('coding.choice.save-failed', { reason: errorMessage(failure) });
     }
     finally {
       busy = false;

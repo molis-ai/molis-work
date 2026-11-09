@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { el, errorMessage } from "../dom.js";
 import { shut } from "./composer-state.js";
 import type { Page } from "./page.js";
@@ -23,16 +24,16 @@ function checkRow(checked: boolean, disabled: boolean, text: string) {
 
 /** The tools of the MCP servers, and those the session chose that are gone. */
 function drawMcpTools(page: Page, list: HTMLElement) {
-  const { L, lifetime } = page, { s } = page, servers = s.state.mcp || [];
+  const { lifetime } = page, { s } = page, servers = s.state.mcp || [];
   const catalog: ToolRow[] = servers.flatMap(server => server.tools.map(tool => ({ ...tool, label: server.label, description: tool.description ?? "", available: connected(server) })));
   for (const selected of s.mcpChoices) {
     if (!catalog.some(tool => toolKey(tool) === toolKey(selected))) {
-      catalog.push({ ...selected, label: servers.find(server => server.id === selected.server)?.label || selected.server, available: false, description: L("coding.mcp.tool-gone") });
+      catalog.push({ ...selected, label: servers.find(server => server.id === selected.server)?.label || selected.server, available: false, description: uiText.text("coding.mcp.tool-gone") });
     }
   }
   for (const tool of catalog) {
     const chosen = s.mcpChoices.some(item => toolKey(item) === toolKey(tool));
-    const { row, check } = checkRow(chosen, !tool.available && !chosen, tool.label + " / " + tool.tool + (tool.available ? "" : " " + L("coding.mcp.unavailable-mark")) + " · " + tool.description);
+    const { row, check } = checkRow(chosen, !tool.available && !chosen, tool.label + " / " + tool.tool + (tool.available ? "" : " " + uiText.text("coding.mcp.unavailable-mark")) + " · " + tool.description);
     lifetime.listen(check, "change", () => {
       s.mcpChoices = s.mcpChoices.filter(item => toolKey(item) !== toolKey(tool));
       if (check.checked) s.mcpChoices.push({ server: tool.server, tool: tool.tool, version: tool.version, configuration_version: tool.configuration_version });
@@ -44,7 +45,7 @@ function drawMcpTools(page: Page, list: HTMLElement) {
 
 /** The servers whose resources can be read, and those the session chose that are gone. */
 function drawMcpSources(page: Page, list: HTMLElement) {
-  const { L, lifetime } = page, { s } = page, servers = s.state.mcp || [];
+  const { lifetime } = page, { s } = page, servers = s.state.mcp || [];
   const sources: SourceRow[] = servers.filter(server => server.resources?.length).map(server => ({ server: server.id, configuration_version: server.version, label: server.label, resources: server.resources ?? [], available: connected(server) }));
   for (const selected of s.mcpSourceChoices) {
     if (!sources.some(item => sourceKey(item) === sourceKey(selected))) {
@@ -53,7 +54,7 @@ function drawMcpSources(page: Page, list: HTMLElement) {
   }
   for (const source of sources) {
     const chosen = s.mcpSourceChoices.some(item => sourceKey(item) === sourceKey(source));
-    const { row, check } = checkRow(chosen, !source.available && !chosen, source.label + " · " + (source.available ? L("coding.mcp.source", { count: source.resources.length }) : L("coding.mcp.source-unavailable")));
+    const { row, check } = checkRow(chosen, !source.available && !chosen, source.label + " · " + (source.available ? uiText.text("coding.mcp.source", { count: source.resources.length }) : uiText.text("coding.mcp.source-unavailable")));
     lifetime.listen(check, "change", () => {
       s.mcpSourceChoices = s.mcpSourceChoices.filter(item => sourceKey(item) !== sourceKey(source));
       if (check.checked) s.mcpSourceChoices.push({ server: source.server, configuration_version: source.configuration_version });
@@ -67,14 +68,14 @@ export function renderMcp(page: Page) {
   const list = page.q("[data-coding-mcp-list]");
   list.replaceChildren();
   const tools = drawMcpTools(page, list), sources = drawMcpSources(page, list);
-  if (!tools && !sources) list.textContent = page.L("coding.mcp.none");
+  if (!tools && !sources) list.textContent = uiText.text("coding.mcp.none");
 }
 
 /** A method's text, read when asked for. */
 async function readMethod(page: Page, method: MethodRef & { readonly skill_id: string }) {
   const { L, lifetime, q } = page, { s } = page, ticket = ++s.methodDocumentTicket, doc = q("[data-coding-method-document]");
   doc.hidden = false;
-  doc.textContent = L("coding.method.loading");
+  doc.textContent = uiText.text("coding.method.loading");
   try {
     const result = await api<{ method: { name: string; version: number; body: string } }>(page, "/methods/" + encodeURIComponent(method.skill_id) + "/" + method.version);
     if (ticket !== s.methodDocumentTicket) return;
@@ -98,26 +99,26 @@ function methodRow(page: Page, method: MethodEntry): HTMLElement {
     s.methodChoices = s.methodChoices.filter(ref => ref.skill_id !== method.skill_id);
     if (check.checked) s.methodChoices.push({ skill_id: method.skill_id, version: method.version });
   });
-  const read = el("button", L("coding.method.read"), "mw-btn mw-btn--ghost");
+  const read = el("button", uiText.text("coding.method.read"), "mw-btn mw-btn--ghost");
   read.type = "button";
-  read.setAttribute("aria-label", L("coding.method.read-label", { name: L(method.name) }));
+  read.setAttribute("aria-label", uiText.text("coding.method.read-label", { name: uiText.text(method.name) }));
   read.disabled = !method.enabled;
   lifetime.listen(read, "click", () => readMethod(page, method));
   const heading = el("div", "", "coding-method-heading");
   heading.append(label, read);
-  row.append(heading, el("small", method.enabled ? L(method.summary) : L("coding.method.unavailable", { summary: L(method.summary) })));
+  row.append(heading, el("small", method.enabled ? uiText.text(method.summary) : uiText.text("coding.method.unavailable", { summary: uiText.text(method.summary) })));
   return row;
 }
 
 export function renderMethods(page: Page) {
-  const { L, lifetime, q } = page, { s } = page;
+  const { lifetime, q } = page, { s } = page;
   const list = q("[data-coding-method-list]"), needle = q<HTMLInputElement>("[data-coding-method-search]").value.trim().toLocaleLowerCase();
   list.replaceChildren();
   const catalog = s.state.methods || [], rows = catalog.filter(item => (item.name + " " + item.summary).toLocaleLowerCase().includes(needle));
   for (const method of rows) list.append(methodRow(page, method));
-  if (!rows.length) list.append(el("p", needle ? L("coding.method.no-match") : L("coding.method.none")));
+  if (!rows.length) list.append(el("p", needle ? uiText.text("coding.method.no-match") : uiText.text("coding.method.none")));
   for (const ref of s.methodChoices.filter(item => !catalog.some(method => method.skill_id === item.skill_id && method.version === item.version))) {
-    const remove = el("button", L("coding.method.remove-gone", { method: ref.skill_id + " · v" + ref.version }), "mw-btn");
+    const remove = el("button", uiText.text("coding.method.remove-gone", { method: ref.skill_id + " · v" + ref.version }), "mw-btn");
     remove.type = "button";
     lifetime.listen(remove, "click", () => {
       s.methodChoices = s.methodChoices.filter(item => item !== ref);

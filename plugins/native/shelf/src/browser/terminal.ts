@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { UiPageTerminal, UiTerminalEvent, UiTerminalView } from "@molis-ai/molis-work-contracts/platform/ui";
 import { post } from "./request.js";
 import type { ShelfPage, ShelfTui } from "./types.js";
@@ -13,7 +14,7 @@ declare global {
  * `tui.ts` sends through on the page for as long as the root lives.
  */
 export function installTerminal(page: ShelfPage): void {
-  const ended = page.L("shelf.tui.terminal-ended"), dropped = page.L("shelf.tui.terminal-dropped");
+  const ended = uiText.text("shelf.tui.terminal-ended"), dropped = uiText.text("shelf.tui.terminal-dropped");
   const screen = page.bench.querySelector<HTMLElement>("[data-shelf-tty-screen]");
   if (!screen) return;
   const terminal = globalThis.molisPageTerminal;

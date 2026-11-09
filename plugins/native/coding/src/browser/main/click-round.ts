@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { errorMessage } from "../dom.js";
 import { commitRound } from "./click-commit.js";
 import type { ClickRule } from "./click-types.js";
@@ -16,7 +17,7 @@ const INTENT_BY_ROLE: Readonly<Record<string, string>> = { builder: "execute", w
 
 /** A round that only announced its next step goes on when the person asks, with the same way of working. */
 async function nudge(page: Page, target: HTMLButtonElement) {
-  const { L, q, s } = page;
+  const { q, s } = page;
   if (s.sending) return;
   const run = s.allRuns.find(item => item.ref.run_id === target.dataset.codingNudge);
   if (!run || run.light) return;
@@ -26,7 +27,7 @@ async function nudge(page: Page, target: HTMLButtonElement) {
   controls(page);
   try {
     await startRound(page, id, "上一轮你说「" + said + "」之后就结束了，没有调用任何工具，所以还什么都没做。请直接调用工具执行下一步，完成原任务：\n" + asked, intent, modelValue, currentSelection(page, id), { continued_from: run.ref });
-    status(page, L("coding.run.nudged"));
+    status(page, uiText.text("coding.run.nudged"));
     s.follow.resume();
     await refreshState(page);
     await readCurrent(page);
@@ -52,13 +53,13 @@ async function openMcp(page: Page) {
 
 /** Pauses or resumes the round on show. */
 async function pause(page: Page, target: HTMLButtonElement) {
-  const { L, s } = page;
+  const { s } = page;
   if (!s.lastRun) return;
   const action = target.dataset.action === "resume" ? "resume" : "pause";
   target.disabled = true;
   try {
     await api(page, sessionPath(s.current) + "/control", "POST", { run_id: s.lastRun.ref.run_id, kind: action });
-    status(page, action === "pause" ? L("coding.run.pause-received") : L("coding.run.resumed"));
+    status(page, action === "pause" ? uiText.text("coding.run.pause-received") : uiText.text("coding.run.resumed"));
     await readCurrent(page);
   } catch (error) {
     status(page, errorMessage(error), true);
@@ -69,8 +70,8 @@ async function pause(page: Page, target: HTMLButtonElement) {
 
 /** Archives the session after the person agrees; the page goes back to the list. */
 async function archive(page: Page, target: HTMLButtonElement) {
-  const { L, host, root, s } = page, { taskboard } = page.refs;
-  if (!s.current || !await host.confirm(L("coding.session.archive-confirm"))) return;
+  const { host, root, s } = page, { taskboard } = page.refs;
+  if (!s.current || !await host.confirm(uiText.text("coding.session.archive-confirm"))) return;
   target.disabled = true;
   const id = s.current;
   try {
@@ -83,7 +84,7 @@ async function archive(page: Page, target: HTMLButtonElement) {
     taskboard.loading("");
     renderGoalFace(page);
     await refreshState(page);
-    status(page, L("coding.session.archived"));
+    status(page, uiText.text("coding.session.archived"));
   } finally {
     target.disabled = false;
   }
@@ -91,12 +92,12 @@ async function archive(page: Page, target: HTMLButtonElement) {
 
 /** The title becomes a field: Enter saves the name, Escape puts the old one back. */
 function rename(page: Page) {
-  const { L, host, lifetime, q, s } = page, title = q("[data-coding-title]");
+  const { host, lifetime, q, s } = page, title = q("[data-coding-title]");
   if (!s.current || title.querySelector("input")) return;
   const field = document.createElement("input");
   field.className = "mw-input";
   field.value = title.textContent || "";
-  field.setAttribute("aria-label", L("coding.session.name"));
+  field.setAttribute("aria-label", uiText.text("coding.session.name"));
   title.replaceChildren(field);
   field.focus();
   field.select();
@@ -105,7 +106,7 @@ function rename(page: Page) {
     title.textContent = result.session.title;
     await refreshState(page);
     host.openItem("coding", id, result.session.title);
-    status(page, L("coding.session.name-saved"));
+    status(page, uiText.text("coding.session.name-saved"));
   };
   lifetime.listen(field, "keydown", event => {
     const key = (event as KeyboardEvent).key;
@@ -115,7 +116,7 @@ function rename(page: Page) {
     }
     if (key === "Escape") title.textContent = s.state.sessions.find(item => item.session_id === s.current)?.title || "";
   });
-  status(page, L("coding.session.rename-hint"));
+  status(page, uiText.text("coding.session.rename-hint"));
 }
 
 export const ROUND_CLICKS: readonly ClickRule[] = [
@@ -143,11 +144,11 @@ export const ROUND_CLICKS: readonly ClickRule[] = [
   }],
   ["[data-coding-pause]", pause],
   ["[data-coding-stop]", async (page, target) => {
-    const { L, s } = page;
+    const { s } = page;
     if (!s.lastRun) return;
     target.disabled = true;
     await api(page, sessionPath(s.current) + "/control", "POST", { run_id: s.lastRun.ref.run_id, kind: "stop" });
-    status(page, L("coding.run.stop-received"));
+    status(page, uiText.text("coding.run.stop-received"));
     await readCurrent(page);
   }],
   ["[data-coding-archive]", archive],

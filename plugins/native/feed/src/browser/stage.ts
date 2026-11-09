@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { FeedPage } from "./factory.js";
 
 const ENTRY = "[data-feed-entry-id]";
@@ -6,7 +7,7 @@ export const FILTER_FIELDS = "[data-feed-source-filter],[data-feed-type-filter],
 
 /** Feed's list/reader, within this one surface. No source directory or pane DOM is read here. */
 export function feedStage(page: FeedPage) {
-  const { host, q, all } = page, L = host.translate;
+  const { host, q, all } = page;
   let selected = "", quick = "all", detailRequest: AbortController | null = null;
   const query = new URLSearchParams(host.search), preferences = "feed:filters:" + (host.mount?.surface || "workbench") + ":" + (query.get("workbenchPane") || "main") + ":" + (query.get("paneItem") || "default");
   try {
@@ -41,19 +42,19 @@ export function feedStage(page: FeedPage) {
     if (kept?.id === id && slot) slot.scrollTop = kept.top;
     publish(); let detail = q(detailOf(id));
     if ((!detail || carried) && persisted && slot) {
-      if (!carried) placeholder(L("正在载入 Item…"));
+      if (!carried) placeholder(uiText.text("feed.stage.loading-item"));
       try {
         const html = await host.view.readDocument({ object: { id: itemId, surface: "persisted-detail" }, signal: AbortSignal.any([controller.signal, page.signal()]) }); check();
         if (selected !== id || detailRequest !== controller) return;
         detail = new DOMParser().parseFromString(html, "text/html").querySelector(detailOf(id));
-        if (!detail) throw new Error(L("Item 详情响应不完整")); slot.replaceChildren(detail); settle(detail); publish();
-      } catch (error) { if (selected === id && detailRequest === controller) { try { check(); if (carried) page.error(error); else placeholder(molisWorkRequest.text(error, L("无法读取这条 Item")), true); } catch { /* A departed reader keeps no late result. */ } } return; }
+        if (!detail) throw new Error(uiText.text("feed.stage.item-detail-response-incomplete")); slot.replaceChildren(detail); settle(detail); publish();
+      } catch (error) { if (selected === id && detailRequest === controller) { try { check(); if (carried) page.error(error); else placeholder(molisWorkRequest.text(error, uiText.text("feed.stage.could-not-load-item")), true); } catch { /* A departed reader keeps no late result. */ } } return; }
       finally { if (detailRequest === controller && host.scope.alive && host.scope.visible) detailRequest = null; }
     }
     check(); if (detail) detail.hidden = false; const empty = q("[data-feed-detail-empty]"); if (empty) empty.hidden = Boolean(detail);
     if (read && persisted && row.dataset.feedEntryRead !== "read" && row.dataset.feedReadPending !== "true") {
       row.dataset.feedReadPending = "true";
-      try { await page.api("/items/" + encodeURIComponent(itemId) + "/read", "POST", {}); check(); row.dataset.feedEntryRead = "read"; all("[data-feed-read-state]", detail ?? host.root).forEach(label => { label.textContent = L("已读"); label.dataset.mwState = "read"; }); host.invalidateView(); }
+      try { await page.api("/items/" + encodeURIComponent(itemId) + "/read", "POST", {}); check(); row.dataset.feedEntryRead = "read"; all("[data-feed-read-state]", detail ?? host.root).forEach(label => { label.textContent = uiText.text("feed.stage.read"); label.dataset.mwState = "read"; }); host.invalidateView(); }
       catch (error) { try { check(); page.error(error); } catch { /* No late UI write. */ } }
       finally { try { check(); delete row.dataset.feedReadPending; } catch { /* The old reader is inactive. */ } }
     }
@@ -71,7 +72,7 @@ export function feedStage(page: FeedPage) {
     });
     const body = q("[data-feed-rows]");
     rows.sort((a, b) => sort === "source" ? (a.dataset.feedEntrySource || "").localeCompare(b.dataset.feedEntrySource || "") : sort === "title" ? (a.dataset.feedEntryTitle || "").localeCompare(b.dataset.feedEntryTitle || "") : sort === "oldest" ? (a.dataset.feedEntryTime || "").localeCompare(b.dataset.feedEntryTime || "") : (b.dataset.feedEntryTime || "").localeCompare(a.dataset.feedEntryTime || "")).forEach(row => body?.append(row.closest("[data-feed-item-wrap]") || row));
-    const count = q("[data-feed-result-count]"); if (count) count.textContent = L("{count} 条消息", { count: visible.length });
+    const count = q("[data-feed-result-count]"); if (count) count.textContent = uiText.text("feed.stage.count-count", { count: visible.length });
     const empty = q("[data-feed-empty]"); if (empty) empty.hidden = visible.length > 0;
     if (selected && !visible.some(row => row.dataset.feedEntryId === selected)) collapse();
     const first = visible.find(row => row.dataset.feedEntryId === selected) || visible[0]; rows.forEach(row => row.tabIndex = row === first ? 0 : -1);

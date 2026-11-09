@@ -76,7 +76,7 @@ s.setAttribute("aria-hidden", "true"); u.setAttribute("href", "#icon-" + name); 
 return s;
 };
 const btn = (label, run, props) => { const n = h("button", { type: "button", class: "mw-btn mw-btn--ghost", ...props }); if (label) n.append(h("span", { text: label })); on(n, "click", run); return n; };
-const root = h("div", { class: "mw-ctx", role: "toolbar", "aria-label": L("当前内容的动作"), hidden: "" });
+const root = h("div", { class: "mw-ctx", role: "toolbar", "aria-label": globalThis.t.text("workbench.context-toolbar.actions-what-looking"), hidden: "" });
 (host.parent || doc.body).append(root);
 let view, tools, left, held, menu, opener, panel, back;
 const busy = () => root.matches(":hover") || root.contains(doc.activeElement) || menu || (panel && !panel.stay);
@@ -124,9 +124,9 @@ return n;
 };
 const more = (extra) => {
 const title = (text) => h("p", { class: "mw-ctx-menu__label", text }), act = (a) => entry(a.label, a.note, a.disabled, () => host.choose(a.key), a.key), out = [];
-if (extra.length) out.push(title(L("推荐")), ...extra.map(act));
+if (extra.length) out.push(title(globalThis.t.text("workbench.context-toolbar.suggested")), ...extra.map(act));
 for (const g of view.more || []) out.push(title(g.title), ...g.items.map(act));
-if (view.assistant) out.push(h("div", { class: "mw-ctx-menu__gap", role: "separator" }), title(L("助理")), entry(L("带到助理"), "", 0, () => host.assistant()));
+if (view.assistant) out.push(h("div", { class: "mw-ctx-menu__gap", role: "separator" }), title(globalThis.t.text("workbench.context-toolbar.assistant")), entry(globalThis.t.text("workbench.context-toolbar.bring-assistant"), "", 0, () => host.assistant()));
 if (view.basis) out.push(h("p", { class: "mw-ctx-menu__basis", title: view.basis.title || "", text: view.basis.text, ...(view.basis.state ? { "data-mw-state": view.basis.state } : {}) }));
 return out;
 };
@@ -139,15 +139,15 @@ const focused = doc.activeElement, keep = opener ? (opener.hasAttribute("data-fo
 if (root.contains(focused)) mark = focused.getAttribute("data-id") || focused.getAttribute("data-key");
 const base = room() <= 480 ? 2 : 3, slots = Math.max(1, base - cut), mine = tools && tools.context_id === view.context_id ? tools.groups : [], kids = [], actions = view.actions || [];
 if (mine.length) {
-const wrap = h("div", { class: "mw-ctx__tools", role: "group", "aria-label": L("工具") }), folded = [];
+const wrap = h("div", { class: "mw-ctx__tools", role: "group", "aria-label": globalThis.t.text("workbench.context-toolbar.tools") }), folded = [];
 for (const g of mine) { if (fold && g.collapse === "overflow") folded.push(...g.items.map((i) => { const n = tool(g, i, true); n.setAttribute("role", "menuitem"); return n; })); else wrap.append(...g.items.map((i) => tool(g, i))); }
-if (folded.length) wrap.append(menuButton(L("格式"), () => folded, { "data-fold": "" }));
+if (folded.length) wrap.append(menuButton(globalThis.t.text("workbench.context-toolbar.format"), () => folded, { "data-fold": "" }));
 kids.push(wrap);
 }
 for (const a of actions.slice(0, slots)) { const n = btn(a.label, () => host.choose(a.key), { "data-key": a.key, "data-emphasis": String(!!a.emphasis), title: a.hint || "" }); if (a.badge) n.append(h("small", { class: "mw-ctx__badge", text: a.badge })); kids.push(n); }
 const extra = actions.slice(slots);
-if (extra.length || (view.more || []).length || view.assistant) kids.push(menuButton(L("更多"), () => more(extra), { "data-more": "" }));
-if (view.assistant && cut < base) kids.push(btn(slots < 3 ? "✦" : "✦ " + L("助理"), () => host.assistant(), { "data-assistant": "", "aria-label": L("助理"), title: L("交给助理") }));
+if (extra.length || (view.more || []).length || view.assistant) kids.push(menuButton(globalThis.t.text("workbench.context-toolbar.more"), () => more(extra), { "data-more": "" }));
+if (view.assistant && cut < base) kids.push(btn(slots < 3 ? "✦" : "✦ " + globalThis.t.text("workbench.context-toolbar.assistant"), () => host.assistant(), { "data-assistant": "", "aria-label": globalThis.t.text("workbench.context-toolbar.assistant"), title: globalThis.t.text("workbench.context-toolbar.hand-assistant") }));
 root.replaceChildren(...kids); root.hidden = false; root.toggleAttribute("data-tight", cut > base);
 if (keep) { opener = root.querySelector(keep); if (opener) opener.setAttribute("aria-expanded", "true"); else closeMenu(); }
 // Too wide for its room: fold the format tools first, then give up one more step.

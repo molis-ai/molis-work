@@ -1,10 +1,11 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { el } from "./dom.js";
 import { hue, svg } from "./taskboard-format.js";
 import type { BoardRow, BoardTarget } from "./taskboard-types.js";
 import type { Translate } from "./types.js";
 
 /** The mark of whoever is on a row of the outline. */
-function drawAvatar(L: Translate, executor: NonNullable<BoardRow["executor"]>): HTMLElement {
+function drawAvatar(_L: Translate, executor: NonNullable<BoardRow["executor"]>): HTMLElement {
   const avatar = el("span", "", "coding-board-avatar" + (executor.none ? " is-unknown" : "") + (executor.person ? " is-person" : ""));
   if (executor.none) {
     avatar.innerHTML = svg("user");
@@ -12,7 +13,7 @@ function drawAvatar(L: Translate, executor: NonNullable<BoardRow["executor"]>): 
     avatar.textContent = Array.from(executor.name)[0] || "?";
     avatar.style.setProperty("--board-avatar-hue", String(hue(executor.name)));
   }
-  avatar.title = executor.none ? executor.detail : L("coding.board.executor", { detail: executor.detail });
+  avatar.title = executor.none ? executor.detail : uiText.text("coding.board.executor", { detail: executor.detail });
   return avatar;
 }
 

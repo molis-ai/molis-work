@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { showSavedHistory, type SavedHistory } from "../saved-history.js";
 import { SESSION_WINDOW } from "../../session-window-sizes.js";
 import { errorMessage } from "../dom.js";
@@ -32,7 +33,7 @@ async function readSession(page: Page, id: string, ticket: number, fresh: boolea
 
 /** Takes the read's rounds as the ones shown, and what the session needs from them (recovery, the results panel's label). */
 function adoptRuns(page: Page, id: string, data: SessionData) {
-  const { L, q, s } = page;
+  const { q, s } = page;
   if (data.earlier) {
     s.earlierRuns = data.earlier;
     s.earlierFingerprint = data.earlier_fingerprint || "";
@@ -44,7 +45,7 @@ function adoptRuns(page: Page, id: string, data: SessionData) {
   s.recovery = Boolean(data.recovery_required);
   s.checkpointBusy = Boolean(data.checkpoint_busy);
   q("[data-coding-recovery]").hidden = !s.recovery;
-  const label = s.recovery || s.checkpointBusy || data.runs.some(run => run.phase === "awaiting-review") ? L("coding.results.pending") : L("coding.results.title");
+  const label = s.recovery || s.checkpointBusy || data.runs.some(run => run.phase === "awaiting-review") ? uiText.text("coding.results.pending") : uiText.text("coding.results.title");
   q("[data-coding-results-label]").textContent = label;
   q("[data-coding-results-open]").setAttribute("aria-label", label);
   if (s.recovery && s.recoveryKey !== id) {
@@ -55,11 +56,11 @@ function adoptRuns(page: Page, id: string, data: SessionData) {
 
 /** The title, what the Assistant is told about the screen, and the goal the next round is for. */
 function adoptHeader(page: Page, id: string, data: SessionData) {
-  const { L, host, q, root, s } = page;
+  const { host, q, root, s } = page;
   if (!root.querySelector("[data-coding-title] input")) q("[data-coding-title]").textContent = data.session.title;
   // What the person is on, for the bottom Assistant: this session, at its round count. Data about the screen only.
-  root.setAttribute("data-assistant-context", JSON.stringify({ plugin_id: host.pluginId, surface_title: "Coding", object: { kind: "coding_session", id, title: data.session.title || L("coding.session.untitled"), version: String(data.run_count ?? data.runs.length) } }));
-  q("[data-coding-goal-label]").textContent = data.session.goal_id ? L("coding.goal.next", { title: data.session.goal_title || data.session.goal_id }) : L("coding.goal.none-next-label");
+  root.setAttribute("data-assistant-context", JSON.stringify({ plugin_id: host.pluginId, surface_title: "Coding", object: { kind: "coding_session", id, title: data.session.title || uiText.text("coding.session.untitled"), version: String(data.run_count ?? data.runs.length) } }));
+  q("[data-coding-goal-label]").textContent = data.session.goal_id ? uiText.text("coding.goal.next", { title: data.session.goal_title || data.session.goal_id }) : uiText.text("coding.goal.none-next-label");
   retitle(page, id, s.state.sessions.find(record => record.session_id === id)?.title, data.session.title);
   s.state.sessions = s.state.sessions.map(record => record.session_id === id ? data.session : record);
 }
@@ -119,7 +120,7 @@ function claimDraft(page: Page, id: string, data: SessionData, fresh: boolean) {
 
 /** Draws the session: its rounds, the meters, the queue, the reviews and the checkpoints. */
 function drawSession(page: Page, id: string, data: SessionData, fresh: boolean) {
-  const { L, q, root, s } = page, { cooperationUi, plans, stepReports, subagents, usageMeter } = page.refs;
+  const { q, root, s } = page, { cooperationUi, plans, stepReports, subagents, usageMeter } = page.refs;
   s.runtimeSessionId = data.session.runtime_session_id;
   s.queuedInputs = data.session.queued_inputs;
   s.planEntries = [...s.olderPlanEntries, ...(data.taskboard_plans || [])];
@@ -144,7 +145,7 @@ function drawSession(page: Page, id: string, data: SessionData, fresh: boolean) 
   stepReports.sync(id);
   if (s.checkpointBusy) {
     s.statusKey = "checkpoint";
-    status(page, L("coding.checkpoints.busy-right"));
+    status(page, uiText.text("coding.checkpoints.busy-right"));
   }
   // The results panel lists this session's reviews by session, not by naming every round: open items always, and the
   // latest settled history with the rest one click away. It is only read while the panel is open.

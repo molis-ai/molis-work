@@ -26,8 +26,6 @@ import { codingHomeBackgroundTasks } from "./home-background.js";
 import { codingResultDocument } from "./contract.js";
 import { CODING_PROJECT_DATABASE } from "./database.js";
 
-import { CODING_MESSAGES } from "./messages.js";
-import { CODING_EN } from "./en.js";
 export const CODING_PLUGIN_ID = "io.molis.work.coding";
 /** What the project database stores for this Plugin. */
 export const CODING_PROJECT_PLUGIN_ID = "coding";
@@ -215,9 +213,7 @@ export const codingManifest: PluginManifest = {
     { route_id: "coding.card-run", method: "POST", path: "/sessions/:sessionId/cards/:cardId/run" },
     { route_id: "coding.card-dismiss", method: "POST", path: "/sessions/:sessionId/cards/:cardId/dismiss" },
   ],
-  ui: {
-    messages: CODING_MESSAGES,
-    translations: CODING_EN,
+  ui: { locales: { default: "zh", available: ["zh", "en"] },
     embedded_plugins: ["io.molis.work.files", "io.molis.work.git", "io.molis.work.diff", "io.molis.work.text-stats"],
     contributions: [CODING_UI_CONTRIBUTION_ID, CODING_SETTINGS_UI_CONTRIBUTION_ID],
     views: [

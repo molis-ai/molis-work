@@ -62,7 +62,10 @@ export function createWorkbenchStageRenderers(ports: {
     const entry = BUILTIN_PLUGIN_CATALOG.find(item => item.manifest.plugin_id === pluginId || item.project_plugin_id === pluginId);
     const contributionId = entry && declaredStageContributionId(entry);
     if (!entry || !contributionId) return "";
-    return renderWorkbenchContribution(contributionId, surface, { ...sharedStageModel(entry.project_plugin_id, view), data, request });
+    const model = { ...sharedStageModel(entry.project_plugin_id, view), data, request };
+    const source = view.plugin_stage_views?.[`project:${entry.project_plugin_id}`] ?? view.plugin_stage_views?.[`home:${entry.project_plugin_id}`];
+    if (source) return source.render({ contribution_id: contributionId, surface, model });
+    return view.plugin_stage_views ? "" : renderWorkbenchContribution(contributionId, surface, model);
   }
 
   function declaredSettingsSurface<Data>(pluginId: string, surface: string, model: (stage: StagePageModel) => StagePageModel<Data>, view?: MolisWorkWebView): string {

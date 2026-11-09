@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { ProjectGuidanceView } from "@molis-ai/molis-work-plugin-goals/contract";
 import type { PlanningMethodPack } from "@molis-ai/molis-work-plugin-goals/contract";
 import type { PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
@@ -99,11 +100,11 @@ export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePo
     const page = renderHubSection(view, guidance, methods, open, desktopShell), navigation = renderProjectSettingsNavigation(guidance === null && GOALS_SETTINGS_SECTIONS.has(open) ? "general" : open, project, desktopShell, [], { goals: guidance !== null });
     return `<!doctype html>
 <html lang="${htmlLang()}">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">${NO_FAVICON_LINK}${controlTokenMeta(controlToken)}<title>${L("项目设置")} · ${escapeHtml(project.display_name)} · Molis Work</title><script>${THEME_BOOTSTRAP_SCRIPT}</script><link rel="stylesheet" href="/assets/molis-work-settings.css">${appearanceHead(appearance)}</head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">${NO_FAVICON_LINK}${controlTokenMeta(controlToken)}<title>${uiText("workbench.project-settings-pages.project-settings")} · ${escapeHtml(project.display_name)} · Molis Work</title><script>${THEME_BOOTSTRAP_SCRIPT}</script><link rel="stylesheet" href="/assets/molis-work-settings.css">${appearanceHead(appearance)}</head>
 <body${ports.accountRegistration ? ACCOUNT_REGISTRATION_BODY : ''} class="settings-page project-preferences-page" data-route-prefix="${escapeHtml(routePrefix)}" data-settings-section="${open}" data-desktop-shell="false"${desktopShell ? ' data-native-desktop="true"' : ""}>
   <!-- THESIS: Project settings are a dedicated space for deliberate changes. OWN-WORLD: Coss neutral surfaces, fine dividers, 8px controls. STORY: Choose a category, edit the shared project contract, return to the same workspace. FIRST VIEWPORT: 224px rail, 840px content column, 24px title, settings rows with controls on the right. FORM: Independent preferences; project-settings-v2. Interaction: category navigation preserves workspace tabs; disclosures reveal advanced controls with 160ms arrow motion and reduced-motion support. FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance -->
   ${renderIconSprite()}
-  <header class="project-preferences-chrome"${desktopShell ? ' data-tauri-drag-region="deep"' : ""}><span>${L("项目设置")}</span><a href="${projectReturnHref}" aria-label="${L("返回工作台")}" title="${L("返回工作台")}">${icon("x")}</a></header>
+  <header class="project-preferences-chrome"${desktopShell ? ' data-tauri-drag-region="deep"' : ""}><span>${uiText("workbench.project-settings-pages.project-settings")}</span><a href="${projectReturnHref}" aria-label="${uiText("workbench.project-settings-pages.back-workbench")}" title="${uiText("workbench.project-settings-pages.back-workbench")}">${icon("x")}</a></header>
   <main class="settings-shell">
     ${navigation}
     <div class="settings-content" id="settings-content">${page}</div>

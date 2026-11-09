@@ -1,10 +1,11 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type {} from "@molis-ai/molis-work-plugin-sdk";
 import type { UiRequestFailure } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { ShelfPage, Snapshot } from "./types.js";
 
 /** One POST to Shelf's routes (`path` follows the plugin's route): the answer, or an error that says why in the Host's words. */
 export const post = <T = unknown>(page: ShelfPage, path: string, body: Record<string, unknown> = {}): Promise<T> =>
-  molisWorkRequest<T>(page.api + path, { method: "POST", body, scope: page.lifetime, fallback: page.L("shelf.request.shelf-request-failed") });
+  molisWorkRequest<T>(page.api + path, { method: "POST", body, scope: page.lifetime, fallback: uiText.text("shelf.request.shelf-request-failed") });
 
 /** One read of a route as JSON. */
 export const read = <T>(page: ShelfPage, path: string, fallback: string, signal?: AbortSignal): Promise<T> =>

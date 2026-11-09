@@ -1,5 +1,6 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { KnowledgeCardRecord, KnowledgeCardsResponse, KnowledgeOrganizeResponse, KnowledgeReadReceipt, KnowledgeReceiptsResponse } from "@molis-ai/molis-work-contracts/services/knowledge";
-import { badge, el, L, readerOf, request, stateOf, subjectKey, when } from "./common.js";
+import { badge, el, readerOf, request, stateOf, subjectKey, when } from "./common.js";
 import { renderDetail, type KnowledgeDetailHost } from "./detail.js";
 import { drawQuota, drawReceipts, pageNotices } from "./settings-parts.js";
 
@@ -43,7 +44,7 @@ export function bindKnowledgeSettings(root: HTMLElement): void {
   let cards: KnowledgeCardRecord[] = [], total = 0, recent: KnowledgeReadReceipt[] = [], open = "", timer = 0, modelReady = true, listing = false;
   const selected = new Set<string>();
 
-  const api = <T>(path: string, body?: unknown) => request()<T>(base + path, body === undefined ? {} : { body, fallback: L("操作没有完成") });
+  const api = <T>(path: string, body?: unknown) => request()<T>(base + path, body === undefined ? {} : { body, fallback: uiText.text("workbench.settings-page.that-did-not-finish") });
   const { toast, fail } = pageNotices(errorBox);
 
   const backendState = () => BACKEND_STATES.includes(stateFilter.value) ? stateFilter.value : "";
@@ -92,11 +93,11 @@ export function bindKnowledgeSettings(root: HTMLElement): void {
     const shown = visible();
     const counts = { all: cards.length, ready: 0, pending: 0, failed: 0 };
     for (const card of cards) if (card.state === "ready" || card.state === "failed" || waiting(card)) counts[card.state as "ready" | "pending" | "failed"] += 1;
-    $("[data-knowledge-summary]").textContent = !total && listing ? L("正在清点项目里的资料…")
-      : !total ? L("还没有资料。项目里的文档、页面、目标和导入的文件会出现在这里。")
-      : backendState() ? L("{count} 份", { count: total })
-      : L("共 {total} 份 · 已整理 {ready} · 等待整理 {pending} · 失败 {failed}", { total, ready: counts.ready, pending: counts.pending, failed: counts.failed });
-    list.replaceChildren(...(shown.length ? shown.map(row) : [el("li", "settings-muted knowledge-empty", cards.length ? L("没有符合筛选的资料。") : L("这里还是空的。"))]));
+    $("[data-knowledge-summary]").textContent = !total && listing ? uiText.text("workbench.settings-page.listing-project-s-pieces")
+      : !total ? uiText.text("workbench.settings-page.no-pieces-yet-project-s-documents-pages-goals")
+      : backendState() ? uiText.text("workbench.settings-page.count", { count: total })
+      : uiText.text("workbench.settings-page.total-total-ready-organized-pending-waiting-failed-failed", { total, ready: counts.ready, pending: counts.pending, failed: counts.failed });
+    list.replaceChildren(...(shown.length ? shown.map(row) : [el("li", "settings-muted knowledge-empty", cards.length ? uiText.text("workbench.settings-page.no-pieces-match-filter") : uiText.text("workbench.settings-page.nothing-here-yet"))]));
     $("[data-knowledge-more]").hidden = cards.length >= total;
     $(".knowledge-select-all").hidden = !shown.length;
     $("[data-knowledge-organize-all]").hidden = !cards.some(card => !card.excluded && (card.state === "failed" || card.state === "over_quota"));
@@ -109,7 +110,7 @@ export function bindKnowledgeSettings(root: HTMLElement): void {
     item.dataset.knowledgeSubject = card.subject.kind + ":" + card.subject.id;
     const pick = el("input");
     pick.type = "checkbox"; pick.checked = selected.has(key);
-    pick.setAttribute("aria-label", L("选择") + " " + card.title);
+    pick.setAttribute("aria-label", uiText.text("workbench.settings-page.choice") + " " + card.title);
     pick.addEventListener("change", () => { if (pick.checked) selected.add(key); else selected.delete(key); drawBatch(); });
     const copy = el("div", "knowledge-row-copy");
     const title = el("button", "knowledge-title", card.title);
@@ -119,11 +120,11 @@ export function bindKnowledgeSettings(root: HTMLElement): void {
     const meta = el("div", "knowledge-meta");
     const state = stateOf(card);
     meta.append(badge(state.label, state.tone), el("span", "", card.plugin_title));
-    if (card.excluded) meta.append(el("span", "knowledge-tag", L("不给 Agent 用")));
-    if (card.edited.length) meta.append(el("span", "knowledge-tag", L("你改过")));
-    if (card.updated_at) meta.append(el("span", "", L("更新于 {time}", { time: when(card.updated_at) })));
+    if (card.excluded) meta.append(el("span", "knowledge-tag", uiText.text("workbench.settings-page.kept-agents")));
+    if (card.edited.length) meta.append(el("span", "knowledge-tag", uiText.text("workbench.settings-page.edited")));
+    if (card.updated_at) meta.append(el("span", "", uiText.text("workbench.settings-page.updated-time", { time: when(card.updated_at) })));
     const read = lastRead(card);
-    if (read) meta.append(el("span", "", L("{who} 在 {time} 读过", { who: readerOf(read), time: when(read.at) })));
+    if (read) meta.append(el("span", "", uiText.text("workbench.settings-page.read-who-time", { who: readerOf(read), time: when(read.at) })));
     copy.append(title);
     if (card.brief) copy.append(el("p", "knowledge-brief", card.brief));
     copy.append(meta);
@@ -136,7 +137,7 @@ export function bindKnowledgeSettings(root: HTMLElement): void {
     const keys = new Set(visible().map(card => subjectKey(card.subject)));
     for (const key of [...selected]) if (!cards.some(card => subjectKey(card.subject) === key)) selected.delete(key);
     $("[data-knowledge-batch]").hidden = selected.size === 0;
-    $("[data-knowledge-batch-count]").textContent = L("已选 {count} 份", { count: selected.size });
+    $("[data-knowledge-batch-count]").textContent = uiText.text("workbench.settings-page.count-selected", { count: selected.size });
     const all = $<HTMLInputElement>("[data-knowledge-select-all]");
     all.checked = keys.size > 0 && [...keys].every(key => selected.has(key));
   }
@@ -144,7 +145,7 @@ export function bindKnowledgeSettings(root: HTMLElement): void {
   async function organize(subjects: KnowledgeCardRecord["subject"][] | undefined, confirm = false) {
     try {
       const result = await api<KnowledgeOrganizeResponse>("/organize", { ...(subjects ? { subjects } : {}), ...(confirm ? { confirm_over_quota: true } : {}) });
-      toast(result.queued ? L("已排进整理队列：{count} 份", { count: result.queued }) : L("没有要整理的资料"));
+      toast(result.queued ? uiText.text("workbench.settings-page.queued-organizing-count", { count: result.queued }) : uiText.text("workbench.settings-page.nothing-organize"));
       await reload();
     } catch (error) { fail(error); }
   }
@@ -161,7 +162,7 @@ export function bindKnowledgeSettings(root: HTMLElement): void {
     const excluded = action === "exclude";
     try {
       for (const card of picked.filter(item => item.excluded !== excluded)) detailHost.replaced(await api<KnowledgeCardRecord>("/exclude", { subject: card.subject, excluded }));
-      toast(excluded ? L("这些资料不再给 Agent 用") : L("这些资料又能给 Agent 用了"));
+      toast(excluded ? uiText.text("workbench.settings-page.these-pieces-kept-agents") : uiText.text("workbench.settings-page.agents-can-use-these-pieces-again"));
       selected.clear(); drawList();
     } catch (error) { fail(error); }
   }

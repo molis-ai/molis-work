@@ -2,10 +2,10 @@ import { ASSISTANT_PROCESS_FACTORY_SCRIPT, ASSISTANT_RETRY_FACTORY_SCRIPT } from
 
 /** The bar's small common parts: icons, cards, sections, progress, step and retry rows, and the segmented choice. A part of ASSISTANT_ISLAND_FACTORY_SCRIPT, joined in place. */
 export const ASSISTANT_SIDE_KIT_PART = String.raw`  // Short on the card; the versions behind it are in its title.
-  const objectState = (object) => object.state === "changed" ? L("之后被改过") : object.state === "missing" ? L("已不存在") : object.state === "unavailable" ? L("暂时读不到")
-    : object.state === "moved" ? (object.moved_to ? L("已移到") + "「" + object.moved_to.title + "」" : L("在别的项目里")) : "";
-  const objectDetail = (object) => object.state === "changed" ? L("这项工作记下版本") + " " + object.recorded_revision + " · " + L("现为版本") + " " + object.current_revision
-    : object.current_revision ? L("版本") + " " + object.current_revision : "";
+  const objectState = (object) => object.state === "changed" ? globalThis.t.text("workbench.assistant-side-kit.changed-since") : object.state === "missing" ? globalThis.t.text("workbench.assistant-side-kit.no-longer-exists") : object.state === "unavailable" ? globalThis.t.text("workbench.assistant-side-kit.cannot-be-read-now")
+    : object.state === "moved" ? (object.moved_to ? globalThis.t.text("workbench.assistant-side-kit.moved") + "「" + object.moved_to.title + "」" : globalThis.t.text("workbench.assistant-side-kit.another-project")) : "";
+  const objectDetail = (object) => object.state === "changed" ? globalThis.t.text("workbench.assistant-side-kit.work-recorded-version") + " " + object.recorded_revision + " · " + globalThis.t.text("workbench.assistant-side-kit.now-version") + " " + object.current_revision
+    : object.current_revision ? globalThis.t.text("workbench.assistant-side-kit.version") + " " + object.current_revision : "";
   /* The side pane speaks in the page's own glyphs, rendered once into a template, so every kind of thing has a face. */
   const glyphs = island.querySelector("[data-assistant-glyphs]");
   const glyph = (name) => {
@@ -46,7 +46,7 @@ export const ASSISTANT_SIDE_KIT_PART = String.raw`  // Short on the card; the ve
     const text = el("div", "assistant-item-text");
     if (open) {
       const name = el("button", "assistant-item-title", title); name.type = "button";
-      name.setAttribute("aria-label", (openLabel || L("打开")) + "：" + title);
+      name.setAttribute("aria-label", (openLabel || globalThis.t.text("common.control.open")) + "：" + title);
       name.addEventListener("click", () => { void open(); });
       text.append(name);
     } else text.append(el("span", "assistant-item-title", title));
@@ -58,7 +58,7 @@ export const ASSISTANT_SIDE_KIT_PART = String.raw`  // Short on the card; the ve
   };
   const openObject = (object) => object.open ? async () => showObject(object) : null;
   // A thing that is gone may come back named only by its id: the person never saw that id, so it reads as “this item”.
-  const objectTitle = (object) => object.title && object.title !== object.subject.id ? object.title : L("这项内容");
+  const objectTitle = (object) => object.title && object.title !== object.subject.id ? object.title : globalThis.t.text("workbench.assistant-side-kit.item");
   const objectCard = (object, tone, openLabel) => {
     const state = objectState(object);
     return card({ icon: objectGlyph(object), tone: object.state === "missing" || object.state === "unavailable" ? "blocked" : object.state !== "current" ? "attention" : tone,
@@ -93,7 +93,7 @@ export const ASSISTANT_SIDE_KIT_PART = String.raw`  // Short on the card; the ve
     node.replaceChildren(head, body);
   };
   const group = (label, ...children) => { const box = el("div", "assistant-group"); if (label) box.append(el("p", "assistant-block-sub", label)); box.append(...children); return box; };
-  const stack = (cards, key) => { const box = el("div", "assistant-stack"); cards.forEach((one) => box.append(one)); if (key) window.molisShowMore?.(box, { key, label: L("再显示 {n} 项"), keep: ":has(> .is-blocked)" }); return box; };
+  const stack = (cards, key) => { const box = el("div", "assistant-stack"); cards.forEach((one) => box.append(one)); if (key) window.molisShowMore?.(box, { key, label: globalThis.t.text("workbench.assistant-side-kit.show-n-more"), keep: ":has(> .is-blocked)" }); return box; };
   const progress = (done, total, label) => {
     const meter = el("span", "assistant-progress"); const fill = el("span"); fill.style.width = Math.round(total ? done / total * 100 : 0) + "%"; meter.append(fill);
     meter.setAttribute("role", "img"); meter.setAttribute("aria-label", label + " " + done + "/" + total);

@@ -17,9 +17,19 @@ const matches = (value: string | undefined | null): value is UiLanguageTag => UI
 const assetOf = (page: ParentNode) => page.querySelector<HTMLScriptElement>("script[data-ui-language-resource]")?.getAttribute("src") ?? null;
 const path = () => location.pathname + location.search;
 
+/** Additional owner words are selected by the Host for the exact inline views in this document. */
+type InlinePageText = { readonly slot: string; readonly producer: string; readonly packs: readonly UiLocalePack[] };
+const viewPacks = (page: ParentNode): readonly InlinePageText[] => {
+  const data = page.querySelector("script[data-ui-page-text]")?.textContent;
+  return data ? JSON.parse(data) as InlinePageText[] : [];
+};
+
+
 function documentLanguage(initial: UiLocalePack) {
   const packs = new Map([[initial.locale, initial]]);
-  const text = installLanguageText(initial.locale, [initial]);
+  let inline = viewPacks(document);
+  const packsFor = (pack: UiLocalePack, pages: readonly InlinePageText[]) => [pack, ...pages.flatMap(page => page.packs)];
+  const text = installLanguageText(initial.locale, packsFor(initial, inline));
   const broadcast = typeof BroadcastChannel === "function" ? new BroadcastChannel("molis-work-ui-language") : null;
   let intent: Request | undefined, lastSaved: Request | undefined, failure: HTMLElement | undefined;
   const readPreference = () => molisWorkRequest<EntryLanguage>("/api/ui/locale", { control: true });
@@ -56,11 +66,15 @@ function documentLanguage(initial: UiLocalePack) {
     async prepare(locale, signal, next, previous) {
       const choice = intent;
       if (!choice || choice.tag !== locale) throw new Error(t.text("workbench.language.load-failed"));
+      const projected = next ? viewPacks(next) : inline;
+      if (inline.length !== projected.length || inline.some(current => !projected.some(page => page.slot === current.slot && page.producer === current.producer))) {
+        throw new Error(t.text("workbench.language.window-failed"));
+      }
       const [pack, frames] = await Promise.all([
         loadPack(locale, next, signal),
         previous && next ? globalThis.molisPluginFrames?.prepareLanguage(locale, signal, previous, next) : undefined,
       ]);
-      return { pack, choice, frames, reader: createTextReader({ packs: [pack], locale }) };
+      return { pack, choice, frames, inline: projected, reader: createTextReader({ packs: packsFor(pack, projected), locale }) };
     },
     async persist(_locale, prepared) {
       const { choice } = prepared;
@@ -80,7 +94,8 @@ function documentLanguage(initial: UiLocalePack) {
       const pack = prepared?.pack ?? packs.get(locale), language = UI_LANGUAGES.find(row => row.tag === locale);
       if (!pack || !language) throw new Error(t.text("workbench.language.load-failed"));
       prepared?.frames?.assertCurrent();
-      text.select(locale, [pack]);
+      inline = prepared?.inline ?? inline;
+      text.select(locale, packsFor(pack, inline));
       document.documentElement.lang = language.html_lang;
       document.documentElement.dir = language.direction;
       prepared?.frames?.apply();

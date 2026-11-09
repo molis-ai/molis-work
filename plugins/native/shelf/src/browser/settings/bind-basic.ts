@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { PANEL_DEFAULTS } from "./keys.js";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { paintPanelKeys, paintPanes, refreshSettings, save, savePatch, say, stopRecording } from "./save.js";
@@ -18,7 +19,7 @@ export function startRecording(page: SettingsPage, row: HTMLElement, scope: Pare
   page.recording = panel ? { row, root: scope, panel: true } : { row, root: scope };
   row.classList.add("is-recording");
   record.setAttribute("aria-pressed", "true");
-  record.textContent = page.L("shelf.settings.hotkey-recording");
+  record.textContent = uiText.text("shelf.settings.hotkey-recording");
   record.focus();
 }
 

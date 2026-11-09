@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { AssistantMethodSelection } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { ReadAssistantMethod } from "./assistant-signed-materials.js";
 import type { AssistantContinuations } from "./assistant-continuations.js";
@@ -9,7 +10,6 @@ import { describeReview } from "./assistant-review-words.js";
 import type { AssistantDelegations } from "./assistant-delegation.js";
 import { roundModel, workView } from "./assistant-work-view.js";
 import type { AssistantMethod, AssistantPendingReview, AssistantRound, AssistantWork, AssistantWorkState, AssistantWorkView, AssistantRelatedWork, AssistantWorkObject, AssistantDiagnostics, AssistantRoundDiagnostics } from "@molis-ai/molis-work-contracts/services/assistant";
-import { L } from "../web-locale.js";
 import { identity } from "./assistant-relations.js";
 import type { AssistantStore, StoredRound, StoredWork } from "./assistant-store.js";
 import { assistantErrors, whenThere } from "./assistant-errors.js";
@@ -79,7 +79,7 @@ export class AssistantWorkReads {
     const waiting = new Set(rounds.filter(round => round.phase === "awaiting-review").map(round => round.run_id));
     const reviews = read.runtime_session_id ? this.reviewsFor(host, { ...work, session_id: read.runtime_session_id }).filter(review => review.run_id !== null && waiting.has(review.run_id)) : [];
     return { rounds, reviews, recovery: Boolean(read.recovery), ...(read.mode ? { mode: read.mode } : {}),
-      ...(read.recovery ? { problem: { message: read.recovery.message, action: L("到执行方的页面核对") } } : {}) };
+      ...(read.recovery ? { problem: { message: read.recovery.message, action: uiText.text("workbench.assistant-work-reads.check-executor-s-page") } } : {}) };
   }
 
   /**

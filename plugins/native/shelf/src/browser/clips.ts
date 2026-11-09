@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderBar } from "./bar.js";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { flushEdit } from "./edit.js";
@@ -21,7 +22,7 @@ export function say(page: ShelfPage, text: string, ms?: number): void {
 
 export async function copyClip(page: ShelfPage, text: string): Promise<boolean> {
   const ok = await page.host.copyText(text).then(() => true, () => false);
-  say(page, ok ? page.L("shelf.clips.copied") : page.L("shelf.clips.could-not-copy"), ok ? 2500 : 4000);
+  say(page, ok ? uiText.text("shelf.clips.copied") : uiText.text("shelf.clips.could-not-copy"), ok ? 2500 : 4000);
   return ok;
 }
 
@@ -41,12 +42,12 @@ export async function copyFiles(page: ShelfPage, picked: readonly Item[]): Promi
   const native = page.host.nativeFiles?.copy(files.map((item) => item.relative_path));
   if (native) {
     await native;
-    say(page, page.L("shelf.clips.copied"), 2500);
+    say(page, uiText.text("shelf.clips.copied"), 2500);
     return;
   }
   // A browser cannot place file URLs on the macOS pasteboard.
   for (const item of files) download(page, item);
-  say(page, page.L("shelf.clips.copy-downloaded-the-desktop-app"));
+  say(page, uiText.text("shelf.clips.copy-downloaded-the-desktop-app"));
 }
 
 export async function copyShelfItem(page: ShelfPage, id: string): Promise<void> {
@@ -67,7 +68,7 @@ export async function joinClips(page: ShelfPage, ids: readonly string[]): Promis
       done += 1;
     }
   } catch (error) {
-    if (done) (error as Error).message = page.L("shelf.clips.done-added-the-rest-could", { done, reason: messageOf(error) });
+    if (done) (error as Error).message = uiText.text("shelf.clips.done-added-the-rest-could", { done, reason: messageOf(error) });
     throw error;
   } finally {
     if (done) {

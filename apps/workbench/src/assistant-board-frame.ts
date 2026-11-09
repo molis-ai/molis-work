@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t as uiText, escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import {
   INPUT_RECEIPTS_CLIENT_SCRIPT,
   INTERACTION_CLIENT_SCRIPT_TYPED_DATES,
@@ -63,7 +63,7 @@ export function renderMolisWorkAssistantSpecimen(options: AssistantFrameOptions,
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>${escapeHtml(L("助理样例"))} · Molis Work</title>
+  <title>${escapeHtml(uiText.text("workbench.assistant-board-frame.assistant-specimen"))} · Molis Work</title>
   ${renderLanguageHead(ports.htmlLang())}
   <script>${THEME_BOOTSTRAP_SCRIPT}</script>
   <link rel="stylesheet" href="/assets/molis-work-workbench.css">
@@ -72,10 +72,10 @@ export function renderMolisWorkAssistantSpecimen(options: AssistantFrameOptions,
 <body class="immersive-workbench mw-asst-page">
   ${renderIconSprite()}
   <main class="mw-asst" data-asst-frame-page data-work="${options.work}" data-text="${options.text}" data-answer="${options.answer}">
-    <p data-asst-note>${escapeHtml(L("模拟：工作、轮次与宿主的回答是固定样例（宿主照常画好），不连接模型；回答、核对与提醒只在这一页里生效，别的写入都被拒绝。面板、侧栏六组、过程、输入框、上下文条与附件都是生产的助理程序。"))}</p>
+    <p data-asst-note>${escapeHtml(uiText.text("workbench.assistant-board-frame.simulated-works-turns-host-s-answers-fixed-samples"))}</p>
     <div class="mw-asst-row">
-      <button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-asst-attach>${escapeHtml(L("带上三个文件（模拟）"))}</button>
-      <button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-asst-advance>${escapeHtml(L("推进一步（模拟）"))}</button>
+      <button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-asst-attach>${escapeHtml(uiText.text("workbench.assistant-board-frame.bring-three-files-simulated"))}</button>
+      <button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-asst-advance>${escapeHtml(uiText.text("workbench.assistant-board-frame.move-one-step-simulated"))}</button>
       <span role="status" data-asst-state></span>
     </div>
   </main>

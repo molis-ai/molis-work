@@ -22,14 +22,14 @@ const PANE_PART = String.raw`  const L = host.translate;
   const embedded = window.parent !== window && document.body.matches("[data-pane-embedded],[data-side-view]");
   const ownPane = embedded ? new URL(location.href).searchParams.get("workbenchPane") || "pane" : "main";
   const panes = host.paneMessages;
-  const post=(path,body,signal,page)=>molisWorkRequest(host.route(path),{body,signal,...(page?{headers:{"x-molis-context-page":page}}:{}),fallback:L("暂时处理不了，请稍后重试")});
+  const post=(path,body,signal,page)=>molisWorkRequest(host.route(path),{body,signal,...(page?{headers:{"x-molis-context-page":page}}:{}),fallback:globalThis.t.text("workbench.context-actions.can-t-do-that-right-now-try-again")});
   const newRequestId = () => (crypto.randomUUID ? crypto.randomUUID() : "cx-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8));
   // Cut to at most n UTF-16 units (the Host counts units too) without ending on half of a two-unit character; inside the limit as it is.
   const cutWhole = (s, n) => s.length <= n ? s : s.slice(0, n).replace(/[\ud800-\udbff]$/u, "");
   const quoted = (focus) => cutWhole(focus.targets.map((target) => target.text).join("\n\n"), 20000);
   // What is in hand, for the Assistant's strip: the passage and the object it is from, never words written for the person.
   const inHand = (focus) => ({ new: true, source: { surface: focus.plugin_id, title: focus.object.title || "" }, object: focus.object,
-    materials: [{ title: L("选中的内容") + (focus.object.title ? " · " + focus.object.title : ""), text: quoted(focus) }] });
+    materials: [{ title: globalThis.t.text("workbench.context-actions.selection") + (focus.object.title ? " · " + focus.object.title : ""), text: quoted(focus) }] });
 
   const makeToolbar = ${CONTEXT_TOOLBAR_CLIENT_SCRIPT};
   const coarse = () => matchMedia("(pointer: coarse)").matches || innerWidth <= 760;

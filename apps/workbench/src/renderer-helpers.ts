@@ -1,4 +1,4 @@
-import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { t as uiText, escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { createWorkbenchLocale, WebLocale } from "./i18n.js";
 
 /** The words and formats of the request being rendered; the Host binds them, the workbench only reads them. */
@@ -14,10 +14,10 @@ export function createRendererHelpers(ports: {
   dateTimeLocale: RendererLocale["dateTimeLocale"];
   appendDesktopQueryToLocalHrefs(html: string): string;
 }) {
-  const { L, dateTimeLocale, appendDesktopQueryToLocalHrefs } = ports;
+  const { dateTimeLocale, appendDesktopQueryToLocalHrefs } = ports;
 
   function formatDate(value: string | null | undefined): string {
-    if (!value) return L("未记录");
+    if (!value) return uiText.text("workbench.renderer-helpers.not-recorded");
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return value;
     return new Intl.DateTimeFormat(dateTimeLocale(), {
@@ -31,7 +31,7 @@ export function createRendererHelpers(ports: {
   }
 
   function renderList(values: string[], empty: string): string {
-    if (values.length === 0) return `<p class="empty-row">${escapeHtml(L(empty))}</p>`;
+    if (values.length === 0) return `<p class="empty-row">${escapeHtml(uiText.text(empty))}</p>`;
     return `<ul class="doc-list">${values.map((value) => `<li>${escapeHtml(value)}</li>`).join("")}</ul>`;
   }
 

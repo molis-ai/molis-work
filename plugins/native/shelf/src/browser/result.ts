@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { flushEdit } from "./edit.js";
 import { post, read } from "./request.js";
@@ -9,7 +10,7 @@ interface ResultText { text: string; fingerprint: string; source: { reference: u
 
 /** Explicit receipt of fixed project results; connected outputs only nominate candidates. */
 export function installResult(page: ShelfPage): void {
-  const { bench, lifetime, L } = page;
+  const { bench, lifetime } = page;
   const q = <T extends HTMLElement>(selector: string) => bench.querySelector<T>(selector);
   const dialog = q<HTMLDialogElement>("[data-shelf-result-dialog]");
   const openButton = q<HTMLButtonElement>("[data-shelf-receive-open]");
@@ -29,15 +30,15 @@ export function installResult(page: ShelfPage): void {
     current = null;
     receive.disabled = true;
     body.textContent = "";
-    if (!candidate) { status.textContent = L("shelf.result.no-saved-reports-or-changes"); return; }
-    status.textContent = L("shelf.material.reading-the-full-text");
+    if (!candidate) { status.textContent = uiText.text("shelf.result.no-saved-reports-or-changes"); return; }
+    status.textContent = uiText.text("shelf.material.reading-the-full-text");
     try {
-      const value = await read<ResultText>(page, "/project-result?artifact_id=" + encodeURIComponent(candidate.reference.artifact_id) + "&version=" + candidate.reference.version, L("shelf.result.could-not-read-result"));
+      const value = await read<ResultText>(page, "/project-result?artifact_id=" + encodeURIComponent(candidate.reference.artifact_id) + "&version=" + candidate.reference.version, uiText.text("shelf.result.could-not-read-result"));
       if (token !== ticket) return;
       current = value;
       body.textContent = value.text;
       receive.disabled = false;
-      status.textContent = L("shelf.result.receive-a-personal-shelf-copy");
+      status.textContent = uiText.text("shelf.result.receive-a-personal-shelf-copy");
     } catch (error) { failed(token, error); }
   };
   const loadChoices = async () => {
@@ -46,16 +47,16 @@ export function installResult(page: ShelfPage): void {
     receive.disabled = true;
     select.disabled = true;
     body.textContent = "";
-    status.textContent = L("shelf.result.reading-project-results");
+    status.textContent = uiText.text("shelf.result.reading-project-results");
     try {
       await flushEdit(page);
-      const value = await read<{ results: ProjectResult[] }>(page, "/project-results", L("shelf.result.could-not-read-result"));
+      const value = await read<{ results: ProjectResult[] }>(page, "/project-results", uiText.text("shelf.result.could-not-read-result"));
       if (token !== ticket) return;
       choices = value.results;
       select.replaceChildren(...choices.map((item, index) => {
         const option = document.createElement("option");
         option.value = String(index);
-        option.textContent = item.title + " · v" + item.reference.version + (item.connected ? " · " + L("shelf.result.current-output") : "");
+        option.textContent = item.title + " · v" + item.reference.version + (item.connected ? " · " + uiText.text("shelf.result.current-output") : "");
         return option;
       }));
       select.disabled = !choices.length;
@@ -73,7 +74,7 @@ export function installResult(page: ShelfPage): void {
     const value = current;
     const token = ticket;
     receive.disabled = true;
-    status.textContent = L("shelf.result.receiving-result");
+    status.textContent = uiText.text("shelf.result.receiving-result");
     try {
       const result = await post<SnapshotAnswer>(page, "/project-result", { reference: value.source.reference, expected_fingerprint: value.fingerprint });
       const active = token === ticket;

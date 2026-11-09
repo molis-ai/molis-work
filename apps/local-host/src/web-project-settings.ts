@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { WebSettingsProject } from "@molis-ai/molis-work-app-workbench";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
@@ -5,7 +6,6 @@ import { projectCatalogErrors } from "@molis-ai/molis-work-contracts/modules/pro
 import { type MolisWorkProjectCatalog, type MolisWorkProjectCatalogOptions } from "./project-catalog.js";
 import { sendLocalWebJson as sendJson, readLocalWebBody as readBody } from "./web-http.js";
 import { settingsProject, installationDiagnostics } from "./web-project-presentation.js";
-import { L } from "./web-locale.js";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createProjectDeletionHttp, removeDemoThroughService, sendDeletionFailure } from "./web-project-deletion.js";
 import type { ProjectDeletionPorts } from "./project-deletion-service.js";
@@ -19,7 +19,7 @@ async function renameProjectFromHttp(request: IncomingMessage, response: ServerR
   const body = await readBody(request);
   const displayName = typeof body.display_name === "string" ? body.display_name.trim() : "";
   if (!displayName) {
-    sendJson(response, 400, { error: L("项目名称不能为空") });
+    sendJson(response, 400, { error: uiText.text("workbench.project-settings.project-name-cannot-be-empty") });
     return;
   }
   try {
@@ -53,7 +53,7 @@ export function createLocalProjectSettingsHttp(withMolisWorkProjectCatalog: Loca
       const body = await readBody(request);
       const displayName = typeof body.display_name === "string" ? body.display_name.trim() : "";
       if (body.user_confirmed !== true || !displayName) {
-        sendJson(response, 400, { error: L("请确认并填写项目名称") });
+        sendJson(response, 400, { error: uiText.text("workbench.project-settings.confirm-enter-project-name") });
         return true;
       }
       try {
@@ -75,14 +75,14 @@ export function createLocalProjectSettingsHttp(withMolisWorkProjectCatalog: Loca
         ? body.action
         : null;
       if (!action || body.user_confirmed !== true) {
-        sendJson(response, 400, { error: L("请明确确认要创建、重建或删除演示数据") });
+        sendJson(response, 400, { error: uiText.text("workbench.project-settings.confirm-that-want-create-rebuild-delete-demo-data") });
         return true;
       }
       if (action === "remove") {
         try {
           const removed = await removeDemoThroughService(withMolisWorkProjectCatalog, homeDirectory, deletionPorts);
-          if (removed) sendJson(response, 200, { ...removed, message: L("可重建 demo 已删除；用户项目未修改") });
-          else sendJson(response, 404, { error: L("示例项目已经不存在") });
+          if (removed) sendJson(response, 200, { ...removed, message: uiText.text("workbench.project-settings.regenerable-demo-deleted-user-projects-were-not-changed") });
+          else sendJson(response, 404, { error: uiText.text("workbench.project-settings.demo-project-no-longer-exists") });
         } catch (error) {
           sendDeletionFailure(response, error);
         }
@@ -96,12 +96,12 @@ export function createLocalProjectSettingsHttp(withMolisWorkProjectCatalog: Loca
         try { await demoSamples?.(); }
         catch (error) {
           hostLog.warn("projects", "demo_sample_failed", error, { action, project_id: result.project.project_id });
-          warning = L("Shelf 示例未能恢复，请在 Shelf 中查看后重试。");
+          warning = uiText.text("workbench.project-settings.shelf-sample-could-not-be-restored-check-shelf");
         }
         sendJson(response, 200, {
           ...result, project: settingsProject(result.project), ...(warning ? { warning } : {}),
-          message: action === "reset" ? L("示例项目已重建；用户项目未修改")
-            : result.status === "existing" ? L("示例项目已经存在") : L("示例项目已创建"),
+          message: action === "reset" ? uiText.text("workbench.project-settings.demo-project-rebuilt-user-projects-were-not-changed")
+            : result.status === "existing" ? uiText.text("workbench.project-settings.demo-project-already-exists") : uiText.text("workbench.project-settings.demo-project-created"),
         });
       } catch (error) {
         sendJson(response, 400, { error: error instanceof Error ? error.message : String(error) });
@@ -141,7 +141,7 @@ async function handlePluginSettings(withMolisWorkProjectCatalog: LocalWebCatalog
       // lets the registry reject an unknown id with its own reason.
       const pluginId = typeof body.plugin_id === "string" ? body.plugin_id.trim() : "";
       if (pluginId === "") {
-        sendJson(response, 400, { error: L("找不到这个内置插件") });
+        sendJson(response, 400, { error: uiText.text("workbench.project-settings.built-plugin-does-not-exist") });
         return true;
       }
       try {
@@ -165,7 +165,7 @@ async function handlePluginSettings(withMolisWorkProjectCatalog: LocalWebCatalog
       const body = await readBody(request);
       const pluginId = typeof body.plugin_id === "string" ? body.plugin_id.trim() : "";
       if (pluginId === "") {
-        sendJson(response, 400, { error: L("找不到这个内置插件") });
+        sendJson(response, 400, { error: uiText.text("workbench.project-settings.built-plugin-does-not-exist") });
         return true;
       }
       try {

@@ -15,18 +15,18 @@ import { deliveryNote, deliveryNoteHtml, type DeliveryNote } from "./assistant-d
  * the person unfolds it. A caller that has the view's delivery note already passes it (null for none), so a reply works it out once.
  */
 export function assistantStepRow(view: AssistantWorkView, say: (text: string, values?: Record<string, string | number>) => string, note: DeliveryNote | null = deliveryNote(view)): { next_html: string; next_all_html: string } {
-  const waiting = say("等你：");
+  const waiting = say("workbench.assistant-view-html.waiting");
   // What else waits on the person in this work: a round whose outcome must be checked, a sub-task it handed out.
   const elsewhere: InteractionNextStep[] = [
-    ...(view.work.state === "needs-check" ? [{ id: "check", label: say("去核对"), source: say("这一轮的结果需要核对"), primary: false, waiting: true, waitingLabel: waiting }] : []),
+    ...(view.work.state === "needs-check" ? [{ id: "check", label: say("workbench.assistant-view-html.check"), source: say("workbench.assistant-view-html.turn-s-outcome-needs-checking"), primary: false, waiting: true, waitingLabel: waiting }] : []),
     ...(view.delegated ?? []).filter(child => !child.taken_back && (child.state === "waiting-input" || child.state === "waiting-review" || child.state === "needs-check")).slice(0, 1)
-      .map(child => ({ id: `work:${child.work_id}`, label: say("看等你的子任务"), source: child.title, primary: false, waiting: true, waitingLabel: waiting })),
+      .map(child => ({ id: `work:${child.work_id}`, label: say("workbench.assistant-view-html.open-sub-task-waiting"), source: child.title, primary: false, waiting: true, waitingLabel: waiting })),
   ];
   const steps = interactionNextSteps(view.rounds.flatMap(round => round.awaiting_input), view.cards,
     view.reviews.map(review => ({ review_id: review.review_id, title: review.summary })), [...elsewhere, ...assistantOutcomeSteps(view, say, note)], say);
   if (!steps.length) return { next_html: "", next_all_html: "" };
-  const label = say("下一步");
-  return { next_html: renderInteractionNextSteps(steps, label, { max: 3, more: count => say("还有 {count} 项", { count }) }),
+  const label = say("workbench.assistant-view-html.next");
+  return { next_html: renderInteractionNextSteps(steps, label, { max: 3, more: count => say("workbench.assistant-view-html.count-more", { count }) }),
     next_all_html: renderInteractionNextSteps(steps, label, { max: steps.length }) };
 }
 

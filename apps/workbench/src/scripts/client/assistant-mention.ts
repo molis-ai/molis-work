@@ -26,11 +26,11 @@ export const ASSISTANT_MENTION_FACTORY_SCRIPT = String.raw`(input) => {
     const fresh = pop.dataset.mode !== "mention";
     pop.dataset.mode = "mention";
     pop.hidden = false;
-    const head = el("p", "assistant-popover-title", L("引用内容"));
+    const head = el("p", "assistant-popover-title", globalThis.t.text("workbench.assistant-mention.bring-content"));
     const mine = ++seq;
-    if (!found.query) { pop.removeAttribute("aria-busy"); pop.replaceChildren(head, note(L("输入关键词，从本项目和你个人的内容里找"))); return; }
+    if (!found.query) { pop.removeAttribute("aria-busy"); pop.replaceChildren(head, note(globalThis.t.text("workbench.assistant-mention.type-keyword-find-content-project-own"))); return; }
     pop.setAttribute("aria-busy", "true");
-    const looking = note(L("正在找「{query}」…", { query: found.query })); looking.dataset.mentionLooking = "";
+    const looking = note(globalThis.t.text("workbench.assistant-mention.looking-query", { query: found.query })); looking.dataset.mentionLooking = "";
     if (fresh) pop.replaceChildren(head, looking);
     else {
       pop.querySelectorAll(".assistant-mention").forEach((hit) => { hit.disabled = true; hit.classList.add("is-stale"); });
@@ -47,7 +47,7 @@ export const ASSISTANT_MENTION_FACTORY_SCRIPT = String.raw`(input) => {
       (res.hits || []).forEach((hit) => {
         const row = el("button", "assistant-starter assistant-mention", ""); row.type = "button";
         row.append(el("span", "assistant-mention-title", hit.plugin_title + " · " + hit.title), el("span", "assistant-mention-snippet", hit.snippet || ""));
-        row.setAttribute("aria-label", L("引用") + "：" + hit.plugin_title + " · " + hit.title);
+        row.setAttribute("aria-label", globalThis.t.text("workbench.assistant-mention.quote") + "：" + hit.plugin_title + " · " + hit.title);
         row.addEventListener("mousedown", (event) => event.preventDefault());
         row.addEventListener("click", () => {
           const where = at() || found, value = String(field.value || ""), put = "「" + hit.title + "」";
@@ -57,7 +57,7 @@ export const ASSISTANT_MENTION_FACTORY_SCRIPT = String.raw`(input) => {
         });
         pop.append(row);
       });
-      if (!(res.hits || []).length) pop.append(note(res.status === "indexing" ? L("内容还在建立索引，稍后再试") : L("没有找到；换个词试试")));
+      if (!(res.hits || []).length) pop.append(note(res.status === "indexing" ? globalThis.t.text("workbench.assistant-mention.content-still-being-indexed-try-again-shortly") : globalThis.t.text("workbench.assistant-mention.nothing-found-try-other-words")));
     }, 180);
   };
   return { isOpen, at, close, open };

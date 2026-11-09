@@ -21,13 +21,13 @@ export const HOME_OFFERS_FACTORY_SCRIPT = `(host) => {
     try { const key = 'molis.home-action:' + state.key;
       if (state.pending) sessionStorage.setItem(key, JSON.stringify({ request_id: state.requestId, offer: state.pending }));
       else sessionStorage.removeItem(key);
-    } catch { state.error = L('当前页面无法保存请求状态，请勿刷新，先到事项中核对执行结果。'); }
+    } catch { state.error = globalThis.t.text("workbench.home-offers.page-couldn-t-save-request-state-don-t"); }
   };
   const render = () => {
     const node = root.querySelector('[data-home-offers]'), state = currentState(); if (!node || !state) return;
     const recommended = current()?.suggested_behavior_ids || [];
     // R-65: without an automatic judgment result the panel says what automatic judgment can see; a result shows itself by its offers.
-    const hint = recommended.length ? '' : '<p class="home-offers-note">' + L('自动判断只看 Feed 已被授予的动作，需要更多请到权限里授予或手动判断') + '</p>';
+    const hint = recommended.length ? '' : '<p class="home-offers-note">' + globalThis.t.text("workbench.home-offers.automatic-judgment-only-considers-actions-feed-has-been") + '</p>';
     if (!state.offers.length && !state.issues.length && !state.loading && !state.busy && !state.pending && !state.error && !state.result) {
       if (hint) { node.innerHTML = hint; rendered.set(node, { html: hint, key: state.key }); } else { node.replaceChildren(); rendered.delete(node); }
       return;
@@ -36,13 +36,13 @@ export const HOME_OFFERS_FACTORY_SCRIPT = `(host) => {
     const html = '<div class="home-offers-controls">' + offers.map(({offer,index}) => {
       return '<button type="button" class="mw-btn mw-btn--secondary" data-home-offer="' + index + '"' + (state.busy || state.loading || state.pending || !offer.availability.available ? ' disabled' : '') + '>' + esc(offer.title) + '</button>';
     }).join('') + '</div>' +
-      (state.loading ? '<p role="status">' + L('正在查找可用动作…') + '</p>' : '') +
-      (state.busy ? '<p role="status">' + L('正在执行，请稍候…') + '</p>' : '') +
-      (!state.busy && state.pending ? '<p role="status">' + L('执行结果尚未确认。请打开事项核对；这项原请求不会再次提交。') + '</p>' : '') +
+      (state.loading ? '<p role="status">' + globalThis.t.text("workbench.home-offers.finding-available-actions") + '</p>' : '') +
+      (state.busy ? '<p role="status">' + globalThis.t.text("workbench.home-offers.running-please-wait") + '</p>' : '') +
+      (!state.busy && state.pending ? '<p role="status">' + globalThis.t.text("workbench.home-offers.result-isn-t-confirmed-yet-open-item-check") + '</p>' : '') +
       [...state.issues, ...state.offers.filter(o => !o.availability.available).map(o => o.title + '：' + o.availability.reason)].map(message => '<p class="home-offers-note">' + esc(message) + '</p>').join('') +
       (state.error ? '<p role="alert">' + esc(typeof state.error==='string'?state.error:molisWorkRequest.text(state.error)) + '</p>' : '') +
-      (state.result ? '<details class="home-offers-result"><summary>' + esc(state.result.title) + ' · ' + L('查看结果') + '</summary><pre>' + esc(JSON.stringify(state.result.result, null, 2)) + '</pre></details>' : '') +
-      (!state.busy && (state.error || state.pending || state.issues.length) ? '<button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-home-offers-reload>' + L('重新读取事项') + '</button>' : '') + hint;
+      (state.result ? '<details class="home-offers-result"><summary>' + esc(state.result.title) + ' · ' + globalThis.t.text("workbench.home-offers.view-result") + '</summary><pre>' + esc(JSON.stringify(state.result.result, null, 2)) + '</pre></details>' : '') +
+      (!state.busy && (state.error || state.pending || state.issues.length) ? '<button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-home-offers-reload>' + globalThis.t.text("workbench.home-offers.reload-item") + '</button>' : '') + hint;
     if (rendered.get(node)?.html !== html || rendered.get(node)?.key !== state.key) {
       const keepResultOpen = rendered.get(node)?.key === state.key && node.querySelector('.home-offers-result')?.open;
       node.innerHTML = html; rendered.set(node, { html, key: state.key });
@@ -74,7 +74,7 @@ export const HOME_OFFERS_FACTORY_SCRIPT = `(host) => {
       state.pending = null; persist(state); state.requestId = crypto.randomUUID();
       state.offers = []; state.busy = false; state.loading = true; render();
       await refresh();
-    } catch(error) { state.error = error instanceof TypeError ? L('连接中断，尚未取得执行结果。请先核对事项状态。') : error; }
+    } catch(error) { state.error = error instanceof TypeError ? globalThis.t.text("workbench.home-offers.connection-dropped-before-result-arrived-check-item-s") : error; }
     finally { state.busy = false; state.loading = false; if (currentState() === state) render(); }
     if (!state.pending) await load(state);
   });

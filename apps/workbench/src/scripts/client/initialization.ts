@@ -115,7 +115,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     // The question and action cards' shared client: one copy for the Assistant and every plugin that shows them (A1, A2).
     // A reference field searches this project through search.references (T2); a pick is <kind> <id> for the SDK's questionAnswer.
     // The receipt under a supplement, the same way: one copy for the Assistant and every plugin that takes supplements (receipts 3c).
-    const interaction = (client => (root, host) => client(root, { references: (source, query) => molisWorkRequest(route("/api/search/references"), { body: { kinds: source.split(","), query, limit: 8 }, fallback: L("暂时搜不了，稍后再试") }).then(found => ({ items: found.candidates.map(item => ({ value: item.kind + " " + item.id, label: item.label, meta: item.plugin_title })) })), ...host }))((${INTERACTION_CLIENT_SCRIPT_TYPED_DATES})), receipts = (${INPUT_RECEIPTS_CLIENT_SCRIPT})(L);
+    const interaction = (client => (root, host) => client(root, { references: (source, query) => molisWorkRequest(route("/api/search/references"), { body: { kinds: source.split(","), query, limit: 8 }, fallback: globalThis.t.text("workbench.initialization.search-not-available-right-now-try-again-later") }).then(found => ({ items: found.candidates.map(item => ({ value: item.kind + " " + item.id, label: item.label, meta: item.plugin_title })) })), ...host }))((${INTERACTION_CLIENT_SCRIPT_TYPED_DATES})), receipts = (${INPUT_RECEIPTS_CLIENT_SCRIPT})(L);
     deferredClients = (${DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT})({
       paneMessages,
       openView: (root, selection) => tabWorkspace?.openView(root, selection),
@@ -346,7 +346,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     }
     const missingPage = new URLSearchParams(location.search).get("missing");
     if (missingPage) {
-      showToast(L("找不到这个页面：{path}").replace("{path}", missingPage), true);
+      showToast(globalThis.t.text("workbench.initialization.page-does-not-exist-path").replace("{path}", missingPage), true);
       const cleaned = new URL(location.href); cleaned.searchParams.delete("missing");
       history.replaceState(history.state, "", cleaned);
     }
@@ -365,14 +365,14 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       referenceRequest?.abort();
       const request = new AbortController(); referenceRequest = request;
       const body = referenceDialog.querySelector("[data-project-reference-body]");
-      referenceDialog.querySelector("#project-reference-title").textContent = link.textContent.trim() || L("项目内引用");
+      referenceDialog.querySelector("#project-reference-title").textContent = link.textContent.trim() || globalThis.t.text("workbench.initialization.project-reference");
       referenceDialog.querySelector("[data-project-reference-download]").href = url;
-      body.textContent = L("正在读取…");
+      body.textContent = globalThis.t.text("workbench.initialization.loading");
       if (!referenceDialog.open) referenceDialog.showModal();
       try {
-        const text=await molisWorkRequest(url,{as:"text",signal:request.signal,fallback:L("项目内引用无法打开")});
+        const text=await molisWorkRequest(url,{as:"text",signal:request.signal,fallback:globalThis.t.text("workbench.initialization.project-reference-could-not-be-opened")});
         if (referenceRequest === request && referenceDialog.open) body.textContent = text;
-      } catch (error) { if (referenceRequest === request && referenceDialog.open && !request.signal.aborted) molisWorkRequest.show(body,error,L("项目内引用无法打开")); }
+      } catch (error) { if (referenceRequest === request && referenceDialog.open && !request.signal.aborted) molisWorkRequest.show(body,error,globalThis.t.text("workbench.initialization.project-reference-could-not-be-opened")); }
     });
     const restartWorkspace = document.querySelector("[data-tab-workspace]");
     document.addEventListener("click", async (event) => {
@@ -385,7 +385,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
         || parent?.closest("[data-work-surface]") || holder?.parentElement !== restartWorkspace
         || !holder?.matches("[data-surface-pool], [data-tab-panes], [data-tab-exclusive]")) return;
       button.disabled = true;
-      try { await molisWorkRequest(route("/api/plugins/" + encodeURIComponent(pluginId) + "/" + operation), { body: {}, fallback: L("插件状态未能更改") }); location.reload(); }
+      try { await molisWorkRequest(route("/api/plugins/" + encodeURIComponent(pluginId) + "/" + operation), { body: {}, fallback: globalThis.t.text("workbench.initialization.couldn-t-change-plugin-state") }); location.reload(); }
       catch (error) { const note = button.nextElementSibling; if (error.status === 409 && typeof error.body?.state?.message === "string") error.message = error.body.state.message; molisWorkRequest.show(note, error); note.hidden = false; button.disabled = false; }
     });
     if (goalData) {

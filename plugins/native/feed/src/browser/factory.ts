@@ -1,3 +1,4 @@
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type {} from "@molis-ai/molis-work-plugin-sdk";
 import type { UiPluginClientHost } from "@molis-ai/molis-work-contracts/platform/ui";
 import { feedStage, FILTER_FIELDS } from "./stage.js";
@@ -65,7 +66,7 @@ export function feedClient(host: FeedHost): void {
       const controls = page.all<HTMLInputElement | HTMLSelectElement>("[data-feed-search]," + FILTER_FIELDS).map(field => ({ attr: [...field.attributes].find(attr => attr.name.startsWith("data-feed-"))!.name, value: field.value }));
       const filterOpen = page.q("[data-feed-filter-panel]")?.hidden === false;
       const next = new DOMParser().parseFromString(html, "text/html").querySelector<HTMLElement>("[data-ui-client-root]");
-      if (!next) throw new Error(host.translate("无法更新 Feed 列表"));
+      if (!next) throw new Error(uiText.text("feed.factory.could-not-refresh-feed"));
       // Preserve unsaved settings and the rule composer while authoritative rows/configuration are redrawn.
       for (const previous of page.all("[data-feed-task-config]")) {
         const replacement = next.querySelector<HTMLElement>('[data-feed-task-config="' + CSS.escape(previous.dataset.feedTaskConfig!) + '"]');
@@ -133,7 +134,7 @@ export function feedClient(host: FeedHost): void {
   if (requested && host.mount?.surface === "workbench") {
     const row = page.q('[data-feed-out-rule-row="' + CSS.escape(requested) + '"]'), id = row?.closest<HTMLElement>("[data-feed-out-rules]")?.dataset.feedOutRules;
     if (id) { page.select(id, "open", "rules"); host.openView({ surface: "workbench", id, panel: "rules", intent: "open" }); scope.frame(() => row?.scrollIntoView({ block: "nearest", behavior: "instant" })); }
-    else host.showToast(host.translate("原捕捉规则不存在，可能已经删除。"));
+    else host.showToast(uiText.text("feed.factory.original-capture-rule-doesn-t-exist-may-have"));
   }
 }
 

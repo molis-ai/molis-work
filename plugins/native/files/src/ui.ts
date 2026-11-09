@@ -15,23 +15,23 @@ export const FILES_UI_CONTRIBUTION_ID = "io.molis.work.native.files.ui.v1";
 /** Host mounts these fragments in the existing directory and result slots, worded through its translator. */
 export function renderFilesBrowserDirectory(): string {
   return `<section data-files-browser hidden class="files-browser mw-dir">
-    <p class="mw-field__label">${uiText.text("files.directory.label")}</p>
-    <p class="files-notice">${uiText.text("files.directory.help")}</p>
-    <div class="mw-toolbar files-directory-toolbar"><span class="mw-dir__label">${uiText.text("files.directory.title")}</span><button class="mw-btn mw-btn--ghost" type="button" data-files-refresh><span class="mw-spinner" hidden></span><span>${uiText.text("files.directory.refresh")}</span></button></div>
+    <p class="mw-field__label">${uiText("files.directory.label")}</p>
+    <p class="files-notice">${uiText("files.directory.help")}</p>
+    <div class="mw-toolbar files-directory-toolbar"><span class="mw-dir__label">${uiText("files.directory.title")}</span><button class="mw-btn mw-btn--ghost" type="button" data-files-refresh><span class="mw-spinner" hidden></span><span>${uiText("files.directory.refresh")}</span></button></div>
     <p data-files-status role="status"></p><div class="mw-dir__list" data-files-tree></div>
   </section>`;
 }
 
 export function renderFilesBrowserResult(): string {
-  return `<section data-files-results hidden class="files-results mw-frame" data-slot="frame" aria-label="${uiText.text("files.reader.label")}">
-    <header class="files-reader-head mw-frame__header"><button class="mw-btn mw-btn--ghost" type="button" data-files-close>${uiText.text("files.reader.back")}</button><div class="mw-frame__heading"><h2 data-files-title>${uiText.text("files.reader.choose")}</h2><p>${uiText.text("files.reader.read-only")}</p></div><div class="mw-group"><button class="mw-btn mw-btn--ghost" type="button" data-files-reload disabled aria-label="${uiText.text("files.reader.reload-label")}">${uiText.text("files.reader.reload")}</button><button class="mw-btn mw-btn--ghost" type="button" data-files-copy disabled>${uiText.text("files.reader.copy")}</button></div></header>
-    <div class="files-reader-body mw-scroll mw-frame__panel"><p data-files-notice role="status">${uiText.text("files.reader.pick")}</p>
-    <textarea readonly class="files-preview mw-textarea" data-files-text aria-label="${uiText.text("files.reader.text-label")}" spellcheck="false" hidden></textarea>
-    <section class="files-snapshots" aria-label="${uiText.text("files.snapshot.title")}"><div class="files-snapshot-heading"><h4>${uiText.text("files.snapshot.title")}</h4><span data-files-selection-hint>${uiText.text("files.snapshot.select-hint")}</span></div>
-    <div class="files-actions"><div class="mw-group" aria-label="${uiText.text("files.snapshot.sides")}"><button class="mw-btn mw-btn--secondary" type="button" data-files-capture="before" disabled>${uiText.text("files.snapshot.before")}</button><button class="mw-btn mw-btn--secondary" type="button" data-files-capture="after" disabled>${uiText.text("files.snapshot.after")}</button></div><button class="mw-btn mw-btn--ghost" type="button" data-files-capture="selection" disabled>${uiText.text("files.snapshot.selection")}</button></div>
+  return `<section data-files-results hidden class="files-results mw-frame" data-slot="frame" aria-label="${uiText("files.reader.label")}">
+    <header class="files-reader-head mw-frame__header"><button class="mw-btn mw-btn--ghost" type="button" data-files-close>${uiText("files.reader.back")}</button><div class="mw-frame__heading"><h2 data-files-title>${uiText("files.reader.choose")}</h2><p>${uiText("files.reader.read-only")}</p></div><div class="mw-group"><button class="mw-btn mw-btn--ghost" type="button" data-files-reload disabled aria-label="${uiText("files.reader.reload-label")}">${uiText("files.reader.reload")}</button><button class="mw-btn mw-btn--ghost" type="button" data-files-copy disabled>${uiText("files.reader.copy")}</button></div></header>
+    <div class="files-reader-body mw-scroll mw-frame__panel"><p data-files-notice role="status">${uiText("files.reader.pick")}</p>
+    <textarea readonly class="files-preview mw-textarea" data-files-text aria-label="${uiText("files.reader.text-label")}" spellcheck="false" hidden></textarea>
+    <section class="files-snapshots" aria-label="${uiText("files.snapshot.title")}"><div class="files-snapshot-heading"><h4>${uiText("files.snapshot.title")}</h4><span data-files-selection-hint>${uiText("files.snapshot.select-hint")}</span></div>
+    <div class="files-actions"><div class="mw-group" aria-label="${uiText("files.snapshot.sides")}"><button class="mw-btn mw-btn--secondary" type="button" data-files-capture="before" disabled>${uiText("files.snapshot.before")}</button><button class="mw-btn mw-btn--secondary" type="button" data-files-capture="after" disabled>${uiText("files.snapshot.after")}</button></div><button class="mw-btn mw-btn--ghost" type="button" data-files-capture="selection" disabled>${uiText("files.snapshot.selection")}</button></div>
     <p data-files-capture-status role="status"></p></section>
-    <details class="mw-collapsible"><summary>${uiText.text("files.snapshot.stats")}</summary><div data-files-stats></div></details>
-    <details class="mw-collapsible" open><summary>${uiText.text("files.snapshot.diff")}</summary><p>${uiText.text("files.snapshot.diff-help")}</p><div data-files-diff></div></details></div>
+    <details class="mw-collapsible"><summary>${uiText("files.snapshot.stats")}</summary><div data-files-stats></div></details>
+    <details class="mw-collapsible" open><summary>${uiText("files.snapshot.diff")}</summary><p>${uiText("files.snapshot.diff-help")}</p><div data-files-diff></div></details></div>
   </section>`;
 }
 

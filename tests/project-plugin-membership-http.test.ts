@@ -148,7 +148,9 @@ test("SPC-C08 closing the project's existing runtime cancels a pending membershi
 });
 
 test("SPC-C08 revoking the original browser session while the membership write waits leaves no event", { timeout: 30_000 }, async t => {
-  const f = await serveHomeRuntime(t), project = await f.project("Revoked browser edit");
+  const opened: string[] = [];
+  const f = await serveHomeRuntime(t, { onRuntimeOpen: reference => { opened.push(reference.project_id); } });
+  const project = await f.project("Revoked browser edit");
   const initial = await fromIndex(f, project.project_id);
   const page = await fetch(f.origin + "/settings/appearance");
   assert.equal(page.status, 200);
@@ -177,6 +179,7 @@ test("SPC-C08 revoking the original browser session while the membership write w
   } finally { blocker.close(); }
   assert.deepEqual(await fromIndex(f, project.project_id), initial);
   assert.deepEqual(membershipEvents(f.home, project.project_id), []);
+  assert.deepEqual(opened, [], "revoking the original browser session never opens the project runtime");
 });
 
 function failingScheduleStart(t: TestContext, fail: () => void) {

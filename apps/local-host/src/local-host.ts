@@ -11,7 +11,7 @@ import type {
 } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { ActionService, CapabilityRegistry, refuseCall, registeredActionMetadata, type CallSettled } from "@molis-ai/molis-work-kernel";
 import { projectCallCaller } from "./project-call-caller.js";
-import { ActionError, requireSynchronous, type SyncActionClient, type ActionCallContext, type ActionClient, type ActionDefinition,
+import { ActionError, requireSynchronous, type SyncActionClient, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionReference,
   type ActionRegistryPort, type ActionProviderRegistration, type ActionView, type ActionSceneClient, type ActionSceneDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { dependencyCaller, verifiedCaller } from "./plugin-callers.js";
 import { HostAvailability } from "./local-host-availability.js";
@@ -98,7 +98,8 @@ export class LocalHost<Runtime> {
       if (registration.provider.project_id && registration.provider.project_id !== project?.project_id) {
         throw new ActionError("actions.scope_mismatch", "能力来源不能注册到其他项目");
       }
-      if (routing && (registration.provider.kind !== "system" || registration.provider.plugin_id || registration.scenes?.length
+      if (routing && (registration.provider.kind !== "system" || registration.provider.plugin_id !== undefined
+        || registration.provider.plugin_install_id !== undefined || registration.provider.project_id !== undefined || registration.scenes?.length
         || registration.definitions.some(definition => definition.action.scope !== "project"))) {
         throw new ActionError("actions.scope_mismatch", "目录登记只接受系统提供的项目动作");
       }
@@ -119,6 +120,12 @@ export class LocalHost<Runtime> {
       owner.add(dispose); announce(registration.scenes);
       return dispose;
     } };
+  }
+
+  /** The same registration instance that permits dispatch without a project runtime. */
+  projectCatalogActionDescriptor(reference: ActionReference) {
+    const descriptor = this.capabilities.descriptor(reference);
+    return descriptor && this.catalogProjectActions.has(descriptor) ? descriptor : undefined;
   }
 
   private metadataCaller(caller: ActionCallContext, reference?: LocalHostProjectReference): ActionCallContext {
@@ -179,7 +186,7 @@ export class LocalHost<Runtime> {
   }
 
   /** A transport passes its authenticated caller on each request; arguments carry no authority. `step` as for `homeActionClient`. */
-  actionClient(reference: LocalHostProjectReference, step = false): ActionClient {
+  actionClient(reference: LocalHostProjectReference, step = false, routing?: "project-catalog"): ActionClient {
     const project = normalizeReference(reference);
     const callerFor = (caller: ActionCallContext) => {
       this.line.assertCompatibleReference(project);
@@ -189,6 +196,7 @@ export class LocalHost<Runtime> {
     };
     return {
       discover: async caller => {
+        if (routing) throw new ActionError("actions.forbidden", "此入口只接受精确目录动作调用");
         const bound = callerFor(caller);
         await this.withRuntime(project, () => undefined);
         caller.signal?.throwIfAborted();
@@ -198,8 +206,11 @@ export class LocalHost<Runtime> {
         let bound = caller, dispatched = false;
         try {
           bound = callerFor(caller);
-          const catalog = this.capabilities.descriptor(capability);
-          if (catalog && this.catalogProjectActions.has(catalog)) {
+          const catalog = this.projectCatalogActionDescriptor(capability);
+          if (routing && (!catalog || capability.provider_id !== catalog.action_provider?.provider_id)) {
+            throw new ActionError("actions.forbidden", "此入口只接受精确目录动作调用");
+          }
+          if (catalog) {
             const signal = callSignal(catalog, () => this.line.existingObservation(project), bound.signal);
             const context = hostAuthorityContext({ ...bound, ...signal }, () => {
               if (this.capabilities.descriptor(capability) !== catalog) throw new ActionError("actions.provider_changed", "能力已重新加载，不能继续原副作用");

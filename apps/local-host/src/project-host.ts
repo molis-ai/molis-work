@@ -49,7 +49,7 @@ import { registerProjectCapabilities, type PrepareProjectDirectory } from "./pro
 import { refreshRunningProjectPlugins, releaseProjectPlugins } from "./project-plugins.js";
 import type { LocalHostProjectClient, LocalHostProjectReference, LocalHostStatus } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { ProjectDirectories, ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
-import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionProviderRegistration, type ActionRegistryPort, type ActionSceneClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionProviderRegistration, type ActionReference, type ActionRegistryPort, type ActionSceneClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentHostComposition } from "./agent-host-composition.js";
 import { createSearchHost, type SearchHost } from "./search-actions.js";
 import { createPlacementHost, type PlacementHost, type PlacementProjectRecord } from "./placement-actions.js";
@@ -331,10 +331,11 @@ export class MolisWorkLocalHost {
     return this.host.client(reference);
   }
 
-  /** `preparePlugins: false` skips project plugin preparation and external MCP restoration. The registered action decides whether it needs a project runtime. */
-  actionClient(reference: LocalHostProjectReference, preparePlugins = true): ActionClient {
-    return withPreparedActions(this.host.actionClient(reference), async caller => {
-      if (preparePlugins) await this.prepareProjectPlugins(reference, caller);
+  /** Project Catalog calls skip project preparation and reject other registrations without opening a runtime. */
+  actionClient(reference: LocalHostProjectReference, preparePlugins: boolean | "project-catalog" = true): ActionClient {
+    const routing = preparePlugins === "project-catalog" ? preparePlugins : undefined;
+    return withPreparedActions(this.host.actionClient(reference, false, routing), async caller => {
+      if (preparePlugins === true) await this.prepareProjectPlugins(reference, caller);
       caller.signal?.throwIfAborted();
       await this.prepareHomeActions();
     }, (caller, action, error) => refuseCall(this.settleAction, caller, action, error));
@@ -354,6 +355,8 @@ export class MolisWorkLocalHost {
   localPersonContext(reference?: LocalHostProjectReference, signal?: AbortSignal): Promise<ActionCallContext> {
     return localWebActionContext(this, reference, LOCAL_OWNER_PERMISSIONS, signal);
   }
+
+  projectCatalogActionDescriptor(reference: ActionReference) { return this.host.projectCatalogActionDescriptor(reference); }
 
   /** Local management inspects registered metadata without borrowing execution permissions. */
   /** Registered declarations only: no Runtime preparation, availability policy or execution authority. */

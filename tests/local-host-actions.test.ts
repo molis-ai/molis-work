@@ -75,19 +75,28 @@ test("SPC-C08 Catalog dispatch follows its registered instance and a replacement
   });
   const registration = (handle: () => number) => ({ provider: { provider_id: "test.catalog", title: "Catalog", kind: "system" as const },
     definitions: [counter], handlers: [{ ...counter, handle }] });
+  let foreignOpens = 0;
+  const otherHost = new LocalHost({ runtimeFactory: { open: () => { foreignOpens++; return {}; }, close: () => {} } });
   const project = ref("catalog"), caller = context(project.project_id), client = host.actionClient(project);
+  const catalogOnly = host.actionClient(project, false, "project-catalog"), exact = { ...counter, provider_id: "test.catalog" };
   try {
     const catalog = host.actionRegistry(undefined, "project-catalog"), member = registration(() => 1);
     const homeAction = { ...counter, action: { ...counter.action, scope: "home" as const } };
     assert.throws(() => host.actionRegistry(project, "project-catalog"), { code: "actions.scope_mismatch" });
     assert.throws(() => catalog.registerProvider({ ...member, provider: { ...member.provider, kind: "plugin", plugin_id: "test.plugin" } }), { code: "actions.scope_mismatch" });
+    assert.throws(() => catalog.registerProvider({ ...member, provider: { ...member.provider, plugin_install_id: "imposter" } }), { code: "actions.scope_mismatch" });
     assert.throws(() => catalog.registerProvider({ ...member, definitions: [homeAction] }), { code: "actions.scope_mismatch" });
     assert.deepEqual(host.status().capabilities, []);
     const retire = catalog.registerProvider(member);
-    assert.equal(await client.invoke(caller, counter, { amount: 1 }), 1);
+    otherHost.actionRegistry().registerProvider(member);
+    assert.ok(host.projectCatalogActionDescriptor(exact));
+    assert.equal(otherHost.projectCatalogActionDescriptor(exact), undefined, "an identical registration in a different Host grants no Catalog dispatch");
+    await assert.rejects(otherHost.actionClient(project, false, "project-catalog").invoke(caller, exact, { amount: 1 }), { code: "actions.forbidden" });
+    assert.equal(foreignOpens, 0);
+    assert.equal(await catalogOnly.invoke(caller, exact, { amount: 1 }), 1);
     assert.equal(opens, 0);
     holdAdmission = true;
-    const refused = assert.rejects(client.invoke(caller, counter, { amount: 1 }), { code: "actions.provider_changed" });
+    const refused = assert.rejects(catalogOnly.invoke(caller, exact, { amount: 1 }), { code: "actions.provider_changed" });
     await entered.promise;
     retire();
     host.actionRegistry().registerProvider(registration(() => ++replacementCalls));
@@ -97,9 +106,19 @@ test("SPC-C08 Catalog dispatch follows its registered instance and a replacement
     assert.equal(replacementCalls, 0);
     assert.equal(opens, 0);
     assert.deepEqual(rows.map(row => [row.ok, row.code]), [[true, undefined], [false, "actions.provider_changed"]]);
+    await assert.rejects(catalogOnly.invoke(caller, exact, { amount: 1 }), { code: "actions.forbidden" });
+    assert.equal(opens, 0, "the exact Catalog entry cannot fall back to a replacement Runtime action");
+    assert.equal(replacementCalls, 0);
     assert.equal(await client.invoke(caller, counter, { amount: 1 }), 1);
     assert.equal(opens, 1);
-  } finally { release.resolve(); await host.close(); }
+    await host.close();
+    await assert.rejects(catalogOnly.invoke(caller, exact, { amount: 1 }), { code: "host.closed" });
+    assert.deepEqual(rows.map(row => [row.ok, row.code]), [
+      [true, undefined], [false, "actions.provider_changed"], [false, "actions.forbidden"], [true, undefined], [false, "host.closed"],
+    ]);
+    assert.equal(new Set(rows.map(row => row.call_id)).size, rows.length, "each attempt settles once");
+    assert.equal(replacementCalls, 1);
+  } finally { release.resolve(); await Promise.all([host.close(), otherHost.close()]); }
 });
 
 test("same Plugin identity can run in two projects and closing one withdraws only that activation", async () => {

@@ -67,7 +67,7 @@ export const SIDE_PANEL_EN: Record<string, string> = {
   "这种文件（{type}）不能在侧栏里预览，可以在插件中打开。": "This kind of file ({type}) cannot be previewed here. You can open it in its plugin.",
   "正在读取…": "Reading…",
   "这个插件没有提供预览，可以在插件中打开。": "This plugin offers no preview. You can open it in its plugin.",
-  "这个文件所在的插件没有向侧栏提供文件，或当前没有读取权限。": "The plugin this file belongs to offers no files to the side panel, or you cannot read it here.",
+  "无法在侧栏预览这项内容。": "This item cannot be previewed in the side panel.",
   "助理在网站上的权限": "What the Assistant may do on sites",
   "助理请你确认": "The Assistant asks you to confirm",
   "助理想在这个页面上操作": "The Assistant wants to act on this page",

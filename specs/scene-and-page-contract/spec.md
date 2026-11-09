@@ -1,6 +1,6 @@
 # 场景与生成页面公共合同（路线书 20 第 1、2 项）
 
-状态：第 20 批公共合同、SDK 校验与必要接入已实现；唯一 [PR #2000](https://github.com/molis-ai/molis-work/pull/2000) 承接最终验证与合入，以下证据截至本次文档提交。首次 Full 的四份持续失败已修复；当前代码头 `f5da16b304` 的本机补验及两路代码增量审查已通过，最终文档头绑定、同头 CI／Full 与队列仍待完成。原金样首败、视觉失败及用户仅对本轮两处具体像素差异的豁免分别保留，不扩大授权。完整证据见[第 20 批整批记录](../post-anticorruption-roadmap/reference/batches/20.md#batch-20-validation)。第 08 批 #1984、第 36 批提前合同 #1995 均已合入并消费。按用户确定的分工，20 交公共合同、SDK 共用校验及必要现有接入；36 接角色服务，37 接页面运行与真实安全，44 接引导采用与另存，51 接场景成品。签名沙箱设置执行及本人体验分别见 [BL-settings-sandbox-execution](../backlog/BL-settings-sandbox-execution.md)、[BL-batch20-membership-acceptance](../backlog/BL-batch20-membership-acceptance.md)。
+状态：第 20 批公共合同、SDK 校验与必要接入已实现；唯一 [PR #2000](https://github.com/molis-ai/molis-work/pull/2000) 承接最终验证与合入，以下证据截至本次文档提交。首次 Full 的四份持续失败已修复；产品头 `f5da16b304` 的本机验证已通过，后续覆盖核账发现的 macOS 测试夹具缺口已在 `580256f6c6` 修复，11 项原用例补验及两路代码增量审查通过。`fc8` 普通 CI 通过，Full 的 32 个分片成功但运行整体失败、未创建汇总作业；最终文档头绑定、同头 CI／Full 与队列仍待完成。原金样首败、视觉失败及用户仅对本轮两处具体像素差异的豁免分别保留，不扩大授权。完整证据见[第 20 批整批记录](../post-anticorruption-roadmap/reference/batches/20.md#batch-20-validation)。第 08 批 #1984、第 36 批提前合同 #1995 均已合入并消费。按用户确定的分工，20 交公共合同、SDK 共用校验及必要现有接入；36 接角色服务，37 接页面运行与真实安全，44 接引导采用与另存，51 接场景成品。签名沙箱设置执行及本人体验分别见 [BL-settings-sandbox-execution](../backlog/BL-settings-sandbox-execution.md)、[BL-batch20-membership-acceptance](../backlog/BL-batch20-membership-acceptance.md)。
 
 ## 0. 这份稿子做什么
 

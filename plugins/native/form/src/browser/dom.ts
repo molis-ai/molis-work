@@ -12,14 +12,6 @@ export const firstLine = (value: string | undefined, fallback = "") => {
   return line || fallback;
 };
 
-export const whenOf = (value: string | undefined) => {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  const sameYear = date.getFullYear() === new Date().getFullYear();
-  return date.toLocaleDateString(undefined, sameYear ? { month: "short", day: "numeric" } : { year: "numeric", month: "short", day: "numeric" });
-};
-
 /** Replays the arrival motion on a node that just appeared. */
 export const arrive = (node: HTMLElement | null) => {
   if (!node) return node;

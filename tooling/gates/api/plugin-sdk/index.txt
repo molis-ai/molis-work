@@ -704,6 +704,8 @@ export { isPresentationValuesAction } from "@molis-ai/molis-work-contracts/platf
 
 export declare function isRecord(value: unknown): value is Record<string, unknown>;
 
+export declare function isTimeZone(value: string): boolean;
+
 export declare function joinLines(lines: readonly DiffLine[]): string;
 
 export { linkedArtifactVersion } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -888,6 +890,11 @@ export declare function wallClockIn(at: number, zone: string | undefined): {
 export { withActionEffect } from "@molis-ai/molis-work-contracts/platform/actions";
 export { withinDueReminderWindow } from "@molis-ai/molis-work-contracts/platform/actions";
 export { withinHomeEventWindow } from "@molis-ai/molis-work-contracts/platform/actions";
+
+export declare function zonedParts(timeZone: string | undefined, { seconds, shortOffset }?: {
+    seconds?: boolean;
+    shortOffset?: boolean;
+}): (at: number | Date) => Record<string, string>;
 
 // Declarations the exports above refer to, which no entry exports itself:
 

@@ -9,12 +9,3 @@ export function firstLine(value: string | null | undefined, fallback = ""): stri
   const line = String(value || "").trim().split("\n")[0]!.trim();
   return line || fallback;
 }
-
-/** A date as a short local day (with the year when it is not this one); empty when there is none to show. */
-export function whenOf(value: string | null | undefined): string {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  const sameYear = date.getFullYear() === new Date().getFullYear();
-  return date.toLocaleDateString(undefined, sameYear ? { month: "short", day: "numeric" } : { year: "numeric", month: "short", day: "numeric" });
-}

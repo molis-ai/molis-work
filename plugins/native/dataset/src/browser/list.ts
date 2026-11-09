@@ -1,15 +1,8 @@
+import { shortDateLabel } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { textCell } from "./dom.js";
 import type { Dataset, DatasetPage } from "./types.js";
 
 const firstLine = (value: unknown, fallback = "") => String(value || "").trim().split("\n")[0].trim() || fallback;
-
-const whenOf = (value: string) => {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  const sameYear = date.getFullYear() === new Date().getFullYear();
-  return date.toLocaleDateString(undefined, sameYear ? { month: "short", day: "numeric" } : { year: "numeric", month: "short", day: "numeric" });
-};
 
 /** The directory of tables: its rows, which one is open, and loading and failing to load it. */
 export function installList(page: DatasetPage): void {
@@ -45,7 +38,7 @@ export function installList(page: DatasetPage): void {
     row.append(
       leading,
       textCell("plugin-stage-fact", columns ? L("dataset.list.size", { columns, rows }) : L("dataset.list.empty-table")),
-      textCell("plugin-stage-meta", firstLine(record.description, whenOf(record.updated_at))),
+      textCell("plugin-stage-meta", firstLine(record.description, shortDateLabel(record.updated_at))),
       fixedCell(record),
     );
     item.append(row);

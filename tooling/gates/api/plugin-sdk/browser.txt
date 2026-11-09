@@ -63,6 +63,8 @@ export declare function requiredQuery(missing: (selector: string) => string): <T
 
 export declare function scrollShouldFollow(target: EventTarget | null, panel: Element | null): boolean;
 
+export declare function shortDateLabel(value: string | null | undefined, locale?: string): string;
+
 export declare const statusOf: (error: unknown) => number | undefined;
 
 export declare function textCell(className: string, text: string): HTMLSpanElement;

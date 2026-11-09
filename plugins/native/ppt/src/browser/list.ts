@@ -1,5 +1,5 @@
-import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
-import { firstLine, textCell, whenOf } from "./dom.js";
+import { messageOf, shortDateLabel } from "@molis-ai/molis-work-plugin-sdk/browser";
+import { firstLine, textCell } from "./dom.js";
 import type { Ppt, PptPage } from "./types.js";
 
 /** A row's only label is its state: a fixed version exists, or one is still being saved. Nothing repeats the title or the count. */
@@ -46,7 +46,7 @@ export function installList(page: PptPage): void {
       row.append(
         leading,
         textCell("plugin-stage-fact", L("ppt.slides.count", { count: (record.slides || []).length })),
-        textCell("plugin-stage-meta", firstLine(record.description, whenOf(record.updated_at))),
+        textCell("plugin-stage-meta", firstLine(record.description, shortDateLabel(record.updated_at))),
         fixedCell(page, record),
       );
       item.append(row);

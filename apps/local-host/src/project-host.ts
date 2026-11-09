@@ -221,8 +221,8 @@ export class MolisWorkLocalHost {
     this.synchronization = projectSyncAccess(this.host);
     const home = options.homeDirectory, settingsVersionClaims = createSettingsVersionClaims();
     if (home) this.homePlugins = new HomePluginHost({ home, actorId: LOCAL_PERSON_ACTOR_ID, settingsVersionClaims,
-      registry: this.host.actionRegistry(), client: homePluginActions(this.host), inspect: caller => this.host.inspectActions(caller), entries: homePluginEntries(), fixtures: options.pluginFixtures?.home, installed: options.pluginFixtures?.installed, projectReach: homeProjectReach(options.homeDirectory, () => this.host.projects()),
-      projectActions: (projectId, pluginId) => homePackageProjectActions(projectId, pluginId, options.homeDirectory, this.catalogRunner,
+      registry: this.host.actionRegistry(), client: homePluginActions(this.host), inspect: caller => this.host.inspectActions(caller), entries: homePluginEntries(), fixtures: options.pluginFixtures?.home, installed: options.pluginFixtures?.installed, projectReach: homeProjectReach(home, () => this.host.projects()),
+      projectActions: (projectId, pluginId) => homePackageProjectActions(projectId, pluginId, home, this.catalogRunner,
         this, this.host, molisWorkHostProjectReference) });
     if (options.homeDirectory) {
       this.alchemist = new AlchemistHostService(options.homeDirectory, options.alchemist);

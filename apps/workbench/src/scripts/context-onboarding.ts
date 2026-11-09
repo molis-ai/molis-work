@@ -281,7 +281,7 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
     const materialsReady = journey.phase==='failed' && journey.needs_model && picked().some(s=>s.references?.length);
     if (materialsReady) {
       return {kind:'onboard', view:'materials', step:'整理',
-        left:question(L('资料已经准备好'), L('给它一个项目名字，就可以开始阅读和创作。摘要可以连接文字模型后再整理。')) + errorLine(error) + note(config.model ? L('文字模型已连接，可以继续整理出摘要和待办。') : L('连接文字模型后，可以回来继续整理出摘要和待办。'), config.model ? 'check' : 'info') + '<p class="ob-quiet">' + (config.model ? '' : btn({variant:'link', size:'sm', label:L('连接文字模型'), attrs:{'data-action':'model'}}) + ' ') + btn({variant:config.model ? 'secondary' : 'ghost', size:'sm', label:L(config.model ? '继续整理' : '已连接，继续整理'), attrs:{'data-action':'retry'}}) + '</p>',
+        left:question(L('资料已经准备好'), L('给它一个项目名字，就可以开始阅读和创作。摘要可以连接文字模型后再整理。')) + errorLine(error) + note(config.model ? L('文字模型已连接，可以继续整理出摘要和待办。') : L('连接文字模型后，可以回来继续整理出摘要和待办。'), config.model ? 'check' : 'info') + '<p class="ob-quiet">' + (config.model ? '' : btn({variant:'link', size:'sm', label:L('连接文字模型'), attrs:{'data-action':'model'}}) + ' ') + btn({variant:config.model ? 'secondary' : 'ghost', size:'sm', label:L(config.model ? '继续整理' : '连好后继续整理'), attrs:{'data-action':'retry'}}) + '</p>',
         right:stageHead(L('读入的材料'), '') + receipts(),
         bar:{start:exitButton() + stepsBar('整理'), center:barStatus({glyph:'check', title:L('资料已经准备好'), caption:L('原文暂存在本机')}), end:secondary('调整来源','restart') + primary('保存资料，开始工作','materials-only')}};
     }

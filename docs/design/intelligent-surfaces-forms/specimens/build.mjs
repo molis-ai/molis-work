@@ -20,6 +20,7 @@ const sheet = document.createElement('style'); sheet.textContent = CATALOG_PATTE
     build.onResolve({ filter: /^@molis-ai\/molis-work-plugin-sdk\/ui$/ }, () => ({ path: 'kit', namespace: 'specimen' }));
     build.onLoad({ filter: /.*/, namespace: 'specimen' }, () => ({ resolveDir: root, loader: 'ts', contents: `
 export { cx, escapeHtml, renderAttrs } from '${root}/packages/plugin-sdk/src/ui/html.ts';
+export { renderMenu, renderMenuItem, renderPopover, renderPreviewCard, renderSheet } from '${root}/packages/plugin-sdk/src/ui/overlay.ts';
 export const { icon, renderButton, renderCheckbox, renderInput, renderInputGroup, renderProgress, renderSelect, renderStatusMark, renderSwitch } = window.mwKit;
 ` }));
   }}],

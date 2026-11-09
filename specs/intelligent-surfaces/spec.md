@@ -397,12 +397,12 @@ Feed 的归属已有事实来源，不新增个人订阅结构：`SourceRecord.p
 | 9 调用次数 | 纯渲染零请求、零目录和零读库。每处复用同一个形态字段选择。速览只生成一份内容，位置层选容器。 |
 | 10 升级与数据 | 不涉及持久化或升级。既有调用方的形态和资料没有迁移步骤。 |
 | 11 成果与过程项 | 不涉及创建、采用或留存。值里的呈现字段只供显示。 |
-| 12 页面、外壳与文字 | 复用组件板一页、已有浮层与焦点工具。插件色按规范 id 稳定取现有语义色，允许同色。日期和数值沿用 SDK formatter 和 owner 语言默认值。现有公共词仅覆盖旧值与通用不可显示，独立状态、后果和控件短句须由公共词接入边界裁定，不先写新稳定键或兜底译文。样式只由组件板接入现有页面，无新资源。 |
+| 12 页面、外壳与文字 | 复用组件板一页、已有浮层与焦点工具。插件色按规范 id 稳定取现有语义色，允许同色。日期和数值沿用 SDK formatter 和 owner 语言默认值。状态、后果与控件短句使用已交接的 workbench 现行文字环境和中英平台词包。样式只由组件板接入现有页面，无新资源。 |
 | 13 错误 | 不新增错误类或错误码。文字环境沿用 SDK 的缺词与缺上下文处理。 |
-| 14 冲突面 | 16 已释放 SDK `ui.ts`、`ui/text.ts`、`ui/text-reader.ts`、`ui/environment.ts` 和 UI 快照，design-system 的 `src/index.ts`、`primitives/overlay.ts`、`primitives/catalog.ts`，以及工作台 `primitive-catalog.ts`。改动限这片接点和独立 renderer、控件、样式、板样叶子及其测试。保留 16 的外观与语言交点。 |
+| 14 冲突面 | 16 已释放 SDK `ui.ts`、`ui/text.ts`、`ui/text-reader.ts`、`ui/environment.ts` 和 UI 快照，design-system 的 `primitives/overlay.ts`、`primitives/catalog.ts`，以及工作台 `primitive-catalog.ts` 和中英词包的呈现条目。改动限这片接点和独立 renderer、控件、样式、板样叶子及其测试。保留 16 的外观与语言交点。实件标本构建脚本只跟上浮层同源入口。 |
 | 15 全局取舍 | 插件与平台选择同一个公开 renderer 和已有控件，避免 Goals、Inbox、Coding 与第三方各画一份。助理继续读同源 `presentationText` 和候选，不获得 DOM 控件或额外权限。公共呈现负责显示，动作、目录、成果、连接和团队事实各走原主人。MLN-23 可不等组合服务使用，S-2 和第 16 批分别接真实数据和文字环境，无须迁移对象或重新定样。 |
 
-本片的源文件限 SDK `ui/presentation-form.ts`、共用浮层控件叶子、必要私有格式读取和 `/ui` 出口，design-system `styles/presentation.ts`、组件板叶子和现有导出接点，以及工作台 `primitive-catalog.ts`。测试走公开 SDK 或真正组件板页面。包开发要求与公开 UI 快照随实际变更同步。
+本片的源文件限 SDK `ui/presentation-form.ts`、共用浮层控件叶子、必要私有格式读取和 `/ui` 出口，design-system `styles/presentation.ts`、组件板叶子和现有导出接点，以及工作台 `primitive-catalog.ts` 和现有平台词包中的呈现短句。测试走公开 SDK 或真正组件板页面。包开发要求与公开 UI 快照随实际变更同步。
 
 定向验收用 SSC-14 核直接与组合的同形态输出，IUI-08／10 核后果、不可用说明和不可读拒绝，IUI-21／26 核组件板真实渲染、深浅色、窄屏、长内容、语言继承和 Tab → Enter → Tab → Esc。定向用例经机器槽串行执行。板样的工程结果与后续真实网关、用户验收分开记录。
 

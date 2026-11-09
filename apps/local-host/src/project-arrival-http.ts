@@ -1,3 +1,4 @@
+import { cutWithEllipsis } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import os from "node:os";
 import { projectOrNull } from "./catalog-lookup.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
@@ -80,7 +81,7 @@ function briefEvent(event: HomeEventView): BriefEvent {
 /** A sentence from a goal's record, on one line and no longer than the card has room for. */
 function oneLine(value: string): string {
   const flat = value.replace(/\s+/gu, " ").trim();
-  return flat.length > 140 ? `${flat.slice(0, 139).trimEnd()}…` : flat;
+  return cutWithEllipsis(flat, 140, { trimEnd: true });
 }
 
 /** The workspace path as the person knows it: from their home folder. */

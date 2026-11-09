@@ -54,7 +54,7 @@ async function onClick(page: DatasetPage, event: Event): Promise<void> {
       return;
     }
   } catch (error) {
-    if ((error as Failure).code === "dataset.conflict") s.saveError = error;
+    if (page.scope.alive && (error as Failure).code === "dataset.conflict") s.saveError = error;
     page.showNote(messageOf(error) || L("dataset.error.request"), true);
   } finally {
     page.setBusy(false);
@@ -65,7 +65,8 @@ async function onClick(page: DatasetPage, event: Event): Promise<void> {
 export function installCommands(page: DatasetPage): void {
   const { el, s } = page;
   const { bench } = el;
-  bench.addEventListener("click", (event) => void onClick(page, event));
+  const options = { signal: page.scope.signal };
+  bench.addEventListener("click", (event) => void onClick(page, event), options);
   bench.addEventListener("input", (event) => {
     if (s.busy) return;
     const target = event.target as Element;
@@ -76,11 +77,11 @@ export function installCommands(page: DatasetPage): void {
     }
     if (target.closest("[data-dataset-csv], [data-dataset-ai-prompt], [data-dataset-version-note], [data-dataset-filter], [data-dataset-column-name], [data-dataset-column-type]")) return;
     if (target.closest(".dataset-workspace")) page.queueSave();
-  });
+  }, options);
   bench.addEventListener("change", (event) => {
     if (s.busy || !s.selected || !(event.target as Element).closest("[data-column-type]")) return;
     s.selected = { ...s.selected, ...page.readDraft() };
     page.renderTable(s.selected);
     page.queueSave();
-  });
+  }, options);
 }

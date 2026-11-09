@@ -1,3 +1,4 @@
+import { cutWithEllipsis } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { el, errorMessage, part } from "./dom.js";
 import type { Child } from "./subagents.js";
 import type { PagePorts, ShowReviews, TimelineApi, Translate } from "./types.js";
@@ -119,7 +120,7 @@ function drawResult(L: Translate, node: HTMLElement, child: Child) {
     else body.textContent = child.result;
   }
   const preview = child.result.replace(/[#*`>|-]+/g, " ").replace(/\s+/g, " ").trim();
-  part(result, "summary").textContent = L("coding.card.conclusion", { preview: preview.length > 90 ? preview.slice(0, 90) + "…" : preview });
+  part(result, "summary").textContent = L("coding.card.conclusion", { preview: cutWithEllipsis(preview, 90, { prefixLength: 90 }) });
 }
 
 /** A failure reads in plain words first; the original reason stays next to it. */

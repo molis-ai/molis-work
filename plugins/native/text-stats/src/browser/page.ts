@@ -1,6 +1,8 @@
+import { requiredQuery } from "@molis-ai/molis-work-plugin-sdk/browser";
 import type {} from "@molis-ai/molis-work-plugin-sdk";
-import { required } from "./dom.js";
 import type { Host, StateAnswer } from "./types.js";
+
+const required = requiredQuery(selector => `Text Stats page: ${selector} is missing`);
 
 /**
  * Text Stats' page: the counts of the pinned text, drawn by the Host. They are read when the page is shown and when Refresh

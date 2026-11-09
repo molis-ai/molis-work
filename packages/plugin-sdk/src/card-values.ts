@@ -3,10 +3,23 @@
  * kept once, for every keeper of cards and the card that draws them.
  */
 
+/** Prepare a reader for local calendar parts in a zone, with midnight at hour 00. */
+export function zonedParts(timeZone: string | undefined, { seconds, shortOffset }: { seconds?: boolean; shortOffset?: boolean } = {}) {
+  const format = new Intl.DateTimeFormat("en-US", { timeZone, hourCycle: "h23", year: "numeric", month: "2-digit",
+    day: "2-digit", hour: "2-digit", minute: "2-digit", ...(seconds ? { second: "2-digit" } : {}),
+    ...(shortOffset ? { timeZoneName: "shortOffset" } : {}) });
+  return (at: number | Date): Record<string, string> => Object.fromEntries(format.formatToParts(at).map(part => [part.type, part.value]));
+}
+
+/** A zone accepted by this runtime's Intl implementation. The caller decides how to handle missing input. */
+export function isTimeZone(value: string): boolean {
+  try { new Intl.DateTimeFormat("en", { timeZone: value }); return true; }
+  catch { return false; }
+}
+
 /** A moment's wall clock in a zone (the process's own when none is set): its day, its time and the zone's offset. */
 export function wallClockIn(at: number, zone: string | undefined): { day: string; time: string; offset: string; utc: number } {
-  const part = Object.fromEntries(new Intl.DateTimeFormat("en-US", { ...(zone ? { timeZone: zone } : {}), hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit",
-    hour: "2-digit", minute: "2-digit", timeZoneName: "shortOffset" }).formatToParts(at).map(item => [item.type, item.value]));
+  const part = zonedParts(zone || undefined, { shortOffset: true })(at);
   return { day: `${part.year}-${part.month}-${part.day}`, time: `${part.hour}:${part.minute}`, offset: String(part.timeZoneName ?? ""),
     utc: Date.UTC(Number(part.year), Number(part.month) - 1, Number(part.day), Number(part.hour), Number(part.minute)) };
 }

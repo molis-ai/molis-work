@@ -30,7 +30,7 @@ const gate = (...args: string[]) => {
 };
 
 // The definitions, one snippet each. Everything the header of source-counts.mjs says is counted, and what it says is not.
-type Counts = { emptyCatchesInScripts?: number; oldNames?: number; scriptConstants?: number };
+type Counts = { emptyCatchesInScripts?: number; oldNames?: number; scriptConstants?: number; directEllipsisCuts?: number };
 // The fourth element says whether the snippet is a source file (default: a test file).
 const definitions: Array<[string, string, Counts, boolean?]> = [
   ["an empty catch inside a template-literal browser script", "export const SCRIPT = `try { f(); } catch (e) {}\\n`;", { emptyCatchesInScripts: 1 }, true],
@@ -49,11 +49,22 @@ const definitions: Array<[string, string, Counts, boolean?]> = [
   ["*_SCRIPT constants written as a template, a string, a joined or a wrapped literal", "export const A_SCRIPT = `go();`; const B_SCRIPT = 'go();'; const C_SCRIPT = \"a\" + `b${x}`; const D_SCRIPT = (`go();`) as const;", { scriptConstants: 4 }, true],
   ["a *_SCRIPT read from a bundle, built by a call, or a name without the suffix is not text here", "export const A_SCRIPT = readFileSync(new URL('./a.js', import.meta.url), 'utf8').trim(); const B_SCRIPT = build(); const SCRIPT = `go();`; const A_SCRIPTS = `go();`;", {}, true],
   ["*_SCRIPT constants are not read in tests", "export const A_SCRIPT = `go();`;", {}, false],
+  ["BSH-10 direct ellipsis concatenation and template suffixes", 'const a = text.slice(0, 12) + "…"; const b = `${(text["slice"](0, 12))} ... tail`;', { directEllipsisCuts: 2 }, true],
+  ["BSH-10 parenthesized ellipsis after a direct slice", 'const a = text.slice(0, 3) + (("…"));', { directEllipsisCuts: 1 }, true],
+  ["BSH-10 leading template ellipsis after a direct slice", 'const a = text.slice(0, 3) + ` … ${n}`;', { directEllipsisCuts: 1 }, true],
+  ["BSH-10 computed and non-leading ellipses stay outside the direct check", [
+    'const a = text.slice(0, 3) + (suffix);',
+    'const b = text.slice(0, 3) + `${n}…`;',
+    'const c = text.slice(0, 3) + `prefix ${n}…`;',
+    'const d = text.slice(0, 3).trim() + ("…");',
+  ].join("\n"), {}, true],
+  ["BSH-10 ordinary slices, other suffixes, chained calls and quoted source", 'const a = text.slice(0, 12); const b = a + "…"; const c = `${text.slice(0, 12)} words`; const d = text.slice(0, 12).trim() + "…"; const sample = \'text.slice(0, 2) + "…"\';', {}, true],
+  ["BSH-10 direct ellipsis in a test fixture is outside the source gate", 'const a = text.slice(0, 12) + "…";', {}, false],
 ];
 for (const [name, text, expected, inSource] of definitions) {
   test(`definition: ${name}`, () => {
     const found = countFile("snippet.ts", text, { inSource: inSource ?? false });
-    assert.deepEqual(found, { emptyCatchesInScripts: 0, oldNames: 0, scriptConstants: 0, ...expected });
+    assert.deepEqual(found, { emptyCatchesInScripts: 0, oldNames: 0, scriptConstants: 0, directEllipsisCuts: 0, ...expected });
   });
 }
 
@@ -66,6 +77,7 @@ before(() => {
   put("packages/alpha/src/script.ts", "export const SCRIPT = `try { send(); } catch (e) {}`;\n");
   put("packages/alpha/src/named.ts", "export const old = 'GoalBoard';\n");
   put("packages/alpha/src/kept.ts", "export const KEPT_SCRIPT = `keep();`;\n");
+  put("packages/alpha/src/ellipses.ts", 'export const a = (s: string) => s.slice(0, 10) + "…";\n');
   // Not violations: look-alike names (and code the static checks, not these counts, look at).
   put("packages/alpha/src/clean.ts", [
     "export const a = () => { try { run(); } catch { /* the file may not exist yet */ } };",
@@ -101,6 +113,14 @@ const violations: Scenario[] = [
     expect: [/browser programs kept as text in a \*_SCRIPT constant in packages\/alpha\/src\/page\.ts 0 → 1/] },
   { name: "a second browser program kept as text in a file that has one", mutate: () => put("packages/alpha/src/kept.ts", read("packages/alpha/src/kept.ts") + "export const MORE_SCRIPT = 'more();';\n"),
     expect: [/browser programs kept as text in a \*_SCRIPT constant in packages\/alpha\/src\/kept\.ts 1 → 2/] },
+  { name: "BSH-10 a new direct ellipsis cut", mutate: () => put("packages/alpha/src/new-cut.ts", 'export const cut = (s: string) => s.slice(0, 4) + "...";\n'),
+    expect: [/direct ellipsis cuts in packages\/alpha\/src\/new-cut\.ts 0 → 1/] },
+  { name: "BSH-10 a second direct ellipsis cut in a file with one", mutate: () => put("packages/alpha/src/ellipses.ts", read("packages/alpha/src/ellipses.ts") + "export const b = (s: string) => `${s.slice(0, 8)}…`;\n"),
+    expect: [/direct ellipsis cuts in packages\/alpha\/src\/ellipses\.ts 1 → 2/] },
+  { name: "BSH-10 parenthesized ellipsis in a new file", mutate: () => put("packages/alpha/src/parenthesized-cut.ts", 'export const cut = (s: string) => s.slice(0, 3) + ("…");\n'),
+    expect: [/direct ellipsis cuts in packages\/alpha\/src\/parenthesized-cut\.ts 0 → 1/] },
+  { name: "BSH-10 leading template ellipsis in a file with one", mutate: () => put("packages/alpha/src/ellipses.ts", read("packages/alpha/src/ellipses.ts") + 'export const b = (s: string, n: number) => s.slice(0, 3) + `… ${n}`;\n'),
+    expect: [/direct ellipsis cuts in packages\/alpha\/src\/ellipses\.ts 1 → 2/] },
   { name: "BoardId as the tail of a longer name", mutate: () => put("packages/alpha/src/tail.ts", "export type ExistingBoardId = string;\n"), expect: [/in packages\/alpha\/src\/tail\.ts 0 → 1/] },
 ];
 
@@ -133,7 +153,7 @@ test("what the definitions leave out passes against the merge-base", () => {
       "export const b = () => { try { run(); } catch (error) { throw new Error(String(error)); } };",
       "export const c = () => Promise.resolve().catch(() => {});", "export const d = value as unknown;", "export const e = value as any as string;",
       "export const f = { dashboard_id: 1, dashboardId: 2, keyboardId: 3, 'goal-board': 4, GOAL_BOARDS_SCHEMA_SQL: 5 };",
-      "export const text = 'value as unknown as string';", "// try { run(); } catch {}", ""].join("\n"));
+      "export const text = 'value as unknown as string';", "export const cut = (s: string) => s.slice(0, 4);", "// try { run(); } catch {}", ""].join("\n"));
     // Old names are not read in tests: a test names them to assert that they are refused.
     put("tests/refuses.test.ts", "export const refused = ['goalboard', 'board_id', 'GoalBoard'];\n");
     put("tests/fixtures/refuses.ts", "export const refused = ['goalboard', 'board_id'];\n");
@@ -148,6 +168,7 @@ test("changes that lower the counts, or only move them, pass against the merge-b
     git("mv", "packages/alpha/src/script.ts", "packages/alpha/src/script-renamed.ts"); // a moved file keeps its record
     put("packages/alpha/src/script-renamed.ts", "export const SCRIPT = `try { send(); } catch (e) { console.warn(e); }`;\n"); // one fewer
     put("packages/alpha/src/named.ts", "export const old = 'Molis Work';\n"); // one fewer
+    put("packages/alpha/src/ellipses.ts", "export const a = (s: string) => s;\n");
     // The program moves into TypeScript that a bundle is built from; the constant reads the bundle.
     put("packages/alpha/package.json", JSON.stringify({ name: "@test/alpha", scripts: { build: "tsc && esbuild src/browser/kept.ts --bundle --outfile=dist/kept-client.js" } }));
     put("packages/alpha/src/browser/kept.ts", "declare const keep: () => void;\nkeep();\n");
@@ -156,6 +177,7 @@ test("changes that lower the counts, or only move them, pass against the merge-b
   const run = gate("--base", "main");
   assert.equal(run.code, 0, run.out);
   assert.match(run.out, /Lower than the merge-base: emptyCatchesInScripts, oldNames, scriptConstants/);
+  assert.match(run.out, /Lower than the merge-base: [^\n]*directEllipsisCuts/);
   assert.equal(gate("--update", "--base", "main").code, 0, "lowering the baseline with the merge-base given is accepted");
 });
 
@@ -168,5 +190,6 @@ test("the report lists each count per file, next to the merge-base's", () => {
   assert.deepEqual(json.head.emptyCatchesInScripts, { "packages/alpha/src/script.ts": 1 });
   assert.deepEqual(json.head.oldNames, { "packages/alpha/src/named.ts": 1 });
   assert.deepEqual(json.head.scriptConstants, { "packages/alpha/src/kept.ts": 1 });
+  assert.deepEqual(json.head.directEllipsisCuts, { "packages/alpha/src/ellipses.ts": 1 });
   assert.deepEqual(json.head, json.base);
 });

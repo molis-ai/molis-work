@@ -2,7 +2,7 @@ import type { Dataset, DatasetPage } from "./types.js";
 
 /** What the person sees of the open table's state, and what the Assistant is told about it. */
 export function installStatus(page: DatasetPage): void {
-  const { L, el, s } = page;
+  const { L, el, s, scope } = page;
 
   /** The table on screen, for the placement bar and the Assistant. */
   page.publishContext = () => {
@@ -20,6 +20,7 @@ export function installStatus(page: DatasetPage): void {
   const wordOf = () => s.saveError ? L("dataset.save.failed") : s.saveRun ? L("dataset.save.saving") : s.editRev > s.savedRev ? L("dataset.save.unsaved") : s.busy ? L("dataset.save.busy") : L("dataset.save.saved");
 
   page.paintStatus = (record: Dataset) => {
+    if (!scope.alive) return;
     if (s.selected && s.selected.id === record.id) page.publishContext();
     const ready = record.status === "ready";
     el.statusEl.className = "mw-status mw-status--" + (s.saveError ? "blocked" : ready ? "done" : "quiet");
@@ -31,6 +32,7 @@ export function installStatus(page: DatasetPage): void {
 
   // Keep confirmation dialogs usable while preventing competing editor commands.
   page.setBusy = (value) => {
+    if (!scope.alive) return;
     s.busy = value;
     el.workspace.inert = value;
     el.list.inert = value;

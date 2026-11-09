@@ -1,3 +1,4 @@
+import { cutWithEllipsis } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import type { PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { GoalsHintOptions } from "./ports.js";
 
@@ -44,7 +45,7 @@ export function createProjectGuidanceDocumentRenderer(ports: {
       restored: L("恢复"),
     };
     const historyRows = guidance.revisions.map((revision) => {
-      const content = revision.content.length > 220 ? `${revision.content.slice(0, 220)}…` : revision.content;
+      const content = cutWithEllipsis(revision.content, 220, { prefixLength: 220 });
       const stateLabel = revision.active ? L("生效版本") : L("停用版本");
       return `<article class="guidance-history-row"><div><strong>${escapeHtml(changeLabels[revision.change_kind] ?? revision.change_kind)}</strong><div class="guidance-history-state${revision.active ? "" : " guidance-history-state--inactive"}">${L("第 {revision} 版", { revision: revision.revision })} · ${stateLabel}</div></div><div><strong>${escapeHtml(kindMeta[revision.kind]?.label ?? revision.kind)}</strong><p>${escapeHtml(content)}</p><details class="guidance-history-entry"><summary>${L("查看完整版本与变更原因")}</summary><dl class="guidance-history-full"><div><dt>${L("完整原文")}</dt><dd>${escapeHtml(revision.content)}</dd></div><div><dt>${L("变更原因")}</dt><dd>${escapeHtml(revision.reason)}</dd></div><div><dt>${L("操作者")}</dt><dd>${escapeHtml(revision.changed_by)}</dd></div><div><dt>${L("确认记录")}</dt><dd>${escapeHtml(revision.confirmation_summary)}</dd></div></dl></details></div><time datetime="${escapeHtml(revision.created_at)}">${formatDate(revision.created_at)}</time></article>`;
     }).join("");

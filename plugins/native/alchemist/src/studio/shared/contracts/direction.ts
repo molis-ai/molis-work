@@ -1,3 +1,4 @@
+import { cutWithEllipsis } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { z } from "zod";
 
 export const createDirectionInputSchema = z
@@ -11,5 +12,5 @@ export const directionIdParamsSchema = z.object({ id: z.string().min(1) }).stric
 
 export function deriveDirectionTitle(description: string): string {
   const firstLine = description.trim().split(/\r?\n/, 1)[0] ?? description.trim();
-  return firstLine.length > 28 ? `${firstLine.slice(0, 28)}…` : firstLine;
+  return cutWithEllipsis(firstLine, 28, { prefixLength: 28 });
 }

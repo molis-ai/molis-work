@@ -1,5 +1,6 @@
+import { shortDateLabel } from "@molis-ai/molis-work-plugin-sdk/browser";
 import type { FormRecord } from "../contract.js";
-import { arrive, firstLine, icon, make, textCell, whenOf } from "./dom.js";
+import { arrive, firstLine, icon, make, textCell } from "./dom.js";
 import { renderPreview } from "./fields.js";
 import type { FormList, FormPage } from "./page.js";
 import { renderQuestions } from "./questions.js";
@@ -37,7 +38,7 @@ const listRow = (page: FormPage, record: FormRecord) => {
   row.append(
     leading,
     textCell("plugin-stage-fact", L("form.list.question-count", { count: (record.questions || []).length })),
-    textCell("plugin-stage-meta", firstLine(record.description, whenOf(record.updated_at))),
+    textCell("plugin-stage-meta", firstLine(record.description, shortDateLabel(record.updated_at))),
     status,
     fixedCell(L, record),
   );

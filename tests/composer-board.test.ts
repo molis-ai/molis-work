@@ -16,7 +16,11 @@ const sectionOf = (html: string, id: string) => {
 
 test("UIC-04: the board has a composer section with every state on one attribute", () => {
   const composer = sectionOf(renderPrimitiveCatalog(), "composer");
-  assert.equal(composer.match(/class="mw-composer" data-slot="composer"/g)?.length, 10, "ten specimens");
+  assert.equal(composer.match(/class="mw-composer" data-slot="composer"/g)?.length, 12, "ten states and the two at rest in one row");
+  // At rest in one row (user 11-08): a phone's (a finger's targets) and a short window's, each the empty composer marked at rest.
+  for (const mark of ['<div data-catalog-compact="touch">', "<div data-catalog-compact>"]) {
+    assert.match(composer.slice(composer.indexOf(mark) + mark.length), /^<div class="mw-composer" data-slot="composer" data-rest[ >]/, mark);
+  }
   // The plain kind (the editor layer only, review desk): no receiver row, no ＋ when the page gives nothing behind it, no delivery.
   const plain = composer.slice(composer.indexOf("普通 · 只有编辑器层"));
   const plainShell = plain.slice(plain.indexOf('<div class="mw-composer"'), plain.indexOf("</figure>"));

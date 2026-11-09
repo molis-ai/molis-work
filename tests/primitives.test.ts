@@ -251,7 +251,8 @@ test("primitive controls keep authored states instead of a class dump", () => {
   assert.match(PRIMITIVE_STYLES, /\.mw-btn:focus-visible \{/);
   // The pressed primary is one rule for :active and for an open ▾ (aria-expanded), so the split button's menu toggle stays pressed
   // while its menu is open without a second copy of the fill (D-track review of #1850, item 5; #1872).
-  assert.match(PRIMITIVE_STYLES, /\.mw-btn--primary:is\(:active, \[aria-expanded="true"\]\):not\(:disabled\) \{\s*background: color-mix\(in srgb, var\(--action\) 82%, var\(--action-ink\)\);/);
+  // Its fill is the skin's own --action-hover: mixing the action with its ink went grey in dark mode (batch 10, the ▾ at 390).
+  assert.match(PRIMITIVE_STYLES, /\.mw-btn--primary:is\(:active, \[aria-expanded="true"\]\):not\(:disabled\) \{\s*background: var\(--action-hover, var\(--action\)\);/);
   // Soft Workbench (DESIGN.md → Buttons): links are copper.
   assert.match(PRIMITIVE_STYLES, /\.mw-btn--link \{[^}]*color: var\(--accent\);/);
   assert.doesNotMatch(PRIMITIVE_STYLES, /\.mw-btn:disabled \{[^}]*background: var\(--control-fill\)/);

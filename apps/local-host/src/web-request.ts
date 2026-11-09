@@ -28,7 +28,7 @@ import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import type { MolisWorkPtyHost } from "@molis-ai/molis-work-service-runtime-host";
 import { cachedMolisWorkWebView, type MolisWorkWebViewCache, type GoalsWebView } from "./web-view.js";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
-import { ensureProjectPlugins, runningProjectPlatform } from "./project-plugins.js";
+import { ensureProjectPlugins } from "./project-plugins.js";
 import { UI_LANGUAGE_PREVIEW_HEADER } from "./web-ui-preference.js";
 import { homeStageHalves } from "./home-plugin-http.js";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
@@ -151,7 +151,7 @@ const PROJECT_ROUTES: readonly WebRoute<ProjectRequestContext>[] = [
       sendJson(context.response, 409, { error: t.text("workbench.language.project-closed") }); return true;
     }
     await context.localHost.withProject(context.hostReference, runtime =>
-      dispatchWebRoutes(PROJECT_RUNTIME_ROUTES, projectRuntimeContext(context, runtime)), preview ? { activatePlugins: false } : undefined);
+      dispatchWebRoutes(PROJECT_RUNTIME_ROUTES, projectRuntimeContext(context, runtime)));
     return true;
   } },
 ];
@@ -170,7 +170,7 @@ function projectRuntimeContext(context: ProjectRequestContext, runtime: MolisWor
 }
 
 /** What the project page shows: the board, with Feed's and Inbox's judgments where those plugins answer, and the Home plugins' stages. */
-function projectWebView({ options, webViewCache, store, homeActions, localHost, hostReference, serverOptions, shownPlugins, goalsHere, url, composition, pluginPorts, request }: Omit<ProjectRuntimeContext, "readWebView">) {
+function projectWebView({ options, webViewCache, store, homeActions, localHost, hostReference, serverOptions, shownPlugins, goalsHere, url, composition, pluginPorts }: Omit<ProjectRuntimeContext, "readWebView">) {
   return async (): Promise<GoalsWebView> => {
     let view = await cachedMolisWorkWebView(webViewCache, store, options, homeActions, await goalsHere());
     // What the project shows is its Catalog's selection now (enabled, minus hidden, with the personal plugins), read per request
@@ -182,7 +182,7 @@ function projectWebView({ options, webViewCache, store, homeActions, localHost, 
     const stage_request = declaredStageRequests(view.shown_plugins ?? [], pageMatch);
     view = { ...view, ...(pageMatch && !pageMatch.rejected ? { page_owner: pageMatch.plugin_id } : {}),
       ...(Object.keys(stage_request).length > 0 ? { stage_request } : {}) };
-    const plugins = request.headers[UI_LANGUAGE_PREVIEW_HEADER] === undefined ? await ensureProjectPlugins(pluginPorts) : { platform: await runningProjectPlatform(store, options.projectId) };
+    const plugins = await ensureProjectPlugins(pluginPorts);
     const prepared = await readRuntimeStageData(plugins, view.shown_plugins ?? [], await homeStageHalves(localHost.homePlugins),
       (action, owner) => bindLocalWebAction(localHost, hostReference, action, { stage_read: { manifest: owner.entry.manifest, install_id: owner.install_id, installation_generation: owner.installation_generation, scope: owner.scope, assertCurrent: owner.assertCurrent, capturePermission: owner.capturePermission } }), stage_request);
     view = { ...view, stage_data: prepared.data, plugin_stage_views: prepared.views };

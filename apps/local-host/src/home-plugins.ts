@@ -1,3 +1,4 @@
+import { inLanguagePreview, languagePreviewUnavailable } from "./web-locale.js";
 import { renderHomePackageDocument } from "./plugin-builder/agent-surface.js";
 import { ActionError, type ActionCallContext, type ActionClient, type ActionRegistryPort, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginInstallRecords } from "./plugin-install-records.js";
@@ -69,6 +70,7 @@ export class HomePluginHost {
 
   ready(): Promise<HomePluginPlatform> {
     if (this.closed) return Promise.reject(new ActionError("actions.plugin_unavailable", "Home 插件宿主已关闭"));
+    if (inLanguagePreview() && !this.opening) return Promise.reject(languagePreviewUnavailable());
     return this.opening ??= this.open();
   }
   retry(): Promise<HomePluginPlatform> {

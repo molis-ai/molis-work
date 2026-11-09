@@ -1,4 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { createWorkbenchLocale, type WebLocale } from "@molis-ai/molis-work-app-workbench";
 import { currentPluginTextCall, pluginActivationOpen, type PluginInstance } from "@molis-ai/molis-work-plugin-runtime";
 export { EN, LOCALE_COOKIE, WEB_LOCALES, LOCALE_SWITCH_STYLES, type WebLocale, type WebLocalePreference } from "@molis-ai/molis-work-app-workbench";
@@ -14,13 +16,14 @@ interface LocaleScope {
   readonly noContext: "default" | "throw";
   readonly activation?: PluginInstance;
   readonly call?: object;
+  readonly preview?: boolean;
   ended: boolean;
 }
 const scopeStore = new AsyncLocalStorage<LocaleScope>();
 
-function inLocaleScope<T>(locale: string | null, fn: () => T, options?: Pick<LocaleScope, "activation" | "noContext">): T {
+function inLocaleScope<T>(locale: string | null, fn: () => T, options?: Partial<Pick<LocaleScope, "activation" | "noContext" | "preview">>): T {
   const scope: LocaleScope = { locale, noContext: options?.noContext ?? scopeStore.getStore()?.noContext ?? "default",
-    activation: options?.activation, call: currentPluginTextCall()?.token, ended: false };
+    activation: options?.activation, call: currentPluginTextCall()?.token, preview: options?.preview ?? scopeStore.getStore()?.preview, ended: false };
   const end = () => { scope.ended = true; };
   let result: T;
   try { result = scopeStore.run(scope, fn); } catch (error) { end(); throw error; }
@@ -29,16 +32,20 @@ function inLocaleScope<T>(locale: string | null, fn: () => T, options?: Pick<Loc
   return result;
 }
 
-export function runWithLocale<T>(locale: WebLocale, fn: () => T, source: WebLocaleChoice["source"] = "explicit"): T {
-  return localeStore.run({ tag: locale, source }, () => inLocaleScope(locale, fn));
+export function runWithLocale<T>(locale: WebLocale, fn: () => T, source: WebLocaleChoice["source"] = "explicit", preview?: boolean): T {
+  return localeStore.run({ tag: locale, source }, () => inLocaleScope(locale, fn, { preview }));
 }
+
+/** Only the authenticated shell GET sets this. Even its late continuations cannot prepare more state. */
+export const inLanguagePreview = () => scopeStore.getStore()?.preview === true;
+export const languagePreviewUnavailable = () => new ActionError("actions.unavailable", t.text("workbench.language.project-closed"));
 
 /**
  * Work no page started (a timed round, a continuation, a periodic look) in a language scope of its own. The caller reads the language
  * when this run starts (`lastUsedLocale`), so a change reaches the next run. `pageLocale` and `L` do not see it.
  */
 export function runBackgroundWork<T>(locale: WebLocale, fn: () => T): T {
-  return inLocaleScope(locale, fn);
+  return inLocaleScope(locale, fn, { preview: false });
 }
 
 /**

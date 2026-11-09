@@ -4,7 +4,7 @@ import type { ActionSceneView, ActionUserAction } from "@molis-ai/molis-work-con
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import type { MolisWorkLocalHost } from "./project-host.js";
-import { activeLocale } from "./web-locale.js";
+import { activeLocale, inLanguagePreview } from "./web-locale.js";
 import { LOCAL_OWNER_PERMISSIONS, localOwnerPermissionsOver } from "./local-owner-permissions.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { runningProjectPlatform } from "./project-plugins.js";
@@ -44,7 +44,8 @@ export async function localWebActionContext(host: MolisWorkLocalHost, reference:
   // What a handler sends back to be shown follows the page the call came from; a call no page made keeps the handler's default.
   const locale = activeLocale();
   const base: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: reference?.project_id ?? null, audience: "user", permissions: builtinPermissions, signal,
-    ...(locale ? { locale } : {}), ...(entry.original_file ? { original_file: entry.original_file } : {}) };
+    ...(locale ? { locale } : {}), ...(entry.original_file ? { original_file: entry.original_file } : {}),
+    ...(inLanguagePreview() ? { read_only_effects: true } : {}) };
   // Inspection activates the actual project providers. Metadata alone never supplies a grant.
   const catalog = await host.inspectPreparedActionMetadata(base, reference);
   signal?.throwIfAborted();

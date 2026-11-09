@@ -2,9 +2,9 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { isWebLocale, localePreference, localeSetCookie, resolveWebLocaleChoice, type WebLocale } from "./web-locale.js";
 import { readLocalWebBody, refuseLocalWebRequest, requestHost, sendLocalWebJson } from "./web-http.js";
-import { WEB_PAGE_SESSION_HEADER, webRequestAuthenticated } from "./web-sessions.js";
+import { captureWebSessionAuthority, UI_LANGUAGE_PREVIEW_HEADER, WEB_PAGE_SESSION_HEADER, webRequestAuthenticated } from "./web-sessions.js";
 
-export const UI_LANGUAGE_PREVIEW_HEADER = "x-molis-work-ui-locale";
+export { UI_LANGUAGE_PREVIEW_HEADER } from "./web-sessions.js";
 
 function shell(request: IncomingMessage, control: string): boolean {
   const { headers } = request;
@@ -44,12 +44,14 @@ export async function handleLanguagePreference(request: IncomingMessage, respons
     return true;
   }
   if (request.method !== "POST") { sendLocalWebJson(response, 405, { error: t.text("workbench.language.method") }); return true; }
+  const sessionCurrent = captureWebSessionAuthority();
   const body = await readLocalWebBody(request), preference = body.preference;
   if (Object.keys(body).length !== 1 || preference !== "system" && !isWebLocale(preference)) {
     sendLocalWebJson(response, 400, { error: t.text("workbench.language.choose") }); return true;
   }
   const chosen = preference === "system" ? resolveWebLocaleChoice(null, accept) : { tag: preference, source: "explicit" };
   if (!shell(request, control) || response.destroyed) { refuseLocalWebRequest(response); return true; }
+  sessionCurrent();
   assertCurrent?.();
   remember(chosen.tag);
   response.appendHeader("Set-Cookie", localeSetCookie(preference));

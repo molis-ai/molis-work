@@ -210,7 +210,7 @@ export function createLocalWebCoreFactory(platform: LocalWebPlatform) {
             agents.agentHost,
             () => agents.ready,
           );
-        }, locale.source);
+        }, locale.source, preview !== null);
       } catch (error) {
         runWithLocale(resolveWebLocale(request.headers.cookie, request.headers["accept-language"]), () => sendUnhandledWebError(response, error, request));
       }

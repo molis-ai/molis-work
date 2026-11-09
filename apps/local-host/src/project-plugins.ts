@@ -1,3 +1,4 @@
+import { inLanguagePreview, languagePreviewUnavailable } from "./web-locale.js";
 import { scheduleServiceFor } from "./project-clock.js";
 import type { ProjectVersionStores } from "./project-version-stores.js";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
@@ -94,12 +95,12 @@ async function stopProjectPlugins(platform: PluginPlatform, projectId: string): 
 }
 
 export async function ensureProjectPlugins(ports: ProjectPluginPorts): Promise<ProjectPluginState> {
-  let boards = started.get(ports.store);
-  if (!boards) { boards = new Map(); started.set(ports.store, boards); }
+  const boards = started.get(ports.store) ?? new Map<string, StartedProject>();
   const existing = boards.get(ports.projectId);
   if (existing) {
     if (existing.ports.actorId !== ports.actorId || existing.ports.homeDirectory !== ports.homeDirectory
       || existing.ports.actions.project_id !== ports.actions.project_id) throw new Error("项目插件实例的 Home、用户或项目身份不一致");
+    if (inLanguagePreview()) return existing.ready;
     // Entry-point adapters can arrive after headless discovery; identity and storage stay bound.
     for (const key of ["routePrefix", "observeReviewSettlements"] as const) {
       if (ports[key] !== undefined) Object.assign(existing.ports, { [key]: ports[key] });
@@ -111,6 +112,8 @@ export async function ensureProjectPlugins(ports: ProjectPluginPorts): Promise<P
     if (state.platform && state.reconciledAt !== consentRevision()) { state.reconciledAt = consentRevision(); bindDeclaredDefaults(state.platform, ports.projectId, ports.actorId); }
     return state;
   }
+  if (inLanguagePreview()) throw languagePreviewUnavailable();
+  started.set(ports.store, boards);
   const configuration = { ...ports };
   const opening = startPlatform(configuration);
   const project = { ports: configuration, ready: opening };

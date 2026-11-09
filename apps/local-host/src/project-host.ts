@@ -1,3 +1,4 @@
+import { inLanguagePreview } from "./web-locale.js";
 import { accountActionProvider } from "@molis-ai/molis-work-service-account";
 import { accountSessionForHost } from "./account-host.js";
 import { projectSyncAccess } from './project-sync-access.js';
@@ -34,7 +35,7 @@ import { seedSceneRules, type FunctionsHostOptions } from "./judgment-rules-host
 import { admitProviderRules } from "./scene-rule-admission.js";
 import { releaseAgentStudio } from "./plugin-builder/agent-surface.js";
 import { releaseInstalledPlugins } from "./installed-plugin-host.js";
-import { ensureProjectPluginActions, prepareInstalledPlugins, withPreparedProject } from "./project-plugin-ports.js";
+import { prepareProjectActionDirectory, withPreparedProject } from "./project-plugin-ports.js";
 import path from "node:path";
 import { preflightMemoryHome, prepareMemoryHome } from "./memory/memory-initialization.js";
 import { closeConnectorResources } from "./connector-lifecycle.js";
@@ -377,17 +378,12 @@ export class MolisWorkLocalHost {
   private async prepareProjectPlugins(reference: LocalHostProjectReference, caller: ActionCallContext): Promise<void> {
     caller.signal?.throwIfAborted();
     if (caller.project_id !== reference.project_id.trim()) throw new ActionError("actions.scope_mismatch", "调用上下文与项目不一致");
-    await ensureProjectPluginActions({ host: this.host, options: this.options, agents: () => this.agents?.service, homePlugins: () => this.homePlugins }, reference);
-    caller.signal?.throwIfAborted();
-    await this.agents?.service.restoreExternalMcp(reference);
-    caller.signal?.throwIfAborted();
-    await this.host.withRuntime(reference, runtime => prepareInstalledPlugins({ host: this.host, options: this.options, agents: () => this.agents?.service, homePlugins: () => this.homePlugins }, reference, runtime));
-    caller.signal?.throwIfAborted();
+    return prepareProjectActionDirectory({ host: this.host, options: this.options, agents: () => this.agents?.service, homePlugins: () => this.homePlugins }, reference, caller.signal);
   }
 
   private async prepareHomeActions(): Promise<void> {
     if (this.closing.started || this.host.lifecycle() !== "running") throw hostErrors.closed("Local Host 已关闭");
-    // The Home keeps its failed ready promise; unrelated providers remain available while its HTTP entry reports that failure.
+    if (inLanguagePreview()) return;
     await this.homePlugins?.ready().catch(() => undefined);
     await this.homePlugins?.refreshPublicActions();
     if (this.closing.started || this.host.lifecycle() !== "running") throw hostErrors.closed("Local Host 已关闭");

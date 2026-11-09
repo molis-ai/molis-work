@@ -2,6 +2,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import type { HostCapabilityDescriptor, LocalHostProjectReference, LocalHostStatus } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { hostErrors } from "./host-errors.js";
+import { inLanguagePreview, languagePreviewUnavailable } from "./web-locale.js";
 import { hostLog } from "./host-log.js";
 import type { LocalHostRuntimeFactory } from "./local-host-types.js";
 
@@ -112,10 +113,8 @@ export class ProjectLine<Runtime> {
       throw hostErrors.project_closing("这个 Project 的 Local Host runtime 正在关闭");
     }
     const existing = this.entries.get(normalized.storage_key);
-    if (existing) {
-      assertSameIdentity(existing.reference, normalized);
-      return existing;
-    }
+    if (inLanguagePreview() && existing?.state !== "ready") throw languagePreviewUnavailable();
+    if (existing) return existing; // `assertCompatibleReference` already checked this identity.
     const entry: RuntimeEntry<Runtime> = {
       reference: normalized,
       runtime: Promise.resolve().then(() => this.runtimeFactory.open(normalized)),

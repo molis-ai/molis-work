@@ -163,8 +163,8 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
     declaration: identity => sandboxDeclaration(identity, noBuilds, release => manifestOf(release), { recordFor, releaseFor }),
     granted: identity => sandboxGrants(identity, noBuilds, { recordFor, releaseFor, approvedFor }) });
   const integrations = options.integrations;
-  const { definition, manifestOf, forget: forgetDefinitions } = installedDefinitions({ catalog, callCatalog: async context => (await resolveCall(context)).catalog, capabilityFor, network, assertInstalled, earlier: () => [],
-    ...integrations ? { integration: (release, approved, assertLive) => sandboxedIntegrationDefinition(release, approved, { connections: integrations.connections, assertLive }) } : {} });
+  const { definition, manifestOf, forget: forgetDefinitions } = installedDefinitions({ home: options.home, catalog, callCatalog: async context => (await resolveCall(context)).catalog, capabilityFor, network, assertInstalled, earlier: () => [],
+    ...integrations ? { integration: (release, approved, assertLive) => sandboxedIntegrationDefinition(release, approved, { home: options.home, connections: integrations.connections, assertLive }) } : {} });
   // An integration package offers no actions and no page: what it gives is its sources, held in the Home's registry while it runs (BL-530).
   const attached = new Map<string, symbol>();
   let registry: ReturnType<NonNullable<typeof integrations>['registry']> | undefined;

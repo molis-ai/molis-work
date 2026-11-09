@@ -234,10 +234,30 @@ test("FSS-53 FSS-70 pack-sandbox signs the declared words and the Host refuses m
   assert.throws(() => readSandboxPackage(payloadOf({ ...manifest, ui: { ...manifest.ui, locales: { ...LOCALES, default: "zh" } } }, files)), /清单不是沙箱插件/u);
 }));
 
-test("FSS-53 FSS-60 a real signed installation exposes its own words through an authorized shell grant", { skip: process.platform !== "darwin", timeout: 120_000 }, async t => {
+test("FSS-53 FSS-60 a real signed installation binds words to its authorized page and operation", { skip: process.platform !== "darwin", timeout: 120_000 }, async t => {
   const f = await serveHomeRuntime(t), project = await f.project("Signed bilingual package");
   const prefix = `/projects/${project.project_id}`;
-  const bundle = signedPackage(newPublisher(), bilingualPackage, { pluginId: PLUGIN_ID });
+  const bundle = signedPackage(newPublisher(), (files, manifest) => {
+    bilingualPackage(files, manifest);
+    files[SANDBOX_PACKAGE_FILES.entrypoint] = `
+      let finish, old;
+      export const operations = {
+        'notes.list': async (_input, sdk) => {
+          const title = sdk.t.text('notes.main.saved', { count: 2 });
+          const common = sdk.t.text('common.text.unavailable');
+          const foreign = sdk.say.text({ owner: 'io.molis.work.example.other', key: 'other.stage.title', fallback: 'Other owner unavailable' });
+          if (!old) {
+            const wait = new Promise(resolve => { finish = resolve; });
+            old = wait.then(() => sdk.t.text('notes.main.saved', { count: 3 }));
+            return [{ id: 'title', text: title }, { id: 'common', text: common }, { id: 'foreign', text: foreign }];
+          }
+          finish();
+          return [{ id: 'title', text: title }, { id: 'common', text: common }, { id: 'late', text: await old }];
+        },
+        'notes.add': async () => true,
+      };
+    `;
+  }, { pluginId: PLUGIN_ID });
   const client = f.host.actionClient(project.reference);
   const caller = { ...person(PLUGIN_INSTALL_PERMISSIONS, project.project_id), user_action: { source: "management" as const, conversation_ref: "locale:install", message_ref: "locale:confirm" } };
   const preview = await client.invoke(caller, pluginInstallActions.preview, { bundle }) as { preview_id: string };
@@ -257,6 +277,15 @@ test("FSS-53 FSS-60 a real signed installation exposes its own words through an 
     assert.equal(response.owners[0].owner, PLUGIN_ID);
     assert.equal(response.owners[0].packs.find((item: { locale: string }) => item.locale === locale).messages["notes.main.saved"], text);
   }
+  const operation = (await client.discover(caller)).find(item => item.provider.plugin_id === PLUGIN_ID && item.action.local_id === "notes.list");
+  assert.ok(operation);
+  const reference = { capability_id: operation.capability_id, version: operation.version, provider_id: operation.provider.provider_id };
+  assert.deepEqual(await client.invoke({ ...caller, locale: "en" }, reference, {}), [
+    { id: "title", text: "Saved 2" }, { id: "common", text: "This text cannot be shown right now" }, { id: "foreign", text: "Other owner unavailable" },
+  ]);
+  assert.deepEqual(await client.invoke({ ...caller, locale: "zh" }, reference, {}), [
+    { id: "title", text: "已保存 2" }, { id: "common", text: "这句话暂时显示不了" }, { id: "late", text: "…" },
+  ], "a promise left behind by the English call cannot borrow the later Chinese scope");
 });
 
 test("FSS-53 no built-in Manifest writes ui.locales before part C moves them all at once", () => {

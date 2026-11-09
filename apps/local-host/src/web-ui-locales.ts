@@ -7,17 +7,7 @@ import { isWebLocale } from "./web-locale.js";
 import { refuseLocalWebRequest, requestHost, respondLocalWebRefusal, sendLocalWebJson } from "./web-http.js";
 import type { WebRequestContext } from "./web-route-table.js";
 import { WEB_PAGE_SESSION_HEADER, webPageToken } from "./web-sessions.js";
-
-/** Send the requested words and only the default words that are needed to fill gaps. Each pack keeps its own grammar. */
-function projectPacks(reader: PluginTextReader, locale: string, declared: boolean, sharedOnly = false): UiLocalePack[] {
-  const requested = reader.pack(locale), baseline = locale === reader.default ? requested : reader.pack(reader.default);
-  if (!baseline || (declared && !requested)) throw new ActionError("actions.unavailable", "界面语言包不可用，请重试");
-  const messages = (pack: UiLocalePack, excluding?: UiLocalePack) => Object.fromEntries(Object.entries(pack.messages)
-    .filter(([key]) => (!sharedOnly || key.startsWith("common.")) && (!excluding || !Object.hasOwn(excluding.messages, key))));
-  if (!requested || baseline === requested) return [{ ...baseline, messages: messages(baseline) }];
-  const fallback = messages(baseline, requested);
-  return [...(Object.keys(fallback).length ? [{ ...baseline, messages: fallback }] : []), { ...requested, messages: messages(requested) }];
-}
+import { projectTextPacks } from "./ui-text-provider.js";
 
 /** The common web guard has already checked the page proof against its bound cookie and transport. */
 export async function handlePageLocales({ request, response, url, serverOptions }: WebRequestContext, projectId: string | null): Promise<void> {
@@ -51,12 +41,12 @@ export async function handlePageLocales({ request, response, url, serverOptions 
         const identity = reader ?? manifest;
         let existing = owners.get(identity);
         if (!existing) {
-          existing = { owner: manifest.plugin_id, pages: [], packs: reader ? projectPacks(reader, locale, manifest.ui.locales?.available.includes(locale) === true) : [] };
+          existing = { owner: manifest.plugin_id, pages: [], packs: reader ? projectTextPacks(reader, locale, manifest.ui.locales?.available.includes(locale) === true) : [] };
           owners.set(identity, existing);
         }
         existing.pages.push(id);
       }
-      sendLocalWebJson(response, 200, { locale, shared: projectPacks(common, locale, true, true), owners: [...owners.values()] });
+      sendLocalWebJson(response, 200, { locale, shared: projectTextPacks(common, locale, true, true), owners: [...owners.values()] });
     });
   } catch (error) {
     if (!response.destroyed) respondLocalWebRefusal({ respond: (status, body) => sendLocalWebJson(response, status, body) }, error);

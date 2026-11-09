@@ -1,6 +1,6 @@
 # SQLite 第二步：项目库换到 node:sqlite（路线书 05 第 3 项）
 
-状态：实现中，SQLD-a、c、d、e 在分支 `claude/05-sqlite-switch` 上，合成一个 PR（用户 2026-11-08 定，§10）。SQLD-b（锁 Node）已随 #1917 合入。桌面打包那半的两个文件归 F 轨，用户 2026-11-08 同意由本批写手放进同一个 PR，F 轨事后审；打包冒烟在本机经 `tests/runtime-payload.test.ts` 跑过，正式包没有打（§6、SQLD-11）。本文已按实现改过：和当初设计不一样的地方写在原处，并汇总在 §14。要不要换用户已定（台账 C3，分两步）；第一步（驱动收拢到窄接口）已随 #1790 合入（`a942bd9c3`）。
+状态：已实现（2026-11-06/11-08 设计，路线书 05 第 3 项）。SQLD-a、c、d、e 随 #1979 于 2026-11-08 合入 main `500d868df3`（用户 2026-11-08 定合成一个 PR），SQLD-b（锁 Node）已随 #1917 合入。项目库只剩 `node:sqlite` 一个驱动，`better-sqlite3` 只留 Alchemist 例外；桌面打包那半的两个文件随同一个 PR 改完（F 轨事后审），打包冒烟在本机经 `tests/runtime-payload.test.ts` 跑过，正式包没有打（§6、SQLD-11）。本文已按实现改过：和当初设计不一样的地方写在原处，并汇总在 §14。要不要换用户已定（台账 C3，分两步）；第一步（驱动收拢到窄接口）已随 #1790 合入（`a942bd9c3`）。
 
 验收编号前缀 `SQLD`，见 §12。
 
@@ -179,7 +179,7 @@ Home 库今天就在 `node:sqlite` 上走同一个 `pluginDatabaseClient`（`hom
 
 **同样要去掉直接 import 的还有 `packages/storage/src/catalog-metadata.ts:3`（#1877 新增）。** `inspectCatalogFile` 在有 WAL 时用旧驱动读（`:33`，注释写明要和常驻连接共用一份锁记账），没有 WAL 时用 `node:sqlite` 的 immutable URI。§7 把 `ownsDriver` 收窄之后，不改它门禁就红。SQLD-a 把 `new Database(filename, { readonly: true, fileMustExist: true })` 换成 `openSqliteConnection(filename, { readonly: true, fileMustExist: true })`，语义不变；SQLD-d 切换时它跟着常驻连接一起换，两个分支都是 `node:sqlite`，「和常驻连接同一个驱动」这条仍然成立。
 
-`project-plugin-databases.ts` 的 `TRANSIENT_DATABASE_ERROR` 正则匹配 `database is locked`，文字两边相同（实测），不用改。测试里断言 `.code` 的由全量找出。切换后函数只认 `node:sqlite` 这一种（`errcode`），随 SQLD-e 收。**Host 日志同样用它**（`host-log.ts` 的 `describe`）：`node:sqlite` 对任何失败都是 `ERR_SQLITE_ERROR`，不换的话日志里分不出忙和坏，这是切换会丢的诊断。
+`project-plugin-databases.ts` 的 `TRANSIENT_DATABASE_ERROR` 正则匹配 `database is locked` 的那套已经删掉（SQLD-e）：现在 `isTransientProjectDatabaseError` 按 SQLite 的结果码判忙（`sqliteErrorName` 读 `errcode` → `SQLITE_BUSY`／`SQLITE_LOCKED`，`packages/storage/src/sqlite-connection.ts:59-63`），不再比文字。测试里断言 `.code` 的由全量找出。**Host 日志同样用它**（`host-log.ts` 的 `describe`）：`node:sqlite` 对任何失败都是 `ERR_SQLITE_ERROR`，所以日志的 `code` 取 `sqliteErrorName`，否则分不出忙和坏，这是切换会丢的诊断。
 
 ### 3.7 编译选项差异
 
@@ -194,7 +194,7 @@ Home 库今天就在 `node:sqlite` 上走同一个 `pluginDatabaseClient`（`hom
 
 FTS5（`trigram` 实测可用）、JSON、数学函数都在（`sqlite.gyp`）。官方 24.15 的 `PRAGMA compile_options` 记在用例里（`tests/sqlite-build-options.test.ts` 的 `OFFICIAL_COMPILE_OPTIONS`，单独一个文件，因为整张表只在 macOS 上比，别的符合性用例在产品子集里），将来 Node 升级看差异；只在 macOS 上比整张表（从这个构建读的），Linux 上只比代码依赖的几项。
 
-**`setAuthorizer`。** 宿主用 SQLite 自己的授权回调的地方现在有两处，都在 `node:sqlite` 上（要 Node 24.10 以上）：Home 插件库的语句检查（`nativeSqliteOwnerBoundary`，S-112），和插件表升级段的第 2 层（U1-f：结构语句走 `nativeSqliteSchemaBoundary`，增删改走 `nativeSqliteOwnerBoundary`，`packages/storage` 的窄接口为此交出 `SqliteConnection.setAuthorizer`）。项目库原先用不了它，因为 `better-sqlite3` 没有把授权回调接出来；SQLD-d 把项目库换到 `node:sqlite` 之后条件相同，`project-database-statements.ts:6` 那句「宿主的 SQLite 没有 authorizer」随之删掉。U1-f 开工时 #1959 已经在它的分支上，所以升级段直接写成授权版，没有写按词读，并在锁定版本 24.15.0（SQLite 3.51.3）上跑过 S-147 的 4212 种写法和 UPG1-14：合法的段全部走通，会碰到别人的表的写法全部在执行前被拒（设计时只在 Node 24.22.2、SQLite 3.54.1 上量过；结论和实际写法见 [U1 设计](../upgrade-continuity/upgrade-chain-design.md) §2.4 末段）。**剩下的**是日常插件语句检查（项目库读写用的 `project-database-statements.ts` 的 `pluginStatementGuard`）改用它，去处不变：SQLD-d 之后单独一片，一次换所有插件，U4 打开开关之前必须换完（统筹 11-07 定）。这一步不归 SQLD-c，SQLD-c 只核插件语句检查（§2.1）。
+**`setAuthorizer`。** 宿主用 SQLite 自己的授权回调的地方现在有两处，都在 `node:sqlite` 上（要 Node 24.10 以上）：Home 插件库的语句检查（`nativeSqliteOwnerBoundary`，S-112），和插件表升级段的第 2 层（U1-f：结构语句走 `nativeSqliteSchemaBoundary`，增删改走 `nativeSqliteOwnerBoundary`，`packages/storage` 的窄接口为此交出 `SqliteDatabase.setAuthorizer`）。项目库原先用不了它，因为 `better-sqlite3` 没有把授权回调接出来；SQLD-d 把项目库换到 `node:sqlite` 之后条件相同，`project-database-statements.ts:6` 那句「宿主的 SQLite 没有 authorizer」随之删掉。U1-f 开工时 #1959 已经在它的分支上，所以升级段直接写成授权版，没有写按词读，并在锁定版本 24.15.0（SQLite 3.51.3）上跑过 S-147 的 4212 种写法和 UPG1-14：合法的段全部走通，会碰到别人的表的写法全部在执行前被拒（设计时只在 Node 24.22.2、SQLite 3.54.1 上量过；结论和实际写法见 [U1 设计](../upgrade-continuity/upgrade-chain-design.md) §2.4 末段）。**剩下的**是日常插件语句检查（项目库读写用的 `project-database-statements.ts` 的 `pluginStatementGuard`）改用它，去处不变：SQLD-d 之后单独一片，一次换所有插件，U4 打开开关之前必须换完（统筹 11-07 定）。这一步不归 SQLD-c，SQLD-c 只核插件语句检查（§2.1）。
 
 ## 4. 文件锁用例 PLIB-08／S-46
 
@@ -246,9 +246,9 @@ Home 插件库：U1-f 的段用 `openSqliteConnection` 开 Home 库（U1 设计 
 - `plugins/native/alchemist/package.json:36,52,58` 留依赖，`studio/server/db/open-database.ts:1`、`studio/server/sync/open.ts:1` 不动，25 处 `.transaction(` 不动。出处：`tests/builtin-plugin-assembly-gate.test.ts` 的批准例外（BL-377 重做）。
 - 宿主侧的 `alchemist-search.ts` 走 `LocalSqliteStorage`，跟着切（`search.sqlite`）。
 - **同一个进程里仍然有两份 SQLite**（Alchemist 在宿主里跑时）。今天也是这样，只是换了分工。安全靠 §4 那条不变量（同一个文件不同时被两份 SQLite 开着），§4 新增了拒绝用例；U1 的升级过程也算在内（§4 末段）。
-- **门禁改严，切换后旧驱动只许 Alchemist 用（用户 2026-11-06 定）。** `scripts/gates/project-sqlite-driver.mjs` 的 `ownsDriver` 现在放行整个 `packages/storage/` 和 `plugins/native/alchemist/`，分两步收：
-  - SQLD-d：`packages/storage/` 收窄到保留旧实现的那一个文件（`sqlite-connection.ts`）。符合性用例从 `packages/storage` 取旧实现，不直接 import。
-  - SQLD-e：`packages/storage` 那一项删掉，只剩 Alchemist。符合性用例的旧驱动那一半同时删掉，期望值已经写在用例里。
+- **门禁改严，切换后旧驱动只许 Alchemist 用（用户 2026-11-06 定）。** `scripts/gates/project-sqlite-driver.mjs` 的 `ownsDriver` 分两步收完了，现在只放行 `plugins/native/alchemist/`（`project-sqlite-driver.mjs:17`）：
+  - SQLD-d：`packages/storage/` 曾收窄到保留旧实现的那一个文件（`sqlite-connection.ts`）；符合性用例改从 `packages/storage` 取旧实现，不直接 import。
+  - SQLD-e：`packages/storage` 那一项已删掉，只剩 Alchemist；符合性用例的旧驱动那一半同时删掉，期望值已经写在用例里。
   - 宿主也不许直接 import：`studio.sqlite` 不接升级链（用户 2026-11-08 定），宿主没有开它的路。门禁的变异用例：`packages/storage` 里别的文件、宿主、别的插件 import `better-sqlite3` 都失败。
 - npm 和桌面产物：只要 Alchemist 还是内置插件，产物里就仍带 `better-sqlite3` 和它的原生模块。体积和准备流程这次省不下来。等 BL-377。
 

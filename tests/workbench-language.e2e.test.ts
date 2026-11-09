@@ -82,7 +82,7 @@ const ISSUE_OWNER = "io.molis.work.issues";
 
 type LanguageBrowser = NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>;
 
-async function chooseEnglishInSettings(t: TestContext, b: LanguageBrowser) {
+async function chooseEnglishInSettings(t: TestContext, b: LanguageBrowser, target: "zh" | "en" = "en") {
   const { targetId } = await b.command<{ targetId: string }>("Target.createTarget", { url: "about:blank", background: true });
   t.after(async () => { await b.command("Target.closeTarget", { targetId }).catch(() => undefined); });
   const { sessionId } = await b.command<{ sessionId: string }>("Target.attachToTarget", { targetId, flatten: true });
@@ -109,12 +109,12 @@ async function chooseEnglishInSettings(t: TestContext, b: LanguageBrowser) {
   const location = new URL(address), navigation = new URL(navigations.at(-1)!);
   assert.deepEqual([location.origin, location.pathname], [navigation.origin, navigation.pathname]);
   const opened = navigations.slice(); // The project cover can set settingsPath with replaceState in this same document.
-  await evaluate("window.languageSettingsDocument = document.body; document.querySelector('a[data-ui-language=en]').click()");
+  await evaluate(`window.languageSettingsDocument = document.body; document.querySelector('a[data-ui-language=${target}]').click()`);
   try {
     assert.equal(await evaluate(`(async () => {
       const stop = Date.now() + 15000;
       while (Date.now() < stop) {
-        if (document.documentElement.lang === 'en') return languageSettingsDocument === document.body;
+        if (document.documentElement.dataset.uiLanguageTag === ${JSON.stringify(target)}) return languageSettingsDocument === document.body;
         await new Promise(resolve => setTimeout(resolve, 40));
       }
       return false;
@@ -212,7 +212,9 @@ test("FSS-35 FSS-36 an opened Git review retitles the retained view without anot
     const owner=document.createElement('div'),holder=document.createElement('div');holder.dataset.reviewFixture='';owner.append(holder);document.querySelector('.settings-content').append(owner);
     const mount=(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})(); const lifetime=mount(owner);
     const show=molisFrameReviews({mountPluginClient:mount,route:path=>path});
-    await show(holder,[],null,'review-ws',{}, {lifetime,signal:lifetime.signal});
+    window.reviewOwner=owner; window.reviewScope=lifetime;
+    window.showReview=()=>show(holder,[],null,'review-ws',{}, {lifetime,signal:lifetime.signal});
+    await showReview();
   })()`);
   await b.click("[data-review-fixture] [data-agent-review-inspect]");
   await b.waitFor("document.querySelector('[data-review-recovery-view] [role=status]')?.textContent.includes('当前暂存区与操作前一致')");
@@ -223,14 +225,23 @@ test("FSS-35 FSS-36 an opened Git review retitles the retained view without anot
     reviewInput.value='  核对依据 · exact  ';reviewInput.dispatchEvent(new Event('input',{bubbles:true}));
     reviewInput.focus();reviewInput.setSelectionRange(2,8,'backward');
   })()`);
+  await b.evaluate("reviewOwner.hidden=true");
+  assert.equal(await b.evaluate("reviewScope.visible"), false);
   await chooseEnglishInSettings(t,b);
+  await b.waitFor("document.documentElement.dataset.uiLanguageTag === 'en'");
+  await b.evaluate("reviewOwner.hidden=false; showReview()");
   await b.waitFor("reviewPanel.querySelector('[role=status]').textContent.startsWith('The current Git index matches its state before')");
-  assert.deepEqual(await b.evaluate(`[reviewPanel===document.querySelector('[data-review-recovery-view]'),
-    reviewInput===reviewPanel.querySelector('textarea'), document.activeElement===reviewInput,reviewInput.value,
-    reviewInput.selectionStart,reviewInput.selectionEnd,reviewInput.selectionDirection,reviewDetail.open,
+  const kept = `[reviewPanel===document.querySelector('[data-review-recovery-view]'), reviewInput===reviewPanel.querySelector('textarea'),
+    reviewInput.value,reviewInput.selectionStart,reviewInput.selectionEnd,reviewInput.selectionDirection,reviewDetail.open,
     reviewPanel.querySelector('input[type=checkbox]').checked, reviewPanel.querySelector('pre').textContent,
-    reviewRequests.filter(request=>request.includes('/recovery')), reviewRequests.filter(request=>request.startsWith('POST '))]`),
-    [true,true,true,"  核对依据 · exact  ",2,8,"backward",true,true,original,["GET /api/agent/reviews/recovery"],[]]);
+    reviewRequests.filter(request=>request.includes('/recovery')), reviewRequests.filter(request=>request.startsWith('POST '))]`;
+  const expected = [true,true,"  核对依据 · exact  ",2,8,"backward",true,true,original,["GET /api/agent/reviews/recovery"],[]];
+  assert.deepEqual(await b.evaluate(kept), expected, "the hidden view is current when shown, without rerunning an inspection");
+  await b.evaluate("reviewInput.focus({preventScroll:true})");
+  await chooseEnglishInSettings(t,b,"zh");
+  await b.waitFor("reviewPanel.querySelector('[role=status]').textContent.startsWith('当前暂存区与操作前一致')");
+  assert.deepEqual(await b.evaluate(kept), expected);
+  assert.equal(await b.evaluate("document.activeElement===reviewInput"), true);
 });
 
 function holdIssueOpening(t: TestContext, b: LanguageBrowser) {

@@ -7,12 +7,14 @@ export const AGENT_REVIEW_CLIENT_FACTORY_SCRIPT = `(host) => {
     escape:value=>String(value).replace(/[&<>"']/g,char=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[char]),
     t:globalThis.t,say:globalThis.say,dateArg:(at,style)=>({kind:'date',at,style})
   });
-  const retitleRecovery=container=>{
+  const retitleRecovery=(container,locale)=>{
+    const merge=globalThis.molisWorkRetitleRegion;
+    if(!merge)return;
     for(const panel of container.querySelectorAll('[data-review-recovery-view]')){
-      const retained=recoveryViews.get(panel);if(!retained)continue;
+      const retained=recoveryViews.get(panel);if(!retained || retained.locale===locale)continue;
       const after=renderRecovery(retained.view);
-      globalThis.molisWorkRetitleRegion?.(panel.parentElement,retained.html,after);
-      retained.html=after;
+      merge(panel.parentElement,retained.html,after);
+      retained.html=after;retained.locale=locale;
     }
   };
   const feedbackKey=id=>'molis-review-feedback:'+host.route('/api/agent/reviews')+':'+id;
@@ -39,9 +41,7 @@ export const AGENT_REVIEW_CLIENT_FACTORY_SCRIPT = `(host) => {
       state={key:'',ticket:0,refs:[],more:0,control,lifetime,reviews:null,locale:null}; mounts.set(container,state);
       lifetime.own(()=>{state.ticket++;if(mounts.get(container)===state)mounts.delete(container);});
       state.lifetime.listen(document, "molis-work:language-changed", () => {
-        if(!current(state,state.control))return;
-        retitleRecovery(container);
-        void show(container,state.refs,state.sessionId,state.workspaceId,state.scope,state.control);
+        if(current(state,state.control))void show(container,state.refs,state.sessionId,state.workspaceId,state.scope,state.control);
       });
       state.lifetime.listen(container,'click',event=>{if(!event.target.closest('[data-review-more]'))return;state.more+=50;void show(container,state.refs,state.sessionId,state.workspaceId,state.scope,state.control);});
       state.lifetime.listen(container,'input',event=>{
@@ -83,7 +83,7 @@ export const AGENT_REVIEW_CLIENT_FACTORY_SCRIPT = `(host) => {
               const html=locale===document.documentElement.dataset.uiLanguageTag ? data.html : renderRecovery(data.view);
               holder.innerHTML=html;
               const panel=holder.querySelector('[data-review-recovery-view]');
-              if(panel)recoveryViews.set(panel,{view:data.view,html});
+              if(panel)recoveryViews.set(panel,{view:data.view,html,locale:document.documentElement.dataset.uiLanguageTag});
               const draft=recoveryDrafts.get(review_id);
               const input=holder.querySelector('[data-review-recovery-reason]'),check=holder.querySelector('[data-review-recovery-confirm]');
               if(input && draft)input.value=draft.reason;
@@ -123,6 +123,7 @@ export const AGENT_REVIEW_CLIENT_FACTORY_SCRIPT = `(host) => {
     if(state.key!==key){container.replaceChildren();delete container.dataset.reviewHtml;state.key=key;state.more=0;state.reviews=null;state.locale=null;}
     state.refs=refs;state.sessionId=sessionId;state.workspaceId=workspaceId;state.scope=scope;
     if(!refs.length && !sessionId && !workspaceId && !scope?.runSession) {container.hidden=true;return;}
+    retitleRecovery(container,locale);
     try {
       const query=new URLSearchParams();if(sessionId)query.set('session_id',sessionId);if(workspaceId)query.set('workspace_id',workspaceId);refs.forEach(ref=>query.append('run_id',ref.run_id));
       if(scope?.runSession)query.set('run_session_id',scope.runSession);if(scope?.limit)query.set('limit',String(scope.limit+state.more));

@@ -1,9 +1,9 @@
 {
-  "reason": "第 10 批合后审计修复（fix(10)，2026-11-09 用户弹窗定）：回执「回答上面的问题↔补充这一轮」恢复为输入框上方芯片（ai-input-receipts §4.1）、无回合运行时 ⌘⇧↵/▾「下一轮再做」成为真实排队（组件 delivery 规则、助理挂载与菜单）、接收者英文改回 Send to，以及 IME 守卫改用共享实现，带来的真实 Host 下发字节增长。对照 origin/main ecdfe102d2 的独立构建实测：composer.js +265（idleDelivery 发送控件与规则、共享守卫）、workbench.js +202（芯片 DOM 与排队的挂载/文案）、三份页面样式各 +1102（芯片样式随底栏样式进入三张页面样式表）；未新增资源，单份增长远低于 10 KB。",
+  "reason": "第 10 批合后审计修复（fix(10)，2026-11-09 用户弹窗定）：回执「回答上面的问题↔补充这一轮」恢复为输入框上方芯片（ai-input-receipts §4.1）、无回合运行时 ⌘⇧↵/▾「下一轮再做」成为真实排队（组件 delivery 规则、助理挂载与菜单）、接收者英文改回 Send to，以及 IME 守卫改用共享实现，带来的真实 Host 下发字节增长。对照合并后的 origin/main 1d32d49d 独立构建实测：composer.js +265（idleDelivery 发送控件与规则、共享守卫）、workbench.js +225（芯片 DOM 与排队的挂载/文案）、三份页面样式各 +1102（arrival/workbench/settings）（芯片样式随底栏样式进入三张页面样式表）；未新增资源，单份增长远低于 10 KB。",
   "review": "第 10 批合后审计修复 PR（fix/10-audit-followups）主会话按本机独立构建逐字节实测，并由本 PR 评审台再核；不是新资源，未复用任何已采用许可。",
   "assets": {
     "/assets/molis-work-composer.js": 265,
-    "/assets/molis-work-workbench.js": 202,
+    "/assets/molis-work-workbench.js": 225,
     "/assets/molis-work-arrival.css": 1102,
     "/assets/molis-work-workbench.css": 1102,
     "/assets/molis-work-settings.css": 1102

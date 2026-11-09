@@ -1,6 +1,7 @@
 import type { ImReadState, ImSearchResult, ImMember, ImMessage, ImMessagePage, ImRoom, ImRoomState, ImThread, ImThreadState } from "@molis-ai/molis-work-contracts/services/im";
 import type { ImDatabase } from "./types.js";
 import { ImError } from "./errors.js";
+import { messageSubjects } from "./subjects.js";
 
 type Row = Record<string, string | number | null>;
 export class ImReads {
@@ -98,6 +99,16 @@ export class ImReads {
         const quoted = this.db.prepare(`SELECT m.id,m.body,m.thread_id,p.id AS author_id,p.display_name FROM im_messages m JOIN mw_members p ON p.id=m.author_id WHERE m.id=? AND m.room_id=?`).get(row.quote_id,roomId) as Row;
         return { id: String(quoted.id), body: String(quoted.body), thread_id: quoted.thread_id === null ? null : String(quoted.thread_id), author: { id: String(quoted.author_id), display_name: String(quoted.display_name) } };
       })() : null };
+  }
+
+  /** A quote or share resolves to the original row. Neither carries a copy of its references. */
+  objectReferences(roomId: string, messageId: string, part: "message" | "quote" | "share") {
+    const row = this.db.prepare<[string, string, string], { subjects_json: string | null }>(`SELECT original.subjects_json
+      FROM im_messages m LEFT JOIN im_messages original ON original.room_id=m.room_id
+        AND original.id=CASE ? WHEN 'quote' THEN m.quote_id WHEN 'share' THEN m.shared_message_id ELSE m.id END
+      WHERE m.room_id=? AND m.id=?`).get(part, roomId, messageId);
+    if (!row) throw new ImError("im.message_not_found", "找不到这个群里的消息", 404);
+    return row.subjects_json === null ? [] : messageSubjects(JSON.parse(row.subjects_json));
   }
 
   messages(roomId: string, threadId: string | null, before: number | null, limit: number): ImMessagePage {

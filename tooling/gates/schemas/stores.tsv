@@ -37,7 +37,7 @@ projects/*/molis-work.db#io.molis.work.goals	io.molis.work.goals	1	3e61d1b7bb556
 projects/*/molis-work.db#io.molis.work.inbox	io.molis.work.inbox	1	56acddfd14f308b1	-
 projects/*/molis-work.db#io.molis.work.schedule	io.molis.work.schedule	1	9352bdf88ac5fabf	-
 projects/catalog.db	apps/local-host	2	24e0e3c5a6f72a76	1
-server/server.sqlite	server	1	626a2905680637a9	-
+server/server.sqlite	server	1	2c4efaa24415de5e	-
 sync/sync.db	modules/sync-replication	1	19cf5fee78712da0	-
 todo/todo.db	io.molis.work.todo	1	edc487237edda4db	-
 workflows/workflows.db	io.molis.work.native.workflows	1	4bf4b5a14a13db76	-

@@ -54,7 +54,7 @@ export class ProjectStatementProcess {
   private readonly limits: StatementLimits;
   private child: ChildProcess | undefined;
   private readonly ended = new WeakMap<ChildProcess, unknown>();
-  private readonly exits = new WeakMap<ChildProcess, Promise<void>>();
+  private readonly exits = new Map<ChildProcess, Promise<void>>();
   private waiting: Waiting | undefined;
   private tail: Promise<unknown> = Promise.resolve();
   private queued = 0;
@@ -136,6 +136,13 @@ export class ProjectStatementProcess {
     clearTimeout(this.idle);
   }
 
+  /** An owner can release its library only when the current child and any already signalled child have actually left. */
+  async close(): Promise<void> {
+    this.dispose();
+    for (const child of this.exits.keys()) { child.ref(); child.channel?.ref(); }
+    await Promise.all(this.exits.values());
+  }
+
   private exclusive<T>(job: () => Promise<T>): Promise<T> {
     this.queued++;
     clearTimeout(this.idle);
@@ -169,11 +176,11 @@ export class ProjectStatementProcess {
   private spawn(): ChildProcess {
     const child = fork(WORKER, [], { execArgv: [`--max-old-space-size=${this.limits.heapMb}`], stdio: ["ignore", "ignore", "ignore", "ipc"],
       env: { TMPDIR: tmpdir() }, cwd: tmpdir(), serialization: "json" });
-    // The Host does not wait for it to leave, and it leaves on its own when the Host's end of the channel closes.
+    // An idle child does not keep the Host alive. The closing library explicitly waits for the live children.
     child.unref();
     child.channel?.unref();
     this.child = child;
-    this.exits.set(child, new Promise(resolve => child.once("close", () => resolve())));
+    this.exits.set(child, new Promise(resolve => child.once("close", () => { this.exits.delete(child); resolve(); })));
     child.on("message", reply => {
       const message = reply as StatementMessage;
       if (this.child === child && "fatal" in message) { this.kill(fatalError(message)); return; }

@@ -157,13 +157,13 @@ export class PluginHostExecutor implements PluginExecutor {
   }
 
   async start(definition: PluginDefinition, context: PluginStartContext) {
-    const session = openHostSession(this.options, definition, context, this.stoppedCalls);
+    const session = await openHostSession(this.options, definition, context, this.stoppedCalls);
     try {
       const contribution = await session.starting(() => definition.start(session.context));
       this.sessions.set(context.install_id, session);
       return { contribution };
     } catch (error) {
-      session.dispose();
+      await session.dispose();
       throw error;
     }
   }
@@ -178,8 +178,7 @@ export class PluginHostExecutor implements PluginExecutor {
     try {
       await definition.stop?.(session?.context ?? context);
     } finally {
-      session?.dispose();
-      this.sessions.delete(context.install_id);
+      try { await session?.dispose(); } finally { this.sessions.delete(context.install_id); }
     }
   }
 

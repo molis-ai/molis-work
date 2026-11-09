@@ -61,7 +61,7 @@ export interface HostSession {
   starting<T>(run: () => T): T;
   stopProjectJobs(projectId: string): Promise<void>;
   revoke(): void;
-  dispose(): void;
+  dispose(): Promise<void>;
 }
 
 type ArtifactService = ReturnType<typeof createPluginArtifactClient>;
@@ -73,8 +73,8 @@ type PluginUi = ReturnType<typeof createPluginUiClient>;
  * keeps the session for the Plugin's `stop`. Once the session is disposed, what the Plugin's code left running calls on those
  * services does nothing and is counted in `stoppedCalls` (BL-411, `servicesUntilStopped`).
  */
-export function openHostSession(options: PluginHostExecutorOptions, definition: PluginDefinition, context: PluginStartContext,
-  stoppedCalls: StoppedServiceCalls): HostSession {
+export async function openHostSession(options: PluginHostExecutorOptions, definition: PluginDefinition, context: PluginStartContext,
+  stoppedCalls: StoppedServiceCalls): Promise<HostSession> {
   let active = true, stopped = false;
   const ui = createPluginUiClient(options.ui, context, definition.manifest,
     { invalidate: () => options.invalidateView?.(context.plugin_id), active: () => active });
@@ -87,7 +87,18 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
   let directory: ReturnType<DirectoryGrantService["connect"]> | undefined;
   let terminal: ReturnType<typeof pluginTerminalFor>;
   let withdrawText: (() => void) | undefined;
-  const dispose = () => { active = false; stopped = true; try { terminal?.dispose(); } finally { try { withdrawPages?.(); directory?.dispose(); scheduler?.dispose(); agents?.dispose(); background?.close(); withdrawCaller?.(); disposeArtifacts(); library?.close(); projectLibrary?.close(); withdrawAgentDefinitions?.(); ui.dispose(); } finally { withdrawText?.(); } } };
+  const dispose = async () => {
+    active = false; stopped = true;
+    let sqlClosed: Promise<void> | undefined;
+    try { terminal?.dispose(); } finally {
+      try {
+        withdrawPages?.(); directory?.dispose(); scheduler?.dispose(); agents?.dispose(); background?.close(); withdrawCaller?.();
+        disposeArtifacts(); library?.close(); sqlClosed = projectLibrary?.close(); withdrawAgentDefinitions?.(); ui.dispose();
+      } finally {
+        try { withdrawText?.(); } finally { await (sqlClosed ?? projectLibrary?.close()); }
+      }
+    }
+  };
   const assertActive = () => { if (!active) throw new ActionError("actions.forbidden", "此插件实例已停止，请重新打开"); };
   try {
     // Running in a sandbox is an install trust; what the package asks for that the sandbox is not given stops its start with a code (S-60).
@@ -133,7 +144,7 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
       stopProjectJobs: async projectId => { await background?.stopProjectJobs(projectId); },
       revoke: () => { active = false; try { terminal?.dispose(); } finally { withdrawPages?.(); directory?.dispose(); scheduler?.dispose(); agents?.dispose(); background?.close(); withdrawCaller?.(); } }, dispose };
   } catch (error) {
-    dispose();
+    await dispose();
     throw error;
   }
 }

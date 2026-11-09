@@ -120,6 +120,7 @@ argument_hint: "<周期，可选>"
 ## 8. 关联
 
 - 合同设计（第 08 批，2026-11-04 设计稿）：[contract-design.md](contract-design.md)
+- 能力包（第 09 批，2026-11-08 用户定）：在本需求之上把提示词、角色、工具、MCP 的声明与元数据收进同一份目录，本需求的结论与内容不变：[capability-pack](../capability-pack/spec.md)
 - 插件声明与宿主装配：[plugin-platform-v2](../plugin-platform-v2/spec.md)
 - 助理如何使用 Skill：[proactive-assistant](../proactive-assistant/spec.md) §5
 - Coding 角色与方法：[coding-plugin](../coding-plugin/spec.md)、[next-requirements](../coding-plugin/next-requirements.md) A2/A4

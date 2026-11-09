@@ -1,0 +1,25 @@
+{
+  "format_version": 1,
+  "id": "system-menlo",
+  "revision": 1,
+  "name": {"key": "workbench.font.system-menlo"},
+  "roles": {
+    "body": {},
+    "control": {},
+    "title": {},
+    "display": {},
+    "code": {
+      "families": [
+        {"system": "Menlo"},
+        {"system": "ui-monospace"},
+        {"system": "SF Mono"},
+        {"system": "SFMono-Regular"},
+        {"system": "Monaco"},
+        {"system": "Consolas"},
+        {"system": "Liberation Mono"},
+        {"system": "monospace"}
+      ]
+    }
+  },
+  "faces": []
+}

@@ -34,7 +34,10 @@
     "workbench.env.switch": "这一节的语言",
     "workbench.env.title": "语言与文字",
     "workbench.env.when": "时间",
+    "workbench.font.folio-rounded": "Folio 圆润",
+    "workbench.font.system-menlo": "Menlo",
     "workbench.font.system-sans": "系统无衬线",
+    "workbench.skin.folio": "Folio",
     "workbench.skin.soft-workbench": "柔和工作台"
   }
 }

@@ -527,6 +527,8 @@ Goals 在自身声明中把 `goals.create@1` 指向 `stage/create-dialog`，自�
 
 项目与 Home 签名文档均通过现有 `PluginPageAuthority.open` 的 `selected` 绑定确切 scope、安装和发行物检查，Home 从项目打开时保持原 `assertProject`。Host 从原激活的可信 `definitionOrigin`／`rememberInstalledActionSource` 取已验证 node，复用 `resolvePluginComponentCall(node, "submit", payload)`，动作引用复用实际曝光投影：`exposedActionId`、发行物版本及 `plugin:<canonical>`，不能误用页面通用分支默认的 install id 提供方。现行合法签包没有 `Manifest.actions` 时也只取同一安装真实注册的曝光，不改写或重签包。提交继续用 `pluginActionView`、当前页与安装检查、现有 bound action client 及 `withPluginPermissionChecks`，在本人精确动作范围内执行，并核目录行的 `plugin_install_id` 与 scope。
 
+原文档的异步写前检查也必须保留：`pluginPageRequest(request).beforeEffect()` 含 Home `packageDocument` 捕获的项目可达性检查，不能用仅查 `page.assertCurrent` 和动作可见性的闭包替换。网关把原文档检查与同步的页／安装检查组合后，经现有 `withProjectReachInvocation` 传入实际执行 control，每次写前仍检查原项目。
+
 旧签名 `/call` 拒绝 `binding: "submit"` 和外部原始 `{ operation, input }`。内部动作桥只在 `currentPluginAction()` 与原激活、安装代次、实际提供方和动作 `local_id` 全部相符时进入原沙箱执行段；HTTP 同样有 `execution`，不能再以它存在作为内部调用证明。保留现有 `withProjectReachInvocation` 和生命周期 control，执行段不回调页面网关，避免递归。项目已装页 GET 和 `/call` 目前只匹配 `io.molis.work.generated.<uuid>`，须改为现行合法插件 id 后再核当前项目的确切签包／生成安装记录；未知、内置或 Home 仍沿原分流，不增页面或授权路由。
 
 打开、开始及启用都按原卡的完整安装引用比对当前记录；同名不同 scope、卸载重装、换代、同版本不同 digest 均拒绝旧卡。主区继续走既有 `dualStageOwner` 与挂载 producer，签名懒加载页取文档时再核原安装，不能先验旧记录、等待后打开新包。导航意图由可信 Host 适配为现有工作台选择，不把 `UiViewSelection` 当作已经具备跨 owner 权限的公开入口。
@@ -536,6 +538,8 @@ Goals 在自身声明中把 `goals.create@1` 指向 `stage/create-dialog`，自�
 成员 revision 不含安装代次或 digest，所以旧卡仍须独立核原安装。受保护首页入口复用第 20 批 `projectPluginSetter`，把当前页面检查与仅限本请求的确切安装检查合成可信 `assert_authority_current`：从已打开项目的现有 `pluginInstallRecords` 同步比较 scope、owner、host trust、install id、generation、version、digest 与仍可启用，再进同一个动作网关。`project-workspace-actions.ts` 已在 `catalog.commit` 出队、最后 await 后、调用 `setProjectPlugin` 前同步执行该检查，随后 Projects 在自己的事务内核成员 revision。无需改变公共 set schema、Projects owner 或 Runtime 枢纽。提交后的 Runtime 切换和 503 沿用第 20 批语义：成员选择已经保存，重试只读、重开项目恢复；不能误报未保存，也不能在本次合法启用后仍要求 disabled。
 
 项目签名插件仍走 `plugins.installed.enable@1` 与受保护页面入口，但其 `expected_installation` 改为必填，现有设置列表及按钮一并携带当时看到的代次和 digest；没有发现当前 CLI 消费者，实现前再以实际引用核对。比较在 ProjectLine 出队并取得实际记录后进行，沿既有生命周期 control 贯穿 Supervisor 等待和 Runtime 启动；首个写点要求仍为 disabled，本次成功启用后只核同发行物及当前授权，不再要求 disabled。写前继续 `beforeEffect` 和同步当前检查。Home 签名插件去现有设置入口完成 S94，不给首页或插件 frame 伪造设置凭据。服务只给候选，不启用插件；界面回执仅在真实成功后显示。
+
+当前基线的安装启用链尚未完整传递该 control：`plugin-install-actions.ts` 的调用须保留原 caller，经 `plugin-trust-actions.ts`、`project-plugin-ports.ts` 和 `installed-plugin-lifecycle.ts` 传到 `PluginSupervisor.enable`。Supervisor 的 gate 出队及 `restart`／激活路径继续传递原检查，最后交给已有支持 control 的 `runtime.start`；不能只在进入队列前检查一次。此处只补既定授权与安装身份的贯穿，不另建启用服务或状态记录。
 
 **文件与验证。** contracts 的组合／呈现及签名安装动作，SDK 声明和描述校验，`horizontal/surfaces` 的首页编排及共用读取，Host 的 `surface-actions.ts`、主区／安装控制和薄适配，以及各自派生快照。生产页面、Dock 输入、Goals 选择消费、签名组件选择接线和插件声明由本批后续消费者片接入。复用现有 DOM 选择事件。第 20 批的成员能力为依赖，已知固定头 `33cd1028c6`、`37a5eb8b55` 定 owner／合同／常开语义，`5b520337f9`、`295dd67801`、`3a8a3703ed` 定 Runtime 切换、本人入口和已保存回执。生产接线使用实际合入的成员能力，最终只生成一次两批共用的宿主动作快照。
 

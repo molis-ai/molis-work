@@ -489,7 +489,7 @@ surface_corrections        项目库
 
 **失败后的原状恢复。** 第 08 批的 `changeInstalledVersion` 已有提交后失败补偿；本片复用它，不另建恢复流程。只有该 catch 的 `same(moved)` 成立后，Host 才可用私有、结束即失效的上下文包住原有 `platform.rollback`，对本次操作前的确切 release 免外部引用存在性重验。写前核对 scope、Runtime、plugin id、publisher signature、version 和现有 `manifest_digest` 与原 record 一致；Runtime 取得锁、实际执行 hook 时再核 active、closed、epoch、install id、installation generation 及当前仍是本次 moved 的 version/digest。形状、可信 hook、身份及生命周期检查不豁免。保留 `actions.provider_replaced` 直接退出，以及替换、卸载、关闭、epoch 变化不补偿的保护；跨 await 仍核归属，恢复后仍核原 version/digest/state，再恢复原批准值、曝光及提示词。失效的 caller `assertCurrent` 不能充当补偿许可，也不能复活撤销的执行权限。普通回滚、其它请求、同版本不同 digest 和上下文结束后的调用均完整校验；首次安装失败仍走 `abandonInstall`。这项窄边界已由独立 `gpt-6-astra / high` 只读裁定，不是运行证据。
 
-第 08 批先在 [#1984 交接](https://github.com/molis-ai/molis-work/pull/1984#issuecomment-6732774500) 释放 `8fc71a40e879deec31c4ac3cb36a5571920f9215`；本批按其调用控制、恢复保护和成功启动后取消清理接续。最终头 `2703ca8b15` 已于 2026-11-09 UTC 经 [#1984](https://github.com/molis-ai/molis-work/pull/1984) 合入 `main` 的 `416ee8cef0`。最后的修复没有再改本片的安装生命周期实现，同时带入限项目读取的 `heldInstalls`、助理定义库 v2 快照和共享浏览器夹具修复。第 15 批写完后统一同步实际合入版本，保留这些修复并按两批实际库生成快照，再跑受影响的安装拒绝、关闭与恢复用例。`project-host.ts` 与宿主动作快照仍按 16→15→20 串行；第 16 批页面与文字切换是生产接入的独立前置。
+第 08 批先在 [#1984 交接](https://github.com/molis-ai/molis-work/pull/1984#issuecomment-6732774500) 固定 `8fc71a40e879deec31c4ac3cb36a5571920f9215`。本批按其调用控制、恢复保护和成功启动后取消清理接续。最终头 `2703ca8b15` 已于 2026-11-09 UTC 经 [#1984](https://github.com/molis-ai/molis-work/pull/1984) 合入 `main` 的 `416ee8cef0`。最后的修复保留该安装生命周期实现，另带入限项目读取的 `heldInstalls`、助理定义库 v2 快照和共享浏览器夹具修复。第 15 批写完后统一同步实际合入版本，保留这些修复并按两批实际库生成快照，再跑受影响的安装拒绝、关闭与恢复用例。
 
 **SCS-16 验证。** 两个项目共用隔离 Home，制造真实确认与卸载／换版的交错，验证两种先后：确认持线时目录变更不能插入；目录先变更时确认引用旧动作被拒，pin、留存包、安装记录均不变。另覆盖出队前取消／撤权、关闭排队、内置 enable 跟随构建、取样后系统规则消失而下一次确认重新取样、缺可信端口拒绝、依赖卸载后同发行物恢复，以及 Placement Home→Project 与安装确认并行不死锁。已有 SCS-11 同签名包的真实安装测试接上 compose/correct 后再记完整链路通过。
 
@@ -499,7 +499,7 @@ surface_corrections        项目库
 
 ### 14.5 S-2 首页接线设计（2026-11-08，待实现复核）
 
-在已合回的 S-1 `ac3e527c71` 上核对首页实际缺口。第 16 批已允许独立服务和 renderer 叶子继续；生产页面、内置稳定词声明仍按 C 切换接续。本节是 SCS-07／08 的实现准备，未记为行为通过；复用 §14.1 的十五项检查，以下补充首页特有边界，不新增库、升级段、事实缓存或插件特例。
+在已合回的 S-1 `ac3e527c71` 上核对首页实际缺口。2026-11-08 用户明确 15、16、20 各自在独立工作树开发，取消跨批文件占用、逐段确认和会话交接。第 15 批按已定公共合同开发本批代码，统一同步 `main` 时处理重叠、接回准确的第 16 批页面授权和取词接口及第 20 批成员动作，再用实际合入版本验收。内置稳定词和页面在完整切换后的路径验收。本节复用 §14.1 的十五项检查，补充 SCS-07／08 特有边界，不新增库、升级段、事实缓存或插件特例。
 
 **一份结果。** 现行 `SurfaceGroup` 没有概况、说明与开始入口，不能用页面第二次调用概况或把数据塞进 `title` 补缺。仅 `kind: "plugin"` 的组增加 `plugin_card`：可选 `summary`、`note`（均 `OwnedTextRef`）；`start` 至多三个，分为直接执行 `invoke` 和打开输入表单 `form`，两者均绑定精确目录动作与安装，表单分支再带 `view_id`、`panel`；动作沿用 `SurfaceItemAction` 的引用、必填 provider、primary 和后果，不接受通用操作或 `prepared_input`。`open` 固定为 `stage`，带可信 Host 选出的安装与 `view_id`；`enable` 明确区分 `project_membership`、`project_installation` 和 `home_plugin_settings`，前两种带精确动作，后一种只打开现有设置。安装引用统一带 `scope`、`install_id`、`installation_generation`、`version`、`manifest_digest`，前两种启用只能指项目 scope，设置分支只能指 Home。组的 canonical owner 与当前目录决定目标，不携带任意输入或 URL。SDK 把整段作为候选事实原样保留，助理不能改写文字、路由或启用类型，非 plugin 组带它直接拒绝。
 
@@ -537,9 +537,9 @@ Goals 在自身声明中把 `goals.create@1` 指向 `stage/create-dialog`，自�
 
 项目签名插件仍走 `plugins.installed.enable@1` 与受保护页面入口，但其 `expected_installation` 改为必填，现有设置列表及按钮一并携带当时看到的代次和 digest；没有发现当前 CLI 消费者，实现前再以实际引用核对。比较在 ProjectLine 出队并取得实际记录后进行，沿既有生命周期 control 贯穿 Supervisor 等待和 Runtime 启动；首个写点要求仍为 disabled，本次成功启用后只核同发行物及当前授权，不再要求 disabled。写前继续 `beforeEffect` 和同步当前检查。Home 签名插件去现有设置入口完成 S94，不给首页或插件 frame 伪造设置凭据。服务只给候选，不启用插件；界面回执仅在真实成功后显示。
 
-**文件与验证。** contracts 的组合／呈现及签名安装动作，SDK 声明和描述校验，`horizontal/surfaces` 的首页编排及共用读取，Host 的 `surface-actions.ts`、主区／安装控制和薄适配，以及各自派生快照；生产页面、Dock 输入、Goals 选择消费、签名组件选择接线和插件声明由后续消费者片串行接入。复用现有 DOM 选择事件，无须另建事件。第 20 批的成员能力为依赖，保留 `33cd1028c6`、`37a5eb8b55` 的 owner／合同／常开语义，以及 `5b520337f9`、`295dd67801`、`3a8a3703ed` 的 Runtime 切换、本人入口和已保存回执，不复制该批其它消费者与测试迁移。该批已释放 Projects 合同／API、`project-workspace-actions.ts` 和 `project-plugin-ports.ts` 的窗口；Runtime `index.ts`／`install-rules.ts`、Host `declaration-owners.ts` 如需变动仍另协调。第 16 批的 `project-host.ts` 与宿主动作快照保持串行，不因本设计重占。
+**文件与验证。** contracts 的组合／呈现及签名安装动作，SDK 声明和描述校验，`horizontal/surfaces` 的首页编排及共用读取，Host 的 `surface-actions.ts`、主区／安装控制和薄适配，以及各自派生快照。生产页面、Dock 输入、Goals 选择消费、签名组件选择接线和插件声明由本批后续消费者片接入。复用现有 DOM 选择事件。第 20 批的成员能力为依赖，已知固定头 `33cd1028c6`、`37a5eb8b55` 定 owner／合同／常开语义，`5b520337f9`、`295dd67801`、`3a8a3703ed` 定 Runtime 切换、本人入口和已保存回执。生产接线使用实际合入的成员能力，最终只生成一次两批共用的宿主动作快照。
 
-签名提交接线增加的精确范围为 Host `plugin-page-http.ts`／`plugin-page-actions.ts`、项目与 Home 页面激活装配、`installed-action-registration.ts`、`plugin-builder/exposed-actions.ts`／`installed.ts`／`agent-surface.ts`，以及 Builder 的 `agent-studio.ts` 已装分支；按第 16 批页面环境切换窗口接续。页面凭据和 Runtime 控制沿用现有能力，相关页面身份安全不变量与拒绝测试同步更新，不新建凭据体系。
+签名提交接线增加的精确范围为 Host `plugin-page-http.ts`／`plugin-page-actions.ts`、项目与 Home 页面激活装配、`installed-action-registration.ts`、`plugin-builder/exposed-actions.ts`／`installed.ts`／`agent-surface.ts`，以及 Builder 的 `agent-studio.ts` 已装分支。页面凭据和 Runtime 控制沿用现有能力，相关页面身份安全不变量与拒绝测试同步更新。统一集成保留第 16 批对原会话、原激活、项目和取词来源的围栏。
 
 SCS-07／08／09／11／12／17 验真实空 Goals 和已签安装包从首页打开表单，打开与取消零写、提交一次；Inbox 停用及恢复、双实例主区、同对象跨组扣除、概况返回后撤权、隐藏计数零泄露、首次失败与真实旧值恢复，以及冷路径实际调用次数。拒绝反例涵盖伪 panel、跨贡献、同名不同 scope、换代、同版本不同 digest、排队期间撤权，以及懒加载期间换包。原生启用分别制造排队期间成员变化和成员 revision 不变的安装换代，均零成员写入；真实提交后切换失败返回 503，重试只读。不改门禁算法、阈值或 CI，不用 Mock 的状态常量代替最终首页实操。2026-11-08 的两处设计 P1（Goals 必填输入无入口、旧卡缺安装绑定）按上述方案处理，仍须实现复核与公共合同合审后关闭。
 

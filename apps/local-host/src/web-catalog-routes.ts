@@ -27,6 +27,7 @@ import { handleConnectorMethodsHttp } from "./web-connector-methods.js";
 import { molisWorkOnboardingStatus } from "./onboarding.js";
 import { createProjectArrivalHttp } from "./project-arrival-http.js";
 import { pruneProjectArrival } from "./project-arrival.js";
+import { UI_LANGUAGE_PREVIEW_HEADER } from "./web-ui-preference.js";
 import type { ProjectDeletionPorts } from "./project-deletion-service.js";
 import { dispatchWebRoutes, type WebRoute } from "./web-route-table.js";
 import { handlePluginSettingsPage, handleSettingsPage } from "./web-catalog-settings.js";
@@ -134,7 +135,7 @@ export const CATALOG_ROUTES: readonly WebRoute<CatalogRequestContext>[] = [
       return true;
     }
     response.writeHead(200, { "content-type": "text/html; charset=utf-8", ...noStore, "content-security-policy": composition.PAGE_CSP });
-    const remembered = pruneProjectArrival(serverOptions.homeDirectory, new Set(projects.map(project => project.project_id)));
+    const remembered = pruneProjectArrival(serverOptions.homeDirectory, new Set(projects.map(project => project.project_id)), request.headers[UI_LANGUAGE_PREVIEW_HEADER] === undefined);
     response.end(composition.workbenchRenderer.renderMolisWorkProjectIndex(projects, controlToken, desktopShell, {
       now: new Date().toISOString(), last_project_id: remembered.last_project_id,
       opened: Object.fromEntries(Object.entries(remembered.projects).flatMap(([id, record]) => record.last_opened_at ? [[id, record.last_opened_at]] : [])),

@@ -1,7 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { createWorkbenchLocale, type WebLocale } from "@molis-ai/molis-work-app-workbench";
 import { currentPluginTextCall, pluginActivationOpen, type PluginInstance } from "@molis-ai/molis-work-plugin-runtime";
-export { EN, LOCALE_COOKIE, WEB_LOCALES, LOCALE_SWITCH_STYLES, type WebLocale } from "@molis-ai/molis-work-app-workbench";
+export { EN, LOCALE_COOKIE, WEB_LOCALES, LOCALE_SWITCH_STYLES, type WebLocale, type WebLocalePreference } from "@molis-ai/molis-work-app-workbench";
 type WebLocaleChoice = ReturnType<ReturnType<typeof createWorkbenchLocale>["resolveWebLocaleChoice"]>;
 const localeStore = new AsyncLocalStorage<WebLocaleChoice>();
 
@@ -80,4 +80,6 @@ export function textScope(): Pick<LocaleScope, "locale" | "noContext" | "activat
  */
 export const pageLocale = (): WebLocale | undefined => localeStore.getStore()?.tag;
 export const appearanceLocale = (): WebLocaleChoice => localeStore.getStore() ?? { tag: "zh", source: "default" };
-export const { currentLocale, isWebLocale, htmlLang, dateTimeLocale, listJoin, resolveWebLocale, resolveWebLocaleChoice, safeNextPath, localeSetCookie, localeSwitchHref, L, renderLocaleSwitch, englishCatalogJson, clientI18nScript } = createWorkbenchLocale(() => pageLocale() ?? "zh");
+const workbenchLocale = createWorkbenchLocale(() => pageLocale() ?? "zh");
+export const isWebLocale: (value: unknown) => value is WebLocale = workbenchLocale.isWebLocale;
+export const { currentLocale, htmlLang, dateTimeLocale, listJoin, resolveWebLocale, resolveWebLocaleChoice, safeNextPath, localePreference, localeSetCookie, localeSwitchHref, L, renderLocaleSwitch, englishCatalogJson, clientI18nScript } = workbenchLocale;

@@ -1,12 +1,13 @@
 import { BASELINE_FONT, BASELINE_SKIN, renderDialog, renderHint, renderLookCard, renderLookGroup, renderLookProof, renderSheet } from "@molis-ai/molis-work-design-system";
-import type { UiDefinitionRef } from "@molis-ai/molis-work-contracts/platform/ui";
-import { escapeHtml, icon, renderButton } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { UI_LANGUAGES, type UiDefinitionRef } from "@molis-ai/molis-work-contracts/platform/ui";
+import { escapeHtml, icon, renderButton, t } from "@molis-ai/molis-work-plugin-sdk/ui";
+import type { WebLocalePreference } from "./i18n.js";
 import { appearanceJson, type WorkbenchAppearance, type WorkbenchAppearanceChoices } from "./appearance-document.js";
 
 interface AppearanceSettingsPrimitives {
   L(text: string, values?: Record<string, string | number>): string;
   currentLocale(): string;
-  localeSwitchHref(locale: "zh" | "en", nextPath: string): string;
+  localeSwitchHref(locale: WebLocalePreference, nextPath: string): string;
 }
 
 export interface AppearanceSettingsModel {
@@ -81,13 +82,15 @@ export function renderAppearanceSettingsDocument(
   model?: AppearanceSettingsModel,
 ): string {
   const locale = currentLocale();
+  const language = (value: WebLocalePreference, label: string, tag?: string) =>
+    `<a class="mw-toggle${locale === value ? " is-current" : ""}" href="${localeSwitchHref(value, nextPath)}" data-ui-language="${value}"${tag ? ` lang="${tag}"` : ""} aria-current="${locale === value}">${escapeHtml(label)}</a>`;
   const options = (attribute: string, values: [string, string][]) => `<div class="mw-toggle-group settings-segmented" data-slot="toggle-group" role="group">${values.map(([value, label]) => `<button class="mw-toggle" type="button" ${attribute}="${value}" aria-pressed="false">${L(label)}</button>`).join("")}</div>`;
   const row = (title: string, description: string, control: string) => `<section class="settings-setting-row"><div class="setting-copy"><strong>${L(title)}</strong><span>${L(description)}</span></div><div class="setting-value" aria-label="${L(title)}">${control}</div></section>`;
   return `<section class="settings-document appearance-document" aria-labelledby="settings-title"><header class="settings-heading"><div class="settings-heading-title"><h1 id="settings-title">${L("界面与语言")}</h1>${renderHint({ id: "settings-hint-appearance", label: L("如何生效"), text: L("主题、密度和终端配色保存在当前设备。") })}</div></header>
     ${model ? renderAppearanceChoices(L, model) : ""}
     <section class="settings-section" aria-label="${L("偏好")}">
     ${row("主题", "选择固定主题，或跟随系统外观。", options("data-theme-option", [["light", "浅色"], ["dark", "深色"], ["system", "跟随系统"]]))}
-    ${row("界面语言", "只改变界面文案，保留项目内容的原始语言。", `<div class="mw-toggle-group settings-segmented" data-slot="toggle-group">${(["zh", "en"] as const).map((value) => `<a class="mw-toggle${locale === value ? " is-current" : ""}" href="${localeSwitchHref(value, nextPath)}" lang="${value}" aria-current="${locale === value}">${value === "zh" ? "中文" : "English"}</a>`).join("")}</div>`)}
+    ${row("界面语言", "只改变界面文案，保留项目内容的原始语言。", `<div class="mw-toggle-group settings-segmented" data-slot="toggle-group" data-ui-language-options>${language("system", t.text("workbench.language.follow-system"))}${UI_LANGUAGES.map(value => language(value.tag, value.name, value.html_lang)).join("")}</div>`)}
     ${row("界面密度", "调整 Goal 导航和正文的间距。", options("data-density-option", [["standard", "标准"], ["compact", "紧凑"]]))}
     ${row("终端外观", "为终端内容单独选择明暗配色。", options("data-terminal-theme-option", [["auto", "跟随界面"], ["light", "浅色"], ["dark", "深色"]]))}
     </section>

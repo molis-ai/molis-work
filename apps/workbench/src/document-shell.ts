@@ -1,4 +1,5 @@
 import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { renderLanguageHead } from "./language-resource.js";
 import type { UiSlotDescriptor, WorkbenchDocumentRenderRequest } from '@molis-ai/molis-work-contracts/platform/ui';
 
 export const WORKBENCH_UI_SLOTS = {
@@ -40,6 +41,7 @@ export function renderWorkbenchDocument(request: WorkbenchDocumentRenderRequest)
   ${NO_FAVICON_LINK}
   ${request.head_before_title_html ?? ''}
   <title>${escapeHtml(request.title)}</title>
+  ${renderLanguageHead(request.lang)}
   ${request.head_html ?? ''}
 </head>
   <body${renderAttributes(request.body_attributes)}>

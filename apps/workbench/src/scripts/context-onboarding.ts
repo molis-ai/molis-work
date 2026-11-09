@@ -100,7 +100,7 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   function language() {
     const current = String(document.documentElement.lang || 'zh').toLowerCase().startsWith('en') ? 'en' : 'zh';
     const next = encodeURIComponent(location.pathname + location.search);
-    const option = (value, label) => '<a class="mw-choice" data-slot="choice" href="/locale?lang=' + value + '&next=' + next + '" lang="' + value + '" hreflang="' + value + '"' + (current === value ? ' aria-current="true"' : '') + '><span class="mw-choice__label">' + label + '</span><span class="mw-choice__check" aria-hidden="true">' + glyph('check') + '</span></a>';
+    const option = (value, label) => '<a class="mw-choice" data-slot="choice" data-ui-language="' + value + '" href="/locale?lang=' + value + '&next=' + next + '" lang="' + value + '" hreflang="' + value + '"' + (current === value ? ' aria-current="true"' : '') + '><span class="mw-choice__label">' + label + '</span><span class="mw-choice__check" aria-hidden="true">' + glyph('check') + '</span></a>';
     return {kind:'welcome', view:'language', step:'语言',
       html:'<div class="stage-single"><div class="stage-sheet welcome" data-view="welcome" data-step="language"><section class="welcome-q">' + title(L('语言')) + '<p>' + L('用你最熟悉的语言开始。之后可以在设置里随时更改。') + '</p><div class="welcome-options" role="group" aria-label="' + L('界面语言') + '">' + option('zh','简体中文') + option('en','English') + '</div></section><aside class="welcome-scene" aria-hidden="true"><div class="ob-greeting"><strong lang="' + current + '">' + (current === 'en' ? 'Hello.' : '你好。') + '</strong><span>Molis Work</span></div></aside></div></div>',
       bar:{start:exitButton() + stepsBar('语言'), center:'', end:primary('继续','intro-next')}};

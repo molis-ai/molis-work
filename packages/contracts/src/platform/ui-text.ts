@@ -33,6 +33,13 @@ export const TEXT_REF_LIMITS = { key: 120, args: 8, arg_name: 64, arg_text: 2000
 /** A language tag. The Manifest's and the language pack's parsers both take it from here. */
 export const LOCALE_TAG = /^[a-z]{2,3}(-[A-Z][a-z]{3})?(-[A-Z]{2})?$/;
 
+/** The platform languages available on every surface; the first is the platform fallback. */
+export const UI_LANGUAGES = [
+  { tag: "zh", html_lang: "zh-CN", direction: "ltr", intl: "zh-CN", name: "简体中文" },
+  { tag: "en", html_lang: "en", direction: "ltr", intl: "en-US", name: "English" },
+] as const;
+export type UiLanguageTag = (typeof UI_LANGUAGES)[number]["tag"];
+
 /** The languages a plugin has words in. Each has the package's `locales/<language>.json`. */
 export interface PluginLocalesDeclaration {
   readonly default: string;

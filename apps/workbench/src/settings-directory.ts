@@ -22,7 +22,7 @@ const PROJECT_SETTINGS_SECTIONS = [
   { id: "grants", label: "授权与放行", icon: "shield" },
 ] as const satisfies readonly { id: string; label: string; icon: PluginIconName }[];
 
-function localeSwitchHref(locale: "zh" | "en", nextPath: string): string {
+function localeSwitchHref(locale: import("./i18n.js").WebLocalePreference, nextPath: string): string {
   return `/locale?lang=${locale}&next=${encodeURIComponent(nextPath)}`;
 }
 

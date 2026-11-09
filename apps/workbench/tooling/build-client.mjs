@@ -1,5 +1,5 @@
 import {writeFileSync} from 'node:fs';
-import {transformSync} from 'esbuild';
+import {buildSync,transformSync} from 'esbuild';
 import {UI_REQUEST_CLIENT_SCRIPT} from '@molis-ai/molis-work-ui-host';
 import {workbenchClientSource} from '../dist/page-assets.js';
 import {ACCOUNT_CLIENT_SCRIPT} from '../dist/scripts/account.js';
@@ -15,3 +15,4 @@ const compact=(script, pooling)=>transformSync(poolClientLiterals(script,pooling
 const body=compact(source.slice(UI_REQUEST_CLIENT_SCRIPT.length));
 // Keep the account IIFE in the same asset, with its own short identifiers.
 writeFileSync(new URL('../dist/workbench-client.js',import.meta.url),UI_REQUEST_CLIENT_SCRIPT+body+compact(ACCOUNT_CLIENT_SCRIPT,{byBytes:true}));
+buildSync({entryPoints:['src/browser/language-entry.ts'],bundle:true,platform:'browser',format:'iife',target:'es2022',minify:true,charset:'utf8',outfile:'dist/language-client.js'});

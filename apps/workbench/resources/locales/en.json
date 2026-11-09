@@ -38,6 +38,14 @@
     "workbench.font.relaxed-reading": "Relaxed Reading",
     "workbench.font.system-menlo": "Menlo",
     "workbench.font.system-sans": "System Sans",
+    "workbench.language.choose": "Choose a supported interface language.",
+    "workbench.language.follow-system": "Follow system",
+    "workbench.language.load-failed": "The interface language could not change. Try again.",
+    "workbench.language.method": "This request does not change the interface language.",
+    "workbench.language.project-closed": "Open this project again to change its interface language.",
+    "workbench.language.retry": "Try again",
+    "workbench.language.save-failed": "The interface language preference could not be saved.",
+    "workbench.language.window-failed": "The preference was saved. Retry applying it in this window.",
     "workbench.skin.folio": "Folio",
     "workbench.skin.soft-workbench": "Soft Workbench"
   }

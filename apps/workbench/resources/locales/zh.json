@@ -38,6 +38,14 @@
     "workbench.font.relaxed-reading": "宽松阅读",
     "workbench.font.system-menlo": "Menlo",
     "workbench.font.system-sans": "系统无衬线",
+    "workbench.language.choose": "请选择一种支持的界面语言。",
+    "workbench.language.follow-system": "跟随系统",
+    "workbench.language.load-failed": "界面语言未能切换，请重试。",
+    "workbench.language.method": "此请求无法更改界面语言。",
+    "workbench.language.project-closed": "请重新打开项目，再切换界面语言。",
+    "workbench.language.retry": "再试一次",
+    "workbench.language.save-failed": "未能保存界面语言偏好。",
+    "workbench.language.window-failed": "语言偏好已保存。请重试更新此窗口。",
     "workbench.skin.folio": "Folio",
     "workbench.skin.soft-workbench": "柔和工作台"
   }

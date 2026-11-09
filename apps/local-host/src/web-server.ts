@@ -32,7 +32,7 @@ import type { MolisWorkWebViewCache } from "./web-view.js";
 import { startDemoSeed } from "./demo-seed.js";
 import { attachMolisWorkPtySocket } from "./pty-socket.js";
 import { bindPluginTerminalHost } from "./plugin-terminal-service.js";
-import { L, htmlLang, clientI18nScript, isWebLocale, localeSetCookie, resolveWebLocale, resolveWebLocaleChoice, runWithLocale, safeNextPath } from "./web-locale.js";
+import { L, htmlLang, clientI18nScript, isWebLocale, localeSetCookie, resolveWebLocale, runWithLocale, safeNextPath } from "./web-locale.js";
 import { appearanceForHome } from "./ui-locale-memory.js";
 import { createAppearanceHttp, createWorkbenchAppearancePorts } from "./web-appearance.js";
 import { installHostUiText } from "./ui-text-provider.js";
@@ -55,6 +55,7 @@ import { finishLeftOverDeletions } from "./web-deletion-sweep.js";
 import { serviceProcessId } from "./web-runtime-settings.js";
 import { installationDiagnostics } from "./web-project-presentation.js";
 import { awaitWebServerShutdown } from "./web-server-close.js";
+import { handleLanguagePreference, languagePreview, requestLanguage } from "./web-ui-preference.js";
 
 function loopbackWebOrigin(server: http.Server): string {
   const address = server.address();
@@ -74,10 +75,10 @@ function nativeTerminal() {
 /** The language switch. This is a GET a foreign page's <img> reaches too: the browser's Cookie goes as ever, but only the page itself moves the Home's remembered language (S-ui-locale-memory). */
 function switchLocale(request: http.IncomingMessage, response: http.ServerResponse, url: URL, remember: (locale: unknown) => void): void {
   const requested = url.searchParams.get("lang");
-  if (request.headers["sec-fetch-site"] === "same-origin") remember(requested);
+  if (request.headers["sec-fetch-site"] === "same-origin") remember(requested === "system" ? resolveWebLocale(null, request.headers["accept-language"]) : requested);
   const nextLocale = isWebLocale(requested)
     ? requested
-    : resolveWebLocale(request.headers.cookie, request.headers["accept-language"]);
+    : requested === "system" ? requested : resolveWebLocale(request.headers.cookie, request.headers["accept-language"]);
   response.writeHead(302, {
     location: safeNextPath(url.searchParams.get("next")),
     "set-cookie": localeSetCookie(nextLocale),
@@ -165,20 +166,14 @@ export function createLocalWebCoreFactory(platform: LocalWebPlatform) {
         // Every route (locale switch included) answers only a request addressed to this machine by a loopback name, and none can be framed by another origin (S-02, S-21).
         if (refuseForeignRequest(request, response)) return;
         sessions.bind(request, controlToken, response);
+        const preview = languagePreview(request, response, url, controlToken); if (preview === false) return;
         if (request.method === "GET" && url.pathname === "/locale") { switchLocale(request, response, url, appearance.locale.remember); return; }
-        const capsuleLocale = request.method === "GET" && (
-          url.pathname === "/desktop/capsule" ||
-          /^\/projects\/[^/]+\/api\/capsule$/.test(url.pathname)
-        )
-          ? url.searchParams.get("locale")
-          : null;
-        const locale = isWebLocale(capsuleLocale)
-          ? { tag: capsuleLocale, source: "explicit" as const }
-          : resolveWebLocaleChoice(request.headers.cookie, request.headers["accept-language"]);
+        const locale = requestLanguage(request, url, preview);
         await runWithLocale(locale.tag, async () => {
           if (!authorizeLocalWebRequest(request, response, url, controlToken, mutationKeys)) return;
           if (localHost.lifecycle() !== "running") throw new Error("Local Host is closing");
           await pluginPagesFor(storageHome).bind(request, url, response);
+          if (await handleLanguagePreference(request, response, url, controlToken, appearance.locale.remember, serverOptions.assertAccountCurrent)) return;
           if (await appearanceHttp.handle(request, response, url)) return;
           if (await handleAccountHttp(request, response, url, account, serverOptions.isNativeAccountRequest)) return;
           if (request.method === "GET" && url.pathname === "/health" && catalogAccess) {

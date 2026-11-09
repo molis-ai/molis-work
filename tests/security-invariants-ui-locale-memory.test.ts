@@ -9,6 +9,7 @@ import test, { type TestContext } from "node:test";
 import { LOCALE_COOKIE, readUiLocale, UI_LOCALE_RELATIVE_PATH } from "@molis-ai/molis-work-app-local-host";
 // The production single-Home core: the installation's front door shows sign-in until an account is chosen, then hands each request to the chosen Home's core, so this is where `/locale` runs.
 import { createSingleHomeTestWebServer } from "./fixtures/local-web-core.js";
+import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 
 async function startHost(t: TestContext) {
   const home = await mkdtemp(join(os.tmpdir(), "security-invariants-ui-locale-"));
@@ -66,4 +67,34 @@ test("S-ui-locale-memory the page itself moves the record, but only by naming a 
   // Reading a page, with whatever language it asks for, moves nothing.
   await get(port, "/health", { ...own, cookie: `${LOCALE_COOKIE}=zh` });
   assert.equal(readUiLocale(home), "en");
+});
+
+test("S-ui-locale-memory FSS-20 only an outer shell can preview or commit a language choice", { timeout: 60_000 }, async t => {
+  const f = await serveHomeRuntime(t);
+  const shell = await fetch(f.origin + "/settings/appearance", { headers: { "accept-language": "zh-CN" } });
+  assert.equal(shell.status, 200);
+  const cookie = shell.headers.getSetCookie().find(value => value.startsWith("molis-work-web-"))?.split(";")[0];
+  const proof = /<meta name="molis-work-page-session" content="([^"]+)"/u.exec(await shell.text())?.[1];
+  assert.ok(cookie && proof);
+  const headers = { cookie, "x-molis-work-page-session": proof, "accept-language": "zh-CN" };
+  const present = (more: Record<string, string>) => f.request("/settings/appearance", { authorized: false, headers: { ...more, "x-molis-work-ui-locale": "en" } });
+  assert.equal((await present({ cookie })).status, 403);
+  assert.equal((await present({ ...headers, "x-molis-context-page": "forged" })).status, 403);
+  const display = await present(headers);
+  assert.equal(display.status, 200);
+  assert.match(await display.text(), /<html lang="en"/u);
+  assert.deepEqual(display.headers.getSetCookie(), []);
+  assert.equal(readUiLocale(f.home), null, "previewing an English document writes neither preference nor remembered language");
+  const commit = (extra: Record<string, string> = {}) => f.request("/api/ui/locale", { authorized: false, method: "POST", headers: { ...headers, ...extra }, body: { preference: "en" } });
+  assert.equal((await commit({ origin: "https://elsewhere.invalid" })).status, 403);
+  assert.equal((await commit({ "x-molis-plugin-page": "forged" })).status, 403);
+  assert.equal(readUiLocale(f.home), null);
+  const saved = await commit({ "x-molis-work-idempotency-key": "once-language-selection" });
+  assert.equal(saved.status, 200);
+  assert.equal(readUiLocale(f.home), "en");
+  const preference = saved.headers.getSetCookie().find(value => value.startsWith(LOCALE_COOKIE + "="))?.split(";")[0];
+  assert.ok(preference);
+  assert.equal((await commit({ "x-molis-work-idempotency-key": "once-language-selection" })).status, 409);
+  const read = await f.request("/api/ui/locale", { authorized: false, headers: { ...headers, cookie: cookie + "; " + preference } });
+  assert.deepEqual(await read.json(), { preference: "en", tag: "en", source: "explicit" });
 });

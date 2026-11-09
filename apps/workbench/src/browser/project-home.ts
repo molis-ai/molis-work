@@ -84,8 +84,9 @@ function bindHomeControls(root: HTMLElement, peek: HTMLDialogElement, act: (key:
     if (button) {
       const key = button.dataset.homeControl ?? button.dataset.presentationAction ?? "";
       if (correct(key, button, event)) return;
-      button.closest<HTMLDetailsElement>("details")?.removeAttribute("open");
-      void act(key, button);
+      const menu = button.closest("details"), focus = menu?.querySelector("summary") ?? button;
+      menu?.removeAttribute("open");
+      void act(key, focus);
     } else if (event.target.closest("[data-home-close]")) closePeek();
     else {
       const title = event.target.closest<HTMLElement>(".mw-presentation__row-title[aria-haspopup]");

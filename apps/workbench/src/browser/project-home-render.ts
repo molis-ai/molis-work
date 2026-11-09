@@ -9,7 +9,7 @@ type ObjectTarget = { kind: "object" | "peek" | "open_result" | "place" | "hand_
   installation: SurfaceHomeRowDisplay["installation"]; revision?: string };
 type CardTarget = SurfaceHomeStart | SurfaceHomeEnable | NonNullable<SurfacePluginCard["open"]>;
 export type HomeControl = { owner_plugin_id: string; target: CardTarget | ObjectTarget };
-export type FramedSurfaceControl = { owner: string; subject: SurfaceItem["subject"]; kind: string } & NonNullable<PresentationFormValues["actions"]>[number];
+export type FramedSurfaceControl = { owner: string; subject: SurfaceItem["subject"]; kind: string; command?: string } & NonNullable<PresentationFormValues["actions"]>[number];
 export const subjectKey = (owner: string, subject: SurfaceItem["subject"]) => JSON.stringify([owner, subject.kind, subject.id]);
 const locale = () => document.documentElement.lang.startsWith("en") ? "en" : "zh";
 

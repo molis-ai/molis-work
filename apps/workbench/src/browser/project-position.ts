@@ -82,11 +82,12 @@ export function createPositionViews(host: PositionHost) {
       const key = hit.dataset.homeControl ?? hit.dataset.presentationAction ?? hit.closest<HTMLElement>("[data-home-row-peek]")?.dataset.homeRowPeek;
       if (!key) return;
       if (corrections.handle(key, hit, event)) return;
-      hit.closest("details")?.removeAttribute("open");
+      const menu = hit.closest("details"), focus = menu?.querySelector("summary") ?? hit;
+      menu?.removeAttribute("open");
       if (key === "expand") { expanded = true; void update(); return; }
       const click = controls.get(key);
-      if (click && (click.target.kind === "peek" || isPlacementControl(click.target.kind))) peek.open(key, hit);
-      else if (click) void open(click, hit);
+      if (click && (click.target.kind === "peek" || isPlacementControl(click.target.kind))) peek.open(key, focus);
+      else if (click) void open(click, focus);
     };
     const keydown = (event: KeyboardEvent) => {
       positionMenuKey(event);

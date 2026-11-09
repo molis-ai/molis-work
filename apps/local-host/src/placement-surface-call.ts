@@ -6,6 +6,7 @@ import { isRecord } from "@molis-ai/molis-work-plugin-sdk";
 import type { PlacementPorts } from "@molis-ai/molis-work-service-placement";
 import { sameReference } from "./contextual/contextual-service.js";
 import { placementCallPorts } from "./placement-call.js";
+import { observeSurfaceCommand } from "./surface-command-delivery.js";
 import { homeChanged, homeReference as ref } from "./surface-home-display.js";
 
 export type SurfaceReceiver = { action: ActionView; reader: ActionView; station: string; kind: string };
@@ -56,25 +57,18 @@ export function surfacePlacementCallPorts(ports: PlacementPorts, origin: ActionE
         if (forSource && sameReference(reference, ref(reader)) && isRecord(input) && input.subject_id === source.id)
           return sourceRead({ ...origin, ...caller });
         if (forReceiver && sameReference(reference, ref(receiver.action))) {
-          let admitted = false, effectChecked = false, effectAllowed = false;
-          const guarded = { ...caller, async validate_authority(target: typeof reference) {
+          const target = ref(receiver.action);
+          const observed = observeSurfaceCommand({ ...caller, async validate_authority(target) {
             await caller.validate_authority?.(target);
             await sourceRead(origin);
             bound.beforeWrite?.();
-            // The shared gateway validates at admission, then again when the receiver asks beforeEffect.
-            if (sameReference(target, ref(receiver.action))) { effectChecked ||= admitted; admitted = true; }
-          }, assert_authority_current(target?: typeof reference, permissions?: readonly string[]) {
+          }, assert_authority_current(target, permissions) {
             caller.assert_authority_current?.(target, permissions);
             if (!bound.committed) bound.beforeWrite?.();
-            if (effectChecked && target && sameReference(target, ref(receiver.action))) effectAllowed = true;
-          } };
+          } }, target);
           let result: unknown;
-          try { result = await client.invoke(guarded, ref(receiver.action), input); }
-          catch (error) {
-            // A late refusal or disconnect after a successful effect check cannot establish that the owner made no write.
-            if (effectAllowed || error instanceof ActionError && error.code === "actions.output_invalid_after_effect") bound.committed = true;
-            throw error;
-          }
+          try { result = await client.invoke(observed.caller, target, input); }
+          catch (error) { if (observed.mayHaveWritten(error)) bound.committed = true; throw error; }
           bound.committed = true;
           if (receiverResult(result) !== true || !isRecord(result) || result.plugin !== receiver.station
             || typeof result.item_id !== "string" || !result.item_id.trim() || result.item_id.length > 200) throw homeChanged();

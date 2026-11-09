@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
-import test from "node:test";
+import test, { type TestContext } from "node:test";
+import { ActionError, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionService } from "@molis-ai/molis-work-kernel";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
@@ -14,7 +16,24 @@ const imFrame = '[data-side-body="discussion"] iframe';
 const visible = (selector: string) => '!!document.querySelector(' + JSON.stringify(selector) + ')?.checkVisibility()';
 const quoted = (value: string) => JSON.stringify(value);
 
-test("IUI-03 IUI-07 IUI-08 IUI-13: the original Inbox and 等你 display current owner objects and the trusted Inbox area saves one", { timeout: 90_000 }, async t => {
+test("IUI-03 IUI-06 IUI-07 IUI-08 IUI-13: the original Inbox and 等你 display current owner objects and the trusted Inbox area saves one", { timeout: 90_000 },
+  t => nativeInboxSurface(t, false));
+test("S-surface-slots IUI-10: a native Inbox offer with a lost reply cannot execute again after reopening", { timeout: 90_000 },
+  t => nativeInboxSurface(t, true));
+
+async function nativeInboxSurface(t: TestContext, late: boolean) {
+  let committed = 0;
+  if (late) {
+    const register = ActionService.prototype.registerProvider;
+    t.mock.method(ActionService.prototype, "registerProvider", function (this: ActionService, registration: ActionProviderRegistration) {
+      return register.call(this, { ...registration, handlers: registration.handlers.map(handler => handler.capability_id !== "feed.items.disposition" ? handler
+        : { ...handler, async handle(caller, input) {
+          await handler.handle(caller, input);
+          committed++;
+          throw new ActionError("actions.forbidden", "The actual operation committed but its reply was denied");
+        } }) });
+    });
+  }
   const b = await openGoalBrowser(t, "seeded", undefined, null);
   if (!b) return;
   const { projectId, store } = b;
@@ -45,6 +64,21 @@ test("IUI-03 IUI-07 IUI-08 IUI-13: the original Inbox and 等你 display current
   const area = '[data-framed-area] .surface-slot-body';
   await b.waitFor(visible(area + ' .mw-presentation--card'));
   assert.match(await b.evaluate<string>(`document.querySelector(${quoted(area)}).innerText`), /Report for the inbox mount/);
+  if (!late) {
+    const editing = area + " .surface-correction-menu summary", recovery = area + ' [data-presentation-action="surface-correction:restore"]';
+    const key = async (key: string, code: number) => {
+      await b.command("Input.dispatchKeyEvent", { type: "keyDown", key, code: key, windowsVirtualKeyCode: code, ...(key === "Enter" ? { text: "\r" } : {}) }, b.sessionId);
+      await b.command("Input.dispatchKeyEvent", { type: "keyUp", key, code: key, windowsVirtualKeyCode: code }, b.sessionId);
+    };
+    await b.click(editing);
+    await b.waitFor(visible(area + " .surface-correction-menu[open]"));
+    await key("End", 35);
+    await b.waitFor('document.activeElement.textContent.trim() === "从这里移走" && !document.activeElement.hasAttribute("aria-disabled")');
+    await key("Enter", 13);
+    await b.waitFor(`document.activeElement === document.querySelector(${quoted(recovery)}) && !document.activeElement.hasAttribute("aria-disabled")`);
+    await key("Enter", 13);
+    await b.waitFor(`document.activeElement === document.querySelector(${quoted(editing)}) && ${visible(area + ' .mw-presentation--card')}`);
+  }
   const menu = area + ' .mw-presentation__more summary';
   const action = (label: string) => `[...document.querySelectorAll(${quoted(area + ' [data-presentation-action]')})].find(button => button.textContent.includes(${quoted(label)}))`;
   const show = async (label: string) => {
@@ -75,6 +109,35 @@ test("IUI-03 IUI-07 IUI-08 IUI-13: the original Inbox and 等你 display current
     assert.equal(activations.length, before, reason + " does not send an activation");
     assert.equal(stored().revision, material.revision, reason + " cannot write the original item");
   };
+  if (late) {
+    await choose("更多操作");
+    await choose("保存为资料");
+    await b.click(area + ' [data-framed-control="confirm"]');
+    await b.waitFor(`document.querySelector(${quoted(area)})?.innerText.includes("到原处核对执行结果") && !${action("更多操作")}`);
+    assert.equal(stored().revision, material.revision + 1);
+    assert.equal(committed, 1);
+    await b.command("Network.setCookie", { name: "molis_work_locale", value: "en", url: b.origin }, b.sessionId);
+    await b.command("Page.addScriptToEvaluateOnNewDocument", { source: `{
+      const original = window.fetch.bind(window);
+      window.fetch = async (input, init) => {
+        const response = await original(input, init), url = new URL(input instanceof Request ? input.url : String(input), location.href);
+        if (!response.ok || !url.pathname.endsWith("/api/contextual/surface-slot")) return response;
+        const read = await response.clone().json();
+        if (!read.render || !Array.isArray(read.controls)) return response;
+        for (const control of read.controls) if (control.kind === "offers") control.label = "Renamed original offer group";
+        return new Response(JSON.stringify(read), { status: response.status, headers: response.headers });
+      };
+    }` }, b.sessionId);
+    await b.reloadPage();
+    await b.click('[data-plugin-strip] [data-plugin-id="inbox"]');
+    await inbox.click('[data-inbox-row][data-inbox-entry-id="' + entry.entry_id + '"]');
+    await b.waitFor(`${visible(area + ' .mw-presentation--card')} && document.querySelector(${quoted(area)}).innerText.includes("Check the result at its source")`);
+    assert.equal(await b.evaluate(`!!${action("Renamed original offer group")}`), false, "changed wording cannot change a pending command's identity");
+    assert.equal(activations.filter(intent => intent === "confirm").length, 1);
+    assert.equal(stored().revision, material.revision + 1);
+    assert.equal(committed, 1);
+    return;
+  }
   await choose("更多操作");
   await b.waitFor(`!!${action("保存为资料")}`);
   assert.equal(await b.evaluate(`!!${action("加入 Inbox")}`), false);
@@ -113,7 +176,7 @@ test("IUI-03 IUI-07 IUI-08 IUI-13: the original Inbox and 等你 display current
   await b.waitFor(`document.querySelector(${quoted(area)}).innerText.includes('已完成')`);
   assert.equal(stored().disposition, "saved");
   assert.equal(stored().revision, material.revision + 1);
-});
+}
 
 test("IUI-03 IUI-06 IUI-21 IUI-26: discussion picks and quotes a Goal and applies its form preference to both actual references", { timeout: 90_000 }, async t => {
   const b = await openGoalBrowser(t, "seeded", undefined, null);
@@ -131,9 +194,14 @@ test("IUI-03 IUI-06 IUI-21 IUI-26: discussion picks and quotes a Goal and applie
   const imClick = async (selector: string) => {
     const node = query(selector);
     await b.waitFor(`${node}?.checkVisibility() && !${node}.disabled`);
-    const point = await b.evaluate<{ x: number; y: number }>(`(() => { const frame = ${frame}.getBoundingClientRect(), box = ${node}.getBoundingClientRect();
-      return { x: frame.left + box.left + box.width / 2, y: frame.top + box.top + box.height / 2 }; })()`);
-    for (const type of ["mousePressed", "mouseReleased"]) await b.command("Input.dispatchMouseEvent", { type, button: "left", clickCount: 1, ...point }, b.sessionId);
+    await b.evaluate(`${node}.scrollIntoView({block:"nearest", inline:"nearest"})`);
+    const point = await b.evaluate<{ x: number; y: number; covered: string | null }>(`(() => {
+      const outer = ${frame}.getBoundingClientRect(), button = ${node}, box = button.getBoundingClientRect();
+      const x = box.left + box.width / 2, y = box.top + box.height / 2, hit = ${doc}.elementFromPoint(x, y);
+      return { x: outer.left + x, y: outer.top + y, covered: button.contains(hit) ? null : hit?.outerHTML.slice(0, 250) ?? "not visible" };
+    })()`);
+    assert.equal(point.covered, null, "the real discussion control must receive the pointer press: " + selector);
+    for (const type of ["mousePressed", "mouseReleased"]) await b.command("Input.dispatchMouseEvent", { type, button: "left", clickCount: 1, x: point.x, y: point.y }, b.sessionId);
   };
   const identity = query("[data-name-form]");
   await b.waitFor(`${identity}?.querySelector('input')`, 25_000);
@@ -198,6 +266,10 @@ test("IUI-03 IUI-06 IUI-21 IUI-26: discussion picks and quotes a Goal and applie
   }
   await reveal(message);
   await b.waitFor(`!!${query(card + " .mw-presentation--card")}`);
+  await reveal(quoteId);
+  await choose("固定到前面");
+  const reason = quotedObject + ' > .mw-presentation';
+  await b.waitFor(`!!${query(reason)} && ${query(quotedObject)}.parentElement.querySelector("[data-surface-correction-reason]")?.textContent.includes("沿用你为这个位置保存的显示设置")`);
 });
 
 test("IUI-21: changing an actual owner's displayed values replaces the Home row and preserves its logical focus", { timeout: 70_000 }, async t => {

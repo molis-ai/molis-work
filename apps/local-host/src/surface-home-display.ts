@@ -5,7 +5,7 @@ import type { SurfaceDescription, SurfaceGroup, SurfaceItem } from "@molis-ai/mo
 import { isPresentationValuesReader, presentationFormFields } from "@molis-ai/molis-work-plugin-sdk/presentation";
 import { readSurfaceValues } from "@molis-ai/molis-work-service-surfaces";
 import type { HomeDirectoryEntry } from "./surface-home-directory.js";
-import { availableSurfaceReceiver } from "./surface-placement.js";
+import { availableSurfaceReceivers } from "./surface-placement.js";
 import type { withSurfaceSample } from "./surface-read-sample.js";
 
 export type HomeReadSample = Awaited<ReturnType<typeof withSurfaceSample<SurfaceDescription>>>;
@@ -67,7 +67,7 @@ async function displayRows(sample: HomeReadSample, items: readonly SurfaceItem[]
 }
 
 function surfaceActionGroups(sample: HomeReadSample, groups: readonly SurfaceGroup[]) {
-  if (!groups.some(group => group.items.some(item => item.actions.some(action => action.ref === "hand_off"))) || availableSurfaceReceiver(sample)) return groups;
+  if (!groups.some(group => group.items.some(item => item.actions.some(action => action.ref === "hand_off"))) || availableSurfaceReceivers(sample).length) return groups;
   return groups.map(group => ({ ...group, items: group.items.map(item => ({ ...item, actions: item.actions.filter(action => action.ref !== "hand_off") })) }));
 }
 

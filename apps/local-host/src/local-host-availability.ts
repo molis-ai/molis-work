@@ -25,11 +25,12 @@ export class HostAvailability {
     const sample = sampleRetainedActionDirectory(observe => this.actionService.discover(caller, observe), retain);
     const views = await this.views(caller, sample.views, sample.views);
     const original = new Map(views.map((view, index) => [view, sample.views[index]!]));
-    return { views, retain: selected => sample.retain(selected.map(view => {
+    const select = (selected: readonly ActionView[]) => selected.map(view => {
       const row = original.get(view);
       if (!row || !view.availability.available) throw new ActionError("actions.forbidden", "只能保留本次目录可用的能力");
       return row;
-    })) };
+    });
+    return { views, retain: selected => sample.retain(select(selected)), pin: selected => sample.pin(select(selected)) };
   }
 
   async views(caller: ActionCallContext, views: readonly ActionView[], dependencySnapshot?: readonly ActionView[]): Promise<ActionView[]> {

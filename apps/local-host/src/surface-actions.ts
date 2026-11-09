@@ -1,5 +1,5 @@
 import { ActionError, bindActionClient, bindActionHandler, requireSynchronous, type ActionClient, type ActionExecutionContext, type ActionProviderRegistration, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
-import { compileActionSchema } from "@molis-ai/molis-work-kernel";
+import { compileActionSchema, type RetainedActionDirectory } from "@molis-ai/molis-work-kernel";
 import { CONTEXT_RELATION_TYPES } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import { PLUGIN_ATTENTION_READ_PERMISSION } from "@molis-ai/molis-work-contracts/platform/plugin-attention";
 import type { PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -24,7 +24,7 @@ interface SurfaceHostPorts {
   reference: LocalHostProjectReference;
   homeDirectory?: string;
   readCatalog: SurfaceHomeCatalogReader;
-  client: ActionClient & { discoverRetained(caller: ActionExecutionContext): ReturnType<SurfaceComposePorts["discover"]> };
+  client: ActionClient & { discoverRetained(caller: ActionExecutionContext): Promise<RetainedActionDirectory> };
   home(): HomePluginHost | undefined;
   placement(): PlacementHost | undefined;
   now(): Date;

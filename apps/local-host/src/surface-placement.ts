@@ -19,9 +19,10 @@ const action = <Name extends keyof typeof placementActions>(name: Name) => ({ ..
 type Route = NonNullable<ReturnType<typeof displayedRoute>>;
 type Registered = Omit<ActionView, "availability">;
 
-type PlacementBinding = { object: SurfaceOfferObject; reader: ActionView; source: PlacedObject; receiver?: SurfaceReceiver;
-  original: string; revision: string };
-export type SurfacePlacementTarget = Omit<PlacementBinding, "revision">;
+type PlacementSource = { object: SurfaceOfferObject; reader: ActionView; source: PlacedObject; original: string };
+type ReceiverChoice = SurfaceReceiver & { original: string; current(): void };
+type PlacementBinding = PlacementSource & { receiver?: ReceiverChoice; revision: string };
+export type SurfacePlacementTarget = PlacementSource & { receivers?: readonly ReceiverChoice[] };
 
 const isReceiver = (view: Registered) => view.operation === "command" && view.action.scope === "project" && view.provider.project_id !== undefined && view.action.workflow_content?.role === "receive";
 const safeReader = (view: ActionView) => view.operation === "query" && !view.action.external && view.action.execution?.cost !== "metered"
@@ -29,18 +30,26 @@ const safeReader = (view: ActionView) => view.operation === "query" && !view.act
 
 function originalMetadata(views: readonly Registered[], source: ActionView, kind: string, receiver?: SurfaceReceiver) {
   return JSON.stringify(views.filter(view => view.action.scope === source.action.scope && isSubjectReader(view.action) && view.action.subject_kinds.includes(kind)
-    || receiver && (isReceiver(view) || isSubjectReader(view.action) && view.action.scope === "project" && view.action.subject_kinds.includes(receiver.kind)))
+    || receiver && (isReceiver(view) && view.action.workflow_content?.id === receiver.station || isSubjectReader(view.action) && view.action.scope === "project" && view.action.subject_kinds.includes(receiver.kind)))
     .map(view => canonicalJsonText([ref(view), view.provider.plugin_install_id, view.action])).sort());
 }
 
-export function availableSurfaceReceiver(sample: HomeReadSample): SurfaceReceiver | undefined {
+export function availableSurfaceReceivers(sample: HomeReadSample): SurfaceReceiver[] {
   const installed = sample.catalog.entries.filter(entry => entry.record.state === "running" && entry.installation.scope === "project");
-  const candidates = sample.directory.filter(view => view.availability.available && isReceiver(view) && installed.some(entry => homeOwnsView(entry, view)));
-  const [action] = candidates, station = action?.action.workflow_content?.id, kinds = action?.action.subject_kinds ?? [];
-  if (candidates.length !== 1 || !action || !station || kinds.length !== 1) return undefined;
-  const reader = findSubjectReader(sample.directory.filter(view => view.action.scope === "project" && view.provider.project_id === action.provider.project_id), kinds[0]!);
-  if (reader.found !== "one" || !safeReader(reader.view) || !installed.some(entry => homeOwnsView(entry, action) && homeOwnsView(entry, reader.view))) return undefined;
-  return { action, reader: reader.view, station, kind: kinds[0]! };
+  const stations = new Map<string, ActionView[]>();
+  for (const view of sample.directory) {
+    if (!view.availability.available || !isReceiver(view) || !installed.some(entry => homeOwnsView(entry, view))) continue;
+    const station = view.action.workflow_content!.id;
+    stations.set(station, [...stations.get(station) ?? [], view]);
+  }
+  const readers = sample.directory.filter(view => view.action.scope === "project" && view.provider.project_id !== undefined);
+  return [...stations].flatMap(([station, candidates]) => {
+    const [action] = candidates, kinds = action!.action.subject_kinds;
+    if (candidates.length !== 1 || kinds.length !== 1) return [];
+    const reader = findSubjectReader(readers, kinds[0]!);
+    if (reader.found !== "one" || !safeReader(reader.view) || !installed.some(entry => homeOwnsView(entry, action!) && homeOwnsView(entry, reader.view))) return [];
+    return [{ action: action!, reader: reader.view, station, kind: kinds[0]! }];
+  });
 }
 
 export function bindSurfacePlacement(sample: HomeReadSample, route: Route, item: SurfaceItem, kind: PlacementKind, revision: string, project: string,
@@ -49,20 +58,24 @@ export function bindSurfacePlacement(sample: HomeReadSample, route: Route, item:
   const form = presentationFormFields(route.object, "card"), subject = item.subject;
   const original = findSubjectReader(sample.directory.filter(view => view.action.scope === route.reader.action.scope), subject.kind);
   if (!form || original.found !== "one" || original.view !== route.reader) return undefined;
-  const receiver = kind === "hand_off" ? availableSurfaceReceiver(sample) : undefined;
-  if (kind === "hand_off" && !receiver) return undefined;
+  const available = kind === "hand_off" ? availableSurfaceReceivers(sample) : undefined;
+  if (available && !available.length) return undefined;
+  const receivers = available?.map(receiver => ({ ...receiver, current: sample.pin([receiver.action, receiver.reader]),
+    original: originalMetadata(metadata, route.reader, subject.kind, receiver) }));
   const names = kind === "place" ? ["describe", "spaces", "link"] as const : ["describe", "convert"] as const;
   const placement = names.map(name => sample.directory.find(view => view.availability.available && sameReference(ref(view), action(name))));
   if (placement.some(view => !view)) return undefined;
-  sample.retain([route.reader, route.action, ...placement.flatMap(view => view ? [view] : []), ...(receiver ? [receiver.action, receiver.reader] : [])]);
+  sample.retain([route.reader, route.action, ...placement.flatMap(view => view ? [view] : [])]);
   return { object: { subject, values: route.action, fields: form.fields, revision }, reader: route.reader, source: {
     ...subject, project_id: route.entry.installation.scope === "home" ? null : project,
-  }, receiver, original: originalMetadata(metadata, route.reader, subject.kind, receiver) };
+  }, receivers, original: originalMetadata(metadata, route.reader, subject.kind) };
 }
 
-const checkDirectory = (binding: SurfacePlacementTarget, context: SurfaceProjectContext, current: () => void) => () => {
+const checkDirectory = (binding: PlacementSource & { receiver?: ReceiverChoice }, context: SurfaceProjectContext, current: () => void) => () => {
   current();
-  if (originalMetadata(context.inspect(), binding.reader, binding.source.kind, binding.receiver) !== binding.original) throw homeChanged();
+  const { receiver } = binding;
+  receiver?.current();
+  if (originalMetadata(context.inspect(), binding.reader, binding.source.kind, receiver) !== (receiver?.original ?? binding.original)) throw homeChanged();
 };
 
 function controlFor(context: SurfaceProjectContext, current: () => void) {
@@ -70,7 +83,7 @@ function controlFor(context: SurfaceProjectContext, current: () => void) {
     async beforeEffect() { await context.transport.beforeEffect(); current(); } };
 }
 
-function protectedCall(context: SurfaceProjectContext, binding: SurfacePlacementTarget, effect: SurfacePlacementCall["effect"]) {
+function protectedCall(context: SurfaceProjectContext, binding: PlacementSource & { receiver?: SurfaceReceiver }, effect: SurfacePlacementCall["effect"]) {
   const project = context.caller.project_id;
   if (!project) throw homeChanged();
   return { effect, source: binding.source, reader: binding.reader, receiver: binding.receiver, actor: context.caller.actor_id, project, client: context.client };
@@ -102,11 +115,13 @@ export async function prepareSurfacePlacement(context: SurfaceProjectContext, bo
   const call: SurfacePlacementCall = protectedCall(context, bound, "describe");
   const description = await withSurfacePlacementCall(call, () => client.invoke(action("describe"), { object: bound.source }, controlFor(context, valid)));
   if (description.state !== "ok" || !call.checkedRevision || description.object.project_id !== bound.source.project_id) throw homeChanged();
-  const binding = { ...bound, revision: call.checkedRevision }, receiver = bound.receiver;
-  if (receiver) {
+  const { receivers, ...original } = bound;
+  const binding = { ...original, revision: call.checkedRevision };
+  if (receivers) {
     valid();
-    return { title: L("交给"), description: L("原来的内容不变，新内容里记着它从哪里来"), choices: [placementChoice(binding,
-      { project: call.project, name: receiver.action.action.workflow_content!.title })] };
+    const choices = receivers.map(receiver => placementChoice({ ...binding, receiver },
+      { project: call.project, name: receiver.action.action.workflow_content!.title }));
+    return { title: L("交给"), description: L("原来的内容不变，新内容里记着它从哪里来"), choices };
   }
   const { spaces } = await client.invoke(action("spaces"), {}, controlFor(context, valid));
   const used = new Set(description.associations.flatMap(edge => edge.type === "used_in" && edge.target.kind === "project" ? [edge.target.project_id] : []));

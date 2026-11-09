@@ -4,9 +4,10 @@ import { join as joinPath } from "node:path";
 import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
-import { bindActionClient, defineSubjectContextAction, LOCAL_PERSON_ACTOR_ID, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionClient, defineSubjectContextAction, defineWorkflowContentActions, LOCAL_PERSON_ACTOR_ID, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { homeSqlitePath } from "@molis-ai/molis-work-storage";
+import { CONTEXT_RELATION_TYPES } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import { placementActions, type PlacementConvertResponse } from "@molis-ai/molis-work-contracts/services/placement";
 import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { surfaceCompositionActions } from "@molis-ai/molis-work-contracts/services/surface-composition";
@@ -87,6 +88,7 @@ test("IUI-07 IUI-08 IUI-10: Attention can remove its own source through the orig
 });
 
 test("S-protected-position-commands IUI-07 IUI-10 IUI-13: discussion confirms once with the original web and IM identities, relationship and write guard", { timeout: 75_000 }, async t => {
+  const replaceDisposition = watchReceiver(t, "feed.items.disposition");
   const f = await serveHomeRuntime(t), project = await f.project("Discussion offer"), prefix = "/projects/" + project.project_id;
   const { item, current } = await feedItem(t, f, project), first = await proof(f, prefix), other = await proof(f, prefix);
   const owner = await imSession(f, "Owner"), guest = await imSession(f, "Guest");
@@ -157,29 +159,36 @@ test("S-protected-position-commands IUI-07 IUI-10 IUI-13: discussion confirms on
   assert.equal(current().revision, item.revision, "a late loss of the IM authority before the actual owner transaction writes nothing");
   db.db.prepare("INSERT INTO mw_access VALUES (?,?,'owner')").run(project.project_id, owner.member);
 
+  let pastCommit = false;
+  replaceDisposition(() => {
+    pastCommit = true;
+    assert.deepEqual([current().revision, current().disposition], [item.revision + 1, "saved"]);
+    setQuote(replacement.id);
+  });
   const final = await held(), last = { ...request, offer: confirm(final, "保存为资料") };
-  const deliveryLost = at("feed.items.disposition", () => setQuote(replacement.id));
   try {
     const outcomes = await Promise.all([post(last), post(last)]);
     assert.deepEqual(outcomes.map(response => response.status).sort(), [409, 500]);
     const errors = await Promise.all(outcomes.map(response => response.json()));
     assert.deepEqual(errors.map(error => error.code).sort(), ["actions.offer_changed", "actions.outcome_unknown"]);
-  } finally { deliveryLost(); setQuote(message.id); }
+  } finally { setQuote(message.id); }
+  assert.equal(pastCommit, true, "the actual handler reached the tail check after the owner committed");
   assert.deepEqual([current().revision, current().disposition], [item.revision + 1, "saved"], "commit happened once even though delivery was refused");
   await read(await post(last), 409);
   assert.equal(current().revision, item.revision + 1);
 });
 
-function watchReceiver(t: Parameters<typeof serveHomeRuntime>[0]) {
-  const register = ActionService.prototype.registerProvider, receive = "pages.content.receive";
+function watchReceiver(t: Parameters<typeof serveHomeRuntime>[0], receive = "pages.content.receive") {
+  const register = ActionService.prototype.registerProvider;
   let pages: { registry: ActionService; remove: () => void; original: ActionProviderRegistration } | undefined;
   t.mock.method(ActionService.prototype, "registerProvider", function (this: ActionService, registration: ActionProviderRegistration) {
     const remove = register.call(this, registration);
-    if (registration.definitions.some(action => action.capability_id === receive)) pages = { registry: this, remove, original: registration };
+    if ((receive !== "pages.content.receive" || registration.provider.plugin_id === "io.molis.work.pages")
+      && registration.definitions.some(action => action.capability_id === receive)) pages = { registry: this, remove, original: registration };
     return remove;
   });
   return (change: "same" | "consequence" | ((input: unknown) => void)) => {
-    assert.ok(pages, "the real Pages receiver is registered");
+    assert.ok(pages, "the original action is registered: " + receive);
     const { registry, remove, original } = pages;
     const late = typeof change === "function" ? change : undefined;
     remove();
@@ -202,7 +211,6 @@ test("S-protected-position-commands IUI-07 IUI-08 IUI-10 IUI-13: a discussion ca
   const prefix = "/projects/" + project.project_id;
   const web = new LocalHostHttpClient({ origin: f.origin, controlToken: f.token });
   await addProjectPlugin(web, project.project_id, "pages");
-  for (const plugin_id of ["dataset", "form", "lingguang", "ppt"]) await web.delete("/api/settings/projects/" + project.project_id + "/plugins", { plugin_id });
   const original = await read<{ goal: { goal_id: string } }>(await f.request(prefix + "/api/plugins/io.molis.work.goals/goals", {
     method: "POST", body: { title: "Original goal for the card", outcome: "A source document", idempotency_key: randomUUID() },
   }), 201);
@@ -259,6 +267,25 @@ test("S-protected-position-commands IUI-07 IUI-08 IUI-10 IUI-13: a discussion ca
     placementActions.locate, { object: { ...subject, project_id: project.project_id } });
   assert.deepEqual(source, { object: { ...subject, project_id: project.project_id }, moved: false });
 
+  const all = await prepare("hand_off");
+  assert.ok(all.choices.some(choice => choice.label === "Pages") && all.choices.length > 1, "the default project keeps multiple real stations");
+  const dataset = f.host.inspectActionMetadata({ actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: project.project_id, permissions: [] }, project.reference)
+    .find(view => view.capability_id === "dataset.content.receive");
+  assert.ok(dataset);
+  const extraStation = (id: string) => {
+    const { receive: original } = defineWorkflowContentActions({ id: "dataset-probe-" + id, title: "Another station", icon: "database", subject_kind: "dataset",
+      read_permissions: [...dataset.action.permissions], write_permissions: [...dataset.action.permissions] });
+    const receive = { ...original, action: { ...original.action, workflow_content: { ...original.action.workflow_content!, id } } };
+    return f.host.actionRegistry(project.reference).registerProvider({ provider: dataset.provider, definitions: [receive],
+      handlers: [{ ...receive, handle() { assert.fail("an unselected receiver must not execute"); } }] });
+  };
+  const ambiguous = extraStation("pages");
+  try {
+    await read(await surfaces(issue(all, "Pages")), 409);
+    const eligible = await prepare("hand_off");
+    assert.ok(eligible.choices.length > 0 && eligible.choices.every(choice => choice.label !== "Pages"), "only the ambiguous station is withheld");
+    await read(await surfaces({ ...request, offer: { intent: "cancel", prepared: eligible.prepared } }));
+  } finally { ambiguous(); }
   for (const change of ["same", "consequence"] as const) {
     const held = await prepare("hand_off").catch(cause => { throw new Error(JSON.stringify(declared), { cause }); });
     swap(change);
@@ -275,12 +302,15 @@ test("S-protected-position-commands IUI-07 IUI-08 IUI-10 IUI-13: a discussion ca
     return record.call(this, caller, action, outcome);
   };
   t.after(() => { log.record = record; });
-  const converted = await read<{ result: PlacementConvertResponse; title: string; request_id: string }>(await surfaces(issue(await prepare("hand_off"), "Pages")))
-    .catch(cause => { throw new Error(JSON.stringify({ calls, stored: pages.list(project.project_id).map(page => page.id) }), { cause }); });
+  const selected = await prepare("hand_off"), unrelatedStation = extraStation("dataset-extra");
+  const converted = await read<{ result: PlacementConvertResponse; title: string; request_id: string }>(await surfaces(issue(selected, "Pages")))
+    .catch(cause => { throw new Error(JSON.stringify({ calls, stored: pages.list(project.project_id).map(page => page.id) }), { cause }); })
+    .finally(unrelatedStation);
   assert.equal(converted.result.location.project_id, project.project_id);
   assert.equal(converted.result.title, "Original goal for the card");
   assert.ok(converted.result.open && converted.request_id && pages.list(project.project_id).some(page => page.id === converted.result.object.id));
-  assert.ok(edits().edges.some(edge => edge.type === "derived_from" && String(edge.key).includes(converted.result.object.id)));
+  assert.ok(edits().edges.some(edge => edge.type === CONTEXT_RELATION_TYPES.derived_from
+    && edge.key === JSON.stringify(["derived_from", converted.result.object.kind, converted.result.object.id])));
   const unchanged = await read<SurfaceHomeDisplay>(await surfaces(request));
   assert.equal(unchanged.display.rows[0]?.subject.id, subject.id, "the actual discussion keeps the source reference after the placement");
 

@@ -155,7 +155,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
   };
   // One registry of framed areas a page: the reads area and the connection card share its four places, layer and checks (§13.5).
   const areas = pageFramedAreas(scope, root, frame, visible), owner = host.translate(frame.title);
-  const surfaceSlot = pageSurfaceSlots(port, scope, areas, grant.page_id, route, host, root);
+  const surfaceSlot = pageSurfaceSlots(port, scope, areas, grant.page_id, JSON.stringify([grant.storage_scope, mount ?? pack.id]), route, host, root);
   const taskGrants = pageTaskGrants(port, scope, areas, grant.page_id, route, host.translate, owner);
   const returns = pageReturns(port, scope, root, pack, grant.storage_scope, visible), connectionNeed = pageConnectionNeed(port, scope, areas, grant.page_id, route, host.translate, owner, returns.connection);
   const state = () => { if (visible() && invalidated) { invalidated = false; port.postMessage({ type: "select", detail: { invalidate: true }, itemTab: ownItemTab(root, pack) }); } port.postMessage({ type: "state", visible: visible(),

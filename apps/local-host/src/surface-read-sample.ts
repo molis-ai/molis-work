@@ -4,6 +4,7 @@ import type { SurfaceGroup, SurfaceSlot } from "@molis-ai/molis-work-contracts/s
 import type { AttentionSurfaceEntry } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import type { FormKind } from "@molis-ai/molis-work-contracts/platform/presentation";
 import type { OwnedTextRef } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { RetainedActionDirectory } from "@molis-ai/molis-work-kernel";
 import type { startSurfaceRead, SurfaceActionDirectory, SurfaceComposePorts } from "@molis-ai/molis-work-service-surfaces";
 import type { LocalProjectDatabase } from "./project-database.js";
 import type { surfaceHomeDirectory } from "./surface-home-directory.js";
@@ -18,7 +19,7 @@ type SurfaceSample = {
   deadline?: ReturnType<typeof startSurfaceRead>;
   readonly views: Set<ActionView>;
   actionsCurrent?: () => void;
-  directory?: SurfaceActionDirectory;
+  directory?: RetainedActionDirectory;
   attention?: readonly AttentionSurfaceEntry[];
   rules?: { forms: readonly FormKind[]; pin: boolean };
   discussion?: SurfaceComposePorts["discussion"];
@@ -47,6 +48,12 @@ export async function withSurfaceSample<Result>(store: LocalProjectDatabase, pos
         const active = sample.actionsCurrent;
         return () => { active?.(); catalog.assertCurrent(); };
       },
+      pin(selected: readonly ActionView[]) {
+        if (!sample.directory) throw new ActionError("actions.unavailable", "没有本次呈现的动作目录");
+        const current = sample.directory.pin(selected);
+        current();
+        return current;
+      },
       retain(selected: readonly ActionView[]) {
         if (!sample.directory) throw new ActionError("actions.unavailable", "没有本次呈现的动作目录");
         sample.actionsCurrent = sample.directory.retain(selected);
@@ -68,7 +75,7 @@ export function surfaceSampleFor(store: LocalProjectDatabase, position: SurfaceS
   return sample;
 }
 
-export function retainSurfaceDirectory(directory: SurfaceActionDirectory, sample: SurfaceSample | undefined): SurfaceActionDirectory {
+export function retainSurfaceDirectory(directory: RetainedActionDirectory, sample: SurfaceSample | undefined): SurfaceActionDirectory {
   if (!sample) return directory;
   sample.directory = directory;
   return { views: directory.views, retain(views) {

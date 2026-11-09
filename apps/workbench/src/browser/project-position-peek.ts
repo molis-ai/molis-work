@@ -1,6 +1,7 @@
 import { escapeHtml as e, renderButton } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { SurfaceHomeDisplay, SurfaceHomeRowDisplay } from "../surface-home-display.js";
 import { homeButton, isPlacementControl, presentationWord, renderHomePeek, type HomeControl } from "./project-home-render.js";
+import { unsettledSurfaceActions } from "./unsettled-surface-actions.js";
 import type { PositionHost, ReadPosition } from "./project-position.js";
 
 type Choice = { key: string; label: string; consequence: string[] };
@@ -28,7 +29,7 @@ export function createPositionPeek(root: HTMLElement, read: ReadPosition, host: 
   const doc = root.ownerDocument, say = host.translate;
   let dialog: HTMLDialogElement | undefined, content: HTMLElement | undefined, footer: HTMLElement | undefined;
   let selection: Selection | undefined, pending: AbortController | undefined, prepared: Prepared | undefined, confirming: Choice | undefined;
-  const peekControls = new Map<string, HomeControl>(), unsettled = new Map<string, string>();
+  const peekControls = new Map<string, HomeControl>(), unsettled = unsettledSurfaceActions(doc.location.pathname + doc.location.search);
   let refocusOpen = false, executing = false;
   const button = () => dialog?.querySelector<HTMLElement>('[data-home-control="close"]');
   const cancel = (source: Selection["source"], prepared: string) => {
@@ -53,7 +54,8 @@ export function createPositionPeek(root: HTMLElement, read: ReadPosition, host: 
     dialog!.close();
     if (!restore) return;
     if (before?.original.isConnected && before.original.checkVisibility()) before.original.focus({ preventScroll: true });
-    else if (root.isConnected && ports.visible()) root.querySelector<HTMLElement>("button,summary,[tabindex='0']")?.focus({ preventScroll: true });
+    else if (root.isConnected && ports.visible()) [...root.querySelectorAll<HTMLElement>("button,summary,[tabindex='0']")]
+      .find(control => control.checkVisibility() && !control.matches(":disabled"))?.focus({ preventScroll: true });
   }
   function setup() {
     if (dialog) return;
@@ -90,13 +92,13 @@ export function createPositionPeek(root: HTMLElement, read: ReadPosition, host: 
   async function execute(open: Selection, offer: Prepared, choice: Choice) {
     const task = pending = new AbortController();
     executing = true;
-    unsettled.set(open.key, offer.prepared);
+    unsettled.keep(open.key, offer.prepared);
     drawChoices();
     button()?.focus();
     try {
       const result = await read<{ title: string }>({ ...open.source, offer: { intent: "confirm", prepared: offer.prepared, choice: choice.key } }, task.signal);
       if (pending !== task || task.signal.aborted) return;
-      unsettled.delete(open.key); prepared = confirming = undefined;
+      unsettled.clear(open.key); prepared = confirming = undefined;
       close();
       const control = ports.lookup(open.key);
       host.receipt(control && isPlacementControl(control.target.kind) ? result.title : say("已完成") + " · " + say(result.title));
@@ -107,7 +109,7 @@ export function createPositionPeek(root: HTMLElement, read: ReadPosition, host: 
       prepared = confirming = undefined;
       const code = (error as { code?: string } | null)?.code;
       if (code && code !== "actions.outcome_unknown" && code !== "actions.cancelled") {
-        unsettled.delete(open.key);
+        unsettled.clear(open.key);
         host.receipt(say("这个对象已变化，请重新读取"));
         host.changed();
       }
@@ -142,6 +144,6 @@ export function createPositionPeek(root: HTMLElement, read: ReadPosition, host: 
   }
   return { scrub, refresh, close,
     open(key: string, original: HTMLElement) { close(); selection = { key, original, source: ports.source() }; void refresh(); },
-    destroy() { close(); dialog?.remove(); unsettled.clear(); },
+    destroy() { close(); dialog?.remove(); },
   };
 }

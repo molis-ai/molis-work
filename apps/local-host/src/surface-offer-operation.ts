@@ -6,6 +6,7 @@ import { subjectOfferChoices } from "@molis-ai/molis-work-kernel";
 import { presentationValuesProblems } from "@molis-ai/molis-work-plugin-sdk/presentation";
 import { confirmSubjectOffer, prepareSubjectOffers, sameReference, type PreparedSubjectOffer } from "./contextual/contextual-service.js";
 import { homeChanged, homeReference as reference } from "./surface-home-display.js";
+import { observeSurfaceCommand } from "./surface-command-delivery.js";
 import type { SurfaceProjectContext } from "./surface-project-read.js";
 
 type Choice = { source: ActionView; action: ActionView; offerId: string };
@@ -81,17 +82,24 @@ export function surfaceOfferOperation({ client, caller, transport }: SurfaceProj
       await version(target);
       const proof = await confirmSubjectOffer(directory(source, [action]), { subject: target.subject, request_id: request, offer });
       current(); beforeWrite?.();
-      const click = bindActionClient(client, () => ({ ...caller,
-        user_action: { source: "web", conversation_ref: `web:${caller.project_id}`, message_ref: `web:request:${request}` } }));
-      const result = await click.invoke({ ...action, ...reference(action) }, proof.input, {
-        ...control, async beforeEffect() { await control.beforeEffect(); beforeWrite?.(); },
-      });
-      try { current(); }
-      catch (cause) {
-        if (action.operation !== "command") throw cause;
+      let observed: ReturnType<typeof observeSurfaceCommand> | undefined, returned = false;
+      const click = bindActionClient({ ...client, invoke(caller, ref, input) {
+        if (action.operation !== "command") return client.invoke(caller, ref, input);
+        observed = observeSurfaceCommand(caller, ref);
+        return client.invoke(observed.caller, ref, input);
+      } }, () => ({ ...caller, user_action: { source: "web", conversation_ref: `web:${caller.project_id}`, message_ref: `web:request:${request}` } }));
+      try {
+        const result = await click.invoke({ ...action, ...reference(action) }, proof.input, {
+          ...control, async beforeEffect() { await control.beforeEffect(); beforeWrite?.(); },
+        });
+        returned = true;
+        current();
+        return { title: proof.title, result };
+      } catch (cause) {
+        if (action.operation !== "command" || !returned && !observed?.mayHaveWritten(cause)) throw cause;
+        if (cause instanceof ActionError && cause.code === "actions.outcome_unknown") throw cause;
         throw new ActionError("actions.outcome_unknown", "操作结果需要到原对象核对", { cause });
       }
-      return { title: proof.title, result };
     },
   };
 }

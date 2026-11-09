@@ -79,11 +79,17 @@ export function mountDiscussionObjects(frame: HTMLIFrameElement,
             defaults.source = original;
             defaults.view.paint(data, 0);
           }
-          batch.forEach(({ row, entry }, index) => {
-            if (!visible(entry.root) || !inViewport(row)) return;
+          const viewport = stream?.closest<HTMLElement>("[data-scroll]");
+          const focusedRow = viewport?.ownerDocument.activeElement?.closest<HTMLElement>("[data-message]");
+          const anchor = focusedRow && inViewport(focusedRow) ? focusedRow : null;
+          const anchorTop = anchor?.getBoundingClientRect().top;
+          // Sample visibility before any row changes height. Keep the message the person was working in at the same place.
+          const painting = batch.flatMap(({ row, entry }, index) => visible(entry.root) && inViewport(row) ? [{ entry, index }] : []);
+          for (const { entry, index } of painting) {
             entry.view.paint(data, index); entry.read = true;
             if (entry.view.recovery()) void entry.view.update();
-          });
+          }
+          if (viewport && anchor?.isConnected && anchorTop !== undefined) viewport.scrollTop += anchor.getBoundingClientRect().top - anchorTop;
         } catch {
           if (request.signal.aborted || task !== request) return;
           for (const parts of entries.values()) for (const entry of parts) { entry.view.clear(); entry.read = false; }

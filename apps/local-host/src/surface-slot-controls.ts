@@ -11,6 +11,7 @@ import { openHomeObject } from "./surface-home-open.js";
 import type { SurfaceProjectContext } from "./surface-project-read.js";
 import { offerConsequences, surfaceOfferOperation, surfaceOfferSources, type HeldSurfaceOffer } from "./surface-offer-operation.js";
 import { bindSurfacePlacement, isPlacementKind, prepareSurfacePlacement, type SurfacePlacementTarget } from "./surface-placement.js";
+import { observeSurfaceCommand } from "./surface-command-delivery.js";
 import type { PositionChoice } from "./surface-position-offers.js";
 
 type Route = NonNullable<ReturnType<typeof displayedRoute>>;
@@ -74,8 +75,13 @@ export function captureSurfaceSlot(display: SurfaceHomeDisplay, sample: HomeRead
 export function surfaceSlotLabels(binding: RetainedSlotControls) {
   return [...binding.controls.values()].filter(target => target.kind !== "offer" && target.kind !== "placement-choice").map(slotLabel);
 }
-const slotLabel = ({ key, item, kind, label, primary, warning }: Target) =>
-  ({ key, subject: item.subject, owner: item.owner_plugin_id, kind, label, primary, ...(warning?.length ? { consequence: warning } : {}) });
+function slotLabel(target: Target) {
+  const { key, item, kind, label, primary, warning } = target;
+  const command = target.kind === "offers" ? "offers" : target.kind === "placement" ? target.bound.receivers ? "hand_off" : "place"
+    : target.kind === "action" && target.action.operation === "command" ? JSON.stringify(reference(target.action)) : undefined;
+  return { key, subject: item.subject, owner: item.owner_plugin_id, kind, label, primary, ...(command ? { command } : {}),
+    ...(warning?.length ? { consequence: warning } : {}) };
+}
 
 export function slotOperation(context: SurfaceProjectContext, binding: RetainedSlotControls, prefix: string, assertRender: () => void) {
   const { transport, client, caller } = context;
@@ -115,15 +121,21 @@ export function slotOperation(context: SurfaceProjectContext, binding: RetainedS
   }
   async function execute(view: ActionView, input: unknown) {
     current();
-    const click = bindActionClient(client, () => ({ ...caller,
-      user_action: { source: "web", conversation_ref: `web:${caller.project_id}`, message_ref: `web:request:${randomUUID()}` } }));
-    const result = await click.invoke({ ...view, ...reference(view) }, input, control);
-    try { current(); }
-    catch (cause) {
-      if (view.operation !== "command") throw cause;
+    let observed: ReturnType<typeof observeSurfaceCommand> | undefined, returned = false;
+    const click = bindActionClient({ ...client, invoke(caller, ref, input) {
+      if (view.operation !== "command") return client.invoke(caller, ref, input);
+      observed = observeSurfaceCommand(caller, ref);
+      return client.invoke(observed.caller, ref, input);
+    } }, () => ({ ...caller, user_action: { source: "web", conversation_ref: `web:${caller.project_id}`, message_ref: `web:request:${randomUUID()}` } }));
+    try {
+      const result = await click.invoke({ ...view, ...reference(view) }, input, control);
+      returned = true; current();
+      return result;
+    } catch (cause) {
+      if (view.operation !== "command" || !returned && !observed?.mayHaveWritten(cause)) throw cause;
+      if (cause instanceof ActionError && cause.code === "actions.outcome_unknown") throw cause;
       throw new ActionError("actions.outcome_unknown", "操作结果需要到原对象核对", { cause });
     }
-    return result;
   }
   return {
     current,

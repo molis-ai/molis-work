@@ -119,6 +119,12 @@ export interface ProjectDirectory extends ProjectWorkspaceRef {
     state: "ok" | "missing";
 }
 
+export interface ProjectDirectoryPage {
+    default_output_id: string;
+    default_output_made: boolean;
+    source_kinds: Record<string, SourceKind>;
+}
+
 export type ProjectPluginId = string;
 
 export interface ProjectPluginMembership {
@@ -224,6 +230,8 @@ export interface RunDirectories {
         worktree_id: string;
     };
 }
+
+export type SourceKind = "folder" | "former_default_output" | "other_default_output";
 
 export declare const directoryInputOnly: (workspaceId: string) => import("platform/action-errors").ActionError;
 

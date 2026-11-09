@@ -39,10 +39,11 @@
 | 外部工具 | 登记表（`platform/external-tools`）里的一个外部 AI 开发工具；范围比外部 Runtime 大，Molis 只读其会话、不运行的也算（见 2.3） | 无 | 把它和 Runtime 当同义词；厂商、插件 |
 | 产品入口 | 外部工具的一个可用形态，登记表一行一个：CLI、IDE、桌面、云端分开，国内、国际分开 | 无 | 把同品牌的几个入口当成一个 |
 | Agent role | 插件或系统声明的 Agent 工作方式，起跑时被冻结 | 角色（「系统与插件带来的角色」） | 角色、role、Character（指它时） |
-| 写后检查器 | 人在平台的项目设置里、和工作区授权一起，给一个已授权工作区存的检查命令：Agent 写完一个它适用的文件后，经命令审查跑一次 | 无（设置页未做） | 检查器（裸写）、checker、诊断器 |
+| 写后检查器 | 人在平台的项目设置里、和项目的目录一起，给一个已授权文件夹存的检查命令：Agent 写完一个它适用的文件后，经命令审查跑一次 | 无（设置页未做） | 检查器（裸写）、checker、诊断器 |
 | 等待检查器 | Agent 的一步在等一个条件时，由宿主按 SDK 的节奏去看那个条件的代码，只看不改 | 无 | 检查器（裸写）、condition checker |
 | Character | 个人拥有、可发布成固定版本的 AI 做事方式；是宿主设置里的一节，不是插件 | 角色（「我的角色」） | 角色（泛称）、Characters 插件 |
 | 项目（Project） | 唯一的工作边界与身份，`project_id` | 项目 | Board（指项目时） |
+| 项目的目录（输入目录、输出目录） | 项目关联的本机文件夹，各带角色：输入只读、可以有多个；输出唯一，Agent、终端、Git 在这里写和跑。没选过输出时就是默认输出目录 `<Home>/outputs/<project_id>`，第一次用到才建；读写都经 `projects.directories.get@1` 和本人的六个 `projects.directories.*` 动作，带 `expected_revision`（[共同设计](../../specs/shared-sources-and-surfaces/spec.md) §3） | 项目设置 →「输入与输出」 | 工作区、工作目录（都指项目文件夹时已退役）；「能力」「目录」的别义见本表其他行 |
 | 目标资料库（Goals 根记录） | Goals 在每个项目库里的根记录，一个项目一条，不是项目本身 | 目标资料库（报错与动作「初始化目标资料库」） | Board（指它时） |
 | 讨论（项目讨论） | 右栏里一个项目的群聊与 Thread，在用并继续迭代的产品功能 | 讨论、项目讨论、群聊与 Thread | IM 实验、实验线（它不是实验） |
 | 当前约定（Goal 的） | 一条 Goal 现在要遵守的约定与要求，是 Goals 记下的、带版本的事实，每次修改是一条事件；Runtime 放宽或替换已有约定要引用本人授权；Goal 按它收尾 | 当前约定 | 把助理侧栏 AI 自称采纳的约束也叫它（那是「AI 记下的约定」） |
@@ -212,7 +213,7 @@
 
 **写后检查器与等待检查器（必须写全名）**
 
-- 写后检查器：人在平台的项目设置里（和工作区授权在一起，不在 Coding 的设置页）给一个已授权工作区保存的一组命令（`agent.write_checkers.list`、`agent.write_checkers.save`；配置的主人是 `horizontal/agent-host`）。Agent 写完一个文件，宿主按配置顺序取第一个适用的，换进文件路径，交给 SDK 经命令审查去跑（`specs/prologue-adoption/spec.md` §6.0p）。代码与存储里叫 write-checker。
+- 写后检查器：人在平台的项目设置里（和项目的目录在一起，不在 Coding 的设置页）给一个已授权文件夹保存的一组命令（`agent.write_checkers.list`、`agent.write_checkers.save`；配置的主人是 `horizontal/agent-host`）。Agent 写完一个文件，宿主按配置顺序取第一个适用的，换进文件路径，交给 SDK 经命令审查去跑（`specs/prologue-adoption/spec.md` §6.0p）。代码与存储里叫 write-checker。
 - 等待检查器：Agent 的一步等一个外部条件时，宿主替 SDK 去看那个条件的代码（`molis.action-query`、`molis.file-present`，在 `horizontal/agent-host/src/adapters/prologue-checkers.ts`），只看不改。
 - 两者都不调模型，也都不是判断规则。裸写「检查器」分不出是哪一个，所以必须写全名。
 
@@ -222,6 +223,13 @@
 
 - 定义：唯一的工作边界。`project_id` 是它唯一的身份：目录条目、项目数据库和库里 Goals 的根记录都用它（`docs/system/ARCHITECTURE.md` §2、`docs/modules/projects.md`）。每个项目一个 SQLite 库；部分个人插件的 Home 级库按 `project_id` 区分本项目与个人。「个人空间」是保留身份的项目分区，不列为项目，不能改名或删除。
 - 项目插件和个人插件的分法见 `PRODUCT.md`「Platform and Plugins」。
+
+**项目的目录（输入目录 / 输出目录）**
+
+- 定义：项目关联的本机文件夹，每个带角色 `roles`：**输入**（只读，可多个）与**输出**（唯一，可写；同一个文件夹可以两者都是）。读写经动作：读是 `projects.directories.get@1`（受众含 user、plugin、agent、workflow、mcp），改是本人的 `projects.directories.{add_input,remove_input,set_output,repair,map_source,unmap_source}@1`（权限 `projects:settings`），都带读到的 `expected_revision`，过期以 `actions.conflict` 拒绝。只作输入的目录谁都只能读：Git、终端、Character、Agent 的会话与轮次不在那里写或跑（`projects.directory_input_only`）。
+- 默认输出目录：没选过输出的项目，输出是 Home 的 `outputs/<project_id>/`，目录库里是真实的一行（`canonical_path` 是 `project-output:<project_id>`，不存路径）；文件夹第一次写或运行时才建。
+- 存储：目录库 `projects/catalog.db` 的 `workspaces`、`workspace_project_memberships`（`role_input`、`role_output` 两列）和 `workspace_source_links`（另一台设备的目录对应到本机的哪个文件夹）；项目库的 `material_recent_uses` 是「最近用过」。两份库第 2 版起这样，1→2 的段在 `modules/projects/src/catalog-upgrade.ts` 与 `apps/local-host/src/project-database-schema.ts`。
+- 旧称：「工作区」「工作目录」在指项目文件夹时退役；「浏览目录 / 首选工作区」是已删除的旧设置，不再有。
 
 **目标资料库（Goals 根记录）**
 

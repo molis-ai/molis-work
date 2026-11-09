@@ -2,7 +2,7 @@ import type { AgentMemoryExecutionControl } from "@molis-ai/molis-work-contracts
 import type { HostOfferedOriginalInput } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { MemoryServicePorts } from "@molis-ai/molis-work-service-memory";
 import type { memorySources } from "../memory/memory-sources.js";
-import type { SendIntent } from "./assistant-inputs.js";
+import type { ExecutorHanded } from "./assistant-executor-input.js";
 import type { AssistantFollowUpPorts } from "./assistant-followups.js";
 import type { AgentHost, AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentSessionRef, AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -47,7 +47,7 @@ export interface AssistantServicePorts extends AssistantLandingPorts, AssistantR
   /** IANA zone the person works in, so "tomorrow" means their tomorrow. */
   timeZone?: string;
   /** The person's own client in a work's project, to drive the plugin that carries it as its page would; a dispatch's (a Send, a follow-up's round) is its own. */
-  personActions?(work: Pick<StoredWork, "project_ref">, use?: "dispatch", original?: SendIntent["original_input"], executorPluginId?: string): Promise<BoundActionClient>;
+  personActions?(work: Pick<StoredWork, "project_ref">, use?: "dispatch", handed?: ExecutorHanded, executorPluginId?: string): Promise<BoundActionClient>;
   /** The person's own actions in a work's scope (its project, or the Home), for reading related objects from their owners. */
   scopeActions?(work: Pick<StoredWork, "project_ref">): Promise<PersonActions>;
   /** The person's own actions in their Home, for reading the reminders they set in Plugins. */

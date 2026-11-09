@@ -7,7 +7,7 @@
 ### 日评 A-1 合同说明（2026-11-09）
 
 - 当前 `assistant.methods.read@1` 与 `plugins.install.preview@1` 均按第02批统一版本合同调用。下文历史切片中的 @2/@3/@4 是当时记录，不是现在可调用的版本；固定旧引用须重新选择现行合同，不保留旧工具别名。
-- Manifest 版本1使用 SDK 的完整声明检查（动作、交叉引用、权限、Agent、方法与成果等）；没有放宽旧规则的开关。SDK和Runtime共用同一解析，错版统一为 `plugin.manifest_version_invalid`，含 found/expected 原因。
+- Manifest 版本1使用 SDK 的完整声明检查（动作、交叉引用、权限、Agent、方法与成果等）；没有放宽旧规则的开关。SDK和Runtime共用同一解析；Runtime安装不再把SDK声明/权限错误二次包装成manifest_invalid，保留原owner码。错版统一为 `plugin.manifest_version_invalid`，含 found/expected 原因。
 - SDK 的 `PLUGIN_ID` 及 `/execution` 是公开面；平台路由、内核和插件作者复用同一实现。浏览器请求错误码由合同 `UI_HOST_CLIENT_CODES` 统一；外部业务错误仍保留自己的码。
 - subjectContext 的 offset/length 以 Unicode 码点计数，所有页边界保留完整码点。读取方须按码点推进游标；字素簇可以跨页。动作id与版本遵循当前开发期政策不变，公开快照随本批更新。
 

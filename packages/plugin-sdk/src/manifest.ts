@@ -43,7 +43,7 @@ export function parsePluginManifest(input: unknown): PluginManifest {
   if (manifest.schema_version !== /* @version manifest.schema */ 1 || manifest.host_api_version !== /* @version host.api */ 1) {
     throw pluginErrors.manifest_version_invalid("Plugin Manifest 版本不受支持", {
       found: { schema_version: manifest.schema_version ?? null, host_api_version: manifest.host_api_version ?? null },
-      expected: { schema_version: 1, host_api_version: 1 },
+      expected: { schema_version: /* @version manifest.schema */ 1, host_api_version: /* @version host.api */ 1 },
     });
   }
   if (!text(manifest.plugin_id) || !PLUGIN_ID.test(manifest.plugin_id)

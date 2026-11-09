@@ -70,12 +70,13 @@ test("kanban localizes column labels without translating user titles or adding h
   const user = item("USER", "看板");
   const html = runWithLocale("en", () => renderer.renderGoalKanban(view([user]), "USER", [user]));
   assert.match(html, /<strong>看板<\/strong>/);
-  assert.match(html, />Continue</);
-  assert.match(html, />Active</);
-  assert.match(html, />Needs you</);
+  assert.match(html, />Ready to record</);
+  assert.match(html, />In progress</);
+  assert.match(html, />Needs your decision</);
   assert.match(html, />Waiting</);
-  assert.match(html, />Blocked</);
+  assert.match(html, />Can record; not ready to close</);
   assert.match(html, />Completed</);
+  assert.match(html, />Cancelled</);
   assert.doesNotMatch(html, /Kanban|How to use|Click a card to open/);
 });
 

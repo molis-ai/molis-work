@@ -36,7 +36,7 @@ export function manifestProblems(input: unknown): string {
     parsePluginManifest(input);
     return "";
   } catch (error) {
-    if ((error instanceof ActionError && ["plugin.manifest_invalid","plugin.entrypoint_missing","plugin.permission_invalid","plugin.declaration_invalid"].includes(error.code) && error.kind === "invalid")) return error.message;
+    if ((error instanceof ActionError && ["plugin.manifest_invalid","plugin.manifest_version_invalid","plugin.entrypoint_missing","plugin.permission_invalid","plugin.declaration_invalid"].includes(error.code) && error.kind === "invalid")) return error.message;
     throw error;
   }
 }

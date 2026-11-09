@@ -42,6 +42,7 @@ export function modelListKey(catalog: MolisWorkProjectCatalog, home: string | un
   let origin: string;
   try { origin = new URL(base_url).origin; } catch { throw new Error(L("Base URL 必须是完整地址")); }
   const saved = catalog.models.get(providerId)?.credential_ref;
+  if (!connection_id && !saved) throw new Error(L("请填写 API Key，或选择一条已保存的连接"));
   const key = withConnectorConnections(home, (store) => {
     const connection = connection_id ? store.require(connection_id, "model-api")
       : saved ? store.list("model-api").find((row) => row.credential_ref === saved) : undefined;
@@ -50,7 +51,7 @@ export function modelListKey(catalog: MolisWorkProjectCatalog, home: string | un
     const pinned = store.targetOrigin(connection.connection_id);
     if (pinned && pinned !== origin) throw new Error(L("这条连接已绑定 {pinned}；如需访问 {origin}，请新建连接", { pinned, origin }));
     return store.resolveToken(connection.connection_id, "model-api");
-  });
+  }, "required");
   if (!key.trim()) throw new Error(L("请填写 API Key，或选择一条已保存的连接"));
   return { base_url, api_format, api_key: key };
 }

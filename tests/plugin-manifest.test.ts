@@ -1,7 +1,9 @@
+import { PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { inspectActionDeclarations, parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
+import { assertManifest, inspectActionDeclarations, parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { todoManifest } from "@molis-ai/molis-work-plugin-todo";
 import type { ActionSceneDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 
@@ -114,13 +116,21 @@ test("malformed action permissions fail as manifest errors instead of escaping v
   rejects(m => { m.action_scenes = [{ scene_id: "test.received", version: 1, permissions: 42 }]; }, "不完整");
 });
 
-test("N26: a manifest with an unsupported format or host API is refused", () => {
-  const current = currentManifest();
+test("N26 D0325 SDK parsing, author assertion and Runtime share the version refusal and found/expected details", () => {
+  const current = parsePluginManifest(currentManifest());
   for (const [schema_version, host_api_version] of [[2, 2], [1, 2], [2, 1]]) {
-    assert.throws(
-      () => parsePluginManifest({ ...current, schema_version, host_api_version }),
-      (error: unknown) => error instanceof ActionError && error.code === "plugin.manifest_version_invalid",
-    );
+    const manifest = { ...current, schema_version, host_api_version } as typeof current;
+    for (const read of [
+      () => parsePluginManifest(manifest),
+      () => assertManifest(manifest),
+      () => new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS }).install({ trust: { level: "unsigned" },
+        definition: { manifest, async start() { assert.fail("an unsupported Manifest must never start"); } }, deployment: "local" }),
+    ]) assert.throws(read, (error: unknown) => {
+      if (!(error instanceof ActionError) || error.code !== "plugin.manifest_version_invalid" || error.kind !== "invalid") return false;
+      assert.equal(error.message, "Plugin Manifest 版本不受支持");
+      assert.deepEqual(error.details, { found: { schema_version, host_api_version }, expected: { schema_version: 1, host_api_version: 1 } });
+      return true;
+    });
   }
 });
 

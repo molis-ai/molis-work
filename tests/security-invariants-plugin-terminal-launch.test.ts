@@ -729,13 +729,14 @@ test("TERM-CATALOG-01 TERM-CATALOG-02 TERM-CATALOG-03 terminal list hides a real
     ({ ids: catalog.terminalPanels.listIds(project.project_id), record: catalog.terminalPanels.get(panelId) }));
   const records = await snapshot(), logged: HostLogEntry[] = [];
   let damagedColumn: "actor_id" | "panel_id" | undefined;
-  f.host.configurePersonalPlanning(f.home, (options, read) => f.withCatalog(options, catalog => {
+  f.host.configurePersonalPlanning(f.home, (options, read) => f.withCatalog(options, async catalog => {
     if (!damagedColumn) return read(catalog);
     // The real cached owner performs its schema/lease checks first; unrelated directory reads remain usable.
     const column = damagedColumn, db = openTestSqlite(catalog.databasePath);
     try {
       db.exec(`ALTER TABLE plugin_terminal_panels RENAME COLUMN ${column} TO ${column}_hidden`);
-      try { return read(catalog); }
+      // commit may wait for its turn; keep the fault until the entire callback settles.
+      try { return await read(catalog); }
       finally { db.exec(`ALTER TABLE plugin_terminal_panels RENAME COLUMN ${column}_hidden TO ${column}`); }
     } finally { db.close(); }
   }));

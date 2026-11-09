@@ -19,6 +19,7 @@ import {openCharacters} from '@molis-ai/molis-work-module-characters';
 import {LOCAL_PERSON_ACTOR_ID} from '@molis-ai/molis-work-contracts/platform/actions';
 import {CHARACTER_PLUGIN_ID,CHARACTER_PUBLISHER_SIGNATURE} from '@molis-ai/molis-work-contracts/modules/characters';
 test('Host exposes and transfers all registered creative collections through the shared coordinator',{timeout:60000},async t=>{
+  const started=performance.now(),stage=(name:string)=>t.diagnostic(`D0347 ${name}: ${Math.round(performance.now()-started)}ms`);
   const f=personalSyncFixture(t),previous=process.env.MOLIS_WORK_SYNC_LOCAL;process.env.MOLIS_WORK_SYNC_LOCAL='1';
   t.after(()=>{if(previous===undefined)delete process.env.MOLIS_WORK_SYNC_LOCAL;else process.env.MOLIS_WORK_SYNC_LOCAL=previous;});const requests:string[]=[];t.mock.method(globalThis,'fetch',async(input:Parameters<typeof fetch>[0],init?:Parameters<typeof fetch>[1])=>{requests.push(String(input));return f.transport(input,init);});
   const project=await withMolisWorkProjectCatalog({homeDirectory:f.homes[0]},async c=>{
@@ -26,7 +27,9 @@ test('Host exposes and transfers all registered creative collections through the
     for(const plugin_id of ['form','dataset','ppt','lingguang','workflows','schedule','feed'])c.addProjectPlugin({project_id:p.project_id,plugin_id,actor_id:'alice'});return p;
   });
   await withMolisWorkProjectCatalog({homeDirectory:f.homes[1]},async c=>{await c.ensureSyncedProject({project_id:project.project_id,display_name:project.display_name,actor_id:'alice'},()=>{});for(const plugin_id of ['form','dataset','ppt','lingguang','workflows','schedule','feed'])c.addProjectPlugin({project_id:project.project_id,plugin_id,actor_id:'alice'});});
+  stage('projects ready');
   const sourceRuntime=await runtimePersonalSync(f.homes[0],f.space),targetRuntime=await runtimePersonalSync(f.homes[1],f.space);f.closeWith(()=>sourceRuntime.close());f.closeWith(()=>targetRuntime.close());const a=sourceRuntime.sync,b=targetRuntime.sync;
+  stage('runtimes ready');
   const factories=[openFormStore,openDatasetStore,openPptStore,openLingguangStore];
   const ids=factories.map(open=>{const s=open(f.homes[0]);try{return s.create({project_id:project.project_id,title:'跨设备业务内容'}).id;}finally{s.close();}});
   const workflow=(()=>{const s=openWorkflowsStore(f.homes[0]);try{
@@ -45,11 +48,13 @@ test('Host exposes and transfers all registered creative collections through the
     feedRuleId=new FeedOutRuleStore(fromBetterSqlite(scheduleStore.db)).create(project.project_id,{name:'跨设备捕捉',match:{contains:'发布'},enabled:true}).rule_id;
     new SourcesModule(fromBetterSqlite(scheduleStore.db)).commands.save({project_id:project.project_id,source_id:'portable-source',kind:'github',definition_id:'github.notifications',sync_kind:'github',name:'跨设备来源',description:'只同步描述与历史',status:'active',enabled:true,origin:'molis_work',config:{connection_id:'this-device-only-connection'},schedule:{mode:'interval',enabled:true,interval_minutes:30,next_pull_at:null},connection_ref:'this-device-only-reference',account_label:'This device',last_sync_at:null,last_outcome:null,last_error_code:null,imported_at:'2026-10-18T00:00:00.000Z',updated_at:'2026-10-18T00:00:00.000Z'});
   }finally{scheduleStore.close();}
+  stage('records ready');
   await a.run();await b.run();
   const selections=[formManifest,datasetManifest,pptManifest,lingguangManifest,workflowsManifest,jellyManifest,todoManifest,scheduleManifest,feedManifest].flatMap(m=>m.sync!.collections.map(c=>({plugin_id:m.plugin_id,publisher_id:m.publisher.publisher_id,publisher_signature:m.publisher.signature,collection_id:c.id,schema_version:c.schema_version})));
   selections.push({plugin_id:CHARACTER_PLUGIN_ID,publisher_id:'molis',publisher_signature:CHARACTER_PUBLISHER_SIGNATURE,collection_id:'drafts',schema_version:1});
   for(const selection of selections){const available=a.status().collections.find(row=>row.selection.plugin_id===selection.plugin_id&&row.selection.collection_id===selection.collection_id);assert.ok(available,selection.plugin_id+' '+selection.collection_id+' '+JSON.stringify(a.status().collections));assert.deepEqual(available.selection,selection);}assert.ok(a.status().collections.some(c=>c.selection.plugin_id==='io.molis.work.module.projects.v1'));assert.equal(a.policy().selections.length,0,'all current owner collections are opt-in');
   await a.save({...a.policy(),selections});for(let round=0;round<4;round++){await a.run();await b.run();}assert.equal(a.status().error,null);assert.equal(b.status().error,null);
+  stage('replication complete');
   factories.forEach((open,i)=>{const s=open(f.homes[1]);try{assert.equal(s.get(ids[i]!,project.project_id).title,'跨设备业务内容');}finally{s.close();}});
   const received=openWorkflowsStore(f.homes[1]);try{
     assert.equal(received.get(workflow.id,project.project_id).title,'跨设备流程');
@@ -78,14 +83,21 @@ test('Host exposes and transfers all registered creative collections through the
   assert.doesNotMatch(JSON.stringify(f.events),/this-device-only-connection|this-device-only-reference/,'source setup never enters the transport');
   // D0347: reopen the receiving project's real Plugin Runtime, then advance the shared scheduler.
   const reference=molisWorkHostProjectReference({databasePath:target.database_path,projectId:project.project_id});
+  stage('existing assertions complete');
   b.close();
   await targetRuntime.host.closeProject(reference);
+  stage('receiver closed');
   await targetRuntime.host.withProject(reference,async runtime=>{
     const scheduler=scheduleServiceFor(runtime.store.db);
+    stage('receiver reopened');
     const jobs=scheduler.list();
     assert.equal(jobs.filter(job=>job.object_ref==='sync-task'||job.object_ref===feedRuleId||job.object_ref==='portable-source').length,0,'no job is registered for received content after restart');
     const beforeRequests=requests.length;
-    const tick=await scheduler.tick(new Date('2030-01-01T12:00:00.000Z'));
+    // Pass every registered due point plus the fixture's daily task and 30-minute source, without an unrelated four-year catch-up.
+    const afterDue=new Date(Math.max(Date.now()+2*86400_000,...jobs.filter(job=>job.enabled).map(job=>Date.parse(job.next_due_at)))+1);
+    stage(`before scheduler tick (${Math.round((afterDue.getTime()-Date.now())/86400_000)}d, ${jobs.length} jobs)`);
+    const tick=await scheduler.tick(afterDue);
+    stage('scheduler tick complete');
     assert.equal(tick.failed,0,'the plugin maintenance wakeup still works');
     assert.equal(requests.length,beforeRequests,'the maintenance wakeup pulls no received source before local opt-in');
     const sql=runtime.store.db;
@@ -94,5 +106,6 @@ test('Host exposes and transfers all registered creative collections through the
     assert.equal((sql.prepare('SELECT COUNT(*) AS n FROM schedule_conversation_turns WHERE task_id=?').get('sync-task') as {n:number}).n,0,'no imported task is executed');
     assert.equal(new SourcesModule(fromBetterSqlite(sql)).query.get(project.project_id,'portable-source').enabled,false);
   },{activatePlugins:true});
+  stage('restart assertions complete');
 
 });

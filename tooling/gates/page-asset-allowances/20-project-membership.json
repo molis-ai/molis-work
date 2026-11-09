@@ -1,8 +1,8 @@
 {
   "reason": "项目插件成员保存携带观察 revision，并呈现冲突重读及成员已保存但 Runtime 待同步的回执。手机选择器打开时，现有失败提示显示在选择器上方。",
-  "review": "specs/scene-and-page-contract/spec.md §14.2，Astra high 最终资源限定复核 06b28f8ef54df37ea9e7be6041108769ef251ec2",
+  "review": "specs/scene-and-page-contract/spec.md §14.2，PR #2000 Astra high 限定审阅 https://github.com/molis-ai/molis-work/pull/2000#issuecomment-6742161422（基点 1d32d49d6bdff86791d76e4ebf0cebecb2809228，候选 39c444c039ecb11f8222b48bcf27bbbde8eb383e）",
   "assets": {
-    "/assets/molis-work-workbench.js": 1976,
+    "/assets/molis-work-workbench.js": 1981,
     "/assets/molis-work-workbench.css": 52
   }
 }

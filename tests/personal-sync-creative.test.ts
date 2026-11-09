@@ -49,11 +49,11 @@ test('Host exposes and transfers all registered creative collections through the
     new SourcesModule(fromBetterSqlite(scheduleStore.db)).commands.save({project_id:project.project_id,source_id:'portable-source',kind:'github',definition_id:'github.notifications',sync_kind:'github',name:'跨设备来源',description:'只同步描述与历史',status:'active',enabled:true,origin:'molis_work',config:{connection_id:'this-device-only-connection'},schedule:{mode:'interval',enabled:true,interval_minutes:30,next_pull_at:null},connection_ref:'this-device-only-reference',account_label:'This device',last_sync_at:null,last_outcome:null,last_error_code:null,imported_at:'2026-10-18T00:00:00.000Z',updated_at:'2026-10-18T00:00:00.000Z'});
   }finally{scheduleStore.close();}
   stage('records ready');
-  await a.run();await b.run();
+  await a.run();stage('initial source run');await b.run();stage('initial receiver run');
   const selections=[formManifest,datasetManifest,pptManifest,lingguangManifest,workflowsManifest,jellyManifest,todoManifest,scheduleManifest,feedManifest].flatMap(m=>m.sync!.collections.map(c=>({plugin_id:m.plugin_id,publisher_id:m.publisher.publisher_id,publisher_signature:m.publisher.signature,collection_id:c.id,schema_version:c.schema_version})));
   selections.push({plugin_id:CHARACTER_PLUGIN_ID,publisher_id:'molis',publisher_signature:CHARACTER_PUBLISHER_SIGNATURE,collection_id:'drafts',schema_version:1});
   for(const selection of selections){const available=a.status().collections.find(row=>row.selection.plugin_id===selection.plugin_id&&row.selection.collection_id===selection.collection_id);assert.ok(available,selection.plugin_id+' '+selection.collection_id+' '+JSON.stringify(a.status().collections));assert.deepEqual(available.selection,selection);}assert.ok(a.status().collections.some(c=>c.selection.plugin_id==='io.molis.work.module.projects.v1'));assert.equal(a.policy().selections.length,0,'all current owner collections are opt-in');
-  await a.save({...a.policy(),selections});for(let round=0;round<4;round++){await a.run();await b.run();}assert.equal(a.status().error,null);assert.equal(b.status().error,null);
+  await a.save({...a.policy(),selections});stage('policy saved');for(let round=0;round<4;round++){await a.run();stage(`source round ${round}`);await b.run();stage(`receiver round ${round}`);}assert.equal(a.status().error,null);assert.equal(b.status().error,null);
   stage('replication complete');
   factories.forEach((open,i)=>{const s=open(f.homes[1]);try{assert.equal(s.get(ids[i]!,project.project_id).title,'跨设备业务内容');}finally{s.close();}});
   const received=openWorkflowsStore(f.homes[1]);try{

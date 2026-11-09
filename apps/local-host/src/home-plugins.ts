@@ -2,7 +2,9 @@ import { renderHomePackageDocument } from "./plugin-builder/agent-surface.js";
 import { ActionError, requireSynchronous, type ActionCallContext, type ActionClient, type ActionExecutionContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginInstallRecords } from "./plugin-install-records.js";
 import { openHomeInstalledPlugins, type HomeInstalledPlugins } from "./home-installed-plugins.js";
-import { installedVersion, type InstalledRelease } from "./installed-release.js";
+import type { InstalledRelease } from "./installed-release.js";
+import { assertStageInstallation, installedStageReleaseMatches } from "./installed-stage-identity.js";
+import type { SurfaceInstallationRef } from "@molis-ai/molis-work-contracts/services/surface-composition";
 import { installedPageSelection } from "./plugin-page-authority.js";
 import { pluginErrors, type PluginDefinition, type PluginInstanceRecord, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { PLUGIN_PRESENTATION_CAPABILITY, type UiSlotDescriptor } from "@molis-ai/molis-work-contracts/platform/ui";
@@ -69,6 +71,8 @@ export class HomePluginHost {
         pending: [...this.options.entries.map(entry => entry.manifest), ...pluginFixtureEntries(this.options.fixtures ?? []).map(entry => entry.definition.manifest)] };
     },
   });
+  /** Stage projection may observe the live platform without awaiting or starting the Home. */
+  readonly surfacePlatform = (): HomePluginPlatform | undefined => this.closed ? undefined : this.platform;
   private readonly releaseRegistration: () => void;
   constructor(private readonly options: { home: string; actorId: string; registry: SurfaceInstallRegistry; client: ActionClient;
     entries: readonly HomePluginEntry[]; fixtures?: readonly PluginFixture[]; installed?: ReadonlySet<PluginDefinition>; projectReach?: PluginProjectReach;
@@ -170,12 +174,14 @@ export class HomePluginHost {
    * such a package, is not running, or did not come back.
    */
   packageSurface(pluginId: string): string | undefined {
-    return this.installed?.releaseFor(pluginId) && this.installation(pluginId)?.state === "running" && !this.packageError(pluginId) ? pluginId : undefined;
+    const record = this.installation(pluginId);
+    return record?.state === "running" && installedStageReleaseMatches(record, this.installed?.releaseFor(pluginId)) && !this.packageError(pluginId) ? pluginId : undefined;
   }
   /** The page that stage frames (`?frame=workbench`), opened for the person under the package's Home activation. Throws when that is not open. */
-  packageDocument(pluginId: string, controlToken: string, projectId: string | null = null, accountRegistration=false): string | undefined {
+  packageDocument(pluginId: string, controlToken: string, projectId: string | null = null, accountRegistration=false, expected?: SurfaceInstallationRef): string | undefined {
     const release = this.packageSurface(pluginId) ? this.installed?.releaseFor(pluginId) : undefined, record = this.installation(pluginId);
-    return release && record?.version === installedVersion(release) ? renderHomePackageDocument({ home: this.options.home, actorId: this.options.actorId, release, controlToken, projectId, accountRegistration,
+    if (expected) assertStageInstallation("home", record, expected);
+    return record && installedStageReleaseMatches(record, release) ? renderHomePackageDocument({ home: this.options.home, actorId: this.options.actorId, release, controlToken, projectId, accountRegistration,
       selection: installedPageSelection(record, null, () => this.installation(pluginId)),
       assertProject: projectId ? async () => {
         if (!this.options.projectActions) throw new ActionError("actions.forbidden", "Home 插件没有项目入口");

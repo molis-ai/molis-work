@@ -10,9 +10,12 @@ import type { PluginImageGenerationDeclaration, PluginInstanceRecord, PluginMani
 import { PLUGIN_CONNECTIONS_PERMISSION } from "@molis-ai/molis-work-contracts/platform/plugin-connections";
 import { pluginRouteMatcher } from "@molis-ai/molis-work-plugin-runtime";
 import { projectDeletedHooksFor } from "./project-deleted-hooks.js";
+import type { installedComponentSubmit } from "./installed-action-registration.js";
 import type { PageActionRequest } from "./plugin-page-actions.js";
+import { installedPageRelease, sameInstalledRelease } from "./installed-stage-identity.js";
+export { installedPageRelease };
 
-type PageRelease = Readonly<Pick<PluginInstanceRecord, "install_id" | "installation_generation" | "version" | "manifest_digest">>;
+type PageRelease = ReturnType<typeof installedPageRelease>;
 
 interface PageSelection {
   install_id: string;
@@ -23,19 +26,11 @@ interface PageSelection {
   assertCurrent(): void;
 }
 
-export function installedPageRelease(record: PluginInstanceRecord): PageRelease {
-  const { install_id, installation_generation, version, manifest_digest } = record;
-  return Object.freeze({ install_id, installation_generation, version, manifest_digest });
-}
-function sameRelease(expected: PageRelease, actual: PageRelease | null | undefined): boolean {
-  return actual?.install_id === expected.install_id && actual.installation_generation === expected.installation_generation
-    && actual.version === expected.version && actual.manifest_digest === expected.manifest_digest;
-}
 export function installedPageSelection(record: PluginInstanceRecord, project_id: string | null, current: () => PluginInstanceRecord | null | undefined): PageSelection {
   const release = installedPageRelease(record);
   return { install_id: release.install_id, project_id, release, assertCurrent() {
     const now = current();
-    if (now?.state !== "running" || !sameRelease(release, now)) throw refused();
+    if (now?.state !== "running" || !sameInstalledRelease(release, now)) throw refused();
   } };
 }
 
@@ -49,6 +44,7 @@ interface Activation {
   readonly image_generation?: PluginImageGenerationDeclaration;
   assertCurrent(permission?: string): void;
   invoke?(request: PageActionRequest): Promise<unknown>;
+  componentForm?: NonNullable<ReturnType<typeof installedComponentSubmit>>["form"];
   resolveFiles?(paths: readonly string[]): readonly string[];
   requestAllowed?(method: string, pathname: string): boolean;
 }
@@ -94,11 +90,32 @@ export class PluginPageAuthority {
     };
   }
 
+  /** Prove only a real input form of the original signed activation, without opening a page or parsing a submission. */
+  installedStartForm(pluginId: string, projectId: string | null, actorId: string, release: PageRelease,
+    panel: string, target: { capability_id: string; version: number }) {
+    const matches = [...this.activations].filter(item => item.manifest.plugin_id === pluginId && item.project_id === projectId
+      && item.actor_id === actorId && sameInstalledRelease(release, item.release));
+    const activation = matches.length === 1 ? matches[0] : undefined;
+    const form = activation?.componentForm?.(panel, target);
+    if (!activation || !form) return undefined;
+    return { action: form.action, retain: () => {
+      const authority = form.retain();
+      const assertCurrent = () => {
+        if (!this.activations.has(activation)) throw refused();
+        activation.assertCurrent();
+        for (const permission of form.ownPermissions) activation.assertCurrent(permission);
+        authority.assertCurrent();
+      };
+      assertCurrent();
+      return { permissions: authority.permissions, assertCurrent };
+    } };
+  }
+
   open(pluginId: string, projectId: string | null, actorId: string, assertScope?: () => Promise<void>, registered?: Activation,
     selected?: PageSelection): { page_id: string; storage_scope: string } {
     const candidates = [...this.activations].filter(item => item.install_id && item.manifest.plugin_id === pluginId && item.actor_id === actorId);
     const activation = selected ? candidates.find(item => item.install_id === selected.install_id && item.project_id === selected.project_id
-      && (!selected.release || sameRelease(selected.release, item.release)))
+      && (!selected.release || sameInstalledRelease(selected.release, item.release)))
       : candidates.find(item => item.project_id === null && item.resolveFiles)
         ?? candidates.find(item => item.project_id === projectId) ?? candidates.find(item => item.project_id === null) ?? registered;
     if (!activation) throw refused();

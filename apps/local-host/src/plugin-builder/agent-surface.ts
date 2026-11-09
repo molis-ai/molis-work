@@ -19,11 +19,15 @@ import { AgentBuilderWorkflow, inDesignOrder, BUILDER_PLUGIN_ID, builderManifest
 import type { LocalProjectDatabase } from '../project-database.js';
 import { selectionPorts } from '../plugin-builder-surface.js';
 import { installedStageSection, installedStageSurface } from '../installed-stage-section.js';
-import { installedVersion, type InstalledRelease } from '../installed-release.js';
+import type { InstalledRelease } from '../installed-release.js';
+import { assertStageInstallation, installedStageIdentity, installedStageReleaseMatches, requestedStageInstallation } from '../installed-stage-identity.js';
+import { captureWebSessionAuthority } from '../web-sessions.js';
 import { readLocalWebBody, sendLocalWebJson } from '../web-http.js';
 import { ensureInstalledPlugins, INSTALLED_MODEL_KEY } from '../installed-plugin-host.js';
 import { generatedPluginManifest } from './installed.js';
 import { capabilityCatalog, type CatalogCapability, type ProjectActions } from './catalog.js';
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { loopbackHost } from '@molis-ai/molis-work-contracts/platform/loopback';
 import { hostLog } from "../host-log.js";
 import { readStudioDistribution } from './studio-release.js';
@@ -158,10 +162,10 @@ export async function installedPluginStages(options: AgentStudioOptions): Promis
   const installed = await ensureInstalledPlugins({ ...options, homeDirectory: options.homeDirectory }), prefix = options.routePrefix ?? '';
   return installed.records().filter(item => item.state === 'running' && !installed.recoveryErrors.has(item.plugin_id)).flatMap(item => {
     const release = installed.releaseFor(item.plugin_id);
-    if (!release) return [];
+    if (!installedStageReleaseMatches(item, release, installed.platform.supervisor.manifest(item.plugin_id))) return [];
     const surface = installedStageSurface(release), label = release.design.title;
     const directory: PluginDirectoryEntry = { id: surface, plugin_id: item.plugin_id, name: label, chosen: false, ui: { views: generatedPluginManifest(release).ui.views ?? [] } };
-    return [{ pluginId: item.plugin_id, surface, label, directory, stage: installedStageSection({ pluginId: item.plugin_id, surface, label, prefix }) }];
+    return [{ pluginId: item.plugin_id, surface, label, directory, stage: installedStageSection({ pluginId: item.plugin_id, surface, label, prefix, installation: installedStageIdentity("project", item) }) }];
   });
 }
 
@@ -199,18 +203,23 @@ export async function handleAgentStudioHttp(request: IncomingMessage, response: 
   const disconnect = () => { if (!response.writableEnded) disconnected.abort(new Error('调用连接已关闭')); };
   request.once('aborted', disconnect); response.once('close', disconnect);
   const signal = pageAuthority ? AbortSignal.any([pageAuthority.signal, disconnected.signal]) : disconnected.signal;
-  const assertCurrent = () => { signal.throwIfAborted(); pageAuthority?.assertCurrent(); };
+  const currentSession = captureWebSessionAuthority();
+  const assertCurrent = () => { currentSession(); signal.throwIfAborted(); pageAuthority?.assertCurrent(); };
   // A native workbench request has already passed the shared local control guard; its live request owns this execution.
   const execution: PluginExecutionControl = { signal, beforeEffect: async () => { assertCurrent(); await pageAuthority?.beforeEffect(); assertCurrent(); },
     assert_authority_current: assertCurrent };
   try {
     if (installedPage || installedCall) {
       if (!options.homeDirectory) return false;
+      const expected = installedPage ? requestedStageInstallation(url) : undefined;
+      if (expected?.scope === "home") throw new ActionError("actions.provider_changed", "原舞台安装已变化，请重新打开");
       const installed = await ensureInstalledPlugins({ ...options, homeDirectory: options.homeDirectory });
+      assertCurrent();
       const pluginId = (installedPage ?? installedCall)![1]!;
       const current = () => installed.records().find(item => item.plugin_id === pluginId);
       const record = current();
       // Only the actual installed-project owner takes over this address space.
+      if (expected) assertStageInstallation("project", record, expected);
       if (!record) return false;
       if (installedCall) {
         const result = await installed.platform.router().dispatch({ method: 'POST', pathname: '/api/plugins/' + pluginId + '/call', actor_id: options.actorId ?? 'web-user', query: {}, execution, body: await readLocalWebBody(request) });
@@ -219,7 +228,10 @@ export async function handleAgentStudioHttp(request: IncomingMessage, response: 
       }
       if (installedPage) {
         const release = installed.releaseFor(pluginId);
-        if (!release || installedVersion(release) !== record.version) { sendLocalWebJson(response, 404, { error: '找不到这个插件的已安装版本' }); return true; }
+        if (!installedStageReleaseMatches(record, release, installed.platform.supervisor.manifest(pluginId))) {
+          if (expected) throw new ActionError("actions.provider_changed", "原舞台安装已变化，请重新打开");
+          sendLocalWebJson(response, 404, { error: '找不到这个插件的已安装版本' }); return true;
+        }
         if (!framed) return openWorkbench('openSurface=' + encodeURIComponent(installedStageSurface(release)));
         const recoveryError = installed.recoveryErrors.get(pluginId);
         if (recoveryError) {
@@ -229,6 +241,8 @@ export async function handleAgentStudioHttp(request: IncomingMessage, response: 
         const view = { contract: release.design.contract, nodes: inDesignOrder(release.design, release.nodes), presentation: release.design.presentation, connected: release.design.contract.operations.map(item => item.id) };
         // Only the plugin: its name, version and the way back to the studio are the workbench's (tab and stage), not the frame's.
         const body = '<main class="as-preview-page" data-installed-plugin="' + escapeHtml(pluginId) + '"></main>';
+        assertStageInstallation("project", current(), expected ?? installedStageIdentity("project", record));
+        assertCurrent();
         html(response, page(release.design.title, body, { mode: 'installed', plugin_id: pluginId, call: prefix + '/api/plugins/' + pluginId + '/call', view }, options, controlToken,
           installedPageSelection(record, options.projectId, current)));
         return true;
@@ -308,6 +322,7 @@ export async function handleAgentStudioHttp(request: IncomingMessage, response: 
     }
     sendLocalWebJson(response, 404, { error: '未声明的创作台操作' }); return true;
   } catch (error) {
+    if (installedPage && error instanceof ActionError) { const refused = actionErrorResponse(error); sendLocalWebJson(response, refused.status, refused.body); return true; }
     const code = (error as { code?: string }).code;
     sendLocalWebJson(response, code === 'revision_conflict' ? 409 : 400, { error: message(error), ...(code ? { code } : {}) });
     return true;

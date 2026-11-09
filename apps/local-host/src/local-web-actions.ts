@@ -7,7 +7,9 @@ import type { MolisWorkLocalHost } from "./project-host.js";
 import { pageLocale } from "./web-locale.js";
 import { LOCAL_OWNER_PERMISSIONS, localOwnerPermissionsOver } from "./local-owner-permissions.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { runningProjectPlatform } from "./project-plugins.js";
+import { currentProjectPlatform, runningProjectPlatform } from "./project-plugins.js";
+import type { LocalProjectDatabase } from "./project-database.js";
+import { sameInstalledRelease } from "./installed-stage-identity.js";
 
 type LocalActionMetadata = ReturnType<MolisWorkLocalHost["inspectActionMetadata"]>[number];
 
@@ -34,23 +36,43 @@ export async function capturePluginSceneAuthority(host: MolisWorkLocalHost, view
   return () => { for (const check of checks) check(); };
 }
 
-/** Only the authenticated local-user transport uses this adapter; it is not an Agent/MCP grant resolver. */
-export async function localWebActionContext(host: MolisWorkLocalHost, reference: LocalHostProjectReference | undefined,
-  builtinPermissions: readonly string[], signal?: AbortSignal, entry: LocalWebEntry = {}, stageAction?: ActionDefinition): Promise<ActionCallContext> {
+function localWebCaller(reference: LocalHostProjectReference | undefined, builtinPermissions: readonly string[], signal?: AbortSignal, entry: LocalWebEntry = {}) {
   const sessionCurrent = captureWebSessionAuthority();
   sessionCurrent();
   signal?.throwIfAborted();
-  // What a handler sends back to be shown follows the page the call came from; a call no page made keeps the handler's default.
   const locale = pageLocale();
-  const base: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: reference?.project_id ?? null, audience: "user", permissions: builtinPermissions, signal,
+  const caller: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: reference?.project_id ?? null, audience: "user", permissions: builtinPermissions, signal,
     ...(locale ? { locale } : {}), ...(entry.original_file ? { original_file: entry.original_file } : {}) };
+  return { caller, sessionCurrent };
+}
+
+/** Only the authenticated local-user transport uses this adapter; it is not an Agent/MCP grant resolver. */
+export async function localWebActionContext(host: MolisWorkLocalHost, reference: LocalHostProjectReference | undefined,
+  builtinPermissions: readonly string[], signal?: AbortSignal, entry: LocalWebEntry = {}, stageAction?: ActionDefinition): Promise<ActionCallContext> {
+  const { caller, sessionCurrent } = localWebCaller(reference, builtinPermissions, signal, entry);
   // Inspection activates the actual project providers. Metadata alone never supplies a grant.
-  const catalog = await host.inspectPreparedActionMetadata(base, reference);
+  const catalog = await host.inspectPreparedActionMetadata(caller, reference);
   signal?.throwIfAborted();
-  const projectRepository = reference ? await host.withProject(reference, runtime => new SqlitePluginRuntimeRepository(runtime.store.db)) : undefined;
-  const installed = projectRepository?.list() ?? [];
+  const repository = reference ? await host.withProject(reference, runtime => new SqlitePluginRuntimeRepository(runtime.store.db)) : undefined;
   const platform = reference ? await host.withProject(reference, runtime => runningProjectPlatform(runtime.store, runtime.project_id)) : null;
+  return localWebAuthority(host, reference, caller, sessionCurrent, catalog, repository, platform, entry, stageAction);
+}
+
+/** The homepage may use only registrations and installations that are already here. */
+export function openProjectPersonContext(host: MolisWorkLocalHost, reference: LocalHostProjectReference, store: LocalProjectDatabase, signal: AbortSignal) {
+  const { caller, sessionCurrent } = localWebCaller(reference, LOCAL_OWNER_PERMISSIONS, signal);
+  const metadata = host.inspectActionMetadata(caller, reference);
+  return { metadata, caller: localWebAuthority(host, reference, caller, sessionCurrent, metadata,
+    new SqlitePluginRuntimeRepository(store.db), currentProjectPlatform(store, reference.project_id)) };
+}
+
+function localWebAuthority(host: MolisWorkLocalHost, reference: LocalHostProjectReference | undefined, base: ActionCallContext, sessionCurrent: () => void,
+  catalog: readonly LocalActionMetadata[], projectRepository: SqlitePluginRuntimeRepository | undefined,
+  platform: Awaited<ReturnType<typeof runningProjectPlatform>>, entry: LocalWebEntry = {}, stageAction?: ActionDefinition): ActionCallContext {
+  const { permissions: builtinPermissions, signal } = base;
+  sessionCurrent();
   signal?.throwIfAborted();
+  const installed = projectRepository?.list() ?? [];
   // A plugin that runs as the Home's instance and as a project's has one install_id in both databases (a hash of its id and publisher),
   // each record with its own generation and grants. The two tables are never merged: an instance reads the record of its own database.
   const projectRecords = new Map(installed.filter(row => row.state === "running").map(row => [row.install_id, row]));
@@ -142,8 +164,9 @@ export async function localWebActionContext(host: MolisWorkLocalHost, reference:
     const installId = original?.provider.plugin_install_id;
     const install = !installId || !original ? undefined : inProject(original.provider) ? projectRepository?.get(installId)
       : host.homePlugins?.installations().find(record => record.install_id === installId);
-    if (!original || !install || install.state !== "running" || install.plugin_id !== original.provider.plugin_id
-      || install.installation_generation !== installOf(original.provider)?.installation_generation
+    const held = original && installOf(original.provider);
+    if (!original || !install || !held || install.state !== "running" || install.plugin_id !== original.provider.plugin_id
+      || !sameInstalledRelease(held, install)
       || !original.action.permissions.every(permission => install.grants.includes(permission))) {
       throw new ActionError("actions.forbidden", "此能力的本地用户授权已失效，请检查插件权限和运行状态");
     }

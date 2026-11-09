@@ -55,7 +55,7 @@ interface InstalledPluginHostOptions {
 
 /** One execution owner per project database. Authoring and its Workflow are separate consumers. */
 type InstalledPluginHost = Awaited<ReturnType<typeof openInstalledPlugins>>;
-const hosts = new WeakMap<LocalProjectDatabase, Map<string, { home: string; actor: string; project: string; ready: Promise<InstalledPluginHost> }>>();
+const hosts = new WeakMap<LocalProjectDatabase, Map<string, { home: string; actor: string; project: string; ready: Promise<InstalledPluginHost>; current?: InstalledPluginHost }>>();
 
 /** Passive projection of the unique installed execution owner; never installs or starts a second platform. */
 export async function runningInstalledPluginPlatform(store: LocalProjectDatabase, projectId: string) {
@@ -64,6 +64,10 @@ export async function runningInstalledPluginPlatform(store: LocalProjectDatabase
 }
 /** The refusal a sandbox's Host call gets once the installation it belongs to is no longer the running one (a project's or the Home's). */
 export const staleInstallation = (message = '插件的安装执行身份已失效'): SandboxError => new SandboxError('plugin.capability_denied', message);
+
+/** A passive read never waits for a sandbox recovery or opens a plugin host. */
+export const currentInstalledPluginHost = (store: LocalProjectDatabase, projectId: string) =>
+  hosts.get(store)?.get(projectId)?.current;
 
 export function ensureInstalledPlugins(options: InstalledPluginHostOptions): Promise<InstalledPluginHost> {
   const boards = hosts.get(options.store) ?? new Map(); hosts.set(options.store, boards);
@@ -74,9 +78,11 @@ export function ensureInstalledPlugins(options: InstalledPluginHostOptions): Pro
     return existing.ready;
   }
   const ready = openInstalledPlugins(options);
-  const entry = { ...identity, ready }; boards.set(options.projectId, entry);
-  ready.catch(() => { if (boards.get(options.projectId) === entry) boards.delete(options.projectId); });
-  return ready;
+  const entry: NonNullable<ReturnType<typeof boards.get>> = { ...identity,
+    ready: ready.then(installed => { entry.current = installed; return installed; }) };
+  boards.set(options.projectId, entry);
+  entry.ready.catch(() => { if (boards.get(options.projectId) === entry) boards.delete(options.projectId); });
+  return entry.ready;
 }
 
 export async function releaseInstalledPlugins(store: LocalProjectDatabase, projectId: string): Promise<void> {

@@ -126,7 +126,7 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
     const submit = installedComponentSubmit(definition, options.actions, readRecord);
     const record = submit && readRecord();
     withdrawPages = options.home ? pluginPagesFor(options.home.directory).connect({ manifest, install_id: context.install_id, project_id: options.project_id, actor_id: options.actor_id,
-      release: record ? installedPageRelease(record) : undefined,
+      release: record ? installedPageRelease(record) : undefined, componentForm: submit?.form,
       invoke: pluginPageActions(manifest, context, { client: options.actions.client, actions: hosted.services?.actions, caller: pluginCaller, provider: providerId, submit }),
       assertCurrent: permission => { assertActive(); if (permission) context.requireGrant(permission); } }) : undefined;
     return { context: servicesUntilStopped(hosted, () => stopped, stoppedCalls), starting: run => background ? background.starting(run) : run(),

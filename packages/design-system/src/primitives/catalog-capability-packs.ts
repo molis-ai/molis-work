@@ -4,7 +4,7 @@
 // first product page that draws them (the 09 batch's AI kit page). Every control inside them is an existing one (button, status
 // mark, badge, menu); the rules only place them, on tokens only. The renderers below are what a page calls; the sections after them
 // are the board's specimens.
-import { cx, escapeHtml, renderAttrs, renderButton, renderStatusMark, type AttrValue, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { cx, escapeHtml, icon, renderAttrs, renderButton, renderStatusMark, type AttrValue, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderMenu, renderMenuGroup, renderMenuItem } from "./overlay.js";
 import { section, specimen } from "./catalog-parts.js";
 import type { Say } from "./catalog-composer.js";
@@ -19,6 +19,25 @@ export const CAPABILITY_PACK_BOARD_STYLES = `
   .mw-now__actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-width: 0; }
   .mw-now__actions:empty { display: none; }
   .mw-anchored-menu[popover] { position: fixed; inset: auto; margin: 0; overflow-y: auto; width: 320px; max-width: calc(100vw - 32px); }
+
+  /* 2 · An item group: a parent row (choosable, with where it applies) and, indented under it, its own entries. */
+  .mw-item-groups { container: mw-item-groups / inline-size; display: grid; gap: 8px; min-width: 0; margin: 0; padding: 0; list-style: none; }
+  .mw-item-group { display: grid; min-width: 0; padding: 6px; border-radius: var(--r-card, 12px); background: var(--paper); box-shadow: var(--lift-1); }
+  .mw-item-group__head { appearance: none; display: flex; align-items: flex-start; gap: 12px; width: 100%; min-width: 0; min-height: 44px; margin: 0; padding: 8px 8px 8px 10px; border: 0; border-radius: var(--sk-r-item, 8px); background: transparent; color: inherit; font: inherit; text-align: start; cursor: pointer; transition: background-color var(--dur-hover) var(--ease-quint); }
+  .mw-item-group__head:hover { background: var(--nav-hover); }
+  .mw-item-group__head[aria-current="true"] { background: var(--nav-active); }
+  .mw-item-group__head:active { background: var(--nav-press); }
+  .mw-item-group__head:focus-visible { outline: var(--focus-stroke); outline-offset: -2px; }
+  .mw-item-group__text { display: grid; gap: 2px; flex: 1 1 auto; min-width: 0; }
+  .mw-item-group__text strong { color: var(--ink); font-size: 13px; font-weight: var(--weight-title, 600); line-height: 1.4; overflow-wrap: break-word; }
+  .mw-item-group__text small { color: var(--muted); font-size: 12px; line-height: 1.45; }
+  .mw-item-group__text .mw-item-group__where { color: var(--ink-soft); }
+  .mw-item-group__head > .mw-item__end { margin-top: 4px; }
+  .mw-item-group__children { display: grid; gap: 4px; min-width: 0; margin: 2px 0 0 54px; padding: 8px 0 2px; border-top: 1px solid var(--line); }
+  .mw-item-group__label { padding: 0 4px; color: var(--faint); font-size: 11px; font-weight: var(--weight-control, 500); }
+  .mw-item-group__children > .mw-items { width: 100%; padding: 0; background: transparent; box-shadow: none; }
+  .mw-item-group__empty { margin: 0; padding: 4px; color: var(--muted); font-size: 12px; }
+  @container mw-item-groups (max-width: 360px) { .mw-item-group__children { margin-left: 0; } }
 
   @media (prefers-reduced-motion: reduce) { :is(.mw-item-group__head, .mw-cell) { transition: none; } }
 
@@ -54,6 +73,33 @@ export function renderNowBlock(options: { status: string; note?: string; actions
   return `<div class="${cx("mw-now", options.className)}" data-slot="now"${renderAttrs(options.attrs)}>${options.status}${note}<div class="mw-now__actions">${options.actions ?? ""}${trigger}${layer}</div></div>`;
 }
 
+/** One choosable row (08's list entry: the list item stays, a real button fills it). */
+export interface PickRow {
+  readonly glyph: PluginIconName;
+  readonly name: string;
+  readonly sub: string;
+  readonly end: string;
+  readonly current?: boolean;
+  readonly attrs?: Record<string, AttrValue>;
+}
+
+export function renderPickRow(row: PickRow): string {
+  return `<li class="mw-item mw-item--pick"><button type="button" class="mw-item__pick"${row.current ? ' aria-current="true"' : ""}${renderAttrs(row.attrs)}><span class="mw-mark" aria-hidden="true">${icon(row.glyph)}</span><span><strong>${
+    escapeHtml(row.name)}</strong><small title="${escapeHtml(row.sub)}">${escapeHtml(row.sub)}</small></span><span class="mw-item__end">${row.end}</span></button></li>`;
+}
+
+/**
+ * 2 · An item group: the parent row (its name, what it is, where it applies) and its own entries indented under a quiet label.
+ * `children` are `renderPickRow` rows; with none, `empty` says so in place.
+ */
+export function renderItemGroup(options: { glyph: PluginIconName; name: string; description: string; where: string; end: string; label: string;
+  children: readonly string[]; empty: string; current?: boolean; attrs?: Record<string, AttrValue> }): string {
+  const children = options.children.length ? `<ul class="mw-items">${options.children.join("")}</ul>` : `<p class="mw-item-group__empty">${escapeHtml(options.empty)}</p>`;
+  return `<li class="mw-item-group"><button type="button" class="mw-item-group__head"${options.current ? ' aria-current="true"' : ""}${renderAttrs(options.attrs)}><span class="mw-mark" aria-hidden="true">${icon(options.glyph)}</span><span class="mw-item-group__text"><strong>${
+    escapeHtml(options.name)}</strong><small>${escapeHtml(options.description)}</small><small class="mw-item-group__where">${escapeHtml(options.where)}</small></span><span class="mw-item__end">${options.end}</span></button><div class="mw-item-group__children" role="group" aria-label="${
+    escapeHtml(`${options.name} · ${options.label}`)}"><span class="mw-item-group__label" aria-hidden="true">${escapeHtml(options.label)}</span>${children}</div></li>`;
+}
+
 /* ---------- the board's specimens (made up; nothing is read from a Home). Every text is still Chinese: `say` turns it. ---------- */
 
 const hold = (word: string) => renderStatusMark({ label: word, tone: "hold", state: "unavailable" });
@@ -78,6 +124,23 @@ export function nowBlockSection(say: Say): string {
     ${specimen(say("一条的「现在」：说明在下，去处一排"), renderNowBlock({ status: statusLine(renderStatusMark({ label: say("默认已更新"), tone: "attention", state: "stale" }), say("用的是你的版本，基于第 3 版；默认已更新到第 4 版。")),
       note: say("这里不显示正文。改写、对比和恢复默认都在「提示词」里，从下一轮生效。"),
       actions: renderButton({ label: say("对比新的默认"), variant: "secondary", size: "sm", icon: "arrow" }) + renderButton({ label: say("在提示词里改"), variant: "secondary", size: "sm", icon: "arrow" }) }))}
+  </div>`);
+}
+
+function promptRow(say: Say, name: string, sub: string, word: string, current = false): string {
+  return renderPickRow({ glyph: "text", name: say(name), sub: say(sub), end: word === "默认已更新" ? renderStatusMark({ label: say(word), tone: "attention", state: "stale" }) : inUse(say(word)), current });
+}
+
+export function itemGroupSection(say: Say): string {
+  const editor = renderItemGroup({ glyph: "user", name: say("写作编辑"), description: say("改稿、压缩篇幅、统一语气"), where: say("生效：助理、Pages"), end: inUse(say("在用")), label: say("它的提示词"),
+    children: [promptRow(say, "写作编辑的说明", "写作工具 · 默认第 2 版", "默认", true), promptRow(say, "语气要求", "你的版本基于第 3 版；默认已更新到第 4 版", "默认已更新")], empty: say("没有自己的提示词") });
+  const reference = renderItemGroup({ glyph: "user", name: say("个人助理"), description: say("你每天对话的助理"), where: say("Molis Work 自带的个人助理，这里只是引用"), end: inUse(say("在用")), label: say("它的提示词"),
+    children: [promptRow(say, "提纲要求", "写作工具 · 没有归属角色，默认归个人助理", "默认")], empty: say("没有自己的提示词") });
+  const none = renderItemGroup({ glyph: "user", name: say("审阅者"), description: say("只读地检查改动"), where: say("现在没有地方用它"), end: renderStatusMark({ label: say("已停用"), tone: "quiet", state: "paused" }), label: say("它的提示词"),
+    children: [], empty: say("没有自己的提示词") });
+  return section("item-group", say("条目组 / Item Group"), `<div class="mw-catalog__specimens">
+    ${specimen(say("父行可选中，子条目缩进列在下面"), `<ul class="mw-item-groups">${editor}</ul>`)}
+    ${specimen(say("引用行与没有子条目"), `<ul class="mw-item-groups">${reference}${none}</ul>`)}
   </div>`);
 }
 

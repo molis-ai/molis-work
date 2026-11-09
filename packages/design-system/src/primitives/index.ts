@@ -56,5 +56,8 @@ export { CAPABILITY_PACK_BOARD_EN } from "./catalog-capability-packs-en.js";
 export {
   CAPABILITY_PACK_BOARD_STYLES,
   renderNowBlock,
+  renderPickRow,
+  renderItemGroup,
   type NowMenu,
+  type PickRow,
 } from "./catalog-capability-packs.js";

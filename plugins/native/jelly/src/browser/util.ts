@@ -25,6 +25,6 @@ export type Tone = (typeof TONES)[number];
 export const TONE_COLORS: Record<Tone, string> = { blue: "#5E6AD2", green: "#2D7A5A", amber: "#8A5C18", red: "#B03D45", purple: "#8B5CF6", teal: "#3D6F78", gray: "#737882" };
 export const toneOf = (color: unknown): Tone => TONES.find((tone) => TONE_COLORS[tone].toLowerCase() === String(color).toLowerCase()) ?? "blue";
 
-export const statusOf = (error: unknown): number | undefined => (error as { status?: number } | null)?.status;
-export const isAbort = (error: unknown): boolean => (error as { name?: string } | null)?.name === "AbortError";
+export { statusOf } from "@molis-ai/molis-work-plugin-sdk/browser";
+export { isAbort } from "@molis-ai/molis-work-plugin-sdk/browser";
 export const sleep0 = (): Promise<void> => new Promise((resolve) => { setTimeout(resolve, 0); });

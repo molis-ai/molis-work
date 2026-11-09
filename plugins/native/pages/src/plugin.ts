@@ -1,5 +1,5 @@
 import { syncBindings } from "./sync-binding.js";
-import { bindPluginActionRoute } from "@molis-ai/molis-work-plugin-sdk";
+import { bindPluginActionRoute, projectRouteFields } from "@molis-ai/molis-work-plugin-sdk";
 import { ActionError, requireSynchronous, type ActionAvailability, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginArtifactClient, PluginDefinition, PluginMaterialsClient, PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { PAGES_ARTIFACT_SCHEMA_VERSION, PAGES_ARTIFACT_TYPE_ID } from "./contract.js";
@@ -120,16 +120,8 @@ function pagesArtifactPorts(context: PluginStartContext, artifacts: PluginArtifa
 
 /** The routes only map the request to an action; a `project_id` the page sends must be this project's. */
 function pagesRoutes(context: PluginStartContext) {
-  const body = (request: PluginRouteRequest): Record<string, unknown> => {
-    const value = request.body && typeof request.body === "object" ? { ...request.body as Record<string, unknown> } : {};
-    for (const requested of [request.query.project_id, value.project_id]) {
-      if (requested !== undefined && requested !== context.project_id) throw new ActionError("actions.scope_mismatch", "文档项目与当前项目不一致");
-    }
-    delete value.project_id;
-    return value;
-  };
   const route = (definition: ActionDefinition, routeId: string, input: (request: PluginRouteRequest, fields: Record<string, unknown>) => unknown) =>
-    bindPluginActionRoute(context, definition, request => input(request, body(request)) as never, routeId);
+    bindPluginActionRoute(context, definition, request => input(request, projectRouteFields(request, context.project_id, "文档项目与当前项目不一致")) as never, routeId);
   const empty = () => ({}), fields = (_: PluginRouteRequest, value: Record<string, unknown>) => value;
   const identified = (request: PluginRouteRequest, value: Record<string, unknown>) => ({ ...value, id: request.params.id });
   const id = (request: PluginRouteRequest) => ({ id: request.params.id });

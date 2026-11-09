@@ -1,3 +1,4 @@
+import { cutWithEllipsis } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import type { AgentRecoveryReport, AgentRunView, AgentToolActivity } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { failedStep } from "./activity-failure.js";
 import type { AssistantActivity, AssistantRecovery, AssistantWorkState, AssistantWorkObject, AssistantRoundDiagnostics } from "@molis-ai/molis-work-contracts/services/assistant";
@@ -23,7 +24,7 @@ export function stateOf(phase: AgentRunView["phase"] | null | undefined, recover
 
 export function titleFrom(text: string): string {
   const line = text.split(/\r?\n/).map(part => part.trim()).find(Boolean) ?? "新工作";
-  return line.length > 40 ? line.slice(0, 39) + "…" : line;
+  return cutWithEllipsis(line, 40);
 }
 
 /** Titles of the capabilities a scope offered at its latest round start, to name them in the activity. */
@@ -162,7 +163,7 @@ function answerOf(output: string | undefined): string {
       const one = pick as { labels?: unknown; other?: unknown };
       return [...(Array.isArray(one.labels) ? one.labels.filter((label): label is string => typeof label === "string") : []), ...(typeof one.other === "string" && one.other ? [one.other] : [])].join("、");
     }).filter(Boolean).join("；") : "";
-  return text.length <= 300 ? text : `${text.slice(0, 300)}…`;
+  return cutWithEllipsis(text, 300, { prefixLength: 300 });
 }
 
 export function recoveryView(report: AgentRecoveryReport): AssistantRecovery {

@@ -136,6 +136,7 @@ export function installTable(page: DatasetPage): void {
   };
 
   page.renderVersions = (versions) => {
+    page.scope.assertCurrent();
     el.versionsEl.replaceChildren();
     versions.forEach((item) => {
       const row = document.createElement("div");

@@ -1,11 +1,13 @@
 import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
+import { createRequire, syncBuiltinESMExports } from "node:module";
 import test from "node:test";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { MemoryPluginRuntimeRepository, PluginRuntime, PluginSupervisor, UNSIGNED_TRUST, definitionOrigin, isFrozenRegisteredManifest,
-  platformDefinition } from "@molis-ai/molis-work-plugin-runtime";
+import { createPluginRuntimeReleaseArtifact, MemoryPluginRuntimeRepository, PluginRuntime, PluginSupervisor, SqlitePluginRuntimeReleaseArtifactRepository,
+  UNSIGNED_TRUST, definitionOrigin, isFrozenRegisteredManifest, platformDefinition, pluginManifestDigest } from "@molis-ai/molis-work-plugin-runtime";
 import { captureRuntimeStageOwner } from "@molis-ai/molis-work-app-local-host";
+import { openPluginTestDatabase } from "./fixtures/plugin-test-database.js";
 
 /**
  * T402 stage owner fence and S-75 (SECURITY-INVARIANTS「Home 的提供方、库归属只认宿主实际定义对象」): the platform keeps a deep-frozen copy
@@ -122,4 +124,59 @@ test("S-75 the platform's view of the Host's definition is admitted as that obje
   const { install } = admitted.install({ definition: view, deployment: "local", grants: [], trust: UNSIGNED_TRUST });
   await admitted.start(install.install_id);
   assert.equal(admitted.get(install.install_id).state, "running", "the view of the admitted object runs");
+});
+
+test("BRC-06 · only a Runtime-owned Manifest skips a repeated SHA-256", t => {
+  const crypto = createRequire(import.meta.url)("node:crypto") as typeof import("node:crypto");
+  const createHash = crypto.createHash;
+  let hashes = 0;
+  const hash = t.mock.method(crypto, "createHash", (...args: Parameters<typeof createHash>) => {
+    if (args[0] === "sha256") hashes++;
+    return createHash(...args);
+  });
+  syncBuiltinESMExports();
+  t.after(() => { hash.mock.restore(); syncBuiltinESMExports(); });
+
+  const { definition, manifest } = probe();
+  const snapshot = platformDefinition(definition).manifest;
+  const digest = pluginManifestDigest(snapshot);
+  assert.equal(pluginManifestDigest(snapshot), digest);
+  assert.equal(hashes, 1);
+
+  const original = Object.getOwnPropertyDescriptor(Array.prototype, "toJSON");
+  try {
+    Object.defineProperty(Array.prototype, "toJSON", { value: () => [], configurable: true });
+    assert.equal(isFrozenRegisteredManifest(snapshot), false);
+    assert.equal(pluginManifestDigest(snapshot), digest, "the original canonical serializer is still used");
+    assert.equal(hashes, 2, "a prototype toJSON bypasses even a seeded cache");
+  } finally {
+    if (original) Object.defineProperty(Array.prototype, "toJSON", original);
+    else Reflect.deleteProperty(Array.prototype, "toJSON");
+  }
+  assert.equal(pluginManifestDigest(snapshot), digest);
+  assert.equal(hashes, 2);
+
+  const outside = Object.freeze(manifest);
+  assert.equal(pluginManifestDigest(outside), digest);
+  assert.equal(pluginManifestDigest(outside), digest);
+  assert.equal(hashes, 4, "the caller's own frozen object is checked each time");
+  Object.assign(outside.ui.views![0]!, { title: "Revised external declaration" });
+  assert.notEqual(pluginManifestDigest(outside), digest);
+  assert.equal(pluginManifestDigest(snapshot), digest);
+  assert.equal(hashes, 5);
+});
+
+test("BRC-06 · a Manifest decoded from a stored release is checked again after tampering", t => {
+  const db = openPluginTestDatabase(":memory:");
+  t.after(() => db.close());
+  const releases = new SqlitePluginRuntimeReleaseArtifactRepository(db);
+  const original = createPluginRuntimeReleaseArtifact(platformDefinition(probe().definition).manifest, "export default {};");
+  releases.save(original);
+  const read = () => releases.get(original.plugin_id, original.publisher_signature, original.version, original.manifest_digest);
+  const decoded = read();
+  assert.ok(decoded);
+  assert.equal(pluginManifestDigest(decoded.manifest), original.manifest_digest);
+  Object.assign(decoded.manifest, { name: "Tampered release" });
+  assert.throws(() => releases.save(decoded), /发行物身份不一致/);
+  assert.deepEqual(read(), original);
 });

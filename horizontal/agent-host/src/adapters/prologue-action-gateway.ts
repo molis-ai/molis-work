@@ -1,3 +1,4 @@
+import { cutWithEllipsis } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { randomUUID } from "node:crypto";
 import { createPrologueError, DEFAULT_TOOL_LIMITS, type ScenarioPack, type ToolRunner } from "@prologue/sdk";
 import { ActionError, actionEffect, actionFieldLabel, actionFieldValue, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -399,7 +400,7 @@ export async function gatewayProblem(gateway: Gateway, toolName: string, input: 
 export function readableInput(schema: Record<string, unknown>, input: unknown): Array<{ label: string; value: string }> {
   if (!input || typeof input !== "object" || Array.isArray(input)) return [{ label: "内容", value: actionFieldValue("", input) }];
   const properties = (schema.properties && typeof schema.properties === "object" ? schema.properties : {}) as Record<string, { title?: string; description?: string; properties?: Record<string, { title?: string; description?: string }> }>;
-  const clip = (text: string) => text.length > 4000 ? `${text.slice(0, 4000)}…` : text;
+  const clip = (text: string) => cutWithEllipsis(text, 4000, { prefixLength: 4000 });
   return Object.entries(input as Record<string, unknown>).flatMap(([key, value]) => {
     if (value === undefined || value === null || value === "") return [];
     // One level of nesting reads field by field, as the person would name them.

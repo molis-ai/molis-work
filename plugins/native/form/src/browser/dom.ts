@@ -5,19 +5,11 @@ export function make<K extends keyof HTMLElementTagNameMap>(tag: K, className?: 
   const node = document.createElement(tag); if (className) node.className = className; if (text !== undefined) node.textContent = text; return node;
 }
 
-export const textCell = (className: string, text: string) => { const node = make("span", className, text); node.title = text; return node; };
+export { textCell } from "@molis-ai/molis-work-plugin-sdk/browser";
 
 export const firstLine = (value: string | undefined, fallback = "") => {
   const line = String(value || "").trim().split("\n")[0]!.trim();
   return line || fallback;
-};
-
-export const whenOf = (value: string | undefined) => {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  const sameYear = date.getFullYear() === new Date().getFullYear();
-  return date.toLocaleDateString(undefined, sameYear ? { month: "short", day: "numeric" } : { year: "numeric", month: "short", day: "numeric" });
 };
 
 /** Replays the arrival motion on a node that just appeared. */

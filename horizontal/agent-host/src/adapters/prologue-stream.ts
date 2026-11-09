@@ -1,3 +1,4 @@
+import { cutWithEllipsis } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { applyMemoryContext, applyMemoryRecalled } from "./prologue-memory-stream.js";
 import type { PrologueUsageReceipt } from "../inference.js";
 import { closeInputs, noteInputEvent, steerOf } from "./prologue-inputs.js";
@@ -167,7 +168,7 @@ export function prologuePhaseOf(state: PrologueControlState): AgentRunPhase {
   return state === "pausing" || state === "sleeping" ? "running" : state;
 }
 
-const clip = (value: string) => value.length <= 200 ? value : `${value.slice(0, 200)}…`;
+const clip = (value: string) => cutWithEllipsis(value, 200, { prefixLength: 200 });
 
 function target(input: Record<string, unknown> | undefined): string {
   if (!input) return "";
@@ -176,13 +177,13 @@ function target(input: Record<string, unknown> | undefined): string {
     const words = [input.executable, ...(Array.isArray(input.argv) ? input.argv.map(String) : [])]
       .map(word => word !== "" && /^[A-Za-z0-9_@%+=:,./-]+$/.test(word) ? word : `'${word.replace(/'/g, "'\\''")}'`);
     const line = words.join(" ");
-    return line.length <= 200 ? line : `${line.slice(0, 200)}…`;
+    return clip(line);
   }
   // A business gateway call names its capability; the surface turns that into the capability's title.
   for (const key of ["path", "file_path", "command", "pattern", "query", "capability_id"]) {
     const value = input[key];
     if (typeof value !== "string" || value === "") continue;
-    return value.length <= 200 ? value : `${value.slice(0, 200)}…`;
+    return clip(value);
   }
   return "";
 }

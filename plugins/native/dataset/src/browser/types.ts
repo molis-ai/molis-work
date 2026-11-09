@@ -1,14 +1,17 @@
 import type { DatasetColumn, DatasetRecord, DatasetRow, DatasetVersionRecord } from "../contract.js";
-import type { UiClientTranslate as Translate, UiPluginClientHost } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { UiClientScope as Scope, UiClientTranslate as Translate, UiPluginClientHost } from "@molis-ai/molis-work-contracts/platform/ui";
 
-export type { Translate };
+export type { Scope, Translate };
 export type Dataset = DatasetRecord;
 export type Column = DatasetColumn;
 export type Row = DatasetRow;
 export type Version = DatasetVersionRecord;
 
 /** What the workbench hands Dataset's client: the shared host fields it uses. */
-export type DatasetHost = Pick<UiPluginClientHost<HTMLElement, HTMLDialogElement>, "translate" | "download" | "pluginId" | "projectId" | "pluginRoute">;
+export interface DatasetHost extends Pick<UiPluginClientHost<HTMLElement, HTMLDialogElement>,
+  "translate" | "download" | "pluginId" | "projectId" | "pluginRoute" | "readRefusal"> {
+  mountPluginClient(root: HTMLElement): Scope | null;
+}
 
 /** A failed request: the Host's plain Error with its `code`. */
 export type Failure = Error & { code?: string };
@@ -76,6 +79,7 @@ export interface DatasetState {
  */
 export interface DatasetPage {
   readonly host: DatasetHost;
+  readonly scope: Scope;
   readonly L: Translate;
   readonly el: Elements;
   readonly s: DatasetState;

@@ -1,3 +1,4 @@
+import { cutWithEllipsis } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { assistantErrors, whenThere } from "./assistant-errors.js";
 import { randomUUID } from "node:crypto";
 import type { AgentWorkGraphPort, AgentWorkNode } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
@@ -81,7 +82,7 @@ export class AssistantDelegations {
       const state = await this.ports.stateOf(host ?? await this.ports.host(), work);
       const reply = work.session_id ? await this.ports.lastReply(work).catch(() => undefined) : undefined;
       const results = store.relations.forWork(identity(work)).filter(row => row.relation === "result").map(row => ({ kind: row.object.kind, id: row.object.id, revision: row.object.revision }));
-      return { work_id: work.work_id, title: work.title, state, ...(reply ? { reply: reply.length > 1200 ? reply.slice(0, 1200) + "…" : reply } : {}),
+      return { work_id: work.work_id, title: work.title, state, ...(reply ? { reply: cutWithEllipsis(reply, 1200, { prefixLength: 1200 }) } : {}),
         ...(results.length ? { results } : {}), follow_ups: followUps(partSteps(nodes, work)),
         ...(work.delegated_by?.taken_back_at ? { taken_back: true, note: TAKEN_BACK_NOTE } : {}) };
     };

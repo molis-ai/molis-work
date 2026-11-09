@@ -132,6 +132,8 @@ readonly artifact_join?: {
 
 ## 3. Files 退役的系统产生者合同
 
+**界面定样（用户 2026-11-09）。** 采用 [A「就地预览」](../../docs/design/batch-06-materials/README.md)：侧栏和 Coding 文件区就地阅读，保留任务上下文；长文有明确主区入口，宽屏选择器并排、窄屏逐页。原来源分组、最近五份、工作目录抬头及临时浏览不改执行位置保持。B「主区阅读」不作默认。后续组件板标本和 D 轨合审、真实资料与授权、迁移回读仍须完成；本次确认是选样，不是产品实操验收。
+
 ### 注册、写入和读回
 
 **一个平台登记和一个 Runtime 输出来源解析端口。** `system.materials` 是 `kind: "system"` 的受信任项目级动作提供方。登记是类型、输出、动作绑定及稳定签名的唯一来源。签名跨重启与产品升级稳定，只由构建内受信任声明取得，映射到现行 `producer_plugin_id`／`producer_binding_signature`。owner 比对登记 id、签名和个人归属。调用的权限与个人 owner 来自实际调用上下文，`audit_actor_id` 只用于署名。系统身份仅持有登记的过程项写能力，独立于插件生命周期、场景、订阅和 Home 授权。
@@ -190,7 +192,18 @@ Manifest 借用现行对象形状表达精确系统来源，例如 `default_sour
 
 独立复核确认现有 `PUT /v1/policy` 的 revision CAS 与 D1 写入条件能够拒绝撤选后的旧 namespace 新操作；准确重放原回执须验零新增。上传不推进 policy revision，末次拉取与撤选之间仍有窗口；撤选后的 changes、history、附件读取都验当前选择，保存 head 不延长读权。最小隔离试验先用可控旧端正常结清、停止生产和自动／手动同步、排空在途，再由最后受权旧端拉齐并核正文与相关失败，最后 CAS 撤选或替换。`setDevice(false)` 只关自动工作，不阻止手动运行。新 namespace 还需从干净队列／head 合法播种整个已选集合（含非 Files），不能沿用固定前缀的旧 outbox。
 
-当前未以实际试验证实旧写端排空与末次拉齐，或在旧同步历史存在时把完整历史交给切换后空 Home。暂停旧设备只用于隔离验证。同步关闭且无待处理状态的本地路径可以独立验证，不能作为有云端历史的项目通行证。禁止用“拒绝所有旧事件”顶替可回读的切换方案。
+**2026-11-09 隔离探针。** Node 24.15.0／SQLite 3.51.3 下的单文件探针通过（最终 1/1，20.5 秒）。使用真实 `createStaticPersonalSync`／`PersonalSync.run`、项目目录与过程项 owner；HTTP 在进程内模拟，SQLite 执行现行 D1 schema 及从 Rust 提取的 heads、policy CAS、changes、receipt 和事件插入 SQL。未运行 Rust Worker、Miniflare、R2、真实 Auth 或云端；仅 inline 内容。探针在临时目录，测试 Home 与进程已清理，不算正式 BSH-11 验收。
+
+- 丢失上传响应后，原 outbox 的 operationId、base、payload 保持冻结，之后本地编辑也不改原项；下轮原回执能结清。双旧 Home 拉齐后 pending、conflicts、failures 均空，三版 Files 快照（含归档）与同集合另一 owner 的历史均能读回。
+- `prepare` 确实可能先建项目，后续暂态失败把完整事件留在 `sync_failures`，stream cursor 已前进，重试后才推进 partition cursor 并清失败。本地先改属再收旧尾部时，事件进入项目 `replica_conflicts`，顶层 `error` 仍为 null；总状态和 cursor 到 head 都不足以证明已排空。
+- 旧上传推进 head 而不动 policy revision，现行 policy CAS 仍能撤选，证实末次拉齐与撤选之间存在漏历史窗口。撤选后原 receipt 精确重放保持旧 revision 且零新增，同 id 改 payload/base 或新的旧版操作均被拒。
+- 仅选 v2 时 head 为零，空 Home 没有历史。沿用旧 per-key head 在空 v2 播种被拒且保留 frozen。用干净 seed replica 经 owner read/apply 收齐完整版本图，明确 v2 选择再走正常 run，空 Home 可读回三版快照（新 system owner）及另一 owner 历史，v1 传输历史保留但配额增加。已排空的旧设备先收 v2 heads 后可继续上传，旧 partition cursor 保留。v2 选择为测试注入，尚无产品实现；没有证明撤选后旧传输历史仍可在普通 history 入口展示。
+
+**2026-11-09 用户决定：扩大本批隔离实现。** 用户在本会话选择“扩大本批隔离实现（推荐）”，将下述服务端封旧、历史与附件恢复、客户端播种及中断恢复纳入 06。授权是实现代码并在隔离环境验收；不含真实部署、真实 Home 或云端数据切换，这些仍另约授权窗口。原四项交付不减少，Files 不移出本批。具体合同、存储 owner、升级步骤和跨批冲突先设计核清，再由唯一 writer 串行实现。
+
+**采用边界。** 单次 head CAS 仍不足：旧客户端可通过普通 policy PUT 重选 v1。现有产品也没有能证明全部旧写端永久停用的设备名册／强制退场机制，所以“人工停完设备”仅是探针控制条件，不作为产品验收方案。同步关闭且无待处理状态的本地路径可以独立验证，不能作为有云端历史的项目通行证；禁止用“拒绝所有旧事件”顶替可回读的切换方案。
+
+扩大实现的具体范围为：服务端对账号／集合保存持久、单向的旧版本退役事实；原子核 policy revision 和已完整拉齐的旧 head，普通策略保存不能反开。实际数据变更处封住旧版新增写、附件 reserve、history 删除和 trash purge（不能只在 HTTP 前置检查），精确旧回执重放保持零新增。保留旧历史正文／附件的受权读取、导出与恢复入口，并明确与现行保留期的关系。客户端使用已核完整图进行显式选择与幂等播种，容量不足、中断和重启可恢复；现有 immutable receipt、同账号 ready blob digest 复用、quota 和 owner 端口继续共用。正式采用须过真实 Worker Auth/D1/R2 拒绝、旧归档／恢复记录与附件回读、容量不足和中断续播测试。实现限本次 `process_items` 旧版到新版的采用，不顺带改其他同步集合或造通用迁移平台；准确版本与合同在设计中核现行登记后确定。
 
 ### Files 的 M0 裁决依据
 
@@ -201,9 +214,27 @@ N52 随 S4/S5 接同一公共界面：现有 `/sources` 响应合并可见来源
 ## 4. S3 公用 SDK 工具
 
 - **N13／N12⑤。** `/browser` 沿用浏览器安全的叶子入口，复用 `/ui` 的 HTML 转义与已存在请求基础 `molisWorkRequest`。仅提取实际共用的 `required`、错误消息／状态、abort 识别和 `pluginRequest(host, { fallback, codes })`。保持不同路由的已定项目参数、body、翻译回退、失败 code/status 与当前生命周期 `signal`，调用点负责附上实际的挂载／离开信号（Dataset BL-1033）。浏览器助手复用 Pages 已有文档内容 owner。search/body/start 的输入、权限、摘要和错误先比对，只有纯粹的适配相同才共享。页面专用控件与非同义辅助代码仍在各自插件。
-- **N15。** 取时区部件复用 SDK `card-values.ts` 的 `wallClockIn` 内现成 `formatToParts` 规则，提取 `zonedParts` 并保持本地时区、h23、跨日和 DST 行为。通过实际 `Intl` 接受的时区统一 `isTimeZone`，保留 Jelly/Coding 调用方现有空输入政策。面向界面先复用 SDK `ui/message-format.ts` 的 `formatDate` 与现行 locale。缺相同格式时补小段共用日期标签，保持今天／日期回退由当前语言决定，将审查发现的英文界面缺口归 [语言书 §6.1](../font-and-skin-system/spec.md#61-现状与注意事项2026-10-21视觉细节目标-vux-40-的英文实走所得)。
+- **N15。** 取时区部件复用 SDK `card-values.ts` 的 `wallClockIn` 内现成 `formatToParts` 规则，提取 `zonedParts` 并保持本地时区、h23、跨日和 DST 行为。通过实际 `Intl` 接受的时区统一 `isTimeZone`，保留 Jelly/Coding 调用方现有空输入政策。面向界面先复用 SDK `ui/message-format.ts` 的 `formatDate` 与现行 locale。缺相同格式时补小段共用日期标签，保持今天／日期回退由当前语言决定，将审查发现的英文界面缺口归 [语言书 §6.1](../font-and-skin-system/spec.md#61-现状与注意事项2026-10-21视觉细节目标-vux-40-的英文实走所得)。 2026-11-09 核查确认四文档插件的短月日标签同义，但现有 `formatDate` 的坏值回退和月份长度不同，不能无差别替换；Images／Workflows／Jelly 的各自格式保留。用量午夜的 DST 偏差已实测并单列 [BL-assistant-usage-dst-midnight](../backlog/BL-assistant-usage-dst-midnight.md)，本次提取不静默改变预算时间窗。
 - **N16／E3。** 在 `whole-units.ts` 实现 `cutWithEllipsis`，沿用 `cutHead/cutCharacters`，输出不拆代理对。按调用点核截断前清理、UTF-16／码点预算、尾记是否计入预算及既有 `…`／`...`，明确选项只覆盖现存差异。E3 的无省略号提醒标题直接改用 `cutHead`。门禁只增加用户已批准的直接 `slice` 后加省略号的源码计数，按文件比较基点只减不增，跳过无关的一般切片。库快照与用例随同一 PR。
 - #1987 已收口 `isRecord`、`compareCodeUnits` 和 Shelf/工作台的转义。这里直接复用该 SDK 实现，contracts 的工具依赖方向按 BL 另算。SDK 公开入口和快照写前按实际文件查 #1999／#2000，当前已知 `packages/plugin-sdk/src/index.ts` 与部分入口在途。先以有消费的子路径缩小出口范围，再等待同文件的接力。
+
+### S3 执行切片（7b9bddc95）
+
+目标是功能可用。以 18 个页面 `dom.ts` 和 16 个页面 `request.ts` 为文件基线（16 含 Coding 的 `browser/main/request.ts`），按被替换的函数另量实际重复。SDK 的 `browser.ts` 负责必需节点、单行提示单元格、错误读取和共同请求映射。其余页面工具由原 owner 维护。Dataset、Form、PPT 保留同一项目的 URL 查询与写入正文；Pages 只检查存在项目。Lingguang、Todo 仍选择插件或平台路由。Form 保留 `details`、PPT 保留单次 signal、Todo 保留写后的变更通知。Issues 的写结果未知、Jelly 的流式传输、Files/Git 的嵌入动作、Shelf 的文本及失败快照、Cognia 的目录授权和 Schedule 的薄适配继续沿自己的协议。
+
+Dataset 用 `mountPluginClient` 给页面请求提供作用域，取消的结果不进入旧页的结果、提示或失败状态。列表、编辑器、下载和确认框在采用异步结果时仍核对挂载状态，包括传输层最后一次检查与结果应用之间卸载，以及重读等待自动保存取消的交错。403 拒绝读取继续显示原错误码与状态，用户文字用宿主 `readRefusal`。走生产客户端与真实请求传输，在隔离浏览器中延迟响应，验证取消、目录及确认框状态、403 失败显示和同一入口成功后恢复。服务端仅将五家的项目参数检查、正文复制与移除 `project_id` 移入 SDK `routes.ts`，按可信上下文比较查询与正文。五家的业务映射和拒绝文字由原 owner 提供。沿真实 Runtime HTTP 验请求不匹配、状态／错误码及无业务写入。
+
+时间部件以 `card-values.ts` 为已有规则来源，SDK 提供可复用的 Intl formatter 和有效时区检查。卡片保留分钟和短偏移，助理保留秒、毫秒及原有 DST 回退。Dataset、Form、Pages、PPT 的短日期按浏览器原 locale 和本地年比较，SDK 函数允许显式传入 locale 验证中英文。截断只共享有实际调用方的 UTF-16／码点计量、触发长度、尾记及截后清理。门禁在源码计数中识别直接切片拼省略号，原计数与无关切片分开。
+
+定向验证沿 BSH-09／10，覆盖 SDK 公共入口、Dataset 浏览器、文档路由、助理提醒／用量和操作卡；每次公开导出生成对应的 API 快照。收尾运行 `pnpm build`、定向 `node scripts/run-tests.mjs --jobs 1` 与 `node scripts/check-health-gates.mjs --base origin/main`，构建和测试分别占本机槽位。共享核心的 Full 由本批最终头的 CI 提供。N12 的 `join`、复制协议、Files 切换和真实 Home 仍依 §2／3 独立处理。
+
+**S3 实测（2026-11-09）。** BSH-09 归并了 14 份必需节点查询、4 份提示单元格、7 个客户端的共同请求处理，以及五个服务端文档路由的项目字段校验。纯辅助文件从 18 个 `dom.ts` 减到 16 个，16 个请求文件保有各自的路由适配。Images 支持 DELETE，Coding 自己控制可见时的读取信号与多种请求方法。Dataset 的实际浏览器先验证 403 拒绝与重试，然后验证传输中断、响应正文通过传输尾检后卸载，以及重读等待取消中的保存。后两种交错在初版候选分别写了脱离页面的目录和确认框，消费点复查后测试通过。
+
+时区读法覆盖 h23、DST 两侧的短偏移、秒和毫秒。短日期已接 Dataset、Form、Pages、PPT。核对第 16 批固定头后，Pages 保留列表调用的 `formatTime` 名称，直接转出 SDK 的短日期工具，仍取浏览器默认 locale。原实现与 SDK 在洛杉矶、上海时区的 12 组 Intl 输出一致，覆盖空值、无效值、跨年、同年和往年。Pages 的客户端束、中英文短日期和真实浏览器列表共 5 项通过。BSH-10 在同一基点上把直接切片拼省略号从 21 处降到 5 处。余下三处带完整说明的截断归各自上下文和编辑预览，另两处是内联收据脚本和测试诊断。门禁用真实 Git 基点证明新文件、已有文件增长都被拒，普通切片通过。
+
+BSH-10 独立复核发现，括号内的省略号和以省略号开头的模板曾绕过直接拼接检查。新增的两个 Git 基点用例先复现门禁误通过。修复后 37 项源码计数测试全过，包含这两种增长的拒绝、变量与非起始省略号等反例。按同一口径重数仍为 21 处降到 5 处。
+
+候选的完整构建、包边界及与 `origin/main` 比较的健康门禁通过。25 个定向文件共 277 项通过，含真实 Dataset 浏览器、五家 Runtime 路由、日期及省略号边界。文档路由测试在构建结束后独立复跑 22 项，公开 SDK 的离线打包样例也通过。公开 API 快照仅涉及 SDK 根入口、`/browser` 与 `/whole-units`。最终真实 Host 页面资源和 CI Full 随本批集成头验证。
 
 **N47 的 Runtime 主人已独立裁定 GO（06-4）。** 在实际交给插件的最终 callback view 装惰性 `allowed_actions`。首次读取才克隆数组和每条引用，同一回调内保持同一个可改副本，其他回调和原权限快照各自隔离。保留缺省字段与空数组的区别、可枚举、赋值和序列化语义。Host ingress 继续立即取得独立权限快照，首次读取依据同一可信来源。检查 [action-provider](../../packages/plugin-runtime/src/action-provider.ts) 和 [scene-provider](../../packages/plugin-runtime/src/scene-provider.ts) 构造视图时的对象 spread，它会过早触发 getter。最终 view 安装 getter，或在转交时保留描述符。普通回调、availability 和场景入口各测未读、首次读、重复读与改值，再测嵌套调用及序列化。
 
@@ -226,6 +257,7 @@ N52 随 S4/S5 接同一公共界面：现有 `/sources` 响应合并可见来源
 | BSH-11 | 双 Home 以现有同步运行回读仅远端历史、结清冻结 outbox 与原回执、解决项目 conflict/recovery 及独立延迟下载。切换后证明可回读旧 ref、新空 Home 能取回历史、旧设备事件不能复活旧 owner 或先建出无权项目。任何非空阻塞项保全队列和游标并拦住采用。接 `apps/sync-worker/process-items.test.mjs`。 |
 | BSH-12 | N47 的最终回调未读时克隆 0 条，第一次读取克隆当前引用，同回调保持 identity，缺省、空数组、枚举、赋值和序列化一致。通过 action、scene 与嵌套回调测试证明改一份无外溢，Host ingress 快照行为保持。真实请求记录前后复制量。 |
 | BSH-13 | N52：真实多来源项目分别打开项目资料与 Goal「加输入」，每次首屏一次 HTTP 聚合请求、零逐来源 entries 请求，宿主一次上下文与发现。共用来源第一页、游标及可见但未配置的状态；未配置来源零条目调用，单个失败不遮住其余结果。分页和正文按需读取；发现后撤权仍由实际动作拒绝，零未授权内容交付。 |
+| BSH-14 | 已授权的隔离同步切换：真实 Worker/Auth/D1/R2 夹具证明旧 head 或 policy revision 改变时原子拒绝切换，退役后普通策略不能反开，旧新增写、附件 reserve、history/trash 删除在实际变更处被拒，精确原回执重放零新增。有权账号读回保留期内独立归档／恢复记录、正文和附件，撤权后拒绝。完整选中集合含其他 owner 经显式选择与幂等播种可被空 Home 取回；配额不足、取消、中断和重启保留原件及已确认进度，完成前不放行普通新版上传，离线旧端未结清队列不丢失。仅隔离验证，不执行真实部署或云端迁移。 |
 
 验证由实现会话按项目规则排槽。构建后先跑上述定向用例、四插件及 `modules/artifacts`、`packages/plugin-runtime` README 的适用必跑项，再由全批运行合同、边界、安全、金样回放、页面资源及共享核心全量。页面脚本改动比较真实下发字节，使用独立浏览器和临时 Home。公开快照检查 `pnpm api:update`、`pnpm actions:update`、`pnpm test:contracts`，版本变化核对 `pnpm schemas:update`。安全不变量表同步登记拒绝用例（尤其 S-18、S-35、S-46／S-100、S-76 与 S-81）。测试名或注释逐个引用 BSH 编号。本轮仅设计，证据状态均为待执行。
 

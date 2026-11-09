@@ -1,15 +1,8 @@
+import { shortDateLabel } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { textCell } from "./dom.js";
 import type { Dataset, DatasetPage } from "./types.js";
 
 const firstLine = (value: unknown, fallback = "") => String(value || "").trim().split("\n")[0].trim() || fallback;
-
-const whenOf = (value: string) => {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  const sameYear = date.getFullYear() === new Date().getFullYear();
-  return date.toLocaleDateString(undefined, sameYear ? { month: "short", day: "numeric" } : { year: "numeric", month: "short", day: "numeric" });
-};
 
 /** The directory of tables: its rows, which one is open, and loading and failing to load it. */
 export function installList(page: DatasetPage): void {
@@ -45,7 +38,7 @@ export function installList(page: DatasetPage): void {
     row.append(
       leading,
       textCell("plugin-stage-fact", columns ? L("dataset.list.size", { columns, rows }) : L("dataset.list.empty-table")),
-      textCell("plugin-stage-meta", firstLine(record.description, whenOf(record.updated_at))),
+      textCell("plugin-stage-meta", firstLine(record.description, shortDateLabel(record.updated_at))),
       fixedCell(record),
     );
     item.append(row);
@@ -73,6 +66,7 @@ export function installList(page: DatasetPage): void {
   };
 
   page.remember = (record, redraw) => {
+    page.scope.assertCurrent();
     s.selected = record;
     const index = s.records.findIndex((item) => item.id === record.id);
     if (index >= 0) s.records[index] = record;
@@ -105,6 +99,7 @@ export function installList(page: DatasetPage): void {
   page.loadList = async () => {
     const seq = ++s.listSeq;
     const payload = await page.request<{ datasets?: Dataset[]; ai_available?: boolean; ai_unavailable_reason?: string }>("GET", page.api);
+    page.scope.assertCurrent();
     if (seq !== s.listSeq) return;
     s.records = payload.datasets || [];
     page.renderList();
@@ -115,6 +110,7 @@ export function installList(page: DatasetPage): void {
 
   // Report unreadable lists in place, with retry; the normal note lives in the editor.
   page.listFailed = (error) => {
+    if (!page.scope.alive) return;
     el.empty.hidden = true;
     const box = document.createElement("div");
     box.className = "mw-empty mw-empty--error";
@@ -126,8 +122,12 @@ export function installList(page: DatasetPage): void {
     retry.textContent = L("dataset.list.retry");
     retry.addEventListener("click", () => {
       retry.disabled = true;
-      void page.loadList().then(() => box.remove(), (next: unknown) => { retry.disabled = false; hint.textContent = (next as Error | null)?.message || L("dataset.list.failed-hint"); });
-    });
+      void page.loadList().then(() => { if (page.scope.alive) box.remove(); }, (next: unknown) => {
+        if (!page.scope.alive) return;
+        retry.disabled = false;
+        hint.textContent = (next as Error | null)?.message || L("dataset.list.failed-hint");
+      });
+    }, { signal: page.scope.signal });
     el.rowsEl.replaceChildren(box);
   };
 }

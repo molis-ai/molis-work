@@ -219,8 +219,8 @@ export class MolisWorkLocalHost {
       },
     });
     this.synchronization = projectSyncAccess(this.host);
-    const settingsVersionClaims = createSettingsVersionClaims();
-    if (options.homeDirectory) this.homePlugins = new HomePluginHost({ home: options.homeDirectory, actorId: LOCAL_PERSON_ACTOR_ID, settingsVersionClaims,
+    const home = options.homeDirectory, settingsVersionClaims = createSettingsVersionClaims();
+    if (home) this.homePlugins = new HomePluginHost({ home, actorId: LOCAL_PERSON_ACTOR_ID, settingsVersionClaims,
       registry: this.host.actionRegistry(), client: homePluginActions(this.host), inspect: caller => this.host.inspectActions(caller), entries: homePluginEntries(), fixtures: options.pluginFixtures?.home, installed: options.pluginFixtures?.installed, projectReach: homeProjectReach(options.homeDirectory, () => this.host.projects()),
       projectActions: (projectId, pluginId) => homePackageProjectActions(projectId, pluginId, options.homeDirectory, this.catalogRunner,
         this, this.host, molisWorkHostProjectReference) });
@@ -254,8 +254,7 @@ export class MolisWorkLocalHost {
       this.host,
       { workspaceFor: options.workspaceFor, workspacesFor: options.workspacesFor, prepareDirectory: options.prepareDirectory },
     );
-    if (options.homeDirectory) {
-      const home = options.homeDirectory;
+    if (home) {
       bindHomeSide(this, home, options, settingsVersionClaims);
       this.search = createSearchHost({ homeDirectory: home, registry: this.host.actionRegistry(),
         project: projectId => this.host.projects().find(row => row.project_id === projectId && row.state !== "closing"),

@@ -22,7 +22,6 @@ export function createSettingsVersionClaims() {
       return () => { claims.delete(claim); };
     },
     keysFor(scope: InstallScope, record: PluginInstanceRecord): readonly string[] {
-      if (record.state === "uninstalled") return [];
       for (const claim of claims) {
         if (sameInstallScope(claim.scope, scope) && holdsInstalledEdition(record, claim.candidate)) return claim.keys;
       }
@@ -52,7 +51,7 @@ export function declarationOwnersFor(home: string | null, current: NonNullable<P
 
   const owners: DeclarationOwners = (manifest, installId, onlySettings) => {
     const artifacts = !onlySettings && !shippedIds.has(manifest.plugin_id) && (manifest.artifacts.produces.length > 0 || !!manifest.artifacts.links?.length);
-    const settings = settingKeys(manifest).length > 0;
+    const settings = !!manifest.settings_entries?.entries.length;
     const artifactOwner = (record: PluginInstanceRecord) => artifacts && !shippedIds.has(record.plugin_id) && record.plugin_id !== manifest.plugin_id;
     const settingOwner = (record: PluginInstanceRecord, scope: InstallScope) => settings && record.state !== "uninstalled"
       && (scope.kind === "home" || current.scope.kind === "home" || sameInstallScope(scope, current.scope))

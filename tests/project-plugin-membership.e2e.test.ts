@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
@@ -161,15 +162,29 @@ test("SPC-C08 picker and market save from their own observations, report committ
   assert.ok(otherPlatform && otherInstall);
   const beforeStop = await membership(browser, other.project_id);
   const catalog = await localHost.ensureWebCatalog(browser.homeDirectory, openMolisWorkProjectCatalog).withCatalog({ homeDirectory: browser.homeDirectory }, value => value);
-  let failReadback = false;
+  let failReadback = false, faultInReceipt = true, retryStopAttempts = 0;
+  const retryRead = new AsyncLocalStorage<boolean>();
+  const observedReads = new Set<string>();
+  const updatesPath = `${currentPath}api/plugins/runtime/updates`;
+  const handlers = browser.server.listeners("request");
+  browser.server.removeAllListeners("request");
+  browser.server.on("request", (request, response) => {
+    const path = new URL(request.url ?? "/", browser.origin).pathname;
+    const observed = request.method === "GET" && (path === index || path === updatesPath);
+    if (observed) observedReads.add(path);
+    retryRead.run(observed, () => {
+      for (const handler of handlers) handler.call(browser.server, request, response);
+    });
+  });
   const read = catalog.projectPluginMembershipWithRevision.bind(catalog), stop = otherPlatform.runtime.stop.bind(otherPlatform.runtime);
   t.mock.method(catalog, "projectPluginMembershipWithRevision", (...args: Parameters<typeof read>) => {
     if (failReadback && args[0] === other.project_id) throw new Error("fixture membership readback failed");
     return read(...args);
   });
   t.mock.method(otherPlatform.runtime, "stop", async (...args: Parameters<typeof stop>) => {
+    if (args[0] === otherInstall && retryRead.getStore()) retryStopAttempts++;
     try { return await stop(...args); }
-    catch (error) { if (args[0] === otherInstall) failReadback = true; throw error; }
+    catch (error) { if (args[0] === otherInstall && faultInReceipt) failReadback = true; throw error; }
   });
   await browser.setViewport(390, 844);
   const allowOtherStop = failScheduleStop(otherDb);
@@ -181,14 +196,22 @@ test("SPC-C08 picker and market save from their own observations, report committ
     assert.equal(await browser.evaluate(ready("schedule")), false);
     assert.deepEqual((await writes(browser, other.project_id)).at(-1), { method: "DELETE", body: { plugin_id: "schedule", expected_revision: beforeStop.revision } });
     await capture(browser, "market-committed-retry-phone");
-  } finally { failReadback = false; allowOtherStop(); }
-  const saved = await membership(browser, other.project_id), writeCount = (await writes(browser, other.project_id)).length;
-  assert.equal(saved.plugins.includes("schedule"), false);
-  assert.notEqual(saved.revision, beforeStop.revision);
-  await browser.click(retry);
-  await browser.waitFor(`${ready("schedule")} && document.querySelector('${retry}').hidden`);
-  assert.equal((await writes(browser, other.project_id)).length, writeCount);
-  assert.equal(otherPlatform.runtime.get(otherInstall).state, "running", "index retry leaves runtime recovery to the existing project page");
+    faultInReceipt = false;
+    failReadback = false;
+    const saved = await membership(browser, other.project_id), writeCount = (await writes(browser, other.project_id)).length;
+    assert.equal(saved.plugins.includes("schedule"), false);
+    assert.notEqual(saved.revision, beforeStop.revision);
+    assert.ok(observedReads.delete(index), "the direct membership read entered the observed index route");
+    const beforeRetry = await browser.evaluate<number>("window.__auditRequests.length");
+    await browser.click(retry);
+    await browser.waitFor(`${ready("schedule")} && document.querySelector('${retry}').hidden`);
+    assert.ok(observedReads.has(index), "market retry entered the observed index route");
+    const requestedUpdates = await browser.evaluate<boolean>(`window.__auditRequests.slice(${beforeRetry}).some(request => request.method === 'GET' && request.path.split('?')[0].endsWith('/api/plugins/runtime/updates'))`);
+    if (requestedUpdates) assert.ok(observedReads.has(updatesPath), "market updates used the observed current-project route");
+    assert.equal((await writes(browser, other.project_id)).length, writeCount);
+    assert.equal(retryStopAttempts, 0, "index and market update requests never attempt to stop the other project's runtime");
+    assert.equal(otherPlatform.runtime.get(otherInstall).state, "running", "index retry leaves runtime recovery to the existing project page");
+  } finally { faultInReceipt = false; failReadback = false; allowOtherStop(); }
   await openOther();
   assert.equal(otherPlatform.runtime.get(otherInstall).state, "disabled");
 });

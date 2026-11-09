@@ -1,0 +1,20 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.outlook",
+  "locale": "zh",
+  "messages": {
+    "outlook.connection.auth-help": "使用 Microsoft Graph 委托令牌，需要 Mail.Read。Outlook / OneDrive / Teams / SharePoint 可共用同一 Graph 令牌（需对应 scope）。",
+    "outlook.connection.inbound": "Feed 读取邮件",
+    "outlook.connection.summary": "邮件与日历。",
+    "outlook.connection.token-label": "Microsoft Graph 访问令牌（Mail.Read）",
+    "outlook.guide.cli-link": "查看 Microsoft Graph PowerShell",
+    "outlook.guide.cli-note": "可用 Connect-MgGraph 登录并调用 Graph；Molis Work 不读取 PowerShell 会话。",
+    "outlook.guide.mcp-link": "Microsoft Work IQ MCP",
+    "outlook.guide.mcp-note": "需要租户管理员启用 Work IQ 预览、Copilot 许可和 Entra 应用权限。",
+    "outlook.guide.oauth-link": "注册 Microsoft Entra 应用",
+    "outlook.guide.token-note": "Graph Explorer 可获取用于测试的用户令牌；长期使用需自己注册应用。",
+    "outlook.oauth.tenant": "租户 ID（个人账号或多租户应用可留空）",
+    "outlook.setup.get-a-token-in-graph-explorer": "在 Graph Explorer 拿令牌",
+    "outlook.setup.register-azure-app": "注册 Azure 应用"
+  }
+}

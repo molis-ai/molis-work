@@ -7,7 +7,7 @@
  */
 import { pluginErrors, type PluginContribution, type PluginManifest } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxEffects, SandboxIdentity } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
-import type { CallConnectionsPort, SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime';
+import type { CallConnectionsPort, PluginLocaleReader, SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime';
 import { installedDefinitions } from './installed-plugin-definition.js';
 import { installedPluginExposure } from './installed-plugin-exposure.js';
 import { PUBLISHER_REVOKED_MESSAGE, publisherStanding, publisherStops } from './installed-publisher-standing.js';
@@ -38,7 +38,7 @@ export type HomeInstalledPlatform = InstalledPluginPlatform & Pick<PluginPlatfor
 
 /** The Home's integration registry, as an installed integration package reaches it (BL-530): its ids held while it runs, let go when it stops. */
 export interface HomeIntegrationsPort {
-  attach(manifest: PluginManifest, installId: string, contribution: () => PluginContribution | null, live: () => boolean): Promise<boolean>;
+  attach(manifest: PluginManifest, installId: string, contribution: () => PluginContribution | null, live: () => boolean, reader?: PluginLocaleReader | null): Promise<boolean>;
   detach(pluginId: string): Promise<void>;
 }
 
@@ -178,14 +178,15 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
     changed: () => { exposureRevision++; }, catalog });
   const expose = async (release: InstalledRelease, onFailure?: 'caller') => {
     if (release.packaged?.manifest.kind !== 'integration') return exposeActions(release, onFailure);
-    const pluginId = release.pluginId, installId = recordFor(pluginId)?.install_id;
+    const pluginId = release.pluginId, record = recordFor(pluginId), installId = record?.install_id;
     if (!integrations) throw pluginErrors.home_scope_unavailable('这个 Home 没有集成登记，装不了集成包');
-    const active = () => { const now = recordFor(pluginId); return !isClosed() && now?.install_id === installId && now?.state === 'running'; };
+    const active = () => { const now = recordFor(pluginId); return !isClosed() && now?.state === 'running' && now.install_id === installId
+      && now.installation_generation === record?.installation_generation && now.version === release.packaged!.manifest.version && now.publisher_signature === release.packaged!.manifest.publisher.signature; };
     if (!active() || !installId) throw new Error('原插件安装或启用状态已变化，不能登记它的集成');
-    const token = Symbol(); attached.set(pluginId, token);
+    const prior = attached.get(pluginId), token = Symbol(); attached.set(pluginId, token);
     const live = () => attached.get(pluginId) === token && active();
-    const forget = () => { if (attached.get(pluginId) === token) attached.delete(pluginId); };
-    try { if (!await (await integrationRegistry()).attach(release.packaged.manifest, installId, () => platform.supervisor.contribution(pluginId), live)) forget(); }
+    const forget = () => { if (attached.get(pluginId) === token) { if (prior) attached.set(pluginId, prior); else attached.delete(pluginId); } };
+    try { if (!await (await integrationRegistry()).attach(release.packaged.manifest, installId, () => platform.supervisor.contribution(pluginId), live, release.packaged.localePacks)) forget(); }
     catch (error) { forget(); throw error; }
   };
   const registerPrompts = (release: InstalledRelease, state: 'enabled' | 'disabled', restored = false) => {

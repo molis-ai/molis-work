@@ -1,0 +1,21 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.notion",
+  "locale": "zh",
+  "messages": {
+    "notion.connection.auth-help": "Notion 内部集成令牌。集成必须被分享到要读取的页面。",
+    "notion.connection.inbound": "Feed 拉页面与数据库更新",
+    "notion.connection.summary": "页面与数据库。",
+    "notion.connection.token-label": "Notion Internal Integration Token",
+    "notion.guide.cli-link": "查看 Notion 官方 CLI",
+    "notion.guide.cli-note": "Notion CLI 可通过浏览器登录并调用 API；Molis Work 尚未读取其本机授权。",
+    "notion.guide.mcp-connected-note": "需另行授权；不会继承当前 Notion API OAuth 已选择的页面。",
+    "notion.guide.mcp-link": "查看 Notion 官方 MCP",
+    "notion.guide.mcp-note": "需另行授权；不会继承当前 Notion API OAuth 已选择的页面。Molis Work 尚未接入。",
+    "notion.guide.oauth-link": "查看 Notion OAuth 配置",
+    "notion.guide.oauth-note": "应用内支持 Notion API OAuth；需创建 Public connection 并配置本机回调。",
+    "notion.guide.token-note": "支持官方 PAT 或 Internal Integration Token；可读内容以用户权限或已共享给集成的页面为准。",
+    "notion.setup.create-notion-integration": "创建 Notion Integration",
+    "notion.setup.notion-oauth-setup-guide": "Notion OAuth 配置说明"
+  }
+}

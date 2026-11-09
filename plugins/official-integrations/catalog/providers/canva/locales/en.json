@@ -1,0 +1,15 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.canva",
+  "locale": "en",
+  "messages": {
+    "canva.connection.auth-help": "Canva does not issue PATs. Use your own Connect App to authorize with OAuth above, or paste an existing access token and replace it when it expires.",
+    "canva.connection.inbound": "Feed reads the design list",
+    "canva.connection.summary": "Designs and exports.",
+    "canva.connection.token-label": "Canva access token",
+    "canva.guide.mcp-link": "View the official Canva MCP",
+    "canva.guide.oauth-link": "View Canva Connect OAuth",
+    "canva.guide.token-note": "Canva does not issue PATs. Paste an access token from your own OAuth app and replace it when it expires.",
+    "canva.setup.open-canva-developer-platform": "Open Canva Developer Platform"
+  }
+}

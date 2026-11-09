@@ -21,13 +21,13 @@
     "consumes": ["connector.host.v1", "listener.host.v1", "signals.command.v1"]
   },
   "artifacts": { "produces": [], "consumes": [] },
-  "ui": { "contributions": ["settings.integration.github"] },
+  "ui": { "contributions": ["settings.integration.github"], "locales": { "default": "zh", "available": ["zh", "en"] } },
   "connection_services": [
     {
       "service_id": "github",
       "title": "GitHub",
       "group_id": "code",
-      "summary": "本机账号。Feed 拉未读通知，可在连接设置中检查账号。",
+      "summary": { "key": "github.connection.summary" },
       "auth_kind": "github",
       "auth": {
         "methods": [
@@ -45,22 +45,22 @@
       },
       "capabilities": [
         {
-          "label": "Feed 拉未读通知",
+          "label": { "key": "github.connection.inbound" },
           "fulfillment": "live"
         },
         {
-          "label": "在连接设置中检查当前账号",
+          "label": { "key": "common.connector.check-current-account" },
           "fulfillment": "live"
         }
       ],
-      "outbound_note": "连接设置可检查当前 GitHub 账号。Agent 可用能力以能力库为准。",
+      "outbound_note": { "key": "github.connection.outbound" },
       "setup_links": [
         {
-          "label": "创建 Personal Access Token",
+          "label": { "key": "github.setup.create-a-personal-access-token" },
           "url": "https://github.com/settings/tokens/new?scopes=notifications,read:user&description=Molis%20Work"
         },
         {
-          "label": "注册 OAuth App",
+          "label": { "key": "github.setup.register-an-oauth-app" },
           "url": "https://github.com/settings/applications/new"
         }
       ]

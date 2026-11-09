@@ -1,0 +1,20 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.gmail",
+  "locale": "en",
+  "messages": {
+    "gmail.connection.inbound": "Feed reads mail without modifying it",
+    "gmail.connection.outbound": "Sending mail is unavailable. This connection only reads incoming mail.",
+    "gmail.connection.send-mail": "Send mail",
+    "gmail.connection.summary": "Connect your account on this computer. Feed reads mail without modifying it.",
+    "gmail.guide.mcp-connected-note": "Access to the Google Workspace Developer Preview is required.",
+    "gmail.guide.mcp-link": "View the official Gmail MCP (Developer Preview)",
+    "gmail.guide.mcp-note": "Access to the Google Workspace Developer Preview is required. Molis Work has not integrated this service.",
+    "gmail.guide.oauth-link": "Create Google OAuth client",
+    "gmail.guide.oauth-note": "The app supports read-only Gmail OAuth. Set up your own Google Cloud client and local callback.",
+    "gmail.guide.token-note": "Get a gmail.readonly user access token from OAuth Playground and paste it here. Replace it when it expires.",
+    "gmail.setup.create-oauth-client": "Create an OAuth client",
+    "gmail.setup.enable-the-gmail-api": "Enable the Gmail API",
+    "gmail.setup.get-a-token-in-oauth-playground": "Get a token in OAuth Playground"
+  }
+}

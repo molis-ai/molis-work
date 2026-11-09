@@ -20,7 +20,7 @@ export type ConnectorActivation =
   | { kind: "token"; input: Input<"createToken">; target?: Target; declarer?: ConnectorConnectionDeclarer }
   | { kind: "oauth"; input: Input<"upsertOAuth">; target: Target; credentials: Record<string, string | null>; protocol?: ConnectorProtocolConfiguration;
     /** The generic flow's pins (W5-11 §3.2), judged again before a held result takes effect; never saved with the connection. */
-    declaration?: { plugin: Omit<OAuthServiceOwner, "method">; fingerprint: string } }
+    declaration?: { plugin: Omit<OAuthServiceOwner, "method" | "word">; fingerprint: string } }
   | { kind: "mcp"; input: Input<"saveProtocol">; target: Target; credentials: Record<string, string | null>; protocol: ConnectorProtocolConfiguration;
     declaration?: McpSourceSnapshot }
   | { kind: "cli"; input: Omit<Input<"saveCli">, "expectedRevisions">; revisions: Array<[string, string]>; binary: string; fingerprint: string; installation_id?: string };

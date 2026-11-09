@@ -60,7 +60,7 @@ export async function startDeviceOAuth(home: string, input: { serviceId: string;
   checkConnectorSetupSubmission(home, input.setupId, setup);
   const owner = await owners(input.serviceId, "device");
   const method = deviceMethod(declaredMethod(owner, input.serviceId), input.serviceId);
-  const settings = settingsOf(input.serviceId, method, {});
+  const settings = settingsOf(input.serviceId, method, {}, owner?.word);
   if (!input.displayName.trim() || input.displayName.length > 100) throw new ApiOAuthError("请填写连接名称（最多 100 字）");
   let previousRevision: string | undefined;
   let clientId = input.clientId?.trim() ?? "";
@@ -142,13 +142,14 @@ export async function pollDeviceOAuth(home: string, input: { origin: string; sta
       config.nextPollAt = Date.now() + config.interval;
       withConnectorProtocols(home, store => store.update(state, config));
       await assertStillDeclared(config, owners);
-      const method = deviceMethod(declaredMethod(await owners(config.serviceId, "device"), config.serviceId), config.serviceId);
+      const owner = await owners(config.serviceId, "device");
+      const method = deviceMethod(declaredMethod(owner, config.serviceId), config.serviceId);
       const deviceCode = secrets.get("device");
       if (!deviceCode) throw new ApiOAuthError("设备授权已失效，请重新开始", config.serviceId);
       // A token the service hands over is claimed once: the vault that keeps it is asked before the poll goes.
       assertSecretStoreWritable(home);
       const send = sender(fetchImpl, { beforeEffect: () => assertStillDeclared(config, owners), current: () => assertConnectorAuthorizationPending(home, state) });
-      const request = declared(() => oauthTokenRequest(method, settingsOf(config.serviceId, method, config.settings), { clientId: config.clientId, clientSecret: "", redirectUri: "", deviceCode }), config.serviceId);
+      const request = declared(() => oauthTokenRequest(method, settingsOf(config.serviceId, method, config.settings, owner?.word), { clientId: config.clientId, clientSecret: "", redirectUri: "", deviceCode }), config.serviceId);
       let tokens: Json;
       try {
         const response = await send(request.url, { method: request.method, headers: request.headers, body: request.body, redirect: "error", signal: input.signal ? AbortSignal.any([input.signal, AbortSignal.timeout(25_000)]) : AbortSignal.timeout(25_000) });
@@ -171,7 +172,7 @@ export async function pollDeviceOAuth(home: string, input: { origin: string; sta
       }
       // The token is claimed once: a second poll finds the record taken.
       withConnectorProtocols(home, store => store.consume(state, origin)); terminal = true;
-      const result = await commitApiOAuth(home, state, config, method, tokens, send, owners, secrets);
+      const result = await commitApiOAuth(home, state, config, method, tokens, send, owners, secrets, owner?.word);
       return result.status === "pending" ? result : { status: "authorized" as const, connection_id: result.connection!.connection_id };
     });
   } catch (error) {

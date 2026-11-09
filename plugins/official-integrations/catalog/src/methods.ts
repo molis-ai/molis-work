@@ -1,152 +1,226 @@
-import type {
-  ConnectorMethodKind,
-  ConnectorMethodOption,
-  ConnectorMethodSupport,
-  ConnectorSetupLink,
-} from "@molis-ai/molis-work-contracts/services/connector-host";
+import type { PluginConnectionLink, PluginConnectionWord } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
+import type { ConnectorMethodKind, ConnectorMethodSupport } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { setupLinksFor } from "./setup-links.js";
 
-type OfficialConnectorMethod = ConnectorMethodOption;
-
-function officialLink(label: string, url: string): ConnectorSetupLink {
-  if (!url.startsWith("https://")) throw new Error(`connector_method_link_must_be_https:${url}`);
-  return { label, url };
+export interface OfficialConnectorMethod {
+  readonly kind: ConnectorMethodKind;
+  readonly support: ConnectorMethodSupport;
+  readonly note: PluginConnectionWord;
+  readonly connected_note?: PluginConnectionWord;
+  readonly links: readonly PluginConnectionLink[];
 }
 
-function method(
-  kind: ConnectorMethodKind,
-  support: ConnectorMethodSupport,
-  label: string,
-  url: string,
-  note: string,
-): OfficialConnectorMethod {
-  return { kind, support, note, links: [officialLink(label, url)] };
-}
-
-const oauth = (label: string, url: string, note = "官方支持 OAuth；Molis Work 尚未接入此服务的授权回调。") =>
-  method("oauth", "external", label, url, note);
-const cli = (label: string, url: string, note = "官方 CLI 可单独登录；Molis Work 尚未读取它的本机授权。") =>
-  method("cli", "external", label, url, note);
-const mcp = (label: string, url: string, note = "官方 MCP 可连接兼容客户端；Molis Work 尚未把它接成此服务的 Connector。") =>
-  method("mcp", "external", label, url, note);
-const token = (id: string, note = "在官方取得所需权限的令牌或应用凭据后，可在此粘贴。", linkIndex = 0) => {
-  const source = setupLinksFor(id)[linkIndex];
-  if (!source) throw new Error(`missing_token_setup_link:${id}`);
-  return method("token", "paste", source.label, source.url, note);
-};
-
-/** Every id in the current official integration catalog, plus GitHub and Gmail. */
+/** Guide choices of the actual catalog service declarations. Dedicated integration packages own their own choices. */
 export const OFFICIAL_CONNECTOR_METHODS: Readonly<Record<string, readonly OfficialConnectorMethod[]>> = {
-  github: [
-    method("oauth", "in_app", "注册 GitHub OAuth App", "https://github.com/settings/applications/new", "应用内支持 Device Flow；首次使用需配置自己的 OAuth App Client ID。"),
-    cli("查看 GitHub CLI 登录方式", "https://cli.github.com/manual/gh_auth_login"),
-    token("github", "创建有 notifications 和 read:user 权限的 PAT 后，可在此粘贴。"),
-    mcp("查看 GitHub 官方 MCP", "https://github.com/github/github-mcp-server"),
-  ],
-  gmail: [
-    method("oauth", "in_app", "创建 Google OAuth 客户端", "https://console.cloud.google.com/apis/credentials", "应用内支持 Gmail 只读 OAuth；需要自己的 Google Cloud 客户端和本机回调配置。"),
-    token("gmail", "在 OAuth Playground 获取 gmail.readonly 用户访问令牌后可粘贴；到期后需更新。", 2),
-    mcp("查看 Gmail 官方 MCP（开发者预览）", "https://developers.google.com/workspace/gmail/api/guides/configure-mcp-server", "Google Workspace 开发者预览资格必需；Molis Work 尚未接入。"),
-  ],
   "google-calendar": [
-    oauth("创建 Google OAuth 客户端", "https://console.cloud.google.com/apis/credentials"),
-    token("google-calendar", "在 OAuth Playground 获取 calendar.readonly 用户访问令牌后可粘贴；到期后需更新。", 2),
-    mcp("查看 Calendar 官方 MCP（开发者预览）", "https://developers.google.com/workspace/calendar/api/guides/configure-mcp-server", "Google Workspace 开发者预览资格必需；Molis Work 尚未接入。"),
+    { kind: "oauth", support: "external", note: { key: "common.connector.oauth-external" }, links: [{ label: { key: "google-calendar.guide.oauth-link" }, url: "https://console.cloud.google.com/apis/credentials" }] },
+    { kind: "token", support: "paste", note: { key: "google-calendar.guide.token-note" }, links: [setupLinksFor("google-calendar")[2]!] },
+    { kind: "mcp", support: "external", note: { key: "google-calendar.guide.mcp-note" }, connected_note: { key: "google-calendar.guide.mcp-connected-note" }, links: [{ label: { key: "google-calendar.guide.mcp-link" }, url: "https://developers.google.com/workspace/calendar/api/guides/configure-mcp-server" }] },
   ],
-  outlook: [mcp("Microsoft Work IQ MCP", "https://learn.microsoft.com/en-us/microsoft-agent-365/tooling-servers-overview", "需要租户管理员启用 Work IQ 预览、Copilot 许可和 Entra 应用权限。"), 
-    oauth("注册 Microsoft Entra 应用", "https://learn.microsoft.com/en-us/graph/auth-register-app-v2"),
-    cli("查看 Microsoft Graph PowerShell", "https://learn.microsoft.com/powershell/microsoftgraph/authentication-commands", "可用 Connect-MgGraph 登录并调用 Graph；Molis Work 不读取 PowerShell 会话。"),
-    token("outlook", "Graph Explorer 可获取用于测试的用户令牌；长期使用需自己注册应用。"),
+  outlook: [
+    { kind: "mcp", support: "external", note: { key: "outlook.guide.mcp-note" }, connected_note: { key: "outlook.guide.mcp-note" }, links: [{ label: { key: "outlook.guide.mcp-link" }, url: "https://learn.microsoft.com/en-us/microsoft-agent-365/tooling-servers-overview" }] },
+    { kind: "oauth", support: "external", note: { key: "common.connector.oauth-external" }, links: [{ label: { key: "outlook.guide.oauth-link" }, url: "https://learn.microsoft.com/en-us/graph/auth-register-app-v2" }] },
+    { kind: "cli", support: "external", note: { key: "outlook.guide.cli-note" }, links: [{ label: { key: "outlook.guide.cli-link" }, url: "https://learn.microsoft.com/powershell/microsoftgraph/authentication-commands" }] },
+    { kind: "token", support: "paste", note: { key: "outlook.guide.token-note" }, links: [setupLinksFor("outlook")[0]!] },
   ],
   "google-drive": [
-    oauth("创建 Google OAuth 客户端", "https://console.cloud.google.com/apis/credentials"),
-    token("google-drive", "在 OAuth Playground 获取 Drive 用户访问令牌后可粘贴；到期后需更新。", 2),
-    mcp("查看 Drive 官方 MCP（开发者预览）", "https://developers.google.com/workspace/drive/api/guides/configure-mcp-server", "Google Workspace 开发者预览资格必需；Molis Work 尚未接入。"),
+    { kind: "oauth", support: "external", note: { key: "common.connector.oauth-external" }, links: [{ label: { key: "google-drive.guide.oauth-link" }, url: "https://console.cloud.google.com/apis/credentials" }] },
+    { kind: "token", support: "paste", note: { key: "google-drive.guide.token-note" }, links: [setupLinksFor("google-drive")[2]!] },
+    { kind: "mcp", support: "external", note: { key: "google-drive.guide.mcp-note" }, connected_note: { key: "google-drive.guide.mcp-connected-note" }, links: [{ label: { key: "google-drive.guide.mcp-link" }, url: "https://developers.google.com/workspace/drive/api/guides/configure-mcp-server" }] },
   ],
-  onedrive: [mcp("Microsoft Work IQ MCP", "https://learn.microsoft.com/en-us/microsoft-agent-365/tooling-servers-overview", "需要租户管理员启用 Work IQ 预览、Copilot 许可和 Entra 应用权限。"), oauth("注册 Microsoft Entra 应用", "https://learn.microsoft.com/en-us/graph/auth-register-app-v2"), cli("查看 Microsoft Graph PowerShell", "https://learn.microsoft.com/powershell/microsoftgraph/authentication-commands", "可用 Connect-MgGraph 登录并调用 Graph；Molis Work 不读取 PowerShell 会话。"), token("onedrive", "Graph Explorer 可获取用于测试的用户令牌；长期使用需自己注册应用。")],
-  sharepoint: [mcp("Microsoft Work IQ MCP", "https://learn.microsoft.com/en-us/microsoft-agent-365/tooling-servers-overview", "需要租户管理员启用 Work IQ 预览、Copilot 许可和 Entra 应用权限。"), oauth("注册 Microsoft Entra 应用", "https://learn.microsoft.com/en-us/graph/auth-register-app-v2"), cli("查看 Microsoft Graph PowerShell", "https://learn.microsoft.com/powershell/microsoftgraph/authentication-commands", "可用 Connect-MgGraph 登录并调用 Graph；Molis Work 不读取 PowerShell 会话。"), token("sharepoint", "Graph Explorer 可获取用于测试的用户令牌；长期使用需自己注册应用。")],
+  onedrive: [
+    { kind: "mcp", support: "external", note: { key: "onedrive.guide.mcp-note" }, connected_note: { key: "onedrive.guide.mcp-note" }, links: [{ label: { key: "onedrive.guide.mcp-link" }, url: "https://learn.microsoft.com/en-us/microsoft-agent-365/tooling-servers-overview" }] },
+    { kind: "oauth", support: "external", note: { key: "common.connector.oauth-external" }, links: [{ label: { key: "onedrive.guide.oauth-link" }, url: "https://learn.microsoft.com/en-us/graph/auth-register-app-v2" }] },
+    { kind: "cli", support: "external", note: { key: "onedrive.guide.cli-note" }, links: [{ label: { key: "onedrive.guide.cli-link" }, url: "https://learn.microsoft.com/powershell/microsoftgraph/authentication-commands" }] },
+    { kind: "token", support: "paste", note: { key: "onedrive.guide.token-note" }, links: [setupLinksFor("onedrive")[0]!] },
+  ],
+  sharepoint: [
+    { kind: "mcp", support: "external", note: { key: "sharepoint.guide.mcp-note" }, connected_note: { key: "sharepoint.guide.mcp-note" }, links: [{ label: { key: "sharepoint.guide.mcp-link" }, url: "https://learn.microsoft.com/en-us/microsoft-agent-365/tooling-servers-overview" }] },
+    { kind: "oauth", support: "external", note: { key: "common.connector.oauth-external" }, links: [{ label: { key: "sharepoint.guide.oauth-link" }, url: "https://learn.microsoft.com/en-us/graph/auth-register-app-v2" }] },
+    { kind: "cli", support: "external", note: { key: "sharepoint.guide.cli-note" }, links: [{ label: { key: "sharepoint.guide.cli-link" }, url: "https://learn.microsoft.com/powershell/microsoftgraph/authentication-commands" }] },
+    { kind: "token", support: "paste", note: { key: "sharepoint.guide.token-note" }, links: [setupLinksFor("sharepoint")[0]!] },
+  ],
   dropbox: [
-    oauth("查看 Dropbox OAuth 指南", "https://developers.dropbox.com/oauth-guide"),
-    token("dropbox", "在 Dropbox App Console 创建应用并取得访问令牌后可粘贴。"),
-    mcp("查看 Dropbox 官方 MCP（Beta）", "https://help.dropbox.com/integrations/connect-dropbox-mcp-server", "Dropbox 官方远程 MCP 处于 Beta；Molis Work 尚未接入。"),
+    { kind: "oauth", support: "external", note: { key: "common.connector.oauth-external" }, links: [{ label: { key: "dropbox.guide.oauth-link" }, url: "https://developers.dropbox.com/oauth-guide" }] },
+    { kind: "token", support: "paste", note: { key: "dropbox.guide.token-note" }, links: [setupLinksFor("dropbox")[0]!] },
+    { kind: "mcp", support: "external", note: { key: "dropbox.guide.mcp-note" }, connected_note: { key: "dropbox.guide.mcp-connected-note" }, links: [{ label: { key: "dropbox.guide.mcp-link" }, url: "https://help.dropbox.com/integrations/connect-dropbox-mcp-server" }] },
   ],
   box: [
-    oauth("查看 Box OAuth 认证", "https://developer.box.com/guides/authentication/oauth2/"),
-    cli("查看 Box 官方 CLI", "https://developer.box.com/guides/cli/"),
-    token("box", "Box Developer Console 可创建应用和临时开发者令牌；开发者令牌会过期。"),
-    mcp("查看 Box 官方 MCP", "https://developer.box.com/guides/box-mcp/", "Box 企业管理员可能需要先启用 MCP；Molis Work 尚未接入。"),
+    { kind: "oauth", support: "external", note: { key: "common.connector.oauth-external" }, links: [{ label: { key: "box.guide.oauth-link" }, url: "https://developer.box.com/guides/authentication/oauth2/" }] },
+    { kind: "cli", support: "external", note: { key: "common.connector.cli-external" }, links: [{ label: { key: "box.guide.cli-link" }, url: "https://developer.box.com/guides/cli/" }] },
+    { kind: "token", support: "paste", note: { key: "box.guide.token-note" }, links: [setupLinksFor("box")[0]!] },
+    { kind: "mcp", support: "external", note: { key: "box.guide.mcp-note" }, connected_note: { key: "box.guide.mcp-connected-note" }, links: [{ label: { key: "box.guide.mcp-link" }, url: "https://developer.box.com/guides/box-mcp/" }] },
   ],
   notion: [
-    method("oauth", "in_app", "查看 Notion OAuth 配置", "https://developers.notion.com/guides/get-started/authorization", "应用内支持 Notion API OAuth；需创建 Public connection 并配置本机回调。"),
-    cli("查看 Notion 官方 CLI", "https://developers.notion.com/cli/get-started/overview", "Notion CLI 可通过浏览器登录并调用 API；Molis Work 尚未读取其本机授权。"),
-    token("notion", "支持官方 PAT 或 Internal Integration Token；可读内容以用户权限或已共享给集成的页面为准。"),
-    mcp("查看 Notion 官方 MCP", "https://developers.notion.com/guides/mcp/get-started-with-mcp", "需另行授权；不会继承当前 Notion API OAuth 已选择的页面。Molis Work 尚未接入。"),
+    { kind: "oauth", support: "in_app", note: { key: "notion.guide.oauth-note" }, links: [{ label: { key: "notion.guide.oauth-link" }, url: "https://developers.notion.com/guides/get-started/authorization" }] },
+    { kind: "cli", support: "external", note: { key: "notion.guide.cli-note" }, links: [{ label: { key: "notion.guide.cli-link" }, url: "https://developers.notion.com/cli/get-started/overview" }] },
+    { kind: "token", support: "paste", note: { key: "notion.guide.token-note" }, links: [setupLinksFor("notion")[0]!] },
+    { kind: "mcp", support: "external", note: { key: "notion.guide.mcp-note" }, connected_note: { key: "notion.guide.mcp-connected-note" }, links: [{ label: { key: "notion.guide.mcp-link" }, url: "https://developers.notion.com/guides/mcp/get-started-with-mcp" }] },
   ],
   slack: [
-    oauth("创建 Slack 应用并安装到工作区", "https://api.slack.com/apps"),
-    token("slack", "将应用安装到工作区后取得相应 Bot 或用户令牌。"),
-    mcp("查看 Slack 官方 MCP", "https://docs.slack.dev/ai/slack-mcp-server/", "需要符合 Slack 应用和工作区条件；Molis Work 尚未接入。"),
+    { kind: "oauth", support: "external", note: { key: "common.connector.oauth-external" }, links: [{ label: { key: "slack.guide.oauth-link" }, url: "https://api.slack.com/apps" }] },
+    { kind: "token", support: "paste", note: { key: "slack.guide.token-note" }, links: [setupLinksFor("slack")[0]!] },
+    { kind: "mcp", support: "external", note: { key: "slack.guide.mcp-note" }, connected_note: { key: "slack.guide.mcp-connected-note" }, links: [{ label: { key: "slack.guide.mcp-link" }, url: "https://docs.slack.dev/ai/slack-mcp-server/" }] },
   ],
-  teams: [mcp("Microsoft Work IQ MCP", "https://learn.microsoft.com/en-us/microsoft-agent-365/tooling-servers-overview", "需要租户管理员启用 Work IQ 预览、Copilot 许可和 Entra 应用权限。"), oauth("注册 Microsoft Entra 应用", "https://learn.microsoft.com/en-us/graph/auth-register-app-v2"), cli("查看 Microsoft Graph PowerShell", "https://learn.microsoft.com/powershell/microsoftgraph/authentication-commands", "可用 Connect-MgGraph 登录并调用 Graph；Molis Work 不读取 PowerShell 会话。"), token("teams", "Graph Explorer 可获取用于测试的用户令牌；长期使用需自己注册应用。")],
+  teams: [
+    { kind: "mcp", support: "external", note: { key: "teams.guide.mcp-note" }, connected_note: { key: "teams.guide.mcp-note" }, links: [{ label: { key: "teams.guide.mcp-link" }, url: "https://learn.microsoft.com/en-us/microsoft-agent-365/tooling-servers-overview" }] },
+    { kind: "oauth", support: "external", note: { key: "common.connector.oauth-external" }, links: [{ label: { key: "teams.guide.oauth-link" }, url: "https://learn.microsoft.com/en-us/graph/auth-register-app-v2" }] },
+    { kind: "cli", support: "external", note: { key: "teams.guide.cli-note" }, links: [{ label: { key: "teams.guide.cli-link" }, url: "https://learn.microsoft.com/powershell/microsoftgraph/authentication-commands" }] },
+    { kind: "token", support: "paste", note: { key: "teams.guide.token-note" }, links: [setupLinksFor("teams")[0]!] },
+  ],
   discord: [
-    oauth("查看 Discord OAuth2", "https://discord.com/developers/docs/topics/oauth2", "Discord OAuth2 用于用户授权；当前 Molis Work 的服务器数据 Connector 使用 Bot Token，尚未接入 OAuth。"),
-    token("discord", "在 Developer Portal 创建 Bot，把它加入目标服务器后粘贴 Bot Token。"),
+    { kind: "oauth", support: "external", note: { key: "discord.guide.oauth-note" }, links: [{ label: { key: "discord.guide.oauth-link" }, url: "https://discord.com/developers/docs/topics/oauth2" }] },
+    { kind: "token", support: "paste", note: { key: "discord.guide.token-note" }, links: [setupLinksFor("discord")[0]!] },
   ],
   feishu: [
-    oauth("查看飞书用户身份验证", "https://open.feishu.cn/document/authentication-management/access-token/get-user-access-token", "官方支持用户 OAuth；Molis Work 当前通过飞书 CLI 完成用户授权。"),
-    method("cli", "in_app", "安装与配置飞书官方 CLI", "https://github.com/larksuite/cli", "应用内可唤起官方 CLI 登录，并使用已批准的用户只读权限。"),
-    token("feishu", "企业自建应用需 app_id:app_secret；使用租户应用身份。"),
-    mcp("查看飞书官方 MCP", "https://github.com/larksuite/lark-openapi-mcp"),
+    { kind: "oauth", support: "external", note: { key: "feishu.guide.oauth-note" }, links: [{ label: { key: "feishu.guide.oauth-link" }, url: "https://open.feishu.cn/document/authentication-management/access-token/get-user-access-token" }] },
+    { kind: "cli", support: "in_app", note: { key: "feishu.guide.cli-note" }, links: [{ label: { key: "feishu.guide.cli-link" }, url: "https://github.com/larksuite/cli" }] },
+    { kind: "token", support: "paste", note: { key: "feishu.guide.token-note" }, links: [setupLinksFor("feishu")[0]!] },
+    { kind: "mcp", support: "external", note: { key: "common.connector.mcp-external" }, links: [{ label: { key: "feishu.guide.mcp-link" }, url: "https://github.com/larksuite/lark-openapi-mcp" }] },
   ],
   lark: [
-    oauth("查看 Lark 用户授权", "https://open.larksuite.com/document/server-docs/authentication-management/access-token/get-user-access-token"),
-    cli("查看 Lark 官方 CLI", "https://github.com/larksuite/cli", "同一官方 CLI 支持 Lark 环境；Molis Work 的 Lark Connector 尚未复用其登录。"),
-    token("lark", "国际版 Lark 自建应用需 app_id:app_secret。"),
-    mcp("查看 Lark 官方 MCP", "https://github.com/larksuite/lark-openapi-mcp"),
+    { kind: "oauth", support: "external", note: { key: "common.connector.oauth-external" }, links: [{ label: { key: "lark.guide.oauth-link" }, url: "https://open.larksuite.com/document/server-docs/authentication-management/access-token/get-user-access-token" }] },
+    { kind: "cli", support: "external", note: { key: "lark.guide.cli-note" }, links: [{ label: { key: "lark.guide.cli-link" }, url: "https://github.com/larksuite/cli" }] },
+    { kind: "token", support: "paste", note: { key: "lark.guide.token-note" }, links: [setupLinksFor("lark")[0]!] },
+    { kind: "mcp", support: "external", note: { key: "common.connector.mcp-external" }, links: [{ label: { key: "lark.guide.mcp-link" }, url: "https://github.com/larksuite/lark-openapi-mcp" }] },
   ],
-  wechat: [token("wechat", "这里接入企业微信自建应用的 CorpID 与 Secret；个人微信无此官方 API。")],
+  wechat: [
+    { kind: "token", support: "paste", note: { key: "wechat.guide.token-note" }, links: [setupLinksFor("wechat")[0]!] },
+  ],
   zoom: [
-    oauth("查看 Zoom OAuth 应用", "https://developers.zoom.us/docs/integrations/oauth/"),
-    token("zoom", "使用 Zoom OAuth 用户访问令牌；到期后需更新。"),
-    mcp("查看 Zoom 官方 MCP", "https://developers.zoom.us/docs/mcp/servers/"),
+    { kind: "oauth", support: "external", note: { key: "common.connector.oauth-external" }, links: [{ label: { key: "zoom.guide.oauth-link" }, url: "https://developers.zoom.us/docs/integrations/oauth/" }] },
+    { kind: "token", support: "paste", note: { key: "zoom.guide.token-note" }, links: [setupLinksFor("zoom")[0]!] },
+    { kind: "mcp", support: "external", note: { key: "common.connector.mcp-external" }, links: [{ label: { key: "zoom.guide.mcp-link" }, url: "https://developers.zoom.us/docs/mcp/servers/" }] },
   ],
   gitlab: [
-    oauth("查看 GitLab OAuth 应用", "https://docs.gitlab.com/integration/oauth_provider/"),
-    cli("查看 GitLab CLI 登录", "https://docs.gitlab.com/cli/"),
-    token("gitlab", "创建具备 read_api 或 read_user 权限的 PAT。"),
-    mcp("查看 GitLab 官方 MCP", "https://docs.gitlab.com/user/model_context_protocol/mcp_server/", "GitLab 官方 MCP 处于 Beta；Molis Work 尚未接入。"),
+    { kind: "oauth", support: "external", note: { key: "common.connector.oauth-external" }, links: [{ label: { key: "gitlab.guide.oauth-link" }, url: "https://docs.gitlab.com/integration/oauth_provider/" }] },
+    { kind: "cli", support: "external", note: { key: "common.connector.cli-external" }, links: [{ label: { key: "gitlab.guide.cli-link" }, url: "https://docs.gitlab.com/cli/" }] },
+    { kind: "token", support: "paste", note: { key: "gitlab.guide.token-note" }, links: [setupLinksFor("gitlab")[0]!] },
+    { kind: "mcp", support: "external", note: { key: "gitlab.guide.mcp-note" }, connected_note: { key: "gitlab.guide.mcp-connected-note" }, links: [{ label: { key: "gitlab.guide.mcp-link" }, url: "https://docs.gitlab.com/user/model_context_protocol/mcp_server/" }] },
   ],
   bitbucket: [
-    oauth("查看 Bitbucket OAuth 2.0", "https://developer.atlassian.com/cloud/bitbucket/rest/intro/#authentication"),
-    method("token", "paste", "创建 Atlassian API Token", "https://id.atlassian.com/manage-profile/security/api-tokens", "Bitbucket App Password 已停用；请用 API Token 或 OAuth 用户访问令牌。"),
-    mcp("查看 Atlassian Rovo MCP", "https://developer.atlassian.com/cloud/rovo-mcp/", "Bitbucket 工作区需关联 Atlassian 组织；Molis Work 尚未接入。"),
+    { kind: "oauth", support: "external", note: { key: "common.connector.oauth-external" }, links: [{ label: { key: "bitbucket.guide.oauth-link" }, url: "https://developer.atlassian.com/cloud/bitbucket/rest/intro/#authentication" }] },
+    { kind: "token", support: "paste", note: { key: "bitbucket.guide.token-note" }, links: [setupLinksFor("bitbucket")[0]!] },
+    { kind: "mcp", support: "external", note: { key: "bitbucket.guide.mcp-note" }, connected_note: { key: "bitbucket.guide.mcp-connected-note" }, links: [{ label: { key: "bitbucket.guide.mcp-link" }, url: "https://developer.atlassian.com/cloud/rovo-mcp/" }] },
   ],
-  vercel: [oauth("查看 Vercel OAuth 集成", "https://vercel.com/docs/integrations/create-integration/vercel-api-integrations"), cli("查看 Vercel CLI", "https://vercel.com/docs/cli"), token("vercel"), mcp("查看 Vercel 官方 MCP", "https://vercel.com/docs/agent-resources/vercel-mcp", "官方 MCP 处于 Beta，客户端可能需获准；Molis Work 尚未接入。")],
-  cloudflare: [oauth("查看 Cloudflare OAuth", "https://developers.cloudflare.com/fundamentals/oauth/"), cli("查看 Wrangler CLI", "https://developers.cloudflare.com/workers/wrangler/"), token("cloudflare"), mcp("查看 Cloudflare 官方 MCP", "https://developers.cloudflare.com/agents/model-context-protocol/cloudflare/servers-for-cloudflare/")],
-  huggingface: [oauth("查看 Hugging Face OAuth", "https://huggingface.co/docs/hub/oauth"), cli("查看 Hugging Face CLI", "https://huggingface.co/docs/huggingface_hub/guides/cli"), token("huggingface"), mcp("查看 Hugging Face 官方 MCP", "https://huggingface.co/docs/hub/agents-mcp")],
-  sentry: [cli("Sentry CLI", "https://cli.sentry.dev/"), oauth("查看 Sentry OAuth 应用", "https://docs.sentry.io/organization/integrations/integration-platform/"), token("sentry"), mcp("查看 Sentry 官方 MCP", "https://github.com/getsentry/sentry-mcp")],
-  supabase: [oauth("查看 Supabase OAuth 应用", "https://supabase.com/docs/guides/integrations/build-a-supabase-integration"), cli("查看 Supabase CLI", "https://supabase.com/docs/guides/local-development/cli/getting-started"), token("supabase"), mcp("查看 Supabase 官方 MCP", "https://supabase.com/docs/guides/ai-tools/mcp")],
-  linear: [oauth("查看 Linear OAuth 应用", "https://linear.app/developers/oauth-2-0-authentication"), token("linear"), mcp("查看 Linear 官方 MCP", "https://linear.app/docs/mcp")],
-  jira: [cli("Jira ACLI", "https://developer.atlassian.com/cloud/acli/guides/introduction/"), oauth("查看 Atlassian OAuth 2.0", "https://developer.atlassian.com/cloud/jira/platform/oauth-2-3lo-apps/"), token("jira"), mcp("查看 Atlassian Rovo MCP", "https://developer.atlassian.com/cloud/rovo-mcp/")],
-  confluence: [oauth("查看 Atlassian OAuth 2.0", "https://developer.atlassian.com/cloud/confluence/oauth-2-3lo-apps/"), token("confluence"), mcp("查看 Atlassian Rovo MCP", "https://developer.atlassian.com/cloud/rovo-mcp/")],
-  asana: [oauth("查看 Asana OAuth 应用", "https://developers.asana.com/docs/oauth"), token("asana"), mcp("查看 Asana 官方 MCP", "https://developers.asana.com/docs/integrating-with-asanas-mcp-server", "Asana MCP 的授权与普通 REST API 授权分开；Molis Work 尚未接入。")],
-  clickup: [oauth("查看 ClickUp OAuth", "https://developer.clickup.com/docs/authentication"), token("clickup"), mcp("查看 ClickUp 官方 MCP", "https://developer.clickup.com/docs/connect-an-ai-assistant-to-clickups-mcp-server", "ClickUp 官方 MCP 处于公开 Beta；Molis Work 尚未接入。")],
-  monday: [oauth("查看 monday OAuth", "https://developer.monday.com/apps/docs/oauth"), token("monday"), mcp("查看 monday 官方 MCP", "https://developer.monday.com/api-reference/docs/integrate-with-monday-mcp")],
-  airtable: [oauth("查看 Airtable OAuth", "https://airtable.com/developers/web/api/oauth-reference"), token("airtable"), mcp("查看 Airtable 官方 MCP", "https://support.airtable.com/articles/9897799762-using-the-airtable-mcp-server")],
-  loom: [mcp("查看 Atlassian Rovo MCP", "https://developer.atlassian.com/cloud/rovo-mcp/", "Loom 工作区需关联 Atlassian 站点；不提供公开 REST API。")],
-  figma: [oauth("查看 Figma OAuth 应用", "https://developers.figma.com/docs/rest-api/authentication/"), token("figma"), mcp("查看 Figma 官方 MCP", "https://developers.figma.com/docs/figma-mcp-server/", "本机桌面 MCP 需在 Figma 中启用；云端 MCP 仅限获准的客户端。")],
-  canva: [oauth("查看 Canva Connect OAuth", "https://www.canva.dev/docs/connect/authentication/"), token("canva", "Canva 没有 PAT；可在自己的 OAuth 应用取得访问令牌后粘贴，到期需更新。"), mcp("查看 Canva 官方 MCP", "https://www.canva.dev/docs/apps/mcp/")],
-  adobe: [oauth("查看 Adobe 用户授权", "https://developer.adobe.com/developer-console/docs/guides/authentication/UserAuthentication/"), token("adobe", "使用 Adobe IMS 用户访问令牌；多数情况下还需要 Client ID。")],
-  salesforce: [oauth("查看 Salesforce OAuth", "https://help.salesforce.com/s/articleView?id=sf.remoteaccess_oauth_flows.htm"), cli("查看 Salesforce CLI 登录", "https://developer.salesforce.com/docs/platform/salesforce-cli-reference/guide/cli_reference_org_login_web.html", "Salesforce CLI 可登录 org 并查询数据；Molis Work 不读取本机 org 授权。"), token("salesforce", "填写 Salesforce 实例地址与访问令牌。"), mcp("查看 Salesforce Hosted MCP", "https://developer.salesforce.com/docs/platform/hosted-mcp-servers/guide/hosted-mcp-servers-overview.html", "Hosted MCP 可能要求企业配置并消耗 Flex Credits；Molis Work 尚未接入。")],
-  hubspot: [cli("HubSpot Agent CLI", "https://developers.hubspot.com/docs/developer-tooling/local-development/agent-cli/guide"), oauth("查看 HubSpot OAuth", "https://developers.hubspot.com/docs/apps/developer-platform/build-apps/authentication/oauth"), token("hubspot", "在 Settings → Integrations → Service Keys 创建只读 Service Key；既有 Private App Token 仍可使用。"), mcp("查看 HubSpot 官方 MCP", "https://developers.hubspot.com/ai-tools/mcp")],
-  intercom: [oauth("查看 Intercom OAuth", "https://developers.intercom.com/docs/build-an-integration/learn-more/authentication/setting-up-oauth"), token("intercom", "仅连接自己的 Private App；公共应用应按官方要求使用 OAuth。"), mcp("查看 Intercom 官方 MCP", "https://developers.intercom.com/docs/guides/mcp", "官方 MCP 当前仅支持美国托管的工作区；Molis Work 尚未接入。")],
-  stripe: [oauth("查看 Stripe Connect OAuth", "https://docs.stripe.com/connect/oauth-reference"), cli("查看 Stripe CLI", "https://docs.stripe.com/stripe-cli"), token("stripe", "优先创建权限受限的 API Key；不要粘贴 Publishable Key。"), mcp("查看 Stripe 官方 MCP", "https://docs.stripe.com/mcp")],
-  x: [mcp("X 官方 MCP", "https://github.com/xdevplatform/xurl"), cli("X xurl", "https://github.com/xdevplatform/xurl"), oauth("查看 X OAuth 2.0 PKCE", "https://docs.x.com/fundamentals/authentication/oauth-2-0/authorization-code", "需用户上下文与 tweet.read、users.read；Molis Work 尚未接入授权回调。"), token("x", "需要 OAuth 用户访问令牌；App-only Bearer 不适用于当前身份接口。")],
-  linkedin: [oauth("查看 LinkedIn OAuth 2.0", "https://learn.microsoft.com/en-us/linkedin/shared/authentication/authorization-code-flow"), token("linkedin", "需要 OpenID 会员访问令牌；帖子权限另需审批。")],
+  vercel: [
+    { kind: "oauth", support: "external", note: { key: "common.connector.oauth-external" }, links: [{ label: { key: "vercel.guide.oauth-link" }, url: "https://vercel.com/docs/integrations/create-integration/vercel-api-integrations" }] },
+    { kind: "cli", support: "external", note: { key: "common.connector.cli-external" }, links: [{ label: { key: "vercel.guide.cli-link" }, url: "https://vercel.com/docs/cli" }] },
+    { kind: "token", support: "paste", note: { key: "common.connector.paste-token" }, links: [setupLinksFor("vercel")[0]!] },
+    { kind: "mcp", support: "external", note: { key: "vercel.guide.mcp-note" }, connected_note: { key: "vercel.guide.mcp-connected-note" }, links: [{ label: { key: "vercel.guide.mcp-link" }, url: "https://vercel.com/docs/agent-resources/vercel-mcp" }] },
+  ],
+  cloudflare: [
+    { kind: "oauth", support: "external", note: { key: "common.connector.oauth-external" }, links: [{ label: { key: "cloudflare.guide.oauth-link" }, url: "https://developers.cloudflare.com/fundamentals/oauth/" }] },
+    { kind: "cli", support: "external", note: { key: "common.connector.cli-external" }, links: [{ label: { key: "cloudflare.guide.cli-link" }, url: "https://developers.cloudflare.com/workers/wrangler/" }] },
+    { kind: "token", support: "paste", note: { key: "common.connector.paste-token" }, links: [setupLinksFor("cloudflare")[0]!] },
+    { kind: "mcp", support: "external", note: { key: "common.connector.mcp-external" }, links: [{ label: { key: "cloudflare.guide.mcp-link" }, url: "https://developers.cloudflare.com/agents/model-context-protocol/cloudflare/servers-for-cloudflare/" }] },
+  ],
+  huggingface: [
+    { kind: "oauth", support: "external", note: { key: "common.connector.oauth-external" }, links: [{ label: { key: "huggingface.guide.oauth-link" }, url: "https://huggingface.co/docs/hub/oauth" }] },
+    { kind: "cli", support: "external", note: { key: "common.connector.cli-external" }, links: [{ label: { key: "huggingface.guide.cli-link" }, url: "https://huggingface.co/docs/huggingface_hub/guides/cli" }] },
+    { kind: "token", support: "paste", note: { key: "common.connector.paste-token" }, links: [setupLinksFor("huggingface")[0]!] },
+    { kind: "mcp", support: "external", note: { key: "common.connector.mcp-external" }, links: [{ label: { key: "huggingface.guide.mcp-link" }, url: "https://huggingface.co/docs/hub/agents-mcp" }] },
+  ],
+  sentry: [
+    { kind: "cli", support: "external", note: { key: "common.connector.cli-external" }, links: [{ label: { key: "sentry.guide.cli-link" }, url: "https://cli.sentry.dev/" }] },
+    { kind: "oauth", support: "external", note: { key: "common.connector.oauth-external" }, links: [{ label: { key: "sentry.guide.oauth-link" }, url: "https://docs.sentry.io/organization/integrations/integration-platform/" }] },
+    { kind: "token", support: "paste", note: { key: "common.connector.paste-token" }, links: [setupLinksFor("sentry")[0]!] },
+    { kind: "mcp", support: "external", note: { key: "common.connector.mcp-external" }, links: [{ label: { key: "sentry.guide.mcp-link" }, url: "https://github.com/getsentry/sentry-mcp" }] },
+  ],
+  supabase: [
+    { kind: "oauth", support: "external", note: { key: "common.connector.oauth-external" }, links: [{ label: { key: "supabase.guide.oauth-link" }, url: "https://supabase.com/docs/guides/integrations/build-a-supabase-integration" }] },
+    { kind: "cli", support: "external", note: { key: "common.connector.cli-external" }, links: [{ label: { key: "supabase.guide.cli-link" }, url: "https://supabase.com/docs/guides/local-development/cli/getting-started" }] },
+    { kind: "token", support: "paste", note: { key: "common.connector.paste-token" }, links: [setupLinksFor("supabase")[0]!] },
+    { kind: "mcp", support: "external", note: { key: "common.connector.mcp-external" }, links: [{ label: { key: "supabase.guide.mcp-link" }, url: "https://supabase.com/docs/guides/ai-tools/mcp" }] },
+  ],
+  linear: [
+    { kind: "oauth", support: "external", note: { key: "common.connector.oauth-external" }, links: [{ label: { key: "linear.guide.oauth-link" }, url: "https://linear.app/developers/oauth-2-0-authentication" }] },
+    { kind: "token", support: "paste", note: { key: "common.connector.paste-token" }, links: [setupLinksFor("linear")[0]!] },
+    { kind: "mcp", support: "external", note: { key: "common.connector.mcp-external" }, links: [{ label: { key: "linear.guide.mcp-link" }, url: "https://linear.app/docs/mcp" }] },
+  ],
+  jira: [
+    { kind: "cli", support: "external", note: { key: "common.connector.cli-external" }, links: [{ label: { key: "jira.guide.cli-link" }, url: "https://developer.atlassian.com/cloud/acli/guides/introduction/" }] },
+    { kind: "oauth", support: "external", note: { key: "common.connector.oauth-external" }, links: [{ label: { key: "jira.guide.oauth-link" }, url: "https://developer.atlassian.com/cloud/jira/platform/oauth-2-3lo-apps/" }] },
+    { kind: "token", support: "paste", note: { key: "common.connector.paste-token" }, links: [setupLinksFor("jira")[0]!] },
+    { kind: "mcp", support: "external", note: { key: "common.connector.mcp-external" }, links: [{ label: { key: "jira.guide.mcp-link" }, url: "https://developer.atlassian.com/cloud/rovo-mcp/" }] },
+  ],
+  confluence: [
+    { kind: "oauth", support: "external", note: { key: "common.connector.oauth-external" }, links: [{ label: { key: "confluence.guide.oauth-link" }, url: "https://developer.atlassian.com/cloud/confluence/oauth-2-3lo-apps/" }] },
+    { kind: "token", support: "paste", note: { key: "common.connector.paste-token" }, links: [setupLinksFor("confluence")[0]!] },
+    { kind: "mcp", support: "external", note: { key: "common.connector.mcp-external" }, links: [{ label: { key: "confluence.guide.mcp-link" }, url: "https://developer.atlassian.com/cloud/rovo-mcp/" }] },
+  ],
+  asana: [
+    { kind: "oauth", support: "external", note: { key: "common.connector.oauth-external" }, links: [{ label: { key: "asana.guide.oauth-link" }, url: "https://developers.asana.com/docs/oauth" }] },
+    { kind: "token", support: "paste", note: { key: "common.connector.paste-token" }, links: [setupLinksFor("asana")[0]!] },
+    { kind: "mcp", support: "external", note: { key: "asana.guide.mcp-note" }, connected_note: { key: "asana.guide.mcp-connected-note" }, links: [{ label: { key: "asana.guide.mcp-link" }, url: "https://developers.asana.com/docs/integrating-with-asanas-mcp-server" }] },
+  ],
+  clickup: [
+    { kind: "oauth", support: "external", note: { key: "common.connector.oauth-external" }, links: [{ label: { key: "clickup.guide.oauth-link" }, url: "https://developer.clickup.com/docs/authentication" }] },
+    { kind: "token", support: "paste", note: { key: "common.connector.paste-token" }, links: [setupLinksFor("clickup")[0]!] },
+    { kind: "mcp", support: "external", note: { key: "clickup.guide.mcp-note" }, connected_note: { key: "clickup.guide.mcp-connected-note" }, links: [{ label: { key: "clickup.guide.mcp-link" }, url: "https://developer.clickup.com/docs/connect-an-ai-assistant-to-clickups-mcp-server" }] },
+  ],
+  monday: [
+    { kind: "oauth", support: "external", note: { key: "common.connector.oauth-external" }, links: [{ label: { key: "monday.guide.oauth-link" }, url: "https://developer.monday.com/apps/docs/oauth" }] },
+    { kind: "token", support: "paste", note: { key: "common.connector.paste-token" }, links: [setupLinksFor("monday")[0]!] },
+    { kind: "mcp", support: "external", note: { key: "common.connector.mcp-external" }, links: [{ label: { key: "monday.guide.mcp-link" }, url: "https://developer.monday.com/api-reference/docs/integrate-with-monday-mcp" }] },
+  ],
+  airtable: [
+    { kind: "oauth", support: "external", note: { key: "common.connector.oauth-external" }, links: [{ label: { key: "airtable.guide.oauth-link" }, url: "https://airtable.com/developers/web/api/oauth-reference" }] },
+    { kind: "token", support: "paste", note: { key: "common.connector.paste-token" }, links: [setupLinksFor("airtable")[0]!] },
+    { kind: "mcp", support: "external", note: { key: "common.connector.mcp-external" }, links: [{ label: { key: "airtable.guide.mcp-link" }, url: "https://support.airtable.com/articles/9897799762-using-the-airtable-mcp-server" }] },
+  ],
+  loom: [
+    { kind: "mcp", support: "external", note: { key: "loom.guide.mcp-note" }, connected_note: { key: "loom.guide.mcp-note" }, links: [{ label: { key: "loom.guide.mcp-link" }, url: "https://developer.atlassian.com/cloud/rovo-mcp/" }] },
+  ],
+  figma: [
+    { kind: "oauth", support: "external", note: { key: "common.connector.oauth-external" }, links: [{ label: { key: "figma.guide.oauth-link" }, url: "https://developers.figma.com/docs/rest-api/authentication/" }] },
+    { kind: "token", support: "paste", note: { key: "common.connector.paste-token" }, links: [setupLinksFor("figma")[0]!] },
+    { kind: "mcp", support: "external", note: { key: "figma.guide.mcp-note" }, connected_note: { key: "figma.guide.mcp-note" }, links: [{ label: { key: "figma.guide.mcp-link" }, url: "https://developers.figma.com/docs/figma-mcp-server/" }] },
+  ],
+  canva: [
+    { kind: "oauth", support: "external", note: { key: "common.connector.oauth-external" }, links: [{ label: { key: "canva.guide.oauth-link" }, url: "https://www.canva.dev/docs/connect/authentication/" }] },
+    { kind: "token", support: "paste", note: { key: "canva.guide.token-note" }, links: [setupLinksFor("canva")[0]!] },
+    { kind: "mcp", support: "external", note: { key: "common.connector.mcp-external" }, links: [{ label: { key: "canva.guide.mcp-link" }, url: "https://www.canva.dev/docs/apps/mcp/" }] },
+  ],
+  adobe: [
+    { kind: "oauth", support: "external", note: { key: "common.connector.oauth-external" }, links: [{ label: { key: "adobe.guide.oauth-link" }, url: "https://developer.adobe.com/developer-console/docs/guides/authentication/UserAuthentication/" }] },
+    { kind: "token", support: "paste", note: { key: "adobe.guide.token-note" }, links: [setupLinksFor("adobe")[0]!] },
+  ],
+  salesforce: [
+    { kind: "oauth", support: "external", note: { key: "common.connector.oauth-external" }, links: [{ label: { key: "salesforce.guide.oauth-link" }, url: "https://help.salesforce.com/s/articleView?id=sf.remoteaccess_oauth_flows.htm" }] },
+    { kind: "cli", support: "external", note: { key: "salesforce.guide.cli-note" }, links: [{ label: { key: "salesforce.guide.cli-link" }, url: "https://developer.salesforce.com/docs/platform/salesforce-cli-reference/guide/cli_reference_org_login_web.html" }] },
+    { kind: "token", support: "paste", note: { key: "salesforce.guide.token-note" }, links: [setupLinksFor("salesforce")[0]!] },
+    { kind: "mcp", support: "external", note: { key: "salesforce.guide.mcp-note" }, connected_note: { key: "salesforce.guide.mcp-connected-note" }, links: [{ label: { key: "salesforce.guide.mcp-link" }, url: "https://developer.salesforce.com/docs/platform/hosted-mcp-servers/guide/hosted-mcp-servers-overview.html" }] },
+  ],
+  hubspot: [
+    { kind: "cli", support: "external", note: { key: "common.connector.cli-external" }, links: [{ label: { key: "hubspot.guide.cli-link" }, url: "https://developers.hubspot.com/docs/developer-tooling/local-development/agent-cli/guide" }] },
+    { kind: "oauth", support: "external", note: { key: "common.connector.oauth-external" }, links: [{ label: { key: "hubspot.guide.oauth-link" }, url: "https://developers.hubspot.com/docs/apps/developer-platform/build-apps/authentication/oauth" }] },
+    { kind: "token", support: "paste", note: { key: "hubspot.guide.token-note" }, links: [setupLinksFor("hubspot")[0]!] },
+    { kind: "mcp", support: "external", note: { key: "common.connector.mcp-external" }, links: [{ label: { key: "hubspot.guide.mcp-link" }, url: "https://developers.hubspot.com/ai-tools/mcp" }] },
+  ],
+  intercom: [
+    { kind: "oauth", support: "external", note: { key: "common.connector.oauth-external" }, links: [{ label: { key: "intercom.guide.oauth-link" }, url: "https://developers.intercom.com/docs/build-an-integration/learn-more/authentication/setting-up-oauth" }] },
+    { kind: "token", support: "paste", note: { key: "intercom.guide.token-note" }, links: [setupLinksFor("intercom")[0]!] },
+    { kind: "mcp", support: "external", note: { key: "intercom.guide.mcp-note" }, connected_note: { key: "intercom.guide.mcp-connected-note" }, links: [{ label: { key: "intercom.guide.mcp-link" }, url: "https://developers.intercom.com/docs/guides/mcp" }] },
+  ],
+  stripe: [
+    { kind: "oauth", support: "external", note: { key: "common.connector.oauth-external" }, links: [{ label: { key: "stripe.guide.oauth-link" }, url: "https://docs.stripe.com/connect/oauth-reference" }] },
+    { kind: "cli", support: "external", note: { key: "common.connector.cli-external" }, links: [{ label: { key: "stripe.guide.cli-link" }, url: "https://docs.stripe.com/stripe-cli" }] },
+    { kind: "token", support: "paste", note: { key: "stripe.guide.token-note" }, links: [setupLinksFor("stripe")[0]!] },
+    { kind: "mcp", support: "external", note: { key: "common.connector.mcp-external" }, links: [{ label: { key: "stripe.guide.mcp-link" }, url: "https://docs.stripe.com/mcp" }] },
+  ],
+  x: [
+    { kind: "mcp", support: "external", note: { key: "common.connector.mcp-external" }, links: [{ label: { key: "x.guide.mcp-link" }, url: "https://github.com/xdevplatform/xurl" }] },
+    { kind: "cli", support: "external", note: { key: "common.connector.cli-external" }, links: [{ label: { key: "x.guide.cli-link" }, url: "https://github.com/xdevplatform/xurl" }] },
+    { kind: "oauth", support: "external", note: { key: "x.guide.oauth-note" }, links: [{ label: { key: "x.guide.oauth-link" }, url: "https://docs.x.com/fundamentals/authentication/oauth-2-0/authorization-code" }] },
+    { kind: "token", support: "paste", note: { key: "x.guide.token-note" }, links: [setupLinksFor("x")[0]!] },
+  ],
+  linkedin: [
+    { kind: "oauth", support: "external", note: { key: "common.connector.oauth-external" }, links: [{ label: { key: "linkedin.guide.oauth-link" }, url: "https://learn.microsoft.com/en-us/linkedin/shared/authentication/authorization-code-flow" }] },
+    { kind: "token", support: "paste", note: { key: "linkedin.guide.token-note" }, links: [setupLinksFor("linkedin")[0]!] },
+  ],
 };
 
 export function officialMethodsFor(connectorId: string): readonly OfficialConnectorMethod[] {
-  const methods = OFFICIAL_CONNECTOR_METHODS[connectorId];
-  if (!methods?.length) throw new Error(`missing_official_connector_methods:${connectorId}`);
-  return methods;
+  return Object.hasOwn(OFFICIAL_CONNECTOR_METHODS, connectorId) ? OFFICIAL_CONNECTOR_METHODS[connectorId]! : [];
 }

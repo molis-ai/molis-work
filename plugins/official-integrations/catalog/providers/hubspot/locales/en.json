@@ -1,0 +1,16 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.hubspot",
+  "locale": "en",
+  "messages": {
+    "hubspot.connection.auth-help": "For a new connection, use a HubSpot Service Key with crm.objects.contacts.read. Existing Private App Tokens still work.",
+    "hubspot.connection.inbound": "Feed reads contacts",
+    "hubspot.connection.summary": "CRM and marketing.",
+    "hubspot.connection.token-label": "HubSpot Service Key / existing Private App Token",
+    "hubspot.guide.cli-link": "HubSpot Agent CLI",
+    "hubspot.guide.mcp-link": "View the official HubSpot MCP",
+    "hubspot.guide.oauth-link": "View HubSpot OAuth",
+    "hubspot.guide.token-note": "Create a read-only Service Key under Settings → Integrations → Service Keys. Existing Private App Tokens still work.",
+    "hubspot.setup.view-hubspot-service-key-setup": "View HubSpot Service Key setup"
+  }
+}

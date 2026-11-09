@@ -1,0 +1,16 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.zoom",
+  "locale": "zh",
+  "messages": {
+    "zoom.connection.auth-help": "Zoom OAuth 用户访问令牌，identity 打 /v2/users/me。Server-to-Server 账号令牌没有 /users/me，会 live 失败；请改用用户上下文令牌。",
+    "zoom.connection.inbound": "Feed 拉会议与录制",
+    "zoom.connection.summary": "会议与录制。",
+    "zoom.connection.token-label": "Zoom 访问令牌",
+    "zoom.guide.mcp-link": "查看 Zoom 官方 MCP",
+    "zoom.guide.oauth-link": "查看 Zoom OAuth 应用",
+    "zoom.guide.token-note": "使用 Zoom OAuth 用户访问令牌；到期后需更新。",
+    "zoom.oauth.note": "在 Zoom 应用中启用用户、会议与录制的读取权限。",
+    "zoom.setup.open-zoom-app-marketplace": "打开 Zoom App Marketplace"
+  }
+}

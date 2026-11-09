@@ -1,18 +1,22 @@
 import type { PluginContribution, PluginDefinition, PluginIntegrationContribution, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { IntegrationBinding, IntegrationKind, OAuthGrant, PluginAuthMethodDeclaration, PluginConnectionServiceDeclaration, PluginMcpMethodDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
-import { HOST_BUILD_TRUST, MemoryPluginRuntimeRepository, PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
+import { HOST_BUILD_TRUST, MemoryPluginRuntimeRepository, PluginRuntime, type PluginLocaleReader } from "@molis-ai/molis-work-plugin-runtime";
 import { checkedSourcePresentation, checkedSourcePresentationInput, parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import type { SourcePresentation, SourcePresentationInput } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 import type { ConnectorConnectionDeclarer } from "@molis-ai/molis-work-service-connector-host";
 import { IntegrationDeclarations, type RegisteredConnectionService, type RegisteredIntegration } from "./integration-declarations.js";
 import { HOST_PLUGIN_IDS } from "./host-plugin-ids.js";
+import { assertConnectorText, builtinConnectorText, type BuiltinConnectorText, type ConnectorWordReader } from "./connector-words.js";
+
+export type BuiltinIntegrationDefinition = PluginDefinition & { readonly connectionText?: BuiltinConnectorText };
 
 export interface OAuthServiceOwner {
   readonly plugin_id: string;
   readonly install_id: string;
   readonly publisher_id: string;
   readonly method: PluginAuthMethodDeclaration | null;
+  readonly word?: ConnectorWordReader;
 }
 
 /** The actual running Host instance that contributes a remote MCP method. */
@@ -52,7 +56,7 @@ export class IntegrationRegistry {
   }
 
   /** Install and start one plugin. Enabling goes one at a time, so two plugins cannot both pass the check for the same id. */
-  enable(definition: PluginDefinition): Promise<void> {
+  enable(definition: BuiltinIntegrationDefinition): Promise<void> {
     const run = this.tail.then(() => this.enableOnce(definition));
     this.tail = run.catch(() => undefined);
     return run;
@@ -85,15 +89,17 @@ export class IntegrationRegistry {
    * switched off meanwhile is not attached. A crash does not let its ids go: its sources are unavailable until it runs again.
    * `installId` is the Home's install record for it, never anything the package says.
    */
-  attach(manifest: PluginManifest, installId: string, contribution: () => PluginContribution | null, live: () => boolean): Promise<boolean> {
+  attach(manifest: PluginManifest, installId: string, contribution: () => PluginContribution | null, live: () => boolean, reader: PluginLocaleReader | null = null): Promise<boolean> {
     const run = this.tail.then(() => {
       const parsed = parsePluginManifest(manifest);
       this.assertFree(parsed);
+      const source = { reader, current: live };
+      assertConnectorText(parsed, source);
       if (!live()) return false;
       // Validate the replacement before releasing anything the current installation holds. The queue keeps this change atomic.
       const entry = { declarer: { plugin_id: parsed.plugin_id, install_id: installId, plugin_title: parsed.name }, contribution: () => live() ? contribution() : null };
       if (this.attached.has(parsed.plugin_id)) this.declarations.release(parsed.plugin_id);
-      this.declarations.declare(parsed);
+      this.declarations.declare(parsed, source);
       this.attached.set(parsed.plugin_id, entry);
       return true;
     });
@@ -134,7 +140,7 @@ export class IntegrationRegistry {
     const installId = service ? this.installs.get(service.owner) : undefined;
     if (!service || !installId) return undefined;
     const method = service.declaration.auth.methods.find(entry => entry.kind === "oauth" && entry.grant === grant) ?? null;
-    return { plugin_id: service.owner, install_id: installId, publisher_id: this.runtime.get(installId).publisher_id, method };
+    return { plugin_id: service.owner, install_id: installId, publisher_id: this.runtime.get(installId).publisher_id, method, word: service.word };
   }
 
   mcpOwner(serviceId: string): McpServiceOwner | undefined {
@@ -228,10 +234,12 @@ export class IntegrationRegistry {
     return this.runtime.contribution(installId);
   }
 
-  private async enableOnce(definition: PluginDefinition): Promise<void> {
+  private async enableOnce(definition: BuiltinIntegrationDefinition): Promise<void> {
     const manifest = parsePluginManifest(definition.manifest);
     if (this.declarations.has(manifest.plugin_id)) return;
     this.declarations.assertFree(manifest);
+    const source = builtinConnectorText(manifest, definition.connectionText);
+    assertConnectorText(manifest, source);
     // A service the Host builds reaches only the platform's table (S-69): origins are a signed sandbox package's own (S-95).
     const declared = manifest.connection_services?.find(service => service.origins !== undefined);
     if (declared) throw pluginErrors.declaration_invalid(`宿主构建的插件不写服务的来源：${declared.service_id} 的地址只在平台的请求表里`);
@@ -245,7 +253,7 @@ export class IntegrationRegistry {
       await this.runtime.uninstall(installId).catch(() => undefined);
       throw error;
     }
-    this.declarations.declare(manifest);
+    this.declarations.declare(manifest, source);
     this.installs.set(manifest.plugin_id, installId);
   }
 

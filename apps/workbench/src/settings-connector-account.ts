@@ -1,4 +1,4 @@
-import { t as uiText, renderBadge, renderCard, renderRadioGroup, renderStatusMark, type MwStatusTone, type StateRingState } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { format, t as uiText, renderBadge, renderCard, renderRadioGroup, renderStatusMark, type MwStatusTone, type StateRingState } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { ConnectorConnectionView } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { credentialInputs, recommendedMethod, type ConnectorPrimitives } from "./settings-connector-guide.js";
 import { renderConnectionStatus } from "./settings-connection-status.js";
@@ -16,12 +16,9 @@ type Primitives = ConnectorPrimitives;
 /** Keys only the place that uses them can test (a model, an image service, Functions, a remote tool): the page offers no check for them (§13.2). */
 export const KEY_ONLY_SERVICES: readonly string[] = ["model-api", "image-api", "typesafe", "mcp-bearer"];
 
-/** A time as the person's machine shows it, month-day hour:minute, the way the model settings write their checks. */
+/** The last check in the current language and the reader's local time zone. */
 export function checkTime(at: string): string {
-  const date = new Date(at);
-  if (Number.isNaN(date.valueOf())) return "";
-  const two = (value: number) => String(value).padStart(2, "0");
-  return `${two(date.getMonth() + 1)}-${two(date.getDate())} ${two(date.getHours())}:${two(date.getMinutes())}`;
+  return Number.isNaN(Date.parse(at)) ? "" : format.date(at, "datetime");
 }
 
 /** The service is rate limiting this connection until then (the check's `retry_at`, at most an hour ahead); none once it has passed. */

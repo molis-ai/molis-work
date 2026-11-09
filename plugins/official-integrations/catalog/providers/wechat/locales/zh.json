@@ -1,0 +1,16 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.wechat",
+  "locale": "zh",
+  "messages": {
+    "wechat.connection.auth-help": "微信个人号没有稳定官方接口。这里连的是企业微信自建应用，格式 corpid:corpsecret。",
+    "wechat.connection.inbound": "Feed 拉企业微信通讯录",
+    "wechat.connection.summary": "企业微信消息。",
+    "wechat.connection.title": "企业微信",
+    "wechat.connection.token-label": "企业微信 CorpID 与 Secret",
+    "wechat.directory.name": "微信",
+    "wechat.guide.token-note": "这里接入企业微信自建应用的 CorpID 与 Secret；个人微信无此官方 API。",
+    "wechat.setup.open-the-wecom-admin-console": "打开企业微信管理后台",
+    "wechat.setup.view-wecom-developer-documentation": "查看企业微信开发文档"
+  }
+}

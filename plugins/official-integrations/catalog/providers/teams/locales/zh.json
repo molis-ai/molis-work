@@ -1,0 +1,20 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.teams",
+  "locale": "zh",
+  "messages": {
+    "teams.connection.auth-help": "使用 Microsoft Graph 令牌，需要 Chat.Read。",
+    "teams.connection.inbound": "Feed 读取聊天列表",
+    "teams.connection.summary": "消息、频道与聊天。",
+    "teams.connection.token-label": "Microsoft Graph 访问令牌（Chat.Read）",
+    "teams.guide.cli-link": "查看 Microsoft Graph PowerShell",
+    "teams.guide.cli-note": "可用 Connect-MgGraph 登录并调用 Graph；Molis Work 不读取 PowerShell 会话。",
+    "teams.guide.mcp-link": "Microsoft Work IQ MCP",
+    "teams.guide.mcp-note": "需要租户管理员启用 Work IQ 预览、Copilot 许可和 Entra 应用权限。",
+    "teams.guide.oauth-link": "注册 Microsoft Entra 应用",
+    "teams.guide.token-note": "Graph Explorer 可获取用于测试的用户令牌；长期使用需自己注册应用。",
+    "teams.oauth.tenant": "租户 ID（个人账号或多租户应用可留空）",
+    "teams.setup.get-a-token-in-graph-explorer": "在 Graph Explorer 拿令牌",
+    "teams.setup.register-azure-app": "注册 Azure 应用"
+  }
+}

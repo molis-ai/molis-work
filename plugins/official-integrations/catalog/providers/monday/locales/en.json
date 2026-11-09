@@ -1,0 +1,16 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.monday",
+  "locale": "en",
+  "messages": {
+    "monday.connection.auth-help": "Use a monday.com personal API token. Send it directly in the Authorization header without the Bearer prefix.",
+    "monday.connection.inbound": "Feed retrieves boards and workflows",
+    "monday.connection.summary": "Boards and workflows.",
+    "monday.connection.token-label": "monday.com API Token",
+    "monday.guide.mcp-link": "View the official monday MCP",
+    "monday.guide.oauth-link": "View monday OAuth",
+    "monday.oauth.note": "Enable the new OAuth 2.1 flow for this app version first.",
+    "monday.setup.open-monday-developer-dashboard": "Open monday developer dashboard",
+    "monday.setup.view-monday-com-authentication-guide": "View monday.com authentication guide"
+  }
+}

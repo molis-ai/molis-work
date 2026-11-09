@@ -1,0 +1,16 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.zoom",
+  "locale": "en",
+  "messages": {
+    "zoom.connection.auth-help": "Use a Zoom OAuth user access token. The identity check calls /v2/users/me. Server-to-Server account tokens cannot access /users/me and fail the live check, so use a token with user context.",
+    "zoom.connection.inbound": "Feed retrieves meetings and recordings",
+    "zoom.connection.summary": "Meetings and recordings.",
+    "zoom.connection.token-label": "Zoom access token",
+    "zoom.guide.mcp-link": "View the official Zoom MCP",
+    "zoom.guide.oauth-link": "View Zoom OAuth app",
+    "zoom.guide.token-note": "Use a Zoom OAuth user access token and replace it when it expires.",
+    "zoom.oauth.note": "Enable read access to users, meetings and recordings in the Zoom app.",
+    "zoom.setup.open-zoom-app-marketplace": "Open Zoom App Marketplace"
+  }
+}

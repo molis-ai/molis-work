@@ -1,0 +1,16 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.discord",
+  "locale": "zh",
+  "messages": {
+    "discord.connection.auth-help": "Discord Bot Token。本机用 Bot 前缀调用；Bot 必须在要读的服务器里。",
+    "discord.connection.inbound": "Feed 读取服务器列表",
+    "discord.connection.summary": "服务器与频道。",
+    "discord.connection.token-label": "Discord Bot Token",
+    "discord.guide.oauth-link": "查看 Discord OAuth2",
+    "discord.guide.oauth-note": "Discord OAuth2 用于用户授权；当前 Molis Work 的服务器数据 Connector 使用 Bot Token，尚未接入 OAuth。",
+    "discord.guide.token-note": "在 Developer Portal 创建 Bot，把它加入目标服务器后粘贴 Bot Token。",
+    "discord.oauth.note": "用户 OAuth 可读取身份与加入的服务器；消息能力由 Bot 授权单独提供。",
+    "discord.setup.open-discord-developer-portal": "打开 Discord Developer Portal"
+  }
+}

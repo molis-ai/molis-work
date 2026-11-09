@@ -1,0 +1,19 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.box",
+  "locale": "en",
+  "messages": {
+    "box.connection.auth-help": "Use a Box developer token or OAuth access token.",
+    "box.connection.inbound": "Project sources can read Box files",
+    "box.connection.summary": "Cloud files.",
+    "box.connection.token-label": "Box access token",
+    "box.guide.cli-link": "View the official Box CLI",
+    "box.guide.mcp-connected-note": "A Box enterprise admin may need to enable MCP first.",
+    "box.guide.mcp-link": "View the official Box MCP",
+    "box.guide.mcp-note": "A Box enterprise admin may need to enable MCP first. Molis Work has not integrated it.",
+    "box.guide.oauth-link": "View Box OAuth authentication",
+    "box.guide.token-note": "Create an app and a temporary developer token in the Box Developer Console. Developer tokens expire.",
+    "box.oauth.note": "Set read permissions in the Box app dashboard.",
+    "box.setup.open-box-developer-console": "Open Box Developer Console"
+  }
+}

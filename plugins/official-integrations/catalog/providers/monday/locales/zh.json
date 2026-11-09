@@ -1,0 +1,16 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.integration.monday",
+  "locale": "zh",
+  "messages": {
+    "monday.connection.auth-help": "monday.com 个人 API token。官方要求 Authorization 头直接放 token，不要加 Bearer。",
+    "monday.connection.inbound": "Feed 拉看板与工作流",
+    "monday.connection.summary": "看板与工作流。",
+    "monday.connection.token-label": "monday.com API Token",
+    "monday.guide.mcp-link": "查看 monday 官方 MCP",
+    "monday.guide.oauth-link": "查看 monday OAuth",
+    "monday.oauth.note": "当前 app version 必须先启用新版 OAuth 2.1。",
+    "monday.setup.open-monday-developer-dashboard": "打开 monday 开发者后台",
+    "monday.setup.view-monday-com-authentication-guide": "查看 monday.com 认证说明"
+  }
+}

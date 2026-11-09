@@ -5,6 +5,12 @@ import type {
   ConnectorMethodKind,
   ConnectorSetupLink,
 } from "../services/connector-host.js";
+import type { TextRef } from "./ui-text.js";
+
+/** A fixed label or sentence supplied by the declaring plugin. The directory projects it to a string for its reader. */
+export type PluginConnectionWord = string | TextRef;
+type WithConnectionLabel<T> = Omit<T, "label"> & { readonly label: PluginConnectionWord };
+export type PluginConnectionLink = WithConnectionLabel<ConnectorSetupLink>;
 
 /**
  * What a plugin says about the accounts it works with and what it does with them (PG-046, specs/archive/repository-anti-corruption/slices/
@@ -22,7 +28,7 @@ export type IntegrationKind = (typeof INTEGRATION_KINDS)[number];
  * platform's one interpreter; a remote `mcp` carries its server configuration. Local `mcp` and `cli` remain slots.
  */
 export type PluginAuthMethodDeclaration =
-  | { readonly kind: "token"; readonly label: string; readonly placeholder?: string }
+  | { readonly kind: "token"; readonly label: PluginConnectionWord; readonly placeholder?: PluginConnectionWord }
   | PluginOAuthMethodDeclaration
   | PluginMcpMethodDeclaration
   | { readonly kind: "cli" | "mcp" };
@@ -118,8 +124,8 @@ export interface OAuthContextDeclaration extends OAuthTokenRequestDeclaration {
 /** A field the person fills in on the settings page, and the one thing it may change. */
 export interface OAuthSettingDeclaration {
   readonly key: string;
-  readonly label: string;
-  readonly placeholder?: string;
+  readonly label: PluginConnectionWord;
+  readonly placeholder?: PluginConnectionWord;
   readonly required?: boolean;
   /** Used when the person leaves the field empty. */
   readonly default?: string;
@@ -162,24 +168,24 @@ export interface PluginOAuthMethodDeclaration {
     readonly omit_token_params?: readonly ("grant_type" | "redirect_uri")[];
     readonly expiry?: "jwt_exp";
   };
-  readonly note?: string;
+  readonly note?: PluginConnectionWord;
 }
 
 /** A service the plugin works with and the card shown for it where a person connects accounts. The declaring plugin owns the card. */
 export interface PluginConnectionServiceDeclaration {
   readonly service_id: string;
-  readonly title: string;
+  readonly title: PluginConnectionWord;
   readonly group_id: ConnectorDirectoryGroupId;
-  readonly summary: string;
+  readonly summary: PluginConnectionWord;
   /** Which sign-in flow the settings page starts for this service. */
   readonly auth_kind: ConnectorAuthKind;
   readonly auth: { readonly methods: readonly PluginAuthMethodDeclaration[] };
   /** What the account needs and how to fill in the card, for whichever way of connecting a person picks. */
-  readonly auth_help?: string;
+  readonly auth_help?: PluginConnectionWord;
   /** What the account is used for, in and out; `fulfillment` says what works today. */
-  readonly capabilities: readonly ConnectorCapability[];
-  readonly outbound_note?: string;
-  readonly setup_links?: readonly ConnectorSetupLink[];
+  readonly capabilities: readonly WithConnectionLabel<ConnectorCapability>[];
+  readonly outbound_note?: PluginConnectionWord;
+  readonly setup_links?: readonly PluginConnectionLink[];
   /**
    * Only in a signed sandbox integration package, and only for a service the platform's request table (`CONNECTOR_REQUEST_SERVICES`)
    * does not have: the exact `https://` origins its requests with the person's account may reach (S-95, user 2026-10-26). The person

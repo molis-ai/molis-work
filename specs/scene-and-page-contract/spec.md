@@ -266,7 +266,7 @@ interface RoleTemplate {
 - **采用动作** `characters.from_template@1`（command，只给本人）：按模板建一份你的角色草稿，记下来源 `{ source: BlueprintSource; part_id }`；标题按本人当时的界面语言解析成字符串存进草稿；同一个 `request_id` 只建一次。项目里已有同名角色时不覆盖，由预览让你选沿用还是另建（04 定样已画）。
 - **层次与生效归 36**：项目成员默认跟随你的原件、改了哪一节哪一节成为本项目的、取值顺序「本次 → 本项目 → 你的默认 → 助理自己」、每次保存固定一个版本，都是 36 的合同。本稿只要求两件事：采用建的项目成员带着来源，以便升级时比差异、移除时只解除它（ONB-56）；模板不能放宽工具与动作（36 第三节「选角色不是授权」）。
 - 官方场景包升级时，模板变了只出现在升级预览里，由你挑着重新采用；不改你已经改过的角色（ONB-55）。
-- **36 前置核对（2026-11-08）**：其方案 C 足以确定模板内容、个人／项目作用域、逐节跟随与覆盖的设计原则；现有 `CharacterDraft` 没有项目成员、默认选择和固定生效版本的层次合同。P-2 可据现有字段定 `RoleTemplate` 及校验，但 `characters.from_template` 的项目成员返回值、来源挂载与回读须接 36 的准确类型；不能凭本稿补一套角色层次，更不能把模板类型完成写成角色采用完成。缺的合同由主会话安排 36 提前合同片，角色服务实现仍归 36。
+- **36 前置核对与阻塞修正（2026-11-08，用户明确要求继续独立部分）**：其方案 C 足以确定模板内容、个人／项目作用域、逐节跟随与覆盖的设计原则；现有 `CharacterDraft` 没有项目成员、默认选择和固定生效版本的层次合同。P-2 分成 P-2a 的 `RoleTemplate`、严格形状及静态校验，与 P-2b 的 `characters.from_template` 采用接口。P-2a 不依赖 36；P-3b 的场景形状与静态校验只消费 P-2a，不等角色采用接口。只有 P-2b 的项目成员返回值、来源挂载与回读须接 36 的准确类型；不能凭本稿补一套角色层次，也不把模板类型完成写成角色采用完成。36 的角色服务与界面排期不变；同一批中的独立工作继续，不因该接口未交接停整批。
 
 ## 6. 首页与生成页面
 
@@ -445,9 +445,10 @@ interface HomePageVersion {
 | 片 | 合同项 | contracts 子路径 | 影响的快照 | 前置 |
 | --- | --- | --- | --- | --- |
 | P-1 设置 | `SettingEntryDeclaration`、`SettingsDeclaration`、读写类型与类型 id、Manifest 的 `settings_entries`；SDK 的 `defineSettingsActions`、`bindSettingsHandlers`、`validateSettingsDeclaration`、`resolveEffectiveSetting` | `platform/settings.ts`（新）、`platform/plugin-manifest.ts` | api：`contracts/platform/settings`（新）、`contracts/platform/plugin-manifest`、`plugin-sdk/index`；动作快照不变（只定类型） | 02 交接 |
-| P-2 角色模板 | `RoleTemplate`、`characters.from_template@1` 的声明 | `modules/characters.ts` | api：`contracts/modules/characters`；动作：`host-actions.tsv`（提供方 `io.molis.work.characters` 由宿主登记） | 36 的层次合同同一片或在它之后 |
+| P-2a 角色模板 | `RoleTemplate`、严格形状及静态校验；不建角色成员或持久化来源 | `modules/characters.ts` | api：`contracts/modules/characters`；SDK 的静态校验随既定公共出口接入 | 不依赖 36；复用现行 Character 内容与 TextRef |
+| P-2b 角色采用接口 | `characters.from_template@1` 的声明、准确的项目成员返回值与来源／回读合同 | `modules/characters.ts` | api：`contracts/modules/characters`；动作：`host-actions.tsv`（提供方 `io.molis.work.characters` 由宿主登记） | P-2a；36 的层次合同同一片或在它之后 |
 | P-3a 项目插件成员 | `projects.plugins.set@1` 按 `expected_revision` 把插件加进或撤出项目，受众为 `user`。`projects.plugins.get@1` 返回版本化成员。两个动作复用 Projects 的常开、随行、隐藏和原子 revision 规则。项目设置 HTTP 的写走 set，全项目 GET 复用 get 的 owner 读法，保持被动读取（第 10.1、10.2 节） | `modules/projects.ts` | api：`contracts/modules/projects`；动作：`host-actions.tsv` | 05② 的 C-1（同一快照） |
-| P-3b 场景定义 | `Blueprint`、`BlueprintSource`、`BlueprintPart`、`BlueprintProposal`、Manifest 的 `blueprint`／`adopts`；SDK 的 `inspectBlueprint`（静态）、`inspectBlueprintLocales`、内容包文件校验与 `validateAdoptsDeclaration`；GLOSSARY 加「场景包（blueprint）」一行 | `platform/blueprints.ts`（新）、`platform/plugin-manifest.ts` | api：`contracts/platform/blueprints`（新）、`contracts/platform/plugin-manifest`、`plugin-sdk/index` | P-1、P-2；08 的 C-1（`content`、`SkillRef`） |
+| P-3b 场景定义 | `Blueprint`、`BlueprintSource`、`BlueprintPart`、`BlueprintProposal`、Manifest 的 `blueprint`／`adopts`；SDK 的 `inspectBlueprint`（静态）、`inspectBlueprintLocales`、内容包文件校验与 `validateAdoptsDeclaration`；GLOSSARY 加「场景包（blueprint）」一行 | `platform/blueprints.ts`（新）、`platform/plugin-manifest.ts` | api：`contracts/platform/blueprints`（新）、`contracts/platform/plugin-manifest`、`plugin-sdk/index` | P-1、P-2a；08 的 C-1（`content`、`SkillRef`）。不依赖 P-2b 或 36 的服务实现 |
 | P-3c 采用动作与签名入口 | 第 7 节八个动作的声明与类型（`adoption.preview` 是 command／write）；`needs_install`、`needs_approval` 步骤状态；「采用不转交本人的同意」合同及本批实际接入边界的拒绝测试；完整 apply 服务与 S-110 处理器真实拒绝归第 44 批；第 6.6 节的 `plugins.local_packages.sign@1` 与安装预览里的来源字段 | `services/blueprints.ts`（新）、`platform/plugin-trust.ts`（安装预览的类型在这里） | api：`contracts/services/blueprints`（新）、`contracts/platform/plugin-trust`；动作：`host-actions.tsv`（`system.blueprints`、`plugin-install` 的签名入口） | P-3a、P-3b；08 的 C-2（`skills.*`） |
 | P-4 首页与生成页面 | `services/home.ts`：首页选择、`HomePageVersion`、第 6.5 节八个动作；页面主体与试用主体这两种调用主体（`platform/actions.ts` 里的调用方种类）；S-111～S-113 三条边界的公共合同。本批交 schema、SDK 校验及必要接入，并验证实际接入边界的真实拒绝；文件送达、页面主体网关、执行隔离、撤权／换版与真实浏览器拒绝归第 37 批（第 6.4 节）。SPC-10／11 留给第 37 批真实验收，不记第 20 批通过（用户 2026-11-08 PST 裁定） | `services/home.ts`（新）、`platform/actions.ts` | api：`contracts/services/home`（新）、`contracts/platform/actions`；动作：`host-actions.tsv`（`system.home`） | 05② 的 C-2、C-3（卡片与 `home` 组合位置）；#1791 K0（同动 `platform/actions`）；P-3b（`adopts`） |
 
@@ -462,7 +463,7 @@ interface HomePageVersion {
 | 4 | P-1 设置 | `plugin-manifest`（`settings_entries`）、新的 `platform/settings` |
 | 4′ | 08 C-2、#1791 K0（可与 P-1 并行，不动 `plugin-manifest`） | `services/skills`、`host-actions`；`platform/actions`、`platform/composer` |
 | 5 | P-3a | `modules/projects`、`host-actions`（与 4′ 的 `host-actions` 错开） |
-| 6 | P-2 角色模板（36 的层次合同之后） | `modules/characters`、`host-actions` |
+| 6 | P-2a 角色模板可独立；P-2b 角色采用接口在 36 层次合同之后 | `modules/characters`；仅 P-2b 动 `host-actions` |
 | 7 | 05② C-3（第 14 批 `TextRef` 之后） | `services/surface-composition`、`host-actions` |
 | 8 | P-3b、P-3c | `plugin-manifest`（`adopts`）、新的 `platform/blueprints`、`services/blueprints`、`host-actions` |
 | 9 | P-4 | 新的 `services/home`、`platform/actions`（页面主体，排在 #1791 K0 之后）、`host-actions` |

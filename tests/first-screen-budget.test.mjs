@@ -3,7 +3,7 @@ import { once } from "node:events";
 import { createServer } from "node:net";
 import test from "node:test";
 import { sampleFirstScreen } from "../scripts/first-screen/http.mjs";
-import { comparisonRows, GATED_PAGES, registeredPaths, removedManifestRows } from "../scripts/first-screen/manifest.mjs";
+import { comparisonRows, GATED_PAGES, registeredPaths, removedManifestRows, requestKey, SSE_FIRST_EVENT } from "../scripts/first-screen/manifest.mjs";
 import { firstScreenProblems } from "../scripts/gates/first-screen.mjs";
 import { assetProblems, readNewAllowances } from "../scripts/gates/page-assets-policy.mjs";
 
@@ -18,20 +18,28 @@ function html(body) {
   return response("200 OK", `Content-Type: text/html; charset=utf-8\r\nContent-Length: ${Buffer.byteLength(body)}\r\nETag: "doc"\r\nCache-Control: no-store`, body);
 }
 async function listen(t, serve) {
+  const sockets = new Set();
   const server = createServer(socket => {
+    sockets.add(socket);
+    socket.once("close", () => sockets.delete(socket));
     let headers = "";
     const onData = chunk => {
       headers += chunk.toString();
       if (!headers.includes("\r\n\r\n")) return;
       socket.off("data", onData);
       const [, method, path] = /^(\S+) (\S+)/.exec(headers);
-      socket.end(serve({ method, path, headers }));
+      const reply = serve({ method, path, headers });
+      if (typeof reply === "function") reply(socket);
+      else socket.end(reply);
     };
     socket.on("data", onData);
   });
   server.listen(0, "127.0.0.1");
   await once(server, "listening");
-  t.after(() => new Promise(resolve => server.close(resolve)));
+  t.after(() => {
+    for (const socket of sockets) socket.destroy();
+    return new Promise(resolve => server.close(resolve));
+  });
   return `http://127.0.0.1:${server.address().port}`;
 }
 
@@ -95,6 +103,128 @@ test("FSS-BG-03 truncated registered response and unsolicited 304 fail the sampl
   });
   await assert.rejects(sampleFirstScreen(origin, arrival, "zh", ["/short"], { signal }), /GET \/short: (aborted|incomplete)/);
   await assert.rejects(sampleFirstScreen(origin, arrival, "zh", ["/unexpected"], { signal }), /GET \/unexpected: HTTP 304/);
+});
+
+const headerValue = (headers, name) => new RegExp(`^${name}: ([^\\r\\n]+)`, "im").exec(headers)?.[1];
+const proofHeader = "x-molis-work-page-session";
+const streamHeader = response("200 OK", 'Content-Type: text/event-stream; charset=utf-8\r\nTransfer-Encoding: chunked\r\nETag: "stream"');
+const chunk = text => `${Buffer.byteLength(text).toString(16)}\r\n${text}\r\n`;
+const scopedRow = (entry, fields = {}) => row(entry, { response: SSE_FIRST_EVENT, introduced: true, ...fields });
+
+function issuedPage(proof, cookie) {
+  const body = `<!-- <meta name='molis-work-page-session' content='ignored.fake'> -->${proof ? `<META content='${proof}' name=molis-work-page-session>` : ""}`;
+  return response("200 OK", `Content-Type: text/html\r\nETag: "page"\r\nContent-Length: ${Buffer.byteLength(body)}\r\nSet-Cookie: ${cookie}; Path=/; HttpOnly; SameSite=Strict`, body);
+}
+
+test("FSS-BG-01 counts the first complete data event for each source with fresh cold and warm proof", { timeout: 4_000 }, async t => {
+  const authorities = new Map();
+  const liveStreams = [];
+  const calls = [];
+  const fragments = [": heartbeat\r\n\r\n", "event: no-data\r\n\r\n", "da", "ta: 已收到\r", "\n\r\n"].map(chunk);
+  const origin = await listen(t, ({ path, headers, method }) => {
+    const cookie = headerValue(headers, "cookie");
+    const etag = headerValue(headers, "if-none-match");
+    const proof = headerValue(headers, proofHeader);
+    calls.push({ path, cookie, etag, proof, method });
+    if (path === "/" || path === "/hidden") {
+      const name = path === "/" ? "top" : "hidden";
+      const visit = (authorities.get(path)?.visit ?? 0) + 1;
+      const next = { visit, proof: `${name}-${visit}.scope`, cookie: `molis-work-web-${name}=${name}-${visit}` };
+      authorities.set(path, next);
+      return etag ? response("304 Not Modified", 'ETag: "page"') : issuedPage(next.proof, next.cookie);
+    }
+    const referer = headerValue(headers, "referer");
+    const authority = referer ? authorities.get(new URL(referer).pathname) : undefined;
+    if (!authority || proof !== authority.proof || !cookie?.includes(authority.cookie) || headerValue(headers, "sec-fetch-site") !== "same-origin") {
+      return response("403 Forbidden", "Content-Length: 0");
+    }
+    if (path === "/protected") return etag ? response("304 Not Modified", 'ETag: "json"')
+      : response("200 OK", 'ETag: "json"\r\nContent-Type: application/json\r\nContent-Length: 2', "{}");
+    if (etag || headerValue(headers, "accept") !== "text/event-stream") return response("400 Bad Request", "Content-Length: 0");
+    return socket => {
+      liveStreams.push(once(socket, "close"));
+      socket.setNoDelay(true);
+      socket.write(streamHeader);
+      let at = 0;
+      const send = () => {
+        if (socket.destroyed) return;
+        socket.write(fragments[at++]);
+        if (at < fragments.length) setTimeout(send, 5);
+      };
+      send();
+    };
+  });
+  const paths = registeredPaths([row("/hidden"), scopedRow("/events"), scopedRow("/events", { document: "/hidden" }),
+    row("/protected", { document: "/hidden" })], arrival, "en");
+  const samples = await sampleFirstScreen(origin, arrival, "en", paths, { signal });
+  const expectedWire = Buffer.byteLength(streamHeader + fragments.join(""));
+  for (const document of ["/", "/hidden"]) {
+    const stream = samples.get(requestKey("/events", document, SSE_FIRST_EVENT));
+    assert.equal(stream.cold.wire, expectedWire);
+    assert.equal(stream.warm.wire, expectedWire);
+  }
+  assert.equal(samples.get(requestKey("/protected", "/hidden")).warm.status, 304);
+  assert.deepEqual(calls.filter(call => call.path === "/events").map(call => call.proof), ["top-1.scope", "hidden-1.scope", "top-2.scope", "hidden-2.scope"]);
+  const documents = calls.filter(call => call.path === "/" || call.path === "/hidden");
+  assert.deepEqual(documents.map(call => call.cookie), ["molis_work_locale=en", "molis_work_locale=en; molis-work-web-top=top-1",
+    "molis_work_locale=en; molis-work-web-top=top-1; molis-work-web-hidden=hidden-1", "molis_work_locale=en; molis-work-web-top=top-2; molis-work-web-hidden=hidden-1"]);
+  assert.ok(documents.every(call => !call.proof && !call.etag));
+  assert.ok(calls.every(call => call.method === "GET"));
+  assert.equal(liveStreams.length, 4);
+  await Promise.all(liveStreams);
+  await sampleFirstScreen(origin, arrival, "zh", [], { signal });
+  assert.equal(calls.at(-2).cookie, "molis_work_locale=zh", "a new locale starts with a fresh jar");
+});
+
+test("FSS-BG-03/05 a newly introduced stream is required and rejects missing proof, refusals and incomplete events", async t => {
+  const rows = [scopedRow("/events")];
+  const sides = comparisonRows(null, rows);
+  const failures = [
+    ["missing proof", undefined, null, /expected a single page-session proof from \//],
+    ["wrong proof", "other.scope", response("403 Forbidden", "Content-Length: 0"), /sse-first-event from \/\]: HTTP 403/],
+    ["not found", "valid.scope", response("404 Not Found", "Content-Length: 0"), /HTTP 404/],
+    ["not modified", "valid.scope", response("304 Not Modified", 'ETag: "stream"'), /HTTP 304/],
+    ["wrong type", "valid.scope", response("200 OK", "Content-Type: application/json\r\nContent-Length: 2", "{}"), /expected an uncompressed event stream/],
+    ["short stream", "valid.scope", streamHeader + chunk(": ping\n\ndata: unfinished\n") + "0\r\n\r\n", /ended before its first complete data event/],
+  ];
+  for (const [name, proof, answer, failure] of failures) {
+    await t.test(name, async t => {
+      let attempted = 0;
+      const origin = await listen(t, ({ path, headers }) => {
+        if (path === "/") return issuedPage(proof, "molis-work-web-top=top-cookie");
+        attempted++;
+        assert.equal(headerValue(headers, proofHeader), proof);
+        return answer;
+      });
+      await sampleFirstScreen(origin, arrival, "en", registeredPaths(sides.base, arrival, "en"), { signal });
+      assert.equal(attempted, 0);
+      await assert.rejects(sampleFirstScreen(origin, arrival, "en", registeredPaths(sides.candidate, arrival, "en"), { signal }), failure);
+      assert.equal(attempted, proof ? 1 : 0);
+    });
+  }
+});
+
+test("FSS-BG-01 source paths must be registered and a top document may not register its stream twice", () => {
+  assert.throws(() => registeredPaths([scopedRow("/events", { document: "/hidden" })], arrival, "en"), /unregistered source document \/hidden/);
+  assert.throws(() => registeredPaths([scopedRow("/events"), scopedRow("/events", { document: "/" })], arrival, "en"), /duplicate entry .*sse-first-event from \//);
+});
+
+test("FSS-BG-03 heartbeats alone time out and an explicit abort closes the owned stream", { timeout: 14_000 }, async t => {
+  const paths = registeredPaths([scopedRow("/events")], arrival, "en");
+  for (const cancel of [true, false]) {
+    const controller = new AbortController();
+    const { promise: closed, resolve: closedStream, reject: streamError } = Promise.withResolvers();
+    const origin = await listen(t, ({ path }) => {
+      if (path === "/") return issuedPage("top.scope", "molis-work-web-top=top-cookie");
+      return socket => {
+        socket.on("error", error => { if (error.code !== "ECONNRESET") streamError(error); });
+        socket.once("close", closedStream);
+        socket.write(streamHeader + chunk(": ping\n\n"), () => { if (cancel) controller.abort(new Error("cancelled first-screen visit")); });
+      };
+    });
+    const failure = cancel ? /cancelled first-screen visit/ : /HTTP response timed out/;
+    await Promise.all([assert.rejects(sampleFirstScreen(origin, arrival, "en", paths, { signal: controller.signal }), failure), closed]);
+  }
 });
 
 const pageKey = "workbench-default/zh";

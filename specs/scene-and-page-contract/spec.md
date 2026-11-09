@@ -474,13 +474,15 @@ SDK 根入口 `inspectHomePageDraft(value: unknown)` 返回带字段路径的声
 | --- | --- |
 | `drafts.save`／`drafts.read` | 保存新稿 `{ expected_revision: null, blueprint }`，改稿 `{ draft_id, expected_revision, blueprint }`。读 `{ draft_id }`。输出 `{ draft: { source, blueprint, locale } }`，`source` 为 `BlueprintSource` 的 draft 分支。保存走 `inspectBlueprint` 的 draft 模式。 |
 | `adoption.preview` | `{ source: BlueprintSource, target, part_ids, changes?, upgrade_of? }`。`target` 区分 `personal`、可信调用的 `current_project`、`new_project`（只带 `display_name`）。`changes` 每项为 `{ part_id, proposal?, selection?, action? }`，只接受同种替换建议与已提供的对象或主人候选。`selection` 选新建或 `reuse`／`update` 加 `subject`，revision 由预览读回。输出 `{ preview_id, expires_at, source, target, locale, parts, upgrade? }`。每个 part 给建议、层次、主人候选及当前值与来源、`create`／`reuse`／`update`／`needs_choice`／`needs_install`／`skip` 决定、后果和 `affected_step_ids`。 |
-| `adoption.apply`／`adoption.read` | 应用 `{ preview_id, part_ids, request_id }`，读取 `{ adoption_id }`。共用 `{ adoption_id, source, target, locale, steps }`，`target` 的实际项目只从已绑定或已创建的项目回给调用方。 |
-| `adoption.revert`／`adoption.remove` | `{ adoption_id, request_id }` → `{ adoption_id, steps }`。逐项回报实际恢复、解除绑定、跳过、待批准、待核对或失败，保留最初的采用凭据。 |
+| `adoption.apply`／`adoption.read` | 应用 `{ preview_id, part_ids, request_id }`，输出 `{ adoption_id, source, target, locale, steps }`。读取 `{ adoption_id }`，输出相同身份字段及 `{ apply_steps, latest_undo }`。`apply_steps` 保留采用历史，`latest_undo` 为最近一次撤销或移除的 `UndoResult`，没有则为 `null`。`target` 的实际项目由主人回给调用方。 |
+| `adoption.revert`／`adoption.remove` | `{ adoption_id, request_id }` → `{ adoption_id, undo: UndoResult }`。同请求核对并续做对应的撤销或移除，保留最初的采用凭据。 |
 | `packs.save` | `{ source: { kind: "draft", draft_id, revision } \| { kind: "adoption", adoption_id } }` → `{ preview_id }`。读取选定版本或该次采用已确认的快照，沿 §3.3 校验转词后交 §6.6。 |
 
 `part_ids` 与 `changes` 只收唯一且存在的部分，按 `BLUEPRINT_LIMITS.parts` 限制。apply 只接受该预览已确认的部分、目标和主人选择，层不适用时明确说明。预览由主人读回 `current`，区分 `present`（值、主人来源和可用的 revision）、`missing`（确认不存在）与 `unavailable`（有原因的读取缺口）。`upgrade.parts` 每项按 `part_id` 给旧建议、新建议（缺一方时明确新增／移除）、当前值、是否保留人工修改及依赖变化，保留原采用语言。36 的角色批读能核身份、来源与 revision，实际三方正文仍须 36 的按固定版本读取。
 
 `steps` 每项带 `part_id`，状态分 `not_started`、`needs_install`、`needs_approval`、`applied`、`failed`、`pending_verification`、`skipped`。`needs_install` 带现有安装预览的 `preview_id`，`needs_approval` 带首页的 `{ page_id, version }`。`applied` 保留主人回执的 `created`／`reused`／`modified`、实际动作引用、对象及观测 revision。纯依赖已具备时只记录复用，无写回执或撤销权。`failed` 带已公开的主人错误码与说明。`skipped.reason` 区分 `not_selected`、`dependency_unmet`、`unsupported`、`scope_mismatch`、`owner_unavailable`、`revision_changed`、`reused`、`shared`、`no_revert`。只知道 revision 已变时，不归因于用户手改。读视图标明主人暂时不可用，历史回执仍保留。
+
+`UndoResult` 为 `{ operation: "revert" | "remove", request_id, steps: UndoStep[] }`。`UndoStep` 按 `state` 闭合，各分支带 `part_id`。`restored` 带经核实的 `{ action, subject, revision }`。`detached` 表示实际解除，只有场景解绑时省略主人写回执。`skipped` 带 `reason`，`needs_approval` 带 `{ page_id, version }`，`pending_verification` 带待核对的主人 `request_id`，`failed` 带主人的 `error`。动作、对象、CAS 凭据及错误复用采用步骤的合同。`adoption.read` 用 `latest_undo` 呈现当前撤销进度与结果，已恢复或解除的部分保留原采用回执供追溯。
 
 后续处理器按同一可信范围和 owner 读动作合并查询。已知对象读当前值，写出结果未知则按 `<adoption_id>:<part_id>` 查主人回执。失败、超时、数量不符或返回不全仍待核对。确认未提交后按原键补写。主人只提供当前值读取时，只有已证明可返回原回执的动作才能在成功回读后按原键核对式重放。相同当前值不能证明这次新建或具备撤销权，P-3a 的当前成员读取也无法单独证明失联写的来源。Characters 沿 36 的批读及复用 CAS，同时核对成员 revision 和原件版本，复用与回执同事务更新成员 revision，使旧解除凭据失效。Blueprints 不另存一份角色共享计数。
 
@@ -498,7 +500,8 @@ SDK 根入口 `inspectHomePageDraft(value: unknown)` 返回带字段路径的声
 
 - 一次采用里一种 `content` 类型只交给一个主人；有两个提供方都声明时，预览让你选，不按插件名定。
 - 主人没有声明的，预览里那一部分标「提供方没有公开配置能力」，不能采用，宿主不兜底。
-- `adopt` 输入固定为 `{ request_id, blueprint, selection, body }`。`blueprint` 复用 36 的 `BlueprintPartOrigin`，只作来源记录。`selection` 为闭合联合 `{ kind: "create" }` 或 `{ kind: "reuse" | "update", subject: ActionSubject, expected_revision }`。由已确认的预览生成选择和 CAS 凭据，`body` 只按声明的 `schema` 传值。主人按可信范围核对象。复用和修改在同一 owner 提交内比较 revision、变更和写回执，重放返回原回执。成功回执给出 `{ outcome, subject, revision }`，`outcome` 用 §7.1 的三种实际结果。
+- `adopt` 输入固定为 `{ request_id, blueprint, selection, body }`。`blueprint` 复用 36 的 `BlueprintPartOrigin`，只作来源记录。`selection` 为闭合联合 `{ kind: "create" }` 或 `{ kind: "reuse" | "update", subject: ActionSubject, expected_revision }`。由已确认的预览生成选择和 CAS 凭据，`body` 只按声明的 `schema` 传值。主人按可信范围核对象。复用和修改在同一 owner 提交内比较 revision、变更和写回执。成功回执给出 `{ outcome, subject, revision }`，`outcome` 用 §7.1 的三种实际结果。
+- 通用 `content` 首次复用也在写回执的同一事务推进撤销所用的 owner revision，正文照旧。提交失败一并回滚。同键重放原回执，revision 只推进一次。复用方的回执没有主人撤销权，后续移除也不恢复旧 revision。这样 A 创建的对象被 B 复用后，A 的旧 revision 无法通过原子撤回核对。保护由同一主人完成，Blueprints 不另存共享计数。
 - `read` 用 `{ queries }`／`{ results }` 批读，结果与查询按序对应，单批沿 `BLUEPRINT_LIMITS.parts`。查询按 `by` 区分 `proposal`（`type`、`blueprint`、`body`，返回候选）、`subject`（读当前值）和 `request`（按 `request_id` 读回执与当前值）。批读失败和确认不存在分开。可选 `revert` 输入 `{ adopt_request_id, request_id, subject, expected_revision }`，由同一主人核回执和当前 revision 后恢复或解除。未声明时只解除场景绑定，并回报实际结果。
 - `validateAdoptsDeclaration` 随 Manifest 校验，核 `adopt`、`read`、`revert` 都指本插件已声明的同版本动作，读写效果与所用作用域一致。SDK 复用 `ACTION_SUBJECT_SCHEMA`、`BlueprintPartOrigin` schema 和 P-1 的有界 schema 检查，按 `canonicalJsonText` 比较固定字段，`body` 匹配声明的 schema。拒绝缺 CAS、错误分支和伪造身份。既供编辑又供采用的动作，采用分支也须闭合且与这份输入一致。现行签名沙箱的 `SandboxOperationContract` 无法直接表达该联合，实际接入须提供同一合同的绑定并验证，不能拿普通读动作或仅 Manifest 校验冒充支持。
 - 同一范围里两个安装声明同一种 `content` 类型时，后装的照样能装；采用时由预览让你选主人。`settings_entries` 的 key 不同：重复就拒后装的（第 4 节）。
@@ -545,7 +548,7 @@ SDK 根入口 `inspectHomePageDraft(value: unknown)` 返回带字段路径的声
 
 **P-3c 文件与验收。** 先准备 `packages/contracts/src/services/blueprints.ts` 和 `tests/blueprint-adoption-contract.test.ts`，等 #1984 和同批出口交接再接 `contracts/package.json`、`platform/plugin-trust.ts`、SDK 的声明检查与相关 API 快照。动作版本只首次登记。八个场景动作当前没有 `system.blueprints` provider 或处理器，交给第 44 批真实登记。签名仍归 `plugin-install`，输入沿现有内容包 `{ manifest, files }`，输出复用普通安装预览 `{ preview_id }`。`platform/plugin-trust` 的预览来源只收 `ai_generated`／`imported`／`saved`。真实签名接线排在 08 C-2 和内容包安装入口之后。基点的 `plugins.install.preview@1` 只认项目上下文，签名动作尚无登记。个人另存若缺普通预览上下文，由接线片解决。现有签包解析只保留 Manifest 与文件，随包来源须走经评审的签名覆盖路径。未核实前不改包格式、密钥或真实 Home。
 
-SPC-C07 经公开 `services/blueprints` 与 Kernel `compileActionSchema` 验八项动作的输入输出，覆盖三方差异、无安装身份的随包候选、跳过原因、未知结果、安装与批准状态及伪造身份拒绝。第 8 节通过公开 Manifest／SDK 验固定 `selection` 缺 CAS、错分支及错动作版本被拒。以上证明合同形状。基点 `pluginInstallHandlers` 只核可信 `user_action`，Kernel 允许嵌套调用原样继承，尚无供处理器消费的公开上一层引用。签名来源、直接批准拒绝与上一层审计须接真实可信调用链验证。没有该链和实际处理器时保留 SPC-14／15、S-110 及 S-113 的对应运行验收。
+SPC-C07 经公开 `services/blueprints` 与 Kernel `compileActionSchema` 验八项动作的输入输出，覆盖三方差异、无安装身份的随包候选、采用历史与带请求键的撤销结果并存、跳过及待核对、安装与批准状态及伪造身份拒绝。第 8 节通过公开 Manifest／SDK 验固定 `selection` 缺 CAS、错分支及错动作版本被拒。实际接入须验证 A 创建、B 复用后 A 的旧凭据撤回被拒，同键重放只推进一次，移除 B 后旧凭据仍失效。基点 `pluginInstallHandlers` 只核可信 `user_action`，Kernel 允许嵌套调用原样继承，尚无供处理器消费的公开上一层引用。签名来源、直接批准拒绝与上一层审计须接真实可信调用链验证。没有该链和实际处理器时保留 SPC-14／15、S-110 及 S-113 的对应运行验收。
 
 **P-4 文件与验收。** 先准备 `packages/contracts/src/services/home.ts`、`packages/plugin-sdk/src/home-page.ts` 和 `tests/home-page-contract.test.ts`。`contracts/package.json`、SDK `index.ts`、共享 API 快照等 #1984 交接后串行接入，`platform/actions` 按上表等 #1791 K0。独占文件未接公开出口时只是待接候选。现行 `apps/local-host/src/home-actions.ts` 已用 `system.home`，新八个页面动作尚无处理器，第 37 批接同一提供方。此处必要接入是公开合同、SDK 及共用声明校验，范围不含新运行服务、数据库、iframe、网关或批准流程。
 

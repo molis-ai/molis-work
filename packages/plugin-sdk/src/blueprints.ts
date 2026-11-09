@@ -21,6 +21,8 @@ export function inspectBlueprint(value: unknown, options: RoleTemplateInspection
   return inspect(value, options);
 }
 
+export const blueprintFilePath = (locale?: string): string => locale === undefined ? "blueprint.json" : `blueprint.${locale}.json`;
+
 /** Inspect each package file once. The caller supplies the locale names from the checked Manifest. */
 export function inspectBlueprintLocales(
   defaultBlueprint: unknown,
@@ -30,9 +32,9 @@ export function inspectBlueprintLocales(
   const packageOptions = { source: "package", owner: options.owner } as const;
   const translatable = new Set<string>();
   const defaults = inspect(defaultBlueprint, packageOptions, translatable);
-  const problems = inFile("blueprint.json", defaults);
+  const problems = inFile(blueprintFilePath(), defaults);
   for (const { locale, blueprint } of others) {
-    const file = `blueprint.${locale}.json`;
+    const file = blueprintFilePath(locale);
     const translated = inspectBlueprint(blueprint, packageOptions);
     problems.push(...inFile(file, translated));
     if (defaults.length > 0 || translated.length > 0) continue;

@@ -119,6 +119,13 @@ export interface CardStore<Card extends ActionCard = ActionCard> {
 export interface ContentPackage {
     manifest: PluginManifest;
     skills: PackagedSkillBody[];
+    blueprint?: {
+        default: Blueprint;
+        others: readonly {
+            locale: string;
+            blueprint: Blueprint;
+        }[];
+    };
 }
 
 export interface ContentPackageInput {

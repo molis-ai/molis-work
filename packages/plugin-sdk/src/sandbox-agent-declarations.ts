@@ -47,7 +47,10 @@ function sandboxMethodProblems(manifest: PluginManifest): PluginDeclarationProbl
 export function parsePluginPackageManifest(input: unknown): PluginPackageManifest {
   if (!input || typeof input !== "object" || Array.isArray(input)) return parsePluginManifest(input);
   const raw = input as Record<string, unknown>;
-  if (raw.settings_entries !== undefined) refuseDeclarations([{ path: "settings_entries", reason: "签名沙箱包尚未接入设置读写处理器" }]);
+  if (raw.kind === "app" || raw.kind === "integration") {
+    if (raw.settings_entries !== undefined) refuseDeclarations([{ path: "settings_entries", reason: "签名沙箱包尚未接入设置读写处理器" }]);
+    if (raw.adopts !== undefined) refuseDeclarations([{ path: "adopts", reason: "签名沙箱包尚未接入内容采用处理器" }]);
+  }
   if (raw.kind !== "app") return parsePluginManifest(input);
   const { agent, ...common } = raw;
   const parsed = parsePluginManifest(common);

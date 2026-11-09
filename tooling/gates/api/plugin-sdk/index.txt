@@ -688,6 +688,10 @@ export declare function comparePluginVersions(left: string, right: string): numb
 
 export declare function compareTexts(before: string, after: string): TextDiff;
 
+export declare function completeContentPackagePayload(input: LocalPackageSignInput, publisher: PluginManifest["publisher"]): PluginPackagePayload;
+
+export declare function contentPackageDraft(input: Omit<ContentPackageInput, "publisher">): LocalPackageSignInput;
+
 export declare function contentPackagePayload(input: ContentPackageInput): PluginPackagePayload;
 
 export declare function controlledConnectorFetch<Input>(fetchImpl: (input: Input, init?: RequestInit) => Promise<Response>, control: ConnectorCallControl): (this: unknown, input: Input, init?: RequestInit) => Promise<Response>;

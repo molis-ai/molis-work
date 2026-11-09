@@ -14,7 +14,7 @@ export { sandboxOperationActions, sandboxActionId, sandboxPackageBuildId, sandbo
 export { assertJson as assertSandboxJson, assertSchema as assertSandboxSchema, assertMatches as assertSandboxMatches, type SandboxSchemaFailure } from "./sandbox-schema.js";
 export { parsePluginManifest, comparePluginVersions } from "./manifest.js";
 export { inspectContentPlugin } from "./content-plugin.js";
-export { parseContentPackage, type ContentPackage } from "./content-package.js";
+export { completeContentPackagePayload, parseContentPackage, type ContentPackage } from "./content-package.js";
 export { readPackagedSkills, type PackagedSkillBody, type PackagedSkills } from "./skill-files.js";
 /** The one refusal of a declaration or package check (`plugin.declaration_invalid`): outside paths quoted and cut short, at most 30 problems listed. */
 export { refuseDeclarations } from "./declaration-problems.js";
@@ -26,7 +26,7 @@ export { defineSettingsActions, validateSettingsDeclaration, type SettingsAction
 export { bindSettingsHandlers, resolveEffectiveSetting, type SettingSnapshot, type SettingsOwner, type SettingsOwnerScope,
   type SettingsRequestIdentity, type SettingsTransaction, type SettingsWriteReceipt } from "./settings.js";
 export { skillDeclarationFromFrontmatter, type SkillFrontmatterOptions } from "./skill-frontmatter.js";
-export { contentPackagePayload, skillFromFolder, type ContentPackageInput, type FolderSkill } from "./skill-folder.js";
+export { contentPackageDraft, contentPackagePayload, skillFromFolder, type ContentPackageInput, type FolderSkill } from "./skill-folder.js";
 export { parsePluginSyncDeclaration, expandPluginSyncSelection } from "./plugin-sync.js";
 export { createSyncJsonContent, type SyncJsonContentOptions } from './sync-content.js';
 export { createSyncDocument, type SyncDocument, type SyncDocumentOwner, type SyncDocumentStorage } from './sync-document.js';

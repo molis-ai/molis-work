@@ -452,17 +452,17 @@ SDK 根入口 `inspectHomePageDraft(value: unknown)` 返回带字段路径的声
 
 ### 6.6 平台签名入口（只给内容包）
 
-`plugins.local_packages.sign@1` 只签内容包，统一登记在宿主的 `plugin-install`（合同台 2026-11-04 定）。P-3c 先交公共合同。这是只给 `user` 的命令，收闭合的 `{ manifest, files }`，文件项沿 `{ path, content_base64 }`，返回普通安装预览的 `{ preview_id }`。调用方在本人明确发布的操作里嵌套调用。宿主复用已有 Home 发布身份和内容包签名。私钥由宿主签名函数持有，安装预览展示验签后的发布者信息，安装和发布者固定仍走 S-84 的确认入口。
+`plugins.local_packages.sign@1` 只签内容包，统一登记在宿主的 `plugin-install`（合同台 2026-11-04 定）。P-3c 先交公共合同。这是只给 `user` 的命令，收闭合的 `{ manifest, files }`，文件项沿 `{ path, content_base64 }`，返回普通安装预览的 `{ preview_id }`。调用方在本人明确发布的操作里嵌套调用。动作的 Home scope 表达发布身份归属。本批要求可信的发起项目和 `plugin-install:write`，以便同一项目的普通确认消费预览。宿主复用已有 Home 发布身份和内容包签名。私钥由宿主签名函数持有，安装预览展示验签后的发布者信息，安装和发布者固定仍走 S-84 的确认入口。
 
 输入的 `manifest` 是待签内容声明，`files` 只收声明的正文和资源。签名入口拒绝调用方传入 `publisher` 或 `manifest.json`。经 `beforeEffect()` 和同步授权尾检后，宿主按现有规则取得或首次创建 Home 发布身份，写入真实的 `publisher` 并生成唯一匹配的 `manifest.json`。成包后沿现有内容包解析、签名和验签预览。SDK 从现有 `contentPackagePayload` 提取共用组包步骤供 08 导入使用，内容校验统一走 `parseContentPackage`。
 
 **实现与拒绝顺序。** 待签声明不能自报发布者或提供 `manifest.json`。共同预检只在内存中填检查用的发布者，经 `parseContentPackage` 和 Runtime 的 `parsePluginPackage` 拒绝错误路径、缺正文或资源、超限与非规范 Base64，检查用身份不落盘、不签名。之后才经 `beforeEffect()` 和同步尾检取得真实身份，生成唯一镜像、签名并调用普通安装预览。预览完成所有异步读取后再次核授权，在清理、驱逐及保存预览前执行尾检。安装服务在原预览记录里保存普通视图，内部 `readPreview(id, who)` 按本人、原项目和有效期只读回取，不消费或续期；确认仍消费一次并复查当前发布者固定状态。
 
-导入通过当前项目的动作客户端调用确切 `plugin-install` 提供方，沿 `retainActionAuthority` 保留原 `skills.import.confirm@1` 的本人、授权、取消信号与尾检。包安装到 Home 不改变发起项目绑定。导入只拿发布者公钥指纹读取留存版本，不持有签名器。公钥元数据缺失时，先对最终选中内容做同一预检，再由原身份 owner 复用已有恢复流程；封存密钥不存在便返回空，不在恢复分支建钥。恢复原指纹后重读留存版本，确保升级继续递增。试用声明若带 `compatible_from`，版本高于已装版本。首次建钥和实际签名只发生在签名动作中；这保留现有恢复行为，不另建凭据或包格式。
+导入通过当前项目的动作客户端调用确切 `plugin-install` 提供方，沿 `retainActionAuthority` 保留原 `skills.import.confirm@1` 的本人、授权、取消信号与尾检。包安装到 Home 不改变发起项目绑定。导入只拿发布者公钥指纹读取留存版本，不持有签名器。公钥元数据缺失时，先对最终选中内容做同一预检。试用声明若带 `compatible_from`，版本高于已装版本。导入确认和签名授权均有效时，原身份 owner 只从已封存的密钥取得公钥指纹，未有密钥便返回空。导入用这个指纹读取留存版本并确定最终包和技能版本。签名命令用真实指纹的长度预检最终稿，再沿原发布流程补回公钥元数据或首次建钥，并签名。
 
 本批先接 08 的真实导入。`apps/local-host/src/skill-import.ts` 组包后，通过 `skills.import.confirm@1` 的本人发布调用进入签名命令。宿主复用 `apps/local-host/src/plugin-builder/publisher-identity.ts` 的签名函数和普通安装预览。原导入控制器沿「同意并导入」已取得的本人确认，持预览 ID 调同一安装服务完成安装。验收覆盖缺少本人发布确认、撤权及取消后的签名拒绝。
 
-第 44 批的场景主人接入 `blueprints.packs.save@1` 时，按确切草稿 revision 或采用快照组包并调用签名命令。个人另存从同一安装服务按本人、原作用域和有效期只读回取预览，沿实际个人空间或 Home 上下文完成本人确认。SPC-15 按 08 导入和 44 另存的真实路径验收，公共合同的静态验证单独记证据。
+第 44 批的场景主人接入 `blueprints.packs.save@1` 时，按确切草稿 revision 或采用快照组包并调用签名命令。个人另存从同一安装服务按本人、原作用域和有效期只读回取预览，沿实际个人空间或 Home 上下文完成本人确认。无项目的 Home 另存和确认入口由第 44 批接入。SPC-15 按 08 导入和 44 另存的真实路径验收，公共合同的静态验证单独记证据。
 
 ## 7. 保存与恢复
 

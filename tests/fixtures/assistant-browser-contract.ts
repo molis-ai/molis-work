@@ -2,7 +2,7 @@ import type { AssistantRound, AssistantWork, AssistantWorkView } from "@molis-ai
 
 export const assistantWorkFixture = {
   work_id: "current", executor: { kind: "assistant" }, revision: 1, title: "Contract fixture", scope: { kind: "project", project_id: "fixture-project" },
-  origin: null, state: "running", session_id: "session-fixture", draft: "unsent original", created_at: "2026-11-08T00:00:00Z", updated_at: "2026-11-08T00:00:01Z", archived: false,
+  origin: null, state: "running", session_id: "session-fixture", draft_revision: 1, draft: "unsent original", created_at: "2026-11-08T00:00:00Z", updated_at: "2026-11-08T00:00:01Z", archived: false,
 } satisfies AssistantWork;
 const round = {
   run_id: "run-current", text: "Test input", materials: [], context: null, started_at: "2026-11-08T00:00:01Z", phase: "running", turns: [], activity: [], awaiting_input: [], ended_at: null,

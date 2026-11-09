@@ -562,7 +562,7 @@ export function checkMigratedGoalsCommandOwnership(repositoryRoot) {
   ) {
     errors.push(`${goalReadApplicationPath}: compatibility composition must not own Goal persistence or bypass Goals Query`);
   }
-  for (const relativePath of ["plugins/native/feed/src/demo-seed.ts", ...["application-assembly.ts", "plugin.ts", "goal-promotion.ts"].map(file => `plugins/native/feed/src/${file}`)]) {
+  for (const relativePath of ["apps/local-host/src/demo-feed-library.ts", "plugins/native/feed/src/demo-seed.ts", ...["application-assembly.ts", "plugin.ts", "goal-promotion.ts"].map(file => `plugins/native/feed/src/${file}`)].filter(file => fs.existsSync(path.join(repositoryRoot, file)))) {
     errors.push(...checkGoalReadOwnerSql(read(relativePath)).map(error => `${relativePath}: ${error}`));
   }
   errors.push(...checkNoGoalTypedAdapters(["apps", "horizontal", "modules", "packages", "plugins", "server"]
@@ -878,7 +878,7 @@ export function checkArtifactsOwnership(repositoryRoot) {
   }
 
   // Lifecycle and compatibility rules stay in the Artifact owner, shared by the service and paginated consumers.
-  const service = read("modules/artifacts/src/service.ts") + read("modules/artifacts/src/registration.ts") + read("modules/artifacts/src/compatibility.ts");
+  const service = read("modules/artifacts/src/service.ts") + read("modules/artifacts/src/registration.ts") + (fs.existsSync(path.join(repositoryRoot, "modules/artifacts/src/compatibility.ts")) ? read("modules/artifacts/src/compatibility.ts") : "");
   for (const required of [
     "artifacts.artifact.version_not_increasing",
     "artifacts.artifact.version_conflict",

@@ -51,8 +51,13 @@ export function pluginActionProvider(manifest: PluginManifest, contribution: Plu
         const checked = { passed: false };
         const run = (readable?: readonly string[]) => {
           state.capturePermissions(definition.action.permissions);
-          const view = { ...pluginCallbackContext(context), ...(readable ? { readable_project_ids: readable } : {}), ...(context.audience === "plugin" && context.host_plugin ? { calling_plugin_id: context.host_plugin.plugin_id } : {}) }, before = view.beforeEffect;
-          return h.handle(before ? { ...view, beforeEffect: pluginActionBeforeEffect(before, checked) } : view, input);
+          const view = pluginCallbackContext(context, copy => ({
+            ...copy,
+            ...(readable ? { readable_project_ids: readable } : {}),
+            ...(context.audience === "plugin" && context.host_plugin ? { calling_plugin_id: context.host_plugin.plugin_id } : {}),
+            ...(copy.beforeEffect ? { beforeEffect: pluginActionBeforeEffect(copy.beforeEffect, checked) } : {}),
+          }));
+          return h.handle(view, input);
         };
         // The list is the Host's, read now, for the person only, and only for an action that declares it and an installation that holds the grant (S-74).
         const reaches = projectReach && definition.action.project_reach === "person" && context.audience === "user"

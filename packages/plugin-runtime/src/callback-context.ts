@@ -1,18 +1,26 @@
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 
 /** Plugin code receives no Host-issued identity and can edit its view without changing the Runtime's original controls. */
-export function pluginCallbackContext<C extends ActionCallContext>(caller: C): C {
+export function pluginCallbackContext<C extends ActionCallContext>(caller: C, finish?: (view: C) => C): C {
   const view = dropIssuedIdentity({ ...caller, permissions: [...caller.permissions],
     ...(caller.allowed_capability_ids ? { allowed_capability_ids: [...caller.allowed_capability_ids] } : {}),
-    ...(caller.allowed_actions ? { allowed_actions: caller.allowed_actions.map(reference => ({ ...reference })) } : {}),
     ...(caller.page_context ? { page_context: { ...caller.page_context } } : {}),
     ...(caller.user_action ? { user_action: { ...caller.user_action } } : {}),
     ...(caller.scene_binding ? { scene_binding: { ...caller.scene_binding } } : {}),
     ...(caller.assistant_reply ? { assistant_reply: structuredClone(caller.assistant_reply) } : {}),
     ...(caller.original_input ? { original_input: structuredClone(caller.original_input) } : {}),
   });
+  const references = view.allowed_actions ?? caller.allowed_actions;
   if (caller.signal) followSignal(view, caller.signal);
-  return view;
+  // Action and scene assembly may spread the view. Install the lazy property only on the object the plugin will see.
+  const callback = finish ? finish(view) : view;
+  if (references) {
+    let own: { readonly value: ActionCallContext["allowed_actions"] } | undefined;
+    Object.defineProperty(callback, "allowed_actions", { configurable: true, enumerable: true,
+      get: () => (own ??= { value: references.map(reference => ({ ...reference })) }).value,
+      set: (value: ActionCallContext["allowed_actions"]) => { own = { value }; } });
+  }
+  return callback;
 }
 
 /**

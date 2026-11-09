@@ -16,8 +16,11 @@ export function pluginSceneHandler(declaration: ActionSceneDefinition, handler: 
     return runInPluginScene({ install_id: instance.install_id, installation_generation: instance.installation_generation, scene: declaration, read_only, caller, ...(effect ? { effect } : {}) },
       () => {
         capturePermissions(permissions);
-        const copy = pluginCallbackContext(caller), before = (copy as Partial<ActionSceneExecutionContext>).beforeEffect;
-        return handle(effect && before ? { ...copy, beforeEffect: pluginSceneBeforeEffect(before, effect) } : copy);
+        const copy = pluginCallbackContext(caller, effect ? view => {
+          const before = (view as Partial<ActionSceneExecutionContext>).beforeEffect;
+          return before ? { ...view, beforeEffect: pluginSceneBeforeEffect(before, effect) } : view;
+        } : undefined);
+        return handle(copy);
       });
   };
   const configuration = grantAvailability(declaration.configuration_permissions ?? []);

@@ -4,6 +4,8 @@
 
 需求出处：[`specs/work-brief/spec.md`](../../../specs/work-brief/spec.md) §1.1～1.4（WBR-21～28）、[`specs/product-flow-governance/spec.md`](../../../specs/product-flow-governance/spec.md) §4.7、[`specs/intelligent-surfaces/spec.md`](../../../specs/intelligent-surfaces/spec.md) §13。排期见[第 15 批](../../../specs/post-anticorruption-roadmap/reference/batches/15.md)，界面要求是「先定样：基础首页、四种形态、跨位置操作与降级」。
 
+**实现核对（2026-11-08）**：保留已定版面和四形态；Work Brief §1.1 前的 2026-11-04 更正优先：首页归平台，插件只注册卡片。以下原型中「Work Brief 接管首页」是历史模拟，不实现为插件替换首页。安装、停用或局部读取失败不打断当前标签，基础首页仍可用；生成页面的采用与失败恢复由第 20／37 批交付。工作记录第 21／28 批未交时，真实首页不出「接着做」，不以本原型示例冒充读取结果。
+
 四种形态（名字片、行、卡片、速览）已在第 03 批定为「插件领头」（[`intelligent-surfaces-forms/`](../intelligent-surfaces-forms/README.md) 方案 B）。九种状态与降级、操作与后果、同一份事实在各处一起变，也随那份定样看过。这一页不重定它们，直接照用，只定三件事：
 
 - 首页怎么排；

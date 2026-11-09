@@ -92,6 +92,14 @@ export const CAPABILITY_PACK_BOARD_STYLES = `
     .mw-state-row__go { justify-self: start; }
   }
 
+  /* 7 · Usage: a figure only when there are recent uses, one line of what it counts, and under them what the count covers. */
+  .mw-usage { display: grid; gap: 6px; min-width: 0; }
+  .mw-usage__figure { display: flex; align-items: center; gap: 12px; min-width: 0; }
+  .mw-usage__num { min-width: 40px; color: var(--ink); font-size: 24px; font-weight: var(--weight-title, 600); line-height: 1; font-variant-numeric: tabular-nums; }
+  .mw-usage__text { display: grid; gap: 2px; min-width: 0; color: var(--ink-soft); font-size: 13px; line-height: 1.45; }
+  .mw-usage__text > strong { color: var(--ink); font-weight: var(--weight-control, 500); }
+  .mw-usage__scope { margin: 0; max-width: 640px; color: var(--muted); font-size: 12px; line-height: 1.55; }
+
   @media (prefers-reduced-motion: reduce) { :is(.mw-item-group__head, .mw-cell) { transition: none; } }
 
   .mw-catalog :is([data-primitive="now-block"], [data-primitive="item-group"], [data-primitive="cell-grid"], [data-primitive="detail-trail"], [data-primitive="icon-counts"], [data-primitive="state-rows"], [data-primitive="usage-figure"]) .mw-catalog__specimens { grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); align-items: start; }
@@ -176,6 +184,13 @@ export function renderIconCounts(counts: ReadonlyArray<{ glyph: PluginIconName; 
 export function renderStateRows(rows: ReadonlyArray<{ name: string; meaning: string; mark: string; fact?: string; go?: string }>): string {
   return `<ul class="mw-state-rows" data-slot="state-rows">${rows.map((row) => `<li><span class="mw-state-row__what"><strong>${escapeHtml(row.name)}</strong><small>${escapeHtml(row.meaning)}</small></span><span class="mw-state-row__state">${
     row.mark}${row.fact ? `<small>${escapeHtml(row.fact)}</small>` : ""}</span>${row.go ? `<span class="mw-state-row__go">${row.go}</span>` : ""}</li>`).join("")}</ul>`;
+}
+
+/** 7 · Usage: `figure` only with recent uses (no number stands for "only the last one"); `scope` says what the count covers. */
+export function renderUsage(options: { figure?: number; head: string; last?: string; scope?: string }): string {
+  const figure = options.figure === undefined ? "" : `<span class="mw-usage__num">${options.figure}</span>`;
+  return `<div class="mw-usage" data-slot="usage"><div class="mw-usage__figure">${figure}<span class="mw-usage__text"><strong>${escapeHtml(options.head)}</strong>${
+    options.last ? `<span>${escapeHtml(options.last)}</span>` : ""}</span></div>${options.scope ? `<p class="mw-usage__scope">${escapeHtml(options.scope)}</p>` : ""}</div>`;
 }
 
 /* ---------- the board's specimens (made up; nothing is read from a Home). Every text is still Chinese: `say` turns it. ---------- */
@@ -280,6 +295,14 @@ export function stateRowsSection(say: Say): string {
   return section("state-rows", say("分项状态行 / State Rows"), `<div class="mw-catalog__specimens">
     ${specimen(say("三种「开」：一行一种"), mcpRows(say))}
     ${specimen(say("窄处：去处换到下一行"), `<div style="width: min(300px, 100%)">${mcpRows(say, true)}</div>`)}
+  </div>`);
+}
+
+export function usageSection(say: Say): string {
+  return section("usage-figure", say("用量 / Usage"), `<div class="mw-catalog__specimens">
+    ${specimen(say("近期次数：数字、最近一次、范围"), renderUsage({ figure: 12, head: say("近期 {n} 次", { n: 12 }), last: say("最近一次 昨天 17:40 · 助理"), scope: say("每个提示词只留最近 200 次记录，这里不是总数。") }))}
+    ${specimen(say("只有最近一次：不出数字"), renderUsage({ head: say("只有最近一次"), last: say("最近一次 3 天前 · Coding"), scope: say("工具只记最近一次是什么时候。") }))}
+    ${specimen(say("还没有使用记录"), renderUsage({ head: say("还没有使用记录") }))}
   </div>`);
 }
 

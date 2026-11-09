@@ -290,6 +290,7 @@ export interface SandboxOperationContract {
         description: string;
     }>;
     effects: SandboxEffects;
+    external?: true;
     background_job?: {
         status: string;
         id: string;

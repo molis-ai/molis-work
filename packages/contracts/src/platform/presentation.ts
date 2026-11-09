@@ -161,11 +161,11 @@ export function definePresentationValuesAction(capabilityId: string, version: nu
   return { capability_id: capabilityId, version, operation: "query", action: { title, kind: "query", scope, effect: "read", scheduling: "concurrent", audiences: [...audiences],
     description: "按调用方此刻的授权读取这些对象要显示的字段；读不了、已删除、此刻读不到的如实给出状态；不修改数据。",
     permissions: [...permissions], subject_kinds: [...kinds], input_type: PRESENTATION_VALUES_INPUT_TYPE, output_type: PRESENTATION_VALUES_OUTPUT_TYPE,
-    input_schema: inputSchemaFor<PresentationValuesInput>()(PRESENTATION_VALUES_INPUT_SCHEMA), output_schema: PRESENTATION_VALUES_OUTPUT_SCHEMA } };
+    execution: { cost: "none" }, input_schema: inputSchemaFor<PresentationValuesInput>()(PRESENTATION_VALUES_INPUT_SCHEMA), output_schema: PRESENTATION_VALUES_OUTPUT_SCHEMA } };
 }
 
-export function isPresentationValuesAction(action: { input_type?: string; output_type?: string }): boolean {
-  return action.input_type === PRESENTATION_VALUES_INPUT_TYPE && action.output_type === PRESENTATION_VALUES_OUTPUT_TYPE;
+export function isPresentationValuesAction(action: { input_type?: string; output_type?: string; execution?: { cost?: string } }): boolean {
+  return action.input_type === PRESENTATION_VALUES_INPUT_TYPE && action.output_type === PRESENTATION_VALUES_OUTPUT_TYPE && action.execution?.cost === "none";
 }
 
 /** What the owner answers, kept to what was asked: only the asked fields, and nothing but the state for an object the caller may not read or that is gone. */

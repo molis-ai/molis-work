@@ -292,4 +292,7 @@ export declare function definePresentationValuesAction(capabilityId: string, ver
 export declare function isPresentationValuesAction(action: {
     input_type?: string;
     output_type?: string;
+    execution?: {
+        cost?: string;
+    };
 }): boolean;

@@ -94,6 +94,8 @@ export interface SandboxOperationContract {
   output: SandboxSchema;
   errors: Array<{ code: string; description: string }>;
   effects: SandboxEffects;
+  /** Whether the operation sends content outside the Home. Separate from the effects it has permission to use. */
+  external?: true;
   /** A launcher's persistent business job, read by a query of this same package. Broker execution ids are separate, ephemeral handles. */
   background_job?: {
     status: string;

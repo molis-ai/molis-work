@@ -135,6 +135,7 @@ function assertContractEnvelope(contract: unknown, proposal: boolean): asserts c
   for (const op of c.operations) {
     if (!id(op.id)) throw new SandboxError('sandbox.invalid_contract', 'Invalid operation id');
     if (op.kind !== 'query' && op.kind !== 'command') throw new SandboxError('sandbox.invalid_contract', 'Operation kind must be query or command');
+    if (op.external !== undefined && op.external !== true) throw new SandboxError('sandbox.invalid_contract', 'Operation external must be true when declared');
     assertSchema(op.input); assertSchema(op.output); assertEffects(op.effects);
     if ((op.effects.imageGeneration?.includes('generate') || op.effects.imageGeneration?.includes('bind')) && !op.effects.networkDomains?.length) throw new SandboxError('sandbox.invalid_contract', 'Image generation names the address it reaches in networkDomains');
     if (op.kind === 'query' && (op.effects.modelSettings?.includes('save') || op.effects.imageGeneration?.some(v => v !== 'read'))) throw new SandboxError('sandbox.invalid_contract', 'Queries cannot save model settings, generate images or bind image connections');

@@ -76,6 +76,7 @@ export function sandboxOperationActions(input: { contract: SandboxPluginContract
       scope: input.scope, scheduling: 'concurrent', audiences: ['user', 'agent', 'workflow', 'mcp', 'plugin'],
       permissions: sandboxOperationPermissions(sandboxOperationEffects(input.contract, operation)), subject_kinds: [],
       input_schema: { ...operation.input }, output_schema: { ...operation.output },
+      ...(operation.external === undefined ? {} : { external: operation.external }),
       ...(operation.background_job ? { background_job: { ...operation.background_job,
         status: { capability_id: sandboxActionId(input.buildId, operation.background_job.status), version: input.version } } } : {}),
     },

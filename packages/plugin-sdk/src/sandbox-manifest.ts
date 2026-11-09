@@ -130,7 +130,7 @@ export function sandboxPluginManifest(input: SandboxManifestInput): PluginManife
   }
   const uiId = sandboxUiContribution(input.pluginId);
   if (input.effects?.background?.length && !input.contract) throw pluginErrors.declaration_invalid('后台操作需要完整合同来派生动作');
-  const actions = input.contract?.operations.some(operation => operation.background_job || operation.effects.background?.length)
+  const actions = input.contract?.operations.some(operation => operation.background_job || operation.effects.background?.length || operation.external !== undefined)
     ? sandboxOperationActions({ contract: input.contract, ...(input.actionIdentity ?? { buildId: sandboxPackageBuildId(input.pluginId, input.publisher.signature), version: 1 }),
       title: input.name, scope: input.runtime?.scope === 'home' ? 'home' : 'project' }) : undefined;
   return {

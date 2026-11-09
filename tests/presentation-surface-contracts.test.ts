@@ -41,6 +41,8 @@ test("the values and overview helpers give declarations the SDK's action checks 
   assert.deepEqual(inspectActionDeclarations([values, overview], undefined), []);
   assert.equal(isPresentationValuesAction(values.action), true);
   assert.equal(isPresentationValuesAction(overview.action), false);
+  assert.equal(values.action.execution?.cost, "none");
+  for (const execution of [undefined, {}, { cost: "unknown" }, { cost: "metered" }]) assert.equal(isPresentationValuesAction({ ...values.action, execution }), false);
   assert.deepEqual([values.action.scheduling, values.action.effect, values.action.subject_kinds, values.action.audiences], ["concurrent", "read", ["note"], ["user", "plugin", "agent", "mcp"]]);
   const home = definePresentationOverviewAction("todo.presentation.overview", 1, "待办概况", [], "home");
   assert.deepEqual([home.action.scope, home.action.project_reach, home.action.effect, overview.action.project_reach], ["home", "person", "read", undefined]);
@@ -151,7 +153,7 @@ test("SCS-15 notices use the object's own actions and text keys; external effect
 test("SCS-09 values declarations cannot meter the read or request a model", () => {
   const manifest = (extra: Record<string, unknown>) => ({ actions: [search, { ...ownValues, action: { ...ownValues.action, ...extra } }],
     presentation: withObject({ actions: [] }) });
-  for (const extra of [{ permissions: ["model:invoke"] }, { execution: { cost: "metered" } }]) {
+  for (const extra of [{ permissions: ["model:invoke"] }, { execution: undefined }, { execution: { cost: "unknown" } }, { execution: { cost: "metered" } }]) {
     assert.match(validatePresentationDeclaration(manifest(extra)).join("\n"), /不调用模型或计费/u);
   }
 });

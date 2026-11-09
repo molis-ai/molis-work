@@ -126,7 +126,7 @@ export function isPresentationValuesReader(action: unknown): boolean {
   const metadata = metadataOf(action);
   return isValuesAction(metadata) && action.operation === "query" && metadata.kind === "query" && metadata.effect === "read"
     && Array.isArray(metadata.permissions) && !metadata.permissions.includes("model:invoke")
-    && !(isRecord(metadata.execution) && metadata.execution.cost === "metered")
+    && isRecord(metadata.execution) && metadata.execution.cost === "none"
     && sameJson(metadata.input_schema, PRESENTATION_VALUES_INPUT_SCHEMA) && sameJson(metadata.output_schema, PRESENTATION_VALUES_OUTPUT_SCHEMA);
 }
 

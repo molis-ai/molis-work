@@ -257,6 +257,8 @@ export interface PluginManifest {
   background?: { jobs: readonly import("./plugin-background.js").PluginJobDeclaration[]; wakeups?: readonly import("./plugin-scheduler.js").PluginWakeupDeclaration[] };
   /** the plugin takes the platform's notifications (`services.notifications` of the plugins that send them), by one of its own actions (D6-2). */
   notifications?: import("./plugin-notifications.js").PluginNotificationReceiverDeclaration;
+  /** Stable setting entries and the declaring owner’s read and write actions. */
+  settings_entries?: import("./settings.js").SettingsDeclaration;
   /** Complete, callable capabilities registered with the system action service. */
   actions?: readonly import("./actions.js").ActionDefinition[];
   /** Actual judgment consumption points, automatically discovered by configuration UIs. */

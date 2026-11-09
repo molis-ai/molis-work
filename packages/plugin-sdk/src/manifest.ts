@@ -9,6 +9,7 @@ import { inspectAgentDeclaration } from "./agent-declarations.js";
 import { inspectContentPlugin } from "./content-plugin.js";
 import { refuseDeclarations } from "./declaration-problems.js";
 import { inspectSkillDeclarations } from "./skill-declarations.js";
+import { validateSettingsDeclaration } from "./settings-declaration.js";
 import { artifactDeclarationProblems } from "./artifact-declarations.js";
 import { backgroundDeclarationProblems } from "./background-declarations.js";
 import { notificationDeclarationProblems } from "./notification-declarations.js";
@@ -231,6 +232,7 @@ function assertDeclarations(parsed: PluginManifest, ui: Record<string, unknown>)
   problems.push(...pageRouteProblems(parsed));
   problems.push(...messageDeclarationProblems(parsed));
   problems.push(...localeDeclarationProblems(parsed));
+  problems.push(...validateSettingsDeclaration(parsed));
   problems.push(...inspectRouteDeclarations(parsed));
   problems.push(...inspectRequirementDeclarations(parsed));
   problems.push(...inspectPortPermissions(parsed));

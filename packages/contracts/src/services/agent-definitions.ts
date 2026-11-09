@@ -1,4 +1,5 @@
 import type { ContractDescriptor } from "../platform/package.js";
+import { defineErrorCodes } from "../platform/actions.js";
 import type { AgentPromptLayer, AgentRoleExecution } from "../platform/plugin-agent.js";
 
 /**
@@ -211,3 +212,25 @@ export interface AgentDefinitionsDiagnostics {
   }>;
   unregistered: AgentUnregisteredCall[];
 }
+
+/** Most rows one prompt overrides file carries; a longer file is refused whole at preview (specs/capability-pack/contract-design.md §4.9). */
+export const PROMPT_OVERRIDES_FILE_MAX_ROWS = 200;
+
+/** The person's own edits of prompts, never a package and never installed. Also the `prompt_overrides` part of a kit pack file. */
+export interface PromptOverridesFile {
+  format: "molis.prompt-overrides";
+  format_version: /* @version format.agent-definitions.prompt-overrides */ 1;
+  exported_at: string;
+  /** At most `PROMPT_OVERRIDES_FILE_MAX_ROWS`; each `body` at most `AGENT_PROMPT_MAX_CHARS`. `title` is a reminder only. */
+  overrides: Array<{ owner_id: string; prompt_id: string; title: string; base_version: number; body: string }>;
+}
+
+/** The register's refusals its callers outside the Host see (specs/capability-pack/contract-design.md §4.2, §4.9, §4.11). */
+export const agentDefinitionErrors = defineErrorCodes("agent_definitions", {
+  /** A prompt overrides preview is unknown, already used, or another person's or another project's. */
+  overrides_preview_unknown: "not_found",
+  /** A confirmation names a preview row that is not `applicable`: the file's base is not the current default, or the prompt is gone. */
+  overrides_row_not_applicable: "conflict",
+  /** An instruction prompt's `role_id` is not a role its owner declares: the owner's registration is refused (`details`: owner, prompt, role). */
+  instruction_role_unknown: "invalid",
+});

@@ -102,6 +102,10 @@
       "types": "./dist/platform/model-prompts.d.ts",
       "import": "./dist/platform/model-prompts.js"
     },
+    "./platform/kit-report": {
+      "types": "./dist/platform/kit-report.d.ts",
+      "import": "./dist/platform/kit-report.js"
+    },
     "./platform/plugin-events": {
       "types": "./dist/platform/plugin-events.d.ts",
       "import": "./dist/platform/plugin-events.js"
@@ -225,6 +229,10 @@
     "./services/skills": {
       "types": "./dist/services/skills.d.ts",
       "import": "./dist/services/skills.js"
+    },
+    "./services/kit": {
+      "types": "./dist/services/kit.d.ts",
+      "import": "./dist/services/kit.js"
     },
     "./modules/characters": {
       "types": "./dist/modules/characters.d.ts",

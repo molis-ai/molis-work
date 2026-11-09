@@ -224,6 +224,27 @@ interface SettingsWriteInput {
 
 P-1 可先在独占的新合同／SDK settings 文件形成待接片，最终统一接 `plugin-manifest`、SDK index、内容校验及快照；未接公开入口前只是候选实现，不算交付。不得为等 #1984 另抄一份 schema、TextRef 校验或 Manifest 解析。第 14.1 节的并发与重启用例须由实施者给出证据。
 
+### 4.1 P-1 实施设计
+
+| 公共入口 | 输入与返回 |
+| --- | --- |
+| `defineSettingsActions(options)` | 主人给共同的 `scope`，以及读写各自的 `capability_id`、`version`、标题、说明和权限。SDK 返回可用于 Manifest 和运行时绑定的 `{ read, write }` 两个动作定义。读为 `query`，受众为 `user`、`plugin`、`agent`。写为 `command`，受众仅 `user`。 |
+| `validateSettingsDeclaration({ settings_entries, actions, plugin_id })` | 返回带字段路径的声明问题。按 `capability_id` 和 `version` 找本主人的动作，用 `canonicalJsonText` 比较固定 schema，并核对类型 ID、读写效果和受众。校验条目的 key、可写层及后果枚举，拒绝重复 key。条目标题和摘要沿呈现声明复用 `textRefProblems` 和 `tryOwnedTextRef`，接入 `parsePluginManifest` 的 `refuseDeclarations`。 |
+| `resolveEffectiveSetting(snapshot)` | 主人给 `key`、有效 `revision` 与各层值，或不可用状态与原因。返回 `EffectiveSetting`，按项目、个人、提供方默认取第一个存在的值，保留 `null`、`false`、`0` 等有效值。 |
+| `bindSettingsHandlers(actions, declaration, owner)` | 返回两个 `ActionHandlerBinding`，复用 `bindActionHandler`。主人提供 `read(scope, keys)` 批量返回层快照，以及 `transaction(scope, run)` 同步提供 §4 所列四项存取。读取与写后回读都用 `resolveEffectiveSetting`。 |
+
+在 `platform/settings` 导出类型和固定动作 schema。读输入为 `SettingsReadInput`，写输入为 `SettingsWriteInput`。两者输出共用 `SettingsValues`（`{ values: EffectiveSetting[] }`）及 `SETTINGS_READ_OUTPUT_TYPE`，写只返回一项事务内回读结果。闭合输入对象，`change` 只收 `set` 与 `inherit: true` 其中一种。动作网关检查固定形状，SDK 再按条目校验 `set` 的值和允许写入的层，写项目层必须有可信项目上下文。新增协议类型 ID 的 v1 在 `tooling/versions.json` 首次登记，实际 owner 动作版本在该动作首次声明时登记。
+
+owner 身份来自已绑定的安装或系统提供方，actor 与项目取自 `ActionExecutionContext`。执行完异步准备后 `await caller.beforeEffect()`，进入同步事务时用现有 `requireSynchronous(caller.assert_authority_current?.())` 和 `caller.signal?.throwIfAborted()` 做最终检查。以 owner、actor、项目、key、layer、`request_id` 查回执，用规范化 JSON 比对原请求，匹配即返回原结果。同键异内容和过期 revision 由 owner 的 `setting_conflict` 拒绝，层或值非法由 `setting_invalid` 拒绝。新写在事务内核对涵盖所有相关层的 revision 和主人硬限制，写值、回读并保存回执。各层的变更版本与默认值版本由主人提供，同一个值改回去仍能识别中间写入。回读或存回执失败，事务回滚本次值、revision 和回执。给存量主人加表、字段或持久回执需要单独的版本与升级授权。
+
+把 `packages/plugin-sandbox/src/schema.ts` 中 `assertJson`、`assertSchema`、`assertMatches` 的有界校验逻辑提取到 SDK 新文件 `src/sandbox-schema.ts`。设置声明与值检查共用这份纯逻辑。沙箱保留原入口、限额、检查顺序与 `SandboxError` 的错误码及消息，runner、background、broker、签包读取及创作台继续经原入口。设置声明及写入分别走现有 Manifest 问题出口与 owner 的 `defineErrorCodes`。
+
+安装归属复用 Runtime `install-rules.ts` 的 `DeclarationOwners` 和 Host `declaration-owners.ts` 的 `heldInstalls`。按动作目录可达交集判定，同项目及 Home 与任一项目间同 key 冲突，不同项目允许同名。按可信 `scope` 与 `install_id` 精确排除升级自身，禁用保留 key，卸载即释放。异步升级预检后在保存安装记录前重查。
+
+独占实现放在 contracts 的 `platform/settings.ts` 和 SDK 的 `settings.ts`、`sandbox-schema.ts`。Manifest 字段、解析接线、SDK 根导出及共享 API 快照等 #1984 交接后串行接入。本片以公开 contracts／SDK 入口和真实 Runtime 准入验证，不登记存量 owner 的设置动作。签名沙箱 app 的生产接入范围待用户决定。当前签包按固定 Manifest 投影，沙箱的数据库事务端口只接受写语句批次。若纳入，需要投影固定读写定义，并在安装私有库内提供受授权的同步事务端口供同一 SDK 绑定调用。第 36 批角色层次合同是否由本批接手也待用户决定，仍是 P-2 的前置。
+
+SPC-C01 经公开 Manifest 解析和 `ActionService` 验证错引用／schema、非法文字、越层、继承和不可用，经 Runtime 安装验证 key 冲突。SPC-C02 用临时文件 SQLite owner 驱动公开 SDK 绑定。两个独立连接以同一 revision 竞争写入，另验跨层变化导致旧 revision 冲突。测试同请求重放、同键异内容拒绝及关闭重开后返回原回执。用数据库触发器让 receipt 插入失败，核对值与 revision 回滚。暂停调度器的 `beforeEffect` 后撤权，验证新请求和重放都被拒，数据库中值和回执没有变化。
+
 
 ## 5. 角色
 

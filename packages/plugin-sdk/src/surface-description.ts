@@ -1,10 +1,10 @@
 import { ActionError, type ActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
 import { PRESENTATION_LIMITS } from "@molis-ai/molis-work-contracts/platform/presentation";
 import type { OwnedTextRef } from "@molis-ai/molis-work-contracts/platform/ui";
-import { SURFACE_GENERIC_OPERATIONS } from "@molis-ai/molis-work-contracts/services/surface-composition";
-import type { SurfaceDescription, SurfaceExclusion, SurfaceGroup, SurfaceItem, SurfaceItemAction } from "@molis-ai/molis-work-contracts/services/surface-composition";
+import { SURFACE_CONSEQUENCES, SURFACE_GENERIC_OPERATIONS } from "@molis-ai/molis-work-contracts/services/surface-composition";
+import type { SurfaceDescription, SurfaceExclusion, SurfaceGroup, SurfaceInstallationRef, SurfaceItem, SurfaceItemAction, SurfacePluginCard } from "@molis-ai/molis-work-contracts/services/surface-composition";
 import { canonicalJsonText, isRecord } from "./json-value.js";
-import { textRefProblems } from "./ui/text-ref.js";
+import { textRefProblems, tryOwnedTextRef } from "./ui/text-ref.js";
 
 // The check of a composed surface against its candidates (specs/shared-sources-and-surfaces §6, §7; SSC-10, IUI-05). The composition
 // service runs it on the assistant's choice before showing it, and a plugin runs it in its tests on what is put on its page. The candidates
@@ -20,7 +20,7 @@ export interface CheckedSurfaceDescription { readonly description: SurfaceDescri
 const malformed = (part: string) => new ActionError("actions.output_invalid", `操作面描述不合格：${part}`);
 
 const GROUP_KINDS = ["attention", "continue", "plugin", "slot"] as const;
-const GROUP_KEYS = ["kind", "owner_plugin_id", "state", "read_at", "excluded", "hidden_above", "overflow", "title", "items"] as const;
+const GROUP_KEYS = ["kind", "owner_plugin_id", "state", "read_at", "excluded", "hidden_above", "overflow", "plugin_card", "title", "items"] as const;
 const GROUP_STATES = ["ok", "unreadable", "stale", "disabled", "undeclared"] as const;
 
 function closed(value: unknown, part: string, keys: readonly string[]): Record<string, unknown> {
@@ -97,9 +97,10 @@ function candidateGroup(group: SurfaceGroup, at: string): CandidateGroup {
   const excluded = group.excluded === undefined ? {} : { excluded: exclusions(group.excluded, `${at}.excluded`) };
   const hidden = group.hidden_above === undefined ? {} : { hidden_above: hiddenAbove(group.hidden_above, `${at}.hidden_above`) };
   const folded = group.overflow === undefined ? {} : { overflow: overflow(group.overflow, `${at}.overflow`) };
+  const card = group.plugin_card === undefined ? {} : { plugin_card: checkedPluginCard(group.plugin_card, ownerId, state, `${at}.plugin_card`) };
   if (!Array.isArray(group.items)) throw malformed(`${at}.items`);
   if (kind === "plugin" && group.items.some(item => item.owner_plugin_id !== ownerId)) throw malformed(`${at}.items：plugin 组只放这个插件的东西`);
-  return { facts: { kind, ...owner, state, ...readAt, ...excluded, ...hidden, ...folded }, offered: new Map(group.items.map(item => [subjectKey(item.subject), item])) };
+  return { facts: { kind, ...owner, state, ...readAt, ...excluded, ...hidden, ...folded, ...card }, offered: new Map(group.items.map(item => [subjectKey(item.subject), item])) };
 }
 
 /** A group of the value: the candidates' group of the same kind and owner, once. The value gives its title and picks and orders its items. */
@@ -108,6 +109,8 @@ function checkedGroup(value: unknown, at: string, pass: Pass): SurfaceGroup {
   const candidate = pass.candidates.find(entry => entry.facts.kind === group.kind && entry.facts.owner_plugin_id === group.owner_plugin_id);
   if (!candidate) throw malformed(`${at}：候选里没有这一组`);
   if (pass.placed.has(candidate)) throw malformed(`${at}：同一组放了两次`);
+  if (group.plugin_card !== undefined && (candidate.facts.plugin_card === undefined
+    || canonicalJsonText(group.plugin_card) !== canonicalJsonText(candidate.facts.plugin_card))) throw malformed(`${at}.plugin_card`);
   pass.placed.add(candidate);
   const title = group.title === undefined ? {} : { title: ownedText(group.title, `${at}.title`) };
   if (!Array.isArray(group.items)) throw malformed(`${at}.items`);
@@ -135,6 +138,85 @@ function hiddenAbove(value: unknown, at: string): { count: number; label: OwnedT
 function overflow(value: unknown, at: string): { count: number; label?: OwnedTextRef } {
   const folded = closed(value, at, ["count", "label"]);
   return { count: count(folded.count, `${at}.count`), ...(folded.label === undefined ? {} : { label: ownedText(folded.label, `${at}.label`) }) };
+}
+
+function cardWord(value: unknown, owner: string, at: string, literal: boolean): void {
+  const ref = ownedText(value, at);
+  if ("literal" in ref) {
+    if (!literal) throw malformed(at);
+    return;
+  }
+  const { owner: named, ...word } = ref;
+  const bound = tryOwnedTextRef(word, owner);
+  if (!bound || !("owner" in bound) || bound.owner !== named) throw malformed(at);
+}
+
+function checkInstallation(value: unknown, at: string, expectedScope?: SurfaceInstallationRef["scope"]): void {
+  const record = closed(value, at, ["scope", "install_id", "installation_generation", "version", "manifest_digest"]);
+  const scope = oneOf(record.scope, ["project", "home"], `${at}.scope`);
+  if (expectedScope && scope !== expectedScope) throw malformed(`${at}.scope`);
+  for (const key of ["install_id", "installation_generation", "version", "manifest_digest"]) text(record[key], at + "." + key, 200);
+}
+
+function checkedCardAction(value: unknown, at: string) {
+  const action = closed(value, at, ["ref", "provider_id", "primary", "consequence"]);
+  const identity = actionIdentity(action, at);
+  if (!identity.provider || !/^[^@\s]+@[1-9]\d*$/u.test(identity.ref)) throw malformed(at);
+  if (action.consequence !== undefined && (!Array.isArray(action.consequence)
+    || new Set(action.consequence).size !== action.consequence.length
+    || action.consequence.some(value => !SURFACE_CONSEQUENCES.some(kind => kind === value)))) throw malformed(`${at}.consequence`);
+  return identity;
+}
+
+function checkCardStarts(value: unknown, at: string): void {
+  if (!Array.isArray(value) || !value.length || value.length > PRESENTATION_LIMITS.overview_start) throw malformed(at);
+  const seen = new Set<string>();
+  let primary = false;
+  value.forEach((entry, index) => {
+    const path = at + "[" + index + "]";
+    const kind = oneOf(isRecord(entry) && entry.kind, ["invoke", "form"], `${path}.kind`);
+    const base = ["kind", "installation", "action"];
+    const start = closed(entry, path, kind === "form" ? [...base, "view_id", "panel"] : base);
+    checkInstallation(start.installation, `${path}.installation`);
+    if (kind === "form") {
+      text(start.view_id, `${path}.view_id`, PRESENTATION_LIMITS.start_view_id);
+      text(start.panel, `${path}.panel`, PRESENTATION_LIMITS.start_panel);
+    }
+    const action = checkedCardAction(start.action, `${path}.action`);
+    if (seen.has(action.ref) || (primary && action.primary)) throw malformed(`${path}.action`);
+    seen.add(action.ref);
+    primary ||= action.primary;
+  });
+}
+
+function checkCardEnable(value: unknown, at: string): void {
+  const kind = oneOf(isRecord(value) && value.kind, ["project_membership", "project_installation", "home_plugin_settings"], `${at}.kind`);
+  const base = ["kind", "installation"];
+  const enable = closed(value, at, kind === "home_plugin_settings" ? base : [...base, "action", ...(kind === "project_membership" ? ["expected_revision"] : [])]);
+  checkInstallation(enable.installation, `${at}.installation`, kind === "home_plugin_settings" ? "home" : "project");
+  if (kind !== "home_plugin_settings") checkedCardAction(enable.action, `${at}.action`);
+  if (kind === "project_membership") text(enable.expected_revision, `${at}.expected_revision`, PRESENTATION_LIMITS.revision);
+}
+
+function checkedPluginCard(value: SurfacePluginCard, owner: string | undefined, state: SurfaceGroup["state"], at: string): SurfacePluginCard {
+  if (!owner) throw malformed(at);
+  const card = closed(value, at, ["summary", "note", "start", "open", "enable"]);
+  if ((state === "disabled" || state === "undeclared") && (card.summary !== undefined || card.start !== undefined)) throw malformed(at);
+  if (card.start !== undefined && card.summary === undefined) throw malformed(at);
+  if (card.summary !== undefined) cardWord(card.summary, owner, `${at}.summary`, true);
+  if (card.note !== undefined) cardWord(card.note, owner, `${at}.note`, false);
+  if (card.start !== undefined) checkCardStarts(card.start, `${at}.start`);
+  if (card.open !== undefined) {
+    const open = closed(card.open, `${at}.open`, ["kind", "installation", "view_id"]);
+    if (open.kind !== "stage" || state === "disabled") throw malformed(`${at}.open`);
+    checkInstallation(open.installation, `${at}.open.installation`);
+    text(open.view_id, `${at}.open.view_id`, PRESENTATION_LIMITS.start_view_id);
+  }
+  if (card.enable !== undefined) {
+    if (state !== "disabled") throw malformed(`${at}.enable`);
+    checkCardEnable(card.enable, `${at}.enable`);
+  }
+  return value;
 }
 
 function actionIdentity(value: unknown, at: string): { ref: string; provider?: string; primary: boolean } {

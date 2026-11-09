@@ -8,9 +8,9 @@ import type {
   LocalHostProjectReference,
   LocalHostStatus,
 } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { ActionService, CapabilityRegistry, refuseCall, registeredActionMetadata, type CallSettled } from "@molis-ai/molis-work-kernel";
+import { ActionService, CapabilityRegistry, refuseCall, registeredActionMetadata, type CallSettled, type RetainedActionDirectory } from "@molis-ai/molis-work-kernel";
 import { projectCallCaller } from "./project-call-caller.js";
-import { ActionError, requireSynchronous, type SyncActionClient, type ActionCallContext, type ActionClient, type ActionDefinition,
+import { ActionError, requireSynchronous, type SyncActionClient, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionExecutionContext,
   type ActionProviderRegistration, type ActionView, type ActionSceneClient, type ActionSceneDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { dependencyCaller, verifiedCaller } from "./plugin-callers.js";
 import { HostAvailability } from "./local-host-availability.js";
@@ -26,6 +26,10 @@ export type { ActionAvailabilityPolicy, HostCapabilityHandler, LocalHostOptions,
 
 /** The provider of the Host's own actions: a capability registered with an `action` and no provider of its own (the workspace reads, for one). */
 export const HOST_PROVIDER_ID = "platform";
+
+interface ProjectActionClient extends ActionClient {
+  discoverRetained(caller: ActionExecutionContext): Promise<RetainedActionDirectory>;
+}
 
 /**
  * One process-local composition owner. Each project's runtime is opened once and its queued action calls are serialized through
@@ -174,7 +178,7 @@ export class LocalHost<Runtime> {
   }
 
   /** A transport passes its authenticated caller on each request; arguments carry no authority. `step` as for `homeActionClient`. */
-  actionClient(reference: LocalHostProjectReference, step = false): ActionClient {
+  actionClient(reference: LocalHostProjectReference, step = false): ProjectActionClient {
     const project = normalizeReference(reference);
     const callerFor = (caller: ActionCallContext) => {
       this.line.assertCompatibleReference(project);
@@ -188,6 +192,13 @@ export class LocalHost<Runtime> {
         await this.withRuntime(project, () => undefined);
         caller.signal?.throwIfAborted();
         return this.availability.discover(bound);
+      },
+      discoverRetained: async caller => {
+        if (!caller.retainAuthority) throw new ActionError("actions.host_context_missing", "组合需要原调用的授权");
+        const bound = callerFor(caller);
+        await this.withRuntime(project, () => undefined);
+        caller.signal?.throwIfAborted();
+        return this.availability.discoverRetained(bound, caller.retainAuthority);
       },
       invoke: async (caller, capability, input) => {
         let bound = caller, dispatched = false;

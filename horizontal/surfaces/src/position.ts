@@ -14,12 +14,14 @@ export interface Position {
 const fixed = (forms: readonly FormKind[], max = Infinity): Position => ({ forms, max, refuse: new Set() });
 const conversation = fixed(["chip", "card"], 6);
 const attention = fixed(["row"]);
+const home = fixed(["row", "card"]);
 
 export function positionFor(slot: SurfaceSlot, plugins: readonly SurfacePlugin[]): Position {
   switch (slot.kind) {
     case "conversation":
     case "discussion": return conversation;
     case "attention": return attention;
+    case "home": return home;
     case "plugin-slot": {
       const active = plugins.filter(entry => entry.plugin_id === slot.plugin_id && entry.state === "running");
       if (!active.length) throw surfaceErrors.slot_unknown("找不到这个挂载位置");

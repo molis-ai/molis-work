@@ -3,7 +3,7 @@ import type { SurfaceItem } from "@molis-ai/molis-work-contracts/services/surfac
 import { subjectKey, type SurfaceRelation } from "./ports.js";
 
 /** Group only the candidates proven readable in this call, in the order supplied by the position. */
-export function mergeRelated(items: readonly SurfaceItem[], relations: readonly SurfaceRelation[], attention: boolean) {
+export function mergeRelated(items: readonly SurfaceItem[], relations: readonly SurfaceRelation[], attention: ReadonlySet<string>) {
   const byKey = new Map(items.map(item => [subjectKey(item.subject), item]));
   const links = new Map<string, Array<{ key: string; type: ContextRelationType }>>();
   const derived = new Set<string>();
@@ -24,7 +24,8 @@ export function mergeRelated(items: readonly SurfaceItem[], relations: readonly 
 
   // Away from Attention, start with origins. A cycle still has a deterministic representative in position order.
   const keys = [...byKey.keys()];
-  const roots = attention ? keys : [...keys.filter(key => !derived.has(key)), ...keys.filter(key => derived.has(key))];
+  const roots = [...keys.filter(key => attention.has(key)),
+    ...keys.filter(key => !attention.has(key) && !derived.has(key)), ...keys.filter(key => !attention.has(key) && derived.has(key))];
   const seen = new Set<string>();
   const representatives = new Map<string, SurfaceItem>();
   for (const root of roots) {

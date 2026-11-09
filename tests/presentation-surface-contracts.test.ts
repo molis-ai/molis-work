@@ -192,12 +192,12 @@ test("SSC-06: a wrong declaration is refused at install and the author is told w
 
 test("SSC-18 (install half): the overview names one of this Manifest's own actions with the platform's schemas, and offers only its own actions to start from", () => {
   const changed = { ...ownOverview, action: { ...ownOverview.action, output_schema: { ...ownOverview.action.output_schema, required: ["summary"] } } };
-  const fixedSchemas = (id: string) => `presentation.overview 指向的动作 ${id} 要用 definePresentationOverviewAction 定义：只读 query，输入输出 schema 与平台定的一字不差`;
+  const fixedSchemas = (id: string) => `presentation.overview 指向的动作 ${id} 要用 definePresentationOverviewAction 定义：只读 query，不调用模型、不外发或计费，输入输出 schema 与平台定的一样`;
   assert.equal(presenting(declaration, ownActions.map(action => action === ownOverview ? changed : action)), fixedSchemas("notes.presentation.overview"));
   assert.equal(presenting(withOverview({ capability_id: "notes.publish" })), fixedSchemas("notes.publish"));
   assert.equal(presenting(withOverview({ capability_id: "goals.overview" })), "presentation.overview 要指向本 Manifest 自己的一个动作（capability_id 和 version 都要对上）");
   assert.equal(presenting(withOverview({ version: 2 })), "presentation.overview 要指向本 Manifest 自己的一个动作（capability_id 和 version 都要对上）");
-  const notOwn = "presentation.overview.start[0] 要是本 Manifest 自己的一个动作，只写 capability_id 和 version";
+  const notOwn = "presentation.overview.start[0] 要是本 Manifest 自己的一个动作（capability_id 和 version 都要对上）";
   assert.equal(presenting(withOverview({ start: [{ capability_id: "goals.create", version: 1 }] })), notOwn);
   assert.equal(presenting(withOverview({ start: [{ ...ownStart, provider_id: "notes" }] })), notOwn);
   assert.equal(presenting(withOverview({ start: [ownStart, ownStart] })), "presentation.overview.start[1] 重复");

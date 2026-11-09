@@ -44,7 +44,7 @@ export const PRESENTATION_LIMITS = {
   revision: 200, capability_id: 200,
   /** `capability_id@version`. */
   action_ref: 212,
-  overview_subjects: 5, overview_start: 3,
+  overview_subjects: 5, overview_start: 3, start_view_id: 200, start_panel: 100,
 } as const;
 
 export interface PresentationField {
@@ -99,8 +99,11 @@ export interface PresentationOverviewDeclaration {
   /** A sentence that does not change (Feed's 「同步来的资料不算你接下的工作」), so the action does not return it each time. */
   readonly note?: TextRef;
   /** Where the person may start from, at most 3, each one of this Manifest's own actions; the action's `start` only picks among these. */
-  readonly start?: readonly { readonly capability_id: string; readonly version: number }[];
+  readonly start?: readonly { readonly capability_id: string; readonly version: number; readonly open?: PresentationStartForm }[];
 }
+
+/** An input form on this Manifest's own stage. The Host checks that the form is bound to the declared start action. */
+export interface PresentationStartForm { readonly view_id: string; readonly panel: string }
 
 /**
  * The Manifest's `presentation`. An object it does not declare is still shown, as its icon, name, owner and 「打开」 (IUI-02).
@@ -210,6 +213,6 @@ export function definePresentationOverviewAction(capabilityId: string, version: 
   scope: "project" | "home" = "project"): ActionDefinition<Record<string, never>, PresentationOverview> {
   return { capability_id: capabilityId, version, operation: "query", action: { title, kind: "query", scope, effect: "read", audiences: ["user"],
     description: "这个插件现在怎么样：一句概况、前几个对象和开始的入口；只读，不调用模型。", permissions: [...permissions], subject_kinds: [],
-    ...(scope === "home" ? { project_reach: "person" as const } : {}), output_type: PRESENTATION_OVERVIEW_OUTPUT_TYPE,
+    ...(scope === "home" ? { project_reach: "person" as const } : {}), execution: { cost: "none" }, output_type: PRESENTATION_OVERVIEW_OUTPUT_TYPE,
     input_schema: PRESENTATION_OVERVIEW_INPUT_SCHEMA, output_schema: PRESENTATION_OVERVIEW_OUTPUT_SCHEMA } };
 }

@@ -18,7 +18,7 @@ import { runningProjectPlatform } from "./project-plugins.js";
 interface SurfaceHostPorts {
   store: LocalProjectDatabase;
   projectId: string;
-  client: ActionClient;
+  client: ActionClient & { discoverRetained(caller: ActionExecutionContext): ReturnType<SurfaceComposePorts["discover"]> };
   home(): HomePluginHost | undefined;
   placement(): PlacementHost | undefined;
   now(): Date;
@@ -68,12 +68,9 @@ export function surfaceActionProvider(ports: SurfaceHostPorts): ActionProviderRe
     return {
       caller, current, beforeEffect: caller.beforeEffect, signal: caller.signal,
       catalog: () => surfacePlugins(ports, current),
-      discover: () => client.discover(caller),
-      retain: views => {
-        if (!caller.retainAuthority) throw new ActionError("actions.host_context_missing", "组合需要原调用的授权");
-        return caller.retainAuthority(views.map(exact)).assertCurrent;
-      },
-      values: (view, input, signal) => valuesClient.invoke<PresentationValuesInput, PresentationValues>({ ...view, ...exact(view) }, input, { ...caller, signal }),
+      discover: () => client.discoverRetained(caller),
+      values: (view, input, signal, assertCurrent) => valuesClient.invoke<PresentationValuesInput, PresentationValues>(
+        { ...view, ...exact(view) }, input, { ...caller, signal, assert_authority_current: assertCurrent }),
       corrections: createSurfaceCorrections(store.db, caller), now: () => ports.now().toISOString(),
       attention: () => attention.listSurfaceEntries(projectId),
       relations: candidates => (ports.placement()?.relationsFor(projectId, candidates) ?? []).flatMap(edge => {

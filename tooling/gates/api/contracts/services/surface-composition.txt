@@ -8,7 +8,13 @@ export declare const SURFACE_CONSEQUENCES: readonly ["external", "cost", "irreve
 
 export declare const SURFACE_GENERIC_OPERATIONS: readonly ["open", "peek", "place", "hand_off"];
 
+export declare const SURFACE_HOME_ORDER_LIMIT = 200;
+
 export declare const SURFACE_TASKS: readonly ["writing", "reviewing", "finding", "handing-off", "discussing"];
+
+export type SurfaceCardAction = Pick<SurfaceItemAction, "ref" | "primary" | "consequence"> & {
+    provider_id: string;
+};
 
 export type SurfaceConsequence = (typeof SURFACE_CONSEQUENCES)[number];
 
@@ -55,8 +61,46 @@ export interface SurfaceGroup {
         count: number;
         label?: OwnedTextRef;
     };
+    plugin_card?: SurfacePluginCard;
     title?: OwnedTextRef;
     items: SurfaceItem[];
+}
+
+export type SurfaceHomeEnable = {
+    kind: "project_membership";
+    installation: SurfaceInstallationRef & {
+        scope: "project";
+    };
+    action: SurfaceCardAction;
+    expected_revision: string;
+} | {
+    kind: "project_installation";
+    installation: SurfaceInstallationRef & {
+        scope: "project";
+    };
+    action: SurfaceCardAction;
+} | {
+    kind: "home_plugin_settings";
+    installation: SurfaceInstallationRef & {
+        scope: "home";
+    };
+};
+
+export type SurfaceHomeStart = {
+    installation: SurfaceInstallationRef;
+    action: SurfaceCardAction;
+} & ({
+    kind: "invoke";
+} | ({
+    kind: "form";
+} & PresentationStartForm));
+
+export interface SurfaceInstallationRef {
+    scope: "project" | "home";
+    install_id: string;
+    installation_generation: string;
+    version: string;
+    manifest_digest: string;
 }
 
 export interface SurfaceItem {
@@ -91,11 +135,24 @@ export interface SurfaceItemNotice {
     next?: SurfaceItemAction;
 }
 
+export interface SurfacePluginCard {
+    summary?: OwnedTextRef;
+    note?: OwnedTextRef;
+    start?: SurfaceHomeStart[];
+    open?: {
+        kind: "stage";
+        installation: SurfaceInstallationRef;
+        view_id: string;
+    };
+    enable?: SurfaceHomeEnable;
+}
+
 export interface SurfaceRequest {
     slot: SurfaceSlot;
     subjects?: ActionSubject[];
     delivery_subjects?: ActionSubject[];
     expanded?: true;
+    home_order?: string[];
     task?: SurfaceTask;
 }
 

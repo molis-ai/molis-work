@@ -59,7 +59,7 @@ interface ObjectContext {
  * The problems of a Manifest's `presentation`, empty when it has none or it is right. `catalog` answers for each action an object names;
  * left out, it is this Manifest's own actions. The overview action and the `start` it offers are always this Manifest's own (SSC-18).
  */
-export function validatePresentationDeclaration(manifest: { readonly presentation?: unknown; readonly actions?: unknown; readonly plugin_id?: unknown },
+export function validatePresentationDeclaration(manifest: { readonly presentation?: unknown; readonly actions?: unknown; readonly plugin_id?: unknown; readonly ui?: unknown },
   catalog: PresentationCatalog = presentationCatalog(manifest.actions)): string[] {
   const declaration = manifest.presentation;
   if (declaration === undefined) return [];
@@ -72,7 +72,7 @@ export function validatePresentationDeclaration(manifest: { readonly presentatio
     const context: ObjectContext = { kinds: declaredKinds(actions), valued: valuedKinds(actions), seen: new Set(), catalog };
     declaration.objects.forEach((object, index) => problems.push(...objectProblems(object, `presentation.objects[${index}]`, context)));
   }
-  if (declaration.overview !== undefined) problems.push(...overviewProblems(declaration.overview, actions));
+  if (declaration.overview !== undefined) problems.push(...overviewProblems(declaration.overview, actions, manifest.ui));
   return [...problems, ...wordProblems(declaration, manifest.plugin_id)];
 }
 
@@ -124,10 +124,22 @@ function valuedKinds(actions: readonly Record<string, unknown>[]): ReadonlySet<s
 export function isPresentationValuesReader(action: unknown): boolean {
   if (!isRecord(action)) return false;
   const metadata = metadataOf(action);
-  return isValuesAction(metadata) && action.operation === "query" && metadata.kind === "query" && metadata.effect === "read" && metadata.external !== true
-    && Array.isArray(metadata.permissions) && !metadata.permissions.includes("model:invoke")
-    && isRecord(metadata.execution) && metadata.execution.cost === "none"
+  return isAutomaticPresentationRead(action, metadata) && isValuesAction(metadata)
     && sameJson(metadata.input_schema, PRESENTATION_VALUES_INPUT_SCHEMA) && sameJson(metadata.output_schema, PRESENTATION_VALUES_OUTPUT_SCHEMA);
+}
+
+function isAutomaticPresentationRead(action: Record<string, unknown>, metadata: Record<string, unknown>): boolean {
+  return action.operation === "query" && metadata.kind === "query" && metadata.effect === "read" && metadata.external === undefined
+    && Array.isArray(metadata.permissions) && !metadata.permissions.includes("model:invoke")
+    && isRecord(metadata.execution) && metadata.execution.cost === "none";
+}
+
+/** The same overview protocol check at declaration time and before composition reads a directory action. */
+export function isPresentationOverviewReader(action: unknown): boolean {
+  if (!isRecord(action)) return false;
+  const metadata = metadataOf(action);
+  return isAutomaticPresentationRead(action, metadata) && metadata.output_type === PRESENTATION_OVERVIEW_OUTPUT_TYPE
+    && sameJson(metadata.input_schema, PRESENTATION_OVERVIEW_INPUT_SCHEMA) && sameJson(metadata.output_schema, PRESENTATION_OVERVIEW_OUTPUT_SCHEMA);
 }
 
 function valuesActionProblems(actions: readonly Record<string, unknown>[]): string[] {
@@ -279,34 +291,42 @@ const ownAction = (actions: readonly Record<string, unknown>[], capabilityId: un
   actions.find(action => typeof capabilityId === "string" && action.capability_id === capabilityId && action.version === version);
 
 /** The overview names one of this Manifest's actions, defined with `definePresentationOverviewAction`: its schemas are the platform's, exactly (SSC-18). */
-function overviewProblems(value: unknown, actions: readonly Record<string, unknown>[]): string[] {
+function overviewProblems(value: unknown, actions: readonly Record<string, unknown>[], ui: unknown): string[] {
   const at = "presentation.overview";
   if (!isRecord(value)) return [`${at} 必须是对象`];
   const problems = extraKeys(value, ["capability_id", "version", "note", "start"], at);
   const action = ownAction(actions, value.capability_id, value.version);
-  const metadata = action ? metadataOf(action) : undefined;
-  if (!action || !metadata) problems.push(`${at} 要指向本 Manifest 自己的一个动作（capability_id 和 version 都要对上）`);
-  else if (action.operation !== "query" || metadata.effect !== "read" || metadata.output_type !== PRESENTATION_OVERVIEW_OUTPUT_TYPE
-    || !sameJson(metadata.input_schema, PRESENTATION_OVERVIEW_INPUT_SCHEMA) || !sameJson(metadata.output_schema, PRESENTATION_OVERVIEW_OUTPUT_SCHEMA)) {
-    problems.push(`${at} 指向的动作 ${String(value.capability_id)} 要用 definePresentationOverviewAction 定义：只读 query，输入输出 schema 与平台定的一字不差`);
+  if (!action) problems.push(`${at} 要指向本 Manifest 自己的一个动作（capability_id 和 version 都要对上）`);
+  else if (!isPresentationOverviewReader(action)) {
+    problems.push(`${at} 指向的动作 ${String(value.capability_id)} 要用 definePresentationOverviewAction 定义：只读 query，不调用模型、不外发或计费，输入输出 schema 与平台定的一样`);
   }
   if (value.note !== undefined) problems.push(...textProblems(value.note, `${at}.note`));
-  return [...problems, ...startProblems(value.start, `${at}.start`, actions)];
+  return [...problems, ...startProblems(value.start, `${at}.start`, actions, ui)];
 }
 
 /** Where the person may start from: at most 3, each one of this Manifest's own actions, listed once (SSC-18, install half). */
-function startProblems(value: unknown, at: string, actions: readonly Record<string, unknown>[]): string[] {
+function startProblems(value: unknown, at: string, actions: readonly Record<string, unknown>[], ui: unknown): string[] {
   if (value === undefined) return [];
   if (!Array.isArray(value) || value.length === 0 || value.length > PRESENTATION_LIMITS.overview_start) return [`${at} 要列 1 到 ${PRESENTATION_LIMITS.overview_start} 个入口`];
   const seen = new Set<string>();
   return value.flatMap((entry, index) => {
     const path = `${at}[${index}]`;
-    if (!isRecord(entry) || extraKeys(entry, ["capability_id", "version"], path).length > 0 || !ownAction(actions, entry.capability_id, entry.version)) {
-      return [`${path} 要是本 Manifest 自己的一个动作，只写 capability_id 和 version`];
+    if (!isRecord(entry) || extraKeys(entry, ["capability_id", "version", "open"], path).length > 0 || !ownAction(actions, entry.capability_id, entry.version)) {
+      return [`${path} 要是本 Manifest 自己的一个动作（capability_id 和 version 都要对上）`];
     }
     const key = `${String(entry.capability_id)}@${String(entry.version)}`;
     if (seen.has(key)) return [`${path} 重复`];
     seen.add(key);
-    return [];
+    return entry.open === undefined ? [] : startFormProblems(entry.open, `${path}.open`, ui);
   });
+}
+
+function startFormProblems(value: unknown, at: string, ui: unknown): string[] {
+  const bounded = (id: unknown, max: number) => typeof id === "string" && id.trim().length > 0 && id.length <= max;
+  if (!isRecord(value) || extraKeys(value, ["view_id", "panel"], at).length
+    || !bounded(value.view_id, PRESENTATION_LIMITS.start_view_id) || !bounded(value.panel, PRESENTATION_LIMITS.start_panel)) {
+    return [`${at} 只接受有界的 view_id 和 panel`];
+  }
+  const views = isRecord(ui) && Array.isArray(ui.views) ? ui.views : [];
+  return views.some(view => isRecord(view) && view.slot === "stage" && view.view_id === value.view_id) ? [] : [`${at}.view_id 要指向本 Manifest 的 stage 视图`];
 }

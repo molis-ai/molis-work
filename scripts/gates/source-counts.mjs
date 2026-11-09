@@ -49,8 +49,9 @@
 //                       What the baseline keeps today (the checkout-local health baseline, oldNames): nothing. The count is 0 and can
 //                       only stay there.
 // directEllipsisCuts    N16: a direct .slice(...) or ["slice"](...) followed by a literal … or ..., with optional
-//                       whitespace before the marker. Count + and template substitutions. General slices, chained
-//                       calls after slice, comments, text inside a string, and test fixtures do not count.
+//                       whitespace before the marker. Count + and template substitutions. For +, unwrap parentheses
+//                       and read a template's text before its first substitution. General slices, chained calls after
+//                       slice, comments, text inside a string, and test fixtures do not count.
 import ts from "typescript";
 import { browserFetchScan, browserFetchProblems } from "./browser-fetch.mjs";
 
@@ -69,13 +70,24 @@ const scriptText = (node) => {
 const IS_STRING_LIKE = (node) => ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)
   || ts.isTemplateHead(node) || ts.isTemplateMiddle(node) || ts.isTemplateTail(node);
 
-function directSlice(node) {
+function withoutParentheses(node) {
   while (ts.isParenthesizedExpression(node)) node = node.expression;
+  return node;
+}
+
+function directSlice(expression) {
+  const node = withoutParentheses(expression);
   if (!ts.isCallExpression(node)) return false;
   const target = node.expression;
   if (ts.isPropertyAccessExpression(target)) return target.name.text === "slice";
   return ts.isElementAccessExpression(target)
     && ts.isStringLiteralLike(target.argumentExpression) && target.argumentExpression.text === "slice";
+}
+
+function startsWithEllipsis(expression) {
+  const node = withoutParentheses(expression);
+  if (ts.isTemplateExpression(node)) return ELLIPSIS_START.test(node.head.text);
+  return ts.isStringLiteralLike(node) && ELLIPSIS_START.test(node.text);
 }
 
 /** Counts one file. `text` is the whole file; `inSource` is false for tests. Exported for the tests of the definitions. */
@@ -92,7 +104,7 @@ export const countFile = (file, text, { inSource = false } = {}) => {
       counts.scriptConstants += 1;
     }
     if (slices && ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.PlusToken
-      && directSlice(node.left) && ts.isStringLiteralLike(node.right) && ELLIPSIS_START.test(node.right.text)) {
+      && directSlice(node.left) && startsWithEllipsis(node.right)) {
       counts.directEllipsisCuts += 1;
     }
     if (slices && ts.isTemplateExpression(node)) {

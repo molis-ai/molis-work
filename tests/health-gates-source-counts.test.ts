@@ -50,6 +50,14 @@ const definitions: Array<[string, string, Counts, boolean?]> = [
   ["a *_SCRIPT read from a bundle, built by a call, or a name without the suffix is not text here", "export const A_SCRIPT = readFileSync(new URL('./a.js', import.meta.url), 'utf8').trim(); const B_SCRIPT = build(); const SCRIPT = `go();`; const A_SCRIPTS = `go();`;", {}, true],
   ["*_SCRIPT constants are not read in tests", "export const A_SCRIPT = `go();`;", {}, false],
   ["BSH-10 direct ellipsis concatenation and template suffixes", 'const a = text.slice(0, 12) + "…"; const b = `${(text["slice"](0, 12))} ... tail`;', { directEllipsisCuts: 2 }, true],
+  ["BSH-10 parenthesized ellipsis after a direct slice", 'const a = text.slice(0, 3) + (("…"));', { directEllipsisCuts: 1 }, true],
+  ["BSH-10 leading template ellipsis after a direct slice", 'const a = text.slice(0, 3) + ` … ${n}`;', { directEllipsisCuts: 1 }, true],
+  ["BSH-10 computed and non-leading ellipses stay outside the direct check", [
+    'const a = text.slice(0, 3) + (suffix);',
+    'const b = text.slice(0, 3) + `${n}…`;',
+    'const c = text.slice(0, 3) + `prefix ${n}…`;',
+    'const d = text.slice(0, 3).trim() + ("…");',
+  ].join("\n"), {}, true],
   ["BSH-10 ordinary slices, other suffixes, chained calls and quoted source", 'const a = text.slice(0, 12); const b = a + "…"; const c = `${text.slice(0, 12)} words`; const d = text.slice(0, 12).trim() + "…"; const sample = \'text.slice(0, 2) + "…"\';', {}, true],
   ["BSH-10 direct ellipsis in a test fixture is outside the source gate", 'const a = text.slice(0, 12) + "…";', {}, false],
 ];
@@ -108,6 +116,10 @@ const violations: Scenario[] = [
   { name: "BSH-10 a new direct ellipsis cut", mutate: () => put("packages/alpha/src/new-cut.ts", 'export const cut = (s: string) => s.slice(0, 4) + "...";\n'),
     expect: [/direct ellipsis cuts in packages\/alpha\/src\/new-cut\.ts 0 → 1/] },
   { name: "BSH-10 a second direct ellipsis cut in a file with one", mutate: () => put("packages/alpha/src/ellipses.ts", read("packages/alpha/src/ellipses.ts") + "export const b = (s: string) => `${s.slice(0, 8)}…`;\n"),
+    expect: [/direct ellipsis cuts in packages\/alpha\/src\/ellipses\.ts 1 → 2/] },
+  { name: "BSH-10 parenthesized ellipsis in a new file", mutate: () => put("packages/alpha/src/parenthesized-cut.ts", 'export const cut = (s: string) => s.slice(0, 3) + ("…");\n'),
+    expect: [/direct ellipsis cuts in packages\/alpha\/src\/parenthesized-cut\.ts 0 → 1/] },
+  { name: "BSH-10 leading template ellipsis in a file with one", mutate: () => put("packages/alpha/src/ellipses.ts", read("packages/alpha/src/ellipses.ts") + 'export const b = (s: string, n: number) => s.slice(0, 3) + `… ${n}`;\n'),
     expect: [/direct ellipsis cuts in packages\/alpha\/src\/ellipses\.ts 1 → 2/] },
   { name: "BoardId as the tail of a longer name", mutate: () => put("packages/alpha/src/tail.ts", "export type ExistingBoardId = string;\n"), expect: [/in packages\/alpha\/src\/tail\.ts 0 → 1/] },
 ];

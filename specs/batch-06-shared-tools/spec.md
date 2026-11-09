@@ -142,6 +142,8 @@ Dataset 用 `mountPluginClient` 给页面请求提供作用域，取消的结果
 
 时区读法覆盖 h23、DST 两侧的短偏移、秒和毫秒。短日期已接 Dataset、Form、PPT，Pages 的调用点与第 16 批语言接线协同。BSH-10 在同一基点上把直接切片拼省略号从 21 处降到 5 处。余下三处带完整说明的截断归各自上下文和编辑预览，另两处是内联收据脚本和测试诊断。门禁用真实 Git 基点证明新文件、已有文件增长都被拒，普通切片通过。
 
+BSH-10 独立复核发现，括号内的省略号和以省略号开头的模板曾绕过直接拼接检查。新增的两个 Git 基点用例先复现门禁误通过。修复后 37 项源码计数测试全过，包含这两种增长的拒绝、变量与非起始省略号等反例。按同一口径重数仍为 21 处降到 5 处。
+
 候选的完整构建、包边界及与 `origin/main` 比较的健康门禁通过。25 个定向文件共 277 项通过，含真实 Dataset 浏览器、五家 Runtime 路由、日期及省略号边界。文档路由测试在构建结束后独立复跑 22 项，公开 SDK 的离线打包样例也通过。公开 API 快照仅涉及 SDK 根入口、`/browser` 与 `/whole-units`。最终真实 Host 页面资源和 CI Full 随本批集成头验证。
 
 **N47 的 Runtime 主人已独立裁定 GO（06-4）。** 在实际交给插件的最终 callback view 装惰性 `allowed_actions`。首次读取才克隆数组和每条引用，同一回调内保持同一个可改副本，其他回调和原权限快照各自隔离。保留缺省字段与空数组的区别、可枚举、赋值和序列化语义。Host ingress 继续立即取得独立权限快照，首次读取依据同一可信来源。检查 [action-provider](../../packages/plugin-runtime/src/action-provider.ts) 和 [scene-provider](../../packages/plugin-runtime/src/scene-provider.ts) 构造视图时的对象 spread，它会过早触发 getter。最终 view 安装 getter，或在转交时保留描述符。普通回调、availability 和场景入口各测未读、首次读、重复读与改值，再测嵌套调用及序列化。

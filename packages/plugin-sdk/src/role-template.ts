@@ -33,7 +33,7 @@ export function inspectRoleTemplate(value: unknown, options: RoleTemplateInspect
   return [...problems, ...inspectSkills(skills), ...inspectCollaborators(works_with)];
 }
 
-function isPluginId(value: unknown): value is string {
+export function isPluginId(value: unknown): value is string {
   return typeof value === "string" && value.length <= TEXT_REF_LIMITS.owner && PLUGIN_ID.test(value);
 }
 
@@ -42,7 +42,7 @@ function unexpectedFields(value: Record<string, unknown>, allowed: Readonly<Reco
     .map(key => ({ path: `${path}.${key}`, reason: `不认识字段 ${quoted(key)}` }));
 }
 
-function inspectText(value: unknown, path: string, options: RoleTemplateInspectionOptions): PluginDeclarationProblem[] {
+export function inspectText(value: unknown, path: string, options: RoleTemplateInspectionOptions): PluginDeclarationProblem[] {
   if (options.source === "package") {
     const bound = tryOwnedTextRef(value, options.owner);
     if (bound && "key" in bound) return [];

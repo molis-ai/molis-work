@@ -46,8 +46,10 @@ function readFilePart<T>(file: RollbackFile, inspect: (read: (length: number, of
 }
 
 export function rollbackDatabaseVersion(file: RollbackFile): number {
+  if (file.stat.size === 0) return 0;
   return readFilePart(file, read => {
     const header = read(64, 0);
+    if (header.every(byte => byte === 0)) return 0;
     if (!header.subarray(0, 16).equals(sqliteMagic) || header[18] !== 1 || header[19] !== 1) throw rollbackRefused();
     return header.readUInt32BE(60);
   });
@@ -83,11 +85,14 @@ export function rollbackMarkerBytes(file: RollbackFile): Buffer {
   return readFilePart(file, read => read(file.stat.size, 0));
 }
 
-/** Keep each original pathname byte and insert an ASCII directory segment. The driver's char signedness is immaterial to this delta. */
-export function relocatedRollbackFooter(footer: RollbackFooter, path: string, added: string): Buffer {
-  const name = Buffer.from(path), trailer = Buffer.alloc(16);
+/** Keep the non-ASCII bytes unchanged and adjust only the ASCII part of the sum. The driver's char signedness is immaterial. */
+export function relocatedRollbackFooter(footer: RollbackFooter, path: string): Buffer {
+  const original = Buffer.from(footer.path), name = Buffer.from(path), trailer = Buffer.alloc(16);
+  const high = (bytes: Buffer) => Buffer.from(bytes.filter(byte => byte >= 128));
+  const ascii = (bytes: Buffer) => bytes.reduce((sum, byte) => sum + (byte < 128 ? byte : 0), 0);
+  if (!high(name).equals(high(original))) throw rollbackRefused();
   trailer.writeUInt32BE(name.length, 0);
-  trailer.writeUInt32BE((footer.checksum + Buffer.from(added).reduce((sum, byte) => sum + byte, 0)) >>> 0, 4);
+  trailer.writeUInt32BE((footer.checksum + ascii(name) - ascii(original)) >>> 0, 4);
   journalMagic.copy(trailer, 8);
   return Buffer.concat([name, trailer]);
 }

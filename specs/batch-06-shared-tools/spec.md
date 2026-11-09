@@ -44,7 +44,9 @@ Dataset、Form、Pages、PPT 声明的是 `databases.home.project_rows`。项目
 
 候选库的中央普通写开拒绝尚有待恢复日志的路径，覆盖 baseline 现有 776 回退。U1 `finishInterrupted` 的快照回滚会清侧车，所以同锁恢复校验还须排在这一步之前。快照只读检测未恢复 child 与孤立 marker，阻止 marker 被当作普通文件入档。恢复目标同样只检侧车，仍允许用备份替换不透明的原目标；只读检测不要求其 Catalog 或版本可用。恢复用例覆盖盖 stamp、U1 未完、恢复时再次中止、marker 前后、独立单库和备份回读。缺失 child 的重入依赖原租约和 SQLite 自己管理的日志，手工删除日志留为拒绝或未知状态。
 
-预演副本镜像 canonical Home 下的相对路径，放在现有快照排除的 `upgrade` 内私有临时目录。重定位只在 raw 路径中插入 ASCII 段并按其字节和调整副本 checksum，原路径字节、包括 Unicode、完整保留。footer 只承认已登记路径及 SQLite 可产生的 checksum 编码。判定前像由打包 SQLite 重放，解析器不写原件的页或日志。原租约和文件节点复核在写开原件之前。再次启动在同锁下收尾自己格式的废弃预演目录。
+预演副本放在现有快照排除的 `upgrade` 内私有临时目录，使用短文件名。镜像原相对路径会让原本可打开的 480–500 字节长路径超出当前 SQLite VFS 上限。重定位保留原 marker 路径的非 ASCII 字节，并按改写的 ASCII 字节和调整副本 checksum。footer 只承认已登记路径及 SQLite 可产生的 checksum 编码。判定前像由打包 SQLite 重放，解析器不写原件的页或日志。原租约和文件节点复核在写开原件之前。再次启动在同锁下收尾自己格式的废弃预演目录。
+
+后续构建遇到已登记库的旧回滚前像，先按现行升级链校验有连续步骤、原像和回放像均未超过支持版本、空间和对应 owner 仍匹配。只有原生回放完成后才由 U1 升级。候选首次建库先走已有 WAL 初始化和绑定，完成基线后再选 `DELETE`／`EXTRA`。版本 0 只有在同租约、精确登记的单个 Home 库、无双库 marker／回指且回放确认空库或仅有同空间绑定时，才可以回到已有初始化入口。原像已声称业务版本而回放归零时拒绝，由原构建先收尾。双库回放两边都须带有效空间、项目根与安装声明。
 
 旧 pending 从原构建的发布入口由仍具权限的原作者完成。候选启用前持 Home 独占锁只读预检四库，覆盖所有项目行和个人分区，原构建须停止写入。仅未完成记录为零才启动新发布入口。非零时拒绝候选启动并列出需原作者恢复的对象，保留快照及原列。隔离用例须用原入口证明原作者恢复与后续编辑保留。期限明确的存量续接如确需另定，先登记 `CONTRACT-CHANGES` 的「当前保留机制」并获准。删列须有连续升级段。
 
@@ -123,6 +125,8 @@ readonly artifact_join?: {
 | PPT | 9 | 12 | 3 | 0 | 0 | 2 | 9 | 3, 4, 4 |
 
 用四个原版 Manifest 的真实复制 schema 在独立磁盘文件测附库。`mode=rw` 拒绝缺失目标，四次根行 CAS 各追加一条相应复制记录。触发器读取根 `project_id/id/version` 与 `replica_state`，写入 `replica_changes`。Pages 按 tracking 声明写 `pages_editor_versions`，其余三家写各自聚合编辑版本表。SQLite authorizer 报告这些读写属于附属 schema。该探针尚未接入产品守卫。
+
+隔离平台验收已执行 `tests/plugin-home-artifact-join.test.ts` 的 5 项和 `tests/plugin-home-rollback-recovery.test.ts` 的 7 项。权限、精确行、CAS、成果、事件和两库日志走真实 SQLite 与成果 owner。恢复测试含双回指 COMMIT 内 SIGKILL、用同一恢复函数回放主库后再次 SIGKILL，再次启动保留两库旧值并清理侧车。另在已正常提交的同一对文件上放回原生 child 残留，模拟 super 已删除后的清理阶段，两库新值保留。单独 Unicode 探针命中只有一份 child 已写回指、主库原始文件已有新值的实际中断窗口。上述证据尚未替代产品 Host 的已盖 stamp 启动、升级及离线备份验收。
 
 ## 3. Files 退役的系统产生者合同
 

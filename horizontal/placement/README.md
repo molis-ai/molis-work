@@ -19,7 +19,7 @@
 | [src/project-copy-preview.ts](src/project-copy-preview.ts) | `previewProjectCopy`：从公开 owner 端口读取已选择项目及明确依赖，给出无正文预览和确认指纹 |
 | [src/project-copy-identity.ts](src/project-copy-identity.ts) | `projectCopyIdentities`：从持久操作身份确定独立的新项目及对象身份 |
 
-合同在 `@molis-ai/molis-work-contracts/services/placement`（系统动作）和 `@molis-ai/molis-work-contracts/platform/actions`（插件实现的放置协议 `molis.placement.move/copy.v1`）。Host 装配在 [apps/local-host/src/placement-actions.ts](../../apps/local-host/src/placement-actions.ts)。
+合同在 `@molis-ai/molis-work-contracts/services/placement`（系统动作）和 `@molis-ai/molis-work-contracts/platform/actions`（插件实现的放置协议：按输入类型发现移动、复制动作，类型 id 是 `molis.placement.move.input.v1`、`molis.placement.move.output.v1`、`molis.placement.copy.input.v1`、`molis.placement.copy.output.v1`，常量在 `packages/contracts/src/platform/placement.ts:11-14`）。Host 装配在 [apps/local-host/src/placement-actions.ts](../../apps/local-host/src/placement-actions.ts)。（2026-11-08 审计更正：原写作「插件实现的放置协议 `molis.placement.move/copy.v1`」；现行没有名为 `molis.placement.move/copy.v1` 的动作——插件按 `input_type` 声明放置动作，动作名形如 `pages.placement.move`、`pages.placement.copy`（`tooling/gates/actions/actions.tsv`）。）
 
 ## 接入与边界
 

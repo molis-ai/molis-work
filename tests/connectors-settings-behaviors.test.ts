@@ -25,7 +25,7 @@ import { connectorAccountActions, readConnectorAccount } from "../apps/local-hos
 import { connectorDirectory, listConnectorSettingsCards } from "../apps/local-host/dist/connector-directory.js";
 import { CONNECTOR_MARKS } from "../apps/workbench/dist/connector-marks.js";
 import { renderConnectorsSettings } from "../apps/workbench/dist/settings-connectors.js";
-import { createLocalFeedApplication } from "./fixtures/feed-library.js";
+import { bindLocalFeedSourceAccount, createLocalFeedApplication } from "./fixtures/feed-library.js";
 
 // What a Home with no installed integration package lists, without the flags a listing adds from this machine's own settings.
 const HOST_CONNECTOR_DIRECTORY = (await listConnectorSettingsCards("connectors-settings-behaviors-test-home"));
@@ -568,8 +568,9 @@ test("deleting a Feed GitHub source keeps its connection's credential", async ()
       const at = new Date().toISOString();
       const source = feed.sources.upsert({ project_id: DEMO_PROJECT_ID, source_id: "github-account", kind: "github", definition_id: "github", sync_kind: "github",
         name: "GitHub", description: "通知", status: "active", enabled: true, item_count: 0, origin: "molis_work",
-        config: { connection_id: connection.connection_id }, schedule: { mode: "manual" }, cursor: {}, credential_ref: connection.credential_ref,
+        config: {}, schedule: { mode: "manual" }, cursor: {}, credential_ref: null,
         account_label: null, last_sync_at: null, last_outcome: null, last_error_code: null, imported_at: at, updated_at: at });
+      bindLocalFeedSourceAccount(homeDirectory, source, connection.connection_id);
       feed.sources.retire(DEMO_PROJECT_ID, source.source_id, "retain_history");
       assert.equal(createFileSecretStore().get(connection.credential_ref!), TOKEN);
     } finally {

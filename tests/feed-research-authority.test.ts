@@ -56,7 +56,7 @@ const fs = require('node:fs'), cp = require('node:child_process');
     const entered = Promise.withResolvers<void>(), watcher = setInterval(() => { if (existsSync(marker)) entered.resolve(); }, 10);
     process.env.PATH = `${bin}:${oldPath}`;
     const database = join(home, "project.sqlite"); seedDemoBoard(database);
-    const store = new LocalProjectDatabase(database), sources = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, undefined, undefined, home);
+    const store = new LocalProjectDatabase(database), sources = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID);
     const host = new MolisWorkLocalHost({ homeDirectory: home }), controller = new AbortController();
     let allowed = true;
     const context: ActionCallContext = { actor_id: "owner", audience: "user", project_id: DEMO_PROJECT_ID, permissions: [...FEED_ACTION_PERMISSIONS], validate_authority: () => {

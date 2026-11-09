@@ -244,6 +244,14 @@ pnpm --filter @molis-ai/molis-work-integration-github typecheck
 
 路由从 Host 的 `web-assets.ts` 和插件登记中发现，基点所有已测路径还会再次向候选 Host 探测；仍下发但已藏在不可读路由后的资源会失败。具体读取范围和局限见 [`scripts/gates/page-assets-measure.mjs`](../scripts/gates/page-assets-measure.mjs)。新增资产路径、测量范围或批准边界的改动仍要评审。
 
+### 首屏字节
+
+`pnpm build` 后运行 `node scripts/gates/first-screen.mjs --base origin/main`。CI 在 Package boundaries 中保留页面资源检查，另用同一个首屏测量器先测实际 merge-base，再测候选。两边使用等长的临时 Home、固定项目种子和各自的构建。首次引入时，旧基点使用候选的首屏清单补足启动 GET。若同一 PR 同时增删动态路径，用 `introduced: true` 标出只在候选出现的行，用 `baseOnly: true` 保留旧基点才用的行。基点已有清单后，按各树自己的清单测量。两边的 HTML 和链接资源独立发现，实际请求失败会使检查退出。
+
+[首屏清单](../tooling/gates/first-screen.json)收录自动发现之外的隐藏文档和已知启动 GET。每行包含页面、语言（`zh`、`en`、`both`）、请求路径和负责人，项目标识写成 `<project>`。到达页、项目选择、新项目工作台、全部项目插件工作台分别记中英文冷、热总量；示例项目的增量只报告。每个路径在每轮记一次真实 HTTP 响应字节，含头和编码后的响应体；热轮对可缓存且有 ETag 的响应实际发送条件请求。清单删行或缩小范围时，CI 摘要会列出差异，供评审对照浏览器报告。
+
+增长许可与页面资源共用目录。可写 `assets`、`pages` 或两者，`pages` 按页面及语言列上限，例如 `"pages": { "workbench-default/zh": { "cold": 120, "warm": 0 } }`。新增路径或单行净增超过 10,000 B 时，对应页面及语言须有带用户批准出处的新增许可，页总量缩小时也适用。冷、热均为 0 的页面项可以只记录批准出处，不提供额外增长额度。CI 会列出需审批的路径和对应许可文件。每次比较只消费基点尚未采用的许可。
+
 ### 推送前扫描密钥
 
 推送前扫描密钥：先 `git fetch origin main`，再跑 `pnpm secrets:check`。它逐个提交扫描本分支相对 `origin/main` 合并基点新增的行（`scripts/check-secrets.mjs`），找 OpenAI/Anthropic key（`sk-…`、`sk-ant-…`）、GitHub 令牌（`ghp_…`、`github_pat_…`）、Slack 令牌、AWS access key（`AKIA…`）、Google API key（`AIza…`）、私钥块、JWT，以及 `api_key`、`secret`、`password`、`token` 这类名字后面带引号、至少 12 位且字母数字混合的字面量（引用、`${…}`、占位符和网址不算）。名字也包括 `secretKey`、`private_key`、`aws_secret_access_key`、`clientKey` 这类以 secret、private、access、client、auth、signing、encryption 开头的 key（单独的 `key` 不算），名字和 `=` 之间可以带类型标注（`const apiKey: string = "…"`）。文件名里带引号、反斜杠、控制字符的文件（git 在 diff 头里会加引号转义）同样会被扫描，日志里的文件名也会把控制字符转义；读 diff 时关掉外部 diff 驱动、textconv 和 diff.noprefix，不受本机 git 配置影响。命中只打印文件、行号、规则和值的前 4 位，不打印整条。CI 里的 Secret scan 任务跑同一条命令（拉取完整历史；PR 取其基线分支，推送 main 取推送前的提交），并且是 `Verify` 的前置；规则本身的测试 `tests/secret-scan.test.ts` 在 CI 的 Package boundaries 任务里跑。

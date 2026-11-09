@@ -5,10 +5,20 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { sizeMap } from "./page-assets-policy.mjs";
+import { ALLOWANCES, sizeMap } from "./page-assets-policy.mjs";
 
 export const MEASURER = fileURLToPath(new URL("./page-assets-measure.mjs", import.meta.url));
 export const git = (root, ...args) => execFileSync("git", args, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], maxBuffer: 16 << 20 }).trim();
+export function allowanceFiles(root, sha) {
+  const files = git(root, "ls-files", "-z", "--", ALLOWANCES).split("\0").filter(file => file && file !== `${ALLOWANCES}README.md`);
+  for (const file of files) if (!/^tooling\/gates\/page-asset-allowances\/[a-z0-9][a-z0-9-]*\.json$/.test(file)) throw new Error(`invalid allowance filename ${file}`);
+  const previous = git(root, "ls-tree", "-r", "--name-only", sha, "--", ALLOWANCES).split("\n").filter(file => file && file !== `${ALLOWANCES}README.md`);
+  return {
+    current: Object.fromEntries(files.map(file => [file, readFileSync(path.join(root, file), "utf8").trim()])),
+    previous: Object.fromEntries(previous.map(file => [file, git(root, "show", `${sha}:${file}`)])),
+  };
+}
+
 export function measurementKey() {
   return createHash("sha256").update(readFileSync(MEASURER)).update(JSON.stringify({ node: process.version, platform: process.platform, arch: process.arch,
     pnpm: execFileSync("pnpm", ["--version"], { encoding: "utf8" }).trim() })).digest("hex").slice(0, 24);
@@ -78,15 +88,24 @@ export async function measure(root, probe, signal) {
     return JSON.parse(await command(process.execPath, [MEASURER, root, file], { cwd: root, signal, capture: true }));
   } finally { rmSync(temporary, { recursive: true, force: true }); }
 }
-export async function buildBaseline(root, sha, signal, run = command) {
+export async function withBuiltBaseline(root, sha, signal, operation, {
+  run = command, build = "workspace:build", offline = false,
+} = {}) {
+  signal?.throwIfAborted();
   const temporary = mkdtempSync(path.join(tmpdir(), "molis-asset-base-")), checkout = path.join(temporary, "checkout");
+  let added = false;
   try {
     git(root, "worktree", "add", "--detach", checkout, sha);
-    await run("pnpm", ["install", "--frozen-lockfile", "--prefer-offline"], { cwd: checkout, signal });
-    await run("pnpm", ["workspace:build"], { cwd: checkout, signal });
-    return await measure(checkout, [], signal);
+    added = true;
+    await run("pnpm", ["install", "--frozen-lockfile", offline ? "--offline" : "--prefer-offline"], { cwd: checkout, signal });
+    await run("pnpm", [build], { cwd: checkout, signal });
+    return await operation(checkout);
   } finally {
     // Only this function's newly created checkout; never an existing worktree or the user's Home.
-    try { git(root, "worktree", "remove", "--force", checkout); } finally { rmSync(temporary, { recursive: true, force: true }); }
+    try { if (added) git(root, "worktree", "remove", "--force", checkout); }
+    finally { rmSync(temporary, { recursive: true, force: true }); }
   }
+}
+export async function buildBaseline(root, sha, signal, run = command) {
+  return withBuiltBaseline(root, sha, signal, checkout => measure(checkout, [], signal), { run });
 }

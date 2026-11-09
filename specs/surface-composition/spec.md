@@ -496,3 +496,27 @@ surface_corrections        项目库
 补偿反例：原 A 的外部依赖已卸载，B 不再引用该依赖；采用 B 后取消，原操作须拒绝并恢复 A。普通用户回滚到 A 仍拒绝；等待恢复时安装被替换不能覆盖新安装；恢复上下文结束后不能再次复用。测试走实际 Host/Runtime 入口，断言最终安装、实例、批准值和业务副作用，不只测上下文工具。
 
 两项实现复核补充已固定在 `9851ae4bd10b`：同版本、同 digest 因补 required grant 而 `recordToFollow`，仍须在写入前完整校验声明；只有非 follow 才走同发行物重挂。失败恢复的私有控制区分“提交前仍属 moved 版”和“本次已写回原版”，后者延续至 executor 返回后与 redeem 后；关闭或换代时清理已启动实例，不登记 running 或发布激活，也不借用已取消调用的授权。对应安装测试分别断言拒绝且记录不变，以及实际恢复启动等待期间关闭后零激活、无 contribution、持久状态未变成 running。
+
+### 14.5 S-2 首页接线设计（2026-11-08，待实现复核）
+
+在已合回的 S-1 `ac3e527c71` 上核对首页实际缺口。第 16 批已允许独立服务和 renderer 叶子继续；生产页面、内置稳定词声明仍按 C 切换接续。本节是 SCS-07／08 的实现准备，未记为行为通过；复用 §14.1 的十五项检查，以下补充首页特有边界，不新增库、升级段、事实缓存或插件特例。
+
+**一份结果。** 现行 `SurfaceGroup` 没有概况、说明与开始入口，不能用页面第二次调用概况或把数据塞进 `title` 补缺。仅 `kind: "plugin"` 的组增加 `plugin_card`：可选 `summary`、`note`（均 `OwnedTextRef`）；`start` 是至多三个精确目录动作，沿用 `SurfaceItemAction` 的引用、provider、primary 和后果，但不接受通用操作或 `prepared_input`；`open` 是现有 `UiViewSelection` 的主区导航意图，只保留可信 Host 选出的 surface；`enable` 是精确动作引用或现有 Home 插件权限设置入口，两者互斥。启用目标来自该卡的可信 owner 与当前目录，不在结果里携带任意输入或 URL。SDK 把整段作为候选事实原样保留，助理不能改写文字、路由或启用类型，非 plugin 组带它直接拒绝。
+
+“描述只有引用”在首页的准确含义是：不带对象字段值或准备输入值；本轮已授权的插件概况与静态说明允许带文字引用及参数，不带译好的句子。`summary` 来自本轮概况，`note` 来自确切 Manifest；文字 owner 从该读取器的可信插件身份绑定，不信返回值自报 owner。完整引用与参数、概况状态、目录与授权版本进入本轮 revision。现有描述缓存只有在本次所有读取和授权复核后才可命中；概况失败／被拒的卡不回退旧 summary，不能借命中跳过读取或 retain。无须另加与 groups 平行的展示结果。
+
+**目录与顺序。** 只为当前可信项目的本人调用组合首页，插件 audience 在任何首页事实读取前被拒。Host 给服务同一份当前安装、项目成员关系和工作台主区投影；canonical plugin id 是唯一 owner，shell key 只留在导航适配。双实例只出一张卡；打开复用现有 `dualStageOwner` 的实际 view owner，概况独立绑定唯一可用的声明、scope、install 和 provider，不拿没有概况的 Home 半部替代项目半部。两份有效概况无法按现有可信路由唯一决定时不任选，卡为 unreadable。真正 disabled、项目隐藏、卸载、启动失败不能互相替代。
+
+Dock 的个人固定顺序目前只在浏览器，不在 Host 存储。首页请求可给有界、去重的 `home_order`（canonical plugin id 列表）；页面沿已有目录把 shell key 投影为 canonical id，不另存一份顺序。该输入只排序服务已经取得的可见候选，未知或已不可见 id 不产生卡片或权限。可读「等你」所在插件优先，其余按当前固定顺序及既有导航默认顺序；不能宣称 Host 已持有浏览器 pin 状态。
+
+**一次读取。** 保持一次目录、一次 discover、一次纠正和至多一次 Attention 读取。每个已启用且合格的概况最多调用一次；现行 `definePresentationOverviewAction` 补明确 `execution.cost: "none"`，SDK 声明校验和运行前检查都要求 query、read、无模型、非 external，与 values 相同。概况与规则 values 共用四个真实在途槽和整次一秒截止，截止后不补派。概况失败只影响本卡；父取消、撤权直接传播。保留本轮所有实际依赖的精确路由授权，并在等待后及结果交付前重新检查。
+
+合并 Attention 与各概况给出的对象后，先按真实 reader 和来源 owner 核对，再对同一个对象去重；规则 values 按既有精确 provider／动作、50 个对象、32 个字段合最少批次。对象全部有当前读取结果后仅批查一次关系，两端可读才合并。先产出「等你」，插件卡再扣掉上方已经表示的对象，`hidden_above` 只计本次可读对象。工作记录还没有交付，本片省略「接着做」。页面一次 compose 后只补显示字段的合批 values，不再读一次概况。
+
+**空态与旧值。** 新项目从插件真实空结果给概况与开始；没有声明只给插件名字和可达的打开；停用只给保留内容的说明及真实可用恢复入口。概况失败／超时给 unreadable，不带其动态 summary、候选和开始操作，其余卡仍可用。概况成功而某行只能读到旧值时，只用主人在本次授权读取下返回的旧字段及原 `read_at`；卡内全是旧行才沿 S-1 最早真实时间标 stale，新旧混合逐行标。不得把旧首页内存或描述缓存当作当前授权证明。Goals 若实现上次成功行投影，只能由 Goals Runtime 有界保留并在基础读口再次核存在性及当前权限后返回；删除、撤权和切项目均不能返回旧行。
+
+**点击。** 开始动作必须同时属于 Manifest 的 start 白名单和本轮概况返回，固定同一 owner／install／provider，当前可用，且空输入通过该动作实际 schema；有必填业务字段的动作不假造输入。Goals 使用无参导航进已有创建表单。点击重新核安装、声明、当前动作和入口选择，按需只重读这个 owner 的概况，然后走既有本人动作网关。
+
+原生项目插件的“启用”事实属于 Projects 的成员关系，当前只有设置 HTTP 调 `catalog.commit(addProjectPlugin)`；不能伪装成只控制签名安装记录的 `plugins.installed.enable@1`。本片补 Projects 的本人动作 `projects.plugins.enable@1`，让首页和旧设置 POST 共用同一公开写口，project／actor 从上下文来，写前 `beforeEffect` 和同步当前检查。项目签名插件仍走既有精确 `plugins.installed.enable@1` 与受保护页面入口；Home 签名插件去现有设置入口完成 S94，不给首页或插件 frame 伪造设置凭据。服务只给候选，不启用插件；界面回执仅在真实成功后显示。
+
+**文件与验证。** contracts 的组合／呈现／Projects 动作，SDK 声明和描述校验，`horizontal/surfaces` 的首页编排及共用读取，Host 的 `surface-actions.ts`、Projects 装配和薄适配，以及各自派生快照；生产页面、Dock 输入和插件声明由后续消费者片串行接入。已交给第 20 批的 Host／Runtime 枢纽若确实需要改，先另取窗口，不因本设计重占。SCS-07／08／09／11／12／17 验真实空 Goals 开始、Inbox 停用及恢复、双实例主区、同对象跨组扣除、概况返回后撤权、隐藏计数零泄露、首次失败与真实旧值恢复，以及冷路径实际调用次数。需增加 Projects 动作及相应版本登记；不改门禁算法、阈值或 CI，不用 Mock 的状态常量代替最终首页实操。

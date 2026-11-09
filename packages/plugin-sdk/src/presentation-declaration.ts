@@ -124,7 +124,7 @@ function valuedKinds(actions: readonly Record<string, unknown>[]): ReadonlySet<s
 export function isPresentationValuesReader(action: unknown): boolean {
   if (!isRecord(action)) return false;
   const metadata = metadataOf(action);
-  return isValuesAction(metadata) && action.operation === "query" && metadata.kind === "query" && metadata.effect === "read"
+  return isValuesAction(metadata) && action.operation === "query" && metadata.kind === "query" && metadata.effect === "read" && metadata.external !== true
     && Array.isArray(metadata.permissions) && !metadata.permissions.includes("model:invoke")
     && isRecord(metadata.execution) && metadata.execution.cost === "none"
     && sameJson(metadata.input_schema, PRESENTATION_VALUES_INPUT_SCHEMA) && sameJson(metadata.output_schema, PRESENTATION_VALUES_OUTPUT_SCHEMA);
@@ -132,7 +132,7 @@ export function isPresentationValuesReader(action: unknown): boolean {
 
 function valuesActionProblems(actions: readonly Record<string, unknown>[]): string[] {
   return actions.filter(action => isValuesAction(metadataOf(action)) && !isPresentationValuesReader(action))
-    .map(action => `给值的动作 ${String(action.capability_id)} 要用 definePresentationValuesAction 定义：只读 query，不调用模型或计费，输入输出 schema 与平台定的一样`);
+    .map(action => `给值的动作 ${String(action.capability_id)} 要用 definePresentationValuesAction 定义：只读 query，不调用模型、不外发或计费，输入输出 schema 与平台定的一样`);
 }
 
 function objectProblems(object: unknown, at: string, context: ObjectContext): string[] {

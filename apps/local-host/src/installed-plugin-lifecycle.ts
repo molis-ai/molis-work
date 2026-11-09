@@ -25,6 +25,7 @@ export const covered = (next: SandboxEffects, approved: SandboxEffects) =>
 
 export interface InstalledLifecycleContext {
   platform: InstalledPluginPlatform;
+  projectId: string | null;
   /** The project's own store, where approvals live. */
   storage: PluginPrivateStorage;
   privateStorage: SqlitePluginPrivateStorage;
@@ -46,7 +47,7 @@ export interface InstalledLifecycleContext {
 }
 
 type Secret = { name: string; header: string; value: string };
-type Grants = { consent?: unknown; keepData?: unknown; discardKeptData?: unknown; secrets?: unknown };
+type Grants = { assertCurrent?: () => void; scopeOpen?: () => boolean; consent?: unknown; keepData?: unknown; discardKeptData?: unknown; secrets?: unknown };
 
 /** The secrets the consent dialog collected, each for a reference the release declared. */
 function secretsOf(value: unknown, release: InstalledRelease): Secret[] {
@@ -102,15 +103,18 @@ export function installedLifecycle(c: InstalledLifecycleContext): AgentBuilderPo
     const found = platform.runtime.list().find(item => item.plugin_id === pluginId && item.publisher_signature === entry.definition.manifest.publisher.signature);
     const earlier = found?.state === 'uninstalled' ? found : undefined, kept = earlier?.retain_private_data === true;
     const before = earlier && kept ? c.privateStorage.snapshotInstallationData(earlier.install_id) : undefined;
+    grants.assertCurrent?.();
     const { install } = platform.runtime.install({ ...entry, deployment: 'local', ...(grants.discardKeptData === true ? { discard_kept_data: true } : {}) });
     try {
       if (before && grants.discardKeptData === true) c.privateStorage.deleteInstallationData(install.install_id);
       for (const secret of secrets) c.secrets.save(pluginId, secret);
       c.storage.set(APPROVED_KEY + pluginId, JSON.stringify(release.permissions));
-      await platform.start([entry]);
+      await platform.start([entry], { assertCurrent: grants.assertCurrent });
+      grants.assertCurrent?.();
       const state = platform.supervisor.state(pluginId)?.code === 'plugin.revoked' ? await platform.supervisor.enable(pluginId) : platform.supervisor.state(pluginId);
+      grants.assertCurrent?.();
       if (state?.status !== 'running') throw new Error('安装没有完成：' + (state?.message ?? '插件未能启动'));
-      await c.expose(release); c.registerPrompts(release, 'enabled'); c.recoveryErrors.delete(pluginId);
+      await c.expose(release); grants.assertCurrent?.(); c.registerPrompts(release, 'enabled'); c.recoveryErrors.delete(pluginId);
     } catch (error) {
       const unfinished: unknown[] = [];
       let ours = true;
@@ -136,7 +140,7 @@ export function installedLifecycle(c: InstalledLifecycleContext): AgentBuilderPo
     if (!approved) throw new Error('找不到此安装的批准记录，请先卸载并重新确认安装');
     const next = release.packaged.manifest;
     assertUpgradeOf(next, record.version);
-    return changeInstalledVersion(c, 'upgrade', release, record, release.permissions, secretsOf(grants.secrets, release));
+    return changeInstalledVersion(c, 'upgrade', release, record, release.permissions, secretsOf(grants.secrets, release), grants);
   };
   return async (action, release, input) => {
     if (c.closed()) throw new Error('安装运行入口已关闭');
@@ -160,6 +164,7 @@ export function installedLifecycle(c: InstalledLifecycleContext): AgentBuilderPo
     // A 常开 agreement that stands keeps the installation on: asked before anything is withdrawn, revoked or stopped.
     const refusal = action === 'disable' || action === 'uninstall' ? leaveRefusal(platform.consents ?? undefined, record, action === 'disable' ? '停用' : '卸载') : undefined;
     if (refusal) throw refusal;
+    grants.assertCurrent?.();
     if (action === 'disable') {
       c.withdraw(pluginId); platform.supervisor.revoke(pluginId);
       // The Runtime records the switch-off of a crashed or never-started installation as disabled; it refuses a quarantined one, which stays quarantined and is off all the same.
@@ -176,8 +181,9 @@ export function installedLifecycle(c: InstalledLifecycleContext): AgentBuilderPo
       // without starting it, before enable: the supervisor's earlier entry is not another owner of those grants.
       if (record.state !== 'running' || !platform.supervisor.manifest(pluginId)) {
         const definition = c.definition(installed, approved); platform.runtime.register(definition);
-        await platform.start([{ definition, grants: record.grants, enabled: false, ...packaged ? { trust: packaged.trust } : {} }]);
+        await platform.start([{ definition, grants: record.grants, enabled: false, ...packaged ? { trust: packaged.trust } : {} }], { assertCurrent: grants.assertCurrent });
       }
+      grants.assertCurrent?.();
       const state = await platform.supervisor.enable(pluginId);
       if (state.status !== 'running') throw new Error('启用没有完成：' + (c.recoveryErrors.get(pluginId) ?? state.message ?? ''));
       await c.expose(installed); c.registerPrompts(installed, 'enabled'); c.recoveryErrors.delete(pluginId); return;

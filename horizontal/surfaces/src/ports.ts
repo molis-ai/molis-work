@@ -1,6 +1,7 @@
 import type { AttentionSurfaceEntry } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import type { ContextRelationType } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import { requireSynchronous, type ActionCallContext, type ActionSubject, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { PluginLifecycleState } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PresentationDeclaration, PresentationValues, PresentationValuesInput } from "@molis-ai/molis-work-contracts/platform/presentation";
 import type { UiSlotDescriptor } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { PlacedObject } from "@molis-ai/molis-work-contracts/services/placement";
@@ -11,7 +12,7 @@ export interface SurfacePlugin {
   install_id: string;
   scope: "project" | "home";
   revision: string;
-  enabled: boolean;
+  state: PluginLifecycleState;
   presentation?: PresentationDeclaration;
   slots: readonly UiSlotDescriptor[];
 }

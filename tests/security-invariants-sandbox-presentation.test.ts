@@ -6,10 +6,11 @@ import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { fileURLToPath } from "node:url";
 import { readSandboxPackage } from "@molis-ai/molis-work-app-local-host";
-import { ActionError, defineSubjectContextAction } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionClient, defineSubjectContextAction } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SANDBOX_PACKAGE_FILES } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { definePresentationOverviewAction, definePresentationValuesAction } from "@molis-ai/molis-work-contracts/platform/presentation";
 import type { SandboxEffects, SandboxPluginContract, SandboxReadOperation } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
+import { surfaceCompositionActions, type SurfaceRequest } from "@molis-ai/molis-work-contracts/services/surface-composition";
 import { validatePluginComponentPlans } from "@molis-ai/molis-work-design-system";
 import { signPluginPackage, verifyPluginPackageSignature } from "@molis-ai/molis-work-plugin-runtime";
 import { assertContract, createSandboxRunner } from "@molis-ai/molis-work-plugin-sandbox";
@@ -174,7 +175,7 @@ test("fixed sandbox read protocols cannot be bound to ordinary page components",
     purpose: "Show the summary", props: {}, read: { operationId: "notes.overview", input: {} } }], contract), /平台读取协议不能绑定到页面组件/u);
 });
 
-test("SCS-11 one signed contract previews in the real sandbox and rejects wrong input, output and undeclared writes, then its actions run after install and Host restart", mac, async t => {
+test("SCS-11 one signed contract previews in the real sandbox and rejects wrong input, output and undeclared writes, then composes and keeps corrections across Host restart", mac, async t => {
   const { contract, bundlePath, pack } = authoredPresentation(t);
   let writes = 0;
   const runner = await createSandboxRunner({ bundlePath, contract,
@@ -198,6 +199,8 @@ test("SCS-11 one signed contract previews in the real sandbox and rejects wrong 
   await host.install(bundle);
   const [installation] = await host.plugins();
   assert.ok(installation);
+  const request: SurfaceRequest = { slot: { kind: "conversation" }, subjects: [subject], delivery_subjects: [subject] };
+  const actions = () => bindActionClient(host.client, () => caller);
   const verifyInstalledActions = async () => {
     const directory = await host.client.discover(caller);
     const action = (localId: string) => {
@@ -217,10 +220,24 @@ test("SCS-11 one signed contract previews in the real sandbox and rejects wrong 
       const ref = { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id };
       assert.deepEqual(await host.client.invoke(caller, ref, input), output);
     }
-    assert.equal(action("notes.add").action.external, true);
+    const add = action("notes.add");
+    assert.equal(add.action.external, true);
+    return { ref: add.capability_id + "@" + add.version, provider_id: add.provider.provider_id, primary: true, consequence: ["external"] };
   };
-  await verifyInstalledActions();
+  const add = await verifyInstalledActions();
+  const before = await actions().invoke(surfaceCompositionActions.compose, request);
+  const [shown] = before.groups[0]!.items;
+  assert.deepEqual({ subject: shown?.subject, owner: shown?.owner_plugin_id, form: shown?.form, state: shown?.state, fields: shown?.fields },
+    { subject, owner: contract.pluginId, form: "card", state: "ok", fields: [{ key: "title", role: "title" }] });
+  assert.deepEqual(shown!.actions.find(item => item.primary), add);
+  assert.doesNotMatch(JSON.stringify(before), /First note|Private contents/u);
+  const corrected = await actions().invoke(surfaceCompositionActions.correct, { slot: request.slot, subject, correction: "form", form: "chip", expected_revision: before.corrections_revision });
+  assert.notEqual(corrected.corrections_revision, before.corrections_revision);
+  const after = await actions().invoke(surfaceCompositionActions.compose, request);
+  assert.equal(after.groups[0]!.items[0]?.form, "chip");
+  assert.equal(after.corrections_revision, corrected.corrections_revision);
   await host.reopen();
   assert.deepEqual(await host.plugins(), [installation]);
-  await verifyInstalledActions();
+  assert.deepEqual(await verifyInstalledActions(), add);
+  assert.deepEqual(await actions().invoke(surfaceCompositionActions.compose, request), after);
 });

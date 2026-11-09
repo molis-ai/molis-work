@@ -194,7 +194,7 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
     updatePluginAgentDefinitions(pluginHomeFor(home), definition(release, approvedFor(release.pluginId) ?? release.permissions), record.install_id, state, restored);
   };
   const stops = publisherStops({ standing, platform, recoveryErrors, withdraw, records });
-  const lifecycle = installedLifecycle({ platform, storage, privateStorage: options.privateStorage, secrets, recoveryErrors, closed: isClosed, trusted: standing.trusted, recordFor, releaseFor, approvedFor,
+  const lifecycle = installedLifecycle({ platform, projectId: null, storage, privateStorage: options.privateStorage, secrets, recoveryErrors, closed: isClosed, trusted: standing.trusted, recordFor, releaseFor, approvedFor,
     definition, expose, withdraw, registerPrompts,
     async forget(pluginId, installId) { forgetPluginAgentDefinitions(pluginHomeFor(home), installId); forgetDefinitions(pluginId); await forgetTaskGrantSubjects(home, subject => subject.plugin_install_id === installId); } });
   const close = () => { closed = true; for (const id of [...exposed.keys(), ...attached.keys()]) withdraw(id); disposePlatform(); };
@@ -231,7 +231,7 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
       return record ? packages.load(record.plugin_id, record.publisher_signature, record.version) : undefined;
     },
     /** Installs a release read from a signed package, under the trust it carries; the person's approval of its permissions is `consent`. */
-    installPackage: (release: InstalledRelease, input: { consent: true }) => {
+    installPackage: (release: InstalledRelease, input: { consent: true; assertCurrent?: () => void }) => {
       assertHomePackageAllowed(release.packaged!.manifest);
       return lifecycle(recordFor(release.pluginId) ? 'upgrade' : 'install', release, input);
     },

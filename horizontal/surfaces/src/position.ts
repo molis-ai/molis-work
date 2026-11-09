@@ -21,7 +21,7 @@ export function positionFor(slot: SurfaceSlot, plugins: readonly SurfacePlugin[]
     case "discussion": return conversation;
     case "attention": return attention;
     case "plugin-slot": {
-      const active = plugins.filter(entry => entry.plugin_id === slot.plugin_id && entry.enabled);
+      const active = plugins.filter(entry => entry.plugin_id === slot.plugin_id && entry.state === "running");
       if (!active.length) throw surfaceErrors.slot_unknown("找不到这个挂载位置");
       const mounts = active.flatMap(plugin => plugin.slots.filter(entry => entry.slot_id === slot.slot_id && entry.accepts_forms?.length));
       const mount = mounts.length === 1 ? mounts[0] : undefined;

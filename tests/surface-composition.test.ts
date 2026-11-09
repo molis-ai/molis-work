@@ -16,7 +16,7 @@ const object: PresentationObject = {
   status: { field: "stage", map: { draft: { ring: "draft", attention: "needs_acceptance" }, ready: { ring: "done" } } },
   forms: { chip: { fields: ["title"] }, row: { fields: ["title"] }, card: { fields: ["title", "body"] } },
 };
-const plugin = (presentation?: PresentationObject): SurfacePlugin => ({ plugin_id: pluginId, install_id: pluginId, scope: "project", revision: "1", enabled: true,
+const plugin = (presentation?: PresentationObject): SurfacePlugin => ({ plugin_id: pluginId, install_id: pluginId, scope: "project", revision: "1", state: "running",
   ...(presentation ? { presentation: { objects: [presentation] } } : {}), slots: [] });
 function view(definition: ActionDefinition, owner = pluginId, availability: ActionAvailability = active): ActionView {
   return { ...definition, provider: { provider_id: owner, plugin_install_id: owner, plugin_id: owner, title: owner, kind: "plugin", project_id: scope.project_id }, availability };

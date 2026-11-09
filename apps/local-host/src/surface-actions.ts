@@ -29,7 +29,7 @@ const exact = (view: ActionView) => ({ capability_id: view.capability_id, versio
 function surfacePlugin(record: PluginInstanceRecord, scope: SurfacePlugin["scope"], manifest: PluginManifest | undefined, slots: readonly UiSlotDescriptor[]): SurfacePlugin {
   return { plugin_id: record.plugin_id, install_id: record.install_id, scope,
     revision: JSON.stringify([record.version, record.manifest_digest, record.installation_generation]),
-    enabled: record.state === "running", presentation: manifest?.presentation, slots };
+    state: record.state, presentation: manifest?.presentation, slots };
 }
 
 /** Read the installed records and their owners' running contributions; neither lookup opens or starts a platform. */

@@ -183,8 +183,10 @@ export function readSandboxIntegrationPackage(payload: PluginPackagePayload): Sa
   const contract = validated('contract.json', () => { const raw = jsonFile(files, SANDBOX_PACKAGE_FILES.contract); assertContract(raw); return raw; });
   if (contract.pluginId !== manifest.plugin_id) refuse('contract.json 的 pluginId 与清单的 plugin_id 不一致');
   if (contract.pages.length || contract.entities.length) refuse('集成包的合同没有页面和实体');
+  if (contract.presentation !== undefined) refuse('集成包的合同不能声明对象呈现');
   const ids = Object.entries(SANDBOX_INTEGRATION_OPERATIONS);
   for (const operation of contract.operations) {
+    if (operation.read_protocol !== undefined || operation.external !== undefined) refuse('集成包的操作不能声明对象读取协议或外发标记');
     const entry = ids.find(([, id]) => id === operation.id) ?? refuse('合同里有平台之外的操作：' + operation.id);
     const fixed = SANDBOX_INTEGRATION_CONTRACT[entry[0] as keyof typeof SANDBOX_INTEGRATION_OPERATIONS];
     for (const field of ['kind', 'input', 'output', 'effects'] as const) {

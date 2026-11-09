@@ -522,6 +522,7 @@ export interface ActionMetadata {
     readonly kind: "query" | "judgment" | "operation" | "navigation";
     readonly scope: "home" | "project";
     readonly effect?: "read" | "write" | "irreversible";
+    readonly external?: true;
     readonly plugin?: false;
     readonly scheduling?: "concurrent";
     readonly authorship?: "session";
@@ -4098,6 +4099,7 @@ export interface PluginRuntimeApi {
         definition: PluginDefinition;
         deployment?: PluginDeployment;
         grants?: string[];
+        assertCurrent?: () => void;
     }): Promise<PluginLifecycleReceipt>;
     rollback(input: {
         install_id: string;
@@ -4105,7 +4107,9 @@ export interface PluginRuntimeApi {
     }): Promise<PluginLifecycleReceipt>;
     grant(installId: string, permissions: string[]): PluginLifecycleReceipt;
     regrant(installId: string, permission: string, granted: boolean): Promise<PluginLifecycleReceipt>;
-    start(installId: string): Promise<PluginLifecycleReceipt>;
+    start(installId: string, control?: {
+        assertCurrent?: () => void;
+    }): Promise<PluginLifecycleReceipt>;
     stop(installId: string, options?: {
         preserve_enabled?: boolean;
     }): Promise<PluginLifecycleReceipt>;

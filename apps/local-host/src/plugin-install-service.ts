@@ -6,7 +6,7 @@
  * the sandbox package format stops at the preview, and the confirmation takes only a preview the Host itself made.
  */
 import { randomUUID } from 'node:crypto';
-import { ActionError } from '@molis-ai/molis-work-contracts/platform/actions';
+import { ActionError, requireSynchronous, type ActionExecutionContext } from '@molis-ai/molis-work-contracts/platform/actions';
 import { pluginErrors, type PluginPackageBundle, type SandboxAgentBody } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxEffects } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { PluginInstalledPermissionView, PluginInstalledView, PluginInstallPreview, PluginPublisherPin } from '@molis-ai/molis-work-contracts/platform/plugin-trust';
@@ -22,6 +22,7 @@ import { installedPluginViews, jobViews, permissionViews, type InstalledPluginEn
 import type { PermissionSwitchTarget } from './plugin-installed-view.js';
 import { sandboxRequestedPermissions } from '@molis-ai/molis-work-plugin-sdk';
 import { validateSandboxHomeSchema } from './plugin-sandbox-home-library.js';
+import { assertSurfacePresentation, withSurfacePresentationCheck, type SurfaceInstallCatalog } from './surface-installation.js';
 
 /** A preview waits this long for its confirmation, and at most this many wait at once. */
 const PREVIEW_TTL_MS = 15 * 60_000;
@@ -31,9 +32,11 @@ export interface PluginInstallPorts {
   ledger: PluginConsentLedger;
   packages: SandboxPackageStore;
   /** Installs a release in the project the person is in. */
-  installInProject(projectId: string, release: InstalledRelease): Promise<void>;
+  installInProject(projectId: string, release: InstalledRelease, assertCurrent?: () => void): Promise<void>;
   /** Installs a release in the Home: one instance every project shares, which a package asks for in its Manifest (`runtime.scope`, BL-628). */
-  installInHome(release: InstalledRelease): Promise<void>;
+  installInHome(release: InstalledRelease, assertCurrent?: () => void): Promise<void>;
+  runHomeInstallation?<Result>(operation: (assertOpen: () => void) => Promise<Result>): Promise<Result>;
+  presentationCatalog?(projectId: string | null): Promise<SurfaceInstallCatalog>;
   /**
    * Refuses an integration package (BL-530) whose plugin id, services or integrations the Home's registry already has from another,
    * built-in or installed (`plugin.integration_declaration_conflict`, naming the id and its holder).
@@ -49,7 +52,7 @@ export interface PluginInstallPorts {
   homeInstalled?(): Promise<InstalledPluginEntry[]>;
   homeRegrant?(installId: string, permission: string, granted: boolean, expected?: PermissionSwitchTarget): Promise<void>;
   /** Switches a signed package installed in the Home off or on, or takes it off (BL-715); answers its state afterwards. A Host without a Home leaves it out. */
-  homeControl?(pluginId: string, action: 'disable' | 'enable' | 'uninstall', input: { keep_data: boolean }): Promise<string>;
+  homeControl?(pluginId: string, action: 'disable' | 'enable' | 'uninstall', input: { keep_data: boolean }, caller?: ActionExecutionContext): Promise<string>;
   now?(): string;
 }
 
@@ -120,6 +123,7 @@ export class PluginInstallService {
     for (const [id, entry] of this.held) if (entry.expires <= Date.now()) this.held.delete(id);
     if (this.held.size >= MAX_PREVIEWS) this.held.delete(this.held.keys().next().value as string);
     const rows = runtime_scope === 'home' ? await this.ports.homeInstalled?.() ?? [] : await this.ports.installed(who.project_id);
+    if (manifest.presentation !== undefined) assertSurfacePresentation(manifest, await this.presentationCatalog(runtime_scope === 'home' ? null : who.project_id));
     const current = rows.find(({ record }) => record.plugin_id === manifest.plugin_id && record.publisher_signature === manifest.publisher.signature && record.state !== 'uninstalled');
     // Only an upgrade has bodies to compare: any other package is refused at the confirmation (S-84), even when the kept one is gone.
     const old = current && !upgradeRefusal(manifest, current.record.version) ? this.ports.packages.load(manifest.plugin_id, manifest.publisher.signature, current.record.version).packaged?.agentBodies ?? [] : undefined;
@@ -153,15 +157,30 @@ export class PluginInstallService {
     }
   }
 
+  private async presentationCatalog(projectId: string | null): Promise<SurfaceInstallCatalog> {
+    const catalog = await this.ports.presentationCatalog?.(projectId);
+    if (!catalog || catalog.projectId !== projectId) throw pluginErrors.declaration_invalid('这个宿主核对不了完整的呈现动作目录');
+    return catalog;
+  }
+
   /**
    * Installs what a preview showed. The preview is used up by this call, whatever happens. A publisher the person has not pinned is pinned
    * here only when they said so (`pin_label`); the install then runs under that pin.
    */
-  async confirm(input: { preview_id: string; consent: boolean; pin_label?: string }, who: { project_id: string; actor_id: string }): Promise<{ plugin_id: string; version: string; publisher_key_id: string }> {
+  async confirm(input: { preview_id: string; consent: boolean; pin_label?: string }, who: { project_id: string; actor_id: string }, caller?: ActionExecutionContext): Promise<{ plugin_id: string; version: string; publisher_key_id: string }> {
     const held = this.held.get(input.preview_id);
     this.held.delete(input.preview_id);
     if (!held || held.expires <= Date.now() || held.project_id !== who.project_id || held.actor_id !== who.actor_id) throw pluginErrors.preview_unknown('没有这次安装的预览，或它已过期；请重新预览');
     if (input.consent !== true) throw pluginErrors.consent_required('安装前请确认插件要使用的权限');
+    const { runHomeInstallation } = this.ports;
+    if (held.runtime_scope === 'home' && runHomeInstallation) {
+      return runHomeInstallation(assertOpen => this.confirmHeld(held, input.pin_label, who.actor_id, caller, assertOpen));
+    }
+    if (held.runtime_scope === 'home' && held.pkg.manifest.presentation !== undefined) throw pluginErrors.declaration_invalid('这个宿主没有 Home 安装串行入口');
+    return this.confirmHeld(held, input.pin_label, who.actor_id, caller);
+  }
+
+  private async confirmHeld(held: Held, pinLabel: string | undefined, actorId: string, caller?: ActionExecutionContext, assertOpen?: () => void) {
     // The range the person saw is the range of the package: checked again, as another preview may have been confirmed since.
     if (scopeOf(held.pkg.manifest) !== held.runtime_scope) throw pluginErrors.preview_unknown('预览之后这个包的运行范围变了，请重新预览');
     this.assertScopeKept(held.pkg.manifest, message => pluginErrors.preview_unknown(message + '；请重新预览'));
@@ -181,18 +200,33 @@ export class PluginInstallService {
     // plugin (the Runtime's, S-75), and a package of the plugin's own publisher that is not its upgrade (the install lifecycle's, BL-623).
     assertIdPathFree(held.pkg.manifest.plugin_id, held.key_id, entries);
     if (present) assertUpgradeOf(held.pkg.manifest, present.record.version);
-    if (!pin) {
-      const label = input.pin_label?.trim();
-      if (!label) throw pluginErrors.publisher_untrusted('这个发布者还没有被固定：要装它的包，请先确认信任它');
-      if (label.length > 80) throw new ActionError('actions.input_invalid', '发布者的名称不超过 80 个字');
-      this.ports.ledger.pinPublisher({ key_id: held.key_id, public_key_spki_base64: held.spki, label, pinned_at: this.now(), pinned_by: who.actor_id });
-      consentsChanged();
-    }
-    const directory = this.ports.packages.save(held.bundle, held.pkg);
-    const release = packagedRelease(held.pkg, directory, this.now());
-    if (held.runtime_scope === 'home') await this.ports.installInHome(release);
-    else await this.ports.installInProject(held.project_id, release);
-    return { plugin_id: held.pkg.manifest.plugin_id, version: held.pkg.manifest.version, publisher_key_id: held.key_id };
+    const catalog = held.pkg.manifest.presentation === undefined ? undefined : await this.presentationCatalog(inHome ? null : held.project_id);
+    await caller?.beforeEffect();
+    const assertCurrent = () => {
+      assertOpen?.();
+      caller?.signal?.throwIfAborted();
+      requireSynchronous(caller?.assert_authority_current?.());
+    };
+    assertCurrent();
+    const keep = async () => {
+      assertCurrent();
+      this.assertScopeKept(held.pkg.manifest, message => pluginErrors.preview_unknown(message + '；请重新预览'));
+      const currentPin = this.pinOf(held.key_id);
+      if (currentPin?.revoked_at) throw pluginErrors.publisher_revoked('这个发布者的固定已被撤销，它的包不能再安装');
+      if (!currentPin) {
+        const label = pinLabel?.trim();
+        if (!label) throw pluginErrors.publisher_untrusted('这个发布者还没有被固定：要装它的包，请先确认信任它');
+        if (label.length > 80) throw new ActionError('actions.input_invalid', '发布者的名称不超过 80 个字');
+        this.ports.ledger.pinPublisher({ key_id: held.key_id, public_key_spki_base64: held.spki, label, pinned_at: this.now(), pinned_by: actorId });
+        consentsChanged();
+      }
+      const directory = this.ports.packages.save(held.bundle, held.pkg);
+      const release = packagedRelease(held.pkg, directory, this.now());
+      if (inHome) await this.ports.installInHome(release, assertCurrent);
+      else await this.ports.installInProject(held.project_id, release, assertCurrent);
+      return { plugin_id: held.pkg.manifest.plugin_id, version: held.pkg.manifest.version, publisher_key_id: held.key_id };
+    };
+    return catalog ? withSurfacePresentationCheck(held.pkg.manifest, catalog, keep) : keep();
   }
 
   /** Switches a signed-package installation of the project off or on, or takes it off (BL-623); a plugin that did not come from a signed package is not touched here. */
@@ -201,10 +235,10 @@ export class PluginInstallService {
   }
 
   /** The same for a signed package installed in the Home, from the Host settings door (BL-715). */
-  async controlHome(action: 'disable' | 'enable' | 'uninstall', input: { plugin_id: string; keep_data: boolean }): Promise<string> {
+  async controlHome(action: 'disable' | 'enable' | 'uninstall', input: { plugin_id: string; keep_data: boolean }, caller?: ActionExecutionContext): Promise<string> {
     const { homeControl } = this.ports;
     if (!homeControl) throw pluginErrors.state_invalid('这个宿主没有个人空间');
-    return homeControl(input.plugin_id, action, { keep_data: input.keep_data });
+    return homeControl(input.plugin_id, action, { keep_data: input.keep_data }, caller);
   }
 
   publishers(): PluginPublisherPin[] { return this.ports.ledger.publishers(); }

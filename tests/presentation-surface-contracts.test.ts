@@ -150,11 +150,11 @@ test("SCS-15 notices use the object's own actions and text keys; external effect
   for (const invalid of [false, "true", 1]) assert.ok(inspectActionDeclarations([sending(invalid)], undefined).length > 0);
 });
 
-test("SCS-09 values declarations cannot meter the read or request a model", () => {
+test("SCS-09 values declarations refuse metered, external and model-backed reads", () => {
   const manifest = (extra: Record<string, unknown>) => ({ actions: [search, { ...ownValues, action: { ...ownValues.action, ...extra } }],
     presentation: withObject({ actions: [] }) });
-  for (const extra of [{ permissions: ["model:invoke"] }, { execution: undefined }, { execution: { cost: "unknown" } }, { execution: { cost: "metered" } }]) {
-    assert.match(validatePresentationDeclaration(manifest(extra)).join("\n"), /不调用模型或计费/u);
+  for (const extra of [{ permissions: ["model:invoke"] }, { external: true }, { execution: undefined }, { execution: { cost: "unknown" } }, { execution: { cost: "metered" } }]) {
+    assert.match(validatePresentationDeclaration(manifest(extra)).join("\n"), /不调用模型、不外发或计费/u);
   }
 });
 
@@ -204,7 +204,7 @@ test("SSC-18 (install half): the overview names one of this Manifest's own actio
   assert.equal(presenting(withOverview({ start: Array.from({ length: 4 }, () => ownStart) })), "presentation.overview.start 要列 1 到 3 个入口");
   const changedValues = { ...ownValues, action: { ...ownValues.action, output_schema: { type: "object" } } };
   assert.equal(presenting(declaration, ownActions.map(action => action === ownValues ? changedValues : action)),
-    "给值的动作 notes.presentation.values 要用 definePresentationValuesAction 定义：只读 query，不调用模型或计费，输入输出 schema 与平台定的一样");
+    "给值的动作 notes.presentation.values 要用 definePresentationValuesAction 定义：只读 query，不调用模型、不外发或计费，输入输出 schema 与平台定的一样");
 });
 
 test("the catalog answers present, absent or unknown: this Manifest's own actions at their versions, and the whole directory once S-1 passes it", () => {

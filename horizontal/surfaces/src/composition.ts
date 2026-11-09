@@ -40,9 +40,17 @@ function pickCandidates(subjects: readonly ActionSubject[], attention: readonly 
     if (found) found.push(entry); else bySubject.set(key, [entry]);
   }
   const candidates: Candidate[] = [];
+  // Attention records identify their owner plugin, not one of its installations.
+  const disabledOwners = new Set(plugins.filter(plugin => plugin.state === "disabled").map(plugin => plugin.plugin_id));
+  for (const plugin of plugins) if (plugin.state !== "disabled") disabledOwners.delete(plugin.plugin_id);
   const disabled = new Map<string, number>();
+  const countDisabled = (owner: string) => disabled.set(owner, (disabled.get(owner) ?? 0) + 1);
   let unproved = false;
   for (const subject of subjects) {
+    const facts = bySubject.get(subjectKey(subject)) ?? [];
+    for (const owner of new Set(facts.map(entry => entry.owner_plugin_id))) {
+      if (disabledOwners.has(owner)) countDisabled(owner);
+    }
     let reader = readers.get(subject.kind);
     if (!reader) { reader = findSubjectReader(views, subject.kind); readers.set(subject.kind, reader); }
     const view = reader.found === "one" || reader.found === "unavailable" ? reader.view : undefined;
@@ -50,13 +58,16 @@ function pickCandidates(subjects: readonly ActionSubject[], attention: readonly 
     const fallback = view || attention.length ? [] : plugins.filter(plugin => views.some(action => ownsView(plugin, action)
       && action.action.search_source?.kinds.some(kind => kind.kind === subject.kind)));
     const plugin = known ?? (fallback.length === 1 ? fallback[0] : undefined);
-    const entries = bySubject.get(subjectKey(subject))?.filter(entry => entry.owner_plugin_id === plugin?.plugin_id) ?? [];
+    const entries = facts.filter(entry => entry.owner_plugin_id === plugin?.plugin_id);
     if (!plugin || (attention.length > 0 && !entries.length)) {
       if (!attention.length) unproved = true;
       continue;
     }
-    if (!plugin.enabled) {
-      if (!attention.length) disabled.set(plugin.plugin_id, (disabled.get(plugin.plugin_id) ?? 0) + 1);
+    if (plugin.state !== "running") {
+      if (!attention.length) {
+        if (plugin.state === "disabled") countDisabled(plugin.plugin_id);
+        else unproved = true;
+      }
       continue;
     }
     const object = reader.found === "one" ? plugin.presentation?.objects.find(entry => entry.kind === subject.kind) : undefined;

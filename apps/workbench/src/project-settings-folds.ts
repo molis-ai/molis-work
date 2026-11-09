@@ -139,7 +139,7 @@ export function createProjectSettingsFolds(primitives: ProjectSettingsFoldsPrimi
       </section>`;
     }
     return `<section class="project-manager-danger">
-      <button class="mw-btn mw-btn--link project-delete-quiet" type="button" data-project-delete-open>${L("删除项目")}</button>
+      <button class="mw-btn mw-btn--danger-outline" type="button" data-project-delete-open>${L("删除项目")}</button>
     </section>`;
   }
 

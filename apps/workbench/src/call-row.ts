@@ -2,8 +2,7 @@ import { shortCallId } from "@molis-ai/molis-work-ui-host";
 import type { SettingsRenderPrimitives } from "./settings-renderer.js";
 
 /**
- * One finished call as the settings pages show it: the Host's call log row, less what no page shows. The log keeps no input and no result,
- * and a message only for a command that ran and failed, so there is nothing here to hide.
+ * One finished call as the settings pages show it. The Host keeps a message only for a command that ran and failed.
  */
 export interface CallRowView {
   at: string;
@@ -27,7 +26,7 @@ export interface CallRowView {
   last_at?: string;
 }
 
-type CallText = Pick<SettingsRenderPrimitives, "L" | "escapeHtml">;
+type CallText = Pick<SettingsRenderPrimitives, "L" | "escapeHtml" | "htmlLang">;
 
 const CALLER: Record<string, string> = { user: "你", agent: "内置 Agent", workflow: "工作流程", mcp: "MCP 客户端", plugin: "插件" };
 
@@ -50,10 +49,16 @@ function renderCallIdButton(id: string, { L, escapeHtml: e }: CallText): string 
 export function renderCallRow(row: CallRowView, p: CallText, where?: { label: string; href?: string }): string {
   const { L, escapeHtml: e } = p;
   const at = row.last_at ?? row.at;
-  return `<article data-call-row><header><strong>${e(row.title)}</strong><span${row.ok ? "" : ' class="is-unavailable"'}>${L(row.refused ? "未执行" : row.ok ? "成功" : "失败")}</span></header>`
-    + `<p>${e(row.provider_title)} · ${callerLabel(row, L)}${row.audience === "mcp" || row.audience === "plugin" ? ` · ${e(row.actor_id)}` : ""} · <code>${e(row.capability_id)}@${row.version}</code></p>`
+  const localTime = (value: string) => e(new Date(value).toLocaleString(p.htmlLang()));
+  const title = row.title === row.capability_id ? L("未识别的操作") : L(row.title);
+  const source = row.provider_title ? e(L(row.provider_title)) + " · " : "";
+  const actor = row.audience === "mcp" || row.audience === "plugin" ? ` · ${e(row.actor_id)}` : "";
+  return `<article data-call-row><header><strong>${e(title)}</strong><span${row.ok ? "" : ' class="is-unavailable"'}>${L(row.refused ? "未执行" : row.ok ? "成功" : "失败")}</span></header>`
+    + `<p>${source}${e(callerLabel(row, L))} · <time datetime="${e(at)}">${localTime(at)}</time></p>`
+    + (row.count && row.count > 1 ? `<p>${L("连续 {count} 次相同结果，最早 {at}", { count: row.count, at: localTime(row.at) })}</p>` : "")
+    + (!row.ok && !row.refused && row.message ? `<p>${L("失败原因")}：${e(row.message)}</p>` : "")
     + `<p>${renderCallIdButton(row.matched_call_id ?? row.call_id, p)}</p>`
     + (where ? `<p>${e(where.label)}${where.href ? ` · <a href="${e(where.href)}">${L("查看调用记录")}</a>` : ""}</p>` : "")
-    + `<time datetime="${e(at)}">${e(at)}</time>${row.count && row.count > 1 ? `<p>${L("连续 {count} 次相同结果，最早 {at}", { count: row.count, at: e(row.at) })}</p>` : ""}`
-    + `${row.ok || !(row.message ?? row.code) ? "" : `<p>${L(row.message ? "失败原因" : "错误码")}：${e(row.message ?? row.code ?? "")}</p>`}</article>`;
+    + `<details class="capability-contract"><summary>${L("技术详情")}</summary><p><code>${e(row.capability_id)}@${row.version}</code>${actor}</p>`
+    + (!row.ok && row.code ? `<p>${L("错误码")}：${e(row.code)}</p>` : "") + "</details></article>";
 }

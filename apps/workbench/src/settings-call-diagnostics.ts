@@ -5,7 +5,7 @@ import { settingRow } from "./settings-row.js";
 import type { SettingsRenderPrimitives } from "./settings-renderer.js";
 import type { MolisWorkSettingsView, WebPeriodicTask } from "./settings-view.js";
 
-type DiagnosticsPrimitives = Pick<SettingsRenderPrimitives, "L" | "escapeHtml" | "icon" | "withDesktopQuery">;
+type DiagnosticsPrimitives = Pick<SettingsRenderPrimitives, "L" | "escapeHtml" | "icon" | "withDesktopQuery" | "htmlLang">;
 
 /** Where a row's project is, and the way to the call history of that project; a project deleted since has none to open. */
 function callPlace(row: CallRowView, view: MolisWorkSettingsView, p: DiagnosticsPrimitives, desktopShell: boolean): { label: string; href?: string } {

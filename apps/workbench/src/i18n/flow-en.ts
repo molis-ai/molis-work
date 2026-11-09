@@ -15,6 +15,7 @@ export const FLOW_EN: Record<string, string> = {
   "项目内引用": "Project reference",
   "AI": "AI",
   "未执行": "Not run",
+  "未识别的操作": "Unrecognized action",
   "错误码": "Error code",
   "最近执行的操作和已保存的判断。只记录谁在何时调用了什么、结果如何；不保存输入与返回内容，执行后失败的操作保留错误说明。读取失败和被拒绝而没有执行的操作（标为“未执行”）也会记下，只记错误码。": "Recent operations and saved judgments. Only who called what, when, and how it ended is kept — never inputs or results; an operation that ran and failed keeps its error message. A read that failed, and an operation that was turned away and did not run (marked \"Not run\"), are recorded too, with their error code only.",
   "工具与接入": "Tools and connections",

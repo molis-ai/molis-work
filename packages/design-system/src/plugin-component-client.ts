@@ -33,7 +33,16 @@ export function createPluginComponentClient(options: PluginComponentClientOption
   const c1 = Object.assign(state, kit), c2 = Object.assign(c1, pcRelations(c1)), c3 = Object.assign(c2, pcRecords(c2), pcDetail(c2), pcControls(c2));
   const c4 = Object.assign(c3, pcOutput(c3)), c5 = Object.assign(c4, pcQuery(c4)), c6 = Object.assign(c5, pcSubmit(c5)), c7 = Object.assign(c6, pcPart(c6));
   const { update, destroy } = pcLifecycle(c7);
-  return { update, refresh: c7.refresh, destroy };
+  const openInput = (id: string): boolean => {
+    const part = state.parts.get(id);
+    if (state.disposed || !part?.form || !part.node.submit || !c7.ready(part.node.submit.operationId)) return false;
+    c7.selectPage(part.node.pageId);
+    if (part.opener) { part.opener.click(); return true; }
+    part.root.scrollIntoView({ block: "nearest" });
+    part.form.querySelector<HTMLElement>("input:not([type=hidden]),textarea,select")?.focus();
+    return true;
+  };
+  return { update, refresh: c7.refresh, destroy, openInput };
 }
 function pcLifecycle(c: State & Kit & Rel & Rec & Det & Ctl & Out & Qry & Sub & Prt) {
   const { root, tabs, tabList, composition, selectionVersions, parts, pages, regions, details, make, headingOf, detailEnabled, ready, rowHost, rowLabel, signature, selectPage, showDetail, syncChoices, query, refresh, createPart } = c;

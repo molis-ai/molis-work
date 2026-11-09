@@ -2,6 +2,8 @@ import { resolve } from "node:path";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { PLUGIN_ICON_NAMES, type PresentationFormValues } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { presentationOwnerHue } from "@molis-ai/molis-work-design-system";
 import type { SurfaceInstallationRef } from "@molis-ai/molis-work-contracts/services/surface-composition";
 import { railEntries, stageOpeningView, stageSurfaceDescriptors, type PluginDirectoryEntry } from "@molis-ai/molis-work-app-workbench";
 import type { SurfaceHomePlugin, SurfacePlugin } from "@molis-ai/molis-work-service-surfaces";
@@ -40,6 +42,7 @@ export interface HomeDirectoryEntry {
   readonly plugin: SurfacePlugin & { readonly home: SurfaceHomePlugin };
   readonly route?: Route;
   readonly signedForms: readonly SignedForm[];
+  readonly display: PresentationFormValues["ownerDisplay"];
 }
 
 const projectEnable = { kind: "project_installation", action: { capability_id: pluginControlActions.enable.capability_id,
@@ -148,7 +151,7 @@ function sample(ports: DirectoryPorts): HomeDirectoryEntry[] {
   const directory = [...new Map(rows.map(row => [row.directory.id, row.directory])).values()];
   const ordered = new Map(railEntries(directory.map(entry => entry.id), directory).map((entry, index) => [entry.id, index]));
   return rows.map(({ record, installation, route, directory: entry, presentation, slots, forms, signedForms, enable, unavailable }) => ({
-    record, installation, route, signedForms,
+    record, installation, route, signedForms, display: { name: entry.name, hue: presentationOwnerHue(record.plugin_id), icon: PLUGIN_ICON_NAMES.find(icon => icon === (entry.ui.views?.find(view => view.slot === "navigator")?.icon ?? entry.ui.views?.find(view => view.slot === "stage")?.icon)) },
     plugin: { plugin_id: record.plugin_id, install_id: record.install_id, scope: installation.scope,
       revision: JSON.stringify([installation, record.publisher_signature, record.publisher_trust]), state: record.state, presentation, slots,
       home: { order: ordered.get(entry.id) ?? ordered.size, installation_generation: installation.installation_generation,

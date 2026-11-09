@@ -312,6 +312,9 @@ ${GOALS_CREATE_COMPOSE_SCRIPT}
       prepareCompose();
       requestAnimationFrame(() => form.elements.title.focus());
     };
+    document.addEventListener("molis-work:select-item", (event) => {
+      if (event.detail?.panel === "create-dialog" && event.target.closest?.('[data-plugin-owner="io.molis.work.goals"]')) openCreate();
+    }, true);
     const handleGoalDialogClick = (target) => {
 ${GOALS_DIALOG_CLICK_SCRIPT}    };
     const handleGoalTrashSubmit = (submittedForm, event) => {

@@ -1,3 +1,5 @@
+import { SURFACE_HOME_ORDER_LIMIT } from "@molis-ai/molis-work-contracts/services/surface-composition";
+
 /** Plugin pages and the records on them: which surface a plugin shows, opening a plugin, a record or an item (here or beside), and closing an item. A part of TAB_WORKSPACE_FACTORY_SCRIPT, joined in place. */
 export const TAB_WORKSPACE_PLUGINS_PART = `  // A plugin whose page lives in settings (it marks the page it renders here) is not a place a pane can show.
   const settingsPageOf = (plugin) => plugin && !embedded && !Object.hasOwn(PLUGIN_TAB_ICON, plugin) && document.querySelector('[data-settings-page="' + CSS.escape(plugin) + '"]') ? plugin : "";
@@ -246,7 +248,7 @@ export const TAB_WORKSPACE_PLUGINS_PART = `  // A plugin whose page lives in set
   // The mount names its owner and surface. Layout remains the only owner of pane/tab selection.
   const ownSurfaces = (origin) => origin.dataset.pluginOwner && origin.dataset.pluginContribution
     ? [...document.querySelectorAll('[data-plugin-owner][data-plugin-contribution]')].filter(node => node.dataset.pluginOwner === origin.dataset.pluginOwner && node.dataset.pluginContribution === origin.dataset.pluginContribution) : [];
-  const invalidateLocal = () => [...document.querySelectorAll('[data-plugin-contribution][data-ui-client-state="ready"]')].forEach(node => node.dispatchEvent(new CustomEvent("molis-work:select-item", { detail: { invalidate: true } })));
+  const invalidateLocal = () => { host.refreshHome?.(); return [...document.querySelectorAll('[data-plugin-contribution][data-ui-client-state="ready"]')].forEach(node => node.dispatchEvent(new CustomEvent("molis-work:select-item", { detail: { invalidate: true } }))); };
   const invalidateView = (origin, relay = true) => {
     if (!origin?.isConnected) return;
     invalidateLocal(origin);
@@ -285,6 +287,66 @@ export const TAB_WORKSPACE_PLUGINS_PART = `  // A plugin whose page lives in set
       if (frame.contentDocument?.body?.hasAttribute("data-pane-embedded")) project(); else frame.addEventListener("load", project, { once: true });
     } else return projectOwnSurface(pane, plugin, selection, tab);
     return true;
+  };
+  const homeOrder = () => [...new Set([...(embedded ? parent.document : document).querySelectorAll(":is([data-dock-pins], [data-bar-own]) [data-dock-pin]:not(.is-leaving)")]
+    .map(node => directory.find(entry => entry.id === node.dataset.dockPin)?.plugin_id).filter(Boolean))].slice(0, ${SURFACE_HOME_ORDER_LIMIT});
+  const signedHomeSelection = (frame, href, selection) => {
+    const select = () => {
+      if (!frame.isConnected || frame.closest("[hidden]") || new URL(frame.src).href !== href) return;
+      frame.contentWindow?.postMessage({ type: "workbench-view", panel: selection.panel, intent: "open" }, location.origin);
+    };
+    if (frame.contentDocument?.readyState === "complete" && frame.contentDocument.URL === href) select();
+    else frame.addEventListener("load", select, { once: true });
+  };
+  const signedHomeFrame = (mount, owner, href) => {
+    const frame = mount?.dataset.installedPlugin === owner && mount.querySelector(":scope > iframe");
+    return frame && new URL(href, location.origin).origin === location.origin && new URL(frame.src).href === href ? frame : null;
+  };
+  const selectSignedHomeForm = (pane, plugin, owner, href, selection) => {
+    const paneFrame = panesEl.querySelector('iframe[data-pane-tab="' + CSS.escape(paneFrameKey(pane)) + '"]');
+    if (!paneFrame) { const frame = signedHomeFrame(findTopLevelSurface(plugin), owner, href); if (frame) signedHomeSelection(frame, href, selection); return; }
+    const select = () => {
+      if (!paneFrame.isConnected || paneFrame.hidden || ops.focused(state) !== pane || ops.shownPlugin(pane) !== plugin) return;
+      paneFrame.contentWindow?.postMessage({ type: "workbench-view", signedHomeForm: { plugin, owner, href, panel: selection.panel } }, location.origin);
+    };
+    if (paneFrame.contentDocument?.body?.hasAttribute("data-pane-embedded")) select(); else paneFrame.addEventListener("load", select, { once: true });
+  };
+  // Only the shell calls this with the protected homepage's reply. It binds the reply back to this pane and its actual mount.
+  const openHomeNavigation = (result, pane) => {
+    if (!result || !pane || state.exclusive || pane !== ops.focused(state) || ops.shownPlugin(pane) !== "home") return false;
+    if (embedded) { notifyParent("workbench-home-navigation", { result }); return true; }
+    if (result.kind === "settings" && result.section === "plugins") { openSettingsPage(result.section); return true; }
+    if (result.kind !== "stage" || !result.selection || !result.installation || typeof result.shell_key !== "string"
+      || typeof result.owner_plugin_id !== "string") return false;
+    const plugin = result.shell_key, mount = findTopLevelSurface(plugin), selection = result.selection;
+    if (!mount || removedPlugin(plugin)) return false;
+    state.focusedPaneId = pane.id;
+    if (result.frame_path) {
+      if (typeof result.frame_path !== "string") return false;
+      const url = new URL(result.frame_path, location.origin);
+      if (!signedHomeFrame(mount, result.owner_plugin_id, url.href)) return false;
+      openPlugin(plugin);
+      if (selection.panel) selectSignedHomeForm(ops.focused(state), plugin, result.owner_plugin_id, url.href, selection);
+      return true;
+    }
+    if (typeof result.producer !== "string") return false;
+    const proof = JSON.parse(result.producer), installation = result.installation;
+    if (!Array.isArray(proof) || [installation.scope, installation.install_id, installation.installation_generation, installation.version,
+      installation.manifest_digest].some((value, index) => value !== proof[index])) return false;
+    const mounted = [mount, ...mount.querySelectorAll("[data-plugin-producer]")].find(node => node.dataset.pluginOwner === result.owner_plugin_id
+      && node.dataset.pluginProducer === result.producer && node.dataset.pluginSlot === "workbench.main");
+    if (!mounted) return false;
+    const subview = selection.surface !== mounted.dataset.pluginSurface;
+    if (subview && !ownSurfaces(mounted).some(node => node.dataset.pluginSurface === selection.surface && node.dataset.pluginSlot === "workbench.main")) return false;
+    if (result.item_id && !subview) { openItem(plugin, result.item_id, result.title); return true; }
+    openPlugin(plugin);
+    if (!selection.panel && !subview) return true;
+    return selectPluginView(ops.focused(state), plugin, { ...selection, ...(subview ? { id: result.item_id } : {}) });
+  };
+  const homeNavigationFrom = (source) => {
+    const pane = paneById(source.closest("[data-tab-pane]")?.dataset.tabPane);
+    return result => source.isConnected && !source.closest("[hidden]") && source.closest("[data-tab-pane]")?.dataset.tabPane === pane?.id
+      && openHomeNavigation(result, pane);
   };
   const openView = (origin, selection) => {
     if (!origin?.isConnected || origin.closest('[hidden]')) return false;

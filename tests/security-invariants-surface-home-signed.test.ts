@@ -6,64 +6,18 @@ import test, { type TestContext } from "node:test";
 import { pluginInstallActions, type MolisWorkProjectRuntime } from "@molis-ai/molis-work-app-local-host";
 import { LOCAL_PERSON_ACTOR_ID, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { SANDBOX_PACKAGE_FILES, type PluginInstanceRecord, type PluginPackageBundle } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginInstanceRecord, PluginPackageBundle } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { SandboxEffects } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
-import { definePresentationOverviewAction } from "@molis-ai/molis-work-contracts/platform/presentation";
 import type { SurfaceDescription, SurfaceInstallationRef, SurfacePluginCard } from "@molis-ai/molis-work-contracts/services/surface-composition";
-import type { PluginComponentNode, PluginComponentPlan } from "@molis-ai/molis-work-design-system";
-import { signPluginPackage, SqlitePluginPrivateStorage, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
-import { sandboxActionId, sandboxPackageBuildId, sandboxPluginManifest } from "@molis-ai/molis-work-plugin-sdk";
+import { SqlitePluginPrivateStorage, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { deferred, serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { APPROVED, person, ref } from "./fixtures/home-sandbox.js";
-import { PACKAGE_PLUGIN_ID, newPublisher, packageContract, packageFiles, payloadOf } from "./fixtures/sandbox-package.js";
+import { PACKAGE_PLUGIN_ID } from "./fixtures/sandbox-package.js";
+import { presentingPackage } from "./fixtures/surface-home-sandbox.js";
 
 const mac = { skip: process.platform !== "darwin", timeout: 90_000 };
 const endpoint = "/api/host/surface-home", pageActions = "/api/host/plugin-page-actions";
 const owner = PACKAGE_PLUGIN_ID;
-
-function presentingPackage(scope: "project" | "home", delegated: readonly ActionDefinition[]) {
-  const publisher = newPublisher(), contract = packageContract(), build = sandboxPackageBuildId(contract.pluginId, publisher.identity);
-  const start = (id: string) => ({ capability_id: sandboxActionId(build, id), version: 1 });
-  const add = contract.operations.find(item => item.id === "notes.add")!;
-  // Both real writers read the old list before appending; both effects are part of their approval.
-  add.effects = { storage: ["read", "write"], ...(delegated[0] ? { capabilities: [delegated[0].capability_id] } : {}) };
-  const alternate = delegated[1];
-  if (alternate) {
-    contract.operations.push({ ...add, id: "notes.alternate", effects: { storage: ["read", "write"], capabilities: [alternate.capability_id] } });
-    contract.pages[0]!.regions[0]!.operationIds.push("notes.alternate");
-  }
-  const overview = definePresentationOverviewAction(sandboxActionId(build, "notes.overview"), 1, "Notes overview", [], scope);
-  const output = { summary: { literal: "Add your first note" }, subjects: [], start: [start("notes.add")] };
-  contract.operations.push({ id: "notes.overview", kind: "query", read_protocol: { kind: "presentation_overview" },
-    input: overview.action.input_schema, output: overview.action.output_schema!, errors: [], effects: {}, examples: [{ input: {}, output }] });
-  contract.presentation = { objects: [], overview: { capability_id: overview.capability_id, version: overview.version,
-    start: [{ ...start("notes.add"), open: { view_id: "app", panel: "editor" } },
-      ...(alternate ? [{ ...start("notes.alternate"), open: { view_id: "app", panel: "alternate-editor" } }] : [])] } };
-  const { files, manifest } = packageFiles(publisher.identity);
-  files[SANDBOX_PACKAGE_FILES.contract] = JSON.stringify(contract);
-  files[SANDBOX_PACKAGE_FILES.entrypoint] += `
-operations["notes.overview"] = async () => (${JSON.stringify(output)});
-const appendNote = operations["notes.add"];
-`;
-  delegated.forEach((definition, index) => {
-    const operation = index === 0 ? "notes.add" : "notes.alternate";
-    files[SANDBOX_PACKAGE_FILES.entrypoint] += `
-operations[${JSON.stringify(operation)}] = async (input, sdk) => {
-  await sdk.capability.call(${JSON.stringify(definition.capability_id)}, null);
-  return appendNote(input, sdk);
-};`;
-  });
-  if (alternate) {
-    const plans = JSON.parse(files[SANDBOX_PACKAGE_FILES.interface]!) as { parts: PluginComponentPlan[]; nodes: PluginComponentNode[] };
-    const addForm = <T extends PluginComponentPlan>(plan: T): T => ({ ...plan, id: "alternate-editor", submit: { ...plan.submit!, operationId: "notes.alternate" } });
-    plans.parts.push(addForm(plans.parts.find(part => part.id === "editor")!));
-    plans.nodes.push(addForm(plans.nodes.find(node => node.id === "editor")!));
-    files[SANDBOX_PACKAGE_FILES.interface] = JSON.stringify(plans);
-  }
-  const derived = sandboxPluginManifest({ contract, pluginId: manifest.plugin_id, name: manifest.name, version: manifest.version, publisher: manifest.publisher,
-    ...(scope === "home" ? { runtime: { scope } } : {}) });
-  return signPluginPackage({ payload: payloadOf(derived, files), signature: null, publisher_key: null }, publisher.signer);
-}
 
 async function body<T>(response: Response, status = 200): Promise<T> {
   const result = await response.json() as T;

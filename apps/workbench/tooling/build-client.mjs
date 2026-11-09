@@ -1,5 +1,5 @@
 import {writeFileSync} from 'node:fs';
-import {transformSync} from 'esbuild';
+import {buildSync,transformSync} from 'esbuild';
 import {UI_REQUEST_CLIENT_SCRIPT} from '@molis-ai/molis-work-ui-host';
 import {workbenchClientSource} from '../dist/page-assets.js';
 import {ACCOUNT_CLIENT_SCRIPT} from '../dist/scripts/account.js';
@@ -12,6 +12,9 @@ if(!source.startsWith(UI_REQUEST_CLIENT_SCRIPT))throw new Error('Workbench reque
 const compact=(script, pooling)=>transformSync(poolClientLiterals(script,pooling),{
   loader:'js',target:'es2022',charset:'utf8',minifyWhitespace:true,minifyIdentifiers:true,minifySyntax:true,legalComments:'none',
 }).code;
+const home=buildSync({entryPoints:[new URL('../src/browser/project-home.ts',import.meta.url).pathname],
+  bundle:true,write:false,format:'iife',globalName:'molisWorkHomeView',platform:'browser',target:'es2022',charset:'utf8',
+  minify:true,legalComments:'none'}).outputFiles[0].text;
 const body=compact(source.slice(UI_REQUEST_CLIENT_SCRIPT.length));
 // Keep the account IIFE in the same asset, with its own short identifiers.
-writeFileSync(new URL('../dist/workbench-client.js',import.meta.url),UI_REQUEST_CLIENT_SCRIPT+body+compact(ACCOUNT_CLIENT_SCRIPT,{byBytes:true}));
+writeFileSync(new URL('../dist/workbench-client.js',import.meta.url),UI_REQUEST_CLIENT_SCRIPT+home+body+compact(ACCOUNT_CLIENT_SCRIPT,{byBytes:true}));

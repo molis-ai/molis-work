@@ -195,7 +195,9 @@ export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
     const value=await request(url,'POST',body,undefined,L('操作失败，输入已保留'));
     return submit?value:value.value;
   });
-  const plugin=host.components({root,call});lifetime.own(()=>plugin.destroy());plugin.update(host.view).then(()=>{if(lifetime.alive)globalThis.__molisPluginReady=true;}).catch(e=>{if(lifetime.alive)root.textContent=e.message;});
+  const plugin=host.components({root,call});lifetime.own(()=>plugin.destroy());
+  const ready=plugin.update(host.view).then(()=>{if(lifetime.alive)globalThis.__molisPluginReady=true;}).catch(e=>{if(lifetime.alive)root.textContent=e.message;});
+  lifetime.listen(host.root||root,'molis-work:select-item',event=>{const panel=event.detail?.panel;if(event.detail?.intent==='open'&&typeof panel==='string')void ready.then(()=>{if(lifetime.alive)plugin.openInput(panel);});});
   return;
  }
  const $=s=>root.querySelector(s);

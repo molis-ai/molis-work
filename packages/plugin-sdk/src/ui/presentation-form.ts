@@ -9,7 +9,7 @@ import { escapeHtml } from "./html.js";
 import { icon, PLUGIN_ICON_NAMES, type PluginIconName } from "./icon.js";
 import { formatDate, formatNumber } from "./message-format.js";
 import { renderMenu, renderMenuItem, renderPreviewCard } from "./overlay.js";
-import type { StateRingState } from "./state-ring-states.js";
+import { stateRingFamily, type StateRingState } from "./state-ring-states.js";
 import { ownerFormatLocale, say } from "./text.js";
 import { tryOwnedTextRef } from "./text-ref.js";
 
@@ -40,6 +40,7 @@ const attentionWords: Readonly<Partial<Record<AttentionState, { word: string; to
   needs_acceptance: { word: "needs-acceptance", tone: "attention" },
   failed: { word: "failed", tone: "blocked" },
   partial: { word: "partial", tone: "hold" },
+  stale: { word: "state.stale", tone: "hold" },
 };
 
 function ownerTile(owner: PresentationFormValues["ownerDisplay"], labelled: boolean): string {
@@ -85,8 +86,8 @@ function statusMark(object: OwnedPresentationObject, raw: unknown, text: Display
     : undefined;
   const attention = mapping?.attention ? attentionWords[mapping.attention] : undefined;
   const ring = mapping?.ring;
-  const named = ring === "doing" || ring === "running" ? "running" : ring === "done" ? "done" : undefined;
-  const label = attention ? text.word(attention.word) : named ? text.word(named)
+  const family = ring ? stateRingFamily(ring) : undefined;
+  const label = attention ? text.word(attention.word) : family ? text.word(family === "running" || family === "done" ? family : `state.${family}`)
     : typeof raw === "string" ? raw : isRecord(raw) ? text.owned(raw) : "";
   return label ? renderStatusMark({ label, state: ring, tone: attention?.tone }) : "";
 }
@@ -189,7 +190,8 @@ export function renderPresentationForm(object: OwnedPresentationObject, form: Fo
   const bandTimeField = selected.form === "card"
     ? fields.find(field => (field.role === "updated_at" || field.role === "happened_at") && value(field.key) !== undefined)
     : undefined;
-  const summary = summaryField ? scalar(value(summaryField.key), locale) : "";
+  const summaryValue = summaryField ? value(summaryField.key) : undefined;
+  const summary = isRecord(summaryValue) ? text.owned(summaryValue) : scalar(summaryValue, locale);
   const body = fields.filter(field => field !== titleField && field !== summaryField && field !== bandTimeField && field.role !== "status")
     .map(field => renderField(field, value(field.key), text)).join("");
   const statusField = object.status?.field ?? fields.find(field => field.role === "status")?.key;

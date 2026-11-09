@@ -21,6 +21,8 @@ export interface PluginMessageStore {
   unregister(pluginId: string): void;
   /** Every registered stable-key word. */
   messages(): Readonly<Record<string, PluginMessage>>;
+  /** Stable keys are resolved for their actual publisher, including two ids with the same last segment. */
+  owners(): Readonly<Record<string, string>>;
   /** English for the words a Plugin keys by their Chinese text: its own `ui.translations`, empty for a Plugin not registered. */
   translationsFor(pluginId: string): Readonly<Record<string, string>>;
   /** The Plugins that registered such words, in the order they registered, each with its own. */
@@ -49,6 +51,7 @@ export function createPluginMessageStore(): PluginMessageStore {
     },
     unregister(pluginId) { if (entries.delete(pluginId)) merged = null; },
     messages: read,
+    owners: () => Object.fromEntries([...entries].flatMap(([id, entry]) => Object.keys(entry.messages).map(key => [key, id]))),
     translationsFor: pluginId => entries.get(pluginId)?.translations ?? {},
     translated: () => new Map([...entries].filter(([, entry]) => Object.keys(entry.translations).length > 0).map(([id, entry]) => [id, entry.translations])),
   };

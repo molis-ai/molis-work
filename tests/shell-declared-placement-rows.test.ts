@@ -44,8 +44,6 @@ const only = (view: MolisWorkWebView, keep: readonly string[]) => ({ ...view,
   hidden_plugins: PERSONAL_PLUGIN_IDS.filter(id => !keep.includes(id)) }) as MolisWorkWebView;
 const creates = (html: string) => [...html.matchAll(/data-placement-create="([^"]*)" data-placement-create-title="([^"]*)"[^>]*>([^<]*)</gu)]
   .map(([, station, title, label]) => ({ station, title, label }));
-const unescape = (value: string) => value.replaceAll("&quot;", '"').replaceAll("&#39;", "'").replaceAll("&lt;", "<").replaceAll("&gt;", ">").replaceAll("&amp;", "&");
-const homeStarts = (html: string) => JSON.parse(unescape(/data-work-surface="home" data-home-starts="([^"]*)"/u.exec(html)![1]!)) as Array<{ id: string; title: string; hint: string; glyph: string }>;
 
 test("RAC-600 the Goal's 「为这个 Goal 新建」 buttons are the shown plugins' declared `creates`, in the declared order", () => {
   withView((view, goalId) => {
@@ -72,26 +70,16 @@ test("RAC-601 a new object and its card are named from the declared title on the
   assert.doesNotMatch(CLIENT_SCRIPT, /names\[station\]/u);
 });
 
-test("RAC-602 the project home's starts are the shown plugins' declared `start`, in the declared order, and the page script keeps none", () => {
-  withView(view => {
-    assert.deepEqual(homeStarts(draw(showing(view, EVERYTHING))), [
-      { id: "goals", title: "推进一个目标", hint: "明确要做成什么，接着往下走。", glyph: "target" },
-      { id: "pages", title: "写一份文档", hint: "把思路写下来，逐步整理成作品。", glyph: "file" },
-      { id: "lingguang", title: "记下一点灵感", hint: "还没想清楚，也可以先留下。", glyph: "idea" },
-    ]);
-    assert.deepEqual(homeStarts(draw(only(view, ["lingguang"]))).map(start => start.id), ["goals", "lingguang"]);
-    assert.deepEqual(homeStarts(draw(only(view, []))).map(start => start.id), ["goals"], "a project that shows only Goals starts with Goals");
-    assert.deepEqual(homeStarts(draw(hiding(view, ["lingguang"]))).map(start => start.id), ["goals", "pages"]);
-  });
-  assert.match(CLIENT_SCRIPT, /homeStarts/u, "the home client reads the list off the page");
-  assert.doesNotMatch(CLIENT_SCRIPT, /plugin: 'goals', title: |plugin: 'pages', title: |plugin: 'lingguang', title: /u);
+test("RAC-602 SCS-11: the page asks the protected homepage for starts instead of embedding a separate list", () => {
+  withView(view => assert.doesNotMatch(draw(showing(view, EVERYTHING)), /data-home-starts/u));
+  assert.match(CLIENT_SCRIPT, /\/api\/host\/surface-home/u);
 });
 
-test("RAC-603 every declared create title, start title and hint is worded in English with its own plugin's words, not the page's", () => {
+test("RAC-603 every declared create title is worded in English with its own plugin's words", () => {
   withView((view, goalId) => {
     const html = runWithLocale("en", () => draw(showing(view, EVERYTHING), goalId));
-    const texts = [...creates(html).map(kind => kind.label), ...homeStarts(html).flatMap(start => [start.title, start.hint])];
-    assert.equal(texts.length, 4 + 3 * 2);
+    const texts = creates(html).map(kind => kind.label);
+    assert.equal(texts.length, 4);
     for (const text of texts) assert.doesNotMatch(text, /[\u4e00-\u9fff]/u, `${text} reads in English`);
   });
 });
@@ -103,12 +91,10 @@ test("RAC-600 RAC-602 page defaults, an explicit empty selection, hidden persona
     delete defaults.hidden_plugins;
     const defaultHtml = draw(defaults, goalId);
     assert.deepEqual(creates(defaultHtml).map(kind => kind.station), ["pages", "form", "dataset", "ppt"]);
-    assert.deepEqual(homeStarts(defaultHtml).map(start => start.id), ["goals", "pages", "lingguang"]);
 
     const emptyHtml = draw({ ...defaults, enabled_plugins: [] }, goalId);
     assert.deepEqual(creates(emptyHtml), [], "an unshown Goals owner draws no Goal input buttons");
     assert.doesNotMatch(emptyHtml, /<[^>]+\b(?:data-work-surface="goals"|data-goal-inputs\b)/u);
-    assert.deepEqual(homeStarts(emptyHtml).map(start => start.id), ["pages", "lingguang"], "an explicit empty selection does not restore Goals");
 
     const goalHtml = draw({ ...defaults, enabled_plugins: ["goals"] }, goalId);
     assert.deepEqual(creates(goalHtml).map(({ station, title, label }) => [station, title, label]), [
@@ -117,11 +103,9 @@ test("RAC-600 RAC-602 page defaults, an explicit empty selection, hidden persona
 
     const hiddenHtml = draw({ ...defaults, hidden_plugins: ["pages", "form", "dataset", "ppt", "lingguang"] }, goalId);
     assert.deepEqual(creates(hiddenHtml), []);
-    assert.deepEqual(homeStarts(hiddenHtml).map(start => start.id), ["goals"], "defaults do not restore hidden personal plugins");
 
     const explicitHtml = draw(only(view, ["ppt"]), goalId);
     assert.deepEqual(creates(explicitHtml).map(kind => kind.station), ["ppt"]);
-    assert.deepEqual(homeStarts(explicitHtml).map(start => start.id), ["goals"]);
   });
 });
 
@@ -146,18 +130,14 @@ test("RAC-600 RAC-602 a default project's declared create reaches the real page,
     assert.deepEqual(creates(html).map(kind => kind.station), ["default-goal", "pages", "form", "dataset", "ppt"]);
     assert.deepEqual(creates(html)[0], { station: "default-goal", title: "默认 &quot;&lt;/button&gt;&lt;script&gt;&amp;", label: "默认 &quot;&lt;/button&gt;&lt;script&gt;&amp;" });
     assert.doesNotMatch(html, /默认 "<\/button><script>&/u);
-    assert.deepEqual(homeStarts(html).map(start => start.id), ["goals", "pages", "lingguang"]);
-    assert.deepEqual(homeStarts(html)[0], { id: "goals", title: '起点 "</script>&', hint: '说明 " onmouseover="alert(1)', glyph: "target" });
-    assert.doesNotMatch(html, /起点 "<\/script>&/u);
+    assert.doesNotMatch(html, /data-home-starts|起点 "<\/script>&/u);
 
     const goalHtml = draw({ ...defaults, enabled_plugins: ["goals"] }, goalId);
     assert.deepEqual(creates(goalHtml), creates(html), "an explicitly shown Goal keeps the same declared titles and escaping");
-    assert.deepEqual(homeStarts(goalHtml), homeStarts(html));
     assert.doesNotMatch(goalHtml, /默认 "<\/button><script>&|起点 "<\/script>&/u);
 
     const empty = draw({ ...defaults, enabled_plugins: [] }, goalId);
     assert.deepEqual(creates(empty), []);
     assert.doesNotMatch(empty, /<[^>]+\b(?:data-work-surface="goals"|data-goal-inputs\b)/u);
-    assert.deepEqual(homeStarts(empty).map(start => start.id), ["pages", "lingguang"]);
   });
 });

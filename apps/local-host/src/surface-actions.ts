@@ -109,6 +109,7 @@ function homePorts(host: SurfaceHostPorts, homeDirectory: string, sample: Return
     acceptsEmptyInput: view => compileActionSchema(view.action.input_schema)({}) === true,
     hiddenAboveLabel: count => ({ owner: "workbench", key: "workbench.home.hidden-above", args: [{ name: "count", kind: "number", number: count }] }),
     ...(sample ? { formOnly: sample.formOnly } : {}),
+    ...(sample?.deadline ? { deadline: sample.deadline } : {}),
     retainCatalog: plugins => {
       const original = catalog;
       if (!original || original.plugins.length !== plugins.length || !plugins.every((plugin, index) => original.plugins[index] === plugin))

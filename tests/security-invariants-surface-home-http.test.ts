@@ -122,7 +122,7 @@ test("SCS-07 SCS-08 Catalog hiding, actual member removal and an actual failed s
   await json(await f.request(membership, { method: "POST", body: { plugin_id: "inbox" } }));
   await f.warm();
   const read = await f.read();
-  assert.equal(findCard(read, "io.molis.work.inbox")?.state, "undeclared");
+  assert.equal(findCard(read, "io.molis.work.inbox")?.state, "ok");
   assert.equal(findCard(read, "io.molis.work.todo")?.state, "undeclared");
   assert.notEqual(f.host.homePlugins?.installation(f.crashing.id)?.state, "running");
   assert.equal(findCard(read, f.crashing.id)?.state, "unreadable");

@@ -52,7 +52,7 @@ export function startDeadline(parent: AbortSignal | undefined) {
   };
 }
 
-interface ValueCandidate { subject: ActionSubject; object: PresentationObject; action: ActionView }
+interface ValueCandidate { subject: ActionSubject; fields: readonly string[]; action: ActionView }
 interface Batch { action: ActionView; subjects: ActionSubject[]; fields: Set<string> }
 interface ValueAnswer { item?: PresentationValueItem; denied?: true }
 
@@ -62,7 +62,7 @@ function makeBatches(candidates: readonly ValueCandidate[]): Batch[] {
     const key = viewKey(candidate.action);
     let batches = byAction.get(key);
     if (!batches) { batches = []; byAction.set(key, batches); }
-    const fields = candidate.object.fields.filter(field => field.role === "status" || field.role === "relation").map(field => field.key);
+    const { fields } = candidate;
     let batch = batches.find(group => group.subjects.length < PRESENTATION_LIMITS.values_subjects
       && new Set([...group.fields, ...fields]).size <= PRESENTATION_LIMITS.fields);
     if (!batch) {
@@ -75,7 +75,13 @@ function makeBatches(candidates: readonly ValueCandidate[]): Batch[] {
   return [...byAction.values()].flat();
 }
 
-export async function readRuleValues(candidates: readonly ValueCandidate[], ports: SurfaceComposePorts, deadline: ReturnType<typeof startDeadline>, current: () => void) {
+export function readRuleValues(candidates: readonly (Omit<ValueCandidate, "fields"> & { object: PresentationObject })[],
+  ports: SurfaceComposePorts, deadline: ReturnType<typeof startDeadline>, current: () => void) {
+  return readSurfaceValues(candidates.map(({ subject, action, object }) => ({ subject, action,
+    fields: object.fields.filter(field => field.role === "status" || field.role === "relation").map(field => field.key) })), ports, deadline, current);
+}
+
+export async function readSurfaceValues(candidates: readonly ValueCandidate[], ports: Pick<SurfaceComposePorts, "values" | "diagnostic">, deadline: ReturnType<typeof startDeadline>, current: () => void) {
   const batches = makeBatches(candidates).map(({ action, subjects, fields }) => ({ action, input: { subjects, fields: [...fields].sort() } satisfies PresentationValuesInput }));
   const answers = new Map<string, ValueAnswer>();
   await deadline.read(batches, current, ({ action, input }, signal) => ports.values(action, input, signal, current), ({ action, input }, result) => {

@@ -1,3 +1,4 @@
+import { cutWithEllipsis } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import type { AgentCommandOutput, AgentReviewReceipt, AgentReviewRequest, AgentRunView, AgentSubagentView } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 /**
@@ -36,7 +37,7 @@ interface ContinuationInput {
 }
 
 const shell = (command: string, args: readonly string[]) => [command, ...args].join(" ");
-const clip = (text: string, size: number) => text.length > size ? text.slice(0, size) + "…" : text;
+const clip = (text: string, size: number) => cutWithEllipsis(text, size, { prefixLength: size });
 
 /** A round that started from the digest of earlier rounds carries it ahead of its own request. */
 export const HISTORY_DIGEST_MARKER = "【前面的对话摘要】";

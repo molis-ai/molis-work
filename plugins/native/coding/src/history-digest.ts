@@ -1,3 +1,4 @@
+import { cutWithEllipsis } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import type { AgentDraftTextResult, AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { HISTORY_DIGEST_MARKER, HISTORY_DIGEST_TASK_HEAD, originalTask } from "./continuation.js";
 
@@ -31,7 +32,7 @@ const PHASE: Record<string, string> = { completed: "已完成", failed: "出错�
 
 const clip = (text: string, size: number) => {
   const flat = text.trim();
-  return flat.length > size ? flat.slice(0, size) + "…" : flat;
+  return cutWithEllipsis(flat, size, { prefixLength: size });
 };
 const changedFiles = (run: AgentRunView) =>
   [...new Set(run.activity.filter(item => ["edit", "write"].includes(item.name) && item.state === "completed" && item.target).map(item => item.target!))];

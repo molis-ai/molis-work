@@ -1,3 +1,4 @@
+import { cutWithEllipsis } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { CONTINUATION_MARKER } from "../../continuation.js";
 import { errorMessage } from "../dom.js";
 import { ownTask } from "./helpers.js";
@@ -25,7 +26,7 @@ function ruleDraft(page: Page, run: RunView): string {
   const { L } = page, asked = requestOf(run).trim().split("\n")[0]!.replace(/^#+\s*/, ""), answer = [...run.turns].reverse().find(turn => turn.kind === "assistant")?.text || "";
   const points = answer.split("\n").map(line => line.replace(/^[#>*\-\s\d.、]+/, "").replace(/[*`]/g, "").trim()).filter(line => line.length > 4).slice(0, 5);
   const files = [...new Set(run.activity.filter(item => ["edit", "write"].includes(item.name) && item.state === "completed" && item.target).map(item => item.target))];
-  const title = asked.length > 72 ? asked.slice(0, 70) + "…" : asked;
+  const title = cutWithEllipsis(asked, 72, { prefixLength: 70 });
   return [title, "", ...points.map(point => "- " + point), "", L("coding.commit.files"), ...files.map(file => "- " + file)].join("\n").trim();
 }
 

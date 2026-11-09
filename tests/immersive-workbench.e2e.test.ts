@@ -1,3 +1,4 @@
+import { projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { DEMO_PROJECT_ID, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
@@ -136,7 +137,7 @@ test("Bundled market adds to the selected project and Artifact versions stay in 
     const before = await membership(project_id);
     assert.equal(before.includes("artifacts"), false);
     for (const operation of ["post", "delete"] as const) {
-      await assert.rejects(browser.web[operation](`/api/settings/projects/${project_id}/plugins`, { plugin_id: "artifacts" }),
+      await assert.rejects(browser.web[operation](`/api/settings/projects/${project_id}/plugins`, { plugin_id: "artifacts", expected_revision: await projectPluginRevision(browser.web, project_id) }),
         (error: unknown) => error instanceof Error && "code" in error && error.code === "catalog.plugin_not_found");
     }
     assert.deepEqual(await membership(project_id), before, "rejected platform membership operations do not change members");

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { BUILTIN_PLUGIN_REGISTRY, PERSONAL_PLUGIN_IDS, PLATFORM_PLUGIN_REGISTRATIONS, builtinMarketDirectory, runningPluginDirectory, type DirectorySource } from "@molis-ai/molis-work-app-local-host";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
+import { projectPluginRevisionAt } from "./fixtures/project-plugin-settings.js";
 
 // W5-02 B1 (specs/archive/repository-anti-corruption/slices/w5-02-registry.md §3.0 Q3): which built-in is personal, which one is 常开 and what
 // a plugin brings along are the Host's facts. It writes them on the directory the page is drawn with, from its own registration; the
@@ -39,24 +40,31 @@ test("RAC-711 a running plugin gets the marks only when it is the built-in itsel
   assert.deepEqual([impostor!.id, impostor!.chosen, "personal" in impostor!], [pages.manifest.plugin_id, false, false]);
 });
 
-test("RAC-710 marks a page sends back are not read: adding still brings what the registration says, a personal plugin is still hidden, a 常开 one still stays", { timeout: 60_000 }, async t => {
-  const { request, project } = await serveHomeRuntime(t), here = await project("页面改过的标记");
+test("RAC-710 forged marks are refused: honest changes still bring companions, hide personal plugins and leave always-on plugins in place", { timeout: 60_000 }, async t => {
+  const { origin, request, project } = await serveHomeRuntime(t), here = await project("页面改过的标记");
   const plugins = `/api/settings/projects/${encodeURIComponent(here.project_id)}/plugins`;
+  const revision = () => projectPluginRevisionAt(origin, here.project_id);
+  const change = async (method: "POST" | "DELETE", plugin_id: string, forged: object) => {
+    const expected_revision = await revision();
+    const body = { plugin_id, expected_revision };
+    const refused = await request(plugins, { method, body: { ...body, ...forged } });
+    assert.equal(refused.status, 400);
+    assert.equal((await refused.json()).code, "actions.input_invalid");
+    assert.equal(await revision(), expected_revision, "the false marks cannot change membership");
+    return request(plugins, { method, body });
+  };
 
-  // The page claims Text Stats is personal and brings nothing along; the Host adds Files with it, as its registration says.
-  const added = await request(plugins, { method: "POST", body: { plugin_id: "text-stats", personal: true, companions: [] } });
+  const added = await change("POST", "text-stats", { personal: true, companions: [] });
   assert.equal(added.status, 200);
   const membership = await added.json() as { plugins: string[]; hidden: string[] };
   assert.ok(membership.plugins.includes("text-stats") && membership.plugins.includes("files"), "Files comes along whatever the page says");
   assert.deepEqual(membership.hidden, []);
 
-  // The page claims Pages is not personal; removing it still hides the personal plugin in this project instead of dropping a choice.
-  const removed = await request(plugins, { method: "DELETE", body: { plugin_id: "pages", personal: false } });
+  const removed = await change("DELETE", "pages", { personal: false });
   assert.equal(removed.status, 200);
   assert.ok((await removed.json() as { hidden: string[] }).hidden.includes("pages"));
 
-  // The page claims Goals is not 常开; the Host refuses to remove it all the same.
-  const kept = await request(plugins, { method: "DELETE", body: { plugin_id: "goals", always_on: false } });
+  const kept = await change("DELETE", "goals", { always_on: false });
   assert.notEqual(kept.status, 200);
   assert.equal((await kept.json() as { code?: string }).code, "catalog.plugin_always_on");
 });

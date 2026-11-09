@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { WebSettingsProject } from "@molis-ai/molis-work-app-workbench";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
-import { projectCatalogErrors } from "@molis-ai/molis-work-contracts/modules/projects";
+import { projectCatalogErrors, type SetProjectPluginInput, type VersionedProjectPluginMembership } from "@molis-ai/molis-work-contracts/modules/projects";
 import { type MolisWorkProjectCatalog, type MolisWorkProjectCatalogOptions } from "./project-catalog.js";
 import { sendLocalWebJson as sendJson, readLocalWebBody as readBody } from "./web-http.js";
 import { settingsProject, installationDiagnostics } from "./web-project-presentation.js";
@@ -12,8 +12,11 @@ import type { ProjectDeletionPorts } from "./project-deletion-service.js";
 import { hostLog } from "./host-log.js";
 import { projectPluginMembershipForPage } from "./web-home-plugin-recovery.js";
 import type { WebServerOptions } from "./web-types.js";
+import { captureWebSessionAuthority } from "./web-sessions.js";
+import { hostErrors } from "./host-errors.js";
 
 export type LocalWebCatalogRunner = <T>(options: MolisWorkProjectCatalogOptions, operation: (catalog: MolisWorkProjectCatalog) => T | Promise<T>) => Promise<T>;
+export type SetProjectPluginFromWeb = (projectId: string, input: SetProjectPluginInput, signal: AbortSignal, sessionCurrent: () => void) => Promise<VersionedProjectPluginMembership>;
 
 async function renameProjectFromHttp(request: IncomingMessage, response: ServerResponse, projectId: string, homeDirectory: string | undefined, withCatalog: LocalWebCatalogRunner): Promise<void> {
   const body = await readBody(request);
@@ -43,8 +46,8 @@ export function createLocalProjectSettingsHttp(withMolisWorkProjectCatalog: Loca
 
   /** `demoSamples` puts the demo's samples in Home plugins back through their own actions once the demo is made or rebuilt. */
   async function handle(request: IncomingMessage, response: ServerResponse, url: URL, homeDirectory: string | undefined, projectCount: number, deletionPorts: ProjectDeletionPorts,
-    pluginsChanged?: (projectId: string) => Promise<void>, demoSamples?: () => Promise<void>): Promise<boolean> {
-    if (await handlePluginSettings(withMolisWorkProjectCatalog, request, response, url, homeDirectory, pluginsChanged)) return true;
+    setProjectPlugin: SetProjectPluginFromWeb, demoSamples?: () => Promise<void>): Promise<boolean> {
+    if (await handlePluginSettings(withMolisWorkProjectCatalog, request, response, url, homeDirectory, setProjectPlugin)) return true;
     if (request.method === "GET" && url.pathname === "/api/settings/projects") {
       sendJson(response, 200, { projects: await settingsProjects(homeDirectory) });
       return true;
@@ -123,63 +126,40 @@ export function createLocalProjectSettingsHttp(withMolisWorkProjectCatalog: Loca
   return { handle, settingsProjects };
 }
 
-async function handlePluginSettings(withMolisWorkProjectCatalog: LocalWebCatalogRunner, request: IncomingMessage, response: ServerResponse, url: URL, homeDirectory: string | undefined, pluginsChanged?: (projectId: string) => Promise<void>): Promise<boolean> {
-    if (request.method === "GET" && url.pathname === "/api/settings/project-plugins") {
-      const projects = await withMolisWorkProjectCatalog({ homeDirectory }, catalog => catalog.listProjects().map(project => ({
-        project_id: project.project_id, display_name: project.display_name,
-        ...projectPluginMembershipForPage(catalog, project.project_id),
-      })));
-      const unavailable = projects.find(project => "unavailable" in project)?.unavailable;
-      const failure = unavailable ? actionErrorResponse(new ActionError("actions.execution_failed", unavailable, { kind: "unavailable" })) : null;
-      sendJson(response, failure?.status ?? 200, { projects, ...failure?.body });
-      return true;
+async function handlePluginSettings(withMolisWorkProjectCatalog: LocalWebCatalogRunner, request: IncomingMessage, response: ServerResponse, url: URL, homeDirectory: string | undefined, setProjectPlugin: SetProjectPluginFromWeb): Promise<boolean> {
+  if (request.method === "GET" && url.pathname === "/api/settings/project-plugins") {
+    const projects = await withMolisWorkProjectCatalog({ homeDirectory }, catalog => catalog.listProjects().map(project => ({
+      project_id: project.project_id, display_name: project.display_name,
+      ...projectPluginMembershipForPage(catalog, project.project_id),
+    })));
+    const unavailable = projects.find(project => "unavailable" in project)?.unavailable;
+    const failure = unavailable ? actionErrorResponse(new ActionError("actions.execution_failed", unavailable, { kind: "unavailable" })) : null;
+    sendJson(response, failure?.status ?? 200, { projects, ...failure?.body });
+    return true;
+  }
+  const pluginMatch = url.pathname.match(/^\/api\/settings\/projects\/([^/]+)\/plugins$/);
+  if (!pluginMatch || (request.method !== "POST" && request.method !== "DELETE")) return false;
+  const sessionCurrent = captureWebSessionAuthority();
+  const abort = new AbortController();
+  const disconnected = () => { if (!response.writableFinished) abort.abort(new ActionError("actions.cancelled", "调用连接已断开")); };
+  response.once("close", disconnected);
+  try {
+    if (response.destroyed) disconnected();
+    sessionCurrent();
+    abort.signal.throwIfAborted();
+    const body = await readBody(request);
+    const pluginId = typeof body?.plugin_id === "string" ? body.plugin_id.trim() : "";
+    if (!pluginId || typeof body.expected_revision !== "string" || Object.keys(body).some(key => key !== "plugin_id" && key !== "expected_revision")) {
+      throw new ActionError("actions.input_invalid", "项目插件成员请求无效");
     }
-    const pluginMatch = url.pathname.match(/^\/api\/settings\/projects\/([^/]+)\/plugins$/);
-    if (request.method === "POST" && pluginMatch) {
-      const body = await readBody(request);
-      // Which Plugins exist is a Module fact; HTTP only checks the wire shape and
-      // lets the registry reject an unknown id with its own reason.
-      const pluginId = typeof body.plugin_id === "string" ? body.plugin_id.trim() : "";
-      if (pluginId === "") {
-        sendJson(response, 400, { error: L("找不到这个内置插件") });
-        return true;
-      }
-      try {
-        const projectId = decodeURIComponent(pluginMatch[1]);
-        const membership = await withMolisWorkProjectCatalog({ homeDirectory }, async catalog => {
-          const plugins = await catalog.commit(() => catalog.addProjectPlugin({
-            project_id: projectId, plugin_id: pluginId, actor_id: LOCAL_PERSON_ACTOR_ID,
-          }));
-          const current = catalog.projectPluginMembership(projectId);
-          return { plugins, hidden: current.hidden };
-        });
-        await pluginsChanged?.(projectId);
-        sendJson(response, 200, { project_id: projectId, ...membership });
-      } catch (error) {
-        const failure = actionErrorResponse(error);
-        sendJson(response, failure.status, failure.body);
-      }
-      return true;
-    }
-    if (request.method === "DELETE" && pluginMatch) {
-      const body = await readBody(request);
-      const pluginId = typeof body.plugin_id === "string" ? body.plugin_id.trim() : "";
-      if (pluginId === "") {
-        sendJson(response, 400, { error: L("找不到这个内置插件") });
-        return true;
-      }
-      try {
-        const projectId = decodeURIComponent(pluginMatch[1]);
-        const membership = await withMolisWorkProjectCatalog({ homeDirectory }, catalog => catalog.commit(() => catalog.removeProjectPlugin({
-          project_id: projectId, plugin_id: pluginId, actor_id: LOCAL_PERSON_ACTOR_ID,
-        })));
-        await pluginsChanged?.(projectId);
-        sendJson(response, 200, { project_id: projectId, ...membership });
-      } catch (error) {
-        const failure = actionErrorResponse(error);
-        sendJson(response, failure.status, failure.body);
-      }
-      return true;
-    }
-  return false;
+    let projectId: string;
+    try { projectId = decodeURIComponent(pluginMatch[1]); }
+    catch { throw hostErrors.request_path_invalid("项目地址无效"); }
+    const membership = await setProjectPlugin(projectId, { plugin_id: pluginId, enabled: request.method === "POST", expected_revision: body.expected_revision }, abort.signal, sessionCurrent);
+    sendJson(response, 200, { project_id: projectId, ...membership });
+  } catch (error) {
+    const failure = actionErrorResponse(error, { translate: L });
+    sendJson(response, failure.status, failure.body);
+  } finally { response.off("close", disconnected); }
+  return true;
 }

@@ -1,35 +1,7 @@
-import { baselineToken } from "../baseline.js";
 import { WORKBENCH, SHELL, ASSIST, RAIL_LINK, PAGES } from "./craft-finish-selectors.js";
 
 /** The finish layer, first part: tokens, the desk and sheet, titlebar tabs, the plugin rail and the bottom bar down to the switcher and the work tabs. */
 export const CRAFT_BAR_STYLES = `
-  /* ─── Tokens ─── */
-  :root,
-  ${PAGES} {
-    ${baselineToken(["r-tag", "r-row", "r-control", "r-card", "r-sheet", "r-dialog", "r-composer"])}
-    ${baselineToken("sheet-inset")}
-    --desk: var(--page);
-    ${baselineToken("ease-quint")}
-    ${baselineToken("ease-spring")}
-    ${baselineToken("ease-swift")}
-    ${baselineToken(["dur-press", "dur-hover", "dur-move", "dur-arrive", "dur-moment", "code-tab"])}
-    /* Depth steps: a small raised piece (current tab, segment thumb, Dock item), a raised surface
-       (the composer, an inner sheet), and the one floating layer (menus, dialogs, toasts). */
-    --lift-1: var(--shadow-soft);
-    --lift-2: var(--shadow-raised);
-    --lift-3: var(--shadow);
-    ${baselineToken("sheet-shadow")}
-    ${baselineToken("press-shade")}
-    ${baselineToken(["tip-bg", "tip-ink"])}
-    ${baselineToken("celebrate-a")}
-    ${baselineToken("celebrate-b")}
-    ${baselineToken("celebrate-c")}
-  }
-  html[data-resolved-theme="dark"],
-  html[data-resolved-theme="dark"] ${PAGES} {
-    ${baselineToken("press-shade", "dark")}
-  }
-
   /* ─── Browser defaults: no system blue, purple or yellow anywhere (zero specificity, so any real rule wins) ─── */
   :where(${PAGES}) { accent-color: var(--action); caret-color: var(--ink); }
   :where(${PAGES}) ::selection { background: color-mix(in srgb, var(--accent) 22%, transparent); color: inherit; }

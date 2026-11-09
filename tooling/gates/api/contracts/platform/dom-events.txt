@@ -237,6 +237,13 @@ export declare const DOM_EVENTS: readonly [{
     readonly detail: "{ theme }";
     readonly summary: "The terminal colour theme changed; open terminals repaint.";
 }, {
+    readonly name: "molis-work:ui-environment-changed";
+    readonly kind: "announcement";
+    readonly owner: "appearance";
+    readonly on: "window";
+    readonly detail: "{ revision: string, changed: (\"skin\" | \"font\" | \"mono\")[] }";
+    readonly summary: "This document has rendered the prepared appearance; frames update and open terminals remeasure.";
+}, {
     readonly name: "molis-work:work-mode-changed";
     readonly kind: "announcement";
     readonly owner: "immersive-navigation";
@@ -536,6 +543,10 @@ export declare const PAGE_STATE_OWNERS: {
     readonly preferences: {
         readonly files: readonly ["packages/design-system/src/preferences.ts", "apps/workbench/src/browser/plugin-frame/child.ts"];
         readonly state: "The person's display preferences on this device: theme, density and terminal theme (localStorage molis-work:theme, molis-work:density, molis-work:terminal-theme).";
+    };
+    readonly appearance: {
+        readonly files: readonly ["apps/workbench/src/browser/appearance-view.ts"];
+        readonly state: "The effective Home appearance that this document has finished preparing and rendered.";
     };
     readonly shelf: {
         readonly files: readonly ["plugins/native/shelf/src/browser/document.ts", "plugins/native/shelf/src/browser/tui.ts", "plugins/native/shelf/src/browser/terminal.ts", "plugins/native/shelf/src/browser/settings/reload.ts"];

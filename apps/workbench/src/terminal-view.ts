@@ -3,6 +3,7 @@ import * as xtermFit from "@xterm/addon-fit";
 import xtermCss from "@xterm/xterm/css/xterm.css";
 import type { UiPageTerminal, UiTerminalMountOptions, UiTerminalView } from "@molis-ai/molis-work-contracts/platform/ui";
 import { terminalPalette } from "./terminal-theme.js";
+import { terminalTypography } from "./terminal-type.js";
 
 type Xterm = typeof import("@xterm/xterm");
 const { Terminal } = ((xterm as { default?: Xterm }).default ?? xterm) as Xterm;
@@ -18,8 +19,7 @@ export async function mountTerminalView(element: HTMLElement, options: UiTermina
   }
   const wrapper = document.createElement("div"); wrapper.className = "tui-xterm is-ready";
   wrapper.style.cssText = "width:100%;height:100%;min-height:0"; element.append(wrapper);
-  const term = new Terminal({ convertEol: false, fontSize: 13, lineHeight: 1.3, scrollback: 8000, macOptionIsMeta: true,
-    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, "Cascadia Mono", Consolas, "Liberation Mono", "Courier New", monospace',
+  const term = new Terminal({ convertEol: false, ...terminalTypography(wrapper), scrollback: 8000, macOptionIsMeta: true,
     cursorBlink: true, theme: terminalPalette() });
   const fitAddon = new FitAddon(); term.loadAddon(fitAddon); term.open(wrapper);
   let disposed = false, attached = false;
@@ -40,11 +40,14 @@ export async function mountTerminalView(element: HTMLElement, options: UiTermina
   };
   const observer = new ResizeObserver(fit); observer.observe(element);
   const theme = () => { term.options.theme = terminalPalette(); };
+  const appearance = () => { Object.assign(term.options, terminalTypography(wrapper)); fit(); };
   window.addEventListener("molis-work:terminal-theme-change", theme);
+  window.addEventListener("molis-work:ui-environment-changed", appearance);
   const dispose = () => {
     if (disposed) return; disposed = true;
     observer.disconnect(); unlisten(); input.dispose();
-    window.removeEventListener("molis-work:terminal-theme-change", theme); term.dispose(); wrapper.remove();
+    window.removeEventListener("molis-work:terminal-theme-change", theme);
+    window.removeEventListener("molis-work:ui-environment-changed", appearance); term.dispose(); wrapper.remove();
   };
   try { fit(); await connection.send({ type: "attach", panelId: options.panelId, cols: term.cols, rows: term.rows }); attached = true; }
   catch (error) { dispose(); throw error; }

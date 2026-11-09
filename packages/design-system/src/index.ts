@@ -1,13 +1,12 @@
 export { STATE_RING_CLIENT_SCRIPT } from "./state-ring-client.js";
 export { STATE_RING_STYLES } from "./styles/state-ring.js";
-export { SKIN_STYLES } from "./styles/skins.js";
 
 export {
   MOLIS_WORK_DENSITY_STORAGE_KEY,
-  MOLIS_WORK_SKIN_STORAGE_KEY,
   MOLIS_WORK_TERMINAL_THEME_STORAGE_KEY,
   MOLIS_WORK_THEME_STORAGE_KEY,
   THEME_BOOTSTRAP_SCRIPT,
+  DEVICE_PREFERENCES_CLIENT_SCRIPT,
   VISUAL_FOUNDATION_CLIENT_SCRIPT,
   VISUAL_FOUNDATION_STYLES,
   VISUAL_FOUNDATION_PAGE_STYLES,
@@ -20,7 +19,6 @@ export {
   CRAFT_FINISH_STYLES,
   CRAFT_FINISH_CLIENT_SCRIPT,
   type MolisWorkDensity,
-  type MolisWorkSkin,
   type MolisWorkTerminalTheme,
   type MolisWorkTheme,
 } from "./visual-foundation.js";
@@ -70,6 +68,10 @@ export {
   type MwHueId,
 } from "./palette.js";
 export { BASELINE_FONT, BASELINE_REGISTRY, BASELINE_SKIN, BASELINE_SPEC, baselinePackageFile } from "./baseline.js";
+export { renderSkinScope, renderFontScope, renderMonoScope } from "./appearance-tokens.js";
+export { renderLookCard, renderLookGroup, renderLookProof } from "./primitives/catalog-appearance.js";
+export { APPEARANCE_PARTS_STYLES } from "./primitives/catalog-appearance-styles.js";
+export { LOOK_FADE_CLIENT_SCRIPT } from "./look-fade.js";
 export * from "./primitives/index.js";
 export * from './plugin-components.js';
 export * from './plugin-component-client.js';

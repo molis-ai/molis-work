@@ -399,6 +399,13 @@ export type TextRef = {
     readonly literal: string;
 };
 
+export declare const UI_COMPONENT_VALUES: {
+    readonly groups: readonly ["版面", "展示", "录入", "操作", "浮层", "反馈"];
+    readonly uses: readonly ["part", "inside", "catalog"];
+    readonly intents: readonly ["heading", "description", "input", "action", "collection", "reading", "conversation", "evidence", "schedule", "feedback"];
+    readonly data: readonly ["none", "value", "array"];
+};
+
 export declare const UI_CONNECTION_NEED_REASON_MAX = 80;
 
 export declare const UI_FILE_LIMITS: {
@@ -420,7 +427,12 @@ export declare const UI_FILE_PATTERNS: {
     readonly route: RegExp;
 };
 
-export declare const UI_FONT_ROLE_NAMES: readonly ["body", "control", "title", "display", "code"];
+export declare const UI_FONT_METRICS: {
+    readonly size_px: readonly [10, 64];
+    readonly line_height: readonly [1, 3];
+};
+
+export declare const UI_FONT_ROLE_NAMES: readonly ["body", "control", "title", "display", "reading", "note", "code"];
 
 export declare const UI_FORMAT_VERSIONS: {
     readonly spec: 1;
@@ -537,6 +549,20 @@ export interface UiClientScope extends UiRequestScope {
 }
 
 export type UiClientTranslate = (key: string, values?: Record<string, string | number>) => string;
+
+export type UiComponentIntent = (typeof UI_COMPONENT_VALUES.intents)[number];
+
+export interface UiComponentSpec {
+    readonly kind: string;
+    readonly catalog: string;
+    readonly name: TextRef;
+    readonly description: TextRef;
+    readonly group: (typeof UI_COMPONENT_VALUES.groups)[number];
+    readonly use: (typeof UI_COMPONENT_VALUES.uses)[number];
+    readonly intents: readonly UiComponentIntent[];
+    readonly data: (typeof UI_COMPONENT_VALUES.data)[number];
+    readonly icon: string;
+}
 
 export type UiConnectionNeedOutcome = {
     readonly status: "connected";
@@ -678,6 +704,8 @@ export interface UiFontRole {
     readonly families?: readonly UiFontFamily[];
     readonly weight?: number;
     readonly tracking_em?: number;
+    readonly size_px?: number;
+    readonly line_height?: number;
 }
 
 export type UiFontRoleName = (typeof UI_FONT_ROLE_NAMES)[number];
@@ -688,6 +716,8 @@ export interface UiFontRoleSpec {
         readonly family?: string;
         readonly weight?: string;
         readonly tracking?: string;
+        readonly size?: string;
+        readonly line_height?: string;
     };
 }
 
@@ -1084,6 +1114,7 @@ export interface UiSpecFile {
     readonly baseline_font: UiDefinitionRef;
     readonly groups: readonly UiTokenGroup[];
     readonly font_roles: readonly UiFontRoleSpec[];
+    readonly components: readonly UiComponentSpec[];
 }
 
 export interface UiStageDataDeclaration {

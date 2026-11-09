@@ -83,23 +83,25 @@ function cookieValue(header: string | undefined, name: string): string | undefin
   return undefined;
 }
 
-function resolveWebLocale(
+function resolveWebLocaleChoice(
   cookieHeader?: string | string[] | null,
   acceptLanguage?: string | string[] | null,
-): WebLocale {
+): { tag: WebLocale; source: "explicit" | "system" | "default" } {
   const cookie = Array.isArray(cookieHeader) ? cookieHeader.join("; ") : cookieHeader;
   const fromCookie = cookieValue(cookie ?? undefined, LOCALE_COOKIE);
-  if (isWebLocale(fromCookie)) return fromCookie;
+  if (isWebLocale(fromCookie)) return { tag: fromCookie, source: "explicit" };
 
   const accept = Array.isArray(acceptLanguage) ? acceptLanguage.join(",") : acceptLanguage;
   for (const part of String(accept ?? "").split(",")) {
     const tag = part.split(";")[0]?.trim().toLowerCase();
     if (!tag) continue;
-    if (tag === "en" || tag.startsWith("en-")) return "en";
-    if (tag === "zh" || tag.startsWith("zh-")) return "zh";
+    if (tag === "en" || tag.startsWith("en-")) return { tag: "en", source: "system" };
+    if (tag === "zh" || tag.startsWith("zh-")) return { tag: "zh", source: "system" };
   }
-  return "zh";
+  return { tag: "zh", source: "default" };
 }
+
+const resolveWebLocale = (...args: Parameters<typeof resolveWebLocaleChoice>): WebLocale => resolveWebLocaleChoice(...args).tag;
 
 function safeNextPath(raw: string | null | undefined): string {
   if (!raw) return "/";
@@ -175,5 +177,5 @@ function escapeAttr(value: string): string {
     .replaceAll('"', "&quot;");
 }
 
-  return { currentLocale, isWebLocale, htmlLang, dateTimeLocale, listJoin, resolveWebLocale, safeNextPath, localeSetCookie, localeSwitchHref, L, renderLocaleSwitch, englishCatalogJson, clientI18nScript };
+  return { currentLocale, isWebLocale, htmlLang, dateTimeLocale, listJoin, resolveWebLocale, resolveWebLocaleChoice, safeNextPath, localeSetCookie, localeSwitchHref, L, renderLocaleSwitch, englishCatalogJson, clientI18nScript };
 }

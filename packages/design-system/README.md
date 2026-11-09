@@ -40,7 +40,7 @@ AI 交互部件（`renderInteractionQuestion`、`renderInteractionOperation`、`
 | --- | --- |
 | [src/primitives/](src/primitives) | HTML helper：按钮、字段、浮层、导航、布局、目录、日历、Catalog |
 | [src/styles/primitives.ts](src/styles/primitives.ts) | `mw-*` CSS |
-| [resources/](resources) | token 的唯一来源，共 4 个 JSON：[ui-spec.json](resources/ui-spec.json)（角色全集、类型、`follows`、`alias_of`、不可定制的 `locked` 值）、[skins/soft-workbench.json](resources/skins/soft-workbench.json)（颜色、阴影、圆角、动效节奏）、[fonts/system-sans.json](resources/fonts/system-sans.json)（字族、字重、字距、`@font-face`）、[registry.json](resources/registry.json)（随产品发行的文件：路径、加载时机、路由；字体带 sha256 和许可）。改一个值只改这里 |
+| [resources/](resources) | token 的唯一来源。[ui-spec.json](resources/ui-spec.json) 声明角色、约束和组件元数据。[skins/](resources/skins) 定义 Soft Workbench 和 Folio 的颜色、阴影、圆角与动效。[fonts/](resources/fonts) 定义字族、字重、字号、字距、行高与 `@font-face`。[registry.json](resources/registry.json) 登记发行路径和加载时机，字体还登记摘要与许可。 |
 | [src/baseline.ts](src/baseline.ts) | 模块初始化读这 4 个文件，走 SDK `/ui` 的解析器，错了抛 `ui.baseline_invalid`（带文件和字段）；导出解析好的基线（`BASELINE_SKIN`、`BASELINE_FONT`、`BASELINE_SPEC`、`BASELINE_REGISTRY`）和写回 CSS 文字的 `baselineToken` 等。读文件，不进浏览器打包 |
 | [src/palette.ts](src/palette.ts) | 把基线写回 CSS 文字：`renderShellTokens(theme)`（面、字色、状态、阴影、遮罩）、`renderShapeTokens()`（圆角、焦点、动效、图标尺寸）、`renderControlMetrics()`（控件高度，只在早层声明）；14 色相与插件表只留 `id`、`label`、`role` 给组件板，不存值 |
 | [src/icons.ts](src/icons.ts) | 导航、动作、对象的 Lucide 库与 sprite；status-* 转到共享环刻 |
@@ -62,7 +62,7 @@ AI 交互部件（`renderInteractionQuestion`、`renderInteractionOperation`、`
 
 视觉规范见 [DESIGN.md](../../DESIGN.md)（Soft Workbench）。这里只列最容易写错的：
 
-- 栈保持 HTML Slot。不引入 Coss/shadcn 包，不做可切换皮肤。新控件用 `render*` / `mw-*`，不要再发明 `.button-primary`、`document-action`、`text-button` 这类填充。
+- 栈保持 HTML Slot。新控件用 `render*` / `mw-*`，随共用令牌适应 Soft Workbench 与 Folio。
 - **token 只从基线文件来（`resources/`，经 `src/baseline.ts`）。** 组件规则里不写 hex，不在后面的层重新声明同名 token 换个数，不用 `!important` 或按插件覆盖去"压"前面的规则——改源头。后层绑的别名（`--desk`、`--lift-1/2/3`）留在结构样式里，规格标 `alias_of`，非基线皮肤写它会被拒。
 - **面：** 桌面 `--desk`（=`--page`、`--nav-bg`）承载标题栏和底栏；工作都在一张连续白色纸面 `--paper` 上（14px 圆角、`--sheet-shadow`）；插件目录列和内部块用 `--surface-soft`；局部分组、只读字段、次按钮静止态用 `--rail`。插件不要在纸面里再画外框卡片。
 - **色：** 石墨 `--action` 只给主操作和选中的选项；铜色 `--accent` 给焦点、链接、进行中和选中的小细节（`--blue*` / `--focus` 已指向铜色）。铜色不填按钮。其余颜色只表达状态（`--green` / `--amber` / `--red`）。插件没有身份色：画插件的地方 `--plugin-tint` 一律是 `--ink-soft`，规则不点任何插件的名字；标签条上一组的颜色是 Manifest 视图的 `hue`。选中行用 `--nav-active`，不加左侧色条。

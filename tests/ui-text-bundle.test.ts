@@ -39,6 +39,7 @@ const SPEC: UiSpecFile = {
   format_version: UI_FORMAT_VERSIONS.spec, id: "molis-interface", revision: 1, baseline_skin: { id: "soft-workbench", revision: 1 }, baseline_font: { id: "system-sans", revision: 1 },
   groups: [{ group: "shell", roles: [{ name: "page", type: "color", varies_by: "theme" }, { name: "nav-bg", type: "color", varies_by: "theme", follows: "page" }, { name: "shadow", type: "shadow", varies_by: "none" }] }],
   font_roles: [],
+  components: [],
 };
 const SKIN: UiSkinFile = {
   format_version: UI_FORMAT_VERSIONS.skin, id: "soft-workbench", revision: 1, spec: { id: "molis-interface", revision: 1 }, name: { literal: "Soft" }, recommended_font: { id: "system-sans", revision: 1 },

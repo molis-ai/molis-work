@@ -1,10 +1,15 @@
 import { ActionError, bindActionHandler, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
-import { APPEARANCE_PROVIDER_ID, appearanceSelectionActions } from "@molis-ai/molis-work-contracts/platform/ui";
+import { APPEARANCE_PROVIDER_ID, appearanceSelectionActions, type UiAppearanceSelection } from "@molis-ai/molis-work-contracts/platform/ui";
+import { builtinAppearance } from "./builtins.js";
 import { createLocaleMemory, type AppearanceLocaleOptions } from "./locale-memory.js";
 import { createSelection } from "./selection.js";
 
 export { UI_LOCALE_RELATIVE_PATH, type AppearanceLocaleOptions } from "./locale-memory.js";
 export { APPEARANCE_STATE_FILE, APPEARANCE_STATE_PATH } from "./state.js";
+
+/** The checked installation supplies the same definitions to the resource endpoint and to each Home. */
+export const installedAppearance = (selection: UiAppearanceSelection) => builtinAppearance().resolve(selection).appearance;
+export const installedAppearanceChoices = () => builtinAppearance().builtins;
 
 export interface AppearanceOptions<Locale extends string> {
   readonly locale: AppearanceLocaleOptions<Locale>;
@@ -30,7 +35,9 @@ export function createAppearanceOwner<Locale extends string>(home: string, optio
       lastUsed: () => locale.lastUsed(),
       remember: (value: unknown) => { if (open) locale.remember(value); },
     },
+    current: selection.current,
     snapshot: selection.snapshot,
+    preview: selection.preview,
     subscribe(listener: (revision: number) => void): () => void {
       assertOpen();
       listeners.add(listener);

@@ -8,6 +8,8 @@
     "control": {},
     "title": {},
     "display": {},
+    "reading": {},
+    "note": {},
     "code": {
       "families": [
         {"system": "Menlo"},

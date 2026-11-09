@@ -25,6 +25,7 @@ import { renderPluginRail, renderWorkbenchBar, renderWorkspaceChrome } from "./i
 import { renderPersonalMenuItems } from "./settings-directory.js";
 import { builtinPluginDirectory, pluginTabGlyphs } from "./plugin-catalog.js";
 import { ARTIFACT_NAVIGATION } from "./artifacts/navigation.js";
+import { appearanceHead, type WorkbenchAppearance } from "./appearance-document.js";
 
 /**
  * The specimen project's plugins, a fixed sample (a development tool, W5-02 B1): the Dock's default pins and the person's plugins
@@ -204,7 +205,7 @@ const BOARD_PAGE_STYLES = "body.mw-catalog-page .mw-catalog{position:relative;co
  * plugin-row sections are written through it and their frames start in it (the older sections are Chinese only). `environment` is the
  * 语言与文字 section (`renderEnvironmentSection`), drawn by the Host, which has the language scopes its two renders need; without it the board has none.
  */
-export function renderMolisWorkPrimitiveCatalog(say: (text: string, values?: Record<string, string | number>) => string = (text) => text, lang: "zh" | "en" = "zh", environment = ""): string {
+export function renderMolisWorkPrimitiveCatalog(say: (text: string, values?: Record<string, string | number>) => string = (text) => text, lang: "zh" | "en" = "zh", environment = "", appearance?: WorkbenchAppearance): string {
   const languages = renderToggleGroup({
     label: say("界面语言"),
     items: [["zh", "中文"], ["en", "English"]].map(([value, label]) => ({ value: value!, label: label!, current: value === lang, attrs: { "data-board-lang": value! } })),
@@ -217,14 +218,6 @@ export function renderMolisWorkPrimitiveCatalog(say: (text: string, values?: Rec
       { value: "system", label: "系统", current: true, attrs: { "data-theme-option": "system" } },
     ],
   });
-  const skins = renderToggleGroup({
-    label: "皮肤",
-    items: [
-      { value: "soft", label: "默认", current: true, attrs: { "data-skin-option": "soft" } },
-      { value: "tray", label: "托盘", attrs: { "data-skin-option": "tray" } },
-      { value: "pill", label: "圆润", attrs: { "data-skin-option": "pill" } },
-    ],
-  });
   const catalog = renderPrimitiveCatalog({ plugins: iconInventoryPlugins(), say })
     .replace("</nav>", `<a href="#foundation" title="视觉机制">视觉机制</a><a href="#conditions" title="${say("条件与状态")}">${say("条件与状态")}</a><a href="#assistant" title="${say("助理信息与任务")}">${say("助理信息与任务")}</a><a href="#plugin-rows" title="${say("插件行视图")}">${say("插件行视图")}</a><a href="#service-connections" title="${say("服务连接")}">${say("服务连接")}</a><a href="#return-trips" title="${say("回到原处")}">${say("回到原处")}</a><a href="#platform-area" title="${say("平台区域")}">${say("平台区域")}</a><a href="#connection-need" title="${say("原处的连接卡 · 平台区域版")}">${say("原处的连接卡 · 平台区域版")}</a><a href="#bar" title="底栏与浮层">底栏与浮层</a><a href="#collab" title="${say("协作零件")}">${say("协作零件")}</a><a href="#navigation" title="${say("工作台导航")}">${say("工作台导航")}</a>${environment ? `<a href="#environment" title="${t("workbench.env.title")}">${t("workbench.env.title")}</a>` : ""}</nav>`)
     .replace("\n  </div>\n  <script>", `\n    ${renderFoundationSection()}\n    ${renderConditionsSection(say, lang)}\n    ${renderAssistantBoardSection(say, lang)}\n    ${renderPluginRowsSection(say, lang)}\n    ${renderServiceConnectionSection(say)}\n    ${renderReturnTripSection(say)}\n    ${renderPlatformAreaSection(say, lang)}\n    ${renderConnectionNeedSection(say)}\n    ${renderBarSection()}\n    ${renderCollabSection(say)}\n    ${renderNavigationSection(say, lang)}\n    ${environment}\n  </div>\n  <script>`);
@@ -235,14 +228,14 @@ export function renderMolisWorkPrimitiveCatalog(say: (text: string, values?: Rec
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>组件板 · Molis Work</title>
   <script>${THEME_BOOTSTRAP_SCRIPT}</script>
-  <link rel="stylesheet" href="/assets/molis-work-settings.css">
+  <link rel="stylesheet" href="/assets/molis-work-settings.css">${appearanceHead(appearance)}
   <style>${FOUNDATION_SPECIMEN_STYLES}${CONDITIONS_SECTION_STYLES}${ASSISTANT_SECTION_STYLES}${PLUGIN_ROWS_SECTION_STYLES}${COLLAB_SECTION_STYLES}${NAVIGATION_SECTION_STYLES}${SERVICE_CONNECTION_SECTION_STYLES}${RETURN_TRIP_SECTION_STYLES}${PLATFORM_AREA_SECTION_STYLES}${CONNECTION_NEED_SECTION_STYLES}${environment ? ENVIRONMENT_SECTION_STYLES : ""}.mw-catalog-top__tools{display:flex;flex-wrap:wrap;gap:8px}${BOARD_PAGE_STYLES}</style>
 </head>
 <body class="mw-catalog-page settings-page">
   ${renderIconSprite()}
   <header class="mw-catalog-top">
     <h1>Molis Work 组件板</h1>
-    <div class="mw-catalog-top__tools">${languages}${themes}${skins}</div>
+    <div class="mw-catalog-top__tools">${languages}${themes}</div>
   </header>
   ${catalog}
   <script>${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>

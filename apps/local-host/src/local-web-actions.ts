@@ -22,7 +22,7 @@ export interface LocalWebStageRead {
 }
 
 /** What the Host's own entry adds to the person's call: the file the person handed it (an import), never any authority. */
-export type LocalWebEntry = Pick<ActionCallContext, "original_file"> & { readonly user_action?: () => ActionUserAction; readonly stage_read?: LocalWebStageRead };
+export type LocalWebEntry = Pick<ActionCallContext, "original_file"> & { readonly user_action?: () => ActionUserAction; readonly stage_read?: LocalWebStageRead; readonly assertCurrent?: () => void };
 
 /** One scene run keeps its actual plugin owner's checks, including while a different provider judges its input. */
 export async function capturePluginSceneAuthority(host: MolisWorkLocalHost, view: ActionSceneView, reference?: LocalHostProjectReference): Promise<() => void> {
@@ -39,6 +39,7 @@ export async function localWebActionContext(host: MolisWorkLocalHost, reference:
   builtinPermissions: readonly string[], signal?: AbortSignal, entry: LocalWebEntry = {}, stageAction?: ActionDefinition): Promise<ActionCallContext> {
   const sessionCurrent = captureWebSessionAuthority();
   sessionCurrent();
+  entry.assertCurrent?.();
   signal?.throwIfAborted();
   // What a handler sends back to be shown follows the page the call came from; a call no page made keeps the handler's default.
   const locale = pageLocale();
@@ -122,6 +123,7 @@ export async function localWebActionContext(host: MolisWorkLocalHost, reference:
   const metadata = stage ? catalog.filter(view => accepted.includes(view) || accept(view, LOCAL_OWNER_PERMISSIONS)) : [];
   const assertAuthority = (action?: ActionReference, required: readonly string[] = []) => {
     sessionCurrent();
+    entry.assertCurrent?.();
     signal?.throwIfAborted();
     owner?.assertCurrent();
     if (!required.every(permission => permissions.includes(permission))) throw new ActionError("actions.forbidden", "此能力的本地用户授权已失效，请检查插件权限和运行状态");

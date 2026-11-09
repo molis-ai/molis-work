@@ -6,6 +6,8 @@ import { renderSidePanel, renderSideStrip, SIDE_PANEL_SCRIPT, SIDE_PANEL_STYLES 
 import { ACCOUNT_REGISTRATION_BODY, NO_FAVICON_LINK, renderWorkbenchDocument } from "../document-shell.js";
 import { createWorkbenchLocale } from "../i18n.js";
 import { CONTROL_CLIENT_SCRIPT } from "../scripts/control.js";
+import { appearanceClientTag, appearanceHead, type WorkbenchAppearancePorts } from "../appearance-document.js";
+import { renderAppearanceRecovery } from "../settings-appearance.js";
 
 /**
  * The frame every arrival screen shares: a titlebar, a stage and the resident bottom bar on the desk. A screen is
@@ -24,6 +26,7 @@ export interface ArrivalShellPrimitives {
   /** The theme preference, and the native window's safe insets. Runs before the first paint. */
   themeBootstrapScript: string;
   visualFoundationClientScript: string;
+  appearance?: WorkbenchAppearancePorts;
 }
 
 /** What the chooser needs besides the frame: dates in the person's language. */
@@ -95,6 +98,7 @@ export function createArrivalShell(p: ArrivalShellPrimitives) {
 
   function document(options: ArrivalDocumentOptions): string {
     const side = options.titlebar.includes("data-side-tab=") ? renderSidePanel(p, homePluginSideTabs(), { projectTools: false, tasks: options.titlebar.includes('data-side-tab="tasks"') }) : "";
+    const appearance = p.appearance?.current();
     return `<!doctype html>
 <html lang="${p.htmlLang()}">
 <head>
@@ -104,7 +108,7 @@ export function createArrivalShell(p: ArrivalShellPrimitives) {
   ${p.controlTokenMeta(options.controlToken)}
   <title>${escapeHtml(options.title)}</title>
   <script>${p.themeBootstrapScript}</script>
-  <link rel="stylesheet" href="/assets/molis-work-arrival.css">
+  <link rel="stylesheet" href="/assets/molis-work-arrival.css">${appearanceHead(appearance)}
   ${side ? `<style>${SIDE_PANEL_STYLES}body.immersive-workbench.arrival-page{--desktop-titlebar-height:var(--arrival-titlebar-h)}</style>` : ""}
 </head>
 <body${p.accountRegistration ? ACCOUNT_REGISTRATION_BODY : ''} class="arrival-page immersive-workbench" data-arrival="${options.screen}"${options.desktopShell ? ' data-native-desktop="true"' : ""}${options.bodyAttrs ?? ""}>
@@ -115,8 +119,8 @@ export function createArrivalShell(p: ArrivalShellPrimitives) {
     ${options.bar}
     ${side}
   </div>
-  ${options.after ?? ""}
-  <script>${options.scripts}${options.screen === "chooser" ? ACCOUNT_CLIENT_SCRIPT : ""}${side ? SIDE_PANEL_SCRIPT : ""}</script>
+  ${options.after ?? ""}${renderAppearanceRecovery(L, appearance)}
+  <script>${options.scripts}${options.screen === "chooser" ? ACCOUNT_CLIENT_SCRIPT : ""}${side ? SIDE_PANEL_SCRIPT : ""}</script>${appearanceClientTag(appearance)}
 </body>
 </html>`;
   }

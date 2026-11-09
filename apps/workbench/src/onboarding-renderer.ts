@@ -4,10 +4,12 @@ import { ONBOARDING_DISMISS_CLIENT_SCRIPT } from "./browser-assets.js";
 import { CONTROL_CLIENT_SCRIPT as UI_REQUEST_CLIENT_SCRIPT } from "./scripts/control.js";
 import { renderContextOnboarding } from "./context-onboarding-renderer.js";
 import { createArrivalShell } from "./arrival/shell.js";
+import type { WorkbenchAppearancePorts } from "./appearance-document.js";
 
 type OnboardingIcon = PluginIconName;
 export interface OnboardingRenderPrimitives {
   accountRegistration?: boolean;
+  appearance?: WorkbenchAppearancePorts;
   L(text: string, values?: Record<string, string | number>): string;
   escapeHtml(value: unknown): string;
   htmlLang(): string;

@@ -80,6 +80,14 @@
       "load": "startup"
     },
     {
+      "id": "font-scheme.relaxed-reading",
+      "kind": "font-scheme",
+      "owner": "design-system",
+      "package": "@molis-ai/molis-work-design-system",
+      "path": "resources/fonts/relaxed-reading.json",
+      "load": "startup"
+    },
+    {
       "id": "font.folio-nunito-latin",
       "kind": "font",
       "owner": "design-system",

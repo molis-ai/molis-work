@@ -1,5 +1,5 @@
 import { renderDirectoryPanel, renderDirectoryRow, renderReturnBar, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { renderAppearanceSettingsDocument } from "./settings-appearance.js";
+import { renderAppearanceSettingsDocument, type AppearanceSettingsModel } from "./settings-appearance.js";
 import { createProjectSettingsFolds, type ProjectSettingsFoldProject } from "./project-settings-folds.js";
 import { groupedGlobalSettingsSections } from "./settings-sections.js";
 
@@ -27,7 +27,7 @@ function localeSwitchHref(locale: "zh" | "en", nextPath: string): string {
 }
 
 /** Personal identity and login entry stay inside main's project menu, followed by capabilities and settings. */
-export function renderPersonalMenuItems(primitives: SettingsDirectoryPrimitives): string {
+export function renderPersonalMenuItems(primitives: SettingsDirectoryPrimitives, appearance = false): string {
   const { L, icon } = primitives;
   return `<div class="navigator-personal" data-personal-menu>
     <button class="personal-account" type="button" data-account-link aria-label="${L("账号管理")}">
@@ -37,6 +37,7 @@ export function renderPersonalMenuItems(primitives: SettingsDirectoryPrimitives)
     <button class="immersive-plugin-link account-global-item" type="button" data-unified-account-link aria-label="${L("Molis 账号")}" title="${L("Molis 账号")}">${icon("user")}<span data-unified-account-name>${L("Molis 账号")}</span></button>
     <a class="immersive-plugin-link account-global-item" href="__SYSTEM_CAPABILITIES__" data-capabilities-open aria-label="${L("打开能力服务")}" title="${L("能力")}">${icon("sparkles")}<span>${L("能力")}</span></a>
     <button class="immersive-plugin-link account-global-item personal-settings" type="button" data-plugin-id="settings" data-directory-open="settings" aria-label="${L("打开全局设置")}" title="${L("设置")}">${icon("settings")}<span>${L("设置")}</span></button>
+    ${appearance ? `<button class="immersive-plugin-link account-global-item" type="button" data-appearance-restore>${icon("settings")}<span>${L("恢复内置外观")}</span></button>` : ""}
   </div>`;
 }
 
@@ -95,14 +96,14 @@ function returnBarTemplate(L: SettingsDirectoryPrimitives["L"]): string {
 }
 
 /** Settings inside a project. `nextPath` is where switching the language lands: this project with Settings open on the same page (VUX-40). */
-export function renderSettingsWorkSurface(primitives: SettingsDirectoryPrimitives, nextPath: string): string {
+export function renderSettingsWorkSurface(primitives: SettingsDirectoryPrimitives, nextPath: string, model?: AppearanceSettingsModel): string {
   const { L, htmlLang } = primitives;
   const locale = htmlLang().toLowerCase().startsWith("en") ? "en" : "zh";
   const appearance = renderAppearanceSettingsDocument({
     L,
     currentLocale: () => locale,
     localeSwitchHref,
-  }, nextPath).replace(
+  }, nextPath, model).replace(
     '<section class="settings-document appearance-document"',
     '<section class="settings-document appearance-document" data-settings-panel="appearance"',
   );

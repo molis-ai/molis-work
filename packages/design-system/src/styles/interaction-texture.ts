@@ -1,4 +1,4 @@
-import { renderPaletteTokens, renderPluginTintBindings, renderShapeTokens, renderShellTokens } from "../palette.js";
+import { renderPluginTintBindings } from "../palette.js";
 import { HIDDEN_SCROLLBAR_STYLES } from "./scrollbars.js";
 
 /** Linear × Coss interaction texture. Loaded after every page stylesheet so it owns the
@@ -13,21 +13,6 @@ const SCRIMMED = ":is(.global-search-dialog, .home-shortcut-dialog, .runtime-pla
 
 
 export const INTERACTION_TEXTURE_STYLES = `
-  :root,
-  body.immersive-workbench,
-  body.settings-page,
-  body.project-preferences-page {
-    ${renderShellTokens("light")}
-    ${renderShapeTokens()}
-    ${renderPaletteTokens("light")}
-  }
-
-  html[data-resolved-theme="dark"],
-  html[data-resolved-theme="dark"] :is(body.immersive-workbench, body.settings-page, body.project-preferences-page) {
-    ${renderShellTokens("dark")}
-    ${renderPaletteTokens("dark")}
-  }
-
   /* Text texture: macOS-grade smoothing and fixed-width digits wherever counts are scanned. */
   body {
     -webkit-font-smoothing: antialiased;

@@ -90,7 +90,7 @@ export const CATALOG_ROUTES: readonly WebRoute<CatalogRequestContext>[] = [
     response.end(composition.renderCapsuleShell(projects));
     return true;
   } },
-  { id: "component-board", handle: ({ request, response, url, composition }) => handleComponentBoardHttp(request, response, url, composition.PAGE_CSP) },
+  { id: "component-board", handle: ({ request, response, url, composition }) => handleComponentBoardHttp(request, response, url, composition.PAGE_CSP, composition.appearance) },
   { id: "settings-home", handle: ({ request, response, url, composition }) => {
     if (!(request.method === "GET" && url.pathname === "/settings")) return false;
     response.writeHead(302, { location: composition.isDesktopShellRequest(request, url) ? "/settings/appearance?desktop=1" : "/settings/appearance", ...noStore });

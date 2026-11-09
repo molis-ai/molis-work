@@ -1,7 +1,8 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { createWorkbenchLocale, type WebLocale } from "@molis-ai/molis-work-app-workbench";
 export { EN, LOCALE_COOKIE, WEB_LOCALES, LOCALE_SWITCH_STYLES, type WebLocale } from "@molis-ai/molis-work-app-workbench";
-const localeStore = new AsyncLocalStorage<WebLocale>();
+type WebLocaleChoice = ReturnType<ReturnType<typeof createWorkbenchLocale>["resolveWebLocaleChoice"]>;
+const localeStore = new AsyncLocalStorage<WebLocaleChoice>();
 
 /**
  * One language scope, ended when the function that opened it is done (`activeLocale`, `textScope`). `noContext` is how the text tools answer a sentence
@@ -19,8 +20,8 @@ function inLocaleScope<T>(locale: string | null, fn: () => T, noContext: LocaleS
   return result;
 }
 
-export function runWithLocale<T>(locale: WebLocale, fn: () => T): T {
-  return localeStore.run(locale, () => inLocaleScope(locale, fn));
+export function runWithLocale<T>(locale: WebLocale, fn: () => T, source: WebLocaleChoice["source"] = "explicit"): T {
+  return localeStore.run({ tag: locale, source }, () => inLocaleScope(locale, fn));
 }
 
 /**
@@ -55,5 +56,6 @@ export function textScope(): { readonly locale: string | null; readonly noContex
  * The language of the page whose request began this async chain. A timer or a lazily opened object started there inherits it and keeps
  * it after the request ended, so it says which page began the chain, not that a page is still asking.
  */
-export const pageLocale = (): WebLocale | undefined => localeStore.getStore();
-export const { currentLocale, isWebLocale, htmlLang, dateTimeLocale, listJoin, resolveWebLocale, safeNextPath, localeSetCookie, localeSwitchHref, L, renderLocaleSwitch, englishCatalogJson, clientI18nScript } = createWorkbenchLocale(() => localeStore.getStore() ?? "zh");
+export const pageLocale = (): WebLocale | undefined => localeStore.getStore()?.tag;
+export const appearanceLocale = (): WebLocaleChoice => localeStore.getStore() ?? { tag: "zh", source: "default" };
+export const { currentLocale, isWebLocale, htmlLang, dateTimeLocale, listJoin, resolveWebLocale, resolveWebLocaleChoice, safeNextPath, localeSetCookie, localeSwitchHref, L, renderLocaleSwitch, englishCatalogJson, clientI18nScript } = createWorkbenchLocale(() => pageLocale() ?? "zh");

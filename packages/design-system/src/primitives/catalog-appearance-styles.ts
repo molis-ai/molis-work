@@ -3,10 +3,7 @@
 // corner, shadow, duration and curve is a token of the page the part is on, or, inside a `[data-look]` element, of the look it draws.
 import { lookRules } from "./catalog-appearance-looks.js";
 
-export const APPEARANCE_BOARD_STYLES = `
-  /* A look's tokens: the baseline whole for each theme, then what each sample look says differently. Generated from the baseline files, never written here. */
-  ${lookRules()}
-
+export const APPEARANCE_PARTS_STYLES = `
   /* 1 · Look card. What a look is has to be seen before it is chosen: its colours, its corners and its recommended type, drawn by the look itself. The whole
      card is one button (aria-pressed); the state is said in words by a badge, and the more-actions button is the card's other, separate control. */
   .mw-catalog :is([data-primitive="look-card"], [data-primitive="look-proof"], [data-primitive="look-fade"]) .mw-catalog__specimen { margin: 0; }
@@ -42,7 +39,7 @@ export const APPEARANCE_BOARD_STYLES = `
   .mw-look-card__name { min-width: 0; font-size: 13px; line-height: 20px; font-weight: var(--weight-control); overflow-wrap: anywhere; }
   .mw-look-card__meta { min-width: 0; color: var(--muted); font-size: 12px; line-height: 18px; overflow-wrap: anywhere; }
   .mw-look-card__badges { display: flex; flex-wrap: wrap; gap: 4px; min-height: 20px; padding-inline: 6px; }
-  .mw-look-card__trial:not([hidden]) { display: contents; }
+  :is(.mw-look-card__trial, .mw-look-card__current):not([hidden]) { display: contents; }
   /* The wrapper only holds the button and its menu together for the board's menu script; both are placed against the card, so the menu is as wide as the card. */
   .mw-look-card__more { display: contents; }
   .mw-look-card__more > .mw-btn { position: absolute; top: 12px; right: 12px; z-index: 1; background: color-mix(in srgb, var(--paper) 88%, transparent); }
@@ -67,7 +64,7 @@ export const APPEARANCE_BOARD_STYLES = `
   .mw-look-proof__rows li > span:nth-child(2) { flex: 1; min-width: 0; overflow-wrap: anywhere; }
   .mw-look-proof__rows li > span:last-child { margin-inline-start: auto; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .mw-look-proof__buttons { display: flex; flex-wrap: wrap; gap: 8px; }
-  .mw-look-proof__read { margin: 0; color: var(--ink-soft); font-size: 15px; line-height: 1.65; text-wrap: pretty; }
+  .mw-look-proof__read { margin: 0; color: var(--ink-soft); font-family: var(--type-reading-font, var(--font)); font-size: var(--type-reading-size, 15px); line-height: var(--type-reading-line-height, 1.65); text-wrap: pretty; }
   .mw-look-proof__code { margin: 0; padding: 8px 10px; border-radius: var(--r-control); background: var(--rail); color: var(--ink); font: 12px/1.6 var(--font-mono); white-space: pre-wrap; overflow-wrap: anywhere; }
   .mw-look-proof .mw-card__footer { display: grid; justify-items: stretch; gap: 12px; }
   .mw-look-proof__status { display: grid; gap: 4px; min-width: 0; color: var(--muted); font-size: 12px; line-height: 18px; text-wrap: pretty; overflow-wrap: anywhere; }
@@ -103,3 +100,5 @@ export const APPEARANCE_BOARD_STYLES = `
     .mw-look-grid--room { padding-bottom: calc(3 * 44px); }
   }
 `;
+
+export const APPEARANCE_BOARD_STYLES = `${lookRules()}${APPEARANCE_PARTS_STYLES}`;

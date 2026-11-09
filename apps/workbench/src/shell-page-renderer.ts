@@ -15,7 +15,8 @@ import { renderPluginDirectoryData, type PluginDirectory } from "./plugin-direct
 import { renderDeclaredStages, type RenderedStagePage } from "./declared-stages.js";
 import { homeToolKeysScript, homePluginSideTabs } from "./home-plugin-navigation.js";
 import { renderPersonalMenuItems, renderProjectSettingsDirectorySection, renderProjectSettingsWorkSurface, renderSettingsDirectorySection, renderSettingsWorkSurface } from "./settings-directory.js";
-import { renderRuntimePlanDialog } from "./settings-appearance.js";
+import { renderAppearanceRecovery, renderRuntimePlanDialog } from "./settings-appearance.js";
+import { appearanceHead, type WorkbenchAppearancePorts } from "./appearance-document.js";
 import { knowledgeClientTag } from "./settings-knowledge.js";
 type Translate = (text: string, values?: Record<string, string | number>) => string;
 function projectSideTabs(enabled: readonly string[], routePrefix: string) {
@@ -105,6 +106,7 @@ export interface WorkbenchShellPageOwners<TView extends WorkbenchShellPageView> 
     desktop: boolean, className: string, manageHref: string): string;
   /** The model a plugin's declared stage is drawn with, from this page's view. */
   stageModel(projectPluginId: string, view: TView): unknown;
+  appearance?: WorkbenchAppearancePorts;
 }
 
 /** A project file that evidence points to opens here, in an overlay over the workbench, never in a new browser tab. */
@@ -137,6 +139,7 @@ function renderMolisWorkWeb(
   const bootstrap = parts?.bootstrap;
   const projectOptions = view.projects.length ? view.projects : view.project ? [view.project] : [];
   const primitives = { L, escapeHtml, icon, htmlLang };
+  const appearance = owners.appearance?.current();
   // What the Runtimes run in this project, as their Manifests declare it; a page drawn with no Runtime reads the built-in catalog.
   const directory = pluginDirectoryFor(view.plugin_directory);
   // A running Plugin's own panel wins over the built-in one; initial geometry and the rendered sections use this same set.
@@ -156,7 +159,8 @@ function renderMolisWorkWeb(
     && directoryPanelIdentity(entry.id, directoryPanels[entry.id] ?? "").ids.includes(initialDesktopSurface))
     ? initialDesktopSurface : "root";
   const settingsDirectory = `${renderSettingsDirectorySection(primitives, enabledPlugins)}${view.project ? renderProjectSettingsDirectorySection(primitives, goalsEnabled) : ""}`;
-  const settingsSurfaces = `${renderSettingsWorkSurface(primitives, `${view.route_prefix || ""}/?settings=appearance`)}${view.project ? renderProjectSettingsWorkSurface(primitives, view.project, desktopShell) : ""}`;
+  const settingsSurfaces = `${renderSettingsWorkSurface(primitives, `${view.route_prefix || ""}/?settings=appearance`,
+    appearance && owners.appearance ? { current: appearance, choices: owners.appearance.choices() } : undefined)}${view.project ? renderProjectSettingsWorkSurface(primitives, view.project, desktopShell) : ""}`;
   const defer = deferredSurfaces(L, enabledPlugins, view.pane_plugin);
   const projectTitlebarChrome = renderDesktopProjectChrome(view.project ?? null, projectOptions, desktopShell, view.project ? "__PROJECT_SETTINGS__" : null, { switcherClass: "desktop-project-switcher", manageHref: "__PROJECT_INDEX__", directoryToggle: true, globalSearch: true });
   const directoryEmpty = initialDesktopDirectory === "root";
@@ -177,7 +181,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
     title,
     head_before_title_html: controlTokenMeta(controlToken),
     head_html: `<script>${THEME_BOOTSTRAP_SCRIPT};${homeToolKeysScript()};${widthPreference}</script>
-  <link rel="stylesheet" href="__WORKBENCH_CSS__">`,
+  <link rel="stylesheet" href="__WORKBENCH_CSS__">${appearanceHead(appearance)}`,
     body_attributes: {
       class: "immersive-workbench",
       ...Object.fromEntries(Object.entries(parts?.body_attributes ?? {}).filter(([name]) => /^data-[a-z0-9-]+$/.test(name))),
@@ -196,7 +200,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
       ${renderWorkbenchBar(primitives, {
         enabled: enabledPlugins,
         rail: renderPluginRail(primitives, enabledPlugins, directory, { developerMode: view.developer_mode, marksFromHost: Boolean(view.plugin_directory) }),
-        projectChrome: renderWorkspaceChrome(primitives, projectTitlebarChrome.replace("<!-- project-menu-extra -->", renderPersonalMenuItems(primitives))),
+        projectChrome: renderWorkspaceChrome(primitives, projectTitlebarChrome.replace("<!-- project-menu-extra -->", renderPersonalMenuItems(primitives, !!appearance))),
         sideTabs,
       })}
       <aside class="mw-sidebar mw-sidebar--directory mw-drawer mw-drawer--left tree-pane" id="goal-tree-pane" data-desktop-directory="${initialDesktopDirectory}" data-slot="sidebar" aria-label="${L("应用目录")}">
@@ -228,7 +232,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
   ${page?.before_global_search ?? ""}
   ${renderGlobalSearchOverlay(primitives)}
   ${page?.after_global_search ?? ""}
-  <div class="mw-toast toast" data-toast data-settings-toast role="status" aria-live="polite"></div>${renderProjectReferenceDialog(L)}
+  <div class="mw-toast toast" data-toast data-settings-toast role="status" aria-live="polite"></div>${renderProjectReferenceDialog(L)}${renderAppearanceRecovery(L, appearance)}
   ${bootstrap ? `<script id="${escapeHtml(bootstrap.id)}" type="application/json">${JSON.stringify(bootstrap.value).replaceAll("<", "\\u003c")}</script>` : ""}
   <script>${clientI18nScript()}</script>
   <script src="/assets/molis-work-workbench.js"></script>${knowledgeClientTag()}

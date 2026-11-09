@@ -1,5 +1,5 @@
 import { renderCatalogExamples } from "../catalog-examples.js";
-import { icon, renderButton, renderDirectoryRow, renderStatusMark, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { escapeHtml, icon, renderButton, renderDirectoryRow, renderStatusMark, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { ICON_LIBRARY } from "../icons.js";
 import { renderStateRingCatalog } from "./status-ring-catalog.js";
 import { renderProjectMonogram } from "../monogram.js";
@@ -15,24 +15,24 @@ import { keepEditsSections, KEEP_EDITS_BOARD_STYLES } from "./catalog-keep-edits
 import { buttonGroupSection, CATALOG_PATTERN_STYLES, dataTableSection, dropZoneSection, rowsSection, statSection, tagInputSection } from "./catalog-patterns.js";
 import { lookSections } from "./catalog-appearance.js";
 import { APPEARANCE_BOARD_STYLES } from "./catalog-appearance-styles.js";
+import { PLUGIN_COMPONENTS } from "../plugin-components.js";
 
-export const PRIMITIVE_CATALOG_IDS = [
-  "accordion", "alert", "alert-dialog", "autocomplete", "avatar", "badge", "breadcrumb", "button",
-  "calendar", "card", "checkbox", "checkbox-group", "collapsible", "combobox", "command", "context-menu",
-  "date-picker", "dialog", "directory", "drawer", "empty", "field", "fieldset", "form", "frame", "group", "input",
-  "input-group", "kbd", "label", "menu", "meter", "number-field", "otp-field", "pagination", "popover",
-  "preview-card", "progress", "radio-group", "scroll-area", "select", "separator", "sheet", "sidebar",
-  "skeleton", "slider", "spinner", "switch", "table", "tabs", "textarea", "toast", "toggle", "toggle-group",
-  "toolbar", "tooltip",
-] as const;
+export const PRIMITIVE_CATALOG_IDS = PLUGIN_COMPONENTS.map(({ kind }) => kind);
+const catalogComponents = new Map(PLUGIN_COMPONENTS.map(component => [component.kind, component]));
 
 
 /** Section index derived from the rendered sections, so a new section cannot be left out of it. */
-function catalogIndex(sections: string): string {
+function catalogIndex(sections: string, say: Say): string {
+  const specimens = new Set([...sections.matchAll(/data-primitive="([^"]+)"/gu)].map(([, id]) => id));
+  for (const kind of PRIMITIVE_CATALOG_IDS) {
+    if (!specimens.has(kind)) throw new Error(`组件板缺少 ${kind} 的标本。`);
+  }
   const entries = [...sections.matchAll(/<section class="mw-catalog__section" id="([^"]+)"[^>]*><h2>([^<]+)<\/h2>/g)];
   const links = entries.map(([, id, title]) => {
-    const short = title.split(" / ")[0];
-    return `<a href="#${id}" title="${title}">${short}</a>`;
+    const component = catalogComponents.get(id);
+    const short = component ? escapeHtml(say(component.name)) : title.split(" / ")[0];
+    const description = component ? escapeHtml(say(component.description)) : title;
+    return `<a href="#${id}" title="${description}">${short}</a>`;
   }).join("");
   return `<nav class="mw-catalog__index" data-catalog-index aria-label="控件目录" style="grid-row: 1 / span ${entries.length}">${links}</nav>`;
 }
@@ -251,7 +251,7 @@ export function renderPrimitiveCatalog(options: { readonly plugins?: readonly Ca
     ${layoutSection()}
     ${dataTableSection()}`;
   return `<div class="mw-catalog">
-    ${catalogIndex(sections)}
+    ${catalogIndex(sections, say)}
     <style>${CATALOG_PATTERN_STYLES}${COMPOSER_BOARD_STYLES}${KEEP_EDITS_BOARD_STYLES}${APPEARANCE_BOARD_STYLES}</style>
     ${sections}
   </div>

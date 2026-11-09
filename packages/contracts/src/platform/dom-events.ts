@@ -119,6 +119,10 @@ export const PAGE_STATE_OWNERS = {
     files: ["packages/design-system/src/preferences.ts", "apps/workbench/src/browser/plugin-frame/child.ts"],
     state: "The person's display preferences on this device: theme, density and terminal theme (localStorage molis-work:theme, molis-work:density, molis-work:terminal-theme).",
   },
+  appearance: {
+    files: ["apps/workbench/src/browser/appearance-view.ts"],
+    state: "The effective Home appearance that this document has finished preparing and rendered.",
+  },
   shelf: {
     files: ["plugins/native/shelf/src/browser/document.ts", "plugins/native/shelf/src/browser/tui.ts", "plugins/native/shelf/src/browser/terminal.ts", "plugins/native/shelf/src/browser/settings/reload.ts"],
     state: "The Shelf surface: its list and selection, the notice line and the input to the terminal Agent.",
@@ -347,6 +351,11 @@ export const DOM_EVENTS = [
     name: "molis-work:terminal-theme-change", kind: "announcement", owner: "preferences", on: "window",
     detail: "{ theme }",
     summary: "The terminal colour theme changed; open terminals repaint.",
+  },
+  {
+    name: "molis-work:ui-environment-changed", kind: "announcement", owner: "appearance", on: "window",
+    detail: '{ revision: string, changed: ("skin" | "font" | "mono")[] }',
+    summary: "This document has rendered the prepared appearance; frames update and open terminals remeasure.",
   },
   {
     name: "molis-work:work-mode-changed", kind: "announcement", owner: "immersive-navigation", on: "document",

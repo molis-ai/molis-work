@@ -1,25 +1,8 @@
-import { baselineTerminal, baselineToken } from "../baseline.js";
-import { renderControlMetrics, renderShapeTokens, renderShellTokens } from "../palette.js";
-import { FONT_STACK } from "../typeface.js";
+import { BASELINE_SKIN, baselineTerminal } from "../baseline.js";
+import { renderSkinScope } from "../appearance-tokens.js";
 
 /** AP3 visual layer: foundation. */
-export const FOUNDATION_STYLES = `  :root {
-    color-scheme: light;
-    ${renderShellTokens("light")}
-    ${renderShapeTokens()}
-    ${renderControlMetrics()}
-    ${baselineTerminal("unset")}
-    ${baselineToken("danger")}
-    ${baselineToken("danger-action")}
-    ${baselineToken("danger-action-ink")}
-    --font: ${FONT_STACK};
-  }
-
-  html[data-resolved-theme="dark"] {
-    color-scheme: dark;
-    ${renderShellTokens("dark")}
-    ${baselineTerminal("dark")}
-  }
+export const FOUNDATION_STYLES = `${renderSkinScope(BASELINE_SKIN, true)}
 
   html[data-resolved-terminal-theme="light"] {
     ${baselineTerminal("light")}
@@ -32,7 +15,7 @@ export const FOUNDATION_STYLES = `  :root {
   body {
     background: var(--page);
     color: var(--ink);
-    font: 13px/1.5 var(--font);
+    font: var(--type-body-size, 13px)/var(--type-body-line-height, 1.5) var(--font);
     text-rendering: optimizeLegibility;
   }
 

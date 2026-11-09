@@ -1,12 +1,12 @@
 // The catalog board's composed patterns: button groups, tag input, drop zone, stat tiles, item and settings rows, and the data
-// table. They live on the board first: the styles below are the board's own (not in the served sheets), read the skins' `--sk-*`
+// table. They live on the board first: the styles below are the board's own (not in the served sheets), read the interface's semantic
 // tokens with Soft Workbench's values as fallbacks, and move into the page sheets with the first product page that uses them.
 import { icon, renderButton, renderCheckbox, renderInput, renderInputGroup, renderProgress, renderSelect, renderStatusMark, renderSwitch, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderMenu, renderMenuItem } from "./overlay.js";
 import { section, specimen } from "./catalog-parts.js";
 
-const SURFACE = "border: 1px solid var(--sk-card-edge, var(--line)); border-radius: var(--sk-r-card, 12px); background: var(--sk-raised, var(--paper)); box-shadow: var(--sk-card-shadow, none)";
-const RADIUS = "var(--sk-r, var(--radius-control, 8px))";
+const SURFACE = "border: 1px solid var(--line); border-radius: var(--r-card); background: var(--paper)";
+const RADIUS = "var(--r-control)";
 /**
  * A button in a group, directly or inside its menu anchor, optionally only at one end. The skin layer restates every button's
  * corner at (0,4,1); one id-weight `:not` lets a joined button keep its flat side.
@@ -19,7 +19,7 @@ const joined = (end = "") => `:root body .mw-btn-group > .mw-btn${end}:not(#mw-j
  */
 export const ITEM_ROW_STYLES = `
   .mw-items { display: grid; grid-template-columns: minmax(0, 1fr); width: min(480px, 100%); margin: 0; padding: 6px; list-style: none; ${SURFACE}; }
-  .mw-item { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 6px 6px 6px 10px; border-radius: var(--sk-r-item, 8px); transition: background-color var(--dur-hover, 130ms) var(--ease-quint); }
+  .mw-item { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 6px 6px 6px 10px; border-radius: var(--r-row); transition: background-color var(--dur-hover, 130ms) var(--ease-quint); }
   .mw-item:is(:hover, :focus-within) { background: var(--nav-hover); }
   /* An item is one line: its name, then where it lives in muted words, cut first when room runs out. */
   .mw-item > span:nth-child(2) { display: flex; align-items: baseline; gap: 8px; flex: 1 1 auto; min-width: 0; }
@@ -30,7 +30,7 @@ export const ITEM_ROW_STYLES = `
 export const CATALOG_PATTERN_STYLES = `
   .mw-catalog .mw-popover .mw-catalog__row { flex-wrap: nowrap; }
   .mw-catalog .mw-popover .mw-input { flex: 1; min-width: 220px; }
-  .mw-mark { display: inline-grid; place-items: center; width: 32px; height: 32px; flex: none; border-radius: var(--sk-r-slot, 8px); background: var(--sk-raised, var(--paper)); box-shadow: inset 0 0 0 1px var(--line); color: var(--ink-soft); }
+  .mw-mark { display: inline-grid; place-items: center; width: 32px; height: 32px; flex: none; border-radius: var(--r-control); background: var(--paper); box-shadow: inset 0 0 0 1px var(--line); color: var(--ink-soft); }
   .mw-mark svg { width: 16px; height: 16px; }
 
   .mw-btn-group { display: inline-flex; gap: 1px; }
@@ -39,7 +39,7 @@ export const CATALOG_PATTERN_STYLES = `
   ${joined(":last-child")} { border-start-end-radius: ${RADIUS}; border-end-end-radius: ${RADIUS}; }
   .mw-btn-group > :focus-visible, .mw-btn-group > * > :focus-visible { position: relative; z-index: 1; }
   .mw-btn-group .mw-compose__menu { left: auto; right: 0; }
-  .mw-btn-group__count { display: inline-flex; align-items: center; padding: 0 12px; border-radius: 0 ${RADIUS} ${RADIUS} 0; background: var(--sk-b2-bg, var(--control-fill)); box-shadow: inset 0 0 0 1px var(--sk-b2-edge, transparent); color: var(--ink-soft); font-size: 13px; font-variant-numeric: tabular-nums; }
+  .mw-btn-group__count { display: inline-flex; align-items: center; padding: 0 12px; border-radius: 0 ${RADIUS} ${RADIUS} 0; background: var(--control-fill); color: var(--ink-soft); font-size: 13px; font-variant-numeric: tabular-nums; }
   /* Tray's keys carry their own edge: a secondary group shares one line between keys instead of a seam. */
   :root[data-skin="tray"] .mw-btn-group > :not(:first-child):is(.mw-btn--secondary, .mw-btn-group__count),
   :root[data-skin="tray"] .mw-btn-group > :not(:first-child) > .mw-btn--secondary { margin-left: -2px; }
@@ -47,8 +47,8 @@ export const CATALOG_PATTERN_STYLES = `
   .mw-tags.mw-input-group { flex-wrap: wrap; gap: 6px; width: min(420px, 100%); height: auto; padding-block: 4px; cursor: text; }
   :root body .mw-tags.mw-input-group:not(#mw-joined) { border-radius: min(${RADIUS}, 18px); }
   .mw-tags .mw-input { flex: 1 0 96px; width: auto; min-height: 24px; }
-  .mw-tag { display: inline-flex; align-items: center; gap: 2px; height: 24px; padding: 0 3px 0 8px; border: 0; border-radius: var(--sk-r-slot, 6px); background: var(--sk-raised, var(--paper)); box-shadow: 0 0 0 1px var(--line), var(--lift-1); color: var(--ink); font: inherit; font-size: 12px; font-weight: var(--weight-control, 500); white-space: nowrap; }
-  .mw-tag button { display: inline-grid; place-items: center; width: 18px; height: 18px; padding: 0; border: 0; border-radius: var(--sk-r-slot, 4px); background: none; color: var(--muted); cursor: pointer; }
+  .mw-tag { display: inline-flex; align-items: center; gap: 2px; height: 24px; padding: 0 3px 0 8px; border: 0; border-radius: var(--r-tag); background: var(--paper); box-shadow: 0 0 0 1px var(--line), var(--lift-1); color: var(--ink); font: inherit; font-size: 12px; font-weight: var(--weight-control, 500); white-space: nowrap; }
+  .mw-tag button { display: inline-grid; place-items: center; width: 18px; height: 18px; padding: 0; border: 0; border-radius: var(--r-tag); background: none; color: var(--muted); cursor: pointer; }
   .mw-tag button:is(:hover, :focus-visible) { background: var(--nav-hover); color: var(--ink); }
   .mw-tag button:focus-visible { outline: var(--focus-stroke, 2px solid var(--accent)); outline-offset: 0; }
   .mw-tag svg { width: 12px; height: 12px; }
@@ -57,7 +57,7 @@ export const CATALOG_PATTERN_STYLES = `
   .mw-tag--add:is(:hover, :focus-visible) { background: var(--nav-hover); color: var(--ink); }
   .mw-tag--add:focus-visible { outline: var(--focus-stroke, 2px solid var(--accent)); outline-offset: 1px; }
 
-  .mw-drop { display: grid; justify-items: center; gap: 4px; width: min(440px, 100%); padding: 28px 20px; border: 1px dashed var(--line-strong); border-radius: var(--sk-r-card, 12px); background: color-mix(in srgb, var(--ink) 2%, transparent); text-align: center; transition: border-color var(--dur-hover, 130ms) var(--ease-quint), background-color var(--dur-hover, 130ms) var(--ease-quint); }
+  .mw-drop { display: grid; justify-items: center; gap: 4px; width: min(440px, 100%); padding: 28px 20px; border: 1px dashed var(--line-strong); border-radius: var(--r-card); background: color-mix(in srgb, var(--ink) 2%, transparent); text-align: center; transition: border-color var(--dur-hover, 130ms) var(--ease-quint), background-color var(--dur-hover, 130ms) var(--ease-quint); }
   .mw-drop .mw-mark { margin-bottom: 8px; transition: transform var(--dur-move, 250ms) var(--ease-quint), color var(--dur-hover, 130ms); }
   .mw-drop p { margin: 0; font-size: 13px; color: var(--ink); }
   .mw-drop p + p { font-size: 12px; color: var(--muted); }
@@ -70,7 +70,7 @@ export const CATALOG_PATTERN_STYLES = `
   .mw-drop--compact .mw-mark { grid-row: span 2; margin: 0; }
   .mw-drop--compact[data-dropping] .mw-mark { transform: none; }
   .mw-uploads { display: grid; gap: 2px; width: min(440px, 100%); margin: 0; padding: 0; list-style: none; }
-  .mw-upload { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 6px 4px 6px 8px; border-radius: var(--sk-r-item, 8px); }
+  .mw-upload { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 6px 4px 6px 8px; border-radius: var(--r-row); }
   .mw-upload > span:nth-child(2) { display: grid; gap: 6px; flex: 1; min-width: 0; font-size: 13px; color: var(--ink); }
   .mw-upload small { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
   .mw-upload small.is-failed { color: var(--red); }
@@ -90,7 +90,7 @@ export const CATALOG_PATTERN_STYLES = `
   .mw-stat__trend :is(polyline, line) { fill: none; stroke: var(--line-strong); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
   .mw-stat__trend polyline + polyline { stroke: var(--accent); }
   /* The latest point: a zero-length stroke stays round however the line is stretched; the first draws the surface ring. */
-  .mw-stat__trend line { stroke: var(--sk-raised, var(--paper)); stroke-width: 10; }
+  .mw-stat__trend line { stroke: var(--paper); stroke-width: 10; }
   .mw-stat__trend line + line { stroke: var(--accent); stroke-width: 6; }
   .mw-stat .mw-progress { margin-top: 16px; }
 

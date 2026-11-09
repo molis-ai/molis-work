@@ -1,4 +1,5 @@
-import { BASELINE_FONT, BASELINE_FONT_FACES, baselineFontRoute, baselineFontToken, baselinePackageFile } from "./baseline.js";
+import { BASELINE_FONT, BASELINE_FONT_FACES, baselineFontRoute, baselinePackageFile } from "./baseline.js";
+import { renderFontScope, renderMonoScope } from "./appearance-tokens.js";
 
 /** Same-origin font files served by local-host. Offline fallbacks only; the platform's own sans comes first. */
 export const INTER_VARIABLE_ASSET_PATH = baselineFontRoute("font.inter-latin-variable");
@@ -32,22 +33,19 @@ export function notoSansScFontFilePath(): string {
  */
 export const TYPEFACE_STYLES = `
 ${BASELINE_FONT_FACES}
-  :root {
-    ${baselineFontToken(["font"])}
-    ${baselineFontToken(["font-mono"])}
-    ${baselineFontToken(["weight-body", "weight-control", "weight-title"])}
-    ${baselineFontToken(["tracking-body", "tracking-title", "tracking-display"])}
-  }
+  ${renderFontScope(BASELINE_FONT, true)}
+  ${renderMonoScope(BASELINE_FONT, true)}
   html, body {
     font-family: var(--font);
     font-weight: var(--weight-body);
     letter-spacing: var(--tracking-body);
     font-synthesis-weight: none;
   }
-  :where(h1, h2, h3, h4, h5, h6) { font-weight: var(--weight-title); letter-spacing: var(--tracking-title); }
+  :where(h1, h2, h3, h4, h5, h6) { font-family: var(--type-title-font); font-weight: var(--weight-title); letter-spacing: var(--tracking-title); }
   :where(h1) { letter-spacing: var(--tracking-display); }
   :where(strong, b, th, dt) { font-weight: var(--weight-control); }
   :where(input, textarea, select, option) { font-weight: var(--weight-body); }
   :where(code, kbd, samp, pre) { font-family: var(--font-mono); letter-spacing: 0; }
+  :where(.mw-reading-text, .mw-look-proof__read) { font-family: var(--type-reading-font); font-size: var(--type-reading-size); line-height: var(--type-reading-line-height); font-weight: var(--type-reading-weight); letter-spacing: var(--type-reading-tracking); }
   :where(time) { font-variant-numeric: tabular-nums; }
 `;

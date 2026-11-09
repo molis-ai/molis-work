@@ -17,9 +17,12 @@ import { MEMORY_SETTINGS_CLIENT_SCRIPT, renderMemorySettings } from "./settings-
 import { knowledgeClientTag, renderKnowledgeSettings } from "./settings-knowledge.js";
 import { PLUGIN_TRUST_SETTINGS_CLIENT_SCRIPT, renderPluginTrustSettings } from "./settings-plugins.js";
 import { renderTaskGrantsSettings, TASK_GRANTS_SETTINGS_CLIENT_SCRIPT } from "./settings-task-grants.js";
+import { appearanceClientTag, appearanceHead, type WorkbenchAppearancePorts } from "./appearance-document.js";
+import { renderAppearanceRecovery } from "./settings-appearance.js";
 
 export interface ProjectSettingsPagePorts {
   accountRegistration?: boolean;
+  appearance?: WorkbenchAppearancePorts;
   L(text: string, values?: Record<string, string | number>): string;
   escapeHtml(value: unknown): string;
   icon(name: PluginIconName): string;
@@ -51,9 +54,10 @@ export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePo
   }
 
   function planningDocument(controlToken: string, desktopShell: boolean, navigation: string): NonNullable<StagePageDrawing["document"]> {
+    const appearance = ports.appearance?.current();
     return { lang: htmlLang(), navigation_html: navigation, client_i18n: clientI18nScript(), request_client: UI_REQUEST_CLIENT_SCRIPT,
       foundation_client: VISUAL_FOUNDATION_CLIENT_SCRIPT,
-      render: (document: WorkbenchDocumentRenderRequest) => `<!doctype html>${document.preamble_html ?? ""}<html lang="${document.lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">${NO_FAVICON_LINK}${controlTokenMeta(controlToken)}<title>${escapeHtml(document.title)}</title><script>${THEME_BOOTSTRAP_SCRIPT}</script><link rel="stylesheet" href="/assets/molis-work-settings.css"></head><body${ports.accountRegistration ? ACCOUNT_REGISTRATION_BODY : ''} class="settings-page planning-page project-preferences-page" data-desktop-shell="false"${desktopShell ? ' data-native-desktop="true"' : ""}>${renderIconSprite()}${document.body_html}</body></html>`,
+      render: (document: WorkbenchDocumentRenderRequest) => `<!doctype html>${document.preamble_html ?? ""}<html lang="${document.lang}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">${NO_FAVICON_LINK}${controlTokenMeta(controlToken)}<title>${escapeHtml(document.title)}</title><script>${THEME_BOOTSTRAP_SCRIPT}</script><link rel="stylesheet" href="/assets/molis-work-settings.css">${appearanceHead(appearance)}</head><body${ports.accountRegistration ? ACCOUNT_REGISTRATION_BODY : ''} class="settings-page planning-page project-preferences-page" data-desktop-shell="false"${desktopShell ? ' data-native-desktop="true"' : ""}>${renderIconSprite()}${document.body_html}${renderAppearanceRecovery(L, appearance)}${appearanceClientTag(appearance)}</body></html>`,
     };
   }
 
@@ -89,12 +93,13 @@ export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePo
     const project = view.project;
     if (!project) return "";
     if (embed) return renderHubSection(view, guidance, methods, embed, desktopShell);
+    const appearance = ports.appearance?.current();
     const routePrefix = view.route_prefix || `/projects/${encodeURIComponent(project.project_id)}`;
     const projectReturnHref = desktopShell ? withDesktopQuery(routePrefix || "/") : routePrefix || "/";
     const page = renderHubSection(view, guidance, methods, open, desktopShell), navigation = renderProjectSettingsNavigation(guidance === null && GOALS_SETTINGS_SECTIONS.has(open) ? "general" : open, project, desktopShell, [], { goals: guidance !== null });
     return `<!doctype html>
 <html lang="${htmlLang()}">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">${NO_FAVICON_LINK}${controlTokenMeta(controlToken)}<title>${L("项目设置")} · ${escapeHtml(project.display_name)} · Molis Work</title><script>${THEME_BOOTSTRAP_SCRIPT}</script><link rel="stylesheet" href="/assets/molis-work-settings.css"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">${NO_FAVICON_LINK}${controlTokenMeta(controlToken)}<title>${L("项目设置")} · ${escapeHtml(project.display_name)} · Molis Work</title><script>${THEME_BOOTSTRAP_SCRIPT}</script><link rel="stylesheet" href="/assets/molis-work-settings.css">${appearanceHead(appearance)}</head>
 <body${ports.accountRegistration ? ACCOUNT_REGISTRATION_BODY : ''} class="settings-page project-preferences-page" data-route-prefix="${escapeHtml(routePrefix)}" data-settings-section="${open}" data-desktop-shell="false"${desktopShell ? ' data-native-desktop="true"' : ""}>
   <!-- THESIS: Project settings are a dedicated space for deliberate changes. OWN-WORLD: Coss neutral surfaces, fine dividers, 8px controls. STORY: Choose a category, edit the shared project contract, return to the same workspace. FIRST VIEWPORT: 224px rail, 840px content column, 24px title, settings rows with controls on the right. FORM: Independent preferences; project-settings-v2. Interaction: category navigation preserves workspace tabs; disclosures reveal advanced controls with 160ms arrow motion and reduced-motion support. FINISH: unreviewed and undocumented is unfinished; this build ends with the finish review, the verdict, DESIGN.md, and every shipping raster carrying its provenance -->
   ${renderIconSprite()}
@@ -103,8 +108,8 @@ export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePo
     ${navigation}
     <div class="settings-content" id="settings-content">${page}</div>
   </main>
-  <div class="mw-toast toast" data-settings-toast role="status" aria-live="polite"></div>
-  <script>${clientI18nScript()}${UI_REQUEST_CLIENT_SCRIPT}${WRITE_CHECKERS_CLIENT_SCRIPT}${PROJECT_DIRECTORIES_CLIENT_SCRIPT}${PROJECT_SETTINGS_CLIENT_SCRIPT}${PROJECT_GUIDANCE_CLIENT_SCRIPT}${MEMORY_SETTINGS_CLIENT_SCRIPT}${PLUGIN_TRUST_SETTINGS_CLIENT_SCRIPT}${TASK_GRANTS_SETTINGS_CLIENT_SCRIPT}${pluginSettingsClients()}${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>${knowledgeClientTag()}
+  <div class="mw-toast toast" data-settings-toast role="status" aria-live="polite"></div>${renderAppearanceRecovery(L, appearance)}
+  <script>${clientI18nScript()}${UI_REQUEST_CLIENT_SCRIPT}${WRITE_CHECKERS_CLIENT_SCRIPT}${PROJECT_DIRECTORIES_CLIENT_SCRIPT}${PROJECT_SETTINGS_CLIENT_SCRIPT}${PROJECT_GUIDANCE_CLIENT_SCRIPT}${MEMORY_SETTINGS_CLIENT_SCRIPT}${PLUGIN_TRUST_SETTINGS_CLIENT_SCRIPT}${TASK_GRANTS_SETTINGS_CLIENT_SCRIPT}${pluginSettingsClients()}${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>${appearanceClientTag(appearance)}${knowledgeClientTag()}
 </body></html>`;
   }
 

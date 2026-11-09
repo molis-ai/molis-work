@@ -120,7 +120,7 @@ async function resolveOrChooser({ request, response, url, serverOptions, composi
 
 /** Home plugin HTTP keeps its Home caller and the same instance; under a project's prefix its routes run in that project, checked here. */
 const homePluginsRoute: WebRoute<WebRequestContext> = { id: "home-plugins", handle: context =>
-  handleHomePluginHttp(context.request, context.response, context.url, context.localHost, context.controlToken, context.composition.PAGE_CSP, homeRouteProjectPlugins(context),context.composition.accountRegistration) };
+  handleHomePluginHttp(context.request, context.response, context.url, context.localHost, context.controlToken, context.composition.PAGE_CSP, homeRouteProjectPlugins(context), context.composition.accountRegistration, context.composition.appearance) };
 
 /** A project request before its runtime opens; the last entry opens it and runs PROJECT_RUNTIME_ROUTES there. */
 const PROJECT_ROUTES: readonly WebRoute<ProjectRequestContext>[] = [

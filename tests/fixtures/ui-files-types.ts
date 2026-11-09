@@ -54,8 +54,12 @@ export const SPEC: UiSpecFile = {
     { name: "control", tokens: { weight: "weight-control" } },
     { name: "title", tokens: { weight: "weight-title", tracking: "tracking-title" } },
     { name: "display", tokens: { tracking: "tracking-display" } },
+    { name: "reading", tokens: { size: "type-reading-size", line_height: "type-reading-line-height" } },
+    { name: "note", tokens: {} },
     { name: "code", tokens: { family: "font-mono" } },
   ],
+  components: [{ kind: "card", catalog: "Card", name: { literal: "卡片" }, description: { literal: "一张卡片" },
+    group: "版面", use: "part", intents: ["reading"], data: "value", icon: "grid" }],
 };
 
 export const SKIN: UiSkinFile = {
@@ -103,6 +107,8 @@ export const FONT_SCHEME: UiFontSchemeFile = {
     control: { weight: 500 },
     title: { weight: 600, tracking_em: -0.02 },
     display: NO_FONT_SET,
+    reading: { size_px: 15, line_height: 1.65 },
+    note: NO_FONT_SET,
     code: { families: [{ system: "ui-monospace" }, { system: "SF Mono" }, { system: "monospace" }] },
   },
   faces: [

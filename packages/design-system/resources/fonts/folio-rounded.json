@@ -33,16 +33,9 @@
     "display": {
       "weight": 600
     },
-    "code": {
-      "families": [
-        {
-          "system": "ui-monospace"
-        },
-        {
-          "system": "monospace"
-        }
-      ]
-    }
+    "reading": {},
+    "note": {},
+    "code": {}
   },
   "faces": [
     {

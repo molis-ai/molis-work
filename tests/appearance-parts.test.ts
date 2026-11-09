@@ -127,10 +127,11 @@ test("FSS-68: the page fades on the move clock and curve, and a page that asks f
   assert.match(style, /::view-transition-old\(root\), ::view-transition-new\(root\) \{ animation-duration: var\(--dur-move\); animation-timing-function: var\(--ease-quint\); \}/u);
   const quiet = style.slice(style.indexOf("@media (prefers-reduced-motion: reduce)", style.indexOf(".mw-look-fade")));
   assert.match(quiet, /::view-transition-group\(root\), ::view-transition-old\(root\), ::view-transition-new\(root\) \{ animation: none; \}/u, "a second guard in the rules");
-  const script = source("browser/catalog-appearance.ts");
-  for (const guard of ['typeof document.startViewTransition === "function"', "!document.hidden", 'root.hasAttribute("data-craft-still")', 'matchMedia("(prefers-reduced-motion: reduce)")']) assert.ok(script.includes(guard), `the script asks: ${guard}`);
+  const script = source("look-fade.ts");
+  for (const guard of ['typeof document.startViewTransition === "function"', "!document.hidden", 'document.documentElement.hasAttribute("data-craft-still")', 'matchMedia("(prefers-reduced-motion: reduce)")']) assert.ok(script.includes(guard), `the script asks: ${guard}`);
   assert.match(script, /running\?\.skipTransition\(\)/u, "a second change does not queue behind the first");
-  assert.match(script, /if \(!fades\) show\(worn\);/u, "without the fade the change is made on the spot");
+  assert.match(script, /else commit\(\);/u, "without the fade the change is made on the spot");
+  assert.match(source("browser/catalog-appearance.ts"), /createLookFade\(\)/u);
   assert.ok(board.includes("startViewTransition"), "the board carries the script");
   const fade = sectionOf(board, "look-fade");
   assert.match(fade, /data-look-fade data-look-fade-look="\w+"/u);

@@ -2,7 +2,7 @@ import { pluginSurfaceClients } from "./plugin-workbench.js";
 import { sideViewBridgeScript } from "./side-view-document.js";
 import { renderPluginFrameSurface } from "./plugin-frame.js";
 import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { DROP_ZONE_CLIENT_SCRIPT, FIELD_FIT_CLIENT_SCRIPT, FLOATING_DETAILS_CLIENT_SCRIPT, MEDIA_ZOOM_CLIENT_SCRIPT, OVERFLOW_FADE_CLIENT_SCRIPT, renderIconSprite, ROVING_FOCUS_CLIENT_SCRIPT, SELECT_MENU_CLIENT_SCRIPT, STATE_RING_CLIENT_SCRIPT, THEME_BOOTSTRAP_SCRIPT, TIP_CLIENT_SCRIPT } from "@molis-ai/molis-work-design-system";
+import { DEVICE_PREFERENCES_CLIENT_SCRIPT, DROP_ZONE_CLIENT_SCRIPT, FIELD_FIT_CLIENT_SCRIPT, FLOATING_DETAILS_CLIENT_SCRIPT, MEDIA_ZOOM_CLIENT_SCRIPT, OVERFLOW_FADE_CLIENT_SCRIPT, renderIconSprite, ROVING_FOCUS_CLIENT_SCRIPT, SELECT_MENU_CLIENT_SCRIPT, STATE_RING_CLIENT_SCRIPT, THEME_BOOTSTRAP_SCRIPT, TIP_CLIENT_SCRIPT } from "@molis-ai/molis-work-design-system";
 import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { CONTROL_CLIENT_SCRIPT as UI_REQUEST_CLIENT_SCRIPT } from "./scripts/control.js";
 import { renderWorkbenchDocument } from "./document-shell.js";
@@ -12,6 +12,8 @@ import { HOME_MODEL_SETTINGS_CLIENT_SCRIPT } from "./scripts/home-model-settings
 import { homeToolKeysScript } from "./home-plugin-navigation.js";
 import { PLACEMENT_FACTORY_SCRIPT } from "./scripts/client/placement.js";
 import type { WorkbenchRendererPorts } from "./renderer.js";
+import { appearanceClientTag, appearanceHead, type WorkbenchAppearance } from "./appearance-document.js";
+import { renderAppearanceRecovery } from "./settings-appearance.js";
 
 /**
  * Where the person is beside this side view, read from the shell around it: the place the work area names and the
@@ -27,8 +29,8 @@ const SIDE_PAGE_SCRIPT = String.raw`() => {
 
 /** A Home plugin can be opened before any project exists. The same contribution and client also mount in Workbench. */
 export function renderHomePluginPage(entry: Pick<PluginRegistration, "project_plugin_id"> & { readonly manifest: Pick<PluginManifest, "name" | "plugin_id"> }, html: string | null, message: string | null, controlToken: string,
-  locale: Pick<WorkbenchRendererPorts["locale"], "L" | "htmlLang" | "clientI18nScript"> & Pick<WorkbenchRendererPorts, "accountRegistration">, retry = false, side = false, project?: { project_id: string; display_name?: string }, frame?: string, lifecycle = true): string {
-  const { L, htmlLang, clientI18nScript } = locale;
+  locale: Pick<WorkbenchRendererPorts["locale"], "L" | "htmlLang" | "clientI18nScript"> & Pick<WorkbenchRendererPorts, "accountRegistration"> & { appearance?: WorkbenchAppearance }, retry = false, side = false, project?: { project_id: string; display_name?: string }, frame?: string, lifecycle = true): string {
+  const { L, htmlLang, clientI18nScript, appearance } = locale;
   const name = escapeHtml(entry.manifest.name), id = entry.project_plugin_id;
   // A page drawn by a document of its own (a signed package's) is framed whole; any other is the plugin's HTML in the common opaque frame.
   const live = Boolean(frame || html);
@@ -37,7 +39,7 @@ export function renderHomePluginPage(entry: Pick<PluginRegistration, "project_pl
   return renderWorkbenchDocument({ lang: htmlLang(), title: `${entry.manifest.name} · Molis Work`,
     body_attributes: { class: "immersive-workbench home-plugin-page", "data-home-side": side ? "true" : null, "data-side-view": side ? id : null, "data-project-id": project?.project_id ?? null, "data-route-prefix": route, ...(locale.accountRegistration ? {inert:true,'data-account-registering':true}:{}) },
     head_html: `<meta name="molis-work-page-session" content="${escapeHtml(controlToken)}">
-    <script>${THEME_BOOTSTRAP_SCRIPT}</script><link rel="stylesheet" href="/assets/molis-work-workbench.css"><style>
+    <script>${THEME_BOOTSTRAP_SCRIPT}</script><link rel="stylesheet" href="/assets/molis-work-workbench.css">${appearanceHead(appearance)}<style>
     .home-plugin-page{height:100dvh;display:flex;flex-direction:column;background:var(--desk);color:var(--ink)}
     .home-plugin-page>header{display:flex;align-items:center;gap:16px;padding:12px 24px;flex:none}.home-plugin-page>header>strong{flex:1}
     .home-plugin-main{position:relative;flex:1;min-height:0;display:flex;margin:0 8px 8px;background:var(--surface);border-radius:12px;overflow:hidden}
@@ -58,8 +60,8 @@ export function renderHomePluginPage(entry: Pick<PluginRegistration, "project_pl
       <div class="mw-dialog__shell mw-form"><header class="mw-form__header"><h2 id="home-model-title">${escapeHtml(L("模型设置"))}</h2><button class="mw-btn mw-btn--ghost" type="button" data-home-model-back hidden>${escapeHtml(L("返回模型设置"))}</button><button class="mw-btn mw-btn--ghost" type="button" data-home-model-close autofocus>${escapeHtml(L("关闭"))}</button></header>
         <div class="mw-form__body"><p role="status" data-home-model-status></p><button class="mw-btn mw-btn--secondary" type="button" data-home-model-retry hidden>${escapeHtml(L("重试"))}</button><div data-home-model-content></div></div>
       </div>
-    </dialog>
-    <script>${clientI18nScript()}${UI_REQUEST_CLIENT_SCRIPT}</script><script src="/assets/molis-work-plugin-frame.js"></script><script>
+    </dialog>${renderAppearanceRecovery(L, appearance)}
+    <script>${clientI18nScript()}${UI_REQUEST_CLIENT_SCRIPT}${appearance ? DEVICE_PREFERENCES_CLIENT_SCRIPT : ""}</script>${appearanceClientTag(appearance)}<script src="/assets/molis-work-plugin-frame.js"></script><script>
     ${`if(window===top) globalThis.molisPlacement = (${PLACEMENT_FACTORY_SCRIPT})({translate:L,route:path=>${JSON.stringify(route)}+path,headers:()=>molisWorkControlHeaders(),projectTitle:${JSON.stringify(project?.display_name ?? "")},openItem:(plugin,id)=>location.assign(${JSON.stringify(route)}+'/?openPlugin='+encodeURIComponent(plugin)+'&openItem='+encodeURIComponent(id)),openPluginRecord:(plugin,id)=>location.assign(${JSON.stringify(route)}+'/?openPlugin='+encodeURIComponent(plugin)+'&openItem='+encodeURIComponent(id))});`}
     const root = document.querySelector('[data-deferred-surface]');
     if(root) void molisPluginFrames.mount(root,{side:${side},translate:globalThis.L,mountPluginClient:(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})(),route:path=>${JSON.stringify(route)}+path,projectId:()=>${JSON.stringify(project?.project_id ?? "")},projectTitle:()=>${JSON.stringify(project?.display_name ?? "")}${side ? `,page:(${SIDE_PAGE_SCRIPT}),status:status=>parent.postMessage({type:'molis:side-status',status},location.origin)` : ""}},{id:${JSON.stringify(id)},plugin_id:${JSON.stringify(entry.manifest.plugin_id)},bundle:${JSON.stringify(client?.bundle ?? id)},assets:${JSON.stringify(client?.assets ?? [])},searchRow:${JSON.stringify(client?.searchRow)}}).catch(error=>{const note=document.querySelector('[data-home-status]');molisWorkRequest.show(note,error);note.hidden=false;});

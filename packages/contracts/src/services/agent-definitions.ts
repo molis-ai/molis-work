@@ -19,10 +19,14 @@ export const servicesAgentDefinitionsContract = {
 /** Longest prompt the person may save. Long enough for any shipped prompt; short enough to stay a prompt. */
 export const AGENT_PROMPT_MAX_CHARS = 20_000;
 
-/** The exact signed default. A user edit is identified separately, never attributed to this signature. */
+/**
+ * The exact signed default of a role. A user edit is identified separately, never attributed to this signature. A method is a Skill and
+ * is named by `SkillRef` only (specs/capability-pack/contract-design.md §2.2); `kind` stays so stored `prompt_uses.source_ref` rows read
+ * as they were written.
+ */
 export interface SignedAgentReference {
   source: { kind: "plugin"; plugin_id: string; plugin_version: string; publisher_signature: string };
-  kind: "role" | "method";
+  kind: "role";
   entry_id: string;
 }
 
@@ -118,10 +122,12 @@ export interface AgentSkillRegistration {
   body: string;
 }
 
-/** A registered method as a round finds it: its owner, identity and when it applies (the body is read by id). */
+/**
+ * A registered method as its owner declared it. Who may read it, and its exact reference (`SkillRef`), are the shared catalog's
+ * (`skills.catalog.list@1`): this view names no second reference. A signed role is listed once, with the roles.
+ */
 export interface AgentSkillView {
-  kind?: "role" | "method";
-  default_ref?: SignedAgentReference;
+  /** The installation that registered it, for a signed package's. */
   install_id?: string;
   /** `<owner_id>/<skill_id>`. */
   key: string;

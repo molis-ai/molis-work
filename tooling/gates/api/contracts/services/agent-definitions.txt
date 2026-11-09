@@ -144,8 +144,6 @@ export interface AgentSkillRegistration {
 }
 
 export interface AgentSkillView {
-    kind?: "role" | "method";
-    default_ref?: SignedAgentReference;
     install_id?: string;
     key: string;
     owner_id: string;
@@ -198,7 +196,7 @@ export interface SignedAgentReference {
         plugin_version: string;
         publisher_signature: string;
     };
-    kind: "role" | "method";
+    kind: "role";
     entry_id: string;
 }
 

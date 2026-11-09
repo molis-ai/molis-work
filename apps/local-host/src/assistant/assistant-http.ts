@@ -21,6 +21,9 @@ import { ActionError, actionEffect, bindActionClient, type ActionCallContext, ty
 import { actionKey, assistantAuthority, assistantProjectPrompts } from "./assistant-authority.js";
 import { registerWorkAuthority } from "../agent-work-authority.js";
 import { AssistantService, type AssistantServicePorts } from "./assistant-service.js";
+import type { SignedBinding } from "./assistant-service-shared.js";
+import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-definitions";
+import { skillCatalogActions } from "@molis-ai/molis-work-contracts/services/skills";
 import { assistantSurroundings } from "./assistant-surroundings.js";
 import { assistantErrors } from "./assistant-errors.js";
 import type { PersonActions } from "./assistant-executor.js";
@@ -130,6 +133,12 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
       return await bindActionClient(client, () => caller).invoke(definition, input, control, transport);
     } };
   };
+  const definitions = () => agentDefinitionsFor(ports.homeDirectory, builtinRegistrations);
+  // The shared Skill catalog, read as the person for an Assistant round: the Host's own entry freezes what the person named (§2.3).
+  const skillReader = async (reference: LocalHostProjectReference | undefined, named: readonly SkillRef[]) => {
+    const caller: ActionCallContext = { ...await personContext(reference), skill_round: { consumer: "assistant", named } };
+    return bindActionClient(reference ? ports.localHost.actionClient(reference) : ports.localHost.homeActionClient(), () => caller);
+  };
   let threads: AssistantThreads;
   const servicePorts: AssistantServicePorts = {
     lastLocale: () => lastUsedLocale(ports.homeDirectory),
@@ -162,27 +171,36 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
     // The Characters the person may choose, read as the person from Characters' own actions (PG-086).
     characters: project => assistantCharacterChoices(personClient(project)),
     projectTitle: ports.projectTitle,
-    // Methods Plugins offer for business work, from the Home's registry of Agent definitions.
-    methods: { list: () => agentDefinitionsFor(ports.homeDirectory, builtinRegistrations).methods(),
-      read: (owner, skill, version) => agentDefinitionsFor(ports.homeDirectory, builtinRegistrations).method(owner, skill, version),
-      readSigned: (install, ref) => agentDefinitionsFor(ports.homeDirectory, builtinRegistrations).signedMaterial(install, ref),
-      recordSignedUse: (material, caller) => agentDefinitionsFor(ports.homeDirectory, builtinRegistrations).recordSignedUse(material, caller),
-      bindSigned: async (project, installId, ref) => {
+    // Role material from the Home's registry of Agent definitions; Skills from the shared catalog, read as the person.
+    methods: { roles: () => definitions().signedRoles(),
+      readSigned: (install, ref) => definitions().signedMaterial(install, ref),
+      recordSignedUse: (material, caller) => definitions().recordSignedUse(material, caller),
+      recordSkillUse: use => definitions().skills.recordUse(use),
+      bindSigned: async (project, installs) => {
+        // One read of each record source for every installation a list names (09 §3.4), never one per role.
         const projectRows = project ? await ports.localHost.withProject(project, runtime => pluginInstallRecords(runtime.store.db)) : undefined;
-        const inProject = projectRows?.get(installId);
-        const current = inProject ? () => projectRows!.get(installId) : () => ports.localHost.homePlugins?.installations().find(row => row.install_id === installId);
-        const original = current(), ledger = new HomeConsentLedger(ports.homeDirectory);
-        const assertCurrent = () => {
-          const record = current();
-          if (!original || !record || record.state !== "running" || record.installation_generation !== original.installation_generation
-            || record.plugin_id !== ref.source.plugin_id || record.version !== ref.source.plugin_version || record.publisher_signature !== ref.source.publisher_signature
-            || record.publisher_trust !== "pinned" || !ledger.publishers().some(pin => pin.key_id === record.publisher_signature && !pin.revoked_at)) {
-            throw assistantErrors.invalid("角色资料或方法的安装来源已失效，请重新选择");
-          }
-        };
-        assertCurrent();
-        return { installation: { install_id: installId, installation_generation: original!.installation_generation, project_id: inProject ? project!.project_id : null }, assertCurrent };
-      } },
+        const homeRows = () => ports.localHost.homePlugins?.installations() ?? [];
+        const ledger = new HomeConsentLedger(ports.homeDirectory), atBind = homeRows();
+        const bound = new Map<string, SignedBinding>();
+        for (const { install_id: installId, source } of installs) {
+          const inProject = projectRows?.get(installId);
+          const current = inProject ? () => projectRows!.get(installId) : () => homeRows().find(row => row.install_id === installId);
+          const original = inProject ?? atBind.find(row => row.install_id === installId);
+          if (!original || bound.has(installId)) continue;
+          const assertCurrent = () => {
+            const record = current();
+            if (!record || record.state !== "running" || record.installation_generation !== original.installation_generation || record.plugin_id !== source.plugin_id
+              || record.version !== source.plugin_version || record.publisher_signature !== source.publisher_signature
+              || record.publisher_trust !== "pinned" || !ledger.publishers().some(pin => pin.key_id === record.publisher_signature && !pin.revoked_at)) {
+              throw assistantErrors.invalid("角色资料的安装来源已失效，请重新选择");
+            }
+          };
+          bound.set(installId, { installation: { install_id: installId, installation_generation: original.installation_generation, project_id: inProject ? project!.project_id : null }, assertCurrent });
+        }
+        return bound;
+      },
+      skills: async project => (await skillReader(project, [])).invoke(skillCatalogActions.list, { applies_to: "assistant", states: ["auto", "manual"] }).then(found => found.skills),
+      readSkills: async (project, refs) => (await skillReader(project, refs)).invoke(skillCatalogActions.readBodies, { refs: [...refs] }).then(read => read.results) },
     // The person's own actions in the work's project, as the page there would use them. A dispatch, a follow-up's round among them,
     // binds the person's client anew when it acts, never the snapshot the reads share: what was granted or withdrawn by then counts.
     personActions: async (work, use, original, executorPluginId) => {

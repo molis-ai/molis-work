@@ -89,7 +89,7 @@ globalThis.molisWorkBindAgentDiagnostics = (container = document) => {
     if (round.materials.length) item.append(line(L("资料") + "：" + round.materials.map((material) => material.title + "（" + L(MATERIAL[material.kind] || material.kind) + "，"
       + (material.explicit ? L("你加的") : L("页面带来的")) + (material.draft ? "，" + L("未保存的修改") : "")
       + (material.object ? "，" + material.object.kind + ":" + material.object.id + (material.object.version !== undefined && material.object.version !== null ? "@" + material.object.version : "") : "")
-      + (material.capability ? "，" + material.capability.capability_id + " v" + material.capability.version : "") + (material.method ? "，" + material.method.method_id : "") + "）").join("、")));
+      + (material.capability ? "，" + material.capability.capability_id + " v" + material.capability.version : "") + (material.method ? "，" + (material.method.kind === "skill" ? material.method.ref.skill_id + " v" + material.method.ref.version : material.method.method_id) : "") + "）").join("、")));
     if (round.usage) item.append(line(L("用量") + "：" + L("输入") + " " + round.usage.input.toLocaleString() + " · " + L("输出") + " " + round.usage.output.toLocaleString()
       + (round.usage.cached_input ? " · " + L("缓存读取") + " " + round.usage.cached_input.toLocaleString() : "")));
     if (round.failures.length) {

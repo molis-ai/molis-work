@@ -1,5 +1,6 @@
 import { answeringEndingReviews } from "./fixtures/ending-review.js";
 import { installedPackageHost } from "./fixtures/signed-package-host.js";
+import { roleOf } from "./fixtures/assistant-roles.js";
 import { signedAgentPackage, newPublisher, PACKAGE_PLUGIN_ID } from "./fixtures/sandbox-package.js";
 // Stage 3b-2a of specs/ai-input-receipts (§4.6, D34): from the Assistant, a supplement its round has not put in the context
 // is taken back, and a correction names the input it corrects; one sent after the round ended waits in the session. The
@@ -92,7 +93,7 @@ test("RAC-2639/2641/2642 S-105 signed supplements keep an 8000-unit body, reject
     requests.push(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array)); enteredModel.resolve(); await releaseModel.promise; return reply("检查完成。");
   }));
   const { service } = assistantServiceFor({ localHost: h.host, homeDirectory: h.home, agentHost, agentReady: async () => {}, projectTitle: async () => "正文项目", pages: async () => [] });
-  const role = (await service.reads.methods(null, { project_ref: h.reference })).find(item => item.plugin_id === PACKAGE_PLUGIN_ID && item.kind === "role")!;
+  const role = (await service.reads.methods(null, { project_ref: h.reference })).find(roleOf(PACKAGE_PLUGIN_ID))!;
   const prompt = homeAgentDefinitions(h.home).prompts().find(item => item.default_ref?.entry_id === role.default_ref?.entry_id)!;
   const material = { material_id: "signed", kind: "method" as const, explicit: true, title: "角色资料", method: role };
   const send = adapter.inputs!.send.bind(adapter.inputs!);

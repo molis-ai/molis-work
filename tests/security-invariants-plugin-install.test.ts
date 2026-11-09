@@ -459,14 +459,14 @@ test("RAC-2640/2643 S-84 preview exposes each signed body and compares the compl
     assert.deepEqual(preview.skills?.map(item => [item.skill_id, item.name, item.change, item.excerpt]), [["new-method", "新增方法", "added", "<script>仅为文本</script>"], ["removed-method", "将被移除", "removed", "逐条核对可验证的事实。"]]);
     assert.equal(preview.agent_bodies![0]!.excerpt, prefix, "same excerpt still reports the full-body change");
     assert.equal((await h.plugins())[0]!.version, "1.1.0", "preview keeps the installed version");
-    assert.equal(homeAgentDefinitions(h.home).methods().find(item => item.kind === "role" && item.owner_id === PACKAGE_PLUGIN_ID)!.default_ref!.source.plugin_version, "1.1.0");
+    assert.equal(homeAgentDefinitions(h.home).signedRoles().find(item => item.owner_id === PACKAGE_PLUGIN_ID)!.default_ref.source.plugin_version, "1.1.0");
     await h.client.invoke(h.person, { capability_id: pluginInstallActions.confirm.capability_id, version: 1 }, { preview_id: preview.preview_id, consent: true });
     assert.equal((await h.plugins())[0]!.version, "1.2.0");
-    const role = homeAgentDefinitions(h.home).methods().find(item => item.kind === "role" && item.owner_id === PACKAGE_PLUGIN_ID)!;
-    assert.equal(homeAgentDefinitions(h.home).signedMaterial(role.install_id!, role.default_ref!).body, prefix + "新尾部");
+    const role = homeAgentDefinitions(h.home).signedRoles().find(item => item.owner_id === PACKAGE_PLUGIN_ID)!;
+    assert.equal(homeAgentDefinitions(h.home).signedMaterial(role.install_id, role.default_ref).body, prefix + "新尾部");
     await assert.rejects(h.install(signedAgentPackage(publisher, { ...base, version: "1.3.0", compatibleFrom: ["1.2.0"], broken: true, bodies: { "agent/role.md": "未成功的新正文" } })));
-    const current = homeAgentDefinitions(h.home).methods().find(item => item.kind === "role" && item.owner_id === PACKAGE_PLUGIN_ID)!;
-    assert.equal(current.default_ref!.source.plugin_version, "1.2.0");
-    assert.equal(homeAgentDefinitions(h.home).signedMaterial(current.install_id!, current.default_ref!).body, prefix + "新尾部");
+    const current = homeAgentDefinitions(h.home).signedRoles().find(item => item.owner_id === PACKAGE_PLUGIN_ID)!;
+    assert.equal(current.default_ref.source.plugin_version, "1.2.0");
+    assert.equal(homeAgentDefinitions(h.home).signedMaterial(current.install_id, current.default_ref).body, prefix + "新尾部");
   } finally { await h.close(); }
 });

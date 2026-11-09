@@ -241,7 +241,7 @@ owner 身份来自已绑定的安装或系统提供方，actor 与项目取自 `
 
 安装归属复用 Runtime `install-rules.ts` 的 `DeclarationOwners` 和 Host `declaration-owners.ts` 的 `heldInstalls`。按动作目录可达交集判定，同项目及 Home 与任一项目间同 key 冲突，不同项目允许同名。按可信 `scope` 与 `install_id` 精确排除升级自身，禁用保留 key，卸载即释放。异步升级预检后在保存安装记录前重查。
 
-独占实现放在 contracts 的 `platform/settings.ts` 和 SDK 的 `settings.ts`、`sandbox-schema.ts`。Manifest 字段、解析接线、SDK 根导出及共享 API 快照等 #1984 交接后串行接入。本片以公开 contracts／SDK 入口和真实 Runtime 准入验证，不登记存量 owner 的设置动作。签名沙箱 app 的生产接入范围待用户决定。当前签包按固定 Manifest 投影，沙箱的数据库事务端口只接受写语句批次。若纳入，需要投影固定读写定义，并在安装私有库内提供受授权的同步事务端口供同一 SDK 绑定调用。第 36 批角色层次合同是否由本批接手也待用户决定，仍是 P-2 的前置。
+独占实现放在 contracts 的 `platform/settings.ts` 和 SDK 的 `settings.ts`、`sandbox-schema.ts`。Manifest 字段、解析接线、SDK 根导出及共享 API 快照等 #1984 交接后串行接入。本片以公开 contracts／SDK 入口和真实 Runtime 准入验证，不登记存量 owner 的设置动作。用户 2026-11-08（PST）已定：本批完成公共合同、SDK 绑定和声明校验，签名沙箱 app 的设置执行留待后续接入，记在 [BL-settings-sandbox-execution](../backlog/BL-settings-sandbox-execution.md)。本批不宣称签名沙箱设置已能执行，也不放开无处理器的声明。当前签包按固定 Manifest 投影，沙箱的数据库事务端口只接受写语句批次。后续接入需要投影固定读写定义，并在安装私有库内提供受授权的同步事务端口供同一 SDK 绑定调用。用户同日确认保留第 36 批先交角色层次合同的分工，P-2 仍等该前置，本批先推进可独立部分。
 
 SPC-C01 经公开 Manifest 解析和 `ActionService` 验证错引用／schema、非法文字、越层、继承和不可用，经 Runtime 安装验证 key 冲突。SPC-C02 用临时文件 SQLite owner 驱动公开 SDK 绑定。两个独立连接以同一 revision 竞争写入，另验跨层变化导致旧 revision 冲突。测试同请求重放、同键异内容拒绝及关闭重开后返回原回执。用数据库触发器让 receipt 插入失败，核对值与 revision 回滚。暂停调度器的 `beforeEffect` 后撤权，验证新请求和重放都被拒，数据库中值和回执没有变化。
 

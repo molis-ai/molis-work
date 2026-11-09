@@ -130,13 +130,15 @@ export function sandboxPluginManifest(input: SandboxManifestInput): PluginManife
   }
   const uiId = sandboxUiContribution(input.pluginId);
   if (input.effects?.background?.length && !input.contract) throw pluginErrors.declaration_invalid('后台操作需要完整合同来派生动作');
-  const actions = input.contract?.operations.some(operation => operation.background_job || operation.effects.background?.length || operation.external !== undefined)
+  const actions = input.contract && (input.contract.presentation !== undefined || input.contract.operations.some(operation =>
+    operation.background_job || operation.effects.background?.length || operation.external !== undefined || operation.read_protocol !== undefined))
     ? sandboxOperationActions({ contract: input.contract, ...(input.actionIdentity ?? { buildId: sandboxPackageBuildId(input.pluginId, input.publisher.signature), version: 1 }),
       title: input.name, scope: input.runtime?.scope === 'home' ? 'home' : 'project' }) : undefined;
   return {
     schema_version: /* @version manifest.schema */ 1, host_api_version: /* @version host.api */ 1, plugin_id: input.pluginId, version: input.version, name: input.name, kind: 'app',
     publisher: input.publisher,
     ...(actions ? { actions } : {}),
+    ...(input.contract?.presentation === undefined ? {} : { presentation: input.contract.presentation }),
     ...(input.textDeclarations ? sandboxAgentDeclarations(input.textDeclarations) : {}),
     entrypoints: [{ deployment: 'local', entrypoint: './plugin.mjs' }],
     ...(input.upgradesFrom?.length ? { upgrade_compatibility: { compatible_from_versions: [...input.upgradesFrom] } } : {}),

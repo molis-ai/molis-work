@@ -11,7 +11,7 @@ import type { SandboxEffects, SandboxHostMessage, SandboxIdentity, SandboxJson, 
 import { SandboxBroker, type SandboxServices } from './broker.js';
 import { modelDeadlines } from './model.js';
 import { BoundedQueue, RateBudget } from './queue.js';
-import { assertContract, assertEffects, assertJson, assertMatches, SandboxError } from './schema.js';
+import { assertEffects, assertJson, checkSandboxContract, SandboxError } from './schema.js';
 import { seatbeltProfile } from './seatbelt.js';
 
 export interface SandboxLimits {
@@ -53,8 +53,9 @@ export interface SandboxCallControl {
 
 export async function createSandboxRunner(options: SandboxRunnerOptions): Promise<SandboxRunner> {
   if (process.platform !== 'darwin') throw new SandboxError('sandbox.unsupported_platform', 'Generated plugins require macOS Seatbelt');
-  assertContract(options.contract); assertEffects(options.grants);
-  const contract = structuredClone(options.contract), grants = structuredClone(options.grants);
+  const { contract, validators } = checkSandboxContract(options.contract, false, true);
+  assertEffects(options.grants);
+  const grants = structuredClone(options.grants);
   const identity = Object.freeze(structuredClone(options.identity));
   if (identity.pluginId !== contract.pluginId || (identity.projectId !== null && !identity.projectId) || !identity.installationId || !['preview', 'installed'].includes(identity.namespace)) throw new SandboxError('sandbox.invalid_identity', 'Host identity does not match contract');
   const limits = { ...DEFAULT_SANDBOX_LIMITS, ...options.limits };
@@ -142,7 +143,7 @@ export async function createSandboxRunner(options: SandboxRunnerOptions): Promis
     if (message.id !== current.id || current.pendingSdk.size) throw new SandboxError('sandbox.protocol_error', 'Result has wrong id or unawaited SDK calls');
     if (message.type === 'result') {
       exact(['type', 'id', 'value']);
-      try { assertMatches(current.operation.output, message.value); }
+      try { validators.get(current.operation.id)!('output', message.value); }
       catch { throw new SandboxError('sandbox.protocol_error', 'Plugin result violates the operation output schema; effects may already have occurred', 'unknown'); }
     }
     else if (message.type === 'error') {
@@ -189,8 +190,9 @@ export async function createSandboxRunner(options: SandboxRunnerOptions): Promis
       try {
         const operation = contract.operations.find(o => o.id === operationId);
         if (!operation) throw new SandboxError('sandbox.unknown_operation', 'Operation is outside this contract');
-        assertMatches(operation.input, input);
-        if (Buffer.byteLength(JSON.stringify(input)) > limits.messageBytes / 2) throw new SandboxError('sandbox.request_too_large', 'Operation input exceeds channel limit');
+        validators.get(operation.id)!('input', input, () => {
+          if (Buffer.byteLength(JSON.stringify(input)) > limits.messageBytes / 2) throw new SandboxError('sandbox.request_too_large', 'Operation input exceeds channel limit');
+        });
         const { operationTimeoutMs, serviceTimeoutMs } = modelDeadlines(operation.effects, limits, control?.limits);
         for (const value of [operationTimeoutMs, serviceTimeoutMs]) {
           if (!Number.isSafeInteger(value) || value <= 0 || value > 2_147_483_647) throw new SandboxError('sandbox.invalid_limit', 'Call deadlines must be positive timer-safe integers');

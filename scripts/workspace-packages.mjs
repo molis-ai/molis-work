@@ -134,6 +134,7 @@ export const WORKSPACE_PACKAGES = [
   entry("packages/plugin-sandbox", "@molis-ai/molis-work-contracts/platform/plugin-sandbox", {
     maturity: "production",
     extraWorkspaceDependencies: [
+      "@molis-ai/molis-work-kernel",
       "@molis-ai/molis-work-plugin-sdk"
     ]
   }),

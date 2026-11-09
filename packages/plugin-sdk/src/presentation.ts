@@ -12,6 +12,7 @@ import { tryOwnedTextRef } from "./ui/text-ref.js";
 export { isPresentationValuesReader, presentationCatalog, validatePresentationDeclaration, type PresentationCatalog,
   type PresentationCatalogAnswer } from "./presentation-declaration.js";
 export { assertSurfaceDescription, type CheckedSurfaceDescription, type SurfaceDrop } from "./surface-description.js";
+export { sandboxReadProtocolAction } from "./sandbox-read-protocol.js";
 
 // The message names the part that is wrong and never echoes a value: a reference can carry another owner's id or a local path.
 const refused = (part: string) => new ActionError("actions.input_invalid", `资料引用无效：${part}`);

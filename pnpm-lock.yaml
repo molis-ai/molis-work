@@ -866,6 +866,9 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@molis-ai/molis-work-kernel':
+        specifier: workspace:*
+        version: link:../kernel
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../plugin-sdk

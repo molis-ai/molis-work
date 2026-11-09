@@ -1,5 +1,6 @@
 /// <reference lib="dom" />
 /// <reference lib="dom.iterable" />
+import type { SandboxDataOperation } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { Column, Kit, Part, Rel, State } from './plugin-component-types.js';
 import type { PluginComponentNode } from './plugin-components.js';
 
@@ -13,7 +14,8 @@ export function pcRelations(c: State & Kit) {
   };
   /** A plugin's name: its heading's own title, else the page's title; the designer's note on the part is not a name. */
   const headingOf = (node: PluginComponentNode) => node.props.title || c.view?.contract.pages.find(page => page.id === node.pageId)?.title || node.purpose;
-  const operation = (id?: string) => c.view?.contract.operations.find(op => op.id === id), live = (part: Part, generation: number) => !c.disposed && generation === c.epoch && parts.get(part.node.id) === part;
+  const operation = (id?: string) => c.view?.contract.operations.find((op): op is SandboxDataOperation => op.id === id && op.read_protocol === undefined);
+  const live = (part: Part, generation: number) => !c.disposed && generation === c.epoch && parts.get(part.node.id) === part;
   const detailEnabled = (id: string) => !!c.view?.presentation?.parts[id]?.detail;
   const ready = (id?: string) => !!id && !!c.view?.connected.includes(id);
   const collections = new Set(['directory', 'card', 'table', 'calendar', 'accordion']);

@@ -220,7 +220,8 @@ export function pluginValueAt(value: unknown, path?: string): unknown {
 function checkBinding(binding: PluginOperationBinding, contract: SandboxPluginContract, reading: boolean) {
   if (!plain(binding) || Object.keys(binding).some(key => !['operationId', 'input', 'outputPath'].includes(key))) fail('操作绑定包含未知属性');
   const operation = contract.operations.find(item => item.id === binding.operationId);
-  if (!operation) fail('操作不存在：' + binding.operationId);
+  if (!operation) return fail('操作不存在：' + binding.operationId);
+  if (operation.read_protocol !== undefined) return fail('平台读取协议不能绑定到页面组件：' + binding.operationId);
   if (reading && operation!.kind !== 'query') fail('自动读取只能绑定查询操作');
   if (operation!.input.type !== 'object' || !plain(binding.input)) fail('界面操作的输入必须是对象');
   for (const [name, source] of Object.entries(binding.input)) {
@@ -281,7 +282,9 @@ export function validatePluginComponentPlans(value: unknown, contract: SandboxPl
   return structuredClone(value) as PluginComponentPlan[];
 }
 export function pluginComponentChoices(part: PluginComponentPlan, contract: SandboxPluginContract): PluginComponentMetadata[] {
-  const output = part.read ? pluginSchemaAt(contract.operations.find(item => item.id === part.read!.operationId)?.output ?? { type: 'null' }, part.read.outputPath) : undefined;
+  const operation = contract.operations.find(item => item.id === part.read?.operationId);
+  const schema = operation?.read_protocol === undefined ? operation?.output : undefined;
+  const output = part.read ? pluginSchemaAt(schema ?? { type: 'null' }, part.read.outputPath) : undefined;
   const items = output?.type === 'array' ? output.items : undefined;
   // A calendar needs records that carry a date; a confirmation fits an action that cannot be undone.
   const dated = items?.type === 'object' && Object.entries(items.properties ?? {}).some(([name, spec]) => spec.type === 'string' && (spec.format === 'date' || spec.format === 'date-time' || /date|day|日期/i.test(name)));

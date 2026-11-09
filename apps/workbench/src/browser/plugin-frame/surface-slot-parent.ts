@@ -120,8 +120,9 @@ export function pageSurfaceSlots(port: MessagePort, scope: FrameScope, areas: Pa
       const result = await api<Rendered>({ intent: "read", slot: entry.slot, ...(entry.recovery ? { recovery: entry.recovery } : {}) }, request.signal);
       if (!shown(entry) || entry.read !== request || request.signal.aborted) return;
       entry.render = result;
-      if (!result.display.display.rows.length && !result.display.object_restore_available && Array.isArray(entry.subjects) && entry.subjects.length) entry.note = "暂时读不到";
-      else if (entry.note === "暂时读不到") entry.note = undefined;
+      const empty = !result.display.display.rows.length && !result.display.object_restore_available && Array.isArray(entry.subjects) && entry.subjects.length;
+      if (empty && entry.note !== "已完成" && entry.note !== "到原处核对执行结果") entry.note = "暂时读不到";
+      else if (!empty && entry.note === "暂时读不到") entry.note = undefined;
       draw(entry);
     } catch {
       if (entry.read === request && !request.signal.aborted && current(entry)) { entry.render = undefined; entry.note = "暂时读不到"; draw(entry); }

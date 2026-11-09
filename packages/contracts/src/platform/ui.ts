@@ -8,6 +8,7 @@ import type { UiPageDrafts, UiPageReturns } from "./ui-returns.js";
 import type { UiSlotDescriptor } from "./ui-slots.js";
 export * from "./ui-returns.js";
 export * from "./ui-environment.js";
+export * from "./ui-selection.js";
 export * from "./ui-files.js";
 export * from "./ui-text.js";
 export * from "./ui-state-rings.js";

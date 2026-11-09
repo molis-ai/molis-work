@@ -26,7 +26,7 @@ export interface SmokeOptions {
   /** The designer agent. Asked for once per request; closed after it. */
   agent(locale: WebLocale): Promise<SmokeAgent>;
   model: { provider_id: string; model_id: string; label: string };
-  wording?(locale: WebLocale): Pick<AgentBuilderPorts, 'skill' | 'prompt' | 'instruction' | 'runInLanguage'>;
+  wording?(locale: WebLocale): Pick<AgentBuilderPorts, 'skills' | 'prompt' | 'instruction' | 'runInLanguage'>;
   /** How long one brief may take before it is stopped and reported as unfinished. */
   minutes: number;
   pollMs?: number;

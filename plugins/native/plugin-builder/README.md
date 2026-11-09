@@ -25,7 +25,7 @@
 - 依赖：`@molis-ai/molis-work-plugin-sdk`（共同同步内容编解码）、`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`、平台基础包 `@molis-ai/molis-work-plugin-sandbox`（复用严格合同校验，不启动沙箱）。不导入另一个插件、App、Horizontal Service 或 Module 的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - resetPreview 的旧 job 在 stopRunner 等待后再次核原 token，才能清预览数据或改构建。升级的授权表单传秘密值到 Host；只对本 release 声明的名称分批验证后切换，失败恢复本次秘密与原版本，较新的安装或启停选择优先。公开清单和批准记录不含秘密正文。
-  - 执行只经 Host 的 Prologue 能力；Agent 挂载的规范来自 `skills/molis-plugin-dev`（设计、体验、界面、复查与代码按阶段挂载，各不超过 20000 字）。
+  - 执行只经 Host 的 Prologue 能力；Agent 挂载的规范来自 `skills/molis-plugin-dev`（设计分三份挂载，体验、界面、复查与代码各一份；每份不超过 20,000 字符，和阶段指令合计超过现行 64,000 字符上限时在发送前拒绝）。
   - Agent 写的代码由 Local Host 做类型检查、打包并在 plugin-sandbox 里试跑（`apps/local-host/src/plugin-builder/build-checks.ts`），通过后才发布。
   - 再次编辑产生新草稿，不影响正在使用的版本；新版本新增的权限或联网域名要用户重新确认；回滚只回退代码版本、不回退数据（agent-built-plugins spec）。
   - 费用、时限和频率取自 Action 提供方的 `execution` 声明；目录适配不再按 `model.generate` 名称推断。收费能力不能用于页面自动触发的 query。生成插件只走统一目录：目录之前的工作室能力清单（`goals.*`、`reminders.*`、`schedules.*` 的旧形状）和直接写在代码里的模型要求都已删除（2026-10，防腐第二步）。

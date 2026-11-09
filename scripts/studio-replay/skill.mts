@@ -4,7 +4,8 @@
  * its mounted text, so a changed number here means the model would read something different.
  */
 import { BUILDER_PROMPTS } from '@molis-ai/molis-work-plugin-builder';
-import { builderSkill } from '../../apps/local-host/src/plugin-builder/skill.js';
+import { createHash } from 'node:crypto';
+import { builderSkills } from '../../apps/local-host/src/plugin-builder/skill.js';
 import type { WebLocale } from "../../apps/local-host/src/web-locale.js";
 import type { Baseline, SkillMount } from './replay.mjs';
 
@@ -13,7 +14,13 @@ export const SKILL_STAGES = ['design', 'experience', 'ui', 'review', 'code'] as 
 export function mountedSkill(directory?: string, locale?: WebLocale): NonNullable<Baseline['skill']> {
   const stages: Record<string, SkillMount> = {};
   for (const stage of SKILL_STAGES) {
-    try { const skill = builderSkill(stage, directory, locale); stages[stage] = skill ? { version: skill.version, chars: skill.body.length } : { version: null, chars: null, error: 'no skills/molis-plugin-dev directory found' }; }
+    try {
+      const skills = builderSkills(stage, directory, locale);
+      const version = skills.length === 1 ? skills[0]!.version
+        : Number.parseInt(createHash('sha256').update(JSON.stringify(skills.map(skill => skill.version))).digest('hex').slice(0, 7), 16);
+      stages[stage] = skills.length ? { version, chars: skills.reduce((chars, skill) => chars + skill.body.length, 0) }
+        : { version: null, chars: null, error: 'no skills/molis-plugin-dev directory found' };
+    }
     catch (error) { stages[stage] = { version: null, chars: null, error: error instanceof Error ? error.message : String(error) }; }
   }
   return { stages, prompts: Object.fromEntries(Object.entries(BUILDER_PROMPTS).map(([name, prompt]) => [name, prompt.version])) };

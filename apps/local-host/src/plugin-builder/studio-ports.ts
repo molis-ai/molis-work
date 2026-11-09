@@ -7,7 +7,7 @@ import type { SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin
 import { assertContract } from '@molis-ai/molis-work-plugin-sandbox';
 import { resolvePrologueBuilder } from '../prologue-inference-host.js';
 import type { ensureInstalledPlugins } from '../installed-plugin-host.js';
-import { builderSkill } from './skill.js';
+import { builderSkills } from './skill.js';
 import { modelRoundLocale } from '../reply-language.js';
 import { runBackgroundWork } from '../web-locale.js';
 import { lastUsedLocale } from '../ui-locale-memory.js';
@@ -63,7 +63,7 @@ export function builderPorts(inputs: {
     },
     validateContract: contract => assertContract(contract),
     runInLanguage: (run, recovered) => runBackgroundWork(recovered ? lastUsedLocale(home) : modelRoundLocale(home), run),
-    skill: stage => builderSkill(stage, undefined, modelRoundLocale(home)),
+    skills: stage => builderSkills(stage, undefined, modelRoundLocale(home)),
     prompt: inputs.prompt, instruction: inputs.instruction,
     async prepareBuild(previous, design, manifest) {
       const directory = join(studio.root, 'builds', previous.id, design.contract.revision);

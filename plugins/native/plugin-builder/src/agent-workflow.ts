@@ -34,9 +34,9 @@ export interface AgentBuilderPorts {
   resources?: readonly string[];
   models(): Promise<readonly { provider_id: string; model_id: string; label: string }[]>;
   agent(build: AgentBuild, purpose: 'design' | 'code'): Promise<{ run(request: BuilderAgentRequest): Promise<BuilderAgentRecord>; close(): Promise<void>; records(): Promise<BuilderAgentRecord[]> }>;
-  /** The plugin development Skill a stage works to (the same standard official plugins use); absent in a release without it. */
   runInLanguage?<T>(run: () => T, recovered: boolean): T;
-  skill?(stage: 'design' | 'code' | 'experience' | 'ui' | 'review'): BuilderSkill | undefined;
+  /** The ordered standards for this stage, from the same Skill official plugin authors use. */
+  skills?(stage: 'design' | 'code' | 'experience' | 'ui' | 'review'): readonly BuilderSkill[];
   /**
    * The text an Agent prompt runs with now: the person's edit (from “Prompt 与 Character”) or the shipped default. The
    * version names which, so a run's record says whether it used the person's text.
@@ -164,8 +164,8 @@ export class AgentBuilderWorkflow {
   }
   /** The stage's Skill, and a prompt version that names the exact standard the run followed. */
   private mounted(stage: 'design' | 'code' | 'experience' | 'ui' | 'review', version: string): Pick<BuilderAgentRequest, 'promptVersion' | 'skills'> {
-    const skill = this.ports.skill?.(stage);
-    return skill ? { promptVersion: version + '+' + skill.id + '@' + skill.version, skills: [skill] } : { promptVersion: version };
+    const skills = this.ports.skills?.(stage);
+    return skills?.length ? { promptVersion: [version, ...skills.map(skill => skill.id + '@' + skill.version)].join('+'), skills } : { promptVersion: version };
   }
   private async withAgent<T>(id: string, purpose: 'design' | 'code', action: (agent: Awaited<ReturnType<AgentBuilderPorts['agent']>>) => Promise<T>) {
     const agent = await this.ports.agent(this.store.require(id), purpose); try { return await action(agent); } finally { await agent.close(); }

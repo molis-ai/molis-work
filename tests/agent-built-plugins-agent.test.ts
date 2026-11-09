@@ -132,34 +132,50 @@ test('two builds\' code agents on one Home Runtime never hold up each other\'s t
 });
 
 test('the plugin development Skill reaches the model through Prologue, as an exact version, for the stage that mounts it', { timeout: 30_000 }, async t => {
-  const { builderSkill } = await import('../apps/local-host/src/plugin-builder/skill.js');
-  const design = builderSkill('design')!, experience = builderSkill('experience')!, ui = builderSkill('ui')!, review = builderSkill('review')!, code = builderSkill('code')!;
-  assert.ok(design && ui && review && code, 'the repository carries the Skill');
-  assert.match(design.body, /交付流程/); assert.match(design.body, /生成插件：怎么设计/); assert.match(design.body, /质量线（所有插件）/); assert.match(design.body, /能力：读、写、不可撤销/);
+  const { builderSkills } = await import('../apps/local-host/src/plugin-builder/skill.js');
+  const design = builderSkills('design'), english = builderSkills('design', undefined, 'en');
+  const [experience] = builderSkills('experience'), [ui] = builderSkills('ui'), [review] = builderSkills('review'), [code] = builderSkills('code');
+  assert.ok(ui && review && code && experience, 'the repository carries the Skill');
+  assert.equal(design.length, 3);
+  assert.deepEqual(design.map(skill => skill.version), english.map(skill => skill.version), 'versions belong to the same chapters in every language');
+  for (const [index, skill] of design.entries()) assert.notEqual(skill.id, english[index]?.id, 'a Runtime registers each actual body separately');
+  const body = design.map(skill => skill.body).join('\n');
+  assert.match(body, /交付流程/); assert.match(body, /生成插件：怎么设计/); assert.match(body, /质量线（所有插件）/); assert.match(body, /能力：读、写、不可撤销/);
   assert.match(code.body, /生成插件：代码怎么写/); assert.doesNotMatch(code.body, /生成插件：怎么设计/, 'the code stage mounts only what it needs');
-  assert.match(design.body, /生成插件：AI 经 Prologue/); assert.match(code.body, /生成插件：AI 经 Prologue/);
+  assert.match(body, /生成插件：AI 经 Prologue/); assert.match(code.body, /生成插件：AI 经 Prologue/);
   assert.match(code.body, /同一意图的重试必须复用/);
-  assert.match(design.body, /生成插件：体验与审美标准/); assert.match(ui.body, /生成插件：体验与审美标准/);
+  assert.match(body, /生成插件：体验与审美标准/); assert.match(ui.body, /生成插件：体验与审美标准/);
   assert.doesNotMatch(ui.body, /生成插件：怎么设计/, 'UI does not receive the business authoring format');
   assert.doesNotMatch(code.body, /生成插件：体验与审美标准/, 'backend implementation does not receive visual instructions');
   assert.match(review.body, /生成插件：体验与审美标准/);
   assert.doesNotMatch(review.body, /生成插件：整页界面/, 'review is not instructed to output a new composition');
   assert.match(experience.body, /生成插件：体验与审美标准/);
   assert.doesNotMatch(experience.body, /生成插件：怎么设计|生成插件：整页界面/, 'pre-freeze planning is not asked to produce a frozen contract or layout');
-  assert.ok([design, experience, ui, review, code].every(skill => skill.body.length <= 20_000));
-  assert.equal(builderSkill('design')!.version, design.version, 'the version is the content, stable across loads');
+  assert.ok([...design, ...english, experience, ui, review, code].every(skill => skill.body.length <= 20_000));
+  assert.deepEqual(builderSkills('design'), design, 'all exact bodies and versions are stable across loads');
   const root = await mkdtemp(join(tmpdir(), 'molis-skill-mount-')), build = join(root, 'build'); await mkdir(build);
-  let seen = '';
-  t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => { seen = typeof init.body === 'string' ? init.body : new TextDecoder().decode(init.body as Uint8Array); return response(); });
+  let seen = '', calls = 0;
+  t.mock.method(globalThis, 'fetch', async (_url: unknown, init: RequestInit) => { calls++; seen = typeof init.body === 'string' ? init.body : new TextDecoder().decode(init.body as Uint8Array); return response(); });
   const adapter = await createPrologueNodeAdapter({ app: { appId: 'io.molis.work.builder-test', appVersion: '1.0.0' }, storageRoot: join(root, 'sdk'), reviewQueue: new AgentReviewQueue(),
     modelConfiguration: async () => ({ protocol: 'anthropic-compatible', endpoint: 'https://1.1.1.1/v1/messages', model: 'fixture', credential_ref: 'fixture' }), resolveCredential: () => 'fixture' });
   const agent = await adapter.createBuilderAgent({ buildRoot: build, storageRoot: join(root, 'agent'), modelConfiguration: async () => ({ protocol: 'anthropic-compatible', endpoint: 'https://1.1.1.1/v1/messages', model: 'fixture', credential_ref: 'fixture' }), resolveCredential: () => 'fixture' });
   try {
-    await agent.run({ role: 'designer', instruction: '只输出 JSON。', promptVersion: 'designer/3.0.0', task: '{}', contractRevision: 'draft', skills: [design] });
-    assert.ok(seen.includes('本阶段遵循的规范') && seen.includes(design.id + '@' + design.version), 'the model is told which standard, exactly');
+    const request = { role: 'designer' as const, instruction: '只输出 JSON。', promptVersion: 'designer/3.0.0', task: '{}', contractRevision: 'draft', skills: design };
+    await agent.run(request);
+    assert.ok(design.every(skill => seen.includes(skill.id + '@' + skill.version)), 'the model is told which standard, exactly');
     assert.ok(seen.includes('生成插件：怎么设计'), 'and receives its text');
     assert.ok(seen.includes('生成插件：AI 经 Prologue'), 'the AI rules reach the model, not only the root Skill link');
     assert.ok(seen.includes('生成插件：体验与审美标准'), 'journey and visual guidance reaches main design');
+    const instruction = (await readFile(new URL('../plugins/native/plugin-builder/prompts/plugin-builder.designer.en.md', import.meta.url), 'utf8')).trimEnd();
+    await agent.run({ ...request, instruction, skills: english });
+    assert.ok(english.every(skill => seen.includes(skill.id + '@' + skill.version)), 'all three English groups arrive in the same Runtime');
+    assert.match(seen, /Never replay a paid request whose outcome is unknown/);
+    assert.match(seen, /Do not change a business result for the UI or create Host branches for individual plugin IDs\./, 'the final rule reaches the actual dispatch');
+    assert.doesNotMatch(seen, /these character instructions were cut/);
+    const beforeRefusal = calls;
+    await assert.rejects(agent.run({ ...request, instruction: 'x'.repeat(30_000), skills: english }), /64000 字符，未启动执行/);
+    assert.equal(calls, beforeRefusal, 'a prompt that only exceeds the limit with its mounted standards never reaches dispatch');
+    assert.ok((await agent.records()).some(record => record.phase === 'failed' && record.error?.includes('64000')), 'the normal failure history is retained');
     await agent.run({ role: 'designer', instruction: '按体验标准组合界面，只输出 JSON。', promptVersion: 'ui/1.2.0', task: '{}', contractRevision: 'draft', skills: [ui] });
     assert.ok(seen.includes(ui.id + '@' + ui.version), 'UI receives its own content version');
     for (const rule of ['用户动线与状态', '信息呈现与视觉层级', '文案与响应式', '动效：解释发生了什么', '静态截图不能证明']) assert.ok(seen.includes(rule), rule + ' reaches the provider payload');
@@ -169,7 +185,7 @@ test('the plugin development Skill reaches the model through Prologue, as an exa
     assert.ok(seen.includes('生成插件：体验与审美标准') && !seen.includes('生成插件：整页界面'), 'review transport preserves the quality bar without conflicting generation instructions');
     // The next build on the same Home Runtime mounts the same version again (real runs failed here: "already exists").
     const next = await adapter.createBuilderAgent({ buildRoot: build, storageRoot: join(root, 'agent-2'), modelConfiguration: async () => ({ protocol: 'anthropic-compatible', endpoint: 'https://1.1.1.1/v1/messages', model: 'fixture', credential_ref: 'fixture' }), resolveCredential: () => 'fixture' });
-    try { seen = ''; await next.run({ role: 'designer', instruction: '只输出 JSON。', promptVersion: 'designer/3.0.0', task: '{}', contractRevision: 'draft', skills: [design] }); assert.ok(seen.includes('生成插件：怎么设计')); }
+    try { seen = ''; await next.run(request); assert.ok(seen.includes('生成插件：怎么设计')); }
     finally { await next.close(); }
   } finally { await agent.close(); await adapter.close(); await rm(root, { recursive: true, force: true }); }
 });

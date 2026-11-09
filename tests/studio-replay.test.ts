@@ -593,7 +593,7 @@ test("the smoke only runs on an isolated Home with the file secret store, and sa
   const skipped = cli(["smoke"], { MOLIS_WORK_HOME: home });
   assert.equal(skipped.code, 0, skipped.out);
   assert.match(skipped.out, /SKIP: the isolated Home .* has no enabled text model/);
-  assert.match(skipped.out, /pnpm web --port .*\n.*设置 → 模型设置[\s\S]*pnpm studio:replay smoke/);
+  assert.match(skipped.out, /selected-home-server\.mjs .*\n.*\/settings\/models[\s\S]*pnpm studio:replay smoke/);
   assert.doesNotMatch(skipped.out, /REFUSED/);
 });
 
@@ -602,7 +602,7 @@ test("the smoke wiring works end to end against a scripted local model: Home, mo
   assert.equal(result.code, 0, result.out);
   assert.match(result.out, /STAND-IN MODEL: .* not any Skill or prompt/);
   assert.match(result.out, /Generation smoke: 3\/3 briefs reached a frozen design with stand-in-model; 3 full designs accepted on the first answer; 0 repair rounds/);
-  assert.match(result.out, /notes\s+designed\s+\d+s\s+propose first try, experience first try, detail first try/);
+  assert.match(result.out, /notes\s+zh\s+designed\s+\d+s\s+propose first try, experience first try, detail first try/);
 });
 
 test("the smoke counts the designer's repair rounds, which is what a Skill edit is judged by", async () => {

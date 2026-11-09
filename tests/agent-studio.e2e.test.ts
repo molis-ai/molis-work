@@ -3,7 +3,6 @@ import { PluginInstallService, SandboxPackageStore, HomeConsentLedger } from '@m
 import { framedStudioPage, studioFrameAsset, isolatedStudioHarness } from "./fixtures/studio-framed-page.js";
 import { pluginPagesFor } from "@molis-ai/molis-work-app-local-host";
 import { VISUAL_FOUNDATION_STYLES } from '@molis-ai/molis-work-design-system';
-import { createWorkbenchLocale } from '@molis-ai/molis-work-app-workbench';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createServer, type Server } from 'node:http';
@@ -394,14 +393,13 @@ test('studio in English: its controls, labels, phases and boards are English', {
   const store = new LocalProjectDatabase(databasePath), token = randomUUID() + randomUUID(), mutations = new Map<string, LocalMutationState>();
   const fixture = agentStudioFixture(0);
   const options = { store, projectId: DEMO_PROJECT_ID, homeDirectory: home, browserExecutable: dedicatedBuilderBrowser(), routePrefix: '/projects/' + DEMO_PROJECT_ID, ...fixture };
-  const locale = createWorkbenchLocale(() => 'en');
   const server: Server = createServer((request, response) => {
     const url = new URL(request.url ?? '/', 'http://localhost');
     if (studioFrameAsset(response, url.pathname)) return;
     if (url.pathname === '/assets/molis-work-settings.css') { response.writeHead(200, { 'content-type': 'text/css' }); response.end(VISUAL_FOUNDATION_STYLES); return; }
     if (url.pathname === STUDIO_HARNESS_PATH) {
       response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
-      response.end(isolatedStudioHarness(home, DEMO_PROJECT_ID, token, { lang: 'en', translate: locale.L, clientScript: locale.clientI18nScript() })); return;
+      response.end(isolatedStudioHarness(home, DEMO_PROJECT_ID, token, 'en')); return;
     }
     if (!authorizeLocalWebRequest(request, response, url, token, mutations)) return;
     void pluginPagesFor(home).bind(request, url).then(release => { if (release) response.once("close", release); const local = new URL(url); if (local.pathname.startsWith(options.routePrefix + "/")) local.pathname = local.pathname.slice(options.routePrefix.length); return handleAgentStudioHttp(request, response, local, options, token); }).then(handled => { if (!handled) sendLocalWebJson(response, 404, { error: 'not found' }); }).catch(error => sendLocalWebJson(response, 403, { error: String(error.message) }));

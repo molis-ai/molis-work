@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import test, { type TestContext } from 'node:test';
 import type { BuilderAgentRecord, BuilderAgentRequest } from '@molis-ai/molis-work-contracts/services/agent-host';
 import type { BuildCheckResult } from '@molis-ai/molis-work-contracts/platform/plugin-builder';
-import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from '@molis-ai/molis-work-app-local-host';
+import { DEMO_PROJECT_ID, LocalProjectDatabase, installHostUiText, runBackgroundWork, seedDemoBoard } from '@molis-ai/molis-work-app-local-host';
 import { assertContract } from '@molis-ai/molis-work-plugin-sandbox';
 import { AgentBuilderWorkflow, BUILDER_CHOOSE_CAPABILITY, BUILDER_CHOOSE_COMPONENT, BUILDER_PROMPTS, setModelRetryWaits, type AgentBuild, type AgentBuilderPorts, type AgentRelease } from '@molis-ai/molis-work-plugin-builder';
 import { createServer } from 'node:http';
@@ -25,7 +25,7 @@ import { builtinRegistrations } from '../apps/local-host/dist/agent-definitions/
 import { builderInstructions, builderPrompts, handleAgentStudioHttp, releaseAgentStudio } from '../apps/local-host/dist/plugin-builder/agent-surface.js';
 import { ensureInstalledPlugins, releaseInstalledPlugins } from '../apps/local-host/dist/installed-plugin-host.js';
 import { agentStudioFixture } from '../scripts/agent-studio-preview-fixture.mjs';
-import { builderSkill } from '../apps/local-host/dist/plugin-builder/skill.js';
+import { builderSkills } from '../apps/local-host/dist/plugin-builder/skill.js';
 import { acceptExperience } from '../plugins/native/plugin-builder/dist/agent-experience.js';
 import { syncBuiltinESMExports } from 'node:module';
 import { readyPublication } from './fixtures/studio-publishing.js';
@@ -41,12 +41,14 @@ const publicationAuthority = { signal: new AbortController().signal, beforeEffec
 interface Harness { ports: AgentBuilderPorts; requests: BuilderAgentRequest[]; implemented: Set<string>; choices: number; /** The instructions of each question Jev was asked. */ asked: string[] }
 /** Designer answers are played back in order; the code agent "implements" the operation it is given. */
 function harness(designerAnswers: string[], options: { jev?: string | Error } = {}): Harness {
+  installHostUiText();
   const requests: BuilderAgentRequest[] = [], implemented = new Set<string>();
   const state: Harness = { ports: undefined as unknown as AgentBuilderPorts, requests, implemented, choices: 0, asked: [] };
   const record = (request: BuilderAgentRequest, output: string): BuilderAgentRecord => ({ id: crypto.randomUUID(), role: request.role, promptVersion: request.promptVersion,
     contractRevision: request.contractRevision, instruction: request.instruction, input: request.task, output, configuredModel: 'configured', reportedModels: ['reported'],
     phase: 'completed', startedAt: new Date().toISOString(), finishedAt: new Date().toISOString(), activity: [], usage: [] });
   state.ports = {
+    runInLanguage: run => runBackgroundWork('zh', run),
     projectId: 'project', catalog: async () => [], models: async () => [{ provider_id: 'p', model_id: 'm', label: 'M' }],
     agent: async () => ({
       async run(request) {
@@ -953,7 +955,7 @@ test('whole-page design survives Jev failure; visual revision and undo keep the 
 test('visual model review has one repair and one confirmation; a stale cancelled visual result cannot commit', async () => {
   const h = harness([PROPOSALS, experience(), detail('阅读'), composition(), JSON.stringify({ issues: [finding('增大间距', 'synthetic-1'), { ...finding('需要键盘操作证据', 'synthetic-1'), scope: 'unverified' }] }), '{}', composition('normal'), JSON.stringify({ issues: [] }), composition('tight')]);
   h.ports.presentation = true; h.ports.selectionAvailable = () => false; h.ports.visionAvailable = () => true;
-  h.ports.skill = builderSkill;
+  h.ports.skills = builderSkills;
   const inspectedBuilds: AgentBuild[] = [];
   h.ports.inspectPresentation = async build => { inspectedBuilds.push(structuredClone(build)); return { structural: true, issues: [], images: [{ label: 'synthetic-' + inspectedBuilds.length, bytes: new Uint8Array([inspectedBuilds.length]) }] }; };
   const storage = memoryStorage(), workflow = new AgentBuilderWorkflow(storage, h.ports);
@@ -975,12 +977,13 @@ test('visual model review has one repair and one confirmation; a stale cancelled
       assert.match(task.vocabulary.controls.overlayLabels, /editor.title=写一条摘记/);
       assert.match(task.vocabulary.controls.feedback, /减少动效时也清除/);
       assert.match(request.instruction, /静态图不能判断/);
-      assert.equal(request.skills?.[0]?.id, 'molis-plugin-dev.review');
+      assert.equal(request.skills?.[0]?.id, 'molis-plugin-dev.review.zh');
     }
     for (const request of h.requests) {
       const stage = request.role === 'coder' ? 'code' : request.promptVersion.startsWith('ui-review/') ? 'review' : JSON.parse(request.task).mode === 'compose' ? 'ui' : JSON.parse(request.task).mode === 'experience' ? 'experience' : 'design';
-      assert.equal(request.skills?.[0]?.id, 'molis-plugin-dev.' + stage, 'every generation and review stage mounts its own standard');
-      if (stage !== 'code') assert.match(request.skills![0]!.body, /生成插件：体验与审美标准/);
+      const names = stage === 'design' ? ['design.1', 'design.2', 'design.3'] : [stage];
+      assert.deepEqual(request.skills?.map(skill => skill.id), names.map(name => 'molis-plugin-dev.' + name + '.zh'), 'every stage mounts its own ordered standard');
+      if (stage !== 'code') assert.match(request.skills!.map(skill => skill.body).join('\n'), /生成插件：体验与审美标准/);
       if (stage === 'ui' || stage === 'review') assert.equal(JSON.parse(request.task).brief, build.brief, 'original user intent reaches every visual task');
     }
     const corrections = h.requests.filter(request => request.promptVersion.startsWith('ui/') && JSON.parse(request.task).reviewSuggestions);
@@ -1065,7 +1068,7 @@ test('experience planning reshapes parts before detail and freeze, preserving se
   const layout = JSON.parse(composition()); layout.presentation.pages[0].layout.children = [{ part: 'notes' }, { part: 'capture' }];
   layout.presentation.parts.capture = layout.presentation.parts.editor; delete layout.presentation.parts.editor;
   const h = harness([PROPOSALS, JSON.stringify(plan), JSON.stringify(full), JSON.stringify(layout)]);
-  h.ports.presentation = true; h.ports.skill = builderSkill; h.ports.selectionAvailable = () => false;
+  h.ports.presentation = true; h.ports.skills = builderSkills; h.ports.selectionAvailable = () => false;
   let preparations = 0;
   h.ports.prepareBuild = async (_before, design) => {
     preparations++;
@@ -1105,7 +1108,7 @@ test('experience planning reshapes parts before detail and freeze, preserving se
     assert.deepEqual(uiTask.experience, build.design!.experience);
     assert.equal(uiTask.experience.scenarios[0].content, plan.scenarios[0].content);
     assert.equal(build.design!.acceptance[0]!.steps[0]!.action, 'fill');
-    assert.equal(h.requests.find(request => JSON.parse(request.task).mode === 'experience')!.skills?.[0]?.id, 'molis-plugin-dev.experience');
+    assert.equal(h.requests.find(request => JSON.parse(request.task).mode === 'experience')!.skills?.[0]?.id, 'molis-plugin-dev.experience.zh');
     assert.equal(h.requests.filter(request => JSON.parse(request.task).mode === 'experience').length, 1);
   } finally { await workflow.close(); }
 });

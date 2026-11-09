@@ -1,6 +1,7 @@
 /// <reference lib="dom" />
 /// <reference lib="dom.iterable" />
 import type { SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
+import type { UiPageView } from '@molis-ai/molis-work-contracts/platform/ui';
 import type { PluginComponentNode } from './plugin-components.js';
 import type { PluginPresentation } from './plugin-presentation.js';
 import { createPluginPresentationClient as present } from './plugin-presentation-client.js';
@@ -12,6 +13,8 @@ import { pcOutput, pcQuery } from './plugin-component-output.js';
 import { pcPart, pcSubmit } from './plugin-component-part.js';
 export interface PluginComponentView { contract: SandboxPluginContract; nodes: PluginComponentNode[]; connected: string[]; presentation?: PluginPresentation }
 export interface PluginComponentClientOptions { root: HTMLElement; call(nodeId: string, binding: 'read' | 'submit', payload: unknown): Promise<unknown>; inspect?(nodeId: string): void;
+  mountSurfaceSlot?: UiPageView<HTMLElement>['surfaceSlot'];
+  translate?(text: string): string;
   /** The inspect button's label (the studio passes it translated). */
   inspectLabel?: string;
   /** Observe only accepted query results, with the same request/selection ordering as the rendered view. */
@@ -104,7 +107,7 @@ function pcLifecycle(c: State & Kit & Rel & Rec & Det & Ctl & Out & Qry & Sub & 
             const focused = previous?.root.contains(active) ? active?.name : undefined;
             const values = new Map<string, { value: string; checked?: boolean }>();
             previous?.form?.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>('[data-field]').forEach(input => values.set(input.name, { value: input.value, ...('checked' in input ? { checked: input.checked } : {}) }));
-            clearTimeout(previous?.feedbackTimer); previous?.opener?.remove(); details.delete(node.id);
+            previous?.slot?.dispose(); clearTimeout(previous?.feedbackTimer); previous?.opener?.remove(); details.delete(node.id);
             const replacement = createPart(node); previous?.root.replaceWith(replacement.root); part = replacement; parts.set(node.id, part);
             replacement.form?.querySelectorAll<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>('[data-field]').forEach(input => { const saved = values.get(input.name); if (saved) { input.value = saved.value; if ('checked' in input && saved.checked !== undefined) input.checked = saved.checked; } if (focused === input.name) input.focus(); });
             if (replacement.form) syncChoices(replacement.form);
@@ -138,7 +141,7 @@ function pcLifecycle(c: State & Kit & Rel & Rec & Det & Ctl & Out & Qry & Sub & 
         }
       }
     }
-    for (const [id, part] of parts) if (!partIds.has(id)) { part.query++; clearTimeout(part.feedbackTimer); part.opener?.remove(); part.root.remove(); parts.delete(id); details.delete(id); }
+    for (const [id, part] of parts) if (!partIds.has(id)) { part.query++; part.slot?.dispose(); clearTimeout(part.feedbackTimer); part.opener?.remove(); part.root.remove(); parts.delete(id); details.delete(id); }
     for (const part of parts.values()) {
       const hasReader = detailEnabled(part.node.id) || next.nodes.some(other => other.id !== part.node.id && other.props.textField && Object.values(other.read?.input ?? {}).some(source => source.source === 'selection' && source.componentId === part.node.id));
       part.root.toggleAttribute('data-reading-preview', !!next.presentation && part.node.kind === 'directory' && hasReader);
@@ -162,7 +165,7 @@ function pcLifecycle(c: State & Kit & Rel & Rec & Det & Ctl & Out & Qry & Sub & 
     if (focused?.isConnected && !focused.closest('[hidden]')) { focused.focus({ preventScroll: true }); if (caret) focused.setSelectionRange(caret[0]!, caret[1]!); }
     selectPage(pageIds.has(c.currentPage) ? c.currentPage : next.contract.pages[0]!.id); if (refreshNeeded) await refresh();
   }
-  function destroy() { c.disposed = true; c.epoch++; for (const part of parts.values()) { clearTimeout(part.waiting); clearTimeout(part.feedbackTimer); } parts.clear(); details.clear(); pages.clear(); regions.clear(); root.replaceChildren(); }
+  function destroy() { c.disposed = true; c.epoch++; for (const part of parts.values()) { part.slot?.dispose(); clearTimeout(part.waiting); clearTimeout(part.feedbackTimer); } parts.clear(); details.clear(); pages.clear(); regions.clear(); root.replaceChildren(); }
   return { update, destroy };
 }
 /** The renderer layers are plain functions so the whole client can be sent to a page as source (`toString`); they use nothing from this module. */

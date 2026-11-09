@@ -35,6 +35,7 @@ import { builderPorts } from './studio-ports.js';
 import { studioModels } from './studio-models.js';
 import { studioImages } from './studio-images.js';
 import { createStudioPreview } from './studio-preview.js';
+import { captureRuntimeStageOwner } from '../project-plugin-stages.js';
 
 export type { AgentBuild, AgentBuilderPorts, AgentRelease, AgentPublicationControl };
 
@@ -228,7 +229,8 @@ export async function handleAgentStudioHttp(request: IncomingMessage, response: 
       }
       if (installedPage) {
         const release = installed.releaseFor(pluginId);
-        if (!installedStageReleaseMatches(record, release, installed.platform.supervisor.manifest(pluginId))) {
+        const manifest = installed.platform.supervisor.manifest(pluginId);
+        if (!installedStageReleaseMatches(record, release, manifest)) {
           if (expected) throw new ActionError("actions.provider_changed", "原舞台安装已变化，请重新打开");
           sendLocalWebJson(response, 404, { error: '找不到这个插件的已安装版本' }); return true;
         }
@@ -242,9 +244,11 @@ export async function handleAgentStudioHttp(request: IncomingMessage, response: 
         // Only the plugin: its name, version and the way back to the studio are the workbench's (tab and stage), not the frame's.
         const body = '<main class="as-preview-page" data-installed-plugin="' + escapeHtml(pluginId) + '"></main>';
         assertStageInstallation("project", current(), expected ?? installedStageIdentity("project", record));
+        const owner = manifest && captureRuntimeStageOwner(installed.platform, "project", { project_plugin_id: installedStageSurface(release), manifest });
+        if (!owner) throw new ActionError("actions.provider_changed", "原舞台实例已变化，请重新打开");
         assertCurrent();
         html(response, page(release.design.title, body, { mode: 'installed', plugin_id: pluginId, call: prefix + '/api/plugins/' + pluginId + '/call', view }, options, controlToken,
-          installedPageSelection(record, options.projectId, current)));
+          installedPageSelection(record, options.projectId, current, owner)));
         return true;
       }
     }

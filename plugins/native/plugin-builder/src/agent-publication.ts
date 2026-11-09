@@ -21,7 +21,8 @@ export async function publishAgentBuild(store: AgentBuilderStore, ports: AgentBu
   const versions = store.versions(build.id), latest = versions[0], scope = buildScope(build);
   if (versions.some(item => releaseScope(item) !== scope)) throw new Error('已发布草稿的范围不能改变，请创建新的草稿');
   if (latest && latest.design.contract.revision === build.design!.contract.revision && JSON.stringify(latest.nodes) === JSON.stringify(build.nodes)
-    && JSON.stringify(latest.design.presentation) === JSON.stringify(build.design!.presentation)) throw new Error('v' + latest.version + ' 已经是当前这一版，没有新的改动可以发布');
+    && JSON.stringify(latest.design.presentation) === JSON.stringify(build.design!.presentation)
+    && JSON.stringify(latest.design.ui) === JSON.stringify(build.design!.ui)) throw new Error('v' + latest.version + ' 已经是当前这一版，没有新的改动可以发布');
   const version = (latest?.version ?? 0) + 1;
   const manifest = { version: /* @version format.builder.build-manifest */ 1 as const, pluginId: build.design!.contract.pluginId, revision: build.design!.contract.revision, effects: effectsFromContract(build.design!.contract) };
   const assertCurrent = () => {

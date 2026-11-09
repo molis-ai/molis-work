@@ -21,11 +21,12 @@ const BUNDLE_FILE = 'bundle.json';
  */
 export function packagedRelease(pkg: KeptSandboxPackage, directory: string, publishedAt: string): InstalledRelease {
   const { manifest, contract } = pkg;
-  const app: Pick<SandboxPackage, 'parts' | 'nodes' | 'prompts' | 'presentation'> = isIntegrationPackage(pkg) ? { parts: [], nodes: [], prompts: [] } : pkg;
+  const app: Pick<SandboxPackage, 'parts' | 'nodes' | 'prompts' | 'presentation' | 'ui'> = isIntegrationPackage(pkg) ? { parts: [], nodes: [], prompts: [] } : pkg;
   return {
     // Names this plugin under this publisher: its actions are registered as `generated.<first 8>.<operation>`, so two plugins of one publisher must differ.
     buildId: sandboxPackageBuildId(manifest.plugin_id, manifest.publisher.signature), pluginId: manifest.plugin_id, version: 1,
-    design: { id: contract.revision, title: manifest.name, description: '', rationale: '', journey: [], contract, parts: app.parts, acceptance: [], ...(app.presentation ? { presentation: app.presentation } : {}) },
+    design: { id: contract.revision, title: manifest.name, description: '', rationale: '', journey: [], contract, parts: app.parts, acceptance: [],
+      ...(app.presentation ? { presentation: app.presentation } : {}), ...(app.ui ? { ui: app.ui } : {}) },
     nodes: app.nodes, manifest: { version: /* @version format.builder.build-manifest */ 1, pluginId: contract.pluginId, revision: contract.revision, effects: pkg.permissions },
     directory, bundlePath: join(directory, SANDBOX_PACKAGE_FILES.entrypoint), packagePath: directory, permissions: pkg.permissions, publishedAt, prompts: app.prompts,
     packaged: { manifest, ...('agentBodies' in pkg ? { agentBodies: pkg.agentBodies } : {}), trust: { level: 'pinned', publisher_key_id: manifest.publisher.signature } },

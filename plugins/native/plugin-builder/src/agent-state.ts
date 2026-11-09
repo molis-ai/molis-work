@@ -1,4 +1,7 @@
 import {defineErrorCodes} from '@molis-ai/molis-work-contracts/platform/actions';
+import {isRecord,parseSandboxUi} from '@molis-ai/molis-work-plugin-sdk';
+import {assertContract} from '@molis-ai/molis-work-plugin-sandbox';
+import {validatePluginComponentNodes,validatePluginComponentPlans} from '@molis-ai/molis-work-design-system';
 import type {AgentBuild,AgentRelease} from './agent-model.js';
 
 export interface BuilderSavedState {format:/* @version format.builder.saved-state */ 1;builds:AgentBuild[];releases:AgentRelease[];revisions:Record<string,number>}
@@ -9,6 +12,17 @@ const revision=(value:unknown):value is number=>Number.isSafeInteger(value)&&Num
 export function nextBuilderRevision(value:number):number{
  if(!Number.isSafeInteger(value)||value<0||!Number.isSafeInteger(value+1))throw errors.store_limit('草稿编辑版本已达上限，原内容已保留');
  return value+1;
+}
+const mentionsSlot=(parts:unknown)=>Array.isArray(parts)&&parts.some(part=>isRecord(part)&&(Object.hasOwn(part,'surfaceSlot')||part.kind==='surface-slot'));
+function checkSavedUi(design:unknown,nodes:unknown):void{
+ const parts=isRecord(design)?design.parts:undefined;
+ if(!(isRecord(design)&&Object.hasOwn(design,'ui'))&&!mentionsSlot(parts)&&!mentionsSlot(nodes))return;
+ if(!isRecord(design)||!Array.isArray(nodes))return invalid();
+ try{
+  const ui=parseSandboxUi(design.ui);
+  assertContract(design.contract);
+  validatePluginComponentNodes(nodes,validatePluginComponentPlans(parts,design.contract,ui),design.contract);
+ }catch{return invalid();}
 }
 /** One current owner document. A different format is refused without rewriting or empty-state recovery. */
 export function parseBuilderState(raw:string|null):BuilderSavedState{
@@ -26,11 +40,14 @@ export function parseBuilderState(raw:string|null):BuilderSavedState{
   if(!item||typeof item!=='object'||!identity(item.id)||!revision(item.revision)||ids.has(item.id)
    ||!Object.hasOwn(floors,item.id)||floors[item.id]!==item.revision)return invalid();
   ids.add(item.id);
+  checkSavedUi(item.design,item.nodes);
+  for(const snapshot of Array.isArray(item.history)?item.history:[])if(isRecord(snapshot))checkSavedUi(snapshot.design,snapshot.nodes);
  }
  const releases=new Set<string>();
  for(const item of row.releases){
   if(!item||typeof item!=='object'||!identity(item.buildId)||!identity(item.pluginId)||!revision(item.version))return invalid();
   const id=JSON.stringify([item.buildId,item.version]);if(releases.has(id))return invalid();releases.add(id);
+  checkSavedUi(item.design,item.nodes);
  }
  return value as BuilderSavedState;
 }

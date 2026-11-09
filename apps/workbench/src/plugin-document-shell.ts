@@ -20,7 +20,8 @@ export function renderPluginDocumentShell(input: {
     + renderIconSprite() + renderPluginFrameSurface(input.html, input.id, input.title, false, false, input.bundle)
     + '<script>' + CONTROL_CLIENT_SCRIPT + '</script><script src="/assets/molis-work-plugin-frame.js"></script><script>'
     + 'const root=document.querySelector("[data-work-surface]"),holder=frameElement;'
-    + 'const mounted=molisPluginFrames.mount(root,{translate:s=>s,mountPluginClient:(' + UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT + ')(),'
+    + 'const owned=holder?.parentElement?.dataset.installedPlugin===' + literal(input.plugin_id) + ',position=()=>owned?parent.molisWorkbenchPositionFrom?.(holder):null;'
+    + 'const mounted=molisPluginFrames.mount(root,{translate:(s,args)=>position()?.translate(s,args)??s,positionNavigationFrom:()=>position()?.navigationFrom(),positionChanged:()=>position()?.changed(),mountPluginClient:(' + UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT + ')(),'
     + 'projectId:()=>'+ literal(input.project_id) + ',route:path=>' + literal(input.route_prefix) + '+path,page:()=>('+literal(input.page)+')},'+literal(pack)+')'
     + '.catch(error=>{const note=document.createElement("p");note.setAttribute("role","alert");note.textContent=error.message;document.body.append(note);return null;});'
     // Only the owning shell can select a panel, and only in this same carrier's still-current opaque frame.
@@ -29,5 +30,7 @@ export function renderPluginDocumentShell(input: {
     + 'const {panel,itemId}=event.data,text=(value,max)=>typeof value==="string"&&value.length>0&&value.length<=max;'
     + 'const detail=text(panel,100)&&itemId===undefined?{panel}:text(itemId,1000)&&panel===undefined?{itemId}:null;if(!detail)return;'
     + 'void mounted.then(value=>{if(value?.scope.alive&&root.isConnected&&holder===frameElement&&holder.isConnected&&!holder.closest("[hidden]"))root.dispatchEvent(new CustomEvent("molis-work:select-item",{detail:{...detail,intent:"open"}}));});});'
+    + 'if(owned){const refresh=()=>root.dispatchEvent(new CustomEvent("molis-work:select-item",{detail:{invalidate:true}}));'
+    + 'parent.document.addEventListener("molis-work:plugins-changed",refresh);window.addEventListener("pagehide",()=>parent.document.removeEventListener("molis-work:plugins-changed",refresh),{once:true});}'
     + '</script></body></html>';
 }

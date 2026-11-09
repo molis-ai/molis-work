@@ -1,4 +1,5 @@
 import type { UiPageView } from "@molis-ai/molis-work-contracts/platform/ui";
+import { PRESENTATION_LIMITS } from "@molis-ai/molis-work-contracts/platform/presentation";
 import { childPlaces } from "./over-frame.js";
 import type { FrameScope, SurfaceSlotDown, SurfaceSlotUp } from "./types.js";
 
@@ -29,6 +30,8 @@ export function childSurfaceSlots(port: MessagePort, scope: FrameScope): UiPageV
   return (element, options) => {
     if (!scope.alive) return { ready: Promise.reject(new DOMException("Page closed", "AbortError")), dispose() {} };
     for (const [id, old] of mounts) if (old.element === element) close(id);
+    if (!Array.isArray(options.subjects) || options.subjects.length > PRESENTATION_LIMITS.values_subjects)
+      return { ready: Promise.reject(new Error("Surface slot unavailable")), dispose() {} };
     const id = ++sequence;
     const ready = new Promise<void>((resolve, reject) => {
       mounts.set(id, { element, resolve, reject });

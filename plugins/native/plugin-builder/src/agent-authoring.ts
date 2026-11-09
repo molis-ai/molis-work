@@ -1,4 +1,4 @@
-import { isRecord as object } from "@molis-ai/molis-work-plugin-sdk";
+import { isRecord as object, parseSandboxUi } from "@molis-ai/molis-work-plugin-sdk";
 /**
  * The designer writes a compact, forgiving authoring format; the host expands it into the strict contract,
  * component plans and browser acceptance that everything downstream checks. Normalization only maps known
@@ -368,17 +368,20 @@ function normalizePart(raw: unknown, pageId: string, operations: SandboxDataOper
     if (key === 'columns') props.columns = (Array.isArray(value) ? value : []).map(column => typeof column === 'string' ? { field: column, label: column } : object(column) ? { field: text(column.field), label: text(column.label) || text(column.field), ...(object(column.values) ? { values: Object.fromEntries(Object.entries(column.values).map(([key, value]) => [key, text(value).slice(0, 60)])) } : {}) } : null).filter(Boolean);
     else if (typeof value === 'string' && value.trim()) props[key] = value.slice(0, 2000);
   }
-  for (const key of Object.keys(raw)) if (!['id', 'componentId', 'intent', 'kind', 'type', 'purpose', 'label', 'props', 'read', 'submit', 'uses', 'page', 'pageId', 'region', 'regionId', 'submitShow', 'show'].includes(key)) dropped.push(`${where} 的 ${key}`);
+  for (const key of Object.keys(raw)) if (!['id', 'componentId', 'intent', 'kind', 'type', 'purpose', 'label', 'props', 'read', 'submit', 'uses', 'page', 'pageId', 'region', 'regionId', 'submitShow', 'show', 'surfaceSlot'].includes(key)) dropped.push(`${where} 的 ${key}`);
   const uses = sketch ? text(raw.uses) : '';
   const usesOperation = uses ? operations.find(item => item.id === slug(uses, where)) : undefined;
   const read = binding(raw.read ?? (usesOperation?.kind === 'query' && !usesOperation.input.required?.length ? usesOperation.id : undefined), 'read', operations, where, false, id);
   // A sketched action acts on a selection the proposal does not spell out yet, so it shows no form fields.
   const submit = binding(raw.submit ?? (usesOperation?.kind === 'command' ? intent === 'action' ? { op: usesOperation.id, input: {} } : usesOperation.id : undefined), 'submit', operations, where, intent === 'input', id);
+  const mount = raw.surfaceSlot;
+  if (mount !== undefined && (sketch || !object(mount) || Object.keys(mount).length !== 1 || typeof mount.slot_id !== 'string'
+    || !mount.slot_id.trim() || intent !== 'reading' || !read || submit)) return fail(where, '对象挂载位只在细化方案的 reading 零件中写 {slot_id} 和 read');
   // "Show this field of the command's result" written beside the binding rather than inside it.
   const shown = raw.submitShow ?? raw.show, showField = typeof shown === 'string' ? shown : object(shown) ? text(pick(shown as Json, 'show', 'path', 'field', 'outputPath')) : '';
   if (submit && showField && !submit.outputPath) submit.outputPath = showField;
   return { id, pageId, regionId: slug(pick(raw, 'regionId', 'region') || 'main', where), intent, purpose: text(pick(raw, 'purpose', 'label', 'description')).slice(0, 600) || id, props: props as PluginComponentPlan['props'],
-    ...(read ? { read } : {}), ...(submit ? { submit } : {}) };
+    ...(read ? { read } : {}), ...(submit ? { submit } : {}), ...(object(mount) && typeof mount.slot_id === 'string' ? { surfaceSlot: { slot_id: mount.slot_id } } : {}) };
 }
 /** Pages carry their parts; a model that lists parts separately with a pageId gets them grouped the same way. */
 function withParts(pages: unknown, parts: unknown): unknown {
@@ -600,8 +603,10 @@ export function expandDesign(raw: unknown, base: { id: string; title: string; de
   const pagesRaw = withParts(design.pages ?? (object(design.contract) ? (design.contract as Json).pages : undefined), design.parts), problems = referenceProblems(pagesRaw, operations);
   if (problems.length > 1) fail('细化方案', '有 ' + problems.length + ' 处要一起改：' + problems.map((problem, index) => '（' + (index + 1) + '）' + problem).join('；'));
   const { pages, parts } = normalizePages(pagesRaw, operations, dropped, false);
+  const ui = parseSandboxUi(design.ui);
   // Scalar summaries can use a description; a wrapped collection needs an explicit array projection.
   for (const part of parts) {
+    if (part.surfaceSlot) continue;
     if (!part.read || !['collection', 'schedule', 'evidence', 'reading', 'conversation'].includes(part.intent)) continue;
     const output = operations.find(item => item.id === part.read!.operationId)?.output, shown = output ? pluginSchemaAt(output, part.read.outputPath) : undefined;
     if (output?.type === 'object' && hasArrayField(output) && shown?.type !== 'array') {
@@ -612,6 +617,7 @@ export function expandDesign(raw: unknown, base: { id: string; title: string; de
   // A part that only filters a query a list on the same page already shows is that list's own filter bar.
   const written = [...parts], merged = new Map<string, string>();
   for (const filter of written) {
+    if (filter.surfaceSlot) continue;
     // Either it reads the query with inputs the person fills, or it "submits" the query a list already reads.
     const query = filter.read && !filter.submit ? filter.read : !filter.read && filter.submit && operations.find(item => item.id === filter.submit!.operationId)?.kind === 'query' ? filter.submit : undefined;
     const inputs = Object.entries(query?.input ?? {}).filter(([, source]) => source.source === 'form');
@@ -816,5 +822,6 @@ export function expandDesign(raw: unknown, base: { id: string; title: string; de
   const journey = steps(pick(design, 'journey', 'journal'));
   return { id: base.id, title: text(design.title) || base.title, description: text(design.description) || base.description, rationale: text(design.rationale) || base.rationale,
     journey: journey.length ? journey.slice(0, 20) : base.journey,
-    contract: { version: /* @version format.sandbox.contract */ 1, pluginId, revision, entities: [], pages, operations, acceptance: acceptance.contract }, parts, acceptance: acceptance.browser, ...(design.presentation !== undefined ? { presentation: design.presentation as AgentDesign['presentation'] } : {}) };
+    contract: { version: /* @version format.sandbox.contract */ 1, pluginId, revision, entities: [], pages, operations, acceptance: acceptance.contract }, parts, acceptance: acceptance.browser,
+    ...(design.presentation !== undefined ? { presentation: design.presentation as AgentDesign['presentation'] } : {}), ...(ui ? { ui } : {}) };
 }

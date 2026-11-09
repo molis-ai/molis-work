@@ -195,7 +195,7 @@ export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
     const value=await request(url,'POST',body,undefined,L('操作失败，输入已保留'));
     return submit?value:value.value;
   });
-  const plugin=host.components({root,call});lifetime.own(()=>plugin.destroy());
+  const plugin=host.components({root,call,mountSurfaceSlot:host.mountSurfaceSlot,translate:L});lifetime.own(()=>plugin.destroy());
   const ready=plugin.update(host.view).then(()=>{if(lifetime.alive)globalThis.__molisPluginReady=true;}).catch(e=>{if(lifetime.alive)root.textContent=e.message;});
   lifetime.listen(host.root||root,'molis-work:select-item',event=>{
     const {panel,itemId,intent}=event.detail||{};if(intent!=='open')return;
@@ -526,8 +526,8 @@ const partEl=id=>{const el=id&&pluginRoot.querySelector('[data-component-id="'+C
  */
 export const AGENT_STUDIO_WORKBENCH_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
  const client=(` + AGENT_STUDIO_CLIENT_FACTORY_SCRIPT + `),components=` + PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT + `;
- const embedded=host.page?.();
- if(embedded?.mode==='preview'||embedded?.mode==='installed'){client({...host,...embedded,components,api:p=>host.route('/api/plugin-builder/studio')+p});return;}
+ const embedded=host.page?.(),mountSurfaceSlot=host.view?.surfaceSlot;
+ if(embedded?.mode==='preview'||embedded?.mode==='installed'){client({...host,...embedded,components,mountSurfaceSlot,api:p=>host.route('/api/plugin-builder/studio')+p});return;}
  const valid=s=>typeof s==='string'&&/^app-[a-f0-9-]{36}$/.test(s);
  const entry=s=>[...document.querySelectorAll('[data-work-surface-open]')].find(el=>el.dataset.workSurfaceOpen===s);
  const openPlugin=s=>{if(!valid(s))return;if(host.openPlugin){host.openPlugin(s);return;}const button=entry(s);if(button){button.click();return;}const next=new URL(location.href);next.searchParams.set('openSurface',s);location.assign(next.pathname+next.search);};

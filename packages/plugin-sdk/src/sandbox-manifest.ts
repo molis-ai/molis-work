@@ -13,6 +13,7 @@ import { databaseDeclarationProblems } from './database-declarations.js';
 import { connectionDeclarationProblems } from './connection-declarations.js';
 import { ownerFilesDeclarationProblems } from './owner-files-declaration.js';
 import { sandboxOperationActions, sandboxPackageBuildId } from './sandbox-actions.js';
+import { sandboxUiDeclaration } from './sandbox-ui.js';
 
 /** The names of a sandboxed package's image permissions: the Host's own, in the Manifest only as rows derived from `effects.imageGeneration` (BL-491). */
 export const SANDBOX_IMAGE_PERMISSIONS = Object.freeze({ read: 'image-api:read', write: 'image-api:write', generate: 'image-api:generate' });
@@ -65,8 +66,6 @@ function serviceRows(effects: DerivedEffects | undefined, shape = false): Array<
   }
   return rows.map(row => ({ ...row, required: false }));
 }
-
-export const sandboxUiContribution = (pluginId: string) => pluginId + '.ui.v1';
 
 export interface SandboxManifestInput {
   pluginId: string;
@@ -128,7 +127,7 @@ export function sandboxPluginManifest(input: SandboxManifestInput): PluginManife
     if (input.contract.pluginId !== input.pluginId) throw pluginErrors.declaration_invalid('合同与 Manifest 的插件身份不一致');
     input = { ...input, effects: effectsFromContract(input.contract) };
   }
-  const uiId = sandboxUiContribution(input.pluginId);
+  const { contribution_id: uiId, label } = sandboxUiDeclaration(input);
   if (input.effects?.background?.length && !input.contract) throw pluginErrors.declaration_invalid('后台操作需要完整合同来派生动作');
   const actions = input.contract && (input.contract.presentation !== undefined || input.contract.operations.some(operation =>
     operation.background_job || operation.effects.background?.length || operation.external !== undefined || operation.read_protocol !== undefined))
@@ -148,7 +147,7 @@ export function sandboxPluginManifest(input: SandboxManifestInput): PluginManife
     capabilities: { provides: [], consumes: input.presentation ? [PLUGIN_PRESENTATION_CAPABILITY.capability_id] : [] }, artifacts: { produces: [], consumes: [] },
     ...(input.presentation ? { requires: [{ ...PLUGIN_PRESENTATION_CAPABILITY, reason: '此插件需要整页组合与详情渲染器 v1' }] } : {}),
     routes: [{ route_id: 'studio.call', method: 'POST', path: '/call' }],
-    ui: { contributions: [uiId], views: [{ view_id: 'app', slot: 'stage', title: input.name, contribution_id: uiId, ...(input.icon ? { icon: input.icon } : {}) }] },
+    ui: { contributions: [uiId], views: [{ view_id: 'app', slot: 'stage', title: label, contribution_id: uiId, ...(input.icon ? { icon: input.icon } : {}) }] },
   };
 }
 

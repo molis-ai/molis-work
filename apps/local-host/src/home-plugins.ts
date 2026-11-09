@@ -6,6 +6,7 @@ import type { InstalledRelease } from "./installed-release.js";
 import { assertStageInstallation, installedStageReleaseMatches } from "./installed-stage-identity.js";
 import type { SurfaceInstallationRef } from "@molis-ai/molis-work-contracts/services/surface-composition";
 import { installedPageSelection } from "./plugin-page-authority.js";
+import { captureRuntimeStageOwner } from "./project-plugin-stages.js";
 import { pluginErrors, type PluginDefinition, type PluginInstanceRecord, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { PLUGIN_PRESENTATION_CAPABILITY, type UiSlotDescriptor } from "@molis-ai/molis-work-contracts/platform/ui";
 import { randomUUID } from "node:crypto";
@@ -181,8 +182,10 @@ export class HomePluginHost {
   packageDocument(pluginId: string, controlToken: string, projectId: string | null = null, accountRegistration=false, expected?: SurfaceInstallationRef): string | undefined {
     const release = this.packageSurface(pluginId) ? this.installed?.releaseFor(pluginId) : undefined, record = this.installation(pluginId);
     if (expected) assertStageInstallation("home", record, expected);
-    return record && installedStageReleaseMatches(record, release) ? renderHomePackageDocument({ home: this.options.home, actorId: this.options.actorId, release, controlToken, projectId, accountRegistration,
-      selection: installedPageSelection(record, null, () => this.installation(pluginId)),
+    const manifest = this.platform?.supervisor.manifest(pluginId);
+    const owner = manifest && captureRuntimeStageOwner(this.platform, "home", { project_plugin_id: pluginId, manifest });
+    return owner && record && installedStageReleaseMatches(record, release, manifest) ? renderHomePackageDocument({ home: this.options.home, actorId: this.options.actorId, release, controlToken, projectId, accountRegistration,
+      selection: installedPageSelection(record, null, () => this.installation(pluginId), owner),
       assertProject: projectId ? async () => {
         if (!this.options.projectActions) throw new ActionError("actions.forbidden", "Home 插件没有项目入口");
         await this.options.projectActions(projectId, pluginId);

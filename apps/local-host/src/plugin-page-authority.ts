@@ -14,6 +14,7 @@ import type { installedComponentSubmit } from "./installed-action-registration.j
 import type { PageActionRequest } from "./plugin-page-actions.js";
 import { installedPageRelease, sameInstalledRelease } from "./installed-stage-identity.js";
 import { pageSurfaceSlotState, type SurfaceSlotSource } from "./surface-slot-state.js";
+import type { RuntimeStageOwner } from "./project-plugin-stages.js";
 export { installedPageRelease };
 
 type PageRelease = ReturnType<typeof installedPageRelease>;
@@ -28,11 +29,20 @@ interface PageSelection {
   assertCurrent(): void;
 }
 
-export function installedPageSelection(record: PluginInstanceRecord, project_id: string | null, current: () => PluginInstanceRecord | null | undefined, surfaceSlotSource?: SurfaceSlotSource): PageSelection {
+export function installedPageSelection(record: PluginInstanceRecord, project_id: string | null, current: () => PluginInstanceRecord | null | undefined, owner: RuntimeStageOwner): PageSelection {
   const release = installedPageRelease(record);
+  const descriptor = owner.view.descriptor;
+  const mount = descriptor.surfaces?.find(surface => surface.surface_id === "workbench" && surface.target_slot_id === "workbench.main" && surface.format === "declarative-html");
+  if (!mount || owner.scope !== (project_id === null ? "home" : "project") || !sameInstalledRelease(release, owner.installation)) throw refused();
+  owner.assertCurrent();
+  const surfaceSlotSource = descriptor.slots.some(slot => slot.accepts_forms?.length) ? {
+    contribution_id: descriptor.contribution_id, surface: mount.surface_id, target_slot_id: mount.target_slot_id,
+    producer: owner.producer, slots: descriptor.slots, installation: owner.installation,
+  } : undefined;
   return { install_id: release.install_id, project_id, release, surfaceSlotSource, assertCurrent() {
     const now = current();
     if (now?.state !== "running" || !sameInstalledRelease(release, now)) throw refused();
+    owner.assertCurrent();
   } };
 }
 

@@ -210,6 +210,8 @@ Files/Git 的目录子树独立挂载，避免和 Coding 根节点争用同一�
 
 挂载位置写在实际页面贡献的 `slots` 里，例如 `{ slot_id: "related", accepts: [], accepts_forms: ["chip", "row"] }`。把一个空元素留在页内，调用 `host.view.surfaceSlot(element, { slot_id: "related", subjects })`；`subjects` 最多 50 个 `{ kind, id }` 引用。返回的 `ready` 只报告能否预留，元素高度只随声明形态及宽度变化。工作台在隔离页之外读取、绘制并接收人的操作；对象值、数量和结果不回到插件。选择变化时先 `dispose()`，再挂新元素；同元素再次挂载也会释放旧位置，页面关闭时自动释放。此 API 与嵌入整张插件页的 `embed` 各管自己的用途。
 
+签名 app 包与创作台使用同一能力。在 `interface.json` 的 `ui.slots` 写上述声明；在部件和节点写 `surfaceSlot: { slot_id: "related" }`，节点用 `kind: "surface-slot"`。部件的 `read` 指向现有安全查询，查询结果或 `outputPath` 必须是只含 `kind`、`id` 的引用数组。该查询不能外发、用模型、计费或充当呈现读取协议；组件不提供提交或选中输出。平台组件挂载原页面位置，保留原有安装范围和打开路径。不使用挂载位的包省略这组字段。
+
 用 SDK `/presentation` 的 `validatePresentationDeclaration(manifest)` 自查清单，用 `presentationValuesProblems(input, output)` 检查取值。打开组件板 `/__ui/catalog#presentation-forms` 对照四种形态，自查长标题、不可读状态、操作后果和速览的键盘路径。
 
 ## 生成插件的页面组合

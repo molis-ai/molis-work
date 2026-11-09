@@ -52,7 +52,7 @@ class CharactersPage {
     this.storageKey = "molis.characters.drafts:" + this.api;
     this.list = q("list"); this.form = q<HTMLFormElement>("editor"); this.dialog = q<HTMLDialogElement>("dialog");
     this.drafts = readStoredDrafts(this.storageKey);
-    this.imports = characterImportClient({ q, request: this.request, current: () => this.current(), load: () => this.load(),
+    this.imports = characterImportClient({ q, runtimeNames: JSON.parse(root.dataset.characterRuntimeNames ?? "{}") as Record<string, string>, request: this.request, current: () => this.current(), load: () => this.load(),
       select: (id, focus) => this.select(id, focus), act: action => this.act(action), save: () => this.save(), dirty: () => this.dirty(), note: text => this.note(text) });
     this.actions = characterActionClient({ q: find, request: this.request, changed: () => this.remember() });
   }

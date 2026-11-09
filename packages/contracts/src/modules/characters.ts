@@ -4,6 +4,37 @@ import { TEXT_REF_LIMITS, TEXT_REF_SCHEMA, type TextRef } from "../platform/ui-t
 import type { ArtifactReference } from "./artifacts.js";
 import { parseCharacterImportSnapshot, type CharacterImportSnapshot } from "./character-import.js";
 export * from "./character-import.js";
+export {
+  BLUEPRINT_PART_ORIGIN_SCHEMA,
+  BLUEPRINT_SOURCE_SCHEMA,
+  type BlueprintPartOrigin,
+  type BlueprintSource,
+} from "../platform/blueprint-source.js";
+export {
+  CHARACTER_DEFAULT_SELECTION_SCHEMA,
+  CHARACTER_EFFECTIVE_SELECTION_SCHEMA,
+  CHARACTER_ROLE_READ_INPUT_SCHEMA,
+  CHARACTER_ROLE_READ_OUTPUT_SCHEMA,
+  CHARACTER_ROLE_READ_RESULT_SCHEMA,
+  CHARACTER_ROLE_VERSION_REF_SCHEMA,
+  CHARACTER_TEMPLATE_ADOPTION_RESULT_SCHEMA,
+  type CharacterDefaultSelection,
+  type CharacterRole,
+  type CharacterRoleReadInput,
+  type CharacterRoleReadOutput,
+  type CharacterRoleReadQuery,
+  type CharacterRoleReadResult,
+  type CharacterRoleSection,
+  type CharacterRoleVersionRef,
+  type CharacterSectionStatus,
+  type CharacterTaskSelection,
+  type CharacterTemplateAdoptionResult,
+  type EffectiveCharacterSelection,
+  type PersonalCharacterRef,
+  type PersonalCharacterVersionRef,
+  type ProjectCharacterMemberRef,
+  type ProjectCharacterVersionRef,
+} from "./character-role-scope.js";
 export { characterErrors } from "./characters-errors.js";
 import type { ContractDescriptor } from "../platform/package.js";
 

@@ -746,6 +746,8 @@ export declare function inspectBlueprintLocales(defaultBlueprint: unknown, other
     owner: string;
 }): readonly PluginDeclarationProblem[];
 
+export declare function inspectCharacterTemplateAdoption(input: CharacterTemplateAdoptionInput): readonly PluginDeclarationProblem[];
+
 export declare function inspectContentPlugin(manifest: Readonly<Record<string, unknown>>): PluginDeclarationProblem[];
 
 export declare function inspectRoleTemplate(value: unknown, options: RoleTemplateInspectionOptions): readonly PluginDeclarationProblem[];

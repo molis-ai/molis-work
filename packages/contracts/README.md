@@ -70,6 +70,8 @@ node scripts/run-tests.mjs tests/plugin-authoring.test.ts
 
 `/platform/blueprints` 提供场景包正文的 `Blueprint`、`BlueprintPart`、`BlueprintProposal` 和 `BLUEPRINT_LIMITS`。正文的校验由 SDK 共用，场景身份由外层调用方给出。见 [SDK 的场景包正文说明](../plugin-sdk/README.md#场景包正文)。
 
+`/modules/characters` 的 `characterRoleActions` 定义角色模板采用和同主人批读。新建交模板，复用交固定的个人版本或项目成员的两项观察值；来源只是记录。声明尚未绑定角色层次服务，项目和调用者由实际主人从可信上下文取得。
+
 同步声明解析与依赖展开实现在 plugin-sdk；空间策略解析实现在 sync-replication。这里不定义同步 Error 子类，失败统一使用各 owner 声明的 ActionError。
 
 `SyncRoundSummary` 是现行格式 1 的只读轮次提示，包含策略、容量和每个所选 namespace 的普通变更 head；不是接收回执，不授予推进游标或确认上传的权力。Worker 与协调器同步更新，缺失或错误格式拒绝，不提供旧接口兜底。

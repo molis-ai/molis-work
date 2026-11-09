@@ -181,6 +181,8 @@ Home 判断前会读取原对象、准备其实际可用动作，并把当前选
 
 从 SDK 根入口用 `inspectBlueprint` 检查正文和引用。草稿使用 `{ source: "draft" }`，包版使用 `{ source: "package", owner }`，`owner` 取自调用方已核对的 Manifest。`inspectBlueprintLocales` 检查默认正文和每份包内译文，仅允许文字引用、角色正文和内容建议的 `body` 改值。两者返回带字段路径的问题。实际提供方及设置或内容的主人由采用预览核对。
 
+角色新建输入先过动作 schema，已确认的文字转成 literal，再用 `inspectCharacterTemplateAdoption` 检查模板语义和实际角色标题。复用分支不传模板；采用选择、版本和权限仍由角色主人核对。
+
 ## 本地开发
 
 以下命令在**仓库根目录**执行，使用 Node.js 24+ 与仓库配置的 pnpm。首次准备运行 `pnpm install --frozen-lockfile` 和 `pnpm build`；之后可单独检查此包。

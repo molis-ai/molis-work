@@ -4,7 +4,7 @@
 // first product page that draws them (the 09 batch's AI kit page). Every control inside them is an existing one (button, status
 // mark, badge, menu); the rules only place them, on tokens only. The renderers below are what a page calls; the sections after them
 // are the board's specimens.
-import { cx, escapeHtml, icon, renderAttrs, renderButton, renderStatusMark, type AttrValue, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { cx, escapeHtml, icon, renderAttrs, renderBadge, renderButton, renderStatusMark, type AttrValue, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderMenu, renderMenuGroup, renderMenuItem } from "./overlay.js";
 import { section, specimen } from "./catalog-parts.js";
 import type { Say } from "./catalog-composer.js";
@@ -38,6 +38,26 @@ export const CAPABILITY_PACK_BOARD_STYLES = `
   .mw-item-group__children > .mw-items { width: 100%; padding: 0; background: transparent; box-shadow: none; }
   .mw-item-group__empty { margin: 0; padding: 4px; color: var(--muted); font-size: 12px; }
   @container mw-item-groups (max-width: 360px) { .mw-item-group__children { margin-left: 0; } }
+
+  /* 3 · Compact cells: each a button with a name, a code name and one tag; two columns where the room is narrow. */
+  .mw-cells { container: mw-cells / inline-size; min-width: 0; }
+  .mw-cells > ul { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(200px, 100%), 1fr)); gap: 6px; margin: 0; padding: 0; list-style: none; }
+  @container mw-cells (max-width: 480px) {
+    .mw-cells > ul { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    /* Two narrow columns: the tag goes under the name, so the name keeps the cell's width. */
+    .mw-cell { flex-wrap: wrap; row-gap: 4px; padding-block: 8px; }
+    .mw-cell__name { flex-basis: 100%; }
+  }
+  .mw-cell { appearance: none; display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0; min-height: 44px; margin: 0; padding: 6px 10px; border: 0; border-radius: var(--r-row, 10px); background: var(--paper); box-shadow: inset 0 0 0 1px var(--line); color: inherit; font: inherit; text-align: start; cursor: pointer; transition: background-color var(--dur-hover) var(--ease-quint); }
+  .mw-cell:hover { background: var(--nav-hover); }
+  .mw-cell[aria-current="true"] { background: var(--nav-active); }
+  .mw-cell:active { background: var(--nav-press); }
+  .mw-cell:focus-visible { outline: var(--focus-stroke); outline-offset: -2px; }
+  .mw-cell__name { display: grid; flex: 1 1 auto; min-width: 0; }
+  .mw-cell__name > :is(strong, code) { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .mw-cell__name > strong { color: var(--ink); font-size: 13px; font-weight: var(--weight-control, 500); }
+  .mw-cell__name > code { color: var(--muted); font-size: 11px; }
+  .mw-cell > .mw-badge { flex: none; white-space: nowrap; }
 
   @media (prefers-reduced-motion: reduce) { :is(.mw-item-group__head, .mw-cell) { transition: none; } }
 
@@ -100,6 +120,12 @@ export function renderItemGroup(options: { glyph: PluginIconName; name: string; 
     escapeHtml(`${options.name} · ${options.label}`)}"><span class="mw-item-group__label" aria-hidden="true">${escapeHtml(options.label)}</span>${children}</div></li>`;
 }
 
+/** 3 · Compact cells: the whole cell is the button; the name and its code name are cut on one line each, whole on hover. */
+export function renderCells(cells: ReadonlyArray<{ name: string; code: string; tag: string; current?: boolean; attrs?: Record<string, AttrValue> }>): string {
+  return `<div class="mw-cells" data-slot="cells"><ul>${cells.map((cell) => `<li><button type="button" class="mw-cell" title="${escapeHtml(`${cell.name} · ${cell.code}`)}"${cell.current ? ' aria-current="true"' : ""}${
+    renderAttrs(cell.attrs)}><span class="mw-cell__name"><strong>${escapeHtml(cell.name)}</strong><code>${escapeHtml(cell.code)}</code></span>${cell.tag}</button></li>`).join("")}</ul></div>`;
+}
+
 /* ---------- the board's specimens (made up; nothing is read from a Home). Every text is still Chinese: `say` turns it. ---------- */
 
 const hold = (word: string) => renderStatusMark({ label: word, tone: "hold", state: "unavailable" });
@@ -141,6 +167,22 @@ export function itemGroupSection(say: Say): string {
   return section("item-group", say("条目组 / Item Group"), `<div class="mw-catalog__specimens">
     ${specimen(say("父行可选中，子条目缩进列在下面"), `<ul class="mw-item-groups">${editor}</ul>`)}
     ${specimen(say("引用行与没有子条目"), `<ul class="mw-item-groups">${reference}${none}</ul>`)}
+  </div>`);
+}
+
+function tools(say: Say, current = ""): string {
+  const writes = (word: string) => renderBadge({ label: say(word), tone: word === "会写" ? "warning" : "neutral" });
+  return renderCells([
+    { name: say("读文件"), code: "read_file", tag: writes("只读") }, { name: say("写文件"), code: "write_file", tag: writes("会写") },
+    { name: say("执行命令"), code: "run_command", tag: writes("会写") }, { name: say("搜索网页"), code: "web_search", tag: writes("只读") },
+    { name: say("把改动交给子代理继续做"), code: "delegate_to_subagent", tag: writes("只读") },
+  ].map((cell) => ({ ...cell, current: cell.code === current })));
+}
+
+export function cellGridSection(say: Say): string {
+  return section("cell-grid", say("紧凑条目格 / Compact Cells"), `<div class="mw-catalog__specimens">
+    ${specimen(say("整格是按钮：名称、代码名、只读或会写"), tools(say, "run_command"))}
+    ${specimen(say("窄处两列，长名字截断、悬停看全称"), `<div style="width: min(340px, 100%)">${tools(say)}</div>`)}
   </div>`);
 }
 

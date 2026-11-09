@@ -58,6 +58,7 @@ export {
   renderNowBlock,
   renderPickRow,
   renderItemGroup,
+  renderCells,
   type NowMenu,
   type PickRow,
 } from "./catalog-capability-packs.js";

@@ -16,7 +16,7 @@ import { buttonGroupSection, CATALOG_PATTERN_STYLES, dataTableSection, dropZoneS
 import { lookSections } from "./catalog-appearance.js";
 import { APPEARANCE_BOARD_STYLES } from "./catalog-appearance-styles.js";
 import { itemChoiceSection, itemDetailsSection, listDetailSection, SKILL_PACK_BOARD_STYLES, statusLinkSection } from "./catalog-skill-packs.js";
-import { CAPABILITY_PACK_BOARD_STYLES, itemGroupSection, nowBlockSection } from "./catalog-capability-packs.js";
+import { CAPABILITY_PACK_BOARD_STYLES, cellGridSection, itemGroupSection, nowBlockSection } from "./catalog-capability-packs.js";
 
 export const PRIMITIVE_CATALOG_IDS = [
   "accordion", "alert", "alert-dialog", "autocomplete", "avatar", "badge", "breadcrumb", "button",
@@ -256,6 +256,7 @@ export function renderPrimitiveCatalog(options: { readonly plugins?: readonly Ca
     ${statusLinkSection(say)}
     ${nowBlockSection(say)}
     ${itemGroupSection(say)}
+    ${cellGridSection(say)}
     ${layoutSection()}
     ${dataTableSection()}`;
   return `<div class="mw-catalog">

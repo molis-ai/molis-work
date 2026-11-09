@@ -1,4 +1,5 @@
 import { UI_FILE_LIMITS, type UiFileProblem, type UiFileResult } from "@molis-ai/molis-work-contracts/platform/ui";
+import { isRecord } from "../json-value.js";
 
 // Reading a file of ours (specs/font-and-skin-system/a-section-contract.md §3.1). Not published. The scan comes before `JSON.parse`, which would let the
 // last of two equal names silently win, and it is a full grammar so that a problem has the same line and column in every runtime.
@@ -164,11 +165,9 @@ export function readStrictJson(source: string, file: string, maxBytes: number | 
   return sink.problems.length > 0 ? { ok: false, problems: sink.problems } : { ok: true, value: JSON.parse(source), sink };
 }
 
-export const isObject = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
-
 /** The fields a file's object may have: an unknown one is refused, never ignored. Gives the object when it is one. */
 export function readObject(sink: ProblemSink, value: unknown, path: string, required: readonly string[], optional: readonly string[] = []): Record<string, unknown> | null {
-  if (!isObject(value)) {
+  if (!isRecord(value)) {
     sink.add(path, "ui.file_wrong_type", "这里必须是对象", `写成 { ${required.join(", ")} }`);
     return null;
   }

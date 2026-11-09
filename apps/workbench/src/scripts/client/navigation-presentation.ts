@@ -301,11 +301,9 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
   const searchKey = dock.querySelector('.plugin-picker-search kbd');
   if (searchKey && !/Mac|iPhone|iPad/.test(navigator.platform)) searchKey.textContent = 'Ctrl K';
 
-  /* The resident Assistant: its answer opens above the bar and stays until closed. */
+  /* The resident Assistant: its answer opens above the bar and stays until closed (the island opens it on a Send). */
   const panel = dock.querySelector('[data-assistant-panel]');
-  const composer = dock.querySelector('[data-assistant-composer]');
   const setPanel = (open) => { if (panel) panel.hidden = !open; };
-  composer?.addEventListener('submit', () => setPanel(true), true);
 
   dock.addEventListener('click', (event) => {
     const target = event.target?.nodeType === 1 ? event.target : null;

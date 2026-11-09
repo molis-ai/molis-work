@@ -43,7 +43,7 @@ export interface AssistantServicePorts extends AssistantLandingPorts, AssistantR
   /** The person's own client in a work's project, to drive the plugin that carries it as its page would; a dispatch's (a Send, a follow-up's round) is its own. */
   personActions?(work: Pick<StoredWork, "project_ref">, use?: "dispatch", original?: SendIntent["original_input"], executorPluginId?: string): Promise<BoundActionClient>;
   /** The person's own actions in a work's scope (its project, or the Home), for reading related objects from their owners. */
-  scopeActions?(work: StoredWork): Promise<PersonActions>;
+  scopeActions?(work: Pick<StoredWork, "project_ref">): Promise<PersonActions>;
   /** The person's own actions in their Home, for reading the reminders they set in Plugins. */
   homeActions?(): Promise<PersonActions>;
   /** The Characters the person published in a project, each saying whether it can run now. */
@@ -91,7 +91,7 @@ export interface RoundMaterials { materials: AgentTextMaterial[]; told: { undos:
  * A Home-kept object that says it belongs to another project (or a project, for personal work): its content is not
  * this work's to read, whatever the owner's reader allows.
  */
-export function belongsElsewhere(work: StoredWork, context: ActionSubjectContext): boolean {
+export function belongsElsewhere(work: Pick<StoredWork, "project_ref">, context: ActionSubjectContext): boolean {
   if (typeof context.project_id !== "string" || context.project_id === "personal") return false;
   return context.project_id !== (work.project_ref?.project_id ?? null);
 }

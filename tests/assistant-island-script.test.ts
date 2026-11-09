@@ -28,14 +28,18 @@ test("every Send the bottom bar writes itself is marked as the page's; only the 
     }
     return script.slice(start, index - 1).trim();
   });
-  assert.equal(calls.length, 4, "the bottom bar sends from four places: the browser hand-back, asking a closed question again (D5), the frozen composer and a receipt's correction");
+  assert.equal(calls.length, 4, "the bottom bar sends from four places: the browser hand-back, asking a closed question again (D5), the one Send (`post`) and a receipt's correction");
   assert.equal(calls.filter(call => call === "intent.body, intent.route").length, 1, "the composer sends the frozen body and trusted route it captured");
   // RCPT-326: a correction is what the person typed in the receipt's form, so it is theirs, with the input it corrects.
   const correction = "{ work_id: work(), text, about, request_id: key }";
   assert.equal(calls.filter(call => call === correction).length, 1, "a receipt's correction sends the person's words, the input it corrects and the receipt's key");
   for (const call of calls.filter(call => call !== "intent.body, intent.route" && call !== correction)) assert.match(call, /written_by: "page"/, call.slice(0, 100));
-  assert.match(script, /const body = \{[^\n]*\.\.\.\(byPage \? \{ written_by: "page" \} : \{\}\)/, "the composer marks a hand-over the person neither wrote nor changed");
-  assert.match(script, /pageText = message\.text && input\.value\.trim\(\);/, "a hand-over with words is remembered as the page's until it is sent");
+  // K3: the one Send carries the mark it is given; the composer gives none (the words are the person's), a page's hand-over gives the page's.
+  assert.match(script, /const body = \{[^\n]*\n[^\n]*\.\.\.\(extra\.written_by \? \{ written_by: extra\.written_by \} : \{\}\)/, "the one Send marks what it is told is the page's");
+  assert.match(script, /void say\(message\.text, \{ named: "msg-" \+ message\.message_id, written_by: "page" \}\);/, "a hand-over with words goes out as the page's");
+  const delegate = script.match(/const delegate = async \(message\) => \{[\s\S]*?\n  \};/)?.[0] ?? "";
+  assert.ok(delegate, "the delegated Send is found");
+  assert.doesNotMatch(delegate, /input\.value =|setWords\(/, "and never through the input, where the person's words would mix with it");
 });
 
 // A sentence the person reads is one translated text with its own punctuation: gluing a translated word to a Chinese colon
@@ -63,13 +67,11 @@ test("a plugin's name in the bottom bar comes from the catalog, not from the plu
   assert.match(renderMolisWorkWorkbenchClientScript(), /pluginTitle:\s*[\w$]+\.pluginTitle/);
 });
 
-// The line is measured with its chips on it, whether or not the phone's typing rule is hiding them, so a tap into the input and away
-// leaves the steps where they were; and the steps that take parts off the line are made only where the stylesheet applies them
-// (44px targets), never in a fine-pointer window, where a folded chip would still be on the line. tests/touch-targets.e2e.test.ts measures both.
-test("the bottom bar measures its line with its chips on it and folds parts off only in touch windows", () => {
-  const fit = ASSISTANT_ISLAND_FACTORY_SCRIPT.match(/const fitInput = \(\) => \{[\s\S]*?\n  \};/)?.[0] ?? "";
-  assert.match(fit, /compose\.dataset\.measuring = "";[\s\S]*dataset\.crowded = step;[\s\S]*delete compose\.dataset\.measuring;/, "the typing rule is off from the first measurement to the last");
-  assert.match(fit, /if \(matchMedia\("\(max-width: 600px\), \(pointer: coarse\)"\)\.matches\) for \(const step of \["choosers", "mark", "chips"\]\)/, "and the steps are the touch rules'");
+// K3: the bar's line is the platform composer now, which folds its controls behind 更多 on a narrow box by its own sheet: the island
+// measures nothing and takes no parts off. What it still does is tell the sheets above the bar how tall the bar is (one variable).
+test("the bottom bar measures no line of its own and gives the bar's height to the sheets above it through --dock-h", () => {
+  assert.doesNotMatch(ASSISTANT_ISLAND_FACTORY_SCRIPT, /const fitInput = |dataset\.crowded|dataset\.measuring/, "no line fitting left in the island");
+  assert.match(ASSISTANT_ISLAND_FACTORY_SCRIPT, /new ResizeObserver\(\(\) => \{ const height = bar\.offsetHeight; if \(height\) document\.body\.style\.setProperty\("--dock-h", height \+ "px"\); else document\.body\.style\.removeProperty\("--dock-h"\); \}\)/, "the bar's measured height is --dock-h");
 });
 
 // RAC-2571: the script is cut by job into twelve parts joined in place (W5-10 batch A, T-060), so the main file stays under the

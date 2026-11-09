@@ -3,6 +3,7 @@ import { closeSync, constants, fstatSync, lstatSync, opendirSync, openSync, read
 import { dirname, isAbsolute, join, relative, sep } from "node:path";
 import { ActionError, defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openExistingHomePayload, sealExistingHomePayload, type SealedHomePayload } from "@molis-ai/molis-work-storage";
+import { compareCodeUnits } from "@molis-ai/molis-work-plugin-sdk";
 import { readManagedConnectorTool, inspectManagedConnectorToolSnapshot } from "./connector-tool-install.js";
 
 export const CONNECTOR_PRIVATE_STATE_OWNER = "connector-private-state";
@@ -161,7 +162,7 @@ function captureTree(root: string, budget: ReadBudget): PrivateTree {
       }
     }
   }
-  const byPath = (a: PrivateDirectory, b: PrivateDirectory) => a.relative_path < b.relative_path ? -1 : a.relative_path > b.relative_path ? 1 : 0;
+  const byPath = (a: PrivateDirectory, b: PrivateDirectory) => compareCodeUnits(a.relative_path, b.relative_path);
   tree.directories.sort(byPath); tree.files.sort(byPath);
   return tree;
 }

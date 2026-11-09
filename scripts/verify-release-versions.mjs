@@ -291,15 +291,16 @@ function callArguments(text, open) {
 
 // A baseline handed to `applySqliteBaseline(db, path, baseline)` or `openBaselineHomeSqlite(home, name, baseline)` has to be a
 // named, declared constant. An inline object or a name no package declares is a database the table cannot list. The file that
-// defines the two functions is exempt: it only passes its own parameter on. The two aggregate copy openers take one the same way
-// (design §2.5), and their file is exempt for the same reason. `runSqliteUpgrade(db, path, baseline)` forwards what a store's
-// descriptor carries (specs/upgrade-continuity/upgrade-chain-design.md §2.3), so there, and only there, a property is fine too.
+// defines the two functions is exempt: it only passes its own parameter on. `runSqliteUpgrade(db, path, baseline)` forwards what
+// a store's descriptor carries (specs/upgrade-continuity/upgrade-chain-design.md §2.3), so there, and only there, a property is
+// fine too. Nothing else is exempt: the aggregate copy openers and their file were deleted with U1-d, so the rule reads these
+// three entries and no others.
 function checkBaselineCalls(directories, declaredNames) {
   for (const directory of directories) {
     for (const file of sourceFiles(directory)) {
-      if (file === "packages/storage/src/sqlite-baseline.ts" || file === "packages/storage/src/aggregate-copy-store.ts") continue;
+      if (file === "packages/storage/src/sqlite-baseline.ts") continue;
       const text = readFileSync(path.join(root, file), "utf8");
-      for (const match of text.matchAll(/(?<!function\s)\b(applySqliteBaseline|openBaselineHomeSqlite|runSqliteUpgrade|openOwnerCopyStore|openAggregateCopyOwner)\s*\(/g)) {
+      for (const match of text.matchAll(/(?<!function\s)\b(applySqliteBaseline|openBaselineHomeSqlite|runSqliteUpgrade)\s*\(/g)) {
         const args = callArguments(text, match.index + match[0].length - 1);
         const baseline = args[2];
         // This one typed connection bridge forwards the trusted declaration for the Host client and the SQL worker, and the

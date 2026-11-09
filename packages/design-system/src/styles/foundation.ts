@@ -499,7 +499,7 @@ export const FOUNDATION_STYLES = `  :root {
 
   /* Form fields and floating surfaces: one border, corner and ground. */
   .tree-search input,
-  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not(.mw-slider):not(.mw-input):not(.mw-textarea):not(.mw-select):not(.global-search-query):not(.assistant-composer-input):not([data-feed-search]),
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not(.mw-slider):not(.mw-input):not(.mw-textarea):not(.mw-select):not(.global-search-query):not([data-feed-search]),
   textarea:not(.mw-textarea),
   select:not(.mw-select) { border: 1px solid var(--line-strong); border-radius: 8px; background: var(--paper); color: var(--ink); box-shadow: none; }
   .theme-menu,

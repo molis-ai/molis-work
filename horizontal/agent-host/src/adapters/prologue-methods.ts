@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { createGitSkillFetcher, DEFAULT_INSTALL_LIMITS, fillSkillBody, installSkill, MAX_SKILL_BODY_CHARS, prepareSkillIntent, type FetchedPackage, type Runtime, type Skill } from "@prologue/sdk";
 import type { AgentSkillCandidate, AgentSkillCatalogEntry, AgentSkillLibrary, AgentSkillOwner } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { compareCodeUnits } from "@molis-ai/molis-work-plugin-sdk";
 import type { AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 
 const KIND = "molis-coding-method";
@@ -22,7 +23,7 @@ function metadata(value: Readonly<Record<string, unknown>>): MethodMeta {
 function assemble(pack: FetchedPackage) {
   const main = pack.files.find(file => file.path.toLowerCase() === "skill.md");
   if (!main) throw new Error("方法包缺少根目录的 SKILL.md");
-  const others = pack.files.filter(file => file !== main).slice().sort((a, b) => a.path.localeCompare(b.path));
+  const others = pack.files.filter(file => file !== main).slice().sort((a, b) => compareCodeUnits(a.path, b.path));
   const body = main.text + others.map(file => `\n\n## 附件：${file.path}\n\n${file.text}`).join("");
   if (!body.trim() || body.length > MAX_SKILL_BODY_CHARS) throw new Error(`方法正文与附件必须在 ${MAX_SKILL_BODY_CHARS} 字符以内，不能截断安装`);
   return { body, files: [main.path, ...others.map(file => file.path)] };

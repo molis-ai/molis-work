@@ -3,7 +3,7 @@ import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { AssistantService, AssistantStore } from "@molis-ai/molis-work-app-local-host";
 
-const REQUIRED = ["archived", "created_at", "draft", "executor", "origin", "revision", "scope", "session_id", "state", "title", "updated_at", "work_id"];
+const REQUIRED = ["archived", "created_at", "draft", "draft_revision", "executor", "origin", "revision", "scope", "session_id", "state", "title", "updated_at", "work_id"];
 
 function fixture(t: test.TestContext) {
   const db = new DatabaseSync(":memory:"), store = new AssistantStore(db);
@@ -27,6 +27,7 @@ test("W2-18-A4-VIEW-01 a work's view holds exactly the AssistantWork fields, wha
   const view = service.saveDraft(plain.work_id, "草稿");
   assert.deepEqual(Object.keys(view).sort(), REQUIRED, "no stored key outside the contract, and no absent optional field written as undefined");
   assert.equal(view.draft, "草稿");
+  assert.equal(view.draft_revision, 2, "the first saved draft advances its own generation from 1 to 2");
   assert.equal(view.state, "idle");
 
   // Every optional field the contract names comes through when the work has it, a delegated part's asker read from its graph.

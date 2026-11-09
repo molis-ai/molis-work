@@ -1,3 +1,4 @@
+import type { MaterialRef } from "../platform/project-materials.js";
 import type { SignedAgentReference, SignedAgentInstallation } from "./agent-definitions.js";
 import type { AssistantMemoryCandidate, AssistantRoundMemory } from "./assistant-memory.js";
 export type { AssistantMemory, AssistantMemoryCandidate, AssistantMemoryPrefs, AssistantRoundMemory } from "./assistant-memory.js";
@@ -219,7 +220,7 @@ export interface AssistantMaterial {
    * picker (specs/project-knowledge PMAT-17), the piece itself. Either is only a pointer: the Host checks it again with its
    * owner and reads the text itself before the round (a piece through `knowledge.read`, as the person).
    */
-  reference?: { hit_id: string } | { subject: { kind: string; id: string } };
+  reference?: { hit_id: string } | { subject: { kind: string; id: string } } | { material: MaterialRef };
   /** For `method`: the method the person chose with “/” for this round; the Host gives its registered body. */
   method?: AssistantMethodSelection & { name?: string; plugin_title?: string; effective?: "default" | "user"; user_revision?: number | null };
   /** For `image`: the picture the person added, taken in by the runtime (only a reference; the bytes stay there). */
@@ -281,6 +282,8 @@ export interface AssistantWork {
   session_id: string | null;
   /** Unsent text for this work. Never sent, never read by a model. */
   draft: string;
+  /** Advances on every draft write, independently of other work changes. */
+  draft_revision: number;
   created_at: string;
   updated_at: string;
   archived: boolean;
@@ -510,18 +513,25 @@ export interface AssistantSendInput extends Pick<AgentInputSend, "about"> {
   target?: "answer" | "steer";
   /**
    * How a supplement reaches the round under way (specs/ai-input-receipts §4.1; specs/unified-input-voice §4): `next-boundary`
-   * (补充) when absent, `interrupt` (打断并改向) or `after-run` (下一轮再做). Only for an existing work's supplement: refused with
-   * `target: "answer"`, on a new work, and for any other value. `interrupt` and `after-run` never start a round: when the
-   * round has ended they wait in its session for the next one (outcome `queued`); a work with no round yet refuses them.
+   * (补充) when absent, `interrupt` (打断并改向) or `after-run` (下一轮再做). Only for an existing work's supplement: refused
+   * (`assistant.invalid`) with `target: "answer"`, on a new work, and for any other value. `interrupt` and `after-run` never start
+   * a round: when the round has ended they wait in its session for the next one (outcome `queued`); a work with no round yet
+   * refuses them (`assistant.state`).
    */
   delivery?: AgentSteerMode;
   reask?: AgentQuestionReask;
+  /** Identifies the content of this attempt when recovering a lost Send with the same request_id. Echoed only for the attempt that claimed it. */
+  submission_id?: string;
+  /** Draft revision paired with the text read or saved by the page. A delayed Send cannot replace a newer saved draft. */
+  draft_revision?: number;
   /** One per press of Send. A repeat returns the first outcome and starts nothing. */
   request_id: string;
 }
 
 /** What one Send did: started a round, reached a running one, waits for the next (its round had just ended), or answered its question. */
 export interface AssistantSendResult {
+  /** The content attempt that won request_id, when the caller supplied one; replays and read-only checks preserve it. */
+  submission_id?: string;
   work: AssistantWork;
   outcome: "started" | "steered" | "queued" | "answered" | "repeated";
   run_id?: string;

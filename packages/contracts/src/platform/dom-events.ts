@@ -180,8 +180,8 @@ export interface DomEventDeclaration {
 }
 
 /**
- * Every page event, in name order: 48 names at the time of listing, 47 of them created with `new CustomEvent` (90 dispatch
- * sites) and one, `molis:side-toggle`, only listened to so far. Who dispatches and who listens is not written down here:
+ * Every page event, in name order: 63 names at the time of listing, 159 dispatch sites and 147 listener sites on a page
+ * prefix; one, `molis:side-toggle`, is only listened to so far. Who dispatches and who listens is not written down here:
  * `node scripts/gates/dom-events.mjs --report` computes both from the source, so it cannot go stale.
  */
 export const DOM_EVENTS = [

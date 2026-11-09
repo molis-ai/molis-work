@@ -53,7 +53,7 @@ export const FILES_MESSAGES = {
   "files.snapshot.diff-help": { zh: "固定后不会随磁盘文件改变；再次固定才更新这一侧。", en: "A pinned snapshot doesn't follow the file on disk. Pin again to update that side." },
   // The view's and the actions' own sentences are action output an Agent reads too, so they stay as written and are their
   // own keys here: the page shows them through the translator.
-  "files.stage.manage": { zh: "工作目录设置", en: "Working folder settings" },
+  "files.stage.manage": { zh: "输入与输出设置", en: "Inputs and output settings" },
   "files.stage.empty-title": { zh: "打开文件，开始阅读", en: "Open a file to start reading" },
   "files.stage.empty-body": { zh: "从目录选择文件，阅读内容、保存选区，或固定两份快照进行对比。", en: "Choose a file from the folder to read it, save a selection, or pin two snapshots to compare." },
 } as const;

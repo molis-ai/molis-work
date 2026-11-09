@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { createPrologueNodeAdapter, AgentHost, AgentReviewQueue } from "@molis-ai/molis-work-service-agent-host";
-import { AssistantService, AssistantStore } from "@molis-ai/molis-work-app-local-host";
+import { ASSISTANT_STORE_BASELINE, AssistantService, AssistantStore } from "@molis-ai/molis-work-app-local-host";
 
 test("ASC-18: rejecting controls on an idle work changes neither its stored choice nor its setup requests", async () => {
   const db = new DatabaseSync(":memory:"), store = new AssistantStore(db);
@@ -67,6 +67,22 @@ test("ASC-34: an earlier Send failing after a newer accepted input cannot replac
     failed.end();
     assert.equal(store.get("user", work.work_id).continuation_hold, "input");
   } finally { release.resolve(); service.continuations.close(); db.close(); }
+});
+
+test("B10-R3: a late failed Send preserves a newer saved or explicitly cleared draft", async () => {
+  for (const newer of ["New durable draft", ""]) {
+    const db = new DatabaseSync(":memory:"), store = new AssistantStore(db);
+    const service = new AssistantService(store, { pages: async () => ["home"], host: async () => { throw new Error("runtime unavailable"); },
+      authority: async () => { throw new Error("must not dispatch"); } }, "user");
+    try {
+      const work = store.create({ actor_id: "user", title: "Draft owner", scope: { kind: "personal" }, origin: null });
+      const original = service.saveDraft(work.work_id, "Old unsent text");
+      service.saveDraft(work.work_id, newer);
+      await assert.rejects(service.send({ work_id: work.work_id, text: "Old unsent text", request_id: "late-draft-request", draft_revision: original.draft_revision }, {}));
+      assert.equal(store.get("user", work.work_id).draft, newer, "neither the input hold nor the failure writes an older draft");
+      assert.equal(store.rounds(work.work_id).length, 0);
+    } finally { service.continuations.close(); db.close(); }
+  }
 });
 
 test("ASC-34: a newer Send whose setup hold fails invalidates the older Send before failure and preserves its own draft", () => {
@@ -204,4 +220,52 @@ for (const change of ["close", "latest-input"] as const) test(`ASC-18 ASC-34: a 
     assert.deepEqual(service.notices.notices(null), [], "there is no false completed notification");
     if (change === "latest-input") assert.equal(store.get("user", work.work_id).draft, "Newest intent");
   } finally { release.resolve(); service.continuations.close(); await adapter.close(); db.close(); await rm(directory, { recursive: true, force: true }); }
+});
+
+
+test("B10-R3: draft generations distinguish same-text rewrites from unrelated work updates", () => {
+  const db = new DatabaseSync(":memory:"), store = new AssistantStore(db);
+  try {
+    const work = store.create({ actor_id: "user", title: "Draft generations", scope: { kind: "personal" }, origin: null });
+    const first = store.update("user", work.work_id, null, { draft: "X" });
+    const title = store.update("user", work.work_id, null, { title: "Renamed" });
+    assert.equal(title.draft_revision, first.draft_revision);
+    store.update("user", work.work_id, null, { draft: "" });
+    const retyped = store.update("user", work.work_id, null, { draft: "X" });
+    assert.equal(retyped.draft_revision, first.draft_revision + 2);
+    assert.equal(retyped.draft, first.draft);
+  } finally { db.close(); }
+});
+
+test("B10-R3: current v1 works and saved send receipts survive a real database reopen without writes", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "assistant-v1-reopen-")), file = join(directory, "assistant.db");
+  let db = new DatabaseSync(file);
+  const store = new AssistantStore(db), host = new AgentHost({ reviews: new AgentReviewQueue() });
+  const service = new AssistantService(store, { pages: async () => ["home"], host: async () => host,
+    authority: async () => { throw new Error("This storage check starts no model"); } }, "user");
+  try {
+    const work = store.create({ actor_id: "user", title: "Durable draft", scope: { kind: "personal" }, origin: null });
+    service.saveDraft(work.work_id, "Keep this draft");
+    service.saveDraft(work.work_id, "");
+    const view = service.saveDraft(work.work_id, "Keep this draft");
+    assert.equal(view.draft_revision, 4, "create plus three real draft edits, including the same-text new generation");
+    assert.deepEqual(store.requests.claimRequest("user", "v1-reopen-request"), { claimed: true });
+    const receipt = { work: view, outcome: "queued" as const, submission_id: "v1-reopen-content" };
+    store.requests.finishRequest("user", "v1-reopen-request", receipt);
+    const saved = store.get("user", work.work_id);
+    service.continuations.close(); db.close();
+    const bytes = await readFile(file);
+    db = new DatabaseSync(file);
+    assert.equal(ASSISTANT_STORE_BASELINE.version, 1);
+    assert.equal(ASSISTANT_STORE_BASELINE.upgrades, undefined, "the user requested the current first version without a migration");
+    const changes = db.prepare("SELECT total_changes() AS count").get()!.count;
+    const reopened = new AssistantStore(db);
+    assert.deepEqual(reopened.get("user", work.work_id), saved);
+    assert.equal(reopened.get("user", work.work_id).draft, "Keep this draft");
+    assert.equal(reopened.get("user", work.work_id).draft_revision, 4);
+    assert.deepEqual(reopened.requests.read("user", "v1-reopen-request"), { state: "sent", result: receipt });
+    assert.equal(db.prepare("SELECT total_changes() AS count").get()!.count, changes, "opening and reading do not rewrite stored facts");
+    assert.equal(db.prepare("PRAGMA user_version").get()!.user_version, 1);
+    assert.deepEqual(await readFile(file), bytes, "reopening current v1 does not rewrite its bytes");
+  } finally { service.continuations.close(); db.close(); await rm(directory, { recursive: true, force: true }); }
 });

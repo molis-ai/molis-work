@@ -93,8 +93,18 @@ export async function openGoldenHost(home, { web = true } = {}) {
   let cookie;
   const http = async (route, { method = "POST", body } = {}) => {
     const token = readFileSync(path.join(real, "config/web-control-token"), "utf8").trim();
-    const response = await fetch(origin + route, { method, headers: { origin, "content-type": "application/json", "x-molis-work-control-token": token, "x-molis-work-idempotency-key": crypto.randomUUID(), ...(cookie ? { cookie } : {}) },
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+    // `Connection: close` on purpose (UPG2-01, 07 batch audit): this replay makes a handful of requests minutes apart to a Host that may
+    // close an idle keep-alive connection between them. Reusing that socket makes the next POST fail as a bare `fetch failed`
+    // (no code), which the replay can only report as `golden.unexpected_error`; one connection per request has no stale socket to
+    // reuse. A fetch that still fails is told apart from a Host answer, so CI logs say which happened.
+    let response;
+    try {
+      response = await fetch(origin + route, { method, headers: { origin, connection: "close", "content-type": "application/json", "x-molis-work-control-token": token, "x-molis-work-idempotency-key": crypto.randomUUID(), ...(cookie ? { cookie } : {}) },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+    } catch (error) {
+      const cause = error instanceof Error ? (error.cause && typeof error.cause === "object" && "code" in error.cause ? String(error.cause.code) : error.message) : String(error);
+      throw goldenFailure("golden.http_fetch_failed", `${method} ${route}: ${cause}`);
+    }
     cookie = response.headers.get("set-cookie")?.split(";")[0] ?? cookie;
     return respond(response, await response.text(), route);
   };

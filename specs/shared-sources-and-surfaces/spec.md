@@ -610,9 +610,15 @@ SDK 只依赖 contracts，不依赖也不转出私有包。改 SDK 算动共享�
 
 `PresentationFormValues` 是一次渲染的显示投影：必填 `locale: string | null`、`ownerDisplay: { name: string; icon?: PluginIconName; hue?: UiViewHue }`、`read`（`PresentationValueItem` 的 state／values／read_at，或明确的 `{ state: "unreadable" }`），可选 `actions` 与 `notices`。控件为 `{ key: string; label: string; primary?: boolean; consequence?: readonly SurfaceConsequence[] }`；notice 为 `{ reason: OwnedTextRef; next?: 控件 }`。`key` 只是一处位置自己绑定的局部 DOM 句柄，不能充当 provider、ref、prepared_input、执行权或自造 URL；renderer 不执行、不取数据、不注册动作。
 
-`ownerDisplay` 来自现有可信插件目录和确切 Manifest，不从插件 id 猜名字或颜色，也不新建 SDK 主人登记表；缺图标或颜色用既有 package／中性表达。字段按现有 role 与 `presentationFormFields` 画一份内容；TextRef 经 `tryOwnedTextRef`、`say`，日期和数值复用 `format` 的原实现及相同文字环境。locale 为 null 时用 owner 默认语言，所需文字环境读取留私有。投影中的已译按钮字只用于当前 DOM，不存回业务事实。
+`ownerDisplay` 的名称与图标来自现有可信插件目录和确切 Manifest，不从 id 猜名字，也不新建 SDK 主人登记表；缺图标用既有 package 表达。呈现色由平台按 §10 第 1 条分配，不拿标签条的 Manifest hue 代替；稳定与避免碰色的取舍正交用户澄清，确定前不实现分配规则。字段按现有 role 与 `presentationFormFields` 画一份内容；未绑定 TextRef 经 `tryOwnedTextRef`，已绑定的 notice 直接经 `say`，HTML 只转义一次。日期和数值复用 `format` 的内部原实现及相同文字环境，按显式 locale 解析；locale 为 null 时用 owner 默认语言，所需读取 helper 留私有，不直接套用只读全局页面语言的公开 `format`。投影中的已译按钮字只用于当前 DOM，不存回业务事实。
 
-平台把实际 `SurfaceItem.actions`／`notices` 和当时可用的精确目录行绑定到控件，点击时经网关重核授权、重取当前输入。独立 MLN-23 读取同一声明和值，沿用其原菜单与切换动作；插件预览只画自己对象，无绑定时只显示。`stale` 必须有主人真实 read_at；仍可保留按组合服务 §6.4 核实可用的操作，禁止的是失效操作，不是所有操作。首次失败、撤权、删除与未声明分别处理；撤权和删除不能在隐藏 DOM 留正文或操作。挂载位由平台渲染，插件文档内跨插件执行通过父文档现有授权路径。
+平台把实际 `SurfaceItem.actions`／`notices` 和当时可用的精确目录行绑定到控件，点击时经网关重核授权、重取当前输入。独立 MLN-23 读取同一声明和值，沿用其原菜单与切换动作；插件预览只画自己对象，无绑定时只显示。`stale` 必须有主人真实 read_at；仍可保留按组合服务 §6.4 核实可用的操作，禁止的是失效操作，不是所有操作。首次失败、撤权、删除与未声明分别处理；forbidden／deleted 优先截断 values、actions、notices 及隐藏属性。挂载位跨插件执行当前没有通用入口，须按下一段补齐，不能以 `pageIntake` 或 `embed-open` 冒充已接通。
+
+**挂载位的可信承载。** 复用工作台一页唯一的 `pageFramedAreas`、`childPlaces` 和现有页面凭据。SDK `UiPageView.surfaceSlot(element, { slot_id, subjects })` 只提交至多 50 个闭合的 `{ kind, id }` 目标引用和声明位置；引用是不可信输入，不是授权，仍按组合服务 §6.1 检查、去重及 `refuse_kinds`／`max` 过滤。子 frame 只发 open、geometry、close；父文档从实际 page 绑定安装、项目、贡献、producer 和该贡献的 `accepts_forms`，在不可由插件访问的 sibling 里使用同一 renderer。自动展示用当前用户已有授权读取，不给插件身份加权限、不凭输入选择 actor/project/install，也不产生 user_action。原目录仍供选择操作，只有 values 子调用受 query-only／只读约束；自动 values 同时拒绝显式 external、模型和计费。
+
+子端 ready 只表示声明位置获准预留，不等待数据查询；高度只由宽度与该位置预先确定的形态决定，不取决于授权、结果、条数或错误。不向子页面返回 HTML、对象值、候选、按钮、路由、操作结果或焦点回执。父文档沿现有 contextual header 新增窄读／执行接点，插件 fetch 桥不能转发该凭据。真实点击先经现有 `area.gate`，核当前可见、无遮挡、稳定、busy 和局部渲染绑定；绑定包含当前页面/安装/项目/贡献/slot/渲染代次及精确动作。Host 在正常用户动作网关前核页面仍有效、当前候选及动作/输入映射，点击重取值，过期或未知句柄拒绝，不开放任意 ref/input 的代理。重绘、切项目、停用、撤权和关闭要使旧绑定及在途请求失效；结果只在父文档处理。共用现成裁剪、相交隐藏、真实点按与焦点保护，不另建平台区域或授权目录。
+
+验收复用 IUI-07／08／10／13：同项目合法对象可显示；越权引用与空结果向子端给相同协议回执；未声明、跨贡献、伪安装和过量引用拒绝；外发 values 未被调用；脚本点击、pointerdown 后重绘、旧代次、遮盖和撤权期间均零写；真实父键盘点击只执行一次、回执和跨位置更新正确。公开 renderer 的合审不替代这些挂载位路径的验证。
 
 最小迁移范围是 `renderPreviewCard`、`renderPopover`、`renderSheet` 及形态实际使用的 `renderMenu`／`renderMenuItem`：将原实现移到 SDK 的一个 UI 叶子，design-system 原入口同源重导，普通消费者签名与 HTML 保持；不复制第二套实现。其它 dialog、drawer、菜单组及客户端 tooltip、焦点、浮层工具保留原 owner。形态内容只画一次，位置层选择 popover 或窄屏 Sheet；`mw-tag`／`mw-item` 复用原样式。样式叶子只用语义变量和环境继承，消费第 16 批 font roles 的 size／lineheight，不建第二份字体、皮肤状态或缓存。`UiSpecFile.components` 只登记元数据，实际 kind 渲染与允许操作仍由实现负责。
 

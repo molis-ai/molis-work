@@ -7,6 +7,7 @@ import type {
 } from "./contract/feed.js";
 import type { SourceRecord } from "./contract/sources.js";
 import { FEED_PLUGIN_ID } from "./identity.js";
+import { feedRunFailure } from "./source-presentation.js";
 import { buildFeedReaderUiModel, buildFeedStageUiModel } from "./stage-ui.js";
 import type { FeedReaderData, FeedStageData } from "./query-actions.js";
 import { type MwButtonOptions, renderAlert, renderButton, renderKept, renderStateRing, renderStatusMark, type StateRingState } from "@molis-ai/molis-work-plugin-sdk/ui";
@@ -82,6 +83,7 @@ export interface FeedUiSourceRun {
   readonly phase: "running" | "terminal" | "interrupted";
   readonly outcome: string | null;
   readonly error_code: string | null;
+  readonly http_status?: number;
   readonly created_count: number;
   readonly deduped_count: number;
   readonly started_at: string;
@@ -410,10 +412,11 @@ export function renderSourceWorkbench(model: FeedUiModel): string {
 
 function renderSourceRuns(source: FeedUiSource, p: FeedUiModel["primitives"]): string {
   return source.runs.length ? `<ol class="source-run-ledger">${source.runs.map((run) => {
-    const state = run.phase === "running" ? "running" : run.phase === "interrupted" || run.error_code ? "error" : "complete";
-    const ringState = run.phase === "running" ? "syncing" : run.phase === "interrupted" ? "interrupted" : run.error_code ? "failed" : "done";
-    const title = run.phase === "running" ? p.text("正在拉取") : run.phase === "interrupted" ? p.text("拉取已中断") : run.error_code ? p.text("拉取失败") : p.text("拉取完成");
-    const summary = run.phase === "running" ? p.text("已开始，等待来源返回") : run.error_code ? p.text("错误：{code} · 可安全重试", { code: run.error_code }) : p.text("新增 {created} · 去重 {deduped}", { created: run.created_count, deduped: run.deduped_count });
+    const failure = feedRunFailure(run, p.text);
+    const state = run.phase === "running" ? "running" : failure ? "error" : "complete";
+    const ringState = run.phase === "running" ? "syncing" : run.phase === "interrupted" ? "interrupted" : failure ? "failed" : "done";
+    const title = run.phase === "running" ? p.text("正在拉取") : run.phase === "interrupted" ? p.text("拉取已中断") : failure ? p.text("拉取失败") : p.text("拉取完成");
+    const summary = run.phase === "running" ? p.text("已开始，等待来源返回") : failure ?? p.text("新增 {created} · 去重 {deduped}", { created: run.created_count, deduped: run.deduped_count });
     return `<li data-run-state="${state}"><span>${renderStateRing({ state: ringState })}</span><div><strong>${title}</strong><p>${p.escape(summary)}</p></div><time>${p.formatDate(run.completed_at || run.started_at)}</time></li>`;
   }).join("")}</ol>` : `<div class="source-panel-empty">${p.icon("waiting")}<strong>${p.text("还没有运行记录")}</strong></div>`;
 }

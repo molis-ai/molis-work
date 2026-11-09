@@ -68,7 +68,7 @@ export function interruptedMessage(code: string): string {
   if (code === "feed_parse_failed") return "同步失败：源站返回的不是可解析 RSS/Atom，本次未导入内容。";
   if (code === "feed_unavailable") return "同步失败：源站不可用或返回空正文，本机已有内容未被覆盖。";
   if (code === "budget_exhausted") return "同步失败：公开搜索额度已耗尽，没有回退到模拟数据。";
-  return "同步未取得可信终态，本次没有写成成功；可稍后安全重试。";
+  return "拉取中断，没能确认这次结果。已有内容仍在，请稍后重试。";
 }
 
 export function resolveSourceFaults(feed: FeedApplication, projectId: string, sourceId: string): void {

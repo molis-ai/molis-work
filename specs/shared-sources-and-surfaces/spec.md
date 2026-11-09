@@ -610,7 +610,7 @@ SDK 只依赖 contracts，不依赖也不转出私有包。改 SDK 算动共享�
 
 `PresentationFormValues` 是一次渲染的显示投影：必填 `locale: string | null`、`ownerDisplay: { name: string; icon?: PluginIconName; hue?: UiViewHue }`、`read`（`PresentationValueItem` 的 state／values／read_at，或明确的 `{ state: "unreadable" }`），可选 `actions` 与 `notices`。控件为 `{ key: string; label: string; primary?: boolean; consequence?: readonly SurfaceConsequence[] }`；notice 为 `{ reason: OwnedTextRef; next?: 控件 }`。`key` 只是一处位置自己绑定的局部 DOM 句柄，不能充当 provider、ref、prepared_input、执行权或自造 URL；renderer 不执行、不取数据、不注册动作。
 
-`ownerDisplay` 的名称与图标来自现有可信插件目录和确切 Manifest，不从 id 猜名字，也不新建 SDK 主人登记表；缺图标用既有 package 表达。呈现色由平台按 §10 第 1 条分配，不拿标签条的 Manifest hue 代替；稳定与避免碰色的取舍正交用户澄清，确定前不实现分配规则。字段按现有 role 与 `presentationFormFields` 画一份内容；未绑定 TextRef 经 `tryOwnedTextRef`，已绑定的 notice 直接经 `say`，HTML 只转义一次。日期和数值复用 `format` 的内部原实现及相同文字环境，按显式 locale 解析；locale 为 null 时用 owner 默认语言，所需读取 helper 留私有，不直接套用只读全局页面语言的公开 `format`。投影中的已译按钮字只用于当前 DOM，不存回业务事实。
+`ownerDisplay` 的名称与图标来自现有可信插件目录和确切 Manifest，不从 id 猜名字，也不新建 SDK 主人登记表；缺图标用既有 package 表达。呈现色由平台按 §10 第 1 条分配，不拿标签条的 Manifest hue 代替；用户已选择保持颜色稳定、允许偶尔同色。字段按现有 role 与 `presentationFormFields` 画一份内容；未绑定 TextRef 经 `tryOwnedTextRef`，已绑定的 notice 直接经 `say`，HTML 只转义一次。日期和数值复用 `format` 的内部原实现及相同文字环境，按显式 locale 解析；locale 为 null 时用 owner 默认语言，所需读取 helper 留私有，不直接套用只读全局页面语言的公开 `format`。投影中的已译按钮字只用于当前 DOM，不存回业务事实。
 
 平台把实际 `SurfaceItem.actions`／`notices` 和当时可用的精确目录行绑定到控件，点击时经网关重核授权、重取当前输入。独立 MLN-23 读取同一声明和值，沿用其原菜单与切换动作；插件预览只画自己对象，无绑定时只显示。`stale` 必须有主人真实 read_at；仍可保留按组合服务 §6.4 核实可用的操作，禁止的是失效操作，不是所有操作。首次失败、撤权、删除与未声明分别处理；forbidden／deleted 优先截断 values、actions、notices 及隐藏属性。挂载位跨插件执行当前没有通用入口，须按下一段补齐，不能以 `pageIntake` 或 `embed-open` 冒充已接通。
 
@@ -672,7 +672,7 @@ SDK 只依赖 contracts，不依赖也不转出私有包。改 SDK 算动共享�
 
 ## 10. D 轨的答复（2026-11-04 共审）
 
-1. **插件色：平台分配，Manifest 不声明。** 分配结果要稳定：同一个插件换设备、重装后颜色不变；色盘够用时，两个已装的插件不撞色。色盘和状态色分开，由 D 轨在 design-system 里定，浅色和深色都要分得清（IUI-26）。合同只给 `owner_plugin_id`，不加颜色字段；是记在安装记录上，还是按 id 确定地算，D 轨做色盘时再定，两种都不用改本合同。
+1. **插件色：平台分配，Manifest 不声明。** 用户 2026-11-08 在第 15 批会话选择「颜色稳定，允许偶尔同色」：同一个插件换设备、重装、增删其它插件后颜色不变，允许不同插件分到同色，继续由图标与名字辨认。此决定取代原“色盘够用时两个已装插件不撞色”的要求。按规范 plugin id 确定地选取现有语义色盘，不新增安装字段、持久化映射或同步；色盘和状态色分开，浅色和深色都要分得清（IUI-26）。合同仍只给 `owner_plugin_id`，不加颜色字段，不改变标签条自身的 Manifest hue 规则。
 2. **字段角色：四种形态够画，「行」缺一个角色。** 已加 `activity`（第 5 节）；行的第二行固定读 `actor`、`activity` 和时间。之后 D 轨又定了 `judgment` 和 `held_in` 两个（第 5 节），一共 18 个。
 3. **第一片的位置：同意插件内、对话、项目讨论、等你四处**，首页和 Shelf 进第二片。「插件内」是 `plugin-slot`：插件的贡献在 `UiContributionDeclaration.slots` 里带 `accepts_forms` 的 slot；原来答的「挂载位」不另起声明，`mounts` 并进 `slots`（统筹 2026-11-08 定，第 5 节）。另外，MLN-23 不经 `surfaces.compose`，直接按声明画「行」（第 5 节、第 7 节）。
 4. **`surfaces.compose` 第一片只给 user 和 plugin：同意。** 外部 Agent 走 `presentationText`。

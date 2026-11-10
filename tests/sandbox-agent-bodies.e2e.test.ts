@@ -44,7 +44,9 @@ test("RAC-2636/2640/2641/2643 signed File preview and real picker preserve bound
   assert.ok((await shown()).includes(publisher.identity));
   assert.equal(await browser.evaluate("document.querySelectorAll('[data-plugin-trust-preview] img,[data-plugin-trust-preview] script').length"), 0);
   assert.equal(await browser.evaluate("globalThis.__agentInjected || 0"), 0);
-  assert.deepEqual(await browser.evaluate<string[]>("[...document.querySelectorAll('.plugin-trust-agent-body pre')].map(node=>node.textContent)"), [...roles.map(() => prefix), "逐条核对可验证的事实。", "逐条核对可验证的事实。"]);
+  assert.deepEqual(await browser.evaluate<string[]>("[...document.querySelectorAll('.plugin-trust-agent-body pre')].map(node=>node.textContent)"), roles.map(() => prefix));
+  // A method is a Skill (09 §2.2): the review lists it by name with the package's other Skills, never as a body excerpt.
+  assert.deepEqual(await browser.evaluate<string[]>("[...document.querySelectorAll('[data-plugin-trust-preview] .mw-items .mw-item strong')].map(node=>node.textContent)"), methods.map(item => item.name));
   await cancel();
   assert.deepEqual(new HomeConsentLedger(browser.homeDirectory).publishers(), []); assert.equal(existsSync(join(browser.homeDirectory, "plugin-packages")), false);
   assert.equal(homeAgentDefinitions(browser.homeDirectory).methods().some(item => item.owner_id === PACKAGE_PLUGIN_ID), false);
@@ -56,7 +58,8 @@ test("RAC-2636/2640/2641/2643 signed File preview and real picker preserve bound
     await go("/locale?lang=" + locale + "&next=" + encodeURIComponent(settings)); await browser.waitFor("!!document.querySelector('[data-plugin-trust-pick]')");
     await select(next, "upgrade-" + locale);
     const text = await shown(); assert.ok(text.includes(locale === "zh" ? "正文已变化" : "Body changed"));
-    assert.ok(text.includes(locale === "zh" ? "新增正文" : "Body added")); assert.ok(text.includes(locale === "zh" ? "已移除正文" : "Body removed"));
+    // The added and removed methods are Skill changes, shown in the package's Skill list.
+    assert.ok(text.includes(locale === "zh" ? "新加入" : "New")); assert.ok(text.includes(locale === "zh" ? "会移除" : "Will be removed"));
     for (const width of [1440, 1024, 390]) for (const theme of ["light", "dark"]) {
       await browser.setViewport(width, 1000);
       await browser.evaluate(`document.documentElement.dataset.theme=${JSON.stringify(theme)};document.documentElement.dataset.resolvedTheme=${JSON.stringify(theme)}`);

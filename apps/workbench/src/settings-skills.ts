@@ -37,7 +37,7 @@ fact("正文开头", skill.excerpt); return dl;
 const preview = (panel, skills) => { if (!skills?.length) return;
 panel.append(el("h3", "", L("这个包带的技能"))); const list = el("ul", "mw-items");
 for (const s of skills) { const row = el("li", "mw-item mw-item--stack"), text = el("span"); row.append(el("span", "mw-mark", "✦"), text); const name = el(s.change === "removed" ? "del" : "strong", "", s.name); text.append(name, el("small", "", s.description), el("small", "", L(FOR[s.applies_to])));
-const CHANGE = { added: "新增", body_changed: "正文变了", resources_changed: "附带文件变了", removed: "会移除" };
+const CHANGE = { added: "新加入", body_changed: "正文变了", resources_changed: "附带文件变了", removed: "会移除" };
 if (s.runs_scripts) text.append(el("small", "", L("会运行"))); if (s.connector_categories?.length) text.append(el("small", "", s.connector_categories.join("、"))); if (s.change) text.append(el("small", "", L(CHANGE[s.change]))); if (s.state === "manual" && s.change !== "removed") text.append(el("small", "", L("仅手动会保留")));
 const detail = el("details", "mw-item__more"), summary = el("summary", "", L("看详情")); detail.append(summary, facts(s)); row.append(detail); list.append(row); } panel.append(list);
 };

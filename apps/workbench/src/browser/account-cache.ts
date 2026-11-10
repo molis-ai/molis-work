@@ -1,3 +1,4 @@
+import { accountCachePrefix } from '../account-cache-key.js';
 /** Browser copies owned by the account UI; device preferences and unrelated origins' data are not account state. */
 const prefixes = [
   'molis.assistant.', 'molis-work:alchemist:', 'molis.characters.drafts:', 'molis-plugin-page:', 'molis-review-feedback:', 'molis-connectors-', 'molis.home-action:',
@@ -12,11 +13,11 @@ const owned = (key: string) => keys.has(key) || prefixes.some(prefix => key.star
 /** Install before account content runs. Revocation also fences pagehide handlers and late cache writes. */
 export function installAccountCache(scope: string): {clear(): Promise<void>; hasDrafts(): Promise<boolean>} {
   let revoked = false, clearing: Promise<void> | undefined;
-  const prefix = 'molis-account-cache:' + encodeURIComponent(scope) + ':';
+  const prefix = accountCachePrefix(scope);
   const set = Storage.prototype.setItem, get = Storage.prototype.getItem, remove = Storage.prototype.removeItem, keyAt = Storage.prototype.key;
   const physical = (key: string) => owned(key) ? prefix + key : key;
-  Storage.prototype.setItem = function(key, value) { if (!revoked || !owned(String(key))) set.call(this, physical(String(key)), value); };
-  Storage.prototype.getItem = function(key) { return revoked && owned(String(key)) ? null : get.call(this, physical(String(key))); };
+  Storage.prototype.setItem = function(key, value) { key=String(key);if (!revoked || !owned(key)) set.call(this, physical(key), value); };
+  Storage.prototype.getItem = function(key) { key=String(key);return revoked && owned(key) ? null : get.call(this, physical(key)); };
   Storage.prototype.removeItem = function(key) { remove.call(this, physical(String(key))); };
   Storage.prototype.key = function(index) {
     const visible: string[] = [];
@@ -33,16 +34,17 @@ export function installAccountCache(scope: string): {clear(): Promise<void>; has
     void operation.then(() => pending.delete(operation), () => pending.delete(operation));
     return operation;
   };
+  const expired = () => Promise.reject(new Error('Account page has expired'));
   if (globalThis.caches) {
     const open = caches.open.bind(caches), put = Cache.prototype.put;
     caches.open = name => {
       if (!name.startsWith('molis-plugin-page:')) return open(name);
-      if (revoked) return Promise.reject(new Error('Account page has expired'));
+      if (revoked) return expired();
       return track(open(prefix + name).then(cache => { accountCaches.add(cache); return cache; }));
     };
     Cache.prototype.put = function(request, response) {
       if (!accountCaches.has(this)) return put.call(this, request, response);
-      if (revoked) return Promise.reject(new Error('Account page has expired'));
+      if (revoked) return expired();
       return track(put.call(this, request, response));
     };
   }

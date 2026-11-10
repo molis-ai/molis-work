@@ -134,3 +134,7 @@ Work 合入主线 `07840084`，保留双方页面词典、安装登录夹具和�
 账号浏览器产物启用 esbuild 语法压缩，收回合入主线后的资源增长；不增加资源许可。最终整体构建、健康门禁、边界、页面资源和快速切换复验日志前缀 `/private/tmp/work-pr-cookie-`。最终全量及所对应提交由 Work PR 的 full-suite 运行记录给出；本地定向不能替代全量。
 
 Work [PR #2013](https://github.com/molis-ai/molis-work/pull/2013) 首轮 CI 指出 `account.profile.update@1` 的输出快照尚未同步 `UserView.email`。已通过 `pnpm actions:update` 更新唯一变化行，合同快照测试 25 项通过。按上线前阶段一保留动作版本；输入、权限及受众不变，返回 UserView 增加可空邮箱，仓库内消费者与 Auth 同步；Manifest、MCP 名称和工作流绑定不变。首轮全量因这项确定性遗漏主动取消，不计为通过，修复提交重新触发最终全量。
+
+最终 CI 第二轮发现两项：返回路径安全测试仍按未分区物理键找缓存；加载几何测试在 820px 宽度真实回归。前者统一更新六个浏览器用例，按 Storage.key 的逻辑键枚举（在包装安装之前拦截 CacheStorage 的夹具则识别物理分区键），保留原隔离与拒绝断言。后者在干净主线 07840084 上同文件两项通过，候选失败，根因是目录首屏脚本未读账号分区布局；现与运行期共用 accountCachePrefix，避免加载后目录再次展开。
+
+修复后原始 load-geometry 两项及其余七个浏览器文件共 32 项全部通过（`/private/tmp/work-pr-final-fixes-tests.log`）；主线对比 `/private/tmp/account-pr-baseline-geometry.log`，候选失败 `/private/tmp/work-pr-load-geometry.log`。最终合并重复缓存拒绝表达式后缓存隔离再验通过。健康门禁通过，无新增豁免。资源对干净主线实测 52 项通过：workbench.js +6,718、plugin-frame.js +3,247，均低于原许可，未增加预算；`--base-sizes` 日志中的 fixture 为同一干净主线实际构建的测量值。第二轮全量失败后其余分片取消，不计通过；修复推送后重新跑全量。

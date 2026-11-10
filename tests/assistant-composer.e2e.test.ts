@@ -66,7 +66,7 @@ test("UIV-12 UIV-17 UIC-06 UIC-09 RC-03: the Assistant's composer names its rece
   await evaluate(`${field}.focus()`);
   await type("先把标题改短");
   await waitWork(browser, id, (view) => view.work.draft === "先把标题改短");
-  assert.equal(await evaluate<boolean>("Object.keys(localStorage).some((k) => String(localStorage.getItem(k)).includes('先把标题改短'))"), false, "no copy of the work's draft in the browser");
+  assert.equal(await evaluate<boolean>("Array.from({length:localStorage.length},(_,index)=>localStorage.key(index)).filter(key=>key!==null).some((k) => String(localStorage.getItem(k)).includes('先把标题改短'))"), false, "no copy of the work's draft in the browser");
 
   // While the turn runs the Send is 补充, with ▾ for the other two and Stop beside them.
   const running = await evaluate<{ send: string; stop: boolean }>(`(() => { const c = document.querySelector('[data-assistant-composer]');

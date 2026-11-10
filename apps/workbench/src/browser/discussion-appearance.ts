@@ -1,4 +1,4 @@
-import { prepareAppearance, readDocumentAppearance, setAppearanceScope } from "./appearance-view.js";
+import { appearanceRef, prepareAppearance, readDocumentAppearance, setAppearanceScope } from "./appearance-view.js";
 import { discussionDocument, discussionFrame, onDiscussionReady } from "./discussion-document.js";
 
 function reveal(frame: HTMLIFrameElement): void {
@@ -21,7 +21,15 @@ export function mountDiscussionAppearance(report: (failed: boolean) => void) {
     const mounted = theme(), current = readDocumentAppearance();
     if (!mounted || !current) { report(false); return; }
     const { page } = mounted, turn = ++generation;
-    const active = () => turn === generation && discussionDocument()?.page === page && readDocumentAppearance()?.snapshot.revision === current.snapshot.revision;
+    const active = () => {
+      if (turn !== generation || discussionDocument()?.page !== page) return false;
+      const live = readDocumentAppearance();
+      if (!live || live.stylesheet !== current.stylesheet) return false;
+      // The snapshot revision includes the language. This preparation applies the current appearance scopes.
+      return appearanceRef(live.snapshot.skin) === appearanceRef(current.snapshot.skin)
+        && appearanceRef(live.snapshot.font.scheme) === appearanceRef(current.snapshot.font.scheme)
+        && appearanceRef(live.snapshot.font.mono) === appearanceRef(current.snapshot.font.mono);
+    };
     void prepareAppearance(current, undefined, page).then(() => {
       if (!active()) return;
       setAppearanceScope(page.documentElement, current.snapshot);

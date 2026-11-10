@@ -1168,7 +1168,8 @@ test("FSS-20 FSS-27 FSS-35 FSS-36 discussion retitles the open conversation and 
 test("FSS-07 the first visible discussion uses the already selected appearance", { timeout: 90_000 }, async t => {
   const b = await openGoalBrowser(t, "user", undefined, null); if (!b?.projectId) return;
   await b.setViewport(1440, 900);
-  await b.navigate(() => b.command("Page.navigate", { url: b.origin + "/projects/" + b.projectId + "/?desktop=1&settings=appearance" }, b.sessionId));
+  const settings = "/projects/" + b.projectId + "/?desktop=1&settings=appearance";
+  await b.navigate(() => b.command("Page.navigate", { url: b.origin + "/locale?lang=zh&next=" + encodeURIComponent(settings) }, b.sessionId));
   await b.waitFor("document.querySelector('[data-look-card=folio] .mw-look-card__pick')?.checkVisibility()");
   await applyDiscussionFolio(b);
   await b.waitFor("document.documentElement.dataset.uiSkin === 'folio@1'");
@@ -1179,10 +1180,11 @@ test("FSS-07 the first visible discussion uses the already selected appearance",
   type FrameTree = { frame: { id: string; url: string }; childFrames?: FrameTree[] };
   const frameTree = () => b.command<{ frameTree: FrameTree }>("Page.getFrameTree", {}, b.sessionId).then(result => result.frameTree);
   const discussionUrl = b.origin + "/im?embedded=1&project=" + encodeURIComponent(b.projectId);
-  let held: { requestId: string; frameId: string } | undefined, cursors = 0;
+  let held: { requestId: string; frameId: string } | undefined, cursors = 0, appearanceReads = 0;
   const paused = deferred(), interceptErrors: unknown[] = [];
   b.server.on("request", request => {
     if (request.method === "POST" && /^\/im\/api\/rooms\/[^/]+\/read$/u.test(request.url ?? "")) cursors++;
+    if (request.method === "GET" && request.url === "/api/ui/appearance") appearanceReads++;
   });
   const stop = b.on("Fetch.requestPaused", (params, session) => {
     if (session !== b.sessionId) return;
@@ -1203,14 +1205,42 @@ test("FSS-07 the first visible discussion uses the already selected appearance",
   await b.waitFor(`${frame}.contentDocument?.querySelector('link[href="/assets/ui-skin/folio-1.css"]')`);
   await paused.promise;
   assert.ok(held, "the current discussion's stylesheet is paused in the browser");
+  const parentAppearance = `(() => {
+    const node = document.getElementById('ui-environment'), { uiSkin, uiFont, uiMono } = document.documentElement.dataset;
+    const { revision, locale } = JSON.parse(node.textContent);
+    return { revision, tag: locale.tag, scopes: [node.dataset.stylesheet, uiSkin, uiFont, uiMono] };
+  })()`;
+  type ProjectedLook = { revision: string; tag: string; scopes: string[] };
+  const prior = await b.evaluate<ProjectedLook>(parentAppearance);
+  assert.equal(prior.tag, "zh");
+  await b.evaluate("[...document.querySelectorAll('a[data-ui-language=en]')].find(link => link.checkVisibility()).click()");
+  await b.waitFor(`document.documentElement.dataset.uiLanguageTag === 'en' && ${frame}.contentDocument.documentElement.lang === 'en'`);
+  const beforeRead = appearanceReads;
+  await b.evaluate("document.dispatchEvent(new Event('visibilitychange'))");
+  await b.waitFor(`${parentAppearance}.tag === 'en'`);
+  const current = await b.evaluate<ProjectedLook>(parentAppearance);
+  assert.ok(appearanceReads > beforeRead, "returning to the page reread the parent appearance from the Host");
+  assert.notEqual(current.revision, prior.revision);
+  assert.deepEqual(current.scopes, prior.scopes, "only the appearance snapshot's language changed");
   const pending = await b.evaluate<{ hidden: boolean; visible: boolean; display: string; loading: boolean }>(`(() => {
     const frame = ${frame};
     return { hidden: frame.hidden, visible: frame.checkVisibility(), display: getComputedStyle(frame).display, loading: ${loading}?.checkVisibility() };
   })()`);
   assert.deepEqual(pending, { hidden: true, visible: false, display: "none", loading: true });
   assert.equal(cursors, 0);
+  await b.evaluate(`(() => {
+    const frame = ${frame};
+    const firstVisible = new MutationObserver(() => {
+      if (!frame.checkVisibility()) return;
+      const root = frame.contentDocument.documentElement;
+      window.firstDiscussionAppearance = [root.lang, root.dataset.uiSkin, root.dataset.uiFont];
+      firstVisible.disconnect();
+    });
+    firstVisible.observe(frame, { attributes: true, attributeFilter: ['hidden'] });
+  })()`);
   await b.command("Fetch.continueRequest", { requestId: held.requestId }, b.sessionId);
   await b.waitFor(`${frame}.checkVisibility() && !${loading} && ${frame}.contentDocument?.documentElement.dataset.uiSkin === 'folio@1'`);
+  assert.deepEqual(await b.evaluate("window.firstDiscussionAppearance"), ["en", "folio@1", "folio-rounded@1"]);
   assert.match(await b.evaluate<string>(`${frame}.contentWindow.getComputedStyle(${frame}.contentDocument.body).fontFamily`), /Nunito Variable/u);
   await b.command("Fetch.disable", {}, b.sessionId);
   assert.deepEqual(interceptErrors, []);

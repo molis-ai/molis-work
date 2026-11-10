@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import vm from "node:vm";
 import { CAPSULE_CLIENT_SCRIPT } from "@molis-ai/molis-work-app-desktop";
+import { pageText } from "./fixtures/page-text.js";
 
 // N54 (specs/post-anticorruption-roadmap/reference/batches/07.md, 07-2a): the capsule window is hidden almost all of the time, so
 // what it asks the Host follows what the window shows. The shipped script runs here against a small DOM port and a fake clock, so
@@ -9,6 +10,7 @@ import { CAPSULE_CLIENT_SCRIPT } from "@molis-ai/molis-work-app-desktop";
 // tao's `orderOut`), and `document.hidden` following it was measured on a WKWebView window set up like the capsule's.
 
 const flush = () => new Promise<void>(resolve => setImmediate(resolve));
+const readText = pageText("zh");
 
 class Part {
   readonly dataset: Record<string, string> = {};
@@ -110,7 +112,7 @@ class CapsulePage {
     };
     const document = {
       get hidden() { return page.hidden; },
-      documentElement: { lang: "zh-CN", style: { setProperty: () => undefined } },
+      documentElement: { lang: "zh-CN", dataset: { uiLanguageTag: "zh" }, style: { setProperty: () => undefined } },
       activeElement: null,
       querySelector: (selector: string) => selector === "[data-capsule]" ? this.root : selector === "[data-capsule-tabs]" ? tabs : selector === "[data-capsule-list]" ? list : null,
       querySelectorAll: selected,
@@ -140,9 +142,9 @@ class CapsulePage {
     };
     const location = { search: "", href: "http://127.0.0.1:4173/desktop/capsule?desktop=1&locale=zh", reload: () => { this.reloads += 1; } };
     vm.runInNewContext(CAPSULE_CLIENT_SCRIPT, {
-      window, document, fetch, location, Element: Part, AbortController, URLSearchParams, CSS: { escape: (value: string) => value },
+      window, document, fetch, location, Element: Part, AbortController, URL, URLSearchParams, CSS: { escape: (value: string) => value },
       localStorage: { getItem: () => null, setItem: () => undefined },
-      L: (message: string) => message,
+      t: { text: readText },
     });
   }
 

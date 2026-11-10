@@ -4,7 +4,7 @@ import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/p
 import { comparePluginVersions } from "@molis-ai/molis-work-plugin-sdk";
 import { agentDeclarationsFor, agentDefinitionsFor, agentRegistration, assertInstructionRoles, declaredMethods, instructionRegistration } from "./agent-definitions/agent-definitions.js";
 import { notRunning } from "./agent-definitions/agent-declarations.js";
-import { builtinRegistrations } from "./agent-definitions/builtin-registrations.js";
+import { builtinRegistrations } from "./agent-definitions/builtin-agents.js";
 import type { PluginPlatformHome } from "./home-side.js";
 
 /**

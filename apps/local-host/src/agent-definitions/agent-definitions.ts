@@ -1,6 +1,7 @@
 import path from "node:path";
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import { applySqliteBaseline, openBaselineHomeSqlite, openHomeSqliteDatabase, type SqliteBaseline, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
+import { sandboxPromptId } from "@molis-ai/molis-work-plugin-sdk";
 import { AgentDeclarations, notRunning } from "./agent-declarations.js";
 import { SKILL_TABLES_SQL, SkillSettingsStore } from "./skill-settings.js";
 import type { AgentManifest, AgentPromptText, AgentRoleExecution, AgentSkillDeclaration, AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
@@ -10,7 +11,7 @@ import { hostLog } from "../host-log.js";
 import {
   AGENT_PROMPT_MAX_CHARS, agentDefinitionErrors,
   type AgentDefinitionRegistration, type AgentDefinitionSource, type AgentPromptRegistration, type AgentPromptRevision, type AgentPromptUse,
-  type AgentPromptView, type AgentRoleRegistration, type AgentRoleView, type AgentDefinitionsDiagnostics, type AgentUnregisteredCall,
+  type AgentPromptView, type AgentRoleRegistration, type AgentRoleView, type AgentDefinitionsDiagnostics,
   type AgentSkillRegistration, type AgentSkillView, type SignedAgentReference, type SignedAgentMaterial,
 } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 
@@ -213,7 +214,7 @@ export class AgentDefinitions {
   /** Called only after an accepted handoff; a later withdrawal does not erase the accepted historical fact. */
   recordSignedUse(material: SignedAgentMaterial, caller: string): void {
     const ref = material.default_ref;
-    this.uses.record({ key: keyOf(ref.source.plugin_id, `prompt-${ref.entry_id.slice("role-".length)}`), source_ref: ref,
+    this.uses.record({ key: keyOf(ref.source.plugin_id, sandboxPromptId(ref.entry_id)), source_ref: ref,
       version: /* @version format.sandbox.agent-prompt */ 1, user_revision: material.user_revision, caller, at: this.now().toISOString() });
   }
 
@@ -288,7 +289,7 @@ export class AgentDefinitions {
   }
 
   /** What each owner registered and what of it is not in effect, for developers; plus calls known to bypass the register. */
-  diagnostics(unregistered: readonly AgentUnregisteredCall[] = []): AgentDefinitionsDiagnostics {
+  diagnostics(): AgentDefinitionsDiagnostics {
     const used = new Set((this.db.prepare("SELECT DISTINCT key FROM prompt_uses").all() as Array<{ key: string }>).map(row => row.key));
     const owners = [...this.owners.values()].map(owner => {
       const views = owner.prompts.map(prompt => this.view(owner, prompt));
@@ -303,7 +304,7 @@ export class AgentDefinitions {
         instructions: views.filter(view => view.kind === "instruction").length, roles: owner.roles.length, ...(owner.methods?.length ? { methods: owner.methods.length } : {}),
         edited: views.filter(view => view.effective === "user").length, issues };
     });
-    return { owners, unregistered: unregistered.map(item => ({ ...item })) };
+    return { owners };
   }
 
   private nextRevision(key: string): number {

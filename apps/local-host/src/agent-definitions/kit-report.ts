@@ -13,7 +13,8 @@ import { kitPluginSource, scopeInstallations } from "../scope-installations.js";
 import { PROMPT_USES_KEPT, type AgentDefinitions } from "./agent-definitions.js";
 import { BUILTIN_INLINE_AGENT_ROLES } from "./builtin-instructions.js";
 import { promptOverrideActions, promptOverrideHandlers } from "./prompt-overrides.js";
-import { builtinRegistrations, homeAgentDefinitions } from "./builtin-registrations.js";
+import { builtinRegistrations } from "./builtin-agents.js";
+import { homeAgentDefinitions } from "./builtin-registrations.js";
 
 // Prompts and roles as AI kit entries (specs/capability-pack/contract-design.md §4.2, §4.8): each plugin installation's in its own pack,
 // the Host's own owners' in Molis Work's, the personal assistant one role there. Read from the register; no body ever leaves it.

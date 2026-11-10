@@ -21,7 +21,7 @@ import { VISUAL_FOUNDATION_STYLES } from '@molis-ai/molis-work-design-system';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { agentDefinitionsFor } from '../apps/local-host/dist/agent-definitions/agent-definitions.js';
-import { builtinRegistrations } from '../apps/local-host/dist/agent-definitions/builtin-registrations.js';
+import { builtinRegistrations } from '../apps/local-host/dist/agent-definitions/builtin-agents.js';
 import { builderInstructions, builderPrompts, handleAgentStudioHttp, releaseAgentStudio } from '../apps/local-host/dist/plugin-builder/agent-surface.js';
 import { ensureInstalledPlugins, releaseInstalledPlugins } from '../apps/local-host/dist/installed-plugin-host.js';
 import { agentStudioFixture } from '../scripts/agent-studio-preview-fixture.mjs';

@@ -25,7 +25,7 @@ export { createSyncDocument, type SyncDocument, type SyncDocumentOwner, type Syn
 export { syncTupleLocation } from './sync-location.js';
 export { createSyncConflictState } from './sync-conflict.js';
 export type { PluginSyncDeclaration, PluginSyncCollection, PluginSyncIdentity, PluginSyncSnapshot, PluginSyncSnapshotAdapter, PluginSyncBinding, PluginSyncContext } from "@molis-ai/molis-work-contracts/platform/plugin";
-export { assertSandboxAgentDefinition, parsePluginPackageManifest, sandboxRoleIdentity, sandboxAgentDeclarations } from "./sandbox-agent-declarations.js";
+export { assertSandboxAgentDefinition, parsePluginPackageManifest, sandboxPromptId, sandboxRoleIdentity, sandboxAgentDeclarations } from "./sandbox-agent-declarations.js";
 export { inspectActionDeclarations, isHomeAggregateQuery } from "./action-declarations.js";
 export { inspectActionCrossReferences } from "./action-cross-references.js";
 /** Bounded line comparison. Its result and row types are in the contracts (modules/workspace-artifacts). */

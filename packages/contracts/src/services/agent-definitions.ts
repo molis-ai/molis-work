@@ -203,10 +203,7 @@ export interface AgentPromptUse {
   at: string;
 }
 
-/** A model call the Host knows reaches a model without a registered prompt, and why (a transitional exception). */
-export interface AgentUnregisteredCall { owner_id: string; title: string; reason: string }
-
-/** Developer diagnostics: what each owner registered, and what of it is not in effect or not registered, with why. */
+/** Developer diagnostics: what each owner registered, and what of it is not in effect, with why. */
 export interface AgentDefinitionsDiagnostics {
   owners: Array<{
     owner_id: string;
@@ -218,7 +215,6 @@ export interface AgentDefinitionsDiagnostics {
     edited: number;
     issues: Array<{ level: "warning" | "info"; text: string }>;
   }>;
-  unregistered: AgentUnregisteredCall[];
 }
 
 /** Most rows one prompt overrides file carries; a longer file is refused whole at preview (specs/capability-pack/contract-design.md §4.9). */

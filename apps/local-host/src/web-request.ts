@@ -6,7 +6,7 @@ import { handleTaskGrantsSettingsHttp } from "./task-grants-settings-http.js";
 import { resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { withHomePluginStorePageRecovery } from "./web-home-plugin-recovery.js";
 import { agentDefinitionsFor } from "./agent-definitions/agent-definitions.js";
-import { builtinRegistrations } from "./agent-definitions/builtin-registrations.js";
+import { builtinRegistrations } from "./agent-definitions/builtin-agents.js";
 import { handleAgentDefinitionsHttp } from "./agent-definitions/agent-definitions-http.js";
 import { handleCharactersHttp, hostCharactersInvoke } from "./characters-http.js";
 import { pluginRouteControl } from "./plugin-route-control.js";

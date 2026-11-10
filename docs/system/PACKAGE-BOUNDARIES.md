@@ -100,6 +100,15 @@ F2 创建目标地图里的全部 package。每个 package 必须有：
 6. 用 `node scripts/gates/package-inventory.mjs --table` 核对本文「现行包清单」的机器列，补入新增包；保留原包的「计划深度」「审查」及证据，不用生成器默认的「待审」覆盖人工结论。
 7. `pnpm boundary:check` 与 `node scripts/check-health-gates.mjs --base origin/main` 都要过。
 
+### 不另建包的横向能力：技能目录
+
+技能目录（`system.skills`：`skills.catalog.list`、`skills.body.read`、`skills.resource.read`、`skills.settings.set`、`skills.import.preview`、`skills.import.confirm`、`skills.kit.report`）没有自己的 `horizontal/` 包，是宿主 Agent 定义登记的扩展。这是有意的，不是漏建：
+
+- 技能和提示词、角色一样是插件声明给 Agent 的东西。Agent 定义登记已经按安装、发布者签名和范围算出谁在用、谁停用；另起一个服务包，就要再读一遍安装与签名、再存一份状态，成了第二份事实（[SSOT](../SSOT-MATRIX.md)「Skill 包、目录和范围设置」）。
+- 归属：技能的声明和正文归提供它的插件（Manifest 的 `methods`，内容包里验签的正文与资源，SDK 的 `skill-declarations.ts`、`skill-files.ts` 读写）；目录、开关与用量归 `apps/local-host/src/agent-definitions/`（`skill-catalog*.ts`、`skill-settings*.ts`，Agent 定义库里的 `skill_settings`、`skill_uses` 两张表）；合同在 `packages/contracts/src/services/skills.ts` 与 `services/agent-definitions.ts`（`SkillRef`）；一轮冻结与读正文在 `horizontal/agent-host`。
+- 消费者：助理、Coding、委派（都只认目录给的 `SkillRef`，在一轮开始时由宿主核对）和能力包（`horizontal/kit` 读 `skills.kit.report`）。
+- 能力包（`horizontal/kit`）是包，因为它汇总好几个主人的上报（八个 `*.kit.report` 动作）、自己不存东西，只做汇总；技能目录只有一个主人，所以不是包。
+
 ## 5. Adapter 放置
 
 不设顶层 `adapters/`：

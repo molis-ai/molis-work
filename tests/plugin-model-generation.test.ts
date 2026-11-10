@@ -12,7 +12,7 @@ import { resetSecretStoreCache } from '@molis-ai/molis-work-storage';
 import { withConnectorConnections } from '@molis-ai/molis-work-app-local-host';
 import { createPluginModelGeneration } from '../apps/local-host/dist/plugin-builder/model.js';
 import { agentDefinitionsFor } from '../apps/local-host/dist/agent-definitions/agent-definitions.js';
-import { builtinRegistrations } from '../apps/local-host/dist/agent-definitions/builtin-registrations.js';
+import { builtinRegistrations } from '../apps/local-host/dist/agent-definitions/builtin-agents.js';
 import type { ModelGenerateInput } from '../apps/local-host/dist/plugin-builder/capabilities.js';
 import { registerPlatformCapabilities } from '../apps/local-host/dist/plugin-builder/catalog.js';
 

@@ -1,5 +1,6 @@
 import { renderComposer, type MwComposerOptions } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderComposerRestore, renderComposerStrip } from "../composer-parts.js";
+import { composerDeliveries } from "../composer-rules.js";
 import { sendable, type Composer, type ComposerBasics, type Status } from "./composer-state.js";
 
 /**
@@ -97,7 +98,11 @@ function settle(c: Composer, change: () => void) {
 function draw(c: Composer, controls: boolean) {
   const { shell } = c;
   const state = shownState(c);
-  const now = status(c), drawn = { ...firstScreen(c, c.field.value), ...(state ? { state } : {}), ...(c.ai ? { delivery: c.delivery } : {}), ...(now ? { status: now } : {}) } as MwComposerOptions;
+  const now = status(c);
+  // 2026-11-09 audit fix: with no turn running the target may still take 下一轮再做 (a queue the next turn the person begins carries):
+  // the split button stands in the send's place once there are words to queue, never in the one-row rest state.
+  const idleDelivery = Boolean(c.ai && !c.running && c.field.value.trim() && composerDeliveries(false, c.ai.delivery?.(), c.ai.labels.unsupported)["after-run"].available);
+  const drawn = { ...firstScreen(c, c.field.value), ...(state ? { state } : {}), ...(c.ai ? { delivery: c.delivery } : {}), ...(idleDelivery ? { idleDelivery: true } : {}), ...(now ? { status: now } : {}) } as MwComposerOptions;
   const fresh = document.createElement("template");
   fresh.innerHTML = renderComposer(drawn);
   const next = fresh.content.firstElementChild as HTMLElement;

@@ -13,7 +13,7 @@ export function sendScope(scope: AssistantScope | undefined, caller: AssistantCa
   return wanted;
 }
 
-/** UIC-15: picked references are read before work, draft, continuation or relation writes. Only their resolved text is stored. */
+/** B10-R5: picked references are read before work, draft, continuation or relation writes. Only their resolved text is stored. */
 export async function readComposerMaterials(materials: AssistantMaterial[], scope: Pick<StoredWork, "project_ref">, ports: AssistantServicePorts): Promise<AssistantMaterial[]> {
   if (!materials.some(item => item.reference && "material" in item.reference)) return materials;
   const actions = await ports.scopeActions?.(scope), views = await actions?.discover() ?? [];

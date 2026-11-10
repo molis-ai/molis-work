@@ -4,6 +4,7 @@ import { mkdir, realpath } from "node:fs/promises";
 import { join } from "node:path";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pluginFrameBrowser, pluginFrameInitScript } from "./fixtures/plugin-frame-browser.js";
+import { codingAdd } from "./fixtures/coding-composer.js";
 
 test("SYS-15-U9 S-47 Coding links a folder and makes one the output only through the trusted workspace service", { timeout: 90_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
@@ -16,7 +17,7 @@ test("SYS-15-U9 S-47 Coding links a folder and makes one the output only through
   });`);
   await browser.navigate(() => browser.command("Page.navigate", { url: browser.origin + prefix + "/?openPlugin=coding" }, browser.sessionId));
   await browser.surfaceReady("coding"); await child.click("[data-coding-new]");
-  await child.waitFor("document.querySelector('[data-coding-task]')?.getClientRects().length");
+  await child.waitFor("document.querySelector('[data-coding-input] .mw-composer__input')?.getClientRects().length");
   const state = () => browser.evaluate<{ directories: Array<{ workspace_id: string; canonical_path: string; display_name: string; roles: string[] }>; revision: string }>(
     `fetch(${JSON.stringify(prefix + "/api/project-settings/directories")}).then(r=>r.json())`);
   const initial = await state();
@@ -27,7 +28,7 @@ test("SYS-15-U9 S-47 Coding links a folder and makes one the output only through
   assert.equal(await child.evaluate(`fetch(${JSON.stringify(prefix + "/api/host/plugin-page-workspaces")},{method:'POST',headers:{'x-molis-context-page':'invented'},body:JSON.stringify({operation:'set_output',value:${JSON.stringify(output.workspace_id)}})}).then(r=>r.status)`), 403);
   const open = async () => {
     if (await child.evaluate("document.querySelector('.coding-context').hidden")) {
-      await child.click("[data-coding-attach-toggle]"); await child.click("[data-coding-context-toggle]");
+      await child.evaluate(codingAdd("context"));
     }
     await child.click("[data-coding-workspace-open]");
     await child.waitFor("document.querySelector('[data-coding-workspace-dialog]').open");

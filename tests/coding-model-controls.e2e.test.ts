@@ -77,40 +77,40 @@ test("PA-24: the composer sends a chosen reasoning effort and switches a running
   await b.click(`[data-plugin-strip] [data-plugin-id="coding"]`);
   await b.waitFor(`document.querySelector('[data-work-surface="coding"]')?.getBoundingClientRect().width > 100`);
   await click(`${coding} [data-coding-new]`);
-  await waitFor(`!document.querySelector('${coding} [data-coding-task]').disabled && document.querySelector('${coding} [data-coding-model]').options.length >= 2`);
+  await waitFor(`!document.querySelector('${coding} [data-coding-input] .mw-composer__input').disabled && document.querySelector('${coding} [data-coding-input] [data-composer-control=model]').options.length >= 2`);
   const small = JSON.stringify(["local-only", "fixture-small"]), large = JSON.stringify(["local-only", "fixture-large"]), plain = JSON.stringify(["local-only", "fixture-plain"]);
   // An unmarked model offers no effort; the marked one does.
-  await fill(`${coding} [data-coding-model]`, plain);
-  await waitFor(`document.querySelector('${coding} [data-coding-effort-wrap]').hidden`);
-  await fill(`${coding} [data-coding-model]`, small);
-  await waitFor(`!document.querySelector('${coding} [data-coding-effort-wrap]').hidden`);
-  await fill(`${coding} [data-coding-effort]`, "high");
-  await fill(`${coding} [data-coding-intent]`, "discuss");
-  await fill(`${coding} [data-coding-task]`, "发布说明写在哪里？读 note.txt 再回答。");
-  await waitFor(`!document.querySelector('${coding} [data-coding-send]').disabled`);
-  await click(`${coding} [data-coding-send]`);
+  await fill(`${coding} [data-coding-input] [data-composer-control=model]`, plain);
+  await waitFor(`!document.querySelector('${coding} [data-coding-input] [data-composer-control=effort]')`);
+  await fill(`${coding} [data-coding-input] [data-composer-control=model]`, small);
+  await waitFor(`!!document.querySelector('${coding} [data-coding-input] [data-composer-control=effort]')`);
+  await fill(`${coding} [data-coding-input] [data-composer-control=effort]`, "high");
+  await fill(`${coding} [data-coding-input] [data-composer-control=intent]`, "discuss");
+  await fill(`${coding} [data-coding-input] .mw-composer__input`, "发布说明写在哪里？读 note.txt 再回答。");
+  await waitFor(`!document.querySelector('${coding} [data-coding-input] [data-composer-send]').disabled`);
+  await click(`${coding} [data-coding-input] [data-composer-send]`);
   for (let i = 0; i < 600 && bodies.length < 1; i++) await new Promise(resolve => setTimeout(resolve, 50));
   assert.deepEqual(bodies[0]?.output_config, { effort: "high" }, "the round's first model call carries the effort");
   assert.equal(bodies[0]?.model, "fixture-small");
   // While the round runs: the effort is fixed for it, another model offers a switch.
   await waitFor(`document.querySelector('${coding} [data-coding-model-note]')?.textContent.includes('思考力度 深入')`);
-  assert.equal(await evaluate<boolean>(`document.querySelector('${coding} [data-coding-effort-wrap]').hidden`), true, "a running round's effort is fixed; the note says which");
+  assert.equal(await evaluate<boolean>(`!document.querySelector('${coding} [data-coding-input] [data-composer-control=effort]')`), true, "a running round's effort is fixed; the note says which");
   // A model that cannot carry the round's effort is refused, and the round goes on with its model.
-  await fill(`${coding} [data-coding-model]`, plain);
-  await waitFor(`!document.querySelector('${coding} [data-coding-model-switch]').hidden`);
-  await click(`${coding} [data-coding-model-switch]`);
+  await fill(`${coding} [data-coding-input] [data-composer-control=model]`, plain);
+  await waitFor(`!!document.querySelector('${coding} [data-coding-input] [data-composer-control=model-switch]')`);
+  await click(`${coding} [data-coding-input] [data-composer-control=model-switch]`);
   await waitFor(`document.querySelector('${coding} [data-coding-status]')?.textContent.includes('没有换模型')`);
   assert.match(await evaluate<string>(`document.querySelector('${coding} [data-coding-status]').textContent`), /没有标注「fixture-plain」可调思考力度/);
   assert.doesNotMatch(await evaluate<string>(`document.querySelector('${coding} [data-coding-model-note]').textContent`), /已请求改用/);
-  await fill(`${coding} [data-coding-model]`, large);
-  await waitFor(`!document.querySelector('${coding} [data-coding-model-switch]').hidden`);
+  await fill(`${coding} [data-coding-input] [data-composer-control=model]`, large);
+  await waitFor(`!!document.querySelector('${coding} [data-coding-input] [data-composer-control=model-switch]')`);
   const shot = async (name: string) => {
     const directory = join(process.cwd(), ".impeccable/qa/review/prologue-adoption"); await mkdir(directory, { recursive: true });
     const image = await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId);
     await writeFile(join(directory, `${name}.png`), Buffer.from(image.data, "base64"));
   };
   await shot("composer-switch-offered");
-  await click(`${coding} [data-coding-model-switch]`);
+  await click(`${coding} [data-coding-input] [data-composer-control=model-switch]`);
   for (let i = 0; i < 200; i++) {
     const seen = await evaluate<{ note: string; status: string }>(`({note:document.querySelector('${coding} [data-coding-model-note]')?.textContent||'',status:document.querySelector('${coding} [data-coding-status]')?.textContent||''})`);
     if (seen.note.includes("已请求改用 fixture-large") || /没有换模型.*fixture-large/.test(seen.status)) { assert.match(seen.note, /已请求改用 fixture-large/, seen.status); break; }

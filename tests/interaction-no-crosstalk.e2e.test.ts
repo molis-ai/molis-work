@@ -103,7 +103,7 @@ async function openCoding(t: TestContext, asked: readonly Asked[]) {
     // T-338: the child frame's bootstrap sets globalThis.fetch to its bridge first (plugin-frame/child.ts:43), then defines the
     // molisWorkRequest entry (:53) and body.dataset.routePrefix (:57). Waiting for those public marks before installing the request
     // observer therefore means the child's own fetch assignment is already behind us; the same 10 s readiness wait carries them.
-    await waitFor("Boolean(window.molisWorkRequest) && Boolean(document.body.dataset.routePrefix) && Boolean(document.querySelector('[data-coding-task]'))", 10_000);
+    await waitFor("Boolean(window.molisWorkRequest) && Boolean(document.body.dataset.routePrefix) && Boolean(document.querySelector('[data-coding-input] .mw-composer__input'))", 10_000);
     // What the page sends: each request's path and body, to tell which session a draft or an answer went to.
     await evaluate(`(() => { if (window.__sent) return; window.__sent = []; const original = window.fetch; window.fetch = async (...args) => {
       const sent = args[1] && typeof args[1].body === 'string' ? { url: String(args[0]), method: args[1].method || 'GET', body: args[1].body } : null; if (sent) window.__sent.push(sent);
@@ -130,12 +130,12 @@ async function openCoding(t: TestContext, asked: readonly Asked[]) {
   /** Starts a new session and sends `task` in it; resolves to the session's id once its question card is shown. */
   const ask = async (task: string) => {
     await click(`${coding} [data-coding-new]`);
-    await waitFor(`!document.querySelector('${coding} [data-coding-task]').disabled && document.querySelector('${coding} [data-coding-task]').value === '' && document.querySelector('${coding} [data-coding-model]').options.length >= 1`);
-    await fill(`${coding} [data-coding-model]`, JSON.stringify(["local-only", "fixture-plain"]));
-    await fill(`${coding} [data-coding-intent]`, "discuss");
-    await fill(`${coding} [data-coding-task]`, task);
-    await waitFor(`!document.querySelector('${coding} [data-coding-send]').disabled`);
-    await click(`${coding} [data-coding-send]`);
+    await waitFor(`!document.querySelector('${coding} [data-coding-input] .mw-composer__input').disabled && document.querySelector('${coding} [data-coding-input] .mw-composer__input').value === '' && document.querySelector('${coding} [data-coding-input] [data-composer-control=model]').options.length >= 1`);
+    await fill(`${coding} [data-coding-input] [data-composer-control=model]`, JSON.stringify(["local-only", "fixture-plain"]));
+    await fill(`${coding} [data-coding-input] [data-composer-control=intent]`, "discuss");
+    await fill(`${coding} [data-coding-input] .mw-composer__input`, task);
+    await waitFor(`!document.querySelector('${coding} [data-coding-input] [data-composer-send]').disabled`);
+    await click(`${coding} [data-coding-input] [data-composer-send]`);
     await waitFor(`Boolean(document.querySelector('${coding} [data-coding-question][data-ix-question]'))`, 30_000)
       .catch(async error => { throw new Error(`${(error as Error).message}\nstatus: ${await evaluate<string>(`document.querySelector('${coding} [data-coding-status]')?.textContent ?? ''`)}\ndialog: ${await evaluate<string>(`[...document.querySelectorAll('dialog[open],[role=dialog]:not([hidden]),[role=alertdialog]')].map(node => node.textContent.trim().slice(0, 300)).join(' | ')`)}\nposts: ${JSON.stringify(await evaluate(`window.__sent.filter(one => one.method === 'POST').slice(-4).map(one => [one.url.split('/api/')[1], one.status, one.reply])`))}\nmodel calls: ${JSON.stringify(prompts)}`); });
     return evaluate<string>(`document.querySelector('${coding} [data-coding-session][aria-current=true]').dataset.codingSession`);

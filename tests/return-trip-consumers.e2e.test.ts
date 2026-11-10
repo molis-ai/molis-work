@@ -46,7 +46,7 @@ test("DRT-20 Coding: back from the model settings, the prompt is the composer's 
   await waitFor("document.querySelectorAll('[data-coding-resume]').length === 1", 20_000);
   /** The prompt against the input under it: the composer's first row, the same left edge and width. */
   const place = () => evaluate<{ first: boolean; left: number; width: number }>(`(() => {
-    const prompt = document.querySelector('[data-coding-resume]').getBoundingClientRect(), input = document.querySelector('.coding-composer-shell').getBoundingClientRect();
+    const prompt = document.querySelector('[data-coding-resume]').getBoundingClientRect(), input = document.querySelector('[data-coding-input] .mw-composer').getBoundingClientRect();
     return { first: document.querySelector('[data-coding-composer]').firstElementChild?.matches('[data-coding-resume]') === true,
       left: Math.round(prompt.left - input.left), width: Math.round(prompt.width - input.width) };
   })()`);

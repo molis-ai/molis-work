@@ -12,6 +12,7 @@ import { openCharacters } from "@molis-ai/molis-work-module-characters";
 import { grantMcpActions } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
+import { codingAdd } from "./fixtures/coding-composer.js";
 
 test("Character and Coding discover authorized unknown actions, preserve exact selections and explain withdrawn providers", { timeout: 120_000 }, async t => {
   const b = await openGoalBrowser(t, "seeded", undefined, null); if (!b) return;
@@ -71,11 +72,11 @@ test("Character and Coding discover authorized unknown actions, preserve exact s
   await click('[data-character-confirm]'); await waitFor("document.querySelector('[data-character-notice]').textContent.includes('已发布')");
   await evaluate("document.querySelector('[data-character-actions-field]').scrollIntoView({block:'center'})"); await capture("character-desktop");
   await open("coding"); await click('[data-coding-workbench] [data-coding-new]');
-  await waitFor("!document.querySelector('[data-coding-task]').disabled"); await fill('[data-coding-task]', "保留这段任务草稿");
-  await click('[data-coding-attach-toggle]'); await click('[data-coding-character-open]'); await waitFor("document.querySelector('[data-coding-character-list]').textContent.includes('仅查询笔记')");
+  await waitFor("!document.querySelector('[data-coding-input] .mw-composer__input').disabled"); await fill('[data-coding-input] .mw-composer__input', "保留这段任务草稿");
+  await evaluate(codingAdd("character")); await waitFor("document.querySelector('[data-coding-character-list]').textContent.includes('仅查询笔记')");
   await choose('[data-coding-character-list] label', "仅查询笔记"); await click('[data-coding-character-save]');
   await waitFor("!document.querySelector('[data-coding-character-dialog]').open");
-  await click('[data-coding-attach-toggle]'); await click('[data-coding-actions-open]'); await waitFor("document.querySelector('[data-coding-actions-list]').textContent.includes('读取校验笔记')");
+  await evaluate(codingAdd("actions")); await waitFor("document.querySelector('[data-coding-actions-list]').textContent.includes('读取校验笔记')");
   assert.equal(await evaluate("[...document.querySelectorAll('[data-coding-actions-list] label')].find(row=>row.textContent.includes('修改校验笔记')).querySelector('input').disabled"), true);
   await choose('[data-coding-actions-list] label', "读取校验笔记"); await capture("coding-desktop"); await click('[data-coding-actions-save]');
   await waitFor("!document.querySelector('[data-coding-actions-dialog]').open");
@@ -88,8 +89,8 @@ test("Character and Coding discover authorized unknown actions, preserve exact s
   // The list is drawn from the page first and redrawn once the state is read: click the row after it settles.
   const row = `document.querySelector('[data-coding-session="${codingId}"]') !== null`;
   await waitFor(row); await new Promise(resolve => setTimeout(resolve, 1000)); await waitFor(row); await click(`[data-coding-session="${codingId}"]`);
-  await waitFor("document.querySelector('[data-coding-task]').value === '保留这段任务草稿'");
-  await click('[data-coding-attach-toggle]'); await click('[data-coding-actions-open]'); await waitFor("document.querySelector('[data-coding-actions-list]').textContent.includes('原能力、版本或授权不可用')");
+  await waitFor("document.querySelector('[data-coding-input] .mw-composer__input').value === '保留这段任务草稿'");
+  await evaluate(codingAdd("actions")); await waitFor("document.querySelector('[data-coding-actions-list]').textContent.includes('原能力、版本或授权不可用')");
   assert.equal(await evaluate("document.querySelector('[data-coding-actions-list] input:checked') !== null"), true);
   await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: false }, sessionId);
   await capture("coding-missing-narrow"); assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);

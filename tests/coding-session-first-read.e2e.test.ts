@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import test from "node:test";
 import { coding, CONTEXT, FIRST_WORDS, openCoding } from "./fixtures/coding-browser.js";
+import { CODING_COMPOSER, CODING_COMPOSER_STATUS, codingAdd } from "./fixtures/coding-composer.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
 // specs/ai-interaction-experience AC-05: what a person writes stays with the session it was written in. After「新会话」is
@@ -12,6 +13,12 @@ import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 const ALL_CLOSED = { task: true, send: true, intent: true, model: true };
 // Materials are picked in the page's one knowledge picker (specs/project-knowledge PMAT-17), not a dialog of Coding's own.
 const DIALOGS = CONTEXT.filter(name => name !== "material");
+/**
+ * The service confirmed a session's words: the PATCH that carried them is in, and this window keeps no unconfirmed copy (its
+ * sessionStorage buffer holds only what the service has not confirmed, unified-input-voice K4).
+ */
+const confirmed = (id: string, words: string) => `patches.some(one=>one.path.endsWith('/sessions/'+${JSON.stringify(encodeURIComponent(id))})&&JSON.parse(one.body).draft===${JSON.stringify(words)})
+  && sessionStorage.getItem('molis-coding-draft:'+document.querySelector('${coding}').dataset.codingPrefix+':'+${JSON.stringify(id)})===null`;
 
 test("AC-05: while「新会话」is being made, the composer of the session shown takes and sends nothing; then the new session's box opens empty", { timeout: 90_000 }, async t => {
   const opened = await openCoding(t); if (!opened) return;
@@ -120,7 +127,7 @@ test("AC-05: a choice open in a dialog when「新会话」is pressed is closed u
   const dialog = `document.querySelector('${coding} [data-coding-method-dialog]')`;
   const checks = `[...document.querySelectorAll('${coding} [data-coding-method-list] input[type=checkbox]:not(:disabled)')]`;
   const choose = async (n: number) => {
-    await evaluate(`document.querySelector('${coding} [data-coding-method-open]').click()`);
+    await evaluate(codingAdd("methods"));
     await waitFor(`${dialog}.open && ${checks}.length >= 2`);
     await evaluate(`(()=>{const node=${checks}[${n}];node.checked=true;node.dispatchEvent(new Event('change',{bubbles:true}));})()`);
   };
@@ -168,7 +175,7 @@ test("AC-05: review notes handed back to a session whose first read failed are r
   const { evaluate, waitFor, box, current, closed, start, saved, openItem } = opened;
   const SECOND_WORDS = "乙会话里写好的任务", TASK = "按审查意见修改 note.txt 第 1 行";
   const second = await start(SECOND_WORDS);
-  await waitFor(`document.querySelector('${coding} [data-coding-draft-status]').textContent.startsWith('草稿已保存')`);
+  await waitFor(confirmed(second, SECOND_WORDS));
   const first = await start();
   assert.notEqual(first, second);
   const run = `/sessions/${encodeURIComponent(second)}/runs/run-fixed/changeset`;
@@ -195,7 +202,7 @@ test("AC-05: review notes handed back to a session whose first read failed are r
   assert.equal(await evaluate<string>(`${box}.value`), FIRST_WORDS, "the box is untouched");
   assert.equal((await closed()).task, true);
   assert.deepEqual((await saved(second)).slice(earlier), [], "nothing was saved into the second session");
-  assert.equal(await local(), SECOND_WORDS, "this window's copy of its draft is its own");
+  assert.equal(await local(), null, "this window keeps no unconfirmed copy of its draft, and none of the first session's words");
 
   // The next read is held, then lands: the box holds the second session's own draft.
   await waitFor("hold.seen === 2 && typeof hold.release === 'function'", 15_000);
@@ -213,27 +220,23 @@ test("AC-05: switching to a session this window has not read yet shuts the box a
   const { command, sessionId, evaluate, waitFor, box, start, shut } = opened;
   const SECOND_WORDS = "乙会话里写好的任务";
   const second = await start(SECOND_WORDS);
-  await waitFor(`document.querySelector('${coding} [data-coding-draft-status]').textContent.startsWith('草稿已保存')`);
+  await waitFor(confirmed(second, SECOND_WORDS));
   const first = await start();
 
   await evaluate(`hold.except=${JSON.stringify(first)};hold.what='read'`);
   // In the same task as the switch: nothing has read the page's state since.
   const states = await evaluate<{ shut: boolean[]; box: boolean }>(`(()=>{
     document.querySelector('${coding}').dispatchEvent(new CustomEvent('molis-work:select-item',{detail:{itemId:${JSON.stringify(second)}}}));
-    return {shut:${JSON.stringify(CONTEXT)}.map(name=>document.querySelector('${coding} [data-coding-'+name+'-open]').disabled),box:${box}.disabled};})()`);
-  assert.deepEqual(states, { shut: CONTEXT.map(() => true), box: true });
+    const add=document.querySelector('${coding} ${CODING_COMPOSER} [data-composer-add]');
+    return {shut:['workspace','goal','writer-directories'].map(name=>document.querySelector('${coding} [data-coding-'+name+'-open]').disabled).concat(add.disabled),box:${box}.disabled};})()`);
+  assert.deepEqual(states, { shut: [true, true, true, true], box: true }, "the buttons above the box and ＋ (materials, methods, MCP, capabilities, role, delegation)");
   await waitFor("hold.seen === 1 && typeof hold.release === 'function'");
-  await evaluate(`document.querySelector('${coding} [data-coding-method-open]').click()`);
-  assert.equal(await evaluate<boolean>(`document.querySelector('${coding} [data-coding-method-dialog]').open`), false, "methods do not open before the first read");
-  assert.equal(await evaluate<string>(`document.querySelector('${coding} [data-coding-draft-status]').textContent`), "正在读取会话…");
-  // The「+」menu as it looks meanwhile: every way to add context is there and greyed out.
-  const menu = `document.querySelector('${coding} [data-coding-attach-menu]')`;
-  await evaluate(`document.querySelector('${coding} [data-coding-attach-toggle]').click()`);
-  await waitFor(`!${menu}.hidden`);
+  await evaluate(`document.querySelector('${coding} ${CODING_COMPOSER} [data-composer-add]').click()`);
+  assert.equal(await evaluate<boolean>(`!!document.querySelector('${coding} ${CODING_COMPOSER} [data-compose-menu]:not([hidden])')`), false, "＋ does not open before the first read");
+  assert.ok((await evaluate<string>(`document.querySelector('${coding} ${CODING_COMPOSER_STATUS}').textContent`)).includes("正在读取这个会话"), "the composer says why it waits");
+  // The composer as it looks meanwhile: the box, ＋, the controls and send greyed out, the reason in its status line.
   const evidence = reviewEvidenceUrl("coding-first-read/"); await mkdir(evidence, { recursive: true });
   await writeFile(new URL("attach-menu-before-first-read.png", evidence), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
-  await evaluate(`document.querySelector('${coding} [data-coding-attach-toggle]').click()`);
-  await waitFor(`${menu}.hidden`);
 
   await evaluate("hold.release()");
   await waitFor(`!${box}.disabled`);

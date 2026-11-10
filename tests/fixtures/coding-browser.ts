@@ -2,13 +2,16 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { TestContext } from "node:test";
 import { openGoalBrowser } from "./goal-browser.js";
+import { CODING_BOX, CODING_COMPOSER, CODING_SEND, codingControl } from "./coding-composer.js";
 import { pluginFrameBrowser, pluginFrameInitScript } from "./plugin-frame-browser.js";
 
 export const coding = "[data-coding-workbench]";
 /** The words `start()` writes into a new session's box unless given others. */
 export const FIRST_WORDS = "甲会话里写了一半的任务";
-/** What sets a session's next round beside the box and in its「+」menu; each opens a dialog of the same name. */
+/** What sets a session's next round: buttons above the box (each opens a dialog of the same name), then the composer's ＋ commands. */
 export const CONTEXT = ["workspace", "goal", "writer-directories", "material", "method", "mcp", "actions", "character", "delegate"];
+/** The ＋ command (its `/word`) each of the last six is offered as. */
+const ADDS: Readonly<Record<string, string>> = { material: "materials", method: "methods", mcp: "mcp", actions: "actions", character: "character", delegate: "delegate" };
 
 /**
  * The Coding surface with a switch on the page's requests. `hold.what` takes the next one of a kind: `create`, the request
@@ -60,15 +63,17 @@ export async function openCoding(t: TestContext, before = "") {
   await browser.waitFor(`document.querySelector('[data-work-surface="coding"]')?.getBoundingClientRect().width > 100`);
   await browser.waitFor(`document.querySelector('[data-work-surface="coding"]')?.dataset.uiClientState === 'ready'`);
   await evaluate(interceptRequests);
-  const box = `document.querySelector('${coding} [data-coding-task]')`;
-  /** Writes into the box the way typing does: the value, then the input event the page listens to. */
-  const type = (text: string) => evaluate(`(()=>{const node=${box};node.value=${JSON.stringify(text)};node.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+  const box = `document.querySelector('${coding} ${CODING_BOX}')`;
+  /** Writes into the box the way typing does: the value, then the input event the composer listens to. */
+  const type = (text: string) => evaluate(`(()=>{const node=${box};node.value=${JSON.stringify(text)};node.dispatchEvent(new InputEvent('input',{bubbles:true,inputType:'insertText'}));})()`);
   const current = () => evaluate<string>(`document.querySelector('${coding} [data-coding-session][aria-current=true]')?.dataset.codingSession ?? ''`);
   /** Which of the box, 发送, the way of working and the model are closed. */
-  const closed = () => evaluate<Record<string, boolean>>(`Object.fromEntries(['task','send','intent','model'].map(name=>[name,document.querySelector('${coding} [data-coding-'+name+']').disabled]))`);
-  /** Presses 发送 and submits the form itself, as ⌘↵ does (`requestSubmit`, past the button); then gives the page a moment. */
+  const closed = () => evaluate<Record<string, boolean>>(`(()=>{const at=selector=>document.querySelector('${coding} '+selector);
+    return {task:at(${JSON.stringify(CODING_BOX)}).disabled,send:at(${JSON.stringify(CODING_SEND)}).disabled,intent:at(${JSON.stringify(codingControl("intent"))}).disabled,model:at(${JSON.stringify(codingControl("model"))}).disabled};})()`);
+  /** Presses 发送, and ⌘↵ in the box past the button (the composer's own key); then gives the page a moment. */
   const trySend = async () => {
-    await evaluate(`document.querySelector('${coding} [data-coding-send]').click();document.querySelector('${coding} [data-coding-composer]').requestSubmit()`);
+    await evaluate(`(()=>{document.querySelector('${coding} ${CODING_SEND}').click();
+      ${box}.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',metaKey:true,ctrlKey:true,bubbles:true,cancelable:true}));})()`);
     await new Promise(resolve => setTimeout(resolve, 500));
   };
   /** Where requests that start or steer work carried these words (a draft is saved with PATCH, not counted). */
@@ -86,8 +91,14 @@ export async function openCoding(t: TestContext, before = "") {
     await waitFor(`stateReads > ${reads}`, 15_000);
     await new Promise(resolve => setTimeout(resolve, 300));
   };
-  /** Which of the buttons that set the next round are closed: they sit beside the box and in its「+」menu. */
-  const shut = () => evaluate<boolean[]>(`${JSON.stringify(CONTEXT)}.map(name=>document.querySelector('${coding} [data-coding-'+name+'-open]').disabled)`);
+  /**
+   * Which of what sets the next round is closed: a button above the box that is disabled, or a ＋ command ＋ cannot be opened for or
+   * does not offer now. ＋ is opened to read it and closed again.
+   */
+  const shut = () => evaluate<boolean[]>(`(()=>{const shell=document.querySelector('${coding} ${CODING_COMPOSER}'),add=shell.querySelector('[data-composer-add]');
+    let offered=[];if(!add.disabled){add.click();offered=[...shell.querySelectorAll('[data-composer-command]')].map(row=>row.textContent);add.click();}
+    const adds=${JSON.stringify(ADDS)};
+    return ${JSON.stringify(CONTEXT)}.map(name=>adds[name]?!offered.some(text=>text.includes('/'+adds[name])):document.querySelector('${coding} [data-coding-'+name+'-open]').disabled);})()`);
   /** Presses ⌘ with these keys on the page, as the shortcuts read them. */
   const press = (keys: string) => evaluate(`document.dispatchEvent(new KeyboardEvent('keydown',{${keys},ctrlKey:true,bubbles:true,cancelable:true}))`);
   /** The commands the palette offers now (⌘⇧P opens it and closes it again). */
@@ -98,7 +109,7 @@ export async function openCoding(t: TestContext, before = "") {
     return shown;
   };
   /** The palette's commands that set the next round: every way of working the page offers, and the rest by name. */
-  const nextRound = async () => [...await evaluate<string[]>(`[...document.querySelector('${coding} [data-coding-intent]').options].filter(option=>!option.disabled).map(option=>'/'+option.value)`),
+  const nextRound = async () => [...await evaluate<string[]>(`[...document.querySelector('${coding} ${codingControl("intent")}').options].filter(option=>!option.disabled).map(option=>'/'+option.value)`),
     "/materials", "/methods", "/delegate", "/model", "/workspace"];
   /** What the page saved into this session with PATCH. */
   const saved = (id: string) => evaluate<Array<Record<string, unknown>>>(`patches.filter(one=>one.path.endsWith('/sessions/'+${JSON.stringify(encodeURIComponent(id))})).map(one=>JSON.parse(one.body))`);

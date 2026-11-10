@@ -19,7 +19,7 @@ function leaveSession(page: Page) {
   s.goalReading++;
   s.methodDocumentTicket++;
   // Materials are picked in the page's one knowledge picker, not a dialog here: the ticket above drops its answer.
-  for (const name of s.choosers) if (name !== "material") q<HTMLDialogElement>("[data-coding-" + name + "-dialog]").close();
+  for (const name of s.choiceDialogs) q<HTMLDialogElement>("[data-coding-" + name + "-dialog]").close();
   closeReport(page);
   if (s.current) {
     s.offsets.set(s.current, turns.scrollTop);
@@ -132,11 +132,4 @@ export async function create(page: Page) {
 /** Tells the bottom Assistant this session changed here (its mode, a new round), so a work it shows reads it again. */
 export function surfaceChanged(page: Page, id: string) {
   if (page.lifetime.alive && id) window.dispatchEvent(new CustomEvent("molis:assistant-surface-changed", { detail: { plugin_id: "coding", object: { kind: "coding-session", id } } }));
-}
-
-/** The composer keeps rarely used context behind one "+" so the bar stays about the task. */
-export function setAttach(page: Page, open: boolean) {
-  const { attachMenu, attachToggle } = page.refs;
-  attachMenu.hidden = !open;
-  attachToggle.setAttribute("aria-expanded", String(open));
 }

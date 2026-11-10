@@ -61,10 +61,10 @@ function mountWriterDirectories(page: Page) {
 
 /** Starts a round that carries out a revision of the session's plan. */
 async function executePlan(page: Page, revision: number) {
-  const { L, q, refs, s } = page;
+  const { L, refs, s } = page;
   if (s.sending || s.recovery || s.checkpointBusy || !s.current) throw new Error(L("coding.error.busy"));
-  const id = s.current, [provider_id, model_id] = JSON.parse(q<HTMLSelectElement>("[data-coding-model]").value) as [string, string];
-  const intent = q<HTMLSelectElement>("[data-coding-intent]").value === "parallel" ? "parallel" : "execute";
+  const id = s.current, [provider_id, model_id] = JSON.parse(refs.composerModels.value() || "[]") as [string, string];
+  const intent = s.intent === "parallel" ? "parallel" : "execute";
   const request = {
     plan_revision: revision, intent, provider_id, model_id, ...refs.composerModels.effort(), workspace_id: s.workspaceId, ...(s.worktree ? { worktree_id: s.worktree.worktree_id } : {}),
     ...(intent === "parallel" ? { writer_assignments: structuredClone(s.configurations.get(id)?.writer_assignments || []) } : {}),
@@ -105,13 +105,15 @@ function mountReview(page: Page) {
 function mountChoices(page: Page) {
   const { L, host, lifetime, q, refs, s } = page;
   s.materialTicket = 0;
-  refs.renderCards = actionsClient({
+  const actions = actionsClient({
     ...s.ports, selections: s.actionSelections, save: refs.draft.saveChoices, controls: () => controls(page), interaction: (node, options) => host.interaction(node, options),
-    make: tag => document.createElement(tag), sessionPath, readCurrent: () => readCurrent(page),
-  }).renderCards;
-  characterChoice({
-    ...s.ports, lifetime, translate: L, q, selections: s.characterSelections, titles: s.characterTitles, skillSelections: s.characterSkills, save: refs.draft.saveChoices, controls: () => controls(page),
+    make: tag => document.createElement(tag), sessionPath, readCurrent: () => readCurrent(page), intent: () => s.intent,
   });
+  refs.renderCards = actions.renderCards;
+  refs.openActions = actions.open;
+  refs.openCharacter = characterChoice({
+    ...s.ports, lifetime, translate: L, q, selections: s.characterSelections, titles: s.characterTitles, skillSelections: s.characterSkills, save: refs.draft.saveChoices, controls: () => controls(page),
+  }).open;
 }
 
 /** Colours the code the conversation shows, and keeps the diffs in the page coloured as they grow. */

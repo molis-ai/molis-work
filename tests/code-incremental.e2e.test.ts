@@ -128,12 +128,12 @@ test("VUX-33: Coding's streamed code block grows in place, coloured from its las
   await browser.waitFor(`document.querySelector('[data-work-surface="coding"]')?.getBoundingClientRect().width > 100`);
   await waitFor(`document.querySelector('${coding} [data-coding-new]')`);
   await click(`${coding} [data-coding-new]`);
-  await waitFor(`!document.querySelector('${coding} [data-coding-task]').disabled && document.querySelector('${coding} [data-coding-model]').options.length >= 1`);
-  await fill(`${coding} [data-coding-model]`, JSON.stringify(["local-only", "fixture-model"]));
-  await fill(`${coding} [data-coding-intent]`, "discuss");
-  await fill(`${coding} [data-coding-task]`, "写一段代码");
-  await waitFor(`!document.querySelector('${coding} [data-coding-send]').disabled`);
-  await click(`${coding} [data-coding-send]`);
+  await waitFor(`!document.querySelector('${coding} [data-coding-input] .mw-composer__input').disabled && document.querySelector('${coding} [data-coding-input] [data-composer-control=model]').options.length >= 1`);
+  await fill(`${coding} [data-coding-input] [data-composer-control=model]`, JSON.stringify(["local-only", "fixture-model"]));
+  await fill(`${coding} [data-coding-input] [data-composer-control=intent]`, "discuss");
+  await fill(`${coding} [data-coding-input] .mw-composer__input`, "写一段代码");
+  await waitFor(`!document.querySelector('${coding} [data-coding-input] [data-composer-send]').disabled`);
+  await click(`${coding} [data-coding-input] [data-composer-send]`);
   await waitFor(`[...document.querySelectorAll('${coding} [data-turns] [data-kind="assistant"], ${coding} [data-coding-turns] [data-kind="assistant"]')].some(node => node.textContent.includes('第一段'))`, 60_000);
   model.finish();
   const block = `document.querySelector('${coding} [data-coding-turns] [data-kind="assistant"] pre[data-enriched]')`;

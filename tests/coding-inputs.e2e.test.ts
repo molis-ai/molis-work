@@ -16,17 +16,17 @@ test('Coding compares another writer against the original editor premise before 
  t.after(browser.on('Runtime.exceptionThrown',event=>uncaught.push(event.exceptionDetails)));
  await command('Page.addScriptToEvaluateOnNewDocument',{source:`window.inputErrors=[];addEventListener('error',e=>inputErrors.push(e.message));addEventListener('unhandledrejection',e=>inputErrors.push(String(e.reason)));`},sessionId);
  await navigate(()=>command('Page.navigate',{url:`${origin}/projects/${projectId}/`},sessionId));
- await hostClick('[data-plugin-strip] [data-plugin-id="coding"]');await waitFor("document.querySelector('[data-coding-model] option')");
- await click('[data-coding-new]');await waitFor("document.querySelector('[data-coding-session]') && !document.querySelector('[data-coding-task]').disabled");
+ await hostClick('[data-plugin-strip] [data-plugin-id="coding"]');await waitFor("document.querySelector('[data-coding-input] [data-composer-control=model] option')");
+ await click('[data-coding-new]');await waitFor("document.querySelector('[data-coding-session]') && !document.querySelector('[data-coding-input] .mw-composer__input').disabled");
  const id=await evaluate<string>("document.querySelector('[data-coding-session]').dataset.codingSession");
  const path=`/projects/${projectId}/api/plugins/io.molis.work.coding/sessions/${id}`;
  const request=async(body?:object)=>{
   const response=await fetch(origin+path,{method:body?'PATCH':'GET',headers:{origin,'content-type':'application/json','x-molis-work-control-token':controlToken,'x-molis-work-idempotency-key':randomUUID()},...(body?{body:JSON.stringify(body)}:{})});
   const data=await response.json();assert.equal(response.status,200,JSON.stringify(data));return data as {draft:string;input_revision:number;question_drafts:object};
  };
- const type=async(text:string)=>evaluate(`(()=>{const input=document.querySelector('[data-coding-task]');input.focus();input.value=${JSON.stringify(text)};input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+ const type=async(text:string)=>evaluate(`(()=>{const input=document.querySelector('[data-coding-input] .mw-composer__input');input.focus();input.value=${JSON.stringify(text)};input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
  const refresh=()=>hostEvaluate(`dispatchEvent(new CustomEvent('molis:assistant-effect',{detail:{capability_id:'coding.sessions.update',session_id:${JSON.stringify(id)}}}))`);
- const input="document.querySelector('[data-coding-task]')";
+ const input="document.querySelector('[data-coding-input] .mw-composer__input')";
  await evaluate(`${input}.blur()`);
  await request({draft:'remote initial',expected_input_revision:0});await refresh();await waitFor(`${input}.value==='remote initial'`);
  await type('my unsent text');
@@ -80,7 +80,8 @@ test('Coding compares another writer against the original editor premise before 
  // Own writes queued behind an ACK advance only through that ACK, preserving text typed while it was in flight.
  await hold(true);await type('own write before ACK');await hostWaitFor('inputHeld');await type('own later input');
  await hostEvaluate('releaseInputWrite()');
- await waitFor(`document.querySelector('[data-coding-draft-status]').textContent.includes('草稿已保存')`);
+ // Confirmed: this window's unconfirmed copy of the words is gone.
+ await waitFor(`sessionStorage.getItem('molis-coding-draft:'+document.querySelector('[data-coding-workbench]').dataset.codingPrefix+':'+${JSON.stringify(id)})===null`);
  const final=await request();assert.equal(final.draft,'own later input');assert.equal(final.input_revision,10);
  assert.equal(await evaluate(`${input}.value`),'own later input');
  assert.deepEqual(await hostEvaluate('inputErrors'),[]);

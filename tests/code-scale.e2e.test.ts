@@ -144,12 +144,12 @@ test("VUX-33: Coding reopens a turn with a large code block as text at once and 
   await waitFor(`document.querySelector('[data-work-surface="coding"]')?.getBoundingClientRect().width > 100`);
   active = child;
   await click(`${coding} [data-coding-new]`);
-  await waitFor(`!document.querySelector('${coding} [data-coding-task]').disabled && document.querySelector('${coding} [data-coding-model]').options.length >= 1`);
-  await fill(`${coding} [data-coding-model]`, JSON.stringify(["local-only", "fixture-model"]));
-  await fill(`${coding} [data-coding-intent]`, "discuss");
-  await fill(`${coding} [data-coding-task]`, "写一大段代码");
-  await waitFor(`!document.querySelector('${coding} [data-coding-send]').disabled`);
-  await click(`${coding} [data-coding-send]`);
+  await waitFor(`!document.querySelector('${coding} [data-coding-input] .mw-composer__input').disabled && document.querySelector('${coding} [data-coding-input] [data-composer-control=model]').options.length >= 1`);
+  await fill(`${coding} [data-coding-input] [data-composer-control=model]`, JSON.stringify(["local-only", "fixture-model"]));
+  await fill(`${coding} [data-coding-input] [data-composer-control=intent]`, "discuss");
+  await fill(`${coding} [data-coding-input] .mw-composer__input`, "写一大段代码");
+  await waitFor(`!document.querySelector('${coding} [data-coding-input] [data-composer-send]').disabled`);
+  await click(`${coding} [data-coding-input] [data-composer-send]`);
   await waitFor(`[...document.querySelectorAll('${coding} [data-coding-turns] [data-kind="assistant"]')].some(node => node.textContent.includes('第一段'))`, 60_000);
   model.finish();
   await waitFor(`[...document.querySelectorAll('${coding} [data-coding-turns] [data-kind="assistant"]')].some(node => node.textContent.includes('写完了'))`, 60_000);

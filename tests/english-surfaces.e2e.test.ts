@@ -167,15 +167,15 @@ test("VUX-40: the Coding page, its own script's words and Coding settings speak 
   // Coding's own script fills the page in English too: the session list, the composer's controls and the results column.
   await navigate(() => command("Page.navigate", { url: coding }, sessionId));
   active = views.coding!;
-  await waitFor("document.querySelector('[data-coding-workbench] [data-coding-model] option')", 30_000);
+  await waitFor("document.querySelector('[data-coding-workbench] [data-coding-input] [data-composer-control=model] option')", 30_000);
   assert.deepEqual(await evaluate(HAN_IN("[data-coding-workbench]")), [], "Coding with no session open, in English");
   assert.ok((await evaluate<string>("document.querySelector('[data-coding-workbench] .coding-start').textContent")).includes("Write code with an Agent"));
   // A fresh session: the welcome, the composer and its menus, the results column.
   await evaluate("document.querySelector('.coding-start [data-coding-new]').click()");
-  await waitFor("document.querySelector('[data-coding-welcome]') && !document.querySelector('[data-coding-task]').disabled", 30_000);
-  await evaluate("document.querySelector('[data-coding-attach-toggle]').click(); document.querySelector('[data-coding-results-open]').click()");
+  await waitFor("document.querySelector('[data-coding-welcome]') && !document.querySelector('[data-coding-input] .mw-composer__input').disabled", 30_000);
+  await evaluate("document.querySelector('[data-coding-input] [data-composer-add]').click(); document.querySelector('[data-coding-results-open]').click()");
   assert.deepEqual(await evaluate(HAN_IN("[data-coding-workbench]")), [], "a fresh Coding session, its menus and results, in English");
   // Words Coding's script writes itself, not the Host's markup.
-  assert.deepEqual(await evaluate("[document.querySelector('[data-coding-goal-label]').textContent, document.querySelector('[data-coding-send]').textContent]"), ["No goal for the next turn", "Send"]);
+  assert.deepEqual(await evaluate("[document.querySelector('[data-coding-goal-label]').textContent, document.querySelector('[data-coding-input] [data-composer-send]').textContent]"), ["No goal for the next turn", "Send"]);
   assert.deepEqual((await evaluate<TextWrapIssue[]>(TEXT_WRAP_AUDIT)).filter((issue) => issue.kind === "spill"), [], "Coding in English fits");
 });

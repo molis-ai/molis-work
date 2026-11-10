@@ -257,7 +257,8 @@ test("VUX-40: the step report dialog and the change set reader speak English in 
 });
 
 // specs/visual-ui-experience VUX-40: the composer's model note, a turn's written files, the command palette, and the character
-// and capability dialogs speak English on an English page.
+// and capability dialogs speak English on an English page. (The keys list the palette once returned had no reader in the page
+// and went with the composer's move to the platform, unified-input-voice K4; the composer's own key hints are its labels.)
 test("VUX-40: the model note, a turn's changes, the palette and the character and capability dialogs speak English", { timeout: 30_000 }, async t => {
   const directory = mkdtempSync(join(tmpdir(), "coding-english-composer-"));
   const browser = await openStudioChrome(directory);
@@ -267,43 +268,42 @@ test("VUX-40: the model note, a turn's changes, the palette and the character an
   try {
     const page = await browser.page();
     await page.evaluate(`(()=>{${pageTextScript("en", "coding")}})()`);
-    const result = await page.evaluate<{ han: string[]; note: string; changes: string; palette: string; shortcuts: string[]; characters: string; actions: string; statuses: string[] }>(`(async () => {
+    const result = await page.evaluate<{ han: string[]; note: string; changes: string; palette: string; characters: string; actions: string; statuses: string[] }>(`(async () => {
       document.documentElement.lang='en';document.body.innerHTML=${JSON.stringify(html)};
       const root=document.querySelector('[data-coding-workbench]');root.hidden=false;
       const lifetime=(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})()(root),statuses=[],q=selector=>root.querySelector(selector),status=message=>statuses.push(message);
       const settle=()=>new Promise(resolve=>setTimeout(resolve,20));
-      const models=(${embeddedFactory("composerModels")})({q,lifetime,translate:L,status,switchModel:async()=>{}});
+      const models=(${embeddedFactory("composerModels")})({q,lifetime,translate:L,status,switchModel:async()=>{},changed:()=>{},redraw:()=>{}});
       models.fill([]);models.fill([{provider_id:'p',model_id:'m1',label:'Model One',reasoning_effort:true},{provider_id:'p',model_id:'m2',label:'Model Two'}]);
       models.controls({active:true,sending:false,run:{ref:{run_id:'r'},frozen:{model_id:'m1',reasoning_effort:'high',thinking:true},model_switch:{requested:'m2'}}});
       const changes=(${createCodingTurnChanges.toString()})(globalThis.L).place(document.createElement('section'),
         {turn:1,sequence:1,files:['a.ts','b.ts','c.ts','d.ts'].map((path,n)=>({path:'src/'+path,byte_length:10+n,digest:'d'+n,checkpoint_id:'cp'+n}))},{ref:{run_id:'r'},phase:'completed',activity:[]},true);
       root.append(changes);changes.querySelector('details').open=true;
-      const commands=(${embeddedFactory("commandsUi")})({lifetime,translate:L,q,input:q('[data-coding-task]'),status,commands:()=>[{slash:'new',label:'New session',keys:'Mod+Alt+N',run:()=>{}}],current:()=>'s',
-        workspace:()=>'',files:async()=>({files:[]}),symbols:async()=>({symbols:[]}),sessions:()=>[{session_id:'o',title:'Other session',state_label:'Running'}],openSession:()=>{}});
+      const commands=(${embeddedFactory("commandsUi")})({lifetime,translate:L,q,input:()=>q('[data-coding-input] .mw-composer__input'),status,commands:()=>[{slash:'new',label:'New session',keys:'Mod+Alt+N',run:()=>{}}],current:()=>'s',
+        sessions:()=>[{session_id:'o',title:'Other session',state_label:'Running'}],openSession:()=>{}});
       commands.openPalette();const field=q('[data-coding-palette-input]');field.value='zzz';field.dispatchEvent(new Event('input'));
       const palette=q('[data-coding-palette-list]').textContent;q('[data-coding-palette]').close();
       const characters=new Map(),skills=new Map(),titles=new Map();
-      (${embeddedFactoryHolding("data-coding-character-dialog")})({lifetime,translate:L,refresh:async()=>{},q,current:()=>'s',selections:characters,titles,skillSelections:skills,save:async()=>{},controls:()=>{},status,
+      const character=(${embeddedFactoryHolding("data-coding-character-dialog")})({lifetime,translate:L,refresh:async()=>{},q,current:()=>'s',selections:characters,titles,skillSelections:skills,save:async()=>{},controls:()=>{},status,
         api:async()=>({runtime_id:'other',characters:[{reference:{artifact_id:'c',version:1},title:'Reviewer',available:true,instructions:'Review.',host_tools:[],imported_skills:[{id:'k',name:'Lint',compatibility:'native'}]}]})});
-      q('[data-coding-character-open]').disabled=false;q('[data-coding-character-open]').click();await settle();
+      character.open();await settle();
       root.querySelectorAll('[data-coding-character-dialog] details').forEach(node=>{node.open=true;});
       const charactersText=q('[data-coding-character-dialog]').textContent.replace(/\\s+/g,' ');q('[data-coding-character-dialog]').close();
-      (${embeddedFactoryHolding("data-coding-actions-dialog")})({lifetime,translate:L,refresh:async()=>{},q,current:()=>'s',selections:new Map([['s',[{capability_id:'gone.action',version:1,provider_id:'x'}]]]),save:async()=>{},controls:()=>{},status,
-        interaction:()=>{},make:()=>{},sessionPath:()=>'',readCurrent:async()=>{},
+      const actions=(${embeddedFactoryHolding("data-coding-actions-dialog")})({lifetime,translate:L,refresh:async()=>{},q,current:()=>'s',selections:new Map([['s',[{capability_id:'gone.action',version:1,provider_id:'x'}]]]),save:async()=>{},controls:()=>{},status,
+        interaction:()=>{},make:()=>{},sessionPath:()=>'',readCurrent:async()=>{},intent:()=>'discuss',
         api:async()=>({actions:[{capability_id:'todo.add',version:2,operation:'write',provider:{provider_id:'todo',title:'Todo'},action:{title:'Add a todo',description:'Adds one',audiences:['agent'],kind:'action'},availability:{available:true}}]})});
-      q('[data-coding-actions-open]').disabled=false;q('[data-coding-actions-open]').click();await settle();
+      actions.open();await settle();
       const actionsText=q('[data-coding-actions-dialog]').textContent.replace(/\\s+/g,' ');q('[data-coding-actions-dialog]').close();
       const nodes=[root,...root.querySelectorAll('*')].filter(node=>!node.closest('template'));
       const han=nodes.flatMap(node=>[...node.childNodes].filter(child=>child.nodeType===3).map(child=>child.textContent).concat([...node.attributes].map(attr=>attr.value)))
         .filter(value=>/[\\u3400-\\u9fff]/.test(value));
-      return {han:[...new Set(han)],note:q('[data-coding-model-note]').textContent,changes:changes.textContent.replace(/\\s+/g,' '),palette,shortcuts:commands.shortcuts().map(row=>row[1]),
+      return {han:[...new Set(han)],note:q('[data-coding-model-note]').textContent,changes:changes.textContent.replace(/\\s+/g,' '),palette,
         characters:charactersText,actions:actionsText,statuses};
     })()`);
     assert.deepEqual(result.han, [], "no Chinese in what these draw");
     assert.equal(result.note, "This turn: m1 · Thinking effort Thorough · Thinking on · Asked to switch to m2, from the next model call");
     assert.match(result.changes, /Files written this turn: 4.*a\.ts · b\.ts · c\.ts · 4 in all.*10 bytes.*Preview rewind.*What the write receipts recorded.*See this turn's changes/);
     assert.equal(result.palette, "No matching commands or sessions");
-    assert.deepEqual(result.shortcuts, ["Command palette", "Previous / next session", "Open commands in the input box", "Send", "Stop this turn"]);
     assert.match(result.characters, /No character.*Reviewer · v1.*The current runtime doesn't support character limits yet/);
     assert.match(result.characters, /Built-in tools: none\. MCP is still chosen.*Lint · needs a native Agent/);
     assert.match(result.actions, /Add a todo · v2.*Todo · The current way of running only allows queries.*gone\.action · v1.*The original capability, version or authorization isn't available/);

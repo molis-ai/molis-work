@@ -26,6 +26,7 @@ export function mountInputEditor(page: Page) {
       try { sessionStorage.setItem(draftKey(page, id) + ":questions", JSON.stringify(value.question_drafts)); } catch { /* The window still holds its copy. */ }
       if (id === s.current && refs.draft.owns(id)) {
         input.value = value.draft;
+        window.molisFit?.(input);
         if (changed) {
           for (const form of root.querySelectorAll<HTMLElement & { ix?: { destroy(): void } }>("[data-coding-question]")) { form.ix?.destroy(); form.remove(); }
           if (s.lastData) renderRuns(page, s.lastData.runs);

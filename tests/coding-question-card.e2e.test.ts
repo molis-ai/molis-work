@@ -80,11 +80,11 @@ async function openCoding(t: TestContext, ask: object) {
   await b.waitFor(`document.querySelector('[data-work-surface="coding"]')?.getBoundingClientRect().width > 100`);
   await b.waitFor("document.querySelector('[data-work-surface=coding]')?.dataset.uiClientState === 'ready'");
   await click(`${coding} [data-coding-new]`);
-  await waitFor(`!document.querySelector('${coding} [data-coding-task]').disabled && document.querySelector('${coding} [data-coding-model]').options.length >= 1`);
-  await fill(`${coding} [data-coding-model]`, JSON.stringify(["local-only", "fixture-plain"]));
-  await fill(`${coding} [data-coding-intent]`, "discuss");
-  await fill(`${coding} [data-coding-task]`, "登录和导出都坏了，先修哪个？");
-  await waitFor(`!document.querySelector('${coding} [data-coding-send]').disabled`);
+  await waitFor(`!document.querySelector('${coding} [data-coding-input] .mw-composer__input').disabled && document.querySelector('${coding} [data-coding-input] [data-composer-control=model]').options.length >= 1`);
+  await fill(`${coding} [data-coding-input] [data-composer-control=model]`, JSON.stringify(["local-only", "fixture-plain"]));
+  await fill(`${coding} [data-coding-input] [data-composer-control=intent]`, "discuss");
+  await fill(`${coding} [data-coding-input] .mw-composer__input`, "登录和导出都坏了，先修哪个？");
+  await waitFor(`!document.querySelector('${coding} [data-coding-input] [data-composer-send]').disabled`);
   return { ...b, ...frame, owner: b, coding, fill, bodies };
 }
 
@@ -96,7 +96,7 @@ test("AC-22: Coding answers a typed questionnaire through the shared question ca
   // What the page keeps with the session while the person picks.
   await evaluate(`(() => { window.__drafts = []; const original = window.fetch; window.fetch = async (...args) => {
     if (args[1] && typeof args[1].body === 'string' && args[1].body.includes('question_drafts')) window.__drafts.push(JSON.parse(args[1].body).question_drafts); return original(...args); }; })()`);
-  await click(`${coding} [data-coding-send]`);
+  await click(`${coding} [data-coding-input] [data-composer-send]`);
   // The card the Host drew is itself the element the page marks as Coding's question.
   const card = `${coding} [data-coding-question][data-ix-question]`;
   await waitFor(`Boolean(document.querySelector(${JSON.stringify(card)}))`, 30_000);
@@ -135,7 +135,7 @@ test("AC-25, AC-10-3: Coding's next step answers a single choice through the car
   const opened = await openCoding(t, { why: "先确认要修哪一处。", questions: [{ prompt: "先修哪一个？", options: [{ label: "登录", recommended: true }, { label: "导出" }] }] });
   if (!opened) return;
   const { click, evaluate, waitFor, coding, bodies } = opened;
-  await click(`${coding} [data-coding-send]`);
+  await click(`${coding} [data-coding-input] [data-composer-send]`);
   const steps = `${coding} [data-coding-steps]:not([hidden]) [data-ix-step-id]`;
   await waitFor(`document.querySelectorAll(${JSON.stringify(steps)}).length === 2`, 30_000);
   assert.deepEqual(await evaluate<string[]>(`[...document.querySelectorAll(${JSON.stringify(steps)})].map(step => step.querySelector('[data-ix-step-label]').textContent)`), ["登录（推荐）", "导出"]);
@@ -149,7 +149,7 @@ test("AC-25, AC-10-3: Coding's next step answers a single choice through the car
   assert.match(JSON.stringify(bodies[1]?.messages ?? ""), /导出/, "the model hears the option pressed in the row");
   await waitFor(`!document.querySelector('${coding} [data-coding-question]') && document.querySelector('${coding} [data-coding-steps]').hidden`, 15_000);
   // AC-10-3: the mouse press put focus on the step, and the row was hidden under it.
-  assert.equal(await evaluate<boolean>(`document.activeElement === document.querySelector('${coding} [data-coding-task]')`), true,
+  assert.equal(await evaluate<boolean>(`document.activeElement === document.querySelector('${coding} [data-coding-input] .mw-composer__input')`), true,
     "AC-10-3: with the row hidden, focus is in the composer and not on the page");
 });
 
@@ -164,7 +164,7 @@ test("AC-27-5: Coding answers words, a number, a date and a date and time, and a
   ] });
   if (!opened) return;
   const { click, evaluate, waitFor, command, sessionId, coding, bodies, fill } = opened;
-  await click(`${coding} [data-coding-send]`);
+  await click(`${coding} [data-coding-input] [data-composer-send]`);
   const card = `${coding} [data-coding-question][data-ix-question]`;
   await waitFor(`Boolean(document.querySelector(${JSON.stringify(card)}))`, 30_000);
   assert.deepEqual(bodies[0]?.tools?.find(tool => tool.name === "ask-user")?.input_schema.properties.questions.items.properties.type.enum, ["choice", "text", "number", "date", "datetime", "reference"], "AC-27-1: the model is offered what the card draws");
@@ -240,7 +240,7 @@ const LONG_QUESTIONS = { why: `先确认要修哪一处。${LONG}`, questions: [
 test("AC-10-1, AC-10-2, AC-10-7: Coding's card fits 1440, 1024 and 390 px, reads in Dark, and wraps long content", { timeout: 240_000 }, async t => {
   const opened = await openCoding(t, LONG_QUESTIONS); if (!opened) return;
   const { click, evaluate, waitFor, command, sessionId, coding } = opened;
-  await click(`${coding} [data-coding-send]`);
+  await click(`${coding} [data-coding-input] [data-composer-send]`);
   const card = `${coding} [data-coding-question][data-ix-question]`;
   await waitFor(`Boolean(document.querySelector(${JSON.stringify(card)}))`, 30_000);
   await evaluate(CONTRAST);
@@ -316,7 +316,7 @@ test("AC-10-3, AC-10-4, AC-10-5, AC-10-8: Coding's card by keyboard and input me
   ] });
   if (!opened) return;
   const { click, evaluate, waitFor, command, sessionId, coding, bodies } = opened;
-  const card = `${coding} [data-coding-question][data-ix-question]`, composer = `${coding} [data-coding-task]`;
+  const card = `${coding} [data-coding-question][data-ix-question]`, composer = `${coding} [data-coding-input] .mw-composer__input`;
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   // What runs in the card, or in the thread around it, a frame after each change; what the page keeps and what it answers.
   await evaluate(`(() => { const card = ${JSON.stringify(card)};
@@ -328,7 +328,7 @@ test("AC-10-3, AC-10-4, AC-10-5, AC-10-8: Coding's card by keyboard and input me
       if (typeof body === 'string' && body.includes('question_drafts')) window.__drafts.push(JSON.parse(body).question_drafts);
       if (typeof body === 'string' && body.includes('"kind":"answer"')) window.__answers.push(JSON.parse(body));
       return original(...args); }; })()`);
-  await click(`${coding} [data-coding-send]`);
+  await click(`${coding} [data-coding-input] [data-composer-send]`);
   await waitFor(`Boolean(document.querySelector(${JSON.stringify(card)})) && window.__motion.length === 1`, 30_000);
   // Read back by value (CDP `returnByValue`): what the focused element lacks (a field, a role, an option) comes back null, not undefined.
   const focused = () => evaluate<[string | null, string | null, string | null]>(`[document.activeElement.closest('[data-ix-field]')?.dataset.ixField, document.activeElement.getAttribute('role'), document.activeElement.dataset.ixOption]`);
@@ -405,7 +405,7 @@ test("AC-10-6: while Coding waits, the page reads the run again and the card, th
   // A short window, so the thread scrolls and there is something above the card to read back.
   await command("Emulation.setDeviceMetricsOverride", { width: 1024, height: 640, deviceScaleFactor: 1, mobile: false }, sessionId);
   await evaluate(`(() => { window.__reads = 0; const original = window.fetch; window.fetch = (...args) => { if (String(args[0]).includes('?window=')) window.__reads++; return original(...args); }; })()`);
-  await click(`${coding} [data-coding-send]`);
+  await click(`${coding} [data-coding-input] [data-composer-send]`);
   await waitFor(`Boolean(document.querySelector(${JSON.stringify(card)}))`, 30_000);
   await evaluate(`(() => { window.__card = document.querySelector(${JSON.stringify(card)}); document.querySelector(${JSON.stringify(field)}).focus(); })()`);
   await command("Input.insertText", { text: "写到一半的话" }, sessionId);

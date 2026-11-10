@@ -1,7 +1,6 @@
 import { CODING_TIMELINE_STYLES } from "./timeline-styles.js";
-import { CODING_COMPOSER_MODEL_STYLES } from "./composer-model-styles.js";
 import { CODING_PLAN_PROGRESS_STYLES } from "./plan-progress-styles.js";
-import { CODING_COMPOSER_BAR_STYLES } from "./composer-bar-styles.js";
+import { CODING_FOOTNOTE_STYLES } from "./footnote-styles.js";
 /** Layout only; controls, colors, and focus behavior use the shared system. */
 export const CODING_STYLES = `
 .coding-material { min-width:0; padding:12px 0; border-bottom:1px solid var(--line); overflow-wrap:anywhere; }
@@ -208,16 +207,7 @@ export const CODING_STYLES = `
 .coding-turns > [data-run] { content-visibility:auto; contain-intrinsic-size:auto 480px; }
 /* Earlier rounds of a long session load as the reader scrolls up; the control is also a button for keyboard and screen readers. */
 /* The slash menu opens above the composer; the palette is a centred list. Both keep the keyboard in the field. */
-.coding-composer-shell { position:relative; }
-.coding-slash { position:absolute; left:8px; right:8px; bottom:calc(100% + 6px); z-index:25; max-height:min(50vh,320px); overflow:auto; padding:4px; border:1px solid var(--line); border-radius:12px; background:var(--paper); box-shadow:var(--lift-1); }
-.coding-slash-item { display:grid; grid-template-columns:auto auto minmax(0,1fr); align-items:baseline; gap:8px; padding:8px 12px; border-radius:8px; cursor:pointer; font-size:13px; }
-.coding-slash-item[aria-selected=true] { background:color-mix(in srgb,var(--ink) 7%,transparent); }
-.coding-slash-item code { color:var(--muted); font-size:12px; }
-.coding-slash-item.is-file { grid-template-columns:auto minmax(0,1fr); }
-.coding-slash-empty { margin:0; padding:8px 12px; color:var(--muted); font-size:12px; }
-.coding-slash-hint { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--muted); font-size:12px; }
 .coding-composer-keys { display:inline-flex; gap:4px; flex-wrap:wrap; }
-@media (max-width:640px) { .coding-composer-keys .mw-kbd:not(:last-child) { display:none; } }
 dialog.coding-palette { position:fixed; inset:12vh auto auto 50%; translate:-50% 0; margin:0; width:min(560px,calc(100vw - 32px)); padding:0; border:1px solid var(--line); border-radius:14px; background:var(--paper); box-shadow: var(--lift-3); }
 dialog.coding-palette::backdrop { background:var(--scrim); }
 .coding-palette-shell { display:grid; gap:0; }
@@ -328,24 +318,7 @@ dialog.coding-palette::backdrop { background:var(--scrim); }
 .coding-composer { flex:none; display:flex; flex-direction:column; align-items:center; gap:8px; border:0; background:transparent; }
 .coding-composer > * { width:min(100%, 76ch); }
 .coding-composer > .coding-context { justify-content:flex-start; }
-.coding-composer-shell {
-  display:flex; flex-direction:column; min-width:0;
-  padding:4px 8px 8px; border:1px solid var(--control-input); border-radius:12px; background:var(--paper);
-}
-.coding-composer-shell:has(textarea:focus-visible) {
-  border-color:var(--ink);
-  outline:var(--focus-stroke, 1px solid var(--ink)); outline-offset:var(--focus-stroke-inset, -1px);
-}
-/* The field grows with what is written (data-fit, the shared intrinsic sizing), up to 320px and 40% of the frame. */
-.coding-composer-shell textarea {
-  --fit-max:320px; width:100%; min-height:56px; line-height:1.65;
-  margin:0; padding:12px 8px 4px; border:0; border-radius:8px; background:transparent; box-shadow:none;
-  caret-color:var(--ink);
-}
-.coding-composer-shell textarea:is(:hover, :focus, :focus-visible, :disabled) {
-  border:0; outline:none; box-shadow:none; background:transparent;
-}
-${CODING_COMPOSER_BAR_STYLES}
+${CODING_FOOTNOTE_STYLES}
 .coding-composer small { font-size:11px; color:var(--muted); overflow-wrap:anywhere; }
 .coding-composer-footnote { display:flex; align-items:center; justify-content:space-between; gap:12px; }
 .coding-composer-footnote kbd { font-size:11px; flex:none; }
@@ -397,8 +370,6 @@ ${CODING_COMPOSER_BAR_STYLES}
   .coding-stage > .coding-dialogue:has(~ [data-coding-reading]) { display:none; }
   [data-coding-results=true] .coding-stage { grid-template-columns:minmax(0,1fr); }
   [data-coding-results=true] .coding-dialogue { display:none; }
-  .coding-composer-context .mw-btn { width:32px; min-width:32px; }
-  .coding-composer-context .mw-btn[data-count]:not([data-count=""])::after { content:attr(data-count); position:absolute; right:0; top:0; font-size:11px; }
 }
 @container molis-coding (max-width:760px) {
   .coding-layout { grid-template-columns:minmax(0,1fr); }
@@ -415,9 +386,6 @@ ${CODING_COMPOSER_BAR_STYLES}
   .coding-tools { border:0; }
   .coding-turns { flex:1 1 160px; min-height:80px; }
   .coding-dialogue { overflow-y:auto; }
-  .coding-composer-context .mw-btn { width:44px; min-width:44px; }
-  .coding-composer-shell textarea { font-size:16px; max-height:120px; }
-  .coding-composer-bar .mw-select-picker__trigger { padding-inline:8px; }
   .coding-composer-footnote { display:none; }
   .coding-status { padding-inline:16px; }
   [data-coding-workbench] :is(.mw-btn,.mw-toggle,.mw-dir-row,.mw-dir__add,.mw-select-picker__trigger) { min-height:44px; }
@@ -526,19 +494,6 @@ ${CODING_COMPOSER_BAR_STYLES}
 .coding-phase { display:inline-flex; align-items:center; gap:8px; height:24px; padding:0 12px; border-radius:999px; font-size:12px; background:color-mix(in srgb, var(--blue) 10%, transparent); color:var(--blue-dark, var(--blue)); }
 .coding-phase[data-phase=awaiting-review], .coding-phase[data-phase=awaiting-input] { background:color-mix(in srgb, var(--amber) 14%, transparent); color:var(--amber); }
 
-/* Composer: the task first, then mode, model and send; context lives behind "+". */
-.coding-composer-shell { border-radius:16px !important; transition:border-color 130ms var(--ease-quint), box-shadow 130ms var(--ease-quint); }
-.coding-composer-shell:focus-within { box-shadow:0 0 0 3px color-mix(in srgb, var(--focus, var(--blue)) 14%, transparent); }
-.coding-attach { position:relative; }
-.coding-attach-toggle { width:28px !important; min-width:28px !important; height:28px; min-height:28px; padding:0 !important; border-radius:999px !important; color:var(--muted); }
-.coding-attach-toggle[aria-expanded=true] { background:var(--nav-active); color:var(--ink); }
-.coding-attach-toggle[aria-expanded=true] svg { transform:rotate(45deg); }
-.coding-attach-toggle svg { transition:transform 130ms var(--ease-quint); }
-.coding-attach-menu { position:absolute; left:0; bottom:calc(100% + 8px); z-index:20; display:grid; gap:4px; min-width:196px; padding:8px; border:1px solid var(--line); border-radius:12px; background:var(--paper); box-shadow: var(--lift-3); animation:craft-rise-from-bar var(--dur-move) var(--ease-quint); }
-.coding-attach-menu .coding-composer-context { display:grid; gap:4px; }
-.coding-attach-menu .mw-btn { justify-content:flex-start; width:100% !important; min-width:0 !important; height:32px; padding:0 12px !important; gap:8px; color:var(--ink) !important; }
-.coding-attach-menu .coding-composer-context [data-slot=button-label] { display:inline; }
-.coding-composer-bar [data-coding-send] { border-radius:999px; }
 
 /* Change reader: a compact index of writes, folded hunks, and comments docked below. */
 .coding-change { display:flex; flex-direction:column; min-height:100%; font-size:13px; color:var(--ink); }
@@ -754,4 +709,4 @@ dialog[data-coding-integration-dialog] .mw-form__body { grid-template-columns:mi
 .coding-merge-pick > .mw-btn { min-height:28px; padding:0 12px; font-size:12px; }
 @media (max-width:760px) { .coding-merge-pick > span { flex-basis:100%; } }
 .coding-child-error-code { display:block; margin-top:4px; font:11px/1.5 var(--font-mono,ui-monospace,SFMono-Regular,Menlo,monospace); color:var(--muted); overflow-wrap:anywhere; }
-` + CODING_TIMELINE_STYLES + CODING_COMPOSER_MODEL_STYLES;
+` + CODING_TIMELINE_STYLES;

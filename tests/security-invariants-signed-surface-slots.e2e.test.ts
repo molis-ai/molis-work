@@ -123,8 +123,9 @@ test("IUI-07 IUI-08 IUI-13: externally packed project and Home stages mount a st
     await choose(status === "done" ? "做完了" : "忽略");
     assert.equal(feed.getInboxEntry(projectId, entry.entry_id).revision, entry.revision);
     await press(one(area + ' [data-framed-control="confirm"]'));
-    try { await b.waitFor(`${one(area)}?.textContent.includes('已完成')`, 5_000); }
-    catch (cause) {
+    try {
+      await b.waitFor(`${one(area)}?.textContent.includes('已完成') && !${one(content)} && !${one(area + ' [data-framed-control="confirm"]')}`, 5_000);
+    } catch (cause) {
       const confirmation = [...requests].findLast(([, event]) => event.mode === "confirm");
       const answer = confirmation && await b.command<{ body: string }>("Network.getResponseBody", { requestId: confirmation[0] }, b.sessionId).catch(() => null);
       const state = await b.evaluate(`${one(area)}?.innerText.slice(-400)`);

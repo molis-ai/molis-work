@@ -33,7 +33,7 @@ function drawSurfaceSlot(entry: Entry, say: FrameHost["translate"], unsettled: R
   const { area, render } = entry, sdk = renderers();
   if (!area || !sdk) return;
   entry.corrections.clear();
-  let unknown = false;
+  let unknown = entry.note?.kind === "unknown";
   const labels = (entry.choices ?? render?.controls ?? []).flatMap(control => {
     const command = commandControl(entry, control);
     if (command && unsettled.has(command)) { unknown = true; return []; }
@@ -97,6 +97,16 @@ function pressedSlotControl(entry: Entry, event: MouseEvent) {
   return { area, render, slot, hit };
 }
 
+function acceptSlotRead(entry: Entry, result?: Rendered) {
+  entry.render = result;
+  const kind = entry.note?.kind;
+  if (kind === "unknown" || (result && kind === "completed")) { entry.note = { kind }; return; }
+  const display = result?.display;
+  if (!display || (!display.display.rows.length && !display.object_restore_available && Array.isArray(entry.subjects) && entry.subjects.length))
+    entry.note = { kind: "unavailable" };
+  else if (kind === "unavailable") entry.note = undefined;
+}
+
 /** One sibling area per declared mount. Only the size and the fixed reservation result cross back into the child. */
 export function pageSurfaceSlots(port: MessagePort, scope: FrameScope, areas: PageFramedAreas, pageId: string, positionScope: string,
   route: (path: string) => string, host: FrameHost, root: HTMLElement) {
@@ -122,15 +132,9 @@ export function pageSurfaceSlots(port: MessagePort, scope: FrameScope, areas: Pa
     try {
       const result = await api<Rendered>({ intent: "read", slot: entry.slot, ...(entry.recovery ? { recovery: entry.recovery } : {}) }, request.signal);
       if (!shown(entry) || entry.read !== request || request.signal.aborted) return;
-      entry.render = result;
-      const empty = !result.display.display.rows.length && !result.display.object_restore_available && Array.isArray(entry.subjects) && entry.subjects.length;
-      const kind = entry.note?.kind;
-      if (kind === "completed" || kind === "unknown") entry.note = { kind };
-      else if (empty) entry.note = { kind: "unavailable" };
-      else if (kind === "unavailable") entry.note = undefined;
-      draw(entry);
+      acceptSlotRead(entry, result); draw(entry);
     } catch {
-      if (entry.read === request && !request.signal.aborted && current(entry)) { entry.render = undefined; entry.note = { kind: "unavailable" }; draw(entry); }
+      if (entry.read === request && !request.signal.aborted && current(entry)) { acceptSlotRead(entry); draw(entry); }
     } finally { if (entry.read === request) entry.read = undefined; }
   }
   async function click(entry: Entry, event: MouseEvent) {
@@ -187,12 +191,13 @@ export function pageSurfaceSlots(port: MessagePort, scope: FrameScope, areas: Pa
       }
     } catch (error) {
       const code = (error as { code?: string } | null)?.code;
-      if (finishing && code && code !== "actions.outcome_unknown" && code !== "actions.cancelled") unsettled.clear(finishing);
+      const uncertain = id === "confirm" && (!code || code === "actions.outcome_unknown" || code === "actions.cancelled");
+      if (finishing && !uncertain) unsettled.clear(finishing);
       if (current(entry) && entry.render === render) {
         entry.preparation = undefined;
         entry.choices = undefined; entry.description = undefined;
         if (correction) entry.correctionNote = "failed";
-        else entry.note = { kind: id === "confirm" ? "unknown" : "changed" };
+        else entry.note = { kind: uncertain ? "unknown" : "changed" };
         draw(entry);
       }
     } finally {

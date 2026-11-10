@@ -112,10 +112,38 @@ async function nativeInboxSurface(t: TestContext, late: boolean) {
   if (late) {
     await choose("更多操作");
     await choose("保存为资料");
+    await b.evaluate(`{
+      const original = window.fetch.bind(window);
+      let failNextRead = true;
+      window.fetch = async (input, init) => {
+        const url = new URL(input instanceof Request ? input.url : String(input), location.href);
+        if (!url.pathname.endsWith("/api/contextual/surface-slot") || typeof init?.body !== "string" || JSON.parse(init.body).intent !== "read")
+          return original(input, init);
+        if (failNextRead) {
+          failNextRead = false;
+          document.documentElement.dataset.slotTestRead = "disconnected";
+          throw new TypeError("Injected transport failure for the slot refresh");
+        }
+        const response = await original(input, init);
+        document.documentElement.dataset.slotTestRead = String(response.status);
+        return response;
+      };
+    }`);
     await b.click(area + ' [data-framed-control="confirm"]');
-    await b.waitFor(`document.querySelector(${quoted(area)})?.innerText.includes("到原处核对执行结果") && !${action("更多操作")}`);
-    assert.equal(stored().revision, material.revision + 1);
+    const scrubbed = `document.querySelector(${quoted(area + ' [role="status"]')})?.textContent === "到原处核对执行结果"
+      && !document.querySelector(${quoted(area + ' .mw-presentation, ' + area + ' [data-framed-control]')})`;
+    await b.waitFor(`document.documentElement.dataset.slotTestRead === "disconnected" && ${scrubbed}`);
+    assert.deepEqual([stored().disposition, stored().revision], ["saved", material.revision + 1]);
     assert.equal(committed, 1);
+    const archived = feed.setDisposition(projectId, material.item_id, "archived", stored().revision);
+    // Refresh the same trusted mount; prevent the child's independent Inbox list refresh from replacing this detail.
+    await inbox.evaluate(`document.addEventListener("molis-work:select-item", event => {
+      if (event.detail?.invalidate) event.stopPropagation();
+    }, { capture: true, once: true })`);
+    await b.evaluate(`document.querySelector(${quoted(area)}).dataset.failedRead = "true";
+      document.querySelector('iframe[data-plugin-frame="inbox"]').parentElement.dispatchEvent(new CustomEvent("molis-work:select-item", { detail: { invalidate: true } }));`);
+    await b.waitFor(`document.documentElement.dataset.slotTestRead === "200" && !document.querySelector(${quoted(area + '[data-failed-read]')}) && ${scrubbed}`);
+    const restored = feed.restoreToFeed(projectId, material.item_id, archived.revision);
     await b.command("Network.setCookie", { name: "molis_work_locale", value: "en", url: b.origin }, b.sessionId);
     await b.command("Page.addScriptToEvaluateOnNewDocument", { source: `{
       const original = window.fetch.bind(window);
@@ -134,7 +162,7 @@ async function nativeInboxSurface(t: TestContext, late: boolean) {
     await b.waitFor(`${visible(area + ' .mw-presentation--card')} && document.querySelector(${quoted(area)}).innerText.includes("Check the result at its source")`);
     assert.equal(await b.evaluate(`!!${action("Renamed original offer group")}`), false, "changed wording cannot change a pending command's identity");
     assert.equal(activations.filter(intent => intent === "confirm").length, 1);
-    assert.equal(stored().revision, material.revision + 1);
+    assert.equal(stored().revision, restored.revision);
     assert.equal(committed, 1);
     return;
   }

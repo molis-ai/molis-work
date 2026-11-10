@@ -1,6 +1,6 @@
 # 2026-11-08 中优先级 A 类修复
 
-状态：代码已实施、本地门禁通过（2026-11-10）；IM wheel 浏览器用例待核，产品 Draft PR #2004 的 CI/Full 将在最终头启动，整批尚不标关闭。用户批准 A 类 54 编号；固定基准 main `1b8712618152ff4563e0678fa7167fe6063f8999`。隔离工作树实施；已提交，独立门禁 PR #2003 已推送且 CI 全绿，产品 Draft PR #2004 已创建。未合并、未发布，未操作真实 Home。
+状态：A54 已实施，2026-11-10 按用户授权补齐 PR tasklist 和 CI 后合并；前置 #2003 已经正常队列合入 main（85cec224），产品 #2004 base 已调整为 main 并集成 #2000。首轮 CI/Full 有失败，正在修复与重新验证，整批未关闭；未发布、未操作真实 Home。
 
 ## 范围与决定
 
@@ -88,3 +88,20 @@
 ## PR 交付
 
 2026-11-10：独立门禁 [PR #2003](https://github.com/molis-ai/molis-work/pull/2003)，提交 dd27ea5ff，CI/Verify 全绿；产品 [Draft PR #2004](https://github.com/molis-ai/molis-work/pull/2004)，base 为门禁分支，产品实现提交 b215763d6。此后的本次提交只回填交付元数据，源代码与 build43 / health12 / assets6 一致。父 PR 合入 main 后应调整产品 PR base 并在最终头复核，不把产品合入门禁分支。CI 与 Full 显式在产品最终 head 启动，运行链接及最新结论维护在 PR 描述；未合并、未发布或操作真实 Home。
+
+
+## 2026-11-10 合并授权与首轮 CI 闭环
+
+用户要求“确保 pr tasklist 都通过，并且 ci 都通过的情况下，就合并进去吧”，授权条件满足后按正常合并队列合入。前置 #2003 已在 CI/Verify 通过后入队并合入 main（85cec224793d625be437ee07673fe41caa5fa1d9）；产品 #2004 已改 base 为 main，集成新合入 #2000 的公共合同、内容包与成员版本控制。
+
+首轮 [CI 42661845734](https://github.com/molis-ai/molis-work/actions/runs/42661845734) 与 [Full 42661845524](https://github.com/molis-ai/molis-work/actions/runs/42661845524) 失败。Full 首个失败后取消其他分片，不能当作完整覆盖。已修正：
+
+- D0007/D0337：新版 composer 已移除 activeSend，列表刷新仍引用它，导致错误被静默捕获；删除失效引用，保留当前草稿与 revision 成对覆盖，实际脚本测试也移除伪造变量，整份程序的未声明变量断言保留。
+- D0041/D0078：Web 启动 Runtime 的端口使用会再次准备项目的客户端，演示初始化经动作服务回入同一启动 Promise，形成自我等待。统一 Web 项目端口使用现有 preparePlugins=false 的动作入口，仍保留 Home 准备、动作调度、权限及最终授权检查；所有项目插件共用该入口。演示项目设置删除真实终端场景已恢复，整文件 20/20；Goals 刷新浏览器文件 8/8，均无放宽超时或删除断言。
+- D0057/D0273：目录 2→3 的实际库版本与升级链同步更新 stores.tsv；schema 快照测试 4/4。
+- D0264：兼容性改为当页已读元数据上的纯判断，故障注入从已不调用的逐候选 compatibility 查询移到实际存在的 exact collision metadata 读取；保留两个 owner 的分页读取失败传播、碰撞/拒绝及后页验收，文件 9/9。
+- D0292：生产环境组件板按批准返回 404；CSP 扫描继续覆盖该拒绝，并新增实际生产 capsule HTML 页面，保留至少两页及全部 SAMEORIGIN/frame-ancestors 断言，文件 17/17。
+- Coding 工作区拒绝夹具补齐现行 catalog 的 listProjects，只返回空项目清单，仍拒绝权限/不可用/未装配服务；action-read-compatibility 6/6。
+- Workflows 委托权限测试改从 Feed 真正的 workflow_content 动作取权限；新增 workflow 专用 demo_seed 不是工作流内容站。Workflows 自身精确权限与逐项缺少必需权限的拒绝断言全部保留。
+
+main 整合头整体 build45、boundary45、health13（对照 main 85cec224）通过；API 重新生成无额外变化。剩余浏览器、最终资源、最终头 secrets、CI/Full 和评审状态按 PR tasklist 逐项补验；未成功前保持 Draft、不入队。

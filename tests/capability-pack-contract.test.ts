@@ -44,6 +44,7 @@ const catalogEntry: SkillCatalogEntry = {
   pack: { plugin_id: ref.source.plugin_id, title: "会议技能", version: "1.0.0", publisher_label: "示例", trust: "pinned", scope: "project" },
   state: "manual", settings_revision: 1, enabled: { at: "2026-11-09T00:00:00.000Z", by: "user:someone", scope: "project" }, availability: { available: true },
 };
+const PACK_SOURCE = { kind: "plugin", plugin_id: "io.molis.work.meeting-skills", title: "会议技能", version: "1.0.0", install_id: "inst-1", publisher_label: "示例", trust: "pinned" } as const;
 const common = { name: "会议纪要", description: "把一次会议整理成纪要", version: { label: "第 1 版" }, declares: { tools: [], permissions: [], connector_categories: [] },
   scope: "project", where: ["会议"], availability: { available: true }, usage: { kind: "none" }, export: "reference" } as const;
 const entries: KitReportedEntry[] = [
@@ -82,7 +83,7 @@ test("CPK-03 CPK-04 CPK-09: a report is checked against a closed schema, each ki
   let answer: unknown = { entries };
   const { service, calls } = serving([reporter], () => answer);
   assert.deepEqual(await service.invoke(person, reference(reporter), {}), { entries });
-  answer = { entries: [], packs: [{ install_id: "inst-1", status: "uninstalled", upgraded: { from: "1.0.0", to: "1.1.0", at: "2026-11-09" } }] };
+  answer = { entries: [], packs: [{ source: PACK_SOURCE, description: "", status: "uninstalled", upgraded: { from: "1.0.0", to: "1.1.0", at: "2026-11-09" } }] };
   await service.invoke(person, reference(reporter), {});
   // The input is closed and empty: a reporter reports all it owns in the call's scope, so no kind, no project and no actor come in.
   for (const input of [{ kind: "skill" }, { project_id: "other" }, { actor_id: "x" }]) {
@@ -114,7 +115,7 @@ test("CPK-03 CPK-04 CPK-09: a report is checked against a closed schema, each ki
   }
   answer = { entries: Array.from({ length: KIT_LIMITS.entriesPerReporter + 1 }, (_, n) => ({ ...prompt, entry_id: `p-${n}` })) };
   await assert.rejects(service.invoke(person, reference(reporter), {}), code("actions.output_invalid"), "accepted more entries than one reporter may give");
-  answer = { entries: [], packs: [{ install_id: "inst-1", status: "paused" }] };
+  answer = { entries: [], packs: [{ source: PACK_SOURCE, description: "", status: "paused" }] };
   await assert.rejects(service.invoke(person, reference(reporter), {}), code("actions.output_invalid"), "accepted a pack status nobody defined");
 });
 

@@ -8,7 +8,7 @@ import { promptLayerOf } from "@molis-ai/molis-work-contracts/platform/plugin-ag
 import type { InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { hostLog } from "../host-log.js";
 import {
-  AGENT_PROMPT_MAX_CHARS,
+  AGENT_PROMPT_MAX_CHARS, agentDefinitionErrors,
   type AgentDefinitionRegistration, type AgentDefinitionSource, type AgentPromptRegistration, type AgentPromptRevision, type AgentPromptUse,
   type AgentPromptView, type AgentRoleRegistration, type AgentRoleView, type AgentDefinitionsDiagnostics, type AgentUnregisteredCall,
   type AgentSkillRegistration, type AgentSkillView, type SignedAgentReference, type SignedAgentMaterial,
@@ -18,7 +18,8 @@ import {
 type DatabaseSync = ReturnType<typeof openHomeSqliteDatabase>;
 
 const AGENT_DEFINITIONS_STORE = "agent-definitions";
-const USES_KEPT = 200;
+/** Uses kept per prompt: the AI kit says its counts are of this many recent rows. */
+export const PROMPT_USES_KEPT = 200;
 
 /**
  * The agent definitions store's one current schema (repository-anti-corruption §4.1), with the Skill settings and uses (specs/skill-packs/
@@ -302,6 +303,12 @@ export class AgentDefinitions {
     return { owners, unregistered: unregistered.map(item => ({ ...item })) };
   }
 
+  /** How many uses each prompt has on record and the last one, by key: one read for a whole list (the AI kit's usage). */
+  useCounts(): Map<string, { count: number; last_at: string }> {
+    const rows = this.db.prepare("SELECT key, COUNT(*) AS count, MAX(at) AS last_at FROM prompt_uses GROUP BY key").all() as Array<{ key: string; count: number; last_at: string }>;
+    return new Map(rows.map(row => [row.key, { count: Number(row.count), last_at: row.last_at }]));
+  }
+
   uses(key: string, limit = 20): AgentPromptUse[] {
     return (this.db.prepare("SELECT * FROM prompt_uses WHERE key = ? ORDER BY at DESC LIMIT ?").all(key, limit) as unknown as Array<Omit<AgentPromptUse, "source_ref"> & { source_ref: string | null }>).map(({ source_ref, ...row }) => ({ ...row, ...(source_ref ? { source_ref: storedRef(source_ref) } : {}) }));
   }
@@ -309,7 +316,7 @@ export class AgentDefinitions {
   private recordUse(use: AgentPromptUse): void {
     try {
       this.db.prepare("INSERT INTO prompt_uses(key,at,version,user_revision,caller,source_ref) VALUES (?,?,?,?,?,?)").run(use.key, use.at, use.version, use.user_revision, use.caller, use.source_ref ? JSON.stringify(use.source_ref) : null);
-      this.db.prepare("DELETE FROM prompt_uses WHERE key = ? AND rowid NOT IN (SELECT rowid FROM prompt_uses WHERE key = ? ORDER BY at DESC LIMIT ?)").run(use.key, use.key, USES_KEPT);
+      this.db.prepare("DELETE FROM prompt_uses WHERE key = ? AND rowid NOT IN (SELECT rowid FROM prompt_uses WHERE key = ? ORDER BY at DESC LIMIT ?)").run(use.key, use.key, PROMPT_USES_KEPT);
     } catch (error) { const [owner, prompt] = use.key.split("/"); hostLog.warn("agents", "prompt_use_unrecorded", error, { owner, prompt }); } // A use that fails to record never stops the call; written as owner and prompt, since a key has no `/`.
   }
 
@@ -419,11 +426,27 @@ export function withInstructions(registrations: readonly AgentDefinitionRegistra
   const merged = new Map(registrations.map(registration => [registration.owner_id, structuredClone(registration)]));
   for (const instruction of instructions) {
     const owner = merged.get(instruction.owner_id) ?? { owner_id: instruction.owner_id, source: sourceOf(instruction.owner_id), prompts: [], roles: [] };
-    owner.prompts.push({ prompt_id: instruction.prompt_id, version: instruction.version, kind: "instruction", title: instruction.title, purpose: instruction.purpose,
-      used_by: [...instruction.used_by], body: instruction.body });
+    owner.prompts.push(instructionRegistration(instruction));
     merged.set(instruction.owner_id, owner);
   }
   return [...merged.values()];
+}
+
+/** One instruction as its owner registers it, with the role it works for when it names one. */
+export function instructionRegistration(instruction: InstructionPrompt): AgentPromptRegistration {
+  return { prompt_id: instruction.prompt_id, version: instruction.version, kind: "instruction", title: instruction.title, purpose: instruction.purpose,
+    used_by: [...instruction.used_by], ...(instruction.role_id ? { role_id: instruction.role_id } : {}), body: instruction.body };
+}
+
+/**
+ * An instruction's `role_id` must be a role the same owner declares (specs/capability-pack/contract-design.md §4.2): otherwise the owner's
+ * whole registration is refused, wherever it registers — a plugin's (`pluginAgentRegistration`) or the Host's own (`builtinRegistrations`).
+ */
+export function assertInstructionRoles(registration: AgentDefinitionRegistration): void {
+  const roles = new Set(registration.roles.map(role => role.role_id));
+  const stray = registration.prompts.find(prompt => prompt.role_id !== undefined && !roles.has(prompt.role_id));
+  if (stray) throw agentDefinitionErrors.instruction_role_unknown(`指令 ${stray.prompt_id} 说它为角色 ${stray.role_id} 做事，但 ${registration.owner_id} 没有声明这个角色`,
+    { owner_id: registration.owner_id, prompt_id: stray.prompt_id, role_id: stray.role_id! });
 }
 
 /** This store in the Home's store registry (W4-11). */

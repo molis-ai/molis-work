@@ -449,6 +449,9 @@ importers:
       '@molis-ai/molis-work-service-connector-host':
         specifier: workspace:*
         version: link:../../horizontal/connector-host
+      '@molis-ai/molis-work-service-kit':
+        specifier: workspace:*
+        version: link:../../horizontal/kit
       '@molis-ai/molis-work-service-knowledge':
         specifier: workspace:*
         version: link:../../horizontal/knowledge
@@ -668,6 +671,12 @@ importers:
         version: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-memory-p0.tgz
 
   horizontal/connector-host:
+    dependencies:
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
+
+  horizontal/kit:
     dependencies:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*

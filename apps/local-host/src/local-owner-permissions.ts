@@ -24,6 +24,7 @@ import { ARTIFACT_ACTION_PERMISSIONS, ARTIFACTS_PROVIDER_ID } from "@molis-ai/mo
 import { agentTaskGrantActions } from "@molis-ai/molis-work-contracts/services/agent-task-grants";
 import { SKILLS_PROVIDER_ID, SKILLS_PERMISSIONS, skillImportActions } from "@molis-ai/molis-work-contracts/services/skills";
 import { TASK_GRANTS_PROVIDER_ID } from "./task-grant-actions.js";
+import { KIT_AGENT_DEFINITIONS_PROVIDER_ID, KIT_AGENT_TOOLS_PROVIDER_ID, KIT_PROVIDER_ID, KIT_READ_PERMISSION } from "@molis-ai/molis-work-contracts/services/kit";
 
 const asks = (definitions: Iterable<{ readonly action?: { readonly permissions: readonly string[] } }>) =>
   [...definitions].flatMap(definition => definition.action?.permissions ?? []);
@@ -50,6 +51,10 @@ function ownerProviders(): ReadonlyMap<string, readonly string[]> {
     // Importing Skills is installing the package the import makes: the same provider, the person's own (batch 08, 08-8).
     [PLUGIN_INSTALL_PROVIDER_ID, [...PLUGIN_INSTALL_PERMISSIONS, ...asks(Object.values(skillImportActions))]],
     [SKILLS_PROVIDER_ID, SKILLS_PERMISSIONS],
+    // The AI kit and the Host's own reporters it gathers: the person's to read (specs/capability-pack/contract-design.md §4.7).
+    [KIT_PROVIDER_ID, [KIT_READ_PERMISSION]],
+    [KIT_AGENT_TOOLS_PROVIDER_ID, [KIT_READ_PERMISSION]],
+    [KIT_AGENT_DEFINITIONS_PROVIDER_ID, [KIT_READ_PERMISSION]],
     [INFORMATION_PROVIDER_ID, asks(Object.values(informationActions))],
     [FUNCTIONS_PROVIDER_ID, asks([...Object.values(functionsActions), ...Object.values(functionAuthoringActions), ...Object.values(functionContextActions)])],
     [PROJECT_WORKSPACE_PROVIDER_ID, asks([...Object.values(projectDirectoryActions), ...Object.values(materialRecentActions), ...Object.values(materialOriginActions)])],

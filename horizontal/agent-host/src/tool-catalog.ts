@@ -20,6 +20,9 @@ export interface AgentToolEntry {
   description: string;
 }
 
+/** The Agent runtime the runtime tools come from: the vendored SDK (vendor/prologue-sdk), as the AI kit names their source. */
+export const AGENT_RUNTIME = { package: "@prologue/sdk", version: "0.0.0-rc.1" } as const;
+
 /** The capability-checking tool of the plugin creation desk's code role (adapters/plugin-builder.ts). */
 export const PLUGIN_CHECKS_TOOL = "plugin-checks";
 

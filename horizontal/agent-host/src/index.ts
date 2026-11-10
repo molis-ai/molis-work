@@ -37,7 +37,7 @@ export { AgentReviewQueue } from "./reviews.js";
 export type { AgentRoundSkillCatalog, AgentSkillSource } from "./round-skills.js";
 export type { AgentHostWorktree } from "./run-start.js";
 export { emptyCapabilityMatrix } from "./capabilities.js";
-export { AGENT_TOOLS, isAgentTool, RUNTIME_TOOLS_NOT_OFFERED, type AgentToolEntry } from "./tool-catalog.js";
+export { AGENT_RUNTIME, AGENT_TOOLS, isAgentTool, RUNTIME_TOOLS_NOT_OFFERED, type AgentToolEntry } from "./tool-catalog.js";
 export {
   PrologueCredentialBridge,
   prologueAcceptsProtocol,

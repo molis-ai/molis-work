@@ -1,12 +1,14 @@
 # 2026-11-08 中优先级 A 类修复
 
-状态：A54 已实施，2026-11-10 按用户授权补齐 PR tasklist 和 CI 后合并；前置 #2003 已经正常队列合入 main（85cec224），产品 #2004 base 已调整为 main 并集成 #2000。首轮 CI/Full 有失败，正在修复与重新验证，整批未关闭；未发布、未操作真实 Home。
+> 归档（2026-11-10）：判定为**已实现**。A54 已批准修复经最终 CI、Full 32 分片与正常合并队列验证后，由 [PR #2004](https://github.com/molis-ai/molis-work/pull/2004) 合入 main（46a28f45681f4b9644a8b90fda4c3291915e9b56）。B/C 未决项不属于本批；真实 Home 维护和实际桌面更新现场未操作。
+
+后文为各阶段的原始过程记录；当前交付结论以本归档判定和末节最终合入证据为准。
 
 ## 范围与决定
 
-逐编号问题、报告建议与归位评估见[日评记录](../../docs/reviews/daily-quality/2026-11-08-medium.md)。B/C 未决项不在本批。验收编号沿用报告 D 编号，测试名或注释标出对应编号；共用机制覆盖同根因路径，各编号分别保留验收对应。
+逐编号问题、报告建议与归位评估见[日评记录](../../../docs/reviews/daily-quality/2026-11-08-medium.md)。B/C 未决项不在本批。验收编号沿用报告 D 编号，测试名或注释标出对应编号；共用机制覆盖同根因路径，各编号分别保留验收对应。
 
-用户已批准每位成员最多 8 条 SSE；批准 Feed 通用 Manifest 演示动作、Runtime 全部启动后由 Feed 初始化及 RSS 路由归 RSS integration；批准 server 公共组合端口与 `molis-work server …` 启动入口。证据与重大调整理由见[补充方案](../../docs/reviews/daily-quality/2026-11-08-medium-supplement.md)。用户另批准[最终页面资源变化及一次性放行](../../docs/reviews/daily-quality/2026-11-08-medium-resources.md)，不调整预算或门禁阈值。
+用户已批准每位成员最多 8 条 SSE；批准 Feed 通用 Manifest 演示动作、Runtime 全部启动后由 Feed 初始化及 RSS 路由归 RSS integration；批准 server 公共组合端口与 `molis-work server …` 启动入口。证据与重大调整理由见[补充方案](../../../docs/reviews/daily-quality/2026-11-08-medium-supplement.md)。用户另批准[最终页面资源变化及一次性放行](../../../docs/reviews/daily-quality/2026-11-08-medium-resources.md)，不调整预算或门禁阈值。
 
 ## 实施与验收对应
 
@@ -159,3 +161,11 @@ D0191 与 D0225 统一为一条记忆交接路径：URL 仍只带十分钟/最�
 整合后定向：tests39 的其余八文件全部通过（隔离帧安全 10/10、跨项目助理 2/2、看板 2/2、状态环 1/1、金样 70/72、胶囊 12/12、连接 10/10、SQLite 基线 12/12）。记忆交接新测试启用 Page 事件并等待真实导航后，tests41 整份 21/21 通过，既有断言没有放宽。一次筛选参数误写已按自身 PID 停止，未计有效验证。
 
 合并后的机器登记补回 Workbench 翻译确实消费的 IM 公共包（package、锁文件与包登记一致），只删测试子集清单的重复行，原文件仍在清单中。boundary53 与 health20 对 main fad49e455 通过；assets10 的 main 隔离构建实测 52 资源通过（工作台 +1132、frame +689），许可未扩大。仅 package/登记/测试补齐后进行 build52，最终云端验收与合并状态维护在 PR tasklist。
+
+
+## 最终合入证据（2026-11-10）
+
+- 产品验收提交 fe37c5f6f916dad7f51880fc902a411f63faac07：[CI / Verify 42768511684](https://github.com/molis-ai/molis-work/actions/runs/42768511684) 全部适用作业成功；[Full 42768505191](https://github.com/molis-ai/molis-work/actions/runs/42768505191) 全部 32 分片与汇总成功，没有失败或取消。
+- [正常合并队列 CI / Verify 42772928990](https://github.com/molis-ai/molis-work/actions/runs/42772928990) 全部适用作业成功；2026-11-10 07:18:17 UTC 合入 main，合并提交 46a28f45681f4b9644a8b90fda4c3291915e9b56。其内容树与已验证产品提交同为 1be8c59de8545a026790948724e9f443c793699c。
+- [PR #2004](https://github.com/molis-ai/molis-work/pull/2004) 的十项合并 tasklist 全部通过；最终 reviews、普通评论与行内评论均无待处理意见。前置门禁 [PR #2003](https://github.com/molis-ai/molis-work/pull/2003) 已先经正常队列合入 main。
+- 本归档只补交付状态、历史记录位置与引用，不改变产品源码、批准范围、资源许可、门禁或发布状态。

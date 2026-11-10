@@ -593,7 +593,11 @@ UPG-01 仅允许 `server/server.sqlite`、版本 1、本次准确基点结构与
 
 最后三文件在 `9472b33f54` 的独立窄复核中无剩余 Blocker/P1/P2。同源 Node 24.15 构建的[签包浏览器](../../tests/security-invariants-signed-surface-slots.e2e.test.ts)定向 1/1 通过，办结或忽略后旧行和确认控件移除，保留无敏“已完成”回执。[原生丢回执用例](../../tests/surface-cross-positions.e2e.test.ts)定向 1/1 通过，真实保存仅提交一次，尾检拒绝后读断线，再由原 owner 归档触发 HTTP 200 空读，同一挂载位继续提示到原处核对且不留旧内容或操作。恢复后换语言、改显示标题并重开也未重发。工作台和插件承载的准确增量已按 §17.1 批准。历史金样证据在 §17.2，真实 MiniMax 创作台设计 smoke 见[公共来源与呈现 §7](../shared-sources-and-surfaces/spec.md#7-sdk-里共用的校验)。
 
-[第 20 批 #2000](https://github.com/molis-ai/molis-work/pull/2000) 已合入，采用实际项目成员动作的入口见[组合服务 §14.5](../surface-composition/spec.md#s2-membership-adoption)。截至核对，`main` 仍拒绝内置 `ui.locales`，第 16 批 C 段暂停，取词及签包语言接线须接实际切换。一次统一同步后，按实际差异用 `node scripts/affected-tests.mjs --readme-extras` 选定向用例并加原验收，覆盖成员启用、签包原页授权、取词去敏和不重读、真实十二组合、历史金样、版本与快照、视觉与 Host 资源。全部测试、公共 C／D 最终合审、唯一 PR、CI Full 和本人验收按各自结果记录。
+[第 20 批 #2000](https://github.com/molis-ai/molis-work/pull/2000) 已合入，采用实际项目成员动作的入口见[组合服务 §14.5](../surface-composition/spec.md#s2-membership-adoption)。截至核对，`main` 仍拒绝内置 `ui.locales`，取词及签包语言接线须接实际切换。一次统一同步后，按实际差异用 `node scripts/affected-tests.mjs --readme-extras` 选定向用例并加原验收，覆盖成员启用、签包原页授权、取词去敏和不重读、真实十二组合、历史金样、版本与快照、视觉与 Host 资源。全部测试、公共 C／D 最终合审、唯一 PR、CI Full 和本人验收按各自结果记录。
+
+**App 装配收口（2026-11-09）。** 第 16 批 C 段已恢复实施，正式切换仍待合入。`main` 的 [#2003](https://github.com/molis-ai/molis-work/pull/2003) 开始逐文件计 App 导入点。用 `85cec22479` 的规则测 `63b777420b`，`surface-home-directory.ts`、`surface-home-display.ts`、`surface-project-read.ts`、`surface-slot-controls.ts` 各新增一个 Host→Workbench 导入点，当前主线也没有这四个点。同步前在独立子分支收回它们，保持一次统一同步的安排。
+
+三处仅使用显示投影的类型，原类型归入 Host 和 Workbench 都已依赖的私有 Design System，与共同呈现参数放在一起。它们仍描述同一 HTTP 结果，不进 `surfaces.compose@1` 的公开返回、SDK 或持久化。首页实际复用的导航排序和舞台选择分别经 Host 已有插件目录／项目舞台装配文件调用原 Workbench 实现，沿用两个既有 App 导入点；适配只给首页所需的顺序和舞台数据，不另转出 Workbench 或复写选择规则。保持双实例来源、精确安装、停用状态、表单与跨位置授权。验收为用 #2003 同一规则确认相对原基点无新增 App 导入点，核构建与改动边界；项目和签包真实导航保留原用例，统一同步后一起验证。最终合入前仍需按实际集成头重测资源和原验收。
 
 ## 附录 A：Molis-Club 演示里可参考的组件
 

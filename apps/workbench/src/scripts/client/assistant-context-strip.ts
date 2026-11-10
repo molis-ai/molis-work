@@ -34,7 +34,7 @@ export const ASSISTANT_CONTEXT_STRIP_FACTORY_SCRIPT = String.raw`(input) => {
   const chip = (item) => {
     if (item.work) {
       const go = el("button", "assistant-strip-chip is-work", "→ " + item.work.title); go.type = "button";
-      go.title = item.label; go.setAttribute("aria-label", L("切换到这项工作") + "：" + item.work.title);
+      go.title = item.label; go.setAttribute("aria-label", L("切换到这项工作：{title}", { title: item.work.title }));
       go.addEventListener("click", () => input.go(item.work));
       return go;
     }
@@ -44,8 +44,8 @@ export const ASSISTANT_CONTEXT_STRIP_FACTORY_SCRIPT = String.raw`(input) => {
     // The arrow and the short name are for the eye; a screen reader hears the whole sentence (「放进去的位置：…」).
     if (item.landing) { const arrow = el("span", "", "→"); arrow.setAttribute("aria-hidden", "true"); label.setAttribute("aria-hidden", "true"); node.append(arrow, el("span", "mw-sr-only", item.note)); }
     node.append(label);
-    if (item.optional) node.append(el("span", "assistant-strip-note", L("没加入")), act("+", L("加入") + "：" + item.label, () => input.add(item)));
-    else node.append(act("×", L("不带上") + "：" + item.label, () => { if (item.landing) { left = landing.object.id; paint(); } else input.drop(item); }));
+    if (item.optional) node.append(el("span", "assistant-strip-note", L("没加入")), act("+", L("加入：{title}", { title: item.label }), () => input.add(item)));
+    else node.append(act("×", L("不带上：{title}", { title: item.label }), () => { if (item.landing) { left = landing.object.id; paint(); } else input.drop(item); }));
     return node;
   };
   // Where a thing would be put on the left, as its owner reported it (molis:surface-landing): one chip after the rest, there

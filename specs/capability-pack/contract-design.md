@@ -769,10 +769,9 @@ export interface PluginPackageExport {
   - 本机做的、本机导入的，本来就是这个 Home 的发布身份签的（`home_local`）；
   - 第三方的带原签名（`pinned`）；
   - 所以「第三方不被换成本机签名」由「从不重签」保证（CPK-06）。
-- **下载路由**：`GET /projects/<id>/api/plugin-trust/packages/<install_id>/export`（插件管理已有的本人入口，见第 10 节）。
-  - 宿主受保护入口，只认本人，拒插件页面（`pluginPageRequest`）。
-  - 调同一个动作，加 `Content-Disposition: attachment`。
-  - 「导出这个包」只要内容包时用路由下载，要放进能力包文件时调动作。动作是授权所在，两条路同一份字节。
+- **页面入口**：能力包页的 `POST /api/kit/package-export`（项目里是 `/projects/<id>/api/kit/…`，见第 10 节）。
+  - 宿主受保护入口，只认本人，拒插件页面（`pluginPageRequest`）；能力包页的其余动作同在 `/api/kit/` 下。
+  - 「导出这个包」在页面里把动作的回答放进能力包文件再存盘；不另开下载路由。
 - **拒绝**：`plugin.export_unavailable`，`details.reason` 三种：
   - `host_build`：随宿主构建的内置插件，没有可分发的包，只带引用；
   - `not_content_package`：带运行代码的应用包，只带引用；
@@ -851,7 +850,7 @@ export interface PromptOverridesFile {
 7. 非点名的系统提供方报 `runtime`／`outbound` 来源，或报不在它表里的包：丢掉，进 `issues`。任一系统提供方（`system.skills`、`system.agent-definitions`、Agent Host 的 MCP 库上报者、连接器）报到 `plugin:<install_id>` 的条目，而那个安装不在包头里，或它的插件 id 与条目来源的插件 id 不同：丢掉，进 `issues`。四个提供方各一个用例。
 8. 插件上报者的 `manage.href` 指向别的插件页面、宿主设置页或外站：`manage` 被去掉。
 9. 列一份有项目 MCP 与连接 MCP 的能力包：`AgentMcpLibrary.control`／`call` 与连接器刷新的调用次数都是 0。
-10. Agent 调 `plugins.package.export@1` 与三个提示词改写动作被拒。没有 `user_action` 的确认被拒。插件页面请求下载路由被拒。
+10. Agent 调 `plugins.package.export@1` 与三个提示词改写动作被拒。没有 `user_action` 的确认被拒。插件页面请求能力包页的路由被拒。
 11. 导出的第三方包字节与留存的一致，签名者不变。
 12. 提示词改写的几种拒绝：
     - 预览的 `preview_id` 不能用于确认：别人的、别的项目的、用过一次的；
@@ -944,7 +943,7 @@ export function isAgentTool(name: string): boolean;
 | 9 | 调用次数 | <ul><li>打开能力包 1 个请求、1 遍目录发现、每个上报者 1 次；打开包与条目不另发请求。</li><li>不连 MCP。</li><li>`prompt_uses` 等按键批量读，一个上报者内不逐条开库（写手按 N42～N44 量）。</li></ul> |
 | 10 | 升级与数据 | <ul><li>包头带上次升级；技能照 08。</li><li>提示词显示基于的版本与默认版本，导回时版本对不上不套用。</li><li>MCP 显示发现差异。</li><li>导出不重签，升级后的包照常导。</li></ul> |
 | 11 | 成果与过程项 | 导出的文件是给人留存的文件，不进成果库（与 08 的内容包一样）；Character 定义沿用已有成果类型 |
-| 12 | 页面、外壳与文字 | <ul><li>能力包是设置里的一节，定样 A 已选；设置页合并按第 9.1 节。</li><li>条目文字按第 4.10 节。</li><li>不加 DOM 事件，要加就登记。</li><li>下载走宿主受保护路由。</li><li>页面资源增长写明，超 10 KB 先问。</li></ul> |
+| 12 | 页面、外壳与文字 | <ul><li>能力包是设置里的一节，定样 A 已选；设置页合并按第 9.1 节。</li><li>条目文字按第 4.10 节。</li><li>不加 DOM 事件，要加就登记。</li><li>导出走宿主受保护路由。</li><li>页面资源增长写明，超 10 KB 先问。</li></ul> |
 | 13 | 错误 | `defineErrorCodes`，第 4.11 节；主人表加 `kit` 一条（已定） |
 | 14 | 冲突面 | <ul><li>`agent-definitions/`（C）、`agent-host-composition.ts`（C）、`plugin-install-actions.ts`（C）、`apps/mcp`（C）；</li><li>`horizontal/agent-host`（C2）；</li><li>`modules/characters`（规则 7）；</li><li>Coding 设置页（B）、`assistant-present.ts`（A）、设置页与组件板（D）。</li></ul>枢纽文件：`tooling/gates/actions/host-actions.tsv`、`tooling/gates/api/`、`tooling/versions.json`、`tooling/gates/error-owners.json`、`docs/system/security-invariants/` |
 | 15 | 全局最优 | <ul><li>插件：插件就是包，作者只多写一个上报动作，可选地给直接调模型的提示词写 `role_id`。</li><li>平台：不建注册表、不存包，复用使用位置与系统搜索的上报模式，放 `horizontal/` 守 11-01 的规矩。</li><li>助理：个人助理成了没归属提示词的挂处，与执行事实一致；Agent 继续读 08 的 `skills.catalog.list@1`，以后按类开受众不用改上报者。</li><li>各类平台能力：授权、连接、MCP 调用链不动；第 74 批的统计读同一批记录。</li><li>后续开发：用户自组包（BL）以后只加一种 `pack_id` 前缀与一个主人，条目与上报不改；第 61-3 批的候选读上报，不另建；第 72 批在同两种文件上补冲突与恢复。</li><li>代价：多付在 9-10，每个主人都要写一个上报动作，汇总处要拼包；换来主人边界与第三方可用。</li></ul> |
@@ -1026,7 +1025,7 @@ CPK-13、CPK-14 是第 3 稿新加的，同一提交写进能力包需求 §11�
 | `b09/delegation` | 9-3：委派时带 `run.start.skills`，宿主写绑定的 `named_skills` 与 `locale`；`S-skill-delegation` 全部拒绝测试 | A，Opus 5.5 high（安全） | `b09/freeze`、`b09/assistant` 合回 | `assistant-dispatch.ts`、`assistant-executor.ts`、`assistant-round-materials.ts`、`docs/system/security-invariants/`、`tests/security-invariants-skill-delegation.test.ts` |
 | `b09/scripts` | 9-5b（SKP-09）；2026-11-09 移出本批，只留移出记录（第 3.6 节结果） | C2，Opus 5.5 high | `b09/freeze` | `horizontal/agent-host/`、沙箱规则 |
 | `b09/tools` | 9-9：<ul><li>工具全集；</li><li>`RUNTIME_TOOLS_NOT_OFFERED` 替掉 `prologue-taskboard.ts` 的排除；</li><li>`host_tools` 检查、对齐测试；</li><li>MCP 收口。</li></ul>`AGENT_TOOLS` 与 `isAgentTool` 从 `horizontal/agent-host` 导出，在本片做完。接力：`assistant-present.ts` 的键约束由 A 在 `b09/delegation` 之后做；Coding 设置页由 B 做 | C2 起；Opus 5.5 medium | `b09/freeze`（同包串行）；与 `b09/scripts` 不能并行（同包） | `horizontal/agent-host/src/{tool-catalog,…}.ts`、`apps/mcp/`、`docs/mcp.md`、`plugins/native/coding/src/browser/settings/mcp.ts`、`assistant-present.ts` |
-| `b09/kit` | 9-10：<ul><li>`horizontal/kit`：汇总、来源与包盖章、拼包、状态、系统提供方表；</li><li>`kit-actions.ts`；</li><li>各上报者，含插件安装服务的包头与 `agent.tools.kit.report@1`；</li><li>`role_id` 的登记校验（`plugin-instructions.ts`、`builtin-agents.ts`）；</li><li>只消费 `horizontal/agent-host` 导出的 `AGENT_TOOLS`，不改它。</li><li>`plugins.package.export@1` 与下载路由；</li><li>提示词改写三个动作。</li></ul> | C，Opus 5.5 high；Characters 一侧按规则 7 | `b09/assistant`（`methods()` 去角色）、`b09/tools`（工具全集） | `horizontal/kit/`、`apps/local-host/src/kit-actions.ts`、`plugin-install-actions.ts`、`plugin-instructions.ts`、`agent-definitions/`、`modules/characters/`、`services/agent-definitions.ts` |
+| `b09/kit` | 9-10：<ul><li>`horizontal/kit`：汇总、来源与包盖章、拼包、状态、系统提供方表；</li><li>`kit-actions.ts`；</li><li>各上报者，含插件安装服务的包头与 `agent.tools.kit.report@1`；</li><li>`role_id` 的登记校验（`plugin-instructions.ts`、`builtin-agents.ts`）；</li><li>只消费 `horizontal/agent-host` 导出的 `AGENT_TOOLS`，不改它。</li><li>`plugins.package.export@1`；</li><li>提示词改写三个动作。</li></ul> | C，Opus 5.5 high；Characters 一侧按规则 7 | `b09/assistant`（`methods()` 去角色）、`b09/tools`（工具全集） | `horizontal/kit/`、`apps/local-host/src/kit-actions.ts`、`plugin-install-actions.ts`、`plugin-instructions.ts`、`agent-definitions/`、`modules/characters/`、`services/agent-definitions.ts` |
 | `b09/kit-page` | 9-11：<ul><li>按定样 A 实现；</li><li>设置页合并（第 9.1 节）；</li><li>「导出这个包」的组装与导回的解析。</li></ul> | D，按定样 | `b09/kit` | 设置页、组件板、`apps/workbench/src/settings-skills.ts` 一带 |
 | `b09/docs` | 9-7、9-12 收口与归属 | 任一写手，Sonnet 5.5 xhigh | 9-1～9-4 写法稳定 | `skills/molis-plugin-dev/`、`docs/` |
 
@@ -1098,7 +1097,7 @@ CPK-13、CPK-14 是第 3 稿新加的，同一提交写进能力包需求 §11�
 | 第八节第 5 条：`methods:<会话>` 等用户定，推荐「不认不迁、提示重选」 | 一次清掉：旧路、旧存储、旧形状全删，不认、不迁、不兜底、不提示 | 用户 2026-11-09 定：现在没有用户（第 2.7 节） |
 | 能力包是「五类按类汇总的一张目录」 | 「包 → 条目」：<ul><li>插件就是包，另有自带包与「你的角色」；</li><li>角色带提示词；</li><li>包的状态从内容读出。</li></ul> | 用户 2026-11-09 更正模型、选定样 A（第 4.1～4.4 节） |
 | 导出按类各出一份文件（第 1、2 稿的引用文件） | 「导出这个包」出一种文件，几部分各回主人的路；按类的引用文件去掉 | 以包为单位导出（设计台缺口第 4 条） |
-| 下载路由 `GET /api/plugins/packages/:install_id/export` | `GET /projects/<id>/api/plugin-trust/packages/<install_id>/export` | 插件管理已有本人入口 `/api/plugin-trust/`（宿主受保护、拒插件页面），不另开第二个门；同一个动作、同一份字节（9-10） |
+| 下载路由 `GET /api/plugins/packages/:install_id/export` | 能力包页的 `POST /api/kit/package-export`（与列包、提示词改写三个动作同一个入口），不单开下载路由 | 「导出这个包」总是写能力包文件，内容包放在文件里；页面只要动作的回答，一个入口少一扇门（9-10 先放在 `/api/plugin-trust/`，9-11 页面接上时收进 `/api/kit/`） |
 | MCP 工具登记成动作的，「读动作调用记录，`recent`」 | MCP 工具的用量是 `not_counted` | 调用记录是诊断日志，全 Home 共一个上限（留最近 1000 条命令），既不是每键行数也不是天数，读出来的计数会误导；真正的用量要等两条 MCP 动作流水线合并（BL，9-12）后由动作主人记（9-10） |
 | 连接 MCP 的 `configuration_version` | 取连接最近一次修改的时间（秒） | 连接没有自己的配置版本号；修改时间单调、读得到，不另造计数（9-10） |
 | 对外 MCP 一条（开给谁在 `granted_to`） | 每个开着授权的客户端一条，`ref` 是那个客户端 | `KitMcpRef` 的 `outbound` 一部分本来就带 `client_id`；一条一个客户端，「去处」直接到它的授权页（9-10） |

@@ -162,14 +162,16 @@ test("S-kit-catalog 10: an Agent cannot export a package or move prompt edits; a
   await assert.rejects(h.invoke(promptOverrideActions.confirm, { preview_id, row_ids: ["y"] }, noAct), rejects("actions.forbidden"));
 });
 
-test("S-kit-catalog 10: a plugin's page cannot reach the package download", { timeout: 60_000 }, async t => {
+test("S-kit-catalog 10: a plugin's page cannot reach the kit page's routes", { timeout: 60_000 }, async t => {
   const a = homeProbe("kitexport");
   const f = await serveHomeRuntime(t, { pluginFixtures: { home: [a.definition] } });
   await grantHomeProbe(f.host, a);
   const opened = await f.request("/api/host/plugin-pages", { method: "POST", body: { plugin_id: a.id } });
   const { page_id } = await opened.json() as { page_id: string };
-  const response = await f.request("/projects/any/api/plugin-trust/packages/any/export", { headers: { "x-molis-plugin-page": page_id } });
-  assert.equal(response.status, 403, await response.text());
+  for (const path of ["/api/kit/list", "/api/kit/package-export", "/api/kit/prompt-overrides/export", "/projects/personal/api/kit/package-export", "/projects/personal/api/kit/prompt-overrides/preview"]) {
+    const response = await f.request(path, { method: "POST", body: {}, headers: { "x-molis-plugin-page": page_id } });
+    assert.equal(response.status, 403, `${path}: ${await response.text()}`);
+  }
 });
 
 test("S-kit-catalog 11: a third party's content package exports exactly as kept, with its own signer", { timeout: 120_000 }, async t => {

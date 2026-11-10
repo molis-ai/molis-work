@@ -31,7 +31,7 @@ pnpm --filter @molis-ai/molis-work-service-kit build
 - 不负责：任何条目的事实（技能、提示词、角色、工具、MCP 与包头各归其主人）、存储、权限的授予、导出与导回（各部分走主人自己的动作）、界面。
 - 公开入口：`@molis-ai/molis-work-service-kit`（`src/index.ts`，经 `dist` 导出）；合同 `@molis-ai/molis-work-contracts/platform/kit-report`、`@molis-ai/molis-work-contracts/services/kit`。
 - 依赖：`@molis-ai/molis-work-contracts`。方向：只依赖合同；不读任何主人的库与文件（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
-- 不变量（安全不变量 [S-kit-catalog](../../docs/system/security-invariants/S-kit-catalog.md)）：
+- 不变量：（安全不变量 [S-kit-catalog](../../docs/system/security-invariants/S-kit-catalog.md)）
   - 只用调用方自己的客户端：调用方看不到的上报者不调；上报者按合同类型发现，不维护名单。
   - 来源与所属的包由汇总处盖章，不信上报者自称：插件上报者的条目一律盖成它自己的安装；系统提供方只有在 `KIT_SYSTEM_REPORTERS` 里点名、且背后没有插件安装时才可信，并只在它那一行允许的类、来源与包里。
   - `manage.href` 只能指向上报者自己的地方：插件只到自己的 `/plugins/<plugin_id>`，系统提供方只到宿主设置；其余去掉。

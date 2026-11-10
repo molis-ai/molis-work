@@ -78,7 +78,6 @@ ${TIP_CLIENT_SCRIPT}
 </script>
     <script>${UI_REQUEST_CLIENT_SCRIPT}${input.appearance ? DEVICE_PREFERENCES_CLIENT_SCRIPT : ""}</script>${appearanceClientTag(input.appearance)}
     <script>${SIDE_LINKS_SCRIPT}${homeToolKeysScript()}
-      const readText = globalThis.t.text;
       // This document is the view's host: the work surface a plugin reuses here waits, hidden, for its host to show it
       // (the workbench's surface manager does that on the stage), and its client only starts once it is visible.
       for (const surface of document.querySelectorAll('[data-side-view-root] > [data-work-surface][hidden]')) surface.hidden = false;
@@ -105,7 +104,7 @@ export function sideViewBridgeScript(routePrefix: string): string {
       // the toolbar the top document sends it and sends the choices back, through the same checks.
       {
         const messages = ${PANE_MESSAGES_SCRIPT}, forwarded = ${SIDE_FORWARD_SCRIPT};
-        (${CONTEXT_PANE_FACTORY_SCRIPT})({ translate: readText, paneMessages: messages, route: path => ${route} + path });
+        (${CONTEXT_PANE_FACTORY_SCRIPT})({ translate: globalThis.t.text, paneMessages: messages, route: path => ${route} + path });
         if (window.parent !== window) for (const name of forwarded.names) addEventListener(name, (event) => {
           try { window.parent.postMessage({ type: "molis:side-forward", name, detail: event.detail }, location.origin); }
           catch { /* a detail that cannot be copied stays in this document */ }

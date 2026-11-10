@@ -1,4 +1,4 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { dateArg, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { textCell } from "./dom.js";
 import type { Dataset, DatasetPage } from "./types.js";
 
@@ -9,7 +9,7 @@ const whenOf = (value: string) => {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
   const sameYear = date.getFullYear() === new Date().getFullYear();
-  return date.toLocaleDateString(undefined, sameYear ? { month: "short", day: "numeric" } : { year: "numeric", month: "short", day: "numeric" });
+  return uiText.text("common.generated.formatted", { value: dateArg(date.toISOString(), sameYear ? "month-day" : "date") });
 };
 
 /** The directory of tables: its rows, which one is open, and loading and failing to load it. */

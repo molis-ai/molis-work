@@ -1,18 +1,15 @@
+import { pagePack } from "./fixtures/page-text.js";
 import assert from "node:assert/strict";
-import test from "node:test";
-import { createWorkbenchUiHost, inWordsOf, registerPluginMessages } from "@molis-ai/molis-work-app-workbench";
-import { goalsRenderers } from "./goals-page-mount.js";
-import { buildGoalCollectionModel, GOALS_NAVIGATION_CLIENT_FACTORY_SCRIPT, GOALS_REFRESH_CLIENT_FACTORY_SCRIPT, GOALS_TREE_CLIENT_FACTORY_SCRIPT, GOALS_TREE_EN, GOALS_TREE_UI_CONTRIBUTION_ID, goalTreeCreatedLabel, goalTreeCreatorHue, goalTreeCreatorInitial, type GoalsTreeItem, type GoalsTreeView } from "@molis-ai/molis-work-plugin-goals";
+import { createWorkbenchUiHost } from "@molis-ai/molis-work-app-workbench";
+import { goalsRenderers, testGoalUi as test, withGoalLocale } from "./goals-page-mount.js";
+import { buildGoalCollectionModel, GOALS_NAVIGATION_CLIENT_FACTORY_SCRIPT, GOALS_REFRESH_CLIENT_FACTORY_SCRIPT, GOALS_TREE_CLIENT_FACTORY_SCRIPT, GOALS_TREE_UI_CONTRIBUTION_ID, goalTreeCreatedLabel, goalTreeCreatorHue, goalTreeCreatorInitial, type GoalsTreeItem, type GoalsTreeView } from "@molis-ai/molis-work-plugin-goals";
 import type { GoalRelationRecord } from "@molis-ai/molis-work-plugin-goals/contract";
-import { icon } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { L, currentLocale, listJoin, runWithLocale } from "@molis-ai/molis-work-app-local-host";
-import { GOAL_DISPLAY_STATUSES, GOALS_PLUGIN_ID, goalsManifest } from "@molis-ai/molis-work-plugin-goals";
+import { icon, t } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { currentLocale, listJoin } from "@molis-ai/molis-work-app-local-host";
+import { GOAL_DISPLAY_STATUSES } from "@molis-ai/molis-work-plugin-goals";
 
 const escapeHtml = (value: unknown) => String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
-// Goals draws in its own words, declared in its Manifest (PG-071), as the Workbench renderer wires it.
-assert.deepEqual(registerPluginMessages(goalsManifest), []);
-const goalsL = inWordsOf(GOALS_PLUGIN_ID, L);
-const renderer = goalsRenderers.tree({ translate: goalsL, escapeHtml, icon, currentLocale, listJoin,
+const renderer = goalsRenderers.tree({ translate: t.text, escapeHtml, icon, currentLocale, listJoin,
   renderStatus: status => `<span>${status}</span>`, renderActionStatus: status => `<span>${status}</span>`,
   renderVisibleGoalStatus: item => `<span>${item.display_status}</span>`, displayStatuses: GOAL_DISPLAY_STATUSES });
 const item = (id: string, title = id, acceptedBy?: string): GoalsTreeItem => ({
@@ -42,14 +39,14 @@ test("collection selection preserves requested/active precedence without default
       execution_blocked: 2, invalidated: 6 } };
   const before = structuredClone(model);
   const select = (id?: string, archive = false, trash = false) =>
-    buildGoalCollectionModel(model, id, archive, trash, goalsL);
+    buildGoalCollectionModel(model, id, archive, trash, t.text);
   assert.equal(select("requested").selected, requested);
   assert.equal(select("missing").selected, active);
   assert.equal(select().selected, active);
   assert.equal(select(undefined, true).selected, requested, "Archive does not use the current active Goal");
   assert.equal(select("active", true).selected, active);
   assert.equal(select("active", false, true).selected, first);
-  const noDefault = buildGoalCollectionModel({ ...model, active_goal_id: null }, undefined, false, false, goalsL);
+  const noDefault = buildGoalCollectionModel({ ...model, active_goal_id: null }, undefined, false, false, t.text);
   assert.equal(noDefault.selected, undefined, "Current list does not open the first Goal by default");
   assert.doesNotMatch(
     renderer.renderGoalStageList({ ...model, active_goal_id: null }, noDefault),
@@ -58,7 +55,7 @@ test("collection selection preserves requested/active precedence without default
   const current = select();
   // SYS-09: cancellation has its own count and cannot inflate the blocked count.
   assert.equal(current.collectionNote, "需要你决定 1 · 正在推进 2 · 受阻 2 · 已取消 6");
-  assert.match(runWithLocale("en", () => select().collectionNote), /Blocked 2 · Cancelled 6$/);
+  assert.match(withGoalLocale("en", () => select().collectionNote), /Blocked 2 · Cancelled 6$/);
   const full = renderer.renderGoalDirectory(model, current, true);
   const compact = renderer.renderGoalRefreshDirectory(model, current);
   const stage = renderer.renderGoalStageList(model, current);
@@ -81,7 +78,7 @@ test("collection selection preserves requested/active precedence without default
   assert.doesNotMatch(compact, /data-directory-panel|data-goal-list-view/);
   assert.match(compact, /data-tree-scroll/);
   assert.match(compact, /data-goal-collection-fold="current"/);
-  const archive = runWithLocale("en", () => {
+  const archive = withGoalLocale("en", () => {
     const collection = select(undefined, true);
     return {
       directory: renderer.renderGoalDirectory(model, collection, false),
@@ -95,7 +92,7 @@ test("collection selection preserves requested/active precedence without default
   assert.match(archive.stage, /data-goal-collection-fold="archive"[^>]*\sopen/);
   assert.match(archive.stage, /data-collection-open/);
   assert.match(archive.stage, /data-tree-root/);
-  const empty = buildGoalCollectionModel({ ...model, goals: [] }, undefined, false, false, goalsL);
+  const empty = buildGoalCollectionModel({ ...model, goals: [] }, undefined, false, false, t.text);
   assert.equal(empty.selected, undefined);
   assert.equal(empty.selectedId, "");
   assert.equal(empty.title, "Molis Work");
@@ -176,11 +173,10 @@ test("tree chrome keeps status counts, localized copy, and empty states", () => 
   assert.match(html, /tree-create[^>]*>[\s\S]*新建 Goal/);
   assert.match(html, /data-open-create/);
   assert.doesNotMatch(html, /data-collapse-all|折叠全部|Collapse all/);
-  const english = runWithLocale("en", () => renderer.renderTreeChrome(model));
+  const english = withGoalLocale("en", () => renderer.renderTreeChrome(model));
   assert.match(english, /New Goal/);
   assert.doesNotMatch(english, /value="archived" data-status-filter/);
   assert.doesNotMatch(english, /data-collapse-all|折叠全部|Collapse all/);
-  assert.equal("折叠全部" in GOALS_TREE_EN, false);
   assert.doesNotMatch(GOALS_TREE_CLIENT_FACTORY_SCRIPT, /data-collapse-all|handleTreeCollapseAllClick/);
   assert.match(GOALS_TREE_CLIENT_FACTORY_SCRIPT, /\[data-tree-root\] \[data-tree-item\]/);
   assert.match(GOALS_TREE_CLIENT_FACTORY_SCRIPT, /syncGoalCollectionFolds/);
@@ -194,7 +190,7 @@ test("stage list keeps current, archive and trash collection folds", () => {
   const emptyModel = {
     ...view([]), active_goal_id: null, counts: { waiting_for_human: 0, executing: 0, execution_pending: 0, execution_blocked: 0, invalidated: 0 },
   };
-  const emptyCollection = buildGoalCollectionModel(emptyModel, undefined, false, false, goalsL);
+  const emptyCollection = buildGoalCollectionModel(emptyModel, undefined, false, false, t.text);
   const emptyDirectory = renderer.renderGoalDirectory(view([]), emptyCollection, true);
   const empty = renderer.renderGoalStageList(view([]), emptyCollection);
   assert.doesNotMatch(emptyDirectory, /data-goal-collection-fold|data-select-goal|data-tree-root/);
@@ -211,7 +207,7 @@ test("stage list keeps current, archive and trash collection folds", () => {
   const current = item("live");
   const model = { ...view([current]), archived_goals: [archived], trashed_goals: [trashed],
     active_goal_id: "live", counts: { waiting_for_human: 0, executing: 0, execution_pending: 0, execution_blocked: 0, invalidated: 0 } };
-  const html = renderer.renderGoalStageList(model, buildGoalCollectionModel(model, "old", true, false, goalsL));
+  const html = renderer.renderGoalStageList(model, buildGoalCollectionModel(model, "old", true, false, t.text));
   assert.match(html, /data-tree-root/);
   assert.match(html, /data-select-goal="live"/);
   assert.doesNotMatch(html, /data-goal-collection-fold="current"[^>]*\sopen/);
@@ -220,9 +216,9 @@ test("stage list keeps current, archive and trash collection folds", () => {
   assert.match(html, /data-goal-collection-fold="archive"[^>]*\sopen/);
   assert.match(html, /data-collection-tree="trash"/);
   assert.match(html, /data-select-goal="gone"/);
-  const english = runWithLocale("en", () => renderer.renderGoalStageList(view([]), buildGoalCollectionModel({
+  const english = withGoalLocale("en", () => renderer.renderGoalStageList(view([]), buildGoalCollectionModel({
     ...view([]), active_goal_id: null, counts: { waiting_for_human: 0, executing: 0, execution_pending: 0, execution_blocked: 0, invalidated: 0 },
-  }, undefined, false, false, L)));
+  }, undefined, false, false, t.text)));
   assert.match(english, />Current<\/strong>/);
   assert.match(english, /No Goals yet/);
 });

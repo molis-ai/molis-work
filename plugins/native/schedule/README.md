@@ -26,7 +26,7 @@ Host 把任务和 job 记录交给隔离页中的 UI contribution；Plugin Runti
 | [src/route-handlers.ts](src/route-handlers.ts) | 创建、打开、暂停用例 |
 | [src/browser/](src/browser) | 页面的客户端（TypeScript，`tsconfig.browser.json` 检查，esbuild 从 `factory.ts` 打成 `dist/schedule-client.js`）：任务表单、操作审阅与恢复、请求只经 `molisWorkRequest` |
 | [src/client.ts](src/client.ts) | 读这个包，交给工作台的工厂 `SCHEDULE_CLIENT_FACTORY_SCRIPT` |
-| [src/messages.ts](src/messages.ts) | 页面文字的稳定键（中英文），`tests/schedule-client-bundle.test.ts`（RAC-162、RAC-163）钉住 |
+| [locales/zh.json](locales/zh.json)、[locales/en.json](locales/en.json) | 页面文字的稳定键（中英文），`tests/schedule-client-bundle.test.ts`（RAC-162、RAC-163）钉住 |
 
 舞台的数据由打开舞台的视图声明（Manifest 的 `stage_data`，指向 `schedule.tasks.list`）：宿主按这个人、只带这个查询的权限调用，结果是 `StagePageModel.data`，[src/ui.ts](src/ui.ts) 的 `scheduleUiModel` 把它画成舞台（T-133）；运行时的装配见 [src/plugin.ts](src/plugin.ts)。
 

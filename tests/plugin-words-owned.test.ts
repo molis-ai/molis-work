@@ -1,151 +1,95 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import test from "node:test";
 import { runInNewContext } from "node:vm";
-import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { StagePageModel } from "@molis-ai/molis-work-contracts/platform/ui";
-import { createLocalHostWorkbenchRenderer, L, clientI18nScript, ownerLabel, runWithLocale } from "@molis-ai/molis-work-app-local-host";
-import { desktopWorkbenchRendererPorts } from "@molis-ai/molis-work-app-desktop";
-import { registerPluginMessages, renderMcpAccessRows, unregisterPluginMessages, type McpAccessEntry, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
+import { installHostUiText, ownerLabel, runWithLocale, runWithRegisteredText } from "@molis-ai/molis-work-app-local-host";
+import { renderMcpAccessRows, type McpAccessEntry } from "@molis-ai/molis-work-app-workbench";
+import { escapeHtml, say, t } from "@molis-ai/molis-work-plugin-sdk/ui";
+import type { UiLocalePack } from "@molis-ai/molis-work-contracts/platform/ui";
+import { pageTextScript } from "./fixtures/page-text.js";
 
-// PG-071 (hub review 2026-10-25): when the Host draws text a Plugin supplied, it translates it with that Plugin's own
-// dictionary, so a third-party Plugin's action title and deletion-dialog description get English the same way a built-in one
-// does, and the dictionary changes nothing the Host or another Plugin draws.
-
+installHostUiText();
 const ACME = "com.acme.words", OTHER = "com.other.words";
-const TITLE = "整理笔记", DESCRIPTION = "把散落的笔记按主题归到一起", DATA = "笔记本与其中的笔记";
-const declared = (plugin_id: string, ui: PluginManifest["ui"]): Pick<PluginManifest, "plugin_id" | "ui"> => ({ plugin_id, ui });
-const entry = (plugin_id?: string): McpAccessEntry => ({
-  capability_id: "acme.notes.tidy", version: 1, provider_id: ACME, ...(plugin_id ? { plugin_id } : {}), title: TITLE, provider_title: "Acme Notes",
-  description: DESCRIPTION, kind: "operation", permissions: [], status: "ungranted", can_enable: true, can_revoke: false,
+const KEY = "words.panel.title", COUNT = "words.panel.count";
+const ORIGINAL = "整理笔记", DESCRIPTION = "把散落的笔记按主题归到一起", DATA = "笔记本与其中的笔记";
+const reader = (owner: string, en: string) => ({
+  owner, default: "zh",
+  pack(locale: string): UiLocalePack | null {
+    return locale !== "en" && locale !== "zh" ? null : { owner, locale, format_version: 1,
+      messages: { [KEY]: locale === "en" ? en : ORIGINAL, [COUNT]: locale === "en" ? "{count} notes" : "共 {count} 条笔记" } };
+  },
 });
-const primitives = { L, escapeHtml: String };
-const rows = (...entries: McpAccessEntry[]) => renderMcpAccessRows({ entries, query: "", filter: "all" }, primitives);
-const browser = (locale: "zh" | "en") => {
-  const page: { MOLIS_WORK_MESSAGES?: Record<string, string>; LF?: (pluginId: string, key: string, vars?: Record<string, unknown>) => string; LFor?: (pluginId: string) => (key: string, vars?: Record<string, unknown>) => string } = {};
-  runWithLocale(locale, () => runInNewContext(clientI18nScript(), page));
-  return page;
+const acme = reader(ACME, "Tidy notes"), other = reader(OTHER, "Another tidy-up");
+const browser = (locale: string, ...owners: string[]) => {
+  const page = { document: { documentElement: {} }, t: undefined as typeof t | undefined, say: undefined as typeof say | undefined };
+  runInNewContext(pageTextScript(locale, ...owners), page);
+  assert.ok(page.t && page.say);
+  return { text: page.t.text, read: page.say.text };
 };
 
-function withAcme<T>(run: () => T): T {
-  assert.deepEqual(registerPluginMessages(declared(ACME, { contributions: [], translations: { [TITLE]: "Tidy notes", [DESCRIPTION]: "Gathers loose notes by topic", [DATA]: "Notebooks and the notes in them", "共 {count} 条笔记": "{count} notes" } })), []);
-  assert.deepEqual(registerPluginMessages(declared(OTHER, { contributions: [], translations: { [TITLE]: "Other's tidy-up" } })), []);
-  try { return run(); } finally { unregisterPluginMessages(ACME); unregisterPluginMessages(OTHER); }
-}
-
-test("RAC-603 RAC-772 a stage's cross-owner translator keeps the requested owner's words and restores its outer scope", () => withAcme(() => {
-  const view = JSON.parse(readFileSync(new URL("fixtures/goals-page-golden/view.json", import.meta.url), "utf8")) as MolisWorkWebView;
-  const renderer = createLocalHostWorkbenchRenderer(desktopWorkbenchRendererPorts);
-  const stage = renderer.declaredStageModel("goals", view) as StagePageModel;
-  assert.ok(stage.drawing);
-  const words = stage.drawing.inPluginWords;
-  runWithLocale("en", () => {
-    assert.equal(stage.primitives.text(TITLE), TITLE, "Goals does not inherit another plugin's words");
-    assert.equal(words(ACME, translate => {
-      assert.equal(translate(TITLE), "Tidy notes");
-      assert.equal(translate("共 {count} 条笔记", { count: 2 }), "2 notes");
-      assert.equal(translate("设置"), "Settings", "platform words still take precedence");
-      assert.equal(stage.primitives.text(TITLE), TITLE, "the enclosing stage keeps its own bound translator");
-      assert.equal(translate(TITLE), "Tidy notes", "the stage's nested translation restores the requested owner");
-      assert.equal(words(OTHER, other => other(TITLE)), "Other's tidy-up");
-      assert.equal(translate(TITLE), "Tidy notes", "the nested owner restores the outer owner");
-      return "returned";
-    }), "returned");
-    assert.equal(L(TITLE), TITLE, "returning restores the platform scope");
-    const failure = new Error("cross-owner callback failed");
-    assert.throws(() => words(ACME, translate => { assert.equal(translate(TITLE), "Tidy notes"); throw failure; }), failure);
-    assert.equal(L(TITLE), TITLE, "throwing restores the platform scope too");
+test("RAC-603 RAC-772 the exact drawing source owns its words; nested draws and failures restore the outer reader", () => runWithLocale("en", () => {
+  const first = { owner: ACME, key: KEY, fallback: "Not present" };
+  const second = { ...first, owner: OTHER };
+  assert.equal(say.text(first), "Not present");
+  runWithRegisteredText(acme, () => {
+    assert.equal(say.text(first), "Tidy notes");
+    assert.equal(t.text(COUNT, { count: 2 }), "2 notes");
+    assert.equal(t.text("workbench.shell.settings"), "Settings");
+    assert.equal(say.text(second), "Not present", "the same prefix does not bind a different publisher");
+    assert.throws(() => runWithRegisteredText(other, () => {
+      assert.equal(say.text(second), "Another tidy-up");
+      assert.equal(say.text(first), "Not present");
+      throw new Error("draw failed");
+    }), /draw failed/u);
+    assert.equal(say.text(first), "Tidy notes");
   });
-  runWithLocale("zh", () => assert.equal(words(OTHER, translate => translate(TITLE)), TITLE));
+  assert.equal(say.text(first), "Not present");
 }));
 
-test("RAC-770 a third-party Plugin's deletion-dialog description is English in that Plugin's own words, and the Host's own use of the sentence is not", () => withAcme(() => {
-  const owner = { label: DATA, words_of: ACME };
-  runWithLocale("en", () => {
-    assert.equal(ownerLabel(owner), "Notebooks and the notes in them");
-    assert.equal(L(DATA), DATA, "the Host does not read the dictionary for its own drawing");
-    assert.equal(ownerLabel({ label: DATA }), DATA, "an owner that names no Plugin is the Host's, and gets the Host's words only");
-    assert.equal(ownerLabel({ label: DATA, words_of: OTHER }), DATA, "another Plugin's dictionary has nothing for it");
-  });
-  runWithLocale("zh", () => assert.equal(ownerLabel(owner), DATA, "the Chinese page shows the source text"));
-}));
-
-test("RAC-771 a third-party Plugin's action title and description are English where the Host draws them as that Plugin's", () => withAcme(() => {
-  runWithLocale("en", () => {
-    const own = rows(entry(ACME));
-    assert.match(own, /<h3>Tidy notes<\/h3><p>Gathers loose notes by topic<\/p>/);
-    assert.doesNotMatch(own, /整理笔记/);
-    assert.match(rows(entry(OTHER)), /<h3>Other's tidy-up<\/h3><p>把散落的笔记按主题归到一起<\/p>/, "the same title in another Plugin's row is that Plugin's English, and its undeclared description stays");
-    assert.match(rows(entry()), /<h3>整理笔记<\/h3>/, "a row that names no Plugin takes nothing from either dictionary");
-  });
-  runWithLocale("zh", () => assert.match(rows(entry(ACME)), /<h3>整理笔记<\/h3><p>把散落的笔记按主题归到一起<\/p>/));
-}));
-
-test("RAC-2342 platform action text uses the platform dictionary and cannot name an arbitrary Plugin dictionary", () => withAcme(() => {
-  runWithLocale("en", () => {
-    const platform = { ...entry(), provider_id: "io.platform.provider", words_of: ACME };
-    assert.match(rows(platform), /<h3>整理笔记<\/h3>/, "a retired words_of property does not select another owner's dictionary");
-    assert.match(rows({ ...platform, plugin_id: OTHER }), /<h3>Other's tidy-up<\/h3>/, "Plugin-owned text still takes its own dictionary");
-    assert.match(rows({ ...entry(), provider_id: ACME }), /<h3>整理笔记<\/h3>/, "a provider id alone is not a dictionary name");
-    const artifact = { ...entry(), provider_id: "io.molis.work.artifacts", title: "复制引用" };
-    assert.match(rows(artifact), /<h3>Copy reference<\/h3>/, "the Artifact words are in the platform dictionary without a Plugin registration");
+test("RAC-770 RAC-771 RAC-2342 raw deletion descriptions and action titles keep their declared wording", () => runWithLocale("en", () => {
+  const base: McpAccessEntry = { capability_id: "acme.notes.tidy", version: 1, provider_id: ACME, title: ORIGINAL, provider_title: "Acme Notes",
+    description: DESCRIPTION, kind: "operation", permissions: [], status: "ungranted", can_enable: true, can_revoke: false };
+  const rows = (...entries: McpAccessEntry[]) => renderMcpAccessRows({ entries, query: "", filter: "all" }, { readText: t.text, escapeHtml });
+  runWithRegisteredText(acme, () => {
+    assert.equal(ownerLabel({ label: DATA }), DATA);
+    for (const entry of [base, { ...base, plugin_id: ACME }, { ...base, plugin_id: OTHER }]) {
+      const html = rows(entry);
+      assert.match(html, /<h3>整理笔记<\/h3><p>把散落的笔记按主题归到一起<\/p>/u);
+      assert.match(html, /Authorize/u, "the platform’s authorization control still follows the request");
+      assert.doesNotMatch(html, /Tidy notes|Another tidy-up/u);
+    }
+    assert.match(rows({ ...base, provider_id: "io.molis.work.artifacts", title: "复制引用" }), /<h3>复制引用<\/h3>/u);
   });
 }));
 
-test("RAC-772 a Plugin's dictionary cannot change what the Host or another Plugin draws, and a word the Host owns is not replaced", () => {
-  const host = "设置";
-  assert.deepEqual(registerPluginMessages(declared(ACME, { contributions: [], translations: { [host]: "Acme's Settings", [TITLE]: "Tidy notes" } })), []);
-  try {
-    runWithLocale("en", () => {
-      assert.equal(L(host), "Settings", "the Host's own English is what the page shows");
-      assert.equal(L(TITLE), TITLE);
-      assert.match(rows({ ...entry(ACME), title: host }), /<h3>Settings<\/h3>/, "even in the Plugin's own row, the Host's English comes first");
-      assert.match(rows({ ...entry(OTHER), title: TITLE }), /<h3>整理笔记<\/h3>/, "a Plugin that declared nothing is untouched");
-    });
-  } finally { unregisterPluginMessages(ACME); }
-  runWithLocale("en", () => assert.match(rows(entry(ACME)), /<h3>整理笔记<\/h3>/, "once it is unregistered its words are gone"));
+test("RAC-773 RAC-774 projected browser words stay with their owner; Host and other frames cannot read them", () => {
+  const ref = { owner: "io.molis.work.goals", key: "goals.quote.open", fallback: "Not present" };
+  assert.equal(browser("en").read(ref), "Not present");
+  assert.equal(browser("en", "pages").read(ref), "Not present");
+  assert.notEqual(browser("en", "goals").read(ref), "Not present");
+  assert.notEqual(browser("en", "goals").read(ref), browser("zh", "goals").read(ref));
+  assert.equal(browser("en", "goals").text("workbench.shell.settings"), "Settings");
 });
 
-test("RAC-773 the page hands a Plugin's frame its own dictionary through LF/LFor, and no one else's", () => withAcme(() => {
-  const page = browser("en");
-  assert.equal(page.LF?.(ACME, TITLE), "Tidy notes");
-  assert.equal(page.LF?.(OTHER, TITLE), "Other's tidy-up");
-  assert.equal(page.LF?.("com.acme.silent", TITLE), TITLE, "a Plugin that declared nothing gets the source text");
-  assert.equal(page.LFor?.(ACME)(TITLE), "Tidy notes", "the bound translator is the same lookup");
-  assert.equal(page.LFor?.(ACME)("设置"), "Settings", "the page's own English comes first");
-  assert.equal(page.LFor?.(ACME)("共 {count} 条笔记", { count: 2 }), "2 notes", "a placeholder is filled");
-  assert.equal(browser("zh").LF?.(ACME, TITLE), TITLE, "the Chinese page shows the source text");
-}));
-
-test("RAC-774 stable keys stay page-wide: a Plugin's ui.messages are English for every Plugin, a Chinese-keyed translation for none but its own", () => {
-  assert.deepEqual(registerPluginMessages(declared(ACME, { contributions: [], messages: { "words.panel.title": { zh: "词语", en: "Words" } }, translations: { [TITLE]: "Tidy notes" } })), []);
-  try {
-    const page = browser("en");
-    assert.equal(page.LF?.(OTHER, "words.panel.title"), "Words", "an owner-prefixed key is nobody's sentence, so it is the page's");
-    assert.equal(page.LF?.(OTHER, TITLE), TITLE);
-    assert.equal(page.LF?.(ACME, TITLE), "Tidy notes");
-  } finally { unregisterPluginMessages(ACME); }
+test("RAC-777 the Host’s onboarding names the draft kinds in both languages without a plugin projection", () => {
+  const kinds = [
+    ["workbench.context-onboarding.todo-needs-you", "要你处理", "Needs your action"],
+    ["workbench.context-onboarding.todo-your-commitment", "你的承诺", "Your commitment"],
+    ["workbench.context-onboarding.todo-waiting", "在等别人", "Waiting for someone"],
+  ] as const;
+  for (const locale of ["en", "zh"] as const) runWithLocale(locale, () => {
+    const page = browser(locale).text;
+    for (const [key, zh, en] of kinds) {
+      assert.equal(t.text(key), locale === "en" ? en : zh);
+      assert.equal(page(key), locale === "en" ? en : zh);
+    }
+  });
 });
 
-// Hub review 2026-10-25: the new-project onboarding drafts to-dos by kind, and said them in Chinese on the English page: the kind
-// names were English only in Todo's own words, which the Host's own script does not read.
-test("RAC-777 the Host's onboarding names the kinds of to-do it drafts in English without any Plugin's dictionary", () => {
-  const kinds: Array<[string, string]> = [["要你处理", "Asked of you"], ["你的承诺", "Your promise"], ["在等别人", "Waiting on others"]];
-  runWithLocale("en", () => { for (const [zh, en] of kinds) assert.equal(L(zh), en); });
-  const page = browser("en") as ReturnType<typeof browser> & { L?: (key: string) => string };
-  for (const [zh, en] of kinds) assert.equal(page.L?.(zh), en, "the page's own L, which the onboarding script draws with, has them too");
-  runWithLocale("zh", () => { for (const [zh] of kinds) assert.equal(L(zh), zh); });
-});
-
-// Scripts of a Plugin that run inside the Host page would draw with the page-wide L and lose words only that Plugin declares;
-// each binds its own translator, so its sentences are English in its own words.
-test("RAC-778 Goals scripts retain their Plugin words and platform Artifact text is in the page dictionary", async () => {
+test("RAC-778 Goals scripts read owner keys; the platform Artifact text remains in the workbench resource", async () => {
   const { PLANNING_SETTINGS_CLIENT_SCRIPT, PLANNING_ADOPTION_CLIENT_SCRIPT, PROJECT_RULES_CLIENT_SCRIPT } = await import("@molis-ai/molis-work-plugin-goals");
-  const goals = /const L = \(key, vars\) => LF\("io\.molis\.work\.goals", key, vars\);/;
-  assert.match(PLANNING_SETTINGS_CLIENT_SCRIPT, goals);
-  assert.match(PLANNING_ADOPTION_CLIENT_SCRIPT, goals);
-  assert.match(PROJECT_RULES_CLIENT_SCRIPT, goals);
-  const workbench = readFileSync(new URL("../apps/workbench/src/scripts/client/plugin-workbench.ts", import.meta.url), "utf8");
-  assert.equal(browser("en").MOLIS_WORK_MESSAGES?.["复制引用"], "Copy reference", "Artifact client text is present in the platform page dictionary");
-  assert.match(workbench, /translate: L/, "the platform factory receives the page translator");
+  for (const script of [PLANNING_SETTINGS_CLIENT_SCRIPT, PLANNING_ADOPTION_CLIENT_SCRIPT, PROJECT_RULES_CLIENT_SCRIPT]) {
+    assert.match(script, /goals\./u);
+    assert.doesNotMatch(script, /\b(?:LF|LFor|MOLIS_WORK_PLUGIN_WORDS)\b/u);
+  }
+  assert.equal(browser("en").text("workbench.reference-ui.copy-reference"), "Copy reference");
 });

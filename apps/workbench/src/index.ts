@@ -1,5 +1,5 @@
 export { workbenchClientSource } from "./page-assets.js";
-export type { WorkbenchAppearance, WorkbenchAppearancePorts, WorkbenchAppearanceChoices } from "./appearance-document.js";
+export type { WorkbenchAppearance, WorkbenchAppearancePorts } from "./appearance-document.js";
 export type { SideViewDocumentInput } from "./side-view-document.js";
 export { PAGE_PLUGINS_WITHOUT_SELECTION } from "./page-plugin-visibility.js";
 export { renderHomePluginPage } from "./home-plugin-page.js";
@@ -24,9 +24,9 @@ export type { MolisWorkWebView, PreparedStageView } from "./page-view.js";
 export type { PluginRestartOffer, UnavailablePluginStage } from "./unavailable-plugin-stage.js";
 export { createWorkbenchLocale, DEFAULT_WEB_LOCALE, LOCALE_COOKIE, LOCALE_SWITCH_STYLES, WEB_LOCALES, webLanguage, type WebLocale, type WebLocalePreference } from "./i18n.js";
 export { WORKBENCH_LANGUAGES, workbenchPlatformText } from "./platform-languages.js";
-export { renderLanguageHead, workbenchLanguageResource } from "./language-resource.js";
+export { workbenchLanguageResource } from "./language-resource.js";
 // The words this process holds for the text tools (specs/font-and-skin-system/a-section-contract.md §8.3): the Host registers and reads them.
-export { pluginTextForOwner, pluginTextOwnerOfPrefix, pluginTextReader, drawCatalogText, installCatalogTextScope, registerPlatformText, registerPluginText, type PluginTextReader } from "./plugin-text.js";
+export { pluginTextForOwner, pluginTextOwnerOfPrefix, pluginTextReader, installCatalogTextScope, registerPlatformText, registerPluginText, type PluginTextReader } from "./plugin-text.js";
 export {
   artifactWorkbench,
   createArtifactReferenceRenderer,

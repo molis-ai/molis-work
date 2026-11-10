@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { L, runWithLocale } from "@molis-ai/molis-work-app-local-host";
+import { pageText } from "./fixtures/page-text.js";
 import { ASSISTANT_ISLAND_FACTORY_SCRIPT } from "../apps/workbench/dist/scripts/client/assistant-island.js";
 import { LOGIN_URLS_OPENED, LOGIN_URLS_REFUSED, loginOpens } from "./fixtures/connection-login-urls.js";
 
@@ -43,8 +43,8 @@ test("every Send the bottom bar writes itself is marked as the page's; only the 
 test("what the bottom bar is looking at is one translated sentence, with the object's name as a parameter", () => {
   assert.doesNotMatch(ASSISTANT_ISLAND_FACTORY_SCRIPT, /L\("正在看"\)/, "no word-plus-colon glue for the page's object");
   assert.match(ASSISTANT_ISLAND_FACTORY_SCRIPT, /L\("正在看：\{title\}", \{ title: name \}\)/);
-  assert.equal(L("正在看：{title}", { title: "需求说明" }), "正在看：需求说明");
-  assert.equal(runWithLocale("en", () => L("正在看：{title}", { title: "Notes" })), "Viewing: Notes", "English keeps its own colon");
+  assert.equal(pageText("zh")("workbench.assistant-materials.viewing-title", { title: "需求说明" }), "正在看：需求说明");
+  assert.equal(pageText("en")("workbench.assistant-materials.viewing-title", { title: "Notes" }), "Viewing: Notes", "English keeps its own colon");
   // The strip names it with that sentence, never with its prefix cut off by a pattern. (The 「材料」 button's short name is gone with
   // the button: the strip took its place, context-program §21.2 point 1.)
   assert.doesNotMatch(ASSISTANT_ISLAND_FACTORY_SCRIPT, /replace\(\/\^正在看/);

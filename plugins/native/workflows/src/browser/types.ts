@@ -1,8 +1,8 @@
-import type { UiClientTranslate as Translate, UiPageView, UiPluginClientHost } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { UiPageView, UiPluginClientHost } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { WorkflowStartItem } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { WorkflowInstance, WorkflowLink, WorkflowPayload, WorkflowPayloadField, WorkflowStation } from "../model.js";
 
-export type { Translate, WorkflowPayload, WorkflowStartItem };
+export type { WorkflowPayload, WorkflowStartItem };
 
 /** What the workbench hands the Workflows client: the shared host fields it uses, and the shell's view for an embedded step. */
 export interface WorkflowsHost extends Pick<UiPluginClientHost<HTMLElement, HTMLDialogElement>, "route" | "pluginRoute" | "pluginId" | "readRefusal" | "returns"> {
@@ -93,7 +93,7 @@ export interface Ui {
   returnTo: Returning | null;
 }
 
-export interface Ready { readonly ready: boolean; readonly reason: string }
+export interface Ready { readonly ready: boolean; readonly reason: string; readonly raw?: boolean; readonly needsModel?: boolean }
 
 /** A change to the open workflow: its chain and/or its title; the rest says how the change reads to the person. */
 export interface Patch { chain?: Chain; title?: string; undoable?: boolean; announce?: string }

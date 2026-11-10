@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { fillMessage } from "@molis-ai/molis-work-plugin-sdk";
-import { BUILTIN_PLUGIN_CATALOG, EN, createWorkbenchLocale } from "@molis-ai/molis-work-app-workbench";
+import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
+
+import { runInNewContext } from "node:vm";
+import { t } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { pagePack, pageTextScript, withPageText } from "./fixtures/page-text.js";
 
 // specs/visual-ui-experience VUX-40「数量」and specs/font-and-skin-system FSS-39: a message's values are filled in one way
 // (the SDK's `fillMessage`) on the Host and in the page, and an English count agrees with its number.
@@ -20,48 +24,37 @@ test("VUX-40: fillMessage fills named values once and picks the word that agrees
   assert.equal(fillMessage("{count} items", undefined), "{count} items");
 });
 
-test("VUX-40: the page's L and the Host's L fill the same way, and every agreeing word also shows its number", () => {
-  const host = createWorkbenchLocale(() => "en");
-  const page: { MOLIS_WORK_MESSAGES?: Record<string, string>; L?: (key: string, values?: Record<string, string | number>) => string } = {};
-  new Function("globalThis", host.clientI18nScript())(page);
-  for (const [key, values] of [["提交 {count} 个已暂存文件…", { count: 1 }], ["提交 {count} 个已暂存文件…", { count: 4 }], ["git.commit.staged", { count: 1 }], ["{n} 天前", { n: 1 }]] as const) {
-    assert.equal(page.L!(key, values), host.L(key, values), `${key} ${JSON.stringify(values)}`);
-  }
-  assert.equal(host.L("git.commit.staged", { count: 1 }), "Commit 1 staged file…");
-  assert.equal(host.L("git.commit.staged", { count: 2 }), "Commit 2 staged files…");
-  // T01-MODEL-COUNT-01: model-list counts use the same plural contract on both rendering paths.
-  for (const count of [0, 1, 2]) {
-    const expected = `The service offers ${count} ${count === 1 ? "model" : "models"}. Pick one to add it.`;
-    const key = "服务提供 {count} 个模型，选一个加进列表";
-    assert.equal(host.L(key, { count }), expected);
-    assert.equal(page.L!(key, { count }), expected);
-    // T01-TAB-COUNT-01: the navigation board follows the same count rule.
-    const tabs = `${count} ${count === 1 ? "tab" : "tabs"}`;
-    assert.equal(host.L("{n} 张", { n: count }), tabs);
-    assert.equal(page.L!("{n} 张", { n: count }), tabs);
-    // T01-REPOSITORY-COUNT-01: both connection specimens agree with 0/1/2 repositories.
-    const noun = count === 1 ? "repository" : "repositories";
-    for (const [key, expected] of [
-      ["{account} · 个人 · 能看 {count} 个仓库", `sample · personal · sees ${count} ${noun}`],
-      ["{account} · 团队 · 能看 molis-ai 的 {count} 个仓库", `sample · team · sees ${count} ${noun} in molis-ai`],
-    ]) {
-      assert.equal(host.L(key, { account: "sample", count }), expected);
-      assert.equal(page.L!(key, { account: "sample", count }), expected);
+test("VUX-40 FSS-39: Host and browser fill the same whole sentences; every plural form shows its count", () => withPageText("en", ["git"], () => {
+  const page = { document: { documentElement: {} }, t: undefined as typeof t | undefined };
+  runInNewContext(pageTextScript("en", "git"), page);
+  assert.ok(page.t);
+  for (const read of [t.text, page.t.text]) {
+    assert.equal(read("git.commit.staged", { count: 1 }), "Commit 1 staged file…");
+    assert.equal(read("git.commit.staged", { count: 2 }), "Commit 2 staged files…");
+    for (const count of [0, 1, 2]) {
+      // T01-MODEL-COUNT-01, T01-TAB-COUNT-01, T01-REPOSITORY-COUNT-01.
+      assert.equal(read("workbench.settings-models.service-offers-count-count-pick-one-add", { count }),
+        `The service offers ${count} ${count === 1 ? "model" : "models"}. Pick one to add it.`);
+      assert.equal(read("workbench.navigation-specimens.n-n", { n: count }), `${count} ${count === 1 ? "tab" : "tabs"}`);
+      const noun = count === 1 ? "repository" : "repositories";
+      assert.equal(read("workbench.service-connection-specimens.account-personal-sees-count-count", { account: "sample", count }), `sample · personal · sees ${count} ${noun}`);
+      assert.equal(read("workbench.service-connection-specimens.account-team-sees-count-count-molis-ai", { account: "sample", count }), `sample · team · sees ${count} ${noun} in molis-ai`);
     }
   }
-  // An agreeing word without its number would read "file" alone; the Chinese has the number, so the English shows it too.
-  // The Plugins' words are in their Manifests: stable-key words (zh and en) and English for words still keyed by their Chinese text.
-  const stable = BUILTIN_PLUGIN_CATALOG.flatMap((entry) => Object.values(entry.manifest.ui.messages ?? {}));
-  const keyed = BUILTIN_PLUGIN_CATALOG.flatMap((entry) => Object.entries(entry.manifest.ui.translations ?? {}));
-  const messages: Array<[zh: string, en: string]> = [...Object.entries(EN), ...keyed, ...stable.map((text) => [text.zh, text.en] as [string, string])];
-  const plural = /\{([^{}|]+)\|[^{}|]*\|[^{}|]*\}/g;
   let found = 0;
-  for (const [zh, en] of messages) for (const [, name] of en.matchAll(plural)) {
-    found += 1;
-    assert.ok(en.includes(`{${name}}`) && zh.includes(`{${name}}`), `“${en}” agrees with {${name}} and shows it, as “${zh}” does`);
+  for (const owner of ["workbench", ...BUILTIN_PLUGIN_CATALOG.filter(entry => entry.manifest.ui.locales).map(entry => entry.project_plugin_id)]) {
+    const zh = pagePack(owner, "zh").messages, en = pagePack(owner, "en").messages;
+    for (const [key, word] of Object.entries(en)) {
+      if (typeof word === "string") {
+        assert.doesNotMatch(word, /\{(?:count|n|total)\} (?!(?:has|is|was|does)\b)[a-z]+s\b/u, key);
+        continue;
+      }
+      found++;
+      const defaultWord = zh[key];
+      for (const text of [...Object.values(word.forms), ...(typeof defaultWord === "string" ? [defaultWord] : Object.values(defaultWord!.forms))]) {
+        assert.ok(text.includes("{" + word.plural_arg + "}"), key + ": " + text);
+      }
+    }
   }
-  assert.ok(found > 120, `agreeing words in the dictionaries: ${found}`);
-  // No English message puts a counted noun in the plural by itself any more.
-  const bare = messages.map(([, en]) => en).filter((en) => /\{(count|n|total)\} (?!(?:has|is|was|does)\b)[a-z]+s\b/.test(en.replace(plural, "")) && !/\{(count|n|total)\} (?:[a-z]+ )?\{/.test(en));
-  assert.deepEqual(bare, []);
-});
+  assert.ok(found > 120, `plural entries in the checked packs: ${found}`);
+}));

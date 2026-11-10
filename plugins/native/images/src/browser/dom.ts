@@ -1,3 +1,4 @@
+import { dateArg, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { Failure } from "./types.js";
 
 /** An element the server drew; the page cannot work without it. */
@@ -30,7 +31,7 @@ export const statusOf = (error: unknown): number | undefined => (error as Failur
 
 export function dateLabel(value: string): string {
   const date = new Date(value);
-  return Number.isNaN(date.valueOf()) ? "" : date.toLocaleString(document.documentElement.lang || undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  return Number.isNaN(date.valueOf()) ? "" : uiText.text("common.generated.formatted", { value: dateArg(date.toISOString(), "datetime") });
 }
 
 /** The first `max` characters of `value`, for names and titles a person reads. One character can be two UTF-16 units (an emoji, say); a cut by

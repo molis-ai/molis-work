@@ -1,6 +1,8 @@
 /** Existing relation browser behavior, composed into the Workbench lexical host. */
 import { GOALS_PLUGIN_API } from "./plugin-api.js";
-const GOALS_RELATION_PREVIEW_SCRIPT = `    const updateRelationPreviews = () => {
+import { relationWordKey } from "./relation-presentation.js";
+const GOALS_RELATION_PREVIEW_SCRIPT = `    const relationWordKey = (${relationWordKey.toString()});
+    const updateRelationPreviews = () => {
       if (!form) return;
       const parent = form.elements.parent_goal_id?.selectedOptions?.[0];
       const parentPreview = form.querySelector("[data-parent-preview]");
@@ -19,6 +21,22 @@ const GOALS_RELATION_PREVIEW_SCRIPT = `    const updateRelationPreviews = () => 
       }
     };
 
+    const paintRelationFormPreview = (relationForm) => {
+      const preview = relationForm.querySelector("[data-relation-live-preview]");
+      const type = relationForm.elements.type?.selectedOptions?.[0];
+      const target = relationForm.elements.target_goal_id?.selectedOptions?.[0];
+      const direction = relationForm.elements.direction?.value || "outgoing";
+      if (!preview || !type || !target) return;
+      const currentName = relationForm.dataset.currentGoalName || relationForm.dataset.goalId;
+      const targetName = target.dataset.goalName || target.textContent;
+      const left = direction === "outgoing" ? currentName : targetName;
+      const right = direction === "outgoing" ? targetName : currentName;
+      const label = type.value ? globalThis.t.text(relationWordKey(type.value, "out")) : type.textContent;
+      preview.querySelector("strong").textContent = left + " → " + label + " → " + right;
+      preview.querySelector("p").textContent = type.value ? globalThis.t.text(relationWordKey(type.value, "description"))
+        : globalThis.t.text("goals.relation-client.direction-and-reason-enter-history");
+    };
+
     const updateRelationFormPreview = (relationForm) => {
       if (!relationForm) return;
       const intent = relationForm.elements.relation_intent?.value || "other";
@@ -32,23 +50,15 @@ const GOALS_RELATION_PREVIEW_SCRIPT = `    const updateRelationPreviews = () => 
         relationForm.elements.direction.value = intentMap[intent][0];
         relationForm.elements.type.value = intentMap[intent][1];
       }
-      const preview = relationForm.querySelector("[data-relation-live-preview]");
-      const type = relationForm.elements.type?.selectedOptions?.[0];
-      const target = relationForm.elements.target_goal_id?.selectedOptions?.[0];
-      const direction = relationForm.elements.direction?.value || "outgoing";
-      if (!preview || !type || !target) return;
-      const currentName = relationForm.dataset.currentGoalName || relationForm.dataset.goalId;
-      const targetName = target.dataset.goalName || target.textContent;
-      const left = direction === "outgoing" ? currentName : targetName;
-      const right = direction === "outgoing" ? targetName : currentName;
-      const label = type.dataset.outLabel || type.textContent;
-      preview.querySelector("strong").textContent = left + " → " + label + " → " + right;
-      preview.querySelector("p").textContent = type.dataset.description || "关系方向和原因会进入事件历史";
+      paintRelationFormPreview(relationForm);
     };
 
     const updateAllRelationFormPreviews = () => {
       document.querySelectorAll("[data-relation-form]").forEach(updateRelationFormPreview);
     };
+    document.addEventListener("molis-work:language-changed", () => {
+      document.querySelectorAll("[data-relation-form]").forEach(paintRelationFormPreview);
+    });
 
 `;
 

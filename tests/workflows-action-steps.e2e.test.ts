@@ -4,7 +4,7 @@ import { defineAction, definePlugin } from '@molis-ai/molis-work-plugin-sdk';
 import { PluginRuntime, SqlitePluginRuntimeRepository } from '@molis-ai/molis-work-plugin-runtime';
 import { bindActionClient } from '@molis-ai/molis-work-contracts/platform/actions';
 import { workflowsActions as w, WORKFLOWS_ACTION_PERMISSIONS } from '@molis-ai/molis-work-plugin-workflows';
-import { molisWorkHostProjectReference } from '@molis-ai/molis-work-app-local-host';
+import { molisWorkHostProjectReference, runWithLocale } from '@molis-ai/molis-work-app-local-host';
 import { NATIVE_CONTENT_PERMISSIONS } from '../apps/local-host/dist/native-content-permissions.js';
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -101,7 +101,7 @@ test('real browser creates a Feed → Shelf action workflow, maps fields, and wr
 
 });
 
-test('unknown plugin long results survive a late navigation response and render as safe text on a narrow screen', { timeout: 90_000 }, async t => {
+test('FSS-36 unknown plugin results keep their original words beside English controls after a late navigation response', { timeout: 90_000 }, async t => {
   const b = await openGoalBrowser(t, 'seeded', undefined, null);
   if (!b) return;
   const child = await pluginFrameBrowser(t,b,"workflows");
@@ -137,19 +137,22 @@ test('unknown plugin long results survive a late navigation response and render 
   try {
     const actions = bindActionClient(b.localHost!.actionClient(reference), () => ({ actor_id: 'web-user', project_id: b.projectId, audience: 'user',
       permissions: [...WORKFLOWS_ACTION_PERMISSIONS, ...NATIVE_CONTENT_PERMISSIONS] }));
-    const choice = (await actions.invoke(w.actionSteps, {})).actions.find(row => row.ref.capability_id === action.definition.capability_id)!;
-    assert.ok(choice, 'the installed provider is discovered without a Host entry');
-    const chain = { stations: [{ plugin: 'feed' }, { plugin: 'action', action: {
-      ref: choice.ref, title: choice.title, group: choice.group, mapping: {},
-    } }], links: [{ kind: 'function', title_template: '', body_template: '{正文}', instructions: '' }] };
-    const { workflow } = await actions.invoke(w.create, { title: '长正文结果验证', chain });
-    await actions.invoke(w.create, { title: '另一个流程', chain });
-    const { instance } = await actions.invoke(w.start, { id: workflow.workflow_id, item_id: item.item_id });
-    await actions.invoke(w.continue, { id: instance.instance_id });
-    await b.navigate(() => command('Page.navigate', { url: `${b.origin}/projects/${b.projectId}/` }, sessionId));
+    const { workflow, prior, instance } = await runWithLocale('en', async () => {
+      const choice = (await actions.invoke(w.actionSteps, {})).actions.find(row => row.ref.capability_id === action.definition.capability_id)!;
+      assert.ok(choice, 'the installed provider is discovered without a Host entry');
+      const chain = { stations: [{ plugin: 'feed' }, { plugin: 'action', action: {
+        ref: choice.ref, title: choice.title, group: choice.group, mapping: {},
+      } }], links: [{ kind: 'function', title_template: '', body_template: '{正文}', instructions: '' }] };
+      const { workflow } = await actions.invoke(w.create, { title: '长正文结果验证', chain });
+      const { workflow: prior } = await actions.invoke(w.create, { title: '另一个流程', chain });
+      const { instance } = await actions.invoke(w.start, { id: workflow.workflow_id, item_id: item.item_id });
+      await actions.invoke(w.continue, { id: instance.instance_id });
+      return { workflow, prior, instance };
+    });
+    const projectPath = `/projects/${b.projectId}/`;
+    await b.navigate(() => command('Page.navigate', { url: `${b.origin}/locale?lang=en&next=${encodeURIComponent(projectPath)}` }, sessionId));
     await b.click('[data-plugin-strip] [data-plugin-id=workflows]');
     await waitFor(`document.querySelector('[data-workflows=workbench]')?.dataset.wfMode === 'list' && document.querySelector('[data-wf-open="${workflow.workflow_id}"]')?.getClientRects().length > 0`);
-    const prior = (await actions.invoke(w.list, {})).workflows.find(row => row.workflow_id !== workflow.workflow_id)!;
     const readingOld = Promise.withResolvers<void>(), releaseOld = Promise.withResolvers<void>();
     const oldReturned = Promise.withResolvers<void>();
     const actionClient = b.localHost!.actionClient.bind(b.localHost);
@@ -184,15 +187,17 @@ test('unknown plugin long results survive a late navigation response and render 
       await waitFor("window.__workflowOldReadDone === true");
       assert.equal(await evaluate(`document.querySelector('[data-wf-open-instance="${instance.instance_id}"]') !== null`), true, 'a late prior workflow cannot replace the user selection');
     } finally { releaseOld.resolve(); mock.mock.restore(); }
+    assert.match(await evaluate("document.querySelector('[data-wf-action=edit-step]').textContent"), /保存长结果/);
     await click(`[data-wf-open-instance="${instance.instance_id}"]`);
-    await waitFor("document.querySelector('[data-wf-result-summary]')?.innerText.includes('长结果已保存')");
+    await waitFor("document.querySelector('[data-wf-result-summary] h3')?.textContent === '长结果已保存'");
+    assert.equal(await evaluate("document.querySelector('.wf-result-details summary').textContent"), 'Technical details');
     assert.equal(await evaluate("document.querySelector('.wf-result-text').textContent"), note.slice(0, 4000));
     assert.equal(await evaluate("document.querySelector('.wf-result-text script') !== null"), false);
     await command('Emulation.setDeviceMetricsOverride', { width: 390, height: 844, deviceScaleFactor: 1, mobile: false }, sessionId);
     await waitFor("window.innerWidth === 390");
     assert.equal(await evaluate("document.documentElement.scrollWidth <= window.innerWidth"), true);
     assert.equal(await evaluate("document.querySelector('.wf-result-details').open"), false);
-    assert.match(await evaluate("document.querySelector('.wf-stage__result').innerText"), /正文仅显示节选/);
+    assert.match(await evaluate("document.querySelector('.wf-stage__result').innerText"), /Showing an excerpt\./);
     const long = await command('Page.captureScreenshot', { format: 'png' }, sessionId) as { data: string };
     await writeFile('/tmp/action-workflow-result-review/long-narrow.png', Buffer.from(long.data, 'base64'));
   } finally { await runtime.stop(installed.install_id); }

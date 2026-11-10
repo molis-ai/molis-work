@@ -3,7 +3,6 @@
   "owner": "io.molis.work.feed",
   "locale": "zh",
   "messages": {
-    "feed.directory.summary": "订阅来源，读消息，留下值得留的。",
     "feed.add-source.channel-id": "频道 ID",
     "feed.add-source.existing-feed": "选现成源",
     "feed.add-source.feed-directory": "目录订阅",
@@ -18,6 +17,7 @@
     "feed.add-source.unread-notifications": "未读通知",
     "feed.add-source.web-search": "网页搜索",
     "feed.add-source.youtube": "YouTube",
+    "feed.directory.summary": "订阅来源，读消息，留下值得留的。",
     "feed.factory.could-not-refresh-feed": "无法更新 Feed 列表",
     "feed.factory.original-capture-rule-doesn-t-exist-may-have": "原捕捉规则不存在，可能已经删除。",
     "feed.rule-authoring.choose-judgment": "请选择判断能力",
@@ -267,6 +267,7 @@
     "feed.ui.opening-marks-read-keep-what-matters-save-material": "打开后会记为已读。值得留下的，可以保存为资料、加入 Inbox，或升格为 Goal。",
     "feed.ui.optional": "可选",
     "feed.ui.original-message-retained": "原消息仍然保留",
+    "feed.ui.other-sources": "其他",
     "feed.ui.other-types": "其他类型",
     "feed.ui.overview": "概览",
     "feed.ui.pause-source": "暂停来源",

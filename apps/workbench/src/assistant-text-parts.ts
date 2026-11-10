@@ -1,8 +1,7 @@
 import type { AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
-import { fillMessage } from "@molis-ai/molis-work-plugin-sdk";
 
 export interface AssistantTextPorts {
-  say(text: string): string;
+  say(key: string, args?: Record<string, string | number>): string;
   objects: AssistantWorkView["objects"];
   language(hint: string): string;
   tokens(text: string, language: string): Array<[string | null, string]>;
@@ -38,10 +37,8 @@ export function assistantCodeHtml(code: string, hint: string, ports: AssistantTe
   // A block past a slice goes out as its text and the map of its pieces; the page colours it a slice a frame (assistantPaintMap).
   const pieces = language && text.length <= 400000 ? ports.tokens(text, language) : null, paint = pieces && text.length > 16000 ? assistantPaintMap(pieces) : "";
   const body = pieces && !paint ? pieces.map(([kind, value]) => kind ? `<span class="tok-${assistantEscape(kind)}">${assistantEscape(value)}</span>` : assistantEscape(value)).join("") : assistantEscape(text);
-  const say = (value: string) => assistantEscape(ports.say(value));
-  // The count fills the translated words, so an English count agrees with its number ("1 line", "22 lines"), not just the first {n}.
-  const count = (value: string) => assistantEscape(fillMessage(ports.say(value), { n: lines }));
-  return `<figure class="assistant-code" data-lines="${lines}"${lines > 18 ? " data-folded" : ""} data-code="${assistantEscape(text)}"${paint ? ` data-paint="${assistantEscape(paint)}"` : ""}><figcaption class="assistant-code-head"><span class="assistant-code-lang">${assistantEscape(LANGUAGE_NAME[language] || hint || ports.say("代码"))}</span><span class="assistant-code-lines">${count("{n} 行")}</span><button class="assistant-code-copy" type="button">${say("复制")}</button></figcaption><pre><code>${body}${text.endsWith("\n") ? "<br>" : ""}</code></pre>${lines > 18 ? `<button class="assistant-code-more" type="button">${count("展开全部 {n} 行")}</button>` : ""}</figure>`;
+  const count = (key: string) => assistantEscape(ports.say(key, { n: lines }));
+  return `<figure class="assistant-code" data-lines="${lines}"${lines > 18 ? " data-folded" : ""} data-code="${assistantEscape(text)}"${paint ? ` data-paint="${assistantEscape(paint)}"` : ""}><figcaption class="assistant-code-head"><span class="assistant-code-lang">${assistantEscape(LANGUAGE_NAME[language] || hint || ports.say("workbench.assistant-code-grow.code"))}</span><span class="assistant-code-lines">${count("workbench.assistant-code-grow.lines")}</span><button class="assistant-code-copy" type="button">${assistantEscape(ports.say("common.control.copy"))}</button></figcaption><pre><code>${body}${text.endsWith("\n") ? "<br>" : ""}</code></pre>${lines > 18 ? `<button class="assistant-code-more" type="button">${count("workbench.assistant-code-grow.show-all-n-n")}</button>` : ""}</figure>`;
 }
 
 const BT = String.fromCharCode(96);
@@ -62,7 +59,7 @@ export function assistantInlineHtml(text: string, ports: AssistantTextPorts): st
     else if (/^https?:/i.test(token)) html += link(token, token);
     else if (token.startsWith("「")) {
       const name = token.slice(1, -1), index = ports.objects.findIndex(one => one.title === name && one.open);
-      html += index < 0 ? assistantEscape(token) : `<button class="assistant-inline-object" type="button" data-assistant-object="${index}" aria-label="${assistantEscape(ports.say("打开") + "：" + name)}">${assistantEscape(name)}</button>`;
+      html += index < 0 ? assistantEscape(token) : `<button class="assistant-inline-object" type="button" data-assistant-object="${index}" aria-label="${assistantEscape(ports.say("workbench.assistant-notice.open-named", { title: name }))}">${assistantEscape(name)}</button>`;
     } else html += inside("em", 1);
     last = match.index + token.length;
   }

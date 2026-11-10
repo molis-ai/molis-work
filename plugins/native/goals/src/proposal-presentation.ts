@@ -1,6 +1,6 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { GoalTreeProposalRecord } from "./contract/governance-collaboration.js";
-import { GOALS_RELATION_LABELS as RELATION_LABELS } from "./relation-presentation.js";
+import { goalRelationLabel } from "./relation-presentation.js";
 import { findGoalView, type GoalsProposalView, type GoalsProposalUiPrimitives } from "./proposal-ui-model.js";
 
 export function createGoalsProposalPresentation(readText: GoalsProposalUiPrimitives["translate"]) {
@@ -59,7 +59,7 @@ function goalTreeProposalItemCopy(
   const facts = relations.map((relation) => {
     const from = proposedGoalName(relation.from_goal_id, view, proposal);
     const to = proposedGoalName(relation.to_goal_id, view, proposal);
-    const relationLabel = RELATION_LABELS[String(relation.type ?? "")]?.out ?? uiText.text("goals.proposal-presentation.create-relation");
+    const relationLabel = goalRelationLabel(String(relation.type ?? ""), "out") ?? uiText.text("goals.proposal-presentation.create-relation");
     return readText("goals.proposal-presentation.from-relation-to", { from, relation: relationLabel, to });
   });
   return {

@@ -56,20 +56,13 @@ export function createPlanningPresentation(primitives: GoalsPlanningPrimitives) 
             const body = group.length
                 ? group.map(item).join("")
                 : `<p class="planning-fold-empty">${uiText("goals.planning-presentation.there-no-methods-category-yet")}</p>`;
-            return `<details class="planning-fold" data-planning-fold="${id}" open><summary><span class="planning-fold-caret" aria-hidden="true">${icon("chevron-down")}</span><strong>${uiText(title)}</strong><small>${group.length}</small></summary><div class="planning-fold-items">${body}</div></details>`;
+            return `<details class="planning-fold" data-planning-fold="${id}" open><summary><span class="planning-fold-caret" aria-hidden="true">${icon("chevron-down")}</span><strong>${escapeHtml(title)}</strong><small>${group.length}</small></summary><div class="planning-fold-items">${body}</div></details>`;
         };
         const builtIn = methods.filter((method) => method.scope === "built_in");
         const mine = methods.filter((method) => method.scope !== "built_in");
-        const kinds: Array<[PlanningMethodPack["kind"], string]> = [
-            ["work_type", "工作类型"],
-            ["domain", "专业领域"],
-            ["industry", "行业方法"],
-            ["overlay", "场景叠加层"],
-        ];
-        for (const method of builtIn) {
-            if (!kinds.some(([kind]) => kind === method.kind)) kinds.push([method.kind, planningMethodKindLabel(method.kind)]);
-        }
-        return `${kinds.map(([kind, title]) => fold(kind, title, builtIn.filter((method) => method.kind === kind))).join("")}${fold("mine", "goals.planning-presentation.my-methods", mine)}`;
+        const kinds = new Set<PlanningMethodPack["kind"]>(["work_type", "domain", "industry", "overlay"]);
+        for (const method of builtIn) kinds.add(method.kind);
+        return `${[...kinds].map(kind => fold(kind, planningMethodKindLabel(kind), builtIn.filter(method => method.kind === kind))).join("")}${fold("mine", uiText.text("goals.planning-presentation.my-methods"), mine)}`;
     }
     return { friendlyPlanningDependencyHint, friendlyPlanningDependencyStatement, planningMethodKindLabel, planningMethodScopeLabel, planningSettingsHref, renderPlanningMethodCards, renderPlanningCompositionRows, renderPlanningDirectory };
 }

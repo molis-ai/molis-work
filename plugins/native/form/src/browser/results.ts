@@ -1,4 +1,4 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { dateArg, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { FormQuestion, FormSubmissionRecord } from "../contract.js";
 import { make } from "./dom.js";
 import { collectAnswers, missingRequired } from "./fields.js";
@@ -64,7 +64,7 @@ const renderStats = (page: FormPage, questions: readonly FormQuestion[], submiss
 const submissionCard = (_L: Translate, submission: FormSubmissionRecord, index: number) => {
   const card = make("article", "form-result");
   const head = document.createElement("strong");
-  const when = submission.submitted_at ? new Date(submission.submitted_at).toLocaleString() : "";
+  const when = submission.submitted_at ? uiText.text("common.generated.formatted", { value: dateArg(submission.submitted_at, "datetime") }) : "";
   head.textContent = uiText.text("form.result.response-word") + " " + (index + 1) + (when ? " · " + when : "");
   card.append(head);
   const labels = new Map(submission.questions.map(question => [question.id, question.title]));

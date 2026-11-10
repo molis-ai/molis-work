@@ -908,6 +908,14 @@
     "workbench.assistant-choosers.which-character-carries-next-turn": "Which Character carries it (from the next turn)",
     "workbench.assistant-choosers.who-does": "Who does it",
     "workbench.assistant-code-grow.collapse": "Collapse",
+    "workbench.assistant-code-grow.code": "Code",
+    "workbench.assistant-code-grow.lines": {
+      "plural_arg": "n",
+      "forms": {
+        "one": "{n} line",
+        "other": "{n} lines"
+      }
+    },
     "workbench.assistant-code-grow.show-all-n-n": {
       "plural_arg": "n",
       "forms": {
@@ -1377,6 +1385,14 @@
     "workbench.assistant-process.whole-input": "The whole input",
     "workbench.assistant-process.wrong-type": "Wrong type",
     "workbench.assistant-send.add-turn": "Add to this turn",
+    "workbench.assistant-review.allow-run": "Allow once",
+    "workbench.assistant-review.call-external-tool": "Call an external tool",
+    "workbench.assistant-review.change-data": "Change data",
+    "workbench.assistant-review.confirm-before-running": "Confirm before running",
+    "workbench.assistant-review.decision-hint": "Allow runs this once. If you decline, the action stays unrun and the assistant is told.",
+    "workbench.assistant-review.edit-file": "Edit a file",
+    "workbench.assistant-review.exact-arguments-capability": "Exact arguments and capability",
+    "workbench.assistant-review.run-command": "Run a command",
     "workbench.assistant-send.answer-questions-above": "Answer the questions above",
     "workbench.assistant-send.click-to-switch-to-choice": "Click to switch to: {choice}",
     "workbench.assistant-send.not-confirmed-connection-dropped-reply-couldn-t-be": "Not confirmed: the connection dropped or the reply couldn’t be read. Press again; it won’t be sent twice.",

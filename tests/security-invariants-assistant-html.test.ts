@@ -2,8 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { assistantTextHtml, assistantReviewHtml } from "@molis-ai/molis-work-app-workbench";
 import type { AssistantPendingReview, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
+import { pageText } from "./fixtures/page-text.js";
 
-const say = (text: string) => text;
+const say = pageText("zh");
 const object = (title: string): AssistantWorkView["objects"][number] => ({ title, subject: { kind: "page", id: "page-1" }, relation: "material", state: "current",
   open: { surface: "pages", id: "page-1" }, recorded_revision: null, current_revision: null, recorded_at: "" });
 
@@ -33,6 +34,9 @@ test("PAS-15 S-24: review summaries and every field remain text, including code 
   assert.match(html, /data-assistant-decision="reject"/);
   assert.match(html, /data-mw-state="approval"/);
   assert.match(html, /data-assistant-review-glyph="terminal"/);
+  const english = assistantReviewHtml(review, pageText("en"));
+  assert.match(english, /Confirm before running[\s\S]*Run a command[\s\S]*Allow once/);
+  assert.match(english, /<dt>&lt;script&gt;evil\(\)&lt;\/script&gt; &amp; &quot;quoted&quot;<\/dt>/);
 });
 
 test("PAS-15: Assistant block rules retain headings, nested tasks, continuation, tables, quotes and code folding", () => {
@@ -52,6 +56,9 @@ test("PAS-15: Assistant block rules retain headings, nested tasks, continuation,
   assert.match(code, /data-lines="19" data-folded/);
   assert.match(code, /tok-keyword">const/);
   assert.match(code, /展开全部 19 行/);
+  const english = pageText("en");
+  assert.match(assistantTextHtml(`\`\`\`ts\n${long}\n\`\`\``, [], english), /19 lines[\s\S]*Copy[\s\S]*Show all 19 lines/);
+  assert.match(assistantTextHtml('```\nlet x = 1;\n```', [], english), /Code<\/span><span class="assistant-code-lines">1 line<\/span>/);
   assert.match(assistantTextHtml('```\n{"answer":true}\n```', [], say), /assistant-code-lang">JSON/);
   assert.match(assistantTextHtml('~~~\n$ echo hi\n~~~', [], say), /assistant-code-lang">Shell/);
 });

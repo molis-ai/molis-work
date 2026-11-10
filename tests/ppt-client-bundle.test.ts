@@ -1,10 +1,11 @@
+import { assertPageWords, pageText, withPageText } from "./fixtures/page-text.js";
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 import { isProductSource, scanTree, workingTreeSnapshot } from "../scripts/gates/translations.mjs";
 
-import { PPT_CLIENT_FACTORY_SCRIPT, PPT_MESSAGES, renderPptWorkbench } from "@molis-ai/molis-work-plugin-ppt";
+import { PPT_CLIENT_FACTORY_SCRIPT, renderPptWorkbench } from "@molis-ai/molis-work-plugin-ppt";
 
 const SRC = "plugins/native/ppt/src";
 const BROWSER = join(SRC, "browser");
@@ -17,22 +18,11 @@ test("RAC-152 every word the PPT page says has a stable key with both languages"
   assert.ok(calls.some(call => call.file === join(SRC, "ui.ts")), "the actual scanner sees server-drawn words");
   assert.ok(calls.some(call => call.file.startsWith(BROWSER + "/")), "the actual scanner sees browser words");
   assert.deepEqual(calls.filter(call => /\p{Script=Han}/u.test(call.key)), [], "no Chinese key: every word the page says is a stable key");
-  // The only words not chosen from the table are the sentences the server itself wrote for "the model is not available" and
-  // "Pages cannot be read": the common translator knows them by their Chinese original (src/en.ts, BL-461).
-  const dynamic = scan.dynamicCalls.filter(call => owns(call.file));
-  const lines = (file: string) => readFileSync(file, "utf8").split("\n");
-  assert.deepEqual(dynamic.map(call => `${call.file}`), [join(BROWSER, "outline.ts"), join(BROWSER, "outline.ts")], "only the outline dialog forwards server sentences");
-  for (const call of dynamic) assert.match(lines(call.file)[call.line - 1]!, /aiUnavailableReason|unavailable_reason/u, `${call.file}:${call.line} forwards a server reason`);
+  assert.deepEqual(scan.dynamicCalls.filter(call => owns(call.file)), [], "raw outline text is never looked up as a key");
   const used = new Set<string>(calls.map(call => call.key));
-  assert.deepEqual([...used].filter(key => !(key in PPT_MESSAGES)), [], "every key the page asks for is defined");
-  assert.deepEqual(Object.keys(PPT_MESSAGES).filter(key => !used.has(key)), [], "every defined key is asked for");
-  const names = (value: string) => [...new Set([...value.matchAll(/\{([a-z]+)[|}]/gu)].map(match => match[1]))].sort();
-  for (const [key, text] of Object.entries(PPT_MESSAGES)) {
-    assert.ok(text.zh && text.en, `${key} has Chinese and English`);
-    assert.deepEqual(names(text.zh), names(text.en), `${key} uses the same placeholders in both languages`);
-  }
-  const html = renderPptWorkbench({ primitives: { escape: String, text: key => `«${key}»` } });
-  assert.match(html, /<span>«ppt\.action\.new»<\/span>/u, "the server-drawn page speaks through the translator");
+  assertPageWords("ppt", used);
+  const html = withPageText("en", ["ppt"], () => renderPptWorkbench({ primitives: { escape: String } }));
+  assert.ok(html.includes(pageText("en", "ppt")("ppt.action.new")), "the server-drawn page speaks through the translator");
   assert.doesNotMatch(html, /[一-鿿]/u, "no Chinese is drawn into the page directly");
 });
 

@@ -1,3 +1,4 @@
+import { pageText } from "./fixtures/page-text.js";
 import { scanTree, workingTreeSnapshot, isProductSource } from "../scripts/gates/translations.mjs";
 import { pluginDocuments } from "./fixtures/plugin-documents.js";
 import assert from "node:assert/strict";
@@ -17,7 +18,7 @@ import {
   todoManifest,
   todoOrganizeActions,
 } from "@molis-ai/molis-work-plugin-todo";
-import { L, runWithLocale, homeAgentDefinitions, homeStores, type HostCompleteText, PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS, builtinMarketDirectory } from "@molis-ai/molis-work-app-local-host";
+import { runWithLocale, homeAgentDefinitions, homeStores, type HostCompleteText, PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS, builtinMarketDirectory } from "@molis-ai/molis-work-app-local-host";
 import { person, serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { renderMolisWorkWorkbenchClientScript } from "./workbench-renderer-fixture.js";
 import { manifestProblems } from "./fixtures/declaration-manifest.js";
@@ -100,7 +101,7 @@ test("RAC-134 stable Todo words keep the formerly displayed English after the gl
     "todo.link.relation": "Relationships"
   };
   runWithLocale("en", () => {
-    for (const [key, expected] of Object.entries(displayed)) assert.equal(L(key), expected, key);
+    for (const [key, expected] of Object.entries(displayed)) assert.equal(pageText("en", "todo")(key), expected, key);
   });
 });
 

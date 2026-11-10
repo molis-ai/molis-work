@@ -1,3 +1,4 @@
+import { pageText } from "./fixtures/page-text.js";
 import { noticeText } from "./fixtures/assistant-saved-text.js";
 import { startProjectPlugins } from "./fixtures/plugin-callers.js";
 import { ensureProjectRoot } from "./fixtures/goals-board.js";
@@ -11,7 +12,7 @@ import { DatabaseSync } from "node:sqlite";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { newCallId, withCallId } from "@molis-ai/molis-work-kernel";
 import { ActionError, type ActionView, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import { createMolisWorkLocalHost, EN, molisWorkHostProjectReference, runWithLocale } from "@molis-ai/molis-work-app-local-host";
+import { createMolisWorkLocalHost, molisWorkHostProjectReference, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { LocalHost } from "@molis-ai/molis-work-app-local-host";
 import { managementGoals } from "./goal-management-caller.js";
@@ -243,11 +244,11 @@ test("AC-10, QA-001: on an English page the reason a Send without a model fails 
       assert.equal(error.code, "assistant.model_missing");
       assert.equal(error.message, "No usable model is configured yet, so the assistant can't start");
       // What the page shows: the reason, then its kept-text note from the English catalog, and the action's label.
-      const shown = error.message + EN["。输入已保留"];
+      const shown = error.message + pageText("en")("workbench.assistant-send.text-kept");
       assert.equal(shown, "No usable model is configured yet, so the assistant can't start. Your text is kept");
       assert.doesNotMatch(shown, /[\u3000-\u303f\u4e00-\u9fff\uff00-\uffef]/, "no Chinese word or punctuation left");
       assert.equal(error.details?.action, "打开模型设置", "the action stays the key the page picks the model-settings link by");
-      assert.equal(EN[String(error.details?.action)], "Open model settings");
+      assert.equal(pageText("en")("workbench.settings-connectors.open-model-settings"), "Open model settings");
       const kept = error.details?.work as { draft?: string } | undefined;
       assert.equal(kept?.draft, text, "the text is kept word for word");
       return true;

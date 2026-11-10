@@ -1,11 +1,11 @@
+import { assertPageWords, pagePack, pageText, withPageText } from "./fixtures/page-text.js";
 import { scanTree, workingTreeSnapshot, isProductSource } from "../scripts/gates/translations.mjs";
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 
-import { L, runWithLocale } from "@molis-ai/molis-work-app-local-host";
-import { COGNIA_CLIENT_FACTORY_SCRIPT, COGNIA_EN, COGNIA_MESSAGES, renderCogniaWorkbench } from "@molis-ai/molis-work-plugin-cognia";
+import { COGNIA_CLIENT_FACTORY_SCRIPT, renderCogniaWorkbench } from "@molis-ai/molis-work-plugin-cognia";
 
 const SRC = "plugins/native/cognia/src";
 const BROWSER = join(SRC, "browser");
@@ -23,30 +23,21 @@ test("RAC-144 every word the Cognia page says has a stable key with both languag
   const named = new Set<string>();
   for (const file of [join(SRC, "ui.ts"), ...browserFiles()]) for (const match of readFileSync(file, "utf8").matchAll(/"(cognia(?:\.[a-z0-9_-]+)+)"/gu)) named.add(match[1]);
   const used = new Set<string>([...calls.map(call => call.key), ...named]);
-  assert.deepEqual([...used].filter(key => !(key in COGNIA_MESSAGES)), [], "every key the page asks for is defined");
-  assert.deepEqual(Object.keys(COGNIA_MESSAGES).filter(key => !used.has(key)), [], "every defined key is asked for");
-  const names = (value: string) => [...new Set([...value.matchAll(/\{([a-z]+)[|}]/gu)].map(match => match[1]))].sort();
-  for (const [key, text] of Object.entries(COGNIA_MESSAGES)) {
-    assert.ok(text.zh && text.en, `${key} has Chinese and English`);
-    assert.deepEqual(names(text.zh), names(text.en), `${key} uses the same placeholders in both languages`);
-  }
+  assertPageWords("cognia", used);
   for (const file of browserFiles().filter(file => file !== WIRE)) assert.doesNotMatch(readFileSync(file, "utf8"), /[一-鿿]/u, `${file} writes Chinese where a stable key belongs`);
-  const html = renderCogniaWorkbench({ primitives: { escape: String, text: key => `«${key}»` } });
-  assert.match(html, /placeholder="«cognia\.search\.placeholder»"/u, "the server-drawn page speaks through the translator");
+  const html = withPageText("en", ["cognia"], () => renderCogniaWorkbench({ primitives: { escape: String } }));
+  assert.ok(html.includes(pageText("en", "cognia")("cognia.search.placeholder")), "the server-drawn page speaks through the translator");
   assert.doesNotMatch(html, /[一-鿿]/u, "no Chinese is drawn into the page directly");
-  assert.deepEqual([...scan.missing.keys()], [], "moving words out of Cognia's dictionary cannot leave another owner's live call untranslated");
+  assert.deepEqual(scan.problems, [], "moving words out of Cognia's dictionary cannot leave another owner's live call untranslated");
 });
 
-test("RAC-144 what stays in COGNIA_EN is raised by Cognia's Host side as Chinese text; the page's words and the dead ones are gone", () => {
-  const scan = scanTree(workingTreeSnapshot(process.cwd()), isProductSource);
-  const raisers = scan.files.filter(file => file.file.startsWith(SRC + "/") && !isPage(file.file) && !["en.ts", "messages.ts"].includes(file.file.slice(SRC.length + 1)) || file.file === WIRE);
-  for (const key of Object.keys(COGNIA_EN)) {
-    assert.ok(raisers.some(file => file.mentions.has(key)), `${key} must be raised by Cognia's Host side or be a wire reason`);
-  }
+test("RAC-144 Cognia ships no source-word dictionary for its page or Host", () => {
+  assert.throws(() => readFileSync(join(SRC, "en.ts")), { code: "ENOENT" });
+  const words = pagePack("cognia", "en").messages;
   const moved = ["导入知识库", "添加材料", "新建领域", "审阅草稿", "检索问答", "正在读取资料…", "目录授权失败", "预览导入", "查看原文", "尚未配置文字模型，导入、搜索和阅读仍可使用。"];
-  assert.deepEqual(moved.filter(key => key in COGNIA_EN), [], "page words are stable keys now, not entries of the dictionary the Host looks up by text");
+  assert.deepEqual(moved.filter(key => key in words), [], "page words are stable keys now, not entries of the dictionary the Host looks up by text");
   const dead = ["Cognia 请求失败", "请输入绝对目录路径", "符号链接未读取", "Prologue 返回空内容，请重试。", "或输入本机绝对目录路径", "请选择目录或填写本机路径"];
-  assert.deepEqual(dead.filter(key => key in COGNIA_EN), [], "entries nothing asks for cannot return");
+  assert.deepEqual(dead.filter(key => key in words), [], "entries nothing asks for cannot return");
 });
 
 test("RAC-144 the Cognia words keep the English the page showed before they became keys", () => {
@@ -58,12 +49,13 @@ test("RAC-144 the Cognia words keep the English the page showed before they beca
     "cognia.notice.retry": "Retry reading", "cognia.action.add": "Add material", "cognia.domain.unfiled": "Unclassified",
     "cognia.dialog.processing": "Processing…",
   };
-  runWithLocale("en", () => {
+  {
+    const L = pageText("en", "cognia");
     for (const [key, expected] of Object.entries(shown)) assert.equal(L(key), expected, key);
     assert.equal(L("cognia.selection.count", { count: 2 }), "Selected 2 / 5");
     assert.equal(L("cognia.import.domain-line", { name: "Tools" }), "Domain: Tools");
-  });
-  runWithLocale("zh", () => assert.equal(L("cognia.selection.count", { count: 2 }), "已选 2 / 5"));
+  }
+  assert.equal(pageText("zh", "cognia")("cognia.selection.count", { count: 2 }), "已选 2 / 5");
 });
 
 test("RAC-145 the Cognia page's client is typed browser code bundled by esbuild, and asks the Host only through the shared request helper", () => {

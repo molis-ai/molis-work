@@ -1,6 +1,6 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { ico, said } from "./dom.js";
+import { ico } from "./dom.js";
 import type { WorkflowsPage } from "./page.js";
 import { tint } from "./chain.js";
 import { label } from "./state.js";
@@ -57,7 +57,7 @@ export function markOpen(page: WorkflowsPage) {
 
 /** The picker at a gap of the chain: the plugins that fit there. */
 export function openGapPicker(page: WorkflowsPage, gap: number) {
-  const { ui, pop, readText } = page;
+  const { ui, pop } = page;
   const chain = ui.workflow!;
   const before = chain.stations[gap - 1], after = chain.stations[gap];
   const heading = before && after ? uiText.text("workflows.gap.between-heading", { a: label(page, before), b: label(page, after) }) : before ? uiText.text("workflows.gap.after", { a: label(page, before) }) : after ? uiText.text("workflows.gap.before", { a: label(page, after) }) : uiText.text("workflows.gap.first");
@@ -69,9 +69,9 @@ export function openGapPicker(page: WorkflowsPage, gap: number) {
   pop.dataset.mode = "gap";
   pop.innerHTML = `<header class="wf-pop__head"><strong>${esc(heading)}</strong></header><div class="wf-pop__list" role="listbox" aria-label="${esc(heading)}">`
     + ui.stations.filter(fits).map((info) => `<button type="button" class="wf-pop__item" role="option" data-wf-action="insert" data-plugin="${esc(info.plugin)}" data-gap="${gap}" style="--station-tint:${tint(info.plugin)}">`
-      + `<span class="wf-station__icon">${ico(info.icon)}</span><span>${esc(said(readText, info.label))}</span></button>`).join("")
-    + "</div>" + (firstOnly.length ? `<p class="wf-hint">${esc(uiText.text("workflows.gap.first-only", { plugins: firstOnly.map((info) => said(readText, info.label)).join("、") }))}</p>` : "")
-    + (others.length ? `<p class="wf-hint" title="${esc(others.map((info) => said(readText, info.label)).join("、"))}">${esc(uiText.text("workflows.palette.others", { count: others.length }))}</p>` : "");
+      + `<span class="wf-station__icon">${ico(info.icon)}</span><span>${esc(info.label)}</span></button>`).join("")
+    + "</div>" + (firstOnly.length ? `<p class="wf-hint">${esc(uiText.text("workflows.gap.first-only", { plugins: firstOnly.map((info) => info.label).join("、") }))}</p>` : "")
+    + (others.length ? `<p class="wf-hint" title="${esc(others.map((info) => info.label).join("、"))}">${esc(uiText.text("workflows.palette.others", { count: others.length }))}</p>` : "");
   markOpen(page);
   placePop(page, gapButtonOf(page, gap));
   pop.querySelector<HTMLElement>(".wf-pop__item")?.focus();

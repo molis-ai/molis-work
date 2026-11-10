@@ -1,4 +1,4 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { dateArg, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { PlacementDescription } from "@molis-ai/molis-work-contracts/services/placement";
 import { textCell } from "./dom.js";
 import type { LingguangPage, Spark } from "./types.js";
@@ -16,8 +16,7 @@ export function installList(page: LingguangPage): void {
     if (Number.isNaN(date.getTime())) return "";
     const now = new Date();
     const sameDay = date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth() && date.getDate() === now.getDate();
-    if (sameDay) return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
-    return (date.getMonth() + 1) + "/" + date.getDate();
+    return uiText.text("common.generated.formatted", { value: dateArg(date.toISOString(), sameDay ? "time" : "month-day") });
   };
   // A row is selected while it is picked or open, and the list (a listbox that picks several) says so.
   const paintRow = (row: Element, on: boolean) => {

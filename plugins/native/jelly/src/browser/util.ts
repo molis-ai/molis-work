@@ -1,3 +1,5 @@
+import { dateArg, t } from "@molis-ai/molis-work-plugin-sdk/ui";
+
 
 export const glyph = (name: string): string => `<svg aria-hidden="true"><use href="#icon-${name}"></use></svg>`;
 export const uid = (): string => crypto.randomUUID();
@@ -9,10 +11,9 @@ export const addDays = (key: string, days: number): string => {
   return civil(date);
 };
 export const dayOffset = (from: string, to: string): number => Math.round((dayDate(to).getTime() - dayDate(from).getTime()) / 86400000);
-const lang = (): string | undefined => document.documentElement.lang || undefined;
 export const dateLabel = (key: string, short = false): string =>
-  dayDate(key).toLocaleDateString(lang(), short ? { month: "short", day: "numeric" } : { month: "long", day: "numeric", weekday: "short" });
-export const monthLabel = (key: string): string => dayDate(key).toLocaleDateString(lang(), { year: "numeric", month: "long" });
+  t.text("common.generated.formatted", { value: dateArg(key, short ? "month-day" : "weekday-month-day") });
+export const monthLabel = (key: string): string => t.text("common.generated.formatted", { value: dateArg(key, "year-month") });
 export const clockLabel = (minutes: number | null | undefined): string =>
   minutes === null || minutes === undefined ? "" : `${String(Math.floor(minutes / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
 export const parseClock = (value: string): number | null => (value ? Number(value.slice(0, 2)) * 60 + Number(value.slice(3, 5)) : null);

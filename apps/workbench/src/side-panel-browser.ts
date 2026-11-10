@@ -292,7 +292,7 @@ export const SIDE_BROWSER_SCRIPT = String.raw`(() => {
       // Assistant offers it above the bar and the person decides what to ask (continuity.md: suggest).
       try{
         const capture=(await post('capture',{})).capture;
-        const at=new Date(capture.captured_at).toLocaleString();
+        const at=globalThis.t.text("common.generated.formatted", { value: { kind: "date", at: capture.captured_at, style: "datetime" } });
         const title=(capture.selection?globalThis.t.text("workbench.side-panel-browser.selection-page"):globalThis.t.text("workbench.side-panel-browser.web-page-2"))+' · '+(capture.title||capture.origin);
         const text=globalThis.t.text("workbench.side-panel-browser.source-url",{url:capture.url})+'\n'+globalThis.t.text("workbench.side-panel-browser.taken-side-panel-browser",{at})+(capture.truncated?'\n'+globalThis.t.text("workbench.side-panel-browser.page-long-only-its-beginning-was-taken"):'')+'\n\n'+capture.text;
         window.dispatchEvent(new CustomEvent('molis:assistant-message',{detail:{message_id:crypto.randomUUID(),purpose:'suggest',source:{surface:'browser',title:globalThis.t.text("workbench.side-panel-browser.side-panel-browser")},

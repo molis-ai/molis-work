@@ -7,22 +7,23 @@ import { join } from "node:path";
 import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { renderFilesBrowserDirectory, renderFilesBrowserResult } from "@molis-ai/molis-work-plugin-files";
 import { renderGitBrowserDirectory, renderGitBrowserResult } from "@molis-ai/molis-work-plugin-git";
-import { createWorkbenchLocale, pluginSurfaceClients } from "@molis-ai/molis-work-app-workbench";
+import { pluginSurfaceClients } from "@molis-ai/molis-work-app-workbench";
 import { AGENT_REVIEW_CLIENT_FACTORY_SCRIPT } from "../apps/workbench/dist/scripts/client/agent-review.js";
 import { openStudioChrome } from "./fixtures/plugin-builder-browser.js";
 import { DEMO_PROJECT_ID, LocalProjectDatabase, createPluginPlatform, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { createCodingPlugin } from "@molis-ai/molis-work-plugin-coding";
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
-import { createDiffPlugin, DIFF_LABELS, DIFF_MESSAGES, DIFF_TEMPLATES, type DiffView } from "@molis-ai/molis-work-plugin-diff";
-import { diffViewText, renderDiff } from "@molis-ai/molis-work-plugin-sdk/diff-view";
+import { createDiffPlugin, DIFF_LABELS, type DiffView } from "@molis-ai/molis-work-plugin-diff";
+import { renderDiff } from "@molis-ai/molis-work-plugin-sdk/diff-view";
 import { icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { UiHost, UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { pluginActions, withFakeAgentHost } from "./fixtures/plugin-actions.js";
 
 const pause = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-const { L, clientI18nScript } = createWorkbenchLocale(() => "zh");
+import { pageText, pageTextScript, withPageText } from "./fixtures/page-text.js";
+const readText = pageText("zh", "diff");
 async function until(predicate: () => boolean) {
   for (let n = 0; n < 150; n++) { if (predicate()) return; await pause(20); }
   assert.ok(predicate(), "expected server-side request or cancellation");
@@ -45,7 +46,7 @@ async function fixture(t: TestContext, markup: string, script: string, reply: (p
       response.setHeader("content-type", "text/html; charset=utf-8");
       response.end(`<!doctype html><section id="parent" hidden>${markup}</section><script>
         window.errors=[];addEventListener('error',event=>errors.push(event.message));addEventListener('unhandledrejection',event=>errors.push(String(event.reason)));
-        ${clientI18nScript()}
+        ${pageTextScript("zh", "coding", "files", "git", "diff")}
         ${UI_REQUEST_CLIENT_SCRIPT}
         const actualMount=(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})();window.mountedScopes=new WeakMap();
         window.mount=root=>{const scope=actualMount(root);if(scope)mountedScopes.set(root,scope);return scope;};window.parentView=document.querySelector('#parent');
@@ -74,7 +75,7 @@ async function fixture(t: TestContext, markup: string, script: string, reply: (p
 /** A plugin's client as the page mounts it on its own surface: each companion is a bundle of its own. */
 const pageFactory = (id: string) => pluginSurfaceClients().find(client => client.id === id)!.factory;
 // A companion's reads go to its own plugin's routes (`host.pluginRoute`); the fixture serves them at `/<plugin>/…`.
-const companionHost = (name: string) => `root:document.querySelector('[data-companion]'),mountPluginClient:mount,translate:L,route:path=>path,pluginId:'io.molis.work.${name}',pluginRoute:path=>'/${name}'+path,headers:()=>({}),openPlugin:()=>{} ,reviews:{show:(element,query,options)=>{
+const companionHost = (name: string) => `root:document.querySelector('[data-companion]'),mountPluginClient:mount,translate:globalThis.t.text,route:path=>path,pluginId:'io.molis.work.${name}',pluginRoute:path=>'/${name}'+path,headers:()=>({}),openPlugin:()=>{} ,reviews:{show:(element,query,options)=>{
   window.fixtureReviewShow ??= (${AGENT_REVIEW_CLIENT_FACTORY_SCRIPT})({mountPluginClient:mount,route:path=>path,headers:()=>({})});
   return fixtureReviewShow(element,query.runIds.map(run_id=>({run_id})),query.sessionId,query.workspaceId,query,
     {lifetime:mountedScopes.get(element.closest('[data-companion]')),signal:options?.signal});
@@ -177,11 +178,11 @@ test("W2-18-DIFF-FILE-01: a real Coding frozen output selects distinct files and
   const fixedState = async (index: number) => {
     const state = await dispatch("/api/plugins/io.molis.work.diff/state", "GET", undefined, { change_index: String(index) }) as { view: DiffView };
     // The Host's presentation seam: the owner's genuine view is rendered by the public Diff renderer.
-    return { ...state, html: renderDiff({ labels: DIFF_LABELS, view: state.view, primitives: {
+    return { ...state, html: withPageText("zh", ["diff"], () => renderDiff({ labels: DIFF_LABELS, view: state.view, primitives: {
       escape: value => String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;"),
       icon: name => icon(name as Parameters<typeof icon>[0]),
-      text: diffViewText(DIFF_MESSAGES, "zh", DIFF_TEMPLATES, L),
-    } }) };
+      text: readText,
+    } })) };
   };
   const previous = await fixedState(1);
   const f = await fixture(t, `<section data-work-surface="diff" data-companion="diff">${fixedMarkup}</section>`, `

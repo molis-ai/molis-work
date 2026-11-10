@@ -1,4 +1,4 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { dateArg, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type {} from "@molis-ai/molis-work-plugin-sdk";
 import type { UiSideContext, UiPageMessage } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { PagesCommentThread } from "./contract.js";
@@ -48,7 +48,7 @@ export function mountComments(host: CommentSideHost): void {
     for(const message of thread?.messages||[]){
       const article=document.createElement('article'),head=document.createElement('div'),name=document.createElement('strong'),time=document.createElement('time'),body=document.createElement('p');
       name.textContent=uiText.text(message.author==='assistant'?'pages.comments.assistant':message.author==='annotation'?'pages.comments.annotation':'pages.comments.me');
-      time.textContent=new Date(message.created_at).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});time.dateTime=message.created_at;
+      time.textContent=uiText.text("common.generated.formatted",{value:dateArg(message.created_at,"time")});time.dateTime=message.created_at;
       body.textContent=message.body;head.append(name,time,button(uiText.text('pages.comments.reply'),()=>{draft().reply_to=message.message_id;persist();paintDraft();q('draft').focus();}));article.append(head,body);q('messages').append(article);
     }
     if(!thread){const hint=document.createElement('p');hint.textContent=uiText.text(loaded!==context?.object_ref.id?'pages.comments.loading':'pages.comments.hint');q('messages').append(hint);}

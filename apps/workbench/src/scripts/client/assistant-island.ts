@@ -7,6 +7,7 @@ import { ASSISTANT_STEP_ROW_FACTORY_SCRIPT } from "./assistant-step-row.js";
 import type { AssistantPendingReview, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
 import { ARTIFACT_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { renderAssistantTextHtml, renderAssistantReviewHtml, renderAssistantNoticeText, renderAssistantSavedText } from "../../assistant-text-html.js";
+import type { AssistantTextPorts } from "../../assistant-text-parts.js";
 import { ASSISTANT_CHOOSERS_PART } from "./assistant-choosers.js";
 import { ASSISTANT_BROWSER_HANDBACK_PART } from "./assistant-browser-handback.js";
 import { ASSISTANT_LAYOUT_PART } from "./assistant-layout.js";
@@ -22,9 +23,9 @@ import { ASSISTANT_COMPOSER_PART } from "./assistant-composer.js";
 import { ASSISTANT_PAGE_MESSAGES_PART } from "./assistant-page-messages.js";
 // The SDK's tokenizer is consumed here on the Host, never serialized into the Assistant's browser script.
 const assistantGrownTokens = assistantCodeColours(growCodeTokens, codeTokens);
-export const assistantTextHtml = (text: string, objects: AssistantWorkView["objects"], say: (text: string) => string): string =>
+export const assistantTextHtml = (text: string, objects: AssistantWorkView["objects"], say: AssistantTextPorts["say"]): string =>
   renderAssistantTextHtml(text, { objects, say, language: codeLanguage, tokens: assistantGrownTokens });
-export const assistantReviewHtml = (review: AssistantPendingReview, say: (text: string) => string): string =>
+export const assistantReviewHtml = (review: AssistantPendingReview, say: AssistantTextPorts["say"]): string =>
   renderAssistantReviewHtml(review, { objects: [], say, language: codeLanguage, tokens: codeTokens });
 
 /**
@@ -235,7 +236,7 @@ ${ASSISTANT_CONVERSATION_PART}
   const WAITING = new Set(["waiting-input", "waiting-review", "needs-check"]);
   // Works with news for the person (done, a result handed back, new material) and works waiting on them, from notices.
   let unreadWorks = new Set(), urgentWorks = new Set();
-  const when = (iso) => { const at = new Date(iso); return Number.isFinite(at.getTime()) ? at.toLocaleString([], { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : ""; };
+  const when = (iso) => { const at = new Date(iso); return Number.isFinite(at.getTime()) ? globalThis.t.text("common.generated.formatted", { value: { kind: "date", at: at.toISOString(), style: "datetime" } }) : ""; };
   const showError = (next) => { problem = next; render(); };
   /* A change the Assistant made is announced once, so the surface that owns that data can show it (and not overwrite it). */
   const announced = new Set();

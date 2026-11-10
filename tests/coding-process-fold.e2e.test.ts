@@ -21,13 +21,13 @@ test("VUX-13 the Coding timeline folds a round's steps like the Assistant's proc
   try {
     const page = await browser.page();
     await page.command("Emulation.setDeviceMetricsOverride", { width: 1200, height: 900, deviceScaleFactor: 1, mobile: false });
-    await page.evaluate(`(()=>{${pageTextScript("zh")}})()`);
+    await page.evaluate(`(()=>{${pageTextScript("zh", "coding")}})()`);
     // The workbench sheet the Coding frame and the Assistant both draw with; the Assistant's process rules live under the workbench body.
     await page.evaluate(`(()=>{const style=document.createElement('style');style.textContent=${JSON.stringify(renderMolisWorkWorkbenchWithPluginStylesheets())};document.head.append(style);
       document.body.className='immersive-workbench';document.body.innerHTML='<main style="width:760px;padding:24px"><section data-coding-block></section><div data-assistant-fixture></div></main>';})()`);
     // The factory reaches the page by toString in production, so it does here.
     await page.evaluate(`(()=>{
-      const timeline=(${createCodingTimeline.toString()})((${codingTimelineWords.toString()})(globalThis.L));
+      const timeline=(${createCodingTimeline.toString()})((${codingTimelineWords.toString()})(globalThis.t.text));
       const detail=document.createElement('details');detail.className='coding-activity';detail.dataset.codingActivity='r:a';document.querySelector('[data-coding-block]').append(detail);
       const lines=(n,from=1)=>Array.from({length:n},(_,i)=>'line '+(i+from)).join('\\n');
       const read={call_id:'a',name:'read',target:'src/login.ts',state:'completed',output:'export function login() {}'};

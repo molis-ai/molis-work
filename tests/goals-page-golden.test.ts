@@ -130,6 +130,9 @@ const pages: Record<string, Draw> = {
 // D0014/D0015 (2026-11-09): all 66 baseline renders on independently built ecdfe102d matched the accepted records.
 // Token comparison with the candidate found 22 changed records, solely the shared state labels/title/aria text,
 // the blocked count label, and the cancelled kanban column (including its paused ring and zero count). The other 44 stay byte-identical.
+// Main #2002 integration: all 66 preserved A-1 draws first reproduced their accepted hashes.
+// Derive only the hidden assistant-answer button and English To: → Send to: from that main change.
+// All 16 whole-page draws match the derived markup byte for byte; the other 50 remain identical.
 const RECORDED = new URL("golden.json", GOLDEN);
 interface Recorded { sha256: string; length: number }
 const recorded: Record<string, Recorded> = record ? {} : JSON.parse(readFileSync(RECORDED, "utf8"));

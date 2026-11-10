@@ -86,7 +86,6 @@
 
 - [daily-quality-d0033](daily-quality-d0033/spec.md)：高项真实侧栏隔离核查；补拒绝证据并纠正外层 frame 的旧评估，待 PR 核回。
 
-- [daily-quality-medium-20261108](daily-quality-medium-20261108/spec.md)：2026-11-08日评中优先级A类54编号，用户2026-11-09批准，分批实施与验证。
 
 ## 现行规范
 
@@ -135,6 +134,8 @@
 **现行规范** 不归档。规则变了就改原文；一份规范被新 spec 整体取代时，新 spec 成为现行规范，旧的按上面的规则归档。
 
 ## 梳理记录
+
+- 2026-11-10：[中优先级 A54 修复](archive/daily-quality-medium-20261108/spec.md)归档（已实现）；#2004 经最终 CI、Full 32 分片与正常合并队列通过后合入 main，B/C 未决项仍见对应日评。
 
 - 2026-11-07：[单机构建与测试各三个槽位](archive/machine-slots-three/spec.md)归档（已实现，负责人 Codex）；#1953 经 PR CI 与合并队列通过后合入 main，本机主检出已同步并确认两个三槽池。
 

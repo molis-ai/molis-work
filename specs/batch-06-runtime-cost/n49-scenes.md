@@ -1,6 +1,6 @@
 # N49 候选场景一次读取
 
-状态：实施前设计，真实 HTTP 基线已取得（2026-11-09），优化代码尚未实施。完成标准沿 [06-4 原验收](../post-anticorruption-roadmap/reference/batches/06.md#batch-06-item-4)，本稿不降低要求。
+状态：独立分支已实现并定向验证（2026-11-10）；待本批统一集成、合审和 CI Full。完成标准沿 [06-4 原验收](../post-anticorruption-roadmap/reference/batches/06.md#batch-06-item-4)。
 
 基点 `d2dcffa0257f`，产品构建来自 `9e8583022`，两者之间仅文档变化。现行需求见[各包调用成本](spec.md)，N43／46 另见[宿主成本](../batch-06-call-cost/spec.md)。用户已明确本批取消新增升版，本项沿当前合同版本增加方法，不升动作、存储或同步版本。第 27 批 BL-097／BL-131 可直接消费本次投影入口和调用数字。本文只覆盖 Inbox 与 Feed 的两个候选目录读。
 
@@ -64,6 +64,25 @@ node scripts/machine-slot.mjs run browser --label '06 N49 baseline' -- node scri
 | Inbox 断连 | 3 | 1 / 3 / 1 | 2 / 6 | 1 / 7；24 | 4 / 3 / 0 |
 | Feed 断连与不可用 | 2 | 1 / 2 / 1 | 2 / 5 | 1 / 6；21 | 3 / 3 / 0 |
 
-每个场景的 Kernel usages 都是 workflow 1/user 2；它们是已有绑定及其依赖的固定工作，不能当作逐候选重复而删掉。所有样本验证实际绑定、候选响应及不可用原因。优化后的真实请求数字、运行中撤权与固定预算反例尚未取得；N49 不记完成。临时日志为 `/private/tmp/molis06-n49-baseline-r2.log`，首轮日志保留在同目录 `molis06-n49-baseline-first.log`。未来正式回归固定优化后预算，不能通过是否存在新方法来切换期望。
+每个场景的 Kernel usages 都是 workflow 1/user 2；它们是已有绑定及其依赖的固定工作。所有样本验证实际绑定、候选响应及不可用原因。临时日志为 `/private/tmp/molis06-n49-baseline-r2.log`，首轮日志保留在同目录 `molis06-n49-baseline-first.log`。
 
 2026-11-10 恢复实施时核对 `origin/main` `c7873a0f2`。#1999／#2000 已合，以上在途头改为最终主线证据：#1999 合入 `fad49e455` 的 `action-service.ts` 仍是 SDK `/execution` import，`directory-pass.ts` 仍是同步签名；#2000 合入 `6df7285c3`，保留 `HomePageSubject`、项目成员版本控制和页面草稿等相邻注册。实际 `local-host-scenes`、`plugin-scene-service` 和两个 owner 候选循环无新增主线差异。#2002／#2004 已合，工作台与验收修复留在最终主线统一同步。当前六个开 PR 的文件清单未命中本项场景源码与 API 快照。开发在本批 N12 接回头 `6006f5ca6` 上串行，最终合入 main 时统一再生成快照。
+
+## 同夹具的改后数字
+
+对隔离分支完整构建产物使用同一探针。六个情形各三次，样本内读数一致；候选规模是受控输入。
+
+| 情形 | 候选数 | owner 初查 / scene 请求 / usages（前 → 后） | 内核 discover（workflow/user） | 场景枚举（workflow/user；投影行数） | 绑定 SQL（Inbox/Feed/Home） |
+| --- | ---: | --- | --- | --- | --- |
+| Inbox 单项 | 1 | 1 / 1 / 1 → 1 / 1 / 1 | 2 / 4 → 2 / 4 | 1 / 5；18 → 1 / 5；16 | 4 / 3 / 0 不变 |
+| Inbox 多项 | 3 | 1 / 3 / 1 → 1 / 1 / 1 | 2 / 6 → 2 / 4 | 1 / 7；24 → 1 / 5；16 | 4 / 3 / 0 不变 |
+| Feed 单项 | 1 | 1 / 1 / 1 → 1 / 1 / 1 | 2 / 4 → 2 / 4 | 1 / 5；18 → 1 / 5；16 | 3 / 3 / 0 不变 |
+| Feed 多项，含不兼容 | 2 | 1 / 2 / 1 → 1 / 1 / 1 | 2 / 5 → 2 / 4 | 1 / 6；21 → 1 / 5；16 | 3 / 3 / 0 不变 |
+| Inbox 断连 | 3 | 1 / 3 / 1 → 1 / 1 / 1 | 2 / 6 → 2 / 4 | 1 / 7；24 → 1 / 5；16 | 4 / 3 / 0 不变 |
+| Feed 断连与不可用 | 2 | 1 / 2 / 1 → 1 / 1 / 1 | 2 / 5 → 2 / 4 | 1 / 6；21 → 1 / 5；16 | 3 / 3 / 0 不变 |
+
+各 owner 仍以 workflow 受众发现一次候选，批量场景读取只用原 user 受众。Kernel usages 固定为 workflow 1/user 2。每个场景请求携带全部精确引用；只投影本插件声明的场景，未声明的 Home 推荐场景不触发额外目录读取。
+
+- [固定预算回归](../../tests/inbox-action-scenes.test.ts)检查完整真实 HTTP、候选顺序、两份原绑定的引用和 revision、不可用原因、Kernel 目录发现、场景声明枚举和 SQL 执行。另在一批中强制多做一次真实目录发现，owner 批量调用仍是一次，但固定预算拒绝；Feed 判断连接断开和场景自身不可用分别验证。
+- [S-89](../../tests/security-invariants-plugin-scene-client.test.ts)对照单项与批量，验证原受众、实际缺失权限、固定提供方和版本、场景意图、schema、重复顺序及场景归属。空批借用服务被拒，已经真实算出的结果在返回前遇撤权或取消也不交给插件。新用例在旧构建因无批量入口失败，日志 `/private/tmp/molis06-n49-s89-red.log`。
+- [Feed 过时引用](../../tests/feed-capture-scenes.test.ts)从真实 GET 拿到可用引用，成功绑定并预览后撤原注册、以相同 id/version 登记不同提供方；绑定、预览、执行均拒绝旧引用，原绑定 revision、规则集合、判断账和调用次数无新增。

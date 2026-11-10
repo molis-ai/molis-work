@@ -1,6 +1,7 @@
-import { ActionError, requireSynchronous, type ActionExecutionContext, type ActionSceneClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, requireSynchronous, type ActionExecutionContext, type ActionSceneClient, type ActionSceneView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { PLUGIN_SCENES_PERMISSION, pluginErrors, type PluginInstanceRecord, type PluginManifest, type PluginSceneClient, type PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { currentPluginAction, inPluginInstance, pluginInvocationReadOnly } from "@molis-ai/molis-work-plugin-runtime";
+import { checkedReference } from "./plugin-action-query.js";
 
 /** What the Host gives `services.scenes` of one installation: the kernel's scene client for the project, and the questions every call asks. */
 export interface PluginSceneServicePorts {
@@ -24,7 +25,9 @@ const sceneKey = (sceneId: string, version: number) => `${sceneId}@${version}`;
 export function pluginScenesFor(manifest: PluginManifest, context: PluginStartContext, ports: PluginSceneServicePorts): PluginSceneClient | undefined {
   const declared = manifest.action_scenes ?? [];
   if (!ports.scenes || declared.length === 0 || !manifest.permissions.some(item => item.permission === PLUGIN_SCENES_PERMISSION)) return undefined;
-  const scenes = ports.scenes, own = new Set(declared.map(scene => sceneKey(scene.scene_id, scene.version))), generation = ports.record()?.installation_generation;
+  const selection = { plugin_id: manifest.plugin_id, scenes: declared.map(({ scene_id, version }) => ({ scene_id, version })) };
+  const scenes = ports.scenes, own = new Set(selection.scenes.map(scene => sceneKey(scene.scene_id, scene.version))), generation = ports.record()?.installation_generation;
+  const isOwn = (view: ActionSceneView) => view.provider.plugin_id === selection.plugin_id && own.has(sceneKey(view.definition.scene_id, view.definition.version));
   const holding = () => {
     ports.assertActive(); context.requireGrant(PLUGIN_SCENES_PERMISSION);
     const current = ports.record();
@@ -65,11 +68,19 @@ export function pluginScenesFor(manifest: PluginManifest, context: PluginStartCo
   };
   /** Resolve ownership after reading the rows: a declared id alone does not identify its current provider. */
   const ownProviders = async (caller: ActionExecutionContext) => new Map((await scenes.discoverScenes(caller))
-    .filter(view => view.provider.plugin_id === manifest.plugin_id && own.has(sceneKey(view.definition.scene_id, view.definition.version)))
+    .filter(isOwn)
     .map(view => [sceneKey(view.definition.scene_id, view.definition.version), view.provider.provider_id]));
   return Object.freeze<PluginSceneClient>({
-    discoverScenes: judgment => call("none", async caller => (await scenes.discoverScenes(caller, judgment))
-      .filter(view => view.provider.plugin_id === manifest.plugin_id && own.has(sceneKey(view.definition.scene_id, view.definition.version)))),
+    discoverScenes: judgment => call("none", async caller => (await scenes.discoverScenes(caller, judgment)).filter(isOwn)),
+    discoverScenesFor: judgments => call("none", async caller => {
+      const refs = Array.from(judgments, judgment => {
+        const ref = checkedReference(judgment);
+        if (!ref.provider_id) throw new ActionError("actions.reference_invalid", "场景判断引用必须指定提供方");
+        return { ...ref, provider_id: ref.provider_id };
+      });
+      if (!refs.length) return [];
+      return (await scenes.discoverScenesFor(caller, refs, selection)).map(rows => rows.filter(isOwn));
+    }),
     usages: judgment => call("none", async (caller, scope) => {
       const metadata = caller.stage_scene_metadata, entry = caller.current_action;
       if (metadata && (!entry || metadata.entry.capability_id !== scope.definition.capability_id || metadata.entry.version !== scope.definition.version

@@ -404,6 +404,7 @@ export class MolisWorkLocalHost {
     const refresh = () => this.prepareHomeActions();
     return {
       discoverScenes: async (caller, judgment) => { await refresh(); return client.discoverScenes(caller, judgment); },
+      discoverScenesFor: async (caller, judgments, selection) => { await refresh(); return client.discoverScenesFor(caller, judgments, selection); },
       usages: async (caller, judgment) => { await refresh(); return client.usages(caller, judgment); },
       targets: async (caller, judgment, selection) => { await refresh(); return client.targets(caller, judgment, selection); },
       bind: async (caller, binding, options) => { await refresh(); return client.bind(caller, binding, options); },

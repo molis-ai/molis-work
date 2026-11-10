@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import test from "node:test";
-import type { ActionCallContext, ActionClient, ActionSceneBinding, ActionSceneClient, ActionSceneUsage, ActionSceneView, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ActionCallContext, ActionClient, ActionSceneBinding, ActionSceneUsage, ActionSceneView, ActionView, ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { INBOX_NEXT_SCENE_ID, type JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
 import { createFeedSceneRuntime, feedCaptureScene, feedCaptureSubjectRevision, type FeedApplication, type FeedItemRecord } from "@molis-ai/molis-work-plugin-feed";
 import { createInboxSceneRuntime, inboxNextScene, inboxSceneBindingId, withStagedFeedContent } from "@molis-ai/molis-work-plugin-inbox";
@@ -25,7 +25,8 @@ const sceneView = (sceneId: string, version: number, compatible: boolean, availa
 
 function feedRuntime(over: { usages?: ActionSceneUsage[]; judgments?: JudgmentRecord[]; item?: (id: string) => FeedItemRecord; views?: ActionSceneView[]; actions?: Partial<ActionClient> } = {}) {
   const recorded: unknown[] = [];
-  const scenes = { usages: async () => over.usages ?? [], discoverScenes: async () => over.views ?? [] } as never;
+  const scenes = { usages: async () => over.usages ?? [], discoverScenes: async () => over.views ?? [],
+    discoverScenesFor: (_caller: ActionCallContext, refs: readonly ExactActionReference[]) => refs.map(() => over.views ?? []) } as never;
   const actions = { discover: async () => [], invoke: async () => ({ status: "ok", suggested_behavior_ids: [] }), ...over.actions } as never;
   const runtime = createFeedSceneRuntime({ projectId: PROJECT, feed: {} as FeedApplication, actions, scenes, host: {
     latestJudgments: () => over.judgments ?? [],
@@ -92,6 +93,7 @@ function inboxRuntime(over: { entry?: (id: string) => ReturnType<typeof entry>; 
   views?: ActionSceneView[]; capabilities?: ActionView[]; content?: (id: string) => Promise<never> } = {}) {
   const bound: ActionSceneBinding[] = [], saved: ActionSceneBinding[] = [], events: JudgmentRecord[] = [], recorded: unknown[] = [];
   const scenes = { usages: async () => over.usages ?? [], discoverScenes: async () => over.views ?? [sceneView(INBOX_NEXT_SCENE_ID, 1, true)],
+    discoverScenesFor: async (refs: readonly ExactActionReference[]) => refs.map(() => over.views ?? [sceneView(INBOX_NEXT_SCENE_ID, 1, true)]),
     bind: async (binding: ActionSceneBinding) => { bound.push(binding); }, runScene: async () => ({ ran: true }) } as never;
   const judgments = { latest: () => over.judgments ?? [], record: (input: unknown) => { recorded.push(input); return { judgment_id: "j1" } as never; } } as never;
   const runtime = createInboxSceneRuntime({ projectId: PROJECT, scenes, judgments,

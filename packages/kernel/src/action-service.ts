@@ -6,7 +6,7 @@ import {
   ActionError, requireSynchronous,
   type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionClient, type ActionDefinition,
   type ActionProvider, type ActionProviderRegistration, type ActionReference, type ActionRegistryPort,
-  type ActionSceneTarget, type ActionSceneConfigureOptions, type ActionSceneBinding, type ActionSceneDefinition, type ActionSceneHandlerBinding, type ActionSceneUsage, type ActionView, type ActionSceneView,
+  type ActionSceneTarget, type ActionSceneConfigureOptions, type ActionSceneBinding, type ActionSceneDefinition, type ActionSceneHandlerBinding, type ActionSceneSelection, type ActionSceneUsage, type ActionView, type ActionSceneView, type ExactActionReference,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostCapabilityDescriptor } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { CapabilityRegistry } from "./index.js";
@@ -236,9 +236,10 @@ export class ActionService implements ActionClient, ActionRegistryPort {
     });
   }
 
-  private sceneDeclarations(context: ActionCallContext) {
-    return [...this.scenes.values()].filter(scene => sceneVisible(scene, context)).map(scene => ({ scene,
-      metadata: { definition: structuredClone(scene.definition), provider: structuredClone(scene.provider) } }));
+  private sceneDeclarations(context: ActionCallContext, selection?: ActionSceneSelection) {
+    const declared = selection ? new Set(selection.scenes.map(sceneKey)) : undefined;
+    return [...this.scenes.values()].filter(scene => (!selection || scene.provider.plugin_id === selection.plugin_id && declared!.has(sceneKey(scene.definition)))
+      && sceneVisible(scene, context)).map(scene => ({ scene, metadata: { definition: structuredClone(scene.definition), provider: structuredClone(scene.provider) } }));
   }
 
   /** Composition-only declarations. No handler, availability evaluation or execution authority is returned. */
@@ -249,10 +250,28 @@ export class ActionService implements ActionClient, ActionRegistryPort {
   discoverScenes(context: ActionCallContext, judgment?: ActionReference): ActionSceneView[] {
     const directory = judgment ? this.discover(context) : [];
     const fn = judgment ? directory.find(d => actionKey(d) === actionKey(judgment)) : undefined;
-    return this.sceneDeclarations(context).map(({ scene, metadata }) => {
+    return this.sceneProjection(context, directory)(judgment, fn);
+  }
+
+  discoverScenesFor(context: ActionCallContext, judgments: readonly ExactActionReference[], selection?: ActionSceneSelection): ActionSceneView[][] {
+    if (!judgments.length) return [];
+    return inDirectoryPass(() => {
+      const directory = this.discover(context), firstByKey = new Map<string, ActionView>();
+      for (const view of directory) {
+        const key = actionKey(view);
+        if (!firstByKey.has(key)) firstByKey.set(key, view);
+      }
+      const project = this.sceneProjection(context, directory, selection);
+      return judgments.map(judgment => project(judgment, firstByKey.get(actionKey(judgment))));
+    });
+  }
+
+  private sceneProjection(context: ActionCallContext, directory: readonly ActionView[], selection?: ActionSceneSelection) {
+    const rows = this.sceneDeclarations(context, selection).map(({ scene, metadata }) => ({ scene,
+      view: { ...metadata, configuration_availability: scene.configurationAvailability(context), availability: scene.availability(context) } }));
+    return (judgment?: ActionReference, fn?: ActionView): ActionSceneView[] => rows.map(({ scene, view }) => {
       const reason = judgment ? actionSceneCompatibilityReason(scene.definition, fn, judgment, directory, scene.provider) : undefined;
-      return { ...metadata,
-        configuration_availability: scene.configurationAvailability(context), availability: scene.availability(context), compatible: !reason, ...(reason ? { reason } : {}) };
+      return { ...view, compatible: !reason, ...(reason ? { reason } : {}) };
     });
   }
 

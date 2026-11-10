@@ -1,6 +1,6 @@
 import type { HostCapabilityDescriptor, LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { subjectOfferCompatibilityReason, type ActionService } from "@molis-ai/molis-work-kernel";
-import { sceneConfigurationActions, ActionError, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionReference, type ActionSceneClient, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { sceneConfigurationActions, ActionError, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionReference, type ActionSceneClient, type ActionSceneView, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostOptions } from "./local-host-types.js";
 import { hostAuthorityContext, snapshotCaller } from "./local-host-caller.js";
 import { normalizeReference } from "./local-host-project-line.js";
@@ -33,13 +33,12 @@ export function createSceneClient(host: SceneHost, reference?: LocalHostProjectR
     caller.signal?.throwIfAborted();
     return bound;
   };
-  const scenes = async (caller: ActionCallContext, judgment?: ActionReference) => {
-    const rows = host.actionService.discoverScenes(caller, judgment);
-    const directory = judgment && rows.some(scene => scene.compatible && scene.definition.recommendation_source === "subject-offers")
-      ? await host.discoverActions(caller) : [];
+  const needsOffers = (scene: ActionSceneView) => scene.compatible && scene.definition.recommendation_source === "subject-offers";
+  const withPolicy = async (caller: ActionCallContext, rows: readonly ActionSceneView[], loadDirectory: () => Promise<ActionView[]>, judgment?: ActionReference) => {
+    const directory = judgment && rows.some(needsOffers) ? await loadDirectory() : [];
     const fn = judgment ? directory.find(action => action.capability_id === judgment.capability_id && action.version === judgment.version) : undefined;
     return Promise.all(rows.map(async scene => {
-      const reason = scene.compatible && fn && scene.definition.recommendation_source === "subject-offers"
+      const reason = fn && needsOffers(scene)
         ? subjectOfferCompatibilityReason(fn, directory) : undefined;
       const policy = await host.options.sceneAvailability?.(caller, scene);
       return { ...scene, ...(reason ? { compatible: false, reason } : {}),
@@ -47,6 +46,8 @@ export function createSceneClient(host: SceneHost, reference?: LocalHostProjectR
         availability: scene.availability.available ? policy ?? scene.availability : scene.availability };
     }));
   };
+  const scenes = (caller: ActionCallContext, judgment?: ActionReference) =>
+    withPolicy(caller, host.actionService.discoverScenes(caller, judgment), () => host.discoverActions(caller), judgment);
   const check = async (caller: ActionCallContext, sceneId: string, version: number, judgment?: ActionReference, configuration = false) => {
     const scene = (await scenes(caller, judgment)).find(item => item.definition.scene_id === sceneId && item.definition.version === version);
     if (!scene) throw new ActionError("actions.scene_missing", "场景不存在或不可访问");
@@ -57,6 +58,13 @@ export function createSceneClient(host: SceneHost, reference?: LocalHostProjectR
   const queue = <Result>(id: string, version: number, operation: () => Promise<Result>) => host.queueScene(project, id, version, operation);
   return {
     discoverScenes: async (caller, judgment) => scenes(await prepare(caller), judgment),
+    discoverScenesFor: async (caller, judgments, selection) => {
+      const bound = await prepare(caller);
+      let directory: Promise<ActionView[]> | undefined;
+      const loadDirectory = () => directory ??= host.discoverActions(bound);
+      return Promise.all(host.actionService.discoverScenesFor(bound, judgments, selection)
+        .map((rows, index) => withPolicy(bound, rows, loadDirectory, judgments[index])));
+    },
     usages: async (caller, judgment) => {
       const bound = await prepare(caller);
       const [uses, availableScenes, actions] = await Promise.all([host.actionService.usages(bound, judgment), scenes(bound), host.discoverActions(bound)]);

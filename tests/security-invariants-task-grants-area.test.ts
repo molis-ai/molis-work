@@ -1,3 +1,4 @@
+import { projectPluginRevisionAt } from "./fixtures/project-plugin-settings.js";
 // SECURITY-INVARIANTS S-task-grants-area, the Host's half (specs/proactive-assistant/task-grants-platform-area.md §2.3, §4): the route behind the
 // platform's reads area on a plugin page is the trusted shell's alone. It takes only the outer page header without the frame bridge's,
 // names only the task's key, finds the installation and the project from the page's authority, and writes as the person through
@@ -104,7 +105,7 @@ test("S-task-grants-area TGA-08 TGA-09 TGA-17 the reads area's route is the trus
   const offered = await post(b.endpoint, scheduled, { mode: "read", key: "daily" });
   assert.equal(offered.status, 200, await offered.clone().text());
   const before = await records();
-  const disabled = await f.request(`/api/settings/projects/${b.project.project_id}/plugins`, { method: "DELETE", body: { plugin_id: "schedule" } });
+  const disabled = await f.request(`/api/settings/projects/${b.project.project_id}/plugins`, { method: "DELETE", body: { plugin_id: "schedule", expected_revision: await projectPluginRevisionAt(f.origin, b.project.project_id) } });
   assert.equal(disabled.status, 200, await disabled.clone().text());
   const off = await post(b.endpoint, scheduled, set);
   assert.equal(off.status, 403, await off.clone().text());

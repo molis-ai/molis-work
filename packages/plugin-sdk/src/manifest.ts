@@ -9,6 +9,9 @@ import { inspectAgentDeclaration } from "./agent-declarations.js";
 import { inspectContentPlugin } from "./content-plugin.js";
 import { refuseDeclarations } from "./declaration-problems.js";
 import { inspectSkillDeclarations } from "./skill-declarations.js";
+import { validateSettingsDeclaration } from "./settings-declaration.js";
+import { validateAdoptsDeclaration } from "./adopts-declaration.js";
+import { isRecord } from "./json-value.js";
 import { artifactDeclarationProblems } from "./artifact-declarations.js";
 import { backgroundDeclarationProblems } from "./background-declarations.js";
 import { notificationDeclarationProblems } from "./notification-declarations.js";
@@ -208,6 +211,24 @@ export function comparePluginVersions(left: string, right: string): number {
   return a.prerelease.length === b.prerelease.length ? 0 : a.prerelease.length < b.prerelease.length ? -1 : 1;
 }
 
+function blueprintDeclarationProblems(manifest: PluginManifest, ui: Record<string, unknown>): PluginDeclarationProblem[] {
+  const blueprint: unknown = manifest.blueprint;
+  if (blueprint === undefined) return [];
+  if (manifest.kind !== "content") return [{ path: "blueprint", reason: "只有 kind: content 的包可以声明场景包" }];
+  if (!isRecord(blueprint) || Object.keys(blueprint).some(key => key !== "locales") || !Array.isArray(blueprint.locales)) {
+    return [{ path: "blueprint", reason: "场景包必须只声明 locales 译文列表，单语言写空列表" }];
+  }
+  const locales = ui.locales;
+  if (!isRecord(locales) || !Array.isArray(locales.available)) return [{ path: "blueprint", reason: "场景包必须声明 ui.locales" }];
+  const seen = new Set<string>(), problems: PluginDeclarationProblem[] = [];
+  for (const [index, locale] of (blueprint.locales as unknown[]).entries()) {
+    if (typeof locale !== "string" || !locales.available.includes(locale) || locale === locales.default || seen.has(locale)) {
+      problems.push({ path: `blueprint.locales[${index}]`, reason: "译文语言必须在 ui.locales.available 中，不能重复或使用默认语言" });
+    } else seen.add(locale);
+  }
+  return problems;
+}
+
 function assertDeclarations(parsed: PluginManifest, ui: Record<string, unknown>): void {
   const problems: Array<string | PluginDeclarationProblem> = [];
   problems.push(...inspectActionDeclarations(parsed.actions, parsed.action_scenes), ...inspectActionCrossReferences(parsed.actions));
@@ -234,6 +255,7 @@ function assertDeclarations(parsed: PluginManifest, ui: Record<string, unknown>)
   problems.push(...pageRouteProblems(parsed));
   problems.push(...messageDeclarationProblems(parsed));
   problems.push(...localeDeclarationProblems(parsed));
+  problems.push(...validateSettingsDeclaration(parsed), ...blueprintDeclarationProblems(parsed, ui), ...validateAdoptsDeclaration(parsed));
   problems.push(...inspectRouteDeclarations(parsed));
   problems.push(...inspectRequirementDeclarations(parsed));
   problems.push(...inspectPortPermissions(parsed));

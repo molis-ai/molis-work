@@ -131,6 +131,8 @@ ${SWITCH}>.mw-toggle.is-current{box-shadow:var(--shadow-soft),inset 0 0 0 1px va
    the second keeps the whole width for the strip above: the switch, a 98px tab, 全部标签 and ＋ down to 320px. */
 @media (max-width:600px){
 ${W}:not(.arrival-page) .immersive-titlebar>.titlebar-layout{order:1}
+/* Picker save feedback sits above the phone bar's layer while the picker is open. */
+.toast.is-error[data-plugin-picker-open]{z-index:46}
 }
 @media (prefers-reduced-motion:reduce){
 ${PINNED_GROWN} .tab-item-name{animation:none}

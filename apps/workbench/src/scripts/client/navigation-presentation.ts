@@ -60,6 +60,7 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
   const picker = dock.querySelector('[data-plugin-picker]');
   const pickerToggle = dock.querySelector('[data-plugin-picker-toggle]');
   const pickerPopover = dock.querySelector('[data-plugin-picker-popover]');
+  const toast = document.querySelector('[data-toast]');
   const current = dock.querySelector('[data-plugin-picker-current]');
   // The switcher is its glyph alone: its name says what the work area shows, so a screen reader hears where it is.
   const nameSwitcher = (names) => {
@@ -69,6 +70,7 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
   const setPicker = (open) => {
     if (!pickerPopover || !pickerToggle) return;
     pickerPopover.hidden = !open;
+    toast?.toggleAttribute('data-plugin-picker-open', open);
     pickerToggle.setAttribute('aria-expanded', String(open));
     if (open) pickerPopover.querySelector('.plugin-rail-items [aria-current], .plugin-rail-items [data-plugin-id]')?.focus(); else stopAsking();
   };

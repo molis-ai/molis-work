@@ -1,3 +1,4 @@
+import { projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
@@ -209,7 +210,7 @@ test("W3-09-1-01 T6: a stopped Runtime withdraws its actions and rejects page an
   await home.grant(clientId, project.project_id, [subject.create, subject.list]);
   const path = subject.path(project.project_id), before = await home.web.get(path);
   const connection = await home.mcp(clientId, project.project_id);
-  await home.web.delete(`/api/settings/projects/${encodeURIComponent(project.project_id)}/plugins`, { plugin_id: "schedule" });
+  await home.web.delete(`/api/settings/projects/${encodeURIComponent(project.project_id)}/plugins`, { plugin_id: "schedule", expected_revision: await projectPluginRevision(home.web, project.project_id) });
   const input = subject.input("停用后不得新建", "23:00");
   const refusedPage = await page(home, path + "/tasks", input);
   assert.equal(refusedPage.status, 403); assert.equal(refusedPage.body.code, "actions.plugin_disabled");
@@ -228,7 +229,7 @@ test("W3-09-1-01 T6: a stopped Runtime withdraws its actions and rejects page an
   const html = await diagnostics.text();
   assert.ok(html.includes(`data-molis-call-id="${hostId}"`));
   assert.match(html, /actions\.missing/u); assert.match(html, /未执行/u);
-  await home.web.post(`/api/settings/projects/${encodeURIComponent(project.project_id)}/plugins`, { plugin_id: "schedule" });
+  await home.web.post(`/api/settings/projects/${encodeURIComponent(project.project_id)}/plugins`, { plugin_id: "schedule", expected_revision: await projectPluginRevision(home.web, project.project_id) });
   assert.deepEqual(await home.web.get(path), before, "reenabling exposes the unchanged owner's task facts");
 });
 
@@ -237,7 +238,7 @@ test("W3-09-2-01: a stopped Runtime removes the MCP tool even with a saved grant
   await home.grant(clientId, project.project_id, [subject.create, subject.list]);
   const path = subject.path(project.project_id), before = await home.web.get(path);
   const mcp = mcpFor(home, project); t.after(() => mcp.close());
-  await home.web.delete(`/api/settings/projects/${encodeURIComponent(project.project_id)}/plugins`, { plugin_id: "schedule" });
+  await home.web.delete(`/api/settings/projects/${encodeURIComponent(project.project_id)}/plugins`, { plugin_id: "schedule", expected_revision: await projectPluginRevision(home.web, project.project_id) });
   const input = subject.input("隐藏能力不得写入", "23:00"), fromMcp = await mcpCall(mcp, subject.create.capability_id, input, false);
   assert.equal(fromMcp.result.isError, true); assert.equal(fromMcp.body.code, "mcp.tool_unknown");
   assert.ok(typeof fromMcp.body.error === "string");
@@ -247,7 +248,7 @@ test("W3-09-2-01: a stopped Runtime removes the MCP tool even with a saved grant
     name: `molis_work_v1_action_${subject.archive.capability_id}__v1`, arguments: { task_id: "missing" } } });
   assert.match(JSON.stringify(ungranted), /mcp\.tool_unknown/u);
   assert.equal(home.host.callLog!.recent(100).filter(row => row.capability_id === subject.archive.capability_id).length, 0);
-  await home.web.post(`/api/settings/projects/${encodeURIComponent(project.project_id)}/plugins`, { plugin_id: "schedule" });
+  await home.web.post(`/api/settings/projects/${encodeURIComponent(project.project_id)}/plugins`, { plugin_id: "schedule", expected_revision: await projectPluginRevision(home.web, project.project_id) });
   assert.deepEqual(await home.web.get(path), before, "the denied calls preserve actual owner facts after reenabling");
   await home.revoke(clientId, project.project_id, [subject.create]);
   const denied = await mcp.handleMessage({ jsonrpc: "2.0", id: 4, method: "tools/call", params: {

@@ -1,12 +1,12 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { PROJECT_WORKSPACE_PROVIDER_ID, projectPluginActions } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { WebProjectNavigation } from "@molis-ai/molis-work-app-workbench";
 import type { AgentRuntimeDescriptor } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { handleSearchHttp } from "./search-http.js";
 import { handleComposerDraftsHttp, handleComposerSourcesHttp } from "./composer-sources-http.js";
-import { refreshOpenProjectPlugins } from "./project-plugin-enablement.js";
 import { handlePluginSlotsHttp } from "./plugin-connection-slots-http.js";
 import { handlePlacementHttp } from "./placement-http.js";
-import { bindLocalWebActions } from "./local-web-actions.js";
+import { bindLocalWebActions, invokeLocalWebCatalogAction } from "./local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { seedDemoHomeSamples } from "./demo-plugin-seed.js";
 import { bindPersonalPlanningWebActions } from "./personal-planning-actions.js";
@@ -31,6 +31,7 @@ import { pruneProjectArrival } from "./project-arrival.js";
 import type { ProjectDeletionPorts } from "./project-deletion-service.js";
 import { dispatchWebRoutes, type WebRoute } from "./web-route-table.js";
 import { handlePluginSettingsPage, handleSettingsPage } from "./web-catalog-settings.js";
+import type { SetProjectPluginFromWeb } from "./web-project-settings.js";
 
 /** What every catalog request carries: the request, and the Host's parts a page of the catalog (no project open) is built from. */
 export interface CatalogRequestContext {
@@ -60,6 +61,15 @@ const settingsProjectReference = (projectSettings: { settingsProjects(home: stri
 
 const homeActions = (localHost: MolisWorkLocalHost) => bindLocalWebActions(localHost, undefined, LOCAL_OWNER_PERMISSIONS);
 const noStore = { "cache-control": "no-store" };
+
+/** The person's one Catalog command; resolving its caller does not inspect or start project plugins. */
+function projectPluginSetter({ localHost, composition, serverOptions }: CatalogRequestContext): SetProjectPluginFromWeb {
+  const action = { ...projectPluginActions.set, provider_id: PROJECT_WORKSPACE_PROVIDER_ID };
+  return (projectId, input, signal, sessionCurrent) => invokeLocalWebCatalogAction(localHost, async () => {
+    const project = await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => catalog.getProject(projectId));
+    return molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
+  }, action, input, { signal, sessionCurrent, accountCurrent: serverOptions.assertAccountCurrent });
+}
 
 /** The catalog's addresses, in the order they are tried; an entry answers the request or says false and the next one tries. */
 export const CATALOG_ROUTES: readonly WebRoute<CatalogRequestContext>[] = [
@@ -116,9 +126,11 @@ export const CATALOG_ROUTES: readonly WebRoute<CatalogRequestContext>[] = [
   { id: "connectors-settings", handle: ({ request, response, url, serverOptions }) => handleLocalConnectorsSettingsHttp(request, response, url, serverOptions.homeDirectory) },
   { id: "mcp-action-settings", handle: ({ request, response, url, serverOptions, localHost, composition }) => handleMcpActionSettingsHttp(request, response, url, serverOptions.homeDirectory, localHost, composition.withCatalog) },
   { id: "runtime-settings", handle: ({ request, response, url, runtimeIntegrations, webService, serverOptions }) => handleLocalRuntimeSettingsHttp(request, response, url, runtimeIntegrations, webService, serverOptions.assertAccountCurrent) },
-  { id: "project-settings", handle: ({ request, response, url, serverOptions, projects, deletionPorts, localHost, composition }) =>
-    composition.projectSettings.handle(request, response, url, serverOptions.homeDirectory, projects.length, deletionPorts, projectId => refreshOpenProjectPlugins(localHost, projectId),
-      () => seedDemoHomeSamples(homeActions(localHost))) },
+  { id: "project-settings", handle: context => {
+    const { request, response, url, serverOptions, projects, deletionPorts, localHost, composition } = context;
+    return composition.projectSettings.handle(request, response, url, serverOptions.homeDirectory, projects.length, deletionPorts, projectPluginSetter(context),
+      () => seedDemoHomeSamples(homeActions(localHost)));
+  } },
   { id: "pty-client", handle: ({ request, response, url, composition }) => {
     if (!(request.method === "GET" && url.pathname === "/desktop/pty-client.js")) return false;
     composition.servePtyClient(request, response);

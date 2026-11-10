@@ -1,3 +1,4 @@
+import { projectPluginRevisionAt } from "./fixtures/project-plugin-settings.js";
 // RAC-2812: complete Artifact HTTP error-model regression after the platform route rename.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
@@ -253,11 +254,11 @@ test("the plugin routes of the settings tell a missing project from every other 
       headers: { origin, "content-type": "application/json", "x-molis-work-control-token": token, "x-molis-work-idempotency-key": `host-pages-key-${++sequence}-${Date.now()}` } });
     return { status: response.status, body: await response.json() as Record<string, unknown> };
   };
-  const missing = await call("POST", "/api/settings/projects/no-such-project/plugins", { plugin_id: "goals" });
+  const missing = await call("POST", "/api/settings/projects/no-such-project/plugins", { plugin_id: "goals", expected_revision: await projectPluginRevisionAt(origin, project.project_id) });
   assert.deepEqual([missing.status, missing.body.code], [404, "catalog.project_not_found"]);
-  const unknown = await call("POST", `/api/settings/projects/${project.project_id}/plugins`, { plugin_id: "no-such-plugin" });
+  const unknown = await call("POST", `/api/settings/projects/${project.project_id}/plugins`, { plugin_id: "no-such-plugin", expected_revision: await projectPluginRevisionAt(origin, project.project_id) });
   assert.deepEqual([unknown.status, unknown.body.code], [400, "catalog.plugin_not_found"]);
-  const removed = await call("DELETE", "/api/settings/projects/no-such-project/plugins", { plugin_id: "goals" });
+  const removed = await call("DELETE", "/api/settings/projects/no-such-project/plugins", { plugin_id: "goals", expected_revision: await projectPluginRevisionAt(origin, project.project_id) });
   assert.deepEqual([removed.status, removed.body.code], [404, "catalog.project_not_found"]);
 });
 

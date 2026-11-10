@@ -13,6 +13,7 @@ import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { renderAgentReviewRecovery, renderAgentReviewSurface } from "@molis-ai/molis-work-app-workbench";
 import type { AgentReviewRecoveryView, AgentReviewRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "@molis-ai/molis-work-ui-host";
+import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 test("FSS-20 FSS-34 FSS-39 the settings language changes in place; rejected and late preparations leave the current document intact", { timeout: 120_000 }, async t => {
   const b = await openGoalBrowser(t, "empty", undefined, null); if (!b) return;
@@ -216,6 +217,59 @@ test("FSS-20 a late Feed document read leaves the committed language in the fram
   await b.evaluate("feedReadReplies[1].release()");
   await b.waitFor(`feedChecks > ${freshChecks}`);
   assert.equal(await b.evaluate("feedReads"), 2, "one prior read and one existing invalidation read");
+});
+
+test("FSS-36 a Feed detail checks the language of its own response after a withdrawn switch", { timeout: 90_000 }, async t => {
+  const b = await openGoalBrowser(t, "seeded", undefined, null); if (!b?.projectId) return;
+  const project = b.projectId, path = `/projects/${project}/`, title = "原始 Feed 标题 <raw>", body = "原始消息正文 · Original";
+  const source = createLocalFeedSourceService(b.store.db, project).register({ kind: "research_library", repository: "molis-ai/research-library", research_source: "feed-detail-language" }).source;
+  const library = createLocalFeedApplication(b.store.db);
+  const { item } = library.ingestItem({ source, externalId: "read-before-language", title, summary: title, body, occurredAt: new Date().toISOString(), attention: false });
+  library.markRead(project, item.item_id);
+  const feed = await pluginFrameBrowser(t, b, "feed");
+  await b.navigate(() => b.command("Page.navigate", { url: b.origin + "/locale?lang=zh&next=" + encodeURIComponent(path) }, b.sessionId));
+  await b.click('[data-plugin-strip] [data-plugin-id=feed]');
+  const row = `[data-feed-entry-id][data-feed-item-id=${JSON.stringify(item.item_id)}]`;
+  await feed.waitFor(`document.querySelector(${JSON.stringify(row)})?.dataset.feedEntryRead === 'read'`);
+  await b.evaluate(`(() => {
+    const fetchOriginal = window.fetch;
+    window.detailLanguages = []; window.detailPreferences = []; window.detailWrites = [];
+    window.fetch = (input, init) => {
+      const path = new URL(String(input?.url || input), location.href).pathname, method = init?.method || 'GET';
+      const response = fetchOriginal(input, init);
+      if (path === '/api/ui/locale' && method === 'POST') {
+        const preference = JSON.parse(init.body).preference;
+        return response.then(value => {
+          detailPreferences.push([preference, value.status]);
+          if (preference === 'en') return new Promise(resolve => { window.releaseEnglishPreference = () => resolve(value); });
+          return value;
+        });
+      }
+      if (method !== 'GET' && path.includes('/api/plugins/io.molis.work.feed/')) detailWrites.push([method, path]);
+      if (!path.endsWith('/api/stage/feed/objects/${item.item_id}')) return response;
+      return response.then(value => {
+        detailLanguages.push(value.headers.get('content-language'));
+        if (detailLanguages.length === 1) return new Promise(resolve => { window.releaseEnglishDetail = () => resolve(value); });
+        return value;
+      });
+    };
+  })()`);
+  const select = (tag: "zh" | "en") => b.evaluate(`(() => { const link = document.createElement('a'); link.dataset.uiLanguage = '${tag}';
+    link.href = '/locale?lang=${tag}'; document.body.append(link); link.click(); link.remove(); })()`);
+  await select("en");
+  await b.waitFor("typeof releaseEnglishPreference === 'function'");
+  await feed.click(row);
+  await b.waitFor("typeof releaseEnglishDetail === 'function'");
+  assert.deepEqual(await b.evaluate("detailLanguages"), ["en"], "this detail really was rendered in the withdrawn language");
+  await select("zh");
+  await b.evaluate("releaseEnglishPreference()");
+  await b.waitFor("detailPreferences.some(([tag, status]) => tag === 'zh' && status === 200)");
+  assert.equal(await feed.evaluate("document.documentElement.lang"), "zh-CN");
+  await b.evaluate("releaseEnglishDetail()");
+  const detail = `document.querySelector('[data-feed-detail]')`;
+  await feed.waitFor(`${detail}?.querySelector('h1')?.textContent === ${JSON.stringify(title)} && ${detail}?.querySelector('[data-feed-read-state]')?.textContent === '已读'`);
+  assert.match(await feed.evaluate<string>(`${detail}.textContent`), /原始消息正文 · Original/u);
+  assert.deepEqual(await b.evaluate("[detailLanguages, detailPreferences, detailWrites]"), [["en", "zh-CN"], [["en", 200], ["zh", 200]], []]);
 });
 
 async function chooseEnglishInSettings(t: TestContext, b: LanguageBrowser, target: "zh" | "en" = "en") {

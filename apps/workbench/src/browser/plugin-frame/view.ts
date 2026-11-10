@@ -92,9 +92,25 @@ export async function readOwnPageDocument(root: HTMLElement, route: (path: strin
     return html;
 }
 
+async function readStageObject(path: string, language: string, current: () => void, scope: FrameScope, signal?: AbortSignal) {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const response = await molisWorkRequest<Response>(path, { as: "response", scope, signal });
+    if (!response.ok) {
+      const body = await response.json().catch(() => null) as { error?: unknown } | null;
+      current();
+      throw new Error(typeof body?.error === "string" && body.error !== "" ? body.error : molisWorkRequest.text(null));
+    }
+    if (response.headers.get("content-language") === language) return response.text();
+    await response.body?.cancel();
+    current();
+  }
+  throw new Error("View unavailable");
+}
+
 export async function readPageDocument(port: MessagePort, id: number, root: HTMLElement, route: (path: string) => string,
   pack: FramePack, pageId: string, scope: FrameScope, object?: { id: string; surface: string }, signal?: AbortSignal): Promise<void> {
-  const version = frameDocumentRevision();
+  const version = frameDocumentRevision(), language = document.documentElement.lang;
+  const current = () => { scope.assertCurrent(signal); if (version !== frameDocumentRevision()) throw new Error("View unavailable"); };
   try {
     let html: string;
     if (object !== undefined) {
@@ -102,12 +118,11 @@ export async function readPageDocument(port: MessagePort, id: number, root: HTML
         || Object.keys(object).some(key => !["id", "surface"].includes(key)) || typeof object.id !== "string" || !object.id || object.id.length > 256 || object.id.includes("/")
         || typeof object.surface !== "string" || !object.surface || object.surface.length > 200) throw new Error("View unavailable");
       await molisWorkRequest(route("/api/host/plugin-page-check"), { body: { object_surface: object.surface }, scope, signal, headers: { "x-molis-plugin-page": pageId } });
-      html = await molisWorkRequest<string>(route("/api/stage/" + encodeURIComponent(root.dataset.pluginClient) + "/objects/" + encodeURIComponent(object.id)) + "?surface=" + encodeURIComponent(object.surface), { as: "text", scope, signal });
+      html = await readStageObject(route("/api/stage/" + encodeURIComponent(root.dataset.pluginClient) + "/objects/" + encodeURIComponent(object.id)) + "?surface=" + encodeURIComponent(object.surface), language, current, scope, signal);
       // Re-read the exact producer after the fragment: a new half or installation cannot supply this old page's result.
       await readOwnPageDocument(root, route, pack.plugin_id, pageId, scope, signal);
     } else html = await readOwnPageDocument(root, route, pack.plugin_id, pageId, scope, signal);
-    scope.assertCurrent(signal);
-    if (version !== frameDocumentRevision()) throw new Error("View unavailable");
+    current();
     if (object === undefined) {
       const payload = root.querySelector("script[data-plugin-document]");
       if (payload) payload.textContent = JSON.stringify(html).replaceAll("<", "\\u003c");

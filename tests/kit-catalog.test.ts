@@ -3,10 +3,11 @@ import test from "node:test";
 import type { KitEntry } from "@molis-ai/molis-work-contracts/platform/kit-report";
 import type { KitCatalog, KitPack } from "@molis-ai/molis-work-contracts/services/kit";
 import { skillCatalogActions, type SkillCatalogEntry } from "@molis-ai/molis-work-contracts/services/skills";
-import { pluginControlActions } from "@molis-ai/molis-work-app-local-host";
+import { pluginAgentRegistration, pluginControlActions } from "@molis-ai/molis-work-app-local-host";
 import { AGENT_TOOLS } from "@molis-ai/molis-work-service-agent-host";
-import { CONTENT_PLUGIN_ID } from "./fixtures/content-package.js";
+import { CONTENT_PLUGIN_ID, signedContentPackage } from "./fixtures/content-package.js";
 import { kitHost } from "./fixtures/kit-host.js";
+import { newPublisher } from "./fixtures/sandbox-package.js";
 
 // The AI kit (specs/capability-pack/contract-design.md §4, §7): `kit.catalog.list@1` over a real Host, real owners and a real content
 // package; packs are gathered on every call from the owners' reports, nothing is stored.
@@ -68,4 +69,33 @@ test("CPK-03 CPK-14: a pack has no switch; its state is read from its plugin and
   assert.deepEqual(header.state, { kind: "uninstalled" });
   assert.deepEqual([header.roles, header.skills, header.mcp, header.tools], [[], [], [], []], "only the header is left");
   assert.equal(gone.entries.some((row: KitEntry) => row.pack === header.pack_id), false);
+});
+
+test("CPK-04: prompts count their recent uses with the rows kept per key; tools are never counted; characters say their last run", { timeout: 120_000 }, async t => {
+  const h = await kitHost(t);
+  const kit = await h.kit();
+  for (const row of kit.entries) {
+    if (row.kind === "prompt") assert.ok(row.usage.kind === "none" || row.usage.kind === "recent" && "rows_per_key" in row.usage.kept && row.usage.kept.rows_per_key === 200, row.key);
+    if (row.kind === "tool") assert.equal(row.usage.kind, "not_counted", row.key);
+    if (row.kind === "role" && row.source.kind === "character") assert.ok(["last_only", "none"].includes(row.usage.kind), row.key);
+  }
+});
+
+test("CPK-13: an instruction naming a role its owner does not declare refuses the owner's registration", () => {
+  const instruction = { owner_id: "io.example.brief", prompt_id: "brief", version: 1, title: "简报", purpose: "写简报", used_by: [], body: "写一份简报。", role_id: "ghost" };
+  assert.throws(() => pluginAgentRegistration({ manifest: { plugin_id: "io.example.brief" }, instructions: [instruction] } as never,
+    { kind: "plugin", plugin_id: "io.example.brief", plugin_version: "1.0.0", title: "Brief" } as never),
+  (error: { code?: string; details?: Record<string, unknown> }) => error.code === "agent_definitions.instruction_role_unknown" && error.details?.role_id === "ghost");
+});
+
+test("CPK-14: a Skill whose requirement is not met puts its pack in attention pointing at it; a tool two packs' roles name is one entry in both", { timeout: 120_000 }, async t => {
+  const h = await kitHost(t);
+  await h.install(signedContentPackage(newPublisher(), { requires: [{ capability_id: "nowhere.connection", version: 1, optional: false, reason: "需要一个连接" }] }));
+  const kit = await h.kit(), content = packOf(kit, CONTENT_PLUGIN_ID);
+  assert.equal(content.state.kind, "attention");
+  assert.deepEqual(content.state.kind === "attention" && content.state.items.map(item => item.entry), content.skills);
+  const coding = packOf(kit, CODING), shared = coding.tools.find(key => kit.packs.find(pack => pack.pack_id === "system:builtin")!.tools.includes(key))!;
+  const tool = entry(kit, shared);
+  assert.equal(kit.entries.filter(row => row.key === shared).length, 1);
+  assert.ok(tool.kind === "tool" && tool.in_packs?.includes("system:builtin") && tool.in_packs.includes(coding.pack_id));
 });

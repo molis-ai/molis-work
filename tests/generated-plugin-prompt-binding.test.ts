@@ -95,7 +95,7 @@ test('installed and authoring model calls bind their own release through the rea
   assert.deepEqual(await preview.call(previewContext, 'model.generate', { prompt: 'summary', input: 'material' }), { text: 'GENERATED' });
   assert.match(systems.at(-1)!, /AUTHORING_DEFAULT/); assert.doesNotMatch(systems.at(-1)!, /RELEASE_ONE|RELEASE_TWO|PERSONAL_EDIT/);
   assert.equal(await invoke(a, 1), 'GENERATED'); assert.match(systems.at(-1)!, /PERSONAL_EDIT/);
-  assert.equal(registry.uses(key)[0]!.version, 1, 'usage records the actual default version underneath the shared user edit');
+  assert.equal(registry.uses.list(key)[0]!.version, 1, 'usage records the actual default version underneath the shared user edit');
   await two.lifecycle('uninstall', v2);
   assert.equal(registry.prompt(key).default_body, 'RELEASE_ONE'); assert.equal(registry.prompt(key).body, 'PERSONAL_EDIT');
   assert.equal(await invoke(a, 1), 'GENERATED'); assert.match(systems.at(-1)!, /PERSONAL_EDIT/);

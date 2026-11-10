@@ -73,7 +73,7 @@ function assistantEntry(owner: AgentDefinitionRegistration, common: Common, usag
 
 /** The register's prompts and roles in the call's scope: each installation's in its pack, the Host's own in Molis Work's. */
 export async function agentDefinitionsKitEntries(home: string, source: ProjectPluginHost, caller: ActionCallContext): Promise<KitReport> {
-  const definitions = homeAgentDefinitions(home), english = caller.locale === "en", counts = definitions.useCounts();
+  const definitions = homeAgentDefinitions(home), english = caller.locale === "en", counts = definitions.uses.counts();
   const { installations } = await scopeInstallations(source, caller);
   const context = { localKey: localPublisherKeyId(home), pins: new Map(new HomeConsentLedger(home).publishers().map(pin => [pin.key_id, pin])), locale: caller.locale };
   const entries: KitReportedEntry[] = [];

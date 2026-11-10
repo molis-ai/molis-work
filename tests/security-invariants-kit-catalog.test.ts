@@ -3,12 +3,13 @@ import test, { type TestContext } from "node:test";
 import type { ActionCallContext, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { defineKitReportAction, KIT_REPORT_INPUT_TYPE, KIT_REPORT_OUTPUT_TYPE, type KitReport, type KitReportedEntry } from "@molis-ai/molis-work-contracts/platform/kit-report";
 import type { PromptOverridesFile } from "@molis-ai/molis-work-contracts/services/agent-definitions";
-import type { KitCatalog } from "@molis-ai/molis-work-contracts/services/kit";
+import type { KitCatalog, PluginPackageExport } from "@molis-ai/molis-work-contracts/services/kit";
 import { agentMcpKitEntries, molisWorkHostProjectReference, pluginPackageExport, promptOverrideActions } from "@molis-ai/molis-work-app-local-host";
 import { gatherKit } from "@molis-ai/molis-work-service-kit";
-import { CONTENT_PLUGIN_ID } from "./fixtures/content-package.js";
+import { CONTENT_PLUGIN_ID, signedContentPackage } from "./fixtures/content-package.js";
 import { grantHomeProbe, homeProbe, serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { kitHost } from "./fixtures/kit-host.js";
+import { newPublisher } from "./fixtures/sandbox-package.js";
 
 // S-kit-catalog (specs/capability-pack/contract-design.md §4.11): the AI kit is the person's own; owners' reports are checked and stamped
 // by the gatherer, never believed; listing it connects nothing; export and bringing prompt edits back are the person's, through guarded doors.
@@ -57,7 +58,7 @@ test("S-kit-catalog 3: an answer with a body is dropped whole and listed among t
   assert.equal(fakeIssues(kit).length, 1);
 });
 
-test("S-kit-catalog 4: a plugin's entry claiming the system or Molis Work's pack is stamped as its own installation", { timeout: 120_000 }, async t => {
+test("S-kit-catalog 4 CPK-12: a plugin's entry claiming the system or Molis Work's pack is stamped as its own installation", { timeout: 120_000 }, async t => {
   const { h, installId } = await withPluginReporter(t, () => ({ entries: [prompt("p1", { source: { kind: "system", module: "agent-host", title: "Molis Work" }, pack: "system:builtin" })] }));
   const kit = await h.kit(), [entry] = fakeEntries(kit);
   assert.equal(entry!.pack, `plugin:${installId}`);
@@ -169,6 +170,15 @@ test("S-kit-catalog 10: a plugin's page cannot reach the package download", { ti
   const { page_id } = await opened.json() as { page_id: string };
   const response = await f.request("/projects/any/api/plugin-trust/packages/any/export", { headers: { "x-molis-plugin-page": page_id } });
   assert.equal(response.status, 403, await response.text());
+});
+
+test("S-kit-catalog 11: a third party's content package exports exactly as kept, with its own signer", { timeout: 120_000 }, async t => {
+  const h = await kitHost(t), publisher = newPublisher(), bundle = signedContentPackage(publisher);
+  await h.install(bundle);
+  const installId = (await h.kit()).packs.find(pack => pack.source?.plugin_id === CONTENT_PLUGIN_ID)!.source!.install_id;
+  const file = await h.invoke<PluginPackageExport>(pluginPackageExport, { install_id: installId });
+  assert.equal(file.publisher_key_id, publisher.identity);
+  assert.deepEqual(JSON.parse(file.content), bundle);
 });
 
 test("S-kit-catalog 12: a prompt edits preview is the maker's, in their project, once; a stale row is not applied; a file over the limit is refused", { timeout: 120_000 }, async t => {

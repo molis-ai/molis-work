@@ -13,7 +13,7 @@ import { newPublisher } from "./fixtures/sandbox-package.js";
 const rejects = (code: string, extra?: (error: { details?: Record<string, unknown> }) => boolean) => (error: unknown) =>
   (error as { code?: string }).code === code && (!extra || extra(error as { details?: Record<string, unknown> }));
 
-test("CPK-06 S-kit-catalog 11: a content package exports as kept and installs in another Home with the same version and signer; a built-in plugin has no package", { timeout: 180_000 }, async t => {
+test("CPK-06: a content package exports as kept and installs in another Home with the same version and signer; a built-in plugin has no package", { timeout: 180_000 }, async t => {
   const a = await kitHost(t), b = await kitHost(t), publisher = newPublisher(), bundle = signedContentPackage(publisher);
   await a.install(bundle);
   const packs = (await a.kit()).packs, content = packs.find(pack => pack.source?.plugin_id === CONTENT_PLUGIN_ID)!;

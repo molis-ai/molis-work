@@ -3,7 +3,10 @@ import { gatherKit } from "@molis-ai/molis-work-service-kit";
 import { bindActionHandler, type ActionCallContext, type ActionClient, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import { defineKitReportAction, type KitReport, type KitReportedEntry } from "@molis-ai/molis-work-contracts/platform/kit-report";
 import { KIT_AGENT_TOOLS_PROVIDER_ID, KIT_PROVIDER_ID, KIT_READ_PERMISSION, kitCatalogActions } from "@molis-ai/molis-work-contracts/services/kit";
+import type { AgentMcpLibrary } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { agentDefinitionsActionProvider } from "./agent-definitions/kit-report.js";
 import { HomeConsentLedger } from "./home-plugin-store.js";
+import { agentMcpKitProvider, mcpAccessKitProvider } from "./kit-mcp-reports.js";
 import { localPublisherKeyId } from "./plugin-builder/publisher-identity.js";
 import { PLUGIN_INSTALL_READ } from "./plugin-install-actions.js";
 import { PRODUCT_VERSION } from "./product-version.js";
@@ -12,6 +15,12 @@ import { keptUninstalled, kitPluginSource, scopeInstallations } from "./scope-in
 
 // The AI kit in the Host (specs/capability-pack/contract-design.md §4.6–§4.8): the one query, gathered by `horizontal/kit` through the
 // caller's own client, and the Host's own reporters that are not another owner's — the Agent tools and the plugin pack headers.
+
+/** The kit's query and the Host's own reporters, registered once with the Host's platform providers (the connectors' rides on its own provider). */
+export function kitProviders(ports: { clientFor: (caller: ActionCallContext) => ActionClient; library: () => Promise<AgentMcpLibrary | undefined>; plugins: ProjectPluginHost; home?: string }): ActionProviderRegistration[] {
+  return [kitProvider(ports.clientFor), agentToolsKitProvider(), agentMcpKitProvider(ports.library, ports.plugins),
+    ...(ports.home ? [agentDefinitionsActionProvider(ports.home, ports.plugins), mcpAccessKitProvider(ports.home)] : [])];
+}
 
 /** `kit.catalog.list@1`, registered once at Home as `system.kit`: the person's own, gathered on every call through their own client. */
 export function kitProvider(clientFor: (caller: ActionCallContext) => ActionClient): ActionProviderRegistration {

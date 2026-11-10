@@ -1,8 +1,7 @@
 import { skillCatalogProviderFor } from "./agent-definitions/skill-catalog-host.js";
 import type { ProjectPluginHost } from "./project-plugin-ports.js";
-import { agentDefinitionsActionProvider } from "./agent-definitions/kit-report.js";
-import { agentToolsKitProvider, kitProvider } from "./kit-actions.js";
-import { agentMcpKitProvider, mcpAccessKitProvider, withConnectorsKitReport } from "./kit-mcp-reports.js";
+import { kitProviders } from "./kit-actions.js";
+import { withConnectorsKitReport } from "./kit-mcp-reports.js";
 import { accountActionProvider } from "@molis-ai/molis-work-service-account";
 import { accountSessionForHost } from "./account-host.js";
 import { projectSyncAccess } from './project-sync-access.js';
@@ -155,8 +154,7 @@ export class MolisWorkLocalHost {
   private readonly closing: { started?: boolean; completed: Set<string>; attempt?: Promise<void>; work?: Promise<void> } = { completed: new Set() };
   /** Commands that ran in this Home, for the 调用记录 page; absent without a Home directory. */
   readonly callLog?: ActionCallLog;
-  /** What the plugin-reading services share: the Host, its options, the Agent Host and the Home plugins, read when used. */
-  private get plugins(): ProjectPluginHost { return { host: this.host, options: this.options, agents: () => this.agents?.service, homePlugins: () => this.homePlugins }; }
+  private readonly plugins: ProjectPluginHost; // What the plugin-reading services share: the Host, its options, the Agent Host and the Home plugins.
   /** System search over this Home's plugins; absent without a Home directory. */
   readonly search?: SearchHost;
   readonly placement?: PlacementHost;
@@ -238,22 +236,13 @@ export class MolisWorkLocalHost {
       return { actions: project ? this.actionClient(project) : this.homeActionClient(), scenes: this.sceneClient(project), projectId: project?.project_id };
     });
     // What the Host offers for as long as it runs, registered here and nowhere else: all `system`, none a plugin's (a plugin registers its own through the Plugin Runtime).
+    this.plugins = { host: this.host, options: this.options, agents: () => this.agents?.service, homePlugins: () => this.homePlugins };
+    const callerClient = (caller: ActionCallContext) => callerOwnClient(this, caller);
     const platform: ActionProviderRegistration[] = [
       accountActionProvider(() => accountSessionForHost(this)),
-      actionUsagesProvider(caller => {
-        const project = caller.project_id ? this.host.projects().find(row => row.project_id === caller.project_id) : undefined;
-        if (caller.project_id && !project) throw new ActionError("actions.scope_mismatch", "使用位置查询缺少当前项目运行环境");
-        return project ? this.actionClient(project) : this.homeActionClient();
-      }, options.homeDirectory),
-      kitProvider(caller => {
-        const project = caller.project_id ? this.host.projects().find(row => row.project_id === caller.project_id) : undefined;
-        if (caller.project_id && !project) throw new ActionError("actions.scope_mismatch", "能力包缺少当前项目运行环境");
-        return project ? this.actionClient(project) : this.homeActionClient();
-      }),
-      agentToolsKitProvider(),
-      agentMcpKitProvider(async () => this.agents?.service.mcpLibrary(), this.plugins),
-      ...(options.homeDirectory ? [skillCatalogProviderFor(options.homeDirectory, this.plugins),
-        agentDefinitionsActionProvider(options.homeDirectory, this.plugins), mcpAccessKitProvider(options.homeDirectory), taskGrantActionProvider(taskGrantHostPorts(options.homeDirectory, this)), pluginConsentProvider(new HomeConsentLedger(options.homeDirectory), () => this.homePlugins!.projectReachConsents(),
+      actionUsagesProvider(callerClient, options.homeDirectory),
+      ...kitProviders({ clientFor: callerClient, library: async () => this.agents?.service.mcpLibrary(), plugins: this.plugins, home: options.homeDirectory }),
+      ...(options.homeDirectory ? [skillCatalogProviderFor(options.homeDirectory, this.plugins), taskGrantActionProvider(taskGrantHostPorts(options.homeDirectory, this)), pluginConsentProvider(new HomeConsentLedger(options.homeDirectory), () => this.homePlugins!.projectReachConsents(),
         projectId => projectReachDetails(projectId, options.homeDirectory, this.catalogRunner, this, this.host, molisWorkHostProjectReference)), pluginInstallProviderFor(options.homeDirectory, this.plugins), withConnectorsKitReport(connectorAccountActionProvider(options.homeDirectory, (...args) => this.connectorMcp!.remember(...args), { library: async () => this.agents?.service.mcpLibrary(), refresh: async owner => { if (!this.agents) throw new Error("项目 MCP 运行服务未装配"); await this.agents.service.refreshExternalMcp(owner); } }, caller => this.inspectActions(caller, this.host.projects().find(project => project.project_id === caller.project_id)), caller => caller.project_id ? this.actionClient(this.host.projects().find(project => project.project_id === caller.project_id)!) : this.homeActionClient(), (caller, installId, pluginId) => installedConnectionSlots(installId, pluginId, this.homePlugins, reference => this.withProject(reference, runtime => installedPluginManifest(runtime.store.db, installId)), this.host.projects().find(project => project.project_id === caller.project_id))), options.homeDirectory, this.plugins)] : []),
     ];
     registerHostPlatformProviders(this.host.actionRegistry(), platform);
@@ -539,4 +528,11 @@ export function createMolisWorkLocalHost(options: MolisWorkLocalHostOptions = {}
   const host = new MolisWorkLocalHost(resolved);
   if (resolved.homeDirectory) registerProjectRuntimeOwner(host, path.resolve(resolved.homeDirectory));
   return host;
+}
+
+/** A query that calls others as its caller (where actions are used, the AI kit): the caller's own client, in the caller's own scope. */
+function callerOwnClient(host: MolisWorkLocalHost, caller: ActionCallContext): ActionClient {
+  const project = caller.project_id ? host.projects().find(row => row.project_id === caller.project_id) : undefined;
+  if (caller.project_id && !project) throw new ActionError("actions.scope_mismatch", "缺少当前项目运行环境");
+  return project ? host.actionClient(project) : host.homeActionClient();
 }

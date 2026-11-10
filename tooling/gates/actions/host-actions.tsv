@@ -32,7 +32,7 @@ account.platform-tenant.disable	1	system.account	command	operation	home	write	co
 account.platform-tenant.enable	1	system.account	command	operation	home	write	concurrent	user	account:write	-	-	-	01bcf06dfc55	208de1b20905	-
 account.platform-tenant.read	1	system.account	query	query	home	read	concurrent	user	account:read	-	-	-	dace8e17e087	208de1b20905	-
 account.platform-tenants.list	1	system.account	query	query	home	read	concurrent	user	account:read	-	-	-	a5a61327c9d4	0f9a68b2a38f	-
-account.profile.update	1	system.account	command	operation	home	write	concurrent	user	account:write	-	-	-	a9caf915d01a	eb03886e319f	-
+account.profile.update	1	system.account	command	operation	home	write	concurrent	user	account:write	-	-	-	a9caf915d01a	ac243aec8e05	-
 account.seat-assignments.list	1	system.account	query	query	home	read	concurrent	user	account:read	-	-	-	6ef3a1c2837d	257066cafc4b	-
 account.seat-pools.list	1	system.account	query	query	home	read	concurrent	user	account:read	-	-	-	8435c7487c74	989b2ad4baf7	-
 account.seat.assign	1	system.account	command	operation	home	write	concurrent	user	account:write	-	-	-	53c5f52a8956	e0c0958bdff4	-

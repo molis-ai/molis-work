@@ -132,3 +132,5 @@ Work 合入主线 `07840084`，保留双方页面词典、安装登录夹具和�
 真实 Auth 的 central-account、authentication、provider、installation、management、tenants、billing、rapid-cycle、high、medium 十组专项全部通过，覆盖模拟第三方登录、资料/身份管理、租户/席位、异常恢复与退出后重登；日志前缀 `/private/tmp/work-pr-integration-`。邮箱旧用例改为断言普通用户解绑邮箱返回 403 且方法列表不变，手机号仍覆盖换绑和证明隔离。共用 mock-auth 夹具补齐现行必填 `email:null`；不放宽合同。
 
 账号浏览器产物启用 esbuild 语法压缩，收回合入主线后的资源增长；不增加资源许可。最终整体构建、健康门禁、边界、页面资源和快速切换复验日志前缀 `/private/tmp/work-pr-cookie-`。最终全量及所对应提交由 Work PR 的 full-suite 运行记录给出；本地定向不能替代全量。
+
+Work [PR #2013](https://github.com/molis-ai/molis-work/pull/2013) 首轮 CI 指出 `account.profile.update@1` 的输出快照尚未同步 `UserView.email`。已通过 `pnpm actions:update` 更新唯一变化行，合同快照测试 25 项通过。按上线前阶段一保留动作版本；输入、权限及受众不变，返回 UserView 增加可空邮箱，仓库内消费者与 Auth 同步；Manifest、MCP 名称和工作流绑定不变。首轮全量因这项确定性遗漏主动取消，不计为通过，修复提交重新触发最终全量。

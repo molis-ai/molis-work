@@ -1,5 +1,4 @@
-import { studioProblem } from "../plugin-builder-surface.js";
-import { WORKBENCH_LANGUAGES } from "@molis-ai/molis-work-app-workbench";
+import { studioProblem, studioScopeCapabilityUnavailable } from "../plugin-builder-surface.js";
 import { sandboxPluginManifest } from '@molis-ai/molis-work-plugin-sdk';
 import { assertHomePackageAllowed } from '../home-package-admission.js';
 import { createStudioPublisher } from './studio-release.js';
@@ -13,7 +12,7 @@ import { builderSkills } from './skill.js';
 import { modelRoundLocale } from '../reply-language.js';
 import { runBackgroundWork } from '../web-locale.js';
 import { lastUsedLocale } from '../ui-locale-memory.js';
-import { builderAgentInLanguage } from './studio-language.js';
+import { builderAgentInLanguage, studioDesignLanguages } from './studio-language.js';
 import { buildManifest, createBuildProject, copyBuildRevision } from './build-project.js';
 import { runPluginChecks } from './build-checks.js';
 import { runBuilderBrowserAcceptance, inspectBuilderPresentation } from './browser.js';
@@ -64,7 +63,7 @@ export function builderPorts(inputs: {
       return builderAgentInLanguage(await create({ buildRoot, storageRoot: join(studio.root, 'runs', build.id), ...access(selection) }), modelRoundLocale(home));
     },
     validateContract: contract => assertContract(contract),
-    designLanguages: () => ({ current: modelRoundLocale(home), available: WORKBENCH_LANGUAGES.languages }),
+    designLanguages: () => studioDesignLanguages(modelRoundLocale(home)),
     runInLanguage: (run, recovered) => runBackgroundWork(recovered ? lastUsedLocale(home) : modelRoundLocale(home), run),
     skills: stage => builderSkills(stage, undefined, modelRoundLocale(home)),
     prompt: inputs.prompt, instruction: inputs.instruction,
@@ -87,7 +86,7 @@ export function builderPorts(inputs: {
     check: async (build, operationIds, signal) => {
       const scope = build.runtimeScope, catalog = await studio.catalog(scope), effects = buildEffects(build);
       signal.throwIfAborted();
-      for (const capability of effects.capabilities ?? []) if (!catalog.some(entry => entry.id === capability && entry.offered && entry.installed)) throw new Error('目标范围没有开放给插件的能力：' + capability);
+      for (const capability of effects.capabilities ?? []) if (!catalog.some(entry => entry.id === capability && entry.offered && entry.installed)) throw studioScopeCapabilityUnavailable(capability);
       if (scope === 'home') assertHomePackageAllowed(sandboxPluginManifest({ pluginId: build.design!.contract.pluginId, name: build.title, version: "0.0.0",
         publisher: { publisher_id: 'molis-studio', signature: 'agent-built:' + build.id }, presentation: !!build.design!.presentation, effects, contract: build.design!.contract, runtime: { scope: 'home' } }));
       return runPluginChecks({ root: build.directory!, contract: build.design!.contract, manifest: buildManifest(build.design!.contract),

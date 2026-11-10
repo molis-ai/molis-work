@@ -1,6 +1,7 @@
 import {defineErrorCodes} from '@molis-ai/molis-work-contracts/platform/actions';
 import {validateFrozenStudioWords} from './agent-ui-text.js';
 import type {AgentBuild,AgentBuildSnapshot,AgentDesign,AgentRelease} from './agent-model.js';
+import {isStudioBuildFailure,isStudioStepLabel} from './studio-collaboration.js';
 
 export interface BuilderSavedState {format:/* @version format.builder.saved-state */ 1;builds:AgentBuild[];releases:AgentRelease[];revisions:Record<string,number>}
 const errors=defineErrorCodes('plugin_builder',{store_invalid:'invalid',store_limit:'too_large'});
@@ -29,7 +30,8 @@ export function parseBuilderState(raw:string|null):BuilderSavedState{
  const ids=new Set<string>();
  for(const item of row.builds){
   if(!item||typeof item!=='object'||!identity(item.id)||!revision(item.revision)||ids.has(item.id)
-   ||!Object.hasOwn(floors,item.id)||floors[item.id]!==item.revision || !wordsAreValid(item.design)
+   ||!Object.hasOwn(floors,item.id)||floors[item.id]!==item.revision || !wordsAreValid(item.design) || !isStudioBuildFailure(item.error)
+   ||!Array.isArray(item.steps)||item.steps.some((step:unknown)=>!step||typeof step!=='object'||!('label' in step)||!isStudioStepLabel(step.label))
    || Array.isArray(item.history) && item.history.some((entry: AgentBuildSnapshot) => !wordsAreValid(entry?.design)))return invalid();
   ids.add(item.id);
  }

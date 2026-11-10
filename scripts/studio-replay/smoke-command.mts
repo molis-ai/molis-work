@@ -75,9 +75,6 @@ async function execute(home: string, briefs: SmokeBrief[], options: SmokeCommand
   const { builderSkills } = await import('../../apps/local-host/src/plugin-builder/skill.js');
   const { builderPrompts, builderInstructions } = await import('../../apps/local-host/src/plugin-builder/agent-surface.js');
   const { builderAgentInLanguage } = await import('../../apps/local-host/src/plugin-builder/studio-language.js');
-  const { runBackgroundWork } = await import('../../apps/local-host/src/web-locale.js');
-  const { installHostUiText } = await import('../../apps/local-host/src/ui-text-provider.js');
-  installHostUiText();
   const work = join(home, 'studio-replay'), runs = join(work, 'runs'), design = join(work, 'design');
   mkdirSync(runs, { recursive: true, mode: 0o700 }); mkdirSync(design, { recursive: true, mode: 0o700 });
   // The model and its key come from the isolated Home only, through these two ports; the key is read when a call needs it and never printed.
@@ -85,7 +82,7 @@ async function execute(home: string, briefs: SmokeBrief[], options: SmokeCommand
   const adapter = await createPrologueNodeAdapter({ app: { appId: 'io.molis.work.studio-replay', appVersion: '1.0.0' }, storageRoot: join(work, 'sdk'), reviewQueue: new AgentReviewQueue(), ...access });
   say(`Running ${briefs.length} briefs against ${chosen.model.model_id} (${chosen.provider.display_name}) on ${home}; design only, no plugin is built.`);
   try {
-    const report = await runSmoke({ briefs, minutes: options.minutes, pollMs: standIn ? 50 : 500, model: { ...selection, label: chosen.model.model_id }, wording: locale => ({ skills: stage => builderSkills(stage, undefined, locale), prompt: builderPrompts(home), instruction: builderInstructions(home), runInLanguage: run => runBackgroundWork(locale, run) }),
+    const report = await runSmoke({ briefs, minutes: options.minutes, pollMs: standIn ? 50 : 500, model: { ...selection, label: chosen.model.model_id }, wording: locale => ({ skills: stage => builderSkills(stage, undefined, locale), prompt: builderPrompts(home), instruction: builderInstructions(home) }),
       agent: async locale => builderAgentInLanguage(await adapter.createBuilderAgent({ buildRoot: design, storageRoot: runs, timeoutMs: 600_000, ...access }), locale), progress: line => process.stderr.write(line + '\n') });
     say(renderSmoke(report));
     if (!standIn) say(`The designer's raw answers of this run are kept in ${runs}. To add them to a corpus: pnpm studio:replay harvest --runs ${runs} --out <file> (read the file before committing it).`);

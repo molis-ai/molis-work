@@ -23,7 +23,7 @@ export async function framedStudioPage(t: TestContext, browser: ChromeHarness, p
  * Production opaque frame and registered route catalog; only models and the surrounding standalone server are fixtures. The studio is
  * the plugin builder's, so in another language it gets that plugin's own English with the page's catalog, as a frame does (PG-071).
  */
-export function isolatedStudioHarness(home: string, projectId: string, controlToken: string, locale: WebLocale = "zh"): string {
+export function isolatedStudioHarness(home: string, projectId: string, controlToken: string, locale: WebLocale = "zh", preview = false): string {
   installHostUiText();
-  return studioHarnessPage(home, projectId, "/projects/" + projectId, controlToken, locale);
+  return studioHarnessPage(home, projectId, "/projects/" + projectId, controlToken, locale, preview);
 }

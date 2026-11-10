@@ -1,4 +1,5 @@
 import type { PluginPrivateStorage } from '@molis-ai/molis-work-contracts/platform/plugin';
+import { studioBuildDiagnostic, type AgentBuild } from '@molis-ai/molis-work-plugin-builder';
 
 export function memoryStorage(): PluginPrivateStorage {
   const values = new Map<string, string>();
@@ -78,12 +79,12 @@ export const CAPABILITY_WORDS = '只从合法候选中选最适合这项功能�
 
 export const COMPONENT_WORDS = '结合整页布局与相邻部件，从合法候选中选择组件。优先保留界面设计的偏好，不破坏主次与交互，不改变属性或合同。';
 
-export async function until<Build extends { phase: string; error?: string | null }>(workflow: { store: { require(id: string): Build } }, id: string, done: (build: Build) => boolean, timeoutMs = 5_000): Promise<Build> {
+export async function until<Build extends Pick<AgentBuild, 'phase' | 'error'>>(workflow: { store: { require(id: string): Build } }, id: string, done: (build: Build) => boolean, timeoutMs = 5_000): Promise<Build> {
   const started = Date.now();
   for (;;) {
     const build = workflow.store.require(id);
     if (done(build)) return build;
-    if (Date.now() - started > timeoutMs) throw new Error(`timed out in phase ${build.phase}: ${build.error ?? ''}`);
+    if (Date.now() - started > timeoutMs) throw new Error(`timed out in phase ${build.phase}: ${studioBuildDiagnostic(build.error) ?? ''}`);
     await new Promise(resolve => setTimeout(resolve, 5));
   }
 }

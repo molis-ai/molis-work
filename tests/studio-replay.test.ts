@@ -424,7 +424,7 @@ test("a Skill that no longer mounts fails the command; a Skill that changed is r
   writeFileSync(chapter, original + "\n\n" + "多出来的一句话。".repeat(4000));
   const tooBig = run("--skill-dir", copy);
   assert.equal(tooBig.code, 1, tooBig.out);
-  assert.match(tooBig.out, /Skill mount problems[\s\S]*超过 20000 字的挂载上限/);
+  assert.match(tooBig.out, /Skill mount problems[\s\S]*characters exceeds the 20000 character Skill body limit/);
   writeFileSync(chapter, original + "\n\n补一句话。\n");
   const changed = run("--skill-dir", copy);
   assert.equal(changed.code, 0, "a small Skill edit is not a failure of the fixed-answer replay: " + changed.out);
@@ -607,24 +607,31 @@ test("FSS-74 the smoke wiring works end to end against a scripted local model: H
 
 test("the smoke counts the designer's repair rounds, which is what a Skill edit is judged by", async () => {
   const answers = standInAnswers(path.join(corpusDirectory, "corpus.json")), detail = answers.detail as string;
-  const requests: Array<{ mode: string; repair: boolean }> = [];
-  // The first full design is cut off; the repair request gets the whole one.
-  const script: Record<string, string[]> = { propose: [answers.propose as string], experience: [answers.experience as string], detail: [detail.slice(0, 120), detail] };
   const record = (request: BuilderAgentRequest, output: string): BuilderAgentRecord => ({ id: crypto.randomUUID(), role: request.role, promptVersion: request.promptVersion, contractRevision: request.contractRevision,
     instruction: request.instruction, input: request.task, output, configuredModel: "m", reportedModels: [], phase: "completed", startedAt: new Date().toISOString(), activity: [], usage: [] });
-  const report = await runSmoke({ briefs: [{ id: "one", brief: "随手记" }], minutes: 1, pollMs: 5, model: { provider_id: "p", model_id: "m", label: "m" },
-    agent: async () => ({ async close() {}, async records() { return []; }, async run(request: BuilderAgentRequest) {
-      const task = JSON.parse(request.task) as { mode: string; repair?: unknown };
-      requests.push({ mode: task.mode, repair: task.repair !== undefined });
-      const queue = script[task.mode]; if (!queue) throw new Error("no answer for " + task.mode);
-      return record(request, queue.length > 1 ? queue.shift()! : queue[0]!);
-    } }) });
-  const [one] = report.briefs;
-  assert.equal(one!.outcome, "designed");
-  assert.deepEqual(one!.repairRounds, { propose: 0, experience: 0, detail: 1 });
-  assert.deepEqual(one!.firstTry, { propose: true, experience: true, detail: false });
-  assert.match(one!.repairs[0]!, /^detail: .*JSON/, "the host's own words for the refusal are kept");
-  assert.deepEqual(requests.map(item => item.mode + (item.repair ? "+repair" : "")), ["propose", "experience", "detail", "detail+repair"], "the code role and the UI stage never run");
-  assert.deepEqual(report.summary, { briefs: 1, designed: 1, detailFirstTry: 0, repairRounds: 1 });
-  assert.equal(Object.keys(report.skill.stages).length, 5);
+  const monolingual = JSON.parse(detail);
+  delete monolingual.design.uiText.locales.en;
+  for (const [firstDetail, refusal] of [[detail.slice(0, 120), /^detail: .*JSON/], [JSON.stringify(monolingual), /^detail: UI languages must be zh, en/]] as const) {
+    const requests: Array<{ mode: string; repair: boolean }> = [];
+    const script: Record<string, string[]> = { propose: [answers.propose as string], experience: [answers.experience as string], detail: [firstDetail, detail] };
+    const report = await runSmoke({ briefs: [{ id: "one", brief: "随手记" }], minutes: 1, pollMs: 5, model: { provider_id: "p", model_id: "m", label: "m" },
+      agent: async () => ({ async close() {}, async records() { return []; }, async run(request: BuilderAgentRequest) {
+        const task = JSON.parse(request.task) as { mode: string; repair?: unknown; uiText?: { default: string; available: Array<{ tag: string }> } };
+        requests.push({ mode: task.mode, repair: task.repair !== undefined });
+        if (task.mode === "detail") {
+          assert.equal(task.uiText?.default, "zh");
+          assert.deepEqual(task.uiText?.available.map(language => language.tag), ["zh", "en"]);
+        }
+        const queue = script[task.mode]; if (!queue) throw new Error("no answer for " + task.mode);
+        return record(request, queue.length > 1 ? queue.shift()! : queue[0]!);
+      } }) });
+    const [one] = report.briefs;
+    assert.equal(one!.outcome, "designed", one!.error);
+    assert.deepEqual(one!.repairRounds, { propose: 0, experience: 0, detail: 1 });
+    assert.deepEqual(one!.firstTry, { propose: true, experience: true, detail: false });
+    assert.match(one!.repairs[0]!, refusal, "the host's own words for the refusal are kept");
+    assert.deepEqual(requests.map(item => item.mode + (item.repair ? "+repair" : "")), ["propose", "experience", "detail", "detail+repair"], "the code role and the UI stage never run");
+    assert.deepEqual(report.summary, { briefs: 1, designed: 1, detailFirstTry: 0, repairRounds: 1 });
+    assert.equal(Object.keys(report.skill.stages).length, 5);
+  }
 });

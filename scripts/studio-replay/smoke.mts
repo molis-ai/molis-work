@@ -13,10 +13,12 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { assertContract } from '@molis-ai/molis-work-plugin-sandbox';
-import { AgentBuilderWorkflow, STUDIO_CAPABILITIES, type AgentBuild, type AgentBuilderPorts, type CatalogEntry } from '@molis-ai/molis-work-plugin-builder';
+import { AgentBuilderWorkflow, STUDIO_CAPABILITIES, studioBuildDiagnostic, type AgentBuild, type AgentBuilderPorts, type CatalogEntry } from '@molis-ai/molis-work-plugin-builder';
 import type { PluginPrivateStorage } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { mountedSkill } from './skill.mjs';
-import type { WebLocale } from "../../apps/local-host/src/web-locale.js";
+import { studioDesignLanguages } from '../../apps/local-host/src/plugin-builder/studio-language.js';
+import { installHostUiText } from '../../apps/local-host/src/ui-text-provider.js';
+import { runBackgroundWork, type WebLocale } from '../../apps/local-host/src/web-locale.js';
 import type { Baseline } from './replay.mjs';
 
 export interface SmokeBrief { id: string; brief: string; locale?: WebLocale; clarification?: string }
@@ -26,7 +28,7 @@ export interface SmokeOptions {
   /** The designer agent. Asked for once per request; closed after it. */
   agent(locale: WebLocale): Promise<SmokeAgent>;
   model: { provider_id: string; model_id: string; label: string };
-  wording?(locale: WebLocale): Pick<AgentBuilderPorts, 'skills' | 'prompt' | 'instruction' | 'runInLanguage'>;
+  wording?(locale: WebLocale): Pick<AgentBuilderPorts, 'skills' | 'prompt' | 'instruction'>;
   /** How long one brief may take before it is stopped and reported as unfinished. */
   minutes: number;
   pollMs?: number;
@@ -70,6 +72,8 @@ async function designOne(options: SmokeOptions, item: SmokeBrief): Promise<Smoke
     // The code role never runs; after the design is frozen the workflow's next designer request (the UI stage) is not wanted either.
     agent: async (build, purpose) => { if (purpose === 'code' || build.design) throw new Error(DESIGN_ONLY); return options.agent(locale); },
     ...options.wording?.(locale),
+    designLanguages: () => studioDesignLanguages(locale),
+    runInLanguage: run => runBackgroundWork(locale, run),
     validateContract: contract => assertContract(contract), prepareBuild: async () => scratch,
     check: async () => { throw new Error(DESIGN_ONLY); }, call: async () => { throw new Error(DESIGN_ONLY); }, resetPreview: async () => {},
     browserAcceptance: async () => { throw new Error(DESIGN_ONLY); }, publish: async () => { throw new Error(DESIGN_ONLY); }, installations: async () => [], lifecycle: async () => {},
@@ -94,15 +98,16 @@ async function designOne(options: SmokeOptions, item: SmokeBrief): Promise<Smoke
       designerRuns: build.runs.filter(run => run.role === 'designer').length, repairRounds: { propose: stage('design').length, experience: stage('experience').length, detail: stage('detail').length },
       firstTry: { propose: stage('design').length === 0, experience: ran('experience') ? stage('experience').length === 0 : null, detail: build.design ? stage('detail').length === 0 : ran('detail') ? false : null },
       promptVersions: build.runs.filter(run => run.role === "designer").map(run => run.promptVersion),
-      repairs: repairs.map(step => `${step.id.split(':')[0]}: ${step.detail ?? step.label}`),
+      repairs: repairs.map(step => `${step.id.split(':')[0]}: ${step.detail ?? (typeof step.label === 'string' ? step.label : '')}`),
       ...(build.design ? { designSummary: `${build.design.contract.operations.length} operations, ${build.design.parts.length} parts, ${build.design.acceptance.length} acceptance cases` } : {}) };
     // After the design is frozen the workflow tries to build it, which the smoke refuses by design; that is not the design's failure.
-    if (build.error && !build.design) result.error = build.error;
+    if (build.error && !build.design) result.error = studioBuildDiagnostic(build.error) ?? undefined;
     return result;
   } finally { await workflow.close().catch(() => undefined); rmSync(scratch, { recursive: true, force: true }); }
 }
 
 export async function runSmoke(options: SmokeOptions): Promise<SmokeReport> {
+  installHostUiText();
   const briefs: SmokeBriefResult[] = [];
   for (const item of options.briefs) { options.progress?.(`${item.id}: starting`); briefs.push(await designOne(options, item)); }
   return { format: 'studio-replay-smoke/1', at: new Date().toISOString(), model: options.model.model_id, skill: mountedSkill(), briefs,

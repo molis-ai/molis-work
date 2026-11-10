@@ -66,6 +66,46 @@ test('S-119 PCSYNC-17/22 Builder tombstones retain editing floors and restoratio
  assert.throws(()=>f.stores[1]!.update(source.id,1,()=>{}),/草稿已更新/);assert.equal(f.replicas[1]!.next(),null);
 });
 
+test('FSS-36 Studio v1 stores and restores exact collaboration references and original words through the same CAS',t=>{
+ const f=fixture(t),source=f.create(),detail='原始诊断 <value>\nLine two',at='2026-10-19T00:00:00Z';
+ const label={key:'plugin-builder.studio-step.repair-operation',args:[{name:'operation',kind:'text' as const,text:'原功能 <名>'},{name:'round',kind:'number' as const,number:2}]};
+ const error={title:{key:'plugin-builder.agent-studio.one-feature-could-not-be-written'},guidance:{key:'plugin-builder.agent-studio.choose-continue-let-ai-try-again-if-keeps'},detail};
+ const old='修正「旧原文」 （第 2 轮） <raw>';
+ const saved=f.stores[0]!.update(source.id,source.revision,row=>{
+  row.steps=[{id:'older',agent:'code',action:'implement',status:'done',label:old,at},{id:'fixed',agent:'code',action:'implement',status:'done',label,at}];
+  row.error=error;
+ });
+ const reopened=new AgentBuilderStore(f.storage[0]!).require(source.id);
+ assert.deepEqual(reopened.steps.map(step=>step.label),[old,label]);assert.deepEqual(reopened.error,error);
+ const op=f.replicas[0]!.next()!,wire=op.value as {content:{format:number;builds:AgentBuild[]}};
+ assert.equal(wire.content.format,1);assert.deepEqual(wire.content.builds[0]!.error,error);
+ const sourceBytes=f.storage[0]!.get(KEY),targetBytes=f.storage[1]!.get(KEY);
+ const rejects:Array<(row:AgentBuild)=>void>=[
+  row=>{row.steps[1]!.label={...label,key:'other.studio-step.repair-operation'};},
+  row=>{Reflect.set(row.steps[1]!,'label',{...label,owner:builderManifest.plugin_id});},
+  row=>{row.steps[1]!.label={...label,args:[label.args[0]!,{name:'round',kind:'number',number:0}]};},
+  row=>{row.steps[1]!.label={...label,args:[label.args[0]!,{name:'round',kind:'text',text:'2'}]};},
+  row=>{row.steps[1]!.label={...label,key:'plugin-builder.studio-step.other'};},
+  row=>{row.error={...error,title:{key:'workbench.common.failed'}};},
+  row=>{row.error={...error,title:{key:error.title.key,args:[{name:'round',kind:'number',number:2}]}};},
+  row=>{row.error={...error,guidance:{key:'plugin-builder.request.draft-busy'}};},
+ ];
+ for(const mutate of rejects){
+  assert.throws(()=>f.stores[0]!.update(source.id,saved.revision,mutate),{code:'plugin_builder.store_invalid'});
+  assert.equal(f.storage[0]!.get(KEY),sourceBytes);
+  const malformed=structuredClone(wire.content);mutate(malformed.builds[0]!);
+  assert.throws(()=>f.definitions[1]!.restore(malformed,null,projectId,source.id),{code:'plugin_builder.sync_invalid'});
+  assert.equal(f.storage[1]!.get(KEY),targetBytes);assert.equal(existsSync(join(f.homes[1]!,'plugin-builder')),false);
+ }
+ f.send();
+ const received=new AgentBuilderStore(f.storage[1]!).require(source.id);
+ assert.deepEqual(received.steps.map(step=>step.label),[old,label]);assert.deepEqual(received.error,error);
+ assert.equal(received.revision,1);assert.equal(f.replicas[1]!.next(),null);
+ assert.throws(()=>f.stores[1]!.update(source.id,received.revision+1,()=>{}),{code:'revision_conflict'});
+ const updated=f.stores[0]!.update(source.id,saved.revision,row=>{row.error='界面验收「旧失败」仍未通过 <raw>';});
+ f.send(2);assert.equal(f.stores[1]!.require(source.id).error,updated.error);
+});
+
 test('S-119 PCSYNC-12/23 active work and the trusted composition guard reject replacement and deletion without clearing content',t=>{
  const f=fixture(t),source=f.create(),op=f.send();f.preview(true);
  f.replicas[1]!.receive({...op,base:1,revision:2,operationId:'preview-replace'});

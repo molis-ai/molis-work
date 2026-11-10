@@ -12,7 +12,7 @@ import { LocalProjectDatabase } from '../apps/local-host/src/project-database.js
 import { seedDemoBoard, DEMO_PROJECT_ID } from '../apps/local-host/src/demo-seed.js';
 import { handleAgentStudioHttp, releaseAgentStudio } from '../apps/local-host/src/plugin-builder/agent-surface.js';
 import { authorizeLocalWebRequest, sendLocalWebJson, type LocalMutationState } from '../apps/local-host/src/web-http.js';
-import type { AgentBuild } from '@molis-ai/molis-work-plugin-builder';
+import { studioBuildDiagnostic, type AgentBuild } from '@molis-ai/molis-work-plugin-builder';
 if (!process.argv.includes('--live')) throw new Error('Pass --live to use the configured model with synthetic briefs.');
 const configuredHome = resolveMolisWorkHome(), opened = openConfiguredModels(configuredHome);
 const chosen = opened && selectConfiguredTextModel(configuredHome, opened.store); opened?.storage.close();
@@ -63,6 +63,6 @@ try {
     }
     if (build.active) { await api('/builds/' + build.id + '/action', { action: 'pause' }); ({ build } = await api('/builds/' + build.id)); }
     await writeFile(join(evidence, name + '.json'), JSON.stringify({ model: chosen.model.model_id, home, elapsedMs: Date.now() - started, build }, null, 2));
-    console.log(JSON.stringify({ sample: name, phase: build.phase, error: build.error, elapsedMs: Date.now() - started, runs: build.runs.length }));
+    console.log(JSON.stringify({ sample: name, phase: build.phase, error: studioBuildDiagnostic(build.error), elapsedMs: Date.now() - started, runs: build.runs.length }));
   }
 } finally { await releaseAgentStudio(store, DEMO_PROJECT_ID); await adapter.close(); await new Promise<void>(done => server.close(() => done())); store.close(); }

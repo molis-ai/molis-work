@@ -8,14 +8,26 @@ import { build } from "esbuild";
 import { ChromeHarness, locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
 
 test("D0103 shared content boundary refuses executable markup and preserves comparison presentation", { timeout: 60_000 }, async t => {
-  const directory = await mkdtemp(join(tmpdir(), "content-html-")); t.after(() => rm(directory, { recursive: true, force: true }));
+  const directory = await mkdtemp(join(tmpdir(), "content-html-"));
+  let browser: ChromeHarness | undefined;
+  let server: ReturnType<typeof createServer> | undefined;
+  // node:test stops running later after hooks when an earlier hook fails. Stop writers
+  // before removing their profile, and attempt every release even if one rejects.
+  t.after(async () => {
+    try { await browser?.close(); }
+    finally {
+      try {
+        server?.closeAllConnections();
+        if (server?.listening) await new Promise<void>((resolve, reject) => server!.close(error => error ? reject(error) : resolve()));
+      } finally { await rm(directory, { recursive: true, force: true }); }
+    }
+  });
   const executable = locateTestChrome(); if (!executable) { t.skip("Chrome is unavailable"); return; }
-  const browser = await ChromeHarness.start(directory, { executable });
-  t.after(() => browser.close()); const page = await browser.page();
+  browser = await ChromeHarness.start(directory, { executable });
+  const page = await browser.page();
   let external = 0;
-  const server = createServer((request, response) => { if (request.url === "/probe") external++; response.end("<!doctype html><div id='content'></div>"); });
-  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
-  t.after(() => { server.closeAllConnections(); server.close(); });
+  server = createServer((request, response) => { if (request.url === "/probe") external++; response.end("<!doctype html><div id='content'></div>"); });
+  await new Promise<void>(resolve => server!.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address === "object");
   await page.command("Page.navigate", { url: `http://127.0.0.1:${address.port}/` }); await page.wait("document.querySelector('#content')");
   const bundle = await build({ stdin: { contents: 'import {setContentHtml,contentHtml} from "@molis-ai/molis-work-plugin-sdk/browser"; globalThis.contentProbe={setContentHtml,contentHtml};', resolveDir: process.cwd() }, bundle: true, write: false, format: "iife", platform: "browser", minify: true });

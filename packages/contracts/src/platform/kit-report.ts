@@ -251,6 +251,6 @@ export const KIT_REPORT_OUTPUT_SCHEMA: ActionSchema = object({
 export function defineKitReportAction(capabilityId: string, version: number, title: string, permissions: string[],
   options: { scope?: "project" | "home"; audiences?: ActionAudience[] } = {}): ActionDefinition<KitReportInput, KitReport> {
   return { capability_id: capabilityId, version, operation: "query", action: { title, description: "列出本插件在这个范围里拥有的技能、提示词、角色、工具或 MCP 条目；只读，不连接服务器、不调用工具、不刷新凭据。",
-    kind: "query", scope: options.scope ?? "home", effect: "read", permissions, audiences: [...new Set<ActionAudience>(["user", ...options.audiences ?? []])], subject_kinds: [],
+    kind: "query", scope: options.scope ?? "home", effect: "read", scheduling: "concurrent", permissions, audiences: [...new Set<ActionAudience>(["user", ...options.audiences ?? []])], subject_kinds: [],
     input_type: KIT_REPORT_INPUT_TYPE, output_type: KIT_REPORT_OUTPUT_TYPE, input_schema: KIT_REPORT_INPUT_SCHEMA, output_schema: KIT_REPORT_OUTPUT_SCHEMA } };
 }

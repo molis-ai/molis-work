@@ -148,6 +148,7 @@ export { PLUGIN_CONSENT_PERMISSIONS, pluginConsentActions, pluginConsentProvider
 export { publisherStanding } from "./installed-publisher-standing.js";
 export { PLUGIN_INSTALL_PERMISSIONS, pluginControlActions, pluginInstallActions } from "./plugin-install-actions.js";
 export { pluginPackageExport } from "./plugin-package-export.js";
+export { agentMcpKitEntries } from "./kit-mcp-reports.js";
 export { promptOverrideActions } from "./agent-definitions/prompt-overrides.js";
 export { PluginInstallService, type BundledPluginList } from "./plugin-install-service.js";
 export { bundledPackagesDirectory } from "./bundled-packages.js";

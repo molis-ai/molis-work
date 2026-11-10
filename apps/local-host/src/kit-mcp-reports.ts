@@ -10,7 +10,7 @@ import { readMcpToolPreference } from "./mcp-settings-store.js";
 import { readJsonFile } from "./mcp-tool-actions.js";
 import { PRODUCT_VERSION } from "./product-version.js";
 import type { ProjectPluginHost } from "./project-plugin-ports.js";
-import { scopeInstallations } from "./scope-installations.js";
+import { scopeInstallations, type ScopeInstallation } from "./scope-installations.js";
 import { isTaskGrantSubject } from "./task-grant-subjects.js";
 
 // MCP as AI kit entries (specs/capability-pack/contract-design.md §4.8, §5.3): each owner reports what it already keeps — the Agent
@@ -44,10 +44,12 @@ function serverEntries(server: { owner: "project" | "connection"; id: string; la
 export const agentMcpKitReport = defineKitReportAction("agent.mcp.kit.report", /* @version action.agent.mcp.kit.report */ 1, "项目 MCP 的能力包条目", [KIT_READ_PERMISSION]);
 
 /** The calling project's MCP servers, each in its owner plugin's pack, from the library's safe view (never `list`, `control` or `call`). */
-export async function agentMcpKitEntries(library: AgentMcpLibrary | undefined, source: ProjectPluginHost, caller: ActionCallContext): Promise<KitReport> {
+export async function agentMcpKitEntries(library: AgentMcpLibrary | undefined, reach: () => Promise<readonly ScopeInstallation[]>, caller: ActionCallContext): Promise<KitReport> {
   if (!caller.project_id || !library?.catalog) return { entries: [] };
-  const say = words(caller.locale === "en"), { installations } = await scopeInstallations(source, caller);
-  const entries = (await library.catalog()).filter(({ owner }) => owner.project_id === caller.project_id).flatMap(({ owner, server }) => {
+  const servers = (await library.catalog()).filter(({ owner }) => owner.project_id === caller.project_id);
+  if (!servers.length) return { entries: [] };
+  const say = words(caller.locale === "en"), installations = await reach();
+  const entries = servers.flatMap(({ owner, server }) => {
     const install = installations.find(row => row.record.plugin_id === owner.plugin_id && row.scope === "project") ?? installations.find(row => row.record.plugin_id === owner.plugin_id);
     if (!install) return [];
     return serverEntries({ owner: "project", id: server.id, label: server.label, version: server.version, label_version: say.config(server.version), enabled: server.enabled, health: server.health,
@@ -59,7 +61,7 @@ export async function agentMcpKitEntries(library: AgentMcpLibrary | undefined, s
 
 export function agentMcpKitProvider(library: () => Promise<AgentMcpLibrary | undefined>, source: ProjectPluginHost): ActionProviderRegistration {
   return { provider: { provider_id: KIT_AGENT_MCP_PROVIDER_ID, title: "项目 MCP", kind: "system" }, definitions: [agentMcpKitReport],
-    handlers: [bindActionHandler(agentMcpKitReport, async (_input, caller) => agentMcpKitEntries(await library(), source, caller))] };
+    handlers: [bindActionHandler(agentMcpKitReport, async (_input, caller) => agentMcpKitEntries(await library(), async () => (await scopeInstallations(source, caller)).installations, caller))] };
 }
 
 export const connectorsKitReport = defineKitReportAction("connectors.kit.report", /* @version action.connectors.kit.report */ 1, "连接 MCP 的能力包条目", [KIT_READ_PERMISSION]);

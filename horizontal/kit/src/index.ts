@@ -40,6 +40,9 @@ export const KIT_SYSTEM_REPORTERS: Readonly<Record<string, KitSystemReporter>> =
   "plugin-install": { kinds: [], sources: [], packs: [], headers: true },
 };
 
+/** How long one reporter may take before the gatherer goes on without it (§4.7). */
+export const KIT_REPORT_TIMEOUT_MS = 5_000;
+
 /** What a plugin's own reporter may report: never a Skill, a tool or a pack header (§4.6). */
 const PLUGIN_KINDS: readonly KitKind[] = ["prompt", "role", "mcp"];
 const BUILTIN: KitPackId = "system:builtin", CHARACTERS: KitPackId = "system:characters";
@@ -62,8 +65,14 @@ export async function gatherKit(caller: ActionCallContext, client: ActionClient)
   const answers = await Promise.all(reporters.map(async (reporter): Promise<Answer> => {
     const { view } = reporter;
     if (!view.availability.available) return { reporter, issue: issue(view, view.availability.reason) };
+    // A reporter that does not answer in time is cut off: its packs read 「没读到」, the rest of the page is not held up.
+    const limit = AbortSignal.timeout(KIT_REPORT_TIMEOUT_MS), signal = caller.signal ? AbortSignal.any([caller.signal, limit]) : limit;
     try {
-      const report = await client.invoke(caller, { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id }, {}) as KitReport;
+      const report = await new Promise<KitReport>((resolve, reject) => {
+        const stop = () => reject(new ActionError("actions.timeout", "上报超时"));
+        if (signal.aborted) stop(); else signal.addEventListener("abort", stop, { once: true });
+        client.invoke({ ...caller, signal }, { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id }, {}).then(answer => resolve(answer as KitReport), reject);
+      });
       const ids = new Set<string>();
       for (const entry of report.entries) {
         if (ids.has(entry.entry_id)) throw kitErrors.report_invalid(`重复的条目 ${entry.entry_id}`);

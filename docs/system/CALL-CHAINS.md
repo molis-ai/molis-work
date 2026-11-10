@@ -299,8 +299,10 @@
 
 **登记之外**：页面渲染、静态资产、终端和浏览器 WebSocket、面板会话等传输层路由（`apps/local-host/src/web-server.ts`）不是「能力」，不进这两张表，但它们也不能绕开链 1 的步骤 2。IM 服务的路由（`/im`、`/projects/<id>/api/im/connect`）同样是「讨论」页签自己的传输层（宿主不再直接读它的表，见 W2-06）。
 
-**还没有逐条盘点的只走 HTTP 的写入**：下面几组不是宿主设置，是各个功能自己的传输层，没有列进 10.1，也没有检查过它们是否应该是动作；不要把它们当作已经审过。是否登记、登记进哪一张表，还没有定。
+**首页事项与动作**。`apps/local-host/src/web-request.ts` 从已认证的项目上下文绑定调用者。`apps/local-host/src/home-dock-http.ts` 的六个 POST 路径都经现行 `system.home` 动作。事项列表、打开位置、动作选项与准备分别调用 `home.events.read`、`home.events.open`、`home.actions.choices`、`home.actions.prepare` 的查询。`POST /api/home/actions/execute` 调 `home.actions.execute`，最终写入由所选动作的主人执行。`POST /api/home/dock-judgment` 调 `home.judgment.write`，由场景绑定服务保存选择，然后经 `home.judgment.read` 读回。HTTP 负责收发和刷新工作台视图。
+
+**待逐条登记的只走 HTTP 的写入**。B9 的 2026-11-01 决定要求按现行实际写入登记主人和理由，再逐组迁入动作。下列组仍须区分业务写入、已进动作的路径和纯传输。
 - 助理面板自己的路由：`/api/assistant/` 下除设置页用的几条以外的写入（发送、卡片、附件、通知处理 `notices`、取消跟进 `followups/remove`、记忆建议的认可与放弃 `memory-candidates/…`、工作里的操作），在 `apps/local-host/src/assistant/assistant-http.ts`。链 3 只写了发送这一条。
 - 插件创作台自己的 HTTP：`apps/local-host/src/plugin-builder/agent-surface.ts` 的 `handleAgentStudioHttp`，路径在 `/api/plugin-builder/studio/` 下，含保存密钥 `POST …/secrets`、`…/settings`、新建构建 `…/builds`、构建里的 `…/action`、`…/call`。
 - 首次引导里的整理旅程 `/api/onboarding/context/…`（`apps/local-host/src/web-context-onboarding.ts`）。
-- Agent 审批 `POST /api/agent/reviews/decide`、`/api/agent/reviews/recovery`（`apps/local-host/src/agent-review-http.ts`）和首页的 `POST /api/home/…`（`apps/local-host/src/home-dock-http.ts`）。
+- Agent 审批 `POST /api/agent/reviews/decide`、`/api/agent/reviews/recovery`（`apps/local-host/src/agent-review-http.ts`）。

@@ -40,6 +40,8 @@ Manifest 的 `agent.prompts` 只声明提示词标识、版本等元信息；作
 
 今天 `plugin create` 生成的是 **integration 样例**（私人计数 + Artifact + 一段 UI），不是 Native 一级入口插件。
 
+已有安装版 CLI 时，以下命令中的 `node dist/cli/main.js` 用 `molis-work`。插件目录只装公开的 contracts 与 SDK 两个包。已有这两个包的压缩文件时，用下面的离线 npm 命令，把压缩包路径换成实际路径即可。在独立 Home 里试跑时，把 `MOLIS_WORK_HOME` 指向该临时 Home，设 `MOLIS_WORK_SECRET_BACKEND=file`，再给 `plugin dev` 单独的空状态目录。
+
 在仓库根、先 `pnpm build`：
 
 ```bash

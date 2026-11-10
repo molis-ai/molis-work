@@ -80,9 +80,9 @@ function frameUi(host: FrameHost, pack: FramePack, message: Extract<FrameUp, { t
   } else if (message.name === "openPlugin") {
     if ((args[1] === undefined || text(args[1])) && (args[2] === undefined || text(args[2], 100))) openPlugin(host, args[0], prefix, args[1], args[2]);
   } else if (message.name === "openItem" || message.name === "openBeside") {
-    if (!text(args[0], 101) || !/^[a-z][a-z0-9-]{0,100}$/u.test(args[0]) || !text(args[1]) || !args[1] || !text(args[2])) return;
+    if (!text(args[0], 101) || !/^[a-z][a-z0-9-]{0,100}$/u.test(args[0]) || !text(args[1]) || !args[1] || (args[2] !== undefined && !text(args[2]))) return;
     if (message.itemTabId !== undefined) {
-      if (message.name !== "openItem" || typeof message.itemTabId !== "string" || message.itemTabId !== tabId) return;
+      if (message.name !== "openItem" || message.itemTabId !== tabId) return;
       host.openItem?.(pack.id, args[1], args[2]);
     } else host[message.name]?.(args[0], args[1], args[2]);
   } else if (message.name === "hideDirectory" && !args.length) host.hideDirectory?.();

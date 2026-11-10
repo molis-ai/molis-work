@@ -196,9 +196,9 @@ export const NON_TEXT_TAGS = /* @__PURE__ */ Object.freeze([
 /** D0103: render returned content inertly; only presentation markup and explicit safe links survive. */
 export function setContentHtml(target: Element, markup: string): void {
   const template = target.ownerDocument.createElement("template"); template.innerHTML = markup;
-  const allowed = new Set<string>([...CONTENT_TAGS, "div", "span", "section", "header", "footer", "dl", "dt", "dd", "button", "mark", "svg", "use", "path", "line", "polyline", "rect", "circle"]);
+  const allowed = new Set<string>([...CONTENT_TAGS, ..."div span section header footer dl dt dd button mark svg use path line polyline rect circle".split(" ")]);
   const nonText = new Set<string>(NON_TEXT_TAGS.filter(tag => tag !== "svg"));
-  const attrs = new Set("class title dir aria-label aria-hidden role colspan rowspan align width height viewBox d fill stroke stroke-width stroke-linecap stroke-linejoin x y x1 y1 x2 y2 cx cy r points".split(" "));
+  const attrs = new Set("class title dir aria-label aria-hidden role colspan rowspan align width height viewBox d fill stroke stroke-width stroke-linecap stroke-linejoin x y x1 y1 x2 y2 cx cy r points data-phase data-group data-kind data-mode data-sign data-path".split(" "));
   const elements = Array.from(template.content.querySelectorAll("*"));
   for (const element of elements) {
     const tag = element.localName;
@@ -213,7 +213,7 @@ export function setContentHtml(target: Element, markup: string): void {
       }
       if (name === "open" && tag === "details") continue;
       if (name === "disabled" && tag === "button") continue;
-      if (["data-phase", "data-group", "data-kind", "data-mode", "data-sign", "data-path"].includes(name)) continue;
+      if (name === "style" && tag === "ol" && /^--diff-digits:\d{1,2}$/.test(value)) continue;
       if (["data-change-index", "data-diff-folded", "data-diff-unfold", "data-coding-line"].includes(name) && /^\d{1,6}$/.test(value)) continue;
       if (name === "data-coding-line-side" && ["before", "after"].includes(value)) continue;
       if (name === "data-action" && tag === "button" && value === "diff.show-file") continue;

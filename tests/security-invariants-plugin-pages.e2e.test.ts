@@ -312,10 +312,14 @@ test("D0124 D0335 S-47 hidden plugin UI cannot navigate or open an object; visib
   await child.evaluate("uiForTest.view.refreshShell();uiForTest.openPlugin('todo');uiForTest.openItem('todo','fake','Fake');uiForTest.openBeside('todo','fake','Fake');new Promise(resolve=>setTimeout(resolve,100))");
   assert.equal(await state(), before, "hidden messages do not change the active pane or create item tabs");
   await browser.evaluate("document.querySelector('iframe[data-plugin-frame=cognia]').hidden=false");
-  await child.evaluate("uiForTest.openPlugin('todo',{},[]);uiForTest.openItem('todo',{},[]);new Promise(resolve=>setTimeout(resolve,100))");
+  await child.evaluate("uiForTest.openPlugin('todo',{},[]);uiForTest.openItem('todo',{},[]);uiForTest.openItem('todo','fake',{});new Promise(resolve=>setTimeout(resolve,100))");
   assert.equal(await state(), before, "malformed arguments are ignored before the trusted UI is called");
   await child.evaluate("uiForTest.openPlugin('todo')");
   await browser.waitFor("document.querySelector('iframe[data-plugin-frame=todo]')");
+  await browser.click('[data-plugin-id=cognia]');
+  await browser.waitFor("document.body.dataset.desktopSurface==='cognia'");
+  await child.evaluate("uiForTest.openItem('todo','fake',undefined)");
+  await browser.waitFor("document.body.dataset.desktopSurface==='todo'");
 });
 
 test("D0124 S-47 refresh cooldown survives the document reload", { timeout: 90_000 }, async t => {

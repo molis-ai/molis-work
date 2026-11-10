@@ -127,6 +127,8 @@ const pages: Record<string, Draw> = {
 // Batch 10 closeout after main 416ee8cef0: each of the 16 whole pages independently reproduced its previous hash and
 // length after removing only the two Skills buttons and replacing the receiver button with the former span (+41).
 // All other records retained the accepted main records; no Goals markup, data or assertions changed.
+// D0013: the current kanban and momentum fragments add one cancelled column. Removing only that complete column restores
+// all 66 prior hashes and lengths (14 changed: zh +2955 / en +2968); no other markup, JSON or view fixture was changed.
 const RECORDED = new URL("golden.json", GOLDEN);
 interface Recorded { sha256: string; length: number }
 const recorded: Record<string, Recorded> = record ? {} : JSON.parse(readFileSync(RECORDED, "utf8"));

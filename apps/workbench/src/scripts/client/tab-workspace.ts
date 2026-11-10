@@ -485,6 +485,7 @@ ${TAB_WORKSPACE_DRAG_PART}
   (${TAB_SASH_FACTORY})({ panes: panesEl, root, find: (id) => findSplit(state.layout.tree, id), sync: layoutSplits, persist, range: splitRatioRange, snap: snapSplitRatio, defaultRatio: TAB_SPLIT_RATIO });
   let dragTab = null;
   const dragDepths = new Map();
+  window.addEventListener("pointermove", () => { if (dragTab && !dragTab.node.isConnected) finishDrag(); }, true);
   let reorderKey = "";
   const dragSlot = (${TAB_DRAG_SLOT_FACTORY})({ ms: TAB_REORDER_MS, ease: TAB_REORDER_EASE });
   const paintResultPreview = (target, copy) => {
@@ -525,7 +526,7 @@ ${TAB_WORKSPACE_DRAG_PART}
       const pane = paneById(paneId), last = pane ? pane.tabs.findIndex((item) => item.id === (members?.at(-1) || tab.dataset.tabId)) : -1;
       const box = source.getBoundingClientRect();
       // The first preview is the place the drag started from, so nothing moves until the pointer does.
-      dragTab = { paneId, tabId: tab.dataset.tabId, width: Math.round(box.width) || 172, members, hoverBeforeId: pane?.tabs[last + 1]?.id, homeBeforeId: pane?.tabs[last + 1]?.id };
+      dragTab = { node: source, paneId, tabId: tab.dataset.tabId, width: Math.round(box.width) || 172, members, hoverBeforeId: pane?.tabs[last + 1]?.id, homeBeforeId: pane?.tabs[last + 1]?.id };
       if (event.dataTransfer.effectAllowed !== "copy") event.dataTransfer.effectAllowed = "copyMove"; event.dataTransfer.setData("text/plain", tab.title);
       const ghost = document.createElement("nav");
       ghost.className = "tab-strip"; ghost.setAttribute("aria-hidden", "true");
@@ -536,7 +537,7 @@ ${TAB_WORKSPACE_DRAG_PART}
       document.body.append(ghost);
       try { event.dataTransfer.setDragImage(ghost, Math.max(0, Math.min(event.clientX - box.left, dragTab.width)), Math.max(0, Math.min(event.clientY - box.top, box.height))); } catch {}
       requestAnimationFrame(() => ghost.remove());
-      root.classList.add("is-tab-dragging"); dragDepths.clear(); window.addEventListener("pointerdown", () => { if (dragTab) finishDrag(); }, { once: true, capture: true });
+      root.classList.add("is-tab-dragging"); dragDepths.clear();
       document.body.classList.add("is-tab-dragging");
       document.body.style.setProperty("--tab-reorder-width", dragTab.width + "px");
     });

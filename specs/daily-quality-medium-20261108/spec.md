@@ -112,3 +112,22 @@ main 整合头整体 build45、boundary45、health13（对照 main 85cec224）�
 IM follow-copy 在独立干净门禁基线 dd27ea5ff 复现相同 60px wheel → gap=0 断言失败。该基线与当前 main 的 IM、scroll-follow 和此用例源码一致；诊断仅看到 wheel 导致 detached，没有浏览器 scroll，尚未归因到产品代码。没有改原断言或提交探针；云端 Full 的同场景仍须验证。
 
 第二轮 [CI 42750367725](https://github.com/molis-ai/molis-work/actions/runs/42750367725)：所有安全分片、动作合同、门禁、边界、原生检查、Golden replay 均通过，仅 Feed promotion 文件在 180 秒文件预算内未完成（已完成的子测试均通过），不把超时标绿。第二轮 [Full 42750515022](https://github.com/molis-ai/molis-work/actions/runs/42750515022) 发现 IM 已整体压缩而旧断言仍匹配共享脚本原文；修正为比较导出 field-fit 的完整 IIFE 语法结构，只规范化局部绑定名称，保留属性、全局名、选择器和字面量，缺少导出或改错选择器仍拒绝。程序没有第二份实现。后续按现有 integration 分支运行全部 32 分片，不因首个失败取消其他分片，也不修改工作流/门禁或跳过文件。
+
+
+## 2026-11-10 完整 Full 的补齐（验收头 116d1b03c）
+
+[CI 42752007662](https://github.com/molis-ai/molis-work/actions/runs/42752007662) 全部适用作业与 Verify 成功。[Full 42751999963](https://github.com/molis-ai/molis-work/actions/runs/42751999963) 在 integration 分支完成全部 32 分片：22 成功、10 失败，没有因首个失败取消其他分片。持续失败的 12 个文件逐项闭环：
+
+- `goal-kanban`、`status-ring`、`goals-page-golden`：D0013 新增第七个取消分组；宽/窄屏保留独立列和 cancelled 环。对全部 66 个 normalized 页面逐字核查，移除唯一新增的取消列后旧哈希和长度全恢复；只刷新 14 条金样（zh +2955 / en +2968），其余 52 条与 view fixture 不变。金样文件 70/72 通过，另两项仅用于显式生成 view/记录金样；未打开这些生成开关作为最终验证。
+- `home-plugin-private-store`：D0151/D0304 关闭 owner 后明确拒绝读取，不以空安装列表伪装事实不存在；已改为断言拒绝码/消息，继续验证 KV 隔离、跨连接 CAS、关闭后的句柄无效、重启保留原文和启用意图，5/5。
+- `composer-board`：D0292 的真实 HTTP 目录 fixture 显式开启开发模式、增加 status=200 断言；中文/英文及稳定键仍逐项验证，4/4。
+- `tab-reorder-preview`：D0029 的原节点重绘使 dragend 随节点消失；通用 pointermove 清理只在原 source 已脱离 DOM 时结束拖动，并保留真实拖动中的移动。一个持久监听替代每次拖动的一次性监听。回归先发送活跃 pointermove、再移除原节点、再真实移动，验证 guard/slot/iframe pointer 归还；2/2，插件分组 5/5。
+- `code-diff-reader`：D0103 清理遗漏了 SDK Diff 的数字列宽。惰性白名单仅保留 ol 上完整的固定 --diff-digits 加一到两位数字，拒绝混入 CSS/URL、无界数及错误标签；没有开放任意 style。共用 attrs 集合和标签构造避免重复字节。实际 Coding 五位数/并排/复制位置、Coding→Git 产品路径、Shelf 边界、恶意网络/DOM 拒绝与 SDK 出口六文件全部通过。公共安全表同步记录。
+- `project-user-journey`：D0124/D0335 的 typed UI 边界错误地把公开合同的可选 title 当必填；现在接受省略或 undefined，错误类型仍拒绝。带 itemTabId 的请求继续严格等于可信 tabId（其类型由 Host 给出，不需重复类型判断）。真实 Inbox→Feed 1440/390 动线 2/2，隐藏/畸形/可选参数与 refresh cooldown 安全文件 9/9。
+- `pages-import-entry`、`project-home-start`：D0041 演示数据在 Runtime 启动后由 Feed 初始化。Pages 在无 Pages 业务调用的 board 读取完成后记录成果计数；Home 在真实导航与 seeded Inbox 已出现后读取旧条目。保留 Pages 导入前后成果总数完全相同和 Home 单次执行/版本断言。Pages viewport 使用现有 fixture 的 setViewport 同时设置真实窗口与仿真视口，不让真实输入落到窗口之外。
+- `companion-client-lifecycle`：D0103 不保留测试自造的 data-current-diff；fixture 以允许的展示 class 和完整正文标识同一固定 diff，保留原异步/撤销/操作次数断言，不在 SDK 加 Git 私有属性。
+- `hover-actions`：D0268 已补图像手柄的真实 focus-visible，旧测试却仍要求那个键盘缺陷存在。现在严格要求 hover/focus/touch 缺陷集合为空，不保留已修复的缺陷例外。
+
+Full 的 IM follow-copy 在分片 30 原样通过（14.3s，1/1）；本机同场景与干净基线的 Chrome wheel 限制仍留作边界证据。Full 中 goal-event-document 与 pages-clipboard 首次失败但内置重试通过，原断言与工作流未改，不记为持续产品缺陷。
+
+本地 build48 已覆盖最后的全部 src 改动；tests28/29/30/31 与单文件复验的证据见 PR。最新实际资源：工作台 1,031,405（对 main +1,249 ≤1,275）；plugin-frame 232,505（+689 ≤704）；Shelf 67,566（+2,247）、Coding 302,775（+2,241）、Files 13,850（+2,162）、Git 33,220（+2,165），全部在原批准最大增量内，没有新资源或扩大许可。最终补齐提交仍须重新通过正式资源比较、health/boundary/secrets、CI 与全部 Full 分片，再按用户授权直接入队；完整链接与最终结论维护在 PR tasklist，未成功前不标整批关闭。

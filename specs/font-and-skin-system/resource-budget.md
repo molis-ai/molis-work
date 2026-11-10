@@ -34,9 +34,11 @@
 复现（先 `pnpm build`；全量约 4 分钟，出总数、门禁占比和取词记录）：
 
 ```sh
-node scripts/machine-slot.mjs run browser --label "first-screen" -- node scripts/first-screen-report.mjs --out <目录>
+node scripts/machine-slot.mjs run browser --label "first-screen" -- node scripts/first-screen-report.mjs --pages arrival-empty,chooser,workbench-default,workbench-all-plugins,workbench-demo,settings --out <目录>
 node scripts/first-screen-report.mjs --summarize <目录>
 ```
+
+组件板仅在开发模式开放，另跑 `MOLIS_WORK_DEVELOPER_MODE=1 node scripts/machine-slot.mjs run browser --label "first-screen catalog" -- node scripts/first-screen-report.mjs --pages catalog --out <组件板目录>`。用户页面沿用普通模式。
 
 `--http-only` 不用排槽位，约 10 秒，但**出不了总数和占比**：它只读文档和文档里写明的文件，隐藏文档、脚本才加载的文件、启动 JSON 都不含，`--summarize` 对它的目录也没有东西可打。
 

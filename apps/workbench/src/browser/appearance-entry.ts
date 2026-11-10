@@ -132,7 +132,7 @@ function mount(initial: WorkbenchAppearance): void {
     void sync.undo(receipt).catch(() => { feedback = uiText.text("workbench.appearance-entry.appearance-has-changed-since-then-change-can-no"); drawNotice(); }).finally(() => { undo.disabled = false; });
   });
   reread.addEventListener("click", () => {
-    if (discussionFailed && !renderError && !readError && !sync.uncertain) discussion.retry();
+    if (discussion && discussionFailed && !renderError && !readError && !sync.uncertain) discussion.retry();
     else sync.retry();
   });
   resume.addEventListener("click", () => { void sync.continue().catch(() => { /* The common operation feedback owns the message. */ }); });

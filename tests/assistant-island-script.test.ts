@@ -47,7 +47,7 @@ test("every Send the bottom bar writes itself is marked as the page's; only the 
 // ("Viewing：Notes") puts a full-width colon in English. The object the bottom bar says it is looking at is such a sentence.
 test("what the bottom bar is looking at is one translated sentence, with the object's name as a parameter", () => {
   assert.doesNotMatch(ASSISTANT_ISLAND_FACTORY_SCRIPT, /L\("正在看"\)/, "no word-plus-colon glue for the page's object");
-  assert.match(ASSISTANT_ISLAND_FACTORY_SCRIPT, /L\("正在看：\{title\}", \{ title: name \}\)/);
+  assert.match(ASSISTANT_ISLAND_FACTORY_SCRIPT, /readText\("workbench\.assistant-materials\.viewing-title", \{ title: name \}\)/);
   assert.equal(pageText("zh")("workbench.assistant-materials.viewing-title", { title: "需求说明" }), "正在看：需求说明");
   assert.equal(pageText("en")("workbench.assistant-materials.viewing-title", { title: "Notes" }), "Viewing: Notes", "English keeps its own colon");
   // The strip names it with that sentence, never with its prefix cut off by a pattern. (The 「材料」 button's short name is gone with
@@ -168,7 +168,7 @@ test("D0007 D0009: the served usage client reads empty, running and failed respo
     replaceChildren(...values: Array<Node | string>) { this.children = values; }
     text(): string { return this.children.map(value => typeof value === "string" ? value : value.text()).join(" "); }
   }
-  const create = new Function(`return (${ASSISTANT_SIDE_USAGE_FACTORY_SCRIPT});`)();
+  const create = new Function("globalThis", `return (${ASSISTANT_SIDE_USAGE_FACTORY_SCRIPT});`)({ t: { text: pageText("zh") } });
   for (const [name, view] of Object.entries(assistantViewFixtures)) {
     const box = new Node();
     const client = create({ readText: pageText("zh"), el: (_tag: string, _class: string, text?: string) => { const node = new Node(); if (text) node.append(text); return node; },

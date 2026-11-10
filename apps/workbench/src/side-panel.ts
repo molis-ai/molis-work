@@ -119,6 +119,7 @@ body[data-side-open=true] .side-strip{min-width:calc(var(--side-panel-width,35vw
 .side-panel-body{position:relative;flex:1;min-height:0;display:flex;flex-direction:column;animation:craft-fade-in var(--dur-move) var(--ease-quint)}
 .side-panel-body[hidden]{display:none}
 .side-panel-body>iframe{border:0;display:block;flex:1;width:100%;min-height:0}
+[data-side-body=discussion]>iframe[hidden]{display:none}
 .side-tasks{display:flex;flex-direction:column;gap:4px;flex:1;min-height:0;overflow:auto;padding:12px 8px}
 .side-tasks-title{padding:4px 12px 8px;font-size:12px;font-weight:var(--weight-control,500);color:var(--muted)}
 .side-tasks-empty{margin:0;padding:8px 12px;color:var(--muted);font-size:13px}
@@ -218,9 +219,15 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
   let open=false,closing=null,trigger=null;
   const size=()=>Math.min(Math.max(innerWidth*side().ratio,360),innerWidth*.55);
   const paint=()=>{const width=Math.round(size());document.body.style.setProperty('--side-panel-width',width+'px');divider.setAttribute('aria-valuenow',String(width));divider.setAttribute('aria-valuemin','360');divider.setAttribute('aria-valuemax',String(Math.floor(innerWidth*.55)));};
-  const imVisible=()=>frame?.contentWindow?.postMessage({type:'molis:im-visibility',visible:open&&current()==='discussion'},location.origin);
+  const imVisible=()=>frame?.contentWindow?.postMessage({type:'molis:im-visibility',visible:open&&current()==='discussion'&&!frame.hidden},location.origin);
   const load=(body)=>{
-    if(body.dataset.sideBody==='discussion'&&frame&&!frame.getAttribute('src'))frame.src='/im?embedded=1'+(projectId?'&project='+encodeURIComponent(projectId):'');
+    if(body.dataset.sideBody==='discussion'&&frame&&!frame.getAttribute('src')){
+      if(document.getElementById('ui-environment')?.dataset.stylesheet){
+        const loading=document.createElement('p');loading.className='mw-empty mw-loading';loading.dataset.discussionLoading='';loading.role='status';
+        loading.textContent=readText("workbench.side-panel.loading-discussion");frame.before(loading);frame.hidden=true;
+      }
+      frame.src='/im?embedded=1'+(projectId?'&project='+encodeURIComponent(projectId):'');
+    }
     const src=body.dataset.sideSrc,inner=body.querySelector('[data-side-frame]');
     if(src&&inner&&!inner.getAttribute('src')){inner.onload=()=>{inner.dataset.loaded='';};inner.src=src;}
     const pane=body.querySelector('iframe[data-side-pane-src]');if(pane&&!pane.getAttribute('src'))pane.src=pane.dataset.sidePaneSrc;
@@ -391,6 +398,7 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
   // A dialog opened from the panel (the import dialog) closes on its own Escape; the panel stays.
   panel.addEventListener('keydown',event=>{if(event.key==='Escape'&&!event.defaultPrevented&&open&&!event.target.closest?.('dialog')){event.preventDefault();setOpen(false);save();}});
   frame?.addEventListener('load',imVisible);
+  if(frame)new MutationObserver(imVisible).observe(frame,{attributes:true,attributeFilter:['hidden']});
   addEventListener('message',async event=>{
     if(event.origin!==location.origin)return;
     if(event.data?.type==='molis:side-forward'){const made=forwarded.from(event)&&forwarded.event(event.data.name,event.data.detail);made&&window.dispatchEvent(made);return;}
@@ -412,9 +420,10 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
     if(event.data?.type==='molis:im-close'){setOpen(false);save();}
     if(event.data?.type==='molis:im-ready')imVisible();
     if(event.data?.type==='molis:im-connect'&&projectId){
-      const answer=(error)=>frame.contentWindow.postMessage({type:'molis:im-connected',requestId:event.data.requestId,error},location.origin);
+      const source=frame.contentWindow,page=frame.contentDocument;
+      const answer=(error,code)=>{if(frame.contentDocument===page&&frame.contentWindow===source)source.postMessage({type:'molis:im-connected',requestId:event.data.requestId,error,code},location.origin);};
       try{await molisWorkRequest('/projects/'+encodeURIComponent(projectId)+'/api/im/connect',{body:{}});answer(null);}
-      catch(error){answer(molisWorkRequest.text(error,globalThis.t.text("workbench.side-panel.couldn-t-connect-project")));}
+      catch(error){answer(molisWorkRequest.text(error,globalThis.t.text("workbench.side-panel.couldn-t-connect-project")),error?.code);}
     }
   });
   let drag=null;

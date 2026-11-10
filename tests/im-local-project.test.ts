@@ -7,7 +7,9 @@ import {tmpdir} from 'node:os';
 import {randomUUID} from 'node:crypto';
 import {openServerDatabase} from '@molis-ai/molis-work-server';
 import {createLocalImServer} from '../apps/local-host/dist/im-server.js';
-import {authorizeLocalWebRequest, homeStores} from '@molis-ai/molis-work-app-local-host';
+import {authorizeLocalWebRequest, homeStores, installHostUiText} from '@molis-ai/molis-work-app-local-host';
+
+installHostUiText();
 
 test('local project connection requires operator token and catalog identity without granting existing projects to another session',async()=>{
   const home=await mkdtemp(join(tmpdir(),'molis-im-project-'));

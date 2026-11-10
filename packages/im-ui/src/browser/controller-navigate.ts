@@ -1,3 +1,4 @@
+import { imFailureText } from "./error-text.js";
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { ImMessage, ImMessagePage } from '@molis-ai/molis-work-contracts/services/im';
 import type { StreamKind, ApiError } from './types.js';
@@ -33,7 +34,7 @@ export function createImNavigate(base: ImBaseCtx, context: () => ImCtx): Pick<Im
     }
     catch (cause) {
       const error = cause as ApiError;
-      c.toast(error.message);
+      c.toast(imFailureText(error));
     }
   }
   async function send(kind: StreamKind) {
@@ -77,7 +78,7 @@ export function createImNavigate(base: ImBaseCtx, context: () => ImCtx): Pick<Im
     catch (cause) {
       const error = cause as ApiError;
       if (id === c.target(kind))
-        c.status(kind, error.uncertain ? (uiText.text("im-ui.message.unconfirmed")) : error.message, true);
+        c.status(kind, error.uncertain ? (uiText.text("im-ui.message.unconfirmed")) : imFailureText(error), true);
     }
     finally {
       s.busyTargets.delete(id);

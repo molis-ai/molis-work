@@ -1,3 +1,4 @@
+import { imFailureText } from "./error-text.js";
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { ImRoomState, ImThreadState, ImMessagePage, ImRoomList, ImReadState } from '@molis-ai/molis-work-contracts/services/im';
 import type { StreamKind, ApiError } from './types.js';
@@ -116,7 +117,7 @@ export function createImSync(base: ImBaseCtx, context: () => ImCtx): Pick<ImCtx,
     }
     catch (cause) {
       const error = cause as ApiError;
-      c.toast(error.message);
+      c.toast(imFailureText(error));
       button.textContent = (uiText.text("im-ui.history.retry"));
     }
     finally {

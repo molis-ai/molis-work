@@ -1,7 +1,15 @@
 import { prepareAppearance, readDocumentAppearance, setAppearanceScope } from "./appearance-view.js";
-import { discussionDocument, onDiscussionReady } from "./discussion-document.js";
+import { discussionDocument, discussionFrame, onDiscussionReady } from "./discussion-document.js";
+
+function reveal(frame: HTMLIFrameElement): void {
+  if (!frame.hidden) return;
+  frame.parentElement?.querySelector("[data-discussion-loading]")?.remove();
+  frame.hidden = false;
+}
 
 export function mountDiscussionAppearance(report: (failed: boolean) => void) {
+  const frame = discussionFrame();
+  if (!frame) return undefined;
   let generation = 0;
   const theme = () => {
     const mounted = discussionDocument();
@@ -17,10 +25,16 @@ export function mountDiscussionAppearance(report: (failed: boolean) => void) {
     void prepareAppearance(current, undefined, page).then(() => {
       if (!active()) return;
       setAppearanceScope(page.documentElement, current.snapshot);
+      reveal(frame);
       report(false);
-    }, () => { if (active()) report(true); });
+    }, () => { if (active()) { reveal(frame); report(true); } });
   };
   onDiscussionReady(project);
+  frame.addEventListener("load", () => {
+    // A failed page does not announce readiness. Let its current same-origin response appear instead of leaving a spinner.
+    const page = frame.contentDocument;
+    if (frame.hidden && page?.URL === frame.src && !discussionDocument()) { reveal(frame); report(true); }
+  });
   window.addEventListener("molis-work:ui-environment-changed", project);
   new MutationObserver(theme).observe(document.documentElement, { attributes: true, attributeFilter: ["data-resolved-theme"] });
   project();

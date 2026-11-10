@@ -283,6 +283,7 @@ export const WORKSPACE_PACKAGES = [
   }),
   entry("packages/ui-host", "@molis-ai/molis-work-contracts/platform/ui", {
     maturity: "slice",
+    extraWorkspaceDependencies: ["@molis-ai/molis-work-plugin-sdk"],
     capabilities: [
       "ui.contribution.registry.v1",
       "ui.surface.render.v1",

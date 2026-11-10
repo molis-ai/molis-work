@@ -1,3 +1,4 @@
+import { imFailureText } from "./error-text.js";
 import { escapeHtml as escapeImText, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { ImRoomState, ImThreadState } from '@molis-ai/molis-work-contracts/services/im';
 import type { TopicDraft, ApiError } from './types.js';
@@ -85,7 +86,7 @@ export function createImTopics(base: ImBaseCtx, context: () => ImCtx): Pick<ImCt
       catch (cause) {
         const error = cause as ApiError;
         if (version === s.epoch)
-          form.querySelector<HTMLElement>('[data-form-error]')!.textContent = error.message;
+          form.querySelector<HTMLElement>('[data-form-error]')!.textContent = imFailureText(error);
       }
       finally {
         busy = false;

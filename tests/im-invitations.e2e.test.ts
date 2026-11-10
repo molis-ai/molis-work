@@ -12,7 +12,7 @@ test("RAC-102: real invitation UI generates explicitly, keeps retries in memory,
   const executable = process.env.MOLIS_WORK_TEST_CHROME ?? join(homedir(), ".local/bin/molis-test-browser");
   if (!existsSync(executable)) { t.skip("Dedicated test Chrome is required"); return; }
   assert.ok(!executable.startsWith("/Applications/Google Chrome.app/"), "Use a dedicated test browser");
-  const f = await inviteFixture(t, { imAssets: { html: renderImPage(), css: IM_STYLES, script: IM_CLIENT_SCRIPT } });
+  const f = await inviteFixture(t, { imAssets: { html: request => renderImPage({ locale: request.headers["accept-language"] }), css: IM_STYLES, script: IM_CLIENT_SCRIPT } });
   const browser = await ChromeHarness.start(f.home, { executable, commandTimeoutMs: 15_000, describe: "document.body.innerText.slice(0,1400)" });
   let closed = false;
   const close = async () => { if (!closed) { closed = true; await browser.close(); } };
@@ -20,6 +20,8 @@ test("RAC-102: real invitation UI generates explicitly, keeps retries in memory,
   try {
     const page = await browser.page(); await browser.command("Target.activateTarget", { targetId: page.targetId });
     await page.command("Page.enable"); await page.command("Runtime.enable"); await page.viewport(1440, 900);
+    await page.command("Network.enable");
+    await page.command("Network.setExtraHTTPHeaders", { headers: { "Accept-Language": "zh-CN" } });
     await browser.command("Browser.grantPermissions", { origin: f.origin, permissions: ["clipboardReadWrite", "clipboardSanitizedWrite"] });
     await Promise.all([browser.event("Page.loadEventFired"), page.command("Page.navigate", { url: f.origin + "/im" })]);
     await page.wait("document.querySelector('[data-name-form] input')?.checkVisibility()");
@@ -56,7 +58,9 @@ test("RAC-102: real invitation UI generates explicitly, keeps retries in memory,
     const requests = await page.evaluate<Array<{ client_id: string; token: string }>>("window.__inviteCalls");
     assert.equal(requests.length, 2); assert.deepEqual(requests[0], requests[1]); assert.equal(count(), 2);
     assert.equal(new URL(await page.evaluate<string>("document.querySelector('[data-invite-value]').value")).searchParams.get("invite"), requests[0]!.token);
-    assert.equal((await f.post(bob.cookie, "/join", { token: firstToken })).status, 404);
+    const expired = await f.post(bob.cookie, "/join", { token: firstToken });
+    assert.equal(expired.status, 404);
+    assert.deepEqual(expired.body, { code: "im.invite_not_found", error: "邀请已失效，请向群创建者索取新链接" });
     // A second unknown outcome is superseded by a separate explicit operation before its retry.
     await page.evaluate("window.__dropNextInvite=true"); await page.click("[data-action=rotate-invite]");
     await page.wait("document.querySelector('[data-action=rotate-invite]')?.textContent === '重试原操作'");
@@ -78,6 +82,15 @@ test("RAC-102: real invitation UI generates explicitly, keeps retries in memory,
       assert.equal(await page.evaluate<boolean>("(()=>{const d=document.querySelector('[data-dialog]'),r=d.getBoundingClientRect();return r.left>=-1&&r.right<=innerWidth+1&&d.scrollWidth<=d.clientWidth+1;})()"), true);
       await page.screenshot(join(shots, `${theme}-${width}.png`));
     }
+    await page.viewport(1440, 900);
+    await page.command("Network.setExtraHTTPHeaders", { headers: { "Accept-Language": "en" } });
+    await Promise.all([browser.event("Page.loadEventFired"), page.command("Page.reload")]);
+    await page.wait("document.documentElement.lang === 'en' && document.querySelector('.im-room-directory')?.checkVisibility()");
+    await page.click(".im-room-directory");
+    await page.click(".im-sidebar [data-action=join]");
+    await page.fill("[data-dialog] input[name=token]", firstToken);
+    await page.click("[data-dialog] button[type=submit]");
+    await page.wait("document.querySelector('[data-dialog] [data-form-error]')?.textContent === 'This invitation has expired. Ask the group creator for a new link.'");
   } finally { await close(); }
 });
 

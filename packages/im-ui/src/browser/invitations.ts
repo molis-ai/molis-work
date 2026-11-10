@@ -1,3 +1,4 @@
+import { imFailureText } from "./error-text.js";
 import { escapeHtml as escapeImText, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { ImInviteState, ImRotateInviteInput } from "@molis-ai/molis-work-contracts/services/im";
 import type { Api, ApiError } from "./types.js";
@@ -49,7 +50,7 @@ export function createInvitations(o: InvitationDialog) {
     o.open(uiText.text("im-ui.invitation.dialog-title", { room: title }), `<p role="status">${uiText("im-ui.invitation.reading-status")}</p>`);
     const { version } = o.current();
     try { await read(room, version); }
-    catch (cause) { if (current(room, version)) o.body.innerHTML = '<p class="im-form-error">' + o.escape((cause as Error).message) + '</p>'; }
+    catch (cause) { if (current(room, version)) o.body.innerHTML = '<p class="im-form-error">' + o.escape(imFailureText(cause)) + '</p>'; }
   }
   async function rotate(button: HTMLButtonElement) {
     const { room, version } = o.current();
@@ -78,7 +79,7 @@ export function createInvitations(o: InvitationDialog) {
       if (error.code === "im.invite.token_conflict" && intents.get(room) === intent) intents.delete(room);
       // Even a read-back failure after a committed POST can retry the same pair.
       if (intents.get(room) === intent) intent.pending = true;
-      if (current(room, version) && observed) paint(observed, false, error.message);
+      if (current(room, version) && observed) paint(observed, false, imFailureText(error));
     } finally { button.disabled = false; }
   }
   async function copy(button: HTMLButtonElement) {

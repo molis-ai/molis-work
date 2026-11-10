@@ -1,3 +1,4 @@
+import { imFailureText } from "./error-text.js";
 import { setImHeading } from "../views.js";
 import { escapeHtml as escapeImText, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { ImRoomState, ImThreadState } from '@molis-ai/molis-work-contracts/services/im';
@@ -61,8 +62,8 @@ export function createImRooms(base: ImBaseCtx, context: () => ImCtx): Pick<ImCtx
     catch (cause) {
       const error = cause as ApiError;
       if (version === s.epoch) {
-        q('[data-stream="group"]').innerHTML = '<div class="im-empty">' + e(error.message) + ("<p><button class=\"mw-btn mw-btn--secondary mw-btn--sm\" type=\"button\" data-action=\"retry\">" + escapeImText(uiText.text("im-ui.control.retry")) + "</button></p></div>");
-        c.syncError(error.message);
+        q('[data-stream="group"]').innerHTML = '<div class="im-empty">' + e(imFailureText(error)) + ("<p><button class=\"mw-btn mw-btn--secondary mw-btn--sm\" type=\"button\" data-action=\"retry\">" + escapeImText(uiText.text("im-ui.control.retry")) + "</button></p></div>");
+        c.syncError(imFailureText(error));
       }
     }
     finally {
@@ -117,7 +118,7 @@ export function createImRooms(base: ImBaseCtx, context: () => ImCtx): Pick<ImCtx
     catch (cause) {
       const error = cause as ApiError;
       if (version === s.epoch)
-        q('[data-stream="thread"]').innerHTML = '<div class="im-empty">' + e(error.message) + '<p><button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-action="select-thread" data-id="' + e(id) + ("\">" + escapeImText(uiText.text("im-ui.control.retry")) + "</button></p></div>");
+        q('[data-stream="thread"]').innerHTML = '<div class="im-empty">' + e(imFailureText(error)) + '<p><button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-action="select-thread" data-id="' + e(id) + ("\">" + escapeImText(uiText.text("im-ui.control.retry")) + "</button></p></div>");
     }
   }
   return { selectRoom, selectThread };

@@ -991,6 +991,19 @@ test("FSS-35 FSS-36 connection guides translate with the same OAuth form and kee
   await waitFor(`document.documentElement.lang === 'en' && ${get(row + " .settings-connection-row__identity small")}.textContent === 'Issues and projects.'`);
 });
 
+async function applyDiscussionFolio(b: LanguageBrowser): Promise<void> {
+  const applied = await b.evaluate<boolean>(`(async () => {
+    document.querySelector('[data-look-card=folio] .mw-look-card__pick').click();
+    const until = Date.now() + 14000;
+    while (Date.now() < until) {
+      if (document.querySelector('.mw-look-proof')?.dataset.state === 'ready') { document.querySelector('[data-look-apply]').click(); return true; }
+      await new Promise(resolve => setTimeout(resolve, 30));
+    }
+    return false;
+  })()`);
+  assert.ok(applied, "Folio is selected through the real Settings controls");
+}
+
 test("FSS-20 FSS-27 FSS-35 FSS-36 discussion retitles the open conversation and follows appearance without touching its state", { timeout: 120_000 }, async t => {
   const b = await openGoalBrowser(t, "user", undefined, null); if (!b?.projectId) return;
   await b.setViewport(1440, 900);
@@ -1093,16 +1106,7 @@ test("FSS-20 FSS-27 FSS-35 FSS-36 discussion retitles the open conversation and 
   t.after(stop);
   await b.command("Network.setCacheDisabled", { cacheDisabled: true }, b.sessionId);
   await b.command("Fetch.enable", { patterns: [{ urlPattern: b.origin + "/assets/ui-skin/folio-1.css", resourceType: "Stylesheet" }] }, b.sessionId);
-  const applied = await b.evaluate<boolean>(`(async () => {
-    document.querySelector('[data-look-card=folio] .mw-look-card__pick').click();
-    const until = Date.now() + 14000;
-    while (Date.now() < until) {
-      if (document.querySelector('.mw-look-proof')?.dataset.state === 'ready') { document.querySelector('[data-look-apply]').click(); return true; }
-      await new Promise(resolve => setTimeout(resolve, 30));
-    }
-    return false;
-  })()`);
-  assert.ok(applied, "Folio is selected through the real Settings controls");
+  await applyDiscussionFolio(b);
   const warning = "This window couldn’t load the new appearance. It is keeping the current look.";
   const notice = "document.querySelector('[data-appearance-message]')";
   await b.waitFor(`document.documentElement.dataset.uiSkin === 'folio@1' && ${notice}.textContent === ${JSON.stringify(warning)}`);
@@ -1130,4 +1134,84 @@ test("FSS-20 FSS-27 FSS-35 FSS-36 discussion retitles the open conversation and 
   assert.equal(await b.evaluate(`${im}.documentElement.dataset.uiSkin`), "folio@1");
   assert.deepEqual(reads.map(read => read.language).sort(), ["en", "en", "zh", "zh"]);
   assert.deepEqual(writes, []);
+  watchWrites = false;
+  await choose("en");
+  const setup = `${im}.querySelector('.im-thread-setup')`;
+  await b.evaluate(`(() => {
+    const win = ${frame}.contentWindow, send = win.fetch.bind(win);
+    win.fetch = async (input, init) => {
+      const reply = await send(input, init);
+      if (init?.method === 'POST' && String(input).endsWith('/threads')) {
+        window.discussionInvalidThread = { status: reply.status, body: await reply.clone().json() };
+      }
+      return reply;
+    };
+    ${im}.querySelector('.im-thread-strip [data-action=new-topic]').click();
+    const form = ${setup};
+    form.querySelector('[name=title]').value = '  ';
+    form.querySelector('[name=body]').value = '未提交原文';
+    form.requestSubmit();
+  })()`);
+  const error = setup + ".querySelector('[data-form-error]')";
+  await b.waitFor(`${error}?.textContent === 'Check the required fields and their length, then try again.'`);
+  assert.deepEqual(await b.evaluate("discussionInvalidThread"), { status: 400,
+    body: { code: "im.invalid_input", error: "Thread 标题不能为空，且不能超过 120 字" } });
+  await b.evaluate(`void (window.discussionDraftError = ${error})`);
+  watchWrites = true;
+  await choose("zh");
+  await b.waitFor(`${error} === discussionDraftError && ${error}.textContent === '请检查必填内容及其长度，再试一次。'`);
+  assert.equal(await b.evaluate(`${setup}.querySelector('[name=body]').value`), "未提交原文");
+  assert.equal(await b.evaluate(`${im}.querySelectorAll('.im-thread-strip [data-action=select-thread]').length`), 0);
+  assert.deepEqual(writes, [], "retitling the existing failure did not submit a second time");
+});
+
+test("FSS-07 the first visible discussion uses the already selected appearance", { timeout: 90_000 }, async t => {
+  const b = await openGoalBrowser(t, "user", undefined, null); if (!b?.projectId) return;
+  await b.setViewport(1440, 900);
+  await b.navigate(() => b.command("Page.navigate", { url: b.origin + "/projects/" + b.projectId + "/?desktop=1&settings=appearance" }, b.sessionId));
+  await b.waitFor("document.querySelector('[data-look-card=folio] .mw-look-card__pick')?.checkVisibility()");
+  await applyDiscussionFolio(b);
+  await b.waitFor("document.documentElement.dataset.uiSkin === 'folio@1'");
+  const frame = "document.querySelector('[data-side-body=discussion] iframe')";
+  const loading = "document.querySelector('[data-discussion-loading]')";
+  assert.equal(await b.evaluate(`${frame}.getAttribute('src')`), null);
+
+  type FrameTree = { frame: { id: string; url: string }; childFrames?: FrameTree[] };
+  const frameTree = () => b.command<{ frameTree: FrameTree }>("Page.getFrameTree", {}, b.sessionId).then(result => result.frameTree);
+  const discussionUrl = b.origin + "/im?embedded=1&project=" + encodeURIComponent(b.projectId);
+  let held: { requestId: string; frameId: string } | undefined, cursors = 0;
+  const paused = deferred(), interceptErrors: unknown[] = [];
+  b.server.on("request", request => {
+    if (request.method === "POST" && /^\/im\/api\/rooms\/[^/]+\/read$/u.test(request.url ?? "")) cursors++;
+  });
+  const stop = b.on("Fetch.requestPaused", (params, session) => {
+    if (session !== b.sessionId) return;
+    const { requestId, frameId } = params as { requestId: string; frameId: string };
+    void frameTree().then(tree => {
+      const discussion = tree.childFrames?.find(child => child.frame.url === discussionUrl)?.frame.id;
+      if (!held && frameId === discussion) { held = { requestId, frameId }; paused.resolve(); return; }
+      return b.command("Fetch.continueRequest", { requestId }, b.sessionId);
+    }).catch(error => interceptErrors.push(error));
+  });
+  t.after(stop);
+  await b.command("Network.setCacheDisabled", { cacheDisabled: true }, b.sessionId);
+  await b.command("Fetch.enable", { patterns: [{ urlPattern: b.origin + "/assets/ui-skin/folio-1.css", resourceType: "Stylesheet" }] }, b.sessionId);
+  await b.click("[data-side-tabs] [data-side-tab][aria-selected=true]");
+  await b.waitFor("document.querySelector('[data-side-tab=discussion]')?.checkVisibility()");
+  await b.click("[data-side-tab=discussion]");
+  await b.waitFor(`${frame}.contentDocument?.URL.includes('/im?embedded=1&project=') && ${loading}?.checkVisibility() && ${frame}.hidden`);
+  await b.waitFor(`${frame}.contentDocument?.querySelector('link[href="/assets/ui-skin/folio-1.css"]')`);
+  await paused.promise;
+  assert.ok(held, "the current discussion's stylesheet is paused in the browser");
+  const pending = await b.evaluate<{ hidden: boolean; visible: boolean; display: string; loading: boolean }>(`(() => {
+    const frame = ${frame};
+    return { hidden: frame.hidden, visible: frame.checkVisibility(), display: getComputedStyle(frame).display, loading: ${loading}?.checkVisibility() };
+  })()`);
+  assert.deepEqual(pending, { hidden: true, visible: false, display: "none", loading: true });
+  assert.equal(cursors, 0);
+  await b.command("Fetch.continueRequest", { requestId: held.requestId }, b.sessionId);
+  await b.waitFor(`${frame}.checkVisibility() && !${loading} && ${frame}.contentDocument?.documentElement.dataset.uiSkin === 'folio@1'`);
+  assert.match(await b.evaluate<string>(`${frame}.contentWindow.getComputedStyle(${frame}.contentDocument.body).fontFamily`), /Nunito Variable/u);
+  await b.command("Fetch.disable", {}, b.sessionId);
+  assert.deepEqual(interceptErrors, []);
 });

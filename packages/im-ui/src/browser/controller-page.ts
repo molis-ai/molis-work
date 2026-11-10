@@ -1,3 +1,4 @@
+import { imFailureText } from "./error-text.js";
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { ImSearchResult } from '@molis-ai/molis-work-contracts/services/im';
 import type { ApiError } from './types.js';
@@ -26,7 +27,7 @@ export function createImPage(c: ImCtx) {
     catch (cause) {
       const error = cause as ApiError;
       if (search === s.searchVersion)
-        results.textContent = error.message;
+        results.textContent = imFailureText(error);
     }
   });
   addEventListener('message', event => {

@@ -1,5 +1,6 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { ApiError, BrowserStorage } from './types.js';
+const localFailure = (word: string): ApiError => Object.assign(new Error(word), { word });
+
 /** HTTP, local-host bridge and connection lifecycle have no conversation state. */
 export function createTransport(onUnauthorized: () => void) {
   const storage: BrowserStorage = {
@@ -24,7 +25,7 @@ export function createTransport(onUnauthorized: () => void) {
       response = await fetch('/im/api' + path, { method: body === undefined ? 'GET' : 'POST', credentials: 'same-origin', headers: body === undefined ? {} : { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(15000) });
     }
     catch {
-      const error: ApiError = new Error((uiText.text("im-ui.transport.unconfirmed")));
+      const error: ApiError = localFailure("im-ui.transport.unconfirmed");
       error.uncertain = true;
       throw error;
     }
@@ -36,11 +37,11 @@ export function createTransport(onUnauthorized: () => void) {
       value = await response.json();
     }
     catch {
-      throw new Error((uiText.text("im-ui.transport.unreadable")));
+      throw localFailure("im-ui.transport.unreadable");
     }
     if (!response.ok) {
-      const error: ApiError = new Error(value.error || (uiText.text("im-ui.transport.try-again")));
-      error.code = value.code;
+      const error: ApiError = new Error(typeof value?.error === "string" ? value.error : "Discussion request failed");
+      error.code = typeof value?.code === "string" ? value.code : undefined;
       error.status = response.status;
       if (response.status === 401)
         onUnauthorized();
@@ -51,13 +52,17 @@ export function createTransport(onUnauthorized: () => void) {
   function connectProject(): Promise<void> {
     return new Promise((resolve, reject) => {
       const requestId = crypto.randomUUID();
-      const timer = setTimeout(() => { removeEventListener('message', done); reject(new Error((uiText.text("im-ui.transport.workbench-unavailable")))); }, 15000);
+      const timer = setTimeout(() => { removeEventListener('message', done); reject(localFailure("im-ui.transport.workbench-unavailable")); }, 15000);
       const done = (event: MessageEvent) => {
         if (event.source !== parent || event.origin !== location.origin || event.data?.type !== 'molis:im-connected' || event.data.requestId !== requestId)
           return;
         clearTimeout(timer);
         removeEventListener('message', done);
-        event.data.error ? reject(new Error(event.data.error)) : resolve();
+        if (!event.data.error) { resolve(); return; }
+        const error: ApiError = new Error(event.data.error);
+        error.code = typeof event.data.code === "string" ? event.data.code : undefined;
+        error.word = "im-ui.transport.workbench-unavailable";
+        reject(error);
       };
       addEventListener('message', done);
       parent.postMessage({ type: 'molis:im-connect', requestId }, location.origin);

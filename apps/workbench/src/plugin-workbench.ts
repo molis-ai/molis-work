@@ -1,6 +1,7 @@
 import type { PluginRegistration, PluginWorkbenchRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { declaresOwner, ownedContribution, type OwnedUiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
+import { drawCatalogText } from "./plugin-text.js";
 import { splitPluginStylesheet, type SplitStylesheet } from "./plugin-styles.js";
 export type { PluginSearchRow } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 
@@ -47,7 +48,8 @@ function withUsedClients(user: Registered, factory: string, all: readonly Regist
 
 /** Derive the registered UI and assets from the same entries used by the Host catalog. */
 export function pluginWorkbenchPacks(catalog: readonly PluginRegistration[] = BUILTIN_PLUGIN_CATALOG): BuiltinPluginWorkbenchPack[] {
-  const owners = new Map(catalog.map(entry => [entry.project_plugin_id, entry.manifest.plugin_id]));
+  const owners = new Map(catalog.map(entry => [entry.project_plugin_id, entry.manifest]));
+  const shipped = catalog === BUILTIN_PLUGIN_CATALOG;
   return catalog.flatMap(entry => entry.workbench ? [{ project_plugin_id: entry.project_plugin_id, ...entry.workbench }] : [])
     .sort((a, b) => a.order - b.order)
     .map((registered, _at, all) => {
@@ -63,7 +65,10 @@ export function pluginWorkbenchPacks(catalog: readonly PluginRegistration[] = BU
       if (declaresOwner(contribution.descriptor)) {
         throw new Error(`${pack.project_plugin_id} 的贡献 ${contribution.descriptor.contribution_id} 自己写了插件身份；插件身份由平台按 Manifest 填写，请删掉 plugin_id`);
       }
-      return ownedContribution(contribution, owners.get(pack.project_plugin_id)!);
+      const manifest = owners.get(pack.project_plugin_id)!;
+      const owned = ownedContribution(contribution, manifest.plugin_id);
+      // Only the canonical catalog can enter the Host's bound packaged text scope.
+      return shipped ? { ...owned, render: request => drawCatalogText(manifest, () => owned.render(request)) } : owned;
     }) }));
 }
 export const BUILTIN_PLUGIN_WORKBENCH: readonly BuiltinPluginWorkbenchPack[] = pluginWorkbenchPacks();

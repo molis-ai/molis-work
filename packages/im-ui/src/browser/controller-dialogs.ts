@@ -1,3 +1,4 @@
+import { imFailureText } from "./error-text.js";
 import { escapeHtml as escapeImText, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { ImRoom, ImMessage, ImRoomList } from '@molis-ai/molis-work-contracts/services/im';
 import type { ApiError } from './types.js';
@@ -37,7 +38,7 @@ export function createImDialogs(base: ImBaseCtx, context: () => ImCtx): Pick<ImC
       }
       catch (cause) {
         const error = cause as ApiError;
-        err.textContent = error.message;
+        err.textContent = imFailureText(error);
       }
       finally {
         busy = false;

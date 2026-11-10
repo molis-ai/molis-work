@@ -14,9 +14,11 @@ interface DiscussionLanguage {
 type DiscussionDocument = Document & { molisImLanguage?: DiscussionLanguage };
 export const DISCUSSION_SHELL = "/im?embedded=1";
 
+export const discussionFrame = () => document.querySelector<HTMLIFrameElement>('[data-side-body="discussion"] iframe');
+
 /** Discussion is the one same-origin IM frame owned by this Workbench and its current project. */
 export function discussionDocument() {
-  const frame = document.querySelector<HTMLIFrameElement>('[data-side-body="discussion"] iframe');
+  const frame = discussionFrame();
   const page = frame?.contentDocument as DiscussionDocument | null | undefined;
   const project = document.body?.dataset.projectId;
   if (!frame || !page?.molisImLanguage || !project) return null;

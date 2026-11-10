@@ -4,8 +4,6 @@ import { ownedContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 import { ARTIFACT_REFERENCE_UI_CONTRIBUTION_ID, type ArtifactReferenceUiPrimitives } from "./artifacts/index.js";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { BUILTIN_PLUGIN_WORKBENCH, type BuiltinPluginWorkbenchPack } from "./plugin-workbench.js";
-import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
-import { drawCatalogText } from "./plugin-text.js";
 import { createArtifactWorkbenchRenderer } from "./artifact-ui.js";
 
 export { WORKBENCH_UI_SLOTS, renderWorkbenchDocument } from "./document-shell.js";
@@ -22,9 +20,7 @@ export function createWorkbenchUiHost(packs: readonly BuiltinPluginWorkbenchPack
   host.register(ownedContribution(artifactReferenceUiContribution, ARTIFACTS_PROVIDER_ID));
   host.register(ownedContribution(artifactBrowserUiContribution, ARTIFACTS_PROVIDER_ID));
   for (const pack of packs) {
-    const registered = BUILTIN_PLUGIN_WORKBENCH.includes(pack) && BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === pack.project_plugin_id);
-    for (const contribution of pack.contributions) host.register(registered
-      ? { ...contribution, render: request => drawCatalogText(registered.manifest, () => contribution.render(request)) } : contribution);
+    for (const contribution of pack.contributions) host.register(contribution);
   }
   return host;
 }

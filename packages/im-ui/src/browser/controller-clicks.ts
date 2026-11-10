@@ -1,3 +1,4 @@
+import { imFailureText } from "./error-text.js";
 import { escapeHtml as escapeImText, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { StreamKind, ApiError } from './types.js';
 import type { ImCtx } from './controller-types.js';
@@ -87,7 +88,7 @@ export function createImClicks(c: ImCtx) {
     }
     catch (cause) {
       const error = cause as ApiError;
-      c.toast(error.message);
+      c.toast(imFailureText(error));
     }
   });
 }

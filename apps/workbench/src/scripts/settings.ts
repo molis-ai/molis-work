@@ -295,10 +295,10 @@ export const PROJECT_GUIDANCE_CLIENT_SCRIPT = `
         const data = await molisWorkRequest(routePrefix + "/api/memory/overview?scope=project");
         if (!editor.isConnected) return;
         const memory = data.items.find(item => item.memory_id === id && item.scope === "project" && item.version === version);
-        if (!memory) throw new Error(readText("workbench.settings.this-memory-has-changed-or-is-unavailable-return"));
+        if (!memory) throw new Error(globalThis.t.text("workbench.settings.this-memory-has-changed-or-is-unavailable-return"));
         openEditor("add"); kindInput.value = "convention";
         contentInput.value = memory.text.trim().slice(0, 4000);
-        reasonInput.value = readText("workbench.settings.promoted-project-memory");
+        reasonInput.value = globalThis.t.text("workbench.settings.promoted-project-memory");
       }).catch(failure => { if (receipt?.isConnected) { receipt.hidden = false; receipt.setAttribute("role", "alert"); molisWorkRequest.show(receipt, failure); } });
     }
     function copyReceipt(mode) {

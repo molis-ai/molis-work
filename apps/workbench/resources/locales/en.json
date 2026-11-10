@@ -6780,6 +6780,7 @@
     "workbench.side-panel.couldn-t-connect-project": "Couldn’t connect to the project",
     "workbench.side-panel.group-chat-threads": "Group chat and threads",
     "workbench.side-panel.its-tabs-content-still-here-add-back-project": "Its tabs and content are still here. Add it back to this project to carry on.",
+    "workbench.side-panel.loading-discussion": "Loading discussion…",
     "workbench.side-panel.move-main-area": "Move to the main area",
     "workbench.side-panel.no-background-tasks-right-now": "No background tasks right now",
     "workbench.side-panel.plugin-was-removed-project": "{plugin} was removed from this project",

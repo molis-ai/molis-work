@@ -28,6 +28,10 @@ const languagePath = (locale?: string): string => {
   return address.pathname + address.search;
 };
 
+/** Public HTML has no control-token transport. The discussion read also excludes cookies and redirects. */
+const readPublicDocument = (path: string, signal: AbortSignal, init?: Pick<RequestInit, "credentials" | "headers" | "redirect">) =>
+  fetch(path, { ...init, cache: "no-store", signal });
+
 /** Additional owner words are selected by the Host for the exact inline views in this document. */
 const viewPacks = (page: ParentNode): readonly InlinePageText[] => {
   const data = page.querySelector("script[data-ui-page-text]")?.textContent;
@@ -135,12 +139,12 @@ function documentLanguage(initial: LanguageAsset, load: LoadAsset) {
   const readPreference = () => molisWorkRequest<EntryLanguage>("/api/ui/locale", { control: true });
   const render = async (locale: string, signal: AbortSignal, path = languagePath()): Promise<Document | null> => {
     const result = local
-      ? await fetch(languagePath(locale), { cache: "no-store", signal })
+      ? await readPublicDocument(languagePath(locale), signal)
       : await molisWorkRequest<Response>(path, { as: "response", control: true, signal, headers: { "x-molis-work-ui-locale": locale, accept: "text/html" } });
     if (!result.ok || result.redirected || !result.headers.get("content-type")?.startsWith("text/html")) return null;
     return new DOMParser().parseFromString(await result.text(), "text/html");
   };
-  const discussion = mountDiscussionLanguage(() => frameUiLanguage(languageOf(displayed)), () => {
+  const discussion = mountDiscussionLanguage(readPublicDocument, () => frameUiLanguage(languageOf(displayed)), () => {
     if (intent) retry(intent);
   });
   const switcher = createLocaleSwitch({

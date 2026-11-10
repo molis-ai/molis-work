@@ -6290,6 +6290,7 @@
     "workbench.side-panel.couldn-t-connect-project": "项目连接失败",
     "workbench.side-panel.group-chat-threads": "群聊与 Thread",
     "workbench.side-panel.its-tabs-content-still-here-add-back-project": "标签和内容都还在；把它加回这个项目，就能接着用。",
+    "workbench.side-panel.loading-discussion": "正在加载讨论…",
     "workbench.side-panel.move-main-area": "移到主区",
     "workbench.side-panel.no-background-tasks-right-now": "现在没有后台任务",
     "workbench.side-panel.plugin-was-removed-project": "{plugin} 已从这个项目移除",

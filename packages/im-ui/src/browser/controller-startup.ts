@@ -1,3 +1,4 @@
+import { imFailureText } from "./error-text.js";
 import { escapeHtml as escapeImText, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { ImRoom, ImRoomList, ImSessionState } from '@molis-ai/molis-work-contracts/services/im';
 import type { ApiError } from './types.js';
@@ -33,7 +34,7 @@ export function createImStartup(base: ImBaseCtx, context: () => ImCtx): Pick<ImC
           }
             catch (cause) {
               const error = cause as ApiError;
-              form.querySelector<HTMLElement>('[data-form-error]')!.textContent = error.message;
+              form.querySelector<HTMLElement>('[data-form-error]')!.textContent = imFailureText(error);
               button.disabled = false;
             }
         };
@@ -74,7 +75,7 @@ export function createImStartup(base: ImBaseCtx, context: () => ImCtx): Pick<ImC
       c.connection((uiText.text("im-ui.status.disconnected")), true);
       q('[data-welcome]').hidden = false;
       q('[data-conversations]').hidden = true;
-      q('[data-welcome-body]').innerHTML = '<p class="im-form-error">' + e(error.message) + ("</p><div class=\"im-form-actions\"><button type=\"button\" class=\"mw-btn mw-btn--primary mw-btn--sm\" data-action=\"retry\">" + escapeImText(uiText.text("im-ui.status.reconnect")) + "</button></div>");
+      q('[data-welcome-body]').innerHTML = '<p class="im-form-error">' + e(imFailureText(error)) + ("</p><div class=\"im-form-actions\"><button type=\"button\" class=\"mw-btn mw-btn--primary mw-btn--sm\" data-action=\"retry\">" + escapeImText(uiText.text("im-ui.status.reconnect")) + "</button></div>");
       c.syncError((uiText.text("im-ui.status.service-unavailable")));
     }
   }

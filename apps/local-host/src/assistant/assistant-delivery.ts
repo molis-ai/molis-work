@@ -1,10 +1,10 @@
 import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { RECEIPT_WORDS, type InteractionNextStep } from "@molis-ai/molis-work-contracts/platform/ui";
+import { RECEIPT_WORDS } from "@molis-ai/molis-work-contracts/platform/ui";
 import { isTerminalAgentPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentInputModelClaim, AgentInputQuestion, AgentQueuedInput, AgentTurnSteer } from "@molis-ai/molis-work-contracts/services/agent-inputs";
 import type { AssistantActivity, AssistantRound, AssistantWorkObject, AssistantWorkState, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
 import { dateTimeLocale } from "../web-locale.js";
-import { NEXT_STEP } from "../agent-next-steps.js";
+import { NEXT_STEP, type NextStep, type NextStepSay } from "../agent-next-steps.js";
 
 /** Whether the person can open this object from where the work shows it: it has a place to open, and its owner still has it. One test for the delivery note and the round outcome. */
 export function isOpenable(object: AssistantWorkObject): boolean {
@@ -167,7 +167,7 @@ export function deliveryNoteHtml(note: DeliveryNote, say: (text: string, values?
  * only the retry, and the note is still drawn. The note is the record `delivery:<work>` in the conversation. A caller that
  * has the view's note already passes it (null for none), so a reply works it out once.
  */
-export function deliverySteps(view: AssistantWorkView, say: (text: string, values?: Record<string, string | number>) => string, note: DeliveryNote | null = deliveryNote(view)): InteractionNextStep[] {
+export function deliverySteps<Word>(view: AssistantWorkView, say: NextStepSay<Word>, note: DeliveryNote | null = deliveryNote(view)): NextStep<Word>[] {
   if (!note || view.rounds.at(-1)?.phase === "failed") return [];
   const { record } = note, first = note.results.find(item => item.open);
   return [{ id: record, label: say("workbench.assistant-delivery.see-delivery-note"), source: say("workbench.assistant-delivery.what-was-added-work-what-came") },

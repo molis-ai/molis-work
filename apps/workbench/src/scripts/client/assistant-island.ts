@@ -678,7 +678,7 @@ ${ASSISTANT_PAGE_MESSAGES_PART}
     } });
   const retitleReviews = () => {
     for (const card of thread.querySelectorAll('[data-review]')) retitleReviewText(card);
-    stepRow?.retitleReviews();
+    stepRow?.retitle();
   };
   document.addEventListener("molis-work:language-changed", retitleReviews);
   presentation = (${ASSISTANT_STAGE_FACTORY})({island,panel,input,current:getWork,switchTo,showProblem:showError,readText,el});

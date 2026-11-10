@@ -141,6 +141,24 @@ const view = (phase: string, extra: Partial<AssistantWorkView> = {}): AssistantW
   rounds: [{ run_id: "run-1", text: "整理周报", phase, awaiting_input: [], turns: [], activity: [], materials: [], context: null, started_at: "", ended_at: null }],
   ...extra } as AssistantWorkView);
 
+test("FSS-36: Assistant next steps carry fixed words separately from original titles and options", () => {
+  const raw = "From an action card", option = "原选项 <raw>", pending: AgentPendingQuestion = { ...questionnaire, pending_id: "one", prompt: raw,
+    questions: [{ index: 0, prompt: raw, type: "choice", required: true, multiple: false, allow_other: false, options: [{ index: 0, label: option, recommended: true }] }] };
+  const shown = view("running", { cards: [{ ...card("ready"), title: raw }, { ...card("unknown"), card_id: "needs-check", title: option }],
+    delegated: [{ work_id: "child", title: raw, state: "waiting-input", follow_ups: 0 }] });
+  shown.rounds[0]!.awaiting_input = [pending];
+  const { next_all_html } = assistantStepRow(shown, pageText("en"));
+  const encoded = /<template data-assistant-next-words="([^"]+)"><\/template>/.exec(next_all_html)?.[1];
+  assert.ok(encoded);
+  const words = new Map(JSON.parse(encoded.replaceAll("&quot;", '"').replaceAll("&lt;", "<").replaceAll("&gt;", ">")));
+  assert.deepEqual(words.get("question:one:q0:0"), { label: { key: "workbench.agent-next-steps.label-recommended", args: { label: option } } });
+  assert.deepEqual(words.get("card:card-1:run"), { title: { key: "workbench.agent-next-steps.from-an-action-card" }, waiting: { key: "workbench.agent-next-steps.waiting-on-you" } });
+  assert.deepEqual(words.get("card:needs-check"), { label: { key: "workbench.agent-next-steps.open-title-detail", args: { title: option } },
+    title: { key: "workbench.agent-next-steps.from-an-action-card" }, waiting: { key: "workbench.agent-next-steps.waiting-on-you" } });
+  assert.deepEqual(words.get("work:child"), { label: { key: "workbench.assistant-view-html.open-sub-task-waiting" }, waiting: { key: "workbench.assistant-view-html.waiting" } });
+  assert.match(next_all_html, /data-ix-step-id="card:card-1:run" title="From an action card"[^>]*>[\s\S]+?<span data-ix-step-label>From an action card<\/span>/);
+});
+
 test("AC-23, SLOT-01: the outcome slot under the latest round derives from the work: open what it made, at most two, or send the same words again", () => {
   assert.deepEqual(assistantOutcomeSteps(view("failed"), say), [{ id: "retry", label: "用同样的话再试一次", source: "整理周报" }]);
   const made = (id: string, title: string): AssistantWorkView["objects"][number] => ({ relation: "result", open: { surface: "pages", id }, state: "current", subject: { kind: "page", id }, title,

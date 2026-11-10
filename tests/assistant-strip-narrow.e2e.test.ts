@@ -150,7 +150,14 @@ test("with the side pane out of sight, the top line offers 去确认, then 继�
       if (method !== 'GET' || !work || work.includes('/')) return response;
       return response.then(async value => {
         const view = await value.clone().json(), card = view.cards?.find(card => card.title === ${JSON.stringify(neighborTitle)});
-        if (card) reviewReads.push({ html: view.next_all_html, title: card.title, status: card.status });
+        if (!card) return value;
+        reviewReads.push({ html: view.next_all_html, title: card.title, status: card.status });
+        if (window.holdOldReview) {
+          window.holdOldReview = false;
+          const readBody = value.text.bind(value);
+          value.text = async () => { const body = await readBody(); window.oldReviewDelivered = true; return body; };
+          return new Promise(resolve => { window.releaseOldReview = () => resolve(value); });
+        }
         return value;
       });
     };
@@ -160,11 +167,19 @@ test("with the side pane out of sight, the top line offers 去确认, then 继�
   assert.equal(JSON.parse(originalReview.arguments[0]!).title, "整理周报");
   const words = { en: ["Review it", "Waiting on you:", "Effect", "Run a command in the background", "Edit a file", "@@ Starting at line 2", "Read and write", "Requires elevated permissions"],
     zh: ["去确认", "等你：", "效果", "在后台运行命令", "修改文件", "@@ 第 2 行起", "读写", "需要更高权限"] };
+  const neighborWords = `[document.querySelector(${JSON.stringify(neighbor)})===neighborStep, neighborStep.title,
+    neighborStep.querySelector('[data-ix-step-label]').textContent, neighborStep.querySelector('.mw-sr-only').textContent]`;
+  await evaluate("window.holdOldReview = true; window.dispatchEvent(new Event('focus'));");
+  await waitFor("typeof releaseOldReview === 'function'");
+  assert.match(await evaluate<string>("reviewReads.at(-1).html"), /title="来自操作卡"/, "the held response actually carries the earlier language");
+  let releasedOldReview = false;
   for (const tag of ["en", "zh", "en", "zh"] as const) {
     const [label, waiting, effect, commandTitle, fileTitle, diffHeading, access, elevation] = words[tag];
+    const source = tag === "en" ? "From an action card" : "来自操作卡";
     await evaluate(`(() => { const link = document.createElement('a'); link.dataset.uiLanguage = '${tag}';
       link.href = '/locale?lang=${tag}'; document.body.append(link); link.click(); link.remove(); })()`);
     await waitFor(`document.documentElement.dataset.uiLanguageTag === '${tag}'`);
+    assert.deepEqual(await evaluate(neighborWords), [true, source, neighborTitle, waiting], "the fixed words change at commit before any new work read");
     assert.deepEqual(await evaluate(`[document.querySelector('[data-review]')===reviewCard, reviewExact===reviewCard.querySelector('.assistant-exact'), reviewExact.open,
       document.querySelector(${JSON.stringify(review)})===reviewStep, reviewStep.title, reviewStep.querySelector('[data-ix-step-label]').textContent,
       reviewStep.querySelector('.mw-sr-only').textContent, reviewCard.querySelector('dt').textContent,
@@ -181,7 +196,15 @@ test("with the side pane out of sight, the top line offers 去确认, then 继�
       `printf ${rawCommandArg}`, "- 旧行 <raw>\r\n+ new 行 &\r", ["./当前目录", elevation, `${access} ${rawGrant}${tag === "en" ? ", Network access" : "、联网"}`],
       `printf ${rawCommandArg}`, "- 旧行 <raw>\r\n+ new 行 &\r"]);
     if (tag === "en") assert.equal(await evaluate("reviewApprove.textContent"), "Allow once");
-    const source = tag === "en" ? "From an action card" : "来自操作卡", reads = await evaluate<number>("reviewReads.length");
+    if (!releasedOldReview) {
+      await evaluate("reviewStep.focus(); releaseOldReview();");
+      await waitFor("window.oldReviewDelivered === true");
+      await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+      assert.deepEqual(await evaluate(neighborWords), [true, source, neighborTitle, waiting], "consuming the old HTML keeps the currently selected language");
+      assert.deepEqual(await evaluate(`[document.activeElement===reviewStep, document.querySelector(${JSON.stringify(review)})===reviewStep, reviewWrites]`), [true, true, []]);
+      releasedOldReview = true;
+    }
+    const reads = await evaluate<number>("reviewReads.length");
     await evaluate("reviewStep.focus(); window.dispatchEvent(new Event('focus'));");
     await waitFor(`reviewReads.length > ${reads} && reviewReads.at(-1).html.includes(${JSON.stringify(source)}) && document.querySelector(${JSON.stringify(neighbor)})?.title === ${JSON.stringify(source)}`);
     assert.deepEqual(await evaluate(`[document.activeElement === reviewStep, document.querySelector(${JSON.stringify(review)}) === reviewStep,

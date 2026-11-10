@@ -1,3 +1,4 @@
+import { projectDeletionLabels } from "./web-project-deletion.js";
 import type { IncomingMessage } from "node:http";
 import type { WorkbenchRenderer, WorkbenchRendererPorts } from "@molis-ai/molis-work-app-workbench";
 import { createLocalHostWorkbenchRenderer } from "./workbench-renderer.js";
@@ -38,7 +39,7 @@ export function createLocalWebComposition(platform: LocalWebPlatform, home: stri
   // frame inherits the policy, and WebKit will not load the frame's scripts while the only source is 'self'.
   const PAGE_CSP = "default-src 'self'; img-src 'self' data: blob:; frame-src 'self' blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'; frame-ancestors 'self'";
   const { withCatalog, isDesktopShellRequest } = platform;
-  const workbenchRenderer: WorkbenchRenderer = createLocalHostWorkbenchRenderer(platform.desktopRenderer, accountRegistration, appearance);
+  const workbenchRenderer: WorkbenchRenderer = createLocalHostWorkbenchRenderer(platform.desktopRenderer, accountRegistration, appearance, () => projectDeletionLabels(home).map(owner => owner.label));
   const projectSettings = createLocalProjectSettingsHttp(withCatalog,diagnostics);
   const { servePtyClient, serveWorkbenchAsset } = createLocalWebAssets({ ptyClientFilePath: platform.ptyClientFilePath, renderer: workbenchRenderer });
   const handleArtifactNativePluginHttp = createLocalArtifactHttp();

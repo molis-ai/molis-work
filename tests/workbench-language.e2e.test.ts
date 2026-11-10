@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import test, { type TestContext } from "node:test";
-import { hostTextProblems, pluginPagesFor, runWithLocale } from "@molis-ai/molis-work-app-local-host";
+import { hostTextProblems, pluginPagesFor, projectDeletedHooksFor, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import { escapeHtml, format, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { deferred } from "./fixtures/home-runtime.js";
@@ -108,24 +110,139 @@ async function chooseEnglishInSettings(t: TestContext, b: LanguageBrowser, targe
   assert.ok(navigations.length > 0);
   const location = new URL(address), navigation = new URL(navigations.at(-1)!);
   assert.deepEqual([location.origin, location.pathname], [navigation.origin, navigation.pathname]);
-  const opened = navigations.slice(); // The project cover can set settingsPath with replaceState in this same document.
-  await evaluate(`window.languageSettingsDocument = document.body; document.querySelector('a[data-ui-language=${target}]').click()`);
-  try {
+  const select = async (target: "zh" | "en") => {
+    const opened = navigations.slice(); // The project cover can set settingsPath with replaceState in this same document.
     assert.equal(await evaluate(`(async () => {
       const stop = Date.now() + 15000;
       while (Date.now() < stop) {
-        if (document.documentElement.dataset.uiLanguageTag === ${JSON.stringify(target)}) return languageSettingsDocument === document.body;
+        const control = [...document.querySelectorAll('a[data-ui-language=${target}]')].find(link => link.getClientRects().length);
+        if (control) { window.languageSettingsDocument = document.body; control.click(); return true; }
         await new Promise(resolve => setTimeout(resolve, 40));
       }
       return false;
-    })()`), true);
-    assert.deepEqual(navigations, opened, "the click was handled in the Settings document");
-  } catch (error) {
-    const status = await evaluate("[document.documentElement.lang, document.querySelector('[data-ui-language-status]')?.textContent ?? null]").catch(() => null);
-    t.diagnostic(JSON.stringify({ settingsNavigations: navigations, status }));
-    throw error;
-  }
+    })()`), true, "the Settings control is visible");
+    try {
+      assert.equal(await evaluate(`(async () => {
+        const stop = Date.now() + 15000;
+        while (Date.now() < stop) {
+          if (document.documentElement.dataset.uiLanguageTag === ${JSON.stringify(target)}) return languageSettingsDocument === document.body;
+          await new Promise(resolve => setTimeout(resolve, 40));
+        }
+        return false;
+      })()`), true);
+      assert.deepEqual(navigations, opened, "the click was handled in the Settings document");
+    } catch (error) {
+      const status = await evaluate("[document.documentElement.lang, document.querySelector('[data-ui-language-status]')?.textContent ?? null]").catch(() => null);
+      t.diagnostic(JSON.stringify({ settingsNavigations: navigations, status }));
+      throw error;
+    }
+  };
+  await select(target);
+  return select;
 }
+
+test("FSS-35 FSS-36 the real project deletion dialog retitles its data scope without reading the output again or deleting", { timeout: 120_000 }, async t => {
+  const b = await openGoalBrowser(t, "seeded", undefined, null); if (!b?.projectId) return;
+  const prefix = "/projects/" + b.projectId, path = prefix + "/settings/general";
+  let reads = 0, writes = 0;
+  b.server!.on("request", (request, response) => {
+    if (request.url?.endsWith("/delete-scope")) response.once("finish", () => { reads += 1; });
+    if (request.url?.endsWith("/delete") && request.method === "POST") writes += 1;
+  });
+  await b.navigate(() => b.command("Page.navigate", { url: b.origin + "/locale?lang=zh&next=" + encodeURIComponent(path) }, b.sessionId));
+  const dialog = "document.querySelector('[data-project-delete-dialog]')";
+  const words = dialog + ".querySelector('[data-project-delete-scope] span')";
+  await b.waitFor("document.querySelector('[data-tab-workspace]')?.dataset.exclusive === 'project-settings' && document.querySelector('[data-project-delete-dialog]')?.dataset.bound === '1'");
+  await b.click("[data-project-delete-open]");
+  await b.waitFor(dialog + ".open && " + words + ".textContent.includes('Pages 文稿与文件夹')");
+  await b.evaluate(`window.initialDelete=${dialog}; window.initialNames=${words}; window.deleteConfirm=initialDelete.querySelector('[name=delete_confirmed]');
+    deleteConfirm.checked=true;deleteConfirm.dispatchEvent(new Event('change',{bubbles:true}));deleteConfirm.focus();`);
+  const chooseLanguage = await chooseEnglishInSettings(t, b);
+  try { await b.waitFor("document.documentElement.dataset.uiLanguageTag==='en' && " + words + ".textContent.includes('Pages documents and folders')"); }
+  catch (error) { t.diagnostic(JSON.stringify(await b.evaluate(`[document.documentElement.lang,${words}.textContent,document.querySelector('[data-ui-language-status]')?.textContent]`))); throw error; }
+  assert.deepEqual(await b.evaluate(`[initialDelete===${dialog},initialNames===${words},initialDelete.open,deleteConfirm.checked,
+    document.activeElement===deleteConfirm,initialDelete.querySelector('button[type=submit]').disabled]`), [true, true, true, true, true, false]);
+  assert.match(await b.evaluate<string>(words + ".textContent"), /Forms and every answer they received/u);
+  assert.deepEqual([reads, writes], [1, 0], "language preparation only read the existing HTML");
+  await b.click("[data-project-delete-cancel]");
+  await chooseLanguage("zh");
+  await b.waitFor("document.documentElement.dataset.uiLanguageTag==='zh' && !initialDelete.open && " + words + ".textContent.includes('Pages 文稿与文件夹')");
+  assert.deepEqual([reads, writes], [1, 0], "the hidden dialog changed without querying the output");
+
+  const output = join(b.homeDirectory, "outputs", b.projectId);
+  await mkdir(output, { recursive: true });
+  const file = join(output, "kept.txt");
+  await writeFile(file, "User output 原文");
+  // The live registry can add an owner after the Settings document was drawn. Its own words remain literal.
+  t.after(projectDeletedHooksFor(b.homeDirectory).register({ id: "late-fixture", label: "Owner 原文", clear: () => assert.fail("switching languages cannot delete data") }));
+  await b.evaluate(`(() => {
+    const transport = window.molisWorkUiTransport;
+    window.molisWorkUiTransport = (url, options) => {
+      const path = new URL(url).pathname;
+      const scope = options.method === 'GET' && path.endsWith('/delete-scope');
+      const preference = options.method === 'POST' && path === '/api/ui/locale';
+      if (!scope && !preference) return transport?.(url, options);
+      return (transport?.(url, options) ?? fetch(url, options)).then(async response => {
+        if (scope) window.lateDeleteScope = await response.clone().json();
+        return new Promise(resolve => { window[scope ? 'releaseDeleteScope' : 'releaseDeletePreference'] = () => resolve(response); });
+      });
+    };
+  })()`);
+  await b.click("[data-project-delete-open]");
+  await b.waitFor(dialog + ".open && typeof releaseDeleteScope === 'function'");
+  assert.deepEqual(await b.evaluate(`[initialDelete===${dialog},initialNames===${words},deleteConfirm.checked]`), [true, true, false], "reopening performs the normal reset");
+  assert.equal(await b.evaluate("lateDeleteScope.default_output"), "has_files");
+  await b.evaluate(`(() => {
+    // The same Settings language control event, in the document where the delete-scope request is pending.
+    const link = document.createElement('a');
+    link.dataset.uiLanguage = 'en'; link.href = '/locale?lang=en';
+    initialDelete.append(link); link.click(); link.remove();
+  })()`);
+  await b.waitFor("typeof releaseDeletePreference === 'function' && document.documentElement.dataset.uiLanguageTag==='zh'");
+  const question = "initialDelete.querySelector('[data-project-delete-output]')";
+  const description = "initialDelete.querySelector('.runtime-plan-body > p[id]')";
+  const submit = "initialDelete.querySelector('button[type=submit]')";
+  await b.evaluate("releaseDeleteScope()");
+  await b.waitFor(`!${question}.hidden && ${words}.textContent.includes('Owner 原文') && ${description}.textContent.includes('自己选的文件夹')`);
+  await b.click("[data-project-delete-output] [data-ix-option=delete]");
+  await b.evaluate(`window.deleteChoice=${question}.querySelector('[data-ix-option=delete]');deleteChoice.focus()`);
+  assert.equal(await b.evaluate(submit + ".textContent"), "删除项目和文件");
+  await b.evaluate("releaseDeletePreference()");
+  await b.waitFor("document.documentElement.dataset.uiLanguageTag==='en'");
+  assert.match(await b.evaluate<string>(words + ".textContent"), /Pages documents and folders.*Owner 原文/u);
+  assert.match(await b.evaluate<string>(question + ".textContent"), /The default output folder still has files/u);
+  assert.match(await b.evaluate<string>(description + ".textContent"), /Code and files in folders you chose stay/u);
+  assert.deepEqual(await b.evaluate(`[initialDelete===${dialog},initialNames===${words},!${question}.hidden,
+    deleteChoice.getAttribute('aria-checked'),document.activeElement===deleteChoice,${submit}.disabled,${submit}.textContent]`),
+    [true, true, true, "true", true, false, "Delete the project and the files"]);
+  assert.deepEqual([reads, writes], [2, 0], "each opening read the output once and language changes issued no deletes");
+  assert.equal(await readFile(file, "utf8"), "User output 原文");
+});
+
+test("FSS-36 the Studio retitles the same refused request through both language changes and keeps its draft", { timeout: 120_000 }, async t => {
+  const b = await openGoalBrowser(t, "seeded", undefined, null); if (!b?.projectId) return;
+  const prefix = "/projects/" + b.projectId;
+  const child = await pluginFrameBrowser(t, b, "plugin-builder");
+  let creates = 0;
+  b.server!.on("request", request => { if (request.method === "POST" && request.url?.endsWith("/api/plugin-builder/studio/builds")) creates += 1; });
+  await b.navigate(() => b.command("Page.navigate", { url: b.origin + "/locale?lang=en&next=" + encodeURIComponent(prefix + "/?openPlugin=plugin-builder") }, b.sessionId));
+  await child.waitFor(`document.querySelector('[data-as-model-setup]')?.hidden===false`);
+  await child.evaluate(`window.studioDraft=document.querySelector('[data-as-input]');studioDraft.value="Original 草稿";
+    studioDraft.dispatchEvent(new Event("input",{bubbles:true}));studioDraft.form.requestSubmit();`);
+  const notice = `document.querySelector(".as-error p")`;
+  await child.waitFor(`${notice}?.textContent==="Choose the model used for building first"`);
+  await child.evaluate(`window.studioNotice=${notice};studioDraft.focus();studioDraft.setSelectionRange(1,6,"backward");`);
+  const chooseLanguage = await chooseEnglishInSettings(t, b, "zh");
+  await child.waitFor(`${notice}?.textContent==="请先选择构建使用的模型"`);
+  const preserved = `[studioNotice===${notice},studioDraft===document.querySelector('[data-as-input]'),document.activeElement===studioDraft,
+    studioDraft.value,studioDraft.selectionStart,studioDraft.selectionEnd,studioDraft.selectionDirection]`;
+  assert.deepEqual(await child.evaluate(preserved), [true, true, true, "Original 草稿", 1, 6, "backward"]);
+  await chooseLanguage("en");
+  await child.waitFor(`${notice}?.textContent==="Choose the model used for building first"`);
+  assert.deepEqual(await child.evaluate(preserved), [true, true, true, "Original 草稿", 1, 6, "backward"]);
+  assert.equal(creates, 1, "neither switch resubmitted the original draft");
+  assert.deepEqual(await b.evaluate(`molisWorkRequest(${JSON.stringify(prefix + "/api/plugin-builder/studio/state")}).then(state=>state.builds)`), []);
+});
 
 test("FSS-35 a Pages editor retitles its controls in place without rewriting the document or moving selection", { timeout: 120_000 }, async t => {
   const b = await openGoalBrowser(t, "seeded", undefined, null); if (!b?.projectId) return;

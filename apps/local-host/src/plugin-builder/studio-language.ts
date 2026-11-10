@@ -1,4 +1,4 @@
-import type { AgentBuilderPorts } from "@molis-ai/molis-work-plugin-builder";
+import type { AgentBuilderPorts } from "../plugin-builder-surface.js";
 import { replyLanguagePrompt } from "../reply-language.js";
 import type { WebLocale } from "../web-locale.js";
 

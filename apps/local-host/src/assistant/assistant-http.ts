@@ -217,7 +217,7 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
   // The runtime looks at the background jobs these works follow with the work's own authority, from its first look on.
   registerWorkAuthority(ports.localHost, at => service.jobs.authority(at));
   // Deleting a project also stops the round its works still run and cancels their timed follow-ups, which only this service can do.
-  projectDeletedHooksFor(ports.homeDirectory).register({ id: "assistant", label: "助理在这个项目里的工作", alive: () => ports.localHost.lifecycle() === "running",
+  projectDeletedHooksFor(ports.homeDirectory).register({ id: "assistant", label: { key: "workbench.project-deletion.assistant" }, alive: () => ports.localHost.lifecycle() === "running",
     clear: async projectId => { await purgeAssistantProject(ports.homeDirectory, projectId, { stop: async id => { await service.control(id, { kind: "stop" }); }, dropFollowUp: async id => { await service.followUps.remove(id); } }); } });
   // The person's attention rules are the Assistant's own actions: found like any capability, changed only on confirmation.
   const threadActions = assistantThreadRegistration(threads), relatedActions = assistantRelatedRegistration(() => relatedSource(service));

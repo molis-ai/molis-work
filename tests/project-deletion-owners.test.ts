@@ -1,3 +1,4 @@
+import { say } from "@molis-ai/molis-work-plugin-sdk/ui";
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -6,7 +7,7 @@ import { basename, join } from "node:path";
 import test from "node:test";
 import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { DEMO_PROJECT_ID, HomeConsentLedger, L, ownerLabel, projectDeletedHooksFor, runWithLocale } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, HomeConsentLedger, installHostUiText, ownerLabel, projectDeletedHooksFor, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import { applySqliteBaseline, homeSqlitePath, openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { openFormStore, openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { openDatasetStore } from "./fixtures/plugin-home-stores.js";
@@ -214,18 +215,19 @@ test("the fixed-id demo never starts on what an earlier demo left, however it wa
   });
 });
 
-test("the delete dialog lists the library owners' data in the person's language", async () => {
+test("FSS-36 the delete dialog lists the library owners' data in the person's language", async () => {
+  installHostUiText();
   await withHome(async ({ home }) => {
-    const owners = projectDeletedHooksFor(home).owners().flatMap(owner => owner.label ? [owner] : []);
-    const scope = owners.map(owner => owner.label);
-    for (const label of ["Pages 文稿与文件夹", "Forms 问卷及收到的全部回答", "放在这个项目里的待办", "灵光里的想法与对话"]) assert.ok(scope.includes(label), label);
-    // A plugin owner's text is the plugin's own: the dialog translates it with that plugin's words, and the Host's page does not know it.
-    for (const owner of owners.filter(item => item.words_of)) runWithLocale("en", () => assert.notEqual(ownerLabel(owner), owner.label, `${owner.label} has an English translation`));
-    for (const owner of owners.filter(item => !item.words_of)) runWithLocale("en", () => assert.notEqual(ownerLabel(owner), owner.label, `${owner.label} (the Host's) has an English translation`));
-    assert.equal(L("Pages 文稿与文件夹"), "Pages 文稿与文件夹");
-    runWithLocale("en", () => assert.equal(L("Pages 文稿与文件夹"), "Pages 文稿与文件夹", "the Host's page alone does not know it"));
-    const pages = owners.find(owner => owner.label === "Pages 文稿与文件夹")!;
-    runWithLocale("en", () => assert.equal(ownerLabel(pages), "Pages documents and folders"));
+    const owners = projectDeletedHooksFor(home).owners().filter(owner => owner.label !== null);
+    const scope = (locale: "zh" | "en") => runWithLocale(locale, () => owners.map(owner => ownerLabel(owner)));
+    const chinese = scope("zh");
+    for (const label of ["Pages 文稿与文件夹", "Forms 问卷及收到的全部回答", "放在这个项目里的待办", "灵光里的想法与对话"]) assert.ok(chinese.includes(label), label);
+    const english = scope("en");
+    assert.equal(english.length, owners.length);
+    assert.ok(english.every((label, index) => label && label !== chinese[index]), "all shipped labels have their English");
+    assert.equal(english[owners.findIndex(owner => owner.id === "pages")], "Pages documents and folders");
+    assert.equal(runWithLocale("en", () => say.text({ owner: "workbench", key: "pages.project-deletion.data" })),
+      "This text cannot be shown right now", "the platform cannot borrow a Pages word");
   });
 });
 

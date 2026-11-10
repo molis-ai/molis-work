@@ -7,7 +7,6 @@
  */
 export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
   (() => {
-    const readText = globalThis.t.text;
     // A project's 「输入与输出」 is its own typed program (src/browser/project-directories.ts), loaded before this one.
     const bindWorkspaces = (scope) => globalThis.molisWorkBindProjectDirectories?.(scope);
     const bindRename = (scope) => {
@@ -59,13 +58,11 @@ export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
         const cancel = dialog.querySelector("[data-project-delete-cancel]");
         const names = dialog.querySelector("[data-project-delete-scope] span");
         const description = dialog.querySelector(".runtime-plan-body > p[id]");
-        const plainDescription = description.textContent;
         // The default output directory's question (A3): its two option cards are the confirmation, so the checkbox goes while it shows.
         const question = dialog.querySelector("[data-project-delete-output]");
         const options = [...question.querySelectorAll("[data-ix-option]")];
         const busyNotice = dialog.querySelector("[data-project-delete-busy]");
         const title = dialog.querySelector("header h2");
-        const plainTitle = title.textContent;
         const formBody = dialog.querySelector(".runtime-plan-body:not([data-project-delete-kept])");
         const kept = dialog.querySelector("[data-project-delete-kept]");
         const actions = dialog.querySelector("[data-project-delete-actions]");
@@ -76,15 +73,24 @@ export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
         let unsure = false;
         let deletionKey = null;
         let asks = false;
-        let choice = null;
+        let choice = null, scopeTurn = 0;
         // Once the deletion may have started the choice is fixed: another choice under the same key is refused.
         const locked = () => cleanupPending || unsure;
         const ready = () => !busy && (cleanupPending || (asks ? choice !== null : confirmation.checked));
         const label = () => cleanupPending ? globalThis.t.text("workbench.project-settings.retry-cleanup") : asks && choice === "delete" ? globalThis.t.text("workbench.project-settings.delete-project-files") : asks && choice === "keep" ? globalThis.t.text("workbench.project-settings.delete-project") : globalThis.t.text("workbench.project-settings.confirm-project-deletion");
+        const paintWords = () => {
+          const summary = asks ? globalThis.t.text("workbench.project-settings.permanently-delete-project-s-goals-records-links-molis") : globalThis.t.text("workbench.project-settings-folds.permanently-delete-project-s-goals-records-connections-molis");
+          const action = busy ? globalThis.t.text("workbench.project-settings.deleting") : label();
+          if (description.textContent !== summary) description.textContent = summary;
+          if (submit.textContent !== action) submit.textContent = action;
+        };
+        const retitle = () => {
+          if (dialog.open && dialog.isConnected) paintWords();
+          else document.removeEventListener("molis-work:language-changed", retitle);
+        };
         const paint = () => {
           question.hidden = !asks;
           confirmRow.hidden = asks;
-          description.textContent = asks ? globalThis.t.text("workbench.project-settings.permanently-delete-project-s-goals-records-links-molis") : plainDescription;
           options.forEach((option) => {
             const on = option.dataset.ixOption === choice;
             option.setAttribute("aria-checked", on ? "true" : "false");
@@ -96,7 +102,7 @@ export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
           // Cleaning up what is left is the one way on, so the way around a busy refusal goes.
           if (cleanupPending) busyNotice.hidden = true;
           submit.disabled = !ready();
-          if (!busy) submit.textContent = label();
+          paintWords();
         };
         const choose = (value, focus) => {
           if (busy || locked()) return;
@@ -116,12 +122,16 @@ export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
         });
         const keepInstead = dialog.querySelector("[data-project-delete-keep-instead]");
         keepInstead.addEventListener("click", () => choose("keep", true));
-        const loadScope = () => molisWorkRequest("/api/settings/projects/" + encodeURIComponent(form.dataset.projectDelete) + "/delete-scope")
-          .then((result) => {
-            names.textContent = result.owners.map((owner) => owner.label).join("；");
-            // Asked once per deletion: a retry keeps the shape the deletion started with.
-            if (!deletionKey) { asks = result.default_output === "has_files"; paint(); }
-          }).catch(() => null);
+        const loadScope = () => {
+          const turn = ++scopeTurn, language = document.documentElement.dataset.uiLanguageTag;
+          return molisWorkRequest("/api/settings/projects/" + encodeURIComponent(form.dataset.projectDelete) + "/delete-scope")
+            .then((result) => {
+              if (turn !== scopeTurn || !dialog.open || !dialog.isConnected) return;
+              if (document.documentElement.dataset.uiLanguageTag === language) names.textContent = result.owners.map((owner) => owner.label).join(globalThis.t.text("workbench.project-deletion.separator"));
+              // Only this initial output check sets the question. Preparing language HTML never checks it or changes the choice.
+              if (!deletionKey) { asks = result.default_output === "has_files"; paint(); }
+            }).catch(() => null);
+        };
         const showKept = (path) => {
           title.textContent = globalThis.t.text("workbench.project-settings.project-deleted");
           formBody.hidden = actions.hidden = true;
@@ -148,14 +158,16 @@ export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
             choice = null;
             asks = false;
             error.hidden = busyNotice.hidden = true;
-            title.textContent = plainTitle;
-            paint();
+            title.textContent = globalThis.t.text("workbench.project-settings-folds.delete-project");
           }
+          paint();
           dialog.showModal();
+          document.addEventListener("molis-work:language-changed", retitle);
           loadScope();
         });
         cancel.addEventListener("click", () => { if (!busy) dialog.close(); });
         dialog.addEventListener("cancel", (event) => { if (busy && kept.hidden) event.preventDefault(); });
+        dialog.addEventListener("close", () => { if (!dialog.open) document.removeEventListener("molis-work:language-changed", retitle); });
         confirmation.addEventListener("change", paint);
         form.addEventListener("submit", async (event) => {
           event.preventDefault();
@@ -165,7 +177,6 @@ export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
           cancel.disabled = true;
           error.hidden = true;
           paint();
-          submit.textContent = globalThis.t.text("workbench.project-settings.deleting");
           try {
             const result = await molisWorkRequest("/api/settings/projects/" + encodeURIComponent(form.dataset.projectDelete) + "/delete", {
               body: { delete_confirmed: true, idempotency_key: deletionKey, ...(asks && choice ? { output_files: choice } : {}) }, fallback: globalThis.t.text("workbench.project-settings.could-not-delete-project"),

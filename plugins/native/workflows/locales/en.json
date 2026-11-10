@@ -123,6 +123,7 @@
     "workflows.palette.label": "Plugins you can add",
     "workflows.palette.others": "{count} other plugins can’t join a workflow yet",
     "workflows.palette.plugins": "Plugins",
+    "workflows.project-deletion.data": "Workflows and their runs",
     "workflows.ready.no-instructions": "no instruction for AI yet",
     "workflows.ready.no-judgment": "No judgment rule selected yet",
     "workflows.ready.no-model": "no text model available",

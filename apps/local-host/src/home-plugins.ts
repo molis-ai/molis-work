@@ -266,7 +266,7 @@ export class HomePluginHost {
           { registry: this.options.registry, client: this.options.client, project_id: null }),
         ...(this.options.projectReach ? { projectReach: this.options.projectReach } : {}) } });
     this.releaseProjectOwners = registerPluginProjectCleanup(this.options.home, runtime, entries.map(entry => ({
-      definition: entry.definition, project_data: identity.projectDataFor(entry.definition),
+      definition: entry.definition, project_data: identity.projectDataFor(entry.definition), localePacks: identity.localePacks(entry.definition),
     })), executor);
     const supervisor = new PluginSupervisor(runtime, { releaseArtifacts: new SqlitePluginRuntimeReleaseArtifactRepository(db), hostCapabilities: [PLUGIN_PRESENTATION_CAPABILITY] });
     this.installationDirectory = openPluginInstallationDirectory(db, repository, pluginId => supervisor.manifest(pluginId));

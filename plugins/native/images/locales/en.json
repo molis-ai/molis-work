@@ -47,6 +47,7 @@
     "images.history.refresh": "Refresh",
     "images.history.retry": "Use Refresh to try again.",
     "images.page.title": "Images",
+    "images.project-deletion.data": "Image jobs and the pictures they made",
     "images.result.delete": "Delete entry",
     "images.result.delete-confirm": "Delete this generation record and its image files?",
     "images.result.download": "Download image",

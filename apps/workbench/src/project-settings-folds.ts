@@ -24,6 +24,7 @@ interface ProjectSettingsFoldsPrimitives {
   escapeHtml(value: unknown): string;
   icon(name: Extract<PluginIconName, "settings" | "book" | "shield" | "workflow" | "chevron-right" | "chevron-down" | "tree" | "plus">, className?: string): string;
   withDesktopQuery(path: string): string;
+  projectDeletionLabels?(): readonly string[];
 }
 
 function renderMissingPlugins(project: ProjectSettingsFoldProject, { escapeHtml }: Pick<ProjectSettingsFoldsPrimitives, "readText" | "escapeHtml">): string {
@@ -52,11 +53,11 @@ function renderProjectDeleteDialog(project: ProjectSettingsFoldProject, desktopS
   const { escapeHtml, withDesktopQuery } = primitives;
   if (project.data_class === "regenerable_demo") return "";
   const directoryHref = desktopShell ? withDesktopQuery("/") : "/";
-  // `data-project-delete-scope` is filled as the dialog opens with what the plugins of this Home say they keep for the project.
+  const labels = primitives.projectDeletionLabels?.().join(uiText.text("workbench.project-deletion.separator")) ?? "";
   return `<dialog class="runtime-plan-dialog project-delete-dialog" data-project-delete-dialog aria-labelledby="project-delete-dialog-title-${escapeHtml(project.project_id)}" aria-describedby="project-delete-description-${escapeHtml(project.project_id)}">
     <form class="runtime-plan-shell" data-project-delete="${escapeHtml(project.project_id)}" data-project-directory-href="${directoryHref}">
-      <header><div><h2 id="project-delete-dialog-title-${escapeHtml(project.project_id)}">${uiText("workbench.project-settings-folds.delete-project")}</h2><p>${escapeHtml(project.display_name)}</p></div></header>
-      <div class="runtime-plan-body"><p id="project-delete-description-${escapeHtml(project.project_id)}">${uiText("workbench.project-settings-folds.permanently-delete-project-s-goals-records-connections-molis")}</p><p class="mw-field__hint" data-project-delete-scope>${uiText("workbench.project-settings-folds.data-that-plugins-keep-project-deleted")}<br><span></span></p>${renderDeleteOutputQuestion(project, primitives)}<label class="runtime-plan-confirm" data-project-delete-confirm><input type="checkbox" name="delete_confirmed"><span>${uiText("workbench.project-settings-folds.i-confirm-that-i-want-delete-project-understand")}</span></label>${renderAlert({
+      <header><div><h2 id="project-delete-dialog-title-${escapeHtml(project.project_id)}">${uiText("workbench.project-settings-folds.delete-project")}</h2><p translate="no">${escapeHtml(project.display_name)}</p></div></header>
+      <div class="runtime-plan-body"><p id="project-delete-description-${escapeHtml(project.project_id)}">${uiText("workbench.project-settings-folds.permanently-delete-project-s-goals-records-connections-molis")}</p><p class="mw-field__hint" data-project-delete-scope>${uiText("workbench.project-settings-folds.data-that-plugins-keep-project-deleted")}<br><span id="project-delete-owners-${escapeHtml(project.project_id)}" translate="no">${escapeHtml(labels)}</span></p>${renderDeleteOutputQuestion(project, primitives)}<label class="runtime-plan-confirm" data-project-delete-confirm><input type="checkbox" name="delete_confirmed"><span>${uiText("workbench.project-settings-folds.i-confirm-that-i-want-delete-project-understand")}</span></label>${renderAlert({
         title: uiText.text("workbench.project-settings-folds.these-files-can-t-be-deleted-cleanly-right"), tone: "warning", state: "answer", role: "alert", className: "project-delete-busy", attrs: { "data-project-delete-busy": true, hidden: true },
         body: uiText.text("workbench.project-settings-folds.project-still-has-tasks-running-queued-they-may"),
         actions: [{ label: uiText.text("workbench.project-settings-folds.keep-files-instead"), variant: "secondary", attrs: { "data-project-delete-keep-instead": true } }] })}<p class="settings-form-error" data-project-delete-error role="alert" hidden></p></div>

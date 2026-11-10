@@ -1,4 +1,4 @@
-import { studioLocaleFiles, type AgentDesign } from "@molis-ai/molis-work-plugin-builder";
+import { studioLocaleFiles, type AgentDesign } from "../plugin-builder-surface.js";
 import { assertPluginLocales, pluginLocaleReader, type PluginLocaleManifest, type PluginLocaleReader } from "@molis-ai/molis-work-plugin-runtime";
 import { pluginTextSlot, pluginTextSlotKey } from "@molis-ai/molis-work-design-system";
 

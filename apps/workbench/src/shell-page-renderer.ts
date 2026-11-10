@@ -128,6 +128,7 @@ export interface WorkbenchShellPageOwners<TView extends WorkbenchShellPageView> 
   /** The model a plugin's declared stage is drawn with, from this page's view. */
   stageModel(projectPluginId: string, view: TView): unknown;
   appearance?: WorkbenchAppearancePorts;
+  projectDeletionLabels?(): readonly string[];
 }
 
 /** A project file that evidence points to opens here, in an overlay over the workbench, never in a new browser tab. */
@@ -181,7 +182,7 @@ function renderMolisWorkWeb(
     ? initialDesktopSurface : "root";
   const settingsDirectory = `${renderSettingsDirectorySection(primitives, enabledPlugins)}${view.project ? renderProjectSettingsDirectorySection(primitives, goalsEnabled) : ""}`;
   const settingsSurfaces = `${renderSettingsWorkSurface(primitives, `${view.route_prefix || ""}/?settings=appearance`,
-    appearance && owners.appearance ? { current: appearance, choices: owners.appearance.choices() } : undefined)}${view.project ? renderProjectSettingsWorkSurface(primitives, view.project, desktopShell) : ""}`;
+    appearance && owners.appearance ? { current: appearance, choices: owners.appearance.choices() } : undefined)}${view.project ? renderProjectSettingsWorkSurface({ ...primitives, projectDeletionLabels: owners.projectDeletionLabels }, view.project, desktopShell) : ""}`;
   const defer = deferredSurfaces(enabledPlugins, view, directory);
   const projectTitlebarChrome = renderDesktopProjectChrome(view.project ?? null, projectOptions, desktopShell, view.project ? "__PROJECT_SETTINGS__" : null, { switcherClass: "desktop-project-switcher", manageHref: "__PROJECT_INDEX__", directoryToggle: true, globalSearch: true });
   const directoryEmpty = initialDesktopDirectory === "root";

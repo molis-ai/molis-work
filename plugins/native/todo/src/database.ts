@@ -5,7 +5,7 @@ import type { HomePluginDatabaseDeclaration, PluginProjectRowsDeclaration } from
  * with their history, request receipts, what the organizer remembered about them and its review batches; personal todos name no
  * project and stay.
  */
-const TODO_PROJECT_ROWS: PluginProjectRowsDeclaration = { label: "放在这个项目里的待办", order: 60, tables: [
+const TODO_PROJECT_ROWS: PluginProjectRowsDeclaration = { label: { key: "todo.project-deletion.data" }, order: 60, tables: [
   { table: "todo_imported_changes", column: "item_id", parent: "todo_items" },
   { table: "todo_editor_versions", column: "id", parent: "todo_items" },
   { table: "todo_changes", column: "item_id", parent: "todo_items" },

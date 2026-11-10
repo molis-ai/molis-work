@@ -6,7 +6,7 @@ import type { InstalledRelease } from "../installed-release.js";
 import { installedVersion } from "../installed-release.js";
 import { pluginPagesFor } from "../plugin-page-authority.js";
 import { directoryWordResolver } from "../ui-text-provider.js";
-import { inDesignOrder } from "@molis-ai/molis-work-plugin-builder";
+import { inDesignOrder } from "../plugin-builder-surface.js";
 import { studioWordReader } from "./studio-words.js";
 import { generatedPluginManifest } from "./installed.js";
 

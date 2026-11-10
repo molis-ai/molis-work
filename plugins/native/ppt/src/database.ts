@@ -27,7 +27,7 @@ const PPT_SCHEMA = `
  * What goes when a project is deleted, which the platform deletes from this library itself (PG-024): its presentations go with the
  * receipts of copies made into it.
  */
-const PPT_PROJECT_ROWS: PluginProjectRowsDeclaration = { label: "PPT 演示稿", order: 40, tables: [
+const PPT_PROJECT_ROWS: PluginProjectRowsDeclaration = { label: { key: "ppt.project-deletion.data" }, order: 40, tables: [
   { table: "presentations", column: "project_id" },
   { table: "presentation_copies", column: "project_id" },
 ] };

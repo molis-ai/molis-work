@@ -1,5 +1,6 @@
+import { studioProblem } from "./studio-problem.js";
 import { freezeStudioUi, studioUiAnswer, type StudioDesignLanguages } from "./agent-ui-text.js";
-import type { AgentPublicationControl, AgentRelease as PublishedAgentRelease } from './agent-model.js';
+import { inDesignOrder, type AgentPublicationControl, type AgentRelease as PublishedAgentRelease } from './agent-model.js';
 import { recheckAgentBuild } from './agent-recheck.js';
 import { publishAgentBuild, buildScope, releaseScope } from './agent-publication.js';
 import { effectsFromContract } from '@molis-ai/molis-work-plugin-sdk';
@@ -80,11 +81,6 @@ const message = (error: unknown) => error instanceof Error ? error.message : Str
 /** One of the two questions put to Jev as it runs now: the person's edit from the host, or the registered default. */
 const instructionText = (ports: AgentBuilderPorts, prompt: InstructionPrompt): string => ports.instruction?.(prompt) ?? prompt.body;
 const PENDING_CASE = '前置用例失败，尚未执行';
-/** Nodes follow the design's part order however they were placed: parts kept from the previous design are placed before new ones. */
-export function inDesignOrder<T extends { id: string }>(design: { parts: readonly { id: string }[] } | null | undefined, nodes: readonly T[]): T[] {
-  const order = (id: string) => design?.parts.findIndex(part => part.id === id) ?? 0;
-  return [...nodes].sort((a, b) => order(a.id) - order(b.id));
-}
 type ProposeOutcome = { kind: 'questions'; questions: string[]; summary: string } | { kind: 'proposals'; proposals: AgentProposal[]; summary: string; dropped: string[] };
 /** The whole build record is rewritten on every change, so its history must stay bounded. */
 const MAX_STEPS = 200, MAX_RUNS = 100;
@@ -97,6 +93,12 @@ function pruneSteps(steps: AgentBuildStep[]) {
     if (index < 0) return;
     steps.splice(index, 1);
   }
+}
+
+/** The stage's Skill, and a prompt version that names the exact standard the run followed. */
+function mounted(ports: AgentBuilderPorts, stage: 'design' | 'code' | 'experience' | 'ui' | 'review', version: string): Pick<BuilderAgentRequest, 'promptVersion' | 'skills'> {
+  const skills = ports.skills?.(stage);
+  return skills?.length ? { promptVersion: [version, ...skills.map(skill => skill.id + '@' + skill.version)].join('+'), skills } : { promptVersion: version };
 }
 
 /** Durable host-driven state machine. Browser views subscribe; no browser tick starts work. */
@@ -128,12 +130,12 @@ export class AgentBuilderWorkflow {
     return build;
   }
   private step(id: string, step: Omit<AgentBuildStep, 'at'>) { this.change(id, build => { const existing = build.steps.findIndex(item => item.id === step.id); const next = { ...step, at: new Date().toISOString() }; if (existing < 0) build.steps.push(next); else build.steps[existing] = next; pruneSteps(build.steps); }); }
-  private current(id: string, token: string) { if (this.closed || this.store.require(id).active?.token !== token) throw new Error('旧构建结果已作废'); }
+  private current(id: string, token: string) { if (this.closed || this.store.require(id).active?.token !== token) throw studioProblem("plugin-builder.request.older-build-discarded", '旧构建结果已作废'); }
   async state() { return { builds: this.store.list(), releases: this.store.releases(), installations: await this.ports.installations(), models: await this.ports.models(), selectionAvailable: Boolean(this.ports.choose && this.ports.selectionAvailable?.()), runtimeAvailable: true }; }
   create(brief: string) { const build = this.store.create(brief); this.launch(build.id, 'design'); return this.store.require(build.id); }
   private launch(id: string, stage: NonNullable<AgentBuild['active']>['stage'], recovered = false) {
     // A job told to stop no longer counts: its results are void, and the next run may start.
-    if (this.closed || this.jobs.get(id)?.abort.signal.aborted === false) throw new Error('此草稿已有执行中的工作');
+    if (this.closed || this.jobs.get(id)?.abort.signal.aborted === false) throw studioProblem("plugin-builder.request.draft-busy", '此草稿已有执行中的工作');
     const abort = new AbortController(), token = randomUUID(), signal = abort.signal;
     this.change(id, build => { build.phase = stage === 'build' || stage === 'check' ? 'building' : 'designing'; build.error = null; build.pendingPlugins = undefined; build.active = { token, stage, contractRevision: build.design?.contract.revision }; });
     // Detail and revision end in a frozen design, and the same job goes straight on to build it. Every way into a build
@@ -164,11 +166,6 @@ export class AgentBuilderWorkflow {
       detail: missing.map(item => item.title + '：' + item.capabilities.join('、')).join('\n') });
     return true;
   }
-  /** The stage's Skill, and a prompt version that names the exact standard the run followed. */
-  private mounted(stage: 'design' | 'code' | 'experience' | 'ui' | 'review', version: string): Pick<BuilderAgentRequest, 'promptVersion' | 'skills'> {
-    const skills = this.ports.skills?.(stage);
-    return skills?.length ? { promptVersion: [version, ...skills.map(skill => skill.id + '@' + skill.version)].join('+'), skills } : { promptVersion: version };
-  }
   private async withAgent<T>(id: string, purpose: 'design' | 'code', action: (agent: Awaited<ReturnType<AgentBuilderPorts['agent']>>) => Promise<T>) {
     const agent = await this.ports.agent(this.store.require(id), purpose); try { return await action(agent); } finally { await agent.close(); }
   }
@@ -182,7 +179,7 @@ export class AgentBuilderWorkflow {
     let repair: { previousAnswer: string; validationError: string } | undefined;
     for (let attempt = 0; ; attempt++) {
       const current = this.store.require(id);
-      const ask = () => this.withAgent(id, 'design', agent => agent.run({ role: 'designer', instruction: prompt.text, ...this.mounted(stage, prompt.version),
+      const ask = () => this.withAgent(id, 'design', agent => agent.run({ role: 'designer', instruction: prompt.text, ...mounted(this.ports, stage, prompt.version),
         contractRevision: current.design?.contract.revision ?? 'draft', signal, ...(images?.length ? { images } : {}), task: JSON.stringify(repair ? { ...task, repair } : task) }));
       // A dropped connection to the model is not the designer's answer: ask again (see RETRY_WAITS) before giving up.
       let record: BuilderAgentRecord | undefined;
@@ -289,7 +286,7 @@ export class AgentBuilderWorkflow {
   /** Stage two: the chosen proposal in full: contract, parts and browser acceptance. Then the build starts. */
   private async detail(id: string, token: string, signal: AbortSignal) {
     const initial = this.store.require(id), chosen = initial.candidates.find(item => item.id === initial.chosen);
-    if (!chosen) throw new Error('选中的方案已失效，请重新选择');
+    if (!chosen) throw studioProblem("plugin-builder.request.chosen-proposal-expired", '选中的方案已失效，请重新选择');
     // Capabilities are settled before the design is written in full: it is written against their real inputs and outputs.
     let proposal = await this.pickCapabilities(id, token, signal, chosen), experience: AgentDesign['experience'], sketch: ReturnType<typeof acceptExperience>['sketch'] = proposalSketch(proposal);
     if (this.ports.presentation) {
@@ -348,7 +345,7 @@ export class AgentBuilderWorkflow {
   /** `hostRequest` is a revision the host asks for itself, e.g. after acceptance found a display problem. */
   private async revise(id: string, token: string, signal: AbortSignal, hostRequest?: string) {
     const initial = this.store.require(id), design = initial.design;
-    if (!design) throw new Error('还没有确定的方案可以修改');
+    if (!design) throw studioProblem("plugin-builder.request.no-design-to-change", '还没有确定的方案可以修改');
     const request = hostRequest ?? [...initial.messages].reverse().find(item => item.role === 'user')?.text ?? '';
     const stepId = 'revise:' + token + (hostRequest ? ':' + randomUUID().slice(0, 8) : ''), { all, catalog, more, resources } = await this.designContext(id, [initial.brief, request, design.title].join('\n'), usedCapabilities(design.contract.operations));
     this.step(id, { id: stepId, agent: 'design', action: 'design', label: hostRequest ? '按验收结果调整界面显示' : '按你的意见修订主线', status: 'active', detail: request.slice(0, 300) });
@@ -379,8 +376,8 @@ export class AgentBuilderWorkflow {
     this.step(id, { id: stepId, agent: 'design', action: 'design', label: summary, status: 'done', ...(result.dropped.length ? { detail: '宿主整理：' + result.dropped.slice(0, 12).join('、') } : {}) });
   }
   async choose(id: string, revision: number, candidateId: string) {
-    const build = this.store.require(id); if (build.revision !== revision || build.active) throw new Error('草稿已改变，请刷新');
-    if (!build.candidates.some(item => item.id === candidateId)) throw new Error('方案已失效');
+    const build = this.store.require(id); if (build.revision !== revision || build.active) throw studioProblem("plugin-builder.request.draft-changed", '草稿已改变，请刷新');
+    if (!build.candidates.some(item => item.id === candidateId)) throw studioProblem("plugin-builder.request.proposal-expired", '方案已失效');
     this.change(id, value => { value.chosen = candidateId; });
     this.launch(id, 'detail'); return this.store.require(id);
   }
@@ -475,7 +472,7 @@ export class AgentBuilderWorkflow {
         try {
           const prompt = this.prompt('review');
           const record = await this.withAgent(id, 'design', agent => agent.run({ role: 'designer', instruction: prompt.text,
-            ...this.mounted('review', prompt.version), contractRevision: build.design!.contract.revision, signal, images: inspected.images,
+            ...mounted(this.ports, 'review', prompt.version), contractRevision: build.design!.contract.revision, signal, images: inspected.images,
             task: JSON.stringify(presentationReviewTask(build, inspected.images.map(image => image.label), inspected.issues)) }));
           this.current(id, token); this.record(id, record);
           const answer = acceptPresentationReview(record.output, build, inspected.images.map(image => image.label));
@@ -591,7 +588,7 @@ export class AgentBuilderWorkflow {
     // A dropped connection to the model is not the code's fault: it is asked again (files written so far stay) before the round counts.
     for (let retry = 0; ; retry++) {
       try {
-        record = await agent.run({ role: 'coder', instruction: prompt.text, ...this.mounted('code', prompt.version), contractRevision: this.store.require(id).design!.contract.revision, operationIds, ...(writable ? { writable } : {}), signal,
+        record = await agent.run({ role: 'coder', instruction: prompt.text, ...mounted(this.ports, 'code', prompt.version), contractRevision: this.store.require(id).design!.contract.revision, operationIds, ...(writable ? { writable } : {}), signal,
           task: JSON.stringify(task), checks: (ids, checkSignal) => this.check(id, [...ids], checkSignal),
           onActivity: activity => { if (this.store.require(id).active?.token === token) this.step(id, { id: 'activity:' + randomUUID(), agent: 'code', action: activity.type, label: activity.name, operationId: operationIds[0], status: 'done', detail: activity.detail.slice(0, 12_000), ...(activity.path ? { target: activity.path } : {}) }); } });
         break;
@@ -688,8 +685,8 @@ export class AgentBuilderWorkflow {
     return result;
   }
   async call(id: string, componentId: string, binding: 'read' | 'submit', payload: unknown, control?: Pick<PluginExecutionControl, 'signal' | 'beforeEffect'>) {
-    const build = this.store.require(id), node = build.nodes.find(item => item.id === componentId); if (!node || !build.design) throw new Error('界面组件不存在');
-    const call = resolvePluginComponentCall(node, binding, payload); if (!build.connected.includes(call.operationId)) throw new Error('这个操作尚未接通，输入已保留');
+    const build = this.store.require(id), node = build.nodes.find(item => item.id === componentId); if (!node || !build.design) throw studioProblem("plugin-builder.request.component-not-found", '界面组件不存在');
+    const call = resolvePluginComponentCall(node, binding, payload); if (!build.connected.includes(call.operationId)) throw studioProblem("plugin-builder.request.operation-not-connected", '这个操作尚未接通，输入已保留');
     return this.ports.call(build, call.operationId, call.input as SandboxJson, control);
   }
   private async resetPreview(id: string, token?: string) { const check = token ? () => this.current(id, token) : undefined; check?.(); await this.ports.resetPreview(id, check); check?.(); }
@@ -708,17 +705,17 @@ export class AgentBuilderWorkflow {
   }
   async action(id: string, body: Record<string, unknown>, authority?: PluginExecutionControl) {
     if (body.action === 'pause' || body.action === 'stop') return this.pause(id);
-    if (body.action === 'visual' && (!this.ports.presentation || !this.store.require(id).design || !this.store.require(id).checks.global?.passed)) throw new Error('功能接通并通过检查后才能单独调整界面');
+    if (body.action === 'visual' && (!this.ports.presentation || !this.store.require(id).design || !this.store.require(id).checks.global?.passed)) throw studioProblem("plugin-builder.request.visual-edit-needs-checks", '功能接通并通过检查后才能单独调整界面');
     // A change request never goes stale: whatever the build is doing, it stops and takes the request in.
     if ((body.action === 'message' || body.action === 'revise' || body.action === 'visual') && this.store.require(id).active) {
-      if (typeof body.message !== 'string' || !body.message.trim() || body.message.length > 48_000) throw new Error('请输入具体修改意见');
+      if (typeof body.message !== 'string' || !body.message.trim() || body.message.length > 48_000) throw studioProblem("plugin-builder.request.change-description-required", '请输入具体修改意见');
       await this.pause(id); body = { ...body, revision: this.store.require(id).revision };
     }
     // Pictures arriving for the proposals change the draft but not the choice, so choosing only needs the candidate to exist.
-    const build = this.store.require(id); if ((body.revision !== build.revision && body.action !== 'message' && body.action !== 'revise' && body.action !== 'visual' && !(body.action === 'choose' && build.phase === 'choosing')) || build.active) throw new Error('草稿已更新或正在构建，请先暂停并刷新');
+    const build = this.store.require(id); if ((body.revision !== build.revision && body.action !== 'message' && body.action !== 'revise' && body.action !== 'visual' && !(body.action === 'choose' && build.phase === 'choosing')) || build.active) throw studioProblem("plugin-builder.request.draft-locked", '草稿已更新或正在构建，请先暂停并刷新');
     if (body.action === 'scope') {
-      if (body.scope !== 'home' && body.scope !== 'project') throw new Error('发布范围只能是项目或个人空间');
-      if (this.store.versions(id).some(release => releaseScope(release) !== body.scope)) throw new Error('已发布草稿的范围不能改变，请创建新的草稿');
+      if (body.scope !== 'home' && body.scope !== 'project') throw studioProblem("plugin-builder.request.draft-scope-invalid", '发布范围只能是项目或个人空间');
+      if (this.store.versions(id).some(release => releaseScope(release) !== body.scope)) throw studioProblem("plugin-builder.request.published-scope-fixed", '已发布草稿的范围不能改变，请创建新的草稿');
       if (buildScope(build) === body.scope) return build;
       const changed = this.change(id, value => { value.runtimeScope = body.scope === 'home' ? 'home' : undefined; value.scopeCheckPending = true; value.checksScope = undefined; value.checks = {}; value.browserResult = undefined; value.visualResult = undefined; value.connected = []; value.pendingPlugins = undefined; value.phase = 'paused'; value.error = null; });
       await this.ports.resetPreview(id, () => { if (this.closed || this.store.require(id).revision !== changed.revision) throw new Error('草稿已改变'); });
@@ -728,7 +725,7 @@ export class AgentBuilderWorkflow {
     if (body.action === 'choose') return this.choose(id, build.revision, String(body.candidateId));
     if (body.action === 'resume') { this.launch(id, build.scopeCheckPending ? 'check' : build.pendingVisual ? 'visual' : build.design ? 'build' : build.chosen && build.candidates.length ? 'detail' : 'design'); return this.store.require(id); }
     if (body.action === 'message' || body.action === 'revise' || body.action === 'visual') {
-      if (typeof body.message !== 'string' || !body.message.trim() || body.message.length > 48_000) throw new Error('请输入具体修改意见');
+      if (typeof body.message !== 'string' || !body.message.trim() || body.message.length > 48_000) throw studioProblem("plugin-builder.request.change-description-required", '请输入具体修改意见');
       this.change(id, value => { value.messages.push({ role: 'user', text: body.message as string }); value.clarificationAnswered ||= !!value.questions.length; value.questions = []; });
       if (body.action === 'visual') this.change(id, value => {
         value.history.push(snapshot(value)); if (value.history.length > 20) value.history.shift(); value.pendingVisual = body.message as string;
@@ -737,10 +734,10 @@ export class AgentBuilderWorkflow {
     }
     if (body.action === 'enable-plugins' || body.action === 'skip-plugins') {
       const pending = build.pendingPlugins;
-      if (!pending?.length) throw new Error('没有等待启用的插件');
+      if (!pending?.length) throw studioProblem("plugin-builder.request.no-plugins-to-enable", '没有等待启用的插件');
       if (body.action === 'enable-plugins') {
         if (buildScope(build) === 'home') throw new Error('个人空间检查不能通过启用项目插件补齐依赖');
-        if (!this.ports.enablePlugins) throw new Error('这个项目不能在这里启用插件');
+        if (!this.ports.enablePlugins) throw studioProblem("plugin-builder.request.cannot-enable-in-project", '这个项目不能在这里启用插件');
         await this.ports.enablePlugins(pending.map(item => item.pluginId));
         this.change(id, value => { value.pendingPlugins = undefined; for (const step of value.steps) if (step.agent === 'host' && step.action === 'decide' && step.status === 'waiting') { step.status = 'done'; step.label = '已启用' + pending.map(item => '「' + item.title + '」').join('、'); } });
         this.launch(id, 'build'); return this.store.require(id);
@@ -751,16 +748,16 @@ export class AgentBuilderWorkflow {
     }
     if (body.action === 'part') {
       const pending = build.pendingPart, part = build.design?.parts.find(item => item.id === pending?.id);
-      if (!pending || !part || !pending.candidates.includes(String(body.kind))) throw new Error('组件选择已失效');
+      if (!pending || !part || !pending.candidates.includes(String(body.kind))) throw studioProblem("plugin-builder.request.component-selection-expired", '组件选择已失效');
       this.change(id, value => { value.nodes = inDesignOrder(value.design, [...value.nodes, { ...part, kind: body.kind as AgentBuild['nodes'][number]['kind'] }]); value.pendingPart = undefined; });
       this.step(id, { id: 'part:' + build.design!.contract.revision + ':' + part.id, agent: 'ui', action: 'place', label: '使用你选择的组件', target: part.id, status: 'done', selection: { source: 'user', candidates: pending.candidates, choice: String(body.kind) } }); this.launch(id, 'build'); return this.store.require(id);
     }
     if (body.action === 'undo' && build.design && build.history.at(-1)?.checks?.global?.bundlePath && build.history.at(-1)?.design?.contract.revision === build.design?.contract.revision) { const previous = build.history.at(-1)!; this.change(id, value => { value.history.pop(); Object.assign(value, previous); value.pendingVisual = undefined; value.error = null; value.phase = !value.scopeCheckPending && previous.browserResult?.passed && previous.checksScope === value.runtimeScope ? 'ready' : 'paused'; }); return this.store.require(id); }
-    if (body.action === 'undo') { const previous = build.history.at(-1); if (!previous) throw new Error('没有可撤销的合同修订'); await this.resetPreview(id); this.change(id, value => { value.history.pop(); Object.assign(value, previous); value.pendingVisual = undefined; value.connected = []; value.checks = {}; value.browserResult = undefined; value.visualResult = undefined; value.phase = 'paused'; }); this.launch(id, 'build'); return this.store.require(id); }
+    if (body.action === 'undo') { const previous = build.history.at(-1); if (!previous) throw studioProblem("plugin-builder.request.no-revision-to-undo", '没有可撤销的合同修订'); await this.resetPreview(id); this.change(id, value => { value.history.pop(); Object.assign(value, previous); value.pendingVisual = undefined; value.connected = []; value.checks = {}; value.browserResult = undefined; value.visualResult = undefined; value.phase = 'paused'; }); this.launch(id, 'build'); return this.store.require(id); }
     if (body.action === 'remove') { this.store.remove(id, build.revision); await this.resetPreview(id); return null; }
     if (body.action === 'publish') return publishAgentBuild(this.store, this.ports, build, authority, () => { if (this.closed) throw new Error('宿主已关闭'); });
-    if (['install', 'upgrade', 'rollback', 'disable', 'enable', 'uninstall'].includes(String(body.action))) { const release = this.store.versions(id).find(item => item.version === body.version); if (!release) throw new Error('发布版本不存在'); if (release.distribution?.runtime_scope === 'home') throw new Error('个人空间发布请下载签名包后在插件设置中导入确认'); await this.ports.lifecycle(body.action as Parameters<AgentBuilderPorts['lifecycle']>[0], release, body.grants); return this.store.require(id); }
-    throw new Error('未知构建操作');
+    if (['install', 'upgrade', 'rollback', 'disable', 'enable', 'uninstall'].includes(String(body.action))) { const release = this.store.versions(id).find(item => item.version === body.version); if (!release) throw studioProblem("plugin-builder.request.version-not-found", '发布版本不存在'); if (release.distribution?.runtime_scope === 'home') throw studioProblem("plugin-builder.request.home-install-through-settings", '个人空间发布请下载签名包后在插件设置中导入确认'); await this.ports.lifecycle(body.action as Parameters<AgentBuilderPorts['lifecycle']>[0], release, body.grants); return this.store.require(id); }
+    throw studioProblem("plugin-builder.request.unknown-build-operation", '未知构建操作');
   }
   async close() { this.closed = true; for (const abort of this.drawing) abort.abort(); for (const job of this.jobs.values()) job.abort.abort(new Error('宿主已重启，保留已有文件，继续时先重新检查')); await Promise.all([...this.jobs.values()].map(job => job.done)); await Promise.all(this.store.list().map(build => this.resetPreview(build.id))); this.listeners.clear(); }
 }

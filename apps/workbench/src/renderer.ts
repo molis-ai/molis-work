@@ -24,6 +24,7 @@ export interface WorkbenchRendererPorts {
   /** The installation account owner registers every editable page before it can receive input. */
   accountRegistration?: boolean;
   appearance?: WorkbenchAppearancePorts;
+  projectDeletionLabels?(): readonly string[];
 }
 
 /** Compose application pages from registered UI owners; request and desktop state belong to the Host. */
@@ -44,7 +45,7 @@ export function createWorkbenchRenderer(ports: WorkbenchRendererPorts) {
 
   const renderMolisWorkSettings = createWorkbenchSettingsRenderer({
     readText, escapeHtml, icon, currentLocale, localeSwitchHref, htmlLang, controlTokenMeta, renderIconSprite,
-    withDesktopQuery, settingsContextHref, renderSettingsNavigation, accountRegistration, appearance: ports.appearance,
+    withDesktopQuery, settingsContextHref, renderSettingsNavigation, accountRegistration, appearance: ports.appearance, projectDeletionLabels: ports.projectDeletionLabels,
     themeBootstrapScript: THEME_BOOTSTRAP_SCRIPT, visualFoundationClientScript: VISUAL_FOUNDATION_CLIENT_SCRIPT,
   });
 
@@ -56,7 +57,7 @@ export function createWorkbenchRenderer(ports: WorkbenchRendererPorts) {
   const { renderMolisWorkProjectSettingsHub, renderMolisWorkProjectGeneralSettings, renderMolisWorkProjectSettings, renderMolisWorkProjectGuidanceSettings, renderMolisWorkPlanningLibrary, renderMolisWorkPlanningMethodPage, renderMolisWorkPlanningSettings } = createWorkbenchProjectSettingsPages({
     readText, escapeHtml, icon, htmlLang, controlTokenMeta, renderIconSprite, withDesktopQuery, accountRegistration,
     themeBootstrapScript: THEME_BOOTSTRAP_SCRIPT, visualFoundationClientScript: VISUAL_FOUNDATION_CLIENT_SCRIPT,
-    navigation: { renderProjectSettingsNavigation, renderSettingsNavigation }, renderSettingsContent: stages.declaredSettingsSurface, appearance: ports.appearance,
+    navigation: { renderProjectSettingsNavigation, renderSettingsNavigation }, renderSettingsContent: stages.declaredSettingsSurface, appearance: ports.appearance, projectDeletionLabels: ports.projectDeletionLabels,
   });
 
   const { renderMolisWorkWeb } =
@@ -64,7 +65,7 @@ export function createWorkbenchRenderer(ports: WorkbenchRendererPorts) {
       readText, escapeHtml, icon, htmlLang, controlTokenMeta, themeBootstrapScript: THEME_BOOTSTRAP_SCRIPT,
       renderIconSprite, prefixLocalLinks, renderWorkbenchDocument: createWorkbenchDocumentRenderer(accountRegistration),
       renderDesktopProjectChrome, renderProjectSwitcher,
-      stageModel: stages.declaredStageModel, appearance: ports.appearance,
+      stageModel: stages.declaredStageModel, appearance: ports.appearance, projectDeletionLabels: ports.projectDeletionLabels,
     });
   return {
     renderMolisWorkProjectIndex,

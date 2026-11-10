@@ -1,9 +1,10 @@
+import { studioProblem, studioProblemWord } from "@molis-ai/molis-work-plugin-builder";
 import { sandboxPluginManifest, effectsFromContract } from "@molis-ai/molis-work-plugin-sdk";
 import { studioManifestWords, studioWordReader } from "./studio-words.js";
 import { installedPluginWords, installedPluginPage } from "./installed-page.js";
 import { shellPageRead } from "../web-sessions.js";
 import { modelRoundLocale } from "../reply-language.js";
-import { htmlLang } from "../web-locale.js";
+import { htmlLang, runWithRegisteredText } from "../web-locale.js";
 import { registeredBuiltinText } from "../ui-text-provider.js";
 import { withPassiveSyncExecution } from '../passive-sync-execution.js';
 import { prepareStudioAction } from "./storage.js";
@@ -20,7 +21,7 @@ import type { SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin
 import type { SandboxRunner } from '@molis-ai/molis-work-plugin-sandbox';
 import type { PluginPlatformOptions } from '../plugin-platform.js';
 import type { CapabilityImplementations } from './capabilities.js';
-import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { escapeHtml, say, t as uiText, tryOwnedTextRef } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { PLUGIN_COMPONENTS } from '@molis-ai/molis-work-design-system';
 import { AgentBuilderWorkflow, inDesignOrder, BUILDER_PLUGIN_ID, BUILDER_PROMPTS, builderManifest, builderPromptVersion, type AgentBuild, type AgentBuilderPorts, type AgentRelease, type AgentPublicationControl } from '@molis-ai/molis-work-plugin-builder';
 import type { LocalProjectDatabase } from '../project-database.js';
@@ -81,6 +82,30 @@ export interface Studio {
 const studios = new WeakMap<LocalProjectDatabase, Map<string, Promise<Studio>>>();
 const MODEL_KEY = INSTALLED_MODEL_KEY;
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
+/** The HTTP action has not finished. Its locale is still live, and these words are the shipped Builder's. */
+function studioWord(key: string, fallback: string): string {
+  const reader = registeredBuiltinText(builderManifest);
+  return reader ? runWithRegisteredText(reader, () => uiText.text(key)) : fallback;
+}
+function sendStudioProblem(response: ServerResponse, status: number, error: unknown, code?: string): void {
+  const problem = studioProblemWord(error), reader = problem && registeredBuiltinText(builderManifest);
+  const original = message(error), coded = code ? { code } : {};
+  const ref = reader && problem && tryOwnedTextRef(problem.text, reader.owner);
+  if (!problem || !reader || !ref || !("key" in ref) || reader.pack(reader.default)?.messages[ref.key] === undefined) {
+    sendLocalWebJson(response, status, { error: original, ...coded }); return;
+  }
+  const translated = runWithRegisteredText(reader, () => say.text(ref));
+  const detail = problem.detail === undefined ? {} : { detail: problem.detail };
+  sendLocalWebJson(response, status, { error: problem.detail === undefined ? translated : translated + " " + problem.detail,
+    text: problem.text, ...detail, ...coded });
+}
+
+function installedRecoveryHtml(error: string): string {
+  const title = studioWord("plugin-builder.request.recovery-title", "插件暂时无法运行");
+  const hint = studioWord("plugin-builder.request.recovery-hint", "请在插件创作工作台里检查安装。");
+  return '<main class="as-preview-page"><h1>' + escapeHtml(title) + '</h1><p role="alert" translate="no">' + escapeHtml(error)
+    + '</p><p>' + escapeHtml(hint) + '</p></main>';
+}
 
 /**
  * Plugin Builder's Agent prompts as the person left them in “Prompt 与 Character”. The version names which text ran
@@ -223,17 +248,16 @@ export async function handleAgentStudioHttp(request: IncomingMessage, response: 
       if (!record) return false;
       if (installedCall && method === 'POST') {
         const result = await installed.platform.router().dispatch({ method: 'POST', pathname: '/api/plugins/' + pluginId + '/call', actor_id: options.actorId ?? 'web-user', query: {}, execution, body: await readLocalWebBody(request) });
-        if (!result) { sendLocalWebJson(response, 409, { error: '这个插件当前没有运行，请在创作台里启用' }); return true; }
+        if (!result) { sendStudioProblem(response, 409, studioProblem("plugin-builder.request.plugin-not-running", '这个插件当前没有运行，请在创作台里启用')); return true; }
         sendLocalWebJson(response, result.status, result.body); return true;
       }
       if (installedPage && method === 'GET') {
         const release = installed.releaseFor(pluginId);
-        if (!release) { sendLocalWebJson(response, 404, { error: '找不到这个插件的已安装版本' }); return true; }
+        if (!release) { sendStudioProblem(response, 404, studioProblem("plugin-builder.request.installation-not-found", '找不到这个插件的已安装版本')); return true; }
         if (!framed) return openWorkbench('openSurface=' + encodeURIComponent(installedStageSurface(release)));
         const recoveryError = installed.recoveryErrors.get(pluginId);
         if (recoveryError) {
-          html(response, '<main class="as-preview-page"><h1>插件暂时无法运行</h1><p role="alert">' + escapeHtml(recoveryError)
-            + '</p><p>请在插件创作工作台里检查安装。</p></main>'); return true;
+          html(response, installedRecoveryHtml(recoveryError)); return true;
         }
         const document = installedPluginPage({ home: options.homeDirectory, actorId: options.actorId ?? 'web-user', projectId: options.projectId,
           prefix, release, scope: 'project', running: () => installed.records().find(item => item.plugin_id === pluginId) });
@@ -259,9 +283,9 @@ export async function handleAgentStudioHttp(request: IncomingMessage, response: 
     const route = api![1] ?? '', build = /^\/builds\/([a-f0-9-]{36})(\/[a-z]+)?$/u.exec(route), mockup = /^\/builds\/([a-f0-9-]{36})\/mockups\/([a-z0-9-]{1,64})$/u.exec(route);
     if (mockup && method === 'GET') {
       const picture = workflow.store.require(mockup[1]!).candidates.find(item => item.id === mockup[2])?.mockup;
-      if (picture?.status !== 'ready' || !picture.jobId || !picture.imageId) { sendLocalWebJson(response, 404, { error: '这个方案还没有效果图' }); return true; }
+      if (picture?.status !== 'ready' || !picture.jobId || !picture.imageId) { sendStudioProblem(response, 404, studioProblem("plugin-builder.request.mockup-not-ready", '这个方案还没有效果图')); return true; }
       const image = await studio.mockupImage!(picture.jobId, picture.imageId).catch(() => null);
-      if (!image) { sendLocalWebJson(response, 404, { error: '效果图读取失败' }); return true; }
+      if (!image) { sendStudioProblem(response, 404, studioProblem("plugin-builder.request.mockup-unreadable", '效果图读取失败')); return true; }
       response.writeHead(200, { 'content-type': image.mime_type, 'cache-control': 'private, max-age=3600', 'x-content-type-options': 'nosniff' }); response.end(Buffer.from(image.base64, 'base64')); return true;
     }
     if (route === '/state' && method === 'GET') {
@@ -279,20 +303,20 @@ export async function handleAgentStudioHttp(request: IncomingMessage, response: 
     if (route === '/settings' && method === 'POST') {
       const body = await readLocalWebBody(request), models = await options.models(); pageAuthority?.assertCurrent();
       const chosen = models.find(item => item.provider_id === body.provider_id && item.model_id === body.model_id);
-      if (!chosen) throw new Error('所选模型尚未配置，请在模型设置中完成配置');
+      if (!chosen) throw studioProblem("plugin-builder.request.model-not-configured", '所选模型尚未配置，请在模型设置中完成配置');
       studio.storage.set(MODEL_KEY, JSON.stringify({ provider_id: chosen.provider_id, model_id: chosen.model_id }));
       sendLocalWebJson(response, 200, { model: chosen }); return true;
     }
     if (route === '/builds' && method === 'POST') {
       const body = await readLocalWebBody(request); pageAuthority?.assertCurrent();
-      if (!studio.storage.get(MODEL_KEY) && !options.agents) throw new Error('请先选择构建使用的模型');
+      if (!studio.storage.get(MODEL_KEY) && !options.agents) throw studioProblem("plugin-builder.request.model-required", '请先选择构建使用的模型');
       sendLocalWebJson(response, 201, { build: publicBuild(workflow.create(String(body.brief ?? ''))) }); return true;
     }
     if (build && !build[2] && method === 'GET') { sendLocalWebJson(response, 200, { build: publicBuild(workflow.store.require(build[1]!)), versions: workflow.store.versions(build[1]!).map(publicRelease) }); return true; }
     if (build && build[2] === '/download' && method === 'GET') {
       workflow.store.require(build[1]!);
       const version = Number(url.searchParams.get('version')), release = workflow.store.versions(build[1]!).find(item => item.version === version);
-      if (!release) throw new Error('发布版本不存在');
+      if (!release) throw studioProblem("plugin-builder.request.version-not-found", '发布版本不存在');
       const bundle = await readStudioDistribution(studio.root, release); assertCurrent();
       response.writeHead(200, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', 'x-content-type-options': 'nosniff',
         'content-disposition': 'attachment; filename="' + release.pluginId + '-v' + release.version + '.json"' });
@@ -315,13 +339,13 @@ export async function handleAgentStudioHttp(request: IncomingMessage, response: 
     }
     if (build && build[2] === '/call' && method === 'POST') {
       const body = await readLocalWebBody(request);
-      if (body.binding !== 'read' && body.binding !== 'submit') throw new Error('未知的组件操作');
+      if (body.binding !== 'read' && body.binding !== 'submit') throw studioProblem("plugin-builder.request.unknown-component-operation", '未知的组件操作');
       sendLocalWebJson(response, 200, { value: await (typeof body.acceptance === 'string' ? studio.callAcceptance(build[1]!, body.acceptance, String(body.componentId ?? ''), body.binding, body.payload ?? {}, execution) : workflow.call(build[1]!, String(body.componentId ?? ''), body.binding, body.payload ?? {}, execution)) }); return true;
     }
-    sendLocalWebJson(response, 404, { error: '未声明的创作台操作' }); return true;
+    sendStudioProblem(response, 404, studioProblem("plugin-builder.request.unknown-studio-operation", '未声明的创作台操作')); return true;
   } catch (error) {
     const code = (error as { code?: string }).code;
-    sendLocalWebJson(response, code === 'revision_conflict' ? 409 : 400, { error: message(error), ...(code ? { code } : {}) });
+    sendStudioProblem(response, code === 'revision_conflict' ? 409 : 400, error, code);
     return true;
   } finally { request.removeListener('aborted', disconnect); response.removeListener('close', disconnect); }
 }

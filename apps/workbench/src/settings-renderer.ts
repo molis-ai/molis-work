@@ -44,6 +44,7 @@ export interface SettingsRenderPrimitives {
   settingsContextHref: ReturnType<typeof createWorkbenchSettingsNavigation>["settingsContextHref"];
   renderSettingsNavigation: ReturnType<typeof createWorkbenchSettingsNavigation>["renderSettingsNavigation"];
   appearance?: WorkbenchAppearancePorts;
+  projectDeletionLabels?(): readonly string[];
 }
 export function createWorkbenchSettingsRenderer(primitives: SettingsRenderPrimitives) {
   const { readText, escapeHtml, icon, currentLocale, localeSwitchHref, htmlLang, controlTokenMeta, renderIconSprite,

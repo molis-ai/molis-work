@@ -22,7 +22,7 @@ export function refuseSharedTextPrefix(taken: string | null | undefined, owner: 
   }
 }
 
-/** The shape of a placeholder, the same as `message-declarations.ts` holds a Manifest's words to. */
+/** The shape of a placeholder, the same as the locale file parser holds messages to. */
 const ARG_NAME = /^[A-Za-z_]\w*$/u;
 const REF_FIELDS = new Set(["key", "args", "fallback", "literal"]);
 const ARG_VALUE_FIELDS = { text: ["text"], number: ["number", "style"], date: ["at", "style", "time_zone"] } as const;

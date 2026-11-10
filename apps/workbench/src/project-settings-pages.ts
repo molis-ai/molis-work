@@ -24,6 +24,7 @@ import { renderAppearanceRecovery } from "./settings-appearance.js";
 export interface ProjectSettingsPagePorts {
   accountRegistration?: boolean;
   appearance?: WorkbenchAppearancePorts;
+  projectDeletionLabels?(): readonly string[];
   readText(text: string, values?: Record<string, string | number>): string;
   escapeHtml(value: unknown): string;
   icon(name: PluginIconName): string;
@@ -46,7 +47,7 @@ export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePo
   const { renderProjectSettingsNavigation, renderSettingsNavigation } = ports.navigation;
   const THEME_BOOTSTRAP_SCRIPT = ports.themeBootstrapScript;
   const VISUAL_FOUNDATION_CLIENT_SCRIPT = ports.visualFoundationClientScript;
-  const folds = createProjectSettingsFolds({ readText, escapeHtml, icon, withDesktopQuery });
+  const folds = createProjectSettingsFolds({ readText, escapeHtml, icon, withDesktopQuery, projectDeletionLabels: ports.projectDeletionLabels });
   function content<Data>(surface: string, data: Data, request: Readonly<Record<string, string>> = {}, view?: MolisWorkWebView,
     project = view?.project ?? null, document?: StagePageDrawing["document"]): string {
     return renderSettingsContent("goals", surface, stage => ({ ...stage, data, request,

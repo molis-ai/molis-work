@@ -1,3 +1,4 @@
+import { studioProblem } from "../plugin-builder-surface.js";
 import { WORKBENCH_LANGUAGES } from "@molis-ai/molis-work-app-workbench";
 import { sandboxPluginManifest } from '@molis-ai/molis-work-plugin-sdk';
 import { assertHomePackageAllowed } from '../home-package-admission.js';
@@ -56,7 +57,7 @@ export function builderPorts(inputs: {
     agent: async (build, purpose) => {
       if (options.agents) return builderAgentInLanguage(await options.agents(build, purpose), modelRoundLocale(home));
       const selection = selected();
-      if (!selection) throw new Error('请先在右上角选择构建使用的模型');
+      if (!selection) throw studioProblem("plugin-builder.request.choose-model-first", '请先在右上角选择构建使用的模型');
       const buildRoot = purpose === 'code' && build.directory ? build.directory : join(studio.root, 'design', build.id);
       await mkdir(buildRoot, { recursive: true, mode: 0o700 });
       const create = await resolvePrologueBuilder(home);

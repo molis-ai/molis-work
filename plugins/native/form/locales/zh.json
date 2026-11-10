@@ -86,6 +86,7 @@
     "form.option.word": "选项",
     "form.page.title": "问卷",
     "form.preview.empty": "还没有题目。回到编辑加一题。",
+    "form.project-deletion.data": "Forms 问卷及收到的全部回答",
     "form.question.add": "加一题",
     "form.question.add-type": "加一题的类型",
     "form.question.down": "下移",

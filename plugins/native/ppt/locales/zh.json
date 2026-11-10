@@ -73,6 +73,7 @@
     "ppt.present.action": "放映",
     "ppt.present.bar": "←/→ 翻页 · N 讲者备注 · Esc 退出",
     "ppt.present.hint": "全屏放映，方向键翻页，N 显示讲者备注，Esc 退出",
+    "ppt.project-deletion.data": "PPT 演示稿",
     "ppt.save.busy": "处理中",
     "ppt.save.failed": "保存失败",
     "ppt.save.saved": "已保存",

@@ -69,8 +69,13 @@ function sideEntries(primitives: SidePanelPrimitives, pluginTabs: readonly SideP
  */
 export function renderSideStrip(primitives: SidePanelPrimitives, pluginTabs: readonly SidePanelPluginTab[] = [], views: SideViews = {}): string {
   const { L, icon, escapeHtml } = primitives;
-  const tab = (entry: SideEntry) => `<div class="tab-item" data-glyph-only title="${escapeHtml(entry.label)}"><button class="tab-item-trigger" type="button" role="tab" id="side-tab-${escapeHtml(entry.id)}" aria-controls="side-body-${escapeHtml(entry.id)}" aria-selected="false" tabindex="-1" data-side-tab="${escapeHtml(entry.id)}" aria-label="${escapeHtml(entry.label)}"${entry.attrs}>${icon(entry.glyph).replace("<svg", '<svg class="tab-item-icon"')}<span class="tab-item-name" aria-hidden="true">${escapeHtml(entry.label)}</span></button>${entry.id === "tasks" ? `<span class="tab-count-badge" data-background-tasks-count aria-hidden="true" hidden>0</span>` : ""}</div>`;
-  return `<div class="side-strip tab-glyph-row" role="tablist" aria-label="${L("右侧")}" data-side-tabs data-overflow-fade>${sideEntries(primitives, pluginTabs, views).map(tab).join("")}</div>`;
+  // A Home tool with a chord says it where it is named, as its titlebar button did before 07-1 S4b moved it here: ⌘⇧I in the
+  // name a pointer rests on (rewritten to Ctrl+Shift+I off a Mac in the page), and the chord for a screen reader.
+  const keyed = (entry: SideEntry) => entry.plugin?.keys
+    ? { title: `${entry.label} ${entry.plugin.keys.replace("Mod+", "⌘").replace("Shift+", "⇧").replace("Alt+", "⌥")}`, attrs: ` aria-keyshortcuts="${escapeHtml(entry.plugin.keys.replace("Mod+", "Meta+"))}"` }
+    : { title: entry.label, attrs: "" };
+  const tab = (entry: SideEntry, { title, attrs } = keyed(entry)) => `<div class="tab-item" data-glyph-only title="${escapeHtml(title)}"><button class="tab-item-trigger" type="button" role="tab" id="side-tab-${escapeHtml(entry.id)}" aria-controls="side-body-${escapeHtml(entry.id)}" aria-selected="false" tabindex="-1" data-side-tab="${escapeHtml(entry.id)}" aria-label="${escapeHtml(entry.label)}"${attrs}${entry.attrs}>${icon(entry.glyph).replace("<svg", '<svg class="tab-item-icon"')}<span class="tab-item-name" aria-hidden="true">${escapeHtml(entry.label)}</span></button>${entry.id === "tasks" ? `<span class="tab-count-badge" data-background-tasks-count aria-hidden="true" hidden>0</span>` : ""}</div>`;
+  return `<div class="side-strip tab-glyph-row" role="tablist" aria-label="${L("右侧")}" data-side-tabs data-overflow-fade>${sideEntries(primitives, pluginTabs, views).map(entry => tab(entry)).join("")}</div>`;
 }
 
 export function renderSidePanel(primitives: SidePanelPrimitives, pluginTabs: readonly SidePanelPluginTab[] = [], views: SideViews = {}): string {
@@ -91,10 +96,9 @@ export function renderSidePanel(primitives: SidePanelPrimitives, pluginTabs: rea
       </section>`;
 }
 
-/* On a phone the layout button ends the title bar's second row, after the main tabs (whose phone width is the whole row,
- * linear-density.ts): the tabs leave it 80px, the room the strip leaves it at 601–760, and still need more than the first row
- * has, so they start the second one. The zero-width drag line follows the button and wraps alone, as it does without the button,
- * so the bar keeps two rows. Written here rather than beside the rule, which ships in workbench.css. */
+/* On a phone the layout button ends the title bar's first row, after the right side's glyphs, and the main tabs take the whole
+ * second row (linear-density.ts gives them the row's width; workbench-navigation.ts places the button). The zero-width drag line
+ * is left out there, so the bar keeps two rows. */
 export const SIDE_PANEL_STYLES = String.raw`
 html body.immersive-workbench{--side-gap:8px}
 html body.immersive-workbench[data-side-open=true] [data-plugin-stage]{margin-right:calc(var(--side-panel-width,35vw) + var(--side-gap) + var(--sheet-inset,14px))}
@@ -104,6 +108,8 @@ html body.immersive-workbench[data-side-open=true] .side-panel{opacity:1;transfo
 .side-strip{order:6;display:flex;align-items:center;justify-content:flex-end;gap:2px;flex:none;min-width:0;padding-right:calc(var(--sheet-inset,14px) - 8px)}
 body[data-side-open=true] .side-strip{min-width:calc(var(--side-panel-width,35vw) + var(--sheet-inset,14px) - 8px)}
 .side-strip>.tab-item:has(>[role=tab]:is([hidden],[data-side-closed])){display:none}
+.side-strip .tab-item[data-tab-state="gone"] .tab-item-name{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--ink-soft)}
+.side-strip .tab-item[data-tab-state="gone"] .tab-item-icon{color:var(--muted)}
 .immersive-titlebar>.titlebar-layout{order:7;padding-right:calc(var(--sheet-inset,14px) - 8px)}
 .immersive-titlebar:has(>.titlebar-layout)>.side-strip{padding-right:0}
 @media(max-width:760px),(pointer:coarse){.immersive-titlebar>.titlebar-layout>.mw-btn{width:44px;min-width:44px;height:44px;min-height:44px}}
@@ -136,20 +142,29 @@ body.is-side-resizing{cursor:col-resize;user-select:none}
  .arrival-page .side-strip{flex:0 1 auto}
  .side-panel-divider{display:none!important}
 }
-/* On a phone the strip shares the title bar's first row with the history buttons and the Home tools, and takes the room left
+/* On a phone the strip shares the title bar's first row with the history buttons and the layout button, and takes the room left
    between them: the glyphs keep their 44px targets and scroll sideways, and reveal() keeps the current one in view (measured:
    three glyphs at 360, four at 390). The bar keeps its two rows, so the work below loses no height. The strip's 2px block padding
-   (room for a count badge and the focus ring inside its scroller) is taken back by its margin, so the row stays 44px. */
+   (room for a count badge and the focus ring inside its scroller) is taken back by its margin, so the row stays 44px. The drag
+   line is zero wide beside the tabs (immersive-navigation.ts), so here it would only cost the row a gap: it is left out.
+   A Home tool with a chord (Issue) is the always-there entry the person keeps at the top right (ISSUE-30, decided 10-12): here it
+   leads the glyphs, so it is in view without scrolling the row; the arrow keys walk the glyphs in the order they are drawn. */
 @media(max-width:600px){
  html body.immersive-workbench:not(.arrival-page) .immersive-titlebar>.side-strip{order:1;flex:1 1 0;margin-block:-2px}
- html body.immersive-workbench:not(.arrival-page) .immersive-titlebar:has(>.titlebar-layout)>[data-titlebar-tabs]{flex-basis:0;min-width:calc(100% - 80px)}
- html body.immersive-workbench:not(.arrival-page) .immersive-titlebar:has(>.titlebar-layout)>.desktop-titlebar-drag{order:8}
+ html body.immersive-workbench:not(.arrival-page) .immersive-titlebar:has(>.titlebar-layout)>.desktop-titlebar-drag{display:none}
+ /* A Home tool with a chord is the always-there entry (ISSUE-30, decided 10-12): it leads the glyphs. On the project page's
+    phone titlebar the row scrolls to reveal a later glyph (07-AUDIT), so there it also sticks to the row's edge; the strip's
+    edge fade masks the whole row including it, so on a phone the side strip keeps its glyphs legible in place of that one
+    fade. The way-in page draws the same glyphs without that row, so it keeps only the order. */
+ .side-strip>.tab-item:has(>[data-side-keys]){order:-1}
+ html body.immersive-workbench:not(.arrival-page) .immersive-titlebar>.side-strip>.tab-item:has(>[data-side-keys]){position:sticky;inset-inline-start:0;z-index:1;background:var(--nav-bg)}
+ html body.immersive-workbench:not(.arrival-page) .immersive-titlebar>.side-strip[data-more]{mask-image:none}
 }
 /* Between 601 and 760 the strip is the title bar's second row, so the bar's grid row grows with it (over craft-finish's fixed
    titlebar row, which names the directory states) and the work and the side sheet start below it. The sheet's 28px is the
    strip row's 8px gap and 4px block padding above the strip, the 8px the sheet keeps over the Dock and 8px of air under the strip. */
 @media(min-width:601px) and (max-width:760px){
- html body.immersive-workbench:not([data-pane-embedded]) .immersive-workspace:is(*,.is-plugin-directory-empty){grid-template-rows:auto minmax(0,1fr) var(--dock-h)}
+ html body.immersive-workbench:not([data-pane-embedded]) .immersive-workspace:is(*,.is-plugin-directory-empty){grid-template-rows:auto minmax(0,1fr) minmax(var(--dock-min),auto)}
  html body.immersive-workbench .immersive-titlebar{height:auto;flex-wrap:wrap}
  html body.immersive-workbench .side-panel{max-height:calc(100dvh - var(--desktop-titlebar-height) - var(--tab-strip-h) - var(--dock-h,48px) - 28px)}
 }
@@ -165,13 +180,13 @@ body.is-side-resizing{cursor:col-resize;user-select:none}
  * the side's, and `menu(tab, entries)` opens a tab's menu ({ key, icon, label, run } rows): the workspace's own, one for both
  * columns (07-S2). The way in, with no workspace, lends the side small ones of its own (SIDE_PANEL_SCRIPT).
  * Public, same-document interface (spec 3.1), as before the side joined the workspace:
- * A Home tool (`data-side-plugin-open`, a tab with `data-side-keys`) is a switch: its button or chord, here or handed up
+ * A Home tool (a tab with `data-side-keys`) is a switch: its chord, here or handed up
  * by a frame as `{ type: "molis:side-key", keys }`, opens it with the keyboard inside its document; pressed again from
  * inside, it closes. ⌘\ / Ctrl+\ (also handed up as `Mod+Backslash`) collapses or opens the side. Tools with a chord load
  * while the page is idle, so the first press shows a ready tool. A tab's own document may report
- * `{ type: "molis:side-status", status: "busy" | "attention" | "" }`: its tab and button carry a shared state ring.
- * `molis:side-open` { tab, view?, target?, focus? } · `molis:side-close` · `molis:side-toggle`. Same-origin frames post the same
- * `{ type: "molis:side-open", ... }`. Tab owners hear `molis:side-shown` { tab, target } when their tab shows; a plugin tab's
+ * `{ type: "molis:side-status", status: "busy" | "attention" | "" }`: its tab carries a shared state ring.
+ * `molis:side-open` { tab, view?, target?, focus? } · `molis:side-toggle`. Same-origin frames post the same
+ * `{ type: "molis:side-open", ... }`, and `{ type: "molis:side-close" }` to collapse it (the page collapses it from the layout menu). Tab owners hear `molis:side-shown` { tab, target } when their tab shows; a plugin tab's
  * document gets the target as it is (`{ type: "molis:side-target", target }`, to that frame and this origin only), and its
  * page events in `SIDE_FORWARD_SCRIPT` reach this page (`molis:side-forward`), both through the S-30 checks.
  * Answers `{ open(key, target), restore(), toggle(), isOpen() }`: open (or recall) a view, draw the side again from a state the
@@ -182,7 +197,7 @@ body.is-side-resizing{cursor:col-resize;user-select:none}
  * A tab widens after a rest or on keyboard focus; a press never moves the tabs under the pointer (it cancels a pending widening,
  * and focus from a click leaves the widths as they are).
  */
-export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=null,undoChip=()=>null,menu=null,removed=()=>false,L=globalThis.L,paneSrc=null,glyph=()=>'',toMain=null})=>{
+export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=null,undoChip=()=>null,menu=null,removed=()=>false,gone=()=>false,L=globalThis.L,paneSrc=null,glyph=()=>'',toMain=null})=>{
   const panel=document.querySelector('[data-side-panel]'),strip=document.querySelector('[data-side-tabs]'),stage=document.querySelector('[data-plugin-stage],.arrival-stage');
   if(!panel||!strip||!stage)return null;
   stage.setAttribute('data-plugin-stage','');
@@ -215,12 +230,18 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
   const drawPanes=()=>{
     const moved=side().tabs.filter(tab=>tab.kind==='pane'),keys=new Set(moved.map(tab=>tab.itemId));
     strip.querySelectorAll('[data-side-pane]').forEach(button=>{if(keys.has(button.dataset.sideTab))return;button.parentElement.remove();panel.querySelector('[data-side-body="'+CSS.escape(button.dataset.sideTab)+'"]')?.remove();});
+    // A record the pane page reported gone (07-AUDIT) is struck through and says so where its tab is drawn; the pane page
+    // itself shows the reason. The report crosses documents as a pane message (S-30); the page checks it before marking.
+    const markGone=(item,tab)=>{const isGone=gone(tab);if(isGone){item.dataset.tabState='gone';item.title=tab.title+' · '+L('这一条已经不在了');}else{item.removeAttribute('data-tab-state');item.title=tab.title;}item.querySelector('[role=tab]')?.setAttribute('aria-label',item.title);};
     for(const tab of moved.slice().reverse()){
-      if(!paneSrc||strip.querySelector('[data-side-tab="'+CSS.escape(tab.itemId)+'"]'))continue;
+      const existing=strip.querySelector('[data-side-tab="'+CSS.escape(tab.itemId)+'"]');
+      if(!paneSrc)continue;
+      if(existing){markGone(existing.parentElement,tab);continue;}
       const item=document.createElement('div'),button=document.createElement('button'),name=document.createElement('span'),body=document.createElement('div'),inner=document.createElement('iframe');
       item.className='tab-item';item.dataset.glyphOnly='';item.title=tab.title;
       button.type='button';button.className='tab-item-trigger';button.role='tab';button.tabIndex=-1;button.dataset.sideTab=tab.itemId;button.dataset.sidePane='';button.dataset.sidePlugin=tab.plugin;button.ariaLabel=tab.title;
       button.innerHTML=glyph(tab.plugin);name.className='tab-item-name';name.ariaHidden='true';name.textContent=tab.title;button.append(name);item.append(button);strip.prepend(item);
+      markGone(item,tab);
       body.className='side-panel-body';body.role='tabpanel';body.ariaLabel=tab.title;body.dataset.sideBody=tab.itemId;body.hidden=true;
       inner.className='side-pane-frame';inner.title=tab.title;inner.dataset.paneOwner='side';inner.dataset.sidePaneSrc=paneSrc(tab);body.append(inner);
       (panel.querySelector('[data-side-body]')?.parentElement||panel).append(body);
@@ -228,7 +249,6 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
   };
   const expanded=()=>{
     for(const button of buttons()){const item=button.parentElement;if(open&&button.getAttribute('aria-selected')==='true')item.setAttribute('aria-current','page');else item.removeAttribute('aria-current');}
-    document.querySelectorAll('[data-side-toggle],[data-side-plugin-open]').forEach(b=>b.setAttribute('aria-expanded',String(open&&(!b.dataset.sidePluginOpen||current()==='plugin:'+b.dataset.sidePluginOpen))));
   };
   // A strip narrower than its tabs (a phone) scrolls by itself; the current tab is kept in view.
   const reveal=()=>{const item=strip.querySelector('[data-side-tab][aria-selected="true"]')?.parentElement;if(!item||strip.scrollWidth<=strip.clientWidth)return;
@@ -317,7 +337,6 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
     strip.querySelector('[data-side-tab][aria-selected="true"]:not([data-side-closed])')?.focus({preventScroll:true});
   };
   const summon=(id,toggle)=>offered(id)&&(open&&current()===id&&toggle?setOpen(false):setOpen(true,{tab:id,focus:'content'}),save(),1);
-  document.addEventListener('click',event=>{const button=event.target.closest?.('[data-side-plugin-open]');if(button)summon('plugin:'+button.dataset.sidePluginOpen,1);});
   const keyed=keys=>{const tab=[...strip.querySelectorAll('[data-side-keys]')].find(button=>button.dataset.sideKeys===keys);return tab&&summon(tab.dataset.sideTab,panel.contains(document.activeElement));};
   // ⌘\ / Ctrl+\ by the character typed (on a German or JIS layout that key types something else), heard last: a key an editor
   // took (Pages clears formatting with it) is the editor's, and a terminal keeps Ctrl+\ for itself.
@@ -330,17 +349,20 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
     if(e.repeat||e.isComposing)return;
     if(keyed((e.metaKey||e.ctrlKey?'Mod+':'')+(e.shiftKey?'Shift+':'')+(e.altKey?'Alt+':'')+String(e.code).replace(/^Key/,'')))e.preventDefault();
   },true);
-  if(!MAC)document.querySelectorAll('[data-side-plugin-open][title]').forEach(button=>{button.title=button.title.replace('⌘⇧','Ctrl+Shift+');});
+  if(!MAC)strip.querySelectorAll('[data-side-keys]').forEach(tab=>{const item=tab.parentElement;item.title=item.title.replace('⌘⇧','Ctrl+Shift+');});
   document.addEventListener('molis:side-open',event=>{if(request(event.detail||{}))event.preventDefault();});
-  document.addEventListener('molis:side-close',()=>{setOpen(false);save();});
   document.addEventListener('molis:side-toggle',event=>{if(open&&!(event.detail?.tab&&event.detail.tab!==current())){setOpen(false);save();}else request(event.detail||{});});
   strip.addEventListener('click',event=>{
     const button=event.target?.nodeType===1?event.target.closest('[data-side-tab]'):null;if(!button)return;
-    if(open)select(button.dataset.sideTab);else setOpen(true,{tab:button.dataset.sideTab});
+    // A Home tool's glyph, pressed, opens it ready to use, as its titlebar button did before 07-1 S4b moved it here; arrow keys
+    // and Enter on the strip keep the focus where it is.
+    if(button.hasAttribute('data-side-keys')&&event.detail>0)setOpen(true,{tab:button.dataset.sideTab,focus:'content'});
+    else if(open)select(button.dataset.sideTab);else setOpen(true,{tab:button.dataset.sideTab});
     save();
   });
   strip.addEventListener('keydown',event=>{
-    const list=tabs(),at=list.findIndex(button=>button===document.activeElement);if(at<0)return;
+    // In the order the glyphs are drawn: a phone draws a Home tool with a chord first (the styles above).
+    const list=tabs().sort((a,b)=>a.getBoundingClientRect().left-b.getBoundingClientRect().left),at=list.findIndex(button=>button===document.activeElement);if(at<0)return;
     if(event.key==='Delete'){event.preventDefault();close(list[at]);return;}
     if(event.key==='ContextMenu'||event.shiftKey&&event.key==='F10'){event.preventDefault();menuFor(list[at]);return;}
     const next=event.key==='ArrowRight'?list[(at+1)%list.length]:event.key==='ArrowLeft'?list[(at-1+list.length)%list.length]:event.key==='Home'?list[0]:event.key==='End'?list.at(-1):null;
@@ -386,7 +408,7 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
       return;
     }
     if(event.data?.type==='molis:side-status'){const body=[...panel.querySelectorAll('[data-side-body]')].find(body=>body.querySelector('iframe')?.contentWindow===event.source);
-      if(body)for(const mark of document.querySelectorAll('[data-side-tab="'+body.dataset.sideBody+'"],[data-side-plugin-open="'+body.dataset.sideBody.slice(7)+'"]')){let ring=mark.querySelector('.side-busy-mark');if(event.data.status){mark.dataset.sideBusy=event.data.status;if(!ring){ring=document.createElement('i');ring.className='side-busy-mark';mark.append(ring);}ring.dataset.mwState=event.data.status==='attention'?'answer':'running';}else{delete mark.dataset.sideBusy;ring?.remove();}}return;}
+      if(body)for(const mark of document.querySelectorAll('[data-side-tab="'+body.dataset.sideBody+'"]')){let ring=mark.querySelector('.side-busy-mark');if(event.data.status){mark.dataset.sideBusy=event.data.status;if(!ring){ring=document.createElement('i');ring.className='side-busy-mark';mark.append(ring);}ring.dataset.mwState=event.data.status==='attention'?'answer':'running';}else{delete mark.dataset.sideBusy;ring?.remove();}}return;}
     if(!frame||event.source!==frame.contentWindow)return;
     if(event.data?.type==='molis:im-close'){setOpen(false);save();}
     if(event.data?.type==='molis:im-ready')imVisible();

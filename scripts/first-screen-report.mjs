@@ -5,6 +5,7 @@
 //
 //   node scripts/first-screen-report.mjs [--out <dir>] [--port <n>] [--runs <n>] [--pages <id,id>] [--http-only | --reads-only]
 //   node scripts/first-screen-report.mjs --summarize <dir>     prints a saved run, median of the runs, without a Host or a browser
+//   node scripts/first-screen-report.mjs --resources           prints every row of the resource registry with its files' bytes and sha256
 //
 // Measures the business screen after Home selection; installation login and account switching are outside this report.
 // Build first (`pnpm build`). It serves a temporary Home on a free port (never 4207/4208, never ~/.molis-work), stops only
@@ -20,16 +21,22 @@
 // `--http-only` needs no slot, but it is not the page's total: it reads the document and the files the document names, and misses
 // the hidden side document, whatever a script loads and all startup JSON, so `--summarize` has nothing to print for it.
 // `--reads-only` skips the timed visits and only writes catalog-use.json (still a browser, still the slot).
+// `--resources` reads packages/design-system/resources/registry.json (what ships with the product and has a path in a package,
+// specs/font-and-skin-system/resource-budget.md §6.1), one line a file: a language directory is one line a language. Nothing is
+// stored, so the numbers are always the files' own; a font whose bytes no longer match the sha256 the registry pins says so.
 
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { createServer } from "node:net";
 import { homedir, loadavg, tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { gzipSync } from "node:zlib";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-local-host";
+import { BASELINE_REGISTRY } from "@molis-ai/molis-work-design-system";
 import { ChromeHarness, locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
 
 const ROOT = resolve(import.meta.dirname, "..");
@@ -51,7 +58,7 @@ function integerAt(flag, text, least, most) {
 }
 
 function parse(argv) {
-  const options = { out: join(ROOT, ".impeccable/qa/review/first-screen"), port: 0, runs: 3, httpOnly: false, readsOnly: false, pages: null, summarize: null };
+  const options = { out: join(ROOT, ".impeccable/qa/review/first-screen"), port: 0, runs: 3, httpOnly: false, readsOnly: false, pages: null, summarize: null, resources: false };
   for (let index = 0; index < argv.length; index += 1) {
     const flag = argv[index];
     if (flag === "--out") options.out = resolve(argv[++index]);
@@ -61,6 +68,7 @@ function parse(argv) {
     else if (flag === "--reads-only") options.readsOnly = true;
     else if (flag === "--summarize") options.summarize = resolve(argv[++index]);
     else if (flag === "--pages") options.pages = argv[++index].split(",");
+    else if (flag === "--resources") options.resources = true;
     else throw new Error(`unknown argument ${flag}`);
   }
   if (RESERVED_PORTS.has(options.port)) throw new Error(`port ${options.port} belongs to the real Home`);
@@ -393,6 +401,34 @@ function summarize(dir) {
   }
 }
 
+// ---- resource registry --------------------------------------------------------------------------------------------
+
+/** A package's directory, from its entry up to the package.json that names it: the same in a checkout and in a release's node_modules. */
+function packageDirectory(name) {
+  for (let directory = dirname(fileURLToPath(import.meta.resolve(name))); ; directory = dirname(directory)) {
+    const file = join(directory, "package.json");
+    if (existsSync(file) && JSON.parse(readFileSync(file, "utf8")).name === name) return directory;
+    if (dirname(directory) === directory) throw new Error(`no package directory for ${name}`);
+  }
+}
+
+function reportResources() {
+  for (const row of BASELINE_REGISTRY.resources) {
+    const at = join(packageDirectory(row.package), row.path);
+    const head = `${row.id} ${row.kind} ${row.owner} ${row.load}${row.route ? ` ${row.route}` : ""}`;
+    if (!existsSync(at)) { process.stdout.write(`${head} ${row.path}: missing\n`); continue; }
+    const files = statSync(at).isDirectory()
+      ? readdirSync(at).filter((name) => name.endsWith(".json")).sort().map((name) => [`${row.path}/${name}`, join(at, name)])
+      : [[row.path, at]];
+    for (const [path, file] of files) {
+      const content = readFileSync(file);
+      const sha256 = createHash("sha256").update(content).digest("hex");
+      const pinned = row.sha256 === undefined ? "" : row.sha256 === sha256 ? " (as pinned)" : ` (registry pins ${row.sha256})`;
+      process.stdout.write(`${head} ${path}: ${content.length} B, gzip ${gzipSync(content, { level: 9 }).length} B, sha256 ${sha256}${pinned}\n`);
+    }
+  }
+}
+
 // ---- main -----------------------------------------------------------------------------------------------------------
 
 /** What this run started, and nothing else: an interrupted run stops these by the handles it holds and removes its own Home. */
@@ -422,6 +458,7 @@ async function stopRun() {
 async function main() {
   const options = parse(process.argv.slice(2));
   if (options.summarize) { summarize(options.summarize); return; }
+  if (options.resources) { reportResources(); return; }
   if (!existsSync(join(ROOT, 'dist/web/server.js'))) throw new Error("dist/web/server.js is missing; run pnpm build first");
   const home = mkdtempSync(join(tmpdir(), "molis-first-screen-"));
   if (resolve(home) === join(homedir(), ".molis-work")) throw new Error("refusing the real Home");

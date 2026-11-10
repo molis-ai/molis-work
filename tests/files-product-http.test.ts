@@ -1,3 +1,4 @@
+import { projectPluginRevisionAt } from "./fixtures/project-plugin-settings.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { randomUUID } from "node:crypto";
@@ -6,6 +7,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { FILES_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-files";
+import { addProjectInputFolder, changeProjectDirectories, directoriesWebOf, projectDirectoriesPath, projectOutputOf, readProjectDirectories, setProjectOutputFolder } from "./fixtures/project-directories-http.js";
 
 test("Files formal workspace selection, bounded reads, fixed snapshots, real default graph and restart", async () => {
   new Function("return (" + FILES_CLIENT_FACTORY_SCRIPT + ")");
@@ -32,26 +34,35 @@ test("Files formal workspace selection, bounded reads, fixed snapshots, real def
     for (const display_name of ["文件 A", "文件 B"]) {
       const created = await request("/api/settings/projects", "POST", { display_name, user_confirmed: true });
       assert.equal(created.status, 201); projects.push(created.body.project.project_id);
-      await request(`/api/settings/projects/${projects.at(-1)}/plugins`, "POST", { plugin_id: "coding" });
+      await request(`/api/settings/projects/${projects.at(-1)}/plugins`, "POST", { plugin_id: "coding", expected_revision: await projectPluginRevisionAt(origin, projects.at(-1)!) });
     }
-    const api = (plugin: string, suffix: string, project = projects[0]) => plugin === "workspace" ? `/projects/${project}/api/project-settings/workspaces` : `/projects/${project}/api/plugins/io.molis.work.${plugin}${suffix}`;
-    const directories: string[] = [], ids: string[] = [];
+    const api = (plugin: string, suffix: string, project = projects[0]) => `/projects/${project}/api/plugins/io.molis.work.${plugin}${suffix}`;
+    const web = directoriesWebOf(request);
+    const directories: string[] = [];
     for (const name of ["one", "two"]) {
       const directory = path.join(root, name); await mkdir(directory); directories.push(directory);
       await writeFile(path.join(directory, "note.txt"), "中文🙂\nfirst\n");
-      assert.equal((await request(`/projects/${projects[0]}/api/workspaces`, "POST", { workspace_path: directory, user_confirmed: true })).status, 201);
     }
-    const state = await request(api("workspace", "/state"));
-    assert.equal(state.status, 200); assert.equal(state.body.selected, null);
-    for (const name of ["one", "two"]) ids.push(state.body.workspaces.find((item: any) => item.display_name === name).workspace_id);
-    assert.ok(state.body.workspaces.every((item: any) => !Object.hasOwn(item, "project_ids")), "settings do not expose other projects");
-    assert.equal((await request(api("workspace", "/select"), "POST", { workspace_id: ids[0] }, false)).status, 403);
-    assert.equal((await request(api("workspace", "/select", projects[1]), "POST", { workspace_id: ids[0] })).status, 403);
-    // RAC-2532 (BL-616): which folder Files browses is the project-settings action. Two folders and none chosen: refused; one chosen:
-    // read. That the Files this Host runs is its registration's project_runtime, with nothing from the Host, is RAC-571 and RAC-2530's
-    // (tests/builtin-plugin-assembly-gate.test.ts).
-    const noSelection = await request(api("files", "/directory?path=[]&workspace_id=" + ids[0])); refused(noSelection, "files.invalid");
-    assert.equal((await request(api("workspace", "/select"), "POST", { workspace_id: ids[0] })).status, 200);
+    // The project's folders are set in its settings as the person sets them: "one" is its output, "two" an input it only reads.
+    const ids = [(await setProjectOutputFolder(web, projects[0], directories[0]!)).workspace_id, (await addProjectInputFolder(web, projects[0], directories[1]!)).workspace_id];
+    const settings = await readProjectDirectories(web, projects[0]);
+    assert.deepEqual(settings.directories.map(item => [item.workspace_id, item.roles]), [[ids[0], ["output"]], [ids[1], ["input"]]]);
+    assert.ok(settings.directories.every(item => !Object.hasOwn(item, "project_ids")), "settings do not expose other projects");
+    // Choosing the output needs the Home's control token, and names only this project's own folders.
+    const setOutput = async (workspace_id: string, project = projects[0], authorized = true) => request(projectDirectoriesPath(project), "POST",
+      { change: "set_output", input: { workspace_id, expected_revision: (await readProjectDirectories(web, project)).revision } }, authorized);
+    assert.equal((await setOutput(ids[0]!, projects[0], false)).status, 403);
+    const elsewhere = await setOutput(ids[0]!, projects[1]);
+    assert.deepEqual([elsewhere.status, elsewhere.body.code], [400, "catalog.context.workspace_membership_not_found"], JSON.stringify(elsewhere.body));
+    // RAC-2532 (BL-616): which folder Files browses is the page's to name (page state); naming none, it is the project's output
+    // (SSC-17), and a folder of another project is never read. That the Files this Host runs is its registration's project_runtime,
+    // with nothing from the Host, is RAC-571 and RAC-2530's (tests/builtin-plugin-assembly-gate.test.ts).
+    const browsed = await request(api("files", "/state")); assert.equal(browsed.status, 200, JSON.stringify(browsed.body));
+    assert.deepEqual([browsed.body.workspace.workspace_id, browsed.body.resolved], [ids[0], null]);
+    const named = await request(api("files", "/state?workspace_id=" + ids[1]));
+    assert.deepEqual([named.body.workspace.workspace_id, named.body.resolved], [ids[1], ids[1]]);
+    const otherFolder = projectOutputOf(await readProjectDirectories(web, projects[1])).workspace_id;
+    refused(await request(api("files", "/directory?path=[]&workspace_id=" + otherFolder)), "files.invalid");
     const directory = await request(api("files", "/directory?path=[]&workspace_id=" + ids[0]));
     assert.equal(directory.body.result.outcome, "directory"); assert.equal(directory.body.result.entries[0].name, "note.txt");
     await symlink(directories[1], path.join(directories[0], "escape"));
@@ -59,11 +70,11 @@ test("Files formal workspace selection, bounded reads, fixed snapshots, real def
     assert.equal((await open(["escape", "note.txt"])).body.result.outcome, "denied");
     // R4A3-01: the production Files route still refuses traversal under the Work contract code.
     refused(await open(["..", "two", "note.txt"]), "work.workspace.invalid_path");
-    refused(await open(["note.txt"], ids[1]), "files.invalid");
+    refused(await open(["note.txt"], otherFolder), "files.invalid");
     await writeFile(path.join(directories[0], "binary"), Buffer.from([0, 255]));
     await writeFile(path.join(directories[0], "large"), Buffer.alloc(256 * 1024 + 1, 65));
     await writeFile(path.join(directories[0], "empty"), "");
-    assert.equal((await open(["binary"])).body.result.outcome, "binary");
+    const binary = await open(["binary"]); assert.equal(binary.body.result?.outcome, "binary", JSON.stringify(binary.body));
     assert.equal((await open(["large"])).body.result.outcome, "too-large");
     assert.equal((await open(["missing"])).body.result.outcome, "missing");
     assert.equal((await open(["empty"])).body.result.text, "");
@@ -90,16 +101,17 @@ test("Files formal workspace selection, bounded reads, fixed snapshots, real def
     await close(); await start();
     assert.deepEqual((await request(api("diff", "/state"))).body, diff.body, "same immutable comparison after full server restart");
     assert.equal((await request(api("files", "/state"))).body.position.path[0], "note.txt");
-    assert.equal((await request(api("workspace", "/state"))).body.selected, ids[0]);
+    assert.equal((await request(api("files", "/state"))).body.position.workspace_id, ids[0], "the folder last read survives the restart");
     const republished = await capture("before", second.body.result.fingerprint);
     assert.equal(republished.body.saved.artifact.version, 2);
-    await request(api("workspace", "/select"), "POST", { workspace_id: ids[1] });
+    // Reading the input instead: the snapshots Files handed on came from the output, so they are withdrawn.
+    const input = await open(["note.txt"], ids[1]); assert.equal(input.status, 200, JSON.stringify(input.body)); assert.equal(input.body.result.text, "中文🙂\nfirst\n");
     assert.equal((await request(api("diff", "/state"))).body.view.phase, "waiting");
     assert.equal((await request(api("text-stats", "/state"))).body.view.phase, "waiting");
-    refused(await capture("after", second.body.result.fingerprint), "files.invalid");
-    // Revoking the catalog membership is checked on the next Host read, even with a retained graph input.
-    const unlinked = await request(`/projects/${projects[0]}/api/workspaces/${ids[1]}/unlink`, "POST", { user_confirmed: true });
-    assert.equal(unlinked.status, 200, JSON.stringify(unlinked.body));
+    refused(await request(api("files", "/capture"), "POST", { workspace_id: otherFolder, path: ["note.txt"], port: "after", fingerprint: second.body.result.fingerprint }), "files.invalid",
+      "a snapshot never comes from another project's folder");
+    // Removing the input is checked on the next Host read, even with a retained graph input.
+    await changeProjectDirectories(web, projects[0], "remove_input", { workspace_id: ids[1] });
     refused(await open(["note.txt"], ids[1]), "files.invalid");
   } finally { await close(); await rm(root, { recursive: true, force: true }); }
 });

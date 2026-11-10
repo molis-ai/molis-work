@@ -655,7 +655,8 @@ ${CODING_COMPOSER_BAR_STYLES}
 /* Session rows use the shared state ring; labels retain the session's own state. One line per session: the title, its state
    as a chip tinted by its own colour, then the time — the state never drops to a line of its own. */
 .coding-session-state { display:inline-flex; align-items:center; gap:4px; }
-.mw-dir-row.coding-session-row { height:32px; min-height:32px; align-items:center; padding-block:0; }
+.mw-dir-row.coding-session-row { height:44px; min-height:44px; align-items:center; padding-block:0; }
+@media (hover:hover) and (pointer:fine) { .mw-dir-row.coding-session-row { height:32px; min-height:32px; } }
 .mw-dir-row.coding-session-row .mw-dir-row__icon { margin-top:0; }
 .mw-dir-row.coding-session-row .mw-dir-row__copy { grid-template-columns:minmax(0,1fr) auto auto; grid-template-rows:none; align-items:center; column-gap:8px; }
 .mw-dir-row.coding-session-row .mw-dir-row__headline { display:contents; }

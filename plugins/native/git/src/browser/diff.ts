@@ -1,5 +1,6 @@
+import { setContentHtml } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
-import { active, diffState, request, reveal, showReviews } from "./page.js";
+import { active, diffState, request, reveal, sayRefusal, showReviews } from "./page.js";
 import type { GitPage } from "./page.js";
 import { loadResults } from "./results.js";
 import type { DiffAnswer, HtmlAnswer, Selected } from "./types.js";
@@ -20,7 +21,7 @@ export async function fixed(page: GitPage, item: Selected, serial: number, epoch
   const value = await diffState<HtmlAnswer>(page, item.reference);
   if (serial !== page.ticket || !active(page, epoch)) return;
   title(page, item);
-  q("[data-git-diff]").innerHTML = value.html || "";
+  setContentHtml(q("[data-git-diff]"), value.html || "");
   diffNotice.textContent = L("git.diff.as-read", { version: item.reference.version });
   page.resultPanel.hidden = true;
   page.displayed = item;
@@ -59,7 +60,7 @@ export async function open(page: GitPage, path: string[], side: string, button: 
 
 /** Asks the Host to review staging or unstaging the open file. */
 async function prepareIndex(page: GitPage): Promise<void> {
-  const { L, S, action, diffNotice } = page, item = page.displayed;
+  const { L, action, diffNotice } = page, item = page.displayed;
   if (!item || page.preparing) return;
   const epoch = page.generation;
   page.preparing = true;
@@ -72,7 +73,7 @@ async function prepareIndex(page: GitPage): Promise<void> {
     diffNotice.textContent = L("git.index.review");
     await showReviews(page);
   } catch (error) {
-    if (active(page, epoch)) diffNotice.textContent = S(messageOf(error));
+    if (active(page, epoch)) sayRefusal(page, diffNotice, error, item.workspace_id, () => { diffNotice.textContent = ""; void prepareIndex(page); });
   } finally {
     page.preparing = false;
     if (page.lifetime.alive) action.disabled = false;

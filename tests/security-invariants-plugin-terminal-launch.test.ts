@@ -1,3 +1,4 @@
+import { ChromeHarness, locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
@@ -102,9 +103,10 @@ async function closeSocket(socket: WebSocket): Promise<void> {
 /**
  * A folder outside the Home linked to the project as its workspace, with a sub-folder, a file, a link that leaves it, and a folder named
  * `trail ` (ending in a space) beside a link `trail` that leaves it. (The catalog trims a linked folder's path, so the workspace's own name
- * never ends in a space.)
+ * never ends in a space.) A linked folder is an input; a terminal runs only in the output (SSC-15), so it is made the output, as the person
+ * does on the settings page, unless `role` says it stays an input.
  */
-async function linkWorkspace(t: TestContext, f: Served, project: Project) {
+async function linkWorkspace(t: TestContext, f: Served, project: Project, role: "output" | "input" = "output") {
   const folder = await realpath(await mkdtemp(join(tmpdir(), "terminal-workspace-")));
   t.after(() => rm(folder, { recursive: true, force: true }));
   await mkdir(join(folder, "sub")); await writeFile(join(folder, "file.txt"), "not a folder");
@@ -112,7 +114,10 @@ async function linkWorkspace(t: TestContext, f: Served, project: Project) {
   await mkdir(join(folder, "trail ")); await symlink(tmpdir(), join(folder, "trail"));
   const workspace = await f.withCatalog({ homeDirectory: f.home }, async catalog => {
     await catalog.commit(() => catalog.addWorkspaceProject({ canonical_path: folder, project_id: project.project_id, actor_id: "test-user", user_confirmed: true }));
-    return catalog.listWorkspaceDirectory(project.project_id).find(record => record.canonical_path === folder)!;
+    const linked = catalog.listWorkspaceDirectory(project.project_id).find(record => record.canonical_path === folder)!;
+    if (role === "output") await catalog.commit(() => catalog.changeDirectories({ project_id: project.project_id, actor_id: "test-user",
+      change: { kind: "set_output", target: { workspace_id: linked.workspace_id } }, expected_revision: catalog.projectDirectories(project.project_id).revision }));
+    return linked;
   });
   assert.ok(workspace, "the folder is linked to the project");
   return { folder, workspace_id: workspace.workspace_id };
@@ -383,6 +388,21 @@ test("RAC-2554 S-103 the folder must be in the project's own linked workspace (w
   await refused(f, answer, "actions.forbidden", marker, panelOf(homeInstall.install_id, null, "homeless"), "a Home call has no project, so no workspace");
 });
 
+test("S-directory-output-only SSC-15 a terminal does not start in a folder that is only an input: nothing runs; in the output it does", { timeout: 60_000 }, async t => {
+  const probe = launchProbe("launchinput");
+  const f = await open(t, [probe]), project = await f.project("只作输入");
+  const input = await linkWorkspace(t, f, project, "input"), output = await linkWorkspace(t, f, project);
+  const { install } = await grantInProject(f, project, probe);
+  const marker = f.marker();
+  const answer = await run(f, probe, "project", "run", own => opened(own, launch(f, "input", marker, { root: "workspace", workspace_id: input.workspace_id })), { project });
+  await refused(f, answer, "projects.directory_input_only", marker, panelOf(install.install_id, project.project_id, "input"), "a folder that is only an input");
+  // The same start in the output runs there: the refusal is the folder's role, not the fixture.
+  const ran = f.marker();
+  const started = await run(f, probe, "project", "run", own => opened(own, launch(f, "output", ran, { root: "workspace", workspace_id: output.workspace_id })), { project });
+  assert.equal(started.outcome, "ok", started.message);
+  assert.equal(await ranIn(ran), output.folder);
+});
+
 test("RAC-2555 S-103 the input is the five keys and nothing else, bounded, the program one of two shapes; the identity is the call's", { timeout: 60_000 }, async t => {
   const probe = launchProbe("launchinput");
   const f = await open(t, [probe]), project = await f.project("输入不对");
@@ -625,7 +645,7 @@ test("RAC-2565 S-103 a session a runtime reports or a record holds reaches the r
     }
     // A record that holds one anyway (written past the service here) is checked again on the way out, and starts a new session.
     assert.equal(await start("recorded-option"), "[]");
-    // The catalog's own SQLite (better-sqlite3): a second SQLite copy in this process would drop the Host's file locks when it closes.
+    // The Host's own kind of connection: a second SQLite library in this process would drop the Host's file locks when it closes.
     const db = openTestSqlite(join(f.home, "projects", "catalog.db"), { timeout: 5000 });
     try {
       db.prepare("UPDATE plugin_terminal_panels SET host_session_id = ? WHERE panel_id = ?").run("--dangerously-bypass-approvals-and-sandbox", panelId("recorded-option"));
@@ -708,26 +728,26 @@ test("TERM-CATALOG-01 TERM-CATALOG-02 TERM-CATALOG-03 terminal list hides a real
   const snapshot = () => f.withCatalog({ homeDirectory: f.home }, catalog =>
     ({ ids: catalog.terminalPanels.listIds(project.project_id), record: catalog.terminalPanels.get(panelId) }));
   const records = await snapshot(), logged: HostLogEntry[] = [];
-  let damageList = false;
-  f.host.configurePersonalPlanning(f.home, (options, read) => f.withCatalog(options, catalog => {
-    if (!damageList) return read(catalog);
-    damageList = false;
-    // The real cached owner first performs its normal schema/lease checks. Break only the actual list query after that boundary.
-    const db = openTestSqlite(catalog.databasePath);
+  let damagedColumn: "actor_id" | "panel_id" | undefined;
+  f.host.configurePersonalPlanning(f.home, (options, read) => f.withCatalog(options, async catalog => {
+    if (!damagedColumn) return read(catalog);
+    // The real cached owner performs its schema/lease checks first; unrelated directory reads remain usable.
+    const column = damagedColumn, db = openTestSqlite(catalog.databasePath);
     try {
-      db.exec("ALTER TABLE plugin_terminal_panels RENAME COLUMN actor_id TO actor_id_hidden");
-      try { return read(catalog); }
-      finally { db.exec("ALTER TABLE plugin_terminal_panels RENAME COLUMN actor_id_hidden TO actor_id"); }
+      db.exec(`ALTER TABLE plugin_terminal_panels RENAME COLUMN ${column} TO ${column}_hidden`);
+      // commit may wait for its turn; keep the fault until the entire callback settles.
+      try { return await read(catalog); }
+      finally { db.exec(`ALTER TABLE plugin_terminal_panels RENAME COLUMN ${column}_hidden TO ${column}`); }
     } finally { db.close(); }
   }));
   let observed: unknown;
   const failed = await run(f, probe, "project", "query", async own => {
-    damageList = true;
+    damagedColumn = "actor_id";
     const stopCapturing = captureHostLog(logged);
     try { return await own.terminal!.list({ subject: "kept-subject" }); }
     catch (error) { observed = error; throw error; }
     finally {
-      damageList = false; stopCapturing();
+      damagedColumn = undefined; stopCapturing();
     }
   }, { project });
   assert.equal(failed.outcome, "actions.unavailable", failed.message);
@@ -738,13 +758,42 @@ test("TERM-CATALOG-01 TERM-CATALOG-02 TERM-CATALOG-03 terminal list hides a real
   assert.equal(logged.length, 1);
   const warning = logged[0]!;
   assert.equal(warning.level, "warn"); assert.equal(warning.area, "terminal"); assert.equal(warning.event, "catalog_unreadable");
-  assert.deepEqual(warning.error, { name: "SqliteError", code: "SQLITE_ERROR" });
+  assert.deepEqual(warning.error, { name: "Error", code: "SQLITE_ERROR" });
   assert.equal(warning.fields, undefined);
   assert.doesNotMatch(JSON.stringify(warning), /catalog\.db|actor_id|home-runtime-|\/(?:Users|private|var)\//u);
+  // D0256: the same catalog failure in command paths is projected identically, before a process/record effect.
+  for (const method of ["open", "close"] as const) {
+    const denied = await run(f, probe, "project", "run", async own => {
+      damagedColumn = "panel_id";
+      const stopCapturing = captureHostLog(logged);
+      try { return method === "open" ? await own.terminal!.open({ ...launch(f, "kept", marker, { root: "workspace", workspace_id }), directory: { root: "workspace", workspace_id }, subject: "kept-subject" })
+        : await own.terminal!.close({ key: "kept" }); }
+      finally { damagedColumn = undefined; stopCapturing(); }
+    }, { project });
+    assert.equal(denied.outcome, "actions.unavailable", method + ": " + denied.message);
+    assert.equal(denied.message, "项目目录暂时读不到");
+    assert.doesNotMatch(JSON.stringify(denied), /SQLITE|panel_id|catalog\.db|未装配|尚未配置/);
+    assert.deepEqual(await snapshot(), records, method + " leaves the terminal record unchanged");
+    assert.deepEqual(await panelState(f, panelId), { started: false, attached: true }, method + " leaves the existing process running");
+  }
+  assert.equal(logged.length, 3, "one safe diagnostic per list/open/close failure");
   assert.deepEqual(await list(), before, "the same plugin action reads its unchanged row after recovery");
   assert.deepEqual(await snapshot(), records, "no record was added, removed or rewritten");
   assert.deepEqual(await panelState(f, panelId), { started: false, attached: true }, "the existing process still runs");
   assert.equal(await ranIn(marker), folder);
+  // D0256: a real catalog refusal rendered by the real workbench helper is readable to the person, without internal/old terms.
+  const chrome = locateTestChrome(); assert.ok(chrome, "TERM-CATALOG visible negative needs the dedicated browser");
+  const browser = await ChromeHarness.start(join(f.home, "catalog-visible-browser"), { executable: chrome });
+  try {
+    const page = await browser.page();
+    await page.command("Page.navigate", { url: f.origin + "/projects/" + project.project_id + "/" });
+    await page.wait("Boolean(globalThis.molisWorkRequest?.show)");
+    await page.evaluate(`(() => { const notice = document.createElement('p'); notice.id = 'terminal-catalog-error'; document.body.append(notice);
+      molisWorkRequest.show(notice, Object.assign(new Error(${JSON.stringify(failed.message)}), { code: ${JSON.stringify(failed.outcome)} })); })()`);
+    const visible = await page.evaluate<string>("document.getElementById('terminal-catalog-error').innerText");
+    assert.equal(visible, "项目目录暂时读不到");
+    assert.doesNotMatch(visible, /catalog|workspace|board|尚未配置|未装配|SQLITE|actor_id|\/(?:Users|private|var)\//iu);
+  } finally { await browser.close(); }
 });
 
 test("TERM-CATALOG-04 terminal list preserves ActionError identity and refuses a read cancelled or revoked during its catalog await", { timeout: 90_000 }, async t => {

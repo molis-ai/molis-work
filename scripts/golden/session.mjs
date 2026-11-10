@@ -14,7 +14,7 @@ const SCRIPTED_MODEL_URL = "http://127.0.0.1:9/v1/chat/completions", SCRIPTED_AN
 /** What a case asks the scripted model; anything else is not this conversation. */
 const SCRIPTED_QUESTION = "金样对话";
 
-const { MolisWorkLocalHost, molisWorkHostProjectReference } = await import("@molis-ai/molis-work-app-local-host");
+const { MolisWorkLocalHost, molisWorkHostProjectReference, ensureSystemAgentService } = await import("@molis-ai/molis-work-app-local-host");
 const { withMolisWorkProjectCatalog } = await import("@molis-ai/molis-work-app-desktop");
 const { residentHost } = await import("../replay-plugins/signed-session.mjs");
 
@@ -69,9 +69,29 @@ export function enterHome(home) {
   return real;
 }
 
+const LOOPBACK_HTTP_FAILURES = new Map([
+  ["UND_ERR_SOCKET", "socket_closed"], ["ERR_SOCKET_CLOSED", "socket_closed"],
+  ["ECONNRESET", "connection_reset"], ["ECONNREFUSED", "connection_refused"],
+  ["EPIPE", "broken_pipe"], ["ETIMEDOUT", "timeout"], ["UND_ERR_ABORTED", "aborted"],
+  ["UND_ERR_CONNECT_TIMEOUT", "connect_timeout"], ["UND_ERR_HEADERS_TIMEOUT", "headers_timeout"],
+  ["UND_ERR_BODY_TIMEOUT", "body_timeout"],
+]);
+
+/** Keep the transport cause in process; reports use only this fixed stage and code. */
+function goldenHttpFailure(stage, error) {
+  const where = `http/${stage}`;
+  if (error?.code === "golden.network_refused" || error?.cause?.code === "golden.network_refused") {
+    return goldenFailure("golden.network_refused", where, { cause: error });
+  }
+  const kind = LOOPBACK_HTTP_FAILURES.get(error?.code) ?? LOOPBACK_HTTP_FAILURES.get(error?.cause?.code) ?? "failed";
+  return goldenFailure(`golden.http_${stage}_${kind}`, where, { cause: error });
+}
+
 function respond(response, text, where) {
-  if (response.ok) return text && response.headers.get("content-type")?.includes("json") ? JSON.parse(text) : text || null;
-  throw goldenFailure(`golden.http_${response.status}`, where);
+  if (!response.ok) throw goldenFailure(`golden.http_${response.status}`, where);
+  if (!text || !response.headers.get("content-type")?.includes("json")) return text || null;
+  try { return JSON.parse(text); }
+  catch (error) { throw goldenFailure("golden.http_json_invalid", "http/decode", { cause: error }); }
 }
 
 /**
@@ -82,8 +102,9 @@ export async function openGoldenHost(home, { web = true } = {}) {
   const real = enterHome(home), env = goldenEnvironment(real);
   if (!web) {
     const host = new MolisWorkLocalHost({ homeDirectory: real, completeText: null });
-    // The web surface does this when it starts; the Host's catalog-backed services wait for it.
-    host.configurePersonalPlanning(real, withMolisWorkProjectCatalog);
+    // The web surface does both when it starts: the Host's catalog-backed services wait for the first, and the Agent and Git services
+    // (their workspace and directory ports) read the same catalog only once the second has handed it over.
+    ensureSystemAgentService(host, real, host.configurePersonalPlanning(real, withMolisWorkProjectCatalog));
     return { host, home: real, close: () => host.close(), http: () => { throw goldenFailure("golden.web_surface_absent", "account"); } };
   }
   const resident = await residentHost(root, real, env);
@@ -92,10 +113,13 @@ export async function openGoldenHost(home, { web = true } = {}) {
   let cookie;
   const http = async (route, { method = "POST", body } = {}) => {
     const token = readFileSync(path.join(real, "config/web-control-token"), "utf8").trim();
-    const response = await fetch(origin + route, { method, headers: { origin, "content-type": "application/json", "x-molis-work-control-token": token, "x-molis-work-idempotency-key": crypto.randomUUID(), ...(cookie ? { cookie } : {}) },
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+    // Open a fresh connection for each loopback request so a later POST cannot reuse a socket the Host closed while idle.
+    const response = await fetch(origin + route, { method, headers: { origin, connection: "close", "content-type": "application/json", "x-molis-work-control-token": token, "x-molis-work-idempotency-key": crypto.randomUUID(), ...(cookie ? { cookie } : {}) },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }) })
+      .catch(error => { throw goldenHttpFailure("request", error); });
     cookie = response.headers.get("set-cookie")?.split(";")[0] ?? cookie;
-    return respond(response, await response.text(), route);
+    const text = await response.text().catch(error => { throw goldenHttpFailure("body", error); });
+    return respond(response, text, route);
   };
   return { ...resident, home: real, http };
 }
@@ -116,7 +140,7 @@ export function goldenActions(session, project, tag) {
     const home = view.action.scope === "home";
     return (home ? session.host.homeActionClient() : session.host.actionClient(ref)).invoke(home ? { ...caller, project_id: null } : caller, view, input);
   };
-  return { call, http: session.http, projectId: project.project_id, tag };
+  return { call, http: session.http, projectId: project.project_id, home: session.home, tag };
 }
 
 /** tests/golden-writes/<owner>.ts, found by location and not by any declaration (§4 step 6). */

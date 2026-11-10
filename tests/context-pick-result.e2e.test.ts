@@ -43,14 +43,14 @@ test("W3-A3b PICK-01, PICK-05, FLASH-01, FLASH-02, FLASH-03: a result picked up 
   await child.waitFor("document.querySelector('[data-pages-title]')?.value === '发布计划'");
 
   // A work, and the document it made handed back to it as its result.
-  await click("[data-assistant-input]");
+  await click("[data-assistant-composer] .mw-composer__input");
   await command("Input.insertText", { text: "把访谈整理成纪要" }, sessionId);
-  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
-  await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
+  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, sessionId);
+  await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, sessionId);
   await waitFor("document.querySelector('.assistant-msg--assistant')?.textContent.includes('访谈纪要')", 20_000);
   const api = `/projects/${projectId}/api/assistant/works`;
   const workId = await evaluate<string>(`fetch(${JSON.stringify(api)}).then((r) => r.json()).then((body) => body.works[0].work_id)`);
-  const handed = await evaluate<number>(`fetch(${JSON.stringify(api)} + '/' + ${JSON.stringify(workId)} + '/results', { method: 'POST', headers: { 'content-type': 'application/json', 'x-molis-work-control-token': document.querySelector('meta[name=molis-work-control-token]').content,
+  const handed = await evaluate<number>(`fetch(${JSON.stringify(api)} + '/' + ${JSON.stringify(workId)} + '/results', { method: 'POST', headers: { 'content-type': 'application/json', 'x-molis-work-page-session': document.querySelector('meta[name=molis-work-page-session]').content,
       'x-molis-work-idempotency-key': 'w3a3b-hand-result' },
     body: JSON.stringify({ object: { kind: 'pages_document', id: ${JSON.stringify(made.id)} }, source: { title: 'Pages' } }) }).then((r) => r.status)`);
   assert.equal(handed, 200);
@@ -181,14 +181,14 @@ test("PRR-21 QA-017 opens the side panel; W3-A3b PICK-02 on the real result card
   await child.waitFor("document.querySelector('[data-pages-title]')?.value === '发布计划'");
 
   // A work, and the document it made handed back to it as its result (as the first test does).
-  await click("[data-assistant-input]");
+  await click("[data-assistant-composer] .mw-composer__input");
   await command("Input.insertText", { text: "把访谈整理成纪要" }, sessionId);
-  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
-  await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
+  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, sessionId);
+  await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, sessionId);
   await waitFor("document.querySelector('.assistant-msg--assistant')?.textContent.includes('访谈纪要')", 20_000);
   const api = `/projects/${projectId}/api/assistant/works`;
   const workId = await evaluate<string>(`fetch(${JSON.stringify(api)}).then((r) => r.json()).then((body) => body.works[0].work_id)`);
-  const handed = await evaluate<number>(`fetch(${JSON.stringify(api)} + '/' + ${JSON.stringify(workId)} + '/results', { method: 'POST', headers: { 'content-type': 'application/json', 'x-molis-work-control-token': document.querySelector('meta[name=molis-work-control-token]').content,
+  const handed = await evaluate<number>(`fetch(${JSON.stringify(api)} + '/' + ${JSON.stringify(workId)} + '/results', { method: 'POST', headers: { 'content-type': 'application/json', 'x-molis-work-page-session': document.querySelector('meta[name=molis-work-page-session]').content,
       'x-molis-work-idempotency-key': 'w3a3b-pick02-result' },
     body: JSON.stringify({ object: { kind: 'pages_document', id: ${JSON.stringify(made.id)} }, source: { title: 'Pages' } }) }).then((r) => r.status)`);
   assert.equal(handed, 200);
@@ -216,7 +216,8 @@ test("PRR-21 QA-017 opens the side panel; W3-A3b PICK-02 on the real result card
   assert.equal(await inHand(), null, "and nothing is in hand");
   assert.equal(await child.evaluate<string>("document.querySelector('[data-pages-title]').value"), "发布计划", "the document on the left was not replaced by the title's request");
   // QA-017: the title really opened the panel; close it again so the card and the Assistant stay in view for the rest.
-  await evaluate("document.dispatchEvent(new CustomEvent('molis:side-close'))");
+  // The page collapses the side from the layout menu (收起右侧); the side has no close event of its own (07-1 S4b).
+  await evaluate("document.body.dataset.sideOpen === 'true' && (document.querySelector('[data-layout-open]').click(), document.querySelector('[data-layout-action=side]').click())");
   await waitFor("document.body.dataset.sideOpen === 'false'", 10_000);
 
   // A real drag over the card's own line of text selects it; the click that ends the drag is reading, not picking.

@@ -16,12 +16,15 @@ export class AssistantQuestionDrafts {
     return (this.ports.store.get(this.ports.actorId, workId).question_drafts ?? {}) as Record<string, InteractionValues>;
   }
 
-  save(workId: string, pendingId: string, values: unknown): void {
+  save(workId: string, pendingId: string, values: unknown, draftRevision?: unknown): { draft: string; draft_revision: number } {
     if (!/^[\w:.-]{1,200}$/.test(pendingId) || !values || typeof values !== "object" || Array.isArray(values) || JSON.stringify(values).length > MAX_DRAFT) {
       throw this.ports.fail("assistant.invalid", "草稿写法不对或过长");
     }
-    const kept = Object.entries(this.read(workId)).filter(([id]) => id !== pendingId).slice(-(KEPT - 1));
-    this.ports.store.update(this.ports.actorId, workId, null, { question_drafts: Object.fromEntries([...kept, [pendingId, values as InteractionValues]]) }, false);
+    if (draftRevision !== undefined && (!Number.isSafeInteger(draftRevision) || Number(draftRevision) < 1)) throw this.ports.fail("assistant.invalid", "草稿版本无效");
+    const work = this.ports.store.get(this.ports.actorId, workId);
+    const kept = Object.entries(work.question_drafts ?? {}).filter(([id]) => id !== pendingId).slice(-(KEPT - 1));
+    const saved = this.ports.store.update(this.ports.actorId, workId, work.revision, { ...(draftRevision === work.draft_revision ? { draft: "" } : {}), question_drafts: Object.fromEntries([...kept, [pendingId, values as InteractionValues]]) }, false);
+    return { draft: saved.draft, draft_revision: saved.draft_revision };
   }
 
   drop(workId: string, pendingId: string): void {

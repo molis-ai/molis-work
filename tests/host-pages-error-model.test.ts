@@ -1,3 +1,4 @@
+import { projectPluginRevisionAt } from "./fixtures/project-plugin-settings.js";
 // RAC-2812: complete Artifact HTTP error-model regression after the platform route rename.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
@@ -176,7 +177,7 @@ test("W3-02-G2 MCP context_resolve preserves a future catalog's schema and recov
   catalog.close();
   const databasePath = join(home, "projects", "catalog.db");
   const future = openTestSqlite(databasePath);
-  const supported = Number(future.prepare("SELECT value FROM catalog_meta WHERE key = 'schema_version'").pluck().get());
+  const supported = Number(future.prepare<unknown[], { value: unknown }>("SELECT value FROM catalog_meta WHERE key = 'schema_version'").get()?.value);
   future.prepare("UPDATE catalog_meta SET value = ? WHERE key = 'schema_version'").run(String(supported + 1));
   future.close();
   const host = new hostModule.MolisWorkLocalHost({ homeDirectory: home, completeText: null });
@@ -193,8 +194,8 @@ test("W3-02-G2 MCP context_resolve preserves a future catalog's schema and recov
       recovery: "upgrade_then_context_resolve" } });
   const preserved = openTestSqlite(databasePath, { readonly: true });
   try {
-    assert.equal(preserved.prepare("SELECT value FROM catalog_meta WHERE key = 'schema_version'").pluck().get(), String(supported + 1));
-    assert.equal(preserved.prepare("SELECT display_name FROM projects WHERE project_id = ?").pluck().get(project.project_id), "保留目录项目");
+    assert.equal(preserved.prepare<unknown[], { value: unknown }>("SELECT value FROM catalog_meta WHERE key = 'schema_version'").get()?.value, String(supported + 1));
+    assert.equal(preserved.prepare<unknown[], { display_name: unknown }>("SELECT display_name FROM projects WHERE project_id = ?").get(project.project_id)?.display_name, "保留目录项目");
   } finally { preserved.close(); }
 });
 
@@ -253,11 +254,11 @@ test("the plugin routes of the settings tell a missing project from every other 
       headers: { origin, "content-type": "application/json", "x-molis-work-control-token": token, "x-molis-work-idempotency-key": `host-pages-key-${++sequence}-${Date.now()}` } });
     return { status: response.status, body: await response.json() as Record<string, unknown> };
   };
-  const missing = await call("POST", "/api/settings/projects/no-such-project/plugins", { plugin_id: "goals" });
+  const missing = await call("POST", "/api/settings/projects/no-such-project/plugins", { plugin_id: "goals", expected_revision: await projectPluginRevisionAt(origin, project.project_id) });
   assert.deepEqual([missing.status, missing.body.code], [404, "catalog.project_not_found"]);
-  const unknown = await call("POST", `/api/settings/projects/${project.project_id}/plugins`, { plugin_id: "no-such-plugin" });
+  const unknown = await call("POST", `/api/settings/projects/${project.project_id}/plugins`, { plugin_id: "no-such-plugin", expected_revision: await projectPluginRevisionAt(origin, project.project_id) });
   assert.deepEqual([unknown.status, unknown.body.code], [400, "catalog.plugin_not_found"]);
-  const removed = await call("DELETE", "/api/settings/projects/no-such-project/plugins", { plugin_id: "goals" });
+  const removed = await call("DELETE", "/api/settings/projects/no-such-project/plugins", { plugin_id: "goals", expected_revision: await projectPluginRevisionAt(origin, project.project_id) });
   assert.deepEqual([removed.status, removed.body.code], [404, "catalog.project_not_found"]);
 });
 

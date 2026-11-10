@@ -2,7 +2,7 @@ import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { setOptions } from "./dom.js";
 import { installConflicts, renderConflicts } from "./conflicts.js";
 import { refresh } from "./list.js";
-import { active, request, reveal, showReviews } from "./page.js";
+import { active, inFolder, request, reveal, sayRefusal, showReviews } from "./page.js";
 import type { GitPage } from "./page.js";
 import { loadResults, outcomeLabel } from "./results.js";
 import type { DecisionOutcome, OperationRecord, PrSupportAnswer, SummaryAnswer, Translate } from "./types.js";
@@ -62,7 +62,7 @@ async function loadOperations(page: GitPage): Promise<boolean> {
   const current = () => active(page, epoch) && page.workspace === workspace && page.lastPrepared === prepared && !page.busy;
   const reason = L("git.decision.details");
   try {
-    const value = await request<{ workspace: { workspace_id: string }; operations: OperationRecord[] }>(page, "/operations");
+    const value = await request<{ workspace: { workspace_id: string }; operations: OperationRecord[] }>(page, inFolder("/operations", workspace));
     if (!current() || value.workspace.workspace_id !== workspace) return false;
     page.operations.replaceChildren(...value.operations.slice(0, 6).map((op) => recordItem(page, op)));
     if (!prepared) return false;
@@ -85,7 +85,7 @@ async function loadOperations(page: GitPage): Promise<boolean> {
 export async function loadSource(page: GitPage): Promise<void> {
   const { L, S, sc, s, message, scStatus } = page, epoch = page.generation;
   try {
-    const value = await request<SummaryAnswer>(page, "/summary");
+    const value = await request<SummaryAnswer>(page, inFolder("/summary", page.workspace));
     if (!active(page, epoch)) return;
     const summary = value.summary;
     page.summary = summary;
@@ -135,7 +135,11 @@ export async function prepare(page: GitPage, operation: { action: string } & Rec
   try {
     answer = await request(page, "/operations", "POST", { workspace_id: page.scWorkspace, operation_id: crypto.randomUUID(), revision: page.summary.revision, operation });
   } catch (error) {
-    if (active(page, epoch)) { scStatus.textContent = S(messageOf(error)); await loadSource(page); }
+    if (active(page, epoch)) {
+      await loadSource(page);
+      // Said after the reload, which writes its own status. Once the person makes the folder the output, the same review is asked for.
+      if (active(page, epoch)) sayRefusal(page, scStatus, error, page.scWorkspace, () => { void prepare(page, operation, label, source); });
+    }
     return;
   } finally {
     page.busy = false;
@@ -220,7 +224,7 @@ function installPullRequest(page: GitPage): void {
     if (!title.value) title.value = lines[0] || page.summary?.branch || "";
     if (!body.value) body.value = lines.slice(1).join("\n").trim();
     try {
-      const support = await request<PrSupportAnswer>(page, "/pr-support");
+      const support = await request<PrSupportAnswer>(page, inFolder("/pr-support", page.workspace));
       if (!active(page, epoch)) return;
       note.textContent = S(support.message);
       create.disabled = support.tool !== "ready";

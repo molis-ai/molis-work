@@ -1,3 +1,4 @@
+import { initializeDemoPlugins } from "./plugin-demo-seed.js";
 import { PLUGIN_PRESENTATION_CAPABILITY } from '@molis-ai/molis-work-contracts/platform/ui';
 import { openPluginInstallationDirectory } from "./plugin-installation-directory.js";
 import { installedArtifacts, supervisedArtifacts } from "./artifact-type-registry.js";
@@ -61,9 +62,9 @@ import { hostReservedRuleKeys } from "./scene-rule-admission.js";
 export type PluginPlatformDatabase = PluginEventsDatabase & PluginWiringDatabase & {
   exec(sql: string): unknown;
   readonly inTransaction?: boolean;
-  /** The file the connection is (better-sqlite3's `name`): the project's library, which plugins' own tables live in. */
+  /** The file the connection is: the project's library, which plugins' own tables live in. */
   readonly name?: string;
-  /** better-sqlite3's `open`: false once the connection is closed. */
+  /** False once the connection is closed. */
   readonly open?: boolean;
 };
 
@@ -144,9 +145,9 @@ export interface PluginPlatform {
   readonly consents: PluginConsentLedger | null;
   /** Built after `start`, from the Manifests that actually activated. */
   router(): PluginRouteRouter;
-  start(entries: readonly PluginPlatformEntry[]): Promise<PluginSupervisorReport>;
+  start(entries: readonly PluginPlatformEntry[], control?: { assertCurrent?: () => void }): Promise<PluginSupervisorReport>;
   upgradeCandidates(): PluginUpgradeCandidate[];
-  upgrade(pluginId: string, definition?: PluginDefinition, options?: { grants?: string[] }): Promise<ReturnType<PluginSupervisor["state"]>>;
+  upgrade(pluginId: string, definition?: PluginDefinition, options?: { grants?: string[]; assertCurrent?: () => void }): Promise<ReturnType<PluginSupervisor["state"]>>;
   rollback(pluginId: string, definition: PluginDefinition): Promise<ReturnType<PluginSupervisor["state"]>>;
 }
 
@@ -198,7 +199,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
   });
   // A project instance of a dual-instance plugin offers only its half; the other half is the Home's (specs/archive/dual-instance-plugins).
   const runtime = new PluginRuntime(records, executor,
-    { ...options.inProcess ? { inProcess: options.inProcess } : {}, declarationOwners: declarationOwnersFor(options.home?.directory ?? null, { db: options.db, scope: { kind: "project", project_id: options.project_id } }, (pluginId: string): PluginManifest | undefined => supervisor.manifest(pluginId)), redemption: definition => ({ partial: identity.dualInstance(definition) }), scope: "project", hostIds: HOST_PLUGIN_IDS, ...consents ? { consents } : {}, reservedRuleKeys: hostReservedRuleKeys,
+    { ...options.inProcess ? { inProcess: options.inProcess } : {}, declarationOwners: declarationOwnersFor(options.home?.directory ?? null, { db: options.db, scope: { kind: "project", project_id: options.project_id } }, (pluginId: string): PluginManifest | undefined => supervisor.manifest(pluginId), options.home?.settingsVersionClaims), redemption: definition => ({ partial: identity.dualInstance(definition) }), scope: "project", hostIds: HOST_PLUGIN_IDS, ...consents ? { consents } : {}, reservedRuleKeys: hostReservedRuleKeys,
       permissionBound: (record, definition) => identity.dualInstance(definition) ? permission => {
         if (!options.home) throw pluginErrors.grant_denied("个人空间插件权限当前不可用");
         return options.home.capturePermission(record, permission);
@@ -288,7 +289,8 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     upgradeCandidates: () => supervisor.upgradeCandidates(),
     upgrade: (pluginId, definition, options) => supervisor.upgrade(pluginId, definition, options),
     rollback: (pluginId, definition) => supervisor.rollback(pluginId, definition),
-    async start(entries) {
+    async start(entries, control) {
+      control?.assertCurrent?.();
       // The supervisor keeps one entry per plugin id and would let a later one silently replace an earlier one.
       const listed = new Set<string>();
       for (const { definition } of entries) {
@@ -298,10 +300,19 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
       assertDatabaseEntries(entries, options.home, "project");
       assertOwnerFilesEntries(homeOwnerFilesEntries(options.home?.directory ?? null), entries, options.home);
       identity.remember(entries);
-      const report = await supervisor.start(entries.map(entry => rememberingRestored(entry, identity.remember)));
+      const report = await supervisor.start(entries.map(entry => rememberingRestored(entry, identity.remember)), control);
+      control?.assertCurrent?.();
       // Deliver whatever was already bound and published before this process.
       wiring.evaluateAll();
       await events.resume(options.project_id);
+      await initializeDemoPlugins({ home: options.home?.directory, projectId: options.project_id, actorId: options.actor_id, client: options.actions.client,
+        assertCurrent: control?.assertCurrent, entries: entries.flatMap(entry => {
+          const state = supervisor.state(entry.definition.manifest.plugin_id);
+          if (!state?.install_id || state.status !== "running") return [];
+          const installId = state.install_id;
+          return [{ manifest: entry.definition.manifest, providerId: providerFor(entry.definition, installId),
+            current: () => !closed && supervisor.state(entry.definition.manifest.plugin_id)?.status === "running" && supervisor.state(entry.definition.manifest.plugin_id)?.install_id === installId }];
+        }) });
       return report;
     },
   };
@@ -322,7 +333,7 @@ function rememberingRestored(entry: PluginPlatformEntry, remember: (entries: rea
 }
 
 /**
- * The project's library, when the platform runs on the Host's own connection to its file (better-sqlite3, which says its file
+ * The project's library, when the platform runs on the Host's own connection to its file (which says its file
  * and whether it is in a transaction); otherwise none, and a plugin that declares tables there does not start.
  */
 function projectLibraryOf(options: PluginPlatformOptions): ProjectLibrary | null {

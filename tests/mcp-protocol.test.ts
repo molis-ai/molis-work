@@ -9,12 +9,12 @@ test("MCP protocol negotiation, discovery and notifications do not execute appli
   const ports: McpProtocolPorts = { serverInfo, tools,
     callTool: async () => { assert.fail("Protocol-only request executed application work"); },
     formatToolError: () => { assert.fail("Protocol-only request formatted an application error"); } };
-  assert.deepEqual(await handleMcpMessage({ id: 0, method: "initialize" }, ports), {
+  assert.deepEqual(await handleMcpMessage({ id: 0, method: "initialize", params: { protocolVersion: "2025-03-26" } }, ports), {
     jsonrpc: "2.0", id: 0, result: { protocolVersion: "2025-03-26", serverInfo,
       capabilities: { tools: {}, resources: { subscribe: false, listChanged: false } } },
   });
-  const initialized = await handleMcpMessage({ id: "client-id", method: "initialize", params: { protocolVersion: "client-version" } }, ports);
-  assert.equal((initialized?.result as { protocolVersion: string }).protocolVersion, "client-version");
+  const initialized = await handleMcpMessage({ id: "client-id", method: "initialize", params: { protocolVersion: "2025-03-26" } }, ports);
+  assert.equal((initialized?.result as { protocolVersion: string }).protocolVersion, "2025-03-26");
   assert.equal(initialized?.id, "client-id");
   assert.equal(await handleMcpMessage({ method: "notifications/initialized" }, ports), null);
   for (const [method, result] of [["ping", {}], ["tools/list", { tools }], ["resources/list", { resources: [] }],
@@ -77,4 +77,28 @@ test("MCP hands the host's `_meta` on a tool result to the client, and reads no 
   const response = await handleMcpMessage({ id: 3, method: "tools/call", params: { name: "fixture-query", _meta: { "molis-work/callId": forged, call_id: forged, callId: forged } } }, ports);
   assert.deepEqual(context, { runtimeSessionId: null, runtimeSessionIdSource: null }, "nothing the client put in `_meta` reaches the host as a number");
   assert.deepEqual(response, { jsonrpc: "2.0", id: 3, result: { content: [{ type: "text", text: "{}" }], isError: false, _meta: hosts } });
+});
+
+// D0113: malformed wire input never reaches the application; a discovery failure leaves the protocol alive.
+test("D0113 rejects unsupported initialization and invalid parameters, and survives discovery failure", async () => {
+  const ports: McpProtocolPorts = { serverInfo, tools, callTool: async () => assert.fail("invalid wire input dispatched"), formatToolError: () => assert.fail("invalid wire input formatted") };
+  for (const params of [undefined, null, [], {}, { protocolVersion: "unsupported" }]) {
+    const reply = await handleMcpMessage({ id: 1, method: "initialize", params }, ports);
+    assert.equal((reply?.error as { code: number }).code, -32602);
+  }
+  for (const params of [undefined, null, [], {}, { name: "" }, { name: "fixture", arguments: [] }]) {
+    const reply = await handleMcpMessage({ id: 2, method: "tools/call", params }, ports);
+    assert.equal((reply?.error as { code: number }).code, -32602);
+  }
+  const broken = { ...ports, get tools(): readonly typeof tools[number][] { throw new Error("private directory detail"); } };
+  const failed = await handleMcpMessage({ id: 3, method: "tools/list" }, broken);
+  assert.equal((failed?.error as { code: number }).code, -32603);
+  assert.ok(!JSON.stringify(failed).includes("private directory detail"));
+  assert.deepEqual(await handleMcpMessage({ id: 4, method: "ping" }, broken), { jsonrpc: "2.0", id: 4, result: {} });
+});
+
+test("D0113 a newer client negotiates the server's supported version instead of losing the stdio connection", async () => {
+  const reply = await handleMcpMessage({ id: 19, method: "initialize", params: { protocolVersion: "2025-11-25", capabilities: {}, clientInfo: { name: "new-client", version: "1" } } }, {
+    serverInfo, tools, callTool: async () => "ok", formatToolError: () => "failed" });
+  assert.equal((reply?.result as { protocolVersion: string }).protocolVersion, "2025-03-26");
 });

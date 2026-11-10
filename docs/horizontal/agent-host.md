@@ -50,7 +50,7 @@ Prologue Node 用 SDK 的 SkillRegistry、prepareSkillIntent、fillSkillBody 准
 
 ## 项目 MCP 配置与执行
 
-Coding 的 MCP 配置通过 `agent.mcp.list/save/control.v1` 到 Node 适配层，所有者由 Host 的项目和插件作用域给出。stdio 的工作目录须在该项目授权列表，连接时复核；HTTP 认证通过 SDK Credential 引用，公开配置不含密钥。
+Coding 的 MCP 配置通过 `agent.mcp.list`、`agent.mcp.save`、`agent.mcp.control`（各 @1）到 Node 适配层，所有者由 Host 的项目和插件作用域给出。stdio 的工作目录须在该项目授权列表，连接时复核；HTTP 认证通过 SDK Credential 引用，公开配置不含密钥。（2026-11-08 审计更正：原写作 `agent.mcp.list/save/control.v1`；N29 去掉动作名末尾的 `.vN`，现行三个动作名见 `packages/contracts/src/services/agent-host.ts:586、591、596` 与 `tooling/gates/actions/host-actions.tsv`（`agent.mcp.control`、`agent.mcp.list`、`agent.mcp.save`，各 @1）。）
 
 选择固定 `server + configuration_version + tool + version`；后两项分别固定服务配置与参数形状。适配层为每份配置版本建立不同 SDK 连接身份，因此编辑配置不会把旧的待批请求送往新地址。重启保留配置和历史，但连接需要重新建立；失效选择不能静默替换。
 

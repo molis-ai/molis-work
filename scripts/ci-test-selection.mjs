@@ -66,6 +66,25 @@ export const NATIVE_RUN_WHEN = {
   names: ["Cargo.toml", "Cargo.lock", "rust-toolchain", "rust-toolchain.toml", "clippy.toml", ".clippy.toml", "rustfmt.toml", ".rustfmt.toml"],
 };
 
+/**
+ * What makes the macOS half of the golden replay run (`golden-replay-third-party`; design specs/upgrade-continuity/golden-replay-design.md §5, 用户 2026-11-07): the only
+ * replay of the signed samples before a merge, since the sandbox exists only there. The plugin runtime and its SDK, the sandbox, the storage, the contracts they speak, the
+ * Host's installed-plugin and Home-library code and the statement process their libraries run in, the CLI the replay installs and upgrades the samples with (its launcher,
+ * the plugin CLI, the client that reaches the resident Host, the web host it is served by), the goldens and samples themselves, the scripts that replay them, the Prologue
+ * package, the workflows, and any file at the root that is not a Markdown document (the Node pin, the lockfile). The list errs wide; what it leaves out is caught by the daily run on macOS.
+ */
+export const GOLDEN_THIRD_PARTY_RUN_WHEN = {
+  prefixes: [
+    "packages/plugin-runtime/", "packages/plugin-sandbox/", "packages/plugin-sdk/", "packages/storage/", "packages/contracts/",
+    "apps/local-host/src/plugin-", "apps/local-host/src/sandbox-", "apps/local-host/src/installed-plugin-", "apps/local-host/src/home-plugin", "apps/local-host/src/home-installed-plugins", "apps/local-host/src/home-stor", "apps/local-host/src/project-plugin", "apps/local-host/src/project-database", "apps/local-host/src/project-statement-",
+    "apps/desktop/launchers/cli/", "tooling/plugin-cli/",
+    "tests/fixtures/golden-homes/", "tests/fixtures/golden-home-library/", "tests/fixtures/replay-plugins/", "tests/golden-writes/", "scripts/golden/", "scripts/replay-plugins/", "vendor/", ".github/workflows/",
+  ],
+  files: ["apps/local-host/src/resident-host-request.ts", "apps/desktop/src/web-host.ts", "scripts/golden-home.mjs", "scripts/replay-golden-homes.mjs", "scripts/ci-golden-replay.mjs", "scripts/replay-plugins.mjs", "scripts/ci-test-selection.mjs", "scripts/ci-check-selection.mjs", "tests/golden-home.test.ts"],
+};
+/** A new Prologue package replays every golden, not the latest three (UPG-11). */
+const GOLDEN_HISTORY_WHEN = "vendor/prologue-sdk/";
+
 const matches = (file, entry) => (entry.endsWith("/") || entry.endsWith("-") ? file.startsWith(entry) : file === entry);
 
 /** The test files the root package.json `test:security` names, its globs expanded over `testFiles`. */
@@ -100,6 +119,25 @@ export function decideNative({ affected, failure }) {
   const touched = changed.filter(reads);
   if (touched.length) return whole([`the job reads these changed files: ${touched.join(", ")}`]);
   return { mode: "none", reasons: [`none of the ${changed.length} changed files is one the Rust and Swift checks read`] };
+}
+
+/** Runs unless a clean answer says no changed file is on the list; every other way out runs it. */
+export function decideGoldenThirdParty({ affected, failure }) {
+  const whole = (reasons) => ({ mode: "whole", reasons });
+  if (!affected) return whole([failure ?? "affected-tests gave no answer"]);
+  const changed = changedPaths(affected);
+  if (!changed) return whole(["affected-tests answered without valid changes"]);
+  const touched = changed.filter((file) => GOLDEN_THIRD_PARTY_RUN_WHEN.prefixes.some((prefix) => file.startsWith(prefix)) || GOLDEN_THIRD_PARTY_RUN_WHEN.files.includes(file) || (ROOT_CONFIG.test(file) && !file.endsWith(".md")));
+  if (touched.length) return whole([`the replay of the signed samples reads these changed files: ${touched.join(", ")}`]);
+  return { mode: "none", reasons: [`none of the ${changed.length} changed files is on the list for the replay of the signed samples`] };
+}
+
+/** `all` replays every golden; only a clean answer that the Prologue package did not change keeps it to the latest three. */
+export function decideGoldenHistory({ affected, failure }) {
+  const changed = affected ? changedPaths(affected) : null;
+  if (!changed) return { mode: "all", reasons: [failure ?? "no valid list of changes"] };
+  const touched = changed.filter((file) => file.startsWith(GOLDEN_HISTORY_WHEN));
+  return touched.length ? { mode: "all", reasons: [`a new Prologue package replays every golden: ${touched.join(", ")}`] } : { mode: "latest", reasons: ["the Prologue package did not change"] };
 }
 
 const escape = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -150,7 +188,7 @@ export function decideJob({ job, list, affected, failure, weights = {} }) {
 export function outputLines(decisions) {
   const lines = [];
   for (const job of ["security", "product"]) lines.push(`${job}_mode=${decisions[job].mode}`, `${job}_shards=${JSON.stringify(decisions[job].shards)}`);
-  for (const job of ["native", "documentation", "gate_rules", "shell"]) if (decisions[job]) lines.push(`${job}_mode=${decisions[job].mode}`);
+  for (const job of ["native", "documentation", "gate_rules", "shell", "golden_third_party", "golden_history"]) if (decisions[job]) lines.push(`${job}_mode=${decisions[job].mode}`);
   lines.push(`security_files=${decisions.security.mode === "some" ? decisions.security.files.join(" ") : ""}`);
   lines.push(`product_only=${decisions.product.mode === "some" ? `^(?:${decisions.product.files.map(escape).join("|")})$` : ""}`);
   return lines;
@@ -158,7 +196,7 @@ export function outputLines(decisions) {
 
 function summary(decisions, base) {
   const out = [`## CI test selection`, "", `Compared with \`${base}\`. On a pull request \`some\` runs selected files, \`whole\` runs the complete list, and only successful \`none\` skips it. Only an ordinary-document-only merge group skips the security and product jobs; other merge groups run both whole.`, ""];
-  const titles = { security: "Security invariants", product: "Product subset", native: "Rust and Swift checks", documentation: "Documentation scope", gate_rules: "Gate-rule tests", shell: "Shell and Python checks" };
+  const titles = { security: "Security invariants", product: "Product subset", native: "Rust and Swift checks", golden_third_party: "Golden replay of the signed samples (macOS)", golden_history: "Goldens the replay takes", documentation: "Documentation scope", gate_rules: "Gate-rule tests", shell: "Shell and Python checks" };
   for (const [job, decision] of Object.entries(decisions)) {
     out.push(`### ${titles[job]}: ${decision.mode}${decision.mode === "none" ? " (skipped)" : !decision.shards ? "" : `, ${decision.shards.length} runner${decision.shards.length === 1 ? "" : "s"}`}`, "");
     for (const reason of decision.reasons) out.push(`- ${reason}`);
@@ -209,6 +247,8 @@ if (isMainScript(import.meta.url)) {
     product: decideJob({ job: "product", list: lists?.product ?? [], affected, failure, weights }),
     // The native checks read no test list: only whether the change touches what they check, so a list that could not be read does not change it.
     native: decideNative({ affected: nativeAnswer, failure: nativeFailure }),
+    golden_third_party: decideGoldenThirdParty({ affected: nativeAnswer, failure: nativeFailure }),
+    golden_history: decideGoldenHistory({ affected: nativeAnswer, failure: nativeFailure }),
     ...checks,
   };
   if (checks.documentation.mode === "only") for (const job of ["security", "product"]) {

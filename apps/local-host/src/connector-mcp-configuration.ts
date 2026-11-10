@@ -143,9 +143,9 @@ export function productMcpClientEligible(serviceId: string, owner: McpServiceOwn
 
 /** Protocol owner validates remote addresses and local launch configurations on their separate paths. */
 export function activeMcpConfiguration(home: string, id: string): StoredMcpConfiguration {
-  const connection = withConnectorConnections(home, store => store.require(id));
+  const connection = withConnectorConnections(home, store => store.require(id), "required");
   if (connection.auth_method !== "mcp" || !connection.enabled || connection.disconnected_at) throw connectorErrors["connector.mcp.disconnected"]("MCP 连接已断开，请重新连接");
-  const config = withConnectorProtocols(home, store => store.get<StoredMcpConfiguration>(id));
+  const config = withConnectorProtocols(home, store => store.get<StoredMcpConfiguration>(id), true);
   if (!config || config.protocol !== "mcp" || config.serviceId !== connection.service_id) throw connectorErrors["connector.mcp.configuration"]("MCP 连接配置缺失，请重新连接");
   return config;
 }

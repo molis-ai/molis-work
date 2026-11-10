@@ -1,3 +1,4 @@
+import { projectPluginRevisionAt } from "./fixtures/project-plugin-settings.js";
 import { inboxActions, inboxContentActions, createInboxContentHandlers, inboxManifest, INBOX_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-inbox";
 import { createActionMcpPorts, actionMcpToolName, handleMcpMessage } from "@molis-ai/molis-work-app-mcp";
 import { sceneConfigurationActions, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -71,7 +72,7 @@ test("Inbox plugin lists Attention entries, completes without deleting the Feed 
       "x-molis-work-control-token": TOKEN,
       "x-molis-work-idempotency-key": "add-feed",
     },
-    body: JSON.stringify({ plugin_id: "feed" }),
+    body: JSON.stringify({ plugin_id: "feed", expected_revision: await projectPluginRevisionAt(origin, project.project_id) }),
   });
   assert.equal(addFeed.status, 200);
 
@@ -307,9 +308,9 @@ function insertFeedItem(project: { database_path: string; project_id: string }, 
       INSERT OR IGNORE INTO feed_sources (
         project_id, source_id, kind, name, description, status, enabled, item_count,
         origin, last_sync_at, last_outcome, last_error_code, imported_at, updated_at
-      ) VALUES (@project_id, 'source-inbox-plugin', 'rss', '测试 RSS', '测试来源', 'active', 1, 1,
-        'molis_work', @now, 'completed', NULL, @now, @now)
-    `).run({ project_id: project.project_id, now });
+      ) VALUES (?1, 'source-inbox-plugin', 'rss', '测试 RSS', '测试来源', 'active', 1, 1,
+        'molis_work', ?2, 'completed', NULL, ?2, ?2)
+    `).run(project.project_id, now);
     store.db.prepare(`
       INSERT INTO feed_items (
         project_id, item_id, source_id, kind, title, summary, body,
@@ -317,12 +318,12 @@ function insertFeedItem(project: { database_path: string; project_id: string }, 
         tags_json, author, disposition, revision, source_created_at,
         source_updated_at, imported_at, updated_at
       ) VALUES (
-        @project_id, @item_id, 'source-inbox-plugin', 'article',
+        ?1, ?2, 'source-inbox-plugin', 'article',
         '确认对象边界', '摘要不应被 Inbox 复制', '正文里包含需要核对的事实',
-        'rss', '测试 RSS', @external_id, 'https://example.com/item',
-        'inbox', 'normal', '[]', '测试作者', 'inbox', 1, @now, @now, @now, @now
+        'rss', '测试 RSS', ?3, 'https://example.com/item',
+        'inbox', 'normal', '[]', '测试作者', 'inbox', 1, ?4, ?4, ?4, ?4
       )
-    `).run({ project_id: project.project_id, item_id: itemId, external_id: `external-${itemId}`, now });
+    `).run(project.project_id, itemId, `external-${itemId}`, now);
   } finally {
     store.close();
   }

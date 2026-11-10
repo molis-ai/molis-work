@@ -1,10 +1,13 @@
 import { escapeHtml as escape } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { FramePack } from "./types.js";
 
-/** The CSP names only the registered bundle and its declared static dependencies. No child network or nested frame. */
+/**
+ * The CSP names only the registered bundle and its declared static dependencies, and the composer's shared program, which the
+ * frame fetches only when its page mounts a composer. No child network or nested frame.
+ */
 export function frameDocument(root: HTMLElement, pack: FramePack): string {
   const origin = location.origin, script = origin + "/assets/molis-work-plugin-frame.js";
-  const sources = [script, origin + "/desktop/pty-client.js", origin + "/assets/molis-work-plugins/" + encodeURIComponent(pack.bundle) + ".js", ...pack.assets.map(path => new URL(path, origin).href)];
+  const sources = [script, origin + "/assets/molis-work-composer.js", origin + "/desktop/pty-client.js", origin + "/assets/molis-work-plugins/" + encodeURIComponent(pack.bundle) + ".js", ...pack.assets.map(path => new URL(path, origin).href)];
   const policy = "default-src 'none'; script-src " + sources.join(" ") + "; style-src 'unsafe-inline' " + origin + "/assets/; font-src " + origin
     + "/assets/; img-src data: blob: " + origin + "/assets/; connect-src 'none'; frame-src blob:; object-src 'none'; base-uri 'none'; form-action 'none'";
   const content: unknown = JSON.parse(root.querySelector("[data-plugin-document]")?.textContent ?? "null");

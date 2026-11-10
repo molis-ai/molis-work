@@ -1,3 +1,4 @@
+import { rollbackPreservingError } from "./transaction-errors.js";
 import { createHash } from "node:crypto";
 import { chmodSync, closeSync, constants, copyFileSync, lstatSync, mkdirSync, openSync, readdirSync, readSync, realpathSync, renameSync, rmSync, statfsSync } from "node:fs";
 import { dirname, isAbsolute, join, normalize, relative, sep } from "node:path";
@@ -189,7 +190,7 @@ function journalLooksUnflushed(journal: string): boolean {
  * at the next write, which would stop the snapshot; this brings that removal forward (S-upgrade-journal-removal). A live writer's journal
  * has the same bytes, and reads and the checkpoint do not notice it, so the exclusive lock is what tells them apart: it fails, and nothing
  * is removed, while a connection holds a lock on the file, in another process or in this copy of SQLite. An idle connection holds none and
- * does not stop it. Another copy of SQLite in this process (`node:sqlite` beside `better-sqlite3`) is not seen at all, because file locks
+ * does not stop it. Another copy of SQLite in this process (only Alchemist's `better-sqlite3`, on its own file, S-46) is not seen at all, because file locks
  * belong to the process: its writer loses the journal and its `COMMIT` fails, and only the caller's promise of no other connection on the
  * file protects it. A WAL store has no business with such a file, and it stays a refusal.
  */
@@ -198,7 +199,8 @@ function removeUnflushedJournal(db: UpgradeSqliteConnection, file: string): void
   if (!journalLooksUnflushed(journal)) return;
   db.exec("BEGIN EXCLUSIVE");
   try { if (journalLooksUnflushed(journal)) rmSync(journal, { force: true }); }
-  finally { db.exec("ROLLBACK"); }
+  catch (error) { rollbackPreservingError(error, () => db.exec("ROLLBACK")); throw error; }
+  db.exec("ROLLBACK");
 }
 
 /** §2.2 step 2. Also how a store left by a kill recovers: opening replays a WAL, and a read rolls back a hot journal. */

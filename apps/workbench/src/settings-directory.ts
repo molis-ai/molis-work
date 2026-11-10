@@ -14,11 +14,12 @@ export interface SettingsDirectoryPrimitives {
 
 const PROJECT_SETTINGS_SECTIONS = [
   { id: "general", label: "常规", icon: "tune" },
-  { id: "workspaces", label: "工作目录", icon: "folder" },
+  { id: "workspaces", label: "输入与输出", icon: "folder" },
   { id: "guidance", label: "项目说明", icon: "book" },
   { id: "memory", label: "记忆", icon: "bookmark" },
   { id: "knowledge", label: "项目资料", icon: "file" },
   { id: "plugins", label: "插件", icon: "package" },
+  { id: "skills", label: "技能", icon: "book" },
   { id: "grants", label: "授权与放行", icon: "shield" },
 ] as const satisfies readonly { id: string; label: string; icon: PluginIconName }[];
 

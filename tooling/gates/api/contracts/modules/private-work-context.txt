@@ -62,7 +62,6 @@ export interface NormalizedRuntimeWorkContext {
 }
 
 export interface NormalizedRuntimeWorkspaceContext extends RuntimeWorkspaceContext {
-    workspace_id: string;
     display_name: string;
 }
 
@@ -84,6 +83,12 @@ export interface RuntimeContextBindingEventRecord {
     project_id: string;
     actor_id: string;
     created_at: string;
+}
+
+export interface RuntimeContextBindingPage {
+    limit: number;
+    offset: number;
+    project_id?: string;
 }
 
 export interface RuntimeContextBindingRecord {

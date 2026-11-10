@@ -1,5 +1,11 @@
 [
   {
+    "file": "packages/design-system/src/primitives/catalog-skill-packs.ts",
+    "name": "version",
+    "values": { "1.4": 1 },
+    "reason": "Component board fixture package version for the install success example; not a product or contract version."
+  },
+  {
     "file": "apps/local-host/src/agent-host-composition.ts",
     "name": "appVersion",
     "values": { "0.0.0": 1 },
@@ -132,6 +138,12 @@
     "reason": "沙箱包在宿主侧派生动作时的构建修订号，属于第三方包自身的编号，不是平台版本。"
   },
   {
+    "file": "packages/plugin-sdk/src/skill-frontmatter.ts",
+    "name": "version",
+    "values": { "1": 1 },
+    "reason": "SKILL.md 没写版本、调用方也没给时 Skill 自己的起始版本，属于作者包自身的编号，不是平台版本。"
+  },
+  {
     "file": "apps/mcp/src/launcher-validation.ts",
     "name": "protocolVersion",
     "values": { "2024-11-05": 1 },
@@ -171,7 +183,7 @@
     "file": "packages/plugin-runtime/src/project-database-statements.ts",
     "name": "PLUGIN_STATEMENT_SQLITE_VERSION",
     "values": { "3.51.3": 1 },
-    "reason": "随宿主打包的 SQLite 版本号，由依赖决定，不是自有版本。"
+    "reason": "Node 自带的 SQLite 版本号，由锁定的 Node 决定，不是自有版本；升 Node 时由 tests/sqlite-version-notice.test.ts 核对它和 .nvmrc 对得上。"
   },
   {
     "file": "packages/plugin-runtime/src/resolution.ts",
@@ -452,60 +464,88 @@
     "reason": "电脑记录来源只在 Home 层登记，动作快照读的是一个项目的目录，所以没有行。"
   },
   {
-    "entry": "action.projects.settings.browsing-workspace.read",
-    "reason": "宿主的项目设置动作，只由设置页走自己的路由，不进动作目录，所以快照里没有行。"
-  },
-  {
-    "entry": "action.projects.settings.browsing-workspace.select",
-    "reason": "宿主的项目设置动作，只由设置页走自己的路由，不进动作目录，所以快照里没有行。"
-  },
-  {
-    "entry": "action.projects.settings.workspaces.read",
-    "reason": "宿主的项目设置动作，只由设置页走自己的路由，不进动作目录，所以快照里没有行。"
-  },
-  {
-    "entry": "action.projects.workspaces.list",
-    "reason": "宿主的项目设置动作，只由设置页走自己的路由，不进动作目录，所以快照里没有行。"
-  },
-  {
     "entry": "action.ui.plugin-presentation",
     "reason": "页面展示能力的合同常量，由工作台在页面里提供，不经动作目录登记，所以快照里没有行。"
   },
   {
-    "entry": "action.materials.recent",
-    "reason": "C-1 合同片只声明，提供方由目录实现片登记，所以动作快照里还没有行；登记之后这条例外不再需要，门禁会要求删掉。"
+    "entry": "action.surfaces.compose",
+    "reason": "C-3 合同片只声明，提供方 system.surfaces 由第 15 批 S-1 登记，所以动作快照里还没有行；登记之后这条例外不再需要，门禁会要求删掉。"
   },
   {
-    "entry": "action.materials.recent.record",
-    "reason": "C-1 合同片只声明，提供方由目录实现片登记，所以动作快照里还没有行；登记之后这条例外不再需要，门禁会要求删掉。"
+    "entry": "action.surfaces.correct",
+    "reason": "C-3 合同片只声明，提供方 system.surfaces 由第 15 批 S-1 登记，所以动作快照里还没有行；登记之后这条例外不再需要，门禁会要求删掉。"
   },
   {
-    "entry": "action.projects.directories.add_input",
-    "reason": "C-1 合同片只声明，提供方由目录实现片登记，所以动作快照里还没有行；登记之后这条例外不再需要，门禁会要求删掉。"
+    "entry": "action.characters.from_template",
+    "reason": "P-2b 仅发布角色采用合同；第 36 批 Characters 实际登记后删除本条。"
   },
   {
-    "entry": "action.projects.directories.get",
-    "reason": "C-1 合同片只声明，提供方由目录实现片登记，所以动作快照里还没有行；登记之后这条例外不再需要，门禁会要求删掉。"
+    "entry": "action.characters.roles.read",
+    "reason": "P-2b 仅发布角色批读合同；第 36 批 Characters 实际登记后删除本条。"
   },
   {
-    "entry": "action.projects.directories.map_source",
-    "reason": "C-1 合同片只声明，提供方由「实现（指定文件夹）」片登记，所以动作快照里还没有行；登记之后这条例外不再需要，门禁会要求删掉。"
+    "entry": "action.blueprints.adoption.apply",
+    "reason": "P-3c 仅发布场景动作合同；第 44 批 system.blueprints 实际登记后删除本条。"
   },
   {
-    "entry": "action.projects.directories.remove_input",
-    "reason": "C-1 合同片只声明，提供方由目录实现片登记，所以动作快照里还没有行；登记之后这条例外不再需要，门禁会要求删掉。"
+    "entry": "action.blueprints.adoption.preview",
+    "reason": "P-3c 仅发布场景动作合同；第 44 批 system.blueprints 实际登记后删除本条。"
   },
   {
-    "entry": "action.projects.directories.repair",
-    "reason": "C-1 合同片只声明，提供方由目录实现片登记，所以动作快照里还没有行；登记之后这条例外不再需要，门禁会要求删掉。"
+    "entry": "action.blueprints.adoption.read",
+    "reason": "P-3c 仅发布场景动作合同；第 44 批 system.blueprints 实际登记后删除本条。"
   },
   {
-    "entry": "action.projects.directories.set_output",
-    "reason": "C-1 合同片只声明，提供方由目录实现片登记，所以动作快照里还没有行；登记之后这条例外不再需要，门禁会要求删掉。"
+    "entry": "action.blueprints.adoption.remove",
+    "reason": "P-3c 仅发布场景动作合同；第 44 批 system.blueprints 实际登记后删除本条。"
   },
   {
-    "entry": "action.projects.directories.unmap_source",
-    "reason": "C-1 合同片只声明，提供方由「实现（指定文件夹）」片登记，所以动作快照里还没有行；登记之后这条例外不再需要，门禁会要求删掉。"
+    "entry": "action.blueprints.adoption.revert",
+    "reason": "P-3c 仅发布场景动作合同；第 44 批 system.blueprints 实际登记后删除本条。"
+  },
+  {
+    "entry": "action.blueprints.drafts.read",
+    "reason": "P-3c 仅发布场景动作合同；第 44 批 system.blueprints 实际登记后删除本条。"
+  },
+  {
+    "entry": "action.blueprints.drafts.save",
+    "reason": "P-3c 仅发布场景动作合同；第 44 批 system.blueprints 实际登记后删除本条。"
+  },
+  {
+    "entry": "action.blueprints.packs.save",
+    "reason": "P-3c 仅发布场景动作合同；第 44 批 system.blueprints 实际登记后删除本条。"
+  },
+  {
+    "entry": "action.home.pages.adopt",
+    "reason": "P-4 仅发布生成首页动作合同；第 37 批 system.home 实际登记后删除本条。"
+  },
+  {
+    "entry": "action.home.pages.diff",
+    "reason": "P-4 仅发布生成首页动作合同；第 37 批 system.home 实际登记后删除本条。"
+  },
+  {
+    "entry": "action.home.pages.drafts.save",
+    "reason": "P-4 仅发布生成首页动作合同；第 37 批 system.home 实际登记后删除本条。"
+  },
+  {
+    "entry": "action.home.pages.files.read",
+    "reason": "P-4 仅发布生成首页动作合同；第 37 批 system.home 实际登记后删除本条。"
+  },
+  {
+    "entry": "action.home.pages.preview",
+    "reason": "P-4 仅发布生成首页动作合同；第 37 批 system.home 实际登记后删除本条。"
+  },
+  {
+    "entry": "action.home.pages.restore",
+    "reason": "P-4 仅发布生成首页动作合同；第 37 批 system.home 实际登记后删除本条。"
+  },
+  {
+    "entry": "action.home.read",
+    "reason": "P-4 仅发布生成首页动作合同；第 37 批 system.home 实际登记后删除本条。"
+  },
+  {
+    "entry": "action.home.select",
+    "reason": "P-4 仅发布生成首页动作合同；第 37 批 system.home 实际登记后删除本条。"
   },
   {
     "row": "functions.published.system_admit_inbox",
@@ -980,5 +1020,41 @@
     "name": "provider_version",
     "values": { "0.0.0-rc.1": 1 },
     "reason": "调用方没有给版本时的占位值，Prologue 只校验格式，不读取也不比较，不是自有版本。"
+  },
+  {
+    "file": "modules/projects/src/catalog-upgrade.ts",
+    "name": "workspace_project_memberships_v1",
+    "values": { "workspace_project_memberships_v1": 4 },
+    "reason": "目录库第 1 版升到第 2 版时重建成员表的临时表名，指的是升级出发的那一版，升完即删，不是当前版本；目录库的当前版本是 database.home.catalog。"
+  },
+  {
+    "file": "packages/contracts/src/platform/external-tools.ts",
+    "name": "version",
+    "values": { "0.166.0": 3, "1.0.70": 1, "1.5.0": 1 },
+    "reason": "外部工具登记表每行 `checked.version` 记的是核对那一行时外部工具的上游版本（如 Codex 0.166.0），说明这行依据哪一版写成，不是产品版本，也不是合同或库的版本，不进 tooling/versions.json。"
+  },
+  {
+    "entry": "action.sessions.list",
+    "reason": "由服务片 S-1 登记，登记后门禁会要求删掉：Sessions 合同片（第 22 批）只声明这个动作，所以动作快照里还没有行。"
+  },
+  {
+    "entry": "action.sessions.history.read",
+    "reason": "由服务片 S-1 登记，登记后门禁会要求删掉：Sessions 合同片（第 22 批）只声明这个动作，所以动作快照里还没有行。"
+  },
+  {
+    "entry": "action.sessions.scope.read",
+    "reason": "由服务片 S-1 登记，登记后门禁会要求删掉：Sessions 合同片（第 22 批）只声明这个动作，所以动作快照里还没有行。"
+  },
+  {
+    "entry": "action.sessions.scope.set",
+    "reason": "由服务片 S-1 登记，登记后门禁会要求删掉：Sessions 合同片（第 22 批）只声明这个动作，所以动作快照里还没有行。"
+  },
+  {
+    "entry": "action.sessions.project_ai_read.set",
+    "reason": "由服务片 S-1 登记，登记后门禁会要求删掉：Sessions 合同片（第 22 批）只声明这个动作，所以动作快照里还没有行。"
+  },
+  {
+    "entry": "action.sessions.discovery.run",
+    "reason": "由服务片 S-1 登记，登记后门禁会要求删掉：Sessions 合同片（第 22 批）只声明这个动作，所以动作快照里还没有行。"
   }
 ]

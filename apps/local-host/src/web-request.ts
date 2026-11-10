@@ -1,3 +1,4 @@
+import { handleSkillSettingsHttp } from "./agent-definitions/skill-settings-http.js";
 import { withReadOnlyPluginDirectory } from "./always-on-plugins.js";
 import { handlePluginConsentSettingsHttp } from "./plugin-consent-settings-http.js";
 import { handleTaskGrantsSettingsHttp } from "./task-grants-settings-http.js";
@@ -49,7 +50,7 @@ import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { bindGoalsWebActions } from "./goal-callers.js";
 import {
   agentReviewsRoute, boardRoute, directoryGrantRoute, pluginPageRoute, directoryRoutes, homeDockRoute, pluginStudioRoute, projectAssistantRoutes, projectNotFoundRoute,
-  projectProbeRoutes, projectRuntimeRoute, projectWorkspacesRoute, projectWriteCheckersRoute, runtimePluginsRoute, sideFilesRoute, sideViewRoute,
+  projectProbeRoutes, projectRuntimeRoute, projectWriteCheckersRoute, runtimePluginsRoute, sideFilesRoute, sideViewRoute,
   workspaceMembershipRoute,
 } from "./web-project-platform-routes.js";
 
@@ -89,6 +90,7 @@ export async function handleMolisWorkWebRequest(
     // Every registered prompt and role, and the person's edits of them: one register per Home, whichever page asks.
     if (serverOptions.homeDirectory && url.pathname.startsWith("/api/agent-definitions/")
       && await handleAgentDefinitionsHttp(request, response, url, agentDefinitionsFor(serverOptions.homeDirectory, builtinRegistrations))) return;
+    if (url.pathname.startsWith("/api/skills/") && await handleSkillSettingsHttp(request, response, url, localHost)) return;
     if (resolved.kind === "catalog_index") {
       const assistant = serverOptions.homeDirectory ? assistantPortsFor(serverOptions.homeDirectory, composition, localHost, agentHost, agentReady) : null;
       await withHomePluginStorePageRecovery(context, null, () => dispatchWebRoutes(CATALOG_INDEX_ROUTES, { ...context, projects: resolved.projects, assistant }));
@@ -164,12 +166,13 @@ function projectRuntimeContext(context: ProjectRequestContext, runtime: MolisWor
 }
 
 /** What the project page shows: the board, with Feed's and Inbox's judgments where those plugins answer, and the Home plugins' stages. */
-function projectWebView({ options, webViewCache, store, homeActions, localHost, hostReference, serverOptions, shownPlugins, goalsHere, url, composition, pluginPorts }: Omit<ProjectRuntimeContext, "readWebView">) {
+function projectWebView({ options, webViewCache, store, homeActions, localHost, hostReference, serverOptions, shownPluginSelection, goalsHere, url, composition, pluginPorts }: Omit<ProjectRuntimeContext, "readWebView">, withMembershipRevision = false) {
   return async (): Promise<GoalsWebView> => {
     let view = await cachedMolisWorkWebView(webViewCache, store, options, homeActions, await goalsHere());
     // What the project shows is its Catalog's selection now (enabled, minus hidden, with the personal plugins), read per request
     // and never kept behind the Goals cursor: the page, its refresh and its fragments all read this one view.
-    view = { ...view, shown_plugins: await shownPlugins(options.projectId) };
+    const { shown, revision } = await shownPluginSelection(options.projectId, withMembershipRevision);
+    view = { ...view, shown_plugins: shown, project_plugin_revision: revision };
     // Each shown plugin's stage reads its own data, as the person and with only that read's permissions (T-133).
     // A stage is given only the request parameters it names in `stage_data.input`, from its own plugin's declared page route (T-116).
     const pageMatch = matchPageRoute(url);
@@ -186,7 +189,6 @@ function projectWebView({ options, webViewCache, store, homeActions, localHost, 
       model: id => composition.workbenchRenderer.declaredStageModel(id, view) });
     return { ...view, plugin_stages: homeStages.html, plugin_panels: homeStages.panels, plugin_overlays: homeStages.overlays,
       plugin_stage_surfaces: homeStages.surfaces, ...(homeStages.page ? { page_stage: homeStages.page } : {}), unavailable_plugin_stages: homeStages.unavailable,
-      home_plugin_nav: await localHost.homePlugins?.navigation() ?? [],
       plugin_directory: mergePluginDirectories(await homePluginDirectory(localHost.homePlugins, serverOptions.homeDirectory), builtinMarketDirectory(serverOptions.homeDirectory)) };
   };
 }
@@ -226,6 +228,11 @@ const capsuleRoute: WebRoute<ProjectRuntimeContext> = { id: "capsule", handle: a
     return true;
   }
   // A project without Goals has none to list (RAC-400); in one with Goals, a refused list is that refusal.
+  if (url.searchParams.get("view") === "menu") {
+    const summary = await goalsHere() ? await goalActions.invoke(goalsActions.capsuleMenu, {}) : { focus: null };
+    sendJson(response, 200, composition.buildCapsuleMenu(options.project, summary));
+    return true;
+  }
   const directory = await goalsHere() ? await goalActions.invoke(goalsActions.list, { limit: 100 }) : undefined;
   sendJson(response, 200, composition.buildCapsuleSnapshot(await readWebView(), directory?.goals ?? []));
   return true;
@@ -246,14 +253,13 @@ const goalsAndArtifactRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
     desktopShell: composition.isDesktopShellRequest(request, url), pageCsp: composition.PAGE_CSP,
   }) },
   { id: "goal-page", handle: context => context.composition.goalsReadHttp.page(context.request, context.response, context.url, context.options, context.serverOptions.homeDirectory,
-    projectWebView(context), context.controlToken, context.goalActions,
+    projectWebView(context, true), context.controlToken, context.goalActions,
     asPerson(context, ARTIFACT_ACTION_PERMISSIONS), context.store,
     { ...context.pluginServices, artifacts: context.pluginPorts.artifacts, processItems: context.pluginPorts.processItems }) },
 ];
 
 /** Inside the project's open runtime, tried in this order; the last entry answers every address the project does not have. */
 const PROJECT_RUNTIME_ROUTES: readonly WebRoute<ProjectRuntimeContext>[] = [
-  projectWorkspacesRoute,
   projectRuntimeRoute,
   projectWriteCheckersRoute,
   pluginStudioRoute,

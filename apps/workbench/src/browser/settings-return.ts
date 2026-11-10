@@ -132,6 +132,20 @@ function paintReturnBar(L: SettingsReturnHost["translate"], kind: string | null,
   setText(bar.querySelector("[data-return-bar-back] [data-slot=button-label]"), state === "waiting" ? L("现在回去") : state === "gone" ? L("关闭设置") : L("回去"));
 }
 
+/**
+ * The Assistant's panel rises from the bar no higher than the return bar's foot, so its tabs never cover 回去 (DRT-10): while a
+ * return bar is seen, its bottom edge is `--return-bar-bottom` on the page (the panel's height reads it), measured again as the
+ * window or the settings scroll; without one the property goes.
+ */
+let barQueued = 0;
+function seeReturnBar() {
+  barQueued = 0;
+  const bar = document.querySelector<HTMLElement>("[data-settings-return-bar]");
+  const bottom = bar && bar.getClientRects().length ? Math.max(0, Math.round(bar.getBoundingClientRect().bottom)) : 0;
+  if (bottom) document.body.style.setProperty("--return-bar-bottom", bottom + "px"); else document.body.style.removeProperty("--return-bar-bottom");
+}
+function queueReturnBar() { if (!barQueued) barQueued = requestAnimationFrame(seeReturnBar); }
+
 export function createSettingsReturn(host: SettingsReturnHost): SettingsReturn {
   const L = host.translate, project = host.projectId || "", prefix = host.prefix || "";
   if (!project || window.top !== window) return IDLE;
@@ -196,7 +210,10 @@ export function createSettingsReturn(host: SettingsReturnHost): SettingsReturn {
   function paint() {
     const kind = coverKind(), trip = owner.current(kind);
     paintReturnBar(L, kind, trip, { name: trip ? nameOf(trip) : "", ready: Boolean(trip && ready.has(trip.id)), back: id => void back(owner.find(id)) });
+    queueReturnBar();
   }
+  addEventListener("resize", queueReturnBar, { passive: true });
+  document.addEventListener("scroll", queueReturnBar, { capture: true, passive: true });
   document.addEventListener("molis-work:return-claim", event => {
     const detail = detailOf(event);
     if (detail) detail.answer = owner.claim(detail);

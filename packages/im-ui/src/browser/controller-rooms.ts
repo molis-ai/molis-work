@@ -1,3 +1,5 @@
+import { imText as L } from "../locale.js";
+import { escapeHtml as escapeImText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { ImRoomState, ImThreadState } from '@molis-ai/molis-work-contracts/services/im';
 import type { ApiError } from './types.js';
 import type { ImBaseCtx, ImCtx } from './controller-types.js';
@@ -22,8 +24,8 @@ export function createImRooms(base: ImBaseCtx, context: () => ImCtx): Pick<ImCtx
     c.formFor('thread').hidden = true;
     c.syncComposer('group');
     c.syncComposer('thread');
-    q('[data-room-title]').textContent = s.rooms.find(room => room.id === id)?.title || '群聊';
-    q('[data-member-count]').textContent = '正在载入…';
+    q('[data-room-title]').textContent = s.rooms.find(room => room.id === id)?.title || (L("群聊"));
+    q('[data-member-count]').textContent = (L("正在载入…"));
     q('[data-thread-strip]').replaceChildren();
     q('[data-member-avatars]').replaceChildren();
     q('[data-action="invite"]').hidden = true;
@@ -33,7 +35,7 @@ export function createImRooms(base: ImBaseCtx, context: () => ImCtx): Pick<ImCtx
     q('[data-conversations]').classList.remove('has-thread');
     root.classList.remove('show-directory');
     q('[data-sidebar-scrim]')?.setAttribute('hidden', '');
-    q('[data-stream="group"]').innerHTML = '<p class="im-empty" role="status">正在载入群聊…</p>';
+    q('[data-stream="group"]').innerHTML = ("<p class=\"im-empty\" role=\"status\">" + escapeImText(L("正在载入群聊…")) + "</p>");
     q('[data-conversations]').classList.add('im-loading');
     try {
       const [state, messages] = await Promise.all([api<ImRoomState>(c.pathFor(id)), latest(c.pathFor(id), [], null, () => s.epoch === version)]);
@@ -58,7 +60,7 @@ export function createImRooms(base: ImBaseCtx, context: () => ImCtx): Pick<ImCtx
     catch (cause) {
       const error = cause as ApiError;
       if (version === s.epoch) {
-        q('[data-stream="group"]').innerHTML = '<div class="im-empty">' + e(error.message) + '<p><button class="im-secondary" type="button" data-action="retry">重试</button></p></div>';
+        q('[data-stream="group"]').innerHTML = '<div class="im-empty">' + e(error.message) + ("<p><button class=\"mw-btn mw-btn--secondary mw-btn--sm\" type=\"button\" data-action=\"retry\">" + escapeImText(L("重试")) + "</button></p></div>");
         c.syncError(error.message);
       }
     }
@@ -84,9 +86,9 @@ export function createImRooms(base: ImBaseCtx, context: () => ImCtx): Pick<ImCtx
     s.threadMessages = [];
     s.threadPage = null;
     c.revealThread();
-    q('[data-thread-title]').textContent = s.roomState!.threads.find(t => t.id === id)?.title || '话题';
+    q('[data-thread-title]').textContent = s.roomState!.threads.find(t => t.id === id)?.title || (L("话题"));
     q('[data-thread-context]').replaceChildren();
-    q('[data-stream="thread"]').innerHTML = '<p class="im-empty" role="status">正在载入讨论…</p>';
+    q('[data-stream="thread"]').innerHTML = ("<p class=\"im-empty\" role=\"status\">" + escapeImText(L("正在载入讨论…")) + "</p>");
     c.formFor('thread').hidden = true;
     c.updateHeader();
     try {
@@ -113,7 +115,7 @@ export function createImRooms(base: ImBaseCtx, context: () => ImCtx): Pick<ImCtx
     catch (cause) {
       const error = cause as ApiError;
       if (version === s.epoch)
-        q('[data-stream="thread"]').innerHTML = '<div class="im-empty">' + e(error.message) + '<p><button type="button" class="im-secondary" data-action="select-thread" data-id="' + e(id) + '">重试</button></p></div>';
+        q('[data-stream="thread"]').innerHTML = '<div class="im-empty">' + e(error.message) + '<p><button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-action="select-thread" data-id="' + e(id) + ("\">" + escapeImText(L("重试")) + "</button></p></div>");
     }
   }
   return { selectRoom, selectThread };

@@ -1,3 +1,4 @@
+import { UI_HOST_CLIENT_CODES } from "@molis-ai/molis-work-contracts/platform/ui";
 import assert from "node:assert/strict";
 import test from "node:test";
 import vm from "node:vm";
@@ -19,7 +20,7 @@ function helper() {
     newKey: () => "one-time-key-0001",
     translate: text => text,
   };
-  return { sent, request: createUiRequest(ports) };
+  return { sent, request: createUiRequest(ports, UI_HOST_CLIENT_CODES) };
 }
 
 const FOREIGN = [
@@ -78,7 +79,7 @@ test("S-03 the same-origin addresses are not refused: the refusal is about the o
     assert.equal(sent.length, 1, address);
     assert.ok(sent[0]!.input.startsWith(`${ORIGIN}/`), `${address} goes to this origin, as ${sent[0]!.input}`);
     assert.equal(new URL(sent[0]!.input).origin, ORIGIN);
-    assert.equal(sent[0]!.init.headers["x-molis-work-control-token"], "secret-control-token");
+    assert.equal(sent[0]!.init.headers["x-molis-work-page-session"], "secret-control-token");
   }
 });
 

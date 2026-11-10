@@ -16,7 +16,7 @@ test('ASR-01/02/03/08 account handoff keeps the public listener and waits for ev
  try{
   assert.deepEqual(opened,[],'no anonymous business core opens');assert.match(await(await f.request('/')).text(),/data-account-entry/);
   const alice=personalStorageSpace(f.authOrigin,'work','alice').spaceId,bob=personalStorageSpace(f.authOrigin,'work','bob').spaceId;
-  const firstA=await f.login('alice');assert.equal(firstA.ready,true);assert.deepEqual(opened,[alice]);
+  const firstA=await f.login('alice');const firstToken=f.control;assert.equal(firstA.ready,true);assert.deepEqual(opened,[alice]);
   const listener=f.server.address(),oldCookie=f.cookie;
   const state=await f.begin('bob'),pending=f.complete(state);await oldClosed;
   assert.deepEqual(opened,[alice],'B cannot open while A resources are releasing');
@@ -24,11 +24,11 @@ test('ASR-01/02/03/08 account handoff keeps the public listener and waits for ev
   release();assert.equal((await pending).status,303);assert.equal((await f.status()).ready,true);assert.deepEqual(opened,[alice,bob]);
   assert.deepEqual(f.server.address(),listener,'public listener is not restarted');
   const nextA=await f.login('alice');assert.equal(nextA.ready,true);assert.deepEqual(opened,[alice,bob,alice]);
-  assert.notEqual(nextA.viewToken,firstA.viewToken,'ASR-03 old A control credentials cannot revive');
-  const currentToken=readFileSync(join(f.home,'spaces',alice,'config','web-control-token'),'utf8').trim();assert.equal(currentToken,nextA.viewToken);
-  const oldRead=await fetch(f.origin+'/api/probe',{headers:{Cookie:f.cookie,'x-molis-work-control-token':firstA.viewToken}});assert.equal(oldRead.status,409);
+  assert.notEqual(nextA.viewScope,firstA.viewScope,'ASR-03 old A control credentials cannot revive');
+  const currentToken=readFileSync(join(f.home,'spaces',alice,'config','web-control-token'),'utf8').trim();assert.equal(currentToken,f.control);
+  const oldRead=await fetch(f.origin+'/api/probe',{headers:{Cookie:f.cookie,'x-molis-work-control-token':firstToken}});assert.equal(oldRead.status,409);
   const gateway=(credential:string)=>fetch(f.origin+'/api/internal/action-service',{method:'POST',headers:{Origin:f.origin,'content-type':'application/json','x-molis-work-home-id':createHash('sha256').update(join(f.home,'spaces',alice)).digest('hex'),'x-molis-work-control-token':credential},body:'{}'});
-  assert.equal((await gateway(firstA.viewToken)).status,403,'old gateway connection credentials are refused after A returns');
+  assert.equal((await gateway(firstToken)).status,403,'old gateway connection credentials are refused after A returns');
   assert.equal((await gateway(currentToken)).status,200,'an explicit new connection can read the current credential');
   assert.equal((await(await fetch(f.origin+'/api/personal/status',{headers:{Cookie:oldCookie}})).json()).identity,null,'old A cannot revive when A logs in again');
   assert.equal((await f.logout()).status,200);assert.equal((await f.status()).identity,null);
@@ -62,7 +62,7 @@ test('ASR-02 a new browser can prove current A, cannot replace A with B, and can
  try{
   const a=await f.login('alice'),originalCookie=f.cookie;
   f.setAuthUser('bob');assert.equal((await browser('/api/personal/login',true)).status,200);
-  const unproved=await(await browser('/api/personal/status')).json();assert.equal(unproved.identity,null,'a pending browser login has no account authority');assert.equal(unproved.viewToken,f.rootToken,'the pending browser must never receive A private gateway credential');
+  const unproved=await(await browser('/api/personal/status')).json();assert.equal(unproved.identity,null,'a pending browser login has no account authority');assert.equal(unproved.viewToken,undefined,'the pending browser must never receive any Host control credential');assert.notEqual(unproved.viewScope,a.viewScope);
   assert.equal((await browser('/api/personal/logout',true)).status,401,'an unproved browser cannot sign out installation A');
   assert.equal((await f.status()).identity.userId,'alice','refusing the pending browser logout preserves A');
   assert.equal((await browser('/account/callback?code=bob&state='+f.loginState)).status,400,'B cannot replace installed A through an unauthenticated browser');

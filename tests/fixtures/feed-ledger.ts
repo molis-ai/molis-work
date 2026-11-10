@@ -16,7 +16,7 @@ export function feedLedgerPort(ledger: ContextLedgerApi): FeedLedgerPort {
   const bareOrNull = (edge: ContextEdge | null) => edge === null ? null : bare(edge);
   return {
     get: (projectId, key) => bareOrNull(ledger.query.get(access(projectId), feedLedgerKey(key))),
-    list: (projectId, query) => ledger.query.list(access(projectId), query).filter(edge => edge.key.startsWith(prefix)).map(bare),
+    list: (projectId, query) => ledger.query.list(access(projectId), query?.keys === undefined ? query : { ...query, keys: query.keys.map(feedLedgerKey) }).filter(edge => edge.key.startsWith(prefix)).map(bare),
     put: (projectId, input) => bare(ledger.commands.put(access(projectId), { ...input, key: feedLedgerKey(input.key) })),
     remove: (projectId, key, cause, recordedAt) => bareOrNull(ledger.commands.remove(access(projectId), feedLedgerKey(key), cause, recordedAt)),
   };

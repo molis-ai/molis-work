@@ -1,5 +1,5 @@
 import { installedPackageHost } from "./fixtures/signed-package-host.js";
-import { signedAgentPackage } from "./fixtures/sandbox-package.js";
+import { packageMethod, signedAgentPackage } from "./fixtures/sandbox-package.js";
 import { homeAgentDefinitions, readSandboxPackage } from "@molis-ai/molis-work-app-local-host";
 type PluginInstallPreviewResult = Awaited<ReturnType<PluginInstallService["preview"]>>;
 import assert from "node:assert/strict";
@@ -11,7 +11,10 @@ import { isDeepStrictEqual } from "node:util";
 import test from "node:test";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginInstanceRecord, PluginManifest, PluginPackageBundle } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { ActionService } from "@molis-ai/molis-work-kernel";
+import { localPackageSignAction, type LocalPackageSignResult } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
+import { SKILL_LIMITS } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
+import { ActionService, compileActionSchema } from "@molis-ai/molis-work-kernel";
+import { contentPackageDraft, skillFromFolder } from "@molis-ai/molis-work-plugin-sdk";
 import { MemoryPluginConsentLedger, SqlitePluginRuntimeRepository, type PluginConsentLedger } from "@molis-ai/molis-work-plugin-runtime";
 import { DEMO_PROJECT_ID, HomeConsentLedger, HOST_PLUGIN_IDS, LocalProjectDatabase, MolisWorkLocalHost, PLUGIN_INSTALL_PERMISSIONS, PluginInstallService, SandboxPackageStore, molisWorkHostProjectReference,
   pluginConsentProvider, pluginInstallActions, pluginInstallProvider, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
@@ -34,7 +37,7 @@ const homeRecord = (manifest: PluginManifest): PluginInstanceRecord => ({ instal
   last_error_code: null, installed_at: AT, updated_at: AT, uninstalled_at: null, retain_private_data: false });
 
 /** `withHome`: the Host has a Home, whose installations the confirmation can read (`homeInstalled`); a Home install adds its record there. */
-async function harness(ledger: PluginConsentLedger = new MemoryPluginConsentLedger(), withHome = false) {
+async function harness(ledger: PluginConsentLedger = new MemoryPluginConsentLedger(), withHome = false, beforeInstalled?: () => Promise<void>) {
   const home = await mkdtemp(join(tmpdir(), "molis-work-install-"));
   const installed: Array<{ project: string; plugin: string; trust: unknown }> = [];
   const homeRecords: PluginInstanceRecord[] = [];
@@ -45,7 +48,7 @@ async function harness(ledger: PluginConsentLedger = new MemoryPluginConsentLedg
       installed.push({ project: "~home", plugin: release.pluginId, trust: release.packaged?.trust });
       if (withHome) homeRecords.push(homeRecord(release.packaged!.manifest));
     },
-    installed: async () => projectRecords.map(record => ({ record, manifest: undefined })), control: async () => "disabled",
+    installed: async () => { await beforeInstalled?.(); return projectRecords.map(record => ({ record, manifest: undefined })); }, control: async () => "disabled",
     ...(withHome ? { homeInstalled: async () => homeRecords.map(record => ({ record, manifest: undefined })) } : {}) });
   /** Nothing the install path writes exists: no pinned publisher, no kept package, no installation. */
   const nothingWritten = () => {
@@ -54,6 +57,163 @@ async function harness(ledger: PluginConsentLedger = new MemoryPluginConsentLedg
     assert.deepEqual(installed, [], "nothing was installed");
   };
   return { home, ledger, service, installed, homeRecords, projectRecords, nothingWritten, done: () => rm(home, { recursive: true, force: true }) };
+}
+
+const signRef = { capability_id: localPackageSignAction.capability_id, version: localPackageSignAction.version, provider_id: "plugin-install" };
+const signPerson: ActionCallContext = { ...who, audience: "user", permissions: PLUGIN_INSTALL_PERMISSIONS,
+  user_action: { source: "management", conversation_ref: "local-package", message_ref: "publish" } };
+const localContentId = "io.molis.work.example.local-signed-skills";
+const localDraft = (scope: "home" | "project" = "project", version = "1.0.0") => contentPackageDraft({
+  plugin_id: localContentId, version, name: "Signed Skills", scope,
+  skills: [skillFromFolder(new Map([
+    ["SKILL.md", Buffer.from("---\nname: notes\ndescription: Organize notes.\napplies_to: both\n---\n\nSort the notes.\n")],
+    ["assets/byte.txt", Buffer.from("M")],
+  ]))],
+});
+const identityPath = (home: string) => join(home, "config", "plugin-publisher.json");
+
+test("SPC-15 S-84 the public signing action has closed input and returns only a preview ID", () => {
+  assert.equal(localPackageSignAction.operation, "command");
+  assert.deepEqual(localPackageSignAction.action.audiences, ["user"]);
+  assert.deepEqual(localPackageSignAction.action.permissions, ["plugin-install:write"]);
+  const input = compileActionSchema(localPackageSignAction.action.input_schema), output = compileActionSchema(localPackageSignAction.action.output_schema!);
+  const draft = localDraft();
+  assert.equal(input(draft), true);
+  assert.equal(input({ manifest: draft.manifest }), false);
+  assert.equal(input({ ...draft, actor_id: "somebody" }), false);
+  assert.equal(input({ ...draft, files: [{ ...draft.files[0], bytes: 1 }] }), false);
+  assert.equal(output({ preview_id: "preview" }), true);
+  assert.equal(output({ preview_id: "preview", bundle: {} }), false);
+});
+
+test("SPC-15 S-84 local signing refuses invalid content and unauthorized calls before creating an identity or an installation", async t => {
+  const h = await harness();
+  t.after(h.done);
+  const actions = new ActionService();
+  actions.registerProvider(pluginInstallProvider(h.service, undefined, h.home));
+  const draft = localDraft(), { files, manifest: sandbox } = packageFiles("fixture-publisher");
+  const { publisher: _publisher, ...sandboxManifest } = sandbox;
+  const sandboxFiles = Object.entries(files).map(([path, content]) => ({ path, content_base64: Buffer.from(content!).toString("base64") }));
+  for (const [candidate, code] of [
+    [{ ...draft, manifest: { ...draft.manifest, publisher: sandbox.publisher } }, "plugin.declaration_invalid"],
+    [{ ...draft, files: [...draft.files, { path: "manifest.json", content_base64: "e30=" }] }, "plugin.declaration_invalid"],
+    [{ manifest: sandboxManifest, files: sandboxFiles }, "plugin.declaration_invalid"],
+    [{ ...draft, files: [{ ...draft.files[0]!, path: "../SKILL.md" }, draft.files[1]!] }, "plugin.declaration_invalid"],
+    [{ ...draft, files: draft.files.slice(0, 1) }, "plugin.declaration_invalid"],
+    [{ ...draft, files: [{ ...draft.files[0]!, content_base64: Buffer.alloc(SKILL_LIMITS.fileBytes + 1).toString("base64") }, draft.files[1]!] }, "plugin.declaration_invalid"],
+    [{ ...draft, files: draft.files.map(file => file.path.endsWith("/byte.txt") ? { ...file, content_base64: "TR==" } : file) }, "plugin.package_invalid"],
+  ] as const) await assert.rejects(actions.invoke(signPerson, signRef, candidate), refused(code));
+  for (const audience of ["agent", "mcp", "workflow", "plugin"] as const) {
+    const caller = { ...signPerson, audience };
+    assert.equal((await actions.discover(caller)).some(view => view.capability_id === signRef.capability_id), false);
+    await assert.rejects(actions.invoke(caller, signRef, draft), refused("actions.forbidden"));
+  }
+  await assert.rejects(actions.invoke({ ...signPerson, user_action: undefined }, signRef, draft), refused("actions.forbidden"));
+  await assert.rejects(actions.invoke({ ...signPerson, permissions: ["plugin-install:read"] }, signRef, draft), refused("actions.forbidden"));
+  await assert.rejects(actions.invoke({ ...signPerson, project_id: null }, signRef, localDraft("home")), refused("actions.project_required"));
+  assert.equal(existsSync(identityPath(h.home)), false);
+  assert.equal(existsSync(join(h.home, "feed", "secrets.json")), false);
+  assert.equal(existsSync(join(h.home, "feed", "secrets.key")), false);
+  h.nothingWritten();
+});
+
+test("SPC-15 S-84 the manifest budget includes the final publisher before opening the signing identity", async t => {
+  const h = await harness();
+  t.after(h.done);
+  const actions = new ActionService();
+  actions.registerProvider(pluginInstallProvider(h.service, undefined, h.home));
+  const draft = localDraft();
+  const publisher = { publisher_id: "molis-home", signature: "ed25519:sha256:" + "a".repeat(64) };
+  const wireBytes = Buffer.byteLength(JSON.stringify({ ...draft.manifest, publisher }));
+  const name = String(draft.manifest.name) + "x".repeat(SKILL_LIMITS.fileBytes - wireBytes + 1);
+  await assert.rejects(actions.invoke(signPerson, signRef, { ...draft, manifest: { ...draft.manifest, name } }), refused("plugin.declaration_invalid"));
+  assert.equal(existsSync(identityPath(h.home)), false, "an oversized final manifest never opens the signing identity");
+  assert.equal(existsSync(join(h.home, "feed", "secrets.json")), false);
+  assert.equal(existsSync(join(h.home, "feed", "secrets.key")), false);
+  h.nothingWritten();
+});
+
+test("SPC-15 S-84 S-87 a real Host signs for preview, ordinary confirmation installs and pins, and a revoked Home publisher cannot sign again", async t => {
+  const h = await installedPackageHost();
+  t.after(h.close);
+  const { preview_id, ...rest } = await h.client.invoke(h.person, signRef, localDraft()) as LocalPackageSignResult;
+  assert.deepEqual(rest, {});
+  assert.match(preview_id, /^[0-9a-f-]{36}$/u);
+  assert.equal(existsSync(identityPath(h.home)), true);
+  assert.deepEqual(h.ledger.publishers(), []);
+  assert.equal(existsSync(join(h.home, "plugin-packages")), false);
+  const installed = async () => (await h.client.invoke(h.person, pluginInstallActions.installed, {}) as { plugins: Array<{ plugin_id: string; version: string }> })
+    .plugins.filter(plugin => plugin.plugin_id === localContentId);
+  assert.deepEqual(await installed(), []);
+  const confirmed = await h.client.invoke(h.person, pluginInstallActions.confirm, { preview_id, consent: true, pin_label: "My Home key" }) as
+    { plugin_id: string; version: string; publisher_key_id: string };
+  assert.deepEqual([confirmed.plugin_id, confirmed.version], [localContentId, "1.0.0"]);
+  assert.deepEqual((await installed()).map(plugin => plugin.version), ["1.0.0"]);
+  assert.deepEqual(h.ledger.publishers().map(pin => [pin.key_id, pin.label]), [[confirmed.publisher_key_id, "My Home key"]]);
+  const store = new SandboxPackageStore(h.home);
+  assert.equal(store.load(localContentId, confirmed.publisher_key_id, "1.0.0").packaged?.manifest.publisher.signature, confirmed.publisher_key_id);
+  await assert.rejects(h.client.invoke(h.person, pluginInstallActions.confirm, { preview_id, consent: true }), refused("plugin.preview_unknown"));
+  h.ledger.revokePublisher(confirmed.publisher_key_id, AT);
+  await assert.rejects(h.client.invoke(h.person, signRef, localDraft("project", "2.0.0")), refused("plugin_builder.publisher_revoked"));
+  assert.deepEqual(store.releases(localContentId, confirmed.publisher_key_id).map(pkg => pkg.manifest.version), ["1.0.0"]);
+});
+
+test("SPC-15 S-84 an ordinary held preview is readable only by its owner, stays single-use, and reading does not extend expiry", async t => {
+  const h = await harness(undefined, true);
+  t.after(h.done);
+  let now = Date.now();
+  t.mock.method(Date, "now", () => now);
+  const actions = new ActionService();
+  actions.registerProvider(pluginInstallProvider(h.service, undefined, h.home));
+  const sign = async () => (await actions.invoke(signPerson, signRef, localDraft("home")) as LocalPackageSignResult).preview_id;
+  const previewId = await sign();
+  for (const different of [{ ...who, actor_id: "other" }, { ...who, project_id: "elsewhere" }]) {
+    assert.throws(() => h.service.readPreview(previewId, different), refused("plugin.preview_unknown"));
+  }
+  const view = h.service.readPreview(previewId, who);
+  assert.equal(view.runtime_scope, "home");
+  assert.equal(view.publisher.pinned_label, null);
+  assert.deepEqual(h.service.readPreview(previewId, who), view);
+  await h.service.confirm({ preview_id: previewId, consent: true, pin_label: "My Home key" }, who);
+  assert.throws(() => h.service.readPreview(previewId, who), refused("plugin.preview_unknown"));
+  await assert.rejects(h.service.confirm({ preview_id: previewId, consent: true }, who), refused("plugin.preview_unknown"));
+
+  const expiring = await sign();
+  now += 14 * 60_000;
+  assert.equal(h.service.readPreview(expiring, who).publisher.pinned_label, "My Home key");
+  now += 60_000;
+  assert.throws(() => h.service.readPreview(expiring, who), refused("plugin.preview_unknown"));
+  await assert.rejects(h.service.confirm({ preview_id: expiring, consent: true }, who), refused("plugin.preview_unknown"));
+  assert.equal(h.installed.length, 1);
+});
+
+for (const stage of ["identity", "preview"] as const) for (const denial of ["cancelled", "forbidden"] as const) {
+  test(`SPC-15 S-84 ${denial} at the ${stage} wait leaves no newly held preview or installation`, async t => {
+    const entered = Promise.withResolvers<void>(), resume = Promise.withResolvers<void>();
+    let signing = false, revoked = false;
+    const wait = async () => { entered.resolve(); await resume.promise; };
+    const h = await harness(undefined, false, stage === "preview" ? async () => { if (signing) await wait(); } : undefined);
+    t.after(async () => { resume.resolve(); await h.done(); });
+    const actions = new ActionService(undefined, { beforeEffect: async () => { if (stage === "identity") await wait(); } });
+    actions.registerProvider(pluginInstallProvider(h.service, undefined, h.home));
+    const bundle = signedPackage(newPublisher());
+    const oldest = await h.service.preview({ bundle }, who);
+    for (let index = 1; index < 16; index++) await h.service.preview({ bundle }, who);
+    const controller = new AbortController();
+    signing = true;
+    const pending = actions.invoke({ ...signPerson, signal: controller.signal, assert_authority_current: () => {
+      if (revoked) throw new ActionError("actions.forbidden", "signing grant revoked");
+    } }, signRef, localDraft());
+    const rejected = assert.rejects(pending, refused(`actions.${denial}`));
+    await entered.promise;
+    assert.equal(existsSync(identityPath(h.home)), stage === "preview");
+    if (denial === "cancelled") controller.abort(new ActionError("actions.cancelled", "signing cancelled")); else revoked = true;
+    resume.resolve();
+    await rejected;
+    assert.deepEqual(h.service.readPreview(oldest.preview_id, who), oldest, "a refused call did not evict a held preview");
+    assert.equal(existsSync(identityPath(h.home)), stage === "preview");
+    h.nothingWritten();
+  });
 }
 
 test("RAC-387 S-84 a package with no signature is refused at the preview with plugin.signature_invalid, and nothing is written", async () => {
@@ -439,21 +599,24 @@ test("RAC-382 S-84 confirming in a real Host installs the package under pinned t
 
 test("RAC-2640/2643 S-84 preview exposes each signed body and compares the complete installed text before confirmation", { skip: process.platform !== "darwin", timeout: 90_000 }, async () => {
   const h = await installedPackageHost(), publisher = newPublisher(), prefix = "😀".repeat(200);
-  const base = { version: "1.1.0", roles: [{ name: "共享名称", purpose: "审阅", body: "agent/role.md" }], methods: [{ name: "将被移除", purpose: "核对", body: "agent/method.md" }], bodies: { "agent/role.md": prefix + "旧尾部" } };
+  const base = { version: "1.1.0", roles: [{ name: "共享名称", purpose: "审阅", body: "agent/role.md" }], methods: [packageMethod("removed-method", "将被移除", "核对")], bodies: { "agent/role.md": prefix + "旧尾部" } };
   try {
     const first = signedAgentPackage(publisher, base);
     const peek = await h.client.invoke(h.person, { capability_id: pluginInstallActions.preview.capability_id, version: pluginInstallActions.preview.version }, { bundle: first }) as PluginInstallPreviewResult;
-    assert.deepEqual(peek.agent_bodies?.map(item => [item.kind, item.name]), [["role", "共享名称"], ["method", "将被移除"]]);
+    // SKP-01: roles stay in `agent_bodies`; a method is a Skill and is listed in `skills`, off until the person turns it on.
+    assert.deepEqual(peek.agent_bodies?.map(item => [item.kind, item.name]), [["role", "共享名称"]]);
+    assert.deepEqual(peek.skills?.map(item => [item.skill_id, item.name, item.change, item.state]), [["removed-method", "将被移除", undefined, "off"]]);
     assert.equal(peek.agent_bodies![0]!.excerpt, prefix, "200 code points, without splitting surrogate pairs");
     assert.equal(peek.preview.publisher_signature, publisher.identity); assert.equal(peek.preview.version, "1.1.0");
     assert.deepEqual(await h.plugins(), []); assert.deepEqual(h.ledger.publishers(), []);
     await assert.rejects(h.client.invoke(h.person, { capability_id: pluginInstallActions.preview.capability_id, version: 3 }, { bundle: first }));
     await assert.rejects(h.client.invoke(h.person, { capability_id: pluginInstallActions.preview.capability_id, version: 4 }, { bundle: first }));
     await h.install(first);
-    const next = signedAgentPackage(publisher, { ...base, version: "1.2.0", compatibleFrom: ["1.1.0"], methods: [{ name: "新增方法", purpose: "整理", body: "agent/new.md" }], bodies: { "agent/role.md": prefix + "新尾部", "agent/new.md": "<script>仅为文本</script>" } });
+    const next = signedAgentPackage(publisher, { ...base, version: "1.2.0", compatibleFrom: ["1.1.0"], methods: [packageMethod("new-method", "新增方法", "整理")], bodies: { "agent/role.md": prefix + "新尾部", "skills/new-method/SKILL.md": "<script>仅为文本</script>" } });
     const preview = await h.client.invoke(h.person, { capability_id: pluginInstallActions.preview.capability_id, version: pluginInstallActions.preview.version }, { bundle: next }) as PluginInstallPreviewResult;
     // RAC-2643: a changed tail beyond the displayed 200 code points still changes the upgrade preview.
-    assert.deepEqual(preview.agent_bodies?.map(item => [item.kind, item.name, item.change]), [["role", "共享名称", "changed"], ["method", "新增方法", "added"], ["method", "将被移除", "removed"]]);
+    assert.deepEqual(preview.agent_bodies?.map(item => [item.kind, item.name, item.change]), [["role", "共享名称", "changed"]]);
+    assert.deepEqual(preview.skills?.map(item => [item.skill_id, item.name, item.change, item.excerpt]), [["new-method", "新增方法", "added", "<script>仅为文本</script>"], ["removed-method", "将被移除", "removed", "逐条核对可验证的事实。"]]);
     assert.equal(preview.agent_bodies![0]!.excerpt, prefix, "same excerpt still reports the full-body change");
     assert.equal((await h.plugins())[0]!.version, "1.1.0", "preview keeps the installed version");
     assert.equal(homeAgentDefinitions(h.home).methods().find(item => item.kind === "role" && item.owner_id === PACKAGE_PLUGIN_ID)!.default_ref!.source.plugin_version, "1.1.0");
@@ -466,4 +629,28 @@ test("RAC-2640/2643 S-84 preview exposes each signed body and compares the compl
     assert.equal(current.default_ref!.source.plugin_version, "1.2.0");
     assert.equal(homeAgentDefinitions(h.home).signedMaterial(current.install_id!, current.default_ref!).body, prefix + "新尾部");
   } finally { await h.close(); }
+});
+
+// D0246/D0247: signed text comparison is independent of OS process isolation.
+test("D0246 D0247 S-84 complete signed bodies and changed tails are reviewed on every platform", async () => {
+  const h = await harness(), publisher = newPublisher(), prefix = "😀".repeat(200);
+  const base = { version: "1.1.0", roles: [{ name: "共享名称", purpose: "审阅", body: "agent/role.md" }], bodies: { "agent/role.md": prefix + "旧尾部" } };
+  try {
+    const first = signedAgentPackage(publisher, base);
+    const initial = await h.service.preview({ bundle: first }, who);
+    const body = initial.agent_bodies![0]!;
+    assert.equal(body.excerpt, prefix); assert.equal(body.truncated, true);
+    assert.equal(body.total_chars, 203); assert.equal(body.body, prefix + "旧尾部");
+    assert.equal(await confirmIn(h.service)(first), "installed");
+    h.projectRecords.push(homeRecord(readSandboxPackage(first.payload).manifest));
+    const next = signedAgentPackage(publisher, { ...base, version: "1.2.0", compatibleFrom: ["1.1.0"], bodies: { "agent/role.md": prefix + "新尾部" } });
+    const preview = await h.service.preview({ bundle: next }, who);
+    assert.equal(preview.agent_bodies![0]!.excerpt, prefix);
+    assert.equal(preview.agent_bodies![0]!.change, "changed");
+    assert.equal(preview.agent_bodies![0]!.body, prefix + "新尾部");
+    assert.equal(h.projectRecords[0]!.version, "1.1.0", "preview does not install");
+    const actions = new ActionService(); actions.registerProvider(pluginInstallProvider(h.service));
+    const person: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: who.project_id, permissions: PLUGIN_INSTALL_PERMISSIONS, user_action: { source: "management", conversation_ref: "cli:review", message_ref: "review" } };
+    for (const version of [3, 4]) await assert.rejects(actions.invoke(person, { capability_id: pluginInstallActions.preview.capability_id, version }, { bundle: next }));
+  } finally { await h.done(); }
 });

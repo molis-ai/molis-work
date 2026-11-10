@@ -180,8 +180,8 @@ export interface DomEventDeclaration {
 }
 
 /**
- * Every page event, in name order: 48 names at the time of listing, 47 of them created with `new CustomEvent` (90 dispatch
- * sites) and one, `molis:side-toggle`, only listened to so far. Who dispatches and who listens is not written down here:
+ * Every page event, in name order: 63 names at the time of listing, 159 dispatch sites and 147 listener sites on a page
+ * prefix; one, `molis:side-toggle`, is only listened to so far. Who dispatches and who listens is not written down here:
  * `node scripts/gates/dom-events.mjs --report` computes both from the source, so it cannot go stale.
  */
 export const DOM_EVENTS = [
@@ -304,6 +304,11 @@ export const DOM_EVENTS = [
     name: "molis-work:plugins-changed", kind: "announcement", owner: "plugin-membership", on: "document",
     detail: "{ came, gone, next, failed }; a listener sets failed to true when it could not bring its page in line",
     summary: "The project's plugins changed in place; plugins whose pages fill when the project has them fill them from next.",
+  },
+  {
+    name: "molis-work:record-gone", kind: "request", owner: "tab-workspace", on: "document",
+    detail: "{ plugin, itemId }",
+    summary: "A record a tab opens is no longer there: strike its tab through and say so in its pane, with a way to close it. Sent by a plugin's page when its read of the record answers 404 (Goals' document read first).",
   },
   {
     name: "molis-work:return-claim", kind: "request", owner: "settings-return", on: "document",
@@ -442,11 +447,6 @@ export const DOM_EVENTS = [
     name: "molis:side-browser-control", kind: "announcement", owner: "side-panel", on: "document",
     detail: "{ action: takeover | handback, project_id, session_id }",
     summary: "The person took the side panel's browser over from a Work, or handed it back; the Assistant tells the Work.",
-  },
-  {
-    name: "molis:side-close", kind: "request", owner: "side-panel", on: "document",
-    detail: "none",
-    summary: "Close the side panel.",
   },
   {
     name: "molis:side-context-command", kind: "announcement", owner: "side-panel", on: "document",

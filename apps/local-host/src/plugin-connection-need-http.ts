@@ -96,12 +96,14 @@ async function bound(home: string, client: BoundActionClient, target: Resolved):
 
 /** An account the person may put on a slot here: this service's, connected now, and not made for another installation's package (T-134). */
 function assertUsable(home: string, target: Resolved & { kind: "slot" }, connectionId: string): void {
-  withConnectorConnections(home, store => {
+  const usable = withConnectorConnections(home, store => {
     const connection = store.get(connectionId);
     if (!connection || connection.service_id !== target.slot.service_id || pinnedToAnother(store, connectionId, target.install_id)
       || shownState(home, connection, store.state(connection), lastConnectorCheck(store, connectionId)) !== "connected")
-      throw connectionNeedErrors.account_unusable("这个账号现在不能用在这里");
-  });
+      return false;
+    return true;
+  }, true);
+  if (!usable) throw connectionNeedErrors.account_unusable("这个账号现在不能用在这里");
 }
 
 async function slotBind(client: BoundActionClient, target: Resolved & { kind: "slot" }, connection_id: string) {
@@ -128,7 +130,7 @@ async function prepare(home: string, client: BoundActionClient, target: Resolved
   const service_id = target.slot.service_id;
   const input = connectionId !== undefined
     ? withConnectorConnections(home, store => { const previous = store.require(connectionId, service_id);
-      return { service_id, method: previous.auth_method, display_name: previous.display_name, connection_id: connectionId, expected_revision: previous.updated_at }; })
+      return { service_id, method: previous.auth_method, display_name: previous.display_name, connection_id: connectionId, expected_revision: previous.updated_at }; }, "required")
     : await (async () => {
       const entry = (await listConnectorSettingsCards(home)).find(row => row.connector_id === service_id);
       const options = entry?.method_options ?? [], method = options.find(row => row.kind === "oauth" && row.support === "in_app") ?? options.find(row => ["in_app", "paste"].includes(row.support));
@@ -160,7 +162,7 @@ async function saveImageKey(home: string, target: Resolved & { kind: "image" }, 
 async function respond(home: string, client: BoundActionClient, target: Resolved, extra: Record<string, unknown> = {}) {
   const connection = await bound(home, client, target), service_id = target.kind === "slot" ? target.slot.service_id : "image-api";
   const title = target.kind === "slot" ? (await listConnectorSettingsCards(home)).find(row => row.connector_id === service_id)?.title ?? service_id : "图像模型";
-  const disabled = connection && withConnectorConnections(home, store => store.get(connection.connection_id)?.enabled === false);
+  const disabled = connection && withConnectorConnections(home, store => store.get(connection.connection_id)?.enabled === false, true);
   return { service_id, service_title: title, ...(target.kind === "slot" && target.slot.reason ? { reason: [...target.slot.reason].slice(0, UI_CONNECTION_NEED_REASON_MAX).join("") } : {}),
     ...(target.kind === "image" ? { origin: target.origin } : {}), connection: connectionChoice(connection), ...(disabled ? { disabled: true } : {}), ...extra };
 }
@@ -210,7 +212,7 @@ export async function pageConnectionNeed(context: WebRequestContext, reference: 
     }
     case "enable": {
       if (!current) throw connectionNeedErrors.nothing_bound("这里还没有接着账号");
-      const { connection_id } = current, record = withConnectorConnections(home, store => store.require(connection_id));
+      const { connection_id } = current, record = withConnectorConnections(home, store => store.require(connection_id), "required");
       if (record.enabled) return respond(home, client, target);
       await page.beforeEffect();
       await client.invoke(connectorManagementActions.control, { connection_id: record.connection_id, expected_revision: record.updated_at, action: "enable" });

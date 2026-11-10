@@ -39,6 +39,8 @@ export const hostErrors = defineErrorCodes("host", {
   builder_unavailable: "unavailable",
   /** The project connection catalog was not composed; nothing can be refreshed through it (BL-221). */
   project_connection_unavailable: "unavailable",
+  /** The project selection is committed; a related Runtime switch still needs reconciliation. */
+  project_plugins_refresh_failed: "unavailable",
   /** The Agent runtime was never started, so its write checkers cannot be read (BL-221). */
   agent_runtime_unavailable: "unavailable",
   /** The runtime's inference client was not composed (BL-221). */

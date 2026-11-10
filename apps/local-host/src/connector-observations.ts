@@ -1,11 +1,15 @@
+import { openExistingBaselineHomeSqlite } from "@molis-ai/molis-work-storage";
 import { ConnectorObservationStore, type ConnectorCheckObservation } from "@molis-ai/molis-work-service-connector-host";
-import { openConnectorsStore } from "./connectors-store.js";
+import { openConnectorsStore, CONNECTORS_BASELINE, CONNECTORS_HOME_STORE } from "./connectors-store.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { afterPassedCheck } from "./connector-failure-runs.js";
 import { settleConnectionNotices } from "./assistant/assistant-connection-notices.js";
 
-export function withConnectorObservations<T>(home: string, operation: (store: ConnectorObservationStore) => T): T {
-  const db = openConnectorsStore(home);
+export function withConnectorObservations<T>(home: string, operation: (store: ConnectorObservationStore) => T): T;
+export function withConnectorObservations<T>(home: string, operation: (store: ConnectorObservationStore) => T, existingOnly: true): T | undefined;
+export function withConnectorObservations<T>(home: string, operation: (store: ConnectorObservationStore) => T, existingOnly = false): T | undefined {
+  const db = existingOnly ? openExistingBaselineHomeSqlite(home, CONNECTORS_HOME_STORE.path, CONNECTORS_BASELINE) : openConnectorsStore(home);
+  if (!db) return undefined;
   try { return operation(new ConnectorObservationStore(db)); } finally { db.close(); }
 }
 
@@ -21,7 +25,7 @@ export const REFRESH_REFUSED = "connector.refresh_refused";
  * the tool listing an MCP call makes before it (`listedBeforeCall`) ends only `reauth` (ASC-58 §13.2 ⑫).
  */
 export function rememberConnectorCheck(home: string, id: string, value: ConnectorCheckObservation, options: { clearsRefreshRefusal?: boolean; listedBeforeCall?: boolean } = {}): boolean {
-  const current = withConnectorConnections(home, store => store.get(id));
+  const current = withConnectorConnections(home, store => store.get(id), true);
   if (!current?.enabled || current.disconnected_at || current.updated_at !== value.revision) return false;
   const ended = withConnectorObservations(home, store => {
     const { check: last, call } = store.read(id);
@@ -43,6 +47,6 @@ export function rememberConnectorCheck(home: string, id: string, value: Connecto
  * without sending another request.
  */
 export function rememberVerifiedAccount(home: string, id: string, account: { login: string; account_id?: string }): void {
-  const row = withConnectorConnections(home, store => store.get(id));
+  const row = withConnectorConnections(home, store => store.get(id), true);
   if (row) rememberConnectorCheck(home, id, { at: new Date().toISOString(), revision: row.updated_at, outcome: "connected", authorization: "verified", account });
 }

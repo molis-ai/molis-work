@@ -15,10 +15,10 @@ html body.immersive-workbench [data-assistant-island][data-assistant-stage] .ass
 html body.immersive-workbench [data-assistant-island][data-assistant-stage] .assistant-tabbar{justify-content:flex-end;flex:none;min-height:44px;padding:4px 12px;background:var(--paper);box-shadow:inset 0 -1px var(--line)}
 html body.immersive-workbench [data-assistant-island][data-assistant-stage] :is(.assistant-tabs,.assistant-tab-new,[data-assistant-panel-close]){display:none}
 html body.immersive-workbench [data-assistant-stage] .assistant-stage-footer{position:relative;flex:none;min-width:0}
-html body.immersive-workbench [data-assistant-island][data-assistant-stage] .assistant-composer{flex:none;width:calc(100% - 40px);max-width:800px;min-height:56px;margin:12px auto 20px}
+html body.immersive-workbench [data-assistant-island][data-assistant-stage] .assistant-composer{flex:none;width:calc(100% - 40px);max-width:800px;margin:12px auto 20px}
 html body.immersive-workbench [data-assistant-island][data-assistant-stage] :is(.assistant-context-strip,.assistant-next-row){flex:none;position:static;width:calc(100% - 40px);max-width:800px;margin:8px auto -4px}
 html body.immersive-workbench [data-assistant-island][data-assistant-stage] .assistant-thread{scrollbar-gutter:stable;padding:24px max(20px,calc((100% - 800px)/2));font-size:15px;line-height:1.7}
-html body.immersive-workbench [data-assistant-island][data-assistant-stage] .assistant-composer-input{font-size:15px}
+html body.immersive-workbench [data-assistant-island][data-assistant-stage] .mw-composer__input:not(#mw-composer){font-size:15px}
 html body.immersive-workbench [data-assistant-island][data-assistant-stage] .assistant-tabbar-actions{gap:8px}
 html body.immersive-workbench [data-assistant-island][data-assistant-stage] .assistant-tabbar [data-assistant-retract]{display:inline-flex;width:auto;gap:6px}
 html body.immersive-workbench [data-assistant-island][data-assistant-stage] .assistant-tabbar [hidden]{display:none}
@@ -27,6 +27,6 @@ html body.immersive-workbench [data-assistant-island][data-assistant-stage] .ass
 html body.immersive-workbench [data-assistant-island][data-assistant-stage] :is(.assistant-block-head,.assistant-usage>summary){padding-top:0;box-shadow:none}
 html body.immersive-workbench .assistant-stage-launcher{min-width:120px;margin:auto}
 html body.immersive-workbench .assistant-stage-launcher[hidden]{display:none}
-@media(max-width:760px){html body.immersive-workbench [data-assistant-island][data-assistant-stage] .assistant-composer{width:calc(100% - 24px);margin:8px auto 12px}html body.immersive-workbench [data-assistant-island][data-assistant-stage] .assistant-thread{padding:16px}html body.immersive-workbench [data-assistant-island][data-assistant-stage] .assistant-composer-input{font-size:16px}}
+@media(max-width:760px){html body.immersive-workbench [data-assistant-island][data-assistant-stage] .assistant-composer{width:calc(100% - 24px);margin:8px auto 12px}html body.immersive-workbench [data-assistant-island][data-assistant-stage] .assistant-thread{padding:16px}html body.immersive-workbench [data-assistant-island][data-assistant-stage] .mw-composer__input:not(#mw-composer){font-size:16px}}
 @media(max-width:420px){html body.immersive-workbench [data-assistant-island]:not([data-assistant-stage]) .assistant-tabbar{height:auto;flex-wrap:wrap}html body.immersive-workbench [data-assistant-island]:not([data-assistant-stage]) .assistant-tabs{flex:1 1 calc(100% - 44px)}html body.immersive-workbench [data-assistant-island]:not([data-assistant-stage]) .assistant-tabbar-actions{flex:0 0 100%;justify-content:flex-end}html body.immersive-workbench [data-assistant-island]:not([data-assistant-stage]) .assistant-works{top:94px}}
 `;

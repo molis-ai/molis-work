@@ -1,3 +1,4 @@
+import { setContentHtml } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { el, errorMessage, part } from "./dom.js";
 import type { Child } from "./subagents.js";
 import type { PagePorts, ShowReviews, TimelineApi, Translate } from "./types.js";
@@ -115,7 +116,7 @@ function drawResult(L: Translate, node: HTMLElement, child: Child) {
   const body = part(result, ".coding-turn"), html = child.result_html || "";
   if (body.dataset.source !== child.result) {
     body.dataset.source = child.result;
-    if (html) body.innerHTML = html;
+    if (html) setContentHtml(body, html);
     else body.textContent = child.result;
   }
   const preview = child.result.replace(/[#*`>|-]+/g, " ").replace(/\s+/g, " ").trim();

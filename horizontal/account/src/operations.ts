@@ -3,6 +3,7 @@ import schemas from "./upstream/schemas.json" with { type: "json" };
 import { validateNamed, validateWithDocument, type Schema } from "./upstream/validate.js";
 import { accountErrors } from "./errors.js";
 import type { AccountEnvironmentConfig, AccountOperationInput } from "@molis-ai/molis-work-contracts/services/account";
+import { isRecord } from "@molis-ai/molis-work-plugin-sdk";
 
 interface Parameter { readonly name: string; readonly in: string; readonly required?: boolean; readonly schema: Schema }
 interface Media { readonly content: { readonly "application/json": { readonly schema: { readonly $ref: string } } } }
@@ -36,7 +37,7 @@ function validParameter(schema: Schema, value: unknown): boolean {
   if (typeof schema.$ref === "string") return validateNamed(schema.$ref.split("/").at(-1)!, value);
   return validateWithDocument({ ...schemas, $defs: { ...schemas.$defs, ParameterInput: schema } }, "ParameterInput", value);
 }
-export function isRecord(value: unknown): value is Record<string, unknown> { return value !== null && typeof value === "object" && !Array.isArray(value); }
+export { isRecord };
 
 /** Every URL segment/query/header comes from a fixed contract declaration. */
 export function prepareOperation(config: AccountEnvironmentConfig, operation: AccountOperation, input: AccountOperationInput) {

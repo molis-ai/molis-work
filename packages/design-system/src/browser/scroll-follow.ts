@@ -42,7 +42,8 @@ function molisFollow(scroller: HTMLElement, options: { onChange?: (state: State)
   scroller.addEventListener("touchmove", input, passive);
   // A press on the scroller itself is its scrollbar: the drag is the person's for as long as it lasts.
   scroller.addEventListener("pointerdown", (event) => { if (event.target === scroller) { holding = true; input(); } }, { signal });
-  addEventListener("pointerup", () => { holding = false; }, { capture: true, signal });
+  const releaseHold = () => { holding = false; };
+  for (const event of ["pointerup", "pointercancel", "lostpointercapture", "blur"]) addEventListener(event, releaseHold, { capture: true, signal });
   scroller.addEventListener("keydown", (event) => {
     if (["PageUp", "ArrowUp", "Home"].includes(event.key) || (event.key === " " && event.shiftKey)) leave();
     else if (["PageDown", "ArrowDown", "End", " "].includes(event.key)) input();

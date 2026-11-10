@@ -101,7 +101,7 @@ Text Stats 原来的 12 个文件是：上表的 `scripts/workspace-packages.mjs
 | 形状 | 例子 | 现在 | 文件 |
 | --- | --- | --- | --- |
 | token 型目录连接器 | Linear、Slack、Jira 等 | 1（另可选 1 个图标） | `plugins/official-integrations/catalog/src/catalog.ts` 加一条 `spec(...)`；每个连接器的 Manifest 带自己的 `connection_services` 与 `integrations`，服务连接目录由已装插件的声明汇成（`apps/local-host/src/connector-directory.ts`、`integration-registry.ts`）；图标在 `apps/workbench/src/connector-icons.ts`，缺图标时 `connectorIconSvg` 返回 `undefined`，界面不报错 |
-| 公开来源型 | RSS、YouTube | 5–7 | 3 处包登记（`scripts/workspace-packages.mjs`、`package.json`、`apps/local-host/package.json`，RSS 另有 `apps/workbench/package.json`）+ `apps/local-host/src/source-pull-runtime.ts`、`feed-source-service.ts`（RSS 还有 `apps/workbench/src/feed-projection-ui.ts`） |
+| 公开来源型 | RSS、YouTube | 5–7 | 3 处包登记（`scripts/workspace-packages.mjs`、`package.json`、`apps/local-host/package.json`，RSS 另有 `apps/workbench/package.json`）+ `apps/local-host/src/source-pull-runtime.ts`、`feed-source-service.ts`（RSS 的 Feed 页面随 #1725 迁回 Feed 插件，工作台不再有 `feed-projection-ui.ts`） |
 | 自带 OAuth 或专属协议型 | GitHub、Gmail | 11 | 包登记 3（`scripts/workspace-packages.mjs`、`package.json`、`apps/local-host/package.json`）；宿主新文件 2（`<id>-connector.ts`、`<id>-oauth.ts`）；宿主分支 4（`builtin-integrations.ts` 的内置清单，它同时给每种内置集成接自己种类的提供方、`web-connectors-settings.ts`、`feed-connector-sync.ts`、`connector-account-actions.ts`）；`packages/contracts/src/services/connector-host.ts` 的 `ConnectorAuthKind`；`scripts/check-package-boundaries.mjs` 里按服务列出的禁用主机 |
 
 **目标：1。** 集成包声明鉴权方法，平台通用流程执行；回调与连接库仍归平台，不要求每个 provider 新写授权执行代码。按两类样本结算：
@@ -199,9 +199,9 @@ Text Stats 原来的 12 个文件是：上表的 `scripts/workspace-packages.mjs
 | 种类 | 现在 | 位置 | 目标 |
 | --- | --- | --- | --- |
 | Agent Host 里自写适配器 | 3 | `horizontal/agent-host/src/adapters/<名>.ts`（实现 `AgentRuntimeAdapter`，`packages/contracts/src/services/agent-host.ts`）、`horizontal/agent-host/src/index.ts` 导出、`agent-host-composition.ts` 注册 | 3 |
-| 外部 Runtime（Codex、Claude Code、OpenCode 这类，经 MCP 和 Skill 接入 Molis Work） | 接入 5；接入加角色导入 12–15 | 以 `pi-agent` 为例（5）：`packages/contracts/src/platform/installation-detection.ts`（`SUPPORTED_RUNTIME_IDS`）、`apps/local-host/src/installer/runtime-config-adapters.ts`、`apps/local-host/src/plugin-terminal-runtimes.ts`（终端配方：命令名与续接参数，T-148 起只此一份）、`apps/desktop/src/web-host.ts`、`apps/workbench/src/terminal/pane.ts`；`grok-build` 还点名 Characters 导入（12 个文件），`opencode` 再加 Characters 的原生执行（`apps/local-host/src/character-native-execution.ts`）和 Shelf（`modules/shelf/src/runtimes.ts`、`plugins/native/shelf/src/local-tools.ts`）（15 个文件，分布在 7 个包） | 2 |
+| 外部 Runtime（Codex、Claude Code、OpenCode 这类，经 MCP 和 Skill 接入 Molis Work） | 接入 2；接入加角色导入 3–6 | 以 `pi-agent` 为例（2）：`packages/contracts/src/platform/external-tools.ts`（登记表一行：id、显示名、命令名、恢复参数、配置根目录，三份名单由它派生）、`apps/local-host/src/installer/runtime-config-adapters.ts`；`grok-build` 还有 Characters 的扫描（`apps/local-host/src/character-import-runtimes.ts`，3 个文件），`opencode` 再加 Characters 的原生执行（`apps/local-host/src/character-native-execution.ts`）和 Shelf（`modules/shelf/src/runtimes.ts`、`plugins/native/shelf/src/local-tools.ts`）（6 个文件，分布在 4 个包） | 2 |
 
-外部 Runtime 的目标是一张 Runtime 描述表（id、可执行名、配置与 Skill 路径、恢复参数、导入根、显示名），各处读它。无切片，建议新增（X-4）。`horizontal/agent-host/README.md` 没有写怎么加适配器，这一节补上。
+外部 Runtime 的描述表就是外部工具登记表（BL-955）：id、可执行名、恢复参数、导入根、显示名都在一行里，各处读它；`runtime-config-adapters.ts` 的配置与 Skill 路径是行为，留在宿主，Shelf 的引擎名单是另一套键，留作 BL-955 的余项。`horizontal/agent-host/README.md` 没有写怎么加适配器，这一节补上。
 
 ### 3.13 界面插槽
 
@@ -218,6 +218,8 @@ Text Stats 原来的 12 个文件是：上表的 `scripts/workspace-packages.mjs
 **用户 2026-10-08 的决定（#16，`specs/archive/repository-anti-corruption/spec.md` §1「界面翻译」，PR #312；用户没有选推荐的「中文作键」）：全部换成稳定键。** 约 164 个源文件改用稳定键（spec 该行给的数字），词典按所有者分，CI 查缺失、无用与冲突；第 5 波的「翻译按主人分」改成「稳定键」，并先做一个插件样板（W5-03）。换完以后键不再是中文原文，所以中文也要有自己的词典，加语言的做法随之变成：语言清单加一项，每个词典所有者各交一份该语言的词典；上面「怎么加」里 `catalogJson`、`pluginWordsJson`、`pluginTabTitles` 和服务端 `L` 里按 `"en"` 取英文词典的判断因此要改成按词典查。「怎么加」和「现在」写的是换成稳定键之前的做法和数字。
 
 **目标：1 + 每个词典所有者各交一份。** 语言清单声明一处，词典按所有者注册、键是稳定键（W5-03 把插件词典从 `en.ts` 的 import 里拆出，W1-08 加缺失检查）。翻译内容是内容工作，不计改动处。加语言的清单项（字面量联合和开关）W5-03 不一定覆盖，要在那一片里明确。
+
+**第 14 批（字体皮肤语言 A 段）之后：** 每个主人一张词表的新路已有（[文字与外观](../../skills/molis-plugin-dev/text-and-appearance.md)），但还没接到页面的语言选择上，今天只在 `molis-work plugin dev` 跑的插件和组件板上用。走新路的插件加一种语言是 2 处：一个 `locales/<语言>.json`，Manifest 的 `ui.locales.available` 加一个词；平台主人（今天只有工作台，`apps/workbench/resources/locales/`）今天至少 3 处：语言目录里一个文件、`apps/workbench/src/i18n.ts` 的 `WEB_LOCALES`、`tests/ui-resources.test.ts` 钉住的语言名单；加一个平台主人另有几处，都见 [A 段设计稿](../../specs/font-and-skin-system/a-section-contract.md#14-日常改动各动几处)第 1.4 节。页面能选哪种语言仍由 `WEB_LOCALES` 和上面「现在」点名的位置决定，工作台、宿主和内置插件也还在旧词典上，所以上面的数字不变；第 16 批换完，才到「目标」那一行。
 
 ### 3.15 操作系统平台
 
@@ -300,7 +302,7 @@ Text Stats 原来的 12 个文件是：上表的 `scripts/workspace-packages.mjs
 | X-1 | 应用的 `package.json` 依赖和根包依赖由 `scripts/workspace-packages.mjs` 生成并带一致性检查；新建包只登记一处。路线图普查（`roadmap-2026-10-07.md` 第 607 行）已列入声明式注册要生成的东西，W5-02 的切片描述没有写，需要补进去 | 内置插件的包登记从 4 处降到 1 处，Module、服务从 3 处降到 1 处 | F1、F4、F5、3.1、3.10、3.11 |
 | X-2 | 宿主自有设置分区登记表 | 3.6 的 9 处降到 2 处 | F4 |
 | X-3 | 记忆作用域登记（并入 W4-08 的边界规则） | 3.9 的 10 处降到 3 处 | — |
-| X-4 | 外部 Runtime 描述表 | 3.12 的 6–15 处降到 2 处 | — |
+| X-4 | 外部 Runtime 描述表 | 3.12 的 6–15 处已降到 2–6 处（BL-955，余项是 Shelf） | — |
 | X-5 | 项目库基线由各 owner 包声明的 SQL 汇总，版本由声明推出 | `project-database-schema.ts` 不再逐个 import；Module 和插件加表不碰宿主 | F2、F4 |
 | X-6 | 插件按 Manifest 声明订阅、发布者不是运行中插件的事件（10-22 ① 定）。两种来源：宿主事件（宿主自己发，定向投给一个安装，或广播给持有类型表登记权限的安装；`host.review.settled@1`（定向）与 `host.workspace.changed@1`（广播，`workspace:read`）已做，S-54）；领域事件（构建期插件与 Module 写进项目库事件流的事件，按声明订阅，未做，沿用宿主事件的声明与接收写法） | 构建期插件发的事件也能触发规则；宿主不再为某个插件手写结算回调（PG-044） | F5 |
 | X-7 | 入口调用者解析集中：Web、MCP 入口和宿主各处不再直接写 `LOCAL_PERSON_ACTOR_ID`，入口只调一个解析函数（与 W2-07「5 个 MCP 连接工具的身份取自可信会话」同方向，但只覆盖 MCP 的一部分） | F4 的身份常量 33 处降到 1 处 | F4 |

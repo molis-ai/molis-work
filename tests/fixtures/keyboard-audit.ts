@@ -1,3 +1,4 @@
+import { KEYBOARD_GROUP_ITEMS, KEYBOARD_GROUP_SELECTOR } from "@molis-ai/molis-work-design-system";
 /**
  * The keyboard audit (specs/visual-ui-experience §adaptive-focus, VUX-28), run against a page with real key presses.
  * `KEYBOARD_GROUPS` tags each shown semantic group (tablist, radiogroup, toolbar, menu, menubar, listbox whose options take
@@ -7,14 +8,13 @@
 export const KEYBOARD_GROUPS = `(() => {
   const shown = (el) => { const box = el.getBoundingClientRect(); if (!box.width || !box.height) return false;
     const style = getComputedStyle(el); return style.visibility !== 'hidden' && !el.closest('[hidden], [inert], [aria-hidden=true]'); };
-  const items = { tablist: '[role=tab]', radiogroup: '[role=radio]', menu: '[role^=menuitem]', menubar: '[role^=menuitem]', listbox: '[role=option]',
-    toolbar: 'button, [role=button], a[href], input, select, [tabindex]' };
+  const items = ${JSON.stringify(KEYBOARD_GROUP_ITEMS)};
   const groups = [];
   document.querySelectorAll('[data-kbd-audit]').forEach(el => el.removeAttribute('data-kbd-audit'));
-  for (const el of document.querySelectorAll(Object.keys(items).map(role => '[role=' + role + ']').join(','))) {
+  for (const el of document.querySelectorAll(${JSON.stringify(KEYBOARD_GROUP_SELECTOR)})) {
     if (!shown(el)) continue;
     const role = el.getAttribute('role');
-    const own = [...el.querySelectorAll(items[role])].filter(item => item.closest('[role=' + role + ']') === el && shown(item) && !item.matches(':disabled, [aria-disabled=true]'));
+    const own = [...el.querySelectorAll(items[role])].filter(item => item.closest(${JSON.stringify(KEYBOARD_GROUP_SELECTOR)}) === el && shown(item) && !item.matches(':disabled, [aria-disabled=true]'));
     if (role === 'listbox' && (el.hasAttribute('aria-activedescendant') || document.querySelector('[aria-controls="' + el.id + '"][aria-activedescendant]') || !own.some(item => item.tabIndex >= -1 && item.matches('[tabindex], button, a[href]')))) continue;
     if (own.length < 2) continue;
     const index = groups.length; el.dataset.kbdAudit = String(index); el.parentElement?.setAttribute('data-kbd-audit-parent', String(index));
@@ -30,7 +30,7 @@ export const KEYBOARD_GROUPS = `(() => {
 export const KEYBOARD_FOCUS = `(() => { const el = document.activeElement;
   const items = { tablist: '[role=tab]', radiogroup: '[role=radio]', menu: '[role^=menuitem]', menubar: '[role^=menuitem]', listbox: '[role=option]',
     toolbar: 'button, [role=button], a[href], input, select, [tabindex]' };
-  const group = el?.closest(Object.keys(items).map(role => '[role=' + role + ']').join(','));
+  const group = el?.closest(${JSON.stringify(KEYBOARD_GROUP_SELECTOR)});
   let at = el ? el.tagName.toLowerCase() + (el.id ? '#' + el.id : '') : 'none';
   if (group) { const role = group.getAttribute('role');
     const own = [...group.querySelectorAll(items[role])].filter(item => item.closest('[role=' + role + ']') === group && item.getClientRects().length && !item.matches(':disabled, [aria-disabled=true]'));

@@ -58,7 +58,7 @@ export class GoalTreeSubmissionApplication implements Pick<GoalTreeApplicationAp
       const currentCursor = this.ports.governance.query.eventCursor(input.project_id);
       const baseEventCursor = input.base_event_cursor ?? currentCursor;
       if (!Number.isInteger(baseEventCursor) || baseEventCursor < 0 || baseEventCursor > currentCursor) {
-        throw treeErrors["goals.goal_tree_proposal.base_cursor_invalid"]("Goal Tree 提案的 base_event_cursor 必须是当前 Board 已观察到的事件游标");
+        throw treeErrors["goals.goal_tree_proposal.base_cursor_invalid"]("Goal Tree 提案的 base_event_cursor 必须是当前目标资料库已观察到的事件游标");
       }
 
       let previous: GoalTreeProposalRecord | null = null;

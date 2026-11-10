@@ -3,7 +3,6 @@ import type { UiContribution, UiRenderRequest } from "@molis-ai/molis-work-contr
 import type { WebProjectNavigation } from "./settings-navigation.js";
 import type { UnavailablePluginStage } from "./unavailable-plugin-stage.js";
 import type { PluginDirectory } from "./plugin-directory.js";
-import type { HomePluginNavigationEntry } from "./home-plugin-navigation.js";
 export interface MolisWorkWebView {
   /** Matched Manifest owner and its successful presentation; scoped to this one page request. */
   page_owner?: string;
@@ -19,6 +18,8 @@ export interface MolisWorkWebView {
   hidden_plugins?: import("@molis-ai/molis-work-contracts/modules/projects").ProjectPluginId[];
   /** The plugins the page shows (enabled ones, and personal ones the project did not hide), as the Host works it out (W5-02 B1). */
   shown_plugins?: readonly string[];
+  /** The Catalog observation used to draw the project's plugin picker. */
+  project_plugin_revision?: string;
   /**
    * Directory panels supplied by Plugins the Host is running, keyed by project
    * plugin id. Absent means the shell renders what it always rendered.
@@ -36,8 +37,6 @@ export interface MolisWorkWebView {
    * and installed at run time alike (W5-06 余项 2). Absent means a page drawn with no Runtime, which reads the built-in catalog's.
    */
   plugin_directory?: PluginDirectory;
-  /** The signed packages installed in the Home, for the tool bar beside its built-in tools (read per page, for the person's own page only). */
-  home_plugin_nav?: readonly HomePluginNavigationEntry[];
   snapshot: BoardSnapshot;
   project: WebProjectNavigation | null;
   projects: WebProjectNavigation[];

@@ -57,6 +57,32 @@ export type DirectoryRowDensity = "compact" | "meta";
 
 export type DirectoryStatusTone = MwStatusTone;
 
+export interface LocalePackOptions {
+    readonly file?: string;
+    readonly contentPack?: boolean;
+}
+
+export interface LocaleSetOptions {
+    readonly default: string;
+    readonly contentPack?: boolean;
+    readonly directory?: string;
+}
+
+export interface LocaleSetProblem {
+    readonly file: string;
+    readonly code: string;
+    readonly locale: string;
+    readonly key: string | null;
+    readonly reason: string;
+    readonly fix: string;
+    readonly blocking: boolean;
+}
+
+export interface MessageFormatOptions {
+    readonly now?: number;
+    readonly problem?: (code: string) => void;
+}
+
 export interface MwButtonOptions {
     variant?: MwButtonVariant;
     size?: MwControlSize;
@@ -74,105 +100,130 @@ export interface MwButtonOptions {
 
 export type MwButtonVariant = "primary" | "secondary" | "ghost" | "danger" | "danger-outline" | "link";
 
+export interface MwComposerAiLabels extends MwComposerLabels {
+    to: string;
+    stop: string;
+    stopTitle: string;
+    delivery: string;
+    deliveryGroup: string;
+    modes: Readonly<Record<AgentSteerMode, MwComposerDeliveryWords>>;
+    unsupported: string;
+    running: string;
+    runningText: string;
+    queued: string;
+    replayed: string;
+}
+
+export interface MwComposerDeliveryWords {
+    name: string;
+    title: string;
+    description: string;
+}
+
+export interface MwComposerLabels {
+    input: string;
+    send: string;
+    sendTitle: string;
+    add: string;
+    more: string;
+    files: string;
+    filesHint: string;
+    dropRefused: string;
+    commands: string;
+    searching: string;
+    nothing: string;
+    unavailable: string;
+    reading: string;
+    remove: string;
+    retryFile: string;
+    blocked: string;
+    restored: string;
+    clear: string;
+    unsaved: string;
+    enterHint: string;
+    enterHintDismiss: string;
+    notice: string;
+    sending: string;
+    sendingText: string;
+    failed: string;
+    retry: string;
+    unknown: string;
+    unknownText: string;
+    check: string;
+    notSent: string;
+}
+
+export type MwComposerOptions = {
+    placeholder?: string;
+    text?: string;
+    status?: MwComposerStatus;
+    disabled?: {
+        caption: string;
+        reason: string;
+    };
+    add?: boolean;
+    controls?: readonly ComposerControl[];
+    voice?: string;
+    attrs?: Record<string, AttrValue>;
+} & ({
+    kind: "plain";
+    labels: MwComposerLabels;
+    state?: "sending" | "failed" | "unknown";
+} | {
+    kind: "ai";
+    labels: MwComposerAiLabels;
+    delivery?: AgentSteerMode;
+    receiver?: {
+        label: string;
+        open?: boolean;
+        resetLabel?: string;
+    };
+    state?: "sending" | "running" | "failed" | "unknown";
+    idleDelivery?: boolean;
+});
+
+export interface MwComposerStatus {
+    caption: string;
+    text: string;
+    action?: string;
+    actionId?: string;
+    tone?: MwStatusTone;
+    ring?: StateRingState;
+}
+
 export type MwControlSize = "sm" | "md" | "lg" | "icon";
 
 export type MwStatusTone = "idle" | "progress" | "attention" | "hold" | "blocked" | "done" | "quiet";
 
 export type MwTone = "neutral" | "info" | "success" | "warning" | "danger";
 
-export declare const PLUGIN_ICON_NAMES: readonly ["presentation", "flask", "status-todo", "status-progress", "status-waiting", "status-needs-you", "status-blocked", "status-done", "status-cancelled", "accepted", "activity", "alert", "archive", "arrow", "back", "bell", "blocked", "board", "book", "bookmark", "brand", "bug", "calendar", "check", "chevron-down", "chevron-left", "chevron-right", "chevron-up", "circle-alert", "circle", "claim", "clipboard", "clock", "cloud", "code", "columns", "completed", "copy", "database", "dot", "download", "edit", "evidence", "external", "eye", "eye-off", "file", "filter", "flag", "folder", "folder-open", "folder-tree", "git-branch", "git-compare", "frame", "globe", "grid", "grip", "hash", "history", "home", "idea", "image", "impact", "inbox", "info", "input", "key", "library", "link", "list", "list-ordered", "lock", "logout", "mail", "maximize", "message", "minus", "moon", "more", "network", "note", "output", "package", "panel", "paperclip", "pause", "pin", "pin-off", "play", "plus", "question", "ready", "redo", "refresh", "rejected", "review", "risk", "rows", "rss", "save", "search", "send", "settings", "share", "shield", "sidebar", "sparkles", "star", "sun", "switch", "system", "tag", "target", "terminal", "text", "timer", "trash", "tree", "tune", "undo", "upload", "user", "waiting", "wand", "workflow", "x", "zap"];
+export declare const PLUGIN_ICON_NAMES: readonly ["presentation", "flask", "status-todo", "status-progress", "status-waiting", "status-needs-you", "status-blocked", "status-done", "status-cancelled", "accepted", "activity", "alert", "archive", "arrow", "back", "bell", "blocked", "board", "book", "bookmark", "brand", "bug", "calendar", "check", "chevron-down", "chevron-left", "chevron-right", "chevron-up", "circle-alert", "circle", "claim", "clipboard", "clock", "cloud", "code", "columns", "completed", "copy", "database", "dot", "download", "edit", "evidence", "external", "eye", "eye-off", "file", "filter", "flag", "folder", "folder-open", "folder-tree", "git-branch", "git-compare", "frame", "globe", "grid", "grip", "hash", "history", "home", "idea", "image", "impact", "inbox", "info", "input", "key", "library", "link", "list", "list-ordered", "lock", "logout", "mail", "maximize", "message", "mic", "minus", "moon", "more", "network", "note", "output", "package", "panel", "paperclip", "pause", "pin", "pin-off", "play", "plus", "question", "ready", "redo", "refresh", "rejected", "review", "risk", "rows", "rss", "save", "search", "send", "settings", "share", "shield", "sidebar", "sparkles", "star", "sun", "switch", "system", "tag", "target", "terminal", "text", "timer", "trash", "tree", "tune", "undo", "upload", "user", "waiting", "wand", "workflow", "x", "zap"];
 
 export type PluginIconName = typeof PLUGIN_ICON_NAMES[number];
+
+export interface PluginLocaleManifest {
+    readonly plugin_id: string;
+    readonly kind: string;
+    readonly ui?: {
+        readonly locales?: PluginLocalesDeclaration;
+    };
+}
+
+export type PluginLocaleRead = (path: string) => string | null;
+
+export interface PluginLocaleReader {
+    readonly owner: string;
+    readonly default: string;
+    readonly available: readonly string[];
+    pack(locale: string): UiLocalePack | null;
+    problems(): readonly LocaleSetProblem[];
+}
 
 export type ReturnBarState = "waiting" | "look" | "ready" | "gone";
 
 export declare const STATE_RING_CORES: Record<string, string>;
 
-export declare const STATE_RING_FAMILIES: readonly [{
-    readonly key: "idle";
-    readonly label: "未开始";
-    readonly states: readonly ["idle"];
-}, {
-    readonly key: "connected";
-    readonly label: "已就绪";
-    readonly states: readonly ["ready", "connected"];
-}, {
-    readonly key: "running";
-    readonly label: "进行 / 执行";
-    readonly states: readonly ["doing", "starting", "running", "generating", "saving", "indexing"];
-}, {
-    readonly key: "done";
-    readonly label: "完成 / 已保存";
-    readonly states: readonly ["done", "saved", "round-ended", "staged"];
-}, {
-    readonly key: "waiting";
-    readonly label: "排队 / 等待";
-    readonly states: readonly ["queued", "waiting"];
-}, {
-    readonly key: "answer";
-    readonly label: "等你处理";
-    readonly states: readonly ["answer", "approval", "reauth"];
-}, {
-    readonly key: "paused";
-    readonly label: "暂停 / 停止";
-    readonly states: readonly ["paused", "stopped", "cancelled", "disabled"];
-}, {
-    readonly key: "blocked";
-    readonly label: "无法继续";
-    readonly states: readonly ["blocked", "unavailable", "quarantined"];
-}, {
-    readonly key: "syncing";
-    readonly label: "同步中";
-    readonly states: readonly ["syncing"];
-}, {
-    readonly key: "retrying";
-    readonly label: "重试中";
-    readonly states: readonly ["retrying"];
-}, {
-    readonly key: "failed";
-    readonly label: "失败";
-    readonly states: readonly ["failed"];
-}, {
-    readonly key: "partial";
-    readonly label: "部分完成";
-    readonly states: readonly ["partial"];
-}, {
-    readonly key: "interrupted";
-    readonly label: "已中断";
-    readonly states: readonly ["interrupted"];
-}, {
-    readonly key: "verify";
-    readonly label: "需要核对";
-    readonly states: readonly ["verify", "conflict"];
-}, {
-    readonly key: "stale";
-    readonly label: "已过时";
-    readonly states: readonly ["stale"];
-}, {
-    readonly key: "disconnected";
-    readonly label: "已断开";
-    readonly states: readonly ["disconnected"];
-}, {
-    readonly key: "unsaved";
-    readonly label: "待整理 / 写入";
-    readonly states: readonly ["unsaved", "draft", "unstaged", "untracked"];
-}, {
-    readonly key: "unread";
-    readonly label: "未读";
-    readonly states: readonly ["unread"];
-}, {
-    readonly key: "read";
-    readonly label: "已读";
-    readonly states: readonly ["read"];
-}, {
-    readonly key: "archived";
-    readonly label: "已收存";
-    readonly states: readonly ["archived", "material"];
-}, {
-    readonly key: "trashed";
-    readonly label: "回收站";
-    readonly states: readonly ["trashed"];
-}];
+export { STATE_RING_FAMILIES } from "@molis-ai/molis-work-contracts/platform/ui";
 
 export declare const STATE_RING_ICON_STATES: {
     readonly "status-todo": "idle";
@@ -186,7 +237,14 @@ export declare const STATE_RING_ICON_STATES: {
 
 export declare const STATE_RING_LABELS: Record<StateRingState, string>;
 
-export type StateRingFamily = typeof STATE_RING_FAMILIES[number]["key"];
+export interface SkinTokenSelection {
+    readonly theme?: "light" | "dark";
+    readonly terminal?: TerminalAxis;
+    readonly groups?: readonly string[];
+    readonly names?: readonly string[];
+}
+
+export type { StateRingFamily } from "@molis-ai/molis-work-contracts/platform/ui";
 
 export interface StateRingOptions {
     state: StateRingState;
@@ -196,17 +254,137 @@ export interface StateRingOptions {
     progress?: number;
 }
 
-export type StateRingState = typeof STATE_RING_FAMILIES[number]["states"][number];
+export type { StateRingState } from "@molis-ai/molis-work-contracts/platform/ui";
+
+export interface StrictJsonOptions {
+    readonly file?: string;
+    readonly maxBytes?: number;
+    readonly maxDepth?: number;
+}
+
+export interface TextForTest {
+    readonly packs: readonly UiLocalePack[];
+    readonly locale: string | null;
+    readonly problem?: UiTextProvider["problem"];
+}
+
+export interface TextReaderInput {
+    readonly packs: readonly UiLocalePack[];
+    readonly locale: string | null;
+    readonly problem?: UiTextProvider["problem"];
+}
+
+export interface TextRefCheck {
+    readonly literal?: boolean;
+    readonly key?: boolean;
+    readonly owned?: boolean;
+}
+
+export declare const UI_ENVIRONMENT_PROBLEM_LIMITS: {
+    readonly count: 8;
+    readonly field: 200;
+};
+
+export declare const UI_TEXT_UNAVAILABLE = "\u2026";
+
+export interface UiEnvironmentInput {
+    readonly spec: UiSpecFile;
+    readonly skin: UiSkinFile;
+    readonly font?: UiDefinitionRef;
+    readonly mono?: UiDefinitionRef;
+    readonly locale: {
+        readonly tag: string;
+        readonly source: UiEnvironmentSnapshot["locale"]["source"];
+        readonly direction?: UiTextDirection;
+    };
+    readonly device?: UiDevicePreferences | null;
+    readonly problems?: readonly UiEnvironmentProblem[];
+}
+
+export interface UiFileOptions {
+    readonly file?: string;
+}
+
+export interface UiResolvedFont {
+    readonly ref: UiDefinitionRef;
+    readonly name: TextRef;
+    readonly tokens: Readonly<Record<string, string>>;
+    readonly faces: readonly UiFontFace[];
+}
+
+export interface UiResolvedRole {
+    readonly name: string;
+    readonly group: string;
+    readonly varies_by: UiRoleSpec["varies_by"];
+}
+
+export interface UiResolvedSkin {
+    readonly ref: UiDefinitionRef;
+    readonly spec: UiDefinitionRef;
+    readonly name: TextRef;
+    readonly recommended_font: UiDefinitionRef;
+    readonly roles: readonly UiResolvedRole[];
+    readonly light: UiTokenMap;
+    readonly dark: UiTokenMap;
+    readonly shared: UiTokenMap;
+    readonly terminal: Readonly<Record<TerminalAxis, UiTokenMap>>;
+}
 
 export declare function calendarTitle(year: number, month: number): string;
 
+export declare function createTextReader(input: TextReaderInput): UiSayTool;
+
 export declare function cx(...parts: Array<string | false | null | undefined>): string;
+
+export declare const dateArg: (at: string, style: TextDateStyle) => TextArgValue;
 
 export declare const disclosureHeight: (details: string, body: string) => string;
 
 export declare const escapeHtml: (value: unknown) => string;
 
+export declare function fontFaceRules(font: UiResolvedFont, registry: UiResourceRegistry): UiFileResult<string>;
+
+export declare function fontTokenDeclarations(font: UiResolvedFont, names?: readonly string[]): string;
+
+export declare const format: UiFormatTool;
+
+export declare function formatDate(at: string, style: TextDateStyle, locale: Locale, options?: MessageFormatOptions): string;
+
+export declare function formatMessage(message: UiMessage, args?: readonly TextArg[], locale?: string, options?: MessageFormatOptions): string;
+
+export declare function formatNumber(value: number, locale: Locale, style?: TextNumberStyle): string;
+
 export declare function icon(name: PluginIconName, className?: string): string;
+
+export declare function inspectLocaleSet(packs: readonly UiLocalePack[], options: LocaleSetOptions): readonly LocaleSetProblem[];
+
+export declare function inspectPluginLocales(manifest: PluginLocaleManifest, read: PluginLocaleRead): readonly LocaleSetProblem[];
+
+export declare function installTextForTest(input: TextForTest): () => void;
+
+export declare function installUiText(provider: UiTextProvider): () => void;
+
+export declare function matchLocale(requested: string | null, available: readonly string[], fallback: string): string;
+
+export declare const numberArg: (number: number, style?: TextNumberStyle) => TextArgValue;
+
+export declare function ownedTextRef(ref: TextRef, owner: string): OwnedTextRef;
+
+export declare function parseFontScheme(source: string, options?: UiFileOptions): UiFileResult<UiFontSchemeFile>;
+
+export declare function parseLocalePack(source: string, options?: LocalePackOptions): UiFileResult<UiLocalePack>;
+
+export declare function parseResourceRegistry(source: string, options?: UiFileOptions): UiFileResult<UiResourceRegistry>;
+
+export declare function parseSkinFile(source: string, spec: UiSpecFile, options?: UiFileOptions): UiFileResult<UiSkinFile>;
+
+export declare function parseStrictJson(source: string, options?: StrictJsonOptions): UiFileResult<unknown>;
+
+export declare function parseUiSpecFile(source: string, options?: UiFileOptions): UiFileResult<UiSpecFile>;
+
+export declare function pluginLocaleFilePaths(manifest: Pick<PluginLocaleManifest, "ui">): readonly string[];
+
+export declare function pluginLocaleReader(manifest: PluginLocaleManifest, read: PluginLocaleRead): PluginLocaleReader | null;
 
 export declare const processFold: (scope: string, { group, groupBody, step, stepBody }: {
     group: string;
@@ -214,6 +392,8 @@ export declare const processFold: (scope: string, { group, groupBody, step, step
     step: string;
     stepBody: string;
 }) => string;
+
+export declare function refuseSharedTextPrefix(taken: string | null | undefined, owner: string): void;
 
 export declare function renderAlert(options: {
     title: string;
@@ -295,6 +475,8 @@ export declare function renderChoice(options: {
     className?: string;
     attrs?: Record<string, AttrValue>;
 }): string;
+
+export declare function renderComposer(options: MwComposerOptions): string;
 
 export declare function renderDatePicker(options: {
     name?: string;
@@ -569,13 +751,37 @@ export declare function renderToggle(options: {
     attrs?: Record<string, AttrValue>;
 }): string;
 
+export declare function resolveFontScheme(spec: UiSpecFile, baseline: UiFontSchemeFile, scheme?: UiFontSchemeFile): UiFileResult<UiResolvedFont>;
+
+export declare function resolveSkin(spec: UiSpecFile, baseline: UiSkinFile, skin?: UiSkinFile): UiFileResult<UiResolvedSkin>;
+
+export declare function resolveUiEnvironment(input: UiEnvironmentInput): UiEnvironmentSnapshot;
+
 export declare function ringSegmentPath(points: number[][]): string;
+
+export declare const say: UiSayTool;
+
+export declare function skinTokenDeclarations(skin: UiResolvedSkin, select?: SkinTokenSelection): string;
 
 export declare function stateRingFamily(state: StateRingState): StateRingFamily;
 
 export declare function stateRingGeometry(id: StateRingFamily, t: number, progress?: number): RingSegment[];
 
+export declare const t: UiTextTool;
+
+export declare function textArgs(args: TextArgs): TextArg[];
+
+export declare const textKeyPrefix: (owner: string) => string;
+
+export declare function textRefProblems(value: unknown, check?: TextRefCheck): readonly string[];
+
+export declare function tryOwnedTextRef(ref: unknown, owner: string): OwnedTextRef | null;
+
+export declare function withDevicePreferences(snapshot: UiEnvironmentSnapshot, device: UiDevicePreferences): UiEnvironmentSnapshot;
+
 // Declarations the exports above refer to, which no entry exports itself:
+
+type Locale = string | undefined;
 
 type MwControlSize = "sm" | "md" | "lg";
 
@@ -600,3 +806,5 @@ interface RingSegment {
     z: number;
     tone: string;
 }
+
+type TerminalAxis = "unset" | "light" | "dark";

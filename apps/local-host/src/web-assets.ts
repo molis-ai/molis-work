@@ -3,20 +3,17 @@ import { createHash } from "node:crypto";
 import fs from "node:fs";
 import { createRequire } from "node:module";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { fileURLToPath } from "node:url";
 import type { WorkbenchRenderer } from "@molis-ai/molis-work-app-workbench";
+import { COMPOSER_CLIENT_SCRIPT, interVariableFontFilePath, notoSansScFontFilePath } from "@molis-ai/molis-work-design-system";
 import { tightenServedJs, tightenServedCss } from "./served-page-text.js";
 import { sendLocalWebJson as sendJson } from "./web-http.js";
 import { currentLocale } from "./web-locale.js";
 
 const requireAsset = createRequire(import.meta.url);
 
-const INTER_VARIABLE_FONT_PATH = fileURLToPath(
-  new URL("../../../packages/design-system/fonts/inter-latin-variable.woff2", import.meta.url),
-);
-const NOTO_SANS_SC_FONT_PATH = fileURLToPath(
-  new URL("../../../packages/design-system/fonts/noto-sans-sc-400.woff2", import.meta.url),
-);
+// Through the design system's own package, wherever that is: a release has no `packages/` beside Local Host.
+const INTER_VARIABLE_FONT_PATH = interVariableFontFilePath();
+const NOTO_SANS_SC_FONT_PATH = notoSansScFontFilePath();
 
 export function createLocalWebAssets(ports: {
   ptyClientFilePath(): string;
@@ -67,6 +64,9 @@ export function createLocalWebAssets(ports: {
         ? { body: renderPluginFrameClientScript(), contentType: "text/javascript; charset=utf-8" }
       : pathname === "/assets/molis-work-workbench.js"
         ? { body: renderMolisWorkWorkbenchClientScript(), contentType: "text/javascript; charset=utf-8" }
+        // The unified input's program: one file for the Workbench and every plugin frame, fetched on a document's first composer.
+        : pathname === "/assets/molis-work-composer.js"
+        ? { body: COMPOSER_CLIENT_SCRIPT, contentType: "text/javascript; charset=utf-8" }
         : pathname === "/assets/molis-work-capabilities.js"
         ? { body: renderMolisWorkCapabilitiesClientScript(), contentType: "text/javascript; charset=utf-8" }
         : pathname === "/assets/molis-work-knowledge.js"

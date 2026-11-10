@@ -112,6 +112,92 @@ export type ReceiptWords = {
     MARK: Partial<Record<AgentStepState, string>>;
 };
 
+export declare const STATE_RING_FAMILIES: readonly [{
+    readonly key: "idle";
+    readonly label: "未开始";
+    readonly states: readonly ["idle"];
+}, {
+    readonly key: "connected";
+    readonly label: "已就绪";
+    readonly states: readonly ["ready", "connected"];
+}, {
+    readonly key: "running";
+    readonly label: "进行 / 执行";
+    readonly states: readonly ["doing", "starting", "running", "generating", "saving", "indexing"];
+}, {
+    readonly key: "done";
+    readonly label: "完成 / 已保存";
+    readonly states: readonly ["done", "saved", "round-ended", "staged"];
+}, {
+    readonly key: "waiting";
+    readonly label: "排队 / 等待";
+    readonly states: readonly ["queued", "waiting"];
+}, {
+    readonly key: "answer";
+    readonly label: "等你处理";
+    readonly states: readonly ["answer", "approval", "reauth"];
+}, {
+    readonly key: "paused";
+    readonly label: "暂停 / 停止";
+    readonly states: readonly ["paused", "stopped", "cancelled", "disabled"];
+}, {
+    readonly key: "blocked";
+    readonly label: "无法继续";
+    readonly states: readonly ["blocked", "unavailable", "quarantined"];
+}, {
+    readonly key: "syncing";
+    readonly label: "同步中";
+    readonly states: readonly ["syncing"];
+}, {
+    readonly key: "retrying";
+    readonly label: "重试中";
+    readonly states: readonly ["retrying"];
+}, {
+    readonly key: "failed";
+    readonly label: "失败";
+    readonly states: readonly ["failed"];
+}, {
+    readonly key: "partial";
+    readonly label: "部分完成";
+    readonly states: readonly ["partial"];
+}, {
+    readonly key: "interrupted";
+    readonly label: "已中断";
+    readonly states: readonly ["interrupted"];
+}, {
+    readonly key: "verify";
+    readonly label: "需要核对";
+    readonly states: readonly ["verify", "conflict"];
+}, {
+    readonly key: "stale";
+    readonly label: "已过时";
+    readonly states: readonly ["stale"];
+}, {
+    readonly key: "disconnected";
+    readonly label: "已断开";
+    readonly states: readonly ["disconnected"];
+}, {
+    readonly key: "unsaved";
+    readonly label: "待整理 / 写入";
+    readonly states: readonly ["unsaved", "draft", "unstaged", "untracked"];
+}, {
+    readonly key: "unread";
+    readonly label: "未读";
+    readonly states: readonly ["unread"];
+}, {
+    readonly key: "read";
+    readonly label: "已读";
+    readonly states: readonly ["read"];
+}, {
+    readonly key: "archived";
+    readonly label: "已收存";
+    readonly states: readonly ["archived", "material"];
+}, {
+    readonly key: "trashed";
+    readonly label: "回收站";
+    readonly states: readonly ["trashed"];
+}];
+
 export interface SettingsPageContext {
     readonly projects: ReadonlyArray<{
         readonly project_id: string;
@@ -246,6 +332,10 @@ export interface StageTerminalPaneModel {
     icon: (name: "chevron-right" | "target" | "plus" | "tree" | "play" | "copy" | "refresh" | "terminal") => string;
 }
 
+export type StateRingFamily = typeof STATE_RING_FAMILIES[number]["key"];
+
+export type StateRingState = typeof STATE_RING_FAMILIES[number]["states"][number];
+
 export declare const TEXT_DATE_STYLES: readonly ["date", "time", "datetime", "relative", "weekday", "weekday-narrow", "month-day", "weekday-month-day", "year-month"];
 
 export declare const TEXT_NUMBER_STYLES: readonly ["decimal", "percent", "compact"];
@@ -332,6 +422,14 @@ export declare const UI_FORMAT_VERSIONS: {
     readonly font: 1;
     readonly locale: 1;
     readonly registry: 1;
+};
+
+export declare const UI_HOST_CLIENT_CODES: {
+    readonly crossOrigin: "ui_host.cross_origin";
+    readonly unreachable: "ui_host.unreachable";
+    readonly outcomeUnknown: "ui_host.outcome_unknown";
+    readonly invalidResponse: "ui_host.invalid_response";
+    readonly uncoded: "ui_host.uncoded";
 };
 
 export declare const UI_PAGE_ROUTE_PARAM_LIMIT = 256;
@@ -557,6 +655,8 @@ export interface UiHostApi {
     mount<TModel>(request: UiMountRequest<TModel>): UiMountResult;
 }
 
+export type UiHostClientCode = typeof UI_HOST_CLIENT_CODES[keyof typeof UI_HOST_CLIENT_CODES];
+
 export interface UiLocalePack {
     readonly format_version: typeof UI_FORMAT_VERSIONS.locale;
     readonly owner: string;
@@ -707,7 +807,7 @@ export interface UiPageWorkspaces {
     add(path: string): Promise<{
         workspace_id: string;
     }>;
-    select(workspaceId: string): Promise<void>;
+    setOutput(workspaceId: string): Promise<void>;
 }
 
 export interface UiPluginClientHost<Element = unknown, Dialog = Element, Media = Element> extends UiPageFiles<Media>, UiPageDialogs, UiPageActions {
@@ -910,6 +1010,9 @@ export interface UiSkinFile {
 export interface UiSlotDescriptor {
     readonly slot_id: string;
     readonly accepts: readonly string[];
+    readonly accepts_forms?: readonly FormKind[];
+    readonly max?: number;
+    readonly refuse_kinds?: readonly string[];
 }
 
 export interface UiSpecFile {

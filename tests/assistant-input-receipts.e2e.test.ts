@@ -8,8 +8,8 @@ import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 import { CURRENT_WORK, UNSENT_WORDS } from "./fixtures/assistant-current-work.js";
 
 // specs/ai-input-receipts §3.3, §4.1, §4.2, §7, D14 (stage 1e): in the Assistant, the person picks where words go while a
-// question waits, each supplement carries the runtime's receipt, and a Send whose outcome was lost goes again after a
-// refresh under the same key. The model is a local fixture; the Assistant, its runtime and the Host are real.
+// question waits, each supplement carries the runtime's receipt, and after a refresh a Send whose outcome was lost is
+// checked under the same key before sending again. The model is a local fixture; the Assistant, its runtime and the Host are real.
 async function assistantPage(t: TestContext, behavior: IssueModelBehavior, storage = true) {
   const browser = await openGoalBrowser(t, "user", undefined, undefined, undefined, undefined, {
     prepareHome: async homeDirectory => { await issueModel(t, homeDirectory, behavior); },
@@ -25,13 +25,13 @@ async function assistantPage(t: TestContext, behavior: IssueModelBehavior, stora
   return browser;
 }
 // A Send the Host took clears the composer (an empty composer also disables Send, so that cannot tell).
-const settled = (browser: SendBrowser) => browser.waitFor("document.querySelector('[data-assistant-input]').value === ''", 15_000);
-async function send(browser: SendBrowser, text: string) { await putInput(browser, text); await browser.click("[data-assistant-send]"); await settled(browser); }
+const settled = (browser: SendBrowser) => browser.waitFor("document.querySelector('[data-assistant-composer] .mw-composer__input').value === ''", 15_000);
+async function send(browser: SendBrowser, text: string) { await putInput(browser, text); await browser.click("[data-assistant-composer] [data-composer-send]"); await settled(browser); }
 /** Sends through the composer and returns the body the page actually put on the wire. */
 async function sendSeen(browser: SendBrowser, text: string) {
   const barrier = await sendBarrier(browser, [{ urlPattern: "*/api/assistant/send", requestStage: "Request" }]);
   try {
-    await putInput(browser, text); await browser.click("[data-assistant-send]");
+    await putInput(browser, text); await browser.click("[data-assistant-composer] [data-composer-send]");
     const paused = await barrier.next(); await barrier.release(paused);
     return JSON.parse(paused.request.postData!) as Record<string, unknown>;
   } finally { await barrier.close(); await settled(browser); }
@@ -40,6 +40,8 @@ async function shot(browser: SendBrowser, name: string) {
   const evidence = reviewEvidenceUrl("ai-input-receipts/"); await mkdir(evidence, { recursive: true });
   await writeFile(new URL(name, evidence), Buffer.from((await browser.command<{ data: string }>("Page.captureScreenshot", { format: "png" }, browser.sessionId)).data, "base64"));
 }
+// The choice of what this Send does while a question waits is the chip above the input (ai-input-receipts §4.1; restored by the
+// 2026-11-09 audit fix): its words are the choice, and one click switches it.
 const chip = (browser: SendBrowser) => browser.evaluate<string | null>("(() => { const chip = document.querySelector('[data-assistant-answer]'); return chip.hidden ? null : chip.textContent; })()");
 const receipts = (browser: SendBrowser) => browser.evaluate<string[]>("[...document.querySelectorAll('[data-assistant-thread] .mw-receipt__fact')].map(node => node.textContent)");
 
@@ -98,24 +100,41 @@ test("RC-14/RC-15/RCPT-312: while a question waits the chip says what Send does,
   assert.equal((await readWork(browser, id)).rounds.length, rounds.length, "taking it back starts nothing either");
 });
 
-test("RC-16: a Send whose outcome was lost goes again after a refresh under the same key, and the Host keeps one round", { timeout: 120_000 }, async t => {
+test("RC-16 B10-R3: a Send whose outcome was lost is checked after a refresh under the same key, and the Host keeps one round", { timeout: 120_000 }, async t => {
   const browser = await assistantPage(t, { replyText: "收到本次发送。" }); if (!browser) return;
   await send(browser, "第一句");
   const id = await browser.evaluate<string>(CURRENT_WORK);
   await waitWork(browser, id, view => view.work.state === "completed");
   const barrier = await sendBarrier(browser, [{ urlPattern: "*/api/assistant/send", requestStage: "Response" }]);
   try {
-    await putInput(browser, "第二句"); await browser.click("[data-assistant-send]");
+    await putInput(browser, "第二句"); await browser.click("[data-assistant-composer] [data-composer-send]");
     await barrier.drop(await barrier.next());
   } finally { await barrier.close(); }
-  await browser.waitFor("Boolean(document.querySelector('.assistant-problem'))", 15_000);
-  assert.equal(await browser.evaluate("document.querySelector('[data-assistant-input]').value"), "第二句", "the words stay in the composer");
+  // K3: the composer says a Send's outcome was not confirmed (its 「待确认」 state, with 查一下), not the thread.
+  await browser.waitFor("document.querySelector('[data-assistant-composer] .mw-composer')?.dataset.state === 'unknown'", 15_000);
+  assert.match(await browser.evaluate<string>("document.querySelector('[data-assistant-composer] .mw-composer__status').textContent"), /没能确认是否送到/);
+  assert.equal(await browser.evaluate("document.querySelector('[data-assistant-composer] .mw-composer__input').value"), "第二句", "the words stay in the composer");
   const kept = JSON.parse(await browser.evaluate<string>(UNSENT_WORDS)) as { work: string; text: string; id: string };
   assert.equal(kept.work, id); assert.equal(kept.text, "第二句");
   await browser.reloadPage();
   await browser.waitFor(`${CURRENT_WORK} === ${JSON.stringify(id)}`);
-  const again = await sendSeen(browser, "第二句");
-  assert.equal(again.request_id, kept.id, "the same words to the same work go under the same key");
+  await browser.command("Network.enable", {}, browser.sessionId);
+  const requests: Array<{ method: string; url: string }> = [];
+  const off = browser.on("Network.requestWillBeSent", (event, session) => {
+    if (session !== browser.sessionId) return;
+    const request = event.request as { method: string; url: string };
+    if (/\/api\/assistant\/(send$|requests\/)/.test(request.url)) requests.push({ method: request.method, url: request.url });
+  });
+  const check = await sendBarrier(browser, [{ urlPattern: "*/api/assistant/requests/*", requestStage: "Request" }]);
+  try {
+    await putInput(browser, "第二句"); await browser.click("[data-assistant-composer] [data-composer-send]");
+    const paused = await check.next();
+    assert.ok(paused.request.url.endsWith("/api/assistant/requests/" + encodeURIComponent(kept.id)), "refresh checks the original request key");
+    await check.release(paused);
+    await browser.waitFor("document.querySelector('[data-assistant-composer] .mw-composer__status').textContent.includes('已核对原发送')");
+    assert.deepEqual(requests, [{ method: "GET", url: paused.request.url }], "the network observer sees the original receipt lookup and no repeat Send");
+  } finally { off(); await check.close(); }
+  assert.equal(await browser.evaluate("document.querySelector('[data-assistant-composer] .mw-composer__input').value"), "第二句", "reading the old receipt does not consume the present draft");
   await waitWork(browser, id, view => view.work.state === "completed");
   assert.deepEqual((await readWork(browser, id)).rounds.map(round => round.text), ["第一句", "第二句"], "the Host took the words once");
   assert.equal(await browser.evaluate(UNSENT_WORDS), null, "an answered Send leaves nothing to resend");

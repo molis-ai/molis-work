@@ -1,3 +1,4 @@
+import { reconcileSkillSettings } from "./agent-definitions/skill-settings-lifecycle.js";
 import { pluginErrors, type PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { forgetDeclaredRulesIn, forgetInstallJudgmentsIn } from "@molis-ai/molis-work-module-judgment-rules";
 import { forgetInstallationBindings, forgetInstallationProjectBindings, installationIdsWithBindings } from "./connector-plugin-requests.js";
@@ -17,6 +18,7 @@ import { HomeConsentLedger } from "./home-plugin-store.js";
  */
 export function forgetInstallationRecords(scope: SandboxOwnerFilesScope, record: PluginInstanceRecord, dataGoes: boolean = !record.retain_private_data): void {
   if (!scope.home) return;
+  reconcileSkillSettings(scope.home.directory, scope.project_id ?? "home", record.install_id, null);
   if (scope.project_id === null) new HomeConsentLedger(scope.home.directory).revokeProjectReach({ install_id: record.install_id }, new Date().toISOString());
   forgetInstallationOriginalFiles(scope.home.directory, record.plugin_id, record.install_id, scope.project_id ?? "");
   forgetInstallationConnections(scope.home.directory, record.install_id, scope.project_id ? { kind: "project", project_id: scope.project_id } : { kind: "home" });

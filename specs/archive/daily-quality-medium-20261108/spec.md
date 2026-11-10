@@ -1,0 +1,171 @@
+# 2026-11-08 中优先级 A 类修复
+
+> 归档（2026-11-10）：判定为**已实现**。A54 已批准修复经最终 CI、Full 32 分片与正常合并队列验证后，由 [PR #2004](https://github.com/molis-ai/molis-work/pull/2004) 合入 main（46a28f45681f4b9644a8b90fda4c3291915e9b56）。B/C 未决项不属于本批；真实 Home 维护和实际桌面更新现场未操作。
+
+后文为各阶段的原始过程记录；当前交付结论以本归档判定和末节最终合入证据为准。
+
+## 范围与决定
+
+逐编号问题、报告建议与归位评估见[日评记录](../../../docs/reviews/daily-quality/2026-11-08-medium.md)。B/C 未决项不在本批。验收编号沿用报告 D 编号，测试名或注释标出对应编号；共用机制覆盖同根因路径，各编号分别保留验收对应。
+
+用户已批准每位成员最多 8 条 SSE；批准 Feed 通用 Manifest 演示动作、Runtime 全部启动后由 Feed 初始化及 RSS 路由归 RSS integration；批准 server 公共组合端口与 `molis-work server …` 启动入口。证据与重大调整理由见[补充方案](../../../docs/reviews/daily-quality/2026-11-08-medium-supplement.md)。用户另批准[最终页面资源变化及一次性放行](../../../docs/reviews/daily-quality/2026-11-08-medium-resources.md)，不调整预算或门禁阈值。
+
+## 实施与验收对应
+
+下表的“通过”只指所列本地证据；未执行的云端/系统端原场景如实保留，不据源码或单入口通过声称整批关闭。
+
+| 编号 | 统一落点与完整影响面 | 本地证据及剩余验证 |
+| --- | --- | --- |
+| D0056、D0294 | SDK 共用事务错误保全；storage 事务/savepoint/升级，Host、Runtime、连接器、Characters 与同步回滚路径接入；保留原抛出对象及清理诊断 | sqlite-driver-conformance 27/27，含失败回滚、冻结对象/原始值；upgrade-chain 59/59、upgrade-snapshot 74/74、安全快照 65/65、Home upgrade 87/87 及其拒绝 26/26，其他存储 owner 必跑通过 |
+| D0152 | agent-host 静默等待结构化终态，观察失败与清理定时/订阅 | agent-run-wait 2/2 |
+| D0337、D0007 | 助理列表请求代次隔离 A→B→A；完整浏览器响应合同夹具经 TypeScript 编译验证 | assistant-island-script 11/11，覆盖旧列表晚到与完整类型夹具 |
+| D0009 | token 用量只取最新轮，当前轮无用量时不冒用历史数字 | 同一 assistant-island-script 11/11，包含空/执行中/失败/历史轮 |
+| D0330、D0117 | Feed owner 墓碑不重新注册；历史删除含信号、修订、事件，并随事务回滚 | feed-sources 12/12；feed-runtime-plugin 原 2 个失败修正后保持原断言通过；feed-local-history-delete 与 Feed owner 套件通过 |
+| D0350 | 同步页 dirty 时拒绝立即同步，不自动保存 | personal-sync.e2e 8/8 |
+| D0124、D0335 | 插件帧共同入口拒绝隐藏/脱离 DOM 帧，验证参数；刷新每帧一次且父页 5 秒冷却跨 reload 保留 | security-invariants-plugin-pages.e2e 9/9，含真实重载洪泛及参数/隐藏帧拒绝 |
+| D0050 | PRODUCT 对齐当前成熟度与已批准 BL-377 重做范围 | 文档与现行登记交叉核对；不以本批替代重做 |
+| D0057、D0273 | 删除 desktop 退役 DDL；catalog 2→3 owner 升级只删空退役表，非空拒绝且事务保全 | catalog-path-derivation 7/7；旧版真实构建生成 v2 金样；golden replay 两版本各 426 reads/56 writes 成功；真实 Home 未升级 |
+| D0021、D0025 | 媒体拖动取消不吞下一次真实点击/键盘；滚动条 cancel/lostcapture/blur 统一释放 | media-zoom-board.e2e 2/2；scroll-follow-cancel.e2e 1/1 |
+| D0029、D0037 | 标签 DND 忽略拖中 pointermove、嵌套 enter/leave 计数、结束统一清理；分栏吸附后 clamp | plugin-tab-groups.e2e 5/5，实指针与排序槽；tab-workspace-view 8/8 |
+| D0303、D0066、D0268 | Coding 44px 触摸目标、Pages 图片键盘焦点、窄屏焦点样式 | coding-workbench.e2e 2/2、shelf-plugin.e2e 1/1；touch-targets.e2e 4/4、geometry-boundaries.e2e 1/1；共享视觉矩阵通过项及基准失败见下 |
+| D0013 | Goals 取消状态从事实 owner 到公开输出/排序/标记、看板/筛选与胶囊独立终态分组，保留显式继续但不归可立即推进，更新快照 | goals-status-ui 3/3，桌面/手机看板与筛选 3/3；胶囊原 SYS-09 补验发现仍落空闲，已补独立取消态和选择顺序（保留原断言），最终联动 tests20 为 6/6 文件全通过，胶囊 11/11、胶囊轮询 8/8、集合渲染 4/4；公开动作 4/4 与集合翻译 6/6 |
+| D0104、D0207、D0198 | MCP 连接元数据与 origin 原子提交；保留 OAuth 上下文缺声明拒绝；跨平台声明测试列入 CI 产品子集 | connector-connections 9/9（含注入提交失败且无通知），connector-api-oauth 27/27、oauth-declarations 30/30 |
+| D0292 | 组件板显式开发模式，生产 404；皮肤预览不持久化 | board-appearance.e2e 3/3，生产路由快照与开发 fixture 同步 |
+| D0151、D0304、D0308 | 监督器 starting 单独投影；Home 安装库失败保留错误并提供稳定码，导航/舞台不把故障当空集合；故障页单 alert、保留原文件 | home-plugin-unavailable 2/2（损坏文件与英文单 alert、不暴露原始原因）；Runtime supervisor 集成及状态投影用例通过；全部状态组合留 CI Full |
+| D0222、D0349 | 下一步只选 enabled 且可用目标，复用现行孤儿/重授投影 | coding-next-steps 6/6、agent-next-steps 通过 |
+| D0267 | 终端刷新失败保留内容、展示本次错误；过时错误不落地 | work-terminal-client 6/6 |
+| D0295 | 桌面安装更新失败时，前后两次认证健康才复用既有 Host；不启动第二 Host | desktop Rust 严格 clippy 与 97 测试通过，含失败/恢复分支；实际桌面更新现场未操作 |
+| D0030、D0019、D0032 | 知识索引元数据 SQL 分页、正文按精确 revision 懒读与授权围栏；稀有尾词/滑窗；FTS 假阳性继续翻页 | knowledge-cards 22/22、knowledge-agentic-search 11/11、knowledge-service 15/15、knowledge-locate-budget 5/5 及权限拒绝测试通过 |
+| D0234 | 卡片 owner subject/状态过滤与 SQL 分页；HTTP next_offset，侧栏接完全部页，失败不抹原内容 | knowledge-http、知识卡精确筛选及侧栏相关回归通过 |
+| D0195 | Feed 当页最多 200，再只取当页材料与一批情境账关联键；跨包只用公开合同 | Feed runtime 原场景、405 条跨页与末页材料断言通过；S-68 命名空间 30/30；情境账/材料消费者回归通过 |
+| D0253 | private-work-context 绑定及事件稳定分页；通过账本 owner 解析可信项目对象后 SQL 筛选，管理列表也分页 | runtime-binding-ledger 2/2：407 记录、双项目、事件分页及移动历史；路由/错误/入口回归通过 |
+| D0264 | 成果 owner 将类型/schema/scope/lifecycle/availability/私有 actor 下推 SQL；消费者按页读取，精确 metadata 批量碰撞保持成果优先且不 N+1 读正文；完整维护集合显式接完页 | artifacts-module 5/5，真实 611 成果+207 过程项消费者，后页/私有/不匹配/重复隔离、零逐候选正文读；artifacts-actions、personal-artifact-owner、process sync/知识消费者及声明拒绝回归通过。完整集合接口仍返回完整集合，不声称其内存恒定 |
+| D0246、D0247 | 安装 owner 返回全文/截断/总码点；设置页原生 details 展开完整签名正文，textContent 消费；平台无关旧版/尾部差异拒绝移出 macOS skip | security-invariants-plugin-install 26/26（含 emoji、尾部变化与旧预览拒绝）；真实前端 D0246/D0247 展开用例通过：原文完整、惰性 textContent、不触发确认安装 |
+| D0329、D0077、D0333 | IM 复用共享按钮/toast/搜索焦点；自有词典汇入全站 EN；Host 传语言，日期用当前语言；构建压缩 JS | IM controller、browser-state、domain、local-project、follow-copy.e2e 通过；英文 HTML 无残留中文、JS 解析通过；i18n 13/13 与共享组件单元检查通过，翻译门禁无缺失/未服务词典。JS -22,074 bytes、CSS +8,536 bytes，已获批准 |
+| D0103 | SDK 唯一惰性 HTML 白名单边界与服务端共享词汇；Coding 全量/流式/子 Agent、Files、Git、Shelf 全接入 | content-html.e2e 1/1：恶意 DOM/网络拒绝、合法 Diff 控件；Coding 2/2、Shelf 1/1、SDK/富文本/patch 合同套件通过 |
+| D0338 | Shelf 所有 save 入口都带 observed 内容条件；ownerFiles 回调同步提交，无 await 穿透事务 | shelf-owner-files 7/7，双实例 12 次 admit、过期写入冲突；process sync 与 owner 测试通过 |
+| D0225 | Host 临时草稿绑定 actor/project/purpose，10 分钟/100 份/一次消费；现有动作目录唯一登记，URL 只传 opaque ref | 草稿权限/取消/TTL/重复/容量拒绝；memory-settings-cas.e2e 19/19，真实两页面提升交接、URL 消耗前移除、填入而不自动保存 |
+| D0017 | server 解码边界将非法 URI 归输入拒绝 400；未知异常仅返回不透明正文、request id 与稳定码，诊断不记录路径/正文/凭据 | cross-device-http 2/2：坏路径 400、未知异常 request id 与纯码诊断关联、原始正文/路径不暴露；预期访问拒绝仍为 403 |
+| D0027 | Goals 公开批量状态读取，continuity 合并去重后一次调用；SSE 统一按可信成员 8 条并在 close/error/abort/失权释放 | cross-device-http 通过：第九条 429、成员隔离、释放重开；gateway 2/2、continuity 通过，批量合同拒绝/调用次数断言通过 |
+| D0041、D0078 | Feed 自有演示种子与幂等 receipt；Manifest 通用 demo_seed 动作登记、全部 Runtime 启动后调用；纯 SEL/RSS 路由归 RSS integration，Host 只作公开组合 | demo-plugin-sample 5/5：新建/重启/reset、自定义项目、删除/停用不复活；rss-socket 4/4；Feed 套件及生成登记检查通过；Host 不保留 Feed 实现 import |
+| D0272、D0280 | apps/server 仅公开组合端口；Host 持授权/gateway/恢复适配器；产品 CLI 组合并保留服务生命周期；边界按实际 import 点计数 | server-cli 13/13、cross-device-launcher 3/3、gateway 2/2、版本入口 10/10；边界新 import 点负例 2/2；本机恢复仍属私有维护，S-81 拒绝保持 |
+
+## 构建、门禁与执行证据
+
+- 最终整体构建 build39 通过（取消态联动补齐后），随后最终串行包边界 boundary5 通过（65 包、无错误），真实隔离基准页面资源检查通过（51 资源，build39 后再测字节与通过门禁时完全一致、无 discovery miss），全部增长在用户批准额度内。
+- 最新四文件定向批 tests11 全通过（标签拖动、记忆交接、Home 降级、实际成果消费者）；SDK/Feed 等 35 文件批 tests10 全通过。每批隔离 Home、公共机器槽、jobs1，未运行本机 Full。
+- `golden-replay2` 两个金样均成功：0.1.0-dev.1 与 0.1.0，各 426 reads / 56 writes，第三方与 Home 库 replay 完成。dev.1 金样来自旧代码真实生成，未改断言或填假数据。生成 SQL/PDF 的原字节空白保留，不能以手工修整破坏哈希。
+- desktop Rust `clippy --all-targets --locked --offline -- -D warnings` 与 97 测试通过。整组 native 检查的两个未改 Wasm crate 因本机缺 wasm32-unknown-unknown target 未通过，不能报整组通过；CI 应补此环境验证。
+- 最终健康基准检查 health10 通过，API 快照已更新；动作快照核对未变且 25/25 用例通过。翻译无缺失英文、无未服务词典；精确资源放行已获用户批准并实测通过。
+- 故障定位中曾出现构建与自带构建的边界检查重叠，声明产物缺失；该次无效。后续严格串行。测试夹具错误已修正并用原断言复跑，不删断言、不放宽门禁。
+
+- 共享界面 tests12 为 14/16 文件通过；visual-mechanisms 的媒体缩放、折叠动画、分段拇指三条断言在独立干净固定基准也同样失败（baseline-tests1 同名 3 失败），不放宽断言。另一个 floating 子路径无 import 的失败由本批新增导出造成，已把 SDK 浏览器清理与共用只读词汇移回 leaf 入口，design-system-floating 6/6 与内容 HTML 安全浏览器 1/1 复跑通过。
+- 存储批 tests13 为 29/30 文件通过；system-search 三条旧 documents() 调用随新分页/懒读合同迁移后，全文件 tests16 为 30/30，通过同样正文权限与来源撤销断言。没有删除断言来掩盖产品错误。
+- 安装审阅首次新增 fixture 把无关 API 也拦进插件响应导致失败，收窄协议 fixture 后 tests15 原场景通过；最终完整文件 tests17 为 20/20；同批 SDK 子路径/出口、惰性 HTML 安全与各内容渲染等 9 文件全部通过。
+
+- 未提交新增行的密钥规则扫描通过。两条命中是 dev.1 金样的密封模型测试值：以 manifest 明示的 golden-only test_key 解密后，逐字匹配 tests/golden-writes/model-settings.ts 的合成固定输入；仅把这两条确切密文及来源理由加到现有测试数据清单，没有加宽正则，也没有改金样字节。此扫描不是逐提交扫描；若获准推送，仍须 fetch main 并在提交后运行正式 secrets:check。
+
+- 初轮视觉比较完整采集基准/分支各 66 图、22 样式快照；差异检查发现取消态漏入看板分组/状态筛选，已补公共清单。胶囊原用例补验又发现取消项落空闲，已补独立取消分组及中性终态样式，保留显式继续并优先真正可推进项。旧头截图不作为最终验收；修正后的最终联动验证 tests20 为 6/6 文件通过；build39 最终头重新采集 66 图、22 样式快照，所有截图的帧内稳定性测试通过。与固定基准比较仍按零容差报告 8/66 图及 22/22 样式有差异，未调阈值：四张列表差异各 83/84 像素位于取消态标记；首页/Todo 其余差异每张 7～38 像素、位于控件边缘。所有共有 DOM 样式变化只涉及状态环 path/opacity，新旧独有节点来自取消卡片移到独立看板组以及新分组/筛选项，已用桌面/手机原场景验证不丢项；无其它共有节点样式或布局变化。视觉工具因存在差异退出 1，不记成全绿。最终报告在忽略目录 .impeccable/qa/review/visual/compare-final/report.html。
+
+## 合同与交付限制
+
+当前阶段一，无旧形状读取兼容。胶囊输出新增 cancelled 状态与独立 tab；桌面壳保留显式继续入口并用中性终态样式，不自动恢复取消项。新增 demo_seed 引用与动作、Goals 批量动作/取消状态、临时草稿动作、公开查询分页/过滤、SDK HTML/回滚工具的调用方同片更新，API 与动作快照包含在本批改动中。固定引用的 Goals 输出新增合法取消取值；批量/草稿/演示动作是新增身份，不代替既有单条动作。MCP 现有工具名不改，新增动作仅按既有动作发现规则投影；Feed 演示动作仅 workflow，不向 MCP/页面开放。存储仅目录 owner 2→3 显式升级，版本表与连续升级登记同步。
+
+2026-11-10 用户明确要求「提交下pr吧」，已授权本批提交、推送和创建 PR，并启动所需 CI Full；不包括合并、发布或真实 Home 操作。原固定基准验证保留，提交前对齐最新 main 并复验受影响部分。最终共享核心 CI Full 尚缺，因此整批不标“已关闭”。真实 Home 和实际桌面更新现场均未操作。
+
+
+## 2026-11-10 PR 整合
+
+门禁逻辑按仓库要求独立为 PR #2003，产品 PR 以其分支为前置。已整合 main 02d2443f 的六个提交；五处冲突逐项处理，保留统一输入框、草稿 revision、按钮展开/按下态和双方测试密文记录。D0268 的旧栏位样式由 main 的公共 composer 接替，沿公共组件的接收者标签及输入焦点场景复验，不恢复退役的私有栏位样式。
+
+整合后的 build40 与包边界通过；health11 对最新 main 通过；API/动作快照核对无额外变化。14 文件定向批 tests21 全通过。初次最新 main 资源复测的工作台 JS 比批准上限多 19 bytes；保留全部校验，改用一次对象合并投影本地草稿及 revision，消除重复 Map 检查，并增加草稿/revision 同时保全断言。共享按钮的 main 修复也保留，IM 只清理共享 CSS 的行首空格，避免增大批准额度。最终 build42 后复验资源与相关用例，再提交产品 PR。
+
+
+最终整合验证：门禁 PR #2003 的 CI/Verify 已通过（run 42656612723）。工作台最终真实资源增量为 1,273 bytes，低于既有 1,275；IM CSS 为 28,999 bytes，低于批准额度。草稿/revision 保全的新增断言通过；tests23 的助理与 IM 单元文件 5/5 通过，但 IM follow-copy 浏览器用例在 60px wheel 场景读到 gap=0 而失败。相同文件在当前 main 等价运行时的基线对照因公共浏览器三槽均被其他批次占用尚未执行；取消我方排队，避免留下无人跟进的任务。不把该失败定性为上游或新回归，也不删断言；产品 PR 保持 Draft，交 CI Full 补验证。
+
+
+产品 PR 提交前最终检查：build43 通过；health12 对当前 main 通过；完整隔离基准资源门禁 assets6 通过（52 assets，无本 PR 新资源，既有许可不变）。已批准原基准验证与整合验证分开保留。最终头包含所有源代码，后续只回填 PR/CI 元数据；IM wheel 用例待 CI 和后续基线核验，不能据此把 A54 整批关闭。
+
+
+## PR 交付
+
+2026-11-10：独立门禁 [PR #2003](https://github.com/molis-ai/molis-work/pull/2003)，提交 dd27ea5ff，CI/Verify 全绿；产品 [Draft PR #2004](https://github.com/molis-ai/molis-work/pull/2004)，base 为门禁分支，产品实现提交 b215763d6。此后的本次提交只回填交付元数据，源代码与 build43 / health12 / assets6 一致。父 PR 合入 main 后应调整产品 PR base 并在最终头复核，不把产品合入门禁分支。CI 与 Full 显式在产品最终 head 启动，运行链接及最新结论维护在 PR 描述；未合并、未发布或操作真实 Home。
+
+
+## 2026-11-10 合并授权与首轮 CI 闭环
+
+用户要求“确保 pr tasklist 都通过，并且 ci 都通过的情况下，就合并进去吧”，授权条件满足后按正常合并队列合入。前置 #2003 已在 CI/Verify 通过后入队并合入 main（85cec224793d625be437ee07673fe41caa5fa1d9）；产品 #2004 已改 base 为 main，集成新合入 #2000 的公共合同、内容包与成员版本控制。
+
+首轮 [CI 42661845734](https://github.com/molis-ai/molis-work/actions/runs/42661845734) 与 [Full 42661845524](https://github.com/molis-ai/molis-work/actions/runs/42661845524) 失败。Full 首个失败后取消其他分片，不能当作完整覆盖。已修正：
+
+- D0007/D0337：新版 composer 已移除 activeSend，列表刷新仍引用它，导致错误被静默捕获；删除失效引用，保留当前草稿与 revision 成对覆盖，实际脚本测试也移除伪造变量，整份程序的未声明变量断言保留。
+- D0041/D0078：Web 启动 Runtime 的端口使用会再次准备项目的客户端，演示初始化经动作服务回入同一启动 Promise，形成自我等待。统一 Web 项目端口使用现有 preparePlugins=false 的动作入口，仍保留 Home 准备、动作调度、权限及最终授权检查；所有项目插件共用该入口。演示项目设置删除真实终端场景已恢复，整文件 20/20；Goals 刷新浏览器文件 8/8，均无放宽超时或删除断言。
+- D0057/D0273：目录 2→3 的实际库版本与升级链同步更新 stores.tsv；schema 快照测试 4/4。
+- D0264：兼容性改为当页已读元数据上的纯判断，故障注入从已不调用的逐候选 compatibility 查询移到实际存在的 exact collision metadata 读取；保留两个 owner 的分页读取失败传播、碰撞/拒绝及后页验收，文件 9/9。
+- D0292：生产环境组件板按批准返回 404；CSP 扫描继续覆盖该拒绝，并新增实际生产 capsule HTML 页面，保留至少两页及全部 SAMEORIGIN/frame-ancestors 断言，文件 17/17。
+- Coding 工作区拒绝夹具补齐现行 catalog 的 listProjects，只返回空项目清单，仍拒绝权限/不可用/未装配服务；action-read-compatibility 6/6。
+- Workflows 委托权限测试改从 Feed 真正的 workflow_content 动作取权限；新增 workflow 专用 demo_seed 不是工作流内容站。Workflows 自身精确权限与逐项缺少必需权限的拒绝断言全部保留。
+
+main 整合头整体 build45、boundary45、health13（对照 main 85cec224）通过；API 重新生成无额外变化。剩余浏览器、最终资源、最终头 secrets、CI/Full 和评审状态按 PR tasklist 逐项补验；未成功前保持 Draft、不入队。
+
+
+补验进展：tests25 的 Goals 刷新 8/8、项目删除 20/20、连接卡 4/4、演示初始化 5/5、Workflows 委托 5/5 通过；tests26 九文件全部通过（含当前 action 快照 25/25、工作区拒绝、CSP、库结构、实际浏览器脚本）。assets7 以 main 85cec224 的完整隔离构建实测 52 资源通过，工作台净增 1,238（批准 1,275）；其余批准额度未扩大。
+
+IM follow-copy 在独立干净门禁基线 dd27ea5ff 复现相同 60px wheel → gap=0 断言失败。该基线与当前 main 的 IM、scroll-follow 和此用例源码一致；诊断仅看到 wheel 导致 detached，没有浏览器 scroll，尚未归因到产品代码。没有改原断言或提交探针；云端 Full 的同场景仍须验证。
+
+第二轮 [CI 42750367725](https://github.com/molis-ai/molis-work/actions/runs/42750367725)：所有安全分片、动作合同、门禁、边界、原生检查、Golden replay 均通过，仅 Feed promotion 文件在 180 秒文件预算内未完成（已完成的子测试均通过），不把超时标绿。第二轮 [Full 42750515022](https://github.com/molis-ai/molis-work/actions/runs/42750515022) 发现 IM 已整体压缩而旧断言仍匹配共享脚本原文；修正为比较导出 field-fit 的完整 IIFE 语法结构，只规范化局部绑定名称，保留属性、全局名、选择器和字面量，缺少导出或改错选择器仍拒绝。程序没有第二份实现。后续按现有 integration 分支运行全部 32 分片，不因首个失败取消其他分片，也不修改工作流/门禁或跳过文件。
+
+
+## 2026-11-10 完整 Full 的补齐（验收头 116d1b03c）
+
+[CI 42752007662](https://github.com/molis-ai/molis-work/actions/runs/42752007662) 全部适用作业与 Verify 成功。[Full 42751999963](https://github.com/molis-ai/molis-work/actions/runs/42751999963) 在 integration 分支完成全部 32 分片：22 成功、10 失败，没有因首个失败取消其他分片。持续失败的 12 个文件逐项闭环：
+
+- `goal-kanban`、`status-ring`、`goals-page-golden`：D0013 新增第七个取消分组；宽/窄屏保留独立列和 cancelled 环。对全部 66 个 normalized 页面逐字核查，移除唯一新增的取消列后旧哈希和长度全恢复；只刷新 14 条金样（zh +2955 / en +2968），其余 52 条与 view fixture 不变。金样文件 70/72 通过，另两项仅用于显式生成 view/记录金样；未打开这些生成开关作为最终验证。
+- `home-plugin-private-store`：D0151/D0304 关闭 owner 后明确拒绝读取，不以空安装列表伪装事实不存在；已改为断言拒绝码/消息，继续验证 KV 隔离、跨连接 CAS、关闭后的句柄无效、重启保留原文和启用意图，5/5。
+- `composer-board`：D0292 的真实 HTTP 目录 fixture 显式开启开发模式、增加 status=200 断言；中文/英文及稳定键仍逐项验证，4/4。
+- `tab-reorder-preview`：D0029 的原节点重绘使 dragend 随节点消失；通用 pointermove 清理只在原 source 已脱离 DOM 时结束拖动，并保留真实拖动中的移动。一个持久监听替代每次拖动的一次性监听。回归先发送活跃 pointermove、再移除原节点、再真实移动，验证 guard/slot/iframe pointer 归还；2/2，插件分组 5/5。
+- `code-diff-reader`：D0103 清理遗漏了 SDK Diff 的数字列宽。惰性白名单仅保留 ol 上完整的固定 --diff-digits 加一到两位数字，拒绝混入 CSS/URL、无界数及错误标签；没有开放任意 style。共用 attrs 集合和标签构造避免重复字节。实际 Coding 五位数/并排/复制位置、Coding→Git 产品路径、Shelf 边界、恶意网络/DOM 拒绝与 SDK 出口六文件全部通过。公共安全表同步记录。
+- `project-user-journey`：D0124/D0335 的 typed UI 边界错误地把公开合同的可选 title 当必填；现在接受省略或 undefined，错误类型仍拒绝。带 itemTabId 的请求继续严格等于可信 tabId（其类型由 Host 给出，不需重复类型判断）。真实 Inbox→Feed 1440/390 动线 2/2，隐藏/畸形/可选参数与 refresh cooldown 安全文件 9/9。
+- `pages-import-entry`、`project-home-start`：D0041 演示数据在 Runtime 启动后由 Feed 初始化。Pages 在无 Pages 业务调用的 board 读取完成后记录成果计数；Home 在真实导航与 seeded Inbox 已出现后读取旧条目。保留 Pages 导入前后成果总数完全相同和 Home 单次执行/版本断言。Pages viewport 使用现有 fixture 的 setViewport 同时设置真实窗口与仿真视口，不让真实输入落到窗口之外。
+- `companion-client-lifecycle`：D0103 不保留测试自造的 data-current-diff；fixture 以允许的展示 class 和完整正文标识同一固定 diff，保留原异步/撤销/操作次数断言，不在 SDK 加 Git 私有属性。
+- `hover-actions`：D0268 已补图像手柄的真实 focus-visible，旧测试却仍要求那个键盘缺陷存在。现在严格要求 hover/focus/touch 缺陷集合为空，不保留已修复的缺陷例外。
+
+Full 的 IM follow-copy 在分片 30 原样通过（14.3s，1/1）；本机同场景与干净基线的 Chrome wheel 限制仍留作边界证据。Full 中 goal-event-document 与 pages-clipboard 首次失败但内置重试通过，原断言与工作流未改，不记为持续产品缺陷。
+
+本地 build48 已覆盖最后的全部 src 改动；tests28/29/30/31 与单文件复验的证据见 PR。最新实际资源：工作台 1,031,405（对 main +1,249 ≤1,275）；plugin-frame 232,505（+689 ≤704）；Shelf 67,566（+2,247）、Coding 302,775（+2,241）、Files 13,850（+2,162）、Git 33,220（+2,165），全部在原批准最大增量内，没有新资源或扩大许可。最终补齐提交仍须重新通过正式资源比较、health/boundary/secrets、CI 与全部 Full 分片，再按用户授权直接入队；完整链接与最终结论维护在 PR tasklist，未成功前不标整批关闭。
+
+### 最终 main 整合复验（2026-11-10）
+
+完整客户端生命周期文件已 16/16，Pages 导入 6/6，浏览器启动/清理 1/1。共享浏览器夹具先保存真实窗口与页面的自然边框差，再按期望页面尺寸设置原生窗口，不使用固定补偿或改变产品布局；这修正了原生输入落在仿真视口内、真实窗口外的问题。Coding 固定结果断言前用公开 stopProjectJobs 停止夹具的其他后台生产任务，保持不可用后不再额外读取及原交互断言。
+
+hover-actions 的静态缺陷集合现在严格为空；触屏 Shelf「复制」在本机仿真仍失败，独立干净基线 dd27ea5ff 同一测试、同一位置复现。之前完整 Linux Full 的触屏断言通过，只有已经修复的静态缺陷例外过时导致文件失败；保持原触屏断言不变，最终云端必须再次通过。
+
+集成 main #2002（2ced02436），整体 build49 与 SDK API 核对通过、快照无变化。对 66 个 Goals normalized 页面仅移除 main 新恢复的回答芯片，并把英文 Send to: 换回 To: 后，全部前一版哈希及长度精确恢复；只更新 16 个整页记录（zh +94 / en +99），Goals 数据、其余 50 条及 view fixture 不变。
+
+main #2002 的原输入框端到端文件发现运行中 interrupt 也始终不可用：deliveryNow 的非回答分支写死 available=false。恢复该分支 available=true，空闲状态仍由公共 composerDeliveries 的 running 门禁拒绝 interrupt，回答/问卷仍给明确拒绝；不修改原端到端断言或主流程。main 新增空闲排队、回答芯片与 Send to 保留，相关整合文件在最终构建后重验。
+
+### 最终验收头 5af24f6fa 的结果
+
+[CI / Verify 42759859366](https://github.com/molis-ai/molis-work/actions/runs/42759859366) 全部适用作业成功；build50、health17、boundary50 与七文件整合定向全部通过。正式 assets9 对 main 2ced02436 的隔离完整构建核验 52 资源通过，工作台 +1213、frame +689，其余保持既有许可上限；secrets 扫描 22,961 新增行，仅九个既有精确合成值例外。
+
+[Full 42759849021](https://github.com/molis-ai/molis-work/actions/runs/42759849021) 已完成分片重新覆盖原失败场景；IM 原 wheel 断言在分片 30 通过（16.8s、1/1），hover 的触屏与严格空缺陷集合在分片 32 通过（114.1s、2/2）。新失败是 assistant-work-per-project：真实导航只等到了 shell，随后直接点击尚未异步恢复的 remembered receiver，null.click 两次失败。原文件本机与独立干净门禁基线均 2/2；保留全部跨项目工作、草稿与作用域断言，仅在该点击前等待当前 work_id 和对应 remove 按钮实际就绪，修正后本机 2/2，不加固定等待或放宽超时。最终通过情况继续维护在 PR tasklist，未全部成功不入队。
+
+### main #1999 整合（2026-11-10）
+
+等待验收时 main 合入 fad49e455（#1999），出现 19 处冲突。逐项保留两侧新增导出、只读空间归属拒绝与回滚错误保全；Goals 使用 main 的统一状态文案，取消仍独立分组与中性终态、低于普通可执行项的胶囊选择优先级；S-47 同时保留 typed UI/刷新拒绝与 main 的打印生命周期证明。两侧新增测试均保留，接收者等待采用 main 更严格的目标标题校验，Goals 金样沿 main 经独立逐字审计的记录核验。
+
+D0191 与 D0225 统一为一条记忆交接路径：URL 仍只带十分钟/最多百个/按用户项目用途绑定的一次性 draft_ref；暂存载荷为记忆 ID/version，不暂存或在 URL 暴露正文。消费后由 Memory owner 读取当前版本，已变更或删除则拒绝并保持编辑器未打开；成功仅填入未保存草稿，不发布项目说明、不修改原记忆。不保留 memory_id URL 的第二套入口。浏览器验收同时覆盖不透明 URL、一次消费/重载、超长正文、版本变更/删除与无自动保存。
+
+前一头 bda48be69 的 CI 首次仅只读文件字节比较失败，原文件本机与干净门禁基线均 21/21，原断言未改；同一提交失败作业重跑后 CI / Verify 成功（run 42764136299 attempt 2）。完整 Full 42764126418 仍保留作为整合前运行，不能代替 main #1999 后的最终验收。新构建 build51 成功，API 与动作快照核对均无额外变化；资源、整合定向、health/boundary 与最终云端结果继续核回。
+
+整合后定向：tests39 的其余八文件全部通过（隔离帧安全 10/10、跨项目助理 2/2、看板 2/2、状态环 1/1、金样 70/72、胶囊 12/12、连接 10/10、SQLite 基线 12/12）。记忆交接新测试启用 Page 事件并等待真实导航后，tests41 整份 21/21 通过，既有断言没有放宽。一次筛选参数误写已按自身 PID 停止，未计有效验证。
+
+合并后的机器登记补回 Workbench 翻译确实消费的 IM 公共包（package、锁文件与包登记一致），只删测试子集清单的重复行，原文件仍在清单中。boundary53 与 health20 对 main fad49e455 通过；assets10 的 main 隔离构建实测 52 资源通过（工作台 +1132、frame +689），许可未扩大。仅 package/登记/测试补齐后进行 build52，最终云端验收与合并状态维护在 PR tasklist。
+
+
+## 最终合入证据（2026-11-10）
+
+- 产品验收提交 fe37c5f6f916dad7f51880fc902a411f63faac07：[CI / Verify 42768511684](https://github.com/molis-ai/molis-work/actions/runs/42768511684) 全部适用作业成功；[Full 42768505191](https://github.com/molis-ai/molis-work/actions/runs/42768505191) 全部 32 分片与汇总成功，没有失败或取消。
+- [正常合并队列 CI / Verify 42772928990](https://github.com/molis-ai/molis-work/actions/runs/42772928990) 全部适用作业成功；2026-11-10 07:18:17 UTC 合入 main，合并提交 46a28f45681f4b9644a8b90fda4c3291915e9b56。其内容树与已验证产品提交同为 1be8c59de8545a026790948724e9f443c793699c。
+- [PR #2004](https://github.com/molis-ai/molis-work/pull/2004) 的十项合并 tasklist 全部通过；最终 reviews、普通评论与行内评论均无待处理意见。前置门禁 [PR #2003](https://github.com/molis-ai/molis-work/pull/2003) 已先经正常队列合入 main。
+- 本归档只补交付状态、历史记录位置与引用，不改变产品源码、批准范围、资源许可、门禁或发布状态。

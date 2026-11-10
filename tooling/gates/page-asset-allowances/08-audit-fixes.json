@@ -1,0 +1,7 @@
+{
+  "reason": "08 合后审计修复：技能页「打开全文」改为一次动作一次快照（页面脚本变大），保存失败补「什么都没改」、坏包补「什么都没装，原来的也没动」两条定样文案。只动 workbench.js，未新增资源，两份 CSS 不变。",
+  "review": "2026-11-09 本机复核：对 416ee8 的产物重测，仅 /assets/molis-work-workbench.js 由 1,027,199 增至 1,027,487 字节（+288）；settings.css 786,021、workbench.css 1,139,081 与基线相同；无新资源。",
+  "assets": {
+    "/assets/molis-work-workbench.js": 288
+  }
+}

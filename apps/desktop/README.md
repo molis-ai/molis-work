@@ -16,7 +16,6 @@ createDesktopWebHost 向 Local Host 注入桌面能力；项目目录装配由 o
 | --- | --- |
 | [src/web-host.ts](src/web-host.ts) | 桌面 Web Host 装配 |
 | [src/project-catalog.ts](src/project-catalog.ts) | 项目目录装配 |
-| [src/adapters/sqlite-panels.ts](src/adapters/sqlite-panels.ts) | 已停用的桌面面板两张表的建表语句（没有读写；何时删随 #1633 定） |
 
 可对照现有调用方 [apps/desktop/launchers/web/server.ts](../../apps/desktop/launchers/web/server.ts) 阅读装配方式。
 
@@ -26,7 +25,7 @@ Tauri 工程、配置和资源已集中在本包的 `src-tauri/`，启动占位�
 
 本包的装配依赖见 [package.json](package.json)；包之间的允许方向由仓库边界检查约束。
 
-桌面启动、原生命令分发及 Shelf 后台请求先用随机 challenge 和 Home 控制密钥验证本地服务的 HMAC 响应。后台请求复用已验证的 TCP 连接再发送令牌和内容；端口上的任意 HTTP 服务不能冒充本 Home。原生 PTY 已移除，终端仍走工作台的 WebSocket PTY。对应 SYS-14 的 Rust/HTTP 负向用例证明协议拒绝，原生 WebKit 实操单列验收。
+桌面启动、原生命令分发及 Shelf 后台请求先用随机 challenge 和 Home 控制密钥验证本地服务的 HMAC 响应。后台请求复用已验证的 TCP 连接再发送令牌和内容；端口上的任意 HTTP 服务不能冒充本 Home。原生 PTY 已移除，终端仍走工作台的 WebSocket PTY。对应 SYS-14 的 Rust/HTTP 负向用例证明协议拒绝，原生 WebKit 实操单列验收。启动时宿主若在升级数据（`/health` 回 503、证明可验、`status` 为 `upgrading`），`web_service.rs` 就接着等：8 秒从最后一次这样的回答重新算，上限 30 分钟；已经在升级的宿主不再另起一个、也不替换它；后台请求仍只发给 `ok` 的服务。这段等待不在主线程上：`setup` 里的启动（`start_molis_work_web`）一见到这样的回答就交出来，剩下的由一个线程等（`wait_for_upgrading_web`），等完再回主线程导航，健康巡检也在等完之后才开始；这期间窗口照常响应，托盘的退出照常能用，窗口里是原来的占位页。没有这样的回答时，启动照旧在主线程上至多等 8 秒（U1-h，设计见 `specs/upgrade-continuity/upgrade-chain-design.md` §4.3）。
 
 ## 产品启动与打包
 

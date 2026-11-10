@@ -1,5 +1,9 @@
 import type { DeclaredPageRouteMatch } from "@molis-ai/molis-work-plugin-sdk";
 import { GOALS_PLUGIN_ID } from "./identity.js";
+import type { TreeErrorCode } from "./goal-tree-errors.js";
+
+/** Goals' own code for a Goal this project does not have: a read that answers it says the record is gone, a bare 404 (a route) does not. */
+export const GOAL_NOT_FOUND = "goals.not_found" satisfies TreeErrorCode;
 
 export type GoalDocumentCollection = "current" | "archive" | "trash";
 
@@ -12,7 +16,7 @@ export type GoalsReadRoute =
   | { kind: "refresh"; collection: GoalDocumentCollection; goal_id?: string }
   | { kind: "momentum"; collection: "current" | "archive"; goal_id: string }
   | { kind: "document"; collection: GoalDocumentCollection; goal_id: string };
-export interface GoalsRouteError { status: 400 | 404; error: string }
+export interface GoalsRouteError { status: 400 | 404; error: string; code?: typeof GOAL_NOT_FOUND }
 
 /** What the Host's match of a fragment route (`board-refresh`, `board-momentum`, `goal-document`) asks for, or the refusal; null when it is another route. */
 export function goalsReadRouteOf(declared: DeclaredPageRouteMatch | null): { route: GoalsReadRoute } | GoalsRouteError | null {

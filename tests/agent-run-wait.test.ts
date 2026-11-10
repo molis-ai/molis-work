@@ -53,6 +53,11 @@ test("following a live round: answers at once when behind, gathers quick deltas,
   const idle = Date.now(), quiet = await wait(asked.version, 150);
   assert.equal(quiet.version, asked.version, "nothing changed: the same version comes back at the timeout");
   assert.ok(Date.now() - idle >= 140);
+  // D0152: observe may legitimately stay silent; timeout must reject, not throw outside the promise.
+  adapter.observe = (_ref, listener) => { listeners.add(listener); return () => listeners.delete(listener); };
+  await assert.rejects(wait(quiet.version, 150), { code: "agent.run_unknown" });
+  assert.equal(listeners.size, 0, "a silent observer is released after its structured timeout");
+
 });
 
 test("a cancelled wait lets go at once: following a round and waiting for continuations both end when the call's signal aborts", async () => {

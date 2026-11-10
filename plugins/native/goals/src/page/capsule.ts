@@ -1,3 +1,5 @@
+import type { GoalCapsuleMenu } from "../capsule-menu.js";
+import { WORK_STATE_COPY } from "../goal-state-copy.js";
 import { countGoalDecisions } from "../decision-groups.js";
 import type { GoalsPageView } from "./view.js";
 import type { GoalsTranslate } from "./ports.js";
@@ -6,7 +8,7 @@ import { createCapsuleItemProjection } from "./capsule-items.js";
 
 /** The Goals owner's existing capsule projection; the shell only displays its JSON. */
 export function createGoalsCapsuleProjection(L: GoalsTranslate) {
-  const { activeGoalViews, newestFirst, recentCompletedGoal, projectPath, decisionItem, activeItem, availableItem, blockedItem, waitingItem, completeItem, TAB_ORDER, tabMeta, stateFromItem } = createCapsuleItemProjection(L);
+  const { activeGoalViews, newestFirst, recentCompletedGoal, projectPath, decisionItem, activeItem, availableItem, cancelledItem, blockedItem, waitingItem, completeItem, TAB_ORDER, tabMeta, stateFromItem } = createCapsuleItemProjection(L);
   function buildCapsuleSnapshot(
     view: GoalsPageView,
     directory: { goal_id: string }[],
@@ -87,6 +89,11 @@ export function createGoalsCapsuleProjection(L: GoalsTranslate) {
     });
     items.push(...waitingItems);
 
+    const cancelledItems = newestFirst(view.goals.filter(item =>
+      !assigned.has(item.goal.goal_id) && item.display_status === "cancelled"
+    )).map(item => cancelledItem(view, item));
+    items.push(...cancelledItems);
+
     const grouped = new Map<CapsuleTabKind, CapsuleGoalItem[]>();
     for (const item of items) {
       const group = grouped.get(item.tab_kind) ?? [];
@@ -97,7 +104,7 @@ export function createGoalsCapsuleProjection(L: GoalsTranslate) {
       const group = grouped.get(kind);
       return group?.length ? [{ kind, ...tabMeta(kind), items: group }] : [];
     });
-    const selected = decisionItems[0] ?? activeItems[0] ?? completedItem ?? availableItems[0] ?? blockedItems[0] ?? waitingItems[0] ?? null;
+    const selected = decisionItems[0] ?? activeItems[0] ?? completedItem ?? availableItems[0] ?? blockedItems[0] ?? waitingItems[0] ?? cancelledItems[0] ?? null;
     if (selected) {
       return {
         observed_event_cursor: view.snapshot.cursor,
@@ -137,5 +144,12 @@ export function createGoalsCapsuleProjection(L: GoalsTranslate) {
     };
   }
 
-  return { buildCapsuleSnapshot };
+  function buildCapsuleMenu(project: { project_id: string; display_name: string }, summary: GoalCapsuleMenu) {
+    const selected = summary.focus;
+    const label = selected ? L(selected.historical ? "历史记录" : WORK_STATE_COPY[selected.state].label) : L("暂无可开始项");
+    const title = selected && selected.count > 1 ? L("{label} · {count}", { label, count: selected.count }) : label;
+    const path = "/projects/" + encodeURIComponent(project.project_id) + (selected ? "/goals/" + encodeURIComponent(selected.goal_id) : "");
+    return { project, state: { menu_bar_title: title, menu_bar_tooltip: project.display_name + (selected ? " · " + selected.title : "") + " · " + title, action_path: path } };
+  }
+  return { buildCapsuleSnapshot, buildCapsuleMenu };
 }

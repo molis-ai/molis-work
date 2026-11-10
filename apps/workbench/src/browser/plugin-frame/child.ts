@@ -1,3 +1,4 @@
+import { UI_HOST_CLIENT_CODES } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { childFrameAssets } from "./frame-assets.js";
 import { childPlacement } from "./placement.js";
@@ -52,7 +53,7 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
     return globalThis.molisFrameFillMessage(config.messages[key] ?? key, values);
   };
   bindStorage(port, config);
-  const call = createUiRequest({ fetch: fetchThroughPort, origin: config.origin, token: () => "", newKey: () => crypto.randomUUID(), translate: L });
+  const call = createUiRequest({ fetch: fetchThroughPort, origin: config.origin, token: () => "", newKey: () => crypto.randomUUID(), translate: L }, UI_HOST_CLIENT_CODES);
   const view = createUiFailureView({ createElement: tag => document.createElement(tag), translate: L,
     copy: text => copyText(text), setTimeout, clearTimeout: id => clearTimeout(id as ReturnType<typeof setTimeout>) });
   view.install(document);
@@ -62,7 +63,7 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
   if (config.mount && ownRoots.length !== 1) throw new Error("View unavailable");
   const root = ownRoots[0] ?? document.querySelector<HTMLElement>("[data-work-surface]") ?? document.body;
   root.style.setProperty("--stage-title", config.stage.title); root.style.setProperty("--stage-desc", config.stage.description);
-  root.hidden = false; document.body.dataset.projectId = config.projectId; document.body.dataset.routePrefix = config.routePrefix;
+  root.hidden = false; document.body.dataset.projectId = config.projectId; document.body.dataset.pluginId = config.pluginId; document.body.dataset.routePrefix = config.routePrefix;
   const route = (path: string) => config.routePrefix + path;
   const ui = globalThis.molisFrameUi(L), scope = ui.mountPluginClient(document.body);
   if (!scope) throw new Error("Cannot mount plugin document");

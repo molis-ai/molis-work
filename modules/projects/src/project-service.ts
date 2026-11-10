@@ -1,5 +1,6 @@
 import { projectCatalogErrors as catalogErrors } from "@molis-ai/molis-work-contracts/modules/projects";
 
+import { insertProjectOutput } from "./project-output.js";
 import type {
   AddProjectPluginInput,
   ProjectDeletionReceipt,
@@ -73,11 +74,18 @@ export class ProjectService {
         this.repository.projects.addProjectPlugin(record.project_id, pluginId, record.created_at);
       }
       this.appendEvent(record.project_id, eventType, this.requiredActorId(actorId), { project_id: record.project_id });
+      // Every way a project is made comes here, so every project has its output from the start (§3); the folder waits until first used.
+      insertProjectOutput(this.repository.db, record.project_id, record.created_at, this.requiredActorId(actorId));
     });
   }
 
   rollbackRegistration(projectId: string): void {
-    this.repository.projects.removeProject(this.requiredProjectId(projectId));
+    const id = this.requiredProjectId(projectId);
+    // The default output directory's row went in with the project; it goes with it, not left behind with no member.
+    this.repository.transaction(() => {
+      this.repository.workspaces.removeWorkspaceMembershipsForProject(id);
+      this.repository.projects.removeProject(id);
+    });
   }
 
   /**
@@ -91,8 +99,7 @@ export class ProjectService {
   }
 
   /** One synchronous reach judgement uses the same current registry answer for both membership and hidden marks. */
-  pluginMembership(projectId: string): ProjectPluginMembership {
-    const alwaysOn = this.plugins.alwaysOn?.() ?? [];
+  pluginMembership(projectId: string, alwaysOn: readonly ProjectPluginId[] = this.plugins.alwaysOn?.() ?? []): ProjectPluginMembership {
     const hidden = this.listHidden(projectId, alwaysOn);
     return { plugins: this.listPlugins(projectId, alwaysOn), hidden };
   }
@@ -103,15 +110,17 @@ export class ProjectService {
 
   }
 
-  addPlugin(input: AddProjectPluginInput): ProjectPluginId[] {
+  addPlugin(input: AddProjectPluginInput, observedAlwaysOn?: readonly ProjectPluginId[]): ProjectPluginId[] {
     const project = this.get(input.project_id);
     const actor = this.requiredActorId(input.actor_id);
+    // Preserve any stored preference while the registry keeps this plugin on.
+    if (observedAlwaysOn?.includes(input.plugin_id)) return this.listPlugins(project.project_id, observedAlwaysOn);
     if (this.plugins.isPersonal?.(input.plugin_id) === true) {
       return this.repository.transaction(() => {
         if (this.repository.projects.showProjectPlugin(project.project_id, input.plugin_id)) {
           this.appendEvent(project.project_id, "project.plugin_added", actor, { plugin_id: input.plugin_id });
         }
-        return this.listPlugins(project.project_id);
+        return this.listPlugins(project.project_id, observedAlwaysOn);
       });
     }
     if (!this.plugins.has(input.plugin_id)) {
@@ -124,14 +133,14 @@ export class ProjectService {
           this.appendEvent(project.project_id, "project.plugin_added", actor, { plugin_id: pluginId });
         }
       }
-      return this.listPlugins(project.project_id);
+      return this.listPlugins(project.project_id, observedAlwaysOn);
     });
   }
 
-  removePlugin(input: RemoveProjectPluginInput): ProjectPluginMembership {
+  removePlugin(input: RemoveProjectPluginInput, observedAlwaysOn?: readonly ProjectPluginId[]): ProjectPluginMembership {
     const project = this.get(input.project_id);
     const actor = this.requiredActorId(input.actor_id);
-    const alwaysOn = this.plugins.alwaysOn?.() ?? [];
+    const alwaysOn = observedAlwaysOn ?? this.plugins.alwaysOn?.() ?? [];
     if (alwaysOn.includes(input.plugin_id)) throw catalogErrors.plugin_always_on("常开插件不能从项目里移除");
     const personal = this.plugins.isPersonal?.(input.plugin_id) === true;
     if (!personal && !this.plugins.has(input.plugin_id)) {

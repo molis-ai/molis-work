@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { workspaceReadActions } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
-import { projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
+import { projectDirectoryActions } from "@molis-ai/molis-work-contracts/modules/projects";
 import { KnowledgeOrganizer, KnowledgeService, knowledgeCatalog, locateSections, type KnowledgeLocateDraftInput } from "@molis-ai/molis-work-service-knowledge";
 import { openKnowledgeCards } from "@molis-ai/molis-work-storage";
 import { person, referenceOwners } from "./fixtures/reference-owners.js";
@@ -91,7 +91,8 @@ test("S-41 PMAT-13 the linked folder is read only with the caller's own grant, n
   assert.equal(grep.matches.length, 0, "nothing outside the folder is read");
   const elsewhere = f.access(f.agent(["workspace:read"], "b"));
   await assert.rejects(() => f.knowledge.glob(elsewhere, { pattern: "**/*" }), refused("knowledge.unreadable"));
-  await assert.rejects(() => f.knowledge.read(elsewhere, { subject: { kind: "workspace_file", id: "ws1:README.md" } }), refused("knowledge.unreadable"));
+  // Another project's folder id is not one of this project's folders, nor one named for another device's: refused as unmapped, nothing read.
+  await assert.rejects(() => f.knowledge.read(elsewhere, { subject: { kind: "workspace_file", id: "ws1:README.md" } }), refused("projects.directory_unmapped"));
 });
 
 test("S-41 PMAT-34 PMAT-35 PMAT-38 pieces added for some of the words, a round's catalog and the trees locate shows the model are only what the caller may read, in its own project", async t => {
@@ -123,13 +124,14 @@ test("PRR-01 S-41 a plugin with knowledge:read but no workspace:read cannot read
   const plugin = { ...f.agent(["knowledge:read"]), actor_id: "plugin-install-x", audience: "plugin" as const };
   const views = [
     { capability_id: workspaceReadActions.file.capability_id, version: workspaceReadActions.file.version, provider: { provider_id: "io.molis.work.projects" }, availability: { available: true } },
-    { capability_id: projectsCapabilities.listWorkspaces.capability_id, version: projectsCapabilities.listWorkspaces.version, provider: { provider_id: "io.molis.work.projects" }, availability: { available: true } },
+    { capability_id: projectDirectoryActions.get.capability_id, version: projectDirectoryActions.get.version, provider: { provider_id: "io.molis.work.projects" }, availability: { available: true } },
   ];
   const client = {
     discover: async (caller: ActionCallContext) => caller.permissions.includes("workspace:read") ? views : [],
     invoke: async (caller: ActionCallContext, ref: { capability_id: string }, input: { kind?: string }) => {
       assert.ok(caller.permissions.includes("workspace:read"), "workspace files need the caller's own grant");
-      if (ref.capability_id === projectsCapabilities.listWorkspaces.capability_id) return [{ workspace_id: "ws1", realpath_verified: true }];
+      if (ref.capability_id === projectDirectoryActions.get.capability_id) return { project_id: "a", revision: "r1", source_links: [],
+        directories: [{ workspace_id: "ws1", canonical_path: "/ws1", display_name: "ws1", realpath_verified: true, roles: ["output"], state: "ok" }] };
       if (ref.capability_id === workspaceReadActions.file.capability_id) return input.kind === "directory"
         ? { outcome: "directory", entries: [{ name: "README.md", path: ["README.md"], kind: "file" }], truncated: false }
         : { outcome: "text", text: "# 项目", fingerprint: "1" };

@@ -9,6 +9,7 @@ import type { AgentSessionRef, AgentTextMaterial } from "@molis-ai/molis-work-co
 import type { ActionSubjectContext, ActionView, BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { AssistantCharacterChoice, AssistantWorkObject } from "@molis-ai/molis-work-contracts/services/assistant";
+import type { WebLocale } from "../web-locale.js";
 import type { AssistantRoundFactPorts } from "./assistant-directory.js";
 import { withinTime } from "./assistant-material-scan.js";
 import type { AgentSkillRegistration, AgentSkillView, SignedAgentReference, SignedAgentInstallation, SignedAgentMaterial } from "@molis-ai/molis-work-contracts/services/agent-definitions";
@@ -32,6 +33,8 @@ export interface AssistantServicePorts extends AssistantLandingPorts, AssistantR
   setupMaterial?(work: StoredWork, offered: readonly ActionView[], previousWaitWithdrawn: boolean): AgentTextMaterial | undefined;
   /** The Home's Agent Host, ready to run. */
   host(): Promise<AgentHost>;
+  /** The language the person last used, read when a round no page started begins. Absent: such a round is told no language. */
+  lastLocale?(): WebLocale;
   authority(work: StoredWork, origin?: { source: "card" }): Promise<AgentStartAuthority>;
   /** How the person names a project, for the round's own description of where it runs. */
   projectTitle?(projectId: string): Promise<string | null>;
@@ -40,7 +43,7 @@ export interface AssistantServicePorts extends AssistantLandingPorts, AssistantR
   /** The person's own client in a work's project, to drive the plugin that carries it as its page would; a dispatch's (a Send, a follow-up's round) is its own. */
   personActions?(work: Pick<StoredWork, "project_ref">, use?: "dispatch", original?: SendIntent["original_input"], executorPluginId?: string): Promise<BoundActionClient>;
   /** The person's own actions in a work's scope (its project, or the Home), for reading related objects from their owners. */
-  scopeActions?(work: StoredWork): Promise<PersonActions>;
+  scopeActions?(work: Pick<StoredWork, "project_ref">): Promise<PersonActions>;
   /** The person's own actions in their Home, for reading the reminders they set in Plugins. */
   homeActions?(): Promise<PersonActions>;
   /** The Characters the person published in a project, each saying whether it can run now. */
@@ -65,6 +68,8 @@ export interface AssistantCaller {
   /** Attested by the protected send owner, never read from a business input. */
   original_input?: Omit<HostOfferedOriginalInput, "action">;
   project_ref?: LocalHostProjectReference;
+  /** The language of the page that sends, read at the Host's entry and never from the input. Absent: the round follows the language last used. */
+  reply_locale?: WebLocale;
   /** Set by the discussion controller, never read from HTTP input. */
   thread_request?: string;
   beforeStart?: () => Promise<void>;
@@ -86,7 +91,7 @@ export interface RoundMaterials { materials: AgentTextMaterial[]; told: { undos:
  * A Home-kept object that says it belongs to another project (or a project, for personal work): its content is not
  * this work's to read, whatever the owner's reader allows.
  */
-export function belongsElsewhere(work: StoredWork, context: ActionSubjectContext): boolean {
+export function belongsElsewhere(work: Pick<StoredWork, "project_ref">, context: ActionSubjectContext): boolean {
   if (typeof context.project_id !== "string" || context.project_id === "personal") return false;
   return context.project_id !== (work.project_ref?.project_id ?? null);
 }

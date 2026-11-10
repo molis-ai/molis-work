@@ -110,11 +110,7 @@ export const WORKSPACE_PACKAGES = [
     maturity: "experimental",
     extraWorkspaceDependencies: [
       "@molis-ai/molis-work-server",
-      "@molis-ai/molis-work-storage",
-      "@molis-ai/molis-work-app-local-host",
-      "@molis-ai/molis-work-im-ui",
-      "@molis-ai/molis-work-app-desktop",
-      "@molis-ai/molis-work-plugin-runtime"
+      "@molis-ai/molis-work-im-ui"
     ]
   }),
   entry("server", "@molis-ai/molis-work-contracts/platform/app-host", {
@@ -162,11 +158,9 @@ export const WORKSPACE_PACKAGES = [
     registeredPluginDependencies: true,
     extraWorkspaceDependencies: [
       "@molis-ai/molis-work-module-artifacts",
-      "@molis-ai/molis-work-im-ui",
       "@molis-ai/molis-work-ui-host",
       "@molis-ai/molis-work-design-system",
-      "@molis-ai/molis-work-integration-rss",
-      "@molis-ai/molis-work-integration-gmail",
+      "@molis-ai/molis-work-im-ui",
       "@molis-ai/molis-work-plugin-sdk"
     ],
     extraDependencies: {
@@ -284,8 +278,7 @@ export const WORKSPACE_PACKAGES = [
     maturity: "production",
     extraWorkspaceDependencies: ["@molis-ai/molis-work-plugin-sdk"],
     extraDependencies: {
-      "@adeptify/search-evidence-layer": "file:../../vendor/search-evidence-layer/adeptify-search-evidence-layer-0.4.1.tgz",
-      "better-sqlite3": "12.8.0"
+      "@adeptify/search-evidence-layer": "file:../../vendor/search-evidence-layer/adeptify-search-evidence-layer-0.4.1.tgz"
     }
   }),
   entry("packages/ui-host", "@molis-ai/molis-work-contracts/platform/ui", {
@@ -396,7 +389,8 @@ export const WORKSPACE_PACKAGES = [
   }),
   entry("horizontal/account", "@molis-ai/molis-work-contracts/services/account", {
     maturity: "slice",
-    capabilities: ["account.central-client.v1"]
+    capabilities: ["account.central-client.v1"],
+    extraWorkspaceDependencies: ["@molis-ai/molis-work-plugin-sdk"]
   }),
   entry("horizontal/agent-host", "@molis-ai/molis-work-contracts/services/agent-host", {
     maturity: "production",
@@ -415,6 +409,7 @@ export const WORKSPACE_PACKAGES = [
     }
   }),
   entry("horizontal/connector-host", "@molis-ai/molis-work-contracts/services/connector-host", {
+    extraWorkspaceDependencies: ["@molis-ai/molis-work-plugin-sdk"],
     maturity: "production",
     capabilities: [
       "connector.host.v1"

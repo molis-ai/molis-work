@@ -1,6 +1,8 @@
 import { ProjectRecycle } from "./recycle.js";
 import {wasProjectPluginRemoved} from "./plugin-removal.js";
 import { randomUUID } from "node:crypto";
+import { dirname as dirnameOf } from "node:path";
+import { projectDirectoryErrors } from "@molis-ai/molis-work-contracts/modules/projects";
 
 import type { ProjectDeletionRecord, ProjectDeletionStep, ProjectPluginRegistry } from "@molis-ai/molis-work-contracts/modules/projects";
 
@@ -14,6 +16,7 @@ import {
   ProjectService,
   type ProjectRecordDraftInput,
 } from "./project-service.js";
+import { ProjectPluginMembershipService } from "./project-plugin-membership.js";
 import type { StoredProjectDeletion } from "./deletion-repository.js";
 import {
   createProjectsSchema,
@@ -21,6 +24,7 @@ import {
 } from "./repository.js";
 import type { ProjectsSqliteDatabase } from "./sqlite.js";
 import { normalizeProjectWorkspace, ProjectWorkspaceService } from "./workspace.js";
+import { PROJECT_OUTPUT_PATH_PREFIX, prepareProjectOutputDirectory, projectOutputId } from "./project-output.js";
 import { ProjectDeletionSteps } from "./deletion-steps.js";
 
 export interface ProjectsModuleOptions {
@@ -29,6 +33,13 @@ export interface ProjectsModuleOptions {
   spaceId?: string;
   /** Where the Host keeps the project databases. The catalog stores no path: a project's is `<projects_directory>/<project_id>/molis-work.db` (W5-17). */
   projects_directory: string;
+  /**
+   * Where the Host keeps default output directories: the realpath of the Home joined with `outputs`. The catalog stores no path for them:
+   * a project's is `<outputs_directory>/<project_id>/` (specs/shared-sources-and-surfaces §3).
+   */
+  outputs_directory: string;
+  /** The root Home, which a folder named for another device's directory may neither be in nor hold. The Home itself when absent. */
+  root_home_directory?: string;
   now?: () => string;
   id?: (prefix: string) => string;
   /** The Plugins a project may enable and their companions; the Host derives it from what it ships. */
@@ -78,6 +89,12 @@ export class ProjectsModule implements ProjectsApplicationApi {
     ): StoredProjectDeletion;
     deletionRecord(record: StoredProjectDeletion): ProjectDeletionRecord;
     normalizeWorkspace: typeof normalizeProjectWorkspace;
+    /**
+     * Before anything touches a folder of a project on disk (§3 「碰磁盘之前」): `write` for what writes or starts a process there, `read`
+     * for what only reads. A default output directory is checked level by level and, for `write`, made; a folder the person chose is
+     * answered as it is. `exists: false` means the default output directory is not made yet (a listing reads it as empty).
+     */
+    prepareWorkspaceDirectory(workspaceId: string, mode: "read" | "write"): { path: string; exists: boolean };
     upsertWorkspaceMembership: ProjectWorkspaceService["upsertMembership"];
     unlinkWorkspaceMembership: ProjectWorkspaceService["unlink"];
   };
@@ -85,10 +102,11 @@ export class ProjectsModule implements ProjectsApplicationApi {
   constructor(options: ProjectsModuleOptions) {
     const now = options.now ?? (() => new Date().toISOString());
     const id = options.id ?? ((prefix: string) => `${prefix}-${randomUUID()}`);
-    const repository = new ProjectsRepository(options.db, options.projects_directory, options.spaceId);
+    const repository = new ProjectsRepository(options.db, options.projects_directory, options.outputs_directory, options.spaceId);
     this.records = new ProjectService(repository, options.projects_directory, now, id, options.plugins);
+    const membership = new ProjectPluginMembershipService(repository, this.records, options.plugins);
     this.recycle = new ProjectRecycle(options.db, now, options.projects_directory);
-    this.workspaces = new ProjectWorkspaceService(repository, now, id);
+    this.workspaces = new ProjectWorkspaceService(repository, now, id, options.root_home_directory ?? dirnameOf(options.outputs_directory));
     this.deletionSteps = new ProjectDeletionSteps(options.db, now);
     const withSteps = (receipt: StoredProjectDeletion): ProjectDeletionRecord => ({ ...this.records.deletionRecord(receipt), owner_steps: this.deletionSteps.list(receipt.deletion_id) });
     this.query = {
@@ -98,6 +116,7 @@ export class ProjectsModule implements ProjectsApplicationApi {
         return { plugins: repository.projects.listProjectPlugins(projectId), hidden: repository.projects.listHiddenPlugins(projectId) };
       },
       projectPluginMembership: (projectId) => this.records.pluginMembership(projectId),
+      projectPluginMembershipWithRevision: (projectId) => membership.get(projectId),
       listProjectPlugins: (projectId) => this.records.listPlugins(projectId),
       listHiddenPlugins: (projectId) => this.records.listHidden(projectId),
       listProjects: () => this.records.list(),
@@ -105,18 +124,23 @@ export class ProjectsModule implements ProjectsApplicationApi {
       selections: () => this.records.selections(),
       listWorkspaceMemberships: () => this.workspaces.listMemberships(),
       listWorkspaceDirectory: (projectId) => this.workspaces.listDirectory(projectId),
-      preferredWorkspacePath: (projectId) => this.workspaces.preferredPath(projectId),
+      projectDirectories: (projectId) => this.workspaces.directories(projectId),
+      outputDirectory: (projectId) => this.workspaces.outputDirectory(projectId),
+      defaultOutputDirectoryId: (projectId) => projectOutputId(repository.db, this.records.get(projectId).project_id),
+      workspaceIdAt: (canonicalPath) => {
+        const place = repository.workspaces.placeOf(canonicalPath);
+        return place.kind === "inside-outputs" ? null : place.row?.workspace_id ?? null;
+      },
       workspaceProjectSelections: (workspaceId) => repository.workspaces.workspaceProjectSelections(workspaceId),
       listProjectDeletions: () => this.records.listDeletions().map(receipt => ({ ...receipt, owner_steps: this.deletionSteps.list(receipt.deletion_id) })),
     };
     this.commands = {
       addProjectPlugin: (input) => this.records.addPlugin(input),
       removeProjectPlugin: (input) => this.records.removePlugin(input),
+      setProjectPlugin: (projectId, actorId, input) => membership.set(projectId, actorId, input),
       renameProject: (projectId, displayName, actorId, expectedDisplayName) => this.records.rename(projectId, displayName, actorId, expectedDisplayName),
       addWorkspaceProject: (input) => this.workspaces.add(input),
-      repairWorkspaceProject: (input) => this.workspaces.repair(input),
-      setWorkspaceDefault: (input) => this.workspaces.setDefault(input),
-      removeWorkspaceMembership: (input) => this.workspaces.remove(input),
+      changeDirectories: (input) => this.workspaces.change(input),
     };
     this.lifecycle = {
       transaction: <T>(operation: () => T) => repository.transaction(operation),
@@ -142,6 +166,12 @@ export class ProjectsModule implements ProjectsApplicationApi {
       updateDeletionCleanup: (deletionId, input) => this.records.updateDeletionCleanup(deletionId, input),
       deletionRecord: withSteps,
       normalizeWorkspace: normalizeProjectWorkspace,
+      prepareWorkspaceDirectory: (workspaceId, mode) => {
+        const stored = repository.workspaces.storedPath(workspaceId);
+        if (stored === null) throw projectDirectoryErrors.directory_revoked("这个文件夹已经不是任何项目的目录");
+        if (!stored.startsWith(PROJECT_OUTPUT_PATH_PREFIX)) return { path: stored, exists: true };
+        return prepareProjectOutputDirectory(options.outputs_directory, stored.slice(PROJECT_OUTPUT_PATH_PREFIX.length), mode);
+      },
       upsertWorkspaceMembership: (workspace, projectId, actorId) =>
         this.workspaces.upsertMembership(workspace, projectId, actorId),
       unlinkWorkspaceMembership: (workspaceId, projectId, actorId) =>
@@ -162,6 +192,12 @@ export type {
   StoredProjectDeletion,
 };
 export { listCatalogProjectsForUninstall } from "./installation-inspection.js";
+export { dropHostWorktreeLinks, fillProjectOutputs, PROJECTS_CATALOG_UPGRADE_1_SQL, upgradeProjectsCatalog1, verifyProjectOutputs, type HostWorktreeTest } from "./catalog-upgrade.js";
+export { MATERIAL_RECENT_USES_SCHEMA_SQL, MaterialRecentUses, type MaterialRecentCaller } from "./material-recent.js";
+export {
+  isProjectOutputWorkspaceId, prepareProjectOutputDirectory, projectOutputContents, projectOutputDirectoryPath, projectOutputHash, projectOutputWorkspaceId,
+  removeProjectOutputDirectory,
+} from "./project-output.js";
 export { listProjectDatabasePaths } from "./database-paths.js";
 export {projectReplicationOwner,validatePortableProject,validateProjectSyncKey,projectPluginRequirements,installProjectReplicationJournal} from './portable-project.js';
 export type {PortableProject,ProjectReplicationOptions} from './portable-project.js';

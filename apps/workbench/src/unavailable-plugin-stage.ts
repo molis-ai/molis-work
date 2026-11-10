@@ -12,16 +12,20 @@ export interface UnavailablePluginStage {
   /** Project scope: the plugin's Manifest id, which the restart button names. */
   plugin_id?: string;
   /** Project scope: what the Runtime's supervisor says is wrong with the plugin, and the stable code it gave; absent when it says none. */
-  status?: "failed" | "blocked";
+  status?: "starting" | "failed" | "blocked";
   code?: string | null;
   /** Project scope: set by the Host only for an instance that failed or was quarantined (never one switched off, blocked or uninstalled). */
   restart?: PluginRestartOffer | null;
 }
 
+/** A stage drawn for a plugin that did not start, either scope (`renderUnavailablePluginStage`): the shell's amber marks find it by this. */
+export const UNAVAILABLE_STAGE = ":is([data-home-plugin-unavailable], [data-project-plugin-unavailable])";
+
 /** An unavailable instance has no page authority or client; only the Host explains why it cannot open, and may offer to start it again. */
 export function renderUnavailablePluginStatus(stage: UnavailablePluginStage,
-  L: (text: string, values?: Record<string, string | number>) => string): string {
-  return `<div class="mw-empty" role="alert"><h2>${escapeHtml(L("{plugin} 暂不可用", { plugin: L(stage.label) }))}</h2><p>${escapeHtml(L(stage.reason))}</p>${stage.scope === "home" ? homeHint(stage, L) : projectHint(stage, L)}</div>`;
+  L: (text: string, values?: Record<string, string | number>) => string, announce = true): string {
+  if (stage.status === "starting") return `<div class="mw-empty" role="status" aria-busy="true"><h2>${escapeHtml(L("{plugin} 正在启动", { plugin: L(stage.label) }))}</h2><p>${escapeHtml(L(stage.reason))}</p></div>`;
+  return `<div class="mw-empty"${announce ? ' role="alert"' : ""}><h2>${escapeHtml(L("{plugin} 暂不可用", { plugin: L(stage.label) }))}</h2><p>${escapeHtml(L(stage.reason))}</p>${stage.scope === "home" ? homeHint(stage, L) : projectHint(stage, L)}</div>`;
 }
 
 export function renderUnavailablePluginStage(stage: UnavailablePluginStage,

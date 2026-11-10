@@ -24,7 +24,13 @@ export type WorkspaceFileResult =
   /** The file's bytes, base64. */
   | { outcome: "bytes"; data: string; bytes: number; fingerprint: string }
   | { outcome: "too-large"; bytes: number; limit: number }
-  | { outcome: "binary" | "unsupported" | "missing" | "denied" | "changed" };
+  /**
+   * A text read that found bytes it could not show as text. The content was read, so it carries the same fingerprint as a `bytes`
+   * read and a reference can be written from it (specs/shared-sources-and-surfaces §2); `unsupported` here is a file that would not decode.
+   */
+  | { outcome: "binary" | "unsupported"; fingerprint: string }
+  /** `unsupported` with no fingerprint is not a regular file: there was no content to read. */
+  | { outcome: "unsupported" | "missing" | "denied" | "changed" };
 
 /** Git reads are scoped by the current project grant, never by a caller path. */
 export type GitFileMode = "100644" | "100755";
@@ -297,6 +303,30 @@ export function parseWorkspaceFileSubjectId(id: string): { workspace_id: string;
   const at = id.indexOf(":");
   if (at <= 0) return null;
   try { return { workspace_id: id.slice(0, at), path: parseFilePath(id.slice(at + 1).split("/")) }; } catch { return null; }
+}
+/** A project's folders and the folders the person named for another device's ids, as `projects.directories.get@1` answers them. */
+export interface WorkspaceIdMapping {
+  directories: readonly { workspace_id: string }[];
+  source_links: readonly { source_workspace_id: string; workspace_id: string }[];
+}
+/**
+ * The folder of this project a folder id names on this device: the id itself when it is one of the project's directories, otherwise
+ * the folder the person named for it (`source_links`, SSC-26). Null when neither. The one place this rule is written: a reference is
+ * read through it (`resolveWorkspaceFileSubject`) and a page naming a folder is too. A write is never given another device's id.
+ */
+export function resolveWorkspaceId(workspaceId: string, directories: WorkspaceIdMapping): string | null {
+  if (directories.directories.some(item => item.workspace_id === workspaceId)) return workspaceId;
+  const link = directories.source_links.find(item => item.source_workspace_id === workspaceId);
+  return link && directories.directories.some(item => item.workspace_id === link.workspace_id) ? link.workspace_id : null;
+}
+/**
+ * The folder of this project a workspace file subject reads from on this device (`resolveWorkspaceId`) and the path in it. Null when
+ * the id names none: the reference is `unmapped`. Only the places that read a reference call this.
+ */
+export function resolveWorkspaceFileSubject(subject: { id: string }, directories: WorkspaceIdMapping): { workspace_id: string; path: string[] } | null {
+  const named = parseWorkspaceFileSubjectId(subject.id);
+  const workspaceId = named ? resolveWorkspaceId(named.workspace_id, directories) : null;
+  return named && workspaceId ? { workspace_id: workspaceId, path: named.path } : null;
 }
 /** Folders that are built, fetched or tool state rather than the project's own files: walking a workspace skips them unless asked by name. */
 export const WORKSPACE_SKIPPED_FOLDERS = ["node_modules", ".git", "dist", "build", ".next", ".cache", "target", "__pycache__", ".venv", "vendor"] as const;

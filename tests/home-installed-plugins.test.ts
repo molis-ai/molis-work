@@ -1,3 +1,4 @@
+import { projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
@@ -6,7 +7,7 @@ import test from "node:test";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SANDBOX_PACKAGE_FILES, type PluginPackageBundle } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { HomeConsentLedger, pluginInstallActions, homeAgentDefinitions } from "@molis-ai/molis-work-app-local-host";
-import { PACKAGE_PLUGIN_ID, newPublisher, signedAgentPackage, signedPackage } from "./fixtures/sandbox-package.js";
+import { PACKAGE_PLUGIN_ID, newPublisher, packageMethod, signedAgentPackage, signedPackage } from "./fixtures/sandbox-package.js";
 import { APPROVED, SECOND_PLUGIN_ID, fixture, homePackage, mac, operate, operationsOf, person, ref, refused, valuesOf } from "./fixtures/home-sandbox.js";
 import { openTestHome } from "./fixtures/test-home.js";
 
@@ -95,10 +96,10 @@ test("RAC-968 a running Home package is reached from every project unless the pr
   assert.equal(await add(one, "from one"), true);
   assert.equal(await add(two, "from two"), true, "a project that never installed anything reaches the same instance");
   const projectPlugins = `/api/settings/projects/${encodeURIComponent(one.project_id)}/plugins`;
-  await home.web.delete(projectPlugins, { plugin_id: PACKAGE_PLUGIN_ID });
+  await home.web.delete(projectPlugins, { plugin_id: PACKAGE_PLUGIN_ID, expected_revision: await projectPluginRevision(home.web, one.project_id) });
   await assert.rejects(add(one, "hidden"), refused("actions.plugin_disabled"), "the project that hid it does not reach it");
   assert.equal(await add(two, "still reached"), true, "hiding is the project's own");
-  await home.web.post(projectPlugins, { plugin_id: PACKAGE_PLUGIN_ID });
+  await home.web.post(projectPlugins, { plugin_id: PACKAGE_PLUGIN_ID, expected_revision: await projectPluginRevision(home.web, one.project_id) });
   assert.equal(await add(one, "shown again"), true);
 
   const disable = await home.web.post<{ disabled: boolean }>(`/api/plugins/${PACKAGE_PLUGIN_ID}/disable`, {});
@@ -198,8 +199,10 @@ test("RAC-2857 Home upgrade retains complete signed registration and current rol
   const entries = () => homeAgentDefinitions(h.home).methods().filter(item => item.owner_id === PACKAGE_PLUGIN_ID);
   const previous = entries();
   assert.deepEqual(previous.map(item => item.kind).sort(), ["method", "role"]);
-  const bodies = { "agent/role.md": "升级后完整的角色正文。", "agent/method.md": "升级后完整的方法正文。" };
-  await h.install(signedAgentPackage(publisher, { scope: "home", version: "1.1.0", compatibleFrom: ["1.0.0"], bodies }));
+  const bodies = { "agent/role.md": "升级后完整的角色正文。", "skills/proofread/SKILL.md": "升级后完整的方法正文。" };
+  // The method's body changes, so its Skill version goes up with it (SKC-04: a changed body under the same version is refused).
+  const methods = [packageMethod("proofread", "校对", "逐项核对事实", { version: 2 })];
+  await h.install(signedAgentPackage(publisher, { scope: "home", version: "1.1.0", compatibleFrom: ["1.0.0"], methods, bodies }));
   const check = () => {
     const installed = h.host.homePlugins!.installation(PACKAGE_PLUGIN_ID)!, registry = homeAgentDefinitions(h.home);
     assert.equal(installed.install_id, before.install_id);
@@ -213,7 +216,7 @@ test("RAC-2857 Home upgrade retains complete signed registration and current rol
       assert.equal(item.install_id, before.install_id);
       assert.deepEqual(item.tools, []);
       assert.deepEqual(item.default_ref!.source, { kind: "plugin", plugin_id: PACKAGE_PLUGIN_ID, plugin_version: "1.1.0", publisher_signature: publisher.identity });
-      assert.equal(registry.signedMaterial(installed.install_id, item.default_ref!).body, bodies[item.kind === "role" ? "agent/role.md" : "agent/method.md"]);
+      assert.equal(registry.signedMaterial(installed.install_id, item.default_ref!).body, bodies[item.kind === "role" ? "agent/role.md" : "skills/proofread/SKILL.md"]);
     }
     for (const item of previous) assert.throws(() => registry.signedMaterial(installed.install_id, item.default_ref!), /来源已变化/);
   };

@@ -19,6 +19,7 @@ export function renderPluginTrustSettings({ L, projectId, chevron }: { L(text: s
       <h2 id="plugin-trust-install-title">${L("安装插件包")}</h2>
       <p class="settings-muted">${L("选一个签过名的插件包。装之前会先列出它要的权限，由你决定；选好文件本身不会安装任何东西。")}</p>
       <label class="mw-btn mw-btn--secondary mw-btn--sm">${L("选择插件包")}<input type="file" accept=".json,application/json" hidden data-plugin-trust-pick></label>
+      <div data-plugin-trust-bundled hidden></div>
       <div class="plugin-trust-preview" data-plugin-trust-preview hidden></div>
     </section>
     <section class="settings-section" aria-labelledby="plugin-trust-list-title">
@@ -63,7 +64,9 @@ const day = (iso) => String(iso || "").slice(0, 10);
 const short = (id) => String(id).replace(/^ed25519:sha256:/, "").slice(0, 12);
 const error = $("error");
 const board = () => document.querySelector("[data-settings-toast], [data-toast]");
-const fail = (failure) => { molisWorkRequest.show(error, failure); error.hidden = false; if (board()) molisWorkRequest.toast(board(), failure, undefined, { ms: 5000 }); };
+const fail = (failure, nothingInstalled = false) => { const shown = nothingInstalled && failure?.message ? new Error(L("什么都没装，原来的也没动。") + " " + failure.message) : failure; molisWorkRequest.show(error, shown); error.hidden = false; if (board()) molisWorkRequest.toast(board(), shown, undefined, { ms: 5000 }); };
+// A package the Host read and refused: nothing was pinned, kept or installed (SKP-08). Say so next to its problems.
+const badPackage = (failure) => failure && (failure.code === "plugin.declaration_invalid" || failure.code === "plugin.package_invalid");
 const toast = (text) => { const box = board(); if (!box) return; box.textContent = text; box.classList.remove("is-error"); box.classList.add("is-visible"); setTimeout(() => box.classList.remove("is-visible"), 2600); };
 const api = (path, payload) => molisWorkRequest(base + path, { body: payload });
 const homeApi = (name, payload = {}) => molisWorkRequest("/api/settings/plugin-permissions/" + name, { body: payload });
@@ -190,7 +193,7 @@ summary.append(copy); const mark = $("chevron"); if (mark) summary.append(mark.c
 const body = el("div", "plugin-trust-body");
 body.append(el("span", "settings-muted", plugin.plugin_id + (plugin.publisher_signature && plugin.trust !== "host" ? " · " + short(plugin.publisher_signature) : "")));
 if (revoked && revoked.has(plugin.publisher_signature)) body.append(el("span", "settings-muted", L("发布者的信任已撤销：它不再运行，只能卸载")));
-else if (plugin.recovery_error) body.append(el("span", "settings-form-error", L("没能启动：{error}", { error: plugin.recovery_error })));
+else if (plugin.recovery_error) body.append(el("span", "settings-form-error", L("没能启动：{error}", { error: L(plugin.recovery_error === "plugin.publisher_revoked" ? "发布者的信任已撤销" : plugin.recovery_error === "plugin.manifest_version_invalid" ? "插件版本与当前平台不匹配" : "插件暂时无法启动，请重试或查看诊断") })));
 const work = el("div"), repaint = () => work.replaceChildren(jobs(plugin.jobs, plugin.permissions));
 if (plugin.manifest_available) { body.append(grants(plugin, repaint, send, managed)); repaint(); body.append(work); } else body.append(el("span", "settings-muted", L("读不到这个插件安装时声明的权限")));
 const reach = act === homeApi ? reachViews.get(plugin.plugin_id) : null;
@@ -241,6 +244,8 @@ panel.append(el("p", "settings-muted", L(shown.runtime_scope === "home" ? "安�
 const was = (shown.runtime_scope === "home" ? personal : current).find((plugin) => plugin.plugin_id === view.plugin_id);
 if (was) panel.append(el("span", "", L("已装的是 {from}，装上后升级到 {to}；数据保留。", { from: was.version, to: view.version })));
 panel.append(permissions(view.permissions), jobs(view.jobs));
+globalThis.molisSkillUI?.preview(panel, shown.skills);
+if (shown.requires?.length) panel.append(group(L("需要的能力"), "", shown.requires.map(item => row(item.capability_id, item.reason, L(item.satisfied ? "已具备" : "尚未具备")))));
 if (shown.origins?.length) panel.append(group(L("可访问的服务地址"), "", shown.origins.map((service) => row(service.title, service.service_id, ...service.origins))));
 if (shown.agent_bodies && shown.agent_bodies.length) {
 const bodies = el("div", "plugin-trust-agent-bodies"); bodies.append(el("h4", "", L("角色资料与方法")));
@@ -249,7 +254,14 @@ const body = el("div", "plugin-trust-agent-body");
 body.append(el("strong", "", L(item.kind === "role" ? "角色资料" : "方法") + "：" + item.name));
 if (item.change) body.append(el("p", "settings-muted", L({ added: "新增正文", changed: "正文已变化", removed: "已移除正文" }[item.change])));
 const excerpt = el("pre", "", item.excerpt); excerpt.style.whiteSpace = "pre-wrap"; excerpt.style.overflowWrap = "anywhere";
-body.append(excerpt); bodies.append(body);
+body.append(excerpt);
+if (item.truncated) {
+body.append(el("p", "settings-muted", L("正文已截断，确认前可展开查看完整内容。")));
+const details = el("details", ""); details.append(el("summary", "", L("查看完整正文")));
+const full = el("pre", "", item.body); full.style.whiteSpace = "pre-wrap"; full.style.overflowWrap = "anywhere";
+details.append(full); body.append(details);
+}
+bodies.append(body);
 }); panel.append(bodies);
 }
 const effects = Object.keys(shown.effects || {}).filter((key) => shown.effects[key] && shown.effects[key].length);
@@ -267,8 +279,8 @@ install.addEventListener("click", async () => {
 const name = label ? label.value.trim() : "";
 if (label && !name) { label.setAttribute("aria-invalid", "true"); label.focus(); return; }
 install.disabled = true; error.hidden = true;
-try { await api("/install/confirm", { preview_id: shown.preview_id, consent: true, ...(label ? { pin_label: name } : {}) }); close(); toast(L("已安装")); await load(); }
-catch (failure) { fail(failure); install.disabled = false; }
+try { await api("/install/confirm", { preview_id: shown.preview_id, consent: true, ...(label ? { pin_label: name } : {}) }); toast(L("已安装")); await load(); await globalThis.molisSkillUI.enable(preview, root.dataset.project, view.plugin_id, close); }
+catch (failure) { fail(failure, badPackage(failure)); install.disabled = false; }
 });
 footer.append(cancel, install); panel.append(footer);
 preview.replaceChildren(panel); preview.hidden = false; panel.scrollIntoView?.({ block: "nearest" });
@@ -281,8 +293,15 @@ try {
 let bundle;
 try { bundle = JSON.parse(await file.text()); } catch { throw new Error(L("这个文件不是插件包")); }
 review(await api("/install/preview", { bundle }));
-} catch (failure) { fail(failure); }
+} catch (failure) { fail(failure, badPackage(failure)); }
 });
+api("/bundled/list", {}).then(data => {
+const box = $("bundled"); if (!data.plugins.length && !data.refused.length) return; box.hidden = false;
+box.append(el("h3", "", L("随安装包提供")));
+for (const item of data.plugins) { const pick = button(item.name + " · " + item.version, "mw-btn--secondary"); pick.disabled = item.publisher.revoked;
+pick.addEventListener("click", async () => { pick.disabled = true; try { review(await api("/install/preview", { bundled: { plugin_id: item.plugin_id, version: item.version } })); } catch (cause) { fail(cause, badPackage(cause)); } finally { pick.disabled = item.publisher.revoked; } }); box.append(pick); }
+for (const item of data.refused) box.append(el("p", "settings-form-error", item.file + " · " + item.message));
+}).catch(fail);
 load().catch(fail);
 };
 globalThis.molisWorkBindPluginTrustSettings = (container = document) => {

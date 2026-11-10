@@ -77,7 +77,6 @@ tests/agent-reference-questions.test.ts
 tests/agent-review-http.test.ts
 tests/agent-review-surface.test.ts
 tests/agent-run-wait.test.ts
-tests/agent-start-authority.test.ts
 tests/agent-workspace-none.test.ts
 
 # artifact
@@ -169,6 +168,7 @@ tests/connector-record-actions.test.ts
 tests/connector-document-import.test.ts
 tests/connector-method-directory.test.ts
 tests/connector-oauth-choice.test.ts
+tests/connector-oauth-declarations.test.ts
 tests/connector-provider-contracts.test.ts
 tests/connector-reconnect-regressions.test.ts
 
@@ -229,6 +229,7 @@ tests/goals-stored-json.test.ts
 tests/goals-tree-ui.test.ts
 
 # memory
+tests/memory-clear-restart.test.ts
 tests/memory-initialization.test.ts
 tests/memory-learning.test.ts
 tests/memory-plugin-save.test.ts
@@ -425,6 +426,7 @@ tests/personal-goals-sync.test.ts
 tests/personal-goals-sync-refusal.test.ts
 tests/personal-goals-sync-lifecycle.test.ts
 tests/personal-goals-sync-offline.test.ts
+tests/personal-sync-scheduler.test.ts
 tests/sync-device.test.ts
 tests/sync-json-content.test.ts
 tests/sync-item-isolation.test.ts
@@ -497,6 +499,22 @@ tests/view-placement-declarations.test.ts
 tests/workbench-entry-exports.test.ts
 # SQLD-06 (SQLD-b): .nvmrc, the workflows and engines name one Node patch; on that Node the SQLite is the one the plugin statement check was read against.
 tests/sqlite-version-notice.test.ts
+# SQLD-01..04: what the project connection promises its callers, on the driver underneath it (the macOS-only compile list is in sqlite-build-options).
+tests/sqlite-driver-conformance.test.ts
+# 14 T10 FSS-71: the personal Assistant replies in the page's language; work with no page reads the Home's last-used record.
+tests/reply-language.test.ts
+# FSS-54, FSS-56, FSS-58: the baseline files of the interface parse and hold the 194 frozen names, nothing keeps a second table, and what ships has a row. A broken file stops the Host at import: a build defect caught here, before a release.
+tests/ui-baseline.test.ts
+tests/ui-resources.test.ts
+# 14 T8 FSS-60, FSS-63, FSS-69: the Host's text context: words a session registers and takes back, a language that ends with its scope, one context per process.
+tests/host-ui-text.test.ts
 
 # Account session and Host refusal tests already run in the blocking security-invariants job (pnpm test:security).
 tests/account-client.test.ts
+
+# 2026-11-08 low A-1: D0215 / D0217 / D0232 (existing security cases remain in test:security)
+tests/goals-plugin-prefix-routes.test.ts
+tests/goals-contract-ownership.test.ts
+tests/memory-retention-roundtrip.test.ts
+tests/goals-project-database.test.ts
+tests/goal-events-state.test.ts

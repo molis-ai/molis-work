@@ -15,7 +15,7 @@ export function createCatalogConnector(opts: {
 }) {
   const home = opts.home ?? resolveMolisWorkHome();
   const id = opts.connectionId;
-  const oauthId = id ? apiOAuthConnectionId(withConnectorConnections(home, store => store.get(id))?.credential_ref ?? undefined) : undefined;
+  const oauthId = id ? apiOAuthConnectionId(withConnectorConnections(home, store => store.get(id), true)?.credential_ref ?? undefined) : undefined;
   return createCatalogProvider({
     connectorId: opts.connectorId,
     token: opts.token,

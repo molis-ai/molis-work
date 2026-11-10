@@ -28,7 +28,7 @@ function toGithubApi(url: string): boolean {
  */
 async function boundToken(home: string): Promise<string | undefined> {
   try {
-    const bound = withConnectorConnections(home, store => store.binding(SCOPE, CONSUMER, SLOT));
+    const bound = withConnectorConnections(home, store => store.binding(SCOPE, CONSUMER, SLOT), true) ?? null;
     if (!bound || !lendsToken(bound)) return undefined;
     return (await resolveApiConnection(home, bound.connection_id, connectorAccountControl(home, bound.connection_id), "github")).token || undefined;
   } catch (error) {
@@ -45,7 +45,7 @@ function read(home: string) {
       return { connectionId: view.connection_id, displayName: view.display_name, accountLabel: view.account_label, state: view.state };
     }),
     selectedConnectionId: store.binding(SCOPE, CONSUMER, SLOT)?.connection_id ?? null,
-  }));
+  }), true) ?? { accounts: [], selectedConnectionId: null };
 }
 
 function select(home: string, connectionId: string | null): void {

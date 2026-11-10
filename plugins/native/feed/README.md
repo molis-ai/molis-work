@@ -20,11 +20,11 @@ FeedApplication 组合注入的 Module API；FeedSourceService、FeedConnectorSy
 | [src/goal-promotion.ts](src/goal-promotion.ts) | Feed 推进为 Goal |
 | [src/route-handlers.ts](src/route-handlers.ts) | HTTP 用例适配 |
 
-Runtime 里的装配方式见 [src/plugin.ts](src/plugin.ts)（平台服务做端口）；演示数据的装配见 [apps/local-host/src/demo-feed-library.ts](../../../apps/local-host/src/demo-feed-library.ts)。
+Runtime 里的装配方式见 [src/plugin.ts](src/plugin.ts)（平台服务做端口）；演示数据由 [src/demo-seed.ts](src/demo-seed.ts) 的 Manifest 动作写入，平台在可重建演示项目的 Runtime 就绪后调用；离线测试装配仅在测试 fixture 中。
 
 ## 接入与边界
 
-本包不拥有 Source/Signal/Feed 数据表，也不直接实现 GitHub/Gmail 协议。正文渲染用插件 SDK 的 `/rich-text`（`renderRichText`、`richPlainText`），送模型的上下文先过 SDK 的 `redactSecrets`；Provider 失败、部分接收与重试不能混成同一个成功状态。
+本包拥有 Source/Signal/Feed 数据表，Attention 与情境账经平台服务读写；不直接实现 GitHub/Gmail/RSS 协议。正文渲染用插件 SDK 的 `/rich-text`（`renderRichText`、`richPlainText`），送模型的上下文先过 SDK 的 `redactSecrets`；Provider 失败、部分接收与重试不能混成同一个成功状态。
 
 `research_library` 来源由 Host 注入 `syncRepository`（Feed 自己的 `syncResearchLibrary`，读仓库的一步由注入的读取端口做：宿主版是宿主自己的读取器，Runtime 版是平台的 `repository.read`），沿用 Sources 的 `public_source` 同步入口与计划。GitHub integration 验证固定提交上的发布包和哈希，Feed 每条研究发现保存正文、原始引用、阅读范围与包版本。来源规则默认 `admission: "suggest"`；明确选 `inbox` 时，Feed 将匹配内容或需复核的判断结果写入 Attention。`evaluateItems` 可对最近至多 20 条消息重新运行规则；Functions 本身不执行写入。
 
@@ -99,7 +99,7 @@ node scripts/run-tests.mjs tests/feed-native-plugin.test.ts tests/feed-goal-prom
 | `store/signals.ts` | `SignalsModule`：规范化的外部事件、去重身份、修订与来源 | `signals`、`signal_revisions`、`signal_events` |
 | `store/listener.ts` | `ListenerHost`：持久游标、租约、重试、隔离、原始事件投递与运行收据 | `listener_instances`、`listener_deliveries`、`feed_source_runs` |
 
-- 存取只经 `FeedSql`（`store/sql.ts`：`get`/`all`/`run`/`transaction`，同步，和 better-sqlite3 与平台的 `PluginDatabaseTransaction` 的交集）。存储层不 import 数据库驱动或 `@molis-ai/molis-work-storage` 的连接；`fromBetterSqlite(db)` 包 better-sqlite3 的连接，现在只给 `createDemoFeedApplication`（`apps/local-host/src/demo-feed-library.ts`）和测试用；Runtime 里的 Feed 在 `runtime-ports.ts` 用 `fromPluginReader(services.database)`（只读，写和事务都直接拒绝）和 `fromPluginTransaction(transaction)`（平台已开的写事务）包平台给的库。
+- 存取只经 `FeedSql`（`store/sql.ts`：`get`/`all`/`run`/`transaction`，同步，和项目连接与平台的 `PluginDatabaseTransaction` 的交集）。存储层不 import 数据库驱动或 `@molis-ai/molis-work-storage` 的连接；`fromBetterSqlite(db)` 包项目连接（名字是旧驱动留下的），现在只给 `createDemoFeedApplication`（`apps/local-host/src/demo-feed-library.ts`）和测试用；Runtime 里的 Feed 在 `runtime-ports.ts` 用 `fromPluginReader(services.database)`（只读，写和事务都直接拒绝）和 `fromPluginTransaction(transaction)`（平台已开的写事务）包平台给的库。
 - 构造器只存引用：不执行建表语句、不缓存语句或连接、不读 `sqlite_master`。表由声明建（`FEED_PROJECT_DATABASE` 的 `schema` 是 `out-rules.ts` 与 `store/` 下四份建表语句的拼接，与本插件现行结构一致），所以每次调用现建一个 Module 是安全的（FI-6 的 `fromPluginTransaction` 依赖这一点）。测试要自己造库时，先执行对应的 `*_SCHEMA_SQL`。
 - 不变量：
   - `FeedModule` 是 `feed_items`、`feed_materials`、处置与 Feed 事件的唯一写入者；入口不导出 Repository 或 Store，也不转出 Storage 的证据正文库（RAC-170）。别的包不读写 `feed_materials`（`scripts/gates/table-owners.mjs`）。

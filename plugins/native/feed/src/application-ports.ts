@@ -1,4 +1,5 @@
 import type { SourcesApi } from "./contract/sources.js";
+import type { SignalCommands } from "./contract/signals.js";
 import type { FeedApi } from "./contract/feed.js";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ListenerCheckpoint, ListenerRunRecord } from "./contract/listener.js";
@@ -8,6 +9,7 @@ import type { FeedAttentionPort } from "./store/items/types.js";
 
 export interface FeedApplicationPorts {
   readonly sources: SourcesApi;
+  readonly signals: Pick<SignalCommands, "deleteBySource">;
   readonly attention: FeedAttentionPort;
   readonly feed: FeedApi;
   readonly outRules?: FeedOutRuleStore;

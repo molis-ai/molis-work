@@ -58,7 +58,7 @@ export async function checkCandidateKey(home: string, input: { serviceId: string
   // A replacement stops when its connection changes (removed, renamed, another key put in) while the service is asked.
   const current = () => {
     signal.throwIfAborted();
-    if (target && withConnectorConnections(home, store => store.get(target.connectionId))?.updated_at !== target.expectedRevision) {
+    if (target && withConnectorConnections(home, store => store.get(target.connectionId), true)?.updated_at !== target.expectedRevision) {
       throw connectorErrors["connector.connection.invalid"]("原连接已变化，请刷新后再换密钥");
     }
   };
@@ -84,7 +84,7 @@ export async function checkCandidateKey(home: string, input: { serviceId: string
  * nothing awaited in between, so the version read is the one the check passed for.
  */
 export function rememberCandidateCheck(home: string, connectionId: string, check: CandidateCheck) {
-  const revision = withConnectorConnections(home, store => store.get(connectionId))?.updated_at;
+  const revision = withConnectorConnections(home, store => store.get(connectionId), true)?.updated_at;
   if (!revision || !rememberConnectorCheck(home, connectionId, { at: check.checked_at, revision, outcome: "connected", authorization: "verified",
     ...(check.account ? { account: check.account } : {}) })) return undefined;
   return { available: true as const, result: { connection_id: connectionId, ok: true, ...check } };

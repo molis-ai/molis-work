@@ -1,3 +1,4 @@
+import { WebSessions, webPageToken, withWebSessionRequest } from "./web-sessions.js";
 import { renderPersonalAccountEntry } from "@molis-ai/molis-work-app-workbench";
 import { createLocalWebAssets } from "./web-assets.js";
 import { createLocalHostWorkbenchRenderer } from "./workbench-renderer.js";
@@ -32,6 +33,8 @@ import { startDemoSeed } from "./demo-seed.js";
 import { attachMolisWorkPtySocket } from "./pty-socket.js";
 import { bindPluginTerminalHost } from "./plugin-terminal-service.js";
 import { L, htmlLang, clientI18nScript, isWebLocale, localeSetCookie, resolveWebLocale, runWithLocale, safeNextPath } from "./web-locale.js";
+import { rememberUiLocale } from "./ui-locale-memory.js";
+import { installHostUiText } from "./ui-text-provider.js";
 import { fixtureWebBoardOptions } from "./web-routing.js";
 import { createLocalWebComposition, type LocalWebPlatform } from "./web-composition.js";
 import type { WebServerOptions } from "./web-types.js";
@@ -67,6 +70,21 @@ function nativeTerminal() {
   return terminal;
 }
 
+/** The language switch. This is a GET a foreign page's <img> reaches too: the browser's Cookie goes as ever, but only the page itself moves the Home's remembered language (S-ui-locale-memory). */
+function switchLocale(request: http.IncomingMessage, response: http.ServerResponse, url: URL, home: string): void {
+  const requested = url.searchParams.get("lang");
+  if (request.headers["sec-fetch-site"] === "same-origin") rememberUiLocale(home, requested);
+  const nextLocale = isWebLocale(requested)
+    ? requested
+    : resolveWebLocale(request.headers.cookie, request.headers["accept-language"]);
+  response.writeHead(302, {
+    location: safeNextPath(url.searchParams.get("next")),
+    "set-cookie": localeSetCookie(nextLocale),
+    "cache-control": "no-store",
+  });
+  response.end();
+}
+
 function webWorkspaceFor(projectId: string, options: WebServerOptions, fixture: ReturnType<typeof fixtureWebBoardOptions>, home: string, withCatalog: LocalWebCatalogRunner) {
   const configuredRoot = () => {
     if (!options.projectRoot) return null;
@@ -79,6 +97,8 @@ function webWorkspaceFor(projectId: string, options: WebServerOptions, fixture: 
 
 export function createLocalWebCoreFactory(platform: LocalWebPlatform) {
   function createMolisWorkWebServer(options: WebServerOptions = {}): SpaceWebSurface {
+    // The text tools' context, once a process: a page's `t` finds the request's language and the owners' words through it (§8.3).
+    installHostUiText();
     const storageHome = resolveConfiguredHome(options.homeDirectory);
     let catalogAccess: ReturnType<typeof createWebCatalogAccess> | undefined;
     const baseCatalog: LocalWebCatalogRunner = (settings, operation) => (catalogAccess?.withCatalog ?? platform.withCatalog)(settings, operation);
@@ -106,6 +126,8 @@ export function createLocalWebCoreFactory(platform: LocalWebPlatform) {
       projectRoutePrefix: projectId => fixture && projectId === fixture.projectId ? "" : `/projects/${encodeURIComponent(projectId)}`,
       workspacesFor: (projectId) => withCatalog({ homeDirectory: storageHome }, catalog => catalog.listWorkspaceDirectory(projectId)),
       workspaceFor: projectId => webWorkspaceFor(projectId, serverOptions, fixture, storageHome, withCatalog),
+      directoriesFor: projectId => withCatalog({ homeDirectory: storageHome }, catalog => catalog.projectDirectories(projectId)),
+      prepareDirectory: (projectId, workspaceId, mode) => withCatalog({ homeDirectory: storageHome }, catalog => catalog.prepareWorkspaceDirectory(projectId, workspaceId, mode)),
     });
     const ownsLocalHost = !serverOptions.localHost;
     const completed = new Set<string>(), resources: Array<readonly [string, () => unknown]> = [];
@@ -124,6 +146,7 @@ export function createLocalWebCoreFactory(platform: LocalWebPlatform) {
     const composition = createLocalWebComposition({ ...platform, withCatalog }, storageHome,serverOptions.accountRegistration??false,serverOptions.installationDiagnostics);
     const { serveWorkbenchAsset } = composition;
     const controlToken = resolveWebControlToken(serverOptions);
+    const sessions = serverOptions.webSessions ?? new WebSessions(storageHome);
     const mutationKeys = new Map<string, LocalMutationState>();
     const webViewCache: MolisWorkWebViewCache = new Map();
     const demoSeeding = startDemoSeed(fixture);
@@ -132,24 +155,13 @@ export function createLocalWebCoreFactory(platform: LocalWebPlatform) {
     const { im, browserHost, sites, computer, projectExists, projectSchedules } = createWebStorageResources({
       home: storageHome, localHost, withCatalog, fixture, periodic, webViewCache, resources, server: () => server,
     });
-    const server = trackHostListener(http.createServer((request, response) => runWithMolisWorkHome(storageHome, () => withCallId(newCallId(), async () => {
+    const server = trackHostListener(http.createServer((request, response) => withWebSessionRequest(request, () => runWithMolisWorkHome(storageHome, () => withCallId(newCallId(), async () => {
       const url = new URL(request.url ?? "/", "http://localhost");
       try { await demoSeeding;
         // Every route (locale switch included) answers only a request addressed to this machine by a loopback name, and none can be framed by another origin (S-02, S-21).
         if (refuseForeignRequest(request, response)) return;
-        if (request.method === "GET" && url.pathname === "/locale") {
-          const requested = url.searchParams.get("lang");
-          const nextLocale = isWebLocale(requested)
-            ? requested
-            : resolveWebLocale(request.headers.cookie, request.headers["accept-language"]);
-          response.writeHead(302, {
-            location: safeNextPath(url.searchParams.get("next")),
-            "set-cookie": localeSetCookie(nextLocale),
-            "cache-control": "no-store",
-          });
-          response.end();
-          return;
-        }
+        sessions.bind(request, controlToken, response);
+        if (request.method === "GET" && url.pathname === "/locale") { switchLocale(request, response, url, storageHome); return; }
         const capsuleLocale = request.method === "GET" && (
           url.pathname === "/desktop/capsule" ||
           /^\/projects\/[^/]+\/api\/capsule$/.test(url.pathname)
@@ -188,7 +200,7 @@ export function createLocalWebCoreFactory(platform: LocalWebPlatform) {
             serverOptions,
             runtimeIntegrations,
             webService,
-            controlToken,
+            webPageToken(request),
             webViewCache,
             projectSchedules,
             pty.host,
@@ -202,13 +214,14 @@ export function createLocalWebCoreFactory(platform: LocalWebPlatform) {
       } catch (error) {
         runWithLocale(resolveWebLocale(request.headers.cookie, request.headers["accept-language"]), () => sendUnhandledWebError(response, error, request));
       }
-    }))));
+    })))));
     // SSE is an active HTTP response, so stop its streams before close waits. The side panel's browser is asked to quit
     // at once, not when the last connection ends: a shutdown that is cut short still leaves its sign-ins written.
-    shutdown = awaitWebServerShutdown(server, () => { im.stop(); }, cleanup, async () => {
+    shutdown = awaitWebServerShutdown(server, () => { im.stop(); sessions.revokeScope(controlToken); }, cleanup, async () => {
       releaseTransport?.();
       if (ownsLocalHost) await localHost.close();
     });
+    server.prependListener("upgrade", request => sessions.bind(request, controlToken));
     attachMolisWorkBrowserSocket(server, controlToken, browserHost, { projectExists });
     computer.attach(server, controlToken);
     pty.host = attachMolisWorkPtySocket(server, controlToken, storageHome);

@@ -14,7 +14,7 @@ export function assertMcpAuthorizationPending(home: string, state: string, now: 
 export function commitMcpConnection(home: string, config: McpConfiguration, state: string, now: number, check: McpSourceCheck, declaration?: McpSourceSnapshot) {
   assertMcpAuthorizationPending(home, state, now);
   check(config, declaration);
-  const previous = withConnectorConnections(home, store => store.get(config.connectionId));
+  const previous = withConnectorConnections(home, store => store.get(config.connectionId), true);
   if (previous && (previous.updated_at !== config.previousRevision || previous.disconnected_at !== config.previousDisconnectedAt)) throw connectorErrors["connector.mcp.configuration"]("连接已改变，请重新开始授权");
   const staged = connectorProtocolSecrets(home, config.sessionId);
   const final = connectorProtocolSecrets(home, config.connectionId);

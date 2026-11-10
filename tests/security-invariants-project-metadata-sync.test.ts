@@ -14,7 +14,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import {createProjectsSchema,ProjectsModule,projectReplicationOwner,validatePortableProject,projectPluginRequirements,installProjectReplicationJournal} from '@molis-ai/molis-work-module-projects';
-import {replicaSchemaSql,replicaMarkSql,initializeReplica,borrowedReplicaDatabase,createSqliteReplica,ensureStorageSpace,personalStorageSpace,inspectCatalogFile,openMemoryLedger} from '@molis-ai/molis-work-storage';
+import {sqliteErrorName,replicaSchemaSql,replicaMarkSql,initializeReplica,borrowedReplicaDatabase,createSqliteReplica,ensureStorageSpace,personalStorageSpace,inspectCatalogFile,openMemoryLedger} from '@molis-ai/molis-work-storage';
 import {createSyncConflictState} from '@molis-ai/molis-work-plugin-sdk';
 import {createPersonalCatalogRegistration,CATALOG_SCHEMA_VERSION,ProjectDeletionService,handleProjectRecycleHttp} from '@molis-ai/molis-work-app-local-host';
 import {withMolisWorkProjectCatalog,openMolisWorkProjectCatalog} from '@molis-ai/molis-work-app-desktop';
@@ -24,7 +24,7 @@ function moduleFixture(t:TestContext){
   const db=openTestSqlite(':memory:');t.after(()=>db.close());db.pragma('foreign_keys = ON');createProjectsSchema(db);db.exec(replicaSchemaSql());
   const ledger=borrowedReplicaDatabase({exec:sql=>db.exec(sql),prepare:sql=>db.prepare(sql)});initializeReplica(ledger);installProjectReplicationJournal(db,replicaMarkSql);
   let current=true;const authorize=()=>{if(!current)throw new Error('revoked');},options={spaceId,authorize,excludedProjectIds:['personal-root']};
-  const projects=new ProjectsModule({db,spaceId,projects_directory:'/source/private-only',now:()=>at,plugins:{has:id=>['goals','pages'].includes(id),initial:()=>['goals'],companions:()=>[]}});
+  const projects=new ProjectsModule({db,spaceId,projects_directory:'/source/private-only',outputs_directory:'/source/private-only-outputs',now:()=>at,plugins:{has:id=>['goals','pages'].includes(id),initial:()=>['goals'],companions:()=>[]}});
   const owner=projectReplicationOwner(db,options),replica=createSqliteReplica(ledger,{...owner,conflictState:createSyncConflictState});
   const create=(id:string,synced=false)=>{const p=projects.lifecycle.prepareRecord({project_id:id,display_name:'项目',data_class:'user'});projects.lifecycle.register(p,synced?'project.sync_prepared':'project.created','alice');return p;};
   return {db,projects,replica,owner,options,create,revoke:()=>{current=false;}};
@@ -186,8 +186,8 @@ test('PCSYNC-MCP-RECONNECT-02 readonly inspection cannot release another connect
   try{
     assert.equal(inspectCatalogFile(file).version,25,'the probe sees committed metadata, never the writer’s pending change');
     const child=spawnSync(process.execPath,['--input-type=module','-e',
-      'import {openTestSqlite} from "@molis-ai/molis-work-test-kit/sqlite";const db=openTestSqlite(process.argv[1],{timeout:0});try{db.exec("BEGIN IMMEDIATE;ROLLBACK");process.stdout.write("unlocked");}catch(error){process.stdout.write(error.code);}finally{db.close();}',file],{encoding:'utf8',timeout:10000});
-    assert.equal(child.status,0,child.stderr);assert.equal(child.stdout,'SQLITE_BUSY','probing must not release the resident writer’s lock');
+      'import {openTestSqlite} from "@molis-ai/molis-work-test-kit/sqlite";const db=openTestSqlite(process.argv[1],{timeout:0});try{db.exec("BEGIN IMMEDIATE;ROLLBACK");process.stdout.write("unlocked");}catch(error){process.stdout.write(String(error.errcode));}finally{db.close();}',file],{encoding:'utf8',timeout:10000});
+    assert.equal(child.status,0,child.stderr);assert.equal(child.stdout,'5','probing must not release the resident writer’s lock');
   }finally{db.exec('ROLLBACK');}
   assert.equal(inspectCatalogFile(file).version,25);
 });
@@ -215,8 +215,26 @@ for(const mode of ['DELETE','WAL'])test(`PCSYNC-20 frozen v22 ${mode} catalog is
   });}finally{memory.close();}
   mkdirSync(directory,{recursive:true});const file=join(directory,'catalog.db');
   const db=openTestSqlite(file);db.pragma('journal_mode='+mode);db.exec("CREATE TABLE catalog_meta(key TEXT PRIMARY KEY,value TEXT NOT NULL); INSERT INTO catalog_meta VALUES('owner','molis-work-project-catalog-v1'),('schema_version','22'); CREATE TABLE original_fact(value TEXT); INSERT INTO original_fact VALUES('retain');");db.close();
-  const bytes=readFileSync(file),files=readdirSync(directory);assert.equal(CATALOG_SCHEMA_VERSION,1);
+  const bytes=readFileSync(file),files=readdirSync(directory);assert.ok(CATALOG_SCHEMA_VERSION<22,'the frozen v22 catalog is newer than this program');
   await assert.rejects(openMolisWorkProjectCatalog({homeDirectory:home}),{code:'storage.store_too_new'});assert.deepEqual(readFileSync(file),bytes);assert.deepEqual(readdirSync(directory),files);
+});
+
+test('PCSYNC-20 SQLD-04 a busy catalog is a retry, not an unavailable one, by the error SQLite raised: refresh passes busy on and keeps the catalog available, and only another failure takes it away',async t=>{
+  const f=homes(t),home=f.make('busy'),file=join(f.root,'held.db'),holder=openTestSqlite(file),waiter=openTestSqlite(file,{timeout:0});
+  t.after(()=>{waiter.close();holder.close();});
+  holder.exec('CREATE TABLE t(x);BEGIN IMMEDIATE');
+  let failure:unknown;
+  try{waiter.exec('BEGIN IMMEDIATE');}catch(error){failure=error;}
+  assert.equal(sqliteErrorName(failure),'SQLITE_BUSY');
+  holder.exec('ROLLBACK');
+  const failing=async():Promise<never>=>{throw failure;};
+  const busy=createPersonalCatalogRegistration(home,f.space.spaceId,'alice',()=>{},failing,'molis');
+  await assert.rejects(busy.refresh(),(error:unknown)=>error===failure);
+  assert.equal(busy.available(),true);
+  const unreadable=async():Promise<never>=>{throw Object.assign(new Error('file is not a database'),{code:'ERR_SQLITE_ERROR',errcode:26});};
+  const gone=createPersonalCatalogRegistration(home,f.space.spaceId,'alice',()=>{},unreadable,'molis');
+  await gone.refresh();
+  assert.equal(gone.available(),false);
 });
 
 test('PCSYNC-20 stale project events cannot provision ghosts before receive; explicit deferred retry can prepare a missing project',async t=>{

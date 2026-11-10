@@ -1,3 +1,4 @@
+import { projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
@@ -149,6 +150,7 @@ test("PFG-22 a saved layout with a plugin taken out of the project keeps that pl
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { evaluate, waitFor, click, command, sessionId, navigate, origin, projectId, web } = browser;
+  assert.ok(projectId);
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   const visit = (query = "") => navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/${query}` }, sessionId));
   const tabs = "[...document.querySelectorAll('.tab-item[data-tab-id]')].map(tab => tab.dataset.plugin + (tab.dataset.itemId ? ':' + tab.dataset.itemId : ''))";
@@ -159,7 +161,7 @@ test("PFG-22 a saved layout with a plugin taken out of the project keeps that pl
   const before = await evaluate<string[]>(tabs);
   assert.ok(before.indexOf("todo") >= 0 && before.indexOf("todo") < before.indexOf("pages"), JSON.stringify(before));
 
-  await web.delete(`/api/settings/projects/${projectId}/plugins`, { plugin_id: "todo" });
+  await web.delete(`/api/settings/projects/${projectId}/plugins`, { plugin_id: "todo", expected_revision: await projectPluginRevision(web, projectId) });
   await visit();
   await waitFor("document.querySelector('.tab-item[data-plugin=\"todo\"][data-tab-removed]')", 15_000);
   assert.deepEqual(await evaluate<string[]>(tabs), before, "the tab stays and nothing else moves");
@@ -169,7 +171,7 @@ test("PFG-22 a saved layout with a plugin taken out of the project keeps that pl
   await waitFor("document.querySelector('[data-tab-removed-stage=\"todo\"]')?.checkVisibility()");
   assert.match(await evaluate<string>("document.querySelector('[data-tab-removed-stage]').textContent"), /加回这个项目/u);
 
-  await web.post(`/api/settings/projects/${projectId}/plugins`, { plugin_id: "todo" });
+  await web.post(`/api/settings/projects/${projectId}/plugins`, { plugin_id: "todo", expected_revision: await projectPluginRevision(web, projectId) });
   await visit();
   await waitFor("document.querySelector('.tab-item[data-plugin=\"todo\"]') && !document.querySelector('.tab-item[data-tab-removed], [data-group-state=\"removed\"]')", 15_000);
   assert.deepEqual(await evaluate<string[]>(tabs), before, "added back, the same tabs in the same places");
@@ -190,7 +192,8 @@ test("PFG-22 review shots of the right side at 1440, 1024 and 390, Chinese and E
     await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: theme }] }, sessionId);
     await navigate(() => command("Page.navigate", { url: `${origin}/locale?lang=${lang}&next=${encodeURIComponent(`/projects/${projectId}/`)}` }, sessionId));
     await waitFor(`document.querySelector('${strip} [data-side-tab="tasks"]')`, 15_000);
-    await waitFor("document.body.dataset.sideOpen === 'false' || (document.dispatchEvent(new CustomEvent('molis:side-close')), false)", 5_000);
+    // The page collapses the side from the layout menu (收起右侧); the side has no close event of its own (07-1 S4b).
+    await waitFor("document.body.dataset.sideOpen === 'false' || (document.querySelector('[data-layout-open]').click(), document.querySelector('[data-layout-action=side]').click(), false)", 5_000);
     const name = `${lang}-${theme}-${width}`;
     await shot(name + "-collapsed");
     await waitFor("(document.dispatchEvent(new CustomEvent('molis:side-open', { detail: { tab: 'tasks' }, cancelable: true })), document.body.dataset.sideOpen === 'true')", 5_000);
@@ -235,7 +238,7 @@ test("PFG-22 review shots of the right side at 1440, 1024 and 390, Chinese and E
 test("PFG-22 between 601 and 760 every side tab shows on its own row, and a phone's strip keeps the current tab in view while the layout button ends the tabs' row", { timeout: 150_000 }, async t => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
-  const { evaluate, waitFor, command, sessionId, navigate, origin, projectId } = browser;
+  const { evaluate, waitFor, click, command, sessionId, navigate, origin, projectId } = browser;
   const shown = `[...document.querySelectorAll('${strip} [role=tab]')].filter(tab => tab.checkVisibility())`;
   const outside = `(() => { const box = document.querySelector('${strip}').getBoundingClientRect(); return ${shown}.filter(tab => { const at = tab.getBoundingClientRect(); return at.left < Math.max(0, box.left) - 0.5 || at.right > Math.min(innerWidth, box.right) + 0.5; }).map(tab => tab.dataset.sideTab); })()`;
   for (const [width, height] of [[601, 900], [700, 900], [760, 900], [700, 420]]) {
@@ -260,20 +263,26 @@ test("PFG-22 between 601 and 760 every side tab shows on its own row, and a phon
     assert.ok(below.panel >= below.strip - 0.5, `${width}×${height}: the side sheet starts below its strip (${JSON.stringify(below)})`);
     assert.equal(below.corner, true, `${width}×${height}: the main area's top right corner is the work's own, not the strip`);
   }
-  // 07-S2 on a phone: the layout button ends the main tabs' row, so the title bar keeps the two rows S1 gave it (the strip shares
-  // the first); nothing that takes room starts below the tabs. Measured at 390 and 360 before the 320 walk below.
-  for (const width of [390, 360]) {
+  // 07-S2 on a phone: the title bar keeps the two rows S1 gave it (the strip shares the first); nothing that takes room starts below
+  // the tabs. 07-1 S3: the layout button ends the first row, after the side's strip, as it ends the bar after the side's glyphs on
+  // a wide window (the Home tools left that row in S4b), so the second row keeps its whole width for the main strip, which holds
+  // everything it shows. Measured at 390, 360 and 320 before the 320 walk below.
+  for (const width of [390, 360, 320]) {
     await command("Emulation.setDeviceMetricsOverride", { width, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
     await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
     await waitFor(`document.querySelector('${strip} [data-side-tab="tasks"]') && document.querySelector('[data-layout-open]')`, 15_000);
-    const bar = await evaluate<{ tabs: { top: number; bottom: number }; layout: { top: number; right: number }; strip: number; history: number; below: string[] }>(`(() => {
+    const bar = await evaluate<{ tabs: { top: number; bottom: number; fits: boolean; clipped: string[] }; layout: { top: number; left: number; right: number }; strip: number; stripRight: number; history: number; below: string[] }>(`(() => {
       const box = selector => document.querySelector(selector).getBoundingClientRect();
       const tabs = box('[data-titlebar-tabs]');
-      return { tabs: { top: tabs.top, bottom: tabs.bottom }, layout: { top: box('[data-layout-open]').top, right: box('[data-layout-open]').right }, strip: box('${strip}').top, history: box('[data-workspace-history]').top,
+      const bar = document.querySelector('[data-titlebar-tabs]');
+      const clipped = [...bar.children].filter(child => { const at = child.getBoundingClientRect(); return at.width > 0 && (at.left < tabs.left - 0.5 || at.right > tabs.right + 0.5 || at.top < tabs.top - 0.5 || at.bottom > tabs.bottom + 0.5); }).map(child => child.className);
+      return { tabs: { top: tabs.top, bottom: tabs.bottom, fits: bar.scrollWidth <= bar.clientWidth + 1, clipped }, layout: { top: box('[data-layout-open]').top, left: box('[data-layout-open]').left, right: box('[data-layout-open]').right },
+        strip: box('${strip}').top, stripRight: box('${strip}').right, history: box('[data-workspace-history]').top,
         below: [...document.querySelector('.immersive-titlebar').children].filter(child => { const at = child.getBoundingClientRect(); return at.width > 0 && at.height > 0 && at.top >= tabs.bottom - 0.5; }).map(child => child.className) };
     })()`);
-    assert.ok(Math.abs(bar.layout.top - bar.tabs.top) <= 1, `${width}: the layout button is on the main tabs' row (${JSON.stringify(bar)})`);
+    assert.ok(Math.abs(bar.layout.top - bar.history) <= 3 && bar.layout.left >= bar.stripRight - 0.5, `${width}: the layout button ends the first row, after the side's strip (${JSON.stringify(bar)})`);
     assert.ok(bar.layout.right <= width + 0.5, `${width}: the layout button is inside the window (${JSON.stringify(bar)})`);
+    assert.ok(bar.tabs.fits && bar.tabs.clipped.length === 0, `${width}: the main strip holds all it shows, none of it clipped (${JSON.stringify(bar)})`);
     assert.ok(Math.abs(bar.strip - bar.history) <= 3 && bar.tabs.top > bar.strip, `${width}: the side's strip shares the first row; the tabs are the second (${JSON.stringify(bar)})`);
     assert.deepEqual(bar.below, [], `${width}: no third row in the title bar (${JSON.stringify(bar)})`);
   }
@@ -284,6 +293,48 @@ test("PFG-22 between 601 and 760 every side tab shows on its own row, and a phon
   for (const tab of [ends[0], ends.at(-1)]) {
     await waitFor(`(document.dispatchEvent(new CustomEvent('molis:side-open', { detail: { tab: ${JSON.stringify(tab)} }, cancelable: true })), document.querySelector('${strip} [aria-selected=true]')?.dataset.sideTab === ${JSON.stringify(tab)})`, 5_000);
     await waitFor(`!${outside}.includes(${JSON.stringify(tab)})`, 3_000);
+  }
+  // 07-1 S3: on a phone only one column shows, so the side opened by an event (the focus where it was, as the Assistant or ⌘\
+  // opens it) is the one shown, and 主区 | 右侧 says 右侧.
+  await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
+  await waitFor(`document.querySelector('${strip} [data-side-tab="tasks"]') && document.querySelector('[data-pane-switch=side]')`, 15_000);
+  await waitFor("(document.dispatchEvent(new CustomEvent('molis:side-open', { detail: { tab: 'tasks' }, cancelable: true })), document.body.dataset.sideOpen === 'true')", 5_000);
+  await waitFor("document.querySelector('[data-pane-switch=side]')?.getAttribute('aria-pressed') === 'true' && document.querySelector('[data-pane-switch=main]')?.getAttribute('aria-pressed') === 'false'", 5_000)
+    .catch(async () => assert.fail(`390: the side opened by an event shows 右侧 pressed (${await evaluate<string>("JSON.stringify([...document.querySelectorAll('[data-pane-switch]')].map(b => b.dataset.paneSwitch + ':' + b.getAttribute('aria-pressed')))")})`));
+  // 07-1 S3: just after a group closes, a 360 or 320 phone row cannot hold the switch, a 98px current tab, the undo chip,
+  // 全部标签 and ＋ at once (English is the wider switch). The row scrolls rather than clips, as scheme A narrows the tabs to
+  // 96px and then scrolls: the current tab is in view as the chip comes in, each part shows whole once scrolled to, and ＋ is
+  // reached that way and takes the press.
+  for (const width of [360, 320]) {
+    await command("Emulation.setDeviceMetricsOverride", { width, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
+    await navigate(() => command("Page.navigate", { url: `${origin}/locale?lang=en&next=${encodeURIComponent(`/projects/${projectId}/`)}` }, sessionId));
+    await waitFor("typeof molisWorkOpenPlugin === 'function' && document.querySelector('[data-titlebar-tabs] .tab-pane-switch')", 15_000);
+    await evaluate("molisWorkOpenPlugin('todo')");
+    await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item[aria-current][data-plugin=todo]')", 15_000);
+    await evaluate("molisWorkOpenPlugin('pages')");
+    await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item[aria-current][data-plugin=pages]')", 15_000);
+    await click("[data-titlebar-tabs] .tab-item[aria-current][data-plugin=pages] [data-tab-close]");
+    await waitFor("document.querySelector('[data-titlebar-tabs] [data-tab-undo]')?.checkVisibility() && document.querySelector('[data-titlebar-tabs] .tab-item[aria-current][data-plugin=todo]')", 5_000);
+    const row = await evaluate<{ en: boolean; scrolls: boolean; current: { width: number; inView: boolean }; parts: string[]; plus: { inside: boolean; hit: boolean } }>(`(() => {
+      const strip = document.querySelector('[data-titlebar-tabs]'), edge = () => strip.getBoundingClientRect();
+      const inside = (el) => { const at = el.getBoundingClientRect(), box = edge(); return at.width > 0 && at.left >= box.left - 0.5 && at.right <= box.right + 0.5 && at.top >= box.top - 0.5 && at.bottom <= box.bottom + 0.5; };
+      const tab = strip.querySelector('.tab-item[aria-current]'), current = { width: Math.round(tab.getBoundingClientRect().width), inView: inside(tab) };
+      const overflowing = strip.scrollWidth > strip.clientWidth + 1, scrolls = !overflowing || getComputedStyle(strip).overflowX === 'auto';
+      const parts = [...strip.children].filter((child) => child.getClientRects().length && getComputedStyle(child).display !== 'none').flatMap((child) => {
+        child.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+        const own = child.scrollWidth <= child.clientWidth + 1 || child.classList.contains('tab-scroll');
+        return inside(child) && own ? [] : [String(child.className).split(' ').pop() + ' ' + Math.round(child.getBoundingClientRect().left) + '→' + Math.round(child.getBoundingClientRect().right)];
+      });
+      const add = strip.querySelector('.tab-add-button'); add.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      const box = add.getBoundingClientRect(), hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+      return { en: document.documentElement.lang.startsWith('en'), scrolls, current, parts, plus: { inside: inside(add), hit: Boolean(hit && add.contains(hit)) } };
+    })()`);
+    assert.equal(row.en, true, `${width}: the page is in English`);
+    assert.ok(row.current.width >= 98 && row.current.inView, `${width}: the current tab keeps its 98px and is in view as the undo chip comes in (${JSON.stringify(row)})`);
+    assert.ok(row.scrolls, `${width}: a row that cannot hold it all scrolls rather than clips (${JSON.stringify(row)})`);
+    assert.deepEqual(row.parts, [], `${width}: every part of the row shows whole once scrolled to (${JSON.stringify(row)})`);
+    assert.ok(row.plus.inside && row.plus.hit, `${width}: ＋ is reached by scrolling and takes the press (${JSON.stringify(row)})`);
   }
 });
 
@@ -332,6 +383,7 @@ test("PFG-22 a plugin taken out of the project keeps its side tab in place, mark
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { evaluate, waitFor, click, command, sessionId, navigate, origin, projectId, web } = browser;
+  assert.ok(projectId);
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   const visit = () => navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   const VIEW = "plugin:lingguang/side";
@@ -340,7 +392,7 @@ test("PFG-22 a plugin taken out of the project keeps its side tab in place, mark
   await waitFor(`document.querySelector('${strip} [data-side-tab="${VIEW}"]')`, 15_000);
   const before = await evaluate<string[]>(order);
 
-  await web.delete(`/api/settings/projects/${projectId}/plugins`, { plugin_id: "lingguang" });
+  await web.delete(`/api/settings/projects/${projectId}/plugins`, { plugin_id: "lingguang", expected_revision: await projectPluginRevision(web, projectId) });
   await visit();
   await waitFor(`document.querySelector('${strip} [data-side-tab="${VIEW}"][data-side-removed]')`, 15_000);
   assert.deepEqual(await evaluate<string[]>(order), before, "the tab stays and nothing else moves");
@@ -350,7 +402,7 @@ test("PFG-22 a plugin taken out of the project keeps its side tab in place, mark
   await waitFor(`document.body.dataset.sideOpen === 'true' && [...document.querySelectorAll('[data-side-removed-body]')].find(body => body.dataset.sideBody === ${JSON.stringify(VIEW)})?.checkVisibility()`);
   assert.match(await evaluate<string>("document.querySelector('[data-side-removed-body]').textContent"), /加回这个项目/u);
 
-  await web.post(`/api/settings/projects/${projectId}/plugins`, { plugin_id: "lingguang" });
+  await web.post(`/api/settings/projects/${projectId}/plugins`, { plugin_id: "lingguang", expected_revision: await projectPluginRevision(web, projectId) });
   await visit();
   await waitFor(`document.querySelector('${strip} [data-side-tab="${VIEW}"]:not([data-side-removed])') && !document.querySelector('[data-side-removed], [data-side-removed-body]')`, 15_000);
   assert.deepEqual(await evaluate<string[]>(order), before, "added back, the same tabs in the same places");
@@ -378,3 +430,49 @@ test("PFG-22 ⌘\\ in a Pages document clears the selection's formatting and lea
   await evaluate("new Promise(resolve => setTimeout(() => requestAnimationFrame(() => requestAnimationFrame(resolve)), 50))");
   assert.equal(await evaluate("document.body.dataset.sideOpen"), side, "the side neither opened nor closed");
 });
+
+// 07-AUDIT (BL-record-gone-from-framed-plugins): a tab moved to the right side shows in the workbench's own pane page, which
+// is another document. A record that page read as missing reports it to the page around it through the one pane-message
+// check (S-30): from a pane frame, from this origin, in its exact shape. Only then is the tab it was opened for marked; the
+// event is dispatched where the plugin page runs, and the report crosses the document boundary as a real pane message.
+test("07-AUDIT a record gone in a pane page marks its tab only after the page takes the report", { timeout: 150_000 }, async t => {
+  const browser = await openGoalBrowser(t, true);
+  if (!browser) return;
+  const { evaluate, waitFor, click, command, sessionId, navigate, origin, projectId } = browser;
+  const LAYOUT = "[data-workspace-layout]";
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
+  await waitFor("document.body.dataset.desktopSurface === 'home' && document.querySelector('[data-layout-open]')", 15_000);
+  // One Goal record, opened from its canvas as a tab.
+  await click('[data-plugin-strip] [data-plugin-id="goals"]');
+  await waitFor("document.body.dataset.desktopSurface === 'goals' && document.querySelector('[data-board-view-tab=canvas]')", 15_000);
+  await evaluate("document.querySelector('[data-board-view-tab=canvas]').click()");
+  await waitFor("document.querySelector('[data-graph-node][data-goal-id=CORE] [data-graph-frame]')", 15_000);
+  await evaluate("document.querySelector('[data-graph-node][data-goal-id=CORE] [data-graph-frame]').click()");
+  await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item[data-plugin=goals][data-item-id=CORE][aria-current]')", 15_000);
+  // Moved to the right side: its content is the workbench's pane page (another document) with no tab drawn there.
+  await click("[data-layout-open]");
+  await waitFor(`document.querySelector('${LAYOUT}')?.matches(':popover-open')`);
+  await click(`${LAYOUT} [data-layout-action=to-side]`);
+  await waitFor("document.querySelector('iframe[data-side-pane-src]')", 15_000);
+  const src = await evaluate<string>("document.querySelector('iframe[data-side-pane-src]')?.getAttribute('src') || ''");
+  assert.match(src, /panePlugin=goals/u, src);
+  assert.match(src, /paneItem=CORE/u, src);
+  // The pane page is another document in this same origin: it sends its report up with a real pane message, and the page takes it
+  // only from that frame. Wait for it to be the workbench's pane page, then let the record it shows go missing (the record-gone it
+  // dispatches is the one a plugin's page sends when its read answers 404).
+  await waitFor(`(() => { const frame = document.querySelector('iframe[data-side-pane-src]'); try {
+    // The pane page starts the same tab workspace after its body says it is embedded: the workspace's public entry is up when
+    // its record-gone listener is, so the report below cannot be sent before there is anyone to send it.
+    return frame.contentDocument?.readyState === 'complete' && frame.contentDocument.body.dataset.paneEmbedded === 'true'
+      && typeof frame.contentWindow.molisWorkOpenPlugin === 'function'; } catch { return false; } })()`, 15_000);
+  const marked = "document.querySelectorAll('[data-side-tabs] .tab-item[data-tab-state=gone]').length";
+  assert.equal(await evaluate(marked), 0, "no tab is marked before the pane reports");
+  await evaluate(`(() => { const frame = document.querySelector('iframe[data-side-pane-src]');
+    frame.contentDocument.dispatchEvent(new CustomEvent('molis-work:record-gone', { detail: { plugin: 'goals', itemId: 'CORE' } })); })()`);
+  await waitFor(`${marked} === 1`, 15_000);
+  const gone = await evaluate<{ title: string; label: string | null }>(`(() => { const item = document.querySelector('[data-side-tabs] .tab-item[data-tab-state=gone]');
+    return { title: item.title, label: item.querySelector('[role=tab]')?.getAttribute('aria-label') ?? null }; })()`);
+  assert.match(gone.title, /这一条已经不在了/u);
+  assert.match(gone.label ?? "", /这一条已经不在了/u);
+  });

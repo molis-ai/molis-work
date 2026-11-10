@@ -11,7 +11,7 @@ import type { PluginDefinition, PluginManifest } from "@molis-ai/molis-work-cont
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { MemoryPluginRuntimeRepository, PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
-import { DEMO_PROJECT_ID, LocalProjectDatabase, createPluginPlatform, runPluginDevelopment, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, LocalProjectDatabase, createPluginPlatform, installHostUiText, runPluginDevelopment, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 import { PENDING, within } from "./fixtures/stopped-calls.js";
@@ -190,6 +190,8 @@ test("a plugin's own action client lists its own installation's actions under th
   }));
 
 test("plugin dev runs a developed plugin under its installation id, even when it is not one the Host ships", async () => {
+  // The embedded entry renders with the process's text context, which its caller installs (the command line does it in `runLocalPluginDevelopment`).
+  installHostUiText();
   const directory = mkdtempSync(join(tmpdir(), "provider-identity-dev-"));
   const file = join(directory, "board.db");
   seedDemoBoard(file);
@@ -197,7 +199,8 @@ test("plugin dev runs a developed plugin under its installation id, even when it
   try {
     const sample = join(directory, "sample");
     mkdirSync(sample);
-    for (const name of ["index.mjs", "manifest.json", "package.json"]) cpSync(join(root, "examples/plugin-sample", name), join(sample, name));
+    // The sample declares ui.locales since batch 14 (T8), so its language files come along: dev refuses a declared file that is missing.
+    for (const name of ["index.mjs", "manifest.json", "package.json", "locales"]) cpSync(join(root, "examples/plugin-sample", name), join(sample, name), { recursive: true });
     mkdirSync(join(sample, "node_modules/@molis-ai"), { recursive: true });
     symlinkSync(join(root, "packages/plugin-sdk"), join(sample, "node_modules/@molis-ai/molis-work-plugin-sdk"), "dir");
     const manifest = JSON.parse(readFileSync(join(sample, "manifest.json"), "utf8")) as { permissions: Array<{ permission: string }> };

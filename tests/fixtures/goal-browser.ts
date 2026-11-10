@@ -130,11 +130,15 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
   const { sessionId } = await command<{ sessionId: string }>("Target.attachToTarget", { targetId, flatten: true });
   await command("Target.activateTarget", { targetId });
   await command("Page.enable", {}, sessionId);
+  const { result: { value: windowInsets } } = await command<{ result: { value: { width: number; height: number } } }>("Runtime.evaluate", {
+    expression: "({width:Math.max(0,outerWidth-innerWidth),height:Math.max(0,outerHeight-innerHeight)})", returnByValue: true,
+  }, sessionId);
   async function setViewport(width: number, height: number, mobile = false): Promise<void> {
     // Emulation alone leaves the native window small: pointer events outside it can miss plugin frames.
     // Size this window for the current scenario before applying its layout and mobile emulation.
     const { windowId } = await command<{ windowId: number }>("Browser.getWindowForTarget", { targetId });
-    await command("Browser.setWindowBounds", { windowId, bounds: { width, height } });
+    // Bounds include Chrome's native frame; emulation describes only its content viewport.
+    await command("Browser.setWindowBounds", { windowId, bounds: { width: width + windowInsets.width, height: height + windowInsets.height } });
     await command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile }, sessionId);
   }
   // The product shows tool names by default; these journeys measure content at a given width, so they
@@ -183,7 +187,8 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
         const picker = element.closest('[data-plugin-picker-popover]');
         if (picker && picker.hidden) document.querySelector('[data-plugin-picker-toggle]')?.click();
         const sidePanel = element.closest('[data-side-panel]');
-        if (sidePanel && sidePanel.hidden) document.querySelector('[data-side-toggle]')?.click();
+        // The side opens from its current glyph in the titlebar (the bar's side button left in 07-1 S4b).
+        if (sidePanel && sidePanel.hidden) document.querySelector('[data-side-tabs] [data-side-tab][aria-selected=true]')?.click();
         const rail = element.closest('.plugin-rail-items');
         if (rail && !element.getClientRects().length && !rail.classList.contains('is-tools-open')) rail.querySelector('[data-rail-tools-toggle]')?.click();
         // A Goal tab opens on its Frame; its workspace (directory, records, timeline) is behind 打开工作区.

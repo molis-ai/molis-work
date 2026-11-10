@@ -198,7 +198,7 @@ test("settings serve complete category pages; the project gear opens them in the
   assert.ok(workbenchColumn.pane > 900, "desktop settings pane is wide enough to show centering, got " + workbenchColumn.pane);
   assert.ok(workbenchColumn.width <= 762, "settings column stays at most 760px, got " + workbenchColumn.width);
   assert.ok(Math.abs(workbenchColumn.offset) <= 24, "workbench settings column is centered, offset " + workbenchColumn.offset);
-  for (const [category, selector] of [["workspaces", "[data-project-workspaces-add]"], ["guidance", "[data-guidance-form]"], ["general", "[data-project-rename]"]]) {
+  for (const [category, selector] of [["workspaces", "[data-directories-add]"], ["guidance", "[data-guidance-form]"], ["general", "[data-project-rename]"]]) {
     await click(`[data-directory-panel=project-settings] [data-settings-section="${category}"]`);
     // Each category is a page the server renders from the whole project view: 1–3 s here, longer when the machine is
     // busy (it failed about one run in five under parallel test load with the default 4 s).
@@ -411,12 +411,16 @@ for (const mode of ["A", "B"] as const) test(`RAC-2848 RAC-2849 ${mode}: real Co
   const traffic = await settingsTraffic(b); t.after(traffic.close); await b.setViewport(1440, 1000);
   const workspace = join(b.homeDirectory, "method-workspace"); await mkdir(join(workspace, "skills", "pg070-method"), { recursive: true });
   await writeFile(join(workspace, "skills", "pg070-method", "SKILL.md"), "---\nname: pg070-method\ndescription: PG070 browser fixture\n---\nRead the specified local file before editing.\n");
-  await b.web.post("/projects/" + b.projectId + "/api/workspaces", { workspace_path: workspace, user_confirmed: true });
+  const directories = "/projects/" + b.projectId + "/api/project-settings/directories";
+  const { revision } = await b.web.get<{ revision: string }>(directories);
+  await b.web.post(directories, { change: "add_input", input: { workspace_path: workspace, expected_revision: revision } });
   const prefix = "/projects/" + b.projectId, api = prefix + "/api/plugins/io.molis.work.coding";
   let surface = await settingsSurface(b, "/settings/coding-settings?project=" + b.projectId, mode === "B");
   if (mode === "A") assert.ok(traffic.responses.some(item => item.frame === surface.frameId && item.status === 200 && item.url === b.origin + "/settings/coding-settings?project=" + b.projectId));
   await surface.waitFor("document.querySelector('[data-method-discover]')?.disabled===false");
   assert.equal(await surface.evaluate("document.querySelector('[data-coding-settings]').querySelectorAll(':scope > style').length"), 1);
+  // The folder is one input among the project's folders (the default output comes first): the method is looked for in it.
+  await surface.evaluate(`(()=>{const n=document.querySelector('[data-method-workspace]');n.value=[...n.options].find(option=>option.textContent.endsWith('/method-workspace')).value;n.dispatchEvent(new Event('change',{bubbles:true}));})()`);
   await fillSettings(surface, "[data-method-path]", "skills"); await surface.click("[data-method-discover]");
   await surface.waitFor("!!document.querySelector('[data-method-candidates] summary')");
   await surface.click("[data-method-candidates] summary"); await surface.click("[data-method-candidates] button");

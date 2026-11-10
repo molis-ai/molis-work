@@ -5,15 +5,15 @@ import { ProjectRecordsRepository } from "./project-records-repository.js";
 import type { ProjectsSqliteDatabase } from "./sqlite.js";
 import { WorkspaceRepository } from "./workspace-repository.js";
 
-/** The catalog database's three table families, each read and written by its own class; the transaction spans them. */
+/** The catalog database's table families, each read and written by its own class; the transaction spans them. */
 export class ProjectsRepository {
   readonly projects: ProjectRecordsRepository;
   readonly workspaces: WorkspaceRepository;
   readonly deletions: ProjectDeletionRepository;
 
-  constructor(readonly db: ProjectsSqliteDatabase, projectsDirectory: string, spaceId?: string) {
+  constructor(readonly db: ProjectsSqliteDatabase, projectsDirectory: string, outputsDirectory: string, spaceId?: string) {
     this.projects = new ProjectRecordsRepository(db, projectsDirectory, spaceId);
-    this.workspaces = new WorkspaceRepository(db);
+    this.workspaces = new WorkspaceRepository(db, outputsDirectory);
     this.deletions = new ProjectDeletionRepository(db);
   }
 
@@ -21,6 +21,47 @@ export class ProjectsRepository {
     return this.db.transaction(operation)();
   }
 }
+
+/**
+ * A folder's link to a project and what it is there (specs/shared-sources-and-surfaces §3): an input, the output, or both. One link per
+ * project carries the output. The catalog upgrade to version 2 builds this table from the same text (`catalog-upgrade.ts`).
+ */
+export const WORKSPACE_MEMBERSHIPS_SQL = `
+    CREATE TABLE IF NOT EXISTS workspace_project_memberships (
+      membership_id TEXT PRIMARY KEY,
+      workspace_id TEXT NOT NULL REFERENCES workspaces(workspace_id) ON DELETE CASCADE,
+      project_id TEXT NOT NULL REFERENCES projects(project_id) ON DELETE CASCADE,
+      role_input INTEGER NOT NULL CHECK (role_input IN (0, 1)),
+      role_output INTEGER NOT NULL CHECK (role_output IN (0, 1)),
+      bound_by TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      UNIQUE(workspace_id, project_id),
+      CHECK (role_input = 1 OR role_output = 1)
+    );
+    CREATE INDEX IF NOT EXISTS workspace_project_memberships_project_idx
+      ON workspace_project_memberships(project_id, workspace_id);
+    CREATE UNIQUE INDEX IF NOT EXISTS workspace_project_memberships_one_output_idx
+      ON workspace_project_memberships(project_id) WHERE role_output = 1;
+`;
+
+/**
+ * Which folder of this project stands for another device's directory id (§3 「另一台设备上的引用」). Kept on this device alone: the project's
+ * synced projection (`portable-project.ts`) does not carry it.
+ */
+export const WORKSPACE_SOURCE_LINKS_SQL = `
+    CREATE TABLE IF NOT EXISTS workspace_source_links (
+      project_id TEXT NOT NULL REFERENCES projects(project_id) ON DELETE CASCADE,
+      source_workspace_id TEXT NOT NULL,
+      workspace_id TEXT NOT NULL REFERENCES workspaces(workspace_id) ON DELETE CASCADE,
+      bound_by TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      PRIMARY KEY (project_id, source_workspace_id)
+    );
+    CREATE INDEX IF NOT EXISTS workspace_source_links_workspace_idx
+      ON workspace_source_links(workspace_id);
+`;
 
 export function createProjectsSchema(db: ProjectsSqliteDatabase): void {
   createDeletionStepsSchema(db);
@@ -70,20 +111,6 @@ export function createProjectsSchema(db: ProjectsSqliteDatabase): void {
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
-    CREATE TABLE IF NOT EXISTS workspace_project_memberships (
-      membership_id TEXT PRIMARY KEY,
-      workspace_id TEXT NOT NULL REFERENCES workspaces(workspace_id) ON DELETE CASCADE,
-      project_id TEXT NOT NULL REFERENCES projects(project_id) ON DELETE CASCADE,
-      is_default INTEGER NOT NULL CHECK (is_default IN (0, 1)),
-      bound_by TEXT NOT NULL,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      UNIQUE(workspace_id, project_id)
-    );
-    CREATE INDEX IF NOT EXISTS workspace_project_memberships_project_idx
-      ON workspace_project_memberships(project_id, workspace_id);
-    CREATE UNIQUE INDEX IF NOT EXISTS workspace_project_memberships_one_default_idx
-      ON workspace_project_memberships(workspace_id) WHERE is_default = 1;
     CREATE TABLE IF NOT EXISTS project_deletions (
       deletion_id TEXT PRIMARY KEY,
       actor_id TEXT NOT NULL,
@@ -102,5 +129,7 @@ export function createProjectsSchema(db: ProjectsSqliteDatabase): void {
     CREATE INDEX IF NOT EXISTS project_deletions_project_idx
       ON project_deletions(project_id, deleted_at, deletion_id);
   `);
+  db.exec(WORKSPACE_MEMBERSHIPS_SQL);
+  db.exec(WORKSPACE_SOURCE_LINKS_SQL);
   createProjectRecycleSchema(db);
 }

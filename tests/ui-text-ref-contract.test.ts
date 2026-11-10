@@ -106,7 +106,7 @@ const limits: ReadonlyArray<readonly [name: keyof typeof TEXT_REF_LIMITS, build:
   ["fallback", (size) => ({ key: "a.b", fallback: "x".repeat(size) }), /too long/],
 ];
 
-test("FSS-42: both schemas take each limit in TEXT_REF_LIMITS and refuse one more", () => {
+test("FSS-43: both schemas take each limit in TEXT_REF_LIMITS and refuse one more", () => {
   for (const [name, build, reason] of limits) for (const schema of [TEXT_REF_SCHEMA, OWNED_TEXT_REF_SCHEMA]) {
     assertMatches(schema, build(TEXT_REF_LIMITS[name]));
     refused(schema, build(TEXT_REF_LIMITS[name] + 1), reason);
@@ -115,7 +115,7 @@ test("FSS-42: both schemas take each limit in TEXT_REF_LIMITS and refuse one mor
   refused(OWNED_TEXT_REF_SCHEMA, { owner: "o".repeat(TEXT_REF_LIMITS.owner + 1), key: "a.b" }, /too long/);
 });
 
-test("FSS-42: a key too short to be `owner.name`, an empty argument name and an empty owner are refused", () => {
+test("FSS-43: a key too short to be `owner.name`, an empty argument name and an empty owner are refused", () => {
   refused(TEXT_REF_SCHEMA, { key: "ab" }, /too short/);
   refused(TEXT_REF_SCHEMA, arg({ name: "", kind: "number", number: 1 }), /too short/);
   refused(OWNED_TEXT_REF_SCHEMA, { owner: "", key: "a.b" }, /too short/);

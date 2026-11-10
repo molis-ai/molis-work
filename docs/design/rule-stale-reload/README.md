@@ -1,6 +1,8 @@
 # 「这条规则在别处改过」定样（第 05 批 N14）
 
-状态：用户已定（2026-11-06）：方案 A「就地接住」。决定、理由和否掉的 B、C 记在[第 05 批的定样决定](../../../specs/post-anticorruption-roadmap/reference/batches/05.md#batch-05-n14-sample)。产品未实现，实现等定样合入和 N14 合同（`specs/action-input-contracts/spec.md`，在 [#1868](https://github.com/molis-ai/molis-work/pull/1868)）。
+状态：用户已定（2026-11-06）：方案 A「就地接住」。决定、理由和否掉的 B、C 记在[第 05 批的定样决定](../../../specs/post-anticorruption-roadmap/reference/batches/05.md#batch-05-n14-sample)。产品已实现：N14 两段随第 05 批合入，判断规则编辑器与 Feed 的规则页在提交碰到别处的改动时显示提示与「载入最新版」（`apps/workbench/src/judgment-rules/`、`plugins/native/feed/src/browser/rule-authoring.ts`）。
+
+**原型里的数值是初稿。** `proto.css` 的字段到达光还写着 `--accent-soft` 55%，产品与 `DESIGN.md:402` 已定为 `--accent` 10%（`#1913` 合审时按浅色对比度改的）；以 `DESIGN.md` 和组件板为准，原型不改。
 
 场景：你在判断规则编辑器或 Feed 的规则页改了内容，提交时这条规则已经被别处改过（另一个窗口、助理或别的调用方）。N14 把这些提交改成必须带版本检查之后，这件事会更常被发现，所以要给它一个样子。
 

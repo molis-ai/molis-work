@@ -1,3 +1,4 @@
+import { projectPluginRevisionAt } from "./fixtures/project-plugin-settings.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { randomUUID } from "node:crypto";
@@ -7,6 +8,7 @@ import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
+import { directoriesWebOf, projectDirectoriesPath, readProjectDirectories, setProjectOutputFolder } from "./fixtures/project-directories-http.js";
 
 const exec = promisify(execFile);
 
@@ -24,6 +26,7 @@ test("Standalone companion HTTP routes admit only enabled surfaces and their emb
       ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
     return { status: response.status, body: await response.json() };
   }
+  const directories = directoriesWebOf(request);
   const api = (project: string, plugin: string, suffix = "/state") => `/projects/${project}/api/plugins/io.molis.work.${plugin}${suffix}`;
   const projects = new Map<string, { id: string; directory: string; workspace: string }>();
   const surfaces = ["coding", "workspace", "files", "git", "diff", "text-stats"];
@@ -38,15 +41,14 @@ test("Standalone companion HTTP routes admit only enabled surfaces and their emb
       const created = await request("/api/settings/projects", "POST", { display_name: `Standalone ${plugin}`, user_confirmed: true });
       assert.equal(created.status, 201); const id = created.body.project.project_id;
       if (plugin !== "none") {
-        const enabled = await request(`/api/settings/projects/${id}/plugins`, "POST", { plugin_id: plugin });
+        const enabled = await request(`/api/settings/projects/${id}/plugins`, "POST", { plugin_id: plugin, expected_revision: await projectPluginRevisionAt(origin, id) });
         assert.equal(enabled.status, 200);
         if (plugin !== "coding") assert.equal(enabled.body.plugins.includes("coding"), false);
       }
       const directory = path.join(root, plugin); await mkdir(directory);
       await writeFile(path.join(directory, "note.txt"), "中文🙂\nfirst\n");
-      assert.equal((await request(`/projects/${id}/api/workspaces`, "POST", { workspace_path: directory, user_confirmed: true })).status, 201);
-      let workspace = "";
-      workspace = (await request(`/projects/${id}/api/project-settings/workspaces`)).body.workspaces[0].workspace_id;
+      // The folder is the project's output, set in its settings as the person does (projects.directories.set_output).
+      const workspace = (await setProjectOutputFolder(directories, id, directory)).workspace_id;
       projects.set(plugin, { id, directory, workspace });
       for (const target of surfaces) {
         const result = await request(api(id, target));
@@ -65,8 +67,13 @@ test("Standalone companion HTTP routes admit only enabled surfaces and their emb
     }
 
     const files = projects.get("files")!, other = projects.get("coding")!;
-    assert.equal((await request(`/projects/${files.id}/api/project-settings/workspaces`, "POST", { workspace_id: files.workspace }, false)).status, 403);
-    assert.equal((await request(`/projects/${other.id}/api/project-settings/workspaces`, "POST", { workspace_id: files.workspace })).status, 403);
+    // Changing which folder is the output needs the Home's control token, and names only this project's own folders.
+    const setOutput = async (project: { id: string }, authorized = true) => request(projectDirectoriesPath(project.id), "POST",
+      { change: "set_output", input: { workspace_id: files.workspace, expected_revision: (await readProjectDirectories(directories, project.id)).revision } }, authorized);
+    assert.equal((await setOutput(files, false)).status, 403);
+    const elsewhere = await setOutput(other);
+    assert.deepEqual([elsewhere.status, elsewhere.body.code], [400, "catalog.context.workspace_membership_not_found"], JSON.stringify(elsewhere.body));
+    assert.equal((await readProjectDirectories(directories, other.id)).directories.some(item => item.workspace_id === files.workspace), false);
     assert.equal((await request(api(other.id, "files", "/open"), "POST", { workspace_id: files.workspace, path: ["note.txt"] })).status, 400);
     const open = () => request(api(files.id, "files", "/open"), "POST", { workspace_id: files.workspace, path: ["note.txt"] });
     const first = await open(); assert.equal(first.status, 200); assert.equal(first.body.result.text, "中文🙂\nfirst\n");

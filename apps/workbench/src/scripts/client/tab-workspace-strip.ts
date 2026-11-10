@@ -5,6 +5,27 @@ export const TAB_WORKSPACE_STRIP_PART = `  const tabShareWidth = ${tabShareWidth
   const tabShareMin = ${tabShareMin.toString()};
   const tabScrollAllotment = ${tabScrollAllotment.toString()};
   const paneMarkup = () => '<nav class="tab-strip" data-tab-strip></nav><div class="tab-pane-body" data-tab-pane-body></div><button type="button" class="tab-pane-close" data-tab-pane-close aria-label="' + L("关闭分栏") + '"><svg aria-hidden="true"><use href="#icon-x"></use></svg></button><div class="tab-drop-edges" data-tab-edges><button type="button" data-tab-edge="left" aria-label="' + L("拆到左侧") + '"></button><button type="button" data-tab-edge="right" aria-label="' + L("拆到右侧") + '"></button><button type="button" data-tab-edge="top" aria-label="' + L("拆到上方") + '"></button><button type="button" data-tab-edge="bottom" aria-label="' + L("拆到下方") + '"></button></div>';
+  /** One of the strip's text buttons (workbench-navigation.ts .tab-strip-button): a glyph and its words. */
+  const stripButton = (kind, glyph, words, data) => {
+    const button = document.createElement("button");
+    button.type = "button"; button.className = "tab-strip-button " + kind; Object.assign(button.dataset, data);
+    button.innerHTML = '<svg aria-hidden="true"><use href="#icon-' + glyph + '"></use></svg><span></span>';
+    button.querySelector("span").textContent = words;
+    return button;
+  };
+  /** 主区 | 右侧 before the titlebar's strip, shown at 760px and under, where only the focused column shows. */
+  const paneSwitch = () => {
+    const group = document.createElement("div"), inSide = column === "side" && Boolean(sidePane?.isOpen());
+    group.className = "mw-toggle-group tab-pane-switch"; group.dataset.slot = "toggle-group"; group.setAttribute("role", "group"); group.setAttribute("aria-label", L("显示哪一栏"));
+    [["main", L("主区"), !inSide], ["side", L("右侧"), inSide]].forEach(([value, words, current]) => {
+      const button = document.createElement("button");
+      button.type = "button"; button.className = "mw-toggle" + (current ? " is-current" : ""); button.dataset.paneSwitch = value;
+      button.setAttribute("aria-pressed", String(current)); button.textContent = words;
+      if (value === "side" && !state.side.tabs.length) button.disabled = true;
+      group.append(button);
+    });
+    return group;
+  };
   const tabLabel = (tab) => tab.kind === "plugin" ? L(ops.pluginTitle(tab.plugin)) : tab.title;
   const tabIcon = (plugin) => PLUGIN_TAB_ICON[plugin] || "frame";
   const iconMarkup = (plugin) => '<svg class="tab-item-icon" aria-hidden="true"><use href="#icon-' + tabIcon(plugin) + '"></use></svg>';
@@ -28,7 +49,11 @@ export const TAB_WORKSPACE_STRIP_PART = `  const tabShareWidth = ${tabShareWidth
     trigger.tabIndex = selected ? 0 : -1;
     trigger.ariaLabel = label;
     trigger.setAttribute("aria-selected", String(selected));
-    if (tab.kind !== "system" && removedPlugin(tab.plugin)) { button.dataset.tabRemoved = "true"; button.title = trigger.ariaLabel = label + " · " + L("已移除"); }
+    // What is wrong with a tab says so on the tab and keeps it where it is (design README, shared part 7): its plugin was taken
+    // out of the project (S1 keeps it, the group greys), its record is gone (struck through), or its plugin did not start (amber).
+    const mark = tab.kind === "system" ? "" : removedPlugin(tab.plugin) ? "removed" : goneRecord(tab) ? "gone" : failedPlugin(tab.plugin) ? "failed" : "";
+    if (mark === "removed") button.dataset.tabRemoved = "true"; else if (mark) button.dataset.tabState = mark;
+    if (mark) button.title = trigger.ariaLabel = label + " · " + (mark === "removed" ? L("已移除") : mark === "gone" ? L("这一条已经不在了") : L("没能启动"));
     const name = document.createElement("span");
     name.textContent = label;
     const close = document.createElement("button");
@@ -44,6 +69,7 @@ export const TAB_WORKSPACE_STRIP_PART = `  const tabShareWidth = ${tabShareWidth
     trigger.innerHTML = tab.kind === "system" ? '<svg class="tab-item-icon" aria-hidden="true"><use href="#icon-sparkles"></use></svg>' : iconMarkup(tab.plugin);
     name.className = "tab-item-name";
     trigger.append(name);
+    if (mark === "failed") trigger.insertAdjacentHTML("beforeend", '<span class="nav-warn-dot" aria-hidden="true"></span>');
     button.append(trigger);
     if (!tab.pinned) { button.append(close); trigger.setAttribute("aria-keyshortcuts", "Delete"); } // a tab not chosen keeps its close out of the tab order; Delete is its key
     parent.append(button);
@@ -80,10 +106,6 @@ export const TAB_WORKSPACE_STRIP_PART = `  const tabShareWidth = ${tabShareWidth
       scroll.style.removeProperty("--tab-share-width");
       scroll.style.removeProperty("width");
     };
-    if (!flexNodes.length) {
-      clearShare();
-      return;
-    }
     const flexSet = new Set(flexNodes);
     const gapOf = (el) => Number.parseFloat(getComputedStyle(el).gap) || 0;
     let reserved = 0;
@@ -98,29 +120,42 @@ export const TAB_WORKSPACE_STRIP_PART = `  const tabShareWidth = ${tabShareWidth
         if (label) reserved += label.getBoundingClientRect().width;
         reserved += (Number.parseFloat(getComputedStyle(child).paddingLeft) || 0) + (Number.parseFloat(getComputedStyle(child).paddingRight) || 0);
         const pages = child.querySelector(".tab-group-pages") || child;
-        const kids = [...pages.children].filter((el) => (el.classList.contains("tab-item") || el.hasAttribute("data-tab-reorder-slot")) && !gone(el));
+        const kids = [...pages.children].filter((el) => (el.classList.contains("tab-item") || el.classList.contains("tab-group-sep") || el.hasAttribute("data-tab-reorder-slot")) && !gone(el) && el.getClientRects().length);
         reserved += gapOf(pages) * Math.max(0, kids.length - 1);
         for (const kid of kids) {
-          if (!flexSet.has(kid)) reserved += kid.getBoundingClientRect().width;
+          if (flexSet.has(kid)) continue;
+          const box = getComputedStyle(kid);
+          reserved += kid.getBoundingClientRect().width + (Number.parseFloat(box.marginLeft) || 0) + (Number.parseFloat(box.marginRight) || 0);
         }
         continue;
       }
       reserved += child.getBoundingClientRect().width;
     }
-    let siblingChrome = 0;
-    const stripKids = [...strip.children];
-    for (const child of stripKids) {
-      if (child === scroll) continue;
-      if (child.classList.contains("tab-strip-spacer")) {
-        siblingChrome += Number.parseFloat(getComputedStyle(child).minWidth) || 0;
-        continue;
-      }
-      siblingChrome += child.getBoundingClientRect().width;
-    }
+    // 全部标签 takes room only while the tabs, at their narrowest, still do not fit (a phone always shows it, by CSS).
+    const all = strip.querySelector(":scope > [data-tab-all]");
+    const phone = window.matchMedia("(max-width: 760px)").matches;
+    const min = tabShareMin(window.matchMedia("(max-width: 760px), (pointer: coarse)").matches), hugs = flexNodes.map(tabHugWidth);
     const stripStyle = getComputedStyle(strip);
     const innerWidth = strip.clientWidth - (Number.parseFloat(stripStyle.paddingLeft) || 0) - (Number.parseFloat(stripStyle.paddingRight) || 0);
-    const allotted = tabScrollAllotment(innerWidth, siblingChrome, gapOf(strip), stripKids.length);
-    const share = tabShareWidth(allotted - reserved, flexNodes.map(tabHugWidth), tabShareMin(window.matchMedia("(max-width: 760px), (pointer: coarse)").matches));
+    const allot = () => {
+      let siblingChrome = 0;
+      const stripKids = [...strip.children].filter((child) => child === scroll || child.getClientRects().length);
+      for (const child of stripKids) {
+        if (child === scroll) continue;
+        if (child.classList.contains("tab-strip-spacer")) {
+          siblingChrome += Number.parseFloat(getComputedStyle(child).minWidth) || 0;
+          continue;
+        }
+        siblingChrome += child.getBoundingClientRect().width;
+      }
+      return tabScrollAllotment(innerWidth, siblingChrome, gapOf(strip), stripKids.length);
+    };
+    // On a phone the titlebar's row scrolls when it cannot hold it all (workbench-navigation.ts); its edges fade like other scrollers.
+    if (strip.hasAttribute("data-titlebar-tabs")) strip.toggleAttribute("data-overflow-fade", phone);
+    if (all) all.hidden = !phone;
+    let allotted = allot();
+    if (all && !phone && reserved + hugs.reduce((sum, hug) => sum + Math.min(hug, min), 0) > allotted + 0.5) { all.hidden = false; allotted = allot(); }
+    const share = tabShareWidth(allotted - reserved, hugs, min);
     if (share == null) {
       if (!(scroll.style.getPropertyValue("--tab-share-width") || scroll.style.width)) return;
       clearShare();
@@ -239,8 +274,21 @@ export const TAB_WORKSPACE_STRIP_PART = `  const tabShareWidth = ${tabShareWidth
     pad.dataset.tabScrollPad = "";
     pad.setAttribute("aria-hidden", "true");
     scrollArea.append(pad);
+    // What stays at the visible end of the strip, never scrolled away (07-1 S3, scheme A): the way back after a group closed,
+    // the way out of 独看, and 全部标签, which appears once the tabs no longer fit (shareTabStrip says when; a phone always shows it).
     const undo = pluginGroups.undoChip(pane.id);
     if (undo) fragment.append(undo);
+    if (!embedded && state.solo?.paneId === pane.id) fragment.append(stripButton("tab-solo-chip", "maximize", L("独看中 · 显示全部"), { soloChip: "" }));
+    if (!embedded) {
+      const all = stripButton("tab-all-button", "rows", L("全部标签"), { tabAll: pane.id });
+      const count = document.createElement("span"); count.className = "tab-all-count"; count.textContent = String(pane.tabs.length); all.append(count);
+      all.setAttribute("aria-label", L("全部标签") + " · " + L("{n} 张", { n: pane.tabs.length })); all.setAttribute("aria-haspopup", "menu");
+      all.setAttribute("aria-expanded", String(document.querySelector("[data-workspace-all-tabs]:popover-open")?.dataset.forPane === pane.id));
+      all.hidden = true;
+      fragment.append(all);
+    }
+    // On a phone only the focused column shows: the titlebar's strip leads with which one (design README 9).
+    if (!embedded && strip.hasAttribute("data-titlebar-tabs")) fragment.prepend(paneSwitch());
     // A pane of its own with nothing in it says how to fill it; the titlebar's strip over the project home says nothing.
     if (!pane.tabs.length && !strip.hasAttribute("data-titlebar-tabs")) {
       const empty = document.createElement("p");
@@ -265,6 +313,13 @@ export const TAB_WORKSPACE_STRIP_PART = `  const tabShareWidth = ${tabShareWidth
     strip.replaceChildren(fragment);
     scrollArea.scrollLeft = scrollLeft;
     shareTabStrip(scrollArea);
+    // A phone's row that scrolls (the undo chip came in) keeps the current tab in view.
+    const current = strip.hasAttribute("data-titlebar-tabs") && strip.scrollWidth > strip.clientWidth + 1 ? strip.querySelector("[data-tab-id][aria-current]") : null;
+    if (current) {
+      const edge = strip.getBoundingClientRect(), at = current.getBoundingClientRect();
+      if (at.left < edge.left) strip.scrollLeft -= edge.left - at.left;
+      else if (at.right > edge.right) strip.scrollLeft += at.right - edge.right;
+    }
     tabShareObserver.observe(strip);
     if (previousActive !== pane.activeTabId) requestAnimationFrame(() => {
       scrollTabIntoStrip(strip.querySelector('[data-tab-id][aria-current]'));
@@ -278,6 +333,21 @@ export const TAB_WORKSPACE_STRIP_PART = `  const tabShareWidth = ${tabShareWidth
     }
     apply();
     persist();
+  };
+  /** The phone's 主区 | 右侧: the right side opens and takes the focus, or collapses and gives it back to the main area. */
+  const showColumn = (which) => {
+    const open = Boolean(sidePane?.isOpen());
+    if ((which === "side") !== open) sidePane?.toggle();
+    column = which === "side" && sidePane?.isOpen() ? "side" : "main";
+    apply();
+    if (column === "side") document.querySelector("[data-side-tabs] [data-side-tab][aria-selected=true]")?.focus({ preventScroll: true }); else focusActiveTab();
+  };
+  /** The focused column's current tab is paper and lifted; another column's keeps only its place (design README, shared part 5). */
+  const markFocus = () => {
+    const strips = [titlebarStrip, ...panesEl.querySelectorAll("[data-tab-pane] > [data-tab-strip]")].filter(Boolean);
+    strips.forEach((node) => node.toggleAttribute("data-unfocused", column === "side" || (node !== titlebarStrip && node.closest("[data-tab-pane]")?.dataset.tabPane !== state.focusedPaneId)));
+    document.querySelector("[data-side-tabs]")?.toggleAttribute("data-unfocused", column !== "side");
+    document.querySelectorAll("[data-pane-switch]").forEach((button) => { const on = (button.dataset.paneSwitch === "side") === (column === "side"); button.classList.toggle("is-current", on); button.setAttribute("aria-pressed", String(on)); });
   };
   const focusActiveTab = () => {
     const selected = (titlebarStrip && !titlebarStrip.hidden ? titlebarStrip : panesEl.querySelector('[data-tab-pane="' + state.focusedPaneId + '"] [data-tab-strip]'))?.querySelector('.tab-item-trigger[aria-selected="true"]');
@@ -313,7 +383,12 @@ export const TAB_WORKSPACE_STRIP_PART = `  const tabShareWidth = ${tabShareWidth
   const handleStripClick = (paneId, event) => {
     const focusPane = event.target.closest("[data-focus-pane]");
     if (focusPane) { activate(focusPane.dataset.focusPane); return true; }
+    const switchTo = event.target.closest("[data-pane-switch]");
+    if (switchTo) { showColumn(switchTo.dataset.paneSwitch); return true; }
+    if (event.target.closest("[data-solo-chip]")) { toggleSolo(); apply(); persist(); focusActiveTab(); return true; }
     if (!paneId) return;
+    const all = event.target.closest("[data-tab-all]");
+    if (all) { openAllTabs(paneId, all); return true; }
     const add = event.target.closest("[data-tab-add]");
     if (add) { openPlusMenu(paneId, add); return true; }
     if (event.target.closest("[data-cover-close]")) {

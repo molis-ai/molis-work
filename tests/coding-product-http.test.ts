@@ -1,3 +1,4 @@
+import { projectPluginRevisionAt } from "./fixtures/project-plugin-settings.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { artifactSubjectId } from "@molis-ai/molis-work-contracts/modules/artifacts";
@@ -6,6 +7,7 @@ import { mkdtemp, rm, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
+import { addProjectInputFolder, directoriesWebOf } from "./fixtures/project-directories-http.js";
 import { CODING_WORKBENCH_CLIENT_FACTORY_SCRIPT, CODING_SETTINGS_CLIENT_SCRIPT } from "@molis-ai/molis-work-plugin-coding";
 
 test("Coding formal routes preserve drafts and isolate projects across server restart", async () => {
@@ -41,7 +43,7 @@ test("Coding formal routes preserve drafts and isolate projects across server re
     const shelfItem = await request('/api/plugins/io.molis.work.shelf/items', 'POST', { filename: 'port.md', bytes_base64: Buffer.from('固定端口材料').toString('base64') });
     assert.equal(shelfItem.status, 200);
     // RAC-1044 (PG-077 D1): platform imports work without project membership; the same write still requires the person's token.
-    assert.equal((await request(`/api/settings/projects/${projects[1]}/plugins`, 'DELETE', { plugin_id: 'artifacts' })).status, 400);
+    assert.equal((await request(`/api/settings/projects/${projects[1]}/plugins`, 'DELETE', { plugin_id: 'artifacts', expected_revision: await projectPluginRevisionAt(origin, projects[1]) })).status, 400);
     const elsewhere = `/projects/${projects[1]}/api/plugins/io.molis.work.shelf/items/${shelfItem.body.item.item_id}/project-material`;
     const elsewherePreview = await request(elsewhere);
     assert.equal(elsewherePreview.status, 200);
@@ -51,7 +53,7 @@ test("Coding formal routes preserve drafts and isolate projects across server re
     const elsewhereMaterial = await request(elsewhere, 'POST', elsewhereInput);
     assert.equal(elsewhereMaterial.status, 200, JSON.stringify(elsewhereMaterial.body));
     assert.equal(elsewhereMaterial.body.reference.version, 1);
-    assert.equal((await request(`/api/settings/projects/${projects[0]}/plugins`, 'POST', { plugin_id: 'artifacts' })).status, 400);
+    assert.equal((await request(`/api/settings/projects/${projects[0]}/plugins`, 'POST', { plugin_id: 'artifacts', expected_revision: await projectPluginRevisionAt(origin, projects[0]) })).status, 400);
     const projectMaterial = `/projects/${projects[0]}/api/plugins/io.molis.work.shelf/items/${shelfItem.body.item.item_id}/project-material`;
     const materialPreview = await request(projectMaterial);
     assert.equal(materialPreview.status, 200);
@@ -63,7 +65,7 @@ test("Coding formal routes preserve drafts and isolate projects across server re
     const plugin = (project: string) => `/projects/${project}/api/plugins/io.molis.work.coding`;
     // W3-02-C: not enabled in this project is 403 actions.plugin_disabled (it was 404 plugin_not_enabled).
     const notEnabled = await request(plugin(projects[0])+'/state'); assert.equal(notEnabled.status,403); assert.equal(notEnabled.body.code,'actions.plugin_disabled');
-    for(const project of projects) assert.equal((await request(`/api/settings/projects/${project}/plugins`,'POST',{plugin_id:'coding'})).status,200);
+    for(const project of projects) assert.equal((await request(`/api/settings/projects/${project}/plugins`,'POST',{plugin_id:'coding', expected_revision: await projectPluginRevisionAt(origin, project) })).status,200);
     const a=plugin(projects[0]),b=plugin(projects[1]);
     assert.equal((await request(a+'/sessions','POST',{title:'denied'},false)).status,403);
     const created=await request(a+'/sessions','POST',{title:'待检查的任务'});
@@ -106,7 +108,8 @@ test("Coding formal routes preserve drafts and isolate projects across server re
     assert.equal((await request(a+'/sessions/'+session,'PATCH',{question_drafts:[],expected_input_revision:1})).status,400);
     assert.equal((await request(a+'/sessions/'+session+'/runs','POST',{task:'read',intent:'discuss',workspace_id:'invented'})).status,400);
     assert.equal((await request(a+'/sessions/'+session)).body.session.runtime_session_id,null);
-    const state=await request(a+'/state');assert.equal(state.status,200);assert.deepEqual(state.body.workspaces,[]);
+    // A new project has no folder of the person's yet: only its default output directory (SSC-17).
+    const state=await request(a+'/state');assert.equal(state.status,200);assert.deepEqual(state.body.workspaces.map((item:{roles:string[]})=>item.roles),[['output']]);
     const settingsResponse = await fetch(origin + '/settings/coding-settings?project=' + projects[0]);
     assert.equal(settingsResponse.status, 200);
     const settingsHtml = await settingsResponse.text();
@@ -120,9 +123,10 @@ test("Coding formal routes preserve drafts and isolate projects across server re
     assert.ok(modelSettingsHtml.includes('/settings/coding-settings'));
     const workspace = path.join(root,'method-source');await mkdir(path.join(workspace,'skills','source-review'),{recursive:true});
     await writeFile(path.join(workspace,'skills/source-review/SKILL.md'),'---\nname: source-review\ndescription: Check source evidence\n---\nRead the requested file before giving a conclusion.');
-    const bound=await request('/projects/'+projects[0]+'/api/workspaces','POST',{workspace_path:workspace,user_confirmed:true});
-    assert.equal(bound.status,201);
-    const workspaceId=(await request(a+'/state')).body.workspaces[0].workspace_id;
+    // Discovering methods only reads the folder: an input, added in the project's settings as the person does.
+    const bound=await addProjectInputFolder(directoriesWebOf(request),projects[0],workspace);
+    const workspaceId=bound.workspace_id;
+    assert.ok((await request(a+'/state')).body.workspaces.some((item:{workspace_id:string})=>item.workspace_id===workspaceId),'Coding offers the added input');
     assert.equal((await request(a+'/methods/discover','POST',{workspace_id:'invented',path:'skills'})).status,400);
     const discovered=await request(a+'/methods/discover','POST',{workspace_id:workspaceId,path:'skills'});
     assert.equal(discovered.status,200,JSON.stringify(discovered.body));assert.equal(discovered.body.candidates.length,1);

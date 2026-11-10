@@ -18,7 +18,7 @@ export function catalogManagementProjects(home:string) {
   const storage=new LocalSqliteStorage(file,{readonly:true});
   try{
     assertOwnedCatalog(storage,file);assertCurrentCatalog(storage,file);
-    return new ProjectsModule({db:storage.db,projects_directory:join(home,"projects"),plugins:{has:()=>false,companions:()=>[]}}).query.listProjects();
+    return new ProjectsModule({db:storage.db,projects_directory:join(home,"projects"),outputs_directory:join(home,"outputs"),plugins:{has:()=>false,companions:()=>[]}}).query.listProjects();
   }finally{storage.close();}
 }
 export function catalogManagementProject(home: string, databasePath: string): { project_id: string; database_path: string } | undefined {

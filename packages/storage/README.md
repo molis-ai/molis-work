@@ -9,6 +9,8 @@
 包名：`@molis-ai/molis-work-storage`。工作区内部包，通过仓库构建和 Host 装配使用。
 
 
+`openExistingBaselineHomeSqlite` 只读取已有完整当前基线，先核对已有Home/库空间归属并在实际只读连接复查；外来或缺失归属返回 `storage.space_ownership_mismatch`，不补描述符、归属表或业务表。
+
 `openReadOnlyHomeSqlite` 为插件查询服务提供 SQLite 自身强制的只读连接；Host 用 `openBaselineHomeSqlite` 开当前业务基线，再持有读写连接——打开前先只读核对版本与结构（同版本也必须有基线的每张表），错版本与坏结构不改文件即拒绝，热日志库留给可写打开做 SQLite 崩溃恢复后再完整核对。`homeStoreRegistry`（`home-stores.ts`）是 Home 存储登记的形状与检查：路径只能是 Home 下的一个名字或 `config/` 下的一个文件，一个路径只有一个主人；登记本身由 Host 组装（`apps/local-host/src/home-stores.ts`），这里不认识任何插件或模块。记忆账本与搜索索引的登记（`MEMORY_LEDGER_HOME_STORE`、`TEXT_SEARCH_HOME_STORE`）在各自的适配器旁，普通卸载保留，明确 purge 才清除。当前基线、回滚与错版拒绝由 `tests/issue-home.test.ts` 验证。
 
 `acquireStorageOwner` 是 Host、独立 Agent 与离线 Home 操作共用的 SQLite EXCLUSIVE 所有权技术端口，路径仍是显式绝对目录里的 `.molis-runtime-owner.db`。获取始终严格，同一进程第二次获取也拒绝；不另建锁或根据 PID 放行。`assertStorageOwner` 与 `borrowStorageOwner` 只认本模块认证、同一 canonical root 和原 inode 的 live capability；复制对象不能借用，一个父 owner 同时只给一个执行服务借用。子服务关闭仅归还借用，父 owner 在借用归还前不能释放。失败关闭由原拥有者明确重试，普通释放保留锁 inode；Home 的 `agent-runtime` 父目录也不能在恢复发布时整体替换。该锁及侧车不进业务快照。回归：`tests/security-invariants-home-storage-owner.test.ts`、`tests/security-invariants-home-storage-sdk.test.ts`、`tests/security-invariants-home-storage-host.test.ts`。
@@ -21,7 +23,7 @@ LocalSqliteStorage 打开连接并配置 WAL、FULL synchronous、外键和 busy
 
 `describeSqliteBaseline` 用内存 SQLite 描述当前基线的完整 DDL，连接在返回前关闭，不碰 Home 库。Host 用它与 `describeSqliteSchema` 的实测结果比较，确认完整结构后才构造可能创建表的 Repository；SQLite 连接技术留在 storage。
 
-`inspectCatalogFile` 只返回目录库已有 owner/version，不建库、改日志模式、修复或 checkpoint。没有 WAL/SHM 的已关闭文件用 Node SQLite 单连接只读 immutable 观察，前后核对文件与日志状态；已有完整活动 WAL 则使用与目录 owner 相同的 better-sqlite3 驱动按普通只读事务读取，不能忽略尚未 checkpoint 的已提交版本。同进程不能用另一套 SQLite 实例探测活动库，否则关闭探测连接会干扰常驻连接的 POSIX 锁，让其他进程误清理 WAL/SHM 或取得仍被占用的写锁。部分日志、回滚日志或观察期间文件变化直接拒绝重试。它只用于前置拒绝，正常写连接仍须复查自身 owner/version；不把 mutable 文件的 immutable 观察当最终写入授权。旧 WAL 主文件的拒绝不留下新侧文件，相关验证在 `tests/security-invariants-project-metadata-sync.test.ts`（含 PCSYNC-MCP-RECONNECT-01/02 跨进程锁回归）；标准 MCP 异常退出重连见 `tests/images-concurrency.test.ts`。
+`inspectCatalogFile` 只返回目录库已有 owner/version，不建库、改日志模式、修复或 checkpoint。没有 WAL/SHM 的已关闭文件用 Node SQLite 单连接只读 immutable 观察，前后核对文件与日志状态；已有完整活动 WAL 则用与目录 owner 相同的项目连接（`openSqliteConnection`）按普通只读事务读取，不能忽略尚未 checkpoint 的已提交版本。同进程不能用另一套 SQLite 实例探测活动库，否则关闭探测连接会干扰常驻连接的 POSIX 锁，让其他进程误清理 WAL/SHM 或取得仍被占用的写锁。部分日志、回滚日志或观察期间文件变化直接拒绝重试。它只用于前置拒绝，正常写连接仍须复查自身 owner/version；不把 mutable 文件的 immutable 观察当最终写入授权。旧 WAL 主文件的拒绝不留下新侧文件，相关验证在 `tests/security-invariants-project-metadata-sync.test.ts`（含 PCSYNC-MCP-RECONNECT-01/02 跨进程锁回归）；标准 MCP 异常退出重连见 `tests/images-concurrency.test.ts`。
 
 `eventCursor(projectId, objectType?)` 可以只读取某类对象的 journal 游标。Host 用它发现同项目其他连接已提交的变化；调用方负责避开本连接尚未提交的事务。它不提供业务订阅身份、确认或副作用重放，这些仍由各 owner 管理。
 
@@ -105,7 +107,7 @@ pnpm test:run tests/feed-security.test.ts tests/web-home-isolation.test.ts tests
 
 ## 开发要求
 
-项目连接从 `openSqliteConnection` 打开，返回 storage 的 `SqliteDatabase` 接口；它只打开连接，不建表。需要项目库的日志和 WAL 设置时由 `LocalSqliteStorage` 配置。测试从 test-kit 的 `/sqlite` 入口取得同一驱动。基线检查在持有该库的驱动上执行。
+项目连接从 `openSqliteConnection` 打开，返回 storage 的 `SqliteDatabase` 接口；它只打开连接，不建表。底下是 `node:sqlite`，SQLite 跟着 Node 走，所以版本由 `.nvmrc` 定（`specs/sqlite-driver-switch/spec.md` §2.1）。这一层保留调用方靠得住的拒绝：一次一句、参数个数、命名参数、布尔和 `Date`、对写语句用 `get`，因为 `node:sqlite` 在这些地方不报错、悄悄照做。失败的名字用 `sqliteErrorName`（`SQLITE_BUSY` 等，从 SQLite 的结果码读），不看 `error.code`：`node:sqlite` 全是 `ERR_SQLITE_ERROR`。需要项目库的日志和 WAL 设置时由 `LocalSqliteStorage` 配置。测试从 test-kit 的 `/sqlite` 入口取得同一驱动。基线检查在持有该库的驱动上执行。
 
 `inspectMemoryLedger` 只读当前完整账本与可信 actor 的 personal/project-default 偏好；缺文件只返回 absent，不授予 fresh 资格。源库及 WAL/SHM 不经 SQLite 打开，私有副本使用同一基线与 contracts 完整性规则，源字节/模式/侧车保持。`inspectSnapshotSqlite` 只检查已有 standalone 归档，复用 backup 的 owner/schema/完整性检查，不初始化或切 WAL。恢复 key 与证据只读端口复用原密封 owner，不创建替代 key。`retainStorageOwner` 将 Catalog 寿命与 SDK 单 borrow 分开，pending 拒绝正常打开/借用，恢复 owner 不能启动 SDK。直接回归：`tests/home-restore-owner-inspection.test.ts`、`tests/security-invariants-home-restore-guard.test.ts`。
 
@@ -121,6 +123,8 @@ pnpm test:run tests/feed-security.test.ts tests/web-home-isolation.test.ts tests
 
 打开路径的结构比较按基线对象加文件路径记忆（`comparedShapes`，设计 §3.2）：dev、ino、size、mtimeMs、`PRAGMA schema_version`、版本都没变就不再比，只记比过且相符的。
 
+SQLite 自己的授权回调：`SqliteDatabase.setAuthorizer` 接 Node 的 `setAuthorizer`（`sqlite3_set_authorizer`），给 `null` 撤掉。`sqlite-owner-boundary.ts` 里有两个用它的边界：`nativeSqliteOwnerBoundary` 管行语句，`nativeSqliteSchemaBoundary` 管一句改表或索引的结构语句（插件升级段的第二层，[设计](../../specs/upgrade-continuity/upgrade-chain-design.md) §2.4）。后者只许改、删或建索引在给定的表上，建新名字的表，读写 SQLite 在这句里自己改的记账表（`sqlite_master`、`sqlite_temp_master`、`sqlite_sequence`）和调 `ALTER TABLE` 内部用的几个函数；别的问题一律拒，没见过的也拒，所以换了版本的 SQLite 只会误拒合法的段。SQLite 问它自己的内部语句和问调用方的语句是同一种问法，所以调用方只把已经读成结构语句的那一句送来，行语句不走它。拒绝时准备就失败（`SQLITE_AUTH`，被拒的函数是 `SQLITE_ERROR`），一步也不运行。
+
 升级快照与放回在 `upgrade-snapshot.ts`（[设计](../../specs/upgrade-continuity/upgrade-chain-design.md) §2.2 第 2、3 步、§5），全部同步，调用方持这个 Home 的存储主人锁（函数自己核：`lockDirectory` 是锁所在的目录，宿主放在 `<home>/agent-runtime`，只能是这个 Home 本身或它的直接子目录）、这个文件上没有别的连接：`captureUpgradeSnapshot` 做 checkpoint，确认 `-wal`、`-shm`、`-journal` 都不在了（回滚日志模式的库，写在日志刷盘之前被杀，会留下 SQLite 自己也不理的空日志或首字节为 0 的日志，这种在独占锁下清掉；活着的写者的日志字节相同，拿不到独占锁就报错，什么都不删；同一进程里另一份 SQLite 的连接看不见，所以这个前提要调用方守），再把主文件原样拷进 `upgrade/<run-id>/`，这份就是放回的基准；连接由调用方给（`SqliteBaselineDatabase` 加 `close`），用这个库自己的驱动，不用 `openHomeSqliteDatabase`（它一打开就可能写空间表）。`restoreUpgradeSnapshot` 先核快照的 sha256、大小和清单的形状（清单的其他字段不防改），不符就报 `snapshot_invalid` 并停下，库文件和旁路文件都不动；相符才删旁路文件、经同目录临时文件 `rename` 放回、恢复原 mode、再核一遍。两个函数的每一步都能中断后重来，`tests/upgrade-snapshot.test.ts` 在每个文件操作之前 `kill -9` 一次验证。放不放回看版本，不看失败的 `reason`：已是目标版本的不放回（提交之后才失败），其余一律放回，因为段写 `COMMIT; BEGIN`，或 `async` 段在第一个 `await` 之前写 `COMMIT` 时，版本还是旧的、前半已经提交。从 `runSqliteUpgrade` 抛出，到关连接、调放回，中间不能有 `await`。`assertUpgradeDiskSpace` 按整个 Home 算（主文件加 `-wal`，乘 2），不够就报 `storage.upgrade_no_space`，什么都不动。路径只从可信 Home 和描述符推导，清单里写的路径只用来对上单元，不用来找文件；密文原样进快照，密钥不进，清单只记依赖。`pruneUpgradeSnapshots` 留下指定的一轮，删别的轮。`manifest.json` 只管这一轮拍了什么，单元走到哪一步由调用方的升级记录管。不变量见 [S-upgrade-snapshot-confinement](../../docs/system/security-invariants/S-upgrade-snapshot-confinement.md)、[S-upgrade-restore-verified](../../docs/system/security-invariants/S-upgrade-restore-verified.md)、[S-upgrade-journal-removal](../../docs/system/security-invariants/S-upgrade-journal-removal.md)。
 
 - 负责：SQLite、文件系统、Blob、事务、当前 schema 基线与版本校验、备份与本地密钥存储的技术端口；系统搜索的本地全文索引适配（`openTextSearchIndex`，`{home}/search/search.db`）。
@@ -133,6 +137,7 @@ pnpm test:run tests/feed-security.test.ts tests/web-home-isolation.test.ts tests
   - 已有现行第1版 vault（包括 entries 为空）时必须读取它绑定的原有有效密钥；缺失或无效即拒绝读取、写入和后端诊断，不生成替代 key。恢复原 key 后可重新打开。回归见 [secret-store-missing-key.test.ts](../../tests/secret-store-missing-key.test.ts)。
   - 密文快照预检必须只读，不创建锁/目录/key；密文中有任一条认证失败就整体拒绝，不能因活 vault 损坏而拒绝检查健康快照。明确恢复读取仍核原 key、普通单链接文件及调用 owner 的引用归属。
   - 只有部分操作需要凭据的服务用 `createLazyFileSecretStore`：读取尚未保存的引用不初始化后端。
+  - 写之前的检查只有一份（`writableFile`：按现行格式读出文件，再查除被删那一条以外的每个条目都是现行的密封格式），`put`、`delete`、`createIfAbsent`、`deleteIfPresent` 和导出的 `assertSecretStoreWritable(home)` 共用。后者先按 `SECRET_STORE_FILE` 调 `assertVersionedFileWritable`（拒绝码与别的带版本文件相同），再问 `writableFile`；只读、不解密、不要主密钥、不建锁库和目录。要把请求的回答存进这里的调用方，在发请求之前调它（宿主里的调用方见 `apps/local-host/README.md` 升级清单那一段）。只读的 `get` 只看自己那一条，别的条目坏了照样读得到。
   - 原子文件写入、日志与幂等记录由这里提供，Module 不各建一套。
   - 记忆账本只有成功开始写事务后才进入嵌套状态；连接锁导致开始失败后，同一实例的后续多步写入仍完整回滚或提交。回归见 [memory-ledger-transaction.test.ts](../../tests/memory-ledger-transaction.test.ts)。
   - 搜索索引是可删除的派生缓存：文件缺失、损坏或 schema 版本不符时清空重建，不读回任何业务事实。
@@ -140,7 +145,7 @@ pnpm test:run tests/feed-security.test.ts tests/web-home-isolation.test.ts tests
   - 正文由读取器提供的条目，只对能读该种类的调用来源返回。
   - 项目被删除时清掉它在个人库里的行：`clearInExistingHomeSqlite` 对已存在的库在一个写事务里运行删除（库不存在就不创建、版本不符照常拒绝）；`deleteSecretEntriesWithPrefix` 按引用前缀删密封的密钥，不解密；记忆账本的 `forgetScopes` 一并忘掉已不存在的范围。
 - 知识卡与搜索索引适配器的 SQLite 语句读取整数使用 BigInt，避免全文索引遗留的 64 位内部行号使已成功的写入在返回结果时抛错；对外卡片、用量和回执仍沿原合同。回归：`tests/knowledge-cards.test.ts` 的 K01-01 与 `tests/model-first-setup.e2e.test.ts`。
-- 改动后必跑：`node scripts/run-tests.mjs tests/storage-baseline.test.ts tests/upgrade-chain.test.ts tests/upgrade-snapshot.test.ts tests/security-invariants-upgrade-snapshot.test.ts tests/versioned-file.test.ts tests/security-invariants-versioned-file.test.ts tests/sqlite-shape-memo.test.ts tests/upgrade-chain-registry.test.ts tests/home-upgrade.test.ts tests/security-invariants-home-upgrade.test.ts tests/home-store-baselines.test.ts tests/secret-store-keychain-retry.test.ts tests/secret-store-format.test.ts tests/home-backup-recovery.test.ts tests/plugin-private-storage.test.ts tests/system-search.test.ts tests/feed-local-history-delete.test.ts tests/project-deletion-owners.test.ts tests/project-deletion-studios.test.ts tests/security-invariants-secret-snapshot.test.ts tests/security-invariants-connector-private-state.test.ts tests/security-invariants-home-payload-purpose.test.ts tests/security-invariants-connector-private-state-limits.test.ts tests/secret-store-missing-key.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/sqlite-driver-conformance.test.ts tests/sqlite-build-options.test.ts tests/storage-baseline.test.ts tests/upgrade-chain.test.ts tests/upgrade-snapshot.test.ts tests/security-invariants-upgrade-snapshot.test.ts tests/versioned-file.test.ts tests/security-invariants-versioned-file.test.ts tests/sqlite-shape-memo.test.ts tests/upgrade-chain-registry.test.ts tests/home-upgrade.test.ts tests/security-invariants-home-upgrade.test.ts tests/home-store-baselines.test.ts tests/secret-store-keychain-retry.test.ts tests/secret-store-format.test.ts tests/home-backup-recovery.test.ts tests/plugin-private-storage.test.ts tests/system-search.test.ts tests/feed-local-history-delete.test.ts tests/project-deletion-owners.test.ts tests/project-deletion-studios.test.ts tests/security-invariants-secret-snapshot.test.ts tests/security-invariants-connector-private-state.test.ts tests/security-invariants-home-payload-purpose.test.ts tests/security-invariants-connector-private-state-limits.test.ts tests/secret-store-missing-key.test.ts tests/plugin-upgrade-steps.test.ts tests/security-invariants-plugin-upgrade-steps.test.ts tests/plugin-table-upgrade.test.ts`
 
 - 空间归属改动另跑：`node scripts/run-tests.mjs tests/space-ownership.test.ts tests/web-home-isolation.test.ts`。
 - 文本转储（`src/sqlite-text-dump.ts`，金样 Home 用，设计见 `specs/upgrade-continuity/golden-replay-design.md` §2）：同样的已提交行写出同样的字节，只走窄接口 `SqliteBaselineDatabase` 与 SQLite 的 `quote()`。要归一的随机列只写进 `SQLITE_DUMP_NORMALIZED_COLUMNS` 这张短表，不做通配。改它另跑：`node scripts/run-tests.mjs tests/golden-home.test.ts`。

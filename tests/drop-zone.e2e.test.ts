@@ -82,14 +82,15 @@ test("VUX-18: the Assistant's composer stays lit while a file crosses its childr
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
   const { evaluate, waitFor, navigate, command, sessionId, origin, projectId } = browser;
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-  await waitFor("document.querySelector('[data-assistant-composer] [data-assistant-input]') && typeof window.molisDropZone === 'function'", 20_000);
+  await waitFor("document.querySelector('[data-assistant-composer] .mw-composer__input') && typeof window.molisDropZone === 'function'", 20_000);
   await evaluate(DRAG);
-  const lit = () => evaluate<boolean>("document.querySelector('[data-assistant-composer]').dataset.dropping === 'true'");
-  await evaluate(`(() => { const compose = document.querySelector('[data-assistant-composer]'), input = compose.querySelector('[data-assistant-input]');
-    window.seen = []; new MutationObserver(() => seen.push(compose.dataset.dropping === 'true')).observe(compose, { attributes: true, attributeFilter: ['data-dropping'] });
+  // K3: the Assistant's input is the unified composer, whose drop zone is its box (marked `data-dropping` while a file is over it).
+  const lit = () => evaluate<boolean>("document.querySelector('[data-assistant-composer] .mw-composer__box').hasAttribute('data-dropping')");
+  await evaluate(`(() => { const compose = document.querySelector('[data-assistant-composer] .mw-composer__box'), input = compose.querySelector('.mw-composer__input');
+    window.seen = []; new MutationObserver(() => seen.push(compose.hasAttribute('data-dropping'))).observe(compose, { attributes: true, attributeFilter: ['data-dropping'] });
     drag.move(document.body, compose); drag.move(compose, input); drag.move(input, compose); drag.move(compose, input); })()`);
   assert.equal(await lit(), true, "lit while a file is over the composer");
-  await evaluate("drag.leave(document.querySelector('[data-assistant-composer] [data-assistant-input]'))");
+  await evaluate("drag.leave(document.querySelector('[data-assistant-composer] .mw-composer__input'))");
   assert.equal(await lit(), false, "let go when the drag leaves the window from the input");
   await new Promise((resolve) => setTimeout(resolve, 50));
   assert.deepEqual(await evaluate("seen"), [true, false], "lit once and let go once: no flicker across the input");

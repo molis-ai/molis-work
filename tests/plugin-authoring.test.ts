@@ -27,8 +27,8 @@ test("public Manifest parser preserves author declarations and rejects unsupport
   const input = manifest();
   assert.deepEqual(parsePluginManifest(input), input);
   assert.throws(() => parsePluginManifest({ ...input, host_api_version: 2 }),
-    (error: unknown) => (error instanceof ActionError && error.kind === "invalid") && error.code === "plugin.manifest_invalid"
-      && error.message.includes("host_api_version"));
+    (error: unknown) => (error instanceof ActionError && error.kind === "invalid") && error.code === "plugin.manifest_version_invalid"
+      && error.message === "Plugin Manifest 版本不受支持");
 });
 
 test("Manifest upgrade declarations use exact older source versions with one disposition each", () => {
@@ -92,11 +92,38 @@ test("real Plugin CLI validates in a clean directory without executing entrypoin
     writeFileSync(manifestPath, JSON.stringify({ ...manifest(), host_api_version: 2 }));
     const incompatible = invoke("validate", manifestPath);
     assert.equal(incompatible.status, 1);
-    assert.equal(JSON.parse(incompatible.stderr).code, "plugin.manifest_invalid");
+    assert.equal(JSON.parse(incompatible.stderr).code, "plugin.manifest_version_invalid");
     assert.equal(incompatible.stdout, "");
     writeFileSync(manifestPath, "{invalid");
     assert.equal(invoke("validate", manifestPath).status, 1);
     assert.equal(invoke("install", manifestPath).status, 2, "unsupported commands cannot report a fake installation");
     assert.equal(existsSync(join(directory, "executed")), false);
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+
+// FSS-72: an author who ran dev on the standalone tool was told their Manifest was invalid.
+test("standalone Plugin CLI refuses dev and install with plugin.host_required and names the app's command", () => {
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-plugin-cli-host-"));
+  try {
+    writeFileSync(join(directory, "manifest.json"), JSON.stringify(manifest()));
+    const cli = fileURLToPath(new URL("../tooling/plugin-cli/bin/molis-work-plugin.mjs", import.meta.url));
+    const invoke = (...args: string[]) => spawnSync(process.execPath, [cli, ...args], { cwd: directory, encoding: "utf8" });
+    const state = join(directory, "state");
+    for (const run of [invoke("dev", directory, state, "ui:register", "--allow-unsigned-development"), invoke("dev", directory, state, "ui:register", "--allow-unsigned-development", "--locale", "en"), invoke("dev", directory, state, "ui:register", "--no-flag")]) {
+      assert.equal(run.status, 1, run.stderr);
+      const refusal = JSON.parse(run.stderr) as { code: string; message: string };
+      assert.equal(refusal.code, "plugin.host_required");
+      assert.match(refusal.message, /molis-work plugin dev/);
+      assert.equal(run.stdout, "");
+    }
+    assert.equal(existsSync(state), false, "the refusal comes before any state directory is made");
+    const install = invoke("install", join(directory, "manifest.json"), "project-1");
+    assert.equal(install.status, 1);
+    assert.equal(JSON.parse(install.stderr).code, "plugin.host_required");
+    const help = invoke("--help");
+    assert.equal(help.status, 0);
+    assert.match(help.stdout, /^  molis-work-plugin validate /m);
+    assert.match(help.stdout, /^  molis-work plugin dev /m);
+    assert.doesNotMatch(help.stdout, /molis-work-plugin (dev|install) /);
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });

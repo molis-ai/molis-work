@@ -27,11 +27,11 @@ async function openNotes(t: test.TestContext, content: object[] = [paragraph(FIR
   const related = () => browser.evaluate<Array<{ work_id: string; relation: string }>>(`fetch(document.body.dataset.routePrefix + '/api/assistant/related?kind=pages_document&id=' + ${JSON.stringify(page.id)}, { headers: molisWorkControlHeaders() }).then(r => r.json()).then(body => body.works)`);
   // What the model was asked, as text: the Host names the object a round is about as 「正在看的对象：…」.
   const asked = (index: number) => JSON.stringify(model.requests[index] ?? null);
-  // As a person sends: words typed into the input, then Enter.
+  // As a person sends: words typed into the input, then ⌘/Ctrl+Enter (UIC-05).
   const send = async (words: string) => {
-    await browser.evaluate("document.querySelector('[data-assistant-input]').focus()");
+    await browser.evaluate("document.querySelector('[data-assistant-composer] .mw-composer__input').focus()");
     await command("Input.insertText", { text: words }, sessionId);
-    for (const type of ["keyDown", "keyUp"]) await command("Input.dispatchKeyEvent", { type, key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
+    for (const type of ["keyDown", "keyUp"]) await command("Input.dispatchKeyEvent", { type, key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, sessionId);
   };
   return { ...browser, child, model, page, related, asked, send };
 }
@@ -42,9 +42,9 @@ test("STRIP-01: the object on show goes with a Send only once added with +: then
   const { evaluate, waitFor, model, related, asked, send } = b;
 
   // On show but not added: a dashed chip that says so, and no starting points pop up over the input (§21.2 point 3).
-  await evaluate("document.querySelector('[data-assistant-input]').focus()");
+  await evaluate("document.querySelector('[data-assistant-composer] .mw-composer__input').focus()");
   await waitFor(`document.querySelector(${JSON.stringify(STRIP + " .is-optional")})?.textContent === '正在看：发布笔记没加入+'`, 10_000);
-  assert.equal(await evaluate("document.querySelector('[data-assistant-starters]').hidden"), true, "focusing the input opens no popover of starting points");
+  assert.equal(await evaluate("document.querySelector('[data-assistant-composer] [data-compose-menu]').hidden"), true, "focusing the input opens no popover of starting points");
   await send("总结一下");
   for (let tries = 0; tries < 100 && !model.requests.length; tries++) await new Promise(resolve => setTimeout(resolve, 100));
   assert.ok(model.requests.length >= 1, "the round reached the model");
@@ -76,8 +76,8 @@ test("STRIP-02: ✦助理 puts what is in hand in the strip with the object it i
   const ask = ".mw-ctx:not(.mw-ctx--static):not([hidden]):not([data-away]) [data-assistant]";
   await waitFor(`Boolean(document.querySelector(${JSON.stringify(ask)}))`, 8000);
   await click(ask);
-  await waitFor(`(document.querySelector(${JSON.stringify(STRIP)})?.textContent || '').includes('选中的内容 · 发布笔记') && document.activeElement?.matches('[data-assistant-input]')`, 10_000);
-  assert.equal(await evaluate("document.querySelector('[data-assistant-input]').value"), "", "no words are written for the person");
+  await waitFor(`(document.querySelector(${JSON.stringify(STRIP)})?.textContent || '').includes('选中的内容 · 发布笔记') && document.activeElement?.matches('[data-assistant-composer] .mw-composer__input')`, 10_000);
+  assert.equal(await evaluate("document.querySelector('[data-assistant-composer] .mw-composer__input').value"), "", "no words are written for the person");
   assert.equal(await evaluate(`Boolean(document.querySelector(${JSON.stringify(STRIP + " .is-optional")}))`), false, "the document the passage is from is not offered again: it comes with the passage");
   await send("这段怎么改更清楚");
   for (let tries = 0; tries < 150 && !model.requests.length; tries++) await new Promise(resolve => setTimeout(resolve, 100));
@@ -109,7 +109,7 @@ test("STRIP-03, QA-016: more chips than fit scroll sideways: the side with more 
     const chip = active.closest('[data-strip-key]'), chips = [...row.querySelectorAll('[data-strip-key]')], style = getComputedStyle(active);
     return {
       index: order.indexOf(active), total: order.length, positive: order.some(node => node.tabIndex > 0),
-      isInput: active.matches('[data-assistant-input]'), inStrip: row.contains(active),
+      isInput: active.matches('[data-assistant-composer] .mw-composer__input'), inStrip: row.contains(active),
       label: active.getAttribute('aria-label') || active.textContent.trim() || active.tagName,
       focusVisible: active.matches(':focus-visible'), ring: style.outlineStyle !== 'none' && parseFloat(style.outlineWidth) > 0,
       rowFirst: inRow[0], rowLast: inRow.at(-1), rowCount: inRow.length, chipIndex: chips.indexOf(chip), chips: chips.length, more: row.dataset.more ?? null,
@@ -126,7 +126,7 @@ test("STRIP-03, QA-016: more chips than fit scroll sideways: the side with more 
   for (const [width, height, mobile] of [[1440, 950, false], [390, 844, true]] as const) {
     await command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile }, sessionId);
     // The starting point is where a person types: the Assistant's input.
-    await evaluate("document.querySelector('[data-assistant-input]').focus()");
+    await evaluate("document.querySelector('[data-assistant-composer] .mw-composer__input').focus()");
     await evaluate(`(() => { const row = document.querySelector(${JSON.stringify(ROW)}); if (row) row.scrollLeft = 0; })()`);
     await waitFor(`document.querySelector(${JSON.stringify(ROW)})?.dataset.more === 'end'`, 10_000);
     // The cue is drawn: the row fades out on the side that has more.
@@ -200,7 +200,7 @@ test("STRIP-04: the landing is on the strip only while its object goes with the 
   if (!b) return;
   const { evaluate, waitFor, model, asked, send } = b;
   await b.child.evaluate(caretAfterSecond);
-  await evaluate("document.querySelector('[data-assistant-input]').focus()");
+  await evaluate("document.querySelector('[data-assistant-composer] .mw-composer__input').focus()");
   await waitFor(`Boolean(document.querySelector(${JSON.stringify(STRIP + " .is-optional")}))`, 10_000);
   await new Promise(resolve => setTimeout(resolve, 500));
   assert.equal(await evaluate(`Boolean(document.querySelector(${JSON.stringify(LANDING)}))`), false, "the object is not added: no landing either (§21.5 L-1)");
@@ -225,7 +225,7 @@ test("STRIP-05: a round is told the landing once its owner reads the object agai
   if (!b) return;
   const { evaluate, waitFor, model, asked, send, page, homeDirectory, projectId } = b;
   await b.child.evaluate(caretAfterSecond);
-  await evaluate("document.querySelector('[data-assistant-input]').focus()");
+  await evaluate("document.querySelector('[data-assistant-composer] .mw-composer__input').focus()");
   await waitFor(`Boolean(document.querySelector(${JSON.stringify(STRIP + " .is-optional .assistant-strip-act")}))`, 10_000);
   await evaluate(`document.querySelector(${JSON.stringify(STRIP + " .is-optional .assistant-strip-act")}).click()`);
   await waitFor(`Boolean(document.querySelector(${JSON.stringify(LANDING)}))`, 10_000);

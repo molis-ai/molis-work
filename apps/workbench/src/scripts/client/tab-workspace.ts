@@ -17,6 +17,7 @@ import { TAB_WORKSPACE_PLACES_PART } from "./tab-workspace-places.js";
 import { TAB_WORKSPACE_PLUGINS_PART } from "./tab-workspace-plugins.js";
 import { TAB_WORKSPACE_MENUS_PART } from "./tab-workspace-menus.js";
 import { TAB_WORKSPACE_DRAG_PART } from "./tab-workspace-drag.js";
+import { UNAVAILABLE_STAGE } from "../../unavailable-plugin-stage.js";
 
 export { placeLayoutMenu } from "./tab-workspace-menus.js";
 
@@ -95,6 +96,48 @@ ${TAB_WORKSPACE_DRAG_PART}
     title.textContent = L("{plugin} 已从这个项目移除", { plugin: L(ops.pluginTitle(plugin)) });
     note.textContent = L("标签和内容都还在；把它加回这个项目，就能接着用。");
     stage.replaceChildren(title, note);
+  };
+  // A plugin that did not start draws its placeholder stage marked unavailable (plugin-store-unavailable.ts, project-plugin-stages);
+  // its tabs carry the amber point and stay (design README, shared part 7).
+  const failedPlugin = (plugin) => Boolean(plugin) && Boolean(document.querySelector('[data-work-surface="' + CSS.escape(plugin) + '"]${UNAVAILABLE_STAGE}'));
+  /* Records their plugin said are gone (molis-work:record-gone, sent by the page that tried to show one): their tabs are struck
+     through and stay; shown, the pane says so and offers the way out. Kept for this page only: a reload asks the plugin again. */
+  const goneRecords = new Set();
+  const goneKey = (plugin, itemId) => plugin + "|" + itemId;
+  const goneRecord = (tab) => tab.kind === "item" && goneRecords.has(goneKey(tab.plugin, tab.itemId));
+  /** Marks the tab of one gone record, wherever this document owns it (a main tab, or a main tab moved to the right side). */
+  const noteGone = (plugin, itemId) => {
+    if (typeof plugin !== "string" || typeof itemId !== "string" || goneRecords.has(goneKey(plugin, itemId))) return;
+    goneRecords.add(goneKey(plugin, itemId)); apply();
+    // A main tab moved to the right side is drawn by the side's own strip: its draw runs off the side's state too, not off this
+    // workspace's apply(), so mark that tab there as well (07-AUDIT: a pane page reports the record it shows is gone).
+    sidePane?.restore();
+  };
+  document.addEventListener("molis-work:record-gone", (event) => {
+    const { plugin, itemId } = event.detail || {};
+    if (typeof plugin !== "string" || typeof itemId !== "string") return;
+    // A split pane is another document (07-AUDIT): its tabs are drawn by the page around it, so the pane page hands the report
+    // up too; the page marks the tab it belongs to (checked with 'paneMessages.recordGone' before it is taken, S-30). The
+    // pane document marks its own view so the reason shows where the record was.
+    if (embedded) notifyParent("workbench-pane-record-gone", { plugin, itemId });
+    noteGone(plugin, itemId);
+  });
+  /** What a pane shows for a tab whose record is gone: what happened, closing the tab, and the plugin's own list. */
+  const showGone = (pane, tab) => {
+    const body = panesEl.querySelector('[data-tab-pane="' + pane.id + '"] [data-tab-pane-body]');
+    let stage = body?.querySelector(":scope > [data-tab-gone-stage]");
+    if (!tab || !body) { stage?.remove(); return; }
+    if (!stage) { stage = document.createElement("div"); stage.className = "mw-empty tab-removed-stage"; stage.setAttribute("role", "status"); body.append(stage); }
+    if (stage.dataset.tabGoneStage === tab.id) return;
+    stage.dataset.tabGoneStage = tab.id;
+    const title = document.createElement("h2"), note = document.createElement("p"), actions = document.createElement("div");
+    title.textContent = L("这一条已经不在了");
+    note.textContent = L("可能已被删除，或移到了别的项目。标签先留着，关掉它不影响别的。");
+    const button = (label, variant, run) => { const node = document.createElement("button"); node.type = "button"; node.className = "mw-btn mw-btn--" + variant; node.textContent = label; node.addEventListener("click", run); return node; };
+    actions.className = "mw-empty__actions";
+    actions.append(button(L("关闭标签"), "secondary", () => { closeTabBack(pane.id, tab.id); focusActiveTab(); }),
+      button(L("回到 {plugin} 列表", { plugin: L(ops.pluginTitle(tab.plugin)) }), "ghost", () => openPlugin(tab.plugin)));
+    stage.replaceChildren(title, note, actions);
   };
   let state = ops.create(), column = "main";
   let unsaved = false; // a layout this device would not keep is said once, and again only after it saved since
@@ -272,7 +315,8 @@ ${TAB_WORKSPACE_DRAG_PART}
     if (view !== undefined) url.searchParams.set("paneView", view);
     return url.href;
   };
-  const sidePane = embedded ? null : (${SIDE_PANE_FACTORY})({ ops, getState: () => state, save: persist, remember: pluginGroups.keep, undoChip: pluginGroups.undoChip, menu: (tab, entries) => openSideTabMenu(tab, entries), removed: removedPlugin, L,
+  const sidePane = embedded ? null : (${SIDE_PANE_FACTORY})({ ops, getState: () => state, save: persist, remember: pluginGroups.keep, undoChip: pluginGroups.undoChip, menu: (tab, entries) => openSideTabMenu(tab, entries), removed: removedPlugin,
+    gone: (tab) => tab?.kind === "pane" && typeof tab.item === "string" && goneRecords.has(goneKey(tab.plugin, tab.item)), L,
     paneSrc: (tab) => paneUrl("side", tab.plugin, tab.item, tab.title, tab.view), glyph: iconMarkup, toMain: (id) => moveToMain(id) });
   // A plugin taken out or added back in place: its tabs are drawn again, marked removed or working (removedPlugin).
   document.addEventListener("molis-work:plugins-changed", (event) => { if (event.detail?.next) directory = readDirectory(event.detail.next); apply(); });
@@ -345,7 +389,7 @@ ${TAB_WORKSPACE_DRAG_PART}
   /* Which column the person is in, the focused main pane or the right side (§4.6 口径 1: one focus over both): the layout menu
      acts on it and the titlebar's arrows walk its way back. It follows where they press or move the focus, a frame included. */
   const columnOf = (node) => node?.closest?.("[data-side-panel], [data-side-tabs]") ? "side" : node?.closest?.("[data-tab-panes], [data-titlebar-tabs]") ? "main" : "";
-  const followColumn = (node) => { const next = columnOf(node); if (next && next !== column) { column = next; syncHistoryButtons(); } };
+  const followColumn = (node) => { const next = columnOf(node); if (next && next !== column) { column = next; syncHistoryButtons(); markFocus(); } };
   if (!embedded) {
     document.addEventListener("pointerdown", (event) => followColumn(event.target), true);
     document.addEventListener("focusin", (event) => followColumn(event.target));
@@ -356,7 +400,10 @@ ${TAB_WORKSPACE_DRAG_PART}
   document.addEventListener("molis:side-shown", (event) => {
     if (embedded) return;
     if (state.solo) apply();
-    if (!event.detail?.open) { if (column === "side") column = "main"; syncHistoryButtons(); return; }
+    if (!event.detail?.open) { if (column === "side") column = "main"; syncHistoryButtons(); markFocus(); return; }
+    // On a phone only one column shows: the side opening (by an event, the Assistant or ⌘\\, the focus where it was) is the one shown,
+    // so 主区 | 右侧 says 右侧.
+    if (window.matchMedia("(max-width: 760px)").matches && column !== "side") { column = "side"; syncHistoryButtons(); markFocus(); }
     if (event.detail.tab) { rememberPlace("side", event.detail.tab, sideKept); persistHistory(); syncHistoryButtons(); }
   });
   // ⌘⇧↵ / Ctrl+Shift+Enter shows only the focused pane, and brings the rest back (口径 2); a pane page hands it up.
@@ -437,6 +484,8 @@ ${TAB_WORKSPACE_DRAG_PART}
   panesEl.addEventListener("keydown", (event) => { if (!event.target.closest("[data-tab-sash]")) handleStripKey(event.target.closest("[data-tab-pane]")?.dataset.tabPane, event); });
   (${TAB_SASH_FACTORY})({ panes: panesEl, root, find: (id) => findSplit(state.layout.tree, id), sync: layoutSplits, persist, range: splitRatioRange, snap: snapSplitRatio, defaultRatio: TAB_SPLIT_RATIO });
   let dragTab = null;
+  const dragDepths = new Map();
+  window.addEventListener("pointermove", () => { if (dragTab && !dragTab.node.isConnected) finishDrag(); }, true);
   let reorderKey = "";
   const dragSlot = (${TAB_DRAG_SLOT_FACTORY})({ ms: TAB_REORDER_MS, ease: TAB_REORDER_EASE });
   const paintResultPreview = (target, copy) => {
@@ -458,6 +507,7 @@ ${TAB_WORKSPACE_DRAG_PART}
     panesEl.dataset.splitDropPreview = "1";
   };
   [panesEl, titlebarStrip].filter(Boolean).forEach((surface) => {
+    surface.addEventListener("dragenter", () => { if (dragTab) dragDepths.set(surface, (dragDepths.get(surface) || 0) + 1); });
     surface.addEventListener("contextmenu", (event) => {
       const paneId = event.target.closest("[data-tab-pane]")?.dataset.tabPane || surface.dataset.chromePane;
       const groupLabel = event.target.closest("[data-tab-group-toggle]");
@@ -476,7 +526,7 @@ ${TAB_WORKSPACE_DRAG_PART}
       const pane = paneById(paneId), last = pane ? pane.tabs.findIndex((item) => item.id === (members?.at(-1) || tab.dataset.tabId)) : -1;
       const box = source.getBoundingClientRect();
       // The first preview is the place the drag started from, so nothing moves until the pointer does.
-      dragTab = { paneId, tabId: tab.dataset.tabId, width: Math.round(box.width) || 172, members, hoverBeforeId: pane?.tabs[last + 1]?.id, homeBeforeId: pane?.tabs[last + 1]?.id };
+      dragTab = { node: source, paneId, tabId: tab.dataset.tabId, width: Math.round(box.width) || 172, members, hoverBeforeId: pane?.tabs[last + 1]?.id, homeBeforeId: pane?.tabs[last + 1]?.id };
       if (event.dataTransfer.effectAllowed !== "copy") event.dataTransfer.effectAllowed = "copyMove"; event.dataTransfer.setData("text/plain", tab.title);
       const ghost = document.createElement("nav");
       ghost.className = "tab-strip"; ghost.setAttribute("aria-hidden", "true");
@@ -487,11 +537,11 @@ ${TAB_WORKSPACE_DRAG_PART}
       document.body.append(ghost);
       try { event.dataTransfer.setDragImage(ghost, Math.max(0, Math.min(event.clientX - box.left, dragTab.width)), Math.max(0, Math.min(event.clientY - box.top, box.height))); } catch {}
       requestAnimationFrame(() => ghost.remove());
-      root.classList.add("is-tab-dragging"); window.addEventListener("pointermove", () => { if (dragTab) finishDrag(); }, { once: true, capture: true }); // a tab redrawn mid-drag takes its dragend with it; no pointer moves come during a drag
+      root.classList.add("is-tab-dragging"); dragDepths.clear();
       document.body.classList.add("is-tab-dragging");
       document.body.style.setProperty("--tab-reorder-width", dragTab.width + "px");
     });
-    surface.addEventListener("dragend", finishDrag); surface.addEventListener("dragleave", (event) => { if (dragTab && !event.relatedTarget?.closest?.("[data-tab-panes], [data-titlebar-tabs]")) { root.querySelectorAll("[data-drop-preview]").forEach((node) => node.removeAttribute("data-drop-preview")); paintDropPreview({ paneId: dragTab.paneId, beforeId: dragTab.homeBeforeId }, false); } }); // off every tab surface a drop does nothing, so the preview is the tab back where it was
+    surface.addEventListener("dragend", finishDrag); surface.addEventListener("dragleave", () => { const depth = Math.max(0, (dragDepths.get(surface) || 0) - 1); dragDepths.set(surface, depth); if (dragTab && depth === 0) { root.querySelectorAll("[data-drop-preview]").forEach((node) => node.removeAttribute("data-drop-preview")); paintDropPreview({ paneId: dragTab.paneId, beforeId: dragTab.homeBeforeId }, false); } }); // off every tab surface a drop does nothing, so the preview is the tab back where it was
     surface.addEventListener("dragover", (event) => {
       if (!dragTab) return; event.preventDefault();
       const copy = isCopyDrop(event);
@@ -529,6 +579,10 @@ ${TAB_WORKSPACE_DRAG_PART}
       return;
     }
     const frame = panes.from(event);
+    // A pane page says the record it showed is gone (07-AUDIT): mark the tab it was opened for. The shape and the source are
+    // checked in one place ('paneMessages.recordGone', S-30), like every other pane message here.
+    const gone = panes.recordGone(event);
+    if (gone) { noteGone(gone.plugin, gone.itemId); return; }
     if (frame && event.data.type === "workbench-open-settings") {
       // A return trip's source is the pane this frame is (specs/draft-and-return §2.3, returnRelay in return-trips.ts), never the one it names.
       const paneId = frame.dataset.paneOwner || "";

@@ -25,7 +25,7 @@ export const FLOW_EN: Record<string, string> = {
   "搜索提示词": "Search prompts",
   "只看组成这个角色的提示词": "Show only the prompts this character is made of",
   "这个角色由下面这些提示词组成，按顺序交给模型；改动从它的下一轮开始生效，可随时恢复默认。": "This character is made of the prompts below, given to the model in order. Changes apply from its next run, and you can restore the default at any time.",
-  "系统和插件交给模型的全部说明文字；角色由其中几段组成。修改从下一轮开始生效，正在进行的一轮不受影响；每一轮的记录会写明用的是默认版还是你的版本。": "Every instruction the system and plugins give a model; characters are made of some of them. Changes apply from the next run, never to one in progress, and each run records whether it used the default or your version.",
+  "系统和插件交给模型的说明文字；角色由其中几段组成。修改从下一轮开始生效，正在进行的一轮不受影响；每一轮的记录会写明用的是默认版还是你的版本。": "The instructions the system and plugins give a model; characters are made of some of them. Changes apply from the next run, never to one in progress, and each run records whether it used the default or your version.",
   // The 诊断编号 of an operation: shown on each call, copied, and looked up in 设置 › 诊断.
   "诊断编号": "Diagnostic ID",
   "诊断编号 {id}": "Diagnostic ID {id}",

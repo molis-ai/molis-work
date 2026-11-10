@@ -1,8 +1,11 @@
 import type { ContractDescriptor } from "../platform/package.js";
-import { defineErrorCodes, type ActionDefinition, type ActionMetadata, type ActionSchema } from "../platform/actions.js";
-import { MATERIAL_ORIGIN_SCHEMA, MATERIAL_RECENT_KEEP, MATERIAL_RECENT_RECORD_MAX, MATERIAL_REF_SCHEMA, type MaterialRef, type RecentMaterial } from "../platform/project-materials.js";
+import { defineErrorCodes, inputSchemaFor, type ActionDefinition, type ActionMetadata, type ActionSchema } from "../platform/actions.js";
+import {
+  MATERIAL_ORIGIN_ANSWER_SCHEMA, MATERIAL_ORIGIN_QUERY_SCHEMA, MATERIAL_ORIGIN_SCHEMA, MATERIAL_ORIGINS_MAX, MATERIAL_RECENT_KEEP, MATERIAL_RECENT_RECORD_MAX, MATERIAL_REF_SCHEMA,
+  type MaterialOriginAnswer, type MaterialOriginQuery, type MaterialRef, type RecentMaterial,
+} from "../platform/project-materials.js";
 
-export { projectDirectoryErrors } from "./projects-errors.js";
+export { directoryInputOnly, projectDirectoryErrors } from "./projects-errors.js";
 
 // Keep the Catalog's current transport classification; project absence is a 404.
 const projectErrors = defineErrorCodes("catalog", {
@@ -15,7 +18,6 @@ const projectErrors = defineErrorCodes("catalog", {
 });
 const workspaceErrors = defineErrorCodes("catalog.context", {
   user_confirmation_required: "invalid",
-  workspace_default_unsupported: "invalid",
   workspace_membership_not_found: "invalid",
   workspace_required: "invalid",
 });
@@ -93,6 +95,17 @@ export interface ProjectPluginMembership {
   hidden: ProjectPluginId[];
 }
 
+export interface VersionedProjectPluginMembership extends ProjectPluginMembership {
+  /** The caller keeps this opaque observation and sends it back as `expected_revision`. */
+  revision: string;
+}
+
+export interface SetProjectPluginInput {
+  plugin_id: ProjectPluginId;
+  enabled: boolean;
+  expected_revision: string;
+}
+
 export interface ProjectWorkspaceRef {
   workspace_id: string;
   canonical_path: string;
@@ -106,7 +119,8 @@ export interface ProjectWorkspaceMembership {
   workspace_name: string;
   realpath_verified: boolean;
   project_id: string;
-  is_default: boolean;
+  /** What the folder is to this project; one membership carries `output` per project (specs/shared-sources-and-surfaces §3). */
+  roles: DirectoryRole[];
   bound_by: string;
   created_at: string;
   updated_at: string;
@@ -118,19 +132,9 @@ export interface ProjectWorkspaceDirectoryRecord extends ProjectWorkspaceRef {
   updated_at: string;
 }
 
+/** Links a local folder to a project as an input; the folder's row is found by its verified path, and a new one gets a new id. */
 export interface AddWorkspaceProjectInput {
   canonical_path: string;
-  project_id: string;
-  actor_id: string;
-  user_confirmed: boolean;
-}
-
-export interface RepairWorkspaceProjectInput extends AddWorkspaceProjectInput {
-  workspace_id: string;
-}
-
-export interface ChangeWorkspaceProjectInput {
-  workspace_id: string;
   project_id: string;
   actor_id: string;
   user_confirmed: boolean;
@@ -151,6 +155,23 @@ export type DirectoryTarget =
   | { workspace_path: string }
   | { default_output: true };
 
+/** One change of `projects.directories.*`: the action's input without `expected_revision`, which `ChangeDirectoriesInput` carries. */
+export type DirectoryChange =
+  | { kind: "add_input"; workspace_path: string }
+  | { kind: "remove_input"; workspace_id: string }
+  | { kind: "set_output"; target: DirectoryTarget }
+  | { kind: "repair"; workspace_id: string; workspace_path: string }
+  | { kind: "map_source"; source_workspace_id: string; target: DirectoryTarget }
+  | { kind: "unmap_source"; source_workspace_id: string };
+
+export interface ChangeDirectoriesInput {
+  project_id: string;
+  actor_id: string;
+  change: DirectoryChange;
+  /** The `ProjectDirectories.revision` the change was made from; a newer one refuses it with `actions.conflict`. */
+  expected_revision: string;
+}
+
 export interface ProjectDirectories {
   project_id: string;
   /** Exactly one carries `output`, also in a project with no local input (the default location the owner creates with the project). */
@@ -159,6 +180,22 @@ export interface ProjectDirectories {
   source_links: { source_workspace_id: string; workspace_id: string }[];
   /** Where changes commit from, as `expected_revision`. */
   revision: string;
+}
+
+/** What a source link's folder was, for naming it without a path: the project's own earlier default output, another one, or a folder. */
+export type SourceKind = "folder" | "former_default_output" | "other_default_output";
+
+/**
+ * What the settings page's route adds to `projects.directories.get@1` for drawing it (`apps/local-host/src/project-workspace-http.ts`):
+ * which folder is the default output directory (shown by that name, and offered to set back), whether it is made yet (it is made the
+ * first time it is used, SSC-24), and what each source link's folder was. Page-only: not part of the action contract and not versioned.
+ */
+export interface ProjectDirectoryPage {
+  default_output_id: string;
+  /** False only when the default output directory is the output and is not made yet. */
+  default_output_made: boolean;
+  /** What each folder of a source link was (spec §3 「另一台设备上的引用」). */
+  source_kinds: Record<string, SourceKind>;
 }
 
 /**
@@ -235,11 +272,18 @@ export interface DeleteProjectInput {
   actor_id: string;
   delete_confirmed: boolean;
   idempotency_key: string;
+  /**
+   * What happens to the files in the project's default output directory; `keep` when absent. Like the actor it is the entry's to
+   * give: only the settings page asks the person, and MCP, the CLI, the demo removal and uninstall always keep the files.
+   */
+  output_files?: "keep" | "delete";
 }
 
 export interface ProjectDeletionResult {
   deletion: ProjectDeletionRecord;
   replayed: boolean;
+  /** The default output directory left on this computer with files in it: an absolute path, never stored. */
+  kept_output_directory?: string;
 }
 
 export interface ProjectsQueryApi {
@@ -248,6 +292,8 @@ export interface ProjectsQueryApi {
   storedProjectPluginMembership(projectId: string): ProjectPluginMembership;
   /** Current derived membership and hidden marks, sharing one synchronous registry read. Later execution must read current state again. */
   projectPluginMembership(projectId: string): ProjectPluginMembership;
+  /** The membership observation used to prepare a `projects.plugins.set@1` write. */
+  projectPluginMembershipWithRevision(projectId: string): VersionedProjectPluginMembership;
   listProjectPlugins(projectId: string): ProjectPluginId[];
   listHiddenPlugins(projectId: string): ProjectPluginId[];
   listProjects(): ProjectRecord[];
@@ -255,7 +301,20 @@ export interface ProjectsQueryApi {
   selections(): ProjectSelection[];
   listWorkspaceMemberships(): ProjectWorkspaceMembership[];
   listWorkspaceDirectory(projectId?: string): ProjectWorkspaceDirectoryRecord[];
-  preferredWorkspacePath(projectId: string): string | null;
+  /** This project's inputs and output, as `projects.directories.get@1` answers. */
+  projectDirectories(projectId: string): ProjectDirectories;
+  /** Where a read, a write or a run that names no folder goes: the project's one output directory (§3). */
+  outputDirectory(projectId: string): ProjectWorkspaceRef;
+  /**
+   * The id this project's default output directory has, whether or not it is the output now: a reference to it after the output moved
+   * reads as this project's former default output (`MATERIAL_ORIGIN_NOTES.former_default_output`).
+   */
+  defaultOutputDirectoryId(projectId: string): string;
+  /**
+   * The id of the folder row at this path (§3 「路径到行」): found by the path as resolved now, `outputs/<project_id>` as that project's default
+   * output directory. Null where there is no row: a path that has none has no folder id, and none is made up from the path.
+   */
+  workspaceIdAt(canonicalPath: string): string | null;
   workspaceProjectSelections(workspaceId: string): ProjectSelection[];
   listProjectDeletions(): ProjectDeletionRecord[];
 }
@@ -263,12 +322,13 @@ export interface ProjectsQueryApi {
 export interface ProjectsCommandApi {
   addProjectPlugin(input: AddProjectPluginInput): ProjectPluginId[];
   removeProjectPlugin(input: RemoveProjectPluginInput): ProjectPluginMembership;
+  /** Project and actor are supplied by the trusted entry. A stale observation fails with `actions.conflict`. */
+  setProjectPlugin(projectId: string, actorId: string, input: SetProjectPluginInput): VersionedProjectPluginMembership;
   /** expectedDisplayName is the name observed by the editor, not a fresh server read. */
   renameProject(projectId: string, displayName: string, actorId: string, expectedDisplayName: string): ProjectRecord;
   addWorkspaceProject(input: AddWorkspaceProjectInput): ProjectWorkspaceDirectoryRecord;
-  repairWorkspaceProject(input: RepairWorkspaceProjectInput): ProjectWorkspaceDirectoryRecord;
-  setWorkspaceDefault(input: ChangeWorkspaceProjectInput): ProjectWorkspaceMembership[];
-  removeWorkspaceMembership(input: ChangeWorkspaceProjectInput): ProjectWorkspaceMembership[];
+  /** The person's change to this project's directories (`projects.directories.*`), committed from the revision they read. */
+  changeDirectories(input: ChangeDirectoriesInput): ProjectDirectories;
 }
 
 export interface ProjectsApplicationApi {
@@ -276,15 +336,6 @@ export interface ProjectsApplicationApi {
   commands: ProjectsCommandApi;
 }
 
-/**
- * What a Plugin may learn about this project's workspace.
- *
- * Scoped to the project it is running in: there is no project id parameter, so
- * a Plugin cannot name another project and read its path. Read-only by
- * construction — the answer is a verified path and nothing else, never a handle
- * a Plugin could widen into a write. A project with no workspace bound answers
- * null rather than a guessed path.
- */
 const WORKSPACE_SCHEMA = { type: "object", properties: {
   workspace_id: { type: "string" }, canonical_path: { type: "string" },
   realpath_verified: { type: "boolean" }, display_name: { type: "string" },
@@ -292,47 +343,10 @@ const WORKSPACE_SCHEMA = { type: "object", properties: {
 
 const RUNTIME_PICK_SCHEMA = { anyOf: [{ type: "string", minLength: 1, maxLength: 200 }, { type: "null" }] };
 
-export const projectsCapabilities = {
-  listWorkspaces: {
-    capability_id: "projects.workspaces.list",
-    version: /* @version action.projects.workspaces.list */ 1,
-    operation: "query",
-    action: workspaceQuery("项目工作区", "列出当前项目已授权的工作区目录", false),
-  } as ActionDefinition<[], readonly ProjectWorkspaceRef[]>,
-  readWorkspace: {
-    capability_id: "projects.workspace.read",
-    version: /* @version action.projects.workspace.read */ 1,
-    operation: "query",
-    action: workspaceQuery("首选工作区", "读取当前项目的首选工作区；没有绑定时返回空值", true),
-  } as ActionDefinition<[], ProjectWorkspaceRef | null>,
-} as const;
-
 /** Current-project settings: each item is independently declared in Manifest consumes.
  * No project selector, wildcard, private storage access, or arbitrary key bag.
  */
 export const projectSettingsCapabilities = {
-  workspaces: {
-    capability_id: "projects.settings.workspaces.read",
-    version: /* @version action.projects.settings.workspaces.read */ 1,
-    operation: "query",
-    action: workspaceQuery("工作区设置", "读取当前项目可供插件选择的工作区", false),
-  } as ActionDefinition<[], readonly ProjectWorkspaceRef[]>,
-  browsingWorkspace: {
-    capability_id: "projects.settings.browsing-workspace.read",
-    version: /* @version action.projects.settings.browsing-workspace.read */ 1,
-    operation: "query",
-    action: workspaceQuery("浏览工作区", "读取当前项目选中的浏览工作区；选择已失效时返回空值", true),
-  } as ActionDefinition<[], ProjectWorkspaceRef | null>,
-  /** Choosing which folder Files and Git browse is the person's own setting: the local user only. */
-  selectBrowsingWorkspace: {
-    capability_id: "projects.settings.browsing-workspace.select",
-    version: /* @version action.projects.settings.browsing-workspace.select */ 1,
-    operation: "command",
-    action: { title: "选择浏览工作区", description: "从当前项目已授权的工作区中选一个，供文件、Git 等浏览；不改变工作区授权", kind: "operation", scope: "project",
-      audiences: ["user"], permissions: ["projects:settings"], subject_kinds: ["project"],
-      input_schema: { type: "array", minItems: 1, maxItems: 1, items: { type: "string", minLength: 1, maxLength: 200 } },
-      output_schema: WORKSPACE_SCHEMA, output_type: "project.workspace" },
-  } as ActionDefinition<[workspaceId: string], ProjectWorkspaceRef>,
   /** The Runtime the person picked for this project's Agent sessions (`resolveProjectRuntime` reads it); null means the Home default. */
   runtime: {
     capability_id: "projects.settings.runtime.read",
@@ -353,26 +367,9 @@ export const projectSettingsCapabilities = {
   } as ActionDefinition<[runtimeId: string | null], string | null>,
 } as const;
 
-/** Which folders belong to this project is the person's own setting at this computer: local user only. Kept by the Home catalog. */
-const membership = <Input, Output>(id: string, version: number, title: string, description: string, input: Record<string, unknown>, output: Record<string, unknown>): ActionDefinition<Input, Output> => ({
-  capability_id: id, version: version, operation: "command", action: { title, description, kind: "operation", scope: "project", audiences: ["user"], permissions: ["projects:settings"],
-    subject_kinds: ["project"], input_schema: { type: "object", properties: input, required: Object.keys(input), additionalProperties: false }, output_schema: { type: "object", properties: output, required: Object.keys(output) } },
-});
 const folderPath = { type: "string", minLength: 1, maxLength: 4096 }, folderId = { type: "string", minLength: 1, maxLength: 200 };
-export const projectWorkspaceActions = {
-  add: membership<{ workspace_path: string }, { workspace: ProjectWorkspaceDirectoryRecord }>("projects.workspaces.add", /* @version action.projects.workspaces.add */ 1, "关联工作目录", "把本机一个目录加入当前项目的工作目录",
-    { workspace_path: folderPath }, { workspace: { type: "object" } }),
-  // Sessions are retired (BL-177), so repair and unlink no longer move them or report how many moved.
-  repair: membership<{ workspace_id: string; workspace_path: string }, { workspace: ProjectWorkspaceDirectoryRecord }>("projects.workspaces.repair", /* @version action.projects.workspaces.repair */ 1, "修复工作目录路径",
-    "目录搬走或改名后，把项目关系指向新路径", { workspace_id: folderId, workspace_path: folderPath }, { workspace: { type: "object" } }),
-  unlink: membership<{ workspace_id: string }, { changed: boolean }>("projects.workspaces.unlink", /* @version action.projects.workspaces.unlink */ 1, "解除工作目录", "解除当前项目与这个目录的关系；目录本身保留",
-    { workspace_id: folderId }, { changed: { type: "boolean" } }),
-};
 
-/**
- * The provider that will answer the directory and recent-material actions below. They are declared only: no provider registers them
- * yet, so a call answers `actions.missing` until the implementation slice does.
- */
+/** The provider for directories, project plugin membership, and recent materials, registered by the Host. */
 export const PROJECT_WORKSPACE_PROVIDER_ID = "system.project-workspaces";
 
 const PROJECT_DIRECTORIES_SCHEMA: ActionSchema = { type: "object", properties: {
@@ -386,7 +383,7 @@ const PROJECT_DIRECTORIES_SCHEMA: ActionSchema = { type: "object", properties: {
   revision: { type: "string" },
 }, required: ["project_id", "directories", "source_links", "revision"], additionalProperties: false };
 
-const expectedRevision = { type: "string", minLength: 1, maxLength: 200 };
+const expectedRevision = { type: "string", minLength: 1, maxLength: 200 } as const;
 const closedInput = (properties: Record<string, unknown>): ActionSchema => ({ type: "object", properties: { ...properties, expected_revision: expectedRevision },
   required: [...Object.keys(properties), "expected_revision"], additionalProperties: false });
 /** A change to this project's directories: the local user's, who stands for the confirmation, committed from the revision they read. */
@@ -401,7 +398,7 @@ export const projectDirectoryActions = {
     capability_id: "projects.directories.get",
     version: /* @version action.projects.directories.get */ 1,
     operation: "query",
-    action: { title: "项目目录", description: "读取当前项目的输入目录与输出目录；只读", kind: "query", scope: "project", audiences: ["user", "plugin", "agent", "mcp"],
+    action: { title: "项目目录", description: "读取当前项目的输入目录与输出目录；只读", kind: "query", scope: "project", audiences: ["user", "plugin", "agent", "workflow", "mcp"],
       permissions: [], subject_kinds: ["project"], input_schema: { type: "object", properties: {}, additionalProperties: false },
       output_schema: PROJECT_DIRECTORIES_SCHEMA, output_type: "project.directories" },
   } as ActionDefinition<Record<string, never>, ProjectDirectories>,
@@ -427,6 +424,47 @@ export const projectDirectoryActions = {
     closedInput({ source_workspace_id: folderId }), { effect: "write" }),
 };
 
+const membershipPluginIds = { type: "array", items: { type: "string" }, uniqueItems: true };
+const projectPluginMembershipSchema: ActionSchema = {
+  type: "object",
+  properties: { plugins: membershipPluginIds, hidden: membershipPluginIds, revision: expectedRevision },
+  required: ["plugins", "hidden", "revision"],
+  additionalProperties: false,
+};
+
+/** The call context supplies the project and actor. */
+export const projectPluginActions = {
+  get: {
+    capability_id: "projects.plugins.get",
+    version: /* @version action.projects.plugins.get */ 1,
+    operation: "query",
+    action: {
+      title: "项目插件成员",
+      description: "读取当前项目的插件成员和隐藏状态，返回供保存时核对的版本",
+      kind: "query", scope: "project", audiences: ["user", "plugin", "agent"], permissions: [], subject_kinds: ["project"],
+      input_schema: inputSchemaFor<Record<string, never>>()({ type: "object", properties: {}, additionalProperties: false }),
+      output_schema: projectPluginMembershipSchema, output_type: "project.plugin_membership",
+    },
+  } as ActionDefinition<Record<string, never>, VersionedProjectPluginMembership>,
+  set: {
+    capability_id: "projects.plugins.set",
+    version: /* @version action.projects.plugins.set */ 1,
+    operation: "command",
+    action: {
+      title: "更改项目插件成员",
+      description: "按读取时的版本在当前项目启用或移除一个插件，随行插件一起调整",
+      kind: "operation", scope: "project", scheduling: "concurrent", audiences: ["user"], permissions: ["projects:settings"], subject_kinds: ["project"],
+      input_schema: inputSchemaFor<SetProjectPluginInput>()({
+        type: "object",
+        properties: { plugin_id: { type: "string", minLength: 1 }, enabled: { type: "boolean" }, expected_revision: expectedRevision },
+        required: ["plugin_id", "enabled", "expected_revision"],
+        additionalProperties: false,
+      }),
+      output_schema: projectPluginMembershipSchema, output_type: "project.plugin_membership",
+    },
+  } as ActionDefinition<SetProjectPluginInput, VersionedProjectPluginMembership>,
+} as const;
+
 /** A person's and a plugin's recent materials in this project; the caller and the project come from the call context (§2.1). */
 export const materialRecentActions = {
   /** To a plugin, only what it can read this moment: a material it cannot read is not named, and not counted. */
@@ -434,10 +472,11 @@ export const materialRecentActions = {
     capability_id: "materials.recent",
     version: /* @version action.materials.recent */ 1,
     operation: "query",
-    action: { title: "最近用过的资料", description: "按调用方和当前项目读取最近用过的资料，新的在前，出处是现读的", kind: "query", scope: "project", audiences: ["user", "plugin"],
+    // It asks each owner now, so it waits like a call to another service and does not hold the project's queue.
+    action: { title: "最近用过的资料", description: "按调用方和当前项目读取最近用过的资料，新的在前，出处是现读的", kind: "query", scope: "project", audiences: ["user", "plugin"], scheduling: "concurrent",
       permissions: [], subject_kinds: ["project"], input_schema: { type: "object", properties: {}, additionalProperties: false },
       output_schema: { type: "object", properties: { items: { type: "array", maxItems: MATERIAL_RECENT_KEEP, items: { type: "object",
-        properties: { ref: MATERIAL_REF_SCHEMA, origin: MATERIAL_ORIGIN_SCHEMA }, required: ["ref", "origin"], additionalProperties: false } } }, required: ["items"], additionalProperties: false },
+        properties: { ref: MATERIAL_REF_SCHEMA, origin: { anyOf: [MATERIAL_ORIGIN_SCHEMA, { type: "null" }] } }, required: ["ref", "origin"], additionalProperties: false } } }, required: ["items"], additionalProperties: false },
       output_type: "materials.recent" },
   } as ActionDefinition<Record<string, never>, { items: RecentMaterial[] }>,
   /** Answers nothing about what it kept: a reference the caller cannot read is dropped silently, so a call here cannot probe for one. */
@@ -445,20 +484,26 @@ export const materialRecentActions = {
     capability_id: "materials.recent.record",
     version: /* @version action.materials.recent.record */ 1,
     operation: "command",
-    action: { title: "记下用过的资料", description: "在引用、加入任务或打开资料这件事提交成功之后调用；只记引用不记正文，调用方此刻读不了的引用不记", kind: "operation", scope: "project", audiences: ["user", "plugin"],
+    // Reading each reference's origin waits on its owner, so it is concurrent too and commits after `beforeEffect()`.
+    action: { title: "记下用过的资料", description: "在引用、加入任务或打开资料这件事提交成功之后调用；只记引用不记正文，调用方此刻读不了的引用不记", kind: "operation", scope: "project", audiences: ["user", "plugin"], scheduling: "concurrent",
       permissions: [], subject_kinds: ["project"], input_schema: { type: "object", properties: { refs: { type: "array", items: MATERIAL_REF_SCHEMA, minItems: 1, maxItems: MATERIAL_RECENT_RECORD_MAX } }, required: ["refs"], additionalProperties: false },
       output_schema: { type: "object", properties: {}, additionalProperties: false } },
   } as ActionDefinition<{ refs: MaterialRef[] }, Record<string, never>>,
 };
 
-function workspaceQuery(title: string, description: string, nullable: boolean): ActionMetadata {
-  const workspace = WORKSPACE_SCHEMA;
-  return { title, description, kind: "query", scope: "project", audiences: ["user", "agent", "workflow", "mcp"],
-    permissions: [], subject_kinds: ["project"], input_schema: { type: "array", maxItems: 0 },
-    output_schema: nullable ? { anyOf: [workspace, { type: "null" }] } : { type: "array", items: workspace },
-    output_type: nullable ? "project.workspace.optional" : "project.workspace.list",
-  };
-}
+/** Where each reference shown beside a page's content comes from, read now under the caller's authority (§2). */
+export const materialOriginActions = {
+  read: {
+    capability_id: "materials.origins",
+    version: /* @version action.materials.origins */ 1,
+    operation: "query",
+    action: { title: "资料的出处", description: "按调用方此刻的授权现读每份引用的出处，按给的顺序一一返回；读不了的不说原因", kind: "query", scope: "project",
+      audiences: ["user", "plugin"], scheduling: "concurrent", permissions: [], subject_kinds: ["project"],
+      input_schema: { type: "object", properties: { items: { type: "array", items: MATERIAL_ORIGIN_QUERY_SCHEMA, minItems: 1, maxItems: MATERIAL_ORIGINS_MAX } }, required: ["items"], additionalProperties: false },
+      output_schema: { type: "object", properties: { items: { type: "array", items: MATERIAL_ORIGIN_ANSWER_SCHEMA, maxItems: MATERIAL_ORIGINS_MAX } }, required: ["items"], additionalProperties: false },
+      output_type: "materials.origins" },
+  } as ActionDefinition<{ items: MaterialOriginQuery[] }, { items: MaterialOriginAnswer[] }>,
+};
 
 /** Explicit projection: catalog records also contain other projects' memberships. */
 export function projectWorkspaceRef(value: ProjectWorkspaceRef): ProjectWorkspaceRef {

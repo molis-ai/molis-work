@@ -1,3 +1,4 @@
+import { WORK_STATE_COPY } from "./goal-state-copy.js";
 /** UI-only collection selection and labels; counts are supplied by the authoritative query. */
 export interface GoalCollectionItem {
   goal: { goal_id: string; title: string };
@@ -34,11 +35,11 @@ export function buildGoalCollectionModel<T extends GoalCollectionItem>(
     selected ? selected.goal.title + " · Molis Work" :
     trashView ? L("回收站 · Molis Work") : archiveView ? L("已归档 Goal · Molis Work") : "Molis Work";
   const phaseSummary = [
-    { label: L("需要你决定"), count: view.counts.waiting_for_human },
-    { label: L("正在推进"), count: view.counts.executing },
-    { label: L("可记录"), count: view.counts.execution_pending },
-    { label: L("受阻"), count: view.counts.execution_blocked },
-    { label: L("已取消"), count: view.counts.invalidated },
+    { label: L(WORK_STATE_COPY.waiting_for_human.label), count: view.counts.waiting_for_human },
+    { label: L(WORK_STATE_COPY.executing.label), count: view.counts.executing },
+    { label: L(WORK_STATE_COPY.execution_pending.label), count: view.counts.execution_pending },
+    { label: L(WORK_STATE_COPY.execution_blocked.label), count: view.counts.execution_blocked },
+    { label: L(WORK_STATE_COPY.invalidated.label), count: view.counts.invalidated },
   ].filter(item => item.count > 0).map(item => `${item.label} ${item.count}`).join(" · ");
   const footerStatus = phaseSummary || L("当前没有进行中的 Goal");
   const collectionNote = trashView ? L("可恢复；历史与关联处理记录会保留") : archiveView ? L("可随时恢复") : footerStatus;

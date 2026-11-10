@@ -1,3 +1,4 @@
+import { rollbackPreservingError } from "@molis-ai/molis-work-plugin-sdk";
 import type {
   PluginEventCursorRecord,
   PluginEventLogQuery,
@@ -327,8 +328,7 @@ export class SqlitePluginEventsRepository implements PluginEventsRepository {
       this.db.exec("RELEASE plugin_event_resolution");
       return true;
     } catch (error) {
-      this.db.exec("ROLLBACK TO plugin_event_resolution");
-      this.db.exec("RELEASE plugin_event_resolution");
+      rollbackPreservingError(error, () => this.db.exec("ROLLBACK TO plugin_event_resolution; RELEASE plugin_event_resolution"));
       throw error;
     }
   }

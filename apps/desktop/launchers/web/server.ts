@@ -66,9 +66,9 @@ if (isMain) {
       shutdownStarted = true;
       stopStartupWatch();
       const deadline = setTimeout(() => {
-        hostLog.error("web", "shutdown_timed_out", undefined, { deadline_ms: 2000, remaining_cleanup_skipped: true });
+        hostLog.error("web", "shutdown_timed_out", undefined, { deadline_ms: 12_000, remaining_cleanup_skipped: true });
         process.exit(1);
-      }, 2000);
+      }, 12_000);
       let drain: NodeJS.Immediate | undefined;
       const finish = (success: boolean, error?: unknown) => {
         clearTimeout(deadline);

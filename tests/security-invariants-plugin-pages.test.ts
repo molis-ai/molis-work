@@ -1,3 +1,4 @@
+import { projectPluginRevisionAt } from "./fixtures/project-plugin-settings.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import type { IncomingMessage } from "node:http";
@@ -171,7 +172,7 @@ test("SYS-15-U14 S-47 object placement uses the owner's declared scope and rejec
 test("SYS-15 S-47 an opaque frame cannot navigate into owner HTML to recover a token", async t => {
   const f = await serveHomeRuntime(t);
   const refused = await f.request("/", { authorized: false, headers: { "sec-fetch-dest": "iframe", "sec-fetch-site": "cross-site", "sec-fetch-mode": "navigate" } });
-  assert.equal(refused.status, 403); assert.doesNotMatch(await refused.text(), /molis-work-control-token/);
+  assert.equal(refused.status, 403); assert.doesNotMatch(await refused.text(), /molis-work-page-session/);
   const owner = await f.request("/", { headers: { "sec-fetch-dest": "iframe", "sec-fetch-site": "same-origin", "sec-fetch-mode": "navigate" } });
   assert.equal(owner.status, 200, "the shell's trusted panes keep their navigation");
 });
@@ -293,7 +294,7 @@ test("RAC-2519 S-47 an uncatalogued Home stage keeps its real project visibility
   } });
   await grantHomeProbe(f.host, probe);
   const project = await f.project("External page visibility"), prefix = `/projects/${project.project_id}`;
-  const shown = await f.request(`/api/settings/projects/${project.project_id}/plugins`, { method: "POST", body: { plugin_id: probe.id } });
+  const shown = await f.request(`/api/settings/projects/${project.project_id}/plugins`, { method: "POST", body: { plugin_id: probe.id, expected_revision: await projectPluginRevisionAt(f.origin, project.project_id) } });
   assert.equal(shown.status, 200, await shown.clone().text());
   const mount = { contribution_id, surface: "workbench", target_slot_id: "workbench.main" };
   const open = () => f.request(prefix + "/api/host/plugin-pages", { method: "POST", body: { plugin_id: probe.id, mount } });
@@ -304,7 +305,7 @@ test("RAC-2519 S-47 an uncatalogued Home stage keeps its real project visibility
   block = true; const pending = action("availability");
   try {
     await entered.promise;
-    const hidden = await f.request(`/api/settings/projects/${project.project_id}/plugins`, { method: "DELETE", body: { plugin_id: probe.id } });
+    const hidden = await f.request(`/api/settings/projects/${project.project_id}/plugins`, { method: "DELETE", body: { plugin_id: probe.id, expected_revision: await projectPluginRevisionAt(f.origin, project.project_id) } });
     assert.equal(hidden.status, 200, await hidden.clone().text());
     assert.equal(f.host.homePlugins!.installation(probe.id)!.state, "running", "hiding this project does not stop the Home instance");
   } finally { release.resolve(); }
@@ -336,7 +337,7 @@ test("SYS-15-U5 S-47 Files and Git previews use declared public reads; raw forei
   const f = await serveHomeRuntime(t), project = await f.project("Companion page previews");
   const prefix = `/projects/${project.project_id}`;
   for (const plugin_id of ["coding", "files", "git", "diff", "text-stats"]) {
-    const enabled = await f.request(`/api/settings/projects/${project.project_id}/plugins`, {method: "POST", body: {plugin_id}});
+    const enabled = await f.request(`/api/settings/projects/${project.project_id}/plugins`, {method: "POST", body: {plugin_id, expected_revision: await projectPluginRevisionAt(f.origin, project.project_id) }});
     assert.equal(enabled.status, 200, await enabled.clone().text());
   }
   const rendered = await f.request(prefix + "/"); assert.equal(rendered.status, 200);

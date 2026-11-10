@@ -7,7 +7,7 @@ import { HomeConsentLedger, homeAgentDefinitions } from "@molis-ai/molis-work-ap
 import type { AssistantMethod, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { issueModel } from "./fixtures/issue-model.js";
-import { newPublisher, signedAgentPackage, PACKAGE_PLUGIN_ID } from "./fixtures/sandbox-package.js";
+import { newPublisher, packageMethod, signedAgentPackage, PACKAGE_PLUGIN_ID } from "./fixtures/sandbox-package.js";
 import { waitWork } from "./fixtures/assistant-send-journey.js";
 import { CURRENT_WORK } from "./fixtures/assistant-current-work.js";
 
@@ -18,7 +18,8 @@ test("RAC-2636/2640/2641/2643 signed File preview and real picker preserve bound
   }); assert.ok(browser);
   const publisher = newPublisher(), names = ["中".repeat(80), "😀".repeat(40), "文".repeat(78) + "😀", "<img src=x onerror=globalThis.__agentInjected=1>"], prefix = "😀".repeat(200);
   const roles = names.map((name, index) => ({ name, purpose: "目".repeat(300), body: `agent/role-${index}.md` }));
-  const methods = [{ name: names[0]!, purpose: "同名方法", body: "agent/method.md" }, { name: "旧方法", purpose: "将被移除", body: "agent/removed.md" }];
+  // SKP-08 SKC-03: a signed package's methods are complete Skill declarations, each with its own skill_id.
+  const methods = [packageMethod("same-name", names[0]!, "同名方法"), packageMethod("old-method", "旧方法", "将被移除")];
   const bodies = Object.fromEntries(roles.map(entry => [entry.body, prefix + "<script>仅为正文</script>旧尾部"]));
   const bundle = signedAgentPackage(publisher, { version: "1.1.0", roles, methods, bodies });
   const settings = `/projects/${browser.projectId}/settings/plugins`;
@@ -48,7 +49,7 @@ test("RAC-2636/2640/2641/2643 signed File preview and real picker preserve bound
   assert.equal(homeAgentDefinitions(browser.homeDirectory).methods().some(item => item.owner_id === PACKAGE_PLUGIN_ID), false);
   await select(bundle, "install"); await confirm();
   await browser.waitFor("document.querySelector('[data-plugin-trust-list]').innerText.includes('1.1.0')");
-  const next = signedAgentPackage(publisher, { version: "1.2.0", compatibleFrom: ["1.1.0"], roles, methods: [methods[0]!, { name: "新增方法", purpose: "新增", body: "agent/new.md" }], bodies: Object.fromEntries(roles.map(entry => [entry.body, prefix + "新尾部"])) });
+  const next = signedAgentPackage(publisher, { version: "1.2.0", compatibleFrom: ["1.1.0"], roles, methods: [methods[0]!, packageMethod("new-method", "新增方法", "新增")], bodies: Object.fromEntries(roles.map(entry => [entry.body, prefix + "新尾部"])) });
   const evidence = join(process.cwd(), ".impeccable/qa/review/t144"); await mkdir(evidence, { recursive: true });
   for (const locale of ["zh", "en"] as const) {
     await go("/locale?lang=" + locale + "&next=" + encodeURIComponent(settings)); await browser.waitFor("!!document.querySelector('[data-plugin-trust-pick]')");
@@ -75,17 +76,20 @@ test("RAC-2636/2640/2641/2643 signed File preview and real picker preserve bound
   const own = list.methods.filter(item => item.plugin_id === PACKAGE_PLUGIN_ID);
   for (const name of names) assert.ok(own.some(item => item.name === name && item.default_ref?.source.plugin_version === "1.2.0"));
   assert.ok(list.methods.filter(item => item.name === names[0]).length >= 2);
+  // K3: "/" on an empty line opens the unified composer's menu, which lists the methods and Character material by name.
+  const slash = "(() => {const input=document.querySelector('[data-assistant-composer] .mw-composer__input');input.focus();input.value='/';input.setSelectionRange(1,1);input.dispatchEvent(new InputEvent('input',{bubbles:true,data:'/',inputType:'insertText'}));})()";
+  const commands = "[...document.querySelectorAll('[data-assistant-composer] [data-compose-menu] [data-composer-command]')]";
   for (const name of names.slice(0, 3)) {
-    await browser.evaluate(`(() => {const input=document.querySelector('[data-assistant-input]');input.value=${JSON.stringify("/" + name)};input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
-    await browser.waitFor(`Array.from(document.querySelectorAll('[data-assistant-starters] button')).some(node=>node.textContent.includes(${JSON.stringify(name)}))`);
-    const label = await browser.evaluate<string>(`(() => {const button=[...document.querySelectorAll('[data-assistant-starters] button')].find(node=>node.textContent.includes(${JSON.stringify(name)}));const text=button.textContent;button.click();return text;})()`);
+    await browser.evaluate(slash);
+    await browser.waitFor(`${commands}.some(node=>node.textContent.includes(${JSON.stringify(name)}))`);
+    const label = await browser.evaluate<string>(`(() => {const button=${commands}.find(node=>node.textContent.includes(${JSON.stringify(name)}));const text=button.textContent;button.click();return text;})()`);
     assert.ok(label.includes(name));
   }
-  await browser.evaluate(`(() => {const input=document.querySelector('[data-assistant-input]');input.value=${JSON.stringify("/" + names[0])};input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
-  await browser.waitFor(`Array.from(document.querySelectorAll('[data-assistant-starters] button')).some(node=>node.textContent.startsWith('方法：')&&node.textContent.includes(${JSON.stringify(names[0])}))`);
-  await browser.evaluate(`Array.from(document.querySelectorAll('[data-assistant-starters] button')).find(node=>node.textContent.startsWith('方法：')&&node.textContent.includes(${JSON.stringify(names[0])})).click()`);
-  await browser.evaluate("(() => {const input=document.querySelector('[data-assistant-input]');input.value='用所选资料审稿';input.dispatchEvent(new Event('input',{bubbles:true}));})()");
-  await browser.click("[data-assistant-send]");
+  await browser.evaluate(slash);
+  await browser.waitFor(`${commands}.some(node=>node.textContent.startsWith('/方法 ')&&node.textContent.includes(${JSON.stringify(names[0])}))`);
+  await browser.evaluate(`${commands}.find(node=>node.textContent.startsWith('/方法 ')&&node.textContent.includes(${JSON.stringify(names[0])})).click()`);
+  await browser.evaluate("(() => {const input=document.querySelector('[data-assistant-composer] .mw-composer__input');input.value='用所选资料审稿';input.dispatchEvent(new Event('input',{bubbles:true}));})()");
+  await browser.click("[data-assistant-composer] [data-composer-send]");
   await browser.waitFor(`!!${CURRENT_WORK}`);
   const workId = await browser.evaluate<string>(CURRENT_WORK);
   const view: AssistantWorkView = await waitWork(browser, workId, value => value.work.state === "completed");

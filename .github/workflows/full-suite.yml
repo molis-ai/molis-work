@@ -10,7 +10,8 @@ name: Full suite
 #   - a pull request, once, when the label `full-suite` is added. A later push does not run it again: add the label again (remove
 #     and add), or run it by hand on the branch (`gh workflow run full-suite.yml --ref <branch>`). Running on every push of every
 #     labelled pull request took all 20 runners the repository gets and left `Verify` queued 10 to 20 minutes (2026-10-15);
-#   - a push to an integration branch (`integration/**`, §7 of the same document);
+#   - a push to an integration branch (`integration/**`, §7 of the same document). A roadmap batch branch (`batch/**`) is not
+#     run on push; its pull request runs with the label like any other, but without `--bail` (see `fail-fast` below);
 #   - nightly on main, and by hand (Actions → Full suite → Run workflow, on any branch).
 
 on:
@@ -50,8 +51,11 @@ jobs:
       # red run reports its first failing file and frees the runners (user 2026-10-18). On an integration branch (`integration/**`,
       # pushed or run by hand) every shard runs to the end, so one red run lists every file that fails twice and the batch's
       # failures can be fixed at once, not one run each (user 2026-10-20; batch-1020-2 went red nine times in a row, a different
-      # single file each time). The same condition drops `--bail` in "Run this shard"; change both together.
-      fail-fast: ${{ !startsWith(github.ref, 'refs/heads/integration/') }}
+      # single file each time). A roadmap batch (`batch/**`: its one pull request, or the branch run by hand) runs the same way: the
+      # whole batch is tested once, so one run should list all its failures (user 2026-11-07, decision 31). Pushing a `batch/**`
+      # branch does not start a run; it is pushed as a backup. The same condition drops `--bail` in "Run this shard"; change both
+      # together.
+      fail-fast: ${{ !(startsWith(github.ref, 'refs/heads/integration/') || startsWith(github.ref, 'refs/heads/batch/') || startsWith(github.head_ref, 'batch/')) }}
       # CIP-06: Team capacity is shared across runs. Keep at most 16 runners for these 32 shards;
       # each runner still has only two workers, one browser worker. Queue settings are unchanged.
       max-parallel: 16
@@ -132,11 +136,11 @@ jobs:
       # A file that fails is run once more at once; one that then passes is listed as flaky in the summary and does not turn the shard
       # red, so the check shows the files that fail every time (user 2026-10-15). Off an integration branch, one that fails again
       # stops the shard (`--bail`): no more files start and the running ones are stopped (user 2026-10-18). On an integration branch
-      # the shard runs every file (user 2026-10-20, with `fail-fast` above).
+      # and for a roadmap batch (`batch/**`) the shard runs every file (user 2026-10-20 and 2026-11-07, with `fail-fast` above).
       - name: Run this shard
         shell: bash
         env:
-          BAIL: ${{ !startsWith(github.ref, 'refs/heads/integration/') && '--bail' || '' }}
+          BAIL: ${{ !(startsWith(github.ref, 'refs/heads/integration/') || startsWith(github.ref, 'refs/heads/batch/') || startsWith(github.head_ref, 'batch/')) && '--bail' || '' }}
         run: node scripts/run-tests.mjs --skip-macos-only --shard ${{ matrix.shard }}/32 --timeout-seconds 900 --retries 1 $BAIL 2>&1 | tee "$RUNNER_TEMP/full-suite.log"
 
       # The runner's closing lines: files passed, the slowest, the flaky files, the failed files and the command that reruns only them.

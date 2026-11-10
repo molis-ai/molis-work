@@ -100,5 +100,5 @@ test("S-34 the SDK reads always_on only as a v1 boolean", () => {
   assert.equal(parsePluginManifest(manifest("1.0.0", { always_on: true })).always_on, true);
   assert.throws(() => parsePluginManifest({ ...manifest("1.0.0"), always_on: "yes" }), (error: unknown) => error instanceof ActionError && error.code === "plugin.manifest_invalid");
   const v2 = { ...manifest("1.0.0"), schema_version: 2, host_api_version: 2, kind: "native", always_on: true };
-  assert.throws(() => parsePluginManifest(v2), (error: unknown) => error instanceof ActionError && error.code === "plugin.manifest_invalid" && error.message.includes("schema_version"));
+  assert.throws(() => parsePluginManifest(v2), (error: unknown) => error instanceof ActionError && error.code === "plugin.manifest_version_invalid" && error.kind === "invalid" && error.message === "Plugin Manifest 版本不受支持");
 });

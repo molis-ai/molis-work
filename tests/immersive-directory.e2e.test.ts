@@ -51,19 +51,21 @@ test("Immersive directories resize and retain compact, operable Goal and Feed li
   await waitFor("document.querySelector('[data-plugin-strip] [data-plugin-id=goals]')?.getAttribute('aria-current') === 'page' && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty') && document.querySelector('[data-goal-stage-chrome] [data-open-create]') && document.querySelector('[data-goal-stage-list] [data-tree-root]')");
   const addLayout = await evaluate<{ ok: boolean; dump: string }>(`(()=>{
     const tabs=[...document.querySelectorAll('[data-titlebar-tabs] .tab-item')].filter((tab)=>tab.getClientRects().length);
-    const last=tabs.at(-1), add=document.querySelector('[data-titlebar-tabs] .tab-add-button'), split=document.querySelector('.immersive-titlebar > .titlebar-layout [data-layout-open]'), titlebar=document.querySelector('.immersive-titlebar'), home=document.querySelector('[data-home-plugin-open]')?.parentElement, strip=titlebar?.querySelector('[data-side-tabs]');
-    if(!last||!add||!split||!titlebar||!home) return {ok:false, dump:'missing'};
-    const l=last.getBoundingClientRect(), a=add.getBoundingClientRect(), s=split.getBoundingClientRect(), t=titlebar.getBoundingClientRect(), h=home.getBoundingClientRect();
+    const last=tabs.at(-1), add=document.querySelector('[data-titlebar-tabs] .tab-add-button'), split=document.querySelector('.immersive-titlebar > .titlebar-layout [data-layout-open]'), titlebar=document.querySelector('.immersive-titlebar'), strip=titlebar?.querySelector('[data-side-tabs]');
+    if(!last||!add||!split||!titlebar) return {ok:false, dump:'missing'};
+    const l=last.getBoundingClientRect(), a=add.getBoundingClientRect(), s=split.getBoundingClientRect(), t=titlebar.getBoundingClientRect();
     const g=strip?.checkVisibility() ? strip.getBoundingClientRect() : null;
     return {
       // 07-S2: the layout button left the strip for the titlebar's right end; ＋ stays with the tabs. 07-S1: the right side's glyph
-      // strip follows the declared Home tools. So: tabs, ＋ … Home tools, the glyph strip, the layout button at the right end.
+      // strip sits before it. 07-1 S4b: the titlebar has no Home tools any more (they are the person's own, in the switcher and the
+      // bar's right tray), so the glyph strip follows ＋ and nothing sits between them. So: tabs, ＋ … the glyph strip, the layout
+      // button at the right end.
       ok: Math.abs((a.top+a.bottom)/2-(s.top+s.bottom)/2)<4 && a.left>=l.right+24 && Math.abs(t.right-s.right)<20
-        && (g ? g.left>=h.right && g.left-h.right<=24 && s.left>=g.right-1 : s.left>=h.right),
-      dump: JSON.stringify({lastRight:Math.round(l.right), addLeft:Math.round(a.left), addRight:Math.round(a.right), splitLeft:Math.round(s.left), splitRight:Math.round(s.right), homeLeft:Math.round(h.left), homeRight:Math.round(h.right), titlebarRight:Math.round(t.right), stripLeft:g&&Math.round(g.left), stripRight:g&&Math.round(g.right), addCy:Math.round((a.top+a.bottom)/2), splitCy:Math.round((s.top+s.bottom)/2)})
+        && !titlebar.querySelector('[data-home-plugin-open]') && (g ? g.left>=a.right && s.left>=g.right-1 : s.left>=a.right),
+      dump: JSON.stringify({lastRight:Math.round(l.right), addLeft:Math.round(a.left), addRight:Math.round(a.right), splitLeft:Math.round(s.left), splitRight:Math.round(s.right), titlebarRight:Math.round(t.right), stripLeft:g&&Math.round(g.left), stripRight:g&&Math.round(g.right), addCy:Math.round((a.top+a.bottom)/2), splitCy:Math.round((s.top+s.bottom)/2)})
     };
   })()`);
-  assert.ok(addLayout.ok, "ISSUE-30, PFG-22: Add stays after the tabs; the declared Home tools, then the right side's glyph strip (when shown), then the layout button at the titlebar's right end, without overlap " + addLayout.dump);
+  assert.ok(addLayout.ok, "ISSUE-30, PFG-22: Add stays after the tabs; no Home tools in the titlebar; the right side's glyph strip (when shown), then the layout button at the titlebar's right end, without overlap " + addLayout.dump);
   assert.ok(await evaluate("(()=>{const create=document.querySelector('[data-goal-stage-chrome] [data-open-create]'),filter=document.querySelector('[data-goal-stage-chrome] [data-tree-filter-trigger]'),board=document.querySelector('[data-goal-stage-chrome] [data-board-switch]'),shell=document.querySelector('[data-goal-canvas-shell]');if(!create||!filter||!board||!shell)return false;const c=create.getBoundingClientRect(),f=filter.getBoundingClientRect(),b=board.getBoundingClientRect(),s=shell.getBoundingClientRect();return c.left-s.left<40 && f.left-s.left<200 && b.left>=f.right && b.left-f.right<16 && Math.abs(b.top-f.top)<8 && s.right-b.right>80 && Math.abs(c.top-s.top)<28 && Math.abs(f.top-s.top)<28;})()"), "New Goal, filter, and icon view switch sit together in the stage top-left");
   assert.ok(await evaluate("(()=>{const search=document.querySelector('[data-workspace-chrome] [data-global-search-open]'),settings=document.querySelector('.titlebar-chrome .navigator-project-settings'),toggle=document.querySelector('.titlebar-chrome [data-directory-toggle]');return search.closest('.navigator-project-primary') && settings?.closest('.navigator-project-menu-popover') && getComputedStyle(toggle).display==='none';})()"), "Project settings live in the project menu; desktop hides directory collapse even on plugins without a directory");
   const create = await evaluate<{ bg: string; color: string; radius: string; icon: string; border: string }>("(()=>{const button=document.querySelector('[data-open-create]'),icon=button.querySelector('svg');const s=getComputedStyle(button);return {bg:s.backgroundColor,color:s.color,radius:s.borderRadius,icon:getComputedStyle(icon).color,border:s.borderTopColor};})()");
@@ -216,6 +218,8 @@ test("Immersive directories resize and retain compact, operable Goal and Feed li
   feed.ingestItem({ source, externalId: "second", title: "终端与目标信息应当如何配合", summary: "切换工作时保留上下文，让记录留在正确的目标里。", body: "第二条目录内容。", occurredAt: now, attention: false });
   await reloadPage();
   await feedView.waitFor("document.querySelectorAll('[data-feed-entry-task=\"directory-rss\"]').length===2");
+  // The rows exist in the server-rendered document before the Feed client connects; measure and operate them only after.
+  await feedView.clientReady();
   const feedRow = await feedView.evaluate<{ height: number; size: string; weight: string; titleWidth: number; columns: string; status: boolean; chevron: boolean }>("(()=>{const row=document.querySelector('[data-feed-entry-id]'),title=row.querySelector('strong');return {height:Math.round(row.getBoundingClientRect().height),size:getComputedStyle(title).fontSize,weight:getComputedStyle(title).fontWeight,titleWidth:Math.round(title.getBoundingClientRect().width),columns:getComputedStyle(row).gridTemplateColumns,status:Boolean(row.querySelector('.feed-entry-status')),chevron:Boolean(row.querySelector('.feed-entry-chevron'))};})()");
   // Soft Workbench prototype: a Feed row is a reading card (source line, title, one-line summary), not a single line.
   assert.ok(feedRow.height >= 72 && feedRow.height <= 130, "Feed rows are compact reading cards: " + feedRow.height);
@@ -227,15 +231,19 @@ test("Immersive directories resize and retain compact, operable Goal and Feed li
   assert.equal(feedRow.chevron, false, "Closed Feed rows do not spend a column on a chevron");
   await capture("directory-feed-list");
   await feedView.evaluate("document.querySelector('[data-feed-filter-trigger]')?.click()");
+  await feedView.waitFor("document.querySelector('[data-feed-filter-panel]')?.hidden===false");
   await feedView.evaluate("(()=>{const status=document.querySelector('[data-feed-status-filter]');if(!status)return;status.value='archived';status.dispatchEvent(new Event('change',{bubbles:true}));document.querySelector('[data-feed-filter-option=\"status\"][data-feed-filter-value=\"archived\"]')?.click();})()");
   await feedView.waitFor("document.querySelector('[data-feed-empty]')?.hidden===false");
   assert.ok(await feedView.evaluate("document.querySelector('[data-feed-clear-filters]').getClientRects().length>0"));
   await feedView.evaluate("document.querySelector('[data-feed-filter-trigger]')?.click()");
+  await feedView.waitFor("document.querySelector('[data-feed-filter-panel]')?.hidden===true");
   await feedView.click('[data-feed-clear-filters]');
   await feedView.click('[data-feed-filter-trigger]');
+  await feedView.waitFor("document.querySelector('[data-feed-filter-panel]')?.hidden===false");
   assert.ok(await feedView.evaluate("(()=>{let p=document.querySelector('[data-feed-filter-panel]').getBoundingClientRect(),r=document.querySelector('[data-work-surface=feed]').getBoundingClientRect();return p.left>=r.left&&p.right<=r.right&&p.bottom<=innerHeight;})()"));
   await capture("directory-feed-filter");
   await feedView.click('[data-feed-filter-trigger]');
+  await feedView.waitFor("document.querySelector('[data-feed-filter-panel]')?.hidden===true");
   await feedView.click('[data-feed-entry-id][data-feed-item-id="' + item.item.item_id + '"]');
   await waitFor("document.body.dataset.desktopSurface === 'feed'");
   await feedView.waitFor("document.querySelector('[data-feed-stage-shell]')?.dataset.expanded === 'true' && Boolean(document.querySelector('[data-feed-entry-detail=\"" + item.item.item_id + "\"]:not([hidden])')) && (document.querySelector('[data-work-surface=feed]')?.textContent || '').includes('从首次使用观察中找到下一步值得改进的地方')");
@@ -304,52 +312,55 @@ test("底栏：Assistant 常驻居中，回答在上方先写问题；插件从�
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId } = browser;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId, 20_000));
-  await waitFor("document.querySelector('[data-dock] [data-assistant-input]') && document.querySelector('[data-dock-pins] [data-dock-pin=home]')");
+  await waitFor("document.querySelector('[data-dock] [data-assistant-composer] .mw-composer__input') && document.querySelector('[data-dock-pins] [data-dock-pin=home]')");
   // The Assistant sits in the middle of the bar; nothing in the bar overlaps anything else.
   assert.ok(await evaluate(`(()=>{
     const bar=document.querySelector('[data-dock]').getBoundingClientRect();
     const composer=document.querySelector('[data-assistant-composer]').getBoundingClientRect();
     const start=document.querySelector('.bar-start').getBoundingClientRect();
-    const side=document.querySelector('.bar-side').getBoundingClientRect();
+    // 07-1 S4b: the right of the bar is the person's own tray (shown once one of theirs is kept), then the project.
+    const own=document.querySelector('.bar-end > .bar-own'), side=own.checkVisibility() ? own.getBoundingClientRect() : null;
     const project=document.querySelector('.bar-end .navigator-project-selector').getBoundingClientRect();
     return Math.abs((composer.left+composer.right)/2-(bar.left+bar.right)/2)<2
-      && start.right<=composer.left && composer.right<=side.left && side.right<=project.left
+      && start.right<=composer.left && (side ? composer.right<=side.left && side.right<=project.left : composer.right<=project.left)
       && project.right<=innerWidth && project.bottom<=innerHeight && project.width>=39;
-  })()`), "the bar reads Dock · Assistant · side panel · project, left to right, none covering another");
-  // At rest the bar is the input: no chip for a new work, no chooser nobody changed; “+” only adds (files, references,
-  // capabilities) — who carries a new work and where it lives are chosen in its tab.
-  assert.ok(await evaluate(`(()=>{const hidden=(sel)=>!document.querySelector(sel)?.getClientRects().length;
-    return hidden('[data-assistant-target-wrap]') && hidden('[data-assistant-executor]') && hidden('[data-assistant-character]');})()`), "a new work shows no work chip and no default chooser");
-  await click("[data-assistant-attach]");
-  await waitFor("!document.querySelector('[data-assistant-more]').hidden && /添加文件/.test(document.querySelector('[data-assistant-more]').textContent)");
-  assert.ok(await evaluate("(()=>{const t=document.querySelector('[data-assistant-more]').textContent;return /引用项目里的内容/.test(t) && /用一个能力或方法/.test(t) && !/由谁来做|新工作放在/.test(t);})()"), "“+” adds things; it holds no choices about the work");
+  })()`), "the bar reads switcher and Dock · Assistant · the person's own · project, left to right, none covering another");
+  // At rest the bar is the input (K3, UIV-12): its receiver row says a new work goes to the Assistant, with nothing to reset
+  // and no chooser nobody changed; “+” only adds (files, methods, capabilities) — who carries a new work and where it lives
+  // are chosen in its tab.
+  assert.ok(await evaluate(`(()=>{const shown=(sel)=>Boolean(document.querySelector(sel)?.getClientRects().length);
+    return document.querySelector('[data-assistant-composer] [data-composer-receiver]')?.textContent === '助理' && !shown('[data-assistant-composer] .mw-composer__to [data-tag-remove]') && !document.querySelector('[data-assistant-composer] [data-composer-control]');})()`), "a new work goes to the Assistant and shows no default chooser");
+  await click("[data-assistant-composer] [data-composer-add]");
+  await waitFor("!document.querySelector('[data-assistant-composer] [data-compose-menu]').hidden && /添加文件/.test(document.querySelector('[data-assistant-composer] [data-compose-menu]').textContent)");
+  assert.ok(await evaluate("(()=>{const t=document.querySelector('[data-assistant-composer] [data-compose-menu]').textContent;return /用一个方法或能力/.test(t) && !/由谁来做|新工作放在/.test(t);})()"), "“+” adds things; it holds no choices about the work");
   assert.ok(await evaluate("!document.querySelector('[data-assistant-composer] [data-plugin-picker], [data-assistant-composer] [data-global-search-open]')"), "the composer holds neither the switcher nor search");
-  await evaluate("document.querySelector('[data-assistant-more] button').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))");
-  await waitFor("document.querySelector('[data-assistant-more]').hidden");
+  await evaluate("document.querySelector('[data-assistant-composer] [data-compose-menu]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))");
+  await waitFor("document.querySelector('[data-assistant-composer] [data-compose-menu]').hidden");
   // However many chips stand beside it, the input keeps room to type: a long work and what needs a look (what the Send carries
   // is the strip above the line now, context-program §21.2 point 1).
   const crowd = `(()=>{
     for (const [chip, count] of [['[data-assistant-attention]', '23']]) { const button = document.querySelector(chip); button.hidden = false; button.querySelector('span').textContent = count; }
-    for (const chooser of document.querySelectorAll('[data-assistant-executor], [data-assistant-character]')) chooser.hidden = false;
-    document.querySelector('[data-assistant-target-label]').textContent = '继续：给我一个按钮，在待办里记下准备复盘会的数据看板';
+    document.querySelector('[data-assistant-composer] [data-composer-receiver]').textContent = '继续：给我一个按钮，在待办里记下准备复盘会的数据看板';
   })()`;
   await evaluate(crowd);
-  // The choosers give way first (they shrink to an ellipsis, or fold when even that is not enough); the input never does.
-  await waitFor("document.querySelector('[data-assistant-input]').getBoundingClientRect().width >= 120");
+  // The receiver row and the controls give way (they shrink to an ellipsis, or fold behind 更多); the input never does.
+  await waitFor("document.querySelector('[data-assistant-composer] .mw-composer__input').getBoundingClientRect().width >= 120");
   assert.ok(await evaluate("document.querySelector('[data-assistant-composer]').scrollWidth <= document.querySelector('[data-assistant-composer]').clientWidth + 1"), "nothing runs out of the composer");
   // A narrower window, where the bar's middle is well under 600px, keeps the same room. (With one button at the bar's end
-  // instead of three the middle is wider, so the window that puts it under 560px is narrower than the 900px it was.)
+  // instead of three the middle is wider, so the window that puts it under 560px is narrower than the 900px it was; and with
+  // nothing of the person's own on the right, that column is only as wide as the project button, so it is 780px, not 820px —
+  // 07-1 S4b.)
   const roomy = (floor: number) => `(()=>{const f=document.querySelector('[data-assistant-composer]'),end=document.querySelector('.bar-end').getBoundingClientRect();
-    return f.querySelector('[data-assistant-input]').getBoundingClientRect().width >= ${floor} && f.scrollWidth <= f.clientWidth + 1 && f.getBoundingClientRect().right <= end.left;})()`;
-  await command("Emulation.setDeviceMetricsOverride", { width: 820, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
+    return f.querySelector('[data-assistant-composer] .mw-composer__input').getBoundingClientRect().width >= ${floor} && f.scrollWidth <= f.clientWidth + 1 && f.getBoundingClientRect().right <= end.left;})()`;
+  await command("Emulation.setDeviceMetricsOverride", { width: 780, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await waitFor(`document.querySelector('.bar-center').getBoundingClientRect().width < 560 && ${roomy(120)}`);
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
-  await evaluate(`(()=>{const input=document.querySelector('[data-assistant-input]');input.value='hello';input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
-  await click("[data-assistant-send]");
+  await evaluate(`(()=>{const input=document.querySelector('[data-assistant-composer] .mw-composer__input');input.value='hello';input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
+  await click("[data-assistant-composer] [data-composer-send]");
   // No model configured: the work is kept with what was typed, and the panel says what to do next.
   await waitFor("!document.querySelector('[data-assistant-panel]').hidden && /模型/.test(document.querySelector('[data-assistant-thread] .assistant-problem')?.textContent || '')");
   assert.equal(await evaluate("document.querySelector('[data-assistant-thread] .assistant-problem a')?.getAttribute('href')"), "/settings/models", "the next step is one click away");
-  assert.equal(await evaluate("document.querySelector('[data-assistant-input]')?.value"), "hello", "a failed question stays in the input");
+  assert.equal(await evaluate("document.querySelector('[data-assistant-composer] .mw-composer__input')?.value"), "hello", "a failed question stays in the input");
   assert.match(await evaluate("document.querySelector('[data-assistant-work-title]')?.textContent"), /hello/, "the work exists, named after what was asked");
   assert.ok(await evaluate(`(()=>{const p=document.querySelector('[data-assistant-panel]').getBoundingClientRect(),c=document.querySelector('[data-assistant-composer]').getBoundingClientRect();return p.bottom<=c.top && p.top>=0;})()`), "the panel opens above the input, inside the window");
   // The work is a tab; a wide window shows its side pane beside the conversation, which stays right above the input.
@@ -357,12 +368,12 @@ test("底栏：Assistant 常驻居中，回答在上方先写问题；插件从�
   assert.ok(await evaluate(`(()=>{const s=document.querySelector('[data-assistant-side]').getBoundingClientRect(),m=document.querySelector('.assistant-main').getBoundingClientRect(),c=document.querySelector('[data-assistant-composer]').getBoundingClientRect(),p=document.querySelector('[data-assistant-panel]').getBoundingClientRect();
     return s.width>0 && s.right<=m.left+1 && m.left<=c.left && m.right>=c.right && p.left>=0;})()`), "side pane on the left, the conversation over the input, all inside the window");
   assert.match(await evaluate("document.querySelector('[data-assistant-meta]')?.textContent || ''"), /属于/, "the side pane says where the work belongs");
-  assert.ok(await evaluate("!document.querySelector('[data-assistant-target-wrap]').getClientRects().length"), "with the panel open its tab, not a chip, says where the next message goes");
+  assert.match(await evaluate<string>("document.querySelector('[data-assistant-composer] .mw-composer__to')?.textContent || ''"), /发给：.*hello/, "with the panel open the receiver row names the work the next message goes to");
   assert.equal(await evaluate("document.body.dataset.desktopSurface"), "home", "asking leaves the work area where it was");
-  // With the panel open the choosers come back; the input still keeps a place, and nothing runs under the bar's end.
+  // With the panel open and the bar crowded, the input still keeps a place, and nothing runs under the bar's end.
   await command("Emulation.setDeviceMetricsOverride", { width: 900, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await evaluate(crowd);
-  await waitFor(`document.querySelector('[data-assistant-character]').getClientRects().length > 0 && ${roomy(64)}`);
+  await waitFor(roomy(64));
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   // Switching goes through the list at the bar's left; its label follows.
   await click('[data-plugin-picker-popover] [data-plugin-id="goals"]');
@@ -371,11 +382,13 @@ test("底栏：Assistant 常驻居中，回答在上方先写问题；插件从�
   assert.equal(await evaluate("document.querySelector('[data-assistant-panel]').hidden"), false, "working elsewhere leaves the answer open");
   await click("[data-assistant-panel-close]");
   await waitFor("document.querySelector('[data-assistant-panel]').hidden");
-  // Shelf and 灵光 are tabs of the side panel now (side-shelf §3.1): the right of the bar holds only its one button.
-  assert.deepEqual(await evaluate("[...document.querySelectorAll('.bar-side button')].map(button => button.matches('[data-side-toggle]'))"), [true]);
-  await click("[data-side-toggle]");
-  await waitFor("document.body.dataset.sideOpen === 'true' && document.querySelector('[data-side-toggle]').getAttribute('aria-expanded') === 'true'");
-  await click("[data-side-toggle]");
+  // Shelf and 灵光 are tabs of the side panel (side-shelf §3.1). Since 07-1 S4b the right of the bar is the person's own tray, with
+  // no side button: the side opens from its current glyph in the titlebar and closes from the layout menu (收起右侧).
+  assert.equal(await evaluate("document.querySelector('[data-side-toggle]')"), null);
+  assert.equal(await evaluate("document.querySelector('.bar-end > .bar-own')?.getAttribute('aria-label')"), "你自己的");
+  await click("[data-side-tabs] [data-side-tab][aria-selected=true]");
+  await waitFor("document.body.dataset.sideOpen === 'true' && document.querySelector('[data-side-tabs] [data-side-tab][aria-selected=true]').parentElement.getAttribute('aria-current') === 'page'");
+  await click("[data-layout-open]"); await click("[data-layout-action=side]");
   await waitFor("document.body.dataset.sideOpen === 'false'");
   // Choosing many plugins for the Dock (at the foot of the switcher's list) folds what does not fit instead of running
   // under the Assistant; ticking them keeps the list open.

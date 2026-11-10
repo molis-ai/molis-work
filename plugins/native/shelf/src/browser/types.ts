@@ -1,3 +1,4 @@
+import type {} from "@molis-ai/molis-work-plugin-sdk/page-globals";
 import type {
   ShelfAiStatus,
   ShelfClipboardRecord,
@@ -41,13 +42,10 @@ export interface ShelfHost extends Pick<UiPluginClientHost<HTMLElement, HTMLDial
 /** The terminal bridge terminal.ts leaves on the page while the root lives. */
 export interface ShelfTui { open(): void; send(text: string): boolean; isLive(): boolean }
 
-/** The page's drop-zone program (workbench): says when a file drag is over the zone and when it has left. */
-type DropZone = (zone: string | Element, mark: (on: boolean) => void, accepts?: (types: readonly string[]) => boolean) => void;
-
 declare global {
-  // `molisWorkShelfTui` is terminal.ts's own bridge (tests stand in for it); `molisDropZone` is left by the page, Shelf only asks.
+  // `molisWorkShelfTui` is terminal.ts's own bridge (tests stand in for it); `window.molisDropZone` comes from the SDK's page
+  // globals (imported above, the workbench leaves it on the page), Shelf only asks.
   var molisWorkShelfTui: ShelfTui | undefined;
-  interface Window { molisDropZone?: DropZone }
 }
 
 /** What the page shows: Shelf's snapshot, with what a page that has not loaded yet lacks. */

@@ -1,5 +1,5 @@
 /** Local SQLite technical owner. */
-export { openSqliteConnection } from "./sqlite-connection.js";
+export { openSqliteConnection, sqliteErrorName, type SqliteAuthorizer } from "./sqlite-connection.js";
 export { LocalSqliteJournal, LocalSqliteStorage, LOCAL_JOURNAL_SCHEMA_SQL, type SqliteDatabase } from "./sqlite.js";
 
 export { LOCAL_OPAQUE_BLOB_SCHEMA_SQL } from "./schema.js";
@@ -73,7 +73,7 @@ export {
 } from "./adapters/local-security-paths.js";
 
 export { type SecretStore, type SecretStoreBackendKind, type SecretStoreBackendInfo, KeychainUnavailableError, holdSecretsLockForTest, createFileSecretStore,
-  SECRET_STORE_FILE, createLazyFileSecretStore, resetSecretStoreCache, peekSealedEntry, deleteSecretEntriesWithPrefix, readSecretsFileMeta } from "./adapters/file-secret-store.js";
+  SECRET_STORE_FILE, assertSecretStoreWritable, createLazyFileSecretStore, resetSecretStoreCache, peekSealedEntry, deleteSecretEntriesWithPrefix, readSecretsFileMeta } from "./adapters/file-secret-store.js";
 export { inspectSealedSecretsSnapshot, readSealedSecretSnapshotEntry, readExistingSecret, type SealedSecretsSnapshotInspection } from "./adapters/file-secret-store.js";
 export { sealExistingHomePayload, openExistingHomePayload, assertExistingHomeKeyReference, type SealedHomePayload } from "./adapters/file-secret-store.js";
 
@@ -104,7 +104,7 @@ export { compileSyncTrackingSql, syncTrackingSeedSql } from './sync-tracking.js'
 export { compileAggregateTrackingSql, aggregateTrackingSeedSql } from './aggregate-tracking.js';
 export { createCollectionCopy } from './collection-copy.js';
 
-export { nativeSqliteOwnerBoundary, type PluginSqlExecution } from './sqlite-owner-boundary.js';
+export { nativeSqliteOwnerBoundary, nativeSqliteSchemaBoundary, type PluginSqlExecution } from './sqlite-owner-boundary.js';
 export { sqliteBaselineTriggers, assertSqliteBaselineTriggers } from './sqlite-baseline-inspection.js';
 export { dumpSqliteText, countSqliteRows, SQLITE_DUMP_NORMALIZED_COLUMNS, type SqliteTextDump } from './sqlite-text-dump.js';
 export { inspectEvidenceContentSnapshot } from "./evidence-snapshot.js";
@@ -120,3 +120,6 @@ export {
   type VersionedFileRead,
   type VersionedFileStep,
 } from "./versioned-file.js";
+export { rollbackPreservingError } from "./transaction-errors.js";
+
+export { openExistingBaselineHomeSqlite } from "./sqlite-baseline.js";

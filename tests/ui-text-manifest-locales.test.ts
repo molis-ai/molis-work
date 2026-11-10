@@ -87,9 +87,14 @@ test("FSS-52 ui.locales is refused beside ui.messages and beside ui.translations
 });
 
 test("FSS-52 with ui.locales, a plugin_id whose last segment cannot start a key is refused, and says why", () => {
-  const cannotOwnKeys = "用 ui.locales 的插件，plugin_id 最后一段要以字母开头，也不能是 common：它是这个插件所有键的第一段，common 留给通用词";
+  const cannotOwnKeys = (plugin_id: string) => {
+    const last = plugin_id.slice(plugin_id.lastIndexOf(".") + 1);
+    return last === "common"
+      ? `ui.locales 写不了键：plugin_id ${plugin_id} 最后一段是 common，键会以 common 开头，而 common 留给通用词；把最后一段换一个名字`
+      : `ui.locales 写不了键：主人 ${plugin_id} 的最后一段 ${last} 不能当键的第一段：要以小写字母开头，只含小写字母、数字和连字符`;
+  };
   for (const plugin_id of ["io.molis.work.acme.3d-tool", "io.molis.work.7", "io.molis.work.acme.-x", "io.molis.work.acme.", "io.molis.work.common", "io.molis.work.acme.common"]) {
-    assert.equal(manifestProblems(withLocales(LOCALES, {}, { plugin_id })), cannotOwnKeys, plugin_id);
+    assert.equal(manifestProblems(withLocales(LOCALES, {}, { plugin_id })), cannotOwnKeys(plugin_id), plugin_id);
     // The same id is fine for a plugin that does not declare languages: this rule comes with `ui.locales`, not with the id.
     assert.equal(manifestProblems(declarationManifest({ plugin_id })), "", plugin_id);
   }

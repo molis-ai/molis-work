@@ -1,3 +1,4 @@
+import { projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
 
@@ -21,7 +22,7 @@ async function openPicker(t: TestContext, width = 1440, height = 900) {
   const b = await openGoalBrowser(t, "user");
   if (!b) return null;
   const { command, sessionId, evaluate, waitFor, origin, projectId } = b;
-  await b.web.delete(`/api/settings/projects/${projectId!}/plugins`, { plugin_id: "schedule" });
+  await b.web.delete(`/api/settings/projects/${projectId!}/plugins`, { plugin_id: "schedule", expected_revision: await projectPluginRevision(b.web, projectId!) });
   await command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: false }, sessionId);
   await b.navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await waitFor("Boolean(document.querySelector('[data-plugin-picker-toggle]')) && Boolean(document.querySelector('[data-plugin-tile]'))");

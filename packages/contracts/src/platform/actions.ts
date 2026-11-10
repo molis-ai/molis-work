@@ -24,6 +24,7 @@ export * from "./action-fragments.js";
 import type { ActionAttach, ActionIntake } from "./item-intake.js";
 export * from "./item-intake.js";
 import type { FileSourceDeclaration } from "./file-sources.js";
+import type { ComposerSourceDeclaration } from "./composer.js";
 export * from "./file-sources.js";
 export * from "./artifact-pins.js";
 export * from "./local-person.js";
@@ -102,6 +103,14 @@ export interface StageSceneMetadataAuthority {
   readonly project_id: string | null;
   readonly scenes: readonly { readonly scene_id: string; readonly version: number }[];
   readonly actions: readonly ExactActionReference[];
+}
+
+/** The identity the Host binds to one adopted homepage or preview in a project. */
+export interface HomePageSubject {
+  readonly kind: "home-page" | "home-page-preview";
+  readonly project_id: string;
+  readonly page_id: string;
+  readonly version: number;
 }
 
 /** Supplied by the authenticated host, never taken from model/tool arguments. */
@@ -267,6 +276,8 @@ export interface ActionMetadata {
   readonly search_source?: SearchSourceDeclaration;
   /** A side panel file source: the file kinds it lists (or previews) and where each opens (specs/archive/side-panel §3.3). */
   readonly file_source?: FileSourceDeclaration;
+  /** A source in the unified input's `+` menu: what it is called, the kinds it picks and which composers list it (specs/unified-input-voice/implementation-plan.md §3.3). */
+  readonly composer_source?: ComposerSourceDeclaration;
   /** Common owner protocol for reading a discussion and committing its fixed reply destination. */
   readonly thread_source?: { readonly role: "context" | "reply"; readonly subject_kind: string };
   /**

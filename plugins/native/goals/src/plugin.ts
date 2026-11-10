@@ -1,3 +1,4 @@
+import { readGoalCapsuleMenu } from "./capsule-menu.js";
 import { syncBindings } from "./sync-binding.js";
 import { setTimeout } from "node:timers/promises";
 import { ActionError, pinActionSubject, pinnableSubjectKinds, type ActionClient, type ActionExecutionContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -85,7 +86,7 @@ export function createGoalsPlugin(): PluginDefinition {
       write: <T>(caller: ActionExecutionContext, body: () => T): Promise<T> => database.transaction(() => caller.beforeEffect(), transaction => sqlite.write(transaction, body)),
     };
     const handlers = createGoalsActionHandlers({ events: application.goalEvents, acknowledgements: goals.acknowledgements, projectId,
-      board: { initializeBoard },
+      board: { initializeBoard }, capsuleMenu: () => readGoalCapsuleMenu(sqlite, projectId),
       collection: { snapshot, events, goals: application.goalQueries, inputs, eventWork: application.goalEvents },
       readGoal: goalId => application.goalQueries.getGoal(projectId, goalId),
       readContract: goalId => application.goalQueries.readGoalContract(projectId, goalId),

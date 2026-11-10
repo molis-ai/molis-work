@@ -45,17 +45,29 @@ B 先用真实工作台、Issues 侧栏的现有插件 frame 与 Builder 候选�
 
 ### 主人、批量加载和安装
 
-1. 平台词包继续从 Design System 的资源登记发现，由 [`ui-text-provider.ts`](../../apps/local-host/src/ui-text-provider.ts) 使用 Runtime 的 `pluginLocaleReader`。开发插件沿 `development-loader.ts` 和既有 `localePacks` 端口。内置包从 Runtime 登记定位其包目录，声明 `ui.locales` 和发布文件；创作台与 Alchemist 仅沿已经批准的装配例外取包。已装包从签名覆盖的 `payload.files` 读取。恢复出来的 `data:` 代码不自行寻文件。Studio/CLI 打包、安装白名单与运行绑定复用 A §6.2–6.3 的路径检查、`assertPluginLocales` 和 `pluginLocaleFilePaths`；`platform/plugin-sandbox` 的现行 `contract.json` 声明接已有的 locale 形状，由 `sandbox-manifest.ts` 投影到 Manifest；`sandbox-package.ts`、`pack-sandbox.ts` 和 Studio 的 `studio-release.ts` 核对同一套声明文件。旧字段与旧发布物的处置按开工前检查，不建运行双读。
-2. 复用 [`plugin-text.ts`](../../apps/workbench/src/plugin-text.ts) 的登记、释放及 `t`／`say` 规则。基点的读表按进程 owner 取最近登记，C 改为准确来源：插件自己的调用绑定 Runtime 原 activation 对象，不能仅靠可在复制 Home 中重复的安装 ID 与代次；平台代画插件对象时，由宿主沿可信目录或挂载选择对象提供方的 reader，不能拿当前调用者的 reader 代替；无 Runtime activation 的内容包，沿当前 Home 已启用的发布记录选择其已验证包。`OwnedTextRef` 保持现有 owner/键形状，来源由宿主补齐，不接受浏览器或引用自报的身份。来源失效或缺键用既有 fallback，绝不去另一个 Home、版本或发布者的同名词表找。平台内置词表可共享，同页同准确来源的 owner/locale 只读一次。停止、卸载、换版本撤回原绑定，版本/签名变化作废相关缓存。沙箱和内容包只按完整 `plugin_id` 进 `say`；同进程可运行 `t` 的作者继续受前缀检查。词包只能提供自己的词；`common.*` 由平台投影。沙箱进程经现有受信启动数据取得本安装的文本上下文，调用时从 host/broker 已验证的范围取语言。
-3. 默认用 A §4.4 的独立 Workbench 启动词资源和可缓存准确版本。宿主页面按当前已准入的挂载集合批量读本页所需 owner 与 locale，计划用一个同源批量读入口（拟 `GET /api/ui/locales`），复用原工作台文档证明、项目/页面及挂载许可，参数中的 owner 仅作选择范围。Host 先据该文档实际获准的准确挂载和运行来源求交，核对版本和当前生存期后才返回所需包与公开共有词；同屏同名挂载分别关联来源，只对相同来源与语言去重。父文档一次准备供本屏挂载共享，按需开启的新一组挂载再批取，frame 不发请求。Issues 隐藏文档计入首屏。Goals 的同步词先从真实首屏查出使用者：工作台拥有的句子归工作台，Goals 自己的句子从其准确词包同步准备；最终下发范围以实测和预算批准确定，避免整包复制到工作台词表。动态资源路由、清单及增量见待决。
+1. 平台词包继续从 Design System 的资源登记发现，由 [`ui-text-provider.ts`](../../apps/local-host/src/ui-text-provider.ts) 使用 SDK 的 `pluginLocaleReader`。开发插件沿 `development-loader.ts` 和既有 `localePacks` 端口。内置包从 Runtime 登记定位其包目录，声明 `ui.locales` 和发布文件；创作台与 Alchemist 仅沿已经批准的装配例外取包。已装包从签名覆盖的 `payload.files` 读取。恢复出来的 `data:` 代码不自行寻文件。Studio/CLI 打包、安装白名单与运行绑定复用 A §6.2–6.3 的路径检查、`assertPluginLocales` 和 `pluginLocaleFilePaths`；`platform/plugin-sandbox` 的现行 `contract.json` 声明接已有的 locale 形状，由 `sandbox-manifest.ts` 投影到 Manifest；`sandbox-package.ts`、`pack-sandbox.ts` 和 Studio 的 `studio-release.ts` 核对同一套声明文件。旧字段与旧发布物的处置按开工前检查，不建运行双读。
+2. UI Host 的 [`text-sources.ts`](../../packages/ui-host/src/text-sources.ts) 负责词源登记与释放，`t`／`say` 继续用 SDK。Workbench 的静态组件板沿自己的装配入口选取准确词源。基点的读表按进程 owner 取最近登记，C 改为准确来源：插件自己的调用绑定 Runtime 原 activation 对象，不能仅靠可在复制 Home 中重复的安装 ID 与代次；平台代画插件对象时，由宿主沿可信目录或挂载选择对象提供方的 reader，不能拿当前调用者的 reader 代替；无 Runtime activation 的内容包，沿当前 Home 已启用的发布记录选择其已验证包。`OwnedTextRef` 保持现有 owner/键形状，来源由宿主补齐，不接受浏览器或引用自报的身份。来源失效或缺键用既有 fallback，绝不去另一个 Home、版本或发布者的同名词表找。平台内置词表可共享，同页同准确来源的 owner/locale 只读一次。停止、卸载、换版本撤回原绑定，版本/签名变化作废相关缓存。沙箱和内容包只按完整 `plugin_id` 进 `say`；同进程可运行 `t` 的作者继续受前缀检查。词包只能提供自己的词；`common.*` 由平台投影。沙箱进程经现有受信启动数据取得本安装的文本上下文，调用时从 host/broker 已验证的范围取语言。
+3. 默认用 A §4.4 的独立 Workbench 启动词资源和可缓存准确版本。宿主页面按当前已准入的挂载集合批量读本页所需 owner 与 locale，走同源批量读入口 `GET /api/ui/locales`，复用原工作台文档证明、项目/页面及挂载许可，参数中的 owner 仅作选择范围。Host 先据该文档实际获准的准确挂载和运行来源求交，核对版本和当前生存期后才返回所需包与公开共有词；同屏同名挂载分别关联来源，只对相同来源与语言去重。父文档一次准备供本屏挂载共享，按需开启的新一组挂载再批取，frame 不发请求。Issues 隐藏文档计入首屏。Goals 的同步词先从真实首屏查出使用者：工作台拥有的句子归工作台，Goals 自己的句子从其准确词包同步准备；最终下发范围以实测和预算批准确定，避免整包复制到工作台词表。动态资源路由、清单及增量见待决。
+
+### 讨论侧栏及独立 Server
+
+新版 main #2004 给实际工作台「讨论」侧栏和独立 Server 的同一 `/im` 渲染器补齐了英文。它是 [需求 §2.1](spec.md#21-覆盖对象) 的现有嵌入。`im-ui` 自己提供稳定键及中英文语言文件，沿现有资源登记和 SDK 校验。两个入口共用这些文件和渲染器，各从原入口取得语言。保留独立 Server 的 CSP、连接、权限、存储和原始消息。
+
+工作台准备切换时，只在已加载的同源讨论文档取原语言与目标语言的两份静态 `/im?embedded=1` HTML。读不带 Cookie，不带语言预览头，由现有 `Accept-Language` 协商；验证实际语言、固定路径和该文档身份。读取不导航、不连接会话，也不写群聊或偏好。现有切换提交成功后，用共同文字合并就地更新当前文档及其词源；晚开的子窗核当前选择，已失效的响应不应用。业务状态、日分组、原始标题、姓名、正文与引用不从译文取值。
+
+外观沿父页已确认的投影和共同字体准备，应用前再核当前子文档及实际样式、皮肤和字体。已选外观在子窗首次可见前准备，纯语言变化不丢弃同一外观。继续区分显示变化和可见态变化，前者不走连接或已读路径。验收在真实工作台挂载讨论，切换中英、Folio 与字体，核同一文档、草稿选区、阅读位置、原文、后续消息更新和无业务请求，并核独立 Server 的英文首屏。实际 HTTP 字节列入 C 段资源核定。
 
 ### 目录名称与标签
 
 A §15.3 已要求本批删除固定双语的 `name_en`。同一路径还存在视图 `title_en`、目录 `label_en` 及 `pluginTitleScript(currentLocale() === "en")`，它们一起改为现行词包投影。保留必填 `PluginManifest.name`、`UiViewDeclaration.title` 和已有 `summary`、`start.title/hint`、`creates.title` 的原文含义及约束；新增可选 `name_text`／`summary_text`、视图 `title_text` 和 `start.title_text`／`hint_text`，复用 `creates.title_text`。均使用已有 `TextRef`，不新增一套消息结构。自有键绑定准确声明主人并需 `ui.locales`；共有词沿 SDK 既有规则，不允许引用其他插件的键。目录短句无运行参数，引用和词条中的占位参数须拒绝；`literal` 或没有引用时仍显示原文，找不到可用词时保留同一字段的原文和现有问题记录，不借另一字段猜译。
 
-来源各自独立：navigator／island 使用自己的视图标题，stage-only 的目录入口才使用 Manifest 名；start、creates、summary 各取自身文字，不拿插件名补视图名。内置市场沿真实登记，运行中插件沿当前 Runtime activation，沙箱沿准确 install／release 读词。Host 只向目录输出当前语言的普通字符串，保留原目录的裁剪、控制字符与图标等校验；不传另一份双语表、草稿词包或可由页面指定主人的引用。现有放置目录 JSON 只载 ID、能力与颜色的边界保持；原执行式标题脚本换成同一 shell 内一份惰性 JSON 标题投影，沿已有语言模型合并，不把标题表下发给沙箱 iframe。当前页面的语言预览沿已有 shell 请求和 DOM 合并，同时更新目录节点和客户端标签名投影，不增加逐插件语言请求或执行取回的脚本来读标题。
+来源各自独立：navigator／island 使用自己的视图标题，stage-only 的目录入口才使用 Manifest 名；start、creates、summary 各取自身文字，不拿插件名补视图名。内置市场沿真实登记，运行中插件沿当前 Runtime activation，沙箱沿准确 install／release 读词。Host 和 Workbench 共用 UI Host 的 [目录投影](../../packages/ui-host/src/plugin-directory-words.ts)，只向目录输出当前语言的普通字符串，保留原目录的裁剪、控制字符与图标等校验；不传另一份双语表、草稿词包或可由页面指定主人的引用。现有放置目录 JSON 只载 ID、能力与颜色的边界保持；原执行式标题脚本换成同一 shell 内一份惰性 JSON 标题投影，沿已有语言模型合并，不把标题表下发给沙箱 iframe。当前页面的语言预览沿已有 shell 请求和 DOM 合并，同时更新目录节点和客户端标签名投影，不增加逐插件语言请求或执行取回的脚本来读标题。
 
 SDK 的 Manifest／视图校验和内容包白名单明确拒绝 `name_en`／`title_en`；相关生产声明、样例与文档一次更新，公开 API 快照同步。无译文的外部品牌原名、用户内容和仅原文声明不被强制增加空词包。Studio 新发布的名称引用其已经冻结的同一 name 槽位，不由宿主猜一个新键；原签包仍按各自现行或退役合同校验，不原地修改。FSS-40／41 的动作文字与结果摘要维持暂缓。
+
+`plugins.bundled.list@1` 的调用方改读当前语言的 `name` 与 `summary`，原 `name_en` 字段撤下。没有页面语言的直接读取返回声明原文。列表、预览与确认继续校验同一包的身份和签名。
+
+技能目录沿当前安装的声明和正文读取。内置技能从相同安装的实际运行对象取得词源，内容包复用本次已验证发布文件的词包。名称、用途说明和适用场景按主人、方法 ID 与字段取词。参数提示和单语技能保持原文，方法正文沿已有语言文件和默认正文选择；技能身份、使用记账和执行授权沿原声明。
 
 ### 连接服务的目录、表单与指南
 

@@ -919,7 +919,9 @@ apps/workbench/
 
 **开发路径。** `molis-work plugin dev` 没有 HTTP 请求：`runPluginDevelopment` 直接调 `options.ui.render(...)`（`plugin-development.ts`，`rendered_ui`），经 `developInPrivateHost`（`cli.ts:46`）进来，全程没有 `runWithLocale`。所以 `createPrivateDevelopmentHost` 同样要装 provider，`runPluginDevelopment` 在自己的范围里跑 `render`：语言取 `PluginDevelopmentInput.locale`（新的可选字段，`platform/tooling`，T3），CLI 写 `--locale <语言>`，没写用 `ui.locales.default`，不在 `available` 里就报错并列出可选的；这个范围里 `noContext()` 是 `"throw"`。这个入口只收 Integration（`contribution.kind !== "integration"` 就抛），手册的小插件写成 Integration（第 16.1 节）。
 
-**语言包谁灌、谁删。** 新文件 `apps/workbench/src/plugin-text.ts`，存各主人的语言读取器，`local-host` 从 `@molis-ai/molis-work-app-workbench` 引用（`home-plugin-executor.ts:43` 已这样引 `withPluginWords`）：
+**语言包谁灌、谁删。** 第 14 批将读取器放在 `apps/workbench/src/plugin-text.ts`，存各主人的语言读取器，`local-host` 从 `@molis-ai/molis-work-app-workbench` 引用（`home-plugin-executor.ts:43` 已这样引 `withPluginWords`）：
+
+第 16 批接入后，现行词源登记及释放由 [UI Host](../../packages/ui-host/src/text-sources.ts) 负责，键与主人检查见 [SDK](../../packages/plugin-sdk/src/ui/text-keys.ts)。工作台保留静态组件板的词源绑定。
 
 | 时机 | 谁 | 做什么 |
 | --- | --- | --- |

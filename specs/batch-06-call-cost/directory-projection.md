@@ -55,3 +55,11 @@ MOLIS_WORK_CALL_BUDGET_REPORT=1 node scripts/machine-slot.mjs run browser --labe
 N49 接回后从本批切隔离子树。先实现同一次展示的目录和归属索引，再补真实配置读的重复发现。允许触及 `local-host-availability`、`local-host-scenes`、`local-host-types`、`project-action-availability`、`plugin-registry` 及表中同义单项读取。内核共用索引随 N49 的既有首行语义收敛。验证沿原 HTTP、场景和安全用例，固定计数只影响已登记的代表请求。动作、Manifest 和持久版本沿现行合同。无页面、存储、成果与过程项行为变更。
 
 开工检查沿 [06-3](spec.md)。事实 owner 分别是内核动作目录、Host 内置登记和项目 owner。执行仍经现有动作注册、实时可见性和写前检查。场景只共享同 caller 同读面内的目录，插件、助理、工作流、MCP 继续消费当前授权。保留 #1999 的同步边界及 #2000 的成员语义，复用现有拒绝码。纯索引比跨请求 verdict 缓存易验证，N44 的展示缓存单独证明失效。
+
+## 场景配置的改前实测
+
+2026-11-10 沿 `tests/functions-scene-configuration.test.ts` 的真实 Host 动作入口运行，1 项通过、零跳过。隔离项目在 Home、Inbox 与 Feed 原 owner 上读取、配置、撤回和重新启用绑定。临时加载探针只记录每次 `targets` 内实际的两条 Host 目录调用和 Kernel discover，不替换目录或授权结果。产物与首组扫描基线相同。
+
+Home 的兼容 `subject-offers` 引用有 36 次配置位置读取同时命中两处 Host 发现，推荐筛选与同组调用各一次。内核总发现随既有绑定而为 5 或 7。其余场景没有这条推荐来源，只触发同组的一次 Host 发现。Home 另一次候选不可执行时也只触发一次。N43 要合并前 36 次中的同组两遍，等待后的 Kernel 发现另计。夹具继续断言配置、绑定和版本冲突结果，不能以少读为由减少检查。
+
+探针 `/private/tmp/molis06-s2-targets-baseline.test.mjs`，日志 `/private/tmp/molis06-s2-targets-baseline.log`。这是生产 Host 动作配置路径的数据，HTTP 扫描仍按独立的代表请求表。

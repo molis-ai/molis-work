@@ -1,6 +1,6 @@
 # 确定组合平台服务（路线书 15 ①）
 
-状态：第 15 批实施中，尚未交付。S-1 已合回本批并完成定向验证；公共组件已合回，S-2 设计合审通过并进入服务实现。2026-11-08 用户指定 Codex 本批主台接续；原 C3 设计与 D 定样成果保留。`batch/15` 从 main `226ce892a8` 开始；[05② 的呈现合同](../shared-sources-and-surfaces/spec.md)（C-2、C-3，#1979）与第 14 批 A 段（#1976）已进入该基线。按用户同日后续更正，本批独立开发首页与入口，最终统一同步时接回第 16 批页面授权和取词切换、第 20 批项目成员能力，再以实际采用的接口验收；不再逐文件等待交接。开工检查及证据范围见 §14；全批统一验证、产品实操与本人验收未完成。第 7 节对着[基础首页定样](../../docs/design/basic-home/README.md)写，D 轨 11-04 共审过；合同缺口已由 C-2、C-3 接收，挂载位已并进 slots。早期核查保留在[第 15 批核账](../post-anticorruption-roadmap/reference/batches/15.md#baseline-15)。
+状态：第 15 批实施中。S-1、公共组件与 S-2 首页的独立实施已合回本批，并有定向证据。S-2 尚待统一接入实际的取词、页面授权和项目成员接口。2026-11-08 用户指定 Codex 本批主台接续；原 C3 设计与 D 定样成果保留。`batch/15` 从 main `226ce892a8` 开始；[05② 的呈现合同](../shared-sources-and-surfaces/spec.md)（C-2、C-3，#1979）与第 14 批 A 段（#1976）已进入该基线。按用户同日后续更正，本批独立开发首页与入口，最终统一同步时接回第 16 批页面授权和取词切换、第 20 批项目成员能力，再以实际采用的接口验收；不再逐文件等待交接。开工检查及证据范围见 §14；全批统一验证、产品实操与本人验收未完成。第 7 节对着[基础首页定样](../../docs/design/basic-home/README.md)写，D 轨 11-04 共审过；合同缺口已由 C-2、C-3 接收，挂载位已并进 slots。早期核查保留在[第 15 批核账](../post-anticorruption-roadmap/reference/batches/15.md#baseline-15)。
 
 ## 0. 给人讲清楚
 
@@ -549,6 +549,8 @@ Goals 在自身声明中把 `goals.create@1` 指向 `stage/create-dialog`，自�
 普通卡的可见性沿 Projects 的实际成员／隐藏计算，不拿包含嵌入依赖的运行可达集合代替。原生项目插件被移除时会退出成员列表，因此在普通可见卡之外补恢复卡：须未被主动隐藏、已有成员移除事实、当前已非成员且不再因嵌入而应运行，同时可信的原安装确为 disabled。移除事实在同一次 Catalog 取样里复用既有 `wasProjectPluginRemoved`，不另存状态；只有嵌入运行经历的安装不能因此冒出首页卡。恢复卡不授予主区或概况读取，只保留原安装与本次成员 revision。从未安装、已卸载、仍应运行却未启动、crashed／quarantined／blocked 和切换未完成均不冒充已停用。常开与有效隐藏规则仍由 Projects 计算。
 
 成员 revision 不含安装代次或 digest，所以旧卡仍须独立核原安装。受保护首页入口复用第 20 批 `projectPluginSetter`，把当前页面检查与仅限本请求的确切安装检查合成可信 `assert_authority_current`：从已打开项目的现有 `pluginInstallRecords` 同步比较 scope、owner、host trust、install id、generation、version、digest 与仍可启用，再进同一个动作网关。`project-workspace-actions.ts` 已在 `catalog.commit` 出队、最后 await 后、调用 `setProjectPlugin` 前同步执行该检查，随后 Projects 在自己的事务内核成员 revision。无需改变公共 set schema、Projects owner 或 Runtime 枢纽。提交后的 Runtime 切换和 503 沿用第 20 批语义：成员选择已经保存，重试只读、重开项目恢复；不能误报未保存，也不能在本次合法启用后仍要求 disabled。
+
+<a id="s2-membership-adoption"></a>
 
 **统一集成输入（2026-11-09 核对 `main` `6df7285c31`）。** [第 20 批 #2000](https://github.com/molis-ai/molis-work/pull/2000) 已合入。首页在同一次 Catalog 读取中用 `projectPluginMembershipWithRevision` 取成员、隐藏和 revision，并由现有登记映射恢复卡的插件 id。公开 `projects.plugins.set@1` 由 `PROJECT_WORKSPACE_PROVIDER_ID` 登记在 Home 持有的 `project-catalog`，普通 Runtime 目录并不提供这个入口。首页使用现有 `invokeLocalWebCatalogAction` 的确切调用路径，保留原项目、会话和安装检查；已显示的 revision 原样进入 set。验证要同时覆盖正常恢复、成员 revision 过期或 ABA、成员 revision 未变但安装被替换、授权在等事务时撤回，以及提交后 Runtime 未切换时保留已保存事实。用例须经实际首页控件，并以原 Catalog 的成员、修订号、事件和 Runtime 状态判断结果。项目签包仍由原生命周期动作启用，两个 owner 的按钮不能互换。
 

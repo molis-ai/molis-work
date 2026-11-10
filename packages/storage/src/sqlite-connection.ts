@@ -1,4 +1,4 @@
-import { backup as backupDatabase, DatabaseSync, type SQLInputValue, type SQLOutputValue, type StatementSync } from "node:sqlite";
+import { backup as backupDatabase, constants, DatabaseSync, type SQLInputValue, type SQLOutputValue, type StatementSync } from "node:sqlite";
 import { pathToFileURL } from "node:url";
 import { readSqlStatementShape } from "./sqlite-statement-shape.js";
 
@@ -32,6 +32,13 @@ export interface SqliteDatabase {
  * the access comes from. It answers 0 (allowed), 1 (refused, the statement fails) or 2 (a column read as NULL).
  */
 export type SqliteAuthorizer = (action: number, first: string | null, second: string | null, database: string | null, origin: string | null) => number;
+
+const { SQLITE_OK: allow, SQLITE_DENY: deny, SQLITE_SELECT: select, SQLITE_READ: read, SQLITE_INSERT: insert, SQLITE_UPDATE: update, SQLITE_FUNCTION: call } =
+  constants as Readonly<Record<string, unknown>>;
+/** The native authorizer answers and operations used by the attached root-row transaction. Missing native support admits no statement. */
+export const sqliteRowAuthorizerCodes = typeof allow === "number" && typeof deny === "number" && typeof select === "number"
+  && typeof read === "number" && typeof insert === "number" && typeof update === "number" && typeof call === "number"
+  ? Object.freeze({ allow, deny, select, read, insert, update, call }) : undefined;
 
 export interface SqliteOpenOptions {
   readonly?: boolean;

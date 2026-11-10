@@ -1,7 +1,7 @@
 import { renderComposer, type MwComposerOptions } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderComposerRestore, renderComposerStrip } from "../composer-parts.js";
 import { composerDeliveries } from "../composer-rules.js";
-import { sendable, type Composer, type ComposerBasics, type Status } from "./composer-state.js";
+import { busy, sendable, type Composer, type ComposerBasics, type Status } from "./composer-state.js";
 
 /**
  * What the composer shows (browser/composer.ts): the first screen is the SDK's `renderComposer()`; after that the parts are drawn
@@ -46,6 +46,7 @@ export function paint(c: Composer, controls = false) {
 }
 
 function shownState(c: Composer) {
+  if (c.held && !busy(c)) return "disabled";
   return c.phase === "failed" || c.phase === "sending" || c.phase === "unknown" ? c.phase : c.ai && c.running ? "running" : undefined;
 }
 
@@ -102,7 +103,11 @@ function draw(c: Composer, controls: boolean) {
   // 2026-11-09 audit fix: with no turn running the target may still take 下一轮再做 (a queue the next turn the person begins carries):
   // the split button stands in the send's place once there are words to queue, never in the one-row rest state.
   const idleDelivery = Boolean(c.ai && !c.running && c.field.value.trim() && composerDeliveries(false, c.ai.delivery?.(), c.ai.labels.unsupported)["after-run"].available);
-  const drawn = { ...firstScreen(c, c.field.value), ...(state ? { state } : {}), ...(c.ai ? { delivery: c.delivery } : {}), ...(idleDelivery ? { idleDelivery: true } : {}), ...(now ? { status: now } : {}) } as MwComposerOptions;
+  const pause = c.ai && c.running ? c.ai.pause?.() : null;
+  const drawn = { ...firstScreen(c, c.field.value), ...(state ? { state } : {}), ...(c.ai ? { delivery: c.delivery } : {}), ...(idleDelivery ? { idleDelivery: true } : {}), ...(now ? { status: now } : {}),
+    ...(pause ? { pause: { label: pause.label, title: pause.title, busy: Boolean(pause.busy) || c.pausing } } : {}),
+    // Held by the page: the first screen's own unavailable look, its reason in the status line (a send on its way says itself first).
+    ...(state === "disabled" ? { disabled: { caption: c.labels.notice, reason: c.held } } : {}) } as MwComposerOptions;
   const fresh = document.createElement("template");
   fresh.innerHTML = renderComposer(drawn);
   const next = fresh.content.firstElementChild as HTMLElement;

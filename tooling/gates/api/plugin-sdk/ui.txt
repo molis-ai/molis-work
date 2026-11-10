@@ -130,6 +130,7 @@ export interface MwComposerLabels {
     filesHint: string;
     dropRefused: string;
     commands: string;
+    adding?: string;
     searching: string;
     nothing: string;
     unavailable: string;
@@ -180,6 +181,11 @@ export type MwComposerOptions = {
     };
     state?: "sending" | "running" | "failed" | "unknown";
     idleDelivery?: boolean;
+    pause?: {
+        label: string;
+        title: string;
+        busy?: boolean;
+    };
 });
 
 export interface MwComposerStatus {

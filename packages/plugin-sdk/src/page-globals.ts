@@ -3,6 +3,7 @@ import type { ActionSubject } from "@molis-ai/molis-work-contracts/platform/acti
 import type { ComposerMaterial } from "@molis-ai/molis-work-contracts/platform/composer";
 import type { AgentSteerMode, AgentSteerReceipt } from "@molis-ai/molis-work-contracts/services/agent-inputs";
 import type { MwComposerAiLabels, MwComposerLabels } from "./ui/composer.js";
+import type { PluginIconName } from "./ui/icon-names.js";
 
 /**
  * What the Workbench page puts on `window` for every plugin page, and the shapes those helpers take and give. The helpers are
@@ -138,6 +139,9 @@ export interface InteractionClient {
  * sends or supplements, ⌘/Ctrl+Shift+Enter is for the next turn, Esc closes a menu, Tab moves focus): nothing here rebinds them,
  * and neither commands nor controls see them. ＋ is drawn only when something is behind it: `attachments`, registered sources
  * (`sources`), or `commands`. The words are `labels`, the same object the first screen (`renderComposer`) takes.
+ *
+ * `receiver`, `delivery`, `pause`, `controls` and `commands` are read again on every draw: a page whose choices change gives them
+ * as functions or getters and calls `refresh()` once they did, so the bar always shows the page's own state.
  */
 export type ComposerOptions = ComposerCommonOptions & (
   /** The editor layer only. */
@@ -148,21 +152,35 @@ export type ComposerOptions = ComposerCommonOptions & (
       receiver?: () => { label: string; open?: () => void; reset?: () => void; resetLabel?: string } | null;
       /** Which deliveries the target takes now; without it only the default (`next-boundary`) is offered. */
       delivery?: () => ComposerDelivery;
-      /** Stops the turn under way; without it no stop is drawn. Pause is not offered (§3.1 lists it; no target takes it yet). */
-      stop?(signal: AbortSignal): Promise<void> }
+      /** Stops the turn under way; without it no stop is drawn. */
+      stop?(signal: AbortSignal): Promise<void>;
+      /**
+       * Pausing the turn under way, for a target that takes it (Coding): its words now (暂停, 继续, 正在暂停…), drawn beside stop while
+       * a turn runs; `busy` holds it while the change is on its way. Null or absent draws none.
+       */
+      pause?: () => ComposerPause | null }
 );
 
 export interface ComposerCommonOptions {
   /** The entry's name, unique inside the plugin ("session"). */
   entry: string;
-  /** A platform draft kept on this machine per conversation (project and installation come from the page), or the owner's own. */
-  draft: { conversation: string } | { adapter: ComposerDraftAdapter };
+  /**
+   * A platform draft kept on this machine per conversation (project and installation come from the page), or the owner's own.
+   * Absent: nothing is kept (a dialog's field that starts from what the page puts in it each time it opens).
+   */
+  draft?: { conversation: string } | { adapter: ComposerDraftAdapter };
   /** A decision's reason, say, is submitted by the page's own button: the send keys then only write. */
   submitKeys?: false;
   /** Scene controls, drawn with the board's controls and folded into "more" on a narrow screen. */
   controls?: readonly ComposerControl[];
   /** This page's own `/` commands. */
   commands?: readonly ComposerCommand[];
+  /**
+   * What `@` names in this page's own text (Coding: a workspace's files and their definitions), in place of the system search: the
+   * words after `@` (no space, at most 200 characters) are looked up after a pause, and choosing one puts its `insert` in their place.
+   * A rejection's message is said in the menu. The page's own references: no other plugin reaches them.
+   */
+  mentions?: (query: string, signal: AbortSignal) => Promise<readonly ComposerMention[]>;
   attachments?: { accept?: string; upload(file: File, signal: AbortSignal): Promise<ComposerAttachmentState> };
   /** Called after what the strip carries (`ComposerHandle.materials()`) changed, for a page that names it elsewhere too. */
   onMaterials?(): void;
@@ -193,13 +211,28 @@ export interface ComposerDraftAdapter {
 /** Each delivery the target may take now, or why not: a mode it does not take is shown and cannot be picked, never sent as another. */
 export type ComposerDelivery = { readonly [Mode in AgentSteerMode]: { available: true } | { available: false; reason: string } };
 
-/** A select's value is one of its options; a toggle's is `"on"` or `"off"`; a button only runs. */
+/**
+ * A select's value is one of its options; a toggle's is `"on"` or `"off"`; a button only runs. `disabled` holds a control while
+ * the page cannot take its change (a send on its way); an option that is `disabled` is listed but cannot be chosen, its label
+ * saying why (a way of working this runtime does not offer yet).
+ */
 export type ComposerControl =
-  | { kind: "select"; id: string; label: string; options: readonly { value: string; label: string }[]; value: string; change?(value: string): void }
-  | { kind: "toggle"; id: string; label: string; on: boolean; change?(on: boolean): void }
-  | { kind: "button"; id: string; label: string; run(): void };
+  | { kind: "select"; id: string; label: string; options: readonly { value: string; label: string; disabled?: boolean }[]; value: string; disabled?: boolean; change?(value: string): void }
+  | { kind: "toggle"; id: string; label: string; on: boolean; disabled?: boolean; change?(on: boolean): void }
+  | { kind: "button"; id: string; label: string; title?: string; disabled?: boolean; run(): void };
 
-export interface ComposerCommand { slash: string; label: string; hint?: string; run(): void }
+/**
+ * A `/` command. `keywords` are other words that find it (an English name, a synonym). `add: false` keeps it out of ＋, whose menu
+ * is for what goes with the next send: it is offered under `/` only (switching the way of working, opening a panel). `icon` leads its
+ * row, as a source's does.
+ */
+export interface ComposerCommand { slash: string; label: string; hint?: string; keywords?: readonly string[]; icon?: PluginIconName; add?: false; run(): void }
+
+/** One thing `@` names (`mentions`): its name, a line saying where it is, and the text put in place of the `@words`. */
+export interface ComposerMention { title: string; hint?: string; insert: string }
+
+/** Pause as the page has it now (`pause`): the button's name and tooltip, and what pressing it does. */
+export interface ComposerPause { label: string; title: string; busy?: boolean; run(signal: AbortSignal): Promise<void> }
 
 /**
  * What an upload ends as; while it runs the strip says it is being read. `failed` is a file that will not go (its row offers only
@@ -230,6 +263,12 @@ export type ComposerOutcome =
 
 export interface ComposerHandle {
   setRunning(running: boolean): void; refresh(): void; focus(): void; insert(text: string): void;
+  /**
+   * The page cannot take words now (Coding until a session's first read is in, or while it starts a round by another button): the
+   * text, ＋, the controls and send wait, and the status line says `reason`; null lets go. A send already on its way is the composer's
+   * own state, not a hold.
+   */
+  hold(reason: string | null): void;
   /** Files the page was handed elsewhere (its own side pane, say) go onto the strip as if dropped on the box, through `attachments`. */
   attach(files: readonly File[]): void;
   /** What the strip carries now, in its order: the rows that are read (a Send takes these); none until the program is in. */

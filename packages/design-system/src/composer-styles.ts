@@ -41,9 +41,13 @@ export const COMPOSER_STYLES = `${COMPOSER_PATTERN_STYLES}
   .mw-composer__status > .mw-status { flex: none; }
   .mw-composer__status > span:not(.mw-status) { flex: 1; min-width: 0; }
   .mw-composer__status .mw-btn--link { flex: none; min-height: 0; padding: 0; }
-  .mw-composer__foot { display: flex; align-items: center; gap: 6px; min-height: 44px; padding: 6px 8px 8px; }
+  /* The foot is no wider than its box: what does not fit is shortened inside it (the longest setting first), never pushed out. */
+  .mw-composer__foot { display: flex; align-items: center; gap: 6px; min-width: 0; min-height: 44px; padding: 6px 8px 8px; }
   .mw-composer__start, .mw-composer__end, .mw-composer__controls { display: flex; align-items: center; gap: 4px; min-width: 0; }
   .mw-composer__start { flex: 1; }
+  /* A scene control is as wide as its choice and gives way when the bar is crowded, the longest first; a short one stays whole. */
+  .mw-composer__controls .mw-select-picker { flex: 0 1 auto; width: auto; min-width: 4.5rem; max-width: 15rem; }
+  .mw-composer__controls .mw-select-picker__trigger { width: 100%; min-width: 0; }
   .mw-composer__end { flex: none; }
   .mw-composer__more { display: none; }
   .mw-composer .mw-compose__anchor { position: static; }

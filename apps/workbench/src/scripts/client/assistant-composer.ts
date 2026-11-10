@@ -80,13 +80,15 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
   /* ─── The input: the platform's composer ──────────────────────────────── */
   const words = (${assistantComposerLabels.toString()})(L, /Mac|iPhone|iPad/.test(navigator.platform), compose?.dataset.composerNext || L("补充"));
   const upload = (${ASSISTANT_ATTACHMENTS_FACTORY_SCRIPT})({ L, api });
-  /* “/”: what this work may use now and the methods it may follow, read once, when the person first comes to the input. A method
-     (how to do it) or a capability (what to use) chosen there goes with the next Send only, on the strip above the input. */
+  /* “/”: what this work may use now and the methods it may follow, read again each time the person comes to the input (a plugin
+     turned off or a method taken away meanwhile is gone from it); the last list stays until the new one is in, so the menu does not
+     flicker. A method (how to do it) or a capability (what to use) chosen there goes with the next Send only, on the strip above the input. */
   let catalog = null, rows = { capabilities: [], methods: [] }, rowsIn = false;
   const readCatalog = () => catalog ||= Promise.all([api("/capabilities").then((res) => (res.capabilities || []).filter((row) => row.enabled), () => []),
-    api("/methods").then((res) => res.methods || [], () => [])]).then(([capabilities, methods]) => { rows = { capabilities, methods }; rowsIn = true; });
-  compose.addEventListener("focusin", () => void readCatalog());
-  compose.addEventListener("pointerenter", () => void readCatalog());
+    api("/methods").then((res) => res.methods || [], () => [])]).then(([capabilities, methods]) => { rows = { capabilities, methods }; rowsIn = true; })
+    .finally(() => { catalog = null; });
+  compose.addEventListener("focusin", (event) => { if (event.target.matches?.(".mw-composer__input") || !rowsIn) void readCatalog(); });
+  compose.addEventListener("pointerenter", () => { if (!rowsIn) void readCatalog(); });
   // A "/" typed before the list has arrived opens the menu once it has: the composer opens it only when there is something to list.
   compose.addEventListener("input", (event) => {
     if (rowsIn || event.data !== "/" || !event.target.matches?.(".mw-composer__input")) return;

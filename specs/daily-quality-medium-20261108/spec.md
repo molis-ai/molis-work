@@ -141,3 +141,9 @@ hover-actions 的静态缺陷集合现在严格为空；触屏 Shelf「复制」
 集成 main #2002（2ced02436），整体 build49 与 SDK API 核对通过、快照无变化。对 66 个 Goals normalized 页面仅移除 main 新恢复的回答芯片，并把英文 Send to: 换回 To: 后，全部前一版哈希及长度精确恢复；只更新 16 个整页记录（zh +94 / en +99），Goals 数据、其余 50 条及 view fixture 不变。
 
 main #2002 的原输入框端到端文件发现运行中 interrupt 也始终不可用：deliveryNow 的非回答分支写死 available=false。恢复该分支 available=true，空闲状态仍由公共 composerDeliveries 的 running 门禁拒绝 interrupt，回答/问卷仍给明确拒绝；不修改原端到端断言或主流程。main 新增空闲排队、回答芯片与 Send to 保留，相关整合文件在最终构建后重验。
+
+### 最终验收头 5af24f6fa 的结果
+
+[CI / Verify 42759859366](https://github.com/molis-ai/molis-work/actions/runs/42759859366) 全部适用作业成功；build50、health17、boundary50 与七文件整合定向全部通过。正式 assets9 对 main 2ced02436 的隔离完整构建核验 52 资源通过，工作台 +1213、frame +689，其余保持既有许可上限；secrets 扫描 22,961 新增行，仅九个既有精确合成值例外。
+
+[Full 42759849021](https://github.com/molis-ai/molis-work/actions/runs/42759849021) 已完成分片重新覆盖原失败场景；IM 原 wheel 断言在分片 30 通过（16.8s、1/1），hover 的触屏与严格空缺陷集合在分片 32 通过（114.1s、2/2）。新失败是 assistant-work-per-project：真实导航只等到了 shell，随后直接点击尚未异步恢复的 remembered receiver，null.click 两次失败。原文件本机与独立干净门禁基线均 2/2；保留全部跨项目工作、草稿与作用域断言，仅在该点击前等待当前 work_id 和对应 remove 按钮实际就绪，修正后本机 2/2，不加固定等待或放宽超时。最终通过情况继续维护在 PR tasklist，未全部成功不入队。

@@ -152,7 +152,6 @@ export const GAP_EN: Record<string, string> = {
   "搜索已载入的内容，或按名称切换工具": "Search loaded content, or jump to a tool by name",
   "从这里开始": "Start here",
   "这一天还没有事项": "No events on this day",
-  "选一件想做的事，或继续已有的工作。": "Start something new, or pick up where you left off.",
   "推进一个目标": "Move a goal forward",
   "明确要做成什么，接着往下走。": "Set the outcome, then take the next step.",
   "写一份文档": "Write a document",

@@ -37,9 +37,9 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
   const detailNode = $("[data-home-detail]");
   const detailHolder = $("[data-home-detail-holder]");
   const labels = {
-    todayEmpty: L("今天还没有事件走进来"),
-    empty: L("这一天没有事件"),
-    todaySum: (n) => L("今天接到 {n} 件事", { n }),
+    todayEmpty: L("今天暂无事项"),
+    empty: L("这一天没有事项"),
+    todaySum: (n) => L("今天有 {n} 件事", { n }),
     daySum: (n) => L("这一天有 {n} 件事", { n }),
     attentionLead: L("有事项需要处理。"),
     emptyLead: L("插件提供的新事项和待处理事项会出现在这里。"),
@@ -185,11 +185,9 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
         try { const list = JSON.parse(home.dataset.homeStarts || '[]'); return Array.isArray(list) ? list : []; }
         catch (error) { return []; }
       })();
-      // The ways to start are one row of small buttons; the sentence of each is its hint.
+      // The plugins' own hints stay on the buttons.
       const chip = (attrs, glyph, label, hint) => '<button type="button" class="home-start-action" ' + attrs + (hint ? ' title="' + esc(L(hint)) + '"' : '') + '>' + ico(glyph) + '<span>' + esc(L(label)) + '</span></button>';
-      paint('<div class="home-start"><p class="home-start__lead">' + (otherDay
-          ? '<b>' + L('这一天还没有事件') + '</b>' + L('已有工作仍在，可以从当前目标继续，或从这里开始一件新的事。')
-          : L('选一件想做的事，或继续已有的工作。')) + '</p><div class="home-start-actions">' +
+      paint('<div class="home-start"><div class="home-start-actions">' +
         (otherDay ? chip('data-home-today', 'back', '回到今天') : '') +
         starts.map(item => chip('data-home-start="' + esc(item.id) + '"', item.glyph, item.title, item.hint)).join('') +
         chip('data-home-start="market"', 'grid', '浏览更多工具') + '</div></div>');

@@ -30,3 +30,51 @@ test("VUX-39: every specimen on the component board fits its box at three widths
   }
   assert.deepEqual(found, [], "a specimen runs past its box");
 });
+
+test("BQN-01, BQN-02: the narrow question gives its title room and keeps its controls inside the card", { timeout: 120_000 }, async (t) => {
+  const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
+  const { evaluate, waitFor, command, sessionId, navigate, origin } = browser;
+  await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
+  await navigate(() => command("Page.navigate", { url: `${origin}/__ui/catalog?lang=zh#interaction` }, sessionId));
+  const card = 'document.querySelector("[data-ix-question=ix-q-open]")';
+  await waitFor(`document.readyState === 'complete' && ${card}`, 15_000);
+  await evaluate("document.fonts.ready.then(() => true)");
+  for (const width of [348, 390, 436, 1024]) {
+    await command("Emulation.setDeviceMetricsOverride", { width, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+    const view = await evaluate<{ spill: string[]; lines: number; titleFits: boolean; dates: [number, number][]; badgeBelow: boolean; collapse: number[]; operationBadgeBeside: boolean }>(`(() => {
+      const card = ${card}, box = card.getBoundingClientRect(), title = card.querySelector('h3'), head = title.parentElement;
+      const badge = card.querySelector('[data-ix-badge]').getBoundingClientRect(), close = card.querySelector('[data-ix-action=collapse]').getBoundingClientRect();
+      const range = document.createRange(); range.selectNodeContents(title);
+      const lines = [...range.getClientRects()], heading = head.getBoundingClientRect();
+      const spill = [...card.querySelectorAll('header, form, fieldset, .mw-ix-control, .mw-ix-target, input, textarea, button')].flatMap(node => {
+        const r = node.getBoundingClientRect();
+        return r.width && (r.left < box.left - 1 || r.right > box.right + 1) ? [node.getAttribute('class') || node.localName] : [];
+      });
+      const measure = document.createElement('canvas').getContext('2d');
+      const dates = [...card.querySelectorAll('.mw-ix-date__input')].map(input => {
+        const style = getComputedStyle(input);
+        measure.font = style.fontWeight + ' ' + style.fontSize + ' ' + style.fontFamily;
+        return [measure.measureText(input.value).width, input.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight)];
+      });
+      const operation = document.querySelector('[data-ix-operation=ix-op-ready]');
+      return { spill, lines: lines.length, titleFits: lines.every(line => line.left >= heading.left - 1 && line.right <= heading.right + 1), dates, badgeBelow: badge.top >= heading.bottom - 1,
+        collapse: [close.width, close.height],
+        operationBadgeBeside: operation.querySelector('[data-ix-badge]').getBoundingClientRect().top < operation.querySelector('h3').getBoundingClientRect().bottom };
+    })()`);
+    assert.deepEqual(view.spill, [], `${width}px: the question's own box holds its header, form and controls`);
+    assert.equal(view.lines, 1, `${width}px: the eight-character title stays on one line`);
+    assert.ok(view.titleFits, `${width}px: the whole title fits its own column`);
+    if (width <= 436) for (const [text, room] of view.dates) {
+      assert.ok(text <= room + 1, `${width}px: the ${text}px date fits its ${room}px input area`);
+    }
+    assert.equal(view.badgeBelow, width <= 436, `${width}px: the badge yields only in the narrow question`);
+    assert.equal(view.operationBadgeBeside, true, `${width}px: operation cards keep their heading layout`);
+    if (width < 600) assert.ok(view.collapse.every(side => side >= 44), `${width}px: collapse remains a 44px target`);
+  }
+  await command("Emulation.setDeviceMetricsOverride", { width: 348, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await evaluate(`${card}.querySelector('[role=radio]').focus()`);
+  for (const type of ["rawKeyDown", "keyUp"]) {
+    await command("Input.dispatchKeyEvent", { type, key: "Tab", code: "Tab", windowsVirtualKeyCode: 9, modifiers: 8 }, sessionId);
+  }
+  assert.equal(await evaluate("document.activeElement.getAttribute('aria-label')"), "收起问卷", "Shift+Tab reaches the existing named collapse control");
+});

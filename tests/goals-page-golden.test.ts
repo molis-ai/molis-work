@@ -129,6 +129,8 @@ const pages: Record<string, Draw> = {
 // All other records retained the accepted main records; no Goals markup, data or assertions changed.
 // D0013: the current kanban and momentum fragments add one cancelled column. Removing only that complete column restores
 // all 66 prior hashes and lengths (14 changed: zh +2955 / en +2968); no other markup, JSON or view fixture was changed.
+// Main #2002: removing only the restored answer chip and changing English Send to: back to To: reproduces
+// all 66 previous hashes and lengths. Only the 16 whole-page records changed (zh +94 / en +99); Goals data stayed exact.
 const RECORDED = new URL("golden.json", GOLDEN);
 interface Recorded { sha256: string; length: number }
 const recorded: Record<string, Recorded> = record ? {} : JSON.parse(readFileSync(RECORDED, "utf8"));

@@ -131,3 +131,13 @@ IM follow-copy 在独立干净门禁基线 dd27ea5ff 复现相同 60px wheel →
 Full 的 IM follow-copy 在分片 30 原样通过（14.3s，1/1）；本机同场景与干净基线的 Chrome wheel 限制仍留作边界证据。Full 中 goal-event-document 与 pages-clipboard 首次失败但内置重试通过，原断言与工作流未改，不记为持续产品缺陷。
 
 本地 build48 已覆盖最后的全部 src 改动；tests28/29/30/31 与单文件复验的证据见 PR。最新实际资源：工作台 1,031,405（对 main +1,249 ≤1,275）；plugin-frame 232,505（+689 ≤704）；Shelf 67,566（+2,247）、Coding 302,775（+2,241）、Files 13,850（+2,162）、Git 33,220（+2,165），全部在原批准最大增量内，没有新资源或扩大许可。最终补齐提交仍须重新通过正式资源比较、health/boundary/secrets、CI 与全部 Full 分片，再按用户授权直接入队；完整链接与最终结论维护在 PR tasklist，未成功前不标整批关闭。
+
+### 最终 main 整合复验（2026-11-10）
+
+完整客户端生命周期文件已 16/16，Pages 导入 6/6，浏览器启动/清理 1/1。共享浏览器夹具先保存真实窗口与页面的自然边框差，再按期望页面尺寸设置原生窗口，不使用固定补偿或改变产品布局；这修正了原生输入落在仿真视口内、真实窗口外的问题。Coding 固定结果断言前用公开 stopProjectJobs 停止夹具的其他后台生产任务，保持不可用后不再额外读取及原交互断言。
+
+hover-actions 的静态缺陷集合现在严格为空；触屏 Shelf「复制」在本机仿真仍失败，独立干净基线 dd27ea5ff 同一测试、同一位置复现。之前完整 Linux Full 的触屏断言通过，只有已经修复的静态缺陷例外过时导致文件失败；保持原触屏断言不变，最终云端必须再次通过。
+
+集成 main #2002（2ced02436），整体 build49 与 SDK API 核对通过、快照无变化。对 66 个 Goals normalized 页面仅移除 main 新恢复的回答芯片，并把英文 Send to: 换回 To: 后，全部前一版哈希及长度精确恢复；只更新 16 个整页记录（zh +94 / en +99），Goals 数据、其余 50 条及 view fixture 不变。
+
+main #2002 的原输入框端到端文件发现运行中 interrupt 也始终不可用：deliveryNow 的非回答分支写死 available=false。恢复该分支 available=true，空闲状态仍由公共 composerDeliveries 的 running 门禁拒绝 interrupt，回答/问卷仍给明确拒绝；不修改原端到端断言或主流程。main 新增空闲排队、回答芯片与 Send to 保留，相关整合文件在最终构建后重验。

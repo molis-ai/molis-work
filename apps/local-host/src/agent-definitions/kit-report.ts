@@ -12,6 +12,7 @@ import type { ProjectPluginHost } from "../project-plugin-ports.js";
 import { kitPluginSource, scopeInstallations } from "../scope-installations.js";
 import { PROMPT_USES_KEPT, type AgentDefinitions } from "./agent-definitions.js";
 import { BUILTIN_INLINE_AGENT_ROLES } from "./builtin-instructions.js";
+import { promptOverrideActions, promptOverrideHandlers } from "./prompt-overrides.js";
 import { builtinRegistrations, homeAgentDefinitions } from "./builtin-registrations.js";
 
 // Prompts and roles as AI kit entries (specs/capability-pack/contract-design.md §4.2, §4.8): each plugin installation's in its own pack,
@@ -94,8 +95,8 @@ export async function agentDefinitionsKitEntries(home: string, source: ProjectPl
   return { entries };
 }
 
-/** The register as an AI kit reporter, the person's own (`kit:read`). */
-export function agentDefinitionsKitProvider(home: string, source: ProjectPluginHost): ActionProviderRegistration {
-  return { provider: { provider_id: KIT_AGENT_DEFINITIONS_PROVIDER_ID, title: "提示词与角色", kind: "system" }, definitions: [agentDefinitionsKitReport],
-    handlers: [bindActionHandler(agentDefinitionsKitReport, (_input, caller) => agentDefinitionsKitEntries(home, source, caller))] };
+/** The register's actions for the person: its AI kit report (`kit:read`), and taking their prompt edits out and back (§4.9). */
+export function agentDefinitionsActionProvider(home: string, source: ProjectPluginHost): ActionProviderRegistration {
+  return { provider: { provider_id: KIT_AGENT_DEFINITIONS_PROVIDER_ID, title: "提示词与角色", kind: "system" }, definitions: [agentDefinitionsKitReport, ...Object.values(promptOverrideActions)],
+    handlers: [bindActionHandler(agentDefinitionsKitReport, (_input, caller) => agentDefinitionsKitEntries(home, source, caller)), ...promptOverrideHandlers(() => homeAgentDefinitions(home))] };
 }

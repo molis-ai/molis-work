@@ -2,12 +2,15 @@ import { skillImportActions } from "@molis-ai/molis-work-contracts/services/skil
 import { randomUUID } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { PluginPackageExport } from "@molis-ai/molis-work-contracts/services/kit";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { localWebActionContext } from "./local-web-actions.js";
-import { dispatchNativePluginJsonHttp } from "./native-plugin-http.js";
+import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
+import { dispatchNativePluginJsonHttp, writeNativePluginJsonResponse } from "./native-plugin-http.js";
 import { withPluginPermissionSettingsEntry } from "./plugin-consent-settings-entry.js";
 import { PLUGIN_INSTALL_PERMISSIONS, PLUGIN_INSTALL_PROVIDER_ID, pluginControlActions, pluginInstallActions } from "./plugin-install-actions.js";
+import { pluginPackageExport } from "./plugin-package-export.js";
 import { pluginPageRequest } from "./plugin-page-authority.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
 import { runningProjectPlatform } from "./project-plugins.js";
@@ -29,6 +32,17 @@ export async function handlePluginTrustHttp(request: IncomingMessage, response: 
   const controller = new AbortController(), cancel = () => controller.abort(new ActionError("actions.cancelled", "插件管理请求已经结束"));
   const disconnected = () => { if (!response.writableEnded) cancel(); };
   request.once("aborted", cancel); response.once("close", disconnected);
+  const exported = request.method === "GET" && /^\/api\/plugin-trust\/packages\/([^/]+)\/export$/u.exec(url.pathname);
+  // A content package's download (capability-pack §4.9): the same action and bytes as 「导出这个包」, as an attachment; the person's only.
+  if (exported) try {
+    if (pluginPageRequest(request)) throw new ActionError("actions.forbidden", "插件页面不能代本人导出插件包");
+    const person = await localWebActionContext(ports.localHost, ports.projectRef, PLUGIN_INSTALL_PERMISSIONS, controller.signal);
+    const file = await ports.localHost.actionClient(ports.projectRef).invoke(person, { capability_id: pluginPackageExport.capability_id, version: pluginPackageExport.version,
+      provider_id: PLUGIN_INSTALL_PROVIDER_ID }, { install_id: decodeURIComponent(exported[1]!) }) as PluginPackageExport;
+    response.writeHead(200, { "content-type": "application/json; charset=utf-8", "content-disposition": `attachment; filename="${file.filename.replace(/[^\w.@-]/gu, "_")}"`, "cache-control": "no-store" });
+    response.end(file.content);
+    return true;
+  } catch (error) { writeNativePluginJsonResponse(response, actionErrorResponse(error)); return true; } finally { request.off("aborted", cancel); response.off("close", disconnected); }
   try { return await dispatchNativePluginJsonHttp(request, response, url, { prefix: "/api/plugin-trust", maxBodyBytes: MAX_PACKAGE_BYTES,
     async handle({ method, pathname, body }) {
       const client = ports.localHost.actionClient(ports.projectRef);

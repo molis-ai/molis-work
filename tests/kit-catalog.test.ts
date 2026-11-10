@@ -1,35 +1,17 @@
 import assert from "node:assert/strict";
-import test, { type TestContext } from "node:test";
-import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import test from "node:test";
 import type { KitEntry } from "@molis-ai/molis-work-contracts/platform/kit-report";
-import { KIT_READ_PERMISSION, kitCatalogActions, type KitCatalog, type KitPack } from "@molis-ai/molis-work-contracts/services/kit";
-import { SKILLS_PERMISSIONS, skillCatalogActions, type SkillCatalogEntry } from "@molis-ai/molis-work-contracts/services/skills";
-import { PLUGIN_INSTALL_PERMISSIONS, molisWorkHostProjectReference, pluginControlActions, pluginInstallActions } from "@molis-ai/molis-work-app-local-host";
+import type { KitCatalog, KitPack } from "@molis-ai/molis-work-contracts/services/kit";
+import { skillCatalogActions, type SkillCatalogEntry } from "@molis-ai/molis-work-contracts/services/skills";
+import { pluginControlActions } from "@molis-ai/molis-work-app-local-host";
 import { AGENT_TOOLS } from "@molis-ai/molis-work-service-agent-host";
-import { codingProductHost } from "./fixtures/coding-product-host.js";
-import { cogniaModelResponse } from "./fixtures/cognia-model-response.js";
-import { CONTENT_PLUGIN_ID, signedContentPackage } from "./fixtures/content-package.js";
-import { newPublisher } from "./fixtures/sandbox-package.js";
+import { CONTENT_PLUGIN_ID } from "./fixtures/content-package.js";
+import { kitHost } from "./fixtures/kit-host.js";
 
 // The AI kit (specs/capability-pack/contract-design.md §4, §7): `kit.catalog.list@1` over a real Host, real owners and a real content
 // package; packs are gathered on every call from the owners' reports, nothing is stored.
 
 const CODING = "io.molis.work.coding";
-const action = (value: { capability_id: string; version: number }) => ({ capability_id: value.capability_id, version: value.version });
-
-async function kitHost(t: TestContext) {
-  const f = await codingProductHost(t, async () => cogniaModelResponse("好的。"));
-  const client = f.host.actionClient(molisWorkHostProjectReference({ databasePath: f.project.database_path, projectId: f.project.project_id }));
-  const person: ActionCallContext = { actor_id: "web-user", project_id: f.project.project_id, audience: "user",
-    user_action: { source: "management", conversation_ref: "kit", message_ref: "confirm" },
-    permissions: ["artifact:read", "artifact:write", "storage:private", ...PLUGIN_INSTALL_PERMISSIONS, ...SKILLS_PERMISSIONS, KIT_READ_PERMISSION] };
-  const install = async () => {
-    const preview = await client.invoke(person, action(pluginInstallActions.preview), { bundle: signedContentPackage(newPublisher()) }) as { preview_id: string };
-    await client.invoke(person, action(pluginInstallActions.confirm), { preview_id: preview.preview_id, consent: true, pin_label: "Example" });
-  };
-  const kit = (caller: ActionCallContext = person) => client.invoke(caller, action(kitCatalogActions.list), {}) as Promise<KitCatalog>;
-  return { f, client, person, install, kit };
-}
 
 const packOf = (kit: KitCatalog, pluginId: string) => kit.packs.find(pack => pack.source?.plugin_id === pluginId)!;
 const entry = (kit: KitCatalog, key: string) => kit.entries.find(row => row.key === key)!;
@@ -67,7 +49,7 @@ test("CPK-01 CPK-02 CPK-13: plugin packs, Molis Work's own and your characters; 
   assert.deepEqual(entriesOf(kit, coding, coding.tools).map(tool => tool.kind === "tool" ? tool.ref.tool : "").sort(), [...named].filter(name => AGENT_TOOLS.some(tool => tool.name === name)).sort());
   // The content package's pack: its Skill entries are the catalog's own, field by field (CPK-01), with the same ref and pack version (CPK-02).
   const content = packOf(kit, CONTENT_PLUGIN_ID);
-  const { skills } = await h.client.invoke(h.person, action(skillCatalogActions.list), {}) as { skills: SkillCatalogEntry[] };
+  const { skills } = await h.invoke<{ skills: SkillCatalogEntry[] }>(skillCatalogActions.list, {});
   const fromCatalog = skills.filter(skill => skill.pack.plugin_id === CONTENT_PLUGIN_ID);
   assert.deepEqual(entriesOf(kit, content, content.skills).map(row => row.kind === "skill" && row.skill), fromCatalog);
   assert.ok(entriesOf(kit, content, content.skills).every(row => row.source.kind === "plugin" && row.source.install_id === fromCatalog[0]!.ref.install_id && row.reporter.provider_id === "system.skills"));
@@ -79,9 +61,9 @@ test("CPK-03 CPK-14: a pack has no switch; its state is read from its plugin and
   const before = packOf(await h.kit(), CONTENT_PLUGIN_ID);
   assert.ok(["active", "attention"].includes(before.state.kind));
   assert.equal(Object.keys(before).some(key => /^(?:enabled|switch|on|active)$/u.test(key)), false, "no switch field on a pack");
-  await h.client.invoke(h.person, action(pluginControlActions.disable), { plugin_id: CONTENT_PLUGIN_ID });
+  await h.invoke(pluginControlActions.disable, { plugin_id: CONTENT_PLUGIN_ID });
   assert.deepEqual(packOf(await h.kit(), CONTENT_PLUGIN_ID).state, { kind: "disabled" });
-  await h.client.invoke(h.person, action(pluginControlActions.uninstall), { plugin_id: CONTENT_PLUGIN_ID, keep_data: true });
+  await h.invoke(pluginControlActions.uninstall, { plugin_id: CONTENT_PLUGIN_ID, keep_data: true });
   const gone = await h.kit(), header = packOf(gone, CONTENT_PLUGIN_ID);
   assert.deepEqual(header.state, { kind: "uninstalled" });
   assert.deepEqual([header.roles, header.skills, header.mcp, header.tools], [[], [], [], []], "only the header is left");

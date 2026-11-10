@@ -10,7 +10,7 @@ import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 // PG-002 and BL-700, S-94: the 插件 page's switches, with the page program the Host really sends (its HTML, inline scripts and the shared request
 // client) run in a real browser. The source-text checks in security-invariants-plugin-permissions-http.test.ts could not see a switch that did not
 // work at all (the project's list handed the row renderer its index as the send function); this clicks the switches and reads what the page sends.
-// Only the HTTP answers are stubbed: the Host's side of both doors is in that file and in security-invariants-plugin-permissions.test.ts.
+// Only the business HTTP answers are stubbed: the Host's side of both doors is in that file and in security-invariants-plugin-permissions.test.ts.
 
 const viewOf = (name: string, installId: string, permissions: Array<{ permission: string; required: boolean; granted: boolean; requested?: boolean }>) => ({
   install_id: installId, plugin_id: `io.molis.work.${name}`, name, version: "1.0.0", trust: "pinned", publisher_label: "example", publisher_signature: "ed25519:sha256:aa",
@@ -44,11 +44,23 @@ async function openPluginPage(t: TestContext, dual = false) {
   const model = { home: true };
   const state = new Map([[projectPlugin.install_id, projectPlugin], [homePlugin.install_id, homePlugin], [dualHome.install_id, dualHome]]);
   const seen: Seen[] = [];
-  const server = createServer((request, response) => {
+  const server = createServer(async (request, response) => {
+    const url = request.url ?? "";
+    if (request.method === "GET" && url.startsWith("/assets/")) {
+      try {
+        const asset = await host.request(url, { authorized: false });
+        const bytes = Buffer.from(await asset.arrayBuffer());
+        response.writeHead(asset.status, Object.fromEntries(asset.headers));
+        response.end(bytes);
+      } catch (error) {
+        response.destroy(error instanceof Error ? error : undefined);
+      }
+      return;
+    }
     const chunks: Buffer[] = [];
     request.on("data", chunk => chunks.push(Buffer.from(chunk)));
     request.on("end", () => {
-      const url = request.url ?? "", text = Buffer.concat(chunks).toString();
+      const text = Buffer.concat(chunks).toString();
       const json = (status: number, value: unknown) => { response.writeHead(status, { "content-type": "application/json" }); response.end(JSON.stringify(value)); };
       if (request.method === "GET" && url.startsWith(`${prefix}/settings/plugins`)) { response.writeHead(200, { "content-type": "text/html; charset=utf-8" }); response.end(html); return; }
       if (url === `${prefix}/api/plugin-trust/overview`) { json(200, { plugins: [projectPlugin, ...dual ? [dualProject] : []], publishers: [], home_managed_install_ids: dual ? [dualProject.install_id] : [] }); return; }

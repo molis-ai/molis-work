@@ -153,12 +153,12 @@ async function visit(browser, session, url, { signal, mayRedirect }) {
       if (previous && params.redirectResponse) {
         redirects.push({ ...previous, status: params.redirectResponse.status, wire: params.redirectResponse.encodedDataLength, finished: true });
       }
-      const { frameId, request, type } = params;
-      if (frameId && type === "Document") frameDocuments.set(frameId, request.url);
+      const { frameId, loaderId, requestId, request, type } = params;
+      if (frameId && type === "Document") frameDocuments.set(frameId, { url: request.url, loaderId, requestId });
       const accept = Object.entries(request.headers).find(([name]) => name.toLowerCase() === "accept")?.[1] ?? "";
       const requested_stream = String(accept).split(",").some(value => /^text\/event-stream(?:\s*;|\s*$)/i.test(value.trim()));
-      requests.set(params.requestId, { url: request.url, type, method: request.method, status: 0, wire: 0, body: 0,
-        frame_id: frameId, document: params.documentURL || frameDocuments.get(frameId), requested_stream, finished: false, after_load: loadFired });
+      requests.set(requestId, { url: request.url, type, method: request.method, status: 0, wire: 0, body: 0,
+        frame_id: frameId, document: params.documentURL || frameDocuments.get(frameId)?.url, requested_stream, finished: false, after_load: loadFired });
     })),
     browser.on("Network.responseReceived", own((params) => {
       touch();
@@ -184,17 +184,25 @@ async function visit(browser, session, url, { signal, mayRedirect }) {
       await delay(100, undefined, { signal });
     }
     if (pending().length) throw new Error(`${url}: browser sample has unfinished requests`);
-    const finalUrl = mayRedirect ? await session.evaluate("location.href") : url;
-    const document = [...requests.values()].find(entry => entry.type === "Document" && entry.url === finalUrl);
+    // History can change the visible address without fetching another document.
+    const main = frameDocuments.get(navigation.frameId);
+    const document = main && main.loaderId === navigation.loaderId ? requests.get(main.requestId) : undefined;
     if (!document || document.failed || document.status < 200 || document.status >= 300 && document.status !== 304) {
       throw new Error(`${url}: browser document did not load (HTTP ${document?.status ?? "missing"})`);
+    }
+    const { frameTree: { frame } } = await session.command("Page.getFrameTree");
+    if (frame.id !== navigation.frameId || frame.loaderId !== navigation.loaderId) {
+      throw new Error(`${url}: browser document changed before sampling finished`);
+    }
+    const origin = new URL(url).origin;
+    if (document.url !== url && (!mayRedirect || new URL(document.url).origin !== origin)) {
+      throw new Error(`${url}: unexpected browser document redirect`);
     }
     const timing = await session.evaluate(`(() => {
       const nav = performance.getEntriesByType("navigation")[0];
       const fcp = performance.getEntriesByType("paint").find((entry) => entry.name === "first-contentful-paint");
       return { dcl: Math.round(nav.domContentLoadedEventEnd), load: Math.round(nav.loadEventEnd), fcp: fcp ? Math.round(fcp.startTime) : null };
     })()`);
-    const origin = new URL(url).origin;
     const list = [...redirects, ...requests.values()].flatMap(entry => {
       const target = new URL(entry.url);
       if (target.protocol !== "http:" && target.protocol !== "https:") return [];

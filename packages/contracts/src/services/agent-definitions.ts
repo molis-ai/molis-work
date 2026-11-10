@@ -83,6 +83,8 @@ export interface AgentPromptRegistration {
   purpose: string;
   /** Which roles or features use it, as the person reads them. */
   used_by: string[];
+  /** An instruction's role (`InstructionPrompt.role_id`): one its owner declares, checked when the owner registers. Absent: the personal assistant's. */
+  role_id?: string;
   body: string;
 }
 

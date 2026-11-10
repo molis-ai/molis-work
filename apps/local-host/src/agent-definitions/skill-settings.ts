@@ -48,7 +48,8 @@ export interface SkillUse {
   at: string;
 }
 
-const USES_KEPT = 200;
+/** Uses kept per Skill: the AI kit says its counts are of this many recent rows. */
+export const USES_KEPT = 200;
 
 export class SkillSettingsStore {
   constructor(private readonly db: DatabaseSync, private readonly now: () => Date) {}
@@ -115,6 +116,12 @@ export class SkillSettingsStore {
       if (!result.has(key)) result.set(key, { ...row, ref, ...(run_ref ? { run_ref } : {}) });
     }
     return result;
+  }
+
+  /** How many uses each Skill has on record and the last one, by installation and Skill: one read for a whole list (the AI kit's usage). */
+  useCounts(): Map<string, { count: number; last_at: string }> {
+    const rows = this.db.prepare("SELECT install_id, skill_id, COUNT(*) AS count, MAX(at) AS last_at FROM skill_uses GROUP BY install_id, skill_id").all() as Array<{ install_id: string; skill_id: string; count: number; last_at: string }>;
+    return new Map(rows.map(row => [`${row.install_id}\0${row.skill_id}`, { count: Number(row.count), last_at: row.last_at }]));
   }
 
   /** The uses of one Skill of one installation, newest first; read after the installation is gone too. */

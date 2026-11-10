@@ -55,6 +55,7 @@ export interface AgentPromptRegistration {
     title: string;
     purpose: string;
     used_by: string[];
+    role_id?: string;
     body: string;
 }
 

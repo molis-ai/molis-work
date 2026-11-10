@@ -141,10 +141,16 @@ export const KIT_REPORT_INPUT_TYPE = /* @version type.molis.kit-report.input "mo
 export const KIT_REPORT_OUTPUT_TYPE = /* @version type.molis.kit-report.output "molis.kit-report.output.v{version}" */ "molis.kit-report.output.v1";
 /** Closed and empty: a reporter reports everything it owns in the call's scope; filtering by kind is the page's. */
 export type KitReportInput = Record<string, never>;
-/** A pack header a named system reporter gives for a plugin installation (§4.4); never from a plugin reporter. */
+/**
+ * A pack header the plugin install service gives for a plugin installation (§4.4), from its own install record: who it is (name,
+ * version, publisher, trust) and its state. Never from a plugin reporter.
+ */
 export interface KitReportedPack {
-  install_id: string;
+  source: Extract<KitSource, { kind: "plugin" }>;
+  description: string;
   status: "enabled" | "disabled" | "uninstalled";
+  /** Its signed content package is kept as installed, so 「导出这个包」 can carry it (`plugins.package.export@1`). */
+  exportable?: true;
   upgraded?: { from: string; to: string; at: string };
 }
 export interface KitReport { entries: KitReportedEntry[]; packs?: KitReportedPack[] }
@@ -234,7 +240,8 @@ export const KIT_REPORT_INPUT_SCHEMA: ActionSchema = inputSchemaFor<KitReportInp
  */
 export const KIT_REPORT_OUTPUT_SCHEMA: ActionSchema = object({
   entries: { type: "array", maxItems: KIT_LIMITS.entriesPerReporter, items: KIT_REPORTED_ENTRY_SCHEMA },
-  packs: { type: "array", maxItems: KIT_LIMITS.entriesPerReporter, items: object({ install_id: id, status: { enum: ["enabled", "disabled", "uninstalled"] }, upgraded }, ["install_id", "status"]) },
+  packs: { type: "array", maxItems: KIT_LIMITS.entriesPerReporter, items: object({ source: pluginSource, description: text(KIT_LIMITS.descriptionChars),
+    status: { enum: ["enabled", "disabled", "uninstalled"] }, exportable: { const: true }, upgraded }, ["source", "description", "status"]) },
 }, ["entries"]);
 
 /**
@@ -244,6 +251,6 @@ export const KIT_REPORT_OUTPUT_SCHEMA: ActionSchema = object({
 export function defineKitReportAction(capabilityId: string, version: number, title: string, permissions: string[],
   options: { scope?: "project" | "home"; audiences?: ActionAudience[] } = {}): ActionDefinition<KitReportInput, KitReport> {
   return { capability_id: capabilityId, version, operation: "query", action: { title, description: "列出本插件在这个范围里拥有的技能、提示词、角色、工具或 MCP 条目；只读，不连接服务器、不调用工具、不刷新凭据。",
-    kind: "query", scope: options.scope ?? "home", effect: "read", permissions, audiences: [...new Set<ActionAudience>(["user", ...options.audiences ?? []])], subject_kinds: [],
+    kind: "query", scope: options.scope ?? "home", effect: "read", scheduling: "concurrent", permissions, audiences: [...new Set<ActionAudience>(["user", ...options.audiences ?? []])], subject_kinds: [],
     input_type: KIT_REPORT_INPUT_TYPE, output_type: KIT_REPORT_OUTPUT_TYPE, input_schema: KIT_REPORT_INPUT_SCHEMA, output_schema: KIT_REPORT_OUTPUT_SCHEMA } };
 }

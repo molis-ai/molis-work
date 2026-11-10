@@ -1,52 +1,27 @@
 import { nativeSkill } from "../skill-portability.js";
 import { localPublisherKeyId } from "../plugin-builder/publisher-identity.js";
-import { isDeepStrictEqual } from "node:util";
-import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginPublisherPin } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import { skillErrors, type SkillAvailability } from "@molis-ai/molis-work-contracts/services/skills";
 import { HomeConsentLedger } from "../home-plugin-store.js";
-import { installedHomePlugins, installedPluginsInProject, type ProjectPluginHost } from "../project-plugin-ports.js";
-import { pluginInstallRecords } from "../plugin-install-records.js";
 import { SandboxPackageStore } from "../sandbox-package-store.js";
 import { homeAgentDefinitions } from "./builtin-registrations.js";
 import { skillCatalogProvider } from "./skill-catalog-actions.js";
-import type { InstalledPluginEntry } from "../plugin-installed-view.js";
+import { scopeInstallations } from "../scope-installations.js";
+import type { ProjectPluginHost } from "../project-plugin-ports.js";
+import { isDeepStrictEqual } from "node:util";
 import type { CatalogSkill } from "./skill-catalog.js";
-
-/** Installation identity, including its current state, is rechecked after any asynchronous permission check. */
-function currentInstallation(record: PluginInstanceRecord, current: () => PluginInstanceRecord | null): () => void {
-  const identity = (value: PluginInstanceRecord) => [value.install_id, value.installation_generation, value.plugin_id, value.version,
-    value.publisher_signature, value.manifest_digest, value.state];
-  const expected = identity(record);
-  return () => {
-    const now = current();
-    if (!now || !isDeepStrictEqual(identity(now), expected)) throw skillErrors.read_refused("技能所在的安装已变化，请重新选择", { reason: "not_current" });
-  };
-}
 
 /** The catalog reads existing owners once per call: installations, verified packages, declarations, and scoped settings. */
 export function skillCatalogProviderFor(home: string, source: ProjectPluginHost) {
   const definitions = homeAgentDefinitions(home), packages = new SandboxPackageStore(home), ledger = new HomeConsentLedger(home);
   const skills = async (caller: ActionCallContext): Promise<CatalogSkill[]> => {
-    const reference = caller.project_id ? source.host.projects().find(project => project.project_id === caller.project_id) : undefined;
-    if (caller.project_id && !reference) throw new ActionError("actions.scope_mismatch", "技能目录需要当前项目");
-    const homeRows = await installedHomePlugins(source.homePlugins());
-    const projectRows = reference ? await installedPluginsInProject(source, reference.project_id) : [];
-    const projectChecks = reference ? await source.host.withRuntime(reference, runtime => {
-      const records = pluginInstallRecords(runtime.store.db);
-      return new Map(projectRows.map(({ record }) => [record.install_id, currentInstallation(record, () => records.get(record.install_id))]));
-    }) : new Map<string, () => void>();
+    const { reference, installations } = await scopeInstallations(source, caller);
     const localKey = localPublisherKeyId(home);
     const pins = new Map(ledger.publishers().map(pin => [pin.key_id, pin]));
     const directory = await source.host.inspectActions(caller, reference);
-    // A project installation shadows the same identity's Home installation; two publishers remain distinct.
-    const installations = new Map<string, InstalledPluginEntry & { scope: "home" | "project" }>([
-      ...homeRows.map(row => [row.record.install_id, { ...row, scope: "home" as const }] as const),
-      ...projectRows.map(row => [row.record.install_id, { ...row, scope: "project" as const }] as const),
-    ]);
     const result: CatalogSkill[] = [];
-    for (const { record, manifest, scope, recoveryError } of installations.values()) {
+    for (const { record, manifest, scope, recoveryError, assertCurrent: assertInstallation } of installations) {
       if (!manifest?.methods?.length) continue;
       const pin = pins.get(record.publisher_signature);
       let availability: SkillAvailability = { available: true };
@@ -65,7 +40,6 @@ export function skillCatalogProviderFor(home: string, source: ProjectPluginHost)
             name: body.name, summary: body.purpose, tools: [], body: body.body }));
         } catch { availability = { available: false, reason: "resource_invalid" }; bodies = []; }
       }
-      const assertInstallation = scope === "home" ? currentInstallation(record, () => source.homePlugins()?.installation(record.install_id) ?? null) : projectChecks.get(record.install_id)!;
       for (const declaration of manifest.methods) {
         const body = bodies.find(value => value.skill_id === declaration.skill_id && value.version === declaration.version)?.body;
         let available = availability;

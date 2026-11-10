@@ -44,6 +44,7 @@ const catalogEntry: SkillCatalogEntry = {
   pack: { plugin_id: ref.source.plugin_id, title: "会议技能", version: "1.0.0", publisher_label: "示例", trust: "pinned", scope: "project" },
   state: "manual", settings_revision: 1, enabled: { at: "2026-11-09T00:00:00.000Z", by: "user:someone", scope: "project" }, availability: { available: true },
 };
+const PACK_SOURCE = { kind: "plugin", plugin_id: "io.molis.work.meeting-skills", title: "会议技能", version: "1.0.0", install_id: "inst-1", publisher_label: "示例", trust: "pinned" } as const;
 const common = { name: "会议纪要", description: "把一次会议整理成纪要", version: { label: "第 1 版" }, declares: { tools: [], permissions: [], connector_categories: [] },
   scope: "project", where: ["会议"], availability: { available: true }, usage: { kind: "none" }, export: "reference" } as const;
 const entries: KitReportedEntry[] = [
@@ -63,13 +64,14 @@ const entries: KitReportedEntry[] = [
     mcp: { granted_to: [{ client_id: "codex-1", title: "Codex", external_tool: "codex" }] }, source: { kind: "outbound", title: "Molis Work" }, pack: "system:builtin" },
 ];
 
-test("CPK-12: a reporter is one query found by its two types: the person's at least, read-only, waiting for no model", () => {
+test("CPK-12: a reporter is one query found by its two types: the person's at least, read-only, run beside the others", () => {
   const reporter = defineKitReportAction("notes.kit.report", 1, "笔记的能力包条目", ["notes:read"]);
   assert.deepEqual(inspectActionDeclarations([reporter], undefined), []);
   assert.equal(reporter.operation, "query");
   assert.deepEqual({ kind: reporter.action.kind, scope: reporter.action.scope, effect: reporter.action.effect, audiences: reporter.action.audiences,
     scheduling: reporter.action.scheduling, input_type: reporter.action.input_type, output_type: reporter.action.output_type },
-  { kind: "query", scope: "home", effect: "read", audiences: ["user"], scheduling: undefined, input_type: KIT_REPORT_INPUT_TYPE, output_type: KIT_REPORT_OUTPUT_TYPE });
+  // Concurrent so one slow reporter does not hold the others on the project's line (contract-design.md §10, 9-10).
+  { kind: "query", scope: "home", effect: "read", audiences: ["user"], scheduling: "concurrent", input_type: KIT_REPORT_INPUT_TYPE, output_type: KIT_REPORT_OUTPUT_TYPE });
   assert.deepEqual([KIT_REPORT_INPUT_TYPE, KIT_REPORT_OUTPUT_TYPE], ["molis.kit-report.input.v1", "molis.kit-report.output.v1"]);
   // An owner may open it to more audiences; the person stays one of them.
   assert.deepEqual(defineKitReportAction("notes.kit.report", 1, "x", [], { scope: "project", audiences: ["agent", "user"] }).action.audiences, ["user", "agent"]);
@@ -82,7 +84,7 @@ test("CPK-03 CPK-04 CPK-09: a report is checked against a closed schema, each ki
   let answer: unknown = { entries };
   const { service, calls } = serving([reporter], () => answer);
   assert.deepEqual(await service.invoke(person, reference(reporter), {}), { entries });
-  answer = { entries: [], packs: [{ install_id: "inst-1", status: "uninstalled", upgraded: { from: "1.0.0", to: "1.1.0", at: "2026-11-09" } }] };
+  answer = { entries: [], packs: [{ source: PACK_SOURCE, description: "", status: "uninstalled", upgraded: { from: "1.0.0", to: "1.1.0", at: "2026-11-09" } }] };
   await service.invoke(person, reference(reporter), {});
   // The input is closed and empty: a reporter reports all it owns in the call's scope, so no kind, no project and no actor come in.
   for (const input of [{ kind: "skill" }, { project_id: "other" }, { actor_id: "x" }]) {
@@ -114,7 +116,7 @@ test("CPK-03 CPK-04 CPK-09: a report is checked against a closed schema, each ki
   }
   answer = { entries: Array.from({ length: KIT_LIMITS.entriesPerReporter + 1 }, (_, n) => ({ ...prompt, entry_id: `p-${n}` })) };
   await assert.rejects(service.invoke(person, reference(reporter), {}), code("actions.output_invalid"), "accepted more entries than one reporter may give");
-  answer = { entries: [], packs: [{ install_id: "inst-1", status: "paused" }] };
+  answer = { entries: [], packs: [{ source: PACK_SOURCE, description: "", status: "paused" }] };
   await assert.rejects(service.invoke(person, reference(reporter), {}), code("actions.output_invalid"), "accepted a pack status nobody defined");
 });
 

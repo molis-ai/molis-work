@@ -468,10 +468,6 @@
     "reason": "页面展示能力的合同常量，由工作台在页面里提供，不经动作目录登记，所以快照里没有行。"
   },
   {
-    "entry": "action.kit.catalog.list",
-    "reason": "第 09 批 b09/contract 合同片只声明，提供方 system.kit 由同批 b09/kit 登记，所以动作快照里还没有行；登记之后这条例外不再需要，门禁会要求删掉。"
-  },
-  {
     "entry": "action.surfaces.compose",
     "reason": "C-3 合同片只声明，提供方 system.surfaces 由第 15 批 S-1 登记，所以动作快照里还没有行；登记之后这条例外不再需要，门禁会要求删掉。"
   },

@@ -383,13 +383,13 @@ for (const gate of ["guard", "inference"] as const) test(`Alchemist abort during
     } });
     await entered.promise;
     const definitions = agentDefinitionsFor(f.home, builtinRegistrations), key = `${ALCHEMIST_COPILOT.owner_id}/${ALCHEMIST_COPILOT.prompt_id}`;
-    const uses = definitions.uses(key);
+    const uses = definitions.uses.list(key);
     if (gate === "guard") assert.equal(uses.length, 0);
     controller.abort(new Error("用户停止了准备中的任务"));
     await assert.rejects(generated, /用户停止了准备中的任务/);
     release.resolve(); await new Promise<void>(resolve => setImmediate(resolve));
     assert.equal(calls, 0);
-    assert.deepEqual(definitions.uses(key), uses, "late authorization cannot record another prompt use");
+    assert.deepEqual(definitions.uses.list(key), uses, "late authorization cannot record another prompt use");
   } finally { release.resolve(); }
 });
 
@@ -404,7 +404,7 @@ test("Alchemist revoked during initial authorization records no instruction use 
   const rejected = assert.rejects(pending, /revoked while checking/);
   await entered.promise; release.resolve(); await rejected;
   assert.equal(calls, 0);
-  assert.deepEqual(agentDefinitionsFor(f.home, builtinRegistrations).uses(`${ALCHEMIST_COPILOT.owner_id}/${ALCHEMIST_COPILOT.prompt_id}`), []);
+  assert.deepEqual(agentDefinitionsFor(f.home, builtinRegistrations).uses.list(`${ALCHEMIST_COPILOT.owner_id}/${ALCHEMIST_COPILOT.prompt_id}`), []);
 });
 
 test("Alchemist abort while shared inference returns cannot publish its completed result", { timeout: 15_000 }, async t => {

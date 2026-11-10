@@ -26,6 +26,11 @@ export const servicesKitContract = {
 export const KIT_PROVIDER_ID = "system.kit";
 /** Listing the kit: the person's own. */
 export const KIT_READ_PERMISSION = "kit:read";
+/** The Host's own reporters of prompts and roles, of the Agent tools, of the Agent Host's MCP and of Molis Work's own MCP (§4.6). */
+export const KIT_AGENT_DEFINITIONS_PROVIDER_ID = "system.agent-definitions";
+export const KIT_AGENT_TOOLS_PROVIDER_ID = "system.agent-tools";
+export const KIT_AGENT_MCP_PROVIDER_ID = "system.agent-mcp";
+export const KIT_MCP_ACCESS_PROVIDER_ID = "system.mcp-access";
 
 /**
  * A pack's state, the first that holds (§4.4). There is no switch for a whole pack: the way to change it is to change what it holds or

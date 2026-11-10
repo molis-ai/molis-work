@@ -165,8 +165,12 @@ export type KitReportedEntry = (KitReportedCommon & {
 });
 
 export interface KitReportedPack {
-    install_id: string;
+    source: Extract<KitSource, {
+        kind: "plugin";
+    }>;
+    description: string;
     status: "enabled" | "disabled" | "uninstalled";
+    exportable?: true;
     upgraded?: {
         from: string;
         to: string;

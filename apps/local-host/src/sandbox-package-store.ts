@@ -113,6 +113,12 @@ export class SandboxPackageStore {
     return { pkg, bundle, directory };
   }
 
+  /** The kept bundle's text exactly as written, after the same checks as a load: what 「导出这个包」 hands out, never re-signed (capability-pack §4.9). */
+  keptText(pluginId: string, keyId: string, version: string): string {
+    const { directory } = this.read(pluginId, keyId, version);
+    return readFileSync(join(directory, BUNDLE_FILE), 'utf8');
+  }
+
   load(pluginId: string, keyId: string, version: string): InstalledRelease {
     const { pkg, directory } = this.read(pluginId, keyId, version);
     return packagedRelease(pkg, directory, statSync(join(directory, BUNDLE_FILE)).mtime.toISOString());

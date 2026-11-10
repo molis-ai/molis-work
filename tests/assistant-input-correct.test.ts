@@ -108,15 +108,15 @@ test("RAC-2639/2641/2642 S-105 signed supplements keep an 8000-unit body, reject
     const runRef = { session_id: started.work.session_id!, run_id: started.run_id! };
     const accepted = await adapter.read(runRef);
     assert.ok(accepted.turns.some(turn => turn.text?.includes(body)), "the accepted Runtime input contains all 8000 UTF16 units including its tail");
-    assert.equal(homeAgentDefinitions(h.home).uses(prompt.key).length, 1);
+    assert.equal(homeAgentDefinitions(h.home).uses.list(prompt.key).length, 1);
     await assert.rejects(service.send({ text: "超预算补充", request_id: "signed-running-overflow", work_id: started.work.work_id, materials: [material, { ...material, material_id: "second" }, { ...material, material_id: "third" }] }, {}), /输入预算/);
-    assert.equal(homeAgentDefinitions(h.home).uses(prompt.key).length, 1);
+    assert.equal(homeAgentDefinitions(h.home).uses.list(prompt.key).length, 1);
     pause = true;
     const pending = service.send({ text: "拒绝迟到补充", request_id: "signed-running-late", work_id: started.work.work_id, materials: [material] }, {});
     const refused = assert.rejects(pending, /来源已失效|没有登记|停用/);
     await Promise.race([enteredSend.promise, pending.then(() => assert.fail("handoff completed before send barrier"), error => { throw error; }), new Promise<never>((_resolve, reject) => { const timer = setTimeout(() => reject(new Error("send barrier not reached")), 10_000); timer.unref(); })]); await h.control("disable", { plugin_id: PACKAGE_PLUGIN_ID }); releaseSend.resolve(); await refused;
     assert.ok(!(await adapter.read(runRef)).turns.some(turn => turn.text?.includes("拒绝迟到补充")));
-    assert.equal(homeAgentDefinitions(h.home).uses(prompt.key).length, 1, "only the earlier accepted handoff is kept");
+    assert.equal(homeAgentDefinitions(h.home).uses.list(prompt.key).length, 1, "only the earlier accepted handoff is kept");
     releaseModel.resolve();
     // The failed new send keeps its draft/hold; the already accepted Runtime round still finishes after source withdrawal.
     await until(async () => (await adapter.read(runRef)).phase === "completed", "accepted Runtime round after source withdrawal");

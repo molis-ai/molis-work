@@ -1,6 +1,8 @@
 import { homeAgentDefinitions } from "./agent-definitions/builtin-registrations.js";
 import { homedir } from "node:os";
-import type { ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionHandler, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
+import { pluginKitHeaders, pluginsKitReport } from "./kit-actions.js";
+import { pluginPackageExport, pluginPackageExportHandler } from "./plugin-package-export.js";
 import { homeIntegrationRegistry } from "./builtin-integrations.js";
 import { HomeConsentLedger } from "./home-plugin-store.js";
 import { controlHomePackage, controlPackageInProject, installPackageInHome, installedHomePlugins, installedPluginsInProject, installPackageInProject, regrantHomePlugin, regrantPluginInProject, type ProjectPluginHost } from "./project-plugin-ports.js";
@@ -35,8 +37,10 @@ export function skillImportFor(home: string, source: ProjectPluginHost, install:
 
 /** The install provider over the Home: its ledger, its kept packages, and the project the plugin is installed in. */
 export function pluginInstallProviderFor(home: string, source: ProjectPluginHost): ActionProviderRegistration {
-  const service = pluginInstallServiceFor(home, source);
-  return pluginInstallProvider(service, skillImportFor(home, source, service));
+  const service = pluginInstallServiceFor(home, source), provider = pluginInstallProvider(service, skillImportFor(home, source, service));
+  // The AI kit's pack headers and a content package's export come from the install records and packages this provider owns (§4.6, §4.9).
+  return { ...provider, definitions: [...provider.definitions, pluginsKitReport, pluginPackageExport],
+    handlers: [...provider.handlers, bindActionHandler(pluginsKitReport, (_input, caller) => pluginKitHeaders(home, source, caller)), pluginPackageExportHandler(home, source)] };
 }
 
 function pluginInstallServiceFor(home: string, source: ProjectPluginHost): PluginInstallService {

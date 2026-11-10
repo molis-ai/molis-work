@@ -66,7 +66,7 @@ test("installing registers a generated plugin's prompts; the person's edit runs,
     registry.save("io.molis.work.generated.b1/summary", "只输出两条要点。", null, "person");
     assert.deepEqual(resolvePluginPrompt(home, v1.pluginId, "summary", installed), { body: "只输出两条要点。", version: "summary@1+user.1" });
     assert.deepEqual(resolvePluginPrompt(home, v1.pluginId, "summary", preview), { body: "BUILD", version: "summary@build" }, "authoring must test its new text even while an edited older release is installed");
-    assert.equal(registry.uses("io.molis.work.generated.b1/summary")[0]?.caller, "plugin:io.molis.work.generated.b1");
+    assert.equal(registry.uses.list("io.molis.work.generated.b1/summary")[0]?.caller, "plugin:io.molis.work.generated.b1");
 
     // Uninstalled: nothing registered, the trial runs the build's declaration; the edit is kept for a reinstall.
     unregisterGeneratedPrompts(home, v1.pluginId);

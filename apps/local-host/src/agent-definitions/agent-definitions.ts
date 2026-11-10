@@ -8,7 +8,7 @@ import { promptLayerOf } from "@molis-ai/molis-work-contracts/platform/plugin-ag
 import type { InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { hostLog } from "../host-log.js";
 import {
-  AGENT_PROMPT_MAX_CHARS,
+  AGENT_PROMPT_MAX_CHARS, agentDefinitionErrors,
   type AgentDefinitionRegistration, type AgentDefinitionSource, type AgentPromptRegistration, type AgentPromptRevision, type AgentPromptUse,
   type AgentPromptView, type AgentRoleRegistration, type AgentRoleView, type AgentDefinitionsDiagnostics, type AgentUnregisteredCall,
   type AgentSkillRegistration, type AgentSkillView, type SignedAgentReference, type SignedAgentMaterial,
@@ -18,7 +18,8 @@ import {
 type DatabaseSync = ReturnType<typeof openHomeSqliteDatabase>;
 
 const AGENT_DEFINITIONS_STORE = "agent-definitions";
-const USES_KEPT = 200;
+/** Uses kept per prompt: the AI kit says its counts are of this many recent rows. */
+export const PROMPT_USES_KEPT = 200;
 
 /**
  * The agent definitions store's one current schema (repository-anti-corruption §4.1), with the Skill settings and uses (specs/skill-packs/
@@ -73,10 +74,13 @@ export class AgentDefinitions {
   private readonly scopes = new Map<string, Map<string, AgentDefinitionRegistration>>();
   /** Each Skill's state in each scope and its uses: the catalog's two tables, in this store. */
   readonly skills: SkillSettingsStore;
+  /** Each prompt's recent uses, kept per key. */
+  readonly uses: PromptUses;
 
   constructor(private readonly db: DatabaseSync, private readonly now = () => new Date()) {
     applySqliteBaseline(db, AGENT_DEFINITIONS_STORE, AGENT_DEFINITIONS_BASELINE);
     this.skills = new SkillSettingsStore(db, now);
+    this.uses = new PromptUses(db);
   }
 
   /** Renew one declaration. Installed plugins supply a Host-owned scope so another installation cannot withdraw it. */
@@ -154,7 +158,7 @@ export class AgentDefinitions {
   private view(owner: AgentDefinitionRegistration, prompt: AgentPromptRegistration): AgentPromptView {
     const key = keyOf(owner.owner_id, prompt.prompt_id);
     const edited = this.override(key);
-    const used = this.db.prepare("SELECT * FROM prompt_uses WHERE key = ? ORDER BY at DESC LIMIT 1").get(key) as (Omit<AgentPromptUse, "source_ref"> & { source_ref: string | null }) | undefined;
+    const [used] = this.uses.list(key, 1);
     return {
       key, owner_id: owner.owner_id, source: structuredClone(owner.source), prompt_id: prompt.prompt_id, kind: prompt.kind,
       ...(prompt.layer ? { layer: prompt.layer } : {}), title: prompt.title, purpose: prompt.purpose, used_by: [...prompt.used_by],
@@ -163,7 +167,7 @@ export class AgentDefinitions {
       effective: edited ? "user" : "default", body: edited ? edited.body : prompt.body,
       ...(edited ? { user: { revision: edited.revision, base_version: edited.base_version, ...(edited.default_ref ? { default_ref: storedRef(edited.default_ref) } : {}), updated_at: edited.updated_at } } : {}),
       default_updated: Boolean(edited && (prompt.default_ref ? !sameRef(prompt.default_ref, storedRef(edited.default_ref)) : prompt.version > edited.base_version)),
-      ...(used ? { last_used: { ...(used.source_ref ? { source_ref: storedRef(used.source_ref) } : {}), at: used.at, version: used.version, user_revision: used.user_revision, caller: used.caller } } : {}),
+      ...(used ? { last_used: { ...(used.source_ref ? { source_ref: used.source_ref } : {}), at: used.at, version: used.version, user_revision: used.user_revision, caller: used.caller } } : {}),
     };
   }
 
@@ -209,7 +213,7 @@ export class AgentDefinitions {
   /** Called only after an accepted handoff; a later withdrawal does not erase the accepted historical fact. */
   recordSignedUse(material: SignedAgentMaterial, caller: string): void {
     const ref = material.default_ref;
-    this.recordUse({ key: keyOf(ref.source.plugin_id, `prompt-${ref.entry_id.slice("role-".length)}`), source_ref: ref,
+    this.uses.record({ key: keyOf(ref.source.plugin_id, `prompt-${ref.entry_id.slice("role-".length)}`), source_ref: ref,
       version: /* @version format.sandbox.agent-prompt */ 1, user_revision: material.user_revision, caller, at: this.now().toISOString() });
   }
 
@@ -265,7 +269,7 @@ export class AgentDefinitions {
     const owned = this.owners.get(ownerId)?.prompts.find(item => item.prompt_id === prompt.prompt_id);
     if (!owned) return prompt;
     const edited = this.override(key);
-    this.recordUse({ key, version: prompt.version, user_revision: edited?.revision ?? null, caller: `agent:${ownerId}`, at: this.now().toISOString() });
+    this.uses.record({ key, version: prompt.version, user_revision: edited?.revision ?? null, caller: `agent:${ownerId}`, at: this.now().toISOString() });
     return edited ? { ...prompt, body: edited.body, user_revision: edited.revision } : prompt;
   }
 
@@ -279,7 +283,7 @@ export class AgentDefinitions {
   instructionForDeclaration(ownerId: string, prompt: AgentPromptRegistration, caller: string): { body: string; version: number; user_revision: number | null } {
     if (prompt.kind !== "instruction") throw agentDefinitionsErrors.invalid("这段 Prompt 不是模型调用的指令");
     const key = keyOf(ownerId, prompt.prompt_id), edited = this.override(key);
-    this.recordUse({ key, version: prompt.version, user_revision: edited?.revision ?? null, caller, at: this.now().toISOString() });
+    this.uses.record({ key, version: prompt.version, user_revision: edited?.revision ?? null, caller, at: this.now().toISOString() });
     return { body: edited ? edited.body : prompt.body, version: prompt.version, user_revision: edited?.revision ?? null };
   }
 
@@ -302,17 +306,6 @@ export class AgentDefinitions {
     return { owners, unregistered: unregistered.map(item => ({ ...item })) };
   }
 
-  uses(key: string, limit = 20): AgentPromptUse[] {
-    return (this.db.prepare("SELECT * FROM prompt_uses WHERE key = ? ORDER BY at DESC LIMIT ?").all(key, limit) as unknown as Array<Omit<AgentPromptUse, "source_ref"> & { source_ref: string | null }>).map(({ source_ref, ...row }) => ({ ...row, ...(source_ref ? { source_ref: storedRef(source_ref) } : {}) }));
-  }
-
-  private recordUse(use: AgentPromptUse): void {
-    try {
-      this.db.prepare("INSERT INTO prompt_uses(key,at,version,user_revision,caller,source_ref) VALUES (?,?,?,?,?,?)").run(use.key, use.at, use.version, use.user_revision, use.caller, use.source_ref ? JSON.stringify(use.source_ref) : null);
-      this.db.prepare("DELETE FROM prompt_uses WHERE key = ? AND rowid NOT IN (SELECT rowid FROM prompt_uses WHERE key = ? ORDER BY at DESC LIMIT ?)").run(use.key, use.key, USES_KEPT);
-    } catch (error) { const [owner, prompt] = use.key.split("/"); hostLog.warn("agents", "prompt_use_unrecorded", error, { owner, prompt }); } // A use that fails to record never stops the call; written as owner and prompt, since a key has no `/`.
-  }
-
   private nextRevision(key: string): number {
     return Number((this.db.prepare("SELECT COALESCE(MAX(revision), 0) + 1 AS next FROM prompt_history WHERE key = ?").get(key) as { next: number }).next);
   }
@@ -321,6 +314,28 @@ export class AgentDefinitions {
     if (this.db.isTransaction) { run(); return; }
     this.db.exec("BEGIN IMMEDIATE");
     try { run(); this.db.exec("COMMIT"); } catch (error) { this.db.exec("ROLLBACK"); throw error; }
+  }
+}
+
+/** Each prompt's uses, the newest `PROMPT_USES_KEPT` per key: what the 「提示词」 page shows and the AI kit counts. A use that fails to record never stops the call. */
+export class PromptUses {
+  constructor(private readonly db: DatabaseSync) {}
+
+  record(use: AgentPromptUse): void {
+    try {
+      this.db.prepare("INSERT INTO prompt_uses(key,at,version,user_revision,caller,source_ref) VALUES (?,?,?,?,?,?)").run(use.key, use.at, use.version, use.user_revision, use.caller, use.source_ref ? JSON.stringify(use.source_ref) : null);
+      this.db.prepare("DELETE FROM prompt_uses WHERE key = ? AND rowid NOT IN (SELECT rowid FROM prompt_uses WHERE key = ? ORDER BY at DESC LIMIT ?)").run(use.key, use.key, PROMPT_USES_KEPT);
+    } catch (error) { const [owner, prompt] = use.key.split("/"); hostLog.warn("agents", "prompt_use_unrecorded", error, { owner, prompt }); } // Written as owner and prompt, since a key has no `/`.
+  }
+
+  list(key: string, limit = 20): AgentPromptUse[] {
+    return (this.db.prepare("SELECT * FROM prompt_uses WHERE key = ? ORDER BY at DESC LIMIT ?").all(key, limit) as unknown as Array<Omit<AgentPromptUse, "source_ref"> & { source_ref: string | null }>).map(({ source_ref, ...row }) => ({ ...row, ...(source_ref ? { source_ref: storedRef(source_ref) } : {}) }));
+  }
+
+  /** How many uses each prompt has on record and the last one, by key: one read for a whole list. */
+  counts(): Map<string, { count: number; last_at: string }> {
+    const rows = this.db.prepare("SELECT key, COUNT(*) AS count, MAX(at) AS last_at FROM prompt_uses GROUP BY key").all() as Array<{ key: string; count: number; last_at: string }>;
+    return new Map(rows.map(row => [row.key, { count: Number(row.count), last_at: row.last_at }]));
   }
 }
 
@@ -419,11 +434,27 @@ export function withInstructions(registrations: readonly AgentDefinitionRegistra
   const merged = new Map(registrations.map(registration => [registration.owner_id, structuredClone(registration)]));
   for (const instruction of instructions) {
     const owner = merged.get(instruction.owner_id) ?? { owner_id: instruction.owner_id, source: sourceOf(instruction.owner_id), prompts: [], roles: [] };
-    owner.prompts.push({ prompt_id: instruction.prompt_id, version: instruction.version, kind: "instruction", title: instruction.title, purpose: instruction.purpose,
-      used_by: [...instruction.used_by], body: instruction.body });
+    owner.prompts.push(instructionRegistration(instruction));
     merged.set(instruction.owner_id, owner);
   }
   return [...merged.values()];
+}
+
+/** One instruction as its owner registers it, with the role it works for when it names one. */
+export function instructionRegistration(instruction: InstructionPrompt): AgentPromptRegistration {
+  return { prompt_id: instruction.prompt_id, version: instruction.version, kind: "instruction", title: instruction.title, purpose: instruction.purpose,
+    used_by: [...instruction.used_by], ...(instruction.role_id ? { role_id: instruction.role_id } : {}), body: instruction.body };
+}
+
+/**
+ * An instruction's `role_id` must be a role the same owner declares (specs/capability-pack/contract-design.md §4.2): otherwise the owner's
+ * whole registration is refused, wherever it registers — a plugin's (`pluginAgentRegistration`) or the Host's own (`builtinRegistrations`).
+ */
+export function assertInstructionRoles(registration: AgentDefinitionRegistration): void {
+  const roles = new Set(registration.roles.map(role => role.role_id));
+  const stray = registration.prompts.find(prompt => prompt.role_id !== undefined && !roles.has(prompt.role_id));
+  if (stray) throw agentDefinitionErrors.instruction_role_unknown(`指令 ${stray.prompt_id} 说它为角色 ${stray.role_id} 做事，但 ${registration.owner_id} 没有声明这个角色`,
+    { owner_id: registration.owner_id, prompt_id: stray.prompt_id, role_id: stray.role_id! });
 }
 
 /** This store in the Home's store registry (W4-11). */

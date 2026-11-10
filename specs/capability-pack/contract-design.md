@@ -769,7 +769,7 @@ export interface PluginPackageExport {
   - 本机做的、本机导入的，本来就是这个 Home 的发布身份签的（`home_local`）；
   - 第三方的带原签名（`pinned`）；
   - 所以「第三方不被换成本机签名」由「从不重签」保证（CPK-06）。
-- **下载路由**：`GET /api/plugins/packages/:install_id/export`。
+- **下载路由**：`GET /projects/<id>/api/plugin-trust/packages/<install_id>/export`（插件管理已有的本人入口，见第 10 节）。
   - 宿主受保护入口，只认本人，拒插件页面（`pluginPageRequest`）。
   - 调同一个动作，加 `Content-Disposition: attachment`。
   - 「导出这个包」只要内容包时用路由下载，要放进能力包文件时调动作。动作是授权所在，两条路同一份字节。
@@ -1098,6 +1098,13 @@ CPK-13、CPK-14 是第 3 稿新加的，同一提交写进能力包需求 §11�
 | 第八节第 5 条：`methods:<会话>` 等用户定，推荐「不认不迁、提示重选」 | 一次清掉：旧路、旧存储、旧形状全删，不认、不迁、不兜底、不提示 | 用户 2026-11-09 定：现在没有用户（第 2.7 节） |
 | 能力包是「五类按类汇总的一张目录」 | 「包 → 条目」：<ul><li>插件就是包，另有自带包与「你的角色」；</li><li>角色带提示词；</li><li>包的状态从内容读出。</li></ul> | 用户 2026-11-09 更正模型、选定样 A（第 4.1～4.4 节） |
 | 导出按类各出一份文件（第 1、2 稿的引用文件） | 「导出这个包」出一种文件，几部分各回主人的路；按类的引用文件去掉 | 以包为单位导出（设计台缺口第 4 条） |
+| 下载路由 `GET /api/plugins/packages/:install_id/export` | `GET /projects/<id>/api/plugin-trust/packages/<install_id>/export` | 插件管理已有本人入口 `/api/plugin-trust/`（宿主受保护、拒插件页面），不另开第二个门；同一个动作、同一份字节（9-10） |
+| MCP 工具登记成动作的，「读动作调用记录，`recent`」 | MCP 工具的用量是 `not_counted` | 调用记录是诊断日志，全 Home 共一个上限（留最近 1000 条命令），既不是每键行数也不是天数，读出来的计数会误导；真正的用量要等两条 MCP 动作流水线合并（BL，9-12）后由动作主人记（9-10） |
+| 连接 MCP 的 `configuration_version` | 取连接最近一次修改的时间（秒） | 连接没有自己的配置版本号；修改时间单调、读得到，不另造计数（9-10） |
+| 对外 MCP 一条（开给谁在 `granted_to`） | 每个开着授权的客户端一条，`ref` 是那个客户端 | `KitMcpRef` 的 `outbound` 一部分本来就带 `client_id`；一条一个客户端，「去处」直接到它的授权页（9-10） |
+| 项目 MCP 的资源也上报 | 只报服务器与工具，资源不单列 | 资源名常是带路径或地址的 URI，与「不带端点与路径」相冲；条目里不放（9-10） |
+| 上报者没有时限 | 每个上报者限 5 秒（`KIT_REPORT_TIMEOUT_MS`），上报动作与 `kit.catalog.list@1` 都声明 `scheduling: "concurrent"` | 不声明并行的动作在项目线上一个接一个跑，一个慢的上报者会挡住其他上报者；第 4.11 节第 13 条要求超时只影响它自己的包（9-10） |
+| `AgentDefinitions` 加 `useCounts()` | 提示词用量另成 `PromptUses`（`record`／`list`／`counts`），`AgentDefinitions.uses` 指向它 | 巨大单元只许变小：把用量这一件事拆出去，类不再是巨大单元，登记的例外删掉（9-10） |
 
 ## 11. 待决
 

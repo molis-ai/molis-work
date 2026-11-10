@@ -19,7 +19,7 @@ export async function handleAgentDefinitionsHttp(request: IncomingMessage, respo
       if (method === "GET" && path === "/prompts") return { status: 200, body: { prompts: definitions.prompts() } };
       if (method === "GET" && path === "/roles") return { status: 200, body: { roles: definitions.roles() } };
       if (method === "GET" && path === "/diagnostics") return { status: 200, body: definitions.diagnostics(UNREGISTERED_MODEL_CALLS) };
-      if (method === "GET" && path === "/prompt") return { status: 200, body: { prompt: definitions.prompt(key), history: definitions.history(key), uses: definitions.uses(key) } };
+      if (method === "GET" && path === "/prompt") return { status: 200, body: { prompt: definitions.prompt(key), history: definitions.history(key), uses: definitions.uses.list(key) } };
       const expected = body.expected_revision === null || body.expected_revision === undefined ? null : Number(body.expected_revision);
       if (method === "POST" && path === "/prompt") return { status: 200, body: { prompt: definitions.save(key, String(body.body ?? ""), expected, WEB_ACTOR) } };
       if (method === "POST" && path === "/prompt/reset") return { status: 200, body: { prompt: definitions.reset(key, expected, WEB_ACTOR) } };

@@ -2,7 +2,7 @@ import { PLATFORM_PLUGIN_REGISTRATIONS } from "../plugin-registry.js";
 import type { AgentDefinitionRegistration, AgentDefinitionSource } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import { ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
 import { ASSISTANT_AGENT, ASSISTANT_PROMPTS } from "../assistant/assistant-agent.js";
-import { agentRegistration, withInstructions, type BuiltinAgent } from "./agent-definitions.js";
+import { agentRegistration, assertInstructionRoles, withInstructions, type BuiltinAgent } from "./agent-definitions.js";
 import { BUILTIN_INLINE_AGENT_PROMPTS, BUILTIN_INLINE_AGENT_ROLES, BUILTIN_INSTRUCTIONS, SYSTEM_INSTRUCTION_SOURCES } from "./builtin-instructions.js";
 
 /**
@@ -30,5 +30,6 @@ export function builtinRegistrations(): AgentDefinitionRegistration[] {
     else registrations.push({ owner_id: inline.owner_id, source: sourceOf(inline.owner_id), prompts: [structuredClone(inline.prompt)], roles: [] });
   }
   for (const inline of BUILTIN_INLINE_AGENT_ROLES) registrations.find(row => row.owner_id === inline.owner_id)?.roles.push(structuredClone(inline.role));
+  registrations.forEach(assertInstructionRoles);
   return registrations;
 }

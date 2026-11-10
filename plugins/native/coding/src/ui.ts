@@ -12,7 +12,7 @@ import type {
 import { icon, renderButton, renderDirectoryHeading, renderDirectoryPanel, renderSidebar } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { AgentRunUsage } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { CodingIdentityView } from "./identity.js";
-import { codingAgentManifest } from "./roles.js";
+import { CODING_ROLE_IDS, codingAgentManifest } from "./roles.js";
 import {
   filterSessions,
   groupByGoal,
@@ -468,11 +468,15 @@ export const codingSettingsDescriptor: UiContributionDeclaration = {
  */
 export function renderCodingSettings(model: CodingSettingsModel): string {
   const { primitives: p } = model;
-  const roles = model.roles.map((role) => `<div class="settings-setting-row"><div class="setting-copy"><strong>${p.escape(uiText.text(role.name))}</strong><span>${p.escape(role.role_id === "writers" ? uiText.text("coding.settings.role.writers") : role.role_id === "coordinator" ? uiText.text("coding.settings.role.coordinator") : executionLabel(role.execution, p))}</span></div></div>`).join("");
+  const roles = model.roles.map((role) => {
+    const id = CODING_ROLE_IDS.find(id => id === role.role_id);
+    const name = id ? uiText.text(`coding.role.${id}`) : role.name;
+    return `<div class="settings-setting-row"><div class="setting-copy"><strong>${p.escape(name)}</strong><span>${p.escape(role.role_id === "writers" ? uiText.text("coding.settings.role.writers") : role.role_id === "coordinator" ? uiText.text("coding.settings.role.coordinator") : executionLabel(role.execution, p))}</span></div></div>`;
+  }).join("");
   const runtimes = model.runtimes.length === 0
     ? `<p class="model-field-hint">${p.escape(uiText.text("coding.settings.no-runtimes"))}</p>`
     : model.runtimes.map((runtime) => `<div class="settings-setting-row"><div class="setting-copy"><strong>${p.escape(runtime.display_name)}</strong><span>${p.escape(runtime.can_write ? runtime.can_command ? uiText.text("coding.settings.runtime.write-command") : uiText.text("coding.settings.runtime.write") : uiText.text("coding.settings.runtime.read-only"))}</span><span>${p.escape(runtime.methods === "partial" ? uiText.text("coding.settings.runtime.methods-partial") : runtime.methods === "supported" ? uiText.text("coding.settings.runtime.methods-supported") : uiText.text("coding.settings.runtime.methods-none"))}</span></div></div>`).join("");
-  const methods = (model.methods ?? []).map(method => `<div class="settings-setting-row"><div class="setting-copy"><strong>${p.escape(p.text(method.name))} · v${method.version}</strong><span>${p.escape(method.summary ? p.text(method.summary) : "")}</span></div></div>`).join("");
+  const methods = (model.methods ?? []).map(method => `<div class="settings-setting-row"><div class="setting-copy"><strong>${p.escape(method.name)} · v${method.version}</strong><span>${p.escape(method.summary ?? "")}</span></div></div>`).join("");
   return `<section class="settings-document coding-settings" data-coding-settings>
     <style>${CODING_SETTINGS_STYLES}</style>
     <header class="settings-heading"><div class="settings-heading-title"><h1>${p.escape("Coding")}</h1></div>

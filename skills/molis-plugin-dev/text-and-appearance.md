@@ -29,6 +29,7 @@
 - 每种语言一个文件 `locales/<语言>.json`，路径由约定得出，不写；`molis-work-plugin pack` 自动带上；用 npm 或 pnpm 发布项目时，把 `locales` 放进 `package.json` 的 `files`。
 - 语言标记写 `zh`、`en`、`zh-Hant`、`pt-BR` 这样的；`default` 在 `available` 里，不重复，最多 32 种；`ui.locales` 只有这两个键。
 - 不接受旧的 `ui.messages` 或 `ui.translations`，两者单独出现也不接受。
+- Home 库的项目清理说明（`databases.home.project_rows.label`）也可引用本插件的键。默认语言必须有这句；它是非空单行、最多 200 字符，无参数与复数。要保留原文时写字符串或 `{ literal }`。
 - `plugin_id` 的最后一段就是键的第一段（上例是 `greeting`），所以它要以小写字母或数字开头、只含小写字母、数字和连字符，不是 `common`（[elements.md](elements.md#身份)）。也别用 `workbench`：平台自己的词用这个名字，开发路径会报 `ui.text_owner_conflict`。
 
 **2. 每种语言一个文件。** `locales/en.json`：

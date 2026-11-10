@@ -23,7 +23,7 @@ function artifactRow(page: Page, item: ArtifactRow): HTMLElement {
   const icon = el("span", "", "mw-dir-row__icon");
   icon.innerHTML = '<svg aria-hidden="true"><use href="#icon-' + (item.kind === "changeset" ? "git-compare" : "file") + '"></use></svg>';
   const copy = el("span", "", "mw-dir-row__copy"), headline = el("span", "", "mw-dir-row__headline"), when = el("span", stamp(item.saved_at), "mw-dir-row__count");
-  when.title = format.date(item.saved_at, "datetime");
+  when.title = format.date(item.saved_at, "datetime-with-seconds");
   const kind = item.kind === "changeset" ? uiText.text("coding.artifacts.changeset", { count: item.file_count ?? 0 }) : uiText.text("coding.report.label");
   headline.append(el("strong", item.title), when);
   copy.append(headline, el("small", kind + " · v" + item.reference.version + (item.archived ? " · " + uiText.text("coding.artifacts.archived") : "")));

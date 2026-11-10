@@ -23,15 +23,15 @@ function createDocumentRenderer(primitives: GoalsDocumentUiPrimitives) {
     </section>
     <div class="goal-workspace-panels trash-goal-workspace">
     <section class="trash-goal-panel trash-goal-panel--state">
-      ${sectionHeading("archive", "回收站状态", "这不是永久删除；恢复后仍是同一个 Goal")}
-      <div class="trash-summary"><p><strong>${uiText("goals.document-ui.goals-content-full-history-kept")}</strong>${uiText("goals.document-ui.active-relations-pause-when-enters-trash-restore-only")}</p>${trashEvent ? `<p><strong>移入原因：</strong>${escapeHtml(trashEvent.reason)}</p>` : ""}</div>
+      ${sectionHeading("archive", "goals.document-ui.trash-state", "goals.document-ui.trash-preserves-goal")}
+      <div class="trash-summary"><p><strong>${uiText("goals.document-ui.goals-content-full-history-kept")}</strong>${uiText("goals.document-ui.active-relations-pause-when-enters-trash-restore-only")}</p>${trashEvent ? `<p><strong>${uiText("goals.document-ui.trash-reason")}</strong><span translate="no">${escapeHtml(trashEvent.reason)}</span></p>` : ""}</div>
     </section>
     <section class="trash-goal-panel">
-      ${sectionHeading("book", "原始目标")}
+      ${sectionHeading("book", "goals.document-ui.original-goal")}
       <div class="business-copy"><p class="outcome"><strong>${uiText("goals.document-ui.result-want")}</strong>${escapeHtml(goal.outcome || uiText.text("goals.document-ui.needs-clarification"))}</p><p><strong>${uiText("goals.document-ui.why-do")}</strong>${escapeHtml(goal.why || uiText.text("goals.document-ui.needs-clarification"))}</p><p><strong>${uiText("goals.document-ui.how-works")}</strong>${escapeHtml(goal.business_logic || uiText.text("goals.document-ui.needs-clarification"))}</p></div>
     </section>
     <section class="trash-goal-panel trash-goal-panel--restore">
-      ${sectionHeading("refresh", "恢复到 Goal Tree", "恢复不会创建新 Goal，也不会自动启动 Runtime")}
+      ${sectionHeading("refresh", "goals.dialogs-client.restore-goal-tree", "goals.document-ui.restore-keeps-goal")}
       <div class="trash-restore-row"><p>${uiText("goals.document-ui.after-confirm-goal-returns-everyday-list-relations-that")}</p><button class="mw-btn mw-btn--primary" type="button" data-open-goal-restore data-goal-id="${escapeHtml(goal.goal_id)}" data-goal-title="${escapeHtml(goal.title)}">${icon("refresh")}<span>${uiText("goals.document-ui.restore-goal")}</span></button></div>
     </section>
     </div>

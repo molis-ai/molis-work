@@ -1,17 +1,26 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
-import { MOD, ico, kindName, said, statusOf, when } from "./dom.js";
+import type { WorkflowVerdict } from "../model.js";
+import { MOD, ico, kindName, statusOf, when } from "./dom.js";
 import { drawList } from "./list.js";
 import { openRun, remember } from "./nav.js";
 import type { WorkflowsPage } from "./page.js";
 import { drawRun } from "./run.js";
-import { label, readyState, ruleText } from "./state.js";
+import { label, readyState } from "./state.js";
 import { toast } from "./toast.js";
 import type { FlowAnswer, InstanceAnswer, ListAnswer, PreviewAnswer, Run, WorkflowPayload } from "./types.js";
 
 export function dataHtml(data: WorkflowPayload) {
   return `<div class="wf-payload"><strong>${esc(data.title)}</strong><pre>${esc(data.body)}</pre>` + (data.url ? `<a href="${esc(data.url)}" target="_blank" rel="noopener noreferrer">${esc(data.url)}</a>` : "") + "</div>";
+}
+
+function verdictHtml(verdict: WorkflowVerdict) {
+  const result = verdict.status === "needs_review" ? uiText.text("workflows.verdict.needs-review")
+    : verdict.choice ? uiText.text("workflows.verdict.result", { choice: verdict.choice }) : uiText.text("workflows.verdict.no-result");
+  const confidence = verdict.status === "ok" && verdict.confidence != null
+    ? ` · <span>${esc(uiText.text("workflows.verdict.confidence", { value: Math.round(verdict.confidence * 100) }))}</span>` : "";
+  return `<span>${esc(result)}</span>${confidence}`;
 }
 
 /** What the handoff box shows, as a key: the box is only redrawn with motion when this changes. */
@@ -26,16 +35,16 @@ export function handoffKey(page: WorkflowsPage, run: Run, index: number) {
 
 /** The box under a step's heading: the record of its handoff, or what can be done about it now. */
 export function renderHandoff(page: WorkflowsPage, run: Run, index: number) {
-  const { ui, readText } = page;
+  const { ui } = page;
   const step = run.steps[index]!, chain = run.chain;
   if (step.handoff) {
     const handoff = step.handoff, next = label(page, chain.stations[index + 1]!);
     const who = handoff.actor === "ai" ? uiText.text("workflows.handoff.ai-done", { next }) : handoff.actor === "function" ? uiText.text("workflows.handoff.rule-done", { next })
       : handoff.actor === "judgment" ? uiText.text("workflows.handoff.judged", { choice: handoff.verdict?.choice || "", next }) : uiText.text("workflows.handoff.manual-done", { next });
-    return `<details class="wf-record mw-disclosure"${handoff.actor === "ai" ? " open" : ""}><summary><span class="wf-handoff__kind" data-kind="${handoff.kind}">${esc(kindName(readText, handoff.kind))}</span><span>${esc(who)}</span><span class="wf-muted">${esc(when(handoff.at))}</span></summary>`
+    return `<details class="wf-record mw-disclosure"${handoff.actor === "ai" ? " open" : ""}><summary><span class="wf-handoff__kind" data-kind="${handoff.kind}">${esc(kindName(handoff.kind))}</span><span>${esc(who)}</span><span class="wf-muted">${esc(when(handoff.at))}</span></summary>`
       + `<div class="wf-record__body"><p class="wf-record__label">${handoff.actor === "ai" ? esc(uiText.text("workflows.handoff.ai-output")) : esc(uiText.text("workflows.handoff.handed-content"))}</p>${dataHtml(handoff.output)}`
       + (handoff.rule ? `<p class="wf-record__label">${handoff.actor === "ai" ? esc(uiText.text("workflows.handoff.instruction")) : handoff.actor === "judgment" ? esc(uiText.text("workflows.kind.judgment")) : esc(uiText.text("workflows.handoff.rule"))}</p><pre class="wf-rule">${esc(handoff.rule)}</pre>` : "")
-      + (handoff.verdict ? `<p class="wf-record__label">${esc(uiText.text("workflows.handoff.judgment"))}</p><p class="wf-verdict">${esc(ruleText(handoff.verdict))}</p>` : "")
+      + (handoff.verdict ? `<p class="wf-record__label">${esc(uiText.text("workflows.handoff.judgment"))}</p><p class="wf-verdict">${verdictHtml(handoff.verdict)}</p>` : "")
       + `<button class="mw-btn mw-btn--ghost" type="button" data-wf-step="${index + 1}"><span>${esc(uiText.text("workflows.handoff.see-run", { next }))}</span>${ico("arrow")}</button></div></details>`;
   }
   if (index >= chain.links.length) {
@@ -43,7 +52,14 @@ export function renderHandoff(page: WorkflowsPage, run: Run, index: number) {
   }
   if (run.status !== "active" || index !== run.current) {
     if (run.status === "stopped" && index === run.current) {
-      if (run.stopped && run.stopped.from === index) return `<p class="wf-handoff__note is-held">${ico("pause")}<span>${esc(said(readText, run.stopped.reason))}` + (run.stopped.verdict ? " · " + esc(ruleText(run.stopped.verdict)) : "") + "</span></p>";
+      if (run.stopped?.from === index) {
+        const { verdict, reason } = run.stopped;
+        const explanation = verdict ? esc(verdict.status === "needs_review"
+          ? uiText.text("workflows.handoff.judgment-hold-review")
+          : verdict.choice === null ? uiText.text("workflows.handoff.judgment-hold-no-choice")
+            : uiText.text("workflows.handoff.judgment-hold-choice", { choice: verdict.choice })) : "";
+        return `<p class="wf-handoff__note is-held">${ico("pause")}<span>${verdict ? `<span>${explanation}</span> · ${verdictHtml(verdict)}` : `<span translate="no">${esc(reason)}</span>`}</span></p>`;
+      }
       return `<p class="wf-handoff__note">${ico("pause")}<span>${esc(uiText.text("workflows.handoff.ended-here"))}</span></p>`;
     }
     return "";
@@ -69,12 +85,12 @@ export function renderHandoff(page: WorkflowsPage, run: Run, index: number) {
       + `<button class="mw-btn mw-btn--primary" type="submit" data-wf-action="handoff-submit"${busy ? ' data-loading aria-disabled="true"' : ""}>${busy ? '<span class="mw-spinner" aria-hidden="true"></span>' : ""}<span>${esc(uiText.text("workflows.manual.submit-to", { next }))}</span></button></footer></form>`;
   }
   if (!ready.ready) {
-    return `<p class="wf-handoff__bar is-blocked">${ico("alert")}<span>${esc(uiText.text("workflows.handoff.next-blocked", { kind: kindName(readText, link.kind), next, reason: said(readText, ready.reason) }))}</span><button class="mw-btn mw-btn--ghost" type="button" data-wf-action="edit-link" data-link="${index}">${esc(uiText.text("workflows.handoff.configure"))}</button></p>`;
+    return `<p class="wf-handoff__bar is-blocked">${ico("alert")}<span>${esc(uiText.text("workflows.handoff.next-blocked", { kind: kindName(link.kind), next }))} <span${ready.raw ? ' translate="no"' : ''}>${esc(ready.reason)}</span></span><button class="mw-btn mw-btn--ghost" type="button" data-wf-action="edit-link" data-link="${index}">${esc(uiText.text("workflows.handoff.configure"))}</button></p>`;
   }
   const act = link.kind === "manual" ? uiText.text("workflows.handoff.review-and-hand", { next }) : link.kind === "ai" ? uiText.text("workflows.handoff.ai-and-hand", { next })
     : link.kind === "judgment" ? uiText.text("workflows.handoff.judge-and-hand", { next }) : uiText.text("workflows.handoff.rule-and-hand", { next });
   const working = busy ? (busy.kind === "preview" ? uiText.text("workflows.handoff.loading") : target.action && link.kind !== "ai" && link.kind !== "judgment" ? uiText.text("workflows.handoff.running") : link.kind === "ai" ? uiText.text("workflows.run.ai-working") : link.kind === "judgment" ? uiText.text("workflows.handoff.judging") : uiText.text("workflows.run.handing")) : act;
-  return `<p class="wf-handoff__bar${busy ? " is-working" : ""}"><span class="wf-handoff__kind" data-kind="${link.kind}">${esc(kindName(readText, link.kind))}</span><span>${esc(uiText.text("workflows.handoff.next", { kind: link.kind === "manual" ? uiText.text("workflows.handoff.after-person") : link.kind === "ai" ? uiText.text("workflows.handoff.after-ai") : link.kind === "judgment" ? uiText.text("workflows.handoff.after-judgment") : uiText.text("workflows.handoff.by-rule"), next }))}</span>`
+  return `<p class="wf-handoff__bar${busy ? " is-working" : ""}"><span class="wf-handoff__kind" data-kind="${link.kind}">${esc(kindName(link.kind))}</span><span>${esc(uiText.text("workflows.handoff.next", { kind: link.kind === "manual" ? uiText.text("workflows.handoff.after-person") : link.kind === "ai" ? uiText.text("workflows.handoff.after-ai") : link.kind === "judgment" ? uiText.text("workflows.handoff.after-judgment") : uiText.text("workflows.handoff.by-rule"), next }))}</span>`
     + `<button class="mw-btn mw-btn--primary" type="button" data-wf-action="continue" data-index="${index}"${busy ? ' aria-disabled="true" aria-busy="true"' : ""}>${busy ? '<span class="mw-spinner" aria-hidden="true"></span>' : ico("arrow")}<span>${esc(working)}</span></button></p>`;
 }
 

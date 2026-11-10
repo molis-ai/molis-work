@@ -1,8 +1,12 @@
 import type { AgentBuilderPorts } from "../plugin-builder-surface.js";
+import { WORKBENCH_LANGUAGES } from "@molis-ai/molis-work-app-workbench";
 import { replyLanguagePrompt } from "../reply-language.js";
 import type { WebLocale } from "../web-locale.js";
 
 type BuilderAgent = Awaited<ReturnType<AgentBuilderPorts["agent"]>>;
+
+export const studioDesignLanguages = (current: WebLocale): ReturnType<NonNullable<AgentBuilderPorts['designLanguages']>> =>
+  ({ current, available: WORKBENCH_LANGUAGES.languages });
 
 /** Studio's stage jobs use the same Host instruction as other Agent rounds. */
 export function builderAgentInLanguage(agent: BuilderAgent, locale: WebLocale): BuilderAgent {

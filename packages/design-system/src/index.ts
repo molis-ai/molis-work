@@ -67,7 +67,7 @@ export {
   type MwContentMarkId,
   type MwHueId,
 } from "./palette.js";
-export { BASELINE_FONT, BASELINE_REGISTRY, BASELINE_SKIN, BASELINE_SPEC, baselinePackageFile } from "./baseline.js";
+export { BASELINE_DEFINITIONS, BASELINE_FONT, BASELINE_REGISTRY, BASELINE_SKIN, BASELINE_SPEC, baselinePackageFile } from "./baseline.js";
 export { renderSkinScope, renderFontScope, renderMonoScope } from "./appearance-tokens.js";
 export { renderLookCard, renderLookGroup, renderLookProof } from "./primitives/catalog-appearance.js";
 export { APPEARANCE_PARTS_STYLES } from "./primitives/catalog-appearance-styles.js";

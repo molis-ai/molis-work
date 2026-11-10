@@ -2,7 +2,7 @@ import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { GoalTreeProposalRecord } from "./contract/governance-collaboration.js";
 import { goalTreeProposalNeedsDecision } from "./decision-groups.js";
-import { GOALS_RELATION_LABELS as RELATION_LABELS } from "./relation-presentation.js";
+import { goalRelationLabel } from "./relation-presentation.js";
 import { createGoalsDecisionPresentation } from "./decision-common-ui.js";
 import { createGoalsProposalPresentation } from "./proposal-presentation.js";
 import { findGoalView, type GoalsProposalView, type GoalsProposalUiPrimitives } from "./proposal-ui-model.js";
@@ -44,7 +44,7 @@ function goalTreeRelationScenario(
     }
     return uiText.text("goals.proposal-ui.goal-goal-waits-dependency-finish-first", { goal: from, dependency: to });
   }
-  const relationLabel = uiText.text(RELATION_LABELS[type]?.out ?? "goals.proposal-ui.create-relation");
+  const relationLabel = goalRelationLabel(type, "out") ?? uiText.text("goals.proposal-ui.create-relation");
   return uiText.text("goals.proposal-ui.goal-get-relation-relationship", { from, to, relation: relationLabel });
 }
 

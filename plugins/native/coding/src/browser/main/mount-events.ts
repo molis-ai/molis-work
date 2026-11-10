@@ -16,7 +16,7 @@ import type { SessionConfiguration } from "./shapes.js";
 /** What a CustomEvent carries; the page reads it by shape, since an event made in another window is not an `instanceof CustomEvent` here. */
 const detailOf = <Detail>(event: Event): Detail | undefined => (event as CustomEvent<Detail | null>).detail ?? undefined;
 
-interface SelectDetail { readonly itemId?: string }
+interface SelectDetail { readonly itemId?: string | null; readonly invalidate?: boolean }
 interface AssistantEffectDetail { readonly capability_id?: unknown; readonly session_id?: unknown }
 interface CharacterCodingDetail { readonly reference?: unknown; readonly title: string; readonly task?: string; readonly skill_ids?: string[]; readonly workspace_id?: string }
 
@@ -24,7 +24,8 @@ interface CharacterCodingDetail { readonly reference?: unknown; readonly title: 
 function listenSelect(page: Page) {
   const { lifetime, refs, root, s } = page;
   lifetime.listen(root, "molis-work:select-item", event => {
-    const itemId = detailOf<SelectDetail>(event)?.itemId;
+    const detail = detailOf<SelectDetail>(event), itemId = detail?.itemId;
+    if (detail?.invalidate && itemId === undefined) return;
     root.dataset.codingDetail = String(Boolean(itemId));
     s.sessionOnShow = Boolean(itemId);
     if (itemId) { void openCodingItem(page, itemId).catch(error => status(page, errorMessage(error), true)); return; }

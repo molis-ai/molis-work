@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { BASELINE_FONT, BASELINE_SKIN, BASELINE_SPEC, renderPrimitiveCatalog } from "@molis-ai/molis-work-design-system";
 import { fontTokenDeclarations, skinTokenDeclarations } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { EN } from "@molis-ai/molis-work-app-workbench";
+import { withPageText } from "./fixtures/page-text.js";
 
 // The look card, the specimen card and the fade when the look changes, on the component board (docs/design/appearance-selection/README.md「组件板新增」;
 // specs/font-and-skin-system/a-section-contract.md FSS-66, FSS-67, FSS-68). What the page does with them is in board-appearance.e2e.test.ts; this file
@@ -17,10 +17,10 @@ const sectionOf = (html: string, id: string) => {
   return html.slice(start, html.indexOf("</section>", start));
 };
 const cardsOf = (html: string) => html.split('<div class="mw-look-card" data-look-card="').slice(1).map((card) => ({ id: /^(\w+)"/u.exec(card)![1]!, html: card }));
-const board = renderPrimitiveCatalog();
+const board = withPageText("zh", [], renderPrimitiveCatalog);
 const styleOf = (html: string) => html.slice(html.indexOf("<style>"), html.indexOf("</style>"));
 const style = styleOf(board);
-const english = renderPrimitiveCatalog({ say: (text, values = {}) => (EN[text] ?? text).replace(/\{(\w+)\}/gu, (whole, name: string) => String(values[name] ?? whole)) });
+const english = withPageText("en", [], renderPrimitiveCatalog);
 const PARTS = ["look-card", "look-proof", "look-fade"];
 
 test("FSS-66: the board has the three look sections, after the type section and in order", () => {

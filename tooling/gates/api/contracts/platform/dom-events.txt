@@ -3,13 +3,6 @@
 // say what it means for them in the PR.
 
 export declare const DOM_EVENTS: readonly [{
-    readonly name: "molis-work:language-changed";
-    readonly kind: "announcement";
-    readonly owner: "document-language";
-    readonly on: "document";
-    readonly detail: "{ tag: UiLanguageTag }";
-    readonly summary: "This document has applied a new language in place; its existing views can refresh compound words.";
-}, {
     readonly name: "molis-shelf-notice";
     readonly kind: "request";
     readonly owner: "shelf";
@@ -116,6 +109,13 @@ export declare const DOM_EVENTS: readonly [{
     readonly on: "document";
     readonly detail: "{ request_id, picks: Array<{ kind, id, title, plugin_title }> }";
     readonly summary: "The person confirmed the picker opened for request_id; picks is the whole choice, replacing what was chosen before.";
+}, {
+    readonly name: "molis-work:language-changed";
+    readonly kind: "announcement";
+    readonly owner: "document-language";
+    readonly on: "document";
+    readonly detail: "{ tag: UiLanguageTag }";
+    readonly summary: "This document has applied a new language in place; its existing views can refresh compound words.";
 }, {
     readonly name: "molis-work:layout-holds";
     readonly kind: "request";

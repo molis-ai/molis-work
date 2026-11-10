@@ -4,28 +4,28 @@ import { dateArg, numberArg, t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { isDestructivePluginOperation, pluginMessageNames, pluginTemplateBindings } from './plugin-surface-text.js';
 import type { Column, Ctl, Det, Kit, Out, Part, Rec, Rel, State } from './plugin-component-types.js';
 
-export function pcOutput(c: State & Kit & Rel & Rec & Det) {
-  const { parts, make, words: wordElement, word, bindWord, raw: rawText, glyph, button, text, shown, prose, at, TEMPLATE, DAY, badge, figures, pluginSchemaOf, detailEnabled, ready, rowHost, rowLabel, reading, selectable, selectPage, composerFor, describeField, fieldValue, recordColumns, dayOf, recordBody, showDetail, select } = c;
-  function agendaDay(date: string) {
-    const label = make('header', undefined, 'pc-agenda-date'), day = DAY.test(date) ? new Date(date + 'T00:00:00Z') : undefined;
-    if (!day || Number.isNaN(day.getTime())) {
-      label.append(make('strong', '·'), wordElement('span', () => t.text("common.generated.undated")));
-      return label;
-    }
-    const now = new Date(), today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
-    const offset = (day.getTime() - today) / 86_400_000, value = dateArg(date, "weekday-month-day");
-    const caption = () => offset === 0 ? t.text("common.generated.today-date", { date: value })
-      : offset === -1 ? t.text("common.generated.yesterday-date", { date: value })
-      : offset === 1 ? t.text("common.generated.tomorrow-date", { date: value })
-      : t.text("common.generated.formatted", { value });
-    label.append(wordElement('strong', () => t.text("common.generated.formatted", { value: numberArg(day.getUTCDate()) })), wordElement('span', caption));
+function agendaDay(date: string, { make, words: wordElement, DAY }: Pick<Kit, 'make' | 'words' | 'DAY'>) {
+  const label = make('header', undefined, 'pc-agenda-date'), day = DAY.test(date) ? new Date(date + 'T00:00:00Z') : undefined;
+  if (!day || Number.isNaN(day.getTime())) {
+    label.append(make('strong', '·'), wordElement('span', () => t.text("common.generated.undated")));
     return label;
   }
+  const now = new Date(), today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  const offset = (day.getTime() - today) / 86_400_000, value = dateArg(date, "weekday-month-day");
+  const caption = () => offset === 0 ? t.text("common.generated.today-date", { date: value })
+    : offset === -1 ? t.text("common.generated.yesterday-date", { date: value })
+    : offset === 1 ? t.text("common.generated.tomorrow-date", { date: value })
+    : t.text("common.generated.formatted", { value });
+  label.append(wordElement('strong', () => t.text("common.generated.formatted", { value: numberArg(day.getUTCDate()) })), wordElement('span', caption));
+  return label;
+}
+
+export function pcOutput(c: State & Kit & Rel & Rec & Det) {
+  const { parts, make, words: wordElement, word, bindWord, raw: rawText, glyph, button, text, shown, prose, at, TEMPLATE, badge, figures, pluginSchemaOf, detailEnabled, ready, rowHost, rowLabel, reading, selectable, selectPage, composerFor, describeField, fieldValue, recordColumns, dayOf, recordBody, showDetail, select } = c;
   function output(part: Part, raw: unknown, binding: 'read' | 'submit') {
     const node = part.node, kind = node.kind, value = at(raw, node[binding]?.outputPath), fragment = document.createDocumentFragment();
     const listing = binding === 'read' && Array.isArray(value);
     if (part.tools) { part.tools.hidden = !listing || !(value as unknown[]).length; part.tools.querySelector<HTMLElement>('.pc-count')!.dataset.count = listing ? String((value as unknown[]).length) : ''; }
-    // A sentence the design wrote around the result ("今天已经喝了 {{count}} 杯") is filled from it and shown instead of figures.
     const template = [node.props.description, node.props.title].find((item): item is string => typeof item === 'string' && TEMPLATE.test(item));
     const generated = binding === 'read' && [node.props.description, node.props.title].find(ref => ref && typeof ref !== 'string' && 'key' in ref && pluginMessageNames(word(ref)).length > 0);
     const schema = generated ? pluginSchemaOf(node.read?.operationId, node.read?.outputPath) : undefined;
@@ -146,7 +146,7 @@ export function pcOutput(c: State & Kit & Rel & Rec & Det) {
             const date = dayOf(node, row);
             if (!dayList || date !== day) {
               day = date; const block = make('section', undefined, 'pc-agenda-day');
-              dayList = make('div', undefined, 'pc-agenda-items'); block.append(agendaDay(date), dayList); body.append(block);
+              dayList = make('div', undefined, 'pc-agenda-items'); block.append(agendaDay(date, c), dayList); body.append(block);
             }
             dayList.append(item); continue;
           }

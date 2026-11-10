@@ -24,6 +24,7 @@ import { pluginRouteControl } from "./plugin-route-control.js";
 import { readText, htmlLang } from "./web-locale.js";
 import { randomUUID } from "node:crypto";
 import { installedStageSection } from "./installed-stage-section.js";
+import { installedPluginWords } from "./plugin-builder/installed-page.js";
 import { FRAME_QUERY } from "./plugin-builder-surface.js";
 
 /** The project a Home route names: where its library is and whether it reaches a Home plugin (`projectReachablePlugins`); null when there is none. */
@@ -104,7 +105,7 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
     if (request.method !== "GET") { sendLocalWebJson(response, 405, { error: "请通过 GET 打开页面" }); return true; }
     // A signed package installed in the Home draws its stage with a page of its own, framed by the workbench or by the Home's page around it.
     if (host.homePlugins.hasPackage(pluginId)) {
-      const surface = host.homePlugins.packageSurface(pluginId), framed = url.searchParams.get("frame") === "workbench";
+      const surface = host.homePlugins.packageStage(pluginId), framed = url.searchParams.get("frame") === "workbench";
       const projection = framed && request.headers.accept === "application/json";
       if (projection && !shellPageRead(request, "http://" + requestHost(request))) { refuseLocalWebRequest(response); return true; }
       try {
@@ -319,8 +320,8 @@ export async function renderHomePluginStages(host?: HomePluginHost, options?: { 
     const pluginId = entry.manifest.plugin_id, stage = stageContributionId(entry.manifest), key = `home:${entry.project_plugin_id}`;
     if (options?.views && !Object.hasOwn(options.views, key)) continue;
     if (host.hasPackage(pluginId)) {
-      const surface = host.packageSurface(pluginId);
-      if (surface) html.push(installedStageSection({ pluginId, surface, label: host.packageLabel(pluginId) ?? entry.manifest.name, icon: entry.manifest.ui?.views?.find(view => view.slot === "stage")?.icon, prefix: options?.project_id ? `/projects/${encodeURIComponent(options.project_id)}` : "" }));
+      const release = host.packageStage(pluginId);
+      if (release) html.push(installedStageSection({ pluginId, surface: release.pluginId, label: installedPluginWords(release).name, icon: entry.manifest.ui?.views?.find(view => view.slot === "stage")?.icon, prefix: options?.project_id ? `/projects/${encodeURIComponent(options.project_id)}` : "" }));
       else unavailable.push(homeUnavailableStage(host, platform, failure, entry));
       continue;
     }

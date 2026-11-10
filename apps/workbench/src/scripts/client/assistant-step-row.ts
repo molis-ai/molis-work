@@ -20,8 +20,9 @@
  * the shell read from its frame is 「让助理回复」 instead: this press starts the reply, as the person (PG-057); nothing else does.
  */
 export const ASSISTANT_STEP_ROW_FACTORY_SCRIPT = String.raw`(input) => {
-  const { row, thread, readText, el } = input;
+  const { row, thread, readText, el, setReviewWord } = input;
   let offer, offerNode, unfolded = false, shownWork;
+  let stepWords = [];
   const press = (node, control) => { input.jumpTo(node); if (control && !control.disabled) control.click(); };
   // A step's id names the record it leads to (review:, question:, card:, or an outcome's own key), as the conversation keys it.
   const at = (node, name, value) => node?.querySelector("[data-" + name + '="' + CSS.escape(value) + '"]');
@@ -47,12 +48,58 @@ export const ASSISTANT_STEP_ROW_FACTORY_SCRIPT = String.raw`(input) => {
     step.addEventListener("click", () => { const taken = offer.message; offer = offerNode = null; step.remove(); paint(); if (reply) input.reply(taken); else input.take(taken); });
     return step;
   };
+  const rowContent = html => {
+    if (!html.includes('data-assistant-next-words=')) return { key: html, words: [] };
+    const template = document.createElement('template'); template.innerHTML = html;
+    const metadata = template.content.querySelector('template[data-assistant-next-words]');
+    if (!metadata) return { key: html, words: [] };
+    const refs = new Map(JSON.parse(metadata.dataset.assistantNextWords)); metadata.remove();
+    const words = [];
+    // Keep the binding while the step ids, state and structure agree. The Host supplies each original field and each
+    // fixed field's reference, so even a response drawn in an earlier language can update the same buttons.
+    for (const step of template.content.querySelectorAll('[data-ix-step]')) {
+      const label = step.querySelector('[data-ix-step-label]'), waiting = step.querySelector('.mw-sr-only');
+      const id = step.dataset.ixStepId;
+      words.push({ id, title: step.title, label: label.textContent, waiting: waiting?.textContent, refs: refs.get(id) });
+      step.removeAttribute('title'); label.textContent = '';
+      if (waiting) waiting.textContent = '';
+    }
+    template.content.querySelector('[data-ix-steps]')?.removeAttribute('aria-label');
+    const more = template.content.querySelector('[data-ix-steps-more]'); if (more) more.textContent = '';
+    return { key: template.innerHTML, words };
+  };
+  const currentWord = (word, field) => {
+    const ref = word.refs?.[field];
+    return ref ? globalThis.t.text(ref.key, ref.args) : word[field];
+  };
+  const retitle = () => {
+    if (!stepWords.length) return;
+    for (const word of stepWords) {
+      const step = at(row, 'ix-step-id', word.id);
+      const review = word.id.startsWith('review:');
+      const card = review ? at(thread, 'review', word.id.slice('review:'.length)) : null;
+      const title = card?.querySelector('.assistant-card-title')?.textContent ?? currentWord(word, 'title');
+      const label = currentWord(word, 'label'), waiting = currentWord(word, 'waiting');
+      step.setAttribute('translate', 'no');
+      if (step.title !== title) step.title = title;
+      setReviewWord(step.querySelector('[data-ix-step-label]'), label);
+      setReviewWord(step.querySelector('.mw-sr-only'), waiting);
+      if (review) step.setAttribute('aria-label', (waiting ? waiting + ' ' : '') + label + (title ? ' · ' + title : ''));
+    }
+    row.querySelector('[data-ix-steps]')?.setAttribute('aria-label', globalThis.t.text('workbench.assistant-view-html.next'));
+    const more = row.querySelector('[data-ix-steps-more]');
+    if (more) setReviewWord(more, globalThis.t.text('workbench.assistant-view-html.count-more', { count: Number(more.dataset.ixStepsMore) }));
+  };
   const paint = () => {
     const view = input.view(), open = input.open(), work = view?.work.work_id;
     // An outcome's record is drawn whole by its owner; its result buttons open as a reply's do, bound once per drawing.
     for (const node of thread.querySelectorAll("[data-ix-record]")) if (node.ixBound !== node.firstChild) { input.bindText(node); node.ixBound = node.firstChild; }
     if (work !== shownWork) { shownWork = work; unfolded = false; }
-    input.drawn(row, open && view ? (unfolded ? view.next_all_html : view.next_html) || "" : "", { onStep: (_, button) => go(button.dataset.ixStepId) });
+    const html = open && view ? (unfolded ? view.next_all_html : view.next_html) || "" : "";
+    const { key, words } = rowContent(html);
+    input.drawn(row, html, { onStep: (_, button) => go(button.dataset.ixStepId) }, key);
+    stepWords = words;
+    retitle();
     // The suggestion keeps its one button while it stands: a new button on every paint (a resize, a poll) would play its entrance again.
     if (offer) {
       let group = row.querySelector(".mw-ix-steps");
@@ -66,7 +113,7 @@ export const ASSISTANT_STEP_ROW_FACTORY_SCRIPT = String.raw`(input) => {
     unfolded = true; paint();
     row.querySelector('[data-ix-step="3"]')?.focus();
   });
-  return { paint, offer(message, unconfirmed) { offerNode = offerNode?.remove(); offer = { message, unconfirmed }; paint(); } };
+  return { paint, retitle, offer(message, unconfirmed) { offerNode = offerNode?.remove(); offer = { message, unconfirmed }; paint(); } };
 }`;
 
 /**

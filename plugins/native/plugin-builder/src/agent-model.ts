@@ -2,6 +2,7 @@ import type { UiLocalePack } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { PluginComponentNode, PluginComponentPlan, PluginPresentation } from '@molis-ai/molis-work-design-system';
 import type { SandboxEffects, SandboxJson, SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { BuildManifest, BuildCheckResult } from '@molis-ai/molis-work-contracts/platform/plugin-builder';
+import type { StudioBuildFailure, StudioTextRef } from './studio-collaboration.js';
 
 export interface BrowserAcceptance {
   id: string;
@@ -55,7 +56,7 @@ export interface AgentProposal {
 }
 export interface AgentBuildStep {
   id: string; agent: 'design' | 'ui' | 'code' | 'host'; action: string;
-  label: string; status: 'queued' | 'active' | 'done' | 'waiting' | 'failed' | 'cancelled';
+  label: StudioTextRef | string; status: 'queued' | 'active' | 'done' | 'waiting' | 'failed' | 'cancelled';
   target?: string; operationId?: string; detail?: string; at: string;
   selection?: { source: 'rule' | 'jev' | 'user' | 'design'; candidates: string[]; choice: string; model?: string; elapsedMs?: number; confidence?: number | null };
 }
@@ -92,7 +93,7 @@ export interface AgentBuild extends AgentBuildSnapshot {
   /** Operations a revision changes inside under the same contract (e.g. the model's instructions), with the change the code agent makes. */
   rework?: Record<string, string>;
   history: AgentBuildSnapshot[];
-  error: string | null; createdAt: string; updatedAt: string;
+  error: StudioBuildFailure | string | null; createdAt: string; updatedAt: string;
 }
 /**
  * What a generated plugin tells the model, declared in its source (`export const prompts = [...]`) and called by id

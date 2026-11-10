@@ -11,7 +11,7 @@ import { createServer as createHttpsServer, Agent } from 'node:https';
 import { connect as tlsConnect } from 'node:tls';
 import dns from 'node:dns';
 import { syncBuiltinESMExports } from 'node:module';
-import {builderManifest,builderPrivateValueReplicationOwner,builderSyncProjection,type AgentRelease} from '@molis-ai/molis-work-plugin-builder';
+import {builderManifest,builderPrivateValueReplicationOwner,builderSyncProjection,studioBuildDiagnostic,type AgentBuild,type AgentRelease} from '@molis-ai/molis-work-plugin-builder';
 import type { SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -33,21 +33,21 @@ import { pluginTextSlot, pluginTextSlotKey } from '@molis-ai/molis-work-design-s
 import { readSandboxPackage } from '@molis-ai/molis-work-app-local-host';
 
 function studioServer(options: Parameters<typeof handleAgentStudioHttp>[3] & { homeDirectory: string }, token: string, mutations: Map<string, LocalMutationState>, setup?: {
-  observe?(request: IncomingMessage, response: import('node:http').ServerResponse): void; locale?: 'zh' | 'en'; page?: boolean;
+  observe?(request: IncomingMessage, response: import('node:http').ServerResponse): void; locale?: 'zh' | 'en'; page?: boolean; languageControls?: true;
 }) {
-  const harness = studioHarnessRequests(options.homeDirectory, options.projectId, token);
+  const harness = studioHarnessRequests(options.homeDirectory, options.projectId, token, setup?.languageControls ? mutations : undefined);
   const server = createServer((request, response) => {
     setup?.observe?.(request, response);
     const url = new URL(request.url ?? '/', 'http://localhost');
-    harness.handle(request, response, url, options.routePrefix ?? '', (local, proof) => {
+    harness.handle(request, response, url, options.routePrefix ?? '', (local, proof, locale, preview) => {
       if (setup?.page && url.pathname === STUDIO_HARNESS_PATH) {
         response.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
-        response.end(isolatedStudioHarness(options.homeDirectory, options.projectId, proof, setup.locale)); return;
+        response.end(isolatedStudioHarness(options.homeDirectory, options.projectId, proof, setup.languageControls ? locale : setup.locale, preview)); return;
       }
       if (!authorizeLocalWebRequest(request, response, url, token, mutations)) return;
       return pluginPagesFor(options.homeDirectory).bind(request, url).then(release => {
         if (release) response.once('close', release);
-        return runWithLocale(setup?.locale ?? "zh", () => handleAgentStudioHttp(request, response, local, options, proof));
+        return runWithLocale(setup?.languageControls ? locale : setup?.locale ?? "zh", () => handleAgentStudioHttp(request, response, local, options, proof));
       }).then(handled => { if (!handled) sendLocalWebJson(response, 404, { error: 'not found' }); }).catch(error => sendLocalWebJson(response, 403, { error: String(error.message) }));
     });
   });
@@ -126,12 +126,12 @@ test('FSS-74 a frozen English design reaches G7 in its own frame and publishes t
   const stopped = async () => {
     let current = await load();
     for (let i = 0; i < 450 && current.active; i++) { await new Promise(resolve => setTimeout(resolve, 100)); current = await load(); }
-    assert.equal(current.active, null, current.error ?? 'Studio did not stop'); return current;
+    assert.equal(current.active, null, studioBuildDiagnostic(current.error) ?? 'Studio did not stop'); return current;
   };
-  const proposals = await stopped(); assert.equal(proposals.phase, 'choosing', proposals.error ?? '');
+  const proposals = await stopped(); assert.equal(proposals.phase, 'choosing', studioBuildDiagnostic(proposals.error) ?? '');
   await act('choose', proposals, { candidateId: 'quick' });
   const ready = await stopped();
-  assert.equal(ready.phase, 'ready', ready.error ?? JSON.stringify(ready.browserResult));
+  assert.equal(ready.phase, 'ready', studioBuildDiagnostic(ready.error) ?? JSON.stringify(ready.browserResult));
   assert.equal(ready.design?.contract.ui?.locales.default, 'en');
   assert.deepEqual(ready.design?.contract.pages[0]?.title, { literal: literalStudioExcerpt });
   assert.deepEqual(ready.design?.parts.find(part => part.id === 'notes')?.props.columns?.[0]?.label, { literal: '  原文栏目 <ref>  ' });
@@ -484,22 +484,39 @@ test('studio in English: its controls, labels, phases and boards are English', {
   const store = new LocalProjectDatabase(databasePath), token = randomUUID() + randomUUID(), mutations = new Map<string, LocalMutationState>();
   const fixture = agentStudioFixture(0);
   let rawModelError: string | undefined;
+  let revisionMode: 'valid' | 'acceptance' | 'designer' = 'valid', preferenceWrites = 0, buildWrites = 0;
+  const diagnostic = 'rework 引用了不存在的操作：原诊断 <tag> 保留';
   const options = { store, projectId: DEMO_PROJECT_ID, homeDirectory: home, browserExecutable: dedicatedBuilderBrowser(), routePrefix: '/projects/' + DEMO_PROJECT_ID, ...fixture,
-    models: async () => { if (rawModelError !== undefined) throw new Error(rawModelError); return fixture.models(); } };
-  const server = studioServer(options, token, mutations, { page: true, locale: 'en' });
+    models: async () => { if (rawModelError !== undefined) throw new Error(rawModelError); return fixture.models(); },
+    async agents(build: AgentBuild) {
+      const agent = await fixture.agents(build);
+      return { ...agent, async run(request: Parameters<typeof agent.run>[0]) {
+        const answer = await agent.run(request);
+        if (revisionMode === 'valid' || request.role !== 'designer' || JSON.parse(request.task).mode !== 'revise') return answer;
+        const output = JSON.parse(answer.output);
+        if (revisionMode === 'designer') output.rework = [{ op: '原诊断 <tag> 保留', why: 'preserve the raw operation name' }];
+        else output.design.acceptance[0].steps.push({ action: 'expectValue', componentId: 'editor', field: 'text', value: 'Unexpected value <raw>' });
+        return { ...answer, output: JSON.stringify(output) };
+      } };
+    } };
+  const server = studioServer(options, token, mutations, { page: true, languageControls: true, observe(request) {
+    if (request.method !== 'POST') return;
+    if (request.url === '/api/ui/locale') preferenceWrites += 1;
+    if (request.url?.includes('/api/plugin-builder/studio/builds')) buildWrites += 1;
+  } });
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
   const origin = 'http://127.0.0.1:' + (server.address() as { port: number }).port;
-  // Every visible word of the studio's own controls: the text outside what is data (the brief, the proposals, the capability
-  // directory's titles, the model list, the step labels the host wrote that a pointer repeats), and the attributes that are read aloud.
-  const DATA = 'select,[class*="mw-select-picker"],.as-plugin,[data-as-title],[data-as-model-note],.as-pointer em,.as-frame span,.as-brief p,.as-candidates,.as-card,.as-agents,.as-steps,.as-recent,.as-cap,.as-cap-row';
+  // The labels that interpolate original names have exact assertions below. Other Studio words are checked together.
+  const DATA = 'select,[class*="mw-select-picker"],.as-plugin,[data-as-title],[data-as-model-note],.as-pointer em,.as-frame span,.as-brief p,.as-candidates,.as-card,.as-recent,.as-cap,.as-cap-row,[data-as-step-copy],.as-steps [translate="no"]:not([data-as-collaboration-copy])';
   const chrome = `(()=>{const HAN=/\\p{Script=Han}/u,shell=document.querySelector('.as-shell'),found=[];
-    for(const el of shell.querySelectorAll('*')){if(el.closest('${DATA},[hidden]'))continue;for(const a of ['aria-label','title','placeholder'])if(HAN.test(el.getAttribute(a)||''))found.push(a+'='+el.getAttribute(a));}
+    for(const el of shell.querySelectorAll('*')){if(el.closest('${DATA},[hidden]'))continue;for(const a of ['aria-label','title','placeholder'])if(!(a==='title'&&el.closest('.as-gates'))&&HAN.test(el.getAttribute(a)||''))found.push(a+'='+el.getAttribute(a));}
     const walker=document.createTreeWalker(shell,NodeFilter.SHOW_TEXT);for(let n;n=walker.nextNode();){if(n.parentElement.closest('${DATA},[hidden]'))continue;if(HAN.test(n.textContent))found.push('text:'+n.textContent.trim()+' <'+n.parentElement.tagName+'.'+n.parentElement.className+'>');}
     return found;})()`;
   try {
-    const page = await framedStudioPage(t, browser, await browser.page());
+    const outer = await browser.page(), page = await framedStudioPage(t, browser, outer);
     await page.viewport(1440, 900);
     await page.command('Page.enable');
+    await page.command('Network.setCookie', { url: origin, name: 'molis_work_locale', value: 'en' });
     await page.command('Page.navigate', { url: origin + STUDIO_HARNESS_PATH });
     await page.wait(`[...document.querySelectorAll('[data-as-model] option')].some(o=>o.value.startsWith('fixture'))`);
     await page.wait(`/Your plugin will appear here/.test(document.querySelector('[data-as-empty]')?.innerText || '')`);
@@ -525,6 +542,10 @@ test('studio in English: its controls, labels, phases and boards are English', {
     assert.match(await page.evaluate<string>(`document.querySelector('.as-feed').innerText`), /Proposals: 2 · pick one to preview on the right/u);
     assert.match(await page.evaluate<string>(`document.querySelector('[data-as-choose]').textContent`), /^Use this proposal and start building$/u);
     assert.match(await page.evaluate<string>(`document.querySelector('.as-candidate .as-meta').innerText`), /Features: \d+[\s\S]*UI parts: \d+[\s\S]*Pages: \d+/u);
+    await page.wait(`document.querySelector('.as-agents [data-agent="design"] [data-as-step-copy]')?.textContent === 'Presented 2 proposals'`);
+    await page.evaluate(`document.querySelector('[data-as-steps] > summary').click()`);
+    assert.equal(await page.evaluate(`document.querySelector('[data-as-steps]').open`), true);
+    assert.match(await page.evaluate<string>(`document.querySelector('.as-steps li').innerText`), /Lead designer.*Presented 2 proposals.*随手记 · 笔记墙/su);
     assert.match(await page.evaluate<string>(`getComputedStyle(document.querySelector('[data-component-id="notes"]'),'::before').content`), /Not connected yet/, 'a part still to be wired says so in English');
 
     // FSS-36: refuse a real request from this frame. The normal selection is untouched, and the same production route
@@ -560,6 +581,58 @@ test('studio in English: its controls, labels, phases and boards are English', {
     assert.deepEqual(await page.evaluate<string[]>(`[...document.querySelectorAll('[data-as-catalog-panel] h4 span:first-child, [data-as-catalog-panel] .as-catalog-note')].map(x=>x.textContent).filter(x=>/\\p{Script=Han}/u.test(x))`), []);
     assert.deepEqual(await page.evaluate<string[]>(`[...document.querySelectorAll('[data-as-catalog-panel] .as-part')].map(b=>b.textContent+'|'+b.getAttribute('aria-label')).filter(x=>/\\p{Script=Han}/u.test(x))`), [], 'every catalog component, used or not');
     assert.deepEqual(await page.evaluate<string[]>(`(()=>{const out=[];for(const b of document.querySelectorAll('[data-as-catalog-panel] .as-part')){b.dispatchEvent(new PointerEvent('pointerover',{bubbles:true}));const tip=document.querySelector('[data-as-tip]');if(/\\p{Script=Han}/u.test(tip.innerText))out.push(tip.innerText);}return out;})()`), [], 'and its tip');
+
+    await page.wait(`document.querySelector('[data-as-phase]').textContent === 'Ready to try'`);
+    assert.match(await page.evaluate<string>(`document.querySelector('[data-as-visual-result]')?.textContent || ''`), /Layout check passed on wide and narrow screens.*Features verified; visuals not reviewed/u);
+    revisionMode = 'acceptance';
+    await page.fill('[data-as-input]', '用验收检查验证保留的内容'); await page.click('.as-send');
+    const failureTitle = `document.querySelector('[data-as-failure-title]')`, failureGuidance = `document.querySelector('[data-as-failure-guidance]')`;
+    await page.wait(`${failureTitle}?.textContent.endsWith('did not work as expected in the trial')`, { timeoutMs: 75_000 });
+    revisionMode = 'designer';
+    await page.evaluate(`document.querySelector('[data-as-edit-mode]').value='message'`);
+    await page.fill('[data-as-input]', '保留原话并修订方案'); await page.click('.as-send');
+    await page.wait(`${failureTitle}?.textContent === 'The design step did not finish'`);
+    assert.match(await page.evaluate<string>(`${failureGuidance}.textContent`), /^Choose Continue to let the AI design it again/u);
+    const fixed = `Array.from(document.querySelectorAll('.as-steps li[data-status="failed"] [data-as-step-copy^="revise:"]')).at(-1)`,
+      log = `document.querySelector('[data-as-steps]')`, technical = `document.querySelector('.as-error details')`;
+    const gate = `document.querySelector('.as-steps .as-gates [title^="G1 "] [data-as-collaboration-copy]')`;
+    const step = `document.querySelector('.as-steps [data-as-collaboration-copy*="plugin-builder.agent-studio.step-n"]')`;
+    const screen = `document.querySelector('.as-steps [data-as-collaboration-copy*="plugin-builder.agent-studio.screen-text"]')`;
+    await page.wait(`${fixed}?.textContent === 'Revising the main design from your feedback'`);
+    await page.wait(`${gate}?.textContent === 'Contract' && ${step}?.textContent === 'Step 4' && ${screen}?.textContent.startsWith(' (on screen: ')`);
+    const observedScreen = await page.evaluate<string>(`JSON.parse(${screen}.dataset.asCollaborationCopy)[1].text`);
+    assert.ok(observedScreen.includes('Save'));
+    await page.evaluate(`(()=>{const draft=document.querySelector('[data-as-input]'); draft.value='Unsent 草稿'; draft.focus(); draft.setSelectionRange(1,6,'backward');
+      if(!${log}.open)${log}.querySelector('summary').click(); ${technical}.open=true;
+      window.collaboration={draft, log:${log}, technical:${technical}, fixed:${fixed}, title:${failureTitle}, raw:${technical}.querySelector('p'),
+        gate:${gate}, step:${step}, screen:${screen}, caseRaw:${step}.nextElementSibling};})()`);
+    const switched = `[collaboration.draft===document.activeElement,collaboration.draft.value,collaboration.draft.selectionStart,collaboration.draft.selectionEnd,
+      collaboration.draft.selectionDirection,collaboration.log===${log},${log}.open,collaboration.technical===${technical},${technical}.open,
+      collaboration.fixed===${fixed},collaboration.title===${failureTitle},collaboration.raw===${technical}.querySelector('p'),collaboration.raw.textContent,
+      Boolean(collaboration.raw.querySelector('tag')),document.querySelector('.as-brief p').textContent,
+      collaboration.gate===${gate},collaboration.step===${step},collaboration.screen===${screen},collaboration.caseRaw===${step}.nextElementSibling,collaboration.caseRaw.textContent]`;
+    const preserved = [true, 'Unsent 草稿', 1, 6, 'backward', true, true, true, true, true, true, true, diagnostic, false, '做一个随手记笔记的插件：写下一句话就能保存，最新的在最上面',
+      true, true, true, true, '字段值不符合预期：text'];
+    const writes = buildWrites;
+    for (const [lang, title, stepLabel, guidance, gateLabel, caseLabel, screenLabel] of [
+      ['zh', '设计这一步没能完成', '按你的意见修订主线', '点「继续」让 AI 重新设计一次', '合同', '第 4 步', '（界面显示：' + observedScreen + '）'],
+      ['en', 'The design step did not finish', 'Revising the main design from your feedback', 'Choose Continue to let the AI design it again', 'Contract', 'Step 4', ' (on screen: ' + observedScreen + ')'],
+    ]) {
+      await outer.evaluate(`(()=>{const link=document.createElement('a');link.href='#';link.dataset.uiLanguage=${JSON.stringify(lang)};document.body.append(link);link.click();link.remove();})()`);
+      await page.wait(`${failureTitle}?.textContent === ${JSON.stringify(title)} && ${fixed}?.textContent === ${JSON.stringify(stepLabel)}
+        && ${gate}?.textContent===${JSON.stringify(gateLabel)} && ${step}?.textContent===${JSON.stringify(caseLabel)} && ${screen}?.textContent===${JSON.stringify(screenLabel)}`);
+      assert.ok((await page.evaluate<string>(`${failureGuidance}.textContent`)).startsWith(guidance!));
+      assert.deepEqual(await page.evaluate(switched), preserved);
+      // A same-state read still reaches the normal render path after the in-place language update.
+      await page.evaluate(`(async()=>{const fetch=window.fetch;try{await new Promise(resolve=>{
+        window.fetch=async(...args)=>{const response=await fetch(...args);if(String(args[0]).endsWith('/api/plugin-builder/studio/state'))await response.clone().json().then(resolve);return response;};
+        document.dispatchEvent(new CustomEvent('molis-work:model-ready'));});
+        await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+      }finally{window.fetch=fetch;}})()`);
+      assert.deepEqual(await page.evaluate(switched), preserved);
+    }
+    assert.equal(preferenceWrites, 2);
+    assert.equal(buildWrites, writes, 'switching only retitles the collaboration and leaves the build idle');
   } finally {
     await browser.close();
     await releaseAgentStudio(store, DEMO_PROJECT_ID);

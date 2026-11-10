@@ -1,13 +1,9 @@
 import { isRecord as object } from "@molis-ai/molis-work-plugin-sdk";
-import { textRefProblems } from "@molis-ai/molis-work-plugin-sdk/ui";
-/**
- * The designer writes a compact, forgiving authoring format; the host expands it into the strict contract,
- * component plans and browser acceptance that everything downstream checks. Normalization only maps known
- * variants of the same meaning and records what it dropped; it never invents behavior. The expanded result
- * still goes through the strict validators (`validateAgentDesign`, `assertContract`).
- */
-import type { SandboxEffects, SandboxJson, SandboxOperationContract, SandboxPluginContract, SandboxSchema, SandboxVisibleText } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
-import { PLUGIN_COMPONENT_PROP_KEYS, PLUGIN_COMPONENT_WORD_KEYS, literalPluginWord, pluginTemplatePaths, pluginSchemaAt, type PluginComponentIntent, type PluginComponentPlan, type PluginInputValue, type PluginOperationBinding } from '@molis-ai/molis-work-design-system';
+import { authoredPartWords, authoredWord } from "./agent-ui-text.js";
+/** Expand the author's compact vocabulary for the strict validators. Map known variants and record dropped fields;
+ * never invent behavior. */
+import type { SandboxEffects, SandboxJson, SandboxOperationContract, SandboxPluginContract, SandboxSchema } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
+import { PLUGIN_COMPONENT_WORD_KEYS, literalPluginWord, pluginTemplatePaths, pluginSchemaAt, type PluginComponentIntent, type PluginComponentPlan, type PluginInputValue, type PluginOperationBinding } from '@molis-ai/molis-work-design-system';
 import type { AgentDesign, AgentProposal, BrowserAcceptance } from './agent-model.js';
 import type { CatalogEntry } from './agent-catalog.js';
 import { STUDIO_CAPABILITIES, MODEL_STAND_IN_PREFIX } from './agent-capabilities.js';
@@ -314,7 +310,6 @@ const INTENTS: Record<string, PluginComponentIntent> = {
   卡片: 'collection', 阅读: 'reading', 原文: 'reading', 对话: 'conversation', 聊天: 'conversation', 证据: 'evidence', 日程: 'schedule', 日历: 'schedule',
   提示: 'feedback', 反馈: 'feedback', 状态: 'feedback',
 };
-const PROPS = PLUGIN_COMPONENT_PROP_KEYS;
 function intentOf(value: unknown, where: string): PluginComponentIntent {
   const intent = INTENTS[text(value).toLowerCase()];
   return intent ?? fail(where, `intent「${text(value)}」不在组件池里，可用 heading / description / input / action / collection / reading / conversation / evidence / schedule / feedback`);
@@ -358,36 +353,11 @@ function binding(raw: unknown, mode: 'read' | 'submit', operations: SandboxOpera
   const path = text(pick(spec as Json, 'show', 'path', 'outputPath'));
   return { operationId, input, ...(path ? { outputPath: path } : {}) };
 }
-/** A draft string becomes an owned word at freeze; an explicit literal keeps its exact value. */
-function authoredWord(value: unknown, where: string, limit = 2000): SandboxVisibleText | undefined {
-  if (typeof value === 'string') return value.trim() ? value.slice(0, limit) : undefined;
-  if (!object(value)) return undefined;
-  const problems = textRefProblems(value, { key: false });
-  if (typeof value.literal !== 'string' || problems.length) return fail(where, problems.join('；') || '应为短句或显式 literal');
-  if (value.literal.length > limit) return fail(where, 'literal 太长，不能截断原文');
-  return { literal: value.literal };
-}
 function normalizePart(raw: unknown, pageId: string, operations: SandboxOperationContract[], dropped: string[], sketch: boolean): PluginComponentPlan {
   if (!object(raw)) return fail(`页面 ${pageId}`, '组件写成对象');
   const id = slug(pick(raw, 'id', 'componentId'), `页面 ${pageId} 的组件`), where = `组件 ${id}`;
   const intent = intentOf(pick(raw, 'intent', 'kind', 'type'), where);
-  const props: Json = {};
-  for (const [key, value] of Object.entries(object(raw.props) ? raw.props : {})) {
-    if (!(PROPS as readonly string[]).includes(key)) { dropped.push(`${where} 的 ${key}`); continue; }
-    if (key === 'columns') props.columns = (Array.isArray(value) ? value : []).flatMap(column => {
-      if (typeof column === 'string') return [{ field: column, label: column }];
-      if (!object(column)) return [];
-      const field = text(column.field), place = where + ' 的列 ' + field;
-      const label = authoredWord(column.label, place, 120) ?? field;
-      return [{ field, label, ...(object(column.values) ? { values: Object.fromEntries(Object.entries(column.values).map(([value, label]) =>
-        [value, authoredWord(label, place + '/' + value, 60) ?? value])) } : {}) }];
-    });
-    else if ((PLUGIN_COMPONENT_WORD_KEYS as readonly string[]).includes(key)) {
-      const copy = authoredWord(value, where + ' 的 ' + key);
-      if (key === 'requiredText' && copy === undefined && typeof value !== 'string') return fail(where, 'requiredText 必须是文字');
-      if (copy !== undefined) props[key] = copy;
-    } else if (typeof value === 'string' && value.trim()) props[key] = value.slice(0, 2000);
-  }
+  const props = authoredPartWords(raw.props, where, dropped, fail);
   for (const key of Object.keys(raw)) if (!['id', 'componentId', 'intent', 'kind', 'type', 'purpose', 'label', 'props', 'read', 'submit', 'uses', 'page', 'pageId', 'region', 'regionId', 'submitShow', 'show'].includes(key)) dropped.push(`${where} 的 ${key}`);
   const uses = sketch ? text(raw.uses) : '';
   const usesOperation = uses ? operations.find(item => item.id === slug(uses, where)) : undefined;
@@ -397,7 +367,7 @@ function normalizePart(raw: unknown, pageId: string, operations: SandboxOperatio
   // "Show this field of the command's result" written beside the binding rather than inside it.
   const shown = raw.submitShow ?? raw.show, showField = typeof shown === 'string' ? shown : object(shown) ? text(pick(shown as Json, 'show', 'path', 'field', 'outputPath')) : '';
   if (submit && showField && !submit.outputPath) submit.outputPath = showField;
-  return { id, pageId, regionId: slug(pick(raw, 'regionId', 'region') || 'main', where), intent, purpose: text(pick(raw, 'purpose', 'label', 'description')).slice(0, 600) || id, props: props as PluginComponentPlan['props'],
+  return { id, pageId, regionId: slug(pick(raw, 'regionId', 'region') || 'main', where), intent, purpose: text(pick(raw, 'purpose', 'label', 'description')).slice(0, 600) || id, props,
     ...(read ? { read } : {}), ...(submit ? { submit } : {}) };
 }
 /** Pages carry their parts; a model that lists parts separately with a pageId gets them grouped the same way. */
@@ -455,7 +425,7 @@ function normalizePages(raw: unknown, operations: SandboxOperationContract[], dr
       part.id = name;
     }
     parts.push(...pageParts);
-    const rawTitle = (page as Json).title, title = authoredWord(typeof rawTitle === 'string' ? rawTitle.trim() : rawTitle, '页面 ' + id) ?? id;
+    const rawTitle = (page as Json).title, title = authoredWord(typeof rawTitle === 'string' ? rawTitle.trim() : rawTitle, '页面 ' + id, fail) ?? id;
     const regions = [...new Set(pageParts.map(part => part.regionId))].map(regionId => ({ id: regionId, title: regionId === 'main' ? title : regionId, operationIds: [...new Set(pageParts.filter(part => part.regionId === regionId).flatMap(part => [part.read?.operationId, part.submit?.operationId]).filter((value): value is string => !!value))] }));
     pages.push({ id, title, regions });
   }

@@ -199,7 +199,7 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
   };
   const describe = (rule) => (rule.kind === "pause" ? globalThis.t.text("workbench.settings-assistant.pause-notices") : (rule.surfaces.length ? globalThis.t.text("workbench.settings-assistant.label") + " " + rule.surfaces.map((id) => surfaceName(id)).join("、") + " " + globalThis.t.text("workbench.settings-assistant.stay-quiet") : globalThis.t.text("workbench.settings-assistant.stay-quiet-everywhere")))
     + (rule.except.length ? "；" + rule.except.map((kind) => globalThis.t.text(KIND[kind] || kind)).join("、") + globalThis.t.text("workbench.settings-assistant.still-notify") : "")
-    + (rule.until ? "；" + globalThis.t.text("workbench.settings-assistant.until") + " " + new Date(rule.until).toLocaleString() : "");
+    + (rule.until ? "；" + globalThis.t.text("workbench.settings-assistant.until") + " " + globalThis.t.text("common.generated.formatted", { value: { kind: "date", at: rule.until, style: "datetime-with-seconds" } }) : "");
   const paintRules = (rules) => {
     rulesList.replaceChildren();
     if (!rules.length) { rulesList.append(el("p", "settings-muted", globalThis.t.text("workbench.settings-assistant.no-rules-yet-when-something-needs-assistant-shows"))); return; }

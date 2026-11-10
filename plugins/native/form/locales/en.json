@@ -3,7 +3,6 @@
   "owner": "io.molis.work.form",
   "locale": "en",
   "messages": {
-    "form.directory.summary": "Create forms, collect responses, and see a summary for each question.",
     "form.action.delete": "Delete",
     "form.action.new": "New form",
     "form.action.reload": "Reload",
@@ -29,6 +28,7 @@
     "form.dialog.delete-confirm": "Delete this form? Submissions will be removed too.",
     "form.dialog.leave-confirm": "Leaving discards unsubmitted answers. Continue?",
     "form.dialog.reload-confirm": "Reloading discards unsaved edits and answers. Continue?",
+    "form.directory.summary": "Create forms, collect responses, and see a summary for each question.",
     "form.editor.back": "Back to form list",
     "form.empty.hint": "Create a form, then add questions. Once collecting, people can fill it in on this computer or in their own browser using the exported fill-in page.",
     "form.empty.title": "No forms yet",
@@ -131,6 +131,8 @@
     "form.result.loading": "Loading…",
     "form.result.none": "No submissions yet",
     "form.result.response-word": "Response",
+    "form.result.numbered-response": "Response {number}",
+    "form.result.dated-response": "Response {number} · {date}",
     "form.result.score": {
       "plural_arg": "score",
       "forms": {

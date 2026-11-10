@@ -1,3 +1,4 @@
+import { pagePack } from "./fixtures/page-text.js";
 import { pluginDocuments } from "./fixtures/plugin-documents.js";
 import { pptTestPorts } from "./fixtures/ppt-actions.js";
 import { formTestPorts } from "./fixtures/form-actions.js";
@@ -15,7 +16,7 @@ import {
 } from "@molis-ai/molis-work-app-workbench";
 import { datasetActions, mergeDatasetDraftRows, parseCsv, toCsv } from "@molis-ai/molis-work-plugin-dataset";
 import { openDatasetStore } from "./fixtures/plugin-home-stores.js";
-import { FORM_CLIENT_FACTORY_SCRIPT, FORM_EN, FORM_STYLES, formActions } from "@molis-ai/molis-work-plugin-form";
+import { FORM_CLIENT_FACTORY_SCRIPT, FORM_STYLES, formActions } from "@molis-ai/molis-work-plugin-form";
 import { openFormStore } from "./fixtures/plugin-home-stores.js";
 import { pptActions } from "@molis-ai/molis-work-plugin-ppt";
 import { openPptStore } from "./fixtures/plugin-home-stores.js";
@@ -173,7 +174,7 @@ test("工作台 HTML 挂上三个创作入口，确认与工具条不在 label �
   assert.match(renderMolisWorkWorkbenchStylesheet(), /@keyframes craft-rise \{/);
   assert.match(FORM_STYLES, /\[data-form-pane\]:not\(\[hidden\]\) \{ animation: craft-rise var\(--dur-move\)/);
   assert.doesNotMatch(FORM_STYLES, /@keyframes/);
-  assert.ok(!Object.hasOwn(FORM_EN, "1 到 5"));
+  assert.ok(!Object.values(pagePack("form", "zh").messages).includes("1 到 5"));
 });
 
 test("工作台客户端脚本在挂上三个创作插件后仍能解析", () => {

@@ -3,7 +3,6 @@
   "owner": "io.molis.work.feed",
   "locale": "en",
   "messages": {
-    "feed.directory.summary": "Follow sources, read updates, and save what matters.",
     "feed.add-source.channel-id": "Channel ID",
     "feed.add-source.existing-feed": "Choose an existing source",
     "feed.add-source.feed-directory": "Feed directory",
@@ -18,6 +17,7 @@
     "feed.add-source.unread-notifications": "Unread notifications",
     "feed.add-source.web-search": "Web search",
     "feed.add-source.youtube": "YouTube",
+    "feed.directory.summary": "Follow sources, read updates, and save what matters.",
     "feed.factory.could-not-refresh-feed": "Could not refresh Feed",
     "feed.factory.original-capture-rule-doesn-t-exist-may-have": "The original capture rule doesn’t exist; it may have been deleted.",
     "feed.rule-authoring.choose-judgment": "Choose a judgment",
@@ -315,6 +315,7 @@
     "feed.ui.opening-marks-read-keep-what-matters-save-material": "Opening it marks it read. Keep what matters: save it as material, add it to Inbox, or turn it into a Goal.",
     "feed.ui.optional": "Optional",
     "feed.ui.original-message-retained": "Original message retained",
+    "feed.ui.other-sources": "Other",
     "feed.ui.other-types": "Other types",
     "feed.ui.overview": "Overview",
     "feed.ui.pause-source": "Pause source",

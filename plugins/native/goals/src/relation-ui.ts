@@ -1,7 +1,7 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
-import type { GoalRelationRecord } from "./contract/goals.js";
+import { goalRelationTypes, type GoalRelationRecord } from "./contract/goals.js";
 import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
-import { GOALS_RELATION_LABELS as RELATION_LABELS, GOALS_RELATION_TYPES as RELATION_TYPES } from "./relation-presentation.js";
+import { goalRelationLabel, relationWordKey } from "./relation-presentation.js";
 import { sortGoalTreeItems as sortGoals } from "./tree-order.js";
 import type { GoalsRelationItem, GoalsRelationView, GoalsRelationUiPrimitives } from "./relation-ui-model.js";
 
@@ -20,11 +20,11 @@ function relationRow(
     (candidate) => candidate.goal.goal_id === relatedId,
   );
   const relatedName = related?.goal.title ?? relatedId;
-  const rawLabels = RELATION_LABELS[relation.type] ?? { out: relation.type, in: relation.type };
-  const labels = { out: rawLabels.out, in: rawLabels.in };
+  const outLabel = goalRelationLabel(relation.type, "out") ?? relation.type;
+  const label = outgoing ? outLabel : goalRelationLabel(relation.type, "in") ?? relation.type;
   const path = outgoing
-    ? uiText.text("goals.relation-ui.current-goal-type-name", { type: labels.out, name: relatedName })
-    : uiText.text("goals.relation-ui.name-type-current-goal", { name: relatedName, type: labels.out });
+    ? uiText.text("goals.relation-ui.current-goal-type-name", { type: outLabel, name: relatedName })
+    : uiText.text("goals.relation-ui.name-type-current-goal", { name: relatedName, type: outLabel });
   const deactivated = item.events.find(
     (event) => event.type === "relation.deactivated" && event.object_id === relation.relation_id,
   );
@@ -32,7 +32,7 @@ function relationRow(
   const deactivateId = `relation-deactivate-${relation.relation_id}`;
   return `<div class="relation-record relation-record--${escapeHtml(relation.state)}" id="relation-${escapeHtml(relation.relation_id)}" data-relation-id="${escapeHtml(relation.relation_id)}">
     <button class="relation-row" type="button" data-select-goal="${escapeHtml(relatedId)}" aria-label="${uiText("goals.relation-ui.open")} ${escapeHtml(relatedName)}">
-      <span class="relation-kind">${escapeHtml(outgoing ? labels.out : labels.in)}</span>
+      <span class="relation-kind">${escapeHtml(label)}</span>
       <span class="relation-copy"><span class="relation-heading"><strong>${escapeHtml(relatedName)}</strong><small class="relation-goal-id">${escapeHtml(relatedId)}</small></span><small class="relation-path">${escapeHtml(path)}</small><small class="relation-reason">${uiText("goals.relation-ui.why-was-created")}${escapeHtml(relation.reason)}${deactivated ? ` · ${uiText.text("goals.relation-ui.why-was-removed")}${escapeHtml(deactivated.reason)}` : ""}</small></span>
       <span class="relation-state relation-state--${escapeHtml(relation.state)}">${escapeHtml(stateLabel)}</span>
       ${icon("chevron-right")}
@@ -98,9 +98,9 @@ function renderRelationForm(item: GoalsRelationItem, view: GoalsRelationView): s
         `<option value="${escapeHtml(target.goal.goal_id)}" data-goal-name="${escapeHtml(target.goal.title)}">${escapeHtml(target.goal.title)} · ${escapeHtml(target.goal.goal_id)}</option>`,
     )
     .join("");
-  const typeOptions = RELATION_TYPES.map(({ type, label, description }) => {
-    const labels = RELATION_LABELS[type];
-    return `<option value="${escapeHtml(type)}"${type === "depends_on" ? " selected" : ""} data-out-label="${escapeHtml(labels.out)}" data-in-label="${escapeHtml(labels.in)}" data-description="${escapeHtml(description)}">${escapeHtml(label)}</option>`;
+  const typeOptions = goalRelationTypes.map(type => {
+    const word = (part: Parameters<typeof relationWordKey>[1]) => uiText(relationWordKey(type, part));
+    return `<option value="${escapeHtml(type)}"${type === "depends_on" ? " selected" : ""} data-out-label="${word("out")}" data-in-label="${word("in")}" data-description="${word("description")}">${word("label")}</option>`;
   }).join("");
   const firstTarget = targets[0]!.goal;
   return `<form class="relation-form" data-relation-form data-live-form="relation-${escapeHtml(item.goal.goal_id)}" data-goal-id="${escapeHtml(item.goal.goal_id)}" data-current-goal-name="${escapeHtml(item.goal.title)}" novalidate>

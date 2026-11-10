@@ -30,7 +30,7 @@ globalThis.molisWorkBindAgentDiagnostics = (container = document) => {
   const PHASE_RING = { starting:"running",running:"running","awaiting-review":"approval","awaiting-input":"answer",paused:"paused",compacting:"running",completed:"round-ended",failed:"failed",cancelled:"cancelled",stopped:"stopped","reconcile-required":"verify",unknown:"verify" };
   const MATERIAL = { selection: "workbench.settings-agent-diagnostics.selection", object: "workbench.settings-agent-diagnostics.object", text: "workbench.settings-agent-diagnostics.text", file: "workbench.settings-agent-diagnostics.file", image: "workbench.settings-agent-diagnostics.images", capability: "workbench.settings-agent-diagnostics.specified-capability", method: "workbench.settings-agent-diagnostics.method" };
   const LAYER = { base: "workbench.settings-agent-diagnostics.product-rules", role: "workbench.settings-agent-diagnostics.role", project: "workbench.settings-agent-diagnostics.project", task: "workbench.settings-agent-diagnostics.task" };
-  const time = (iso) => { const date = new Date(iso); return Number.isFinite(date.getTime()) ? date.toLocaleString() : String(iso || ""); };
+  const time = (iso) => { const date = new Date(iso); return Number.isFinite(date.getTime()) ? globalThis.t.text("common.generated.formatted", { value: { kind: "date", at: date.toISOString(), style: "datetime-with-seconds" } }) : String(iso || ""); };
 
   const runtimePart = (runtime) => {
     const section = el("section");

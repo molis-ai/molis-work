@@ -14,8 +14,11 @@ export const cardView = (card: StoredCard): AssistantCard => actionCardView(card
 
 const EFFECT = { read: "workbench.assistant-card-view.reads-only-changes-nothing", write: "workbench.assistant-card-view.changes-data-can-be-taken-back", irreversible: "workbench.assistant-card-view.changes-data-cannot-be-undone" } as const;
 const CARD_RING = { ready: "ready", running: "running", done: "done", failed: "failed", unknown: "verify", stale: "stale", dismissed: "cancelled", "needs-input": "answer" } as const;
-const STATUS: Partial<Record<AssistantCard["status"], string>> = { running: "正在执行…", done: "已完成", failed: "没有完成", unknown: "结果未确认，请到原处核对，不会自动重试",
-  stale: "已失效", dismissed: "已忽略", "needs-input": "还需要你填写" };
+const STATUS: Partial<Record<AssistantCard["status"], string>> = {
+  running: "workbench.assistant-card-view.status-running", done: "workbench.assistant-card-view.status-done", failed: "workbench.assistant-card-view.status-failed",
+  unknown: "workbench.assistant-card-view.status-unknown", stale: "workbench.assistant-card-view.status-stale", dismissed: "workbench.assistant-card-view.status-dismissed",
+  "needs-input": "workbench.assistant-card-view.status-needs-input",
+};
 
 
 /** The weekday beside a day, as the page's client writes it while the person types. */
@@ -25,7 +28,7 @@ const weekdayOf = (day: string, say: (text: string, values?: Record<string, stri
 
 /** One field the person may still change: picked from its choices, a day typed, a moment as a day and a time in their zone. */
 function cardField(field: AssistantCard["fields"][number], question: string | undefined, say: (text: string, values?: Record<string, string | number>) => string, zone: string | undefined): InteractionField {
-  const label = question ?? say(field.label);
+  const label = question ?? field.label;
   if (field.options) return { id: field.key, label, control: { kind: "choice", options: field.options.map(option => ({ value: option.value, label: option.label, selected: option.value === field.raw })) } };
   if (field.input === "date") return { id: field.key, label, control: { kind: "date", value: field.raw ?? "", weekday: weekdayOf(field.raw ?? "", say) } };
   if (field.input === "datetime") {
@@ -62,12 +65,12 @@ export function assistantCardHtml(card: AssistantCard, say: (text: string, value
     target: { prefix: card.provider, label: card.capability_title }, ...(origin ? { about: origin } : {}), impact: card.summary,
     ...(editable.length ? { fields: editable.map(field => cardField(field, asked(field.key), say, zone)) } : {}),
     // The buttons come after everything that would run: under the exact values when there are any, else under the fields.
-    ...(shown.length ? { preview: { title: say("workbench.assistant-card-view.what-will-be-used"), rows: shown.map((field): [string, string] => [asked(field.key) ?? say(field.label), field.value]), ...(actions.length ? { actions } : {}) } }
+    ...(shown.length ? { preview: { title: say("workbench.assistant-card-view.what-will-be-used"), rows: shown.map((field): [string, string] => [asked(field.key) ?? field.label, field.value]), ...(actions.length ? { actions } : {}) } }
       : actions.length ? { actions } : {}),
     ...((state && !open) || card.outcome ? { status: { text: (state ? say(state) : "") + (card.outcome ? `${state ? "：" : ""}${card.outcome}` : ""), busy: card.status === "running",
       ...(card.status === "failed" ? { tone: "failed" as const } : ["unknown", "stale", "needs-input"].includes(card.status) ? { tone: "waiting" as const } : {}) } } : {}),
-    ...(result ? { result: { title: result.title ?? say(result.summary), body: result.text ?? "",
-      ...(result.link ? { actions: [{ id: "result", label: say(result.link.label), href: result.link.href, variant: "primary" as const, attrs: { "data-ix-press": CARD_RESULT_OPEN,
+    ...(result ? { result: { title: result.title ?? result.summary, body: result.text ?? "",
+      ...(result.link ? { actions: [{ id: "result", label: result.link.label, href: result.link.href, variant: "primary" as const, attrs: { "data-ix-press": CARD_RESULT_OPEN,
         // 继续接入 names what the settings must make true, so the way back waits for it (specs/draft-and-return §4, R4): never read from the address.
         ...(result.pending_connection ? { "data-return-setup": result.pending_connection.authorization_id } : {}) } }] } : {}) } } : {}),
     ...(card.status === "stale" && redo ? { recovery: [{ id: "redo", label: say("workbench.assistant-card-view.ask-assistant-prepare-again-latest-state") }] } : {}),

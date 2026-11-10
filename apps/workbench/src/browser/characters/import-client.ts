@@ -218,7 +218,7 @@ class ImportView {
   }
 
   private runButton(item: RunRecord): HTMLButtonElement {
-    const button = el("button", uiText.text(item.status === "failed" ? "workbench.characters.native-failed-at" : "workbench.characters.native-run-at", { version: item.reference.version, date: { kind: "date", at: item.created_at, style: "datetime" } }), "mw-btn mw-btn--ghost");
+    const button = el("button", uiText.text(item.status === "failed" ? "workbench.characters.native-failed-at" : "workbench.characters.native-run-at", { version: item.reference.version, date: { kind: "date", at: item.created_at, style: "datetime-with-seconds" } }), "mw-btn mw-btn--ghost");
     button.type = "button"; button.title = uiText.text("workbench.characters.view-terminal") + (item.status_message ? " · " + item.status_message : ""); button.onclick = () => this.showRun(item);
     return button;
   }
@@ -245,7 +245,7 @@ class ImportView {
     const snapshot = record?.import_snapshot;
     q("source-detail").hidden = !snapshot;
     if (record && snapshot) {
-      q("source-summary").textContent = uiText.text("workbench.characters.snapshot-summary", { name: RUNTIME_NAMES[snapshot.runtime_id], rules: snapshot.rules.length, skills: snapshot.skills.length, date: { kind: "date", at: snapshot.captured_at, style: "datetime" } });
+      q("source-summary").textContent = uiText.text("workbench.characters.snapshot-summary", { name: RUNTIME_NAMES[snapshot.runtime_id], rules: snapshot.rules.length, skills: snapshot.skills.length, date: { kind: "date", at: snapshot.captured_at, style: "datetime-with-seconds" } });
       q("source-files").replaceChildren();
       files(this.host.request, q("source-files"), snapshot, { character_id: record.character_id });
     }

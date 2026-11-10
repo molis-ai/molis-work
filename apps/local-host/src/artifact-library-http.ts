@@ -1,4 +1,4 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { format, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { createWriteStream } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -17,7 +17,7 @@ import { artifactTypeDeclarations, artifactContinuers, artifactReferrerActions, 
 import { renderFilePreviewHtml } from "@molis-ai/molis-work-design-system";
 import { importedDocumentFile, type ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { ActionProgressEvent, ArtifactCompareResult, ArtifactContinueResult, ArtifactReferrersResult, FileContent } from "@molis-ai/molis-work-contracts/platform/actions";
-import { dateTimeLocale, readText } from "./web-locale.js";
+import { readText } from "./web-locale.js";
 import { requestHeader, sendLocalWebJson } from "./web-http.js";
 import { readArtifactImportBody } from "./artifact-document-import.js";
 import { answerPluginRouteStream } from "./plugin-route-stream.js";
@@ -48,7 +48,7 @@ const typeTitle = (declaration: ArtifactTypeDeclaration): string => declaration.
 const typeTitlesOf = (declarations: ReadonlyMap<string, ArtifactTypeDeclaration>) => Object.fromEntries([...declarations].map(([type, declaration]) => [type, typeTitle(declaration)]));
 const typeTitleOf = (declarations: ReadonlyMap<string, ArtifactTypeDeclaration>, type: string): string => { const declaration = declarations.get(type); return declaration ? typeTitle(declaration) : type; };
 /** The platform's own pages and answers use the Workbench's current dictionary. */
-const primitives = { escape, text: (value: string) => escape(uiText.text(value)), formatDate: (value: string) => new Date(value).toLocaleString(dateTimeLocale()) };
+const primitives = { escape, text: (value: string) => escape(uiText.text(value)), formatDate: (value: string) => format.date(value, "datetime-with-seconds") };
 
 /**
  * The owner's preview of a 成果 version (specs/artifact-positioning A4): the type's declared preview action turns the

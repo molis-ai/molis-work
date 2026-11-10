@@ -10,7 +10,7 @@ import {
 } from "./page-assets.js";
 import type { MolisWorkWebView } from "./page-view.js";
 import { createWorkbenchProjectChooserRenderer } from "./arrival/chooser.js";
-import { createWorkbenchProjectSettingsPages } from "./project-settings-pages.js";
+import { createWorkbenchProjectSettingsPages, type ProjectSettingsPagePorts } from "./project-settings-pages.js";
 import { controlTokenMeta, createRendererHelpers, type RendererLocale } from "./renderer-helpers.js";
 import { createWorkbenchSettingsNavigation } from "./settings-navigation.js";
 import { createWorkbenchSettingsRenderer } from "./settings-renderer.js";
@@ -25,6 +25,7 @@ export interface WorkbenchRendererPorts {
   accountRegistration?: boolean;
   appearance?: WorkbenchAppearancePorts;
   projectDeletionLabels?(): readonly string[];
+  catalogTextPacks: ProjectSettingsPagePorts["catalogTextPacks"];
 }
 
 /** Compose application pages from registered UI owners; request and desktop state belong to the Host. */
@@ -58,6 +59,7 @@ export function createWorkbenchRenderer(ports: WorkbenchRendererPorts) {
     readText, escapeHtml, icon, htmlLang, controlTokenMeta, renderIconSprite, withDesktopQuery, accountRegistration,
     themeBootstrapScript: THEME_BOOTSTRAP_SCRIPT, visualFoundationClientScript: VISUAL_FOUNDATION_CLIENT_SCRIPT,
     navigation: { renderProjectSettingsNavigation, renderSettingsNavigation }, renderSettingsContent: stages.declaredSettingsSurface, appearance: ports.appearance, projectDeletionLabels: ports.projectDeletionLabels,
+    catalogTextPacks: ports.catalogTextPacks,
   });
 
   const { renderMolisWorkWeb } =

@@ -376,6 +376,7 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
     if (matchMedia("(max-width: 600px)").matches) setMobileView(url.pathname === base ? "tree" : "document");
   });
   document.querySelector('[data-work-surface=artifacts]')?.addEventListener('molis-work:select-item', event => {
+    if (event.detail?.invalidate && event.detail.itemId === undefined) return;
     const base = route('/artifacts');
     // A version's own path (/artifacts/ID/versions/N, as search, the side panel and toasts give it) opens in this project.
     const raw = event.detail.itemId || base, path = !raw.startsWith(base) && raw.startsWith('/artifacts') ? route(raw) : raw;

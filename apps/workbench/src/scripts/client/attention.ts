@@ -24,7 +24,7 @@ export const ATTENTION_FACTORY_SCRIPT = `(host) => {
   const list = document.querySelector("[data-background-tasks-list]");
   let tasks = [], key = "", reading = false, again = false;
   const node = (tag, text, className) => { const value = document.createElement(tag); if (text !== undefined) value.textContent = text; if (className) value.className = className; return value; };
-  const when = (at) => { const date = new Date(at); return Number.isNaN(date.getTime()) ? "" : date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); };
+  const when = (at) => { const date = new Date(at); return Number.isNaN(date.getTime()) ? "" : globalThis.t.text("common.generated.formatted", { value: { kind: "date", at: date.toISOString(), style: "time" } }); };
   const hrefFor = (task) => {
     const url = new URL("/projects/" + encodeURIComponent(task.project_id) + "/", location.origin);
     url.searchParams.set("openPlugin", task.surface); url.searchParams.set("openItem", task.id); url.searchParams.set("openTitle", task.title);

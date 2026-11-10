@@ -3,16 +3,16 @@ import type { WorkflowActionStep } from "../model.js";
 import { ruleKey } from "./chain.js";
 import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
-import { copy, ico, said, settle, uid } from "./dom.js";
+import { copy, ico, settle, uid } from "./dom.js";
 import type { WorkflowsPage } from "./page.js";
 import { fitPop, markOpen, placePop } from "./popover.js";
 import { chainOf, saveFlow } from "./save.js";
 import { insertStn } from "./chain.js";
 import { toast } from "./toast.js";
-import type { ActionChoice, StepDraft, Translate, PayloadFieldName } from "./types.js";
+import type { ActionChoice, StepDraft, PayloadFieldName } from "./types.js";
 
 const PAYLOAD_FIELDS: readonly PayloadFieldName[] = ["title", "body", "source", "url", "date"];
-const payloadField = (_L: Translate, key: PayloadFieldName) =>
+const payloadField = (key: PayloadFieldName) =>
   key === "title" ? uiText.text("workflows.field.title") : key === "body" ? uiText.text("workflows.field.body") : key === "source" ? uiText.text("workflows.field.source") : key === "url" ? uiText.text("workflows.field.link") : uiText.text("workflows.field.date");
 
 /** The actions a step may run, read once. */
@@ -25,23 +25,23 @@ export async function loadActions(page: WorkflowsPage): Promise<ActionChoice[]> 
 
 export const stepOf = (page: WorkflowsPage, draft: StepDraft) => (page.ui.actionSteps || []).find((row) => ruleKey(row.ref) === ruleKey(draft.ref));
 
-/** Why the step cannot be saved yet, or an empty string. */
-export function stepError(page: WorkflowsPage, draft: StepDraft, choice: ActionChoice | undefined) {
-  const { readText } = page;
-  if (!draft.ref) return uiText.text("workflows.step.no-action");
-  if (!choice) return uiText.text("workflows.step.action-gone");
-  if (!choice.available) return said(readText, choice.reason || "workflows.step.action-unavailable");
-  for (const field of choice.fields) if (field.required && !draft.mapping[field.name]) return uiText.text("workflows.step.field-empty", { field: field.title || field.name });
+type StepProblem = { raw: string } | { text: () => string };
+
+/** A blocked step carries a display reason. Saving depends only on whether a problem exists. */
+function stepProblem(draft: StepDraft, choice: ActionChoice | undefined): StepProblem | null {
+  if (!draft.ref) return { text: () => uiText.text("workflows.step.no-action") };
+  if (!choice) return { text: () => uiText.text("workflows.step.action-gone") };
+  if (!choice.available) return choice.reason ? { raw: choice.reason } : { text: () => uiText.text("workflows.step.action-unavailable") };
+  for (const field of choice.fields) if (field.required && !draft.mapping[field.name]) return { text: () => uiText.text("workflows.step.field-empty", { field: field.title || field.name }) };
   for (const [name, source] of Object.entries(draft.mapping)) {
     const field = choice.fields.find((item) => item.name === name);
-    if (!field) return uiText.text("workflows.step.field-dropped", { field: name });
-    if ("value" in source && (source.value === "" || source.value === undefined || (typeof source.value === "number" && Number.isNaN(source.value)))) return uiText.text("workflows.step.fixed-empty", { field: field.title || name });
+    if (!field) return { text: () => uiText.text("workflows.step.field-dropped", { field: name }) };
+    if ("value" in source && (source.value === "" || source.value === undefined || (typeof source.value === "number" && Number.isNaN(source.value)))) return { text: () => uiText.text("workflows.step.fixed-empty", { field: field.title || name }) };
   }
-  return "";
+  return null;
 }
 
-function formHtml(page: WorkflowsPage, draft: StepDraft, choice: ActionChoice | undefined) {
-  const { readText } = page;
+function formHtml(draft: StepDraft, choice: ActionChoice | undefined) {
   if (!choice) return "";
   if (!choice.fields.length) return `<p class="wf-hint">${esc(uiText.text("workflows.step.no-input"))}</p>`;
   return `<div class="wf-map" role="group" aria-label="${esc(uiText.text("workflows.step.fields-heading"))}">` + choice.fields.map((field) => {
@@ -50,7 +50,7 @@ function formHtml(page: WorkflowsPage, draft: StepDraft, choice: ActionChoice | 
     const named = field.title || field.name;
     const mappable = field.type === "string" && !field.enum;
     const options = (field.required ? (current === "" ? `<option value="" selected disabled>${esc(uiText.text("workflows.step.pick-source"))}</option>` : "") : `<option value=""${current === "" ? " selected" : ""}>${esc(uiText.text("workflows.step.leave-empty"))}</option>`)
-      + (mappable ? PAYLOAD_FIELDS.map((key) => `<option value="from:${key}"${current === "from:" + key ? " selected" : ""}>${esc(uiText.text("workflows.step.from-handed", { field: payloadField(readText, key) }))}</option>`).join("") : "")
+      + (mappable ? PAYLOAD_FIELDS.map((key) => `<option value="from:${key}"${current === "from:" + key ? " selected" : ""}>${esc(uiText.text("workflows.step.from-handed", { field: payloadField(key) }))}</option>`).join("") : "")
       + `<option value="value"${current === "value" ? " selected" : ""}>${esc(uiText.text("workflows.step.fixed-value"))}</option>`;
     let valueEl = "";
     if (source && "value" in source) {
@@ -66,15 +66,15 @@ function formHtml(page: WorkflowsPage, draft: StepDraft, choice: ActionChoice | 
   }).join("") + "</div>";
 }
 
-export function readyView(page: WorkflowsPage, problem: string) {
-  if (problem) return `${ico("alert")}<span>${esc(problem)}</span>`;
+function readyView(page: WorkflowsPage, problem: StepProblem | null) {
+  if (problem) return ico("alert") + ("raw" in problem ? `<span translate="no">${esc(problem.raw)}</span>` : `<span>${esc(problem.text())}</span>`);
   return `${ico("check")}<span>${Object.keys(page.ui.stepDraft!.mapping).length ? esc(uiText.text("workflows.step.all-filled")) : esc(uiText.text("workflows.step.no-required"))}</span>`;
 }
 
 function editHtml(page: WorkflowsPage) {
-  const { ui, readText } = page;
+  const { ui } = page;
   const draft = ui.stepDraft!, rows = [...(ui.actionSteps || [])];
-  if (draft.ref && ui.actionSteps && !stepOf(page, draft)) rows.unshift({ ref: draft.ref, title: draft.title, group: draft.group || "", fields: [], available: false, reason: "workflows.judgment.gone" });
+  if (draft.ref && ui.actionSteps && !stepOf(page, draft)) rows.unshift({ ref: draft.ref, title: draft.title, group: draft.group || "", fields: [], available: false, reason: uiText.text("workflows.judgment.gone") });
   const choice = rows.find((row) => ruleKey(row.ref) === ruleKey(draft.ref));
   const query = (ui.stepQuery || "").trim().toLowerCase();
   const visible = query ? rows.filter((row) => row === choice || [row.title, row.group, row.description || ""].join(" ").toLowerCase().includes(query)) : rows;
@@ -84,14 +84,14 @@ function editHtml(page: WorkflowsPage) {
     : rows.length ? search + (visible.length ? `<label class="mw-field"><span class="mw-field__label">${esc(uiText.text("workflows.step.which"))}${query ? `<small>${esc(uiText.text("workflows.step.match-count", { count: String(visible.length) }))}</small>` : ""}</span><select class="mw-select" data-wf-step-action>`
       + (draft.ref ? "" : `<option value="" selected disabled>${esc(uiText.text("workflows.step.choose"))}</option>`)
       + groups.map((group) => `<optgroup label="${esc(group)}">` + visible.filter((row) => row.group === group).map((row) => `<option value="${esc(ruleKey(row.ref))}"${row === choice ? " selected" : ""}>`
-        + esc(row.title + (row.available ? "" : " · " + said(readText, row.reason || "workflows.judgment.unavailable"))) + "</option>").join("") + "</optgroup>").join("") + "</select></label>"
+        + esc(row.title + (row.available ? "" : " · " + (row.reason || uiText.text("workflows.judgment.unavailable")))) + "</option>").join("") + "</optgroup>").join("") + "</select></label>"
       : `<p class="wf-hint" role="status">${esc(uiText.text("workflows.step.no-match"))}</p>`)
-      + (choice?.description ? `<p class="wf-hint">${esc(choice.description)}</p>` : "")
+      + (choice?.description ? `<p class="wf-hint" translate="no">${esc(choice.description)}</p>` : "")
       : `<p class="wf-hint">${esc(uiText.text("workflows.step.none-available"))}</p>`;
-  const problem = ui.actionSteps ? stepError(page, draft, choice) : "";
+  const problem = ui.actionSteps ? stepProblem(draft, choice) : null;
   const editing = ui.stepIndex !== null;
   return `<header class="wf-pop__head"><strong>${editing ? esc(uiText.text("workflows.step.running-heading")) : esc(uiText.text("workflows.palette.add-action"))}</strong><span class="wf-muted">${esc(uiText.text("workflows.step.running-hint"))}</span></header>`
-    + `<div class="wf-link-fields">${picker}<div data-wf-step-fields>${formHtml(page, draft, choice)}</div>`
+    + `<div class="wf-link-fields">${picker}<div data-wf-step-fields>${formHtml(draft, choice)}</div>`
     + (ui.actionSteps && rows.length ? `<p class="wf-readiness" data-ready="${!problem}" data-wf-step-ready>${readyView(page, problem)}</p>` : "") + "</div>"
     + `<footer class="wf-pop__foot"><button class="mw-btn mw-btn--primary" type="button" data-wf-action="step-save"${problem || !ui.actionSteps ? " disabled" : ""}>${ico(editing ? "check" : "plus")}<span>${editing ? esc(uiText.text("workflows.step.save")) : esc(uiText.text("workflows.step.append"))}</span></button></footer>`;
 }
@@ -123,9 +123,9 @@ export function saveStep(page: WorkflowsPage) {
   const { ui, pop } = page;
   const draft = ui.stepDraft!, chain = chainOf(page);
   const ref = draft.ref;
-  if (!ref || stepError(page, draft, stepOf(page, draft))) return;
+  if (!ref || stepProblem(draft, stepOf(page, draft))) return;
   pop.hidePopover();
-  // stepError has just refused an empty fixed value, so the mapping is whole.
+  // The check above refused empty fixed values, so the mapping is whole.
   const action = { ...draft, ref } as WorkflowActionStep;
   if (ui.stepIndex === null) {
     const id = uid(); page.focusNext = id;
@@ -154,7 +154,7 @@ export function setMap(page: WorkflowsPage, fieldEl: HTMLInputElement | HTMLSele
 export function checkStep(page: WorkflowsPage) {
   const { ui, pop } = page;
   const draft = ui.stepDraft!;
-  const problem = stepError(page, draft, stepOf(page, draft));
+  const problem = stepProblem(draft, stepOf(page, draft));
   const line = pop.querySelector<HTMLElement>("[data-wf-step-ready]");
   if (line) { line.dataset.ready = String(!problem); line.innerHTML = readyView(page, problem); }
   const save = pop.querySelector<HTMLButtonElement>("[data-wf-action=step-save]");

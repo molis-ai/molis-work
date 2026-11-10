@@ -32,7 +32,7 @@ Contract: `@molis-ai/molis-work-contracts/platform/plugin`，记录结构见 `@m
 ## 项目复制
 
 `openImagesCopyOwner` 只读打开既有本地库，复用当前图片格式和原件校验；目标使用新的记录及图片身份，保留完整字节和终态记录，不复制连接、密钥或 runner，不恢复生成。相同结果重试不重复写入，目标删除/修改后拒绝重建或覆盖，最终授权失败回滚 SQL 记录及同步队列。失败事务可能留下不被记录引用的不可变暂存文件，由原有有界清理处理。该端口不代表整项目用户入口已经接通。验证另跑 `tests/security-invariants-images-copy.test.ts`。
-界面文字使用本包 `src/messages.ts` 的 `images.*` 稳定键，在 Manifest 的 `ui.messages` 声明，交给共同翻译入口。`ui.ts` 与浏览器客户端共用这份中英词典；`src/en.ts` 只保留其他主人或目录元数据仍使用的中文键。换措辞时保留键，新增场景时按含义命名；格式与登记见 [Workbench 界面文字](../../../apps/workbench/README.md#界面文字翻译检查与一个文件怎样迁到稳定键)。
+界面文字用 `images.*` 稳定键，在 Manifest 的 `ui.locales` 声明 [中文](locales/zh.json)和[英文](locales/en.json)词包。`ui.ts` 与浏览器客户端共用它们。换措辞时保留键，新增场景时按含义命名；格式与登记见 [Workbench 界面文字](../../../apps/workbench/README.md#界面文字稳定键和翻译检查)。
 
 ## 开发要求
 

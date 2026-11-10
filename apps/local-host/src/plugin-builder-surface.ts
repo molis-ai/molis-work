@@ -18,5 +18,5 @@ export function selectionPorts(homeDirectory?:string){
  }};
 }
 
-export { builderReleaseInterface, inDesignOrder, studioLocaleFiles, studioProblem } from "@molis-ai/molis-work-plugin-builder";
+export { builderReleaseInterface, inDesignOrder, studioLocaleFiles, studioProblem, studioScopeCapabilityUnavailable } from "@molis-ai/molis-work-plugin-builder";
 export type { AgentBuilderPorts, AgentDesign } from "@molis-ai/molis-work-plugin-builder";

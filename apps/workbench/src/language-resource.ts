@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
-import type { UiLanguageTag } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { UiLanguageTag, UiLocalePack } from "@molis-ai/molis-work-contracts/platform/ui";
 import { WORKBENCH_LANGUAGES, workbenchPlatformText } from "./platform-languages.js";
 import { workbenchLanguageAssetTag } from "./language-asset.js";
 
@@ -26,6 +26,12 @@ export function renderLanguageHead(htmlLang: string): string {
   const language = WORKBENCH_LANGUAGES.languages.find(row => row.html_lang === htmlLang || row.tag === htmlLang);
   const asset = language && languageAsset(language.tag);
   return asset ? `<script data-ui-language-resource src="${asset.href}"></script>` : "";
+}
+
+export interface InlinePageText { readonly slot: string; readonly producer: string; readonly packs: readonly UiLocalePack[] }
+
+export function renderInlinePageText(pages: readonly InlinePageText[]): string {
+  return pages.length ? '<script type="application/json" data-ui-page-text>' + JSON.stringify(pages).replaceAll("<", "\\u003c") + '</script>' : "";
 }
 
 /** Only the exact version named by the document can be served; there is no route for an arbitrary owner, language or disk path. */

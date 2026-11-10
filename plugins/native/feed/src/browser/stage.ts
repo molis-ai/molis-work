@@ -48,7 +48,7 @@ export function feedStage(page: FeedPage) {
         if (selected !== id || detailRequest !== controller) return;
         detail = new DOMParser().parseFromString(html, "text/html").querySelector(detailOf(id));
         if (!detail) throw new Error(uiText.text("feed.stage.item-detail-response-incomplete")); slot.replaceChildren(detail); settle(detail); publish();
-      } catch (error) { if (selected === id && detailRequest === controller) { try { check(); if (carried) page.error(error); else placeholder(molisWorkRequest.text(error, uiText.text("feed.stage.could-not-load-item")), true); } catch { /* A departed reader keeps no late result. */ } } return; }
+      } catch (error) { if (error instanceof DOMException && error.name === "AbortError") return; if (selected === id && detailRequest === controller) { try { check(); if (carried) page.error(error); else placeholder(molisWorkRequest.text(error, uiText.text("feed.stage.could-not-load-item")), true); } catch { /* A departed reader keeps no late result. */ } } return; }
       finally { if (detailRequest === controller && host.scope.alive && host.scope.visible) detailRequest = null; }
     }
     check(); if (detail) detail.hidden = false; const empty = q("[data-feed-detail-empty]"); if (empty) empty.hidden = Boolean(detail);

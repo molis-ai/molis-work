@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import type { UiAppearanceSelection, UiAppearanceView, UiDefinitionRef, UiEnvironmentProblem, UiFileResult, UiResourceRow, UiSkinFile } from "@molis-ai/molis-work-contracts/platform/ui";
-import { BASELINE_FONT, BASELINE_REGISTRY, BASELINE_SKIN, BASELINE_SPEC, baselinePackageFile } from "@molis-ai/molis-work-design-system";
+import { BASELINE_DEFINITIONS, BASELINE_FONT, BASELINE_REGISTRY, BASELINE_SKIN, BASELINE_SPEC, baselinePackageFile } from "@molis-ai/molis-work-design-system";
 import { fontFaceRules, parseFontScheme, parseSkinFile, resolveFontScheme, resolveSkin, type UiResolvedFont, type UiResolvedSkin } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { appearanceErrors } from "./errors.js";
 
@@ -25,19 +25,23 @@ function recordProblems<T>(result: UiFileResult<T>, subject: string, problems: U
   return undefined;
 }
 
-function readRegisteredDefinitions<T extends UiDefinitionRef>(kind: "skin" | "font-scheme",
+function readRegisteredDefinitions<T extends UiDefinitionRef>(kind: "skin" | "font-scheme", baseline: { readonly path: string; readonly definition: T },
   parse: (source: string, row: UiResourceRow) => UiFileResult<T>, problems: UiEnvironmentProblem[]): Map<string, T> {
   const definitions = new Map<string, T>();
   const ambiguous = new Set<string>();
   for (const row of BASELINE_REGISTRY.resources) {
     if (row.kind !== kind) continue;
-    let source: string;
-    try { source = readFileSync(baselinePackageFile(row.id), "utf8"); }
-    catch {
-      problems.push({ code: "appearance.definition_unreadable", subject: row.id });
-      continue;
+    let file: T | undefined;
+    if (row.package === BASELINE_DEFINITIONS.package && row.path === baseline.path) file = baseline.definition;
+    else {
+      let source: string;
+      try { source = readFileSync(baselinePackageFile(row.id), "utf8"); }
+      catch {
+        problems.push({ code: "appearance.definition_unreadable", subject: row.id });
+        continue;
+      }
+      file = recordProblems(parse(source, row), row.id, problems);
     }
-    const file = recordProblems(parse(source, row), row.id, problems);
     if (!file) continue;
     const key = identity(file);
     if (definitions.has(key) || ambiguous.has(key)) {
@@ -67,8 +71,8 @@ function validateFontResources(resources: readonly string[], verified: Map<strin
 
 function loadBuiltins() {
   const problems: UiEnvironmentProblem[] = [];
-  const skinFiles = readRegisteredDefinitions("skin", (source, row) => parseSkinFile(source, BASELINE_SPEC, { file: row.path }), problems);
-  const fontFiles = readRegisteredDefinitions("font-scheme", (source, row) => parseFontScheme(source, { file: row.path }), problems);
+  const skinFiles = readRegisteredDefinitions("skin", BASELINE_DEFINITIONS.skin, (source, row) => parseSkinFile(source, BASELINE_SPEC, { file: row.path }), problems);
+  const fontFiles = readRegisteredDefinitions("font-scheme", BASELINE_DEFINITIONS.font, (source, row) => parseFontScheme(source, { file: row.path }), problems);
   const baselineSkin = skinFiles.get(identity(BASELINE_SKIN.ref)), baselineFont = fontFiles.get(identity(BASELINE_FONT.ref));
   if (!baselineSkin || !baselineFont) throw appearanceErrors.baseline_unavailable("发行物的外观基线无法读取。", { problems });
 

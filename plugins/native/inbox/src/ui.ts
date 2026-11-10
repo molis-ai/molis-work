@@ -176,8 +176,9 @@ function resultActions(entry: InboxUiEntry, p: InboxUiPrimitives): string {
 }
 
 function renderMaterialActions(entry: InboxUiEntry, p: InboxUiPrimitives): string {
-  return [[INBOX_COMPOSE_OPTION_ID, "compose", "整理成文稿"], [INBOX_VERIFY_OPTION_ID, "verify", "先核查"]].map(([id, mode, label]) =>
-    `<button class="mw-btn mw-btn--${isActiveInboxStatus(entry.status) && entry.suggested_behavior_ids.includes(id!) ? "primary" : "secondary"}" type="button" data-inbox-compose-open="${p.escape(entry.entry_id)}" data-inbox-compose-mode="${mode}">${p.text(label!)}</button>`).join("");
+  const choices = [[INBOX_COMPOSE_OPTION_ID, "compose", "inbox.ui.create-document"], [INBOX_VERIFY_OPTION_ID, "verify", "inbox.ui.verify-first"]] as const;
+  return choices.map(([id, mode, label]) =>
+    `<button class="mw-btn mw-btn--${isActiveInboxStatus(entry.status) && entry.suggested_behavior_ids.includes(id) ? "primary" : "secondary"}" type="button" data-inbox-compose-open="${p.escape(entry.entry_id)}" data-inbox-compose-mode="${mode}">${uiText(label)}</button>`).join("");
 }
 
 function renderNextSuggestion(entry: InboxUiEntry, p: InboxUiPrimitives): string {

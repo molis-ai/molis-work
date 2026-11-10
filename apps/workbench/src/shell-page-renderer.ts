@@ -20,6 +20,7 @@ import { renderPersonalMenuItems, renderProjectSettingsDirectorySection, renderP
 import { renderAppearanceRecovery, renderRuntimePlanDialog } from "./settings-appearance.js";
 import { appearanceHead, type WorkbenchAppearancePorts } from "./appearance-document.js";
 import { knowledgeClientTag } from "./settings-knowledge.js";
+import { renderInlinePageText } from "./language-resource.js";
 type Translate = (text: string, values?: Record<string, string | number>) => string;
 function projectSideTabs(enabled: readonly string[], routePrefix: string, directory: PluginDirectory) {
   const home = homePluginSideTabs(routePrefix, directory);
@@ -38,8 +39,7 @@ function stagedFrameSource(view: WorkbenchShellPageView, id: string) {
 function projectedPageText(view: WorkbenchShellPageView): string {
   const pages = Object.entries(view.plugin_stage_views ?? {}).flatMap(([slot, source]) =>
     source?.producer && source.textPacks ? [{ slot, producer: source.producer, packs: source.textPacks() }] : []);
-  if (!pages.length) return "";
-  return '<script type="application/json" data-ui-page-text>' + JSON.stringify(pages).replaceAll("<", "\\u003c") + '</script>';
+  return renderInlinePageText(pages);
 }
 
 function deferredSurfaces(enabledPlugins: readonly string[], view: WorkbenchShellPageView, directory: PluginDirectory) {

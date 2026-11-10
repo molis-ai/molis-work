@@ -157,6 +157,7 @@ const PANE_PART = String.raw`  const readText = host.translate;
     document.addEventListener("molis-work:select-item", (event) => {
       const surf = event.target;
       if (!(surf instanceof Element) || !surf.hasAttribute("data-work-surface")) return;
+      if (event.detail?.invalidate && event.detail.itemId === undefined) return;
       const itemId = event.detail && typeof event.detail.itemId === "string" ? event.detail.itemId : "";
       // After the plugin's own handler, which may name the object itself.
       setTimeout(async () => {

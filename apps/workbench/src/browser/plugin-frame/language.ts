@@ -31,8 +31,9 @@ interface Pending {
 const pending = new Map<string, Pending[]>();
 const connected = new Map<string, FrameMount>();
 const displayedTemplates = new WeakMap<HTMLElement, { locale: string; markup: string }>();
-let revision = 0;
+let revision = 0, committedRevision = 0;
 export const pageLanguage = () => document.documentElement.dataset.uiLanguageTag;
+export const frameDocumentRevision = () => committedRevision;
 const sameLanguage = (a: UiFrameLanguage, b: UiFrameLanguage) => a.tag === b.tag && a.html_lang === b.html_lang && a.intl === b.intl && a.direction === b.direction;
 
 /** Only this surface's already projected title and description go to the child. */
@@ -184,17 +185,12 @@ export async function prepareFrameLanguages(language: UiFrameLanguage, signal: A
   }));
   // Keep the opening template of a hidden/unmounted surface in the same language as the document, using the same merge rules.
   const templates = [...document.querySelectorAll<HTMLScriptElement>("script[data-plugin-document]")].flatMap(script => {
-    const root = script.parentElement, original = script.textContent;
-    if (!root || original === null) return [];
-    const html = representation(root, before, after), raw = frameDocumentMarkup(root);
-    if (!html || raw === null) return [];
-    if (html.before === html.after) return [{ root, script, original, replacement: original, markup: raw }];
-    const live = frameTextFragment(raw);
-    const merge = planLocaleText({ root: live.content, old: frameTextFragment(html.before).content, next: frameTextFragment(html.after).content,
-      produced: createProducedLog(0), retext: () => "" });
-    merge.apply(() => {}, () => {});
-    const markup = live.innerHTML, replacement = JSON.stringify(markup).replaceAll("<", "\\u003c");
-    return [{ root, script, original, replacement, markup }];
+    const root = script.parentElement;
+    if (!root || frameDocumentMarkup(root) === null) return [];
+    const html = representation(root, before, after);
+    if (!html) return [];
+    return [{ root, script, producer: root.dataset.pluginProducer, words: html.before === html.after ? null
+      : { old: frameTextFragment(html.before).content, next: frameTextFragment(html.after).content } }];
   });
   return {
     assertCurrent() {
@@ -203,9 +199,19 @@ export async function prepareFrameLanguages(language: UiFrameLanguage, signal: A
       for (const mount of mounts) if (mount.scope.alive) mount.scope.assertCurrent(signal);
     },
     apply() {
+      const updates = templates.flatMap(({ root, script, producer, words }) => {
+        if (!root.isConnected || script.parentElement !== root || root.dataset.pluginProducer !== producer) return [];
+        const raw = frameDocumentMarkup(root);
+        if (raw === null) return [];
+        if (!words) return [{ root, script, raw, markup: raw }];
+        const live = frameTextFragment(raw), merge = planLocaleText({ root: live.content, ...words, produced: createProducedLog(0), retext: () => "" });
+        merge.apply(() => {}, () => {});
+        return [{ root, script, raw, markup: live.innerHTML }];
+      });
       applied = true;
-      for (const { root, script, original, replacement, markup } of templates) if (script.textContent === original) {
-        if (replacement !== original) script.textContent = replacement;
+      committedRevision = turn;
+      for (const { root, script, raw, markup } of updates) {
+        if (markup !== raw) script.textContent = JSON.stringify(markup).replaceAll("<", "\\u003c");
         displayedTemplates.set(root, { locale: language.tag, markup });
       }
       send("apply");

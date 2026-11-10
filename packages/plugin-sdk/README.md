@@ -231,6 +231,7 @@ bindActionHandler(read, (input, caller) => load(input.id, caller.project_id), { 
   - `{ enum: string[] }` 只推成 `string`：比运行时宽，精度丢了也没有人报，读字段不会编译失败。所以 `enum` 和它所在的片段都要 `as const`，包内的小片段也一样。
   - `inputSchemaFor` 的键检查走每一层，不含 `Record` 的值：`additionalProperties` 的值不往里走，两边多键都放行。
   - `type: "object"` 和 `properties` 旁边有顶层 `oneOf`、`anyOf` 时只读 `properties`，分支里的 `required` 不算必填，接口是判别联合就包 `FlatUnion`；哪些字段能一起出现仍归 schema 和处理器。
+  - 删除确认里的 `databases.home.project_rows.label` 用作者原文，或用插件自己的 `TextRef`。引用键要求声明 `ui.locales`，默认词不能缺、没有占位符或复数；原文和实际短句沿同一个 200 字符单行约束。改动后跑 `node scripts/run-tests.mjs tests/project-rows-deletion.test.ts`。
   - Manifest 的 `ui.locales` 在 `src/locale-declarations.ts` 检查：语言标记的形状只认合同里的 `LOCALE_TAG`（它也是文件名 `locales/<语言>.json`，所以形状就是路径的边界），`default` 在 `available` 里，语言不重复，最多 `PLUGIN_LOCALE_LIMITS.available` 种，只有这两个键，拒绝已退役的 `ui.messages` 和 `ui.translations`，即使旧字段单独出现也拒绝；`plugin_id` 最后一段可作键的第一段（规则在 `src/ui/text-keys.ts`）；`plugin_id` 最长 `TEXT_REF_LIMITS.owner`（200），否则这个插件的文字引用过不了页面的检查。改动后跑 `node scripts/run-tests.mjs tests/ui-text-manifest-locales.test.ts`。
   - 文字工具不存语言和译文：`t`、`say`、`format` 每次从进程的文字上下文取（`globalThis[Symbol.for("molis.work.ui-text.v1")]`，由 `installUiText` 装，一个进程一次），打进插件包里的那份 SDK 也读到同一个。语言文件的文字不许有 `<`、`>`、`&`、`"`、`'`（只有内容包不查），`t` 先算整句再转义一次，所以结果能直接拼进 HTML，`t.text` 给纯文本。没有语言时，开发路径和测试抛 `ui.text_no_context`，正式运行用主人的默认语言并记问题、不抛；查不到的词、坏日期也不抛。`/ui` 打成浏览器包时不带 Node 内建模块（`tests/ui-text-bundle.test.ts`）。
   - 包是 private，包名不等于已发布到 npm 的承诺。

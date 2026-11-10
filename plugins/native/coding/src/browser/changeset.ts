@@ -1,4 +1,4 @@
-import { format, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { dateArg, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { el, errorMessage } from "./dom.js";
 import type { PagePorts, Translate } from "./types.js";
 
@@ -290,7 +290,7 @@ function drawReference(r: Reader, result: Changeset, scrollToStart: boolean) {
     const chip = fixedChip.lastElementChild;
     if (chip) chip.textContent = uiText.text("coding.change.fixed", { version: result.reference.version });
     const stamp = new Date(result.saved_at ?? 0);
-    fixedChip.title = uiText.text("coding.change.fixed-at", { time: Number.isFinite(stamp.valueOf()) ? format.date(stamp.toISOString(), "datetime") : "" });
+    fixedChip.title = uiText.text("coding.change.fixed-at", { time: Number.isFinite(stamp.valueOf()) ? dateArg(stamp.toISOString(), "datetime-with-seconds") : "" });
   }
   r.message.textContent = result.change.files.length ? "" : uiText.text("coding.change.no-reviewed");
   q("[data-coding-feedback-hint]").textContent = result.reference ? uiText.text("coding.change.comment-hint") : uiText.text("coding.feedback.hint");

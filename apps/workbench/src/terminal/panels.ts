@@ -33,7 +33,7 @@ interface PanelContext {
 
 const terminalsPath = (options: TerminalPanelsOptions, goalId: string, key?: string) => {
   const route = options.terminalsRoute();
-  if (!route) throw new Error(options.text("打开失败"));
+  if (!route) throw new Error(uiText.text("workbench.panels.could-not-open"));
   return options.route(route.replace(":goalId", encodeURIComponent(goalId)) + (key === undefined ? "" : `/${encodeURIComponent(key)}`));
 };
 const listedPanel = (goalId: string, row: ListedPanel): PanelRecord => ({
@@ -45,7 +45,7 @@ const listPanels = async (options: TerminalPanelsOptions, goalId: string) =>
   ((await options.request<{ panels?: ListedPanel[] } | null>(terminalsPath(options, goalId)))?.panels ?? []).map(row => listedPanel(goalId, row));
 /** Asks Goals to open (or, under a known key, start again) a terminal: the Host starts it, the page only attaches. */
 const openTerminal = (options: TerminalPanelsOptions, goalId: string, body: Record<string, unknown>) =>
-  options.request<Opened | null>(terminalsPath(options, goalId), { body, fallback: options.text("打开失败") });
+  options.request<Opened | null>(terminalsPath(options, goalId), { body, fallback: uiText.text("workbench.panels.could-not-open") });
 
 function handleExit(ctx: PanelContext, value: Extract<PtyServerMessage, { type: "exit" }>) {
   const { options, state } = ctx;
@@ -82,7 +82,7 @@ function handlePtyMessage(ctx: PanelContext, value: PtyServerMessage) {
   if (value.type === "exit") handleExit(ctx, value);
   else if (value.type === "spawned") spawner.resolveSpawn(value);
   else if (value.type === "error") {
-    const error = new Error(value.message || options.text("终端通道连接失败"));
+    const error = new Error(value.message || uiText.text("workbench.connection.could-not-connect-terminal"));
     spawner.rejectSpawn(value.panelId, error);
     if (!value.panelId || value.panelId === state.activeId) options.setStatus(options.errorText(error), "error");
   }

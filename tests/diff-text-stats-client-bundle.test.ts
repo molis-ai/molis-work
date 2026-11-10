@@ -1,27 +1,27 @@
+import { assertPageWords } from "./fixtures/page-text.js";
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 import { isProductSource, scanTree, workingTreeSnapshot } from "../scripts/gates/translations.mjs";
 
-import { DIFF_CLIENT_FACTORY_SCRIPT, DIFF_MESSAGES } from "@molis-ai/molis-work-plugin-diff";
-import { TEXT_STATS_CLIENT_FACTORY_SCRIPT, TEXT_STATS_MESSAGES } from "@molis-ai/molis-work-plugin-text-stats";
+import { DIFF_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-diff";
+import { TEXT_STATS_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-text-stats";
 
 const PLUGINS = [
-  { name: "diff", dir: "plugins/native/diff", script: DIFF_CLIENT_FACTORY_SCRIPT, messages: DIFF_MESSAGES as Record<string, { zh: string; en: string }>, bundle: "diff-client.js" },
-  { name: "text-stats", dir: "plugins/native/text-stats", script: TEXT_STATS_CLIENT_FACTORY_SCRIPT, messages: TEXT_STATS_MESSAGES as Record<string, { zh: string; en: string }>, bundle: "text-stats-client.js" },
+  { name: "diff", dir: "plugins/native/diff", script: DIFF_CLIENT_FACTORY_SCRIPT, bundle: "diff-client.js" },
+  { name: "text-stats", dir: "plugins/native/text-stats", script: TEXT_STATS_CLIENT_FACTORY_SCRIPT, bundle: "text-stats-client.js" },
 ];
 const browserFiles = (dir: string) => readdirSync(join(dir, "src/browser")).map(file => join(dir, "src/browser", file));
 
 test("RAC-169 the Diff and Text Stats pages say every word by a stable key with both languages", () => {
   const scan = scanTree(workingTreeSnapshot(process.cwd()), isProductSource);
-  for (const { name, dir, messages } of PLUGINS) {
+  for (const { name, dir } of PLUGINS) {
     const calls = scan.calls.filter(call => call.file.startsWith(join(dir, "src/browser") + "/"));
     assert.ok(calls.length > 0, `${name}: the actual scanner sees the page's words`);
     assert.deepEqual(calls.filter(call => /\p{Script=Han}/u.test(call.key)), [], `${name}: no Chinese key`);
     assert.deepEqual(scan.dynamicCalls.filter(call => call.file.startsWith(join(dir, "src/browser") + "/")), [], `${name}: no dynamic key choice the scanner cannot list`);
-    assert.deepEqual([...new Set(calls.map(call => call.key))].filter(key => !(key in messages)), [], `${name}: every key the page asks for is defined`);
-    for (const [key, text] of Object.entries(messages)) assert.ok(text.zh && text.en, `${key} has Chinese and English`);
+    assertPageWords(name, calls.map(call => call.key));
   }
 });
 

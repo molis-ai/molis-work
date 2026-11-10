@@ -5,7 +5,9 @@ import type { AgentPendingQuestion } from "@molis-ai/molis-work-contracts/servic
 export interface NextStepCard { card_id: string; title: string; status: string; missing: ReadonlyArray<unknown> }
 /** An effect held for the person's approval: only ever reached, never approved from a next step. */
 export interface NextStepReview { review_id: string; title?: string }
-type Say = (text: string, values?: Record<string, string | number>) => string;
+export type NextStepSay<Word = string> = (text: string, values?: Record<string, string | number>) => Word;
+export type NextStep<Word = string> = Omit<InteractionNextStep, "label" | "source" | "waitingLabel">
+  & { label: string | Word; source: string | Word; waitingLabel?: string | Word };
 
 /**
  * Where a step leads, read back by the page from the step's id. Every step is another way into a record that is already
@@ -38,8 +40,8 @@ const RAN = new Set(["done", "failed", "unknown"]);
  * failed or unconfirmed one is already reached among what waits, and one whose result has nothing to open has no step.
  * `to` names the step as the page that shows the card reads it (the Assistant's key, Coding's selector).
  */
-export function cardOutcomeSteps(cards: readonly OutcomeCard[], since: string, say: Say,
-  to = (card: OutcomeCard) => NEXT_STEP.press(NEXT_STEP.card(card.card_id), CARD_RESULT_OPEN)): InteractionNextStep[] {
+export function cardOutcomeSteps<Word>(cards: readonly OutcomeCard[], since: string, say: NextStepSay<Word>,
+  to = (card: OutcomeCard) => NEXT_STEP.press(NEXT_STEP.card(card.card_id), CARD_RESULT_OPEN)): NextStep<Word>[] {
   const ran = cards.filter(card => RAN.has(card.status) && card.updated_at >= since).sort((a, b) => a.updated_at.localeCompare(b.updated_at)).at(-1);
   const result = ran?.status === "done" && ran.presentation?.link ? ran.presentation : null;
   return ran && result ? [{ id: to(ran), label: say("workbench.agent-next-steps.open-title", { title: result.title ?? ran.title }), source: say("workbench.agent-next-steps.from-an-action-card") }] : [];
@@ -63,9 +65,9 @@ function oneChoice(question: AgentPendingQuestion): { field: string; options: Ar
  * FLOW-01…05): what waits on the person first — approvals to review, questions, cards — then what follows the round.
  * Usable for any run that shows questions and cards (the Assistant, Coding): it reads only their views.
  */
-export function interactionNextSteps(questions: readonly AgentPendingQuestion[], cards: readonly NextStepCard[], reviews: readonly NextStepReview[],
-  followUps: readonly InteractionNextStep[], say: Say): InteractionNextStep[] {
-  const steps: InteractionNextStep[] = [];
+export function interactionNextSteps<Word>(questions: readonly AgentPendingQuestion[], cards: readonly NextStepCard[], reviews: readonly NextStepReview[],
+  followUps: readonly NextStep<Word>[], say: NextStepSay<Word>): NextStep<Word>[] {
+  const steps: NextStep<Word>[] = [];
   const waiting = say("workbench.agent-next-steps.waiting-on-you");
   for (const review of reviews) steps.push({ id: NEXT_STEP.review(review.review_id), label: say("workbench.agent-next-steps.review-it"), source: review.title ?? say("workbench.agent-next-steps.an-action-waiting-for-your-review"), primary: false, waiting: true, waitingLabel: waiting });
   for (const question of questions) {

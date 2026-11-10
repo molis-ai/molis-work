@@ -4,9 +4,9 @@ import { readFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ALCHEMIST_CLIENT_FACTORY_SCRIPT, ALCHEMIST_EN, ALCHEMIST_STYLES, alchemistActions, renderAlchemistWorkbench } from "@molis-ai/molis-work-plugin-alchemist";
+import { ALCHEMIST_CLIENT_FACTORY_SCRIPT, ALCHEMIST_STYLES, alchemistActions, renderAlchemistWorkbench } from "@molis-ai/molis-work-plugin-alchemist";
 import { builderUiContribution, renderAgentStudio, renderStudioStage } from "@molis-ai/molis-work-plugin-builder";
-import { createWorkbenchLocale } from "@molis-ai/molis-work-app-workbench";
+import { withPageText } from "./fixtures/page-text.js";
 import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 
 // W2-18 decisions 7 and 14: the interface says where the product goes online in the places where that happens, and the
@@ -14,61 +14,51 @@ import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fix
 
 const CONTROL = "network-notices-token-012345678901";
 
-test("the plugin studio says that a build check sends dependency names and versions to the npm registry", () => {
-  const html = renderAgentStudio();
-  assert.match(html, /registry\.npmjs\.org/u);
-  assert.match(html, /包名和版本/u);
-  assert.match(html, /不发送你的内容/u);
+const studioText = <T>(locale: "zh" | "en", draw: () => T) => withPageText(locale, ["plugin-builder"], draw);
+const alchemist = (locale: "zh" | "en") => withPageText(locale, ["alchemist"], () =>
+  renderAlchemistWorkbench({ primitives: { escape: value => String(value ?? ""), text: value => value } }));
+
+test("the plugin studio discloses the npm registry connection in both languages", () => {
+  const zh = studioText("zh", () => renderAgentStudio());
+  assert.match(zh, /registry\.npmjs\.org/u);
+  assert.match(zh, /包名和版本/u);
+  assert.match(zh, /不发送你的内容/u);
+  assert.match(studioText("en", () => renderStudioStage()),
+    /data-as-network-note>The build check’s packaging step.*names and versions.*npm registry \(registry\.npmjs\.org\).*None of your content is sent/u);
 });
 
-test("the studio's npm sentence has English in the workbench catalog, and the stage shows it in the English interface", () => {
-  const english = createWorkbenchLocale(() => "en").L, chinese = createWorkbenchLocale(() => "zh").L;
-  const sentence = /data-as-network-note>([^<]+)<\/p>/u.exec(renderAgentStudio())?.[1];
-  assert.ok(sentence, "the studio carries the sentence");
-  assert.match(english(sentence), /packaging step.*names and versions.*npm registry \(registry\.npmjs\.org\).*None of your content is sent/u, "the merged workbench catalog has its English");
-  assert.equal(chinese(sentence), sentence, "the Chinese interface shows the sentence as written");
-  assert.match(renderStudioStage(english), /data-as-network-note>The build check's packaging step/u);
-  assert.match(renderStudioStage(chinese), /data-as-network-note>构建检查的「打包」一步/u);
-  assert.match(renderStudioStage(), /data-as-network-note>构建检查的「打包」一步/u, "without a translator the stage is the Chinese text");
+test("the studio contribution uses its active language for the npm sentence", () => {
+  const request = (surface: "workbench" | "directory") =>
+    builderUiContribution.render({ contribution_id: builderUiContribution.descriptor.contribution_id, surface, model: null });
+  assert.match(studioText("en", () => request("workbench")), /data-as-network-note>The build check’s packaging step.*registry\.npmjs\.org/u);
+  assert.match(studioText("zh", () => request("workbench")), /data-as-network-note>构建检查的「打包」一步/u);
+  assert.equal(studioText("en", () => request("directory")), "", "the directory surface stays empty");
 });
 
-test("the studio's UI contribution translates the npm sentence when its model carries the host translator, and shows the Chinese text without one", () => {
-  const english = createWorkbenchLocale(() => "en").L;
-  const request = (model: Parameters<typeof builderUiContribution.render>[0]["model"]) => builderUiContribution.render({ contribution_id: builderUiContribution.descriptor.contribution_id, surface: "workbench", model });
-  assert.match(request({ primitives: { text: english } }), /data-as-network-note>The build check's packaging step.*registry\.npmjs\.org/u);
-  assert.match(request(null), /data-as-network-note>构建检查的「打包」一步/u, "a developer fixture renders with no model");
-  assert.match(request({}), /data-as-network-note>构建检查的「打包」一步/u);
-  assert.equal(builderUiContribution.render({ contribution_id: builderUiContribution.descriptor.contribution_id, surface: "directory", model: { primitives: { text: english } } }), "", "the directory surface stays empty");
-});
-
-test("the market pulse list says that collecting contacts Toolify, 观猹 and GitHub, with the English text beside it", () => {
-  const html = renderAlchemistWorkbench({ primitives: { escape: value => String(value ?? ""), text: value => value } });
-  const note = /<p class="alc-muted alc-list-note" data-alc-pulse-note hidden>([^<]*采集会联网访问 Toolify、观猹和 GitHub[^<]*)<\/p>/u.exec(html)?.[1];
-  assert.ok(note, "the workbench carries the sentence, hidden until the market pulse collection is open");
-  assert.match(note, /GitHub 只用你在「来源设置」里选的账号，没选就匿名访问/u, "and which GitHub account it is: only the one picked in the source settings, anonymous otherwise");
-  assert.match(ALCHEMIST_EN[note] ?? "", /GitHub uses only the account you pick in Source settings/u);
-  assert.match(ALCHEMIST_EN[note] ?? "", /Toolify, Watcha .*GitHub/u);
-  assert.match(ALCHEMIST_EN[note] ?? "", /anonymously/u);
+test("the market pulse list says which sites it contacts and which GitHub account it uses in both languages", () => {
+  const pulseNote = (html: string) => /<p class="alc-muted alc-list-note" data-alc-pulse-note hidden>([^<]*)<\/p>/u.exec(html)?.[1] ?? "";
+  const zh = pulseNote(alchemist("zh"));
+  assert.match(zh, /采集会联网访问 Toolify、观猹和 GitHub/u);
+  assert.match(zh, /GitHub 只用你在「来源设置」里选的账号，没选就匿名访问/u);
+  const en = pulseNote(alchemist("en"));
+  assert.match(en, /Toolify, Watcha .*GitHub/u);
+  assert.match(en, /GitHub uses only the account you pick in Source settings.*anonymously/u);
   // NETWORK-PULSE-01: visible-only-on-pulse behavior runs through the actual Chrome client in alchemist-client-boundaries.e2e.
 });
 
-test("the source settings carry the GitHub account picker: its markup comes with the page in both languages, the accounts and the choice go through the actions", () => {
-  const html = renderAlchemistWorkbench({ primitives: { escape: value => String(value ?? ""), text: value => value } });
-  const template = /<template data-alc-github>([\s\S]*?)<\/template>/u.exec(html)?.[1];
-  assert.ok(template, "the page carries the picker's fixed markup");
-  assert.match(template, /<select class="mw-select" name="githubAccount"><option value="">匿名访问<\/option><\/select>/u, "anonymous is always the first choice");
-  const hint = /<p class="alc-muted">([^<]*)<\/p>/u.exec(template)?.[1] ?? "";
-  assert.match(hint, /令牌留在宿主里/u, "it says the token stays in the host");
-  assert.match(hint, /所有项目共用/u, "and that the choice is the Home's, shared by every project, not this project's");
-  for (const zh of ["GitHub 账号", "匿名访问", hint]) assert.ok(ALCHEMIST_EN[zh], `${zh.slice(0, 12)} has English`);
-  assert.match(ALCHEMIST_EN[hint] ?? "", /token stays in the host.*anonymously/u);
-  assert.match(ALCHEMIST_EN[hint] ?? "", /Every project shares this choice/u);
+test("the GitHub account picker comes with the page in both languages; its accounts and choice go through the actions", () => {
+  const template = (html: string) => /<template data-alc-github>([\s\S]*?)<\/template>/u.exec(html)?.[1] ?? "";
+  const zh = template(alchemist("zh")), en = template(alchemist("en"));
+  assert.match(zh, /<select class="mw-select" name="githubAccount"><option value="">匿名访问<\/option><\/select>/u);
+  assert.match(en, /<select class="mw-select" name="githubAccount"><option value="">Anonymous<\/option><\/select>/u);
+  assert.match(zh, /所有项目共用.*令牌留在宿主里/u);
+  assert.match(en, /Every project shares this choice.*token stays in the host.*anonymously/u);
   assert.match(ALCHEMIST_CLIENT_FACTORY_SCRIPT, /api\('\/pulse\/github'\)/u, "the accounts are read through the action");
   assert.match(ALCHEMIST_CLIENT_FACTORY_SCRIPT, /api\('\/pulse\/github',\{connectionId:account\},'PUT'\)/u, "and the choice is saved through the action, null meaning anonymous");
 });
 
 test("the market pulse note stays outside the rows, so an empty collection is still the only child that the list page centres", () => {
-  const html = renderAlchemistWorkbench({ primitives: { escape: value => String(value ?? ""), text: value => value } });
+  const html = alchemist("zh");
   assert.match(html, /data-alc-pulse-note hidden>[^<]*<\/p>\s*<div data-alc-rows>/u, "the note precedes the rows container instead of sitting inside it");
   assert.doesNotMatch(ALCHEMIST_CLIENT_FACTORY_SCRIPT, /el\.innerHTML=[^;]*alc-muted/u, "nothing is written before the groups or the empty state in the rows");
   assert.match(ALCHEMIST_CLIENT_FACTORY_SCRIPT, /el\.innerHTML=html\|\|\(q\?empty\(/u, "the rows hold the groups, or one empty state");

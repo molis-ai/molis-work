@@ -59,7 +59,7 @@ test("FSS-38 FSS-39 nonempty follow-ups and notices retain stable keys, zoned in
   t.after(() => rm(directory, { recursive: true, force: true }));
   const file = join(directory, "assistant.db"), timeZone = "America/Los_Angeles";
   const original = "Original upstream failure <file>\n" + "原始错误内容，保留末尾。\n".repeat(230) + "EOF & 尾句";
-  const failureAt = "2026-03-08T09:59:00.000Z", missedAt = "2026-03-08T10:00:00.000Z";
+  const failureAt = "2026-03-08T09:59:00.000Z", missedAt = "2026-03-08T10:00:37.000Z";
   const live = harness("2026-03-08T09:00:00.000Z", { file, timeZone, failSend: original });
   let missedId = "";
   try {
@@ -86,8 +86,8 @@ test("FSS-38 FSS-39 nonempty follow-ups and notices retain stable keys, zoned in
     assert.ok(notice && "key" in notice.text);
     assert.deepEqual(notice.text.args, [{ name: "label", kind: "text", text: "DST 原文" },
       { name: "at", kind: "date", at: missedAt, style: "datetime", time_zone: timeZone }]);
-    assert.match(noticeText(notice, "en"), /DST 原文.*3:00\sAM/u, "the due time after the DST jump is drawn in its stored zone");
-    assert.match(noticeText(notice, "zh"), /错过了「DST 原文」.*03:00/u);
+    assert.match(noticeText(notice, "en"), /DST 原文.*3:00:37\sAM/u, "the due time after the DST jump is drawn to the second in its stored zone");
+    assert.match(noticeText(notice, "zh"), /错过了「DST 原文」.*03:00:37/u);
     const { notice_id: _id, created_at: _created, state: _state, ...body } = notice;
     assert.equal(restarted.store.raiseNotice("person", body, `followup:${missedId}:${missedAt}:missed`), null);
     assert.deepEqual(restarted.store.openNotices("person"), [notice], "a restart and replay of the same request cannot duplicate or rewrite the row");

@@ -4,7 +4,7 @@ type Primitives = Pick<SettingsRenderPrimitives, "readText" | "escapeHtml">;
 
 export interface McpAccessEntry {
   capability_id: string; version: number; provider_id: string;
-  /** The Plugin whose action this is: its title and description are English from that Plugin's own words. */
+  /** The Plugin whose action this is. Its declared title and description are shown as written. */
   plugin_id?: string;
   title: string; provider_title: string; description: string; kind: string;
   permissions: readonly string[];

@@ -1,10 +1,5 @@
-/**
- * The way in for a new person and for a new project, in the browser (specs/archive/project-arrival-flow): the opening, two
- * Welcome questions, and the journey that turns existing materials into a project — sources, scope, reading, naming.
- * Account authorization is performed by the provider, never simulated here. The journey is the Host's (the
- * `/api/onboarding/context` ids and phases are unchanged); this program only draws it, in the arrival frame: the
- * stage is `#cx-app`, the bar's three blocks belong to the step in view.
- */
+// The arrival frame draws the existing Home journey: sources, scope, reading and naming.
+// Providers own authorization; the Host owns the ids and phases under /api/onboarding/context.
 export const CONTEXT_ONBOARDING_CLIENT = String.raw`
 (() => {
   const arrival = window.molisArrival;
@@ -318,7 +313,7 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   // Todo drafts from the same materials: the person keeps what they want; the rest waits in Todo's “待你确认”.
   let todoPicked=null;
   const KIND={request:["workbench.context-onboarding.todo-needs-you",'attention','status-needs-you'],commitment:["workbench.context-onboarding.todo-your-commitment",'progress','status-progress'],waiting:["workbench.context-onboarding.todo-waiting",'hold','status-waiting'],suggestion:["workbench.context-onboarding.todo-suggestion",'quiet','status-todo']};
-  function draftDay(date){return new Intl.DateTimeFormat(document.documentElement.lang||'zh-CN',{month:'long',day:'numeric'}).format(new Date(date+'T00:00:00'));}
+  function draftDay(date){return globalThis.t.text("common.generated.formatted",{value:{kind:"date",at:date,style:"month-day"}});}
   function drafts(){
     const t=journey.todo;if(!t)return '';
     // One list to confirm, however many batches the drafts were organized in.

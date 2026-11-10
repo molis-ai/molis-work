@@ -1,4 +1,4 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { dateArg, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { button } from "./dom.js";
@@ -20,7 +20,7 @@ function materialRow(page: CogniaPage, m: Workspace["materials"][number]): strin
   const domain = page.state.domains.find((d) => d.id === m.domain_id)?.name || uiText.text("cognia.domain.unfiled");
   return `<article class="cognia-row"><input type="checkbox" class="mw-check" data-cognia-select="${esc(m.id)}" aria-label="${tx(page, "cognia.list.select-material")} ${esc(m.title)}" ${page.selected.has(m.id) ? "checked" : ""} ${m.role === "attachment" ? "disabled" : ""}>`
     + `<button type="button" class="cognia-entry" data-cognia-id="${esc(m.id)}"><div><strong>${esc(m.title)}</strong><small>${esc(m.path)}</small>${m.excerpt ? `<small>${esc(m.excerpt)}</small>` : ""}</div>`
-    + `<span>${tx(page, ROLE_KEY[m.role])}</span><span>${esc(domain)}</span><span>${esc(new Date(m.updated_at).toLocaleDateString())}</span></button></article>`;
+    + `<span>${tx(page, ROLE_KEY[m.role])}</span><span>${esc(domain)}</span><span>${esc(uiText.text("common.generated.formatted", { value: dateArg(m.updated_at, "date") }))}</span></button></article>`;
 }
 
 function emptyList(page: CogniaPage): string {

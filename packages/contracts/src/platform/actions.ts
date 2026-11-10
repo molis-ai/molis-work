@@ -719,10 +719,14 @@ const COMMON_FIELD_LABELS: Readonly<Record<string, string>> = {
   starts_at: "开始时间", ends_at: "结束时间", remind_at: "提醒时间", expected_revision: "基于的版本", expected_version: "基于的版本", id: "对象", item: "内容",
   markdown: "正文", folder_id: "文件夹", goal_id: "目标", project_id: "项目", starred: "加星标",
 };
+export function actionFieldLabelSource(key: string, declared?: { title?: string; description?: string }): { label: string; defaultKey?: string } {
+  if (declared?.title) return { label: declared.title };
+  if (Object.hasOwn(COMMON_FIELD_LABELS, key)) return { label: COMMON_FIELD_LABELS[key]!, defaultKey: key };
+  return { label: declared?.description && declared.description.length <= 24 ? declared.description : key };
+}
+
 export function actionFieldLabel(key: string, declared?: { title?: string; description?: string }): string {
-  if (declared?.title) return declared.title;
-  if (COMMON_FIELD_LABELS[key]) return COMMON_FIELD_LABELS[key]!;
-  return declared?.description && declared.description.length <= 24 ? declared.description : key;
+  return actionFieldLabelSource(key, declared).label;
 }
 
 /**

@@ -2,12 +2,46 @@ import type { SandboxSchema, SandboxVisibleText } from "@molis-ai/molis-work-con
 import { isRecord } from '@molis-ai/molis-work-plugin-sdk';
 import { inspectLocaleSet, parseLocalePack, textRefProblems } from '@molis-ai/molis-work-plugin-sdk/ui';
 import { UI_FORMAT_VERSIONS, type PluginLocalesDeclaration, type TextRef, type UiLocalePack } from '@molis-ai/molis-work-contracts/platform/ui';
-import { PLUGIN_COMPONENT_WORD_KEYS, pluginFieldWords, pluginTemplateName, pluginTemplatePaths, pluginTemplateBindings, pluginMessageNames, pluginSchemaAt, pluginTextSlot, pluginTextSlotKey } from '@molis-ai/molis-work-design-system';
+import { PLUGIN_COMPONENT_PROP_KEYS, PLUGIN_COMPONENT_WORD_KEYS, type PluginComponentPlan, pluginFieldWords, pluginTemplateName, pluginTemplatePaths, pluginTemplateBindings, pluginMessageNames, pluginSchemaAt, pluginTextSlot, pluginTextSlotKey } from '@molis-ai/molis-work-design-system';
 import type { AgentDesign } from './agent-model.js';
 
 export interface StudioDesignLanguages {
   readonly current: string;
   readonly available: readonly { readonly tag: string; readonly name: string }[];
+}
+
+type WordFailure = (where: string, message: string) => never;
+
+/** A draft string becomes an owned word at freeze; an explicit literal keeps its exact value. */
+export function authoredWord(value: unknown, where: string, fail: WordFailure, limit = 2000): SandboxVisibleText | undefined {
+  if (typeof value === 'string') return value.trim() ? value.slice(0, limit) : undefined;
+  if (!isRecord(value)) return undefined;
+  const problems = textRefProblems(value, { key: false });
+  if (typeof value.literal !== 'string' || problems.length) return fail(where, problems.join('；') || '应为短句或显式 literal');
+  if (value.literal.length > limit) return fail(where, 'literal 太长，不能截断原文');
+  return { literal: value.literal };
+}
+
+/** Keep the normalized authoring words and the explicit literal distinction until the design freezes. */
+export function authoredPartWords(raw: unknown, where: string, dropped: string[], fail: WordFailure): PluginComponentPlan['props'] {
+  const props: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(isRecord(raw) ? raw : {})) {
+    if (!(PLUGIN_COMPONENT_PROP_KEYS as readonly string[]).includes(key)) { dropped.push(`${where} 的 ${key}`); continue; }
+    if (key === 'columns') props.columns = (Array.isArray(value) ? value : []).flatMap(column => {
+      if (typeof column === 'string') return [{ field: column, label: column }];
+      if (!isRecord(column)) return [];
+      const field = typeof column.field === "string" ? column.field.trim() : "", place = where + ' 的列 ' + field;
+      const label = authoredWord(column.label, place, fail, 120) ?? field;
+      return [{ field, label, ...(isRecord(column.values) ? { values: Object.fromEntries(Object.entries(column.values).map(([value, label]) =>
+        [value, authoredWord(label, place + '/' + value, fail, 60) ?? value])) } : {}) }];
+    });
+    else if ((PLUGIN_COMPONENT_WORD_KEYS as readonly string[]).includes(key)) {
+      const copy = authoredWord(value, where + ' 的 ' + key, fail);
+      if (key === 'requiredText' && copy === undefined && typeof value !== 'string') return fail(where, 'requiredText 必须是文字');
+      if (copy !== undefined) props[key] = copy;
+    } else if (typeof value === 'string' && value.trim()) props[key] = value.slice(0, 2000);
+  }
+  return props as PluginComponentPlan['props'];
 }
 
 interface Slot { readonly name: string; readonly ref: SandboxVisibleText; readonly fields: readonly string[]; readonly schema?: SandboxSchema; use(ref: TextRef): void }

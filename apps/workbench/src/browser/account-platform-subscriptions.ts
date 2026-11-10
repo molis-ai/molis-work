@@ -25,7 +25,7 @@ async function audit(panel: TenantPanel, back: () => Promise<void>) {
   const { ui, begin } = panel, { form, node, button, request, perform } = ui;
   const current = begin('workbench.account.billing-audit');button('workbench.account.back-platform-subscriptions', () => perform(back));
   async function next(cursor?: string) { const page = await request<{items:AuditEvent[];nextCursor:string|null}>('/platform/audit-events?limit=100' + (cursor ? '&cursor=' + encodeURIComponent(cursor) : ''));if (!current()) return;
-    for (const event of page.items) { const row = node('div', '', 'account-method');row.append(node('strong', event.operation), node('p', event.target.id),node('p', uiText.text(event.result === "SUCCEEDED" ? "workbench.account.audit-succeeded" : "workbench.account.audit-rejected", { actor: event.actorUserId, at: dateArg(event.occurredAt, "datetime") })));
+    for (const event of page.items) { const row = node('div', '', 'account-method');row.append(node('strong', event.operation), node('p', event.target.id),node('p', uiText.text(event.result === "SUCCEEDED" ? "workbench.account.audit-succeeded" : "workbench.account.audit-rejected", { actor: event.actorUserId, at: dateArg(event.occurredAt, "datetime-with-seconds") })));
       for (const c of event.changes) row.append(node('p', c.field + ': ' + (c.before ?? '—') + ' → ' + (c.after ?? '—')));form.append(row); }
     if (!cursor && !page.items.length) form.append(node('p', uiText.text("workbench.account-platform-subscriptions.no-operations-recorded")));
     if (page.nextCursor) { const more = button('workbench.account.load-more', () => perform(async () => { await next(page.nextCursor!);more.remove(); })); }

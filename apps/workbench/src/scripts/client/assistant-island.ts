@@ -1,12 +1,15 @@
 import { ASSISTANT_STAGE_FACTORY, ASSISTANT_ELEMENT_SCRIPT, ASSISTANT_PLACER_SCRIPT } from "./assistant-stage.js";
 import { codeLanguage, codeTokens, growCodeTokens } from "@molis-ai/molis-work-plugin-sdk/highlight";
+import { say as uiSay } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { assistantCodeColours, createAssistantCodeGrow } from "./assistant-code-grow.js";
 import { ASSISTANT_SEND_CLIENT_SCRIPT, ASSISTANT_RECEIPTS_FACTORY_SCRIPT } from "./assistant-send.js";
 import { ASSISTANT_FOLLOW_FACTORY_SCRIPT } from "./assistant-follow.js";
 import { ASSISTANT_STEP_ROW_FACTORY_SCRIPT } from "./assistant-step-row.js";
 import type { AssistantPendingReview, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
 import { ARTIFACT_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import { renderAssistantTextHtml, renderAssistantReviewHtml, renderAssistantNoticeText, renderAssistantSavedText } from "../../assistant-text-html.js";
+import { renderAssistantTextHtml, renderAssistantNoticeText, renderAssistantSavedText } from "../../assistant-text-html.js";
+import { renderAssistantReviewHtml, type AssistantReviewDisplay } from "../../assistant-review-html.js";
+import type { AssistantTextPorts } from "../../assistant-text-parts.js";
 import { ASSISTANT_CHOOSERS_PART } from "./assistant-choosers.js";
 import { ASSISTANT_BROWSER_HANDBACK_PART } from "./assistant-browser-handback.js";
 import { ASSISTANT_LAYOUT_PART } from "./assistant-layout.js";
@@ -22,10 +25,10 @@ import { ASSISTANT_COMPOSER_PART } from "./assistant-composer.js";
 import { ASSISTANT_PAGE_MESSAGES_PART } from "./assistant-page-messages.js";
 // The SDK's tokenizer is consumed here on the Host, never serialized into the Assistant's browser script.
 const assistantGrownTokens = assistantCodeColours(growCodeTokens, codeTokens);
-export const assistantTextHtml = (text: string, objects: AssistantWorkView["objects"], say: (text: string) => string): string =>
+export const assistantTextHtml = (text: string, objects: AssistantWorkView["objects"], say: AssistantTextPorts["say"]): string =>
   renderAssistantTextHtml(text, { objects, say, language: codeLanguage, tokens: assistantGrownTokens });
-export const assistantReviewHtml = (review: AssistantPendingReview, say: (text: string) => string): string =>
-  renderAssistantReviewHtml(review, { objects: [], say, language: codeLanguage, tokens: codeTokens });
+export const assistantReviewHtml = (review: AssistantPendingReview, say: AssistantTextPorts["say"], display?: AssistantReviewDisplay): string =>
+  renderAssistantReviewHtml(review, { objects: [], say, language: codeLanguage, tokens: codeTokens }, uiSay.text, display);
 
 /**
  * The resident Assistant in the bottom bar: one assistant, many works.
@@ -235,7 +238,7 @@ ${ASSISTANT_CONVERSATION_PART}
   const WAITING = new Set(["waiting-input", "waiting-review", "needs-check"]);
   // Works with news for the person (done, a result handed back, new material) and works waiting on them, from notices.
   let unreadWorks = new Set(), urgentWorks = new Set();
-  const when = (iso) => { const at = new Date(iso); return Number.isFinite(at.getTime()) ? at.toLocaleString([], { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : ""; };
+  const when = (iso) => { const at = new Date(iso); return Number.isFinite(at.getTime()) ? globalThis.t.text("common.generated.formatted", { value: { kind: "date", at: at.toISOString(), style: "datetime" } }) : ""; };
   const showError = (next) => { problem = next; render(); };
   /* A change the Assistant made is announced once, so the surface that owns that data can show it (and not overwrite it). */
   const announced = new Set();
@@ -663,7 +666,7 @@ ${ASSISTANT_PAGE_MESSAGES_PART}
   });
   ${ASSISTANT_SEND_CLIENT_SCRIPT}
   const nextRow = island.querySelector("[data-assistant-next-row]");
-  stepRow = nextRow && (${ASSISTANT_STEP_ROW_FACTORY_SCRIPT})({ row: nextRow, thread, readText, el, drawn, jumpTo, bindText, view: () => (view?.work.work_id === curId ? view : null), open: () => Boolean(panel && !panel.hidden),
+  stepRow = nextRow && (${ASSISTANT_STEP_ROW_FACTORY_SCRIPT})({ row: nextRow, thread, readText, el, drawn, jumpTo, bindText, setReviewWord, view: () => (view?.work.work_id === curId ? view : null), open: () => Boolean(panel && !panel.hidden),
     // A page's words and materials go in the input, in the work it named; nothing is sent.
     reply: (message) => replyToThread(message), take: async (message) => { if (message.work_id && works.some((work) => work.work_id === message.work_id)) await switchTo(message.work_id); bring(message); setPanel(true); input.focus(); },
     other: (id) => {
@@ -673,6 +676,11 @@ ${ASSISTANT_PAGE_MESSAGES_PART}
       else if (id.startsWith("work:")) switchTo(id.slice(5));
       else if (id === "retry" && last) { input.value = last.text; typed = true; syncSend(); saveDraft(false); input.focus(); }
     } });
+  const retitleReviews = () => {
+    for (const card of thread.querySelectorAll('[data-review]')) retitleReviewText(card);
+    stepRow?.retitle();
+  };
+  document.addEventListener("molis-work:language-changed", retitleReviews);
   presentation = (${ASSISTANT_STAGE_FACTORY})({island,panel,input,current:getWork,switchTo,showProblem:showError,readText,el});
   /* ─── Head controls ────────────────────────────────────────────────────── */
   island.querySelector("[data-assistant-panel-close]")?.addEventListener("click", () => setPanel(false));
@@ -762,5 +770,5 @@ ${ASSISTANT_PAGE_MESSAGES_PART}
       saveDraft(true); project = chosen; tabs = savedTabs(); nextScope = project ? "project" : "personal";
       void showWork(store.get(scoped("current")));
     },
-    dispose: () => { follower.stop(); retries.stop(); clearInterval(listTimer); cancelAnimationFrame(fitFrame); cancelAnimationFrame(materialsFrame); fitWatchers.forEach((watcher) => watcher.disconnect()); } };
+    dispose: () => { document.removeEventListener("molis-work:language-changed", retitleReviews); follower.stop(); retries.stop(); clearInterval(listTimer); cancelAnimationFrame(fitFrame); cancelAnimationFrame(materialsFrame); fitWatchers.forEach((watcher) => watcher.disconnect()); } };
 }`;

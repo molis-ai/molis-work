@@ -17,7 +17,7 @@ test("RCPT-352/353 the AI's new task waits on the plan card for the person; the 
   if (!browser) { rmSync(directory, { recursive: true, force: true }); t.skip("没有可用的 Chrome"); return; }
   try {
     const page = await browser.page();
-    await page.evaluate(`(()=>{${pageTextScript("zh", "coding")}})()`); // the scripts read the page's translator, `L`
+    await page.evaluate(`(()=>{${pageTextScript("zh", "coding")}})()`); // the scripts read the page's SDK text context
     const result = await page.evaluate<{ offers: string[]; steps: string[][]; dashed: string; prefilled: string; posted: unknown[]; endedOffers: number; badges: string[][]; opened: string[] }>(`(async()=>{
       document.body.innerHTML='<section data-coding-board><h2 data-coding-board-title></h2><p data-coding-board-meta></p><div data-coding-board-list></div><p data-coding-board-status></p></section>';
       ${STATE_RING_CLIENT_SCRIPT}
@@ -76,7 +76,7 @@ test("VUX-40: the plan card and the TaskBoard speak English in English", { timeo
       const board=document.querySelector('[data-coding-board]'),outline=document.querySelector('[data-coding-board-outline]'),lifetime=(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})()(document.body);
       const taskboard=(${CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT})({lifetime,translate:L,board,outline,onShow:()=>true,current:()=>'s',status:()=>{},ownTask:text=>text,roleName:id=>id==='coding-builder'?'Builder':id,navigate:async()=>{},amend:async()=>{},from:()=>null});
       const card=(${CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT})({lifetime,translate:L,roleLabel:()=>undefined,api:async()=>({board:{terminal:false},steered:true}),current:()=>'s',status:()=>{},refresh:async()=>{},openStep:()=>{},
-        from:()=>null,stepOf:taskboard.stepOf,skipped:taskboard.skipped,settled:taskboard.settled,word:(${INPUT_RECEIPTS_CLIENT_SCRIPT})(globalThis.L).step});
+        from:()=>null,stepOf:taskboard.stepOf,skipped:taskboard.skipped,settled:taskboard.settled,word:(${INPUT_RECEIPTS_CLIENT_SCRIPT})(globalThis.t.text).step});
       const turns=[{turn_id:'u',kind:'user',text:'Fix login'},{turn_id:'in-1',kind:'user',text:'Also cover sign-up',steer:{id:'in-1',state:'read',model_claim:{treatment:'new-task',targets:[],impacts:['scope'],revisions:1}}}];
       const plan={revision:2,confirmed:{artifact_id:'x',version:1},content:{title:'Fix login',steps:[{title:'Change the login route',acceptance:'Tests pass'},{title:'Update docs',acceptance:'Docs read well'},
         {title:'Cover sign-up',acceptance:'Sign-up works'},{title:'Triage the failures',acceptance:'Failures known'},{title:'Hand over the rollout',acceptance:'Rollout owned'},{title:'Watch the logs',acceptance:'Logs clean'}]}};

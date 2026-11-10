@@ -42,6 +42,7 @@ import { currentRows, readManifest, registeredPaths } from "./first-screen/manif
 const ROOT = resolve(import.meta.dirname, "..");
 const QUIET_MS = 1_500;
 const SETTLE_LIMIT_MS = 8_000;
+const UI_TEXT_CONTEXT = /* @version protocol.ui.text-context "molis.work.ui-text.v{version}" */ "molis.work.ui-text.v1";
 
 const bytes = (text) => Buffer.byteLength(text, "utf8");
 const gzip = (text) => gzipSync(text, { level: 9 }).length;
@@ -73,23 +74,6 @@ function parse(argv) {
 
 // ---- the page's own bytes -------------------------------------------------------------------------------------------
 
-/** The parts of the i18n script: each `globalThis.NAME = <json>;` is told apart so a catalog is not hidden in "script". */
-function splitI18n(body) {
-  const parts = [];
-  let rest = body;
-  for (const name of ["MOLIS_WORK_MESSAGES", "MOLIS_WORK_PLUGIN_TITLES", "MOLIS_WORK_PLUGIN_WORDS"]) {
-    const start = rest.indexOf(`globalThis.${name} = `);
-    if (start < 0) continue;
-    const from = start + `globalThis.${name} = `.length;
-    const end = rest.indexOf(";\n", from);
-    const value = rest.slice(from, end);
-    parts.push({ label: name, ...sized(value), entries: Object.keys(JSON.parse(value)).length });
-    rest = rest.slice(0, start) + rest.slice(end + 2);
-  }
-  parts.push({ label: "script (rest of the block)", ...sized(rest) });
-  return parts;
-}
-
 function blockLabel(tag, attributes, body) {
   if (tag === "style") return "<style>";
   if (attributes.includes("application/json")) return `json ${attributes.replace(/\s*type="application\/json"\s*/, " ").trim()}`;
@@ -97,14 +81,13 @@ function blockLabel(tag, attributes, body) {
   return attributes.trim() ? `script ${attributes.trim()}` : "script";
 }
 
-/** Every inline block of the HTML, largest first; a block holding the catalog is split into its parts. */
+/** Every inline block of the HTML, largest first. Language assets are measured by the HTTP and browser reports. */
 function inlineBlocks(html) {
   const blocks = [];
   for (const match of html.matchAll(/<(script|style)\b([^>]*)>([\s\S]*?)<\/\1>/g)) {
     const [, tag, attributes, body] = match;
     if (!body) continue;
-    const parts = body.includes("globalThis.MOLIS_WORK_MESSAGES = ") ? splitI18n(body) : null;
-    blocks.push({ label: parts ? "i18n + page script" : blockLabel(tag, attributes, body), ...sized(body), ...(parts ? { parts } : {}) });
+    blocks.push({ label: blockLabel(tag, attributes, body), ...sized(body) });
   }
   return blocks.sort((a, b) => b.raw - a.raw);
 }
@@ -287,59 +270,23 @@ async function readBrowser(host, executable, pages, runs) {
   return report;
 }
 
-/**
- * Stands behind the globals the i18n script assigns, in every frame, and reports through a binding (a frame's own variable would be
- * lost with the frame and cannot be read from a sandboxed one). A key is reported once per frame. A whole-catalog copy (parent.ts
- * spreads the catalog into a frame's config) is reported as a copy, not as thousands of reads: it is the entries that follow an
- * `ownKeys`, in that order. Not seen: a sandboxed plugin frame, whose `L` reads the copy it was handed (child.ts). It reported nothing
- * here, also when attached to as a target of its own; `all_frames` lists it, so frames without a record stay visible.
- */
+/** Observes successful SDK message lookups in each document. The tool records keys, never substituted words or values. */
 const RECORD_CATALOG_READS = `(() => {
   const send = globalThis.__firstScreenRead;
   if (typeof send !== "function") return;
-  const frame = location.protocol === "about:" ? location.href : location.pathname + location.search;
-  const seen = new Set();
-  const report = (kind, catalog, key) => {
-    const id = kind + "/" + catalog + "/" + key;
-    if (seen.has(id)) return;
-    seen.add(id);
-    send(JSON.stringify({ frame, kind, catalog, key }));
-  };
-  const watched = (target, catalog) => {
-    let copying = null;
-    let at = 0;
-    return new Proxy(target, {
-      ownKeys(from) {
-        copying = Reflect.ownKeys(from);
-        at = 0;
-        report("copy", catalog, copying.length);
-        return copying;
-      },
-      get(from, key) {
-        if (typeof key !== "string" || !Object.hasOwn(from, key)) return from[key];
-        if (copying && copying[at] === key) { at += 1; if (at === copying.length) copying = null; return from[key]; }
-        copying = null;
-        report("read", catalog, key);
-        return from[key];
-      },
-    });
-  };
-  const stand = (name, wrap) => {
-    let held;
-    Object.defineProperty(globalThis, name, { configurable: true, get: () => held, set: (value) => { report("catalog", name, Object.keys(value ?? {}).length); held = wrap(value); } });
-  };
-  stand("MOLIS_WORK_MESSAGES", (value) => watched(value, "messages"));
-  stand("MOLIS_WORK_PLUGIN_WORDS", (value) => {
-    const inner = new Map();
-    return new Proxy(value, {
-      get(from, plugin) {
-        const words = from[plugin];
-        if (typeof plugin !== "string" || !words || typeof words !== "object") return words;
-        if (!inner.has(plugin)) inner.set(plugin, watched(words, plugin));
-        return inner.get(plugin);
-      },
-    });
-  });
+  const slot = Symbol.for(${JSON.stringify(UI_TEXT_CONTEXT)}), seen = new Set();
+  const frame = location.protocol === "about:" ? location.href : location.pathname;
+  let held;
+  Object.defineProperty(globalThis, slot, { configurable: true, get: () => held, set(value) {
+    if (held === value) return;
+    held = value;
+    const message = value.message;
+    value.message = function(owner, key, locale) {
+      const result = message.call(this, owner, key, locale), catalog = owner + "/" + locale, id = catalog + "/" + key;
+      if (result !== null && !seen.has(id)) { seen.add(id); send(JSON.stringify({ frame, catalog, key })); }
+      return result;
+    };
+  } });
 })();`;
 
 const framesOf = (tree) => [tree.frame.url, ...(tree.childFrames ?? []).flatMap(framesOf)];
@@ -350,24 +297,37 @@ async function readCatalogUse(host, executable, pages) {
   for (const page of pages) {
     for (const locale of LOCALES) {
       report[`${page.id}/${locale}`] = await withFreshBrowser(host, executable, `use-${page.id}-${locale}`, locale, async (browser, session) => {
-        const frames = {};
+        const frames = {}, initialized = new Set([session.sessionId]), pending = [];
         let exceptions = 0;
+        const attach = async (id) => {
+          await browser.command("Runtime.enable", {}, id);
+          await browser.command("Runtime.addBinding", { name: "__firstScreenRead" }, id);
+          await browser.command("Page.addScriptToEvaluateOnNewDocument", { source: RECORD_CATALOG_READS }, id);
+        };
         const stops = [
-          browser.on("Runtime.bindingCalled", (params, from) => {
-            if (from !== session.sessionId || params.name !== "__firstScreenRead") return;
-            const { frame, kind, catalog, key } = JSON.parse(params.payload);
-            const entry = (frames[frame] ??= { catalogs: {}, reads: {}, copies: [] });
-            if (kind === "catalog") entry.catalogs[catalog] = key;
-            else if (kind === "copy") entry.copies.push({ catalog, entries: key });
-            else (entry.reads[catalog] ??= []).push(key);
+          browser.on("Target.attachedToTarget", (params, from) => {
+            if (!initialized.has(from)) return;
+            const id = params.sessionId;
+            if (params.targetInfo.type === "iframe") initialized.add(id);
+            pending.push((async () => {
+              try { if (initialized.has(id)) await attach(id); }
+              finally { await browser.command("Runtime.runIfWaitingForDebugger", {}, id); }
+            })().catch(error => error));
           }),
-          browser.on("Runtime.exceptionThrown", (_params, from) => { if (from === session.sessionId) exceptions += 1; }),
+          browser.on("Runtime.bindingCalled", (params, from) => {
+            if (!initialized.has(from) || params.name !== "__firstScreenRead") return;
+            const { frame, catalog, key } = JSON.parse(params.payload);
+            const entry = (frames[from + "/" + params.executionContextId] ??= { frame, reads: {} });
+            (entry.reads[catalog] ??= []).push(key);
+          }),
+          browser.on("Runtime.exceptionThrown", (_params, from) => { if (initialized.has(from)) exceptions += 1; }),
         ];
         try {
-          await session.command("Runtime.enable");
-          await session.command("Runtime.addBinding", { name: "__firstScreenRead" });
-          await session.command("Page.addScriptToEvaluateOnNewDocument", { source: RECORD_CATALOG_READS });
+          await attach(session.sessionId);
+          await session.command("Target.setAutoAttach", { autoAttach: true, waitForDebuggerOnStart: true, flatten: true });
           await visit(browser, session, host.origin + page.path, { signal: host.signal, mayRedirect: page.id === "settings" });
+          const failures = (await Promise.all(pending)).filter(Boolean);
+          if (failures.length) throw new AggregateError(failures, "Could not observe the browser frame's word lookups");
           const { frameTree } = await session.command("Page.getFrameTree");
           return { frames, all_frames: framesOf(frameTree), exceptions };
         } finally { for (const stop of stops) stop(); }

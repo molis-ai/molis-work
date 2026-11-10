@@ -1,5 +1,4 @@
 import { inLanguagePreview, languagePreviewUnavailable } from "./web-locale.js";
-import { installedPluginWords } from "./plugin-builder/installed-page.js";
 import { renderHomePackageDocument } from "./plugin-builder/agent-surface.js";
 import { ActionError, type ActionCallContext, type ActionClient, type ActionRegistryPort, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginInstallRecords } from "./plugin-install-records.js";
@@ -141,21 +140,13 @@ export class HomePluginHost {
   async reconcilePublishers(): Promise<void> { await this.installed?.reconcilePublishers(); }
   /** Refresh installed definitions after activation replacement and before public directory/dispatch reads them. */
   async refreshPublicActions(): Promise<void> { if (!this.closed) await this.installed?.refreshPublicActions(); }
-  /**
-   * The id of a running installed package's stage in the workbench: its plugin id, which is also the key the Home registered it under, so the
-   * switcher and the tab strip find the plugin's name and icon by the stage's id as they do for every other Home plugin. None for what is not
-   * such a package, is not running, or did not come back.
-   */
-  packageSurface(pluginId: string): string | undefined {
-    return this.installed?.releaseFor(pluginId) && this.installation(pluginId)?.state === "running" && !this.packageError(pluginId) ? pluginId : undefined;
+  /** The running installed stage's release; its plugin id is the stage id, and its Manifest owns the label. */
+  packageStage(pluginId: string): InstalledRelease | undefined {
+    if (this.installation(pluginId)?.state === "running" && !this.packageError(pluginId)) return this.installed?.releaseFor(pluginId);
   }
-  /** The page that stage frames (`?frame=workbench`), opened for the person under the package's Home activation. Throws when that is not open. */
-  packageLabel(pluginId: string): string | undefined {
-    const release = this.installed?.releaseFor(pluginId);
-    return release && installedPluginWords(release).name;
-  }
+  /** The page the stage frames, opened under this package's Home activation. */
   packageDocument(pluginId: string, controlToken: string, projectId: string | null = null, accountRegistration=false, projection=false) {
-    const release = this.packageSurface(pluginId) ? this.installed?.releaseFor(pluginId) : undefined;
+    const release = this.packageStage(pluginId);
     return release ? renderHomePackageDocument({ home: this.options.home, actorId: this.options.actorId, release, controlToken, projectId, accountRegistration, projection, running: () => this.installation(pluginId) ?? undefined,
       assertProject: projectId ? async () => {
         if (!this.options.projectActions) throw new ActionError("actions.forbidden", "Home 插件没有项目入口");

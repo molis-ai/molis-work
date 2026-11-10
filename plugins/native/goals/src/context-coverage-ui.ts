@@ -56,7 +56,7 @@ function renderContractCoverage(item: GoalsContextItem, view: GoalsContextView):
         ].join("")}</ul></article>`;
       }).join("")}</div>`;
   if (!satisfaction && !ownCoverage && !parentContributions) return "";
-  return `<div class="document-subsection contract-coverage-summary">${subsectionHeading("link", "历史 Contract 覆盖", "这些是保留的历史覆盖事实；每条 Goal 仍按自己的当前约定收尾。")}${satisfaction}${ownCoverage}${parentContributions}</div>`;
+  return `<div class="document-subsection contract-coverage-summary">${subsectionHeading("link", "goals.context-coverage-ui.historical-contract-coverage", "goals.context-coverage-ui.historical-contract-coverage-hint")}${satisfaction}${ownCoverage}${parentContributions}</div>`;
 }
 
 

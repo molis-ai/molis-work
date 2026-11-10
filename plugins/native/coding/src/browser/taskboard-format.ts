@@ -22,5 +22,5 @@ export function when(at: string | number | null | undefined): RowTime | null {
   if (Number.isNaN(date.getTime())) return null;
   const now = new Date(), stamp = date.toISOString();
   const text = format.date(stamp, date.toDateString() === now.toDateString() ? "time" : "month-day");
-  return { text, title: format.date(stamp, "datetime") };
+  return { text, title: format.date(stamp, "datetime-with-seconds") };
 }

@@ -1,4 +1,4 @@
-import { format, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { dateArg, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { el, errorMessage } from "../dom.js";
 import { controls } from "./controls.js";
 import type { Page } from "./page.js";
@@ -61,21 +61,33 @@ export async function readRecovery(page: Page) {
 }
 
 /** Where a checkpoint was made, in the round's number when the round is loaded. */
-function checkpointMeta(page: Page, item: Checkpoint): string {
+function checkpointMeta(page: Page, item: Checkpoint): HTMLElement {
   const { s } = page, round = s.allRuns.findIndex(run => run.ref.run_id === item.origin_run_id);
-  const origin = item.origin_run_id ? " · " + (round >= 0 ? uiText.text("coding.turn.number", { number: round + 1 }) : uiText.text("coding.checkpoints.origin", { run: item.origin_run_id })) : "";
-  return format.date(item.created_at, "datetime") + origin + (item.directory ? " · " + item.directory.canonical_path : "");
+  const meta = el("small"), time = el("time", uiText.text("common.generated.formatted", { value: dateArg(item.created_at, "datetime-with-seconds") }));
+  time.dateTime = item.created_at;
+  meta.append(time);
+  if (item.origin_run_id) meta.append(" · ", el("span", round >= 0 ? uiText.text("coding.turn.number", { number: round + 1 }) : uiText.text("coding.checkpoints.origin", { run: item.origin_run_id })));
+  if (item.directory) {
+    const path = el("span", item.directory.canonical_path); path.translate = false;
+    meta.append(" · ", path);
+  }
+  return meta;
 }
 
 /** One checkpoint: its label, where it was made, and the button that previews rewinding to it. */
 function checkpointRow(page: Page, item: Checkpoint): HTMLElement {
-  const row = el("section"), button = el("button", item.rewound_at ? uiText.text("coding.checkpoints.preview-again") : uiText.text("coding.checkpoints.preview"), "mw-btn");
+  const row = el("section"), button = el("button", "", "mw-btn");
+  const word = el("span", item.rewound_at ? uiText.text("coding.checkpoints.preview-again") : uiText.text("coding.checkpoints.preview"));
+  const label = el("p", item.label), id = el("span", item.checkpoint_id), name = "coding-checkpoint-" + crypto.randomUUID();
+  word.id = name + "-action"; label.id = name + "-label"; id.id = name + "-id";
+  label.translate = false; id.translate = false; id.hidden = true;
   button.type = "button";
   button.dataset.codingRewind = item.checkpoint_id;
-  button.setAttribute("aria-label", button.textContent + " " + item.label + " " + item.checkpoint_id);
-  row.append(el("p", item.label), el("small", checkpointMeta(page, item)));
+  button.setAttribute("aria-labelledby", [word.id, label.id, id.id].join(" "));
+  button.append(word);
+  row.append(label, id, checkpointMeta(page, item));
   // Already rewound here: say when, so the list does not read as untouched; the files may have changed since.
-  if (item.rewound_at) row.append(el("small", uiText.text("coding.checkpoints.rewound", { at: format.date(item.rewound_at, "datetime") }), "coding-checkpoint-done"));
+  if (item.rewound_at) row.append(el("small", uiText.text("coding.checkpoints.rewound", { at: dateArg(item.rewound_at, "datetime-with-seconds") }), "coding-checkpoint-done"));
   row.append(button);
   return row;
 }

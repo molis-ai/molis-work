@@ -1,14 +1,12 @@
 import assert from "node:assert/strict";
-import test from "node:test";
 import { createWorkbenchUiHost } from "@molis-ai/molis-work-app-workbench";
-import { goalsRenderers } from "./goals-page-mount.js";
+import { goalsRenderers, testGoalUi as test, withGoalLocale } from "./goals-page-mount.js";
 import { GOALS_RELATION_UI_CONTRIBUTION_ID, type GoalsRelationItem } from "@molis-ai/molis-work-plugin-goals";
 import type { GoalRelationRecord } from "@molis-ai/molis-work-plugin-goals/contract";
-import { icon } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { L, runWithLocale } from "@molis-ai/molis-work-app-local-host";
+import { icon, t } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 const escapeHtml = (value: unknown) => String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
-const renderer = goalsRenderers.relation({ translate: L, escapeHtml, icon });
+const renderer = goalsRenderers.relation({ translate: t.text, escapeHtml, icon });
 const item = (id: string, title = id): GoalsRelationItem => ({ goal: { goal_id: id, title, archived_at: null, priority: 1, created_at: "2026-09-05" },
   status: "execution_pending", display_status: "continue", relations: [], events: [] });
 const relation = (id: string, type: GoalRelationRecord["type"], from: string, to: string): GoalRelationRecord => ({
@@ -62,14 +60,23 @@ test("inactive relation retains reason and direction without writable controls; 
   assert.equal(renderer.renderRelationForm(current, view), "");
 });
 
-test("relation form preserves selectors and request-local English copy without translating Goal titles", () => {
+test("FSS-36 relation form and rows preserve directions and show English controls beside original titles and reasons", () => {
   const current = item("current", "用户标题");
-  const view = { goals: [current, item("other", "另一个用户标题")], archived_goals: [] };
-  const english = runWithLocale("en", () => renderer.renderRelationForm(current, view));
+  const other = item("other", "另一个用户标题");
+  current.relations = [relation("up", "depends_on", "current", "other"), relation("down", "part_of", "other", "current")];
+  const view = { goals: [current, other], archived_goals: [] };
+  const english = withGoalLocale("en", () => renderer.renderRelationForm(current, view));
   assert.match(english, /data-relation-form/);
   assert.match(english, /data-live-form="relation-current"/);
   assert.match(english, /name="reason" rows="3" required/);
   assert.match(english, /另一个用户标题/);
+  assert.match(english, /data-out-label="depends on" data-in-label="depended on by" data-description="The left Goal must wait/);
+  assert.match(english, /data-out-label="mitigates" data-in-label="mitigated by"/);
   assert.doesNotMatch(english, /你正在直接修改 Goal 关系/);
-  assert.match(runWithLocale("zh", () => renderer.renderRelationForm(current, view)), /你正在直接修改 Goal 关系/);
+  const rows = withGoalLocale("en", () => renderer.renderRelations(current, view, false));
+  assert.match(rows, /<span class="relation-kind">depends on<\/span>/);
+  assert.match(rows, /<span class="relation-kind">contains<\/span>/);
+  assert.match(rows, /Current Goal → depends on → 另一个用户标题/);
+  assert.match(rows, /Keep &quot;direction&quot; &lt;safe&gt;/);
+  assert.match(withGoalLocale("zh", () => renderer.renderRelationForm(current, view)), /你正在直接修改 Goal 关系/);
 });

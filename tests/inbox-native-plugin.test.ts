@@ -3,7 +3,8 @@ import { ActionService } from "@molis-ai/molis-work-kernel";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { INBOX_ACTIONS, INBOX_ACTION_PERMISSIONS, createInboxActionHandlers, inboxActions } from "@molis-ai/molis-work-plugin-inbox";
 import assert from "node:assert/strict";
-import test from "node:test";
+import nodeTest, { type TestContext } from "node:test";
+import { installHostUiText, readText, registeredBuiltinText, runWithLocale, runWithRegisteredText } from "@molis-ai/molis-work-app-local-host";
 
 import {
   INBOX_UI_CONTRIBUTION_ID,
@@ -17,6 +18,11 @@ import {
 import type { AttentionEntryRecord } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { pluginRouteMatcher } from "@molis-ai/molis-work-plugin-runtime";
+
+installHostUiText();
+const owner = registeredBuiltinText(inboxManifest);
+assert.ok(owner);
+const test = (name: string, run: (context: TestContext) => void | Promise<void>) => nodeTest(name, context => runWithLocale("zh", () => runWithRegisteredText(owner, () => run(context))));
 
 const primitives: InboxUiModel["primitives"] = {
   escape: (value) => String(value ?? "")
@@ -235,6 +241,9 @@ test("Inbox separates preparation, verification and uncertain judgment without c
   assert.match(html, /data-inbox-compose-mode="compose"/);
   assert.match(html, /data-inbox-action="dismissed"/);
   assert.match(render("needs_review"), /判断未完成，请人工复核或重试/);
+  const english = runWithLocale("en", () => runWithRegisteredText(owner, () => render("ok")));
+  assert.match(english, /data-inbox-compose-mode="verify">Verify first<\/button>/);
+  assert.match(english, /data-inbox-compose-mode="compose">Create a document<\/button>/);
 });
 
 test("Inbox list does not paint a board-level judgment binder", () => {
@@ -332,7 +341,7 @@ test("Inbox projection keeps references and ranks active entries first", () => {
     title: "确认对象边界",
     source_label: "GitHub",
     open: { kind: "feed", item_id: "item-1" },
-  }), (value) => value);
+  }), readText);
   assert.equal(entries[0]?.entry_id, "open-1");
   assert.equal(entries[0]?.reason_label, "来源规则命中");
   assert.deepEqual(entries[0]?.suggested_behavior_ids, ["inbox.done"]);

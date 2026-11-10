@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createServer } from "node:http";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
-import { assistantCardHtml, agentQuestionHtml, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { assistantCardHtml, agentQuestionHtml, ensureSystemAgentService, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { asideReply } from "./fixtures/ending-review.js";
 
 /** One streamed model turn: a tool call, or plain text. */
@@ -18,6 +18,34 @@ function turn(tool?: { name: string; input: unknown }, text = "好的。"): stri
   return events.join("");
 }
 
+const rawCommandArg = "'原始命令 <raw> & text'\r\n", rawPath = "src/原文件 <raw>.ts", rawGrant = "/原目录 <raw>";
+const diffBefore = "同一行\r\n旧行 <raw>\r\n结束", diffAfter = "同一行\r\nnew 行 &\r\n结束";
+const neighborTitle = "原始操作建议 <ready>", neighbor = '[data-ix-step-id^="card:"][data-ix-step-id$=":run"]';
+
+async function buttonAxName(browser: NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>, selector: string) {
+  const { command, sessionId } = browser;
+  const { root } = await command<{ root: { nodeId: number } }>("DOM.getDocument", {}, sessionId);
+  const { nodeId } = await command<{ nodeId: number }>("DOM.querySelector", { nodeId: root.nodeId, selector }, sessionId);
+  assert.ok(nodeId, selector);
+  const { nodes } = await command<{ nodes: Array<{ role?: { value: string }; name?: { value: string } }> }>("Accessibility.getPartialAXTree", { nodeId, fetchRelatives: false }, sessionId);
+  return nodes.find(node => node.role?.value === "button")?.name?.value;
+}
+
+function attachReviewDocuments(browser: NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>) {
+  assert.ok(browser.localHost);
+  const queue = ensureSystemAgentService(browser.localHost, browser.homeDirectory).agentHost.reviews;
+  // Exercise the real read-only Host projection with two frozen documents alongside the real gateway effect. Neither is dispatched.
+  const stop = queue.observe(request => {
+    if (request.document.kind !== "tool-operation" || request.document.tool !== "change-capability") return;
+    stop();
+    queue.request({ ...request, review_id: "language-command", kind: "command", document: { kind: "command", command: "printf", args: [rawCommandArg], cwd: "./当前目录",
+      timeout_ms: 1000, escalate: true, background: true, grants: { paths: [{ access: "write", path: rawGrant }], network: true } } });
+    queue.request({ ...request, review_id: "language-diff", kind: "text-edit", document: { kind: "text-edit", target_path: rawPath, exists: true,
+      before_text: diffBefore, after_text: diffAfter } });
+  });
+  return { stop, queue };
+}
+
 // PMR-12 (post-merge-review; fixed in c48a8608 and guarded only by hand until now): at about 800px the Assistant keeps its
 // side pane in a closed drawer, so the conversation's top line must carry what the pane would: 去确认 for a change that
 // waits on the person, landing on the card's own decision, and 继续 and 停止 once the work is paused.
@@ -26,7 +54,7 @@ test("with the side pane out of sight, the top line offers 去确认, then 继�
   const { runWithMolisWorkHome, resetSecretStoreCache } = await import("@molis-ai/molis-work-storage");
   const prior = process.env.MOLIS_WORK_SECRET_BACKEND; process.env.MOLIS_WORK_SECRET_BACKEND = "file";
   t.after(() => { if (prior === undefined) delete process.env.MOLIS_WORK_SECRET_BACKEND; else process.env.MOLIS_WORK_SECRET_BACKEND = prior; resetSecretStoreCache(); });
-  // The first work proposes a change that needs the person's approval; the second work's model call is held until the
+  // The first work leaves a ready operation card and then proposes a change needing approval. The second work is held until the
   // test has asked to pause, and then asks for a harmless tool so the round ends at a boundary.
   let turns = 0, release: (() => void) | undefined;
   const held = new Promise<void>(resolve => { release = resolve; });
@@ -37,10 +65,12 @@ test("with the side pane out of sight, the top line offers 去确认, then 继�
     const review = asideReply(raw);
     if (review) { res.writeHead(200, { "content-type": "text/event-stream" }); res.end(turn(undefined, review)); return; }
     const index = turns++;
-    if (index === 1) await held;
+    if (index === 2) await held;
     res.writeHead(200, { "content-type": "text/event-stream" });
-    res.end(index === 0 ? turn({ name: "change-capability", input: { capability_id: "todo.items.create", version: 1, provider_id: "io.molis.work.todo", input: { title: "整理周报" } } })
-      : index === 1 ? turn({ name: "context-remaining", input: {} }) : turn());
+    const todo = { capability_id: "todo.items.create", version: 1, provider_id: "io.molis.work.todo" };
+    if (index === 0) res.end(turn({ name: "suggest-action", input: { ...todo, title: neighborTitle, summary: "待执行的操作建议", input: { title: "另一条待办" } } }));
+    else if (index === 1) res.end(turn({ name: "change-capability", input: { ...todo, input: { title: "整理周报" } } }));
+    else res.end(index === 2 ? turn({ name: "context-remaining", input: {} }) : turn());
   });
   await new Promise<void>(resolve => model.listen(0, "127.0.0.1", resolve));
   t.after(async () => { release?.(); model.closeAllConnections(); await new Promise<void>(resolve => model.close(() => resolve())); });
@@ -51,12 +81,13 @@ test("with the side pane out of sight, the top line offers 去确认, then 继�
       catalog.models.upsert({ credential_ref: connection.credential_ref!, provider_id: "local-only", display_name: "本机 HTTP 模型", base_url: `http://127.0.0.1:${address.port}`, api_format: "anthropic-messages", models: [{ model_id: "fixture-model", enabled: true }] });
     }));
   };
-  const browser = await openGoalBrowser(t, true, undefined, undefined, undefined, undefined, { prepareHome }); if (!browser) return;
+  const browser = await openGoalBrowser(t, true, undefined, null, undefined, undefined, { prepareHome }); if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, homeDirectory } = browser;
+  const { stop, queue } = attachReviewDocuments(browser); t.after(stop);
 
   await command("Emulation.setDeviceMetricsOverride", { width: 800, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
-  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
+  await navigate(() => command("Page.navigate", { url: `${origin}/locale?lang=zh&next=${encodeURIComponent(`/projects/${projectId}/`)}` }, sessionId));
   const say = async (text: string) => {
     await click("[data-assistant-input]");
     await command("Input.insertText", { text }, sessionId);
@@ -98,6 +129,101 @@ test("with the side pane out of sight, the top line offers 去确认, then 继�
   for (const selector of [".assistant-tab[data-current] .mw-state-ring", "[data-review] .assistant-card-kicker .mw-state-ring"]) {
     assert.ok(await evaluate(asTallAsItsWords(selector)), selector);
   }
+  // FSS-36: the running Prologue's real Todo review remains pending through both language changes.
+  await waitFor("Boolean(document.querySelector('[data-review=language-command]')?.querySelector('code')) && Boolean(document.querySelector('[data-review=language-diff]')?.querySelector('code'))");
+  await click('[data-assistant-next-row] [data-ix-steps-more]');
+  await waitFor(`document.querySelector(${JSON.stringify(neighbor)})?.querySelector('[data-ix-step-label]')?.textContent === ${JSON.stringify(neighborTitle)}`);
+  assert.equal(await evaluate("[...document.querySelectorAll('[data-card] dt, [data-card] label')].some(node => node.textContent === '要做什么')"), true);
+  await evaluate(`(() => {
+    window.reviewCard = document.querySelector('[data-review]'); window.reviewExact = reviewCard.querySelector('.assistant-exact'); reviewExact.open = true;
+    window.reviewStep = document.querySelector(${JSON.stringify(review)}); window.reviewApprove = reviewCard.querySelector('[data-assistant-decision=approve]');
+    window.reviewCommand = document.querySelector('[data-review=language-command]'); window.reviewDiff = document.querySelector('[data-review=language-diff]');
+    window.commandCode = reviewCommand.querySelector('code'); window.diffCode = reviewDiff.querySelector('code');
+    window.commandStep = document.querySelector('[data-ix-step-id="review:language-command"]'); window.diffStep = document.querySelector('[data-ix-step-id="review:language-diff"]');
+    window.neighborStep = document.querySelector(${JSON.stringify(neighbor)});
+    window.reviewDraft = document.querySelector('[data-assistant-input]'); reviewDraft.value = 'Unsent 审查草稿'; reviewDraft.focus(); reviewDraft.setSelectionRange(2, 7, 'backward');
+    window.reviewWrites = []; window.reviewReads = []; const fetchOriginal = window.fetch;
+    window.fetch = (input, init) => {
+      const path = new URL(String(input?.url || input), location.href).pathname, method = init?.method || 'GET';
+      if (path.includes('/api/assistant/') && method !== 'GET') reviewWrites.push(path);
+      const response = fetchOriginal(input, init), work = path.split('/api/assistant/works/')[1];
+      if (method !== 'GET' || !work || work.includes('/')) return response;
+      return response.then(async value => {
+        const view = await value.clone().json(), card = view.cards?.find(card => card.title === ${JSON.stringify(neighborTitle)});
+        if (!card) return value;
+        reviewReads.push({ html: view.next_all_html, title: card.title, status: card.status });
+        if (window.holdOldReview) {
+          window.holdOldReview = false;
+          const readBody = value.text.bind(value);
+          value.text = async () => { const body = await readBody(); window.oldReviewDelivered = true; return body; };
+          return new Promise(resolve => { window.releaseOldReview = () => resolve(value); });
+        }
+        return value;
+      });
+    };
+  })()`);
+  const originalReview = await evaluate<{ summary: string; arguments: string[] }>(`({ summary: reviewCard.querySelector('.assistant-card-title').textContent,
+    arguments: [...reviewExact.querySelectorAll('pre')].map(node => node.textContent) })`);
+  assert.equal(JSON.parse(originalReview.arguments[0]!).title, "整理周报");
+  const words = { en: ["Review it", "Waiting on you:", "Effect", "Run a command in the background", "Edit a file", "@@ Starting at line 2", "Read and write", "Requires elevated permissions"],
+    zh: ["去确认", "等你：", "效果", "在后台运行命令", "修改文件", "@@ 第 2 行起", "读写", "需要更高权限"] };
+  const neighborWords = `[document.querySelector(${JSON.stringify(neighbor)})===neighborStep, neighborStep.title,
+    neighborStep.querySelector('[data-ix-step-label]').textContent, neighborStep.querySelector('.mw-sr-only').textContent]`;
+  await evaluate("window.holdOldReview = true; window.dispatchEvent(new Event('focus'));");
+  await waitFor("typeof releaseOldReview === 'function'");
+  assert.match(await evaluate<string>("reviewReads.at(-1).html"), /title="来自操作卡"/, "the held response actually carries the earlier language");
+  let releasedOldReview = false;
+  for (const tag of ["en", "zh", "en", "zh"] as const) {
+    const [label, waiting, effect, commandTitle, fileTitle, diffHeading, access, elevation] = words[tag];
+    const source = tag === "en" ? "From an action card" : "来自操作卡";
+    await evaluate(`(() => { const link = document.createElement('a'); link.dataset.uiLanguage = '${tag}';
+      link.href = '/locale?lang=${tag}'; document.body.append(link); link.click(); link.remove(); })()`);
+    await waitFor(`document.documentElement.dataset.uiLanguageTag === '${tag}'`);
+    assert.deepEqual(await evaluate(neighborWords), [true, source, neighborTitle, waiting], "the fixed words change at commit before any new work read");
+    assert.deepEqual(await evaluate(`[document.querySelector('[data-review]')===reviewCard, reviewExact===reviewCard.querySelector('.assistant-exact'), reviewExact.open,
+      document.querySelector(${JSON.stringify(review)})===reviewStep, reviewStep.title, reviewStep.querySelector('[data-ix-step-label]').textContent,
+      reviewStep.querySelector('.mw-sr-only').textContent, reviewCard.querySelector('dt').textContent,
+      [...reviewCard.querySelectorAll('dt')].some(node=>node.textContent==='要做什么'), [...reviewCard.querySelectorAll('dd')].some(node=>node.textContent==='整理周报'),
+      [...reviewExact.querySelectorAll('pre')].map(node=>node.textContent), reviewCard.querySelector('[data-assistant-decision=approve]')===reviewApprove,
+      document.activeElement===reviewDraft, reviewDraft.value, reviewDraft.selectionStart, reviewDraft.selectionEnd, reviewDraft.selectionDirection, reviewWrites]`),
+      [true, true, true, true, originalReview.summary, label, waiting, effect, true, true, originalReview.arguments, true, true, "Unsent 审查草稿", 2, 7, "backward", []]);
+    assert.deepEqual(await evaluate(`[commandCode === reviewCommand.querySelector('code'), diffCode === reviewDiff.querySelector('code'),
+      document.querySelector('[data-ix-step-id="review:language-command"]') === commandStep, document.querySelector('[data-ix-step-id="review:language-diff"]') === diffStep,
+      reviewCommand.querySelector('.assistant-card-title').textContent, commandStep.title, reviewDiff.querySelector('.assistant-card-title').textContent, diffStep.title,
+      reviewDiff.querySelector('.assistant-field-code .assistant-muted').textContent, commandCode.closest('figure').dataset.code, diffCode.closest('figure').dataset.code,
+      [...reviewCommand.querySelectorAll('dd')].map(node=>node.textContent), commandCode.textContent, diffCode.textContent]`),
+    [true, true, true, true, commandTitle, commandTitle, `${fileTitle} ${rawPath}`, `${fileTitle} ${rawPath}`, diffHeading,
+      `printf ${rawCommandArg}`, "- 旧行 <raw>\r\n+ new 行 &\r", ["./当前目录", elevation, `${access} ${rawGrant}${tag === "en" ? ", Network access" : "、联网"}`],
+      `printf ${rawCommandArg}`, "- 旧行 <raw>\r\n+ new 行 &\r"]);
+    if (tag === "en") assert.equal(await evaluate("reviewApprove.textContent"), "Allow once");
+    if (!releasedOldReview) {
+      await evaluate("reviewStep.focus(); releaseOldReview();");
+      await waitFor("window.oldReviewDelivered === true");
+      await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+      assert.deepEqual(await evaluate(neighborWords), [true, source, neighborTitle, waiting], "consuming the old HTML keeps the currently selected language");
+      assert.deepEqual(await evaluate(`[document.activeElement===reviewStep, document.querySelector(${JSON.stringify(review)})===reviewStep, reviewWrites]`), [true, true, []]);
+      releasedOldReview = true;
+    }
+    const reads = await evaluate<number>("reviewReads.length");
+    await evaluate("reviewStep.focus(); window.dispatchEvent(new Event('focus'));");
+    await waitFor(`reviewReads.length > ${reads} && reviewReads.at(-1).html.includes(${JSON.stringify(source)}) && document.querySelector(${JSON.stringify(neighbor)})?.title === ${JSON.stringify(source)}`);
+    assert.deepEqual(await evaluate(`[document.activeElement === reviewStep, document.querySelector(${JSON.stringify(review)}) === reviewStep,
+      document.querySelector(${JSON.stringify(neighbor)}) === neighborStep, neighborStep.querySelector('[data-ix-step-label]').textContent,
+      neighborStep.querySelector('.mw-sr-only').textContent, reviewReads.at(-1).title, reviewReads.at(-1).status, reviewWrites]`),
+    [true, true, true, neighborTitle, waiting, neighborTitle, "ready", []]);
+    assert.equal(await buttonAxName(browser, '[data-ix-step-id="review:language-command"]'), `${waiting} ${label} · ${commandTitle}`);
+    assert.equal(await buttonAxName(browser, '[data-ix-step-id="review:language-diff"]'), `${waiting} ${label} · ${fileTitle} ${rawPath}`);
+    await evaluate("reviewDraft.focus()");
+  }
+  for (const id of ["language-command", "language-diff"]) assert.equal(queue.receipt(id)?.status, "pending");
+  assert.equal(turns, 2, "switching while the effect is pending does not ask the model again");
+  const cardId = await evaluate<string>("neighborStep.dataset.ixStepId.slice('card:'.length, -':run'.length)");
+  await evaluate(`document.querySelector(${JSON.stringify(`[data-card=${JSON.stringify(cardId)}] [data-ix-action=dismiss]`)}).click()`);
+  await waitFor(`!document.querySelector(${JSON.stringify(neighbor)}) && !reviewStep.isConnected && Boolean(document.querySelector(${JSON.stringify(review)}))`);
+  const writes = await evaluate<string[]>("reviewWrites");
+  assert.equal(writes.length, 1);
+  assert.ok(writes[0]?.endsWith(`/cards/${cardId}/dismiss`));
+  await evaluate("reviewDraft.value = ''");
   await click("[data-assistant-new]");
   await say("写一份周报草稿");
   await waitFor(`${shown(`${strip} [data-assistant-control=pause]`)}`, 30_000);

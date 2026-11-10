@@ -1,5 +1,5 @@
 import type { PluginMethodDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
-import type { PluginTextReader } from "@molis-ai/molis-work-app-workbench";
+import type { PluginTextReader } from "@molis-ai/molis-work-ui-host";
 import { localeMessageArguments, textKeyPrefix } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 const FIELDS = ["name", "description", "when_to_use", "when_not_to_use"] as const;

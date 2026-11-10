@@ -1,7 +1,6 @@
 import type { AgentBuilderPorts } from "../plugin-builder-surface.js";
-import { WORKBENCH_LANGUAGES } from "@molis-ai/molis-work-app-workbench";
 import { replyLanguagePrompt } from "../reply-language.js";
-import type { WebLocale } from "../web-locale.js";
+import { WORKBENCH_LANGUAGES, type WebLocale } from "../web-locale.js";
 
 type BuilderAgent = Awaited<ReturnType<AgentBuilderPorts["agent"]>>;
 

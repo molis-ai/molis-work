@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { captureRuntimeStageOwner, pluginPagesFor, runningProjectPlatform } from "@molis-ai/molis-work-app-local-host";
-import { BUILTIN_PLUGIN_CATALOG, registerPluginText } from "@molis-ai/molis-work-app-workbench";
+import { registerPluginText } from "@molis-ai/molis-work-ui-host";
+import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { pluginLocaleReader } from "@molis-ai/molis-work-plugin-runtime";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 

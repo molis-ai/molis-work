@@ -1,7 +1,7 @@
 import type { AgentReviewRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AssistantPendingReview } from "@molis-ai/molis-work-contracts/services/assistant";
 import { reviewPresentation, reviewText, type ReviewWords } from "@molis-ai/molis-work-service-agent-host";
-import type { AssistantReviewDisplay, AssistantReviewField } from "@molis-ai/molis-work-app-workbench";
+import type { AssistantReviewDisplay, AssistantReviewField } from "@molis-ai/molis-work-ui-host";
 
 type Document = AgentReviewRequest["document"];
 type RawReview = { summary: string; fields: Array<{ label: string; value: string }> };

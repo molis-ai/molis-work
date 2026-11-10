@@ -23,7 +23,7 @@ import { projectRouteControl } from "./plugin-actions-client.js";
 import { pluginRouteControl } from "./plugin-route-control.js";
 import { readText, htmlLang } from "./web-locale.js";
 import { randomUUID } from "node:crypto";
-import { installedStageSection } from "./installed-stage-section.js";
+import { installedStageSection } from "./workbench-renderer.js";
 import { installedPluginWords } from "./plugin-builder/installed-page.js";
 import { FRAME_QUERY } from "./plugin-builder-surface.js";
 

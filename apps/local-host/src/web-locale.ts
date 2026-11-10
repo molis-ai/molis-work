@@ -1,9 +1,11 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { t } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { createWorkbenchLocale, DEFAULT_WEB_LOCALE, type PluginTextReader, type WebLocale } from "@molis-ai/molis-work-app-workbench";
+import { createWorkbenchLocale, DEFAULT_WEB_LOCALE, WORKBENCH_LANGUAGES, webLanguage, type WebLocale } from "@molis-ai/molis-work-app-workbench";
+import type { PluginTextReader } from "@molis-ai/molis-work-ui-host";
 import { currentPluginTextCall, pluginActivationOpen, type PluginInstance } from "@molis-ai/molis-work-plugin-runtime";
 export { DEFAULT_WEB_LOCALE, LOCALE_COOKIE, WEB_LOCALES, LOCALE_SWITCH_STYLES, type WebLocale, type WebLocalePreference } from "@molis-ai/molis-work-app-workbench";
+export { WORKBENCH_LANGUAGES, webLanguage };
 type WebLocaleChoice = ReturnType<ReturnType<typeof createWorkbenchLocale>["resolveWebLocaleChoice"]>;
 const localeStore = new AsyncLocalStorage<WebLocaleChoice>();
 

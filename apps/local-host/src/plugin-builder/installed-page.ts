@@ -1,7 +1,7 @@
 import type { PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { usesPluginFieldWords } from "@molis-ai/molis-work-design-system";
-import { projectDirectoryWords } from "@molis-ai/molis-work-app-workbench";
+import { projectDirectoryWords } from "@molis-ai/molis-work-ui-host";
 import type { InstalledRelease } from "../installed-release.js";
 import { installedVersion } from "../installed-release.js";
 import { pluginPagesFor } from "../plugin-page-authority.js";

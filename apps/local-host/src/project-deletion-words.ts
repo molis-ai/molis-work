@@ -1,6 +1,6 @@
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { TextRef } from "@molis-ai/molis-work-contracts/platform/ui";
-import { projectDirectoryWords, type PluginTextReader } from "@molis-ai/molis-work-app-workbench";
+import { projectDirectoryWords, type PluginTextReader } from "@molis-ai/molis-work-ui-host";
 import { say, t, tryOwnedTextRef } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { directoryWordResolver } from "./ui-text-provider.js";
 import type { ProjectDeletedOwner } from "./project-deleted-hooks.js";

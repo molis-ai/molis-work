@@ -1,4 +1,4 @@
-import type { PluginTextReader } from "@molis-ai/molis-work-app-workbench";
+import type { PluginTextReader } from "@molis-ai/molis-work-ui-host";
 import type { HomePluginDatabaseDeclaration, PluginDefinition, PluginModelConfigurationDeclaration, PluginImageGenerationDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { definitionOrigin, isHostTrust } from "@molis-ai/molis-work-plugin-runtime";
 import type { PluginTrust } from "@molis-ai/molis-work-contracts/platform/plugin-trust";

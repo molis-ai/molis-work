@@ -1,7 +1,6 @@
 import type { PluginActiveInstance } from "@molis-ai/molis-work-plugin-runtime";
-import { pluginTextReader } from "@molis-ai/molis-work-app-workbench";
 import { directoryWordResolver, drawRegisteredText } from "./ui-text-provider.js";
-import { projectDirectoryWords, type DirectoryWordSource, type PluginDirectory, type PluginDirectoryEntry } from "@molis-ai/molis-work-app-workbench";
+import { pluginTextReader, projectDirectoryWords, type DirectoryWordSource, type PluginDirectory, type PluginDirectoryEntry } from "@molis-ai/molis-work-ui-host";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { hostLog } from "./host-log.js";
 import type { HomePluginHost } from "./home-plugins.js";

@@ -3,8 +3,9 @@ import type { PluginConnectionLink, PluginConnectionWord } from "@molis-ai/molis
 import type { ConnectorMethodOption } from "@molis-ai/molis-work-contracts/services/connector-host";
 import type { PluginLocaleReader } from "@molis-ai/molis-work-plugin-runtime";
 import { directoryPackProblems, localeMessageArguments, pluginLocaleReader, tryOwnedTextRef, UI_TEXT_UNAVAILABLE, type PluginLocaleRead } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { WORKBENCH_LANGUAGES, workbenchPlatformText, type PluginTextReader } from "@molis-ai/molis-work-app-workbench";
-import { directoryWordResolver } from "./ui-text-provider.js";
+import type { PluginTextReader } from "@molis-ai/molis-work-ui-host";
+import { directoryWordResolver, workbenchPlatformText } from "./ui-text-provider.js";
+import { WORKBENCH_LANGUAGES } from "./web-locale.js";
 
 export type ConnectorGuide = Pick<ConnectorMethodOption, "kind" | "support"> & {
   readonly note: PluginConnectionWord;

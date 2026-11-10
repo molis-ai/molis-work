@@ -12,7 +12,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import test from "node:test";
 import { type SqliteDatabase } from "@molis-ai/molis-work-test-kit/sqlite";
 import { PluginHostExecutor, installHostUiText, runWithLocale, runWithPluginText } from "@molis-ai/molis-work-app-local-host";
-import { registerPluginText } from "@molis-ai/molis-work-app-workbench";
+import { registerPluginText } from "@molis-ai/molis-work-ui-host";
 import { t as hostT } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { build } from "esbuild";
 import { PluginRuntime, SqlitePluginPrivateStorage, pluginLocaleReader } from "@molis-ai/molis-work-plugin-runtime";

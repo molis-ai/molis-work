@@ -49,7 +49,7 @@ import { DIRECTORY_READ_PERMISSION, directoryForHome, type DirectoryGrantService
 import { servicesUntilStopped } from "./plugin-stopped-services.js";
 import { refuseUngivenSandboxServices } from "./plugin-sandbox-start.js";
 import { pluginTerminalFor } from "./plugin-terminal-service.js";
-import { pluginTextReader, registerPluginText } from "@molis-ai/molis-work-app-workbench";
+import { pluginTextReader, registerPluginText } from "@molis-ai/molis-work-ui-host";
 import type { PluginContribution } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { runWithPluginText } from "./web-locale.js";
 import { installedLocalePacks } from "./installed-action-registration.js";

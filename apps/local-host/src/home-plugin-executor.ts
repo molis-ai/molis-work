@@ -5,7 +5,7 @@ import { pluginPageFiles } from "./plugin-page-files.js";
 import { ActionError, type ActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginErrors, type HomePluginDatabaseDeclaration, type PluginDefinition, type PluginExecutor, type PluginInstanceRecord, type PluginStartContext, type PluginUpgradeContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createPluginOwnerFilesClient, StoppedServiceCalls, type SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
-import { UiHost, createPluginUiClient } from "@molis-ai/molis-work-ui-host";
+import { UiHost, createPluginUiClient, type PluginTextReader } from "@molis-ai/molis-work-ui-host";
 import { pluginHostActions } from "./plugin-actions-client.js";
 import { heldPermissions, issuePluginCaller } from "./plugin-callers.js";
 import { outsidePluginAction } from "@molis-ai/molis-work-plugin-runtime";
@@ -68,7 +68,7 @@ export class HomePluginExecutor implements PluginExecutor {
     /** The Home's own installation records, read when an instance starts; none before the platform has them. */
     installations(): InstallationDirectoryClient | undefined;
     /** A definition's language files, registered while its instance runs (`pluginTextFor`); absent: none. */
-    localePacks?(definition: PluginDefinition): import("@molis-ai/molis-work-app-workbench").PluginTextReader | null;
+    localePacks?(definition: PluginDefinition): PluginTextReader | null;
   }) {}
 
   async start(definition: PluginDefinition, context: PluginStartContext) {

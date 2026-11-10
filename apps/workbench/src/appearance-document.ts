@@ -1,27 +1,10 @@
 import { readFileSync } from "node:fs";
-import type { UiAppearanceSelection, UiDefinitionRef, UiEnvironmentSnapshot } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { UiDefinitionRef } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { WorkbenchAppearance } from "@molis-ai/molis-work-ui-host";
 import { LOOK_FADE_CLIENT_SCRIPT } from "@molis-ai/molis-work-design-system";
 import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
 
-export interface WorkbenchAppearance {
-  readonly snapshot: UiEnvironmentSnapshot;
-  readonly selection_revision: number | null;
-  readonly selection: UiAppearanceSelection;
-  readonly stylesheet: string | null;
-}
-
-interface NamedAppearance { readonly ref: UiDefinitionRef; readonly name: string }
-export interface WorkbenchAppearanceChoices {
-  readonly baseline: { readonly skin: UiDefinitionRef; readonly font: UiDefinitionRef };
-  readonly skins: readonly (NamedAppearance & { readonly recommended_font: UiDefinitionRef })[];
-  readonly fonts: readonly NamedAppearance[];
-  readonly stylesheet: string;
-}
-
-export interface WorkbenchAppearancePorts {
-  current(): WorkbenchAppearance;
-  choices(): WorkbenchAppearanceChoices;
-}
+export type { WorkbenchAppearance, WorkbenchAppearanceChoices, WorkbenchAppearancePorts } from "@molis-ai/molis-work-ui-host";
 
 export const appearanceJson = (value: unknown): string => JSON.stringify(value).replaceAll("<", "\\u003c");
 

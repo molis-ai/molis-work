@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { BASELINE_REGISTRY } from "@molis-ai/molis-work-design-system";
 import { inspectLocaleSet, parseLocalePack, parseUiLanguageCatalog } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { UiFileResult } from "@molis-ai/molis-work-contracts/platform/ui";
-import type { PluginTextReader } from "./plugin-text.js";
+import type { PluginTextReader } from "@molis-ai/molis-work-ui-host";
 
 const root = realpathSync(fileURLToPath(new URL("../", import.meta.url)));
 const row = BASELINE_REGISTRY.resources.find(row => row.kind === "locale" && row.owner === "workbench");

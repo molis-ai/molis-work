@@ -6,7 +6,7 @@ import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { DEFAULT_WEB_LOCALE, WEB_LOCALES, type WebLocale } from '@molis-ai/molis-work-app-workbench';
+import { DEFAULT_WEB_LOCALE, WEB_LOCALES, type WebLocale } from '../web-locale.js';
 import type { BuilderSkill } from '@molis-ai/molis-work-contracts/services/agent-host';
 
 export const PLUGIN_SKILL_ID = 'molis-plugin-dev';

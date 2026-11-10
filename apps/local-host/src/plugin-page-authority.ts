@@ -9,7 +9,7 @@ import { ActionError, type ActionReference, isSubjectReader } from "@molis-ai/mo
 import type { PluginImageGenerationDeclaration, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { PLUGIN_CONNECTIONS_PERMISSION } from "@molis-ai/molis-work-contracts/platform/plugin-connections";
 import { pluginActivationOpen, pluginRouteMatcher, type PluginInstance } from "@molis-ai/molis-work-plugin-runtime";
-import { pluginTextReader, type PluginTextReader } from "@molis-ai/molis-work-app-workbench";
+import { pluginTextReader, type PluginTextReader } from "@molis-ai/molis-work-ui-host";
 import { projectDeletedHooksFor } from "./project-deleted-hooks.js";
 import type { PageActionRequest } from "./plugin-page-actions.js";
 

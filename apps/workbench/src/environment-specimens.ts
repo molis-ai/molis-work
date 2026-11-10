@@ -4,7 +4,7 @@ import { BASELINE_SKIN, BASELINE_SPEC, renderToggleGroup } from "@molis-ai/molis
 import { createTextReader, escapeHtml, format, parseSkinFile, renderButton, resolveUiEnvironment, t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { WORKBENCH_LANGUAGES } from "./platform-languages.js";
 import type { WebLocale } from "./i18n.js";
-import { pluginTextForOwner } from "./plugin-text.js";
+import { pluginTextForOwner } from "@molis-ai/molis-work-ui-host";
 
 // The component board's 语言与文字 section (specs/font-and-skin-system/a-section-contract.md §8.2): the platform's text tools used the way §1.1 writes
 // them, by the Host (its `t` and `format` read the workbench's language files, `apps/workbench/resources/locales/`) and by the page (the same tools,

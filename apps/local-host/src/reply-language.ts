@@ -1,7 +1,6 @@
 import { readFileSync } from "node:fs";
-import { WORKBENCH_LANGUAGES } from "@molis-ai/molis-work-app-workbench";
 import type { AgentPromptText } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
-import { activeLocale, DEFAULT_WEB_LOCALE, type WebLocale } from "./web-locale.js";
+import { activeLocale, DEFAULT_WEB_LOCALE, WORKBENCH_LANGUAGES, type WebLocale } from "./web-locale.js";
 import { lastUsedLocale } from "./ui-locale-memory.js";
 
 // This fixed rule is itself the authority for the language, so it cannot fall back to a different language's body.

@@ -1,10 +1,11 @@
+import { projectDirectoryWords } from "@molis-ai/molis-work-ui-host";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { escapeHtml, inspectPluginLocales, t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import {
-  BUILTIN_PLUGIN_CATALOG, islandEntries, pluginDirectoryFor, pluginMarketCards, pluginTabTitles, projectDirectoryWords, railEntries,
+  BUILTIN_PLUGIN_CATALOG, islandEntries, pluginDirectoryFor, pluginMarketCards, pluginTabTitles, railEntries,
   renderPickerExtend, renderPluginDirectoryData, renderPluginMarket, renderPluginRail, sanitizePluginDirectory, type PluginDirectoryEntry,
 } from "@molis-ai/molis-work-app-workbench";
 import { builtinMarketDirectory, installHostUiText, runningPluginDirectory, runWithLocale } from "@molis-ai/molis-work-app-local-host";

@@ -1,13 +1,7 @@
 import type { AssistantPendingReview } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { OwnedTextRef, UiSayTool } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { AssistantReviewDisplay, AssistantReviewField, AssistantReviewWords, FormattedReviewField } from "@molis-ai/molis-work-ui-host";
 import { assistantCodeHtml, assistantEscape, type AssistantTextPorts } from "./assistant-text-parts.js";
-
-export type AssistantReviewWords = readonly (string | OwnedTextRef)[];
-interface FormattedReviewField { readonly label: AssistantReviewWords; readonly value: string; readonly format: "sh" | "diff" | "json" | "exact"; readonly before?: AssistantReviewWords; readonly after?: AssistantReviewWords }
-export type AssistantReviewField =
-  | { readonly label: AssistantReviewWords; readonly value: AssistantReviewWords; readonly format?: undefined }
-  | FormattedReviewField;
-export interface AssistantReviewDisplay { readonly summary: AssistantReviewWords; readonly fields: readonly AssistantReviewField[] }
 
 const REVIEW_KIND: ReadonlyArray<readonly [RegExp, string, string]> = [
   [/command|shell|exec|terminal/i, "workbench.assistant-review.run-command", "terminal"],

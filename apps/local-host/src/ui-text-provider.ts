@@ -6,11 +6,14 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { BASELINE_REGISTRY } from "@molis-ai/molis-work-design-system";
 import { pluginLocaleReader, type PluginLocaleReader } from "@molis-ai/molis-work-plugin-runtime";
 import { installUiText, localeMessageArguments, say, textKeyPrefix } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { installCatalogTextScope, pluginTextForOwner, pluginTextOwnerOfPrefix, registerPlatformText, webLanguage, workbenchPlatformText, type DirectoryWordResolver, type PluginTextReader } from "@molis-ai/molis-work-app-workbench";
+import { installCatalogTextScope, workbenchPlatformText } from "@molis-ai/molis-work-app-workbench";
+import { pluginTextForOwner, pluginTextOwnerOfPrefix, registerPlatformText, type DirectoryWordResolver, type PluginTextReader } from "@molis-ai/molis-work-ui-host";
 import { hostLog } from "./host-log.js";
-import { runWithRegisteredText, textScope, DEFAULT_WEB_LOCALE } from "./web-locale.js";
+import { runWithRegisteredText, textScope, webLanguage, DEFAULT_WEB_LOCALE } from "./web-locale.js";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import { registeredPackageDirectory, registeredPluginLocaleFiles } from "./registered-plugin-files.js";
+
+export { workbenchPlatformText };
 
 // The text context of this process (specs/font-and-skin-system/a-section-contract.md §5.2, §8.3): what `t`, `say` and `format` find on the global. The
 // language is the scope's (`web-locale.ts`), which ends with the request or the run that opened it; plugin words come only from the exact activation. It does

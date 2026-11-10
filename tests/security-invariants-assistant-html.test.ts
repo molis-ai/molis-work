@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { assistantTextHtml, assistantReviewHtml, type AssistantReviewDisplay } from "@molis-ai/molis-work-app-workbench";
+import type { AssistantReviewDisplay } from "@molis-ai/molis-work-ui-host";
+import { assistantTextHtml, assistantReviewHtml } from "@molis-ai/molis-work-app-workbench";
 import type { AssistantPendingReview, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
 import { pageText } from "./fixtures/page-text.js";
 

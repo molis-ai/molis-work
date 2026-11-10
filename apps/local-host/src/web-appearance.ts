@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { WorkbenchAppearance, WorkbenchAppearancePorts } from "@molis-ai/molis-work-app-workbench";
+import type { WorkbenchAppearance, WorkbenchAppearancePorts } from "@molis-ai/molis-work-ui-host";
 import { ActionError, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { appearanceSelectionActions as actions, type TextRef, type UiAppearanceReceipt, type UiDefinitionRef } from "@molis-ai/molis-work-contracts/platform/ui";
 import { BASELINE_FONT, BASELINE_SKIN } from "@molis-ai/molis-work-design-system";

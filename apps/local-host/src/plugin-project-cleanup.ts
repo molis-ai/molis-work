@@ -1,4 +1,4 @@
-import type { PluginTextReader } from "@molis-ai/molis-work-app-workbench";
+import type { PluginTextReader } from "@molis-ai/molis-work-ui-host";
 import { namedProjectDataLabel, projectDataLabel } from "./project-deletion-words.js";
 import { rm } from "node:fs/promises";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";

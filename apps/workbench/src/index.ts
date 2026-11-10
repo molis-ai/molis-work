@@ -1,5 +1,5 @@
 export { workbenchClientSource } from "./page-assets.js";
-export type { WorkbenchAppearance, WorkbenchAppearancePorts } from "./appearance-document.js";
+export type { WorkbenchAppearancePorts } from "./appearance-document.js";
 export type { SideViewDocumentInput } from "./side-view-document.js";
 export { PAGE_PLUGINS_WITHOUT_SELECTION } from "./page-plugin-visibility.js";
 export { renderHomePluginPage } from "./home-plugin-page.js";
@@ -25,8 +25,7 @@ export type { PluginRestartOffer, UnavailablePluginStage } from "./unavailable-p
 export { createWorkbenchLocale, DEFAULT_WEB_LOCALE, LOCALE_COOKIE, LOCALE_SWITCH_STYLES, WEB_LOCALES, webLanguage, type WebLocale, type WebLocalePreference } from "./i18n.js";
 export { WORKBENCH_LANGUAGES, workbenchPlatformText } from "./platform-languages.js";
 export { workbenchLanguageResource } from "./language-resource.js";
-// The words this process holds for the text tools (specs/font-and-skin-system/a-section-contract.md §8.3): the Host registers and reads them.
-export { pluginTextForOwner, pluginTextOwnerOfPrefix, pluginTextReader, installCatalogTextScope, registerPlatformText, registerPluginText, type PluginTextReader } from "./plugin-text.js";
+export { installCatalogTextScope } from "./plugin-text.js";
 export {
   artifactWorkbench,
   createArtifactReferenceRenderer,
@@ -46,10 +45,10 @@ export { renderMolisWorkNavigationSpecimen } from "./navigation-specimens.js";
 export { parseAssistantFrame, renderMolisWorkAssistantSpecimen, type AssistantFrameOptions } from "./assistant-board-frame.js";
 export { assistantBoardSamples } from "./assistant-board-samples.js";
 export { renderAssistantNoticeText, renderAssistantSavedText } from "./assistant-text-html.js";
-export { readAssistantReviewWords, type AssistantReviewDisplay, type AssistantReviewField } from "./assistant-review-html.js";
+export { readAssistantReviewWords } from "./assistant-review-html.js";
 export { createCapsuleWorkbench, type CapsuleRendererPorts } from "./capsule.js";
 export { BUILTIN_PLUGIN_CATALOG, OWN_DIRECTORY_SURFACES, manifestFor, pluginMarketCards, pluginTabGlyphs, pluginTabTitles, islandEntries, railEntries, settingsEntries, sideOpenedPlugins, creatableKinds, homeStarts, builtinPluginDirectory, pluginDirectoryFor, dockDefaultPins, extendPluginIds } from "./plugin-catalog.js";
-export { clientPluginDirectory, isPersonalPlugin, projectDirectoryWords, renderPluginDirectoryData, renderPluginTabTitlesData, sanitizePluginDirectory, scriptJson, type DirectoryWordSource, type DirectoryWordResolver, type PluginDirectory, type PluginDirectoryEntry } from "./plugin-directory.js";
+export { clientPluginDirectory, isPersonalPlugin, renderPluginDirectoryData, renderPluginTabTitlesData, sanitizePluginDirectory, scriptJson, type PluginDirectory, type PluginDirectoryEntry } from "./plugin-directory.js";
 export { declaredStageContributionId, stageContributionId, stageDataAction, stageObjectAction, stageSurfaceDescriptors, stageDataInput, renderStagePage, withoutPagePublisher, type RenderedStagePage } from "./declared-stages.js";
 export { pluginWorkbenchPacks, pluginWorkbenchStyles } from "./plugin-workbench.js";
 export type { BuiltinPluginWorkbenchPack } from "./plugin-workbench.js";

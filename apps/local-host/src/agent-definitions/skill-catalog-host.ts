@@ -1,5 +1,5 @@
 import { agentBodyIn } from "@molis-ai/molis-work-contracts/platform/model-prompts";
-import { pluginTextReader, projectDirectoryWords } from "@molis-ai/molis-work-app-workbench";
+import { pluginTextReader, projectDirectoryWords } from "@molis-ai/molis-work-ui-host";
 import { pluginManifestDigest, type PluginHostLifecycle } from "@molis-ai/molis-work-plugin-runtime";
 import { matchLocale } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { directoryWordResolver } from "../ui-text-provider.js";

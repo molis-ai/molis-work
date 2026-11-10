@@ -1,4 +1,4 @@
-import { projectDirectoryWords } from '@molis-ai/molis-work-app-workbench';
+import { projectDirectoryWords } from '@molis-ai/molis-work-ui-host';
 import { directoryWordResolver } from './ui-text-provider.js';
 import { activeLocale } from './web-locale.js';
 /**

@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 import ts from "typescript";
 import * as workbench from "@molis-ai/molis-work-app-workbench";
+import * as uiHost from "@molis-ai/molis-work-ui-host";
 
 const PLUGIN_PACKAGE = /^@molis-ai\/molis-work-plugin-/u;
 const root = new URL("../", import.meta.url);
@@ -27,8 +28,8 @@ const TEXT_USERS: Readonly<Record<string, readonly string[]>> = {
   pluginTextOwnerOfPrefix: ["apps/local-host/src/ui-text-provider.ts"],
   pluginTextReader: ["apps/local-host/src/plugin-page-authority.ts"],
   registerPlatformText: ["apps/local-host/src/ui-text-provider.ts"],
-  installCatalogTextScope: ["apps/local-host/src/ui-text-provider.ts"],
   registerPluginText: ["apps/local-host/src/plugin-host-services.ts"],
+  projectDirectoryWords: ["apps/local-host/src/plugin-directory.ts"],
 };
 const LOCALE_NAMES = ["LOCALE_COOKIE", "LOCALE_SWITCH_STYLES", "WEB_LOCALES", "WebLocale", "WebLocalePreference", "DEFAULT_WEB_LOCALE", "webLanguage", "createWorkbenchLocale"];
 
@@ -60,12 +61,15 @@ test("RAC-711 the names ui-composition and i18n give out are listed in the entry
     && node.exportClause && ts.isNamedExports(node.exportClause) ? node.exportClause.elements.map(element => element.name.text) : []).sort();
   assert.deepEqual(named("./ui-composition.js"), [...UI_COMPOSITION_NAMES].sort());
   assert.deepEqual(named("./i18n.js"), [...LOCALE_NAMES].sort());
+  assert.deepEqual(named("./plugin-text.js"), ["installCatalogTextScope"]);
   for (const [name, users] of Object.entries(TEXT_USERS)) {
-    for (const file of users) assert.match(read(file), new RegExp(`\\b${name}\\b`, "u"), `${file} uses ${name}`);
+    assert.ok(name in uiHost, `${name} belongs to the UI Host`);
+    assert.equal(name in workbench, false, `${name} is read from its owner`);
+    for (const file of users) assert.match(read(file), new RegExp(`import [^\n]*\\b${name}\\b[^\n]* from "@molis-ai/molis-work-ui-host"`, "u"), `${file} uses ${name}`);
   }
   for (const name of ["EN", "registerPluginMessages", "unregisterPluginMessages", "inWordsOf", "withPluginWords"]) assert.equal(name in workbench, false, name);
   assert.deepEqual(named("./capsule-view.js"), [], "Capsule projections and their types belong to Goals");
-  for (const name of [...UI_COMPOSITION_NAMES, "createWorkbenchLocale", "LOCALE_COOKIE", "WEB_LOCALES", "LOCALE_SWITCH_STYLES", ...Object.keys(TEXT_USERS)]) {
+  for (const name of [...UI_COMPOSITION_NAMES, "createWorkbenchLocale", "LOCALE_COOKIE", "WEB_LOCALES", "LOCALE_SWITCH_STYLES", "installCatalogTextScope"]) {
     assert.ok(name in workbench, `${name} is given out`);
   }
 });

@@ -38,7 +38,7 @@ test("RING-07 Coding plan and cooperation render actual rings and preserve recei
     primitives: { escape: escapeHtml, icon, text: value => value, formatDate: value => value } });
   try {
     const page = await browser.page();
-    await page.evaluate(`(()=>{${pageTextScript("zh", "coding")}})()`); // the scripts read the page's translator, `L`
+    await page.evaluate(`(()=>{${pageTextScript("zh", "coding")}})()`); // the scripts read the page's SDK text context
     const result = await page.evaluate<{
       running: string[]; paused: string[]; person: string; accepted: string; labels: string[];
       commands: string[]; letters: string[]; delegation: string; errors: string[];
@@ -99,7 +99,7 @@ test("VUX-40: cooperation, subagents and the usage meter speak English in Englis
       // The page names a role from its id and falls back to the id (client.ts ROLE_NAMES); the cards and results take that port.
       const roleName=id=>({builder:'Builder',reader:'Reader',reviewer:'Reviewer',coordinator:'Coordination'})[id]||id||'Agent';
       const ports={lifetime,translate:L,q,api:async()=>({}),current:()=>'session',status:message=>errors.push(message),refresh:async()=>{},openStep:()=>{},roleName};
-      const timeline=(${createCodingTimeline.toString()})((${codingTimelineWords.toString()})(globalThis.L));
+      const timeline=(${createCodingTimeline.toString()})((${codingTimelineWords.toString()})(globalThis.t.text));
       const children=[{subagent_id:'c1',role_id:'builder',role_name:'Builder',state:'running',task:'Write the parser',usage:{tokens:{input:1200,output:300}}},
         {subagent_id:'c2',role_id:'reader',role_name:'Reader',state:'failed',task:'Read the docs',error:'MODEL_NETWORK_FAILED: fetch failed',integration_available:true,workspace_path:'/tmp/w/c2',
           activity:[{call_id:'e',name:'edit',target:'a.ts',state:'completed'}]},
@@ -275,7 +275,7 @@ test("VUX-40: the model note, a turn's changes, the palette and the character an
       const models=(${embeddedFactory("composerModels")})({q,lifetime,translate:L,status,switchModel:async()=>{}});
       models.fill([]);models.fill([{provider_id:'p',model_id:'m1',label:'Model One',reasoning_effort:true},{provider_id:'p',model_id:'m2',label:'Model Two'}]);
       models.controls({active:true,sending:false,run:{ref:{run_id:'r'},frozen:{model_id:'m1',reasoning_effort:'high',thinking:true},model_switch:{requested:'m2'}}});
-      const changes=(${createCodingTurnChanges.toString()})(globalThis.L).place(document.createElement('section'),
+      const changes=(${createCodingTurnChanges.toString()})(globalThis.t.text).place(document.createElement('section'),
         {turn:1,sequence:1,files:['a.ts','b.ts','c.ts','d.ts'].map((path,n)=>({path:'src/'+path,byte_length:10+n,digest:'d'+n,checkpoint_id:'cp'+n}))},{ref:{run_id:'r'},phase:'completed',activity:[]},true);
       root.append(changes);changes.querySelector('details').open=true;
       const commands=(${embeddedFactory("commandsUi")})({lifetime,translate:L,q,input:q('[data-coding-task]'),status,commands:()=>[{slash:'new',label:'New session',keys:'Mod+Alt+N',run:()=>{}}],current:()=>'s',

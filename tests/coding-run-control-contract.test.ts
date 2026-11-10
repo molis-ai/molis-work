@@ -1,3 +1,4 @@
+import { pageText } from "./fixtures/page-text.js";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -5,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginRouteRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { assertActionInput } from "@molis-ai/molis-work-kernel";
-import { CODING_MESSAGES, codingRouteActions, runControl, type CodingModelChoice } from "@molis-ai/molis-work-plugin-coding";
+import { codingRouteActions, runControl, type CodingModelChoice } from "@molis-ai/molis-work-plugin-coding";
 import { QUESTION_LIMITS, questionAnswer } from "@molis-ai/molis-work-plugin-sdk";
 
 // The page is typed TypeScript (src/browser); what it sends is read from the source of the module that sends it.
@@ -121,8 +122,8 @@ test("the page still posts the provider and model, and the switch takes effect o
   assert.match(pageSource("composer-model.ts"), /provider_id: model\.provider_id, model_id: model\.model_id/);
   // The page says so through Coding's dictionary (VUX-40), in both languages.
   assert.match(pageSource("composer-model.ts"), /status\(L\("coding\.model\.switch-asked", \{ model: model\.label \}\)\)/);
-  assert.match(CODING_MESSAGES["coding.model.switch-asked"].zh, /从下一次模型调用起生效/);
-  assert.match(CODING_MESSAGES["coding.model.switch-asked"].en, /from the next model call/);
+  assert.match(pageText("zh", "coding")("coding.model.switch-asked"), /从下一次模型调用起生效/);
+  assert.match(pageText("en", "coding")("coding.model.switch-asked"), /from the next model call/);
 });
 
 test("AC-27-4 AC-28-5: the page answers with the card's fields; the route reads them into values the published schema checks", async () => {

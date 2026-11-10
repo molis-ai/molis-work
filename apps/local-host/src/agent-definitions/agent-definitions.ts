@@ -168,10 +168,7 @@ export class AgentDefinitions {
 
   /** One registered method with its body, by owner, id and (when given) exact version. */
   method(ownerId: string, skillId: string, version?: number, locale?: string): AgentSkillRegistration {
-    const matches = [...(this.scopes.get(ownerId)?.values() ?? [])].filter(owner => nativeOffering(owner)).flatMap(owner => owner.methods ?? [])
-      .filter(item => item.skill_id === skillId && (version === undefined || item.version === version));
-    if (matches.length !== 1) throw agentDefinitionsErrors.not_found("没有登记这个方法版本");
-    return structuredClone(selectedBody(matches[0]!, locale));
+    return selectNativeMethod(this.scopes.get(ownerId)?.values() ?? [], skillId, version, locale);
   }
 
   /** Read the selected installation, never the settings aggregation or a newer default. No use is recorded here. */
@@ -361,6 +358,13 @@ const nativeOffering = (owner: AgentDefinitionRegistration) => offering(owner) &
 function selectedBody<T extends { body: string; body_by_locale?: Readonly<Record<string, string>> }>(declaration: T, locale?: string): Omit<T, "body_by_locale"> {
   const { body_by_locale, ...selected } = declaration;
   return { ...selected, body: agentBodyIn({ body: selected.body, body_by_locale }, locale) };
+}
+
+function selectNativeMethod(owners: Iterable<AgentDefinitionRegistration>, skillId: string, version?: number, locale?: string): AgentSkillRegistration {
+  const matches = [...owners].filter(nativeOffering).flatMap(owner => owner.methods ?? [])
+    .filter(item => item.skill_id === skillId && (version === undefined || item.version === version));
+  if (matches.length !== 1) throw agentDefinitionsErrors.not_found("没有登记这个方法版本");
+  return structuredClone(selectedBody(matches[0]!, locale));
 }
 
 /** The Home's remembered installation declarations (PG-051 Q1 b), opened once. */

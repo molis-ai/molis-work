@@ -3,7 +3,7 @@
     "file plugins/native/plugin-builder/src/agent-authoring.ts": {
       "kind": "cohesive-unit",
       "reason": "设计答卷 DSL 的内聚解析与归一化单元，类型、操作、组件绑定和验收共用标识与诊断，联合展开为同一严格设计合同；拆开会分散同一语法的交叉引用和归一化顺序。",
-      "size": 821
+      "size": 818
     },
     "function plugins/native/plugin-builder/src/agent-authoring.ts#expandDesign": {
       "kind": "cohesive-unit",

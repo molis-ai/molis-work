@@ -235,7 +235,7 @@ ${ASSISTANT_CONVERSATION_PART}
   const WAITING = new Set(["waiting-input", "waiting-review", "needs-check"]);
   // Works with news for the person (done, a result handed back, new material) and works waiting on them, from notices.
   let unreadWorks = new Set(), urgentWorks = new Set();
-  const when = (iso) => { const at = new Date(iso); return Number.isFinite(at.getTime()) ? at.toLocaleString([], { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : ""; };
+  const when = (iso) => { const at = new Date(iso); return Number.isFinite(at.getTime()) ? globalThis.t.text("common.generated.formatted", { value: { kind: "date", at: at.toISOString(), style: "datetime" } }) : ""; };
   const showError = (next) => { problem = next; render(); };
   /* A change the Assistant made is announced once, so the surface that owns that data can show it (and not overwrite it). */
   const announced = new Set();

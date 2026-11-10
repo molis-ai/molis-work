@@ -1,3 +1,4 @@
+import { assertPageWords, pageText, withPageText } from "./fixtures/page-text.js";
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
@@ -7,7 +8,7 @@ import { isProductSource, scanTree, workingTreeSnapshot } from "../scripts/gates
 import { HOTKEY_OCCUPIED, HOTKEY_RECORDING } from "@molis-ai/molis-work-module-shelf";
 import {
   SHELF_CLIENT_FACTORY_SCRIPT,
-  SHELF_MESSAGES,
+
   SHELF_SETTINGS_CLIENT_SCRIPT,
   renderShelfWorkbench,
 } from "@molis-ai/molis-work-plugin-shelf";
@@ -33,22 +34,15 @@ test("RAC-164 every word the Shelf page's client and drawn list say has a stable
   // Words the Host or a route wrote (a recipe's name, a reason) are shown as written: they reach the translator at one place, `said`.
   const forwarding = browserFiles.flatMap(file => readFileSync(file, "utf8").split("\n").map((text, index) => ({ file, line: index + 1, text })))
     .filter(({ text }) => /\bL\((?!["'`])/u.test(text));
-  assert.deepEqual(forwarding.map(({ file, text }) => `${file}: ${text.trim()}`), [`${join(BROWSER, "dom.ts")}: export const said = (L: Translate, text: string): string => L(text);`],
-    "no browser code hands a word it did not choose from the table to the translator, except `said`");
+  assert.deepEqual(forwarding.map(({ file, text }) => `${file}: ${text.trim()}`), [],
+    "no browser code hands a word it did not choose from the table to the translator");
   const used = new Set<string>(calls.map(call => call.key));
-  assert.deepEqual([...used].filter(key => !(key in SHELF_MESSAGES)), [], "every key the page asks for is defined");
-  assert.deepEqual(Object.keys(SHELF_MESSAGES).filter(key => !used.has(key)), [], "every defined key is asked for");
-  const names = (value: string) => [...new Set([...value.matchAll(/\{([a-z]+)[|}]/gu)].map(match => match[1]))].sort();
-  for (const [key, text] of Object.entries(SHELF_MESSAGES)) {
-    assert.ok(text.zh && text.en, `${key} has Chinese and English`);
-    assert.match(key, /^shelf\.[a-z0-9-]+\.[a-z0-9-]+$/u, `${key} is a stable key`);
-    assert.deepEqual(names(text.zh), names(text.en), `${key} uses the same placeholders in both languages`);
-  }
+  assertPageWords("shelf", used);
   // The chord words the module's own errors and the settings page's drawn page speak are the ones the bundle shows.
-  assert.equal(SHELF_MESSAGES["shelf.settings.hotkey-occupied"].zh, HOTKEY_OCCUPIED);
-  assert.equal(SHELF_MESSAGES["shelf.settings.hotkey-recording"].zh, HOTKEY_RECORDING);
-  const html = renderShelfWorkbench({ materials: [], results: [], clipboard: [], selected_id: null, primitives: { escape: String, text: key => `«${key}»` } });
-  assert.match(html, /«shelf\.ui\.[a-z0-9-]+»/u, "the server-drawn list speaks through the translator");
+  assert.equal(pageText("zh", "shelf")("shelf.settings.hotkey-occupied"), HOTKEY_OCCUPIED);
+  assert.equal(pageText("zh", "shelf")("shelf.settings.hotkey-recording"), HOTKEY_RECORDING);
+  const html = withPageText("en", ["shelf"], () => renderShelfWorkbench({ materials: [], results: [], clipboard: [], selected_id: null, primitives: { escape: String } }));
+  assert.ok(html.includes(pageText("en", "shelf")("shelf.ui.clipboard-history")), "the server draws the shipped label");
   assert.doesNotMatch(html, /[一-鿿]/u, "no Chinese is drawn into the list directly");
 });
 

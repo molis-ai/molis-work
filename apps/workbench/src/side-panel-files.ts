@@ -311,7 +311,7 @@ export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
     // The file shown is the object a selection in it is about: what is in hand on the right (context-landing.ts); one it could not read is not.
     if(source?.plugin_id)body.dataset.assistantContext=JSON.stringify({plugin_id:source.plugin_id,object:{kind,id,title:item?.title||''}});else delete body.dataset.assistantContext;
     title.textContent=item?.title||globalThis.t.text("workbench.side-panel-files.files");
-    meta.textContent=[source?.title,item?.updated_at?new Date(item.updated_at).toLocaleString():'',sizeText(item?.size)].filter(Boolean).join(' · ');
+    meta.textContent=[source?.title,item?.updated_at?globalThis.t.text("common.generated.formatted", { value: { kind: "date", at: item.updated_at, style: "datetime" } }):'',sizeText(item?.size)].filter(Boolean).join(' · ');
     setOpen(item?.open||null);body.innerHTML='<p class="side-files-note">'+esc(globalThis.t.text("workbench.side-panel-files.reading"))+'</p>';body.scrollTop=0;
     void showCard(kind,id,request);
     try{

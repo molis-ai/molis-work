@@ -5,8 +5,8 @@
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
 import { readMcpToolPreference } from "@molis-ai/molis-work-app-local-host";
-import { EN } from "@molis-ai/molis-work-app-workbench";
-import { defineSearchEntriesAction, LOCAL_PERSON_ACTOR_ID, searchEntriesPage, type ActionDefinition, type SearchEntriesInput, type SearchEntry } from "@molis-ai/molis-work-contracts/platform/actions";
+import { knowledgeActions } from "@molis-ai/molis-work-contracts/services/knowledge";
+import { actionEffect, defineSearchEntriesAction, LOCAL_PERSON_ACTOR_ID, searchEntriesPage, type ActionDefinition, type SearchEntriesInput, type SearchEntry } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 
@@ -104,7 +104,7 @@ test("S-task-grants-page TGA-28 the settings route is the person's own page's: a
 });
 
 test("S-task-grants-page TGA-24 TGA-26 the route lists every task once and names a task through its installation's own search source, one page of 500 at a time", { timeout: 60_000 }, async t => {
-  const { open, titled } = await world(t);
+  const { f, open, titled } = await world(t);
   const a = await open("Grants titles");
   const mine = await a.group(a.install), theirs = await a.group(a.other);
   for (const [install, key, group] of [[a.install, "daily", mine], [a.install, "zlate", mine], [a.other, "daily", theirs]] as const)
@@ -112,9 +112,19 @@ test("S-task-grants-page TGA-24 TGA-26 the route lists every task once and names
 
   type Listed = { subjects: Array<{ plugin_install_id: string; key: string; categories: Array<{ status: string }> }>; installations: Array<{ plugin_install_id: string; plugin_id: string; name: string; titled: boolean }> };
   const listed = await a.call<Listed & { categories: Array<{ provider_id: string; title: string; description: string }> }>({ mode: "list" });
-  // The page shows each category in the person's language: 项目资料 too, whose description the Host makes of its readable actions' titles.
-  const knowledge = listed.categories.find(category => category.provider_id === "system.knowledge");
-  assert.ok(knowledge && EN[knowledge.title] && EN[knowledge.description], `项目资料 has English: ${JSON.stringify(knowledge)}`);
+  // The task permission shell follows English, while the actual action names in this system category keep their declarations.
+  const english = { headers: { "accept-language": "en-US" } };
+  const page = await f.request(a.prefix + "/settings/grants?embed=1", english);
+  assert.equal(page.status, 200);
+  assert.match(await page.text(), /What background tasks may read/u);
+  const englishList = await a.post({ mode: "list" }, english.headers);
+  assert.equal(englishList.status, 200);
+  const knowledge = (await englishList.json() as typeof listed).categories.find(category => category.provider_id === "system.knowledge");
+  assert.equal(knowledge?.title, "项目资料");
+  const titles = Object.values(knowledgeActions).filter(row => row.operation === "query" && row.action.audiences.includes("agent")
+    && actionEffect(row.action, row.capability_id) === "read").map(row => row.action.title);
+  assert.deepEqual(knowledge?.description.split("、").sort(), [...new Set(titles)].sort(), "the list names the actual readable actions");
+  assert.deepEqual(knowledge, listed.categories.find(category => category.provider_id === "system.knowledge"));
   assert.deepEqual(listed.subjects.map(subject => [subject.plugin_install_id, subject.key, subject.categories.map(category => category.status)]).sort(),
     [[a.install, "daily", ["granted"]], [a.install, "zlate", ["granted"]], [a.other, "daily", ["granted"]]].sort());
   assert.deepEqual(listed.installations.map(install => [install.plugin_install_id, install.plugin_id, install.name, install.titled]).sort(),

@@ -1,14 +1,13 @@
 import assert from "node:assert/strict";
-import test from "node:test";
 import { createWorkbenchUiHost } from "@molis-ai/molis-work-app-workbench";
-import { goalsRenderers } from "./goals-page-mount.js";
+import { goalsRenderers, testGoalUi as test, withGoalLocale } from "./goals-page-mount.js";
 import { GOALS_POLICY_UI_CONTRIBUTION_ID, type GoalsPolicyItem } from "@molis-ai/molis-work-plugin-goals";
-import { icon } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { L, currentLocale, runWithLocale } from "@molis-ai/molis-work-app-local-host";
+import { icon, t } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { currentLocale } from "@molis-ai/molis-work-app-local-host";
 
 const base = { human_approval: true };
 const escapeHtml = (value: unknown) => String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
-const renderer = goalsRenderers.policy({ translate: L, currentLocale, icon, escapeHtml,
+const renderer = goalsRenderers.policy({ translate: t.text, currentLocale, icon, escapeHtml,
   formatDate: value => value ?? "", defaultPolicy: base });
 const item: GoalsPolicyItem = {
   goal: { goal_id: 'goal-"<unsafe>' },
@@ -35,16 +34,16 @@ test("progress checks describe the resolved policy without writing it", () => {
     assert.doesNotMatch(html, /<form|<input|type="submit"/);
     assert.deepEqual(policy, before);
   }
-  const english = runWithLocale("en", () => renderer.renderProgressCheckSummary(base));
+  const english = withGoalLocale("en", () => renderer.renderProgressCheckSummary(base));
   assert.match(english, /You need to approve the final result/);
 });
 
 test("archived/read-only policy presentation has no writable forms and locale remains request-local", () => {
-  const readOnly = runWithLocale("en", () => renderer.renderPolicyEditor(item, { editGoal: false, editProject: false }));
+  const readOnly = withGoalLocale("en", () => renderer.renderPolicyEditor(item, { editGoal: false, editProject: false }));
   assert.match(readOnly, /Effective rules now/);
   assert.match(readOnly, /You have the final confirmation/);
   assert.doesNotMatch(readOnly, /data-policy-form|<input|<textarea/);
-  const chinese = runWithLocale("zh", () => renderer.renderPolicyEditor(item));
+  const chinese = withGoalLocale("zh", () => renderer.renderPolicyEditor(item));
   assert.match(chinese, /当前最终生效规则/);
   assert.doesNotMatch(chinese, /Effective rules now/);
 });
@@ -82,7 +81,7 @@ test("project policy document selects the last active project binding and uses d
   const defaults = renderer.renderProjectPolicyDocument({ project: null, policy_bindings: [] });
   assert.match(defaults, /name="human_approval" checked>/, "with no binding the system default applies");
   assert.match(defaults, /policy-project_default-current-project/);
-  const english = runWithLocale("en", () => renderer.renderProjectPolicyDocument(view));
+  const english = withGoalLocale("en", () => renderer.renderProjectPolicyDocument(view));
   assert.match(english, /Project work rules/);
   assert.match(english, /These rules are checked when a Goal closes/);
 });

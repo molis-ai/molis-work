@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import nodeTest from "node:test";
 import { desktopWorkbenchRendererPorts } from "@molis-ai/molis-work-app-desktop";
-import { BUILTIN_PLUGIN_CATALOG, createWorkbenchLocale, renderHomePluginPage, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
-import { createLocalHostWorkbenchRenderer } from "@molis-ai/molis-work-app-local-host";
+import { BUILTIN_PLUGIN_CATALOG, renderHomePluginPage, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
+import { createLocalHostWorkbenchRenderer, htmlLang, readText, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import { UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { FIELD_FIT_CLIENT_SCRIPT, FIELD_FIT_STYLES, FLOATING_DETAILS_CLIENT_SCRIPT, ROVING_FOCUS_CLIENT_SCRIPT, TIP_CLIENT_SCRIPT } from "@molis-ai/molis-work-design-system";
 import { IM_CLIENT_SCRIPT, IM_STYLES } from "@molis-ai/molis-work-im-ui";
@@ -11,6 +11,7 @@ import { IM_CLIENT_SCRIPT, IM_STYLES } from "@molis-ai/molis-work-im-ui";
 // budget nothing) carry the one request helper instead of their own copy of the headers function. Each page is rendered
 // by its own renderer, the way the Host serves it.
 
+const test = (name: string, run: () => void) => nodeTest(name, () => runWithLocale("zh", run));
 const TOKEN = "page-control-token-0123456789abcdef";
 const renderer = createLocalHostWorkbenchRenderer(desktopWorkbenchRendererPorts);
 
@@ -39,7 +40,7 @@ const OWN_HEADERS_FUNCTION = /molisWorkControlHeaders = \(\) =>/;
 function assertCarriesHelper(name: string, html: string) {
   assert.equal(count(html, UI_REQUEST_CLIENT_SCRIPT), 1, `${name}: the request helper, once`);
   assert.doesNotMatch(html, OWN_HEADERS_FUNCTION, `${name}: no second copy of the headers function`);
-  assert.ok(html.indexOf("globalThis.L = ") >= 0 && html.indexOf("globalThis.L = ") < html.indexOf(UI_REQUEST_CLIENT_SCRIPT), `${name}: the translator is defined first`);
+  assert.ok(html.indexOf("data-ui-language-resource") >= 0 && html.indexOf("data-ui-language-resource") < html.indexOf(UI_REQUEST_CLIENT_SCRIPT), `${name}: the translator is defined first`);
   assert.match(html, new RegExp(`<meta name="molis-work-page-session" content="${TOKEN}">`), `${name}: the token the helper reads is in the page`);
 }
 
@@ -82,7 +83,7 @@ test("Home and side plugin documents carry the shared field, roving, floating an
   const programs = [FIELD_FIT_CLIENT_SCRIPT, ROVING_FOCUS_CLIENT_SCRIPT, FLOATING_DETAILS_CLIENT_SCRIPT, TIP_CLIENT_SCRIPT];
   const entry = BUILTIN_PLUGIN_CATALOG.find(candidate => candidate.project_plugin_id === "todo");
   assert.ok(entry, "the Todo plugin is a Home plugin with a page of its own");
-  const home = renderHomePluginPage(entry, "<section data-work-surface></section>", null, TOKEN, createWorkbenchLocale(() => "zh"));
+  const home = renderHomePluginPage(entry, "<section data-work-surface></section>", null, TOKEN, { readText, htmlLang });
   const side = renderer.renderSideViewDocument({ projectPluginId: "lingguang", viewId: "side", projectId: "p1", routePrefix: "/projects/p1", enabled: ["lingguang"], controlToken: TOKEN });
   assert.ok(side, "the side view is served");
   for (const program of programs) {
@@ -99,7 +100,7 @@ test("the IM page carries the shared intrinsic field sizing in its script and st
 test("a Home plugin page carries the request helper before the plugin's client runs", () => {
   const entry = BUILTIN_PLUGIN_CATALOG.find(candidate => candidate.project_plugin_id === "todo");
   assert.ok(entry, "the Todo plugin is a Home plugin with a page of its own");
-  const html = renderHomePluginPage(entry, "<section data-work-surface></section>", null, TOKEN, createWorkbenchLocale(() => "zh"));
+  const html = renderHomePluginPage(entry, "<section data-work-surface></section>", null, TOKEN, { readText, htmlLang });
   assert.equal(count(html, UI_REQUEST_CLIENT_SCRIPT), 1);
   assert.doesNotMatch(html, OWN_HEADERS_FUNCTION);
   assert.ok(html.indexOf(UI_REQUEST_CLIENT_SCRIPT) < html.indexOf("molisPluginFrames.mount"), "the helper is there before the isolated client mounts");

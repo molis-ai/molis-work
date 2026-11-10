@@ -97,7 +97,7 @@ export const MODEL_SETTINGS_CLIENT_SCRIPT = readFileSync(new URL("../../dist/mod
         if (error?.code === 'model_provider.rate_limited') {
           progress(1, 'hold');
           const box = find('[data-model-limited]'), seen = edits, wait = 60000;
-          const time = new Date(Date.now() + wait).toLocaleTimeString(document.documentElement.lang || undefined, { hour: '2-digit', minute: '2-digit' });
+          const time = globalThis.t.text("common.generated.formatted", { value: { kind: "date", at: new Date(Date.now() + wait).toISOString(), style: "time" } });
           // What was kept is said once, on the status line.
           box.querySelector('p').textContent = globalThis.t.text("workbench.settings-models.services-side-not-something-typed-wrong-checks-again", { minutes: 1, time });
           box.hidden = false;

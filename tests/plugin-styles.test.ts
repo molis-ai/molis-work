@@ -1,3 +1,4 @@
+import { pageText, withPageText } from "./fixtures/page-text.js";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
@@ -209,10 +210,10 @@ test("RAC-761 the plugin sheets come after the workbench sheet the frame links i
 
 test("RAC-762 the component board's plugin rows link the sheets of the plugins whose rows they draw", () => {
   const options = parseConditionFrame(new URLSearchParams("part=rows"));
-  const page = renderMolisWorkConditionsSpecimen(options, { L: (text) => text, htmlLang: () => "zh-CN", clientI18nScript: () => "" });
+  const page = withPageText("zh", [], () => renderMolisWorkConditionsSpecimen(options, { readText: pageText("zh"), htmlLang: () => "zh-CN" }));
   assert.match(page, /<link rel="stylesheet" href="\/assets\/molis-work-plugins\/coding\.css">/, "Coding's rows are drawn with Coding's sheet");
   assert.ok(page.indexOf("molis-work-workbench.css") < page.indexOf("molis-work-plugins/coding.css"), "after the workbench sheet");
-  assert.doesNotMatch(renderMolisWorkConditionsSpecimen(parseConditionFrame(new URLSearchParams("part=reply")), { L: (text) => text, htmlLang: () => "zh-CN", clientI18nScript: () => "" }),
+  assert.doesNotMatch(withPageText("zh", [], () => renderMolisWorkConditionsSpecimen(parseConditionFrame(new URLSearchParams("part=reply")), { readText: pageText("zh"), htmlLang: () => "zh-CN" })),
     /molis-work-plugins\//, "the reply part draws no plugin row");
 });
 

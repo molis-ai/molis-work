@@ -1,10 +1,11 @@
+import { assertPageWords, pageText, withPageText } from "./fixtures/page-text.js";
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 import { isProductSource, scanTree, workingTreeSnapshot } from "../scripts/gates/translations.mjs";
 
-import { SCHEDULE_CLIENT_FACTORY_SCRIPT, SCHEDULE_MESSAGES, renderScheduleWorkbench } from "@molis-ai/molis-work-plugin-schedule";
+import { SCHEDULE_CLIENT_FACTORY_SCRIPT, renderScheduleWorkbench } from "@molis-ai/molis-work-plugin-schedule";
 
 const SRC = "plugins/native/schedule/src";
 const BROWSER = join(SRC, "browser");
@@ -25,15 +26,9 @@ test("RAC-162 every word the Schedule page says has a stable key with both langu
     .filter(({ text }) => /\bL\((?!["'`])/u.test(text));
   assert.deepEqual(forwarding.map(({ file, text }) => `${file}: ${text.trim()}`), [], "no browser code hands a word it did not choose from the table to the translator");
   const used = new Set<string>(calls.map(call => call.key));
-  assert.deepEqual([...used].filter(key => !(key in SCHEDULE_MESSAGES)), [], "every key the page asks for is defined");
-  assert.deepEqual(Object.keys(SCHEDULE_MESSAGES).filter(key => !used.has(key)), [], "every defined key is asked for");
-  const names = (value: string) => [...new Set([...value.matchAll(/\{([a-z]+)[|}]/gu)].map(match => match[1]))].sort();
-  for (const [key, text] of Object.entries(SCHEDULE_MESSAGES)) {
-    assert.ok(text.zh && text.en, `${key} has Chinese and English`);
-    assert.deepEqual(names(text.zh), names(text.en), `${key} uses the same placeholders in both languages`);
-  }
-  const html = renderScheduleWorkbench({ route_prefix: "/p", jobs: [], tasks: [], primitives: { escape: String, icon: name => name, formatDate: String, text: key => `«${key}»` } });
-  assert.match(html, /«schedule\.action\.new»/u, "the server-drawn page speaks through the translator");
+  assertPageWords("schedule", used);
+  const html = withPageText("en", ["schedule"], () => renderScheduleWorkbench({ route_prefix: "/p", jobs: [], tasks: [], primitives: { escape: String, icon: name => name, formatDate: String } }));
+  assert.ok(html.includes(pageText("en", "schedule")("schedule.action.new")), "the server-drawn page speaks through the translator");
   assert.doesNotMatch(html, /[一-鿿]/u, "no Chinese is drawn into the page directly");
 });
 

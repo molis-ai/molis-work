@@ -3,7 +3,7 @@ import type { WorkflowActionStep } from "../model.js";
 import { ruleKey } from "./chain.js";
 import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
-import { copy, ico, said, settle, uid } from "./dom.js";
+import { copy, ico, settle, uid } from "./dom.js";
 import type { WorkflowsPage } from "./page.js";
 import { fitPop, markOpen, placePop } from "./popover.js";
 import { chainOf, saveFlow } from "./save.js";
@@ -26,11 +26,10 @@ export async function loadActions(page: WorkflowsPage): Promise<ActionChoice[]> 
 export const stepOf = (page: WorkflowsPage, draft: StepDraft) => (page.ui.actionSteps || []).find((row) => ruleKey(row.ref) === ruleKey(draft.ref));
 
 /** Why the step cannot be saved yet, or an empty string. */
-export function stepError(page: WorkflowsPage, draft: StepDraft, choice: ActionChoice | undefined) {
-  const { readText } = page;
+export function stepError(draft: StepDraft, choice: ActionChoice | undefined) {
   if (!draft.ref) return uiText.text("workflows.step.no-action");
   if (!choice) return uiText.text("workflows.step.action-gone");
-  if (!choice.available) return said(readText, choice.reason || "workflows.step.action-unavailable");
+  if (!choice.available) return choice.reason || uiText.text("workflows.step.action-unavailable");
   for (const field of choice.fields) if (field.required && !draft.mapping[field.name]) return uiText.text("workflows.step.field-empty", { field: field.title || field.name });
   for (const [name, source] of Object.entries(draft.mapping)) {
     const field = choice.fields.find((item) => item.name === name);
@@ -72,9 +71,9 @@ export function readyView(page: WorkflowsPage, problem: string) {
 }
 
 function editHtml(page: WorkflowsPage) {
-  const { ui, readText } = page;
+  const { ui } = page;
   const draft = ui.stepDraft!, rows = [...(ui.actionSteps || [])];
-  if (draft.ref && ui.actionSteps && !stepOf(page, draft)) rows.unshift({ ref: draft.ref, title: draft.title, group: draft.group || "", fields: [], available: false, reason: "workflows.judgment.gone" });
+  if (draft.ref && ui.actionSteps && !stepOf(page, draft)) rows.unshift({ ref: draft.ref, title: draft.title, group: draft.group || "", fields: [], available: false, reason: uiText.text("workflows.judgment.gone") });
   const choice = rows.find((row) => ruleKey(row.ref) === ruleKey(draft.ref));
   const query = (ui.stepQuery || "").trim().toLowerCase();
   const visible = query ? rows.filter((row) => row === choice || [row.title, row.group, row.description || ""].join(" ").toLowerCase().includes(query)) : rows;
@@ -84,11 +83,11 @@ function editHtml(page: WorkflowsPage) {
     : rows.length ? search + (visible.length ? `<label class="mw-field"><span class="mw-field__label">${esc(uiText.text("workflows.step.which"))}${query ? `<small>${esc(uiText.text("workflows.step.match-count", { count: String(visible.length) }))}</small>` : ""}</span><select class="mw-select" data-wf-step-action>`
       + (draft.ref ? "" : `<option value="" selected disabled>${esc(uiText.text("workflows.step.choose"))}</option>`)
       + groups.map((group) => `<optgroup label="${esc(group)}">` + visible.filter((row) => row.group === group).map((row) => `<option value="${esc(ruleKey(row.ref))}"${row === choice ? " selected" : ""}>`
-        + esc(row.title + (row.available ? "" : " · " + said(readText, row.reason || "workflows.judgment.unavailable"))) + "</option>").join("") + "</optgroup>").join("") + "</select></label>"
+        + esc(row.title + (row.available ? "" : " · " + (row.reason || uiText.text("workflows.judgment.unavailable")))) + "</option>").join("") + "</optgroup>").join("") + "</select></label>"
       : `<p class="wf-hint" role="status">${esc(uiText.text("workflows.step.no-match"))}</p>`)
       + (choice?.description ? `<p class="wf-hint">${esc(choice.description)}</p>` : "")
       : `<p class="wf-hint">${esc(uiText.text("workflows.step.none-available"))}</p>`;
-  const problem = ui.actionSteps ? stepError(page, draft, choice) : "";
+  const problem = ui.actionSteps ? stepError(draft, choice) : "";
   const editing = ui.stepIndex !== null;
   return `<header class="wf-pop__head"><strong>${editing ? esc(uiText.text("workflows.step.running-heading")) : esc(uiText.text("workflows.palette.add-action"))}</strong><span class="wf-muted">${esc(uiText.text("workflows.step.running-hint"))}</span></header>`
     + `<div class="wf-link-fields">${picker}<div data-wf-step-fields>${formHtml(page, draft, choice)}</div>`
@@ -123,7 +122,7 @@ export function saveStep(page: WorkflowsPage) {
   const { ui, pop } = page;
   const draft = ui.stepDraft!, chain = chainOf(page);
   const ref = draft.ref;
-  if (!ref || stepError(page, draft, stepOf(page, draft))) return;
+  if (!ref || stepError(draft, stepOf(page, draft))) return;
   pop.hidePopover();
   // stepError has just refused an empty fixed value, so the mapping is whole.
   const action = { ...draft, ref } as WorkflowActionStep;
@@ -154,7 +153,7 @@ export function setMap(page: WorkflowsPage, fieldEl: HTMLInputElement | HTMLSele
 export function checkStep(page: WorkflowsPage) {
   const { ui, pop } = page;
   const draft = ui.stepDraft!;
-  const problem = stepError(page, draft, stepOf(page, draft));
+  const problem = stepError(draft, stepOf(page, draft));
   const line = pop.querySelector<HTMLElement>("[data-wf-step-ready]");
   if (line) { line.dataset.ready = String(!problem); line.innerHTML = readyView(page, problem); }
   const save = pop.querySelector<HTMLButtonElement>("[data-wf-action=step-save]");

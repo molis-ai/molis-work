@@ -1,3 +1,5 @@
+import { dateArg, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+
 /** An element the server drew; the page cannot work without it. */
 export function required<T extends Element>(root: ParentNode, selector: string): T {
   const node = root.querySelector<T>(selector);
@@ -26,5 +28,5 @@ export function whenOf(value: string | null | undefined): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
   const sameYear = date.getFullYear() === new Date().getFullYear();
-  return date.toLocaleDateString(undefined, sameYear ? { month: "short", day: "numeric" } : { year: "numeric", month: "short", day: "numeric" });
+  return uiText.text("common.generated.formatted", { value: dateArg(date.toISOString(), sameYear ? "month-day" : "date") });
 }

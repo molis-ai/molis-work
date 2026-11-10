@@ -1,7 +1,7 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
-import { MOD, ico, kindName, said, statusOf, when } from "./dom.js";
+import { MOD, ico, kindName, statusOf, when } from "./dom.js";
 import { drawList } from "./list.js";
 import { openRun, remember } from "./nav.js";
 import type { WorkflowsPage } from "./page.js";
@@ -69,7 +69,7 @@ export function renderHandoff(page: WorkflowsPage, run: Run, index: number) {
       + `<button class="mw-btn mw-btn--primary" type="submit" data-wf-action="handoff-submit"${busy ? ' data-loading aria-disabled="true"' : ""}>${busy ? '<span class="mw-spinner" aria-hidden="true"></span>' : ""}<span>${esc(uiText.text("workflows.manual.submit-to", { next }))}</span></button></footer></form>`;
   }
   if (!ready.ready) {
-    return `<p class="wf-handoff__bar is-blocked">${ico("alert")}<span>${esc(uiText.text("workflows.handoff.next-blocked", { kind: kindName(readText, link.kind), next, reason: said(readText, ready.reason) }))}</span><button class="mw-btn mw-btn--ghost" type="button" data-wf-action="edit-link" data-link="${index}">${esc(uiText.text("workflows.handoff.configure"))}</button></p>`;
+    return `<p class="wf-handoff__bar is-blocked">${ico("alert")}<span>${esc(uiText.text("workflows.handoff.next-blocked", { kind: kindName(readText, link.kind), next }))} <span${ready.raw ? ' translate="no"' : ''}>${esc(ready.reason)}</span></span><button class="mw-btn mw-btn--ghost" type="button" data-wf-action="edit-link" data-link="${index}">${esc(uiText.text("workflows.handoff.configure"))}</button></p>`;
   }
   const act = link.kind === "manual" ? uiText.text("workflows.handoff.review-and-hand", { next }) : link.kind === "ai" ? uiText.text("workflows.handoff.ai-and-hand", { next })
     : link.kind === "judgment" ? uiText.text("workflows.handoff.judge-and-hand", { next }) : uiText.text("workflows.handoff.rule-and-hand", { next });

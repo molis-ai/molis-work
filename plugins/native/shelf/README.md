@@ -23,7 +23,7 @@
 | [src/browser/](src/browser) | 页面的客户端（TypeScript，`tsconfig.browser.json` 检查，esbuild 从 `factory.ts` 打成 `dist/shelf-client.js`）：选择、多选、动作栏（`bar.ts`）、确认（`confirm.ts`）、运行（`run.ts`）、与打开的项目交换（`result.ts`）；页面状态在一个 `ShelfPage` 对象里（`types.ts`），请求只经 `molisWorkRequest`（`request.ts`） |
 | [src/browser/settings/](src/browser/settings) | 设置页的客户端，打成 `dist/shelf-settings-client.js`，由 [src/settings-client.ts](src/settings-client.ts) 在前面放热键表和路由后交给设置页 |
 | [src/client.ts](src/client.ts) | 读 `dist/shelf-client.js`，交给工作台的工厂 `SHELF_CLIENT_FACTORY_SCRIPT` |
-| [src/messages.ts](src/messages.ts) | 页面文字的稳定键（中英文），`tests/shelf-client-bundle.test.ts`（RAC-164 至 RAC-166）钉住 |
+| [locales/zh.json](locales/zh.json)、[locales/en.json](locales/en.json) | 页面文字的稳定键（中英文），`tests/shelf-client-bundle.test.ts`（RAC-164 至 RAC-166）钉住 |
 | [src/routes.ts](src/routes.ts) | HTTP 路由表 |
 | [src/settings-ui.ts](src/settings-ui.ts) | 六段用途堆叠的设置页 |
 | [src/browser/terminal.ts](src/browser/terminal.ts) | 「对话」的终端井：请求自己的后端开终端，经平台给插件框架的终端句柄接上；渲染部件是平台的，第一次挂载时才加载 |

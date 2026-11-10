@@ -1,19 +1,15 @@
-import { AsyncLocalStorage } from "node:async_hooks";
 import assert from "node:assert/strict";
-import test from "node:test";
-import { createWorkbenchLocale, createWorkbenchUiHost, type WebLocale } from "@molis-ai/molis-work-app-workbench";
-import { goalsRenderers } from "./goals-page-mount.js";
+import { createWorkbenchUiHost } from "@molis-ai/molis-work-app-workbench";
+import { goalsRenderers, testGoalUi as test, withGoalLocale } from "./goals-page-mount.js";
 import { GOAL_DISPLAY_STATUSES, GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT, GOALS_MOMENTUM_UI_CONTRIBUTION_ID, type GoalsMomentumItem, type GoalsMomentumBoardView } from "@molis-ai/molis-work-plugin-goals";
 import type { GoalRelationRecord } from "@molis-ai/molis-work-plugin-goals/contract";
-import { icon } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { icon, t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { GOAL_CANVAS_STYLES } from "../apps/workbench/dist/styles/goal-canvas.js";
 
-const localeStore = new AsyncLocalStorage<WebLocale>();
-const runWithLocale = <T,>(locale: WebLocale, fn: () => T) => localeStore.run(locale, fn);
-const { L, currentLocale } = createWorkbenchLocale(() => localeStore.getStore() ?? "zh");
+import { currentLocale } from "@molis-ai/molis-work-app-local-host";
 
 const escapeHtml = (value: unknown) => String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
-const renderer = goalsRenderers.momentum({ translate: L, escapeHtml, icon, currentLocale,
+const renderer = goalsRenderers.momentum({ translate: t.text, escapeHtml, icon, currentLocale,
   renderVisibleGoalStatus: item => `<span>${item.display_status}</span>` });
 const item = (id: string, title = id, display_status: GoalsMomentumItem["display_status"] = "continue"): GoalsMomentumItem => ({
   goal: { goal_id: id, title, priority: 1, created_at: "2026-08-01", updated_at: "2026-09-05", fulfillment_state: display_status === "completed" ? "satisfied" : "unmet", acceptance_criteria: [], outcome: `${id} outcome` },
@@ -68,7 +64,7 @@ test("kanban keeps six visible-status columns, empty columns, and current-tree c
 
 test("kanban localizes column labels without translating user titles or adding how-to copy", () => {
   const user = item("USER", "看板");
-  const html = runWithLocale("en", () => renderer.renderGoalKanban(view([user]), "USER", [user]));
+  const html = withGoalLocale("en", () => renderer.renderGoalKanban(view([user]), "USER", [user]));
   assert.match(html, /<strong>看板<\/strong>/);
   assert.match(html, />Continue</);
   assert.match(html, />Active</);

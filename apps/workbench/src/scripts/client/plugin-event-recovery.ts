@@ -15,7 +15,7 @@ export const PLUGIN_EVENT_RECOVERY_CLIENT = `(host, market) => {
   };
   const describe=()=>{
     q('[data-plugin-event-description]').textContent=selected
-      ? selected.subscriber_name+' · '+globalThis.t.text("workbench.plugin-event-recovery.label")+' '+selected.source_name+' · '+(selected.event?.occurred_at?new Date(selected.event.occurred_at).toLocaleString():'') : globalThis.t.text("workbench.plugin-event-recovery.notification-has-been-handled-no-longer-available-close");
+      ? selected.subscriber_name+' · '+globalThis.t.text("workbench.plugin-event-recovery.label")+' '+selected.source_name+' · '+(selected.event?.occurred_at?globalThis.t.text("common.generated.formatted", { value: { kind: "date", at: selected.event.occurred_at, style: "datetime" } }):'') : globalThis.t.text("workbench.plugin-event-recovery.notification-has-been-handled-no-longer-available-close");
     q('[data-plugin-event-payload]').textContent=selected?JSON.stringify({source:selected.cursor.source_plugin_id,event:selected.event,error:selected.cursor.last_error_code},null,2):'';
     if(selected&&!selected.can_recover)message(selected.unavailable_reason);
     sync();
@@ -23,14 +23,14 @@ export const PLUGIN_EVENT_RECOVERY_CLIENT = `(host, market) => {
   const paint=(history=[])=>{
     q('[data-plugin-events-list]').replaceChildren(...rows.map((row,index)=>{
       const item=node('div','','plugin-event-row'), copy=node('div','');
-      copy.append(node('strong',row.subscriber_name),node('p',globalThis.t.text("workbench.plugin-event-recovery.label")+' '+row.source_name+' · '+(row.event?.occurred_at?new Date(row.event.occurred_at).toLocaleString():'')));
+      copy.append(node('strong',row.subscriber_name),node('p',globalThis.t.text("workbench.plugin-event-recovery.label")+' '+row.source_name+' · '+(row.event?.occurred_at?globalThis.t.text("common.generated.formatted", { value: { kind: "date", at: row.event.occurred_at, style: "datetime" } }):'')));
       if(row.unavailable_reason)copy.append(node('small',row.unavailable_reason));
       const button=node('button',globalThis.t.text("workbench.plugin-event-recovery.review"),'mw-btn mw-btn--secondary');button.type='button';button.dataset.pluginEventOpen=String(index);
       item.append(copy,button);return item;
     }));
     q('[data-plugin-events-history]').hidden=!history.length;
     q('[data-plugin-events-history-list]').replaceChildren(...history.map(record=>node('p',
-      new Date(record.resolved_at).toLocaleString()+' · '+record.actor_id+' · '+globalThis.t.text(record.decision==='skip'?"workbench.plugin-event-recovery.skipped":"workbench.plugin-event-recovery.retry-requested")+' · '+record.event_id+' · '+record.reason)));
+      globalThis.t.text("common.generated.formatted", { value: { kind: "date", at: record.resolved_at, style: "datetime" } })+' · '+record.actor_id+' · '+globalThis.t.text(record.decision==='skip'?"workbench.plugin-event-recovery.skipped":"workbench.plugin-event-recovery.retry-requested")+' · '+record.event_id+' · '+record.reason)));
   };
   // The dock bell asks for this list; bring it into view once the read it waited for has settled.
   const reveal=()=>{

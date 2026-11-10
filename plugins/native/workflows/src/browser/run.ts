@@ -2,7 +2,7 @@ import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { tint } from "./chain.js";
 import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
-import { arrive, calm, ico, kindName, required, said, settle, when } from "./dom.js";
+import { arrive, calm, ico, kindName, required, settle, when } from "./dom.js";
 import { dataHtml, handoffKey, renderHandoff } from "./handoff.js";
 import type { WorkflowsPage } from "./page.js";
 import { label, readyState, stnMeta } from "./state.js";
@@ -123,18 +123,17 @@ function patchInstance(page: WorkflowsPage, article: HTMLElement) {
 
 /** The part of the stage that shows the step: what an action returned, or the plugin's own page for the item. */
 function syncFrame(page: WorkflowsPage, slot: HTMLElement, step: WorkflowStep, station: Station | undefined) {
-  const { readText } = page;
   if (station?.action) {
     const key = "action:" + (step.item ? step.item.item_id : "pending") + ":" + (step.result === undefined ? "" : "done");
     if (slot.dataset.src === key) return;
     slot.dataset.src = key; slot.className = "wf-stage__frame is-empty";
     const result = step.result_presentation;
     slot.innerHTML = step.item
-      ? `<div class="wf-stage__result"><div class="wf-result-summary" data-wf-result-summary><h3>${esc(said(readText, result?.summary || "workflows.result.returned"))}</h3>`
-        + (result?.title ? `<p class="wf-result-title">${esc(result.title)}</p>` : "")
-        + (result?.text ? `<p class="wf-result-text">${esc(result.text)}</p>` : "")
+      ? `<div class="wf-stage__result"><div class="wf-result-summary" data-wf-result-summary><h3${result?.summary ? ' translate="no"' : ''}>${esc(result?.summary || uiText.text("workflows.result.returned"))}</h3>`
+        + (result?.title ? `<p class="wf-result-title" translate="no">${esc(result.title)}</p>` : "")
+        + (result?.text ? `<p class="wf-result-text" translate="no">${esc(result.text)}</p>` : "")
         + (result?.text_truncated ? `<p class="wf-muted">${step.result_truncated ? esc(uiText.text("workflows.result.excerpt")) : esc(uiText.text("workflows.result.excerpt-full"))}</p>` : "")
-        + (result?.link ? `<a class="mw-btn mw-btn--secondary" data-wf-result-link href="${esc(result.link.href)}">${esc(said(readText, result.link.label))}</a>` : "") + "</div>"
+        + (result?.link ? `<a class="mw-btn mw-btn--secondary" data-wf-result-link translate="no" href="${esc(result.link.href)}">${esc(result.link.label)}</a>` : "") + "</div>"
         + `<details class="wf-result-details"><summary>${esc(uiText.text("workflows.result.technical"))}</summary>`
         + (step.result_truncated ? `<p class="wf-muted">${esc(uiText.text("workflows.result.too-long"))}</p>` : `<pre class="wf-rule">${esc(JSON.stringify(step.result ?? null, null, 2))}</pre>`) + "</details>"
         + `<details class="wf-result-details"><summary>${esc(uiText.text("workflows.result.input"))}</summary>${dataHtml(step.payload || { title: "", body: "" })}</details></div>`

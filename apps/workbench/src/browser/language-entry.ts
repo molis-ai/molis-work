@@ -38,17 +38,60 @@ const intlLocale = (catalog: UiLanguageCatalog) => (tag: string) => catalog.lang
 type LoadAsset = NonNullable<ReturnType<typeof installLanguageAssets>>;
 type LanguageAsset = Awaited<ReturnType<LoadAsset>>;
 
+// The Settings owner keeps these real nodes in its existing cache, including detached panels with an unsaved draft.
+const settingsRoots = () => (globalThis.molisWorkSettingsLanguageRoots?.() ?? []).flatMap(root => {
+  const address = new URL(root.dataset.settingsSource ?? "", location.href);
+  if (address.origin !== location.origin || !/^\/(?:projects\/[^/]+\/)?(?:settings|capabilities)(?:\/|$)/u.test(address.pathname)) {
+    throw new Error(t.text("workbench.language.window-failed"));
+  }
+  return [{ root, path: address.pathname + address.search }];
+});
+type ReadSettings = (locale: string, signal: AbortSignal, path: string) => Promise<Document | null>;
+
+async function prepareSettings(render: ReadSettings, prior: string, target: string, signal: AbortSignal) {
+  const mounted = settingsRoots();
+  const assertCurrent = () => {
+    const current = settingsRoots();
+    if (mounted.length !== current.length || mounted.some(({ root, path }) => !current.some(panel => panel.root === root && panel.path === path))) {
+      throw new Error(t.text("workbench.language.window-failed"));
+    }
+  };
+  const documents = new Map<string, Promise<readonly [Element, Element]>>();
+  const byPath = (path: string) => {
+    const existing = documents.get(path);
+    if (existing) return existing;
+    const panel = async (tag: string) => {
+      const page = await render(tag, signal, path);
+      if (!page) throw new Error(t.text("workbench.language.window-failed"));
+      return settingsContentOf(page);
+    };
+    const read = Promise.all([panel(prior), panel(target)] as const);
+    documents.set(path, read);
+    return read;
+  };
+  const regions = await Promise.all(mounted.map(async ({ root, path }) => {
+    const [old, next] = await byPath(path);
+    if (old.localName !== root.localName || next.localName !== root.localName) {
+      throw new Error(t.text("workbench.language.window-failed"));
+    }
+    return { root, old, next };
+  }));
+  assertCurrent();
+  return { regions, assertCurrent };
+}
+
+function showLanguage(asset: LanguageAsset) {
+  const { html_lang, direction, tag } = asset.catalog.languages.find(row => row.tag === asset.pack.locale)!;
+  document.documentElement.lang = html_lang;
+  document.documentElement.dir = direction;
+  document.documentElement.dataset.uiLanguageTag = tag;
+}
+
 function documentLanguage(initial: LanguageAsset, load: LoadAsset) {
   let displayed = initial, inline = viewPacks(document);
   const matches = (value: string | undefined | null): value is UiLanguageTag => displayed.catalog.languages.some(row => row.tag === value);
   const packsFor = (pack: UiLocalePack, pages: readonly InlinePageText[]) => [pack, ...pages.flatMap(page => page.packs)];
   const text = installLanguageText(initial.pack.locale, packsFor(initial.pack, inline), intlLocale(initial.catalog));
-  const showLanguage = (asset: LanguageAsset) => {
-    const { html_lang, direction, tag } = asset.catalog.languages.find(row => row.tag === asset.pack.locale)!;
-    document.documentElement.lang = html_lang;
-    document.documentElement.dir = direction;
-    document.documentElement.dataset.uiLanguageTag = tag;
-  };
   showLanguage(initial);
   globalThis.molisWorkLanguageCatalog = () => displayed.catalog;
   const publishNative = nativeLanguagePublisher(() => {
@@ -65,45 +108,6 @@ function documentLanguage(initial: LanguageAsset, load: LoadAsset) {
       : await molisWorkRequest<Response>(path, { as: "response", control: true, signal, headers: { "x-molis-work-ui-locale": locale, accept: "text/html" } });
     if (!result.ok || result.redirected || !result.headers.get("content-type")?.startsWith("text/html")) return null;
     return new DOMParser().parseFromString(await result.text(), "text/html");
-  };
-  // The Settings owner keeps these real nodes in its existing cache, including detached panels with an unsaved draft.
-  const settingsRoots = () => (globalThis.molisWorkSettingsLanguageRoots?.() ?? []).flatMap(root => {
-    const address = new URL(root.dataset.settingsSource ?? "", location.href);
-    if (address.origin !== location.origin || !/^\/(?:projects\/[^/]+\/)?(?:settings|capabilities)(?:\/|$)/u.test(address.pathname)) {
-      throw new Error(t.text("workbench.language.window-failed"));
-    }
-    return [{ root, path: address.pathname + address.search }];
-  });
-  const prepareSettings = async (prior: string, target: string, signal: AbortSignal) => {
-    const mounted = settingsRoots();
-    const assertCurrent = () => {
-      const current = settingsRoots();
-      if (mounted.length !== current.length || mounted.some(({ root, path }) => !current.some(panel => panel.root === root && panel.path === path))) {
-        throw new Error(t.text("workbench.language.window-failed"));
-      }
-    };
-    const documents = new Map<string, Promise<readonly [Element, Element]>>();
-    const byPath = (path: string) => {
-      const existing = documents.get(path);
-      if (existing) return existing;
-      const panel = async (tag: string) => {
-        const page = await render(tag, signal, path);
-        if (!page) throw new Error(t.text("workbench.language.window-failed"));
-        return settingsContentOf(page);
-      };
-      const read = Promise.all([panel(prior), panel(target)] as const);
-      documents.set(path, read);
-      return read;
-    };
-    const regions = await Promise.all(mounted.map(async ({ root, path }) => {
-      const [old, next] = await byPath(path);
-      if (old.localName !== root.localName || next.localName !== root.localName) {
-        throw new Error(t.text("workbench.language.window-failed"));
-      }
-      return { root, old, next };
-    }));
-    assertCurrent();
-    return { regions, assertCurrent };
   };
   const switcher = createLocaleSwitch({
     root: document, render, produced: text.produced,
@@ -122,7 +126,7 @@ function documentLanguage(initial: LanguageAsset, load: LoadAsset) {
       }
       const [frames, settings] = previous && next ? await Promise.all([
         globalThis.molisPluginFrames?.prepareLanguage(frameUiLanguage(language), signal, previous, next),
-        prepareSettings(displayed.pack.locale, locale, signal),
+        prepareSettings(render, displayed.pack.locale, locale, signal),
       ]) : [];
       return { asset, choice, frames, settings, inline: projected, reader: createTextReader({ packs: packsFor(asset.pack, projected), locale, intlLocale: intlLocale(asset.catalog) }) };
     },

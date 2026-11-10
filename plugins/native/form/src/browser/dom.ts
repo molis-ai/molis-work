@@ -1,3 +1,5 @@
+import { dateArg, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+
 /** Small DOM helpers the Forms page shares. */
 export const icon = (id: string) => `<svg aria-hidden=true><use href="#${id}"></use></svg>`;
 
@@ -17,7 +19,7 @@ export const whenOf = (value: string | undefined) => {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
   const sameYear = date.getFullYear() === new Date().getFullYear();
-  return date.toLocaleDateString(undefined, sameYear ? { month: "short", day: "numeric" } : { year: "numeric", month: "short", day: "numeric" });
+  return uiText.text("common.generated.formatted", { value: dateArg(date.toISOString(), sameYear ? "month-day" : "date") });
 };
 
 /** Replays the arrival motion on a node that just appeared. */

@@ -4,7 +4,7 @@ import { dateArg, t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { SandboxSchema, SandboxVisibleText } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { Column } from './plugin-component-types.js';
 
-export function pcKit(word: (ref?: SandboxVisibleText) => string) {
+function pcWordBindings() {
   const compositeWords = new WeakMap<HTMLElement, Map<string, () => string>>();
   /** A phrase whose argument is itself a displayed word is redrawn with the selected packs, never with the old argument. */
   function bindWord(element: HTMLElement, attribute: string, render: () => string) {
@@ -25,6 +25,11 @@ export function pcKit(word: (ref?: SandboxVisibleText) => string) {
       }
     }
   }
+  return { bindWord, clearBoundWord, refreshWords };
+}
+
+export function pcKit(word: (ref?: SandboxVisibleText) => string) {
+  const { bindWord, clearBoundWord, refreshWords } = pcWordBindings();
   const make = <K extends keyof HTMLElementTagNameMap>(tag: K, text?: string, cls?: string) => {
     const el = document.createElement(tag); if (text !== undefined) el.textContent = text; if (cls) el.className = cls; return el;
   };

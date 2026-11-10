@@ -3,7 +3,6 @@
   "owner": "io.molis.work.dataset",
   "locale": "en",
   "messages": {
-    "dataset.directory.summary": "Work with tables, import CSV, and restore earlier versions.",
     "dataset.action.delete": "Delete",
     "dataset.action.export-csv": "Export CSV",
     "dataset.action.export-json": "Export JSON",
@@ -27,6 +26,7 @@
     "dataset.dialog.confirm": "Confirm",
     "dataset.dialog.delete-confirm": "Delete this table? Version history will be removed too.",
     "dataset.dialog.reload-confirm": "Reloading discards unsaved input. Continue?",
+    "dataset.directory.summary": "Work with tables, import CSV, and restore earlier versions.",
     "dataset.editor.back": "Back to table list",
     "dataset.empty.hint": "Create a table, then add columns and rows. You can import a CSV file or paste CSV, and save a version to roll back to.",
     "dataset.empty.title": "No tables yet",

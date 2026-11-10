@@ -1,4 +1,4 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { dateArg, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 /**
  * How one round reads in the conversation: each tool call is a row that says what it touched and how it
  * ended, consecutive calls fold into one summary, and a round closes with what actually happened.
@@ -103,7 +103,7 @@ export function createCodingTimeline(words: TimelineWords) {
     // Reasoning is prose, so its row previews the first line as text rather than as a code target.
     const first = item.name === "reasoning" ? (item.output ?? "").trim().split("\n")[0]!.slice(0, 140) : "";
     // A wait the Run sleeps in says until when, in this machine's time.
-    const until = item.name === "sleep-wait" && Number.isFinite(Date.parse(item.target)) ? uiText.text("coding.timeline.until", { time: new Date(item.target).toLocaleTimeString() }) : "";
+    const until = item.name === "sleep-wait" && Number.isFinite(Date.parse(item.target)) ? uiText.text("coding.timeline.until", { time: dateArg(item.target, "time") }) : "";
     const what = until ? `<span class="coding-tool-preview">${escape(until)}</span>`
       : item.target ? `<code>${escape(item.target)}</code>` : first ? `<span class="coding-tool-preview">${escape(first)}</span>` : "";
     const output = (item.output ?? "").trim(), shown = output ? lines(output, item.name === "reasoning" ? 120 : 24) : null;

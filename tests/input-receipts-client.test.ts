@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import vm from "node:vm";
-import { INPUT_RECEIPTS_CLIENT_SCRIPT, INPUT_RECEIPTS_EN } from "@molis-ai/molis-work-design-system";
-import { fillMessage } from "@molis-ai/molis-work-plugin-sdk";
+import { INPUT_RECEIPTS_CLIENT_SCRIPT } from "@molis-ai/molis-work-design-system";
+import { pagePack, pageText } from "./fixtures/page-text.js";
 
 // specs/ai-input-receipts §3.3, §3.6, §4.2, §4.3 (stage 3c): the one receipt Coding and the Assistant show under a
 // supplement. The shipped program runs here on a small DOM port.
@@ -53,17 +53,15 @@ class Node {
 const here = {} as Element, beside = {} as Element;
 type Turn = { turn_id: string; kind: string; text: string; steer?: Record<string, unknown> };
 type Actions = { withdraw(inputId: string): Promise<string | void>; correct(about: string, text: string, key: string): Promise<string | void> };
-// The page's translate (`globalThis.L`, apps/workbench/src/i18n.ts): the catalog's words, then filled by the SDK's `fillMessage`.
-type Translate = (text: string, vars?: Record<string, string | number>) => string;
-const translate = (catalog: Readonly<Record<string, string>> = {}): Translate => (text, vars) => fillMessage(catalog[text] ?? text, vars);
-function receipts(catalog?: Readonly<Record<string, string>>) {
+type Translate = ReturnType<typeof pageText>;
+function receipts(locale = "zh") {
   const body = new Node("body");
   let keys = 0;
   const program = vm.runInNewContext(`(${INPUT_RECEIPTS_CLIENT_SCRIPT})`, {
     document: { createElement: (tag: string) => new Node(tag), body, get activeElement() { return focus.on; } }, queueMicrotask, crypto: { randomUUID: () => `key-${++keys}` },
-  }) as (L: Translate) => { line(owner: object, turn: Turn, round?: object, act?: Actions): Node | null; tray(owner: object, queued: object[] | undefined, round?: object, act?: Pick<Actions, "withdraw">): Node | null;
+  }) as (read: Translate) => { line(owner: object, turn: Turn, round?: object, act?: Actions): Node | null; tray(owner: object, queued: object[] | undefined, round?: object, act?: Pick<Actions, "withdraw">): Node | null;
     link(owner: object, inputId: string, first?: () => void): Node | null; step(state: string): string; agreements(owner: object, runs: string[]): Node | null };
-  const ui = program(translate(catalog));
+  const ui = program(pageText(locale));
   const said = () => new Promise<string[]>(resolve => setTimeout(() => resolve(body.children.map(node => node.textContent)), 0));
   return { ui, body, said };
 }
@@ -438,7 +436,7 @@ test("RCPT-366, 3d-4: a step a person holds is said as their own mark, never as 
   ui.line(here, supplement({ state: "read" }), { run_id: "run-1", step_board: added("succeeded", { owner: { kind: "person" } }) });
   assert.match(root.all("mw-receipt__facts")[0]!.text, /现在：你标记完成$/u, "RCPT-366 who ended it is part of what is redrawn");
   // The word is picked by a dynamic key (`L(mine && MARK[state] || STEP[state])`), so the translation gate cannot see a missing English entry: draw each mark.
-  const english = (state: string) => receipts(INPUT_RECEIPTS_EN).ui.line(here, supplement({ state: "read" }), { run_id: "run-1", step_board: added(state, { owner: { kind: "person" } }) })!.all("mw-receipt__facts")[0]!.text;
+  const english = (state: string) => receipts("en").ui.line(here, supplement({ state: "read" }), { run_id: "run-1", step_board: added(state, { owner: { kind: "person" } }) })!.all("mw-receipt__facts")[0]!.text;
   assert.match(english("succeeded"), / · now: You marked it done$/u, "RCPT-366 the person's mark of done has its English");
   assert.match(english("failed"), / · now: You marked it failed$/u, "RCPT-366 the person's mark of failed has its English");
 });
@@ -509,18 +507,18 @@ test("RCPT-359, 3e-1: only the rounds the surface shows now count; a later corre
 });
 
 test("RCPT-367, 3e-1: the list's closing words are whole sentences, the count's with its own for one round, so they translate whole; the AI's notes are not a Goal's agreement", () => {
-  const read = (catalog: Readonly<Record<string, string>> | undefined, runs: string[]) => {
-    const { ui } = receipts(catalog);
+  const read = (locale: string | undefined, runs: string[]) => {
+    const { ui } = receipts(locale);
     agreed(ui);
     return ui.agreements(here, runs)!.all("mw-receipt__note").at(-1)!.text;
   };
   assert.equal(read(undefined, ["run-1"]), "AI 自己说的，Molis 没有核对；要改，打开那条发更正。只看了最近 1 轮");
   assert.equal(read(undefined, ["run-1", "run-2"]), "AI 自己说的，Molis 没有核对；要改，打开那条发更正。只看了最近 2 轮");
-  assert.equal(read(INPUT_RECEIPTS_EN, ["run-1"]), "What the AI says itself; Molis has not checked it. To change one, open it and send a correction. Only the latest turn was read.",
+  assert.equal(read("en", ["run-1"]), "What the AI says itself; Molis has not checked it. To change one, open it and send a correction. Only the latest turn was read.",
     "RCPT-367 one turn reads as one turn");
-  assert.equal(read(INPUT_RECEIPTS_EN, ["run-1", "run-2"]), "What the AI says itself; Molis has not checked it. To change one, open it and send a correction. Only the latest 2 turns were read.",
+  assert.equal(read("en", ["run-1", "run-2"]), "What the AI says itself; Molis has not checked it. To change one, open it and send a correction. Only the latest 2 turns were read.",
     "RCPT-367 the count is filled into the translated sentence, not glued to pieces of it");
-  assert.equal(INPUT_RECEIPTS_EN[" 轮"], undefined, "RCPT-367 no fragment is left to translate on its own");
-  assert.equal(INPUT_RECEIPTS_EN["AI 自己说的，Molis 没有核对；要改，打开那条发更正。只看了最近 "], undefined, "RCPT-367 nor the sentence cut before its count");
-  assert.equal(INPUT_RECEIPTS_EN["当前约定"], undefined, "RCPT-367 the shared receipt does not name the Assistant's block, least of all with the Goal's word for a confirmed agreement");
+  assert.equal(pagePack("workbench", "zh").messages[" 轮"], undefined, "RCPT-367 no fragment is left to translate on its own");
+  assert.equal(pagePack("workbench", "zh").messages["AI 自己说的，Molis 没有核对；要改，打开那条发更正。只看了最近 "], undefined, "RCPT-367 nor the sentence cut before its count");
+  assert.equal(pagePack("workbench", "zh").messages["当前约定"], undefined, "RCPT-367 the shared receipt does not name the Assistant's block, least of all with the Goal's word for a confirmed agreement");
 });

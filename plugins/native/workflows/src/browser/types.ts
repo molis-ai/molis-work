@@ -93,7 +93,7 @@ export interface Ui {
   returnTo: Returning | null;
 }
 
-export interface Ready { readonly ready: boolean; readonly reason: string }
+export interface Ready { readonly ready: boolean; readonly reason: string; readonly raw?: boolean; readonly needsModel?: boolean }
 
 /** A change to the open workflow: its chain and/or its title; the rest says how the change reads to the person. */
 export interface Patch { chain?: Chain; title?: string; undoable?: boolean; announce?: string }

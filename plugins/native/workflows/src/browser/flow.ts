@@ -1,7 +1,7 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { tint } from "./chain.js";
 import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { EASE_SETTLE, MOD, arrive, calm, ico, kindName, motion, required, said, settle, when } from "./dom.js";
+import { EASE_SETTLE, MOD, arrive, calm, ico, kindName, motion, required, settle, when } from "./dom.js";
 import { emitCtx } from "./nav.js";
 import type { WorkflowsPage } from "./page.js";
 import { pipsHtml, runStatus } from "./run.js";
@@ -60,11 +60,11 @@ function chainBody(page: WorkflowsPage, flow: Flow) {
 }
 
 function faultHtml(page: WorkflowsPage, flow: Flow) {
-  const { readText } = page;
   const issues = chainIssues(page, flow);
   if (!issues.length) return "";
   return `<p class="wf-issues" role="status">${ico("alert")}<span>${esc(uiText.text("workflows.issues.count", { count: issues.length }))}` + issues.map((item) => {
-    const message = esc(label(page, flow.stations[item.index]!) + " → " + label(page, flow.stations[item.index + 1]!) + "（" + said(readText, item.state.reason) + "）");
+    const message = esc(label(page, flow.stations[item.index]!) + " → " + label(page, flow.stations[item.index + 1]!)) +
+      ' · <span' + (item.state.raw ? ' translate="no"' : '') + '>' + esc(item.state.reason) + '</span>';
     if (flow.stations.slice(item.index, item.index + 2).some((station) => station.availability?.available === false)) return `<span>${message}</span>`;
     return `<button type="button" class="wf-issue" data-wf-action="link" data-link="${item.index}">${message}</button>`;
   }).join('<span aria-hidden="true">；</span>') + "</span></p>";
@@ -95,11 +95,11 @@ export function returnHtml(page: WorkflowsPage) {
 }
 
 function paletteHtml(page: WorkflowsPage) {
-  const { ui, readText } = page;
+  const { ui } = page;
   const joinable = ui.stations.filter((info) => info.supported), others = ui.stations.filter((info) => !info.supported);
-  return joinable.map((info) => `<button type="button" class="wf-chip" draggable="true" data-wf-plugin="${esc(info.plugin)}" data-wf-action="append" title="${esc(uiText.text("workflows.palette.chip-hint"))}" style="--station-tint:${tint(info.plugin)}">${ico(info.icon)}<span>${esc(said(readText, info.label))}</span></button>`).join("")
+  return joinable.map((info) => `<button type="button" class="wf-chip" draggable="true" data-wf-plugin="${esc(info.plugin)}" data-wf-action="append" title="${esc(uiText.text("workflows.palette.chip-hint"))}" style="--station-tint:${tint(info.plugin)}">${ico(info.icon)}<span>${esc(info.label)}</span></button>`).join("")
     + `<button type="button" class="wf-chip wf-chip--action" data-wf-action="add-step" title="${esc(uiText.text("workflows.palette.action-hint"))}">${ico("zap")}<span>${esc(uiText.text("workflows.palette.add-action"))}</span></button>`
-    + (others.length ? `<span class="wf-palette__others" title="${esc(others.map((info) => said(readText, info.label)).join("、"))}">${esc(uiText.text("workflows.palette.others", { count: others.length }))}</span>` : "");
+    + (others.length ? `<span class="wf-palette__others" title="${esc(others.map((info) => info.label).join("、"))}">${esc(uiText.text("workflows.palette.others", { count: others.length }))}</span>` : "");
 }
 
 export function drawFlow(page: WorkflowsPage) {

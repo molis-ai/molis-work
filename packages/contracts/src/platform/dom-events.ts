@@ -194,11 +194,6 @@ export interface DomEventDeclaration {
  */
 export const DOM_EVENTS = [
   {
-    name: "molis-work:language-changed", kind: "announcement", owner: "document-language", on: "document",
-    detail: "{ tag: UiLanguageTag }",
-    summary: "This document has applied a new language in place; its existing views can refresh compound words.",
-  },
-  {
     name: "molis-shelf-notice", kind: "request", owner: "shelf", on: "window",
     detail: "{ message }",
     summary: "Show a one-line notice in the Shelf. Sent by the desktop shell, the native drop wheel and the Shelf's own terminal.",
@@ -272,6 +267,11 @@ export const DOM_EVENTS = [
     name: "molis-work:knowledge-picked", kind: "announcement", owner: "knowledge-picker", on: "document",
     detail: "{ request_id, picks: Array<{ kind, id, title, plugin_title }> }",
     summary: "The person confirmed the picker opened for request_id; picks is the whole choice, replacing what was chosen before.",
+  },
+  {
+    name: "molis-work:language-changed", kind: "announcement", owner: "document-language", on: "document",
+    detail: "{ tag: UiLanguageTag }",
+    summary: "This document has applied a new language in place; its existing views can refresh compound words.",
   },
   {
     name: "molis-work:layout-holds", kind: "request", owner: "tab-workspace", on: "document",

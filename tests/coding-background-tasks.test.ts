@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
-import { EN } from "@molis-ai/molis-work-app-workbench";
+import { pageText } from "./fixtures/page-text.js";
 import { homeAggregatePorts, homeBackgroundTasks, LocalProjectDatabase, type HomeBackgroundTaskRow } from "@molis-ai/molis-work-app-local-host";
 import { HOME_BACKGROUND_TASKS_OUTPUT_TYPE } from "@molis-ai/molis-work-contracts/platform/actions";
 import * as codingPackage from "@molis-ai/molis-work-plugin-coding";
@@ -111,7 +111,10 @@ test("W5-01-CODING-33 the Home lists the Coding sessions under way or waiting in
   }
 
   // W5-01-CODING-50: the page translates each sentence by the words Coding sent, so each one has an English entry.
-  for (const text of new Set(rows.flatMap(row => row.standing.map(phrase => phrase.text)))) assert.ok(EN[text] && EN[text] !== text, `English for "${text}"`);
+  const en = pageText("en", "coding"), zh = pageText("zh", "coding");
+  for (const text of new Set(rows.flatMap(row => row.standing.map(phrase => phrase.text)))) {
+    assert.match(text, /^coding\./u); assert.notEqual(en(text), zh(text), text);
+  }
 });
 
 test("W5-01-CODING-51 stopping and starting Coding again is not a Home restart: a round recorded as running is still running, not cut off", { timeout: 90_000 }, async t => {

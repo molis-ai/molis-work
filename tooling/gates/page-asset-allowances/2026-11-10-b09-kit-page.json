@@ -1,8 +1,8 @@
 {
-  "reason": "第 09 批 9-11「能力包」设置页的程序与它自己的样式，源码 apps/workbench/src/browser/kit/，打包成 /assets/molis-work-kit.js，只有显示能力包的页面才取（其余设置页只带几行加载脚本）。内含组件板的八个能力包部件、锚定菜单脚本与差异视图。第 08 批「技能」页的列表代码删掉了，工作台脚本 -4401 字节；只用在这一页的样式从共用样式表搬进这里，设置与工作台样式各 -743 字节。",
+  "reason": "第 09 批 9-11「能力包」设置页的程序与它自己的样式，源码 apps/workbench/src/browser/kit/，打包成 /assets/molis-work-kit.js，只有显示能力包的页面才取（其余设置页只带几行加载脚本）。内含组件板的八个能力包部件、锚定菜单脚本与差异视图。第 08 批「技能」页的列表代码删掉了，工作台脚本 -4401 字节；只用在这一页的样式从共用样式表搬进这里，设置与工作台样式各 -743 字节。 批末同步 main（bac5d62b9e）后实测 67169 字节（+111，main 的共享部件与「新加入」文案），额度按实测改。",
   "review": "b09/kit-page 子分支，待统筹在第 09 批 PR 的资源评审里核对；定样依据 docs/design/capability-pack/README.md（方案 A）。",
   "userApproval": "用户 2026-11-10 在本会话弹窗里选「单独资源、按需加载（推荐）」：能力包页的程序作为新资源 /assets/molis-work-kit.js，只在打开能力包页时加载。实测 67058 字节（gzip 23431）。",
   "assets": {
-    "/assets/molis-work-kit.js": 67058
+    "/assets/molis-work-kit.js": 67169
   }
 }

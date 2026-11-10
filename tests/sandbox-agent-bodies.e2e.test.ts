@@ -36,7 +36,11 @@ test("RAC-2636/2640/2641/2643 signed File preview and real picker preserve bound
   const cancel = async () => { await browser.click("[data-plugin-trust-preview] .mw-btn--secondary"); await browser.waitFor("document.querySelector('[data-plugin-trust-preview]').hidden"); };
   const confirm = async () => {
     await browser.evaluate("(() => {const field=document.querySelector('[data-plugin-trust-preview] input');if(field)field.value='Signed publisher';})()");
-    await browser.click("[data-plugin-trust-preview] .mw-btn--primary"); await browser.waitFor("document.querySelector('[data-plugin-trust-preview]').hidden");
+    await browser.click("[data-plugin-trust-preview] .mw-btn--primary");
+    // A package with Skills asks next which of them to use here (08); finishing leaves them off, as installed.
+    await browser.waitFor("document.querySelector('[data-plugin-trust-preview]').hidden || !!document.querySelector('[data-plugin-trust-preview] .skill-toolbar')");
+    await browser.evaluate("document.querySelector('[data-plugin-trust-preview] .skill-toolbar .mw-btn--primary')?.click()");
+    await browser.waitFor("document.querySelector('[data-plugin-trust-preview]').hidden");
   };
   await go(settings); await browser.waitFor("!!document.querySelector('[data-plugin-trust-pick]')");
   await select(bundle, "cancelled");
@@ -44,7 +48,9 @@ test("RAC-2636/2640/2641/2643 signed File preview and real picker preserve bound
   assert.ok((await shown()).includes(publisher.identity));
   assert.equal(await browser.evaluate("document.querySelectorAll('[data-plugin-trust-preview] img,[data-plugin-trust-preview] script').length"), 0);
   assert.equal(await browser.evaluate("globalThis.__agentInjected || 0"), 0);
-  assert.deepEqual(await browser.evaluate<string[]>("[...document.querySelectorAll('.plugin-trust-agent-body pre')].map(node=>node.textContent)"), roles.map(() => prefix));
+  assert.deepEqual(await browser.evaluate<string[]>("[...document.querySelectorAll('.plugin-trust-agent-body > pre')].map(node=>node.textContent)"), roles.map(() => prefix));
+  // A truncated body can be read whole before confirming, behind its own disclosure.
+  assert.deepEqual(await browser.evaluate<string[]>("[...document.querySelectorAll('.plugin-trust-agent-body details pre')].map(node=>node.textContent)"), roles.map(entry => bodies[entry.body]));
   // A method is a Skill (09 §2.2): the review lists it by name with the package's other Skills, never as a body excerpt.
   assert.deepEqual(await browser.evaluate<string[]>("[...document.querySelectorAll('[data-plugin-trust-preview] .mw-items .mw-item strong')].map(node=>node.textContent)"), methods.map(item => item.name));
   await cancel();
@@ -86,10 +92,12 @@ test("RAC-2636/2640/2641/2643 signed File preview and real picker preserve bound
   // K3: "/" on an empty line opens the unified composer's menu, which lists the methods and Character material by name.
   const slash = "(() => {const input=document.querySelector('[data-assistant-composer] .mw-composer__input');input.focus();input.value='/';input.setSelectionRange(1,1);input.dispatchEvent(new InputEvent('input',{bubbles:true,data:'/',inputType:'insertText'}));})()";
   const commands = "[...document.querySelectorAll('[data-assistant-composer] [data-compose-menu] [data-composer-command]')]";
+  // The first role shares its name with a Skill; each role is picked as role material.
+  const role = (name: string) => `${commands}.find(node=>node.textContent.startsWith('/角色资料 ')&&node.textContent.includes(${JSON.stringify(name)}))`;
   for (const name of names.slice(0, 3)) {
     await browser.evaluate(slash);
-    await browser.waitFor(`${commands}.some(node=>node.textContent.includes(${JSON.stringify(name)}))`);
-    const label = await browser.evaluate<string>(`(() => {const button=${commands}.find(node=>node.textContent.includes(${JSON.stringify(name)}));const text=button.textContent;button.click();return text;})()`);
+    await browser.waitFor(`!!${role(name)}`);
+    const label = await browser.evaluate<string>(`(() => {const button=${role(name)};const text=button.textContent;button.click();return text;})()`);
     assert.ok(label.includes(name));
   }
   await browser.evaluate(slash);

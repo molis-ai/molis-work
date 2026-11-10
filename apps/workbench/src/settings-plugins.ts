@@ -248,10 +248,10 @@ globalThis.molisSkillUI?.preview(panel, shown.skills);
 if (shown.requires?.length) panel.append(group(L("需要的能力"), "", shown.requires.map(item => row(item.capability_id, item.reason, L(item.satisfied ? "已具备" : "尚未具备")))));
 if (shown.origins?.length) panel.append(group(L("可访问的服务地址"), "", shown.origins.map((service) => row(service.title, service.service_id, ...service.origins))));
 if (shown.agent_bodies && shown.agent_bodies.length) {
-const bodies = el("div", "plugin-trust-agent-bodies"); bodies.append(el("h4", "", L("角色资料与方法")));
+const bodies = el("div", "plugin-trust-agent-bodies"); bodies.append(el("h4", "", L("角色资料")));
 shown.agent_bodies.forEach((item) => {
 const body = el("div", "plugin-trust-agent-body");
-body.append(el("strong", "", L(item.kind === "role" ? "角色资料" : "方法") + "：" + item.name));
+body.append(el("strong", "", L("角色资料：{name}", { name: item.name })));
 if (item.change) body.append(el("p", "settings-muted", L({ added: "新增正文", changed: "正文已变化", removed: "已移除正文" }[item.change])));
 const excerpt = el("pre", "", item.excerpt); excerpt.style.whiteSpace = "pre-wrap"; excerpt.style.overflowWrap = "anywhere";
 body.append(excerpt);

@@ -29,7 +29,6 @@ import { TASK_GRANTS_PAGE_EN } from "./task-grants-page-en.js";
 export const EN: Record<string, string> = {
   ...IM_EN,
   "角色资料": "Role material",
-  "角色资料与方法": "Role materials and methods",
   "新增正文": "Body added",
   "正文已变化": "Body changed",
   "已移除正文": "Body removed",

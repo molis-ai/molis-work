@@ -1,7 +1,8 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type {} from "@molis-ai/molis-work-plugin-sdk";
 import type { UiRequestFailure } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { PptHost, PptRequest } from "./types.js";
+
+const uiText = globalThis.t;
 
 /**
  * Requests to PPT's routes in the current project (`path` is under the plugin: `/ppt`). A failure is the helper's plain Error with

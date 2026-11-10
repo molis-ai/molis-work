@@ -1,6 +1,7 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type {} from "@molis-ai/molis-work-plugin-sdk";
 import type { SettingsPage } from "./types.js";
+
+const uiText = globalThis.t;
 
 /** Redraws the settings block from the page the server draws now, keeping the scroll place. `bind` binds what came in. */
 export async function reloadPage(_page: SettingsPage, bind: (root: ParentNode) => void): Promise<void> {

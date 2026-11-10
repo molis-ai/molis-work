@@ -1,4 +1,3 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { WorkflowActionStep } from "../model.js";
 import { ruleKey } from "./chain.js";
 import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
@@ -10,6 +9,8 @@ import { chainOf, saveFlow } from "./save.js";
 import { insertStn } from "./chain.js";
 import { toast } from "./toast.js";
 import type { ActionChoice, StepDraft, PayloadFieldName } from "./types.js";
+
+const uiText = globalThis.t;
 
 const PAYLOAD_FIELDS: readonly PayloadFieldName[] = ["title", "body", "source", "url", "date"];
 const payloadField = (key: PayloadFieldName) =>

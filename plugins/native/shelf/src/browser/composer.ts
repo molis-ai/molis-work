@@ -1,4 +1,3 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { closest } from "./dom.js";
 import { flushEdit } from "./edit.js";
@@ -7,6 +6,8 @@ import { expandShelfStage, paintPreview, syncShelfStage } from "./preview.js";
 import { post } from "./request.js";
 import type { SettingsPatch, ShelfPage } from "./types.js";
 import type { ShelfDeviceSettings, ShelfItemKind } from "@molis-ai/molis-work-module-shelf/contract";
+
+const uiText = globalThis.t;
 
 /** Saves a patch of this device's settings and keeps the answer as the snapshot's. */
 export async function saveSettings(page: ShelfPage, patch: SettingsPatch): Promise<ShelfDeviceSettings> {

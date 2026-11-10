@@ -1,4 +1,3 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { blankLeaving, dropBlank, savedByPerson } from "./blank.js";
 import { markSelected, publishTools, reportFocus, sendPanel, syncEditorChrome } from "./context.js";
 import { createPage, openDocument, persist, queueSave } from "./document.js";
@@ -8,6 +7,8 @@ import { noteFailure, showNote } from "./notes.js";
 import type { PagesPage } from "./page.js";
 import { pageTail } from "./request.js";
 import type { Draft, DocumentAnswer, PagesRecord } from "./types.js";
+
+const uiText = globalThis.t;
 
 /** Keeps the open record in the list and on screen; `redraw` puts its text into the editor again. */
 export function remember(page: PagesPage, record: PagesRecord, redraw?: boolean) {

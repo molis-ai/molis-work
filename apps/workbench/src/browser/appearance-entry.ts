@@ -1,10 +1,11 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { UiAppearanceReceipt, UiRequestFailure } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { WorkbenchAppearance } from "../appearance-document.js";
 import { mountAppearancePicker } from "./appearance-picker.js";
 import { createAppearanceSync } from "./appearance-sync.js";
 import { mountDiscussionAppearance } from "./discussion-appearance.js";
 import { mountDocumentAppearance, readDocumentAppearance } from "./appearance-view.js";
+
+const uiText = globalThis.t;
 
 declare global {
   var molisWorkLookFade: (commit: () => void) => boolean;

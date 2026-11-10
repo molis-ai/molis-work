@@ -1,10 +1,11 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { required, settle, targetOf } from "./dom.js";
 import { filterPicks } from "./dialog.js";
 import { cancelHand, resumeRun } from "./handoff.js";
 import type { WorkflowsPage } from "./page.js";
 import { moveTo, removeAt, debounce, flushSave, saveFlow, undo } from "./save.js";
+
+const uiText = globalThis.t;
 
 const manualFields = (form: HTMLFormElement) => ({
   title: (form.elements.namedItem("title") as HTMLInputElement).value,

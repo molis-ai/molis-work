@@ -27,7 +27,7 @@ test("RAC-160 every word the Files page says has a stable key with both language
   assertPageWords("files", used);
   // The server-drawn halves speak through the translator too, with keys the table defines.
   const drawn = withPageText("en", ["files"], () => renderFilesBrowserDirectory() + renderFilesBrowserResult());
-  assert.ok(drawn.includes("Search"), "the drawn directory has its translated search control");
+  assert.match(drawn, /data-files-refresh><span class="mw-spinner" hidden><\/span><span>Refresh<\/span>/u, "the drawn directory has its translated refresh control");
   assert.doesNotMatch(drawn, /[一-鿿]/u, "no Chinese is drawn into the page directly");
 });
 

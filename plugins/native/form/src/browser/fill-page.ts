@@ -1,9 +1,10 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { FormRecord } from "../contract.js";
 import { make } from "./dom.js";
 import { buildFields, collectAnswers, missingRequired } from "./fields.js";
 import type { FormPage } from "./page.js";
 import { loadResults, type Results } from "./results.js";
+
+const uiText = globalThis.t;
 
 /** Full-screen fill page on this computer: one person after another, each submission counted as a response. */
 export const openFillPage = (page: FormPage, record: FormRecord) => {

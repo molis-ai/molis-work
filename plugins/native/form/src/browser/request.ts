@@ -1,7 +1,8 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type {} from "@molis-ai/molis-work-plugin-sdk";
 import type { UiRequestFailure } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { FormClientHost, FormFailure, FormRequest } from "./types.js";
+
+const uiText = globalThis.t;
 
 /** Requests to this project's Forms routes; `path` follows `/forms`, the Manifest's routes in this project's Runtime. */
 export function formRequest(host: FormClientHost): FormRequest {

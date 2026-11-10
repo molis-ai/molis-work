@@ -1,4 +1,3 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { FormRecord } from "../contract.js";
 import { arrive, firstLine, icon, make, textCell, whenOf } from "./dom.js";
 import { renderPreview } from "./fields.js";
@@ -6,6 +5,8 @@ import type { FormList, FormPage } from "./page.js";
 import { renderQuestions } from "./questions.js";
 import { paintStatus, publishContext, showNote } from "./status.js";
 import type { Translate } from "./types.js";
+
+const uiText = globalThis.t;
 
 /** The list of forms and which one is open in the editor. */
 // A row's only label is its state: a fixed version exists, or one is still being saved. Nothing repeats the plugin's name.

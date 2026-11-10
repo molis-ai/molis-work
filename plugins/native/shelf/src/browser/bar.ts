@@ -1,8 +1,9 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { escText, escapeAttr, said } from "./dom.js";
 import { actIdFor, agentMissing, ai, actionOrder, batch, hasFile, hiddenActions, recipeFor, runtime, shortcutFor, stageBusy } from "./model.js";
 import { opSvg } from "./rows.js";
 import type { BarKind, Item, Recipe, ShelfPage, Shortcut } from "./types.js";
+
+const uiText = globalThis.t;
 
 const RECIPE_ICON: Record<string, string> = { extract: "file", summarize: "rows", extract_structure: "code", translate: "globe", redact: "shield", to_markdown: "note", combine: "impact" };
 

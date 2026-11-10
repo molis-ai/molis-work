@@ -1,8 +1,9 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { TodoBatch, TodoCandidate } from "../contract.js";
 import { make } from "./dom.js";
 import { actionFor, applyLabel, choiceFor } from "./review-choices.js";
 import type { CandidateChoice, TodoPage } from "./types.js";
+
+const uiText = globalThis.t;
 
 type CandidateKind = TodoCandidate["kind"];
 type FieldName = "title" | "due_date" | "due_time" | "planned_date" | "notes";

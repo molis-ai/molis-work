@@ -1,5 +1,7 @@
-import { dateArg, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { dateArg } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { Failure } from "./types.js";
+
+const uiText = globalThis.t;
 
 /** An element the server drew; the page cannot work without it. */
 export const required = <T extends Element>(root: ParentNode, selector: string): T => {

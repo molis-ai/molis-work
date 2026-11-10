@@ -1,10 +1,11 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderCalendar } from "./calendar.js";
 import { flushEditor, renderRecords } from "./notes.js";
 import { renderProgress } from "./progress.js";
 import { closeWorkspace } from "./page.js";
 import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { JellyPage, View } from "./types.js";
+
+const uiText = globalThis.t;
 
 export function renderFilters(page: JellyPage): void {
   const { $, $$ , btn, state } = page;

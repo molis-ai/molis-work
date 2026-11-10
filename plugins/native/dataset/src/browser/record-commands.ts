@@ -1,5 +1,6 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { Dataset, DatasetPage, Failure, Version } from "./types.js";
+
+const uiText = globalThis.t;
 
 type Reply = { dataset: Dataset };
 const urlOf = (page: DatasetPage, id: string, tail = "") => `${page.api}/${encodeURIComponent(id)}${tail}`;

@@ -1,8 +1,10 @@
-import { format, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { sayUpstream } from "../say.js";
 import { required } from "./dom.js";
 import type { GitHost, GitLifetime, ListItem, ResultRow, Selected, SourceSummary, Translate, Upstream } from "./types.js";
+
+const format = globalThis.format;
+const uiText = globalThis.t;
 
 /** Everything one mounted Git page holds: its elements, and the state every part reads and moves. */
 export interface GitPage {

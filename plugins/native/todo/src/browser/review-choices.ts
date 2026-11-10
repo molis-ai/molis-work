@@ -1,6 +1,7 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { TodoBatch, TodoCandidate } from "../contract.js";
 import type { CandidateChoice, CandidateDecision, TodoPage } from "./types.js";
+
+const uiText = globalThis.t;
 
 type ExistingRelation = NonNullable<TodoCandidate["existing"]>["relation"];
 

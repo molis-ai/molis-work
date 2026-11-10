@@ -1,6 +1,7 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { UiConnectionSlotChoice } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { FeedPage } from "./factory.js";
+
+const uiText = globalThis.t;
 
 interface SourceAnswer { source: { source_id: string } }
 interface SyncAnswer { created?: number; deduped?: number; run?: { error_code?: string; receipt?: { rss_http?: { not_modified?: boolean } } } }

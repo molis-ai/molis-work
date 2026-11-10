@@ -1,7 +1,9 @@
 import type { UiRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { TaskGrantListResult, TaskGrantSubject } from "@molis-ai/molis-work-contracts/services/agent-task-grants";
-import { t as uiText, escapeHtml as escape } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { escapeHtml as escape } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { taskGrantChange, taskGrantRowHtml, taskGrantRows } from "./plugin-frame/task-grants-area.js";
+
+const uiText = globalThis.t;
 
 /**
  * 授权与放行 in a project's settings (specs/proactive-assistant/task-grants-platform-area.md §5): every background task's grants,

@@ -1,5 +1,6 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { AccountUi } from "./account-management.js";
+
+const uiText = globalThis.t;
 export interface TenantPanel {
   ui: AccountUi;
   begin(title: string): () => boolean;

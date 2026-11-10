@@ -1,7 +1,8 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type {} from "@molis-ai/molis-work-plugin-sdk";
 import type { UiRequestFailure } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { LingguangHost, LingguangRequest, Scope } from "./types.js";
+
+const uiText = globalThis.t;
 
 /**
  * Requests to 灵光's routes (a path under this plugin) and to platform routes (`/api/…`). Leaving the page cancels them

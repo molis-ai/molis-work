@@ -1,4 +1,3 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { admitFiles, showAdmissionError } from "./admit.js";
 import { renderBar } from "./bar.js";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
@@ -12,6 +11,8 @@ import { post } from "./request.js";
 import { selectChild, selectClip, selectItem } from "./select.js";
 import { applySnapshot } from "./snapshot.js";
 import type { ShelfPage, SnapshotAnswer } from "./types.js";
+
+const uiText = globalThis.t;
 
 /** The directory's own menu and list controls; true when the click was one of them. */
 async function controlClick(page: ShelfPage, event: Event, sideMenu: HTMLElement | null): Promise<boolean> {

@@ -1,7 +1,8 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { Subscription, PlanVersion, SeatPool } from "@molis-ai/molis-work-contracts/services/account";
 import type { TenantPanel } from "./account-tenant-panel.js";
 import { dateField, reasonField, subscriptionPath } from "./account-billing-fields.js";
+
+const uiText = globalThis.t;
 export type SubscriptionMode = 'create' | 'change' | 'period' | 'renew' | 'status';
 export const subscriptionModeLabels = { create: 'workbench.account.create-subscription', change: 'workbench.account.change-plan-quantity', period: 'workbench.account.adjust-period', renew: 'workbench.account.renew-subscription', status: 'workbench.account.change-subscription-status' };
 export async function subscriptionForm(panel: TenantPanel, mode: SubscriptionMode, plans: PlanVersion[], original: Subscription | undefined, reload: () => Promise<void>) {

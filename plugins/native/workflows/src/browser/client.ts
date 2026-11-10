@@ -1,4 +1,3 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { wireClicks } from "./click.js";
 import { wireDrag } from "./drag.js";
@@ -13,6 +12,8 @@ import { wireRoot } from "./root-events.js";
 import { restoreDrafts } from "./save.js";
 import { toast, wireToast } from "./toast.js";
 import type { WorkflowsHost } from "./types.js";
+
+const uiText = globalThis.t;
 
 /** Opens what the shell asked for; a workflow the person cannot read leaves the list with a note saying so. */
 async function selectFlow(page: WorkflowsPage, id: string | null, revision: number) {

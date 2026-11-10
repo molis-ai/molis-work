@@ -1,9 +1,10 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { TodoItem } from "../contract.js";
 import { arrive, fromLocalInput, toLocalInput } from "./dom.js";
 import { installWorks, renderHistory, renderLinks, renderSources, renderWorks } from "./detail-panels.js";
 import { undoOf } from "./page.js";
 import type { DetailPayload, ItemPayload, ListPayload, TodoPage } from "./types.js";
+
+const uiText = globalThis.t;
 
 declare global {
   interface Window { molisCraft?: { celebrate?: (node: Element) => void } }

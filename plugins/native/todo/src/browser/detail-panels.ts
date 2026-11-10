@@ -1,7 +1,8 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { TodoChange, TodoItem, TodoLink } from "../contract.js";
 import { iconSvg, make } from "./dom.js";
 import type { AssistantWork, TodoPage } from "./types.js";
+
+const uiText = globalThis.t;
 
 /** Where an original opens, when it says: a surface and an object id. */
 interface Opens { readonly surface: string; readonly id: string }

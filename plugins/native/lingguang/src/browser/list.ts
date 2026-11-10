@@ -1,7 +1,9 @@
-import { dateArg, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { dateArg } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { PlacementDescription } from "@molis-ai/molis-work-contracts/services/placement";
 import { textCell } from "./dom.js";
 import type { LingguangPage, Spark } from "./types.js";
+
+const uiText = globalThis.t;
 
 /** The list: rows, selection, and where each spark went. */
 export function installList(page: LingguangPage): void {

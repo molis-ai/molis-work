@@ -1,10 +1,11 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { FormRecord } from "../contract.js";
 import { remember } from "./list.js";
 import type { FormAnswer, FormPage } from "./page.js";
 import { questionsFromDom } from "./questions.js";
 import { paintStatus, showNote } from "./status.js";
 import type { FormFailure } from "./types.js";
+
+const uiText = globalThis.t;
 
 /** Saving the editor: every edit bumps a revision; one save at a time sends the newest, until the Host has them all. */
 const draftFromDom = (page: FormPage) => ({ title: page.titleInput.value, description: page.descriptionInput.value, questions: questionsFromDom(page) });

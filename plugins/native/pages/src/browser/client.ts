@@ -1,4 +1,3 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { bindBlank } from "./blank.js";
 import { bindContext } from "./context.js";
 import { bindDocument } from "./document.js";
@@ -7,6 +6,8 @@ import { bindImport } from "./import.js";
 import { bindLanding } from "./landing.js";
 import { createPage } from "./page.js";
 import type { PagesHost } from "./types.js";
+
+const uiText = globalThis.t;
 
 /**
  * The Pages workbench client: library, autosave, ProseMirror host. In the side view it mounts the comments panel; in the stage it

@@ -1,7 +1,8 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { required } from "./dom.js";
 import { pptRequest } from "./request.js";
 import type { Elements, Ppt, PptHost, PptPage, PptState } from "./types.js";
+
+const uiText = globalThis.t;
 
 const elementsOf = (bench: HTMLElement): Elements => {
   const optional = <T extends Element>(selector: string) => bench.querySelector<T>(selector);

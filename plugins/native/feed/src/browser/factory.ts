@@ -1,9 +1,10 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type {} from "@molis-ai/molis-work-plugin-sdk";
 import type { UiPluginClientHost } from "@molis-ai/molis-work-contracts/platform/ui";
 import { feedStage, FILTER_FIELDS } from "./stage.js";
 import { feedSources } from "./sources.js";
 import { feedRules } from "./rule-authoring.js";
+
+const uiText = globalThis.t;
 
 export type FeedHost = Pick<UiPluginClientHost<HTMLElement, HTMLDialogElement>, "root" | "scope" | "pluginRoute" | "route" | "mount" | "search" | "view" | "openView" | "openItem" | "openPlugin" | "showToast" | "invalidateView" | "connectionSlot" | "connectionNeed" | "invokeAction" | "actionAvailability" | "confirm">;
 export interface FeedPage {

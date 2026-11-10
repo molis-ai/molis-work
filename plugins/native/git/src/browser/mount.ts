@@ -1,7 +1,8 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { gitClient } from "./client.js";
 import { gitRequests } from "./request.js";
 import type { GitBrowser, GitFactoryHost, GitHost } from "./types.js";
+
+const uiText = globalThis.t;
 
 /** The ports Git needs from the page that holds it, whichever page that is. */
 function ports(host: GitFactoryHost, embedded: boolean, openResult: () => void, closeResult: () => void, browser: () => GitBrowser | null): GitHost {

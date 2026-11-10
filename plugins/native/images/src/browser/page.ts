@@ -1,7 +1,8 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { firstCharacters, required, remembered } from "./dom.js";
 import { imagesRequest } from "./request.js";
 import type { Draft, Elements, ImagesHost, ImagesPage, ImagesState, Scope } from "./types.js";
+
+const uiText = globalThis.t;
 
 const elementsOf = (root: HTMLElement): Elements => {
   const field = <T extends HTMLElement>(name: string) => required<T>(root, `[data-images-${name}]`);

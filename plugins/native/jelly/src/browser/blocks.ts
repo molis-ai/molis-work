@@ -1,10 +1,11 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { openGeneric } from "./dialog.js";
 import { queueSave } from "./notes.js";
 import { showNote } from "./page.js";
 import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { uid } from "./util.js";
 import type { JellyBlock, JellyBlockKind, JellyPage } from "./types.js";
+
+const uiText = globalThis.t;
 
 type Span = NonNullable<JellyBlock["inline_spans"]>[number];
 type Mark = Span["marks"][number];

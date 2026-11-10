@@ -1,5 +1,6 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { LingguangPage, SaveState, Spark } from "./types.js";
+
+const uiText = globalThis.t;
 
 /**
  * The editor: the open spark, its autosave and the blank-spark discard.

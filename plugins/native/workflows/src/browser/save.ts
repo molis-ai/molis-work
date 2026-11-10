@@ -1,4 +1,3 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { WorkflowLink } from "../model.js";
 import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
@@ -11,6 +10,8 @@ import { insertStn, moveStation, removeStn } from "./chain.js";
 import { label, stateKey, stnMeta } from "./state.js";
 import { toast } from "./toast.js";
 import type { Chain, Edit, Flow, Patch, SaveAnswer } from "./types.js";
+
+const uiText = globalThis.t;
 
 type SaveMode = "error" | "unsaved" | "saved" | "saving";
 

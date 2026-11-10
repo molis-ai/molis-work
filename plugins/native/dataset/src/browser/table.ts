@@ -1,7 +1,8 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { mergeDatasetDraftRows } from "../row-merge.js";
 import { required } from "./dom.js";
 import type { Column, Dataset, DatasetPage, Row, Translate } from "./types.js";
+
+const uiText = globalThis.t;
 
 type CellInput = HTMLInputElement | HTMLTextAreaElement;
 const isTextarea = (node: Element): node is HTMLTextAreaElement => node.tagName === "TEXTAREA";

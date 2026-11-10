@@ -219,9 +219,9 @@ export function renderMolisWorkPrimitiveCatalog(say: (text: string, values?: Rec
   const themes = renderToggleGroup({
     label: t.text("workbench.primitive-catalog.theme"),
     items: [
-      { value: "light", label: "workbench.context-onboarding.light", attrs: { "data-theme-option": "light" } },
-      { value: "dark", label: "workbench.context-onboarding.dark", attrs: { "data-theme-option": "dark" } },
-      { value: "system", label: "workbench.client-render.system", current: true, attrs: { "data-theme-option": "system" } },
+      { value: "light", label: t.text("workbench.context-onboarding.light"), attrs: { "data-theme-option": "light" } },
+      { value: "dark", label: t.text("workbench.context-onboarding.dark"), attrs: { "data-theme-option": "dark" } },
+      { value: "system", label: t.text("workbench.client-render.system"), current: true, attrs: { "data-theme-option": "system" } },
     ],
   });
   const catalog = renderPrimitiveCatalog({ plugins: iconInventoryPlugins(), say, delivery })

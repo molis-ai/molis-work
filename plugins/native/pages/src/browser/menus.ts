@@ -1,6 +1,7 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { make } from "./dom.js";
 import type { PagesPage } from "./page.js";
+
+const uiText = globalThis.t;
 
 export function closeMore(page: PagesPage) {
   const { moreMenu, moreButton } = page;

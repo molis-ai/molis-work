@@ -1,8 +1,9 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import {
   chevron, el, firstLine, latestActive, readableContent, tag, versionsOf,
   type ActionRef, type CharacterPublication, type CharacterRecord, type StoredDraft,
 } from "./common.js";
+
+const uiText = globalThis.t;
 
 /** What the list of personal Characters shows: the rows, where it is drawn, and what opening a row does. */
 export interface ListView {

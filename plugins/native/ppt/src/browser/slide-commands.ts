@@ -1,5 +1,6 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { PptPage, Slide } from "./types.js";
+
+const uiText = globalThis.t;
 
 /** A color chosen from the swatches: the deck is changed, saved later, and shown again. */
 export function pickColor(page: PptPage, swatch: HTMLElement): void {

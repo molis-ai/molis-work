@@ -1,7 +1,8 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { TodoItem } from "../contract.js";
 import { iconSvg, make } from "./dom.js";
 import type { TodoFlag, TodoPage, TodoRow } from "./types.js";
+
+const uiText = globalThis.t;
 
 export interface Group { readonly key: string; readonly title: string; readonly items: readonly TodoRow[] }
 

@@ -1,9 +1,10 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { ico } from "./dom.js";
 import type { WorkflowsPage } from "./page.js";
 import { tint } from "./chain.js";
 import { label } from "./state.js";
+
+const uiText = globalThis.t;
 
 /** The popover hangs under (or above) the node it belongs to and stays inside the window. */
 function setPop(page: WorkflowsPage, anchor: Element) {

@@ -1,5 +1,6 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { ItemPayload, TodoPage } from "./types.js";
+
+const uiText = globalThis.t;
 
 /** The bar for the todos the person ticked: its count, and one change applied to all of them with one undo. */
 export function installBatch(page: TodoPage): void {

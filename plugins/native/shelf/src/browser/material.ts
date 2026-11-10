@@ -1,8 +1,9 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { flushEdit } from "./edit.js";
 import { post, read } from "./request.js";
 import type { ShelfPage } from "./types.js";
+
+const uiText = globalThis.t;
 
 interface MaterialAnswer { fingerprint: string; project_title: string; payload: { title: string; text: string } }
 interface SavedMaterial { reference: { version: number } }

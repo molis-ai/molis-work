@@ -1,7 +1,8 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type {} from "@molis-ai/molis-work-plugin-sdk";
 import type { UiRequestFailure } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { WorkflowsHost, WorkflowsRequest } from "./types.js";
+
+const uiText = globalThis.t;
 
 /**
  * Requests to Workflows' routes in the current project (`path` follows `/workflows`). A failure is the helper's plain Error with

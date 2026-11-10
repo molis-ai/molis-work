@@ -6,16 +6,17 @@ import test from "node:test";
 import { BASELINE_SPEC, PLUGIN_COMPONENTS } from "@molis-ai/molis-work-design-system";
 import { AgentBuilderStore } from "@molis-ai/molis-work-plugin-builder";
 import { memoryStorage } from "./fixtures/builder-workflow-design.js";
-import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { openBoardBrowser } from "./fixtures/board-browser.js";
+import { pageText } from "./fixtures/page-text.js";
 import { readingContract, readingNodes } from "./fixtures/plugin-composition.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 
 test("FSS-05 FSS-26 the Folio catalog and the Builder candidate board use the same shipped component records", { timeout: 75_000 }, async t => {
-  const b = await openGoalBrowser(t, "seeded", undefined, null);
+  const b = await openBoardBrowser(t, "seeded", undefined, null);
   if (!b) return;
   const navigate = (path: string) => b.navigate(() => b.command("Page.navigate", { url: b.origin + path }, b.sessionId));
   await b.setViewport(1440, 940);
-  await navigate("/settings/appearance");
+  await navigate("/locale?lang=zh&next=%2Fsettings%2Fappearance");
   const applied = await b.evaluate<{ receipt: { selection_revision: number } }>(`molisWorkRequest('/api/ui/appearance', ${JSON.stringify({ body: {
     request_id: randomUUID(), expected_revision: 0,
     choice: { kind: "selection", selection: { skin: { id: "folio", revision: 1 }, font: { policy: "follow-skin" }, mono: null } },
@@ -77,9 +78,10 @@ test("FSS-05 FSS-26 the Folio catalog and the Builder candidate board use the sa
   const look = "[data-as-catalog-panel]:not([hidden]) [data-kind=look-card]";
   await frame.waitFor(`document.querySelector(${JSON.stringify(look)})`);
   const row = BASELINE_SPEC.components.find(component => component.kind === "look-card");
-  assert.ok(row && "literal" in row.name && "literal" in row.description);
+  assert.ok(row && "key" in row.name && "key" in row.description);
+  const text = pageText("zh");
   assert.equal(await frame.evaluate(`document.querySelector(${JSON.stringify(look)}).getAttribute('aria-label')`),
-    `${row.name.literal} ${row.catalog}：${row.description.literal}`);
+    `${text(row.name.key)} ${row.catalog} · ${text(row.description.key)}`);
 
   const folder = join(process.cwd(), ".impeccable", "qa", "review", "batch-16-appearance");
   mkdirSync(folder, { recursive: true });

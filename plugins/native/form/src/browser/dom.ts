@@ -1,4 +1,6 @@
-import { dateArg, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { dateArg } from "@molis-ai/molis-work-plugin-sdk/ui";
+
+const uiText = globalThis.t;
 
 /** Small DOM helpers the Forms page shares. */
 export const icon = (id: string) => `<svg aria-hidden=true><use href="#${id}"></use></svg>`;

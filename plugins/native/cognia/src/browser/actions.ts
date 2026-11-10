@@ -1,4 +1,3 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { goForModel, installReturns } from "./returns.js";
 import { closeDialog, showAdd, showAi, showDomain, showDraft, showDrafts, showEdit, showImport } from "./dialog.js";
@@ -7,6 +6,8 @@ import { countSelected, load } from "./list.js";
 import { fail, notice, q, type CogniaPage } from "./page.js";
 import { fold, openMaterial } from "./reading.js";
 import type { Draft } from "./types.js";
+
+const uiText = globalThis.t;
 
 const MAX_SELECTED = 5;
 

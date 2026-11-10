@@ -1,9 +1,10 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import type {} from "@molis-ai/molis-work-plugin-sdk";
 import { labelOf, panelChordOf, panelLabel, PANEL_DEFAULTS, sameChord, samePanel } from "./keys.js";
 import type { Chord, Settings, SettingsPage } from "./types.js";
 import type { ShelfHotKeySlot, ShelfPanelKeySlot, ShelfSettingsPatch } from "@molis-ai/molis-work-module-shelf/contract";
+
+const uiText = globalThis.t;
 
 export const invoke = (name: string, payload?: unknown): Promise<unknown> => {
   const fn = globalThis.__TAURI__?.core?.invoke;

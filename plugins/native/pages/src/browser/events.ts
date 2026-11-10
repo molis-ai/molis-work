@@ -1,4 +1,3 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { loadGoals, closeCreate, closeMore, closeMove } from "./menus.js";
 import { bindClick } from "./click.js";
 import { enqueueSave, draftOf, fillEditor, remember } from "./editor.js";
@@ -9,6 +8,8 @@ import type { PagesPage } from "./page.js";
 import { pageTail } from "./request.js";
 import { stop } from "./dom.js";
 import type { DocumentAnswer } from "./types.js";
+
+const uiText = globalThis.t;
 
 // Back in this window: the open document may have changed elsewhere (another window, the Assistant in another tab).
 // Only it is read again; the change shows at once when nothing of the person's own waits, and otherwise they are told.

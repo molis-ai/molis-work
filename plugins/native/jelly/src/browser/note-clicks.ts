@@ -1,4 +1,3 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { applyInline, changeBlockKind, collectBlocks, focusBlock, hasTaskLink, insertBlock, newBlock, renderBlocks } from "./blocks.js";
 import { openGeneric } from "./dialog.js";
 import { openItem } from "./item.js";
@@ -9,6 +8,8 @@ import { run, showNote } from "./page.js";
 import { civil } from "./util.js";
 import { command } from "./workspace.js";
 import type { JellyPage } from "./types.js";
+
+const uiText = globalThis.t;
 
 type Click = (page: JellyPage, target: HTMLElement) => void;
 const data = (target: HTMLElement, name: string): string => target.getAttribute(name) ?? "";

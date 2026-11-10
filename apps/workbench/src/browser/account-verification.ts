@@ -1,5 +1,6 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { AccountReply, AccountUi } from "./account-management.js";
+
+const uiText = globalThis.t;
 /** Same verification form for current and new identities; no central proof reaches the browser. */
 export function verifyAccountMethod(ui: AccountUi, transaction: AccountReply, method: string, onComplete: () => void, onCancel?: () => void) {
   const {form,dialog,message,node,field,button,request,perform}=ui;

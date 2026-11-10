@@ -1,10 +1,11 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { required, showMessage } from "./dom.js";
 import type { SchedulePage } from "./page.js";
 import { post, read } from "./request.js";
 import { closeForm, refreshStage, showForm } from "./stage.js";
 import type { Readiness, TaskAnswer } from "./types.js";
+
+const uiText = globalThis.t;
 
 const field = (form: HTMLFormElement, name: string) => required<HTMLInputElement | HTMLTextAreaElement>(form, `[name=${name}]`);
 

@@ -1,7 +1,8 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { ContextActionChosen } from "@molis-ai/molis-work-contracts/services/contextual";
 import { loadList } from "./document.js";
 import type { PagesPage } from "./page.js";
+
+const uiText = globalThis.t;
 
 /**
  * Pages' part in 「放进左边」 and in the bar's choices. The landing — where something in hand would go in the open document, and the

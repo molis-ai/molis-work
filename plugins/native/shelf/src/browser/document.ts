@@ -1,4 +1,3 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { admitFiles, admitFolderEntry, showAdmissionError } from "./admit.js";
 import { renderBar } from "./bar.js";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
@@ -11,6 +10,8 @@ import { post } from "./request.js";
 import { selectClip, selectItem } from "./select.js";
 import { applySnapshot, load } from "./snapshot.js";
 import type { ShelfPage, SnapshotAnswer } from "./types.js";
+
+const uiText = globalThis.t;
 
 const INPUTS = "input, textarea, [contenteditable=true]";
 

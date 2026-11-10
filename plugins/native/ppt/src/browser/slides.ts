@@ -1,5 +1,6 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { Ppt, PptPage, Slide } from "./types.js";
+
+const uiText = globalThis.t;
 
 const textOf = (tag: string, className: string, text: string): HTMLElement => {
   const node = document.createElement(tag);

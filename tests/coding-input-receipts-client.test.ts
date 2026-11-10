@@ -4,7 +4,7 @@ import test from "node:test";
 import vm from "node:vm";
 import { CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-coding";
 import { createUiRequest } from "@molis-ai/molis-work-ui-host";
-import { pageText } from "./fixtures/page-text.js";
+import { pageText, pageTextScript } from "./fixtures/page-text.js";
 
 // specs/ai-input-receipts §3.3, §4.1, §4.2, §7 (stage 1d): what the Coding page shows for a supplement it sends to a round
 // under way. The receipt under it is the shared one (tests/input-receipts-client.test.ts, RC-12, RC-15). The shipped script
@@ -25,8 +25,8 @@ type Reply = { receipt: { input_id: string; replayed: boolean; delivered: "run" 
 function receipts(reply: (body: Record<string, unknown>) => Promise<Reply>, ports: { find?: (selector: string) => Node | null; landed?: (sent: { text: string }, said: string) => void } = {}) {
   const sent: Array<Record<string, unknown>> = [];
   let uuid = 0;
-  const factory = vm.runInNewContext(`(${CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT})`, {
-    document: { createElement: () => new Node() }, crypto: { randomUUID: () => `u${++uuid}` },
+  const factory = vm.runInNewContext(`${pageTextScript("zh", "coding")}\n(${CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT})`, {
+    document: { createElement: () => new Node(), documentElement: {} }, crypto: { randomUUID: () => `u${++uuid}` },
   }) as (ports: object) => {
     steer(id: string, run: string, text: string, mode: string): Promise<string>; bubble(id: string, run: { turns: object[] }): Node | null;
     act(id: string, run: string): { withdraw(inputId: string): Promise<string>; correct(about: string, text: string, key: string): Promise<string> };

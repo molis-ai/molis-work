@@ -1,5 +1,6 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { el, messageOf, type ArtifactVersionRef, type CharacterRequest, type ImportSnapshot, type SnapshotFile, type SnapshotSkill } from "./common.js";
+
+const uiText = globalThis.t;
 
 /** Whose files are read: a scanned candidate, a published version, or a saved draft. */
 export type FileOwner = { candidate_id: string } | { reference: ArtifactVersionRef } | { character_id: string };

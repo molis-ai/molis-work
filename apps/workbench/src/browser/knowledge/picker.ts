@@ -1,6 +1,7 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { KnowledgeCard, KnowledgeCardsResponse, KnowledgeGlobResponse, KnowledgeSearchResponse } from "@molis-ai/molis-work-contracts/services/knowledge";
 import { button, el, request } from "./common.js";
+
+const uiText = globalThis.t;
 
 interface KnowledgePick { kind: string; id: string; title: string; plugin_title: string }
 interface PickRequest { request_id: string; selected?: Array<{ kind: string; id: string; title: string }>; max?: number }

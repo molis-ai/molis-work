@@ -1,7 +1,8 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { WORKSPACE_SKIPPED_FOLDERS } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import type { DropMark } from "@molis-ai/molis-work-plugin-sdk/page-globals";
 import { el, request } from "./common.js";
+
+const uiText = globalThis.t;
 
 const MAX_FILES = 200;
 /** What one request carries inline; a bigger file that is not text goes as its raw body (`/import/original`), any size. */

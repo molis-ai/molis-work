@@ -1,8 +1,9 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { KnowledgeCardRecord, KnowledgeCardsResponse, KnowledgeOrganizeResponse, KnowledgeReadReceipt, KnowledgeReceiptsResponse } from "@molis-ai/molis-work-contracts/services/knowledge";
 import { badge, el, readerOf, request, stateOf, subjectKey, when } from "./common.js";
 import { renderDetail, type KnowledgeDetailHost } from "./detail.js";
 import { drawQuota, drawReceipts, pageNotices } from "./settings-parts.js";
+
+const uiText = globalThis.t;
 
 type Overview = KnowledgeCardsResponse & { recent: KnowledgeReceiptsResponse };
 const POLL_MS = 4_000;

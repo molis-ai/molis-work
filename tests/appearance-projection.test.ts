@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { withPageText } from "./fixtures/page-text.js";
 import { existsSync, readFileSync } from "node:fs";
 import { mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -12,7 +13,7 @@ import { fontFaceRules, parseFontScheme, parseUiSpecFile } from "@molis-ai/molis
 import { APPEARANCE_STATE_PATH, createAppearanceOwner } from "@molis-ai/molis-work-service-appearance";
 
 test("FSS-05 FSS-26 component metadata is one validated definition with a real catalog specimen for every kind", () => {
-  const document = renderPrimitiveCatalog();
+  const document = withPageText("zh", [], renderPrimitiveCatalog);
   assert.deepEqual(PLUGIN_COMPONENTS.map(row => row.kind), BASELINE_SPEC.components.map(row => row.kind));
   assert.deepEqual(PRIMITIVE_CATALOG_IDS, PLUGIN_COMPONENTS.map(row => row.kind));
   for (const row of PLUGIN_COMPONENTS) assert.ok(document.includes(`data-primitive="${row.kind}"`), row.kind);

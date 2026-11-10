@@ -1,9 +1,10 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { said } from "./dom.js";
 import { active, request } from "./page.js";
 import type { FilesPage } from "./page.js";
 import type { DirectoryAnswer, DirectoryEntry, ReadOutcome } from "./types.js";
+
+const uiText = globalThis.t;
 
 /** The sentence for each reason a read gave nothing to show. */
 export function readErrors(_page: FilesPage): Record<ReadOutcome, string> {

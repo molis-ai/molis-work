@@ -1,5 +1,6 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { UiTerminalEvent, UiTerminalView } from "@molis-ai/molis-work-contracts/platform/ui";
+
+const uiText = globalThis.t;
 
 /** Runs `start` once `selector` is in the page: the Characters surface is filled in when it first opens (#150). */
 function whenPresent(selector: string, start: () => void): void {

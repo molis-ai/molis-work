@@ -1,7 +1,8 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { isAbort, required } from "./dom.js";
 import type { Failure, LingguangPage, Reading, Spark } from "./types.js";
+
+const uiText = globalThis.t;
 
 const FILE_LIMIT = 25 * 1024 * 1024;
 

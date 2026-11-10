@@ -1,6 +1,7 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { KnowledgeCardRecord, KnowledgeQuota, KnowledgeReadReceipt } from "@molis-ai/molis-work-contracts/services/knowledge";
 import { count, el, readerOf, request, subjectKey, when } from "./common.js";
+
+const uiText = globalThis.t;
 
 /** The page's notices: a short toast for what went well, the error box and a longer toast for what did not. */
 export function pageNotices(errorBox: HTMLElement) {

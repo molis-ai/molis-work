@@ -1,9 +1,10 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { flushEdit } from "./edit.js";
 import { post, read } from "./request.js";
 import { applySnapshot } from "./snapshot.js";
 import type { ShelfPage, SnapshotAnswer } from "./types.js";
+
+const uiText = globalThis.t;
 
 interface ProjectResult { title: string; reference: { artifact_id: string; version: number }; connected?: boolean }
 interface ResultText { text: string; fingerprint: string; source: { reference: unknown } }

@@ -1,6 +1,7 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { button, dateLabel, text } from "./dom.js";
 import type { ImageJob, ImagesPage } from "./types.js";
+
+const uiText = globalThis.t;
 
 /** The URL of one generated image, or its download form. */
 export const imageUrl = (page: ImagesPage, job: ImageJob, imageId: string, download = false): string =>

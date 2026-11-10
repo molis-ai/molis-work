@@ -1,8 +1,9 @@
-import { t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { codeOf, isAbort, statusOf } from "./dom.js";
 import { issueNote, type IssueNote } from "./note.js";
 import type { Issue, IssuesHost, IssuesPage, PageReport, Pending, QuestionResult, SavedResult } from "./types.js";
+
+const t = globalThis.t;
 
 const UNSENT = "molis:issue-unsent";
 /** Beside the model's own limit: still waiting after this long, the draft is retired first so a late answer cannot save beside one made by hand. */

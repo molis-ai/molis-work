@@ -1,6 +1,7 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { UiRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { Failure, JellyHost } from "./types.js";
+
+const uiText = globalThis.t;
 
 /** The page's one request helper (packages/ui-host request-client, W3-10): control headers, one origin, plain Errors with `code`. */
 declare const molisWorkRequest: UiRequest;

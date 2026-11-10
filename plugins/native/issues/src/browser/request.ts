@@ -1,7 +1,8 @@
-import { t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type {} from "@molis-ai/molis-work-plugin-sdk";
 import type { UiRequestFailure } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { IssuesHost, Scope } from "./types.js";
+
+const t = globalThis.t;
 
 /** The writes whose lost answer may still have happened: say so instead of inviting a blind repeat. */
 const WRITES = /(update|delete|capture|discard|run|name-draft)$/;

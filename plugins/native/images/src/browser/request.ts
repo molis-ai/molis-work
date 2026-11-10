@@ -1,6 +1,7 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type {} from "@molis-ai/molis-work-plugin-sdk";
 import type { ImagesHost, ImagesRequest, Scope } from "./types.js";
+
+const uiText = globalThis.t;
 
 /**
  * Requests to Images' routes. Leaving the page cancels them through the mount scope, so an answer that arrives late

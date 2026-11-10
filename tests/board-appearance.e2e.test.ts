@@ -97,6 +97,8 @@ test("FSS-66, FSS-67: the look card and the specimen card are named, whole and d
   for (const lang of ["zh", "en"] as const) for (const width of WIDTHS) for (const theme of ["light", "dark"] as const) {
     await open(lang, width, theme);
     const at = `${lang} ${width}px ${theme}`;
+    assert.deepEqual(await evaluate("[...document.querySelectorAll('.mw-catalog-top [data-theme-option]')].map(button => button.textContent.trim())"),
+      lang === "en" ? ["Light", "Dark", "System"] : ["浅色", "深色", "系统"], `${at}: the board shows readable theme labels`);
     const seen = await evaluate<Seen>(SEEN(ROLES(theme)));
     assert.deepEqual(seen.sections, SECTIONS, `${at}: every part has its section, in order`);
     if (lang === "en") assert.equal(seen.words.match(/[㐀-鿿]+/gu)?.join(" ") ?? "", "", `${at}: no Chinese is left in English`);

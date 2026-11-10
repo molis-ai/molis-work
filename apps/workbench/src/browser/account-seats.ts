@@ -1,7 +1,8 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { Subscription, PlanVersion, SeatPool, Assignment, Membership, TenantView } from "@molis-ai/molis-work-contracts/services/account";
 import { tenantPath, type TenantPanel } from "./account-tenant-panel.js";
 import { canAssign, seatName } from "./account-billing-fields.js";
+
+const uiText = globalThis.t;
 export async function seatOperation(panel: TenantPanel, tenant: TenantView, pools: SeatPool[], members: Membership[], subscriptions: Subscription[], plans: PlanVersion[], assignment: Assignment | undefined, reload: () => Promise<void>) {
   const { ui, begin, select, submit, change } = panel, { form, button, node, perform } = ui;
   const current = begin(assignment ? 'workbench.account.reassign-seat' : 'workbench.account.assign-seat');button('common.control.cancel', () => perform(reload));

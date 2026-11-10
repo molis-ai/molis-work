@@ -8,6 +8,7 @@ import { currentPluginInvocation } from "@molis-ai/molis-work-plugin-runtime";
 import { agentQuestionHtml } from "./agent-question-card.js";
 import { CARD_RESULT_OPEN, cardOutcomeSteps, interactionNextSteps } from "./agent-next-steps.js";
 import { assistantCardHtml } from "./assistant/assistant-card-view.js";
+import { installHostUiText } from "./ui-text-provider.js";
 import { isWebLocale, readText, pageLocale, runWithLocale } from "./web-locale.js";
 
 const interactionErrors = defineErrorCodes("host", { plugin_interaction_invalid: "invalid" });
@@ -80,7 +81,10 @@ function steps(value: unknown): PluginInteractionNextSteps {
  */
 function inCallLanguage<T>(draw: () => T): Promise<T> {
   const scope = currentPluginInvocation(), locale = scope ? scope.caller.locale : pageLocale();
-  return Promise.resolve().then(() => runWithLocale(locale !== undefined && isWebLocale(locale) ? locale : "zh", draw));
+  return Promise.resolve().then(() => {
+    installHostUiText();
+    return runWithLocale(locale !== undefined && isWebLocale(locale) ? locale : "zh", draw);
+  });
 }
 
 /**

@@ -1,10 +1,11 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { WorkflowChain } from "../model.js";
 import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { ico, kindName } from "./dom.js";
 import type { WorkflowsPage } from "./page.js";
 import { label } from "./state.js";
 import { tint } from "./chain.js";
+
+const uiText = globalThis.t;
 
 /** A workflow's stations in order, joined by what hands each over. */
 export function chainText(page: WorkflowsPage, chain: WorkflowChain) {

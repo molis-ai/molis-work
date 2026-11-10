@@ -1,4 +1,3 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { characterActionClient, type ActionClient } from "./action-client.js";
 import { renderBuiltinRoles } from "./builtin.js";
 import {
@@ -9,6 +8,8 @@ import { readStoredDrafts, writeStoredDrafts } from "./drafts.js";
 import { characterImportClient, type ImportClient } from "./import-client.js";
 import { renderList, renderVersions } from "./list.js";
 import { startCharacterTerminal } from "./terminal.js";
+
+const uiText = globalThis.t;
 
 const EDIT_FIELDS = "[data-character-title], [data-character-instructions], [data-character-inherit], [data-character-tools]";
 const IMPORT_DIALOGS = "[data-character-import-dialog], [data-character-run-dialog]";

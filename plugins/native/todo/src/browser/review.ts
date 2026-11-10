@@ -1,8 +1,9 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { TodoBatch } from "../contract.js";
 import { arrive, make } from "./dom.js";
 import { renderBatchSection } from "./review-cards.js";
 import type { TodoPage } from "./types.js";
+
+const uiText = globalThis.t;
 
 /** Organizing results waiting for the person: each candidate with its evidence, what applying it would do, and the choices to make. */
 export function installReview(page: TodoPage): void {

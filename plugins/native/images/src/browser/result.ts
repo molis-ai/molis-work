@@ -1,8 +1,9 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { button, dateLabel, firstCharacters, text } from "./dom.js";
 import { imageUrl, stateOf } from "./list.js";
 import type { GeneratedImage, ImageJob, ImagesPage } from "./types.js";
+
+const uiText = globalThis.t;
 
 // Files are named after what was asked for, not the stored image id; several images from one prompt are numbered.
 const fileNameOf = (_page: ImagesPage, job: ImageJob, item: GeneratedImage): string => {

@@ -1,4 +1,3 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { setOptions } from "./dom.js";
 import { installConflicts, renderConflicts } from "./conflicts.js";
@@ -7,6 +6,8 @@ import { active, inFolder, request, reveal, sayRefusal, showReviews } from "./pa
 import type { GitPage } from "./page.js";
 import { loadResults, outcomeLabel } from "./results.js";
 import type { DecisionOutcome, OperationRecord, PrSupportAnswer, SummaryAnswer, Translate } from "./types.js";
+
+const uiText = globalThis.t;
 
 /** An operation by what it is called, here and in the record (whose tools carry a git- prefix); undefined for one the page does not know. */
 export function operationLabel(_L: Translate, name: string): string | undefined {

@@ -1,6 +1,7 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { PlatformTenantView } from "@molis-ai/molis-work-contracts/services/account";
 import type { TenantPanel } from "./account-tenant-panel.js";
+
+const uiText = globalThis.t;
 export async function renderPlatformTenants(panel: TenantPanel, capabilities: readonly string[]) {
   const { ui, begin, list, submit, change, load } = panel, { form, node, field, button, perform } = ui;
   const current = begin('workbench.account.platform-tenants'), reload = () => renderPlatformTenants(panel, capabilities);

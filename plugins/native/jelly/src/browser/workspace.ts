@@ -1,9 +1,10 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { API } from "./request.js";
 import { showNote } from "./page.js";
 import { renderView } from "./view.js";
 import { statusOf } from "./util.js";
 import type { JellyCommand, JellyPage, JellyWorkspace } from "./types.js";
+
+const uiText = globalThis.t;
 
 /** A read asked before a command answered must not take the workspace back to an older revision (the next command would be refused as a conflict). */
 export function take(page: JellyPage, next: JellyWorkspace): void {

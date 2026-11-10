@@ -1,4 +1,3 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { wholeEnds } from "../whole-characters.js";
 import { closingBlank } from "./blank.js";
 import { docText } from "./dom.js";
@@ -6,6 +5,8 @@ import { fillGoalSelect } from "./menus.js";
 import { showNote } from "./notes.js";
 import type { PagesPage } from "./page.js";
 import type { SurfaceDetail } from "./types.js";
+
+const uiText = globalThis.t;
 
 /** What the Assistant sees when the person turns to it: the open document, its version, and edits not yet saved. */
 export function publishContext(page: PagesPage) {

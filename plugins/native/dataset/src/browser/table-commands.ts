@@ -1,6 +1,7 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { mergeDatasetDraftRows } from "../row-merge.js";
 import type { Column, Dataset, DatasetPage } from "./types.js";
+
+const uiText = globalThis.t;
 
 const emptyCells = (columns: readonly Column[]) => Object.fromEntries(columns.map((column) => [column.id, ""]));
 

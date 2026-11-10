@@ -1,7 +1,8 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { bindKnowledgeImport } from "./import.js";
 import { bindKnowledgePicker } from "./picker.js";
 import { bindKnowledgeSettings } from "./settings-page.js";
+
+const uiText = globalThis.t;
 
 /**
  * The bundle's entry: binds every 项目资料 page now, and one the settings cover places later (`molis-work:settings-embed`);

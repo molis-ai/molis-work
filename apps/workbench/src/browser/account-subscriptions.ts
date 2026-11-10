@@ -1,10 +1,12 @@
-import { dateArg, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { dateArg } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { Subscription, PlanVersion, SeatPool, Assignment, Membership, TenantView } from "@molis-ai/molis-work-contracts/services/account";
 import type { TenantPanel } from "./account-tenant-panel.js";
 import { tenantPath } from "./account-tenant-panel.js";
 import { subscriptionRow, unavailable, seatName, canAssign, assignmentLabels } from "./account-billing-fields.js";
 import { renderEntitlements } from "./account-entitlements.js";
 import { seatOperation } from "./account-seats.js";
+
+const uiText = globalThis.t;
 export async function renderSubscriptions(panel: TenantPanel, tenant?: TenantView, history = false) {
   const { ui, list, begin, load } = panel, { form, node, button, perform, request } = ui;
   const current = begin('workbench.account.subscriptions-seats'), reload = () => renderSubscriptions(panel, tenant, history);

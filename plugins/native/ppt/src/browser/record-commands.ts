@@ -1,5 +1,6 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { Failure, Ppt, PptPage } from "./types.js";
+
+const uiText = globalThis.t;
 
 type Reply = { presentation: Ppt };
 const urlOf = (page: PptPage, id: string, tail = "") => `${page.api}/${encodeURIComponent(id)}${tail}`;

@@ -1,6 +1,7 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { JudgmentRuleRecord } from "@molis-ai/molis-work-contracts/modules/functions";
 import type { FeedPage } from "./factory.js";
+
+const uiText = globalThis.t;
 
 type Field = "name" | "instructions";
 type Outcome = "retry" | "handled" | null;

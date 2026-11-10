@@ -1,4 +1,5 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+const uiText = globalThis.t;
+
 /** The installation renders editable documents inert until their first account registration succeeds. */
 export function accountRegistration(_L: (text: string) => string, retry: () => Promise<void>) {
   let pending = document.body.hasAttribute('data-account-registering');

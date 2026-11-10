@@ -1,4 +1,3 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { showActionStatus } from "./dom.js";
 import { openEdit } from "./form.js";
@@ -7,6 +6,8 @@ import type { SchedulePage } from "./page.js";
 import { openRecovery } from "./recovery.js";
 import { post } from "./request.js";
 import { collapse, refreshStage } from "./stage.js";
+
+const uiText = globalThis.t;
 
 /** Asks the Host to change one thing, then reads the page again; a failure is said under the detail's buttons. */
 async function change(button: HTMLButtonElement, fallback: string, write: () => Promise<unknown>, then: () => Promise<unknown>): Promise<void> {

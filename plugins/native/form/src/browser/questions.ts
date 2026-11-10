@@ -1,7 +1,8 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { FormOption, FormQuestion, FormQuestionInput } from "../contract.js";
 import { icon, make } from "./dom.js";
 import type { FormPage } from "./page.js";
+
+const uiText = globalThis.t;
 
 /** The editor's question rows: read back from the page, and drawn from a form's questions. */
 export const usesOptions = (type: string | undefined) => type === "singleChoice" || type === "multiChoice" || type === "dropdown";

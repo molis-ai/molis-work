@@ -1,9 +1,10 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { FormQuestion, FormRecord } from "../contract.js";
 import { FORM_ANSWER_LIMIT } from "../fillpage.js";
 import { make } from "./dom.js";
 import type { FormPage } from "./page.js";
 import type { Translate } from "./types.js";
+
+const uiText = globalThis.t;
 
 /** The answer fields of a form, as the preview and the fill page draw them, and the answers read back from them. */
 const choiceField = (question: FormQuestion) => {

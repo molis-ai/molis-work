@@ -1,9 +1,10 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { clipById, itemById, items } from "./model.js";
 import { paintPreview, syncShelfStage } from "./preview.js";
 import { paintLists, setMultiMode } from "./rows.js";
 import { read } from "./request.js";
 import type { ShelfPage, Snapshot } from "./types.js";
+
+const uiText = globalThis.t;
 
 /** The person asked to see `selectId` (an item or a clip): selects it, and says so when it is gone. */
 function followSelection(page: ShelfPage, selectId: string): void {

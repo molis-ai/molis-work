@@ -1,9 +1,10 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type {} from "@molis-ai/molis-work-plugin-sdk";
 import {
   RETURN_TRIP_RULES, createReturnOwner, leaveReturnWindow, needOfAddress, placeOf, returnFrom, returnLanding, returnLink, returnNeed, startReturnWindow,
   type ReturnNeed, type ReturnPlace, type ReturnStatus, type ReturnTrip,
 } from "./return-trips.js";
+
+const uiText = globalThis.t;
 
 /**
  * The `settings-return` owner (specs/draft-and-return/spec.md §2.2): this window's return trips, in the outer document only. It is set

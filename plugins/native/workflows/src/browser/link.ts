@@ -1,4 +1,3 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { WorkflowLink, WorkflowLinkKind } from "../model.js";
 import { ruleKey } from "./chain.js";
 import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
@@ -8,6 +7,8 @@ import { fitPop, markOpen, pillOf, placePop } from "./popover.js";
 import { saveFlow, chainOf } from "./save.js";
 import { label, loadRules, readyState } from "./state.js";
 import type { Ready } from "./types.js";
+
+const uiText = globalThis.t;
 
 /** The words a function link's rule can take from the content handed over. */
 const TOKENS = ["标题", "正文", "来源", "链接", "日期"];

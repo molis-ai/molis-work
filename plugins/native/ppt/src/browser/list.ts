@@ -1,7 +1,8 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { firstLine, textCell, whenOf } from "./dom.js";
 import type { Ppt, PptPage } from "./types.js";
+
+const uiText = globalThis.t;
 
 /** A row's only label is its state: a fixed version exists, or one is still being saved. Nothing repeats the title or the count. */
 function fixedCell(_page: PptPage, record: Ppt): HTMLSpanElement {

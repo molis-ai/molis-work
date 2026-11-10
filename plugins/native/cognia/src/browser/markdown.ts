@@ -1,7 +1,8 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { button } from "./dom.js";
 import type { Link, Reference, Translate } from "./types.js";
+
+const uiText = globalThis.t;
 
 const TOKENS = /`([^`]+)`|!?\[\[([^\]\n]+)\]\]|!?\[([^\]\n]*)\]\(<?([^\s)>]+)>?(?:\s+"[^"]*")?\)|\[S(\d+)\]/g;
 const plain = (line: string): string => esc(line).replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");

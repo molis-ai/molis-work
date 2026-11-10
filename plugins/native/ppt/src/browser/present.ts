@@ -1,5 +1,6 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { Ppt, PptPage, Slide } from "./types.js";
+
+const uiText = globalThis.t;
 
 /** One slide drawn at presenting or printing size, in the deck's colors. */
 function slideNode(record: Ppt, slide: Slide, index: number): HTMLElement {

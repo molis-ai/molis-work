@@ -1,9 +1,10 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { TodoBatch } from "../contract.js";
 import { arrive, closeMenu } from "./dom.js";
 import { undoOf } from "./page.js";
 import { applyLabel, choiceFor, keptDecisions } from "./review-choices.js";
 import type { ApplyPayload, CandidateDecision, ItemPayload, RevertPayload, TodoPage } from "./types.js";
+
+const uiText = globalThis.t;
 
 const code = (error: unknown) => (error as { code?: string }).code;
 

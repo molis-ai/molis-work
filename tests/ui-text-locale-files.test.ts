@@ -235,7 +235,9 @@ test("FSS-53 FSS-70 pack-sandbox signs the declared words and the Host refuses m
   assert.throws(() => readSandboxPackage(payloadOf(manifest, { ...files, "locales/zh.json": undefined })), /locales\/zh\.json/u);
   assert.throws(() => readSandboxPackage(payloadOf(manifest, { ...files, "locales/zh.json": packText("zh", { "todo.main.saved": "x" }, { owner: "io.molis.work.todo" }) })), /owner/u);
   assert.throws(() => readSandboxPackage(payloadOf(manifest, { ...files, "locales/en.json": packText("en", { "notes.main.saved": "R&D" }) })), /不许有/u);
-  assert.throws(() => readSandboxPackage(payloadOf(manifest, { ...files, "../zh.json": "{}" })), /格式之外/u);
+  assert.throws(() => readSandboxPackage(payloadOf(manifest, { ...files, "../zh.json": "{}" })), {
+    code: "plugin.declaration_invalid", message: '"../zh.json"：沙箱包的格式里没有这个文件',
+  });
   assert.throws(() => readSandboxPackage(payloadOf({ ...manifest, ui: { ...manifest.ui, locales: { ...LOCALES, default: "zh" } } }, files)), /清单不是沙箱插件/u);
 }));
 

@@ -1,8 +1,10 @@
-import { dateArg, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { dateArg } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { Subscription, PlanVersion, AuditEvent } from "@molis-ai/molis-work-contracts/services/account";
 import type { TenantPanel } from "./account-tenant-panel.js";
 import { subscriptionRow, unavailable } from "./account-billing-fields.js";
 import { subscriptionForm, subscriptionModeLabels, type SubscriptionMode } from "./account-subscription-form.js";
+
+const uiText = globalThis.t;
 export async function renderPlatformSubscriptions(panel: TenantPanel, capabilities: readonly string[]) {
   const { ui, begin, list, load } = panel, { form, node, button, perform } = ui;
   const current = begin('workbench.account.platform-subscriptions'), reload = () => renderPlatformSubscriptions(panel, capabilities);

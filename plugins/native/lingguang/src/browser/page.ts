@@ -1,7 +1,8 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { required } from "./dom.js";
 import { lingguangRequest } from "./request.js";
 import type { Elements, LingguangHost, LingguangPage, LingguangState, Scope } from "./types.js";
+
+const uiText = globalThis.t;
 
 function elementsOf(workbench: HTMLElement): Elements {
   const $ = <T extends Element = HTMLElement>(selector: string): T => required<T>(workbench, selector);

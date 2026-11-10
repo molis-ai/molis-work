@@ -1,8 +1,9 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import * as record from "./record-commands.js";
 import * as slide from "./slide-commands.js";
 import type { Failure, PptPage } from "./types.js";
+
+const uiText = globalThis.t;
 
 type Run = (page: PptPage, found: HTMLElement, button: HTMLButtonElement) => void | Promise<void>;
 

@@ -1,10 +1,11 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { applyInline, collectBlocks, hasTaskLink, insertBlock, focusBlock, openBlockFormat, renderBlocks } from "./blocks.js";
 import { completeTaskBlock, importNoteFile } from "./note-actions.js";
 import { queueSave } from "./notes.js";
 import { run, showNote } from "./page.js";
 import { above } from "./dom.js";
 import type { JellyBlock, JellyPage } from "./types.js";
+
+const uiText = globalThis.t;
 
 const LIST_KINDS = new Set(["bullet", "numbered", "task"]);
 

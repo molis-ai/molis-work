@@ -1,6 +1,7 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import type { LingguangPage, Spark } from "./types.js";
+
+const uiText = globalThis.t;
 
 /** Loading the list: the read, the failure card with its retry, and the spark a link asked for. */
 export function installLoad(page: LingguangPage): void {

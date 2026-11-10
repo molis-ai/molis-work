@@ -63,7 +63,7 @@ export function renderAssistantSavedText(text: AssistantSavedText, read: UiSayTo
 }
 
 /** The stored owner and facts are the same in any language. Self-contained with the saved text reader for the browser. */
-export function renderAssistantNoticeText(notice: AssistantNotice, read: UiSayTool["text"], saved = renderAssistantSavedText): string {
+export function renderAssistantNoticeText(notice: AssistantNotice, read: UiSayTool["text"], saved: typeof renderAssistantSavedText): string {
   const { text, directory_origin: origin, additional_count: count } = notice;
   if (notice.kind === "directory-read") {
     if (!origin || !["person", "agent", "workflow", "mcp", "background"].includes(origin) || "original" in text)

@@ -1,6 +1,7 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { cogniaApi } from "./request.js";
 import type { CogniaApi, CogniaClientHost, Draft, Flow, Material, Preview, Receipt, Workspace } from "./types.js";
+
+const uiText = globalThis.t;
 
 /** The page's state and the few things every part of it needs. The parts (list, reader, dialog, actions) each own their DOM. */
 export interface CogniaPage {

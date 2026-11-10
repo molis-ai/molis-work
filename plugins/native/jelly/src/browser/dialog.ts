@@ -1,8 +1,9 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { showNote } from "./page.js";
 import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import type { JellyPage } from "./types.js";
+
+const uiText = globalThis.t;
 
 /** The shared dialog: the page fills it for one view at a time; `version` tells a late answer which view it belongs to. */
 export function openGeneric(page: JellyPage, title: string, html: string, ok: string, submit: (() => Promise<unknown>) | null, cleanup?: () => void): void {

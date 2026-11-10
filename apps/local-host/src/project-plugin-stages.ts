@@ -37,6 +37,7 @@ export interface HomeStageHalves {
   readonly outsideCatalog: readonly StageEntry[];
   readonly entries: readonly StageEntry[];
   owner(entry: StageEntry): RuntimeStageOwner | undefined;
+  hasPackage(pluginId: string): boolean;
   dualInstance(pluginId: string): boolean;
   half(pluginId: string, contributionId: string): StageHalf;
   /** The Home's placeholder for the plugin's stage, saying why the Home half does not draw it. */
@@ -297,7 +298,8 @@ export async function readRuntimeStageData(state: ProjectPluginState, shown: rea
     if (!stageContributionId(entry.manifest)) continue;
     const selected = runtimeStageOwner(state, entry, home), key = `${selected.scope}:${entry.project_plugin_id}`, owner = selected.owner;
     views[key] = null;
-    if (!owner) continue;
+    // The Home renderer uses this presence mark for installed packages and opens their own authorized page.
+    if (!owner || selected.scope === "home" && home?.hasPackage(entry.manifest.plugin_id)) continue;
     try { stageSurfaceDescriptors(owner.entry.manifest, owner.view); }
     catch (error) { hostLog.warn("plugins", "stage_surface_invalid", error, { plugin_id: entry.manifest.plugin_id }); continue; }
     try {

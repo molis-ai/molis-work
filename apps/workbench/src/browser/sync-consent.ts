@@ -1,5 +1,6 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { SyncDevicePreference } from '@molis-ai/molis-work-contracts/modules/sync-replication';
+
+const uiText = globalThis.t;
 
 /** Consent belongs to the local Host, not browser storage or the cloud policy. */
 export function createSyncConsent() {

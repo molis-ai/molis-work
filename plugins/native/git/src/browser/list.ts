@@ -1,4 +1,3 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { open } from "./diff.js";
 import { active, inFolder, reading, request, rowOf, showReviews } from "./page.js";
@@ -6,6 +5,8 @@ import type { GitPage } from "./page.js";
 import { clearResults } from "./results.js";
 import { loadSource } from "./source.js";
 import type { ListItem, StateAnswer, View } from "./types.js";
+
+const uiText = globalThis.t;
 
 /** One row of the list: a button for a changed file, made once and kept while the file stays in the list. */
 function rowButton(page: GitPage, item: ListItem, side: string, key: string): HTMLElement {

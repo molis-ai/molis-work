@@ -1,4 +1,3 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { setContentHtml } from "@molis-ai/molis-work-plugin-sdk/browser";
 import type {} from "@molis-ai/molis-work-plugin-sdk/page-globals";
 import { FILES_PLUGIN_ID } from "../plugin-id.js";
@@ -8,6 +7,8 @@ import { active, companionState, request } from "./page.js";
 import type { FilesPage } from "./page.js";
 import { readErrors } from "./tree.js";
 import type { CaptureAnswer, HtmlAnswer, OpenAnswer } from "./types.js";
+
+const uiText = globalThis.t;
 
 /** What is open here, for the Assistant and for "open in plugin" from elsewhere (the side panel's file tab). */
 export function publishContext(page: FilesPage, path?: readonly string[]): void {

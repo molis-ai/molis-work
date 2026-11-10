@@ -1,4 +1,3 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { FormQuestionType } from "../contract.js";
 import type { Reflow } from "@molis-ai/molis-work-plugin-sdk/page-globals";
 import { arrive } from "./dom.js";
@@ -11,6 +10,8 @@ import { loadResults } from "./results.js";
 import { queueSave, save } from "./save.js";
 import { ask, placed, setBusy, setTab, showNote } from "./status.js";
 import type { FormFailure } from "./types.js";
+
+const uiText = globalThis.t;
 
 type FormFile = { filename: string; content: string; count: number };
 

@@ -1,10 +1,11 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { openGeneric } from "./dialog.js";
 import { flushEditor } from "./notes.js";
 import { run, showNote } from "./page.js";
 import { API } from "./request.js";
 import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { JellyPage } from "./types.js";
+
+const uiText = globalThis.t;
 
 interface ModelChoice { model_id: string; display_name?: string; enabled?: boolean }
 interface ModelProvider { provider_id?: string; id?: string; name?: string; enabled?: boolean; models?: ModelChoice[] }

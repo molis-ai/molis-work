@@ -1,6 +1,7 @@
-import { t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { codeOf, isAbort } from "./dom.js";
 import type { IssuesPage, NamedResult, QuestionResult, ReviewJob } from "./types.js";
+
+const t = globalThis.t;
 
 /** Beside the model's own limit: still waiting after this long, the person gets the editor back as it is. */
 const REVIEW_LIMIT_MS = 120_000;

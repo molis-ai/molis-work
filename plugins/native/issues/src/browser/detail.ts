@@ -1,9 +1,11 @@
-import { dateArg, t } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { dateArg } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { statusOf } from "./dom.js";
 import { KIND_KEYS } from "./list.js";
 import { isPending } from "./page.js";
 import { issueNoteModels, issueNoteText } from "./note.js";
 import type { Issue, IssuesPage } from "./types.js";
+
+const t = globalThis.t;
 
 const VIA_KEYS: Record<string, string> = { assistant: "issues.via.assistant", manual: "issues.via.manual", mcp: "issues.via.mcp" };
 

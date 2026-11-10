@@ -1,4 +1,6 @@
-import { dateArg, t } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { dateArg } from "@molis-ai/molis-work-plugin-sdk/ui";
+
+const t = globalThis.t;
 
 
 export const glyph = (name: string): string => `<svg aria-hidden="true"><use href="#icon-${name}"></use></svg>`;

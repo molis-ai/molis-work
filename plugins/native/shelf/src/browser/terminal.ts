@@ -1,7 +1,8 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { UiPageTerminal, UiTerminalEvent, UiTerminalView } from "@molis-ai/molis-work-contracts/platform/ui";
 import { post } from "./request.js";
 import type { ShelfPage, ShelfTui } from "./types.js";
+
+const uiText = globalThis.t;
 
 declare global {
   // The platform leaves the terminal handle on every plugin frame; Shelf only asks.

@@ -1,6 +1,7 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { el } from "../dom.js";
 import { codingRequest, errorMessage, type Workspace } from "./page.js";
+
+const uiText = globalThis.t;
 
 interface Method { readonly source: string; readonly name: string; readonly version: number; readonly skill_id: string }
 interface Candidate { readonly candidate_id: string; readonly name: string; readonly source_label: string; readonly body: string; readonly files: readonly string[] }

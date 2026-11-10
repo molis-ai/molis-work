@@ -1,4 +1,3 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { findOccurrence } from "./calendar.js";
 import { itemField, openItem } from "./item.js";
 import { run, showNote } from "./page.js";
@@ -6,6 +5,8 @@ import { command } from "./workspace.js";
 import { above } from "./dom.js";
 import { addDays, clockLabel, dayOffset } from "./util.js";
 import type { JellyPage } from "./types.js";
+
+const uiText = globalThis.t;
 
 const DRAG = "application/x-jelly-item";
 

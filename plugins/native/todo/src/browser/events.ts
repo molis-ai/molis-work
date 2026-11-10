@@ -1,8 +1,9 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { runCommand } from "./commands.js";
 import { targetElement } from "./dom.js";
 import { choiceFor } from "./review-choices.js";
 import type { TodoPage } from "./types.js";
+
+const uiText = globalThis.t;
 
 const fieldAttribute = (name: string) => (name.startsWith("waiting.") ? "waiting" : name);
 

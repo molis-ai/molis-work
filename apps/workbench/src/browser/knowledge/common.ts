@@ -1,8 +1,9 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type {} from "@molis-ai/molis-work-plugin-sdk";
 import type { UiRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import { LOCAL_PERSON_ACTOR_ID, type ActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { KnowledgeCardRecord, KnowledgeReadReceipt } from "@molis-ai/molis-work-contracts/services/knowledge";
+
+const uiText = globalThis.t;
 
 /** The page's one request helper (packages/ui-host request-client): control headers, one origin, plain Errors with `code`. */
 export const request = (): UiRequest => molisWorkRequest;

@@ -1,9 +1,10 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { active, inFolder, request } from "./page.js";
 import type { GitPage } from "./page.js";
 import { operationLabel, prepare } from "./source.js";
 import type { ConflictAnswer } from "./types.js";
+
+const uiText = globalThis.t;
 
 // Merge conflicts: each conflicted file opens with its markers; pick a side per conflict or edit it, then resolve it
 // through a Host review. Resolving is refused while any marker is left; the commit then finishes the merge.

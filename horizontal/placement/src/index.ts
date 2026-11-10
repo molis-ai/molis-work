@@ -9,7 +9,7 @@ import type {
   PlacementLocation, PlacementMoveResponse, PlacementOpen, PlacementRelatedItem, PlacementSpaceView,
 } from "@molis-ai/molis-work-contracts/services/placement";
 
-import { readPlacementIn, PROJECT_GONE, type PlacementRead } from "./subject-reader.js";
+import { readPlacementIn, type PlacementRead } from "./subject-reader.js";
 export {previewProjectCopy,type ProjectCopyPreviewInput,type ProjectCopySource,type ProjectCopyPreview,type ProjectCopyPreviewView,type ProjectCopyPreviewEntry,type ProjectCopyBlocker} from './project-copy-preview.js';
 export {projectCopyIdentities,type ProjectCopyIdentityInput} from './project-copy-identity.js';
 export {createProjectCopyJournal,type ProjectCopyJournal,type ProjectCopyPlan,type ProjectCopyReceipt} from './project-copy-journal.js';
@@ -34,8 +34,8 @@ export interface PlacementPorts {
   beforeEffect?(): void | Promise<void>;
   /** Last title seen for an object, so a deleted one is still named where it was used. A cache, never a fact. */
   titles: { get(kind: string, id: string): string | null; set(kind: string, id: string, title: string): void };
-  /** Text in the reader's language. Strings are Chinese with `{name}` slots; without it the slots are only filled in. */
-  text?(zh: string, vars?: Record<string, string | number>): string;
+  /** Reads a Workbench key in the caller's language. */
+  text?(key: string, vars?: Record<string, string | number>): string;
   /** Which declared relation (`placement_relation`) the Goal-shaped parts of this service keep; `goal`, the name the wire vocabulary uses. */
   relation?: string;
 }
@@ -343,7 +343,7 @@ async function describePlacement(ports: PlacementPorts, self: PlacementInstanceA
   const object = located.object;
   const read = await self.read(object);
   const title = read.context?.title || ports.titles.get(object.kind, object.id) || placementText(ports, "workbench.index.untitled");
-  const location = read.state === "missing" && read.reason === PROJECT_GONE ? null
+  const location = read.state === "missing" && read.plugin === null ? null
     : object.project_id === null ? homePlacementLocation(ports, placementBelongsOf(read), spaces) : placementLocation(ports, object.project_id, spaces);
   const associations: PlacementAssociation[] = [];
   for (const edge of self.edges(TYPES.used).filter(edge => sameObject(edge.source, object.kind, object.id))) {

@@ -1,4 +1,3 @@
-import { t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { installCapture, remembered } from "./capture.js";
 import { installDetail } from "./detail.js";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
@@ -8,6 +7,8 @@ import { installList } from "./list.js";
 import { isPending, issuesPage } from "./page.js";
 import { installReview } from "./review.js";
 import type { Issue, IssuesHost, IssuesPage } from "./types.js";
+
+const t = globalThis.t;
 
 /** The button a click landed on, and what it asks for. */
 async function onClick(page: IssuesPage, event: Event) {

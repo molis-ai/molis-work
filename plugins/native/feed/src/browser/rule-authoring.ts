@@ -1,9 +1,10 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { JudgmentRuleRecord } from "@molis-ai/molis-work-contracts/modules/functions";
 import { FEED_CAPTURE_SCENE_ID, FEED_OPEN_OPTION_ID, INBOX_ADMIT_OPTION_ID } from "@molis-ai/molis-work-contracts/modules/functions";
 import type { FeedPage } from "./factory.js";
 import { feedRuleKeep } from "./rule-keep.js";
+
+const uiText = globalThis.t;
 
 interface RuleDraft { mode?: string; fields?: Record<string, string>; function?: JudgmentRuleRecord; functionKey?: string; functionContent?: string; previewContent?: string }
 interface RuleInput { mode: string; instructions: string; contains: string; judgment: ActionReference | null; name: string; admission: string }

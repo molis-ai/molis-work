@@ -5,7 +5,7 @@ import { say } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 export function noticeText(notice: AssistantNotice, locale: WebLocale = "zh"): string {
   installHostUiText();
-  return runWithLocale(locale, () => renderAssistantNoticeText(notice, say.text));
+  return runWithLocale(locale, () => renderAssistantNoticeText(notice, say.text, renderAssistantSavedText));
 }
 
 export function savedText(text: AssistantSavedText | undefined, locale: WebLocale = "zh"): string | undefined {

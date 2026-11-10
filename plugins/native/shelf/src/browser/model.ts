@@ -1,5 +1,6 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { Child, Clip, ConfirmRecipe, Item, Recipe, RuntimeView, Shortcut, ShelfPage } from "./types.js";
+
+const uiText = globalThis.t;
 
 const TEXT_EDIT = new Set(["txt", "md", "markdown", "json", "swift", "py", "js", "ts", "mjs", "css", "yaml", "yml", "xml", "toml", "ini", "rs", "go", "rb", "sh", "zsh", "c", "h", "cc", "cpp", "m", "mm", "csv", "log"]);
 const extOf = (name: string): string => String(name || "").split(".").pop()?.toLowerCase() ?? "";

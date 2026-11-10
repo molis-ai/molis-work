@@ -60,7 +60,8 @@ export const CONTEXT_TOOLBAR_STYLES = `
 const LIMITS = JSON.stringify(CONTEXT_TOOL_LIMITS);
 
 export const CONTEXT_TOOLBAR_CLIENT_SCRIPT = compactScript(String.raw`(host) => {
-const readText = host.translate || ((t) => t), doc = document, on = (n, t, f, o) => n.addEventListener(t, f, o);
+const readText = globalThis.t.text, doc = document, parent = host.parent || doc.body, on = (n, t, f, o) => n.addEventListener(t, f, o);
+const enabled = "button:not(:disabled)";
 ${FLOATING_CLIENT_SOURCE}
 ${sanitizeContextTools.toString().replace(/^[ \t]+/gm, "")}
 const h = (tag, props, ...kids) => {
@@ -76,30 +77,31 @@ s.setAttribute("aria-hidden", "true"); u.setAttribute("href", "#icon-" + name); 
 return s;
 };
 const btn = (label, run, props) => { const n = h("button", { type: "button", class: "mw-btn mw-btn--ghost", ...props }); if (label) n.append(h("span", { text: label })); on(n, "click", run); return n; };
-const root = h("div", { class: "mw-ctx", role: "toolbar", "aria-label": globalThis.t.text("workbench.context-toolbar.actions-what-looking"), hidden: "" });
-(host.parent || doc.body).append(root);
+const keepFocus = (e) => e.preventDefault();
+const root = h("div", { class: "mw-ctx", role: "toolbar", "aria-label": readText("workbench.context-toolbar.actions-what-looking"), hidden: "" });
+parent.append(root);
 let view, tools, left, held, menu, opener, panel, back;
 const busy = () => root.matches(":hover") || root.contains(doc.activeElement) || menu || (panel && !panel.stay);
-const room = () => (host.width ? host.width() : innerWidth) - 16;
+const room = () => (host.width?.() ?? innerWidth) - 16;
 const put = (node, rect, mode, x) => {
 const at = placeStacked(rect, { width: node.offsetWidth, height: node.offsetHeight }, { width: innerWidth, height: innerHeight }, mode);
 pinAt(node, x === undefined ? at.left : Math.min(x, Math.max(8, innerWidth - node.offsetWidth - 8)), at.top);
 };
-const closeMenu = () => { if (menu) menu.remove(); if (opener) opener.setAttribute("aria-expanded", "false"); menu = opener = null; };
-const closePanel = () => { const p = panel; panel = null; if (p) { p.remove(); if (p.onClose) p.onClose(); } };
-const leave = () => { if (panel && panel.keep) panel.stay = true; else closePanel(); };
+const closeMenu = () => { menu?.remove(); opener?.setAttribute("aria-expanded", "false"); menu = opener = null; };
+const closePanel = () => { const p = panel; panel = null; p?.remove(); p?.onClose?.(); };
+const leave = () => { if (panel?.keep) panel.stay = true; else closePanel(); };
 const hide = () => { root.hidden = true; view = held = null; closeMenu(); leave(); };
 const place = () => {
 if (!view || root.hidden) return;
 const a = view.anchor, rect = a && (typeof a.rect === "function" ? a.rect() : a.rect), inset = host.inset || {};
 root.toggleAttribute("data-away", !rect || rect.bottom < (inset.top || 0) || rect.top > innerHeight - (inset.bottom || 0));
 if (!rect) return;
-put(root, rect, view.touch || view.anchor.placement === "below" ? "below" : "above", left);
+put(root, rect, view.touch || a.placement === "below" ? "below" : "above", left);
 if (left === undefined) left = root.getBoundingClientRect().left;
 if (menu) put(menu, opener.getBoundingClientRect(), "below");
-if (panel && !panel.stay) { const box = root.getBoundingClientRect(); put(panel, { left: box.left, right: box.right, top: box.top, bottom: box.bottom }, "below"); }
+if (panel && !panel.stay) put(panel, root.getBoundingClientRect(), "below");
 };
-const invoke = (group, id) => { if (tools && tools.source && view) tools.source.dispatchEvent(new CustomEvent("molis:context-tool-invoke", { bubbles: true, detail: { context_id: view.context_id, group, id } })); };
+const invoke = (group, id) => view && tools?.source?.dispatchEvent(new CustomEvent("molis:context-tool-invoke", { bubbles: true, detail: { context_id: view.context_id, group, id } }));
 const tool = (group, item, labelled) => {
 const n = btn(labelled && item.label, () => { closeMenu(); invoke(group.id, item.id); }, { "aria-label": item.label, title: item.label + (item.shortcut ? " " + item.shortcut : ""), "data-group": group.id, "data-id": item.id, "aria-pressed": String(!!item.pressed) });
 n.disabled = !!item.disabled;
@@ -107,14 +109,14 @@ n.prepend(...[item.glyph ? h("span", { class: "mw-ctx__glyph", "data-glyph": ite
 return n;
 };
 const open = (from, items) => {
-if (opener === from) { closeMenu(); return; }
+if (opener === from) return closeMenu();
 closeMenu(); opener = from;
 menu = h("div", { class: "mw-ctx-menu", role: "menu", "aria-label": from.textContent }, ...items);
-on(menu, "mousedown", (e) => e.preventDefault());
+on(menu, "mousedown", keepFocus);
 on(menu, "keydown", (e) => keys(e, menu));
 for (const t of ["pointerover", "pointerleave", "focusin"]) on(menu, t, hold);
-(host.parent || doc.body).append(menu); from.setAttribute("aria-expanded", "true"); place();
-const first = menu.querySelector("button:not(:disabled)"); if (first) first.focus();
+parent.append(menu); from.setAttribute("aria-expanded", "true"); place();
+menu.querySelector(enabled)?.focus();
 };
 const entry = (label, note, off, run, key) => {
 const n = h("button", { type: "button", role: "menuitem", class: "mw-ctx-menu__item" }, h("span", { text: label }), note && h("small", { text: note }));
@@ -124,9 +126,9 @@ return n;
 };
 const more = (extra) => {
 const title = (text) => h("p", { class: "mw-ctx-menu__label", text }), act = (a) => entry(a.label, a.note, a.disabled, () => host.choose(a.key), a.key), out = [];
-if (extra.length) out.push(title(globalThis.t.text("workbench.context-toolbar.suggested")), ...extra.map(act));
+if (extra.length) out.push(title(readText("workbench.context-toolbar.suggested")), ...extra.map(act));
 for (const g of view.more || []) out.push(title(g.title), ...g.items.map(act));
-if (view.assistant) out.push(h("div", { class: "mw-ctx-menu__gap", role: "separator" }), title(globalThis.t.text("workbench.context-toolbar.assistant")), entry(globalThis.t.text("workbench.context-toolbar.bring-assistant"), "", 0, () => host.assistant()));
+if (view.assistant) out.push(h("div", { class: "mw-ctx-menu__gap", role: "separator" }), title(readText("workbench.context-toolbar.assistant")), entry(readText("workbench.context-toolbar.bring-assistant"), "", 0, () => host.assistant()));
 if (view.basis) out.push(h("p", { class: "mw-ctx-menu__basis", title: view.basis.title || "", text: view.basis.text, ...(view.basis.state ? { "data-mw-state": view.basis.state } : {}) }));
 return out;
 };
@@ -139,17 +141,20 @@ const focused = doc.activeElement, keep = opener ? (opener.hasAttribute("data-fo
 if (root.contains(focused)) mark = focused.getAttribute("data-id") || focused.getAttribute("data-key");
 const base = room() <= 480 ? 2 : 3, slots = Math.max(1, base - cut), mine = tools && tools.context_id === view.context_id ? tools.groups : [], kids = [], actions = view.actions || [];
 if (mine.length) {
-const wrap = h("div", { class: "mw-ctx__tools", role: "group", "aria-label": globalThis.t.text("workbench.context-toolbar.tools") }), folded = [];
+const wrap = h("div", { class: "mw-ctx__tools", role: "group", "aria-label": readText("workbench.context-toolbar.tools") }), folded = [];
 for (const g of mine) { if (fold && g.collapse === "overflow") folded.push(...g.items.map((i) => { const n = tool(g, i, true); n.setAttribute("role", "menuitem"); return n; })); else wrap.append(...g.items.map((i) => tool(g, i))); }
-if (folded.length) wrap.append(menuButton(globalThis.t.text("workbench.context-toolbar.format"), () => folded, { "data-fold": "" }));
+if (folded.length) wrap.append(menuButton(readText("workbench.context-toolbar.format"), () => folded, { "data-fold": "" }));
 kids.push(wrap);
 }
 for (const a of actions.slice(0, slots)) { const n = btn(a.label, () => host.choose(a.key), { "data-key": a.key, "data-emphasis": String(!!a.emphasis), title: a.hint || "" }); if (a.badge) n.append(h("small", { class: "mw-ctx__badge", text: a.badge })); kids.push(n); }
 const extra = actions.slice(slots);
-if (extra.length || (view.more || []).length || view.assistant) kids.push(menuButton(globalThis.t.text("workbench.context-toolbar.more"), () => more(extra), { "data-more": "" }));
-if (view.assistant && cut < base) kids.push(btn(slots < 3 ? "✦" : "✦ " + globalThis.t.text("workbench.context-toolbar.assistant"), () => host.assistant(), { "data-assistant": "", "aria-label": globalThis.t.text("workbench.context-toolbar.assistant"), title: globalThis.t.text("workbench.context-toolbar.hand-assistant") }));
+if (extra.length || view.more?.length || view.assistant) kids.push(menuButton(readText("workbench.context-toolbar.more"), () => more(extra), { "data-more": "" }));
+if (view.assistant && cut < base) {
+const label = readText("workbench.context-toolbar.assistant");
+kids.push(btn(slots < 3 ? "✦" : "✦ " + label, () => host.assistant(), { "data-assistant": "", "aria-label": label, title: readText("workbench.context-toolbar.hand-assistant") }));
+}
 root.replaceChildren(...kids); root.hidden = false; root.toggleAttribute("data-tight", cut > base);
-if (keep) { opener = root.querySelector(keep); if (opener) opener.setAttribute("aria-expanded", "true"); else closeMenu(); }
+if (keep) { opener = root.querySelector(keep); opener ? opener.setAttribute("aria-expanded", "true") : closeMenu(); }
 // Too wide for its room: fold the format tools first, then give up one more step.
 if (root.scrollWidth > room() && cut <= base) return draw(true, fold || !mine.some((g) => g.collapse === "overflow") ? cut + 1 : cut, mark);
 if (mark) (root.querySelector('[data-id="' + mark + '"],[data-key="' + mark + '"]') || root.querySelector("[data-more]"))?.focus();
@@ -161,35 +166,36 @@ if (same && busy()) { held = next; return; }
 if (!same) { left = held = undefined; closeMenu(); leave(); }
 view = next; draw(false);
 };
-const release = () => { if (busy()) return; if (held) { view = held; held = null; draw(false); } if (host.settled) host.settled(); };
-const hold = () => { if (host.hold) host.hold({ interacting: !!busy(), pinned: pinned() }); };
+const release = () => { if (busy()) return; if (held) { view = held; held = null; draw(false); } host.settled?.(); };
+const hold = () => { host.hold?.({ interacting: !!busy(), pinned: pinned() }); };
 // The keys under the pointer or focus: on the bar (pinned, which keep their slot), and with the menu's too (pointed).
 const under = (scope) => [...scope.querySelectorAll("[data-key]")].filter((n) => n.matches(":hover") || n === doc.activeElement).map((n) => n.getAttribute("data-key"));
-const inside = (x) => root.contains(x) || menu && menu.contains(x);
+const inside = (x) => root.contains(x) || menu?.contains(x);
 const pinned = () => under(root), pointed = () => pinned().concat(menu ? under(menu) : []);
 const keys = (e, scope) => {
-const list = [...scope.querySelectorAll("button:not(:disabled)")], at = list.indexOf(doc.activeElement);
+const list = [...scope.querySelectorAll(enabled)], at = list.indexOf(doc.activeElement);
 if (e.key === "Escape") {
 e.preventDefault(); e.stopPropagation();
-if (scope === menu) { const o = opener; closeMenu(); if (o) o.focus(); return; }
-if (host.dismiss) host.dismiss("escape");
+if (scope === menu) { const o = opener; closeMenu(); return o?.focus(); }
+host.dismiss?.("escape");
 const to = back; hide(); if (to && to.isConnected) to.focus();
 } else if (at >= 0 && /^(Arrow(Right|Left|Down|Up)|Home|End)$/.test(e.key)) {
 e.preventDefault();
 list[e.key === "Home" ? 0 : e.key === "End" ? list.length - 1 : (at + (/Left|Up/.test(e.key) ? -1 : 1) + list.length) % list.length].focus();
 }
 };
-on(root, "mousedown", (e) => e.preventDefault());
+on(root, "mousedown", keepFocus);
 on(root, "keydown", (e) => keys(e, root));
 on(root, "pointerleave", () => { hold(); release(); });
 on(root, "pointerover", hold);
 on(root, "focusin", (e) => { hold(); const from = e.relatedTarget; if (from instanceof HTMLElement && from.isConnected && !inside(from)) back = from; });
 on(root, "focusout", (e) => { if (!inside(e.relatedTarget)) setTimeout(() => { hold(); release(); }); });
 on(doc, "pointerdown", (e) => {
-if (menu && !root.contains(e.target) && !menu.contains(e.target)) closeMenu();
-if (panel && !panel.keep && !root.contains(e.target) && !panel.contains(e.target)) closePanel();
+if (root.contains(e.target)) return;
+if (menu && !menu.contains(e.target)) closeMenu();
+if (panel && !panel.keep && !panel.contains(e.target)) closePanel();
 });
-const enter = () => { const first = !root.hidden && root.querySelector("button:not(:disabled)"); if (first) { back = doc.activeElement instanceof HTMLElement ? doc.activeElement : null; first.focus(); } return !!first; };
+const enter = () => { const first = !root.hidden && root.querySelector(enabled); if (first) { back = doc.activeElement instanceof HTMLElement ? doc.activeElement : null; first.focus(); } return !!first; };
 on(doc, "keydown", (e) => { if ((e.metaKey || e.ctrlKey) && e.key === "." && enter()) e.preventDefault(); });
 on(doc, "scroll", (e) => { if (!(menu || panel || root).contains(e.target)) place(); }, true);
 addEventListener("resize", () => { left = undefined; if (view) draw(false); });
@@ -198,21 +204,20 @@ doc.addEventListener("molis:context-tools", (e) => {
 const clean = sanitizeContextTools(e.detail, ${LIMITS});
 if (!clean) return;
 tools = { ...clean, source: e.target instanceof Element ? e.target : null };
-if (view && view.context_id === clean.context_id && !root.hidden) draw(false);
+if (view?.context_id === clean.context_id && !root.hidden) draw(false);
 });
 doc.addEventListener("molis:context-panel-open", (e) => {
 const d = e.detail;
-if (!d) return;
-if (d.node === null) { if (panel) { closePanel(); e.preventDefault(); } return; }
-if (!(d.node instanceof Node)) return;
+if (d?.node === null && panel) { closePanel(); e.preventDefault(); return; }
+if (!(d?.node instanceof Node)) return;
 const onClose = typeof d.onClose === "function" ? d.onClose : null, label = String(d.label || "").slice(0, 40);
-if (panel && panel.contains(d.node)) { panel.setAttribute("aria-label", label); panel.onClose = onClose; panel.keep = !!d.keep; e.preventDefault(); place(); return; }
+if (panel?.contains(d.node)) { panel.setAttribute("aria-label", label); panel.onClose = onClose; panel.keep = !!d.keep; e.preventDefault(); place(); return; }
 if (!view || d.context_id !== view.context_id) return;
 e.preventDefault(); closeMenu(); closePanel();
 panel = h("section", { class: "mw-ctx-panel", role: "dialog", "aria-label": label }, d.node);
 panel.onClose = onClose; panel.keep = !!d.keep;
 on(panel, "keydown", (k) => { if (k.key === "Escape") { k.preventDefault(); k.stopPropagation(); closePanel(); } });
-(host.parent || doc.body).append(panel); place();
+parent.append(panel); place();
 });
 return { show, hide, release, place, closePanel, pinned, pointed, focus: enter, hidden: () => root.hidden, busy: () => !!busy() };
 }`);

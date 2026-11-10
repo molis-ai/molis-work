@@ -1,8 +1,10 @@
-import { dateArg, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { dateArg } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { Feature, EntitlementCheckResult, EntitlementDecision, Subscription, PlanVersion, TenantView } from "@molis-ai/molis-work-contracts/services/account";
 import type { TenantPanel } from "./account-tenant-panel.js";
 import { tenantPath } from "./account-tenant-panel.js";
 import { planName, seatName } from "./account-billing-fields.js";
+
+const uiText = globalThis.t;
 
 /** Display-only snapshot. Every action queries Auth again; this view never grants a local permission. */
 export async function renderEntitlements(panel: TenantPanel, tenant: TenantView | undefined, back: () => Promise<void>) {

@@ -1,6 +1,7 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import type { Dataset, DatasetPage, Version } from "./types.js";
+
+const uiText = globalThis.t;
 
 /** The open table: opening and closing the editor, and saving what has been typed. */
 export function installEditor(page: DatasetPage): void {

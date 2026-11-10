@@ -1,4 +1,3 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { installBatch } from "./batch.js";
 import { installDetail } from "./detail.js";
 import { listen } from "./events.js";
@@ -8,6 +7,8 @@ import { installQuick } from "./quick.js";
 import { installReminders } from "./reminders.js";
 import { installReview } from "./review.js";
 import type { TodoClientHost } from "./types.js";
+
+const uiText = globalThis.t;
 
 /**
  * The Todo page in the workbench: views, quick entry, inline completion, batch changes, the detail editor and undo.

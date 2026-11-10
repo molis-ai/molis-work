@@ -1,8 +1,10 @@
-import { dateArg, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { dateArg } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { Invitation, Membership, TenantView } from "@molis-ai/molis-work-contracts/services/account";
 import { tenantPath, tenantRoleLabels, type TenantPanel } from "./account-tenant-panel.js";
 
 import { renderSubscriptions } from "./account-subscriptions.js";
+
+const uiText = globalThis.t;
 export async function renderTenantMembers(panel: TenantPanel, tenant: TenantView, userId: string) {
   const { ui, begin, list, select, submit, change, load } = panel, { form, node, field, button, request, perform } = ui;
   const current = begin('workbench.account.loading-members'), path = tenantPath(tenant.tenantId);

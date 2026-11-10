@@ -1,8 +1,9 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { active, inFolder, request } from "./page.js";
 import type { GitPage } from "./page.js";
 import type { ResultRow, ResultsAnswer, Translate } from "./types.js";
+
+const uiText = globalThis.t;
 
 /** How a review ended, or the word itself when it is one the page does not know. */
 export function outcomeLabel(_L: Translate, outcome: string): string {

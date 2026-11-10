@@ -1,4 +1,3 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { ico, required, settle, when } from "./dom.js";
@@ -7,6 +6,8 @@ import type { WorkflowsPage } from "./page.js";
 import { flushSave } from "./save.js";
 import { label } from "./state.js";
 import type { InstanceAnswer, PicksAnswer } from "./types.js";
+
+const uiText = globalThis.t;
 
 /** The dialog the page asks things in (deleting, ending a run, picking where a run starts). `onSubmit` runs on the person's yes. */
 export function showForm(page: WorkflowsPage, title: string, bodyHtml: string, submitLabel: string, onSubmit: (() => Promise<void>) | null, { tone }: { tone?: "danger" } = {}) {

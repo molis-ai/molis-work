@@ -1,6 +1,7 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import type { Failure, Ppt, PptPage } from "./types.js";
+
+const uiText = globalThis.t;
 
 /** The open deck: opening and closing the editor, and saving what has been typed. */
 export function installEditor(page: PptPage): void {

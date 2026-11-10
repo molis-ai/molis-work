@@ -1,4 +1,3 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderBar } from "./bar.js";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { said, setText } from "./dom.js";
@@ -8,6 +7,8 @@ import { paintLists } from "./rows.js";
 import { failureCode, failureSnapshot, post, read } from "./request.js";
 import { applySnapshot } from "./snapshot.js";
 import type { ConfirmRecipe, ShelfPage, Snapshot, SnapshotAnswer } from "./types.js";
+
+const uiText = globalThis.t;
 
 /** Follows the running job while the stage shows it, so the cancel button knows which one to cancel. */
 export function watchRun(page: ShelfPage): void {

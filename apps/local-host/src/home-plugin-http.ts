@@ -370,6 +370,7 @@ export async function homeStageHalves(host?: HomePluginHost): Promise<HomeStageH
     .map(entry => ({ project_plugin_id: entry.key, manifest: entry.manifest }));
   return { outsideCatalog, entries: host.registered().map(entry => ({ project_plugin_id: entry.key, manifest: entry.manifest })),
     owner: entry => captureRuntimeStageOwner(platform, "home", entry),
+    hasPackage: pluginId => host.hasPackage(pluginId),
     dualInstance: pluginId => host.dualInstance(pluginId),
     half: (pluginId, contributionId) => ({ running: platform ? host.installation(pluginId)?.state === "running" : false, view: homeStageView(host, platform, pluginId, contributionId) !== undefined }),
     unavailable: entry => homeUnavailableStage(host, platform, failure, entry) };

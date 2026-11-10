@@ -1,6 +1,8 @@
-import { dateArg, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { dateArg } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { textCell } from "./dom.js";
 import type { Dataset, DatasetPage } from "./types.js";
+
+const uiText = globalThis.t;
 
 const firstLine = (value: unknown, fallback = "") => String(value || "").trim().split("\n")[0].trim() || fallback;
 

@@ -1,10 +1,11 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { setContentHtml } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { active, diffState, request, reveal, sayRefusal, showReviews } from "./page.js";
 import type { GitPage } from "./page.js";
 import { loadResults } from "./results.js";
 import type { DiffAnswer, HtmlAnswer, Selected } from "./types.js";
+
+const uiText = globalThis.t;
 
 /** The heading of an open diff: which file, and whether it is the staged or the unstaged side. */
 function title(page: GitPage, item: Selected): void {

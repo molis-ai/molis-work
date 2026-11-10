@@ -1,4 +1,3 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import type { WorkflowVerdict } from "../model.js";
@@ -10,6 +9,8 @@ import { drawRun } from "./run.js";
 import { label, readyState } from "./state.js";
 import { toast } from "./toast.js";
 import type { FlowAnswer, InstanceAnswer, ListAnswer, PreviewAnswer, Run, WorkflowPayload } from "./types.js";
+
+const uiText = globalThis.t;
 
 export function dataHtml(data: WorkflowPayload) {
   return `<div class="wf-payload"><strong>${esc(data.title)}</strong><pre>${esc(data.body)}</pre>` + (data.url ? `<a href="${esc(data.url)}" target="_blank" rel="noopener noreferrer">${esc(data.url)}</a>` : "") + "</div>";

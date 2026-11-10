@@ -1,7 +1,8 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type {} from "@molis-ai/molis-work-plugin-sdk";
 import { required } from "./dom.js";
 import type { Host, StateAnswer } from "./types.js";
+
+const uiText = globalThis.t;
 
 /**
  * Text Stats' page: the counts of the pinned text, drawn by the Host. They are read when the page is shown and when Refresh

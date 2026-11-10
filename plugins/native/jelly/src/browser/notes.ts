@@ -1,4 +1,3 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { blockHtml, formatBar, newBlock, readDraft } from "./blocks.js";
 import { openGeneric } from "./dialog.js";
 import { renderBacklinks } from "./note-sync.js";
@@ -9,6 +8,8 @@ import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
 import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { dateLabel, statusOf } from "./util.js";
 import type { JellyBlock, JellyNote, JellyPage } from "./types.js";
+
+const uiText = globalThis.t;
 
 const draftKey = (id: string): string => `molis-jelly-draft:${id}`;
 interface Recovery { id: string; kind: string; revision: number; patch: { title?: string; blocks?: JellyBlock[] }; saved_at: string }

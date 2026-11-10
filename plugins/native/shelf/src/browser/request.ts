@@ -1,7 +1,8 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type {} from "@molis-ai/molis-work-plugin-sdk";
 import type { UiRequestFailure } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { ShelfPage, Snapshot } from "./types.js";
+
+const uiText = globalThis.t;
 
 /** One POST to Shelf's routes (`path` follows the plugin's route): the answer, or an error that says why in the Host's words. */
 export const post = <T = unknown>(page: ShelfPage, path: string, body: Record<string, unknown> = {}): Promise<T> =>

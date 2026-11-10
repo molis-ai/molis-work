@@ -1,4 +1,3 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { required } from "./dom.js";
 import { drawFlow } from "./flow.js";
@@ -9,6 +8,8 @@ import { drawRun } from "./run.js";
 import { adoptFlow, flushSave } from "./save.js";
 import { stateKey } from "./state.js";
 import type { Flow, FlowAnswer, ListAnswer, RunAnswer } from "./types.js";
+
+const uiText = globalThis.t;
 
 export type Mode = "list" | "workflow" | "instance";
 

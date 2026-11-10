@@ -1,8 +1,9 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { contentHtml } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { escText, escapeAttr } from "./dom.js";
 import { childOf, childUrl, fileUrl, hasFile, isFailed } from "./model.js";
 import type { Item, ShelfPage } from "./types.js";
+
+const uiText = globalThis.t;
 
 export const welcome = (_page: ShelfPage): string => {
   return '<div class="shelf-welcome"><h2>' + uiText.text("shelf.panes.put-materials-in-take-results") + "</h2><p>" + uiText.text("shelf.panes.set-it-down-first-then") + '</p><div class="shelf-cta"><span class="shelf-primary" role="button" tabindex="0" data-shelf-sample>' + uiText.text("shelf.panes.try-the-sample-pdf") + '</span><span class="shelf-paper" role="button" tabindex="0" data-shelf-pick>' + uiText.text("shelf.panes.choose-my-file") + "</span></div></div>";

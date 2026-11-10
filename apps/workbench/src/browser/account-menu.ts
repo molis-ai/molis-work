@@ -1,4 +1,5 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+const uiText = globalThis.t;
+
 export function requiredElement(root: ParentNode, selector: string): HTMLElement {
   const element = root.querySelector<HTMLElement>(selector);
   if (!element) throw new Error('Missing account element: ' + selector);

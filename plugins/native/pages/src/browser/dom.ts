@@ -1,5 +1,3 @@
-import { dateArg, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
-
 /** The icon sprite entry the design system draws (`#icon-<name>`). */
 export const ICON = (name: string) => `<svg aria-hidden="true"><use href="#icon-${name}"></use></svg>`;
 
@@ -46,14 +44,6 @@ export function docText(node: unknown): string {
   if (!node || typeof node !== "object") return "";
   const { type, text, content } = node as { type?: string; text?: unknown; content?: unknown };
   return typeof text === "string" ? text : Array.isArray(content) ? content.map(docText).join(type === "doc" ? "\n" : "") : "";
-}
-
-export function formatTime(value: string | undefined): string {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  const sameYear = date.getFullYear() === new Date().getFullYear();
-  return uiText.text("common.generated.formatted", { value: dateArg(date.toISOString(), sameYear ? "month-day" : "date") });
 }
 
 /** True for a document node with nothing but empty paragraphs (and no text beyond blanks). */

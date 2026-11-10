@@ -1,7 +1,8 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type {} from "@molis-ai/molis-work-plugin-sdk";
 import type { UiRequestFailure } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { PagesHost, PagesRequest } from "./types.js";
+
+const uiText = globalThis.t;
 
 /**
  * Requests to Pages' routes in the current project (`tail` follows `/pages`). A failure is the helper's plain Error with the

@@ -1,7 +1,8 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { filesClient } from "./client.js";
 import { filesRequests } from "./request.js";
 import type { FilesBrowser, FilesFactoryHost, FilesHost } from "./types.js";
+
+const uiText = globalThis.t;
 
 /** The folder and file icons the tree draws. */
 export interface Icons { readonly folder: string; readonly file: string }

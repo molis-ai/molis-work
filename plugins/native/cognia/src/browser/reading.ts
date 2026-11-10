@@ -1,4 +1,3 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { button } from "./dom.js";
 import { OWN_SOURCES, ROLE_KEY } from "./labels.js";
@@ -6,6 +5,8 @@ import { renderMarkdown, renderReferences } from "./markdown.js";
 import { q, tx, type CogniaPage } from "./page.js";
 import { libraryUrl } from "./request.js";
 import type { Detail, Link } from "./types.js";
+
+const uiText = globalThis.t;
 
 /** Tells the resident Assistant what the page shows: this page, and the material open in the reader if there is one. */
 export function publishContext(page: CogniaPage): void {

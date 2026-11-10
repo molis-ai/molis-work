@@ -40,7 +40,7 @@ test("RAC-168 the Git page's client is typed browser code bundled by esbuild, as
     if (!file.endsWith("/request.ts")) assert.doesNotMatch(source, /molisWorkRequest/u, `${file} asks the Host itself: request.ts owns the requests`);
     assert.doesNotMatch(source, /\.toLocaleString\(\)/u, `${file} shows a time in the browser's language, not the page's`);
   }
-  assert.match(readFileSync(join(BROWSER, "page.ts"), "utf8"), /toLocaleString\(document\.documentElement\.lang/, "the times the page shows follow the page's language");
+  assert.match(readFileSync(join(BROWSER, "page.ts"), "utf8"), /format\.date\(value, "datetime-with-seconds"\)/u, "the page formats its times with its own language and seconds");
   const pkg = JSON.parse(readFileSync("plugins/native/git/package.json", "utf8")) as { scripts: Record<string, string>; devDependencies?: Record<string, string> };
   assert.match(pkg.scripts.build, /tsc -p tsconfig\.browser\.json/, "the build type-checks the browser code");
   assert.match(pkg.scripts.build, /esbuild src\/browser\/factory\.ts --bundle/, "and bundles it");

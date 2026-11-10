@@ -1,9 +1,10 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { UiTaskGrantsAreaState } from "@molis-ai/molis-work-contracts/platform/ui";
 import { detailOf } from "./dom.js";
 import type { SchedulePage } from "./page.js";
 import { read } from "./request.js";
 import type { Readiness, TaskReads } from "./types.js";
+
+const uiText = globalThis.t;
 
 /** Shows one of two elements in place of the other. */
 function swap(shown: HTMLElement | null, hidden: HTMLElement | null, flag: boolean): void {

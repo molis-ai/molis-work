@@ -1,4 +1,3 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { handleCalendarClick } from "./calendar-clicks.js";
 import { openCategories } from "./categories.js";
 import { openItem } from "./item.js";
@@ -12,6 +11,8 @@ import { renderView, switchView } from "./view.js";
 import { addDays, civil, dayDate } from "./util.js";
 import { command, loadList } from "./workspace.js";
 import type { JellyPage, Mode, View } from "./types.js";
+
+const uiText = globalThis.t;
 
 type Click = (page: JellyPage, target: HTMLElement) => void;
 const data = (target: HTMLElement, name: string): string => target.getAttribute(name) ?? "";

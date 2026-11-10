@@ -1,4 +1,3 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { tint } from "./chain.js";
 import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
@@ -8,6 +7,8 @@ import type { WorkflowsPage } from "./page.js";
 import { label, readyState, stnMeta } from "./state.js";
 import type { Run, Station } from "./types.js";
 import type { WorkflowStep } from "../model.js";
+
+const uiText = globalThis.t;
 
 type StepState = "done" | "stopped" | "current" | "pending";
 type LinkState = "done" | "working" | "waiting" | "blocked" | "future";

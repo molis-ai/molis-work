@@ -1,10 +1,12 @@
-import { dateArg, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { dateArg } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { button } from "./dom.js";
 import { OWN_SOURCES, ROLE_KEY } from "./labels.js";
 import { filterValue, maybe, notice, q, tx, type CogniaPage } from "./page.js";
 import type { Domain, Source, Workspace } from "./types.js";
+
+const uiText = globalThis.t;
 
 /** `<option>`s for a select: the first choice (a key) and then each value by name. */
 export function options(page: CogniaPage, values: readonly (Domain | Source)[], first: string): string {

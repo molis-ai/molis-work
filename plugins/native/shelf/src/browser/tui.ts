@@ -1,4 +1,3 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderBar } from "./bar.js";
 import { admitFiles } from "./admit.js";
 import { flushEdit } from "./edit.js";
@@ -6,6 +5,8 @@ import { filePathOf, hasFile, itemById, items, quotePath, runtime } from "./mode
 import { expandShelfStage, paintPreview, readFullText } from "./preview.js";
 import { load } from "./snapshot.js";
 import type { ShelfPage, ShelfTui } from "./types.js";
+
+const uiText = globalThis.t;
 
 const tui = (): ShelfTui | null => globalThis.molisWorkShelfTui ?? null;
 

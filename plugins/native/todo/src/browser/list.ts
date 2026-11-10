@@ -1,7 +1,8 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { iconSvg, isoDay, make } from "./dom.js";
 import { groupsFor, renderRow, summaryText } from "./list-rows.js";
 import type { ListPayload, TodoPage } from "./types.js";
+
+const uiText = globalThis.t;
 
 /** Marks the view button the page is on, and keeps it in sight in the narrow strip of view tabs (sideways only: scrolling the list too would push an opened organize result off the screen). */
 const markView = (page: TodoPage) => (button: HTMLElement) => {

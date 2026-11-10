@@ -7,6 +7,7 @@ import vm from "node:vm";
 import { formFillPageHtml, FORM_ANSWER_FORMAT, FORM_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-form";
 import type { FormQuestion, FormRecord } from "@molis-ai/molis-work-plugin-form/contract";
 import { openFormStore } from "./fixtures/plugin-home-stores.js";
+import { pageText, pageTextScript } from "./fixtures/page-text.js";
 
 // RAC-2725: the exported fill page caps an answer by characters (code points), exactly the rule the workbench's answer fields
 // (src/browser/fields.ts, T-234) apply: one emoji is one character, and a `maxlength` attribute (UTF-16 units) would stop an emoji
@@ -193,7 +194,7 @@ const runWorkbenchFillPage = async (record: FormRecord) => {
   node("div", [["data-form-questions"]], workspace);
   node("select", [["data-form-question-type"]], workspace);
   node("textarea", [["data-form-ai-prompt"]], workspace);
-  node("p", [["data-form-note"]], workspace);
+  const note = node("p", [["data-form-note"]], workspace);
   const previewForm = node("form", [["data-form-pane", "preview"]], workspace);
   const preview = node("div", [["data-form-preview"]], previewForm);
   node("div", [["data-form-result-summary"]], workspace);
@@ -225,28 +226,20 @@ const runWorkbenchFillPage = async (record: FormRecord) => {
     if (method === "GET") return { forms: [record], ai_available: false };
     return {};
   };
-  const names = ["document", "window", "molisWorkRequest", "HTMLElement", "HTMLInputElement", "HTMLLabelElement", "HTMLSelectElement", "requestAnimationFrame"] as const;
-  const saved = new Map<string, unknown>(names.map(name => [name, (globalThis as Record<string, unknown>)[name]]));
-  Object.assign(globalThis, { document, window, molisWorkRequest, HTMLElement: FakeElement, HTMLInputElement: FakeInput,
-    HTMLLabelElement: FakeLabel, HTMLSelectElement: FakeSelect, requestAnimationFrame: (callback: () => void) => callback() });
-  try {
-    const factory = new Function(`return (${FORM_CLIENT_FACTORY_SCRIPT})`)() as (host: unknown) => void;
-    factory({ translate: (text: string) => text, download: async () => {}, pluginId: "io.molis.work.form", projectId: () => "p",
-      route: (path: string) => path, pluginRoute: (path: string) => path, confirmBox: async () => false });
-    await settle();
-    const row = rows.querySelectorAll("button").find(candidate => candidate.dataset.formId === record.id);
-    assert.ok(row, "the workbench list rendered the form");
-    bench.fire("click", row);
-    await settle();
-    const input = preview.querySelectorAll("input").find(candidate => candidate.type === "text");
-    assert.ok(input instanceof FakeInput, "the workbench's own fill fields built the answer box");
-    return { input, requests };
-  } finally {
-    for (const [name, value] of saved) {
-      if (value === undefined) delete (globalThis as Record<string, unknown>)[name];
-      else (globalThis as Record<string, unknown>)[name] = value;
-    }
-  }
+  const factory = vm.runInNewContext(`${pageTextScript("zh", "form")}\n(${FORM_CLIENT_FACTORY_SCRIPT})`, {
+    document, window, molisWorkRequest, setTimeout, clearTimeout, crypto, HTMLElement: FakeElement, HTMLInputElement: FakeInput,
+    HTMLLabelElement: FakeLabel, HTMLSelectElement: FakeSelect, requestAnimationFrame: (callback: () => void) => callback(),
+  }) as (host: unknown) => void;
+  factory({ translate: pageText("zh", "form"), download: async () => {}, pluginId: "io.molis.work.form", projectId: () => "p",
+    route: (path: string) => path, pluginRoute: (path: string) => path, confirmBox: async () => false });
+  await settle();
+  const row = rows.querySelectorAll("button").find(candidate => candidate.dataset.formId === record.id);
+  assert.ok(row, "the workbench list rendered the form");
+  bench.fire("click", row);
+  await settle();
+  const input = preview.querySelectorAll("input").find(candidate => candidate.type === "text");
+  assert.ok(input instanceof FakeInput, `the workbench's own fill fields built the answer box (${note.textContent})`);
+  return { input, requests };
 };
 const settle = async () => { for (let index = 0; index < 20; index += 1) await new Promise(resolve => setImmediate(resolve)); };
 

@@ -1,4 +1,3 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { said } from "./dom.js";
 import { active, createPage, request } from "./page.js";
@@ -6,6 +5,8 @@ import type { FilesPage } from "./page.js";
 import { capture, clearReader, companions, controls, copyAll, openFile } from "./reader.js";
 import { list } from "./tree.js";
 import type { FilesBrowser, FilesHost, StateAnswer } from "./types.js";
+
+const uiText = globalThis.t;
 
 const open = (page: FilesPage) => (path: string[]) => openFile(page, path);
 

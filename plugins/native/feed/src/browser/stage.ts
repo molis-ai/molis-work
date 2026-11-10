@@ -1,5 +1,6 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { FeedPage } from "./factory.js";
+
+const uiText = globalThis.t;
 
 const ENTRY = "[data-feed-entry-id]";
 /** The list's filter controls (search is read on input, these on change). */

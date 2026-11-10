@@ -1,7 +1,8 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { PagesFocus } from "../focus.js";
 import { pagesRequest } from "./request.js";
 import type { Fresh, Goal, PagesEditor, PagesEditorApi, PagesFolder, PagesHost, PagesLifetime, PagesRecord, PagesRequest, SurfaceDetail, Translate } from "./types.js";
+
+const uiText = globalThis.t;
 
 /** The import dialog's own state: what was chosen, whether a request is out, and which project and route it is for. */
 export interface ImportState {

@@ -1,9 +1,10 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { openGeneric } from "./dialog.js";
 import { showNote } from "./page.js";
 import { API } from "./request.js";
 import { isAbort, sleep0 } from "./util.js";
 import type { JellyPage, JellyPlan } from "./types.js";
+
+const uiText = globalThis.t;
 
 /** Streaming model work (break into tasks) shows real progress and stops when the dialog is dismissed. */
 export async function extractMaterial(page: JellyPage, payload: Record<string, unknown>): Promise<{ plan: JellyPlan } | null> {

@@ -1,6 +1,7 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { make } from "./dom.js";
 import type { ReminderEntry, TodoPage } from "./types.js";
+
+const uiText = globalThis.t;
 
 /** The reminders that came due: what to do with each (done, later, noted, switched off), and reading them from the Host. */
 export function installReminders(page: TodoPage): void {

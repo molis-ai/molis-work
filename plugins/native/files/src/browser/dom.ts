@@ -1,5 +1,6 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { Translate } from "./types.js";
+
+const uiText = globalThis.t;
 
 export const required = <T extends Element = HTMLElement>(root: ParentNode, selector: string): T => {
   const node = root.querySelector<T>(selector);

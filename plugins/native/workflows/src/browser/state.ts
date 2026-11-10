@@ -1,10 +1,11 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { WorkflowLink } from "../model.js";
 import { ruleKey } from "./chain.js";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import type { WorkflowsPage } from "./page.js";
 import { toast } from "./toast.js";
 import type { JudgmentChoice, Ready, Station, StationInfo } from "./types.js";
+
+const uiText = globalThis.t;
 
 export const stateKey = (page: WorkflowsPage) => "molis-workflows:" + page.host.route("/");
 

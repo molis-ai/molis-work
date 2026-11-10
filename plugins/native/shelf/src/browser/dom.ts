@@ -1,5 +1,7 @@
-import { escapeHtml, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { Translate } from "./types.js";
+
+const uiText = globalThis.t;
 
 export const escText = escapeHtml;
 export const escapeAttr = escapeHtml;

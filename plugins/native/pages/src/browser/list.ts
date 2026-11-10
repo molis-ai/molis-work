@@ -1,9 +1,19 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { dateArg } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { chosen } from "./context.js";
-import { ICON, formatTime, make } from "./dom.js";
+import { ICON, make } from "./dom.js";
 import { closeMove } from "./menus.js";
 import type { PagesPage } from "./page.js";
 import type { PagesRecord } from "./types.js";
+
+const uiText = globalThis.t;
+
+function formatTime(value: string | undefined): string {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const sameYear = date.getFullYear() === new Date().getFullYear();
+  return uiText.text("common.generated.formatted", { value: dateArg(date.toISOString(), sameYear ? "month-day" : "date") });
+}
 
 const fixedCell = (_page: PagesPage, record: PagesRecord) => {
   if (!record.publication_pending && !(record.artifact_version > 0)) return null;

@@ -1,9 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { TEXT_REF_LIMITS, type TextRef } from "@molis-ai/molis-work-contracts/platform/ui";
-import { dateArg, numberArg, ownedTextRef, textArgs, textRefProblems, tryOwnedTextRef } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { PLUGIN_MESSAGE_LIMITS } from "@molis-ai/molis-work-plugin-sdk";
+import { TEXT_REF_LIMITS, UI_FORMAT_VERSIONS, type TextRef } from "@molis-ai/molis-work-contracts/platform/ui";
+import { dateArg, numberArg, ownedTextRef, parseLocalePack, textArgs, textRefProblems, tryOwnedTextRef } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 // The code half of FSS-42, FSS-43 and FSS-45 (specs/font-and-skin-system/spec.md §11). The schema half is tests/ui-text-ref-contract.test.ts.
 
@@ -111,9 +110,16 @@ test("FSS-43: each limit is refused, and one last segment too long to leave room
   });
 });
 
-test("FSS-43: the limits of a Manifest's words are the limits of a reference, not a second number", () => {
-  assert.equal(PLUGIN_MESSAGE_LIMITS.keyLength, TEXT_REF_LIMITS.key);
-  assert.equal(PLUGIN_MESSAGE_LIMITS.textLength, TEXT_REF_LIMITS.literal);
+test("FSS-43: language files and text references share the limits of keys and words", () => {
+  const read = (key: string, text: string) => parseLocalePack(JSON.stringify({
+    format_version: UI_FORMAT_VERSIONS.locale, owner: OWNER, locale: "en", messages: { [key]: text },
+  }));
+  const key = "notes." + "a".repeat(TEXT_REF_LIMITS.key - "notes.".length);
+  const word = "w".repeat(TEXT_REF_LIMITS.literal);
+  assert.ok(read(key, word).ok);
+  for (const [result, code] of [[read(key + "a", word), "ui.locale_key"], [read(key, word + "w"), "ui.locale_text"]] as const) {
+    assert.ok(!result.ok && result.problems.some(problem => problem.code === code));
+  }
 });
 
 test("FSS-45: a position that takes no literal refuses one, and a draft refuses a key", () => {

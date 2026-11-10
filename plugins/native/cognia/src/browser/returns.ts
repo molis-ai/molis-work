@@ -1,9 +1,10 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderResumePrompt } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { UiReturnOutcome } from "@molis-ai/molis-work-plugin-sdk";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { reload } from "./list.js";
 import { notice, q, type CogniaPage } from "./page.js";
+
+const uiText = globalThis.t;
 
 /**
  * The model the asks need (specs/draft-and-return §4): the model-settings button asks the settings for a model with the step `query`, the ask

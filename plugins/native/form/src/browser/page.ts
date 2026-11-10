@@ -1,7 +1,8 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { FormQuestion, FormRecord } from "../contract.js";
 import type { formDraft } from "./draft.js";
 import type { FormClientHost, FormFailure, FormRequest, Translate } from "./types.js";
+
+const uiText = globalThis.t;
 
 /**
  * One Forms page: its host, the nodes it paints and what it remembers between events. Every part of the client

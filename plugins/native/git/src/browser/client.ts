@@ -1,10 +1,11 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { installDiff } from "./diff.js";
 import { refresh } from "./list.js";
 import { createPage, reading } from "./page.js";
 import { installResults } from "./results.js";
 import { afterDecision, installSource } from "./source.js";
 import type { GitBrowser, GitHost } from "./types.js";
+
+const uiText = globalThis.t;
 
 /** Reads through the plugin's declared routes; no Git process or approval lives in the browser. */
 export function gitClient(host: GitHost): GitBrowser | null {

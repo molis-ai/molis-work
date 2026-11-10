@@ -1,4 +1,3 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderBar } from "./bar.js";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { bufferToBase64 } from "./dom.js";
@@ -7,6 +6,8 @@ import { showProblem } from "./panes.js";
 import { post } from "./request.js";
 import { applySnapshot } from "./snapshot.js";
 import type { Item, ShelfFailure, ShelfPage, SnapshotAnswer } from "./types.js";
+
+const uiText = globalThis.t;
 
 const FOLDER_LIMIT = 32 * 1024 * 1024;
 

@@ -1,8 +1,9 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { openAccountManagement } from "./account-management.js";
 import { openAccountTenants } from "./account-tenants.js";
 import type {} from "@molis-ai/molis-work-plugin-sdk";
 import type { AccountView } from "@molis-ai/molis-work-contracts/services/account";
+
+const uiText = globalThis.t;
 interface AuthReply { handle: string; nextStep: string; challengeHandle: string; retryAfterSeconds: number; account?: AccountView; remoteRevocation?: string; status?: string; browserStartUrl?: string }
 ;(() => {
   const readText = uiText.text;
@@ -41,7 +42,7 @@ interface AuthReply { handle: string; nextStep: string; challengeHandle: string;
       else { field(mode==='phone'?"workbench.account.china-mainland-phone-number-86":"workbench.account.email",'address',mode==='phone'?'tel':'email',mode==='phone'?'tel-national':'email');if(mode==='login') field("workbench.account.password",'password','password','current-password'); }
       if(mode==='phone') form.append(node('p',uiText.text("workbench.account.unregistered-phone-number-creates-account-after-verification"),'mw-muted'));
       const submit=node('button',uiText.text(challenge?"workbench.account.verify-continue":mode==='reset-ready'?"workbench.account.reset-password":mode==='signup'&&transaction?"workbench.account.create-account":mode==='login'?"workbench.account.sign":"workbench.account.send-code"),'mw-btn mw-btn--primary');submit.type='submit';submit.disabled=busy;form.append(submit);
-      for(const [provider,label] of [['GOOGLE','使用 Google 登录'],['GITHUB','使用 GitHub 登录']]) button(label!,()=>startProvider(provider!));
+      for (const [provider, key] of [["GOOGLE", "workbench.account.sign-in-with-google"], ["GITHUB", "workbench.account.sign-in-with-github"]] as const) button(key, () => startProvider(provider));
       form.querySelector('input')?.focus();
     }
     const fail = (error: unknown) => { const failure = error as {code?: string; body?: {details?: {authCode?: string;retryAfterSeconds?: number}}}; const code=failure.body?.details?.authCode || failure.code; const wait=failure.body?.details?.retryAfterSeconds; const texts: Record<string, string>={INVALID_CREDENTIALS:uiText.text("workbench.account.email-password-code-incorrect-please-try-again"),CHALLENGE_EXPIRED:uiText.text("workbench.account.code-has-expired-request-new-code"),TRANSACTION_EXPIRED:uiText.text("workbench.account.verification-expired-please-start-again"),RATE_LIMITED:uiText.text("workbench.account.too-many-attempts-please-try-again-later"),IDENTITY_IN_USE:uiText.text("workbench.account.sign-method-belongs-another-account"),LAST_LOGIN_METHOD:uiText.text("workbench.account.keep-least-one-usable-sign-method-link-another"),VERSION_CONFLICT:uiText.text("workbench.account.account-state-changed-go-back-reload-before-continuing"),SESSION_EXPIRED:uiText.text("workbench.account.session-expired-please-sign-again"),REAUTH_REQUIRED:uiText.text("workbench.account.verify-current-account-again"),FORBIDDEN:uiText.text("workbench.account.do-not-have-permission-refresh-account-status"),TENANT_DISABLED:uiText.text("workbench.account.tenant-disabled-contact-platform-administrator"),OWNER_TRANSFER_REQUIRED:uiText.text("workbench.account.complete-ownership-transfer-before-leaving"),NOT_FOUND:uiText.text("workbench.account.record-unavailable-refresh-try-again"),CAPACITY_CONFLICT:uiText.text("workbench.account.capacity-changed-release-excess-assignments-refresh"),SUBSCRIPTION_INACTIVE:uiText.text("workbench.account.inactive-subscription-cannot-assign-reassign-seats"),'account.invalid_configuration':uiText.text("workbench.account.account-service-not-configured-local-features-remain-available")};message.textContent=texts[code || ""]||uiText.text("workbench.account.unable-complete-step-try-again-start-over");if(wait) { retryAt=Date.now()+wait*1000;message.textContent+=' '+Math.ceil(wait)+'s'; } };
@@ -96,7 +97,11 @@ interface AuthReply { handle: string; nextStep: string; challengeHandle: string;
       if(mode==='login'){transaction=await submitStep({step:'PASSWORD_LOGIN',email:address,password});await finish();}
       else {const result=await submitStep({step:'REQUEST_CHALLENGE',address});challenge=result.challengeHandle;retryAt=Date.now()+result.retryAfterSeconds*1000;draw();message.textContent=uiText.text("workbench.account.code-request-accepted-check-sms-email-isolated-tests");}
     });};
-    for(const [m,label] of [['login','邮箱登录'],['phone','手机验证码'],['signup','邮箱注册'],['reset','找回密码']]) {const b=button(label!,()=>{cancel();mode=m!;address='';retryAt=0;clearInterval(timer);message.textContent='';draw();},modes);buttons.push([b,m!]);}
+    for (const [next, key] of [["login", "workbench.account.sign-in-with-email"], ["phone", "workbench.account.sign-in-with-phone-code"],
+      ["signup", "workbench.account.sign-up-with-email"], ["reset", "workbench.account.recover-password"]] as const) {
+      const modeButton = button(key, () => { cancel(); mode = next; address = ""; retryAt = 0; clearInterval(timer); message.textContent = ""; draw(); }, modes);
+      buttons.push([modeButton, next]);
+    }
     dialog.addEventListener('close',()=>{disposeManagement?.();cancel();clearInterval(timer);form.reset();dialog.remove();opened=null;(trigger.closest('details:not([open])')?.querySelector<HTMLElement>(':scope > summary') || trigger).focus();});
     draw();void perform(async()=>{const account=await request<AccountView>('/session');if(!dialog.open)return;if(account.state==='AUTHENTICATED'||account.state==='OFFLINE_CACHED'){showAccount(account);if(account.state==='AUTHENTICATED'&&document.visibilityState==='visible')await request('/activity',{eventId:crypto.randomUUID(),kind:'OPEN'});}else if(account.state==='EXPIRED')message.textContent=uiText.text("workbench.account.session-expired-please-sign-again");});
   });

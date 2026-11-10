@@ -1,6 +1,7 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { required } from "./dom.js";
 import type { Current, FilesHost, FilesLifetime, Translate } from "./types.js";
+
+const uiText = globalThis.t;
 
 /** Everything the Files client shares between its parts: the page's elements and what it is showing. */
 export interface FilesPage {

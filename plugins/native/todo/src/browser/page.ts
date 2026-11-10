@@ -1,9 +1,10 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { TodoBatch, TodoCandidate, TodoItem } from "../contract.js";
 import { isoDay, make, pad } from "./dom.js";
 import { todoRequest } from "./request.js";
 import type { ItemPayload, NoteOptions, TodoClientHost, TodoElements, TodoPage, TodoState, UndoTarget } from "./types.js";
+
+const uiText = globalThis.t;
 
 const DAY_MS = 86_400_000;
 

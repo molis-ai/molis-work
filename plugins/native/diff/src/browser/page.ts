@@ -1,7 +1,8 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type {} from "@molis-ai/molis-work-plugin-sdk";
 import { required } from "./dom.js";
 import type { Host, StateAnswer } from "./types.js";
+
+const uiText = globalThis.t;
 
 /**
  * Diff's page: the comparison of the change being looked at, drawn by the Host. It is read when the page is shown, when

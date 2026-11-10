@@ -1,8 +1,9 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type {} from "@molis-ai/molis-work-plugin-sdk";
 import type { UiRequestFailure } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { TodoItem } from "../contract.js";
 import type { TodoClientHost, TodoRequest } from "./types.js";
+
+const uiText = globalThis.t;
 
 /** The todos a write's answer names, so works that relate to them read them again. */
 const changedItems = (payload: unknown): TodoItem[] => {

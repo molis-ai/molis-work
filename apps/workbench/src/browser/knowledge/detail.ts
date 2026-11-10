@@ -1,6 +1,7 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { KnowledgeCardRecord, KnowledgeEditableField, KnowledgeReceiptsResponse } from "@molis-ai/molis-work-contracts/services/knowledge";
 import { button, count, el, readerOf, when } from "./common.js";
+
+const uiText = globalThis.t;
 
 /** What the detail needs from its page: the routes, and a way to put a changed card back into the list. */
 export interface KnowledgeDetailHost {

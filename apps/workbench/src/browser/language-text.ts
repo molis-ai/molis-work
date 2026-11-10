@@ -1,11 +1,8 @@
-import type { UiFormatTool, UiLocalePack, UiSayTool, UiTextTool } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { UiLocalePack } from "@molis-ai/molis-work-contracts/platform/ui";
 import { createTextReader, format, installUiText, refuseSharedTextPrefix, say, t, textKeyPrefix } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { createProducedLog, mergeLocaleText } from "./locale-switch.js";
 
 declare global {
-  var t: UiTextTool;
-  var say: UiSayTool;
-  var format: UiFormatTool;
   var molisWorkRetitleRegion: ((root: ParentNode, before: string, after: string) => void) | undefined;
 }
 

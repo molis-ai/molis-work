@@ -1,7 +1,8 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { isAbort, required, textCard } from "./dom.js";
 import type { ConversationPayload, LingguangPage, Message, Spark } from "./types.js";
+
+const uiText = globalThis.t;
 
 /** The brainstorm, the hand-over to the Assistant and the copy of what is picked. */
 export function installChat(page: LingguangPage): void {

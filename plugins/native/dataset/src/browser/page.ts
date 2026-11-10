@@ -1,7 +1,8 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { required } from "./dom.js";
 import { datasetRequest } from "./request.js";
 import type { DatasetHost, DatasetPage, DatasetState, Elements } from "./types.js";
+
+const uiText = globalThis.t;
 
 const elementsOf = (bench: HTMLElement): Elements => {
   const optional = <T extends Element>(selector: string) => bench.querySelector<T>(selector);

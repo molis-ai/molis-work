@@ -1,10 +1,12 @@
-import { dateArg, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { dateArg } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { FormQuestion, FormSubmissionRecord } from "../contract.js";
 import { make } from "./dom.js";
 import { collectAnswers, missingRequired } from "./fields.js";
 import type { FormPage } from "./page.js";
 import { setBusy, setTab, showNote } from "./status.js";
 import type { Translate } from "./types.js";
+
+const uiText = globalThis.t;
 
 export type Results = { analysis?: { submission_count?: number }; submissions?: FormSubmissionRecord[] };
 type Imported = { imported: number; skipped: number; rejected: Array<{ name: string; reason: string }> };

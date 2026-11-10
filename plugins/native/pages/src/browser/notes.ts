@@ -1,6 +1,7 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { required, said } from "./dom.js";
 import type { PagesPage } from "./page.js";
+
+const uiText = globalThis.t;
 
 /** The line under the editor: what is wrong or pending, or nothing. */
 export function showNote(page: PagesPage, text: string, isError?: boolean) {

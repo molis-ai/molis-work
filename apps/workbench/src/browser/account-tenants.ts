@@ -1,4 +1,4 @@
-import { dateArg, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { dateArg } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { AccountView, Invitation, OwnershipTransfer, TenantView } from "@molis-ai/molis-work-contracts/services/account";
 import type { AccountUi } from "./account-management.js";
 import { createTenantPanel, tenantRoleLabels } from "./account-tenant-panel.js";
@@ -6,6 +6,8 @@ import { renderTenantMembers } from "./account-tenant-members.js";
 import { renderPlatformTenants } from "./account-tenant-platform.js";
 import { renderSubscriptions } from "./account-subscriptions.js";
 import { renderPlatformSubscriptions } from "./account-platform-subscriptions.js";
+
+const uiText = globalThis.t;
 export function openAccountTenants(ui: AccountUi, account: Extract<AccountView, { state: "AUTHENTICATED" }>, back: () => Promise<void>) {
   const { form, dialog, node, button, perform } = ui;
   const { panel, dispose } = createTenantPanel(ui, load);

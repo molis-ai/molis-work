@@ -1,4 +1,3 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { tint } from "./chain.js";
 import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { EASE_SETTLE, MOD, arrive, calm, ico, kindName, motion, required, settle, when } from "./dom.js";
@@ -8,6 +7,8 @@ import { pipsHtml, runStatus } from "./run.js";
 import { paintSave } from "./save.js";
 import { label, readyState, stnMeta } from "./state.js";
 import type { Flow, Station } from "./types.js";
+
+const uiText = globalThis.t;
 
 function chainIssues(page: WorkflowsPage, chain: Flow) {
   return chain.links.map((link, index) => ({ index, link, state: readyState(page, link) })).filter((item) => !item.state.ready);

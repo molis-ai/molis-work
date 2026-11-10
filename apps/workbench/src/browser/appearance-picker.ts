@@ -1,8 +1,9 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { UiAppearanceReceipt, UiAppearanceSelection } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { WorkbenchAppearance, WorkbenchAppearanceChoices } from "../appearance-document.js";
 import type { createAppearanceSync } from "./appearance-sync.js";
 import { appearanceRef, ensureAppearanceSheet, prepareAppearance, setAppearanceScope, type AppearanceProjection } from "./appearance-view.js";
+
+const uiText = globalThis.t;
 
 export type AppearanceText = (text: string, values?: Record<string, string | number>) => string;
 type Sync = ReturnType<typeof createAppearanceSync>;

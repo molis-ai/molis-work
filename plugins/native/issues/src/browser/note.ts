@@ -1,5 +1,7 @@
 import type { OwnedTextRef } from "@molis-ai/molis-work-contracts/platform/ui";
-import { say, t } from "@molis-ai/molis-work-plugin-sdk/ui";
+
+const say = globalThis.say;
+const t = globalThis.t;
 
 /** The page can retain an unbounded original refusal or question alongside its own stable words. */
 export type IssueNote = string | { text: OwnedTextRef; question?: string; models?: true };

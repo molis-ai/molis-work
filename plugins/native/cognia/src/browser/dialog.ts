@@ -1,4 +1,3 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { button } from "./dom.js";
 import { ROLE_KEY, STATUS_KEY } from "./labels.js";
@@ -6,6 +5,8 @@ import { domainSelect, field, options } from "./list.js";
 import { renderMarkdown, renderReferences } from "./markdown.js";
 import { fail, q, tx, type CogniaPage } from "./page.js";
 import type { Draft, Flow, ImportEntry } from "./types.js";
+
+const uiText = globalThis.t;
 
 /** Opens the dialog on a step. `title` and `label` are keys; `html` is drawn by the caller. */
 export function show(page: CogniaPage, title: string, kind: Flow, html: string, label: string): void {

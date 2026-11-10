@@ -1,5 +1,6 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { chevron, el, messageOf, pageRequest, tag, type Part } from "./common.js";
+
+const uiText = globalThis.t;
 
 /** A Character registered with the Host by the system or a plugin (`/api/agent-definitions/roles`): only what the list reads. */
 interface BuiltinRole {

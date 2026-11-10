@@ -1,8 +1,10 @@
-import { escapeHtml as esc, t } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { isAbort, required } from "./dom.js";
 import { issuesRequest } from "./request.js";
 import type { Current, EditorData, Issue, IssuesHost, IssuesPage, IssuesState, Pending } from "./types.js";
+
+const t = globalThis.t;
 
 /** The style sheet, minified: the package's build script defines it (`--define:ISSUES_CSS`, from src/styles.ts). */
 declare const ISSUES_CSS: string;

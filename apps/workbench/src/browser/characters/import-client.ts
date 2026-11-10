@@ -1,10 +1,11 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import {
   el, messageOf,
   type ArtifactVersionRef, type CharacterPublication, type CharacterRecord, type CharacterRequest, type ImportSnapshot, type Part,
   type PublicationPayload, type SnapshotSkill,
 } from "./common.js";
 import { detail, diff, filePreview, files } from "./import-files.js";
+
+const uiText = globalThis.t;
 
 /** What the Character page lends the import and run dialogs. */
 export interface ImportHost {

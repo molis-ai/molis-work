@@ -1,6 +1,7 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type {} from "@molis-ai/molis-work-plugin-sdk";
 import type { GitFactoryHost, GitHost } from "./types.js";
+
+const uiText = globalThis.t;
 
 const PAGE_ACTIONS = "/api/host/plugin-page-actions";
 

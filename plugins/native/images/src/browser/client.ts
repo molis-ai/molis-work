@@ -1,10 +1,11 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { installCommands } from "./commands.js";
 import { installCompose } from "./compose.js";
 import { installConnections, loadConnections, syncSaving } from "./connections.js";
 import { ensureContext, loadJobs } from "./jobs.js";
 import { createPage } from "./page.js";
 import type { ImagesHost } from "./types.js";
+
+const uiText = globalThis.t;
 
 /** The Images page: drafts live in the browser; jobs and credentials belong to the local host. */
 export function mountImages(host: ImagesHost): void {

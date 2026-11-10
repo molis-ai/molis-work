@@ -1,4 +1,3 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { blankLeaving, dropBlank } from "./blank.js";
 import { clearPicked, paintPicked, reportFocus } from "./context.js";
 import { assertReadable, createPage, exportDocument, loadList, movePage, openDocument, persist, printDocument, publishPage, saveOpen, toggleStar } from "./document.js";
@@ -9,6 +8,8 @@ import { ask, askName, noteFailure } from "./notes.js";
 import type { PagesPage } from "./page.js";
 import { pageTail } from "./request.js";
 import type { DocumentAnswer } from "./types.js";
+
+const uiText = globalThis.t;
 
 type Hit = (selector: string) => HTMLElement | null;
 

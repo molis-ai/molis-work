@@ -1,5 +1,6 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { Ppt, PptPage } from "./types.js";
+
+const uiText = globalThis.t;
 
 /** What the person sees of the open deck's state, and what the Assistant is told about it. */
 export function installStatus(page: PptPage): void {

@@ -1,4 +1,3 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { confirmDialog } from "./dialog.js";
 import { syncTaskIndicators } from "./note-sync.js";
 import { showNote } from "./page.js";
@@ -7,6 +6,8 @@ import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { clockLabel, parseClock } from "./util.js";
 import type { JellyOccurrence, JellyPage, JellyRelation, LinkedTask } from "./types.js";
+
+const uiText = globalThis.t;
 
 const PRIORITIES = ["none", "P0", "P1", "P2"] as const;
 const ITEM_DIALOG = "[data-jelly-item-dialog]";

@@ -1,4 +1,3 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { findOccurrence } from "./calendar.js";
 import { handleDatePickerClick } from "./datepicker.js";
 import { openGeneric } from "./dialog.js";
@@ -10,6 +9,8 @@ import { command } from "./workspace.js";
 import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { addDays, civil, mondayIndex } from "./util.js";
 import type { JellyPage, RelationRole, ReviewTab, Scope } from "./types.js";
+
+const uiText = globalThis.t;
 
 type Click = (page: JellyPage, target: HTMLElement) => void;
 const data = (target: HTMLElement, name: string): string => target.getAttribute(name) ?? "";

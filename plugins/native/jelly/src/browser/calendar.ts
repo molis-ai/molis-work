@@ -1,9 +1,10 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { empty, keepListScroll, matches } from "./page.js";
 import { API } from "./request.js";
 import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { addDays, civil, clockLabel, dateLabel, dayDate, glyph, mondayIndex, monthLabel } from "./util.js";
 import type { JellyOccurrence, JellyPage } from "./types.js";
+
+const uiText = globalThis.t;
 
 export const WEEKDAYS = ["jelly.week.mon", "jelly.week.tue", "jelly.week.wed", "jelly.week.thu", "jelly.week.fri", "jelly.week.sat", "jelly.week.sun"];
 const HOUR_PX = 44;

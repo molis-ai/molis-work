@@ -1,10 +1,11 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderBar } from "./bar.js";
 import { isEditable, itemById, stageBusy } from "./model.js";
 import { readFullText, paintPreview } from "./preview.js";
 import { post } from "./request.js";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import type { ShelfPage, SnapshotAnswer } from "./types.js";
+
+const uiText = globalThis.t;
 
 export function focusEditor(page: ShelfPage): void {
   const editor = page.preview.querySelector<HTMLTextAreaElement>("[data-shelf-editor]");

@@ -1,10 +1,11 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { detailOf } from "./dom.js";
 import type { SchedulePage } from "./page.js";
 import type { RowKind } from "./types.js";
 import { post } from "./request.js";
 import { readTaskReads, showCreated } from "./reads.js";
 import { closeArea, placeArea } from "./area.js";
+
+const uiText = globalThis.t;
 
 const expand = (expanded: boolean) => {
   const shell = document.querySelector<HTMLElement>("[data-schedule-stage-shell]"), workspace = document.querySelector<HTMLElement>("[data-schedule-stage-workspace]");

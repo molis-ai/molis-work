@@ -1,4 +1,3 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { entryTable, setBusy, setStep, showDraft } from "./dialog.js";
@@ -9,6 +8,8 @@ import { openMaterial } from "./reading.js";
 import { grantDirectory } from "./request.js";
 import { uploadFiles } from "./upload.js";
 import type { Draft, Material, Preview, Receipt } from "./types.js";
+
+const uiText = globalThis.t;
 
 const text = (data: FormData, name: string): string => String(data.get(name) ?? "");
 

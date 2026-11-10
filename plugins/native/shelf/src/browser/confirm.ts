@@ -1,7 +1,8 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { escText, escapeAttr, said, setText } from "./dom.js";
 import { ai, aiLabel, batch, confirmRecipe, isLocalRecipe } from "./model.js";
 import type { ConfirmRecipe, ShelfPage } from "./types.js";
+
+const uiText = globalThis.t;
 
 /** The name a shortcut action's result gets: the source's name, a dash and the action's name. */
 const shortcutOutput = (sourceName: string, actionName: string): string => {

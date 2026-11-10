@@ -1,4 +1,3 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { rangesForSelection } from "./blocks.js";
 import { openGeneric } from "./dialog.js";
 import { extractMaterial } from "./material.js";
@@ -11,6 +10,8 @@ import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { civil } from "./util.js";
 import { command, loadList } from "./workspace.js";
 import type { JellyPage, Preview } from "./types.js";
+
+const uiText = globalThis.t;
 
 export async function archiveRecord(page: JellyPage): Promise<void> {
   if (!page.selected) return;

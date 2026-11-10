@@ -1,6 +1,7 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { FormRecord } from "../contract.js";
 import type { FormClientHost, FormRequest, Translate } from "./types.js";
+
+const uiText = globalThis.t;
 
 /** What the model answered: either it needs a few things first, or the form with its new questions. */
 type DraftAnswer = { status: "needs_input"; interaction: { interaction_id: string; html?: string } } | { status: "done"; form: FormRecord };

@@ -1,7 +1,8 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { FormRecord, FormStatus } from "../contract.js";
 import { type FormPage, hasUnsaved } from "./page.js";
 import type { Translate } from "./types.js";
+
+const uiText = globalThis.t;
 
 /** The editor's one note line; `scope` says which later success may clear it (save, publication, required, draft). */
 export const showNote = (page: FormPage, text: string, isError: boolean, scope = "") => {

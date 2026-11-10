@@ -1,7 +1,8 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { escText, escapeAttr } from "./dom.js";
 import { batch, clockLabel, hasFile, isFailed, tone } from "./model.js";
 import type { Child, Clip, Item, ShelfPage } from "./types.js";
+
+const uiText = globalThis.t;
 
 const CLIP_PREVIEW = 3;
 

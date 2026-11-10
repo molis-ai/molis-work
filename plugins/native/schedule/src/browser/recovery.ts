@@ -1,9 +1,10 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { detailOf, required, showMessage } from "./dom.js";
 import type { SchedulePage } from "./page.js";
 import { post } from "./request.js";
 import { refreshStage } from "./stage.js";
+
+const uiText = globalThis.t;
 
 const lock = (page: SchedulePage, busy: boolean) => {
   const { recoveryForm, recovery } = page;

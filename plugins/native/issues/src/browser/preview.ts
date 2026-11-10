@@ -1,6 +1,7 @@
-import { t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { required } from "./dom.js";
 import type { IssuesPage, MediaZoom } from "./types.js";
+
+const t = globalThis.t;
 
 /** The enlarged picture: opened from a thumbnail, zoomed by the shared media-zoom helper, closed by a click beside it. */
 export function installPreview(page: IssuesPage): void {

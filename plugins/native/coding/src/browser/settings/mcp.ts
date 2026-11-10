@@ -1,8 +1,9 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { el } from "../dom.js";
 import { codeOf, codingRequest, errorMessage, type Workspace } from "./page.js";
 import type { VersionedProjectPluginMembership } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { UiRequestFailure } from "@molis-ai/molis-work-contracts/platform/ui";
+
+const uiText = globalThis.t;
 
 interface McpServer {
   readonly id: string;

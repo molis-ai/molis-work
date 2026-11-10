@@ -1,4 +1,3 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { openGeneric } from "./dialog.js";
 import { openItem } from "./item.js";
 import { flushEditor, openRecord, recordFor } from "./notes.js";
@@ -10,6 +9,8 @@ import { civil, statusOf } from "./util.js";
 import { command, loadList, take } from "./workspace.js";
 import { above } from "./dom.js";
 import type { JellyPage, JellyWorkspace, Preview } from "./types.js";
+
+const uiText = globalThis.t;
 
 const unreadable = (page: JellyPage, itemId: string): void => {
   page.root.dispatchEvent(new CustomEvent("molis-work:item-unreadable", { bubbles: true, detail: { itemId } }));

@@ -1,4 +1,3 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { el, messageOf, type ActionRef, type CharacterRequest, type FindPart } from "./common.js";
 
 /** A row of the common Agent action catalog (`GET /actions`): only what this view reads. */
@@ -34,7 +33,7 @@ function keepingView(): ActionClient {
     async refresh() {},
     value: () => structuredClone(kept),
     render: value => { kept = value == null ? null : structuredClone(value); },
-    describe: value => value == null ? uiText.text("workbench.characters.actions-inherit-task") : value.length ? value.map(ref => ref.capability_id + " · v" + ref.version).join("、") : uiText.text("workbench.characters.actions-none"),
+    describe: value => value == null ? globalThis.t.text("workbench.characters.actions-inherit-task") : value.length ? value.map(ref => ref.capability_id + " · v" + ref.version).join("、") : globalThis.t.text("workbench.characters.actions-none"),
   };
 }
 
@@ -43,14 +42,14 @@ function choicesOf(rows: ActionRow[], refs: ActionRef[]): Choice[] {
   const found: Choice[] = rows.filter(row => row.action.audiences.includes("agent")).map(row => ({ ref: exact(row), title: row.action.title, source: row.provider.title,
     available: row.availability.available, description: row.availability.available ? row.action.description : row.availability.reason }));
   for (const ref of refs) {
-    if (!found.some(row => key(row.ref) === key(ref))) found.push({ ref, title: ref.capability_id, source: ref.provider_id, available: false, description: uiText.text("workbench.characters.actions-kept-unavailable") });
+    if (!found.some(row => key(row.ref) === key(ref))) found.push({ ref, title: ref.capability_id, source: ref.provider_id, available: false, description: globalThis.t.text("workbench.characters.actions-kept-unavailable") });
   }
   return found;
 }
 
 function describeRefs(rows: ActionRow[], value: ActionRef[] | null | undefined): string {
-  if (value == null) return uiText.text("workbench.characters.actions-inherit-task");
-  if (!value.length) return uiText.text("workbench.characters.actions-none");
+  if (value == null) return globalThis.t.text("workbench.characters.actions-inherit-task");
+  if (!value.length) return globalThis.t.text("workbench.characters.actions-none");
   return value.map(ref => {
     const row = rows.find(item => key(exact(item)) === key(ref));
     return (row?.action.title || ref.capability_id) + " · v" + ref.version + " · " + (row?.provider.title || ref.provider_id);
@@ -89,18 +88,18 @@ export function characterActionClient(host: ActionHost): ActionClient {
     container.replaceChildren(); part("actions-field").hidden = part<HTMLInputElement>("actions-inherit").checked;
     const shown = choicesOf(rows, refs);
     for (const row of shown) container.append(choiceRow(row));
-    if (!shown.length) container.textContent = uiText.text("workbench.characters.actions-empty");
+    if (!shown.length) container.textContent = globalThis.t.text("workbench.characters.actions-empty");
     controls(busy);
   };
   const refresh = async (): Promise<void> => {
     if (reading) return;
-    reading = true; controls(busy); part("actions-status").textContent = uiText.text("workbench.characters.actions-reading");
+    reading = true; controls(busy); part("actions-status").textContent = globalThis.t.text("workbench.characters.actions-reading");
     try {
       const data = await request<{ actions: ActionRow[] }>("GET", "/actions");
-      rows = data.actions; list(); part("actions-status").textContent = uiText.text("workbench.characters.actions-updated");
+      rows = data.actions; list(); part("actions-status").textContent = globalThis.t.text("workbench.characters.actions-updated");
     } catch (error) {
       const original = el("span", messageOf(error)); original.translate = false;
-      part("actions-status").replaceChildren(el("span", uiText.text("workbench.characters.actions-failed")), original);
+      part("actions-status").replaceChildren(el("span", globalThis.t.text("workbench.characters.actions-failed")), original);
     } finally {
       reading = false; controls(busy);
     }

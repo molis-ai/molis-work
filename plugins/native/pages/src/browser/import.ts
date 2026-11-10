@@ -1,10 +1,11 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { blankLeaving, dropBlank } from "./blank.js";
 import { loadList, openDocument, save } from "./document.js";
 import { firstCharacters, required, said, statusOf } from "./dom.js";
 import { closeCreate, closeMore, closeMove } from "./menus.js";
 import { noteFailure } from "./notes.js";
 import type { PagesPage } from "./page.js";
+
+const uiText = globalThis.t;
 
 interface ImportDocument { readonly key: string; readonly title: string; readonly name: string; readonly body: unknown; readonly warnings?: readonly string[] }
 interface ImportPreview { readonly warnings?: readonly string[]; readonly documents?: readonly ImportDocument[] }

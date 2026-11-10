@@ -2,15 +2,14 @@ import { ActionError, isSubjectReader, type ActionSubjectContext, type ActionVie
 import type { PlacedObject, PlacementObjectState } from "@molis-ai/molis-work-contracts/services/placement";
 import type { PlacementPorts, PlacementScope } from "./index.js";
 
-export const PROJECT_GONE = "所在的项目已删除";
 export interface PlacementRead { state: PlacementObjectState; reason: string | null; context: ActionSubjectContext | null; plugin: { plugin_id: string; title: string } | null }
 
 /** Adapt the subject owner's answer; only the owner may say the object is missing. */
-export async function readPlacementIn(ports: PlacementPorts, object: PlacedObject, projectId: string | null, t: (zh: string) => string): Promise<PlacementRead> {
+export async function readPlacementIn(ports: PlacementPorts, object: PlacedObject, projectId: string | null, t: (key: string) => string): Promise<PlacementRead> {
     let scope: PlacementScope;
     try { scope = await ports.scope(projectId); }
     catch (error) {
-      if (error instanceof ActionError && error.code === "placement.project_missing") return { state: "missing", reason: t(PROJECT_GONE), context: null, plugin: null };
+      if (error instanceof ActionError && error.code === "placement.project_missing") return { state: "missing", reason: t("workbench.subject-reader.containing-project-was-deleted"), context: null, plugin: null };
       return { state: "unavailable", reason: error instanceof Error ? error.message : t("workbench.subject-reader.can-t-open-its-location-right-now"), context: null, plugin: null };
     }
     let views: readonly ActionView[];

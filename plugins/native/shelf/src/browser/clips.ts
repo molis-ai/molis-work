@@ -1,4 +1,3 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderBar } from "./bar.js";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { flushEdit } from "./edit.js";
@@ -7,6 +6,8 @@ import { download } from "./preview.js";
 import { post } from "./request.js";
 import { applySnapshot } from "./snapshot.js";
 import type { Item, ShelfPage, SnapshotAnswer } from "./types.js";
+
+const uiText = globalThis.t;
 
 /** A line in the bar's hint; with `ms` it goes away by itself. */
 export function say(page: ShelfPage, text: string, ms?: number): void {

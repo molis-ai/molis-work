@@ -1,6 +1,7 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { AccountView, LoginMethodsView, UserView } from "@molis-ai/molis-work-contracts/services/account";
 import { verifyAccountMethod } from "./account-verification.js";
+
+const uiText = globalThis.t;
 export interface AccountReply { handle: string; nextStep: string; challengeHandle: string; retryAfterSeconds: number; status?: string; browserStartUrl?: string; operationReady?: boolean }
 export interface AccountUi {
   form: HTMLFormElement; dialog: HTMLDialogElement; message: HTMLElement;

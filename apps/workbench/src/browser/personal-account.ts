@@ -1,4 +1,3 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 /** Browser-only account and space controls. No credentials are stored in this page. */
 import { createSyncConsent } from './sync-consent.js';
 import { accountTransition } from './account-transition.js';
@@ -15,6 +14,8 @@ interface AccountStatus {
 }
 interface AccountActionResult { loginUrl?: string; loginAttempt?: string; signedOut?: boolean }
 import type {} from "@molis-ai/molis-work-plugin-sdk";
+
+const uiText = globalThis.t;
 declare global {
   var molisWorkOpenExternalUrl: ((url: string) => Promise<void>) | undefined;
   interface Window { molisWorkUiTransport?: UiRequestPorts['intercept'] }

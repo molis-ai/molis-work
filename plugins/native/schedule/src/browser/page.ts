@@ -1,7 +1,8 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { required } from "./dom.js";
 import type { UiTaskGrantsAreaState } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { OperationReview, Readiness, ReminderReview, ScheduleHost, Translate } from "./types.js";
+
+const uiText = globalThis.t;
 
 /** Everything the Schedule client shares between its parts: the page's elements and what is open on it. */
 export interface SchedulePage {

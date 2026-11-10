@@ -1,7 +1,8 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { button, text } from "./dom.js";
 import type { AuthConnection, ImageConnection, ImagesPage } from "./types.js";
+
+const uiText = globalThis.t;
 
 /**
  * The services a person picks by name (PF-A05): each gives the model it uses and the sizes (or aspect ratios) that model takes, so

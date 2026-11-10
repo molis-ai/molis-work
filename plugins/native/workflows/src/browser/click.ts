@@ -1,4 +1,3 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { handLink } from "./chain.js";
 import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
@@ -15,6 +14,8 @@ import { showLink } from "./link.js";
 import { openStep } from "./step.js";
 import { toast } from "./toast.js";
 import type { Chain, InstanceAnswer, SaveAnswer } from "./types.js";
+
+const uiText = globalThis.t;
 
 /** Everything the person presses on the page, by the `data-wf-*` attribute the server drew on it. */
 export function wireClicks(page: WorkflowsPage) {

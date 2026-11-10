@@ -1,4 +1,3 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { openGeneric } from "./dialog.js";
 import { extractMaterial } from "./material.js";
 import { openRecord } from "./notes.js";
@@ -7,6 +6,8 @@ import { command } from "./workspace.js";
 import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { addDays, civil, clockLabel, dayOffset, parseClock } from "./util.js";
 import type { JellyPage, JellyPlan, JellyPlanAction, PlanSource, PlanUi } from "./types.js";
+
+const uiText = globalThis.t;
 
 const DURATIONS = [15, 30, 45, 60, 90] as const;
 const LOCKS: readonly (readonly [string, string])[] = [["title", "jelly.field.title"], ["notes", "jelly.plan.lock-notes"], ["duration", "jelly.plan.lock-duration"], ["schedule", "jelly.plan.lock-schedule"]];

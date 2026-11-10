@@ -1,4 +1,3 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { setContentHtml } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { escText, escapeAttr } from "./dom.js";
 import { renderBar } from "./bar.js";
@@ -8,6 +7,8 @@ import { docHtml, editorHtml, idle, previewPane, welcome } from "./panes.js";
 import type {} from "@molis-ai/molis-work-plugin-sdk";
 import { readText } from "./request.js";
 import type { Item, ShelfPage } from "./types.js";
+
+const uiText = globalThis.t;
 
 /** Opens the item's copy as a download in a browser, where the desktop would hand the file over. */
 export const download = (page: ShelfPage, item: Item): void => {

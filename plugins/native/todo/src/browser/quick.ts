@@ -1,8 +1,9 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { parseTodoQuickText, type TodoQuickPart } from "../quick-parse.js";
 import { arrive, iconSvg, make } from "./dom.js";
 import { undoOf } from "./page.js";
 import type { ItemPayload, TodoPage, TodoRow } from "./types.js";
+
+const uiText = globalThis.t;
 
 interface QuickState { readonly title: string; readonly parts: readonly TodoQuickPart[] }
 

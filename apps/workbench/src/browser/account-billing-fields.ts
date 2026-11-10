@@ -1,6 +1,8 @@
-import { dateArg, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { dateArg } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { PlanVersion, Subscription } from "@molis-ai/molis-work-contracts/services/account";
 import type { TenantPanel } from "./account-tenant-panel.js";
+
+const uiText = globalThis.t;
 export const subscriptionLabels = { ACTIVE: "workbench.account-billing-fields.active", SCHEDULED: "workbench.account-billing-fields.scheduled", EXPIRED: "workbench.account-billing-fields.expired", DISABLED: "workbench.account-billing-fields.switched-off" };
 export const assignmentLabels = { RELEASED: 'workbench.account.seat-released', REASSIGNED: 'workbench.account.reassigned', MEMBER_LEFT: 'workbench.account.member-left', MEMBER_REMOVED: 'workbench.account.member-removed' };
 export const subscriptionPath = (id: string) => '/platform/subscriptions/' + encodeURIComponent(id);

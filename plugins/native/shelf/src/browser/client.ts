@@ -1,4 +1,3 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { installArrange } from "./arrange.js";
 import { installControls } from "./controls.js";
 import { installDirectory } from "./directory.js";
@@ -11,6 +10,8 @@ import { stageBusy } from "./model.js";
 import { installTerminal } from "./terminal.js";
 import { installTui } from "./tui.js";
 import type { ShelfHost, ShelfPage } from "./types.js";
+
+const uiText = globalThis.t;
 
 /**
  * The Shelf page: materials in, results out, a command bar that runs actions on the copies. Built with esbuild into the plugin's

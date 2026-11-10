@@ -1,8 +1,10 @@
-import { escapeHtml as esc, t } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { required } from "./dom.js";
 import { installPreview } from "./preview.js";
 import type { IssueImage, IssuesPage } from "./types.js";
+
+const t = globalThis.t;
 
 const MAX_SHOTS = 6;
 const MAX_TOTAL_BYTES = 8 * 1024 * 1024;

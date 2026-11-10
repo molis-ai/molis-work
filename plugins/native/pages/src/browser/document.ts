@@ -1,4 +1,3 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { blankLeaving, dropBlank, leaveOnFold } from "./blank.js";
 import { publishContext, syncEditorChrome } from "./context.js";
 import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
@@ -9,6 +8,8 @@ import { noteFailure, showNote } from "./notes.js";
 import type { PagesPage } from "./page.js";
 import { pageTail } from "./request.js";
 import type { DocumentAnswer, ListAnswer, PagesRecord, PlacedDetail } from "./types.js";
+
+const uiText = globalThis.t;
 
 /** Reads the list again; a document open here that changed elsewhere is shown as it is now unless the person has edits of their own waiting. */
 export async function loadList(page: PagesPage) {

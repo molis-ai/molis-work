@@ -9,7 +9,7 @@ import { resolve, isAbsolute, join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createAccountService, parseAccountEnvironment, validateAccountContract } from '@molis-ai/molis-work-service-account';
 import { accountSessionForHost, createMolisWorkLocalHost } from '@molis-ai/molis-work-app-local-host';
-import { createDesktopWebHost } from '@molis-ai/molis-work-app-desktop';
+import { createDesktopWebCore } from '@molis-ai/molis-work-app-desktop';
 import provenance from '../horizontal/account/src/upstream/provenance.json' with { type: 'json' };
 
 const source = process.env.MOLIS_AUTH_SOURCE;
@@ -69,7 +69,7 @@ try {
   const clubRead = () => proxy.fetch(new Request(authOrigin + '/api/v2/users/me', { headers: { Authorization: `Bearer ${clubTokens.accessToken}`, Origin: clubOrigin } }));
   async function startHost() {
     host = createMolisWorkLocalHost({ homeDirectory: home, completeText: null });
-    server = createDesktopWebHost({ ptyClientFilePath: () => join(home, 'unused-asset.js') })({ homeDirectory: home, localHost: host,
+    server = createDesktopWebCore({ ptyClientFilePath: () => join(home, 'unused-asset.js') })({ homeDirectory: home, localHost: host,
       controlToken, account: { environment: config, fetch: centralFetch } });
     await new Promise((resolve, reject) => { server.once('error', reject); server.listen(port, '127.0.0.1', resolve); });
     return accountSessionForHost(host);

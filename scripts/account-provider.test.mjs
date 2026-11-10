@@ -125,8 +125,9 @@ try {
     ]);
     assert.equal(returned.response.mimeType, 'text/plain');
     await page.wait("document.querySelector('.account-form')?.textContent.includes('退出登录')");
-    assert.equal((await api('/session')).state, 'AUTHENTICATED'); await clickText('退出登录'); await page.wait("document.querySelector('.account-message').textContent.includes('已退出')");
-    await clickText('返回登录'); await page.wait("document.querySelector('.account-form button[type=submit]')&&!document.querySelector('.account-form button[type=submit]').disabled");
+    assert.equal((await api('/session')).state, 'AUTHENTICATED');
+    // Reset only the core fixture; account-installation.test.mjs verifies the actual installation logout through Chrome.
+    await logout(); assert.equal((await api('/session')).state, 'ANONYMOUS'); await clickText('关闭'); await page.click('[data-unified-account-link]'); await page.wait("document.querySelector('.account-form button[type=submit]')&&!document.querySelector('.account-form button[type=submit]').disabled");
   }
   process.stdout.write('PASS WORK-04 Chrome: browser popup and desktop bridge to mock providers, real local callback and original dialog recovery, responsive screenshots\n');
 } catch (error) { if(page) { process.stderr.write(JSON.stringify(await page.evaluate('({url:location.href, text:document.body?.innerText?.slice(0,1200),state:document.readyState})').catch(()=>null))+'\n'); await page.screenshot('/private/tmp/work04-browser-failure.png').catch(()=>{}); } throw error; } finally { await browser?.close(); if (server) await stop(server); await host?.close(); await stop(authServer); await proxy?.dispose(); await rm(home, { recursive: true, force: true }); }

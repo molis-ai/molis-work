@@ -24,7 +24,7 @@ import { ARTIFACT_ACTION_PERMISSIONS, ARTIFACTS_PROVIDER_ID } from "@molis-ai/mo
 import { agentTaskGrantActions } from "@molis-ai/molis-work-contracts/services/agent-task-grants";
 import { SKILLS_PROVIDER_ID, SKILLS_PERMISSIONS, skillImportActions } from "@molis-ai/molis-work-contracts/services/skills";
 import { TASK_GRANTS_PROVIDER_ID } from "./task-grant-actions.js";
-import { KIT_AGENT_DEFINITIONS_PROVIDER_ID, KIT_AGENT_TOOLS_PROVIDER_ID, KIT_PROVIDER_ID, KIT_READ_PERMISSION } from "@molis-ai/molis-work-contracts/services/kit";
+import { KIT_AGENT_DEFINITIONS_PROVIDER_ID, KIT_AGENT_MCP_PROVIDER_ID, KIT_AGENT_TOOLS_PROVIDER_ID, KIT_MCP_ACCESS_PROVIDER_ID, KIT_PROVIDER_ID, KIT_READ_PERMISSION } from "@molis-ai/molis-work-contracts/services/kit";
 
 const asks = (definitions: Iterable<{ readonly action?: { readonly permissions: readonly string[] } }>) =>
   [...definitions].flatMap(definition => definition.action?.permissions ?? []);
@@ -46,7 +46,7 @@ function ownerProviders(): ReadonlyMap<string, readonly string[]> {
     [ARTIFACTS_PROVIDER_ID, ARTIFACT_ACTION_PERMISSIONS],
     [HOME_PROVIDER_ID, HOME_ACTION_PERMISSIONS],
     [ACCOUNT_PROVIDER_ID, ACCOUNT_PERMISSIONS],
-    [CONNECTOR_PROVIDER_ID, [...CONNECTOR_ACCOUNT_PERMISSIONS, CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGEMENT_WRITE, ...connectorRecordActions.read.action.permissions]],
+    [CONNECTOR_PROVIDER_ID, [...CONNECTOR_ACCOUNT_PERMISSIONS, CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGEMENT_WRITE, ...connectorRecordActions.read.action.permissions, KIT_READ_PERMISSION]],
     [PLUGIN_CONSENT_PROVIDER_ID, PLUGIN_CONSENT_PERMISSIONS],
     // Importing Skills is installing the package the import makes: the same provider, the person's own (batch 08, 08-8).
     [PLUGIN_INSTALL_PROVIDER_ID, [...PLUGIN_INSTALL_PERMISSIONS, ...asks(Object.values(skillImportActions))]],
@@ -55,6 +55,8 @@ function ownerProviders(): ReadonlyMap<string, readonly string[]> {
     [KIT_PROVIDER_ID, [KIT_READ_PERMISSION]],
     [KIT_AGENT_TOOLS_PROVIDER_ID, [KIT_READ_PERMISSION]],
     [KIT_AGENT_DEFINITIONS_PROVIDER_ID, [KIT_READ_PERMISSION]],
+    [KIT_AGENT_MCP_PROVIDER_ID, [KIT_READ_PERMISSION]],
+    [KIT_MCP_ACCESS_PROVIDER_ID, [KIT_READ_PERMISSION]],
     [INFORMATION_PROVIDER_ID, asks(Object.values(informationActions))],
     [FUNCTIONS_PROVIDER_ID, asks([...Object.values(functionsActions), ...Object.values(functionAuthoringActions), ...Object.values(functionContextActions)])],
     [PROJECT_WORKSPACE_PROVIDER_ID, asks([...Object.values(projectDirectoryActions), ...Object.values(materialRecentActions), ...Object.values(materialOriginActions)])],

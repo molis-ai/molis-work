@@ -1,6 +1,8 @@
 import { skillCatalogProviderFor } from "./agent-definitions/skill-catalog-host.js";
+import type { ProjectPluginHost } from "./project-plugin-ports.js";
 import { agentDefinitionsKitProvider } from "./agent-definitions/kit-report.js";
 import { agentToolsKitProvider, kitProvider } from "./kit-actions.js";
+import { agentMcpKitProvider, mcpAccessKitProvider, withConnectorsKitReport } from "./kit-mcp-reports.js";
 import { accountActionProvider } from "@molis-ai/molis-work-service-account";
 import { accountSessionForHost } from "./account-host.js";
 import { projectSyncAccess } from './project-sync-access.js';
@@ -153,6 +155,8 @@ export class MolisWorkLocalHost {
   private readonly closing: { started?: boolean; completed: Set<string>; attempt?: Promise<void>; work?: Promise<void> } = { completed: new Set() };
   /** Commands that ran in this Home, for the 调用记录 page; absent without a Home directory. */
   readonly callLog?: ActionCallLog;
+  /** What the plugin-reading services share: the Host, its options, the Agent Host and the Home plugins, read when used. */
+  private get plugins(): ProjectPluginHost { return { host: this.host, options: this.options, agents: () => this.agents?.service, homePlugins: () => this.homePlugins }; }
   /** System search over this Home's plugins; absent without a Home directory. */
   readonly search?: SearchHost;
   readonly placement?: PlacementHost;
@@ -247,9 +251,10 @@ export class MolisWorkLocalHost {
         return project ? this.actionClient(project) : this.homeActionClient();
       }),
       agentToolsKitProvider(),
-      ...(options.homeDirectory ? [skillCatalogProviderFor(options.homeDirectory, { host: this.host, options: this.options, agents: () => this.agents?.service, homePlugins: () => this.homePlugins }),
-        agentDefinitionsKitProvider(options.homeDirectory, { host: this.host, options: this.options, agents: () => this.agents?.service, homePlugins: () => this.homePlugins }), taskGrantActionProvider(taskGrantHostPorts(options.homeDirectory, this)), pluginConsentProvider(new HomeConsentLedger(options.homeDirectory), () => this.homePlugins!.projectReachConsents(),
-        projectId => projectReachDetails(projectId, options.homeDirectory, this.catalogRunner, this, this.host, molisWorkHostProjectReference)), pluginInstallProviderFor(options.homeDirectory, { host: this.host, options: this.options, agents: () => this.agents?.service, homePlugins: () => this.homePlugins }), connectorAccountActionProvider(options.homeDirectory, (...args) => this.connectorMcp!.remember(...args), { library: async () => this.agents?.service.mcpLibrary(), refresh: async owner => { if (!this.agents) throw new Error("项目 MCP 运行服务未装配"); await this.agents.service.refreshExternalMcp(owner); } }, caller => this.inspectActions(caller, this.host.projects().find(project => project.project_id === caller.project_id)), caller => caller.project_id ? this.actionClient(this.host.projects().find(project => project.project_id === caller.project_id)!) : this.homeActionClient(), (caller, installId, pluginId) => installedConnectionSlots(installId, pluginId, this.homePlugins, reference => this.withProject(reference, runtime => installedPluginManifest(runtime.store.db, installId)), this.host.projects().find(project => project.project_id === caller.project_id)))] : []),
+      agentMcpKitProvider(async () => this.agents?.service.mcpLibrary(), this.plugins),
+      ...(options.homeDirectory ? [skillCatalogProviderFor(options.homeDirectory, this.plugins),
+        agentDefinitionsKitProvider(options.homeDirectory, this.plugins), mcpAccessKitProvider(options.homeDirectory), taskGrantActionProvider(taskGrantHostPorts(options.homeDirectory, this)), pluginConsentProvider(new HomeConsentLedger(options.homeDirectory), () => this.homePlugins!.projectReachConsents(),
+        projectId => projectReachDetails(projectId, options.homeDirectory, this.catalogRunner, this, this.host, molisWorkHostProjectReference)), pluginInstallProviderFor(options.homeDirectory, this.plugins), withConnectorsKitReport(connectorAccountActionProvider(options.homeDirectory, (...args) => this.connectorMcp!.remember(...args), { library: async () => this.agents?.service.mcpLibrary(), refresh: async owner => { if (!this.agents) throw new Error("项目 MCP 运行服务未装配"); await this.agents.service.refreshExternalMcp(owner); } }, caller => this.inspectActions(caller, this.host.projects().find(project => project.project_id === caller.project_id)), caller => caller.project_id ? this.actionClient(this.host.projects().find(project => project.project_id === caller.project_id)!) : this.homeActionClient(), (caller, installId, pluginId) => installedConnectionSlots(installId, pluginId, this.homePlugins, reference => this.withProject(reference, runtime => installedPluginManifest(runtime.store.db, installId)), this.host.projects().find(project => project.project_id === caller.project_id))), options.homeDirectory, this.plugins)] : []),
     ];
     registerHostPlatformProviders(this.host.actionRegistry(), platform);
     if (options.homeDirectory) {
@@ -391,11 +396,11 @@ export class MolisWorkLocalHost {
   private async prepareProjectPlugins(reference: LocalHostProjectReference, caller: ActionCallContext): Promise<void> {
     caller.signal?.throwIfAborted();
     if (caller.project_id !== reference.project_id.trim()) throw new ActionError("actions.scope_mismatch", "调用上下文与项目不一致");
-    await ensureProjectPluginActions({ host: this.host, options: this.options, agents: () => this.agents?.service, homePlugins: () => this.homePlugins }, reference);
+    await ensureProjectPluginActions(this.plugins, reference);
     caller.signal?.throwIfAborted();
     await this.agents?.service.restoreExternalMcp(reference);
     caller.signal?.throwIfAborted();
-    await this.host.withRuntime(reference, runtime => prepareInstalledPlugins({ host: this.host, options: this.options, agents: () => this.agents?.service, homePlugins: () => this.homePlugins }, reference, runtime));
+    await this.host.withRuntime(reference, runtime => prepareInstalledPlugins(this.plugins, reference, runtime));
     caller.signal?.throwIfAborted();
   }
 
@@ -428,7 +433,7 @@ export class MolisWorkLocalHost {
     reference: LocalHostProjectReference,
     operation: (runtime: MolisWorkProjectRuntime) => Result | Promise<Result>, options?: { activatePlugins?: boolean },
   ): Promise<Result> {
-    return withPreparedProject({ host: this.host, options: this.options, agents: () => this.agents?.service, homePlugins: () => this.homePlugins }, reference, operation, options?.activatePlugins);
+    return withPreparedProject(this.plugins, reference, operation, options?.activatePlugins);
   }
 
   closeProject(referenceOrStorageKey: LocalHostProjectReference | string): Promise<boolean> {

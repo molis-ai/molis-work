@@ -59,6 +59,7 @@
     "workflows.handoff.judging": "正在判断…",
     "workflows.handoff.judgment": "判断结果",
     "workflows.handoff.judgment-hold-choice": "判断结果是「{choice}」，不在可以交过去的结果里",
+    "workflows.handoff.judgment-hold-no-choice": "判断结果是「无」，不在可以交过去的结果里",
     "workflows.handoff.judgment-hold-review": "判断需要人确认，这一次没有交过去",
     "workflows.handoff.last-station": "这是最后一站，这一次已经走完。",
     "workflows.handoff.loading": "正在读取…",
@@ -225,7 +226,7 @@
     "workflows.ui.new-flow": "新建流程",
     "workflows.verdict.confidence": "把握 {value}%",
     "workflows.verdict.needs-review": "需要人确认",
-    "workflows.verdict.none": "无",
+    "workflows.verdict.no-result": "结果「无」",
     "workflows.verdict.result": "结果「{choice}」"
   }
 }

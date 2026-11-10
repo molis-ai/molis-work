@@ -101,6 +101,8 @@
     "form.result.loading": "载入中…",
     "form.result.none": "还没有答卷",
     "form.result.response-word": "答卷",
+    "form.result.numbered-response": "答卷 {number}",
+    "form.result.dated-response": "答卷 {number} · {date}",
     "form.result.score": "{score} 分",
     "form.result.submitted": "已提交",
     "form.result.untitled-question": "未命名题目",

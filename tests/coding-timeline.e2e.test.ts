@@ -1,20 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { openStudioChrome } from "./fixtures/plugin-builder-browser.js";
 import { pageTextScript } from "./fixtures/page-text.js";
 import { NUMBER_STYLES } from "@molis-ai/molis-work-design-system";
-import type { ChromePage } from "@molis-ai/molis-work-test-kit/browser";
+import { mountCodingTranscript } from "./fixtures/coding-transcript.js";
 
 interface Reading { summary: string; rows: string[]; footer: string }
-
-async function mountTranscript(page: ChromePage) {
-  const bundle = readFileSync(new URL("../plugins/native/coding/dist/transcript-bundle.js", import.meta.url), "utf8");
-  await page.evaluate(`globalThis.codingTranscript = (${bundle})({ readText: (...args) => globalThis.t.text(...args), turns: document.body,
-    lifetime: { listen: (target, event, listener) => target.addEventListener(event, listener) } }); true`);
-}
 
 test("时间线在等审查时只让要审批的操作显示“等你批准”，完成后如实收尾", { timeout: 30000 }, async t => {
   const directory = mkdtempSync(join(tmpdir(), "coding-timeline-"));
@@ -24,7 +18,7 @@ test("时间线在等审查时只让要审批的操作显示“等你批准”�
     const page = await browser.page();
     // The words come through the page's translator, as on the Coding page (`host.translate`).
     await page.evaluate(`(()=>{${pageTextScript("zh", "coding")}})()`);
-    await mountTranscript(page);
+    await mountCodingTranscript(page);
     const result = await page.evaluate<Record<"waiting" | "running" | "done" | "stopped" | "failed", Reading>>(`(()=>{
       const timeline=globalThis.codingTranscript.timeline;
       const block=document.createElement('section'),detail=document.createElement('details');detail.dataset.codingActivity='r:0';block.append(detail);document.body.append(block);
@@ -248,7 +242,7 @@ test("VUX-43 a live round's time keeps one format per range and one box across 9
   try {
     const page = await browser.page();
     await page.evaluate(`(()=>{${pageTextScript("zh", "coding")}})()`);
-    await mountTranscript(page);
+    await mountCodingTranscript(page);
     const read = async (locale: "zh" | "en") => {
       await page.evaluate(`(()=>{${pageTextScript(locale, "coding")}})()`);
       return page.evaluate<Array<{ text: string; box: string; text_width: number }>>(`(()=>{

@@ -59,6 +59,7 @@
     "workflows.handoff.judging": "Judging…",
     "workflows.handoff.judgment": "Judgment",
     "workflows.handoff.judgment-hold-choice": "The result “{choice}” is outside the allowed results, so nothing was handed over.",
+    "workflows.handoff.judgment-hold-no-choice": "The result “None” is outside the allowed results, so nothing was handed over.",
     "workflows.handoff.judgment-hold-review": "This judgment needs a person’s confirmation. Nothing was handed over.",
     "workflows.handoff.last-station": "This is the last station; the run is finished.",
     "workflows.handoff.loading": "Loading…",
@@ -243,7 +244,7 @@
     "workflows.ui.new-flow": "New workflow",
     "workflows.verdict.confidence": "{value}% confidence",
     "workflows.verdict.needs-review": "Needs a person to confirm",
-    "workflows.verdict.none": "None",
+    "workflows.verdict.no-result": "Result “None”",
     "workflows.verdict.result": "Result “{choice}”"
   }
 }

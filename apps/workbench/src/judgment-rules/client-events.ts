@@ -1,6 +1,7 @@
 /** Functions workbench, part of FUNCTIONS_CLIENT_FACTORY_SCRIPT joined in place: event wiring, preview, publish and the first load. */
 export const FUNCTIONS_CLIENT_EVENTS_PART = `  bench.addEventListener("molis-work:select-item", (event) => {
     const id = event.detail?.itemId;
+    if (event.detail?.invalidate && id === undefined) return;
     if (!id) { selectSeq++; openingId = null; return; }
     if (sel?.id === id) {
       bench.setAttribute("data-expanded", "true"); workspace.hidden = false; return;

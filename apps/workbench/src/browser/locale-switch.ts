@@ -8,18 +8,27 @@ import type { OwnedTextRef } from "@molis-ai/molis-work-contracts/platform/ui";
 /** What the browser's `t` and `say` produced, as plain text with the reference it came from; at most `limit`, the oldest leaves first. */
 export interface ProducedLog {
   record(output: string, ref: OwnedTextRef): void;
-  find(output: string): OwnedTextRef | undefined;
+  find(output: string, node: Text | Attr): OwnedTextRef | undefined;
+  remember(node: Text | Attr, output: string, ref?: OwnedTextRef): void;
 }
 
 export function createProducedLog(limit = 2000): ProducedLog {
   const entries = new Map<string, OwnedTextRef>();
+  const retitled = new WeakMap<Text | Attr, { output: string; ref: OwnedTextRef }>();
   return {
     record(output, ref) {
       entries.delete(output);
       entries.set(output, ref);
       if (entries.size > limit) entries.delete(entries.keys().next().value!);
     },
-    find: (output) => entries.get(output),
+    find(output, node) {
+      const known = retitled.get(node);
+      return known?.output === output ? known.ref : entries.get(output);
+    },
+    remember(node, output, ref) {
+      if (ref) retitled.set(node, { output, ref });
+      else retitled.delete(node);
+    },
   };
 }
 
@@ -51,7 +60,11 @@ function wordAttributes(element: Element): string[] {
 }
 
 /** One word of a region: a text, an attribute or a data block, under the nearest ancestor with an `id` or a `data-plugin-contribution`. */
-interface Word { readonly group: string; readonly key: string; readonly value: string; read(): string | null; set(value: string): void }
+interface Word { readonly node: Text | Attr; readonly group: string; readonly key: string; readonly value: string; read(): string | null; set(value: string): void }
+
+function textWord(node: Text, group: string, prefix: string): Word {
+  return { node, group, key: `${prefix}:${node.data}`, value: node.data, read: () => node.data, set: value => { node.data = value; } };
+}
 
 const groupOf = (element: Element, group: string) => element.id ? `#${element.id}` : element.hasAttribute("data-plugin-contribution") ? `@${element.getAttribute("data-plugin-contribution")}` : group;
 const childrenOf = (node: Node): readonly Node[] => [...(node instanceof HTMLTemplateElement ? node.content : node).childNodes];
@@ -60,16 +73,16 @@ const childrenOf = (node: Node): readonly Node[] => [...(node instanceof HTMLTem
 function wordsOf(node: Node, group: string, into: Word[], skip?: ReadonlySet<ParentNode>): Word[] {
   for (const child of childrenOf(node)) {
     if (child instanceof Text) {
-      if (child.data.trim() !== "") into.push({ group, key: `t:${child.data}`, value: child.data, read: () => child.data, set: (value) => { child.data = value; } });
+      if (child.data.trim() !== "") into.push(textWord(child, group, "t"));
     } else if (child instanceof Element && !skip?.has(child)) {
       const inner = groupOf(child, group);
       for (const name of wordAttributes(child)) {
-        const value = child.getAttribute(name)!;
-        into.push({ group: inner, key: `a:${name}=${value}`, value, read: () => child.getAttribute(name), set: (next) => child.setAttribute(name, next) });
+        const node = child.getAttributeNode(name)!, value = node.value;
+        into.push({ node, group: inner, key: `a:${name}=${value}`, value, read: () => node.ownerElement === child ? node.value : null, set: next => { node.value = next; } });
       }
       if (child.localName === "script" || child.localName === "style") {
         const text = child.firstChild;
-        if (child.hasAttribute("data-ui-language-model") && child.getAttribute("type") === "application/json" && text instanceof Text) into.push({ group: inner, key: `s:${text.data}`, value: text.data, read: () => text.data, set: (value) => { text.data = value; } });
+        if (child.hasAttribute("data-ui-language-model") && child.getAttribute("type") === "application/json" && text instanceof Text) into.push(textWord(text, inner, "s"));
       } else if (!keepsChildren(child)) wordsOf(child, inner, into, skip);
     }
   }
@@ -127,7 +140,7 @@ function align(old: readonly Run<Word>[], live: readonly Run<Word>[]): Array<[nu
  * positions the difference in count leaves it, so a position changes when a word that changes could be there. A real interface word is never
  * left in the old language; a word the person or the browser put right beside it may show translated until it is drawn again (§5.4).
  */
-interface WordChange { readonly word: Word; readonly to: string }
+interface WordChange { readonly word: Word; readonly to: string; readonly ref?: OwnedTextRef }
 function mergeRun(old: Run<Word & { readonly to: string | null }>, live: Run<Word>, changes: WordChange[]): number {
   const extra = live.words.length - old.words.length;
   let changed = 0;
@@ -168,10 +181,10 @@ function collectRegion(input: LocaleMergeInput, region: LocaleRegion, changes: W
   }
   // What the browser drew is in neither render: a whole word that is a sentence `t` or `say` produced is drawn again from its reference.
   for (const word of unmatched) {
-    const ref = input.produced.find(word.value);
+    const ref = input.produced.find(word.value, word.node);
     if (ref === undefined) continue;
     const text = input.retext(ref);
-    if (text !== word.value) { changes.push({ word, to: text }); redrawn += 1; }
+    if (text !== word.value) { changes.push({ word, to: text, ref }); redrawn += 1; }
   }
   return { changed, redrawn, problems };
 }
@@ -185,20 +198,24 @@ export function planLocaleText(input: LocaleMergeInput) {
     changed: all.changed + region.changed, redrawn: all.redrawn + region.redrawn, problems: [...all.problems, ...region.problems],
   }));
   return { result: { changed, redrawn, problems }, apply(use: () => void, restore: () => void) {
-    const wrote: Word[] = [];
+    const wrote: WordChange[] = [];
     try {
-      for (const { word, to } of changes) {
+      for (const change of changes) {
+        const { word, to } = change;
         // A concurrent ordinary update owns any word it has since redrawn. It will be invalidated after the switch.
         if (word.read() !== word.value) continue;
-        wrote.push(word);
+        wrote.push(change);
         word.set(to);
       }
       use();
     } catch (error) {
-      for (const word of wrote.reverse()) word.set(word.value);
+      for (const { word } of wrote.reverse()) word.set(word.value);
       restore();
       throw error;
     }
+    // The prepared reader did not produce these live words. Remember their individual references after commit,
+    // since distinct references can have the same spelling in the selected language.
+    for (const { word, to, ref } of wrote) if (word.read() === to) input.produced.remember(word.node, to, ref);
   } };
 }
 

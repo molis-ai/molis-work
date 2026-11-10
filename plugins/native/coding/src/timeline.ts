@@ -44,6 +44,15 @@ export interface TimelineTurnChanges {
 /** The words and tables the timeline reads with. */
 export type TimelineWords = ReturnType<typeof codingTimelineWords>;
 
+const waitingUntil = (at: string) => uiText.text("coding.timeline.until", { time: dateArg(at, "time-with-seconds") });
+
+export function retitleCodingWaits(scope: Element) {
+  scope.querySelectorAll("[data-coding-wait-until]").forEach((node: Element) => {
+    const text = waitingUntil(node.getAttribute("data-coding-wait-until")!);
+    if (node.textContent !== text) node.textContent = text;
+  });
+}
+
 export function createCodingTimeline(words: TimelineWords) {
   const TERMINAL = ["completed", "failed", "stopped", "cancelled", "reconcile-required"];
   const svg = (name: string) => `<svg aria-hidden="true"><use href="#icon-${name}"></use></svg>`;
@@ -94,13 +103,6 @@ export function createCodingTimeline(words: TimelineWords) {
   const lines = (text: string, limit: number) => {
     const all = text.replace(/\n$/, "").split("\n");
     return all.length <= limit ? { text: all.join("\n"), hidden: 0 } : { text: all.slice(0, limit).join("\n"), hidden: all.length - limit };
-  };
-  const waitingUntil = (at: string) => uiText.text("coding.timeline.until", { time: dateArg(at, "time-with-seconds") });
-  const retitleWaits = (scope: Element) => {
-    scope.querySelectorAll("[data-coding-wait-until]").forEach((node: Element) => {
-      const text = waitingUntil(node.dataset.codingWaitUntil);
-      if (node.textContent !== text) node.textContent = text;
-    });
   };
   /** A step's one line (operation, object, result) and what came back behind it: the refusal in words over the raw output. */
   const drawRow = (item: TimelineActivity, ended: boolean, waiting: boolean, items: TimelineActivity[]) => {
@@ -273,5 +275,5 @@ export function createCodingTimeline(words: TimelineWords) {
       node.textContent = show ? uiText.text("coding.live.quiet", { seconds: quiet }) : "";
     });
   }
-  return { renderGroup, renderFooter, tick, explainFailure, retitleWaits };
+  return { renderGroup, renderFooter, tick, explainFailure };
 }

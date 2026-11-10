@@ -131,6 +131,8 @@
     "form.result.loading": "Loading…",
     "form.result.none": "No submissions yet",
     "form.result.response-word": "Response",
+    "form.result.numbered-response": "Response {number}",
+    "form.result.dated-response": "Response {number} · {date}",
     "form.result.score": {
       "plural_arg": "score",
       "forms": {

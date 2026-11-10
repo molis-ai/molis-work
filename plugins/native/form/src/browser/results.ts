@@ -64,14 +64,16 @@ const renderStats = (page: FormPage, questions: readonly FormQuestion[], submiss
 const submissionCard = (_L: Translate, submission: FormSubmissionRecord, index: number) => {
   const card = make("article", "form-result");
   const head = document.createElement("strong");
-  const when = submission.submitted_at ? uiText.text("common.generated.formatted", { value: dateArg(submission.submitted_at, "datetime-with-seconds") }) : "";
-  head.textContent = uiText.text("form.result.response-word") + " " + (index + 1) + (when ? " · " + when : "");
+  head.textContent = submission.submitted_at
+    ? uiText.text("form.result.dated-response", { number: index + 1, date: dateArg(submission.submitted_at, "datetime-with-seconds") })
+    : uiText.text("form.result.numbered-response", { number: index + 1 });
   card.append(head);
   const labels = new Map(submission.questions.map(question => [question.id, question.title]));
   Object.entries(submission.answers || {}).forEach(([questionId, answer]) => {
     const row = document.createElement("p");
     const label = make("span", "", labels.get(questionId) || questionId);
     const value = document.createElement("span");
+    label.translate = false; value.translate = false;
     value.textContent = answer ? String(answer).replace(/\n/g, "、") : "—";
     row.append(label, value);
     card.append(row);

@@ -2,8 +2,10 @@ import assert from "node:assert/strict";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
-import { hostTextProblems, pluginPagesFor, projectDeletedHooksFor, runWithLocale } from "@molis-ai/molis-work-app-local-host";
+import { ASSISTANT_STORE_NAME, AssistantStore, hostTextProblems, pluginPagesFor, projectDeletedHooksFor, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import { escapeHtml, format, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { deferred } from "./fixtures/home-runtime.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
@@ -24,6 +26,14 @@ test("FSS-20 FSS-34 FSS-39 the settings language changes in place; rejected and 
     const draft = window.languageDraft = document.createElement('textarea');
     draft.value = 'Draft 原文 保存';
     document.querySelector('.settings-content').append(draft);
+    const dynamic = document.createElement('div'); dynamic.id = 'locale-collision-fixture';
+    const fixed = ['common.control.done', 'common.generated.done'].map(key => {
+      const button = document.createElement('button'); button.type = 'button'; button.title = t.text(key); button.append(t.text(key));
+      dynamic.append(button); return button;
+    });
+    const original = document.createElement('span'); original.translate = false; original.append('完成'); dynamic.append(original);
+    draft.after(dynamic);
+    window.collisionWords = () => fixed.map(button => [button.textContent, button.title]).concat([[original.textContent, original.translate]]);
     draft.focus(); draft.setSelectionRange(2, 6, 'backward');
     window.originalHeading = document.querySelector('#settings-title');
     const transport = window.molisWorkUiTransport;
@@ -43,6 +53,8 @@ test("FSS-20 FSS-34 FSS-39 the settings language changes in place; rejected and 
     };
   })()`);
   const select = (locale: string) => evaluate(`document.querySelector('a[data-ui-language=${locale}]').click()`);
+  const originalWords = [["完成", "完成"], ["已完成", "已完成"], ["完成", false]];
+  assert.deepEqual(await evaluate("collisionWords()"), originalWords);
   await select("en");
   await waitFor("document.querySelector('[data-ui-language-status] button')");
   assert.deepEqual(await evaluate("[document.documentElement.lang, languageAttempts.length, languageDraft.selectionStart, languageDraft.selectionEnd]"), ["zh-CN", 0, 2, 6]);
@@ -55,6 +67,7 @@ test("FSS-20 FSS-34 FSS-39 the settings language changes in place; rejected and 
   await select("en");
   await waitFor("document.documentElement.lang === 'en' && document.querySelector('a[data-ui-language=en]').getAttribute('aria-current')==='true'");
   assert.notEqual(await evaluate("originalHeading.textContent"), before, "the server-rendered settings heading was translated");
+  assert.deepEqual(await evaluate("collisionWords()"), [["Done", "Done"], ["Done", "Done"], ["完成", false]]);
   assert.deepEqual(await evaluate("[location.pathname, originalDocument === document.body, document.activeElement === languageDraft, languageDraft.value, languageDraft.selectionStart, languageDraft.selectionEnd, languageDraft.selectionDirection, languageAttempts]"),
     ["/settings/appearance", true, true, "Draft 原文 保存", 2, 6, "backward", ["zh", "en"]]);
 
@@ -71,6 +84,7 @@ test("FSS-20 FSS-34 FSS-39 the settings language changes in place; rejected and 
   // English has already been cached. A different resource named by the new render still has to load.
   await select("zh");
   await waitFor("document.documentElement.lang === 'zh-CN' && languageAttempts.length === 3");
+  assert.deepEqual(await evaluate("collisionWords()"), originalWords, "each live text and title keeps its own key when the translations collide");
   await evaluate("languageMode = 'wrong-asset'");
   await select("en");
   await waitFor("document.querySelector('[data-ui-language-status] button')");
@@ -78,6 +92,45 @@ test("FSS-20 FSS-34 FSS-39 the settings language changes in place; rejected and 
     ["zh-CN", true, "Draft 原文 保存", ["zh", "en", "zh"]]);
   await evaluate("languageMode = 'ready'; document.querySelector('[data-ui-language-status] button').click()");
   await waitFor("document.documentElement.lang === 'en' && !document.querySelector('[data-ui-language-status]')");
+});
+
+test("FSS-36 an open missed follow-up notice keeps its original label and time through both language changes", { timeout: 90_000 }, async t => {
+  const b = await openGoalBrowser(t, "seeded", undefined, null); if (!b?.projectId) return;
+  const text = { owner: "workbench", key: "workbench.assistant-notice.followup-missed", args: [
+    { name: "label", kind: "text", text: "原始提醒 <raw>" },
+    { name: "at", kind: "date", at: "2026-03-08T10:00:37.000Z", style: "datetime", time_zone: "America/Los_Angeles" },
+  ] } as const;
+  const db = openHomeSqliteDatabase(b.homeDirectory, ASSISTANT_STORE_NAME);
+  const notices = new AssistantStore(db);
+  t.after(() => db.close());
+  const notice = notices.raiseNotice(LOCAL_PERSON_ACTOR_ID, { kind: "failed", work_id: "", work_title: "原始提醒 <raw>", text }, "fixture:followup-missed-language");
+  assert.ok(notice);
+  const path = `/projects/${b.projectId}/`;
+  await b.navigate(() => b.command("Page.navigate", { url: b.origin + "/locale?lang=en&next=" + encodeURIComponent(path) }, b.sessionId));
+  await b.waitFor("document.querySelector('[data-assistant-attention]')?.hidden === false");
+  await b.click("[data-assistant-attention]");
+  const dismiss = `[data-notice-id=${JSON.stringify(notice.notice_id)}][data-notice-action=dismiss]`;
+  await b.waitFor(`document.querySelector(${JSON.stringify(dismiss)})?.getClientRects().length`);
+  await b.evaluate(`(() => {
+    window.missedDismiss = document.querySelector(${JSON.stringify(dismiss)}); missedDismiss.focus();
+    window.missedRow = missedDismiss.closest('.assistant-notice'); window.missedText = missedRow.querySelector('.assistant-notice-text').firstChild;
+    window.missedWrites = []; const fetchOriginal = window.fetch;
+    window.fetch = (input, init) => {
+      if (String(input?.url || input).includes('/api/assistant/notices') && (init?.method || input?.method || 'GET') !== 'GET') missedWrites.push(init?.method);
+      return fetchOriginal(input, init);
+    };
+  })()`);
+  const english = /“原始提醒 <raw>” missed its scheduled time at .*3:00:37\sAM/u;
+  assert.match(await b.evaluate<string>("missedText.data"), english);
+  for (const [tag, words] of [["zh", /错过了「原始提醒 <raw>」.*03:00:37/u], ["en", english]] as const) {
+    await b.evaluate(`(() => { const link = document.createElement('a'); link.dataset.uiLanguage = '${tag}';
+      link.href = '/locale?lang=${tag}'; document.body.append(link); link.click(); link.remove(); })()`);
+    await b.waitFor(`document.documentElement.dataset.uiLanguageTag === '${tag}'`);
+    assert.match(await b.evaluate<string>("missedText.data"), words);
+    assert.deepEqual(await b.evaluate(`[document.querySelector(${JSON.stringify(dismiss)})===missedDismiss, document.activeElement===missedDismiss,
+      missedRow.querySelector('.assistant-notice-text').firstChild===missedText, !!missedDismiss.getClientRects().length, missedWrites]`), [true, true, true, true, []]);
+  }
+  assert.deepEqual(notices.openNotices(LOCAL_PERSON_ACTOR_ID).find(row => row.notice_id === notice.notice_id)?.text, text);
 });
 
 const ISSUE_OWNER = "io.molis.work.issues";

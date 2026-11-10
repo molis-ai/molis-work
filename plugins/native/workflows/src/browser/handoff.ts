@@ -1,17 +1,26 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
+import type { WorkflowVerdict } from "../model.js";
 import { MOD, ico, kindName, statusOf, when } from "./dom.js";
 import { drawList } from "./list.js";
 import { openRun, remember } from "./nav.js";
 import type { WorkflowsPage } from "./page.js";
 import { drawRun } from "./run.js";
-import { label, readyState, ruleText } from "./state.js";
+import { label, readyState } from "./state.js";
 import { toast } from "./toast.js";
 import type { FlowAnswer, InstanceAnswer, ListAnswer, PreviewAnswer, Run, WorkflowPayload } from "./types.js";
 
 export function dataHtml(data: WorkflowPayload) {
   return `<div class="wf-payload"><strong>${esc(data.title)}</strong><pre>${esc(data.body)}</pre>` + (data.url ? `<a href="${esc(data.url)}" target="_blank" rel="noopener noreferrer">${esc(data.url)}</a>` : "") + "</div>";
+}
+
+function verdictHtml(verdict: WorkflowVerdict) {
+  const result = verdict.status === "needs_review" ? uiText.text("workflows.verdict.needs-review")
+    : verdict.choice ? uiText.text("workflows.verdict.result", { choice: verdict.choice }) : uiText.text("workflows.verdict.no-result");
+  const confidence = verdict.status === "ok" && verdict.confidence != null
+    ? ` · <span>${esc(uiText.text("workflows.verdict.confidence", { value: Math.round(verdict.confidence * 100) }))}</span>` : "";
+  return `<span>${esc(result)}</span>${confidence}`;
 }
 
 /** What the handoff box shows, as a key: the box is only redrawn with motion when this changes. */
@@ -35,7 +44,7 @@ export function renderHandoff(page: WorkflowsPage, run: Run, index: number) {
     return `<details class="wf-record mw-disclosure"${handoff.actor === "ai" ? " open" : ""}><summary><span class="wf-handoff__kind" data-kind="${handoff.kind}">${esc(kindName(handoff.kind))}</span><span>${esc(who)}</span><span class="wf-muted">${esc(when(handoff.at))}</span></summary>`
       + `<div class="wf-record__body"><p class="wf-record__label">${handoff.actor === "ai" ? esc(uiText.text("workflows.handoff.ai-output")) : esc(uiText.text("workflows.handoff.handed-content"))}</p>${dataHtml(handoff.output)}`
       + (handoff.rule ? `<p class="wf-record__label">${handoff.actor === "ai" ? esc(uiText.text("workflows.handoff.instruction")) : handoff.actor === "judgment" ? esc(uiText.text("workflows.kind.judgment")) : esc(uiText.text("workflows.handoff.rule"))}</p><pre class="wf-rule">${esc(handoff.rule)}</pre>` : "")
-      + (handoff.verdict ? `<p class="wf-record__label">${esc(uiText.text("workflows.handoff.judgment"))}</p><p class="wf-verdict">${esc(ruleText(handoff.verdict))}</p>` : "")
+      + (handoff.verdict ? `<p class="wf-record__label">${esc(uiText.text("workflows.handoff.judgment"))}</p><p class="wf-verdict">${verdictHtml(handoff.verdict)}</p>` : "")
       + `<button class="mw-btn mw-btn--ghost" type="button" data-wf-step="${index + 1}"><span>${esc(uiText.text("workflows.handoff.see-run", { next }))}</span>${ico("arrow")}</button></div></details>`;
   }
   if (index >= chain.links.length) {
@@ -47,8 +56,9 @@ export function renderHandoff(page: WorkflowsPage, run: Run, index: number) {
         const { verdict, reason } = run.stopped;
         const explanation = verdict ? esc(verdict.status === "needs_review"
           ? uiText.text("workflows.handoff.judgment-hold-review")
-          : uiText.text("workflows.handoff.judgment-hold-choice", { choice: verdict.choice ?? uiText.text("workflows.verdict.none") })) : "";
-        return `<p class="wf-handoff__note is-held">${ico("pause")}<span>${verdict ? `<span>${explanation}</span> · <span>${esc(ruleText(verdict))}</span>` : `<span translate="no">${esc(reason)}</span>`}</span></p>`;
+          : verdict.choice === null ? uiText.text("workflows.handoff.judgment-hold-no-choice")
+            : uiText.text("workflows.handoff.judgment-hold-choice", { choice: verdict.choice })) : "";
+        return `<p class="wf-handoff__note is-held">${ico("pause")}<span>${verdict ? `<span>${explanation}</span> · ${verdictHtml(verdict)}` : `<span translate="no">${esc(reason)}</span>`}</span></p>`;
       }
       return `<p class="wf-handoff__note">${ico("pause")}<span>${esc(uiText.text("workflows.handoff.ended-here"))}</span></p>`;
     }

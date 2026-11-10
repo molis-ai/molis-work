@@ -186,8 +186,9 @@ export function bindDocument(page: PagesPage) {
   page.commentOpen = page.Editor.bindComments({ workbench: bench, messages: host.messages, persistCurrent: () => persist(page), showNote: (message, isError) => showNote(page, message, isError), translate: readText,
     get selected() { return page.sel; }, get editor() { return page.editor; }, get unshowable() { return page.unshowable; }, get dirty() { return page.dirty || Boolean(page.saveTimer); } });
   bench.addEventListener("molis-work:select-item", (event) => {
-    const detail = (event as CustomEvent<{ itemId?: string; quiet?: boolean } | undefined>).detail;
+    const detail = (event as CustomEvent<{ itemId?: string | null; quiet?: boolean; invalidate?: boolean } | undefined>).detail;
     const id = detail?.itemId;
+    if (detail?.invalidate && id === undefined) return;
     if (!id) { page.selectionSeq++; page.openingId = null; leaveOnFold(page); return; }
     if (page.sel?.id === id) {
       revealEditor(page);

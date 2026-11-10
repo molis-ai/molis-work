@@ -68,8 +68,45 @@ test("PAGESCTX-05: real unsaved long drafts keep their context through the child
     await pages.evaluate(`document.querySelector('button[data-page-id="${a.id}"]').click()`);
     await waitFor(`(${parent})?.object?.id===${JSON.stringify(a.id)} && (${parent}).object.version===${savedVersion} && !('draft_text' in (${parent}))`);
     assert.equal(await pages.evaluate("window.contextBudgetEditor.view.state.doc.textContent"), short);
+    const waitingStore = openPagesStore(homeDirectory);
+    const waiting = (() => {
+      try { return waitingStore.create({ project_id: projectId!, title: "延迟打开的文档", body: documentOf("读取完成才显示的正文") }); }
+      finally { waitingStore.close(); }
+    })();
+    assert.equal(await pages.evaluate(`!!document.querySelector('button[data-page-id="${waiting.id}"]')`), false, "the directory has not read this new document");
+    await evaluate(`(() => {
+      const fetchOriginal = window.fetch, path = '/projects/${projectId}/api/plugins/io.molis.work.pages/pages/${waiting.id}';
+      window.pageSelectionRequests = [];
+      window.fetch = (input, init) => {
+        const pathname = new URL(String(input?.url || input), location.href).pathname, method = init?.method || 'GET';
+        if (pathname.includes('/api/plugins/io.molis.work.pages/pages/')) pageSelectionRequests.push([method, pathname]);
+        if (pathname === path && method === 'GET') return fetchOriginal(input, init).then(response => new Promise(resolve => {
+          window.releasePendingPage = () => { window.fetch = fetchOriginal; resolve(response); };
+        }));
+        return fetchOriginal(input, init);
+      };
+    })()`);
+    await pages.evaluate(`window.pagesInvalidated = false; document.querySelector('[data-pages=workbench]').addEventListener('molis-work:select-item', event => {
+      if (event.detail?.invalidate) window.pagesInvalidated = true;
+    })`);
+    await browser.click("[data-global-search-open]");
+    await waitFor("document.querySelector('[data-global-search-dialog]').open");
+    await evaluate(`{ const input = document.querySelector('[data-global-search]'); input.value = ${JSON.stringify(waiting.title)};
+      input.dispatchEvent(new Event('input', { bubbles: true })); }`);
+    const hit = `[data-global-search-hit][data-global-search-id=${JSON.stringify(waiting.id)}]`;
+    await waitFor(`document.querySelector(${JSON.stringify(hit)})`, 15_000);
+    await browser.click(hit);
+    await waitFor("typeof releasePendingPage === 'function'");
+    await evaluate(`(() => { const link = document.createElement('a'); link.dataset.uiLanguage = 'en';
+      link.href = '/locale?lang=en'; document.body.append(link); link.click(); link.remove(); })()`);
+    await pages.waitFor("document.documentElement.lang === 'en' && pagesInvalidated");
+    assert.equal(await pages.evaluate("window.contextBudgetEditor.view.state.doc.textContent"), short, "the old page stays open until the requested document arrives");
+    await evaluate("releasePendingPage()");
+    await waitFor(`(${parent})?.object?.id===${JSON.stringify(waiting.id)}`);
+    assert.equal(await pages.evaluate("window.contextBudgetEditor.view.state.doc.textContent"), "读取完成才显示的正文");
+    assert.deepEqual(await evaluate("pageSelectionRequests"), [["GET", `/projects/${projectId}/api/plugins/io.molis.work.pages/pages/${waiting.id}`]], "the language switch did not repeat the open or save either document");
     t.diagnostic(JSON.stringify({ originalDraftLength: long.length, oldSerializedLength: oldSize, retainedSerializedLength: raw.length, retainedExcerptLength: context.draft_text.length, originalVersion: a.version, savedVersion, parentId: a.id, homeDirectory }));
-  } finally { await evaluate("window.restoreBudgetFetch()"); }
+  } finally { await evaluate("window.releasePendingPage?.(); window.restoreBudgetFetch()"); }
 });
 
 for (const width of [1440, 390]) {

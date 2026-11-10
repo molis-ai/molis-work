@@ -8,8 +8,10 @@ export function pageSelection(root: HTMLElement, scope: FrameScope, row: FramePa
   let stop = () => {};
   scope.own(() => stop());
   return (detail: unknown) => {
-    stop();
-    const itemId = detail && typeof detail === "object" && "itemId" in detail ? detail.itemId : undefined;
+    const selection = detail && typeof detail === "object" ? detail : null;
+    const itemId = selection && "itemId" in selection ? selection.itemId : undefined;
+    const invalidation = selection && "invalidate" in selection && selection.invalidate === true && itemId === undefined;
+    if (!invalidation) stop();
     root.dispatchEvent(new CustomEvent("molis-work:select-item", { detail }));
     if (!row || typeof itemId !== "string" || !itemId) return;
     const observer = new MutationObserver(check), deadline = setTimeout(() => stop(), 10000);

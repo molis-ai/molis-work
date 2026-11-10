@@ -102,21 +102,22 @@ test('real browser creates a Feed → Shelf action workflow, maps fields, and wr
 
 });
 
-test('FSS-36 a held run shows the judgment in English and keeps a saved reason without a verdict as original text', { timeout: 90_000 }, async t => {
+test('FSS-36 held judgments follow both language changes and keep the run, verdict and original reason', { timeout: 90_000 }, async t => {
   const b = await openGoalBrowser(t, 'seeded', undefined, null);
   if (!b) return;
   const child = await pluginFrameBrowser(t, b, 'workflows');
   const project = b.projectId!, reference = molisWorkHostProjectReference({ databasePath: b.databasePath, projectId: project });
   const source = createLocalFeedSourceService(b.store.db, project).register({ kind: 'research_library', repository: 'molis-ai/research-library', research_source: 'workflow-hold' }).source;
   const feed = createLocalFeedApplication(b.store.db);
-  const items = ['Needs person', 'Outside allowed', 'Archived reason'].map(title => feed.ingestItem({ source, externalId: title,
+  const items = ['Needs person', 'Outside allowed', 'No choice', 'Archived reason'].map(title => feed.ingestItem({ source, externalId: title,
     title, summary: title, body: '原始材料', occurredAt: new Date().toISOString(), attention: false }).item);
   const choice = '未选 <tag>';
   const judge = defineAction({ capability_id: 'functions.published.workflow-hold-fixture', version: 1, operation: 'command', action: {
     title: '判断原名', description: '真实流程判断夹具', kind: 'judgment', scope: 'project', audiences: ['user', 'workflow'], permissions: [], subject_kinds: [],
     input_schema: { type: 'object', properties: { content: { type: 'string' } }, required: ['content'] },
-    output_schema: { type: 'object', properties: { data: { type: 'object', properties: { choice: { type: 'string', enum: [choice, 'pass'] } } } } },
-  } }, (_caller, { content }) => ({ status: content.includes('Needs person') ? 'needs_review' : 'ok', function_key: 'fixture', version: 1, data: { choice }, confidence: 0.9 }));
+    output_schema: { type: 'object', properties: { data: { type: 'object', properties: { choice: { type: ['string', 'null'], enum: [choice, 'pass', null] } } } } },
+  } }, (_caller, { content }) => ({ status: content.includes('Needs person') ? 'needs_review' : 'ok', function_key: 'fixture', version: 1,
+    data: { choice: content.includes('No choice') ? null : choice }, confidence: 0.9 }));
   const remove = b.localHost!.actionRegistry(reference).registerProvider({ provider: { provider_id: 'workflow-hold-fixture', kind: 'system', title: '判断提供方', project_id: project },
     definitions: [judge.definition], handlers: [judge.handler] });
   try {
@@ -133,11 +134,12 @@ test('FSS-36 a held run shows the judgment in English and keeps a saved reason w
       }
       return { workflow, runs };
     });
-    assert.deepEqual(runs.map(run => run.stopped?.verdict?.status), ['needs_review', 'ok', 'ok']);
+    assert.deepEqual(runs.map(run => run.stopped?.verdict?.status), ['needs_review', 'ok', 'ok', 'ok']);
+    assert.equal(runs[2]!.stopped?.verdict?.choice, null);
     const original = '判断需要人确认，这一次没有交过去 <tag> 原文';
     const store = openWorkflowsStore(b.homeDirectory);
     try {
-      const legacy = runs[2]!;
+      const legacy = runs[3]!;
       const steps = legacy.steps.map((step, index) => index === 0 ? { ...step, held: { at: legacy.stopped!.at, reason: original } } : step);
       store.saveInstance(legacy, { ...legacy, steps });
     } finally { store.close(); }
@@ -145,17 +147,55 @@ test('FSS-36 a held run shows the judgment in English and keeps a saved reason w
     await b.click('[data-plugin-strip] [data-plugin-id=workflows]');
     await child.waitFor(`document.querySelector('[data-wf-open="${workflow.workflow_id}"]')`);
     await child.click(`[data-wf-open="${workflow.workflow_id}"]`);
-    for (const [index, expected] of ['This judgment needs a person’s confirmation. Nothing was handed over.', `The result “${choice}” is outside the allowed results, so nothing was handed over.`, original].entries()) {
+    const cases = [
+      { en: ['This judgment needs a person’s confirmation. Nothing was handed over.', 'Needs a person to confirm'] },
+      { en: [`The result “${choice}” is outside the allowed results, so nothing was handed over.`, `Result “${choice}”`, '90% confidence'],
+        zh: [`判断结果是「${choice}」，不在可以交过去的结果里`, `结果「${choice}」`, '把握 90%'] },
+      { en: ['The result “None” is outside the allowed results, so nothing was handed over.', 'Result “None”', '90% confidence'],
+        zh: ['判断结果是「无」，不在可以交过去的结果里', '结果「无」', '把握 90%'] },
+      { en: [original], zh: [original] },
+    ];
+    await b.evaluate(`(() => {
+      const fetchOriginal = window.fetch;
+      window.holdRunRequests = [];
+      window.fetch = (input, init) => {
+        if (String(input?.url || input).includes('/api/plugins/io.molis.work.workflows/workflows')) holdRunRequests.push(init?.method || 'GET');
+        return fetchOriginal(input, init);
+      };
+    })()`);
+    const words = `Array.from(document.querySelectorAll('.wf-handoff__note.is-held > span > span'), node => node.textContent)`;
+    for (const [index, expected] of cases.entries()) {
       if (index > 0) await child.click('[data-wf-action=back-to-flow]');
       await child.waitFor(`document.querySelector('[data-wf-open-instance="${runs[index]!.instance_id}"]')`);
       await child.click(`[data-wf-open-instance="${runs[index]!.instance_id}"]`);
-      const first = `document.querySelector('.wf-handoff__note.is-held > span > span')`;
-      await child.waitFor(`${first}?.textContent===${JSON.stringify(expected)}`);
-      assert.equal(await child.evaluate(`${first}.querySelector('tag')`), null);
-      if (index === 2) assert.equal(await child.evaluate(`${first}.getAttribute('translate')`), 'no');
+      await child.waitFor(`JSON.stringify(${words})===${JSON.stringify(JSON.stringify(expected.en))}`);
+      assert.equal(await child.evaluate(`!!document.querySelector('.wf-handoff__note.is-held tag')`), false);
+      if (index === 3) assert.equal(await child.evaluate(`document.querySelector('.wf-handoff__note.is-held span[translate]').getAttribute('translate')`), 'no');
+      if (!expected.zh) continue;
+      await child.evaluate(`(() => {
+        window.heldRun = document.querySelector('.wf-run'); window.heldNote = heldRun.querySelector('.is-held');
+        window.heldBack = heldRun.querySelector('[data-wf-action=back-to-flow]'); heldBack.focus();
+        if (!window.holdInvalidations) {
+          window.holdInvalidations = { count: 0 };
+          document.querySelector('[data-workflows=workbench]').addEventListener('molis-work:select-item', event => {
+            if (event.detail?.invalidate) holdInvalidations.count++;
+          });
+        }
+      })()`);
+      await b.evaluate('holdRunRequests.length = 0');
+      for (const [tag, locale] of [['zh', 'zh-CN'], ['en', 'en']] as const) {
+        const count = await child.evaluate<number>('holdInvalidations.count');
+        await b.evaluate(`(() => { const link = document.createElement('a'); link.dataset.uiLanguage = '${tag}';
+          link.href = '/locale?lang=${tag}'; document.body.append(link); link.click(); link.remove(); })()`);
+        await child.waitFor(`document.documentElement.lang === '${locale}' && holdInvalidations.count > ${count}`);
+        assert.deepEqual(await child.evaluate(words), expected[tag]);
+        assert.deepEqual(await child.evaluate(`[document.querySelector('.wf-run')===heldRun, heldRun.dataset.id, heldRun.querySelector('.is-held')===heldNote,
+          document.activeElement===heldBack]`), [true, runs[index]!.instance_id, true, true]);
+      }
+      assert.deepEqual(await b.evaluate('holdRunRequests'), [], 'changing language makes no Workflow business request');
     }
     await runWithLocale('en', async () => {
-      for (const run of runs.slice(0, 2)) assert.deepEqual((await actions.invoke(w.instance, { id: run.instance_id })).instance.stopped, run.stopped);
+      for (const run of runs.slice(0, 3)) assert.deepEqual((await actions.invoke(w.instance, { id: run.instance_id })).instance.stopped, run.stopped);
     });
   } finally { remove(); }
 });

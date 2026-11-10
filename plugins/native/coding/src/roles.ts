@@ -55,7 +55,7 @@ export const codingAgentManifest: AgentManifest = {
   // A writable round that called no tool has its last words checked against the round's facts (D1②): the person's
   // 2026-09-28 decision to continue an ending that only announces covers Coding too.
   ending_review: { prompt_id: "coding-ending-review" },
-  skills: codingSkills.map(({ body: _body, ...declaration }) => declaration),
+  skills: codingSkills.map(({ body: _body, body_by_locale: _localizedBodies, ...declaration }) => declaration),
   // acknowledge-inputs: every role the person talks to may say how it handles a supplement; the runtime keeps that as the AI's
   // claim on its own input ledger and shows the round each supplement's id only when it lists the tool (receipts 3e-0b).
   roles: [

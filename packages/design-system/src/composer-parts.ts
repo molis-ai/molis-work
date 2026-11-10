@@ -45,10 +45,13 @@ function commandItem(command: ComposerMenuCommand, at: number): string {
  * offers them, and this page's commands that add something (not those marked `add: false`). `sources` undefined: still being
  * read; a group then says so instead of the menu jumping later.
  */
+/** A source by its plugin and its own name; one named as the plugin itself (待办 · 待办) is named once. */
+const sourceName = (source: ComposerMenuSource) => source.provider === source.title ? source.title : `${source.provider} · ${source.title}`;
+
 export function renderComposerAddMenu(labels: MwComposerLabels, parts: { files: boolean; sources?: readonly ComposerMenuSource[] | "unavailable"; commands: readonly ComposerMenuCommand[] }): string {
   const files = parts.files ? renderMenuGroup({ items: renderMenuItem({ label: labels.files, iconName: "paperclip", description: labels.filesHint, attrs: { "data-composer-files": "" } }) }) : "";
   const sources = parts.sources === undefined ? line(labels.searching) : parts.sources === "unavailable" || !parts.sources.length ? "" : renderMenuGroup({ items: parts.sources.map((source, index) =>
-    renderMenuItem({ label: `${source.provider} · ${source.title}`, iconName: "package", attrs: { "data-composer-source": String(index) } })).join("") });
+    renderMenuItem({ label: sourceName(source), iconName: "package", attrs: { "data-composer-source": String(index) } })).join("") });
   const adding = parts.commands.map((command, at) => ({ command, at: command.at ?? at })).filter(({ command }) => command.add !== false);
   const commands = adding.length ? renderMenuGroup({ label: labels.adding ?? labels.commands, items: adding.map(({ command, at }) => commandItem(command, at)).join("") }) : "";
   return renderMenu({ items: files + sources + commands });
@@ -68,7 +71,7 @@ export function narrowComposerCommands<Command extends ComposerMenuCommand>(comm
 
 /** A source opened in the ＋ menu: its query field and what it found (`items` undefined while it looks, a string when it failed). */
 export function renderComposerPick(labels: MwComposerLabels, source: ComposerMenuSource, query: string, items: readonly { title: string; hint?: string }[] | string | undefined): string {
-  const name = `${source.provider} · ${source.title}`;
+  const name = sourceName(source);
   const found = items === undefined ? line(labels.searching) : typeof items === "string" ? line(items) : items.length === 0 ? line(labels.nothing)
     : items.map((item, index) => renderMenuItem({ label: item.title, ...(item.hint ? { description: item.hint, id: `mw-composer-pick-${index}` } : {}), attrs: { "data-composer-pick": String(index) } })).join("");
   return renderMenu({ items: `<div class="mw-composer__query"><input class="mw-input" type="search" data-composer-query aria-label="${escapeHtml(name)}" placeholder="${escapeHtml(name)}" value="${escapeHtml(query)}"></div>${renderMenuGroup({ label: name, items: found })}` });

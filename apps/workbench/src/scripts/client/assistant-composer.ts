@@ -104,20 +104,21 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
   };
   // Every method and capability is listed (the menu scrolls); the composer's "/" narrows them by the words typed after it.
   const commands = () => [
-    ...startersFor().map((starter) => ({ slash: L("开始"), label: starter.label + (starter.kind ? " · " + starter.kind : ""), ...(starter.hint ? { hint: starter.hint } : {}),
+    // Each kind keeps the glyph Coding gives the same kind (its ＋), so a method or a capability looks the same wherever it is added.
+    ...startersFor().map((starter) => ({ slash: L("开始"), icon: "sparkles", label: starter.label + (starter.kind ? " · " + starter.kind : ""), ...(starter.hint ? { hint: starter.hint } : {}),
       run: () => { if (useStarter(starter)) input.focus(); } })),
     ...rows.methods.map((row) => {
       const title = L(row.kind === "role" ? "角色资料：{name}" : "方法：{name}", { name: row.name });
-      return { slash: L(row.kind === "role" ? "角色资料" : "方法"), label: row.name + " · " + row.plugin_title, hint: row.summary || row.name, run: choose({ kind: "method", title,
+      return { slash: L(row.kind === "role" ? "角色资料" : "方法"), icon: row.kind === "role" ? "user" : "list", label: row.name + " · " + row.plugin_title, hint: row.summary || row.name, run: choose({ kind: "method", title,
         method: { method_id: row.method_id, version: row.version, ...(row.default_ref ? { default_ref: row.default_ref, installation: row.installation } : {}) } },
         (file) => file.method.method_id === row.method_id && file.method.installation?.install_id === row.installation?.install_id) };
     }),
     ...rows.capabilities.map((row) => {
       const title = row.provider + " · " + row.title;
-      return { slash: L("用"), label: title, hint: row.description || title, run: choose({ kind: "capability", title: L("用：{title}", { title }),
+      return { slash: L("用"), icon: "workflow", label: title, hint: row.description || title, run: choose({ kind: "capability", title: L("用：{title}", { title }),
         capability: { capability_id: row.capability_id, version: row.version, provider_id: row.provider_id, title } }, (file) => file.capability.capability_id === row.capability_id) };
     }),
-    ...(project && document.documentElement.dataset.knowledgePicker === "1" ? [{ slash: L("资料"), label: L("选择项目资料…"), hint: L("可多选，读原文给助理"),
+    ...(project && document.documentElement.dataset.knowledgePicker === "1" ? [{ slash: L("资料"), icon: "paperclip", label: L("选择项目资料…"), hint: L("可多选，读原文给助理"),
       run: () => document.dispatchEvent(new CustomEvent("molis-work:knowledge-pick", { detail: { request_id: "assistant:" + crypto.randomUUID(), max: 10 } })) }] : []),
   ];
   /** Who the next Send goes to: the work in front, named by its place first when that is not this page (#1919); else a new work. */

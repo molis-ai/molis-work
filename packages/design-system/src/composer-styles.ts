@@ -48,12 +48,14 @@ export const COMPOSER_STYLES = `${COMPOSER_PATTERN_STYLES}
   /* A scene control is as wide as its choice and gives way when the bar is crowded, the longest first; a short one stays whole. */
   .mw-composer__controls .mw-select-picker { flex: 0 1 auto; width: auto; min-width: 4.5rem; max-width: 15rem; }
   .mw-composer__controls .mw-select-picker__trigger { width: 100%; min-width: 0; }
+  /* The bar is one size: its own touch rule (600px and below, or a finger) sizes all of it, so a page's wider narrow rule (760px) does not enlarge its settings alone beside a desktop ＋ and send. */
+  @media (min-width: 601px) and (pointer: fine) { .mw-composer__controls .mw-select { min-height: var(--control-h, 32px); font-size: 13px; } }
   .mw-composer__end { flex: none; }
   .mw-composer__more { display: none; }
   .mw-composer .mw-compose__anchor { position: static; }
   .mw-composer .mw-compose__menu { top: auto; right: 0; bottom: calc(100% + 6px); left: auto; width: min(340px, 100%); }
   .mw-composer__start .mw-compose__menu { right: auto; left: 0; }
-  .mw-composer .mw-compose__menu .mw-menu { width: 100%; min-width: 0; max-height: min(360px, 60vh, var(--mw-composer-menu-room, 60vh)); overflow-y: auto; animation-name: craft-rise-from-bar; }
+  .mw-composer .mw-compose__menu .mw-menu { width: 100%; min-width: 0; max-height: min(440px, 60vh, var(--mw-composer-menu-room, 60vh)); overflow-y: auto; animation-name: craft-rise-from-bar; }
   /* A refusal still explains itself: only the disabled name and icon are faint, never the reason beneath. */
   .mw-composer .mw-menu__item:disabled:has(.mw-menu__desc) { opacity: 1; }
   .mw-composer__query { padding: 4px 4px 6px; }

@@ -1,9 +1,6 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 /**
- * The words the Coding timeline reads tool calls and failures with. Like `createCodingTimeline`, it is injected into the
- * browser with `toString()` and must stay self-contained; the client hands its result to the timeline factory.
- *
- * `readText` is the page's translator (`globalThis.t.text`): every phrase here is a `coding.*` key in `messages.ts`.
+ * The words the Coding timeline reads tool calls and failures with, from Coding's language files.
  */
 export function codingTimelineWords(readText: (text: string, values?: Record<string, string | number>) => string) {
   /**
@@ -11,7 +8,7 @@ export function codingTimelineWords(readText: (text: string, values?: Record<str
    * counted in the summary — by distinct target (files, directories), by call, or not at all.
    */
   const kind = (key: string, icon: string, tally: "targets" | "calls" | "" = "calls") =>
-    ({ key, icon, tally, verb: (`coding.call.${key}`), doing: (`coding.call.${key}.doing`) });
+    ({ key, icon, tally, get verb() { return readText(`coding.call.${key}`); }, get doing() { return readText(`coding.call.${key}.doing`); } });
   const read = kind("read", "file", "targets"), search = kind("search", "search"), list = kind("list", "folder", "targets");
   const KIND: Record<string, ReturnType<typeof kind>> = {
     read, "read-file": read,

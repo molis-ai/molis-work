@@ -7,6 +7,9 @@ export const PLUGIN_EVENT_RECOVERY_CLIENT = `(host, market) => {
   const key=row=>JSON.stringify([row.cursor.subscriber_plugin_id,row.cursor.subscriber_install_id,row.cursor.subscriber_generation,row.cursor.source_plugin_id,row.cursor.event_type_id,row.cursor.type_version]);
   const message=text=>{if(typeof text==='string')error.textContent=text;else molisWorkRequest.show(error,text);error.hidden=!text;};
   const node=(tag,text,className)=>{const item=document.createElement(tag);item.textContent=text;if(className)item.className=className;return item;};
+  const wordsAt=at=>globalThis.t.text("common.generated.formatted", { value: { kind: "date", at, style: "datetime-with-seconds" } });
+  const time=at=>{const item=node('time',wordsAt(at));item.dateTime=at;return item;};
+  const sourceOf=row=>[globalThis.t.text("workbench.plugin-event-recovery.label")+' '+row.source_name+' · ',row.event?.occurred_at?time(row.event.occurred_at):''];
   const sync=()=>{
     form.querySelectorAll('button,textarea,input').forEach(item=>{item.disabled=busy;});
     form.querySelector('[type=submit]').disabled=busy||!fresh||!selected?.can_recover;
@@ -14,8 +17,8 @@ export const PLUGIN_EVENT_RECOVERY_CLIENT = `(host, market) => {
     q('[data-plugin-events-refresh]').disabled=busy;
   };
   const describe=()=>{
-    q('[data-plugin-event-description]').textContent=selected
-      ? selected.subscriber_name+' · '+globalThis.t.text("workbench.plugin-event-recovery.label")+' '+selected.source_name+' · '+(selected.event?.occurred_at?globalThis.t.text("common.generated.formatted", { value: { kind: "date", at: selected.event.occurred_at, style: "datetime" } }):'') : globalThis.t.text("workbench.plugin-event-recovery.notification-has-been-handled-no-longer-available-close");
+    q('[data-plugin-event-description]').replaceChildren(...(selected ? [selected.subscriber_name+' · ',...sourceOf(selected)]
+      : [globalThis.t.text("workbench.plugin-event-recovery.notification-has-been-handled-no-longer-available-close")]));
     q('[data-plugin-event-payload]').textContent=selected?JSON.stringify({source:selected.cursor.source_plugin_id,event:selected.event,error:selected.cursor.last_error_code},null,2):'';
     if(selected&&!selected.can_recover)message(selected.unavailable_reason);
     sync();
@@ -23,14 +26,16 @@ export const PLUGIN_EVENT_RECOVERY_CLIENT = `(host, market) => {
   const paint=(history=[])=>{
     q('[data-plugin-events-list]').replaceChildren(...rows.map((row,index)=>{
       const item=node('div','','plugin-event-row'), copy=node('div','');
-      copy.append(node('strong',row.subscriber_name),node('p',globalThis.t.text("workbench.plugin-event-recovery.label")+' '+row.source_name+' · '+(row.event?.occurred_at?globalThis.t.text("common.generated.formatted", { value: { kind: "date", at: row.event.occurred_at, style: "datetime" } }):'')));
+      const details=node('p','');details.append(...sourceOf(row));copy.append(node('strong',row.subscriber_name),details);
       if(row.unavailable_reason)copy.append(node('small',row.unavailable_reason));
       const button=node('button',globalThis.t.text("workbench.plugin-event-recovery.review"),'mw-btn mw-btn--secondary');button.type='button';button.dataset.pluginEventOpen=String(index);
       item.append(copy,button);return item;
     }));
     q('[data-plugin-events-history]').hidden=!history.length;
-    q('[data-plugin-events-history-list]').replaceChildren(...history.map(record=>node('p',
-      globalThis.t.text("common.generated.formatted", { value: { kind: "date", at: record.resolved_at, style: "datetime" } })+' · '+record.actor_id+' · '+globalThis.t.text(record.decision==='skip'?"workbench.plugin-event-recovery.skipped":"workbench.plugin-event-recovery.retry-requested")+' · '+record.event_id+' · '+record.reason)));
+    q('[data-plugin-events-history-list]').replaceChildren(...history.map(record=>{
+      const row=node('p','');row.append(time(record.resolved_at),' · '+record.actor_id+' · ',
+        globalThis.t.text(record.decision==='skip'?"workbench.plugin-event-recovery.skipped":"workbench.plugin-event-recovery.retry-requested"),' · '+record.event_id+' · '+record.reason);return row;
+    }));
   };
   // The dock bell asks for this list; bring it into view once the read it waited for has settled.
   const reveal=()=>{
@@ -51,6 +56,9 @@ export const PLUGIN_EVENT_RECOVERY_CLIENT = `(host, market) => {
     }catch(cause){if(epoch===reading&&!signal?.aborted&&lifetime.alive){status.classList.remove('mw-loading');molisWorkRequest.show(status,cause);if(dialog.open)message(cause);fresh=false;sync();reveal();}}
   };
   lifetime.whenVisible(signal=>{viewSignal=signal;void load();return()=>{reading++;fresh=false;if(dialog.open)dialog.close();};});
+  lifetime.listen(document,'molis-work:language-changed',()=>{
+    root.querySelectorAll('time[datetime]').forEach(item=>{item.textContent=wordsAt(item.dateTime);});
+  });
   lifetime.listen(root,'click',event=>{
     const open=event.target.closest('[data-plugin-event-open]');
     if(open&&!busy){selected=rows[Number(open.dataset.pluginEventOpen)];form.reset();message('');describe();dialog.showModal();form.elements.reason.focus();return;}

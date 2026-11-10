@@ -43,7 +43,13 @@ export function renderHandoff(page: WorkflowsPage, run: Run, index: number) {
   }
   if (run.status !== "active" || index !== run.current) {
     if (run.status === "stopped" && index === run.current) {
-      if (run.stopped && run.stopped.from === index) return `<p class="wf-handoff__note is-held">${ico("pause")}<span><span translate="no">${esc(run.stopped.reason)}</span>` + (run.stopped.verdict ? " · " + esc(ruleText(run.stopped.verdict)) : "") + "</span></p>";
+      if (run.stopped?.from === index) {
+        const { verdict, reason } = run.stopped;
+        const explanation = verdict ? esc(verdict.status === "needs_review"
+          ? uiText.text("workflows.handoff.judgment-hold-review")
+          : uiText.text("workflows.handoff.judgment-hold-choice", { choice: verdict.choice ?? uiText.text("workflows.verdict.none") })) : "";
+        return `<p class="wf-handoff__note is-held">${ico("pause")}<span>${verdict ? `<span>${explanation}</span> · <span>${esc(ruleText(verdict))}</span>` : `<span translate="no">${esc(reason)}</span>`}</span></p>`;
+      }
       return `<p class="wf-handoff__note">${ico("pause")}<span>${esc(uiText.text("workflows.handoff.ended-here"))}</span></p>`;
     }
     return "";

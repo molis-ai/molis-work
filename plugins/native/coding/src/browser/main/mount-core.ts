@@ -1,8 +1,6 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { CODING_SESSION_MARKS } from "../../session-marks.js";
-import { createCodingTimeline } from "../../timeline.js";
-import { codingTimelineWords } from "../../timeline-words.js";
-import { createCodingTurnChanges } from "../../turn-changes-client.js";
+import { codingTranscript } from "../transcript.js";
 import type { CodingHost } from "./host.js";
 import type { Page, Refs, State } from "./page.js";
 import { readCurrent } from "./read.js";
@@ -82,8 +80,9 @@ export function mountFoundations(page: Page) {
   const { readText, lifetime, s, turns } = page;
   s.viewSignal = undefined;
   mountResultsIndex(page);
-  page.refs.timeline = createCodingTimeline(codingTimelineWords(readText));
-  page.refs.turnChanges = createCodingTurnChanges(readText);
+  const { timeline, turnChanges } = codingTranscript({ readText, lifetime, turns });
+  page.refs.timeline = timeline;
+  page.refs.turnChanges = turnChanges;
   lifetime.poll(() => page.refs.timeline.tick(turns), 1000);
   followConversation(page);
 }

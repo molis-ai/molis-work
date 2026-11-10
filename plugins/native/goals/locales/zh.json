@@ -180,6 +180,7 @@
     "goals.document-ui.return-goal-tree": "返回 Goal Tree",
     "goals.document-ui.trash-empty": "回收站是空的",
     "goals.document-ui.trash-preserves-goal": "这不是永久删除；恢复后仍是同一个 Goal",
+    "goals.document-ui.trash-reason": "移入原因：",
     "goals.document-ui.trash-state": "回收站状态",
     "goals.document-ui.why-do": "为什么做：",
     "goals.documents.deliverable": "交付物",

@@ -64,7 +64,7 @@ const renderStats = (page: FormPage, questions: readonly FormQuestion[], submiss
 const submissionCard = (_L: Translate, submission: FormSubmissionRecord, index: number) => {
   const card = make("article", "form-result");
   const head = document.createElement("strong");
-  const when = submission.submitted_at ? uiText.text("common.generated.formatted", { value: dateArg(submission.submitted_at, "datetime") }) : "";
+  const when = submission.submitted_at ? uiText.text("common.generated.formatted", { value: dateArg(submission.submitted_at, "datetime-with-seconds") }) : "";
   head.textContent = uiText.text("form.result.response-word") + " " + (index + 1) + (when ? " · " + when : "");
   card.append(head);
   const labels = new Map(submission.questions.map(question => [question.id, question.title]));

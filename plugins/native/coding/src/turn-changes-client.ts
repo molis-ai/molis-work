@@ -11,10 +11,7 @@ type TurnNode = {
 };
 declare const document: { createElement(tag: string): TurnNode };
 
-/**
- * The row for what one turn wrote. Injected into the browser with `toString()` like the timeline, so it stays
- * self-contained.
- */
+/** The row for what one turn wrote. */
 export function createCodingTurnChanges(_L: (key: string, values?: Record<string, string | number>) => string) {
   const svg = (name: string) => `<svg aria-hidden="true"><use href="#icon-${name}"></use></svg>`;
   const escape = (value: unknown) => String(value ?? "").replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char] as string));

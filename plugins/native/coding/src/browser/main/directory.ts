@@ -49,7 +49,7 @@ function drawTime(time: HTMLTimeElement, updated: string) {
   const at = new Date(updated), now = new Date(), invalid = Number.isNaN(at.getTime());
   time.textContent = invalid ? updated.slice(5, 10) : at.toDateString() === now.toDateString() ? pad(at.getHours()) + ":" + pad(at.getMinutes()) : pad(at.getMonth() + 1) + "-" + pad(at.getDate());
   time.dateTime = updated;
-  time.title = invalid ? updated : format.date(updated, "datetime");
+  time.title = invalid ? updated : format.date(updated, "datetime-with-seconds");
 }
 
 /** What a session's state line says: priority, the state, who holds its open plan steps, and a twin on the same Goal. */

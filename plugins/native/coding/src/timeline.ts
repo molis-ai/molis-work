@@ -3,9 +3,7 @@ import { dateArg, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
  * How one round reads in the conversation: each tool call is a row that says what it touched and how it
  * ended, consecutive calls fold into one summary, and a round closes with what actually happened.
  *
- * `createCodingTimeline` is injected into the browser with `toString()`, so it must stay self-contained:
- * no imports, no closures over module scope. Everything it shows comes from the run projection; it never
- * infers success the projection does not state.
+ * Everything it shows comes from the run projection. It never infers success the projection does not state.
  */
 import type { codingTimelineWords } from "./timeline-words.js";
 
@@ -43,7 +41,7 @@ export interface TimelineTurnChanges {
   files: Array<{ path: string; byte_length: number; digest: string; checkpoint_id: string }>;
 }
 
-/** The words and tables the timeline reads with (codingTimelineWords), passed in because the factory is injected alone. */
+/** The words and tables the timeline reads with. */
 export type TimelineWords = ReturnType<typeof codingTimelineWords>;
 
 export function createCodingTimeline(words: TimelineWords) {
@@ -97,14 +95,21 @@ export function createCodingTimeline(words: TimelineWords) {
     const all = text.replace(/\n$/, "").split("\n");
     return all.length <= limit ? { text: all.join("\n"), hidden: 0 } : { text: all.slice(0, limit).join("\n"), hidden: all.length - limit };
   };
+  const waitingUntil = (at: string) => uiText.text("coding.timeline.until", { time: dateArg(at, "time-with-seconds") });
+  const retitleWaits = (scope: Element) => {
+    scope.querySelectorAll("[data-coding-wait-until]").forEach((node: Element) => {
+      const text = waitingUntil(node.dataset.codingWaitUntil);
+      if (node.textContent !== text) node.textContent = text;
+    });
+  };
   /** A step's one line (operation, object, result) and what came back behind it: the refusal in words over the raw output. */
   const drawRow = (item: TimelineActivity, ended: boolean, waiting: boolean, items: TimelineActivity[]) => {
     const kind = kindOf(item), result = outcome(item, ended, waiting, items);
     // Reasoning is prose, so its row previews the first line as text rather than as a code target.
     const first = item.name === "reasoning" ? (item.output ?? "").trim().split("\n")[0]!.slice(0, 140) : "";
     // A wait the Run sleeps in says until when, in this machine's time.
-    const until = item.name === "sleep-wait" && Number.isFinite(Date.parse(item.target)) ? uiText.text("coding.timeline.until", { time: dateArg(item.target, "time") }) : "";
-    const what = until ? `<span class="coding-tool-preview">${escape(until)}</span>`
+    const until = item.name === "sleep-wait" && Number.isFinite(Date.parse(item.target)) ? item.target : "";
+    const what = until ? `<span class="coding-tool-preview" data-coding-wait-until="${escape(until)}">${escape(waitingUntil(until))}</span>`
       : item.target ? `<code>${escape(item.target)}</code>` : first ? `<span class="coding-tool-preview">${escape(first)}</span>` : "";
     const output = (item.output ?? "").trim(), shown = output ? lines(output, item.name === "reasoning" ? 120 : 24) : null;
     const hidden = (shown?.hidden ?? 0) + (item.output_hidden_lines ?? 0);
@@ -123,7 +128,7 @@ export function createCodingTimeline(words: TimelineWords) {
     }
     const counts = new Map<string, { kind: ReturnType<typeof kindOf>; targets: Set<string>; calls: number }>();
     for (const item of items) {
-      const kind = kindOf(item), key = kind.key + kind.verb;
+      const kind = kindOf(item), key = kind.key === "other" ? `other:${item.name}` : kind.key;
       const entry = counts.get(key) ?? { kind, targets: new Set<string>(), calls: 0 };
       entry.calls += 1; if (item.target) entry.targets.add(item.target); counts.set(key, entry);
     }
@@ -177,11 +182,11 @@ export function createCodingTimeline(words: TimelineWords) {
    */
   const explainFailure = (reason: string) => {
     const match = FAILURES.find(([pattern]) => pattern.test(reason));
-    return match ? { title: match[1], hint: match[2] } : null;
+    return match ? { title: uiText.text(match[1]), hint: uiText.text(match[2]) } : null;
   };
   const LIVE_TEXT: Record<string, string> = {
-    starting: uiText.text("coding.phase.starting"), running: uiText.text("coding.live.running"), compacting: uiText.text("coding.phase.compacting"), pausing: uiText.text("coding.live.pausing"), paused: uiText.text("coding.live.paused"),
-    "awaiting-input": uiText.text("coding.live.awaiting-input"), "awaiting-review": uiText.text("coding.live.awaiting-review"),
+    starting: "coding.phase.starting", running: "coding.live.running", compacting: "coding.phase.compacting", pausing: "coding.live.pausing", paused: "coding.live.paused",
+    "awaiting-input": "coding.live.awaiting-input", "awaiting-review": "coding.live.awaiting-review",
   };
   /** The live line at the bottom of an active round, or the closing card of a finished one. */
   /** `planOpen`: an earlier round whose unfinished graph is still the session's latest plan; only "continue the plan" is offered. */
@@ -194,7 +199,7 @@ export function createCodingTimeline(words: TimelineWords) {
     if (!ended) {
       footer.dataset.state = ["awaiting-review", "awaiting-input", "paused"].includes(run.phase) ? "waiting" : "live";
       footer.dataset.started = run.started_at ?? "";
-      const text = LIVE_TEXT[run.phase] ?? LIVE_TEXT.running!;
+      const text = uiText.text(LIVE_TEXT[run.phase] ?? LIVE_TEXT.running!);
       // Anything new from the round (a tool, a state change, more text) counts as hearing from it.
       const progress = [run.activity.length, ...run.activity.map(item => `${item.state}:${(item.output ?? "").length}`), ...(run.turns ?? []).map(turn => turn.text.length)].join(",");
       if (footer.dataset.progress !== progress) { footer.dataset.progress = progress; footer.dataset.heard = String(Date.now()); }
@@ -268,5 +273,5 @@ export function createCodingTimeline(words: TimelineWords) {
       node.textContent = show ? uiText.text("coding.live.quiet", { seconds: quiet }) : "";
     });
   }
-  return { renderGroup, renderFooter, tick, explainFailure };
+  return { renderGroup, renderFooter, tick, explainFailure, retitleWaits };
 }

@@ -305,13 +305,20 @@ export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
     if(!Object.keys(change).length){paintCard(card,false);return;}
     try{paintCard(await post('/api/knowledge/edit',{subject:card.subject,...change}),false);}catch(error){molisWorkRequest.show(form.querySelector('.side-files-card-actions'),error);}
   });
+  const wordsAt=at=>globalThis.t.text("common.generated.formatted", { value: { kind: "date", at, style: "datetime-with-seconds" } });
+  document.addEventListener('molis-work:language-changed',()=>{
+    const stamp=meta.querySelector('time[datetime]');if(stamp)stamp.textContent=wordsAt(stamp.dateTime);
+  });
   const openFile=async(sourceId,kind,id,fallback)=>{
     const source=sources.find(item=>item.id===sourceId),item=find(sourceId,kind,id)||fallback||null;
     const request=current={source:sourceId,kind,id};paint();show(true);
     // The file shown is the object a selection in it is about: what is in hand on the right (context-landing.ts); one it could not read is not.
     if(source?.plugin_id)body.dataset.assistantContext=JSON.stringify({plugin_id:source.plugin_id,object:{kind,id,title:item?.title||''}});else delete body.dataset.assistantContext;
     title.textContent=item?.title||globalThis.t.text("workbench.side-panel-files.files");
-    meta.textContent=[source?.title,item?.updated_at?globalThis.t.text("common.generated.formatted", { value: { kind: "date", at: item.updated_at, style: "datetime" } }):'',sizeText(item?.size)].filter(Boolean).join(' · ');
+    const stamp=item?.updated_at?document.createElement('time'):null;
+    if(stamp){stamp.dateTime=item.updated_at;stamp.textContent=wordsAt(stamp.dateTime);}
+    const details=[source?.title,stamp,sizeText(item?.size)].filter(Boolean);
+    meta.replaceChildren(...details.flatMap((detail,index)=>index?[' · ',detail]:[detail]));
     setOpen(item?.open||null);body.innerHTML='<p class="side-files-note">'+esc(globalThis.t.text("workbench.side-panel-files.reading"))+'</p>';body.scrollTop=0;
     void showCard(kind,id,request);
     try{

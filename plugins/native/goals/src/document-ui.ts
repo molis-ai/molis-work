@@ -24,7 +24,7 @@ function createDocumentRenderer(primitives: GoalsDocumentUiPrimitives) {
     <div class="goal-workspace-panels trash-goal-workspace">
     <section class="trash-goal-panel trash-goal-panel--state">
       ${sectionHeading("archive", "goals.document-ui.trash-state", "goals.document-ui.trash-preserves-goal")}
-      <div class="trash-summary"><p><strong>${uiText("goals.document-ui.goals-content-full-history-kept")}</strong>${uiText("goals.document-ui.active-relations-pause-when-enters-trash-restore-only")}</p>${trashEvent ? `<p><strong>移入原因：</strong>${escapeHtml(trashEvent.reason)}</p>` : ""}</div>
+      <div class="trash-summary"><p><strong>${uiText("goals.document-ui.goals-content-full-history-kept")}</strong>${uiText("goals.document-ui.active-relations-pause-when-enters-trash-restore-only")}</p>${trashEvent ? `<p><strong>${uiText("goals.document-ui.trash-reason")}</strong><span translate="no">${escapeHtml(trashEvent.reason)}</span></p>` : ""}</div>
     </section>
     <section class="trash-goal-panel">
       ${sectionHeading("book", "goals.document-ui.original-goal")}

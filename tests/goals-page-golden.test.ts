@@ -132,6 +132,7 @@ const pages: Record<string, Draw> = {
 // Of the 49 C/B changes, the markup was checked token by token for language and shell changes. The JSON still matches B except for
 // the Goal DTO labels checked against view-words-en.json, the workbench's owner title model, and the exact Goals planner startup words.
 // Candidate RECORD mode was never used for these expectations.
+// The six trash document/page/refresh drawings later replace only the reason label and wrap the exact stored reason in translate="no".
 const RECORDED = new URL("golden.json", GOLDEN);
 interface Recorded { sha256: string; length: number }
 const recorded: Record<string, Recorded> = record ? {} : JSON.parse(readFileSync(RECORDED, "utf8"));

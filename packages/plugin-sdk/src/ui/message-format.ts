@@ -30,6 +30,8 @@ const DATE_OPTIONS: Readonly<Record<Exclude<TextDateStyle, "relative">, Intl.Dat
   date: { dateStyle: "medium" },
   time: { timeStyle: "short" },
   datetime: { dateStyle: "medium", timeStyle: "short" },
+  "time-with-seconds": { hour: "numeric", minute: "numeric", second: "numeric" },
+  "datetime-with-seconds": { year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", second: "numeric" },
   weekday: { weekday: "long" },
   "weekday-narrow": { weekday: "narrow" },
   "month-day": { month: "long", day: "numeric" },
@@ -67,9 +69,10 @@ function relativeText(moment: Moment, locale: Locale, now: number): string {
 
 function dateText(moment: Moment, style: TextDateStyle, locale: Locale, now: number, timeZone?: string): string {
   if (style === "relative") return relativeText(moment, locale, now);
+  const options = DATE_OPTIONS[style];
   // A date without a time is shown as it is written: no zone can move it to another day, and it has no time to show.
-  if (moment.dateOnly) return new Intl.DateTimeFormat(locale, { ...DATE_OPTIONS[style === "time" || style === "datetime" ? "date" : style], timeZone: "UTC" }).format(moment.ms);
-  return new Intl.DateTimeFormat(locale, { ...DATE_OPTIONS[style], timeZone }).format(moment.ms);
+  if (moment.dateOnly) return new Intl.DateTimeFormat(locale, { ...(options.hour || options.timeStyle ? DATE_OPTIONS.date : options), timeZone: "UTC" }).format(moment.ms);
+  return new Intl.DateTimeFormat(locale, { ...options, timeZone }).format(moment.ms);
 }
 
 /** A date in the language. A value that cannot be read is shown as written and reported: one bad row does not fail a whole render. */

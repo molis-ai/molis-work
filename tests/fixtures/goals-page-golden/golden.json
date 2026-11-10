@@ -32,12 +32,12 @@
   "length": 6
  },
  "document-trash.en": {
-  "sha256": "908658aaa38074010445d9ae0bb0538eebdd1d6aad0e96ce27b3b4f0f13334f7",
-  "length": 5618
+  "sha256": "4822f89c24559c2185a2002232d50b8b5bbcba936a6e7531a6b4c7f39edad9f8",
+  "length": 5669
  },
  "document-trash.zh": {
-  "sha256": "93c246931141b75a5a93361e4b3513f9bdcdccf79ab09a2740798a57073deef0",
-  "length": 5154
+  "sha256": "ad589d5553b34f1e547ed3a390bd9c7b2af8d8afd2861a518f463dd13c6e007a",
+  "length": 5182
  },
  "momentum-archive.en": {
   "sha256": "c77441482f33395a3d832af493853494d73824bb0dc7786bec48ca1252e8ccca",
@@ -120,12 +120,12 @@
   "length": 260046
  },
  "page-trash.en": {
-  "sha256": "5592bf70146599c521c007e6ef6efb696a0cb44b6133230886655a4a5c8cf085",
-  "length": 283905
+  "sha256": "506f8bdbc4415818c1d52d2e219d38ce0d8d57ad50745755de08c76db09a79ad",
+  "length": 283956
  },
  "page-trash.zh": {
-  "sha256": "ba6ea03378b3c6434156b670d696048370b6d58bb196fe1c254a1b33f89ff1ad",
-  "length": 271751
+  "sha256": "e3c63042ed98f8feb299136515d6768d67b877001793fa306e8b8043db38336b",
+  "length": 271779
  },
  "planning-library-personal.en": {
   "sha256": "b68453929ba43c476852694c0b569d755f5098ed4bfd2fb849c204051d4ddf7f",
@@ -192,12 +192,12 @@
   "length": 180020
  },
  "refresh-trash.en": {
-  "sha256": "59b2aa0121e1ec52bdcc5bc46d3a12a67aa03dd7381d3425171864cb45969f05",
-  "length": 169008
+  "sha256": "4a5ebe42569149c504c4175ada74ba8c5a10eba80f4a480f8c58f5583e8d351c",
+  "length": 169059
  },
  "refresh-trash.zh": {
-  "sha256": "e00f2e1ad2ef0a438eed52ffc963e6c62c058e7eff434665c735e0068a5de154",
-  "length": 165244
+  "sha256": "9adb084e489a706a2b02a9ed531c77f79725dd8b762a96a3bf200293354a33af",
+  "length": 165272
  },
  "settings-general-embedded.en": {
   "sha256": "75f00216f01873293be08cb28a0bdaf7925e9853616bd363091bf32302578b63",

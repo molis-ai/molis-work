@@ -29,7 +29,7 @@ globalThis.molisWorkBindLocalDirectorySettings = (container = document, context 
   const address = context || { search: location.search };
   const focus = new URLSearchParams(address.search || "").get("plugin");
   const el = (tag, className, text) => { const node = document.createElement(tag); if (className) node.className = className; if (text !== undefined) node.textContent = text; return node; };
-  const when = (value) => value ? globalThis.t.text("common.generated.formatted", { value: { kind: "date", at: value, style: "datetime" } }) : "";
+  const when = (value) => value ? globalThis.t.text("common.generated.formatted", { value: { kind: "date", at: value, style: "datetime-with-seconds" } }) : "";
   const BY = { person: globalThis.t.text("workbench.settings-local-directories.page"), agent: "Agent", workflow: globalThis.t.text("workbench.settings-local-directories.workflow"), mcp: globalThis.t.text("workbench.settings-local-directories.external-client-mcp"), background: globalThis.t.text("workbench.settings-local-directories.background-scheduled-task") };
   const failed = (failure) => { error.hidden = false; molisWorkRequest.show(error, failure); };
   const revoke = async (path, label) => {

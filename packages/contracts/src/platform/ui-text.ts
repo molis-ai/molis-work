@@ -4,7 +4,7 @@ import type { SandboxSchema } from "./plugin-sandbox.js";
 // subpath. `plugin-manifest.ts` and the other contracts that only name the shape import these types from this file.
 
 export const TEXT_NUMBER_STYLES = ["decimal", "percent", "compact"] as const;
-export const TEXT_DATE_STYLES = ["date", "time", "datetime", "relative", "weekday", "weekday-narrow", "month-day", "weekday-month-day", "year-month"] as const;
+export const TEXT_DATE_STYLES = ["date", "time", "datetime", "time-with-seconds", "datetime-with-seconds", "relative", "weekday", "weekday-narrow", "month-day", "weekday-month-day", "year-month"] as const;
 
 export type TextNumberStyle = (typeof TEXT_NUMBER_STYLES)[number];
 export type TextDateStyle = (typeof TEXT_DATE_STYLES)[number];

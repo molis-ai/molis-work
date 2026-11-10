@@ -20,7 +20,7 @@ export const SYNC_INDICATOR_SCRIPT=String.raw`
    available=Boolean(value.available);if(!available){document.querySelectorAll('[data-sync-indicator]').forEach(el=>el.hidden=true);return;}
    const p=value.progress;
    const state=value.running?['syncing',"workbench.sync-indicator.syncing"]:p.unavailable?['failed',"workbench.sync-indicator.sync-temporarily-unavailable"]:p.conflicts?['conflict',"workbench.sync-indicator.sync-conflict"]:p.failures||value.error?['failed',"workbench.sync-indicator.sync-not-complete"]:p.waiting?['waiting',"workbench.sync-indicator.waiting-linked-assets"]:p.pending?['pending',"workbench.sync-indicator.waiting-sync"]:p.complete?['complete',"workbench.sync-indicator.synced-last-check"]:['idle',"workbench.sync-indicator.sync-has-not-started"];
-   paint(state[0],state[1],value.error|| (value.lastSuccess?globalThis.t.text("workbench.sync-indicator.last-completed")+' '+globalThis.t.text("common.generated.formatted", { value: { kind: "date", at: value.lastSuccess, style: "datetime" } }):''));
+   paint(state[0],state[1],value.error|| (value.lastSuccess?globalThis.t.text("workbench.sync-indicator.last-completed")+' '+globalThis.t.text("common.generated.formatted", { value: { kind: "date", at: value.lastSuccess, style: "datetime-with-seconds" } }):''));
   }catch(error){if(!control.signal.aborted)paint(navigator.onLine?'failed':'offline',navigator.onLine?"workbench.sync-indicator.sync-temporarily-unavailable":"workbench.sync-indicator.offline");}
   finally{busy=false;clearTimeout(timer);if(!control.signal.aborted&&!document.hidden&&available)timer=setTimeout(load,15000);}
  };

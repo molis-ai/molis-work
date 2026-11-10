@@ -76,7 +76,7 @@ export function createPage(host: GitHost): GitPage | null {
   return {
     host, lifetime, readText, q, s, directory, result, sc,
     U: (upstream) => sayUpstream(readText, upstream),
-    when: (value) => format.date(value, "datetime"),
+    when: (value) => format.date(value, "datetime-with-seconds"),
     list: required(directory, "[data-git-list]"), notice: required(directory, "[data-git-status]"),
     reopen: required(directory, "[data-git-reopen]"), history: required(directory, "[data-git-history]"),
     refreshButton: required(directory, "[data-git-refresh]"),

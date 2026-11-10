@@ -136,3 +136,12 @@ test("RAC-56 RAC-57 images words reach their renderer and browser reader in both
     assert.ok(page.includes(english ? "Describe your image" : "描述你想要的图片"));
   }));
 });
+
+test("VUX-40 the Pause control is a verb and the paused state is a state in the Host and the browser", () => {
+  for (const [locale, verb, state] of [["en", "Pause", "Paused"], ["zh", "暂停", "已暂停"]] as const) runWithLocale(locale, () => {
+    for (const read of [t.text, browserWords(locale)]) {
+      assert.equal(read("workbench.assistant-dock.pause"), verb);
+      assert.equal(read("workbench.assistant-island.paused"), state);
+    }
+  });
+});

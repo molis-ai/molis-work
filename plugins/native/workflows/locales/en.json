@@ -58,6 +58,8 @@
     "workflows.handoff.judged": "Judged “{choice}”, handed to {next}",
     "workflows.handoff.judging": "Judging…",
     "workflows.handoff.judgment": "Judgment",
+    "workflows.handoff.judgment-hold-choice": "The result “{choice}” is outside the allowed results, so nothing was handed over.",
+    "workflows.handoff.judgment-hold-review": "This judgment needs a person’s confirmation. Nothing was handed over.",
     "workflows.handoff.last-station": "This is the last station; the run is finished.",
     "workflows.handoff.loading": "Loading…",
     "workflows.handoff.manual-done": "You handed it to {next}",

@@ -180,6 +180,7 @@
     "goals.document-ui.return-goal-tree": "Return to Goal Tree",
     "goals.document-ui.trash-empty": "Trash is empty",
     "goals.document-ui.trash-preserves-goal": "This is not a permanent deletion. Restoring it brings back the same Goal.",
+    "goals.document-ui.trash-reason": "Reason for moving to Trash: ",
     "goals.document-ui.trash-state": "Trash status",
     "goals.document-ui.why-do": "Why do it: ",
     "goals.documents.deliverable": "Deliverable",

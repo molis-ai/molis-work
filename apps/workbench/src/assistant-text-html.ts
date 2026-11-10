@@ -94,5 +94,7 @@ export function renderAssistantNoticeText(notice: AssistantNotice, read: UiSayTo
   }
   if (notice.kind === "material" && count && count > 0 && "key" in text)
     return read({ ...text, key: text.key + "-more", args: [...(text.args ?? []), { name: "count", kind: "number", number: count }] });
+  if ("key" in text && text.owner === "workbench" && text.key === "workbench.assistant-notice.followup-missed")
+    return read({ ...text, args: text.args?.map(arg => arg.name === "at" && arg.kind === "date" ? { ...arg, style: "datetime-with-seconds" } : arg) });
   return saved(text, read);
 }

@@ -3,7 +3,7 @@ import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { defineAction, definePlugin } from '@molis-ai/molis-work-plugin-sdk';
 import { PluginRuntime, SqlitePluginRuntimeRepository } from '@molis-ai/molis-work-plugin-runtime';
 import { bindActionClient } from '@molis-ai/molis-work-contracts/platform/actions';
-import { workflowsActions as w, WORKFLOWS_ACTION_PERMISSIONS } from '@molis-ai/molis-work-plugin-workflows';
+import { workflowsActions as w, WORKFLOWS_ACTION_PERMISSIONS, type WorkflowInstance } from '@molis-ai/molis-work-plugin-workflows';
 import { molisWorkHostProjectReference, runWithLocale } from '@molis-ai/molis-work-app-local-host';
 import { NATIVE_CONTENT_PERMISSIONS } from '../apps/local-host/dist/native-content-permissions.js';
 import assert from 'node:assert/strict';
@@ -13,6 +13,7 @@ import { openGoalBrowser } from './fixtures/goal-browser.js';
 
 import { openTestShelfStore } from './shelf-direct-actions.js';
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
+import { openWorkflowsStore } from "./fixtures/plugin-home-stores.js";
 
 test('real browser creates a Feed → Shelf action workflow, maps fields, and writes the original material', { timeout: 90_000 }, async t => {
   const b = await openGoalBrowser(t, 'seeded', undefined, null);
@@ -99,6 +100,64 @@ test('real browser creates a Feed → Shelf action workflow, maps fields, and wr
   await shelfChild.waitFor(`document.querySelector('[data-shelf-item="${saved[0]!.item_id}"]')?.getAttribute('aria-selected') === 'true'`, 15_000);
   await shelfChild.waitFor(`document.querySelector('[data-shelf-preview]')?.innerText.includes('这是端到端字段映射的原始正文')`, 15_000);
 
+});
+
+test('FSS-36 a held run shows the judgment in English and keeps a saved reason without a verdict as original text', { timeout: 90_000 }, async t => {
+  const b = await openGoalBrowser(t, 'seeded', undefined, null);
+  if (!b) return;
+  const child = await pluginFrameBrowser(t, b, 'workflows');
+  const project = b.projectId!, reference = molisWorkHostProjectReference({ databasePath: b.databasePath, projectId: project });
+  const source = createLocalFeedSourceService(b.store.db, project).register({ kind: 'research_library', repository: 'molis-ai/research-library', research_source: 'workflow-hold' }).source;
+  const feed = createLocalFeedApplication(b.store.db);
+  const items = ['Needs person', 'Outside allowed', 'Archived reason'].map(title => feed.ingestItem({ source, externalId: title,
+    title, summary: title, body: '原始材料', occurredAt: new Date().toISOString(), attention: false }).item);
+  const choice = '未选 <tag>';
+  const judge = defineAction({ capability_id: 'functions.published.workflow-hold-fixture', version: 1, operation: 'command', action: {
+    title: '判断原名', description: '真实流程判断夹具', kind: 'judgment', scope: 'project', audiences: ['user', 'workflow'], permissions: [], subject_kinds: [],
+    input_schema: { type: 'object', properties: { content: { type: 'string' } }, required: ['content'] },
+    output_schema: { type: 'object', properties: { data: { type: 'object', properties: { choice: { type: 'string', enum: [choice, 'pass'] } } } } },
+  } }, (_caller, { content }) => ({ status: content.includes('Needs person') ? 'needs_review' : 'ok', function_key: 'fixture', version: 1, data: { choice }, confidence: 0.9 }));
+  const remove = b.localHost!.actionRegistry(reference).registerProvider({ provider: { provider_id: 'workflow-hold-fixture', kind: 'system', title: '判断提供方', project_id: project },
+    definitions: [judge.definition], handlers: [judge.handler] });
+  try {
+    const actions = bindActionClient(b.localHost!.actionClient(reference), () => ({ actor_id: 'web-user', project_id: project, audience: 'user', permissions: [...WORKFLOWS_ACTION_PERMISSIONS, ...NATIVE_CONTENT_PERMISSIONS] }));
+    const { workflow, runs } = await runWithLocale('zh', async () => {
+      const rule = (await actions.invoke(w.judgments, {})).judgments.find(row => row.ref.capability_id === judge.definition.capability_id);
+      assert.ok(rule);
+      const { workflow } = await actions.invoke(w.create, { title: '交接原名', chain: { stations: [{ plugin: 'feed' }, { plugin: 'pages' }],
+        links: [{ kind: 'judgment', title_template: '', body_template: '', instructions: '', judgment: rule.ref, pass: ['pass'] }] } });
+      const runs: WorkflowInstance[] = [];
+      for (const item of items) {
+        const { instance } = await actions.invoke(w.start, { id: workflow.workflow_id, item_id: item.item_id });
+        runs.push((await actions.invoke(w.continue, { id: instance.instance_id })).instance);
+      }
+      return { workflow, runs };
+    });
+    assert.deepEqual(runs.map(run => run.stopped?.verdict?.status), ['needs_review', 'ok', 'ok']);
+    const original = '判断需要人确认，这一次没有交过去 <tag> 原文';
+    const store = openWorkflowsStore(b.homeDirectory);
+    try {
+      const legacy = runs[2]!;
+      const steps = legacy.steps.map((step, index) => index === 0 ? { ...step, held: { at: legacy.stopped!.at, reason: original } } : step);
+      store.saveInstance(legacy, { ...legacy, steps });
+    } finally { store.close(); }
+    await b.navigate(() => b.command('Page.navigate', { url: `${b.origin}/locale?lang=en&next=${encodeURIComponent(`/projects/${project}/`)}` }, b.sessionId));
+    await b.click('[data-plugin-strip] [data-plugin-id=workflows]');
+    await child.waitFor(`document.querySelector('[data-wf-open="${workflow.workflow_id}"]')`);
+    await child.click(`[data-wf-open="${workflow.workflow_id}"]`);
+    for (const [index, expected] of ['This judgment needs a person’s confirmation. Nothing was handed over.', `The result “${choice}” is outside the allowed results, so nothing was handed over.`, original].entries()) {
+      if (index > 0) await child.click('[data-wf-action=back-to-flow]');
+      await child.waitFor(`document.querySelector('[data-wf-open-instance="${runs[index]!.instance_id}"]')`);
+      await child.click(`[data-wf-open-instance="${runs[index]!.instance_id}"]`);
+      const first = `document.querySelector('.wf-handoff__note.is-held > span > span')`;
+      await child.waitFor(`${first}?.textContent===${JSON.stringify(expected)}`);
+      assert.equal(await child.evaluate(`${first}.querySelector('tag')`), null);
+      if (index === 2) assert.equal(await child.evaluate(`${first}.getAttribute('translate')`), 'no');
+    }
+    await runWithLocale('en', async () => {
+      for (const run of runs.slice(0, 2)) assert.deepEqual((await actions.invoke(w.instance, { id: run.instance_id })).instance.stopped, run.stopped);
+    });
+  } finally { remove(); }
 });
 
 test('FSS-36 unknown plugin results keep their original words beside English controls after a late navigation response', { timeout: 90_000 }, async t => {

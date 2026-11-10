@@ -93,7 +93,7 @@ export async function handleAgentReviewHttp(
     const rows = kept ? matched.filter(row => open(row) || kept.has(row)) : matched;
     const html = renderAgentReviewSurface({ rows, primitives: {
       escape: value => String(value).replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!),
-      icon, formatDate: value => format.date(value, "datetime"),
+      icon, formatDate: value => format.date(value, "datetime-with-seconds"),
     } });
     sendLocalWebJson(response, 200, { reviews: rows, html, total: matched.length, omitted: matched.length - rows.length });
     return true;

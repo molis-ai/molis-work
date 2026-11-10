@@ -43,7 +43,7 @@ export async function renderEntitlements(panel: TenantPanel, tenant: TenantView 
       }
       content.append(row);
     }
-    content.append(node('p', uiText.text("workbench.account.valid-until", { end: dateArg(new Date(deadline).toISOString(), "datetime") })));
+    content.append(node('p', uiText.text("workbench.account.valid-until", { end: dateArg(new Date(deadline).toISOString(), "datetime-with-seconds") })));
     timer = setTimeout(expire, Math.max(1, deadline - Date.now()));
   } catch { unknown(); }
 }

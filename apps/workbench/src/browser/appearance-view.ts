@@ -106,13 +106,13 @@ function sheetState(page: Document): AppearanceSheetState {
   return state;
 }
 
-/** One exact Host sheet per document. A failed face can be retried with new CSSFontFace objects. */
-export function ensureAppearanceSheet(href: string | null, page = document): Promise<void> {
+/** Only a preparation that checks fonts replaces an already loaded sheet after a face failure. */
+export function ensureAppearanceSheet(href: string | null, page = document, prepareFonts = false): Promise<void> {
   if (!href) return Promise.resolve();
   const state = sheetState(page);
   if (state.pending?.href === href) return state.pending.ready;
   const prior = page.querySelector<HTMLLinkElement>("link[data-ui-appearance-sheet]");
-  if (prior?.getAttribute("href") === href && prior.sheet && !state.refreshFaces) return Promise.resolve();
+  if (prior?.getAttribute("href") === href && prior.sheet && !(prepareFonts && state.refreshFaces)) return Promise.resolve();
   const link = page.createElement("link");
   link.rel = "stylesheet";
   link.href = href;
@@ -156,7 +156,7 @@ function checkFonts(scope: HTMLElement, sample: string): Promise<void> {
 /** A document prepares new faces in a probe before touching its live root. The specimen can prepare in its own scope. */
 export async function prepareAppearance({ snapshot, stylesheet }: AppearanceProjection, canvas?: HTMLElement, page = canvas?.ownerDocument ?? document): Promise<void> {
   if (canvas) setAppearanceScope(canvas, snapshot);
-  await ensureAppearanceSheet(stylesheet, page);
+  await ensureAppearanceSheet(stylesheet, page, true);
   if (!stylesheet) return;
   const scope = canvas ?? page.createElement("span");
   if (!canvas) {

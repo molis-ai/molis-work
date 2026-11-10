@@ -276,6 +276,103 @@ test("FSS-14 FSS-27 a missing receipt stays unconfirmed and the user can continu
   assert.equal(state.applications[0].applied.request_id, id);
 });
 
+test("FSS-03 FSS-27 FSS-32 a fresh Workbench retries its saved Folio font in place", { timeout: 90_000 }, async t => {
+  const b = await openGoalBrowser(t, "user", undefined, null);
+  if (!b) return;
+  const workbench = `${b.origin}/projects/${b.projectId}/?desktop=1&settings=appearance`;
+  const navigate = (url: string) => b.navigate(() => b.command("Page.navigate", { url }, b.sessionId));
+  const fontPath = "/assets/folio-nunito-latin.woff2";
+  const notice = "document.querySelector('[data-appearance-notice]')";
+  const sample = "[data-font-retry-glyphs]";
+  await b.setViewport(1440, 900);
+  await b.command("DOM.enable", {}, b.sessionId);
+  await b.command("CSS.enable", {}, b.sessionId);
+  await b.command("Network.enable", {}, b.sessionId);
+  // Exercise the cold response in this document even if another document requested the same stylesheet.
+  await b.command("Network.setCacheDisabled", { cacheDisabled: true }, b.sessionId);
+  await navigate(workbench);
+  await b.waitFor("typeof molisWorkRestoreAppearance === 'function'");
+  await b.evaluate("molisWorkRequest('/api/ui/locale', { body: { preference: 'en' } })");
+
+  let unavailable = true, retrying = false;
+  const writes: string[] = [];
+  const listeners = b.server.listeners("request");
+  b.server.removeAllListeners("request");
+  b.server.on("request", (request, response) => {
+    if (retrying && request.method === "POST" && request.url?.startsWith("/api/ui/")) writes.push(request.url);
+    if (unavailable && request.url === fontPath) {
+      response.writeHead(503, { "cache-control": "no-store" });
+      response.end();
+      return;
+    }
+    for (const listener of listeners) listener.call(b.server, request, response);
+  });
+  const replies: { path: string; status: number }[] = [];
+  t.after(b.on("Network.responseReceived", ({ response }) => {
+    if (!response.url.startsWith(b.origin + "/")) return;
+    const path = new URL(response.url).pathname;
+    if (path === "/api/ui/appearance" || path.endsWith(".woff2")) replies.push({ path, status: response.status });
+  }));
+  const receipt = await b.evaluate<{ receipt: { selection_revision: number } }>(`molisWorkRequest('/api/ui/appearance', { body: {
+    request_id: 'saved-folio-font', expected_revision: 0,
+    choice: { kind: 'selection', selection: { skin: { id: 'folio', revision: 1 }, font: { policy: 'follow-skin' }, mono: null } }
+  } })`);
+  assert.equal(receipt.receipt.selection_revision, 1);
+  const stateFile = join(b.homeDirectory, "interface", "state.json"), saved = readFileSync(stateFile);
+  assert.match(saved.toString(), /"id"\s*:\s*"folio"/u);
+
+  replies.length = 0;
+  await navigate(workbench + "&font-startup=1");
+  await b.waitFor(`document.documentElement.lang === 'en' && ${notice}?.hidden === false`);
+  assert.equal(await b.evaluate(`${notice}.querySelector('[data-appearance-message]').textContent`),
+    "This window couldn’t load the new appearance. It is keeping the current look.");
+  assert.ok(replies.some(reply => reply.path === fontPath && reply.status === 503), JSON.stringify(replies));
+  assert.equal(await b.evaluate(pageSkin), folio);
+  assert.deepEqual(readFileSync(stateFile), saved);
+  await b.evaluate(`(() => {
+    const glyphs = document.createElement('span');
+    glyphs.setAttribute('data-font-retry-glyphs', '');
+    glyphs.style.cssText = 'display:block;font:24px var(--font)';
+    glyphs.textContent = 'Readable 2026';
+    document.body.append(glyphs);
+    window.fontRetryGlyphs = glyphs;
+  })()`);
+  type GlyphFont = { familyName: string; isCustomFont: boolean; glyphCount: number };
+  const actualFonts = async () => {
+    await b.evaluate(`(async () => { document.querySelector('${sample}').getBoundingClientRect(); await document.fonts.ready; })()`);
+    const { root } = await b.command<{ root: { nodeId: number } }>("DOM.getDocument", {}, b.sessionId);
+    const { nodeId } = await b.command<{ nodeId: number }>("DOM.querySelector", { nodeId: root.nodeId, selector: sample }, b.sessionId);
+    return (await b.command<{ fonts: GlyphFont[] }>("CSS.getPlatformFontsForNode", { nodeId }, b.sessionId)).fonts;
+  };
+  const usesNunito = ({ familyName, isCustomFont, glyphCount }: GlyphFont) =>
+    isCustomFont && glyphCount > 0 && /Nunito/u.test(familyName);
+  const fallback = await actualFonts();
+  assert.ok(fallback.some(font => !font.isCustomFont && font.glyphCount > 0) && !fallback.some(usesNunito), JSON.stringify(fallback));
+
+  replies.length = 0;
+  unavailable = false;
+  retrying = true;
+  await b.click("[data-appearance-read]");
+  await b.waitFor(`${notice}?.hidden === true`);
+  assert.ok(replies.some(reply => reply.path === "/api/ui/appearance" && reply.status === 200), JSON.stringify(replies));
+  assert.ok(replies.some(reply => reply.path === fontPath && reply.status === 200), JSON.stringify(replies));
+  const recovered = await actualFonts();
+  assert.ok(recovered.some(usesNunito), JSON.stringify(recovered));
+  assert.equal(await b.evaluate(`window.fontRetryGlyphs === document.querySelector('${sample}')`), true);
+  assert.equal(await b.evaluate(pageSkin), folio);
+  assert.equal(await b.evaluate("document.documentElement.lang"), "en");
+  assert.deepEqual(writes, [], "retrying reads the saved choice without another appearance or language write");
+  assert.deepEqual(readFileSync(stateFile), saved, "the saved selection and receipt keep their exact bytes");
+  t.diagnostic(JSON.stringify({ fallback, recovered, replies, retryWrites: writes.length }));
+  retrying = false;
+
+  await b.evaluate("molisWorkRestoreAppearance()");
+  await b.waitFor("document.querySelector('[data-appearance-recovery]').open");
+  await b.click("[data-appearance-recover]");
+  await b.waitFor(`${pageSkin} === '${soft}' && ${choice} === '2'`);
+  assert.equal(await b.evaluate("document.documentElement.lang"), "en");
+});
+
 test("FSS-28 an old document preparation cannot repaint a newer Home selection", { timeout: 75_000 }, async t => {
   const b = await openGoalBrowser(t, "user", undefined, null);
   if (!b) return;

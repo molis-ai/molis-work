@@ -76,7 +76,7 @@ export interface SqliteBaseline {
 ```text
 前提：持主人锁；这个进程还没有打开任何业务库。
 1. 校验段连续（from 从 found 起到 version-1 各一次），缺段记 failed，不碰文件（`upgradeStepsProblem`，在 checkpoint 之前，checkpoint 已经算写）。
-2. 可写打开，PRAGMA wal_checkpoint(TRUNCATE)，关闭。确认 -wal、-shm、-journal 都不在了，否则记 failed。唯一的例外：回滚日志模式的库里没刷盘的 -journal（空的或首字节是 0，SQLite 读时不理、下次写才删），在 BEGIN EXCLUSIVE 之下提前删（S-upgrade-journal-removal）；热日志由持锁方打开时恢复。
+2. 可写打开，PRAGMA wal_checkpoint(TRUNCATE)，关闭。确认 -wal、-shm、-journal 都不在了，否则记 failed。唯一的例外：回滚日志模式的库里没刷盘的 -journal（空的或首字节是 0，SQLite 读时不理、下次写才删），在 BEGIN EXCLUSIVE 之下提前删（S-upgrade-journal-removal）；普通库热日志由持锁方打开时恢复。N12 候选库先在 §4.1 的同租约前置完成恢复。
 3. 原样拷进升级快照，记下大小、sha256、mode、user_version、结构摘要（§5）。记录写 snapshotted。
 4. 可写打开。段里有 rebuilds_tables 就在事务外 foreign_keys=OFF；插件的段一律 OFF（§2.4）。
 5. BEGIN IMMEDIATE
@@ -304,12 +304,15 @@ acquireUpgradedHomeOwner(home, beforeAcquire?, expected?)  // 放 home-storage-l
   owner = acquireStorageOwner
   有 expected 时只读比 storage-space.json：不符抛 SPACE_OWNERSHIP_MISMATCH，放锁，不升
   注册戳记自愈的监听（§3.3）
-  ensureHomeUpgraded(home)                 // 戳记相符零成本；不符就同步跑完
+  ensureHomeUpgraded(home, owner)
+    先查登记项目与声明的 Home 库的文件身份及日志，按同租约预演并执行原生恢复
+    检查原发布待处理记录为零
+    戳记相符跳过版本扫描，否则续跑未完记录并完成本轮
   出错：注销监听，放锁，往上抛
   return owner
 ```
 
-调它的四处：`ensureHomeStorageOwner` 的首次取锁分支（`home-storage-lifetime.ts:52`）、`project-catalog.ts:250`、`installer/uninstall-owner.ts:12` 的非 purge 分支、`bootstrapSpace` 没有 host 的分支（`space-web-server.ts:58`）。之后才有 `prepareMemoryHome`、业务库打开。
+调它的四处：`ensureHomeStorageOwner` 的首次取锁分支（`home-storage-lifetime.ts:52`）、`project-catalog.ts:250`、`installer/uninstall-owner.ts:12` 的非 purge 分支、`bootstrapSpace` 没有 host 的分支（`space-web-server.ts:58`）。之后才有 `prepareMemoryHome`、业务库打开。N12 成果固定的项目库与 Home 库遵循此顺序。离线快照和目标恢复只检测未收尾的日志，使用者先以原 Home 正常启动恢复再关闭。正常 Host 只用自己持有的匹配租约转换 Catalog 登记项目为 DELETE／EXTRA。启动中止留下的未登记暂存仍归原创建 owner。已安装项目插件的 SQL 子进程实际退出后才释放租约。
 
 `bootstrapSpace` 是 #1877 新加的启动点，根 Home 和账号 Home 都走它，顺序是：只读的 `preflightMemoryHome`、取锁、再查一次、`ensureStorageSpace`、`prepareMemoryHome`（这里才开记忆库）、打开调用方要的东西。升级要排在 `prepareMemoryHome` 之前，否则低版本的记忆库在这里就被拒了；`acquireUpgradedHomeOwner(directory, preflightMemoryHome, expected)` 正好接在取锁这一步，先比身份再升，否则别人的目录放在这个名字下时是先升后拒。单库失败不算这里出错（§5.2），只有取不到锁、记录坏了这类整体问题才抛。
 

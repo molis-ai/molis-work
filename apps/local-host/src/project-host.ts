@@ -159,7 +159,7 @@ export class MolisWorkLocalHost {
 
   constructor(private readonly options: MolisWorkLocalHostOptions = {}) {
     assertFixtureScopes(options.pluginFixtures, Boolean(options.homeDirectory));
-    prepareHostMemoryHome(this, options.homeDirectory);
+    const homeStorage = prepareHostMemoryHome(this, options.homeDirectory);
     try {
     this.personalPlanningHome = options.homeDirectory ? resolveConfiguredHome(options.homeDirectory) : undefined;
     if (options.homeDirectory) this.callLog = new ActionCallLog(options.homeDirectory);
@@ -182,7 +182,7 @@ export class MolisWorkLocalHost {
           if (options.homeDirectory) assertPassiveProjectAvailable(options.homeDirectory, reference.project_id);
           if (this.webCatalog) await this.webCatalog.access.withCatalog({homeDirectory:options.homeDirectory}, catalog => { if (catalog.recycle.isRecycled(reference.project_id)) throw hostErrors.project_closing("项目已回收，不能启动运行环境"); });
           options.onRuntimeOpen?.(reference);
-          const store = new LocalProjectDatabase(reference.storage_key);
+          const store = new LocalProjectDatabase(reference.storage_key, { homeStorage });
           const clock = options.clock ?? (() => new Date());
           const runtime: MolisWorkProjectRuntime = { store, ...openProjectVersionStores(store, clock), project_id: reference.project_id };
           try {
@@ -512,10 +512,10 @@ async function closeProjectRuntime(runtime: MolisWorkProjectRuntime, closed: () 
 }
 
 /** This synchronous preflight closes its own ledger before throwing; no Host business resource exists yet. */
-function prepareHostMemoryHome(host: MolisWorkLocalHost, home: string | undefined): void {
+function prepareHostMemoryHome(host: MolisWorkLocalHost, home: string | undefined) {
   if (!home) return;
   const owner = ensureHomeStorageOwner(host, home, preflightMemoryHome);
-  try { prepareMemoryHome(path.resolve(home), owner); }
+  try { prepareMemoryHome(path.resolve(home), owner); return { home: resolveConfiguredHome(home), owner }; }
   catch (error) { releaseHomeStorageOwner(host); throw error; }
 }
 

@@ -3,7 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LocalActionGatewayClient, LocalProjectDatabase, MolisWorkLocalHost, openProjectVersionStores, projectActionAvailability } from "@molis-ai/molis-work-app-local-host";
 import { createActionMcpPorts, handleMcpMessage } from "@molis-ai/molis-work-app-mcp";
 import type { ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -21,7 +21,7 @@ test("W5-01-DATASET-02: Dataset standard MCP preserves tables and publications a
   const start = async () => {
     host = new MolisWorkLocalHost({ homeDirectory: home, actionAvailability: projectActionAvailability((options, operation) => withCatalog(options, operation), home),
       completeText: async () => "MCP 列名" });
-    const withCatalog = host.configurePersonalPlanning(home, withMolisWorkProjectCatalog);
+    const withCatalog = host.configurePersonalPlanning(home, host.ensureWebCatalog(home, openMolisWorkProjectCatalog).withCatalog);
     web = await serveTestHost(null, { home, host });
   };
   const stop = async () => { await web?.close(); await host?.close(); web = undefined; host = undefined; };
@@ -78,25 +78,28 @@ test("W5-01-DATASET-02: Dataset standard MCP preserves tables and publications a
   assert.equal((await call(reader, "versions", { id: dataset.id })).versions[0].id, version.id);
   const db = openHomeSqliteDatabase(home, "dataset");
   try {
-    db.exec("CREATE TRIGGER fail_dataset_mcp_publication BEFORE UPDATE OF artifact_version ON datasets WHEN NEW.artifact_version > OLD.artifact_version BEGIN SELECT RAISE(ABORT, 'fixture association failed'); END");
+    const sentinel = (await call(writer, "create", { title: "Constraint fixture" })).dataset;
+    const fixedSentinel = (await call(writer, "promote", { id: sentinel.id, expected_version: sentinel.version })).dataset;
+    db.exec("CREATE UNIQUE INDEX fail_dataset_mcp_publication ON datasets ((1)) WHERE artifact_version > 0");
     assert.equal((await answer(writer, "promote", { id: dataset.id, expected_version: dataset.version })).isError, true);
-    const pending = (await call(reader, "get", { id: dataset.id })).dataset;
-    assert.equal(pending.publication_pending.version, 1); assert.equal(pending.artifact_version, 0);
-    dataset = (await call(writer, "update", { id: dataset.id, title: "发布后继续编辑", expected_version: pending.version })).dataset;
-    db.exec("DROP TRIGGER fail_dataset_mcp_publication");
+    const unchanged = (await call(reader, "get", { id: dataset.id })).dataset;
+    assert.deepEqual(unchanged, dataset);
+    dataset = (await call(writer, "update", { id: dataset.id, title: "发布后继续编辑", expected_version: unchanged.version })).dataset;
+    db.exec("DROP INDEX fail_dataset_mcp_publication");
+    await call(writer, "delete", { id: fixedSentinel.id, expected_version: fixedSentinel.version });
   } finally { db.close(); }
 
   // The Host object is closed and rebuilt in this process; the tools reconnect to it.
   await stop(); await start();
   writer = connect("writer", a.project_id); reader = connect("reader", a.project_id);
   const recovered = await call(writer, "promote", { id: dataset.id, expected_version: dataset.version });
-  assert.equal(recovered.recovered, true); assert.equal(recovered.artifact.version, 1);
+  assert.equal(recovered.recovered, false); assert.equal(recovered.artifact.version, 1);
   assert.equal(recovered.dataset.title, "发布后继续编辑"); assert.equal(recovered.dataset.publication_pending, undefined);
   const project = new LocalProjectDatabase(a.database_path);
   try {
     const library = openProjectVersionStores(project);
     const artifact = library.artifacts.query.getArtifactVersion(a.project_id, recovered.artifact)!;
-    assert.equal((artifact.payload as { title: string }).title, "外部数据表");
+    assert.equal((artifact.payload as { title: string }).title, "发布后继续编辑");
     assert.deepEqual((artifact.payload as { rows: unknown[] }).rows, original.rows);
     assert.equal(library.artifacts.query.getArtifactVersion(a.project_id, { artifact_id: recovered.artifact.artifact_id, version: 2 }), null);
   } finally { project.close(); }

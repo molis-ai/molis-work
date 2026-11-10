@@ -1,8 +1,8 @@
 # 第 06 批成果固定、平台资料产生者与 SDK 公用工具
 
-状态：独立合同预审及回修复核通过（2026-11-09）；设计通过不代表隔离证据已通过。N12 实现暂缓，可做隔离验证。Files 的设计前置可继续，数据切换与删除等 §3 的证据。设计维护由本批合同设计台负责，实现由第 06 批主会话分配。基线为 `batch/06` 的 `54a12642c`。
+状态：独立合同预审及回修复核通过（2026-11-09）。N12 平台隔离实现与四插件采用已做定向验证，整批验证和真实 Home 采用另约。Files 的设计和界面定样按独立前置推进，数据切换与删除等 §3 的证据。设计维护由本批合同设计台负责，实现由第 06 批主会话分配。基线为 `batch/06` 的 `54a12642c`。
 
-这是 [06-2](../post-anticorruption-roadmap/reference/batches/06.md#batch-06-item-2) 与 [Files 退役](../post-anticorruption-roadmap/reference/batches/06.md#batch-06-item-1) 的 S1 技术切片。原需求沿用 [审查台账 N12／N13／N15／N16](../../docs/reviews/adversarial-review-2026-11-01.md)、[项目资料 WMD §5–7](../product-flow-governance/workspace-and-materials-design.md) 和 [06 批 11-08 方案](../post-anticorruption-roadmap/reference/batches/06.md#batch-06-plan-2026-11-08)。第 05 批公共资料合同已随 #1979 合入。本稿完成程度为**概念方案**，实施目标沿 06 批的合同、消费者切换、迁移回读、删除和完整体验验收。当前证据来自仓库代码与历史提交。
+这是 [06-2](../post-anticorruption-roadmap/reference/batches/06.md#batch-06-item-2) 与 [Files 退役](../post-anticorruption-roadmap/reference/batches/06.md#batch-06-item-1) 的 S1 技术切片。原需求沿用 [审查台账 N12／N13／N15／N16](../../docs/reviews/adversarial-review-2026-11-01.md)、[项目资料 WMD §5–7](../product-flow-governance/workspace-and-materials-design.md) 和 [06 批 11-08 方案](../post-anticorruption-roadmap/reference/batches/06.md#batch-06-plan-2026-11-08)。第 05 批公共资料合同已随 #1979 合入。实施目标沿 06 批的合同、消费者切换、迁移回读、删除和完整体验验收。分片状态与证据见各节。
 
 ## 1. 使用结果和切片顺序
 
@@ -28,19 +28,174 @@ Dataset、Form、Pages、PPT 声明的是 `databases.home.project_rows`。项目
 | B：将可固定的文档行与其依赖搬到项目库 | 一份 WAL 文件，复用 Feed 的提交边界。要搬四份数据、更新 project_rows／项目表声明、个人分区、移动／同步／复制和升级，且偏离本批保留 Home 行的决定。只在 A 因并发、封装或耐久性不成立且用户选择改范围时重新设计。 |
 | C：由成果库接管跨库恢复日志 | 可以保留 WAL 与分库。要新增耐久状态、隔离半成品、恢复/清理权限规则和连续升级。重启后可自动补写的时机会碰 S-18，尤其是原调用已撤权的情形。本批取舍先审 A。 |
 
-**当前实现 NO-GO，隔离验证可开。** A 须用实际 Node/SQLite 驱动和两个磁盘文件测固定、读取与同步交错、锁争用、从事务写入到 COMMIT 的进程中断及恢复。能区分半提交与双回滚才算覆盖，单测抛错后回滚只证明进程内路径。检查成果、业务行、事件和两个库的复制记录，以及下次打开与备份恢复的一致性。遇到崩溃侧车时先经 SQLite 完成两库恢复，再让升级快照工作。独立清理其中一个事务日志会破坏此边界。预审未发现用户要求必须沿用 WAL。若 A 在耐久性、并发、权限和真实成本上通过，由存储主人技术裁定，采用时同步 [Home 数据说明](../../docs/system/HOME-DATA.md) 与 [升级链的日志及快照说明](../upgrade-continuity/upgrade-chain-design.md)。真实 Home 的操作窗口另约。若 A 需要放宽授权、长期冻结访问或改变产品语义，回合同台处理具体阻塞。
+**采用前隔离探针。** 用仓库 `openSqliteConnection`、Node 24.15.0／SQLite 3.51.3 和两个磁盘文件做了隔离探针。两库使用 `DELETE`／`FULL`。在项目主文件已出现新 pin、Home 文件尚无新值、super-journal 和两份回滚日志均在时中止进程。两次重开均得到旧业务行、事件和两库复制记录。32 MiB 负载只用于拉长 COMMIT 窗口。同版本 CAS 失败及显式抛错均双回滚。`busy_timeout` 设为 100 ms，实际 125–148 ms 才拒绝。任一侧长读阻塞 COMMIT，Home 写者阻塞 `BEGIN IMMEDIATE`。该探针未走产品开库、权限和备份路径，未覆盖断电和 super-journal 删除后的中止窗口。
 
-旧 pending 首选从原有发布入口，由原作者在仍有权限时完成。候选启用前只读预检四库，覆盖本 Home 的项目行及个人分区，阻止新的旧式发布与最后一次预检发生竞态。只在未完成记录为零时切换，保留原列及现有表结构。非零时继续使用旧入口，保留快照和记录，报告需要恢复的对象。若确实要给非零存量做期限明确的续接，另定原作者与当前授权、已写固定版的一致性核对、版本升级和退出条件，先登记 `CONTRACT-CHANGES` 的「当前保留机制」并获准。后台升级无权发布或删掉待处理快照。删列仍须连续升级段。
+采用 A 前，以现行 Host、成果 owner 与真实两库日志重复验证 BSH-02、BSH-03。正常启动与升级在 `StorageOwner` 原租约下，先从 Catalog 与已登记的 Manifest 导出路径，校验回滚日志 footer 和 super-journal 名单形成精确闭包，再将配对的库及日志复制到私有临时目录，在副本中重定位日志路径并用同一 SQLite 驱动恢复。只凭 `immutable=1` 会读到未提交的 owner/version，已实测其从表面同空间 v2 回滚到外来 v99。先验恢复副本的空间、版本、项目根和库登记，再重核原租约与文件身份，交给 SQLite 恢复原件。未知路径、外来库和较新版在原件写开前拒绝。业务预检与升级 stamp 快径排在恢复之后。离线 Home 快照和恢复目标只做检测，发现未恢复的事务时拒绝并提示先走正常恢复，保持快照源只读。已有 `snapshotFileStat` 可核普通文件、规范路径及硬链接。进程中止后剩余的零头日志由 U1 既有独占校验处理。项目 SQL worker 当前会重设 WAL，须服从项目库 owner 的模式。实测通过后由存储主人技术裁定，再同步 [Home 数据说明](../../docs/system/HOME-DATA.md) 与 [升级链的日志及快照说明](../upgrade-continuity/upgrade-chain-design.md)。真实 Home 的操作窗口另约。若 A 需要放宽授权、长期冻结访问或改变产品语义，回合同台处理具体阻塞。
 
-### 拟议调用链与文件
+候选的项目库、Home 库和项目 SQL worker 统一采用 `DELETE`／`EXTRA`（3）。原 WAL／FULL 的单库写入有耐久承诺。SQLite 的 rollback DELETE／FULL 在提交后立即断电时可能回滚上一笔已确认写入。EXTRA 在删除 journal 后同步目录。此前 FULL 探针只证明多文件 COMMIT 的进程中止窗口。平台测试使用实际打包驱动，包含带 Unicode 的 Home 路径。[SQLite synchronous](https://sqlite.org/pragma.html#pragma_synchronous)
 
-1. 既有 `*.promote` 与 `*.artifacts.pin` 共用插件 owner 的发布实现。调用上下文给项目、原行为者、安装及世代。动作完成外部等待和 `beforeEffect()` 后，Host 才开始同步写事务。现有 join gate 拒绝串行动作，四个 `defineArtifactPinAction` 当前没有 `scheduling: "concurrent"`。合同预审应列出四个 pin 和实际 promote 的调度，若沿用该 gate，只调整需要它的动作并验证同对象并发及固定引用，不动其他 owner。
-2. 保留 `artifacts.join(tx, write)`。新增的 Host 签发事务只为明确声明 `project_rows`、同 Home、同安装及世代的当前项目调用存在。普通 Home 事务继续服务原有路径，交给 join 时拒绝。Host 从已核实的库登记、空间、文件身份和现行版本导出附加目标，使用固定别名，在 `BEGIN` 前核实连接配置。连接、路径、别名和 SQL 都留在 Host。插件回调只持有可信 owner 声明导出的同步根行操作，按绑定的 `project_id + id` 读，按 `project_id + id + expected_version` 作 CAS，限定可更新列并校验正好一行。禁止修改项目键和主键。SQLite native authorizer 负责 schema、表和列，行边界由这个固定读写操作实现。回调与保存点同步，事务、writer 与行能力随回调失效。
-3. 在同一事务读取根行与预期版本，通过现有项目库 writer 查 `head`。需核对原固定版时补 `readOwn`，使用同一权限和生产者规则。沿用 `nextPinnedVersion` 和现行版本、origin、移动后续号规则。插件生成自己的快照和名称，经根行 CAS 更新固定引用、时间、版本和 Pages 的 Goal 关联。成果、项目事件和现有复制日志与根行同一提交，通知在提交后发出。四个插件各自保有业务字段和快照定义。
-4. 任一 guard、数据库写、成果类型或回调失败，回滚全部。在最终同步提交前再核原调用、安装、项目与授权。保持 `artifact_id/version/origin`、快照格式、现行错误码、归属、`recovered` 的恢复含义和版本比较。相同 `expected_version` 的竞争只能一条成功。异步重试后的正常发布按既有动作语义重新读取。
-5. `relocate` 的五份业务移动仍归 Dataset、Form、Pages、PPT、Lingguang，跨分区的撤权回退由 placement 管。Home join 事务不能被当成位置移动入口。N22-06 的 `normalizeProjectId` 已合入 #1893。块③在固定切换后一次比较五个 `duplicate` 的子行、回执、来源和 id 语义，Coding 当前没有 `duplicate`。只有确认某段纯协议在五家确实相同时才共享。复制整体、表 SQL 和事务留 owner。块⑤对齐 §4，先复用已有共用合同，再检查仅命名、适配与文字工具的重复。
+| 检测状态 | 同一 Home 租约下的处理 |
+| --- | --- |
+| 热 child 无有效 marker 回指 | 核恢复前像后由 SQLite 单库回滚。super 已创建、child 尚无回指也可到达此状态。 |
+| WAL 改用 DELETE 时中止 | SQLite 先 checkpoint 并关掉 WAL，再用单库回滚日志改第 1 页。原头仍是 2/2、无 WAL/SHM 且只有无回指的单页日志时，同样预演并核前像。恢复留下原 WAL 模式，可信项目或库在正常打开时再切换。 |
+| 可信双库 marker 有活回指 | 第二份 child 可能尚未写回指，或先前恢复已删除。按同序在副本原生回放并验身份，才恢复原件全组。 |
+| child 的可信 footer 指向已消失的 marker | 保留已提交像，由 SQLite 完成各 child 清理。 |
+| 没有活回指的孤立 marker | 核全部候选均无回指并证明是这两库的受控残留，才精确收尾。 |
+| 外部路径、链接、未知或冲突标记、较新原像或不合格恢复像 | 保留原件和日志并拒绝。不得移动升级 stamp 或修改外部哨兵。 |
 
-边界为 contracts `platform/plugin-artifacts.ts`、`platform/plugin-database.ts` 和确需对外的模块接口，成果 owner `modules/artifacts`，Host 的 `plugin-transaction.ts`、`plugin-database*.ts`、`plugin-artifact-join.ts`、`plugin-host-services.ts` 及 Storage 的受控事务实现，最后是四个插件的发布代码和相关复用者。按 A 的结论决定项目库的打开和关闭文件。公开类型由 `pnpm api:update` 生成快照。若调度、动作声明或形状变化，核对动作快照并记录现有页面、工作流、Agent 与 MCP 的影响。动作输入输出与版本号沿当前阶段原样使用。
+候选库的中央普通写开拒绝尚有待恢复日志的路径，覆盖 baseline 现有 776 回退。U1 `finishInterrupted` 的快照回滚会清侧车，所以同锁恢复校验还须排在这一步之前。快照只读检测未恢复 child 与孤立 marker，阻止 marker 被当作普通文件入档。恢复目标同样只检侧车，仍允许用备份替换不透明的原目标；只读检测不要求其 Catalog 或版本可用。恢复用例覆盖盖 stamp、U1 未完、恢复时再次中止、marker 前后、独立单库和备份回读。缺失 child 的重入依赖原租约和 SQLite 自己管理的日志，手工删除日志留为拒绝或未知状态。
+
+预演副本放在现有快照排除的 `upgrade` 内私有临时目录，使用短文件名。镜像原相对路径会让原本可打开的 480–500 字节长路径超出当前 SQLite VFS 上限。重定位保留原 marker 路径的非 ASCII 字节，并按改写的 ASCII 字节和调整副本 checksum。footer 只承认已登记路径及 SQLite 可产生的 checksum 编码。判定前像由打包 SQLite 重放，解析器不写原件的页或日志。原租约和文件节点复核在写开原件之前。再次启动在同锁下收尾自己格式的废弃预演目录。
+
+后续构建遇到已登记库的旧回滚前像，先按现行升级链校验有连续步骤、原像和回放像均未超过支持版本、空间和对应 owner 仍匹配。只有原生回放完成后才由 U1 升级。候选首次建库先走已有 WAL 初始化和绑定，完成基线后再选 `DELETE`／`EXTRA`。版本 0 只有在同租约、精确登记的单个 Home 库、无双库 marker／回指且回放确认空库或仅有同空间绑定时，才可以回到已有初始化入口。原像已声称业务版本而回放归零时拒绝，由原构建先收尾。双库回放两边都须带有效空间、项目根与安装声明。
+
+旧 pending 从原构建的发布入口由仍具权限的原作者完成。候选启用前持 Home 独占锁只读预检四库，覆盖所有项目行和个人分区，原构建须停止写入。仅未完成记录为零才启动新发布入口。非零时拒绝候选启动并列出需原作者恢复的对象，保留快照及原列。隔离用例须用原入口证明原作者恢复与后续编辑保留。期限明确的存量续接如确需另定，先登记 `CONTRACT-CHANGES` 的「当前保留机制」并获准。删列须有连续升级段。真实采用窗口须保留可启动的原构建和配置。由仍具原权限的作者经原入口结清后停止原 Host 及写入口，再让候选持同一 Home 的独占租约检查全部分区。发现非零时，候选在 U1、模式转换和插件激活之前拒绝并释放租约。只有先前已有热日志会先由 SQLite 原生恢复，拒绝不产生新的业务、升级或安装写。此时仍用原构建处理遗留项。新构建没有接手旧回执的入口，隔离验证也未核实真实 Home 的待处理数量。
+
+Host 接线回修在同一真实租约下依次做原生日志恢复、pending 零检查、U1 stamp 或未完步骤。候选新读开和写开之前先核主库、WAL、SHM 的精确普通文件身份，避免只读 WAL 连接改写链接指向的外部文件。项目模式资格与恢复使用同一份可信 Catalog 路径，再验项目根和当前空间。未登记的 staging 或单独项目库仍走原模式。已实测 Node 24.15.0／SQLite 3.51.3 在 WAL 改 DELETE 的第 1 页写入前中止，原头 2/2、无 WAL/SHM，回滚日志有一个 4096 字节页及 512 字节日志头所在扇区。原生回放保留旧 WAL 与已提交业务行。[SQLite 模式切换实现](https://raw.githubusercontent.com/sqlite/sqlite/version-3.51.3/src/vdbe.c)
+
+### 合同与调用链
+
+```ts
+// PluginDatabase
+transactionProjectRow?<T>(id: string, write: (tx: PluginProjectRowTransaction) => T): Promise<T>;
+
+export interface PluginProjectRowTransaction {
+  read(): PluginSqlRow | null;
+  compareAndSet(expectedVersion: number, changes: Readonly<PluginSqlRow>): boolean;
+}
+
+// PluginArtifactClient
+join?<T>(tx: PluginDatabaseTransaction | PluginProjectRowTransaction, write: (writer: PluginArtifactWriter) => T): T;
+
+// PluginProjectRowsDeclaration
+readonly artifact_join?: {
+  readonly table: string;
+  readonly id_column: string;
+  readonly version_column: string;
+  readonly artifact_id_column: string;
+  readonly artifact_version_column: string;
+  readonly write_columns: readonly string[];
+  readonly pending_column?: string;
+};
+```
+
+| Manifest owner | `artifact_join.table` | 额外可写列 |
+| --- | --- | --- |
+| Dataset | `datasets` | `updated_at` |
+| Form | `forms` | `updated_at` |
+| Pages | `pages` | `updated_at`, `goal_id` |
+| PPT | `presentations` | `updated_at` |
+
+四张表已是 `project_rows.tables` 的直接根表，项目列为 `project_id`。其余现有字段分别为 `id`（TEXT 主键）、`version`（INTEGER）、`artifact_id`、`artifact_version` 与 `publication_pending_json`。SDK 验证字段形状、标识符与直接根表，Host 核现行 schema 的键、列与类型。项目、主键、版本、成果引用和 pending 不进入插件可写列名单。根行读取与 CAS 的两个身份键使用精确二进制匹配，更新冲突时回滚。被更新的列不能是外键目标，避免隐式更新其他行。声明和物理库仍归各自插件 owner。
+
+1. `*.promote` 与 `*.artifacts.pin` 共用原 owner 固定入口。四个插件的这八个动作当前都是串行，均已声明本库读写和 `artifact:write`。采用时只将这八个动作改成 concurrent。新事务要求仍在运行的本项目、本安装与世代的 concurrent command。Host 直接等待 Runtime 捕获的 `scope.caller.beforeEffect()`，随后检查仍是同一调用。每次根行／成果操作以及 COMMIT 前再查原调用、取消、当前授权、安装世代和事务存活。插件只给对象 id 和同步闭包。
+2. `artifacts.join` 仍凭当前活着的 Host 句柄。普通 Home 事务交给 join 时拒绝。Host 持当前真实 Home 租约，从 Catalog 项目连接、登记的 Home 库、同一空间和文件身份导出固定别名。核本项目磁盘 `main`、两库模式与同步级别后开始同步事务。根行按可信 `project_id + id` 读，CAS 加 `expected_version`。SQLite native authorizer 约束附属 schema、表和列。原版复制触发器按精确 SQL 核验，限制到同附属库的根行读取、技术表和 owner 声明的版本追踪表。根行句柄、writer 和回调同步失效。项目内个人分区沿 Catalog 归属核对。公开 `v1 --db` 的 Goals 管理入口和插件开发入口保持现行调用。移动测试用真实 Catalog 项目。
+3. 插件用根行快照与现有 writer `head`、`nextPinnedVersion` 计算下一版，对上一固定版保留 `readOwn` 的快照、类型和 origin 校验。继续由插件生成名称、快照、类型与 origin。每次 Home join 只接受一次实际新 pin 和同一根行的一次成功 CAS。拒绝 `replayed`，核 `pinned` origin 的对象 id 与源 revision，向插件返回发布结果前先捕获实际 ref 原语，Host 增加业务行版本。新路径署名沿四家现行 `caller.actor_id`，Feed 旧 join 保留原署名。重复 pin、CAS 失败或缺一方时，即使闭包吞掉拒绝也回滚。成果、项目事件和两库复制日志沿现有 owner，完成通知等到最终提交。原 pending 仍由旧入口恢复，候选的空 pending 路径保持 `recovered` 字段并返回 `false`。
+4. 同步闭包放在 Runtime 现有只读子调用里，子调用不给写用的 `beforeEffect`、保留授权或后台权。普通 `artifacts.publish`、过程项、数据库事务和嵌套命令均遵守现有只读拒绝。专用根行与成果 writer 只接受该子调用中的确切活句柄，并向原调用查实时授权。回调返回可结构化复制的数据。同步检查和 `structuredClone` 在子调用内、COMMIT 前完成，复制失败回滚。子调用 helper 只收到 Host 的 `void`，外层 Promise 收到数据副本。回归覆盖 `result.then` getter 和普通 publish 尝试并检查零副作用，并用一份实际较大的固定结果量复制成本和字段一致性。保存点、写入失败、回调失败及最终拒绝都须保全原行和原固定版。相同 `expected_version` 竞争只成功一次。移出后移回时沿原成果线续号，比较读取保留原 origin。已经发出 COMMIT 且未得到结果时重读，停止自动重试。
+5. `relocate` 的五份业务移动仍归 Dataset、Form、Pages、PPT、Lingguang。跨分区撤权回退走 placement。N22-06 的 `normalizeProjectId` 已合入 #1893。块③在固定切换后比较五个 `duplicate` 的子行、回执、来源和 id 语义。Coding 当前没有 `duplicate`。只有确认某段纯协议在五家语义相同后才共享。复制整体、表 SQL 和事务留 owner。块⑤对齐 §4 的公用工具。
+
+公开源码为 contracts `platform/plugin-artifacts.ts`、`platform/plugin-database.ts`，已有 `platform/plugin.ts` 出口，变更快照 `tooling/gates/api/contracts/platform/plugin.txt` 由主会话和 #1999／#2000 排接力。SDK 内部 Manifest 检查在 `project-rows-declarations.ts`。Host 涉及 `plugin-project-rows.ts`、`plugin-database*.ts`、`plugin-artifact-join.ts`、`plugin-host-services.ts` 与受控附库。`storage/sqlite.ts`、Host `project-database.ts`、`project-statement-engine.ts` 对齐开库，可信恢复接入现行升级／快照入口。四插件只在平台证据通过后改 `database.ts` 声明、owner 固定逻辑和八个动作的调度。用 `pnpm api:update` 和 `pnpm actions:update` 核快照，固定动作 id、版本与输入输出形状延续现行合同。
+
+### 开工前检查
+
+| # | 本片结论 |
+| --- | --- |
+| 1 | 四插件拥有源对象，成果 Module 拥有固定版，Storage 管提交与日志。读取继续经当前 owner。 |
+| 2 | 声明和方法在公用合同中。使用现已能登记 `project_rows` 且获同进程执行许可的 Runtime 项目插件。现行沙箱边界仍拒绝该 Home 库形态。 |
+| 3 | 八个既有动作保持一个注册来源及原 action id。项目、行为者、安装和世代取自 Runtime。 |
+| 4 | 一个批次 PR 内更新两处公开合同和四家消费者。并行快照由主会话协调。 |
+| 5 | Host 管跨库装配，Storage 管数据库机制，Module 复用现有 writer。四个插件保留自己的快照编解码。 |
+| 6 | 保留两库的表位置、版本和 schema。根行操作按表主人声明生成，现行两库复制触发器参与事务。 |
+| 7 | 旧式发布停写且待处理归零后切换。遇到非零保留数据并拒绝候选。 |
+| 8 | S-18 与 S-100 补实际拒绝，恢复边界补外部路径、错误归属和较新库拒绝。 |
+| 9 | 原动作请求次数保持。隔离比较实际打开／附库、事务、目录与授权调用次数，另测冷启动和持读写锁等待。 |
+| 10 | 验证旧固定版本、移动回读、COMMIT 中断、升级快照和离线备份恢复。 |
+| 11 | 仍只固定用户要留的现有声明成果类型。 |
+| 12 | 不涉及，保持已有界面入口和结果形状。 |
+| 13 | 复用既有权限、冲突和发布错误。若恢复需要独立错误，用 storage 或 Host 现行错误 owner 声明。 |
+| 14 | 已占的 `platform/plugin.txt` 由主会话安排。优先避开 Runtime/SDK 总入口、`storage/index.ts`、`sqlite-baseline.ts`、`plugin-platform.ts` 和 `project-host.ts`。 |
+| 15 | 插件按一套声明和调用面使用。平台复用现有 owner 与写授权。助理从原动作读写。Goals、工作流、MCP、同步保有现有引用与日志。后续同类只需注册本库根行；本批先支付开库模式、恢复和并发验证成本，受 BSH-02／03 与存储主人裁定约束。 |
+
+### 实测基线
+
+在 `d8d527b78` 正式构建上，用固定时钟的隔离 Home 通过四个实际 HTTP `promote` 入口，各连续固定三版。SQLite 及目录探针只在请求内启用，后台定时器暂停。`BEGIN` 包含只读事务，`COMMIT` 与根行更新为 SQLite 实际语句次数。
+
+| 插件 | 开库 | BEGIN | COMMIT | 保存点 | 附库 | 根行更新 | 目录读取 | discover 三次样本 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| Dataset | 8 | 11 | 3 | 0 | 0 | 2 | 8 | 3, 4, 4 |
+| Form | 8 | 11 | 3 | 0 | 0 | 2 | 8 | 3, 4, 4 |
+| Pages | 9 | 12 | 3 | 0 | 0 | 3 | 9 | 3, 4, 4 |
+| PPT | 9 | 12 | 3 | 0 | 0 | 2 | 9 | 3, 4, 4 |
+
+用四个原版 Manifest 的真实复制 schema 在独立磁盘文件测附库。`mode=rw` 拒绝缺失目标，四次根行 CAS 各追加一条相应复制记录。触发器读取根 `project_id/id/version` 与 `replica_state`，写入 `replica_changes`。Pages 按 tracking 声明写 `pages_editor_versions`，其余三家写各自聚合编辑版本表。SQLite authorizer 报告这些读写属于附属 schema。该探针尚未接入产品守卫。
+
+隔离平台验收已执行 `tests/plugin-home-artifact-join.test.ts` 的 5 项和 `tests/plugin-home-rollback-recovery.test.ts` 的 7 项。权限、精确行、CAS、成果、事件和两库日志走真实 SQLite 与成果 owner。恢复测试含双回指 COMMIT 内 SIGKILL、用同一恢复函数回放主库后再次 SIGKILL，再次启动保留两库旧值并清理侧车。另在已正常提交的同一对文件上放回原生 child 残留，模拟 super 已删除后的清理阶段，两库新值保留。单独 Unicode 探针命中只有一份 child 已写回指、主库原始文件已有新值的实际中断窗口。上述证据尚未替代产品 Host 的已盖 stamp 启动、升级及离线备份验收。
+
+旧构建的 Dataset 实际 HTTP 固定响应含 400 行、658,249 字节。对同一返回值做 41 次独立 `structuredClone`，末次与原响应深值相等，耗时中位 0.350 ms、p95 为 0.507 ms。这个探针只量复制。四家采用后的请求次数和返回值仍须经实际入口重测。
+
+### 宿主入口回修验收
+
+S3 批次头接回后，完整 `pnpm build` 通过，`pnpm api:update` 只刷新 `platform/plugin`。同一组真实 Home owner、Catalog、备份和恢复用例通过。有效 stamp 保留，已回滚事件不进备份，未解决日志让源备份和不透明目标恢复拒绝。旧 pending 阻止 U1，外部硬链接主库／WAL／SHM 哨兵无变化，未登记 staging 重开仍是 WAL，登记项目恢复后正常打开为 DELETE／EXTRA。
+
+同一驱动用可暂停的原生 PRAGMA 游标保留未刷新的单页日志，实际中止后从真实 Catalog Home 启动恢复。另在隔离的 Node 子进程拦截第 1 页原生写入前中止，得到已刷新的 4,616 字节日志。通过已构建 Storage 公开入口预演再回放原件，两次读取都是原业务值，旧 WAL 头保留，之后正常切到 DELETE。这组实测覆盖进程中止。
+
+通过公开 `MolisWorkLocalHost` 和真实 Runtime 登记动作替换原内部测试导入。三文件八项通过，覆盖成果、根行、事件和两库复制共同提交，原作者、版本冲突、只读子作用域、失效句柄、重放保护、撤权／取消、精确行键、唯一冲突及外键声明。测试侧分别关掉 pending 零检查、SHM 身份检查、WAL 转换恢复识别和可变外键拒绝，四个对应回归失败。四插件采用后的固定入口与真实调用成本留在采用证据中。
+
+四个原版插件在真实 Catalog 项目结清旧 pending。调用在已出现成果后取消，原稿还未记下固定版本，实际 GET 读到 pending v1 和原稿 revision 1。随后经实际编辑动作改变草稿，另一位有权限的操作者尝试恢复均以各自的 `publication_owner` 拒绝。原作者完成后，草稿至 v3，原固定成果仍只有 v1 且作者保留。Pages 的固定版保留原 Goal 与正文，草稿保留后来编辑的正文和新 Goal。关闭原 Host 后，另一进程带全四份候选声明取得原 Home 租约并通过零 pending 检查。此证据来自采用前 `a6034b64c` 的完整构建和隔离临时 Home。
+
+日志模式切换必须同时持有匹配 Home 的实际租约，并由该 Home 的 Catalog 认出当前项目。独立复核用公开 Goals `--db` 指向另一 Home 的登记库，复现仅按路径反推时可越过目标租约把 WAL 改为 DELETE。托管 Host 才能为匹配项目授权切换。其他已有候选文件沿用现行模式，保留独立管理入口的既有行为，也避免把已经转换的文件切回 WAL。验收同一个 B Home 的无租约外部入口及持有租约的正常启动。
+
+- **BSH-03（租约）。** 公开 Goals `--db` 指向另一 Home 的登记项目时，原调用照常取得快照，不能切换另一 Home 的日志模式。持有对应 Home 租约的正常托管项目打开后进入 DELETE／EXTRA。
+- **BSH-03（升级首开）。** 无 stamp、实际可升级的登记项目仍须在 SQLite 首次读取前验证精确主文件、WAL 与 SHM。链接拒绝时项目、外部文件与升级记录保持原字节，移除链接后可用相同 U1 路径升级。
+- **BSH-03（成员）。** 正常恢复仅处理真实 Catalog 成员和声明的 Home 库。未登记的 WAL staging 即使留有新建中止日志，也留给其既有 owner，不能阻塞已登记项目启动。离线恢复目标保持不透明，仍使用只检查、不写入的检测。
+
+这三项在 `a6034b64c` 的已构建 Host 上均能失败。另一 Home 的 CLI 快照将库头从 `2/2` 改成 `1/1`。SQLite 将外部 SHM 从 36,864 字节截到 32,768 字节。对刚启动的 WAL PRAGMA 中止进程，得到 0 字节 staging 主库和 512 字节 child，旧扫描使整个 Home 启动失败。回修后的完整构建及 `tests/plugin-home-artifact-host-recovery.test.ts` 7 项通过。异 Home 快照保留 WAL，持租约的托管打开采用 DELETE／EXTRA，后来独立打开保留已切换模式。外部 SHM、原库与 U1 记录在拒绝时保留，解链后同一路径实际完成升级。未登记 stage 留原件，正常项目可以启动。
+
+同一组用例用真实 Catalog、真实 Dataset 动作建原稿，另一个进程用成果 owner 和两个 SQLite 文件开始提交。在两份 child 均已回指活动 super-journal 时实际中止。新 `MolisWorkLocalHost` 清完日志才续跑同一轮未完成 U1 记录，原稿保持 v1，未提交的成果与事件都不存在，项目与 Home 的复制日志计数均不变。32 MiB 仅拉长测试中的原生提交窗口。
+
+**BSH-03（关闭交接）。** 已安装项目插件的 SQL 子进程必须实际退出，Host 才能释放这一 Home 的租约并允许下一个 owner 开库。用真实安装监督器和 SQL 子进程暂停一次 SIGKILL 的交付。旧 Host 已返回关闭成功，下一 owner 能拿锁，但原 PID 仍存在。沿现有 child close promise 等当前及尚未退出的旧进程，项目插件停止、失败清理和 Home 关闭共用该完成点。测试在持有退出的阶段断言下一 owner 拿不到锁，恢复交付后确认原进程退出、原库可由下一 owner 打开。同一入库用例在原构建因下一 owner 过早获得租约失败，修后完整构建与该用例通过。夹具提高这一条 SQL 子进程的启动 RSS 上限，以隔离退出时序与启动内存，产品仍用原限额。
+
+### 四插件采用
+
+Dataset、Form、Pages、PPT 在自己已有的 Home 根表声明固定字段，额外可写列为 `updated_at`，Pages 还声明 `goal_id`。现有 DDL、表版本和 pending 列保留。每家用同一个已有行解码器读取绑定根行，按读取版本及实际项目中的成果线计算下一版。对上一版继续走 owner 的 `readOwn`，检查 type、schema、发布者签名、inline 快照结构和 pinned 对象。已有 opaque revision 仍可续号。没有新公开辅助函数和读回格式。
+
+`promote` 和 Goals 可调用的 `artifacts.pin` 各自保留原动作版本及输入输出，四家都声明并行调度。Host 在等待后控制原调用的写授权。每次对一行只完成一次实际 `publish` 与一次 CAS，保存原先的 payload、标题、固定作者及返回字段。按实际成果 ref 构造更新后的完整记录，沿用当前的版本加一和时间规则，省去重读和解码大正文。Pages 使用现有 Goal 规范化，并在同一个提交里记录 Goal 及成果。候选入口只返回 `recovered: false`，停用旧三段写回路径。没有行事务的旧独立环境保留编辑与只读入口，固定动作明确不可用。
+
+验收继续使用同条件 HTTP 计数脚本，记录每家开库、BEGIN、COMMIT、附库、根行写与目录读。项目 A／B 与个人空间使用实际 Catalog 和 Host 动作核移动续号和旧固定版回读。原分段失败测试用真实权限与原子写故障证明双方零写，原文件状态夹具继续钉住同步遇 pending 的既有拒绝。 真实浏览器以当前草稿重试固定。Form 在失败与后续编辑之间保留该次失败提示，同一个固定入口成功后只清它自己的发布提示。Pages 的成功版号从工作台的固定成果提示核对。
+
+**固定入口实测。** 同一个冻结时钟和后台定时器的真实 HTTP 场景，各家从空稿连续发出三次 `promote`，验证固定版号 1、2、3。观测生产驱动开库、SQL 边界与目录调用，探针只在测试侧。基点为 `d8d527b78`。
+
+| 插件 | 开库 | BEGIN | COMMIT | 保存点 | 附库 | 根行 UPDATE | 项目目录读 | discover 三次 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Dataset | 8 → 6 | 11 → 7 | 3 → 1 | 0 → 1 | 0 → 1 | 2 → 1 | 8 → 6 | 3/4/4 → 0/1/1 |
+| Form | 8 → 6 | 11 → 7 | 3 → 1 | 0 → 1 | 0 → 1 | 2 → 1 | 8 → 6 | 3/4/4 → 0/1/1 |
+| Pages | 9 → 6 | 12 → 7 | 3 → 1 | 0 → 1 | 0 → 1 | 3 → 1 | 9 → 6 | 3/4/4 → 0/1/1 |
+| PPT | 9 → 6 | 12 → 7 | 3 → 1 | 0 → 1 | 0 → 1 | 2 → 1 | 9 → 6 | 3/4/4 → 0/1/1 |
+
+**检查 9 冷开与锁。** 从真实 Catalog 新建且还在 WAL 的项目起步，Form 库文件尚不存在。用公开 Host 构造与开始监听的一次样本为 263.9 ms。第一次 Form HTTP 创建从未打开的项目起步，用时 1,139.9 ms，之后两文件的 journal 头均为 DELETE。后续在同一 Host 上从独立进程持续持锁，业务请求返回后才释放。读进程先读真实表取得共享锁，写进程用 `BEGIN IMMEDIATE` 保留写锁。
+
+| 持锁一侧 | 实际失败点 | SQLite 等待（ms） | HTTP 拒绝（ms） | 解锁后同版本重试（ms） |
+| --- | --- | --- | --- | --- |
+| 项目读 | COMMIT | 123.5 | 141.7 | 13.7 |
+| Home 读 | COMMIT | 120.0 | 135.8 | 11.9 |
+| 项目写 | BEGIN IMMEDIATE | 119.7 | 128.6 | 11.6 |
+| Home 写 | BEGIN IMMEDIATE | 120.1 | 128.7 | 13.8 |
+
+四次都从真实原生 SQL 得到 `SQLITE_BUSY`。拒绝后仍持锁时，根行、成果、事件与两边复制记录等于请求前，两库均无残留 child journal。释放锁后用相同的 `expected_version` 显式重试，各提交恰好一个新固定版及同版本事件，根行和两侧复制均更新。时间为该次机器样本，测试断言失败点、零写和重试结果。
+
+节点计数只覆盖这些请求。另一个真实 Dataset 固定返回 658,249 字节，400 行深值与实际编辑结果一致。生产事务生成一次结构化副本，本次 0.517 ms。同一结果独立复制 41 次的中位数 0.343 ms、p95 0.420 ms，仅量复制这一步。动作快照仅记录八个既有动作改为并行调度，动作版本、权限、受众及输入输出 schema 保持原值。
+
+**所有者与调用边界。** 四家实际 Catalog 动作各有普通成功路径。项目 A → B → 个人空间 → A 后，各自沿所属成果库续号，原固定版可读，Pages 的 Goal 与固定正文保持。用生产 SQL 调用在插入成果后、根行 CAS 后触发取消和原调用授权失效。四家两个入口都拒绝，根行、成果、事件与两库复制保持原值。 该夹具改变原调用的同步 guard 来模拟撤权或提供方失效。实际安装世代替换由独立的已登记动作回归覆盖。两次并行提交相同读取版本时各有一次成功、一次 owner 版本冲突。Goals 的 14 条真实父／子中断用例通过。保留产出成果前的拒绝和子动作已经提交时只拒绝父动作的区别。HTTP 与四份 MCP 保留既有权限和参数约束，原库写失败后，下一次固定保存最新编辑。
+
+**BSH-02 活句柄隔离。** 用同一个受信登记动作从源根行读到当前版本，分别交给本 Home 另一项目以及另一 Home 同项目 ID 的实际服务。两次都以 `actions.forbidden` 拒绝，另一作用域的成果回调未执行。双方根行、成果、事件和复制记录保持原值，源项目随后可正常固定 v1。
+
+四份浏览器用独立临时 Home 和 Chrome Headless Shell，通过八条 1440 px／390 px 定向用例。首次夹具预开 WAL 观察连接，会挡住登记项目的模式转换。调整为先由真实租约下的登记项目打开选择模式，浏览器 Host 随后正常启动。Pages 验证工作台提示的第 1 版、按钮、库记录与保存状态。Form 两种宽度先复现成果已存但旧失败提示仍在，再验证只清当前固定的失败提示，编辑期间保留草稿与提示。Dataset、Form、PPT 浏览器测试的自造触发器在根行程序检查时被拒，覆盖失败提示与显式重试。Pages 浏览器和各家动作的 UNIQUE 约束故障到达真实 Home 根行写。
+
+**BSH-01 提交结果丢失。** 在 Form 的实际浏览器固定入口等待真实 HTTP 成功返回，在编辑器收到返回值之前丢弃它。原请求已提交 v1。编辑器的实际 GET 重读拿到相同成果引用，按钮显示可另存一个版本，整个恢复只发出一次固定 POST。源对象 revision 只增一，根行没有 pending，项目成果库只有该 v1。
+
+**本片验证范围。** 已跑真实 Host 恢复、U1 顺序、离线快照与不透明恢复目标定向、原构建四家旧 pending 原作者结清及本节定向用例。整批继续跑 [Host](../../apps/local-host/README.md) 的 Home upgrade／maintenance 与 snapshot／restore CLI、内容、owner 和安全专项，[Storage](../../packages/storage/README.md) 的 driver conformance、upgrade chain／snapshot 和 Home backup recovery，[成果](../../modules/artifacts/README.md)、[Runtime](../../packages/plugin-runtime/README.md) 与四个插件的 README 其余适用项，包含比较与删除。完整测试与页面资源比较未在此重复。真实 Home 的旧 pending 数量与实际采用仍待维护窗口。
+
+N12③ 比过五份 `duplicate`。Dataset 用 `copy:` 目标分区回执复用创建后更新，保留列、行和描述，按新表内容算状态，初始两步版本不抄旧版本或历史。Form 直接插入 v1 草稿，题目稳定 ID 保留，答卷和 `share_id` 留在来源。PPT 同用目标分区回执并记来源，新 v1 为每页换 ID，带正文与配色。Pages 走导入回执，源 ID 或源 revision 变化即不能重用同一请求，目标只取得标题与正文，原文件夹、Goal、评论和修改历史留原处。Lingguang 的指纹包含源 ID 与分区，源正文后改时同一请求仍返回原副本，新记录只取标题与正文。Dataset、Form、PPT 先按各自回执读目标。Pages 先读当前源再核请求哈希，Lingguang 先核源身份指纹。五份只共享已存在的放置入参与作用域合同。它们没有同义的 owner 回执或复制写入，保留在各自库。
 
 ## 3. Files 退役的系统产生者合同
 
@@ -175,7 +330,7 @@ BSH-10 独立复核发现，括号内的省略号和以省略号开头的模板�
 | BSH-13 | N52：真实多来源项目分别打开项目资料与 Goal「加输入」，每次首屏一次 HTTP 聚合请求、零逐来源 entries 请求，宿主一次上下文与发现。共用来源第一页、游标及可见但未配置的状态；未配置来源零条目调用，单个失败不遮住其余结果。分页和正文按需读取；发现后撤权仍由实际动作拒绝，零未授权内容交付。 |
 | BSH-14 | 已授权的隔离同步切换：真实 Worker/Auth/D1/R2 夹具证明旧 head 或 policy revision 改变时原子拒绝切换，退役后普通策略不能反开，旧新增写、附件 reserve、history/trash 删除在实际变更处被拒，精确原回执重放零新增。有权账号读回保留期内独立归档／恢复记录、正文和附件，撤权后拒绝。完整选中集合含其他 owner 经显式选择与幂等播种可被空 Home 取回；配额不足、取消、中断和重启保留原件及已确认进度，完成前不放行普通新版上传，离线旧端未结清队列不丢失。仅隔离验证，不执行真实部署或云端迁移。 |
 
-验证由实现会话按项目规则排槽。构建后先跑上述定向用例、四插件及 `modules/artifacts`、`packages/plugin-runtime` README 的适用必跑项，再由全批运行合同、边界、安全、金样回放、页面资源及共享核心全量。页面脚本改动比较真实下发字节，使用独立浏览器和临时 Home。公开快照检查 `pnpm api:update`、`pnpm actions:update`、`pnpm test:contracts`，版本变化核对 `pnpm schemas:update`。安全不变量表同步登记拒绝用例（尤其 S-18、S-35、S-46／S-100、S-76 与 S-81）。测试名或注释逐个引用 BSH 编号。本轮仅设计，证据状态均为待执行。
+验证由实现会话按项目规则排槽。构建后先跑上述定向用例、四插件及 `modules/artifacts`、`packages/plugin-runtime` README 的适用必跑项，再由全批运行合同、边界、安全、金样回放、页面资源及共享核心全量。页面脚本改动比较真实下发字节，使用独立浏览器和临时 Home。公开快照检查 `pnpm api:update`、`pnpm actions:update`、`pnpm test:contracts`，版本变化核对 `pnpm schemas:update`。安全不变量表同步登记拒绝用例（尤其 S-18、S-35、S-46／S-100、S-76 与 S-81）。测试名或注释逐个引用 BSH 编号。各切片的实际证据见对应章节，整批联合验证由主会话运行。
 
 ## 6. 开工前检查
 
@@ -197,4 +352,4 @@ BSH-10 独立复核发现，括号内的省略号和以省略号开头的模板�
 | 14 冲突面 | C 轨独占 contracts、SDK、artifacts、Runtime 和快照。Host 枢纽包括 `plugin-host-services.ts`、`plugin-platform.ts`、项目库基线与注册。四个文档归 E，Coding 归 B，工作台归 D。#1999/#2000 占用按文件确认。S1/S3/S7 的共享核心串行交接。 |
 | 15 全局最优 | **插件**用同一个 join 与浏览器 SDK，保留各自数据和业务行为。**平台**用一个 Runtime resolver 和一份资料登记，A 的跨库回滚日志成本先实测并评审。**助理**通过现行已授权的动作发现、固定和读取，人工主路径独立。**平台能力**保留现有 WMD 来源、成果/过程项、工作流/MCP 引用、同步与同意契约；接入 S4/S5 而非重复生产。**后续开发**与 16 批语言迁移、26 批状态能力、55 批输入余项分开；新资料类型加登记与生产动作，后续版本走同一升级链。比较过跨库日志、同库改造与恢复账，及合成插件与窄 resolver，取舍见 §2、§3。 |
 
-待决由主会话归口。N12 候选 A 先补隔离耐久性与并发证据，再核预检和动作调度。Files 优先验证双 Home 同步切换与存量同意恢复。已有 Files 2→3 隔离验证和 N56 授权继续有效。
+待决由主会话归口。N12 隔离采用证据见 §2，真实 Home 切换仍走原构建结清与独立窗口。Files 优先验证双 Home 同步切换与存量同意恢复。已有 Files 2→3 隔离验证和 N56 授权继续有效。

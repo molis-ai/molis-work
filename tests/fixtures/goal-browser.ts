@@ -1,7 +1,7 @@
 import { observePluginFrames } from "./plugin-frame-browser.js";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Socket } from "node:net";
@@ -9,7 +9,7 @@ import type { TestContext } from "node:test";
 import { ChromeHarness, locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
 import { LocalHostHttpClient } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { DEMO_PROJECT_ID, seedDemoGoals, MolisWorkLocalHost, projectActionAvailability, type HostCompleteText, type WebServerOptions, PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-local-host";
-import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { acquireUpgradedHomeOwner, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { createSingleHomeTestWebServer } from "./local-web-core.js";
 import { boardSnapshot } from "./goal-application.js";
 
@@ -92,7 +92,13 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
   // T405-FULL-01: initial setup owns the Home only before the serving Host is created.
   const { prepareHome, ...serverOptions } = webOptions;
   await prepareHome?.(directory);
-  store = new LocalProjectDatabase(databasePath);
+  // The catalog fixture's observer must use the managed mode before it can hold a SQLite connection open.
+  if (projectId) {
+    const home = await realpath(directory);
+    const owner = acquireUpgradedHomeOwner(home);
+    try { store = new LocalProjectDatabase(databasePath, { homeStorage: { home, owner } }); }
+    finally { owner.release(); }
+  } else store = new LocalProjectDatabase(databasePath);
   if (completion !== undefined || functions || workspaceFor || pluginFixtures) {
     localHost = new MolisWorkLocalHost({ homeDirectory: directory, completeText: completion, functions, workspaceFor, pluginFixtures,
       ...(projectId ? { actionAvailability: projectActionAvailability((options, operation) => withCatalog(options, operation), directory) } : {}) });

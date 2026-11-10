@@ -7,6 +7,8 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { openTestHome } from "./fixtures/test-home.js";
 
 import { placeFloating, scrollShouldFollow } from "@molis-ai/molis-work-plugin-sdk/browser";
 import {
@@ -5297,49 +5299,39 @@ test("写作助手只依据原文：提示词约束事实与长度，「更短�
   assert.match(expanded.text, /（待补充）/);
 });
 
-test("AI 缺模型拒绝，配置模型返回候选，Promote 经统一动作发出 Artifact", async () => {
+test("BSH-01 AI 缺模型拒绝，配置模型返回候选，Promote 经统一动作发出 Artifact", async t => {
   await assert.rejects(runPagesAi({ command: "summarize", text: "第一句。第二句。" }), { code: "actions.connection_required" });
-  await withHome(async (home) => {
-    const store = openPagesStore(home);
-    const created = store.create({
-      project_id: PROJECT,
-      title: "周报",
-      body: {
-        type: "doc",
-        content: [
-          { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "完成" }] },
-          { type: "paragraph", content: [{ type: "text", text: "核对发布清单并写清验收。" }] },
-          { type: "task_list", content: [{ type: "task_item", attrs: { checked: false }, content: [{ type: "paragraph", content: [{ type: "text", text: "交稿" }] }] }] },
-        ],
-      },
-    });
-    const published: Array<{ page_id: string; version: number; goal_id: string }> = [];
-    const { actions } = pagesTestPorts(store, PROJECT, {
-      completeText: async () => "先写目标，再写范围。",
-      publishArtifact: (input) => {
-        published.push({ page_id: input.page_id, version: input.version, goal_id: input.goal_id });
-        return { artifact_id: "pages-" + input.page_id, version: input.version };
-      },
-    });
-    const { document: linked } = await actions.invoke(pagesActions.update, { id: created.id, goal_id: "GOAL-SHIP" });
-    assert.equal(linked.goal_id, "GOAL-SHIP");
-    const { document } = await actions.invoke(pagesActions.promote, { id: created.id, goal_id: "GOAL-SHIP" });
-    assert.equal(document.artifact_id, "pages-" + created.id);
-    assert.equal(document.artifact_version, 1);
-    assert.deepEqual(published[0], { page_id: created.id, version: 1, goal_id: "GOAL-SHIP" });
-    const { document: again } = await actions.invoke(pagesActions.promote, { id: created.id });
-    assert.equal(again.artifact_version, 2);
-    const extractBody = await actions.invoke(pagesActions.extract, { id: created.id });
-    assert.equal(extractBody.cards, 1);
-    assert.equal(extractBody.created.length, 1);
-    const extractedAgain = await actions.invoke(pagesActions.extract, { id: created.id });
-    assert.equal(extractedAgain.created.length, 0);
-    assert.equal(store.list(PROJECT).filter((item) => item.title.includes("完成")).length, 1);
-    const ai = await actions.invoke(pagesActions.ai, { id: created.id, command: "outline", text: "先写目标再写范围" });
-    assert.equal("stub" in ai, false);
-    assert.equal(ai.text, "先写目标，再写范围。");
-    store.close();
+  const runtime = await openTestHome(t, { host: { completeText: async () => "先写目标，再写范围。" } });
+  const project = await runtime.createProject("Pages fixed revisions", ["pages"]), caller = await runtime.host.localPersonContext(project.reference);
+  const actions = bindActionClient(runtime.host.actionClient(project.reference), () => caller);
+  const { document: created } = await actions.invoke(pagesActions.create, {
+    title: "周报",
+    body: { type: "doc", content: [
+      { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "完成" }] },
+      { type: "paragraph", content: [{ type: "text", text: "核对发布清单并写清验收。" }] },
+      { type: "task_list", content: [{ type: "task_item", attrs: { checked: false }, content: [{ type: "paragraph", content: [{ type: "text", text: "交稿" }] }] }] },
+    ] },
   });
+  const { document: linked } = await actions.invoke(pagesActions.update, { id: created.id, goal_id: "GOAL-SHIP" });
+  assert.equal(linked.goal_id, "GOAL-SHIP");
+  const { document } = await actions.invoke(pagesActions.promote, { id: created.id, goal_id: "GOAL-SHIP" });
+  assert.equal(document.artifact_id, "pages-" + created.id);
+  assert.equal(document.artifact_version, 1);
+  const saved = await runtime.host.withProject(project.reference, ({ artifacts }) =>
+    artifacts.query.getArtifactVersion(project.project_id, { artifact_id: document.artifact_id, version: 1 }));
+  assert.deepEqual([saved?.metadata.page_id, saved?.version, saved?.metadata.goal_id], [created.id, 1, "GOAL-SHIP"]);
+  const { document: again } = await actions.invoke(pagesActions.promote, { id: created.id });
+  assert.equal(again.artifact_version, 2);
+  const extractBody = await actions.invoke(pagesActions.extract, { id: created.id });
+  assert.equal(extractBody.cards, 1);
+  assert.equal(extractBody.created.length, 1);
+  const extractedAgain = await actions.invoke(pagesActions.extract, { id: created.id });
+  assert.equal(extractedAgain.created.length, 0);
+  assert.equal((await actions.invoke(pagesActions.list, {})).documents.filter(item => item.title.includes("完成")).length, 1);
+  const ai = await actions.invoke(pagesActions.ai, { id: created.id, command: "outline", text: "先写目标再写范围" });
+  assert.equal("stub" in ai, false);
+  assert.equal(ai.text, "先写目标，再写范围。");
+
   await withHome(async (home) => {
     const store = openPagesStore(home);
     const page = store.create({ project_id: PROJECT, title: "只挂" });

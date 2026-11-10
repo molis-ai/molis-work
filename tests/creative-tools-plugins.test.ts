@@ -208,15 +208,19 @@ test("工作台客户端脚本在挂上三个创作插件后仍能解析", () =>
   assert.match(datasetSource("list.ts"), /feed-stage-entry directory-list-row/);
   assert.match(pptSource("list.ts"), /feed-stage-entry directory-list-row/);
   // Rows no longer repeat the plugin's name as a chip; their only label is the record's state (plugin-e2e-review §4 X2).
-  for (const [script, cell] of [[formSource("list.ts"), /fixedCell\(L, record\)/], [datasetSource("list.ts"), /fixedCell\(record\)/], [pptSource("list.ts"), /fixedCell\(page, record\)/]] as const) {
+  for (const [owner, script, cell] of [
+    ["form", formSource("list.ts"), /fixedCell\(readText, record\)/],
+    ["dataset", datasetSource("list.ts"), /fixedCell\(record\)/],
+    ["ppt", pptSource("list.ts"), /fixedCell\(page, record\)/],
+  ] as const) {
     assert.doesNotMatch(script, /kindChip\(/);
     assert.doesNotMatch(script, /plugin-stage-kind/);
     assert.match(script, cell);
-    assert.match(script, /L\("(?:固定版本|form\.fixed\.label|dataset\.fixed\.label|ppt\.fixed\.label)"\) \+ " v" \+ record\.artifact_version/);
+    assert.ok(script.includes(`node.textContent = uiText.text("${owner}.fixed.label") + " v" + record.artifact_version;`));
     // The row-level "存为固定版本" control is gone: it looked like share and was the least-used action; the editor keeps it.
     assert.doesNotMatch(script, /creative-artifact-act/);
   }
-  assert.match(datasetSource("list.ts"), /L\("dataset\.list\.empty-table"\)/);
+  assert.match(datasetSource("list.ts"), /uiText\.text\("dataset\.list\.empty-table"\)/);
   assert.match(FORM_CLIENT_FACTORY_SCRIPT, /is-arriving/);
   assert.match(datasetSource("page.ts"), /is-arriving/);
   assert.match(pptSource("page.ts"), /is-arriving/);
@@ -224,7 +228,8 @@ test("工作台客户端脚本在挂上三个创作插件后仍能解析", () =>
   assert.match(pptSource("slides.ts"), /ppt-slide-index/);
   // The PPT row carries no placeholder status span any more; its state cell is fixedCell (asserted above).
   assert.doesNotMatch(pptSource("list.ts"), /mw-status--quiet feed-entry-status/);
-  assert.doesNotMatch(pptSource("list.ts"), /L\("草稿"\)/);
+  assert.match(pptSource("list.ts"), /node\.textContent = uiText\.text\("ppt\.fixed\.label"\) \+ " v" \+ record\.artifact_version;\s*\} else node\.setAttribute\("aria-hidden", "true"\);/);
+  assert.doesNotMatch(pptSource("list.ts"), /草稿/);
   assert.doesNotMatch(formSource("list.ts"), /className = "form-row/);
   assert.doesNotMatch(datasetSource("list.ts"), /className = "dataset-row/);
   assert.doesNotMatch(pptSource("list.ts"), /className = "ppt-row/);

@@ -15,7 +15,9 @@
 
 ## 写一个带两种语言的插件
 
-最短的路是 `molis-work plugin create`：生成的样例已经带 `ui.locales` 和 `locales/en.json`、`locales/zh.json`，同一份写法在 `examples/plugin-sample/`。安装公开两包（contracts 和 SDK）、`validate`、`dev` 的完整命令见 `docs/platform/PLUGIN-DEVELOPMENT.md`「创建和运行」。从空目录写，照下面四步，文末有一个跑过的最小例子。
+`molis-work plugin create` 生成的样例已经带 `ui.locales`、`locales/en.json` 和 `locales/zh.json`。先按随包手册准备安装版 CLI 和 contracts、SDK 两包。从空目录手写时，照下面四步和文末的完整例子。[安装版开发入口](authoring.md#安装版开发入口) · [中英文最小例子](#最小的完整例子)
+
+有源码树时，可以对照其中同一写法的样例。[源码树样例](../../examples/plugin-sample/)
 
 **1. Manifest 声明语言。** 在 `ui` 下加 `locales`：
 
@@ -26,7 +28,7 @@
 }
 ```
 
-- 每种语言一个文件 `locales/<语言>.json`，路径由约定得出，不写；`molis-work-plugin pack` 自动带上；用 npm 或 pnpm 发布项目时，把 `locales` 放进 `package.json` 的 `files`。
+- 每种语言一个文件 `locales/<语言>.json`，路径按约定推导。`molis-work plugin pack` 自动带上。用 npm 或 pnpm 发布项目时，把 `locales` 放进 `package.json` 的 `files`。[打包与签名](authoring.md#打包与签名)
 - 语言标记写 `zh`、`en`、`zh-Hant`、`pt-BR` 这样的；`default` 在 `available` 里，不重复，最多 32 种；`ui.locales` 只有这两个键。
 - 不接受旧的 `ui.messages` 或 `ui.translations`，两者单独出现也不接受。
 - Home 库的项目清理说明（`databases.home.project_rows.label`）也可引用本插件的键。默认语言必须有这句；它是非空单行、最多 200 字符，无参数与复数。要保留原文时写字符串或 `{ literal }`。
@@ -95,19 +97,20 @@ render() {
 - 代码里不读语言：没有 `navigator.language`、`currentLocale`，也不按语言写分支。语言由平台给，`t` 自己知道。
 - 一个键在所有语言里都查不到时，页面显示平台的一句「这句话暂时显示不了」（英文 This text cannot be shown right now），键名不上页面；宿主在 stderr 记一行 `"area":"ui-text","event":"text-missing"`，`fields` 里有 `owner`、`key`、`locale`；同一个主人的同一个键只记第一次，再渲染多少次也只有这一行。`validate` 只读语言文件、不读代码，所以写错的键看 `dev` 的这行日志。
 
-**4. 检查和运行。** `validate` 和 `dev` 都用 Molis Work 本体的命令 `molis-work plugin …`。它不在你装的 contracts、SDK 两个包里，装完它们 PATH 上也没有 `molis-work`。今天拿到它有两条路，命令后面的参数一样：
+**4. 检查和运行。** `validate` 和 `dev` 都由 Molis Work 本体的 CLI 执行。按随包手册设好 `molis_cli`，默认是 Home 下的 `bin/molis-work`。[安装版开发入口](authoring.md#安装版开发入口)
 
-- 在 Molis Work 仓库里 `pnpm build` 之后，在仓库根目录写 `node dist/cli/main.js plugin …`（`docs/platform/PLUGIN-DEVELOPMENT.md`「创建和运行」都这样写）。
-- 按 `docs/installation.md` 装过 Home 的，写全路径 `~/.molis-work/bin/molis-work plugin …`，它不在 PATH 上。公开安装包还没发布。
+在源码树里构建后，可用 `node dist/cli/main.js` 代替 `"$molis_cli"`。独立工具 `molis-work-plugin` 目前供源码树使用，它的 `dev` 会报 `plugin.host_required`，应改用 `molis-work plugin dev`。[构建命令](authoring.md#从源码树构建) · [源码树的安装说明](../../docs/installation.md) · [独立 CLI 的源码树待办](../../specs/backlog/BL-plugin-cli-standalone-install.md)
 
-仓库里另有一个独立工具 `molis-work-plugin`（`tooling/plugin-cli`），今天装不到仓库外面（`specs/backlog/BL-plugin-cli-standalone-install.md`），而且没有 Host：在它上面跑 `dev` 报 `plugin.host_required`，不是 Manifest 写错了，换成 `molis-work plugin dev`。
+把项目路径换成实际位置。最小例子的授权项是 `ui:register`，其他插件填自己 Manifest 所需的权限，以逗号分隔。
 
 ```bash
-molis-work plugin validate <项目>/manifest.json
-molis-work plugin dev <项目> <开发状态目录> <grants> --allow-unsigned-development --locale zh
+plugin_project="/实际目录/greeting"
+plugin_state="$(mktemp -d)"
+"$molis_cli" plugin validate "$plugin_project/manifest.json"
+"$molis_cli" plugin dev "$plugin_project" "$plugin_state" ui:register --allow-unsigned-development --locale zh
 ```
 
-`<grants>` 是逗号分隔的、Manifest 要的权限（下面的最小例子只要 `ui:register`）。`<开发状态目录>` 必须是新的、空的，或之前 `dev` 用过、带 `.molis-work-plugin-development.json` 标记的目录，普通的非空目录会被拒绝（`message` 写「Plugin 开发不能使用非空的普通目录或用户项目目录」；错误码今天误报成 `plugin.manifest_invalid`，看 `message`，见 `specs/backlog/BL-plugin-cli-dev-uncoded-errors.md`）；中英文各跑一次可以用同一个。
+开发状态目录必须是新的、空的，或之前 `dev` 用过且带 `.molis-work-plugin-development.json` 标记。中英文各跑一次可以用同一个目录。普通非空目录会被拒绝，`message` 写「Plugin 开发不能使用非空的普通目录或用户项目目录」。目前错误码为 `plugin.manifest_invalid`，以 `message` 定位目录问题。[源码树的错误码待办](../../specs/backlog/BL-plugin-cli-dev-uncoded-errors.md)
 
 **先 `validate`，再 `dev`。** `dev` 只读这次用的语言和默认语言两个文件：单个文件坏了（不是合法 JSON、有那五个字符、`owner` 或 `locale` 不符），或者这两种语言之间参数不一样、默认语言缺这次语言有的键，都拒绝运行，报 `plugin.package_invalid`，`message` 和 `validate` 的写法一样。别的语言（没用到的那几种）它不读，所以全部语言的检查仍要靠 `validate`；这次的语言少几个键不挡运行，那几处显示默认语言的字。
 
@@ -131,7 +134,7 @@ molis-work plugin dev <项目> <开发状态目录> <grants> --allow-unsigned-de
 ## 颜色和字体
 
 - 样式只写语义变量：颜色 `var(--ink)`、`var(--muted)`、`var(--paper)`、`var(--line)`、`var(--accent)`、`var(--action)`；字体 `var(--font)`、`var(--font-mono)`、`var(--weight-body)`、`var(--weight-title)`；圆角 `var(--r-control)`、`var(--r-card)`；动效 `var(--dur-move)`、`var(--ease-quint)`。不写色值，也不写圆角、阴影、时长的数值和 `!important`。
-- 值只在基线文件里：`packages/design-system/resources/` 的 `ui-spec.json`（有哪些角色）、`skins/soft-workbench.json`（颜色、阴影、圆角、动效的值）、`fonts/system-sans.json`（字族、字重、字距）。缺一个就加进基线文件（角色在 `ui-spec.json`，值在皮肤文件），不写局部值；改这些文件要过设计系统的评审。外部插件作者拿不到私有的 design-system，按名字用变量就行。
+- 安装版插件直接按名字使用上面的语义变量。基线文件是源码树的设计系统资料，`ui-spec.json` 列角色，`skins/soft-workbench.json` 定颜色、阴影、圆角和动效，`fonts/system-sans.json` 定字族、字重和字距。源码树维护者新增角色或取值时走设计系统评审。[源码树基线文件](../../packages/design-system/resources/)
 - 代码不读当前皮肤、明暗或字体（`data-skin`、`data-resolved-theme` 都不碰），换外观时页面不用做任何事。
 
 ### 目录和连接服务的文字
@@ -144,13 +147,13 @@ molis-work plugin dev <项目> <开发状态目录> <grants> --allow-unsigned-de
 
 一轮用哪种语言回复，由平台在一处给模型（`AgentStartAuthority.reply_language`）。提示词、Skill、方法和插件代码里都不写「用中文回复」，也不按语言分支；用户这一轮明说要别的语言时，模型照用户的。写法见 [molis-prologue-ai](../molis-prologue-ai/SKILL.md)。
 
-Skill、方法和提示词的长正文每种语言一个文件，缺译文时用该来源的默认正文；这一轮的回复语言不随正文回退。内容包的具体文件规则见 [字体、皮肤与语言合同](../../specs/font-and-skin-system/a-section-contract.md#153-skill-的文件约定交第-08-批合同)。
+Skill、方法和提示词的长正文每种语言一个文件，缺译文时用该来源的默认正文；这一轮的回复语言不随正文回退。具体的内容包文件规则留作源码树参考。[源码树的内容包文件约定](../../specs/font-and-skin-system/a-section-contract.md#153-skill-的文件约定交第-08-批合同)
 
 ## 最小的完整例子
 
 一个只画一页的 Integration 插件，中英文，参数带 `'` 和 `&`。上面第 2 步的 `locales/en.json`、`locales/zh.json` 放在同一目录。
 
-插件代码跑在 `molis-work` 的进程里，所以 Node 版本跟它走。仓库锁定 24.15.x：`.nvmrc` 写 24.15.0，根 `package.json` 的 `engines` 写 `>=24.15.0 <24.16.0`，npm 安装包也要求这一版；别的版本不在支持范围，能跑也不保证。contracts 和 SDK 两包自己写的是 `>=24`。`import … with { type: "json" }` 在 24.15 能用。入口写成 `.mjs`，不管 `package.json` 的 `"type"` 都按 ES 模块读。`validate` 和 `dev` 不读 `package.json`，自己不用写；`npm install` 装两个包时会建一个。到 `pack` 时才要它：`files` 列出分发的文件（语言文件不用列，自动带上）。
+插件代码在 `molis-work` 的进程里运行，Node 版本跟它走。当前 npm 安装包要求 Node 24.15.x，源码树也锁定这个系列。源码树的 `.nvmrc` 写 24.15.0，根 `package.json` 的 `engines` 写 `>=24.15.0 <24.16.0`。contracts 和 SDK 两包自己声明 `>=24`。`import … with { type: "json" }` 在 24.15 能用。入口写成 `.mjs` 时按 ES 模块读，与 `package.json` 的 `"type"` 无关。`validate` 和 `dev` 无需手写 `package.json`，离线安装两包时 npm 会建一个。打包时用 `files` 列出分发文件，Manifest 声明的语言文件自动带上。[离线安装两包](authoring.md#安装版开发入口)
 
 `manifest.json`：
 

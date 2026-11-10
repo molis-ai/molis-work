@@ -281,7 +281,8 @@
 | 连接器：按认证方式的通用路由和连接库管理（`/api/settings/connectors/connections`、`.../authorizations/<id>`、`.../methods/…`） | `apps/local-host/src/web-connector-connections.ts`、`apps/local-host/src/web-connector-methods.ts`、`apps/local-host/src/web-connector-api-methods.ts` | 连接库是宿主的（`apps/local-host/src/connector-connection-store.ts`），不属于某个 provider | 连接库管理成为动作或设置面时再议；此前保持 |
 | 判断服务的账号连接：`POST /api/functions/settings`（选择或清除 Functions 绑定的 TypeSafe 连接，另有 `GET` 读状态） | `apps/local-host/src/judgment-rules-http.ts` 调 `bindTypeSafeConnection`、`unbindTypeSafeConnection`（`apps/local-host/src/typesafe-connection.ts`），绑定写在 Home 的连接库里（范围 `home`，插件位 `functions`，槽 `typesafe`）；页面是 `apps/workbench/src/judgment-rules/settings-client.ts`（设置 › 服务连接） | 选哪个账号给判断服务用是本人的决定；连接库是宿主的，与上一行的通用连接路由同源 | 与上一行相同：连接库管理成为动作或设置面时再议；此前保持 |
 | 提示词：`POST /api/agent-definitions/prompt`（保存）、`POST /api/agent-definitions/prompt/reset`（恢复默认）；设置 › 提示词 | `apps/local-host/src/agent-definitions/agent-definitions-http.ts` 直接调 `AgentDefinitions.save`、`reset`（`apps/local-host/src/agent-definitions/agent-definitions.ts`），页面是 `apps/workbench/src/settings-prompts.ts`；库是 Home 的 `agent-definitions` 存储（`AGENT_DEFINITIONS_STORE`） | 改的是模型指令的登记册，一个 Home 一份，不属于任何插件；带 `expected_revision` 防冲突并记历史；页面写明改文字不改变角色能做什么，权限由 Host 在代码里执行。让助理、Agent、MCP 能调它，等于让它们改自己的指令 | 需要代用户改提示词的入口出现，或提示词成为各插件设置面的一部分时；在此之前不进动作目录 |
-| 设置 › 助理：`POST /api/assistant/capabilities`（助理能用哪些动作、哪些每次确认）、`POST /api/assistant/rules` 与 `/rules/remove`（不打扰与暂停提醒的规则）、`POST /api/assistant/budget`（每日用量上限）。另有 `POST /api/assistant/memory-prefs` 与 `/memories` 仍挂着，今天 `apps/workbench/src` 里没有页面调用它们（设置 › 记忆走 `/api/memory/*`；记忆系统规格 `specs/archive/memory-system/spec.md` 写明保留这些路径并内部转发） | `apps/local-host/src/assistant/assistant-http.ts` 直接调 `AssistantService`（`saveRule`、`saveBudget`、`saveMemoryPrefs` 等）和 `AssistantStore`，页面是 `apps/workbench/src/settings-assistant.ts`；库是 Home 的助理库（`ASSISTANT_STORE_NAME`，`apps/local-host/src/assistant/assistant-store.ts`） | 这几项约束助理自己：能用什么、花多少、何时不打扰。必须是本人在本机页面上的决定，助理不能给自己放宽 | 改成只对 `user` 受众开放、目录里对其他受众不可见的系统动作时才改（与对外接入授权同条件）；`memory-prefs` 与 `/memories` 两条在确认没有别的调用方后，随助理 HTTP 的下次整理删除 |
+| 设置 › 助理：`POST /api/assistant/capabilities`（能用哪些动作、哪些每次确认）、`POST /api/assistant/budget`（每日用量上限）。另有 `POST /api/assistant/memory-prefs` 与 `/memories`，现行设置 › 记忆走 `/api/memory/*` | `apps/local-host/src/assistant/assistant-http.ts` 由本人上下文调用助理存储与预算。旧记忆路径转 Memory owner。页面在 `apps/workbench/src/settings-assistant.ts` | 能力授权和用量约束由本人决定。旧记忆路径的去留由原规格管理 | 授权和预算成为只对 `user` 开放的动作时再接。旧记忆路径按 `specs/archive/memory-system/spec.md` 保留，确认无其它调用方后再删 |
+| 设置 › 助理：`POST /api/assistant/rules`、`/rules/remove` | 同一 HTTP 入口直接调 `AssistantFollowUps`，另有 `apps/local-host/src/assistant/assistant-rule-actions.ts` 的 `assistant.rules.add`／`assistant.rules.remove` 走现有写入动作和确认 | 规则由助理的 Home 存储持有。页面可按原 ID 修改，现有 `add` 动作只添加 | 接入时核对编辑与添加的区别，保持各入口的本人决策和现有确认边界 |
 | 侧栏浏览器的站点授权：`POST /api/browser/sites`（允许、拦截或忘记某个网站）、`POST /api/browser/assistant`（助理能否使用侧栏浏览器） | `apps/local-host/src/browser/browser-http.ts`，数据在 `{home}/browser/sites.json`（`BrowserSiteDecisions`，`apps/local-host/src/browser/browser-surfaces.ts`） | 这是助理在侧栏浏览器里用哪些网站的授权，与对外接入授权同类：必须是本人的决定，助理不能给自己授权 | 与对外接入授权一行相同 |
 | Runtime 插件的运维：`POST /api/plugins/<插件 id>/restart`、`/release-quarantine`、`/upgrade`，`POST /api/plugins/runtime/events/recover` | `apps/local-host/src/project-plugin-http.ts`（`handleProjectPluginHttp`，不认识任何插件）把请求交给 `apps/local-host/src/plugin-route-operations.ts` 的 `dispatchRuntimePluginRoute`（不认识任何插件：重启、解除隔离、升级、未运行的 503、视图版本号、已声明路由的分发；属于某个插件或项目输入图的部分经钩子由调用方给），它调 `PluginSupervisor.restart` 与 `PluginSupervisor.upgrade`（`packages/plugin-runtime/src/supervisor.ts`，经 `apps/local-host/src/plugin-platform.ts` 的平台对象）；`apps/local-host/src/plugin-event-http.ts`（`handlePluginEventHttp`）调 `PluginEventBus.recover`（`packages/plugin-runtime/src/events.ts`） | 重启、解除隔离和升级是人对已装插件的运维决定（升级换版本、解除隔离让被隔离的插件重新运行）；`recover` 是人对「结果未知」的事件投递选择重试或跳过。都要求 POST 确认，处理器在 Host 的监督器与事件总线里，不属于某个插件 | 插件运维成为只对 `user` 受众开放的系统动作（升级与重启带预览、确认配对），或助理需要代用户升级插件时；在此之前保持 |
 | typed 能力注册表 | 已删除：`packages/kernel/src/index.ts`（`CapabilityRegistry`）只收带 `action` 的定义，`apps/local-host/src/local-host.ts` 只有 `registerAction` 一个登记口 | 已定（N-12，决定 1）对外只走动作；`agent.*`（`packages/contracts/src/services/agent-host.ts`）、调度与工作区的宿主能力先后转成动作，R8「删 typed 通道」删掉了 `HostCapabilityDefinition`、`register` / `registerCapability` 与插件的 `services.capabilities`，门禁（`typedCapabilities`）数字为 0 且不许再加；`services.model`（W3-06 E）是插件服务（`PluginHostServices.model`），不经注册表 | Goals 的十四个 typed 桥已删除（PR-5/8）；注册表里没有 typed 条目由 `tests/typed-registry-inventory.test.ts` 核对（PR-9）。工作区读只剩动作 id（W2-09），Files、Git、Coding 经 `capabilities.consumes` 与 `workspace:read` 调它（见 [PLUGIN-PLATFORM §3](../platform/PLUGIN-PLATFORM.md)「插件调用宿主动作」） |
@@ -315,6 +316,57 @@ Agent 审批的入口在 `apps/local-host/src/agent-review-http.ts`，审批状�
 | `POST /api/agent/reviews/recovery` | 仅项目内的 Git 暂存操作由 `horizontal/agent-host/src/adapters/prologue-git-recovery.ts` 核对。`refresh` 据原派发记录收口；`not-happened` 需本人确认、依据和所见版本 | 核对与裁定都沿原执行记录，保持未知状态与明确拒绝条件 |
 | `GET /api/agent/reviews`、`GET /api/agent/reviews/recovery` | 读取前的 `reviews.refresh` 由各执行方恢复原回执。Git 执行方首次恢复时可取消重启前已证实未派发的操作 | 区分历史回执恢复与本人新决定。查询、恢复和主动核对均沿原执行权，已有动作不会因查看再次派发 |
 
+##### 助理面板
+
+路径相对于 `/api/assistant`，入口为 `apps/local-host/src/assistant/assistant-http.ts`。设置写入见上表。原评论 `POST /threads/start`、`/retry`、`/stop` 和 `GET`／`POST /threads/status` 已走 `assistant.threads.*`。从工作面板停止一项原评论回复也沿原项目调用 `assistant.threads.stop`。`GET`／`POST /works/<id>/cards/<card>/connection` 已走 `connectors.authorization.read`／`connectors.authorization.cancel`，待接入标识来自宿主保存的卡，沿原工作会话核对。
+
+| 路径 | 主人和实际效果 | 接入时保留 |
+| --- | --- | --- |
+| `POST /send` | 助理的 Send 持久化输入及收据，启动、追加或回答原轮次，实际运行归 Agent Host 或执行方插件 | 链 3 的 `request_id` 幂等、原工作范围、可信来源与输入拒绝 |
+| `POST /cards` | 助理保存页面提出的操作卡及来源关系，可按需新建工作 | 同一 `message_id` 只放一张卡，实际动作等明确点击 |
+| `POST /attachments` | Agent Host 解析 PDF 后返回当前输入用的材料。图片经 `horizontal/agent-host/src/adapters/prologue-documents.ts` 发布为 Runtime 资源 | 文档解析与资源写入分列，保持文件限制、受控暂存和资源引用 |
+| `POST /notices` | 助理通知记录本人已看或略过的状态 | 同一通知或工作内的现行收口范围 |
+| `POST /followups/remove` | 助理移除跟进记录并取消所关联的计划任务。同一服务也有 `assistant.followups.remove` | 对照 HTTP 的移除结果、动作的工作范围及现有调度取消语义 |
+| `POST /memory-candidates/<candidate>/accept` | Memory 以本人身份保存认可的建议，可带用户修改的文字。已有 `memory.candidates.accept` 要求所见版本 | 保留候选原作用域与来源核对。接入前明确页面如何传所见版本 |
+| `POST /memory-candidates/<candidate>/discard` | Memory 记录用户放弃同一候选。已有 `memory.candidates.discard` 要求所见版本 | 保留原范围和放弃后的状态。接入前明确页面如何传所见版本 |
+| `POST /works/<id>/control` | 助理和原执行方处理暂停、继续、停止或撤回输入。停止还处理原委托、待审和待接入 | 已发出的效果按原回执继续核对，执行方和原评论各走自己的权限 |
+| `POST /works/<id>/draft` | 助理保存工作输入草稿 | 原工作身份和内容大小检查 |
+| `POST /works/<id>/rename` | 助理按所见版本改工作名 | 原 revision 冲突拒绝 |
+| `POST /works/<id>/mode` | 执行方插件在自己的会话保存后续轮次模式，需要时建立其会话关联 | 执行方归属与现有会话优先 |
+| `POST /works/<id>/take-back` | 助理收回委托子任务 | 父子工作归属及原执行方状态 |
+| `POST /works/<id>/undo/<undo>` | 助理从原撤销记录请求动作主人撤销 | 当前授权、动作引用与原工作绑定 |
+| `POST /works/<id>/budget` | 助理保存工作用量上限 | 委托子任务仍受父工作的上限约束 |
+| `POST /works/<id>/results` | 助理记录页面交回的对象关系并通知，正文归原 owner | 保留原对象引用与工作状态 |
+| `POST /works/<id>/handover` | 助理与执行方保存转交及会话关系 | 在现行可交接阶段、项目和提供方范围内执行 |
+| `POST /works/<id>/recovery` | 带 `run_id` 时，原 Runtime 按所见版本关闭中断轮次，助理更新关联委托。其余输入读原恢复视图 | 本人明确关闭与查看分开，沿原回执恢复且不重跑 |
+| `POST /works/<id>/archive` | 助理归档或恢复工作，归档前核对该工作及委托，停止相应跟进 | 在途轮次拒绝归档，跟进由原服务处理 |
+| `POST /works/<id>/reviews/<review>` | Agent Host 由原执行方记录本人的审批决定。助理拒绝后可把决定传回当前轮次 | 核对原工作、会话、项目和待审，批准与实际结果分开 |
+| `POST /works/<id>/answer` | 原 Runtime 接受对应待答项的答案，助理清理这次问卷草稿 | 保持待答版本与字段拒绝，回答成功才清草稿 |
+| `POST /works/<id>/question-draft` | 助理保存对应待答项的草稿 | 原待答标识与草稿 revision |
+| `POST /works/<id>/cards/<card>/run` | 助理复核卡与所见版本，经原动作运行并记录回执 | 原动作的提供方、权限和一次效果 |
+| `POST /works/<id>/cards/<card>/dismiss` | 助理将原操作卡收起并记录状态 | 本人选择、卡片身份和版本规则 |
+| `POST /works/<id>/cards/<card>/redo` | 助理以页面来源发起重新准备一轮 | 只准备新卡，已过时的原动作维持原结论 |
+| `GET /works`、`GET /notices` | 助理根据已有轮次和主人状态生成或结算通知。通知读取还处理已被原插件处置的事项 | 查询前的回执归并分列，保留用户的已看、略过和未决状态 |
+| `GET /usage` | 助理从已完成轮次的真实回执补记用量 | 同一轮只入账一次，未结束的轮次留到完成后 |
+| `GET /memories`、`GET /memory-candidates` | Memory 读正式记录与候选时可结算过期候选 | 沿原作用域和已到期条件结算 |
+| `GET /works/<id>`、`GET /works/<id>/wait` | 助理读工作时会核对并收起已过期或改版的卡、补记该工作用量。Memory 可结算这个工作的过期建议 | 回执与收尾效果分列。等待连接只是这份工作视图的传输，断开停止等待 |
+| `GET /related` | 与 `assistant.works.related` 共用对象关联投影。为列出每项相关工作的结果，会走上行的工作读取与收尾 | 复用原投影与工作权限，接入时保留实际回执效果 |
+
+接入时继续复用原动作和既有 owner，特别是模型等待、审批决定、跟进、回执结算与连接权限的边界。
+
+##### 插件创作台
+
+创作台入口为 `apps/local-host/src/plugin-builder/agent-surface.ts`，前四行路径相对于 `/api/plugin-builder/studio`。构建和发布记录由 `plugins/native/plugin-builder/src/agent-workflow.ts` 与它的存储持有。旧 `/secrets` 独立写路由已在 `9247de39a` 移除，必要的密钥由人随安装或升级授权交给 `apps/local-host/src/installed-plugin-lifecycle.ts`，密钥值在宿主的封存存储内。
+
+| 路径 | 主人和实际效果 | 接入时保留 |
+| --- | --- | --- |
+| `POST /settings` | 创作台的项目私有存储保存已配置模型的提供方与模型标识 | 选择须匹配现有模型目录 |
+| `POST /builds` | 创作台创建构建记录并启动设计作业 | 固定项目、现有模型检查与任务归属 |
+| `POST /builds/<id>/action` | 创作台处理范围、选择、意见、组件、检查、暂停、续跑、撤销和删除。启用依赖插件交项目目录，发布交创作台发布流程，安装、升级、回滚、启停和卸载交现有插件生命周期 | 区分草稿、项目登记和安装效果。保持所见 revision、同一构建的执行令牌、权限确认、安装失败回滚和密钥封存 |
+| `POST /builds/<id>/call` | 按界面组件的 `read` 或 `submit` 绑定，把操作交给创作台试用或验收沙箱 | 构建、试用身份、操作声明与取消沿现行核对 |
+| `POST /api/plugins/<generated>/call` | 当前已装生成插件的请求交现有安装平台路由，由已装插件执行其声明操作 | HTTP 传输沿原安装和页面授权，另见 [46 批的迁移边界](../../specs/post-anticorruption-roadmap/reference/batches/46.md#batch-46-item-1) |
+| 首次读取创作台 | `ensureStudio` 初次打开时，创作台初始化会恢复已持久化的构建，先把旧活动阶段标记暂停，再从原检查点续跑 | 把初始化恢复与普通状态、预览、下载及事件流分开盘点，避免一次读取另起一轮恢复 |
+
 ### 10.2 已定要修的偏离
 
 这些不是长期例外，是已经决定要改、还没改完的偏离；改完就从这张表里删掉。
@@ -326,6 +378,4 @@ Agent 审批的入口在 `apps/local-host/src/agent-review-http.ts`，审批状�
 
 **首页事项与动作**。`apps/local-host/src/web-request.ts` 从已认证的项目上下文绑定调用者。`apps/local-host/src/home-dock-http.ts` 的六个 POST 路径都经现行 `system.home` 动作。事项列表、打开位置、动作选项与准备分别调用 `home.events.read`、`home.events.open`、`home.actions.choices`、`home.actions.prepare` 的查询。`POST /api/home/actions/execute` 调 `home.actions.execute`，最终写入由所选动作的主人执行。`POST /api/home/dock-judgment` 调 `home.judgment.write`，由场景绑定服务保存选择，然后经 `home.judgment.read` 读回。HTTP 负责收发和刷新工作台视图。
 
-**待逐条登记的只走 HTTP 的写入**。B9 的 2026-11-01 决定要求按现行实际写入登记主人和理由，再逐组迁入动作。下列组仍须区分业务写入、已进动作的路径和纯传输。
-- 助理面板自己的路由：`/api/assistant/` 下除设置页用的几条以外的写入（发送、卡片、附件、通知处理 `notices`、取消跟进 `followups/remove`、记忆建议的认可与放弃 `memory-candidates/…`、工作里的操作），在 `apps/local-host/src/assistant/assistant-http.ts`。链 3 只写了发送这一条。
-- 插件创作台自己的 HTTP：`apps/local-host/src/plugin-builder/agent-surface.ts` 的 `handleAgentStudioHttp`，路径在 `/api/plugin-builder/studio/` 下，含保存密钥 `POST …/secrets`、`…/settings`、新建构建 `…/builds`、构建里的 `…/action`、`…/call`。
+B9 其余组的写入、已接动作的传输路径和读取时发生的恢复见 §10.1.1。后续按实际效果逐组接入。

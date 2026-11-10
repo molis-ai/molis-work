@@ -80,6 +80,6 @@ goals.state.read → 核对当前约定、要求、依赖与决定
 
 切换Goal不会自动改绑终端或发送消息。Host Session、终端进程与面板继续承担各自职责。
 
-项目库只认当前 schema 版本，不就地升级；V3 导入已删除。事件之前的 Claim、Run、Evidence、Review 历史已删除（#268），事件是唯一的工作协议。
+项目库的打开层只认当前 schema 版本、不就地升级；低版本由启动升级过程先升（`apps/local-host/src/platform-upgrade-stores.ts`、`packages/storage/src/sqlite-upgrade.ts`，[U1 设计](../specs/upgrade-continuity/upgrade-chain-design.md) §3、§4）；V3 导入已删除。事件之前的 Claim、Run、Evidence、Review 历史已删除（#268），事件是唯一的工作协议。
 
 实际可调用示例与必要恢复细节见 [Runtime Skill](../skills/goal-advance/SKILL.md)。

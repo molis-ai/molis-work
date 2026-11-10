@@ -56,7 +56,7 @@ export const todoManifest: PluginManifest = {
   ],
   agent: todoAgentManifest,
   // Offered to other Agents for business work; bodies in ./roles.ts.
-  methods: todoSkills.map(({ body: _body, ...declared }) => ({ ...declared, tools: [...declared.tools] })),
+  methods: todoSkills.map(({ body: _body, body_by_locale: _localized, ...declared }) => ({ ...declared, tools: [...declared.tools] })),
   ui: { locales: { default: "zh", available: ["zh", "en"] },
     contributions: [TODO_UI_CONTRIBUTION_ID],
     views: [

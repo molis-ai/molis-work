@@ -74,7 +74,7 @@ export function createConnectorSourcePort(options: ConnectorSourcePortOptions): 
     },
     accounts(service_ids) {
       if (!existsSync(homeSqlitePath(home, "connectors"))) return Object.fromEntries(service_ids.map(id => [id, { bound: false }]));
-      return withConnectorConnections(home, store => Object.fromEntries(service_ids.map(id => [id, { bound: store.list(id).some(row => row.enabled && !row.disconnected_at) }])));
+      return withConnectorConnections(home, store => Object.fromEntries(service_ids.map(id => [id, { bound: store.list(id).some(row => row.enabled && !row.disconnected_at) }])), true) ?? Object.fromEntries(service_ids.map(id => [id, { bound: false }]));
     },
   };
 }
@@ -87,7 +87,7 @@ function accountOf(home: string, target: PluginConnectionTarget): ConnectorConne
     const connection = store.binding(targetScope(target), target.plugin_id, target.slot_id);
     return connection && connection.service_id === target.service_id && connection.enabled && !connection.disconnected_at
       && shownState(home, connection, store.state(connection), lastConnectorCheck(store, connection.connection_id)) === "connected" ? connection : null;
-  });
+  }, true) ?? null;
 }
 
 /** What makes an account the same account: any of these changing is the person changing it. */

@@ -1,5 +1,5 @@
 import { captureWebSessionAuthority } from "./web-sessions.js";
-import { ActionError, bindActionClient, type ActionCallContext, type ActionDefinition, type ActionProvider, type ActionReference, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionClient, type ActionClient, type ActionCallContext, type ActionDefinition, type ActionProvider, type ActionReference, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ActionSceneView, ActionUserAction } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
@@ -34,6 +34,23 @@ export async function capturePluginSceneAuthority(host: MolisWorkLocalHost, view
   return () => { for (const check of checks) check(); };
 }
 
+function localPersonCaller(reference: LocalHostProjectReference | undefined, permissions: readonly string[], signal?: AbortSignal,
+  originalFile?: ActionCallContext["original_file"]): ActionCallContext {
+  const locale = activeLocale();
+  return { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: reference?.project_id ?? null, audience: "user", permissions, signal,
+    ...(locale ? { locale } : {}), ...(originalFile ? { original_file: originalFile } : {}),
+    ...(inLanguagePreview() ? { read_only_effects: true } : {}) };
+}
+
+/** A Runtime provider's authority always comes from its installation, never from the person's Host grants. */
+function ownerReaches(provider: ActionProvider, permissions: readonly string[], ownerCap: readonly string[]): boolean {
+  if (provider.plugin_install_id !== undefined) return false;
+  const held = localOwnerPermissionsOver(provider.provider_id, permissions);
+  return permissions.every(permission => ownerCap.includes(permission) && held.includes(permission));
+}
+
+const localAuthorityRefused = () => new ActionError("actions.forbidden", "此能力的本地用户授权已失效，请检查插件权限和运行状态");
+
 /** Only the authenticated local-user transport uses this adapter; it is not an Agent/MCP grant resolver. */
 export async function localWebActionContext(host: MolisWorkLocalHost, reference: LocalHostProjectReference | undefined,
   builtinPermissions: readonly string[], signal?: AbortSignal, entry: LocalWebEntry = {}, stageAction?: ActionDefinition): Promise<ActionCallContext> {
@@ -42,10 +59,7 @@ export async function localWebActionContext(host: MolisWorkLocalHost, reference:
   entry.assertCurrent?.();
   signal?.throwIfAborted();
   // What a handler sends back to be shown follows the page the call came from; a call no page made keeps the handler's default.
-  const locale = activeLocale();
-  const base: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: reference?.project_id ?? null, audience: "user", permissions: builtinPermissions, signal,
-    ...(locale ? { locale } : {}), ...(entry.original_file ? { original_file: entry.original_file } : {}),
-    ...(inLanguagePreview() ? { read_only_effects: true } : {}) };
+  const base = localPersonCaller(reference, builtinPermissions, signal, entry.original_file);
   // Inspection activates the actual project providers. Metadata alone never supplies a grant.
   const catalog = await host.inspectPreparedActionMetadata(base, reference);
   signal?.throwIfAborted();
@@ -73,16 +87,11 @@ export async function localWebActionContext(host: MolisWorkLocalHost, reference:
   // The person's own permissions reach only what the Host registers itself, and over each such provider only what the person holds
   // over that provider (PG-007): a permission held over Characters is not held over another Host action that asks for it. A
   // provider the Plugin Runtime registered, built in or not, names its installation, and is reached through its grants alone.
-  const ownerReaches = (view: LocalActionMetadata, ownerCap: readonly string[]) => {
-    if (view.provider.plugin_install_id !== undefined) return false;
-    const held = localOwnerPermissionsOver(view.provider.provider_id, view.action.permissions);
-    return view.action.permissions.every(permission => ownerCap.includes(permission) && held.includes(permission));
-  };
   const scopeMatches = (provider: ActionProvider, scope: "home" | "project") =>
     (!provider.project_id || provider.project_id === reference?.project_id) && (scope === "home" || !!reference);
   const accept = (view: LocalActionMetadata, ownerCap: readonly string[]) => {
     if (!scopeMatches(view.provider, view.action.scope)) return false;
-    if (ownerReaches(view, ownerCap)) return true;
+    if (ownerReaches(view.provider, view.action.permissions, ownerCap)) return true;
     const install = installOf(view.provider);
     const own = view.provider.kind === "plugin"
       && !!install && install.plugin_id === view.provider.plugin_id
@@ -127,7 +136,7 @@ export async function localWebActionContext(host: MolisWorkLocalHost, reference:
     entry.assertCurrent?.();
     signal?.throwIfAborted();
     owner?.assertCurrent();
-    if (!required.every(permission => permissions.includes(permission))) throw new ActionError("actions.forbidden", "此能力的本地用户授权已失效，请检查插件权限和运行状态");
+    if (!required.every(permission => permissions.includes(permission))) throw localAuthorityRefused();
     if (!action) return;
     const matches = accepted.filter(view => view.capability_id === action.capability_id && view.version === action.version
       && (!action.provider_id || view.provider.provider_id === action.provider_id));
@@ -139,7 +148,7 @@ export async function localWebActionContext(host: MolisWorkLocalHost, reference:
     }
     if (original) {
       try { for (const check of [...checks.get(original) ?? [], ...sourceChecks.get(original) ?? []]) check(); }
-      catch { throw new ActionError("actions.forbidden", "此能力的本地用户授权已失效，请检查插件权限和运行状态"); }
+      catch { throw localAuthorityRefused(); }
     }
     if (original && original.provider.plugin_install_id === undefined && accept(original, ownerCap)) return;
     const installId = original?.provider.plugin_install_id;
@@ -148,7 +157,7 @@ export async function localWebActionContext(host: MolisWorkLocalHost, reference:
     if (!original || !install || install.state !== "running" || install.plugin_id !== original.provider.plugin_id
       || install.installation_generation !== installOf(original.provider)?.installation_generation
       || !original.action.permissions.every(permission => install.grants.includes(permission))) {
-      throw new ActionError("actions.forbidden", "此能力的本地用户授权已失效，请检查插件权限和运行状态");
+      throw localAuthorityRefused();
     }
   };
   return { ...base, permissions,
@@ -195,6 +204,44 @@ export function bindLocalWebAction(host: MolisWorkLocalHost, reference: LocalHos
   }, definition);
 }
 
+/** Invoke one exact, Home-registered Catalog action as the person, without preparing a project runtime. */
+export async function invokeLocalWebCatalogAction<Input, Output>(host: MolisWorkLocalHost, resolveProject: () => Promise<LocalHostProjectReference>,
+  action: ActionDefinition<Input, Output> & { provider_id: string }, input: Input,
+  authority: { signal: AbortSignal; sessionCurrent(): void; accountCurrent?(): void }): Promise<Output> {
+  const assertSession = () => { authority.sessionCurrent(); authority.signal.throwIfAborted(); authority.accountCurrent?.(); };
+  assertSession();
+  const definition = { ...action }, ownerCap = [...definition.action.permissions];
+  const catalog = host.projectCatalogActions;
+  const registration = catalog.descriptor(definition), provider = registration?.action_provider;
+  const metadata = registration?.action;
+  if (!provider || provider.provider_id !== definition.provider_id || !metadata?.audiences.includes("user")
+    || !ownerReaches(provider, metadata.permissions, ownerCap)) throw localAuthorityRefused();
+  const permissions = metadata.permissions;
+  const assertAuthority = (target: ActionReference = definition, required: readonly string[] = permissions) => {
+    assertSession();
+    if (catalog.descriptor(definition) !== registration) throw new ActionError("actions.provider_changed", "能力已重新加载，不能继续原副作用");
+    if (target.capability_id !== definition.capability_id || target.version !== definition.version || target.provider_id !== definition.provider_id
+      || !required.every(permission => permissions.includes(permission))) {
+      throw localAuthorityRefused();
+    }
+  };
+  const reference = await resolveProject();
+  assertAuthority();
+  return invokeWithLocalWebAuthority(catalog.client(reference), {
+    ...localPersonCaller(reference, permissions, authority.signal), allowed_actions: [definition],
+    validate_authority: async target => { assertAuthority(target); }, assert_authority_current: assertAuthority,
+  }, definition, input);
+}
+
+async function invokeWithLocalWebAuthority<Input, Output>(client: ActionClient, caller: ActionCallContext,
+  definition: ActionDefinition<Input, Output>, input: Input, control?: Parameters<BoundActionClient["invoke"]>[2],
+  transport?: Parameters<BoundActionClient["invoke"]>[3]): Promise<Output> {
+  const result = await bindActionClient(client, () => caller).invoke(definition, input, control, transport);
+  // A stage read's assertAuthority already opens with the same owner fence.
+  caller.assert_authority_current?.(definition);
+  return result;
+}
+
 function boundLocalWebClient(host: MolisWorkLocalHost, reference: LocalHostProjectReference | undefined, builtinPermissions: readonly string[],
   entry: LocalWebEntry & { readonly signal?: AbortSignal }, narrow: (caller: ActionCallContext) => ActionCallContext, single?: ActionDefinition): BoundActionClient {
   const client = reference ? host.actionClient(reference) : host.homeActionClient();
@@ -223,11 +270,7 @@ function boundLocalWebClient(host: MolisWorkLocalHost, reference: LocalHostProje
       const caller = await current();
       entry.stage_read?.assertCurrent();
       if (entry.stage_read && !entrance(caller, definition)) throw new ActionError("actions.forbidden", "页面只能调用此次绑定的舞台入口及原提供方");
-      const call = asEntry(caller);
-      const result = await bindActionClient(client, () => call).invoke(definition, input, control, transport);
-      // For a stage read this check opens with the same owner fence (`assertAuthority`), so the fence is not run again after it.
-      caller.assert_authority_current?.(definition);
-      return result;
+      return invokeWithLocalWebAuthority(client, asEntry(caller), definition, input, control, transport);
     },
   };
 }

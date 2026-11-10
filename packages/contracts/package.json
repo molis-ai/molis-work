@@ -66,6 +66,10 @@
       "types": "./dist/platform/dom-events.d.ts",
       "import": "./dist/platform/dom-events.js"
     },
+    "./platform/external-tools": {
+      "types": "./dist/platform/external-tools.d.ts",
+      "import": "./dist/platform/external-tools.js"
+    },
     "./platform/kernel": {
       "types": "./dist/platform/kernel.d.ts",
       "import": "./dist/platform/kernel.js"
@@ -122,6 +126,14 @@
       "types": "./dist/platform/storage.d.ts",
       "import": "./dist/platform/storage.js"
     },
+    "./platform/settings": {
+      "types": "./dist/platform/settings.d.ts",
+      "import": "./dist/platform/settings.js"
+    },
+    "./platform/blueprints": {
+      "types": "./dist/platform/blueprints.d.ts",
+      "import": "./dist/platform/blueprints.js"
+    },
     "./platform/testing": {
       "types": "./dist/platform/testing.d.ts",
       "import": "./dist/platform/testing.js"
@@ -149,6 +161,14 @@
     "./services/assistant": {
       "types": "./dist/services/assistant.d.ts",
       "import": "./dist/services/assistant.js"
+    },
+    "./services/blueprints": {
+      "types": "./dist/services/blueprints.d.ts",
+      "import": "./dist/services/blueprints.js"
+    },
+    "./services/home": {
+      "types": "./dist/services/home.d.ts",
+      "import": "./dist/services/home.js"
     },
     "./services/contextual": {
       "types": "./dist/services/contextual.d.ts",
@@ -198,6 +218,10 @@
       "types": "./dist/services/knowledge.d.ts",
       "import": "./dist/services/knowledge.js"
     },
+    "./services/sessions": {
+      "types": "./dist/services/sessions.d.ts",
+      "import": "./dist/services/sessions.js"
+    },
     "./services/search": {
       "types": "./dist/services/search.d.ts",
       "import": "./dist/services/search.js"
@@ -213,6 +237,10 @@
     "./services/memory": {
       "types": "./dist/services/memory.d.ts",
       "import": "./dist/services/memory.js"
+    },
+    "./services/skills": {
+      "types": "./dist/services/skills.d.ts",
+      "import": "./dist/services/skills.js"
     },
     "./modules/characters": {
       "types": "./dist/modules/characters.d.ts",
@@ -253,6 +281,10 @@
     "./platform/project-materials": {
       "types": "./dist/platform/project-materials.d.ts",
       "import": "./dist/platform/project-materials.js"
+    },
+    "./platform/composer": {
+      "types": "./dist/platform/composer.d.ts",
+      "import": "./dist/platform/composer.js"
     },
     "./platform/presentation": {
       "types": "./dist/platform/presentation.d.ts",

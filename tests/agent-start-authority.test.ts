@@ -113,3 +113,22 @@ test("a round's frozen record keeps the call number the Host gave its start, and
   assert.equal(frozen[0]!.call_id, given);
   assert.equal("call_id" in frozen[1]!, false, "a round started without a number has none; nothing invents one");
 });
+
+// D0134: exercise every registered wrapper, before any owner/handler can run.
+test("D0134 missing invocation and failed authority never reach Agent Host", async () => {
+  const handlers = new Map<string, Function>();
+  registerAgentHostCapabilities({ register(definition, handler) { handlers.set(definition.capability_id, handler); return () => {}; } }, {
+    agentHost: () => assert.fail("uncontrolled handler reached the host"), projectId: () => "project",
+    authority: () => assert.fail("uncontrolled handler requested authority"),
+  });
+  assert.ok(handlers.size > 0);
+  for (const handler of handlers.values()) {
+    for (const invocation of [undefined, null, {}, { beforeEffect() {} }]) {
+      await assert.rejects(Promise.resolve(Reflect.apply(handler, undefined, [{}, [], invocation])), { code: "agent.session_unknown" });
+    }
+    const refusal = new Error("revoked or cancelled");
+    await assert.rejects(Promise.resolve(Reflect.apply(handler, undefined, [{}, [], {
+      async beforeEffect() { throw refusal; }, assertAuthorityCurrent() { throw refusal; },
+    }])), error => error === refusal);
+  }
+});

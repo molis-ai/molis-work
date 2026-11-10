@@ -40,7 +40,7 @@
 |  | [页面读取与轮询整治](reference/batches/07.md#batch-07-item-2) |
 |  | [Feed 投影归回插件](reference/batches/07.md#batch-07-item-3) |
 | [08](reference/batches/08.md) | [技能包基础能力](reference/batches/08.md#batch-08-item-1) |
-| [09](reference/batches/09.md) | [助理与 Coding 接点](reference/batches/09.md#batch-09-item-1) |
+| [09](reference/batches/09.md) | [能力包](reference/batches/09.md#batch-09-item-2)；[助理与 Coding 接点](reference/batches/09.md#batch-09-item-1) |
 | [10](reference/batches/10.md) | [统一输入公共组件](reference/batches/10.md#batch-10-item-1) |
 | [11](reference/batches/11.md) | [三入口接入统一输入](reference/batches/11.md#batch-11-item-1) |
 | [12](reference/batches/12.md) | [Coding 执行、委派与可见状态](reference/batches/12.md#batch-12-item-1) |

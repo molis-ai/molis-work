@@ -1,4 +1,5 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { WORK_STATE_COPY } from "./goal-state-copy.js";
 import type {
   GoalEventStateView,
   GoalEventTimelineItem,
@@ -203,8 +204,8 @@ export function eventDirectoryPresentation(state: GoalEventStateView, _goal?: Pi
       event_work: true,
       status: "satisfied",
       display_status: "completed",
-      status_label: uiText.text("goals.event-document-model.completed"),
-      main_action_label: uiText.text("goals.event-document-model.continue-this-goal"),
+      status_label: uiText.text(WORK_STATE_COPY.satisfied.label),
+      main_action_label: uiText.text("goals.event-document-model.continue-explicitly"),
       action_summary: state.closure?.result || state.agreement.outcome || uiText.text("goals.event-document-model.a-completion-result-is-recorded-to-start"),
     };
   }
@@ -212,9 +213,9 @@ export function eventDirectoryPresentation(state: GoalEventStateView, _goal?: Pi
     return {
       event_work: true,
       status: "invalidated",
-      display_status: "continue",
-      status_label: uiText.text("goals.event-document-model.cancelled"),
-      main_action_label: uiText.text("goals.event-document-model.continue-this-goal"),
+      display_status: "cancelled",
+      status_label: uiText.text(WORK_STATE_COPY.invalidated.label),
+      main_action_label: uiText.text("goals.event-document-model.continue-explicitly"),
       action_summary: uiText.text("goals.event-document-model.continue-a-cancelled-goal-explicitly-adding-a"),
     };
   }
@@ -223,7 +224,7 @@ export function eventDirectoryPresentation(state: GoalEventStateView, _goal?: Pi
       event_work: true,
       status: "waiting_for_human",
       display_status: "waiting_user",
-      status_label: uiText.text("goals.event-document-model.needs-your-decision"),
+      status_label: uiText.text(WORK_STATE_COPY.waiting_for_human.label),
       main_action_label: uiText.text("goals.event-document-model.make-a-decision"),
       action_summary: state.pending_decisions[0]!.question,
     };
@@ -234,8 +235,8 @@ export function eventDirectoryPresentation(state: GoalEventStateView, _goal?: Pi
       event_work: true,
       status: "execution_blocked",
       display_status: "blocked",
-      status_label: uiText.text("goals.event-document-model.blocked"),
-      main_action_label: uiText.text("goals.event-document-model.handle-the-blocker"),
+      status_label: uiText.text(WORK_STATE_COPY.execution_blocked.label),
+      main_action_label: uiText.text("goals.event-document-model.handle-issue"),
       action_summary: blocking[0]!.title,
     };
   }
@@ -245,7 +246,7 @@ export function eventDirectoryPresentation(state: GoalEventStateView, _goal?: Pi
       event_work: true,
       status: "executing",
       display_status: "in_progress",
-      status_label: uiText.text("goals.event-document-model.in-progress"),
+      status_label: uiText.text(WORK_STATE_COPY.executing.label),
       main_action_label: uiText.text("goals.event-document-model.record-progress"),
       action_summary: next,
     };
@@ -254,7 +255,7 @@ export function eventDirectoryPresentation(state: GoalEventStateView, _goal?: Pi
     event_work: true,
     status: "execution_pending",
     display_status: "continue",
-    status_label: state.latest_reports.length || state.progress_summary ? uiText.text("goals.event-document-model.ready-to-continue") : uiText.text("goals.event-document-model.not-started"),
+    status_label: uiText.text(WORK_STATE_COPY.execution_pending.label),
     main_action_label: state.latest_reports.length || state.progress_summary ? uiText.text("goals.event-document-model.continue-work") : uiText.text("goals.event-document-model.start-work"),
     action_summary: state.progress_summary?.summary || uiText.text("goals.event-document-model.open-the-terminal-to-start-work-or"),
   };

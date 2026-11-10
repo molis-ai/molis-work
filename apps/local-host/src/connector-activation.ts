@@ -70,7 +70,7 @@ export function activateConnectorConnection(home: string, completion: ConnectorA
     if (completion.input.displayName !== current.display_name) store.rename(current.connection_id, completion.input.displayName);
     return store.replaceToken(current.connection_id, completion.input.token);
   }
-  const oldInstallation = completion.kind === "cli" || completion.kind === "mcp" ? withConnectorProtocols(home, store => store.get<LocalMcpConfiguration>(row.connection_id))?.installation_id : undefined;
+  const oldInstallation = completion.kind === "cli" || completion.kind === "mcp" ? withConnectorProtocols(home, store => store.get<LocalMcpConfiguration>(row.connection_id), true)?.installation_id : undefined;
   if (completion.kind === "cli") {
     const config = { connectionId: row.connection_id, serviceId: row.service_id, protocol: "cli" as const, binary: completion.binary, fingerprint: completion.fingerprint, ...(completion.installation_id ? { installation_id: completion.installation_id } : {}) };
     withConnectorProtocols(home, store => store.save(config));

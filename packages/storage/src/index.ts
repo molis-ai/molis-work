@@ -120,3 +120,5 @@ export {
   type VersionedFileRead,
   type VersionedFileStep,
 } from "./versioned-file.js";
+
+export { openExistingBaselineHomeSqlite } from "./sqlite-baseline.js";

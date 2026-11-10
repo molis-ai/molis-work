@@ -1,3 +1,4 @@
+import { externalTool, externalToolIdsWith } from "@molis-ai/molis-work-contracts/platform/external-tools";
 import { t as uiText, escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 export interface TerminalPaneModel {
@@ -12,6 +13,11 @@ export interface TerminalPaneModel {
   icon(name: "chevron-right" | "target" | "plus" | "tree" | "play" | "copy" | "refresh" | "terminal"): string;
 }
 
+/** The runtimes a terminal offers. This menu leads with Claude Code; the others keep the register's order. */
+const RUNTIME_KINDS: ReadonlyArray<readonly [string, string]> = externalToolIdsWith("terminal")
+  .map(id => [id, externalTool(id).display_name] as const)
+  .sort(([left], [right]) => Number(right === "claude-code") - Number(left === "claude-code"));
+
 /** The Goal terminal pane beside the Goal document; `startWorkTerminalClient` drives it in the page. */
 export function renderTerminalPane(model: TerminalPaneModel): string {
   const { selected, children, cliAvailability, icon } = model;
@@ -24,18 +30,11 @@ export function renderTerminalPane(model: TerminalPaneModel): string {
       <b>${uiText("workbench.pane.open-child-goal")}${icon("chevron-right")}</b>
     </a>`;
   }).join("");
-  const runtimeKinds: Array<[string, string]> = [
-    ["claude-code", "Claude Code"],
-    ["codex", "Codex"],
-    ["opencode", "OpenCode"],
-    ["pi-agent", "Pi Agent"],
-    ["grok-build", "Grok Build"],
-  ];
-  const runtimeChoices = runtimeKinds.map(([kind, label]) => {
+  const runtimeChoices = RUNTIME_KINDS.map(([kind, label]) => {
     const available = cliAvailability[kind] !== false;
     return `<button type="button" data-tui-kind="${kind}"${available ? "" : ` disabled title="${escapeHtml(uiText.text("workbench.pane.install-cli-first"))}"`}>${label}${available ? "" : `<small>${uiText("workbench.pane.not-installed")}</small>`}</button>`;
   }).join("");
-  const missingKinds = runtimeKinds
+  const missingKinds = RUNTIME_KINDS
     .filter(([kind]) => cliAvailability[kind] === false)
     .map(([, label]) => label);
   const missingHint = missingKinds.length

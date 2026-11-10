@@ -3,7 +3,8 @@
  * (待发送), what the latest round used (本次使用) and what earlier rounds used (历史引用), kept apart so a draft, this
  * execution and an old reference are never read as one another.
  *
- * - 待发送 is what the strip above the input names, read from the island (`pending()`); removing one stays in the strip.
+ * - 待发送 is what the strip above the input names and the files and picks the composer's own strip carries once read, read from
+ *   the island (`pending()`); removing one stays in its strip.
  * - 本次使用 and 历史引用 are the work's own facts: each round's materials and the selection it saw, and the objects the work holds as materials,
  *   each once, under the latest round that used it (a round's materials name their objects). Only an object no round names
  *   (recorded outside a Send) is placed by when it was recorded against the latest round's start. Objects are read again

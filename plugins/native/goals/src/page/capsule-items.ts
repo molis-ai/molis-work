@@ -120,8 +120,8 @@ export function createCapsuleItemProjection() {
     item: WebGoalView,
   ): CapsuleGoalItem {
     return itemBase(view, item, {
-      tab_kind: "continue",
-      kind: "ready",
+      tab_kind: item.display_status === "cancelled" ? "cancelled" : "continue",
+      kind: item.display_status === "cancelled" ? "waiting" : "ready",
       status_label: item.status_label,
       status_since: null,
       current: item.action_summary,
@@ -186,6 +186,7 @@ export function createCapsuleItemProjection() {
     "waiting",
     "blocked",
     "completed",
+    "cancelled",
   ];
 
   function tabMeta(kind: CapsuleTabKind): Pick<CapsuleTab, "label" | "tone"> {
@@ -195,6 +196,7 @@ export function createCapsuleItemProjection() {
       case "continue": return { label: uiText.text("goals.capsule-items.continue"), tone: "ready" };
       case "waiting": return { label: uiText.text("goals.capsule-items.waiting"), tone: "waiting" };
       case "blocked": return { label: uiText.text("goals.capsule-items.blocked"), tone: "blocked" };
+      case "cancelled": return { label: uiText.text("goals.state-invalidated.label"), tone: "waiting" };
       case "completed": return { label: uiText.text("goals.capsule-items.completed"), tone: "complete" };
     }
   }

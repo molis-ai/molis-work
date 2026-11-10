@@ -108,6 +108,8 @@ html body.immersive-workbench[data-side-open=true] .side-panel{opacity:1;transfo
 .side-strip{order:6;display:flex;align-items:center;justify-content:flex-end;gap:2px;flex:none;min-width:0;padding-right:calc(var(--sheet-inset,14px) - 8px)}
 body[data-side-open=true] .side-strip{min-width:calc(var(--side-panel-width,35vw) + var(--sheet-inset,14px) - 8px)}
 .side-strip>.tab-item:has(>[role=tab]:is([hidden],[data-side-closed])){display:none}
+.side-strip .tab-item[data-tab-state="gone"] .tab-item-name{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--ink-soft)}
+.side-strip .tab-item[data-tab-state="gone"] .tab-item-icon{color:var(--muted)}
 .immersive-titlebar>.titlebar-layout{order:7;padding-right:calc(var(--sheet-inset,14px) - 8px)}
 .immersive-titlebar:has(>.titlebar-layout)>.side-strip{padding-right:0}
 @media(max-width:760px),(pointer:coarse){.immersive-titlebar>.titlebar-layout>.mw-btn{width:44px;min-width:44px;height:44px;min-height:44px}}
@@ -150,13 +152,19 @@ body.is-side-resizing{cursor:col-resize;user-select:none}
 @media(max-width:600px){
  html body.immersive-workbench:not(.arrival-page) .immersive-titlebar>.side-strip{order:1;flex:1 1 0;margin-block:-2px}
  html body.immersive-workbench:not(.arrival-page) .immersive-titlebar:has(>.titlebar-layout)>.desktop-titlebar-drag{display:none}
+ /* A Home tool with a chord is the always-there entry (ISSUE-30, decided 10-12): it leads the glyphs. On the project page's
+    phone titlebar the row scrolls to reveal a later glyph (07-AUDIT), so there it also sticks to the row's edge; the strip's
+    edge fade masks the whole row including it, so on a phone the side strip keeps its glyphs legible in place of that one
+    fade. The way-in page draws the same glyphs without that row, so it keeps only the order. */
  .side-strip>.tab-item:has(>[data-side-keys]){order:-1}
+ html body.immersive-workbench:not(.arrival-page) .immersive-titlebar>.side-strip>.tab-item:has(>[data-side-keys]){position:sticky;inset-inline-start:0;z-index:1;background:var(--nav-bg)}
+ html body.immersive-workbench:not(.arrival-page) .immersive-titlebar>.side-strip[data-more]{mask-image:none}
 }
 /* Between 601 and 760 the strip is the title bar's second row, so the bar's grid row grows with it (over craft-finish's fixed
    titlebar row, which names the directory states) and the work and the side sheet start below it. The sheet's 28px is the
    strip row's 8px gap and 4px block padding above the strip, the 8px the sheet keeps over the Dock and 8px of air under the strip. */
 @media(min-width:601px) and (max-width:760px){
- html body.immersive-workbench:not([data-pane-embedded]) .immersive-workspace:is(*,.is-plugin-directory-empty){grid-template-rows:auto minmax(0,1fr) var(--dock-h)}
+ html body.immersive-workbench:not([data-pane-embedded]) .immersive-workspace:is(*,.is-plugin-directory-empty){grid-template-rows:auto minmax(0,1fr) minmax(var(--dock-min),auto)}
  html body.immersive-workbench .immersive-titlebar{height:auto;flex-wrap:wrap}
  html body.immersive-workbench .side-panel{max-height:calc(100dvh - var(--desktop-titlebar-height) - var(--tab-strip-h) - var(--dock-h,48px) - 28px)}
 }
@@ -189,7 +197,7 @@ body.is-side-resizing{cursor:col-resize;user-select:none}
  * A tab widens after a rest or on keyboard focus; a press never moves the tabs under the pointer (it cancels a pending widening,
  * and focus from a click leaves the widths as they are).
  */
-export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=null,undoChip=()=>null,menu=null,removed=()=>false,readText=globalThis.t.text,paneSrc=null,glyph=()=>'',toMain=null})=>{
+export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=null,undoChip=()=>null,menu=null,removed=()=>false,gone=()=>false,readText=globalThis.t.text,paneSrc=null,glyph=()=>'',toMain=null})=>{
   const panel=document.querySelector('[data-side-panel]'),strip=document.querySelector('[data-side-tabs]'),stage=document.querySelector('[data-plugin-stage],.arrival-stage');
   if(!panel||!strip||!stage)return null;
   stage.setAttribute('data-plugin-stage','');
@@ -222,12 +230,18 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
   const drawPanes=()=>{
     const moved=side().tabs.filter(tab=>tab.kind==='pane'),keys=new Set(moved.map(tab=>tab.itemId));
     strip.querySelectorAll('[data-side-pane]').forEach(button=>{if(keys.has(button.dataset.sideTab))return;button.parentElement.remove();panel.querySelector('[data-side-body="'+CSS.escape(button.dataset.sideTab)+'"]')?.remove();});
+    // A record the pane page reported gone (07-AUDIT) is struck through and says so where its tab is drawn; the pane page
+    // itself shows the reason. The report crosses documents as a pane message (S-30); the page checks it before marking.
+    const markGone=(item,tab)=>{const isGone=gone(tab);if(isGone){item.dataset.tabState='gone';item.title=tab.title+' · '+readText("workbench.side-panel.record-gone");}else{item.removeAttribute('data-tab-state');item.title=tab.title;}item.querySelector('[role=tab]')?.setAttribute('aria-label',item.title);};
     for(const tab of moved.slice().reverse()){
-      if(!paneSrc||strip.querySelector('[data-side-tab="'+CSS.escape(tab.itemId)+'"]'))continue;
+      const existing=strip.querySelector('[data-side-tab="'+CSS.escape(tab.itemId)+'"]');
+      if(!paneSrc)continue;
+      if(existing){markGone(existing.parentElement,tab);continue;}
       const item=document.createElement('div'),button=document.createElement('button'),name=document.createElement('span'),body=document.createElement('div'),inner=document.createElement('iframe');
       item.className='tab-item';item.dataset.glyphOnly='';item.title=tab.title;
       button.type='button';button.className='tab-item-trigger';button.role='tab';button.tabIndex=-1;button.dataset.sideTab=tab.itemId;button.dataset.sidePane='';button.dataset.sidePlugin=tab.plugin;button.ariaLabel=tab.title;
       button.innerHTML=glyph(tab.plugin);name.className='tab-item-name';name.ariaHidden='true';name.textContent=tab.title;button.append(name);item.append(button);strip.prepend(item);
+      markGone(item,tab);
       body.className='side-panel-body';body.role='tabpanel';body.ariaLabel=tab.title;body.dataset.sideBody=tab.itemId;body.hidden=true;
       inner.className='side-pane-frame';inner.title=tab.title;inner.dataset.paneOwner='side';inner.dataset.sidePaneSrc=paneSrc(tab);body.append(inner);
       (panel.querySelector('[data-side-body]')?.parentElement||panel).append(body);

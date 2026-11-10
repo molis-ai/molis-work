@@ -10,12 +10,14 @@ import { CATALOG_CLIENT_SCRIPT } from "../page-clients.js";
 import { choiceSection, composeSection } from "./catalog-compose.js";
 import { advancedFieldSection, badgeSection, buttonSection, calendarSection, feedbackSection, fieldSection, formSection, groupsSection, menuSection, overlaySection, separatorSection, tabsSection } from "./catalog-controls.js";
 import { directorySection, layoutSection } from "./catalog-layout.js";
-import { COMPOSER_BOARD_STYLES, composerSection, menuDescSection, type Say } from "./catalog-composer.js";
+import { COMPOSER_STYLES } from "../composer-styles.js";
+import { COMPOSER_BOARD_STYLES, composerSection, menuDescSection, micSection, type Say } from "./catalog-composer.js";
 import { keepEditsSections, KEEP_EDITS_BOARD_STYLES } from "./catalog-keep-edits.js";
 import { buttonGroupSection, CATALOG_PATTERN_STYLES, dataTableSection, dropZoneSection, rowsSection, statSection, tagInputSection } from "./catalog-patterns.js";
 import { lookSections } from "./catalog-appearance.js";
 import { APPEARANCE_BOARD_STYLES } from "./catalog-appearance-styles.js";
 import { componentText, PLUGIN_COMPONENTS } from "../plugin-components.js";
+import { itemChoiceSection, itemDetailsSection, listDetailSection, SKILL_PACK_BOARD_STYLES, statusLinkSection } from "./catalog-skill-packs.js";
 
 export const PRIMITIVE_CATALOG_IDS = PLUGIN_COMPONENTS.map(({ kind }) => kind);
 const catalogComponents = new Map(PLUGIN_COMPONENTS.map(component => [component.kind, component]));
@@ -212,14 +214,16 @@ function iconSection(): string {
 /**
  * `plugins` fills the icon inventory's plugin rows; the design system keeps no list of plugins (PG-075), so omitted means none.
  * `say` is the page's translator: the sections written through it (the unified input's parts) follow the board's language.
+ * `delivery` is the running send's name (补充) by its stable key, where the page has the platform's words.
  */
-export function renderPrimitiveCatalog(options: { readonly plugins?: readonly CatalogPluginIcon[]; readonly say?: Say } = {}): string {
+export function renderPrimitiveCatalog(options: { readonly plugins?: readonly CatalogPluginIcon[]; readonly say?: Say; readonly delivery?: string } = {}): string {
   const say = options.say ?? t;
   const sections = `
     ${paletteSection()}
     ${typefaceSection()}
     ${lookSections(say)}
     ${iconSection()}
+    ${micSection(say)}
     ${iconInventorySection(options.plugins ?? [])}${renderStateRingCatalog()}
     ${craftSection()}
     ${motionSection()}
@@ -235,7 +239,7 @@ export function renderPrimitiveCatalog(options: { readonly plugins?: readonly Ca
     ${tagInputSection()}
     ${formSection()}
     ${dropZoneSection()}
-    ${composerSection(say)}
+    ${composerSection(say, options.delivery)}
     ${badgeSection()}
     ${statSection()}
     ${feedbackSection()}
@@ -244,15 +248,19 @@ export function renderPrimitiveCatalog(options: { readonly plugins?: readonly Ca
     ${calendarSection()}
     ${overlaySection()}
     ${menuSection()}
-    ${menuDescSection(say)}
+    ${menuDescSection(say, options.delivery)}
     ${tabsSection()}
     ${directorySection()}
     ${rowsSection()}
+    ${itemChoiceSection(say)}
+    ${itemDetailsSection(say)}
+    ${listDetailSection(say)}
+    ${statusLinkSection(say)}
     ${layoutSection()}
     ${dataTableSection()}`;
   return `<div class="mw-catalog">
     ${catalogIndex(sections, say)}
-    <style>${CATALOG_PATTERN_STYLES}${COMPOSER_BOARD_STYLES}${KEEP_EDITS_BOARD_STYLES}${APPEARANCE_BOARD_STYLES}</style>
+    <style>${COMPOSER_STYLES}${CATALOG_PATTERN_STYLES}${COMPOSER_BOARD_STYLES}${KEEP_EDITS_BOARD_STYLES}${APPEARANCE_BOARD_STYLES}${SKILL_PACK_BOARD_STYLES}</style>
     ${sections}
   </div>
   <script>${CATALOG_CLIENT_SCRIPT}</script>`;

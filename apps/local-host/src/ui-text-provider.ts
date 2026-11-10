@@ -107,22 +107,24 @@ export function registeredBuiltinText(manifest: PluginManifest): PluginLocaleRea
 }
 
 /** A directory may draw an exact live owner, or use the same field's raw original if it no longer has that source. */
-export function directoryWordResolver(reader: PluginTextReader | null): DirectoryWordResolver {
+export function directoryWordResolver(reader: PluginTextReader | null, requested?: string): DirectoryWordResolver {
   return (ref, original) => {
+    const locale = requested ?? textScope().locale ?? DEFAULT_WEB_LOCALE;
+    const options = requested === undefined ? undefined : { locale: requested };
     if (ref.key.startsWith("common.")) {
-      const locale = textScope().locale ?? DEFAULT_WEB_LOCALE, common = workbenchPlatformText;
+      const common = workbenchPlatformText;
       const value = common.pack(locale)?.messages[ref.key] ?? common.pack(common.default)?.messages[ref.key];
       if (value !== undefined && localeMessageArguments(value).length) {
         provider.problem?.({ code: "ui.text_missing", owner: common.owner, key: ref.key, locale });
         return original;
       }
-      return say.text({ ...ref, fallback: original });
+      return say.text({ ...ref, fallback: original }, options);
     }
     if (reader?.owner !== ref.owner) {
-      provider.problem?.({ code: "ui.text_missing", owner: ref.owner, key: ref.key, locale: textScope().locale ?? DEFAULT_WEB_LOCALE });
+      provider.problem?.({ code: "ui.text_missing", owner: ref.owner, key: ref.key, locale });
       return original;
     }
-    return runWithRegisteredText(reader, () => say.text({ ...ref, fallback: original }));
+    return runWithRegisteredText(reader, () => say.text({ ...ref, fallback: original }, options));
   };
 }
 

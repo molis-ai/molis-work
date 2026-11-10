@@ -793,3 +793,5 @@ export type ReceiptWords = {
   IMPACT: Record<AgentInputImpact, string>; TARGET: Record<AgentInputTarget["kind"], string>; QUESTION: Record<AgentInputQuestion["state"], string>;
   STEP: Record<AgentStepState, string>; MARK: Partial<Record<AgentStepState, string>>;
 };
+
+export { UI_HOST_CLIENT_CODES, type UiHostClientCode } from "./ui-request-errors.js";

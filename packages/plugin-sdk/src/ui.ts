@@ -34,3 +34,4 @@ export * from "./ui/strict-json.js";
 export * from "./ui/appearance-files.js";
 export * from "./ui/appearance-resolve.js";
 export * from "./ui/environment.js";
+export * from "./ui/composer.js";

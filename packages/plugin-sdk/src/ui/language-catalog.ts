@@ -1,5 +1,6 @@
 import { LOCALE_TAG, UI_FILE_LIMITS, UI_FORMAT_VERSIONS, type UiFileResult, type UiFrameLanguage, type UiLanguageCatalog, type UiLanguageDescriptor } from "@molis-ai/molis-work-contracts/platform/ui";
-import { checkFormatVersion, childPath, finishFile, isObject, readObject, readStrictJson } from "./file-reader.js";
+import { checkFormatVersion, childPath, finishFile, readObject, readStrictJson } from "./file-reader.js";
+import { isRecord } from "../json-value.js";
 
 const safeLabel = (value: unknown): boolean => typeof value === "string" && value.trim() === value && value.length > 0 && value.length <= 80 && !/[<>&"'\p{C}]/u.test(value);
 const language = (value: unknown): value is string => typeof value === "string" && LOCALE_TAG.test(value);
@@ -54,6 +55,6 @@ export function frameUiLanguage({ tag, html_lang, intl, direction }: UiLanguageD
 }
 
 export function isFrameUiLanguage(value: unknown): value is UiFrameLanguage {
-  return isObject(value) && Object.keys(value).length === 4 && language(value.tag) && language(value.html_lang) && supportedIntl(value.intl)
+  return isRecord(value) && Object.keys(value).length === 4 && language(value.tag) && language(value.html_lang) && supportedIntl(value.intl)
     && (value.direction === "ltr" || value.direction === "rtl");
 }

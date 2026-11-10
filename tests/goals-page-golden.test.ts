@@ -133,6 +133,8 @@ const pages: Record<string, Draw> = {
 // the Goal DTO labels checked against view-words-en.json, the workbench's owner title model, and the exact Goals planner startup words.
 // Candidate RECORD mode was never used for these expectations.
 // The six trash document/page/refresh drawings later replace only the reason label and wrap the exact stored reason in translate="no".
+// The final main sync changes 48 drawings. A token comparison against all 66 verified pre-sync hashes isolates the new composer,
+// Skills links and Goals state words and cancellation column. The stored view and the independently checked Goal words stay fixed.
 const RECORDED = new URL("golden.json", GOLDEN);
 interface Recorded { sha256: string; length: number }
 const recorded: Record<string, Recorded> = record ? {} : JSON.parse(readFileSync(RECORDED, "utf8"));

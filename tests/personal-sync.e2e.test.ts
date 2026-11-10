@@ -11,11 +11,12 @@ test('PCSYNC-27 sync progress distinguishes unfinished work from a past successf
     window.fetch=async(url,init)=>{
       if(new URL(String(url),location.href).pathname!=='/api/sync')return original(url,init);
       if(window.failSyncStatus)return Response.json({error:'synthetic status unavailable'},{status:503});
-      return Response.json({available:true,device:{automatic:false},policy:{spaceId:'progress-space',revision:1,selections:[selection]},running:false,error:null,lastSuccess:'2026-10-19T00:00:00.000Z',progress:window.syncProgress,collections:[{selection,title:'文档与文件夹',pending:2,conflicts:[],failures:[]}],unavailable:[]});
+      return Response.json({available:true,device_label:'测试Mac',device:{automatic:false},policy:{spaceId:window.syncSpace||'progress-space',revision:1,selections:[selection]},running:false,error:null,lastSuccess:'2026-10-19T00:00:00.000Z',progress:window.syncProgress,collections:[{selection,title:'文档与文件夹',pending:2,conflicts:[],failures:[]}],unavailable:[]});
     };
   })();`},b.sessionId);
   await b.navigate(()=>b.command('Page.navigate',{url:b.origin+'/settings/sync'},b.sessionId));
   await b.waitFor("document.querySelector('[data-sync-status]')?.textContent.includes('不可用集合 1')");
+  assert.match(await b.evaluate<string>("document.querySelector('[data-sync-identity]').textContent"), /progress-space.*测试Mac/);
   const text=await b.evaluate<string>("document.querySelector('[data-sync-status]').textContent");
   for(const label of ['同步尚未完成','待上传 2','冲突 1','等待关联资产 1','需要处理的资产 1','不可用集合 1','上次完成'])assert.ok(text.includes(label),label);
   assert.equal(await b.evaluate("document.querySelector('[data-sync-status]').dataset.syncComplete"),'false');
@@ -27,9 +28,10 @@ test('PCSYNC-27 sync progress distinguishes unfinished work from a past successf
     assert.equal(await b.evaluate('document.documentElement.scrollWidth<=innerWidth'),true);
     const shot=await b.command<{data:string}>('Page.captureScreenshot',{format:'png'},b.sessionId);await writeFile('.impeccable/qa/review/sync-progress-'+width+'-'+theme+'.png',Buffer.from(shot.data,'base64'));
   }
-  await b.evaluate("window.syncProgress={selected:1,pending:0,conflicts:0,waiting:0,failures:0,unavailable:0,complete:true}");
+  await b.evaluate("window.syncSpace='other-space';window.syncProgress={selected:1,pending:0,conflicts:0,waiting:0,failures:0,unavailable:0,complete:true}");
   await b.click('[data-sync-reload]');await b.waitFor("document.querySelector('[data-sync-status]').dataset.syncComplete==='true'");
   assert.ok((await b.evaluate<string>("document.querySelector('[data-sync-status]').textContent")).includes('所选内容已同步至上次检查'));
+  assert.match(await b.evaluate<string>("document.querySelector('[data-sync-identity]').textContent"), /other-space.*测试Mac/);
   await b.evaluate('window.failSyncStatus=true');await b.click('[data-sync-reload]');
   await b.waitFor("!document.querySelector('[data-sync-error]').hidden");
   assert.equal(await b.evaluate("document.querySelector('[data-sync-status]').dataset.syncComplete"),'false','a failed status refresh must remove the old completed claim');
@@ -106,7 +108,7 @@ test('waiting linked assets offers retry, not destructive conflict choices',{tim
     };
   })();`},b.sessionId);
   await b.navigate(()=>b.command('Page.navigate',{url:b.origin+'/settings/sync'},b.sessionId));
-  await b.waitFor("document.querySelector('[data-sync-conflicts] h2')?.textContent==='等待关联资产'");
+  await b.waitFor("document.querySelector('[data-sync-conflicts] h2')?.textContent.startsWith('文档与文件夹 · 对象 ')");
   assert.equal(await b.evaluate("[...document.querySelectorAll('[data-sync-conflicts] button')].map(b=>b.textContent).join(',')"),'重试同步');
   await mkdir('.impeccable/qa/review',{recursive:true});
   for(const [width,theme] of [[1440,'light'],[390,'dark']] as const){

@@ -57,6 +57,7 @@
 
 | 机制 | 目的与允许边界 | owner 与移除条件 |
 | --- | --- | --- |
+| 技能设置与用量建表（08-7，用户 2026-11-06 同意） | `agent-definitions` 1 → 2 只创建空的 `skill_settings`、`skill_uses` 及用量索引；既有提示词覆盖、历史和用量不变。由 U1 升级执行，普通打开仍拒绝旧版本 | 宿主 Agent 定义；最早支持的金样不再需要第 1 版时移除此升级段，不保留旧结构读取 |
 | 插件升级声明（`upgrade_compatibility.compatible_from_versions`、`migratable_from_versions`）、同版本重装与发行物留存 | 插件版本之间的升级是现行产品功能，不是读取旧业务数据；内置插件为过去版本写的旧声明不因此保留 | Manifest 合同与 plugin SDK，使用规则见 [插件开发手册](../platform/PLUGIN-DEVELOPMENT.md)；随该现行升级功能或相应发行物生命周期处理，不作为永久历史读取许可 |
 | pdfjs 的 `legacy/build` 路径 | 第三方包给 Node 的构建名，不是本产品的旧格式读取分支 | 引用 pdfjs 的现行功能及该依赖；上游构建入口改变或功能移除时随之修改 |
 | 产品文案中的「回填」与规划方法说明 | 给人看的现行文字，不是数据转换逻辑 | 各文案的功能 owner；随文案修改或功能移除，不据词面保留旧读取代码 |
@@ -72,12 +73,15 @@
 
 **2026-11-08 审计更正：** 下表「维护」列里写「真实重建未开始／尚未重建／真实Home未操作」的行，都是统一起点登记（2026-11-07）之前的旧状态；记录中的真实 Home 已于 2026-11-07 在记录里的那台开发机按[发布检查单第 4 节](../releases/CHECKLIST.md#4-真实-home搬开后干净重建)重建并登记统一起点。本次审计／维修所在的机器不是那台机器，本机无法核验（见[第 02 批记录](../../specs/post-anticorruption-roadmap/reference/batches/02.md#batch-02)）。行文保留历史原文，不逐行改写。
 
+**助理库本次决定（用户 2026-11-08）：** 第 10 批的独立草稿版本与第 16 批的通知文字工作维持第 1 版；用户明确「版本号不升，其他照常，不用考虑迁移」。撤回 #1991 在途的 1→2 升级段，隔离金样直接使用当前结构，不新增读取兼容，不执行真实 Home 维护。此决定仅涉及这两批共享的助理库，不重置其他库。
+
 **库版本维护清单**（门禁 `scripts/gates/store-versions.mjs` 只认这张表；统一起点登记之后还读升级段所在的代码文件）：检查清单第 3 节表里某个库的版本，和 merge-base 比变了（升或降），同一个 PR 就要在这里加一行，不然 `pnpm health:check` 失败。写法固定：「位置」一格是检查清单第 3 节同一行的位置，原样加反引号；「版本」一格写 `旧 → 新`，两边是数字，箭头是 `→`；后两格写哪个提交或 PR 改的版本、怎样维护和做没做。别处正文里写的不算。
 
 统一起点已登记（检查清单第 4 节），之后这张表多三条规则：版本不许降，写了行也不行；升版本的行，「维护」一格固定写成 `定义处#旧→新`，整格用反引号包住，比如 `` `plugins/native/pages/src/database.ts#PAGES_DATABASE#1→2` ``，定义处和检查清单同一行的「定义处」完全相同，旧、新和「版本」一格的两个数字相同；这个定义的 `upgrades` 字面量里，要有从旧到新减一的每个 `from`。表里留着历史，同样数字的旧行写着文字不碍事，写成指针的每一行都要站得住。完整口径见 [tooling/gates/README.md](../../tooling/gates/README.md)。
 
 | 位置 | 版本 | 改版本的提交 | 维护 |
 | --- | --- | --- | --- |
+| `agent-definitions/agent-definitions.db` | 1 → 2 | 第08批 #1984；2026-11-06 已授权新增空表 | `apps/local-host/src/agent-definitions/agent-definitions.ts#AGENT_DEFINITIONS_BASELINE#1→2` |
 | `projects/<project_id>/molis-work.db` | 17 → 1 | 第02批 #1837（`67d04ce981`，接 Personal 后复位） | 保留当前完整结构与同步表。2026-11-07 旧Home完整备份、搬开后新建，统一起点已登记（[发布检查单第 4 节](../releases/CHECKLIST.md#4-真实-home搬开后干净重建)）；错版和不符所属结构仍拒绝，不就地升级。 |
 | `projects/<project_id>/molis-work.db#coding` | 3 → 1 | 同上 | 同上 |
 | `projects/<project_id>/molis-work.db#goals` | 2 → 1 | 同上 | 同上 |
@@ -243,3 +247,6 @@ Casebook 已于 2026-10-10 按用户决定删除，不再有对外合同 id；�
   - contracts `modules/workspace-artifacts` 多导出 `resolveWorkspaceFileSubject`、`resolveWorkspaceId`、`WorkspaceIdMapping`（读另一台设备的引用时，把它的目录 id 换算成本机对应的文件夹）；`WorkspaceFileResult` 的 `binary` 结果多带 `fingerprint`。并行写手的 `worktree_id` 等改动见 CHANGELOG 的 05 ② 一条。
 - **同版本下形状变了的其他动作**（第 05 批 #1979，都在原版本 @1 上改，仓库里没有工作流、场景或绑定固定它们）：`files.open`、`files.directory` 的输出里 `binary` 必带 `fingerprint`、`unsupported` 可带（读到但解不出来；不带的是「不是普通文件」），按 `outcome` 分支的调用方不受影响，严格按输出 schema 校验的调用方要接受 `fingerprint`；`git.conflict` 输入多可选 `workspace_id`；`agent.run.start` 输入 `subagent_workspaces[].workspace_id` 改 `worktree_id`；`agent.run.read`、`agent.run.wait`、`agent.session.read` 输出多可选 `directories`（开轮时冻结的输出、输入和执行位置）；`projects.workspace.writers.{list, prepare, integration.read, integration.prepare}` 的写手工作树改用 `worktree_id`、`subagent_id` 可选；`coding.runs.start` 输入多可选 `worktree_id`。上面「新增」里的 `projectDirectoryActions` 及其类型此前已在合同里声明，本 PR 起由宿主登记（动作快照多 7 行）；真正新增的导出是 `DirectoryChange`、`ChangeDirectoriesInput`、`directoryInputOnly`。
 - **`materials.recent`、`materials.recent.record`、`materials.origins`：最近用过的资料与引用的出处**（第 05 批 #1979，`specs/shared-sources-and-surfaces/spec.md` §2）：由宿主在提供方 `system.project-workspaces` 上登记（动作合同快照 `host-actions.tsv` 多三行），受众 `user`、`plugin`。`materials.recent@1` 返回 `{ items: [{ ref, origin }] }`，新的在前，每个调用方在每个项目里最多 20 份；给插件时只返回它此刻读得了的，读不了的不说是哪一个，也不数；`materials.recent.record@1` 输入 `{ refs }`（1 到 10 个 `MaterialRef`），读不了的引用静默不记；`materials.origins@1` 输入 `{ items }`（1 到 20 项，每项 `{ ref }` 或只有 `{ subject }`），按给的顺序返回 `{ items: [{ origin }] }`，读不了的 `origin` 为 null、不说原因。三个都声明 `scheduling: "concurrent"`（要等各主人答出处），`materials.recent.record` 在 `beforeEffect()` 之后提交。contracts `platform/project-materials` 多导出 `MaterialOriginQuery`、`MaterialOriginAnswer`、`MATERIAL_ORIGINS_MAX`、`MATERIAL_ORIGINS_COMPARE`、`MATERIAL_ORIGIN_NOTES`、`MATERIAL_ORIGIN_QUERY_SCHEMA`、`MATERIAL_ORIGIN_ANSWER_SCHEMA`，`modules/projects` 多导出 `materialOriginActions`；`RecentMaterial.origin` 从 `MaterialOrigin` 变成 `MaterialOrigin | null`（给本人时找不到唯一的主人就是 null）。项目库的表 `material_recent_uses`（`modules/projects` 独占）随项目库升到第 2 版新增，从空开始。
+
+- **第 08 批：只有声明的插件、方法声明、Skill 目录与安装预览**（#1936 先合、#1984 合入，用户 2026-11-08 合并）：`AgentSkillDeclaration` 增可选 `description`、`when_to_use`、`when_not_to_use`、`applies_to`、`user_invocable`、`argument_hint`、`resources`、`connector_categories`、`native_only_reason`；Manifest `methods` 类型改为 `PluginMethodDeclaration`，`description`/`applies_to` 必填，旧三键 `{ name, purpose, body }` 的签名沙箱包明确拒绝、不读不转换（2026-11-08 用户定，作者重新打包签名；`docs/releases/CHANGELOG.md` 升级须知同文）。`plugins.install.preview@1` 在原版本上扩形状：输入支持 `bundle` 或 `bundled` 二选一，输出多 `skills`、`requires`，`agent_bodies` 只留角色；新增 `plugins.bundled.list@1`；新增 `contracts/services/skills` 子路径与 `skills.catalog.list@1`、`skills.body.read@1`、`skills.resource.read@1`、`skills.settings.set@1`、`skills.import.preview@1`、`skills.import.confirm@1`（导入登记在 `plugin-install` 提供方）；SDK 出口 `ContentPackageSkill` 改 `PackagedSkillBody`、`sandboxAgentBodyIdentity` 改 `sandboxRoleIdentity`，新增 `contentPackagePayload`、`skillFromFolder`、`readPackagedSkills`。库 `agent-definitions` 1→2 只建空的 `skill_settings`、`skill_uses`（见上文建表一步）；动作快照新增 7 行、`plugins.install.preview@1` 两列哈希变化。固定调用 `plugins.install.preview@1` 的调用方须接受新输出形状；本仓库内安装界面已同批更新。
+- **（宿主侧，不影响插件作者）08 技能导入的执行控制**（2026-11-09）：`PluginRuntimeApi.upgrade` 输入、`start` 的可选第二参数增加进程内 `assertCurrent` 回调；Supervisor 与 Host 安装生命周期原样传递到异步准备之后、安装锁内及版本／运行状态提交之前。它不来自动作输入，不进 Manifest 或持久化，不增加权限；未传控制的宿主恢复路径保持原行为。取消只恢复旧安装，不记新的失败状态。`platform/plugin` API 快照同步，动作 schema／MCP 名称与库版本不变。验收见 [SKC-10](../../specs/skill-packs/contract-design.md#14-验收编号候选) 与 `tests/plugin-upgrades.test.ts`。

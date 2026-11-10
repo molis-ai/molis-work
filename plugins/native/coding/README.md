@@ -58,7 +58,7 @@ Coding 不按类型解析材料，也没有输入端口。运行中的这一轮�
 
 Coding 每次发送明确冻结 60 轮执行预算；固定计划按步骤计算若需更多轮次，保留较大值。达到上限会停止，可在原会话开始下一轮继续；这不替代逐笔操作审查。
 
-The project's folders come from the [current-project settings protocol](../../../docs/platform/PROJECT-SETTINGS.md): Coding, Files and Git read them through `projects.directories.get` (declared in `capabilities.consumes`), each with its `roles`. A round that names no folder runs in the project's one output directory, and a folder that is only an input is never written in or run in (`projects.directory_input_only`); the project keeps no browsing choice. A session may instead run its rounds in a worktree the Host made for it, named by `worktree_id`; that is not one of the project's directories. Manage the folders in Project Settings → Workspaces.
+The project's folders come from the [current-project settings protocol](../../../docs/platform/PROJECT-SETTINGS.md): Coding, Files and Git read them through `projects.directories.get` (declared in `capabilities.consumes`), each with its `roles`. A round that names no folder runs in the project's one output directory, and a folder that is only an input is never written in or run in (`projects.directory_input_only`); the project keeps no browsing choice. A session may instead run its rounds in a worktree the Host made for it, named by `worktree_id`; that is not one of the project's directories. Manage the folders in Project Settings → Inputs and output.
 
 短草稿（提交说明、接续摘要）的固定指令归 `src/prompts.ts`，由 Coding 的插件定义（`PluginDefinition.instructions`）携带，Coding 运行时登记，支持用户覆盖（PG-051）。`agent.draft-text` 只传 `prompt` id、材料和所选模型；Host 使用原调用插件身份解析，不能在业务输入声明 owner。材料裁剪、摘要降级及提交前的用户审阅仍由 Coding 负责。相关回归：`tests/coding-commit-draft.test.ts`、`tests/coding-history-summary-http.test.ts`、`tests/prompt-registration.test.ts`。
 

@@ -2,13 +2,6 @@ import { dateArg, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { el, errorMessage } from "./dom.js";
 import type { PagePorts, Translate } from "./types.js";
 
-declare global {
-  interface Window {
-    /** The page's copy helper: puts the text on the clipboard and says on the button how it went. */
-    molisCopy?: (button: Element, text: () => string, labels: { done: string; failed: string }) => void;
-  }
-}
-
 interface ChangeFile {
   readonly path: string;
   readonly kind: string;

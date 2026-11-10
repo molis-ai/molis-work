@@ -11,7 +11,7 @@ export class MolisWorkCommands {
     idempotency_key: string;
   }): { project_id: string; replayed: boolean; observed_event_cursor: number } {
     if (!input.project_id.trim()) {
-      throw goalErrors["goals.request.invalid"]("Board ID 不能为空");
+      throw goalErrors["goals.request.invalid"]("目标资料库 ID 不能为空");
     }
     // The receipt is already keyed by the project and the request carries nothing else, so it hashes the empty request.
     const hash = requestHash({});
@@ -26,7 +26,7 @@ export class MolisWorkCommands {
       if (replay) return { ...replay, replayed: true };
 
       const exists = this.context.repository.boardExists(input.project_id);
-      if (exists) throw goalErrors["goals.board.exists"](`Board 已存在: ${input.project_id}`);
+      if (exists) throw goalErrors["goals.board.exists"](`目标资料库已存在: ${input.project_id}`);
 
       const at = this.context.now().toISOString();
       this.context.repository.createBoard(input.project_id, at);

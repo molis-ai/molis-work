@@ -3,7 +3,6 @@
   "owner": "io.molis.work.files",
   "locale": "zh",
   "messages": {
-    "files.directory.summary": "查看工作区文件与保留的内容。",
     "files.directory.back": "返回文件列表",
     "files.directory.choose-workspace": "请选择工作区",
     "files.directory.empty": "这个目录是空的",
@@ -14,6 +13,7 @@
     "files.directory.reading": "正在读取目录…",
     "files.directory.reading-workspace": "正在读取工作区…",
     "files.directory.refresh": "刷新",
+    "files.directory.summary": "查看工作区文件与保留的内容。",
     "files.directory.title": "文件",
     "files.directory.truncated": "目录较大，仅显示前 1000 个可访问条目",
     "files.directory.unreadable": "无法读取这个目录",
@@ -58,6 +58,6 @@
     "files.snapshot.title": "固定快照",
     "files.stage.empty-body": "从目录选择文件，阅读内容、保存选区，或固定两份快照进行对比。",
     "files.stage.empty-title": "打开文件，开始阅读",
-    "files.stage.manage": "工作目录设置"
+    "files.stage.manage": "输入与输出设置"
   }
 }

@@ -38,10 +38,11 @@ const PAGES_METHOD = "io.molis.work.pages/meeting-notes";
 
 test("a method a Plugin offers for business work is declared with business tools only and registered with the Host by id and version while it runs", async () => {
   const declared = (methods: unknown[]) => manifestProblems(declarationManifest({ methods }));
-  assert.equal(declared([{ skill_id: "notes", version: 1, name: "纪要", summary: "整理纪要", tools: ["read-capability"] }]), "");
+  const when = { description: "用户要整理时使用。", applies_to: "assistant" };
+  assert.equal(declared([{ skill_id: "notes", version: 1, name: "纪要", summary: "整理纪要", tools: ["read-capability"], ...when }]), "");
   // RAC-1757: the same refusal after the T-111 renames (SKILL_TOOLS, inspectSkillDeclarations).
-  assert.match(declared([{ skill_id: "edit", version: 1, name: "改代码", summary: "改文件", tools: ["edit-file"] }]), /只能使用业务工具/);
-  assert.match(declared([{ skill_id: "x", version: 1, name: "无说明", summary: "", tools: ["read-capability"] }]), /适用说明/);
+  assert.match(declared([{ skill_id: "edit", version: 1, name: "改代码", summary: "改文件", tools: ["edit-file"], ...when }]), /只能使用业务工具/);
+  assert.match(declared([{ skill_id: "x", version: 1, name: "无说明", summary: "", tools: ["read-capability"], ...when }]), /适用说明/);
   const home = await mkdtemp(join(tmpdir(), "assistant-methods-registry-"));
   try {
     const registry = homeAgentDefinitions(home);

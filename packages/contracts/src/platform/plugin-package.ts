@@ -6,21 +6,26 @@ export interface PluginPackageFile {
   content_base64: string;
 }
 
-/** The signed app package declares text resources, not executable Agent permissions. */
+/** A role material the signed app package declares (`agent`): a text resource, not executable Agent permissions. */
 export interface SandboxAgentBodyDeclaration {
   name: string;
   purpose: string;
   body: string;
 }
 
-/** Wire bytes are signed before the Host projects these text declarations into a runtime Manifest. */
-export type SandboxPackageManifest = Omit<PluginManifest, "agent" | "methods"> & {
+/**
+ * Wire bytes are signed before the Host projects the role materials into a runtime Manifest. `methods` are the Manifest's own Skill
+ * declarations (`PluginMethodDeclaration`), each with its body's path `skills/<skill_id>/SKILL.md` in the package; nothing is derived.
+ */
+export type SandboxPackageManifest = Omit<PluginManifest, "agent"> & {
   agent?: SandboxAgentBodyDeclaration[];
-  methods?: SandboxAgentBodyDeclaration[];
 };
 export type PluginPackageManifest = PluginManifest | SandboxPackageManifest;
 
-/** A decoded text resource, with its deterministic identity. Trust comes from the installation, not this text. */
+/**
+ * A decoded text resource with its identity: a role material's derived id, or a method's own `skill_id`, and a method's `summary` as
+ * its purpose. Trust comes from the installation, not this text.
+ */
 export interface SandboxAgentBody {
   kind: "role" | "method";
   entry_id: string;

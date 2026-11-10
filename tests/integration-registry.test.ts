@@ -24,8 +24,12 @@ import { gmailIntegrationManifest, gmailSourcePresentation } from "@molis-ai/mol
 
 test("RAC-2507 presentation declarations use schema/API 1 and the packaged JSON keeps the same unreleased plugin identity", () => {
   assert.equal(rssIntegrationManifest.version, "1.0.0");
-  assert.throws(() => parsePluginManifest({ ...rssIntegrationManifest, schema_version: 2, host_api_version: 2 }), /schema_version 与 host_api_version 必须都是 1/u);
-  assert.throws(() => parsePluginManifest({ ...rssIntegrationManifest, host_api_version: 2 }), /schema_version 与 host_api_version 必须都是 1/u);
+  for (const [schema_version, host_api_version] of [[2, 2], [1, 2]]) {
+    assert.throws(() => parsePluginManifest({ ...rssIntegrationManifest, schema_version, host_api_version }), {
+      code: "plugin.manifest_version_invalid", kind: "invalid",
+      details: { found: { schema_version, host_api_version }, expected: { schema_version: 1, host_api_version: 1 } },
+    });
+  }
   for (const [id, manifest] of [["rss", rssIntegrationManifest], ["gmail", gmailIntegrationManifest]] as const) {
     assert.deepEqual(parsePluginManifest(JSON.parse(source(`plugins/official-integrations/${id}/manifest.json`))), parsePluginManifest(manifest));
   }

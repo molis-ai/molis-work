@@ -16,6 +16,10 @@ import { catalogCapabilities, standIn, type CatalogCapability } from './catalog.
 import { STABLE_PREVIEW } from './storage.js';
 import type { AgentBuild, AgentStudioOptions, Studio } from './agent-surface.js';
 
+export function studioDraftManifest(input: Omit<Parameters<typeof sandboxPluginManifest>[0], "version">) {
+  return sandboxPluginManifest({ ...input, version: "0.0.0" });
+}
+
 /** The canvas preview keeps its records; gate runs use fresh identities and memory only. */
 export const PREVIEW_KEY = 'plugin-builder:agent-studio:preview:';
 const previewStorageKey = (id: string, home: boolean) => PREVIEW_KEY + (home ? 'home:' : '') + id;
@@ -74,7 +78,7 @@ export function createStudioPreview(options: AgentStudioOptions, studio: Studio,
   const live = (identity: Readonly<SandboxIdentity>) => !!currentBuild(identity) && !accepting.has(identity.installationId.slice(STABLE_PREVIEW.length));
   const projectCapability = installed.capabilityFor(live);
   const homeCapability = options.homeActions && catalogCapabilities({ actions: options.homeActions, catalog: () => studio.catalog('home'), live,
-    declaration: identity => { const build = currentBuild(identity); return build ? { manifest: sandboxPluginManifest({ pluginId: identity.pluginId, name: build.title, version: "0.0.0",
+    declaration: identity => { const build = currentBuild(identity); return build ? { manifest: studioDraftManifest({ pluginId: identity.pluginId, name: build.title,
       publisher: { publisher_id: 'molis-studio', signature: 'agent-built:' + build.id }, presentation: !!build.design!.presentation, effects: buildEffects(build), contract: build.design!.contract, runtime: { scope: 'home' } }) } : undefined; },
     granted: identity => { const build = currentBuild(identity); return build ? buildEffects(build).capabilities ?? [] : []; } });
   const standIns: NonNullable<SandboxServices['capability']> = { async call(context, id, input) {

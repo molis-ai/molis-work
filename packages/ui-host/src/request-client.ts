@@ -1,3 +1,4 @@
+import { UI_HOST_CLIENT_CODES } from "@molis-ai/molis-work-contracts/platform/ui";
 import type {
   UiFailureTarget,
   UiFailureView,
@@ -68,7 +69,7 @@ export interface UiFailureViewPorts {
  * caller's headers never replace the control headers. With no answer a read can simply be asked again, but a write may or
  * may not have been done, and the helper does not guess. (Notes live here, not in the body: the body is sent to the page.)
  */
-export function createUiRequest(ports: UiRequestPorts): UiRequestCall {
+export function createUiRequest(ports: UiRequestPorts, codes: typeof UI_HOST_CLIENT_CODES): UiRequestCall {
   const controlTokenHeader = "x-molis-work-page-session";
   const controlHeaders = ["content-type", controlTokenHeader, "x-molis-work-control-token", "x-molis-work-idempotency-key"];
   const failure = (message: string, code: string, status: number, callId: string | null, body: unknown): UiRequestFailure =>
@@ -76,7 +77,7 @@ export function createUiRequest(ports: UiRequestPorts): UiRequestCall {
   const text = (value: unknown): string | null => (typeof value === "string" && value !== "" ? value : null);
   const refused = (body: unknown, status: number, fallback: string): UiRequestFailure => {
     const fields = body !== null && typeof body === "object" ? body as Record<string, unknown> : {};
-    return failure(text(fields.error) ?? fallback, text(fields.code) ?? "ui_host.uncoded", status, text(fields.call_id), body);
+    return failure(text(fields.error) ?? fallback, text(fields.code) ?? codes.uncoded, status, text(fields.call_id), body);
   };
   const writeHeaders = (key?: string): Record<string, string> => ({
     "content-type": "application/json",
@@ -91,7 +92,7 @@ export function createUiRequest(ports: UiRequestPorts): UiRequestCall {
     const fallback = (): string => init.fallback ?? ports.readText("common.request-client.can-t-do-that-right-now-try-again");
     let target: URL | null = null;
     try { target = new URL(url, ports.origin); } catch { target = null; }
-    if (!target || target.origin !== ports.origin) throw failure(fallback(), "ui_host.cross_origin", 0, null, null);
+    if (!target || target.origin !== ports.origin) throw failure(fallback(), codes.crossOrigin, 0, null, null);
     const headers: Record<string, string> = {};
     for (const [name, value] of Object.entries(init.headers ?? {})) if (!controlHeaders.includes(name.toLowerCase())) headers[name] = value;
     if (!read) Object.assign(headers, writeHeaders(init.key));
@@ -114,14 +115,14 @@ export function createUiRequest(ports: UiRequestPorts): UiRequestCall {
     } catch (error) {
       if ((error as { name?: string } | null)?.name === "AbortError") throw error;
       throw read
-        ? failure(ports.readText("common.request-client.can-t-reach-molis-work-service-try-again"), "ui_host.unreachable", 0, null, null)
-        : failure(ports.readText("common.request-client.we-can-t-tell-whether-finished-refresh-page"), "ui_host.outcome_unknown", 0, null, null);
+        ? failure(ports.readText("common.request-client.can-t-reach-molis-work-service-try-again"), codes.unreachable, 0, null, null)
+        : failure(ports.readText("common.request-client.we-can-t-tell-whether-finished-refresh-page"), codes.outcomeUnknown, 0, null, null);
     }
     init.scope?.assertCurrent(init.signal);
     if (as === "response") return response;
     if (response.ok || init.accept?.includes(response.status)) {
       if (as === "text") return answer;
-      try { return answer === "" ? null : JSON.parse(answer); } catch { throw failure(fallback(), "ui_host.invalid_response", response.status, null, answer); }
+      try { return answer === "" ? null : JSON.parse(answer); } catch { throw failure(fallback(), codes.invalidResponse, response.status, null, answer); }
     }
     let body: unknown = null;
     if (answer !== "") {
@@ -133,8 +134,8 @@ export function createUiRequest(ports: UiRequestPorts): UiRequestCall {
   async function stream(url: string, init: UiStreamRequestInit = {}): Promise<unknown> {
     const response = await call(url, { ...init, method: "POST", as: "response" }) as Response;
     const fallback = init.fallback ?? ports.readText("common.request-client.can-t-do-that-right-now-try-again");
-    const invalid = () => failure(fallback, "ui_host.invalid_response", response.status, null, null);
-    const interrupted = () => failure(ports.readText("common.request-client.we-can-t-tell-whether-finished-refresh-page"), "ui_host.outcome_unknown", response.status, null, null);
+    const invalid = () => failure(fallback, codes.invalidResponse, response.status, null, null);
+    const interrupted = () => failure(ports.readText("common.request-client.we-can-t-tell-whether-finished-refresh-page"), codes.outcomeUnknown, response.status, null, null);
     const current = () => { init.signal?.throwIfAborted(); init.scope?.assertCurrent(init.signal); };
     current();
     if (!response.ok) {
@@ -296,7 +297,7 @@ export const UI_REQUEST_CLIENT_SCRIPT = `
     token: () => document.querySelector('meta[name="molis-work-page-session"]')?.content || "",
     readHeaders: () => ({"x-molis-work-page-session": document.querySelector('meta[name="molis-work-page-session"]')?.content || ""}),
     newKey: () => crypto.randomUUID(), readText,
-  });
+  }, ${JSON.stringify(UI_HOST_CLIENT_CODES)});
   const view = (${compact(createUiFailureView.toString())})({
     createElement: (tag) => document.createElement(tag), readText,
     copy: (text) => Promise.resolve().then(() => navigator.clipboard.writeText(text)),

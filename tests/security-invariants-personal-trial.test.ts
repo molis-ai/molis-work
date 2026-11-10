@@ -1,3 +1,4 @@
+import { projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {mkdtempSync,rmSync,readFileSync,writeFileSync} from 'node:fs';
@@ -52,7 +53,7 @@ test('ASR-02 PTR-01 S-124 authenticated personal cleanup refuses while complete 
   await json('/api/personal/login',{});assert.equal((await request('/account/callback?code=synthetic&state='+state)).status,303);
   const current=(await json('/api/spaces')).current;token=readFileSync(join(home,'spaces',current.spaceId,'config/web-control-token'),'utf8').trim();
   const project=(await json('/api/settings/projects',{display_name:'唯一原件的个人项目',user_confirmed:true})).project,prefix='/projects/'+project.project_id;
-  await json('/api/settings/projects/'+project.project_id+'/plugins',{plugin_id:'pages'});
+  await json('/api/settings/projects/'+project.project_id+'/plugins',{plugin_id:'pages',expected_revision:await projectPluginRevision({get:path=>json(path)},project.project_id)});
   const markdown='唯一正文🌲\r\n'+('原件不可被清理\n'.repeat(1300));
   const document=(await json(prefix+'/api/plugins/io.molis.work.pages/pages',{title:'唯一正文',markdown})).document;
   const bytes=Buffer.from(Array.from({length:20017},(_,index)=>(index*31)%256)),items=prefix+'/api/plugins/io.molis.work.shelf/items';

@@ -1,3 +1,4 @@
+import { UI_HOST_CLIENT_CODES } from "@molis-ai/molis-work-contracts/platform/ui";
 import { PAGES_MESSAGES } from "@molis-ai/molis-work-plugin-pages";
 import { fillMessage } from "@molis-ai/molis-work-plugin-sdk";
 import { createUiRequest } from "@molis-ai/molis-work-ui-host";
@@ -14,7 +15,7 @@ export const zh = (key: string, values?: Record<string, string | number>): strin
  * and `projectId` is the function the frame gives (the current project, or empty).
  */
 export function pagesHost(lifetime: ReturnType<typeof fakeLifetime>, overrides: Record<string, unknown> = {}) {
-  const request = createUiRequest({ fetch: (input, init) => globalThis.fetch(input, init as RequestInit), origin: "http://pages.test", token: () => "t", newKey: () => "k-0000001", translate: zh });
+  const request = createUiRequest({ fetch: (input, init) => globalThis.fetch(input, init as RequestInit), origin: "http://pages.test", token: () => "t", newKey: () => "k-0000001", readText: zh }, UI_HOST_CLIENT_CODES);
   Object.assign(globalThis, { molisWorkRequest: request });
   return {
     translate: zh, route: (path: string) => path, pluginRoute: (path: string) => `/api/plugins/${PAGES_PLUGIN_ID}${path}`, pluginId: PAGES_PLUGIN_ID,

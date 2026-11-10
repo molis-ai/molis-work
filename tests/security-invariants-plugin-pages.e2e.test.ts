@@ -229,6 +229,49 @@ test("SYS-15 S-47 standalone Home settings reject invalid addresses and accept t
   }
 });
 
+test("D0033-02 S-47 plugin printing reaches the trusted print document without executing supplied HTML", { timeout: 60_000 }, async t => {
+  const browser = await openGoalBrowser(t, true); if (!browser) return;
+  await pluginFrameInitScript(t, browser, `
+    globalThis.molisWorkbenchPluginFactories = new Proxy({}, { set(target, name, factory) {
+      target[name] = host => { globalThis.__printDocument = html => host.printDocument(html); return factory(host); };
+      return true;
+    } });
+  `);
+  const child = await pluginFrameBrowser(t, browser, "cognia");
+  await browser.navigate(() => browser.command("Page.navigate", { url: `${browser.origin}/projects/${browser.projectId}/?openPlugin=cognia` }, browser.sessionId));
+  await browser.surfaceReady("cognia"); await child.waitFor("typeof __printDocument === 'function'");
+  const requests: string[] = [];
+  browser.server.on("request", request => { if (request.url?.includes("d0033-print-probe")) requests.push(request.url); });
+  await browser.evaluate(`(() => {
+    window.__printCalls = []; window.__printScriptExecuted = false;
+    document.addEventListener('load', event => {
+      const frame = event.target;
+      if (!(frame instanceof HTMLIFrameElement) || !frame.hasAttribute('srcdoc') || frame.getAttribute('aria-hidden') !== 'true') return;
+      // Observe the platform print call without opening a native print dialog. No code is injected into the document.
+      frame.contentWindow.print = () => window.__printCalls.push({
+        sandbox: frame.getAttribute('sandbox'), text: frame.contentDocument.body.textContent,
+        scriptRan: !!frame.contentWindow.__printScriptExecuted
+      });
+    }, true);
+  })()`);
+  const html = `<h1>Print probe</h1><p>Printable plugin content</p>
+    <script>window.__printScriptExecuted=true;parent.__printScriptExecuted=true;parent.__stolenPrintProof=parent.document.querySelector('meta[name=molis-work-page-session]').content;fetch('${browser.origin}/d0033-print-probe-script')</script>
+    <img src="${browser.origin}/d0033-print-probe-image" onerror="parent.__printScriptExecuted=true">
+    <form action="${browser.origin}/d0033-print-probe-form"><button>Submit</button></form>`;
+  await child.evaluate(`__printDocument(${JSON.stringify(html)})`);
+  await browser.waitFor("__printCalls.length === 1");
+  const calls = await browser.evaluate<Array<{ sandbox: string; text: string; scriptRan: boolean }>>("__printCalls");
+  assert.equal(calls[0]!.sandbox, "allow-same-origin allow-modals");
+  assert.match(calls[0]!.text, /Printable plugin content/);
+  assert.equal(calls[0]!.scriptRan, false, "inline script did not execute in the same-origin print document");
+  assert.deepEqual(await browser.evaluate("({ran:__printScriptExecuted,stolen:typeof __stolenPrintProof})"), { ran: false, stolen: "undefined" }, "print HTML cannot execute a handler or read the parent's session proof");
+  assert.deepEqual(requests, [], "supplied HTML cannot send network requests");
+  assert.equal(await browser.evaluate("document.querySelector('iframe[data-plugin-frame=cognia]').getAttribute('sandbox')"), "allow-scripts allow-forms", "printing never grants the plugin frame same-origin access");
+  assert.equal(await child.evaluate("(()=>{try{return parent.document.title}catch(error){return error.name}})()"), "SecurityError");
+  await browser.evaluate("dispatchEvent(new Event('afterprint'))");
+  assert.equal(await browser.evaluate("document.querySelectorAll('iframe[aria-hidden=true][srcdoc]').length"), 0, "the print document is released after printing");
+});
+
 test("D0033-01 S-47 the real side plugin cannot read either trusted ancestor, its token or IPC and cannot use another owner's bridge", { timeout: 60_000 }, async t => {
   const browser = await openGoalBrowser(t, true); if (!browser) return;
   const ownerFrame = '[data-side-body="plugin:shelf/side"] iframe';
@@ -281,4 +324,43 @@ test("S-ui-text-page FSS-08 a replacement document before first connection never
   await waitFor("frameHandshakeTrace.includes('replacement-loaded')", 12_000);
   await waitFor("!document.querySelector('iframe[data-plugin-frame=issues]')", 15_000);
   assert.deepEqual(await evaluate("frameHandshakeTrace"), ["replacement-loaded"], "loading at the current frame window is insufficient to receive any config or port");
+});
+
+// D0109 / S-47: use the actual child SDK and parent bridge, but keep the browser's print UI out of this lifecycle check.
+test("D0109 S-47 scriptless print frames release on timeout, afterprint and owner disposal", { timeout: 60_000 }, async t => {
+  const browser = await openGoalBrowser(t, true); if (!browser) return;
+  await pluginFrameInitScript(t, browser, `
+    const factories = {};
+    globalThis.molisWorkbenchPluginFactories = new Proxy(factories, { set(target, name, factory) {
+      target[name] = host => { globalThis.__printHost = host; return factory(host); }; return true;
+    } });
+  `);
+  const child = await pluginFrameBrowser(t, browser, "cognia");
+  await browser.command("Page.addScriptToEvaluateOnNewDocument", { source: `(() => {
+    const schedule = window.setTimeout;
+    window.__printTimeouts = [];
+    window.setTimeout = (callback, ms, ...args) => { if (ms === 120000) window.__printTimeouts.push(callback); return schedule(callback, ms, ...args); };
+    document.addEventListener('load', event => { const frame = event.target;
+      if (frame instanceof HTMLIFrameElement && frame.hasAttribute('srcdoc') && frame.getAttribute('sandbox') === 'allow-same-origin allow-modals') frame.contentWindow.print = () => {};
+    }, true);
+  })()` }, browser.sessionId);
+  await browser.navigate(() => browser.command("Page.navigate", { url: browser.origin + "/projects/" + browser.projectId + "/?openPlugin=cognia" }, browser.sessionId));
+  await browser.surfaceReady("cognia");
+  await child.waitFor("Boolean(globalThis.__printHost)");
+  const frame = "document.querySelector('iframe[sandbox=\"allow-same-origin allow-modals\"]')";
+  const print = async () => {
+    await child.evaluate("globalThis.__printHost.printDocument('<p>Printable</p><script>parent.__printEscape=true</scr'+'ipt>')");
+    await browser.waitFor(frame + "?.isConnected");
+    assert.equal(await browser.evaluate("Boolean(globalThis.__printEscape)"), false);
+  };
+  await print();
+  await browser.evaluate("Object.defineProperty(" + frame + ", 'contentWindow', { get() { throw new DOMException('Opaque print window', 'SecurityError'); } });window.__printTimeouts.at(-1)()");
+  assert.equal(await browser.evaluate("!!(" + frame + ")"), false, "a browser that omits afterprint still releases the frame");
+  await print();
+  await browser.evaluate("window.dispatchEvent(new Event('afterprint'))");
+  assert.equal(await browser.evaluate("!!(" + frame + ")"), false);
+  await print();
+  await browser.evaluate("document.querySelector('[data-work-surface=cognia]').remove()");
+  await browser.waitFor("!(" + frame + ")");
+  assert.equal(await browser.evaluate("!!(" + frame + ")"), false, "disposing the owner removes its still-pending print frame");
 });

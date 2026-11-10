@@ -202,15 +202,26 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 5. 旧 owner 从登记表与本矩阵退场（删行或并入别的包）前，先确认 caller 清零、行为兼容、数据迁移和回滚证据齐全；本矩阵不保留过渡词。
 6. 第 3 至 7 节各表的「归属」列（角色与评审账号）和 `.github/CODEOWNERS` 由 `scripts/package-owners.mjs` 的规则生成，不手改。新增、删除、改名 package 或换负责人后，改规则并运行 `node scripts/package-owners.mjs --write`；`pnpm boundary:check` 检查每个工作区包恰有一行、「归属」列与规则一致、CODEOWNERS 与规则一致。未建包的行（`absent`）归属写 `—`。「包成熟度」列由 `scripts/workspace-packages.mjs` 写、同一个检查逐行核对：真实包必须等于登记表的值，没有 workspace 包的目标路径行必须是 `absent`（`absent` 行不参与构建）。CODEOWNERS 只请求评审，不改分支保护（`specs/archive/repository-anti-corruption/spec.md` §1，2026-10-02、10-07；成熟度词表 2026-10-25，W5-15）。
 
+## Skill 包、目录和范围设置
+
+| 责任 | Owner | 唯一事实源 |
+| --- | --- | --- |
+| 技能包身份、版本、签名与安装状态 | Plugin Runtime / Host 包存储 | 当前安装记录、验签的包；没有第二份 Skill 注册表 |
+| 技能声明和正文 | 提供技能的插件 | Manifest 的 methods 和已验签正文/资源；内置声明由原注册提供 |
+| 当前范围的目录与读取 | apps/local-host 的 Agent definitions | system.skills 的四个动作，每次投影安装、声明与授权；manual 只认宿主冻结点名 |
+| 技能自动/仅手动状态、接受后的使用记录 | apps/local-host 的 Agent definitions | agent-definitions 库第 2 版的 skill_settings、skill_uses；项目与 home 分开，off 不留行；卸载删除状态、保留历史 |
+
+第 08 批提供目录与记账入口；助理/Coding 接入是第 09 批，下面旧消费配置在切换完成前仍按当前实现记载。
+
 ## Agent Host 保存的人的配置
 
 | 责任 | Owner | 唯一事实源 |
 | --- | --- | --- |
 | 外部 MCP 服务器的配置（地址或命令、超时、启用；凭据只给引用） | `horizontal/agent-host` | Prologue Runtime 的存储，kind `molis-mcp`；宿主能力 `agent.mcp.*` |
-| 装进项目的 Skill（界面叫「方法」） | `horizontal/agent-host` | Prologue Runtime 的存储，kind `molis-coding-method`；宿主能力 `agent.skills.*` |
+| Coding 当前消费的项目方法（09 批切换消费方后删除旧路） | `horizontal/agent-host` | Prologue Runtime 的存储，kind `molis-coding-method`；宿主能力 `agent.skills.*` |
 | 写后检查器：每个项目、每个已授权工作区一份，带版本 | `horizontal/agent-host` | Prologue Runtime 的存储，kind `molis-write-checkers`；动作 `agent.write_checkers.list`、`agent.write_checkers.save`，受众只有人（`specs/prologue-adoption/spec.md` §6.0p.2） |
 
-三类都由人保存，`agent-host` 只经 Prologue 的存储读写，不建自己的表。工作区授权本身归 Home 的项目目录（读法是 `projects.directories.get`），这里只引用它。
+上表三类都由人保存，`agent-host` 只经 Prologue 的存储读写，不建自己的表。工作区授权本身归 Home 的项目目录（读法是 `projects.directories.get`），这里只引用它。
 
 ## 图片生成插件
 

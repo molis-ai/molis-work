@@ -1,0 +1,21 @@
+{
+  "plugin_id": "io.molis.work.content.design-accessibility",
+  "version": "1.0.0",
+  "name": "设计与无障碍",
+  "summary": "设计评审、无障碍审查（WCAG 2.1 AA）、设计交付、设计系统与界面文字五个技能，给个人助理、Coding 的界面任务和 Pages 用。",
+  "publisher_id": "molis-work",
+  "scope": "home",
+  "name_text": {
+    "key": "design-accessibility.directory.name"
+  },
+  "summary_text": {
+    "key": "design-accessibility.directory.summary"
+  },
+  "locales": {
+    "default": "zh",
+    "available": [
+      "zh",
+      "en"
+    ]
+  }
+}

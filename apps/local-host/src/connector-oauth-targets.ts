@@ -3,10 +3,10 @@ import { withConnectorConnections } from "./connector-connection-store.js";
 
 /** A token refresh belongs to the connection revision that sent it, even if it was disabled and enabled meanwhile. */
 export function oauthRefreshGuard(home: string, connectionId: string): () => void {
-  const connection = withConnectorConnections(home, store => store.require(connectionId));
+  const connection = withConnectorConnections(home, store => store.require(connectionId), "required");
   if (!connection.enabled || connection.disconnected_at) throw new Error("连接已停用或断开，请重新连接");
   return () => {
-    const current = withConnectorConnections(home, store => store.require(connectionId));
+    const current = withConnectorConnections(home, store => store.require(connectionId), "required");
     if (current.updated_at !== connection.updated_at) throw new Error("连接在刷新期间已变化，请重试");
   };
 }

@@ -16,7 +16,7 @@ export const issuesManifest: PluginManifest = {
     { permission: "model:invoke", required: false, reason: "给录入和重新整理的问题起标题、判类型（显式调用）" },
   ],
   capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, actions: ISSUES_ACTIONS,
-  methods: issuesSkills.map(({ body: _body, ...method }) => ({ ...method, tools: [...method.tools] })),
+  methods: issuesSkills.map(({ body: _body, body_by_locale: _localized, ...method }) => ({ ...method, tools: [...method.tools] })),
   runtime: { scope: "home" },
   databases: { home: ISSUES_DATABASE },
   sync: issuesSync,

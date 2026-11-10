@@ -94,6 +94,11 @@ export class ProjectLine<Runtime> {
     return this.closingKeys.has(storageKey);
   }
 
+  /** A Catalog call can follow an existing runtime's closure without opening a runtime to get a signal. */
+  existingObservation(reference: LocalHostProjectReference): Pick<RuntimeEntry<Runtime>, "observing"> | undefined {
+    return this.entries.get(reference.storage_key);
+  }
+
   /** The entry still serves its storage key and has not started closing. */
   isLive(entry: RuntimeEntry<Runtime>): boolean {
     return entry.state !== "closing" && this.entries.get(entry.reference.storage_key) === entry;

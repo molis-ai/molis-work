@@ -1,35 +1,11 @@
-/** Who carries the work, how the next round goes and which Character answers for it: the three pop-up choices and the Character cache. A part of ASSISTANT_ISLAND_FACTORY_SCRIPT, joined in place. */
-export const ASSISTANT_CHOOSERS_PART = String.raw`  const execBtn = island.querySelector("[data-assistant-executor]");
-  const executorLabel = island.querySelector("[data-assistant-executor-label]");
-  const execsPop = island.querySelector("[data-assistant-executors]");
-  let executors = [];
+/** Who carries the work, how the next round goes and which Character answers for it: the rules the side pane and the composer's controls share, and the Character cache. A part of ASSISTANT_ISLAND_FACTORY_SCRIPT, joined in place. */
+export const ASSISTANT_CHOOSERS_PART = String.raw`  let executors = [];
   const executorOffer = (id) => executors.find((one) => one.plugin_id === id && !one.problem) || null;
   const executorsHere = () => Boolean(project && executors.some((one) => !one.problem));
-  const executorChoices = () => [{ id: "assistant", label: globalThis.t.text("workbench.assistant-choosers.default-assistant"), hint: globalThis.t.text("workbench.assistant-choosers.assistant-hint") }].concat(executors.filter((one) => !one.problem)
-    .map((one) => ({ id: one.plugin_id, label: one.title, hint: globalThis.t.text("workbench.assistant-choosers.plugin-executor-hint") })));
-  const modeButton = island.querySelector("[data-assistant-mode]");
-  const modeLabel = island.querySelector("[data-assistant-mode-label]");
-  const modesPop = island.querySelector("[data-assistant-modes]");
+  const executorChoices = () => [{ id: "assistant", label: readText("workbench.assistant-choosers.default-assistant"), hint: readText("workbench.assistant-choosers.assistant-hint") }].concat(executors.filter((one) => !one.problem)
+    .map((one) => ({ id: one.plugin_id, label: one.title, hint: readText("workbench.assistant-choosers.plugin-executor-hint") })));
   const modeOffer = () => { const work = getWork(); return executorOffer(work ? work.executor.kind === "plugin" ? work.executor.plugin_id : "" : nextExec); };
   const modeRows = (offer) => offer.modes.map((mode) => ({ id: mode.id, label: mode.title }));
-  const setModes = (open) => {
-    if (!modesPop) return;
-    modesPop.hidden = !open;
-    modeButton?.setAttribute("aria-expanded", String(open));
-    if (!open) return;
-    const work = getWork();
-    const offer = modeOffer(); if (!offer) { modesPop.hidden = true; return; }
-    const chosen = work ? work.executor && work.executor.mode || offer.default_mode : nextMode || offer.default_mode;
-    modesPop.replaceChildren(el("p", "assistant-popover-title", globalThis.t.text(work ? "workbench.assistant-choosers.mode-next-turn-same-setting-plugin-s-own" : "workbench.assistant-choosers.mode-first-turn")));
-    modeRows(offer).forEach((mode) => {
-      const item = el("button", "assistant-starter"); item.type = "button";
-      if (chosen === mode.id) item.setAttribute("aria-current", "true");
-      item.append(el("strong", "", mode.label));
-      item.addEventListener("click", async () => { setModes(false); await applyMode(mode.id); input.focus(); });
-      modesPop.append(item);
-    });
-    (modesPop.querySelector("[aria-current]") || modesPop.querySelector("button"))?.focus();
-  };
   /** A new plugin work's first round, or an open work's next one: the session's own setting, the same one its page shows. */
   async function applyMode(id) {
     const work = getWork();
@@ -40,71 +16,20 @@ export const ASSISTANT_CHOOSERS_PART = String.raw`  const execBtn = island.query
     }
     catch (error) { showError(error); }
   }
-  // The choice is made against what is saved now, not what this panel last read.
-  modeButton?.addEventListener("click", async () => { if (!modesPop.hidden) { setModes(false); return; } if (curId) await reload().catch(() => {}); setModes(true); });
   // Which Character carries the next round: the work's own choice, or one made here that the next Send brings along.
   // Only the Assistant's own project work has Characters (they are published per project); a plugin work picks its own.
-  const charBtn = island.querySelector("[data-assistant-character]");
-  const characterLabel = island.querySelector("[data-assistant-character-label]");
-  const charsPop = island.querySelector("[data-assistant-characters]");
   let nextChar = null, pendingChar;
   const chosenCharacter = () => { const work = getWork(); return work ? (pendingChar !== undefined ? pendingChar : work.character || null) : nextChar; };
   const allowsCharacter = () => { const work = getWork();
     return work ? work.executor.kind !== "plugin" && work.scope.kind === "project" : nextExec === "assistant" && nextScope === "project" && Boolean(project); };
-  const setChars = async (open) => {
-    if (!charsPop) return;
-    charsPop.hidden = !open;
-    charBtn?.setAttribute("aria-expanded", String(open));
-    if (!open) return;
-    const work = getWork(), chosen = chosenCharacter();
-    charsPop.replaceChildren(el("p", "assistant-popover-title", globalThis.t.text("workbench.assistant-choosers.which-character-carries-next-turn")));
-    let choices = [];
-    try { choices = (await api("/characters" + (work ? "?work=" + encodeURIComponent(work.work_id) : ""))).characters; }
-    catch (error) { const note=el("p","assistant-material-origin");molisWorkRequest.show(note,error);charsPop.append(note); }
-    const pick = (value) => { setChars(false); if (work) pendingChar = value; else nextChar = value; paintAim(); input.focus(); };
-    const own = el("button", "assistant-starter"); own.type = "button";
-    if (!chosen) own.setAttribute("aria-current", "true");
-    own.append(el("strong", "", globalThis.t.text("workbench.assistant-choosers.assistant-itself")), el("span", "assistant-material-origin", " " + globalThis.t.text("workbench.assistant-choosers.no-character")));
-    own.addEventListener("click", () => pick(null));
-    charsPop.append(own);
-    choices.forEach((choice) => {
-      const item = el("button", "assistant-starter"); item.type = "button";
-      const same = chosen && chosen.artifact_id === choice.reference.artifact_id && chosen.version === choice.reference.version;
-      if (same) item.setAttribute("aria-current", "true");
-      item.append(el("strong", "", choice.title), el("span", "assistant-material-origin", " v" + choice.reference.version + (choice.available ? "" : " · " + (choice.reason || globalThis.t.text("workbench.assistant-choosers.unavailable-now")))));
-      // An unavailable version is shown with why, and cannot be chosen: nothing runs under a name it is not.
-      if (!choice.available) item.disabled = true;
-      else item.addEventListener("click", () => pick({ artifact_id: choice.reference.artifact_id, version: choice.reference.version, title: choice.title }));
-      charsPop.append(item);
-    });
-    if (!choices.length) charsPop.append(el("p", "assistant-material-origin", globalThis.t.text("workbench.assistant-choosers.have-no-published-character-project-yet-create-publish")));
-    (charsPop.querySelector("[aria-current]") || charsPop.querySelector("button:not([disabled])"))?.focus();
-  };
-  charBtn?.addEventListener("click", async () => { if (!charsPop.hidden) { setChars(false); return; } if (curId) await reload().catch(() => {}); await setChars(true); });
-  // The side pane lists the same Characters; read once a minute per work (or for a new one), repainting when they arrive.
+  // The side pane and the composer list the same Characters; read once a minute per work (or for a new one), repainting when they arrive.
   const characterCache = new Map();
   const characterChoices = () => {
     const work = getWork(), key = work ? work.work_id : "new", held = characterCache.get(key);
     if (held && Date.now() - held.at < 60000) return held.choices;
     characterCache.set(key, { at: Date.now(), choices: held ? held.choices : null });
     api("/characters" + (work ? "?work=" + encodeURIComponent(work.work_id) : "")).then((res) => {
-      characterCache.set(key, { at: Date.now(), choices: res.characters || [] }); paintSum();
+      characterCache.set(key, { at: Date.now(), choices: res.characters || [] }); paintSum(); paintAim();
     }).catch(() => { characterCache.set(key, { at: Date.now(), choices: [] }); });
     return held ? held.choices : null;
-  };
-  const setExecs = (open) => {
-    if (!execsPop) return;
-    execsPop.hidden = !open;
-    execBtn?.setAttribute("aria-expanded", String(open));
-    if (!open) return;
-    execsPop.replaceChildren(el("p", "assistant-popover-title", globalThis.t.text("workbench.assistant-choosers.who-does")));
-    void loadExecutors();
-    executorChoices().forEach((one) => {
-      const item = el("button", "assistant-starter"); item.type = "button";
-      if (one.id === nextExec) item.setAttribute("aria-current", "true");
-      item.append(el("strong", "", one.label), el("span", "assistant-material-origin", " " + one.hint));
-      item.addEventListener("click", () => { nextExec = one.id; nextMode = ""; setExecs(false); paintAim(); paintSum(); input.focus(); });
-      execsPop.append(item);
-    });
-    (execsPop.querySelector("[aria-current]") || execsPop.querySelector("button"))?.focus();
   };`;

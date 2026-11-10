@@ -4,7 +4,7 @@ import fs from "node:fs";
 import { createRequire } from "node:module";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { workbenchLanguageResource, type WorkbenchRenderer } from "@molis-ai/molis-work-app-workbench";
-import { BASELINE_REGISTRY, baselinePackageFile } from "@molis-ai/molis-work-design-system";
+import { BASELINE_REGISTRY, baselinePackageFile, COMPOSER_CLIENT_SCRIPT } from "@molis-ai/molis-work-design-system";
 import { appearanceSheet } from "./appearance-sheet.js";
 import { tightenServedJs, tightenServedCss } from "./served-page-text.js";
 import { sendLocalWebJson as sendJson } from "./web-http.js";
@@ -97,6 +97,9 @@ export function createLocalWebAssets(ports: {
         ? { body: renderPluginFrameClientScript(), contentType: "text/javascript; charset=utf-8" }
       : pathname === "/assets/molis-work-workbench.js"
         ? { body: renderMolisWorkWorkbenchClientScript(), contentType: "text/javascript; charset=utf-8" }
+        // The unified input's program: one file for the Workbench and every plugin frame, fetched on a document's first composer.
+        : pathname === "/assets/molis-work-composer.js"
+        ? { body: COMPOSER_CLIENT_SCRIPT, contentType: "text/javascript; charset=utf-8" }
         : pathname === "/assets/molis-work-capabilities.js"
         ? { body: renderMolisWorkCapabilitiesClientScript(), contentType: "text/javascript; charset=utf-8" }
         : pathname === "/assets/molis-work-knowledge.js"

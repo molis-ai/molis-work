@@ -32,6 +32,10 @@ if (mode.startsWith("cli-")) {
   host.MolisWorkLocalHost.prototype.close = async function() {
     observed.host += 1;
     observed.order.push("host");
+    if (mode === "host-delayed") {
+      process.send?.({ type: "closing" });
+      await new Promise(resolve => setTimeout(resolve, 3500));
+    }
     await closeHost.call(this);
     observed.hostClosed = true;
     if (mode === "host-reject") throw failure();

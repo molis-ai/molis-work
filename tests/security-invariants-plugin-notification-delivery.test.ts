@@ -105,3 +105,38 @@ test("RAC-1013: only the platform's notification service can call a receiver", a
   }
   assert.deepEqual(createLocalFeedApplication(store.db).snapshot(f.project.project_id).feed_items.filter(item => item.title === "Forged"), []);
 });
+
+test("D0206 bounded queue drains all pages once, keeps failed rows, and retries on the next flush", async () => {
+  const database = new DatabaseSync(":memory:"), queue = new PluginNotificationQueue(database);
+  database.exec(PLUGIN_NOTIFICATIONS_SCHEMA_SQL);
+  try {
+    for (let i = 0; i < 305; i++) queue.enqueue(row(String(i)));
+    assert.equal(queue.pending("p").length, 100, "each SQL read is bounded");
+    const received = new Set<string>(); let failing = true;
+    const client: ActionClient = { discover: () => [], invoke: async (_caller, _ref, value) => {
+      const delivery = value as PluginNotificationDelivery;
+      if (delivery.key === "1" && failing) throw new ActionError("feed.invalid", "retry");
+      assert.ok(!received.has(delivery.key)); received.add(delivery.key);
+      return { item_id: delivery.key, created: true };
+    } };
+    const delivery = createNotificationDelivery({ project_id: "p", queue, client, senderName: () => "Sender", receivers: () => [
+      { plugin_id: "io.molis.work.receiver", reference: { capability_id: "receiver.take", version: 1 }, permissions: [] },
+    ] });
+    await delivery.flush(); assert.equal(received.size, 304); assert.equal(queue.pending("p").length, 1);
+    failing = false; await delivery.flush(); assert.equal(received.size, 305); assert.equal(queue.pending("p").length, 0);
+    await delivery.flush(); assert.equal(received.size, 305);
+  } finally { database.close(); }
+});
+
+test("D0206 cancellation after receiver returns writes neither delivery nor failure bookkeeping", async () => {
+  const database = new DatabaseSync(":memory:"), queue = new PluginNotificationQueue(database), abort = new AbortController();
+  database.exec(PLUGIN_NOTIFICATIONS_SCHEMA_SQL); queue.enqueue(row("cancelled"));
+  try {
+    const delivery = createNotificationDelivery({ project_id: "p", queue, signal: abort.signal, senderName: () => "Sender", receivers: () => [
+      { plugin_id: "io.molis.work.receiver", reference: { capability_id: "receiver.take", version: 1 }, permissions: [] },
+    ], client: { discover: () => [], invoke: async () => { abort.abort(); return { item_id: "kept", created: true }; } } });
+    await assert.rejects(delivery.flush(), { name: "AbortError" });
+    const stored = database.prepare("SELECT delivered_at, attempts, last_error_code FROM plugin_notifications").get();
+    assert.deepEqual({ ...stored }, { delivered_at: null, attempts: 0, last_error_code: null });
+  } finally { database.close(); }
+});

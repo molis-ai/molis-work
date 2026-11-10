@@ -139,7 +139,7 @@ export const INTERACTION_TEXTURE_STYLES = `
   ${HIDDEN_SCROLLBAR_STYLES}
 
   /* Fields answer focus with a 1px --ink stroke inside the control, never an outer halo. */
-  body :is(input, select, textarea):not([type="checkbox"], [type="radio"], [type="range"], .mw-slider, .mw-input, .mw-textarea, .mw-select, .assistant-composer-input, [data-plain-field]):focus-visible {
+  body :is(input, select, textarea):not([type="checkbox"], [type="radio"], [type="range"], .mw-slider, .mw-input, .mw-textarea, .mw-select, [data-plain-field]):focus-visible {
     outline: var(--focus-stroke);
     outline-offset: var(--focus-stroke-inset);
     border-color: var(--ink);

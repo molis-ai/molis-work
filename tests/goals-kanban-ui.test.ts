@@ -25,7 +25,7 @@ const columnBody = (html: string, status: string) => {
   return match?.[0] ?? "";
 };
 
-test("kanban keeps six visible-status columns, empty columns, and current-tree cards only", () => {
+test("kanban keeps all visible-status columns, empty columns, and current-tree cards only", () => {
   assert.ok(createWorkbenchUiHost().list().some(entry => entry.contribution_id === GOALS_MOMENTUM_UI_CONTRIBUTION_ID));
   const parent = item("ROOT", "Parent", "waiting");
   const child = item("APP", 'User "<title>', "in_progress");
@@ -66,12 +66,13 @@ test("kanban localizes column labels without translating user titles or adding h
   const user = item("USER", "看板");
   const html = withGoalLocale("en", () => renderer.renderGoalKanban(view([user]), "USER", [user]));
   assert.match(html, /<strong>看板<\/strong>/);
-  assert.match(html, />Continue</);
-  assert.match(html, />Active</);
-  assert.match(html, />Needs you</);
+  assert.match(html, />Ready to record</);
+  assert.match(html, />In progress</);
+  assert.match(html, />Needs your decision</);
   assert.match(html, />Waiting</);
-  assert.match(html, />Blocked</);
+  assert.match(html, />Can record; not ready to close</);
   assert.match(html, />Completed</);
+  assert.match(html, />Cancelled</);
   assert.doesNotMatch(html, /Kanban|How to use|Click a card to open/);
 });
 
@@ -82,7 +83,7 @@ test("Goal momentum canvas keeps each stable Goal id beside its node title", () 
   assert.doesNotMatch(goalIdRule, /display:\s*none/);
 });
 
-test("kanban CSS shares six columns on desktop and stacks groups when the pane is narrow", () => {
+test("kanban CSS shares status columns on desktop and stacks groups when the pane is narrow", () => {
   assert.match(GOAL_CANVAS_STYLES, /flex: 1 1 0/);
   assert.match(GOAL_CANVAS_STYLES, /container: goal-board \/ inline-size/);
   assert.match(GOAL_CANVAS_STYLES, /@container goal-board \(max-width: 839px\)/);
@@ -90,7 +91,8 @@ test("kanban CSS shares six columns on desktop and stacks groups when the pane i
   assert.doesNotMatch(GOAL_CANVAS_STYLES, /@container goal-board \(max-width: 839px\)[\s\S]*\.goal-canvas-shell \.goal-kanban,/);
   assert.match(GOAL_CANVAS_STYLES, /data-board-view="list"/);
   assert.match(GOAL_CANVAS_STYLES, /grid-template-columns: var\(--tree-width, var\(--immersive-sidebar-width\)\) minmax\(0, 1fr\)/);
-  assert.match(GOAL_CANVAS_STYLES, /grid-template-columns: minmax\(12rem, 1fr\) 6\.25rem 4\.75rem 8\.5rem auto/);
+  // D0014/D0015: the longer canonical state gets a shared responsive column; rings remain aligned across rows.
+  assert.match(GOAL_CANVAS_STYLES, /grid-template-columns: minmax\(12rem, 1fr\) minmax\(6\.25rem, \.3fr\) 4\.75rem 8\.5rem auto/);
   assert.match(GOAL_CANVAS_STYLES, /body\.immersive-workbench \.goal-canvas-shell \.goal-stage-list \.tree-children/);
   assert.match(GOAL_CANVAS_STYLES, /padding-left: calc\(\(var\(--tree-depth, 0\) \+ 1\) \* 16px\)/);
   assert.match(GOAL_CANVAS_STYLES, /tree-created-meta \{/);

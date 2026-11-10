@@ -102,6 +102,10 @@
     },
     "issues.when.now": "Just now",
     "issues.when.today": "Today {time}",
-    "issues.when.yesterday": "Yesterday {time}"
+    "issues.when.yesterday": "Yesterday {time}",
+    "issues.skill.issues-capture.name": "Record and manage personal issues",
+    "issues.skill.issues-capture.description": "Use when the user asks to record, view, edit or delete a personal issue. Record only issues the user raises; do not diagnose causes or propose solutions.",
+    "issues.skill.issues-capture.when-to-use": "The user explicitly wants to save an issue or view, edit or delete a recorded personal issue.",
+    "issues.skill.issues-capture.when-not-to-use": "Do not use for diagnosis, repairs, solution writing, an unrequested record, or shared team tickets."
   }
 }

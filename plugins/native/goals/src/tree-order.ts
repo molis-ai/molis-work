@@ -1,4 +1,4 @@
-export type GoalDisplayStatus = "continue" | "in_progress" | "waiting_user" | "waiting" | "blocked" | "completed";
+export type GoalDisplayStatus = "continue" | "in_progress" | "waiting_user" | "waiting" | "blocked" | "completed" | "cancelled";
 
 export type GoalPresentationState =
   | "waiting_for_human"

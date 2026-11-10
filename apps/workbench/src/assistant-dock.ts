@@ -1,4 +1,5 @@
-import { t as uiText, renderButton, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { escapeHtml, renderButton, renderComposer, t as uiText, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { assistantComposerLabels } from "./assistant-composer-labels.js";
 
 /** The glyphs the side pane draws for kinds of things and states, rendered once from the shared icon set. */
 const ASSISTANT_GLYPHS: readonly PluginIconName[] = ["file", "note", "image", "zap", "check", "circle", "clock", "flag", "undo", "edit", "alert", "circle-alert", "sparkles", "package",
@@ -6,11 +7,13 @@ const ASSISTANT_GLYPHS: readonly PluginIconName[] = ["file", "note", "image", "z
   "question", "shield", "terminal", "external", "eye", "search", "list", "refresh", "folder", "git-branch", "link", "user"];
 
 /**
- * The resident Assistant: its panel of works and the composer, which at rest is only the input, “+” and send. Where to
- * go lives at the bar's left and search in the project menu (and ⌘K); the project list uses the same composer.
+ * The resident Assistant: its panel of works and the platform's composer (unified-input K3), drawn here as its first screen so
+ * nothing moves when the island mounts it: who the next message goes to, the text, ＋ and send. Where to go lives at the bar's
+ * left and search in the project menu (and ⌘K); the project list uses the same Dock. The bell sits on the receiver row.
  */
 export function renderAssistantDock(primitives: { readText(value: string): string; icon(name: PluginIconName): string }): string {
   const { icon } = primitives;
+  const add = uiText.text("workbench.composer.next-boundary");
   return `<div class="bar-center" data-assistant-island data-system-view-owner="assistant">
       <section class="assistant-panel" data-assistant-panel aria-label="${uiText("workbench.assistant-dock.assistant")}" hidden>
         <template data-assistant-glyphs>${ASSISTANT_GLYPHS.map((name) => `<span data-glyph="${name}">${icon(name)}</span>`).join("")}</template>
@@ -69,25 +72,13 @@ export function renderAssistantDock(primitives: { readText(value: string): strin
           </div>
         </div>
       </section>
-      <div class="assistant-popover" id="assistant-executors" data-assistant-executors role="group" aria-label="${uiText("workbench.assistant-dock.who-does")}" hidden></div>
-      <div class="assistant-popover" id="assistant-modes" data-assistant-modes role="group" aria-label="${uiText("workbench.assistant-dock.mode-next-turn")}" hidden></div>
-      <div class="assistant-popover" id="assistant-characters" data-assistant-characters role="group" aria-label="${uiText("workbench.assistant-dock.which-character-carries")}" hidden></div>
-      <div class="assistant-popover" data-assistant-starters role="group" aria-label="${uiText("workbench.assistant-dock.ways-start")}" hidden></div>
       <div class="assistant-context-strip" data-assistant-context-strip role="group" hidden></div>
       <div class="assistant-next-row" data-assistant-next-row hidden></div>
       <div class="assistant-popover assistant-notices" id="assistant-notices" data-assistant-notices role="group" aria-label="${uiText("workbench.assistant-dock.needs-attention")}" hidden></div>
-      <div class="assistant-popover assistant-more" id="assistant-more" data-assistant-more role="group" aria-label="${uiText("workbench.assistant-dock.add")}" hidden></div>
-      <form class="assistant-composer bar-composer" id="assistant-composer" data-assistant-composer aria-label="Molis Work Assistant">
-        <span class="assistant-target" data-assistant-target-wrap><button class="assistant-target-main" type="button" data-assistant-target title="${uiText("workbench.assistant-dock.where-next-message-goes")}"><span data-assistant-target-label>${uiText("workbench.assistant-dock.new-work")}</span></button><button class="assistant-target-clear" type="button" data-assistant-target-clear aria-label="${uiText("workbench.assistant-dock.start-new-work-instead")}" title="${uiText("workbench.assistant-dock.start-new-work-instead")}" hidden>${icon("x")}</button></span>
-        <button class="assistant-executor" type="button" data-assistant-executor aria-haspopup="true" aria-expanded="false" aria-controls="assistant-executors" title="${uiText("workbench.assistant-dock.who-does")}" hidden><span data-assistant-executor-label>${uiText("workbench.assistant-dock.assistant")}</span>${icon("chevron-up")}</button>
+      <div class="assistant-composer" data-assistant-composer data-composer-next="${escapeHtml(add)}">
+        <button class="assistant-answer" type="button" data-assistant-answer hidden></button>
+        ${renderComposer({ kind: "ai", labels: assistantComposerLabels(uiText.text, true), placeholder: uiText.text("workbench.assistant-dock.ask-assistant-do-something"), receiver: { label: uiText.text("workbench.assistant-dock.assistant"), open: true } })}
         <button class="assistant-attention" type="button" data-assistant-attention aria-haspopup="true" aria-expanded="false" aria-controls="assistant-notices" title="${uiText("workbench.assistant-dock.needs-attention")}" hidden>${icon("bell")}<span data-assistant-attention-count></span></button>
-        <button class="assistant-executor" type="button" data-assistant-character aria-haspopup="true" aria-expanded="false" aria-controls="assistant-characters" title="${uiText("workbench.assistant-dock.which-character-carries")}" hidden><span data-assistant-character-label>${uiText("workbench.assistant-dock.assistant")}</span>${icon("chevron-up")}</button>
-        <button class="assistant-executor" type="button" data-assistant-mode aria-haspopup="true" aria-expanded="false" aria-controls="assistant-modes" title="${uiText("workbench.assistant-dock.mode-next-turn")}" hidden><span data-assistant-mode-label></span>${icon("chevron-up")}</button>
-        <button class="assistant-executor" type="button" data-assistant-answer hidden></button>
-        <textarea class="assistant-composer-input" data-assistant-input data-fit rows="1" autocomplete="off" placeholder="${uiText("workbench.assistant-dock.ask-assistant-do-something")}" aria-label="${uiText("workbench.assistant-dock.send-assistant")}"></textarea>
-        <button class="bar-composer-attach" type="button" data-assistant-attach aria-haspopup="true" aria-expanded="false" aria-controls="assistant-more" aria-label="${uiText("workbench.assistant-dock.add-file-reference-capability")}" title="${uiText("workbench.assistant-dock.add-file-reference-capability")}">${icon("plus")}</button>
-        <input type="file" data-assistant-file multiple hidden tabindex="-1" accept=".txt,.md,.markdown,.csv,.tsv,.json,.log,.xml,.yaml,.yml,.html,.htm,.pdf,application/pdf,text/*,image/png,image/jpeg,image/gif,image/webp">
-        <button class="mw-btn mw-btn--primary mw-btn--icon-only mw-btn--sm" type="submit" data-assistant-send aria-label="${uiText("workbench.assistant-dock.send")}" title="${uiText("workbench.assistant-dock.send")}" disabled>${icon("send")}</button>
-      </form>
+      </div>
     </div>`;
 }

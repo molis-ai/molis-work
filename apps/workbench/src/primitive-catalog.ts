@@ -105,12 +105,12 @@ const BAR_SPECIMEN_SCRIPT = `
   if (!stage) return;
   const toggle = stage.querySelector("[data-plugin-picker-toggle]");
   const popover = stage.querySelector("[data-plugin-picker-popover]");
-  const input = stage.querySelector("[data-assistant-input]");
-  const send = stage.querySelector("[data-assistant-send]");
+  // The composer is its first screen only (nothing is sent from the board): typing just wakes the send button.
+  const input = stage.querySelector("[data-assistant-composer] .mw-composer__input");
+  const send = stage.querySelector("[data-assistant-composer] [data-composer-send]");
   const setPicker = (open) => { if (!toggle || !popover) return; popover.hidden = !open; toggle.setAttribute("aria-expanded", String(open)); };
   toggle?.addEventListener("click", () => setPicker(popover.hidden));
   input?.addEventListener("input", () => { if (send) send.disabled = !input.value.trim(); });
-  stage.querySelector("[data-assistant-composer]")?.addEventListener("submit", (event) => event.preventDefault());
   stage.addEventListener("click", (event) => {
     // The switcher's two buttons answer here the way the workbench's do (the specimen holds no project, so nothing is kept).
     const keep = event.target.closest("[data-dock-choice]");
@@ -211,7 +211,7 @@ const BOARD_PAGE_STYLES = "body.mw-catalog-page .mw-catalog{position:relative;co
  * plugin-row sections are written through it and their frames start in it (the sections keep the same sample structure). `environment` is the
  * 语言与文字 section (`renderEnvironmentSection`), drawn by the Host, which has the language scopes its two renders need; without it the board has none.
  */
-export function renderMolisWorkPrimitiveCatalog(say: (text: string, values?: Record<string, string | number>) => string = t, lang: WebLocale = DEFAULT_WEB_LOCALE, environment = "", appearance?: WorkbenchAppearance): string {
+export function renderMolisWorkPrimitiveCatalog(say: (text: string, values?: Record<string, string | number>) => string = t, lang: WebLocale = DEFAULT_WEB_LOCALE, environment = "", appearance?: WorkbenchAppearance, delivery?: string): string {
   const languages = renderToggleGroup({
     label: say("workbench.primitive-catalog.language"),
     items: WORKBENCH_LANGUAGES.languages.map(({ tag, name }) => ({ value: tag, label: name, current: tag === lang, attrs: { "data-board-lang": tag } })),
@@ -224,7 +224,7 @@ export function renderMolisWorkPrimitiveCatalog(say: (text: string, values?: Rec
       { value: "system", label: "workbench.client-render.system", current: true, attrs: { "data-theme-option": "system" } },
     ],
   });
-  const catalog = renderPrimitiveCatalog({ plugins: iconInventoryPlugins(), say })
+  const catalog = renderPrimitiveCatalog({ plugins: iconInventoryPlugins(), say, delivery })
     .replace("</nav>", `<a href="#foundation" title="${t("workbench.primitive-catalog.foundation")}">${t("workbench.primitive-catalog.foundation")}</a><a href="#conditions" title="${say("workbench.primitive-catalog.conditions-states")}">${say("workbench.primitive-catalog.conditions-states")}</a><a href="#assistant" title="${say("workbench.primitive-catalog.assistant-information-works")}">${say("workbench.primitive-catalog.assistant-information-works")}</a><a href="#plugin-rows" title="${say("workbench.primitive-catalog.plugin-rows")}">${say("workbench.primitive-catalog.plugin-rows")}</a><a href="#service-connections" title="${say("workbench.primitive-catalog.service-connections")}">${say("workbench.primitive-catalog.service-connections")}</a><a href="#return-trips" title="${say("workbench.primitive-catalog.back-where-were")}">${say("workbench.primitive-catalog.back-where-were")}</a><a href="#platform-area" title="${say("workbench.primitive-catalog.platform-area")}">${say("workbench.primitive-catalog.platform-area")}</a><a href="#connection-need" title="${say("workbench.primitive-catalog.connection-card-place-platform-area")}">${say("workbench.primitive-catalog.connection-card-place-platform-area")}</a><a href="#bar" title="${t("workbench.primitive-catalog.bar-and-overlays")}">${t("workbench.primitive-catalog.bar-and-overlays")}</a><a href="#collab" title="${say("workbench.primitive-catalog.collaboration-parts")}">${say("workbench.primitive-catalog.collaboration-parts")}</a><a href="#navigation" title="${say("workbench.primitive-catalog.workbench-navigation")}">${say("workbench.primitive-catalog.workbench-navigation")}</a>${environment ? `<a href="#environment" title="${t("workbench.env.title")}">${t("workbench.env.title")}</a>` : ""}</nav>`)
     .replace("\n  </div>\n  <script>", `\n    ${renderFoundationSection()}\n    ${renderConditionsSection(say, lang)}\n    ${renderAssistantBoardSection(say, lang)}\n    ${renderPluginRowsSection(say, lang)}\n    ${renderServiceConnectionSection(say)}\n    ${renderReturnTripSection(say)}\n    ${renderPlatformAreaSection(say, lang)}\n    ${renderConnectionNeedSection(say)}\n    ${renderBarSection()}\n    ${renderCollabSection(say)}\n    ${renderNavigationSection(say, lang)}\n    ${environment}\n  </div>\n  <script>`);
   return `<!doctype html>

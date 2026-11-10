@@ -3,7 +3,6 @@
   "owner": "io.molis.work.files",
   "locale": "en",
   "messages": {
-    "files.directory.summary": "Browse workspace files and saved content.",
     "files.directory.back": "Back to files",
     "files.directory.choose-workspace": "Choose a workspace",
     "files.directory.empty": "This folder is empty",
@@ -14,6 +13,7 @@
     "files.directory.reading": "Reading the folder…",
     "files.directory.reading-workspace": "Reading the workspace…",
     "files.directory.refresh": "Refresh",
+    "files.directory.summary": "Browse workspace files and saved content.",
     "files.directory.title": "Files",
     "files.directory.truncated": "A large folder: showing the first 1,000 entries that can be read",
     "files.directory.unreadable": "Couldn’t read this folder",
@@ -64,6 +64,6 @@
     "files.snapshot.title": "Pinned snapshots",
     "files.stage.empty-body": "Choose a file from the folder to read it, save a selection, or pin two snapshots to compare.",
     "files.stage.empty-title": "Open a file to start reading",
-    "files.stage.manage": "Working folder settings"
+    "files.stage.manage": "Inputs and output settings"
   }
 }

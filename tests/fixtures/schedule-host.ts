@@ -1,3 +1,4 @@
+import { UI_HOST_CLIENT_CODES } from "@molis-ai/molis-work-contracts/platform/ui";
 import { SCHEDULE_MESSAGES } from "@molis-ai/molis-work-plugin-schedule";
 import { fillMessage } from "@molis-ai/molis-work-plugin-sdk";
 import { createUiRequest } from "@molis-ai/molis-work-ui-host";
@@ -12,7 +13,7 @@ export const zh = (key: string, values?: Record<string, string | number>): strin
  * installs on `globalThis` (looked up when a request is made), and `pluginRoute` is the Manifest identity's path.
  */
 export function scheduleHost(overrides: Record<string, unknown> = {}) {
-  const request = createUiRequest({ fetch: (input, init) => globalThis.fetch(input, init as RequestInit), origin: "http://schedule.test", token: () => "t", newKey: () => "k-0000001", translate: zh });
+  const request = createUiRequest({ fetch: (input, init) => globalThis.fetch(input, init as RequestInit), origin: "http://schedule.test", token: () => "t", newKey: () => "k-0000001", readText: zh }, UI_HOST_CLIENT_CODES);
   Object.assign(globalThis, { molisWorkRequest: request });
   return {
     translate: zh, pluginRoute: (path: string) => `/api/plugins/${SCHEDULE_PLUGIN_ID}${path}`, pluginId: SCHEDULE_PLUGIN_ID,

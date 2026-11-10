@@ -13,6 +13,8 @@ Host 的 Home 与项目执行器共用可信定义对象的 provider 规则：bu
 
 `readPluginRuntimeRecords` 只读已验证库中的安装事实，与 Repository 的 `list` 使用同一读取；不构造 Repository、不建表、不启动/恢复实例或修改停用意图。Host 项目设置用这份观察识别已安装的独立插件，不能把同步来的依赖清单当作安装记录。只读连接与缺表拒绝由 `tests/plugin-runtime-integration.test.ts` 验证。
 
+设置声明随 Manifest 核对。安装、换版、启用和恢复读取 Host 给出的作用域归属，禁用保留设置键，卸载释放。异步换版在候选写入前同步重查新键，候选启动期间保留原版独有的键，直到启动完成或原记录恢复。运行定义要使用已安装发行版本的设置声明。验证见 [settings-declaration-admission.test.ts](../../tests/settings-declaration-admission.test.ts)。
+
 ## 一次典型调用
 
 PluginRuntime 使用注入的 repository 和 executor；启动或恢复产生新的 grant context，失败和卸载撤销旧 context。SQLite repository 保存安装事实，private storage 按安装 ID 隔离 opaque string 数据。
@@ -90,6 +92,7 @@ Host 使用 `runInPluginAction` 将已验证的安装、动作定义和调用控
 - 不变量：
   - 项目同意仍由同一个 consent ledger 保存：subject 是规范编码的项目与 install_id，批准集合与当时 digest 一起留存；重授在一个事务内撤旧建新。升级后的声明相同或缩小不重写旧行，声明增加须重新确认；卸载保留数据也清掉全部项目授权。
   - 安装事实存 SQLite repository；私有存储按安装 ID 隔离。
+  - 只有声明的插件（`kind: "content"`）是「已声明、不启动」（`runtime-rules.ts` 的 `declaresOnly`）：安装、启用、停用、卸载、恢复的记录与状态和其他插件一样，但不选入口（`selected_entrypoint` 为空串）、启动与恢复不调执行器、不兑现 contribution，所以不起进程、不登记动作；它的 `requires` 不挡它启用（`resolution.ts`），不满足时由 Skill 目录把相应 Skill 标为不可用。它的 Skill 由宿主从验过的留存包登记。回归见 `tests/security-invariants-content-package.test.ts`（SKC-02）。
   - 每次重装已卸载的安装，都在注册代码、保存新代之前同步调用 Host 的 `PluginExecutor.prepareReinstall`，补清原文件登记、按记录连接等授权；保留私有数据也不能跳过。授权 owner 失败就拒绝发布，原卸载记录不变，关闭后新建 Runtime 也照常检查。这个端口不删私有数据；不能在同步安装中重放允许异步返回的 `uninstalled`。回归见 `tests/security-invariants-installation-records.test.ts` 的 RAC-472/473。
   - 稳定 install_id 用于私有数据；installation_generation 区分每次确认安装，重启、启停和升级不变，卸载重装生成新值。持久任务绑定二者。安装记录必有 installation_generation 与 execution（`host` 或 `sandbox`），缺的记录不是当前 schema。
   - `stop()` 默认记录 disabled；Host 正常关闭可传 `preserve_enabled: true`，停止进程与撤销上下文后保留 installed 状态。该选项不能重新启用已经 disabled 的安装，失败仍记录 crashed。是否启动由 Host 的当前启用策略决定。崩掉（crashed）或还没启动（installed）的安装被默认停止也记 disabled：没有活实例，不调停止钩子，崩溃码与恢复次数留在记录上；带 `preserve_enabled` 停止这两种、停止 quarantined 或已卸载的，都以 `plugin.state_invalid` 拒绝，记录不变（隔离只由显式解除隔离放开）。崩溃 → 停用 → 启用走 `start`、不走 `recover`：不花恢复次数，`recovery_count` 原样留着。读不到安装记录时 `stop` 仍放掉本进程激活的实例（先撤销授权、再调执行器的 `stop`）；缺记录本身就是这次 `stop` 的失败，以 `plugin.definition_missing` 报出，钩子同步抛错还是异步拒绝都一样，错误码不变。回归见 `tests/plugin-lifecycle-states.test.ts` 的 RAC-1193、RAC-1194、RAC-2400。

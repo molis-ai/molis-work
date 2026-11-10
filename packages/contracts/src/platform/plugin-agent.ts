@@ -158,6 +158,8 @@ export const MAX_SKILL_BODY_CHARS = 20_000;
  * limits are `CHARACTER_IMPORT_LIMITS`' (`modules/character-import`): an imported folder and a package are held to the same.
  */
 export const SKILL_LIMITS = {
+  /** A `skill_id`: lower-case letters, digits and hyphens, so it is also the folder name `skills/<skill_id>/`. */
+  skillIdChars: 64,
   descriptionChars: 1024,
   whenChars: 500,
   argumentHintChars: 80,
@@ -172,9 +174,9 @@ export const SKILL_LIMITS = {
 
 /**
  * A Skill: a versioned, on-demand way of doing something, which grants nothing. In Manifest `methods` it is offered to other
- * Agents; in `agent.skills` it is the Plugin's own Agent's. The two differ only in what they may write, and the SDK's checks say
- * so: `applies_to`, `user_invocable` and `argument_hint` are only for `methods`. Every field after `tools` is optional for now;
- * `description` and `applies_to` become required in `methods` with C-3 (contract-design §4.2).
+ * Agents (`PluginMethodDeclaration`, where `description` and `applies_to` are required); in `agent.skills` it is the Plugin's own
+ * Agent's. The two differ only in what they may write, and the SDK's checks say so: `applies_to`, `user_invocable` and
+ * `argument_hint` are only for `methods` (specs/skill-packs/contract-design.md §4.2).
  */
 export interface AgentSkillDeclaration {
   skill_id: string;
@@ -193,6 +195,8 @@ export interface AgentSkillDeclaration {
   user_invocable?: boolean;
   /** `methods` only: what to write after the name when naming it, at most 80 characters. */
   argument_hint?: string;
+  /** methods only: this Skill requires a local Agent; the signed reason survives import and restart (1–512 characters). */
+  native_only_reason?: string;
   /** The body's path in the package, always `skills/<skill_id>/SKILL.md`; required in a signed package. */
   body?: string;
   resources?: SkillResourceDeclaration[];
@@ -200,8 +204,22 @@ export interface AgentSkillDeclaration {
   connector_categories?: string[];
 }
 
+/**
+ * A Skill a Plugin offers to other Agents (Manifest `methods`): every plugin, built in, sandboxed or with only declarations, writes
+ * the same declaration, with when to pick it and which built-in Agent may. Nothing derives an id or fills in a default for it.
+ */
+export interface PluginMethodDeclaration extends AgentSkillDeclaration {
+  description: string;
+  applies_to: SkillAppliesTo;
+}
+
 export interface AgentSkillDefinition extends Omit<AgentSkillDeclaration, "body">, LocalizedAgentBody {
   /** The body's text, not the package path a declaration's `body` names. */
+  body: string;
+}
+
+/** A method as a Plugin's code ships it (`PluginDefinition.methods`): its Manifest declaration, with the body's text. */
+export interface PluginMethodDefinition extends Omit<PluginMethodDeclaration, "body">, LocalizedAgentBody {
   body: string;
 }
 

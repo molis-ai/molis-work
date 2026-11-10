@@ -110,7 +110,7 @@ GW5 已提供全部 Goals contribution、专属客户端、集合/导航投影�
 - `packages/ui-host` 已有真实 Contribution registry 和 surface render，不再只是目录占位。
 - `apps/workbench` 是 composition root，注册 `io.molis.work.native.feed.ui.v1`；它不读取 Feed Store。
 - `plugins/native/feed` 声明 Feed 页面、Source 页面、overlays 和 detail Slot。Goal 决定仍由 Goals owner 生成，再通过 `detail_slot_html` 挂入 Feed 声明的详情位置。
-- 旧 `src/web/feed-native-plugin-ui.ts` 已随根 `src/` 删除；Feed UI model 由 Workbench 的 `feed-projection-ui.ts` 投影，图标、i18n、安全链接和富文本由 Host primitives 提供。
+- 旧 `src/web/feed-native-plugin-ui.ts` 已随根 `src/` 删除；Feed UI model 由 Feed 自己的 `plugins/native/feed/src/stage-ui.ts` 从 stage 读取结果建（`buildFeedStageUiModel` / `buildFeedReaderUiModel`），图标、i18n、安全链接和富文本仍由 Host primitives 提供。
 
 Planning contribution 通过显式 renderPage 原语使用原设置页外框，不复制全局导航。根 HTTP host 经 Workbench 调用 Plugin 的页面 matcher，仍自己负责 GET/控制权限、项目解析、读取与响应。Plugin 不导入根 Web view 或 Store；方法组合由公开 Goals Module 产出。
 

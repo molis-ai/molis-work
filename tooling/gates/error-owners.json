@@ -139,6 +139,12 @@
       ],
       "reason": "The desktop computer helper, its driver and the operation records in the file list. Its codes start with computer."
     },
+    "composer": {
+      "paths": [
+        "packages/contracts/src/platform/composer.ts"
+      ],
+      "reason": "The unified input's public contract (specs/unified-input-voice/implementation-plan.md §6 answer 13): a source that went away, a pick the target cannot read at send time and a mount page's missing required field are the composer's own refusals, declared once here for the mount pages and the client (slice K2) that raise them."
+    },
     "connector": {
       "paths": [
         "horizontal/connector-host/",
@@ -328,6 +334,12 @@
       ],
       "reason": "The search horizontal and its Host actions and HTTP edge; search.entry_duplicate is also a platform protocol code."
     },
+    "sessions": {
+      "paths": [
+        "packages/contracts/src/services/sessions.ts"
+      ],
+      "reason": "The Sessions service contract declares sessions.* once, so the shell and callers can tell the refusals apart; horizontal/sessions/ joins when the service package is created."
+    },
     "shelf": {
       "paths": [
         "modules/shelf/"
@@ -339,6 +351,12 @@
         "plugins/native/feed/src/store/signals.ts"
       ],
       "reason": "The signals module (inside Feed's store since FI-5): its signal_* codes become signals.*."
+    },
+    "skills": {
+      "paths": [
+        "packages/contracts/src/services/skills.ts"
+      ],
+      "reason": "The Skill catalog, settings and import contract (specs/skill-packs/contract-design.md §6–§8), whose refusals are skills.* like its action ids. A new file only; the Host's Agent definition register that will serve the catalog keeps its agent_definitions owner."
     },
     "sources": {
       "paths": [

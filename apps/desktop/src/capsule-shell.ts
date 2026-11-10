@@ -462,13 +462,14 @@ export const CAPSULE_CLIENT_SCRIPT = `
       return;
     }
     const requestedProjectId = projectId;
+    const menuOnly = document.hidden;
     const requestId = ++requestSequence;
     activeRequest?.controller.abort();
     const controller = new AbortController();
     activeRequest = { requestId, controller };
     if (showLoading) setLoading(requestedProjectId);
     try {
-      const response = await readNoStore(capsuleRequestPath("/projects/" + encodeURIComponent(requestedProjectId) + "/api/capsule"), controller.signal);
+      const response = await readNoStore(capsuleRequestPath("/projects/" + encodeURIComponent(requestedProjectId) + "/api/capsule" + (menuOnly ? "?view=menu" : "")), controller.signal);
       if (response.status === 404 && requestId === requestSequence && requestedProjectId === projectId) {
         stopPolling();
         return;
@@ -477,7 +478,11 @@ export const CAPSULE_CLIENT_SCRIPT = `
       if (!response.ok) throw new Error(payload.error || globalThis.t.text("workbench.capsule-shell.could-not-load-work-status"));
       if (requestId !== requestSequence || requestedProjectId !== projectId) return;
       if (payload.project?.project_id !== requestedProjectId) throw new Error(globalThis.t.text("workbench.capsule-shell.loaded-project-did-not-match-please-try-again"));
-      render(payload);
+      if (menuOnly) {
+        clearLoading(); root.dataset.error = "false";
+        if (!polling) { polling = true; startTimers(); }
+        invoke?.("capsule_update_menu_bar", { title: payload.state.menu_bar_title, tooltip: payload.state.menu_bar_tooltip, path: payload.state.action_path }).catch(() => {});
+      } else render(payload);
     } catch (error) {
       if (controller.signal.aborted || requestId !== requestSequence || requestedProjectId !== projectId) return;
       // After a 404 only an outside nudge (the "online" event) reads again; a failure then is the ordinary "reconnecting", so it polls again.

@@ -25,7 +25,7 @@ WORK-05 的再次验证、绑定/换绑/解绑和改密共用上述验证协议�
 - 负责：中央账号协议、可信配置、固定操作映射、DTO 校验、错误转换、会话记录格式、刷新协调、退出撤销、认证与敏感身份事务、个人资料动作和当前调用的身份/撤销复核。
 - 不负责：存储加密适配、平台账号事实、订阅计算、Home 内容、界面或插件授权。
 - 公开入口：`@molis-ai/molis-work-service-account`（`src/index.ts`，经 `dist` 导出）；合同 `@molis-ai/molis-work-contracts/services/account`。
-- 依赖：只依赖 `@molis-ai/molis-work-contracts`；不 import Host、插件、Module 或其他横向服务。密钥解析由 Host 注入，仅返回给当前调用内部。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（只取 `isRecord` 这一份共用判断）；不 import Host、插件、Module 或其他横向服务。密钥解析由 Host 注入，仅返回给当前调用内部。
 - 不变量：
   - 输入不能控制上游 URL、HTTP 方法、任意头、主体身份或客户端。中央令牌是不透明材料，不解释成 JWT。
   - 固定配置和凭据绑定不符时先拒绝，不读取错误上下文的密钥；等待返回后复核原账号引用、调用权限和取消状态。

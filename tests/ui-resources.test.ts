@@ -111,9 +111,9 @@ test("FSS-34 the same Workbench build discovers and serves a language added only
     const pack = JSON.parse(readFileSync(path.join(scratch, "resources/locales/en.json"), "utf8"));
     const descriptor = { tag: "en-GB", html_lang: "en-GB", intl: "en-GB", direction: "ltr", name: "English (UK)" };
     const probe = () => JSON.parse(execFileSync(process.execPath, ["--input-type=module", "-e", `
-      import { WEB_LOCALES, createWorkbenchLocale, renderLanguageHead, workbenchLanguageResource, workbenchPlatformText } from "./dist/index.js";
+      import { WEB_LOCALES, createWorkbenchLocale, renderWorkbenchDocument, workbenchLanguageResource, workbenchPlatformText } from "./dist/index.js";
       const web = createWorkbenchLocale(() => "en-GB");
-      const href = renderLanguageHead("en-GB").match(/src="([^"]+)/)?.[1];
+      const href = renderWorkbenchDocument({ lang: "en-GB", title: "probe", body_html: "" }).match(/data-ui-language-resource[^>]*src="([^"]+)/)?.[1];
       const asset = href && workbenchLanguageResource(href);
       process.stdout.write(JSON.stringify({ languages: WEB_LOCALES, system: web.resolveWebLocaleChoice(undefined, "en-GB,en;q=0.8").tag,
         cookie: web.resolveWebLocaleChoice("molis_work_locale=en-GB", "zh").tag, rejected: web.resolveWebLocaleChoice("molis_work_locale=fr", "en").tag,

@@ -54,6 +54,7 @@ export type { HomeSnapshotManifest, HomeSnapshotResult } from "./home-snapshot-c
 export { readMaterialLocalPage } from "./material-local-page.js";
 export { readMaterialOrigins, MATERIAL_ORIGINS_DEADLINE_MS, type MaterialOriginPorts, type ProjectFolders } from "./material-origins.js";
 export { projectWorkspaceActionProvider, type ProjectMaterialPorts } from "./project-workspace-actions.js";
+export { directoryPage } from "./project-workspace-http.js";
 export { checkWorkspaceFile, type WorkspaceFileCheck } from "./workspace-files.js";
 export { isHostEndpointPort, trackHostChildEndpoint, trackHostPort } from "./host-endpoints.js";
 export { ORIGINAL_FILE_MAX_BYTES, ORIGINAL_RANGE_MAX_BYTES, readOriginalFile, readOriginalRange, registerOriginalFile, releaseOriginalFile } from "./material-original-files.js";
@@ -146,10 +147,12 @@ export { modelProviderSwitch } from "./model-provider-switch.js";
 export { PLUGIN_CONSENT_PERMISSIONS, pluginConsentActions, pluginConsentProvider } from "./installed-plugin-consent-actions.js";
 export { publisherStanding } from "./installed-publisher-standing.js";
 export { PLUGIN_INSTALL_PERMISSIONS, pluginControlActions, pluginInstallActions } from "./plugin-install-actions.js";
-export { PluginInstallService } from "./plugin-install-service.js";
+export { PluginInstallService, type BundledPluginList } from "./plugin-install-service.js";
+export { bundledPackagesDirectory } from "./bundled-packages.js";
 export { installedPluginViews } from "./plugin-installed-view.js";
 export { runLocalPluginInstall, type LocalPluginInstallInput } from "./plugin-install-client.js";
 export { pluginInstallProvider } from "./plugin-trust-actions.js";
+export { SkillImportService, localSkillScan, suggestedAppliesTo, type SkillImportPorts } from "./skill-import.js";
 export { readSandboxPackage, readSandboxIntegrationPackage } from "./sandbox-package.js";
 export { sandboxedIntegrationDefinition, sandboxIntegrationContribution } from "./sandbox-integration.js";
 
@@ -400,3 +403,5 @@ export {connectResidentAccount,ACCOUNT_CONNECT_PATH,type ResidentAccountConnecti
 export { WebSessions, webPageToken, withWebSessionRequest } from "./web-sessions.js";
 export { handlePageLocales } from "./web-ui-locales.js";
 export { registeredBuiltinText } from "./ui-text-provider.js";
+export { withSkillSelection, type SkillSelection } from "./agent-definitions/skill-selection.js";
+export { SkillCatalog, type CatalogSkill, type SkillCatalogPorts } from "./agent-definitions/skill-catalog.js";

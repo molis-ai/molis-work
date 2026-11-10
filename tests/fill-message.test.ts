@@ -32,6 +32,9 @@ test("VUX-40 FSS-39: Host and browser fill the same whole sentences; every plura
     assert.equal(read("git.commit.staged", { count: 1 }), "Commit 1 staged file…");
     assert.equal(read("git.commit.staged", { count: 2 }), "Commit 2 staged files…");
     for (const count of [0, 1, 2]) {
+      const skills = count === 1 ? "skill" : "skills";
+      assert.equal(read("workbench.settings-skills.count-count-skill-skills-enabled-enabled", { count, enabled: 0 }), `${count} ${skills}, 0 enabled`);
+      assert.equal(read("workbench.catalog-skill-packs.count-count-skill-skills-off-choose-which-to", { count }), `${count} ${skills} off. Choose which to use under Skills.`);
       // T01-MODEL-COUNT-01, T01-TAB-COUNT-01, T01-REPOSITORY-COUNT-01.
       assert.equal(read("workbench.settings-models.service-offers-count-count-pick-one-add", { count }),
         `The service offers ${count} ${count === 1 ? "model" : "models"}. Pick one to add it.`);

@@ -1,10 +1,15 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 
+import { CHARACTER_IMPORT_RUNTIMES } from "@molis-ai/molis-work-contracts/modules/characters";
+import { externalTool } from "@molis-ai/molis-work-contracts/platform/external-tools";
+
+const RUNTIME_OPTIONS = CHARACTER_IMPORT_RUNTIMES.map(id => `<option value="${id}">${externalTool(id).display_name}</option>`).join("");
+
 export const renderCharacterImport = () => `
   <dialog class="mw-dialog mw-dialog--form characters-dialog characters-import-dialog" data-character-import-dialog aria-labelledby="character-import-heading">
     <div class="mw-form mw-dialog__shell"><header class="mw-form__header"><h2 id="character-import-heading">${uiText("workbench.characters.import-title")}</h2><p>${uiText("workbench.characters.import-about")}</p></header>
     <section class="mw-form__body">
-      <details class="characters-location"><summary>${uiText("workbench.characters.import-location")}</summary><label>Agent<select class="mw-input" data-character-import-runtime><option value="">${uiText("workbench.characters.auto-discover")}</option><option value="codex">Codex</option><option value="claude-code">Claude Code</option><option value="cursor">Cursor</option><option value="opencode">OpenCode</option><option value="grok-build">Grok Build</option></select></label><label>${uiText("workbench.characters.config-dir")}<input class="mw-input" data-character-import-config placeholder="${uiText("workbench.characters.config-example")}"></label><label>${uiText("workbench.characters.project-dir")}<input class="mw-input" data-character-import-project placeholder="${uiText("workbench.characters.project-rules-only")}"></label></details>
+      <details class="characters-location"><summary>${uiText("workbench.characters.import-location")}</summary><label>Agent<select class="mw-input" data-character-import-runtime><option value="">${uiText("workbench.characters.auto-discover")}</option>${RUNTIME_OPTIONS}</select></label><label>${uiText("workbench.characters.config-dir")}<input class="mw-input" data-character-import-config placeholder="${uiText("workbench.characters.config-example")}"></label><label>${uiText("workbench.characters.project-dir")}<input class="mw-input" data-character-import-project placeholder="${uiText("workbench.characters.project-rules-only")}"></label></details>
       <button class="mw-btn mw-btn--secondary" type="button" data-character-scan>${uiText("workbench.characters.rescan")}</button>
       <div class="characters-sources" data-character-sources aria-label="${uiText("workbench.characters.found-local-agents")}"></div>
       <div data-character-import-preview></div><p class="characters-hint" role="status" data-character-import-notice></p>

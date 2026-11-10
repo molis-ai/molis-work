@@ -42,6 +42,7 @@ export function modelListKey(catalog: MolisWorkProjectCatalog, home: string | un
   let origin: string;
   try { origin = new URL(base_url).origin; } catch { throw new Error(uiText.text("workbench.model-provider-list.base-url-must-be-full-address")); }
   const saved = catalog.models.get(providerId)?.credential_ref;
+  if (!connection_id && !saved) throw new Error(uiText.text("workbench.model-provider-list.enter-api-key-choose-saved-connection"));
   const key = withConnectorConnections(home, (store) => {
     const connection = connection_id ? store.require(connection_id, "model-api")
       : saved ? store.list("model-api").find((row) => row.credential_ref === saved) : undefined;
@@ -50,7 +51,7 @@ export function modelListKey(catalog: MolisWorkProjectCatalog, home: string | un
     const pinned = store.targetOrigin(connection.connection_id);
     if (pinned && pinned !== origin) throw new Error(uiText.text("workbench.model-provider-list.connection-bound-pinned-reach-origin-create-new-connection", { pinned, origin }));
     return store.resolveToken(connection.connection_id, "model-api");
-  });
+  }, "required");
   if (!key.trim()) throw new Error(uiText.text("workbench.model-provider-list.enter-api-key-choose-saved-connection"));
   return { base_url, api_format, api_key: key };
 }

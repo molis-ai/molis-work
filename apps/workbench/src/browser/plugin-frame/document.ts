@@ -19,10 +19,10 @@ export function renderedFrameText(page: ParentNode, root: HTMLElement): string |
   return frameDocumentMarkup(matches[0]!);
 }
 
-/** The CSP names only the registered bundle and its declared static dependencies. No child network or nested frame. */
+/** The CSP permits the registered bundle, its declared static dependencies and the shared composer on demand. No child network or nested frame. */
 export function frameDocument(root: HTMLElement, pack: FramePack, challenge: string, appearance?: AppearanceProjection): string {
   const origin = location.origin, script = origin + "/assets/molis-work-plugin-frame.js";
-  const sources = [script, origin + "/desktop/pty-client.js", origin + "/assets/molis-work-plugins/" + encodeURIComponent(pack.bundle) + ".js", ...pack.assets.map(path => new URL(path, origin).href)];
+  const sources = [script, origin + "/assets/molis-work-composer.js", origin + "/desktop/pty-client.js", origin + "/assets/molis-work-plugins/" + encodeURIComponent(pack.bundle) + ".js", ...pack.assets.map(path => new URL(path, origin).href)];
   const policy = "default-src 'none'; script-src " + sources.join(" ") + "; style-src 'unsafe-inline' " + origin + "/assets/; font-src " + origin
     + "/assets/; img-src data: blob: " + origin + "/assets/; connect-src 'none'; frame-src blob:; object-src 'none'; base-uri 'none'; form-action 'none'";
   const content = frameDocumentMarkup(root);

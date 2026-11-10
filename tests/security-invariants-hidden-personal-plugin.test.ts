@@ -1,3 +1,4 @@
+import { projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
@@ -27,8 +28,8 @@ const view = (projectPluginId: string): Pick<ActionView, "provider"> => {
 };
 const callerIn = (projectId: string | null): ActionCallContext => ({ actor_id: "web-user", project_id: projectId, audience: "user", permissions: [] });
 const projectPlugins = (projectId: string) => `/api/settings/projects/${encodeURIComponent(projectId)}/plugins`;
-const hide = (home: TestHome, project: TestProject, plugin: string) => home.web.delete(projectPlugins(project.project_id), { plugin_id: plugin });
-const unhide = (home: TestHome, project: TestProject, plugin: string) => home.web.post(projectPlugins(project.project_id), { plugin_id: plugin });
+const hide = async (home: TestHome, project: TestProject, plugin: string) => home.web.delete(projectPlugins(project.project_id), { plugin_id: plugin, expected_revision: await projectPluginRevision(home.web, project.project_id) });
+const unhide = async (home: TestHome, project: TestProject, plugin: string) => home.web.post(projectPlugins(project.project_id), { plugin_id: plugin, expected_revision: await projectPluginRevision(home.web, project.project_id) });
 const formList = (project: TestProject) => `/projects/${encodeURIComponent(project.project_id)}/api/plugins/io.molis.work.form/forms`;
 const todoItems = (project: TestProject) => `/projects/${encodeURIComponent(project.project_id)}/api/plugins/io.molis.work.todo/items`;
 

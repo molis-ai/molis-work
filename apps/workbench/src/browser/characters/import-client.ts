@@ -1,6 +1,6 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import {
-  el, messageOf, RUNTIME_NAMES,
+  el, messageOf,
   type ArtifactVersionRef, type CharacterPublication, type CharacterRecord, type CharacterRequest, type ImportSnapshot, type Part,
   type PublicationPayload, type SnapshotSkill,
 } from "./common.js";
@@ -9,6 +9,8 @@ import { detail, diff, filePreview, files } from "./import-files.js";
 /** What the Character page lends the import and run dialogs. */
 export interface ImportHost {
   q: Part;
+  /** What the page calls each import source, as the host rendered it. */
+  runtimeNames: Record<string, string>;
   request: CharacterRequest;
   current: () => CharacterRecord | undefined;
   load: () => Promise<void>;
@@ -245,7 +247,7 @@ class ImportView {
     const snapshot = record?.import_snapshot;
     q("source-detail").hidden = !snapshot;
     if (record && snapshot) {
-      q("source-summary").textContent = uiText.text("workbench.characters.snapshot-summary", { name: RUNTIME_NAMES[snapshot.runtime_id], rules: snapshot.rules.length, skills: snapshot.skills.length, date: { kind: "date", at: snapshot.captured_at, style: "datetime-with-seconds" } });
+      q("source-summary").textContent = uiText.text("workbench.characters.snapshot-summary", { name: this.host.runtimeNames[snapshot.runtime_id], rules: snapshot.rules.length, skills: snapshot.skills.length, date: { kind: "date", at: snapshot.captured_at, style: "datetime-with-seconds" } });
       q("source-files").replaceChildren();
       files(this.host.request, q("source-files"), snapshot, { character_id: record.character_id });
     }
@@ -263,7 +265,7 @@ class ImportView {
       option.value = item.workspace_id; workspaces.append(option);
     }
     const snapshot = content.import_snapshot;
-    q("native-name").textContent = snapshot ? uiText.text("workbench.characters.local-engine", { name: RUNTIME_NAMES[snapshot.runtime_id] }) : uiText.text("workbench.characters.local-agent");
+    q("native-name").textContent = snapshot ? uiText.text("workbench.characters.local-engine", { name: this.host.runtimeNames[snapshot.runtime_id] }) : uiText.text("workbench.characters.local-agent");
     q("native-notice").textContent = execution.notice + (execution.executable ? "" : " " + uiText.text("workbench.characters.no-cli"));
     const incompatible = (snapshot?.skills || []).filter(s => s.compatibility !== "portable");
     q("internal-status").textContent = uiText.text("workbench.characters.choose-run-skills") + (incompatible.length ? " " + uiText.text("workbench.characters.skills-require-native", { count: incompatible.length }) : "");

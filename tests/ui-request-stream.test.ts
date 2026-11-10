@@ -1,3 +1,4 @@
+import { UI_HOST_CLIENT_CODES } from "@molis-ai/molis-work-contracts/platform/ui";
 import assert from "node:assert/strict";
 import test from "node:test";
 import vm from "node:vm";
@@ -9,8 +10,8 @@ const line = (value: unknown) => JSON.stringify(value) + "\n";
 const encoder = new TextEncoder();
 function fixture(response: Response | (() => Response)) {
   const sent: UiFetchInit[] = [];
-  const request = createUiRequest({ origin: "http://127.0.0.1:4173", token: () => "page-token", newKey: () => "new-intent", translate: text => text,
-    fetch: async (_url, init) => { sent.push(init); return typeof response === "function" ? response() : response; } });
+  const request = createUiRequest({ origin: "http://127.0.0.1:4173", token: () => "page-token", newKey: () => "new-intent", readText: text => text,
+    fetch: async (_url, init) => { sent.push(init); return typeof response === "function" ? response() : response; } }, UI_HOST_CLIENT_CODES);
   return { request, sent };
 }
 function chunks(text: string, split: number, close = true) {

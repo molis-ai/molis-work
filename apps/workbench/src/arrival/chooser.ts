@@ -1,6 +1,8 @@
 import { t as uiText, renderButton, renderDirectoryHeading, renderDirectoryRow, renderEmpty, renderKbd } from "@molis-ai/molis-work-plugin-sdk/ui";
 import {
   ARRIVAL_MOTION_CLIENT_SCRIPT,
+  COMPOSER_LOADER_CLIENT_SCRIPT,
+  DROP_ZONE_CLIENT_SCRIPT,
   INPUT_RECEIPTS_CLIENT_SCRIPT,
   INTERACTION_CLIENT_SCRIPT_TYPED_DATES,
   renderBarContext,
@@ -115,7 +117,7 @@ export function createWorkbenchProjectChooserRenderer(p: ArrivalPrimitives) {
       <template data-tpl="nobody"><article class="mw-brief brief-none">${nobody}</article></template>`;
     const data = JSON.stringify({ selected, projects: ordered.map(project => project.project_id), personalTitle: personal.display_name, firstName: last?.display_name ?? null, loadError: Boolean(arrival.load_error) })
       .replaceAll("<", "\\u003c");
-    const scripts = `${UI_REQUEST_CLIENT_SCRIPT}${p.visualFoundationClientScript}${ARRIVAL_MOTION_CLIENT_SCRIPT}
+    const scripts = `${UI_REQUEST_CLIENT_SCRIPT}${p.visualFoundationClientScript}${ARRIVAL_MOTION_CLIENT_SCRIPT}${DROP_ZONE_CLIENT_SCRIPT}${COMPOSER_LOADER_CLIENT_SCRIPT}
 // The Assistant and what waits on the person speak for the project chosen here, or for the person outside any project.
 const chosenRoute = path => { const id = document.querySelector('.chooser')?.dataset.selected; return id && id !== 'personal' ? '/projects/' + encodeURIComponent(id) + path : path; };
 (${ATTENTION_FACTORY_SCRIPT})({ translate: globalThis.t.text, route: chosenRoute, projectId: null, openItem: () => {} });

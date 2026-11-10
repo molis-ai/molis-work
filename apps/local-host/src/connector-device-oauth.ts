@@ -65,10 +65,10 @@ export async function startDeviceOAuth(home: string, input: { serviceId: string;
   let previousRevision: string | undefined;
   let clientId = input.clientId?.trim() ?? "";
   if (input.connectionId) {
-    const current = withConnectorConnections(home, store => store.require(input.connectionId!, input.serviceId));
+    const current = withConnectorConnections(home, store => store.require(input.connectionId!, input.serviceId), "required");
     if (current.auth_method !== "oauth") throw new ApiOAuthError("这条连接不是 OAuth 连接");
     previousRevision = current.updated_at;
-    const before = withConnectorProtocols(home, store => store.get<OAuthConfiguration>(input.connectionId!));
+    const before = withConnectorProtocols(home, store => store.get<OAuthConfiguration>(input.connectionId!), true);
     if (!clientId && before?.protocol === "oauth" && before.serviceId === input.serviceId && before.grant === "device") clientId = before.clientId;
   }
   if (!clientId) clientId = connectorProductAuth(input.serviceId, "oauth")?.clientId ?? "";
@@ -119,7 +119,9 @@ export async function startDeviceOAuth(home: string, input: { serviceId: string;
 export async function pollDeviceOAuth(home: string, input: { origin: string; state: string; signal?: AbortSignal }, fetchImpl?: typeof fetch, owners: OAuthOwners = registryOwners(home)) {
   const origin = localOrigin(input.origin), state = input.state;
   const read = () => {
-    const config = withConnectorProtocols(home, store => store.read<DeviceConfiguration>(state, origin)).configuration;
+    const session = withConnectorProtocols(home, store => store.read<DeviceConfiguration>(state, origin), true);
+    if (!session) throw new ApiOAuthError("授权已失效，请重新开始");
+    const config = session.configuration;
     if (config.protocol !== "oauth" || config.grant !== "device") throw new ApiOAuthError("设备授权方式不匹配，请重新开始");
     return config;
   };

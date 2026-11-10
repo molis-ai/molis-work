@@ -27,7 +27,7 @@ Text Stats. Generic command availability, standalone plugin entry, Coding
 material consumption and automatic refresh remain incomplete.
 
 
-The folders come from the [current-project settings protocol](../../../docs/platform/PROJECT-SETTINGS.md): Files reads them through `projects.directories.get` (declared in `capabilities.consumes`), each folder an input (read-only) or the project's one output. The page keeps which folder it shows and names it (`files.state` takes an optional `workspace_id` and answers the `workspace` it will read, plus `resolved`, the folder that id names here, or null); with none named, Files shows the output. The project keeps no browsing choice. Manage the folders in Project Settings → Workspaces.
+The folders come from the [current-project settings protocol](../../../docs/platform/PROJECT-SETTINGS.md): Files reads them through `projects.directories.get` (declared in `capabilities.consumes`), each folder an input (read-only) or the project's one output. The page keeps which folder it shows and names it (`files.state` takes an optional `workspace_id` and answers the `workspace` it will read, plus `resolved`, the folder that id names here, or null); with none named, Files shows the output. The project keeps no browsing choice. Manage the folders in Project Settings → Inputs and output.
 
 ## 开发要求
 

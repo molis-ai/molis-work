@@ -26,7 +26,7 @@ Goals 保存 Goal 身份、当前结果约定、要求、工作事件和父子�
 
 ## 存储
 
-Goal schema 与事件 schema 由 Goals 维护：Goals 交出自己的当前建表语句，由 Host 合成项目库基线（带版本）；版本不符的库直接拒绝，不就地升级。
+Goal schema 与事件 schema 由 Goals 维护：Goals 交出自己的当前建表语句，由 Host 合成项目库基线（带版本）；版本不符的库在打开层直接拒绝、不就地升级；低版本由启动升级过程先升（[U1 设计](../../specs/upgrade-continuity/upgrade-chain-design.md) §3、§4），第一段就是项目库 1→2（`apps/local-host/src/project-database-schema.ts`）。
 
 输入绑定保留原来源、确认状态、作者、时间及必要的内容版本。可解析的跨模块来源通过 Context Ledger 关联；Goals 不读取其他 Module 的表，也不把 URL 自动注册为 Artifact。项目规则（policy）及其历史可读；风险与 Contract 修订已删除（#272），风险记录另由 [risk-plugin](../../specs/risk-plugin/spec.md) 规划。
 

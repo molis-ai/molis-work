@@ -1,6 +1,7 @@
 import { LOCALE_TAG, TEXT_REF_LIMITS, UI_FILE_LIMITS, UI_FORMAT_VERSIONS, type UiFileResult, type UiLocalePack, type UiMessage } from "@molis-ai/molis-work-contracts/platform/ui";
 import { keyOwnerProblem, messageOwnerOf, PLATFORM_TEXT_OWNER, SHARED_OWNER, STABLE_KEY } from "./text-keys.js";
-import { checkFormatVersion, childPath, finishFile, isObject, readObject, readStrictJson, type ProblemSink } from "./file-reader.js";
+import { checkFormatVersion, childPath, finishFile, readObject, readStrictJson, type ProblemSink } from "./file-reader.js";
+import { isRecord } from "../json-value.js";
 import { localeChain } from "./text-lookup.js";
 
 // A language file (specs/font-and-skin-system/a-section-contract.md §3.5, §5). `parseLocalePack` reads one file; `inspectLocaleSet` compares the
@@ -36,7 +37,7 @@ function textProblems(sink: ProblemSink, path: string, text: unknown, contentPac
 }
 
 function messageProblems(sink: ProblemSink, path: string, message: unknown, contentPack: boolean): void {
-  if (!isObject(message)) {
+  if (!isRecord(message)) {
     textProblems(sink, path, message, contentPack);
     return;
   }
@@ -78,8 +79,8 @@ export function parseLocalePack(source: string, options: LocalePackOptions = {})
   const pack = readObject(sink, value, "$", ["format_version", "owner", "locale", "messages"], ["direction", "revision"]);
   if (pack === null) return finishFile(sink, value);
   packFieldProblems(sink, pack);
-  if (pack.messages !== undefined && !isObject(pack.messages)) sink.add("$.messages", "ui.file_wrong_type", "messages 必须是对象", "写成 { \"<键>\": \"<文字>\" }");
-  for (const [key, message] of isObject(pack.messages) ? Object.entries(pack.messages) : []) {
+  if (pack.messages !== undefined && !isRecord(pack.messages)) sink.add("$.messages", "ui.file_wrong_type", "messages 必须是对象", "写成 { \"<键>\": \"<文字>\" }");
+  for (const [key, message] of isRecord(pack.messages) ? Object.entries(pack.messages) : []) {
     const path = childPath("$.messages", key);
     keyProblems(sink, path, key, pack.owner);
     messageProblems(sink, path, message, options.contentPack === true);

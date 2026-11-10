@@ -1,6 +1,7 @@
 import { withPageText } from "./fixtures/page-text.js";
 import assert from "node:assert/strict";
 import test from "node:test";
+import { fillMessage } from "@molis-ai/molis-work-plugin-sdk";
 import { renderAlert, renderKept, renderStepDot } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { KEEP_EDITS_STYLES, renderPrimitiveCatalog } from "@molis-ai/molis-work-design-system";
 import { renderMolisWorkArrivalStylesheet, renderMolisWorkSettingsStylesheet, renderMolisWorkWorkbenchStylesheet } from "./workbench-renderer-fixture.js";

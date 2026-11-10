@@ -1,3 +1,4 @@
+import { UI_HOST_CLIENT_CODES } from "@molis-ai/molis-work-contracts/platform/ui";
 import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
@@ -415,14 +416,14 @@ test("W3-10-4-01 RAC-910: the computer tab hands the record's words to the Host,
     const calls: { url: string; method: string; body?: string }[] = [];
     const said: string[] = [];
     const request = createUiRequest({
-      origin: "http://127.0.0.1:4173", token: () => "page-token", newKey: () => "computer-shelf-request-key", translate: (text) => text,
+      origin: "http://127.0.0.1:4173", token: () => "page-token", newKey: () => "computer-shelf-request-key", readText: (text) => text,
       fetch: async (input, init) => {
         const url = new URL(input).pathname;
         calls.push({ url, method: init.method, ...(init.body ? { body: init.body } : {}) });
         const body = url.endsWith("/api/computer/records/rec-1") ? { record } : shelved.body;
         return new Response(JSON.stringify(body), { status: url.endsWith("/shelf") ? shelved.status : 200, headers: { "content-type": "application/json" } });
       },
-    });
+    }, UI_HOST_CLIENT_CODES);
     await put({ request, routePrefix: "/projects/p1", say: (text) => { said.push(text); },
       sayError: (error, fallback) => { said.push(error instanceof Error ? error.message : fallback ?? ""); },
       L: (text, vars) => text.replace(/\{(\w+)\}/g, (_, name: string) => String(vars?.[name] ?? "")), state: { record_id: "rec-1" } });

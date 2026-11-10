@@ -275,3 +275,7 @@ node scripts/machine-slot.mjs run browser --label 'first-screen audit' -- node s
 npm 产物随包交付实际依赖的 workspace 与 vendor JavaScript 包，按各包 files 声明保留发布资产；注册表依赖由消费者正常安装，PTY 与 Alchemist 的 SQLite 不带入构建机二进制，也不附 Node。消费环境需要 Node 24.15.x：项目库用的就是它自带的 SQLite，别的 Node 上插件语句全部被拒，启动时会说。本地验收先在新目录执行 `npm install /absolute/archive.tgz`（不能跳过安装脚本），再执行 `node tests/npm-distribution-smoke.mjs /absolute/consumer`。该检查通过实际产品入口验证 CLI、SQLite 持久化、PTY、方法资产、Home 安装及源包不可用时的 MCP 握手；只支持当前 Unix 测试宿主，不声称验证其他平台。
 
 上句描述当前发布物；DV4 的干净环境完整发布验收仍未完成。
+
+### 测试文件的类型盘点
+
+`pnpm typecheck:tests` 使用严格noEmit配置检查全部测试及类型依赖，目前因存量问题返回非零；暂不属于必过CI。口径、起点对照和后续分批方案见[D0069阶段记录](reviews/daily-quality/2026-11-08-test-types.md)。

@@ -64,6 +64,7 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
     let projectHome = null;
     let pluginWorkbench = null;
     let globalSearchPalette = null;
+    let assistantIsland = null;
     let desktopDirectoryOrigin = null;
     let activeDesktopSurface = document.body.dataset.desktopSurface || "goals";
     let desktopSurfaceScroll = {};

@@ -60,14 +60,10 @@ fn pin_inset(ns_window: &NSWindow) {
         return;
     };
     let close_rect = NSView::frame(close.as_ref());
-    let gap = {
-        let delta = NSView::frame(miniaturize.as_ref()).origin.x - close_rect.origin.x;
-        if delta > 1.0 {
-            delta
-        } else {
-            DEFAULT_BUTTON_GAP
-        }
-    };
+    let gap = button_gap(
+        close_rect.origin.x,
+        NSView::frame(miniaturize.as_ref()).origin.x,
+    );
     let title_bar_height = close_rect.size.height + INSET_Y;
     let mut title_bar_rect = NSView::frame(title_bar.as_ref());
     title_bar_rect.size.height = title_bar_height;
@@ -82,5 +78,27 @@ fn pin_inset(ns_window: &NSWindow) {
             button.as_ref(),
             NSPoint::new(INSET_X + index as f64 * gap, 0.0),
         );
+    }
+}
+
+fn button_gap(close: f64, miniaturize: f64) -> f64 {
+    let delta = miniaturize - close;
+    if delta.is_finite() && delta > 1.0 {
+        delta
+    } else {
+        DEFAULT_BUTTON_GAP
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::button_gap;
+    #[test]
+    fn d0061_traffic_lights_reject_missing_reversed_and_nonfinite_spacing() {
+        assert_eq!(button_gap(10.0, 34.0), 24.0);
+        assert_eq!(button_gap(10.0, 10.0), 20.0);
+        assert_eq!(button_gap(20.0, 10.0), 20.0);
+        assert_eq!(button_gap(f64::NAN, 10.0), 20.0);
+        assert_eq!(button_gap(10.0, f64::INFINITY), 20.0);
     }
 }

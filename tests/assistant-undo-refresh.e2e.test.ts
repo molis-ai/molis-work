@@ -62,10 +62,10 @@ test("a change taken back from the Assistant's panel leaves the owner's page at 
   await child.click('[data-todo-view="all"]');
 
   const listed = "[...document.querySelectorAll('[data-todo-id]')].some(node => node.offsetParent && node.textContent.includes('把评审纪要发给全组'))";
-  await click("[data-assistant-input]");
+  await click("[data-assistant-composer] .mw-composer__input");
   await command("Input.insertText", { text: "记一下：把评审纪要发给全组" }, sessionId);
-  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
-  await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
+  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, sessionId);
+  await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, sessionId);
   // The Assistant's change shows on the page (the page already rereads after a change).
   await child.waitFor(listed, 30_000);
 

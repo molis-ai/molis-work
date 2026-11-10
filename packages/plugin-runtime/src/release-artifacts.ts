@@ -153,5 +153,12 @@ export function readPluginReleaseManifest(db: Pick<PluginRuntimeReleaseArtifactD
   const row = db.prepare(`SELECT artifact_json FROM plugin_runtime_release_artifacts
     WHERE plugin_id = ? AND publisher_signature = ? AND version = ? AND manifest_digest = ?`)
     .get(record.plugin_id, record.publisher_signature, record.version, record.manifest_digest) as { artifact_json: string } | undefined;
-  return row ? (JSON.parse(row.artifact_json) as PluginRuntimeReleaseArtifact).manifest : null;
+  if (!row) return null;
+  const artifact = JSON.parse(row.artifact_json) as PluginRuntimeReleaseArtifact;
+  validateArtifact(artifact);
+  if (artifact.plugin_id !== record.plugin_id || artifact.publisher_signature !== record.publisher_signature
+    || artifact.version !== record.version || artifact.manifest_digest !== record.manifest_digest) {
+    throw new Error("Plugin Runtime 发行物与安装记录不一致");
+  }
+  return artifact.manifest;
 }

@@ -28,6 +28,9 @@ const AGENT: AgentManifest = {
   prompts: [{ prompt_id: "read", version: 1 }],
 };
 
+const ownerInvocation = () => ({ consumer: "plugin", plugin: { project_id: "project-a", plugin_id: "io.molis.work.coding", install_id: "install-1", actor_id: "user", assertActive() {}, declaration: {} },
+  beforeEffect: async () => {}, assertAuthorityCurrent() {} });
+
 test("Run review reads refresh original receipts and isolate project, session, run and producer without granting approval", async () => {
   const host = new AgentHost(), adapter = readOnlyAdapter("reviews"), session = { runtime_id: "reviews", session_id: "session-1" }, run = { session_id: "session-1", run_id: "r" };
   const original = adapter.readSession.bind(adapter);
@@ -36,7 +39,8 @@ test("Run review reads refresh original receipts and isolate project, session, r
   host.reviews.registerRefresh(async () => { refreshes++; if (unavailable) throw new Error("original ledger unavailable"); });
   registerAgentHostCapabilities({ register: (definition, handler) => { handlers.set(definition.capability_id, handler); return () => {}; } },
     { agentHost: () => host, projectId: (context: { project_id: string }) => context.project_id, authority: () => ({ manifest: AGENT, authorizedDirectories: [] }) });
-  const read = handlers.get(agentHostCapabilities.readRunReviews.capability_id)!, context = { project_id: "project-a" };
+  const handler = handlers.get(agentHostCapabilities.readRunReviews.capability_id)!, invocation = ownerInvocation();
+  const read = (source: object, input: unknown[]) => handler(source, input, invocation), context = { project_id: "project-a" };
   const base = { review_id: "owned", project_id: "project-a", plugin_id: "io.molis.work.coding", run,
     kind: "text-edit" as const, document: { kind: "text-edit" as const, target_path: "a.txt", exists: true, before_text: "before", after_text: "after" }, requested_at: "2026-09-22T00:00:00Z", expires_at: null };
   for (const request of [base, { ...base, review_id: "other-session", run: { ...run, session_id: "elsewhere" } },
@@ -164,7 +168,9 @@ test("recovery capabilities bind project and exact session/run before allowing c
   const handlers = new Map<string, Function>();
   registerAgentHostCapabilities({ register: (definition, handler) => { handlers.set(definition.capability_id, handler); return () => {}; } },
     { agentHost: () => agentHost, projectId: (ctx: { project_id: string }) => ctx.project_id, authority: () => ({ manifest: AGENT, authorizedDirectories: [] }) });
-  const inspect = handlers.get(agentHostCapabilities.inspectRecovery.capability_id)!, close = handlers.get(agentHostCapabilities.recoverRun.capability_id)!;
+  const invocation = ownerInvocation();
+  const inspect = (source: object, input: unknown[]) => handlers.get(agentHostCapabilities.inspectRecovery.capability_id)!(source, input, invocation);
+  const close = (source: object, input: unknown[]) => handlers.get(agentHostCapabilities.recoverRun.capability_id)!(source, input, invocation);
   await assert.rejects(inspect({ project_id: "other" }, [session]));
   await assert.rejects(close({ project_id: "other" }, [session, run, 1]));
   await assert.rejects(close({ project_id: "project-a" }, [session, { ...run, session_id: "other" }, 1]));

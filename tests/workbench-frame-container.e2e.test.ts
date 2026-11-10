@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 import { pluginFrameBrowser, pluginFrameInitScript } from "./fixtures/plugin-frame-browser.js";
-import { LocalHostHttpClient } from "@molis-ai/molis-work-test-kit/local-host-http";
+import { LocalHostHttpClient, projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { sendBarrier } from "./fixtures/assistant-send-journey.js";
 import test from "node:test";
 import { DEMO_PROJECT_ID, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
@@ -51,13 +51,14 @@ async function awaitFrameCursor(browser: NonNullable<Awaited<ReturnType<typeof o
 test("RAC-2516 RAC-2518 trusted Feed and Inbox drag handles reach the actual Goal pane; child messages and late withdrawn sources cannot add blocks", { timeout: 90000 }, async t => {
   const b = await openGoalBrowser(t, true, undefined, null, undefined, undefined, {}, undefined, undefined, true); if (!b) return;
   const { command, sessionId, projectId, origin } = b;
+  assert.ok(projectId);
   const capture = async (name: string) => {
     const output=reviewEvidenceUrl("t403-native/"); await mkdir(output,{recursive:true});
     await writeFile(new URL(name+".png",output),Buffer.from((await command<{data:string}>("Page.captureScreenshot",{format:"png"},sessionId)).data,"base64"));
   };
   const owner = new LocalHostHttpClient({ origin, controlToken: b.controlToken });
-  await owner.post(`/api/settings/projects/${projectId}/plugins`, { plugin_id: "feed" });
-  await owner.post(`/api/settings/projects/${projectId}/plugins`, { plugin_id: "inbox" });
+  await owner.post(`/api/settings/projects/${projectId}/plugins`, { plugin_id: "feed", expected_revision: await projectPluginRevision(owner, projectId) });
+  await owner.post(`/api/settings/projects/${projectId}/plugins`, { plugin_id: "inbox", expected_revision: await projectPluginRevision(owner, projectId) });
   const feed = createLocalFeedApplication(b.store.db), now = new Date().toISOString();
   const source = feed.sources.upsert({ project_id: projectId!, source_id: "native-frame-source", kind: "rss", definition_id: "rss", sync_kind: "manual", name: "Frame drag source", description: "", status: "active", enabled: true, item_count: 0, origin: "molis_work", config: {}, schedule: { mode: "manual" }, cursor: null, credential_ref: null, account_label: null, last_sync_at: null, last_outcome: null, last_error_code: null, imported_at: now, updated_at: now });
   const item = feed.ingestItem({ source, externalId: "native-frame-drag", title: "Actual opaque drag", summary: "Owner display fields", body: "Original material", occurredAt: now, attention: false }).item;
@@ -330,7 +331,7 @@ test("RAC-2516 RAC-2518 trusted Feed and Inbox drag handles reach the actual Goa
   const barrier = await sendBarrier(b, [{ urlPattern: `*/projects/${projectId}/?*`, requestStage: "Request" }]);
   try {
     await drop(data); await barrier.next();
-    await owner.delete(`/api/settings/projects/${projectId}/plugins`, { plugin_id: "feed" });
+    await owner.delete(`/api/settings/projects/${projectId}/plugins`, { plugin_id: "feed", expected_revision: await projectPluginRevision(owner, projectId) });
     await b.evaluate("document.querySelector('iframe[data-t403-goal-pane]').contentDocument.querySelector('[data-board-view-tab=list]').click()");
   } finally { await barrier.close(); }
   await b.waitFor("document.querySelector('iframe[data-t403-goal-pane]').contentDocument.querySelector('[data-goal-frame-surface]').hidden");
@@ -344,6 +345,7 @@ test("Goal Frames use outer tabs, preserve references, and isolate project state
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, store, projectId } = browser;
+  assert.ok(projectId);
   // RAR-09 / T01-FRAME-01: a Frame redraw can replace the ready preview between two CDP calls.
   // Capture readiness, content and forbidden controls together, with the original 10 s deadline.
   const readPreview = (ready: string, forbidden: string) => evaluate<{ text: string; hasForbidden: boolean; surface: string; expanded: number }>(`new Promise((resolve, reject) => {
@@ -358,7 +360,7 @@ test("Goal Frames use outer tabs, preserve references, and isolate project state
   // T405-FULL-01: the running Host keeps ownership while this fixture enables its project plugins.
   const owner = new LocalHostHttpClient({ origin, controlToken: browser.controlToken });
   for (const plugin_id of ["feed", "inbox"] as const) {
-    await owner.post(`/api/settings/projects/${projectId}/plugins`, { plugin_id });
+    await owner.post(`/api/settings/projects/${projectId}/plugins`, { plugin_id, expected_revision: await projectPluginRevision(owner, projectId) });
   }
   const now = new Date().toISOString();
   const feed = createLocalFeedApplication(store.db);

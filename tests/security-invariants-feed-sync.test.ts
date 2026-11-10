@@ -49,3 +49,17 @@ test('S-133 PCSYNC-01/12/14/15 Feed refuses foreign identity, missing/corrupt ev
  b.replica.receive({...changed,revision:2});assert.throws(()=>b.feed.commands.setDisposition('project',item.item_id,'archived',shown.revision),{code:'feed.revision_conflict'});assert.equal(b.feed.query.get('project',item.item_id).disposition,'saved');
  a.content.delete(ref);assert.throws(()=>a.codec.encode(changed.key,changed.value),{code:'host.replica_content_unavailable'});
 });
+
+test('D0327 Feed signal reads are bounded and all equal-timestamp rows remain reachable',()=>{
+ const f=fixture();
+ try{
+  const at='2026-10-18T00:00:00.000Z';
+  for(let i=0;i<235;i++)f.signals.commands.submitDraft({project_id:'project',source_id:'source',provider_dedupe_id:String(i),kind:'update',occurred_at:at,observed_at:at,payload:{title:String(i)},content_refs:[],raw_event_id:'raw-'+i,adapter:{plugin_id:'fixture',version:'1.0.0'},provenance:{}});
+  assert.equal(f.signals.query.list('project').length,100);
+  assert.equal(f.signals.query.list('other').length,0);
+  const ids=new Set<string>();
+  for(let offset=0;;offset+=100){const page=f.signals.query.list('project',undefined,{limit:100,offset});for(const item of page){assert.ok(!ids.has(item.signal_id));ids.add(item.signal_id);}if(page.length<100)break;}
+  assert.equal(ids.size,235);
+  assert.equal(f.signals.events.list('project').length,100);
+ }finally{f.close();}
+});

@@ -1,3 +1,4 @@
+import { projectPluginRevisionAt } from "./fixtures/project-plugin-settings.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import type { IncomingMessage } from "node:http";
@@ -293,7 +294,7 @@ test("RAC-2519 S-47 an uncatalogued Home stage keeps its real project visibility
   } });
   await grantHomeProbe(f.host, probe);
   const project = await f.project("External page visibility"), prefix = `/projects/${project.project_id}`;
-  const shown = await f.request(`/api/settings/projects/${project.project_id}/plugins`, { method: "POST", body: { plugin_id: probe.id } });
+  const shown = await f.request(`/api/settings/projects/${project.project_id}/plugins`, { method: "POST", body: { plugin_id: probe.id, expected_revision: await projectPluginRevisionAt(f.origin, project.project_id) } });
   assert.equal(shown.status, 200, await shown.clone().text());
   const mount = { contribution_id, surface: "workbench", target_slot_id: "workbench.main" };
   const open = () => f.request(prefix + "/api/host/plugin-pages", { method: "POST", body: { plugin_id: probe.id, mount } });
@@ -304,7 +305,7 @@ test("RAC-2519 S-47 an uncatalogued Home stage keeps its real project visibility
   block = true; const pending = action("availability");
   try {
     await entered.promise;
-    const hidden = await f.request(`/api/settings/projects/${project.project_id}/plugins`, { method: "DELETE", body: { plugin_id: probe.id } });
+    const hidden = await f.request(`/api/settings/projects/${project.project_id}/plugins`, { method: "DELETE", body: { plugin_id: probe.id, expected_revision: await projectPluginRevisionAt(f.origin, project.project_id) } });
     assert.equal(hidden.status, 200, await hidden.clone().text());
     assert.equal(f.host.homePlugins!.installation(probe.id)!.state, "running", "hiding this project does not stop the Home instance");
   } finally { release.resolve(); }
@@ -336,7 +337,7 @@ test("SYS-15-U5 S-47 Files and Git previews use declared public reads; raw forei
   const f = await serveHomeRuntime(t), project = await f.project("Companion page previews");
   const prefix = `/projects/${project.project_id}`;
   for (const plugin_id of ["coding", "files", "git", "diff", "text-stats"]) {
-    const enabled = await f.request(`/api/settings/projects/${project.project_id}/plugins`, {method: "POST", body: {plugin_id}});
+    const enabled = await f.request(`/api/settings/projects/${project.project_id}/plugins`, {method: "POST", body: {plugin_id, expected_revision: await projectPluginRevisionAt(f.origin, project.project_id) }});
     assert.equal(enabled.status, 200, await enabled.clone().text());
   }
   const rendered = await f.request(prefix + "/"); assert.equal(rendered.status, 200);

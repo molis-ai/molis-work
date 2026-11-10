@@ -1,9 +1,9 @@
-import { RUNTIME_DISPLAY_NAMES } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { EXTERNAL_SESSION_NATIVE_ID_PATTERN, externalTool, externalToolIdsWith } from "@molis-ai/molis-work-contracts/platform/external-tools";
 import { buildPtyEnvironment, isPtyCommandAvailable, resolvePtyCommand } from "@molis-ai/molis-work-service-runtime-host";
 
-/** The coding runtimes a terminal can run by name (S-103 ⑤): the platform's one list, also read by onboarding and the Desktop launch. */
-export const TERMINAL_RUNTIMES = ["codex", "claude-code", "opencode", "pi-agent", "grok-build"] as const;
+/** The coding runtimes a terminal can run by name (S-103 ⑤): the register's rows with a `terminal`, also read by onboarding and the Desktop launch. */
+export const TERMINAL_RUNTIMES = externalToolIdsWith("terminal");
 export type TerminalRuntime = (typeof TERMINAL_RUNTIMES)[number];
 
 interface TerminalRuntimeRecipe {
@@ -13,23 +13,9 @@ interface TerminalRuntimeRecipe {
   resumeArgs: (sessionId: string) => string[];
 }
 
-const RECIPES: Record<TerminalRuntime, TerminalRuntimeRecipe> = {
-  codex: { command: "codex", resumeArgs: sessionId => ["resume", sessionId] },
-  "claude-code": { command: "claude", resumeArgs: sessionId => ["--resume", sessionId] },
-  opencode: { command: "opencode", resumeArgs: sessionId => ["--session", sessionId] },
-  "pi-agent": { command: "pi", resumeArgs: sessionId => ["--session", sessionId] },
-  "grok-build": { command: "grok", resumeArgs: sessionId => ["--resume", sessionId] },
-};
-
-/**
- * A runtime session a terminal resumes: one argument of a recipe's resume arguments, so letters, digits and `._:-` only (no space, quote
- * or shell character) and not starting with `-`, which a runtime would read as an option (`--dangerously-…`). The one check for a session
- * a page names, a runtime reports through MCP and a record holds (S-103 ⑤ ⑧).
- */
-const TERMINAL_SESSION = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/u;
-
+/** A runtime session a terminal resumes: it becomes one argument of a recipe's resume arguments, so it passes the register's one rule for a native id. */
 export function isTerminalSessionId(value: unknown): value is string {
-  return typeof value === "string" && TERMINAL_SESSION.test(value);
+  return typeof value === "string" && EXTERNAL_SESSION_NATIVE_ID_PATTERN.test(value);
 }
 
 export function isTerminalRuntime(value: string): value is TerminalRuntime {
@@ -38,7 +24,8 @@ export function isTerminalRuntime(value: string): value is TerminalRuntime {
 
 /** The recipe of a runtime: its command name, its display name, and how it resumes a session. */
 export function terminalRuntimeRecipe(runtime: TerminalRuntime): TerminalRuntimeRecipe & { title: string } {
-  return { ...RECIPES[runtime], title: RUNTIME_DISPLAY_NAMES[runtime] };
+  const tool = externalTool(runtime), argv: readonly string[] = tool.sessions.resume.argv;
+  return { command: tool.terminal.command, resumeArgs: sessionId => argv.map(part => part === "{session_id}" ? sessionId : part), title: tool.display_name };
 }
 
 /** A bare command name the platform may look up on its PATH: no separator, no shell syntax. */

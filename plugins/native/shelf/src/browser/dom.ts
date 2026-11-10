@@ -1,8 +1,8 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { escapeHtml, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { Translate } from "./types.js";
 
-export const escText = (value: unknown): string => String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
-export const escapeAttr = (value: unknown): string => escText(value).replaceAll('"', "&quot;");
+export const escText = escapeHtml;
+export const escapeAttr = escapeHtml;
 
 export function bufferToBase64(bytes: Uint8Array): string {
   let binary = "";

@@ -1,5 +1,7 @@
 import { CHARACTERS_SETTINGS_ENTRY_STYLES, CHARACTERS_STYLES } from "./styles.js";
 import { icon, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { CHARACTER_IMPORT_RUNTIMES } from "@molis-ai/molis-work-contracts/modules/characters";
+import { externalTool } from "@molis-ai/molis-work-contracts/platform/external-tools";
 import { renderCharacterImport, renderCharacterSource } from "./import-ui.js";
 
 // 角色 is the Host's own page since CHR-1 (decision #26): Settings › 角色 is a host section, and inside a project the page below
@@ -32,9 +34,12 @@ const STEPS: readonly [string, string][] = [
   ["workbench.characters.step-select", "workbench.characters.step-select-hint"],
 ];
 
+/** What the page calls each import source: a saved snapshot holds only `runtime_id`, and the register stays out of the browser. */
+const RUNTIME_NAMES = JSON.stringify(Object.fromEntries(CHARACTER_IMPORT_RUNTIMES.map(id => [id, externalTool(id).display_name])));
+
 export function renderCharacters(model: CharactersUiModel): string {
   const steps = STEPS.map(([title, detail], index) => `<li><span class="characters-step-mark" aria-hidden="true">${index + 1}</span><span><strong>${uiText(title)}</strong><small>${uiText(detail)}</small></span></li>`).join("");
-  return `<section class="desktop-work-surface characters-page" data-work-surface="characters" data-work-surface-label="${uiText("workbench.characters.title")}" data-settings-page="characters" hidden data-characters data-expanded="false" data-character-api="${model.primitives.escape(model.route_prefix)}/api/plugins/io.molis.work.characters">
+  return `<section class="desktop-work-surface characters-page" data-work-surface="characters" data-work-surface-label="${uiText("workbench.characters.title")}" data-settings-page="characters" hidden data-characters data-expanded="false" data-character-api="${model.primitives.escape(model.route_prefix)}/api/plugins/io.molis.work.characters" data-character-runtime-names="${model.primitives.escape(RUNTIME_NAMES)}">
     <style>${CHARACTERS_STYLES}</style>
     <div class="characters-list-view" data-character-list-view>
       <header class="settings-heading characters-heading"><div class="settings-heading-title"><h1>${uiText("workbench.characters.title")}</h1></div>

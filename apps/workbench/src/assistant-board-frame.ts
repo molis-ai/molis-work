@@ -1,6 +1,8 @@
 import { readFileSync } from "node:fs";
 import { t as uiText, escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import {
+  COMPOSER_LOADER_CLIENT_SCRIPT,
+  DROP_ZONE_CLIENT_SCRIPT,
   INPUT_RECEIPTS_CLIENT_SCRIPT,
   INTERACTION_CLIENT_SCRIPT_TYPED_DATES,
   THEME_BOOTSTRAP_SCRIPT,
@@ -82,7 +84,7 @@ export function renderMolisWorkAssistantSpecimen(options: AssistantFrameOptions,
   ${bar}
   <div class="mw-toast toast" data-toast role="status" aria-live="polite"></div>
   <script type="application/json" id="mw-asst-data">${data}</script>
-  <script>${UI_REQUEST_CLIENT_SCRIPT}${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>
+  <script>${UI_REQUEST_CLIENT_SCRIPT}${VISUAL_FOUNDATION_CLIENT_SCRIPT}${DROP_ZONE_CLIENT_SCRIPT}${COMPOSER_LOADER_CLIENT_SCRIPT}</script>
   <script>${ASSISTANT_FRAME_SCRIPT}</script>
   <script>(board => board.start((${ASSISTANT_ISLAND_FACTORY_SCRIPT})({ translate: globalThis.t.text, route: board.route, headers: () => ({}), project: board.project,
     showToast: board.toast, openItem: board.openItem, pluginTitle: (plugin) => plugin, receipts: (${INPUT_RECEIPTS_CLIENT_SCRIPT})(globalThis.t.text),

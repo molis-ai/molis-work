@@ -21,6 +21,7 @@ const PROJECT_SETTINGS_SECTIONS = [
   { id: "memory", label: "workbench.settings-directory.memory", icon: "bookmark" },
   { id: "knowledge", label: "workbench.settings-directory.project-knowledge", icon: "file" },
   { id: "plugins", label: "workbench.settings-directory.plugins", icon: "package" },
+  { id: "skills", label: "workbench.settings-skills.skills", icon: "book" },
   { id: "grants", label: "workbench.settings-directory.access-and-approvals", icon: "shield" },
 ] as const satisfies readonly { id: string; label: string; icon: PluginIconName }[];
 

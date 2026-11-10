@@ -28,7 +28,7 @@ export const FUNCTIONS_CLIENT_RECORDS_PART = `  const fillEditor = (rec) => {
     promptInput.value = rec.instructions;
     deleteBtn.hidden = locked;
     pubBtn.hidden = locked;
-    pubBtn.textContent = globalThis.t.text("workbench.client-records.publish-v1");
+    pubBtn.textContent = globalThis.t.text("workbench.client-records.publish-first-version");
     if (switching) sampleText.value = rec.last_preview?.input || "";
     renderRoute(rec);
     renderCriteria(rec);

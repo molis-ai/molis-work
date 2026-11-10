@@ -1,6 +1,5 @@
 import { tryOwnedTextRef } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { isDeepStrictEqual } from 'node:util';
-import { sandboxBackgroundProblems, sandboxLocaleProblems } from '@molis-ai/molis-work-plugin-sdk';
+import { assertSandboxJson, assertSandboxMatches, assertSandboxSchema, sandboxBackgroundProblems, sandboxLocaleProblems, type SandboxSchemaFailure } from '@molis-ai/molis-work-plugin-sdk';
 import type { SandboxEffects, SandboxJson, SandboxPluginContract, SandboxSchema } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 
 export class SandboxError extends Error {
@@ -11,100 +10,18 @@ export class SandboxError extends Error {
 /** A call the Host's side refuses as not the person's to allow (`sandbox.not_authorized`), for the Host's own ports that must answer the package with the sandbox's code. */
 export const sandboxNotAuthorized = (message: string): SandboxError => new SandboxError('sandbox.not_authorized', message);
 
-export function assertJson(value: unknown, depth = 0, budget = { remaining: 50_000 }): asserts value is SandboxJson {
-  if (--budget.remaining < 0 || depth > 32) throw new SandboxError('sandbox.invalid_json', 'JSON structure exceeds limits');
-  if (value === null || typeof value === 'string' || typeof value === 'boolean') return;
-  if (typeof value === 'number' && Number.isFinite(value)) return;
-  if (Array.isArray(value)) { for (const item of value) assertJson(item, depth + 1, budget); return; }
-  if (value && typeof value === 'object' && (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null)) {
-    for (const item of Object.values(value)) assertJson(item, depth + 1, budget);
-    return;
-  }
-  throw new SandboxError('sandbox.invalid_json', 'Only bounded JSON values are allowed');
+const schemaFailure: SandboxSchemaFailure = (kind, reason) => { throw new SandboxError(`sandbox.${kind}`, reason); };
+
+export function assertJson(value: unknown): asserts value is SandboxJson {
+  assertSandboxJson(value, schemaFailure);
 }
 
-const common = ['type', 'description', 'enum', 'const'];
-const typed: Record<string, string[]> = {
-  null: [], boolean: [], number: ['minimum', 'maximum'], integer: ['minimum', 'maximum'],
-  string: ['minLength', 'maxLength', 'format'], array: ['items', 'minItems', 'maxItems'],
-  object: ['properties', 'required', 'additionalProperties'],
-};
-
-export function assertSchema(schema: unknown, depth = 0): asserts schema is SandboxSchema {
-  if (depth === 0) assertJson(schema);
-  if (!schema || typeof schema !== 'object' || Array.isArray(schema) || depth > 24) throw new SandboxError('sandbox.invalid_schema', 'Expected a bounded schema object');
-  const s = schema as Record<string, unknown>;
-  if (typeof s.type !== 'string' || !Object.hasOwn(typed, s.type)) throw new SandboxError('sandbox.invalid_schema', 'Schema requires a supported type');
-  const allowed = [...common, ...typed[s.type]!];
-  for (const key of Object.keys(s)) if (!allowed.includes(key)) throw new SandboxError('sandbox.invalid_schema', `Unsupported schema keyword: ${key}`);
-  if (s.description !== undefined && typeof s.description !== 'string') throw new SandboxError('sandbox.invalid_schema', 'description must be a string');
-  if (s.format !== undefined && !['date', 'date-time', 'uri'].includes(s.format as string)) throw new SandboxError('sandbox.invalid_schema', 'Unsupported string format');
-  if (s.enum !== undefined && (!Array.isArray(s.enum) || s.enum.length === 0)) throw new SandboxError('sandbox.invalid_schema', 'enum must be nonempty');
-  for (const key of ['minLength', 'maxLength', 'minItems', 'maxItems']) {
-    if (s[key] !== undefined && (!Number.isSafeInteger(s[key]) || (s[key] as number) < 0)) throw new SandboxError('sandbox.invalid_schema', `${key} must be a nonnegative integer`);
-  }
-  for (const key of ['minimum', 'maximum']) if (s[key] !== undefined && (typeof s[key] !== 'number' || !Number.isFinite(s[key]))) throw new SandboxError('sandbox.invalid_schema', `${key} must be finite`);
-  for (const [min, max] of [['minimum', 'maximum'], ['minLength', 'maxLength'], ['minItems', 'maxItems']]) {
-    if (s[min!] !== undefined && s[max!] !== undefined && (s[min!] as number) > (s[max!] as number)) throw new SandboxError('sandbox.invalid_schema', `${min} exceeds ${max}`);
-  }
-  if (s.type === 'array') assertSchema(s.items, depth + 1);
-  if (s.type === 'object') {
-    if (!s.properties || typeof s.properties !== 'object' || Array.isArray(s.properties) || s.additionalProperties !== false) throw new SandboxError('sandbox.invalid_schema', 'Objects require properties and additionalProperties:false');
-    if (!Array.isArray(s.required) || s.required.some(k => typeof k !== 'string' || !Object.hasOwn(s.properties as object, k)) || new Set(s.required).size !== s.required.length) throw new SandboxError('sandbox.invalid_schema', 'Object required must name unique declared properties');
-    for (const child of Object.values(s.properties)) assertSchema(child, depth + 1);
-  }
-  const base = { ...s };
-  delete base.enum; delete base.const;
-  if (Array.isArray(s.enum)) for (const item of s.enum) assertMatches(base as unknown as SandboxSchema, item, 'schema.enum');
-  if (Object.hasOwn(s, 'const')) assertMatches(base as unknown as SandboxSchema, s.const, 'schema.const');
+export function assertSchema(schema: unknown): asserts schema is SandboxSchema {
+  assertSandboxSchema(schema, schemaFailure);
 }
 
-export function assertMatches(schema: SandboxSchema, value: unknown, path = '$', depth = 0): asserts value is SandboxJson {
-  if (depth === 0) assertJson(value);
-  const fail = (message: string): never => { throw new SandboxError('sandbox.schema_mismatch', `${path}: ${message}`); };
-  if (schema.enum && !schema.enum.some(item => isDeepStrictEqual(item, value))) fail('value is outside enum');
-  if (Object.hasOwn(schema, 'const') && !isDeepStrictEqual(schema.const, value)) fail('value differs from const');
-  switch (schema.type) {
-    case 'null': if (value !== null) fail('expected null'); break;
-    case 'boolean': if (typeof value !== 'boolean') fail('expected boolean'); break;
-    case 'integer': case 'number':
-      if (typeof value !== 'number' || !Number.isFinite(value) || (schema.type === 'integer' && !Number.isSafeInteger(value))) fail(`expected ${schema.type}`);
-      if (schema.minimum !== undefined && (value as number) < schema.minimum) fail('below minimum');
-      if (schema.maximum !== undefined && (value as number) > schema.maximum) fail('above maximum');
-      break;
-    case 'string':
-      if (typeof value !== 'string') fail('expected string');
-      if (schema.minLength !== undefined && [...(value as string)].length < schema.minLength) fail('string too short');
-      if (schema.maxLength !== undefined && [...(value as string)].length > schema.maxLength) fail('string too long');
-      if (schema.format === 'date' || schema.format === 'date-time') {
-        const text = value as string;
-        const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(text);
-        if (!match) fail('expected ISO date');
-        const year = Number(match![1]), month = Number(match![2]), day = Number(match![3]);
-        const date = new Date(`${match![0]}T00:00:00Z`);
-        if (date.getUTCFullYear() !== year || date.getUTCMonth() + 1 !== month || date.getUTCDate() !== day) fail('invalid calendar date');
-        if (schema.format === 'date' && text.length !== 10) fail('expected date only');
-        if (schema.format === 'date-time' && (!/^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/.test(text) || !Number.isFinite(Date.parse(text)))) fail('expected ISO timestamp with timezone');
-      }
-      if (schema.format === 'uri') { try { new URL(value as string); } catch { fail('expected absolute URI'); } }
-      break;
-    case 'array':
-      if (!Array.isArray(value)) fail('expected array');
-      if (schema.minItems !== undefined && (value as unknown[]).length < schema.minItems) fail('too few items');
-      if (schema.maxItems !== undefined && (value as unknown[]).length > schema.maxItems) fail('too many items');
-      (value as unknown[]).forEach((item, index) => assertMatches(schema.items!, item, `${path}[${index}]`, depth + 1));
-      break;
-    case 'object': {
-      if (!value || typeof value !== 'object' || Array.isArray(value)) fail('expected object');
-      const record = value as Record<string, unknown>;
-      for (const key of schema.required!) if (!Object.hasOwn(record, key)) fail(`missing ${key}`);
-      for (const key of Object.keys(record)) {
-        if (!Object.hasOwn(schema.properties!, key)) fail(`unexpected property ${key}`);
-        assertMatches(schema.properties![key]!, record[key], `${path}.${key}`, depth + 1);
-      }
-      break;
-    }
-  }
+export function assertMatches(schema: SandboxSchema, value: unknown, path = '$'): asserts value is SandboxJson {
+  assertSandboxMatches(schema, value, schemaFailure, path);
 }
 
 const effectKeys = ['storage', 'artifacts', 'capabilities', 'events', 'networkDomains', 'secretRefs', 'resources', 'projectDatabase', 'homeDatabase', 'projects', 'connections', 'materials', 'ownerFiles', 'model', 'modelSettings', 'imageGeneration', 'background'] as const;

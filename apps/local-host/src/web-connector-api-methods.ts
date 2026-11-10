@@ -79,7 +79,7 @@ export async function handleConnectorApiMethodsHttp(request: IncomingMessage, re
       } catch (error) { setup?.fail(); throw error; }
     }
     else if (item) {
-      const row = withConnectorConnections(home, store => store.require(item[1]!));
+      const row = withConnectorConnections(home, store => store.require(item[1]!), "required");
       json(response, 200, row.auth_method === "mcp" ? await inspectMcpConnection(home, row.connection_id).then(result => { mcpTools(row.connection_id, result.tools as ConnectorMcpTool[], result.resources); return result; })
         : row.auth_method === "cli" ? await inspectCliConnection(home, row.connection_id, item[2] === "preview")
           : await inspectApiConnection(home, row.connection_id, item[2] === "preview"));

@@ -37,6 +37,7 @@ const HOST_SECTIONS: readonly HostSection[] = [
   { id: "assistant", label: "workbench.settings-sections.assistant", icon: "message", group: "workbench.settings-sections.ai", order: 30 },
   { id: "characters", label: "workbench.settings-sections.characters", icon: "user", group: "workbench.settings-sections.ai", order: 35 },
   { id: "prompts", label: "workbench.settings-sections.prompts", icon: "text", group: "workbench.settings-sections.ai", order: 40 },
+  { id: "skills", label: "workbench.settings-skills.skills", icon: "book", group: "workbench.settings-sections.ai", order: 45 },
   { id: "runtimes", label: "workbench.settings-sections.ai-and-runtimes", icon: "terminal", group: "workbench.settings-sections.tools-and-access", order: 50 },
   { id: "library", label: "workbench.settings-sections.capability-library", icon: "book", group: "workbench.settings-sections.tools-and-access", order: 60 },
   { id: "connections", label: "workbench.settings-sections.service-connections", icon: "link", group: "workbench.settings-sections.tools-and-access", order: 61 },

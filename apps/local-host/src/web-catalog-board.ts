@@ -17,7 +17,7 @@ import { readText, currentLocale, htmlLang, isWebLocale, runWithLocale, WEB_LOCA
 export function handleComponentBoardHttp(request: IncomingMessage, response: ServerResponse, url: URL, pageCsp: string, appearance?: WorkbenchAppearancePorts): boolean {
   if (request.method !== "GET") return false;
   // The board's own language switch (`?lang=`) changes this page only, never the Home's language; without it, the Home's.
-  const lang = url.searchParams.get("lang"), board = (locale: WebLocale) => runWithLocale(locale, () => renderMolisWorkPrimitiveCatalog(t, locale, environmentSection(locale), appearance?.current()));
+  const lang = url.searchParams.get("lang"), board = (locale: WebLocale) => runWithLocale(locale, () => renderMolisWorkPrimitiveCatalog(t, locale, environmentSection(locale), appearance?.current(), t.text("workbench.composer.next-boundary")));
   const page = url.pathname === "/__ui/catalog" ? () => board(isWebLocale(lang) ? lang : currentLocale())
     : url.pathname === "/__ui/catalog/bar" ? renderMolisWorkBarSpecimen
       : url.pathname === "/__ui/catalog/navigation" ? () => runWithLocale(isWebLocale(lang) ? lang : currentLocale(), () => renderMolisWorkNavigationSpecimen(t, htmlLang(), url.searchParams.get("sheet") === "arrival" ? "arrival" : "workbench"))

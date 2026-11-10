@@ -1,6 +1,7 @@
 import type { WebLocale } from "./i18n.js";
 import { readFileSync } from "node:fs";
-import { t as uiText, escapeHtml, icon, renderButton, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { escapeHtml, icon, renderButton, renderComposer, t as uiText, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { assistantComposerLabels } from "./assistant-composer-labels.js";
 import {
   THEME_BOOTSTRAP_SCRIPT, VISUAL_FOUNDATION_CLIENT_SCRIPT, renderIconSprite, renderMenuGroup, renderMenuItem, renderProjectMonogram, renderToggleGroup,
 } from "@molis-ai/molis-work-design-system";
@@ -68,7 +69,7 @@ function strip(label: string, tabs: string, options: { end?: string; unfocused?:
 
 const sample = (_L: Say) => ({
   goal1: uiText.text("workbench.navigation-specimens.homepage-revamp-new-first-screen"), goal2: uiText.text("workbench.navigation-specimens.roll-out-brand-guide"), doc1: uiText.text("workbench.navigation-specimens.revamp-plan"), doc2: uiText.text("workbench.navigation-specimens.second-interview-round-notes"),
-  code1: uiText.text("workbench.navigation-specimens.fix-first-screen-layout"), feed1: uiText.text("workbench.navigation-specimens.design-weekly-11-03"), ppt1: uiText.text("workbench.navigation-specimens.review-talk-v3"), launch: uiText.text("workbench.navigation-specimens.launch-week"),
+  code1: uiText.text("workbench.navigation-specimens.fix-first-screen-layout"), feed1: uiText.text("workbench.navigation-specimens.design-weekly-11-03"), ppt1: uiText.text("workbench.navigation-specimens.review-talk-third-version"), launch: uiText.text("workbench.navigation-specimens.launch-week"),
 });
 
 function mainTabs(readText: Say, state: "ok" | "wrong" = "ok"): string {
@@ -185,8 +186,7 @@ function bar(readText: Say, state: "ok" | "wrong"): string {
   // On a phone the bar folds what its second row cannot hold behind +N (the product's `.dock-pin-more`); here it is drawn, not measured.
   const fold = (count: number, label: string) => `<button type="button" class="dock-pin dock-pin-more mw-navs__fold" aria-haspopup="true" aria-expanded="false" aria-label="${escapeHtml(`${label} ${count}`)}" title="${escapeHtml(label)}">+${count}</button>`;
   const dock = `<div class="dock-pins" role="toolbar" aria-label="${escapeHtml(uiText.text("workbench.navigation-specimens.pinned-plugins"))}">${dockPin(readText, "home")}${dockPin(readText, "goals", { current: true })}${dockPin(readText, "pages", { fold: true })}${dockPin(readText, "coding", { fold: true })}${dockPin(readText, "feed", { fold: true })}${fold(3, uiText.text("workbench.navigation-specimens.more-pinned-plugins"))}</div>`;
-  const composer = `<div class="bar-center"><form class="assistant-composer bar-composer" aria-label="Molis Work Assistant" data-nav-composer><textarea class="assistant-composer-input" rows="1" placeholder="${escapeHtml(uiText.text("workbench.navigation-specimens.ask-assistant-do-something"))}" aria-label="${escapeHtml(uiText.text("workbench.navigation-specimens.send-assistant"))}"></textarea>`
-    + `${renderButton({ label: uiText.text("workbench.navigation-specimens.send"), icon: "send", variant: "primary", size: "sm", iconOnly: true, disabled: true, type: "submit" })}</form></div>`;
+  const composer = `<div class="bar-center"><div class="assistant-composer">${renderComposer({ kind: "ai", labels: assistantComposerLabels(uiText.text, true), placeholder: uiText.text("workbench.assistant-dock.ask-assistant-do-something"), receiver: { label: uiText.text("workbench.assistant-dock.assistant") } })}</div></div>`;
   const own = `<div class="bar-side bar-own" role="toolbar" aria-label="${escapeHtml(uiText.text("workbench.navigation-specimens.own"))}">${wrong ? dockPin(readText, "receipts", { warn: true }) : ""}${dockPin(readText, "jelly", { fold: wrong })}${dockPin(readText, "todo", { fold: true })}${dockPin(readText, "cognia", { fold: true })}${fold(wrong ? 3 : 2, uiText.text("workbench.navigation-specimens.own"))}</div>`;
   const project = `<section class="workspace-chrome project-island titlebar-chrome navigator-project" aria-label="${escapeHtml(uiText.text("workbench.navigation-specimens.current-project"))}"><div class="navigator-project-primary"><button type="button" class="navigator-project-selector" aria-label="${escapeHtml(uiText.text("workbench.navigation-specimens.switch-project"))} · ${escapeHtml(uiText.text("workbench.navigation-specimens.website-revamp"))}">${renderProjectMonogram(uiText.text("workbench.navigation-specimens.website-revamp"), "project-sample", escapeHtml)}</button></div></section>`;
   return `<div class="workbench-bar" data-nav-bar="${state}" data-own-kept aria-label="${escapeHtml(uiText.text("workbench.navigation-specimens.bottom-bar"))}"><div class="bar-start">${switcher}${dock}</div>${composer}<div class="bar-end">${own}${project}</div></div>`;
@@ -285,10 +285,9 @@ body.mw-navs-page .mw-navs__phone .tab-pane-switch>.mw-toggle{min-height:44px}
 @media (min-width:761px){[data-nav-when-full][data-nav-fits]{display:none}}
 .mw-navs__live{margin:0;font-size:12px;color:var(--ink-soft)}
 .mw-navs__bar{min-width:0}
-.mw-navs .workbench-bar{height:var(--dock-h);padding:0;background:transparent}
-.mw-navs .bar-composer textarea{resize:none}
+.mw-navs .workbench-bar{min-height:var(--dock-min);padding:8px 0;background:transparent}
 html body.mw-navs-page .workbench-bar .mw-navs__fold{display:none}
-@media (max-width:760px){.mw-navs__history{display:none}.mw-navs__titlebar{position:relative;display:grid;grid-template-columns:1fr auto auto;grid-template-rows:44px 52px;gap:4px;height:auto;padding:0}.mw-navs__main{display:contents}.mw-navs__main>.tab-strip{grid-area:2/1/3/4}.mw-navs__main>.mw-navs__anchor:not(.mw-navs__anchor--all){grid-area:1/2;z-index:1}.mw-navs__titlebar>.mw-navs__anchor--end{grid-area:1/3;z-index:1}body.mw-navs-page .mw-navs__titlebar>.tab-glyph-row{display:none}.mw-navs .workbench-bar{height:auto}.mw-navs__titlebar .mw-navs__anchor{position:static}.mw-navs__titlebar .mw-navs__anchor>[data-nav-popover]{left:0;right:0;width:auto}body.mw-navs-page .mw-navs .bar-composer>.mw-btn{width:44px;min-width:44px;height:44px;min-height:44px}html body.mw-navs-page .workbench-bar [data-fold]{display:none}html body.mw-navs-page .workbench-bar .mw-navs__fold{display:inline-grid}}`;
+@media (max-width:760px){.mw-navs__history{display:none}.mw-navs__titlebar{position:relative;display:grid;grid-template-columns:1fr auto auto;grid-template-rows:44px 52px;gap:4px;height:auto;padding:0}.mw-navs__main{display:contents}.mw-navs__main>.tab-strip{grid-area:2/1/3/4}.mw-navs__main>.mw-navs__anchor:not(.mw-navs__anchor--all){grid-area:1/2;z-index:1}.mw-navs__titlebar>.mw-navs__anchor--end{grid-area:1/3;z-index:1}body.mw-navs-page .mw-navs__titlebar>.tab-glyph-row{display:none}.mw-navs .workbench-bar{height:auto}.mw-navs__titlebar .mw-navs__anchor{position:static}.mw-navs__titlebar .mw-navs__anchor>[data-nav-popover]{left:0;right:0;width:auto}html body.mw-navs-page .workbench-bar [data-fold]{display:none}html body.mw-navs-page .workbench-bar .mw-navs__fold{display:inline-grid}}`;
 
 /** The board's section: the frame above, in the board's language, at a fixed height that scrolls inside, like the board's other specimen frames. */
 export function renderNavigationSection(_L: Say, lang: WebLocale): string {

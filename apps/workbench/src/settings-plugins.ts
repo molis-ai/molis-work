@@ -20,6 +20,7 @@ export function renderPluginTrustSettings({ projectId, chevron }: { readText(tex
       <h2 id="plugin-trust-install-title">${uiText("workbench.settings-plugins.install-plugin-package")}</h2>
       <p class="settings-muted">${uiText("workbench.settings-plugins.choose-signed-plugin-package-before-anything-installed-see")}</p>
       <label class="mw-btn mw-btn--secondary mw-btn--sm">${uiText("workbench.settings-plugins.choose-package")}<input type="file" accept=".json,application/json" hidden data-plugin-trust-pick></label>
+      <div data-plugin-trust-bundled hidden></div>
       <div class="plugin-trust-preview" data-plugin-trust-preview hidden></div>
     </section>
     <section class="settings-section" aria-labelledby="plugin-trust-list-title">
@@ -64,7 +65,9 @@ const day = (iso) => String(iso || "").slice(0, 10);
 const short = (id) => String(id).replace(/^ed25519:sha256:/, "").slice(0, 12);
 const error = $("error");
 const board = () => document.querySelector("[data-settings-toast], [data-toast]");
-const fail = (failure) => { molisWorkRequest.show(error, failure); error.hidden = false; if (board()) molisWorkRequest.toast(board(), failure, undefined, { ms: 5000 }); };
+const fail = (failure, nothingInstalled = false) => { const shown = nothingInstalled && failure?.message ? new Error(readText("workbench.settings-plugins.nothing-was-installed-the-previous-installation-is-unchanged") + " " + failure.message) : failure; molisWorkRequest.show(error, shown); error.hidden = false; if (board()) molisWorkRequest.toast(board(), shown, undefined, { ms: 5000 }); };
+// A package the Host read and refused: nothing was pinned, kept or installed (SKP-08). Say so next to its problems.
+const badPackage = (failure) => failure && (failure.code === "plugin.declaration_invalid" || failure.code === "plugin.package_invalid");
 const toast = (text) => { const box = board(); if (!box) return; box.textContent = text; box.classList.remove("is-error"); box.classList.add("is-visible"); setTimeout(() => box.classList.remove("is-visible"), 2600); };
 const api = (path, payload) => molisWorkRequest(base + path, { body: payload });
 const homeApi = (name, payload = {}) => molisWorkRequest("/api/settings/plugin-permissions/" + name, { body: payload });
@@ -191,7 +194,7 @@ summary.append(copy); const mark = $("chevron"); if (mark) summary.append(mark.c
 const body = el("div", "plugin-trust-body");
 body.append(el("span", "settings-muted", plugin.plugin_id + (plugin.publisher_signature && plugin.trust !== "host" ? " · " + short(plugin.publisher_signature) : "")));
 if (revoked && revoked.has(plugin.publisher_signature)) body.append(el("span", "settings-muted", globalThis.t.text("workbench.settings-plugins.trust-its-publisher-was-revoked-no-longer-runs")));
-else if (plugin.recovery_error) body.append(el("span", "settings-form-error", globalThis.t.text("workbench.settings-plugins.could-not-start-error", { error: plugin.recovery_error })));
+else if (plugin.recovery_error) body.append(el("span", "settings-form-error", globalThis.t.text("workbench.settings-plugins.could-not-start-error", { error: readText(({ "plugin.publisher_revoked": "workbench.settings-plugins.publisher-revoked", "plugin.manifest_version_invalid": "workbench.settings-plugins.platform-version-mismatch" })[plugin.recovery_error] ?? "workbench.settings-plugins.retry-start") })));
 const work = el("div"), repaint = () => work.replaceChildren(jobs(plugin.jobs, plugin.permissions));
 if (plugin.manifest_available) { body.append(grants(plugin, repaint, send, managed)); repaint(); body.append(work); } else body.append(el("span", "settings-muted", globalThis.t.text("workbench.settings-plugins.permissions-plugin-was-installed-cannot-be-read")));
 const reach = act === homeApi ? reachViews.get(plugin.plugin_id) : null;
@@ -242,7 +245,9 @@ panel.append(el("p", "settings-muted", globalThis.t.text(shown.runtime_scope ===
 const was = (shown.runtime_scope === "home" ? personal : current).find((plugin) => plugin.plugin_id === view.plugin_id);
 if (was) panel.append(el("span", "", globalThis.t.text("workbench.settings-plugins.installed-installing-upgrades-its-data-kept", { from: was.version, to: view.version })));
 panel.append(permissions(view.permissions), jobs(view.jobs));
-if (shown.origins?.length) panel.append(group(globalThis.t.text("workbench.settings-plugins.service-addresses-may-access"), "", shown.origins.map((service) => row(service.title, service.service_id, ...service.origins))));
+globalThis.molisSkillUI?.preview(panel, shown.skills);
+if (shown.requires?.length) panel.append(group(readText("workbench.settings-plugins.required-capabilities"), "", shown.requires.map(item => row(item.capability_id, item.reason, readText(item.satisfied ? "workbench.settings-agent-diagnostics.present" : "workbench.settings-plugins.not-available")))));
+if (shown.origins?.length) panel.append(group(readText("workbench.settings-plugins.service-addresses-may-access"), "", shown.origins.map((service) => row(service.title, service.service_id, ...service.origins))));
 if (shown.agent_bodies && shown.agent_bodies.length) {
 const bodies = el("div", "plugin-trust-agent-bodies"); bodies.append(el("h4", "", globalThis.t.text("workbench.settings-plugins.role-materials-methods")));
 shown.agent_bodies.forEach((item) => {
@@ -268,8 +273,8 @@ install.addEventListener("click", async () => {
 const name = label ? label.value.trim() : "";
 if (label && !name) { label.setAttribute("aria-invalid", "true"); label.focus(); return; }
 install.disabled = true; error.hidden = true;
-try { await api("/install/confirm", { preview_id: shown.preview_id, consent: true, ...(label ? { pin_label: name } : {}) }); close(); toast(globalThis.t.text("workbench.settings-plugins.installed")); await load(); }
-catch (failure) { fail(failure); install.disabled = false; }
+try { await api("/install/confirm", { preview_id: shown.preview_id, consent: true, ...(label ? { pin_label: name } : {}) }); toast(readText("workbench.settings-plugins.installed")); await load(); await globalThis.molisSkillUI.enable(preview, root.dataset.project, view.plugin_id, close); }
+catch (failure) { fail(failure, badPackage(failure)); install.disabled = false; }
 });
 footer.append(cancel, install); panel.append(footer);
 preview.replaceChildren(panel); preview.hidden = false; panel.scrollIntoView?.({ block: "nearest" });
@@ -282,8 +287,15 @@ try {
 let bundle;
 try { bundle = JSON.parse(await file.text()); } catch { throw new Error(globalThis.t.text("workbench.settings-plugins.file-not-plugin-package")); }
 review(await api("/install/preview", { bundle }));
-} catch (failure) { fail(failure); }
+} catch (failure) { fail(failure, badPackage(failure)); }
 });
+api("/bundled/list", {}).then(data => {
+const box = $("bundled"); if (!data.plugins.length && !data.refused.length) return; box.hidden = false;
+box.append(el("h3", "", readText("workbench.settings-plugins.included-with-this-release")));
+for (const item of data.plugins) { const pick = button(item.name + " · " + item.version, "mw-btn--secondary"); pick.disabled = item.publisher.revoked;
+pick.addEventListener("click", async () => { pick.disabled = true; try { review(await api("/install/preview", { bundled: { plugin_id: item.plugin_id, version: item.version } })); } catch (cause) { fail(cause, badPackage(cause)); } finally { pick.disabled = item.publisher.revoked; } }); box.append(pick); }
+for (const item of data.refused) box.append(el("p", "settings-form-error", item.file + " · " + item.message));
+}).catch(fail);
 load().catch(fail);
 };
 globalThis.molisWorkBindPluginTrustSettings = (container = document) => {

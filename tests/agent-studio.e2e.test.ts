@@ -290,7 +290,10 @@ test('FSS-74 studio: a request becomes a working, published plugin that the pers
     assert.equal(originalRecord.publisher_signature, 'agent-built:' + visualBuildId);
     const distribution = await (await fetch(origin + options.routePrefix + '/api/plugin-builder/studio/builds/' + visualBuildId + '/download?version=1')).json();
     const ledger = new HomeConsentLedger(home), packages = new SandboxPackageStore(home);
+    const previewCatalog = await legacy.catalog();
     const importing = new PluginInstallService({ ledger, packages, installed: async () => legacy.records().map(record => ({ record, manifest: undefined })),
+      offers: (targetProject, reference) => targetProject === projectId && previewCatalog.some(action =>
+        action.id === reference.capability_id && action.version === reference.version && action.offered && action.installed),
       installInProject: async () => { assert.fail('A signed export cannot replace the legacy installation'); } });
     const who = { project_id: projectId, actor_id: 'web-user' }, offered = await importing.preview({ bundle: distribution }, who);
     await assert.rejects(importing.confirm({ preview_id: offered.preview_id, consent: true, pin_label: 'A different signing identity' }, who),

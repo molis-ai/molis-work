@@ -6,6 +6,7 @@ import {SYNC_CLOUD_HISTORY_SCRIPT} from './settings-sync-history.js';
 export function renderSyncSettings(_L:(text:string)=>string):string {
   return `<section class="settings-document" data-sync-settings aria-labelledby="settings-title">
     <header class="settings-heading"><h1 id="settings-title">${uiText("workbench.settings-sync.sync")}</h1><p>${uiText("workbench.settings-sync.choose-what-sync-personal-space-turning-sync-off")}</p></header>
+    <p data-sync-identity class="settings-muted"></p>
     <p data-sync-status role="status" class="settings-muted mw-loading">${uiText("workbench.settings-sync.loading")}</p>
     <form data-sync-form hidden><div class="settings-setting-row"><label class="mw-check-row"><input type="checkbox" class="mw-check" data-slot="checkbox" data-sync-automatic><span>${uiText("workbench.settings-sync.automatic-sync-device")}</span></label><span class="settings-muted">${uiText("workbench.settings-sync.only-affects-device-sync-now-remains-available-when")}</span></div><fieldset class="settings-section" data-sync-fields></fieldset>
       <p class="settings-muted" data-sync-quota></p>
@@ -47,13 +48,15 @@ export const SYNC_SETTINGS_CLIENT_SCRIPT=String.raw`
         const view=await request(path+'&namespace='+encodeURIComponent(ns));if(!root.isConnected||!view||state?.policy?.spaceId!==spaceId)return;
         const body=comparison(view,collection);
         const choose=choice=>()=>act(()=>request(recovery?'/restore-recovery':'/resolve',{namespace:ns,key:item.key,id:item.id,choice,revision:view.revision,state:view.state},'POST'),false,true);
-        sheet(recovery?"workbench.settings-sync.restore-retained-version":"workbench.settings-sync.compare-conflicting-versions",body,[['保留本机版本',choose('local')],['采用云端版本',choose('remote')]]);
+        sheet(recovery?"workbench.settings-sync.restore-retained-version":"workbench.settings-sync.compare-conflicting-versions",body,[["workbench.settings-sync.keep-local-version",choose('local')],["workbench.settings-sync.use-cloud-version",choose('remote')]]);
       }catch(failure){error.hidden=false;error.textContent=failure.message;}
     };
     ${SYNC_CLOUD_HISTORY_SCRIPT}
     ${SYNC_PROJECT_RECYCLE_SCRIPT}
     const render=(data)=>{
       if(state?.policy?.spaceId&&data.policy?.spaceId!==state.policy.spaceId)document.querySelectorAll('[data-sync-dialog]').forEach(dialog=>dialog.close());
+      const identity=root.querySelector('[data-sync-identity]');identity.style.overflowWrap='anywhere';
+      identity.textContent=data.available?readText("workbench.settings-sync.space-space-device-device",{space:[document.querySelector('[data-personal-name]')?.textContent?.trim(),data.policy.spaceId].filter(Boolean).join(' · '),device:data.device_label||readText("workbench.settings-sections.this-device")}):'';
       state=data;form.hidden=!data.available;status.classList.remove('mw-loading');
       root.querySelector('[data-sync-tools]').hidden=!data.available;root.querySelector('[data-sync-projects]').hidden=!data.available;
       if(!data.available){status.textContent=data.reason;root.querySelector('[data-sync-conflicts]').replaceChildren();root.querySelector('[data-sync-history]').replaceChildren();return;}
@@ -75,8 +78,8 @@ export const SYNC_SETTINGS_CLIENT_SCRIPT=String.raw`
       if(data.lastSuccess)status.textContent+=' · '+globalThis.t.text("workbench.settings-sync.last-completed")+' '+globalThis.t.text("common.generated.formatted", { value: { kind: "date", at: data.lastSuccess, style: "datetime-with-seconds" } });
       const conflicts=root.querySelector('[data-sync-conflicts]');conflicts.replaceChildren();
       for(const collection of data.collections)for(const item of collection.conflicts){
-        const row=node('section','settings-section');row.append(node('h2','',globalThis.t.text(item.waiting?"workbench.settings-sync.waiting-linked-assets":"workbench.settings-sync.sync-conflict")),node('p','',item.reason));
-        const details=node('details','settings-data-disclosure');details.append(node('summary','',globalThis.t.text("workbench.settings-sync.asset-identity")),node('code','',item.key));row.append(details);
+        const row=node('section','settings-section');row.append(node('h2','',collection.title+' · '+(item.title||readText("workbench.settings-sync.object-id",{id:String(item.key).slice(-24)}))),node('p','',item.reason));
+        const details=node('details','settings-data-disclosure');details.append(node('summary','',readText("workbench.settings-sync.asset-identity")),node('code','',item.key));row.append(details);
         if(item.waiting){
           const button=node('button','mw-btn mw-btn--secondary',globalThis.t.text("workbench.settings-sync.retry-sync"));button.type='button';
           button.addEventListener('click',()=>act(()=>request('/run',{},'POST')));row.append(button);conflicts.append(row);continue;

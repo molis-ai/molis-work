@@ -91,10 +91,13 @@ test("RAC-951 RAC-952 the 插件 page gives each requested optional permission a
   const wide = new Function(`${script.match(/const WIDE = [^\n]*;/)![0]}; return WIDE;`)() as (permission: string) => boolean;
   for (const permission of ["actions:delegate", "model:invoke", "network:api.example.com", "secret:weather-key"]) assert.equal(wide(permission), true, `${permission} is confirmed`);
   for (const permission of ["storage:private", "model:read", "surface:browser", "issues:write", "networkx", "secretly"]) assert.equal(wide(permission), false, `${permission} takes one click`);
-  const grants = script.slice(script.indexOf("const grants = "), script.indexOf("const draw = "));
+  const grantsStart = script.indexOf("const grants = "), grantsEnd = script.indexOf("const draw = ", grantsStart);
+  assert.ok(grantsStart >= 0 && grantsEnd > grantsStart, "the permission renderer has both boundaries after the install preview");
+  const grants = script.slice(grantsStart, grantsEnd);
   assert.match(grants, /setAttribute\("role", "switch"\)/, "a switch per permission");
   assert.match(grants, /if \(item\.required \|\| !item\.requested\) return line;/, "required and shape-only permissions have none");
-  assert.ok(grants.indexOf("WIDE(item.permission) && !await ask(") < grants.indexOf("await send("), "the confirmation comes before the call");
+  const confirmation = grants.indexOf("WIDE(item.permission) && !await ask("), sending = grants.indexOf("await send(");
+  assert.ok(confirmation >= 0 && sending >= 0 && confirmation < sending, "the confirmation comes before the call");
   assert.match(script, /send = \(payload\) => api\("\/permissions\/set", payload\)/, "a project's plugin sends to the project's route unless the caller gives another");
   assert.match(grants, /catch \(failure\) \{ toggle\.checked = !on; fail\(failure\); \}/, "a refused switch goes back");
   assert.match(script, /!view\.granted && item\.permissions\.includes\(view\.permission\)/, "a job is paused by a permission that is off");

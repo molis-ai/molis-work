@@ -1,5 +1,5 @@
 import { studioProblem, studioProblemWord } from "@molis-ai/molis-work-plugin-builder";
-import { sandboxPluginManifest, effectsFromContract } from "@molis-ai/molis-work-plugin-sdk";
+import { effectsFromContract } from "@molis-ai/molis-work-plugin-sdk";
 import { studioManifestWords, studioWordReader } from "./studio-words.js";
 import { installedPluginWords, installedPluginPage } from "./installed-page.js";
 import { shellPageRead } from "../web-sessions.js";
@@ -36,7 +36,7 @@ import { readStudioDistribution } from './studio-release.js';
 import { builderPorts } from './studio-ports.js';
 import { studioModels } from './studio-models.js';
 import { studioImages } from './studio-images.js';
-import { createStudioPreview } from './studio-preview.js';
+import { createStudioPreview, studioDraftManifest } from './studio-preview.js';
 
 export type { AgentBuild, AgentBuilderPorts, AgentRelease, AgentPublicationControl };
 
@@ -162,7 +162,7 @@ async function openStudio(options: AgentStudioOptions): Promise<Studio> {
 function page(title: string, body: string, configuration: Record<string, unknown>, options: AgentStudioOptions, controlToken: string, draft?: { build: AgentBuild; workflow: AgentBuilderWorkflow }) {
   if (!options.homeDirectory) throw new Error('插件页面需要 Home');
   const installed = configuration.mode === 'installed', design = draft?.build.design, pluginId = installed ? String(configuration.plugin_id) : design?.localePacks ? design.contract.pluginId : BUILDER_PLUGIN_ID;
-  const manifest = design?.localePacks ? sandboxPluginManifest({ pluginId, name: design.title, version: '0.0.0', textDeclarations: studioManifestWords(design),
+  const manifest = design?.localePacks ? studioDraftManifest({ pluginId, name: design.title, textDeclarations: studioManifestWords(design),
     publisher: { publisher_id: 'molis-studio', signature: 'agent-built:' + draft!.build.id }, presentation: design.presentation !== undefined, effects: effectsFromContract(design.contract), contract: design.contract }) : builderManifest;
   const active = studios.get(options.store)?.get(options.projectId), buildPath = '/api/plugin-builder/studio/builds/' + configuration.build;
   const authorization = pluginPagesFor(options.homeDirectory).open(pluginId, options.projectId, options.actorId ?? 'web-user', undefined, installed ? undefined : {

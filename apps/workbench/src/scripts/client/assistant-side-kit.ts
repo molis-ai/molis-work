@@ -79,18 +79,20 @@ export const ASSISTANT_SIDE_KIT_PART = String.raw`  // Short on the card; the ve
     node.hidden = !content;
     if (!content) { node.replaceChildren(); return; }
     const key = node.dataset.assistantBlock;
-    const head = el(fixed ? "p" : "button", "assistant-block-head" + (fixed ? " is-fixed" : ""));
-    if (!fixed) { head.type = "button"; head.setAttribute("aria-expanded", String(!folded[key])); head.setAttribute("aria-controls", "assistant-block-" + key); head.append(el("span", "assistant-block-chevron")); }
+    const head = el(fixed ? "p" : "summary", "assistant-block-head" + (fixed ? " is-fixed" : ""));
+    if (!fixed) { head.setAttribute("aria-expanded", String(!folded[key])); head.setAttribute("aria-controls", "assistant-block-" + key); head.append(el("span", "assistant-block-chevron")); }
     head.append(glyph(icon), el("span", "assistant-block-title", title));
     if (badge) head.append(el("span", "assistant-block-badge" + (attention ? " is-attention" : ""), badge));
-    if (!fixed) head.addEventListener("click", () => {
-      folded[key] = !folded[key]; if (!folded[key]) delete folded[key];
+    const body = el("div", "assistant-block-body" + (fixed ? "" : " mw-collapsible__body")); body.id = "assistant-block-" + key; body.append(content);
+    if (fixed) { node.replaceChildren(head, body); return; }
+    const fold = el("details", "mw-collapsible"); fold.open = !folded[key]; fold.append(head, body);
+    fold.addEventListener("toggle", () => {
+      if (!fold.isConnected) return;
+      if (fold.open) delete folded[key]; else folded[key] = true;
       store.set(BLOCKS_KEY, Object.keys(folded).length ? JSON.stringify(folded) : null);
-      node.toggleAttribute("data-folded", Boolean(folded[key])); head.setAttribute("aria-expanded", String(!folded[key]));
+      head.setAttribute("aria-expanded", String(fold.open));
     });
-    node.toggleAttribute("data-folded", !fixed && Boolean(folded[key]));
-    const body = el("div", "assistant-block-body"); body.id = "assistant-block-" + key; body.append(content);
-    node.replaceChildren(head, body);
+    node.replaceChildren(fold);
   };
   const group = (label, ...children) => { const box = el("div", "assistant-group"); if (label) box.append(el("p", "assistant-block-sub", label)); box.append(...children); return box; };
   const stack = (cards, key) => { const box = el("div", "assistant-stack"); cards.forEach((one) => box.append(one)); if (key) window.molisShowMore?.(box, { key, label: globalThis.t.text("workbench.assistant-side-kit.show-n-more"), keep: ":has(> .is-blocked)" }); return box; };

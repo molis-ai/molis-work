@@ -89,10 +89,10 @@ test("with the side pane out of sight, the top line offers 去确认, then 继�
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/locale?lang=zh&next=${encodeURIComponent(`/projects/${projectId}/`)}` }, sessionId));
   const say = async (text: string) => {
-    await click("[data-assistant-input]");
+    await click("[data-assistant-composer] .mw-composer__input");
     await command("Input.insertText", { text }, sessionId);
-    await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
-    await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
+    await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, sessionId);
+    await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, sessionId);
   };
   const shown = (selector: string) => `(() => { const node = document.querySelector(${JSON.stringify(selector)}); if (!node || node.hidden || !node.getClientRects().length) return false;
     const box = node.getBoundingClientRect(); return box.width > 0 && box.left >= 0 && box.right <= innerWidth && box.top >= 0 && box.bottom <= innerHeight; })()`;
@@ -141,7 +141,7 @@ test("with the side pane out of sight, the top line offers 去确认, then 继�
     window.commandCode = reviewCommand.querySelector('code'); window.diffCode = reviewDiff.querySelector('code');
     window.commandStep = document.querySelector('[data-ix-step-id="review:language-command"]'); window.diffStep = document.querySelector('[data-ix-step-id="review:language-diff"]');
     window.neighborStep = document.querySelector(${JSON.stringify(neighbor)});
-    window.reviewDraft = document.querySelector('[data-assistant-input]'); reviewDraft.value = 'Unsent 审查草稿'; reviewDraft.focus(); reviewDraft.setSelectionRange(2, 7, 'backward');
+    window.reviewDraft = document.querySelector('[data-assistant-composer] .mw-composer__input'); reviewDraft.value = 'Unsent 审查草稿'; reviewDraft.focus(); reviewDraft.setSelectionRange(2, 7, 'backward');
     window.reviewWrites = []; window.reviewReads = []; const fetchOriginal = window.fetch;
     window.fetch = (input, init) => {
       const path = new URL(String(input?.url || input), location.href).pathname, method = init?.method || 'GET';

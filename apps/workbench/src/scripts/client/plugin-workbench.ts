@@ -22,6 +22,7 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
   const marketLink = document.querySelector('[data-global-menu] [data-plugin-id="market"]');
   const updateCount = marketLink?.querySelector("[data-market-update-count]");
   let projects = null, updates = [], marketRequest = null, updatesRequest = null, pending = false, marketDirty = true, marketRevision = 0;
+  let conflictIntent = "";
   // What a market card brings or takes, from the Host's own marks on the cards (W5-02 B1): the same data the Projects service applies.
   const listOf = (value) => (value || "").split(" ").filter(Boolean);
   const marketName = (id) => {
@@ -124,7 +125,7 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
       card.hidden = (onlyAdded && !added) || !((card.querySelector("h2").textContent + " " + card.querySelector("p").textContent).toLocaleLowerCase().includes(query));
       if (!card.hidden) count++;
       const button = card.querySelector("[data-market-add]");
-      button.disabled = !current || pending || marketDirty;
+      button.disabled = !current?.revision || pending || marketDirty;
       button.dataset.marketMembership = added ? "added" : "available";
       const action = added ? globalThis.t.text("workbench.plugin-workbench.remove") : globalThis.t.text("workbench.plugin-workbench.add");
       button.textContent = action;
@@ -177,7 +178,8 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
         if (projects.some(project => project.project_id === selectedProject)) selector.value = selectedProject;
         else if (projects.some(project => project.project_id === projectId)) selector.value = projectId;
         selector.disabled = !projects.length;
-        status.textContent = projects.length ? "" : globalThis.t.text("workbench.plugin-workbench.create-project-before-adding-plugins");
+        status.textContent = conflictIntent ? readText("workbench.plugin-workbench.review-the-current-plugins-before-trying-again-intent", { intent: conflictIntent })
+          : projects.length ? "" : readText("workbench.plugin-workbench.create-project-before-adding-plugins");
         filter();
       } catch (error) { if (revision === marketRevision) { molisWorkRequest.show(status,error); retry.hidden = false; } }
     })().finally(() => {
@@ -257,37 +259,38 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
     }
     const button = event.target.closest("[data-market-add]");
     if (!button || button.disabled || pending) return;
-    const targetProject = selector.value;
+    const project = projects.find(row => row.project_id === selector.value);
+    const targetProject = project.project_id, expectedRevision = project.revision, pluginId = button.dataset.marketAdd;
     const removing = button.dataset.marketMembership === "added";
-    const beforeIds = (projects.find(project => project.project_id === targetProject)?.plugins || []).slice();
+    const beforeIds = project.plugins;
     const clickedCard = button.closest("[data-market-plugin]");
     const clickedNeededBy = clickedCard ? listOf(clickedCard.dataset.marketNeededBy) : [];
+    conflictIntent = ""; retry.hidden = true;
     pending = true; selector.disabled = true; filter();
     status.textContent = removing ? globalThis.t.text("workbench.plugin-workbench.removing") : globalThis.t.text("workbench.plugin-workbench.adding");
     try {
-      let result;
-      if (targetProject === projectId && host.membership) {
-        // This project: the page changes in place (the switcher and the Dock follow); no reload.
-        const outcome = await host.membership.change(button.dataset.marketAdd, removing ? "remove" : "add", { quiet: true });
-        if(!outcome.ok)throw outcome.error;
-        result = outcome.result;
-      } else {
-        result=await molisWorkRequest("/api/settings/projects/"+encodeURIComponent(targetProject)+"/plugins",{method:removing?"DELETE":"POST",body:{plugin_id:button.dataset.marketAdd},fallback:removing?globalThis.t.text("workbench.plugin-workbench.could-not-remove-plugin"):globalThis.t.text("workbench.plugin-workbench.could-not-add-plugin")});
+      const { result, error, readbackRequired } = targetProject === projectId
+        ? await host.membership.change(pluginId, removing ? "remove" : "add", { quiet: true, expectedRevision })
+        : await host.membership.save(targetProject, pluginId, !removing, expectedRevision);
+      if (result) Object.assign(project, { plugins: result.plugins, hidden: result.hidden, revision: result.revision });
+      if (error) {
+        if (readbackRequired) { project.revision = undefined; marketDirty = true; retry.hidden = false; }
+        if (error.code === "actions.conflict") conflictIntent = (removing ? readText("workbench.plugin-workbench.remove") : readText("workbench.plugin-workbench.add")) + " " + marketName(pluginId) + " · " + project.display_name;
+        molisWorkRequest.show(status, error);
+        if (conflictIntent) status.prepend(conflictIntent + " · ");
+        if (readbackRequired || result) status.parentElement.scrollIntoView({ block: "nearest" });
+        return;
       }
-      const project = projects.find(project => project.project_id === targetProject);
-      project.plugins = result.plugins;
-      project.hidden = result.hidden || [];
       // What went or came with it, from the plugin list before and after (not from the directory: the service decides); a plugin
       // that depends on it is not added with it, and the line says so when it happened.
       const also = (removing ? beforeIds.filter(id => !result.plugins.includes(id)) : result.plugins.filter(id => !beforeIds.includes(id)))
-        .filter(id => id !== button.dataset.marketAdd);
+        .filter(id => id !== pluginId);
       const came = targetProject === projectId ? "" : relation(also, removing ? "workbench.plugin-workbench.also-removed-list" : "workbench.plugin-workbench.also-added-list");
       const missing = removing ? "" : relation(clickedNeededBy.filter(id => !result.plugins.includes(id)), "workbench.plugin-workbench.plugins-that-depend-not-added-list");
       const note = [came, missing].filter(Boolean).map(part => "；" + part).join("");
       status.textContent = (removing ? globalThis.t.text("workbench.plugin-workbench.removed") : globalThis.t.text("workbench.plugin-workbench.added")) + " " + project.display_name + note;
-      if (targetProject === projectId && !host.membership) { saveUiState(); location.reload(); }
     } catch (error) { molisWorkRequest.show(status,error); }
-    finally { pending = false; selector.disabled = !projects?.length; filter(); if (marketDirty) void loadMarket(); }
+    finally { pending = false; selector.disabled = !projects?.length; filter(); if (marketDirty && retry.hidden) void loadMarket(); }
   });
   const directory = document.querySelector("[data-artifact-directory]");
   const detail = document.querySelector("[data-artifact-detail]");

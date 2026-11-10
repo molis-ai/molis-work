@@ -1,4 +1,5 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { WORK_STATE_COPY } from "./goal-state-copy.js";
 /** UI-only collection selection and labels; counts are supplied by the authoritative query. */
 export interface GoalCollectionItem {
   goal: { goal_id: string; title: string };
@@ -35,11 +36,11 @@ export function buildGoalCollectionModel<T extends GoalCollectionItem>(
     selected ? selected.goal.title + " · Molis Work" :
     trashView ? uiText.text("goals.collection-model.trash-molis-work") : archiveView ? uiText.text("goals.collection-model.archived-goals-molis-work") : "Molis Work";
   const phaseSummary = [
-    { label: uiText.text("goals.collection-model.needs-decision"), count: view.counts.waiting_for_human },
-    { label: uiText.text("goals.collection-model.progress"), count: view.counts.executing },
-    { label: uiText.text("goals.collection-model.ready-record"), count: view.counts.execution_pending },
-    { label: uiText.text("goals.collection-model.blocked"), count: view.counts.execution_blocked },
-    { label: uiText.text("goals.collection-model.cancelled"), count: view.counts.invalidated },
+    { label: uiText.text(WORK_STATE_COPY.waiting_for_human.label), count: view.counts.waiting_for_human },
+    { label: uiText.text(WORK_STATE_COPY.executing.label), count: view.counts.executing },
+    { label: uiText.text(WORK_STATE_COPY.execution_pending.label), count: view.counts.execution_pending },
+    { label: uiText.text(WORK_STATE_COPY.execution_blocked.label), count: view.counts.execution_blocked },
+    { label: uiText.text(WORK_STATE_COPY.invalidated.label), count: view.counts.invalidated },
   ].filter(item => item.count > 0).map(item => `${item.label} ${item.count}`).join(" · ");
   const footerStatus = phaseSummary || uiText.text("goals.collection-model.no-goal-progress");
   const collectionNote = trashView ? uiText.text("goals.collection-model.recoverable-history-relation-handling-stay") : archiveView ? uiText.text("goals.collection-model.can-be-restored-any-time") : footerStatus;

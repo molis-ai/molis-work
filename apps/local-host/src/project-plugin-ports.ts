@@ -70,12 +70,13 @@ function installedPluginsOf(source: ProjectPluginHost, reference: LocalHostProje
 }
 
 /** Installs a release read from a signed package in the project the person is in; the project's installed plugins are the ones that run it. */
-export async function installPackageInProject(source: ProjectPluginHost, projectId: string, release: InstalledRelease): Promise<void> {
+export async function installPackageInProject(source: ProjectPluginHost, projectId: string, release: InstalledRelease, assertCurrent?: () => void): Promise<void> {
   const reference = source.host.projects().find(row => row.project_id === projectId);
   if (!reference || !source.options.homeDirectory) throw new ActionError("actions.scope_mismatch", "安装需要一个打开的项目");
   await source.host.withRuntime(reference, async runtime => {
     const installed = await installedPluginsOf(source, reference, runtime);
-    await installed.installPackage(release, { consent: true });
+    assertCurrent?.();
+    await installed.installPackage(release, { consent: true, assertCurrent });
     await installed.refreshPublicActions();
   });
 }
@@ -99,10 +100,10 @@ export async function controlPackageInProject(source: ProjectPluginHost, project
 }
 
 /** Installs a release read from a signed package in the Home: the Home's plugin host runs it, in the sandbox, for every project. */
-export async function installPackageInHome(source: ProjectPluginHost, release: InstalledRelease): Promise<void> {
+export async function installPackageInHome(source: ProjectPluginHost, release: InstalledRelease, assertCurrent?: () => void): Promise<void> {
   const home = source.homePlugins();
   if (!home) throw new ActionError("actions.scope_mismatch", "这个 Host 没有 Home，不能把插件装进 Home");
-  await home.installPackage(release);
+  await home.installPackage(release, assertCurrent);
 }
 
 /** The plugins installed in a project, each with the Manifest it was installed with; the project's built-in plugins are started first so they are listed too. */

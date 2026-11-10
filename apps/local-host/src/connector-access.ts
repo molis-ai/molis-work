@@ -78,7 +78,7 @@ export function resolveApiConnection(home: string, id: string, control: Connecto
 export async function resolveApiConnection(home: string, id: string, control: ConnectorCallControl, service?: string, forceRefresh: boolean | "if_available" = false,
   network?: OAuthNetwork): Promise<ApiConnectionAccess | null> {
   control.current();
-  const connection = withConnectorConnections(home, store => store.require(id, service));
+  const connection = withConnectorConnections(home, store => store.require(id, service), "required");
   const accountCurrent = oauthRefreshGuard(home, id);
   const current = () => { control.current(); accountCurrent(); };
   if (!connection.enabled || connection.disconnected_at || connection.auth_method === "mcp" || connection.auth_method === "none") throw new Error("所选连接不能用于此 API 读取，请选择有效的 API 账号");

@@ -10,6 +10,7 @@ import { orderGrantViews } from "./order.js";
 const MCP_ACTION_SETTINGS = "/api/settings/mcp/actions";
 /** apps/local-host/src/web-project-settings.ts */
 const PROJECT_SETTINGS = "/api/settings/projects";
+const PROJECT_PLUGIN_SETTINGS = "/api/settings/project-plugins";
 
 /** An action as the grant route names it: capability, version and the provider the grant is pinned to. */
 export type GrantedAction = ActionReference & { readonly provider_id: string };
@@ -104,7 +105,16 @@ export async function createProject(client: LocalHostHttpClient, displayName: st
   return { project_id: created.project.project_id, display_name: created.project.display_name, database_path: created.project.database_path };
 }
 
+/** Observe the revision the project settings page writes from, without opening the project. */
+export async function projectPluginRevision(client: Pick<LocalHostHttpClient, "get">, projectId: string): Promise<string> {
+  const { projects } = await client.get<{ projects: Array<{ project_id: string; revision?: string }> }>(PROJECT_PLUGIN_SETTINGS);
+  const revision = projects.find(project => project.project_id === projectId)?.revision;
+  if (!revision) throw new Error(`Project plugin membership is unavailable for ${projectId}`);
+  return revision;
+}
+
 /** Install a bundled plugin in a project; answers the project's plugins after the change. */
 export async function addProjectPlugin(client: LocalHostHttpClient, projectId: string, pluginId: string): Promise<string[]> {
-  return (await client.post<{ plugins: string[] }>(`${PROJECT_SETTINGS}/${encodeURIComponent(projectId)}/plugins`, { plugin_id: pluginId })).plugins;
+  const expected_revision = await projectPluginRevision(client, projectId);
+  return (await client.post<{ plugins: string[] }>(`${PROJECT_SETTINGS}/${encodeURIComponent(projectId)}/plugins`, { plugin_id: pluginId, expected_revision })).plugins;
 }

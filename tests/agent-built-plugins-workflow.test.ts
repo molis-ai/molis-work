@@ -149,7 +149,7 @@ async function revisionHelperStudio(t: TestContext, setup: { configure?: (answer
   const mutations = new Map<string, LocalMutationState>();
   const web = studioHarnessRequests(f.home, project.project_id, f.token);
   const trialKeys: string[] = [], trialProbes: Promise<void>[] = [], trialProbeErrors: unknown[] = [];
-  server = createServer((request, response) => {
+  server = createStudioBrowserServer(f.home, f.token, (request, response, pageProof) => {
     const url = new URL(request.url ?? '/', 'http://localhost');
     web.handle(request, response, url, options.routePrefix!, (local, proof) => {
       if (!authorizeLocalWebRequest(request, response, url, f.token, mutations)) return;

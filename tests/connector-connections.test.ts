@@ -1,3 +1,6 @@
+import { existsSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
+import { listConnectorConnectionViews, connectorAuthorizationStatus } from "@molis-ai/molis-work-app-local-host";
+import { homeSqlitePath } from "@molis-ai/molis-work-storage";
 import { randomUUID } from "node:crypto";
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
@@ -331,4 +334,20 @@ test("RAC-2421 a binding counts its usage and plugin ids in characters, not UTF-
     assert.equal(store.binding("project-a", "feed", "a".repeat(160))?.connection_id, connection.connection_id);
     assert.throws(() => store.bind({ scopeId: "project-a", pluginId: "feed", slotId: "a".repeat(161), serviceId: "gmail", connectionId: connection.connection_id }), { code: "connector.connection.invalid" });
   } finally { db.close(); }
+});
+
+test("D0276 pure connection and authorization queries leave absent and empty registry files untouched", () => {
+  const home = mkdtempSync(join(tmpdir(), "connector-read-only-"));
+  try {
+    const path = homeSqlitePath(home, "connectors");
+    assert.deepEqual(listConnectorConnectionViews(home), []);
+    assert.equal(connectorAuthorizationStatus(home, "not-created"), null);
+    assert.throws(() => withConnectorConnections(home, store => store.require("missing"), "required"), { code: "connector.connection.not_found" });
+    assert.equal(existsSync(path), false);
+    mkdirSync(join(path, ".."), { recursive: true }); writeFileSync(path, "");
+    assert.deepEqual(listConnectorConnectionViews(home), []);
+    assert.equal(connectorAuthorizationStatus(home, "not-created"), null);
+    assert.throws(() => withConnectorConnections(home, store => store.require("missing"), "required"), { code: "connector.connection.not_found" });
+    assert.equal(readFileSync(path).length, 0);
+  } finally { rmSync(home, { recursive: true, force: true }); }
 });

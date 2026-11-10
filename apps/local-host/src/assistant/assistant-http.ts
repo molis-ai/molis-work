@@ -277,20 +277,13 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
         return { status: 200, body: await service.offers.offerFromPage(body as unknown as AssistantPageCardInput, ports.projectRef ? { project_ref: ports.projectRef } : {}) };
       }
       if (method === "POST" && parts.length === 1 && parts[0] === "send") {
-        // A page marks the words it wrote itself ("page"); the marks of the Host's and the Assistant's own rounds are set in code and cannot be claimed from outside.
-        if (body.written_by !== undefined && body.written_by !== "page") throw assistantErrors.invalid("written_by 只能是 page");
-        if (body.target !== undefined && body.target !== "answer" && body.target !== "steer") throw assistantErrors.invalid("target 只能是 answer 或 steer");
-        // A re-ask names a closed question of an existing work, and is not an answer: refused before any work is made or touched.
-        if (body.reask !== undefined && (!body.work_id || body.target === "answer" || body.about !== undefined)) throw assistantErrors.invalid("重新问只能用在已有的工作上，不能同时作为回答或指向一条输入");
-        // A correction names the input it corrects, in a work that has one; it is a supplement, never an answer. Only the id's
-        // shape is checked: the runtime keeps `about` as a pointer without looking it up (D34), so an id that is not one of this
-        // session's inputs names nothing, and the receipt shows 「更早的一条」.
-        if (body.about !== undefined && (typeof body.about !== "string" || !body.about || body.about.length > 200 || !body.work_id || body.target === "answer")) throw assistantErrors.invalid("about 要写一条输入的 id，只能用在已有的工作里，且不能用于回答");
+        checkSendRequest(body);
         return { status: 200, body: await service.send(body as unknown as AssistantSendInput, { ...pageRoundLanguage(ports), ...(ports.projectRef ? { project_ref: ports.projectRef } : {}),
           ...(!body.written_by && body.reask === undefined && typeof body.text === "string" && typeof body.request_id === "string" ? { original_input: {
             input_id: body.request_id, text: body.text, written_by: "person" as const, occurred_at: new Date().toISOString(), install_id: ASSISTANT_INSTALL_ID,
           } } : {}) }) };
       }
+      if (method === "GET" && parts.length === 2 && parts[0] === "requests") return { status: 200, body: store.requests.read(WEB_ACTOR, parts[1]!) };
       // What the Assistant may use here, and what the person switched off for it.
       if (method === "GET" && parts.length === 1 && parts[0] === "capabilities") {
         const off = store.disabledActions(WEB_ACTOR), confirm = store.confirmAlways(WEB_ACTOR);
@@ -457,7 +450,7 @@ async function interactionRoute(workId: string, parts: string[], body: Record<st
     drafts.drop(workId, String(body.pending_id ?? ""));
     return { status: 200, body: view };
   }
-  if (parts.length === 3 && parts[2] === "question-draft") { drafts.save(workId, String(body.pending_id ?? ""), body.values); return { status: 200, body: { ok: true } }; }
+  if (parts.length === 3 && parts[2] === "question-draft") { return { status: 200, body: { ok: true, ...drafts.save(workId, String(body.pending_id ?? ""), body.values, body.draft_revision) } }; }
   if (parts.length !== 5 || parts[2] !== "cards") return null;
   if (parts[4] === "run") return { status: 200, body: await service.offers.runCard(workId, parts[3]!, { revision: Number(body.revision), values: body.values }) };
   if (parts[4] === "dismiss") return { status: 200, body: service.offers.dismissCard(workId, parts[3]!) };
@@ -466,4 +459,17 @@ async function interactionRoute(workId: string, parts: string[], body: Record<st
   const card = service.offers.card(workId, parts[3]!);
   return { status: 200, body: await service.send({ work_id: workId, request_id: randomUUID(), text: uiText.text("workbench.assistant-http.suggestion-title-did-not-run-why-read-latest",
     { title: card.title, why: card.outcome || uiText.text("workbench.assistant-http.data-changed-after-was-suggested") }) }, { ...pageRoundLanguage(ports), ...(projectRef ? { project_ref: projectRef } : {}) }, "page") };
+}
+
+/** The Send HTTP input, before invoking its owner. */
+function checkSendRequest(body: Record<string, unknown>): void {
+        // A page marks the words it wrote itself ("page"); the marks of the Host's and the Assistant's own rounds are set in code and cannot be claimed from outside.
+        if (body.written_by !== undefined && body.written_by !== "page") throw assistantErrors.invalid("written_by 只能是 page");
+        if (body.target !== undefined && body.target !== "answer" && body.target !== "steer") throw assistantErrors.invalid("target 只能是 answer 或 steer");
+        // A re-ask names a closed question of an existing work, and is not an answer: refused before any work is made or touched.
+        if (body.reask !== undefined && (!body.work_id || body.target === "answer" || body.about !== undefined)) throw assistantErrors.invalid("重新问只能用在已有的工作上，不能同时作为回答或指向一条输入");
+        // A correction names the input it corrects, in a work that has one; it is a supplement, never an answer. Only the id's
+        // shape is checked: the runtime keeps `about` as a pointer without looking it up (D34), so an id that is not one of this
+        // session's inputs names nothing, and the receipt shows 「更早的一条」.
+        if (body.about !== undefined && (typeof body.about !== "string" || !body.about || body.about.length > 200 || !body.work_id || body.target === "answer")) throw assistantErrors.invalid("about 要写一条输入的 id，只能用在已有的工作里，且不能用于回答");
 }

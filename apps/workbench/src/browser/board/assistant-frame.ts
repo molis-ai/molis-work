@@ -135,15 +135,15 @@ one("[data-asst-advance]").addEventListener("click", () => {
 
 // 带上三个文件: one the island reads, one it will not take, one the stand-in Host refuses to read.
 const PNG = Uint8Array.from(atob("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="), (c) => c.charCodeAt(0));
+// They go where a person's dropped files go: onto the Assistant's composer (unified-input K3), whose strip says how each went.
 one("[data-asst-attach]").addEventListener("click", () => {
-  const field = document.querySelector<HTMLInputElement>("[data-assistant-file]");
-  if (!field) return;
+  const box = document.querySelector<HTMLElement>("[data-assistant-composer] .mw-composer__box");
+  if (!box) return;
   const picked = new DataTransfer();
   picked.items.add(new File(["# 会议记录\n\n- 周五 10:00 复盘\n- 只看首次使用\n"], "会议记录.md", { type: "text/markdown" }));
   picked.items.add(new File([new Uint8Array([80, 75, 3, 4])], "设计稿.zip", { type: "application/zip" }));
   picked.items.add(new File([PNG], "白板照片.png", { type: "image/png" }));
-  field.files = picked.files;
-  field.dispatchEvent(new Event("change", { bubbles: true }));
+  box.dispatchEvent(new DragEvent("drop", { dataTransfer: picked, bubbles: true, cancelable: true }));
 });
 
 (window as Window & { molisBoardAssistant?: unknown }).molisBoardAssistant = {

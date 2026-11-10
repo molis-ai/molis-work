@@ -390,7 +390,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
         });
         menuItem(globalThis.t.text("workbench.settings-memory.history"), () => historyPanel(item, copy));
         if (item.scope === "project" && project) menuItem(globalThis.t.text("workbench.settings-memory.promote-project-guidance"), () => {
-          const target = "/projects/" + encodeURIComponent(project) + "/settings/guidance?draft=" + encodeURIComponent(item.text);
+          const target = "/projects/" + encodeURIComponent(project) + "/settings/guidance?memory_id=" + encodeURIComponent(item.memory_id) + "&memory_version=" + encodeURIComponent(item.version);
           window.location.assign(target);
         });
         menuItem(globalThis.t.text("common.control.delete"), async () => {

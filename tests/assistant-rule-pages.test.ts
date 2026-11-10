@@ -1,3 +1,4 @@
+import { projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
 import { ASSISTANT_RULES_PROVIDER } from "@molis-ai/molis-work-app-local-host";
@@ -23,8 +24,8 @@ async function setup(t: TestContext) {
   const addRule = (rule: object, ruleId?: string) => home.web.post<{ rules: AssistantRule[] }>("/api/assistant/rules", { rule, ...(ruleId ? { rule_id: ruleId } : {}) });
   return {
     home, installed, addRule,
-    install: (pluginId: string) => home.web.post(pluginsPath, { plugin_id: pluginId }),
-    remove: (pluginId: string) => home.web.delete(pluginsPath, { plugin_id: pluginId }),
+    install: async (pluginId: string) => home.web.post(pluginsPath, { plugin_id: pluginId, expected_revision: await projectPluginRevision(home.web, project.project_id) }),
+    remove: async (pluginId: string) => home.web.delete(pluginsPath, { plugin_id: pluginId, expected_revision: await projectPluginRevision(home.web, project.project_id) }),
   };
 }
 

@@ -76,6 +76,8 @@ export interface WorkbenchShellPageView {
   /** The actual owner contributions already read for this request. */
   plugin_stage_views?: Readonly<Record<string, PreparedStageView | null>>;
   enabled_plugins?: readonly string[];
+  /** The Catalog observation used to draw the project's plugin picker. */
+  project_plugin_revision?: string;
   /** Personal plugins this project has hidden. They stay installed; the rail omits them. */
   hidden_plugins?: readonly string[];
   /**
@@ -209,6 +211,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
       ...Object.fromEntries(Object.entries(parts?.body_attributes ?? {}).filter(([name]) => /^data-[a-z0-9-]+$/.test(name))),
       "data-route-prefix": view.route_prefix,
       "data-project-id": view.project?.project_id || "",
+      "data-project-plugin-revision": view.project_plugin_revision ?? null,
       "data-desktop-shell": "true",
       "data-desktop-surface": initialDesktopSurface,
       "data-native-desktop": desktopShell ? "true" : null,

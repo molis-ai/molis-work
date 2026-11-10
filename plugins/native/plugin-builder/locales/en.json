@@ -326,7 +326,13 @@
     "plugin-builder.studio-step.plugins-declined": "Revise the design without these plugins",
     "plugin-builder.studio-step.plugins-enabled": "Required plugins enabled",
     "plugin-builder.studio-step.plugins-needed": "The design needs plugins that are still disabled",
-    "plugin-builder.studio-step.proposed": "Presented {count} proposals",
+    "plugin-builder.studio-step.proposed": {
+      "plural_arg": "count",
+      "forms": {
+        "one": "Presented {count} proposal",
+        "other": "Presented {count} proposals"
+      }
+    },
     "plugin-builder.studio-step.questions": {
       "plural_arg": "count",
       "forms": {

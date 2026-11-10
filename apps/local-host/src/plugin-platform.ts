@@ -145,9 +145,9 @@ export interface PluginPlatform {
   readonly consents: PluginConsentLedger | null;
   /** Built after `start`, from the Manifests that actually activated. */
   router(): PluginRouteRouter;
-  start(entries: readonly PluginPlatformEntry[]): Promise<PluginSupervisorReport>;
+  start(entries: readonly PluginPlatformEntry[], control?: { assertCurrent?: () => void }): Promise<PluginSupervisorReport>;
   upgradeCandidates(): PluginUpgradeCandidate[];
-  upgrade(pluginId: string, definition?: PluginDefinition, options?: { grants?: string[] }): Promise<ReturnType<PluginSupervisor["state"]>>;
+  upgrade(pluginId: string, definition?: PluginDefinition, options?: { grants?: string[]; assertCurrent?: () => void }): Promise<ReturnType<PluginSupervisor["state"]>>;
   rollback(pluginId: string, definition: PluginDefinition): Promise<ReturnType<PluginSupervisor["state"]>>;
 }
 
@@ -199,7 +199,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
   });
   // A project instance of a dual-instance plugin offers only its half; the other half is the Home's (specs/archive/dual-instance-plugins).
   const runtime = new PluginRuntime(records, executor,
-    { ...options.inProcess ? { inProcess: options.inProcess } : {}, declarationOwners: declarationOwnersFor(options.home?.directory ?? null, { db: options.db, scope: { kind: "project", project_id: options.project_id } }, (pluginId: string): PluginManifest | undefined => supervisor.manifest(pluginId)), redemption: definition => ({ partial: identity.dualInstance(definition) }), scope: "project", hostIds: HOST_PLUGIN_IDS, ...consents ? { consents } : {}, reservedRuleKeys: hostReservedRuleKeys,
+    { ...options.inProcess ? { inProcess: options.inProcess } : {}, declarationOwners: declarationOwnersFor(options.home?.directory ?? null, { db: options.db, scope: { kind: "project", project_id: options.project_id } }, (pluginId: string): PluginManifest | undefined => supervisor.manifest(pluginId), options.home?.settingsVersionClaims), redemption: definition => ({ partial: identity.dualInstance(definition) }), scope: "project", hostIds: HOST_PLUGIN_IDS, ...consents ? { consents } : {}, reservedRuleKeys: hostReservedRuleKeys,
       permissionBound: (record, definition) => identity.dualInstance(definition) ? permission => {
         if (!options.home) throw pluginErrors.grant_denied("个人空间插件权限当前不可用");
         return options.home.capturePermission(record, permission);
@@ -286,7 +286,8 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     upgradeCandidates: () => supervisor.upgradeCandidates(),
     upgrade: (pluginId, definition, options) => supervisor.upgrade(pluginId, definition, options),
     rollback: (pluginId, definition) => supervisor.rollback(pluginId, definition),
-    async start(entries) {
+    async start(entries, control) {
+      control?.assertCurrent?.();
       // The supervisor keeps one entry per plugin id and would let a later one silently replace an earlier one.
       const listed = new Set<string>();
       for (const { definition } of entries) {
@@ -296,7 +297,8 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
       assertDatabaseEntries(entries, options.home, "project");
       assertOwnerFilesEntries(homeOwnerFilesEntries(options.home?.directory ?? null), entries, options.home);
       identity.remember(entries);
-      const report = await supervisor.start(entries.map(entry => rememberingRestored(entry, identity.remember)));
+      const report = await supervisor.start(entries.map(entry => rememberingRestored(entry, identity.remember)), control);
+      control?.assertCurrent?.();
       // Deliver whatever was already bound and published before this process.
       wiring.evaluateAll();
       await events.resume(options.project_id);

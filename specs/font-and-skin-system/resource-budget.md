@@ -492,6 +492,64 @@ FOLIO_DESIGN=/Users/yijunwang/code/goalboard-batch-16-design \
 
 原始证据在 B2 工作树已忽略的 `.impeccable/qa/review/batch-16-appearance/`：`first-screen-comparison.json` 明确两棵产品树及逐路径差值，`folio-selected-first-screen.json` 给出选用完整账；静态资产见 `base-wire.json`、`candidate-wire.json`，浏览器命中见 `first-screen-folio-default-final.json`。日志在 `node_modules/.cache/b2-wire-9bd1ace.log`、`b2-folio-first-screen.log`。沿既有 `assets`／`pages` 规则登记本节精确许可；默认页面的额度只取上表净增，不把 Folio 完整字体账加成默认页面的余量。C 最终头再比较实际 merge-base；不复用已被 main 采用的许可，也不放宽其他资源。
 
+### 6.7 C 段真实 Host 资源与首屏实测（2026-11-10，待用户确认）
+
+同一测量器比较基点 `21faff50844046a441173e2318aba26bbe4847f1` 与候选 `c419cd9479a4020bed2ac1c125e4f274b3a80d3a`。两边重建后实测真实 Host，四个默认 Soft 页面各跑中英文、首次与再次打开，示例项目另记。所有静态路径和页面均测到，清单无删除或缩窄。共用页面的文案读取后，另测 25 条资源比优化前候选合计少发 313,917 B。§6.5、§6.6 的字体和 B2 额度继续沿用。下表申请超过 B2 已批净增的差额。
+
+**四页冷、热字节。** 单位 B，冷／热表示首次／再次打开。浏览器净增汇总已完成响应的传输字节，持续打开的事件流没有浏览器最终计数。只读门禁独立量首个完整事件，也复测清单上的同源响应和文档链接。两列各对自己的基点比较。
+
+| 页面 | 语言 | 门禁基点冷／热 | 门禁候选冷／热 | 门禁净增冷／热 | 浏览器净增冷／热 | 申请冷／热 |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 到达 | 中文 | 3,054,484／1,030,448 | 3,296,249／673,021 | +241,765／−357,427 | +269,631／−329,869 | 216,006／0 |
+| 到达 | 英文 | 4,697,055／2,673,019 | 3,324,473／673,064 | −1,372,582／−1,999,955 | −1,343,148／−1,970,829 | 0／0 |
+| 项目选择 | 中文 | 3,381,185／1,314,327 | 3,647,940／980,302 | +266,755／−334,025 | +294,621／−306,467 | 240,996／0 |
+| 项目选择 | 英文 | 5,023,888／2,957,090 | 3,676,277／980,518 | −1,347,611／−1,976,572 | −1,318,177／−1,947,445 | 0／0 |
+| 默认工作台 | 中文 | 4,136,459／1,128,946 | 4,620,116／857,624 | +483,657／−271,322 | +511,523／−243,764 | 422,059／0 |
+| 默认工作台 | 英文 | 5,781,220／2,773,707 | 4,656,712／866,039 | −1,124,508／−1,907,668 | −1,095,072／−1,878,540 | 0／0 |
+| 全插件工作台 | 中文 | 4,276,268／1,268,755 | 4,763,303／1,000,811 | +487,035／−267,944 | +514,901／−240,386 | 425,437／0 |
+| 全插件工作台 | 英文 | 5,922,983／2,915,470 | 4,801,985／1,011,312 | −1,120,998／−1,904,158 | −1,091,562／−1,875,030 | 0／0 |
+
+示例工作台的门禁净增中文 +483,789／−271,190 B，英文 −1,123,648／−1,906,808 B，仅报告。两份工作台词表是新的内容定址资源，每页只取当前语言，中文首次 583,922 B，英文首次 612,103 B，均含响应头。再次打开是实测 304，各 280 B。旧英文翻译从多处内嵌 HTML 移出，英文页面的整页节省大于新资源。终端客户端首次响应由 509,790 增到 531,135 B，再次仍为 298 B。原有 composer 首次由 43,060 增到 44,648 B，再次仍为 298 B，项目选择和三个工作台在两边均纳入。
+
+**只在浏览器观察的语言请求。** 基点无此请求。候选每次打开在 `load` 后由可信 Issues 封套发出一笔 `GET /api/ui/locales`（项目页带项目路径），中文 28,370 B，英文 29,938 B，冷、热一致并已计入浏览器列。隔离 iframe 沿现有消息端口接收词包，未另发请求。该读取需要实际挂载回执，防漏报告单列，硬门禁的只读采样不重放挂载写请求。项目端批量读取实测每次只读一次已有 Home 插件授权，即使同一 owner 有两个挂载也不重复下发词包。账号与项目同步接口原有 400 在基点和候选都出现，浏览器汇总保留了这些响应。
+
+**逐资源响应体差额。** 首屏中的内容定址词表和终端资源已列在上段。下表是静态资产门禁可见且 B2 未覆盖的全部增长，单位 B。
+
+| 路径 | 基点 → 候选 | 净增 | 本次申请 |
+| --- | ---: | ---: | ---: |
+| `/assets/molis-work-workbench.js` | 1,032,744 → 1,145,643 | +112,899 | 94,379 |
+| `/assets/molis-work-plugin-frame.js` | 232,892 → 275,002 | +42,110 | 37,067 |
+| `/assets/molis-work-plugins/plugin-builder.js` | 101,339 → 136,076 | +34,737 | 34,737 |
+| `/assets/molis-work-pages-editor.js` | 509,766 → 525,732 | +15,966 | 15,966 |
+| `/assets/molis-work-plugins/coding.js` | 302,775 → 318,727 | +15,952 | 15,952 |
+| `/assets/molis-work-plugins/alchemist.js` | 44,970 → 51,944 | +6,974 | 6,974 |
+| `/assets/molis-work-capabilities.js` | 52,773 → 57,670 | +4,897 | 4,897 |
+| `/assets/molis-work-plugins/characters.js` | 30,143 → 32,594 | +2,451 | 2,451 |
+| `/assets/molis-work-plugins/workflows.js` | 72,373 → 74,425 | +2,052 | 2,052 |
+| `/assets/molis-work-knowledge.js` | 26,940 → 28,832 | +1,892 | 1,892 |
+| `/assets/molis-work-composer.js` | 42,731 → 44,319 | +1,588 | 1,588 |
+| `/assets/molis-work-plugins/todo.js` | 54,044 → 55,265 | +1,221 | 1,221 |
+| `/assets/molis-work-plugins/feed.js` | 45,378 → 46,433 | +1,055 | 1,055 |
+| `/assets/molis-work-plugins/shelf.js` | 67,566 → 68,594 | +1,028 | 1,028 |
+| `/assets/molis-work-plugins/form.js` | 30,246 → 31,077 | +831 | 831 |
+| `/assets/molis-work-plugins/issues.js` | 27,798 → 28,609 | +811 | 811 |
+| `/assets/molis-work-plugins/jelly.js` | 76,887 → 77,627 | +740 | 740 |
+| `/assets/molis-work-plugins/pages.js` | 39,124 → 39,806 | +682 | 682 |
+| `/assets/molis-work-plugins/lingguang.js` | 23,163 → 23,690 | +527 | 527 |
+| `/assets/molis-work-plugins/images.js` | 21,755 → 22,259 | +504 | 504 |
+| `/assets/molis-work-plugins/dataset.js` | 23,846 → 24,306 | +460 | 460 |
+| `/assets/molis-work-plugins/ppt.js` | 27,353 → 27,791 | +438 | 438 |
+| `/assets/molis-work-plugins/cognia.js` | 23,642 → 24,008 | +366 | 366 |
+| `/assets/molis-work-plugins/files.js` | 13,850 → 14,164 | +314 | 314 |
+| `/assets/molis-work-plugins/schedule.js` | 16,602 → 16,822 | +220 | 220 |
+| `/assets/molis-work-plugins/plugin-builder.css` | 19,836 → 19,911 | +75 | 75 |
+| `/assets/molis-work-plugins/text-stats.js` | 1,275 → 1,295 | +20 | 20 |
+| `/assets/molis-work-plugins/diff.js` | 1,477 → 1,497 | +20 | 20 |
+
+主动打开讨论栏另计。真实 Host 的 `/im?embedded=1` 中文文档增加 10,000 B，英文增加 10,707 B。两种语言的 `/im/client.js` 均由 60,817 增到 80,956 B，样式由 29,502 增到 30,309 B。冷、热均为真实 200，两轮增量相同。该面独立于四页默认账，路径也在静态资产门禁的 `/assets/` 范围外，增长随本次实测一并确认。
+
+原始证据在本批工作树的 `.impeccable/qa/batch-16/`。静态与硬门禁账见 `resource-observation/candidate-c419cd-wire.json`，讨论栏见 `resource-observation/discussion-candidate-c419cd.json`，实际浏览器与防漏报告见 `first-screen-c419cd/browser.json`、`first-screen-c419cd/audit.json`。浏览器基点与调用次数补充证据在 `resource-observation/`。
+
 ## 7. 预算规则
 
 **已定（用户 2026-11-07）：方案二，真实打开一遍算总数；不设绝对上限。**

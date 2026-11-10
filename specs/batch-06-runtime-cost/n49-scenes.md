@@ -65,3 +65,5 @@ node scripts/machine-slot.mjs run browser --label '06 N49 baseline' -- node scri
 | Feed 断连与不可用 | 2 | 1 / 2 / 1 | 2 / 5 | 1 / 6；21 | 3 / 3 / 0 |
 
 每个场景的 Kernel usages 都是 workflow 1/user 2；它们是已有绑定及其依赖的固定工作，不能当作逐候选重复而删掉。所有样本验证实际绑定、候选响应及不可用原因。优化后的真实请求数字、运行中撤权与固定预算反例尚未取得；N49 不记完成。临时日志为 `/private/tmp/molis06-n49-baseline-r2.log`，首轮日志保留在同目录 `molis06-n49-baseline-first.log`。未来正式回归固定优化后预算，不能通过是否存在新方法来切换期望。
+
+2026-11-10 恢复实施时核对 `origin/main` `c7873a0f2`。#1999／#2000 已合，以上在途头改为最终主线证据：#1999 合入 `fad49e455` 的 `action-service.ts` 仍是 SDK `/execution` import，`directory-pass.ts` 仍是同步签名；#2000 合入 `6df7285c3`，保留 `HomePageSubject`、项目成员版本控制和页面草稿等相邻注册。实际 `local-host-scenes`、`plugin-scene-service` 和两个 owner 候选循环无新增主线差异。#2002／#2004 已合，工作台与验收修复留在最终主线统一同步。当前六个开 PR 的文件清单未命中本项场景源码与 API 快照。开发在本批 N12 接回头 `6006f5ca6` 上串行，最终合入 main 时统一再生成快照。

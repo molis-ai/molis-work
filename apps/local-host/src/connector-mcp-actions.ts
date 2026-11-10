@@ -37,7 +37,7 @@ export function createConnectorMcpDirectory(options: { localHost: MolisWorkLocal
   const versions = createMcpVersionBook(path.join(options.homeDirectory, VERSIONS_PATH));
   /** Per connection: its registrations (one per tool, so an unchanged tool is never re-registered), and the exact reference of each, for callers that know the tool by name. */
   const registered = new Map<string, { set: ReturnType<typeof createRegistrationSet>; references: Map<string, ActionReference> }>();
-  const connection = (id: string) => withConnectorConnections(options.homeDirectory, store => store.get(id));
+  const connection = (id: string) => withConnectorConnections(options.homeDirectory, store => store.get(id), true);
   const withdraw = (connectionId: string) => { registered.get(connectionId)?.set.clear(); registered.delete(connectionId); };
 
   const failure = (error: unknown) => (error instanceof ActionError && ["connector.mcp.configuration","connector.mcp.authorization","connector.mcp.disconnected","connector.mcp.provider"].includes(error.code))
@@ -98,7 +98,7 @@ export function createConnectorMcpDirectory(options: { localHost: MolisWorkLocal
   }
 
   function remember(connectionId: string, tools: readonly ConnectorMcpTool[], resources?: readonly unknown[]) {
-    const row = connection(connectionId), config = withConnectorProtocols(options.homeDirectory, store => store.get<StoredMcpConfiguration>(connectionId));
+    const row = connection(connectionId), config = withConnectorProtocols(options.homeDirectory, store => store.get<StoredMcpConfiguration>(connectionId), true);
     // The listing a call makes before it ends no run of failed calls but `reauth` (ASC-58 §13.2 ⑫); a check writes its own result first.
     if (row) rememberConnectorCheck(options.homeDirectory, connectionId, { at: new Date().toISOString(), revision: row.updated_at,
       outcome: "connected", authorization: config?.mode === "none" ? "not-required" : "verified" }, { listedBeforeCall: true });

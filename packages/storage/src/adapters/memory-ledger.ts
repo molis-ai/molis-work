@@ -1,3 +1,4 @@
+import { rollbackPreservingError } from "../transaction-errors.js";
 import type {
   MemoryCandidateRecord,
   MemoryChangeRecord,
@@ -240,7 +241,7 @@ export function openMemoryLedger(options: { homeDirectory: string }): MemoryLedg
       db.exec("BEGIN IMMEDIATE");
       depth += 1;
       try { const result = work(); db.exec("COMMIT"); return result; }
-      catch (error) { db.exec("ROLLBACK"); throw error; }
+      catch (error) { rollbackPreservingError(error, () => db.exec("ROLLBACK")); throw error; }
       finally { depth -= 1; }
     },
     close: () => db.close(),

@@ -165,6 +165,8 @@ test("VUX-16: a side document waits through hidden markup and visible unmounted 
   await browser.command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, browser.sessionId);
   await browser.navigate(() => browser.command("Page.navigate", { url: `${browser.origin}/projects/${browser.projectId}/side/lingguang/side` }, browser.sessionId));
   await bridgePaused;
+  // D0154: the complete side content stays inert until its async mount succeeds.
+  assert.deepEqual(await browser.evaluate("[document.querySelector('[data-side-view-root]').inert, document.querySelector('[data-side-view-root]').getAttribute('aria-busy')]"), [true, "true"]);
   // This is precisely the old wait: parsed markup is present, but startChild has not shown it yet.
   await child.waitFor("document.querySelector('[data-lingguang=workbench]')", 30_000);
   assert.equal(bridgeRequests, 2);
@@ -179,6 +181,7 @@ test("VUX-16: a side document waits through hidden markup and visible unmounted 
   assert.equal(posts, 0); assert.equal(count(), 0, "visible markup alone has not created a spark");
   releaseClient(); releaseClient = () => {};
   await browser.waitFor("document.querySelector('[data-side-view-root] > [data-work-surface=lingguang]')?.dataset.uiClientState === 'ready' && document.querySelector('[data-side-view-root] > [data-work-surface=lingguang]').checkVisibility()", 30_000);
+  assert.deepEqual(await browser.evaluate("[document.querySelector('[data-side-view-root]').inert, document.querySelector('[data-side-view-root]').getAttribute('aria-busy')]"), [false, null]);
   assert.equal(posts, 0); assert.equal(count(), 0, "mounting alone does not create a spark");
   await child.click("[data-lingguang-capture]");
   await child.waitFor("document.querySelector('[data-lingguang-title]')?.getClientRects().length && !!document.querySelector('[data-lingguang-id]')");
@@ -368,6 +371,8 @@ test("RAC-1489: a failed side view load releases the guard and leaves a failure 
     // The catch writes "failed" a second time after the failed message; the same value is still one record.
     { attribute: "data-ui-client-state", oldValue: "failed" },
   ], "one owned cycle: guard on, loading, then guard off and failed");
+  assert.deepEqual(await browser.evaluate("[document.querySelector('[data-side-view-root]').inert, document.querySelector('[data-side-view-root]').getAttribute('aria-busy')]"), [false, null], "D0154 failure releases the enclosing content guard");
+  assert.equal(await browser.evaluate("[...document.querySelectorAll('[data-side-view-root] button')].some(button => button.textContent === '重试' && !button.disabled)"), true, "D0154 failure offers an enabled retry");
   assert.equal(observed.frame, false, "the failed frame is removed");
   assert.ok(observed.notice.length > 0, "the side view tells the user the load failed");
   // The child reports failed over its port; that message lands far before the owner's 10 s deadline.

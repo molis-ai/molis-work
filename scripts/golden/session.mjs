@@ -69,9 +69,29 @@ export function enterHome(home) {
   return real;
 }
 
+const LOOPBACK_HTTP_FAILURES = new Map([
+  ["UND_ERR_SOCKET", "socket_closed"], ["ERR_SOCKET_CLOSED", "socket_closed"],
+  ["ECONNRESET", "connection_reset"], ["ECONNREFUSED", "connection_refused"],
+  ["EPIPE", "broken_pipe"], ["ETIMEDOUT", "timeout"], ["UND_ERR_ABORTED", "aborted"],
+  ["UND_ERR_CONNECT_TIMEOUT", "connect_timeout"], ["UND_ERR_HEADERS_TIMEOUT", "headers_timeout"],
+  ["UND_ERR_BODY_TIMEOUT", "body_timeout"],
+]);
+
+/** Keep the transport cause in process; reports use only this fixed stage and code. */
+function goldenHttpFailure(stage, error) {
+  const where = `http/${stage}`;
+  if (error?.code === "golden.network_refused" || error?.cause?.code === "golden.network_refused") {
+    return goldenFailure("golden.network_refused", where, { cause: error });
+  }
+  const kind = LOOPBACK_HTTP_FAILURES.get(error?.code) ?? LOOPBACK_HTTP_FAILURES.get(error?.cause?.code) ?? "failed";
+  return goldenFailure(`golden.http_${stage}_${kind}`, where, { cause: error });
+}
+
 function respond(response, text, where) {
-  if (response.ok) return text && response.headers.get("content-type")?.includes("json") ? JSON.parse(text) : text || null;
-  throw goldenFailure(`golden.http_${response.status}`, where);
+  if (!response.ok) throw goldenFailure(`golden.http_${response.status}`, where);
+  if (!text || !response.headers.get("content-type")?.includes("json")) return text || null;
+  try { return JSON.parse(text); }
+  catch (error) { throw goldenFailure("golden.http_json_invalid", "http/decode", { cause: error }); }
 }
 
 /**
@@ -93,20 +113,13 @@ export async function openGoldenHost(home, { web = true } = {}) {
   let cookie;
   const http = async (route, { method = "POST", body } = {}) => {
     const token = readFileSync(path.join(real, "config/web-control-token"), "utf8").trim();
-    // `Connection: close` on purpose (UPG2-01, 07 batch audit): this replay makes a handful of requests minutes apart to a Host that may
-    // close an idle keep-alive connection between them. Reusing that socket makes the next POST fail as a bare `fetch failed`
-    // (no code), which the replay can only report as `golden.unexpected_error`; one connection per request has no stale socket to
-    // reuse. A fetch that still fails is told apart from a Host answer, so CI logs say which happened.
-    let response;
-    try {
-      response = await fetch(origin + route, { method, headers: { origin, connection: "close", "content-type": "application/json", "x-molis-work-control-token": token, "x-molis-work-idempotency-key": crypto.randomUUID(), ...(cookie ? { cookie } : {}) },
-        ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
-    } catch (error) {
-      const cause = error instanceof Error ? (error.cause && typeof error.cause === "object" && "code" in error.cause ? String(error.cause.code) : error.message) : String(error);
-      throw goldenFailure("golden.http_fetch_failed", `${method} ${route}: ${cause}`);
-    }
+    // Open a fresh connection for each loopback request so a later POST cannot reuse a socket the Host closed while idle.
+    const response = await fetch(origin + route, { method, headers: { origin, connection: "close", "content-type": "application/json", "x-molis-work-control-token": token, "x-molis-work-idempotency-key": crypto.randomUUID(), ...(cookie ? { cookie } : {}) },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }) })
+      .catch(error => { throw goldenHttpFailure("request", error); });
     cookie = response.headers.get("set-cookie")?.split(";")[0] ?? cookie;
-    return respond(response, await response.text(), route);
+    const text = await response.text().catch(error => { throw goldenHttpFailure("body", error); });
+    return respond(response, text, route);
   };
   return { ...resident, home: real, http };
 }

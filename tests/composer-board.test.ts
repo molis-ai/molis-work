@@ -87,12 +87,18 @@ test("UIC-04: the microphone is in the icon set, the sprite and the board at 16 
 });
 
 test("UIC-04: the running send is named by its stable key on the board, so the board and the product say the same word (Add, not the receipts' Supplement)", async (t) => {
+  // D0292: catalog HTTP specimens are development tools; the production Host deliberately refuses this route.
+  const previous = process.env.MOLIS_WORK_DEVELOPER_MODE;
+  process.env.MOLIS_WORK_DEVELOPER_MODE = "1";
+  t.after(() => { if (previous === undefined) delete process.env.MOLIS_WORK_DEVELOPER_MODE; else process.env.MOLIS_WORK_DEVELOPER_MODE = previous; });
   const label = (html: string) => /<span id="catalog-composer-running-delivery-next-boundary-label">([^<]*)<\/span>/.exec(sectionOf(html, "composer"))?.[1];
   assert.equal(label(renderPrimitiveCatalog()), "补充", "without the platform's words, the Chinese");
   assert.equal(label(renderPrimitiveCatalog({ delivery: "Add" })), "Add");
   const f = await serveHomeRuntime(t);
   for (const [lang, word] of [["en", "Add"], ["zh", "补充"]] as const) {
-    const page = await (await f.request(`/__ui/catalog?lang=${lang}`)).text();
+    const response = await f.request(`/__ui/catalog?lang=${lang}`);
+    assert.equal(response.status, 200, "the development catalog is actually served");
+    const page = await response.text();
     assert.equal(label(page), word, lang);
     assert.match(sectionOf(page, "menu-desc"), new RegExp(`<span id="catalog-menu-desc-delivery-next-boundary-label">${word}</span>`), `${lang}: the menu section too`);
   }

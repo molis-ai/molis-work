@@ -69,7 +69,7 @@ export async function importLocalArtifactDocument(input: Record<string, unknown>
   let usedRevision: string | undefined;
   const assertConnection = () => {
     if (!usedConnection) return;
-    const active = withConnectorConnections(home, store => { const row = store.require(usedConnection!); return store.state(row) === "connected" && row.updated_at === usedRevision; });
+    const active = withConnectorConnections(home, store => { const row = store.require(usedConnection!); return store.state(row) === "connected" && row.updated_at === usedRevision; }, "required");
     if (!active) throw artifactImportErrors.connection_revoked("读取期间连接已断开或改变，请重新授权后导入");
   };
   const offered = ports.offeredPath ? await offeredOriginal(home, ports.projectId, ports.offeredPath, ports.signal) : undefined;

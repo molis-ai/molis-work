@@ -10,8 +10,10 @@ import { ASSISTANT_ATTACHMENTS_FACTORY_SCRIPT } from "./assistant-attachments.js
  * - Drafts stay the Assistant's (K3 补答 1, 6): a work's on the Host (`/works/:id/draft`), a new work's in this viewer's own
  *   storage, read and written through `draft.adapter`; the composer keeps no second copy. Switching receivers writes the words
  *   to the one they were for, then mounts the next with its own.
- * - The ways a supplement reaches a running turn are the Host's (K0b `delivery`): offered only while a turn runs, not while the
- *   next Send answers its question.
+ * - The ways a supplement reaches a running turn are the Host's (K0b `delivery`): while a turn runs they are offered per the Host's
+ *   word; with no turn running, 下一轮再做 is a real queue for a work that has run before (2026-11-09 audit fix), while a new work or
+ *   one that never ran says why it cannot queue. What the next Send does about a waiting question is the receipt chip (ai-input-receipts
+ *   §4.1), above the input, as before K3.
  * - After a new work's first Send the receiver becomes that work: the mount waits until the composer has settled the Send.
  */
 export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what is open (specs/archive/contextual-interaction §6.4.2): what the action directory offers for it,
@@ -106,16 +108,16 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
     ...rows.methods.filter((row) => row.kind !== "skill" || row.skill.user_invocable).map((row) => {
       if (row.kind === "skill") {
         const skill = row.skill, same = (ref) => ref && ref.install_id === skill.ref.install_id && ref.skill_id === skill.ref.skill_id;
-        return { slash: L("方法"), label: skill.name + " · " + skill.pack.title, hint: skill.description || skill.name, run: choose({ kind: "method", title: L("方法") + "：" + skill.name,
+        return { slash: L("方法"), label: skill.name + " · " + skill.pack.title, hint: skill.description || skill.name, run: choose({ kind: "method", title: L("方法：{name}", { name: skill.name }),
           method: { kind: "skill", ref: skill.ref } }, (file) => same(file.method.ref)) };
       }
-      return { slash: L("角色资料"), label: row.name + " · " + row.plugin_title, hint: row.summary || row.name, run: choose({ kind: "method", title: L("角色资料") + "：" + row.name,
+      return { slash: L("角色资料"), label: row.name + " · " + row.plugin_title, hint: row.summary || row.name, run: choose({ kind: "method", title: L("角色资料：{name}", { name: row.name }),
         method: { kind: "role", method_id: row.method_id, version: row.version, default_ref: row.default_ref, installation: row.installation } },
         (file) => file.method.method_id === row.method_id && file.method.installation?.install_id === row.installation.install_id) };
     }),
     ...rows.capabilities.map((row) => {
       const title = row.provider + " · " + row.title;
-      return { slash: L("用"), label: title, hint: row.description || title, run: choose({ kind: "capability", title: L("用") + "：" + title,
+      return { slash: L("用"), label: title, hint: row.description || title, run: choose({ kind: "capability", title: L("用：{title}", { title }),
         capability: { capability_id: row.capability_id, version: row.version, provider_id: row.provider_id, title } }, (file) => file.capability.capability_id === row.capability_id) };
     }),
     ...(project && document.documentElement.dataset.knowledgePicker === "1" ? [{ slash: L("资料"), label: L("选择项目资料…"), hint: L("可多选，读原文给助理"),
@@ -130,12 +132,10 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
       reset: () => { void switchTo(null); input.focus(); }, resetLabel: L("改为开始新工作") };
   };
   /* The choices that are the next Send's, in the bar only once they differ from the default and while the side pane, where they
-     are chosen, is not shown: what the Send does while the turn waits on its question, who carries a new work, the plugin
-     session's mode, the Character. */
+     are chosen, is not shown: who carries a new work, the plugin session's mode, the Character. What the next Send does while the
+     turn waits on its question is the receipt chip above the input (ai-input-receipts §4.1), not a control here. */
   const controlsNow = () => {
-    const work = getWork(), list = [], asking = receipts.choices();
-    if (asking) list.push({ kind: "select", id: "answer", label: L("这次发送"), options: asking.options.map((one) => ({ value: one, label: L(receipts.label(one)) })), value: asking.value,
-      change: (value) => { receipts.choose(value); syncComposer(); } });
+    const work = getWork(), list = [];
     // With the side pane shown, its summary (「谁来做」「方式」, the Character) is where these are chosen, as before K3: one place for
     // each choice, so the composer does not repeat them (implementation-plan §3.2's 「更多」 is the narrow composer's fold, not this).
     if (island.hasAttribute("data-side-shown")) return list;
@@ -161,9 +161,17 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
     return list;
   };
   const deliveryNow = () => {
+    const work = getWork();
     // An answer goes to the question, and words for the questionnaire into its draft: neither reaches the turn as a supplement.
-    const why = receipts.target() === "answer" || receipts.into() ? { available: false, reason: L("这次发送是回答上面的问题；改成「补充这一轮」才能选") } : { available: true };
-    return { "next-boundary": { available: true }, interrupt: why, "after-run": why };
+    const answering = receipts.target() === "answer" || receipts.into();
+    const why = { available: false, reason: L("这次发送是回答上面的问题；改成「补充这一轮」才能选") };
+    // 2026-11-09 audit fix (user decision): without a running turn, 下一轮再做 is a queue the next turn the person begins carries
+    // (K0b's receipt says queued). A work that never ran has no round to wait behind; a new work is no work at all: say why.
+    const session = work ? (work.executor.kind === "plugin" ? work.executor.session_id : work.session_id) : null;
+    const queue = session ? { available: true } : { available: false, reason: work ? L("这一项工作还没开始过一轮，没有可排的下一轮") : L("还没有工作可排；先发一轮") };
+    return { "next-boundary": { available: true },
+      interrupt: answering ? why : { available: true },
+      "after-run": answering ? why : queue };
   };
   let composer = null, mountedFor = null, draftHere = null, painted = "", sending = 0, handedOver = false, inFlight = null;
   let worksArrived; const worksIn = new Promise((resolve) => { worksArrived = resolve; });
@@ -224,7 +232,7 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
       setTimeout(syncComposer, 0);
     }
   };
-  const shown = () => JSON.stringify([receiverNow().label, Boolean(getWork()), controlsNow().map((one) => [one.id, one.value, one.options])]);
+  const shown = () => JSON.stringify([receiverNow().label, Boolean(getWork()), deliveryNow(), controlsNow().map((one) => [one.id, one.value, one.options])]);
   const mountComposer = () => {
     mountedFor = curId || scoped("new-draft"); draftHere = draftFor(curId); painted = shown();
     composer = window.molisComposer(compose, { kind: "ai", entry: "assistant", labels: words, draft: { adapter: draftHere },

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { openBoardBrowser as openGoalBrowser } from "./fixtures/board-browser.js";
 
 // FSS-61: the component board's 语言与文字 section (apps/workbench/src/environment-specimens.ts) switches language in place, the way
 // specs/font-and-skin-system/a-section-contract.md §5.4 merges: only `Text.data` and `setAttribute` are written. This proves the base case on the board;

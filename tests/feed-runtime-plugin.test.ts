@@ -1,3 +1,4 @@
+import { SignalsModule, fromBetterSqlite } from "@molis-ai/molis-work-plugin-feed/store";
 import { listTestFeedSourceCatalog } from "./fixtures/feed-library.js";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
@@ -392,18 +393,28 @@ const pullRecords = (f: Awaited<ReturnType<typeof syncing>>) => f.count("SELECT 
 // The Host's release of a source's history (FI-6 deleted it) was proven in tests/feed-local-history-delete.test.ts; these two cases and the
 // Home ledger's own (tests/feed-content-ledger.test.ts: a body another source or project holds, the holds a failed pull left, a ledger that
 // cannot tell) now prove it for the Runtime Feed.
-test("RAC-518 deleting a source with its local history gives its bodies and search records back, and the commit records it", async t => {
+test("D0117 RAC-518 deleting a source with its local history gives its bodies and search records back, and the commit records it", async t => {
   const f = await syncing(t);
   await f.client.invoke(caller(SYNC).context, feedSourceActions.sync, { source_id: f.sourceId, idempotency_key: "to-delete-key" });
   const refs = f.holds().map(hold => hold.content_ref), bodies = f.bodies();
   assert.equal(refs.length, 2);
   assert.ok(pullRecords(f) > 0, "the pull left its search record");
+  // D0117: seed both payload revisions and a different source, then exercise the real delete action.
+  const signals = new SignalsModule(fromBetterSqlite(f.store.db));
+  const draft = { project_id: DEMO_PROJECT_ID, source_id: f.sourceId, provider_dedupe_id: "history-probe", kind: "update", occurred_at: "2026-11-08T00:00:00.000Z", observed_at: "2026-11-08T00:00:00.000Z", payload: { title: "first" }, raw_event_id: "raw-history-probe", adapter: { plugin_id: "io.example.history", version: "1.0.0" }, provenance: {} };
+  const signal = signals.commands.submitDraft(draft).signal;
+  signals.commands.submitDraft({ ...draft, payload: { title: "second" } });
+  const other = signals.commands.submitDraft({ ...draft, source_id: "other-source" }).signal;
+  assert.equal(f.count("SELECT count(*) AS n FROM signal_revisions WHERE signal_id = ?", signal.signal_id), 2);
   const deleted = await f.client.invoke(caller(DELETE).context, feedSourceActions.delete, { source_id: f.sourceId, history_decision: "delete_local_history" }) as { history_decision: string };
   assert.equal(deleted.history_decision, "delete_local_history");
   assert.deepEqual(f.holds(), [], "the ledger holds nothing of the deleted source");
   for (const ref of refs) assert.ok(!bodies.has(ref), "a body nobody else holds is gone");
   assert.equal(pullRecords(f), 0, "and the search records of its pulls");
   assert.equal(f.count("SELECT count(*) AS n FROM feed_items WHERE source_id = ?", f.sourceId), 0);
+  for (const table of ["signals", "signal_events"]) assert.equal(f.count(`SELECT count(*) AS n FROM ${table} WHERE source_id = ?`, f.sourceId), 0, table);
+  assert.equal(f.count("SELECT count(*) AS n FROM signal_revisions WHERE signal_id = ?", signal.signal_id), 0, "signal payload revisions go with local history");
+  assert.equal(signals.query.get(DEMO_PROJECT_ID, other.signal_id).source_id, "other-source", "another source remains intact");
   assert.equal(f.sourceEvents("deleted"), 1);
   assert.equal(f.sourceEvents("history_released"), 1, "what the release found is recorded with the deletion");
 });

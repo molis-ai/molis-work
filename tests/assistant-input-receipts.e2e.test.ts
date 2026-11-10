@@ -40,11 +40,9 @@ async function shot(browser: SendBrowser, name: string) {
   const evidence = reviewEvidenceUrl("ai-input-receipts/"); await mkdir(evidence, { recursive: true });
   await writeFile(new URL(name, evidence), Buffer.from((await browser.command<{ data: string }>("Page.captureScreenshot", { format: "png" }, browser.sessionId)).data, "base64"));
 }
-// The choice of what this Send does while a question waits is one of the composer's controls (K3): a select, there only while it applies.
-const ANSWER = "document.querySelector('[data-assistant-composer] select[data-composer-control=answer]')";
-const chip = (browser: SendBrowser) => browser.evaluate<string | null>(`(() => { const chip = ${ANSWER}; return chip ? chip.selectedOptions[0].textContent : null; })()`);
-/** The person switches it to the other choice (one change of the select, as one click of the old chip). */
-const flip = (browser: SendBrowser) => browser.evaluate(`(() => { const chip = ${ANSWER}; chip.selectedIndex = (chip.selectedIndex + 1) % chip.options.length; chip.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+// The choice of what this Send does while a question waits is the chip above the input (ai-input-receipts §4.1; restored by the
+// 2026-11-09 audit fix): its words are the choice, and one click switches it.
+const chip = (browser: SendBrowser) => browser.evaluate<string | null>("(() => { const chip = document.querySelector('[data-assistant-answer]'); return chip.hidden ? null : chip.textContent; })()");
 const receipts = (browser: SendBrowser) => browser.evaluate<string[]>("[...document.querySelectorAll('[data-assistant-thread] .mw-receipt__fact')].map(node => node.textContent)");
 
 test("RC-14/RC-15/RCPT-312: while a question waits the chip says what Send does, a supplement's receipt says the question still waits, and a changed receipt is said once on the status region", { timeout: 120_000 }, async t => {
@@ -52,11 +50,11 @@ test("RC-14/RC-15/RCPT-312: while a question waits the chip says what Send does,
   await send(browser, "帮我记一个问题");
   const id = await browser.evaluate<string>(CURRENT_WORK);
   await waitWork(browser, id, view => view.rounds.at(-1)?.phase === "awaiting-input");
-  await browser.waitFor(`Boolean(${ANSWER})`);
+  await browser.waitFor("!document.querySelector('[data-assistant-answer]').hidden");
   assert.equal(await chip(browser), "回答上面的问题", "the default is on the chip");
   await shot(browser, "assistant-target-chip.png");
 
-  await flip(browser);
+  await browser.click("[data-assistant-answer]");
   assert.equal(await chip(browser), "补充这一轮");
   const steered = await sendSeen(browser, "顺便看一下截图");
   assert.equal(steered.target, "steer", "the page sends the choice; the Host never guesses");
@@ -65,7 +63,7 @@ test("RC-14/RC-15/RCPT-312: while a question waits the chip says what Send does,
   assert.match(await browser.evaluate<string>("document.querySelector('[data-assistant-thread] .mw-receipt__note').textContent"), /读到不代表已遵循/u);
   await shot(browser, "assistant-receipt-waiting.png");
 
-  await flip(browser);
+  await browser.click("[data-assistant-answer]");
   await browser.evaluate("window.__waiting = document.querySelector('[data-assistant-thread] .mw-receipt')");
   const answered = await sendSeen(browser, "首页点保存没有反应");
   assert.equal(answered.target, "answer");
@@ -179,10 +177,10 @@ test("RCPT-361, 3e-1: what the AI says it takes as a constraint shows in the sid
   await send(browser, "帮我记一个问题");
   const id = await browser.evaluate<string>(CURRENT_WORK);
   await waitWork(browser, id, view => view.rounds.at(-1)?.phase === "awaiting-input");
-  await browser.waitFor(`Boolean(${ANSWER})`);
-  await flip(browser);
+  await browser.waitFor("!document.querySelector('[data-assistant-answer]').hidden");
+  await browser.click("[data-assistant-answer]");
   await send(browser, "别直接发邮件给客户，我自己发");
-  await flip(browser);
+  await browser.click("[data-assistant-answer]");
   await send(browser, "首页点保存没有反应");
   await waitWork(browser, id, view => view.work.state === "completed");
   const block = "document.querySelector('[data-assistant-block=\"agreements\"]')";

@@ -13,8 +13,8 @@ export function listConnectorConnectionViews(homeDirectory: string, serviceId?: 
       ...(replacedOAuthShape(row) ? { reauth_note: REPLACED_OAUTH_NOTE } : {}) };
     if (row.source !== "external" || !row.enabled || row.disconnected_at) return view;
     // A CLI account stays usable while the CLI configuration that verified it is still there.
-    const configuration = withConnectorProtocols(homeDirectory, protocols => protocols.get(row.connection_id));
+    const configuration = withConnectorProtocols(homeDirectory, protocols => protocols.get(row.connection_id), true);
     return configuration?.protocol === "cli" && configuration.serviceId === row.service_id ? view : { ...view, state: "reauth_required" as const };
-  })));
+  })), true) ?? [];
 }
 

@@ -109,7 +109,7 @@ test("SKC-01: what a content plugin must leave empty is refused when it is not",
     ["只有声明的插件的 capabilities.provides 必须是空列表"]);
   assert.deepEqual(reasons(refused(() => parsePluginManifest(contentManifest({ ui: { contributions: ["io.molis.work.meeting-skills.main"] } })))),
     ["只有声明的插件的 ui.contributions 必须是空列表"]);
-  assert.deepEqual(reasons(refused(() => parsePluginManifest(contentManifest({ methods: [] })))), ["只有声明的插件至少要声明一个方法（methods）"]);
+  assert.deepEqual(reasons(refused(() => parsePluginManifest(contentManifest({ methods: [] })))), ["只有声明的插件至少要声明一个方法（methods）或场景包（blueprint）"]);
   const problems = refused(() => parsePluginManifest(contentManifest({ methods: [skill({ body: undefined })] })));
   assert.deepEqual(problems, [{ skill_id: SKILL, reason: `方法 ${SKILL} 要写 body：只有声明的插件的正文随包发布` }]);
 });

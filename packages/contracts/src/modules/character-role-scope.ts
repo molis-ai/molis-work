@@ -71,9 +71,9 @@ const nonEmptyString = { type: "string", minLength: 1 } as const;
 const positiveSafeInteger = { type: "integer", minimum: 1, maximum: Number.MAX_SAFE_INTEGER } as const;
 const nullValue = { type: "null" } as const;
 const personalRef = closedObjectSchema({ kind: { const: "personal" }, character_id: nonEmptyString });
-const projectRef = closedObjectSchema({ kind: { const: "project" }, member_id: nonEmptyString });
+export const projectRef = closedObjectSchema({ kind: { const: "project" }, member_id: nonEmptyString });
 const assistant = closedObjectSchema({ kind: { const: "assistant" } });
-const personalVersion = closedObjectSchema({ ...personalRef.properties, version: positiveSafeInteger });
+export const personalVersion = closedObjectSchema({ ...personalRef.properties, version: positiveSafeInteger });
 const projectVersion = closedObjectSchema({
   ...projectRef.properties,
   member_version: positiveSafeInteger,

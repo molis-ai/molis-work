@@ -1,3 +1,4 @@
+import { rollbackPreservingError } from "@molis-ai/molis-work-plugin-sdk";
 import { randomUUID } from "node:crypto";
 import { pluginErrors, type PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginConsentGrant, PluginConsentGranter, PluginConsentRecord, PluginPublisherPin, PluginTrust } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
@@ -223,7 +224,7 @@ export class SqlitePluginConsentLedger implements PluginConsentLedger {
     if (this.db.isTransaction === true) return written();
     this.db.exec("BEGIN IMMEDIATE");
     try { const rows = written(); this.db.exec("COMMIT"); return rows; }
-    catch (error) { this.db.exec("ROLLBACK"); throw error; }
+    catch (error) { rollbackPreservingError(error, () => this.db.exec("ROLLBACK")); throw error; }
   }
   consents(pluginId: string): PluginConsentRecord[] {
     return (this.db.prepare("SELECT * FROM plugin_consents WHERE plugin_id = ? ORDER BY rowid").all(pluginId) as ConsentRow[]).map(consentFromRow);

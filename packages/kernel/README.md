@@ -116,3 +116,5 @@ AI来源（Agent、内置助理与外部MCP）的顶层command若声明版本字
 登记的描述在注册时复制一次并整个冻结（`CapabilityRegistry.register`）：`descriptors()`、`descriptor()` 与目录各行（`discover`、`inspect` 的 `action`、`provider`）共用这一份，不再每读一次深拷贝一次（Goals 一家的合同就约 350 KB，目录每页、每次调用都读）。读者改不了它，写入直接抛 `TypeError`，提供方事后改自己的对象也不影响登记；要改的读者自己复制，交给第三方运行时的合同同样先复制（MCP 工具、Agent 工具参数）。回归：`tests/action-service.test.ts`。
 
 显式后台受理的额外权限只收窄原 authority：`retainBackgroundAuthority(additionalPermissions?)` 固定原注册与权限，原 handler 的 beforeEffect 不延长；有入口 hook 时由其复核后台授权，无 hook 时保留原取消。父子 bound 身份分别检查。改这条链补跑 `tests/action-background-authority.test.ts`、`tests/security-invariants-alchemist-resumption.test.ts`。
+
+目录单轮缓存只允许同步回调，嵌套读取共享当前轮，异常退出不保留缓存；验证 `tests/action-directory-pass.test.ts`。执行生命周期与声明校验经 SDK 的公开 `/execution` 子路径引用同一实现。

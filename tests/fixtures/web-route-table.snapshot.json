@@ -81,9 +81,9 @@
     "location": "/capabilities/connections?connector=typesafe"
   },
   "GET /__ui/catalog (page)": {
-    "status": 200,
-    "type": "text/html",
-    "title": "组件板 · Molis Work"
+    "status": 404,
+    "type": "text/plain",
+    "text": "Not found"
   },
   "GET /api/agent-definitions/": {
     "status": 400,

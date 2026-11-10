@@ -288,17 +288,20 @@ export const PROJECT_GUIDANCE_CLIENT_SCRIPT = `
         receipt.hidden = false;
       }
     } catch {}
-    // Promoted from a project memory (项目记忆 → 升级为项目说明): the ordinary confirmation, with the text filled in.
-    try {
-      const draft = new URLSearchParams(location.search).get("draft");
-      if (draft && draft.trim()) {
-        openEditor("add");
-        kindInput.value = "convention";
-        contentInput.value = draft.trim().slice(0, 4000);
+    // D0225: only an opaque, actor/project/purpose-bound one-time reference crosses the URL.
+    const reference = new URLSearchParams(location.search).get("draft_ref");
+    if (reference) {
+      history.replaceState(null, "", location.pathname);
+      void molisWorkRequest(routePrefix + "/api/contextual/draft-reference/take", { body: { purpose: "project-guidance", reference } }).then(async draft => {
+        const [id, version] = JSON.parse(draft.text);
+        const data = await molisWorkRequest(routePrefix + "/api/memory/overview?scope=project");
+        if (!editor.isConnected) return;
+        const memory = data.items.find(item => item.memory_id === id && item.scope === "project" && item.version === version);
+        if (!memory) throw new Error(L("这条记忆已变化或不可用，请返回记忆页重新选择"));
+        openEditor("add"); kindInput.value = "convention"; contentInput.value = memory.text.trim().slice(0, 4000);
         reasonInput.value = L("由项目记忆升级为项目说明");
-        history.replaceState(null, "", location.pathname);
-      }
-    } catch {}
+      }).catch(failure => { if (receipt?.isConnected) { receipt.hidden = false; receipt.setAttribute("role", "alert"); molisWorkRequest.show(receipt, failure); } });
+    }
     function copyReceipt(mode) {
       if (mode === "edit") return L("项目说明的新版本已生效。");
       if (mode === "deactivate") return L("项目说明已停用，Runtime 将不再收到它。");

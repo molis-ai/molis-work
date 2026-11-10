@@ -89,7 +89,7 @@ test("an entry that served two things is split, and two entries for one thing ar
   assert.deepEqual(moved("role.coding.main-reader", 2), ["plugins/native/coding/src/roles.ts"]);
   assert.deepEqual(moved("role.schedule.reader", 2), ["plugins/native/schedule/src/roles.ts"]);
   assert.ok(!entries.includes("format.continuity.assets"), "the same molis-work-assets bundle");
-  assert.deepEqual(moved("format.asset.bundle", 2), ["apps/server/src/assets.ts", "server/src/continuity/service.ts"], "the writer and the reader move together");
+  assert.deepEqual(moved("format.asset.bundle", 2), ["apps/local-host/src/work-assets.ts", "server/src/continuity/service.ts"], "the writer and the reader move together");
   assert.ok(!entries.includes("format.builder.files-envelope"), "the signed package's own envelope");
   assert.ok(moved("format.plugin.package", 2).includes("plugins/native/plugin-builder/src/sync-file-limits.ts"), "the size limit is computed from the package format it limits");
 });

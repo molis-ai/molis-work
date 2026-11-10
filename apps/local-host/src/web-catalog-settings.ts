@@ -70,7 +70,7 @@ export async function handleSettingsPage(ctx: CatalogRequestContext): Promise<bo
     const shown = templates.draft_provider ?? providers.find((provider) => provider.provider_id === selected) ?? providers[0];
     // Which key each provider holds, read in one pass over the connections rather than one open per provider and connection.
     const refs = modelConnections.length ? withConnectorConnections(serverOptions.homeDirectory!, (store) =>
-      new Map(modelConnections.map((connection) => [store.require(connection.connection_id).credential_ref, connection.connection_id]))) : new Map<string | null, string>();
+      new Map(modelConnections.map((connection) => [store.require(connection.connection_id).credential_ref, connection.connection_id])), "required") : new Map<string | null, string>();
     return {
       // Each provider's last real check, so the page says "checked at …" or "never checked" rather than guessing (PF-A04).
       providers, health: withModelChecks(serverOptions.homeDirectory, providers, catalog.models.health()), connections: modelConnections,

@@ -112,7 +112,7 @@ export function connectorAccountActionProvider(home: string, remember: Connector
     definitions: [connectorUsagesAction, modelConnectionUsages, connectorPluginSlotUsages, connectorUsagesSwitchAction, modelProviderSwitch, connectorPluginSlotSwitch, ...Object.values(connectorAccountActions), ...Object.values(connectorManagementActions), ...Object.values(connectorRecordActions), connectorSetupAction, connectorSetupExecuteAction, connectorSetupIntentAction, ...Object.values(connectorLocalActions), ...Object.values(connectorCliActions), ...Object.values(connectorPluginSlotActions)],
     handlers: [connectorUsagesHandler(home, clientFor), modelConnectionUsagesHandler(home), connectorPluginSlotUsagesHandler(home), connectorUsagesSwitchHandler(home, clientFor), modelProviderSwitchHandler(home), connectorPluginSlotSwitchHandler(home, pluginSlots), { capability_id: connectorAccountActions.read.capability_id, version: connectorAccountActions.read.version,
       handle: async (caller, input) => {
-        const id = (input as { connection_id: string }).connection_id, row = withConnectorConnections(home, store => store.get(id)), revision = row?.updated_at;
+        const id = (input as { connection_id: string }).connection_id, row = withConnectorConnections(home, store => store.get(id), true), revision = row?.updated_at;
         // S-70: an account whose refresh was refused is not read with its old access token; the person logs in again first.
         if (row?.auth_method === "oauth" && refreshRefused(home, row)) throw accountErrors.needs_auth("这个账号的登录已失效，请重新登录");
         await caller.beforeEffect();

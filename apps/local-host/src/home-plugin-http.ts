@@ -290,9 +290,9 @@ export async function renderHomePluginStages(host?: HomePluginHost, options?: { 
   const surfaces: Array<Pick<UiRenderRequest, "contribution_id" | "surface">> = [], unavailable: UnavailablePluginStage[] = [];
   let page: RenderedStagePage | undefined;
   if (!host) return { html, panels, overlays, surfaces, unavailable };
-  let platform: HomePluginPlatform | undefined, failure: string | undefined;
+  let platform: HomePluginPlatform | undefined, failure: { code: string; message: string } | undefined;
   try { platform = await host.ready(); }
-  catch (error) { failure = error instanceof Error ? error.message : String(error); }
+  catch (error) { failure = { code: error instanceof ActionError ? error.code : "actions.plugin_unavailable", message: L("Home 插件启动失败，请查看插件状态。") }; }
   const registered = host.registered().flatMap(entry => {
     if (options?.shown && !options.shown.includes(entry.key)) return [];
     const registration = PLATFORM_PLUGIN_REGISTRATIONS.find(item => item.project_plugin_id === entry.key && item.manifest.plugin_id === entry.manifest.plugin_id);
@@ -324,7 +324,7 @@ export async function renderHomePluginStages(host?: HomePluginHost, options?: { 
     if (!options?.views && host.dualInstance(pluginId) && !view) continue;
     if (view) {
       try { draw(entry, view); }
-      catch (error) { unavailable.push(homeUnavailableStage(host, platform, error instanceof Error ? error.message : String(error), entry)); }
+      catch (error) { unavailable.push(homeUnavailableStage(host, platform, { code: error instanceof ActionError ? error.code : "actions.plugin_unavailable", message: L("Home 插件启动失败，请查看插件状态。") }, entry)); }
     } else unavailable.push(homeUnavailableStage(host, platform, failure, entry));
   }
   return { html, panels, overlays, surfaces, unavailable, ...(page ? { page } : {}) };
@@ -334,17 +334,18 @@ export async function renderHomePluginStages(host?: HomePluginHost, options?: { 
  * The Home's placeholder for a plugin's stage: the start failure, else why an installed package did not come back, else the
  * supervisor's message, else what the instance's state says.
  */
-function homeUnavailableStage(host: HomePluginHost, platform: HomePluginPlatform | undefined, failure: string | undefined,
+function homeUnavailableStage(host: HomePluginHost, platform: HomePluginPlatform | undefined, failure: { code: string; message: string } | undefined,
   entry: { project_plugin_id: string; manifest: PluginManifest }): UnavailablePluginStage {
-  const install = host.installation(entry.manifest.plugin_id);
-  return { surface: entry.project_plugin_id, label: entry.manifest.name, scope: "home",
-    reason: L(failure ?? host.packageError(entry.manifest.plugin_id) ?? platform?.supervisor.state(entry.manifest.plugin_id)?.message
+  const install = platform ? host.installation(entry.manifest.plugin_id) : null;
+  const state = platform?.supervisor.state(entry.manifest.plugin_id);
+  return { ...(state ? { status: state.status === "running" ? undefined : state.status, code: state.code } : { code: failure?.code }), surface: entry.project_plugin_id, label: entry.manifest.name, scope: "home",
+    reason: L(failure?.message ?? (state?.status === "starting" ? "插件正在启动，请稍候。" : null) ?? host.packageError(entry.manifest.plugin_id) ?? state?.message
       ?? (install?.state === "running" ? "插件页面未注册" : "插件已停用")) };
 }
 
 /** The running Home instance's view of this stage: the contribution the Manifest names, with its `workbench` surface. */
 function homeStageView(host: HomePluginHost, platform: HomePluginPlatform | undefined, pluginId: string, contributionId: string) {
-  const install = host.installation(pluginId);
+  const install = platform ? host.installation(pluginId) : null;
   const contribution = install?.state === "running" ? platform?.runtime.contribution(install.install_id) : null;
   return contribution?.kind === "app" ? contribution.views?.find(view => view.descriptor.contribution_id === contributionId
     && view.descriptor.surfaces?.some(surface => surface.surface_id === "workbench")) : undefined;
@@ -356,15 +357,15 @@ function homeStageView(host: HomePluginHost, platform: HomePluginPlatform | unde
  */
 export async function homeStageHalves(host?: HomePluginHost): Promise<HomeStageHalves | undefined> {
   if (!host) return undefined;
-  let platform: HomePluginPlatform | undefined, failure: string | undefined;
+  let platform: HomePluginPlatform | undefined, failure: { code: string; message: string } | undefined;
   try { platform = await host.ready(); }
-  catch (error) { failure = error instanceof Error ? error.message : String(error); }
+  catch (error) { failure = { code: error instanceof ActionError ? error.code : "actions.plugin_unavailable", message: L("Home 插件启动失败，请查看插件状态。") }; }
   const outsideCatalog = host.registered().filter(entry => host.dualInstance(entry.manifest.plugin_id)
     && !PLATFORM_PLUGIN_REGISTRATIONS.some(item => item.project_plugin_id === entry.key && item.manifest.plugin_id === entry.manifest.plugin_id))
     .map(entry => ({ project_plugin_id: entry.key, manifest: entry.manifest }));
   return { outsideCatalog, entries: host.registered().map(entry => ({ project_plugin_id: entry.key, manifest: entry.manifest })),
     owner: entry => captureRuntimeStageOwner(platform, "home", entry),
     dualInstance: pluginId => host.dualInstance(pluginId),
-    half: (pluginId, contributionId) => ({ running: host.installation(pluginId)?.state === "running", view: homeStageView(host, platform, pluginId, contributionId) !== undefined }),
+    half: (pluginId, contributionId) => ({ running: platform ? host.installation(pluginId)?.state === "running" : false, view: homeStageView(host, platform, pluginId, contributionId) !== undefined }),
     unavailable: entry => homeUnavailableStage(host, platform, failure, entry) };
 }

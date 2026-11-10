@@ -1,5 +1,5 @@
 import { ActionError, bindActionHandler, type ActionDefinition, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginInstalledPermissionView, PluginInstalledView, PluginPublisherPin } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
+import { PLUGIN_INSTALL_WRITE, type PluginInstalledPermissionView, type PluginInstalledView, type PluginPublisherPin } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import { SKILL_LIMITS } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { SKILL_INSTALL_PREVIEW_SCHEMA, skillImportActions } from "@molis-ai/molis-work-contracts/services/skills";
 import { assertHomePluginPermissionSettingsEntry, assertPluginConsentSettingsEntry, assertPluginPermissionSettingsEntry } from "./plugin-consent-settings-entry.js";
@@ -13,7 +13,7 @@ import type { SkillImportService } from "./skill-import.js";
 
 export const PLUGIN_INSTALL_PROVIDER_ID = "plugin-install";
 export const PLUGIN_INSTALL_READ = "plugin-install:read";
-export const PLUGIN_INSTALL_WRITE = "plugin-install:write";
+export { PLUGIN_INSTALL_WRITE };
 export const PLUGIN_INSTALL_PERMISSIONS = [PLUGIN_INSTALL_READ, PLUGIN_INSTALL_WRITE];
 
 const metadata = { audiences: ["user"], subject_kinds: [] } as const;
@@ -61,8 +61,8 @@ export const pluginInstallActions = {
     output_schema: { type: "object", additionalProperties: false, required: ["preview_id", "name", "runtime_scope", "preview", "effects", "publisher"], properties: {
       preview_id: text, name: text, runtime_scope: { enum: ["home", "project"] }, effects,
       publisher: { type: "object", additionalProperties: false, required: ["key_id", "pinned_label"], properties: { key_id: text, pinned_label: { type: ["string", "null"] } } },
-      agent_bodies: { type: "array", maxItems: 128, items: { type: "object", additionalProperties: false, required: ["kind", "name", "excerpt"], properties: {
-        kind: { type: "string", enum: ["role"] }, name: { type: "string", maxLength: 80 }, excerpt: { type: "string", maxLength: 400 }, change: { type: "string", enum: ["added", "changed", "removed"] } } } },
+      agent_bodies: { type: "array", maxItems: 128, items: { type: "object", additionalProperties: false, required: ["kind", "name", "excerpt", "body", "total_chars", "truncated"], properties: {
+        kind: { type: "string", enum: ["role"] }, name: { type: "string", maxLength: 80 }, excerpt: { type: "string", maxLength: 400 }, body: { type: "string", maxLength: 8000 }, total_chars: { type: "integer", minimum: 0, maximum: 8000 }, truncated: { type: "boolean" }, change: { type: "string", enum: ["added", "changed", "removed"] } } } },
       // An upgrade lists the Skills it removes besides the package's own, so twice the most one package declares.
       skills: { type: "array", maxItems: 2 * SKILL_LIMITS.skillsPerPackage, items: SKILL_INSTALL_PREVIEW_SCHEMA },
       requires: { type: "array", items: { type: "object", additionalProperties: false, required: ["capability_id", "version", "optional", "reason", "satisfied"], properties: {
@@ -158,20 +158,21 @@ export const pluginControlActions = {
 export const pluginInstallDefinitions = (imports?: SkillImportService) =>
   [...Object.values(pluginInstallActions), ...Object.values(pluginControlActions), ...imports ? Object.values(skillImportActions) : []] as ActionDefinition[];
 
+export function pluginInstallPerson(caller: Parameters<ActionHandlerBinding["handle"]>[0]): { project_id: string; actor_id: string } {
+  if (!caller.user_action) throw new ActionError("actions.forbidden", "安装插件只接受本人在界面或命令行里的操作");
+  if (!caller.project_id) throw new ActionError("actions.project_required", "请选择要安装到的项目");
+  return { project_id: caller.project_id, actor_id: caller.actor_id };
+}
+
 export function pluginInstallHandlers(service: PluginInstallService, imports?: SkillImportService): ActionHandlerBinding[] {
-  const person = (caller: Parameters<ActionHandlerBinding["handle"]>[0]) => {
-    if (!caller.user_action) throw new ActionError("actions.forbidden", "安装插件只接受本人在界面或命令行里的操作");
-    if (!caller.project_id) throw new ActionError("actions.project_required", "请选择要安装到的项目");
-    return { project_id: caller.project_id, actor_id: caller.actor_id };
-  };
   return [
     { capability_id: pluginInstallActions.preview.capability_id, version: pluginInstallActions.preview.version, handle: async (caller, input) => {
-      const who = person(caller); await caller.beforeEffect();
-      return service.preview(input as PluginInstallPreviewInput, who);
+      const who = pluginInstallPerson(caller); await caller.beforeEffect();
+      return service.preview(input as PluginInstallPreviewInput, who, caller);
     } },
     bindActionHandler(pluginInstallActions.bundled, () => service.bundled()),
     { capability_id: pluginInstallActions.confirm.capability_id, version: pluginInstallActions.confirm.version, handle: async (caller, input) => {
-      const who = person(caller); await caller.beforeEffect();
+      const who = pluginInstallPerson(caller); await caller.beforeEffect();
       return await service.confirm(input as { preview_id: string; consent: boolean; pin_label?: string }, who, caller);
     } },
     { capability_id: pluginInstallActions.publishers.capability_id, version: pluginInstallActions.publishers.version, handle: () => ({ publishers: service.publishers() }) },
@@ -181,7 +182,7 @@ export function pluginInstallHandlers(service: PluginInstallService, imports?: S
       return { publisher: service.revokePublisher((input as { key_id: string }).key_id) };
     } },
     ...(["disable", "enable", "uninstall"] as const).map((action): ActionHandlerBinding => ({ capability_id: pluginControlActions[action].capability_id, version: pluginControlActions[action].version, handle: async (caller, input) => {
-      const who = person(caller); await caller.beforeEffect();
+      const who = pluginInstallPerson(caller); await caller.beforeEffect();
       const { plugin_id, keep_data } = input as { plugin_id: string; keep_data?: boolean };
       return { plugin_id, state: await service.control(action, { plugin_id, keep_data: keep_data === true }, who) };
     } })),
@@ -212,11 +213,11 @@ export function pluginInstallHandlers(service: PluginInstallService, imports?: S
     // The person's own, as installing is: a Skill imported here is a package installed here.
     ...imports ? [
       bindActionHandler(skillImportActions.preview, async (input, caller) => {
-        const who = person(caller); await caller.beforeEffect();
+        const who = pluginInstallPerson(caller); await caller.beforeEffect();
         return imports.preview(input, who);
       }),
       bindActionHandler(skillImportActions.confirm, async (input, caller) => {
-        const who = person(caller); await caller.beforeEffect();
+        const who = pluginInstallPerson(caller); await caller.beforeEffect();
         return imports.confirm(input, who, caller);
       }),
     ] : [],

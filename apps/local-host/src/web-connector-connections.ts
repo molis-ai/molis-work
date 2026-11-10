@@ -67,10 +67,10 @@ export async function handleConnectorConnectionsHttp(
     if (request.method === "GET" && item) {
       const result = withConnectorConnections(homeDirectory, store => {
         const row = store.require(item[1]!);
-        const protocol = withConnectorProtocols(homeDirectory, protocols => protocols.get(row.connection_id));
+        const protocol = withConnectorProtocols(homeDirectory, protocols => protocols.get(row.connection_id), true);
         return { connection: store.view(row), revision: row.updated_at,
           authorization_flow: protocol?.protocol === "oauth" ? "oauth" : "account" };
-      });
+      }, "required");
       sendJson(response, 200, result);
       return true;
     }
@@ -109,7 +109,7 @@ export async function handleConnectorConnectionsHttp(
         const current = store.require(item[1]!);
         return { kind: "token", input: normalizeConnectorTokenInput({ serviceId: current.service_id, displayName: typeof body.display_name === "string" ? body.display_name : current.display_name, token: body.token as string }),
           target: { connectionId: current.connection_id, expectedRevision: current.updated_at } };
-      }) : undefined;
+      }, "required") : undefined;
       const setupId = typeof body.setup_id === "string" ? body.setup_id : undefined;
       const plan = completion ? { service_id: completion.input.serviceId, method: "token" as const, connection_id: item[1]! } : undefined;
       // A new key replaces the old one only once the service accepts it (§13.6 ④d): until then, and when it is refused, the old key stays.

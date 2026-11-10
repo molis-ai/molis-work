@@ -591,6 +591,9 @@ test("S-68 the key of an edge is the plugin's own: stored under its id and read 
   assert.equal(mine.get("edge-shared")?.key, "edge-shared");
   assert.equal(mine.history("edge-shared").length, 1);
   assert.equal(mine.get(`${peer.id}:edge-shared`), null, "naming another plugin's stored key reaches nothing: it is read as a bare key of this plugin");
+  assert.deepEqual(mine.list({ keys: ["edge-shared", `${peer.id}:edge-shared`] }).map(edge => edge.key), ["edge-shared"], "D0195 S-68: exact-key batches namespace every key and never read a peer's key");
+  assert.deepEqual(mine.list({ keys: [] }), []);
+  assert.throws(() => mine.list({ keys: Array.from({ length: 201 }, () => "edge-shared") }), { code: "context_ledger.invalid_reference" });
   assert.deepEqual(mine.history(`${peer.id}:edge-shared`), []);
   assert.equal(await run(main, "remove"), true);
   assert.equal(mine.get("edge-shared"), null, "a removed edge is no longer read");

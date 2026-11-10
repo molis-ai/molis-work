@@ -193,7 +193,7 @@ summary.append(copy); const mark = $("chevron"); if (mark) summary.append(mark.c
 const body = el("div", "plugin-trust-body");
 body.append(el("span", "settings-muted", plugin.plugin_id + (plugin.publisher_signature && plugin.trust !== "host" ? " · " + short(plugin.publisher_signature) : "")));
 if (revoked && revoked.has(plugin.publisher_signature)) body.append(el("span", "settings-muted", L("发布者的信任已撤销：它不再运行，只能卸载")));
-else if (plugin.recovery_error) body.append(el("span", "settings-form-error", L("没能启动：{error}", { error: plugin.recovery_error })));
+else if (plugin.recovery_error) body.append(el("span", "settings-form-error", L("没能启动：{error}", { error: L(plugin.recovery_error === "plugin.publisher_revoked" ? "发布者的信任已撤销" : plugin.recovery_error === "plugin.manifest_version_invalid" ? "插件版本与当前平台不匹配" : "插件暂时无法启动，请重试或查看诊断") })));
 const work = el("div"), repaint = () => work.replaceChildren(jobs(plugin.jobs, plugin.permissions));
 if (plugin.manifest_available) { body.append(grants(plugin, repaint, send, managed)); repaint(); body.append(work); } else body.append(el("span", "settings-muted", L("读不到这个插件安装时声明的权限")));
 const reach = act === homeApi ? reachViews.get(plugin.plugin_id) : null;
@@ -254,7 +254,14 @@ const body = el("div", "plugin-trust-agent-body");
 body.append(el("strong", "", L(item.kind === "role" ? "角色资料" : "方法") + "：" + item.name));
 if (item.change) body.append(el("p", "settings-muted", L({ added: "新增正文", changed: "正文已变化", removed: "已移除正文" }[item.change])));
 const excerpt = el("pre", "", item.excerpt); excerpt.style.whiteSpace = "pre-wrap"; excerpt.style.overflowWrap = "anywhere";
-body.append(excerpt); bodies.append(body);
+body.append(excerpt);
+if (item.truncated) {
+body.append(el("p", "settings-muted", L("正文已截断，确认前可展开查看完整内容。")));
+const details = el("details", ""); details.append(el("summary", "", L("查看完整正文")));
+const full = el("pre", "", item.body); full.style.whiteSpace = "pre-wrap"; full.style.overflowWrap = "anywhere";
+details.append(full); body.append(details);
+}
+bodies.append(body);
 }); panel.append(bodies);
 }
 const effects = Object.keys(shown.effects || {}).filter((key) => shown.effects[key] && shown.effects[key].length);

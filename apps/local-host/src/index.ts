@@ -107,20 +107,16 @@ export { DemoProjectLifecycle, type DemoProjectSeedPort } from "./demo-project-l
 export { exists } from "./project-file-paths.js";
 export type { CreateMolisWorkProjectInput, ManageMolisWorkDemoProjectInput, MolisWorkDemoProjectResult } from "./project-catalog-contract.js";
 
-export { CATALOG_BASELINE, initializeCatalog, assertOwnedCatalog, assertCurrentCatalog, type CatalogDesktopSchema } from "./catalog-schema.js";
+export { CATALOG_BASELINE, initializeCatalog, assertOwnedCatalog, assertCurrentCatalog } from "./catalog-schema.js";
 
 export * from "./project-catalog.js";
 export { seedDemoBoard, seedDemoGoals, DEMO_PROJECT_ID } from "./demo-seed.js";
 export {
-  seedDemoPluginSurfaces,
   seedDemoHomeSamples,
   enableDemoProjectPlugins,
-  DEMO_GITHUB_SOURCE_ID,
-  DEMO_GMAIL_SOURCE_ID,
   DEMO_CORE_ARTIFACT_ID,
 } from "./demo-plugin-seed.js";
 
-export { createDemoFeedApplication, createDemoFeedSourceService, type DemoFeedApplicationOptions, type DemoFeedSourceOptions } from "./demo-feed-library.js";
 export { createNotificationDelivery, declaredNotificationReceivers } from "./plugin-notification-delivery.js";
 export { HOST_ARTIFACT_PRODUCERS, artifactTypeDeclarations, declaredArtifactTypes, artifactContinuers, artifactReferrerActions, artifactLinkSubjectActions, continuerReadsFile, artifactProducerSources, artifactLinkKinds, linkKindProblems, installedArtifacts, supervisedArtifacts, type ArtifactProducerSource, type InstalledArtifactView } from "./artifact-type-registry.js";
 export { bindProjectArtifacts } from "./declared-types.js";
@@ -132,7 +128,6 @@ export { seedSceneRules, withFunctionsService } from "./judgment-rules-host.js";
 export { createSourcePullRuntime, type SourcePullRuntime } from "./source-pull-runtime.js";
 export { createIntelligenceCollectAdapter, type IntelligenceCollectRequest, type IntelligenceCollectResult, type IntelligenceCollectAdapter } from "./search-intelligence-client.js";
 
-export type { FeedSourceService, RegisterFeedSourceInput, UpdateFeedSourceInput, ConfigureFeedSourceScheduleInput, FeedSourceSyncResult, FeedSourceCatalogView } from "@molis-ai/molis-work-plugin-feed";
 
 export { withConnectorConnections } from "./connector-connection-store.js";
 export { connectLocalMcp } from "./connector-local-mcp-setup.js";
@@ -408,3 +403,7 @@ export { WebSessions } from "./web-sessions.js";
 
 export { currentNamedSkills, roundSkillCatalog, type RoundSkillReaders } from "./agent-round-skills.js";
 export { SkillCatalog, type CatalogSkill, type SkillCatalogPorts } from "./agent-definitions/skill-catalog.js";
+
+export { gatewayFactory } from "./continuity-gateway.js";
+export { configureMemberActions } from "./continuity-admin.js";
+export { restoreWorkAssets, readRestoredAssets } from "./work-assets.js";

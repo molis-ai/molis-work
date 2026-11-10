@@ -7,8 +7,8 @@ import { randomUUID } from "node:crypto";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { changeMcpClientCredential, MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
-import { configureMemberActions } from "../apps/server/src/admin-grants.js";
-import { gatewayFactory } from "../apps/server/src/gateway.js";
+import { configureMemberActions } from "@molis-ai/molis-work-app-local-host";
+import { gatewayFactory } from "@molis-ai/molis-work-app-local-host";
 import { CONTINUITY_ACTIONS } from "@molis-ai/molis-work-server";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 
@@ -35,7 +35,8 @@ test("local administrator grants through the protected owner API and gateway kee
     await configureMemberActions({...admin,memberId:'member-b',role:'viewer'});
     assert.ok((await first.client.discover(first.caller)).some(a=>a.capability_id==='goals.progress.record'));
     assert.equal((await second.client.discover(second.caller)).some(a=>a.capability_id==='goals.progress.record'),false);
-    const state=await first.client.invoke(first.caller,action('goals.state.read'),{goal_id:'gateway-goal'}) as {goal_event_cursor:number};
+    const states=await first.client.invoke(first.caller,action('goals.states.read'),{goal_ids:['gateway-goal']}) as Array<{state:{goal_event_cursor:number}}>;
+    const state=states[0]!.state;
     const input={goal_id:'gateway-goal',idempotency_key:randomUUID(),based_on_cursor:state.goal_event_cursor,expected_goal_cursor:state.goal_event_cursor,summary:'真实Gateway跨进程进展'};
     const saved=await first.client.invoke(first.caller,action('goals.progress.record'),input) as {event_id:string;progress_summary:{actor_id:string}};
     assert.equal(saved.progress_summary.actor_id,'runtime:cross-device:member-a');

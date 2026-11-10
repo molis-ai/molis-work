@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { DatabaseSync } from "node:sqlite";
-import { sqliteErrorName, type SqliteDatabase } from "@molis-ai/molis-work-storage";
+import { rollbackPreservingError, sqliteErrorName, type SqliteDatabase } from "@molis-ai/molis-work-storage";
 import { openTestSqlite as open } from "@molis-ai/molis-work-test-kit/sqlite";
 
 const OFFICIAL_LOCKED_NODE = process.release.sourceUrl?.startsWith("https://nodejs.org/") && process.version === `v${readFileSync(".nvmrc", "utf8").trim()}`;
@@ -375,4 +375,19 @@ test("SQLD-02 a library in the Home is on node:sqlite without this layer, where 
   // pluginDatabaseClient calls prepare and then get, all or run on such a connection. The first statement runs; the second is never compiled.
   db.prepare("INSERT INTO t VALUES ('first'); DELETE FROM t").run();
   assert.deepEqual((db.prepare("SELECT v FROM t").all() as { v: string }[]).map(row => row.v), ["kept", "first"]);
+});
+
+
+test("D0056 D0294 rollback failure preserves the transaction error and its cause", t => {
+  const db = memory(t), original = new Error("original statement failed", { cause: new Error("original cause") }), rollback = new Error("rollback failed");
+  const driver = Reflect.get(db, "database") as { exec(sql: string): unknown };
+  const exec = driver.exec.bind(driver);
+  t.mock.method(driver, "exec", (sql: string) => { if (sql === "ROLLBACK") throw rollback; return exec(sql); });
+  assert.throws(() => db.transaction(() => { throw original; })(), error => error === original);
+  assert.equal(original.cause?.message, "original cause");
+  assert.equal(Reflect.get(original, "rollbackError"), rollback);
+  assert.equal(Object.keys(original).includes("rollbackError"), false, "cleanup diagnostic is not serialized as response data");
+  for (const error of ["primitive", null, Object.freeze(new Error("frozen"))]) {
+    rollbackPreservingError(error, () => { throw rollback; });
+  }
 });

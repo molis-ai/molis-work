@@ -76,6 +76,7 @@ node scripts/run-tests.mjs tests/projects-module.test.ts tests/project-directori
   - 目录事实只在本模块：一个文件夹的 id 在第一次关联时定下并跟路径走；写只经 `changeDirectories`，带读到的 revision；另一台设备来的引用只经 `workspace_source_links` 对应到本机文件夹，不按同名路径猜。
   - 身份只有 `project_id`：目录条目、项目数据库、库里的根行 `project_root` 与 Goals 的看板同值。项目库正好有一行根行，项目库里引用项目的外键（插件声明的表也一样）指向它，不指向 Goals 的表；根行不存标题，显示名只在目录里（`docs/platform/PLUGIN-DEVELOPMENT.md`「项目库里插件自己的表」）。
   - `query.projectPluginMembership` 在一次同步查询中共用当前常开判断，返回派生成员与过滤后的隐藏标记；先读取注册表，再查项目。结果不留在实例中，后续调用及等待后的写前检查仍须重新读取当前状态。`storedProjectPluginMembership` 只返回显示事实，不能代替它作可达性判断。
+  - `query.projectPluginMembershipWithRevision` 在同一目录事务内读取成员、隐藏标记和按写入顺序的最后一条成员事件，返回不透明 revision。`commands.setProjectPlugin` 取得写锁后先核对 revision，再走已有增删规则和事件写入。使用正确 revision 重复启用常开派生成员时，直接返回当前成员。
   - 卸载检查只提供目录事实，不删除用户文件。
   - `query.wasProjectPluginRemoved` 只读本项目的移除事实，供可信 Host 区分从未安装和用户主动移除；同步到达不能覆盖后者的本机选择。
   - 卸载检查只列 `projects` 表里的项目（`listCatalogProjectsForUninstall`）；`catalog_meta` 归 storage，目录是不是本产品的，由宿主用 `LocalCatalogMetadata` 判断后再问本模块。

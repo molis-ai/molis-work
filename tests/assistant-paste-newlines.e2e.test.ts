@@ -41,7 +41,7 @@ test("BL-953 底栏/助理输入框：粘贴多行中文后换行还在，输入
   assert.ok(grown <= bar, `…and stays inside the bar's line, which keeps its height (${grown} in ${bar})`);
   assert.equal(await evaluate("(() => { const f = document.querySelector('[data-assistant-composer] .mw-composer__input'); return f.scrollHeight > f.clientHeight; })()"), true, "the lines past the ceiling scroll inside the field");
 
-  // ⌘/Ctrl+Enter sends (UIC-03: a bare Enter is the line break); the sent text keeps the breaks.
+  // ⌘/Ctrl+Enter sends (UIC-05: a bare Enter is the line break); the sent text keeps the breaks.
   await command("Input.dispatchKeyEvent", { type: "rawKeyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, sessionId);
   await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, sessionId);
   await waitFor("window.__sent.length >= 1");

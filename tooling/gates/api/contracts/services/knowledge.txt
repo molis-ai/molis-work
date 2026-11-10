@@ -110,6 +110,10 @@ export type KnowledgeCardState = "pending" | "ready" | "listed" | "failed" | "ov
 export interface KnowledgeCardStorePort {
     get(projectId: string, subject: ActionSubject): KnowledgeCardRecord | null;
     list(projectId: string): KnowledgeCardRecord[];
+    page(projectId: string, query: KnowledgeCardsRequest): {
+        cards: KnowledgeCardRecord[];
+        total: number;
+    };
     put(record: KnowledgeCardRecord): void;
     remove(projectId: string, subject: ActionSubject): void;
     removeProject(projectId: string): number;
@@ -130,6 +134,7 @@ export interface KnowledgeCardStorePort {
 }
 
 export interface KnowledgeCardsRequest {
+    subject?: ActionSubject;
     states?: KnowledgeCardState[];
     limit?: number;
     offset?: number;

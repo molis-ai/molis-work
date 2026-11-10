@@ -75,7 +75,7 @@ export function functionsCredentialConfigured(home: string, options: FunctionsHo
   const ref = selected ? withConnectorConnections(home, store => {
     const connection = store.get(selected.connection_id);
     return connection && connection.service_id === "typesafe" && connection.enabled && !connection.disconnected_at ? connection.credential_ref : null;
-  }) : null;
+  }, true) : null;
   return !!ref && runWithMolisWorkHome(home, () => peekSealedEntry(ref) !== null);
 }
 

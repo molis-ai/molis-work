@@ -5,7 +5,7 @@ export function createContextLedger(db: ContextLedgerDatabase, options: ContextL
 }
 
 export { CONTEXT_LEDGER_SCHEMA, createContextLedgerSchema, type ContextLedgerDatabase } from "./repository.js";
-export { type ContextLedgerOptions } from "./service.js";
+export { contextEdgeQueryKeys, type ContextLedgerOptions } from "./service.js";
 export { createContextMaterializer } from "./materialization.js";
 export { goalContextReplicationDefinition } from './replication.js';
 export {createContextHistoryReplication,type ContextHistoryReplicationOptions} from './history-replication.js';

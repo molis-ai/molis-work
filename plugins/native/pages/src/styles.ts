@@ -208,6 +208,7 @@ export const PAGES_STYLES = `
   }
   .pages-editor-host .ProseMirror .pages-image-frame:hover .pages-image-resize,
   .pages-editor-host .ProseMirror .pages-image-frame.is-selected .pages-image-resize { opacity: 1; } @media (hover: none) { .pages-editor-host .ProseMirror .pages-image-resize { opacity: 1; } }
+  .pages-editor-host .ProseMirror .pages-image-resize:focus-visible { opacity: 1; outline: var(--focus-stroke); outline-offset: 2px; }
   .pages-editor-host .ProseMirror .pages-image-caption {
     display: block; width: 100%; box-sizing: border-box; margin: 4px 0 0; padding: 4px 0;
     border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 0.92em; text-align: center;

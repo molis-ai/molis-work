@@ -34,6 +34,9 @@ importers:
       '@molis-ai/molis-work-app-mcp':
         specifier: workspace:*
         version: link:apps/mcp
+      '@molis-ai/molis-work-app-server':
+        specifier: workspace:*
+        version: link:apps/server
       '@molis-ai/molis-work-app-workbench':
         specifier: workspace:*
         version: link:apps/workbench
@@ -221,9 +224,6 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: 1.31.0
         version: 1.31.0(zod@4.4.3)
-      '@molis-ai/molis-work-app-server':
-        specifier: workspace:*
-        version: link:apps/server
       '@molis-ai/molis-work-im-ui':
         specifier: workspace:*
         version: link:packages/im-ui
@@ -519,27 +519,15 @@ importers:
 
   apps/server:
     dependencies:
-      '@molis-ai/molis-work-app-desktop':
-        specifier: workspace:*
-        version: link:../desktop
-      '@molis-ai/molis-work-app-local-host':
-        specifier: workspace:*
-        version: link:../local-host
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
       '@molis-ai/molis-work-im-ui':
         specifier: workspace:*
         version: link:../../packages/im-ui
-      '@molis-ai/molis-work-plugin-runtime':
-        specifier: workspace:*
-        version: link:../../packages/plugin-runtime
       '@molis-ai/molis-work-server':
         specifier: workspace:*
         version: link:../../server
-      '@molis-ai/molis-work-storage':
-        specifier: workspace:*
-        version: link:../../packages/storage
 
   apps/workbench:
     dependencies:
@@ -552,12 +540,6 @@ importers:
       '@molis-ai/molis-work-im-ui':
         specifier: workspace:*
         version: link:../../packages/im-ui
-      '@molis-ai/molis-work-integration-gmail':
-        specifier: workspace:*
-        version: link:../../plugins/official-integrations/gmail
-      '@molis-ai/molis-work-integration-rss':
-        specifier: workspace:*
-        version: link:../../plugins/official-integrations/rss
       '@molis-ai/molis-work-module-artifacts':
         specifier: workspace:*
         version: link:../../modules/artifacts
@@ -678,6 +660,9 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@molis-ai/molis-work-plugin-sdk':
+        specifier: workspace:*
+        version: link:../../packages/plugin-sdk
 
   horizontal/kit:
     dependencies:
@@ -836,6 +821,10 @@ importers:
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../plugin-sdk
+    devDependencies:
+      esbuild:
+        specifier: ^0.28.2
+        version: 0.28.2
 
   packages/kernel:
     dependencies:

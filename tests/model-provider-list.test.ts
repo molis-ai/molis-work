@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { randomUUID } from "node:crypto";
+import { existsSync, readFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { createServer, type IncomingHttpHeaders, type Server } from "node:http";
 import { tmpdir } from "node:os";
@@ -75,6 +76,17 @@ test("ASC-56 设置页取模型：填的密钥、已存的连接都能取；已�
     // Without the page's token nothing is sent to the service.
     assert.equal((await ask({ base_url: serviceA, api_format: "anthropic-messages", api_key: secret }, false)).status, 403);
     assert.equal(seen.length, 0);
+
+    // D0276: a list with no key or an unknown connection rejects without creating or changing the registry.
+    const registryPath = path.join(root, "home", "connectors", "connectors.db");
+    const registrySnapshot = () => existsSync(registryPath) ? readFileSync(registryPath) : null;
+    const registryBefore = registrySnapshot();
+    for (const form of [{ base_url: serviceA, api_format: "anthropic-messages" },
+      { base_url: serviceA, api_format: "anthropic-messages", connection_id: "missing-connection" }]) {
+      assert.equal((await ask(form)).status, 400);
+      assert.equal(seen.length, 0, "a missing key never contacts a service");
+      assert.deepEqual(registrySnapshot(), registryBefore, "a failed read never creates or changes the registry");
+    }
 
     // A typed key goes to the address on the form, in the format's own header.
     let response = await ask({ base_url: serviceA, api_format: "anthropic-messages", api_key: secret });

@@ -5,7 +5,7 @@
 let current: WeakMap<object, Map<unknown, unknown>> | undefined;
 
 /** Runs `run` as one pass; a nested directory joins the pass it is in. */
-export function inDirectoryPass<T>(run: () => T): T {
+export function inDirectoryPass<T>(run: () => T & (Extract<T, PromiseLike<unknown>> extends never ? unknown : never)): T {
   if (current) return run();
   current = new WeakMap();
   try { return run(); } finally { current = undefined; }

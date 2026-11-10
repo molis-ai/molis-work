@@ -1,3 +1,4 @@
+import { UI_HOST_CLIENT_CODES } from "@molis-ai/molis-work-contracts/platform/ui";
 import assert from "node:assert/strict";
 import test from "node:test";
 import vm from "node:vm";
@@ -19,7 +20,7 @@ function helper() {
     newKey: () => "one-time-key-0001",
     translate: text => text,
   };
-  return { sent, request: createUiRequest(ports) };
+  return { sent, request: createUiRequest(ports, UI_HOST_CLIENT_CODES) };
 }
 
 const FOREIGN = [

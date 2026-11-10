@@ -29,7 +29,7 @@ export async function submitLocalMcpSetup(home: string, id: string, environment:
   let installationId = retained?.id, installationReady = retained?.ready === true;
   const current = async () => {
     await control.beforeEffect(); control.signal?.throwIfAborted(); pending.assertCurrent();
-    if (setup.connection_id && withConnectorConnections(home, store => store.get(setup.connection_id!)?.updated_at) !== setup.expected_revision) throw connectorErrors["connector.connection.invalid"]("原连接已变化，请重新准备安装");
+    if (setup.connection_id && withConnectorConnections(home, store => store.get(setup.connection_id!)?.updated_at, true) !== setup.expected_revision) throw connectorErrors["connector.connection.invalid"]("原连接已变化，请重新准备安装");
   };
   try {
     return await withConnectorRequest(home, id, control.signal, async signal => {

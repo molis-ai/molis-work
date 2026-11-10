@@ -26,13 +26,6 @@ if (isMainScript(import.meta.url)) {
   const status = replay.status ?? 1, { summary, notices } = reported(replay.stdout ?? "", status);
   process.stdout.write(replay.stdout ?? "");
   for (const notice of notices) process.stdout.write(`${notice}\n`);
-  if (status !== 0) {
-    // A failed replay reports where and which code, not the error's own message (UPG2-03 leaves the data out; the message is what a person
-    // fixing it needs). Run the same replay once more with --debug so the log carries the message and stack; the verdict stays the first run's.
-    process.stdout.write("\nthe failing replay again, with --debug:\n");
-    const debug = spawnSync(process.execPath, ["--disable-warning=ExperimentalWarning", script, ...process.argv.slice(2), "--debug"], { encoding: "utf8", stdio: ["ignore", "ignore", "inherit"], maxBuffer: 16 * 1024 * 1024 });
-    if (debug.error) process.stderr.write(`ci-golden-replay: the debug replay did not start: ${debug.error.message}\n`);
-  }
   // The summary is only for people: failing to write it does not change the verdict.
   if (process.env.GITHUB_STEP_SUMMARY) {
     try { appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary); } catch (error) { process.stderr.write(`ci-golden-replay: the job summary could not be written: ${error instanceof Error ? error.message : String(error)}\n`); }

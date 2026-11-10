@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
-import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { openBoardBrowser as openGoalBrowser } from "./fixtures/board-browser.js";
 import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
 
 // 08 skill packs (docs/design/skill-packs/README.md「组件板新增」, decided 2026-11-04): the component board draws the five new

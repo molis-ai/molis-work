@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import test from "node:test";
 import { pluginOnDemandStylesheet, pluginWorkbenchPacks } from "@molis-ai/molis-work-app-workbench";
-import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { openBoardBrowser as openGoalBrowser } from "./fixtures/board-browser.js";
 import { HOVER_HIDDEN, HOVER_RULES, hoverFocus, hoverShown, type HoverHidden, type HoverRule } from "./fixtures/hover-audit.js";
 
 // specs/visual-ui-experience §geometry-boundaries and §adaptive-focus (VUX-06, VUX-29): an action a row shows only while a
@@ -82,7 +82,7 @@ test("VUX-06: actions hidden until hover on the board, the project page and ever
       await target("Emulation.setEmulatedMedia", { features: on ? [{ name: "hover", value: "none" }, { name: "pointer", value: "coarse" }, { name: "any-hover", value: "none" }, { name: "any-pointer", value: "coarse" }] : [] });
     }
   };
-  await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 800, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await browser.setViewport(1280, 800);
   const found: string[] = [];
   let checked = 0;
   for (const [name, path] of surfaces) {
@@ -236,8 +236,8 @@ test("VUX-06: every stylesheet rule that draws something on hover also draws it 
     for (const rule of rules) found.set(rule.selector, `${rule.selector}${rule.keyboard ? "" : " — no keyboard focus"}${rule.touch ? "" : " — hidden without hover"}`);
     }
   }
-  // SYS-08 gives both column handles real focus-visible states. Image sizing still uses its announced keyboard command.
+  // D0268/SYS-08: the image handle and both column handles now reveal on keyboard focus too.
   assert.ok(missingSheetRejected, "PG070-N2-02 exercised a declared plugin sheet in a real frame");
   const left = [...found].filter(([selector]) => !cleared.has(selector)).map(([, line]) => line);
-  assert.deepEqual(left, [".pages-editor-host .ProseMirror .pages-image-frame:hover .pages-image-resize — no keyboard focus"]);
+  assert.deepEqual(left, [], "every hover reveal also has keyboard and touch access");
 });

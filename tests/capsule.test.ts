@@ -6,7 +6,7 @@ import test from "node:test";
 import { createLocalHostCapsule, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { renderDesktopCapsuleShell } from "@molis-ai/molis-work-app-desktop";
 const { buildCapsuleSnapshot, renderCapsuleShell } = createLocalHostCapsule(renderDesktopCapsuleShell);
-import { eventDirectoryPresentation, type GoalActionKind, type GoalDisplayStatus } from "@molis-ai/molis-work-plugin-goals";
+import { readGoalCapsuleMenu, eventDirectoryPresentation, type GoalActionKind, type GoalDisplayStatus } from "@molis-ai/molis-work-plugin-goals";
 import type { GoalRecord } from "@molis-ai/molis-work-plugin-goals/contract";
 import type { MolisWorkWebView, WebGoalView } from "./workbench-renderer-fixture.js";
 import { GoalProjectApplication, boardSnapshot } from "./fixtures/goal-application.js";
@@ -443,7 +443,7 @@ test("capsule shell is one menu-bar popover with horizontal state tabs and inlin
   assert.doesNotMatch(html, />Pause<|>Resume<|>Start</);
 });
 
-test("SYS-09 a cancelled Goal's production event projection stays Cancelled and explicitly resumable in the capsule", t => {
+test("D0013 SYS-09 a cancelled Goal's production event projection stays Cancelled and explicitly resumable in the capsule", t => {
   const home = mkdtempSync(join(tmpdir(), "cancelled-capsule-"));
   const store = new LocalProjectDatabase(join(home, "project.db"));
   t.after(() => { store.close(); rmSync(home, { recursive: true, force: true }); });
@@ -458,7 +458,47 @@ test("SYS-09 a cancelled Goal's production event projection stays Cancelled and 
   const record = boardSnapshot(store, project_id).goals.find(row => row.goal_id === goal_id)!;
   const item = { ...webGoal(record, "invalidated"), ...projection };
   const result = buildCapsuleSnapshot(view([item], goal_id), []);
+  assert.equal(result.state.kind, "cancelled");
   assert.equal(result.state.label, "已取消");
   assert.equal(result.state.action_label, "显式继续");
+  assert.equal(result.default_tab, "cancelled");
+  assert.equal(result.tabs.some(tab => tab.kind === "continue"), false);
   assert.equal(result.tabs.some(tab => tab.kind === "blocked"), false);
+  assert.equal(result.tabs.some(tab => tab.kind === "continue"), false);
+  assert.deepEqual(result.tabs.map(tab => tab.kind), ["cancelled"]);
+  assert.equal(result.default_tab, "cancelled");
+  const advertised = buildCapsuleSnapshot(view([item], goal_id), [{goal_id}]);
+  assert.equal(advertised.tabs.some(tab => tab.kind === "continue"), false, "a stale directory hint cannot make a cancelled goal immediately actionable");
+  const other = goal("real-next", "真正可以推进的目标");
+  const withNext = buildCapsuleSnapshot(view([item,webGoal(other,"execution_pending")],goal_id), [{goal_id}, {goal_id:other.goal_id}]);
+  assert.equal(withNext.default_goal_id, other.goal_id, "cancelled work does not displace an actionable goal");
+  assert.equal(withNext.tabs.find(tab=>tab.kind === "cancelled")?.items[0]?.action_label,"显式继续");
+});
+
+test("D0044 menu query returns one bounded owner summary without expanding Goal event bodies", () => {
+  const store = new LocalProjectDatabase(":memory:");
+  try {
+    const app = new GoalProjectApplication(store), project_id = PROJECT.project_id;
+    app.initializeBoard({ project_id, actor_id: "person", idempotency_key: "D0044:init" });
+    assert.equal(readGoalCapsuleMenu(store.db, project_id).focus, null);
+    for (let index = 0; index < 205; index++) app.goalEvents.createIntent({ project_id, title: "摘要 " + index, actor_id: "person", actor_kind: "user", idempotency_key: "D0044:" + index });
+    const queries: string[] = [];
+    const summary = readGoalCapsuleMenu({ prepare(sql) { queries.push(sql); return store.db.prepare(sql); } }, project_id);
+    assert.equal(summary.focus?.state, "execution_pending"); assert.equal(summary.focus?.count, 205);
+    assert.equal(summary.focus?.historical, false);
+    assert.equal(queries.length, 1); assert.match(queries[0]!, /LIMIT 1/);
+    assert.doesNotMatch(queries[0]!, /SELECT (?:[a-z]+\.)?\*|payload_json|summary_text|agreement_json/i);
+    assert.ok(JSON.stringify(summary).length < 300, "205 Goals do not become a 205-row menu response");
+    const menu = createLocalHostCapsule(renderDesktopCapsuleShell).buildCapsuleMenu(PROJECT, summary);
+    assert.match(menu.state.menu_bar_title, /可记录.*205/);
+    const cancelled = app.goalEvents.createIntent({ project_id, title: "取消的方向", actor_id: "person", actor_kind: "user", idempotency_key: "D0044:cancel" }).goal.goal_id;
+    const before = app.goalEvents.readState(project_id, cancelled);
+    app.goalEvents.submitClosure({ project_id, goal_id: cancelled, actor_id: "person", actor_kind: "user", idempotency_key: "D0044:close", kind: "cancel", reason: "方向改变",
+      expected_config_version: before.config.version, expected_agreement_version: before.agreement.version });
+    const cancelledMenu = createLocalHostCapsule(renderDesktopCapsuleShell).buildCapsuleMenu(PROJECT, readGoalCapsuleMenu(store.db, project_id));
+    assert.equal(cancelledMenu.state.menu_bar_title, "已取消");
+    assert.match(cancelledMenu.state.action_path, new RegExp(cancelled + "$"));
+    app.initializeBoard({ project_id: "foreign", actor_id: "person", idempotency_key: "D0044:foreign" });
+    assert.equal(readGoalCapsuleMenu(store.db, "foreign").focus, null);
+  } finally { store.close(); }
 });

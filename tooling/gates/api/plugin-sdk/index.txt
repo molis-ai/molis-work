@@ -119,6 +119,13 @@ export interface CardStore<Card extends ActionCard = ActionCard> {
 export interface ContentPackage {
     manifest: PluginManifest;
     skills: PackagedSkillBody[];
+    blueprint?: {
+        default: Blueprint;
+        others: readonly {
+            locale: string;
+            blueprint: Blueprint;
+        }[];
+    };
 }
 
 export interface ContentPackageInput {
@@ -274,6 +281,8 @@ export declare const PAGE_ROUTE_LIMITS: Readonly<{
 
 export { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 
+export declare const PLUGIN_ID: RegExp;
+
 export declare const PLUGIN_MESSAGE_LIMITS: {
     readonly entries: 5000;
     readonly keyLength: 120;
@@ -413,6 +422,13 @@ export declare const QUESTION_REASK: Readonly<{
     maxTextChars: 8000;
 }>;
 
+export type RoleTemplateInspectionOptions = {
+    readonly source: "draft";
+} | {
+    readonly source: "package";
+    readonly owner: string;
+};
+
 export declare const SANDBOX_IMAGE_PERMISSIONS: Readonly<{
     read: "image-api:read";
     write: "image-api:write";
@@ -453,11 +469,65 @@ export interface SandboxManifestInput {
     ownerFiles?: readonly PluginOwnerFileEntry[];
 }
 
+export type SandboxSchemaFailure = (kind: "invalid_json" | "invalid_schema" | "schema_mismatch", reason: string) => never;
+
 export type { SearchEntriesInput } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { SearchEntriesPage } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { SearchEntry } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { SearchOpenTarget } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { SearchSourceKind } from "@molis-ai/molis-work-contracts/platform/actions";
+
+export type SettingSnapshot = {
+    readonly key: string;
+    readonly revision: string;
+} & ({
+    readonly state: "ok";
+    readonly layers: SettingLayers;
+} | {
+    readonly state: "unavailable";
+    readonly reason: string;
+});
+
+export interface SettingsActions {
+    readonly read: ActionDefinition<SettingsReadInput, SettingsValues>;
+    readonly write: ActionDefinition<SettingsWriteInput, SettingsValues>;
+}
+
+export interface SettingsActionsOptions {
+    readonly scope: ActionMetadata["scope"];
+    readonly read: SettingsActionOptions;
+    readonly write: SettingsActionOptions;
+}
+
+export interface SettingsOwner {
+    readonly owner_id: string;
+    readonly errors: ErrorCodeRaisers<{
+        setting_conflict: "conflict";
+        setting_invalid: "invalid";
+    }>;
+    read(scope: SettingsOwnerScope, keys: readonly string[]): readonly SettingSnapshot[] | Promise<readonly SettingSnapshot[]>;
+    transaction<R>(scope: SettingsOwnerScope, run: (transaction: SettingsTransaction) => R): R;
+}
+
+export interface SettingsOwnerScope {
+    readonly owner_id: string;
+    readonly actor_id: string;
+    readonly project_id: string | null;
+}
+
+export type SettingsRequestIdentity = Pick<SettingsWriteInput, "key" | "layer" | "request_id">;
+
+export interface SettingsTransaction {
+    readReceipt(identity: SettingsRequestIdentity): SettingsWriteReceipt | undefined;
+    readCurrent(key: string): SettingSnapshot;
+    writeChange(input: Pick<SettingsWriteInput, "key" | "layer" | "change">): void;
+    saveReceipt(identity: SettingsRequestIdentity, receipt: SettingsWriteReceipt): void;
+}
+
+export interface SettingsWriteReceipt {
+    readonly request: SettingsWriteInput;
+    readonly result: SettingsValues;
+}
 
 export interface SkillFrontmatterOptions {
     version?: number;
@@ -580,6 +650,15 @@ export declare function assertManifest(manifest: PluginManifest): void;
 
 export declare function assertSandboxAgentDefinition(definition: Pick<PluginDefinition, "manifest" | "agent_prompts" | "agent_prompt_names" | "agent_skills" | "methods">): void;
 
+export declare function assertJson(value: unknown, fail: SandboxSchemaFailure): asserts value is SandboxJson;
+// exported from this entry as "assertSandboxJson"
+
+export declare function assertMatches(schema: SandboxSchema, value: unknown, fail: SandboxSchemaFailure, path?: string): asserts value is SandboxJson;
+// exported from this entry as "assertSandboxMatches"
+
+export declare function assertSchema(schema: unknown, fail: SandboxSchemaFailure): asserts schema is SandboxSchema;
+// exported from this entry as "assertSandboxSchema"
+
 export { bindActionHandler } from "@molis-ai/molis-work-contracts/platform/actions";
 export { bindArtifactCompare } from "@molis-ai/molis-work-contracts/platform/actions";
 export { bindArtifactContinue } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -595,6 +674,12 @@ export declare function bindPluginActionRoute<Input, Output>(context: PluginStar
 
 export { bindPresentationValuesHandler } from "@molis-ai/molis-work-contracts/platform/presentation";
 export { bindSearchEntriesHandler } from "@molis-ai/molis-work-contracts/platform/actions";
+
+export declare function bindSettingsHandlers(actions: SettingsActions, declaration: SettingsDeclaration, owner: SettingsOwner): {
+    readonly read: ActionHandlerBinding;
+    readonly write: ActionHandlerBinding;
+};
+
 export { bindWorkflowContentHandlers } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export declare function canonicalJsonText(value: unknown, unsupported: "null"): string;
@@ -619,6 +704,10 @@ export declare function compareCodeUnits(left: string, right: string): number;
 export declare function comparePluginVersions(left: string, right: string): number;
 
 export declare function compareTexts(before: string, after: string): TextDiff;
+
+export declare function completeContentPackagePayload(input: LocalPackageSignInput, publisher: PluginManifest["publisher"]): PluginPackagePayload;
+
+export declare function contentPackageDraft(input: Omit<ContentPackageInput, "publisher">): LocalPackageSignInput;
 
 export declare function contentPackagePayload(input: ContentPackageInput): PluginPackagePayload;
 
@@ -678,6 +767,9 @@ export declare function definePollingIntegrationPlugin(input: {
 export { definePresentationOverviewAction } from "@molis-ai/molis-work-contracts/platform/presentation";
 export { definePresentationValuesAction } from "@molis-ai/molis-work-contracts/platform/presentation";
 export { defineSearchEntriesAction } from "@molis-ai/molis-work-contracts/platform/actions";
+
+export declare function defineSettingsActions(options: SettingsActionsOptions): SettingsActions;
+
 export { defineSubjectContextAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineSubjectOffersAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineWorkExecutorAction } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -703,7 +795,22 @@ export declare function inspectActionCrossReferences(definitions: unknown): stri
 
 export declare function inspectActionDeclarations(definitions: unknown, scenes: unknown): string[];
 
+export declare function inspectBlueprint(value: unknown, options: RoleTemplateInspectionOptions): readonly PluginDeclarationProblem[];
+
+export declare function inspectBlueprintLocales(defaultBlueprint: unknown, others: readonly {
+    locale: string;
+    blueprint: unknown;
+}[], options: {
+    owner: string;
+}): readonly PluginDeclarationProblem[];
+
+export declare function inspectCharacterTemplateAdoption(input: CharacterTemplateAdoptionInput): readonly PluginDeclarationProblem[];
+
 export declare function inspectContentPlugin(manifest: Readonly<Record<string, unknown>>): PluginDeclarationProblem[];
+
+export declare function inspectHomePageDraft(value: unknown): readonly PluginDeclarationProblem[];
+
+export declare function inspectRoleTemplate(value: unknown, options: RoleTemplateInspectionOptions): readonly PluginDeclarationProblem[];
 
 export declare function instantIn(day: string, time: string, zone: string | undefined): string | null;
 
@@ -816,6 +923,10 @@ export declare function refuseDeclarations(problems: ReadonlyArray<string | Plug
 
 export { resolveActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
 
+export declare function resolveEffectiveSetting(snapshot: SettingSnapshot): EffectiveSetting;
+
+export declare function rollbackPreservingError(original: unknown, rollback: () => unknown): void;
+
 export declare function runActionCard<Card extends ActionCard>(card: Card, input: {
     revision: number;
     values: Record<string, string>;
@@ -894,6 +1005,18 @@ export declare function syncTupleLocation(surface: string, project: boolean, ind
 
 export declare function textDiffRow(op: DiffOp): TextDiffRow;
 
+export declare function validateAdoptsDeclaration(manifest: {
+    readonly adopts?: unknown;
+    readonly actions?: unknown;
+    readonly plugin_id?: unknown;
+}): readonly PluginDeclarationProblem[];
+
+export declare function validateSettingsDeclaration(manifest: {
+    readonly settings_entries?: unknown;
+    readonly actions?: unknown;
+    readonly plugin_id?: unknown;
+}): readonly PluginDeclarationProblem[];
+
 export declare function wallClockIn(at: number, zone: string | undefined): {
     day: string;
     time: string;
@@ -914,3 +1037,11 @@ type LiteralSchemaDefinition<S extends ActionSchema, Output> = Omit<ActionDefini
         readonly input_schema: S & (string extends keyof S ? never : unknown);
     };
 };
+
+interface SettingsActionOptions {
+    readonly capability_id: string;
+    readonly version: number;
+    readonly title: string;
+    readonly description: string;
+    readonly permissions: readonly string[];
+}

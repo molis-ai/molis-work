@@ -2,7 +2,7 @@ import { openStudioChrome, dedicatedBuilderBrowser } from './fixtures/plugin-bui
 import { serveHomeRuntime } from './fixtures/home-runtime.js';
 import { LOCAL_PERSON_ACTOR_ID, type ActionDefinition } from '@molis-ai/molis-work-contracts/platform/actions';
 import { verifyPluginPackageSignature } from '@molis-ai/molis-work-plugin-runtime';
-import { studioFrameAsset, framedStudioPage, isolatedStudioHarness } from "./fixtures/studio-framed-page.js";
+import { createStudioBrowserServer, studioFrameAsset, framedStudioPage, isolatedStudioHarness } from "./fixtures/studio-framed-page.js";
 import { pluginPagesFor, sendLocalWebJson, authorizeLocalWebRequest, HomeConsentLedger, type LocalMutationState } from "@molis-ai/molis-work-app-local-host";
 import { memoryStorage, proposal, detail, experience, finding, detailUsing, proposalsUsing, detailWithFour, composition, PROPOSALS, CAPABILITY_WORDS, COMPONENT_WORDS, GOALS_CATALOG, until } from './fixtures/builder-workflow-design.js';
 import assert from 'node:assert/strict';
@@ -140,7 +140,7 @@ async function revisionHelperStudio(t: TestContext, setup: { configure?: (answer
   };
   const mutations = new Map<string, LocalMutationState>();
   const trialKeys: string[] = [], trialProbes: Promise<void>[] = [], trialProbeErrors: unknown[] = [];
-  server = createServer((request, response) => {
+  server = createStudioBrowserServer(f.home, f.token, (request, response, pageProof) => {
     const url = new URL(request.url ?? '/', 'http://localhost');
     if (studioFrameAsset(response, url.pathname)) return;
     const stylesheet = url.pathname === '/assets/molis-work-plugins/plugin-builder.css' ? pluginOnDemandStylesheet('plugin-builder') : url.pathname === '/assets/molis-work-settings.css' ? VISUAL_FOUNDATION_STYLES : undefined;
@@ -155,7 +155,7 @@ async function revisionHelperStudio(t: TestContext, setup: { configure?: (answer
     void pluginPagesFor(f.home).bind(request, url).then(async release => {
       if (release) response.once('close', release);
       if (key && url.searchParams.get('frame') === 'workbench') await setup.trialPage?.(key, url.pathname.split('/').at(-1)!, send);
-      return handleAgentStudioHttp(request, response, local, options, f.token);
+      return handleAgentStudioHttp(request, response, local, options, pageProof);
     }).then(handled => { if (!handled) sendLocalWebJson(response, 404, {}); }).catch(error => sendLocalWebJson(response, 400, { error: String(error) }));
   });
   await new Promise<void>(resolve => server!.listen(0, '127.0.0.1', resolve));
@@ -1502,14 +1502,14 @@ test('SCOPE-1 UI-1 Home checks use the actual target, then physical signed downl
       return record;
     } }; } };
   const mutations = new Map<string, LocalMutationState>();
-  const server = createServer((request, response) => {
+  const server = createStudioBrowserServer(f.home, f.token, (request, response, pageProof) => {
     const url = new URL(request.url ?? '/', 'http://localhost');
     if (studioFrameAsset(response, url.pathname)) return;
-    if (url.pathname === '/__t149_studio') { response.writeHead(200, { 'content-type': 'text/html' }); response.end(isolatedStudioHarness(f.home, project.project_id, f.token)); return; }
+    if (url.pathname === '/__t149_studio') { response.writeHead(200, { 'content-type': 'text/html' }); response.end(isolatedStudioHarness(f.home, project.project_id, pageProof)); return; }
     if (!authorizeLocalWebRequest(request, response, url, f.token, mutations)) return;
     void pluginPagesFor(f.home).bind(request, url).then(release => { if (release) response.once('close', release);
       const local = new URL(url); if (local.pathname.startsWith(options.routePrefix + '/')) local.pathname = local.pathname.slice(options.routePrefix.length);
-      return handleAgentStudioHttp(request, response, local, options, f.token);
+      return handleAgentStudioHttp(request, response, local, options, pageProof);
     }).then(handled => { if (!handled) sendLocalWebJson(response, 404, { error: 'not found' }); }).catch(error => sendLocalWebJson(response, 400, { error: String(error) }));
   });
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));

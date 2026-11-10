@@ -15,11 +15,13 @@ import type { CatalogSkill } from "./skill-catalog.js";
 /** The catalog reads existing owners once per call: installations, verified packages, declarations, and scoped settings. */
 export function skillCatalogProviderFor(home: string, source: ProjectPluginHost) {
   const definitions = homeAgentDefinitions(home), packages = new SandboxPackageStore(home), ledger = new HomeConsentLedger(home);
-  const skills = async (caller: ActionCallContext): Promise<CatalogSkill[]> => {
+  const publishers = () => new Map(ledger.publishers().map(pin => [pin.key_id, pin]));
+  const withSkills = async <Result>(caller: ActionCallContext, use: (skills: readonly CatalogSkill[]) => Result): Promise<Result> => {
     const { reference, installations } = await scopeInstallations(source, caller);
-    const localKey = localPublisherKeyId(home);
-    const pins = new Map(ledger.publishers().map(pin => [pin.key_id, pin]));
     const directory = await source.host.inspectActions(caller, reference);
+    const localKey = localPublisherKeyId(home);
+    // A publisher can be revoked during inspection while its installation still runs. Take one snapshot and use it synchronously.
+    const pins = publishers();
     const result: CatalogSkill[] = [];
     for (const { record, manifest, scope, recoveryError, assertCurrent: assertInstallation } of installations) {
       if (!manifest?.methods?.length) continue;
@@ -56,8 +58,7 @@ export function skillCatalogProviderFor(home: string, source: ProjectPluginHost)
             skill_id: declaration.skill_id, version: declaration.version, install_id: record.install_id, installation_generation: record.installation_generation },
           pack: { plugin_id: record.plugin_id, title: english ? words[manifest.name] ?? manifest.name : manifest.name, version: record.version, publisher_label: pin?.label ?? manifest.publisher.publisher_id,
             trust: record.publisher_trust === "host" ? "host" : record.publisher_signature === localKey ? "home_local" : "pinned", scope },
-          // The snapshot reads the ledger once; a read path compares its captured pin and never reopens an owner.
-          assertCurrent: () => { assertInstallation(); },
+          assertCurrent: assertInstallation,
           // After an await, the caller reads the ledger once and passes the live pins here instead of reopening it per Skill (N42–N44).
           assertPublisher: (live: ReadonlyMap<string, PluginPublisherPin>) => {
             if (record.publisher_trust !== "pinned") return;
@@ -65,10 +66,9 @@ export function skillCatalogProviderFor(home: string, source: ProjectPluginHost)
           } });
       }
     }
-    return result;
+    return use(result);
   };
-  return skillCatalogProvider({ definitions, skills, resource: (skill, path) => packages.skillResource(skill.ref.source.plugin_id,
+  return skillCatalogProvider({ definitions, withSkills, resource: (skill, path) => packages.skillResource(skill.ref.source.plugin_id,
     skill.ref.source.publisher_signature, skill.ref.source.plugin_version, skill.ref.skill_id, path),
-    // Read once by an action that must recheck a publisher after an await; read paths use the snapshot's own pins.
-    publishers: () => new Map(ledger.publishers().map(pin => [pin.key_id, pin])) });
+    publishers });
 }

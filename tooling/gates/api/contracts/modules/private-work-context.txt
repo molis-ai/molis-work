@@ -85,6 +85,12 @@ export interface RuntimeContextBindingEventRecord {
     created_at: string;
 }
 
+export interface RuntimeContextBindingPage {
+    limit: number;
+    offset: number;
+    project_id?: string;
+}
+
 export interface RuntimeContextBindingRecord {
     binding_id: string;
     runtime_id: string;

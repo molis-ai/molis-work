@@ -41,9 +41,10 @@ export const CRAFT_ASSISTANT_STYLES = `  /* 概况: the state, what it is doing 
   ${ASSIST} .assistant-block-chevron::before { content: "›"; font-size: 13px; line-height: 1; transform: rotate(90deg); transition: transform var(--dur-move) var(--ease-quint); }
   ${ASSIST} .assistant-block-head[aria-expanded="false"] .assistant-block-chevron::before { transform: none; }
   ${ASSIST} .assistant-block-head:hover .assistant-block-chevron { color: var(--ink); }
-  ${ASSIST} .assistant-block:not([hidden], .assistant-block--usage) { /* opens and folds to its natural height (VUX-08, VUX-22): the body is a 0fr→1fr row; folded, out of reach */ display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr; transition: grid-template-rows var(--dur-move) var(--ease-quint); }
-  ${ASSIST} .assistant-block[data-folded] { grid-template-rows: auto 0fr; }
-  ${ASSIST} .assistant-block[data-folded] .assistant-block-body { visibility: hidden; transition: visibility 0s var(--dur-move); }
+  ${ASSIST} .assistant-block:not([hidden], .assistant-block--usage) { display: block; }
+  ${ASSIST} .assistant-block > .mw-collapsible { padding-top: 0; }
+  ${ASSIST} .assistant-block-head { list-style: none; }
+  ${ASSIST} .assistant-block-head::-webkit-details-marker { display: none; }
   ${ASSIST} .assistant-block-title { color: var(--ink); font-size: 12px; font-weight: 600; }
   ${ASSIST} .assistant-block-sub { margin: 8px 0 2px; color: var(--faint); font-size: 11px; }
   /* The name opens what it names, and its target is the whole row; the row's own actions sit above it. */
@@ -73,7 +74,7 @@ export const CRAFT_ASSISTANT_STYLES = `  /* 概况: the state, what it is doing 
      cards you open or take back. Colour only says state: amber waits on you, green is done, copper is a suggestion. */
   ${ASSIST} .assistant-summary { padding: 12px; border-radius: 12px; background: var(--wash); transition: background-color var(--dur-move) var(--ease-quint); }
   ${ASSIST} .assistant-summary[data-tone="waiting"] { background: color-mix(in srgb, var(--tone-attention, #c27c0e) 11%, var(--paper)); }
-  ${ASSIST} .assistant-summary[data-tone="running"] { background: color-mix(in srgb, var(--tone-done, #3a8f5c) 8%, var(--paper)); }
+  ${ASSIST} .assistant-summary[data-tone="running"] { background: color-mix(in srgb, var(--tone-done) 8%, var(--paper)); }
   ${ASSIST} .assistant-summary[data-tone="failed"] { background: color-mix(in srgb, var(--tone-blocked, #c53030) 8%, var(--paper)); }
   ${ASSIST} :is(.assistant-summary, .assistant-strip) .assistant-state { background: var(--paper); }
   ${ASSIST} .assistant-summary .assistant-summary-meta { margin-top: 12px; padding-top: 10px; box-shadow: inset 0 1px 0 color-mix(in srgb, var(--ink) 8%, transparent); }
@@ -81,7 +82,7 @@ export const CRAFT_ASSISTANT_STYLES = `  /* 概况: the state, what it is doing 
   ${ASSIST} .assistant-glyph-icon svg { width: 15px; height: 15px; }
   ${ASSIST} .assistant-glyph { flex: none; display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; background: var(--wash); color: var(--ink-soft); }
   ${ASSIST} .assistant-glyph.is-attention { background: color-mix(in srgb, var(--tone-attention, #c27c0e) 15%, transparent); color: var(--tone-attention, #c27c0e); }
-  ${ASSIST} .assistant-glyph.is-done { background: color-mix(in srgb, var(--tone-done, #3a8f5c) 14%, transparent); color: var(--tone-done, #3a8f5c); }
+  ${ASSIST} .assistant-glyph.is-done { background: color-mix(in srgb, var(--tone-done) 14%, transparent); color: var(--tone-done); }
   ${ASSIST} .assistant-glyph.is-suggest { background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); }
   ${ASSIST} .assistant-glyph.is-blocked { background: color-mix(in srgb, var(--tone-blocked, #c53030) 12%, transparent); color: var(--tone-blocked, #c53030); }
   ${ASSIST} .assistant-state-ring { display: inline-flex; width: 20px; height: 20px; flex: none; }
@@ -140,16 +141,16 @@ export const CRAFT_ASSISTANT_STYLES = `  /* 概况: the state, what it is doing 
     box-shadow: 0 0 0 1.5px var(--line-strong); color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
   ${ASSIST} .assistant-step-marker .assistant-glyph-icon svg { width: 12px; height: 12px; }
   ${ASSIST} .assistant-step-marker.is-attention { box-shadow: 0 0 0 1.5px var(--tone-attention, #c27c0e); color: var(--tone-attention, #c27c0e); }
-  ${ASSIST} .assistant-step-marker.is-done { background: var(--tone-done, #3a8f5c); box-shadow: none; color: var(--paper); }
+  ${ASSIST} .assistant-step-marker.is-done { background: var(--tone-done); box-shadow: none; color: var(--paper); }
   ${ASSIST} .assistant-step-marker.is-later { box-shadow: none; outline: 1.5px dashed var(--line-strong); outline-offset: -1.5px; }
   ${ASSIST} .assistant-step-label { margin: 2px 0 0; color: var(--muted); font-size: 11px; line-height: 18px; }
   ${ASSIST} .assistant-progress { display: block; height: 4px; border-radius: 2px; background: var(--wash); overflow: hidden; }
-  ${ASSIST} .assistant-progress > span { display: block; height: 100%; border-radius: inherit; background: var(--tone-done, #3a8f5c); }
+  ${ASSIST} .assistant-progress > span { display: block; height: 100%; border-radius: inherit; background: var(--tone-done); }
   ${ASSIST} .assistant-subtask { position: relative; display: flex; align-items: center; gap: 8px; min-height: 28px; margin: 0 -6px; padding: 2px 6px; border-radius: 8px; transition: background-color var(--dur-hover) var(--ease-quint); }
   ${ASSIST} .assistant-subtask:hover { background: var(--nav-hover); }
   ${ASSIST} .assistant-subtask.is-attention { background: color-mix(in srgb, var(--tone-attention, #c27c0e) 9%, transparent); }
   ${ASSIST} .assistant-subtask-mark { flex: none; display: inline-grid; place-items: center; width: 16px; color: var(--muted); }
-  ${ASSIST} .assistant-subtask-mark.is-done { color: var(--tone-done, #3a8f5c); }
+  ${ASSIST} .assistant-subtask-mark.is-done { color: var(--tone-done); }
   ${ASSIST} .assistant-subtask-mark.is-attention { color: var(--tone-attention, #c27c0e); }
   ${ASSIST} .assistant-subtask-mark.is-blocked { color: var(--tone-blocked, #c53030); }
   ${ASSIST} .assistant-subtask-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0; border: 0; background: transparent; color: var(--ink); font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
@@ -196,7 +197,7 @@ export const CRAFT_ASSISTANT_STYLES = `  /* 概况: the state, what it is doing 
   ${ASSIST} .assistant-rich .assistant-task { position: relative; list-style: none; margin-left: -18px; padding-left: 20px; }
   ${ASSIST} .assistant-task-box { position: absolute; left: 0; top: 0.36em; width: 12px; height: 12px; border-radius: 3px; box-shadow: inset 0 0 0 1.5px var(--line-strong); }
   ${ASSIST} .assistant-task.is-done { color: var(--muted); }
-  ${ASSIST} .assistant-task.is-done .assistant-task-box { background: var(--tone-done, #3a8f5c); box-shadow: none; }
+  ${ASSIST} .assistant-task.is-done .assistant-task-box { background: var(--tone-done); box-shadow: none; }
   ${ASSIST} .assistant-task.is-done .assistant-task-box::after { content: ""; position: absolute; left: 4px; top: 1.5px; width: 3px; height: 6px; border: solid var(--paper); border-width: 0 1.5px 1.5px 0; transform: rotate(45deg); }
   ${ASSIST} .assistant-task > ul, ${ASSIST} .assistant-task > ol { color: var(--ink); }
   ${ASSIST} .assistant-rich blockquote { margin: 0 0 8px; padding: 6px 12px; border-radius: 8px; background: var(--wash); color: var(--ink-soft); }
@@ -222,7 +223,7 @@ export const CRAFT_ASSISTANT_STYLES = `  /* 概况: the state, what it is doing 
   ${ASSIST} .assistant-code-copy, ${ASSIST} .assistant-code-more { height: 22px; padding: 0 8px; border: 1px solid var(--line-strong); border-radius: 6px; background: transparent; color: var(--muted); font: inherit; font-size: 11px; cursor: pointer;
     transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-spring); }
   ${ASSIST} :is(.assistant-code-copy, .assistant-code-more):hover { background: var(--nav-hover); color: var(--ink); }
-  ${ASSIST} .assistant-code-copy[data-copy=done] { color: var(--tone-done, #3a8f5c); }
+  ${ASSIST} .assistant-code-copy[data-copy=done] { color: var(--tone-done); }
   ${ASSIST} .assistant-rich .assistant-code pre, ${ASSIST} .assistant-code pre { margin: 0; padding: 10px 12px; border-radius: 0; background: transparent; overflow: auto; font-size: 12px; line-height: 1.55; tab-size: var(--code-tab, 4); }
   ${ASSIST} .assistant-code[data-folded] pre { max-height: 300px; overflow: hidden; }
   ${ASSIST} .assistant-code-more { display: block; width: 100%; height: 28px; border-radius: 0; box-shadow: inset 0 1px 0 var(--line); }

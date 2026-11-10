@@ -69,9 +69,18 @@ export class PluginNotificationQueue {
   }
 
   /** What no receiver has taken yet, oldest first. */
-  pending(projectId: string): PluginNotificationRow[] {
+  pending(projectId: string, after?: Pick<PluginNotificationRow, "created_at" | "notification_id">, through?: Pick<PluginNotificationRow, "created_at" | "notification_id">): PluginNotificationRow[] {
     return this.db.prepare(`SELECT notification_id, project_id, sender_plugin_id, sender_install_id, sender_generation, key, title, summary, body, open_plugin_id, created_at
-      FROM plugin_notifications WHERE project_id = ? AND delivered_at IS NULL ORDER BY created_at, notification_id`).all(projectId) as PluginNotificationRow[];
+      FROM plugin_notifications WHERE project_id = ? AND delivered_at IS NULL
+      AND (? IS NULL OR created_at > ? OR (created_at = ? AND notification_id > ?))
+      AND (? IS NULL OR created_at < ? OR (created_at = ? AND notification_id <= ?))
+      ORDER BY created_at, notification_id LIMIT 100`).all(projectId, after?.created_at ?? null, after?.created_at ?? null, after?.created_at ?? null, after?.notification_id ?? null, through?.created_at ?? null, through?.created_at ?? null, through?.created_at ?? null, through?.notification_id ?? null) as PluginNotificationRow[];
+  }
+
+  /** Upper boundary of this flush; reads only the indexed ordering fields. */
+  pendingThrough(projectId: string): Pick<PluginNotificationRow, "created_at" | "notification_id"> | undefined {
+    return this.db.prepare("SELECT created_at, notification_id FROM plugin_notifications WHERE project_id = ? AND delivered_at IS NULL ORDER BY created_at DESC, notification_id DESC LIMIT 1")
+      .get(projectId) as Pick<PluginNotificationRow, "created_at" | "notification_id"> | undefined;
   }
 
   delivered(notificationId: string, itemId: string, at: string): void {

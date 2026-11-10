@@ -53,8 +53,9 @@ export { SKILL_PACK_BOARD_EN } from "./catalog-skill-packs-en.js";
 
 export { SKILL_PACK_BOARD_STYLES } from "./catalog-skill-packs.js";
 export { CAPABILITY_PACK_BOARD_EN } from "./catalog-capability-packs-en.js";
+export { CAPABILITY_PACK_BOARD_STYLES } from "./catalog-capability-packs.js";
 export {
-  CAPABILITY_PACK_BOARD_STYLES,
+  CAPABILITY_PACK_STYLES,
   renderNowBlock,
   renderPickRow,
   renderItemGroup,
@@ -65,4 +66,4 @@ export {
   renderUsage,
   type NowMenu,
   type PickRow,
-} from "./catalog-capability-packs.js";
+} from "./capability-pack.js";

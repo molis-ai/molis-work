@@ -296,6 +296,9 @@ pick.addEventListener("click", async () => { pick.disabled = true; try { review(
 for (const item of data.refused) box.append(el("p", "settings-form-error", item.file + " · " + item.message));
 }).catch(fail);
 load().catch(fail);
+// A content package 「能力包」's import handed over (browser/kit/files.ts): it goes through this same install review, read once.
+let handed = null; try { handed = sessionStorage.getItem("molis-work:kit-package"); sessionStorage.removeItem("molis-work:kit-package"); } catch { /* no storage here: nothing was handed */ }
+if (handed) (async () => { try { review(await api("/install/preview", { bundle: JSON.parse(handed) })); } catch (failure) { fail(failure, badPackage(failure)); } })();
 };
 globalThis.molisWorkBindPluginTrustSettings = (container = document) => {
 if (container.matches?.("[data-plugin-trust-settings]")) bind(container);

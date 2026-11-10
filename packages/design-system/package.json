@@ -13,6 +13,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./capability-pack": {
+      "types": "./dist/primitives/capability-pack.d.ts",
+      "import": "./dist/primitives/capability-pack.js"
     }
   },
   "files": [

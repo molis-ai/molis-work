@@ -41,7 +41,7 @@ import { renderButton, renderStatusMark, renderBadge, renderAlert, renderStateRi
 import { renderDiff, compareChange, diffViewText } from ${sdk("diff-view.js")};
 import { renderMenu, renderMenuItem, renderMenuGroup, renderPopover, renderTooltip } from ${dsp("primitives/overlay.js")};
 import { renderToggleGroup, renderTabs, renderCollapsible } from ${dsp("primitives/navigation.js")};
-import { renderNowBlock, renderPickRow, renderItemGroup, renderCells, renderDetailTrail, renderIconCounts, renderStateRows, renderUsage } from ${dsp("primitives/catalog-capability-packs.js")};
+import { renderNowBlock, renderPickRow, renderItemGroup, renderCells, renderDetailTrail, renderIconCounts, renderStateRows, renderUsage } from ${dsp("primitives/capability-pack.js")};
 import { renderFileKind, renderFileRow, renderFileGroup, renderBarStatus, renderSteps } from ${dsp("primitives/arrival.js")};
 window.mwKit = { renderButton, renderStatusMark, renderBadge, renderAlert, renderStateRing, icon, escapeHtml, renderDiff, compareChange, diffViewText,
   renderMenu, renderMenuItem, renderMenuGroup, renderPopover, renderTooltip, renderToggleGroup, renderTabs, renderSteps,

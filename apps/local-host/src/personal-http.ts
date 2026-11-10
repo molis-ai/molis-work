@@ -121,6 +121,19 @@ async function respondPersonalStatus({desktop,session,response,service,setupErro
   });
 }
 
+/** Anonymous entry owns Cookie creation; a refused competitor cannot overwrite the pending owner. */
+async function openAnonymousSession(load:()=>PersonalAuth|null,sessions:PersonalWebSessions,pending:()=>AccountNavigation|null,response:ServerResponse,origin:string):Promise<WebAccountSession|null> {
+  try {
+    const shared=load();if(!shared)throw new Error('LOGIN_REQUIRED');await shared.currentIdentity();
+    const navigation=pending();
+    if(shared.loginPending()||navigation&&!navigation.complete&&navigation.expires>Date.now()){
+      sendLocalWebJson(response,409,{error:'已有账号操作正在进行，请在原页面完成或取消。'});return null;
+    }
+    const session=sessions.adopt(shared,false);
+    response.setHeader('Set-Cookie',sessions.cookie(session,origin.startsWith('https:')));return session;
+  } catch {sendLocalWebJson(response,503,{error:'登录会话暂时不可用，请稍后重试。'});return null;}
+}
+
 /** Construct lazily in the server's Home scope; no credentials/configuration means no network. */
 export function createPersonalAccountHttp(isNativeRequest: (request:IncomingMessage)=>boolean = ()=>false, environment?:PersonalAccountEnvironment) {
   let auth:PersonalAuth|null=null;
@@ -183,11 +196,8 @@ export function createPersonalAccountHttp(isNativeRequest: (request:IncomingMess
     let session=desktop?null:webSessions.get(request.headers.cookie);
     const setSessionCookie=()=>response.setHeader('Set-Cookie',webSessions.cookie(session,origin.startsWith('https:')));
     if(!desktop && !session && config && request.method==='POST' && ['/api/personal/login','/api/personal/switch'].includes(url.pathname)){
-      try{const shared=getAuth();if(!shared)throw new Error('LOGIN_REQUIRED');await shared.currentIdentity();
-        // A refused parallel entry must never overwrite the active login owner's cookie.
-        if(shared.loginPending()||pendingNavigation&&!pendingNavigation.complete&&pendingNavigation.expires>Date.now()){sendLocalWebJson(response,409,{error:'已有账号操作正在进行，请在原页面完成或取消。'});return true;}
-        session=webSessions.adopt(shared,false);setSessionCookie();}
-      catch{sendLocalWebJson(response,503,{error:'登录会话暂时不可用，请稍后重试。'});return true;}
+      session=await openAnonymousSession(getAuth,webSessions,()=>pendingNavigation,response,origin);
+      if(!session)return true;
     }
     if(request.method==='GET' && url.pathname==='/api/personal/status' && !desktop && !session){
       sendLocalWebJson(response,200,{configured,identity:null,syncEnabled:false,accountChanged:request.headers.cookie?.split(';').some(part=>part.trim().startsWith(WEB_ACCOUNT_COOKIE+'='))??false,accountGeneration:auth?.accountGeneration(),ready:false,switching:false});return true;

@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { MolisWorkLocalHost, molisWorkHostProjectReference, DEMO_PROJECT_ID, cachedMolisWorkWebView } from "@molis-ai/molis-work-app-local-host";
-import { ActionError, bindActionClient, type ActionCallContext, type ActionDefinition, type ActionSceneBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionClient, type ActionAvailability, type ActionCallContext, type ActionDefinition, type ActionSceneBinding, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { PluginRuntime, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { definePlugin, defineSubjectContextAction, defineHomeEventsAction, defineSubjectOffersAction, subjectContext } from "@molis-ai/molis-work-plugin-sdk";
 import { liveHostJudgmentRuleAuthoringCatalog } from "@molis-ai/molis-work-app-local-host";
@@ -37,9 +37,11 @@ test("Home scene uses original bindings and history, accepts unknown judgments, 
     },
   } };
   let denied: string | undefined;
-  const makeHost = () => new MolisWorkLocalHost({ homeDirectory: home, functions: options,
-    actionAvailability: (_caller, action) => action.capability_id === denied
-      ? { available: false, code: "actions.forbidden", reason: "revoked fixture" } : { available: true } });
+  let policyReads = 0;
+  const policy = (_caller: ActionCallContext, action: ActionView): ActionAvailability => action.capability_id === denied
+    ? { available: false, code: "actions.forbidden", reason: "revoked fixture" } : { available: true };
+  const actionAvailability = Object.assign(policy, { snapshotForDiscovery: () => { policyReads++; return policy; } });
+  const makeHost = () => new MolisWorkLocalHost({ homeDirectory: home, functions: options, actionAvailability });
   let host = makeHost();
   const history = () => withFunctionsService(home, service => service.listJudgments(), options);
   try {
@@ -56,7 +58,12 @@ test("Home scene uses original bindings and history, accepts unknown judgments, 
     await actions.invoke(homeActions.writeJudgment, { function_key: "system_pick_home_dock" });
     denied = "inbox.entry.status";
     const currentRule = { capability_id: "functions.published.system_pick_home_dock", version: 1, provider_id: "system.functions" };
-    assert.equal((await scenes.discoverScenes(caller, currentRule)).find(scene => scene.definition.scene_id === HOME_DOCK_SCENE_ID)!.compatible, false);
+    const single = await scenes.discoverScenes(caller, currentRule);
+    assert.equal(single.find(scene => scene.definition.scene_id === HOME_DOCK_SCENE_ID)!.compatible, false);
+    const readsBefore = policyReads;
+    const batch = await scenes.discoverScenesFor(caller, [currentRule, currentRule]);
+    assert.deepEqual(batch, [single, single], "BRC-05 retains the Host's live offer refusal in a batch");
+    assert.equal(policyReads - readsBefore, 1, "BRC-05 shares one live policy directory when offer scenes need it");
     assert.equal((await scenes.usages(caller)).find(usage => usage.scene_id === HOME_DOCK_SCENE_ID)!.availability.available, false);
     await assert.rejects(actions.invoke(homeActions.writeJudgment, { function_key: "system_pick_home_dock" }), { code: "actions.scene_incompatible" });
     await assert.rejects(actions.invoke(homeActions.evaluate, { subjects: [{ kind: "inbox_entry", id: entry.entry_id }] }));

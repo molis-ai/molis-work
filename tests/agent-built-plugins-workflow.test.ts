@@ -646,7 +646,8 @@ test('capabilities are settled before the full design: Jev picks among the provi
     const pick = build.steps.find(step => step.action === 'place' && step.agent === 'design');
     assert.deepEqual(pick?.selection?.candidates, ['goals.note', 'goals.progress.record'], 'only same-provider, same-kind, close alternatives; archiving is not one');
     assert.equal(pick?.selection?.source, 'jev'); assert.equal(pick?.selection?.choice, 'goals.progress.record');
-    assert.match(pick?.detail ?? '', /原本选的是 goals\.note/);
+    assert.equal(pick && stepKey(pick), 'plugin-builder.studio-step.capability-selection-changed');
+    assert.equal(pick?.detail, 'goals.note', 'the original choice is kept in the log as the exact capability id');
     assert.equal(h.asked[0], CAPABILITY_WORDS, 'the capability question comes first and uses the registered default, which reads as the workflow always said it');
     assert.ok(h.asked.length > 1 && h.asked.slice(1).every(words => words === COMPONENT_WORDS), 'the parts that follow are asked the component question');
     const detailTask = h.requests.filter(request => request.role === 'designer').map(request => JSON.parse(request.task)).find(task => task.mode === 'detail');

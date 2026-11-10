@@ -1,5 +1,5 @@
 import { studioProblem } from "./studio-problem.js";
-import { failStudioBuild, studioAcceptanceFailure, studioBuildFailure, studioBuildFailureOf, studioRevisionStep, studioStep } from './studio-collaboration.js';
+import { failStudioBuild, studioAcceptanceFailure, studioBuildFailure, studioBuildFailureOf, studioCapabilitySelection, studioProposalStep, studioRevisionStep, studioStep } from './studio-collaboration.js';
 import { freezeStudioUi, studioUiAnswer, type StudioDesignLanguages } from "./agent-ui-text.js";
 import { inDesignOrder, type AgentPublicationControl, type AgentRelease as PublishedAgentRelease } from './agent-model.js';
 import { recheckAgentBuild } from './agent-recheck.js';
@@ -12,7 +12,6 @@ import type { SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin
 import type { BuilderAgentRequest, BuilderAgentRecord, BuilderSkill } from '@molis-ai/molis-work-contracts/services/agent-host';
 import type { BuildManifest, BuildCheckResult } from '@molis-ai/molis-work-contracts/platform/plugin-builder';
 import type { InstructionPrompt } from '@molis-ai/molis-work-contracts/platform/model-prompts';
-import { TEXT_REF_LIMITS } from '@molis-ai/molis-work-contracts/platform/ui';
 import { AgentBuilderStore } from './agent-store.js';
 import { reviseCheckedPresentation } from './checked-presentation.js';
 import { BUILDER_PROMPTS, type BuilderPromptName } from './agent-prompts.js';
@@ -301,7 +300,7 @@ export class AgentBuilderWorkflow {
     const picked = usedCapabilities(proposal.preview.contract.operations);
     const stepId = 'detail:' + token, { all, catalog, more, resources } = await this.designContext(id, [initial.brief, proposal.title, proposal.description, ...proposal.journey,
       ...proposal.preview.contract.operations.map(operation => operation.description)].join('\n'), picked);
-    this.step(id, { id: stepId, agent: 'design', action: 'design', label: studioStep('detailing-proposal', { title: proposal.title }), status: 'active' });
+    this.step(id, { id: stepId, agent: 'design', action: 'design', ...studioProposalStep(proposal.title), status: 'active' });
     const result = await this.designer(id, token, signal, stepId, { mode: 'detail', brief: initial.brief, messages: initial.messages, proposal: sketch, experience, capabilities: catalog, moreCapabilities: more, resources,
       ...(this.ports.designLanguages ? { uiText: studioUiAnswer(this.ports.designLanguages()) } : {}) },
       output => this.acceptDesign(id, output, proposal, all, resources));
@@ -322,8 +321,8 @@ export class AgentBuilderWorkflow {
         if (candidates.length < 2) continue;
         signal.throwIfAborted(); this.current(id, token);
         const stepId = 'capability:' + token + ':' + operation.id + ':' + capability, title = (entry: CatalogEntry) => entry.title ?? entry.id;
-        this.step(id, { id: stepId, agent: 'design', action: 'select', label: studioStep('choosing-capability', { purpose }), target: operation.id, status: 'active' });
-        let selection: NonNullable<AgentBuildStep['selection']> = { source: 'rule', candidates: candidates.map(entry => entry.id), choice: capability }, note = '';
+        this.step(id, { id: stepId, agent: 'design', action: 'select', label: studioStep('choosing-capability', { purpose: operation.id }), target: operation.id, status: 'active' });
+        let selection: NonNullable<AgentBuildStep['selection']> = { source: 'rule', candidates: candidates.map(entry => entry.id), choice: capability }, refusal: string | undefined;
         if (jev) {
           try {
             const answer = await this.ports.choose!({ key: 'builder-' + randomUUID(), instructions: instructionText(this.ports, BUILDER_CHOOSE_CAPABILITY),
@@ -332,12 +331,11 @@ export class AgentBuilderWorkflow {
             signal.throwIfAborted(); this.current(id, token);
             if (!answer.choice || !candidates.some(entry => entry.id === answer.choice)) throw new Error('Jev 没有返回合法能力');
             selection = { source: 'jev', candidates: selection.candidates, choice: answer.choice, model: answer.model, elapsedMs: answer.elapsedMs, confidence: answer.confidence };
-          } catch (error) { signal.throwIfAborted(); this.current(id, token); note = 'Jev 这次没选出来（' + message(error) + '），沿用主线设计的选择'; }
+          } catch (error) { signal.throwIfAborted(); this.current(id, token); refusal = message(error); }
         }
         named[index] = selection.choice;
-        const entry = candidates.find(item => item.id === selection.choice)!, name = title(entry), longName = name.length > TEXT_REF_LIMITS.arg_text;
-        this.step(id, { id: stepId, agent: 'design', action: 'place', label: studioStep('capability-selected', { purpose, capability: longName ? entry.id : name }), target: operation.id, status: 'done', selection,
-          detail: [longName ? name : '', selection.choice === capability ? '' : '主线设计原本选的是 ' + capability, note].filter(Boolean).join('；') || undefined });
+        const entry = candidates.find(item => item.id === selection.choice)!;
+        this.step(id, { id: stepId, agent: 'design', action: 'place', ...studioCapabilitySelection(operation.id, title(entry), entry.id, capability, refusal), target: operation.id, status: 'done', selection });
       }
       if (named.length) operation.effects.capabilities = [...new Set(named)];
     }
@@ -391,11 +389,11 @@ export class AgentBuilderWorkflow {
     const [ui, code] = await Promise.allSettled([this.assemble(id, token, signal), this.implement(id, token, signal)]);
     if (ui.status === 'rejected') throw ui.reason;
     if (code.status === 'rejected') {
-      const need = (code.reason as { missingCapability?: { operation: string; description: string; capability: string } }).missingCapability;
+      const need = (code.reason as { missingCapability?: { operation: string; capability: string } }).missingCapability;
       if (!need || !(await this.ports.catalog(buildScope(this.store.require(id)))).some(entry => entry.id === need.capability)) throw code.reason;
       signal.throwIfAborted(); this.current(id, token);
       // Once: the designer adds the capability the code needs, and the build carries on against the revised contract.
-      this.step(id, { id: 'capability-needed:' + token + ':' + need.operation, agent: 'host', action: 'note', label: studioStep('capability-needed', { purpose: need.description, capability: need.capability }), status: 'done' });
+      this.step(id, { id: 'capability-needed:' + token + ':' + need.operation, agent: 'host', action: 'note', label: studioStep('capability-needed', { purpose: need.operation, capability: need.capability }), status: 'done' });
       await this.revise(id, token, signal, '操作 ' + need.operation + ' 的代码需要调用能力 ' + need.capability + '（例如为了返回合同要求的字段），但它的 effects.capabilities 里没有声明。请把 ' + need.capability + ' 加进这个操作的 effects.capabilities，其余保持不变。');
       await Promise.all([this.assemble(id, token, signal), this.implement(id, token, signal)]);
     }
@@ -426,8 +424,8 @@ export class AgentBuilderWorkflow {
     };
     let broken = await run(); this.current(id, token);
     if (!broken) return;
-    const stepId = 'smoke:' + token, name = broken.operation.description || broken.operation.id;
-    this.step(id, { id: stepId, agent: 'code', action: 'implement', label: studioStep('repairing-live-read', { operation: name }), operationId: broken.operation.id, status: 'active', detail: broken.error });
+    const stepId = 'smoke:' + token;
+    this.step(id, { id: stepId, agent: 'code', action: 'implement', label: studioStep('repairing-live-read', { operation: broken.operation.id }), operationId: broken.operation.id, status: 'active', detail: broken.error });
     const index = this.store.require(id).design!.contract.operations.findIndex(item => item.id === broken!.operation.id);
     await this.withAgent(id, 'code', agent => this.codeAttempt(agent, id, token, signal, this.prompt('repair'), [broken!.operation.id], stepId + ':run', {
       operation: broken!.operation, implementation: 'src/operations/' + index + '.ts', tests: 'tests/operations/' + index + '.ts', attempt: 1, maxRepairs: 1,
@@ -438,7 +436,7 @@ export class AgentBuilderWorkflow {
     await this.resetPreview(id, token);
     broken = await run(); this.current(id, token);
     this.step(id, { id: stepId, agent: 'code', action: 'implement', label: studioStep(broken ? 'live-read-failed' : 'live-read-fixed'), operationId: broken?.operation.id, status: broken ? 'failed' : 'done', detail: broken?.error });
-    if (broken) throw failStudioBuild('build-live-read-failed', broken.error, { values: { operation: broken.operation.description || broken.operation.id } });
+    if (broken) throw failStudioBuild('build-live-read-failed', broken.error, { values: { operation: broken.operation.id } });
   }
   private async compose(id: string, token: string, signal: AbortSignal, request: string, history = false, review?: { issues: string[]; images: BuilderAgentRequest['images'] }) {
     const initial = this.store.require(id), stepId = 'compose:' + token;
@@ -465,7 +463,7 @@ export class AgentBuilderWorkflow {
     for (let round = 0; round < 2; round++) {
       const build = this.store.require(id), inspected = await this.ports.inspectPresentation(build, signal);
       this.current(id, token);
-      let issues = [...deferred, ...inspected.issues], repairs = inspected.structural ? [] : [...inspected.issues], status: NonNullable<AgentBuild['visualResult']>['status'] = 'unavailable';
+      let issues = [...deferred, ...inspected.issues], repairs = inspected.structural ? [] : [...inspected.issues], status: NonNullable<AgentBuild['visualResult']>['status'] = 'unavailable', refusal: string | undefined;
       if (this.ports.visionAvailable?.()) {
         try {
           const prompt = this.prompt('review');
@@ -476,9 +474,9 @@ export class AgentBuilderWorkflow {
           const answer = acceptPresentationReview(record.output, build, inspected.images.map(image => image.label));
           issues = [...new Set([...issues, ...answer.issues])]; repairs = [...repairs, ...answer.repairs]; status = 'reviewed';
           deferred = [...new Set([...deferred, ...answer.issues.filter(issue => !answer.repairs.includes(issue))])];
-        } catch (error) { signal.throwIfAborted(); this.current(id, token); status = 'failed'; issues = [...issues, '视觉模型未完成复查：' + humanize(message(error))]; }
+        } catch (error) { signal.throwIfAborted(); this.current(id, token); status = 'failed'; refusal = message(error); }
       }
-      this.change(id, value => { value.visualResult = { structural: inspected.structural, status, issues, at: new Date().toISOString(), revision: token, elapsedMs: Date.now() - start }; });
+      this.change(id, value => { value.visualResult = { structural: inspected.structural, status, issues: refusal === undefined ? issues : [...issues, '视觉模型未完成复查：' + humanize(refusal)], at: new Date().toISOString(), revision: token, elapsedMs: Date.now() - start }; });
       if (round === 0 && repairs.length) {
         const before = snapshot(this.store.require(id)), history = this.store.require(id).history;
         try {
@@ -487,13 +485,13 @@ export class AgentBuilderWorkflow {
           if (!checked.passed) throw failStudioBuild('build-visual-checks-failed', checked.blocked ?? checked.cases.find(item => !item.passed)?.detail ?? '');
         } catch (error) {
           signal.throwIfAborted(); this.current(id, token); if (!inspected.structural) throw error;
-          const detail = '视觉建议未能应用，已保留通过验收的界面：' + humanize(message(error));
-          this.change(id, value => { Object.assign(value, before); value.history = history; value.visualResult!.issues = [...issues, detail]; });
+          const detail = message(error);
+          this.change(id, value => { Object.assign(value, before); value.history = history; value.visualResult!.issues = [...value.visualResult!.issues, '视觉建议未能应用，已保留通过验收的界面：' + humanize(detail)]; });
           this.step(id, { id: stepId, agent: 'ui', action: 'review', label: studioStep('layout-kept'), status: 'done', detail }); return;
         }
         continue;
       }
-      this.step(id, { id: stepId, agent: 'ui', action: 'review', label: studioStep(!inspected.structural ? 'layout-needs-work' : status === 'reviewed' ? (issues.length ? 'layout-reviewed-with-notes' : 'layout-reviewed') : 'layout-review-unavailable'), status: inspected.structural ? 'done' : 'failed', detail: issues.join('\n') || (status === 'unavailable' ? '当前所选模型未声明图片输入能力；宽窄屏结构检查通过' : undefined) });
+      this.step(id, { id: stepId, agent: 'ui', action: 'review', label: studioStep(!inspected.structural ? 'layout-needs-work' : status === 'reviewed' ? (issues.length ? 'layout-reviewed-with-notes' : 'layout-reviewed') : status === 'failed' ? 'layout-review-interrupted' : 'layout-review-unavailable'), status: inspected.structural ? 'done' : 'failed', detail: [...issues, refusal].filter(Boolean).join('\n') || undefined });
       if (!inspected.structural) throw failStudioBuild('build-visual-checks-failed', inspected.issues.join('\n'));
       return;
     }
@@ -554,7 +552,7 @@ export class AgentBuilderWorkflow {
     signal.throwIfAborted(); this.current(id, token);
     if (initial.connected.includes(operation.id)) return;
     const stepId = 'code:' + initial.design!.contract.revision + ':' + operation.id;
-    this.step(id, { id: stepId, agent: 'code', action: 'implement', label: studioStep('implementing-operation', { operation: operation.description || operation.id }), operationId: operation.id, status: 'active' });
+    this.step(id, { id: stepId, agent: 'code', action: 'implement', label: studioStep('implementing-operation', { operation: operation.id }), operationId: operation.id, status: 'active' });
     const change = initial.rework?.[operation.id];
     let result = await this.check(id, [operation.id], signal);
     // A reworked operation still passes its unchanged checks, so it always gets one run with the change to make.
@@ -565,17 +563,17 @@ export class AgentBuilderWorkflow {
       const siblings = now.design!.contract.operations.map((item, position) => ({ id: item.id, kind: item.kind, description: item.description, input: item.input, output: item.output,
         implementation: 'src/operations/' + position + '.ts', tests: 'tests/operations/' + position + '.ts', implemented: now.connected.includes(item.id) })).filter(item => item.id !== operation.id);
       const shared = await this.ports.sources?.(now) ?? [];
-      if (attempt) this.step(id, { id: stepId, agent: 'code', action: 'implement', label: studioStep('repair-operation', { operation: operation.description || operation.id, round: attempt }), operationId: operation.id, status: 'active', detail: (gate => gate ? gate.id + '：' + gate.detail.slice(0, 300) : '')(result.gates.find(gate => !gate.passed)) });
+      if (attempt) this.step(id, { id: stepId, agent: 'code', action: 'implement', label: studioStep('repair-operation', { operation: operation.id, round: attempt }), operationId: operation.id, status: 'active', detail: (gate => gate ? gate.id + '：' + gate.detail.slice(0, 300) : '')(result.gates.find(gate => !gate.passed)) });
       await this.codeAttempt(agent, id, token, signal, prompt, [operation.id], stepId + ':run:' + attempt,
         { operation, implementation: 'src/operations/' + index + '.ts', tests: 'tests/operations/' + index + '.ts', siblings, shared, failure: result, attempt, maxRepairs: 3, ...(change ? { change } : {}), ...(writable ? { writable } : {}) }, writable);
       result = await this.check(id, [operation.id], signal);
     }
     this.current(id, token); this.change(id, build => { build.checks[operation.id] = result; });
-    this.step(id, { id: stepId, agent: 'code', action: 'verify', label: studioStep(result.passed ? 'operation-connected' : 'operation-not-verified', { operation: operation.description || operation.id }), operationId: operation.id, status: result.passed ? 'done' : 'failed', detail: JSON.stringify(result.gates) });
+    this.step(id, { id: stepId, agent: 'code', action: 'verify', label: studioStep(result.passed ? 'operation-connected' : 'operation-not-verified', { operation: operation.id }), operationId: operation.id, status: result.passed ? 'done' : 'failed', detail: JSON.stringify(result.gates) });
     if (!result.passed) {
       // Code that needs a capability the contract does not declare cannot be fixed by the code agent: the contract must say so.
       const missing = /Undeclared or unapproved capabilities: ([\w.:-]+)/.exec(result.gates.map(gate => gate.detail).join('\n'))?.[1];
-      throw Object.assign(failStudioBuild('one-feature-could-not-be-written', result.gates.find(gate => !gate.passed)?.detail ?? '', { guidance: 'choose-continue-let-ai-try-again-if-keeps' }), missing ? { missingCapability: { operation: operation.id, description: operation.description ?? operation.id, capability: missing } } : {});
+      throw Object.assign(failStudioBuild('one-feature-could-not-be-written', result.gates.find(gate => !gate.passed)?.detail ?? '', { guidance: 'choose-continue-let-ai-try-again-if-keeps' }), missing ? { missingCapability: { operation: operation.id, capability: missing } } : {});
     }
     await this.resetPreview(id, token); this.change(id, build => { build.connected.push(operation.id); if (build.rework) { delete build.rework[operation.id]; if (!Object.keys(build.rework).length) delete build.rework; } });
   }

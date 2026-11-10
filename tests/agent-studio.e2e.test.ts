@@ -484,7 +484,7 @@ test('studio in English: its controls, labels, phases and boards are English', {
   const store = new LocalProjectDatabase(databasePath), token = randomUUID() + randomUUID(), mutations = new Map<string, LocalMutationState>();
   const fixture = agentStudioFixture(0);
   let rawModelError: string | undefined;
-  let invalidRevision = false, preferenceWrites = 0, buildWrites = 0;
+  let revisionMode: 'valid' | 'acceptance' | 'designer' = 'valid', preferenceWrites = 0, buildWrites = 0;
   const diagnostic = 'rework 引用了不存在的操作：原诊断 <tag> 保留';
   const options = { store, projectId: DEMO_PROJECT_ID, homeDirectory: home, browserExecutable: dedicatedBuilderBrowser(), routePrefix: '/projects/' + DEMO_PROJECT_ID, ...fixture,
     models: async () => { if (rawModelError !== undefined) throw new Error(rawModelError); return fixture.models(); },
@@ -492,8 +492,10 @@ test('studio in English: its controls, labels, phases and boards are English', {
       const agent = await fixture.agents(build);
       return { ...agent, async run(request: Parameters<typeof agent.run>[0]) {
         const answer = await agent.run(request);
-        if (!invalidRevision || request.role !== 'designer' || JSON.parse(request.task).mode !== 'revise') return answer;
-        const output = JSON.parse(answer.output); output.rework = [{ op: '原诊断 <tag> 保留', why: 'preserve the raw operation name' }];
+        if (revisionMode === 'valid' || request.role !== 'designer' || JSON.parse(request.task).mode !== 'revise') return answer;
+        const output = JSON.parse(answer.output);
+        if (revisionMode === 'designer') output.rework = [{ op: '原诊断 <tag> 保留', why: 'preserve the raw operation name' }];
+        else output.design.acceptance[0].steps.push({ action: 'expectValue', componentId: 'editor', field: 'text', value: 'Unexpected value <raw>' });
         return { ...answer, output: JSON.stringify(output) };
       } };
     } };
@@ -581,31 +583,51 @@ test('studio in English: its controls, labels, phases and boards are English', {
     assert.deepEqual(await page.evaluate<string[]>(`(()=>{const out=[];for(const b of document.querySelectorAll('[data-as-catalog-panel] .as-part')){b.dispatchEvent(new PointerEvent('pointerover',{bubbles:true}));const tip=document.querySelector('[data-as-tip]');if(/\\p{Script=Han}/u.test(tip.innerText))out.push(tip.innerText);}return out;})()`), [], 'and its tip');
 
     await page.wait(`document.querySelector('[data-as-phase]').textContent === 'Ready to try'`);
-    invalidRevision = true;
+    revisionMode = 'acceptance';
+    await page.fill('[data-as-input]', '用验收检查验证保留的内容'); await page.click('.as-send');
+    const failureTitle = `document.querySelector('[data-as-failure-title]')`, failureGuidance = `document.querySelector('[data-as-failure-guidance]')`;
+    await page.wait(`${failureTitle}?.textContent.endsWith('did not work as expected in the trial')`, { timeoutMs: 75_000 });
+    revisionMode = 'designer';
     await page.evaluate(`document.querySelector('[data-as-edit-mode]').value='message'`);
     await page.fill('[data-as-input]', '保留原话并修订方案'); await page.click('.as-send');
-    const failureTitle = `document.querySelector('[data-as-failure-title]')`, failureGuidance = `document.querySelector('[data-as-failure-guidance]')`;
     await page.wait(`${failureTitle}?.textContent === 'The design step did not finish'`);
     assert.match(await page.evaluate<string>(`${failureGuidance}.textContent`), /^Choose Continue to let the AI design it again/u);
-    const fixed = `document.querySelector('.as-steps li[data-status="failed"] [data-as-step-copy]')`,
+    const fixed = `Array.from(document.querySelectorAll('.as-steps li[data-status="failed"] [data-as-step-copy^="revise:"]')).at(-1)`,
       log = `document.querySelector('[data-as-steps]')`, technical = `document.querySelector('.as-error details')`;
+    const gate = `document.querySelector('.as-steps .as-gates [title^="G1 "] [data-as-collaboration-copy]')`;
+    const step = `document.querySelector('.as-steps [data-as-collaboration-copy*="plugin-builder.agent-studio.step-n"]')`;
+    const screen = `document.querySelector('.as-steps [data-as-collaboration-copy*="plugin-builder.agent-studio.screen-text"]')`;
     await page.wait(`${fixed}?.textContent === 'Revising the main design from your feedback'`);
+    await page.wait(`${gate}?.textContent === 'Contract' && ${step}?.textContent === 'Step 4' && ${screen}?.textContent.startsWith(' (on screen: ')`);
+    const observedScreen = await page.evaluate<string>(`JSON.parse(${screen}.dataset.asCollaborationCopy)[1].text`);
+    assert.ok(observedScreen.includes('Save'));
     await page.evaluate(`(()=>{const draft=document.querySelector('[data-as-input]'); draft.value='Unsent 草稿'; draft.focus(); draft.setSelectionRange(1,6,'backward');
       if(!${log}.open)${log}.querySelector('summary').click(); ${technical}.open=true;
-      window.collaboration={draft, log:${log}, technical:${technical}, fixed:${fixed}, title:${failureTitle}, raw:${technical}.querySelector('p')};})()`);
+      window.collaboration={draft, log:${log}, technical:${technical}, fixed:${fixed}, title:${failureTitle}, raw:${technical}.querySelector('p'),
+        gate:${gate}, step:${step}, screen:${screen}, caseRaw:${step}.nextElementSibling};})()`);
     const switched = `[collaboration.draft===document.activeElement,collaboration.draft.value,collaboration.draft.selectionStart,collaboration.draft.selectionEnd,
       collaboration.draft.selectionDirection,collaboration.log===${log},${log}.open,collaboration.technical===${technical},${technical}.open,
       collaboration.fixed===${fixed},collaboration.title===${failureTitle},collaboration.raw===${technical}.querySelector('p'),collaboration.raw.textContent,
-      Boolean(collaboration.raw.querySelector('tag')),document.querySelector('.as-brief p').textContent]`;
-    const preserved = [true, 'Unsent 草稿', 1, 6, 'backward', true, true, true, true, true, true, true, diagnostic, false, '做一个随手记笔记的插件：写下一句话就能保存，最新的在最上面'];
+      Boolean(collaboration.raw.querySelector('tag')),document.querySelector('.as-brief p').textContent,
+      collaboration.gate===${gate},collaboration.step===${step},collaboration.screen===${screen},collaboration.caseRaw===${step}.nextElementSibling,collaboration.caseRaw.textContent]`;
+    const preserved = [true, 'Unsent 草稿', 1, 6, 'backward', true, true, true, true, true, true, true, diagnostic, false, '做一个随手记笔记的插件：写下一句话就能保存，最新的在最上面',
+      true, true, true, true, '字段值不符合预期：text'];
     const writes = buildWrites;
-    for (const [lang, title, step, guidance] of [
-      ['zh', '设计这一步没能完成', '按你的意见修订主线', '点「继续」让 AI 重新设计一次'],
-      ['en', 'The design step did not finish', 'Revising the main design from your feedback', 'Choose Continue to let the AI design it again'],
+    for (const [lang, title, stepLabel, guidance, gateLabel, caseLabel, screenLabel] of [
+      ['zh', '设计这一步没能完成', '按你的意见修订主线', '点「继续」让 AI 重新设计一次', '合同', '第 4 步', '（界面显示：' + observedScreen + '）'],
+      ['en', 'The design step did not finish', 'Revising the main design from your feedback', 'Choose Continue to let the AI design it again', 'Contract', 'Step 4', ' (on screen: ' + observedScreen + ')'],
     ]) {
       await outer.evaluate(`(()=>{const link=document.createElement('a');link.href='#';link.dataset.uiLanguage=${JSON.stringify(lang)};document.body.append(link);link.click();link.remove();})()`);
-      await page.wait(`${failureTitle}?.textContent === ${JSON.stringify(title)} && ${fixed}?.textContent === ${JSON.stringify(step)}`);
+      await page.wait(`${failureTitle}?.textContent === ${JSON.stringify(title)} && ${fixed}?.textContent === ${JSON.stringify(stepLabel)}
+        && ${gate}?.textContent===${JSON.stringify(gateLabel)} && ${step}?.textContent===${JSON.stringify(caseLabel)} && ${screen}?.textContent===${JSON.stringify(screenLabel)}`);
       assert.ok((await page.evaluate<string>(`${failureGuidance}.textContent`)).startsWith(guidance!));
+      assert.deepEqual(await page.evaluate(switched), preserved);
+      // A same-state read still reaches the normal render path after the in-place language update.
+      await page.evaluate(`(async()=>{const fetch=window.fetch;try{await new Promise(resolve=>{
+        window.fetch=async(...args)=>{const response=await fetch(...args);if(String(args[0]).endsWith('/api/plugin-builder/studio/state'))await response.clone().json().then(resolve);return response;};
+        document.dispatchEvent(new CustomEvent('molis-work:model-ready'));});
+        await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+      }finally{window.fetch=fetch;}})()`);
       assert.deepEqual(await page.evaluate(switched), preserved);
     }
     assert.equal(preferenceWrites, 2);

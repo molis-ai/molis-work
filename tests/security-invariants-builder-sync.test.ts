@@ -1,6 +1,7 @@
-import { verifySyncPluginDistribution } from '@molis-ai/molis-work-app-local-host';
+import { installHostUiText, runBackgroundWork, verifySyncPluginDistribution } from '@molis-ai/molis-work-app-local-host';
 import { effectsFromContract, sandboxPluginManifest } from '@molis-ai/molis-work-plugin-sdk';
 import { signPluginPackage } from '@molis-ai/molis-work-plugin-runtime';
+import { assertContract } from '@molis-ai/molis-work-plugin-sandbox';
 import { newPublisher, payloadOf } from './fixtures/sandbox-package.js';
 import {createStaticPersonalSync as createPersonalSync} from './fixtures/static-personal-sync.js';
 import { syncRoundResponse } from './fixtures/sync-round.js';
@@ -12,11 +13,11 @@ import {join} from 'node:path';
 import {tmpdir} from 'node:os';
 import {createHash} from 'node:crypto';
 import {PLUGIN_PRIVATE_STORAGE_SCHEMA_SQL,SqlitePluginPrivateStorage,privateValueReplicaOwner,installPrivateValueReplicationJournal,validatePrivateValueReplication} from '@molis-ai/molis-work-plugin-runtime';
-import {AgentBuilderStore,builderManifest,builderPrivateValueReplicationOwner,builderSyncProjection,BUILDER_CONTENT_REPLICA_ID,expandDesign,type AgentRelease,type AgentBuild} from '@molis-ai/molis-work-plugin-builder';
+import {AgentBuilderStore,AgentBuilderWorkflow,builderManifest,builderPrivateValueReplicationOwner,builderSyncProjection,BUILDER_CONTENT_REPLICA_ID,expandDesign,normalizeProposal,studioBuildDiagnostic,type AgentRelease,type AgentBuild,type AgentBuilderPorts} from '@molis-ai/molis-work-plugin-builder';
 import {pluginComponentChoices} from '@molis-ai/molis-work-design-system';
 import {createSqliteReplica,initializeReplica,namespacedReplicaDatabase,replicaMarkRowsSql,bindDatabaseSpace,personalStorageSpace,replicaSchemaSql} from '@molis-ai/molis-work-storage';
 import {createSyncConflictState,createSyncJsonContent} from '@molis-ai/molis-work-plugin-sdk';
-import {detail} from './fixtures/builder-workflow-design.js';
+import {detail,proposal,until} from './fixtures/builder-workflow-design.js';
 import {withMolisWorkProjectCatalog} from '@molis-ai/molis-work-app-desktop';
 import {ensureStorageSpace} from '@molis-ai/molis-work-storage';
 
@@ -104,6 +105,49 @@ test('FSS-36 Studio v1 stores and restores exact collaboration references and or
  assert.throws(()=>f.stores[1]!.update(source.id,received.revision+1,()=>{}),{code:'revision_conflict'});
  const updated=f.stores[0]!.update(source.id,saved.revision,row=>{row.error='界面验收「旧失败」仍未通过 <raw>';});
  f.send(2);assert.equal(f.stores[1]!.require(source.id).error,updated.error);
+});
+
+test('FSS-36 Studio resumes portable v1 proposals and operations with long original text', async t => {
+ const f=fixture(t); installHostUiText();
+ const title='长方案 <原文>\n'.repeat(300), description='旧操作说明 <raw>\n'.repeat(300);
+ const draft=f.stores[0]!.create('完整创作需求');
+ const candidate=normalizeProposal(proposal('quick','Short title'),0,'io.molis.work.generated.'+draft.id,[]);
+ candidate.title=title;
+ f.stores[0]!.update(draft.id,draft.revision,row=>{row.phase='choosing';row.candidates=[candidate];});
+ f.send();
+ const original=f.create(), design=structuredClone(original.design!);
+ design.contract.operations[1]!.description=description;
+ writeFileSync(join(original.directory!,'contract.json'),JSON.stringify(design.contract));
+ f.stores[0]!.update(original.id,original.revision,row=>{row.design=design;});
+ f.send(2);
+ assert.deepEqual(f.replicas[1]!.conflicts(),[]);
+ const observed: AgentBuild['steps'] = [], at='2026-10-19T00:00:00Z';
+ const ports: AgentBuilderPorts = {
+  projectId, catalog:async()=>[], models:async()=>[], runInLanguage:run=>runBackgroundWork('zh',run), validateContract:assertContract,
+  agent:async()=>({close:async()=>{},records:async()=>[],async run(request){return {id:crypto.randomUUID(),role:request.role,promptVersion:request.promptVersion,
+   contractRevision:request.contractRevision,instruction:request.instruction,input:request.task,output:detail('已选择方案'),configuredModel:'fixture',reportedModels:[],phase:'completed',startedAt:at,finishedAt:at,activity:[],usage:[]};}}),
+  prepareBuild:async()=>f.homes[1]!, check:async()=>({passed:true,gates:[{id:'G5',passed:true,detail:'Fixture operation checks'}]}), call:async()=>null,
+  resetPreview:async()=>{}, browserAcceptance:async()=>({passed:true,at,cases:[{id:'add-note',passed:true,detail:'Fixture acceptance'}]}),
+  publish:async()=>{throw new Error('This journey does not publish');}, installations:async()=>[], lifecycle:async()=>{},
+ };
+ const workflow=new AgentBuilderWorkflow(f.storage[1]!,ports);
+ workflow.subscribe(build=>{observed.push(...build.steps);});
+ try {
+  const selected=workflow.store.require(draft.id);
+  assert.equal(selected.candidates[0]!.title,title);
+  await workflow.action(draft.id,{action:'choose',revision:selected.revision,candidateId:'quick'});
+  const decided=await until(workflow,draft.id,row=>row.phase==='ready'||row.phase==='failed');
+  assert.equal(decided.phase,'ready',studioBuildDiagnostic(decided.error)??'');
+  assert.ok(observed.some(step=>typeof step.label==='object'&&step.label.key==='plugin-builder.studio-step.detailing-chosen-proposal'&&step.detail===title));
+  assert.equal(decided.candidates[0]!.title,title);
+  const imported=workflow.store.require(original.id);
+  await workflow.action(original.id,{action:'resume',revision:imported.revision});
+  const resumed=await until(workflow,original.id,row=>row.phase==='ready'||row.phase==='failed');
+  assert.equal(resumed.phase,'ready',studioBuildDiagnostic(resumed.error)??'');
+  assert.equal(resumed.design!.contract.operations[1]!.description,description);
+  const operation=resumed.steps.find(step=>step.operationId==='notes.add'&&step.action==='verify');
+  assert.deepEqual(operation?.label,{key:'plugin-builder.studio-step.operation-connected',args:[{name:'operation',kind:'text',text:'notes.add'}]});
+ } finally { await workflow.close(); }
 });
 
 test('S-119 PCSYNC-12/23 active work and the trusted composition guard reject replacement and deletion without clearing content',t=>{

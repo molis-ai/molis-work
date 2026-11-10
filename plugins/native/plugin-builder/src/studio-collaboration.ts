@@ -18,15 +18,16 @@ const stepArguments = {
   'model-retry': { round: 'positive' },
   'repair-design': { round: 'repair' }, 'repair-experience': { round: 'repair' }, 'repair-ui': { round: 'repair' },
   'understanding-request': {}, 'questions': { count: 'positive' }, 'proposed': { count: 'positive' },
-  'sketching-experience': {}, 'experience-shared': {}, 'detailing-proposal': { title: 'text' },
+  'sketching-experience': {}, 'experience-shared': {}, 'detailing-proposal': { title: 'text' }, 'detailing-chosen-proposal': {},
   'choosing-capability': { purpose: 'text' }, 'capability-selected': { purpose: 'text', capability: 'text' },
+  'capability-selection-kept': { purpose: 'text', capability: 'text' }, 'capability-selection-changed': { purpose: 'text', capability: 'text' },
   'revising-design': {}, 'revising-display': {}, 'display-revised': {}, 'design-copy-revised': {},
   'design-revised': { added: 'count', removed: 'count', changed: 'count', parts: 'count', reworked: 'count' },
   'design-frozen': { operations: 'count', parts: 'count', checks: 'count' },
   'capability-needed': { purpose: 'text', capability: 'text' },
   'repairing-live-read': { operation: 'text' }, 'live-read-failed': {}, 'live-read-fixed': {},
   'designing-layout': {}, 'layout-applied': {}, 'checking-layout': {}, 'layout-kept': {},
-  'layout-needs-work': {}, 'layout-reviewed-with-notes': {}, 'layout-reviewed': {}, 'layout-review-unavailable': {},
+  'layout-needs-work': {}, 'layout-reviewed-with-notes': {}, 'layout-reviewed': {}, 'layout-review-unavailable': {}, 'layout-review-interrupted': {},
   'choosing-component': { purpose: 'text' }, 'using-design-choice': {}, 'waiting-for-component': {},
   'component-placed': {}, 'using-persons-component': {},
   'implementing-operation': { operation: 'text' }, 'repair-operation': { operation: 'text', round: 'repair' },
@@ -54,6 +55,17 @@ type Values = Readonly<Record<string, string | number>>;
 const reference = (key: string, values?: Values): StudioTextRef => ({ key, ...(values ? { args: textArgs(values) } : {}) });
 
 export const studioStep = (key: keyof typeof stepArguments, values?: Values): StudioTextRef => reference(STEP + key, values);
+
+/** A previously saved proposal can have a title longer than an interface argument. */
+export const studioProposalStep = (title: string) => title.length <= TEXT_REF_LIMITS.arg_text
+  ? { label: studioStep('detailing-proposal', { title }) } : { label: studioStep('detailing-chosen-proposal'), detail: title };
+
+export function studioCapabilitySelection(operation: string, name: string, selected: string, original: string, refusal: string | undefined) {
+  const long = name.length > TEXT_REF_LIMITS.arg_text, changed = selected !== original;
+  const label = studioStep(refusal !== undefined ? 'capability-selection-kept' : changed ? 'capability-selection-changed' : 'capability-selected',
+    { purpose: operation, capability: long ? selected : name });
+  return { label, detail: [changed ? original : '', long ? name : '', refusal].filter(Boolean).join('\n') || undefined };
+}
 
 function validReference(value: unknown, prefix: string, words: Words): boolean {
   const ref = tryOwnedTextRef(value, BUILDER_PLUGIN_ID);

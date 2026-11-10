@@ -28,7 +28,7 @@ import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/a
 import { AgentReviewQueue } from "./reviews.js";
 import { freezeExecutionPlan, STEP_TOOLS } from "./execution-plan.js";
 import {
-  assertBusinessRole, assertInferenceRole, assertMaySuggest, checkStartRole, checkStartSession, composeRolePrompts, EXECUTION_CAPABILITIES,
+  assertBusinessRole, assertInferenceRole, assertKnownRoleTools, assertMaySuggest, checkStartRole, checkStartSession, composeRolePrompts, EXECUTION_CAPABILITIES,
   frozenActions, frozenGateway, frozenMcp, frozenSidePrompts, frozenSubagents, placeOf, roleExecution, runDirectoriesOf, selectStartCharacter, startGuards, widensFrozen, worktreesFor,
   type AgentHostWorktree,
 } from "./run-start.js";
@@ -37,6 +37,7 @@ export { AgentReviewQueue } from "./reviews.js";
 export type { AgentRoundSkillCatalog, AgentSkillSource } from "./round-skills.js";
 export type { AgentHostWorktree } from "./run-start.js";
 export { emptyCapabilityMatrix } from "./capabilities.js";
+export { AGENT_TOOLS, isAgentTool, RUNTIME_TOOLS_NOT_OFFERED, type AgentToolEntry } from "./tool-catalog.js";
 export {
   PrologueCredentialBridge,
   prologueAcceptsProtocol,
@@ -260,6 +261,7 @@ export class AgentHost implements AgentHostApi {
   }> {
     const capabilities = this.adapter(runtimeId).descriptor.capabilities;
     return manifest.roles.map((role) => {
+      try { assertKnownRoleTools(role, manifest); } catch (error) { return { role_id: role.role_id, available: false, reason: (error as Error).message }; }
       if (role.workspace === "none") {
         try { assertInferenceRole(role, manifest); } catch (error) { return { role_id: role.role_id, available: false, reason: (error as Error).message }; }
         if (!this.adapter(runtimeId).descriptor.supports_workspace_none) return { role_id: role.role_id, available: false, reason: "当前运行时尚未接通无工作区推理" };

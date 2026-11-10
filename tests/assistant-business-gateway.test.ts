@@ -7,7 +7,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
+import { AGENT_TOOLS, AgentHost, AgentReviewQueue, createPrologueNodeAdapter, isAgentTool, RUNTIME_TOOLS_NOT_OFFERED } from "@molis-ai/molis-work-service-agent-host";
 import { newCallId, withCallId } from "@molis-ai/molis-work-kernel";
 import { ActionError, type ActionView, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createMolisWorkLocalHost, EN, molisWorkHostProjectReference, runWithLocale } from "@molis-ai/molis-work-app-local-host";
@@ -16,7 +16,7 @@ import { LocalHost } from "@molis-ai/molis-work-app-local-host";
 import { managementGoals } from "./goal-management-caller.js";
 import { watchSettlements } from "./fixtures/settlements.js";
 import { AssistantStore, type StoredWork } from "../apps/local-host/dist/assistant/assistant-store.js";
-import { AssistantService, presentActivity } from "../apps/local-host/dist/assistant/assistant-service.js";
+import { AssistantService, presentActivity, TOOL_ACTIVITY_VERBS } from "../apps/local-host/dist/assistant/assistant-service.js";
 import { actionKey, assistantAuthority, assistantProjectPrompts } from "../apps/local-host/dist/assistant/assistant-authority.js";
 import { HOST_GOVERNED_TOOLS, capabilityInput, gatewayProblem, prologueActionGateway, readableInput } from "../horizontal/agent-host/dist/adapters/prologue-action-gateway.js";
 import { declarationManifest, manifestProblems } from "./fixtures/declaration-manifest.js";
@@ -254,6 +254,11 @@ test("AC-10, QA-001: on an English page the reason a Send without a model fails 
     assert.equal((await f.service.list())[0]!.draft, text);
     await assert.rejects(f.service.send({ text, request_id: "req-00000012" }, {}), /还没有配置可用的模型/, "a Chinese page still reads it in Chinese");
   } finally { await f.close(); }
+});
+
+test("CPK-07: the activity table names only Agent tools — by the tool set's name or the runtime's own name for one", () => {
+  const runtimeNames = [...AGENT_TOOLS.flatMap(tool => tool.runtime_name ? [tool.runtime_name] : []), ...RUNTIME_TOOLS_NOT_OFFERED.map(row => row.runtime_name)];
+  assert.deepEqual(Object.keys(TOOL_ACTIVITY_VERBS).filter(name => !isAgentTool(name) && !runtimeNames.includes(name)), []);
 });
 
 test("activity and review read in the person's terms", () => {

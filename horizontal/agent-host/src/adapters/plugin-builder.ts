@@ -5,6 +5,7 @@ import { collectRun, fillSkillBody, prepareSkillIntent, type ExactRef, type Runt
 import type { PrologueModelConfiguration } from './prologue.js';
 
 import type { BuilderAgentActivity, BuilderAgentRequest, BuilderAgentRecord } from '@molis-ai/molis-work-contracts/services/agent-host';
+import { PLUGIN_CHECKS_TOOL } from '../tool-catalog.js';
 export type { BuilderAgentActivity, BuilderAgentRequest, BuilderAgentRecord } from '@molis-ai/molis-work-contracts/services/agent-host';
 
 export interface PluginBuilderAgentOptions {
@@ -28,7 +29,7 @@ export const MODEL_CALL_LIMIT_MS = { designer: 600_000, coder: 300_000 } as cons
 /** The most one request may write: a designer's whole answer, or one code turn. */
 export const MAX_OUTPUT_TOKENS = { designer: 32768, coder: 16384 } as const;
 // No search: every file the code role needs is named in its task, and real runs spent most turns on empty searches.
-const TOOLS = ['read', 'write', 'edit', 'plugin-checks'] as const;
+const TOOLS = ['read', 'write', 'edit', PLUGIN_CHECKS_TOOL] as const;
 const WRITABLE = /^(?:src\/(?!index\.ts$)[a-zA-Z0-9_./-]+\.ts|tests\/[a-zA-Z0-9_./-]+\.ts|package\.json)$/;
 
 /** Only the owning Node adapter supplies these bindings. Plugins never receive a raw Runtime. */

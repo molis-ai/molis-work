@@ -39,7 +39,7 @@ import { AssistantNotices } from "./assistant-notices.js";
 
 export type { AssistantServicePorts, AssistantCaller } from "./assistant-service-shared.js";
 export { holdingRule } from "./assistant-notices.js";
-export { spokenTurns, stopInWords, presentActivity } from "./assistant-present.js";
+export { spokenTurns, stopInWords, presentActivity, TOOL_ACTIVITY_VERBS } from "./assistant-present.js";
 /** Recall words: the platform memory's own (Chinese two-character pieces and Latin words). */
 export { recallKeywords } from "@molis-ai/molis-work-service-memory";
 export { sameLocalTimeLater } from "./assistant-followups.js";

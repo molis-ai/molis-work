@@ -10,6 +10,7 @@ import vm from "node:vm";
 import { buildSync } from "esbuild";
 import { ASSISTANT_STEP_ROW_FACTORY_SCRIPT, ASSISTANT_THREAD_REPLY_SCRIPT } from "@molis-ai/molis-work-app-workbench";
 import { assistantThreadActions } from "@molis-ai/molis-work-app-local-host";
+import { pageTextScript } from "./fixtures/page-text.js";
 
 const PAGES = "io.molis.work.pages";
 const PRESENTATION = buildSync({ entryPoints: [fileURLToPath(new URL("../apps/workbench/src/browser/plugin-frame/presentation.ts", import.meta.url))],
@@ -69,8 +70,10 @@ const row = () => {
   };
   const group = el(), rowNode = { hidden: true, append: () => {}, addEventListener: () => {},
     querySelector: (selector: string) => selector === ".mw-ix-steps" ? group : selector === ".mw-ix-step" ? steps[0] ?? null : null };
-  const factory = vm.runInContext(`(${ASSISTANT_STEP_ROW_FACTORY_SCRIPT})`, vm.createContext({ CSS: { escape: (value: string) => value } })) as (input: unknown) => { offer(message: unknown, unconfirmed: boolean): void };
-  const made = factory({ row: rowNode, thread: { querySelectorAll: () => [] }, L: (text: string) => text, el,
+  const context = vm.createContext({ CSS: { escape: (value: string) => value }, document: { documentElement: {} } });
+  vm.runInContext(pageTextScript("zh"), context);
+  const factory = vm.runInContext(`(${ASSISTANT_STEP_ROW_FACTORY_SCRIPT})`, context) as (input: unknown) => { offer(message: unknown, unconfirmed: boolean): void };
+  const made = factory({ row: rowNode, thread: { querySelectorAll: () => [] }, readText: vm.runInContext("t.text", context), el,
     drawn: () => {}, jumpTo: () => {}, bindText: () => {}, view: () => null, open: () => false, other: () => {},
     take: (message: unknown) => { taken.push(message); }, reply: (message: unknown) => { replied.push(message); } });
   return { steps, replied, taken, offer: (message: unknown) => made.offer(message, false) };
@@ -119,6 +122,7 @@ class CommentNode {
   fire(name: string): void { this.handlers.get(name)?.({ preventDefault() {} }); }
 }
 
+const HANDED = "已交给助理：在助理面板里点「让助理回复」";
 const tick = () => new Promise<void>(resolve => setImmediate(resolve));
 type SavedComment = { message_id: string; request_id: string; body: string; author: string; created_at: string };
 /** Run the production Pages controller with its existing DOM, storage and HTTP ports; hand offers to the actual shell bridge. */
@@ -132,7 +136,7 @@ async function commentSide() {
   const context = vm.createContext({ JSON, Date, Map, Error, clearTimeout,
     crypto: { randomUUID: () => `00000000-0000-4000-8000-${String(++sequence).padStart(12, "0")}` },
     localStorage: { getItem: (key: string) => storage.get(key), setItem: (key: string, value: string) => storage.set(key, value) },
-    document: { querySelector: () => ({ querySelector: (selector: string) => node(selector.slice(14, -1)), querySelectorAll: () => [] }), createElement: () => new CommentNode() },
+    document: { documentElement: {}, querySelector: () => ({ querySelector: (selector: string) => node(selector.slice(14, -1)), querySelectorAll: () => [] }), createElement: () => new CommentNode() },
     CustomEvent: class { constructor(readonly type: string, readonly init: { detail: Detail }) {} },
     window: { setTimeout, dispatchEvent: (event: { init: { detail: Detail } }) => {
       raw.push(copy(event.init.detail));const before = framed.sent.length;framed.post(event.init.detail);
@@ -146,9 +150,10 @@ async function commentSide() {
       thread.messages.push({ message_id: "11111111-1111-4111-8111-111111111111", request_id: body.request_id!, body: body.body!, author: "user", created_at: "2026-10-25T00:00:00Z" });
       return { thread: copy(thread) };
     } });
+  vm.runInContext(pageTextScript("zh", "pages"), context);
   vm.runInContext(COMMENTS, context);
   const mount = vm.runInContext("Comments.mountComments", context) as (host: unknown) => void;
-  mount({ projectId: "project-1", translate: (key: string) => key, pluginRoute: (path: string) => path,
+  mount({ projectId: "project-1", translate: vm.runInContext("t.text", context), pluginRoute: (path: string) => path,
     messages: { listen: (listener: typeof receive) => { receive = listener; }, send: (message: { type: string; command?: { request_id: string } }) => {
       if (message.type === "molis:side-context-command") { draftReads++;receive({ type: "molis:side-context-result", request_id: message.command!.request_id, object_id: "doc-1", text: snapshot, version: 7, notes: [] }); }
     } } });
@@ -177,7 +182,7 @@ test("RAC-916-L1: complete detail rejects long comments plus draft and JSON esca
     const request = side.pending()!.request_id;
     await side.send();
     assert.deepEqual([side.saves, side.raw.length, side.assistant.steps.length], [0, 0, 0]);
-    assert.equal(side.node("error").textContent, "pages.comments.draft-too-long");
+    assert.equal(side.node("error").textContent, "评论和附带草稿太长，评论未发送。请先保存文档，或减少内容后重试。");
     assert.equal(side.node("error").hidden, false);
     assert.equal(side.node("run").textContent, "");
     assert.equal(side.pending()!.body, "c".repeat(19000));
@@ -200,7 +205,7 @@ test("RAC-916-L1 RAC-916-L2 RAC-916-L3: final detail at the bridge cap passes; o
       assert.equal(rejected.sent.length, 0, "the actual bridge rejects 100001");
     } else {
       assert.deepEqual([side.raw.length, side.framed.sent.length, side.assistant.steps.length], [0, 0, 0]);
-      assert.equal(side.node("error").textContent, "pages.comments.saved-offer-too-long");
+      assert.equal(side.node("error").textContent, "评论已保存，尚未交给助理。请先保存文档，或取消附带草稿后重试。");
       assert.equal(side.node("run").textContent, "");
       assert.equal(side.threads[0]!.messages[0]!.body, '评论"\n原文');
       assert.equal(side.pending()!.body, '评论"\n原文');
@@ -219,7 +224,7 @@ test("RAC-916-L1 RAC-916-L2 RAC-916-L3: final detail at the bridge cap passes; o
     }
     assert.equal(side.pending(), undefined, "successful forwarding clears only the pending draft");
     assert.equal(side.node("error").hidden, true);
-    assert.equal(side.node("run").textContent, "pages.comments.handed");
+    assert.equal(side.node("run").textContent, HANDED);
     assert.deepEqual([side.assistant.steps.length, side.assistant.replied.length, side.assistant.taken.length], [1, 0, 0], "the real Assistant row still waits for a human press");
     side.assistant.steps[0]!.click();assert.equal(side.assistant.replied.length, 1);
   }
@@ -230,7 +235,7 @@ test("RAC-916-L2 RAC-916-L3: ordinary comments skip offer limits; a later oversi
   assert.deepEqual([side.saves, side.draftReads, side.raw.length], [1, 0, 0]);
   assert.equal(side.node("run").textContent, "");
   side.ai();side.body("请助理回复");await side.send();
-  assert.equal(side.node("run").textContent, "pages.comments.handed");
+  assert.equal(side.node("run").textContent, HANDED);
   side.unsavedDocument();side.ai();side.body("c".repeat(19000));side.draft("x".repeat(85000));await side.send();
   assert.equal(side.saves, 2, "the oversize subsequent ask was not saved");
   assert.equal(side.node("run").textContent, "", "a previous success cannot label this failed attempt as handed");

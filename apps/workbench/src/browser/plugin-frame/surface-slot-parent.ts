@@ -1,5 +1,5 @@
 import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
-import type { SurfaceDisplayCorrection, SurfaceHomeDisplay, SurfaceHomeRowDisplay } from "../../surface-home-display.js";
+import type { SurfaceDisplayCorrection, SurfaceHomeDisplay, SurfaceHomeRowDisplay } from "@molis-ai/molis-work-design-system";
 import type { FramedSurfaceControl } from "../project-home-render.js";
 import type * as SurfaceRenderer from "../project-home.js";
 import type { FramedArea, PageFramedAreas } from "./framed-area.js";

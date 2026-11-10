@@ -9,7 +9,7 @@ import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/p
 import type { PluginInstanceRecord, PluginPackageBundle } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { SandboxEffects } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
 import type { SurfaceDescription, SurfaceInstallationRef, SurfacePluginCard } from "@molis-ai/molis-work-contracts/services/surface-composition";
-import type { SurfaceHomeDisplay } from "@molis-ai/molis-work-app-workbench";
+import type { SurfaceHomeDisplay } from "@molis-ai/molis-work-design-system";
 import { SqlitePluginPrivateStorage, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { homeSqlitePath } from "@molis-ai/molis-work-storage";
 import { deferred, serveHomeRuntime } from "./fixtures/home-runtime.js";

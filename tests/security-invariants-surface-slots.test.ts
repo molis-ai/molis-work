@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { LocalProjectDatabase, pluginPagesFor } from "@molis-ai/molis-work-app-local-host";
-import type { SurfaceHomeDisplay } from "@molis-ai/molis-work-app-workbench";
+import type { SurfaceHomeDisplay } from "@molis-ai/molis-work-design-system";
 import { addProjectPlugin, LocalHostHttpClient } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";

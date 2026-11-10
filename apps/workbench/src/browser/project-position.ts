@@ -1,4 +1,4 @@
-import type { SurfaceHomeDisplay } from "../surface-home-display.js";
+import type { SurfaceHomeDisplay } from "@molis-ai/molis-work-design-system";
 import { homeButton, isPlacementControl, renderPositionGroup, type HomeControl } from "./project-home-render.js";
 import { reconcileSurfaceRows } from "./project-home.js";
 import { mountDiscussionObjects } from "./project-position-discussion.js";

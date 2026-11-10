@@ -2,7 +2,7 @@ import type { OwnedTextRef } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { SurfaceGroup, SurfaceHomeEnable, SurfaceHomeStart, SurfaceItem, SurfacePluginCard } from "@molis-ai/molis-work-contracts/services/surface-composition";
 import { escapeHtml as e, icon, installUiText, PLUGIN_ICON_NAMES, renderBadge, renderButton, renderPresentationForm, renderStatusMark, say,
   type PresentationFormValues } from "@molis-ai/molis-work-plugin-sdk/ui";
-import type { SurfaceHomeDisplay, SurfaceHomeRowDisplay } from "../surface-home-display.js";
+import type { SurfaceHomeDisplay, SurfaceHomeRowDisplay } from "@molis-ai/molis-work-design-system";
 import { correctionHeader, correctionMenu, correctionText, objectCorrections, type CorrectionRender } from "./project-correction-render.js";
 
 type ObjectTarget = { kind: "object" | "peek" | "open_result" | "place" | "hand_off"; subject: SurfaceItem["subject"];

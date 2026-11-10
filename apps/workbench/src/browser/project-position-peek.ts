@@ -1,5 +1,5 @@
 import { escapeHtml as e, renderButton } from "@molis-ai/molis-work-plugin-sdk/ui";
-import type { SurfaceHomeDisplay, SurfaceHomeRowDisplay } from "../surface-home-display.js";
+import type { SurfaceHomeDisplay, SurfaceHomeRowDisplay } from "@molis-ai/molis-work-design-system";
 import { homeButton, isPlacementControl, presentationWord, renderHomePeek, type HomeControl } from "./project-home-render.js";
 import { unsettledSurfaceActions } from "./unsettled-surface-actions.js";
 import type { PositionHost, ReadPosition } from "./project-position.js";

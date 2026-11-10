@@ -10,7 +10,7 @@ import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { openWork, sendBrowser, waitWork } from "./fixtures/assistant-send-journey.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 import type { AssistantSendResult } from "@molis-ai/molis-work-contracts/services/assistant";
-import type { SurfaceHomeDisplay } from "@molis-ai/molis-work-app-workbench";
+import type { SurfaceHomeDisplay } from "@molis-ai/molis-work-design-system";
 
 const imFrame = '[data-side-body="discussion"] iframe';
 const visible = (selector: string) => '!!document.querySelector(' + JSON.stringify(selector) + ')?.checkVisibility()';

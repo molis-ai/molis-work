@@ -5,7 +5,7 @@ import { surfaceCompositionActions, SURFACES_PROVIDER_ID, type SurfaceItem, type
 import { searchActions, SEARCH_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/search";
 import { startSurfaceRead, type SurfaceComposePorts } from "@molis-ai/molis-work-service-surfaces";
 import { canonicalJsonText } from "@molis-ai/molis-work-plugin-sdk";
-import type { SurfaceHomeRowDisplay } from "@molis-ai/molis-work-app-workbench";
+import type { SurfaceHomeRowDisplay } from "@molis-ai/molis-work-design-system";
 import type { LocalHost } from "./local-host.js";
 import { openProjectPersonContext } from "./local-web-actions.js";
 import { pluginRouteControl } from "./plugin-route-control.js";

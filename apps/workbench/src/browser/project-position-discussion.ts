@@ -1,5 +1,5 @@
 import type { ImObjectBridge } from "@molis-ai/molis-work-im-ui";
-import type { SurfaceHomeDisplay } from "../surface-home-display.js";
+import type { SurfaceHomeDisplay } from "@molis-ai/molis-work-design-system";
 import type { PositionHost, PositionMount, PositionView } from "./project-position.js";
 
 /** Translate visible, actual message parts into bounded reads; the shared view owns rendering and navigation. */

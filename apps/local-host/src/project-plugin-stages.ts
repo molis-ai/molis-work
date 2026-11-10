@@ -1,4 +1,4 @@
-import { declaredStageContributionId, stageContributionId, stageDataAction, stageObjectAction, stageSurfaceDescriptors, renderStagePage, withoutPagePublisher, type RenderedStagePage, type PluginRestartOffer, type UnavailablePluginStage } from "@molis-ai/molis-work-app-workbench";
+import { declaredStageContributionId, stageContributionId, stageDataAction, stageObjectAction, stageOpeningView, stageSurfaceDescriptors, renderStagePage, withoutPagePublisher, type RenderedStagePage, type PluginRestartOffer, type UnavailablePluginStage } from "@molis-ai/molis-work-app-workbench";
 import { PLATFORM_PLUGIN_REGISTRATIONS, runsOnlyInHome } from "./plugin-registry.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginWorkbenchRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
@@ -19,6 +19,16 @@ import type { SurfaceInstallationRef } from "@molis-ai/molis-work-contracts/serv
 /** A plugin whose stage the project page draws: a catalog registration, or a Home dual-instance plugin outside the build. */
 export type StageEntry = { readonly project_plugin_id: string; readonly manifest: PluginManifest;
   readonly workbench?: Pick<PluginWorkbenchRegistration, "clientFactory" | "clientMounts"> };
+
+/** A running contribution supplies its main surface. An installed package opens in the workbench frame. */
+export function projectHomeStageLocation(manifest: PluginManifest, contribution?: UiContribution) {
+  const view = stageOpeningView(manifest);
+  const surface = contribution
+    ? stageSurfaceDescriptors(manifest, contribution).find(item => item.target_slot_id === "workbench.main")?.surface_id
+    : "workbench";
+  if (!view || surface === undefined) return undefined;
+  return { view_id: view.view_id, surface };
+}
 
 /** What a project page's plugin surfaces are drawn with: the project plugin services plus the page's escape. */
 export interface ProjectPluginSurfacePorts extends ProjectPluginHttpPorts {

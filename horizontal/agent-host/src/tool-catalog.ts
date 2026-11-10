@@ -83,7 +83,7 @@ export const RUNTIME_TOOLS_NOT_OFFERED: ReadonlyArray<{ runtime_name: string; wh
   ...["read-image", "fetch-page", "web-search", "generate-image", "speak", "transcribe"].map(runtime_name => ({ runtime_name,
     why: "Not offered yet: no role needs it, and its reach outside the round has no Host policy." })),
   ...["bounded-script", "run-script", "invoke-skill"].map(runtime_name => ({ runtime_name,
-    why: "A Skill's scripts run through the role's own run-command, from the round's temporary directory (contract-design §3.6)." })),
+    why: "Skill scripts do not run yet: the Node Host has no command sandbox (SKP-09, BL-skill-scripts-sandbox)." })),
   ...["hand-off", "session-list", "session-create", "session-fork", "session-wait", "session-archive", "session-inject"].map(runtime_name => ({ runtime_name,
     why: "Sessions are the plugin's to open and close; a round only messages another one (session-send)." })),
   ...["leave-plan", "board-plan", "board-revise"].map(runtime_name => ({ runtime_name,

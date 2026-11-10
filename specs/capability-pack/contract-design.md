@@ -367,6 +367,8 @@ skillCatalog?: {
   - 超时与失败按失败报。
 - **排期。** 排在 9-5 之后。做不进本批时按第 8.4 节拿掉，记进下一批，SKP-09 跟着走。
 
+**结果（2026-11-09，主会话）：移出本批。** vendored Prologue 的 Node Host 报 `sandbox: "absent"`：`run-command` 只受沙箱档管（只读档拒命令，可写档不另隔离），也没有给命令另开一个只读目录的接口（`readRoots` 只给父轮看子轮的工作区，只管读文件的工具）。第 2 步「沙箱只读放开这一个目录」现在做不到真，换包是红线。所以 9-5b 按第 8.4 节拿掉，SKP-09 与 `S-skill-scripts` 一起记进 [BL-skill-scripts-sandbox](../backlog/BL-skill-scripts-sandbox.md)；宿主照旧不执行技能脚本，工具全集里 `bounded-script`、`run-script`、`invoke-skill` 不提供的原因随之改写。
+
 ## 4. 9-8 能力包合同
 
 ### 4.1 包是什么、谁说包里有什么
@@ -991,7 +993,7 @@ export function isAgentTool(name: string): boolean;
 | SKC-06 | 9-1 | `S-skill-delegation` 第 1、3～11 条；原 `security-invariants-skill-catalog` 用例改读新字段 |
 | SKC-11 | 9-4、9-5 | `git grep` 不到 `molis-coding-method`、`agent.skills.discover`、`agent.skills.install`、`AgentSkillLibrary` 和 Coding 方法页 |
 | SKC-13 | 9-5 | 第 3.2 节两层底线测试 |
-| SKP-09 | 9-5b | `S-skill-scripts` 的拒绝测试：只读角色跑不了脚本，超时与失败按失败报 |
+| SKP-09 | 9-5b（移出本批，见第 3.6 节结果） | 记进 BL-skill-scripts-sandbox，本批不验 |
 | CHO-03/04/05 | 9-3、9-4 | `tests/coding-work-executor.test.ts`：助理开始的一轮带方法与 MCP 到达；不可用原因随第 12 批项 1 |
 | SKP-12、ADH-23 | 9-6 | `[人工]`；隔离 Home 里用 MiniMax 的工程核对另记 |
 | 读取次数 | 9-5、9-2 | 第 3.4 节计数夹具 |
@@ -1022,7 +1024,7 @@ CPK-13、CPK-14 是第 3 稿新加的，同一提交写进能力包需求 §11�
 | `b09/freeze` | 先 9-5：<ul><li>目录端口与身份、委派例外；</li><li>编译期锁、两道检查、内容摘要键、计数夹具；</li><li>上下文绑定与信封，换掉 `skill-selection.ts`；</li><li>回复语言：组装处读调用记录的 `locale`，加 `frozen.reply_locale`。</li></ul>接着同一分支 9-4：<ul><li>Coding 改读目录，Manifest 加 `skills:read`；</li><li>合并规则；</li><li>删旧路与方法页，旧形状一次清掉。</li></ul> | 先 C2 再 B 接力，各 Opus 5.5 high／medium | `b09/contract` | `horizontal/agent-host/`、`services/agent-host*.ts`、`agent-host-composition.ts`、`plugin-route-operations.ts`、`plugin-actions-client.ts`、`agent-definitions/skill-*`、`plugins/native/coding/` |
 | `b09/assistant` | 9-2：<ul><li>`SignedAgentReference` 只剩角色；</li><li>`methods()` 读目录，`bindSigned` 一次取；</li><li>签名角色只出现一次；</li><li>助理历史材料只认新形状。</li></ul> | 先 C（`agent-definitions.ts`、`services/agent-definitions.ts`）再 A 接力；Opus 5.5 medium | `b09/contract`；#1991 合入；与 `b09/freeze` 并行，文件不重叠 | `apps/local-host/src/agent-definitions/agent-definitions.ts`、`apps/local-host/src/assistant/*`、`services/assistant.ts`、`assistant-composer.ts` |
 | `b09/delegation` | 9-3：委派时带 `run.start.skills`，宿主写绑定的 `named_skills` 与 `locale`；`S-skill-delegation` 全部拒绝测试 | A，Opus 5.5 high（安全） | `b09/freeze`、`b09/assistant` 合回 | `assistant-dispatch.ts`、`assistant-executor.ts`、`assistant-round-materials.ts`、`docs/system/security-invariants/`、`tests/security-invariants-skill-delegation.test.ts` |
-| `b09/scripts` | 9-5b（SKP-09） | C2，Opus 5.5 high | `b09/freeze` | `horizontal/agent-host/`、沙箱规则 |
+| `b09/scripts` | 9-5b（SKP-09）；2026-11-09 移出本批，只留移出记录（第 3.6 节结果） | C2，Opus 5.5 high | `b09/freeze` | `horizontal/agent-host/`、沙箱规则 |
 | `b09/tools` | 9-9：<ul><li>工具全集；</li><li>`RUNTIME_TOOLS_NOT_OFFERED` 替掉 `prologue-taskboard.ts` 的排除；</li><li>`host_tools` 检查、对齐测试；</li><li>MCP 收口。</li></ul>`AGENT_TOOLS` 与 `isAgentTool` 从 `horizontal/agent-host` 导出，在本片做完。接力：`assistant-present.ts` 的键约束由 A 在 `b09/delegation` 之后做；Coding 设置页由 B 做 | C2 起；Opus 5.5 medium | `b09/freeze`（同包串行）；与 `b09/scripts` 不能并行（同包） | `horizontal/agent-host/src/{tool-catalog,…}.ts`、`apps/mcp/`、`docs/mcp.md`、`plugins/native/coding/src/browser/settings/mcp.ts`、`assistant-present.ts` |
 | `b09/kit` | 9-10：<ul><li>`horizontal/kit`：汇总、来源与包盖章、拼包、状态、系统提供方表；</li><li>`kit-actions.ts`；</li><li>各上报者，含插件安装服务的包头与 `agent.tools.kit.report@1`；</li><li>`role_id` 的登记校验（`plugin-instructions.ts`、`builtin-agents.ts`）；</li><li>只消费 `horizontal/agent-host` 导出的 `AGENT_TOOLS`，不改它。</li><li>`plugins.package.export@1` 与下载路由；</li><li>提示词改写三个动作。</li></ul> | C，Opus 5.5 high；Characters 一侧按规则 7 | `b09/assistant`（`methods()` 去角色）、`b09/tools`（工具全集） | `horizontal/kit/`、`apps/local-host/src/kit-actions.ts`、`plugin-install-actions.ts`、`plugin-instructions.ts`、`agent-definitions/`、`modules/characters/`、`services/agent-definitions.ts` |
 | `b09/kit-page` | 9-11：<ul><li>按定样 A 实现；</li><li>设置页合并（第 9.1 节）；</li><li>「导出这个包」的组装与导回的解析。</li></ul> | D，按定样 | `b09/kit` | 设置页、组件板、`apps/workbench/src/settings-skills.ts` 一带 |

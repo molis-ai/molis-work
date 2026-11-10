@@ -1,7 +1,6 @@
-import { constants } from "node:sqlite";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HomePluginDatabaseDeclaration, PluginManifest, PluginSqlRow } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { SqliteAuthorizer, SqliteDatabase } from "@molis-ai/molis-work-storage";
+import { sqliteRowAuthorizerCodes, type SqliteAuthorizer, type SqliteDatabase } from "@molis-ai/molis-work-storage";
 import type { ArtifactRootRow } from "./plugin-artifact-row-transaction.js";
 import type { ProjectArtifactRoot } from "./plugin-project-rows.js";
 import { pluginSyncLibraryManifest, pluginSyncNamespace } from "./plugin-sync-database.js";
@@ -9,7 +8,6 @@ import { pluginSyncLibraryManifest, pluginSyncNamespace } from "./plugin-sync-da
 export const ARTIFACT_HOME_SCHEMA = "molis_home";
 const denied = () => new ActionError("actions.forbidden", "固定成果事务越过 Home 根行的存储边界");
 const quoted = (name: string) => `"${name.replaceAll('"', '""')}"`;
-const codes: Readonly<Record<string, number>> = Object.fromEntries(Object.entries(constants).filter((entry): entry is [string, number] => typeof entry[1] === "number"));
 
 /** The already compiled platform triggers are the only programs that can reach these tables. */
 export function artifactRowReplication(manifest: PluginManifest, library: HomePluginDatabaseDeclaration, root: string) {
@@ -45,32 +43,33 @@ function rootPrograms(db: SqliteDatabase, table: string, expected: ReadonlyMap<s
   return new Set(programs.map(row => row.name));
 }
 
-function rowAuthorizer(root: ProjectArtifactRoot, programs: ReadonlySet<string>, replication: Replication, writeColumns?: ReadonlySet<string>): SqliteAuthorizer {
-  const allow = codes.SQLITE_OK!, refuse = codes.SQLITE_DENY!, table = root.declaration.table;
+function rowAuthorizer(codes: NonNullable<typeof sqliteRowAuthorizerCodes>, root: ProjectArtifactRoot, programs: ReadonlySet<string>, replication: Replication, writeColumns?: ReadonlySet<string>): SqliteAuthorizer {
+  const { allow, deny: refuse } = codes, table = root.declaration.table;
   return (action, first, second, schema, origin) => {
     if (origin && (!writeColumns || !programs.has(origin))) return refuse;
-    if (action === codes.SQLITE_SELECT) return allow;
-    if (action === codes.SQLITE_FUNCTION && origin && (second === "json_array" || second === "max")) return allow;
+    if (action === codes.select) return allow;
+    if (action === codes.call && origin && (second === "json_array" || second === "max")) return allow;
     if (!first || schema !== ARTIFACT_HOME_SCHEMA) return refuse;
-    if (action === codes.SQLITE_READ && second && (first === table ? root.columns.has(second) : origin && replication.reads.get(first)?.has(second))) return allow;
+    if (action === codes.read && second && (first === table ? root.columns.has(second) : origin && replication.reads.get(first)?.has(second))) return allow;
     if (!writeColumns) return refuse;
     if (origin) {
-      if (action === codes.SQLITE_INSERT && replication.inserts.has(first)) return allow;
-      if (action === codes.SQLITE_UPDATE && second && replication.updates.get(first) === second) return allow;
+      if (action === codes.insert && replication.inserts.has(first)) return allow;
+      if (action === codes.update && second && replication.updates.get(first) === second) return allow;
     }
-    return !origin && action === codes.SQLITE_UPDATE && first === table && second && writeColumns.has(second) ? allow : refuse;
+    return !origin && action === codes.update && first === table && second && writeColumns.has(second) ? allow : refuse;
   };
 }
 
 /** SQL and schema names come exclusively from the checked Manifest. Every caller value is bound to this one project and row. */
 export function boundArtifactRootRow(db: SqliteDatabase, root: ProjectArtifactRoot, expected: ReadonlyMap<string, string>, replication: Replication,
   projectId: string, id: string): ArtifactRootRow {
-  if (codes.SQLITE_DENY === undefined) throw new ActionError("actions.service_unavailable", "当前宿主缺少 SQLite 原生语句授权");
+  const codes = sqliteRowAuthorizerCodes;
+  if (!codes) throw new ActionError("actions.service_unavailable", "当前宿主缺少 SQLite 原生语句授权");
   const { table, id_column, version_column, artifact_id_column, artifact_version_column, write_columns, pending_column } = root.declaration;
   const programs = rootPrograms(db, table, expected);
   const where = `${quoted(root.projectColumn)} COLLATE BINARY=? AND ${quoted(id_column)} COLLATE BINARY=?`;
   const guarded = <T>(run: () => T, columns?: ReadonlySet<string>): T => {
-    db.setAuthorizer(rowAuthorizer(root, programs, replication, columns));
+    db.setAuthorizer(rowAuthorizer(codes, root, programs, replication, columns));
     try { return run(); } finally { db.setAuthorizer(null); }
   };
   return {

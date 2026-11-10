@@ -38,6 +38,27 @@ const intlLocale = (catalog: UiLanguageCatalog) => (tag: string) => catalog.lang
 type LoadAsset = NonNullable<ReturnType<typeof installLanguageAssets>>;
 type LanguageAsset = Awaited<ReturnType<LoadAsset>>;
 
+// The opening scope read can update the owners while a language is being saved. The same Settings render owns their words
+// at commit even when the live list differs from the old render, so generic text matching leaves these slots alone.
+function prepareDeletionScopeWords(preparedPage: ParentNode, regions: readonly { root: ParentNode; next: ParentNode }[]) {
+  const selector = "[data-project-delete-scope] > span[id]";
+  const changes = new Map<HTMLElement, { root: ParentNode; id: string; words: string }>();
+  for (const { root, next } of [{ root: document, next: preparedPage }, ...regions]) {
+    const words = new Map([...next.querySelectorAll(selector)].map(node => [node.id, node.textContent ?? ""]));
+    for (const node of root.querySelectorAll<HTMLElement>(selector)) {
+      const value = words.get(node.id);
+      if (value !== undefined) changes.set(node, { root, id: node.id, words: value });
+    }
+  }
+  return () => {
+    for (const [node, { root, id, words }] of changes) {
+      if (node.id !== id || !root.contains(node) || node.textContent === words) continue;
+      if (node.firstChild instanceof Text) node.firstChild.data = words;
+      else node.textContent = words;
+    }
+  };
+}
+
 function documentLanguage(initial: LanguageAsset, load: LoadAsset) {
   let displayed = initial, inline = viewPacks(document);
   const matches = (value: string | undefined | null): value is UiLanguageTag => displayed.catalog.languages.some(row => row.tag === value);
@@ -124,7 +145,8 @@ function documentLanguage(initial: LanguageAsset, load: LoadAsset) {
         globalThis.molisPluginFrames?.prepareLanguage(frameUiLanguage(language), signal, previous, next),
         prepareSettings(displayed.pack.locale, locale, signal),
       ]) : [];
-      return { asset, choice, frames, settings, inline: projected, reader: createTextReader({ packs: packsFor(asset.pack, projected), locale, intlLocale: intlLocale(asset.catalog) }) };
+      return { asset, choice, frames, settings, deletionScopeWords: next && prepareDeletionScopeWords(next, settings?.regions ?? []),
+        inline: projected, reader: createTextReader({ packs: packsFor(asset.pack, projected), locale, intlLocale: intlLocale(asset.catalog) }) };
     },
     regions: prepared => prepared?.settings?.regions ?? [],
     async persist(_locale, prepared) {
@@ -149,6 +171,7 @@ function documentLanguage(initial: LanguageAsset, load: LoadAsset) {
       text.select(locale, packsFor(asset.pack, projected), intlLocale(asset.catalog));
       showLanguage(asset);
       prepared?.frames?.apply();
+      prepared?.deletionScopeWords?.();
       displayed = asset; inline = projected;
     },
     retext(ref, _locale, prepared) { return prepared?.reader.text(ref) ?? ""; },

@@ -297,7 +297,7 @@ export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
   if(notice){
    const key=notice.text?.key,owned=typeof key==='string'&&key.startsWith('plugin-builder.request.'),raw=String(notice.message??notice);
    const detail=owned&&typeof notice.detail==='string'?notice.detail:null;
-   parts.push('<div class="as-card as-error" role="alert">'+(owned?'<p>'+globalThis.t(key)+'</p>':'<p translate="no">'+esc(raw)+'</p>')
+   parts.push('<div class="as-card as-error" role="alert">'+(owned?'<p data-as-request-notice="'+esc(key)+'" translate="no">'+globalThis.t(key)+'</p>':'<p translate="no">'+esc(raw)+'</p>')
     +(detail===null?'':'<p class="as-small" translate="no">'+esc(detail)+'</p>')+'</div>');
   }
   const html=parts.join('');if(html===rendered)return;rendered=html;
@@ -484,6 +484,8 @@ const partEl=id=>{const el=id&&pluginRoot.querySelector('[data-component-id="'+C
  lifetime.listen($('[data-as-builds]'),'change',e=>run(()=>open(e.target.value||null)));
  lifetime.listen($('[data-as-model]'),'change',e=>{const[provider_id,model_id]=e.target.value.split('\n');if(!provider_id)return;run(async()=>{await api('/settings','POST',{provider_id,model_id});await refreshState();});});
  lifetime.listen(document,"molis-work:language-changed",()=>{
+  const requestNotice=feed.querySelector('[data-as-request-notice]');
+  if(requestNotice)requestNotice.textContent=globalThis.t.text(requestNotice.dataset.asRequestNotice);
   const css=(` + cssString.toString() + String.raw`);
   root.style.setProperty('--as-idle',css(globalThis.t.text("plugin-builder.agent-studio.not-connected-yet")));
   root.style.setProperty('--as-wired',css('✓ '+globalThis.t.text("plugin-builder.agent-studio.connected")));

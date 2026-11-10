@@ -7,7 +7,6 @@
  */
 export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
   (() => {
-    const readText = globalThis.t.text;
     // A project's 「输入与输出」 is its own typed program (src/browser/project-directories.ts), loaded before this one.
     const bindWorkspaces = (scope) => globalThis.molisWorkBindProjectDirectories?.(scope);
     const bindRename = (scope) => {
@@ -79,10 +78,19 @@ export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
         const locked = () => cleanupPending || unsure;
         const ready = () => !busy && (cleanupPending || (asks ? choice !== null : confirmation.checked));
         const label = () => cleanupPending ? globalThis.t.text("workbench.project-settings.retry-cleanup") : asks && choice === "delete" ? globalThis.t.text("workbench.project-settings.delete-project-files") : asks && choice === "keep" ? globalThis.t.text("workbench.project-settings.delete-project") : globalThis.t.text("workbench.project-settings.confirm-project-deletion");
+        const paintWords = () => {
+          const summary = asks ? globalThis.t.text("workbench.project-settings.permanently-delete-project-s-goals-records-links-molis") : globalThis.t.text("workbench.project-settings-folds.permanently-delete-project-s-goals-records-connections-molis");
+          const action = busy ? globalThis.t.text("workbench.project-settings.deleting") : label();
+          if (description.textContent !== summary) description.textContent = summary;
+          if (submit.textContent !== action) submit.textContent = action;
+        };
+        const retitle = () => {
+          if (dialog.open && dialog.isConnected) paintWords();
+          else document.removeEventListener("molis-work:language-changed", retitle);
+        };
         const paint = () => {
           question.hidden = !asks;
           confirmRow.hidden = asks;
-          description.textContent = asks ? globalThis.t.text("workbench.project-settings.permanently-delete-project-s-goals-records-links-molis") : globalThis.t.text("workbench.project-settings-folds.permanently-delete-project-s-goals-records-connections-molis");
           options.forEach((option) => {
             const on = option.dataset.ixOption === choice;
             option.setAttribute("aria-checked", on ? "true" : "false");
@@ -94,7 +102,7 @@ export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
           // Cleaning up what is left is the one way on, so the way around a busy refusal goes.
           if (cleanupPending) busyNotice.hidden = true;
           submit.disabled = !ready();
-          if (!busy) submit.textContent = label();
+          paintWords();
         };
         const choose = (value, focus) => {
           if (busy || locked()) return;
@@ -118,7 +126,7 @@ export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
           const turn = ++scopeTurn, language = document.documentElement.dataset.uiLanguageTag;
           return molisWorkRequest("/api/settings/projects/" + encodeURIComponent(form.dataset.projectDelete) + "/delete-scope")
             .then((result) => {
-              if (turn !== scopeTurn || !dialog.isConnected) return;
+              if (turn !== scopeTurn || !dialog.open || !dialog.isConnected) return;
               if (document.documentElement.dataset.uiLanguageTag === language) names.textContent = result.owners.map((owner) => owner.label).join(globalThis.t.text("workbench.project-deletion.separator"));
               // Only this initial output check sets the question. Preparing language HTML never checks it or changes the choice.
               if (!deletionKey) { asks = result.default_output === "has_files"; paint(); }
@@ -151,13 +159,15 @@ export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
             asks = false;
             error.hidden = busyNotice.hidden = true;
             title.textContent = globalThis.t.text("workbench.project-settings-folds.delete-project");
-            paint();
           }
+          paint();
           dialog.showModal();
+          document.addEventListener("molis-work:language-changed", retitle);
           loadScope();
         });
         cancel.addEventListener("click", () => { if (!busy) dialog.close(); });
         dialog.addEventListener("cancel", (event) => { if (busy && kept.hidden) event.preventDefault(); });
+        dialog.addEventListener("close", () => { if (!dialog.open) document.removeEventListener("molis-work:language-changed", retitle); });
         confirmation.addEventListener("change", paint);
         form.addEventListener("submit", async (event) => {
           event.preventDefault();
@@ -167,7 +177,6 @@ export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
           cancel.disabled = true;
           error.hidden = true;
           paint();
-          submit.textContent = globalThis.t.text("workbench.project-settings.deleting");
           try {
             const result = await molisWorkRequest("/api/settings/projects/" + encodeURIComponent(form.dataset.projectDelete) + "/delete", {
               body: { delete_confirmed: true, idempotency_key: deletionKey, ...(asks && choice ? { output_files: choice } : {}) }, fallback: globalThis.t.text("workbench.project-settings.could-not-delete-project"),

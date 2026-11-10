@@ -20,10 +20,11 @@ const code = (error: unknown) => (error as Partial<UiRequestFailure> | null)?.co
 const auth = (status: unknown) => status === 401 || status === 403;
 const revision = (view: WorkbenchAppearance) => view.selection_revision ?? -1;
 const commandId = (command: CommandInput) => command.kind === "apply" ? command.body.request_id : command.body.applied_request_id;
+const viewScope = (page: Document) => page.querySelector<HTMLMetaElement>('meta[name="molis-work-page-session"]')?.content.split(".")[1];
 
 function documentAppearanceHandoff() {
   // The second segment of the page proof is the public view scope. The proof itself never enters the handoff.
-  const scope = window === top ? document.querySelector<HTMLMetaElement>('meta[name="molis-work-page-session"]')?.content.split(".")[1] : undefined;
+  const scope = window === top ? viewScope(document) : undefined;
   return {
     take(): Command | undefined {
       if (!scope) return;
@@ -57,14 +58,56 @@ interface InvalidationListener {
   denied(status: number, signal: AbortSignal): void;
 }
 
-/** Keep the existing document authority and backoff on a single stream. The caller owns authoritative reads. */
+const sideInvalidations = Symbol.for("molis.work.appearance.side-invalidations");
+type RevisionListener = (selectionRevision: number) => void;
+type AppearanceDocument = Document & { [sideInvalidations]?: (page: Document, signal: AbortSignal, receive: RevisionListener) => void };
+
+/** Bind a side view to its current same-origin owner, using only the public part of the page proof. */
+function sideOwner(page: Document): AppearanceDocument | null {
+  if (!page.body?.dataset.sideView) return null;
+  const frame = page.defaultView?.frameElement as HTMLIFrameElement | null | undefined;
+  if (!frame?.matches("#side-panel iframe[data-side-frame]") || !frame.isConnected || frame.contentDocument !== page) return null;
+  const owner = frame.ownerDocument, scope = viewScope(owner);
+  const source = frame.closest<HTMLElement>("[data-side-src]")?.dataset.sideSrc;
+  if (!source || !scope || scope !== viewScope(page) || (owner.body.dataset.projectId ?? "") !== (page.body.dataset.projectId ?? "")
+    || (owner.body.dataset.routePrefix ?? "") !== (page.body.dataset.routePrefix ?? "")) return null;
+  try {
+    const route = new URL(source, owner.URL);
+    return route.origin === owner.location?.origin && route.href === frame.src && route.href === page.URL ? owner : null;
+  } catch { return null; }
+}
+
+/** Each document owns its reads. An attached side view can share its owner's invalidations. */
 function appearanceInvalidations(request: UiRequestCall, listener: InvalidationListener) {
   let stream: AbortController | undefined, retry: ReturnType<typeof setTimeout> | undefined, delay = 1000;
+  let latest = -1;
+  const sides = new Set<RevisionListener>();
+  (document as AppearanceDocument)[sideInvalidations] = (page, signal, receive) => {
+    const current = () => !signal.aborted && sideOwner(page) === document;
+    if (!current()) return;
+    const notify: RevisionListener = seen => {
+      if (current()) receive(seen);
+      else sides.delete(notify);
+    };
+    sides.add(notify);
+    signal.addEventListener("abort", () => sides.delete(notify), { once: true });
+    if (latest >= 0 && listener.active()) notify(latest);
+  };
+  function publish(seen: number): void {
+    if (!listener.active() || !Number.isSafeInteger(seen) || seen < 0 || seen < latest) return;
+    latest = seen;
+    for (const notify of sides) notify(seen);
+  }
 
   async function connect(): Promise<void> {
     if (stream || !listener.active()) return;
     const connection = new AbortController();
     stream = connection;
+    const share = sideOwner(document)?.[sideInvalidations];
+    if (share) {
+      share(document, connection.signal, listener.revision);
+      return;
+    }
     try {
       const reply = await request<Response>(`${path}/events`, { method: "GET", control: true, as: "response",
         signal: connection.signal, headers: { accept: "text/event-stream" } });
@@ -73,10 +116,12 @@ function appearanceInvalidations(request: UiRequestCall, listener: InvalidationL
       listener.synchronize();
       await readEventStream(reply.body, {
         message(data) {
+          if (connection.signal.aborted || stream !== connection) return;
           const { selection_revision: seen } = JSON.parse(data) as { selection_revision: number };
           if (!Number.isSafeInteger(seen) || seen < 0) return;
           delay = 1000;
           listener.revision(seen);
+          publish(seen);
         },
       });
     } catch { /* The next authorized connection rereads the Home. */ }
@@ -90,19 +135,20 @@ function appearanceInvalidations(request: UiRequestCall, listener: InvalidationL
     }
   }
 
-  function stop() {
+  function stop(release = false) {
     clearTimeout(retry);
     stream?.abort();
     stream = undefined;
+    if (release) { latest = -1; sides.clear(); }
   }
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) { stop(); listener.disconnected(); }
     else { listener.synchronize(true); void connect(); }
   });
-  return { connect, stop };
+  return { connect, stop, publish };
 }
 
-/** One document, one original page proof and one invalidation stream. The server remains the only selection owner. */
+/** One document, one original page proof and one invalidation source. The server remains the only selection owner. */
 export function createAppearanceSync(initial: WorkbenchAppearance, request: UiRequestCall, view: SyncView) {
   let current = initial, invalidated = revision(initial);
   let lifetime = new AbortController(), refused = false;
@@ -113,6 +159,7 @@ export function createAppearanceSync(initial: WorkbenchAppearance, request: UiRe
   function accept(next: WorkbenchAppearance): void {
     if (next.selection_revision !== null && revision(next) < revision(current)) return;
     current = next;
+    stream.publish(revision(next));
     view.present(next);
   }
 
@@ -128,7 +175,7 @@ export function createAppearanceSync(initial: WorkbenchAppearance, request: UiRe
     if (signal.aborted) return;
     if (auth((error as Partial<UiRequestFailure> | null)?.status)) {
       refused = true;
-      stream.stop();
+      stream.stop(true);
     }
     view.failed(error);
   }
@@ -162,7 +209,7 @@ export function createAppearanceSync(initial: WorkbenchAppearance, request: UiRe
     denied(status, signal) { readFailed({ status }, signal); },
   });
   window.addEventListener("pagehide", () => {
-    stream.stop();
+    stream.stop(true);
     if (!lifetime.signal.aborted) handoff.save(unconfirmed);
     lifetime.abort();
   });

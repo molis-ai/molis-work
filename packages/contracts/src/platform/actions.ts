@@ -127,20 +127,13 @@ export interface ActionCallContext extends ActionCallOrigin {
   readonly assistant_reply?: import("../services/assistant.js").AssistantReplyDelivery;
   /** Optional page evidence supplied by a protected entry adapter, never business/model input. */
   readonly page_context?: { readonly url: string | null; readonly title: string | null; readonly provenance: "host_snapshot" | "client_reported" };
-  /**
-   * The page's language (the Host resolves it from the request: language cookie, else Accept-Language), or the delegating round's
-   * one the Host hands on. It picks only the shown words and a round's reply language; it grants nothing, is never business input,
-   * and is absent when neither applies (a model's tool call, a timer): the handler uses its own default.
-   */
+  /** The page's language (from the request: language cookie, else Accept-Language), or the one a delegating round hands on. It picks
+   * only shown words and a round's reply language; grants nothing, is never business input; absent otherwise (handlers use a default). */
   readonly locale?: ActionLocale;
-  /**
-   * Set only by the Host: by the routed naming envelope (bound, like `original_input`, to the route's first own action) and by its
-   * call to a work executor's `run.start` (bound to that installation and action). Not carried by nested handler calls or a round's
-   * gateway tool calls; only freezes that round's `system.skills` reads. A `SkillRef` in action input names nothing.
-   */
+  /** Host-only: Skills named by the routed naming envelope or the Host's `run.start` call, bound to that installation and action; not
+   * carried by nested or gateway calls; freezes only that round's `system.skills` reads. A `SkillRef` in action input names nothing. */
   readonly named_skills?: import("./action-named-skills.js").ActionNamedSkills;
-  /** Host-written only on a round's own calls to `system.skills`: who the reads are for (`consumer`), the frozen `named` list, and
-   * `engine: "local"` for `native_only` Skills. A plugin's handler never sees it. Never business input. */
+  /** Host-only, on a round's own `system.skills` calls: the reads' `consumer`, the frozen `named` list, `engine: "local"` for `native_only`. */
   readonly skill_round?: import("./action-named-skills.js").ActionSkillRound;
   /** Optional historical author supplied by a trusted adapter; grants still belong to actor_id. Never business input. */
   readonly audit_actor_id?: string;

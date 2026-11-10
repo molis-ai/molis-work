@@ -3215,6 +3215,7 @@
   :where(a:not([class])):hover { color: var(--accent-strong, var(--accent)); }
   .mw-sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 
+
   .mw-btn {
     position: relative;
     display: inline-flex;
@@ -3336,6 +3337,7 @@
   .mw-btn[data-loading] > svg { display: none; }
   .mw-btn[data-loading]:has(> svg) > .mw-spinner { position: static; width: 14px; height: 14px; }
   @keyframes mw-loading-out { from { opacity: 1; visibility: visible; } to { opacity: 0; visibility: hidden; } }
+
 
   .mw-input, .mw-textarea, .mw-select {
     width: 100%;
@@ -5056,6 +5058,17 @@
      height and grows with it. */
   :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .bar-center > .assistant-composer { position: relative; padding-block: 8px; }
   :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .assistant-composer > .mw-composer { width: 100%; }
+  /* The receipt chip above the input (specs/ai-input-receipts §4.1; 2026-11-09 audit fix): shown only while a question waits, its words
+     are what the next Send does and one click switches it. 44px to a finger, as every target. */
+  :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .assistant-composer > .assistant-answer {
+    display: inline-flex; align-items: center; max-width: calc(100% - 12px); height: 28px; margin: 0 0 4px 6px; padding: 0 8px;
+    border: 0; border-radius: 7px; background: var(--nav-hover); color: var(--ink-soft);
+    font: inherit; font-size: 12px; font-weight: 500; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .assistant-composer > .assistant-answer[hidden] { display: none; }
+  :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .assistant-composer > .assistant-answer:hover { background: var(--nav-active); color: var(--ink); }
+  :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .assistant-composer > .assistant-answer:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
+  @media (max-width: 600px), (pointer: coarse) { :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .assistant-composer > .assistant-answer { height: 44px; } }
   /* Its menus (＋, @, the delivery ▾) rise over the open Assistant panel above the bar (z 50), as the island's menus did (z 60). */
   :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .assistant-composer :is(.mw-compose__menu, .mw-composer__controls) { z-index: 60; }
   /* The receiver's name opens its conversation (the island's click). */

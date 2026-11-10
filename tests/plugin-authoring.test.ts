@@ -27,8 +27,8 @@ test("public Manifest parser preserves author declarations and rejects unsupport
   const input = manifest();
   assert.deepEqual(parsePluginManifest(input), input);
   assert.throws(() => parsePluginManifest({ ...input, host_api_version: 2 }),
-    (error: unknown) => (error instanceof ActionError && error.kind === "invalid") && error.code === "plugin.manifest_invalid"
-      && error.message.includes("host_api_version"));
+    (error: unknown) => (error instanceof ActionError && error.kind === "invalid") && error.code === "plugin.manifest_version_invalid"
+      && error.message === "Plugin Manifest 版本不受支持");
 });
 
 test("Manifest upgrade declarations use exact older source versions with one disposition each", () => {
@@ -92,7 +92,7 @@ test("real Plugin CLI validates in a clean directory without executing entrypoin
     writeFileSync(manifestPath, JSON.stringify({ ...manifest(), host_api_version: 2 }));
     const incompatible = invoke("validate", manifestPath);
     assert.equal(incompatible.status, 1);
-    assert.equal(JSON.parse(incompatible.stderr).code, "plugin.manifest_invalid");
+    assert.equal(JSON.parse(incompatible.stderr).code, "plugin.manifest_version_invalid");
     assert.equal(incompatible.stdout, "");
     writeFileSync(manifestPath, "{invalid");
     assert.equal(invoke("validate", manifestPath).status, 1);

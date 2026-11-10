@@ -580,7 +580,7 @@ export const CRAFT_BAR_STYLES = `
   ${ASSIST} .assistant-strip { flex: none; display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 6px 10px 6px 12px; background: var(--paper); box-shadow: inset 0 -1px 0 var(--line); }
   ${ASSIST} .assistant-strip[hidden] { display: none; }
   ${ASSIST} .assistant-strip[data-tone="waiting"] { background: color-mix(in srgb, var(--tone-attention, #c27c0e) 11%, var(--paper)); }
-  ${ASSIST} .assistant-strip[data-tone="running"] { background: color-mix(in srgb, var(--tone-done, #3a8f5c) 8%, var(--paper)); }
+  ${ASSIST} .assistant-strip[data-tone="running"] { background: color-mix(in srgb, var(--tone-done) 8%, var(--paper)); }
   ${ASSIST} .assistant-strip .assistant-state { flex: none; }
   ${ASSIST} .assistant-strip-now { flex: 1; min-width: 0; overflow: hidden; color: var(--ink-soft); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
   ${ASSIST} .assistant-strip-actions { flex: none; display: flex; align-items: center; gap: 4px; }

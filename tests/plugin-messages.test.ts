@@ -58,7 +58,7 @@ test("RAC-751 reading a Manifest refuses a bad word declaration, so an install n
   assert.deepEqual(parsePluginManifest(manifestWith({ messages: NOTES })).ui.messages, NOTES);
   assert.throws(() => parsePluginManifest(manifestWith({ messages: { "保存": { zh: "保存", en: "Save" } } })), /ui\.messages/);
   assert.throws(() => parsePluginManifest(manifestWith({ messages: { "goals.tree.title": { zh: "目标", en: "Goals" } } })), /必须以插件自己的名字/);
-  assert.throws(() => parsePluginManifest({ ...manifestWith({ messages: NOTES }), schema_version: 2 }), /schema_version/, "valid words cannot make a retired Manifest version installable");
+  assert.throws(() => parsePluginManifest({ ...manifestWith({ messages: NOTES }), schema_version: 2 }), { code: "plugin.manifest_version_invalid", kind: "invalid", details: { found: { schema_version: 2, host_api_version: 1 }, expected: { schema_version: 1, host_api_version: 1 } } }, "valid words cannot make a retired Manifest version installable");
 });
 
 test("RAC-752 a built-in and an installed Plugin register their words the same way; stable keys are page-wide, Chinese-keyed translations are not", () => {

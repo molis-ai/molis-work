@@ -18,7 +18,7 @@ test("public status mounts prefer collection state, retain hooks and escape tran
   assert.match(visible, /goal-status--waiting_user/);
   assert.match(visible, /data-state="current"/);
   assert.match(visible, /data-label="current"/);
-  assert.match(visible, /等你/);
+  assert.match(visible, /需要你决定/);
   // RING-05: an answer is needed; this is not a running or completed Goal. RING-08: the ring is as tall as its words, so it
   // carries no size of its own.
   assert.equal(renderer.visibleGoalStatusIcon({ status: "executing", display_status: "waiting_user" }), renderStateRing({ state: "answer" }));

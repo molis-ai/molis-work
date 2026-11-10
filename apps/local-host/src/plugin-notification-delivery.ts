@@ -1,4 +1,4 @@
-import { ActionError, type ActionCallContext, type ActionClient, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, platformErrorKind, type ActionCallContext, type ActionClient, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { PLUGIN_NOTIFICATION_DELIVERY_ACTOR, type PluginManifest, type PluginNotificationDelivery, type PluginNotificationDeliveryReceipt } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { PluginNotificationQueue, type PluginNotificationRow, type PluginRuntimeDatabase } from "@molis-ai/molis-work-plugin-runtime";
 import type { SqliteDatabase } from "@molis-ai/molis-work-storage";
@@ -73,6 +73,7 @@ export function createNotificationDelivery(ports: NotificationDeliveryPorts) {
         permissions: [...receiver.permissions], ...(ports.signal ? { signal: ports.signal } : {}) };
       try {
         const receipt = await ports.client.invoke(caller, receiver.reference, delivery) as PluginNotificationDeliveryReceipt;
+        ports.signal?.throwIfAborted();
         if (typeof receipt?.item_id !== "string") throw new ActionError("actions.output_invalid", "通知接收方没有返回有效回执");
         ports.queue.delivered(row.notification_id, receipt.item_id, new Date().toISOString());
         // The receiver kept the item and judging it failed afterwards (D4-d): delivered all the same, and logged by its code alone. The code
@@ -83,7 +84,9 @@ export function createNotificationDelivery(ports: NotificationDeliveryPorts) {
         }
         return;
       } catch (error) {
+        ports.signal?.throwIfAborted();
         if (error instanceof ActionError && UNAVAILABLE.has(error.code)) continue;
+        if (error instanceof ActionError && ["cancelled", "forbidden"].includes(error.kind ?? platformErrorKind(error.code) ?? "")) throw error;
         ports.queue.failed(row.notification_id, error instanceof ActionError ? error.code : "plugin.notification_delivery_failed");
         hostLog.warn("plugin_notifications", "delivery_failed", error, { project_id: ports.project_id, notification_id: row.notification_id, receiver: receiver.plugin_id });
         return;
@@ -91,7 +94,20 @@ export function createNotificationDelivery(ports: NotificationDeliveryPorts) {
     }
   };
   const flush = (): Promise<void> => {
-    const run = chain.then(async () => { for (const row of ports.queue.pending(ports.project_id)) { ports.signal?.throwIfAborted(); await deliver(row); } });
+    const run = chain.then(async () => {
+      const through = ports.queue.pendingThrough(ports.project_id);
+      if (!through) return;
+      let batch = 0;
+      let after: { created_at: string; notification_id: string } | undefined;
+      for (;;) {
+        ports.signal?.throwIfAborted();
+        const rows = ports.queue.pending(ports.project_id, after, through);
+        if (!rows.length) break;
+        if (++batch === 2) hostLog.warn("plugin_notifications", "batched_delivery", undefined, { project_id: ports.project_id, batch_size: rows.length });
+        for (const row of rows) { ports.signal?.throwIfAborted(); await deliver(row); }
+        after = rows.at(-1)!;
+      }
+    });
     chain = run.catch(() => undefined);
     return run;
   };

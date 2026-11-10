@@ -5835,6 +5835,7 @@ export declare const pluginErrors: import("platform/action-errors").ErrorCodeRai
     readonly integration_unavailable: "unavailable";
     readonly kept_data_incompatible: "invalid";
     readonly manifest_invalid: "invalid";
+    readonly manifest_version_invalid: "invalid";
     readonly package_invalid: "invalid";
     readonly permission_invalid: "invalid";
     readonly preview_unknown: "not_found";

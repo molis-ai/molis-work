@@ -20,7 +20,7 @@ export interface ActionSubjectContext {
    */
   project_id?: string | null;
   /**
-   * Where `content` starts in the object's whole text and how long that text is. A reader gives both when it reads a page
+   * Where `content` starts in the object's whole text and how long that text is, in Unicode code points. A reader gives both when it reads a page
    * past the first (`offset` in its input; specs/project-knowledge §4.4); a reader that leaves them out gives only the first page.
    */
   offset?: number;
@@ -58,10 +58,15 @@ export function defineSubjectContextAction(capabilityId: string, version: number
  * starts and how long the whole text is, so a long object is read page by page; without it the first page is all there is.
  */
 export function subjectContext(input: Omit<ActionSubjectContext, "truncated" | "offset" | "length"> & { truncated?: boolean }, request?: Pick<SubjectContextRequest, "offset">): ActionSubjectContext {
-  const offset = Math.min(Math.max(0, Math.floor(request?.offset ?? 0)), input.content.length);
-  const content = input.content.slice(offset, offset + SUBJECT_CONTEXT_PAGE_CHARS);
-  return { ...input, title: input.title.slice(0, 1000), content, truncated: input.truncated === true || offset + content.length < input.content.length,
-    ...(input.goal_ids?.length ? { goal_ids: [...new Set(input.goal_ids)] } : {}), ...(request ? { offset, length: input.content.length } : {}) };
+  const requested = Math.max(0, Math.floor(request?.offset ?? 0));
+  let length = 0, content = "";
+  for (const character of input.content) {
+    if (length >= requested && length < requested + SUBJECT_CONTEXT_PAGE_CHARS) content += character;
+    length++;
+  }
+  const offset = Math.min(requested, length);
+  return { ...input, title: [...input.title].slice(0, 1000).join(""), content, truncated: input.truncated === true || offset + [...content].length < length,
+    ...(input.goal_ids?.length ? { goal_ids: [...new Set(input.goal_ids)] } : {}), ...(request ? { offset, length } : {}) };
 }
 
 /**

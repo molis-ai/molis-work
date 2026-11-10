@@ -23,6 +23,7 @@ async function open(t: TestContext, answer: (request: Request) => { status?: num
   const directory = await mkdtemp(join(tmpdir(), "memory-settings-cas-"));
   const calls: Request[] = [];
   const requests: Array<{method:string;url:string}> = [];
+  const visits: string[] = [];
   const overview = { items: [entry("active", 7), entry("disabled", 11, "disabled"), entry("paused", 19, "paused")],
     candidates: [{ candidate_id: "proposal", version: 13, text: "建议", kind: "preference" }], changes: [], pairs: [], prefs: {}, counts: { project: 3 } };
   const project = { project_id: "project", display_name: "测试项目" };
@@ -36,7 +37,7 @@ async function open(t: TestContext, answer: (request: Request) => { status?: num
   const html = renderMolisWorkProjectSettingsHub(view, { entries: [], inactive_entries: [], revisions: [], virtual_document: "", runtime_prompt_prefix: "" }, [], "", false, section);
   const guidanceHtml = guidanceFlow ? renderMolisWorkProjectGuidanceSettings(view, { entries: [], inactive_entries: [], revisions: [], virtual_document: "", runtime_prompt_prefix: "" }, []) : html;
   const server = createServer(async (request, response) => {
-    requests.push({ method: request.method ?? "GET", url: request.url ?? "/" });
+    requests.push({ method: request.method ?? "GET", url: request.url ?? "/" }); visits.push(request.url ?? "/");
     const path = new URL(request.url!, "http://local").pathname;
     if (path.endsWith(".css")) { response.setHeader("content-type", "text/css"); response.end(renderMolisWorkSettingsStylesheet()); return; }
     if (path.endsWith(".js")) { response.setHeader("content-type", "application/javascript"); response.end(); return; }
@@ -57,7 +58,7 @@ async function open(t: TestContext, answer: (request: Request) => { status?: num
   const page = await browser.page(); await page.viewport(1200, 1000);
   const reset = async () => { await page.command("Page.navigate", { url: `http://127.0.0.1:${address.port}/?visit=${calls.length}` }); await page.wait(section === "plugins" ? "document.querySelector('[data-plugin-trust-settings][data-plugin-trust-bound=\"1\"]')" : "document.querySelector('[data-memory-id=active]')"); };
   await reset();
-  return { page, calls, reset, overview, directory, requests, browser };
+  return { page, calls, reset, overview, directory, requests, browser, visits, origin: `http://127.0.0.1:${address.port}` };
 }
 const item = (id = "active") => `[data-memory-id=${id}]`;
 const textButton = (label: string) => `button[aria-label^="${label}："]`;
@@ -329,8 +330,8 @@ test("D0225 memory promotion navigates with only an opaque reference, fills an u
   const text = "PRIVATE_DRAFT_&?中文🧪".repeat(40), reference = "one-time-project-guidance-reference";
   let held: string | undefined;
   const f = await open(t, call => {
-    if (call.path.endsWith("/draft-reference/issue")) { assert.deepEqual(call.body, { purpose: "project-guidance", text }); held = text; return { body: { reference } }; }
-    if (call.path.endsWith("/draft-reference/take")) { assert.deepEqual(call.body, { purpose: "project-guidance", reference }); assert.equal(held, text); held = undefined; return { body: { text } }; }
+    if (call.path.endsWith("/draft-reference/issue")) { assert.deepEqual(call.body, { purpose: "project-guidance", text: JSON.stringify(["active", 7]) }); held = String(call.body.text); return { body: { reference } }; }
+    if (call.path.endsWith("/draft-reference/take")) { assert.deepEqual(call.body, { purpose: "project-guidance", reference }); assert.equal(held, JSON.stringify(["active", 7])); const payload = held; held = undefined; return { body: { text: payload } }; }
     return { status: 500, body: { error: "Unexpected mutation" } };
   }, true);
   if (!f) return;
@@ -381,4 +382,37 @@ test("D0246/D0247 installation review reveals the full signed body as inert text
   assert.equal(await f.page.evaluate("Boolean(document.querySelector('.plugin-trust-agent-body img') || globalThis.installInjected)"), false);
   assert.equal(f.requests.some(r => r.url.includes("injected")), false);
   assert.equal(f.calls.length, 1, "opening full text makes no install request");
+});
+
+// D0191 / D0225: the opaque one-time reference holds only the Memory identity/version; the owner refuses stale source content.
+test("D0191 D0225 Memory promotion resolves a one-time versioned reference and refuses a changed or deleted memory", { timeout: 60_000 }, async t => {
+  const pending = new Map<string, string>(); let sequence = 0;
+  const f = await open(t, call => {
+    if (call.path.endsWith("/draft-reference/issue")) { const reference = "memory-ref-" + ++sequence; pending.set(reference, String(call.body.text)); return { body: { reference } }; }
+    if (call.path.endsWith("/draft-reference/take")) { const reference = String(call.body.reference), text = pending.get(reference); pending.delete(reference); return { body: { text } }; }
+    return { status: 500, body: { error: "Unexpected mutation" } };
+  }, true); if (!f) return;
+  const text = "需要保密的项目约定🙂".repeat(200);
+  f.overview.items[0]!.text = text;
+  await f.reset();
+  await f.page.click(item() + " summary[aria-label^=更多操作]");
+  await f.page.evaluate("[...document.querySelectorAll('[data-memory-id=active] .mw-menu__item')].find(button => button.textContent === '升级为项目说明').click()");
+  await f.page.wait("document.querySelector('[data-guidance-editor]')?.hidden === false");
+  assert.equal(await f.page.evaluate("document.querySelector('[data-guidance-form]').elements.content.value"), text);
+  const visit = f.visits.find(path => path.includes("draft_ref="))!;
+  assert.ok(visit); assert.ok(visit.length < 150);
+  assert.match(visit, /draft_ref=memory-ref-1/);
+  assert.doesNotMatch(visit, /需要保密|%E9%9C%80|text=|memory_id=/);
+  assert.ok(f.calls.every(call => call.path.includes("/draft-reference/")), "navigation cannot publish a project instruction");
+  assert.equal(await f.page.evaluate("location.search"), "", "resolved references leave the current history entry");
+  for (const version of [6, 7]) {
+    if (version === 7) f.overview.items = [];
+    const reference = "stale-" + version; pending.set(reference, JSON.stringify(["active", version]));
+    await f.page.command("Page.navigate", { url: f.origin + "/projects/project/settings/guidance?draft_ref=" + reference });
+    await f.page.wait("document.querySelector('[data-guidance-receipt]')?.checkVisibility() && document.querySelector('[data-guidance-receipt]').textContent.includes('这条记忆已变化或不可用')");
+    assert.equal(await f.page.evaluate("document.querySelector('[data-guidance-editor]').hidden"), true);
+    assert.equal(await f.page.evaluate("document.querySelector('[data-guidance-form]').elements.content.value"), "");
+    assert.equal(pending.has(reference), false, "stale references are still consumed once");
+    assert.ok(f.calls.every(call => call.path.includes("/draft-reference/")));
+  }
 });

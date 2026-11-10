@@ -75,12 +75,12 @@ export async function useLocalMcpClient<T>(config: LocalMcpConfiguration, enviro
 
 export function useLocalMcpConnection<T>(home: string, config: LocalMcpConfiguration,
   options: { signal?: AbortSignal; beforeDispatch?(): void | Promise<void> }, run: (client: Client) => Promise<T>) {
-  const initial = withConnectorConnections(home, store => store.require(config.connectionId));
+  const initial = withConnectorConnections(home, store => store.require(config.connectionId), "required");
   const raw = connectorProtocolSecrets(home, config.connectionId).get("environment");
   const environment: Record<string, string> = raw ? JSON.parse(raw) : {};
   return useLocalMcpClient(config, environment, { signal: options.signal, beforeDispatch: async () => {
     await options.beforeDispatch?.();
-    const current = withConnectorConnections(home, store => store.require(config.connectionId));
+    const current = withConnectorConnections(home, store => store.require(config.connectionId), "required");
     if (!current.enabled || current.disconnected_at || current.updated_at !== initial.updated_at) throw connectorErrors["connector.mcp.disconnected"]("本地 MCP 连接已停用或改变，请重新读取");
   } }, run);
 }

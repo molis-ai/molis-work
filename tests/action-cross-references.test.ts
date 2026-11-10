@@ -296,7 +296,7 @@ test("the Plugin Runtime does not install a plugin whose Manifest has a referenc
   const runtime = new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS });
   assert.doesNotThrow(() => runtime.install({ trust: { level: "unsigned" }, definition: definition(add(), remove()), deployment: "local", grants: [] }));
   assert.throws(() => new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS }).install({ trust: { level: "unsigned" }, definition: definition(add()), deployment: "local", grants: [] }),
-    (error: unknown) => (error instanceof ActionError && error.kind === "invalid") && error.code === "plugin.manifest_invalid" && /撤销命令 notes\.remove@1 不在同一提供方的声明里/.test(error.message));
+    (error: unknown) => (error instanceof ActionError && error.kind === "invalid") && error.code === "plugin.declaration_invalid" && /撤销命令 notes\.remove@1 不在同一提供方的声明里/.test(error.message));
 });
 
 // ---- the bundled Manifests ----------------------------------------------------------------------------------------------------

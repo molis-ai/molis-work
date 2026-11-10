@@ -1,3 +1,4 @@
+import { UI_HOST_CLIENT_CODES } from "@molis-ai/molis-work-contracts/platform/ui";
 import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
@@ -422,7 +423,7 @@ test("W3-10-4-01 RAC-910: the computer tab hands the record's words to the Host,
         const body = url.endsWith("/api/computer/records/rec-1") ? { record } : shelved.body;
         return new Response(JSON.stringify(body), { status: url.endsWith("/shelf") ? shelved.status : 200, headers: { "content-type": "application/json" } });
       },
-    });
+    }, UI_HOST_CLIENT_CODES);
     await put({ request, routePrefix: "/projects/p1", say: (text) => { said.push(text); },
       sayError: (error, fallback) => { said.push(error instanceof Error ? error.message : fallback ?? ""); },
       L: (text, vars) => text.replace(/\{(\w+)\}/g, (_, name: string) => String(vars?.[name] ?? "")), state: { record_id: "rec-1" } });

@@ -228,6 +228,11 @@ const capsuleRoute: WebRoute<ProjectRuntimeContext> = { id: "capsule", handle: a
     return true;
   }
   // A project without Goals has none to list (RAC-400); in one with Goals, a refused list is that refusal.
+  if (url.searchParams.get("view") === "menu") {
+    const summary = await goalsHere() ? await goalActions.invoke(goalsActions.capsuleMenu, {}) : { focus: null };
+    sendJson(response, 200, composition.buildCapsuleMenu(options.project, summary));
+    return true;
+  }
   const directory = await goalsHere() ? await goalActions.invoke(goalsActions.list, { limit: 100 }) : undefined;
   sendJson(response, 200, composition.buildCapsuleSnapshot(await readWebView(), directory?.goals ?? []));
   return true;

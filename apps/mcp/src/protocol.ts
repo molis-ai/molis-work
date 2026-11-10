@@ -1,4 +1,3 @@
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export interface McpToolDefinition {
   name: string;
@@ -49,11 +48,17 @@ export async function handleMcpMessage(
   const method = message.method as string;
   const msgId = message.id;
   if (method === "initialize") {
-    const params = (message.params as Record<string, unknown>) || {};
+    const params = message.params;
+    if (!params || typeof params !== "object" || Array.isArray(params)
+      || typeof (params as Record<string, unknown>).protocolVersion !== "string"
+      || !/^\d{4}-\d{2}-\d{2}$/.test((params as Record<string, unknown>).protocolVersion as string)) {
+      return { jsonrpc: "2.0", id: msgId, error: { code: -32602, message: "Unsupported or missing protocol version", data: { supported: ["2025-03-26"] } } };
+    }
+    // MCP lifecycle: negotiate back to our supported version rather than echoing an unknown client version.
     return {
       jsonrpc: "2.0", id: msgId,
       result: {
-        protocolVersion: params.protocolVersion ?? "2025-03-26",
+        protocolVersion: "2025-03-26",
         capabilities: { tools: {}, resources: { subscribe: false, listChanged: false } },
         serverInfo: ports.serverInfo,
       },
@@ -61,14 +66,17 @@ export async function handleMcpMessage(
   }
   if (method === "notifications/initialized") return null;
   if (method === "ping") return { jsonrpc: "2.0", id: msgId, result: {} };
-  if (method === "tools/list") return { jsonrpc: "2.0", id: msgId, result: { tools: await ports.tools } };
+  if (method === "tools/list") {
+    try { return { jsonrpc: "2.0", id: msgId, result: { tools: await ports.tools } }; }
+    catch { return { jsonrpc: "2.0", id: msgId, error: { code: -32603, message: "Tool discovery failed" } }; }
+  }
   if (method === "tools/call") {
+    const params = message.params as { name: string; arguments?: Record<string, unknown>; _meta?: Record<string, unknown> };
+    if (!params || typeof params !== "object" || Array.isArray(params) || typeof params.name !== "string" || !params.name
+      || (params.arguments !== undefined && (!params.arguments || typeof params.arguments !== "object" || Array.isArray(params.arguments)))) {
+      return { jsonrpc: "2.0", id: msgId, error: { code: -32602, message: "Tool call parameters must be a named object" } };
+    }
     try {
-      const params = message.params as { name: string; arguments?: Record<string, unknown>; _meta?: Record<string, unknown> };
-      if (!params || typeof params !== "object" || Array.isArray(params) || typeof params.name !== "string"
-        || (params.arguments !== undefined && (!params.arguments || typeof params.arguments !== "object" || Array.isArray(params.arguments)))) {
-        throw new ActionError("actions.input_invalid", "MCP 工具调用参数必须是具名对象");
-      }
       const output = await ports.callTool(params.name, params.arguments ?? {}, toolCallContextFromParams(params));
       const result = typeof output === "string" ? { content: [{ type: "text", text: output }], isError: false } : output;
       return { jsonrpc: "2.0", id: msgId, result };

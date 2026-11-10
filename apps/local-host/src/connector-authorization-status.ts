@@ -1,6 +1,6 @@
 import { rollbackPreservingError } from "@molis-ai/molis-work-storage";
 import { createHash, randomUUID } from "node:crypto";
-import { openConnectorsStore } from "./connectors-store.js";
+import { openConnectorsStore, readConnectorsStore } from "./connectors-store.js";
 import { defineErrorCodes, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { connectorErrors } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { bindConnectorAuthorizationProtocol, clearConnectorAuthorizationPresentation, connectorAuthorizationInstallation, readConnectorAuthorizationCompletion } from "./connector-authorization-presentation.js";
@@ -66,7 +66,7 @@ export function finishConnectorAuthorization(home: string, state: string, status
 }
 /** Checked again at each staged credential write and immediately before activation. */
 export function connectorAuthorizationPending(home: string, state: string, now = Date.now()): boolean {
-  return withAttempts(home, db => Boolean(db.prepare("SELECT 1 FROM connector_authorization_results WHERE state_hash=? AND status='pending' AND expires_at>=?").get(hash(state), now)));
+  return readConnectorsStore(home, false, db => Boolean(db.prepare("SELECT 1 FROM connector_authorization_results WHERE state_hash=? AND status='pending' AND expires_at>=?").get(hash(state), now)));
 }
 export function assertConnectorAuthorizationPending(home: string, state: string): void {
   if (!connectorAuthorizationPending(home, state)) throw connectorErrors["connector.connection.invalid"]("授权已取消、过期或结束，请重新连接");
@@ -91,11 +91,11 @@ export function cancelConnectorAuthorizationsForSession(home: string, sessionId:
   for (const row of rows) { invalidateConnectorRequests(home, row.id); clearConnectorAuthorizationPresentation(home, row.id); }
 }
 export function pendingConnectorAuthorizationsForSession(home: string, sessionId: string, actorId: string) {
-  return withAttempts(home, db => db.prepare("SELECT id FROM connector_authorization_results WHERE json_extract(initiator_json,'$.runtime_session_id')=? AND json_extract(initiator_json,'$.actor_id')=? AND status IN ('prepared','pending') AND expires_at>=?")
+  return readConnectorsStore(home, [], db => db.prepare("SELECT id FROM connector_authorization_results WHERE json_extract(initiator_json,'$.runtime_session_id')=? AND json_extract(initiator_json,'$.actor_id')=? AND status IN ('prepared','pending') AND expires_at>=?")
     .all(sessionId, actorId, Date.now())) as Array<{ id: string }>;
 }
 export function connectorAuthorizationStatus(home: string, id: string, now = Date.now()) {
-  return withAttempts(home, db => {
+  return readConnectorsStore(home, null, db => {
     const row = db.prepare("SELECT id, connection_id, service_id, status, expires_at, setup_json, initiator_json FROM connector_authorization_results WHERE id=?").get(id) as
       { id: string; connection_id: string; service_id: string; status: ConnectorAuthorizationState; expires_at: number; setup_json: string | null; initiator_json: string | null } | undefined;
     if (!row) return null;
@@ -111,7 +111,7 @@ export function connectorAuthorizationStatus(home: string, id: string, now = Dat
 
 /** Trusted request ownership for Host continuation checks; never protocol state or credential material. */
 export function connectorAuthorizationInitiator(home: string, id: string): ConnectorSetupInitiator | undefined {
-  return withAttempts(home, db => {
+  return readConnectorsStore(home, undefined, db => {
     const row = db.prepare("SELECT initiator_json FROM connector_authorization_results WHERE id=?").get(id) as { initiator_json: string | null } | undefined;
     return row?.initiator_json ? JSON.parse(row.initiator_json) as ConnectorSetupInitiator : undefined;
   });
@@ -131,7 +131,7 @@ export function requireConnectorInitiator(home: string, id: string, caller: Pick
 
 /** Protocol recovery inspects active requests; this does not expose their one-use state. */
 export function pendingConnectorAuthorizations(home: string, serviceId?: string) {
-  return withAttempts(home, db => (serviceId === undefined
+  return readConnectorsStore(home, [], db => (serviceId === undefined
     ? db.prepare("SELECT id FROM connector_authorization_results WHERE status='pending' AND expires_at>=?").all(Date.now())
     : db.prepare("SELECT id FROM connector_authorization_results WHERE service_id=? AND status='pending' AND expires_at>=?").all(serviceId, Date.now())) as Array<{ id: string }>);
 }

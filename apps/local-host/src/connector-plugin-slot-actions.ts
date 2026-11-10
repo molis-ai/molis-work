@@ -77,7 +77,7 @@ function bound(home: string, input: SlotInput, scope = pluginSlotScope(input.ins
     const binding = store.binding(scope, input.plugin_id, input.slot_id);
     const connection = binding && store.get(binding.connection_id);
     return connection ? { ...store.view(connection), state: shownState(home, connection, store.state(connection), lastConnectorCheck(store, connection.connection_id)) } : null;
-  });
+  }, true) ?? null;
 }
 
 /** A record's scope, in the caller's project: the project is never read from the input. */
@@ -125,7 +125,7 @@ interface SlotUse { usage_id: string; install_id: string; plugin_id: string; slo
 
 /** The uses of a connection the caller may see: a caller in a project sees that project's records only, one at the Home every project's. */
 function slotUses(home: string, caller: ActionCallContext, connectionId: string): { connected: boolean; uses: Map<string, SlotUse> } | null {
-  const found = withConnectorConnections(home, store => { const connection = store.get(connectionId); return connection ? { connected: store.state(connection) === "connected", bindings: store.pluginBindings(connectionId) } : null; });
+  const found = withConnectorConnections(home, store => { const connection = store.get(connectionId); return connection ? { connected: store.state(connection) === "connected", bindings: store.pluginBindings(connectionId) } : null; }, true) ?? null;
   if (!found) return null;
   const uses = new Map<string, SlotUse>();
   for (const binding of found.bindings) {

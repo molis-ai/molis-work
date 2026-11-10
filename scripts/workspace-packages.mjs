@@ -158,11 +158,8 @@ export const WORKSPACE_PACKAGES = [
     registeredPluginDependencies: true,
     extraWorkspaceDependencies: [
       "@molis-ai/molis-work-module-artifacts",
-      "@molis-ai/molis-work-im-ui",
       "@molis-ai/molis-work-ui-host",
       "@molis-ai/molis-work-design-system",
-      "@molis-ai/molis-work-integration-rss",
-      "@molis-ai/molis-work-integration-gmail",
       "@molis-ai/molis-work-plugin-sdk"
     ],
     extraDependencies: {

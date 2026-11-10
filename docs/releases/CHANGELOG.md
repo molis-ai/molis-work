@@ -4,6 +4,18 @@
 
 ## [Unreleased]
 
+### 日评 A-1 合同说明（2026-11-09）
+
+- 已有Home库的只读查询保留完整空间归属核对；外来或缺失归属以 `storage.space_ownership_mismatch`（forbidden）拒绝，不创建描述符、表或业务记录。
+
+- 当前 `assistant.methods.read@1` 与 `plugins.install.preview@1` 均按第02批统一版本合同调用。下文历史切片中的 @2/@3/@4 是当时记录，不是现在可调用的版本；固定旧引用须重新选择现行合同，不保留旧工具别名。
+- Manifest 版本1使用 SDK 的完整声明检查（动作、交叉引用、权限、Agent、方法与成果等）；没有放宽旧规则的开关。SDK和Runtime共用同一解析；Runtime安装不再把SDK声明/权限错误二次包装成manifest_invalid，保留原owner码。错版统一为 `plugin.manifest_version_invalid`，含 found/expected 原因。
+- SDK 的 `PLUGIN_ID` 及 `/execution` 是公开面；平台路由、内核和插件作者复用同一实现。浏览器请求错误码由合同 `UI_HOST_CLIENT_CODES` 统一；外部业务错误仍保留自己的码。
+- subjectContext 的 offset/length 以 Unicode 码点计数，所有页边界保留完整码点。读取方须按码点推进游标；字素簇可以跨页。动作id与版本遵循当前开发期政策不变，公开快照随本批更新。
+
+- 隐藏胶囊新增只读`goals.capsule.menu.read@1`，由Goals统一注册并走同一动作目录；MCP/Agent目录可发现此查询，权限仍是goals:read。`goals.collection.read@1`和`goals.stage.read@1`的display_status新增cancelled，固定引用须处理该状态；本仓所有消费者已同步，按当前阶段一在原版本修改。
+- 平台内部createUiRequest工厂显式接收共享UI_HOST_CLIENT_CODES；序列化脚本与所有平台调用方已更新。外部插件仍使用现有SDK页面端口。
+
 ### 升级须知（需要动手）
 
 - **技能包方法声明与 SDK 出口（第 08 批）**：含 Manifest `methods` 的插件作者须为每项方法补齐 `description` 与 `applies_to`，再重新打包签名。旧三键方法声明的签名包会被明确拒绝，不做自动迁移。使用 SDK 的作者将 `ContentPackageSkill` 改为 `PackagedSkillBody`；原 `sandboxAgentBodyIdentity` 的角色用途改为 `sandboxRoleIdentity`，方法身份使用声明中的 `skill_id` 与 `version`，正文使用声明中的 `body` 路径。固定调用 `plugins.install.preview@1` 的调用方须接受新增的技能、需求及升级差异字段；输入现在支持 `bundle` 或 `bundled` 二选一。安装或导入技能后仍为关闭，需本人另行启用。

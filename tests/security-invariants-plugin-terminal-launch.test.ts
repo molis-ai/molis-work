@@ -1,3 +1,4 @@
+import { ChromeHarness, locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
@@ -727,26 +728,26 @@ test("TERM-CATALOG-01 TERM-CATALOG-02 TERM-CATALOG-03 terminal list hides a real
   const snapshot = () => f.withCatalog({ homeDirectory: f.home }, catalog =>
     ({ ids: catalog.terminalPanels.listIds(project.project_id), record: catalog.terminalPanels.get(panelId) }));
   const records = await snapshot(), logged: HostLogEntry[] = [];
-  let damageList = false;
-  f.host.configurePersonalPlanning(f.home, (options, read) => f.withCatalog(options, catalog => {
-    if (!damageList) return read(catalog);
-    damageList = false;
-    // The real cached owner first performs its normal schema/lease checks. Break only the actual list query after that boundary.
-    const db = openTestSqlite(catalog.databasePath);
+  let damagedColumn: "actor_id" | "panel_id" | undefined;
+  f.host.configurePersonalPlanning(f.home, (options, read) => f.withCatalog(options, async catalog => {
+    if (!damagedColumn) return read(catalog);
+    // The real cached owner performs its schema/lease checks first; unrelated directory reads remain usable.
+    const column = damagedColumn, db = openTestSqlite(catalog.databasePath);
     try {
-      db.exec("ALTER TABLE plugin_terminal_panels RENAME COLUMN actor_id TO actor_id_hidden");
-      try { return read(catalog); }
-      finally { db.exec("ALTER TABLE plugin_terminal_panels RENAME COLUMN actor_id_hidden TO actor_id"); }
+      db.exec(`ALTER TABLE plugin_terminal_panels RENAME COLUMN ${column} TO ${column}_hidden`);
+      // commit may wait for its turn; keep the fault until the entire callback settles.
+      try { return await read(catalog); }
+      finally { db.exec(`ALTER TABLE plugin_terminal_panels RENAME COLUMN ${column}_hidden TO ${column}`); }
     } finally { db.close(); }
   }));
   let observed: unknown;
   const failed = await run(f, probe, "project", "query", async own => {
-    damageList = true;
+    damagedColumn = "actor_id";
     const stopCapturing = captureHostLog(logged);
     try { return await own.terminal!.list({ subject: "kept-subject" }); }
     catch (error) { observed = error; throw error; }
     finally {
-      damageList = false; stopCapturing();
+      damagedColumn = undefined; stopCapturing();
     }
   }, { project });
   assert.equal(failed.outcome, "actions.unavailable", failed.message);
@@ -760,10 +761,39 @@ test("TERM-CATALOG-01 TERM-CATALOG-02 TERM-CATALOG-03 terminal list hides a real
   assert.deepEqual(warning.error, { name: "Error", code: "SQLITE_ERROR" });
   assert.equal(warning.fields, undefined);
   assert.doesNotMatch(JSON.stringify(warning), /catalog\.db|actor_id|home-runtime-|\/(?:Users|private|var)\//u);
+  // D0256: the same catalog failure in command paths is projected identically, before a process/record effect.
+  for (const method of ["open", "close"] as const) {
+    const denied = await run(f, probe, "project", "run", async own => {
+      damagedColumn = "panel_id";
+      const stopCapturing = captureHostLog(logged);
+      try { return method === "open" ? await own.terminal!.open({ ...launch(f, "kept", marker, { root: "workspace", workspace_id }), directory: { root: "workspace", workspace_id }, subject: "kept-subject" })
+        : await own.terminal!.close({ key: "kept" }); }
+      finally { damagedColumn = undefined; stopCapturing(); }
+    }, { project });
+    assert.equal(denied.outcome, "actions.unavailable", method + ": " + denied.message);
+    assert.equal(denied.message, "项目目录暂时读不到");
+    assert.doesNotMatch(JSON.stringify(denied), /SQLITE|panel_id|catalog\.db|未装配|尚未配置/);
+    assert.deepEqual(await snapshot(), records, method + " leaves the terminal record unchanged");
+    assert.deepEqual(await panelState(f, panelId), { started: false, attached: true }, method + " leaves the existing process running");
+  }
+  assert.equal(logged.length, 3, "one safe diagnostic per list/open/close failure");
   assert.deepEqual(await list(), before, "the same plugin action reads its unchanged row after recovery");
   assert.deepEqual(await snapshot(), records, "no record was added, removed or rewritten");
   assert.deepEqual(await panelState(f, panelId), { started: false, attached: true }, "the existing process still runs");
   assert.equal(await ranIn(marker), folder);
+  // D0256: a real catalog refusal rendered by the real workbench helper is readable to the person, without internal/old terms.
+  const chrome = locateTestChrome(); assert.ok(chrome, "TERM-CATALOG visible negative needs the dedicated browser");
+  const browser = await ChromeHarness.start(join(f.home, "catalog-visible-browser"), { executable: chrome });
+  try {
+    const page = await browser.page();
+    await page.command("Page.navigate", { url: f.origin + "/projects/" + project.project_id + "/" });
+    await page.wait("Boolean(globalThis.molisWorkRequest?.show)");
+    await page.evaluate(`(() => { const notice = document.createElement('p'); notice.id = 'terminal-catalog-error'; document.body.append(notice);
+      molisWorkRequest.show(notice, Object.assign(new Error(${JSON.stringify(failed.message)}), { code: ${JSON.stringify(failed.outcome)} })); })()`);
+    const visible = await page.evaluate<string>("document.getElementById('terminal-catalog-error').innerText");
+    assert.equal(visible, "项目目录暂时读不到");
+    assert.doesNotMatch(visible, /catalog|workspace|board|尚未配置|未装配|SQLITE|actor_id|\/(?:Users|private|var)\//iu);
+  } finally { await browser.close(); }
 });
 
 test("TERM-CATALOG-04 terminal list preserves ActionError identity and refuses a read cancelled or revoked during its catalog await", { timeout: 90_000 }, async t => {

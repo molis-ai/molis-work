@@ -1,3 +1,4 @@
+export interface SignalPage { limit?: number; offset?: number }
 export interface SignalAdapterRef {
   plugin_id: string;
   version: string;
@@ -38,7 +39,7 @@ export interface SignalReceipt {
 
 export interface SignalQuery {
   get(projectId: string, signalId: string): SignalRecord;
-  list(projectId: string, sourceId?: string): SignalRecord[];
+  list(projectId: string, sourceId?: string, page?: SignalPage): SignalRecord[];
 }
 
 export interface SignalCommands {
@@ -57,7 +58,7 @@ export interface SignalEvent {
 }
 
 export interface SignalEvents {
-  list(projectId: string, sourceId?: string): SignalEvent[];
+  list(projectId: string, sourceId?: string, page?: SignalPage): SignalEvent[];
 }
 
 export interface SignalsApi {

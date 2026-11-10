@@ -55,7 +55,7 @@ export function renderSideViewDocument(input: SideViewDocumentInput): string | n
   const route = JSON.stringify(input.routePrefix);
   const surfaceClient = pluginSurfaceClients().find(entry => entry.id === input.projectPluginId);
   const client = surfaceClient
-    ? `void molisPluginFrames.mount(document.querySelector('[data-deferred-surface]'), {mountPluginClient, translate:L, projectId:()=>${JSON.stringify(input.projectId)}, projectTitle:()=>"", route:path=>${route}+path, side:true}, ${JSON.stringify(surfaceClient ? {id:surfaceClient.id,plugin_id:surfaceClient.plugin_id,bundle:surfaceClient.bundle,assets:surfaceClient.assets} : null)}).catch(error=>molisWorkRequest.show(document.querySelector('[data-side-view-root]'),error));`
+    ? `void molisPluginFrames.mount(document.querySelector('[data-deferred-surface]'), {mountPluginClient, translate:L, projectId:()=>${JSON.stringify(input.projectId)}, projectTitle:()=>"", route:path=>${route}+path, side:true}, ${JSON.stringify(surfaceClient ? {id:surfaceClient.id,plugin_id:surfaceClient.plugin_id,bundle:surfaceClient.bundle,assets:surfaceClient.assets} : null)}).then(()=>{const root=document.querySelector('[data-side-view-root]');if(root?.isConnected){root.inert=false;root.removeAttribute('aria-busy');}}).catch(error=>{const root=document.querySelector('[data-side-view-root]');if(!root?.isConnected)return;root.inert=false;root.removeAttribute('aria-busy');molisWorkRequest.show(root,error);const retry=document.createElement('button');retry.type='button';retry.className='mw-btn mw-btn--secondary';retry.textContent=L('重试');retry.addEventListener('click',()=>location.reload());root.append(retry);});`
     : "";
   return renderWorkbenchDocument({
     lang: input.lang,
@@ -63,7 +63,7 @@ export function renderSideViewDocument(input: SideViewDocumentInput): string | n
     // The workbench's own stylesheet (cached with the page), so a plugin's view looks here as it does on the stage.
     head_html: `<script>${input.themeBootstrapScript}</script>${input.headHtml}<link rel="stylesheet" href="/assets/molis-work-workbench.css"><style>${SIDE_VIEW_STYLES}</style>`,
     body_attributes: { "data-project-id": input.projectId, "data-route-prefix": input.routePrefix, "data-side-view": `${input.projectPluginId}/${view.view_id}`, ...(input.accountRegistration ? {inert:true,'data-account-registering':true}:{}) },
-    body_html: `${renderIconSprite()}<main class="side-view" data-side-view-root>${surfaceClient ? renderPluginFrameSurface(html, input.projectPluginId, view.title, false) : html}</main>
+    body_html: `${renderIconSprite()}<main class="side-view" data-side-view-root${surfaceClient ? ' inert aria-busy="true"' : ''}>${surfaceClient ? renderPluginFrameSurface(html, input.projectPluginId, view.title, false) : html}</main>
     <script src="/assets/molis-work-plugin-frame.js"></script>
     <script>${OVERFLOW_FADE_CLIENT_SCRIPT}
 ${COPY_FEEDBACK_CLIENT_SCRIPT}

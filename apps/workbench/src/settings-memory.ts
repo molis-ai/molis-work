@@ -391,7 +391,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
         if (item.scope === "project" && project) menuItem(L("升级为项目说明"), async () => {
           try {
             const prefix = "/projects/" + encodeURIComponent(project);
-            const draft = await molisWorkRequest(prefix + "/api/contextual/draft-reference/issue", { body: { purpose: "project-guidance", text: item.text } });
+            const draft = await molisWorkRequest(prefix + "/api/contextual/draft-reference/issue", { body: { purpose: "project-guidance", text: JSON.stringify([item.memory_id, item.version]) } });
             window.location.assign(prefix + "/settings/guidance?draft_ref=" + encodeURIComponent(draft.reference));
           } catch (failure) { fail(failure); }
         });

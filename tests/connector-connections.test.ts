@@ -1,3 +1,6 @@
+import { existsSync, mkdirSync, writeFileSync, readFileSync } from "node:fs";
+import { listConnectorConnectionViews, connectorAuthorizationStatus } from "@molis-ai/molis-work-app-local-host";
+import { homeSqlitePath } from "@molis-ai/molis-work-storage";
 import { randomUUID } from "node:crypto";
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
@@ -352,4 +355,20 @@ test("D0104 protocol metadata and target origin commit together and notify only 
     store.saveProtocol({ ...input, displayName: "Committed", endpoint: "https://second.example/mcp" });
     assert.deepEqual(changed, [input.connectionId]); assert.equal(store.view(store.require(input.connectionId)).target_origin, "https://second.example");
   } finally { db.close(); }
+});
+
+test("D0276 pure connection and authorization queries leave absent and empty registry files untouched", () => {
+  const home = mkdtempSync(join(tmpdir(), "connector-read-only-"));
+  try {
+    const path = homeSqlitePath(home, "connectors");
+    assert.deepEqual(listConnectorConnectionViews(home), []);
+    assert.equal(connectorAuthorizationStatus(home, "not-created"), null);
+    assert.throws(() => withConnectorConnections(home, store => store.require("missing"), "required"), { code: "connector.connection.not_found" });
+    assert.equal(existsSync(path), false);
+    mkdirSync(join(path, ".."), { recursive: true }); writeFileSync(path, "");
+    assert.deepEqual(listConnectorConnectionViews(home), []);
+    assert.equal(connectorAuthorizationStatus(home, "not-created"), null);
+    assert.throws(() => withConnectorConnections(home, store => store.require("missing"), "required"), { code: "connector.connection.not_found" });
+    assert.equal(readFileSync(path).length, 0);
+  } finally { rmSync(home, { recursive: true, force: true }); }
 });

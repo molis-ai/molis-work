@@ -34,14 +34,27 @@ export function pageFiles(port: MessagePort, scope: FrameScope, request: UiReque
 }
 
 export function printPageDocument(html: string, scope: FrameScope): void {
+  scope.assertCurrent();
   const frame = document.createElement("iframe");
   // This is a scriptless print document, not the plugin execution frame. Same-origin lets the trusted parent
   // call focus()/print(); allow-modals permits printing. Keep scripts disabled and the restrictive CSP below:
   // plugin-supplied HTML must never execute with the parent's origin. The plugin frame stays opaque (parent.ts).
   frame.setAttribute("sandbox", "allow-same-origin allow-modals"); frame.setAttribute("aria-hidden", "true");
   frame.style.cssText = "position:fixed;width:0;height:0;border:0;right:0;bottom:0";
-  frame.onload = () => { frame.contentWindow?.focus(); frame.contentWindow?.print(); };
+  let timer: ReturnType<typeof setTimeout>;
+  const cleanup = () => {
+    clearTimeout(timer); window.removeEventListener("afterprint", cleanup); frame.onload = null;
+    try { frame.contentWindow?.removeEventListener("afterprint", cleanup); }
+    catch { return; } // A navigated child may be opaque; removal still runs and releases its listeners.
+    finally { frame.remove(); }
+  };
+  frame.onload = () => {
+    if (!frame.isConnected) return;
+    try { frame.contentWindow?.addEventListener("afterprint", cleanup, { once: true }); frame.contentWindow?.focus(); frame.contentWindow?.print(); }
+    catch { cleanup(); }
+  };
   frame.srcdoc = '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'; img-src data: blob:; form-action \'none\'">' + html;
-  document.body.append(frame); scope.own(() => frame.remove());
-  window.addEventListener("afterprint", () => frame.remove(), { once: true });
+  timer = setTimeout(cleanup, 120_000);
+  window.addEventListener("afterprint", cleanup, { once: true });
+  scope.own(cleanup); scope.assertCurrent(); document.body.append(frame);
 }

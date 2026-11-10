@@ -437,6 +437,7 @@
     "action.goals.artifact_inputs.remove": 1,
     "action.goals.artifacts.link_subjects": 1,
     "action.goals.board.initialize": 1,
+    "action.goals.capsule.menu.read": 1,
     "action.goals.closure.submit": 1,
     "action.goals.collection.read": 1,
     "action.goals.concerns.apply": 1,

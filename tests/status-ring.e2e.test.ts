@@ -85,8 +85,9 @@ test("RING-01 RING-02 RING-03 RING-04 RING-05 catalog, lifecycle, Goals and Home
     await evaluate(`document.querySelector('[data-board-view-tab="${view}"]').click()`);
     await waitFor(`document.querySelector('${selector} .goal-status .mw-state-ring')?.checkVisibility({ visibilityProperty: true })`);
     if (view === "kanban") {
+      // D0015: cancellation has its own static ring/category, alongside the original six states.
       assert.equal(await evaluate("document.querySelectorAll('.goal-kanban-column summary .mw-state-ring').length"), 7);
-      assert.equal(await evaluate("document.querySelector('[data-kanban-column=cancelled] .mw-state-ring').dataset.mwState"), "cancelled", "D0013: cancelled has its own semantic ring");
+      assert.equal(await evaluate("document.querySelector('[data-kanban-column=cancelled] summary .mw-state-ring')?.dataset.mwState"), "cancelled");
     }
     assert.equal(await evaluate(`getComputedStyle(document.querySelector('${selector} .goal-status'), '::before').content`), "none", "the ring replaces the old CSS dot");
     // RING-08: measure the actual business ring, including old view-specific CSS overrides of its size.

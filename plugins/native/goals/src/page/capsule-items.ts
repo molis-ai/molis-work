@@ -120,8 +120,8 @@ export function createCapsuleItemProjection(L: GoalsTranslate) {
     item: WebGoalView,
   ): CapsuleGoalItem {
     return itemBase(view, item, {
-      tab_kind: "continue",
-      kind: "ready",
+      tab_kind: item.display_status === "cancelled" ? "cancelled" : "continue",
+      kind: item.display_status === "cancelled" ? "waiting" : "ready",
       status_label: item.status_label,
       status_since: null,
       current: item.action_summary,

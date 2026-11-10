@@ -1,3 +1,4 @@
+import { UI_HOST_CLIENT_CODES } from "@molis-ai/molis-work-contracts/platform/ui";
 import assert from "node:assert/strict";
 import test from "node:test";
 import vm from "node:vm";
@@ -23,7 +24,7 @@ test('PERSAF-04 scoped reads and native transport share UiRequest without replac
   const request=createUiRequest({origin:ORIGIN,token:()=> 'page-owner',readHeaders:()=>({'x-molis-work-page-session':'page-owner'}),newKey:()=> 'one-key',translate:text=>text,
     fetch:async()=>{browserCalls++;return Response.json({browser:true});},
     intercept:(input,init)=>{if(new URL(input).pathname!=='/api/personal/status')return null;seen.push(init);return Promise.resolve(Response.json({native:true}));},
-  });
+  }, UI_HOST_CLIENT_CODES);
   assert.deepEqual(await request('/api/personal/status'),{native:true});
   assert.equal(seen[0]?.headers['x-molis-work-page-session'],'page-owner');
   assert.deepEqual(await request('/api/projects'),{browser:true});assert.equal(browserCalls,1);
@@ -48,7 +49,7 @@ function harness(answer: (seen: Seen) => Response | Promise<Response> = () => js
     newKey: () => `key-${String(++keys).padStart(8, "0")}`,
     translate: fill,
   };
-  return { seen, ports, request: createUiRequest(ports) };
+  return { seen, ports, request: createUiRequest(ports, UI_HOST_CLIENT_CODES) };
 }
 
 async function failureOf(run: Promise<unknown>): Promise<UiRequestFailure> {
@@ -463,7 +464,7 @@ test("each factory runs on its own after toString(), with nothing from the modul
   const request = makeRequest({
     fetch: async (input, init) => { seen.push(`${init.method} ${input}`); assert.deepEqual(Object.keys(init.headers).sort(), ["content-type", "x-molis-work-fragment", "x-molis-work-idempotency-key", "x-molis-work-page-session"]); assert.equal(init.headers["x-molis-work-page-session"], "t"); return json(200, { ok: true }); },
     origin: ORIGIN, token: () => "t", newKey: () => "k-0000001", translate: fill,
-  });
+  }, UI_HOST_CLIENT_CODES);
   // The page's context has its own Object, so a parsed answer is compared by value.
   assert.equal(JSON.stringify(await request("/api/x", { body: {}, headers: { "X-Molis-Work-Control-Token": "stolen", "x-molis-work-fragment": "1" } })), JSON.stringify({ ok: true }));
   assert.deepEqual(seen, [`POST ${ORIGIN}/api/x`]);
@@ -566,7 +567,7 @@ test("SYS-15-L4 a closing request keeps its transport alive while retaining the 
 test("protected GET sends the page control token only to its own origin", async () => {
   const seen: {url: string; init: UiFetchInit}[] = [];
   const request = createUiRequest({ origin: ORIGIN, token: () => "page-control", newKey: () => "unused", translate: value => value,
-    fetch: async (url, init) => { seen.push({url, init}); return Response.json({}); } });
+    fetch: async (url, init) => { seen.push({url, init}); return Response.json({}); } }, UI_HOST_CLIENT_CODES);
   await request("/api/account/session", { control: true, headers: { "x-molis-work-page-session": "injected" } });
   assert.deepEqual(seen[0]!.init.headers, { "x-molis-work-page-session": "page-control" });
   await assert.rejects(request("https://outside.invalid/api/account/session", {control: true}));

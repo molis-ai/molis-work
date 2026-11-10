@@ -1,5 +1,5 @@
 import { rollbackPreservingError } from "./transaction-errors.js";
-import { readStorageSpace, spaceMetadataShapeMatches, STORAGE_SPACE_SCHEMA_SQL } from "./space.js";
+import { readDatabaseSpace, readStorageSpace, spaceMetadataShapeMatches, STORAGE_SPACE_SCHEMA_SQL } from "./space.js";
 import { existsSync, statSync } from "node:fs";
 import { basename, isAbsolute, relative } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -56,6 +56,7 @@ export const USER_VERSION_ACCESS: SqliteVersionAccess = {
 
 /** The refusals and failures of a store's version and upgrade. `path` in `details` is relative to the Home, or just the file's name. */
 export const storageErrors = defineErrorCodes("storage", {
+  space_ownership_mismatch: "forbidden",
   schema_version_mismatch: "invalid",
   schema_structure_mismatch: "invalid",
   upgrade_pending: "unavailable",
@@ -213,7 +214,7 @@ function shapeIdentity(path: string, db: SqliteBaselineDatabase, version: number
  * a read-only connection fail with SQLITE_READONLY_ROLLBACK, and that crash recovery is left to the writable open — the caller then
  * checks the recovered database's version and structure in full.
  */
-function inspectSqliteBaseline(path: string, baseline: SqliteBaseline, home?:string): boolean {
+function inspectSqliteBaseline(path: string, baseline: SqliteBaseline, home?:string, verifyOwnership = false): boolean {
   if (!existsSync(path)) return false;
   try {
     // Immutable reads avoid creating WAL sidecars for a closed database. Never ignore an existing journal.
@@ -224,6 +225,7 @@ function inspectSqliteBaseline(path: string, baseline: SqliteBaseline, home?:str
     const inspection = new DatabaseSync(immutable ? uri.href : path, { readOnly: true });
     try {
       if (!checkSqliteBaselineVersion(inspection, path, baseline, home)) return false;
+      if (verifyOwnership) assertExistingHomeSpace(inspection, path, home);
       // A current version mark claims the baseline's schema: every baseline table must be there, even when no other business table is
       // left (a store whose tables were dropped is damaged, not an empty one). Only a file without a version is the creation path.
       const identity = shapeIdentity(path, inspection, baseline.version);
@@ -299,6 +301,26 @@ export function openBaselineHomeSqlite(homeDirectory: string, storeName: string,
   } catch (error) {
     db.close();
     throw error;
+  }
+}
+
+/** Reads only an existing, complete current baseline. Missing/empty stores are absent; no file or schema is created. */
+export function openExistingBaselineHomeSqlite(home: string, storeName: string, baseline: SqliteBaseline): DatabaseSync | undefined {
+  const path = homeSqlitePath(home, storeName);
+  if (!existsSync(path) || statSync(path).size === 0) return undefined;
+  if (!inspectSqliteBaseline(path, baseline, home, true)) throw structureMismatch(path, home);
+  const db = new DatabaseSync(path, { readOnly: true });
+  try {
+    assertExistingHomeSpace(db, path, home);
+    return db;
+  } catch (error) { db.close(); throw error; }
+}
+
+/** Pure ownership check: reject before the normal connection, then recheck the actual query connection. Never assign a space. */
+function assertExistingHomeSpace(db: SqliteBaselineDatabase, path: string, home?: string): void {
+  const expected = home === undefined ? null : readStorageSpace(home), actual = readDatabaseSpace(db);
+  if (!expected || !actual || JSON.stringify(expected) !== JSON.stringify(actual)) {
+    throw storageErrors.space_ownership_mismatch("这个库没有当前空间的有效归属，不能读取。", { path: sqliteStoreLabel(path, home) });
   }
 }
 

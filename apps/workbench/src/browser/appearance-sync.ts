@@ -75,11 +75,14 @@ function sideOwner(page: Document): AppearanceDocument | null {
   if (!frame?.matches("#side-panel iframe[data-side-frame]") || !frame.isConnected || frame.contentDocument !== page) return null;
   const owner = frame.ownerDocument, scope = viewScope(owner);
   const source = frame.closest<HTMLElement>("[data-side-src]")?.dataset.sideSrc;
-  if (!source || !scope || scope !== viewScope(page) || (owner.body.dataset.projectId ?? "") !== (page.body.dataset.projectId ?? "")
-    || (owner.body.dataset.routePrefix ?? "") !== (page.body.dataset.routePrefix ?? "")) return null;
+  if (!source || !scope || scope !== viewScope(page)) return null;
   try {
-    const route = new URL(source, owner.URL);
-    return route.origin === owner.location?.origin && route.href === frame.src && route.href === page.URL ? owner : null;
+    const route = new URL(source, owner.URL), location = owner.location;
+    if (!location || route.origin !== location.origin || route.href !== frame.src || route.href !== page.URL) return null;
+    const parent = owner.body.dataset, side = page.body.dataset;
+    // The chooser's project is its preview selection. Its registered Home side has no project route.
+    if (location.pathname === "/" && parent.arrival === "chooser" && side.homeSide === "true" && !side.projectId && !side.routePrefix) return owner;
+    return (parent.projectId ?? "") === (side.projectId ?? "") && (parent.routePrefix ?? "") === (side.routePrefix ?? "") ? owner : null;
   } catch { return null; }
 }
 

@@ -32,7 +32,7 @@ function singleHomeAccounts(b: IssueBrowser) {
 }
 
 async function openTab(t: TestContext, b: IssueBrowser, path: string, plugin?: string) {
-  const { targetId } = await b.command<{ targetId: string }>("Target.createTarget", { url: "about:blank" });
+  const { targetId } = await b.command<{ targetId: string }>("Target.createTarget", { url: "about:blank", newWindow: true });
   t.after(async () => { await b.command("Target.closeTarget", { targetId }).catch(() => undefined); });
   const { sessionId } = await b.command<{ sessionId: string }>("Target.attachToTarget", { targetId, flatten: true });
   await b.command("Page.enable", {}, sessionId);
@@ -76,6 +76,23 @@ function observeAppearance(b: IssueBrowser) {
   return { streams, opened, reads, onStream(callback: typeof onStream) { onStream = callback; } };
 }
 
+async function seedOutputFile(b: IssueBrowser, projectId: string) {
+  const directory = join(b.homeDirectory, "appearance-window-files"), filename = "appearance-windows.txt", original = "保留 Files 原文 A & B\n";
+  await mkdir(directory);
+  await writeFile(join(directory, filename), original);
+  await setProjectOutputFolder(b.web, projectId, directory);
+  return { filename, original };
+}
+
+async function readOutputFile(tab: Awaited<ReturnType<typeof openTab>>, { filename, original }: { filename: string; original: string }) {
+  await tab.wait("document.querySelector('[data-work-surface=files]')?.dataset.uiClientState === 'ready'");
+  const match = `node => node.dataset.filePath === ${JSON.stringify(JSON.stringify([filename]))}`;
+  const rows = "[...document.querySelectorAll('[data-file-path]')]";
+  await tab.child!.waitFor(`${rows}.some(${match})`);
+  await tab.child!.evaluate(`${rows}.find(${match}).click()`);
+  await tab.child!.waitFor(`document.querySelector('[data-files-text]')?.value === ${JSON.stringify(original)}`);
+}
+
 test("FSS-06 FSS-07 three Workbench windows with preloaded Issues still open Files and a fourth can open it directly", { timeout: 100_000 }, async t => {
   // Keep the real Web Host's catalog directory ports so Files reads the configured output.
   const b = await openGoalBrowser(t, "seeded", undefined, undefined, undefined, undefined, {}, undefined,
@@ -88,10 +105,7 @@ test("FSS-06 FSS-07 three Workbench windows with preloaded Issues still open Fil
   const deck = decks.create({ project_id: b.projectId, title: "保留演示稿" });
   decks.update(deck.id, { slides: [{ id: deck.slides[0]!.id, title: "打开 PPT", bullets: [], notes: "" }] }, b.projectId);
   page.close(); decks.close();
-  const directory = join(b.homeDirectory, "appearance-window-files"), filename = "appearance-windows.txt", original = "保留 Files 原文 A & B\n";
-  await mkdir(directory);
-  await writeFile(join(directory, filename), original);
-  await setProjectOutputFolder(b.web, b.projectId, directory);
+  const file = await seedOutputFile(b, b.projectId);
   singleHomeAccounts(b);
   const traffic = observeAppearance(b);
 
@@ -104,25 +118,68 @@ test("FSS-06 FSS-07 three Workbench windows with preloaded Issues still open Fil
   await ppt.child!.waitFor("document.querySelector('[data-ppt-preview] .ppt-card h2')?.textContent === '打开 PPT'");
   await ppt.wait(sideReady);
 
-  const readFile = async (tab: Awaited<ReturnType<typeof openTab>>) => {
-    await tab.wait("document.querySelector('[data-work-surface=files]')?.dataset.uiClientState === 'ready'");
-    const match = `node => node.dataset.filePath === ${JSON.stringify(JSON.stringify([filename]))}`;
-    const rows = "[...document.querySelectorAll('[data-file-path]')]";
-    await tab.child!.waitFor(`${rows}.some(${match})`);
-    await tab.child!.evaluate(`${rows}.find(${match}).click()`);
-    await tab.child!.waitFor(`document.querySelector('[data-files-text]')?.value === ${JSON.stringify(original)}`);
-  };
   const files = await openTab(t, b, workbench, "files");
   await files.wait(sideReady);
   await files.evaluate("document.querySelector('[data-plugin-strip] [data-plugin-id=files]').click()");
-  await readFile(files);
+  await readOutputFile(files, file);
   const third = traffic.streams.size;
   const direct = await openTab(t, b, workbench + "?openPlugin=files", "files");
   await direct.wait(sideReady);
-  await readFile(direct);
+  await readOutputFile(direct, file);
   assert.ok(traffic.opened.every(source => source.pathname === workbench), "preloaded Issues has no additional HTTP stream");
   assert.ok(third > 0 && third <= 3 && traffic.streams.size <= 4);
   t.diagnostic(JSON.stringify({ third, fourth: traffic.streams.size, embeddedStreams: traffic.opened.filter(source => source.pathname !== workbench).length }));
+});
+
+test("FSS-06 FSS-07 three chooser windows keep their selected project and leave a connection for Files", { timeout: 100_000 }, async t => {
+  const b = await openGoalBrowser(t, "seeded", undefined, undefined, undefined, undefined, {}, undefined,
+    ["--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1"]);
+  if (!b) return;
+  assert.ok(b.projectId);
+  const project = `/projects/${b.projectId}`, side = "/plugins/issues?side=capture";
+  const file = await seedOutputFile(b, b.projectId);
+  singleHomeAccounts(b);
+  const traffic = observeAppearance(b), chooserConnected = deferred();
+  traffic.onStream(() => {
+    if ([...traffic.streams.values()].filter(source => source.pathname === "/").length === 3) chooserConnected.resolve();
+  });
+
+  const card = `document.getElementById(${JSON.stringify(`row-${b.projectId}`)})`;
+  const selected = `location.pathname === '/' && document.body.dataset.arrival === 'chooser'
+    && document.body.dataset.projectId === ${JSON.stringify(b.projectId)}
+    && document.body.dataset.routePrefix === ${JSON.stringify(project)} && ${card}?.getAttribute('aria-selected') === 'true'`;
+  const ready = `${selected} && ${sideReady}`;
+  await b.setViewport(1440, 950);
+  await b.navigate(() => b.command("Page.navigate", { url: b.origin + "/" }, b.sessionId));
+  await b.waitFor(ready);
+  const second = await openTab(t, b, "/");
+  await second.wait(ready);
+  const third = await openTab(t, b, "/");
+  await third.wait(ready);
+  const choosers = [{ evaluate: b.evaluate, wait: b.waitFor }, second, third];
+  for (const chooser of choosers) await chooser.evaluate(`window.originalChooserSide = ${issueDocument}`);
+  await chooserConnected.promise;
+
+  const chooserStreams = [...traffic.streams.values()].map(source => source.pathname + source.search);
+  t.diagnostic(JSON.stringify({ chooserStreams }));
+  const fourth = await openTab(t, b, project + "/?openPlugin=files", "files");
+  await readOutputFile(fourth, file);
+  assert.deepEqual(chooserStreams, ["/", "/", "/"]);
+  assert.equal(traffic.streams.size, 4);
+  assert.ok(traffic.opened.every(source => source.pathname === "/" || source.pathname === project + "/"));
+
+  const readsBeforeChange = traffic.reads.length;
+  const change = await fourth.evaluate<{ receipt: { selection_revision: number } }>(`molisWorkRequest('${appearance}', { body: {
+    request_id: 'chooser-window-folio', expected_revision: 0, choice: { kind: 'selection', selection: {
+      skin: { id: 'folio', revision: 1 }, font: { policy: 'follow-skin' }, mono: null } } } })`);
+  assert.equal(change.receipt.selection_revision, 1);
+  for (const chooser of choosers) {
+    await chooser.wait(`${issueDocument}?.documentElement.dataset.uiSkin === 'folio@1'`);
+    assert.equal(await chooser.evaluate(`${selected} && window.originalChooserSide === ${issueDocument}`), true);
+  }
+  const sideReads = traffic.reads.slice(readsBeforeChange).filter(({ source, status }) => source.pathname + source.search === side && status === 200);
+  assert.ok(sideReads.length >= 3, "each embedded Home side reads with its own authorized page");
+  t.diagnostic(JSON.stringify({ fourthStreams: traffic.streams.size, sideReads: sideReads.length }));
 });
 
 test("FSS-07 FSS-27 a side view reads after the parent reconnects and applies appearance even when the parent cannot", { timeout: 90_000 }, async t => {

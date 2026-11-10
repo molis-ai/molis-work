@@ -46,3 +46,5 @@
 NSEC-02 的四个新增拒绝用例在旧规则下都因返回空诊断而失败。新规则接入后整体 `pnpm build` 通过，NSEC-02、NSEC-03 和现行 S-20 文档门禁测试全部通过。通用运行器的回环端口探测在沙箱被拒，本文件无需网络，在原机器测试槽用 `node --test --test-concurrency=1 tests/security-invariants-doc.test.ts` 执行。
 
 NSEC-04 在本片通过。健康门禁对照 `origin/main` 的合并基点 `54a12642` 通过，`git diff --check` 通过。整批集成后按上面的交接要求核对合并后的证据并验证最终提交。
+
+2026-11-10，预查 `origin/main` `c7873a0f2`。主线和本批共同改到 S-07、S-15、S-47、S-103 的记录行，统一集成时保留本批具名引用、主线新增拒绝和 BL-910 的签包预演证据。用本批规则读取按文件覆盖的候选，四行以外仅发现一条新格式缺口。#1999 的 S-agent-invocation 用反引号包测试名，须按现有格式写成 `tests/agent-start-authority.test.ts`「D0134 missing invocation and failed authority never reach Agent Host」，该标题已在主线测试定位。本次仅核对冲突面，最终证据列与门禁仍在实际合并头重验。

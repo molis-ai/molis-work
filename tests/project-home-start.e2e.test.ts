@@ -5,7 +5,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 import { createProject } from "@molis-ai/molis-work-test-kit/local-host-http";
-import type { SurfaceHomeDisplay } from "@molis-ai/molis-work-app-workbench";
+import type { SurfaceHomeDisplay } from "@molis-ai/molis-work-design-system";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 

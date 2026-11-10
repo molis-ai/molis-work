@@ -3,7 +3,7 @@ import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
-import type { SurfaceHomeDisplay } from "@molis-ai/molis-work-app-workbench";
+import type { SurfaceHomeDisplay } from "@molis-ai/molis-work-design-system";
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 

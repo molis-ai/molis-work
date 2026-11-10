@@ -1,7 +1,7 @@
 import type { ActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { SurfaceGroup, SurfaceItem } from "@molis-ai/molis-work-contracts/services/surface-composition";
 import { escapeHtml as e, icon, renderButton, renderMenu, renderMenuItem, say, type PresentationFormValues } from "@molis-ai/molis-work-plugin-sdk/ui";
-import type { SurfaceDisplayCorrection, SurfaceHomeDisplay } from "../surface-home-display.js";
+import type { SurfaceDisplayCorrection, SurfaceHomeDisplay } from "@molis-ai/molis-work-design-system";
 
 type Control = NonNullable<PresentationFormValues["actions"]>[number];
 export type CorrectionControls = Map<string, SurfaceDisplayCorrection>;

@@ -4,7 +4,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { openServerDatabase } from "@molis-ai/molis-work-server";
 import type { ImMessage, ImMessagePage, ImRoom, ImThreadState } from "@molis-ai/molis-work-contracts/services/im";
-import type { SurfaceHomeDisplay } from "@molis-ai/molis-work-app-workbench";
+import type { SurfaceHomeDisplay } from "@molis-ai/molis-work-design-system";
 import { deferred, serveHomeRuntime } from "./fixtures/home-runtime.js";
 
 async function json<T>(response: Response, status = 200): Promise<T> {

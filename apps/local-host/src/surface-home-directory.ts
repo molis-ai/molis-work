@@ -5,7 +5,6 @@ import type { PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-
 import { PLUGIN_ICON_NAMES, type PresentationFormValues } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { presentationOwnerHue } from "@molis-ai/molis-work-design-system";
 import type { SurfaceInstallationRef } from "@molis-ai/molis-work-contracts/services/surface-composition";
-import { railEntries, stageOpeningView, stageSurfaceDescriptors, type PluginDirectoryEntry } from "@molis-ai/molis-work-app-workbench";
 import type { SurfaceHomePlugin, SurfacePlugin } from "@molis-ai/molis-work-service-surfaces";
 import { readOnlyAlwaysOnProjectPlugins, withFreshReadOnlyPluginDirectory } from "./always-on-plugins.js";
 import { currentHomeStageHalves } from "./home-plugin-http.js";
@@ -13,6 +12,7 @@ import type { HomePluginHost } from "./home-plugins.js";
 import { currentInstalledPluginHost } from "./installed-plugin-host.js";
 import { installedManifestMatches, installedStageIdentity, installedStageReleaseMatches, sameInstalledRelease } from "./installed-stage-identity.js";
 import { installedStageSurface } from "./installed-stage-section.js";
+import { projectHomeRailOrder } from "./plugin-directory.js";
 import { installedPluginEntries } from "./plugin-installation-directory.js";
 import { pluginPagesFor } from "./plugin-page-authority.js";
 import { PLUGIN_INSTALL_PROVIDER_ID, pluginControlActions } from "./plugin-install-actions.js";
@@ -20,7 +20,7 @@ import { availableProjectPluginIds, PLATFORM_PLUGIN_REGISTRATIONS, shownProjectP
 import type { MolisWorkProjectCatalog } from "./project-catalog.js";
 import type { LocalProjectDatabase } from "./project-database.js";
 import { currentProjectPlatform } from "./project-plugins.js";
-import { runtimeStageOwner, type RuntimeStageOwner } from "./project-plugin-stages.js";
+import { projectHomeStageLocation, runtimeStageOwner, type RuntimeStageOwner } from "./project-plugin-stages.js";
 
 export type SurfaceHomeCatalogReader = <Result>(operation: (catalog: MolisWorkProjectCatalog) => Result) => Result | undefined;
 
@@ -65,10 +65,8 @@ function homeMembership(ports: DirectoryPorts) {
 }
 
 function nativeRoute(owner: RuntimeStageOwner, manifest: PluginManifest): Route | undefined {
-  const view = stageOpeningView(manifest);
-  const surface = stageSurfaceDescriptors(manifest, owner.view).find(item => item.target_slot_id === "workbench.main");
-  if (!view || !surface) return undefined;
-  return { kind: "native", view_id: view.view_id, shell: owner.entry.project_plugin_id, surface: surface.surface_id, owner };
+  const stage = projectHomeStageLocation(manifest, owner.view);
+  return stage ? { kind: "native", ...stage, shell: owner.entry.project_plugin_id, owner } : undefined;
 }
 
 function formsFor(ports: DirectoryPorts, record: PluginInstanceRecord, scope: SurfaceInstallationRef["scope"], manifest: PluginManifest | undefined,
@@ -95,9 +93,15 @@ function formsFor(ports: DirectoryPorts, record: PluginInstanceRecord, scope: Su
 
 function projectPackageRoute(record: PluginInstanceRecord, manifest: PluginManifest, installed: ReturnType<typeof currentInstalledPluginHost>): Route | undefined {
   if (record.state !== "running" || installed?.recoveryErrors.has(record.plugin_id)) return undefined;
-  const release = installed?.releaseFor(record.plugin_id), view = stageOpeningView(manifest);
-  if (!view || !installedStageReleaseMatches(record, release, manifest)) return undefined;
-  return { kind: "package", view_id: view.view_id, shell: installedStageSurface(release), surface: "workbench" };
+  const release = installed?.releaseFor(record.plugin_id), stage = projectHomeStageLocation(manifest);
+  if (!stage || !installedStageReleaseMatches(record, release, manifest)) return undefined;
+  return { kind: "package", ...stage, shell: installedStageSurface(release) };
+}
+
+function homePackageRoute(home: HomePluginHost | undefined, id: string, manifest: PluginManifest): Route | undefined {
+  if (!home?.packageSurface(id)) return undefined;
+  const stage = projectHomeStageLocation(manifest);
+  return stage ? { kind: "package", ...stage, shell: id } : undefined;
 }
 
 /** One synchronous sample of the existing Catalog, both installation owners and the workbench's own stage choice. */
@@ -131,7 +135,7 @@ function sample(ports: DirectoryPorts): HomeDirectoryEntry[] {
     const owner = active && stage && !sandbox ? runtimeStageOwner({ platform: project }, stage, halves).owner : undefined;
     const route = active && exact ? sandbox
       ? scope === "project" ? projectPackageRoute(record, exact, installed)
-        : home?.packageSurface(id) && stageOpeningView(exact) ? { kind: "package" as const, view_id: stageOpeningView(exact)!.view_id, shell: id, surface: "workbench" } : undefined
+        : homePackageRoute(home, id, exact)
       : owner?.scope === scope && sameInstalledRelease(owner.installation, record) ? nativeRoute(owner, exact) : undefined
       : undefined;
     const { forms, signedForms } = formsFor(ports, record, scope, exact, route);
@@ -142,14 +146,13 @@ function sample(ports: DirectoryPorts): HomeDirectoryEntry[] {
     const installation = installedStageIdentity(scope, record);
     const contribution = active ? platform?.supervisor.contribution(id) : undefined;
     const slots = contribution?.kind === "app" ? contribution.views?.flatMap(view => view.descriptor.slots) ?? [] : [];
-    const directory: PluginDirectoryEntry = { id: route?.shell ?? key, plugin_id: id, name: exact?.name ?? stage?.manifest.name ?? id,
-      chosen: builtin !== undefined, ...(builtin?.personal || !builtin && scope === "home" && !home?.dualInstance(id) ? { personal: true } : {}), ui: { views: exact?.ui.views ?? [] } };
+    const directory = { id: route?.shell ?? key, plugin_id: id, name: exact?.name ?? stage?.manifest.name ?? id,
+      chosen: builtin !== undefined, ...(builtin?.personal || !builtin && scope === "home" && !home?.dualInstance(id) ? { personal: true as const } : {}), ui: { views: exact?.ui.views ?? [] } };
     // The real member revision and setter land together in batch 20. Until then a removed native installation is a disabled card,
     // without a guessed revision or a second write path.
     return [{ record, installation, route, directory, presentation: exact?.presentation, slots, forms, signedForms, enable, unavailable }];
   });
-  const directory = [...new Map(rows.map(row => [row.directory.id, row.directory])).values()];
-  const ordered = new Map(railEntries(directory.map(entry => entry.id), directory).map((entry, index) => [entry.id, index]));
+  const ordered = projectHomeRailOrder(rows.map(row => row.directory));
   return rows.map(({ record, installation, route, directory: entry, presentation, slots, forms, signedForms, enable, unavailable }) => ({
     record, installation, route, signedForms, display: { name: entry.name, hue: presentationOwnerHue(record.plugin_id), icon: PLUGIN_ICON_NAMES.find(icon => icon === (entry.ui.views?.find(view => view.slot === "navigator")?.icon ?? entry.ui.views?.find(view => view.slot === "stage")?.icon)) },
     plugin: { plugin_id: record.plugin_id, install_id: record.install_id, scope: installation.scope,

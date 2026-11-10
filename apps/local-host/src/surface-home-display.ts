@@ -1,4 +1,4 @@
-import type { SurfaceHomeDisplay, SurfaceHomeRowDisplay } from "@molis-ai/molis-work-app-workbench";
+import type { SurfaceHomeDisplay, SurfaceHomeRowDisplay } from "@molis-ai/molis-work-design-system";
 import { ActionError, findSubjectReader, isSubjectReader, type ActionSubject, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PresentationValues, PresentationValuesInput } from "@molis-ai/molis-work-contracts/platform/presentation";
 import type { SurfaceDescription, SurfaceGroup, SurfaceItem } from "@molis-ai/molis-work-contracts/services/surface-composition";

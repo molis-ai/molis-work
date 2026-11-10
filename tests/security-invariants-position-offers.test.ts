@@ -11,7 +11,7 @@ import { CONTEXT_RELATION_TYPES } from "@molis-ai/molis-work-contracts/modules/c
 import { placementActions, type PlacementConvertResponse } from "@molis-ai/molis-work-contracts/services/placement";
 import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { surfaceCompositionActions } from "@molis-ai/molis-work-contracts/services/surface-composition";
-import type { SurfaceHomeDisplay } from "@molis-ai/molis-work-app-workbench";
+import type { SurfaceHomeDisplay } from "@molis-ai/molis-work-design-system";
 import type { ImMessage, ImRoom } from "@molis-ai/molis-work-contracts/services/im";
 import { openServerDatabase } from "@molis-ai/molis-work-server";
 import { addProjectPlugin, LocalHostHttpClient } from "@molis-ai/molis-work-test-kit/local-host-http";

@@ -5,7 +5,7 @@ import type { PresentationValues, PresentationValuesInput } from "@molis-ai/moli
 import { compileActionSchema } from "@molis-ai/molis-work-kernel";
 import { canonicalJsonText } from "@molis-ai/molis-work-plugin-sdk";
 import { presentationFormFields, presentationValuesProblems } from "@molis-ai/molis-work-plugin-sdk/presentation";
-import type { SurfaceHomeDisplay, SurfaceHomeRowDisplay } from "@molis-ai/molis-work-app-workbench";
+import type { SurfaceHomeDisplay, SurfaceHomeRowDisplay } from "@molis-ai/molis-work-design-system";
 import { displayedRoute, homeChanged, homeOwnsView, homeReference as reference, surfaceRow, type HomeReadSample } from "./surface-home-display.js";
 import { openHomeObject } from "./surface-home-open.js";
 import type { SurfaceProjectContext } from "./surface-project-read.js";

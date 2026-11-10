@@ -1,5 +1,5 @@
 import { escapeHtml as e, renderButton } from "@molis-ai/molis-work-plugin-sdk/ui";
-import type { SurfaceDisplayCorrection, SurfaceHomeDisplay } from "../surface-home-display.js";
+import type { SurfaceDisplayCorrection, SurfaceHomeDisplay } from "@molis-ai/molis-work-design-system";
 import { surfaceCorrectionWord } from "./project-home-render.js";
 import { restoreObject, restorePosition, type CorrectionControls, type CorrectionRender } from "./project-correction-render.js";
 

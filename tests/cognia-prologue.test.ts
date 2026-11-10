@@ -17,7 +17,7 @@ import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { ensureSystemAgentService } from "@molis-ai/molis-work-app-local-host";
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { agentDefinitionsFor } from "../apps/local-host/dist/agent-definitions/agent-definitions.js";
-import { builtinRegistrations } from "../apps/local-host/dist/agent-definitions/builtin-registrations.js";
+import { builtinRegistrations } from "../apps/local-host/dist/agent-definitions/builtin-agents.js";
 
 function fixture(t: test.TestContext, endpoint = "https://1.1.1.1") {
   const home = mkdtempSync(join(tmpdir(), "cognia-prologue-"));

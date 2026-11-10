@@ -849,6 +849,8 @@ export declare const sandboxPackageBuildId: (pluginId: string, signature: string
 
 export declare function sandboxPluginManifest(input: SandboxManifestInput): PluginManifest;
 
+export declare function sandboxPromptId(entryId: string): string;
+
 export declare function sandboxRequestedPermissions(effects: DerivedEffects | undefined): string[];
 
 export declare function sandboxRoleIdentity(pluginId: string, name: string): {

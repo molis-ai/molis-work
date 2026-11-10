@@ -16,7 +16,7 @@ import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { agentDefinitionsFor } from "../apps/local-host/dist/agent-definitions/agent-definitions.js";
 import { extractMaterial } from "../apps/local-host/dist/material-extraction.js";
-import { builtinRegistrations } from "../apps/local-host/dist/agent-definitions/builtin-registrations.js";
+import { builtinRegistrations } from "../apps/local-host/dist/agent-definitions/builtin-agents.js";
 import { openTestShelfStore } from "./shelf-direct-actions.js";
 
 type Request = { model: string; messages: any[] };

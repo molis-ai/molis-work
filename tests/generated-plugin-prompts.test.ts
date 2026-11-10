@@ -5,8 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AgentRelease } from "@molis-ai/molis-work-plugin-builder";
 import { agentDefinitionsFor } from "../apps/local-host/src/agent-definitions/agent-definitions.js";
-import { builtinRegistrations } from "../apps/local-host/src/agent-definitions/builtin-registrations.js";
-import { UNREGISTERED_MODEL_CALLS } from "../apps/local-host/src/agent-definitions/builtin-instructions.js";
+import { builtinRegistrations } from "../apps/local-host/src/agent-definitions/builtin-agents.js";
 import { generatedRegistration, promptVersions, readPluginPrompts, registerGeneratedPrompts, resolvePluginPrompt, unregisterGeneratedPrompts } from "../apps/local-host/src/plugin-builder/prompts.js";
 
 const OPERATION = `
@@ -116,7 +115,7 @@ test("developer diagnostics say what each source registered and what is not in e
     const v2 = release(2, [{ id: "summary", title: "要点提炼", purpose: "p", body: "A2" }]);
     registerGeneratedPrompts(home, generatedRegistration(v2, [v1, v2], "disabled", "2.0.0"));
 
-    const report = registry.diagnostics(UNREGISTERED_MODEL_CALLS);
+    const report = registry.diagnostics();
     const generated = report.owners.find(owner => owner.owner_id === "io.molis.work.generated.b1")!;
     assert.deepEqual([generated.instructions, generated.edited], [1, 1]);
     assert.ok(generated.issues.some(issue => /插件已停用/.test(issue.text)));
@@ -125,6 +124,5 @@ test("developer diagnostics say what each source registered and what is not in e
     assert.ok(assistant.prompts > 0 && assistant.roles > 0);
     assert.ok(assistant.issues.some(issue => issue.level === "info" && /还没有被调用过/.test(issue.text)));
     assert.ok(report.owners.find(owner => owner.owner_id === "io.molis.work.alchemist")!.instructions > 0, "Alchemist now registers its model instructions");
-    assert.deepEqual(report.unregistered, [], "migrated consumers are no longer listed as unregistered calls");
   } finally { rmSync(home, { recursive: true, force: true }); }
 });

@@ -20,7 +20,7 @@ import { exposedActionId } from '../apps/local-host/dist/plugin-builder/exposed-
 import { withConnectorConnections } from '@molis-ai/molis-work-app-local-host';
 import { bindPrologueInference } from '../apps/local-host/dist/prologue-inference-host.js';
 import { agentDefinitionsFor } from '../apps/local-host/dist/agent-definitions/agent-definitions.js';
-import { builtinRegistrations } from '../apps/local-host/dist/agent-definitions/builtin-registrations.js';
+import { builtinRegistrations } from '../apps/local-host/dist/agent-definitions/builtin-agents.js';
 
 test('installed and authoring model calls bind their own release through the real Host, sandbox and shared Runtime', { skip: process.platform !== 'darwin', timeout: 60_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), 'generated-prompt-binding-'));

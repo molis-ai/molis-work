@@ -41,7 +41,6 @@ export interface AgentDefinitionsDiagnostics {
             text: string;
         }>;
     }>;
-    unregistered: AgentUnregisteredCall[];
 }
 
 export type AgentPromptKind = "agent" | "instruction";
@@ -154,12 +153,6 @@ export interface AgentSkillView {
     name: string;
     summary: string;
     tools: string[];
-}
-
-export interface AgentUnregisteredCall {
-    owner_id: string;
-    title: string;
-    reason: string;
 }
 
 export declare const PROMPT_OVERRIDES_FILE_MAX_ROWS = 200;

@@ -35,13 +35,6 @@ export const BUILTIN_INLINE_AGENT_ROLES: ReadonlyArray<{ owner_id: string; role:
 ];
 
 /**
- * Model calls that still send text nobody can see in “Prompt 与 Character”, shown in developer diagnostics. Keep in
- * step with the transitional list in `tests/prompt-registration.test.ts`.
- */
-export const UNREGISTERED_MODEL_CALLS: ReadonlyArray<{ owner_id: string; title: string; reason: string }> = [
-];
-
-/**
  * The platform's own owners of instructions and Agents, by owner id: the Host's modules, and Plugin Builder, which keeps its plugin id as
  * owner so the person's edits stay theirs (PG-051 Q2).
  */

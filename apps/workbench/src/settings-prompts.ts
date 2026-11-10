@@ -17,7 +17,7 @@ export function renderPromptSettings({ L }: { L(text: string): string }): string
     </div>
     <div class="prompt-settings-body" data-prompt-body aria-live="polite"><p class="settings-muted mw-loading">${L("正在读取…")}</p></div>
     <details class="settings-section prompt-diagnostics" id="diagnostics" data-prompt-diagnostics>
-      <summary><strong>${L("开发者诊断")}</strong><span class="settings-muted">${L("每个来源登记了什么，哪些没有生效、为什么；以及还没有登记的模型调用。")}</span></summary>
+      <summary><strong>${L("开发者诊断")}</strong><span class="settings-muted">${L("每个来源登记了什么，哪些没有生效、为什么。")}</span></summary>
       <div data-prompt-diagnostics-body><p class="settings-muted mw-loading">${L("正在读取…")}</p></div>
     </details>
   </section>`;
@@ -224,12 +224,6 @@ globalThis.molisWorkBindPromptSettings = (container = document, context = null) 
         list.append(item);
       });
       diagnosticsBody.replaceChildren(list);
-      if (data.unregistered.length) {
-        diagnosticsBody.append(el("h3", "prompt-diagnostics-heading", L("还没有登记的模型调用")));
-        const rest = el("ul", "prompt-diagnostics-list");
-        data.unregistered.forEach((call) => { const item = el("li", "prompt-diagnostics-owner"); item.append(el("strong", "", L(call.title)), el("span", "settings-muted", L(call.reason))); rest.append(item); });
-        diagnosticsBody.append(rest);
-      }
     } catch (failure) { delete diagnostics.dataset.loaded; diagnosticsBody.replaceChildren(problem(failure)); }
   };
   diagnostics.addEventListener("toggle", () => { if (diagnostics.open) loadDiagnostics(); });

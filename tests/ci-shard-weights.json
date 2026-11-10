@@ -62,7 +62,6 @@
  "tests/agent-pending-questions.test.ts": 1,
  "tests/agent-plugin-identity.test.ts": 7,
  "tests/agent-prompt-layers.test.ts": 2,
- "tests/agent-purpose-groups.test.ts": 1,
  "tests/agent-question-types.test.ts": 8,
  "tests/agent-reference-questions.test.ts": 8,
  "tests/agent-review-http.test.ts": 7,

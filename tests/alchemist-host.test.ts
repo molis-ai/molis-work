@@ -1,7 +1,7 @@
 import { instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { ALCHEMIST_COPILOT, ALCHEMIST_INSTRUCTIONS } from "@molis-ai/molis-work-plugin-alchemist";
 import { agentDefinitionsFor } from "../apps/local-host/dist/agent-definitions/agent-definitions.js";
-import { builtinRegistrations } from "../apps/local-host/dist/agent-definitions/builtin-registrations.js";
+import { builtinRegistrations } from "../apps/local-host/dist/agent-definitions/builtin-agents.js";
 import { alchemistOutput } from "./fixtures/alchemist-output.js";
 import assert from "node:assert/strict";
 import test from "node:test";

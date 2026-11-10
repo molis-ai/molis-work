@@ -4,13 +4,16 @@ import { join } from "node:path";
 import type { TestContext } from "node:test";
 import { packSandboxProject } from "@molis-ai/molis-work-plugin-cli";
 import { signPluginPackage } from "@molis-ai/molis-work-plugin-runtime";
+import { defineSubjectContextAction, subjectContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SANDBOX_PACKAGE_FILES } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { SandboxPluginContract, SandboxSchema } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
 import type { PluginComponentNode, PluginComponentPlan } from "@molis-ai/molis-work-design-system";
 import type { SandboxUiContribution } from "@molis-ai/molis-work-plugin-sdk";
 import { newPublisher } from "./sandbox-package.js";
 
-export function authoredObjectSlot(pluginId: string, kind: string) {
+type ReaderFixture = { title: string; content: string; invalidOpenId: string };
+
+export function authoredObjectSlot(pluginId: string, kind: string, reader?: ReaderFixture) {
   const reference = { type: "object", additionalProperties: false, required: ["kind", "id"],
     properties: { kind: { type: "string" }, id: { type: "string" } } } as const;
   const input: SandboxSchema = { type: "object", additionalProperties: false, required: ["id"], properties: { id: { type: "string" } } };
@@ -33,17 +36,33 @@ export function authoredObjectSlot(pluginId: string, kind: string) {
   const nodes: PluginComponentNode[] = parts.map(part => ({ ...part, kind: part.surfaceSlot ? "surface-slot" : "form" }));
   const ui: SandboxUiContribution = { slots: [{ slot_id: "references.originals", accepts: [], accepts_forms: ["card"] }] };
   const surface = { parts, nodes, ui };
-  const code = `export const operations = {
+  let code = `export const operations = {
     "references.list": async (_, sdk) => ({ references: JSON.parse((await sdk.storage.get("references")) ?? "[]") }),
     "references.save": async (input, sdk) => { await sdk.storage.set("references", JSON.stringify([{ kind: ${JSON.stringify(kind)}, id: input.id }])); return true; }
   };`;
+  if (reader) {
+    const context = defineSubjectContextAction("test.context", 1, kind, "Reference context", []);
+    const subject = { kind, id: "example-reference" };
+    contract.operations.push({ id: "references.context", kind: "query", read_protocol: { kind: "subject_context", subject_kind: kind },
+      input: context.action.input_schema, output: context.action.output_schema!, errors: [], effects: { storage: ["read"] },
+      examples: [{ input: { subject_id: subject.id }, output: subjectContext({ subject, title: reader.title, content: reader.content, revision: "1",
+        open: { surface: "workbench", id: subject.id } }) }] });
+    code += `
+operations["references.context"] = async ({ subject_id }, sdk) => {
+  const { references } = await operations["references.list"]({}, sdk);
+  const subject = references.find(entry => entry.id === subject_id);
+  if (!subject) throw Error("The owner no longer holds this object");
+  return { subject, title: ${JSON.stringify(reader.title)}, content: ${JSON.stringify(reader.content)}, revision: "1", truncated: false,
+    open: { surface: subject_id === ${JSON.stringify(reader.invalidOpenId)} ? "foreign-stage" : "workbench", id: subject_id } };
+};`;
+  }
   return { contract, surface, code };
 }
 
-export async function packSignedObjectSlot(t: TestContext, scope: "home" | "project", pluginId: string, kind: string) {
+export async function packSignedObjectSlot(t: TestContext, scope: "home" | "project", pluginId: string, kind: string, reader?: ReaderFixture) {
   const directory = await mkdtemp(join(tmpdir(), "signed-object-slot-"));
   t.after(() => rm(directory, { recursive: true, force: true }));
-  const publisher = newPublisher(), { contract, surface, code } = authoredObjectSlot(pluginId, kind);
+  const publisher = newPublisher(), { contract, surface, code } = authoredObjectSlot(pluginId, kind, reader);
   await Promise.all([
     writeFile(join(directory, SANDBOX_PACKAGE_FILES.contract), JSON.stringify(contract)),
     writeFile(join(directory, SANDBOX_PACKAGE_FILES.interface), JSON.stringify(surface)),

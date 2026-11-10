@@ -3,8 +3,9 @@ import type { UiViewSelection } from "@molis-ai/molis-work-contracts/platform/ui
 import type { SurfaceGroup, SurfaceInstallationRef, SurfaceItem, SurfacePluginCard } from "@molis-ai/molis-work-contracts/services/surface-composition";
 import { canonicalJsonText, isRecord } from "@molis-ai/molis-work-plugin-sdk";
 import { assertStageInstallation, installedStagePath } from "./installed-stage-identity.js";
-import { homeChanged, homeReference, ownerReader, type HomeReadSample } from "./surface-home-display.js";
-import type { HomeDirectoryEntry } from "./surface-home-directory.js";
+import { readSurfaceSubject, type SurfaceSubjectSummary } from "@molis-ai/molis-work-service-surfaces";
+import { displayedFallback, homeChanged, homeReference, ownerReader, type HomeReadSample } from "./surface-home-display.js";
+import { objectStageLocation, type HomeDirectoryEntry } from "./surface-home-directory.js";
 import type { pluginRouteControl } from "./plugin-route-control.js";
 import { isPlacementKind } from "./surface-placement.js";
 
@@ -44,6 +45,11 @@ export function homeObjectClick(target: Record<string, unknown>, owner: string, 
 }
 
 export function assertHomeDisplayReader(sample: HomeReadSample, entry: HomeDirectoryEntry, item: SurfaceItem) {
+  const fallback = displayedFallback(sample, item);
+  if (fallback) {
+    if (fallback.entry !== entry) throw homeChanged();
+    return fallback.proof;
+  }
   const view = ownerReader(sample, entry, item.subject);
   if (!view || !sample.views.has(view) || !entry.plugin.presentation?.objects.some(object => object.kind === item.subject.kind)) throw homeChanged();
 }
@@ -57,16 +63,28 @@ export async function openHomeObject(sample: Pick<HomeReadSample, "catalog" | "r
   const result = await read.invoke<{ subject_id: string }, ActionSubjectContext>({ ...reader, ...homeReference(reader) }, { subject_id: subject.id },
     { ...transport, assert_authority_current: current });
   current();
-  if (result.subject.kind !== subject.kind || result.subject.id !== subject.id || !result.open) throw homeChanged();
-  // A signed reader can only open its own installation. A dual native owner can share its registered main surface.
-  const stage = entry.route ? entry : sample.catalog.entries.find(item => item.route?.kind === "native" && entry.record.publisher_trust === "host"
-    && item.plugin.plugin_id === entry.plugin.plugin_id && item.record.publisher_signature === entry.record.publisher_signature);
-  const route = stage?.route;
-  if (!stage || !route) throw homeChanged();
+  if (result.subject.kind !== subject.kind || result.subject.id !== subject.id) throw homeChanged();
+  return openProvedHomeObject(sample.catalog, entry, result, prefix);
+}
+
+/** The protected click can use the current request's existing subject proof. */
+export function openProvedHomeObject(catalog: HomeReadSample["catalog"], entry: HomeDirectoryEntry, proof: SurfaceSubjectSummary, prefix: string) {
+  const target = objectStageLocation(catalog.entries, entry, proof.open);
+  if (!target) throw homeChanged();
+  const { stage, viewId, id, surface } = target;
   assertStageInstallation(stage.installation.scope, stage.record, stage.installation);
-  const { id, surface } = result.open;
-  const main = surface === route.shell || surface === route.surface;
-  if (!main && (route.kind !== "native" || !route.owner.view.descriptor.surfaces?.some(item => item.surface_id === surface && item.target_slot_id === "workbench.main"))) throw homeChanged();
-  return stageNavigation(stage, { kind: "stage", view_id: route.view_id, installation: stage.installation }, prefix,
-    { id, title: result.title, surface: main ? route.surface : surface });
+  return stageNavigation(stage, { kind: "stage", view_id: viewId, installation: stage.installation }, prefix, { id, title: proof.title, surface });
+}
+
+/** A retained slot control has no old title or open result. Use the same exact reader again on its new request. */
+export async function rereadSurfaceFallback(reader: ActionView, subject: ActionSubject, client: ActionClient, caller: ActionCallContext,
+  control: ReturnType<typeof pluginRouteControl>, deadline: NonNullable<HomeReadSample["deadline"]>, current: () => void) {
+  const read = bindActionClient(client, () => ({ ...caller, query_only: true, read_only_effects: true }));
+  let proof: SurfaceSubjectSummary | undefined;
+  await deadline.read([subject], current, (subject, signal) => readSurfaceSubject(reader, subject, (view, input, signal, assertCurrent) =>
+    read.invoke({ ...view, ...homeReference(view) }, input, { ...control, signal, assert_authority_current: assertCurrent }), signal, current),
+  (_subject, result) => { if ("value" in result) proof = result.value; });
+  current();
+  if (!proof) throw homeChanged();
+  return proof;
 }

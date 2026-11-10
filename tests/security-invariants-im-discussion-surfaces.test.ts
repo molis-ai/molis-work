@@ -13,7 +13,7 @@ async function json<T>(response: Response, status = 200): Promise<T> {
   return value;
 }
 
-test("IUI-03 IUI-10 IUI-21 ordered discussion objects belong to the original message and require both current authorities", { timeout: 60_000 }, async t => {
+test("IUI-02 IUI-03 IUI-10 IUI-21 ordered discussion objects belong to the original message and require both current authorities", { timeout: 60_000 }, async t => {
   const f = await serveHomeRuntime(t), project = await f.project("Discussion references"), prefix = "/projects/" + project.project_id;
   const http = (...args: Parameters<typeof f.request>) => f.request(...args).catch(cause => {
     throw new Error("Transport refused " + (args[1]?.method ?? "GET") + " " + args[0], { cause });
@@ -95,6 +95,52 @@ test("IUI-03 IUI-10 IUI-21 ordered discussion objects belong to the original mes
   const opened = await json<{ item_id: string }>(await post(surfaces, click));
   assert.equal(opened.item_id, subjects[0]!.id);
   await json(await post(surfaces, { ...click, views: [{ message_id: duplicate.message.id, part: "quote" }] }), 409);
+
+  // IUI-02: Pages owns the title and navigation even without a presentation declaration.
+  const pagesTitle = "Live Pages title for this discussion", privateBody = "Pages body never sent to the discussion surface";
+  const { document } = await json<{ document: { id: string; version: number } }>(await post(
+    prefix + "/api/plugins/io.molis.work.pages/pages", { title: pagesTitle, markdown: privateBody }));
+  const pageSubject = { kind: "pages_document", id: document.id };
+  const callLog = f.host.callLog!, recordCall = callLog.record;
+  let pageReads = 0, withdraw = false;
+  callLog.record = function (caller, action, outcome) {
+    if (action.capability_id === "pages.subject.read" && outcome.ok) {
+      pageReads++;
+      if (withdraw) db.db.prepare("DELETE FROM mw_access WHERE project_id=? AND member_id=?").run(project.project_id, owner.id);
+    }
+    return recordCall.call(this, caller, action, outcome);
+  };
+  try {
+    const posted = await send({ client_id: randomUUID(), body: "", subjects: [pageSubject] });
+    assert.equal(pageReads, 1, "the send transaction proved the original object once");
+    const quoted = await send({ client_id: randomUUID(), body: "Pages quote", quote_id: posted.message.id });
+    const views = [{ message_id: posted.message.id, part: "message" }, { message_id: quoted.message.id, part: "quote" }];
+    const read = await json<SurfaceHomeDisplay>(await post(surfaces, { views }));
+    assert.equal(pageReads, 2, "original and quote share one owner read");
+    assert.deepEqual(read.groups.map(group => group.items.map(item => [item.subject, item.owner_plugin_id, item.fields, item.actions])),
+      views.map(() => [[pageSubject, "io.molis.work.pages", [], [{ ref: "open", primary: false }]]]));
+    assert.equal(read.display.rows.length, 1);
+    const row = read.display.rows[0]!;
+    assert.equal(row.fallback, true);
+    assert.deepEqual(row.read, { state: "ok", revision: String(document.version), values: { title: pagesTitle } });
+    assert.match(read.display.owners[row.owner]!.name, /Pages|文档/u);
+    assert.doesNotMatch(JSON.stringify(read), new RegExp(privateBody, "u"));
+    const open = { views: [views[0]], click: { owner_plugin_id: row.owner,
+      target: { kind: "object", subject: row.subject, installation: row.installation } } };
+    const opened = await json<{ owner_plugin_id: string; shell_key: string; item_id: string; installation: unknown }>(await post(surfaces, open));
+    assert.deepEqual([opened.owner_plugin_id, opened.shell_key, opened.item_id, opened.installation], [row.owner, "pages", document.id, row.installation]);
+    assert.equal(pageReads, 3, "the click reuses the current request's fresh proof");
+    const count = db.db.prepare("SELECT count(*) AS n FROM im_messages").get()?.n;
+    withdraw = true;
+    const denied = await post(messages, { client_id: randomUUID(), body: "", subjects: [pageSubject] });
+    assert.equal(pageReads, 4);
+    assert.ok(!denied.ok);
+    assert.doesNotMatch(await denied.text(), new RegExp(pagesTitle + "|" + privateBody + "|" + document.id, "u"));
+    assert.equal(db.db.prepare("SELECT count(*) AS n FROM im_messages").get()?.n, count);
+  } finally {
+    callLog.record = recordCall;
+    if (withdraw) db.db.prepare("INSERT OR IGNORE INTO mw_access VALUES (?,?,'owner')").run(project.project_id, owner.id);
+  }
 
   const reopened = openServerDatabase(join(f.home, "server"));
   try {

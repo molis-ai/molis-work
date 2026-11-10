@@ -26,6 +26,14 @@ export function ownerReader(sample: HomeReadSample, entry: HomeDirectoryEntry, s
   return matches.length === 1 ? matches[0] : undefined;
 }
 
+export function displayedFallback(sample: HomeReadSample, item: Pick<SurfaceItem, "subject" | "owner_plugin_id">) {
+  const proof = sample.fallbacks.get(key(item.subject));
+  if (!proof || proof.plugin.plugin_id !== item.owner_plugin_id) return undefined;
+  const entry = sample.catalog.entries.find(entry => entry.plugin === proof.plugin);
+  if (!entry || !sample.views.has(proof.reader) || !homeOwnsView(entry, proof.reader)) throw homeChanged();
+  return { entry, proof };
+}
+
 export function displayedRoute(sample: HomeReadSample, item: SurfaceItem) {
   const reader = findSubjectReader([...sample.views], item.subject.kind);
   if (reader.found !== "one") return undefined;
@@ -48,21 +56,36 @@ export function surfaceRow({ entry, subject, object, fields, form }: NonNullable
     read: read ? { revision: read.revision, state: read.state, ...(values ? { values } : {}), ...(read.read_at ? { read_at: read.read_at } : {}) } : { state: "unreadable" } };
 }
 
+function fallbackRow(item: SurfaceItem, { entry, proof }: NonNullable<ReturnType<typeof displayedFallback>>): SurfaceHomeRowDisplay {
+  // Give the common form renderer only the current title and its real owner.
+  return { owner: entry.plugin.plugin_id, subject: item.subject, installation: entry.installation, fallback: true,
+    declaration: { owner: entry.plugin.plugin_id, kind: item.subject.kind, fields: [{ key: "title", role: "title" }],
+      forms: { [item.form]: { fields: ["title"] } } },
+    read: { revision: proof.revision, state: "ok", values: { title: proof.title } } };
+}
+
 async function displayRows(sample: HomeReadSample, items: readonly SurfaceItem[], signal: AbortSignal, invoke: ReadValues, peek = false) {
   const routes = items.flatMap(item => {
-    const route = displayedRoute(sample, item);
+    const route = !displayedFallback(sample, item) && displayedRoute(sample, item);
     const form = route && presentationFormFields(route.object, peek ? "peek" : item.form);
     return route && form ? [{ ...route, subject: item.subject, fields: form.fields, form: form.form }] : [];
   });
-  if (!routes.length) return [];
   const deadline = sample.deadline;
-  if (!deadline) throw homeChanged();
-  const current = () => { signal.throwIfAborted(); sample.assertCurrent(); };
-  const answers = await readSurfaceValues(routes, { values: invoke }, deadline, current);
-  return routes.map(route => {
-    const result = answers.get(key(route.subject));
-    if (result?.denied || result?.item?.state === "forbidden" || result?.item?.state === "deleted") throw homeChanged();
-    return surfaceRow(route, result?.item);
+  const rows = new Map<string, SurfaceHomeRowDisplay>();
+  if (routes.length) {
+    if (!deadline) throw homeChanged();
+    const current = () => { signal.throwIfAborted(); sample.assertCurrent(); };
+    const answers = await readSurfaceValues(routes, { values: invoke }, deadline, current);
+    for (const route of routes) {
+      const id = key(route.subject), result = answers.get(id);
+      if (result?.denied || result?.item?.state === "forbidden" || result?.item?.state === "deleted") throw homeChanged();
+      rows.set(id, surfaceRow(route, result?.item));
+    }
+  }
+  return items.flatMap(item => {
+    const fallback = !peek && displayedFallback(sample, item);
+    const row = fallback ? fallbackRow(item, fallback) : rows.get(key(item.subject));
+    return row ? [row] : [];
   });
 }
 

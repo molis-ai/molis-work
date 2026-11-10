@@ -2,10 +2,12 @@ import { ActionError, bindSearchEntriesHandler, defineSearchEntriesAction, defin
 import { scheduleErrors } from "./error.js";
 import type { ScheduleConversationTaskView } from "./tasks.js";
 
+const subjectReader = defineSubjectContextAction("schedule.subject.read", /* @version action.schedule.subject.read */ 1, "schedule_task", "定时任务", ["schedule:read"]);
+
 /** Schedule's part in the system search: the person's conversation tasks, their instructions and what each run reported. */
 export const scheduleSearchActions = {
   entries: defineSearchEntriesAction("schedule.search.entries", /* @version action.schedule.search.entries */ 1, [{ kind: "schedule_task", title: "定时任务", surface: "schedule" }], "定时任务", ["schedule:read"]),
-  subject: defineSubjectContextAction("schedule.subject.read", /* @version action.schedule.subject.read */ 1, "schedule_task", "定时任务", ["schedule:read"]),
+  subject: { ...subjectReader, action: { ...subjectReader.action, execution: { cost: "none" as const } } },
 };
 const revisionOf = (task: ScheduleConversationTaskView) => searchRevisionOf([task.updated_at, String(task.turns.length), task.turns.at(-1)?.turn_id ?? ""]);
 // A reader asked "when does it run" answers from the task itself: its clock and whether it is on come first.

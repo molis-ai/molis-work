@@ -1,5 +1,5 @@
 import { resolve } from "node:path";
-import { ActionError, LOCAL_PERSON_ACTOR_ID, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionSubjectContext, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { PLUGIN_ICON_NAMES, type PresentationFormValues } from "@molis-ai/molis-work-plugin-sdk/ui";
@@ -43,6 +43,19 @@ export interface HomeDirectoryEntry {
   readonly route?: Route;
   readonly signedForms: readonly SignedForm[];
   readonly display: PresentationFormValues["ownerDisplay"];
+}
+
+/** Locate the reader's own stage, or the actual stage of its registered dual native owner. */
+export function objectStageLocation(entries: readonly HomeDirectoryEntry[], entry: HomeDirectoryEntry, open: ActionSubjectContext["open"]) {
+  if (!open) return undefined;
+  const stage = entry.route ? entry : entries.find(item => item.route?.kind === "native" && entry.record.publisher_trust === "host"
+    && item.plugin.plugin_id === entry.plugin.plugin_id && item.record.publisher_signature === entry.record.publisher_signature);
+  const route = stage?.route;
+  if (!stage || !route || stage.record.state !== "running") return undefined;
+  const main = open.surface === route.shell || open.surface === route.surface;
+  if (!main && (route.kind !== "native" || !route.owner.view.descriptor.surfaces?.some(item =>
+    item.surface_id === open.surface && item.target_slot_id === "workbench.main"))) return undefined;
+  return { stage, viewId: route.view_id, id: open.id, surface: main ? route.surface : open.surface };
 }
 
 const projectEnable = { kind: "project_installation", action: { capability_id: pluginControlActions.enable.capability_id,

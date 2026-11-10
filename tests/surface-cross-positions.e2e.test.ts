@@ -206,7 +206,7 @@ async function nativeInboxSurface(t: TestContext, late: boolean) {
   assert.equal(stored().revision, material.revision + 1);
 }
 
-test("IUI-03 IUI-06 IUI-21 IUI-26: discussion picks and quotes a Goal and applies its form preference to both actual references", { timeout: 90_000 }, async t => {
+test("IUI-02 IUI-03 IUI-06 IUI-21 IUI-26: discussion picks and quotes a Goal and applies its form preference to both actual references, then opens a Pages object", { timeout: 90_000 }, async t => {
   const b = await openGoalBrowser(t, "seeded", undefined, null);
   if (!b) return;
   const prefix = "/projects/" + b.projectId, title = "Searchable discussion object";
@@ -298,6 +298,22 @@ test("IUI-03 IUI-06 IUI-21 IUI-26: discussion picks and quotes a Goal and applie
   await choose("固定到前面");
   const reason = quotedObject + ' > .mw-presentation';
   await b.waitFor(`!!${query(reason)} && ${query(quotedObject)}.parentElement.querySelector("[data-surface-correction-reason]")?.textContent.includes("沿用你为这个位置保存的显示设置")`);
+
+  const pageTitle = "Live Pages reference for the browser", pageBody = "Private body appears only in the original editor";
+  const { document } = await b.web.post<{ document: { id: string } }>(prefix + "/api/plugins/io.molis.work.pages/pages",
+    { title: pageTitle, markdown: pageBody });
+  await imClick(composer + ' [data-im-add-object]');
+  await b.waitFor(`${query('[data-dialog] input[type="search"]')}?.matches(':focus')`);
+  await b.command("Input.insertText", { text: pageTitle }, b.sessionId);
+  await b.waitFor(`${query('[data-im-object-choices] button')}?.textContent.includes(${quoted(pageTitle)})`);
+  await imClick('[data-im-object-choices] button');
+  await imClick(composer + ' [type="submit"]');
+  const pageChip = '[data-im-object-part="message"] [data-home-subject-id="' + document.id + '"]';
+  await b.waitFor(`${query(pageChip)}?.innerText.includes(${quoted(pageTitle)})`, 15_000);
+  assert.doesNotMatch(await b.evaluate<string>(`${query(pageChip)}.innerText`), new RegExp(pageBody, "u"));
+  assert.equal(await b.evaluate(`${query(pageChip)}.querySelectorAll("[data-presentation-action]").length`), 1);
+  await imClick(pageChip + ' [data-presentation-action$=":open"]');
+  await b.waitFor(`[...document.querySelectorAll('[data-tab-id]')].some(tab => tab.dataset.itemId === ${quoted(document.id)})`);
 });
 
 test("IUI-21: changing an actual owner's displayed values replaces the Home row and preserves its logical focus", { timeout: 70_000 }, async t => {

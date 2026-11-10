@@ -71,6 +71,7 @@ test("SSC-14: the real composition row and a direct owner values read use the sa
       retain: () => () => undefined,
     }),
     values: async (_action, input) => ({ items: [{ ...current, values: Object.fromEntries(input.fields.map(key => [key, values[key as keyof typeof values]])) }] }),
+    subject: async () => assert.fail("unexpected subject read"),
     attention: () => [], relations: () => [], current: () => undefined, beforeEffect: async () => undefined,
     corrections: { read: () => ({ revision: "0", corrections: [] }), correct: async () => { throw new Error("Unexpected write"); } },
   });

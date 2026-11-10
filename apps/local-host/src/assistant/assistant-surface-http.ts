@@ -84,7 +84,7 @@ export function handleAssistantSurfaceHttp(request: IncomingMessage, response: S
       return host.surfacePosition(reference, selection, "/projects/" + encodeURIComponent(reference.project_id), signal,
         correction?.subject ? exactSource : source.current, async access => {
         const value = correction ? await access.correct(correction) : click ? await access.open(click.owner, click.target, 0, window && { window, source: capture })
-          : { ...await access.display(recovery), declared_kinds: access.declaredKinds() };
+          : await access.display(recovery);
         access.current();
         exactSource();
         sendLocalWebJson(response, 200, value);

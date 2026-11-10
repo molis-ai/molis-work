@@ -13,12 +13,12 @@ import { pluginRouteControl } from "./plugin-route-control.js";
 import type { MolisWorkLocalHost, MolisWorkProjectRuntime } from "./project-host.js";
 import type { HomeDirectoryEntry, SurfaceHomeCatalogReader } from "./surface-home-directory.js";
 import { homeReference as reference, ownerReader, projectHomeDisplay, projectHomePeek, type HomeReadSample } from "./surface-home-display.js";
-import { assertHomeDisplayReader, homeObjectClick, openHomeObject, stageNavigation } from "./surface-home-open.js";
+import { assertHomeDisplayReader, homeObjectClick, openHomeObject, openProvedHomeObject, stageNavigation } from "./surface-home-open.js";
 import { homeFormDiscovery } from "./surface-home-form-authority.js";
 import { composeSurface, displayValues, preparePositionPlacement, projectSurfaceContext } from "./surface-project-read.js";
 import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
 import { projectRoutePrefix, type ProjectRequestContext } from "./web-project-context.js";
-import { correctSurfacePosition, positionCorrection } from "./surface-position-correction.js";
+import { attentionPositionGuard, correctSurfacePosition, positionCorrection } from "./surface-position-correction.js";
 import { confirmPositionOffer, positionOfferScope } from "./surface-position-http.js";
 import { positionOfferIntent, takePositionOffer, withPositionOfferWindow, type OfferWindow } from "./surface-position-offers.js";
 import { isPlacementKind } from "./surface-placement.js";
@@ -86,7 +86,14 @@ async function clickHomeCard(intent: Extract<Intent, { kind: "click" }>, sample:
   deliver: (value: unknown) => void) {
   const object = homeObjectClick(intent.target, intent.owner, sample);
   if (object) {
-    if (object.item) assertHomeDisplayReader(sample, object.entry, object.item);
+    const fallback = object.item && assertHomeDisplayReader(sample, object.entry, object.item);
+    if (fallback) {
+      if (sample.attention?.some(entry => entry.owner_plugin_id === intent.owner && entry.subject.kind === object.subject.kind && entry.subject.id === object.subject.id))
+        attentionPositionGuard(sample, { runtime }, intent.owner, object.subject)();
+      const stage = openProvedHomeObject(sample.catalog, object.entry, fallback, prefix);
+      sample.assertCurrent();
+      return deliver(stage);
+    }
     if (isPlacementKind(object.kind)) throw changed();
     if (object.kind === "peek" && object.item) {
       const row = await projectHomePeek(sample, object.item, transport.signal!, displayValues(sample, client, caller, transport));

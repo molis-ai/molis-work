@@ -3,10 +3,12 @@ import { WORKFLOWS_PROJECT_PLUGIN_ID, type Workflow } from "./model.js";
 import type { WorkflowsStores } from "./store.js";
 import { workflowsErrors } from "./error.js";
 
+const subjectReader = defineSubjectContextAction("workflows.subject.read", /* @version action.workflows.subject.read */ 1, "workflow", "工作流程", ["workflows:read"]);
+
 /** Workflows' part in the system search: a flow's title, its steps and the rules written on each handoff. Runs are not indexed. */
 export const workflowsSearchActions = {
   entries: defineSearchEntriesAction("workflows.search.entries", /* @version action.workflows.search.entries */ 1, [{ kind: "workflow", title: "工作流程", surface: WORKFLOWS_PROJECT_PLUGIN_ID }], "工作流程", ["workflows:read"]),
-  subject: defineSubjectContextAction("workflows.subject.read", /* @version action.workflows.subject.read */ 1, "workflow", "工作流程", ["workflows:read"]),
+  subject: { ...subjectReader, action: { ...subjectReader.action, execution: { cost: "none" as const } } },
 };
 
 function workflowSearchContent(workflow: Workflow): string {

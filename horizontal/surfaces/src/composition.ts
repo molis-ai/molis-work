@@ -139,8 +139,8 @@ async function composeGroup(read: ComposeRead) {
   const { visible, excluded, facts } = objects;
   const canFold = request.slot.kind === "conversation" || request.slot.kind === "discussion";
   const hidden = visible.slice(position.max);
-  const overflow = canFold && !request.expanded ? hidden.filter(row => row.value).length : 0;
-  const shown = request.expanded && canFold ? visible.filter((row, index) => index < position.max || row.value) : visible.slice(0, position.max);
+  const overflow = canFold && !request.expanded ? hidden.filter(row => row.revision !== undefined).length : 0;
+  const shown = request.expanded && canFold ? visible.filter((row, index) => index < position.max || row.revision !== undefined) : visible.slice(0, position.max);
   const group: SurfaceGroup = { kind: isAttention ? "attention" : "slot",
     ...groupState(shown, unreadable || objects.unreadable || objects.unproved || !deadline.active), items: shown.map(row => row.item),
     ...(overflow ? { overflow: { count: overflow } } : {}), ...(excluded ? { excluded } : {}) };

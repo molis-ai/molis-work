@@ -460,20 +460,14 @@ ${ASSISTANT_STRIP_PART}
 
 ${ASSISTANT_TABS_PART}
   const objectSurface = el("div", "assistant-conversation-objects"); objectSurface.dataset.assistantObjectSurface = "";
-  let surfaceWork = null, conversationObjects = null, conversationRevision = "", presentedMaterialKinds = null;
+  let surfaceWork = null, conversationObjects = null, conversationRevision = "";
   const conversationSurface = (work, rounds, put) => {
     const id = host.positions && work?.scope.kind === "project" && work.scope.project_id === project?.id ? work.work_id : null;
     if (id !== surfaceWork) {
-      conversationObjects?.destroy(); conversationObjects = null; surfaceWork = id; conversationRevision = ""; presentedMaterialKinds = null;
+      conversationObjects?.destroy(); conversationObjects = null; surfaceWork = id; conversationRevision = "";
       if (id) {
         const path = "/api/assistant/works/" + encodeURIComponent(id) + "/surfaces";
-        conversationObjects = host.positions.mount(objectSurface, async (body, signal) => {
-          const result = await host.positionRead(path, body, signal);
-          if (surfaceWork === id && !signal.aborted && result.declared_kinds && JSON.stringify(result.declared_kinds) !== JSON.stringify(presentedMaterialKinds)) {
-            presentedMaterialKinds = result.declared_kinds; queueMicrotask(render);
-          }
-          return result;
-        }, { source: () => ({}) });
+        conversationObjects = host.positions.mount(objectSurface, (body, signal) => host.positionRead(path, body, signal), { source: () => ({}) });
       }
     }
     if (!conversationObjects) { objectSurface.remove(); return; }

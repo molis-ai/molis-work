@@ -12,7 +12,7 @@ import { pluginRouteControl } from "./plugin-route-control.js";
 import type { MolisWorkLocalHost, MolisWorkProjectRuntime } from "./project-host.js";
 import { surfaceHomeDirectory, type SurfaceHomeCatalogReader } from "./surface-home-directory.js";
 import { displayedRoute, homeChanged, homeReference as reference, ownerReader, projectHomePeek, projectPositionDisplay, type HomeReadSample } from "./surface-home-display.js";
-import { assertHomeDisplayReader, homeObjectClick, openHomeObject } from "./surface-home-open.js";
+import { assertHomeDisplayReader, homeObjectClick, openHomeObject, openProvedHomeObject } from "./surface-home-open.js";
 import { withSurfaceSample } from "./surface-read-sample.js";
 import type { SurfaceSlotRecord } from "./surface-slot-state.js";
 import { captureSurfaceSlot } from "./surface-slot-controls.js";
@@ -112,10 +112,6 @@ function positionAccess(sample: HomeReadSample, context: SurfaceProjectContext, 
   const values = displayValues(sample, client, caller, transport);
   return {
     current,
-    declaredKinds() {
-      current();
-      return [...new Set(sample.catalog.entries.flatMap(entry => entry.plugin.presentation?.objects.map(object => object.kind) ?? []))];
-    },
     captureSlot: (display: Awaited<ReturnType<typeof projectPositionDisplay>>) => captureSurfaceSlot(display, sample, context.runtime.project_id, context.metadata),
     correct(input: NonNullable<ReturnType<typeof positionCorrection>>, index = 0) {
       const group = groups[index];
@@ -136,9 +132,7 @@ function positionAccess(sample: HomeReadSample, context: SurfaceProjectContext, 
     },
     assertReadable(subjects: readonly ActionSubject[]) {
       current();
-      const proved = new Set(groups.flatMap(group => group.items.filter(item => item.state === "ok")
-        .flatMap(item => [item.subject, ...item.merged?.map(merge => merge.subject) ?? []])).map(subjectKey));
-      if (subjects.some(subject => !proved.has(subjectKey(subject)))) throw new ActionError("actions.subject_unavailable", "部分对象目前无法引用");
+      if (subjects.some(subject => !sample.currentSubjects?.has(subjectKey(subject)))) throw new ActionError("actions.subject_unavailable", "部分对象目前无法引用");
       return current;
     },
     async open(owner: string, target: Record<string, unknown>, groupIndex = 0, offers?: PeekOffers) {
@@ -148,7 +142,13 @@ function positionAccess(sample: HomeReadSample, context: SurfaceProjectContext, 
       if (!group) throw homeChanged();
       const selected = homeObjectClick(target, owner, sample, [group]);
       if (!selected?.item) throw homeChanged();
-      assertHomeDisplayReader(sample, selected.entry, selected.item);
+      const fallback = assertHomeDisplayReader(sample, selected.entry, selected.item);
+      if (fallback) {
+        if (request.slot.kind === "attention") attentionPositionGuard(sample, context, selected.entry.plugin.plugin_id, selected.subject)();
+        const stage = openProvedHomeObject(sample.catalog, selected.entry, fallback, prefix);
+        current();
+        return stage;
+      }
       if (isPlacementKind(selected.kind)) {
         if (!offers || !selected.revision) throw homeChanged();
         return preparePositionPlacement(sample, context, selected.item, selected.kind, selected.revision, offers, current);

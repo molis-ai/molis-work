@@ -263,6 +263,13 @@
       "outputSchema": "PlatformUser"
     },
     {
+      "operationId": "setPlatformUserEmail",
+      "authority": "platform:USER_EMAIL_WRITE",
+      "idempotency": "REQUIRED",
+      "inputSchema": "UserEmailRequest",
+      "outputSchema": "PlatformUser"
+    },
+    {
       "operationId": "setPlatformUserStatus",
       "authority": "platform:USER_STATUS",
       "idempotency": "REQUIRED",
@@ -778,6 +785,13 @@
       "authority": "product",
       "idempotency": "NOT_APPLICABLE",
       "inputSchema": null,
+      "outputSchema": "PlatformUser"
+    },
+    {
+      "operationId": "product_setPlatformUserEmail",
+      "authority": "product",
+      "idempotency": "REQUIRED",
+      "inputSchema": "UserEmailRequest",
       "outputSchema": "PlatformUser"
     },
     {

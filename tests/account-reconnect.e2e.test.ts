@@ -23,11 +23,12 @@ test('ASR-09 real browser reconnects its original page, saves embedded drafts, t
   const address=server.address();assert.ok(address&&typeof address==='object');
   const origin='http://127.0.0.1:'+address.port;
   process.env.MOLIS_WORK_ACCOUNT_CONFIG=auth.configure(origin);
-  let cookie='',browser: ChromeHarness | undefined,opened=0,entries=0;
+  let cookie='',browser: ChromeHarness | undefined,opened=0,entries=0,cookieCleared=false;
   const streams=new Map<string,ServerResponse>(),pageIds=new Set<string>();
   server.prependListener('request',(request,response)=>{
     const url=new URL(request.url??'/',origin);
     if(url.pathname==='/')entries++;
+    if(url.pathname==='/api/personal/logout')response.once('finish',()=>{cookieCleared=String(response.getHeader('set-cookie')).includes('molis-work-session=;')&&String(response.getHeader('set-cookie')).includes('Max-Age=0');});
     if(url.pathname!=='/api/personal/events')return;
     const id=url.searchParams.get('page')!;opened++;pageIds.add(id);streams.set(id,response);
     response.once('close',()=>{if(streams.get(id)===response)streams.delete(id);});
@@ -43,7 +44,7 @@ test('ASR-09 real browser reconnects its original page, saves embedded drafts, t
     const {loginUrl,loginAttempt}=await login.json();assert.equal((await completeInstallationLogin(request,loginUrl)).status,200);
     const status=await (await request('/api/personal/status?attempt='+loginAttempt)).json();assert.ok(status.identity);
     browser=await ChromeHarness.start(home);const page=await browser.page();await page.command('Page.enable');await page.viewport(1440,900);
-    const equals=cookie.indexOf('=');await page.command('Network.setCookie',{name:cookie.slice(0,equals),value:cookie.slice(equals+1),url:origin,httpOnly:true,sameSite:'Lax'});
+    const staleCookie=cookie,equals=cookie.indexOf('=');await page.command('Network.setCookie',{name:cookie.slice(0,equals),value:cookie.slice(equals+1),url:origin,httpOnly:true,sameSite:'Lax'});
     stage='open personal workspace';
     await page.command('Page.navigate',{url:origin+'/projects/personal/'});
     await page.wait("Boolean(document.querySelector('#mw-account-menu')) && document.querySelector('[data-personal-action=logout]')?.hidden===false");
@@ -84,7 +85,7 @@ test('ASR-09 real browser reconnects its original page, saves embedded drafts, t
     let saved=false,arrived=false;
     const stopNavigation=browser.on('Page.frameNavigated',(params,session)=>{
       const frame=params.frame as {parentId?:string;url:string};
-      if(session===page.sessionId&&!frame.parentId&&frame.url===origin+'/')arrived=true;
+      if(session===page.sessionId&&!frame.parentId&&new URL(frame.url).searchParams.get('accountEntry')==='1')arrived=true;
     });
     await page.command('Runtime.addBinding',{name:'recordAccountDraftSaved'});
     const unlisten=browser.on('Runtime.bindingCalled',params=>{if(params.name==='recordAccountDraftSaved')saved=true;});
@@ -98,17 +99,23 @@ test('ASR-09 real browser reconnects its original page, saves embedded drafts, t
     assert.equal(saved,true,'embedded draft flush finished before logout');
     stage='logout navigation';
     await until(()=>arrived);stopNavigation();
-    await page.wait("document.body.hasAttribute('data-account-entry')");
-    const cookies=await page.command<{cookies:{name:string}[]}>('Network.getCookies',{urls:[origin]});
-    assert.equal(cookies.cookies.some(value=>value.name==='molis-work-session'),false,'revocation must not abort the response that clears the browser cookie');
+    await page.wait("Boolean(document.querySelector('.account-dialog input[name=address]'))");
+    assert.equal(cookieCleared,true,'revocation must not abort the response that clears the authenticated browser cookie');
+    // Cancel this anonymous attempt as its owner before simulating an unrelated stale cookie.
+    const pendingCookies=await page.command<{cookies:{name:string;value:string}[]}>('Network.getCookies',{urls:[origin]});
+    cookie=pendingCookies.cookies.filter(c=>c.name==='molis-work-session').map(c=>c.name+'='+c.value).join('; ');
+    const pending=await (await request('/api/personal/login',{method:'POST',body:'{}'})).json();
+    assert.equal((await request('/api/personal/login-cancel?attempt='+pending.loginAttempt,{method:'POST',body:'{}'})).status,200);
+
     // A stale cookie from another tab or a previous Host process still must not make the sign-in entry reload forever.
-    await page.command('Network.setCookie',{name:cookie.slice(0,equals),value:cookie.slice(equals+1),url:origin,httpOnly:true,sameSite:'Lax'});
+    await page.command('Network.setCookie',{name:staleCookie.slice(0,equals),value:staleCookie.slice(equals+1),url:origin,httpOnly:true,sameSite:'Lax'});
     stage='stale cookie entry';
     const before=entries;
-    await page.command('Page.navigate',{url:origin+'/'});
-    await page.wait("document.body.hasAttribute('data-account-entry') && Boolean(document.querySelector('#mw-account-menu'))");
+    let reopened=false;const stopReopen=browser.on('Page.frameNavigated',(params,session)=>{const frame=params.frame as {parentId?:string;url:string};if(session===page.sessionId&&!frame.parentId&&new URL(frame.url).searchParams.get('accountEntry')==='1')reopened=true;});
+    await page.command('Page.navigate',{url:origin+'/'});await until(()=>reopened);stopReopen();
+    await page.wait("Boolean(document.querySelector('.account-dialog input[name=address]'))");
     await new Promise(resolve=>setTimeout(resolve,1000));
-    assert.equal(entries,before+1,'a sign-in entry with an expired cookie remains stable');
+    assert.equal(entries,before+2,'a stale-cookie entry opens the login form once and remains stable');
     unlisten();
   } catch(error) {
     throw new Error('Account reconnect stage: '+stage,{cause:error});

@@ -6,6 +6,7 @@ interface AuthReply { handle: string; nextStep: string; challengeHandle: string;
 ;(() => {
   const L = (text: string) => globalThis.L?.(text) || text;
   const loginNonce=new URL(location.href).searchParams.get('accountLogin');
+  const directEntry=!!loginNonce&&new URL(location.href).searchParams.get('accountEntry')==='1';
   const request = <T = AuthReply>(path: string, body?: unknown, headers?: Record<string, string>, method?: "PATCH") => globalThis.molisWorkRequest('/api/account' + path, { control: true, ...(method ? { method } : {}), ...(body === undefined ? {} : { body }), ...((headers||loginNonce)?{headers:{...headers,...(loginNonce?{'X-Molis-Account-Login':loginNonce}:{})}}:{}) }).then(reply => (reply as { data: T }).data);
   let opened: HTMLDialogElement | null = null;
   const node = <K extends keyof HTMLElementTagNameMap>(tag: K, text = "", cls = "") => { const el = document.createElement(tag); if(text) el.textContent = text; if(cls) el.className = cls; return el; };
@@ -16,7 +17,7 @@ interface AuthReply { handle: string; nextStep: string; challengeHandle: string;
     const dialog = node('dialog', '', 'mw-dialog account-dialog'); opened = dialog;
     dialog.setAttribute('aria-labelledby','account-title');
     const head = node('h2', L('Molis 账号')); head.id = 'account-title';
-    const close = node('button', L('关闭'), 'mw-btn mw-btn--ghost'); close.type = 'button'; close.onclick = () => dialog.close();
+    const close = node('button', L('关闭'), 'mw-btn mw-btn--ghost'); close.hidden=directEntry; if(directEntry)dialog.addEventListener('cancel',event=>event.preventDefault()); close.type = 'button'; close.onclick = () => dialog.close();
     const modes = node('div', '', 'account-modes'), form = node('form', '', 'account-form'), message = node('p', '', 'account-message');
     message.setAttribute('role','status'); message.setAttribute('aria-live','polite');
     const help=node('details','','mw-disclosure'), summary=node('summary',L('无法使用登录方式？'));
@@ -51,9 +52,10 @@ interface AuthReply { handle: string; nextStep: string; challengeHandle: string;
       transaction=null;challenge=null;clearInterval(timer);modes.replaceChildren();form.replaceChildren();
       if(loginNonce && account.state==='AUTHENTICATED') {
         dialog.close();
+        if(directEntry){location.replace(document.body.dataset.nativeDesktop==='true'?'/?desktop=1':'/');return;}
         const status=node('main',L('登录成功，正在进入工作台…'),'arrival-stage');status.setAttribute('role','status');status.dataset.accountLoginComplete='';
         document.body.replaceChildren(status);
-        if(typeof BroadcastChannel==='function'){const channel=new BroadcastChannel('molis-work-account');channel.postMessage('changed');channel.close();}
+        if(typeof BroadcastChannel==='function'){const channel=new BroadcastChannel('molis-work-account');channel.postMessage({login:loginNonce});channel.close();}
         setTimeout(()=>{status.textContent=L('登录成功，可以关闭此窗口。');},5000);
         return;
       }
@@ -108,7 +110,7 @@ interface AuthReply { handle: string; nextStep: string; challengeHandle: string;
     });};
     for(const [m,label] of [['login','邮箱登录'],['phone','手机验证码'],['signup','邮箱注册'],['reset','找回密码']]) {const b=button(label!,()=>{cancel();mode=m!;address='';retryAt=0;clearInterval(timer);message.textContent='';draw();},modes);buttons.push([b,m!]);}
     dialog.addEventListener('close',()=>{disposeManagement?.();cancel();clearInterval(timer);form.reset();dialog.remove();opened=null;(trigger.closest('details:not([open])')?.querySelector<HTMLElement>(':scope > summary') || trigger).focus();});
-    draw();void perform(async()=>{const account=await request<AccountView>('/session');if(!dialog.open)return;if(account.state==='AUTHENTICATED'||account.state==='OFFLINE_CACHED'){showAccount(account);if(account.state==='AUTHENTICATED'&&document.visibilityState==='visible')await request('/activity',{eventId:crypto.randomUUID(),kind:'OPEN'});}else if(account.state==='EXPIRED')message.textContent=L('登录已过期，请重新登录。');});
+    draw();void perform(async()=>{const account=await request<AccountView>('/session');if(!dialog.open)return;if(account.state==='AUTHENTICATED'||account.state==='OFFLINE_CACHED'){showAccount(account);if(!loginNonce&&account.state==='AUTHENTICATED'&&document.visibilityState==='visible')await request('/activity',{eventId:crypto.randomUUID(),kind:'OPEN'});}else if(account.state==='EXPIRED')message.textContent=L('登录已过期，请重新登录。');});
   });
   if(loginNonce)document.querySelector<HTMLElement>('[data-unified-account-link]')?.click();
 })();

@@ -18,7 +18,7 @@ const reference = (): AccountCredentialReference => ({ secretRef: "account-refer
 const session = () => ({ loginSessionId: reference().sessionId, applicationId: config().applicationId, clientId: config().clientId,
   authenticatedAt: new Date().toISOString(), lastActiveAt: new Date().toISOString(), idleExpiresAt: new Date(Date.now() + 30 * 86400000).toISOString(),
   absoluteExpiresAt: new Date(Date.now() + 90 * 86400000).toISOString(), sessionRevision: 0 });
-const user = () => ({ issuer: config().authOrigin, userId: reference().userId, displayName: "Person", avatarUrl: null, version: 0 });
+const user = () => ({ issuer: config().authOrigin, userId: reference().userId, displayName: "Person", email: null, avatarUrl: null, version: 0 });
 const me = () => ({ user: user(), session: session(), loginMethods: [], passwordEnabled: false, platformCapabilities: [] });
 const json = (data: unknown) => Response.json({ requestId: "request-aaaaaaaa", data });
 function client(fetcher: typeof fetch, overrides: Partial<AccountServicePorts> = {}) {

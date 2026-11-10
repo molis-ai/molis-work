@@ -68,10 +68,10 @@ export class PersonalAuth {
     void pending.finally(()=>this.closing.delete(pending)).catch(()=>undefined);
   }
   async drained():Promise<void>{await Promise.allSettled([...this.closing]);}
-  private accept(value:unknown):void {
+  private accept(value:unknown,replaceLogin=false):void {
     const record=value as {user?:{userId:string;displayName:string}}|null;
     const next=record?.user?{userId:record.user.userId,displayName:record.user.displayName,emails:[],applicationId:this.config.applicationId}:null;
-    if((next?.userId??null)!==(this.user?.userId??null)){
+    if(replaceLogin||(next?.userId??null)!==(this.user?.userId??null)){
       this.epoch++;this.controller.abort();this.controller=new AbortController();
     }
     this.user=next;
@@ -123,7 +123,7 @@ export class PersonalAuth {
     // Persist first. Failure leaves A authoritative and the candidate isolated.
     this.secrets.put(this.key,JSON.stringify(candidate.record));check();
     previous.persistent=false;candidate.persistent=true;this.active=candidate;this.candidate=undefined;
-    this.accept({user:view.user});previous.authentication.close();
+    this.accept({user:view.user},true);previous.authentication.close();
     await previous.manager.logout('CURRENT_LOGIN',randomBytes(24).toString('hex'),this.control()).catch(()=>undefined);
     this.retire(previous);
   }
@@ -133,7 +133,7 @@ export class PersonalAuth {
     candidate?.authentication.close();if(candidate)this.retire(candidate);
   }
   finishLogin():void{this.pending=null;}
-  async logout(scope:'CURRENT_LOGIN'|'ALL_MOLIS_PRODUCTS'='CURRENT_LOGIN'):Promise<boolean>{this.cancelLogin();const result=await this.sessions.logout(scope,randomBytes(24).toString('hex'),this.control());return result.remoteRevocation==='CONFIRMED';}
+  async logout(scope:'CURRENT_LOGIN'|'ALL_MOLIS_PRODUCTS'='CURRENT_LOGIN'):Promise<boolean>{this.cancelLogin();this.active.authentication.close();const result=await this.sessions.logout(scope,randomBytes(24).toString('hex'),this.control());return result.remoteRevocation==='CONFIRMED';}
   suspend():void{this.cancelLogin();this.closed=true;this.controller.abort();this.active.authentication.close();this.retire(this.active);}
   dispose():void{this.suspend();}
   async safeView(control:AccountCallControl):Promise<AccountView>{return this.sessions.readSession(control);}

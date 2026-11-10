@@ -29,6 +29,35 @@ function guardAccountRequests(transition: ReturnType<typeof accountTransition>, 
   };
 }
 
+// Install account storage isolation before the following business scripts read browser caches.
+const transition = accountTransition();
+
+function observeAccountNavigation(cohort: Pick<ReturnType<typeof accountCohort>, 'close'>, channel: BroadcastChannel | null, stopTimer: () => void, destination: string, onError: (error: unknown) => void): void {
+  addEventListener('pagehide', event => { stopTimer(); channel?.close(); cohort.close(); if (event.persisted) void transition.invalidate(false).catch(onError); }); // Ordinary navigation retains the scope owner's closing actions.
+  addEventListener('pageshow', event => {
+    if (!event.persisted) return;
+    void molisWorkRequest<AccountStatus>('/api/personal/status').then(async state => {
+      const scope = document.querySelector<HTMLMetaElement>('meta[name="molis-work-page-session"]')?.content.split('.')[1];
+      if (!state.identity || !scope || state.viewScope !== scope) await transition.invalidate();
+      location.replace(destination);
+    }).catch(onError);
+  });
+}
+
+async function prepareAccountChange(notice: HTMLElement, L: (text: string) => string, signal?: AbortSignal): Promise<boolean> {
+  requiredElement(notice, '[data-account-transition-message]').textContent = L('账号正在切换，请稍候');
+  await transition.prepare();
+  signal?.throwIfAborted();
+  const unsaved = [...document.querySelectorAll('[data-assistant-context]')].some(node => {
+    try { return JSON.parse(node.getAttribute('data-assistant-context') ?? '{}').unsaved === true; } catch { return false; }
+  });
+  const drafts = window.parent === window && await transition.hasDrafts();
+  signal?.throwIfAborted();
+  const tasks = [...document.querySelectorAll('[data-background-tasks-count]')].some(node => Number(node.textContent) > 0);
+  if ((unsaved || drafts || tasks) && !confirm(L('还有未保存的修改或运行中的任务。取消可返回原页面保存；继续将放弃未保存的修改并停止任务。继续切换账号？'))) { transition.resume(); return false; }
+  return true;
+}
+
 const init = () => {
   const desktop = new URLSearchParams(location.search).get('desktop') === '1' || document.body.dataset.nativeDesktop === 'true';
   const query = new URLSearchParams({returnTo: location.pathname + location.search + location.hash});
@@ -36,9 +65,8 @@ const init = () => {
   let loginWindow: Window | null = null;
   const closeLoginWindow = () => { loginWindow?.close(); loginWindow = null; };
   let identity: AccountIdentity | null = null;
-  let space = 'local', configured = true, loaded = false, busy = false, checking = false, attempt = '', expires = 0, revocationPending = false, refreshPending = false;
+  let space = 'local', configured = true, loaded = false, busy = false, checking = false, attempt = '', loginNonce = '', expires = 0, revocationPending = false, refreshPending = false;
   const L = globalThis.L || (text => text);
-  const transition = accountTransition();
   const menuController = createAccountMenuController(L, () => ({identity,space,configured,loaded,busy,preparing:transition.preparing}), () => void update());
   const {menu,notice,paint,feedback} = menuController;
   const reportRequestFailure = (error: unknown) => feedback(errorMessage(error, '请求失败，请重试。'), true);
@@ -48,24 +76,19 @@ const init = () => {
   const destination = desktop ? '/?desktop=1' : '/';
   const channel = typeof BroadcastChannel === 'function' ? new BroadcastChannel('molis-work-account') : null;
   guardAccountRequests(transition, L);
+  let leaving = false;
   const leaveOldPage = () => {
-    transition.invalidate();
-    if (busy) { revocationPending = true; return; }
-    closeLoginWindow();
-    for (const node of document.body.children) if (node instanceof HTMLElement) { node.inert = true; node.hidden = true; }
-    location.replace(destination);
+    const cleared = transition.invalidate();
+    void cleared.catch(reportRequestFailure);
+    if (busy || attempt) { revocationPending = true; return; }
+    if (leaving) return;
+    leaving = true; closeLoginWindow();
+    void cleared.then(() => {
+      for (const node of document.body.children) if (node instanceof HTMLElement) { node.inert = true; node.hidden = true; }
+      location.replace(destination);
+    }, () => { leaving = false; });
   };
-  const prepare = async (signal?: AbortSignal) => {
-    requiredElement(notice, '[data-account-transition-message]').textContent = L('账号正在切换，请稍候');
-    await transition.prepare();
-    signal?.throwIfAborted();
-    const unsaved = [...document.querySelectorAll('[data-assistant-context]')].some(node => {
-      try { return JSON.parse(node.getAttribute('data-assistant-context') ?? '{}').unsaved === true; } catch { return false; }
-    });
-    const tasks = [...document.querySelectorAll('[data-background-tasks-count]')].some(node => Number(node.textContent) > 0);
-    if ((unsaved || tasks) && !confirm(L('还有未保存的修改或运行中的任务。取消可返回原页面保存；继续将放弃未保存的修改并停止任务。继续切换账号？'))) { transition.resume(); return false; }
-    return true;
-  };
+  const prepare = (signal?: AbortSignal) => prepareAccountChange(notice, L, signal);
   const cohort = accountFrameCohort(prepare) ?? accountCohort(prepare, leaveOldPage, error => feedback(errorMessage(error, L('草稿保存未完成，请返回原页面重试')), true));
   const cancelAttempt = async () => {
     const previous = attempt;
@@ -98,18 +121,19 @@ const init = () => {
         }
         if (attempt) await cancelAttempt();
       }
+      if(action === 'logout' && attempt){await cancelAttempt();closeLoginWindow();}
       const preparation = identity ? await cohort.begin(action === 'logout' ? 'logout' : 'switch') : undefined;
       if (preparation === null || preparation === undefined && !await prepare()) { closeLoginWindow(); return; }
       if (preparation) query.set('preparation',preparation);if(action==='logout')query.set('scope',button.dataset.accountLogoutScope??'CURRENT_LOGIN');
       const result = await molisWorkRequest<AccountActionResult>('/api/personal/' + action + '?' + query,{method:'POST',body:{}});
       if (result.loginUrl) {
-        attempt = result.loginAttempt ?? ''; expires = Date.now() + 600000;
+        attempt = result.loginAttempt ?? ''; loginNonce = new URL(result.loginUrl,location.href).searchParams.get('accountLogin') ?? ''; expires = Date.now() + 600000;
         if (globalThis.molisWorkOpenExternalUrl) {
           await globalThis.molisWorkOpenExternalUrl(result.loginUrl);
         } else { if (!loginWindow) throw new Error("登录窗口已关闭"); loginWindow.location.replace(result.loginUrl); }
         feedback('请在浏览器完成登录，此页面会自动更新。');
       } else if (result.signedOut) {
-        channel?.postMessage('changed'); transition.invalidate();
+        channel?.postMessage('changed'); await transition.invalidate();
         revocationPending = false; attempt = ''; closeLoginWindow(); identity = null; paint();
         location.assign(destination); return;
       }
@@ -126,13 +150,14 @@ const init = () => {
       if (cohort.pageId) statusQuery.set('page',cohort.pageId);
       if (desktop) statusQuery.set('desktop','1');
       if (attempt) { statusQuery.set('pending','1'); statusQuery.set('attempt',attempt); }
-      const preparationRevision = cohort.revision;
+      const preparationRevision = cohort.revision, statusAttempt = attempt;
       const state = await molisWorkRequest<AccountStatus>('/api/personal/status?' + statusQuery);
+      if(statusAttempt !== attempt){refreshPending=true;return;}
       // The Host reports completion only after the selected account environment is ready.
       // Queue feedback before any generation/entry navigation can replace this document.
       if (attempt && state.loginCompleted) {
         try { sessionStorage.setItem('molis-work-account-toast', '登录成功'); } catch { /* The completed login does not depend on a toast. */ }
-        channel?.postMessage('changed'); leaveOldPage(); return;
+        attempt = ''; channel?.postMessage('changed'); leaveOldPage(); return;
       }
       if (state.accountChanged && !document.body.hasAttribute('data-account-entry') || loaded && generation !== undefined && generation !== state.accountGeneration) { if (attempt) channel?.postMessage('changed'); leaveOldPage(); return; }
       generation = state.accountGeneration;
@@ -159,7 +184,7 @@ const init = () => {
       identity = state.identity; space = state.space || 'local'; configured = state.configured; loaded = true; paint();
       if(!changed)void syncConsent.update(space);
       if (changed) {
-        transition.invalidate(); closeLoginWindow(); location.assign(destination); return;
+        await transition.invalidate(); closeLoginWindow(); location.assign(destination); return;
       }
       registration.complete();
       if (requiredElement(menu,'[role=status]').textContent === L('正在读取账号状态…')) feedback('');
@@ -173,9 +198,8 @@ const init = () => {
   const tick = () => { if (attempt) void update(); };
   let timer = setInterval(tick, 3000);
   addEventListener('focus', () => void update());
-  channel?.addEventListener('message', () => {void update(true);});
-  addEventListener('pagehide', event => { clearInterval(timer); channel?.close(); cohort.close(); if (event.persisted) transition.invalidate(); }); // Ordinary navigation retains the scope owner's closing actions.
-  addEventListener('pageshow', event => { if (event.persisted) leaveOldPage(); });
+  channel?.addEventListener('message', event => {if(attempt && event.data?.login === loginNonce){attempt='';leaveOldPage();return;}void update(true);});
+  observeAccountNavigation(cohort, channel, () => clearInterval(timer), destination, reportRequestFailure);
 };
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, {once:true}); else init();
 

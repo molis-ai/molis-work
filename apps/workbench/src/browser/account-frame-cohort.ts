@@ -8,11 +8,12 @@ export function accountFrameCohort(prepare: (signal: AbortSignal) => Promise<boo
   const transition = accountTransition(), L = globalThis.L || (text => text);
   let detach: (() => void) | undefined, unwatch: (() => void) | undefined, closed = false, controller = new AbortController();
   const connect = async () => {
-    while (!closed && !window.parent.molisWorkAccountTransition) await new Promise(resolve => setTimeout(resolve, 50));
+    // An arriving carrier is still inert; it joins only after the parent's account preparation ends.
+    while (!closed && (!window.parent.molisWorkAccountTransition || window.parent.molisWorkAccountTransition.preparing)) await new Promise(resolve => setTimeout(resolve, 50));
     if (closed || detach) return;
     const attach = () => window.parent.molisWorkAccountTransition!.page(frame as HTMLElement, async () => {
       if (!await prepare(controller.signal)) throw new Error(L('账号操作已取消，尚未退出或切换账号。'));
-    }, () => { closed = true; unwatch?.(); controller.abort(); transition.invalidate(); }, () => { controller.abort(); controller = new AbortController(); transition.resume(); });
+    }, () => { closed = true; unwatch?.(); controller.abort(); return transition.invalidate(); }, () => { controller.abort(); controller = new AbortController(); transition.resume(); });
     detach = attach();
     // A nested carrier or plugin mounting/unmounting changes the top window's preparation too.
     unwatch = transition.changed(() => { if (!closed) { detach?.(); detach = attach(); } });

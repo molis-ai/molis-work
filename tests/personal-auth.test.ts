@@ -38,3 +38,10 @@ test('V2U-04 current-account leases and browser cookies cannot cross an account 
 test('V2U-04 entry nonce is local, canceled before reuse, and never a remote code/token',async()=>{
  const f=fixture();const url=new URL(await f.auth.begin(config.productOrigin+'/account/callback'));assert.equal(url.origin,config.productOrigin);assert.equal(url.pathname,'/');assert.equal(url.searchParams.get('accountLogin'),f.auth.callbackState());assert.throws(()=>f.auth.cancel('forged'));f.auth.cancelLogin();assert.equal(f.auth.loginPending(),false);f.auth.suspend();
 });
+
+test('WUA-30 signing in to the same user replaces the login lease and refuses old browser cookies',async()=>{
+ const f=fixture(),web=new PersonalWebSessions();
+ try{await login(f.auth);const lease=f.auth.accountLease(),cookie=web.cookie(web.adopt(f.auth),false);await login(f.auth);
+ assert.equal(lease.signal.aborted,true);assert.throws(()=>lease.assertCurrent());assert.equal(web.get(cookie),null);assert.equal(f.auth.identity()?.userId,'alice');
+ }finally{web.close();f.auth.suspend();}
+});

@@ -1,6 +1,6 @@
 # Work 统一账号接入
 
-状态：安装登录与 Home 的 V2 账号统一已实现，2026-11-09 本地全量与复验已结束；Work 仍有 5 个已在干净基线复现的失败文件，不能声明全仓全绿。此前 WORK-01 至 WORK-09 的验证保留为历史证据，本轮以文末 V2U 记录为准。不做 V1 兼容或真实存量迁移。
+状态：安装登录与 Home 的 V2 账号统一已实现；2026-11-10 最高／高／中账号专项验证及修复已推进，证据见 [当前回归记录](v2-regression-20261110.md)。最终 PR 全量回归仍未完成，不能声明全仓全绿；下文历史全量和 WORK 记录仅证明对应版本。不做 V1 兼容或真实存量迁移。
 
 后续执行按 Auth 仓库 `docs/unified-account/implementation-plan.md` 第 11 节，T-01 至 T-07 状态以其交付台账为准。本仓库仍遵守 [AGENTS.md](../../AGENTS.md)、[需求开发流程](../post-anticorruption-roadmap/reference/development-workflow.md)和[并行开发规范](../../docs/system/PARALLEL-DEVELOPMENT.md)；当前先做集成收尾，代码与合同变化后须核对对应版本的验证证据。
 
@@ -26,6 +26,18 @@ T-01 接续记录见文末；已整理提交并进入远端评审。K-06 及首�
 - **WUA-07** 并发刷新只旋转一次；先持久销毁旧恢复材料，响应丢失、崩溃、持久失败及迟到完成都不得复活凭据。证明：`tests/account-session.test.ts`，安全不变量 S-unified-account-session。
 - **WUA-08** 显式活动遵循 30/90 天截止；背景读取/刷新不延期；离线只返回展示资料，不授予管理调用或权益。证明：`tests/account-session.test.ts`、`scripts/central-account.test.mjs`。
 - **WUA-09** 当前登录退出不影响其他独立登录；全局退出向 Auth 撤销全部产品；本地先持久清空，远端未确认须明确返回，同键可取回结果，中央撤销后受保护调用拒绝。证明：上述测试、`tests/security-invariants-account-host.test.ts`、真实 Auth 隔离联调。
+
+- **WUA-29** 未登录首页与退出后直接进入现有登录表单，登录完成在当前页进入工作台。刷新／重开只恢复同一匿名浏览器的在途请求，其他浏览器仍拒绝，过期入口重新开始。证明：`scripts/account-installation.test.mjs`、`tests/personal-http.test.ts`、`tests/account-reconnect.e2e.test.ts`。
+
+- **WUA-30** 建立新的登录会话时，即使用户 ID 相同也撤销旧账号租约与浏览器会话；准备期间的页面导航返回自动恢复的等待页，业务 API 仍拒绝。证明：`tests/personal-auth.test.ts`、`tests/space-surface-account-race.test.ts`、`scripts/account-installation.test.mjs`。
+
+- **WUA-31** 连续快速登录／切换／退出及换号中立即退出不留卡住的准备、旧事件连接或在途弹窗；迟到状态响应不取消后继登录，只有匹配当前请求的完成通知触发交接。尚不可操作的新载体页面等待父页准备结束后加入，已有参与者变化仍取消。证明：`scripts/account-rapid-cycle.test.mjs`、`tests/account-reconnect.e2e.test.ts`、`tests/account-refresh-pages.test.ts`。
+
+- **WUA-32** 账号浏览器内容按 Host 提供的租约 scope 隔离；退出清除本 scope 的 local/session/CacheStorage，拒绝旧页迟到写，保留无关设备数据。未提交浏览器草稿在退出前明确确认，取消保留、确认后清除。多窗口全部离开账号，等待中的动作在撤权后不能提交业务效果。证明：`tests/account-cache-isolation.e2e.test.ts`、`tests/account-inflight-effects.test.ts`、`tests/account-refresh-pages.test.ts`、`tests/ui-client-lifecycle.e2e.test.ts`。
+
+- **WUA-33** Auth 不可用时退出仍在本地失权，恢复后可重新登录；未完成登录跨 Host 重启、中央禁用和刷新／存储失败不得复活原账号。证明：`scripts/account-high.test.mjs`、`scripts/central-account.test.mjs`、`tests/account-session.test.ts`、`tests/account-cohort-ordering.e2e.test.ts`。
+
+- **WUA-34** 已完成登录请求重放被拒且不撤销现行身份；历史恢复同账号保留缓存，退出后恢复旧页或关闭整个 Chrome 再打开旧入口不复活账号；错误／过期验证码、重复提交与真实重发限流分别拒绝。证明：`scripts/account-medium.test.mjs`。
 
 ## WORK-02 验证记录
 

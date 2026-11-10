@@ -21,6 +21,9 @@ test('ASR-01/02/03/08 account handoff keeps the public listener and waits for ev
   const state=await f.begin('bob'),pending=f.complete(state);await oldClosed;
   assert.deepEqual(opened,[alice],'B cannot open while A resources are releasing');
   const old=await fetch(f.origin+'/api/personal/status',{headers:{Cookie:oldCookie}});assert.equal((await old.json()).identity,null);
+  // WUA-29: old-page auto-entry cannot overwrite B while A's resources are still retiring.
+  const premature=await fetch(f.origin+'/api/personal/login',{method:'POST',headers:{Origin:f.origin,'content-type':'application/json','x-molis-work-control-token':f.rootToken,'x-molis-work-idempotency-key':'handoff-auto-entry'},body:'{}'});
+  assert.equal(premature.status,409,'installation login remains reserved through Home readiness');
   release();assert.equal((await pending).status,200);assert.equal((await f.status()).ready,true);assert.deepEqual(opened,[alice,bob]);
   assert.deepEqual(f.server.address(),listener,'public listener is not restarted');
   const nextA=await f.login('alice');assert.equal(nextA.ready,true);assert.deepEqual(opened,[alice,bob,alice]);
@@ -222,5 +225,17 @@ test('WAS-10 installation page survives old Home revocation but its proof never 
   assert.equal((await request('/api/account/auth/transactions',input)).status,403,'a completed login nonce must not start another login or bypass preparation');
   assert.equal((await request('/api/account/activity',{eventId:crypto.randomUUID(),kind:'OPEN'})).status,403,'a completed login window is not an account-write entry');
   assert.equal((await (await request('/api/account/session')).json()).data.user.userId,'bob','completed login reads still report the adopted account');
+ }finally{await f.close();}
+});
+
+test('WUA-30 pending account navigation returns recoverable HTML, while business APIs remain refused',async t=>{
+ const f=await accountRefreshFixture(t,home=>accountProbeCore(home));
+ try{
+  await f.login('alice');const prepared=await f.prepare('logout'),id=new URLSearchParams(prepared).get('preparation');assert.ok(id);
+  const page=await f.request('/');assert.equal(page.status,409);assert.match(page.headers.get('content-type')??'',/text\/html/);assert.equal(page.headers.get('refresh'),'1');assert.match(await page.text(),/data-account-entry/);
+  const api=await f.request('/api/probe');assert.equal(api.status,409);assert.match(api.headers.get('content-type')??'',/application\/json/);
+  assert.equal((await f.request('/api/personal/prepare?action=cancel&page=account-refresh-page&id='+id,'POST')).status,200);
+  const resumed=await f.request('/');assert.equal(resumed.status,200,await resumed.text());
+  const before=f.control;await f.login('alice');assert.notEqual(f.control,before,'same-user replacement retires the old business lease');assert.equal((await f.status()).preparation,null);assert.equal((await f.request('/')).status,200);
  }finally{await f.close();}
 });

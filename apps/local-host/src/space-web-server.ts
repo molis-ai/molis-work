@@ -288,6 +288,12 @@ function bindSpaceSockets(server:http.Server,sessions:WebSessions,{surface,selec
   });
 }
 
+function respondAccountPreparation(response:ServerResponse,render?:()=>string):void {
+  if(!render){sendLocalWebJson(response,409,{error:'正在处理旧页面的未保存内容，请稍候。'});return;}
+  response.writeHead(409,{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-frame-options':'DENY','referrer-policy':'no-referrer',Refresh:'1'});
+  response.end(render());
+}
+
 /** One public listener. Each scope owns its Host, databases, caches and timers.
  * Child servers are in-process dispatchers: no extra port and no browser-selected Home.
  */
@@ -377,11 +383,11 @@ export function createSpaceWebServer(options:WebServerOptions,createCore:(option
             if(entry&&!account.preparing()&&dispatchNativeAccountCallback(request,response,url,entry,()=>isAccountReady(entry.space.spaceId)))return;
             refuseLocalWebRequest(response);return;
           }
-          if(request.method==='GET'&&!url.pathname.startsWith('/api/')&&accountEntry){response.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-frame-options':'DENY'});response.end(accountEntry.render(webPageToken(request),request,url));}
+          if(request.method==='GET'&&!url.pathname.startsWith('/api/')&&accountEntry){url.searchParams.delete('accountLogin');response.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-frame-options':'DENY'});response.end(accountEntry.render(webPageToken(request),request,url));}
           else sendLocalWebJson(response,401,{error:'请先登录当前安装的账号。'});
           return;
         }
-        if(account.preparing()){sendLocalWebJson(response,409,{error:'正在处理旧页面的未保存内容，请稍候。'});return;}
+        if(account.preparing()){respondAccountPreparation(response,request.method==='GET'&&!url.pathname.startsWith('/api/')&&accountEntry?()=>accountEntry.render(webPageToken(request),request,url,'账号正在切换，请稍候'):undefined);return;}
         if(!isAccountReady(selected.space.spaceId))await settleAccount();
         token=tokenFor(selected);
         if(url.pathname==='/api/spaces'){

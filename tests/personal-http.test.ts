@@ -257,6 +257,10 @@ test('ASR-02/03 web login binds the installation account and stale browser cooki
     const start=await post('/api/personal/login?returnTo='+encodeURIComponent('/projects/demo?view=work#task'));
     assert.equal(start.status,200);
     const login=await start.json();assert.ok(login.loginAttempt);const preLoginCookie=cookie;
+    // WUA-29: reload/reopen resumes the owner's anonymous attempt, never steals a different browser's attempt.
+    const resumed=await post('/api/personal/login');assert.equal(resumed.status,200);assert.deepEqual(await resumed.json(),login);
+    const foreign=await fetch(origin+'/api/personal/login',{method:'POST',headers:{Origin:origin,'content-type':'application/json','x-molis-work-control-token':controlToken,'x-molis-work-idempotency-key':'foreign-resume'},body:'{}'});
+    assert.equal(foreign.status,409);assert.equal((await status()).loginPending,true);
     const nonce=new URL(login.loginUrl).searchParams.get('accountLogin')!;
     const stolen=await fetch(origin+'/api/account/auth/transactions',{method:'POST',headers:{Origin:origin,'content-type':'application/json','x-molis-account-login':nonce,'x-molis-work-control-token':controlToken,'x-molis-work-idempotency-key':'stolen-login'},body:JSON.stringify({purpose:'LOGIN',method:'EMAIL_PASSWORD'})});
     assert.equal(stolen.status,403,'a page control token without the browser login cookie cannot use the pending login');
@@ -297,7 +301,7 @@ test('account page works without cloud, never exposes credentials, and rejects c
   const address=server.address();assert.ok(address&&typeof address==='object');const origin=`http://127.0.0.1:${address.port}`;
   try{
     const account=await fetch(`${origin}/account`,{redirect:'manual'});assert.equal(account.status,303);
-    const html=await(await fetch(origin)).text();assert.match(html,/data-account-link/);
+    const html=await(await fetch(origin)).text();assert.match(html,/data-account-entry/);assert.match(html,/api\/personal\/login/);assert.doesNotMatch(html,/data-account-link/);
     assert.doesNotMatch(html,/refresh_token|access_token/);
     const status=await fetch(`${origin}/api/personal/status`);assert.deepEqual(await status.json(),{configured:false,identity:null,syncEnabled:false,accountChanged:false,ready:false,switching:false});
     const rejected=await fetch(`${origin}/api/personal/login`,{method:'POST',headers:{Origin:'https://attacker.example','content-type':'application/json'},body:'{}'});
@@ -323,7 +327,7 @@ test('ASR-02 first launch shows the login entry and refuses an anonymous busines
     const first=await fetch(origin+'/?desktop=1',{redirect:'manual'});
     assert.notEqual(first.headers.get('location'),'/welcome?desktop=1');
     const welcome=await fetch(origin+'/welcome',{redirect:'manual'});assert.equal(welcome.status,303);assert.equal(welcome.headers.get('location'),'/');
-    const html=await(await fetch(origin+'/')).text();assert.match(html,/data-account-link/);assert.doesNotMatch(html,/欢迎使用 molis-work/);
+    const html=await(await fetch(origin+'/')).text();assert.match(html,/data-account-entry/);assert.match(html,/api\/personal\/login/);assert.doesNotMatch(html,/data-account-link/);assert.doesNotMatch(html,/欢迎使用 molis-work/);
     const bad=await fetch(origin+'/api/personal/local',{method:'POST',headers:{Origin:'https://attacker.example'},body:'{}'});
     assert.equal(bad.status,403);
     const choice=await fetch(origin+'/api/personal/local?desktop=1',{method:'POST',headers:{Origin:origin,'content-type':'application/json','x-molis-work-control-token':controlToken,'x-molis-work-idempotency-key':'test-local-choice-001'},body:'{}'});

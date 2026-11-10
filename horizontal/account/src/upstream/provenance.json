@@ -2,14 +2,14 @@
   "source": "auth/contracts/unified-account",
   "sourceDirectory": "contracts/unified-account",
   "version": "1.2.0",
-  "sourceBaseCommit": "782cb36",
-  "sourceIncludesUncommittedContract": false,
+  "sourceBaseCommit": "8fb4a2d7a711be0c5fe48c828d4db824e6cc680f",
+  "sourceIncludesUncommittedContract": true,
   "sha256": {
-    "schemas.json": "1606ac9fbf4112dbf8dd94229383479faacb74a50616a25d6596a856dc7948ef",
-    "openapi.json": "fb09d4459788954fb421e79e5d1bb361a906ab94e43f09e4b5219d50630edf68",
-    "policy.json": "190ecb042e39e23b85f38a6c578b30dcb1ff803cc1ae17f3ced0d643c622bed7",
+    "schemas.json": "77b08688e62fc6d5f22cc1051f5dabfe77375387543d8140bc2fc0a32484bf2c",
+    "openapi.json": "4fcd8165c2dd89210c62e0921eab464c61c0ae72d4e7e44d33ebf4811ad18331",
+    "policy.json": "bfc5d8128745c3af5e43b908de572d192bef4fcf9f05769900abee2fc715bc19",
     "validate.ts": "aa89b77100cf1844d0b2f2e436764c01bb3d31597f4bff43815a8e22c917a320",
     "validator-profile.json": "8bd2bb85a58a08d12d8f0ab27dd30d1b29d21123fbde6b39527c64867bb3180c",
-    "fixtures.json": "f6b11573e8d3106fc45ecd132fa51041b95711b025d171f1b7fb5aa071788230"
+    "fixtures.json": "b1d2f3598c2f2406bd18e9cd1ecf8369768bd09a2d3f8cab491b93fdec8853d3"
   }
 }

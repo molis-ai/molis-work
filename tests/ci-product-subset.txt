@@ -509,3 +509,4 @@ tests/host-ui-text.test.ts
 
 # Account session and Host refusal tests already run in the blocking security-invariants job (pnpm test:security).
 tests/account-client.test.ts
+tests/account-inflight-effects.test.ts

@@ -148,13 +148,16 @@ export function createPersonalAccountHttp(isNativeRequest: (request:IncomingMess
       async completeLogin(response:ServerResponse){
         await service.adoptLogin(pendingAttachOnly);
         if(!await service.currentIdentity())throw new Error('LOGIN_REQUIRED');
-        navigation.complete=true;service.finishLogin();
+        navigation.complete=true;
         if(!pendingNative){
           const session=webSessions.adopt(service);session.navigation=navigation;
           if(pendingBrowser)webSessions.remove(pendingBrowser);
           pendingBrowser=session;
           response.setHeader('Set-Cookie',webSessions.cookie(session,service.config.productOrigin.startsWith('https:')));
         }else response.setHeader('Set-Cookie','molis-work-mode=account; Path=/; HttpOnly; SameSite=Strict; Max-Age=31536000');
+        // Anonymous auto-entry must not replace this attempt while its final account read or response is still pending.
+        const delivered=()=>{if(pendingNavigation===navigation)service.finishLogin();};
+        response.once('finish',delivered);response.once('close',delivered);
         await environment?.ready(true);
       },
     };
@@ -214,6 +217,11 @@ export function createPersonalAccountHttp(isNativeRequest: (request:IncomingMess
         sendLocalWebJson(response,200,{redirectTo:'/'});return true;
       }
       if(request.method==='POST' && ['/api/personal/login','/api/personal/switch'].includes(url.pathname)) {
+        // Reopening an anonymous entry resumes only its own installation attempt; it never replaces a different browser's login.
+        if(url.pathname==='/api/personal/login'&&service.loginPending()&&navigation===pendingNavigation&&navigation&&!navigation.complete&&navigation.expires>Date.now()&&loginNonce&&pendingNative===desktop&&(desktop?!service.identity():session===pendingBrowser&&!session?.authenticated)){
+          const resume=new URL('/',origin);resume.searchParams.set('accountLogin',loginNonce);
+          sendLocalWebJson(response,200,{loginUrl:resume.href,loginAttempt:navigation.id});return true;
+        }
         if(service.loginPending()||(!desktop&&!session?.authenticated&&!!service.identity()&&refreshPages.snapshot(service.accountLease()))){sendLocalWebJson(response,409,{error:'已有账号操作正在进行，请在原页面完成或取消。'});return true;}
         if(service.identity()&&(desktop||session?.authenticated))refreshPages.requirePrepared(url.searchParams.get('page')??'',service.accountLease(),url.searchParams.get('preparation')??'', 'switch');
         const attempt={id:randomUUID(),returnTo:home,complete:false,expires:Date.now()+600000};
@@ -231,7 +239,7 @@ export function createPersonalAccountHttp(isNativeRequest: (request:IncomingMess
         const scope=url.searchParams.get('scope')??'CURRENT_LOGIN';
         if(scope!=='CURRENT_LOGIN'&&scope!=='ALL_MOLIS_PRODUCTS'){sendLocalWebJson(response,400,{error:'退出范围无效。'});return true;}
         const remoteRevoked=await service.logout(scope);
-        nativeAttachment.clear();pendingNavigation=null;await environment?.ready(true);
+        nativeAttachment.clear();pendingNavigation=null;pendingBrowser=null;loginNonce=null;desktopNavigation=null;await environment?.ready(true);
         if(session){webSessions.remove(session);session=null;setSessionCookie();}else setMode('local');
         sendLocalWebJson(response,200,{signedOut:true,remoteRevoked,redirectTo:home});return true;
       }

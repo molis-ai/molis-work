@@ -247,6 +247,7 @@ export const ACCOUNT_EN: Record<string, string> = {
   "账号准备尚未完成，请稍后重试。": "Account preparation is incomplete. Please try again shortly.",
   "有页面未响应，尚未退出或切换账号。请检查其他窗口后重试。": "A page did not respond. You have not signed out or switched accounts. Check your other windows and try again.",
   "请在主窗口操作账号。": "Manage your account in the main window.",
+  "正在打开登录页面…": "Opening sign in…",
   "登录成功，正在进入工作台…": "Signed in. Opening your workbench…",
   "登录成功，可以关闭此窗口。": "Signed in. You can close this window.",
 };

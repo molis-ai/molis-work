@@ -94,7 +94,7 @@ try {
   const concurrent = await Promise.all([manager.readSession(control), manager.readSession(control)]);
   assert.ok(concurrent.every(view => view.state === 'AUTHENTICATED')); assert.equal(refreshes, 1);
   assert.equal(concurrent[0].session.lastActiveAt, restored.session.lastActiveAt, 'refresh/read never count as activity');
-  await manager.activity({ eventId: secret(), kind: 'INTERACT' }, control);
+  await manager.activity({ eventId: crypto.randomUUID(), kind: 'INTERACT' }, control);
   await host.close(); manager = await startHost();
   assert.equal((await manager.readSession(control)).state, 'AUTHENTICATED'); assert.equal(refreshes, 1);
   online = false;
@@ -125,6 +125,22 @@ try {
   assert.deepEqual(await manager.logout('ALL_MOLIS_PRODUCTS', secret(), control), { localCleared: true, remoteRevocation: 'UNCONFIRMED' });
   await host.close(); manager = await startHost(); online = true;
   assert.equal((await manager.readSession(control)).state, 'ANONYMOUS', 'offline logout cannot recover Tokens after restart');
+  // High-priority recovery: a pre-restart attempt cannot be adopted by the new Host.
+  const unfinished = manager.beginLogin(control);
+  await host.close(); manager = await startHost();
+  assert.equal(unfinished.signal.aborted, true);
+  const afterRestart = await phoneLogin(config);
+  await assert.rejects(manager.completeLogin(unfinished, afterRestart, control), error => error.code === 'account.invalid_request');
+  assert.equal((await manager.readSession(control)).state, 'ANONYMOUS');
+  await manager.completeLogin(manager.beginLogin(control), afterRestart, control);
+  // Disable in disposable Auth storage: exercise Work's handling of a central denial,
+  // not the platform administrator endpoint's authorization contract.
+  await proxy.env.DB.prepare("UPDATE auth_user SET status='DISABLED' WHERE id=?").bind(initial.user.userId).run();
+  assert.equal((await manager.readSession(control)).state, 'EXPIRED');
+  await assert.rejects(manager.invoke('listMyTenants', {}, control));
+  await host.close(); manager = await startHost();
+  assert.notEqual((await manager.readSession(control)).state, 'AUTHENTICATED');
+  process.stdout.write('PASS high-priority unfinished attempt restart and centrally disabled identity refusal\n');
   process.stdout.write('PASS WORK-02 real Auth: mock login, encrypted restart, concurrent refresh, explicit activity, offline refusal, independent/global logout and remote revocation\n');
 
 } finally {

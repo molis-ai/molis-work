@@ -1,4 +1,4 @@
-import { pageText } from "./fixtures/page-text.js";
+import { pagePack, pageText, withPageText } from "./fixtures/page-text.js";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -8,6 +8,7 @@ import type { PluginRouteRequest } from "@molis-ai/molis-work-contracts/platform
 import { assertActionInput } from "@molis-ai/molis-work-kernel";
 import { codingRouteActions, runControl, type CodingModelChoice } from "@molis-ai/molis-work-plugin-coding";
 import { QUESTION_LIMITS, questionAnswer } from "@molis-ai/molis-work-plugin-sdk";
+import { installTextForTest } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 // The page is typed TypeScript (src/browser); what it sends is read from the source of the module that sends it.
 const pageSource = (path: string) => readFileSync(fileURLToPath(new URL(`../plugins/native/coding/src/browser/${path}`, import.meta.url)), "utf8");
@@ -121,9 +122,9 @@ test("the page still posts the provider and model, and the switch takes effect o
   assert.match(pageSource("main/mount-composer.ts"), /kind: "switch-model", run_id: run\.ref\.run_id, \.\.\.model/);
   assert.match(pageSource("composer-model.ts"), /provider_id: model\.provider_id, model_id: model\.model_id/);
   // The page says so through Coding's dictionary (VUX-40), in both languages.
-  assert.match(pageSource("composer-model.ts"), /status\(L\("coding\.model\.switch-asked", \{ model: model\.label \}\)\)/);
-  assert.match(pageText("zh", "coding")("coding.model.switch-asked"), /从下一次模型调用起生效/);
-  assert.match(pageText("en", "coding")("coding.model.switch-asked"), /from the next model call/);
+  assert.match(pageSource("composer-model.ts"), /status\(uiText\.text\("coding\.model\.switch-asked", \{ model: model\.label \}\)\)/);
+  assert.match(pageText("zh", "coding")("coding.model.switch-asked", { model: offered.label }), /Claude：从下一次模型调用起生效/);
+  assert.match(pageText("en", "coding")("coding.model.switch-asked", { model: offered.label }), /Claude: it takes effect from the next model call/);
 });
 
 test("AC-27-4 AC-28-5: the page answers with the card's fields; the route reads them into values the published schema checks", async () => {
@@ -136,7 +137,9 @@ test("AC-27-4 AC-28-5: the page answers with the card's fields; the route reads 
   rejected({ ...base, ...asked, answers: [{ question: 0, value: { at: "now" } }] });
   rejected({ ...base, ...asked, answers: [{ question: 0, value: "x".repeat(2001) }] });
   rejected({ ...base, ...asked, answers: [{ question: 0, indexes: [1], value: 1 }] });
-  assert.throws(() => control.toInput(request({ ...asked, values: {} })), /请回答每一道问题后再提交/, "a card with nothing in it is not sent");
+  withPageText("zh", ["coding"], () => {
+    assert.throws(() => control.toInput(request({ ...asked, values: {} })), /请回答每一道问题后再提交/, "a card with nothing in it is not sent");
+  });
   // AC-28-5: a reference question's picks go as objects (version 5); their labels are the Host's to replace with the owner's.
   const picked = control.toInput(request({ ...asked, values: { r0: [{ value: "goal g1", label: "内部试用" }] } }));
   assertActionInput(schema, picked);
@@ -150,7 +153,8 @@ test("AC-27-4 AC-28-5: the page answers with the card's fields; the route reads 
 // AC-05 (specs/ai-interaction-experience): a reference question answered on Coding's page reached the schema as picked objects
 // and then was refused by the handler, which took only words, numbers or nothing. Coding reads only the shape, within the
 // SDK's limits; whether the picks fit their question is the Runtime's to judge, and whether the person may hand them over the Host's (S-26).
-test("AC-05: picked objects pass the handler as they are; too many, a missing field or one over the limit is refused", async () => {
+test("AC-05: picked objects pass the handler as they are; too many, a missing field or one over the limit is refused", async t => {
+  t.after(installTextForTest({ locale: "zh", packs: [pagePack("coding", "zh")] }));
   const asked = { kind: "answer", pending_id: "question-1", pending_revision: 3 };
   const with_ = (value: unknown) => runControl({ ...asked, answers: [{ question: 0, value }] }, async () => []);
   const goal = { kind: "goal", id: "g1", label: "内部试用" };

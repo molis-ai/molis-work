@@ -125,6 +125,15 @@ test("RAC-605 what is taken into the directory is held to plain keys, one line o
   assert.equal(entries.find(entry => entry.id === "group")!.ui.views[0]!.group, undefined);
 });
 
+test("FSS-06 PAS-08 the runtime directory keeps the declared focused-object binding for a side view", () => {
+  const entries = sanitizePluginDirectory([
+    installed("focused-side", { slot: "side", context_binding: "focused-object" }),
+    installed("wrong-slot", { slot: "stage", context_binding: "focused-object" }),
+    installed("unknown-binding", { slot: "side", context_binding: "foreign-object" as never }),
+  ]);
+  assert.deepEqual(entries.map(entry => entry.ui.views[0]!.context_binding), ["focused-object", undefined, undefined]);
+});
+
 test("RAC-605-KEY-01 a Runtime publisher sharing a built-in Manifest id is refused to start (S-75) and its place keeps its own shell key and views and leaves the market entry intact", async () => {
   const folder = mkdtempSync(join(tmpdir(), "directory-publisher-")), database = join(folder, "project.db");
   seedDemoBoard(database); const store = new LocalProjectDatabase(database);

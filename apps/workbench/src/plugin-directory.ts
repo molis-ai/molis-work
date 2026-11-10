@@ -30,6 +30,7 @@ function sanitizeView(view: DirectoryView, icons: ReadonlySet<string>, chosen: b
     view_id: viewId, slot: view.slot, title,
     ...(icon ? { icon } : {}),
     ...(view.accepts_objects === true ? { accepts_objects: true } : {}),
+    ...(view.slot === "side" && view.context_binding === "focused-object" ? { context_binding: view.context_binding } : {}),
     ...(typeof view.order === "number" && Number.isFinite(view.order) ? { order: view.order } : {}),
     ...(view.group && (UI_VIEW_GROUPS as readonly string[]).includes(view.group) ? { group: view.group } : {}),
     ...(view.hue && (UI_VIEW_HUES as readonly string[]).includes(view.hue) ? { hue: view.hue } : {}),

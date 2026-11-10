@@ -6,12 +6,13 @@ import {
   agentQuestionHtml, assistantCardHtml, assistantOutcomeSteps, assistantStepRow, drawAssistantReply, questionErrors,
 } from "@molis-ai/molis-work-app-local-host";
 import { cardInputValues, instantIn, questionAnswer } from "@molis-ai/molis-work-plugin-sdk";
+import { pageText } from "./fixtures/page-text.js";
 
 // The Assistant's questions, action cards and next steps are drawn on the Host with the design system's shared parts
-// (specs/ai-interaction-experience A1, H2); the page only binds them. `say` stands in for the request's translation.
+// (specs/ai-interaction-experience A1, H2); the page only binds them.
 /** The opening tag of the option with this value inside the field with this id, whatever order its attributes are written in. */
 const optionTag = (html: string, field: string, value: string) => html.slice(html.indexOf(`data-ix-field="${field}"`)).match(new RegExp(`<button[^>]*data-ix-option="${value}"[^>]*>`))?.[0] ?? "";
-const say = (text: string, values?: Record<string, string | number>) => Object.entries(values ?? {}).reduce((out, [key, value]) => out.replaceAll(`{${key}}`, String(value)), text);
+const say = pageText("zh");
 
 const questionnaire: AgentPendingQuestion = {
   pending_id: "pending-1", pending_revision: 2, kind: "questionnaire", prompt: "怎么安排<复盘>？", options: [], allows_free_text: false,
@@ -67,6 +68,10 @@ test("ASC-08 ASC-36: a completed operation exposes its protected result as navig
   assert.match(html, /知识库 &lt;工作&gt;/);
   assert.match(html, /<a href="\/capabilities\/connections\?setup=request-1&amp;from=assistant"[^>]*class="mw-btn mw-btn--primary mw-btn--sm"/);
   assert.doesNotMatch(html, /data-ix-action="result"|data-ix-action="run"/);
+  const frozen = assistantCardHtml({ ...card("done"), presentation: { summary: "提供方结果 <raw>", link: { ...presentation.link, label: "workbench.assistant-card-view.dismiss" } } }, pageText("en"));
+  assert.match(frozen, /提供方结果 &lt;raw&gt;/);
+  assert.match(frozen, /<a[^>]*><span data-slot="button-label">workbench\.assistant-card-view\.dismiss<\/span><\/a>/, "even a provider label that matches a known key is original text");
+  assert.match(frozen, /data-ix-status[^>]*>Done<\/p>/);
   for (const status of ["failed", "unknown", "running", "stale"] as const) {
     assert.doesNotMatch(assistantCardHtml({ ...card(status), presentation }, say), /<a\b[^>]*href=|继续接入/);
   }

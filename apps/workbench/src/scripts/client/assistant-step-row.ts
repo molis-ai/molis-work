@@ -48,16 +48,21 @@ export const ASSISTANT_STEP_ROW_FACTORY_SCRIPT = String.raw`(input) => {
     return step;
   };
   const reviewSteps = '[data-ix-step-id^="review:"]';
-  const reviewRowIdentity = html => {
-    if (!html.includes('data-ix-step-id="review:')) return html;
+  const reviewRowContent = html => {
+    if (!html.includes('data-ix-step-id="review:')) return { key: html, neighbors: [] };
     const template = document.createElement('template'); template.innerHTML = html;
-    for (const step of template.content.querySelectorAll(reviewSteps)) {
-      step.removeAttribute('title'); step.querySelector('[data-ix-step-label]').textContent = '';
-      const waiting = step.querySelector('.mw-sr-only'); if (waiting) waiting.textContent = '';
+    const neighbors = [];
+    // A fresh work view can translate the neighboring steps too. Keep the interaction bound to the same controls
+    // while their ids, state and structure agree, and carry the actual neighbor text forward from that view.
+    for (const step of template.content.querySelectorAll('[data-ix-step]')) {
+      const label = step.querySelector('[data-ix-step-label]'), waiting = step.querySelector('.mw-sr-only');
+      if (!step.matches(reviewSteps)) neighbors.push({ id: step.dataset.ixStepId, title: step.title, label: label.textContent, waiting: waiting?.textContent });
+      step.removeAttribute('title'); label.textContent = '';
+      if (waiting) waiting.textContent = '';
     }
     template.content.querySelector('[data-ix-steps]')?.removeAttribute('aria-label');
     const more = template.content.querySelector('[data-ix-steps-more]'); if (more) more.textContent = '';
-    return template.innerHTML;
+    return { key: template.innerHTML, neighbors };
   };
   const retitleReviews = () => {
     if (!row.querySelector(reviewSteps)) return;
@@ -65,8 +70,11 @@ export const ASSISTANT_STEP_ROW_FACTORY_SCRIPT = String.raw`(input) => {
     for (const step of steps) {
       const card = at(thread, 'review', step.dataset.ixStepId.slice('review:'.length));
       const title = card?.querySelector('.assistant-card-title'); if (title) step.title = title.textContent;
-      setReviewWord(step.querySelector('[data-ix-step-label]'), globalThis.t.text('workbench.agent-next-steps.review-it'));
-      setReviewWord(step.querySelector('.mw-sr-only'), globalThis.t.text('workbench.agent-next-steps.waiting-on-you'));
+      const action = globalThis.t.text('workbench.agent-next-steps.review-it'), waiting = step.querySelector('.mw-sr-only');
+      const waitText = waiting ? globalThis.t.text('workbench.agent-next-steps.waiting-on-you') : '';
+      setReviewWord(step.querySelector('[data-ix-step-label]'), action);
+      setReviewWord(waiting, waitText);
+      step.setAttribute('aria-label', (waitText ? waitText + ' ' : '') + action + (step.title ? ' · ' + step.title : ''));
     }
     row.querySelector('[data-ix-steps]')?.setAttribute('aria-label', globalThis.t.text('workbench.assistant-view-html.next'));
     const more = row.querySelector('[data-ix-steps-more]');
@@ -78,7 +86,14 @@ export const ASSISTANT_STEP_ROW_FACTORY_SCRIPT = String.raw`(input) => {
     for (const node of thread.querySelectorAll("[data-ix-record]")) if (node.ixBound !== node.firstChild) { input.bindText(node); node.ixBound = node.firstChild; }
     if (work !== shownWork) { shownWork = work; unfolded = false; }
     const html = open && view ? (unfolded ? view.next_all_html : view.next_html) || "" : "";
-    input.drawn(row, html, { onStep: (_, button) => go(button.dataset.ixStepId) }, reviewRowIdentity(html));
+    const { key, neighbors } = reviewRowContent(html);
+    input.drawn(row, html, { onStep: (_, button) => go(button.dataset.ixStepId) }, key);
+    for (const { id, title, label, waiting } of neighbors) {
+      const step = at(row, 'ix-step-id', id);
+      if (step.title !== title) step.title = title;
+      setReviewWord(step.querySelector('[data-ix-step-label]'), label);
+      setReviewWord(step.querySelector('.mw-sr-only'), waiting);
+    }
     retitleReviews();
     // The suggestion keeps its one button while it stands: a new button on every paint (a resize, a poll) would play its entrance again.
     if (offer) {

@@ -20,6 +20,16 @@ function turn(tool?: { name: string; input: unknown }, text = "好的。"): stri
 
 const rawCommandArg = "'原始命令 <raw> & text'\r\n", rawPath = "src/原文件 <raw>.ts", rawGrant = "/原目录 <raw>";
 const diffBefore = "同一行\r\n旧行 <raw>\r\n结束", diffAfter = "同一行\r\nnew 行 &\r\n结束";
+const neighborTitle = "原始操作建议 <ready>", neighbor = '[data-ix-step-id^="card:"][data-ix-step-id$=":run"]';
+
+async function buttonAxName(browser: NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>, selector: string) {
+  const { command, sessionId } = browser;
+  const { root } = await command<{ root: { nodeId: number } }>("DOM.getDocument", {}, sessionId);
+  const { nodeId } = await command<{ nodeId: number }>("DOM.querySelector", { nodeId: root.nodeId, selector }, sessionId);
+  assert.ok(nodeId, selector);
+  const { nodes } = await command<{ nodes: Array<{ role?: { value: string }; name?: { value: string } }> }>("Accessibility.getPartialAXTree", { nodeId, fetchRelatives: false }, sessionId);
+  return nodes.find(node => node.role?.value === "button")?.name?.value;
+}
 
 function attachReviewDocuments(browser: NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>) {
   assert.ok(browser.localHost);
@@ -44,7 +54,7 @@ test("with the side pane out of sight, the top line offers 去确认, then 继�
   const { runWithMolisWorkHome, resetSecretStoreCache } = await import("@molis-ai/molis-work-storage");
   const prior = process.env.MOLIS_WORK_SECRET_BACKEND; process.env.MOLIS_WORK_SECRET_BACKEND = "file";
   t.after(() => { if (prior === undefined) delete process.env.MOLIS_WORK_SECRET_BACKEND; else process.env.MOLIS_WORK_SECRET_BACKEND = prior; resetSecretStoreCache(); });
-  // The first work proposes a change that needs the person's approval; the second work's model call is held until the
+  // The first work leaves a ready operation card and then proposes a change needing approval. The second work is held until the
   // test has asked to pause, and then asks for a harmless tool so the round ends at a boundary.
   let turns = 0, release: (() => void) | undefined;
   const held = new Promise<void>(resolve => { release = resolve; });
@@ -55,10 +65,12 @@ test("with the side pane out of sight, the top line offers 去确认, then 继�
     const review = asideReply(raw);
     if (review) { res.writeHead(200, { "content-type": "text/event-stream" }); res.end(turn(undefined, review)); return; }
     const index = turns++;
-    if (index === 1) await held;
+    if (index === 2) await held;
     res.writeHead(200, { "content-type": "text/event-stream" });
-    res.end(index === 0 ? turn({ name: "change-capability", input: { capability_id: "todo.items.create", version: 1, provider_id: "io.molis.work.todo", input: { title: "整理周报" } } })
-      : index === 1 ? turn({ name: "context-remaining", input: {} }) : turn());
+    const todo = { capability_id: "todo.items.create", version: 1, provider_id: "io.molis.work.todo" };
+    if (index === 0) res.end(turn({ name: "suggest-action", input: { ...todo, title: neighborTitle, summary: "待执行的操作建议", input: { title: "另一条待办" } } }));
+    else if (index === 1) res.end(turn({ name: "change-capability", input: { ...todo, input: { title: "整理周报" } } }));
+    else res.end(index === 2 ? turn({ name: "context-remaining", input: {} }) : turn());
   });
   await new Promise<void>(resolve => model.listen(0, "127.0.0.1", resolve));
   t.after(async () => { release?.(); model.closeAllConnections(); await new Promise<void>(resolve => model.close(() => resolve())); });
@@ -119,18 +131,28 @@ test("with the side pane out of sight, the top line offers 去确认, then 继�
   }
   // FSS-36: the running Prologue's real Todo review remains pending through both language changes.
   await waitFor("Boolean(document.querySelector('[data-review=language-command]')?.querySelector('code')) && Boolean(document.querySelector('[data-review=language-diff]')?.querySelector('code'))");
+  await click('[data-assistant-next-row] [data-ix-steps-more]');
+  await waitFor(`document.querySelector(${JSON.stringify(neighbor)})?.querySelector('[data-ix-step-label]')?.textContent === ${JSON.stringify(neighborTitle)}`);
+  assert.equal(await evaluate("[...document.querySelectorAll('[data-card] dt, [data-card] label')].some(node => node.textContent === '要做什么')"), true);
   await evaluate(`(() => {
     window.reviewCard = document.querySelector('[data-review]'); window.reviewExact = reviewCard.querySelector('.assistant-exact'); reviewExact.open = true;
     window.reviewStep = document.querySelector(${JSON.stringify(review)}); window.reviewApprove = reviewCard.querySelector('[data-assistant-decision=approve]');
     window.reviewCommand = document.querySelector('[data-review=language-command]'); window.reviewDiff = document.querySelector('[data-review=language-diff]');
     window.commandCode = reviewCommand.querySelector('code'); window.diffCode = reviewDiff.querySelector('code');
     window.commandStep = document.querySelector('[data-ix-step-id="review:language-command"]'); window.diffStep = document.querySelector('[data-ix-step-id="review:language-diff"]');
+    window.neighborStep = document.querySelector(${JSON.stringify(neighbor)});
     window.reviewDraft = document.querySelector('[data-assistant-input]'); reviewDraft.value = 'Unsent 审查草稿'; reviewDraft.focus(); reviewDraft.setSelectionRange(2, 7, 'backward');
-    window.reviewWrites = []; const fetchOriginal = window.fetch;
+    window.reviewWrites = []; window.reviewReads = []; const fetchOriginal = window.fetch;
     window.fetch = (input, init) => {
-      const path = new URL(String(input?.url || input), location.href).pathname;
-      if (path.includes('/api/assistant/') && (init?.method || 'GET') !== 'GET') reviewWrites.push(path);
-      return fetchOriginal(input, init);
+      const path = new URL(String(input?.url || input), location.href).pathname, method = init?.method || 'GET';
+      if (path.includes('/api/assistant/') && method !== 'GET') reviewWrites.push(path);
+      const response = fetchOriginal(input, init), work = path.split('/api/assistant/works/')[1];
+      if (method !== 'GET' || !work || work.includes('/')) return response;
+      return response.then(async value => {
+        const view = await value.clone().json(), card = view.cards?.find(card => card.title === ${JSON.stringify(neighborTitle)});
+        if (card) reviewReads.push({ html: view.next_all_html, title: card.title, status: card.status });
+        return value;
+      });
     };
   })()`);
   const originalReview = await evaluate<{ summary: string; arguments: string[] }>(`({ summary: reviewCard.querySelector('.assistant-card-title').textContent,
@@ -159,9 +181,25 @@ test("with the side pane out of sight, the top line offers 去确认, then 继�
       `printf ${rawCommandArg}`, "- 旧行 <raw>\r\n+ new 行 &\r", ["./当前目录", elevation, `${access} ${rawGrant}${tag === "en" ? ", Network access" : "、联网"}`],
       `printf ${rawCommandArg}`, "- 旧行 <raw>\r\n+ new 行 &\r"]);
     if (tag === "en") assert.equal(await evaluate("reviewApprove.textContent"), "Allow once");
+    const source = tag === "en" ? "From an action card" : "来自操作卡", reads = await evaluate<number>("reviewReads.length");
+    await evaluate("reviewStep.focus(); window.dispatchEvent(new Event('focus'));");
+    await waitFor(`reviewReads.length > ${reads} && reviewReads.at(-1).html.includes(${JSON.stringify(source)}) && document.querySelector(${JSON.stringify(neighbor)})?.title === ${JSON.stringify(source)}`);
+    assert.deepEqual(await evaluate(`[document.activeElement === reviewStep, document.querySelector(${JSON.stringify(review)}) === reviewStep,
+      document.querySelector(${JSON.stringify(neighbor)}) === neighborStep, neighborStep.querySelector('[data-ix-step-label]').textContent,
+      neighborStep.querySelector('.mw-sr-only').textContent, reviewReads.at(-1).title, reviewReads.at(-1).status, reviewWrites]`),
+    [true, true, true, neighborTitle, waiting, neighborTitle, "ready", []]);
+    assert.equal(await buttonAxName(browser, '[data-ix-step-id="review:language-command"]'), `${waiting} ${label} · ${commandTitle}`);
+    assert.equal(await buttonAxName(browser, '[data-ix-step-id="review:language-diff"]'), `${waiting} ${label} · ${fileTitle} ${rawPath}`);
+    await evaluate("reviewDraft.focus()");
   }
   for (const id of ["language-command", "language-diff"]) assert.equal(queue.receipt(id)?.status, "pending");
-  assert.equal(turns, 1, "switching while the effect is pending does not ask the model again");
+  assert.equal(turns, 2, "switching while the effect is pending does not ask the model again");
+  const cardId = await evaluate<string>("neighborStep.dataset.ixStepId.slice('card:'.length, -':run'.length)");
+  await evaluate(`document.querySelector(${JSON.stringify(`[data-card=${JSON.stringify(cardId)}] [data-ix-action=dismiss]`)}).click()`);
+  await waitFor(`!document.querySelector(${JSON.stringify(neighbor)}) && !reviewStep.isConnected && Boolean(document.querySelector(${JSON.stringify(review)}))`);
+  const writes = await evaluate<string[]>("reviewWrites");
+  assert.equal(writes.length, 1);
+  assert.ok(writes[0]?.endsWith(`/cards/${cardId}/dismiss`));
   await evaluate("reviewDraft.value = ''");
   await click("[data-assistant-new]");
   await say("写一份周报草稿");

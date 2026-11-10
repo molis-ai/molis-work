@@ -73,9 +73,9 @@ const API_FORMATS: ReadonlyArray<{ value: ModelApiFormat; label: string }> = [
 ];
 
 const PROMPT_CACHE_MODES: ReadonlyArray<{ value: ModelPromptCacheMode; label: string }> = [
-  { value: "off", label: "关闭" },
-  { value: "best-effort", label: "尽量使用缓存" },
-  { value: "required", label: "要求缓存支持（不支持就失败）" },
+  { value: "off", label: "workbench.settings-models.prompt-cache-off" },
+  { value: "best-effort", label: "workbench.settings-models.prompt-cache-best-effort" },
+  { value: "required", label: "workbench.settings-models.prompt-cache-required" },
 ];
 
 /** The first key's three steps, the same names the component board's key specimen uses. */

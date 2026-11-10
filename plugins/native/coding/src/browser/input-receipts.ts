@@ -129,7 +129,7 @@ export function inputReceipts({ api, refresh, q, find, landed, receipts }: Input
     start,
     from(node, first) {
       const one = node?.origins?.[0];
-      return one ? receipts.link(q("[data-coding-turns]"), one.input_id, first, "来自补充「") : null;
+      return one ? receipts.link(q("[data-coding-turns]"), one.input_id, first, "origin") : null;
     },
     steer(id, run, text, mode) {
       const again = item?.lost && item.id === id && item.text === text && item.mode === mode;

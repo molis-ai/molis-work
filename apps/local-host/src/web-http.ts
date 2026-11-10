@@ -1,4 +1,4 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { say, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { webRequestAuthenticated, webBrowserReadAuthenticated, handleWebSessionHttp } from "./web-sessions.js";
 import { currentCallId } from "@molis-ai/molis-work-kernel";
 import type { IncomingMessage, OutgoingHttpHeaders, ServerResponse } from "node:http";
@@ -8,6 +8,7 @@ import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { withRecordedCallId } from "./call-id-response.js";
 import { hostLog } from "./host-log.js";
 import { hostErrors } from "./host-errors.js";
+import { activeLocale } from "./web-locale.js";
 
 /**
  * A person's own navigation to a top-level page (address bar, link, refresh, history), as the browser reports it. A page's
@@ -69,7 +70,9 @@ export type LocalMutationState = "in_flight" | "complete";
 
 /** Every refusal of the Host, Origin and control-token checks is this one answer, so a refused caller cannot tell which check it failed. Returns false: the request is not allowed. */
 function refuse(response: ServerResponse): false {
-  const refusal = actionErrorResponse(hostErrors.request_refused(uiText.text("workbench.http.local-control-request-was-rejected")));
+  // Before the request has a trusted language, read the registered owner's default.
+  const message = say.text({ owner: "workbench", key: "workbench.http.local-control-request-was-rejected" }, { locale: activeLocale() });
+  const refusal = actionErrorResponse(hostErrors.request_refused(message));
   sendLocalWebJson(response, refusal.status, refusal.body);
   return false;
 }

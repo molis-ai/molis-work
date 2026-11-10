@@ -60,7 +60,7 @@ function receipts(locale = "zh") {
   const program = vm.runInNewContext(`(${INPUT_RECEIPTS_CLIENT_SCRIPT})`, {
     document: { createElement: (tag: string) => new Node(tag), body, get activeElement() { return focus.on; } }, queueMicrotask, crypto: { randomUUID: () => `key-${++keys}` },
   }) as (read: Translate) => { line(owner: object, turn: Turn, round?: object, act?: Actions): Node | null; tray(owner: object, queued: object[] | undefined, round?: object, act?: Pick<Actions, "withdraw">): Node | null;
-    link(owner: object, inputId: string, first?: () => void): Node | null; step(state: string): string; agreements(owner: object, runs: string[]): Node | null };
+    link(owner: object, inputId: string, first?: () => void, kind?: "about" | "origin"): Node | null; step(state: string): string; agreements(owner: object, runs: string[]): Node | null };
   const ui = program(pageText(locale));
   const said = () => new Promise<string[]>(resolve => setTimeout(() => resolve(body.children.map(node => node.textContent)), 0));
   return { ui, body, said };
@@ -386,7 +386,7 @@ test("RCPT-345, 3d-2: link opens a receipt this page drew, after the caller's ow
   assert.equal(root.open, true, "RCPT-345 the receipt opens");
   assert.equal(focus.on, root.find(node => node.tag === "summary"), "RCPT-345 focus lands on its summary");
   assert.ok(ui.link(here, "steer-1"), "without a step of its own it still opens");
-  assert.equal(ui.link(here, "steer-1", undefined, "来自补充「")!.text, "来自补充「顺便把注册接口也覆盖一下」", "RCPT-353, 3d-3: a step added for it says where it came from");
+  assert.equal(ui.link(here, "steer-1", undefined, "origin")!.text, "来自补充「顺便把注册接口也覆盖一下」", "RCPT-353, 3d-3: a step added for it says where it came from");
   focus.on = null;
 });
 

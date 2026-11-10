@@ -217,6 +217,8 @@ test("SYS-15 S-47 standalone Home settings reject invalid addresses and accept t
   await b.waitFor("document.querySelector('[data-home-model-content] [data-model-settings]')", 15_000);
   await b.click("[data-model-template=deepseek]");
   await b.waitFor("document.querySelector('[data-model-base-url]')");
+  assert.deepEqual(await b.evaluate("[...document.querySelectorAll('[data-model-prompt-cache] option')].map(one => [one.value, one.textContent])"),
+    [["off", "Off"], ["best-effort", "Best effort"]]);
   const draft = "https://example.invalid/unsaved-model";
   await b.evaluate(`(() => { const field = document.querySelector('[data-model-base-url]'); field.value = ${JSON.stringify(draft)}; field.dispatchEvent(new Event('input', {bubbles:true})); })()`);
   assert.deepEqual(await refuse(), { requests: [], open: true, address, draft, sameField: true }, "unsupported settings requests preserve the open settings draft");

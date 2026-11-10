@@ -123,9 +123,16 @@ test("S-ui-text-page FSS-09 a scope that ends during the batch check delivers no
 test("S-ui-text-page FSS-09 the Coding page cannot borrow a restarted embedded Git activation", { timeout: 40_000 }, async t => {
   const f = await serveHomeRuntime(t), project = await f.project("Embedded Git");
   const prefix = "/projects/" + project.project_id;
+  const index = await f.request("/api/settings/project-plugins");
+  assert.equal(index.status, 200);
+  const { projects } = await index.json() as { projects: Array<{ project_id: string; revision: string }> };
+  let revision = projects.find(row => row.project_id === project.project_id)?.revision;
+  assert.ok(revision);
   for (const plugin_id of ["coding", "git", "files"]) {
-    const membership = await f.request("/api/settings/projects/" + project.project_id + "/plugins", { method: "POST", body: { plugin_id } });
+    const membership = await f.request("/api/settings/projects/" + project.project_id + "/plugins", { method: "POST", body: { plugin_id, expected_revision: revision } });
     assert.equal(membership.status, 200, await membership.clone().text());
+    revision = (await membership.json() as { revision: string }).revision;
+    assert.ok(revision);
   }
   const headers = await pageSession(f.origin, prefix + "/?openPlugin=coding");
   const platform = await f.host.withProject(project.reference, runtime => runningProjectPlatform(runtime.store, runtime.project_id));

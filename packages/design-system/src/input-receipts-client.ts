@@ -4,6 +4,18 @@ import type { AgentInputModelClaim, AgentInputQuestion, AgentInputTreatment, Age
 import { RECEIPT_WORDS, type ReceiptWords } from "@molis-ai/molis-work-contracts/platform/ui";
 import { compactScript } from "./compact-script.js";
 
+function receiptKeys<Code extends string>(group: string, labels: Record<Code, string>): Record<Code, string> {
+  return Object.fromEntries(Object.keys(labels).map(code => [code, `common.input-receipts.${group}.${code}`])) as Record<Code, string>;
+}
+
+/** The browser receipt and the Host delivery note read the same fixed words for the same ledger values. */
+export const RECEIPT_TEXT_KEYS = {
+  FACT: receiptKeys("fact", RECEIPT_WORDS.FACT), TREATMENT: receiptKeys("treatment", RECEIPT_WORDS.TREATMENT),
+  KIND: receiptKeys("kind", RECEIPT_WORDS.KIND), IMPACT: receiptKeys("impact", RECEIPT_WORDS.IMPACT),
+  TARGET: receiptKeys("target", RECEIPT_WORDS.TARGET), QUESTION: receiptKeys("question", RECEIPT_WORDS.QUESTION),
+  STEP: receiptKeys("step", RECEIPT_WORDS.STEP), MARK: receiptKeys("mark", RECEIPT_WORDS.MARK),
+} satisfies ReceiptWords;
+
 /** What the receipt reads of a run-view turn (`AgentTurnView`) and its round: the round's run id and the questions it waits on. */
 export interface InputReceiptTurn { turn_id: string; kind: string; text: string; steer?: AgentTurnSteer }
 export interface InputReceiptRound { run_id?: string; awaiting_input?: readonly unknown[]; step_board?: InputReceiptBoard }
@@ -44,9 +56,9 @@ export interface InputReceipts {
   /**
    * 「关于补充「…」」 (stage 3d-2): a button that opens the receipt `owner` drew for the input, focus on its summary; null
    * when it drew none (an earlier round not shown), so no button does nothing. `first` runs before (a dialog closing).
-   * `lead` is its first words: 「来自补充「」 on a step added for the input (stage 3d-3).
+   * `kind` identifies whether it is about the input or a step originated from it (stage 3d-3).
    */
-  link(owner: Element, inputId: string, first?: () => void, lead?: "关于补充「" | "来自补充「"): HTMLElement | null;
+  link(owner: Element, inputId: string, first?: () => void, kind?: "about" | "origin"): HTMLElement | null;
   /** The words for a plan step's state, the same everywhere a step is shown (the receipt, Coding's plan card; stage 3d-4). */
   step(state: AgentStepState): string;
   /**
@@ -208,9 +220,10 @@ export function createInputReceipts(readText: InputReceiptParts["readText"], tra
     tray: tray(parts),
     agreements: agreements(parts, words),
     step: word,
-    link(owner, inputId, first, lead = "关于补充「") {
+    link(owner, inputId, first, kind = "about") {
       const at = surfaces.get(owner), entry = at && of(at, inputId);
-      return entry ? button("mw-btn--link", readText(lead) + quote(entry.turn.text) + "」", () => { first?.(); reveal(entry); }) : null;
+      const key = kind === "origin" ? "common.input-receipts.link-origin" : "common.input-receipts.link-about";
+      return entry ? button("mw-btn--link", readText(key, { text: quote(entry.turn.text) }), () => { first?.(); reveal(entry); }) : null;
     },
     line(owner, turn, round, act) {
       const steer = turn.steer;
@@ -399,6 +412,6 @@ function readBoard(readText: (text: string) => string, word: (state: AgentStepSt
 }
 
 /** The page program: `(translate) => InputReceipts`. The workbench makes one and hands it to the Assistant and every plugin (`host.receipts`). */
-export const INPUT_RECEIPTS_CLIENT_SCRIPT = compactScript("(readText) => (" + createInputReceipts.toString() + ")(readText, " + createInputTray.toString() + ", " + createCorrection.toString() + ", " + JSON.stringify(RECEIPT_WORDS) + ", " + readBoard.toString() + ", " + createAgreements.toString() + ")");
+export const INPUT_RECEIPTS_CLIENT_SCRIPT = compactScript("(readText) => (" + createInputReceipts.toString() + ")(readText, " + createInputTray.toString() + ", " + createCorrection.toString() + ", " + JSON.stringify(RECEIPT_TEXT_KEYS) + ", " + readBoard.toString() + ", " + createAgreements.toString() + ")");
 
 /** The receipt's words in English (served through the workbench catalog, `apps/workbench/src/i18n/en.ts`). */

@@ -114,6 +114,9 @@ test("UIV-12 UIV-17 UIC-06 UIC-09 RC-03: the Assistant's composer names its rece
   await evaluate("document.querySelector('[data-assistant-composer] [data-composer-stop]').click()");
   release();
   await waitWork(browser, id, (view) => !["running", "queued"].includes(view.work.state) && view.rounds.at(-1)?.phase !== "running");
+  const delivery = "document.querySelector('[data-ix-record^=\"delivery:\"]')";
+  await waitFor(`${delivery}?.textContent.includes('再看一下错别字')`);
+  assert.match(await evaluate<string>(`${delivery}.textContent`), /这一轮结束时 AI 没读到，留给下一轮/);
   await evaluate(`${field}.focus()`);
   await type("空闲时也能发");
   await waitFor("Boolean(document.querySelector('[data-assistant-composer] [data-compose-menu-toggle]'))", 15_000);

@@ -1,6 +1,6 @@
 # N49 候选场景一次读取
 
-状态：独立分支已实现并定向验证（2026-11-10）；待本批统一集成、合审和 CI Full。完成标准沿 [06-4 原验收](../post-anticorruption-roadmap/reference/batches/06.md#batch-06-item-4)。
+状态：独立复核与定向验证已通过，已接回本批 `00bedcd38`（2026-11-10）。整批统一验证、公共 C 合审与 CI Full 待最终头。完成标准沿 [06-4 原验收](../post-anticorruption-roadmap/reference/batches/06.md#batch-06-item-4)。
 
 基点 `d2dcffa0257f`，产品构建来自 `9e8583022`，两者之间仅文档变化。现行需求见[各包调用成本](spec.md)，N43／46 另见[宿主成本](../batch-06-call-cost/spec.md)。用户已明确本批取消新增升版，本项沿当前合同版本增加方法，不升动作、存储或同步版本。第 27 批 BL-097／BL-131 可直接消费本次投影入口和调用数字。本文只覆盖 Inbox 与 Feed 的两个候选目录读。
 
@@ -86,3 +86,5 @@ node scripts/machine-slot.mjs run browser --label '06 N49 baseline' -- node scri
 - [固定预算回归](../../tests/inbox-action-scenes.test.ts)检查完整真实 HTTP、候选顺序、两份原绑定的引用和 revision、不可用原因、Kernel 目录发现、场景声明枚举和 SQL 执行。另在一批中强制多做一次真实目录发现，owner 批量调用仍是一次，但固定预算拒绝；Feed 判断连接断开和场景自身不可用分别验证。
 - [S-89](../../tests/security-invariants-plugin-scene-client.test.ts)对照单项与批量，验证原受众、实际缺失权限、固定提供方和版本、场景意图、schema、重复顺序及场景归属。空批借用服务被拒，已经真实算出的结果在返回前遇撤权或取消也不交给插件。新用例在旧构建因无批量入口失败，日志 `/private/tmp/molis06-n49-s89-red.log`。
 - [Feed 过时引用](../../tests/feed-capture-scenes.test.ts)从真实 GET 拿到可用引用，成功绑定并预览后撤原注册、以相同 id/version 登记不同提供方；绑定、预览、执行均拒绝旧引用，原绑定 revision、规则集合、判断账和调用次数无新增。
+
+独立复核提出的恢复证据已补。在原 BRC-05 隔离 HTTP 夹具恢复判断连接及场景可用后，返回的同一 Feed usage 重新可用，精确引用和原 revision 保持。只在临时测试加载中加观察，生产与入库用例未改。日志 `/private/tmp/molis06-n49-feed-recovery.log`，1/1 通过、零跳过。

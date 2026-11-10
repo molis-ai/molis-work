@@ -64,7 +64,7 @@ function rowHtml(row: SurfaceHomeRowDisplay, item: SurfaceItem, group: SurfaceGr
   });
   const read = "values" in row.read && !mixed ? { ...row.read, values: Object.fromEntries(Object.entries(row.read.values ?? {}).filter(([key]) =>
     row.declaration.fields.find(field => field.key === key)?.role !== "held_in")) } : row.read;
-  const corrections = read.state === "ok" ? objectCorrections(data, group, item, fix?.controls) : [];
+  const corrections = read.state === "ok" && !row.fallback ? objectCorrections(data, group, item, fix?.controls) : [];
   return `<div class="home-row" data-home-row="${e(key)}" data-home-subject-kind="${e(row.subject.kind)}" data-home-subject-id="${e(row.subject.id)}"${actions.some(action => action.key.endsWith(":peek")) && (read.state === "ok" || read.state === "stale") ? ` data-home-row-peek="${e(controlKey(key, "peek"))}"` : ""}>
     ${renderPresentationForm(row.declaration, item.form, { locale: locale(), ownerDisplay: ownerOf(data, row.owner), read, actions: item.form === "row" ? [...actions, ...corrections] : actions,
       notices: item.notices?.map(({ reason }) => ({ reason })) })}

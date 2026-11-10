@@ -51,6 +51,8 @@ function define<I, O>(name: string, version: number, title: string, description:
 }
 const READ = ["todo:read"], WRITE = ["todo:read", "todo:write"];
 
+const batchReader = defineSubjectContextAction("todo.batch.subject.read", /* @version action.todo.batch.subject.read */ 1, TODO_BATCH_SUBJECT_KIND, "整理结果", ["todo:read"], "home");
+
 export const todoOrganizeActions = {
   extract: define<{ materials: TodoOrganizeMaterial[]; title?: string; request?: string; request_id?: string; origin?: "onboarding"; me?: string[]; method?: "basic" | "organizer" }, { batch: TodoBatch; replayed: boolean }>(
     "organize.extract", /* @version action.todo.organize.extract */ 1, "整理材料里的待办", "读给定材料，找出要你处理的事、你的承诺、在等别人的事和可考虑的建议，与已有待办比对，存成一份待你确认的整理结果；不直接新建或修改待办。材料正文由调用方先读好传入", "command",
@@ -72,7 +74,7 @@ export const todoOrganizeActions = {
     { result_subject: { id: "batch.batch_id", revision: "batch.revision" }, undo: { capability_id: "todo.changes.revert", version: /* @version action.todo.changes.revert */ 1, input: { batch_id: "change_batch_id" } } }),
   close: define<{ id: string }, { batch: TodoBatch }>("organize.close", /* @version action.todo.organize.close */ 1, "收起整理结果", "把这份整理结果收起来；没处理的候选原样留下，之后仍可打开查看", "command",
     object({ id }), object({ batch }), WRITE, { result_subject: { id: "batch.batch_id", revision: "batch.revision" } }),
-  subject: defineSubjectContextAction("todo.batch.subject.read", /* @version action.todo.batch.subject.read */ 1, TODO_BATCH_SUBJECT_KIND, "整理结果", ["todo:read"], "home"),
+  subject: { ...batchReader, action: { ...batchReader.action, execution: { cost: "none" as const } } },
 };
 
 export interface TodoOrganizePorts extends TodoStores {

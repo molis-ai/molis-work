@@ -6,8 +6,9 @@ import { compileActionSchema } from "@molis-ai/molis-work-kernel";
 import { canonicalJsonText } from "@molis-ai/molis-work-plugin-sdk";
 import { presentationFormFields, presentationValuesProblems } from "@molis-ai/molis-work-plugin-sdk/presentation";
 import type { SurfaceHomeDisplay, SurfaceHomeRowDisplay } from "@molis-ai/molis-work-design-system";
-import { displayedRoute, homeChanged, homeOwnsView, homeReference as reference, surfaceRow, type HomeReadSample } from "./surface-home-display.js";
-import { openHomeObject } from "./surface-home-open.js";
+import { startSurfaceRead } from "@molis-ai/molis-work-service-surfaces";
+import { displayedFallback, displayedRoute, homeChanged, homeOwnsView, homeReference as reference, surfaceRow, type HomeReadSample } from "./surface-home-display.js";
+import { openHomeObject, openProvedHomeObject, rereadSurfaceFallback } from "./surface-home-open.js";
 import type { SurfaceProjectContext } from "./surface-project-read.js";
 import { offerConsequences, surfaceOfferOperation, surfaceOfferSources, type HeldSurfaceOffer } from "./surface-offer-operation.js";
 import { bindSurfacePlacement, isPlacementKind, prepareSurfacePlacement, type SurfacePlacementTarget } from "./surface-placement.js";
@@ -20,14 +21,16 @@ type Intent = { label: string; primary: boolean; warning?: SurfaceItemAction["co
     | { kind: "offers"; choices: ReturnType<typeof surfaceOfferSources> }
     | { kind: "offer"; held: HeldSurfaceOffer } | { kind: "placement"; bound: SurfacePlacementTarget }
     | { kind: "placement-choice"; choice: PositionChoice });
-type Target = { route: Route; item: SurfaceItem; fields: readonly string[]; revision: string; key: string } & Intent;
+type DeclaredTarget = { route: Route; item: SurfaceItem; fields: readonly string[]; revision: string; key: string } & Intent;
+type FallbackTarget = { kind: "fallback-open"; route: Pick<Route, "entry" | "reader">; item: SurfaceItem; key: string; label: string; primary: boolean; warning?: undefined };
+type Target = DeclaredTarget | FallbackTarget;
 
 export interface RetainedSlotControls {
   readonly controls: Map<string, Target>;
   readonly catalog: HomeReadSample["catalog"];
   assertCurrent(): void;
 }
-export type SlotPreparation = { target: Target; input: unknown };
+export type SlotPreparation = { target: DeclaredTarget; input: unknown };
 const key = (subject: ActionSubject) => JSON.stringify([subject.kind, subject.id]);
 
 /** Keep only the exact controls, associated readers and their original tokens, with no HTTP request or old result values. */
@@ -36,8 +39,19 @@ export function captureSurfaceSlot(display: SurfaceHomeDisplay, sample: HomeRead
   const controls = new Map<string, Target>();
   const rows = new Map(display.display.rows.map(row => [key(row.subject), row]));
   for (const item of display.groups.flatMap(group => group.items)) {
-    const row = rows.get(key(item.subject)), route = displayedRoute(sample, item);
-    if (!row || !route || !("revision" in row.read)) continue;
+    const row = rows.get(key(item.subject));
+    if (!row) continue;
+    if (row.fallback) {
+      const fallback = displayedFallback(sample, item);
+      if (fallback && item.actions.some(action => action.ref === "open")) {
+        const token = randomUUID();
+        controls.set(token, { key: token, kind: "fallback-open", label: "打开", primary: false, item,
+          route: { entry: fallback.entry, reader: fallback.proof.reader } });
+      }
+      continue;
+    }
+    const route = displayedRoute(sample, item);
+    if (!route || !("revision" in row.read)) continue;
     const revision = row.read.revision;
     const capture = (target: Intent) => {
       const token = randomUUID();
@@ -79,7 +93,7 @@ function slotLabel(target: Target) {
   const { key, item, kind, label, primary, warning } = target;
   const command = target.kind === "offers" ? "offers" : target.kind === "placement" ? target.bound.receivers ? "hand_off" : "place"
     : target.kind === "action" && target.action.operation === "command" ? JSON.stringify(reference(target.action)) : undefined;
-  return { key, subject: item.subject, owner: item.owner_plugin_id, kind, label, primary, ...(command ? { command } : {}),
+  return { key, subject: item.subject, owner: item.owner_plugin_id, kind: kind === "fallback-open" ? "open" : kind, label, primary, ...(command ? { command } : {}),
     ...(warning?.length ? { consequence: warning } : {}) };
 }
 
@@ -91,7 +105,7 @@ export function slotOperation(context: SurfaceProjectContext, binding: RetainedS
   const control = { ...transport, assert_authority_current: current, async beforeEffect() { await transport.beforeEffect(); current(); } };
   const offers = surfaceOfferOperation(context, current);
   const readonly = bindActionClient(client, () => ({ ...caller, query_only: true, read_only_effects: true }));
-  const values = async ({ route, item }: Target, fields: readonly string[]) => {
+  const values = async ({ route, item }: DeclaredTarget, fields: readonly string[]) => {
     current();
     const input = { subjects: [item.subject], fields: [...fields] };
     const answer = await readonly.invoke<PresentationValuesInput, PresentationValues>({ ...route.action, ...reference(route.action) }, input, control);
@@ -140,6 +154,13 @@ export function slotOperation(context: SurfaceProjectContext, binding: RetainedS
   return {
     current,
     async activate(target: Target) {
+      if (target.kind === "fallback-open") {
+        const { route, item } = target, deadline = startSurfaceRead(control.signal);
+        try {
+          const proof = await rereadSurfaceFallback(route.reader, item.subject, client, caller, control, deadline, current);
+          return { result: openProvedHomeObject(binding.catalog, route.entry, proof, prefix) };
+        } finally { deadline.dispose(); }
+      }
       if (target.kind === "open") {
         const { route, item } = target;
         await values(target, []);

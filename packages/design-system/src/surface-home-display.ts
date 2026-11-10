@@ -10,6 +10,8 @@ export interface SurfaceHomeRowDisplay {
   subject: ActionSubject;
   installation: SurfaceInstallationRef;
   declaration: OwnedPresentationObject;
+  /** A title projected from the original reader for an object without a presentation declaration. */
+  fallback?: true;
   read: Pick<PresentationValueItem, "revision" | "state" | "values" | "read_at"> | { state: "unreadable" };
 }
 export interface SurfaceHomeDisplay extends SurfaceDescription {

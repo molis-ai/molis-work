@@ -131,6 +131,7 @@ function registerComposer(actions: ActionService, plugin: SurfacePlugin, afterSa
         },
         values: (view, input, signal, assertCurrent) => readers.invoke<PresentationValuesInput, PresentationValues>(
           { ...view, provider_id: view.provider.provider_id }, input, { ...context, signal, assert_authority_current: assertCurrent }),
+        subject: async () => assert.fail("unexpected subject read"),
         attention: () => [], relations: () => [],
         corrections: { read: () => ({ revision: "0", corrections: form ? [{ correction: "form", form, position: null }] : [] }),
           correct: async () => { throw new Error("unexpected correction"); } },

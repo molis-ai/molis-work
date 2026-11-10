@@ -5,7 +5,8 @@ import { molisWorkHostProjectReference, pluginControlActions, pluginInstallActio
 import type { ProjectPluginInstalledView } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import { SANDBOX_PACKAGE_FILES } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { verifyPluginPackageSignature } from "@molis-ai/molis-work-plugin-runtime";
-import { sandboxPackageBuildId } from "@molis-ai/molis-work-plugin-sdk";
+import type { SurfaceHomeDisplay } from "@molis-ai/molis-work-design-system";
+import { sandboxActionId, sandboxPackageBuildId } from "@molis-ai/molis-work-plugin-sdk";
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { person, ref } from "./fixtures/home-sandbox.js";
@@ -172,5 +173,109 @@ test("IUI-07 IUI-08 IUI-13: externally packed project and Home stages mount a st
     await b.click("[data-plugin-picker-toggle]");
     await b.click('[data-plugin-picker-popover] [data-work-surface-open="' + surfaceId + '"]');
     await b.waitFor(`${one(content)}?.innerText.includes(${JSON.stringify(title)})`, 15_000);
+  }
+});
+
+test("IUI-02 IUI-13: a signed free reader displays its fallback only in the original trusted slot", { skip: process.platform !== "darwin", timeout: 90_000 }, async t => {
+  const b = await openGoalBrowser(t, "seeded", undefined, null);
+  if (!b) return;
+  const { projectId, localHost } = b;
+  assert.ok(projectId && localHost);
+  const prefix = "/projects/" + projectId, caller = person(projectId);
+  const client = localHost.actionClient(molisWorkHostProjectReference({ projectId, databasePath: b.databasePath }));
+  const id = "io.molis.work.example.surface-fallback", kind = "signed_fallback_object";
+  const title = "Current signed object title", content = "Private signed context body", invalidOpenId = "no-valid-stage";
+  const { bundle } = await packSignedObjectSlot(t, "project", id, kind, { title, content, invalidOpenId });
+  const build = sandboxPackageBuildId(id, bundle.payload.manifest.publisher.signature);
+  const preview = await client.invoke(caller, ref(pluginInstallActions.preview), { bundle }) as { preview_id: string };
+  await client.invoke(caller, ref(pluginInstallActions.confirm), { preview_id: preview.preview_id, consent: true, pin_label: "Test publisher" });
+  const request = (path: string, body?: unknown, page?: string, contextual = false) => fetch(b.origin + path, {
+    method: body === undefined ? "GET" : "POST", headers: { origin: b.origin, "content-type": "application/json",
+      "x-molis-work-control-token": b.controlToken, "x-molis-work-idempotency-key": randomUUID(),
+      ...(page ? { [contextual ? "x-molis-context-page" : "x-molis-plugin-page"]: page } : {}) },
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  });
+  const json = async <T>(response: Response): Promise<T> => {
+    const value = await response.json();
+    assert.equal(response.status, 200, JSON.stringify(value));
+    return value;
+  };
+  const framed = await request(prefix + "/plugins/" + id + "?frame=workbench"), html = await framed.text();
+  assert.equal(framed.status, 200, html.slice(0, 200));
+  const page = /"page_id":"([^"]+)"/u.exec(html)?.[1];
+  assert.ok(page);
+  const save = async (subjectId: string) => json(await request(prefix + "/api/host/plugin-page-actions", {
+    mode: "component_submit", component_id: "editor", payload: { form: { id: subjectId } },
+  }, page));
+  const subject = { kind, id: "original-signed-object" };
+  await save(subject.id);
+  const endpoint = prefix + "/api/contextual/surface-slot";
+  const reserve = (mount_id: number, subjectId: string) => ({ intent: "reserve", mount_id, slot_id: "references.originals", subjects: [{ kind, id: subjectId }] });
+  const ask = (body: unknown) => request(endpoint, body, page, true);
+  assert.equal((await request(endpoint, reserve(1, subject.id), page)).status, 403);
+  const { slot } = await json<{ slot: string }>(await ask(reserve(2, subject.id)));
+
+  const log = localHost.callLog!, record = log.record;
+  let reads = 0;
+  log.record = function (caller, action, result) {
+    if (action.capability_id === sandboxActionId(build, "references.context") && result.ok) reads++;
+    return record.call(this, caller, action, result);
+  };
+  try {
+    type Rendered = { display: SurfaceHomeDisplay; render: string; controls: Array<{ key: string; kind: string }> };
+    const read = await json<Rendered>(await ask({ intent: "read", slot }));
+    assert.equal(reads, 1);
+    const [row] = read.display.display.rows;
+    assert.deepEqual([row?.owner, row?.subject, row?.fallback, row?.read], [id, subject, true, { revision: "1", state: "ok", values: { title } }]);
+    assert.doesNotMatch(JSON.stringify(read), new RegExp(content, "u"));
+    assert.deepEqual(read.controls.map(control => control.kind), ["open"]);
+    const opened = await json<{ result: { kind: string; owner_plugin_id: string; item_id: string; frame_path: string } }>(await ask({
+      intent: "activate", slot, render: read.render, control: read.controls[0]!.key,
+    }));
+    assert.equal(reads, 2, "the original retained control must read again on the new request");
+    assert.deepEqual([opened.result.kind, opened.result.owner_plugin_id, opened.result.item_id], ["stage", id, subject.id]);
+    const target = new URL(opened.result.frame_path, b.origin);
+    assert.equal(target.pathname, prefix + "/plugins/" + id);
+    assert.deepEqual(JSON.parse(target.searchParams.get("installation")!), row!.installation);
+
+    await save(invalidOpenId);
+    const unavailable = await ask({ intent: "activate", slot, render: read.render, control: read.controls[0]!.key });
+    assert.equal(unavailable.status, 409);
+    assert.doesNotMatch(await unavailable.text(), new RegExp(title + "|" + content + "|" + subject.id, "u"));
+    const wrong = await json<{ slot: string }>(await ask(reserve(3, invalidOpenId)));
+    const noOpening = await json<Rendered>(await ask({ intent: "read", slot: wrong.slot }));
+    assert.deepEqual(noOpening.display.display.rows.map(row => row.read.state === "ok" && row.read.values?.title), [title]);
+    assert.deepEqual(noOpening.controls, []);
+    await save(subject.id);
+  } finally { log.record = record; }
+
+  b.setFrameInitScript(`
+    window.slotMessages = [];
+    const listen = MessagePort.prototype.addEventListener, observed = new WeakSet();
+    MessagePort.prototype.addEventListener = function(type, callback, options) {
+      if (type === "message" && !observed.has(this)) {
+        observed.add(this);
+        listen.call(this, type, event => {
+          if (event.data?.type?.startsWith("surface-slot-")) window.slotMessages.push(event.data);
+        });
+      }
+      return listen.call(this, type, callback, options);
+    };
+  `);
+  await b.setViewport(1440, 900);
+  const holder = '[data-work-surface="app-' + build + '"][data-installed-plugin="' + id + '"] > iframe';
+  const child = await pluginFrameBrowser(t, b, id, holder);
+  await b.navigate(() => b.command("Page.navigate", { url: b.origin + prefix + "/plugins/" + id }, b.sessionId));
+  const area = `document.querySelector(${JSON.stringify(holder)})?.contentDocument?.querySelector('[data-framed-area] .surface-slot-body')`;
+  await b.waitFor(`${area}?.innerText.includes(${JSON.stringify(title)})`, 15_000);
+  assert.doesNotMatch(await b.evaluate<string>(`${area}.innerText`), new RegExp(content, "u"));
+  await child.waitFor("document.querySelector('[data-component-surface-slot]')?.getBoundingClientRect().height > 0 && window.slotMessages.length > 0");
+  assert.equal(await child.evaluate("document.querySelector('[data-component-surface-slot]').childElementCount"), 0);
+  assert.doesNotMatch(await child.evaluate<string>("document.body.innerText"), new RegExp(title + "|" + content, "u"));
+  const messages = await child.evaluate<Array<Record<string, unknown>>>("window.slotMessages");
+  assert.ok(messages.some(message => message.type === "surface-slot-ready"));
+  for (const message of messages) {
+    assert.ok(message.type === "surface-slot-ready" || message.type === "surface-slot-size");
+    assert.deepEqual(Object.keys(message).sort(), message.type === "surface-slot-ready" ? ["id", "type"] : ["height", "id", "type"]);
   }
 });

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ActionError, LOCAL_PERSON_ACTOR_ID, bindActionClient, defineSubjectContextAction, type ActionDefinition, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, LOCAL_PERSON_ACTOR_ID, bindActionClient, defineSubjectContextAction, type ActionDefinition, type ActionSubjectContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { surfaceCompositionActions, type SurfaceDescription } from "@molis-ai/molis-work-contracts/services/surface-composition";
 import { definePresentationValuesAction, type PresentationObject, type PresentationValues } from "@molis-ai/molis-work-contracts/platform/presentation";
@@ -21,6 +21,7 @@ const request = { slot: { kind: "discussion" }, subjects: Array.from({ length: 7
 function ports(changes: Partial<SurfaceComposePorts>): SurfaceComposePorts {
   return { caller: { actor_id: "local-person", audience: "user", project_id: "project" }, catalog: () => [catalog],
     discover: () => ({ views: [...readers, ...values], retain: () => () => undefined }), beforeEffect: async () => undefined, current: () => undefined,
+    subject: async () => assert.fail("unexpected subject read"),
     values: async () => ({ items: [] }), attention: () => [], relations: () => [],
     corrections: { read: () => ({ revision: "0", corrections: [] }), correct: async () => { throw new Error("read only"); } }, ...changes };
 }
@@ -142,4 +143,55 @@ test("S-surface-composition SCS-04 a real plugin call does not share the person'
   assert.equal((await actions.invoke<unknown, SurfaceDescription>(surfaceCompositionActions.compose, { slot })).corrections_revision, "1");
   assert.equal(await actions.invoke(read, {}), "0");
   assert.equal((await actions.invoke<unknown, SurfaceDescription>(surfaceCompositionActions.compose, { slot })).corrections_revision, "1");
+});
+
+test("IUI-02 SCS-09 fallback uses the original four live slots and one deadline even when a values call times out", async () => {
+  const local = readers.slice(1).map(view => ({ ...view, action: { ...view.action, execution: { cost: "none" as const } } }));
+  const pending = Promise.withResolvers<ActionSubjectContext>();
+  const started: string[] = [], signals: AbortSignal[] = [];
+  const service = new SurfaceCompositionService();
+  const result = await service.compose(request, ports({
+    catalog: () => [{ ...catalog, presentation: { objects: [object(note(0).kind)] } }],
+    discover: () => ({ views: [readers[0]!, values[0]!, ...local], retain: () => () => undefined }),
+    values: async (_view, _input, signal) => {
+      signals.push(signal);
+      throw new ActionError("actions.timeout", "The original provider can still be running");
+    },
+    subject: (_view, input, signal) => {
+      started.push(input.subject_id);
+      signals.push(signal);
+      return pending.promise;
+    },
+    keepFallback: () => assert.fail("expired answers cannot leave a proof"),
+  }));
+  assert.deepEqual(started, [note(1).id, note(2).id, note(3).id]);
+  assert.equal(signals.length, 4);
+  assert.ok(signals.every(signal => signal === signals[0] && signal.aborted));
+  assert.deepEqual(result.groups[0]?.items.map(item => [item.subject, item.state, item.actions]), [[note(0), "stale", []]]);
+  assert.equal(result.groups[0]?.overflow, undefined);
+  pending.resolve({ subject: note(1), title: "Late title", revision: "late", content: "Late body", truncated: false });
+  await new Promise<void>(resolve => setImmediate(resolve));
+  assert.equal(started.length, 3);
+  assert.doesNotMatch(JSON.stringify(result), /Late|record-1/u);
+});
+
+test("IUI-02 refuses a changed reader after its fallback read is already in flight", async () => {
+  const original = readers[0]!;
+  const exact = { ...original, action: { ...original.action, execution: { cost: "none" as const } } };
+  const started = Promise.withResolvers<void>(), held = Promise.withResolvers<ActionSubjectContext>();
+  let current = exact;
+  const service = new SurfaceCompositionService();
+  const compose = service.compose({ ...request, subjects: [note(0)] }, ports({
+    catalog: () => [{ ...catalog, presentation: undefined }],
+    discover: () => ({ views: [exact], retain: selected => {
+      assert.deepEqual(selected, [exact]);
+      return () => { if (current !== exact) throw new ActionError("actions.provider_changed", "Original registration changed"); };
+    } }),
+    subject: () => { started.resolve(); return held.promise; },
+    keepFallback: () => assert.fail("no proof from a replaced registration"),
+  }));
+  await started.promise;
+  current = { ...exact };
+  held.resolve({ subject: note(0), title: "Old title", revision: "r1", content: "Old body", truncated: false });
+  await assert.rejects(compose, { code: "actions.provider_changed" });
 });

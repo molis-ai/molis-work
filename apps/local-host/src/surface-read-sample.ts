@@ -5,7 +5,7 @@ import type { AttentionSurfaceEntry } from "@molis-ai/molis-work-contracts/modul
 import type { FormKind } from "@molis-ai/molis-work-contracts/platform/presentation";
 import type { OwnedTextRef } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { RetainedActionDirectory } from "@molis-ai/molis-work-kernel";
-import type { startSurfaceRead, SurfaceActionDirectory, SurfaceComposePorts } from "@molis-ai/molis-work-service-surfaces";
+import type { startSurfaceRead, SurfaceActionDirectory, SurfaceComposePorts, SurfaceFallbackProof } from "@molis-ai/molis-work-service-surfaces";
 import type { LocalProjectDatabase } from "./project-database.js";
 import type { surfaceHomeDirectory } from "./surface-home-directory.js";
 
@@ -18,6 +18,8 @@ type SurfaceSample = {
   formOnly: (view: ActionView) => boolean;
   deadline?: ReturnType<typeof startSurfaceRead>;
   readonly views: Set<ActionView>;
+  readonly fallbacks: Map<string, SurfaceFallbackProof>;
+  currentSubjects?: ReadonlySet<string>;
   actionsCurrent?: () => void;
   directory?: RetainedActionDirectory;
   attention?: readonly AttentionSurfaceEntry[];
@@ -33,7 +35,7 @@ export async function withSurfaceSample<Result>(store: LocalProjectDatabase, pos
   discussionViews?: NonNullable<SurfaceComposePorts["discussion"]>["views"], request?: SurfaceSample["request"]) {
   let discussionGroups: readonly SurfaceGroup[] | undefined;
   let discussionReasons: readonly (OwnedTextRef | undefined)[] | undefined;
-  const sample: SurfaceSample = { store, position, catalog, formOnly, deadline, request, pending: true, views: new Set(),
+  const sample: SurfaceSample = { store, position, catalog, formOnly, deadline, request, pending: true, views: new Set(), fallbacks: new Map(),
     ...(discussionViews ? { discussion: { views: discussionViews, keep(groups, reasons) { discussionGroups = groups; discussionReasons = reasons; } } } : {}) };
   try {
     const description = await reading.run(sample, compose);
@@ -43,7 +45,7 @@ export async function withSurfaceSample<Result>(store: LocalProjectDatabase, pos
     assertCurrent();
     return { description, catalog, assertCurrent, actionsCurrent, views, deadline, discussionGroups, attention: sample.attention,
       position: sample.rules && { kind: position, ...sample.rules, ...(discussionReasons ? { reasons: discussionReasons } : {}) },
-      directory: sample.directory?.views ?? [],
+      directory: sample.directory?.views ?? [], fallbacks: sample.fallbacks, currentSubjects: sample.currentSubjects,
       retainGuard() {
         const active = sample.actionsCurrent;
         return () => { active?.(); catalog.assertCurrent(); };
@@ -65,7 +67,7 @@ export async function withSurfaceSample<Result>(store: LocalProjectDatabase, pos
 
 /** A trusted slot correction uses the same single-contribution catalog as its rendering. */
 export function withSlotCorrectionCatalog<Result>(store: LocalProjectDatabase, catalog: SurfaceSample["catalog"], correct: () => Promise<Result>) {
-  return reading.run({ store, position: "plugin-slot", pending: true, catalog, formOnly: () => false, views: new Set() }, correct);
+  return reading.run({ store, position: "plugin-slot", pending: true, catalog, formOnly: () => false, views: new Set(), fallbacks: new Map() }, correct);
 }
 
 export function surfaceSampleFor(store: LocalProjectDatabase, position: SurfaceSample["position"]) {

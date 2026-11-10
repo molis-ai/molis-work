@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { CONTEXT_RELATION_TYPES } from "@molis-ai/molis-work-contracts/modules/context-ledger";
-import { defineSubjectContextAction, type ActionAvailability, type ActionDefinition, type ActionSubject, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, defineSubjectContextAction, type ActionAvailability, type ActionDefinition, type ActionSubject, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { definePresentationValuesAction, type PresentationObject, type PresentationValuesInput } from "@molis-ai/molis-work-contracts/platform/presentation";
 import type { SurfaceDescription, SurfaceRequest } from "@molis-ai/molis-work-contracts/services/surface-composition";
 import { SurfaceCompositionService, type SurfaceComposePorts, type SurfaceCorrectionsSnapshot, type SurfacePlugin } from "@molis-ai/molis-work-service-surfaces";
@@ -29,21 +29,23 @@ function harness(changes: Partial<SurfaceComposePorts> = {}) {
   const calls: PresentationValuesInput[] = [];
   const counts = { directory: 0, catalog: 0, corrections: 0, relations: 0, attention: 0 };
   let snapshot: SurfaceCorrectionsSnapshot = { revision: "0", corrections: [] };
+  const { discover, attention, ...control } = changes;
   const ports: SurfaceComposePorts = {
     caller: scope,
     catalog: () => { counts.catalog++; return [plugin(object)]; },
-    discover: () => { counts.directory++; return { views: [reader(), values()], retain: () => () => undefined }; },
+    discover: () => { counts.directory++; return discover?.() ?? { views: [reader(), values()], retain: () => () => undefined }; },
     values: async (_action, input) => {
       calls.push(input);
       return { items: input.subjects.map(subject => subject.id === "7" ? { subject, state: "forbidden", revision: "withheld" }
         : { subject, state: "ok", revision: "1", values: { stage: "draft" } }) };
     },
-    attention: () => { counts.attention++; return []; },
+    subject: async () => assert.fail("unexpected subject read"),
+    attention: () => { counts.attention++; return attention?.() ?? []; },
     relations: () => { counts.relations++; return []; },
     corrections: { read: () => { counts.corrections++; return snapshot; }, correct: async () => { throw new Error("read test"); } },
     beforeEffect: async () => undefined,
     current: () => undefined,
-    ...changes,
+    ...control,
   };
   const service = new SurfaceCompositionService();
   return { calls, counts, compose: (request: SurfaceRequest) => service.compose(request, ports), setCorrections: (value: SurfaceCorrectionsSnapshot) => { snapshot = value; } };
@@ -140,20 +142,41 @@ test("SCS-03 SCS-12 SCS-15 resolves exact providers, replaces the locked operati
   assert.equal(ambiguous.notices, undefined);
 });
 
-test("SCS-11 SCS-13 the declaration follows the same directory's unique reader and never borrows another plugin's values", async () => {
+test("IUI-02 SCS-11 SCS-13 the same directory's unique reader owns the fallback even if another plugin declared that kind", async () => {
   const other = { ...plugin(), plugin_id: "other-owner", install_id: "other-owner" };
-  let first: ActionView | undefined = undefined;
+  const original = reader("note", other.install_id);
+  const exact = { ...original, action: { ...original.action, execution: { cost: "none" as const } } };
+  let first: ActionView | undefined;
+  const reads: string[] = [], proofs: unknown[] = [];
   const h = harness({ catalog: () => [plugin(object), other], discover: () => ({
-    views: [reader("note", other.install_id), values(), ...(first ? [first] : [])], retain: () => () => undefined,
-  }) });
-  const request = { slot: { kind: "discussion" }, subjects: [note("a")] } as const;
-  const fallback = group(await h.compose(request)).items[0]!;
-  assert.deepEqual([fallback.owner_plugin_id, fallback.fields, fallback.actions], [other.plugin_id, [], [open]]);
+    views: [exact, values(), ...(first ? [first] : [])], retain: selected => {
+      assert.deepEqual(selected, [exact]);
+      return () => undefined;
+    },
+  }), subject: async (view, input) => {
+    assert.equal(view, exact);
+    reads.push(input.subject_id);
+    return { subject: note(input.subject_id), title: "Original current title", revision: "actual-revision", content: "sensitive body", truncated: false,
+      open: { surface: "other", id: "original-item" } };
+  }, keepFallback: proof => {
+    const { reader, plugin, ...display } = proof;
+    assert.equal(reader, exact);
+    assert.equal(plugin, other);
+    proofs.push(display);
+    return true;
+  } });
+  const request = { slot: { kind: "discussion" }, subjects: [note("a"), note("a")] } as const;
+  const description = await h.compose(request);
+  const fallback = group(description).items[0]!;
+  assert.deepEqual([fallback.owner_plugin_id, fallback.state, fallback.fields, fallback.actions], [other.plugin_id, "ok", [], [open]]);
   assert.deepEqual(h.calls, []);
+  assert.equal(h.counts.directory, 1);
+  assert.deepEqual(reads, ["a"]);
+  assert.deepEqual(proofs, [{ subject: note("a"), title: "Original current title", revision: "actual-revision", open: { surface: "other", id: "original-item" } }]);
+  assert.doesNotMatch(JSON.stringify(description), /Original current title|actual-revision|sensitive body|original-item/u);
   first = reader();
   assert.deepEqual(group(await h.compose(request)).items, []);
-  first = undefined;
-  assert.equal(group(await h.compose(request)).items[0]?.owner_plugin_id, other.plugin_id);
+  assert.deepEqual(reads, ["a"], "an ambiguous kind dispatches neither reader");
 });
 
 test("SCS-04 SCS-06 SCS-17 Attention uses only active owner references and suppresses unproved objects and relations", async () => {
@@ -176,4 +199,71 @@ test("SCS-04 SCS-06 SCS-17 Attention uses only active owner references and suppr
   assert.equal(result.overflow, undefined);
   assert.equal(result.excluded, undefined);
   assert.equal(result.state, "ok");
+});
+
+test("IUI-02 rejects unknown cost, external, model, delegated, command and mis-scoped readers before invocation", async () => {
+  const context = reader();
+  const local = { ...context.action, execution: { cost: "none" as const } };
+  const request = { slot: { kind: "discussion" }, subjects: [note("hidden-id")] } as const;
+  for (const candidate of [
+    context,
+    { ...context, action: { ...local, external: true as const } },
+    { ...context, action: { ...local, permissions: ["model:invoke"] } },
+    { ...context, action: { ...local, permissions: ["network:example.org"] } },
+    { ...context, action: { ...local, permissions: ["actions:delegate"] } },
+    { ...context, action: { ...local, effect: "write" as const } },
+    { ...context, operation: "command" as const, action: local },
+    { ...context, provider: { ...context.provider, project_id: "another-project" }, action: local },
+  ]) {
+    let calls = 0;
+    const h = harness({ catalog: () => [plugin()], discover: () => ({ views: [candidate], retain: () => () => undefined }),
+      subject: async () => { calls++; return assert.fail("ineligible reader"); } });
+    const result = await h.compose(request);
+    assert.equal(calls, 0);
+    assert.deepEqual(group(result).items, []);
+    assert.equal(group(result).overflow, undefined);
+    assert.doesNotMatch(JSON.stringify(result), /hidden-id/u);
+  }
+});
+
+test("IUI-02 folds only proved fallback subjects and preserves the normal values lane when it fails", async () => {
+  const fallback = reader("fallback");
+  const declared = reader();
+  const views = [fallback, declared].map(view => ({ ...view, action: { ...view.action, execution: { cost: "none" as const } } }));
+  const reads: string[] = [];
+  const h = harness({ discover: () => ({ views: [...views, values()], retain: () => () => undefined }),
+    values: async () => { throw new ActionError("actions.forbidden", "private denied value"); },
+    subject: async (_view, { subject_id: id }) => {
+      reads.push(id);
+      if (id === "refused") throw new ActionError("actions.forbidden", "private denied subject");
+      return { subject: { kind: "fallback", id: id === "mismatch" ? "other-id" : id },
+        title: id === "raw-title" ? id : "Name " + id, revision: "1", content: "private body", truncated: false,
+        ...(id === "five" ? { open: { surface: "foreign", id } } : {}) };
+    } });
+  const subjects = ["mismatch", "raw-title", "refused", "one", "two", "three", "four", "five", "six", "seven"]
+    .map(id => ({ kind: "fallback", id }));
+  const result = await h.compose({ slot: { kind: "conversation" }, subjects: [...subjects, note("declared-denied"), subjects[3]!] });
+  assert.deepEqual(reads, subjects.map(subject => subject.id));
+  assert.deepEqual(group(result).items.map(item => item.subject.id), ["one", "two", "three", "four", "five", "six"]);
+  assert.deepEqual(group(result).overflow, { count: 1 });
+  assert.ok(group(result).items.every(item => item.state === "ok" && !item.actions.length), "a title with no legitimate opening has no button");
+  assert.doesNotMatch(JSON.stringify(result), /mismatch|raw-title|refused|other-id|private/u);
+});
+
+test("IUI-02 Attention uses its existing list beyond fifty subject reads", async () => {
+  const original = reader("note");
+  const free = { ...original, action: { ...original.action, execution: { cost: "none" as const } } };
+  const subjects = Array.from({ length: 55 }, (_, index) => note("attention-" + index));
+  let calls = 0;
+  const h = harness({ catalog: () => [plugin()], discover: () => ({ views: [free], retain: () => () => undefined }),
+    attention: () => subjects.map(subject => ({ subject, owner_plugin_id: pluginId, reason: "manual", revision: 1, entered_at: "2026-11-09T00:00:00Z" })),
+    subject: async (_view, { subject_id }) => {
+      calls++;
+      return { subject: note(subject_id), title: "Real " + subject_id, revision: "1", content: "", truncated: false };
+    } });
+  const result = await h.compose({ slot: { kind: "attention" } });
+  assert.equal(calls, 55);
+  assert.deepEqual(group(result).items.map(item => item.subject), subjects);
+  assert.equal(h.counts.attention, 1);
+  assert.equal(h.counts.directory, 1);
 });

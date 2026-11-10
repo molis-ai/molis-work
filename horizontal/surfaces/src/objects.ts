@@ -5,6 +5,7 @@ import type { SurfaceGroup, SurfaceItem } from "@molis-ai/molis-work-contracts/s
 import { actionErrorKind, compareCodeUnits } from "@molis-ai/molis-work-plugin-sdk";
 import { isPresentationValuesReader } from "@molis-ai/molis-work-plugin-sdk/presentation";
 import type { ComposeRead } from "./composition.js";
+import { isSurfaceFallbackReader, readSurfaceSubject } from "./fallback.js";
 import { operationsFor, ownsView } from "./operations.js";
 import { subjectKey, viewKey, viewRevision, type SurfacePlugin } from "./ports.js";
 import { formAt } from "./position.js";
@@ -31,7 +32,7 @@ type ObjectRoute = Pick<Candidate, "reader" | "object" | "values"> & { plugin?: 
 
 interface Projected {
   item: SurfaceItem;
-  value?: PresentationValueItem;
+  revision?: string;
   dependencies: readonly ActionView[];
   attention?: { entry: AttentionSurfaceEntry; rank: number };
   inOverview: boolean;
@@ -133,6 +134,19 @@ function compareProjected(left: Projected, right: Projected): number {
 }
 
 interface RuleAnswer { item?: PresentationValueItem; denied?: true }
+interface FallbackAnswer { revision: string; canOpen: boolean }
+
+async function readFallbacks(read: ComposeRead, jobs: readonly { subject: ActionSubject; plugin: SurfacePlugin; reader: ActionView }[]) {
+  const answers = new Map<string, FallbackAnswer>();
+  const { current, deadline, ports } = read;
+  await deadline.read(jobs, current, ({ reader, subject }, signal) => readSurfaceSubject(reader, subject, ports.subject, signal, current), (job, result) => {
+    if ("value" in result && result.value) {
+      const proof = { ...job, ...result.value };
+      answers.set(subjectKey(job.subject), { revision: proof.revision, canOpen: ports.keepFallback?.(proof) === true && proof.open !== undefined });
+    }
+  });
+  return answers;
+}
 
 function stateFor(candidate: Candidate, answer: RuleAnswer | undefined): SurfaceItem["state"] {
   if (answer?.item) return answer.item.state;
@@ -141,14 +155,15 @@ function stateFor(candidate: Candidate, answer: RuleAnswer | undefined): Surface
   return availability && !availability.available && actionErrorKind({ code: availability.code, message: availability.reason }) === "forbidden" ? "forbidden" : "stale";
 }
 
-function renderCandidate(candidate: Candidate, answer: RuleAnswer | undefined, read: ComposeRead): Projected | undefined {
+function renderCandidate(candidate: Candidate, answer: RuleAnswer | undefined, fallback: FallbackAnswer | undefined, read: ComposeRead): Projected | undefined {
   const { request, position, delivered, corrections, views, ports } = read;
   const { subject, plugin, object } = candidate;
   const key = subjectKey(subject);
   const choices = corrections.corrections.filter(choice => choice.subject && subjectKey(choice.subject) === key);
-  const value = answer?.item, state = stateFor(candidate, answer);
-  const readable = value?.state === "ok" || (value?.state === "stale" && value.read_at !== undefined);
-  if (!candidate.requested && !readable) return undefined;
+  const value = answer?.item, state = fallback ? "ok" : stateFor(candidate, answer);
+  const revision = fallback?.revision ?? (value?.state === "ok" || value?.state === "stale" && value.read_at !== undefined ? value.revision : undefined);
+  const readable = revision !== undefined;
+  if (!readable && (!object || !candidate.requested)) return undefined;
   const base: FormKind = request.slot.kind === "conversation" ? delivered.has(key) ? "card" : "chip"
     : request.slot.kind === "home" ? "row" : position.forms.at(-1)!;
   const preference = [choices.find(choice => choice.correction === "form")?.form,
@@ -157,17 +172,16 @@ function renderCandidate(candidate: Candidate, answer: RuleAnswer | undefined, r
   const display = formAt(position, chosenForm, readable ? object : undefined);
   const status = object?.status ? value?.values?.[object.status.field] : undefined;
   const ruleStatus = typeof status === "string" ? status : undefined;
-  const fallbackOpen = !object && candidate.reader.found === "one";
   const { actions, notices, dependencies } = readable && object && display.fields.length ? operationsFor(object, plugin, display.form, request.slot, ruleStatus, views, ports.diagnostic)
-    : { actions: readable || fallbackOpen ? [{ ref: "open", primary: false }] : [], notices: undefined, dependencies: [] };
+    : { actions: (fallback ? fallback.canOpen : readable) ? [{ ref: "open", primary: false }] : [], notices: undefined, dependencies: [] };
   const attention = candidate.entries.map(entry => ({ entry, rank: attentionRank(entry, object, ruleStatus) })).sort(compareAttention)[0];
   const pin = choices.find(choice => choice.correction === "pin")?.position;
   const item: SurfaceItem = { subject, owner_plugin_id: plugin.plugin_id, state, ...display,
     actions: request.slot.kind === "home" && !attention ? actions.map(action => ({ ...action, primary: false })) : actions,
     ...(notices ? { notices } : {}), ...(state === "stale" && value?.read_at ? { read_at: value.read_at } : {}) };
-  return { item, ...(readable ? { value } : {}), attention, inOverview: candidate.inOverview, dependencies,
+  return { item, revision, attention, inOverview: candidate.inOverview, dependencies,
     pin: pin ?? PRESENTATION_LIMITS.values_subjects, adjusted: Boolean(readable && (preference || !attention && pin !== undefined)),
-    projectId: candidate.values?.action.scope === "home" ? null : ports.caller.project_id, simpler: Boolean(readable && display.form !== chosenForm) };
+    projectId: plugin.scope === "home" ? null : ports.caller.project_id, simpler: Boolean(readable && display.form !== chosenForm) };
 }
 
 export function groupState(projected: readonly Projected[], unreadable: boolean): Pick<SurfaceGroup, "state" | "read_at"> {
@@ -203,31 +217,38 @@ export function retainDisplayedOperations(read: ComposeRead, rows: readonly Proj
 export async function composeObjects(read: ComposeRead, sources: readonly ObjectSource[]) {
   const { ports, request, plugins, deadline, current, retain } = read;
   const { candidates, disabled, unproved } = pickCandidates(read, sources, objectRoutes(read));
-  const readers = request.slot.kind === "home" ? candidates.filter(candidate => candidate.values) : candidates;
+  const fallbackJobs = candidates.flatMap(({ subject, plugin, reader, object }) => !object && reader.found === "one" && !plugin.home?.unavailable
+    && (plugin.scope === "home" || reader.view.provider.project_id === ports.caller.project_id) && isSurfaceFallbackReader(reader.view)
+    ? [{ subject, plugin, reader: reader.view }] : []);
+  const fallbackKeys = new Set(fallbackJobs.map(job => subjectKey(job.subject)));
+  const readers = candidates.filter(candidate => candidate.object && (request.slot.kind !== "home" || candidate.values)
+    || fallbackKeys.has(subjectKey(candidate.subject)));
   retain(readViews(readers));
   const answers = await readRuleValues(candidates.flatMap(candidate => candidate.values && candidate.object
     ? [{ subject: candidate.subject, action: candidate.values, object: candidate.object }] : []), ports, deadline, current);
+  const fallbackAnswers = await readFallbacks(read, fallbackJobs);
   let unreadable = false, unreadableAttention = false;
   const unreadableOwners = new Set<string>();
   const rendered = candidates.flatMap(candidate => {
-    const answer = answers.get(subjectKey(candidate.subject));
-    if (stateFor(candidate, answer) === "stale" && !answer?.item?.read_at) {
+    const key = subjectKey(candidate.subject), answer = answers.get(key), fallback = fallbackAnswers.get(key);
+    if (!fallback && stateFor(candidate, answer) === "stale" && !answer?.item?.read_at) {
       unreadable = true;
       if (candidate.entries.length) unreadableAttention = true;
-      if (candidate.inOverview && candidate.values) unreadableOwners.add(candidate.plugin.plugin_id);
+      if (candidate.inOverview && (candidate.values || !candidate.object)) unreadableOwners.add(candidate.plugin.plugin_id);
     }
-    const projection = renderCandidate(candidate, answer, read);
+    const projection = renderCandidate(candidate, answer, fallback, read);
     return projection ? [projection] : [];
   }).sort(compareProjected);
-  const readable = rendered.filter(row => row.value);
+  const readable = rendered.filter(row => row.revision !== undefined);
   current();
+  ports.keepCurrentSubjects?.(readable.filter(row => row.item.state === "ok").map(row => row.item.subject));
   const relations = readable.length > 1 && deadline.active ? ports.relations(readable.map(row => ({ ...row.item.subject, project_id: row.projectId }))) : [];
   const merge = (rows: readonly Projected[]) => {
-    const proved = rows.filter(row => row.value);
+    const proved = rows.filter(row => row.revision !== undefined);
     const preferred = new Set(proved.filter(row => row.attention).map(row => subjectKey(row.item.subject)));
     const { representatives, used } = mergeRelated(proved.map(row => row.item), relations, preferred);
     return { used, visible: rows.flatMap(row => {
-      if (!row.value) return [row];
+      if (row.revision === undefined) return [row];
       const item = representatives.get(subjectKey(row.item.subject));
       return item ? [{ ...row, item }] : [];
     }) };
@@ -243,7 +264,7 @@ export async function composeObjects(read: ComposeRead, sources: readonly Object
   const exposed = readViews(request.slot.kind === "attention" || request.slot.kind === "home"
     ? readers.filter(candidate => renderedKeys.has(subjectKey(candidate.subject))) : readers);
   const facts = { declarations, authority: exposed.sort((a, b) => compareCodeUnits(viewKey(a), viewKey(b))).map(viewRevision),
-    values: readable.map(row => [row.item.subject, row.value?.revision, row.attention?.entry]), relations: used };
+    values: readable.map(row => [row.item.subject, row.revision, row.attention?.entry]), relations: used };
   return { visible, readable, excluded, unreadable, unreadableAttention, unreadableOwners, unproved, facts,
     forDiscussion(subjects: readonly ActionSubject[]) {
       const bySubject = new Map(readable.map(row => [subjectKey(row.item.subject), row]));

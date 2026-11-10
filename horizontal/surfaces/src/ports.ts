@@ -7,6 +7,7 @@ import type { OwnedTextRef, UiSlotDescriptor } from "@molis-ai/molis-work-contra
 import type { PlacedObject } from "@molis-ai/molis-work-contracts/services/placement";
 import type { SurfaceGroup, SurfaceInstallationRef } from "@molis-ai/molis-work-contracts/services/surface-composition";
 import type { SurfaceCorrections } from "./corrections.js";
+import type { SurfaceFallbackProof, SurfaceSubjectReader } from "./fallback.js";
 import type { startDeadline } from "./values.js";
 
 export interface SurfacePlugin {
@@ -74,6 +75,10 @@ export interface SurfaceComposePorts extends SurfaceCallPorts {
   readonly deadline?: ReturnType<typeof startDeadline>;
   retainCatalog?(plugins: readonly SurfacePlugin[]): () => void;
   keepPosition?(forms: readonly FormKind[], pin: boolean): void;
+  /** Keep independently proved current references before grouping and relation merging. */
+  keepCurrentSubjects?(subjects: readonly ActionSubject[]): void;
+  /** The protected consumer keeps this request's proof and verifies its actual opening route. */
+  keepFallback?(proof: SurfaceFallbackProof): boolean;
   /** One protected discussion read may show several independent message parts. The action still receives their union. */
   readonly discussion?: {
     views: readonly { subjects: readonly ActionSubject[]; expanded?: true }[];
@@ -82,6 +87,7 @@ export interface SurfaceComposePorts extends SurfaceCallPorts {
   readonly home?: SurfaceHomePorts;
   discover(): SurfaceActionDirectory | Promise<SurfaceActionDirectory>;
   values(action: ActionView, input: PresentationValuesInput, signal: AbortSignal, assertCurrent: () => void): Promise<PresentationValues>;
+  subject: SurfaceSubjectReader;
   attention(): readonly AttentionSurfaceEntry[];
   relations(candidates: readonly PlacedObject[]): readonly SurfaceRelation[];
   diagnostic?(event: "values_unavailable" | "overview_unavailable" | "action_missing", details: { plugin_id?: string; provider_id?: string; ref?: string }): void;

@@ -78,6 +78,7 @@ function harness(plugins: SurfacePlugin[], views: ActionView[], changes: Partial
       calls.push({ ref: view.capability_id, input });
       return { items: input.subjects.map(object => ({ subject: object, revision: "values-r1", state: "ok" })) };
     },
+    subject: async () => assert.fail("unexpected subject read"),
     home: {
       overview: async () => { throw new Error("unexpected overview"); },
       acceptsEmptyInput: view => compileActionSchema(view.action.input_schema)({}) === true,

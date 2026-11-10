@@ -4,7 +4,7 @@ import { SURFACES_PROVIDER_ID, surfaceCompositionActions, type SurfaceCorrection
 import { isRecord } from "@molis-ai/molis-work-plugin-sdk";
 import { isPresentationValuesReader, presentationValuesProblems } from "@molis-ai/molis-work-plugin-sdk/presentation";
 import { AttentionModule } from "@molis-ai/molis-work-module-attention-resumption";
-import { homeChanged, homeOwnsView, type HomeReadSample } from "./surface-home-display.js";
+import { displayedFallback, homeChanged, homeOwnsView, type HomeReadSample } from "./surface-home-display.js";
 import type { SurfaceProjectContext } from "./surface-project-read.js";
 import { withSlotCorrectionCatalog } from "./surface-read-sample.js";
 
@@ -36,7 +36,7 @@ export function positionCorrection(value: unknown): Correction | null {
 }
 
 /** Capture the actual item from this read, then query only that owner/subject to recheck its membership and revision. */
-export function attentionPositionGuard(sample: HomeReadSample, { runtime }: SurfaceProjectContext, owner: string, subject: ActionSubject) {
+export function attentionPositionGuard(sample: HomeReadSample, { runtime }: Pick<SurfaceProjectContext, "runtime">, owner: string, subject: ActionSubject) {
   const { project_id: projectId, store } = runtime, attention = new AttentionModule(store.db, { exists: () => true });
   const original = sample.attention?.find(entry => entry.owner_plugin_id === owner && same(entry.subject, subject));
   if (!original) throw homeChanged();
@@ -91,6 +91,7 @@ export async function correctSurfacePosition(sample: HomeReadSample, context: Su
     const subject = input.subject;
     const group = groups.find(group => group.items.some(item => item.state === "ok" && same(item.subject, subject)));
     const item = group?.items.find(item => item.state === "ok" && same(item.subject, subject));
+    if (item && displayedFallback(sample, item)) throw hidden();
     if (input.correction === "pin" && (!sample.position?.pin || group?.kind === "attention")) throw invalid();
     const related = knownReference(sample, slot, subject, known);
     if (!item && (input.correction !== "reset" || !related)) throw hidden();

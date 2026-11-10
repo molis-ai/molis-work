@@ -1,4 +1,4 @@
-import { ActionError, bindActionClient, bindActionHandler, requireSynchronous, type ActionClient, type ActionExecutionContext, type ActionProviderRegistration, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionClient, bindActionHandler, requireSynchronous, type ActionClient, type ActionExecutionContext, type ActionProviderRegistration, type ActionSubjectContext, type ActionView, type SubjectContextRequest } from "@molis-ai/molis-work-contracts/platform/actions";
 import { compileActionSchema, type RetainedActionDirectory } from "@molis-ai/molis-work-kernel";
 import { CONTEXT_RELATION_TYPES } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import { PLUGIN_ATTENTION_READ_PERMISSION } from "@molis-ai/molis-work-contracts/platform/plugin-attention";
@@ -16,7 +16,7 @@ import type { PlacementHost } from "./placement-actions.js";
 import { installedPluginEntries } from "./plugin-installation-directory.js";
 import type { LocalProjectDatabase } from "./project-database.js";
 import { runningProjectPlatform } from "./project-plugins.js";
-import { surfaceHomeDirectory, type SurfaceHomeCatalogReader } from "./surface-home-directory.js";
+import { objectStageLocation, surfaceHomeDirectory, type SurfaceHomeCatalogReader } from "./surface-home-directory.js";
 import { surfaceSampleFor, retainSurfaceDirectory } from "./surface-read-sample.js";
 
 interface SurfaceHostPorts {
@@ -80,11 +80,23 @@ export function surfaceActionProvider(ports: SurfaceHostPorts): ActionProviderRe
       caller, current, beforeEffect: caller.beforeEffect, signal: sample?.request?.signal ?? caller.signal,
       catalog: home?.catalog ?? (() => sample?.catalog.plugins ?? surfacePlugins(ports, current)),
       ...(sample && !home ? { deadline: sample.deadline, retainCatalog: (plugins: readonly SurfacePlugin[]) => retainCatalog(sample.catalog, plugins, sample) } : {}),
-      ...(sample ? { keepPosition: (forms: NonNullable<typeof sample.rules>["forms"], pin: boolean) => { sample.rules = { forms, pin }; } } : {}),
+      ...(sample ? {
+        keepPosition: (forms, pin) => { sample.rules = { forms, pin }; },
+        ...(slot === "discussion" ? { keepCurrentSubjects: subjects => {
+          sample.currentSubjects = new Set(subjects.map(subject => JSON.stringify([subject.kind, subject.id])));
+        } } : {}),
+        keepFallback: proof => {
+          const entry = sample.catalog.entries.find(item => item.plugin === proof.plugin);
+          if (!entry) throw new ActionError("actions.provider_changed", "原对象的安装已变化");
+          sample.fallbacks.set(JSON.stringify([proof.subject.kind, proof.subject.id]), proof);
+          return Boolean(objectStageLocation(sample.catalog.entries, entry, proof.open));
+        },
+      } : {}),
       ...(sample?.discussion ? { discussion: sample.discussion } : {}),
       ...(home ? { home: home.ports } : {}),
       discover: async () => retainSurfaceDirectory(await client.discoverRetained(caller), sample),
       values: read<PresentationValuesInput, PresentationValues>,
+      subject: read<SubjectContextRequest, ActionSubjectContext>,
       corrections: createSurfaceCorrections(store.db, caller), now: () => ports.now().toISOString(),
       attention: () => {
         const entries = attention.listSurfaceEntries(projectId);

@@ -27,7 +27,7 @@ async function openNotes(t: test.TestContext, content: object[] = [paragraph(FIR
   const related = () => browser.evaluate<Array<{ work_id: string; relation: string }>>(`fetch(document.body.dataset.routePrefix + '/api/assistant/related?kind=pages_document&id=' + ${JSON.stringify(page.id)}, { headers: molisWorkControlHeaders() }).then(r => r.json()).then(body => body.works)`);
   // What the model was asked, as text: the Host names the object a round is about as 「正在看的对象：…」.
   const asked = (index: number) => JSON.stringify(model.requests[index] ?? null);
-  // As a person sends: words typed into the input, then ⌘/Ctrl+Enter (UIC-03).
+  // As a person sends: words typed into the input, then ⌘/Ctrl+Enter (UIC-05).
   const send = async (words: string) => {
     await browser.evaluate("document.querySelector('[data-assistant-composer] .mw-composer__input').focus()");
     await command("Input.insertText", { text: words }, sessionId);

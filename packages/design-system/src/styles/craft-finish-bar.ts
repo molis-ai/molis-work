@@ -335,6 +335,17 @@ export const CRAFT_BAR_STYLES = `
      height and grows with it. */
   ${SHELL} .bar-center > .assistant-composer { position: relative; padding-block: 8px; }
   ${SHELL} .assistant-composer > .mw-composer { width: 100%; }
+  /* The receipt chip above the input (specs/ai-input-receipts §4.1; 2026-11-09 audit fix): shown only while a question waits, its words
+     are what the next Send does and one click switches it. 44px to a finger, as every target. */
+  ${SHELL} .assistant-composer > .assistant-answer {
+    display: inline-flex; align-items: center; max-width: calc(100% - 12px); height: 28px; margin: 0 0 4px 6px; padding: 0 8px;
+    border: 0; border-radius: 7px; background: var(--nav-hover); color: var(--ink-soft);
+    font: inherit; font-size: 12px; font-weight: 500; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  ${SHELL} .assistant-composer > .assistant-answer[hidden] { display: none; }
+  ${SHELL} .assistant-composer > .assistant-answer:hover { background: var(--nav-active); color: var(--ink); }
+  ${SHELL} .assistant-composer > .assistant-answer:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
+  @media (max-width: 600px), (pointer: coarse) { ${SHELL} .assistant-composer > .assistant-answer { height: 44px; } }
   /* Its menus (＋, @, the delivery ▾) rise over the open Assistant panel above the bar (z 50), as the island's menus did (z 60). */
   ${SHELL} .assistant-composer :is(.mw-compose__menu, .mw-composer__controls) { z-index: 60; }
   /* The receiver's name opens its conversation (the island's click). */

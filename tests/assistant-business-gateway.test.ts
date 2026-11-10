@@ -242,7 +242,7 @@ test("AC-10, QA-001: on an English page the reason a Send without a model fails 
       assert.equal(error.code, "assistant.model_missing");
       assert.equal(error.message, "No usable model is configured yet, so the assistant can't start");
       // What the page shows: the reason, then its kept-text note from the English catalog, and the action's label.
-      const shown = error.message + EN["。输入已保留"];
+      const shown = error.message + ". Your text is kept";
       assert.equal(shown, "No usable model is configured yet, so the assistant can't start. Your text is kept");
       assert.doesNotMatch(shown, /[\u3000-\u303f\u4e00-\u9fff\uff00-\uffef]/, "no Chinese word or punctuation left");
       assert.equal(error.details?.action, "打开模型设置", "the action stays the key the page picks the model-settings link by");

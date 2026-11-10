@@ -77,6 +77,7 @@ export function composerMenus(c: Composer): ComposerMenus {
       const menu = toggle.parentElement!.querySelector<HTMLElement>("[data-compose-menu]")!;
       if (c.open === menu || !c.ai) return c.close(true);
       const choices = composerDeliveries(c.running, c.ai.delivery?.(), c.ai.labels.unsupported);
+      // Idle, the ordinary choice is the plain Send (a new turn); the target may still take 下一轮再做 (2026-11-09 audit fix).
       const labels = c.running ? c.ai.labels : { ...c.ai.labels, modes: { ...c.ai.labels.modes,
         "next-boundary": { name: c.labels.send, title: c.labels.sendTitle, description: "" } } };
       show(menu, renderComposerDeliveryMenu(c.id, labels, c.running ? choices : { ...choices, "next-boundary": { available: true } }, mac));

@@ -128,7 +128,7 @@ test("D0007 D0337 actual list script rejects late A/B/A responses and preserves 
   assert.ok(begin > 0 && end > begin);
   const pending: Array<{ route: string; resolve(value: { works: Array<{ work_id: string; draft: string; draft_revision?: number }> }): void }> = [];
   let route = "A";
-  const script = new Function("host", "api", `let works=[],curId=null,tabs=[],view=null,activeSend=null;
+  const script = new Function("host", "api", `let works=[],curId=null,tabs=[],view=null;
     const island={isConnected:true}, remember=()=>{},saveTabs=()=>{},openTab=()=>{},paintList=()=>{},paintAim=()=>{},paintSum=()=>{},drawTabs=()=>{};
     ${ASSISTANT_ISLAND_FACTORY_SCRIPT.slice(begin,end)}
     return {loadWorks,read:()=>works,edit:(id,text,revision)=>{curId=id;works=works.map(work=>work.work_id===id?{...work,draft:text,draft_revision:revision}:work);}};`);

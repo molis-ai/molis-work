@@ -2,9 +2,9 @@
   "exceptions": {
     "class plugins/native/plugin-builder/src/agent-workflow.ts#AgentBuilderWorkflow": {
       "kind": "cohesive-unit",
-      "reason": "一次插件创作的工作流状态机：提议、选能力、设计、逐个实现、装配、冒烟、验收、修复、采用，每步读写同一份运行记录；40 个方法最长 53 行，是同一条流水线上的相邻阶段，拆开会让一次创作的状态散在几个类里。",
+      "reason": "一次插件创作的工作流状态机。提议、选能力、设计、逐个实现、装配、冒烟、验收、修复、采用是相邻阶段，每步读写同一份运行记录。拆开会让一次创作的状态散在几个类里。",
       "size": {
-        "lines": 654,
+        "lines": 656,
         "methods": 39
       }
     }

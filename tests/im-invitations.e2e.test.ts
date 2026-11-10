@@ -80,3 +80,16 @@ test("RAC-102: real invitation UI generates explicitly, keeps retries in memory,
     }
   } finally { await close(); }
 });
+
+test("D0077 D0333 the standalone Server negotiates its own discussion words on the existing page route", async t => {
+  const f = await inviteFixture(t, { imAssets: { html: request => renderImPage({ locale: request.headers["accept-language"] }), css: IM_STYLES, script: IM_CLIENT_SCRIPT } });
+  for (const [request, lang, placeholder] of [["en-GB,en;q=0.8", "en", "Write a message…"], ["zh-CN,en;q=0.8", "zh-CN", "发送消息…"]]) {
+    const response = await fetch(f.origin + "/im", { headers: { "accept-language": request! } });
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.has("set-cookie"), false);
+    const html = await response.text();
+    assert.ok(html.includes(`<html lang="${lang}"`));
+    assert.ok(html.includes(`placeholder="${placeholder}"`));
+    assert.doesNotMatch(html, /is-embedded|workbench\.language\./u);
+  }
+});

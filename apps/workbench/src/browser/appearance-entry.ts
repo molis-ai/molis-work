@@ -3,6 +3,7 @@ import type { UiAppearanceReceipt, UiRequestFailure } from "@molis-ai/molis-work
 import type { WorkbenchAppearance } from "../appearance-document.js";
 import { mountAppearancePicker } from "./appearance-picker.js";
 import { createAppearanceSync } from "./appearance-sync.js";
+import { mountDiscussionAppearance } from "./discussion-appearance.js";
 import { mountDocumentAppearance, readDocumentAppearance } from "./appearance-view.js";
 
 declare global {
@@ -23,16 +24,18 @@ function mount(initial: WorkbenchAppearance): void {
   let current = initial;
   let picker: ReturnType<typeof mountAppearancePicker> | undefined;
   let receipt: UiAppearanceReceipt | undefined, feedback = "", readError = "", renderError = "";
+  let discussionFailed = false;
   let recovering = false, recoveryWrite = false, recoveryRevision = initial.selection_revision;
   const unconfirmedText = () => uiText.text("workbench.appearance-entry.change-unconfirmed-check-again");
 
   function drawNotice(): void {
     const pending = sync.uncertain && !sync.submitting;
-    message.textContent = renderError || readError || (pending ? unconfirmedText() : feedback);
+    message.textContent = renderError || readError || (pending ? unconfirmedText() : discussionFailed
+      ? uiText.text("common.appearance.window-couldnt-load-new-appearance-keeping-current-look") : feedback);
     notice.hidden = !message.textContent;
     notice.classList.toggle("is-visible", !notice.hidden);
     undo.hidden = !sync.available || sync.uncertain || !receipt || current.selection_revision !== receipt.selection_revision;
-    reread.hidden = !sync.available || !(renderError || readError || pending);
+    reread.hidden = !discussionFailed && (!sync.available || !(renderError || readError || pending));
     resume.hidden = !sync.canContinue;
   }
 
@@ -91,6 +94,7 @@ function mount(initial: WorkbenchAppearance): void {
       : problem === "loading-failed" ? uiText.text("workbench.appearance-entry.window-couldnt-load-new-appearance-keeping-current-look") : "";
     drawNotice();
   });
+  const discussion = mountDiscussionAppearance(failed => { discussionFailed = failed; drawNotice(); });
   const open = () => {
     if (recovery.open || document.body.inert) return;
     recoveryRevision = current.selection_revision;
@@ -127,11 +131,14 @@ function mount(initial: WorkbenchAppearance): void {
     undo.disabled = true;
     void sync.undo(receipt).catch(() => { feedback = uiText.text("workbench.appearance-entry.appearance-has-changed-since-then-change-can-no"); drawNotice(); }).finally(() => { undo.disabled = false; });
   });
-  reread.addEventListener("click", sync.retry);
+  reread.addEventListener("click", () => {
+    if (discussionFailed && !renderError && !readError && !sync.uncertain) discussion.retry();
+    else sync.retry();
+  });
   resume.addEventListener("click", () => { void sync.continue().catch(() => { /* The common operation feedback owns the message. */ }); });
   recovery.querySelector("[data-appearance-check]")?.addEventListener("click", sync.retry);
   notice.querySelector("[data-appearance-dismiss]")?.addEventListener("click", () => {
-    readError = ""; feedback = ""; page.dismissProblem();
+    readError = ""; feedback = ""; discussionFailed = false; page.dismissProblem();
   });
   drawNotice();
 }

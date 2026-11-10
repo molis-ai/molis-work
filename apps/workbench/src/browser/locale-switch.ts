@@ -1,36 +1,12 @@
+import type { ProducedLog } from "@molis-ai/molis-work-design-system/produced-text";
 import type { OwnedTextRef } from "@molis-ai/molis-work-contracts/platform/ui";
+
+export { createProducedLog } from "@molis-ai/molis-work-design-system/produced-text";
 
 // Changing a page's language in place (specs/font-and-skin-system/a-section-contract.md §5.4): business code does nothing. The server draws the region in
 // the old and the new language; where the two differ is what to change, and the person's own content is the same in both. Only `Text.data` and
 // `setAttribute` are written: no node is removed or replaced, no `innerHTML`, so listeners, focus, a field's text and selection, scrolling and what is
 // open stay as they are. Batch 16 proves it on the real first screen; A-section proves it on the component board.
-
-/** What the browser's `t` and `say` produced, as plain text with the reference it came from; at most `limit`, the oldest leaves first. */
-export interface ProducedLog {
-  record(output: string, ref: OwnedTextRef): void;
-  find(output: string, node: Text | Attr): OwnedTextRef | undefined;
-  remember(node: Text | Attr, output: string, ref?: OwnedTextRef): void;
-}
-
-export function createProducedLog(limit = 2000): ProducedLog {
-  const entries = new Map<string, OwnedTextRef>();
-  const retitled = new WeakMap<Text | Attr, { output: string; ref: OwnedTextRef }>();
-  return {
-    record(output, ref) {
-      entries.delete(output);
-      entries.set(output, ref);
-      if (entries.size > limit) entries.delete(entries.keys().next().value!);
-    },
-    find(output, node) {
-      const known = retitled.get(node);
-      return known?.output === output ? known.ref : entries.get(output);
-    },
-    remember(node, output, ref) {
-      if (ref) retitled.set(node, { output, ref });
-      else retitled.delete(node);
-    },
-  };
-}
 
 export interface LocaleMerge {
   /** Words and attributes the two renders told apart and that were changed. */
@@ -67,23 +43,30 @@ function textWord(node: Text, group: string, prefix: string): Word {
 }
 
 const groupOf = (element: Element, group: string) => element.id ? `#${element.id}` : element.hasAttribute("data-plugin-contribution") ? `@${element.getAttribute("data-plugin-contribution")}` : group;
-const childrenOf = (node: Node): readonly Node[] => [...(node instanceof HTMLTemplateElement ? node.content : node).childNodes];
+function childrenOf(node: Node): readonly Node[] {
+  const element = node as Element;
+  const template = element.localName === "template" && element.namespaceURI === "http://www.w3.org/1999/xhtml";
+  return [...(template ? (node as HTMLTemplateElement).content : node).childNodes];
+}
 
 /** The words of a region in document order. Blank text is not a word: two words with only space between them are next to each other. */
 function wordsOf(node: Node, group: string, into: Word[], skip?: ReadonlySet<ParentNode>): Word[] {
   for (const child of childrenOf(node)) {
-    if (child instanceof Text) {
-      if (child.data.trim() !== "") into.push(textWord(child, group, "t"));
-    } else if (child instanceof Element && !skip?.has(child)) {
-      const inner = groupOf(child, group);
-      for (const name of wordAttributes(child)) {
-        const node = child.getAttributeNode(name)!, value = node.value;
-        into.push({ node, group: inner, key: `a:${name}=${value}`, value, read: () => node.ownerElement === child ? node.value : null, set: next => { node.value = next; } });
+    if (child.nodeType === Node.TEXT_NODE) {
+      const text = child as Text;
+      if (text.data.trim() !== "") into.push(textWord(text, group, "t"));
+    } else if (child.nodeType === Node.ELEMENT_NODE) {
+      const element = child as Element;
+      if (skip?.has(element)) continue;
+      const inner = groupOf(element, group);
+      for (const name of wordAttributes(element)) {
+        const node = element.getAttributeNode(name)!, value = node.value;
+        into.push({ node, group: inner, key: `a:${name}=${value}`, value, read: () => node.ownerElement === element ? node.value : null, set: next => { node.value = next; } });
       }
-      if (child.localName === "script" || child.localName === "style") {
-        const text = child.firstChild;
-        if (child.hasAttribute("data-ui-language-model") && child.getAttribute("type") === "application/json" && text instanceof Text) into.push(textWord(text, inner, "s"));
-      } else if (!keepsChildren(child)) wordsOf(child, inner, into, skip);
+      if (element.localName === "script" || element.localName === "style") {
+        const text = element.firstChild;
+        if (element.hasAttribute("data-ui-language-model") && element.getAttribute("type") === "application/json" && text?.nodeType === Node.TEXT_NODE) into.push(textWord(text as Text, inner, "s"));
+      } else if (!keepsChildren(element)) wordsOf(element, inner, into, skip);
     }
   }
   return into;

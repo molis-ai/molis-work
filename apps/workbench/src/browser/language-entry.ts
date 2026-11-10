@@ -3,6 +3,7 @@ import { createTextReader, frameUiLanguage, preferredUiLanguage, t } from "@moli
 import { createLocaleSwitch } from "./locale-switch.js";
 import { settingsContentOf } from "../settings-content.js";
 import type { InlinePageText } from "../language-resource.js";
+import { mountDiscussionLanguage } from "./discussion-language.js";
 import { installLanguageText } from "./language-text.js";
 import { assetOf, installLanguageAssets } from "./language-asset.js";
 import { nativeLanguagePublisher, type NativeDocumentLanguage } from "./native-language.js";
@@ -101,8 +102,20 @@ function prepareDeletionScopeWords(preparedPage: ParentNode, regions: readonly {
   };
 }
 
+function paintLanguageControls(preference: Preference): void {
+  for (const control of document.querySelectorAll<HTMLElement>("[data-ui-language], [data-board-lang]")) {
+    const active = (control.dataset.uiLanguage ?? control.dataset.boardLang) === preference;
+    if (control.hasAttribute("data-board-lang")) control.setAttribute("aria-pressed", String(active));
+    control.classList.toggle("is-current", active);
+    if (active) control.setAttribute("aria-current", "true"); else control.removeAttribute("aria-current");
+  }
+}
+
+const languageOf = (asset: LanguageAsset) => asset.catalog.languages.find(row => row.tag === asset.pack.locale)!;
+const nativeLanguageOf = ({ tag, html_lang, direction }: NativeDocumentLanguage): NativeDocumentLanguage => ({ tag, html_lang, direction });
+
 function showLanguage(asset: LanguageAsset) {
-  const { html_lang, direction, tag } = asset.catalog.languages.find(row => row.tag === asset.pack.locale)!;
+  const { html_lang, direction, tag } = languageOf(asset);
   document.documentElement.lang = html_lang;
   document.documentElement.dir = direction;
   document.documentElement.dataset.uiLanguageTag = tag;
@@ -115,10 +128,7 @@ function documentLanguage(initial: LanguageAsset, load: LoadAsset) {
   const text = installLanguageText(initial.pack.locale, packsFor(initial.pack, inline), intlLocale(initial.catalog));
   showLanguage(initial);
   globalThis.molisWorkLanguageCatalog = () => displayed.catalog;
-  const publishNative = nativeLanguagePublisher(() => {
-    const { tag, html_lang, direction } = displayed.catalog.languages.find(row => row.tag === displayed.pack.locale)!;
-    return { tag, html_lang, direction };
-  });
+  const publishNative = nativeLanguagePublisher(() => nativeLanguageOf(languageOf(displayed)));
   const local = localLanguageQuery();
   const broadcast = !local && typeof BroadcastChannel === "function" ? new BroadcastChannel("molis-work-ui-language") : null;
   let intent: Request | undefined, lastSaved: Request | undefined, failure: HTMLElement | undefined;
@@ -130,6 +140,9 @@ function documentLanguage(initial: LanguageAsset, load: LoadAsset) {
     if (!result.ok || result.redirected || !result.headers.get("content-type")?.startsWith("text/html")) return null;
     return new DOMParser().parseFromString(await result.text(), "text/html");
   };
+  const discussion = mountDiscussionLanguage(() => frameUiLanguage(languageOf(displayed)), () => {
+    if (intent) retry(intent);
+  });
   const switcher = createLocaleSwitch({
     root: document, render, produced: text.produced,
     async prepare(locale, signal, next, previous) {
@@ -145,11 +158,12 @@ function documentLanguage(initial: LanguageAsset, load: LoadAsset) {
       if (choice.native && (choice.native.language.html_lang !== language.html_lang || choice.native.language.direction !== language.direction)) {
         throw new Error(t.text("workbench.language.load-failed"));
       }
-      const [frames, settings] = previous && next ? await Promise.all([
+      const [frames, settings, im] = previous && next ? await Promise.all([
         globalThis.molisPluginFrames?.prepareLanguage(frameUiLanguage(language), signal, previous, next),
         prepareSettings(render, displayed.pack.locale, locale, signal),
+        discussion.prepare(frameUiLanguage(language), signal),
       ]) : [];
-      return { asset, choice, frames, settings, deletionScopeWords: next && prepareDeletionScopeWords(next, settings?.regions ?? []),
+      return { asset, choice, frames, settings, im, deletionScopeWords: next && prepareDeletionScopeWords(next, settings?.regions ?? []),
         inline: projected, reader: createTextReader({ packs: packsFor(asset.pack, projected), locale, intlLocale: intlLocale(asset.catalog) }) };
     },
     regions: prepared => prepared?.settings?.regions ?? [],
@@ -172,11 +186,14 @@ function documentLanguage(initial: LanguageAsset, load: LoadAsset) {
       const asset = prepared?.asset ?? displayed, projected = prepared?.inline ?? inline;
       prepared?.frames?.assertCurrent();
       prepared?.settings?.assertCurrent();
-      text.select(locale, packsFor(asset.pack, projected), intlLocale(asset.catalog));
-      showLanguage(asset);
-      prepared?.frames?.apply();
-      prepared?.deletionScopeWords?.();
-      displayed = asset; inline = projected;
+      const commit = () => {
+        text.select(locale, packsFor(asset.pack, projected), intlLocale(asset.catalog));
+        showLanguage(asset);
+        prepared?.frames?.apply();
+        prepared?.deletionScopeWords?.();
+        displayed = asset; inline = projected;
+      };
+      if (prepared?.im) prepared.im.apply(commit); else commit();
     },
     retext(ref, _locale, prepared) { return prepared?.reader.text(ref) ?? ""; },
   }, initial.pack.locale);
@@ -200,18 +217,14 @@ function documentLanguage(initial: LanguageAsset, load: LoadAsset) {
       if (intent !== choice) return;
       if (changed && !result) { retry(choice, anchor); return; }
       failure?.remove();
-      for (const control of document.querySelectorAll<HTMLElement>("[data-ui-language], [data-board-lang]")) {
-        const active = (control.dataset.uiLanguage ?? control.dataset.boardLang) === choice.preference;
-        if (control.hasAttribute("data-board-lang")) control.setAttribute("aria-pressed", String(active));
-        control.classList.toggle("is-current", active);
-        if (active) control.setAttribute("aria-current", "true"); else control.removeAttribute("aria-current");
-      }
+      paintLanguageControls(choice.preference);
       const revisionChanged = choice.native !== undefined && String(choice.native.revision) !== document.documentElement.dataset.uiNativeLanguageRevision;
       if (revisionChanged) document.documentElement.dataset.uiNativeLanguageRevision = String(choice.native?.revision);
       if (changed || revisionChanged) {
         if (local) history.replaceState(history.state, "", languagePath(choice.tag) + location.hash);
         document.dispatchEvent(new CustomEvent("molis-work:language-changed", { detail: { tag: choice.tag } }));
       }
+      discussion.sync();
       if (!local && changed) publishNative();
       if (changed) for (const surface of document.querySelectorAll("[data-work-surface]:not([hidden])")) surface.dispatchEvent(new CustomEvent("molis-work:select-item", { detail: { invalidate: true } }));
     } catch { if (intent === choice) retry(choice, anchor); }

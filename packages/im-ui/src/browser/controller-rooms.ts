@@ -1,5 +1,5 @@
-import { imText as L } from "../locale.js";
-import { escapeHtml as escapeImText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { setImHeading } from "../views.js";
+import { escapeHtml as escapeImText, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { ImRoomState, ImThreadState } from '@molis-ai/molis-work-contracts/services/im';
 import type { ApiError } from './types.js';
 import type { ImBaseCtx, ImCtx } from './controller-types.js';
@@ -24,8 +24,9 @@ export function createImRooms(base: ImBaseCtx, context: () => ImCtx): Pick<ImCtx
     c.formFor('thread').hidden = true;
     c.syncComposer('group');
     c.syncComposer('thread');
-    q('[data-room-title]').textContent = s.rooms.find(room => room.id === id)?.title || (L("群聊"));
-    q('[data-member-count]').textContent = (L("正在载入…"));
+    const title = s.rooms.find(room => room.id === id)?.title;
+    setImHeading(q('[data-room-title]'), title || uiText.text("im-ui.room.group"), Boolean(title));
+    q('[data-member-count]').textContent = (uiText.text("im-ui.status.loading"));
     q('[data-thread-strip]').replaceChildren();
     q('[data-member-avatars]').replaceChildren();
     q('[data-action="invite"]').hidden = true;
@@ -35,7 +36,7 @@ export function createImRooms(base: ImBaseCtx, context: () => ImCtx): Pick<ImCtx
     q('[data-conversations]').classList.remove('has-thread');
     root.classList.remove('show-directory');
     q('[data-sidebar-scrim]')?.setAttribute('hidden', '');
-    q('[data-stream="group"]').innerHTML = ("<p class=\"im-empty\" role=\"status\">" + escapeImText(L("正在载入群聊…")) + "</p>");
+    q('[data-stream="group"]').innerHTML = ("<p class=\"im-empty\" role=\"status\">" + escapeImText(uiText.text("im-ui.room.loading")) + "</p>");
     q('[data-conversations]').classList.add('im-loading');
     try {
       const [state, messages] = await Promise.all([api<ImRoomState>(c.pathFor(id)), latest(c.pathFor(id), [], null, () => s.epoch === version)]);
@@ -60,7 +61,7 @@ export function createImRooms(base: ImBaseCtx, context: () => ImCtx): Pick<ImCtx
     catch (cause) {
       const error = cause as ApiError;
       if (version === s.epoch) {
-        q('[data-stream="group"]').innerHTML = '<div class="im-empty">' + e(error.message) + ("<p><button class=\"mw-btn mw-btn--secondary mw-btn--sm\" type=\"button\" data-action=\"retry\">" + escapeImText(L("重试")) + "</button></p></div>");
+        q('[data-stream="group"]').innerHTML = '<div class="im-empty">' + e(error.message) + ("<p><button class=\"mw-btn mw-btn--secondary mw-btn--sm\" type=\"button\" data-action=\"retry\">" + escapeImText(uiText.text("im-ui.control.retry")) + "</button></p></div>");
         c.syncError(error.message);
       }
     }
@@ -86,9 +87,10 @@ export function createImRooms(base: ImBaseCtx, context: () => ImCtx): Pick<ImCtx
     s.threadMessages = [];
     s.threadPage = null;
     c.revealThread();
-    q('[data-thread-title]').textContent = s.roomState!.threads.find(t => t.id === id)?.title || (L("话题"));
+    const title = s.roomState!.threads.find(thread => thread.id === id)?.title;
+    setImHeading(q('[data-thread-title]'), title || uiText.text("im-ui.thread.topic"), Boolean(title));
     q('[data-thread-context]').replaceChildren();
-    q('[data-stream="thread"]').innerHTML = ("<p class=\"im-empty\" role=\"status\">" + escapeImText(L("正在载入讨论…")) + "</p>");
+    q('[data-stream="thread"]').innerHTML = ("<p class=\"im-empty\" role=\"status\">" + escapeImText(uiText.text("im-ui.thread.loading")) + "</p>");
     c.formFor('thread').hidden = true;
     c.updateHeader();
     try {
@@ -115,7 +117,7 @@ export function createImRooms(base: ImBaseCtx, context: () => ImCtx): Pick<ImCtx
     catch (cause) {
       const error = cause as ApiError;
       if (version === s.epoch)
-        q('[data-stream="thread"]').innerHTML = '<div class="im-empty">' + e(error.message) + '<p><button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-action="select-thread" data-id="' + e(id) + ("\">" + escapeImText(L("重试")) + "</button></p></div>");
+        q('[data-stream="thread"]').innerHTML = '<div class="im-empty">' + e(error.message) + '<p><button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-action="select-thread" data-id="' + e(id) + ("\">" + escapeImText(uiText.text("im-ui.control.retry")) + "</button></p></div>");
     }
   }
   return { selectRoom, selectThread };

@@ -218,7 +218,7 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
   let open=false,closing=null,trigger=null;
   const size=()=>Math.min(Math.max(innerWidth*side().ratio,360),innerWidth*.55);
   const paint=()=>{const width=Math.round(size());document.body.style.setProperty('--side-panel-width',width+'px');divider.setAttribute('aria-valuenow',String(width));divider.setAttribute('aria-valuemin','360');divider.setAttribute('aria-valuemax',String(Math.floor(innerWidth*.55)));};
-  const imVisible=()=>frame?.contentWindow?.postMessage({type:'molis:im-visibility',visible:open&&current()==='discussion',theme:document.documentElement.dataset.resolvedTheme},location.origin);
+  const imVisible=()=>frame?.contentWindow?.postMessage({type:'molis:im-visibility',visible:open&&current()==='discussion'},location.origin);
   const load=(body)=>{
     if(body.dataset.sideBody==='discussion'&&frame&&!frame.getAttribute('src'))frame.src='/im?embedded=1'+(projectId?'&project='+encodeURIComponent(projectId):'');
     const src=body.dataset.sideSrc,inner=body.querySelector('[data-side-frame]');
@@ -391,7 +391,6 @@ export const SIDE_PANE_FACTORY = String.raw`({ops,getState,save=()=>{},remember=
   // A dialog opened from the panel (the import dialog) closes on its own Escape; the panel stays.
   panel.addEventListener('keydown',event=>{if(event.key==='Escape'&&!event.defaultPrevented&&open&&!event.target.closest?.('dialog')){event.preventDefault();setOpen(false);save();}});
   frame?.addEventListener('load',imVisible);
-  new MutationObserver(imVisible).observe(document.documentElement,{attributes:true,attributeFilter:['data-resolved-theme']});
   addEventListener('message',async event=>{
     if(event.origin!==location.origin)return;
     if(event.data?.type==='molis:side-forward'){const made=forwarded.from(event)&&forwarded.event(event.data.name,event.data.detail);made&&window.dispatchEvent(made);return;}

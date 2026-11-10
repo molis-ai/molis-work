@@ -12,7 +12,7 @@ import { inspectLocaleSet, parseLocalePack, parseUiLanguageCatalog } from "@moli
 // The one table of what ships with the product (specs/font-and-skin-system/a-section-contract.md §1.3, §3.6). What a row says of a file, and that nothing ships without a row.
 
 const ROOT = fileURLToPath(new URL("../", import.meta.url));
-const PACKAGE_DIRECTORIES: Readonly<Record<string, string>> = { "@molis-ai/molis-work-design-system": "packages/design-system", "@molis-ai/molis-work-app-workbench": "apps/workbench" };
+const PACKAGE_DIRECTORIES: Readonly<Record<string, string>> = { "@molis-ai/molis-work-design-system": "packages/design-system", "@molis-ai/molis-work-app-workbench": "apps/workbench", "@molis-ai/molis-work-im-ui": "packages/im-ui" };
 const NOT_REGISTERED = new Set(["packages/design-system/fonts/README.md", "packages/design-system/resources/registry.json"]);
 const directoryOf = (name: string) => PACKAGE_DIRECTORIES[name] ?? assert.fail(`登记表的包 ${name} 不认识，在 PACKAGE_DIRECTORIES 加上它`);
 const RESOURCES = BASELINE_REGISTRY.resources;
@@ -84,11 +84,11 @@ test("FSS-58 the two font rows keep Local Host off the path the release does not
 
 test("FSS-58 a language directory's files parse, are the row's owner's, and agree with each other", () => {
   const rows = RESOURCES.filter((row) => row.kind === "locale");
-  assert.deepEqual(rows.map((row) => row.owner), ["workbench"]);
+  assert.deepEqual(rows.map((row) => row.owner), ["workbench", "im-ui"]);
+  const catalog = parseUiLanguageCatalog(readFileSync(path.join(ROOT, "apps/workbench/resources/languages.json"), "utf8"));
+  assert.ok(catalog.ok);
   for (const row of rows) {
     const directory = path.join(ROOT, directoryOf(row.package), row.path);
-    const catalog = parseUiLanguageCatalog(readFileSync(path.join(directory, "..", "languages.json"), "utf8"));
-    assert.ok(catalog.ok);
     const packs = readdirSync(directory).sort().map((name) => {
       const parsed = parseLocalePack(readFileSync(path.join(directory, name), "utf8"), { file: name });
       assert.ok(parsed.ok, `${row.id} ${name}: ${JSON.stringify(parsed.ok ? null : parsed.problems)}`);
@@ -96,7 +96,8 @@ test("FSS-58 a language directory's files parse, are the row's owner's, and agre
       assert.equal(`${parsed.value.locale}.json`, name, `${row.id} ${name}: the file is named for its language`);
       return parsed.value;
     });
-    assert.deepEqual(packs.map(pack => pack.locale), catalog.value.languages.map(language => language.tag).sort());
+    if (row.owner === "workbench") assert.deepEqual(packs.map(pack => pack.locale), catalog.value.languages.map(language => language.tag).sort());
+    else assert.deepEqual(packs.map(pack => pack.locale), ["en", "zh"], "the shipped discussion packs include its default and its English words");
     assert.deepEqual(inspectLocaleSet(packs, { default: catalog.value.default, directory: row.path }), [], row.id);
   }
 });
@@ -146,6 +147,42 @@ test("FSS-34 the same Workbench build discovers and serves a language added only
     const rule = "Reply to the person in British English unless they explicitly ask for another language this round.";
     writeFileSync(path.join(host, "prompts/reply-language/en-GB.md"), rule + "\n");
     assert.deepEqual(authority(), { prompt_id: "reply-language", version: 1, body: rule });
+    const imSource = path.join(ROOT, "packages/im-ui"), im = path.join(scratch, "im");
+    for (const item of ["package.json", "dist", "resources", "node_modules"]) cpSync(path.join(imSource, item), path.join(im, item), { recursive: true });
+    const imLink = path.join(host, "node_modules/@molis-ai/molis-work-im-ui");
+    rmSync(imLink); symlinkSync(im, imLink);
+    const discussion = () => JSON.parse(execFileSync(process.execPath, ["--input-type=module", "-e", String.raw`
+      import http from "node:http";
+      import { createLocalImServer } from "./host/dist/im-server.js";
+      import { resolveWebLocaleChoice, runWithLocale } from "./host/dist/web-locale.js";
+      const im = createLocalImServer(process.cwd() + "/discussion-home");
+      let origin = "";
+      const server = http.createServer((request, response) => {
+        const { tag, source } = resolveWebLocaleChoice(undefined, request.headers["accept-language"]);
+        void runWithLocale(tag, () => im.handle(request, response, new URL(request.url, origin), origin), source);
+      });
+      await new Promise(resolve => server.listen(0, "127.0.0.1", resolve));
+      origin = "http://127.0.0.1:" + server.address().port;
+      try {
+        const response = await fetch(origin + "/im?embedded=1", { headers: { "accept-language": "en-GB" } });
+        const html = await response.text();
+        const projection = JSON.parse(html.match(/id="im-locale-pack">([^<]+)</)[1]);
+        process.stdout.write(JSON.stringify({ status: response.status, language: projection.language, packs: projection.packs.map(pack => pack.locale),
+          title: html.match(/<title>([^<]+)<\/title>/)[1], placeholder: html.match(/id="im-group-input"[^>]+placeholder="([^"]+)"/)[1] }));
+      } finally { im.stop(); server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); im.close(); }
+    `], { cwd: scratch, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }));
+    const { name: _name, ...language } = descriptor;
+    assert.deepEqual(discussion(), { status: 200, language, packs: ["zh", "en"], title: "Project discussion · Molis Work", placeholder: "Write a message…" });
+    const imLocale = path.join(im, "resources/locales/en.json"), imEnglish = JSON.parse(readFileSync(imLocale, "utf8"));
+    delete imEnglish.messages["im-ui.message.group-placeholder"];
+    writeFileSync(imLocale, JSON.stringify(imEnglish));
+    writeFileSync(path.join(im, "resources/locales/en-GB.json"), JSON.stringify({ ...imEnglish, locale: "en-GB", messages: { "im-ui.page.title": "Project conversation · Molis Work" } }));
+    const selected = discussion();
+    assert.equal(selected.title, "Project conversation · Molis Work");
+    assert.equal(selected.placeholder, "发送消息…", "a word missing from the exact and base IM packs uses its owner default");
+    assert.deepEqual(selected.language, language);
+    assert.equal(selected.packs[0], "zh");
+    assert.deepEqual(selected.packs.slice(1).sort(), ["en", "en-GB"]);
     const messages = { ...pack.messages }; delete messages["workbench.language.retry"];
     writeFileSync(packPath, JSON.stringify({ ...pack, locale: descriptor.tag, messages }));
     assert.throws(probe, /workbench\.language\.retry/, "an incomplete selected platform pack is refused");

@@ -990,3 +990,144 @@ test("FSS-35 FSS-36 connection guides translate with the same OAuth form and kee
   await evaluate("document.querySelector('[data-ui-language-status] button').click()");
   await waitFor(`document.documentElement.lang === 'en' && ${get(row + " .settings-connection-row__identity small")}.textContent === 'Issues and projects.'`);
 });
+
+test("FSS-20 FSS-27 FSS-35 FSS-36 discussion retitles the open conversation and follows appearance without touching its state", { timeout: 120_000 }, async t => {
+  const b = await openGoalBrowser(t, "user", undefined, null); if (!b?.projectId) return;
+  await b.setViewport(1440, 900);
+  const frame = "document.querySelector('[data-side-body=\"discussion\"] iframe')";
+  const im = frame + "?.contentDocument";
+  const stream = im + ".querySelector('[data-scroll=group]')";
+  const project = "/projects/" + b.projectId + "/?desktop=1&settings=appearance";
+  const choose = async (tag: string) => {
+    await b.evaluate(`[...document.querySelectorAll('a[data-ui-language=${tag}]')].find(link => link.getClientRects().length).click()`);
+    await b.waitFor(`document.documentElement.dataset.uiLanguageTag === ${JSON.stringify(tag)}`);
+  };
+  const reads: Array<{ language: string; hasCookie: boolean; hasControl: boolean; status: number; createsSession: boolean }> = [];
+  const writes: string[] = [];
+  let watchWrites = false;
+  const pending = new Set<string>();
+  t.after(() => { if (pending.size) t.diagnostic(`Open HTTP requests at teardown: ${[...pending].join(", ")}`); });
+  const initialRead = deferred();
+  b.server.on("request", (request, response) => {
+    const path = request.url ?? "";
+    if (/\/im(?:\?|\/)|\/api\/(?:assistant|ui)\//u.test(path)) {
+      const key = request.method + " " + path.split("?")[0];
+      pending.add(key); response.once("close", () => pending.delete(key));
+    }
+    if (path === "/im?embedded=1" && !request.headers["x-molis-work-ui-locale"]) {
+      response.once("finish", () => reads.push({ language: request.headers["accept-language"] ?? "", hasCookie: Boolean(request.headers.cookie),
+        hasControl: Boolean(request.headers["x-molis-work-control-token"]), status: response.statusCode, createsSession: response.hasHeader("set-cookie") }));
+    }
+    if (request.method === "POST" && /\/im\/(?:api\/|connect$)/u.test(path)) {
+      if (watchWrites) writes.push(path);
+      if (path.endsWith("/read")) response.once("finish", () => { if (response.statusCode === 200) initialRead.resolve(); });
+    }
+  });
+  await b.navigate(() => b.command("Page.navigate", { url: b.origin + "/locale?lang=zh&next=" + encodeURIComponent(project) }, b.sessionId));
+  await b.waitFor("document.documentElement.dataset.uiLanguageTag === 'zh' && !!document.querySelector('[data-side-tabs]') && document.querySelector('a[data-ui-language=en]')?.getClientRects().length");
+  await choose("en");
+  assert.deepEqual(reads, [], "a discussion that has never opened costs no language reads");
+  await choose("zh");
+  assert.equal(await b.evaluate("fetch('/im?embedded=1',{headers:{'x-molis-work-ui-locale':'en'}}).then(answer=>answer.status)"), 403);
+  await b.click("[data-side-tabs] [data-side-tab][aria-selected=true]");
+  await b.waitFor("document.querySelector('[data-side-tab=discussion]')?.checkVisibility()");
+  await b.click("[data-side-tab=discussion]");
+  await b.waitFor(`${im}?.querySelector('[data-name-form] input')`);
+  await b.evaluate(`(() => {
+    const form = ${im}.querySelector('[data-name-form]'); form.querySelector('input').value = '引用'; form.requestSubmit();
+  })()`);
+  const activeRoom = `${im}?.querySelector('[data-room-list] [aria-current=true]')?.dataset.id`;
+  await b.waitFor(`${activeRoom} && ${im}.querySelector('#im-group-input').disabled === false`);
+  const room = await b.evaluate<string>(activeRoom);
+  const post = (body: string) => b.evaluate<number>(`${frame}.contentWindow.fetch('/im/api/rooms/${room}/messages', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_id: crypto.randomUUID(), body: ${JSON.stringify(body)} })
+  }).then(answer => answer.status)`);
+  assert.equal(await post("引用"), 200);
+  for (let i = 0; i < 16; i++) assert.equal(await post(`第 ${i} 条 · ${"这段正文用来翻阅讨论记录。".repeat(6)}`), 200);
+  await b.waitFor(`${stream}.textContent.includes('第 15 条') && ${stream}.dataset.follow === 'following'`);
+  await initialRead.promise;
+  const point = await b.evaluate<{ x: number; y: number }>(`(() => {
+    const frame = ${frame}.getBoundingClientRect(), scroll = ${stream}.getBoundingClientRect();
+    return { x: frame.x + scroll.x + scroll.width / 2, y: frame.y + scroll.y + scroll.height / 2 };
+  })()`);
+  await b.evaluate(`void (window.discussionScrollEnd = new Promise(resolve => ${stream}.addEventListener('scrollend', () => resolve(true), { once: true })))`);
+  await b.command("Input.dispatchMouseEvent", { type: "mouseWheel", ...point, deltaX: 0, deltaY: -300 }, b.sessionId);
+  await b.evaluate("discussionScrollEnd");
+  await b.waitFor(`${stream}.dataset.follow === 'detached'`);
+  await b.evaluate(`(() => {
+    const doc = ${im}, input = doc.querySelector('#im-group-input'), row = doc.querySelector('[data-message]'), day = doc.querySelector('.im-date');
+    window.discussionBefore = { doc, input, row, day, scroll: ${stream}, title: doc.querySelector('[data-room-title]').textContent };
+    input.value = 'Keep 引用 原稿'; input.dispatchEvent(new Event('input', { bubbles: true })); input.focus({ preventScroll: true }); input.setSelectionRange(5, 7, 'backward');
+  })()`);
+  const before = await b.evaluate<number>(`${stream}.scrollTop`);
+  watchWrites = true;
+  await choose("en");
+  const state = (language: string, label: string, day: string, keepFocus = true) => `(() => {
+    const doc = ${im}, saved = discussionBefore, first = doc.querySelector('[data-message]');
+    return doc === saved.doc && doc.documentElement.lang === ${JSON.stringify(language)} &&
+      first === saved.row && doc.querySelector('.im-date') === saved.day && saved.day.textContent === ${JSON.stringify(day)} &&
+      (!${keepFocus} || saved.input === doc.activeElement) && saved.input.value === 'Keep 引用 原稿' &&
+      saved.input.selectionStart === 5 && saved.input.selectionEnd === 7 && saved.input.selectionDirection === 'backward' &&
+      first.querySelector('[data-action=quote]').textContent === ${JSON.stringify(label)} &&
+      first.querySelector('.im-message-body').textContent === '引用' && first.querySelector('.im-message-meta strong').textContent === '引用' &&
+      doc.querySelector('[data-room-title]').textContent === saved.title && saved.scroll === ${stream} && saved.scroll.dataset.follow === 'detached';
+  })()`;
+  await b.waitFor(state("en", "Quote", "Today"));
+  assert.equal(await b.evaluate(`${stream}.scrollTop`), before);
+  assert.match(await b.evaluate<string>(`${im}.querySelector('time').textContent`), /^\d\d:\d\d$/u);
+
+  const tree = await b.command<{ frameTree: { childFrames?: Array<{ frame: { id: string; url: string } }> } }>("Page.getFrameTree", {}, b.sessionId);
+  const discussionFrame = tree.frameTree.childFrames?.find(({ frame }) => frame.url.startsWith(b.origin + "/im?embedded=1&project="));
+  assert.ok(discussionFrame);
+  const priorSkin = await b.evaluate<string>(`${im}.documentElement.dataset.uiSkin`);
+  let refuseDiscussionSheet = true, refusals = 0;
+  const fetchErrors: unknown[] = [];
+  const stop = b.on("Fetch.requestPaused", (params, session) => {
+    if (session !== b.sessionId) return;
+    const { requestId, frameId } = params as { requestId: string; frameId: string };
+    const refuse = refuseDiscussionSheet && frameId === discussionFrame.frame.id;
+    if (refuse) refusals++;
+    void b.command(refuse ? "Fetch.failRequest" : "Fetch.continueRequest", refuse ? { requestId, errorReason: "Failed" } : { requestId }, b.sessionId)
+      .catch(error => fetchErrors.push(error));
+  });
+  t.after(stop);
+  await b.command("Network.setCacheDisabled", { cacheDisabled: true }, b.sessionId);
+  await b.command("Fetch.enable", { patterns: [{ urlPattern: b.origin + "/assets/ui-skin/folio-1.css", resourceType: "Stylesheet" }] }, b.sessionId);
+  const applied = await b.evaluate<boolean>(`(async () => {
+    document.querySelector('[data-look-card=folio] .mw-look-card__pick').click();
+    const until = Date.now() + 14000;
+    while (Date.now() < until) {
+      if (document.querySelector('.mw-look-proof')?.dataset.state === 'ready') { document.querySelector('[data-look-apply]').click(); return true; }
+      await new Promise(resolve => setTimeout(resolve, 30));
+    }
+    return false;
+  })()`);
+  assert.ok(applied, "Folio is selected through the real Settings controls");
+  const warning = "This window couldn’t load the new appearance. It is keeping the current look.";
+  const notice = "document.querySelector('[data-appearance-message]')";
+  await b.waitFor(`document.documentElement.dataset.uiSkin === 'folio@1' && ${notice}.textContent === ${JSON.stringify(warning)}`);
+  assert.equal(refusals, 1);
+  assert.equal(await b.evaluate(`${im}.documentElement.dataset.uiSkin`), priorSkin, "the discussion kept its effective skin on the real stylesheet failure");
+  refuseDiscussionSheet = false;
+  await b.evaluate("document.querySelector('[data-appearance-read]').click()");
+  await b.waitFor(`${im}.documentElement.dataset.uiSkin === 'folio@1' && ${im}.documentElement.dataset.uiFont === 'folio-rounded@1' && ${notice}.textContent !== ${JSON.stringify(warning)}`);
+  await b.command("Fetch.disable", {}, b.sessionId);
+  assert.deepEqual(fetchErrors, []);
+  assert.match(await b.evaluate<string>(`${im}.defaultView.getComputedStyle(${im}.body).fontFamily`), /Nunito Variable/u);
+  await b.waitFor(state("en", "Quote", "Today", false));
+  assert.deepEqual(writes, [], "switching language and look did not connect, create a session, read-mark or send");
+  assert.deepEqual(reads.map(read => read.language).sort(), ["en", "zh"]);
+  assert.ok(reads.every(read => !read.hasCookie && !read.hasControl && read.status === 200 && !read.createsSession));
+
+  watchWrites = false;
+  assert.equal(await post("引用 · SSE"), 200);
+  await b.waitFor(`${stream}.textContent.includes('引用 · SSE')`);
+  await b.waitFor(state("en", "Quote", "Today", false));
+  await b.evaluate("discussionBefore.input.focus({ preventScroll: true })");
+  watchWrites = true;
+  await choose("zh");
+  await b.waitFor(state("zh-CN", "引用", "今天"));
+  assert.equal(await b.evaluate(`${im}.documentElement.dataset.uiSkin`), "folio@1");
+  assert.deepEqual(reads.map(read => read.language).sort(), ["en", "en", "zh", "zh"]);
+  assert.deepEqual(writes, []);
+});

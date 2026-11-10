@@ -34,6 +34,14 @@
       "load": "tool"
     },
     {
+      "id": "locale.im-ui",
+      "kind": "locale",
+      "owner": "im-ui",
+      "package": "@molis-ai/molis-work-im-ui",
+      "path": "resources/locales",
+      "load": "tool"
+    },
+    {
       "id": "font.inter-latin-variable",
       "kind": "font",
       "owner": "design-system",

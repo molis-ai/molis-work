@@ -13,6 +13,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./produced-text": {
+      "types": "./dist/produced-text.d.ts",
+      "import": "./dist/produced-text.js"
     }
   },
   "files": [

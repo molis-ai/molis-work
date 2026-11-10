@@ -1,4 +1,4 @@
-import { imText as L } from "../locale.js";
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { ImRoomState, ImThreadState, ImMessagePage, ImRoomList, ImReadState } from '@molis-ai/molis-work-contracts/services/im';
 import type { StreamKind, ApiError } from './types.js';
 import type { ImBaseCtx, ImCtx } from './controller-types.js';
@@ -15,12 +15,12 @@ export function createImSync(base: ImBaseCtx, context: () => ImCtx): Pick<ImCtx,
     s.events = subscribe(c.pathFor(s.roomId), {
       update() {
         if (captured !== s.roomId)
-          return; c.connection((L("已连接"))); scheduleRefresh();
+          return; c.connection((uiText.text("im-ui.status.connected"))); scheduleRefresh();
       },
-      revoked() { s.authLost = true; c.connection((L("访问已失效")), true); c.syncError((L("连接或群访问已失效，请重新连接。"))); s.roomState = null; c.syncComposer('group'); c.syncComposer('thread'); },
+      revoked() { s.authLost = true; c.connection((uiText.text("im-ui.status.access-expired")), true); c.syncError((uiText.text("im-ui.status.reconnect-expired"))); s.roomState = null; c.syncComposer('group'); c.syncComposer('thread'); },
       offline() {
         if (captured === s.roomId) {
-          c.connection((L("重连中")), true);
+          c.connection((uiText.text("im-ui.status.reconnecting")), true);
           scheduleRefresh();
         }
       },
@@ -79,8 +79,8 @@ export function createImSync(base: ImBaseCtx, context: () => ImCtx): Pick<ImCtx,
           c.syncComposer('group');
           c.syncComposer('thread');
         }
-        c.connection((L("同步中断")), true);
-        c.syncError(error.status === 403 ? (L("你已无法访问这个群聊。")) : (L("同步暂时中断，已输入的内容会保留。")));
+        c.connection((uiText.text("im-ui.status.sync-interrupted")), true);
+        c.syncError(error.status === 403 ? (uiText.text("im-ui.status.room-inaccessible")) : (uiText.text("im-ui.status.sync-keeps-draft")));
       }
     }
     finally {
@@ -98,7 +98,8 @@ export function createImSync(base: ImBaseCtx, context: () => ImCtx): Pick<ImCtx,
       return;
     const version = s.epoch, node = q('[data-stream="' + kind + '"]'), button = node.querySelector<HTMLButtonElement>('[data-action="history"]')!;
     button.disabled = true;
-    button.textContent = (L("正在载入…"));
+    button.textContent = uiText.text("im-ui.status.loading");
+    const loading = button.firstChild;
     try {
       const result = await api<ImMessagePage>(c.pathFor(s.roomId, kind === 'thread' ? s.threadId : '') + '/messages?before=' + page.next_before);
       if (version !== s.epoch)
@@ -116,13 +117,13 @@ export function createImSync(base: ImBaseCtx, context: () => ImCtx): Pick<ImCtx,
     catch (cause) {
       const error = cause as ApiError;
       c.toast(error.message);
-      button.textContent = (L("重试加载更早的消息"));
+      button.textContent = (uiText.text("im-ui.history.retry"));
     }
     finally {
       if (button.isConnected) {
         button.disabled = false;
-        if (button.textContent === (L("正在载入…")))
-          button.textContent = (L("加载更早的消息"));
+        if (button.firstChild === loading)
+          button.textContent = (uiText.text("im-ui.history.load-earlier"));
       }
     }
   }

@@ -94,16 +94,26 @@ export function announceAppearance(snapshot: UiEnvironmentSnapshot, previous: Ui
   if (changed.length) window.dispatchEvent(new CustomEvent("molis-work:ui-environment-changed", { detail: { revision: snapshot.revision, changed } }));
 }
 
-let pendingSheet: { href: string; ready: Promise<void> } | undefined;
-let refreshFaces = false;
+interface AppearanceSheetState {
+  pending?: { href: string; ready: Promise<void> };
+  refreshFaces: boolean;
+}
+
+const appearanceSheets = new WeakMap<Document, AppearanceSheetState>();
+function sheetState(page: Document): AppearanceSheetState {
+  let state = appearanceSheets.get(page);
+  if (!state) { state = { refreshFaces: false }; appearanceSheets.set(page, state); }
+  return state;
+}
 
 /** One exact Host sheet per document. A failed face can be retried with new CSSFontFace objects. */
-export function ensureAppearanceSheet(href: string | null): Promise<void> {
+export function ensureAppearanceSheet(href: string | null, page = document): Promise<void> {
   if (!href) return Promise.resolve();
-  if (pendingSheet?.href === href) return pendingSheet.ready;
-  const prior = document.querySelector<HTMLLinkElement>("link[data-ui-appearance-sheet]");
-  if (prior?.getAttribute("href") === href && prior.sheet && !refreshFaces) return Promise.resolve();
-  const link = document.createElement("link");
+  const state = sheetState(page);
+  if (state.pending?.href === href) return state.pending.ready;
+  const prior = page.querySelector<HTMLLinkElement>("link[data-ui-appearance-sheet]");
+  if (prior?.getAttribute("href") === href && prior.sheet && !state.refreshFaces) return Promise.resolve();
+  const link = page.createElement("link");
   link.rel = "stylesheet";
   link.href = href;
   const ready = new Promise<void>((resolve, reject) => {
@@ -112,45 +122,47 @@ export function ensureAppearanceSheet(href: string | null): Promise<void> {
       if (settled) return;
       settled = true;
       clearTimeout(timeout);
-      pendingSheet = undefined;
+      if (state.pending?.ready !== ready) { link.remove(); resolve(); return; }
+      state.pending = undefined;
       if (!loaded) { link.remove(); reject(new Error("appearance stylesheet")); return; }
       prior?.remove();
       link.dataset.uiAppearanceSheet = "";
-      refreshFaces = false;
+      state.refreshFaces = false;
       resolve();
     };
     const timeout = setTimeout(() => finish(false), 12_000);
     link.addEventListener("load", () => finish(true), { once: true });
     link.addEventListener("error", () => finish(false), { once: true });
-    document.head.append(link);
+    page.head.append(link);
   });
-  pendingSheet = { href, ready };
+  state.pending = { href, ready };
   return ready;
 }
 
 function checkFonts(scope: HTMLElement, sample: string): Promise<void> {
-  const style = getComputedStyle(scope), families = style.getPropertyValue("--mw-shipped-families").trim();
+  const page = scope.ownerDocument;
+  const style = page.defaultView?.getComputedStyle(scope), families = style?.getPropertyValue("--mw-shipped-families").trim();
   if (!families || families === "none") return Promise.resolve();
-  const weights = new Set(["body", "control", "title"].map(role => style.getPropertyValue(`--weight-${role}`).trim() || "400"));
+  const weights = new Set(["body", "control", "title"].map(role => style?.getPropertyValue(`--weight-${role}`).trim() || "400"));
   return new Promise((resolve, reject) => {
-    const failed = () => { refreshFaces = true; reject(new Error("appearance font")); };
+    const failed = () => { sheetState(page).refreshFaces = true; reject(new Error("appearance font")); };
     const timer = setTimeout(failed, 12_000);
-    void Promise.all([...weights].map(weight => document.fonts.load(`${weight} 1em ${families}`, sample))).then(
+    void Promise.all([...weights].map(weight => page.fonts.load(`${weight} 1em ${families}`, sample))).then(
       () => { clearTimeout(timer); resolve(); }, () => { clearTimeout(timer); failed(); },
     );
   });
 }
 
 /** A document prepares new faces in a probe before touching its live root. The specimen can prepare in its own scope. */
-export async function prepareAppearance({ snapshot, stylesheet }: AppearanceProjection, canvas?: HTMLElement): Promise<void> {
+export async function prepareAppearance({ snapshot, stylesheet }: AppearanceProjection, canvas?: HTMLElement, page = canvas?.ownerDocument ?? document): Promise<void> {
   if (canvas) setAppearanceScope(canvas, snapshot);
-  await ensureAppearanceSheet(stylesheet);
+  await ensureAppearanceSheet(stylesheet, page);
   if (!stylesheet) return;
-  const scope = canvas ?? document.createElement("span");
+  const scope = canvas ?? page.createElement("span");
   if (!canvas) {
     setAppearanceScope(scope, snapshot);
     scope.hidden = true;
-    document.body.append(scope);
+    page.body.append(scope);
   }
   try { await checkFonts(scope, snapshot.locale.tag === "zh" ? "本周工作 Aa 123" : "Work Aa 123"); }
   finally { if (!canvas) scope.remove(); }

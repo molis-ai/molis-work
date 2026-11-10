@@ -51,6 +51,7 @@ export interface SettingsWriteInput {
 }
 
 const nonblank = { type: "string", pattern: "\\S" } as const;
+/** The one shape of a setting key; owners reuse it in their declaration schemas (no settings-declaring owner uses it in-repo yet). */
 export const SETTING_KEY_SCHEMA = nonblank;
 const json = { type: ["null", "boolean", "number", "string", "array", "object"] } as const;
 

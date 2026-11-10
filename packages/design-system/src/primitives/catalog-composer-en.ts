@@ -8,7 +8,7 @@ export const COMPOSER_BOARD_EN: Readonly<Record<string, string>> = {
   "多行输入框 / Composer": "Composer",
   "首页单行胶囊长成多行：同一套圆角、阴影和焦点描边。写字区随内容长高，到 240px 或窗口的 40% 后在框里滚动。":
     "The home bar's one-line capsule, grown to rows: the same corners, shadow and focus edge. The text area grows with what is written and scrolls inside the box past 240px or 40% of the window.",
-  "发给：": "To:",
+  "发给：": "Send to:",
   "改回发给助理": "Send to the Assistant instead",
   "已恢复上次没发出的草稿 · 上午 11:02": "Restored your unsent draft · 11:02 AM",
   "清空草稿": "Clear draft",

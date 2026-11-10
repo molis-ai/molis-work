@@ -143,12 +143,13 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
  * tray comes the work's delivery note (receipts 3e-2a): the Host's record as it is, replaced whole only when its html changed,
  * so the step row binds it again; a supplement in it opens that supplement's receipt.
  *
- * While the round waits on its one free-text question (the Host marks it `from_composer`: specs/ai-interaction-experience D34), the composer shows what the next Send does, with the default in
- * its 「这次发送」 control: answer the question, or add to the round. The person switches it; the Host never decides it. When the round
+ * While the round waits on its one free-text question (the Host marks it `from_composer`: specs/ai-interaction-experience D34), the chip above the
+ * input shows what the next Send does, with the default on it (「这次发送」, as before K3): answer the question, or add to the round. One click
+ * switches it; the Host never decides it. When the round
  * waits on a questionnaire whose one text question is among others (the Host marks it `draft_from_composer` with that
  * field), the default is 「写进问卷」 instead: Send writes the words into the card's draft and hands nothing back (R4, D14).
  */
-export const ASSISTANT_RECEIPTS_FACTORY_SCRIPT = String.raw`({ L, shared, api, work, reload, pact }) => {
+export const ASSISTANT_RECEIPTS_FACTORY_SCRIPT = String.raw`({ L, shared, chip, api, work, reload, pact }) => {
   const CHOICES = { answer: "回答上面的问题", draft: "写进问卷", steer: "补充这一轮" };
   let asked = "", ask = null, choice = "answer", pacted = null, drawn = "", block = null;
   const question = (round) => {
@@ -156,6 +157,9 @@ export const ASSISTANT_RECEIPTS_FACTORY_SCRIPT = String.raw`({ L, shared, api, w
     return waiting.find((item) => item.from_composer || item.draft_from_composer) || null;
   };
   const first = () => ask?.draft_from_composer ? "draft" : "answer";
+  // The chip above the input: its words are the choice the next Send makes, and one click switches to the other.
+  const label = () => { chip.textContent = L(CHOICES[choice]); chip.title = L("点一下改成：" + CHOICES[choice === "steer" ? first() : "steer"]); };
+  chip.addEventListener("click", () => { choice = choice === "steer" ? first() : "steer"; label(); });
   const lost = (error) => { throw error.code === "ui_host.outcome_unknown" ? new Error(L("没确认送到：再按一次，同一条不会重复。")) : error; };
   const act = (round) => round && round.run_id ? {
     withdraw: (input_id) => api("/works/" + encodeURIComponent(work()) + "/control", "POST", { kind: "withdraw", run_id: round.run_id, input_id }).then(() => "", lost).finally(reload),
@@ -168,19 +172,16 @@ export const ASSISTANT_RECEIPTS_FACTORY_SCRIPT = String.raw`({ L, shared, api, w
       if (!line) { [...node.children].find((child) => child.dataset.entry === key)?.remove(); return; }
       line.dataset.entry = key; put(line);
     },
-    /** Reads the round's question the composer can answer or fill; a new one starts at its default. */
+    /** Reads the round's question the composer can answer or fill; a new one starts at its default, and the chip shows only then. */
     paint(round) {
       ask = question(round); const id = ask ? ask.pending_id + ":" + ask.pending_revision : "";
-      if (id !== asked) { asked = id; choice = first(); }
+      if (id !== asked) { asked = id; choice = first(); label(); }
+      chip.hidden = !ask;
     },
-    /** The two things the next Send can do while the round waits on that question, and which one it does now; null otherwise. */
-    choices: () => ask ? { options: [first(), "steer"], value: choice } : null,
-    label: (one) => CHOICES[one],
-    choose: (one) => { if (ask && (one === first() || one === "steer")) choice = one; },
-    /** What the next Send does while there is a question; nothing otherwise (the words go to the round as a supplement). */
-    target: () => !ask || choice === "draft" ? undefined : choice,
+    /** What the next Send does while the chip shows; nothing otherwise (the words go to the round as a supplement). */
+    target: () => chip.hidden || choice === "draft" ? undefined : choice,
     /** The question whose draft the next Send fills instead. */
-    into: () => ask && choice === "draft" ? ask : null,
+    into: () => !chip.hidden && choice === "draft" ? ask : null,
     /**
      * After the rounds are drawn: what is still open in the work (the tray; its queue left out when not read), and in the side
      * pane 「AI 记下的约定」 from the receipts just drawn, redrawn only when it reads differently so focus in it stays.

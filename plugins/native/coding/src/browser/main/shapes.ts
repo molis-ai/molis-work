@@ -1,4 +1,5 @@
-import type { AgentRunUsage } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentRunUsage, AgentMcpServerView as McpServer, AgentMcpSourceRef as McpSourceRef, AgentMcpToolRef as McpToolRef } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import type { RunCard } from "../actions.js";
 import type { CharacterRef } from "../characters.js";
 import type { ModelChoice } from "../composer-model.js";
@@ -6,6 +7,9 @@ import type { UsageData } from "../usage-meter.js";
 import type { PlanDraft } from "../plans.js";
 import type { PlanEntry } from "../shapes.js";
 import type { SubagentGroup } from "../subagents.js";
+
+/** The Host's own shapes, under the names this page uses: an exact Skill the Host checks when a round starts, and an MCP server with its tools and sources. */
+export type { McpServer, McpSourceRef, McpToolRef, SkillRef };
 
 /** The JSON the Coding routes answer, as far as the main page reads it (src/routes-*.ts write it). */
 
@@ -249,17 +253,6 @@ export interface WorkspaceRecord {
   readonly [field: string]: unknown;
 }
 
-export interface McpSourceRef { readonly server: string; readonly server_label?: string; readonly configuration_version: number }
-export interface McpToolRef { readonly server: string; readonly server_label?: string; readonly tool: string; readonly version: string; readonly configuration_version: number }
-/** An exact Skill of the shared catalog, as the Host checks it when a round starts; the page only keeps and resends it. */
-export interface SkillRef {
-  readonly source: { readonly kind: "plugin"; readonly plugin_id: string; readonly plugin_version: string; readonly publisher_signature: string };
-  readonly skill_id: string;
-  readonly version: number;
-  readonly install_id: string;
-  readonly installation_generation: string;
-}
-
 /** A Skill the method menu offers (`GET /state`, `skill-choices.ts`). */
 export interface SkillChoice {
   readonly ref: SkillRef;
@@ -270,16 +263,6 @@ export interface SkillChoice {
   readonly reason?: string;
   /** Another plugin's `manual` Skill: only the Assistant names it, so the menu does not keep it. */
   readonly assistant_only: boolean;
-}
-
-export interface McpServer {
-  readonly id: string;
-  readonly label: string;
-  readonly version: number;
-  readonly enabled: boolean;
-  readonly health?: unknown;
-  readonly resources?: readonly unknown[];
-  readonly tools: readonly { readonly server: string; readonly tool: string; readonly label?: string; readonly description?: string; readonly version: string; readonly available: boolean; readonly configuration_version: number }[];
 }
 
 

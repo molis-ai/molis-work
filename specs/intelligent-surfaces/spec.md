@@ -287,6 +287,10 @@ flowchart LR
 
 清单补片 `651fa2beb1` 已于 `a24be9f003` 合回第 15 批。`tests/presentation-inventory.e2e.test.ts` 的 IUI-21 用例在隔离 Host／测试浏览器通过，1440／390 × 中英文均逐行核对全部 23 项；该头全部缺对象声明，未以示例代替真实登记。依赖构建和固定头健康门禁通过，新增内容仅为同页标记、清单和样式，没有新资源路径。这是清单的定向工程证据；三宽深浅色完整矩阵、生产消费者和本人验收仍按 §16 收口。
 
+**首片接入后源码核对（IUI-24）。** 固定 `f7d7ddf96b` 的生成登记检查通过。宿主与组件板仍同序登记 23 个内置插件，插件 id 无重复。Goals 声明 `goal`，Inbox 声明 `inbox_entry`，Coding 声明 `coding_session`，Feed 为基础首页声明 `feed_item` 和 `source`。其余 19 个继续按上表记录缺口与归属。组件板状态仍取实际 `Manifest.presentation.objects`，兜底读口与概况沿各自协议工作。[Goals](../../plugins/native/goals/src/presentation.ts) · [Inbox](../../plugins/native/inbox/src/presentation.ts) · [Coding](../../plugins/native/coding/src/presentation.ts) · [Feed](../../plugins/native/feed/src/presentation.ts)
+
+最终用同一个浏览器用例按切换后的实际登记逐行核对名称、声明状态和可读性。组件板实物及本人验收仍按 §16 结算。[组件板清单用例](../../tests/presentation-inventory.e2e.test.ts)
+
 ## 10. 与现有需求的分工
 
 | 需求 | 那边负责的 | 本书负责的 |

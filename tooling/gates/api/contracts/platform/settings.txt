@@ -88,7 +88,7 @@ export declare const SETTINGS_READ_OUTPUT_SCHEMA: {
                             readonly pattern: "\\S";
                         };
                     };
-                    readonly required: readonly ("revision" | "reason" | "state" | "key")[];
+                    readonly required: readonly ("revision" | "reason" | "key" | "state")[];
                     readonly additionalProperties: false;
                 }];
             };

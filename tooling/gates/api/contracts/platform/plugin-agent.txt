@@ -117,7 +117,7 @@ export interface PluginMethodDeclaration extends AgentSkillDeclaration {
     applies_to: SkillAppliesTo;
 }
 
-export interface PluginMethodDefinition extends Omit<PluginMethodDeclaration, "body"> {
+export interface PluginMethodDefinition extends Omit<PluginMethodDeclaration, "body">, LocalizedAgentBody {
     body: string;
 }
 

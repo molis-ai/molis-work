@@ -3241,6 +3241,14 @@ export declare function actionFieldLabel(key: string, declared?: {
     description?: string;
 }): string;
 
+export declare function actionFieldLabelSource(key: string, declared?: {
+    title?: string;
+    description?: string;
+}): {
+    label: string;
+    defaultKey?: string;
+};
+
 export declare function actionFieldOptions(declared?: unknown): Array<{
     value: string;
     label: string;

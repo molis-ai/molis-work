@@ -65,11 +65,10 @@ test("motion uses four durations and two curves", () => {
 });
 
 // specs/visual-ui-experience §5 (the guard's expected change): grid-template-rows moves only on the outer row of a
-// natural-height fold (0fr → 1fr), each named here: the shared disclosure, the Assistant's side groups, whose head is a
-// button because folding is remembered per viewer (VUX-08), and a round's steps and a step's detail in the conversation
+// natural-height fold (0fr → 1fr), each named here: the shared disclosure (including the Assistant's side groups, VUX-08), and a round's steps and a step's detail in the conversation
 // (VUX-13, `disclosureHeight`), drawn by the shared `processFold` for the Assistant and for the Coding timeline's round groups
 // and steps. Every other selector, grid-template-columns and every other layout property is still refused.
-const NATURAL_HEIGHT_ROWS = [/\.mw-collapsible::details-content$/, /\.assistant-block:not\(\[hidden\], ?\.assistant-block--usage\)$/,
+const NATURAL_HEIGHT_ROWS = [/\.mw-collapsible::details-content$/,
   /:is\(\.assistant-steps,\.assistant-activity-fold\)::details-content$/, /:is\(\.coding-activity,\.coding-tool\)::details-content$/];
 test("motion never animates layout properties", () => {
   const layout = /^(?:width|height|min-width|max-width|min-height|max-height|margin(?:-[a-z]+)?|padding(?:-[a-z]+)?|top|left|right|bottom|inset|gap|grid-template-(?:columns|rows)|flex-basis|font-size|letter-spacing|border-width)$/;
@@ -138,7 +137,7 @@ test("a field grows only through the shared intrinsic sizing", () => {
 test("the natural-height exception admits only the fold's outer row", () => {
   const refused = (selector: string) => !NATURAL_HEIGHT_ROWS.some(row => row.test(selector));
   assert.equal(refused(".mw-collapsible::details-content"), false);
-  assert.equal(refused("body .assistant-block:not([hidden], .assistant-block--usage)"), false);
+  assert.equal(refused("body .assistant-block:not([hidden], .assistant-block--usage)"), true, "D0011 the removed local fold cannot return");
   for (const selector of [".mw-collapsible", ".mw-collapsible::details-content .inner", ".assistant-log", "details::details-content",
     ".assistant-block", ".assistant-block-body", ".assistant-block:not([hidden], .assistant-block--usage) .assistant-block-body"]) assert.equal(refused(selector), true, selector);
 });

@@ -5,7 +5,7 @@ import {assertSignalDraft as assertDraft,signalContentHash,signalDigest as sha25
 export {signalContentReplicationDefinition} from './signals-replication.js';
 
 import type {
-  SignalDraft,
+  SignalDraft, SignalPage,
   SignalEvent,
   SignalRecord,
   SignalReceipt,
@@ -70,7 +70,7 @@ export const SIGNALS_SCHEMA_SQL = `
 export class SignalsModule implements SignalsApi {
   readonly query = {
     get: (projectId: string, signalId: string) => this.get(projectId, signalId),
-    list: (projectId: string, sourceId?: string) => this.list(projectId, sourceId),
+    list: (projectId: string, sourceId?: string, page?: SignalPage) => this.list(projectId, sourceId, page),
   };
 
   readonly commands = {
@@ -78,7 +78,7 @@ export class SignalsModule implements SignalsApi {
   };
 
   readonly events = {
-    list: (projectId: string, sourceId?: string) => this.listEvents(projectId, sourceId),
+    list: (projectId: string, sourceId?: string, page?: SignalPage) => this.listEvents(projectId, sourceId, page),
   };
 
   constructor(
@@ -92,10 +92,10 @@ export class SignalsModule implements SignalsApi {
     return mapSignal(row);
   }
 
-  private list(projectId: string, sourceId?: string): SignalRecord[] {
+  private list(projectId: string, sourceId?: string, page: SignalPage = {}): SignalRecord[] {
     const rows = sourceId == null
-      ? this.db.all("SELECT * FROM signals WHERE project_id = ? ORDER BY observed_at DESC, signal_id", projectId)
-      : this.db.all("SELECT * FROM signals WHERE project_id = ? AND source_id = ? ORDER BY observed_at DESC, signal_id", projectId, sourceId);
+      ? this.db.all("SELECT * FROM signals WHERE project_id = ? ORDER BY observed_at DESC, signal_id LIMIT ? OFFSET ?", projectId, Math.min(200, Math.max(1, Math.floor(page.limit ?? 100))), Math.max(0, Math.floor(page.offset ?? 0)))
+      : this.db.all("SELECT * FROM signals WHERE project_id = ? AND source_id = ? ORDER BY observed_at DESC, signal_id LIMIT ? OFFSET ?", projectId, sourceId, Math.min(200, Math.max(1, Math.floor(page.limit ?? 100))), Math.max(0, Math.floor(page.offset ?? 0)));
     return (rows as Row[]).map(mapSignal);
   }
 
@@ -168,10 +168,10 @@ export class SignalsModule implements SignalsApi {
     `, draft.project_id, signalId, revision, contentHash, JSON.stringify(draft), acceptedAt);
   }
 
-  private listEvents(projectId: string, sourceId?: string): SignalEvent[] {
+  private listEvents(projectId: string, sourceId?: string, page: SignalPage = {}): SignalEvent[] {
     const rows = sourceId == null
-      ? this.db.all("SELECT * FROM signal_events WHERE project_id = ? ORDER BY at, event_id", projectId)
-      : this.db.all("SELECT * FROM signal_events WHERE project_id = ? AND source_id = ? ORDER BY at, event_id", projectId, sourceId);
+      ? this.db.all("SELECT * FROM signal_events WHERE project_id = ? ORDER BY at, event_id LIMIT ? OFFSET ?", projectId, Math.min(200, Math.max(1, Math.floor(page.limit ?? 100))), Math.max(0, Math.floor(page.offset ?? 0)))
+      : this.db.all("SELECT * FROM signal_events WHERE project_id = ? AND source_id = ? ORDER BY at, event_id LIMIT ? OFFSET ?", projectId, sourceId, Math.min(200, Math.max(1, Math.floor(page.limit ?? 100))), Math.max(0, Math.floor(page.offset ?? 0)));
     return (rows as Row[]).map((row) => ({
       event_id: text(row.event_id),
       project_id: text(row.project_id),

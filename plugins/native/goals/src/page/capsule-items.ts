@@ -120,8 +120,8 @@ export function createCapsuleItemProjection(L: GoalsTranslate) {
     item: WebGoalView,
   ): CapsuleGoalItem {
     return itemBase(view, item, {
-      tab_kind: "continue",
-      kind: "ready",
+      tab_kind: item.display_status === "cancelled" ? "cancelled" : "continue",
+      kind: item.display_status === "cancelled" ? "waiting" : "ready",
       status_label: item.status_label,
       status_since: null,
       current: item.action_summary,
@@ -186,6 +186,7 @@ export function createCapsuleItemProjection(L: GoalsTranslate) {
     "waiting",
     "blocked",
     "completed",
+    "cancelled",
   ];
 
   function tabMeta(kind: CapsuleTabKind): Pick<CapsuleTab, "label" | "tone"> {
@@ -195,6 +196,7 @@ export function createCapsuleItemProjection(L: GoalsTranslate) {
       case "continue": return { label: L("可继续"), tone: "ready" };
       case "waiting": return { label: L("等待中"), tone: "waiting" };
       case "blocked": return { label: L("受阻"), tone: "blocked" };
+      case "cancelled": return { label: L("已取消"), tone: "waiting" };
       case "completed": return { label: L("已完成"), tone: "complete" };
     }
   }

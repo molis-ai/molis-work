@@ -543,15 +543,6 @@ importers:
       '@molis-ai/molis-work-design-system':
         specifier: workspace:*
         version: link:../../packages/design-system
-      '@molis-ai/molis-work-im-ui':
-        specifier: workspace:*
-        version: link:../../packages/im-ui
-      '@molis-ai/molis-work-integration-gmail':
-        specifier: workspace:*
-        version: link:../../plugins/official-integrations/gmail
-      '@molis-ai/molis-work-integration-rss':
-        specifier: workspace:*
-        version: link:../../plugins/official-integrations/rss
       '@molis-ai/molis-work-module-artifacts':
         specifier: workspace:*
         version: link:../../modules/artifacts

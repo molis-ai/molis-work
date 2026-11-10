@@ -1,5 +1,6 @@
 /** English for the memory settings pages (specs/archive/memory-system §10). */
 export const MEMORY_EN: Record<string, string> = {
+  "这条记忆已变化或不可用，请返回记忆页重新选择": "This memory has changed or is unavailable. Return to Memories and select it again.",
   "记忆": "Memory",
   "项目记忆": "Project memory",
   "个人": "Personal",

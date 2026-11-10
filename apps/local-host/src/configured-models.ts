@@ -57,7 +57,7 @@ export function modelCredentialMetadata(home: string, provider: Pick<ModelProvid
     // The key goes only to the address its connection was pinned to when it was chosen.
     if (store.targetOrigin(connection.connection_id) !== new URL(provider.base_url).origin) return absent;
     return { available: true, revision: connection.updated_at };
-  });
+  }, true) ?? absent;
 }
 
 export function selectConfiguredTextModel(home: string, store: ModelProviderStore, selection?: TextModelSelection): ConfiguredTextModel | undefined {

@@ -1,3 +1,5 @@
+import type { GoalCapsuleMenu } from "../capsule-menu.js";
+import { WORK_STATE_COPY } from "../goal-state-copy.js";
 import { countGoalDecisions } from "../decision-groups.js";
 import type { GoalsPageView } from "./view.js";
 import type { GoalsTranslate } from "./ports.js";
@@ -55,7 +57,7 @@ export function createGoalsCapsuleProjection(L: GoalsTranslate) {
       if (!availableOrder.has(candidate.goal_id)) availableOrder.set(candidate.goal_id, index);
     });
     const continueGoals = view.goals
-      .filter((item) => item.display_status === "continue" && !assigned.has(item.goal.goal_id))
+      .filter((item) => (item.display_status === "continue" || item.display_status === "cancelled") && !assigned.has(item.goal.goal_id))
       .sort((left, right) =>
         (availableOrder.get(left.goal.goal_id) ?? Number.MAX_SAFE_INTEGER) -
           (availableOrder.get(right.goal.goal_id) ?? Number.MAX_SAFE_INTEGER) ||
@@ -137,5 +139,12 @@ export function createGoalsCapsuleProjection(L: GoalsTranslate) {
     };
   }
 
-  return { buildCapsuleSnapshot };
+  function buildCapsuleMenu(project: { project_id: string; display_name: string }, summary: GoalCapsuleMenu) {
+    const selected = summary.focus;
+    const label = selected ? L(selected.historical ? "历史记录" : WORK_STATE_COPY[selected.state].label) : L("暂无可开始项");
+    const title = selected && selected.count > 1 ? L("{label} · {count}", { label, count: selected.count }) : label;
+    const path = "/projects/" + encodeURIComponent(project.project_id) + (selected ? "/goals/" + encodeURIComponent(selected.goal_id) : "");
+    return { project, state: { menu_bar_title: title, menu_bar_tooltip: project.display_name + (selected ? " · " + selected.title : "") + " · " + title, action_path: path } };
+  }
+  return { buildCapsuleSnapshot, buildCapsuleMenu };
 }

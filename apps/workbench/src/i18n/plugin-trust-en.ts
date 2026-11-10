@@ -1,5 +1,8 @@
 /** English for 插件 in project settings: installed plugins, their permissions and agreements, installing a signed package (ac-trust T7). */
 export const PLUGIN_TRUST_EN: Record<string, string> = {
+  "发布者的信任已撤销": "Publisher trust has been revoked",
+  "插件版本与当前平台不匹配": "The plugin version does not match this platform",
+  "插件暂时无法启动，请重试或查看诊断": "The plugin could not start; retry or check diagnostics",
   "项目插件成员请求无效": "Invalid project plugin membership request",
   "项目地址无效": "Invalid project address",
   "项目插件成员已经变了，请刷新后再改": "This project's plugins have changed. Refresh before making another change.",

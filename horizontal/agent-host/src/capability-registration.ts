@@ -96,7 +96,8 @@ export function registerAgentHostCapabilities<Context>(
     },
   };
   const register = <Input, Output>(definition: ActionDefinition<Input, Output>, handler: (call: Call, input: Input) => Output | Promise<Output>) =>
-    registrar.register(definition, async (source, input, invocation = { beforeEffect: async () => {}, assertAuthorityCurrent: () => {} }) => {
+    registrar.register(definition, async (source, input, invocation) => {
+      if (!invocation || typeof invocation.beforeEffect !== "function" || typeof invocation.assertAuthorityCurrent !== "function") throw denied();
       // Plugin hooks can run at every await. Validate and execute the same data,
       // even if a hook mutates the original request after its owner was checked.
       const snapshot = structuredClone(input);

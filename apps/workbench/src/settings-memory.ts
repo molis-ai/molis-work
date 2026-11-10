@@ -389,7 +389,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
         });
         menuItem(L("历史版本"), () => historyPanel(item, copy));
         if (item.scope === "project" && project) menuItem(L("升级为项目说明"), () => {
-          const target = "/projects/" + encodeURIComponent(project) + "/settings/guidance?draft=" + encodeURIComponent(item.text);
+          const target = "/projects/" + encodeURIComponent(project) + "/settings/guidance?memory_id=" + encodeURIComponent(item.memory_id) + "&memory_version=" + encodeURIComponent(item.version);
           window.location.assign(target);
         });
         menuItem(L("删除"), async () => {

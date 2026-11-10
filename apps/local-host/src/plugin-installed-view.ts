@@ -1,3 +1,4 @@
+import { ACTION_ERROR_CODE } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginErrors, type PluginInstanceRecord, type PluginManifest } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { platformPermissionMeaning, type PluginInstalledPermissionView, type PluginInstalledView, type PluginJobView, type PluginPermissionView } from '@molis-ai/molis-work-contracts/platform/plugin-trust';
 import type { PluginConsentLedger } from '@molis-ai/molis-work-plugin-runtime';
@@ -35,6 +36,6 @@ export function installedPluginViews(entries: readonly InstalledPluginEntry[], l
     install_id: record.install_id, plugin_id: record.plugin_id, name: manifest?.name ?? record.plugin_id, version: record.version, state: record.state,
     trust: record.publisher_trust, publisher_signature: record.publisher_signature, publisher_label: pins.get(record.publisher_signature)?.label ?? null,
     manifest_available: manifest !== undefined, permissions: manifest ? installedPermissionViews(manifest, record.grants, requestedPermissions) : [], jobs: manifest ? jobViews(manifest) : [],
-    consents: ledger.consents(record.plugin_id), recovery_error: recoveryError ?? null,
+    consents: ledger.consents(record.plugin_id), recovery_error: recoveryError ? (record.last_error_code && ACTION_ERROR_CODE.test(record.last_error_code) ? record.last_error_code : "plugin.package_invalid") : null,
   }));
 }

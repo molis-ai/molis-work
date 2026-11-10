@@ -106,7 +106,8 @@ function receiptsOf(db: DatabaseSync, projectId: string, options: { subject?: Ac
 
 function removeProjectCards(db: DatabaseSync, projectId: string): number {
   const ids = prepareFtsStatement(db, "SELECT card_id FROM knowledge_cards WHERE project_id = ?").all(projectId) as Row[];
-  for (const row of ids) prepareFtsStatement(db, "DELETE FROM knowledge_cards_fts WHERE rowid = ?").run(Number(row.card_id));
+  const removeFts = prepareFtsStatement(db, "DELETE FROM knowledge_cards_fts WHERE rowid = ?");
+  for (const row of ids) removeFts.run(Number(row.card_id));
   prepareFtsStatement(db, "DELETE FROM knowledge_cards WHERE project_id = ?").run(projectId);
   prepareFtsStatement(db, "DELETE FROM knowledge_usage WHERE project_id = ?").run(projectId);
   prepareFtsStatement(db, "DELETE FROM knowledge_receipts WHERE project_id = ?").run(projectId);

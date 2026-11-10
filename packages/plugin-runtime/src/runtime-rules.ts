@@ -6,21 +6,7 @@ import { ACTION_ERROR_CODE } from "@molis-ai/molis-work-contracts/platform/actio
 
 
 export function validateManifest(manifest: PluginManifest): void {
-  if (
-    manifest.schema_version !== /* @version manifest.schema */ 1
-    || manifest.host_api_version !== /* @version host.api */ 1
-    || !manifest.plugin_id.trim()
-    || !manifest.version.trim()
-    || !manifest.publisher.publisher_id.trim()
-    || !manifest.publisher.signature.trim()
-  ) {
-    throw pluginErrors.manifest_invalid("Plugin Manifest 身份、签名或 Host API 不合法");
-  }
-  try {
-    parsePluginManifest(manifest);
-  } catch (error) {
-    throw pluginErrors.manifest_invalid(error instanceof Error ? error.message : "Plugin Manifest 不合法");
-  }
+  parsePluginManifest(manifest);
 }
 
 /**

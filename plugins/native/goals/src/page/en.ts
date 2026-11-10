@@ -1,5 +1,6 @@
 /** English words used only by the Goals page and Capsule projections. */
 export const GOALS_PAGE_EN: Readonly<Record<string, string>> = {
+  "{n} 条目标等你决定": "{n} Goals await your decision",
   "搜索标题或来源": "Search titles or sources",
   "内容来源": "Content source",
   "添加引用，原内容保持在所属来源。": "Add a reference; the original stays at its source.",

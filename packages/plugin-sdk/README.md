@@ -350,3 +350,5 @@ result_view: {
 `@molis-ai/molis-work-plugin-sdk/browser` 的 `jsonComparisonText(value)` 用于两次读取的 JSON 等价比较。它沿原生 JSON replacer 排键，保留 `toJSON`、空数组槽和不支持值的原生处理；整数形态键仍按 JavaScript 对象枚举顺序输出。Coding 直接使用这个纯比较工具，持久化摘要和签名使用主入口的 `canonicalJsonText`。
 
 FI-C-02：轮询集成的 `health(control)` 与 `sync(input, control)` 必须透传 Host 给出的本次调用控制，它不属于插件 JSON 输入。`controlledConnectorFetch(fetchImpl, control)` 为一次调用创建 fetch，组合调用信号与请求超时，在实际发送前等待 beforeEffect、同步 current。刷新、401重发和响应后写回仍须带同一次控制，不能用安装 live 检查替代原调用。
+
+执行生命周期和动作声明检查的稳定公开入口也可使用 `@molis-ai/molis-work-plugin-sdk/execution`；与根入口是同一实现，平台与插件作者共用，变更按公开 API 快照评审。

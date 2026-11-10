@@ -35,7 +35,8 @@ export type CapsuleTabKind =
   | "continue"
   | "waiting"
   | "blocked"
-  | "completed";
+  | "completed"
+  | "cancelled";
 
 export interface CapsuleGoalItem {
   goal_id: string;

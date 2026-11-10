@@ -7,8 +7,8 @@ import { connectionChanged } from "./connection-change-events.js";
 
 /** Shared by the protected settings routes and authorized management actions. No service-side logout is implied. */
 export function controlConnectorConnection(home: string, id: string, action: "enable" | "disable" | "remove" | "disconnect") {
-  withConnectorConnections(home, store => store.require(id));
-  const installation = action === "remove" ? withConnectorProtocols(home, store => store.get<LocalMcpConfiguration>(id))?.installation_id : undefined;
+  withConnectorConnections(home, store => store.require(id), "required");
+  const installation = action === "remove" ? withConnectorProtocols(home, store => store.get<LocalMcpConfiguration>(id), true)?.installation_id : undefined;
   if (action !== "enable") {
     cancelConnectorAuthorizationsForConnection(home, id);
     withConnectorProtocols(home, store => store.discardConnectionSessions(id));

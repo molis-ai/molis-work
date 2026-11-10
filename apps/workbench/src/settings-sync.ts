@@ -5,6 +5,7 @@ import {SYNC_CLOUD_HISTORY_SCRIPT} from './settings-sync-history.js';
 export function renderSyncSettings(L:(text:string)=>string):string {
   return `<section class="settings-document" data-sync-settings aria-labelledby="settings-title">
     <header class="settings-heading"><h1 id="settings-title">${L('同步')}</h1><p>${L('选择当前个人空间要同步的内容。关闭后保留双方已有数据。')}</p></header>
+    <p data-sync-identity class="settings-muted"></p>
     <p data-sync-status role="status" class="settings-muted mw-loading">${L('正在读取…')}</p>
     <form data-sync-form hidden><div class="settings-setting-row"><label class="mw-check-row"><input type="checkbox" class="mw-check" data-slot="checkbox" data-sync-automatic><span>${L('本机自动同步')}</span></label><span class="settings-muted">${L('仅影响本机，关闭后仍可立即同步。')}</span></div><fieldset class="settings-section" data-sync-fields></fieldset>
       <p class="settings-muted" data-sync-quota></p>
@@ -53,6 +54,8 @@ export const SYNC_SETTINGS_CLIENT_SCRIPT=String.raw`
     ${SYNC_PROJECT_RECYCLE_SCRIPT}
     const render=(data)=>{
       if(state?.policy?.spaceId&&data.policy?.spaceId!==state.policy.spaceId)document.querySelectorAll('[data-sync-dialog]').forEach(dialog=>dialog.close());
+      const identity=root.querySelector('[data-sync-identity]');identity.style.overflowWrap='anywhere';
+      identity.textContent=data.available?L('当前空间：{space} · 当前设备：{device}',{space:[document.querySelector('[data-personal-name]')?.textContent?.trim(),data.policy.spaceId].filter(Boolean).join(' · '),device:data.device_label||L('本机')}):'';
       state=data;form.hidden=!data.available;status.classList.remove('mw-loading');
       root.querySelector('[data-sync-tools]').hidden=!data.available;root.querySelector('[data-sync-projects]').hidden=!data.available;
       if(!data.available){status.textContent=L(data.reason);root.querySelector('[data-sync-conflicts]').replaceChildren();root.querySelector('[data-sync-history]').replaceChildren();return;}
@@ -74,7 +77,7 @@ export const SYNC_SETTINGS_CLIENT_SCRIPT=String.raw`
       if(data.lastSuccess)status.textContent+=' · '+L('上次完成')+' '+new Date(data.lastSuccess).toLocaleString();
       const conflicts=root.querySelector('[data-sync-conflicts]');conflicts.replaceChildren();
       for(const collection of data.collections)for(const item of collection.conflicts){
-        const row=node('section','settings-section');row.append(node('h2','',L(item.waiting?'等待关联资产':'同步冲突')),node('p','',L(item.reason)));
+        const row=node('section','settings-section');row.append(node('h2','',L(collection.title)+' · '+(item.title||L('对象 {id}',{id:String(item.key).slice(-24)}))),node('p','',L(item.reason)));
         const details=node('details','settings-data-disclosure');details.append(node('summary','',L('资产标识')),node('code','',item.key));row.append(details);
         if(item.waiting){
           const button=node('button','mw-btn mw-btn--secondary',L('重试同步'));button.type='button';

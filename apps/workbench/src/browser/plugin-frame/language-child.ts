@@ -39,8 +39,8 @@ export function frameLanguage(initial: FrameLanguage, stage: (words: FrameStageW
       latest = message.turn; prepared = undefined;
       const old = frameTextFragment(message.before), next = frameTextFragment(message.after);
       const reader = createTextReader({ locale: message.text.language.tag, packs: message.text.packs, intlLocale: intl(message.text) });
-      const plan = planLocaleText({ root: document.body, old: old.content, next: next.content, produced: context.produced, retext: reader.text });
       prepared = { turn: message.turn, use(words) {
+        const plan = planLocaleText({ root: document.body, old: old.content, next: next.content, produced: context.produced, retext: reader.text });
         plan.apply(() => select(message.text), () => select(displayed));
         stage(words);
         displayed = message.text;

@@ -46,8 +46,7 @@ test("FSS-35 an open Coding session keeps its draft and checkpoint seconds throu
       closeReport:()=>{},returnToTask:()=>{},onRunOpen:()=>{},appendDraft:async()=>{},focusDraft:()=>{},status:()=>{},
       api:async()=>({view_mode:'write',html:'',patch:'',reference:{artifact_id:'original-fixed',version:2},saved_at:Date.UTC(2026,10,9,18,24,37),
         output:null,net_groups:[],change:{files:[]}})});
-    await changes.openFixed('fixture-round');
-    window.fixedChange = q('[data-coding-change-fixed]');
+    window.changeFixture = changes;
     window.checkpoint = q('[data-coding-checkpoints-list] section'); window.checkpointFold = checkpoint.closest('details'); checkpointFold.open = true;
     window.codingDraft = q('[data-coding-task]'); codingDraft.value = '尚未发送的草稿'; codingDraft.dispatchEvent(new Event('input', {bubbles:true}));
     codingDraft.focus(); codingDraft.setSelectionRange(1, 4, 'backward');
@@ -57,24 +56,42 @@ test("FSS-35 an open Coding session keeps its draft and checkpoint seconds throu
   await child.waitFor("document.querySelector('[data-coding-draft-status]').textContent === t.text('coding.composer.draft-saved')");
   assert.equal(await child.evaluate("document.activeElement===codingDraft"), true, "the wide view keeps the draft visible beside the review panel");
   await browser.evaluate("codingLanguageRequests.length = 0");
-  const dates = "[checkpoint.querySelector('time').textContent, checkpoint.querySelector('.coding-checkpoint-done').textContent, fixedChange.title]";
+  const dates = "[checkpoint.querySelector('time').textContent, checkpoint.querySelector('.coding-checkpoint-done').textContent]";
+  const accessibleName = async () => {
+    const tree = await child.frameCommand<{ nodes: Array<{ role?: { value?: string }; name?: { value?: string } }> }>("Accessibility.getFullAXTree", { frameId: await child.frameId() });
+    return tree.nodes.find(node => node.role?.value === "button" && node.name?.value?.endsWith(" " + original.checkpoint_id))?.name?.value;
+  };
   const initial = await child.evaluate<string[]>(dates);
   assert.match(initial[0]!, /:\d\d:09\s(?:AM|PM)/u);
   assert.match(initial[1]!, /^Rolled back to here at .*:\d\d:49\s(?:AM|PM)/u);
-  assert.match(initial[2]!, /^Fixed at .*:\d\d:37\s(?:AM|PM)/u);
-  for (const [tag, locale] of [["zh", "zh-CN"], ["en", "en"]] as const) {
+  assert.equal(await accessibleName(), `Preview the rollback again ${original.label} ${original.checkpoint_id}`);
+  const languages = [["zh", "zh-CN"], ["en", "en"]] as const;
+  const switchLanguage = async (tag: "zh" | "en", locale: "zh-CN" | "en") => {
     const count = await child.evaluate<number>("codingInvalidations");
     await browser.evaluate(`(() => { const link = document.createElement('a'); link.dataset.uiLanguage = '${tag}';
       link.href = '/locale?lang=${tag}'; document.body.append(link); link.click(); link.remove(); })()`);
     await child.waitFor(`document.documentElement.lang === '${locale}' && codingInvalidations > ${count}`);
+  };
+  for (const [tag, locale] of languages) {
+    await switchLanguage(tag, locale);
     const words = await child.evaluate<string[]>(dates);
     if (tag === "en") assert.deepEqual(words, initial);
-    else { assert.match(words[0]!, /:\d\d:09/u); assert.notEqual(words[0], initial[0]); assert.match(words[1]!, /^已于 .*:\d\d:49/u); assert.match(words[2]!, /^固定于 .*:\d\d:37/u); }
+    else { assert.match(words[0]!, /:\d\d:09/u); assert.notEqual(words[0], initial[0]); assert.match(words[1]!, /^已于 .*:\d\d:49/u); }
+    assert.equal(await accessibleName(), `${tag === "en" ? "Preview the rollback again" : "再次预览回退"} ${original.label} ${original.checkpoint_id}`);
     assert.deepEqual(await child.evaluate(`[codingLanguageRoot.dataset.codingDetail, codingDraft===document.querySelector('[data-coding-task]'),
       document.activeElement===codingDraft, codingDraft.value, codingDraft.selectionStart, codingDraft.selectionEnd, codingDraft.selectionDirection,
       checkpoint===document.querySelector('[data-coding-checkpoints-list] section'), checkpointFold.open, checkpoint.querySelector('p').textContent,
-      checkpoint.querySelector('small [translate=no]').textContent, fixedChange===document.querySelector('[data-coding-change-fixed]')]`),
-      ["true", true, true, "尚未发送的草稿", 1, 4, "backward", true, true, original.label, original.directory.canonical_path, true]);
+      checkpoint.querySelector('small [translate=no]').textContent]`),
+      ["true", true, true, "尚未发送的草稿", 1, 4, "backward", true, true, original.label, original.directory.canonical_path]);
+  }
+  await child.evaluate(`(async () => { await changeFixture.openFixed('fixture-round'); window.fixedChange = document.querySelector('[data-coding-change-fixed]'); })()`);
+  const fixed = await child.evaluate<string>("fixedChange.title");
+  assert.match(fixed, /^Fixed at .*:\d\d:37\s(?:AM|PM)/u);
+  for (const [tag, locale] of languages) {
+    await switchLanguage(tag, locale);
+    const title = await child.evaluate<string>("fixedChange.title");
+    if (tag === "en") assert.equal(title, fixed); else assert.match(title, /^固定于 .*:\d\d:37/u);
+    assert.deepEqual(await child.evaluate("[fixedChange===document.querySelector('[data-coding-change-fixed]'), fixedChange.getClientRects().length > 0]"), [true, true]);
   }
   assert.deepEqual(await browser.evaluate(`codingLanguageRequests.filter(([method, path]) => method !== 'GET' || path.endsWith('/checkpoints'))`), []);
 });

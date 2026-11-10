@@ -2,6 +2,7 @@ import { childEmbeds } from "./embed.js";
 import type { UiPageView } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { FrameDown, FramePack, FrameScope, FrameUp } from "./types.js";
 import { renderedFrameText } from "./document.js";
+import { frameDocumentRevision } from "./language.js";
 
 /** Existing row-based clients and clients that open directly by id share the shell's selection intent. */
 export function pageSelection(root: HTMLElement, scope: FrameScope, row: FramePack["searchRow"]) {
@@ -50,10 +51,11 @@ export function collapsePage(root: HTMLElement): void {
 }
 
 export function childView(port: MessagePort, scope: FrameScope): UiPageView<HTMLElement> {
-  let sequence = 0;
+  let sequence = 0, languageRevision = 0;
   const pending = new Map<number, { finish(html?: string, error?: Error): void; cancel(): void }>();
   const cancel = () => { for (const entry of [...pending.values()]) entry.cancel(); };
   scope.own(cancel);
+  scope.listen(document, "molis-work:language-changed", () => { languageRevision++; });
   port.addEventListener("message", (event: MessageEvent<FrameDown>) => {
     if (event.data.type !== "document") return;
     const entry = pending.get(event.data.id); if (!entry) return;
@@ -62,11 +64,12 @@ export function childView(port: MessagePort, scope: FrameScope): UiPageView<HTML
   return { onClosing(action) { if (scope.alive) port.postMessage({ type: "on-closing", action } satisfies FrameUp); }, embed: childEmbeds(port, scope), refreshShell() { if (scope.alive) port.postMessage({ type: "refresh-shell" } satisfies FrameUp); }, readDocument: query => new Promise<string>((resolve, reject) => {
     if (!scope.alive) { reject(new Error("View closed")); return; }
     query?.signal?.throwIfAborted();
-    const id = ++sequence;
+    const id = ++sequence, language = languageRevision;
     const finish = (html?: string, error?: Error) => {
       if (!pending.delete(id)) return;
       query?.signal?.removeEventListener("abort", abort);
-      if (error) reject(error); else resolve(html ?? "");
+      if (language !== languageRevision) reject(new DOMException("View changed", "AbortError"));
+      else if (error) reject(error); else resolve(html ?? "");
     };
     const abort = () => { port.postMessage({ type: "document-cancel", id } satisfies FrameUp); finish(undefined, new DOMException("View changed", "AbortError")); };
     pending.set(id, { finish, cancel: abort }); query?.signal?.addEventListener("abort", abort, { once: true });
@@ -77,19 +80,21 @@ export function childView(port: MessagePort, scope: FrameScope): UiPageView<HTML
 /** Address and contribution come from the trusted mount; a child supplies neither. No owner document reaches the port. */
 export async function readOwnPageDocument(root: HTMLElement, route: (path: string) => string,
   pluginId: string, pageId: string, scope?: FrameScope, signal?: AbortSignal): Promise<string> {
+    const version = frameDocumentRevision(), language = document.documentElement.lang;
     const check = () => molisWorkRequest(route("/api/plugins/" + pluginId + "/view-revision"), { scope, signal, headers: { "x-molis-plugin-page": pageId } });
     await check();
     const source = await molisWorkRequest<string>(location.pathname + location.search, { as: "text", scope, signal });
-    const document = new DOMParser().parseFromString(source, "text/html");
-  const html = renderedFrameText(document, root);
-  if (html === null) throw new Error("View unavailable");
+    const rendered = new DOMParser().parseFromString(source, "text/html");
+    const html = renderedFrameText(rendered, root);
+    if (html === null || rendered.documentElement.lang && rendered.documentElement.lang !== language) throw new Error("View unavailable");
     await check(); scope?.assertCurrent(signal);
-    if (!root.isConnected || signal?.aborted) throw new Error("View unavailable");
+    if (!root.isConnected || signal?.aborted || version !== frameDocumentRevision()) throw new Error("View unavailable");
     return html;
 }
 
 export async function readPageDocument(port: MessagePort, id: number, root: HTMLElement, route: (path: string) => string,
   pack: FramePack, pageId: string, scope: FrameScope, object?: { id: string; surface: string }, signal?: AbortSignal): Promise<void> {
+  const version = frameDocumentRevision();
   try {
     let html: string;
     if (object !== undefined) {
@@ -100,12 +105,13 @@ export async function readPageDocument(port: MessagePort, id: number, root: HTML
       html = await molisWorkRequest<string>(route("/api/stage/" + encodeURIComponent(root.dataset.pluginClient) + "/objects/" + encodeURIComponent(object.id)) + "?surface=" + encodeURIComponent(object.surface), { as: "text", scope, signal });
       // Re-read the exact producer after the fragment: a new half or installation cannot supply this old page's result.
       await readOwnPageDocument(root, route, pack.plugin_id, pageId, scope, signal);
-    } else {
-      html = await readOwnPageDocument(root, route, pack.plugin_id, pageId, scope, signal);
-      const payload = root.querySelector("script[data-plugin-document]");
-      if (payload) payload.textContent = JSON.stringify(html);
-    }
+    } else html = await readOwnPageDocument(root, route, pack.plugin_id, pageId, scope, signal);
     scope.assertCurrent(signal);
+    if (version !== frameDocumentRevision()) throw new Error("View unavailable");
+    if (object === undefined) {
+      const payload = root.querySelector("script[data-plugin-document]");
+      if (payload) payload.textContent = JSON.stringify(html).replaceAll("<", "\\u003c");
+    }
     port.postMessage({ type: "document", id, html } satisfies FrameDown);
   } catch (error) {
     if (scope.alive && !signal?.aborted) port.postMessage({ type: "document", id, error: error instanceof Error ? error.message : "View unavailable" } satisfies FrameDown);

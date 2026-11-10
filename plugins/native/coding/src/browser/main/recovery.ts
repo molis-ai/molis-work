@@ -76,12 +76,16 @@ function checkpointMeta(page: Page, item: Checkpoint): HTMLElement {
 
 /** One checkpoint: its label, where it was made, and the button that previews rewinding to it. */
 function checkpointRow(page: Page, item: Checkpoint): HTMLElement {
-  const row = el("section"), button = el("button", item.rewound_at ? uiText.text("coding.checkpoints.preview-again") : uiText.text("coding.checkpoints.preview"), "mw-btn");
+  const row = el("section"), button = el("button", "", "mw-btn");
+  const word = el("span", item.rewound_at ? uiText.text("coding.checkpoints.preview-again") : uiText.text("coding.checkpoints.preview"));
+  const label = el("p", item.label), id = el("span", item.checkpoint_id), name = "coding-checkpoint-" + crypto.randomUUID();
+  word.id = name + "-action"; label.id = name + "-label"; id.id = name + "-id";
+  label.translate = false; id.translate = false; id.hidden = true;
   button.type = "button";
   button.dataset.codingRewind = item.checkpoint_id;
-  button.setAttribute("aria-label", button.textContent + " " + item.label + " " + item.checkpoint_id);
-  const label = el("p", item.label); label.translate = false;
-  row.append(label, checkpointMeta(page, item));
+  button.setAttribute("aria-labelledby", [word.id, label.id, id.id].join(" "));
+  button.append(word);
+  row.append(label, id, checkpointMeta(page, item));
   // Already rewound here: say when, so the list does not read as untouched; the files may have changed since.
   if (item.rewound_at) row.append(el("small", uiText.text("coding.checkpoints.rewound", { at: dateArg(item.rewound_at, "datetime-with-seconds") }), "coding-checkpoint-done"));
   row.append(button);

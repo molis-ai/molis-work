@@ -274,13 +274,14 @@ export function createLocaleSwitch<Prepared>(options: LocaleSwitchOptions<Prepar
         const prepared = options.prepare ? await waitForLocalePreparation(signal, options.prepare(target, signal, next, old)) : undefined;
         if (preparing === abort) preparing = undefined;
         if (request !== wanted) continue;
-        const plan = old && next && planLocaleText({ root: options.root, old, next, produced: options.produced, regions: options.regions?.(prepared),
-          retext: ref => options.retext(ref, target, prepared) });
         if (request.save && options.persist && (request.force || target !== persisted)) {
           await options.persist(target, prepared as Prepared);
           persisted = target;
         } else if (!request.save) persisted = target;
         if (request !== wanted) continue;
+        // Ordinary reads can finish while the saved preference's reply is on its way. Sample the live DOM at commit.
+        const plan = old && next && planLocaleText({ root: options.root, old, next, produced: options.produced, regions: options.regions?.(prepared),
+          retext: ref => options.retext(ref, target, prepared) });
         if (plan) {
           plan.apply(() => options.use(target, prepared), () => options.use(prior));
           merged = plan.result;

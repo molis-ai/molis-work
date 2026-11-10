@@ -155,19 +155,37 @@ test('FSS-36 held judgments follow both language changes and keep the run, verdi
         zh: ['判断结果是「无」，不在可以交过去的结果里', '结果「无」', '把握 90%'] },
       { en: [original], zh: [original] },
     ];
+    const selectLanguage = (tag: 'zh' | 'en') => b.evaluate(`(() => { const link = document.createElement('a'); link.dataset.uiLanguage = '${tag}';
+      link.href = '/locale?lang=${tag}'; document.body.append(link); link.click(); link.remove(); })()`);
     await b.evaluate(`(() => {
       const fetchOriginal = window.fetch;
       window.holdRunRequests = [];
       window.fetch = (input, init) => {
-        if (String(input?.url || input).includes('/api/plugins/io.molis.work.workflows/workflows')) holdRunRequests.push(init?.method || 'GET');
-        return fetchOriginal(input, init);
+        const path = new URL(String(input?.url || input), location.href).pathname, method = init?.method || 'GET';
+        if (path.includes('/api/plugins/io.molis.work.workflows/workflows')) holdRunRequests.push(method);
+        const response = fetchOriginal(input, init);
+        if (window.holdNullLocale && method === 'GET' && path.endsWith('/workflows/instances/${runs[2]!.instance_id}')) {
+          return response.then(value => new Promise(resolve => { window.releaseHeldRun = () => resolve(value); }));
+        }
+        if (window.holdNullLocale && method === 'POST' && path === '/api/ui/locale') {
+          return response.then(value => new Promise(resolve => { window.releaseHeldLocale = () => { window.holdNullLocale = false; resolve(value); }; }));
+        }
+        return response;
       };
     })()`);
     const words = `Array.from(document.querySelectorAll('.wf-handoff__note.is-held > span > span'), node => node.textContent)`;
     for (const [index, expected] of cases.entries()) {
       if (index > 0) await child.click('[data-wf-action=back-to-flow]');
       await child.waitFor(`document.querySelector('[data-wf-open-instance="${runs[index]!.instance_id}"]')`);
+      if (index === 2) await b.evaluate('window.holdNullLocale = true');
       await child.click(`[data-wf-open-instance="${runs[index]!.instance_id}"]`);
+      if (index === 2) {
+        await b.waitFor("typeof releaseHeldRun === 'function'");
+        await selectLanguage('zh');
+        await b.waitFor("typeof releaseHeldLocale === 'function'");
+        assert.equal(await child.evaluate('document.documentElement.lang'), 'en');
+        await b.evaluate('releaseHeldRun()');
+      }
       await child.waitFor(`JSON.stringify(${words})===${JSON.stringify(JSON.stringify(expected.en))}`);
       assert.equal(await child.evaluate(`!!document.querySelector('.wf-handoff__note.is-held tag')`), false);
       if (index === 3) assert.equal(await child.evaluate(`document.querySelector('.wf-handoff__note.is-held span[translate]').getAttribute('translate')`), 'no');
@@ -185,8 +203,8 @@ test('FSS-36 held judgments follow both language changes and keep the run, verdi
       await b.evaluate('holdRunRequests.length = 0');
       for (const [tag, locale] of [['zh', 'zh-CN'], ['en', 'en']] as const) {
         const count = await child.evaluate<number>('holdInvalidations.count');
-        await b.evaluate(`(() => { const link = document.createElement('a'); link.dataset.uiLanguage = '${tag}';
-          link.href = '/locale?lang=${tag}'; document.body.append(link); link.click(); link.remove(); })()`);
+        if (index === 2 && tag === 'zh') await b.evaluate('releaseHeldLocale()');
+        else await selectLanguage(tag);
         await child.waitFor(`document.documentElement.lang === '${locale}' && holdInvalidations.count > ${count}`);
         assert.deepEqual(await child.evaluate(words), expected[tag]);
         assert.deepEqual(await child.evaluate(`[document.querySelector('.wf-run')===heldRun, heldRun.dataset.id, heldRun.querySelector('.is-held')===heldNote,

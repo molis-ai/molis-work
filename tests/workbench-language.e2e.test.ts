@@ -122,20 +122,101 @@ test("FSS-36 an open missed follow-up notice keeps its original label and time t
   })()`);
   const english = /“原始提醒 <raw>” missed its scheduled time at .*3:00:37\sAM/u;
   assert.match(await b.evaluate<string>("missedText.data"), english);
+  const select = (tag: "zh" | "en") => b.evaluate(`(() => { const link = document.createElement('a'); link.dataset.uiLanguage = '${tag}';
+    link.href = '/locale?lang=${tag}'; document.body.append(link); link.click(); link.remove(); })()`);
   for (const [tag, words] of [["zh", /错过了「原始提醒 <raw>」.*03:00:37/u], ["en", english]] as const) {
-    await b.evaluate(`(() => { const link = document.createElement('a'); link.dataset.uiLanguage = '${tag}';
-      link.href = '/locale?lang=${tag}'; document.body.append(link); link.click(); link.remove(); })()`);
+    await select(tag);
     await b.waitFor(`document.documentElement.dataset.uiLanguageTag === '${tag}'`);
     assert.match(await b.evaluate<string>("missedText.data"), words);
     assert.deepEqual(await b.evaluate(`[document.querySelector(${JSON.stringify(dismiss)})===missedDismiss, document.activeElement===missedDismiss,
       missedRow.querySelector('.assistant-notice-text').firstChild===missedText, !!missedDismiss.getClientRects().length, missedWrites]`), [true, true, true, true, []]);
   }
   assert.deepEqual(notices.openNotices(LOCAL_PERSON_ACTOR_ID).find(row => row.notice_id === notice.notice_id)?.text, text);
+
+  const lateLabel = "迟到提醒 <raw>";
+  const late = notices.raiseNotice(LOCAL_PERSON_ACTOR_ID, { kind: "failed", work_id: "", work_title: lateLabel,
+    text: { ...text, args: [{ ...text.args[0], text: lateLabel }, { ...text.args[1], at: "2026-03-08T10:00:39.000Z" }] } }, "fixture:late-followup-language");
+  assert.ok(late);
+  const lateDismiss = `[data-notice-id=${JSON.stringify(late.notice_id)}][data-notice-action=dismiss]`;
+  await b.evaluate(`(() => {
+    const fetchOriginal = window.fetch;
+    window.fetch = (input, init) => {
+      const path = new URL(String(input?.url || input), location.href).pathname;
+      const response = fetchOriginal(input, init);
+      if (path.endsWith('/api/attention') && !window.releaseLateAttention) return response.then(value => new Promise(resolve => {
+        window.releaseLateAttention = () => resolve(value);
+      }));
+      if (path === '/api/ui/locale' && init?.method === 'POST') return response.then(value => new Promise(resolve => {
+        window.releaseLatePreference = () => { window.fetch = fetchOriginal; resolve(value); };
+      }));
+      return response;
+    };
+    document.dispatchEvent(new CustomEvent('molis-work:attention-refresh'));
+  })()`);
+  await b.waitFor("typeof releaseLateAttention === 'function'");
+  await select("zh");
+  await b.waitFor("typeof releaseLatePreference === 'function'");
+  assert.equal(await b.evaluate("document.documentElement.lang"), "en");
+  await b.evaluate("releaseLateAttention()");
+  await b.waitFor(`document.querySelector(${JSON.stringify(lateDismiss)})?.getClientRects().length`);
+  await b.evaluate(`(() => { window.lateDismiss = document.querySelector(${JSON.stringify(lateDismiss)}); lateDismiss.focus();
+    window.lateText = lateDismiss.closest('.assistant-notice').querySelector('.assistant-notice-text').firstChild; })()`);
+  assert.match(await b.evaluate<string>("lateText.data"), /“迟到提醒 <raw>” missed its scheduled time at .*3:00:39\sAM/u);
+  await b.evaluate("releaseLatePreference()");
+  await b.waitFor("document.documentElement.lang === 'zh-CN'");
+  assert.match(await b.evaluate<string>("lateText.data"), /错过了「迟到提醒 <raw>」.*03:00:39/u);
+  assert.deepEqual(await b.evaluate(`[document.querySelector(${JSON.stringify(lateDismiss)})===lateDismiss, document.activeElement===lateDismiss,
+    lateDismiss.closest('.assistant-notice').querySelector('.assistant-notice-text').firstChild===lateText, missedWrites]`), [true, true, true, []]);
 });
 
 const ISSUE_OWNER = "io.molis.work.issues";
 
 type LanguageBrowser = NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>;
+
+test("FSS-20 a late Feed document read leaves the committed language in the frame and its opening template", { timeout: 90_000 }, async t => {
+  const b = await openGoalBrowser(t, "seeded", undefined, null); if (!b?.projectId) return;
+  const feed = await pluginFrameBrowser(t, b, "feed"), path = `/projects/${b.projectId}/`;
+  await b.navigate(() => b.command("Page.navigate", { url: b.origin + "/locale?lang=zh&next=" + encodeURIComponent(path), }, b.sessionId));
+  await b.click('[data-plugin-strip] [data-plugin-id=feed]');
+  const search = `document.querySelector('[data-feed-search]')`;
+  await feed.waitFor(`${search}?.getAttribute('aria-label') === '搜索消息' && typeof t === 'function'`);
+  await feed.clientReady();
+  await b.evaluate(`(() => {
+    const fetchOriginal = window.fetch;
+    window.feedReadReplies = []; window.feedChecks = 0; window.feedReads = 0;
+    window.fetch = (input, init) => {
+      const url = new URL(String(input?.url || input), location.href), response = fetchOriginal(input, init);
+      if (url.pathname.endsWith('/api/plugins/io.molis.work.feed/view-revision')) return response.then(value => { feedChecks++; return value; });
+      if (url.pathname !== ${JSON.stringify(path)} || (init?.method || 'GET') !== 'GET' || new Headers(init?.headers).has('x-molis-work-ui-locale')) return response;
+      const index = feedReads++;
+      return response.then(async value => {
+        const language = new DOMParser().parseFromString(await value.clone().text(), 'text/html').documentElement.lang;
+        return new Promise(resolve => { feedReadReplies[index] = { language, release: () => resolve(value) }; });
+      });
+    };
+    document.querySelector('[data-work-surface=feed]').dispatchEvent(new CustomEvent('molis-work:select-item', { detail: { invalidate: true } }));
+    window.feedOpeningName = () => {
+      const template = document.createElement('template');
+      template.innerHTML = JSON.parse(document.querySelector('[data-work-surface=feed] > script[data-plugin-document]').textContent);
+      return template.content.querySelector('[data-feed-search]').getAttribute('aria-label');
+    };
+  })()`);
+  await b.waitFor("feedReadReplies[0]?.language === 'zh-CN'");
+  await b.evaluate(`(() => { const link = document.createElement('a'); link.dataset.uiLanguage = 'en';
+    link.href = '/locale?lang=en'; document.body.append(link); link.click(); link.remove(); })()`);
+  await b.waitFor("document.documentElement.lang === 'en' && feedReadReplies[1]?.language === 'en'");
+  await feed.waitFor(`${search}.getAttribute('aria-label') === 'Search messages'`);
+  assert.equal(await b.evaluate("feedOpeningName()"), "Search messages");
+  const checks = await b.evaluate<number>("feedChecks");
+  await b.evaluate("feedReadReplies[0].release()");
+  await b.waitFor(`feedChecks > ${checks}`);
+  assert.equal(await b.evaluate("new Promise(resolve => requestAnimationFrame(() => resolve(feedOpeningName())))"), "Search messages");
+  assert.equal(await feed.evaluate(`${search}.getAttribute('aria-label')`), "Search messages");
+  const freshChecks = await b.evaluate<number>("feedChecks");
+  await b.evaluate("feedReadReplies[1].release()");
+  await b.waitFor(`feedChecks > ${freshChecks}`);
+  assert.equal(await b.evaluate("feedReads"), 2, "one prior read and one existing invalidation read");
+});
 
 async function chooseEnglishInSettings(t: TestContext, b: LanguageBrowser, target: "zh" | "en" = "en") {
   const { targetId } = await b.command<{ targetId: string }>("Target.createTarget", { url: "about:blank", background: true });

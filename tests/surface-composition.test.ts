@@ -147,6 +147,7 @@ test("IUI-02 SCS-11 SCS-13 the same directory's unique reader owns the fallback 
   const original = reader("note", other.install_id);
   const exact = { ...original, action: { ...original.action, execution: { cost: "none" as const } } };
   let first: ActionView | undefined;
+  let title = "Original current title", revision = "actual-revision";
   const reads: string[] = [], proofs: unknown[] = [];
   const h = harness({ catalog: () => [plugin(object), other], discover: () => ({
     views: [exact, values(), ...(first ? [first] : [])], retain: selected => {
@@ -156,7 +157,7 @@ test("IUI-02 SCS-11 SCS-13 the same directory's unique reader owns the fallback 
   }), subject: async (view, input) => {
     assert.equal(view, exact);
     reads.push(input.subject_id);
-    return { subject: note(input.subject_id), title: "Original current title", revision: "actual-revision", content: "sensitive body", truncated: false,
+    return { subject: note(input.subject_id), title, revision, content: "sensitive body", truncated: false,
       open: { surface: "other", id: "original-item" } };
   }, keepFallback: proof => {
     const { reader, plugin, ...display } = proof;
@@ -176,7 +177,19 @@ test("IUI-02 SCS-11 SCS-13 the same directory's unique reader owns the fallback 
   assert.doesNotMatch(JSON.stringify(description), /Original current title|actual-revision|sensitive body|original-item/u);
   first = reader();
   assert.deepEqual(group(await h.compose(request)).items, []);
+  assert.equal(h.counts.directory, 2);
   assert.deepEqual(reads, ["a"], "an ambiguous kind dispatches neither reader");
+  assert.equal(proofs.length, 1);
+
+  first = undefined;
+  title = "Current title after recovery";
+  revision = "restored-revision";
+  assert.deepEqual(group(await h.compose(request)).items, [fallback]);
+  assert.equal(h.counts.directory, 3);
+  assert.deepEqual(reads, ["a", "a"], "the recovered reader runs once for the repeated subject");
+  assert.deepEqual(h.calls, []);
+  assert.equal(proofs.length, 2);
+  assert.deepEqual(proofs[1], { subject: note("a"), title, revision, open: { surface: "other", id: "original-item" } });
 });
 
 test("SCS-04 SCS-06 SCS-17 Attention uses only active owner references and suppresses unproved objects and relations", async () => {

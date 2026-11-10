@@ -1,6 +1,6 @@
 {
   "reason": "2026-11-08 日报中优先级 A 类已批准修复：不可信 HTML 共用清理边界、插件帧显隐及刷新限频、取消状态、触屏焦点与翻译。对 1b8712618152ff4563e0678fa7167fe6063f8999 的真实 Host 构建实测，仅覆盖本批现有资源的必要增长，无新增资源。",
-  "review": "逐编号实施与验证见 specs/daily-quality-medium-20261108/spec.md；最终逐资源体积和原因见 docs/reviews/daily-quality/2026-11-08-medium-resources.md。",
+  "review": "逐编号实施与验证见 specs/archive/daily-quality-medium-20261108/spec.md；最终逐资源体积和原因见 docs/reviews/daily-quality/2026-11-08-medium-resources.md。",
   "assets": {
     "/assets/molis-work-arrival.css": 376,
     "/assets/molis-work-plugin-frame.js": 704,

@@ -32,6 +32,7 @@
   "dependencies": {
     "@molis-ai/molis-work-contracts": "workspace:*",
     "@molis-ai/molis-work-design-system": "workspace:*",
+    "@molis-ai/molis-work-im-ui": "workspace:*",
     "@molis-ai/molis-work-module-artifacts": "workspace:*",
     "@molis-ai/molis-work-plugin-alchemist": "workspace:*",
     "@molis-ai/molis-work-plugin-builder": "workspace:*",

@@ -392,11 +392,14 @@ test("D0191 D0225 Memory promotion resolves a one-time versioned reference and r
     if (call.path.endsWith("/draft-reference/take")) { const reference = String(call.body.reference), text = pending.get(reference); pending.delete(reference); return { body: { text } }; }
     return { status: 500, body: { error: "Unexpected mutation" } };
   }, true); if (!f) return;
+  await f.page.command("Page.enable");
   const text = "需要保密的项目约定🙂".repeat(200);
   f.overview.items[0]!.text = text;
   await f.reset();
   await f.page.click(item() + " summary[aria-label^=更多操作]");
-  await f.page.evaluate("[...document.querySelectorAll('[data-memory-id=active] .mw-menu__item')].find(button => button.textContent === '升级为项目说明').click()");
+  await f.page.evaluate("[...document.querySelectorAll('[data-memory-id=active] .mw-menu__item')].find(button => button.textContent === '升级为项目说明').dataset.promoteGuidance='1'");
+  const navigation = f.browser.event("Page.domContentEventFired");
+  await f.page.click("[data-promote-guidance]"); await navigation;
   await f.page.wait("document.querySelector('[data-guidance-editor]')?.hidden === false");
   assert.equal(await f.page.evaluate("document.querySelector('[data-guidance-form]').elements.content.value"), text);
   const visit = f.visits.find(path => path.includes("draft_ref="))!;
@@ -408,7 +411,9 @@ test("D0191 D0225 Memory promotion resolves a one-time versioned reference and r
   for (const version of [6, 7]) {
     if (version === 7) f.overview.items = [];
     const reference = "stale-" + version; pending.set(reference, JSON.stringify(["active", version]));
+    const loaded = f.browser.event("Page.domContentEventFired");
     await f.page.command("Page.navigate", { url: f.origin + "/projects/project/settings/guidance?draft_ref=" + reference });
+    await loaded;
     await f.page.wait("document.querySelector('[data-guidance-receipt]')?.checkVisibility() && document.querySelector('[data-guidance-receipt]').textContent.includes('这条记忆已变化或不可用')");
     assert.equal(await f.page.evaluate("document.querySelector('[data-guidance-editor]').hidden"), true);
     assert.equal(await f.page.evaluate("document.querySelector('[data-guidance-form]').elements.content.value"), "");

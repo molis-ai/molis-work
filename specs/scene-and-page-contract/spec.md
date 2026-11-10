@@ -1,6 +1,6 @@
 # 场景与生成页面公共合同（路线书 20 第 1、2 项）
 
-状态：第 20 批公共合同、SDK 校验与必要接入已实现；唯一 [PR #2000](https://github.com/molis-ai/molis-work/pull/2000) 承接最终验证与合入，以下证据截至本次文档提交。首次 Full 的四份持续失败已修复；产品头 `f5da16b304` 的本机验证已通过，后续覆盖核账发现的 macOS 测试夹具缺口已在 `580256f6c6` 修复，11 项原用例补验及两路代码增量审查通过。随后 `1f6` 普通 CI 的 RAC-390 状态观察断言失败，`8b87087269` 已仅在测试中修正为撤权祖先的因果断言，原文件 3 项及正反交错验证通过。旧 Full 的失败与缺失汇总记录保留；最终文档头绑定、同头 CI／Full 与队列仍待完成。原金样首败、视觉失败及用户仅对本轮两处具体像素差异的豁免分别保留，不扩大授权。完整证据见[第 20 批整批记录](../post-anticorruption-roadmap/reference/batches/20.md#batch-20-validation)。第 08 批 #1984、第 36 批提前合同 #1995 均已合入并消费。按用户确定的分工，20 交公共合同、SDK 共用校验及必要现有接入；36 接角色服务，37 接页面运行与真实安全，44 接引导采用与另存，51 接场景成品。签名沙箱设置执行及本人体验分别见 [BL-settings-sandbox-execution](../backlog/BL-settings-sandbox-execution.md)、[BL-batch20-membership-acceptance](../backlog/BL-batch20-membership-acceptance.md)。
+状态：第 20 批公共合同、SDK 校验与必要接入已实现；唯一 [PR #2000](https://github.com/molis-ai/molis-work/pull/2000) 已完成最终验证并合入 main `6df7285c31c34bb6261cbf2e48c3ef4e67a1038a`（候选 `b5789885a837c130b07a506d8f4200371da763f8`，tree `217c31661fb1929f7d00cc35624133abda3b3c1e`；合入树与候选树相同），以下为交付与证据记录。首次 Full 的四份持续失败已修复；产品头 `f5da16b304` 的本机验证已通过，后续覆盖核账发现的 macOS 测试夹具缺口已在 `580256f6c6` 修复，11 项原用例补验及两路代码增量审查通过。随后 `1f6` 普通 CI 的 RAC-390 状态观察断言失败，`8b87087269` 已仅在测试中修正为撤权祖先的因果断言，原文件 3 项及正反交错验证通过。旧 Full 的失败、取消与缺失汇总记录均保留；最终普通 CI／Full／合并队列与文档头绑定已完成（32 分片+汇总、1,883／1,883 文件，3 份仅既定重试后通过；见[第 20 批记录](../post-anticorruption-roadmap/reference/batches/20.md#最终-cifull-结算与合入2026-11-09)）。原金样首败、视觉失败及用户仅对本轮两处具体像素差异的豁免分别保留，不扩大授权（批准记录见 PR #2000 评论 [6740376438](https://github.com/molis-ai/molis-work/pull/2000#issuecomment-6740376438)、[6745182388](https://github.com/molis-ai/molis-work/pull/2000#issuecomment-6745182388)，逐像素复核见 [6742161422](https://github.com/molis-ai/molis-work/pull/2000#issuecomment-6742161422)；后续比较若仍出现同类差异需用户另行决定是否延续）。完整证据见[第 20 批整批记录](../post-anticorruption-roadmap/reference/batches/20.md#batch-20-validation)。第 08 批 #1984、第 36 批提前合同 #1995 均已合入并消费。按用户确定的分工，20 交公共合同、SDK 共用校验及必要现有接入；36 接角色服务，37 接页面运行与真实安全，44 接引导采用与另存，51 接场景成品。签名沙箱设置执行及本人体验分别见 [BL-settings-sandbox-execution](../backlog/BL-settings-sandbox-execution.md)、[BL-batch20-membership-acceptance](../backlog/BL-batch20-membership-acceptance.md)。
 
 ## 0. 这份稿子做什么
 
@@ -158,7 +158,7 @@ Manifest 只加 `blueprint?: { locales: string[] }`，不内嵌第二份 Bluepri
 
 采用记录与草稿记 `locale`，正文和标题等按采用时语言选定；回退按 14／08 既定规则，不改变包版本。包身份与版本来自安装记录的 `BlueprintSource`，不在 Blueprint 再加版本或安装身份。所有语言共用 Manifest 的版本。场景升级沿第 7 节按稳定 `part_id` 比「旧版建议、新版建议、主人当前值」，并保持采用语言：用户修改默认保留，新增／删除／依赖变化明确列出；包升级不等于重新采用，拒绝升级继续使用原采用。步骤与示范任务变化也展示，但它们不写业务数据。移除仍按 SPC-07／16 保留用户内容与共享依赖。
 
-`packs.save` 将 literal 转为稳定键，生成草稿语言的单语言词表与 `blueprint.json`；不自动翻译用户内容。内容包只放宽 14 已允许的标记字符，占位符规则不变。遇到 `{foo bar}`、`{pr-number}` 或旧复数写法时，在保存前拒绝，错误指出场景标题／字段及问题片段，并给「改成 `‹foo bar›` 或 `[foo bar]` 后再保存」；不自动改字，不把 `ui.locale_placeholder`／`ui.locale_old_plural` 当用户文案。`{file}` 仍按共用规则处理。校验失败不签名、不写包、不改采用记录。存包服务与用户界面由第 44 批消费这份规则；本批用共用校验与打包边界证明可检测、可定位。
+`packs.save` 将 literal 转为稳定键，生成草稿语言的单语言词表与 `blueprint.json`；不自动翻译用户内容。内容包只放宽 14 已允许的标记字符，占位符规则不变。遇到 `{foo bar}`、`{pr-number}` 或旧复数写法时，在保存前拒绝，错误指出场景标题／字段及问题片段，并给「改成 `‹foo bar›` 或 `[foo bar]` 后再保存」；不自动改字，不把 `ui.locale_placeholder`／`ui.locale_old_plural` 当用户文案。`{file}` 仍按共用规则处理。校验失败不签名、不写包、不改采用记录。存包服务与用户界面由第 44 批消费这份规则；本批用共用校验与打包边界证明可检测、可定位（20 批不实现产品措辞与场景字段映射；44 的 `packs.save` 须给出哪个标题哪段、问题片段与上述替换建议）。
 
 ### 3.4 随包带上、尚未安装
 
@@ -609,7 +609,7 @@ type ContentAdoptionReadResult<Value> =
 - 快照文件名：`plugin-manifest.ts`、`plugin-package.ts` 没有自己的子路径，经 `platform/plugin` 导出，所以它们的改动都落在 api 快照 `contracts/platform/plugin.txt` 上；表里按源文件写，排序时视为同一份快照。
 - `plugin-manifest` 按 08 C-1 → 05② C-2 → P-1 → P-3b 接力。08 C-3 插在 08 C-1 之后、P-3b 之前，和 05② C-2、P-1 先准备好的先落，共用 `platform/plugin.txt`。`modules/projects` 是 05② C-1 → P-3a，`plugin-package` 由 08 C-1（#1936 的 `CONTENT_PACKAGE_FILES`）和 08 C-3（沙箱方法写法）接入，`platform/actions` 是 #1791 K0 → P-4。`host-actions.tsv` 按上表依次落，同一时间只有一片在途。
 - 全部在 M1 之前落，按 N35 一个 PR 改完所有消费者，不留兼容期。
-- 错误码用 `defineErrorCodes`：`blueprints.part_unsupported`（主人没声明）、`blueprints.step_conflict`（主人的 revision 变了）、`blueprints.dependency_unmet`、`blueprints.preview_expired`；设置的拒绝由主人给 `<主人>.setting_invalid`、`<主人>.setting_conflict`，SDK 的 bind 帮主人按主人名生成，不新增平台码。P-1 落时按 `tooling/gates/error-owners.json` 核主人名。
+- 错误码用 `defineErrorCodes`：`blueprints.part_unsupported`（主人没声明）、`blueprints.step_conflict`（主人的 revision 变了）、`blueprints.dependency_unmet`、`blueprints.preview_expired`；设置的拒绝由主人用 `defineErrorCodes` 声明 `<主人>.setting_invalid`、`<主人>.setting_conflict`，SDK 的 bind 以强类型使用这两个码、不生成新码，不新增平台码。P-1 落时按 `tooling/gates/error-owners.json` 核主人名。
 
 **独立工作树执行（用户 2026-11-08 更正）。** 第 15、16 和第 20 批各在独立 worktree，修改不会互相覆盖。第 20 批不再等待跨批文件释放、不设跨批冻结窗口，也不为文件占用向其他批发协调消息。所需代码在本批工作树直接完成，整批写完后统一同步 main，解决实际合并冲突并验证。保留真实能力和合同依赖，但不能把文件重叠当成阻塞。08 的已合内容包能力 `416ee8cef0` 已按必要前置接入 `0e90dd8ec6`；其他在途批不提前合入。本批内仍只有一个产品写手。
 
@@ -727,7 +727,7 @@ D 轨若要在组件板补「逐步状态」「三方差异」的标本，由 44
 | SPC-C02 | SDK 设置绑定接可持久化的 owner 事务：同请求重放只写一次，同键异内容拒绝，两个同 revision 并发写只有一次成功，重开 owner 后重放返回原结果，写 receipt 失败不留值修改，撤权不落值／回执 | SPC-03、04、05；不代表所有存量设置已迁入 |
 | SPC-C03 | Blueprint 校验接受同一形状的 package／draft，拒绝重复／悬空 ID、错角色协作、示范任务结果不在所引步骤、required 与 optional 矛盾；缺未安装能力本身不导致静态拒绝 | SPC-01、02、13；ONB-53、54 |
 | SPC-C04 | 普通内容包解析接受仅 blueprint、仅 methods、两者都有；拒绝两者皆无、运行时权限／入口、缺文件／多文件、非法语言清单；默认及译文共用同一校验，语言间改了能力／步骤／设置值即拒绝 | SPC-01、13；ONB-53 |
-| SPC-C05 | TextRef 的包键／草稿 literal 边界及译文结构检查调用 14 共用实现；草稿转词时花括号失败能定位场景字段并给替换建议，不自动改字；签名／保存消费者后续另验无副作用 | ONB-53；FSS-74 的场景包合同部分 |
+| SPC-C05 | TextRef 的包键／草稿 literal 边界及译文结构检查调用 14 共用实现；花括号失败能定位到语言文件与词键并给问题片段，不自动改字；场景字段映射、平白话措辞与「改成 `‹foo bar›` 或 `[foo bar]`」的替换建议归 44 消费端实现时验；签名／保存消费者后续另验无副作用 | ONB-53；FSS-74 的场景包合同部分 |
 | SPC-C06 | 角色模板、采用来源与请求键、成员结果与批读、页面动作／版本／批准类型可从公共路径消费。严格 schema 拒绝伪造 actor／安装身份及未声明字段。角色用 36 已定义的准确类型，真实 owner 事务与回读另验 | SPC-06、10、11、14、15；合同证据覆盖形状，运行验收另记 |
 | SPC-C07 | 升级预览合同能表达稳定 part_id 对应的旧建议／新建议／当前值、保留用户修改、新增／移除／依赖变化及采用语言；随包候选沿 08 包来源表达，无安装身份或自动授权 | SPC-07、08、13、16；ONB-55、56，实际三方计算与卸载保留仍待服务测试 |
 | SPC-C08 | 项目成员公开 get／set、HTTP 与现有页面使用同一观察 revision；冲突、ABA 与并发拒绝不写成员或事件；提交后运行失败保留已保存回执，重开只恢复运行，常开／随行／个人隐藏规则保持（详见第 10.1 节） | SPC-03、07、14；仅证明项目成员接入，不代替整段场景采用 |
@@ -743,6 +743,8 @@ D 轨若要在组件板补「逐步状态」「三方差异」的标本，由 44
 
 两侧同为 51 个资源路径，发现和测量无遗漏、无新增资源；合计增加 2,048 字节，没有单项超过 10,000 字节。独立设置页的 CSS 保持 786,021 字节，不给增长许可。手机提示规则已移入仅工作台使用的既有 600px 样式段，消除了设置页无用的 77 字节增长。
 
+**历史额度与路径数说明（2026-11-10 补记）**：本轮 1,996 B 为当时额度，先后由 `15ac2c0a03` 的 1,975 B、`bc19b4b363` 的 1,976 B 与 `16dcfdb212` 的 1,981 B 取代，最终合入保留 1,981 B／CSS 52 B。51 路径是第一轮（基线 `1b8712`）的两侧路径数；主线第 10 批 #1991（`ecdfe102d2`，新增共享资源 `/assets/molis-work-composer.js`）在此之后、c7bf 基点之前合入，因此 20.md 记录的 c7bf 轮与本节记录的 1d32 轮均为 52 路径——这是主线既有资源，不是本批新增。
+
 脚本增量用于选择器、市场和 Coding 设置既有入口的版本观察、冲突重读与保留意图，以及 503 已提交回执的呈现。工作台共用保存入口，没有第二套 POST／DELETE；失败回执的局部显示不能替换为会读取项目页并同步运行状态的成功跳转。样式增量修复手机选择器遮住已保存提示的问题，复用原提示与诊断入口。评审未发现 Blocker／P1 或可删除的重复实现。
 
 上一轮比较基点为 `c7bf66a711fbaab521998fe265eb168485156748`。在候选 `06b28f8ef54df37ea9e7be6041108769ef251ec2`（tree `e2b21547a4177490c1fd3a2131ea58daa8d7e1d4`），实际下发的工作台脚本从 1,027,074 字节增至 1,029,050 字节，样式从 1,133,030 字节增至 1,133,082 字节。成员脚本与样式源码和前次 `15ac2c0a03` 测量一致。合并新主线后的整包脚本净增为 1,976 字节，比前次许可多 1 字节，首次门禁比较据此拒绝。Astra high 最终资源限定审确认本任务以脚本 1,976 字节、样式 52 字节作为精确许可。设置页仍使用实测零增长的结果。
@@ -750,6 +752,8 @@ D 轨若要在组件板补「逐步状态」「三方差异」的标本，由 44
 合入主线 `1d32d49d6bdff86791d76e4ebf0cebecb2809228` 后，在候选 `39c444c039ecb11f8222b48bcf27bbbde8eb383e`（tree `3d62b68658d1f93856ef70b8dc2481bf6da4188d`）重测。两边实际下发 52 个路径，无遗漏、增删。工作台 JS 从 1,028,175 字节增至 1,030,156 字节，净增 1,981 字节（gzip 净增 499 字节）。工作台 CSS 从 1,133,545 字节增至 1,133,597 字节，净增 52 字节（gzip 净增 24 字节）。设置页 CSS 仍为 773,039 字节，gzip 109,243 字节。成员 JS 和 CSS 的实现与上一轮测量相同，JS 整包净增随基点多出 5 字节，首次比较因此失败。Astra high 批准本任务的精确额度为 JS 1,981 字节和 CSS 52 字节。[PR #2000 资源限定审阅](https://github.com/molis-ai/molis-work/pull/2000#issuecomment-6742161422)
 
 本记录是任务独立许可的审阅出处；正式页面资源比较仍须通过，不改门禁规则，也不代替最终全 PR 评审。已有资源许可不改、不复用。
+
+**最终 CI 核验（2026-11-09，2026-11-10 补记）**：最终候选 `b5789885` 的普通 CI `42679839348` 中，Package boundaries 作业在 base `02d2443f1b` 上通过：52 条路径、无新增、无遗漏；工作台 JS `1,028,175→1,030,156`（+1,981 B）、CSS `1,133,545→1,133,597`（+52 B），设置页 CSS `773,039` B／gzip `109,243` B。测量工件 `page-assets-a6090768c684a2cfb01eb541e98e0a5a56a6c13a-9642de6ef42e5f7dd3434105`（artifact `13702650870`）的 `measurement.json` 与以上数字一致、`misses` 为空；Full 实际 checkout `a6090768…` 的 tree 与最终头相同。许可文件 `tooling/gates/page-asset-allowances/20-project-membership.json` 为 JS 1,981／CSS 52。
 
 ## 15. 开工前检查
 

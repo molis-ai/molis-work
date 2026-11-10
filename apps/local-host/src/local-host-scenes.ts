@@ -46,8 +46,8 @@ export function createSceneClient(host: SceneHost, reference?: LocalHostProjectR
         availability: scene.availability.available ? policy ?? scene.availability : scene.availability };
     }));
   };
-  const scenes = (caller: ActionCallContext, judgment?: ActionReference) =>
-    withPolicy(caller, host.actionService.discoverScenes(caller, judgment), () => host.discoverActions(caller), judgment);
+  const scenes = (caller: ActionCallContext, judgment?: ActionReference, loadDirectory = () => host.discoverActions(caller)) =>
+    withPolicy(caller, host.actionService.discoverScenes(caller, judgment), loadDirectory, judgment);
   const check = async (caller: ActionCallContext, sceneId: string, version: number, judgment?: ActionReference, configuration = false) => {
     const scene = (await scenes(caller, judgment)).find(item => item.definition.scene_id === sceneId && item.definition.version === version);
     if (!scene) throw new ActionError("actions.scene_missing", "场景不存在或不可访问");
@@ -79,7 +79,9 @@ export function createSceneClient(host: SceneHost, reference?: LocalHostProjectR
     },
     targets: async (caller, judgment, selection) => {
       const bound = await prepare(caller);
-      const [targets, availableScenes, actions] = await Promise.all([host.actionService.targets(bound, judgment, selection), scenes(bound, judgment), host.discoverActions(bound)]);
+      let directory: Promise<ActionView[]> | undefined;
+      const loadDirectory = () => directory ??= host.discoverActions(bound);
+      const [targets, availableScenes, actions] = await Promise.all([host.actionService.targets(bound, judgment, selection), scenes(bound, judgment, loadDirectory), loadDirectory()]);
       const fn = judgment ? actions.find(action => action.capability_id === judgment.capability_id && action.version === judgment.version && (!judgment.provider_id || judgment.provider_id === action.provider.provider_id)) : undefined;
       return targets.map(target => {
         const source = availableScenes.find(scene => scene.definition.scene_id === target.scene_id && scene.definition.version === target.scene_version && scene.provider.provider_id === target.provider_id);

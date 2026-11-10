@@ -1,7 +1,7 @@
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { readPluginReleaseManifest, readPluginRuntimeRecords } from "@molis-ai/molis-work-plugin-runtime";
 import { HOST_ARTIFACT_PRODUCERS, type InstalledArtifactView } from "./artifact-type-registry.js";
-import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
+import { builtinPluginByManifestId } from "./plugin-registry.js";
 
 type Declares = { artifacts: Pick<PluginManifest["artifacts"], "produces">; process_items?: PluginManifest["process_items"] };
 
@@ -20,7 +20,7 @@ export function bindProjectArtifacts(db: object, view: InstalledArtifactView): (
 function shippedDeclaration(pluginId: string): Declares | undefined {
   // The Host's own producer first: the 成果 plugin's shell shares its id and declares no type (PG-077).
   return HOST_ARTIFACT_PRODUCERS.filter(host => host.plugin_id === pluginId).map(host => ({ artifacts: { produces: host.produces } }))[0]
-    ?? PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.manifest.plugin_id === pluginId)?.manifest;
+    ?? builtinPluginByManifestId(pluginId)?.manifest;
 }
 
 /**

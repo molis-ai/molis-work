@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { createRequire } from "node:module";
+import { createRequire, registerHooks } from "node:module";
 import test, { type TestContext } from "node:test";
 
 const zeroCounts = () => ({
   prepareContext: 0, inspectActions: 0, discover: 0, discoverScenes: 0, projectPluginReads: 0, sqliteOpens: 0,
+  actionDirectoryRows: 0, sceneDirectoryRows: 0, ownerResolutions: 0, shippedRegistrationRows: 0,
 });
 type Counts = ReturnType<typeof zeroCounts>;
 const counters = Object.keys(zeroCounts()) as Array<keyof Counts>;
@@ -14,6 +15,33 @@ const samples = 3;
 async function callMeter(t: TestContext) {
   let counts: Counts | undefined;
   const count = (key: keyof Counts) => { if (counts) counts[key]++; };
+  const rows = <T>(key: keyof Counts, directory: T[]): T[] => new Proxy(directory, {
+    get(target, property, receiver) {
+      if (typeof property === "string" && /^(?:0|[1-9][0-9]*)$/u.test(property)) count(key);
+      return Reflect.get(target, property, receiver);
+    },
+  });
+  // Observe lexical calls as well as imports of the resolver. Keep the probe in the test process,
+  // and count visits to the same registration array used by the real lookups, indexing and enumeration.
+  const owner = new URL("../apps/local-host/dist/project-action-availability.js", import.meta.url).href;
+  const registration = new URL("../apps/local-host/dist/plugin-registry.generated.js", import.meta.url).href;
+  const probeName = "molis-work.call-budget";
+  const probe = `globalThis[Symbol.for("${probeName}")]`;
+  Reflect.set(globalThis, Symbol.for(probeName), { owner: () => count("ownerResolutions"), rows });
+  const hook = registerHooks({ load(url, context, nextLoad) {
+    const result = nextLoad(url, context);
+    if (url !== owner && url !== registration) return result;
+    const source = typeof result.source === "string" ? result.source : new TextDecoder().decode(result.source!);
+    if (url === owner) {
+      const entry = "export function reachEntry(homeDirectory, pluginId) {";
+      assert.ok(source.includes(entry), "the loaded Host contains the measured reach resolver");
+      return { ...result, source: source.replace(entry, `${entry} ${probe}.owner();`) };
+    }
+    const declaration = "export const PLATFORM_PLUGIN_REGISTRATIONS = [";
+    assert.ok(source.includes(declaration) && source.includes("\n];"), "the loaded Host contains the measured catalog");
+    return { ...result, source: source.replace(declaration, `export const PLATFORM_PLUGIN_REGISTRATIONS = ${probe}.rows("shippedRegistrationRows", [`).replace("\n];", "\n]);") };
+  } });
+  t.after(() => { hook.deregister(); Reflect.deleteProperty(globalThis, Symbol.for(probeName)); });
 
   // Replace the built-in's constructor before its ESM facade (and thus the Host) first loads. Every open still uses native SQLite.
   const sqlite = createRequire(import.meta.url)("node:sqlite") as { DatabaseSync: typeof import("node:sqlite").DatabaseSync };
@@ -43,12 +71,14 @@ async function callMeter(t: TestContext) {
   const discover = ActionService.prototype.discover;
   t.mock.method(ActionService.prototype, "discover", function (this: typeof ActionService.prototype, ...args: Parameters<typeof discover>) {
     count("discover");
-    return discover.apply(this, args);
+    const directory = discover.apply(this, args);
+    return counts ? rows("actionDirectoryRows", directory) : directory;
   });
   const scenes = ActionService.prototype.discoverScenes;
   t.mock.method(ActionService.prototype, "discoverScenes", function (this: typeof ActionService.prototype, ...args: Parameters<typeof scenes>) {
     count("discoverScenes");
-    return scenes.apply(this, args);
+    const directory = scenes.apply(this, args);
+    return counts ? rows("sceneDirectoryRows", directory) : directory;
   });
   const membership = MolisWorkProjectCatalog.prototype.projectPluginMembership;
   t.mock.method(MolisWorkProjectCatalog.prototype, "projectPluginMembership", function (this: typeof MolisWorkProjectCatalog.prototype, ...args: Parameters<typeof membership>) {
@@ -77,8 +107,8 @@ function median(runs: readonly Counts[]): Counts {
 type Source = { id: string; kinds: Array<{ kind: string }> };
 type FileList = { page: { entries: Array<{ subject: { kind: string; id: string }; title: string }> } };
 
-// BCC-02 / BCC-03 / BCC-04. Use real Web routes in one disposable Home. HTTP samples include every awaited nested action.
-test("BCC-02, BCC-03 and BCC-04 · Host requests stay within budget and incomplete previews never prepare actions", { timeout: 60_000 }, async t => {
+// BCC-02 / BCC-03 / BCC-04 / BCC-05 / BCC-06. Measure the same directories the real requests consume.
+test("BCC-02 to BCC-06 · Host requests stay within budget and incomplete previews never prepare actions", { timeout: 60_000 }, async t => {
   const measure = await callMeter(t);
   // Move Date past request caches without running intervals or deferred search and knowledge refreshes.
   t.mock.timers.enable({ apis: ["Date", "setInterval", "setTimeout"], now: startedAt });
@@ -179,6 +209,8 @@ test("BCC-02, BCC-03 and BCC-04 · Host requests stay within budget and incomple
     }
     measured[name] = median(runs);
   }
+  assert.ok(measured.projectBrief!.actionDirectoryRows > 0 && measured.projectBrief!.sceneDirectoryRows > 0, "the measured brief uses both directories");
+  assert.ok(measured.projectBrief!.ownerResolutions > 0 && measured.projectBrief!.shippedRegistrationRows > 0, "the measured brief checks plugin reach");
 
   // Required fields are checked before the current source is looked up. A complete request still checks live membership.
   const unknownAndIncomplete = new URLSearchParams({ source: "absent", id: file.subject.id });

@@ -1,6 +1,6 @@
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
+import { builtinPluginByManifestId } from "./plugin-registry.js";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { pluginPageRequest, pluginPagesFor } from "./plugin-page-authority.js";
 import { registeredPageRoutes } from "./plugin-page-routes.js";
@@ -26,9 +26,10 @@ async function stagePageSelection(context: WebRequestContext, project: LocalHost
   const { localHost } = context;
   const home = await homeStageHalves(localHost.homePlugins);
   const platform = project ? await localHost.withProject(project, runtime => runningProjectPlatform(runtime.store, project.project_id)) : null;
-  const entry = PLATFORM_PLUGIN_REGISTRATIONS.find(item => item.manifest.plugin_id === body.plugin_id)
-    ?? home?.entries.find(item => item.manifest.plugin_id === body.plugin_id);
-  const manifest = typeof body.plugin_id === "string" ? platform?.supervisor.manifest(body.plugin_id) : undefined;
+  const pluginId = typeof body.plugin_id === "string" ? body.plugin_id : undefined;
+  const entry = pluginId === undefined ? undefined : builtinPluginByManifestId(pluginId)
+    ?? home?.entries.find(item => item.manifest.plugin_id === pluginId);
+  const manifest = pluginId === undefined ? undefined : platform?.supervisor.manifest(pluginId);
   const stage = entry ?? (manifest ? { project_plugin_id: manifest.plugin_id, manifest } : undefined);
   const owner = stage && runtimeStageOwner({ platform }, stage, home).owner;
   if (!owner || owner.view.descriptor.contribution_id !== contribution_id
@@ -94,7 +95,7 @@ export async function handlePluginPageHttp(context: WebRequestContext, project?:
       if (!body || Object.keys(body).some(key => !keys.includes(key)) || availability && !body.reference)
         throw new ActionError("actions.input_invalid", "动作请求无效");
       const beforeBackgroundEffect = async () => {
-        const key = page.project_key ?? PLATFORM_PLUGIN_REGISTRATIONS.find(item => item.manifest.plugin_id === page.plugin_id)?.project_plugin_id;
+        const key = page.project_key ?? builtinPluginByManifestId(page.plugin_id)?.project_plugin_id;
         if (shown && key && !(await shown()).includes(key)) throw new ActionError("actions.plugin_disabled", "此项目未启用该插件");
       };
       const beforeEffect = async () => { page.assertCurrent(); await beforeBackgroundEffect(); page.assertCurrent(); };
@@ -106,7 +107,7 @@ export async function handlePluginPageHttp(context: WebRequestContext, project?:
     if (!body || Object.keys(body).some(key => !["plugin_id", "mount", "producer"].includes(key)) || typeof body.plugin_id !== "string"
       || body.producer !== undefined && (typeof body.producer !== "string" || body.mount === undefined))
       throw new ActionError("actions.input_invalid", "请选择插件");
-    const entry = PLATFORM_PLUGIN_REGISTRATIONS.find(item => item.manifest.plugin_id === body.plugin_id);
+    const entry = builtinPluginByManifestId(body.plugin_id);
     const selected = await stagePageSelection(context, project, body);
     const key = selected?.project_key ?? entry?.project_plugin_id;
     const assertScope = async () => {

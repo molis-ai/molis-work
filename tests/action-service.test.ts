@@ -126,12 +126,12 @@ test("scene binding, reverse usage and real result consumption share the same re
   assert.equal(followed.length, 1);
 });
 
-test("one directory isolates same capability and scene identities activated in different projects", async () => {
+test("BCC-07 one directory isolates same capability and scene identities activated in different projects", async () => {
   const service = new ActionService();
   const consumed: string[] = [];
   const register = (project: string) => {
     const bindings = new Map<string, ActionSceneBinding>();
-    return service.registerProvider({ provider: { ...provider, project_id: project }, definitions: [judgment],
+    return service.registerProvider({ provider: { ...provider, provider_id: `judge-${project}`, project_id: project }, definitions: [judgment],
       handlers: [{ ...judgment, handle: () => ({ follow_up: true }) }], scenes: [scene],
       scene_handlers: [consumer(bindings, () => { consumed.push(project); })] });
   };
@@ -141,8 +141,12 @@ test("one directory isolates same capability and scene identities activated in d
     assert.equal(service.discover(caller).length, 1);
     assert.equal(service.discoverScenes(caller).length, 1);
     await service.bind(caller, { ...binding, project_id: project });
+    const usage = (await service.usages(caller))[0]!;
+    assert.equal(usage.function.provider_id, `judge-${project}`);
+    assert.deepEqual(usage.availability, { available: true });
     await service.runScene(caller, scene, binding.binding_id, { text: "broken" });
   }
+  assert.deepEqual(await service.usages({ ...context, project_id: null }), [], "the Home cannot borrow either project's binding");
   assert.deepEqual(consumed, ["a", "b"]);
   stopA();
   assert.deepEqual(service.discover({ ...context, project_id: "a" }), []);

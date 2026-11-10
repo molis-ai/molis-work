@@ -1,4 +1,5 @@
 import { actionExecutionContext, assertReadOnlyEffects, visibleAction } from "./action-execution-context.js";
+import { actionDirectoryLookup, actionKey } from "./action-directory-lookup.js";
 import { assertSceneHandler, consumeScene, protectSceneReads, runSceneEffect } from "./action-scene-execution.js";
 import { inDirectoryPass, rememberInDirectoryPass } from "./directory-pass.js";
 import { registeredActionMetadata } from "./action-metadata.js";
@@ -256,13 +257,9 @@ export class ActionService implements ActionClient, ActionRegistryPort {
   discoverScenesFor(context: ActionCallContext, judgments: readonly ExactActionReference[], selection?: ActionSceneSelection): ActionSceneView[][] {
     if (!judgments.length) return [];
     return inDirectoryPass(() => {
-      const directory = this.discover(context), firstByKey = new Map<string, ActionView>();
-      for (const view of directory) {
-        const key = actionKey(view);
-        if (!firstByKey.has(key)) firstByKey.set(key, view);
-      }
+      const directory = this.discover(context), first = actionDirectoryLookup(directory);
       const project = this.sceneProjection(context, directory, selection);
-      return judgments.map(judgment => project(judgment, firstByKey.get(actionKey(judgment))));
+      return judgments.map(judgment => project(judgment, first(judgment)));
     });
   }
 
@@ -276,15 +273,16 @@ export class ActionService implements ActionClient, ActionRegistryPort {
   }
 
   async usages(context: ActionCallContext, judgment?: ActionReference): Promise<ActionSceneUsage[]> {
-    const result: ActionSceneUsage[] = []; let known: ActionView[] | undefined;
+    const result: ActionSceneUsage[] = []; let known: ActionView[] | undefined, first: ReturnType<typeof actionDirectoryLookup> | undefined;
     for (const scene of this.scenes.values()) {
       if (!sceneVisible(scene, context)) continue;
       for (const binding of await scene.handler.bindings(context)) {
         if (!bindingBelongsTo(binding, scene.definition, context)) continue;
         if (judgment && actionKey(binding.function) !== actionKey(judgment)) continue;
         if (matchesStageMetadata(context, scene, binding)) { result.push(await this.stageMetadataUsage(context, scene, binding)); continue; }
-        const directory = known ??= this.discover(context); // one directory per call, shared by every binding
-        const fn = directory.find(d => actionKey(d) === actionKey(binding.function));
+        // Read only after the first ordinary binding callback, using the original caller's current authority.
+        const directory = known ??= this.discover(context);
+        const fn = (first ??= actionDirectoryLookup(directory))(binding.function);
         const reason = !binding.function.provider_id ? "旧绑定缺少原提供方身份，请重新选择判断规则" : actionSceneCompatibilityReason(scene.definition, fn, binding.function, directory, scene.provider);
         const state = scene.availability(context);
         const availability = !binding.enabled ? unavailable("actions.binding_disabled", "此使用位置已停用")
@@ -576,7 +574,6 @@ function rowCaller(context: ActionCallContext): ActionCallContext {
 }
 function assertAvailable(value: ActionAvailability): void { if (!value.available) throw new ActionError(value.code, value.reason, { kind: value.kind }); }
 function unavailable(code: string, reason: string): ActionAvailability { return { available: false, code, reason }; }
-function actionKey(v: ActionReference): string { return `${v.capability_id}@${v.version}`; }
 function sceneKey(v: { scene_id: string; version: number }): string { return `${v.scene_id}@${v.version}`; }
 function scopedSceneKey(v: { scene_id: string; version: number }, projectId?: string): string { return JSON.stringify([v.scene_id, v.version, projectId ?? null]); }
 function exactBindings<D, H>(definitions: readonly D[], handlers: readonly H[], key: (v: D | H) => string, label: string): Map<string, H> {

@@ -183,7 +183,7 @@ test("judgment history keeps insertion order when multiple results share a times
   } finally { await rm(home, { recursive: true, force: true }); }
 });
 
-test("Home judgment resolves a formally installed plugin's own subjects and pins source authority and revisions", async () => {
+test("BCC-07 Home judgment resolves a formally installed plugin's own subjects and pins source authority and revisions", async () => {
   const home = await mkdtemp(join(tmpdir(), "home-unknown-judgment-"));
   await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
   const databasePath = join(home, "project.db"); seedBoard(databasePath);
@@ -192,7 +192,10 @@ test("Home judgment resolves a formally installed plugin's own subjects and pins
     async evaluate(_key, record) { return { primitive: "noul", noul: 0.9, choice: null, score: null, legend: null,
       probabilities: {}, confidence: null, model: record.model }; },
   } };
-  const host = new MolisWorkLocalHost({ homeDirectory: home, functions: options });
+  const blockedOffers = new Set<string>();
+  const host = new MolisWorkLocalHost({ homeDirectory: home, functions: options,
+    actionAvailability: (_caller, view) => blockedOffers.has(view.capability_id)
+      ? { available: false, code: "actions.forbidden", reason: view.capability_id } : { available: true } });
   const caller: ActionCallContext = { actor_id: "owner", project_id: reference.project_id, audience: "user", permissions: ["home:read", "home:write", "model:invoke", "notes:read", "notes:write", "functions:invoke", "functions:manage"] };
   const subject = { kind: "unknown-note", id: "own-note" };
   let runtime: PluginRuntime | undefined, installId = "";
@@ -263,9 +266,16 @@ test("Home judgment resolves a formally installed plugin's own subjects and pins
       project_id: reference.project_id, function: judgment, enabled: true, title: "笔记下一步" };
     const scenes = host.sceneClient(reference), actions = bindActionClient(host.actionClient(reference), () => caller);
     const evaluate = () => actions.invoke(homeActions.evaluate, { subjects: [subject] });
+    const displayed = async () => (await actions.discover()).find(view => view.capability_id === homeActions.evaluate.capability_id)!.availability;
     const history = () => withFunctionsService(home, service => service.listJudgments().filter(record => record.function_key === "unknown.subject.judgment"));
     const recommendations = () => actions.invoke(homeActions.recommendations, {});
     await scenes.bind(caller, binding);
+    assert.deepEqual(await displayed(), { available: true });
+    blockedOffers.add(offerQuery.capability_id); blockedOffers.add(write.capability_id);
+    assert.deepEqual(await displayed(), { available: false, code: "actions.forbidden", reason: offerQuery.capability_id }, "a choice checks its exact source first");
+    blockedOffers.delete(offerQuery.capability_id);
+    assert.deepEqual(await displayed(), { available: false, code: "actions.forbidden", reason: write.capability_id }, "the source grants no authority over its command");
+    blockedOffers.clear();
     assert.ok((await actions.invoke(homeActions.readJudgment, {})).capabilities.some(action => action.capability_id === judgment.capability_id));
     await assert.rejects(actions.invoke(homeActions.evaluate, { subjects: [subject, { kind: "feed_item", id: "any" }] }), { code: "actions.subject_incompatible" });
     assert.equal(calls, 0, "reject an incompatible batch before any model calls");
@@ -318,6 +328,8 @@ test("Home judgment resolves a formally installed plugin's own subjects and pins
     installId = runtime.install({ trust: { level: "unsigned" }, definition: { ...plugin, manifest: { ...plugin.manifest, plugin_id: "io.molis.work.example.replacement-subject" } }, deployment: "local", grants: ["notes:read", "notes:write"] }).install.install_id;
     await runtime.start(installId);
     assert.deepEqual((await recommendations()).judgments, [], "identical content from a replacement provider cannot inherit original recommendations");
+    const replacement = await displayed();
+    assert.equal(!replacement.available && replacement.code, "actions.binding_invalid");
     await assert.rejects(evaluate(), { code: "actions.binding_invalid" });
     stopJudgment(); selectedKey = choice();
     judgment = { ...judgment, action: { ...judgment.action, output_schema: { type: "object", properties: { status: { enum: ["ok", "needs_review"] }, suggested_behavior_ids: { type: "array", items: { enum: [selectedKey] } } }, required: ["status", "suggested_behavior_ids"] } } };

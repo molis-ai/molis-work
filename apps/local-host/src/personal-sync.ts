@@ -2,7 +2,7 @@ import { personalRuntimeSyncAuthority } from './personal-runtime-sync-authority.
 import type {ProjectDeletionService} from './project-deletion-service.js';
 import {assertProjectSyncChildren} from './project-sync-children.js';
 import { PersonalSync, resolveSyncEndpoint, type SyncRegistration } from '@molis-ai/molis-work-module-sync-replication';
-import { PLATFORM_PLUGIN_REGISTRATIONS } from './plugin-registry.js';
+import { builtinPluginByProjectKey } from './plugin-registry.js';
 import type { StorageSpace } from '@molis-ai/molis-work-contracts/platform/storage';
 import type { PersonalAccountLease } from './personal-auth.js';
 import type { LocalWebCatalogRunner } from './web-project-settings.js';
@@ -16,7 +16,7 @@ export async function createPersonalSync(home:string,space:StorageSpace,lease:Pe
   const endpoint=resolveSyncEndpoint({origin:process.env.MOLIS_WORK_SYNC_ORIGIN,local:process.env.MOLIS_WORK_SYNC_LOCAL==='1'});
   if(!endpoint)return null;
   const check=()=>{lease.assertCurrent();assertActive();};
-  const goalsManifest=PLATFORM_PLUGIN_REGISTRATIONS.find(entry=>entry.project_plugin_id==='goals')?.manifest;
+  const goalsManifest=builtinPluginByProjectKey('goals')?.manifest;
   let children:readonly SyncRegistration[]=[],discovered:readonly SyncRegistration[]=[];
   const hasGoal=(projectId:string,goalId:string)=>{
     check();const collection=goalsManifest?.sync?.collections.find(row=>row.id==='project_goals');

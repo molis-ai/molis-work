@@ -105,3 +105,10 @@
 - Workflows 委托权限测试改从 Feed 真正的 workflow_content 动作取权限；新增 workflow 专用 demo_seed 不是工作流内容站。Workflows 自身精确权限与逐项缺少必需权限的拒绝断言全部保留。
 
 main 整合头整体 build45、boundary45、health13（对照 main 85cec224）通过；API 重新生成无额外变化。剩余浏览器、最终资源、最终头 secrets、CI/Full 和评审状态按 PR tasklist 逐项补验；未成功前保持 Draft、不入队。
+
+
+补验进展：tests25 的 Goals 刷新 8/8、项目删除 20/20、连接卡 4/4、演示初始化 5/5、Workflows 委托 5/5 通过；tests26 九文件全部通过（含当前 action 快照 25/25、工作区拒绝、CSP、库结构、实际浏览器脚本）。assets7 以 main 85cec224 的完整隔离构建实测 52 资源通过，工作台净增 1,238（批准 1,275）；其余批准额度未扩大。
+
+IM follow-copy 在独立干净门禁基线 dd27ea5ff 复现相同 60px wheel → gap=0 断言失败。该基线与当前 main 的 IM、scroll-follow 和此用例源码一致；诊断仅看到 wheel 导致 detached，没有浏览器 scroll，尚未归因到产品代码。没有改原断言或提交探针；云端 Full 的同场景仍须验证。
+
+第二轮 [CI 42750367725](https://github.com/molis-ai/molis-work/actions/runs/42750367725)：所有安全分片、动作合同、门禁、边界、原生检查、Golden replay 均通过，仅 Feed promotion 文件在 180 秒文件预算内未完成（已完成的子测试均通过），不把超时标绿。第二轮 [Full 42750515022](https://github.com/molis-ai/molis-work/actions/runs/42750515022) 发现 IM 已整体压缩而旧断言仍匹配共享脚本原文；修正为比较导出 field-fit 的完整 IIFE 语法结构，只规范化局部绑定名称，保留属性、全局名、选择器和字面量，缺少导出或改错选择器仍拒绝。程序没有第二份实现。后续按现有 integration 分支运行全部 32 分片，不因首个失败取消其他分片，也不修改工作流/门禁或跳过文件。

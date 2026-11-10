@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import ts from "typescript";
+import { transformSync } from "esbuild";
 import { desktopWorkbenchRendererPorts } from "@molis-ai/molis-work-app-desktop";
 import { BUILTIN_PLUGIN_CATALOG, createWorkbenchLocale, renderHomePluginPage, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
 import { createLocalHostWorkbenchRenderer, installHostUiText } from "@molis-ai/molis-work-app-local-host";
@@ -94,8 +96,44 @@ test("Home and side plugin documents carry the shared field, roving, floating an
   }
 });
 
-test("the IM page carries the shared intrinsic field sizing in its script and styles", () => {
-  assert.ok(IM_CLIENT_SCRIPT.includes(FIELD_FIT_CLIENT_SCRIPT), "the IM script has the field-fit program");
+/** Compare the shipped IIFE with its owner, preserving bindings and syntax while allowing minification to rename locals. */
+function fieldFitProgram(script: string): unknown {
+  script = transformSync(script, { minify: true, charset: "utf8", target: "es2022", legalComments: "none" }).code;
+  const file = "served-field-fit.js", options = { allowJs: true, noLib: true, noResolve: true };
+  const host = ts.createCompilerHost(options), parsed = ts.createSourceFile(file, script, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
+  host.getSourceFile = name => name === file ? parsed : undefined;
+  const program = ts.createProgram([file], options, host), checker = program.getTypeChecker();
+  let owner: ts.CallExpression | undefined;
+  const find = (node: ts.Node) => {
+    if (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.EqualsToken && node.left.getText(parsed) === "window.molisFit") {
+      for (let parent = node.parent; parent; parent = parent.parent) if (ts.isCallExpression(parent)) { owner = parent; break; }
+    }
+    ts.forEachChild(node, find);
+  };
+  find(parsed);
+  assert.ok(owner, "the served script exports the actual field-fit program");
+  const bindings = new Map<ts.Symbol, number>();
+  const shape = (node: ts.Node): unknown => {
+    const children: unknown[] = [];
+    ts.forEachChild(node, child => { children.push(shape(child)); });
+    if (ts.isIdentifier(node)) {
+      const symbol = checker.getSymbolAtLocation(node);
+      if (symbol && (symbol.flags & (ts.SymbolFlags.FunctionScopedVariable | ts.SymbolFlags.BlockScopedVariable | ts.SymbolFlags.Function))
+        && symbol.declarations?.some(declaration => declaration.pos >= owner!.pos && declaration.end <= owner!.end)) {
+        if (!bindings.has(symbol)) bindings.set(symbol, bindings.size);
+        return [node.kind, bindings.get(symbol)];
+      }
+      return [node.kind, node.text];
+    }
+    return [node.kind, ts.isStringLiteralLike(node) || ts.isNumericLiteral(node) ? node.text : null, children];
+  };
+  return shape(owner);
+}
+
+test("D0077 D0333: the minified IM page carries the complete shared intrinsic field sizing program and styles", () => {
+  assert.deepEqual(fieldFitProgram(IM_CLIENT_SCRIPT), fieldFitProgram(FIELD_FIT_CLIENT_SCRIPT), "the complete field-fit program survives bundle minification");
+  assert.throws(() => fieldFitProgram(IM_CLIENT_SCRIPT.replace("window.molisFit=", "window.missingFit=")), /exports the actual field-fit program/, "an omitted export is still rejected");
+  assert.notDeepEqual(fieldFitProgram(IM_CLIENT_SCRIPT.replaceAll("textarea[data-fit]", "textarea[data-wrong-fit]")), fieldFitProgram(FIELD_FIT_CLIENT_SCRIPT), "changing the field selector is still detected");
   assert.ok(IM_STYLES.includes(FIELD_FIT_STYLES), "the IM stylesheet has data-fit's styles");
 });
 

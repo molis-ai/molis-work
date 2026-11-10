@@ -36,6 +36,7 @@ export const INTERACTION_OPTION_STYLES = `
 /** The card, its fields, option groups, banners, the footer and an answered summary: every page that shows a question or a card takes it. */
 export const INTERACTION_QUESTION_STYLES = `
 .mw-ix-card { container: mw-ix / inline-size; display: grid; gap: 12px; padding: 14px 16px 16px; border-radius: var(--r-card, 12px); background: var(--paper); box-shadow: 0 0 0 1px var(--line); color: var(--ink); text-align: left; }
+.mw-ix-question { grid-template-columns: minmax(0, 1fr); }
 .mw-ix-card [hidden] { display: none; }
 .mw-ix-head { display: flex; align-items: flex-start; gap: 10px; }
 /* The title leads its own line and the kind of card sits beside it as a tag, so the heading is one line, not a stack. */
@@ -51,6 +52,13 @@ export const INTERACTION_QUESTION_STYLES = `
 .mw-ix-badge[data-tone="waiting"] { background: color-mix(in srgb, var(--amber) 13%, transparent); color: var(--ink); }
 .mw-ix-badge[data-tone="done"] { background: color-mix(in srgb, var(--green) 12%, transparent); color: var(--ink); }
 .mw-ix-badge[data-tone="failed"] { background: color-mix(in srgb, var(--red) 11%, transparent); color: var(--ink); }
+/* Leave room for the title, a translated status and the collapse target before putting them side by side. */
+@container mw-ix (max-width: 330px) {
+  .mw-ix-question > .mw-ix-head:has(> .mw-ix-badge:not(:empty, [hidden])) { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 0; overflow-wrap: anywhere; }
+  .mw-ix-question > .mw-ix-head > .mw-ix-badge { grid-column: 1 / -1; justify-self: start; margin-top: 0; }
+  .mw-ix-question > .mw-ix-head > .mw-ix-badge:not(:empty, [hidden]) + .mw-btn { grid-area: 1 / 2; margin-inline-start: 10px; }
+  .mw-ix-question > .mw-ix-target { flex-wrap: wrap; overflow-wrap: anywhere; }
+}
 .mw-ix-intro { color: var(--ink-soft); font-size: 12px; }
 .mw-ix-about { order: 2; flex-basis: 100%; color: var(--muted); font-size: 12px; }
 .mw-ix-other { display: grid; gap: 4px; width: 100%; margin-top: 2px; color: var(--ink-soft); font-size: 12px; }
@@ -108,6 +116,14 @@ export const INTERACTION_DATE_STYLES = `
 .mw-ix-when { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
 .mw-ix-clock { display: inline-flex; align-items: center; gap: 8px; }
 .mw-ix-unit, .mw-ix-zone { color: var(--muted); font-size: 12px; white-space: nowrap; }
+/* Give the date and its calendar the first row; the weekday can take the next line. */
+@container mw-ix (max-width: 225px) {
+  .mw-ix-question :is(.mw-ix-date, .mw-ix-when, .mw-ix-clock) { min-width: 0; max-width: 100%; }
+  .mw-ix-question .mw-ix-date { display: grid; grid-template-columns: minmax(0, 1fr) auto; }
+  .mw-ix-question .mw-ix-date__input { width: 100%; max-width: 9em; min-width: 0; }
+  .mw-ix-question .mw-ix-date > .mw-btn { grid-area: 1 / 2; }
+  .mw-ix-question .mw-ix-zone { white-space: normal; }
+}
 @media (max-width: 760px), (pointer: coarse) {
   :is(.mw-ix-date__input, .mw-ix-time, input.mw-ix-text, .mw-ix-number .mw-input) { font-size: 16px; min-height: 44px; }
 }

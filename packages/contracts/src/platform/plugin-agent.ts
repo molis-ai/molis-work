@@ -27,6 +27,8 @@ export const BUSINESS_HOST_TOOLS = ["ask-user", "update-todo", "find-tools", "co
 /**
  * Tools a method for business work may name: the capability gateway and the tools that touch no directory. A method a
  * Plugin offers to other Agents (the Assistant, a Character) is text that says how to use these; it grants nothing.
+ * `change-reversible` is not among them: it runs a reversible change without the person's confirmation, granted by the role's
+ * execution and the person's own "ask each time" setting, and a Skill's text cannot decide for the person to skip that.
  */
 export const SKILL_TOOLS = ["find-capabilities", "read-capability", "change-capability", "suggest-action", ...BUSINESS_HOST_TOOLS] as const;
 

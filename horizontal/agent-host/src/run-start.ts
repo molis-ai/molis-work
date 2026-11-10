@@ -1,6 +1,7 @@
 import { agentErrors } from "./errors.js";
 import { directoryInputOnly, type RunDirectories } from "@molis-ai/molis-work-contracts/modules/projects";
 import { assertChildRoleTools } from "./child-role-tools.js";
+import { isAgentTool } from "./tool-catalog.js";
 import { requireSynchronous, type ActionLocale, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { skillRefKey } from "./round-skills.js";
 import { currentCharacterMatches } from "./character-import.js";
@@ -103,6 +104,17 @@ export function composeRolePrompts(
   return [...orderPromptsByLayer([...own, ...characterPrompt, ...project]), ...(authority.reply_language ? [{ ...authority.reply_language.prompt }] : [])];
 }
 
+/**
+ * Every tool a role and the child roles it dispatches name is one the Agent Host has (contract-design §5.2): checked where the role's
+ * availability is, so an unknown name shows when the plugin is assembled, not when a round starts.
+ */
+export function assertKnownRoleTools(role: AgentRoleDeclaration, manifest: AgentManifest): void {
+  const children = manifest.subagents?.parent_role_ids.includes(role.role_id)
+    ? manifest.subagents.roles.filter(child => !child.parent_role_ids || child.parent_role_ids.includes(role.role_id)) : [];
+  const unknown = [role, ...children].flatMap(item => item.host_tools ?? []).find(tool => !isAgentTool(tool));
+  if (unknown !== undefined) throw agentErrors.role_tool_unknown(`角色 ${role.role_id} 声明的工具 ${unknown} 不在 Agent 工具全集里`);
+}
+
 /** Omitting `execution` means read-only. Callers must not reimplement this default. */
 export function roleExecution(role: AgentRoleDeclaration): AgentRoleExecution {
   return role.execution ?? "read-only";
@@ -179,6 +191,7 @@ export function checkStartRole(adapter: AgentRuntimeAdapter, runtimeId: string, 
   if (!role) {
     throw agentErrors.role_not_declared(`插件没有声明角色 ${request.role_id}`);
   }
+  assertKnownRoleTools(role, authority.manifest);
   const execution = roleExecution(role);
   const missing = EXECUTION_CAPABILITIES[execution]
     .filter((capability) => adapter.descriptor.capabilities[capability] === "unsupported");

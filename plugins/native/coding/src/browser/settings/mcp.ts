@@ -1,25 +1,6 @@
+import type { AgentMcpServerView as McpServer } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { el } from "../dom.js";
 import { codeOf, codingRequest, errorMessage, translate as L, type Workspace } from "./page.js";
-
-interface McpServer {
-  readonly id: string;
-  readonly version: number;
-  readonly label: string;
-  readonly transport: string;
-  readonly enabled: boolean;
-  readonly timeout_ms: number;
-  readonly executable?: string;
-  readonly argv?: readonly string[];
-  readonly endpoint?: string;
-  readonly auth_connection_id?: string;
-  readonly credential?: string;
-  readonly directory?: { readonly canonical_path: string };
-  readonly health: string;
-  readonly error?: string;
-  readonly tools: readonly { readonly tool: string; readonly description: string }[];
-  readonly resources?: readonly string[];
-  readonly busy?: string;
-}
 
 /** A connection the person made in Connectors that an MCP server may sign in with. */
 interface AuthConnection {

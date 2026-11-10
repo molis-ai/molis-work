@@ -27,3 +27,7 @@
 01/06 在 tests/knowledge-cards.test.ts，02/03 在 tests/system-search.test.ts，04 在 tests/security-invariants-knowledge.test.ts，05 在 tests/security-invariants-knowledge-lifecycle.test.ts。现有真实 Host/SDK 的取消、排除和删除测试也必须回归；它证明运行链，不宣称商业模型理解质量或用户验收。动作和 contracts/SDK schema 不变；Search 内部公开服务新增端口，对 Host 同片接入，无旧路径兜底。
 
 本机验证：原实现 D0244-01 两项拒绝用例均失败；修复后定向 14 文件、133 项最终通过，含 D0244-05 真实 Host/Runtime/SDK 与本机模型 HTTP 替身的停止和新调用恢复。商业模型质量未验证；未改提示词或方法。整体构建与边界通过，最终健康门禁及 CI 结果按 PR 核回。
+
+## 2026-11-10 原场景补验
+
+7. **D0244-07 / D0242** 真实 Host 先完成来源索引，再停止来源；分别经自动整理与显式整理入口，模型 HTTP 接收次数为零；重新启用后新调用能够完成。测试在 `tests/security-invariants-knowledge-lifecycle.test.ts`，与 D0244-05 共用原来源和本机模型 HTTP 夹具。覆盖现有 2 秒自动调度窗口，正向恢复用于确认模型链可用；不宣称商业模型质量。

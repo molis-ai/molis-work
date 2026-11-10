@@ -424,11 +424,19 @@ test("UIV-14 §3.3: `@` in the text is the system search inside the component; a
   assert.deepEqual(await page.evaluate("globalThis.searchAsked"), [{ query: "访谈", scope: "all", limit: 8 }], "one search for the words after @, as the search palette asks it");
   assert.match(await page.evaluate<string>("document.querySelector('[data-composer-mention]').textContent"), /访谈记录.*测试笔记/, "each hit says which plugin it is from");
   await page.screenshot(join(EVIDENCE, "plain-mention-zh-1440-light.png"));
-  // Down from the text goes into the hits; choosing one takes the @words out and puts the reference in the strip.
-  await page.command("Input.dispatchKeyEvent", { type: "keyDown", key: "ArrowDown", code: "ArrowDown", windowsVirtualKeyCode: 40 });
-  await page.command("Input.dispatchKeyEvent", { type: "keyUp", key: "ArrowDown", code: "ArrowDown", windowsVirtualKeyCode: 40 });
-  assert.equal(await page.evaluate("document.activeElement?.dataset.composerMention"), "0");
-  await page.click("[data-composer-mention='1']");
+  // The first hit is marked as the list appears, so Enter alone takes it; Down marks the next while the caret stays in the text (the
+  // field names the marked one as its active descendant), so the words can still be changed. Enter takes the marked one: the @words
+  // come out and the reference goes on the strip.
+  const key = async (name: string, code: number) => {
+    await page.command("Input.dispatchKeyEvent", { type: "rawKeyDown", key: name, code: name, windowsVirtualKeyCode: code });
+    await page.command("Input.dispatchKeyEvent", { type: "keyUp", key: name, code: name, windowsVirtualKeyCode: code });
+  };
+  assert.equal(await page.evaluate("document.querySelector('[data-composer-mention][data-active]')?.dataset.composerMention"), "0", "the first hit is marked");
+  assert.equal(await page.evaluate("document.querySelector('.mw-composer__input').getAttribute('aria-activedescendant') === document.querySelector('[data-composer-mention][data-active]').id"), true);
+  await key("ArrowDown", 40);
+  assert.equal(await page.evaluate("document.activeElement?.matches('.mw-composer__input')"), true, "the caret stays in the text");
+  assert.equal(await page.evaluate("document.querySelector('[data-composer-mention][data-active]')?.dataset.composerMention"), "1");
+  await key("Enter", 13);
   assert.deepEqual([(await state()).text, (await state()).files], ["对照 ", ["访谈提纲测试笔记"]]);
   assert.equal(await page.evaluate("document.activeElement?.matches('.mw-composer__input')"), true, "focus is back in the text");
   // A space ends the words; nothing found says so.

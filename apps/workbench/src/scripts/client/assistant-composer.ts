@@ -165,7 +165,7 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
     const session = work ? (work.executor.kind === "plugin" ? work.executor.session_id : work.session_id) : null;
     const queue = session ? { available: true } : { available: false, reason: work ? L("这一项工作还没开始过一轮，没有可排的下一轮") : L("还没有工作可排；先发一轮") };
     return { "next-boundary": { available: true },
-      interrupt: answering ? why : { available: false, reason: L("不在运行时不能打断") },
+      interrupt: answering ? why : { available: true },
       "after-run": answering ? why : queue };
   };
   let composer = null, mountedFor = null, draftHere = null, painted = "", sending = 0, handedOver = false, inFlight = null;

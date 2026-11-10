@@ -1,9 +1,9 @@
 {
-  "reason": "打印生命周期与统一请求错误表净增387字节；Memory短引用/异步失败提示等净增1201字节（集成#2000后比原许可多8字节，用户2026-11-10明确批准）；Feed区分计量预览净增21字节。已复用现有原语，CSS三份净缩小（宽屏状态列分配保持对齐）。",
+  "reason": "打印生命周期与统一请求错误表净增387字节；Memory短引用/异步失败提示等净增1161字节；Feed区分计量预览净增21字节。主线运行态打断回归修复后，Workbench从用户已批1201字节收紧到实测1161；CSS三份净缩小。",
   "review": "docs/reviews/daily-quality/2026-11-08-low.md#页面资源增量评审",
   "assets": {
     "/assets/molis-work-plugin-frame.js": 387,
-    "/assets/molis-work-workbench.js": 1201,
+    "/assets/molis-work-workbench.js": 1161,
     "/assets/molis-work-plugins/feed.js": 21
   }
 }

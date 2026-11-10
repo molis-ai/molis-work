@@ -477,7 +477,7 @@ test("SSC-10 (IUI-05): an object stays only in the group its candidate is in; pu
   assert.deepEqual(checked.dropped, [{ subject: note }, { subject: todo.subject }]);
 });
 
-test("surfaces.correct@1 commits from the corrections revision: a form, a removal or a pin, each with exactly what it needs, and only the person corrects", async () => {
+test("IUI-06 surfaces.correct@1 commits from the corrections revision: only the person can set a form, remove, pin or reset", async () => {
   const { correct } = surfaceCompositionActions;
   const service = serving(SURFACES_PROVIDER_ID, [correct], [answering(correct, () => ({ corrections_revision: "1" }))]);
   const ask = (input: Record<string, unknown>, audience: ActionCallContext["audience"] = "user") => service.invoke(context(audience), reference(correct), { slot: { kind: "attention" }, expected_revision: "0", ...input });
@@ -485,6 +485,8 @@ test("surfaces.correct@1 commits from the corrections revision: a form, a remova
   await ask({ correction: "form", form: "chip", subject: note });
   await ask({ correction: "remove", subject: note });
   await ask({ correction: "pin", subject: note, position: 0 });
+  await ask({ correction: "reset", subject: note });
+  await ask({ correction: "reset" });
   for (const [what, input] of [
     ["a form correction without its form", { correction: "form" }],
     ["a form correction with a position", { correction: "form", form: "card", position: 1 }],
@@ -492,6 +494,8 @@ test("surfaces.correct@1 commits from the corrections revision: a form, a remova
     ["a removal with a form", { correction: "remove", subject: note, form: "row" }],
     ["a pin without its position", { correction: "pin", subject: note }],
     ["a pin past the last position", { correction: "pin", subject: note, position: PRESENTATION_LIMITS.values_subjects }],
+    ["a reset with a form", { correction: "reset", form: "row" }],
+    ["a reset with a position", { correction: "reset", subject: note, position: 0 }],
     ["an unknown correction", { correction: "hide", subject: note }],
   ] as const) await assert.rejects(ask(input), code("actions.input_invalid"), what);
   await assert.rejects(service.invoke(context("user"), reference(correct), { slot: { kind: "attention" }, correction: "remove", subject: note }), code("actions.input_invalid"), "no expected revision");

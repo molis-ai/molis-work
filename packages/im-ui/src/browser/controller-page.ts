@@ -33,6 +33,7 @@ export function createImPage(c: ImCtx) {
         c.scheduleRead();
       else
         c.rememberPosition();
+      c.refreshObjects?.();
     }
   });
   for (const kind of ['group', 'thread'] as const) {
@@ -47,6 +48,7 @@ export function createImPage(c: ImCtx) {
     // One owner for the stream's scroll (VUX-26): back at the end, the reader follows again and 回到最新消息 goes.
     window.molisFollow?.(v.scroller(kind), { onChange: state => { if (state === 'following') q('[data-action="latest-' + kind + '"]').hidden = true; } });
     v.scroller(kind).addEventListener('scroll', c.scheduleRead, { passive: true });
+    v.scroller(kind).addEventListener('scroll', () => c.refreshObjects?.(), { passive: true });
   }
   dialog.addEventListener('close', () => { s.dialogVersion++; });
   document.addEventListener('keydown', event => {

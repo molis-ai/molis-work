@@ -52,7 +52,7 @@ export type SurfaceConsequence = (typeof SURFACE_CONSEQUENCES)[number];
 export interface SurfaceCorrectionInput {
     slot: SurfaceSlot;
     subject?: ActionSubject;
-    correction: "form" | "remove" | "pin";
+    correction: "form" | "remove" | "pin" | "reset";
     form?: FormKind;
     position?: number;
     expected_revision: string;

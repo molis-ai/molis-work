@@ -230,8 +230,10 @@ export class AssistantStore {
     this.#changed(workId);
   }
 
-  rounds(workId: string): StoredRound[] {
-    return this.db.prepare("SELECT body FROM assistant_rounds WHERE work_id=? ORDER BY position").all(workId).map(row => JSON.parse(String(row.body)) as StoredRound);
+  rounds(workId: string, last?: number): StoredRound[] {
+    const rows = last === undefined ? this.db.prepare("SELECT body FROM assistant_rounds WHERE work_id=? ORDER BY position").all(workId)
+      : this.db.prepare("SELECT body FROM assistant_rounds WHERE work_id=? ORDER BY position DESC LIMIT ?").all(workId, last).reverse();
+    return rows.map(row => JSON.parse(String(row.body)) as StoredRound);
   }
 
   /**

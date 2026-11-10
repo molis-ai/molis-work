@@ -148,6 +148,11 @@ export function pcQuery(c: State & Kit & Rel & Rec & Det & Ctl & Out) {
   const { options, selectionVersions, parts, make, glyph, text, at, skeleton, live, ready, syncChoices, filterValues, output } = c;
   async function query(part: Part) {
     const binding = part.node.read;
+    const slot = part.node.surfaceSlot;
+    if (slot) {
+      part.query++; part.slot?.dispose(); part.slot = undefined; part.output.replaceChildren();
+      if (!options.mountSurfaceSlot) return;
+    }
     // A read that is not connected yet shows where its content will be, still.
     if (binding && !ready(binding.operationId) && !part.output.childNodes.length) part.output.append(skeleton(true));
     if (part.node.pageId !== c.currentPage || !binding || !ready(binding.operationId) || Object.values(binding.input).some(source => source.source === 'selection' && at(c.selection[source.componentId], source.field) === undefined)) return;
@@ -159,20 +164,35 @@ export function pcQuery(c: State & Kit & Rel & Rec & Det & Ctl & Out) {
     if (!part.output.childNodes.length || part.output.querySelector('[data-idle]')) part.output.replaceChildren(skeleton(false));
     try {
       const result = await options.call(part.node.id, 'read', { selection: c.selection, form });
-      if (live(part, generation) && ticket === part.query) {
-        output(part, result, 'read');
-        options.onRead?.(part.node.id, { value: result });
+      if (live(part, generation) && ticket === part.query && (!slot || part.node.pageId === c.currentPage)) {
+        if (slot && options.mountSurfaceSlot) {
+          const values: unknown = at(result, binding.outputPath);
+          if (!Array.isArray(values)) throw new Error('Invalid object references');
+          const subjects = values.map((value: unknown) => {
+            if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).length !== 2
+              || !('kind' in value) || !('id' in value) || typeof value.kind !== 'string' || !value.kind.trim() || typeof value.id !== 'string' || !value.id.trim()) throw new Error('Invalid object references');
+            return { kind: value.kind, id: value.id };
+          });
+          part.output.replaceChildren();
+          part.output.dataset.componentSurfaceSlot = '';
+          const mount = part.slot = options.mountSurfaceSlot(part.output, { slot_id: slot.slot_id, subjects });
+          await mount.ready;
+          if (!live(part, generation) || ticket !== part.query || part.slot !== mount) return;
+        } else {
+          output(part, result, 'read');
+          options.onRead?.(part.node.id, { value: result });
+        }
         // An error a read left goes once a read succeeds; a failed save's message stays with the person's input.
         if (part.feedback.dataset.pcRead !== undefined) { part.feedback.className = ''; part.feedback.textContent = ''; delete part.feedback.dataset.pcRead; }
       }
     }
     catch (error) { if (live(part, generation) && ticket === part.query) {
-      const message = error instanceof Error ? error.message : 'Unknown read error';
+      const message = slot ? options.translate?.('暂时读不到这个对象') ?? '暂时读不到这个对象' : error instanceof Error ? error.message : 'Unknown read error';
       part.output.replaceChildren();
-      report(part, 'error', '读取失败，请重试：' + message); part.feedback.dataset.pcRead = '';
-      const retry = make('button', '重试', 'mw-btn mw-btn--secondary mw-btn--sm'); retry.type = 'button'; retry.dataset.pcRetry = part.node.id;
+      report(part, 'error', slot ? message : '读取失败，请重试：' + message); part.feedback.dataset.pcRead = '';
+      const retry = make('button', options.translate?.('重试') ?? '重试', 'mw-btn mw-btn--secondary mw-btn--sm'); retry.type = 'button'; retry.dataset.pcRetry = part.node.id;
       retry.addEventListener('click', () => { void query(part); }); part.feedback.append(retry);
-      options.onRead?.(part.node.id, { error: message });
+      if (!slot) options.onRead?.(part.node.id, { error: message });
     } }
   }
   /** What a part reports: an error as the catalog's alert, a success as a short badge that fades, work in progress as plain words. */

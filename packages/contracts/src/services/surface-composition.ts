@@ -141,12 +141,12 @@ export interface SurfaceDescription {
 
 /**
  * The person's correction at a place: a form for an object (or for the whole place when `subject` is left out), taking an object away,
- * or pinning it at a position counted from 0. Kept per caller and place, and read first next time (IUI-06).
+ * pinning it at a position counted from 0, or resetting the object or the place. Kept per caller and place (IUI-06).
  */
 export interface SurfaceCorrectionInput {
   slot: SurfaceSlot;
   subject?: ActionSubject;
-  correction: "form" | "remove" | "pin";
+  correction: "form" | "remove" | "pin" | "reset";
   form?: FormKind;
   position?: number;
   expected_revision: string;
@@ -227,12 +227,13 @@ const DESCRIPTION_SCHEMA = { type: "object", additionalProperties: false, requir
   composed_by: { enum: ["rules", "assistant"] }, revision: REVISION, corrections_revision: REVISION, groups: { type: "array", items: GROUP_SCHEMA }, reason: OWNED_TEXT_REF_SCHEMA } };
 // `expected_revision` stays a top-level property, where the Kernel looks for the version a command commits from.
 const CORRECTION_SCHEMA = { type: "object", additionalProperties: false, required: ["slot", "correction", "expected_revision"], properties: {
-  slot: SLOT_SCHEMA, subject: ACTION_SUBJECT_SCHEMA, correction: { enum: ["form", "remove", "pin"] }, form: { enum: PRESENTATION_FORM_KINDS },
+  slot: SLOT_SCHEMA, subject: ACTION_SUBJECT_SCHEMA, correction: { enum: ["form", "remove", "pin", "reset"] }, form: { enum: PRESENTATION_FORM_KINDS },
   position: { type: "integer", minimum: 0, maximum: PRESENTATION_LIMITS.values_subjects - 1 }, expected_revision: REVISION },
   oneOf: [
     { properties: { correction: { const: "form" } }, required: ["form"], not: { required: ["position"] } },
     { properties: { correction: { const: "remove" } }, required: ["subject"], not: { anyOf: [{ required: ["form"] }, { required: ["position"] }] } },
     { properties: { correction: { const: "pin" } }, required: ["subject", "position"], not: { required: ["form"] } },
+    { properties: { correction: { const: "reset" } }, not: { anyOf: [{ required: ["form"] }, { required: ["position"] }] } },
   ] } as const;
 
 /** Declared only: the composition service registers both (batch 15 S-1). The first slice is for the person and for plugins (§10 item 4). */

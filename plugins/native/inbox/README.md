@@ -27,7 +27,7 @@
 
 ## 接入与边界
 
-不依赖 Feed / Goals 插件实现。关联对象的名字与正文经 Feed 的公开动作取得（`feed.briefs.read`、`feed.items.content`、`feed.items.admission`、`feed.items.admit`）；Feed 没装时条目照常列出（名字缺），重开被拒并说明。完成 / 忽略只改 Attention 状态，不删除原 Feed Item、Goal 或来源。
+不依赖 Feed / Goals 插件实现。关联对象的名字与正文经 Feed 的公开动作取得（`feed.briefs.read`、`feed.items.content`、`feed.items.admission`、`feed.items.admit`）；Feed 没装时条目照常列出（名字缺），重开被拒并说明。详情里的 Inbox 事项由自身数据绘制，`inbox.origin` 挂载位只交出实际关联的原件引用。工作台用原主人的取值与动作绘制并处理该位置，插件不接收其值和结果。完成 / 忽略只改 Attention 状态，不删除原 Feed Item、Goal 或来源。
 
 详情里的“转为待办”只是带数据的按钮（`data-context-intake="todo"`，带事项的 id 与标题）：工作台按页面声明的对象种类，把这件事项交给 Todo 声明的「记成待办」创作入口（`todo.items.create` 的 intake），由 Todo 自己起草、新建并记下来源；Inbox 不认识 Todo 的输入。Todo 不可用时点击会得到拒绝提示。转为待办不改事项状态，处理事项也不会完成那件待办。
 

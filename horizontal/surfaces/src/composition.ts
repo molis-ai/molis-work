@@ -39,13 +39,21 @@ function homeFor(request: SurfaceRequest, ports: SurfaceComposePorts) {
 
 const revisionFor = (data: unknown) => createHash("sha256").update(canonicalJsonText(data, "null")).digest("hex");
 const CACHE_LIMIT = 64;
+const reasonKeys = { home: "home", attention: "attention", conversation: "conversation", discussion: "discussion", "plugin-slot": "plugin-slot" } as const;
+
+function compositionReason(read: ComposeRead, simpler: boolean, adjusted: boolean): SurfaceDescription["reason"] {
+  const position = reasonKeys[read.request.slot.kind as keyof typeof reasonKeys];
+  if (!position || !read.position.forms.length) return undefined;
+  return { owner: "workbench", key: "workbench.surfaces.reason." + (simpler ? adjusted ? "adjusted-simpler" : "simpler" : adjusted ? "adjusted" : position) };
+}
 
 export class SurfaceCompositionService {
   readonly #cache = new Map<string, SurfaceDescription>();
 
   async compose(request: SurfaceRequest, ports: SurfaceComposePorts): Promise<SurfaceDescription> {
     const home = homeFor(request, ports);
-    const deadline = home?.deadline ?? startDeadline(ports.signal);
+    const retainedDeadline = ports.deadline ?? home?.deadline;
+    const deadline = retainedDeadline ?? startDeadline(ports.signal);
     try {
       checkCurrent(ports);
       const checked = await deadline.wait(ports.beforeEffect().then(() => true));
@@ -55,7 +63,7 @@ export class SurfaceCompositionService {
       checkCurrent(ports);
       if (!catalog) throw surfaceErrors.compose_failed("暂时读不到插件目录");
       const plugins = home ? catalog.filter(plugin => plugin.home && plugin.state !== "uninstalled") : catalog;
-      const catalogCurrent = home?.retainCatalog(plugins);
+      const catalogCurrent = home?.retainCatalog(plugins) ?? ports.retainCatalog?.(plugins);
       const guards = new Set<() => void>();
       const retained = new Set<ActionView>();
       const current = () => {
@@ -64,6 +72,7 @@ export class SurfaceCompositionService {
         requireSynchronous(catalogCurrent?.());
       };
       const position = positionFor(request.slot, plugins);
+      ports.keepPosition?.(position.forms, request.slot.kind !== "attention");
       const delivered = deliveredSubjects(request);
       current();
       if (!deadline.active) throw surfaceErrors.compose_failed("暂时读不到动作目录");
@@ -83,15 +92,16 @@ export class SurfaceCompositionService {
       const read = { request, ports, position, plugins, views, delivered, corrections, deadline, current, retain };
       const result = home ? await composeHome(read, home) : await composeGroup(read);
       current();
+      const reason = compositionReason(read, result.simpler, result.adjusted);
       const { actor_id, project_id, audience, plugin_install_id, calling_plugin_id } = ports.caller;
       const subjects = !home && request.slot.kind !== "attention" ? request.subjects : undefined;
       const revision = revisionFor([[actor_id, project_id, audience, plugin_install_id, calling_plugin_id], request.slot, request.expanded,
-        subjects, [...delivered].sort(), request.home_order, corrections.revision, result]);
+        subjects, [...delivered].sort(), request.home_order, corrections.revision, result, reason]);
       const cached = this.#cache.get(revision);
       if (cached) return structuredClone(cached);
-      const candidate: SurfaceDescription = { composed_by: "rules", revision, corrections_revision: corrections.revision, groups: result.groups };
+      const candidate: SurfaceDescription = { composed_by: "rules", revision, corrections_revision: corrections.revision, groups: result.groups, ...(reason ? { reason } : {}) };
       return this.checked(candidate);
-    } finally { if (!home?.deadline) deadline.dispose(); }
+    } finally { if (!retainedDeadline) deadline.dispose(); }
   }
 
   async correct(input: SurfaceCorrectionInput, ports: SurfaceCorrectPorts) {
@@ -134,5 +144,20 @@ async function composeGroup(read: ComposeRead) {
   const group: SurfaceGroup = { kind: isAttention ? "attention" : "slot",
     ...groupState(shown, unreadable || objects.unreadable || objects.unproved || !deadline.active), items: shown.map(row => row.item),
     ...(overflow ? { overflow: { count: overflow } } : {}), ...(excluded ? { excluded } : {}) };
-  return { groups: [group], facts: { ...facts, operations: retainDisplayedOperations(read, shown) } };
+  if (request.slot.kind === "discussion" && read.ports.discussion) {
+    const { views, keep } = read.ports.discussion;
+    const reasons: Array<SurfaceDescription["reason"]> = [];
+    const groups = views.map(({ subjects, expanded }): SurfaceGroup => {
+      const rows = objects.forDiscussion(subjects);
+      const selected = expanded ? rows : rows.slice(0, position.max);
+      const remaining = rows.length - selected.length;
+      retainDisplayedOperations(read, selected);
+      reasons.push(compositionReason(read, selected.some(row => row.simpler), selected.some(row => row.adjusted)));
+      return { kind: "slot", ...groupState(selected, !deadline.active), items: selected.map(row => row.item),
+        ...(remaining ? { overflow: { count: remaining } } : {}) };
+    });
+    keep(groups, reasons);
+  }
+  return { groups: [group], simpler: shown.some(row => row.simpler), adjusted: shown.some(row => row.adjusted),
+    facts: { ...facts, operations: retainDisplayedOperations(read, shown) } };
 }

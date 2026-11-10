@@ -5,15 +5,15 @@
  */
 import { pluginErrors, type PluginAppContribution, type PluginDefinition, type PluginManifest, type PluginStartContext } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { ActionError } from '@molis-ai/molis-work-contracts/platform/actions';
-import { assertCapturedPluginActionCurrent, currentPluginAction, inPluginInstance } from '@molis-ai/molis-work-plugin-runtime';
+import { assertCapturedPluginActionCurrent, currentPluginAction, inPluginInstance, pluginManifestDigest } from '@molis-ai/molis-work-plugin-runtime';
 import { exposedActionReference } from './exposed-actions.js';
 import { rememberInstalledActionSource } from '../installed-action-registration.js';
 import type { SandboxEffects, SandboxIdentity, SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { createSandboxRunner, createBackgroundLane, SANDBOX_BACKGROUND_LIMITS, sandboxServicesFor, SandboxError, type SandboxBackgroundLane, type SandboxRunner, type SandboxServices, type SandboxServiceContext } from '@molis-ai/molis-work-plugin-sandbox';
 import { executionProjectReach } from '../plugin-project-reach-subject.js';
 import { resolvePluginComponentCall, validatePluginPresentation } from '@molis-ai/molis-work-design-system';
-import type { AgentRelease } from '@molis-ai/molis-work-plugin-builder';
-import { actionErrorResponse, effectsFromContract, isRecord, sandboxPluginManifest, sandboxUiContribution, sandboxOperationEffects } from '@molis-ai/molis-work-plugin-sdk';
+import { actionErrorResponse, effectsFromContract, isRecord, sandboxPluginManifest, sandboxUiDeclaration, sandboxOperationEffects } from '@molis-ai/molis-work-plugin-sdk';
+import { installedStageFrame } from '../installed-stage-section.js';
 import { releaseInstructions } from './prompts.js';
 import { releaseVersion, type InstalledRelease } from '../installed-release.js';
 import { capabilityLimits, capabilityPolicyBinding, latestCapability, slowOperations, type Lane, type CapabilityExecution } from './capabilities.js';
@@ -41,7 +41,7 @@ function installedOperation(release: InstalledRelease, context: PluginStartConte
  * What a generated plugin declares to the Host: a release's Manifest, or for a trial of a build that has none yet, the one it
  * would install with at version 0.
  */
-export function generatedPluginManifest(release: Pick<AgentRelease, 'pluginId' | 'version' | 'buildId' | 'design'>, earlierVersions: readonly number[] = []): PluginManifest {
+export function generatedPluginManifest(release: Pick<InstalledRelease, 'pluginId' | 'version' | 'buildId' | 'design'>, earlierVersions: readonly number[] = []): PluginManifest {
   return sandboxPluginManifest({ pluginId: release.pluginId, version: releaseVersion(release.version), name: release.design.title,
     publisher: { publisher_id: 'molis-studio', signature: installedSignature(release.buildId) }, presentation: !!release.design.presentation, upgradesFrom: earlierVersions.map(releaseVersion), effects: effectsFromContract(release.design.contract),
     contract: release.design.contract, actionIdentity: { buildId: release.buildId, version: release.version } });
@@ -55,7 +55,9 @@ export function sandboxedPluginDefinition(release: InstalledRelease, approved: S
   /** What an installed package declared (already checked against `sandboxPluginManifest`); a generated plugin's is written from its release. */
   declared?: PluginManifest): PluginDefinition {
   if (release.design.presentation !== undefined) validatePluginPresentation(release.design.presentation, release.design.parts, release.design.contract);
-  const manifest = declared ?? generatedPluginManifest(release, compatibleFrom), uiId = sandboxUiContribution(release.pluginId);
+  const manifest = declared ?? generatedPluginManifest(release, compatibleFrom);
+  const descriptor = sandboxUiDeclaration({ pluginId: release.pluginId, name: manifest.name, ui: release.design.ui });
+  const manifestDigest = pluginManifestDigest(manifest);
   const instructions = declared?.kind === 'app' ? releaseInstructions(release, [release]) : undefined;
   // A model call runs in its own process, so the plugin's other reads and saves never wait behind it.
   const lanes = new Map<Lane, Promise<SandboxRunner>>();
@@ -167,8 +169,10 @@ export function sandboxedPluginDefinition(release: InstalledRelease, approved: S
             return { status: 400, body: { error: message(error), ...(outcomeUnknown ? { outcome: 'unknown' } : {}) } };
           }
         } }],
-        views: [{ descriptor: { contribution_id: uiId, kind: 'primary-page', label: release.design.title, slots: [] },
-          render: () => '<main data-installed-plugin="' + release.pluginId + '"></main>' }],
+        views: [{ descriptor, render: () => installedStageFrame({ pluginId: release.pluginId, label: manifest.name,
+          prefix: context.project_id ? '/projects/' + encodeURIComponent(context.project_id) : '',
+          installation: { scope: context.project_id ? 'project' : 'home', install_id: context.install_id,
+            installation_generation: context.installation_generation, version: manifest.version, manifest_digest: manifestDigest } }) }],
       };
       if (manifest.actions) contribution.actions = manifest.actions.map(action => ({ capability_id: action.capability_id, version: action.version,
         handle: async (caller, input) => {

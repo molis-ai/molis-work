@@ -36,7 +36,7 @@ export interface InboxContentPorts {
   /** The item's entry, open and judged: Feed adds it, or reopens the one that was done or dismissed (`feed.items.admit`); who added it is Feed's reading of the caller. */
   admit(itemId: string, caller: ActionCallContext): Promise<{ entry_id: string }>;
 }
-export const inboxOrigin = (entry: ContentEntry): ActionSubject => ({
+export const inboxOrigin = (entry: Pick<ContentEntry, "subject_type" | "subject_id">): ActionSubject => ({
   kind: entry.subject_type === "feed_item" ? "feed_item" : entry.subject_type === "goal_decision" ? "goal" : "source", id: entry.subject_id,
 });
 export const sameInboxEntry = (current: ContentEntry, previous: ContentEntry) => current.revision === previous.revision

@@ -10,6 +10,8 @@ export interface RetainedActionDirectory {
   readonly views: readonly ActionView[];
   /** Activates only the actual rows of this sample and returns the same guard for all activated rows. */
   retain(views: readonly ActionView[]): () => void;
+  /** An alternative not chosen yet can hold its own exact rows without invalidating other alternatives. */
+  pin(views: readonly ActionView[]): () => void;
 }
 
 /**
@@ -65,18 +67,22 @@ export function sampleRetainedActionDirectory(discover: (observe: ObserveActionR
       guards.set(view, { assertAuthority: () => { throw error; }, assertRegistration });
     }
   });
-  const assertCurrent = () => {
-    for (const check of active) check.assertAuthority();
+  const assertCurrent = (checks: Iterable<Check>) => {
+    for (const check of checks) check.assertAuthority();
     // Availability and authority callbacks can replace a row already checked above.
-    for (const check of active) check.assertRegistration();
+    for (const check of checks) check.assertRegistration();
   };
+  const select = (selected: readonly ActionView[]) => selected.map(view => {
+    const guard = guards.get(view);
+    if (!guard) throw new ActionError("actions.forbidden", "只能保留本次目录可用的能力");
+    return guard;
+  });
+  const assertActive = () => assertCurrent(active);
   return { views, retain: selected => {
-    const checks = selected.map(view => {
-      const guard = guards.get(view);
-      if (!guard) throw new ActionError("actions.forbidden", "只能保留本次目录可用的能力");
-      return guard;
-    });
-    for (const check of checks) active.add(check);
-    return assertCurrent;
+    for (const check of select(selected)) active.add(check);
+    return assertActive;
+  }, pin: selected => {
+    const checks = select(selected);
+    return () => assertCurrent(checks);
   } };
 }

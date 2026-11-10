@@ -42,7 +42,7 @@ export function createImNavigate(base: ImBaseCtx, context: () => ImCtx): Pick<Im
       return;
     c.readDraft(kind);
     const draft = { ...drafts.get(id)! };
-    if (!draft.body?.trim())
+    if (!draft.body?.trim() && !draft.subjects?.length)
       return;
     const wasFocused = document.activeElement === c.inputFor(kind);
     s.busyTargets.add(id);
@@ -51,12 +51,14 @@ export function createImNavigate(base: ImBaseCtx, context: () => ImCtx): Pick<Im
     try {
       const result = await api<{
         message: ImMessage;
-      }>(c.pathFor(r, t) + '/messages', { body: draft.body, client_id: draft.client_id, ...(draft.quote_id ? { quote_id: draft.quote_id } : {}) });
+      }>(c.pathFor(r, t) + '/messages', { body: draft.body, client_id: draft.client_id, ...(draft.quote_id ? { quote_id: draft.quote_id } : {}),
+        ...(draft.subjects?.length ? { subjects: draft.subjects } : {}) });
       const cleared = drafts.clearMessage(id, draft.client_id);
       if (id === c.target(kind)) {
         if (cleared) {
           c.inputFor(kind).value = '';
           c.paintQuote(kind);
+          c.refreshObjects?.();
           c.resizeInput(kind);
         }
         c.status(kind, '已发送');

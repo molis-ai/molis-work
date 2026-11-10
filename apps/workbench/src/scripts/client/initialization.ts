@@ -98,16 +98,41 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       openTabItem: (plugin, id, title, mode) => tabWorkspace?.openItem(plugin, id, title, undefined, mode),
       expandDirectory: (id) => setPluginSectionExpanded(id),
     });
+    const positionOffers = (${HOME_OFFERS_FACTORY_SCRIPT});
     projectHome = globalThis.molisWorkHomeView?.mountHome({
       read: (suffix, body, signal) => molisWorkRequest(route("/api/host/surface-home" + suffix), { method: "POST", body, signal }),
       order: () => tabWorkspace?.homeOrder?.() ?? [],
       navigationFrom: (source) => tabWorkspace?.homeNavigationFrom(source) ?? (() => false),
       market: () => tabWorkspace?.setExclusive("market"),
-      offers: (${HOME_OFFERS_FACTORY_SCRIPT}),
+      offers: positionOffers,
       projectKey: state.project?.project_id || "",
       translate: L,
+      receipt: showToast, changed: () => positionChanged(),
       offerApi: (path, method, body, signal) => molisWorkRequest(route(path), { method, body, signal }),
     });
+    const positionChanged = () => {
+      projectHome?.sync(); projectPositions?.invalidate();
+      document.dispatchEvent(new CustomEvent("molis-work:attention-refresh"));
+    };
+    globalThis.molisWorkbenchPositionFrom = frame => {
+      const owns = () => frame?.ownerDocument === document && frame.isConnected && frame.tagName === "IFRAME"
+        && frame.parentElement?.dataset.installedPlugin;
+      if (!owns()) return null;
+      const shown = () => owns() && !frame.closest("[hidden]");
+      return { translate: L, navigationFrom() {
+        const navigate = tabWorkspace?.positionNavigationFrom(frame);
+        return result => Boolean(shown() && navigate?.(result));
+      }, changed() { if (shown()) positionChanged(); } };
+    };
+    if (state.project) {
+      projectPositions = globalThis.molisWorkHomeView?.createPositionViews({
+        navigationFrom: source => tabWorkspace?.positionNavigationFrom(source) ?? (() => false),
+        translate: L, changed: positionChanged, receipt: showToast,
+      });
+      document.addEventListener("molis-work:plugins-changed", () => projectPositions?.invalidate());
+      window.addEventListener("molis:assistant-effect", () => projectPositions?.invalidate());
+    }
+    const positionRead = (path, body, signal) => molisWorkRequest(route(path), { body, signal });
     // The question and action cards' shared client: one copy for the Assistant and every plugin that shows them (A1, A2).
     // A reference field searches this project through search.references (T2); a pick is <kind> <id> for the SDK's questionAnswer.
     // The receipt under a supplement, the same way: one copy for the Assistant and every plugin that takes supplements (receipts 3c).
@@ -115,6 +140,8 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     deferredClients = (${DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT})({
       paneMessages,
       openView: (root, selection) => tabWorkspace?.openView(root, selection),
+      positionNavigationFrom: source => tabWorkspace?.positionNavigationFrom(source) ?? (() => false),
+      positionChanged,
       invalidateView: root => tabWorkspace?.invalidateView(root),
       openBehind: (...args) => tabWorkspace?.openBehind(...args),
       mountPluginClient, interaction, receipts, scope: boardLifetime, translate: L, projectId: () => state.project?.project_id || document.body.dataset.projectId || "",
@@ -124,6 +151,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     });
     ${pluginWorkbenchClientBootstrap(undefined, true)}
     (${ASSISTANT_ISLAND_FACTORY_SCRIPT})({ translate: L, showToast, route, headers: () => molisWorkControlHeaders(), interaction, receipts,
+      positions: projectPositions, positionRead,
       openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title), pluginTitle: (plugin) => tabWorkspace?.pluginTitle(plugin),
       project: { id: state.project?.project_id || state.snapshot.board.project_id, title: state.project?.display_name || "" },
     });
@@ -334,9 +362,9 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       setMobileView(restoredMobileView);
     }
     // An address the project does not have opens here (the server sends it with ?missing=): say so, then forget it.
-    // A plugin the studio just installed opens once its entry is on the page (?openSurface=app-…), then the address forgets it.
+    // An installed plugin opens only if this workbench actually rendered its stage.
     const askedSurface = new URLSearchParams(location.search).get("openSurface");
-    if (askedSurface && /^app-[a-f0-9-]{36}$/.test(askedSurface)) {
+    if (askedSurface && desktopWorkSurfaces.some(stage => stage.dataset.installedPlugin && stage.dataset.workSurface === askedSurface)) {
       const cleaned = new URL(location.href); cleaned.searchParams.delete("openSurface"); history.replaceState(history.state, "", cleaned);
       setTimeout(() => { const entry = [...document.querySelectorAll("[data-work-surface-open]")].find((el) => el.dataset.workSurfaceOpen === askedSurface); if (entry) openSurfaceEntry(askedSurface, entry); }, 0);
     }

@@ -25,6 +25,19 @@ import { goldenManifests } from "../golden/formats.mjs";
 export const SCHEMAS_FILE = "tooling/gates/schemas/stores.tsv";
 export const SCHEMA_COLUMNS = ["store", "owner", "version", "structure", "upgrades"];
 const GOLDENS = "tests/fixtures/golden-homes/";
+// Approved on 2026-11-09, intelligent-surfaces §17.2. Only the new subjects_json column;
+// the owner's open still refuses the old file. Keep the comparison directional and exact.
+export const DISCUSSION_V1_SUBJECTS_CHANGE = Object.freeze({
+  store: "server/server.sqlite", owner: "server", version: 1,
+  before: "626a2905680637a9", after: "2c4efaa24415de5e",
+});
+
+function approvedDiscussionChange(store, before, now) {
+  const change = DISCUSSION_V1_SUBJECTS_CHANGE;
+  return store === change.store && before.owner === change.owner && now.owner === change.owner
+    && before.version === change.version && now.version === change.version && !before.froms.length && !now.froms.length
+    && before.structure === change.before && now.structure === change.after;
+}
 
 /** The rows of the file by `store`, or the sentence that says why it cannot be read. */
 export function parseStoreSchemas(text, where = SCHEMAS_FILE) {
@@ -78,7 +91,7 @@ export function storeSchemaProblems({ files, read }, readBase) {
     const before = base.rows.get(store);
     if (!before) continue;
     if (now.version === before.version) {
-      if (now.structure !== before.structure) problems.push(`UPG-01 ${store}: its creation statements changed and its version is still ${now.version}. A Home in use keeps the old structure, so raise the version and add the step from ${now.version}, then \`pnpm schemas:update\``);
+      if (now.structure !== before.structure && !approvedDiscussionChange(store, before, now)) problems.push(`UPG-01 ${store}: its creation statements changed and its version is still ${now.version}. A Home in use keeps the old structure, so raise the version and add the step from ${now.version}, then \`pnpm schemas:update\``);
       continue;
     }
     if (now.version < before.version) { problems.push(`UPG-01 ${store}: its version went down, ${before.version} → ${now.version}; a version never goes down`); continue; }

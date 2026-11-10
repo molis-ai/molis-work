@@ -1,6 +1,7 @@
 import type { PluginComponentNode, PluginComponentPlan, PluginPresentation } from '@molis-ai/molis-work-design-system';
 import type { SandboxEffects, SandboxJson, SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { BuildManifest, BuildCheckResult } from '@molis-ai/molis-work-contracts/platform/plugin-builder';
+import type { SandboxUiContribution } from '@molis-ai/molis-work-plugin-sdk';
 
 export interface BrowserAcceptance {
   id: string;
@@ -34,6 +35,7 @@ export interface AgentDesign {
   parts: PluginComponentPlan[];
   acceptance: BrowserAcceptance[];
   presentation?: PluginPresentation;
+  ui?: SandboxUiContribution;
   /** The pre-freeze UI decision and representative content; advisory context, not executable acceptance. */
   experience?: { summary: string; scenarios: Array<{ task: string; content: SandboxJson; expected: string }> };
 }
@@ -121,5 +123,5 @@ export interface AgentPublicationControl {
 /** The interface.json document in a published release, shared by the publisher and synchronization validator. */
 export function builderReleaseInterface(design: AgentDesign, nodes: AgentBuild['nodes']) {
   return { parts: design.parts, nodes, acceptance: design.acceptance,
-    ...(design.presentation === undefined ? {} : { presentation: design.presentation }) };
+    ...(design.presentation === undefined ? {} : { presentation: design.presentation }), ...(design.ui === undefined ? {} : { ui: design.ui }) };
 }

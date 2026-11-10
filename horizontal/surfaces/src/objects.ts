@@ -37,6 +37,8 @@ interface Projected {
   inOverview: boolean;
   pin: number;
   projectId: string | null;
+  simpler: boolean;
+  adjusted: boolean;
 }
 
 function eligibleSources(read: ComposeRead, sources: readonly ObjectSource[]) {
@@ -62,7 +64,7 @@ function objectRoutes(read: ComposeRead) {
     if (existing) return existing;
     const reader = findSubjectReader(views, kind);
     const view = reader.found === "one" || reader.found === "unavailable" ? reader.view : undefined;
-    const plugin = view ? plugins.find(plugin => ownsView(plugin, view) && (read.request.slot.kind !== "home" || plugin.scope === view.action.scope)) : undefined;
+    const plugin = view ? plugins.find(plugin => ownsView(plugin, view) && plugin.scope === view.action.scope) : undefined;
     const object = reader.found === "one" && plugin?.state === "running" && !plugin.home?.unavailable ? plugin.presentation?.objects.find(entry => entry.kind === kind) : undefined;
     const ownedValues = object && plugin ? values.filter(action => ownsView(plugin, action) && action.action.scope === view?.action.scope
       && action.action.subject_kinds.includes(kind)) : [];
@@ -149,8 +151,9 @@ function renderCandidate(candidate: Candidate, answer: RuleAnswer | undefined, r
   if (!candidate.requested && !readable) return undefined;
   const base: FormKind = request.slot.kind === "conversation" ? delivered.has(key) ? "card" : "chip"
     : request.slot.kind === "home" ? "row" : position.forms.at(-1)!;
-  const chosenForm = [choices.find(choice => choice.correction === "form")?.form,
-    corrections.corrections.find(choice => choice.correction === "form" && !choice.subject)?.form].find(form => form && position.forms.includes(form)) ?? base;
+  const preference = [choices.find(choice => choice.correction === "form")?.form,
+    corrections.corrections.find(choice => choice.correction === "form" && !choice.subject)?.form].find(form => form && position.forms.includes(form));
+  const chosenForm = preference ?? base;
   const display = formAt(position, chosenForm, readable ? object : undefined);
   const status = object?.status ? value?.values?.[object.status.field] : undefined;
   const ruleStatus = typeof status === "string" ? status : undefined;
@@ -158,12 +161,13 @@ function renderCandidate(candidate: Candidate, answer: RuleAnswer | undefined, r
   const { actions, notices, dependencies } = readable && object && display.fields.length ? operationsFor(object, plugin, display.form, request.slot, ruleStatus, views, ports.diagnostic)
     : { actions: readable || fallbackOpen ? [{ ref: "open", primary: false }] : [], notices: undefined, dependencies: [] };
   const attention = candidate.entries.map(entry => ({ entry, rank: attentionRank(entry, object, ruleStatus) })).sort(compareAttention)[0];
+  const pin = choices.find(choice => choice.correction === "pin")?.position;
   const item: SurfaceItem = { subject, owner_plugin_id: plugin.plugin_id, state, ...display,
     actions: request.slot.kind === "home" && !attention ? actions.map(action => ({ ...action, primary: false })) : actions,
     ...(notices ? { notices } : {}), ...(state === "stale" && value?.read_at ? { read_at: value.read_at } : {}) };
   return { item, ...(readable ? { value } : {}), attention, inOverview: candidate.inOverview, dependencies,
-    pin: choices.find(choice => choice.correction === "pin")?.position ?? PRESENTATION_LIMITS.values_subjects,
-    projectId: candidate.values?.action.scope === "home" ? null : ports.caller.project_id };
+    pin: pin ?? PRESENTATION_LIMITS.values_subjects, adjusted: Boolean(readable && (preference || !attention && pin !== undefined)),
+    projectId: candidate.values?.action.scope === "home" ? null : ports.caller.project_id, simpler: Boolean(readable && display.form !== chosenForm) };
 }
 
 export function groupState(projected: readonly Projected[], unreadable: boolean): Pick<SurfaceGroup, "state" | "read_at"> {
@@ -216,15 +220,19 @@ export async function composeObjects(read: ComposeRead, sources: readonly Object
     return projection ? [projection] : [];
   }).sort(compareProjected);
   const readable = rendered.filter(row => row.value);
-  const preferred = new Set(readable.filter(row => row.attention).map(row => subjectKey(row.item.subject)));
   current();
   const relations = readable.length > 1 && deadline.active ? ports.relations(readable.map(row => ({ ...row.item.subject, project_id: row.projectId }))) : [];
-  const { representatives, used } = mergeRelated(readable.map(row => row.item), relations, preferred);
-  const visible = rendered.flatMap(row => {
-    if (!row.value) return [row];
-    const item = representatives.get(subjectKey(row.item.subject));
-    return item ? [{ ...row, item }] : [];
-  });
+  const merge = (rows: readonly Projected[]) => {
+    const proved = rows.filter(row => row.value);
+    const preferred = new Set(proved.filter(row => row.attention).map(row => subjectKey(row.item.subject)));
+    const { representatives, used } = mergeRelated(proved.map(row => row.item), relations, preferred);
+    return { used, visible: rows.flatMap(row => {
+      if (!row.value) return [row];
+      const item = representatives.get(subjectKey(row.item.subject));
+      return item ? [{ ...row, item }] : [];
+    }) };
+  };
+  const { visible, used } = merge(rendered);
   const excluded: SurfaceGroup["excluded"] = disabled.size ? ports.caller.audience === "user"
     ? [...disabled].map(([owner_plugin_id, count]) => ({ reason: "disabled", owner_plugin_id, count })) : [{ reason: "disabled" }] : undefined;
   const owners = new Set(rendered.map(row => row.item.owner_plugin_id));
@@ -236,5 +244,12 @@ export async function composeObjects(read: ComposeRead, sources: readonly Object
     ? readers.filter(candidate => renderedKeys.has(subjectKey(candidate.subject))) : readers);
   const facts = { declarations, authority: exposed.sort((a, b) => compareCodeUnits(viewKey(a), viewKey(b))).map(viewRevision),
     values: readable.map(row => [row.item.subject, row.value?.revision, row.attention?.entry]), relations: used };
-  return { visible, readable, excluded, unreadable, unreadableAttention, unreadableOwners, unproved, facts };
+  return { visible, readable, excluded, unreadable, unreadableAttention, unreadableOwners, unproved, facts,
+    forDiscussion(subjects: readonly ActionSubject[]) {
+      const bySubject = new Map(readable.map(row => [subjectKey(row.item.subject), row]));
+      return merge(subjects.flatMap(subject => {
+        const row = bySubject.get(subjectKey(subject));
+        return row ? [row] : [];
+      }).sort(compareProjected)).visible;
+    } };
 }

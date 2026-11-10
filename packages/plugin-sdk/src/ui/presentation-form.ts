@@ -34,6 +34,13 @@ type Words = (key: string) => string;
 
 const platformWord = (key: string): OwnedTextRef => ({ owner: PLATFORM_TEXT_OWNER, key: `common.presentation.${key}` });
 const unavailableWord: OwnedTextRef = { owner: PLATFORM_TEXT_OWNER, key: "common.text.unavailable" };
+/** The same canonical plugin id picks the same semantic hue in every install. */
+export function presentationOwnerHue(pluginId: string): UiViewHue {
+  let hash = 0;
+  for (const char of pluginId) hash = (hash * 31 + char.charCodeAt(0)) >>> 0;
+  return UI_VIEW_HUES[hash % UI_VIEW_HUES.length]!;
+}
+
 const unavailableRing: Readonly<Record<ReadUnavailable, StateRingState>> = { forbidden: "blocked", deleted: "trashed", unreadable: "disconnected" };
 const attentionWords: Readonly<Partial<Record<AttentionState, { word: string; tone: MwStatusTone }>>> = {
   needs_decision: { word: "needs-decision", tone: "attention" },

@@ -1,4 +1,6 @@
 import type { SandboxJson, SandboxPluginContract, SandboxSchema } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
+import type { UiSlotDescriptor } from '@molis-ai/molis-work-contracts/platform/ui';
+import type { SandboxUiContribution } from '@molis-ai/molis-work-plugin-sdk';
 import { PLUGIN_PRESENTATION_STYLES } from './plugin-presentation-client.js';
 
 /** A part's component: a UI catalog id (see PLUGIN_COMPONENTS), or a kind from before parts came from the catalog. */
@@ -34,6 +36,7 @@ export interface PluginComponentPlan {
   props: PluginComponentProps;
   read?: PluginOperationBinding;
   submit?: PluginOperationBinding;
+  surfaceSlot?: Pick<UiSlotDescriptor, 'slot_id'>;
 }
 export interface PluginComponentNode extends PluginComponentPlan { kind: PluginComponentKind }
 /** The UI catalog's groups, as the spec board shows them. */
@@ -60,6 +63,7 @@ const c = (kind: string, catalog: string, name: string, group: PluginCatalogGrou
 export const PLUGIN_COMPONENTS: readonly PluginComponentMetadata[] = [
   c('frame', 'Frame', '页框', '版面', 'frame', 'part', '插件页面的标题区：名称、一句说明，新建入口放在右侧', ['heading']),
   c('card', 'Card', '卡片', '版面', 'grid', 'part', '一张或一组卡片：数字卡片、卡片网格、一段结果', ['description', 'collection', 'reading', 'conversation'], 'value'),
+  c('surface-slot', 'Surface slot', '对象挂载位', '展示', 'link', 'part', '在本页声明的位置显示原件', ['reading'], 'array'),
   c('tabs', 'Tabs', '标签页', '版面', 'columns', 'inside', '多个页面之间切换'),
   c('accordion', 'Accordion', '折叠列表', '版面', 'rows', 'part', '一条一行，点开看详情；适合较长的内容', ['collection', 'reading', 'evidence'], 'array'),
   c('collapsible', 'Collapsible', '折叠段', '版面', 'chevron-down', 'catalog', '收起一段次要内容'),
@@ -122,6 +126,7 @@ export const PLUGIN_COMPONENTS: readonly PluginComponentMetadata[] = [
  * workbench calls its side 右侧 now (07-S1), so no other owner says it.
  */
 export const PLUGIN_COMPONENTS_EN: Readonly<Record<string, string>> = {
+  "对象挂载位": "Object slot", "在本页声明的位置显示原件": "Shows original objects in a place declared by this page",
   "页框": "Page frame", "侧栏": "Side panel", "标签页": "Tabs", "折叠列表": "Accordion", "折叠段": "Collapsible section", "按钮组": "Button group", "滚动区": "Scroll area",
   "条目列表": "Item list", "表格": "Table", "徽标": "Badge", "量表": "Meter", "进度条": "Progress bar", "头像": "Avatar", "按键": "Key",
   "表单": "Form", "字段": "Field", "输入框": "Input box", "带图标的输入": "Input with icon", "多行输入": "Multiline input", "数字输入": "Number input",
@@ -246,11 +251,27 @@ function checkBinding(binding: PluginOperationBinding, contract: SandboxPluginCo
   if (binding.outputPath !== undefined && (typeof binding.outputPath !== 'string' || !pluginSchemaAt(operation!.output, binding.outputPath))) fail('输出字段路径无效');
   return operation!;
 }
-export function validatePluginComponentPlans(value: unknown, contract: SandboxPluginContract): PluginComponentPlan[] {
+function checkSurfaceSlot(part: PluginComponentPlan, contract: SandboxPluginContract, ui: SandboxUiContribution | undefined) {
+  const slot = part.surfaceSlot;
+  if (!plain(slot) || Object.keys(slot).length !== 1 || !ui?.slots.some(entry => entry.slot_id === slot.slot_id)
+    || part.intent !== 'reading' || !part.read || part.submit) return fail('对象挂载位必须引用本页已声明的 slot_id，只可绑定读取');
+  const operation = contract.operations.find(item => item.id === part.read!.operationId);
+  if (!operation || operation.kind !== 'query' || operation.read_protocol !== undefined || operation.external
+    || operation.effects.model?.includes('invoke') || operation.effects.imageGeneration?.includes('generate'))
+    return fail('对象挂载位只能读取本插件的普通查询');
+  const answer = pluginSchemaAt(operation.output, part.read.outputPath);
+  const item = answer?.type === 'array' ? answer.items : undefined;
+  if (item?.type !== 'object' || item.additionalProperties !== false || Object.keys(item.properties ?? {}).length !== 2
+    || !['kind', 'id'].every(key => item.properties?.[key]?.type === 'string' && item.required?.includes(key))) {
+    fail('对象挂载位的查询输出必须是 { kind, id } 引用数组');
+  }
+}
+
+export function validatePluginComponentPlans(value: unknown, contract: SandboxPluginContract, ui?: SandboxUiContribution): PluginComponentPlan[] {
   if (!Array.isArray(value) || value.length === 0 || value.length > 100) fail('需要 1–100 个界面零件');
   const seen = new Set<string>();
   for (const raw of value as unknown[]) try {
-    if (!plain(raw) || Object.keys(raw).some(key => !['id', 'pageId', 'regionId', 'intent', 'purpose', 'props', 'read', 'submit'].includes(key))) fail('未知零件属性');
+    if (!plain(raw) || Object.keys(raw).some(key => !['id', 'pageId', 'regionId', 'intent', 'purpose', 'props', 'read', 'submit', 'surfaceSlot'].includes(key))) fail('未知零件属性');
     const part = raw as unknown as PluginComponentPlan;
     if (!IDENTIFIER.test(part.id) || seen.has(part.id)) fail('零件标识重复或不合法'); seen.add(part.id);
     if (!contract.pages.some(page => page.id === part.pageId && page.regions.some(region => region.id === part.regionId))) fail('零件引用了不存在的页面或区域');
@@ -265,6 +286,7 @@ export function validatePluginComponentPlans(value: unknown, contract: SandboxPl
     for (const binding of [part.read, part.submit]) if (binding && !allowed.includes(binding.operationId)) fail('操作不属于这个区域');
     if (part.read) checkBinding(part.read, contract, true);
     if (part.submit) checkBinding(part.submit, contract, false);
+    if (part.surfaceSlot !== undefined) checkSurfaceSlot(part, contract, ui);
     if (['input', 'action', 'conversation'].includes(part.intent) && !part.submit) fail('交互零件需要提交操作');
     if (['collection', 'reading', 'conversation', 'evidence', 'schedule'].includes(part.intent) && !part.read) fail('内容零件需要读取操作');
     if (!pluginComponentChoices(part, contract).length) fail('组件池没有能表达这个需求的合法组件：' + part.id
@@ -275,13 +297,16 @@ export function validatePluginComponentPlans(value: unknown, contract: SandboxPl
     if (!id || !(error instanceof Error) || error.message.includes('组件 ' + id)) throw error;
     throw Object.assign(new Error(error.message.replace(/^(界面合同无效：)?/, (prefix: string) => prefix + '组件 ' + id + '：')), { code: (error as { code?: unknown }).code });
   }
+  const mounts = new Set((value as PluginComponentPlan[]).filter(part => part.surfaceSlot).map(part => part.id));
   for (const part of value as PluginComponentPlan[]) for (const binding of [part.read, part.submit]) for (const source of Object.values(binding?.input ?? {})) {
     const id = source.source === 'selection' ? source.componentId : source.source === 'form' ? source.prefill?.componentId : undefined;
     if (id && !seen.has(id)) fail('选择来源组件不存在：' + id);
+    if (id && mounts.has(id)) fail('对象挂载位不提供选中输出：' + id);
   }
   return structuredClone(value) as PluginComponentPlan[];
 }
 export function pluginComponentChoices(part: PluginComponentPlan, contract: SandboxPluginContract): PluginComponentMetadata[] {
+  if (part.surfaceSlot) return PLUGIN_COMPONENTS.filter(item => item.kind === 'surface-slot');
   const operation = contract.operations.find(item => item.id === part.read?.operationId);
   const schema = operation?.read_protocol === undefined ? operation?.output : undefined;
   const output = part.read ? pluginSchemaAt(schema ?? { type: 'null' }, part.read.outputPath) : undefined;

@@ -60,6 +60,8 @@ node tooling/plugin-cli/dist/main.js validate examples/plugin-sample/manifest.js
 
 命令只读取固定文件和正文声明引用的 `agent/` 文件，不读取源目录的 BuildManifest，不递归打包，也不把 `package.json` 放进沙箱包。输出不能覆盖；路径跳转、symlink、文件/包超限会拒绝。随后用既有 `sign`、`verify` 命令签名与核验。打包只检查它消费的结构；完整合同、界面和正文语义仍由 Host 在安装预览时检查，打包成功不代表插件可运行。
 
+`interface.json` 可选 `ui.slots` 为原舞台声明对象挂载位。打包用 SDK 核对声明形状，保留签名输入中的界面文件；安装仍会验证每个部件和读取绑定。不使用挂载位的包不需要加字段。
+
 ## 开发要求
 
 - 负责：插件的创建、Manifest 与合同校验、本地调试、打包与签名命令。

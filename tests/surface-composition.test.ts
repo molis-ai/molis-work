@@ -54,6 +54,7 @@ test("SCS-01 SCS-09 SCS-14 conversation mixes mentions and deliveries, folds onl
   const subjects = Array.from({ length: 9 }, (_, index) => note(String(index)));
   const request = { slot: { kind: "conversation" }, subjects, delivery_subjects: [subjects[1]!] } as const;
   const description = await h.compose(request);
+  assert.deepEqual(description.reason, { owner: "workbench", key: "workbench.surfaces.reason.conversation" });
   assert.deepEqual(h.counts, { directory: 1, catalog: 1, corrections: 1, relations: 1, attention: 0 });
   assert.deepEqual(h.calls, [{ subjects, fields: ["edge", "stage"] }]);
   assert.deepEqual(group(description).items.map(item => [item.subject.id, item.form]), [["0", "chip"], ["1", "card"], ["2", "chip"], ["3", "chip"], ["4", "chip"], ["5", "chip"]]);
@@ -79,6 +80,7 @@ test("SCS-02 SCS-05 SCS-10 corrections, the form ladder and hard mount limits ap
     { subject: note("c"), correction: "remove", form: null, position: null },
   ] });
   const result = await h.compose({ slot, subjects });
+  assert.deepEqual(result.reason, { owner: "workbench", key: "workbench.surfaces.reason.adjusted" });
   assert.equal(result.corrections_revision, "4");
   assert.deepEqual(group(result).items.map(item => [item.subject.id, item.form]), [["b", "chip"]]);
   assert.deepEqual(h.calls[0]?.subjects, subjects.slice(0, 2));
@@ -88,8 +90,10 @@ test("SCS-02 SCS-05 SCS-10 corrections, the form ladder and hard mount limits ap
   assert.equal(group(await reverse.compose({ slot, subjects: [note("a")] })).items[0]?.form, "card");
   const onlyRow = { ...object, forms: { row: { fields: ["title"] } } };
   const ladder = harness({ catalog: () => [plugin(onlyRow)] });
-  const fallback = group(await ladder.compose({ slot: { kind: "discussion" }, subjects: [note("a")] })).items[0];
+  const simpler = await ladder.compose({ slot: { kind: "discussion" }, subjects: [note("a")] });
+  const fallback = group(simpler).items[0];
   assert.deepEqual([fallback?.form, fallback?.fields, fallback?.actions], ["chip", [], [open]]);
+  assert.deepEqual(simpler.reason, { owner: "workbench", key: "workbench.surfaces.reason.simpler" });
 });
 
 test("SCS-03 SCS-12 SCS-15 resolves exact providers, replaces the locked operation and preserves the next action's inputs", async () => {

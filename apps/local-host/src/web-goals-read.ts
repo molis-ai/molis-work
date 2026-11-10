@@ -135,17 +135,23 @@ export function createLocalGoalsReadHttp(ports: {
     if (request.method !== "GET") return false;
     const match = matchPageRoute(url);
     const renderedGoalsRead = await renderGoalsReadRequest(request.method, match, async route => {
-      const view = await readWebView();
-      return { view, selected: route.kind === "momentum" ? view : await withSelectedGoalDocument(view, route.goal_id, goalActions, actions, route.collection) };
-    }, ({ view, selected }) => ({
+      const shell = await readWebView(), stage = shell.stage_data?.goals as GoalsStageData | undefined;
+      const view = stage ? { ...shell, ...stage.collection, snapshot: { ...stage.collection.snapshot,
+        board: { ...stage.collection.snapshot.board, project_id: shell.snapshot.board.project_id } } } : shell;
+      return { view, stage, selected: route.kind === "momentum" ? view : await withSelectedGoalDocument(view, route.goal_id, goalActions, actions, route.collection) };
+    }, ({ view, stage, selected }) => {
+      const stageData = (data: GoalsWebView, selection: GoalsStageData["selection"]): GoalsStageData | undefined =>
+        stage && { ...stage, collection: data, selection, selected: null };
+      return {
       refresh: (goalId, collection) => renderWorkbenchRefreshDocument({
-        body_html: declaredPageSurface(match!.plugin_id, match!.route_id, selected, { collection: selected, selection: collection, selected: null } satisfies GoalsStageData,
+        body_html: declaredPageSurface(match!.plugin_id, match!.route_id, selected, stageData(selected, collection),
           goalId ? { goal_id: goalId } : {}),
         body_attributes: { "data-board-view": collection },
       }),
-      momentum: (goalId, collection) => declaredPageSurface(match!.plugin_id, match!.route_id, view, { collection: view, selection: collection, selected: null } satisfies GoalsStageData, { goal_id: goalId }) || null,
-      document: (goalId, collection) => declaredPageSurface(match!.plugin_id, match!.route_id, selected, { collection: selected, selection: collection, selected: null } satisfies GoalsStageData, { goal_id: goalId }) || null,
-    }));
+      momentum: (goalId, collection) => declaredPageSurface(match!.plugin_id, match!.route_id, view, stageData(view, collection), { goal_id: goalId }) || null,
+      document: (goalId, collection) => declaredPageSurface(match!.plugin_id, match!.route_id, selected, stageData(selected, collection), { goal_id: goalId }) || null,
+      };
+    });
     if (renderedGoalsRead) {
       if ("error" in renderedGoalsRead) {
         sendJson(response, renderedGoalsRead.status, { error: renderedGoalsRead.error, ...(renderedGoalsRead.code ? { code: renderedGoalsRead.code } : {}) });

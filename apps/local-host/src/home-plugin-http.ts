@@ -155,11 +155,17 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
           assertStageInstallation("home", current, expected);
           if (!surface) throw new ActionError("actions.provider_changed", "原舞台安装已变化，请重新打开");
         }
+        const framed = url.searchParams.get("frame") === "workbench";
+        if (surface && project && !framed && captureRuntimeStageOwner(platform, "home", pageEntry(entry))?.view.descriptor.slots.length) {
+          response.writeHead(302, { location: `/projects/${encodeURIComponent(project.project_id)}/?openSurface=${encodeURIComponent(surface)}`, "cache-control": "no-store" });
+          response.end(); return true;
+        }
         const frame = surface && current ? installedStagePath(project ? `/projects/${encodeURIComponent(project.project_id)}` : "", pluginId, installedStageIdentity("home", current)) : undefined;
-        const body = surface && url.searchParams.get("frame") === "workbench" ? home.packageDocument(pluginId, controlToken, project?.project_id ?? null, accountRegistration, expected)!
+        const body = surface && framed ? home.packageDocument(pluginId, controlToken, project?.project_id ?? null, accountRegistration, expected)
           : renderHomePluginPage(pageEntry(entry), null, host.homePlugins.packageError(pluginId) ?? platform.supervisor.state(pluginId)?.message ?? null, controlToken,
             // A package that did not come back is not switched off, so "enable" would not mend it: its page says why and offers no switch.
             { L, htmlLang, clientI18nScript, accountRegistration }, false, false, project, frame, Boolean(surface));
+        if (body === undefined) throw new ActionError("actions.provider_changed", "原舞台安装已变化，请重新打开");
         response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-security-policy": csp });
         response.end(body);
       } catch (error) { const refused = actionErrorResponse(error); sendLocalWebJson(response, refused.status, refused.body); }
@@ -349,7 +355,11 @@ export async function renderHomePluginStages(host?: HomePluginHost, options?: { 
     if (host.hasPackage(pluginId)) {
       const surface = host.packageSurface(pluginId);
       const record = host.installation(pluginId);
-      if (surface && record) html.push(installedStageSection({ pluginId, surface, installation: installedStageIdentity("home", record), label: entry.manifest.name, icon: entry.manifest.ui?.views?.find(view => view.slot === "stage")?.icon, prefix: options?.project_id ? `/projects/${encodeURIComponent(options.project_id)}` : "" }));
+      const actual = captureRuntimeStageOwner(platform, "home", entry);
+      if (surface && record && actual) {
+        html.push(installedStageSection({ pluginId, surface, installation: installedStageIdentity("home", record), label: entry.manifest.name, icon: entry.manifest.ui?.views?.find(view => view.slot === "stage")?.icon, prefix: options?.project_id ? `/projects/${encodeURIComponent(options.project_id)}` : "" }));
+        surfaces.push({ contribution_id: actual.view.descriptor.contribution_id, surface: "workbench" });
+      }
       else unavailable.push(homeUnavailableStage(host, platform, failure, entry));
       continue;
     }

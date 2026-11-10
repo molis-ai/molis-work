@@ -29,6 +29,8 @@ import { cachedMolisWorkWebView, type MolisWorkWebViewCache, type GoalsWebView }
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import { ensureProjectPlugins } from "./project-plugins.js";
 import { handleSurfaceHomeHttp, isSurfaceHomePath } from "./surface-home-http.js";
+import { handleSurfaceAttentionHttp } from "./surface-position-http.js";
+import { handleSurfaceSlotHttp } from "./surface-slot-http.js";
 import { homeStageHalves } from "./home-plugin-http.js";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import { readRuntimeStageData, runtimeStageOwner } from "./project-plugin-stages.js";
@@ -141,6 +143,8 @@ const PROJECT_ROUTES: readonly WebRoute<ProjectRequestContext>[] = [
   } },
   homePluginsRoute,
   { id: "surface-home", handle: handleSurfaceHomeHttp },
+  { id: "surface-attention", handle: handleSurfaceAttentionHttp },
+  { id: "surface-slot", handle: handleSurfaceSlotHttp },
   pluginPageRoute, directoryGrantRoute,
   { id: "project-plugin-consents", handle: context => handlePluginConsentSettingsHttp(context, context.hostReference) },
   { id: "project-task-grants", handle: context => handleTaskGrantsSettingsHttp(context, context.hostReference) },

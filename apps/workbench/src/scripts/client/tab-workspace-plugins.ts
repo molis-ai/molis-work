@@ -312,10 +312,10 @@ export const TAB_WORKSPACE_PLUGINS_PART = `  // A plugin whose page lives in set
     if (paneFrame.contentDocument?.body?.hasAttribute("data-pane-embedded")) select(); else paneFrame.addEventListener("load", select, { once: true });
   };
   // Only the shell calls this with the protected homepage's reply. It binds the reply back to this pane and its actual mount.
-  const openHomeNavigation = (result, pane) => {
-    if (!result || !pane || state.exclusive || pane !== ops.focused(state) || ops.shownPlugin(pane) !== "home") return false;
-    if (embedded) { notifyParent("workbench-home-navigation", { result }); return true; }
-    if (result.kind === "settings" && result.section === "plugins") { openSettingsPage(result.section); return true; }
+  const openHomeNavigation = (result, pane, home = true) => {
+    if (!result || !pane || state.exclusive || pane !== ops.focused(state) || home && ops.shownPlugin(pane) !== "home") return false;
+    if (embedded) { notifyParent(home ? "workbench-home-navigation" : "workbench-position-navigation", { result }); return true; }
+    if (home && result.kind === "settings" && result.section === "plugins") { openSettingsPage(result.section); return true; }
     if (result.kind !== "stage" || !result.selection || !result.installation || typeof result.shell_key !== "string"
       || typeof result.owner_plugin_id !== "string") return false;
     const plugin = result.shell_key, mount = findTopLevelSurface(plugin), selection = result.selection;
@@ -348,6 +348,12 @@ export const TAB_WORKSPACE_PLUGINS_PART = `  // A plugin whose page lives in set
     const pane = paneById(source.closest("[data-tab-pane]")?.dataset.tabPane);
     return result => source.isConnected && !source.closest("[hidden]") && source.closest("[data-tab-pane]")?.dataset.tabPane === pane?.id
       && openHomeNavigation(result, pane);
+  };
+  const positionNavigationFrom = (source) => {
+    const holder = source.ownerDocument.defaultView?.frameElement, node = holder || source;
+    const pane = paneById(node.closest("[data-tab-pane]")?.dataset.tabPane) || ops.focused(state), tab = pane?.activeTabId;
+    return result => source.isConnected && node.isConnected && !source.closest("[hidden]") && !node.closest("[hidden]")
+      && pane?.activeTabId === tab && openHomeNavigation(result, pane, false);
   };
   const openView = (origin, selection) => {
     if (!origin?.isConnected || origin.closest('[hidden]')) return false;

@@ -1,6 +1,9 @@
 import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { SurfaceHomeDisplay, SurfaceHomeRowDisplay } from "../surface-home-display.js";
-import { homeButton, homeWord, renderHome, renderHomePeek, subjectKey, type HomeControl } from "./project-home-render.js";
+import { homeButton, homeWord, isPlacementControl, renderHome, renderHomePeek, subjectKey, type HomeControl } from "./project-home-render.js";
+import { createPositionCorrections } from "./project-position-corrections.js";
+import { positionMenuKey } from "./project-position-menu.js";
+import { createPositionPeek } from "./project-position-peek.js";
 
 interface HomeHost {
   read<Output>(suffix: string, body: unknown, signal: AbortSignal): Promise<Output>;
@@ -9,6 +12,8 @@ interface HomeHost {
   market(): void;
   projectKey: string;
   translate(key: string): string;
+  changed(): void;
+  receipt(message: string): void;
   offerApi(path: string, method: string, body: unknown, signal: AbortSignal): Promise<unknown>;
   offers(input: { root: HTMLElement; current: () => { subject: SurfaceHomeRowDisplay["subject"] } | null;
     projectKey: string; api: (path: string, method: string, body: unknown) => Promise<unknown>;
@@ -18,8 +23,14 @@ interface HomeHost {
 type ClickResult = { kind: "stage" | "settings" } | { kind: "peek"; row: SurfaceHomeRowDisplay }
   | { kind: "invoked"; stage?: unknown; retry_open?: HomeControl["target"] } | { kind: "enabled" };
 
-function reconcile(root: HTMLElement, html: string, rowMarkup: WeakMap<Element, string>) {
-  const template = document.createElement("template");
+export function reconcileSurfaceRows(root: HTMLElement, html: string, rowMarkup: WeakMap<Element, string>) {
+  const doc = root.ownerDocument, focus = doc.activeElement;
+  const focused = focus && root.contains(focus) ? focus.closest("[data-home-row]") : null;
+  const rowKey = focused?.getAttribute("data-home-row");
+  const action = focus?.getAttribute("data-presentation-action");
+  const title = focus?.matches(".mw-presentation__row-title");
+  const menu = focus?.matches(".mw-presentation__more summary");
+  const template = doc.createElement("template");
   template.innerHTML = html;
   template.content.querySelectorAll("[data-home-row-peek] .mw-presentation__row-title").forEach(node => {
     node.setAttribute("aria-haspopup", "dialog");
@@ -51,15 +62,31 @@ function reconcile(root: HTMLElement, html: string, rowMarkup: WeakMap<Element, 
     while (next) { const stale = next; next = next.nextElementSibling; stale.remove(); }
   }
   patch(root, template.content.children);
+  if (rowKey && doc.activeElement === doc.body) {
+    if (focus?.isConnected && "focus" in focus) (focus as HTMLElement).focus({ preventScroll: true });
+    else {
+      const row = root.querySelector<HTMLElement>('[data-home-row="' + CSS.escape(rowKey) + '"]');
+      const replacement = action ? row?.querySelector<HTMLElement>('[data-presentation-action="' + CSS.escape(action) + '"]')
+        : title ? row?.querySelector<HTMLElement>(".mw-presentation__row-title") : menu ? row?.querySelector<HTMLElement>(".mw-presentation__more summary") : undefined;
+      (replacement ?? row?.querySelector<HTMLElement>("button,summary,[tabindex]"))?.focus({ preventScroll: true });
+    }
+  }
 }
 
-function bindHomeControls(root: HTMLElement, peek: HTMLDialogElement, act: (key: string, focus: HTMLElement) => Promise<void>, closePeek: () => void, onClose: () => void) {
+export { createPositionViews } from "./project-position.js";
+export { presentationWord, renderHomePeek, renderPositionGroup, surfaceCorrectionWord } from "./project-home-render.js";
+
+function bindHomeControls(root: HTMLElement, peek: HTMLDialogElement, act: (key: string, focus: HTMLElement) => Promise<void>, closePeek: () => void, onClose: () => void,
+  correct: ReturnType<typeof createPositionCorrections>["handle"]) {
   root.addEventListener("click", event => {
     if (!(event.target instanceof Element)) return;
     const button = event.target.closest<HTMLElement>("[data-home-control], [data-presentation-action]");
     if (button) {
-      button.closest<HTMLDetailsElement>("details")?.removeAttribute("open");
-      void act(button.dataset.homeControl ?? button.dataset.presentationAction ?? "", button);
+      const key = button.dataset.homeControl ?? button.dataset.presentationAction ?? "";
+      if (correct(key, button, event)) return;
+      const menu = button.closest("details"), focus = menu?.querySelector("summary") ?? button;
+      menu?.removeAttribute("open");
+      void act(key, focus);
     } else if (event.target.closest("[data-home-close]")) closePeek();
     else {
       const title = event.target.closest<HTMLElement>(".mw-presentation__row-title[aria-haspopup]");
@@ -67,13 +94,12 @@ function bindHomeControls(root: HTMLElement, peek: HTMLDialogElement, act: (key:
     }
   });
   root.addEventListener("keydown", event => {
+    positionMenuKey(event);
     if (!(event.target instanceof HTMLElement)) return;
     const key = event.target.closest<HTMLElement>("[data-home-row-peek]")?.dataset.homeRowPeek;
     if (key && event.target.matches(".mw-presentation__row-title[aria-haspopup]") && (event.key === "Enter" || event.key === " ")) {
       event.preventDefault(); void act(key, event.target);
     }
-    const menu = event.target.closest<HTMLDetailsElement>(".mw-presentation__more[open]");
-    if (event.key === "Escape" && menu) { event.preventDefault(); menu.open = false; menu.querySelector<HTMLElement>("summary")?.focus(); }
   });
   peek.addEventListener("close", onClose);
 }
@@ -87,6 +113,8 @@ export function mountHome(host: HomeHost) {
   const controls = new Map<string, HomeControl>();
   const peekControls = new Map<string, HomeControl>();
   const rowMarkup = new WeakMap<Element, string>();
+  const corrections = createPositionCorrections(groups, { translate: host.translate, note: host.receipt, changed: host.changed,
+    send: (correct, signal) => host.read("", { home_order: host.order(), correct }, signal) });
   let inspected: SurfaceHomeRowDisplay | null = null;
   let inspecting: AbortController | null = null;
   const offers = host.offers({ root: peek, current: () => inspected, projectKey: host.projectKey, translate: host.translate,
@@ -97,19 +125,22 @@ export function mountHome(host: HomeHost) {
   let restoreFocus: HTMLElement | null = null, shown = false, needsRead = true, receipt: HomeControl | null = null;
   const holder = window.frameElement;
   const visible = () => root.isConnected && !document.hidden && !root.closest("[hidden]") && (!holder || holder.isConnected && !holder.closest("[hidden]"));
+  const placement = createPositionPeek(groups, (body, signal) => host.read(body.click ? "/click" : "", body.click ?? body, signal), host,
+    { source: () => ({}), expanded: () => false, visible, displayed: () => display ?? undefined, lookup: key => controls.get(key),
+      navigate: async () => { /* Placement offers have no peek navigation. */ } });
   const caption = (word?: string, button?: string) => {
     status.innerHTML = (word ? "<p>" + escapeHtml(homeWord(word)) + "</p>" : "") + (button ? homeButton(button, homeWord(button === "refresh" ? "retry" : "open-result")) : "");
   };
   const closePeek = () => {
     offers.clear();
-    peekControls.clear();
+    peekControls.clear(); peekContent.replaceChildren();
     inspecting?.abort(); inspecting = null; inspected = null;
     if (peek.open) peek.close();
   };
   const cancel = (release: boolean) => {
     reading?.abort(); reading = null; clicking?.abort(); clicking = null;
-    closePeek(); needsRead = true;
-    if (release) { display = null; controls.clear(); groups.replaceChildren(); }
+    closePeek(); placement.close(false); needsRead = true;
+    if (release) { display = null; controls.clear(); corrections.clear(); groups.replaceChildren(); }
   };
   const unsafe = (error: unknown) => [401, 403, 404, 409].includes(Number((error as { status?: unknown })?.status));
 
@@ -117,13 +148,12 @@ export function mountHome(host: HomeHost) {
     needsRead = true;
     if (!visible()) return;
     if (invalidate) cancel(true);
-    reading?.abort();
+    reading?.abort(); placement.close(false);
     const request = reading = new AbortController();
     caption(display ? "refreshing" : "loading");
     try {
       const result = await host.read<SurfaceHomeDisplay>("", { home_order: host.order() }, request.signal);
       if (request.signal.aborted || reading !== request || !visible()) return;
-      const oldFocus = document.activeElement instanceof HTMLElement && groups.contains(document.activeElement) ? document.activeElement : null;
       const before = display && JSON.stringify(display) === JSON.stringify(result);
       if (inspected) {
         const key = subjectKey(inspected.owner, inspected.subject);
@@ -132,16 +162,17 @@ export function mountHome(host: HomeHost) {
         if (JSON.stringify(previous) !== JSON.stringify(next)) closePeek();
       }
       display = result; needsRead = false;
+      const editing = corrections.rendering(result);
       if (!before) {
-        const html = renderHome(result, controls);
-        reconcile(groups, html, rowMarkup);
-        if (oldFocus?.isConnected && document.activeElement === document.body) oldFocus.focus({ preventScroll: true });
+        const html = renderHome(result, controls, editing);
+        reconcileSurfaceRows(groups, html, rowMarkup);
       }
+      corrections.afterPaint();
       if (inspected?.read.state === "ok") offers.refresh();
       caption(receipt ? "open-failed" : undefined, receipt ? "open-result" : undefined);
     } catch (error) {
       if (request.signal.aborted || reading !== request || !visible()) return;
-      if (unsafe(error)) { display = null; controls.clear(); groups.replaceChildren(); closePeek(); }
+      if (unsafe(error)) { display = null; controls.clear(); corrections.clear(); groups.replaceChildren(); closePeek(); }
       caption("refresh-failed", "refresh");
     } finally { if (reading === request) reading = null; }
   }
@@ -152,6 +183,7 @@ export function mountHome(host: HomeHost) {
     if (key === "market") { host.market(); return; }
     const control = key === "open-result" ? receipt : controls.get(key) ?? peekControls.get(key);
     if (!control) return;
+    if (isPlacementControl(control.target.kind)) { placement.open(key, focus); return; }
     const navigate = host.navigationFrom(root);
     const request = clicking = new AbortController();
     focus.setAttribute("aria-busy", "true");
@@ -181,7 +213,7 @@ export function mountHome(host: HomeHost) {
       }
     } catch (error) {
       if (!request.signal.aborted && clicking === request && visible()) {
-        if (unsafe(error)) { display = null; controls.clear(); groups.replaceChildren(); closePeek(); }
+        if (unsafe(error)) { display = null; controls.clear(); corrections.clear(); groups.replaceChildren(); closePeek(); }
         caption(key === "open-result" ? "open-failed" : "navigation-failed", key === "open-result" ? key : "refresh");
       }
     } finally {
@@ -194,7 +226,7 @@ export function mountHome(host: HomeHost) {
     closePeek(); peekContent.replaceChildren();
     if (visible()) restoreFocus?.focus({ preventScroll: true });
     restoreFocus = null;
-  });
+  }, corrections.handle);
 
   const visibility = () => {
     const next = visible();

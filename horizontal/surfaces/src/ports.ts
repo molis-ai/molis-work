@@ -2,10 +2,10 @@ import type { AttentionSurfaceEntry } from "@molis-ai/molis-work-contracts/modul
 import type { ContextRelationType } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import { requireSynchronous, type ActionCallContext, type ActionSubject, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginLifecycleState } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { PresentationDeclaration, PresentationOverview, PresentationStartForm, PresentationValues, PresentationValuesInput } from "@molis-ai/molis-work-contracts/platform/presentation";
+import type { FormKind, PresentationDeclaration, PresentationOverview, PresentationStartForm, PresentationValues, PresentationValuesInput } from "@molis-ai/molis-work-contracts/platform/presentation";
 import type { OwnedTextRef, UiSlotDescriptor } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { PlacedObject } from "@molis-ai/molis-work-contracts/services/placement";
-import type { SurfaceInstallationRef } from "@molis-ai/molis-work-contracts/services/surface-composition";
+import type { SurfaceGroup, SurfaceInstallationRef } from "@molis-ai/molis-work-contracts/services/surface-composition";
 import type { SurfaceCorrections } from "./corrections.js";
 import type { startDeadline } from "./values.js";
 
@@ -70,6 +70,15 @@ interface SurfaceCallPorts {
 export interface SurfaceComposePorts extends SurfaceCallPorts {
   readonly caller: Pick<ActionCallContext, "actor_id" | "project_id" | "audience" | "plugin_install_id" | "calling_plugin_id">;
   readonly signal?: AbortSignal;
+  /** The workbench shares the position's read deadline with its final display-field projection. */
+  readonly deadline?: ReturnType<typeof startDeadline>;
+  retainCatalog?(plugins: readonly SurfacePlugin[]): () => void;
+  keepPosition?(forms: readonly FormKind[], pin: boolean): void;
+  /** One protected discussion read may show several independent message parts. The action still receives their union. */
+  readonly discussion?: {
+    views: readonly { subjects: readonly ActionSubject[]; expanded?: true }[];
+    keep(groups: readonly SurfaceGroup[], reasons: readonly (OwnedTextRef | undefined)[]): void;
+  };
   readonly home?: SurfaceHomePorts;
   discover(): SurfaceActionDirectory | Promise<SurfaceActionDirectory>;
   values(action: ActionView, input: PresentationValuesInput, signal: AbortSignal, assertCurrent: () => void): Promise<PresentationValues>;

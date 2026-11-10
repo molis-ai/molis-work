@@ -18,6 +18,15 @@ export function createTransport(onUnauthorized: () => void) {
     },
   };
   async function api<T>(path: string, body?: unknown): Promise<T> {
+    if (body && typeof body === "object" && "subjects" in body && Array.isArray(body.subjects) && body.subjects.length && window.molisDiscussionObjects) {
+      try { return await window.molisDiscussionObjects.send<T>(path, body); }
+      catch (cause) {
+        const error = cause as ApiError;
+        if (!error.status) error.uncertain = true;
+        if (error.status === 401) onUnauthorized();
+        throw error;
+      }
+    }
     let response: Response;
     try {
       response = await fetch('/im/api' + path, { method: body === undefined ? 'GET' : 'POST', credentials: 'same-origin', headers: body === undefined ? {} : { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(15000) });

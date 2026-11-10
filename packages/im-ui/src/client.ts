@@ -16,6 +16,8 @@ import { createImDialogs } from './browser/controller-dialogs.js';
 import { createImStartup } from './browser/controller-startup.js';
 import { createImPage } from './browser/controller-page.js';
 import { createImClicks } from './browser/controller-clicks.js';
+import { createImObjects } from './browser/objects.js';
+import { IM_MESSAGE_SUBJECT_LIMIT } from '@molis-ai/molis-work-contracts/services/im';
 
 // Self-contained typed factories are serialized after TypeScript compilation.
 // Dependencies are explicit arguments; no server-side imports execute in the browser.
@@ -25,5 +27,6 @@ export const IM_CLIENT_SCRIPT = THEME_BOOTSTRAP_SCRIPT + SCROLL_FOLLOW_CLIENT_SC
   createViews: ((updateViewMarkup) => (${createViews}))(${updateViewMarkup}), createMessageFormat: ${createMessageFormat},
   createHistory: ${createHistory}, createDrafts: ${createDrafts}, createTransport: ${createTransport}, createInvitations: ${createInvitations},
   createImShell: ${createImShell}, createImComposer: ${createImComposer}, createImSync: ${createImSync}, createImRooms: ${createImRooms}, createImTopics: ${createImTopics},
-  createImNavigate: ${createImNavigate}, createImDialogs: ${createImDialogs}, createImStartup: ${createImStartup}, createImPage: ${createImPage}, createImClicks: ${createImClicks}
+  createImNavigate: ${createImNavigate}, createImDialogs: ${createImDialogs}, createImStartup: ${createImStartup}, createImPage: ${createImPage}, createImClicks: ${createImClicks},
+  createImObjects: controller => (${createImObjects})(controller, ${IM_MESSAGE_SUBJECT_LIMIT})
 });`;

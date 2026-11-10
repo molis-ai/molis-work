@@ -13,6 +13,8 @@ import { projectDeletedHooksFor } from "./project-deleted-hooks.js";
 import type { installedComponentSubmit } from "./installed-action-registration.js";
 import type { PageActionRequest } from "./plugin-page-actions.js";
 import { installedPageRelease, sameInstalledRelease } from "./installed-stage-identity.js";
+import { pageSurfaceSlotState, type SurfaceSlotSource } from "./surface-slot-state.js";
+import type { RuntimeStageOwner } from "./project-plugin-stages.js";
 export { installedPageRelease };
 
 type PageRelease = ReturnType<typeof installedPageRelease>;
@@ -23,14 +25,24 @@ interface PageSelection {
   project_key?: string;
   release?: PageRelease;
   objectPresentation?: { surfaces: readonly string[]; permissions: readonly string[] };
+  surfaceSlotSource?: SurfaceSlotSource;
   assertCurrent(): void;
 }
 
-export function installedPageSelection(record: PluginInstanceRecord, project_id: string | null, current: () => PluginInstanceRecord | null | undefined): PageSelection {
+export function installedPageSelection(record: PluginInstanceRecord, project_id: string | null, current: () => PluginInstanceRecord | null | undefined, owner: RuntimeStageOwner): PageSelection {
   const release = installedPageRelease(record);
-  return { install_id: release.install_id, project_id, release, assertCurrent() {
+  const descriptor = owner.view.descriptor;
+  const mount = descriptor.surfaces?.find(surface => surface.surface_id === "workbench" && surface.target_slot_id === "workbench.main" && surface.format === "declarative-html");
+  if (!mount || owner.scope !== (project_id === null ? "home" : "project") || !sameInstalledRelease(release, owner.installation)) throw refused();
+  owner.assertCurrent();
+  const surfaceSlotSource = descriptor.slots.some(slot => slot.accepts_forms?.length) ? {
+    contribution_id: descriptor.contribution_id, surface: mount.surface_id, target_slot_id: mount.target_slot_id,
+    producer: owner.producer, slots: descriptor.slots, installation: owner.installation,
+  } : undefined;
+  return { install_id: release.install_id, project_id, release, surfaceSlotSource, assertCurrent() {
     const now = current();
     if (now?.state !== "running" || !sameInstalledRelease(release, now)) throw refused();
+    owner.assertCurrent();
   } };
 }
 
@@ -58,11 +70,12 @@ interface Page {
   closing?: boolean;
   assertScope?(): Promise<void>;
   selection?: PageSelection;
+  surfaceSlots?: ReturnType<typeof pageSurfaceSlotState>;
 }
 const refused = () => new ActionError("actions.forbidden", "插件页面权限已失效或未声明此入口");
 const cancelled = () => new ActionError("actions.cancelled", "插件页面已关闭，这次请求已结束");
 const homes = new Map<string, PluginPageAuthority>();
-const requests = new WeakMap<IncomingMessage, { page: Page; check(): void; signal: AbortSignal }>();
+const requests = new WeakMap<IncomingMessage, { page: Page; check(): void; pageCurrent(): void; signal: AbortSignal; surfaceSlot: boolean }>();
 
 /** Authority stays in the trusted outer document. The embedded document receives only a MessagePort. */
 export function pluginPagesFor(home: string): PluginPageAuthority {
@@ -139,6 +152,7 @@ export class PluginPageAuthority {
     const requests = page ? [...page.requests] : [];
     const reasons = requests.map(() => reason());
     this.pages.delete(id);
+    page?.surfaceSlots?.dispose();
     if (page && page.activation.install_id === null) this.activations.delete(page.activation);
     requests.forEach((request, index) => request.abort(reasons[index]));
   }
@@ -234,20 +248,22 @@ export class PluginPageAuthority {
     // The platform's reads area on a task (task-grants-platform-area.md §2.3): the same fence as the account picker.
     const taskGrantsChoice = contextual !== undefined && request.headers["x-molis-plugin-page"] === undefined
       && Boolean(page.project_id && page.activation.install_id) && request.method === "POST" && pathname === "/api/host/plugin-page-task-grants";
+    const surfaceSlot = contextual !== undefined && request.headers["x-molis-plugin-page"] === undefined
+      && Boolean(page.project_id && page.selection?.surfaceSlotSource) && request.method === "POST" && pathname === "/api/contextual/surface-slot";
     const reviewChoice = contextual !== undefined && request.headers["x-molis-plugin-page"] === undefined && Boolean(page.project_id)
       && (request.method === "GET" && ["/api/agent/reviews", "/api/agent/reviews/recovery"].includes(pathname)
         || request.method === "POST" && ["/api/agent/reviews/decide", "/api/agent/reviews/recovery"].includes(pathname));
-    if (contextual !== undefined ? !contextChoice && !workspaceChoice && !reviewChoice && !slotChoice && !taskGrantsChoice : !route && !directory && !revision && !action && !files && !checkOnly && !objectRead && !registered) throw refused();
+    if (contextual !== undefined ? !contextChoice && !workspaceChoice && !reviewChoice && !slotChoice && !taskGrantsChoice && !surfaceSlot : !route && !directory && !revision && !action && !files && !checkOnly && !objectRead && !registered) throw refused();
     const permission = directory ? "directory:read" : workspaceChoice ? "workspace:read" : route?.permission ?? undefined;
     const controller = new AbortController();
-    const check = () => {
-      controller.signal.throwIfAborted();
-      if (this.pages.get(id as string) !== page || !this.activations.has(page.activation)) throw refused();
+    const pageCurrent = () => {
+      if (this.pages.get(id as string) !== page || surfaceSlot && (page.closing || page.expiresAt < Date.now()) || !this.activations.has(page.activation)) throw refused();
       page.sessionCurrent(); page.activation.assertCurrent(permission);
       page.selection?.assertCurrent();
     };
+    const check = () => { controller.signal.throwIfAborted(); pageCurrent(); };
     await page.assertScope?.(); check(); page.expiresAt = Date.now() + 30 * 60_000; page.requests.add(controller);
-    requests.set(request, { page, check, signal: controller.signal });
+    requests.set(request, { page, check, pageCurrent, signal: controller.signal, surfaceSlot });
     const release = () => { controller.abort(this.left(page)); page.requests.delete(controller); requests.delete(request); };
     response?.once("finish", release); response?.once("close", release); return release;
   }
@@ -261,6 +277,17 @@ export function pluginPageRequest(request: IncomingMessage) {
   return { plugin_id: authority.page.activation.manifest.plugin_id, project_key: authority.page.selection?.project_key, project_id: authority.page.project_id,
     signal: authority.signal, assertCurrent: authority.check,
     async beforeEffect() { await authority.page.assertScope?.(); authority.check(); },
+    surfaceSlot() {
+      authority.check();
+      const { page, pageCurrent } = authority, source = page.selection?.surfaceSlotSource;
+      if (!authority.surfaceSlot || !source || page.activation.install_id !== source.installation.install_id) throw refused();
+      const state = page.surfaceSlots ??= pageSurfaceSlotState();
+      return {
+        reserve: (mount: number, slotId: string, subjects: Parameters<typeof state.reserve>[4]) =>
+          state.reserve(mount, page.activation.manifest.plugin_id, source, slotId, subjects, pageCurrent),
+        require: state.require, close: state.close,
+      };
+    },
     objectPresentation(surface: string) {
       authority.check();
       const declaration = authority.page.selection?.objectPresentation;

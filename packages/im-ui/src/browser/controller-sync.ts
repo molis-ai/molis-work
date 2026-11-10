@@ -16,7 +16,7 @@ export function createImSync(base: ImBaseCtx, context: () => ImCtx): Pick<ImCtx,
         if (captured !== s.roomId)
           return; c.connection('已连接'); scheduleRefresh();
       },
-      revoked() { s.authLost = true; c.connection('访问已失效', true); c.syncError('连接或群访问已失效，请重新连接。'); s.roomState = null; c.syncComposer('group'); c.syncComposer('thread'); },
+      revoked() { s.authLost = true; c.connection('访问已失效', true); c.syncError('连接或群访问已失效，请重新连接。'); s.roomState = null; c.syncComposer('group'); c.syncComposer('thread'); c.refreshObjects?.(); },
       offline() {
         if (captured === s.roomId) {
           c.connection('重连中', true);
@@ -77,6 +77,7 @@ export function createImSync(base: ImBaseCtx, context: () => ImCtx): Pick<ImCtx,
           s.events?.close();
           c.syncComposer('group');
           c.syncComposer('thread');
+          c.refreshObjects?.();
         }
         c.connection('同步中断', true);
         c.syncError(error.status === 403 ? '你已无法访问这个群聊。' : '同步暂时中断，已输入的内容会保留。');

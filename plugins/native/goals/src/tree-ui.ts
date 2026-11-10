@@ -1,10 +1,15 @@
 import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
+import { presentationOwnerHue, renderPresentationForm } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { goalsPresentation } from "./presentation.js";
+import { GOALS_PLUGIN_ID } from "./identity.js";
 import type { GoalCollectionModel } from "./collection-model.js";
 import type { GoalsTreeItem, GoalsTreeView, GoalsTreeUiPrimitives, GoalVisibleStatus } from "./tree-ui-model.js";
 import { sortGoalTreeItems as sortGoals } from "./tree-order.js";
 import { activeOutgoingDependsOn, findGoalTreeItem as findGoalView, goalWorkSatisfied, isBlockedWorkStatus, unsatisfiedOutgoingDependencies, goalTreeCreatedParts, goalTreeCreatorHue, goalTreeCreatorInitial, treeDependencySearchText, visibleGoalStatus } from "./tree-presentation.js";
 
 export const GOALS_TREE_UI_CONTRIBUTION_ID = "io.molis.work.native.goals.tree.v1";
+const treeObject = { ...goalsPresentation.objects[0], owner: GOALS_PLUGIN_ID };
+const treeOwner = { name: "Goals", icon: "target", hue: presentationOwnerHue(GOALS_PLUGIN_ID) } as const;
 
 function createTreeRenderer(primitives: GoalsTreeUiPrimitives) {
   const { translate: L, escapeHtml, listJoin, icon, renderStatus, renderActionStatus, renderVisibleGoalStatus, displayStatuses: GOAL_DISPLAY_STATUSES } = primitives;
@@ -114,19 +119,23 @@ function renderGoalTree(
     const created = createdLabel
       ? `<time class="tree-created" datetime="${escapeHtml(item.goal.created_at)}" title="${escapeHtml(item.goal.created_at)}">${escapeHtml(createdLabel)}</time>`
       : `<time class="tree-created is-empty" aria-hidden="true"></time>`;
+    const title = escapeHtml(item.goal.title);
+    const chip = item.presentation_status && renderPresentationForm(treeObject, "chip", { locale: primitives.presentationLocale?.() ?? null,
+      ownerDisplay: treeOwner, read: { state: "ok", values: { title: item.goal.title, status: item.presentation_status } } });
+    const choose = (label: string) => `<button class="tree-node${selected ? " is-selected" : ""}" type="button" draggable="true"
+      data-frame-asset="goal" data-frame-asset-id="${escapeHtml(item.goal.goal_id)}" data-select-goal="${escapeHtml(item.goal.goal_id)}" aria-pressed="${selected}">${label}</button>`;
     return `<li class="tree-item${depth > 0 ? "" : " tree-item--root"}" style="--tree-depth:${depth}" data-tree-item data-tree-depth="${depth}" data-goal-id="${escapeHtml(item.goal.goal_id)}" data-goal-search="${escapeHtml(searchValue)}" data-goal-status="${escapeHtml(visibleGoalStatus(item))}">
       <div class="tree-row">
         <div class="tree-entry directory-list-row${selected ? " is-selected" : ""}">
-          <span class="tree-leading">
+          <div class="tree-leading">
             ${
               hasChildren
                 ? `<button class="tree-toggle" type="button" data-tree-toggle aria-expanded="true" aria-label="${L("折叠")} ${escapeHtml(item.goal.title)}">${icon("chevron-down")}</button>`
                 : `<span class="tree-guide" aria-hidden="true"></span>`
             }
-            <button class="tree-node${selected ? " is-selected" : ""}" type="button" draggable="true" data-frame-asset="goal" data-frame-asset-id="${escapeHtml(item.goal.goal_id)}" data-select-goal="${escapeHtml(item.goal.goal_id)}" aria-pressed="${selected}">
-              <span class="tree-copy"><span class="tree-title-line"><strong title="${escapeHtml(item.goal.title)}">${escapeHtml(item.goal.title)}</strong></span></span>
-            </button>
-          </span>
+            ${chip ? `<div class="tree-presentation-name" title="${title}"><div aria-hidden="true">${chip}</div>${choose(`<strong class="mw-sr-only">${title}</strong>`)}</div>`
+              : choose(`<span class="tree-copy"><span class="tree-title-line"><strong title="${title}">${title}</strong></span></span>`)}
+          </div>
           <span class="directory-row-state">${renderVisibleGoalStatus(item)}</span>
           ${renderTreeProgress(item, nodeChildren)}
           ${renderTreeDependencies(item, view)}

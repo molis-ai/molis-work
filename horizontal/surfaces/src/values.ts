@@ -25,6 +25,7 @@ export function startDeadline(parent: AbortSignal | undefined) {
   };
   const wait = <T>(pending: Promise<T>) => Promise.race([untilStopped, pending]);
   return {
+    signal,
     get active() { return active(); },
     wait,
     async read<Job, Output>(jobs: readonly Job[], current: () => void, invoke: (job: Job, signal: AbortSignal) => Promise<Output>,

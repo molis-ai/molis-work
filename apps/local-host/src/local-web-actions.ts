@@ -62,7 +62,7 @@ export async function localWebActionContext(host: MolisWorkLocalHost, reference:
 export function openProjectPersonContext(host: MolisWorkLocalHost, reference: LocalHostProjectReference, store: LocalProjectDatabase, signal: AbortSignal) {
   const { caller, sessionCurrent } = localWebCaller(reference, LOCAL_OWNER_PERMISSIONS, signal);
   const metadata = host.inspectActionMetadata(caller, reference);
-  return { metadata, caller: localWebAuthority(host, reference, caller, sessionCurrent, metadata,
+  return { metadata, inspect: () => host.inspectActionMetadata(caller, reference), caller: localWebAuthority(host, reference, caller, sessionCurrent, metadata,
     new SqlitePluginRuntimeRepository(store.db), currentProjectPlatform(store, reference.project_id)) };
 }
 

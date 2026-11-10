@@ -1,4 +1,4 @@
-import { isRecord as object } from "@molis-ai/molis-work-plugin-sdk";
+import { isRecord as object, parseSandboxUi } from "@molis-ai/molis-work-plugin-sdk";
 import { pluginSchemaAt, validatePluginComponentPlans, validatePluginPresentation } from '@molis-ai/molis-work-design-system';
 import type { AgentDesign } from './agent-model.js';
 import { validateExperience } from './agent-experience.js';
@@ -23,7 +23,7 @@ function explainContract(error: unknown, contract: unknown): string {
   return '功能合同不成立：' + message;
 }
 export function validateAgentDesign(input: unknown, capabilities: readonly string[], resources: readonly string[], validateContract: (contract: unknown) => void): AgentDesign {
-  if (!object(input) || Object.keys(input).some(key => !['id', 'title', 'description', 'rationale', 'journey', 'contract', 'parts', 'acceptance', 'presentation', 'experience'].includes(key))) throw new Error('方案包含未知属性');
+  if (!object(input) || Object.keys(input).some(key => !['id', 'title', 'description', 'rationale', 'journey', 'contract', 'parts', 'acceptance', 'presentation', 'experience', 'ui'].includes(key))) throw new Error('方案包含未知属性');
   if (input.experience !== undefined) input.experience = validateExperience(input.experience);
   for (const field of ['id', 'title', 'description', 'rationale']) if (typeof input[field] !== 'string' || !input[field] || (input[field] as string).length > 4000) throw new Error('方案缺少有效的' + field);
   if (!Array.isArray(input.journey) || input.journey.length < 1 || input.journey.length > 20 || input.journey.some(item => typeof item !== 'string' || item.length > 1000)) throw new Error('用户旅程不完整');
@@ -44,7 +44,8 @@ export function validateAgentDesign(input: unknown, capabilities: readonly strin
   }
   const dataOperation = (id: string): SandboxDataOperation | undefined =>
     design.contract.operations.find((operation): operation is SandboxDataOperation => operation.id === id && operation.read_protocol === undefined);
-  design.parts = validatePluginComponentPlans(design.parts, design.contract);
+  if (design.ui !== undefined) design.ui = parseSandboxUi(design.ui);
+  design.parts = validatePluginComponentPlans(design.parts, design.contract, design.ui);
   if (design.presentation !== undefined) design.presentation = validatePluginPresentation(design.presentation, design.parts, design.contract);
   // "今天已经喝了 {{count}} 杯": a sentence filled from the part's own query result, so the field must be in it.
   for (const part of design.parts) for (const text of [part.props.title, part.props.description]) for (const [, field] of (text ?? '').matchAll(/\{\{\s*([\w.]+)\s*\}\}/gu)) {

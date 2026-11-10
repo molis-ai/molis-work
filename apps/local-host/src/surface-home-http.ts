@@ -1,28 +1,31 @@
 import { randomUUID } from "node:crypto";
 import { ActionError, actionResultSubject, bindActionClient, requireSynchronous, type ActionCallContext, type ActionClient, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
-import type { PresentationValues, PresentationValuesInput } from "@molis-ai/molis-work-contracts/platform/presentation";
-import { surfaceCompositionActions, SURFACE_HOME_ORDER_LIMIT, SURFACES_PROVIDER_ID, type SurfaceHomeEnable, type SurfacePluginCard } from "@molis-ai/molis-work-contracts/services/surface-composition";
+import { SURFACE_HOME_ORDER_LIMIT, type SurfaceHomeEnable, type SurfacePluginCard } from "@molis-ai/molis-work-contracts/services/surface-composition";
 import { actionErrorResponse, canonicalJsonText, isRecord } from "@molis-ai/molis-work-plugin-sdk";
 import { startSurfaceRead } from "@molis-ai/molis-work-service-surfaces";
 import { assertStageInstallation, sameInstalledRelease } from "./installed-stage-identity.js";
 import type { LocalHost } from "./local-host.js";
-import { openProjectPersonContext } from "./local-web-actions.js";
 import { pluginControlActions } from "./plugin-install-actions.js";
 import { pluginInstallRecords } from "./plugin-install-records.js";
 import { pluginPageRequest } from "./plugin-page-authority.js";
 import { pluginRouteControl } from "./plugin-route-control.js";
 import type { MolisWorkLocalHost, MolisWorkProjectRuntime } from "./project-host.js";
-import { surfaceHomeDirectory, type HomeDirectoryEntry, type SurfaceHomeCatalogReader } from "./surface-home-directory.js";
+import type { HomeDirectoryEntry, SurfaceHomeCatalogReader } from "./surface-home-directory.js";
 import { homeReference as reference, ownerReader, projectHomeDisplay, projectHomePeek, type HomeReadSample } from "./surface-home-display.js";
 import { assertHomeDisplayReader, homeObjectClick, openHomeObject, stageNavigation } from "./surface-home-open.js";
 import { homeFormDiscovery } from "./surface-home-form-authority.js";
-import { withHomeSample } from "./surface-home-sample.js";
+import { composeSurface, displayValues, preparePositionPlacement, projectSurfaceContext } from "./surface-project-read.js";
 import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
 import { projectRoutePrefix, type ProjectRequestContext } from "./web-project-context.js";
+import { correctSurfacePosition, positionCorrection } from "./surface-position-correction.js";
+import { confirmPositionOffer, positionOfferScope } from "./surface-position-http.js";
+import { positionOfferIntent, takePositionOffer, withPositionOfferWindow, type OfferWindow } from "./surface-position-offers.js";
+import { isPlacementKind } from "./surface-placement.js";
 
 type Target = NonNullable<SurfacePluginCard["open" | "enable"]> | NonNullable<SurfacePluginCard["start"]>[number];
-type Intent = { kind: "read"; home_order?: string[] } | { kind: "click"; owner: string; target: Record<string, unknown> };
+type Intent = { kind: "read"; home_order?: string[] } | { kind: "click"; owner: string; target: Record<string, unknown> }
+  | { kind: "correct"; home_order?: string[]; correction: NonNullable<ReturnType<typeof positionCorrection>> };
 
 const invalid = () => new ActionError("actions.input_invalid", "首页请求无效");
 const changed = () => new ActionError("actions.provider_changed", "原首页卡片已变化，请重新读取");
@@ -33,12 +36,12 @@ function homeIntent(body: Record<string, unknown>, click: boolean): Intent {
     if (Object.keys(body).length !== 2 || typeof body.owner_plugin_id !== "string" || !body.owner_plugin_id.length || body.owner_plugin_id.length > 200 || !isRecord(body.target)) throw invalid();
     return { kind: "click", owner: body.owner_plugin_id, target: body.target };
   }
-  if (Object.keys(body).some(key => key !== "home_order")) throw invalid();
+  if (Object.keys(body).some(key => key !== "home_order" && key !== "correct")) throw invalid();
   const order = body.home_order;
-  if (order === undefined) return { kind: "read" };
-  if (!Array.isArray(order) || order.length > SURFACE_HOME_ORDER_LIMIT || new Set(order).size !== order.length
-    || !order.every((id): id is string => typeof id === "string" && id.length > 0 && id.length <= 200)) throw invalid();
-  return { kind: "read", home_order: order };
+  if (order !== undefined && (!Array.isArray(order) || order.length > SURFACE_HOME_ORDER_LIMIT || new Set(order).size !== order.length
+    || !order.every((id): id is string => typeof id === "string" && id.length > 0 && id.length <= 200))) throw invalid();
+  const correction = positionCorrection(body.correct);
+  return correction ? { kind: "correct", correction, home_order: order } : { kind: "read", home_order: order };
 }
 
 function originalTarget(card: SurfacePluginCard | undefined, target: Record<string, unknown>): Target {
@@ -78,18 +81,13 @@ async function enablePackage(client: ActionClient, caller: ActionCallContext, ru
   deliver({ kind: "enabled" });
 }
 
-function displayValues(sample: HomeReadSample, client: ActionClient, caller: ActionCallContext, transport: ReturnType<typeof pluginRouteControl>) {
-  const read = bindActionClient(client, () => ({ ...caller, query_only: true, read_only_effects: true }));
-  return (view: ActionView, input: PresentationValuesInput, signal: AbortSignal) => read.invoke<PresentationValuesInput, PresentationValues>(
-    { ...view, ...reference(view) }, input, { ...transport, signal, assert_authority_current: sample.assertCurrent });
-}
-
-async function clickHomeCard(intent: Extract<Intent, { kind: "click" }>, sample: Awaited<ReturnType<typeof composeHome>>,
+async function clickHomeCard(intent: Extract<Intent, { kind: "click" }>, sample: HomeReadSample,
   runtime: MolisWorkProjectRuntime, caller: ActionCallContext, client: ActionClient, prefix: string, transport: ReturnType<typeof pluginRouteControl>,
   deliver: (value: unknown) => void) {
   const object = homeObjectClick(intent.target, intent.owner, sample);
   if (object) {
     if (object.item) assertHomeDisplayReader(sample, object.entry, object.item);
+    if (isPlacementKind(object.kind)) throw changed();
     if (object.kind === "peek" && object.item) {
       const row = await projectHomePeek(sample, object.item, transport.signal!, displayValues(sample, client, caller, transport));
       sample.assertCurrent();
@@ -151,39 +149,36 @@ async function clickHomeCard(intent: Extract<Intent, { kind: "click" }>, sample:
   deliver({ kind: "invoked", result, ...(stage ? { stage } : {}), retry_open });
 }
 
-function composeHome(runtime: MolisWorkProjectRuntime, client: ActionClient, discovery: ReturnType<typeof homeFormDiscovery>, catalog: ReturnType<typeof surfaceHomeDirectory>,
-  transport: ReturnType<typeof pluginRouteControl>, intent: Intent, deadline: HomeReadSample["deadline"]) {
-  const home_order = intent.kind === "read" ? intent.home_order : undefined;
-  return withHomeSample(runtime.store, catalog, discovery.formOnly, deadline, () => bindActionClient(client, () => discovery.caller).invoke({ ...surfaceCompositionActions.compose, provider_id: SURFACES_PROVIDER_ID },
-    { slot: { kind: "home" }, ...(home_order ? { home_order } : {}) }, transport));
-}
-
 /** Use the inner client only while the project is already open; even metadata must not prepare its plugins. */
 export function projectSurfaceHome(host: LocalHost<MolisWorkProjectRuntime>, owner: MolisWorkLocalHost, homeDirectory: string | undefined, readCatalog: SurfaceHomeCatalogReader) {
-  return (reference: LocalHostProjectReference, intent: Intent, prefix: string, signal: AbortSignal, deliver: (value: unknown) => void) => {
-    const transport = pluginRouteControl(signal, () => {
-      if (owner.lifecycle() !== "running") throw new ActionError("actions.host_closed", "宿主已关闭");
-    });
-    return host.withExistingRuntime(reference, async runtime => {
-      requireSynchronous(transport.assert_authority_current?.());
-      if (!homeDirectory) throw new ActionError("actions.unavailable", "首页需要 Home 目录");
-      const catalog = surfaceHomeDirectory({ store: runtime.store, reference, homeDirectory, home: owner.homePlugins, readCatalog });
-      const { caller, metadata } = openProjectPersonContext(owner, reference, runtime.store, signal);
+  const project = projectSurfaceContext(host, owner, homeDirectory, readCatalog);
+  return (reference: LocalHostProjectReference, intent: Intent, prefix: string, signal: AbortSignal, deliver: (value: unknown) => void, window?: OfferWindow) => {
+    return project(reference, signal, undefined, async context => {
+      const { runtime, transport, caller, metadata, catalog, client } = context;
       const discovery = homeFormDiscovery(caller, metadata, catalog.entries);
-      const client = host.actionClient(reference);
-      const deadline = intent.kind === "read" || intent.target.kind === "peek" ? startSurfaceRead(signal) : undefined;
+      const deadline = intent.kind !== "click" || intent.target.kind === "peek" ? startSurfaceRead(signal) : undefined;
       try {
-        const sample = await composeHome(runtime, client, discovery, catalog, transport, intent, deadline);
+        const home_order = intent.kind === "click" ? undefined : intent.home_order;
+        const sample = await composeSurface({ ...context, caller: discovery.caller }, { slot: { kind: "home" }, ...(home_order ? { home_order } : {}) }, deadline, discovery.formOnly);
         requireSynchronous(transport.assert_authority_current?.());
         const deliverCurrent = (result: unknown) => { requireSynchronous(transport.assert_authority_current?.()); deliver(result); };
         if (intent.kind === "read") {
           const display = await projectHomeDisplay(sample, signal, displayValues(sample, client, caller, transport));
           sample.assertCurrent();
           deliverCurrent(display);
+        } else if (intent.kind === "correct") {
+          deliverCurrent(await correctSurfacePosition(sample, context, { kind: "home" }, sample.description.groups, intent.correction,
+            displayValues(sample, client, caller, transport)));
+        } else if (isPlacementKind(intent.target.kind)) {
+          const object = homeObjectClick(intent.target, intent.owner, sample);
+          if (!window || !object?.item || !object.revision) throw changed();
+          const current = () => { requireSynchronous(transport.assert_authority_current?.()); sample.assertCurrent(); };
+          const result = await preparePositionPlacement(sample, context, object.item, intent.target.kind, object.revision, { window }, current);
+          current(); deliverCurrent(result);
         } else await clickHomeCard(intent, sample, runtime, caller, client, prefix, transport, deliverCurrent);
         return true;
       } finally { deadline?.dispose(); }
-    });
+    }, window);
   };
 }
 
@@ -204,8 +199,19 @@ export async function handleSurfaceHomeHttp(context: ProjectRequestContext): Pro
     }
     if (pluginPageRequest(request)) throw new ActionError("actions.forbidden", "首页只向工作台本人开放");
     if (!options.project) throw new ActionError("actions.scope_mismatch", "首页需要当前项目");
-    const intent = homeIntent(await readLocalWebBody(request, 64_000), click);
-    const delivered = await localHost.surfaceHome(hostReference, intent, projectRoutePrefix(options), disconnected.signal, result => sendLocalWebJson(response, 200, result));
+    const body = await readLocalWebBody(request, 64_000), scope = positionOfferScope(hostReference.project_id, "home");
+    if (!click && Object.keys(body).length === 1 && Object.hasOwn(body, "offer")) {
+      const offer = positionOfferIntent(body.offer);
+      if (!offer) throw invalid();
+      const claimed = takePositionOffer(scope, offer);
+      if (!claimed) { sendLocalWebJson(response, 200, { closed: true }); return true; }
+      try { if (!await confirmPositionOffer(localHost, hostReference, disconnected.signal, undefined, claimed, response)) throw changed(); }
+      finally { claimed.window.close(); }
+      return true;
+    }
+    const intent = homeIntent(body, click);
+    const delivered = await withPositionOfferWindow(scope, intent.kind === "click" && isPlacementKind(intent.target.kind), window =>
+      localHost.surfaceHome(hostReference, intent, projectRoutePrefix(options), disconnected.signal, result => sendLocalWebJson(response, 200, result), window));
     if (!delivered) throw new ActionError("actions.unavailable", "项目还没有打开");
   } catch (error) {
     if (!response.destroyed) { const refused = actionErrorResponse(error); sendLocalWebJson(response, refused.status, refused.body); }

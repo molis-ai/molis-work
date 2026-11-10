@@ -289,6 +289,13 @@ export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
   if(c)rows.push(['code',(c.status==='active'?'<span data-mw-state="running">'+stepLabel(c)+'</span>':stepLabel(c))+(c.status==='active'&&act?'<small class="as-muted"> · '+(act.action==='file'?collaborationCopy("plugin-builder.agent-studio.write-file",{file:(act.detail||'').slice(0,60)}):act.action==='check'?collaborationCopy("plugin-builder.agent-studio.self-checking-gates"):stepLabel(act))+'</small>':'')]);
   const h=last('host');if(h)rows.push(['host',h.status==='active'?'<span data-mw-state="running">'+stepLabel(h)+'</span>':stepLabel(h)]);
   return rows.length?'<div class="as-agents">'+rows.map(([a,t])=>'<div class="as-agent" data-agent="'+a+'"><b>'+agentCopy(a)+'</b><span>'+t+'</span></div>').join('')+'</div>':'';}
+ function visualReport(build){
+  const result=build?.visualResult;if(!result)return '';
+  const kept=build.steps.some(s=>s.id==='visual-review:'+result.revision&&s.label?.key==='plugin-builder.studio-step.layout-kept');
+  const status=result.status==='failed'?'plugin-builder.studio-step.layout-review-interrupted':result.status==='reviewed'?'plugin-builder.agent-studio.visual-review-done':'plugin-builder.agent-studio.features-verified-visuals-not-reviewed';
+  return '<div class="as-card" data-as-visual-result><h3>'+collaborationCopy(result.structural?'plugin-builder.agent-studio.layout-check-passed-wide-narrow-screens':'plugin-builder.agent-studio.interface-layout-needs-fixing')+'</h3><p>'+collaborationCopy(status)+'</p>'
+   +(kept?'<p>'+collaborationCopy('plugin-builder.studio-step.layout-kept')+'</p>':'')+result.issues.map(issue=>'<p class="as-small" translate="no">'+esc(issue)+'</p>').join('')+'</div>';
+ }
  function renderFeed(){
   const b=current,parts=[];
   const facts=JSON.stringify([b?.id,b?.revision,versions.map(v=>v.version),preview,busy,notice&&[notice.text,notice.detail,notice.message??notice],
@@ -313,7 +320,7 @@ export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
    else if(b.phase==='paused'&&!b.error&&!b.pendingPlugins?.length)parts.push('<div class="as-controls"><button type="button" class="as-button as-primary" data-as-action="resume">'+icon('play')+globalThis.t.text("plugin-builder.agent-studio.resume-build")+'</button></div>');
    if(b.steps.length){const done=b.steps.filter(s=>s.status==='done').length,shown=b.steps.slice(-60);parts.push('<details class="as-steps" data-as-steps'+(openSteps??active(b)?' open':'')+'><summary>'+collaborationCopy("plugin-builder.agent-studio.collaboration-log-steps-done-n",{n:done})+'</summary><ol>'+(b.steps.length>shown.length?'<li class="as-small as-muted">'+collaborationCopy("plugin-builder.agent-studio.earlier-steps-collapsed-n",{n:b.steps.length-shown.length})+'</li>':'')+shown.map(stepHtml).join('')+'</ol></details>');}
   }
-  if(b?.visualResult){const v=b.visualResult;parts.push('<div class="as-card"><h3>'+globalThis.t.text(v.structural?"plugin-builder.agent-studio.layout-check-passed-wide-narrow-screens":"plugin-builder.agent-studio.interface-layout-needs-fixing")+'</h3><p>'+globalThis.t.text(v.status==='reviewed'?"plugin-builder.agent-studio.visual-review-done":"plugin-builder.agent-studio.features-verified-visuals-not-reviewed")+'</p>'+v.issues.map(issue=>'<p class="as-small">'+esc(issue)+'</p>').join('')+'</div>');}
+  parts.push(visualReport(b));
   if(notice){
    const key=notice.text?.key,owned=typeof key==='string'&&key.startsWith('plugin-builder.request.'),raw=String(notice.message??notice);
    const detail=owned&&typeof notice.detail==='string'?notice.detail:null;

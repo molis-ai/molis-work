@@ -60,11 +60,11 @@ export const studioStep = (key: keyof typeof stepArguments, values?: Values): St
 export const studioProposalStep = (title: string) => title.length <= TEXT_REF_LIMITS.arg_text
   ? { label: studioStep('detailing-proposal', { title }) } : { label: studioStep('detailing-chosen-proposal'), detail: title };
 
-export function studioCapabilitySelection(operation: string, name: string, selected: string, original: string, refusal: string | undefined) {
+export function studioCapabilitySelection(operation: string, name: string, selected: string, original: string, refusal: { detail?: string } | undefined) {
   const long = name.length > TEXT_REF_LIMITS.arg_text, changed = selected !== original;
   const label = studioStep(refusal !== undefined ? 'capability-selection-kept' : changed ? 'capability-selection-changed' : 'capability-selected',
     { purpose: operation, capability: long ? selected : name });
-  return { label, detail: [changed ? original : '', long ? name : '', refusal].filter(Boolean).join('\n') || undefined };
+  return { label, detail: [changed ? original : '', long ? name : '', refusal?.detail].filter(Boolean).join('\n') || undefined };
 }
 
 function validReference(value: unknown, prefix: string, words: Words): boolean {

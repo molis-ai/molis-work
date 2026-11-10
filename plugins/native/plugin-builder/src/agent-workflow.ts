@@ -23,7 +23,7 @@ import { expandDesign, normalizeProposal } from './agent-authoring.js';
 import { presentationTask, presentationReviewTask, acceptPresentation } from './agent-presentation.js';
 import { proposalSketch, experienceTask, acceptExperience } from './agent-experience.js';
 import { acceptPresentationReview } from './agent-review.js';
-import { displayProblem, humanize } from './agent-diagnostics.js';
+import { displayProblem } from './agent-diagnostics.js';
 export { failureReason, humanize } from './agent-diagnostics.js';
 import type { AgentBuild, AgentDesign, AgentBuildSnapshot, AgentBuildStep, AgentProposal, AgentRelease } from './agent-model.js';
 
@@ -322,16 +322,18 @@ export class AgentBuilderWorkflow {
         signal.throwIfAborted(); this.current(id, token);
         const stepId = 'capability:' + token + ':' + operation.id + ':' + capability, title = (entry: CatalogEntry) => entry.title ?? entry.id;
         this.step(id, { id: stepId, agent: 'design', action: 'select', label: studioStep('choosing-capability', { purpose: operation.id }), target: operation.id, status: 'active' });
-        let selection: NonNullable<AgentBuildStep['selection']> = { source: 'rule', candidates: candidates.map(entry => entry.id), choice: capability }, refusal: string | undefined;
+        let selection: NonNullable<AgentBuildStep['selection']> = { source: 'rule', candidates: candidates.map(entry => entry.id), choice: capability };
+        let refusal: { detail?: string } | undefined;
         if (jev) {
           try {
             const answer = await this.ports.choose!({ key: 'builder-' + randomUUID(), instructions: instructionText(this.ports, BUILDER_CHOOSE_CAPABILITY),
               state: JSON.stringify({ title: picked.title, journey: picked.journey, operation: { id: operation.id, description: purpose, kind: operation.kind } }),
               candidates: candidates.map(entry => ({ key: entry.id, description: title(entry) + '（' + (entry.source ?? '平台') + '）：' + entry.description })) });
             signal.throwIfAborted(); this.current(id, token);
-            if (!answer.choice || !candidates.some(entry => entry.id === answer.choice)) throw new Error('Jev 没有返回合法能力');
-            selection = { source: 'jev', candidates: selection.candidates, choice: answer.choice, model: answer.model, elapsedMs: answer.elapsedMs, confidence: answer.confidence };
-          } catch (error) { signal.throwIfAborted(); this.current(id, token); refusal = message(error); }
+            if (answer.choice && candidates.some(entry => entry.id === answer.choice)) {
+              selection = { source: 'jev', candidates: selection.candidates, choice: answer.choice, model: answer.model, elapsedMs: answer.elapsedMs, confidence: answer.confidence };
+            } else refusal = { detail: typeof answer.choice === 'string' ? answer.choice : undefined };
+          } catch (error) { signal.throwIfAborted(); this.current(id, token); refusal = { detail: message(error) }; }
         }
         named[index] = selection.choice;
         const entry = candidates.find(item => item.id === selection.choice)!;
@@ -476,7 +478,7 @@ export class AgentBuilderWorkflow {
           deferred = [...new Set([...deferred, ...answer.issues.filter(issue => !answer.repairs.includes(issue))])];
         } catch (error) { signal.throwIfAborted(); this.current(id, token); status = 'failed'; refusal = message(error); }
       }
-      this.change(id, value => { value.visualResult = { structural: inspected.structural, status, issues: refusal === undefined ? issues : [...issues, '视觉模型未完成复查：' + humanize(refusal)], at: new Date().toISOString(), revision: token, elapsedMs: Date.now() - start }; });
+      this.change(id, value => { value.visualResult = { structural: inspected.structural, status, issues: refusal === undefined ? issues : [...issues, refusal], at: new Date().toISOString(), revision: token, elapsedMs: Date.now() - start }; });
       if (round === 0 && repairs.length) {
         const before = snapshot(this.store.require(id)), history = this.store.require(id).history;
         try {
@@ -486,7 +488,7 @@ export class AgentBuilderWorkflow {
         } catch (error) {
           signal.throwIfAborted(); this.current(id, token); if (!inspected.structural) throw error;
           const detail = message(error);
-          this.change(id, value => { Object.assign(value, before); value.history = history; value.visualResult!.issues = [...value.visualResult!.issues, '视觉建议未能应用，已保留通过验收的界面：' + humanize(detail)]; });
+          this.change(id, value => { Object.assign(value, before); value.history = history; value.visualResult!.issues = [...value.visualResult!.issues, detail]; });
           this.step(id, { id: stepId, agent: 'ui', action: 'review', label: studioStep('layout-kept'), status: 'done', detail }); return;
         }
         continue;

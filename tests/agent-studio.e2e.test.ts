@@ -583,6 +583,7 @@ test('studio in English: its controls, labels, phases and boards are English', {
     assert.deepEqual(await page.evaluate<string[]>(`(()=>{const out=[];for(const b of document.querySelectorAll('[data-as-catalog-panel] .as-part')){b.dispatchEvent(new PointerEvent('pointerover',{bubbles:true}));const tip=document.querySelector('[data-as-tip]');if(/\\p{Script=Han}/u.test(tip.innerText))out.push(tip.innerText);}return out;})()`), [], 'and its tip');
 
     await page.wait(`document.querySelector('[data-as-phase]').textContent === 'Ready to try'`);
+    assert.match(await page.evaluate<string>(`document.querySelector('[data-as-visual-result]')?.textContent || ''`), /Layout check passed on wide and narrow screens.*Features verified; visuals not reviewed/u);
     revisionMode = 'acceptance';
     await page.fill('[data-as-input]', '用验收检查验证保留的内容'); await page.click('.as-send');
     const failureTitle = `document.querySelector('[data-as-failure-title]')`, failureGuidance = `document.querySelector('[data-as-failure-guidance]')`;

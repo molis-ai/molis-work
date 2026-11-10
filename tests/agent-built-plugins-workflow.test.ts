@@ -657,8 +657,14 @@ test('capabilities are settled before the full design: Jev picks among the provi
   } finally { await workflow.close(); }
 });
 
-test('when Jev cannot pick a capability, the designer\'s choice stands and the build goes on', async () => {
-  const h = harness([proposalsUsing('goals.note'), detailUsing('快记', 'goals.note')], { jev: new Error('Jev 不在线') });
+for (const refusal of [new Error('Jev 不在线'), 'outside-catalog <raw>', null]) test('when Jev cannot pick a capability, the designer\'s choice stands: ' + String(refusal), async () => {
+  const h = harness([proposalsUsing('goals.note'), detailUsing('快记', 'goals.note')]);
+  const choose = h.ports.choose!;
+  h.ports.choose = async question => {
+    if (!question.candidates.some(candidate => candidate.key === 'goals.note')) return choose(question);
+    if (refusal instanceof Error) throw refusal;
+    return { choice: refusal, model: 'jev-fixture', elapsedMs: 3, confidence: null };
+  };
   h.ports.catalog = async () => GOALS_CATALOG;
   const workflow = new AgentBuilderWorkflow(memoryStorage(), h.ports);
   try {
@@ -668,7 +674,8 @@ test('when Jev cannot pick a capability, the designer\'s choice stands and the b
     build = await until(workflow, created.id, value => value.phase === 'ready' || value.phase === 'failed' || !!value.pendingPart);
     const pick = build.steps.find(step => step.action === 'place' && step.agent === 'design');
     assert.equal(pick?.selection?.source, 'rule'); assert.equal(pick?.selection?.choice, 'goals.note');
-    assert.match(pick?.detail ?? '', /沿用主线设计的选择/);
+    assert.equal(pick && stepKey(pick), 'plugin-builder.studio-step.capability-selection-kept');
+    assert.equal(pick?.detail, refusal instanceof Error ? refusal.message : refusal ?? undefined);
   } finally { await workflow.close(); }
 });
 
@@ -924,9 +931,41 @@ for (const structural of [true, false]) test('a failed visual suggestion keeps a
     if (structural) {
       assert.equal(build.browserResult?.passed, true);
       assert.equal((build.design!.presentation!.pages[0]!.layout as {gap:string}).gap, 'roomy');
-      assert.ok(build.visualResult?.issues.some(issue => issue.includes('保留通过验收')));
+      assert.ok(build.visualResult?.issues.includes('交互结果'));
+      assert.ok(build.visualResult?.issues.every(issue => !issue.includes('保留通过验收')));
+      const kept = build.steps.find(step => step.id === 'visual-review:' + build.visualResult?.revision);
+      assert.equal(kept && stepKey(kept), 'plugin-builder.studio-step.layout-kept');
+      assert.equal(kept?.detail, '交互结果');
     } else assert.deepEqual(build.error, { title: { key: 'plugin-builder.agent-studio.build-visual-checks-failed' }, detail: '交互结果' });
     assert.equal(acceptances, 2);
+  } finally { await workflow.close(); }
+});
+
+test('FSS-36 a visual reviewer failure keeps its original diagnostic beside the fixed status', async () => {
+  const h = harness([PROPOSALS, experience(), detail('阅读'), composition()]);
+  h.ports.presentation = true; h.ports.selectionAvailable = () => false; h.ports.visionAvailable = () => true;
+  h.ports.inspectPresentation = async () => ({ structural: true, issues: [], images: [] });
+  const diagnostic = '原始视觉模型错误 <tag>\nraw receipt';
+  const makeAgent = h.ports.agent;
+  h.ports.agent = async (...args) => {
+    const agent = await makeAgent(...args);
+    return { ...agent, async run(request) {
+      if (request.promptVersion.startsWith('ui-review/')) throw new Error(diagnostic);
+      return agent.run(request);
+    } };
+  };
+  const workflow = new AgentBuilderWorkflow(memoryStorage(), h.ports);
+  try {
+    const { id } = workflow.create('阅读');
+    const proposal = await until(workflow, id, build => build.phase === 'choosing');
+    await workflow.action(id, { action: 'choose', revision: proposal.revision, candidateId: 'quick' });
+    const build = await until(workflow, id, value => ['ready', 'failed'].includes(value.phase));
+    assert.equal(build.phase, 'ready');
+    assert.equal(build.visualResult?.status, 'failed');
+    assert.deepEqual(build.visualResult?.issues, [diagnostic]);
+    const review = build.steps.find(step => step.id === 'visual-review:' + build.visualResult?.revision);
+    assert.equal(review && stepKey(review), 'plugin-builder.studio-step.layout-review-interrupted');
+    assert.equal(review?.detail, diagnostic);
   } finally { await workflow.close(); }
 });
 

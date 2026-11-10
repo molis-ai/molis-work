@@ -1,3 +1,4 @@
+import { rollbackPreservingError } from "@molis-ai/molis-work-storage";
 import { createHash, randomUUID } from "node:crypto";
 import { openConnectorsStore, readConnectorsStore } from "./connectors-store.js";
 import { defineErrorCodes, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -147,7 +148,7 @@ export function prepareConnectorAuthorization(home: string, setup: ConnectorSetu
       if (!previous) db.prepare("INSERT INTO connector_authorization_results (id,state_hash,connection_id,service_id,status,expires_at,setup_json,initiator_json) VALUES (?, ?, ?, ?, 'prepared', ?, ?, ?)")
         .run(key, hash(randomUUID()), setup.connection_id ?? "", setup.service_id, now + 24 * 60 * 60_000, plan, owner);
       db.exec("COMMIT"); return key;
-    } catch (error) { db.exec("ROLLBACK"); throw error; }
+    } catch (error) { rollbackPreservingError(error, () => db.exec("ROLLBACK")); throw error; }
   });
   return connectorAuthorizationStatus(home, id, now)!;
 }

@@ -513,23 +513,24 @@ ${ASSISTANT_TABS_PART}
   // Reads asked while one is in flight share it: the start, the panel opening, coming back to the page and the list's timer
   // ask for the same list. A caller after a change of its own (fresh) waits for one read that starts after it, shared by every such caller.
   // Shared only for the same address: on the chooser the route follows the selected project, and another project's list is another read.
-  let worksRead = null, worksAt = "", worksAgain = null;
+  let worksRead = null, worksAt = "", worksAgain = null, worksGeneration = 0;
   const loadWorks = (fresh) => {
     const at = host.route("/api/assistant/works");
     if (!worksRead || at !== worksAt) {
       worksAt = at; worksAgain = null;
-      const read = worksRead = readWorks().finally(() => { if (worksRead === read) worksRead = null; });
+      const read = worksRead = readWorks(at, ++worksGeneration).finally(() => { if (worksRead === read) worksRead = null; });
       return read;
     }
     if (!fresh) return worksRead;
     if (!worksAgain) worksAgain = worksRead.then(() => { worksAgain = null; return loadWorks(); });
     return worksAgain;
   };
-  const readWorks = async () => {
+  const readWorks = async (at, generation) => {
     try {
-      const res = await api("/works");
+      const res = await api("/works", "GET", undefined, at);
+      if (generation !== worksGeneration || at !== worksAt || at !== host.route("/api/assistant/works") || !island.isConnected) return;
       const drafts = new Map(works.map((work) => [work.work_id, { draft: work.draft, draft_revision: work.draft_revision }]));
-      works = (res.works || []).map((work) => drafts.has(work.work_id) && work.work_id === curId ? Object.assign(work, drafts.get(work.work_id)) : work);
+      works = (res.works || []).map((work) => ({ ...work, ...(work.work_id === curId ? drafts.get(work.work_id) : undefined) }));
       if (curId && !works.some((work) => work.work_id === curId)) { curId = null; remember(); view = null; }
       // A tab whose work is gone closes; the work in front always has one.
       const kept = tabs.filter((id) => works.some((work) => work.work_id === id));

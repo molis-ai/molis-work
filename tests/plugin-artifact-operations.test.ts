@@ -229,7 +229,7 @@ test("W5-01-D1-03: all artifact references shadow process collisions, including 
   } finally { rig.close(); }
 });
 
-test("W5-01-D1-03: catalogue propagates listing and compatibility query failures", () => {
+test("W5-01-D1-03 D0264: catalogue propagates both bounded listings and exact collision metadata query failures", () => {
   const rig = harness();
   try {
     const ops = rig.operations();
@@ -241,11 +241,12 @@ test("W5-01-D1-03: catalogue propagates listing and compatibility query failures
       query.listArtifacts = () => { throw failure; };
       assert.throws(() => ops.client.listConsumable(), error => error === failure);
       query.listArtifacts = list;
-      const compatibility = query.consumptionCompatibility;
-      query.consumptionCompatibility = () => { throw failure; };
-      assert.throws(() => ops.client.listConsumable(), error => error === failure);
-      query.consumptionCompatibility = compatibility;
     }
+    // Compatibility now evaluates the already-read metadata; collision ownership still requires this exact read.
+    const existing = rig.api.query.existingReferences;
+    rig.api.query.existingReferences = () => { throw failure; };
+    assert.throws(() => ops.client.listConsumable(), error => error === failure);
+    rig.api.query.existingReferences = existing;
   } finally { rig.close(); }
 });
 

@@ -1,3 +1,4 @@
+import type { RuntimeContextBindingPage } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 import type { RuntimeContextBindingRecord as MolisWorkRuntimeContextBinding, RuntimeContextBindingEventRecord as MolisWorkRuntimeContextBindingEvent, NormalizedRuntimeWorkContext, RuntimeWorkContext } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 import type { ProjectWorkspaceMembership as MolisWorkWorkspaceMembership } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { RuntimeContextBindingRepository } from "./context-bindings.js";
@@ -12,19 +13,15 @@ export class RuntimeBindingRecords {
     private readonly validation: RuntimeProjectBindingValidation,
   ) {}
 
-  listRuntimeContextBindingEvents(context?: RuntimeWorkContext): MolisWorkRuntimeContextBindingEvent[] {
+  listRuntimeContextBindingEvents(context?: RuntimeWorkContext, page?: RuntimeContextBindingPage): MolisWorkRuntimeContextBindingEvent[] {
     const normalized = context ? this.validation.normalizeRuntimeWorkContext(context) : null;
     if (normalized && !normalized.stable_work_context_id) return [];
-    return normalized
-      ? this.workContexts.listEvents({
-          runtime_id: normalized.runtime_id,
-          stable_work_context_id: normalized.stable_work_context_id!,
-        })
-      : this.workContexts.listEvents();
+    const filter = normalized ? { runtime_id: normalized.runtime_id, stable_work_context_id: normalized.stable_work_context_id! } : undefined;
+    return page ? this.workContexts.listEvents(filter, page) : allPages(page => this.workContexts.listEvents(filter, page));
   }
 
-  listRuntimeContextBindings(): MolisWorkRuntimeContextBinding[] {
-    return this.workContexts.list();
+  listRuntimeContextBindings(page?: RuntimeContextBindingPage): MolisWorkRuntimeContextBinding[] {
+    return page ? this.workContexts.list(page) : allPages(page => this.workContexts.list(page));
   }
 
   /** The project's link to the folder at this path: its row is found by the path (§3 「路径到行」), and a path with no row has none. */
@@ -75,5 +72,14 @@ export class RuntimeBindingRecords {
       actor_id: input.actorId,
       created_at: input.createdAt,
     });
+  }
+}
+
+/** D0253: complete maintenance callers explicitly traverse bounded owner queries. */
+function allPages<T>(read: (page: RuntimeContextBindingPage) => T[]): T[] {
+  const result: T[] = [];
+  for (let offset = 0;; offset += 200) {
+    const page = read({ limit: 200, offset }); result.push(...page);
+    if (page.length < 200) return result;
   }
 }

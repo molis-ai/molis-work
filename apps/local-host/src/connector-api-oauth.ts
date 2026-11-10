@@ -108,7 +108,8 @@ export async function assertStillDeclared(config: OAuthConfiguration, owners: OA
  * nothing yet (slices 6 and 7).
  */
 export async function assertHeldOAuthDeclared(home: string, completion: ConnectorActivation, owners: OAuthOwners = registryOwners(home)): Promise<void> {
-  if (completion.kind !== "oauth" || completion.protocol?.protocol !== "oauth") return;
+  if (completion.kind !== "oauth") return;
+  if (completion.protocol?.protocol !== "oauth" || !completion.declaration) throw connectorErrors["connector.connection.invalid"]("无法确认声明这个服务的插件，请重新连接");
   try {
     await assertStillDeclared({ ...completion.protocol as OAuthConfiguration, ...completion.declaration }, owners);
   } catch (error) {

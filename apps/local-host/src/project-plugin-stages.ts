@@ -130,7 +130,8 @@ function runtimeStage(state: ProjectPluginState, store: LocalProjectDatabase, en
     const active = state.platform?.supervisor.state(pluginId);
     const running = active?.status === "running" && active.install_id && state.platform?.runtime.get(active.install_id).state === "running";
     return unavailableStage(state, entry, projectPluginProblem(state, store, pluginId)?.reason
-      ?? (running ? uiText.text("workbench.project-plugin-stages.plugin-running-but-has-not-provided-page") : uiText.text("workbench.project-plugin-stages.plugin-not-running")));
+      ?? uiText.text(active?.status === "starting" ? "workbench.project-plugin-stages.starting" : running
+        ? "workbench.project-plugin-stages.plugin-running-but-has-not-provided-page" : "workbench.project-plugin-stages.plugin-not-running"));
   }
   const view = prepared === undefined ? stageView(state, pluginId, contributionId) : prepared;
   if (!view) return unavailableStage(state, entry, uiText.text("workbench.project-plugin-stages.plugin-page-not-registered"));
@@ -162,7 +163,7 @@ function unavailableStage(state: ProjectPluginState, entry: StageEntry, reason: 
  * that was only stopped and one that was uninstalled get no button: a restart must never turn a switched-off plugin back on.
  */
 function restartOffer(state: ProjectPluginState, active: PluginSupervisorState | null | undefined): PluginRestartOffer | null {
-  if (!state.platform || !active?.install_id || active.status === "blocked" || active.code === "plugin.revoked") return null;
+  if (!state.platform || !active?.install_id || (active.status === "blocked" || active.status === "starting") || active.code === "plugin.revoked") return null;
   const installed = state.platform.runtime.get(active.install_id).state;
   if (installed === "quarantined") return "release-quarantine";
   return installed !== "uninstalled" && (installed === "crashed" || active.status === "failed") ? "restart" : null;

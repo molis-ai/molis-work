@@ -68,7 +68,7 @@ export interface PluginUpgradeCandidate {
   can_upgrade: boolean;
 }
 
-export type PluginSupervisorStatus = "running" | "failed" | "blocked";
+export type PluginSupervisorStatus = "starting" | "running" | "failed" | "blocked";
 
 export interface PluginSupervisorState {
   plugin_id: string;
@@ -224,12 +224,13 @@ export class PluginSupervisor implements PluginHostLifecycle {
 
   state(pluginId: string): PluginSupervisorState | null {
     const state = this.#states.get(pluginId);
+    if ((this.#pending.get(pluginId) ?? 0) > 0 && !this.#revoked.has(pluginId) && !this.contribution(pluginId)) return { plugin_id: pluginId, status: "starting", install_id: state?.install_id ?? null, code: null, message: null };
     return state ? { ...state } : null;
   }
 
   states(): PluginSupervisorState[] {
-    return [...this.#states.values()]
-      .map((state) => ({ ...state }))
+    return [...new Set([...this.#states.keys(), ...this.#pending.keys()])]
+      .flatMap(pluginId => { const state = this.state(pluginId); return state ? [state] : []; })
       .sort((left, right) => left.plugin_id.localeCompare(right.plugin_id));
   }
 

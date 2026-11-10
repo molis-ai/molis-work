@@ -255,7 +255,14 @@ const body = el("div", "plugin-trust-agent-body");
 body.append(el("strong", "", globalThis.t.text(item.kind === "role" ? "workbench.settings-plugins.role-material" : "workbench.settings-plugins.method") + "：" + item.name));
 if (item.change) body.append(el("p", "settings-muted", readText({ added: "workbench.settings-plugins.body-added", changed: "workbench.settings-plugins.body-changed", removed: "workbench.settings-plugins.body-removed" }[item.change])));
 const excerpt = el("pre", "", item.excerpt); excerpt.style.whiteSpace = "pre-wrap"; excerpt.style.overflowWrap = "anywhere";
-body.append(excerpt); bodies.append(body);
+body.append(excerpt);
+if (item.truncated) {
+body.append(el("p", "settings-muted", readText("workbench.settings-plugins.truncated-expand")));
+const details = el("details", ""); details.append(el("summary", "", readText("workbench.settings-plugins.read-complete")));
+const full = el("pre", "", item.body); full.style.whiteSpace = "pre-wrap"; full.style.overflowWrap = "anywhere";
+details.append(full); body.append(details);
+}
+bodies.append(body);
 }); panel.append(bodies);
 }
 const effects = Object.keys(shown.effects || {}).filter((key) => shown.effects[key] && shown.effects[key].length);

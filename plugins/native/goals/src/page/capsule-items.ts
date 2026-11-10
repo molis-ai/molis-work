@@ -120,8 +120,8 @@ export function createCapsuleItemProjection() {
     item: WebGoalView,
   ): CapsuleGoalItem {
     return itemBase(view, item, {
-      tab_kind: item.display_status === "cancelled" ? "cancelled" : "continue",
-      kind: item.display_status === "cancelled" ? "waiting" : "ready",
+      tab_kind: "continue",
+      kind: "ready",
       status_label: item.status_label,
       status_since: null,
       current: item.action_summary,
@@ -131,6 +131,11 @@ export function createCapsuleItemProjection() {
       action_label: item.main_action_label,
       action_path: goalPath(view, item.goal.goal_id),
     });
+  }
+
+  /** D0013: keep the explicit resume path, outside the immediately actionable group. */
+  function cancelledItem(view: GoalsPageView, item: WebGoalView): CapsuleGoalItem {
+    return { ...availableItem(view, item), tab_kind: "cancelled", kind: "cancelled" };
   }
 
   function blockedItem(view: GoalsPageView, item: WebGoalView): CapsuleGoalItem {
@@ -196,7 +201,7 @@ export function createCapsuleItemProjection() {
       case "continue": return { label: uiText.text("goals.capsule-items.continue"), tone: "ready" };
       case "waiting": return { label: uiText.text("goals.capsule-items.waiting"), tone: "waiting" };
       case "blocked": return { label: uiText.text("goals.capsule-items.blocked"), tone: "blocked" };
-      case "cancelled": return { label: uiText.text("goals.state-invalidated.label"), tone: "waiting" };
+      case "cancelled": return { label: uiText.text("goals.state-invalidated.label"), tone: "cancelled" };
       case "completed": return { label: uiText.text("goals.capsule-items.completed"), tone: "complete" };
     }
   }
@@ -233,5 +238,5 @@ export function createCapsuleItemProjection() {
       menu_bar_tooltip: `${view.project?.display_name ?? uiText.text("goals.capsule-items.current-project")} · ${selected.goal_title} · ${title}`,
     };
   }
-  return { activeGoalViews, newestFirst, recentCompletedGoal, projectPath, decisionItem, activeItem, availableItem, blockedItem, waitingItem, completeItem, TAB_ORDER, tabMeta, stateFromItem };
+  return { activeGoalViews, newestFirst, recentCompletedGoal, projectPath, decisionItem, activeItem, availableItem, cancelledItem, blockedItem, waitingItem, completeItem, TAB_ORDER, tabMeta, stateFromItem };
 }

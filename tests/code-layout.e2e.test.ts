@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createCodingCodePaint } from "@molis-ai/molis-work-plugin-coding";
 import { codeTokens, growCodeTokens } from "@molis-ai/molis-work-plugin-sdk/highlight";
-import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { openBoardBrowser as openGoalBrowser } from "./fixtures/board-browser.js";
 import { codeColouringProjection, codeGeometry } from "./fixtures/code-colouring.js";
 import { coding, openCoding } from "./fixtures/coding-browser.js";
 

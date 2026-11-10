@@ -110,7 +110,10 @@ export const SYNC_SETTINGS_CLIENT_SCRIPT=String.raw`
       const selections=[...state.unavailable,...[...fields.querySelectorAll('input:checked')].map(input=>state.collections[Number(input.dataset.collection)].selection)];
       void act(()=>request('/policy',{...state.policy,selections},'PUT'));
     });
-    root.querySelector('[data-sync-run]').addEventListener('click',()=>act(()=>request('/run',{},'POST')));
+    root.querySelector('[data-sync-run]').addEventListener('click',()=>{
+      if(dirty){error.textContent=readText("workbench.settings-sync.save-before-syncing");error.hidden=false;return;}
+      void act(()=>request('/run',{},'POST'));
+    });
     root.querySelector('[data-sync-reload]').addEventListener('click',()=>{dirty=false;load();});
     root.querySelector('[data-sync-trash]').addEventListener('click',async()=>{
       try{

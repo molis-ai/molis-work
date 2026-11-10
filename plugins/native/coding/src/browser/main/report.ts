@@ -1,4 +1,5 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { setContentHtml } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { errorMessage } from "../dom.js";
 import { enrichCode } from "./code.js";
 import type { Page } from "./page.js";
@@ -63,7 +64,7 @@ function openReader(page: Page, save: boolean) {
 /** The report's text and what can be done with it, once read. */
 function drawReport(page: Page, result: ReportRead, save: boolean, id: string, runId: string, ticket: number) {
   const { q } = page;
-  q("[data-coding-report-body]").innerHTML = result.html;
+  setContentHtml(q("[data-coding-report-body]"), result.html);
   enrichCode(page, q("[data-coding-report-body]"));
   q("[data-coding-report-status]").textContent = result.reference ? uiText.text("coding.report.saved", { version: result.reference.version, at: result.saved_at ?? "" }) : uiText.text("coding.report.unsaved");
   q<HTMLButtonElement>("[data-coding-report-save]").disabled = Boolean(result.reference);

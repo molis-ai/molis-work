@@ -8,7 +8,7 @@ import { createCapsuleItemProjection } from "./capsule-items.js";
 
 /** The Goals owner's existing capsule projection; the shell only displays its JSON. */
 export function createGoalsCapsuleProjection() {
-  const { activeGoalViews, newestFirst, recentCompletedGoal, projectPath, decisionItem, activeItem, availableItem, blockedItem, waitingItem, completeItem, TAB_ORDER, tabMeta, stateFromItem } = createCapsuleItemProjection();
+  const { activeGoalViews, newestFirst, recentCompletedGoal, projectPath, decisionItem, activeItem, availableItem, cancelledItem, blockedItem, waitingItem, completeItem, TAB_ORDER, tabMeta, stateFromItem } = createCapsuleItemProjection();
   function buildCapsuleSnapshot(
     view: GoalsPageView,
     directory: { goal_id: string }[],
@@ -57,7 +57,7 @@ export function createGoalsCapsuleProjection() {
       if (!availableOrder.has(candidate.goal_id)) availableOrder.set(candidate.goal_id, index);
     });
     const continueGoals = view.goals
-      .filter((item) => (item.display_status === "continue" || item.display_status === "cancelled") && !assigned.has(item.goal.goal_id))
+      .filter((item) => item.display_status === "continue" && !assigned.has(item.goal.goal_id))
       .sort((left, right) =>
         (availableOrder.get(left.goal.goal_id) ?? Number.MAX_SAFE_INTEGER) -
           (availableOrder.get(right.goal.goal_id) ?? Number.MAX_SAFE_INTEGER) ||
@@ -89,6 +89,11 @@ export function createGoalsCapsuleProjection() {
     });
     items.push(...waitingItems);
 
+    const cancelledItems = newestFirst(view.goals.filter(item =>
+      !assigned.has(item.goal.goal_id) && item.display_status === "cancelled"
+    )).map(item => cancelledItem(view, item));
+    items.push(...cancelledItems);
+
     const grouped = new Map<CapsuleTabKind, CapsuleGoalItem[]>();
     for (const item of items) {
       const group = grouped.get(item.tab_kind) ?? [];
@@ -99,7 +104,7 @@ export function createGoalsCapsuleProjection() {
       const group = grouped.get(kind);
       return group?.length ? [{ kind, ...tabMeta(kind), items: group }] : [];
     });
-    const selected = decisionItems[0] ?? activeItems[0] ?? completedItem ?? availableItems[0] ?? blockedItems[0] ?? waitingItems[0] ?? null;
+    const selected = decisionItems[0] ?? activeItems[0] ?? completedItem ?? availableItems[0] ?? blockedItems[0] ?? waitingItems[0] ?? cancelledItems[0] ?? null;
     if (selected) {
       return {
         observed_event_cursor: view.snapshot.cursor,

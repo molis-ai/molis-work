@@ -88,6 +88,7 @@
     "@molis-ai/molis-work-app-desktop": "workspace:*",
     "@molis-ai/molis-work-app-local-host": "workspace:*",
     "@molis-ai/molis-work-app-mcp": "workspace:*",
+    "@molis-ai/molis-work-app-server": "workspace:*",
     "@molis-ai/molis-work-app-workbench": "workspace:*",
     "@molis-ai/molis-work-contracts": "workspace:*",
     "@molis-ai/molis-work-design-system": "workspace:*",

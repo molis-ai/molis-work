@@ -1,4 +1,5 @@
 import { format, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { setContentHtml } from "@molis-ai/molis-work-plugin-sdk/browser";
 import type { AgentRunUsage } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { el, errorMessage } from "./dom.js";
 import type { PagePorts } from "./types.js";
@@ -66,7 +67,7 @@ const heading = (panel: Panel, child: Child) => (panel.ports.roleName(child.role
 const resultBox = (child: Child) => {
   const body = el("div");
   body.className = "coding-turn";
-  if (child.result_html) body.innerHTML = child.result_html;
+  if (child.result_html) setContentHtml(body, child.result_html);
   else body.textContent = child.result ?? "";
   return body;
 };

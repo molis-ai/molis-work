@@ -490,7 +490,7 @@ export { searchActions, SEARCH_PROVIDER_ID } from "@molis-ai/molis-work-contract
 export { confirmReferences, findReferenceCandidates, readReferences, type ReferenceAccess } from "./references.js";
 
 /** A project-only view of indexed material under the caller's original source and reader authority. */
-async function authorizedSearchCatalog(index: Pick<SearchIndexPort, "sources" | "documents">, access: SearchAccess,
+async function authorizedSearchCatalog(index: Pick<SearchIndexPort, "sources" | "catalog" | "document">, access: SearchAccess,
   onError: SearchServiceOptions["onError"], capture: (source: SourceView) => () => void) {
   const project = access.caller.project_id;
   if (!project) throw new ActionError("actions.scope_mismatch", "索引目录需要当前项目");
@@ -506,13 +506,29 @@ async function authorizedSearchCatalog(index: Pick<SearchIndexPort, "sources" | 
     && before.some(original => original.key === source.key));
   const sources = index.sources().filter(source => source.project_id === project && source.state === "ready" && !source.error
     && source.collection_revision !== null && current.some(live => live.key === source.source_key));
-  const documents = index.documents(project).flatMap(document => {
-    const source = current.find(source => source.key === document.source_key);
-    if (!source || !sources.some(record => record.source_key === source.key) || !source.kinds.has(document.kind)) return [];
-    return [{ ...document, ...(authority.canRead(source, document.kind, currentViews) ? {} : { content: "", content_policy: "summary" as const }) }];
-  });
-  // Consumers keep this original fence while waiting; a new catalog never restores an old call's authority.
-  return { sources: () => { assertCurrent(); return sources; }, documents: (projectId: string) => { assertCurrent(); return projectId === project ? documents : []; }, assertCurrent };
+  const readable = (sourceKey: string, kind: string) => {
+    const source = current.find(source => source.key === sourceKey);
+    return source && sources.some(record => record.source_key === source.key) && source.kinds.has(kind) ? source : null;
+  };
+  // Metadata pages keep the raw cursor even when every entry on a page is hidden.
+  return { sources: () => { assertCurrent(); return sources; }, assertCurrent,
+    catalog: (projectId: string, cursor?: string) => {
+      assertCurrent();
+      if (projectId !== project) return { entries: [], next_cursor: null };
+      const page = index.catalog(projectId, cursor);
+      return { ...page, entries: page.entries.flatMap(document => {
+        const source = readable(document.source_key, document.kind);
+        if (!source) return [];
+        return [{ ...document, ...(authority.canRead(source, document.kind, currentViews) ? {} : { content_chars: 0, has_content: false, content_policy: "summary" as const }) }];
+      }) };
+    },
+    document: (sourceKey: string, kind: string, objectId: string) => {
+      assertCurrent();
+      const source = readable(sourceKey, kind);
+      if (!source || !authority.canRead(source, kind, currentViews)) return null;
+      const document = index.document(sourceKey, kind, objectId); assertCurrent(); return document;
+    },
+  };
 }
 
 function entrySources(views: readonly ActionView[], caller: ActionCallContext): SourceView[] {

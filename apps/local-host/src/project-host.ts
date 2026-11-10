@@ -1,4 +1,5 @@
 import { inLanguagePreview } from "./web-locale.js";
+import { DraftReferences } from "./contextual/draft-references.js";
 import { skillCatalogProviderFor } from "./agent-definitions/skill-catalog-host.js";
 import { accountActionProvider } from "@molis-ai/molis-work-service-account";
 import { accountSessionForHost } from "./account-host.js";
@@ -142,6 +143,7 @@ export function molisWorkHostProjectReference(input: {
  */
 export class MolisWorkLocalHost {
   private readonly host: LocalHost<MolisWorkProjectRuntime>;
+  private readonly draftReferences = new DraftReferences();
   readonly synchronization: ReturnType<typeof projectSyncAccess>;
   readonly projectCatalogActions: ReturnType<typeof registerHostPlatformProviders>;
   private personalPlanningHome?: string;
@@ -203,7 +205,7 @@ export class MolisWorkLocalHost {
             if (options.homeDirectory) add(informationActionProvider(options.homeDirectory, reference.project_id, this.actionClient(reference), options.completeText));
             if (options.homeDirectory) add(charactersActionProvider(runtime, { ...options, homeDirectory: options.homeDirectory }, () => this.agents?.service.charactersCatalog(runtime)));
             if (options.homeDirectory) add(homeActionProvider(options.homeDirectory, reference.project_id,
-              { actions: this.actionClient(reference), scenes: this.sceneClient(reference), functions: options.functions, readFunctions: this.systemFunctions?.read,
+              { actions: this.actionClient(reference), scenes: this.sceneClient(reference), functions: options.functions, readFunctions: this.systemFunctions?.read, pageDrafts: this.draftReferences,
                 projectPlugins: projectId => this.projectPluginReach(projectId) }, (judgment, caller) => {
                 new LocalSqliteJournal(store.db).appendEvent({ eventId: `event-${randomUUID()}`, projectId: reference.project_id, actorId: caller.actor_id,
                   objectType: "judgment", objectId: judgment.judgment_id, type: "judgment_completed", reason: judgment.outcome,
@@ -426,7 +428,7 @@ export class MolisWorkLocalHost {
 
   close(): Promise<void> {
     return closeHomeStorageLifetime(this, this.closing, [
-        ["search", () => this.search?.close()], ["placement", () => this.placement?.close()],
+        ["page-drafts", () => this.draftReferences.close()], ["search", () => this.search?.close()], ["placement", () => this.placement?.close()],
         ["projects", () => this.host?.close()], ["functions", () => this.systemFunctions?.dispose()],
         ["agents", () => this.agents?.service.dispose()], ["home-plugins", () => this.homePlugins?.close()], ["appearance", () => closeHomeAppearance(this.personalPlanningHome)],
     ], () => this.webCatalog?.access.close(), [["connectors", () => closeConnectorResources(this.options.homeDirectory, this.connectorMcp)],

@@ -61,8 +61,8 @@ export const pluginInstallActions = {
     output_schema: { type: "object", additionalProperties: false, required: ["preview_id", "name", "runtime_scope", "preview", "effects", "publisher"], properties: {
       preview_id: text, name: text, runtime_scope: { enum: ["home", "project"] }, effects,
       publisher: { type: "object", additionalProperties: false, required: ["key_id", "pinned_label"], properties: { key_id: text, pinned_label: { type: ["string", "null"] } } },
-      agent_bodies: { type: "array", maxItems: 128, items: { type: "object", additionalProperties: false, required: ["kind", "name", "excerpt"], properties: {
-        kind: { type: "string", enum: ["role"] }, name: { type: "string", maxLength: 80 }, excerpt: { type: "string", maxLength: 400 }, change: { type: "string", enum: ["added", "changed", "removed"] } } } },
+      agent_bodies: { type: "array", maxItems: 128, items: { type: "object", additionalProperties: false, required: ["kind", "name", "excerpt", "body", "total_chars", "truncated"], properties: {
+        kind: { type: "string", enum: ["role"] }, name: { type: "string", maxLength: 80 }, excerpt: { type: "string", maxLength: 400 }, body: { type: "string", maxLength: 8000 }, total_chars: { type: "integer", minimum: 0, maximum: 8000 }, truncated: { type: "boolean" }, change: { type: "string", enum: ["added", "changed", "removed"] } } } },
       // An upgrade lists the Skills it removes besides the package's own, so twice the most one package declares.
       skills: { type: "array", maxItems: 2 * SKILL_LIMITS.skillsPerPackage, items: SKILL_INSTALL_PREVIEW_SCHEMA },
       requires: { type: "array", items: { type: "object", additionalProperties: false, required: ["capability_id", "version", "optional", "reason", "satisfied"], properties: {

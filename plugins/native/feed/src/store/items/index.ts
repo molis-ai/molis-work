@@ -24,7 +24,15 @@ export class FeedModule implements FeedApi {
     const ingest = new FeedIngest(records, attention);
     const dispositions = new FeedDispositions(records, attention);
     this.query = {
-      list: (projectId: string) => records.list(projectId),
+      list: (projectId, page) => {
+        if (page) return records.list(projectId, page);
+        // D0195: complete snapshot/cleanup consumers traverse bounded pages without dropping later items.
+        const result: ReturnType<FeedRecords["list"]> = [];
+        for (let offset = 0;; offset += 200) {
+          const rows = records.list(projectId, { limit: 200, offset }); result.push(...rows);
+          if (rows.length < 200) return result;
+        }
+      },
       get: (projectId: string, itemId: string) => records.get(projectId, itemId),
       exists: (projectId: string, itemId: string) => records.exists(projectId, itemId),
       countBySource: (projectId: string, sourceId: string) => records.countBySource(projectId, sourceId),

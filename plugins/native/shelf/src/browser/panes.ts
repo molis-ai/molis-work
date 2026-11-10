@@ -1,4 +1,5 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { contentHtml } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { escText, escapeAttr } from "./dom.js";
 import { childOf, childUrl, fileUrl, hasFile, isFailed } from "./model.js";
 import type { Item, ShelfPage } from "./types.js";
@@ -56,7 +57,7 @@ export function previewPane(page: ShelfPage, item: Item | null | undefined, kick
   if (item.kind === "image") return '<div class="shelf-preview-inner"><p class="shelf-kicker">' + escText(label) + '</p><img class="shelf-image" alt="" data-shelf-media="' + fileUrl(page, item.item_id) + '"></div>';
   const text = page.textCache.get(item.item_id) ?? item.preview_text ?? "";
   const coverage = item.material_coverage?.length ? '<p class="settings-hint" data-shelf-coverage>' + escText(uiText.text("shelf.panes.material-coverage")) + " · " + item.material_coverage.map(escText).join("；") + "</p>" : "";
-  return '<div class="shelf-preview-inner shelf-doc" data-shelf-read="' + escapeAttr(item.item_id) + '"><p class="shelf-kicker">' + escText(label) + "</p>" + coverage + '<div class="shelf-reading">' + page.reading.render(item, text) + "</div></div>";
+  return '<div class="shelf-preview-inner shelf-doc" data-shelf-read="' + escapeAttr(item.item_id) + '"><p class="shelf-kicker">' + escText(label) + "</p>" + coverage + '<div class="shelf-reading">' + contentHtml(page.reading.render(item, text)) + "</div></div>";
 }
 
 export function editorHtml(page: ShelfPage, item: Item): string {

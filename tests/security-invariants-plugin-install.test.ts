@@ -630,3 +630,27 @@ test("RAC-2640/2643 S-84 preview exposes each signed body and compares the compl
     assert.equal(homeAgentDefinitions(h.home).signedMaterial(current.install_id!, current.default_ref!).body, prefix + "新尾部");
   } finally { await h.close(); }
 });
+
+// D0246/D0247: signed text comparison is independent of OS process isolation.
+test("D0246 D0247 S-84 complete signed bodies and changed tails are reviewed on every platform", async () => {
+  const h = await harness(), publisher = newPublisher(), prefix = "😀".repeat(200);
+  const base = { version: "1.1.0", roles: [{ name: "共享名称", purpose: "审阅", body: "agent/role.md" }], bodies: { "agent/role.md": prefix + "旧尾部" } };
+  try {
+    const first = signedAgentPackage(publisher, base);
+    const initial = await h.service.preview({ bundle: first }, who);
+    const body = initial.agent_bodies![0]!;
+    assert.equal(body.excerpt, prefix); assert.equal(body.truncated, true);
+    assert.equal(body.total_chars, 203); assert.equal(body.body, prefix + "旧尾部");
+    assert.equal(await confirmIn(h.service)(first), "installed");
+    h.projectRecords.push(homeRecord(readSandboxPackage(first.payload).manifest));
+    const next = signedAgentPackage(publisher, { ...base, version: "1.2.0", compatibleFrom: ["1.1.0"], bodies: { "agent/role.md": prefix + "新尾部" } });
+    const preview = await h.service.preview({ bundle: next }, who);
+    assert.equal(preview.agent_bodies![0]!.excerpt, prefix);
+    assert.equal(preview.agent_bodies![0]!.change, "changed");
+    assert.equal(preview.agent_bodies![0]!.body, prefix + "新尾部");
+    assert.equal(h.projectRecords[0]!.version, "1.1.0", "preview does not install");
+    const actions = new ActionService(); actions.registerProvider(pluginInstallProvider(h.service));
+    const person: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: who.project_id, permissions: PLUGIN_INSTALL_PERMISSIONS, user_action: { source: "management", conversation_ref: "cli:review", message_ref: "review" } };
+    for (const version of [3, 4]) await assert.rejects(actions.invoke(person, { capability_id: pluginInstallActions.preview.capability_id, version }, { bundle: next }));
+  } finally { await h.done(); }
+});

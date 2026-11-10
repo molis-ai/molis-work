@@ -74,7 +74,7 @@
     },
     "assets": {
       "paths": [
-        "apps/server/src/assets.ts"
+        "apps/local-host/src/work-assets.ts"
       ],
       "reason": "Exporting and restoring a work-assets bundle: assets.* is its own feature, raised through ImError."
     },

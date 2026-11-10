@@ -52,7 +52,8 @@ test("Coding state propagates workspace permission and availability failures", a
   let reads = 0;
   // The project's folders are read from the Home catalog (`projects.directories.get@1`, project-workspace-actions.ts), as the production
   // Host is wired: here the catalog's read of them fails. The project is a standalone copy the catalog has no plugin record of.
-  const catalog: Pick<MolisWorkProjectCatalog, "projectDirectories" | "projectPluginMembership"> = {
+  const catalog: Pick<MolisWorkProjectCatalog, "projectDirectories" | "projectPluginMembership" | "listProjects"> = {
+    listProjects: () => [],
     projectDirectories: () => { reads++; throw failure; },
     projectPluginMembership: () => { throw Object.assign(new Error("standalone project"), { code: "catalog.project_not_found" }); },
   };

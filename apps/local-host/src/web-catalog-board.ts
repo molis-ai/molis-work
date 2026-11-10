@@ -1,4 +1,5 @@
 import { t } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { developerMode } from "./developer-mode.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import {
   assistantBoardSamples, parseAssistantFrame, type AssistantFrameOptions, parseConditionFrame, renderMolisWorkAssistantSpecimen, renderMolisWorkBarSpecimen, renderMolisWorkConditionsSpecimen,
@@ -15,6 +16,9 @@ import { readText, currentLocale, htmlLang, isWebLocale, runWithLocale, WEB_LOCA
  * comes from its query so the board can compare both. Answers true when it served the request.
  */
 export function handleComponentBoardHttp(request: IncomingMessage, response: ServerResponse, url: URL, pageCsp: string, appearance?: WorkbenchAppearancePorts): boolean {
+  if ((url.pathname === "/__ui/catalog" || url.pathname.startsWith("/__ui/catalog/")) && !developerMode()) {
+    response.writeHead(404, { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" }); response.end("Not found"); return true;
+  }
   if (request.method !== "GET") return false;
   // The board's own language switch (`?lang=`) changes this page only, never the Home's language; without it, the Home's.
   const lang = url.searchParams.get("lang"), board = (locale: WebLocale) => runWithLocale(locale, () => renderMolisWorkPrimitiveCatalog(t, locale, environmentSection(locale), appearance?.current(), t.text("workbench.composer.next-boundary")));

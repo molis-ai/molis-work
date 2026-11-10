@@ -1,3 +1,5 @@
+import { imText as L } from "../locale.js";
+import { escapeHtml as escapeImText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { ImRoom, ImMessage, ImRoomList } from '@molis-ai/molis-work-contracts/services/im';
 import type { ApiError } from './types.js';
 import type { ImBaseCtx, ImCtx } from './controller-types.js';
@@ -47,10 +49,10 @@ export function createImDialogs(base: ImBaseCtx, context: () => ImCtx): Pick<ImC
   function newRoom() {
     const c = context();
     if (!s.member) {
-      c.toast('先设置你的名字，再创建群聊。');
+      c.toast((L("先设置你的名字，再创建群聊。")));
       return;
     }
-    openDialog('创建群聊', '<form><p>成员共享消息和所有 Thread，在同一个空间里讨论。</p><label class="im-field">群聊名称<input name="title" maxlength="80" required placeholder="例如：产品共创" autofocus></label>' + c.actions('创建群聊') + '</form>', async (body, current) => {
+    openDialog((L("创建群聊")), ("<form><p>" + escapeImText(L("成员共享消息和所有 Thread，在同一个空间里讨论。")) + "</p><label class=\"im-field\">" + escapeImText(L("群聊名称")) + "<input name=\"title\" maxlength=\"80\" required placeholder=\"" + escapeImText(L("例如：产品共创")) + "\" autofocus></label>") + c.actions((L("创建群聊"))) + '</form>', async (body, current) => {
       const result = await api<{
         room: ImRoom;
       }>('/rooms', body); s.rooms = (await api<ImRoomList>('/rooms')).rooms; v.roomList(s.rooms, s.roomId); if (!current())
@@ -60,10 +62,10 @@ export function createImDialogs(base: ImBaseCtx, context: () => ImCtx): Pick<ImC
   function joinRoom() {
     const c = context();
     if (!s.member) {
-      c.toast('先设置你的名字，再加入群聊。');
+      c.toast((L("先设置你的名字，再加入群聊。")));
       return;
     }
-    openDialog('加入群聊', '<form><p>粘贴群成员发来的邀请链接。</p><label class="im-field">邀请链接<input name="token" value="' + e(s.inviteToken) + '" required autocomplete="off" autofocus></label>' + c.actions('加入群聊') + '</form>', async (body, current) => {
+    openDialog((L("加入群聊")), ("<form><p>" + escapeImText(L("粘贴群成员发来的邀请链接。")) + "</p><label class=\"im-field\">" + escapeImText(L("邀请链接")) + "<input name=\"token\" value=\"") + e(s.inviteToken) + '" required autocomplete="off" autofocus></label>' + c.actions((L("加入群聊"))) + '</form>', async (body, current) => {
       const result = await api<{
         room: ImRoom;
       }>('/join', { ...body, token: c.parseInvite(body.token) }); s.inviteToken = ''; window.history.replaceState(null, '', location.pathname + location.search.replace(/([?&])invite=[^&]*&?/, '$1').replace(/[?&]$/, '')); s.rooms = (await api<ImRoomList>('/rooms')).rooms; v.roomList(s.rooms, s.roomId); if (!current())
@@ -76,7 +78,7 @@ export function createImDialogs(base: ImBaseCtx, context: () => ImCtx): Pick<ImC
     if (!reply)
       return;
     const r = s.roomId, t = s.threadId;
-    openDialog('把讨论带回群聊', '<form><p>分享到 ' + e(s.roomState!.room.title) + '，保留原回复和 Thread 链接。</p><div class="im-context-message">' + e(reply.body) + '</div><label class="im-field">补充一句（可选）<textarea name="body" rows="2" maxlength="12000" placeholder="例如：这次讨论的结论"></textarea></label>' + c.actions('分享到群聊') + '</form>', async (body, current) => {
+    openDialog((L("把讨论带回群聊")), ("<form><p>" + escapeImText(L("分享到 "))) + e(s.roomState!.room.title) + (escapeImText(L("，保留原回复和 Thread 链接。")) + "</p><div class=\"im-context-message\">") + e(reply.body) + ("</div><label class=\"im-field\">" + escapeImText(L("补充一句（可选）")) + "<textarea name=\"body\" rows=\"2\" maxlength=\"12000\" placeholder=\"" + escapeImText(L("例如：这次讨论的结论")) + "\"></textarea></label>") + c.actions((L("分享到群聊"))) + '</form>', async (body, current) => {
       const result = await api<{
         message: ImMessage;
       }>(c.pathFor(r, t) + '/share', { ...body, message_id: messageId }); if (current())
@@ -84,7 +86,7 @@ export function createImDialogs(base: ImBaseCtx, context: () => ImCtx): Pick<ImC
           s.groupMessages = merge(s.groupMessages, [result.message]);
           c.render('group', 'latest');
           c.scheduleRefresh();
-        } c.toast('已分享到群聊');
+        } c.toast((L("已分享到群聊")));
     });
   }
   async function showInvite() {
@@ -94,10 +96,10 @@ export function createImDialogs(base: ImBaseCtx, context: () => ImCtx): Pick<ImC
   function members() {
     if (!s.roomState)
       return;
-    openDialog('群成员 · ' + s.roomState.members.length, s.roomState!.members.map(person => '<div class="im-member-row">' + v.avatar(person) + '<span>' + e(person.display_name) + '</span><small>' + (person.id === s.roomState!.room.owner_id ? '创建者' : person.id === s.member?.id ? '你' : '成员') + '</small></div>').join('') + '<p>所有成员共享群聊与全部 Thread。</p>');
+    openDialog((L("群成员 · ")) + s.roomState.members.length, s.roomState!.members.map(person => '<div class="im-member-row">' + v.avatar(person) + '<span>' + e(person.display_name) + '</span><small>' + (person.id === s.roomState!.room.owner_id ? (L("创建者")) : person.id === s.member?.id ? (L("你")) : (L("成员"))) + '</small></div>').join('') + ("<p>" + escapeImText(L("所有成员共享群聊与全部 Thread。")) + "</p>"));
   }
   function showMentions() {
-    openDialog('提到项目成员', s.roomState!.members.map(person => '<button type="button" class="im-member-row" data-action="insert-mention" data-name="' + e(person.display_name) + '">' + v.avatar(person) + e(person.display_name) + '</button>').join('') + '<p>插入成员名字。本版不会额外发送通知。</p>');
+    openDialog((L("提到项目成员")), s.roomState!.members.map(person => '<button type="button" class="im-member-row" data-action="insert-mention" data-name="' + e(person.display_name) + '">' + v.avatar(person) + e(person.display_name) + '</button>').join('') + ("<p>" + escapeImText(L("插入成员名字。本版不会额外发送通知。")) + "</p>"));
   }
   return { openDialog, newRoom, joinRoom, share, showInvite, members, showMentions };
 }

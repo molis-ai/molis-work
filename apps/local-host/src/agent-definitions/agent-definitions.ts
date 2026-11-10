@@ -1,3 +1,4 @@
+import { rollbackPreservingError } from "@molis-ai/molis-work-storage";
 import path from "node:path";
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import { applySqliteBaseline, openBaselineHomeSqlite, openHomeSqliteDatabase, type SqliteBaseline, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
@@ -318,7 +319,7 @@ export class AgentDefinitions {
   private transaction(run: () => void): void {
     if (this.db.isTransaction) { run(); return; }
     this.db.exec("BEGIN IMMEDIATE");
-    try { run(); this.db.exec("COMMIT"); } catch (error) { this.db.exec("ROLLBACK"); throw error; }
+    try { run(); this.db.exec("COMMIT"); } catch (error) { rollbackPreservingError(error, () => this.db.exec("ROLLBACK")); throw error; }
   }
 }
 

@@ -389,9 +389,12 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
           run(() => change({ action: "move", to: item.scope === "project" ? "personal" : "project" }), "workbench.settings-memory.moved-2");
         });
         menuItem(globalThis.t.text("workbench.settings-memory.history"), () => historyPanel(item, copy));
-        if (item.scope === "project" && project) menuItem(globalThis.t.text("workbench.settings-memory.promote-project-guidance"), () => {
-          const target = "/projects/" + encodeURIComponent(project) + "/settings/guidance?memory_id=" + encodeURIComponent(item.memory_id) + "&memory_version=" + encodeURIComponent(item.version);
-          window.location.assign(target);
+        if (item.scope === "project" && project) menuItem(globalThis.t.text("workbench.settings-memory.promote-project-guidance"), async () => {
+          try {
+            const prefix = "/projects/" + encodeURIComponent(project);
+            const draft = await molisWorkRequest(prefix + "/api/contextual/draft-reference/issue", { body: { purpose: "project-guidance", text: JSON.stringify([item.memory_id, item.version]) } });
+            window.location.assign(prefix + "/settings/guidance?draft_ref=" + encodeURIComponent(draft.reference));
+          } catch (failure) { fail(failure); }
         });
         menuItem(globalThis.t.text("common.control.delete"), async () => {
           if (await ask(globalThis.t.text("workbench.settings-memory.delete-memory"), globalThis.t.text("workbench.settings-memory.nothing-will-use-text-anywhere-once-deleted-its", { text: item.text }), globalThis.t.text("common.control.delete"), summary)) {

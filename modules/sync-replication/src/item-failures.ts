@@ -1,3 +1,4 @@
+import { rollbackPreservingError } from "@molis-ai/molis-work-storage";
 import type {SyncEvent,SyncLocalProtection} from '@molis-ai/molis-work-contracts/platform/sync-transport';
 import {createSyncBodySerialization} from '@molis-ai/molis-work-storage';
 import {openSyncDatabase} from './database.js';
@@ -19,10 +20,10 @@ export function syncItemFailures(home:string,authorize:()=>void,protection?:Sync
         const reason=protection?'同步资产暂时不可用，原内容已保留':error instanceof SyntaxError?'同步内容格式无效，原内容已保留':error instanceof Error?error.message.slice(0,1000):'同步资产校验失败';
         c.prepare('INSERT INTO sync_failures VALUES (?,?,?,?,?,?,?) ON CONFLICT(namespace,key,direction) DO UPDATE SET event=excluded.event,reason=excluded.reason,revision=excluded.revision,automatic=excluded.automatic WHERE excluded.revision>=sync_failures.revision').run(namespace,key,direction,event?serialization.write(event,binding(namespace,key),'deferred_event'):null,reason,event?.revision??0,automatic?1:0);
         if(event)advance(c,namespace,event.revision);authorize();c.exec('COMMIT');
-      }catch(error){c.exec('ROLLBACK');throw error;}
+      }catch(error){rollbackPreservingError(error, () => c.exec('ROLLBACK'));throw error;}
     });},
     acknowledge(namespace:string,event:SyncEvent){db(c=>{
-      c.exec('BEGIN IMMEDIATE');try{advance(c,namespace,event.revision);c.prepare("DELETE FROM sync_failures WHERE namespace=? AND key=? AND revision<=?").run(namespace,event.key,event.revision);authorize();c.exec('COMMIT');}catch(error){c.exec('ROLLBACK');throw error;}
+      c.exec('BEGIN IMMEDIATE');try{advance(c,namespace,event.revision);c.prepare("DELETE FROM sync_failures WHERE namespace=? AND key=? AND revision<=?").run(namespace,event.key,event.revision);authorize();c.exec('COMMIT');}catch(error){rollbackPreservingError(error, () => c.exec('ROLLBACK'));throw error;}
     });},
     event:(namespace:string,key:string)=>{pin(namespace);return db(c=>{const row=c.prepare("SELECT event FROM sync_failures WHERE namespace=? AND key=? AND direction='download'").get(namespace,key);return row?.event?serialization.read(row.event,binding(namespace,key),'deferred_event') as SyncEvent:null;});},
     clear:(namespace:string,key:string,direction:'upload'|'download')=>db(c=>c.prepare('DELETE FROM sync_failures WHERE namespace=? AND key=? AND direction=?').run(namespace,key,direction)),

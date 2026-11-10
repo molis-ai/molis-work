@@ -111,9 +111,8 @@ export function createInputReceipts(readText: InputReceiptParts["readText"], tra
   };
   const row = (list: HTMLElement, term: string | undefined, value: string) => { list.append(make("dt", "", term ? readText(term) : ""), make("dd", "", value)); };
   const quote = (text: string) => text.length > 12 ? text.slice(0, 12) + "…" : text;
-  const of = (at: Surface, inputId: string) => at.byInput.get(inputId);
   /** Both ends of a correction, as drawn on the same surface: the input this one corrects, and the latest one correcting it. */
-  const ends = ({ at, turn }: Shown) => [of(at, turn.steer!.about ?? ""), of(at, at.fixes.get(turn.steer!.id)?.at(-1) ?? "")] as const;
+  const ends = ({ at, turn }: Shown) => [at.byInput.get(turn.steer!.about ?? ""), at.byInput.get(at.fixes.get(turn.steer!.id)?.at(-1) ?? "")] as const;
   const button = (cls: string, text: string, click: () => void) => {
     const node = make("button", "mw-btn mw-btn--sm " + cls, text); node.type = "button"; node.addEventListener("click", click); return node;
   };
@@ -212,7 +211,7 @@ export function createInputReceipts(readText: InputReceiptParts["readText"], tra
    * latest drawing at the click: a list kept because it reads the same still opens a supplement carried into a later round. */
   const latest = (owner: Element) => {
     const at = surfaces.get(owner);
-    return at ? [...at.byInput.values()].map(entry => ({ turn: entry.turn, round: entry.round, open: () => reveal(of(at, entry.turn.steer!.id)) })) : [];
+    return at ? [...at.byInput.values()].map(entry => ({ turn: entry.turn, round: entry.round, open: () => reveal(at.byInput.get(entry.turn.steer!.id)) })) : [];
   };
   // What the tray and the correction form share of the receipts.
   const parts = { readText, say, make, button, quote, latest, attempt, redraw, treatment }, correct = correction<Shown>(parts, entry => draw(entry, true));
@@ -221,7 +220,7 @@ export function createInputReceipts(readText: InputReceiptParts["readText"], tra
     agreements: agreements(parts, words),
     step: word,
     link(owner, inputId, first, kind = "about") {
-      const at = surfaces.get(owner), entry = at && of(at, inputId);
+      const at = surfaces.get(owner), entry = at && at.byInput.get(inputId);
       const key = kind === "origin" ? "common.input-receipts.link-origin" : "common.input-receipts.link-about";
       return entry ? button("mw-btn--link", readText(key, { text: quote(entry.turn.text) }), () => { first?.(); reveal(entry); }) : null;
     },
@@ -237,7 +236,7 @@ export function createInputReceipts(readText: InputReceiptParts["readText"], tra
       Object.assign(entry, { turn, round, act }); at.shown.set(id, entry); at.byInput.set(steer.id, entry);
       const list = steer.about ? at.fixes.get(steer.about) ?? [] : [];
       // A correction seen for the first time changes its original's receipt too: each surface that draws it redraws its own copy.
-      if (steer.about && !list.includes(steer.id)) { at.fixes.set(steer.about, [...list, steer.id]); const original = of(at, steer.about); draw(entry); if (original) draw(original); }
+      if (steer.about && !list.includes(steer.id)) { at.fixes.set(steer.about, [...list, steer.id]); const original = at.byInput.get(steer.about); draw(entry); if (original) draw(original); }
       else draw(entry);
       return entry.root;
     },

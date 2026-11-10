@@ -1,3 +1,4 @@
+import { draftReferenceActions } from "./draft-references.js";
 import { memoryActions } from "@molis-ai/molis-work-contracts/services/memory";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import type { IncomingMessage, ServerResponse } from "node:http";
@@ -170,6 +171,15 @@ export async function handleContextualHttp(request: IncomingMessage, response: S
     if (request.method !== "GET") { sendJson(response, 405, { error: "请求方法不受支持" }); return true; }
     try { sendJson(response, 200, { surfaces: surfaceKinds(await ports.actions().discover()) }); }
     catch (error) { const failure = actionErrorResponse(error); sendJson(response, failure.status, failure.body); }
+    return true;
+  }
+  const draftReference = /^\/api\/contextual\/draft-reference\/(issue|take)$/.exec(url.pathname);
+  if (draftReference) {
+    if (request.method !== "POST") { sendJson(response, 405, { error: "请求方法不受支持" }); return true; }
+    try {
+      const action = draftReference[1] === "issue" ? draftReferenceActions.issue : draftReferenceActions.take;
+      sendJson(response, 200, await ports.actions().invoke(action, await readBody(request)));
+    } catch (error) { const failure = actionErrorResponse(error); sendJson(response, failure.status, failure.body); }
     return true;
   }
   const match = /^\/api\/contextual\/(candidates|judge|cancel|prepare|signal|draft|attach|create|undo)$/u.exec(url.pathname);

@@ -127,6 +127,28 @@ const pages: Record<string, Draw> = {
 // and compared token by token: the 20 records of the 8 project pages and settings-general(-embedded) differ in the label and the dialog,
 // the other 10 (5 settings and planning pages) in the label alone; no Goals markup or JSON changed. The 30 were then recorded with
 // MOLIS_WORK_GOLDEN_RECORD=1. The other 36 records did not change.
+// Batch 10 (unified input): the 16 page-* records carry the shell's bar, where the platform composer replaced the assistant's own
+// input (the inputs, attachment block and private @ went with it); that change was recorded on its merge with main 500d868df3. After
+// it, the composer at rest carries ` data-rest` (+10 characters in every page-*), and the English placeholder is 「Ask the assistant…」
+// (16 fewer than 「…to do something…」): zh +10, en −6 on all 16, checked against the drawn pages. No Goals markup or JSON changed;
+// the 16 were recorded with MOLIS_WORK_GOLDEN_RECORD=1 and the other 50 records did not change.
+// Batch 08 (Skills): all 66 normalized draws were checked against the old records before updating. Removing only the new
+// Skills navigation restores every old hash and length: 16 whole pages have two directory buttons (706 zh / 722 en characters),
+// six personal planning records one link (92 zh / 96 en), and twelve project planning/settings records one link with its line
+// (115 zh / 119 en). Only those 34 records changed; the other 32, Goals JSON, view fixture and golden Home fixtures stayed fixed.
+// Batch 10 closeout after main 416ee8cef0: each of the 16 whole pages independently reproduced its previous hash and
+// length after removing only the two Skills buttons and replacing the receiver button with the former span (+41).
+// All other records retained the accepted main records; no Goals markup, data or assertions changed.
+// D0013: the current kanban and momentum fragments add one cancelled column. Removing only that complete column restores
+// all 66 prior hashes and lengths (14 changed: zh +2955 / en +2968); no other markup, JSON or view fixture was changed.
+// Main #2002: removing only the restored answer chip and changing English Send to: back to To: reproduces
+// all 66 previous hashes and lengths. Only the 16 whole-page records changed (zh +94 / en +99); Goals data stayed exact.
+// D0014/D0015 (2026-11-09): all 66 baseline renders on independently built ecdfe102d matched the accepted records.
+// Token comparison with the candidate found 22 changed records, solely the shared state labels/title/aria text,
+// the blocked count label, and the cancelled kanban column (including its paused ring and zero count). The other 44 stay byte-identical.
+// Main #2002 integration: all 66 preserved A-1 draws first reproduced their accepted hashes.
+// Derive only the hidden assistant-answer button and English To: → Send to: from that main change.
+// All 16 whole-page draws match the derived markup byte for byte; the other 50 remain identical.
 // Batch 16 (FSS-36): independently built B 33aa421ed59edf69ffbb6880a805918ffd640970 matched 50 old records directly. Reversing only
 // B's appearance hint, introduction and menu whitespace, plus the desktop stylesheet query, reproduced the other 16 hashes and lengths.
 // Of the 49 C/B changes, the markup was checked token by token for language and shell changes. The JSON still matches B except for

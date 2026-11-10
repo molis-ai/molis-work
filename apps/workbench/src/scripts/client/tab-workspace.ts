@@ -500,6 +500,8 @@ ${TAB_WORKSPACE_DRAG_PART}
   panesEl.addEventListener("keydown", (event) => { if (!event.target.closest("[data-tab-sash]")) handleStripKey(event.target.closest("[data-tab-pane]")?.dataset.tabPane, event); });
   (${TAB_SASH_FACTORY})({ panes: panesEl, root, find: (id) => findSplit(state.layout.tree, id), sync: layoutSplits, persist, range: splitRatioRange, snap: snapSplitRatio, defaultRatio: TAB_SPLIT_RATIO });
   let dragTab = null;
+  const dragDepths = new Map();
+  window.addEventListener("pointermove", () => { if (dragTab && !dragTab.node.isConnected) finishDrag(); }, true);
   let reorderKey = "";
   const dragSlot = (${TAB_DRAG_SLOT_FACTORY})({ ms: TAB_REORDER_MS, ease: TAB_REORDER_EASE });
   const paintResultPreview = (target, copy) => {
@@ -521,6 +523,7 @@ ${TAB_WORKSPACE_DRAG_PART}
     panesEl.dataset.splitDropPreview = "1";
   };
   [panesEl, titlebarStrip].filter(Boolean).forEach((surface) => {
+    surface.addEventListener("dragenter", () => { if (dragTab) dragDepths.set(surface, (dragDepths.get(surface) || 0) + 1); });
     surface.addEventListener("contextmenu", (event) => {
       const paneId = event.target.closest("[data-tab-pane]")?.dataset.tabPane || surface.dataset.chromePane;
       const groupLabel = event.target.closest("[data-tab-group-toggle]");
@@ -539,7 +542,7 @@ ${TAB_WORKSPACE_DRAG_PART}
       const pane = paneById(paneId), last = pane ? pane.tabs.findIndex((item) => item.id === (members?.at(-1) || tab.dataset.tabId)) : -1;
       const box = source.getBoundingClientRect();
       // The first preview is the place the drag started from, so nothing moves until the pointer does.
-      dragTab = { paneId, tabId: tab.dataset.tabId, width: Math.round(box.width) || 172, members, hoverBeforeId: pane?.tabs[last + 1]?.id, homeBeforeId: pane?.tabs[last + 1]?.id };
+      dragTab = { node: source, paneId, tabId: tab.dataset.tabId, width: Math.round(box.width) || 172, members, hoverBeforeId: pane?.tabs[last + 1]?.id, homeBeforeId: pane?.tabs[last + 1]?.id };
       if (event.dataTransfer.effectAllowed !== "copy") event.dataTransfer.effectAllowed = "copyMove"; event.dataTransfer.setData("text/plain", tabLabel(tab));
       const ghost = document.createElement("nav");
       ghost.className = "tab-strip"; ghost.setAttribute("aria-hidden", "true");
@@ -550,11 +553,11 @@ ${TAB_WORKSPACE_DRAG_PART}
       document.body.append(ghost);
       try { event.dataTransfer.setDragImage(ghost, Math.max(0, Math.min(event.clientX - box.left, dragTab.width)), Math.max(0, Math.min(event.clientY - box.top, box.height))); } catch {}
       requestAnimationFrame(() => ghost.remove());
-      root.classList.add("is-tab-dragging"); window.addEventListener("pointermove", () => { if (dragTab) finishDrag(); }, { once: true, capture: true }); // a tab redrawn mid-drag takes its dragend with it; no pointer moves come during a drag
+      root.classList.add("is-tab-dragging"); dragDepths.clear();
       document.body.classList.add("is-tab-dragging");
       document.body.style.setProperty("--tab-reorder-width", dragTab.width + "px");
     });
-    surface.addEventListener("dragend", finishDrag); surface.addEventListener("dragleave", (event) => { if (dragTab && !event.relatedTarget?.closest?.("[data-tab-panes], [data-titlebar-tabs]")) { root.querySelectorAll("[data-drop-preview]").forEach((node) => node.removeAttribute("data-drop-preview")); paintDropPreview({ paneId: dragTab.paneId, beforeId: dragTab.homeBeforeId }, false); } }); // off every tab surface a drop does nothing, so the preview is the tab back where it was
+    surface.addEventListener("dragend", finishDrag); surface.addEventListener("dragleave", () => { const depth = Math.max(0, (dragDepths.get(surface) || 0) - 1); dragDepths.set(surface, depth); if (dragTab && depth === 0) { root.querySelectorAll("[data-drop-preview]").forEach((node) => node.removeAttribute("data-drop-preview")); paintDropPreview({ paneId: dragTab.paneId, beforeId: dragTab.homeBeforeId }, false); } }); // off every tab surface a drop does nothing, so the preview is the tab back where it was
     surface.addEventListener("dragover", (event) => {
       if (!dragTab) return; event.preventDefault();
       const copy = isCopyDrop(event);

@@ -53,8 +53,8 @@ export function renderConnectorMark(connectorId: string, escapeHtml: ConnectorsS
 
 function renderNextSteps(card: ConnectorSettingsCardView, connections: readonly ConnectorConnectionView[], p: ConnectorsSettingsPrimitives): string {
   const { escapeHtml: e } = p;
-  const active = connections.filter(connection => connection.state === "connected");
-  if (!active.length) return "";
+  const active = connections.filter(connection => connection.state === "connected" && connection.enabled !== false);
+  if (!active.length || card.availability !== "live") return "";
   const instructions: Array<{ text: string; label?: string; href?: string; plugin?: string }> = [];
   if (active.some(row => row.auth_method === "mcp" && row.agent_available !== false) || card.connector_id === "mcp-bearer") instructions.push({ text: uiText.text("workbench.settings-connectors.choose-authorized-account-coding-s-mcp-settings-save"), label: uiText.text("workbench.settings-connectors.set-up-agent-tools"), href: "/settings/coding-settings" });
   if (active.some(row => row.auth_method === "mcp" && row.agent_available === false)) instructions.push({ text: uiText.text("workbench.settings-connectors.connection-uses-provider-s-native-transport-under-advanced") });

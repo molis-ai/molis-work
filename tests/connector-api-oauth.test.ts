@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { createServer } from "node:http";
-import { startApiOAuth, completeApiOAuth, resolveApiOAuthToken, apiOAuthContext } from "../apps/local-host/dist/connector-api-oauth.js";
+import { startApiOAuth, completeApiOAuth, resolveApiOAuthToken, apiOAuthContext, assertHeldOAuthDeclared } from "../apps/local-host/dist/connector-api-oauth.js";
 import { inspectApiConnection, resolveApiConnection } from "../apps/local-host/dist/connector-access.js";
 import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { connectorProtocolSecrets, withConnectorProtocols } from "../apps/local-host/dist/connector-protocol-store.js";
@@ -515,4 +515,14 @@ test("RAC-1082 jira: the token, context and identity requests of an authorizatio
   // The site the connection was authorized for and its base on the gateway: without them the platform's request check pins no site and
   // the connection's requests are refused (second review of #1439).
   assert.deepEqual({ site_url: context?.site_url, base: context?.base }, { site_url: "https://acme.atlassian.net", base: `https://api.atlassian.com/ex/jira/${cloud}` });
+});
+
+test("D0207 a retained OAuth completion missing its protocol or declaration is refused before owners are consulted", async () => {
+  let consulted = 0;
+  const completion: Parameters<typeof assertHeldOAuthDeclared>[1] = {
+    kind: "oauth", input: { connectionId: "held", serviceId: "example", displayName: "Held", accessRef: "held-access", refreshRef: null },
+    target: { connectionId: "held" }, credentials: {},
+  };
+  await assert.rejects(assertHeldOAuthDeclared("/unused-held-context", completion, async () => { consulted++; return null; }), { code: "connector.connection.invalid" });
+  assert.equal(consulted, 0);
 });

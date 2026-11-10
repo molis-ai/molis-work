@@ -240,6 +240,7 @@ export class ConnectorConnectionStore {
       if (ref && !ref.startsWith(`connector-protocol:${input.connectionId}:`)) throw connectorErrors["connector.connection.invalid"]("MCP 凭据引用无效");
     }
     if (input.credentialRef && !this.secrets.get(input.credentialRef)?.trim()) throw connectorErrors["connector.connection.disconnected"]("MCP 凭据尚未保存");
+    inConnectorTransaction(this.db, () => {
     const now = nextChange(this.db, input.connectionId, this.now());
     this.db.prepare(`INSERT INTO connector_connections
       (connection_id,service_id,display_name,account_label,auth_method,credential_ref,refresh_ref,expires_ref,source,disconnected_at,created_at,updated_at)
@@ -250,6 +251,7 @@ export class ConnectorConnectionStore {
         input.refreshRef ?? null, input.expiresRef ?? null, "managed", null, existing?.created_at ?? now, now);
     if (endpoint) this.db.prepare("INSERT INTO connector_connection_targets(connection_id,origin) VALUES (?,?) ON CONFLICT(connection_id) DO UPDATE SET origin=excluded.origin").run(input.connectionId, endpoint.origin);
     else this.db.prepare("DELETE FROM connector_connection_targets WHERE connection_id=?").run(input.connectionId);
+    });
     if (existing) this.onChange?.(input.connectionId);
     return this.require(input.connectionId);
   }

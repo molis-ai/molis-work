@@ -1,4 +1,5 @@
 import { dateArg, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { setContentHtml } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { el, errorMessage } from "./dom.js";
 import type { PagePorts, Translate } from "./types.js";
 
@@ -332,7 +333,7 @@ async function open(r: Reader, nextRun: string, save = false, nextIndex = 0, req
     r.net = result.view_mode === "net";
     r.netIndices = r.net ? (result.net_groups || []).find(group => group.indices.includes(r.index))?.indices || null : null;
     const body = q("[data-coding-change-body]");
-    body.innerHTML = result.html;
+    setContentHtml(body, result.html);
     body.dataset.codePath = result.change.files[r.index]?.path || "";
     renderFiles(r, result.change.files, nextRun);
     if (r.net) {

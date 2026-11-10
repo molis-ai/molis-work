@@ -33,7 +33,7 @@ export interface KnowledgeHostPorts {
   homeDirectory: string;
   search: Pick<SearchService, "query" | "indexedCatalog">;
   /** The search index: the catalog of each project is what it holds (spec §4.4). */
-  index: Pick<SearchIndexPort, "documents" | "sources" | "related">;
+  index: Pick<SearchIndexPort, "catalog" | "document" | "sources" | "related">;
   clientFor(caller: ActionCallContext): ActionClient;
   /** The project owner's authority, which indexing and organizing read every source with. */
   ownerContext?(projectId: string): Promise<ActionCallContext>;
@@ -107,7 +107,7 @@ export function createKnowledgeHost(ports: KnowledgeHostPorts): KnowledgeHost {
     const caller = await ports.ownerContext(projectId);
     const current = await ports.search.indexedCatalog({ caller, client: ports.clientFor(caller) });
     if (closed) return [];
-    return knowledgeCatalog(current, projectId).map(piece => ({ ...piece, assertCurrent: current.assertCurrent }));
+    return knowledgeCatalog(current, projectId).map(piece => { piece.assertCurrent = current.assertCurrent; return piece; });
   },
     writer: ports.writer ?? (() => knowledgeModelWriter(ports.homeDirectory)), ...(ports.quota ? { quota: ports.quota } : {}), ...(ports.onError ? { onError: ports.onError } : {}) });
   const service = new KnowledgeService({ search: (access, input) => ports.search.query({ client: access.client, caller: knowledgeReader(access) }, input), cards: store,

@@ -1,3 +1,4 @@
+import { rollbackPreservingError } from "@molis-ai/molis-work-storage";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -22,7 +23,7 @@ export function purgeCharactersProject(homeDirectory: string, projectId: string)
     try {
       db.prepare("DELETE FROM character_runs WHERE project_id = ?").run(projectId);
       db.exec("COMMIT");
-    } catch (error) { db.exec("ROLLBACK"); throw error; }
+    } catch (error) { rollbackPreservingError(error, () => db.exec("ROLLBACK")); throw error; }
   } finally { db.close(); }
 }
 

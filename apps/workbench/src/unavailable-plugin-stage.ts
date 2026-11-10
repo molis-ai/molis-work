@@ -12,7 +12,7 @@ export interface UnavailablePluginStage {
   /** Project scope: the plugin's Manifest id, which the restart button names. */
   plugin_id?: string;
   /** Project scope: what the Runtime's supervisor says is wrong with the plugin, and the stable code it gave; absent when it says none. */
-  status?: "failed" | "blocked";
+  status?: "starting" | "failed" | "blocked";
   code?: string | null;
   /** Project scope: set by the Host only for an instance that failed or was quarantined (never one switched off, blocked or uninstalled). */
   restart?: PluginRestartOffer | null;
@@ -23,8 +23,9 @@ export const UNAVAILABLE_STAGE = ":is([data-home-plugin-unavailable], [data-proj
 
 /** An unavailable instance has no page authority or client; only the Host explains why it cannot open, and may offer to start it again. */
 export function renderUnavailablePluginStatus(stage: UnavailablePluginStage,
-  readText: (text: string, values?: Record<string, string | number>) => string): string {
-  return `<div class="mw-empty" role="alert"><h2>${escapeHtml(uiText.text("workbench.unavailable-plugin-stage.plugin-unavailable", { plugin: stage.label }))}</h2><p>${escapeHtml(stage.reason)}</p>${stage.scope === "home" ? homeHint(stage, readText) : projectHint(stage, readText)}</div>`;
+  readText: (text: string, values?: Record<string, string | number>) => string, announce = true): string {
+  if (stage.status === "starting") return `<div class="mw-empty" role="status" aria-busy="true"><h2>${escapeHtml(uiText.text("workbench.unavailable-plugin-stage.plugin-starting", { plugin: stage.label }))}</h2><p>${escapeHtml(stage.reason)}</p></div>`;
+  return `<div class="mw-empty"${announce ? ' role="alert"' : ""}><h2>${escapeHtml(uiText.text("workbench.unavailable-plugin-stage.plugin-unavailable", { plugin: stage.label }))}</h2><p>${escapeHtml(stage.reason)}</p>${stage.scope === "home" ? homeHint(stage, readText) : projectHint(stage, readText)}</div>`;
 }
 
 export function renderUnavailablePluginStage(stage: UnavailablePluginStage,

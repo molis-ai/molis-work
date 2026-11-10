@@ -36,7 +36,8 @@ const ADMIN = desk("admin", ["delegate:admin"]);
 const PROVIDER = "platform";
 const ref = (definition: ActionDefinition): ActionReference => ({ capability_id: definition.capability_id, version: definition.version });
 const stepRef = (definition: ActionDefinition) => ({ ...ref(definition), provider_id: PROVIDER });
-const FEED_PERMISSIONS = feedManifest.actions!.flatMap(definition => definition.action.permissions);
+// A station's content actions define delegated reads. Its platform-only demo initializer is not a workflow station.
+const FEED_PERMISSIONS = feedManifest.actions!.filter(definition => definition.action.workflow_content?.id === "feed").flatMap(definition => definition.action.permissions);
 const AGENT_PERMISSIONS = [...new Set([...WORKFLOWS_ACTION_PERMISSIONS, "model:invoke", ...FEED_PERMISSIONS])];
 
 interface Reached { readonly capability_id: string; readonly actor_id: string; readonly audience: string; readonly delegated_by: string | undefined; readonly title: string | undefined }

@@ -1,3 +1,4 @@
+import { rollbackPreservingError } from "@molis-ai/molis-work-storage";
 import type { SyncLocalProtection } from '@molis-ai/molis-work-contracts/platform/sync-transport';
 import {checkSqliteBaselineVersion,describeSqliteBaseline,describeSqliteSchema,homeSqlitePath,readUpgradeStore,sqliteStoreLabel,storageErrors,type SqliteBaselineDatabase} from '@molis-ai/molis-work-storage';
 import {existsSync} from 'node:fs';
@@ -15,7 +16,7 @@ export function pinSyncProtection(home:string,namespace:string,authorize:()=>voi
       if(row&&row.protected!==protectedMode)throw syncError('scope','同步集合的本机保护配置已变化，原数据已保留');
       if(!row)db.prepare('INSERT INTO sync_payload_modes VALUES (?,?)').run(namespace,protectedMode);
       authorize();db.exec('COMMIT');
-    }catch(error){db.exec('ROLLBACK');throw error;}
+    }catch(error){rollbackPreservingError(error, () => db.exec('ROLLBACK'));throw error;}
   }finally{db.close();}
 }
 

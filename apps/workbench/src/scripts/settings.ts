@@ -286,18 +286,19 @@ export const PROJECT_GUIDANCE_CLIENT_SCRIPT = `
         receipt.hidden = false;
       }
     } catch {}
-    // D0191: resolve the short reference through this project's Memory owner; URLs never carry remembered text.
-    const promotion = new URLSearchParams(location.search), memoryId = promotion.get("memory_id");
-    if (memoryId) {
-      void molisWorkRequest(routePrefix + "/api/memory/overview?scope=project").then(data => {
+    // D0225: only an opaque, actor/project/purpose-bound one-time reference crosses the URL.
+    const reference = new URLSearchParams(location.search).get("draft_ref");
+    if (reference) {
+      history.replaceState(null, "", location.pathname);
+      void molisWorkRequest(routePrefix + "/api/contextual/draft-reference/take", { body: { purpose: "project-guidance", reference } }).then(async draft => {
+        const [id, version] = JSON.parse(draft.text);
+        const data = await molisWorkRequest(routePrefix + "/api/memory/overview?scope=project");
         if (!editor.isConnected) return;
-        const memory = data.items.find(item => item.memory_id === memoryId && item.scope === "project"
-          && String(item.version) === promotion.get("memory_version"));
+        const memory = data.items.find(item => item.memory_id === id && item.scope === "project" && item.version === version);
         if (!memory) throw new Error(readText("workbench.settings.this-memory-has-changed-or-is-unavailable-return"));
         openEditor("add"); kindInput.value = "convention";
         contentInput.value = memory.text.trim().slice(0, 4000);
         reasonInput.value = readText("workbench.settings.promoted-project-memory");
-        history.replaceState(history.state, "", location.pathname);
       }).catch(failure => { if (receipt?.isConnected) { receipt.hidden = false; receipt.setAttribute("role", "alert"); molisWorkRequest.show(receipt, failure); } });
     }
     function copyReceipt(mode) {

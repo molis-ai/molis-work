@@ -55,6 +55,7 @@ export class HomePluginHost {
   private closed = false;
   private closing?: Promise<void>;
   private retryable = false;
+  private startFailure?: unknown;
   private installed?: HomeInstalledPlugins;
   private releaseProjectOwners?: () => void;
   private installationDirectory?: ReturnType<typeof openPluginInstallationDirectory>;
@@ -79,9 +80,10 @@ export class HomePluginHost {
     return this.opening = this.open();
   }
   private async open(): Promise<HomePluginPlatform> {
-    this.retryable = false;
+    this.retryable = false; this.startFailure = undefined;
     try { return await this.start(); }
     catch (error) {
+      this.startFailure = error;
       // A failed cleanup must not allow a second instance beside unreleased resources.
       try { await this.release(); }
       catch (cleanup) { throw new AggregateError([error, cleanup], "Home 插件启动与清理失败"); }
@@ -157,7 +159,11 @@ export class HomePluginHost {
   }
   /** Why an installed package is not running, when it was not started or stopped itself; none when nothing is wrong with it. */
   packageError(pluginId: string): string | undefined { return this.installed?.recoveryErrors.get(pluginId); }
-  installations(): PluginInstanceRecord[] { return this.platform?.runtime.list() ?? []; }
+  installations(): PluginInstanceRecord[] {
+    if (this.platform) return this.platform.runtime.list();
+    if (this.startFailure !== undefined) throw this.startFailure;
+    throw new ActionError("actions.plugin_unavailable", this.closed ? "Home 插件宿主已关闭" : "Home 插件正在启动，请稍候", { kind: "unavailable" });
+  }
   manifest(pluginId: string): PluginManifest | undefined {
     return this.platform?.supervisor.manifest(pluginId)
       ?? this.options.entries.find(entry => entry.manifest.plugin_id === pluginId)?.manifest

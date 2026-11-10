@@ -2,6 +2,12 @@ import { INPUT_RECEIPTS_EN } from "@molis-ai/molis-work-design-system";
 
 /** The resident Assistant in the bottom bar, with the supplement receipt it shares with every plugin. */
 export const ASSISTANT_EN: Record<string, string> = {
+  "角色资料：{name}": "Role material: {name}",
+  "方法：{name}": "Method: {name}",
+  "用：{title}": "Use: {title}",
+  "切换到这项工作：{title}": "Switch to this work: {title}",
+  "加入：{title}": "Add: {title}",
+  "不带上：{title}": "Leave out: {title}",
   "已核对原发送；这里的草稿还没发出": "The original send is confirmed. The draft here has not been sent.",
   "问卷这里只能写文字；请移除附件，或改为补充这一轮": "This questionnaire field accepts text only. Remove the attachments or send a supplement to this turn.",
   "「{plugin}」读取了你授权的本机目录「{folder}」（{origin}）。可在设置「本机目录」查看记录或撤回。": '"{plugin}" read your authorized local folder "{folder}" ({origin}). View the record or revoke access in Settings > Local folders.',
@@ -450,7 +456,6 @@ export const ASSISTANT_EN: Record<string, string> = {
   "没有材料。可以在页面上选中内容，或添加文件。": "No materials. Select something on the page, or add files.",
   "来自当前页面": "from this page",
   "你添加的": "added by you",
-  "不带上": "Leave out",
   "总结这一页": "Summarize this page",
   "总结这一页的要点": "Summarize the key points of this page",
   "列出这一页的要点": "List this page's key points",

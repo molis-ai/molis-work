@@ -105,14 +105,14 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
     ...startersFor().map((starter) => ({ slash: L("开始"), label: starter.label + (starter.kind ? " · " + starter.kind : ""), ...(starter.hint ? { hint: starter.hint } : {}),
       run: () => { if (useStarter(starter)) input.focus(); } })),
     ...rows.methods.map((row) => {
-      const title = L(row.kind === "role" ? "角色资料" : "方法") + "：" + row.name;
+      const title = L(row.kind === "role" ? "角色资料：{name}" : "方法：{name}", { name: row.name });
       return { slash: L(row.kind === "role" ? "角色资料" : "方法"), label: row.name + " · " + row.plugin_title, hint: row.summary || row.name, run: choose({ kind: "method", title,
         method: { method_id: row.method_id, version: row.version, ...(row.default_ref ? { default_ref: row.default_ref, installation: row.installation } : {}) } },
         (file) => file.method.method_id === row.method_id && file.method.installation?.install_id === row.installation?.install_id) };
     }),
     ...rows.capabilities.map((row) => {
       const title = row.provider + " · " + row.title;
-      return { slash: L("用"), label: title, hint: row.description || title, run: choose({ kind: "capability", title: L("用") + "：" + title,
+      return { slash: L("用"), label: title, hint: row.description || title, run: choose({ kind: "capability", title: L("用：{title}", { title }),
         capability: { capability_id: row.capability_id, version: row.version, provider_id: row.provider_id, title } }, (file) => file.capability.capability_id === row.capability_id) };
     }),
     ...(project && document.documentElement.dataset.knowledgePicker === "1" ? [{ slash: L("资料"), label: L("选择项目资料…"), hint: L("可多选，读原文给助理"),

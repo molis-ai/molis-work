@@ -46,6 +46,7 @@ export { renderMolisWorkNavigationSpecimen } from "./navigation-specimens.js";
 export { parseAssistantFrame, renderMolisWorkAssistantSpecimen, type AssistantFrameOptions } from "./assistant-board-frame.js";
 export { assistantBoardSamples } from "./assistant-board-samples.js";
 export { renderAssistantNoticeText, renderAssistantSavedText } from "./assistant-text-html.js";
+export { readAssistantReviewWords, type AssistantReviewDisplay, type AssistantReviewField } from "./assistant-review-html.js";
 export { createCapsuleWorkbench, type CapsuleRendererPorts } from "./capsule.js";
 export { BUILTIN_PLUGIN_CATALOG, OWN_DIRECTORY_SURFACES, manifestFor, pluginMarketCards, pluginTabGlyphs, pluginTabTitles, islandEntries, railEntries, settingsEntries, sideOpenedPlugins, creatableKinds, homeStarts, builtinPluginDirectory, pluginDirectoryFor, dockDefaultPins, extendPluginIds } from "./plugin-catalog.js";
 export { clientPluginDirectory, isPersonalPlugin, projectDirectoryWords, renderPluginDirectoryData, renderPluginTabTitlesData, sanitizePluginDirectory, scriptJson, type DirectoryWordSource, type DirectoryWordResolver, type PluginDirectory, type PluginDirectoryEntry } from "./plugin-directory.js";

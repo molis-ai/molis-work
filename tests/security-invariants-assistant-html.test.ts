@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { assistantTextHtml, assistantReviewHtml } from "@molis-ai/molis-work-app-workbench";
+import { assistantTextHtml, assistantReviewHtml, type AssistantReviewDisplay } from "@molis-ai/molis-work-app-workbench";
 import type { AssistantPendingReview, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
 import { pageText } from "./fixtures/page-text.js";
 
@@ -26,17 +26,23 @@ test("PAS-15 S-24: review summaries and every field remain text, including code 
   const attack = '<script>evil()</script> & "quoted"';
   const review: AssistantPendingReview = { review_id: "r1", run_id: "run1", kind: "command", summary: attack, requested_at: "", expires_at: null,
     fields: [{ label: attack, value: attack }, { label: "命令", value: attack }, { label: "完整参数", value: attack }, { label: "能力", value: attack }] };
-  const html = assistantReviewHtml(review, say);
+  const display: AssistantReviewDisplay = { summary: [attack], fields: [{ label: [attack], value: [attack] },
+    { label: ["命令"], value: attack + "\r\n", format: "sh" }, { label: ["完整参数"], value: attack, format: "exact" }, { label: ["能力"], value: attack, format: "exact" }] };
+  const html = assistantReviewHtml(review, say, display);
   assert.doesNotMatch(html, /<script>/);
-  assert.match(html, /<dt>&lt;script&gt;evil\(\)&lt;\/script&gt; &amp; &quot;quoted&quot;<\/dt>/);
-  assert.match(html, /<pre>&lt;script&gt;evil\(\)&lt;\/script&gt; &amp; &quot;quoted&quot;<\/pre>/);
+  assert.match(html, /<dt><span translate="no">&lt;script&gt;evil\(\)&lt;\/script&gt; &amp; &quot;quoted&quot;<\/span><\/dt>/);
+  assert.match(html, /<pre><span translate="no">&lt;script&gt;evil\(\)&lt;\/script&gt; &amp; &quot;quoted&quot;<\/span><\/pre>/);
+  assert.match(html, /data-code="&lt;script&gt;evil\(\)&lt;\/script&gt; &amp; &quot;quoted&quot;&#13;\n"/);
   assert.match(html, /data-assistant-decision="approve"/);
   assert.match(html, /data-assistant-decision="reject"/);
   assert.match(html, /data-mw-state="approval"/);
   assert.match(html, /data-assistant-review-glyph="terminal"/);
-  const english = assistantReviewHtml(review, pageText("en"));
+  const english = assistantReviewHtml(review, pageText("en"), display);
   assert.match(english, /Confirm before running[\s\S]*Run a command[\s\S]*Allow once/);
-  assert.match(english, /<dt>&lt;script&gt;evil\(\)&lt;\/script&gt; &amp; &quot;quoted&quot;<\/dt>/);
+  assert.match(english, /<dt><span translate="no">&lt;script&gt;evil\(\)&lt;\/script&gt; &amp; &quot;quoted&quot;<\/span><\/dt>/);
+  const originals = assistantReviewHtml(review, pageText("en"));
+  assert.match(originals, /<dt><span translate="no">命令<\/span><\/dt>.*<dt><span translate="no">完整参数<\/span><\/dt>/s);
+  assert.doesNotMatch(originals, /assistant-field-code|assistant-exact/);
 });
 
 test("PAS-15: Assistant block rules retain headings, nested tasks, continuation, tables, quotes and code folding", () => {
@@ -69,7 +75,7 @@ test("PAS-15 S-24: unknown language and review labels never resolve through obje
     assert.match(html, /<pre><code>plain &lt;img&gt; code<\/code><\/pre>/);
     assert.doesNotMatch(html, /<script>|<img>/);
     const review = assistantReviewHtml({ review_id: "r1", kind: "command", run_id: null, summary: "unknown labels", fields: [{ label: hint, value: "plain <img> code" }], requested_at: "", expires_at: null }, say);
-    assert.match(review, /<dd>plain &lt;img&gt; code<\/dd>/);
+    assert.match(review, /<dd><span translate="no">plain &lt;img&gt; code<\/span><\/dd>/);
     assert.doesNotMatch(review, /assistant-field-code/);
   }
 });

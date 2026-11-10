@@ -27,7 +27,7 @@ export function assistantPaintMap(pieces: ReadonlyArray<[string | null, string]>
   return kinds.join(" ") + "|" + marks.join(".");
 }
 
-export function assistantCodeHtml(code: string, hint: string, ports: AssistantTextPorts): string {
+export function assistantCodeHtml(code: string, hint: string, ports: AssistantTextPorts, original = false): string {
   // The lines exactly as written, first and last included (VUX-33). Copy takes them from `data-code`, never from the coloured
   // DOM; a blank last line, which a line break at the end of <pre> would not show, is held open by a <br>.
   const text = String(code || "");
@@ -38,7 +38,8 @@ export function assistantCodeHtml(code: string, hint: string, ports: AssistantTe
   const pieces = language && text.length <= 400000 ? ports.tokens(text, language) : null, paint = pieces && text.length > 16000 ? assistantPaintMap(pieces) : "";
   const body = pieces && !paint ? pieces.map(([kind, value]) => kind ? `<span class="tok-${assistantEscape(kind)}">${assistantEscape(value)}</span>` : assistantEscape(value)).join("") : assistantEscape(text);
   const count = (key: string) => assistantEscape(ports.say(key, { n: lines }));
-  return `<figure class="assistant-code" data-lines="${lines}"${lines > 18 ? " data-folded" : ""} data-code="${assistantEscape(text)}"${paint ? ` data-paint="${assistantEscape(paint)}"` : ""}><figcaption class="assistant-code-head"><span class="assistant-code-lang">${assistantEscape(LANGUAGE_NAME[language] || hint || ports.say("workbench.assistant-code-grow.code"))}</span><span class="assistant-code-lines">${count("workbench.assistant-code-grow.lines")}</span><button class="assistant-code-copy" type="button">${assistantEscape(ports.say("common.control.copy"))}</button></figcaption><pre><code>${body}${text.endsWith("\n") ? "<br>" : ""}</code></pre>${lines > 18 ? `<button class="assistant-code-more" type="button">${count("workbench.assistant-code-grow.show-all-n-n")}</button>` : ""}</figure>`;
+  const html = `<figure class="assistant-code" data-lines="${lines}"${lines > 18 ? " data-folded" : ""} data-code="${assistantEscape(text)}"${paint ? ` data-paint="${assistantEscape(paint)}"` : ""}><figcaption class="assistant-code-head"><span class="assistant-code-lang">${assistantEscape(LANGUAGE_NAME[language] || hint || ports.say("workbench.assistant-code-grow.code"))}</span><span class="assistant-code-lines">${count("workbench.assistant-code-grow.lines")}</span><button class="assistant-code-copy" type="button">${assistantEscape(ports.say("common.control.copy"))}</button></figcaption><pre><code${original ? ' translate="no"' : ""}>${body}${text.endsWith("\n") ? "<br>" : ""}</code></pre>${lines > 18 ? `<button class="assistant-code-more" type="button">${count("workbench.assistant-code-grow.show-all-n-n")}</button>` : ""}</figure>`;
+  return original ? html.replaceAll("\r", "&#13;") : html;
 }
 
 const BT = String.fromCharCode(96);

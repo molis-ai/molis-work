@@ -36,6 +36,7 @@ import {
 } from "./run-start.js";
 
 export { AgentReviewQueue } from "./reviews.js";
+export { reviewPresentation, reviewText, type ReviewWord, type ReviewWords } from "./review-presentation.js";
 export type { AgentHostWorktree } from "./run-start.js";
 export { emptyCapabilityMatrix } from "./capabilities.js";
 export {

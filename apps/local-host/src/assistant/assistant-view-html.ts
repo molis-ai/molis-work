@@ -2,12 +2,14 @@ import type { InteractionNextStep } from "@molis-ai/molis-work-contracts/platfor
 import type { InteractionValues } from "@molis-ai/molis-work-plugin-sdk/page-globals";
 import { renderInteractionNextSteps } from "@molis-ai/molis-work-design-system";
 import type { AssistantCard, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
-import { assistantTextHtml, assistantReviewHtml } from "@molis-ai/molis-work-app-workbench";
+import { assistantTextHtml, assistantReviewHtml, readAssistantReviewWords } from "@molis-ai/molis-work-app-workbench";
+import { say as uiSay } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { agentQuestionHtml } from "../agent-question-card.js";
 import { interactionNextSteps } from "../agent-next-steps.js";
 import { composerQuestion } from "./assistant-inputs.js";
 import { assistantOutcomeSteps } from "./assistant-outcome.js";
 import { deliveryNote, deliveryNoteHtml, type DeliveryNote } from "./assistant-delivery.js";
+import { assistantReviewDisplay } from "./assistant-review-words.js";
 
 /**
  * The conversation's next steps for the row above the input (specs/context-program §21.2, FLOW-01…05): what waits on the
@@ -23,7 +25,8 @@ export function assistantStepRow(view: AssistantWorkView, say: (text: string, va
       .map(child => ({ id: `work:${child.work_id}`, label: say("workbench.assistant-view-html.open-sub-task-waiting"), source: child.title, primary: false, waiting: true, waitingLabel: waiting })),
   ];
   const steps = interactionNextSteps(view.rounds.flatMap(round => round.awaiting_input), view.cards,
-    view.reviews.map(review => ({ review_id: review.review_id, title: review.summary })), [...elsewhere, ...assistantOutcomeSteps(view, say, note)], say);
+    view.reviews.map(review => ({ review_id: review.review_id, title: readAssistantReviewWords(assistantReviewDisplay(review)?.summary ?? [review.summary], uiSay.text) })),
+    [...elsewhere, ...assistantOutcomeSteps(view, say, note)], say);
   if (!steps.length) return { next_html: "", next_all_html: "" };
   const label = say("workbench.assistant-view-html.next");
   return { next_html: renderInteractionNextSteps(steps, label, { max: 3, more: count => say("workbench.assistant-view-html.count-more", { count }) }),
@@ -52,7 +55,7 @@ export function drawAssistantReply(body: unknown, ports: { say: (text: string, v
       for (const round of candidate.rounds) for (const turn of round.turns) {
         if (turn.kind === "assistant") Object.assign(turn, { html: assistantTextHtml(turn.text, candidate.objects, ports.say) });
       }
-      for (const review of candidate.reviews) Object.assign(review, { html: assistantReviewHtml(review, ports.say) });
+      for (const review of candidate.reviews) Object.assign(review, { html: assistantReviewHtml(review, ports.say, assistantReviewDisplay(review)) });
       candidate.cards.forEach(drawCard);
       // The work's delivery note (receipts 3e-2a), worked out once for the row's outcome step and for the note itself: drawn here, placed after the rounds by the page; empty when there is none.
       const note = deliveryNote(candidate);

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createServer } from "node:http";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
-import { assistantCardHtml, agentQuestionHtml, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { assistantCardHtml, agentQuestionHtml, ensureSystemAgentService, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { asideReply } from "./fixtures/ending-review.js";
 
 /** One streamed model turn: a tool call, or plain text. */
@@ -16,6 +16,24 @@ function turn(tool?: { name: string; input: unknown }, text = "好的。"): stri
   emit("message_delta", { delta: { stop_reason: tool ? "tool_use" : "end_turn", stop_sequence: null }, usage: { output_tokens: 10 } });
   emit("message_stop", {});
   return events.join("");
+}
+
+const rawCommandArg = "'原始命令 <raw> & text'\r\n", rawPath = "src/原文件 <raw>.ts", rawGrant = "/原目录 <raw>";
+const diffBefore = "同一行\r\n旧行 <raw>\r\n结束", diffAfter = "同一行\r\nnew 行 &\r\n结束";
+
+function attachReviewDocuments(browser: NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>) {
+  assert.ok(browser.localHost);
+  const queue = ensureSystemAgentService(browser.localHost, browser.homeDirectory).agentHost.reviews;
+  // Exercise the real read-only Host projection with two frozen documents alongside the real gateway effect. Neither is dispatched.
+  const stop = queue.observe(request => {
+    if (request.document.kind !== "tool-operation" || request.document.tool !== "change-capability") return;
+    stop();
+    queue.request({ ...request, review_id: "language-command", kind: "command", document: { kind: "command", command: "printf", args: [rawCommandArg], cwd: "./当前目录",
+      timeout_ms: 1000, escalate: true, background: true, grants: { paths: [{ access: "write", path: rawGrant }], network: true } } });
+    queue.request({ ...request, review_id: "language-diff", kind: "text-edit", document: { kind: "text-edit", target_path: rawPath, exists: true,
+      before_text: diffBefore, after_text: diffAfter } });
+  });
+  return { stop, queue };
 }
 
 // PMR-12 (post-merge-review; fixed in c48a8608 and guarded only by hand until now): at about 800px the Assistant keeps its
@@ -51,12 +69,13 @@ test("with the side pane out of sight, the top line offers 去确认, then 继�
       catalog.models.upsert({ credential_ref: connection.credential_ref!, provider_id: "local-only", display_name: "本机 HTTP 模型", base_url: `http://127.0.0.1:${address.port}`, api_format: "anthropic-messages", models: [{ model_id: "fixture-model", enabled: true }] });
     }));
   };
-  const browser = await openGoalBrowser(t, true, undefined, undefined, undefined, undefined, { prepareHome }); if (!browser) return;
+  const browser = await openGoalBrowser(t, true, undefined, null, undefined, undefined, { prepareHome }); if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, homeDirectory } = browser;
+  const { stop, queue } = attachReviewDocuments(browser); t.after(stop);
 
   await command("Emulation.setDeviceMetricsOverride", { width: 800, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
-  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
+  await navigate(() => command("Page.navigate", { url: `${origin}/locale?lang=zh&next=${encodeURIComponent(`/projects/${projectId}/`)}` }, sessionId));
   const say = async (text: string) => {
     await click("[data-assistant-input]");
     await command("Input.insertText", { text }, sessionId);
@@ -98,6 +117,52 @@ test("with the side pane out of sight, the top line offers 去确认, then 继�
   for (const selector of [".assistant-tab[data-current] .mw-state-ring", "[data-review] .assistant-card-kicker .mw-state-ring"]) {
     assert.ok(await evaluate(asTallAsItsWords(selector)), selector);
   }
+  // FSS-36: the running Prologue's real Todo review remains pending through both language changes.
+  await waitFor("Boolean(document.querySelector('[data-review=language-command]')?.querySelector('code')) && Boolean(document.querySelector('[data-review=language-diff]')?.querySelector('code'))");
+  await evaluate(`(() => {
+    window.reviewCard = document.querySelector('[data-review]'); window.reviewExact = reviewCard.querySelector('.assistant-exact'); reviewExact.open = true;
+    window.reviewStep = document.querySelector(${JSON.stringify(review)}); window.reviewApprove = reviewCard.querySelector('[data-assistant-decision=approve]');
+    window.reviewCommand = document.querySelector('[data-review=language-command]'); window.reviewDiff = document.querySelector('[data-review=language-diff]');
+    window.commandCode = reviewCommand.querySelector('code'); window.diffCode = reviewDiff.querySelector('code');
+    window.commandStep = document.querySelector('[data-ix-step-id="review:language-command"]'); window.diffStep = document.querySelector('[data-ix-step-id="review:language-diff"]');
+    window.reviewDraft = document.querySelector('[data-assistant-input]'); reviewDraft.value = 'Unsent 审查草稿'; reviewDraft.focus(); reviewDraft.setSelectionRange(2, 7, 'backward');
+    window.reviewWrites = []; const fetchOriginal = window.fetch;
+    window.fetch = (input, init) => {
+      const path = new URL(String(input?.url || input), location.href).pathname;
+      if (path.includes('/api/assistant/') && (init?.method || 'GET') !== 'GET') reviewWrites.push(path);
+      return fetchOriginal(input, init);
+    };
+  })()`);
+  const originalReview = await evaluate<{ summary: string; arguments: string[] }>(`({ summary: reviewCard.querySelector('.assistant-card-title').textContent,
+    arguments: [...reviewExact.querySelectorAll('pre')].map(node => node.textContent) })`);
+  assert.equal(JSON.parse(originalReview.arguments[0]!).title, "整理周报");
+  const words = { en: ["Review it", "Waiting on you:", "Effect", "Run a command in the background", "Edit a file", "@@ Starting at line 2", "Read and write", "Requires elevated permissions"],
+    zh: ["去确认", "等你：", "效果", "在后台运行命令", "修改文件", "@@ 第 2 行起", "读写", "需要更高权限"] };
+  for (const tag of ["en", "zh", "en", "zh"] as const) {
+    const [label, waiting, effect, commandTitle, fileTitle, diffHeading, access, elevation] = words[tag];
+    await evaluate(`(() => { const link = document.createElement('a'); link.dataset.uiLanguage = '${tag}';
+      link.href = '/locale?lang=${tag}'; document.body.append(link); link.click(); link.remove(); })()`);
+    await waitFor(`document.documentElement.dataset.uiLanguageTag === '${tag}'`);
+    assert.deepEqual(await evaluate(`[document.querySelector('[data-review]')===reviewCard, reviewExact===reviewCard.querySelector('.assistant-exact'), reviewExact.open,
+      document.querySelector(${JSON.stringify(review)})===reviewStep, reviewStep.title, reviewStep.querySelector('[data-ix-step-label]').textContent,
+      reviewStep.querySelector('.mw-sr-only').textContent, reviewCard.querySelector('dt').textContent,
+      [...reviewCard.querySelectorAll('dt')].some(node=>node.textContent==='要做什么'), [...reviewCard.querySelectorAll('dd')].some(node=>node.textContent==='整理周报'),
+      [...reviewExact.querySelectorAll('pre')].map(node=>node.textContent), reviewCard.querySelector('[data-assistant-decision=approve]')===reviewApprove,
+      document.activeElement===reviewDraft, reviewDraft.value, reviewDraft.selectionStart, reviewDraft.selectionEnd, reviewDraft.selectionDirection, reviewWrites]`),
+      [true, true, true, true, originalReview.summary, label, waiting, effect, true, true, originalReview.arguments, true, true, "Unsent 审查草稿", 2, 7, "backward", []]);
+    assert.deepEqual(await evaluate(`[commandCode === reviewCommand.querySelector('code'), diffCode === reviewDiff.querySelector('code'),
+      document.querySelector('[data-ix-step-id="review:language-command"]') === commandStep, document.querySelector('[data-ix-step-id="review:language-diff"]') === diffStep,
+      reviewCommand.querySelector('.assistant-card-title').textContent, commandStep.title, reviewDiff.querySelector('.assistant-card-title').textContent, diffStep.title,
+      reviewDiff.querySelector('.assistant-field-code .assistant-muted').textContent, commandCode.closest('figure').dataset.code, diffCode.closest('figure').dataset.code,
+      [...reviewCommand.querySelectorAll('dd')].map(node=>node.textContent), commandCode.textContent, diffCode.textContent]`),
+    [true, true, true, true, commandTitle, commandTitle, `${fileTitle} ${rawPath}`, `${fileTitle} ${rawPath}`, diffHeading,
+      `printf ${rawCommandArg}`, "- 旧行 <raw>\r\n+ new 行 &\r", ["./当前目录", elevation, `${access} ${rawGrant}${tag === "en" ? ", Network access" : "、联网"}`],
+      `printf ${rawCommandArg}`, "- 旧行 <raw>\r\n+ new 行 &\r"]);
+    if (tag === "en") assert.equal(await evaluate("reviewApprove.textContent"), "Allow once");
+  }
+  for (const id of ["language-command", "language-diff"]) assert.equal(queue.receipt(id)?.status, "pending");
+  assert.equal(turns, 1, "switching while the effect is pending does not ask the model again");
+  await evaluate("reviewDraft.value = ''");
   await click("[data-assistant-new]");
   await say("写一份周报草稿");
   await waitFor(`${shown(`${strip} [data-assistant-control=pause]`)}`, 30_000);

@@ -11,7 +11,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { newCallId, withCallId } from "@molis-ai/molis-work-kernel";
-import { ActionError, type ActionView, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, actionFieldLabelSource, type ActionView, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createMolisWorkLocalHost, molisWorkHostProjectReference, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { LocalHost } from "@molis-ai/molis-work-app-local-host";
@@ -1341,6 +1341,9 @@ test("a review names common fields in words even when the plugin gave them no ti
   const fields = readableInput({ type: "object", properties: { markdown: { type: "string", description: "正文的 Markdown 写法（标题、列表、表格、引用、代码块都可以），由 Pages 转换成文档" }, folder_id: { type: "string" } } },
     { markdown: "# 周报", folder_id: "f1" });
   assert.deepEqual(fields.map(field => field.label), ["正文", "文件夹"]);
+  assert.deepEqual(actionFieldLabelSource("markdown"), { label: "正文", defaultKey: "markdown" });
+  assert.deepEqual(actionFieldLabelSource("markdown", { title: "正文" }), { label: "正文" }, "an author's matching wording remains the author's text");
+  assert.deepEqual(actionFieldLabelSource("__proto__"), { label: "__proto__" });
 });
 
 test("the project layer of a project work is the project's guidance, read through the Goals action", async () => {

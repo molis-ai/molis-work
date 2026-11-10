@@ -1,6 +1,6 @@
-import type { AssistantNotice, AssistantPendingReview, AssistantSavedText } from "@molis-ai/molis-work-contracts/services/assistant";
+import type { AssistantNotice, AssistantSavedText } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { UiSayTool } from "@molis-ai/molis-work-contracts/platform/ui";
-import { assistantCodeHtml, assistantEscape, assistantInlineHtml, assistantListHtml, ASSISTANT_LIST_ITEM, type AssistantTextPorts } from "./assistant-text-parts.js";
+import { assistantCodeHtml, assistantInlineHtml, assistantListHtml, ASSISTANT_LIST_ITEM, type AssistantTextPorts } from "./assistant-text-parts.js";
 
 /** Assistant-only Markdown projection, with the same block rules as its original browser renderer. */
 export function renderAssistantTextHtml(text: string, ports: AssistantTextPorts): string {
@@ -55,28 +55,6 @@ function blocks(text: string, ports: AssistantTextPorts): string {
     html += `<p>${paragraph.join("<br>")}</p>`;
   }
   return html;
-}
-
-const REVIEW_KIND: Array<[RegExp, string, string]> = [[/command|shell|exec|terminal/i, "workbench.assistant-review.run-command", "terminal"],
-  [/file|patch|edit|write-file/i, "workbench.assistant-review.edit-file", "code"],
-  [/mcp|external|http|web|network/i, "workbench.assistant-review.call-external-tool", "external"], [/./, "workbench.assistant-review.change-data", "edit"]];
-const CODE_FIELD: Record<string, string> = { "改动": "diff", "命令": "sh", "参数": "json" };
-const codeField = (label: string): string => Object.hasOwn(CODE_FIELD, label) ? CODE_FIELD[label]! : "";
-
-export function renderAssistantReviewHtml(review: AssistantPendingReview, ports: AssistantTextPorts): string {
-  const [, kind, kindIcon] = REVIEW_KIND.find(([pattern]) => pattern.test(String(review.kind || ""))) || REVIEW_KIND[REVIEW_KIND.length - 1]!;
-  const say = (value: string) => assistantEscape(ports.say(value));
-  let html = `<div class="assistant-card-head"><span class="assistant-card-kicker is-attention"><span class="assistant-state-ring" data-mw-state="approval" aria-hidden="true"></span>${say("workbench.assistant-review.confirm-before-running")}</span><span class="assistant-card-badge"><span data-assistant-review-glyph="${kindIcon}"></span>${say(kind)}</span></div><p class="assistant-card-title">${assistantEscape(review.summary)}</p>`;
-  const plain = review.fields.filter(field => field.label !== "完整参数" && field.label !== "能力");
-  const fields = plain.filter(field => !codeField(field.label));
-  if (fields.length) html += `<dl class="assistant-fields">${fields.map(field => `<dt>${assistantEscape(field.label)}</dt><dd>${assistantEscape(field.value)}</dd>`).join("")}</dl>`;
-  for (const field of plain) {
-    const language = codeField(field.label);
-    if (language) html += `<div class="assistant-field-code"><p class="assistant-field-label">${assistantEscape(field.label)}</p>${assistantCodeHtml(field.value.replace(/\n$/, ""), language, ports)}</div>`;
-  }
-  const exact = review.fields.filter(field => field.label === "完整参数" || field.label === "能力");
-  if (exact.length) html += `<details class="assistant-exact"><summary>${say("workbench.assistant-review.exact-arguments-capability")}</summary>${exact.map(field => `<p class="assistant-muted">${assistantEscape(field.label)}</p><pre>${assistantEscape(field.value)}</pre>`).join("")}</details>`;
-  return html + `<div class="assistant-card-actions"><button class="mw-btn mw-btn--primary mw-btn--sm" type="button" data-assistant-decision="approve">${say("workbench.assistant-review.allow-run")}</button><button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-assistant-decision="reject">${say("workbench.agent-review.reject")}</button></div><p class="assistant-card-hint">${say("workbench.assistant-review.decision-hint")}</p>`;
 }
 
 /** Plain text, drawn by the SDK only for the Host-owned label. The owner's original can be arbitrarily long. */

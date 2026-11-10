@@ -148,6 +148,7 @@ export function renderPersonalAccountEntry(controlToken: string, desktop: boolea
             location.replace(url.href);
           } catch(error) { molisWorkRequest.show(status,error);retry.hidden=false; }
         };
-        retry.onclick=()=>void start();void start();
+        const open=()=>navigator.locks?navigator.locks.request('molis-account-entry',start):start();
+        retry.onclick=()=>void open();void open();
       })();`}</script>`});
 }

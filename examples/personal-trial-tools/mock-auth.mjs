@@ -36,7 +36,7 @@ export function createTrialAuthPeer({configuration,user=()=> 'local-personal-tri
    else {const pair=[...tokens].find(([,v])=>v.refreshToken===body.refreshToken);if(!pair)return json('SESSION_EXPIRED',401);t={userId:pair[1].user.userId,session:pair[1].session};tokens.delete(pair[0]);}
    await waits.token?.(t.userId);
    const now=Date.now(),session=t.session??{loginSessionId:"login_"+random(),applicationId:config.applicationId,clientId:config.clientId,authenticatedAt:new Date(now-1000).toISOString(),lastActiveAt:new Date(now-1000).toISOString(),idleExpiresAt:new Date(now+30*86400000).toISOString(),absoluteExpiresAt:new Date(now+90*86400000).toISOString(),sessionRevision:0};
-   const result={accessToken:random(),refreshToken:random(),tokenType:'Bearer',accessExpiresAt:new Date(now+900000).toISOString(),session};tokens.set(result.accessToken,{...result,user:{issuer:config.authOrigin,userId:t.userId,displayName:t.userId,avatarUrl:null,version:0}});persist();return json(result);
+   const result={accessToken:random(),refreshToken:random(),tokenType:'Bearer',accessExpiresAt:new Date(now+900000).toISOString(),session};tokens.set(result.accessToken,{...result,user:{issuer:config.authOrigin,userId:t.userId,displayName:t.userId,email:null,avatarUrl:null,version:0}});persist();return json(result);
   }
   if(path==='/api/v2/sessions/current/logout'||path==='/api/v2/sessions/logout-all'){
    const target=active??[...tokens.values()].find(t=>t.refreshToken===body.refreshProof?.refreshToken);if(!target)return json('SESSION_EXPIRED',401);

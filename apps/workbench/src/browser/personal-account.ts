@@ -125,7 +125,9 @@ const init = () => {
       const preparation = identity ? await cohort.begin(action === 'logout' ? 'logout' : 'switch') : undefined;
       if (preparation === null || preparation === undefined && !await prepare()) { closeLoginWindow(); return; }
       if (preparation) query.set('preparation',preparation);if(action==='logout')query.set('scope',button.dataset.accountLogoutScope??'CURRENT_LOGIN');
-      const result = await molisWorkRequest<AccountActionResult>('/api/personal/' + action + '?' + query,{method:'POST',body:{}});
+      // Serialize cookie replacement with anonymous entry in every tab of this browser.
+      const send = () => molisWorkRequest<AccountActionResult>('/api/personal/' + action + '?' + query,{method:'POST',body:{}});
+      const result = await (action === 'logout' && navigator.locks ? navigator.locks.request('molis-account-entry', send) : send());
       if (result.loginUrl) {
         attempt = result.loginAttempt ?? ''; loginNonce = new URL(result.loginUrl,location.href).searchParams.get('accountLogin') ?? ''; expires = Date.now() + 600000;
         if (globalThis.molisWorkOpenExternalUrl) {

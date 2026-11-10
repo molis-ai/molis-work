@@ -260,7 +260,7 @@ test('ASR-02/03 web login binds the installation account and stale browser cooki
     // WUA-29: reload/reopen resumes the owner's anonymous attempt, never steals a different browser's attempt.
     const resumed=await post('/api/personal/login');assert.equal(resumed.status,200);assert.deepEqual(await resumed.json(),login);
     const foreign=await fetch(origin+'/api/personal/login',{method:'POST',headers:{Origin:origin,'content-type':'application/json','x-molis-work-control-token':controlToken,'x-molis-work-idempotency-key':'foreign-resume'},body:'{}'});
-    assert.equal(foreign.status,409);assert.equal((await status()).loginPending,true);
+    assert.equal(foreign.status,409);assert.equal(foreign.headers.get('set-cookie'),null,'a refused parallel entry cannot overwrite the pending login cookie');assert.equal((await status()).loginPending,true);
     const nonce=new URL(login.loginUrl).searchParams.get('accountLogin')!;
     const stolen=await fetch(origin+'/api/account/auth/transactions',{method:'POST',headers:{Origin:origin,'content-type':'application/json','x-molis-account-login':nonce,'x-molis-work-control-token':controlToken,'x-molis-work-idempotency-key':'stolen-login'},body:JSON.stringify({purpose:'LOGIN',method:'EMAIL_PASSWORD'})});
     assert.equal(stolen.status,403,'a page control token without the browser login cookie cannot use the pending login');

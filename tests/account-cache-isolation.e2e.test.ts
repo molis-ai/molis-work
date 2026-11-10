@@ -152,6 +152,8 @@ test('WUA-32 logout clears account browser caches while preserving unrelated loc
     assert.equal(saved,true,'embedded draft flush finished before logout');
     stage='logout navigation';
     await until(()=>arrived);stopNavigation();
+    await second.wait("Boolean(document.querySelector('.account-dialog input[name=address]'))");
+    assert.equal(await page.evaluate('location.href'),await second.evaluate('location.href'),'both tabs resume the same anonymous login instead of competing for its cookie');
     await page.wait("Boolean(document.querySelector('.account-dialog input[name=address]'))");
     const retained=await page.evaluate<{local:string|null;session:string|null;caches:string[];unrelated:string|null;other:string|null;accountKeys:string[]}>(`(async()=>({
       local:localStorage.getItem('molis-work-plugin-records:board'),

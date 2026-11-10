@@ -2,8 +2,8 @@
   "source": "auth/contracts/unified-account",
   "sourceDirectory": "contracts/unified-account",
   "version": "1.2.0",
-  "sourceBaseCommit": "8fb4a2d7a711be0c5fe48c828d4db824e6cc680f",
-  "sourceIncludesUncommittedContract": true,
+  "sourceBaseCommit": "1d46e860bc4100b0b3c45fed531accfde1083b4d",
+  "sourceIncludesUncommittedContract": false,
   "sha256": {
     "schemas.json": "77b08688e62fc6d5f22cc1051f5dabfe77375387543d8140bc2fc0a32484bf2c",
     "openapi.json": "4fcd8165c2dd89210c62e0921eab464c61c0ae72d4e7e44d33ebf4811ad18331",

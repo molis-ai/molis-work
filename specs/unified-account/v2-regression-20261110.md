@@ -1,6 +1,6 @@
 # V2 账号统一：最新主线集成与 PR 检查（2026-11-10）
 
-状态：最终全量因本机反复深度睡眠中止，仍待重跑；用户后续批准的专项脚本适配与资源许可已完成并验证；未推送、未创建 PR、未部署。此前 [11 月 9 日回归](v2-regression-20261109.md) 是历史证据，不替代本记录。
+状态：Auth 最终本地全套与 PR #5 CI 已通过；Work 已合入主线 07840084，完成定向与真实 Auth 联调，最后收尾见本文末尾；Work 最终全量按现行流程在 PR 的 full-suite CI 执行，未完成前不标记全量通过。历史睡眠中止记录保留作证据，未部署。
 
 ## 候选与范围
 
@@ -121,3 +121,14 @@ Work 以 `02d2443f1b79b70092745714c938cc75b1826074` 为主线基点，Auth 以 `
 - 首次本地联调发现 Auth UserView 新增 email，而 Work 固定合同未同步；已整体同步原始合同、摘要与生成 DTO/API 快照，未放宽响应验证。
 - 验证：Auth 首次启动、重复初始化保留账号、重复启动拒绝端口冲突；Auth 与 Work 真实 Chrome 账号密码登录成功；账号客户端 14、会话 23、Host 安全 17 项测试通过；完整构建通过。没有运行全量回归（按用户要求留到 PR 前）。
 - 本机验证日志：/private/tmp/auth-dev-startup.log、/private/tmp/account-dev-smoke.log（Auth 成功，随后测试导航中断）、/private/tmp/work-dev-smoke.log（修复后 Work 成功）、/private/tmp/dev-account-regression.log。旧预览数据库未删除。
+
+
+## PR 最终收尾（2026-11-10）
+
+Auth 已提交 [PR #5](https://github.com/molis-ai/auth/pull/5)，来源提交 `1d46e860`；合同原文 SHA-256 逐项一致，Work 来源记录已改为已提交合同。Auth `npm test` 全套为合同 8、Rust 16、Worker 114、Web 2、SDK 3，通过；真实 Chrome/WASM/D1 20 轮 A/B 登录退出、跨标签及草稿隔离通过；GitHub Auth build and tests 通过。证据 `/private/tmp/auth-pr-final-tests.log`、`/private/tmp/auth-pr-final-browser.log`。
+
+Work 合入主线 `07840084`，保留双方页面词典、安装登录夹具和产品子集新增项。15 个账号定向文件首次通过，缓存隔离用例复测证实双标签退出后同时自动登录会互相覆盖 Cookie，未作为单纯时序失败忽略：浏览器入口和退出现在共用 Web Lock，Host 拒绝并发匿名入口时不发替换 Cookie；不允许另一个浏览器借用原登录尝试。强化 WUA-32 断言两个标签最终登录 URL 一致，连续 5 次通过，personal-http 11 项通过。证据 `/private/tmp/work-cache-multi-diagnosis.log`、`/private/tmp/work-pr-cache-fixed.log`。
+
+真实 Auth 的 central-account、authentication、provider、installation、management、tenants、billing、rapid-cycle、high、medium 十组专项全部通过，覆盖模拟第三方登录、资料/身份管理、租户/席位、异常恢复与退出后重登；日志前缀 `/private/tmp/work-pr-integration-`。邮箱旧用例改为断言普通用户解绑邮箱返回 403 且方法列表不变，手机号仍覆盖换绑和证明隔离。共用 mock-auth 夹具补齐现行必填 `email:null`；不放宽合同。
+
+账号浏览器产物启用 esbuild 语法压缩，收回合入主线后的资源增长；不增加资源许可。最终整体构建、健康门禁、边界、页面资源和快速切换复验日志前缀 `/private/tmp/work-pr-cookie-`。最终全量及所对应提交由 Work PR 的 full-suite 运行记录给出；本地定向不能替代全量。

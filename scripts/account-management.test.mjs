@@ -94,9 +94,9 @@ try {
     assert.equal((await step(t,{step:'COMPLETE'})).operationReady,true);return t;
   }
   let methods=await api('/login-methods'), emailBinding=methods.loginMethods[0].bindingId;
-  let r=await reauth('UNLINK_METHOD',{bindingId:emailBinding});
-  await api('/login-methods/'+emailBinding+'/unlink',{reauthHandle:r.handle,expectedVersion:methods.version},409);
-  r=await reauth('BIND_METHOD',{method:'PHONE'});
+  await api('/reauthentications',{operation:'UNLINK_METHOD',target:{bindingId:emailBinding},method:'EMAIL_PASSWORD'},403);
+  assert.deepEqual(await api('/login-methods'),methods,'ordinary users cannot change the administrator-maintained email');
+  let r=await reauth('BIND_METHOD',{method:'PHONE'});
   await api('/auth/transactions',{purpose:'BIND',method:'EMAIL_CODE',reauthHandle:r.handle},403);
   let identity=await api('/auth/transactions',{purpose:'BIND',method:'PHONE_OTP',reauthHandle:r.handle});await verify(identity,phone);await step(identity,{step:'COMPLETE'});
   methods=await api('/login-methods/bind',{reauthHandle:r.handle,identityHandle:identity.handle,expectedVersion:methods.version});assert.equal(methods.loginMethods.length,2);

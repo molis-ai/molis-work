@@ -183,7 +183,10 @@ export function createPersonalAccountHttp(isNativeRequest: (request:IncomingMess
     let session=desktop?null:webSessions.get(request.headers.cookie);
     const setSessionCookie=()=>response.setHeader('Set-Cookie',webSessions.cookie(session,origin.startsWith('https:')));
     if(!desktop && !session && config && request.method==='POST' && ['/api/personal/login','/api/personal/switch'].includes(url.pathname)){
-      try{const shared=getAuth();if(!shared)throw new Error('LOGIN_REQUIRED');await shared.currentIdentity();session=webSessions.adopt(shared,false);setSessionCookie();}
+      try{const shared=getAuth();if(!shared)throw new Error('LOGIN_REQUIRED');await shared.currentIdentity();
+        // A refused parallel entry must never overwrite the active login owner's cookie.
+        if(shared.loginPending()||pendingNavigation&&!pendingNavigation.complete&&pendingNavigation.expires>Date.now()){sendLocalWebJson(response,409,{error:'已有账号操作正在进行，请在原页面完成或取消。'});return true;}
+        session=webSessions.adopt(shared,false);setSessionCookie();}
       catch{sendLocalWebJson(response,503,{error:'登录会话暂时不可用，请稍后重试。'});return true;}
     }
     if(request.method==='GET' && url.pathname==='/api/personal/status' && !desktop && !session){

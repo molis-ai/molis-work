@@ -2,13 +2,13 @@
 
 状态：同版本实施设计已独立复核并补齐采用边界（2026-11-09），产品实现、隔离实证和公共 C 合审未完成。
 
-依据用户最新决定（`79dbf1bdd`）。项目库仍是 2、D1 仍是 6，`process_items`、sync.db、round、Agent SessionIndex 维持 1。[A 接入](materials-ui-contract.md)和[共享需求书](spec.md)的 BSH-05–08/11/13/14 行为、历史及授权要求照旧。本文取代[同步合同](sync-cutover.md)的版本分流、存储升版和 U1 采用步骤；后者的容量、冻结值、授权、回执、R2 和验收约束继续适用，冲突处以本文为准。以下是同版本实施替换段，实际采用只在隔离 Home 与本地 Worker/D1/R2。现行结构、原结构、数据接管是三个可单独观察的事实。
+依据用户最新决定（`79dbf1bdd`）。项目库仍是 2、D1 仍是 6，`process_items`、sync.db、round、Agent SessionIndex 维持 1。[A 接入](materials-ui-contract.md)和[共享需求书](spec.md)的 BSH-05–08/11/13/14 行为、历史及授权要求照旧。[同步合同](sync-cutover.md)管理容量、冻结值、授权、回执、R2 和验收约束。本文细化公开协议路由、本地接管与同版本结构采用。以下是同版本实施替换段，实际采用只在隔离 Home 与本地 Worker/D1/R2。现行结构、原结构、数据接管是三个可单独观察的事实。
 
 ## 永久封旧与同一公开集合
 
 公开选择、请求 namespace、PortableVersionBundle 仍用精确五元组 `N = ["io.molis.work.artifacts","molis","official-artifacts-binding","process_items",1]`。D1 原 namespace 行是旧源；仅这一集合由 Server sync owner 从已经封印的 `cutoverId` 派生内部 journal 键 `A = ["process_items_adopted",cutoverId]` 的规范文本。Auth 推导的 space 始终是另一个 SQL 键。此分区记录一次不可逆数据采用，客户端的 schema、发布者、签名和业务身份取值都一样。公共请求只接受原合法 namespace，任何内部键直接拒绝。账本、events、heads、pins、receipts 用现有 namespace 列；原五元组的行、原计费和原指纹都留在原处。比在同一 heads 上覆写简单，旧历史/终态无需再保存一份影子头。
 
-采用后的调用保持现行 /v1 形状，可用一个只供 Host 的明确 scope 请求头携 `cutoverId`（建议 `X-Molis-Process-Items-Cutover`）。GET cutover status 可恢复 ID；它只定位封印，授权来自 Auth、实时 policy/历史同意及当前 phase。解析器以可信账号和精确 N 判路，内部 A 只由服务端构造。只有完成态、已选择并匹配该封印的 scope 才能走现行读写；错、缺或陈旧 scope 无法触达 A。客户端以它提交 N 时，服务器仍只接受精确公共 N；历史专用入口同时核真实旧引用。Host 的当前接管设备经本地 owner 屏障才发活动流上传。同账号持有 Auth 凭据者可自行发符合现行策略的新版请求，现有 Auth 只有账号身份，Host 的设备接管步骤不作为服务端身份声明或放权依据。
+采用后的调用保持现行 /v1 形状，可用一个只供 Host 的明确 scope 请求头携 `cutoverId` `X-Molis-Process-Items-Cutover`。GET cutover status 可恢复 ID；它只定位封印，授权来自 Auth、实时 policy/历史同意及当前 phase。解析器以可信账号和精确 N 判路，内部 A 只由服务端构造。只有完成态、已选择并匹配该封印的 scope 才能走现行读写；错、缺或陈旧 scope 无法触达 A。客户端以它提交 N 时，服务器仍只接受精确公共 N；历史专用入口同时核真实旧引用。Host 的当前接管设备经本地 owner 屏障才发活动流上传。同账号持有 Auth 凭据者可自行发符合现行策略的新版请求，现有 Auth 只有账号身份，Host 的设备接管步骤不作为服务端身份声明或放权依据。
 
 | 入口 | 原客户端与采用后入口 |
 | --- | --- |
@@ -17,7 +17,7 @@
 | blobs、history、trash | 所有入口沿相同作用域映射。旧普通读取拒，普通 trash 在分页前排除封旧 N，A 按授权可见且返回 N。旧历史专用 GET 在实际查询核 `cutoverId+consentRevision`、保留期和 exact event/ref，导出正文、archive/restore、原修订与实际附件可供 owner 隔离恢复。旧新建 reserve、part、ready、pin、purge、显式 trash claim 在各实际 INSERT/UPDATE/DELETE 拒，不能只查请求开始。现行/旧历史和合法其他集合的 R2 GET 都在 await 后复核当前 grant/选择、合法 ref 与 generation，Host cache 交付同查。 |
 | 账号及其他集合 | 状态、原/新 receipt、预留和 R2 世代以账号隔离。非 N 的现有逻辑选择/分区/客户端不变。对这次封旧标记的 blob，另一集合必须有合法可读引用或实际持有证据才可下载/重挂，合法原有 ref 保持可用。现行 A 的同摘要复用也核 A 的实际来源，seed 特例凭本次计划和 N 精确旧活动引用。 |
 
-沿原 `plan/item → begin → seed → finish/consent`，`enableV2` 改为本人确认采用当前过程项的选择，原 `planId` 成为 `cutoverId`。封前保同一 policy revision、完整原 N receipt 水位（含 archive）和逐键活跃 head。开始时原子校验计划成员、空 A、实际精确 quota 预留、落封并撤旧选择。plan/item 实际 UPSERT 也拒已封。种子绑定原 key/revision、canonical 冻结值、真实附件和预留；复用现行按字节计费/共享 digest，普通写预留优先、GC 退款回预留，精确重放不重扣。Host 先按 owner 在隔离库读回，再用现有 blobCache+专用计划 namespace 保存实际 canonical 字节，换机/清缓存只有重新得到完全匹配的 wire 才续接。finish 前再经真实 seed 和附件读回核图，SQL 以 A 的 live head/专用 receipt 对原 N 做 anti-join，预留结清才激活。D1 条件失败须 ABORT 整组，零行 UPDATE 后不得继续写。撤回保留计划与进度但拒历史读和 seed；本人重授权接续原切换。原主图、归档、pin、trash 的原期限照原稿，旧当前正文完成后 30 天可 GC，保留旧 head/receipt；清旧当前正文不可把曾采用的原活动 key 标为 terminal。R2 优先沿现有对象路径和 ready 冻结的 part/checksum 回收，保同 checksum 共享对象，等真实夹具证明，不先加 metadata。
+沿原 `plan/item → begin → seed → finish/consent`，`adoptProcessItems` 记录本人确认采用，`planId` 在封印时成为 `cutoverId`。封前保同一 policy revision、完整原 N receipt 水位（含 archive）和逐键活跃 head。开始时原子校验计划成员、空 A、实际精确 quota 预留、落封并撤旧选择。plan/item 实际 UPSERT 也拒已封。种子绑定原 key/revision、canonical 冻结值、真实附件和预留；复用现行按字节计费/共享 digest，普通写预留优先、GC 退款回预留，精确重放不重扣。Host 先按 owner 在隔离库读回，再用现有 blobCache+专用计划 namespace 保存实际 canonical 字节，换机/清缓存只有重新得到完全匹配的 wire 才续接。finish 前再经真实 seed 和附件读回核图，SQL 以 A 的 live head/专用 receipt 对原 N 做 anti-join，预留结清才激活。D1 条件失败须 ABORT 整组，零行 UPDATE 后不得继续写。撤回保留计划与进度但拒历史读和 seed；本人重授权接续原切换。原主图、归档、pin、trash 的原期限照原稿，旧当前正文完成后 30 天可 GC，保留旧 head/receipt；清旧当前正文不可把曾采用的原活动 key 标为 terminal。R2 优先沿现有对象路径和 ready 冻结的 part/checksum 回收，保同 checksum 共享对象，等真实夹具证明，不先加 metadata。
 
 ## 隔离设备接管
 

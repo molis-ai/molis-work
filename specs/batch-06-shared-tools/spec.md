@@ -226,42 +226,37 @@ Manifest 借用现行对象形状表达精确系统来源，例如 `default_sour
 | 旧默认有效 | 保留原版本、输出和可恢复的配置。活动默认等本人确认新来源的完整 subject，确认后使用原引用。 |
 | 旧默认已撤回 | 继续关闭默认，重启或再次采用不会由 Host 代签。只有本人明确重新同意才能启用。 |
 | 旧默认无同意 | 保持未绑定，只在本人确认新来源后启用。 |
-| 人工选择 | 其他来源的人工绑定继续生效。可由现有受保护手选路径证明的 Files 绑定，按相同端口、内容类型与输出引用改属，保持 `origin: "user"`，通过新来源、当前接收者与个人 owner 检查后继续交付。它与默认同意独立。缺少授权证据或恢复入口时，本项目预检停在 2→3 之前，保留旧行，等本人能在受保护入口明确重选。 |
+| 人工选择 | 其他来源的人工绑定继续生效。可由现有受保护手选路径证明的 Files 绑定，按相同端口、内容类型与输出引用改属，保持 `origin: "user"`，通过新来源、当前接收者与个人 owner 检查后继续交付。它与默认同意独立。缺少授权证据或恢复入口时，本项目预检停在同版本采用之前，保留旧行，等本人能在受保护入口明确重选。 |
 | 固定成果版本 | 保留原成果引用和既有读取规则，默认来源切换不替换。 |
 | 真正新装 | 宿主随带目标可沿 host-build 初始同意签发当前 subject；外部安装保持当前预览与确认范围。 |
 
 本人恢复走宿主插件设置的受保护同意入口。当前只有 list/revoke。在同一入口补最小的“同意默认来源”操作，以目标插件和端口定位，Host 读取当前安装和声明、当前来源签名与权限后生成完整 subject，再在 `beforeEffect()` 后同步复核并按本人授权入账。设置界面说明具体来源与端口，沿 D 轨定样。仅宿主设置能给出本人的受保护入口证明，签名和权限由 Host 推导。插件页、Agent、工作流及 MCP 无法代签。原 Files 手选路径须核现有入口能否承担明确重选，缺口由 S4/S5 确认最小入口和有效授权的存放位置。恢复默认同意后重新评估消费者。
 
-### 2→3 迁移与交接
+### 项目库 v2 同版本采用与交接
 
-- 项目库 `molis-work.db` 的平台基线已是 2。把已授权的 Files 数据切换写成连续 2→3，变更 `tooling/versions.json` 后运行 `pnpm versions:generate`。项目库步骤只按 owner 导出的确定性数据操作组合，归 `modules/artifacts` 的过程项，归 Plugin Runtime 的绑定、输出、安装，升级编排只调用两者。先登记 [当前保留机制](../../docs/system/CONTRACT-CHANGES.md) 与升级链，记录一次性历史来源范围、验证与采用窗口。
+- 项目库 `molis-work.db` 维持 v2。依[同版本采用](current-version-adoption.md)在隔离环境由受信 Home owner 显式接管。原 owner 按准确旧基线完成旧升级与恢复，采用程序重新检查原件和当前结构。项目事务只组合各 owner 的确定性操作，过程项归 `modules/artifacts`，绑定、输出、安装归 Plugin Runtime。保留机制见[合同变更](../../docs/system/CONTRACT-CHANGES.md)。
 - 仅改由旧官方 Files 身份与 `official-files-binding` 产生、且全线版本均为三种已声明 type/schema 的身份行。预检身份、碰撞、混合版本和缺引用，失败保留原库。把 `producer_*` 身份切到系统登记，保留版本行的生产版本史、作者、scope、owner、payload、digest、状态、supersedes、时间及原 `artifact_id@version`。更新 `plugin_port_outputs.plugin_id` 与 `plugin_port_bindings.source_plugin_id`，保留引用、输出失效状态、scope_key 和 origin，生效按同意表。固定成果输入表沿原规则。新产出从 `system.materials:<port>` 起线，已有固定版本经原 ref 读取。逐个核对工作流引用、端口与读回内容。
-- 2→3 里的历史改属不能被当作新业务产出。用 owner 的现有同步标志或在事务内恢复精确基线触发器，并核原有事件和同步游标。是否允许启用新版与删除 Files 另过下一节的同步检查。
-- 安装、私有设置、同意有不同存储范围。项目库步骤完成该项目的改属、绑定输出和本库安装清理；Home 同意账本由 Runtime owner 幂等撤销，只撤与 Files 相关的现行同意，处理匹配的 Home 私有值与安装。以现有升级协调及备份做先后闸门；在所有相关项目升级、旧资料回读与消费者切换都成功前，不执行最后删除或启动混合来源。中断恢复按 U1。正式 Home 的启动升级／维护时间另授权。
+- 同版本采用里的历史改属不能被当作新业务产出。用 owner 的现有同步标志或在事务内恢复精确基线触发器，并核原有事件和同步游标。是否允许启用新版与删除 Files 另过下一节的同步检查。
+- 安装、私有设置、同意有不同存储范围。项目库步骤完成该项目的改属、绑定输出和本库安装清理；Home 同意账本由 Runtime owner 幂等撤销，只撤与 Files 相关的现行同意，处理匹配的 Home 私有值与安装。以显式采用和原件备份做先后闸门；在所有相关项目采用、旧资料回读与消费者切换都成功前，不执行最后删除或启动混合来源。中断按同版本采用合同核准确原形或当前结构重入。正式 Home 的启动升级／维护时间另授权。
 - 给隔离旧版金样准备包含 Files 三种历史过程项（两个固定版本至少一条）、其绑定、同意和私有值，覆盖显式撤权与绑定替代、用户固定成果、普通插件历史及多项目。保持旧基线真实可重放，回读断言 ref、内容、授权、来源、活动输出、同步日志和下次发布。然后开 S6 删除门。
 - 代码面为 `horizontal/knowledge` 和 Host 资料装配、`contracts/modules/artifacts`、`contracts/platform/plugin-*`、`modules/artifacts/{plugin-operations,registration,repository}` 所在包、Host 的 `declared-types.ts` 与 `plugin-platform.ts`、Runtime 的 `wiring*.ts`、`services.ts`、`trust-rules.ts`、同意与旧存储 owner。迁移对齐项目库 schema 与 goldens。Files 的产品动线、Coding 工作区与 Side 文件接入由 S4/S5 负责。动作注册表更新以 `host-actions.tsv`、消费者快照和文档同批交付，`pnpm api:update` 与 `pnpm actions:update` 集中生成。移除 Files 的六个动作时逐个对照当前调用方与固定引用，并按现行合同规则说明缺失动作后的恢复。
 
 ### 过程项同步的采用门槛
 
-以下状态由现有 owner 分别核对。项目库的升级事务只负责本库数据。同步队列里保存的历史内容按原身份和原操作处理。
+以下状态由现有 owner 分别核对。项目库的采用事务只负责本库数据。同步队列里保存的历史内容按原身份和原操作处理。
 
 | 载体 | 已核实的行为与采用处理 |
 | --- | --- |
-| 已拉到项目库的身份与版本 | 通过 2→3 改属，保持 ref、正文和历史。 |
+| 已拉到项目库的身份与版本 | 通过显式采用改属，保持 ref、正文和历史。 |
 | 项目库 `process_items_replica_changes` | 只存 seq/key，尚未冻结的操作以后会读取升级后的业务行。保持原 key、顺序和游标。若该 key 涉及旧同步选择，优先在旧版、旧身份下正常发完，并确认该轮收发一致，再开始切换。 |
 | 项目库 `process_items_replica_outbox.operation` | 冻结 payload、base 和 operationId；同 id 回执与冻结值逐字段比较。使用现有发件和回执按原样结清。无法结清即阻塞。不能就地改同 id 的值、删条目或重置游标。 |
 | 项目库 conflict/recovery 与 `sync.db` 的 deferred/download failures | 项目 conflict 可能持完整事件，recovery 持本地/远端快照；`sync.db` 的同步失败 owner 持延迟重试事件与游标，和项目冲突表分开。分别列出命中旧 Files 身份的项，走既有冲突解决或重试，核还有可恢复的旧身份快照。剩余项目由对应 owner 提出有限迁移或阻塞采用。历史证据不得删除，升级编排不直接改队列。 |
 | 只在远端、旧客户端迟到、换机重拉 | [固定版本 apply](../../modules/artifacts/src/fixed-version-replication.ts) 在本机已有同 id 时会拒不同生产者，无本机行时可照旧 payload 建身份。[Host prepare](../../apps/local-host/src/personal-artifact-sync.ts) 还可能在 apply 前建出项目。须有让远端历史读到、避免旧身份重新落地且保持授权的切换证据。 |
 
-隔离试验先沿现有同步协调器的 `run()`（[实现 `PersonalSync`](../../modules/sync-replication/src/index.ts)），用 [双 Home + Rust/D1/R2 夹具](../../apps/sync-worker/process-items.test.mjs) 做三步：
-
-1. 以旧版、有效 opt-in 和受信调用搭两份 Home，一份只在远端有 Files 数据，另一份模拟原操作已冻结且回执丢失、暂时下载失败和可重试冲突。运行旧路径，保持 operationId 和冻结内容一致。以授权后的 `/v1/round` namespace head、状态及本地游标证明两边已收到同一历史，队列、冲突与相关延迟项已处理。只看 cursor 到 head 不够，失败记录也可能推动 cursor。若历史已过保留期或设备不可达导致数据无法拉齐，先保全可读副本并报告缺口。
-2. 隔离暂停旧生产者，再分别用 2→3 迁移本地行。核历史 ref、非 Files 同 collection 记录、绑定、权限、旧回执与无上传回声。再验证迁移之后的两个场景：只有远端历史的干净 Home，及原 head 之后旧设备送来的新事件。覆盖本地有行时的身份冲突和本地无行时的旧身份注册，后者要观察 prepare 是否已创建项目。
-3. 先证实已有同步入口能完成一次性拉齐并封住旧写入边界，再选能给空 Home 补齐现有历史的最小路径。若要分版本，`schema_version` 只决定 namespace；另一个 namespace 不会继承 payload、授权、head 或 cursor。只有先拉齐旧资料并确认新 namespace 的合法播种、接收和显式选择，才能用分版本路径。保留旧 namespace、游标与原操作历史，避免伪造回执或扩大选择。仅本地 2→3 已有路径；仍有旧 writer 或新客户端无法取回历史时，真实数据切换暂缓。持续旧格式转换、服务端改动或真实云写需要另行授权。
-
+隔离实施走现有同步协调器的 [PersonalSync.run](../../modules/sync-replication/src/index.ts) 和 [双 Home + Rust/D1/R2 夹具](../../apps/sync-worker/process-items.test.mjs)。先用原构建拉齐真实旧流，核正文、回执、队列、冲突和 deferred，再按同版本协议封旧并播种完整活动图。改属在项目 v2 的显式隔离事务中执行。验证空 Home、未排空旧端及本地已有身份行三种接管，检查拒绝是否发生在建项之前。原流保留原操作历史与游标，当前活动流有独立状态。
 独立复核确认现有 `PUT /v1/policy` 的 revision CAS 与 D1 写入条件能够拒绝撤选后的旧 namespace 新操作；准确重放原回执须验零新增。上传不推进 policy revision，末次拉取与撤选之间仍有窗口；撤选后的 changes、history、附件读取都验当前选择，保存 head 不延长读权。最小隔离试验先用可控旧端正常结清、停止生产和自动／手动同步、排空在途，再由最后受权旧端拉齐并核正文与相关失败，最后 CAS 撤选或替换。`setDevice(false)` 只关自动工作，不阻止手动运行。新 namespace 还需从干净队列／head 合法播种整个已选集合（含非 Files），不能沿用固定前缀的旧 outbox。
 
-**2026-11-09 隔离探针。** Node 24.15.0／SQLite 3.51.3 下的单文件探针通过（最终 1/1，20.5 秒）。使用真实 `createStaticPersonalSync`／`PersonalSync.run`、项目目录与过程项 owner；HTTP 在进程内模拟，SQLite 执行现行 D1 schema 及从 Rust 提取的 heads、policy CAS、changes、receipt 和事件插入 SQL。未运行 Rust Worker、Miniflare、R2、真实 Auth 或云端；仅 inline 内容。探针在临时目录，测试 Home 与进程已清理，不算正式 BSH-11 验收。
+**2026-11-09 隔离探针（历史，使用模拟版本分流）。** Node 24.15.0／SQLite 3.51.3 下的单文件探针通过（最终 1/1，20.5 秒）。使用真实 `createStaticPersonalSync`／`PersonalSync.run`、项目目录与过程项 owner；HTTP 在进程内模拟，SQLite 执行现行 D1 schema 及从 Rust 提取的 heads、policy CAS、changes、receipt 和事件插入 SQL。未运行 Rust Worker、Miniflare、R2、真实 Auth 或云端；仅 inline 内容。探针在临时目录，测试 Home 与进程已清理，不算正式 BSH-11 验收。
 
 - 丢失上传响应后，原 outbox 的 operationId、base、payload 保持冻结，之后本地编辑也不改原项；下轮原回执能结清。双旧 Home 拉齐后 pending、conflicts、failures 均空，三版 Files 快照（含归档）与同集合另一 owner 的历史均能读回。
 - `prepare` 确实可能先建项目，后续暂态失败把完整事件留在 `sync_failures`，stream cursor 已前进，重试后才推进 partition cursor 并清失败。本地先改属再收旧尾部时，事件进入项目 `replica_conflicts`，顶层 `error` 仍为 null；总状态和 cursor 到 head 都不足以证明已排空。
@@ -321,7 +316,7 @@ BSH-10 独立复核发现，括号内的省略号和以省略号开头的模板�
 | BSH-04 | 真实放置调用在插件移动已提交时触发原调用撤权，恢复到原项目，旧固定版仍可读且没有新成果或位置边。关停和插件报错项目的分支断言 S-35 的拒绝，无第二次写。接 `security-invariants-placement-revert` 及文档移动测试。 |
 | BSH-05 | 系统资料 action 的有效请求同提交发布声明过程项、匹配端口和事件。另一项目、无目录授权、非法路径／指纹、伪造系统身份、未声明 type/schema、给成果库写过程项、读另一 owner、越权的二进制预览、最后等待之后取消撤权停用均拒绝。注入端口写失败验证过程项、端口、事件与同步日志零新增、无交付通知。沿 S-18、S-81、WMD-05。 |
 | BSH-06 | Runtime 的系统来源按精确引用绑定和回读，保留安装身份验证。覆盖旧默认有效、撤回、无同意、手选、固定和新装矩阵；验证旧绑定跨项目及重启不会令 Host 自动补发同意。拒绝假签名、错类型、失效来源、撤权同意、替换来源和越过本人入口代签。无 revision 变化的撤权也要使 live 读取和已排队/运行的尾部效果被拒。接 `plugin-input-graph`、`plugin-default-bindings`、`security-invariants-default-consent`。 |
-| BSH-07 | 2→3 从有业务样本的隔离 Home 升级，逐条读回同 ref、内容、digest、scope/owner、端口与用户绑定。新系统 owner 可读，旧 Files 身份和已撤权同意被拒；重开、重复执行和中途失败恢复无重复副作用，别的生产者数据保留，过程项仍不出现在成果库。Diff／Text Stats 走真实输入消费，承接 WMD-04。 |
+| BSH-07 | 从有业务样本的隔离 Home 显式采用现行 v2 结构，逐条读回同 ref、内容、digest、scope/owner、端口与用户绑定。新系统 owner 可读，旧 Files 身份和已撤权同意被拒；重开、重复执行和中途失败恢复无重复副作用，别的生产者数据保留，过程项仍不出现在成果库。Diff／Text Stats 走真实输入消费，承接 WMD-04。 |
 | BSH-08 | 不安装 Files 时 WMD-01 的 Coding 与另一个插件可使用真实资料；已有引用能打开，普通浏览和选区捕获走同一来源。删除前有 BSH-07 回读与消费者切换证据。界面走查与本人验收沿 WMD-10。 |
 | BSH-09 | 采用 SDK 后，各页面请求保持 HTTP 方法、参数、错误码、文案、状态和 abort 语义；Dataset 离开后取消及错误对应状态；已有日期显示行为按中英文、无效时间与 DST 证据验证。统计 dom/request 副本和例外。 |
 | BSH-10 | UTF-16 边界的 emoji 与生僻字不留半字，短串不变，码点与含尾记长度守住调用方预算。源码新增直接切片拼省略号时门禁稳定拒绝，已有计数只减不增。 |
@@ -341,7 +336,7 @@ BSH-10 独立复核发现，括号内的省略号和以省略号开头的模板�
 | 3 能力注册 | 四插件沿原动作定义与 caller。资料产出、entries/content 各在自己的 owner 登记一次，可信字段经上下文，涉及外部读等待的动作 concurrent。 |
 | 4 合同 | 改 join 事务资格及必要的 writer 读口、系统过程项产生者和 Runtime 来源解析，固定动作输入输出尽量维持。公开快照集中一份，阶段一同批改全部消费者。合同台及相关轨道先审设计、在最终头合审，沿决定 31 合入一个批 PR。 |
 | 5 包边界 | SDK 只放共享工具，Module 掌握成果/过程项和日志端口，Storage 管事务，Runtime 管来源解析及权限，Host 装配，knowledge 管资料读取。插件互不导入实现。 |
-| 6 表与存储 | N12 候选 A 保留 DDL。存储主人依据耐久性、安全、并发和性能证据裁定日志模式。Files 沿项目库 2→3，项目、同意和同步各归其 owner。 |
+| 6 表与存储 | N12 候选 A 保留 DDL。存储主人依据耐久性、安全、并发和性能证据裁定日志模式。Files 在项目库 v2 显式采用，项目、同意和同步各归其 owner。 |
 | 7 兼容与迁移 | Files 一次性步骤与隔离队列核查已授权，采用前登记当前保留机制。N12 优先由旧入口结清至零，非零存量需另定有限续接并获准。持续旧同步格式转换、服务端或真实云写有单独的授权边界。 |
 | 8 安全边界 | BSH-02～07、BSH-11 覆盖跨分区、撤权、取消、停用、S-35、身份、声明与同步拒绝。实现前先拟拒绝用例，并按最终边界更新不变量文件。 |
 | 9 调用次数 | 固定走一次动作、一个联合提交，项目授权在有效的提交边界重查。默认绑定按一次 resolver/本项目来源，文件捕获一次现读加必要权限复查。保留 N56 的预算验收，避免逐条发现或轮询。 |
@@ -352,4 +347,4 @@ BSH-10 独立复核发现，括号内的省略号和以省略号开头的模板�
 | 14 冲突面 | C 轨独占 contracts、SDK、artifacts、Runtime 和快照。Host 枢纽包括 `plugin-host-services.ts`、`plugin-platform.ts`、项目库基线与注册。四个文档归 E，Coding 归 B，工作台归 D。#1999/#2000 占用按文件确认。S1/S3/S7 的共享核心串行交接。 |
 | 15 全局最优 | **插件**用同一个 join 与浏览器 SDK，保留各自数据和业务行为。**平台**用一个 Runtime resolver 和一份资料登记，A 的跨库回滚日志成本先实测并评审。**助理**通过现行已授权的动作发现、固定和读取，人工主路径独立。**平台能力**保留现有 WMD 来源、成果/过程项、工作流/MCP 引用、同步与同意契约；接入 S4/S5 而非重复生产。**后续开发**与 16 批语言迁移、26 批状态能力、55 批输入余项分开；新资料类型加登记与生产动作，后续版本走同一升级链。比较过跨库日志、同库改造与恢复账，及合成插件与窄 resolver，取舍见 §2、§3。 |
 
-待决由主会话归口。N12 隔离采用证据见 §2，真实 Home 切换仍走原构建结清与独立窗口。Files 优先验证双 Home 同步切换与存量同意恢复。已有 Files 2→3 隔离验证和 N56 授权继续有效。
+待决由主会话归口。N12 隔离采用证据见 §2，真实 Home 切换仍走原构建结清与独立窗口。Files 优先验证双 Home 同步切换与存量同意恢复。已有 Files 同版本隔离采用与 N56 的授权继续有效。

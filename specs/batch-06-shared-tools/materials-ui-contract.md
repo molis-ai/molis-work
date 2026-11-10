@@ -51,7 +51,7 @@
 
 ## 写手顺序与验证
 
-1. **共用 owner 与合同**。先实现精确读/capture/open、工作区分段/worktree、现有项目版本内的阅读位置采用，落 BSH-05/06/07。与 N12 和 BSH-14 串行改 Host 项目库、启动接线和升级入口；同一写手收口 contracts/SDK、`tooling/versions.json`、API/action 快照及合同记录。
+1. **共用 owner 与合同**。先实现精确读/capture/open、工作区分段/worktree、现有项目版本内的阅读位置采用，落 BSH-05/06/07。与 N12 和 BSH-14 串行改 Host 项目库、启动接线和升级入口；同一写手收口 contracts/SDK、API/action 快照及合同记录，新增声明沿当前版本，新恢复件格式首次登记为 1。
 2. **S4 工作台**。共用 loader、N52、frame/picker 和原位阅读器接合同，沿 A 和 D 核样。涉及 side/Goal loader、DOM 事件和 frame protocol 在同片串行对齐。
 3. **S5 消费者**。Goal 固定过程项绑定和 Coding 草稿/待运行意图依共用 owner，保留 Diff/Text Stats 与其他实际插件的主路径。Agent 冻结元数据按现行 session-index v1 接入，Coding 私有键保持本节精确旧语义，不新增升版。S6 的 Files 全删除仍以全部正式采用门槛为前提。
 

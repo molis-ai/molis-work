@@ -25,21 +25,27 @@ const viewScope = (page: Document) => page.querySelector<HTMLMetaElement>('meta[
 function documentAppearanceHandoff() {
   // The second segment of the page proof is the public view scope. The proof itself never enters the handoff.
   const scope = window === top ? viewScope(document) : undefined;
+  function takeStored(): CommandInput | undefined {
+    if (!scope) return;
+    try {
+      const raw = sessionStorage.getItem(handoffKey);
+      sessionStorage.removeItem(handoffKey);
+      if (!raw) return;
+      const handoff = JSON.parse(raw) as { scope: string; command: CommandInput } | null;
+      if (!handoff || handoff.scope !== scope) return;
+      const { command } = handoff;
+      if (command?.kind !== "apply" && command?.kind !== "undo") return;
+      if (!Number.isSafeInteger(command.body?.expected_revision) || command.body.expected_revision < 0
+        || !/^[0-9a-f-]{36}$/u.test(commandId(command))) return;
+      return command;
+    } catch { return undefined; }
+  }
   return {
-    take(): Command | undefined {
-      if (!scope) return;
-      try {
-        const raw = sessionStorage.getItem(handoffKey);
-        sessionStorage.removeItem(handoffKey);
-        if (!raw) return;
-        const handoff = JSON.parse(raw) as { scope: string; command: CommandInput } | null;
-        if (!handoff || handoff.scope !== scope) return;
-        const { command } = handoff;
-        if (command?.kind !== "apply" && command?.kind !== "undo") return;
-        if (!Number.isSafeInteger(command.body?.expected_revision) || command.body.expected_revision < 0
-          || !/^[0-9a-f-]{36}$/u.test(commandId(command))) return;
-        return { ...command, checked: false };
-      } catch { return undefined; }
+    take(previous?: Command): Command | undefined {
+      const stored = takeStored();
+      if (stored) return { ...stored, checked: false };
+      if (previous) previous.checked = false;
+      return previous;
     },
     save(command: Command | undefined): void {
       if (!scope || !command) return;
@@ -217,8 +223,7 @@ export function createAppearanceSync(initial: WorkbenchAppearance, request: UiRe
     // Account isolation can discard a cached document. The replacement can verify only a handoff for its own scope.
     if (!event.persisted || globalThis.molisWorkAccountTransition?.preparing) return;
     lifetime = new AbortController();
-    unconfirmed = handoff.take() ?? unconfirmed;
-    if (unconfirmed) unconfirmed.checked = false;
+    unconfirmed = handoff.take(unconfirmed);
     queueRead(true);
     void stream.connect();
   });

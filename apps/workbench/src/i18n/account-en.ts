@@ -2,6 +2,8 @@
 export const ACCOUNT_EN: Record<string, string> = {
   "创建租户": "Create tenant",
   "租户已创建。": "Tenant created.",
+  "当前空间：{space} · 当前设备：{device}": "Space: {space} · Device: {device}",
+  "对象 {id}": "Object {id}",
   '无法使用登录方式？': 'Can’t use your sign-in methods?',
   '还有可用方式：用它登录，在“个人资料与安全”验证身份后绑定或换绑。仅忘记邮箱密码，可在登录页选择“找回密码”。': 'If a method still works, sign in with it and verify your identity in Profile and security to add or replace a method. If you only forgot your email password, choose Reset password on the sign-in screen.',
   '全部方式都已丢失：先向邮箱服务商、手机运营商或 Google、GitHub 找回原登录方式，再回来登录。': 'If all methods are lost, recover an original method through your email provider, mobile carrier, Google or GitHub, then return to sign in.',

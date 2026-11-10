@@ -1,3 +1,4 @@
+import { initializeDemoPlugins } from "./plugin-demo-seed.js";
 import { PLUGIN_PRESENTATION_CAPABILITY } from '@molis-ai/molis-work-contracts/platform/ui';
 import { openPluginInstallationDirectory } from "./plugin-installation-directory.js";
 import { installedArtifacts, supervisedArtifacts } from "./artifact-type-registry.js";
@@ -198,7 +199,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
   });
   // A project instance of a dual-instance plugin offers only its half; the other half is the Home's (specs/archive/dual-instance-plugins).
   const runtime = new PluginRuntime(records, executor,
-    { ...options.inProcess ? { inProcess: options.inProcess } : {}, declarationOwners: declarationOwnersFor(options.home?.directory ?? null, { db: options.db, scope: { kind: "project", project_id: options.project_id } }, (pluginId: string): PluginManifest | undefined => supervisor.manifest(pluginId)), redemption: definition => ({ partial: identity.dualInstance(definition) }), scope: "project", hostIds: HOST_PLUGIN_IDS, ...consents ? { consents } : {}, reservedRuleKeys: hostReservedRuleKeys,
+    { ...options.inProcess ? { inProcess: options.inProcess } : {}, declarationOwners: declarationOwnersFor(options.home?.directory ?? null, { db: options.db, scope: { kind: "project", project_id: options.project_id } }, (pluginId: string): PluginManifest | undefined => supervisor.manifest(pluginId), options.home?.settingsVersionClaims), redemption: definition => ({ partial: identity.dualInstance(definition) }), scope: "project", hostIds: HOST_PLUGIN_IDS, ...consents ? { consents } : {}, reservedRuleKeys: hostReservedRuleKeys,
       permissionBound: (record, definition) => identity.dualInstance(definition) ? permission => {
         if (!options.home) throw pluginErrors.grant_denied("个人空间插件权限当前不可用");
         return options.home.capturePermission(record, permission);
@@ -304,6 +305,14 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
       // Deliver whatever was already bound and published before this process.
       wiring.evaluateAll();
       await events.resume(options.project_id);
+      await initializeDemoPlugins({ home: options.home?.directory, projectId: options.project_id, actorId: options.actor_id, client: options.actions.client,
+        assertCurrent: control?.assertCurrent, entries: entries.flatMap(entry => {
+          const state = supervisor.state(entry.definition.manifest.plugin_id);
+          if (!state?.install_id || state.status !== "running") return [];
+          const installId = state.install_id;
+          return [{ manifest: entry.definition.manifest, providerId: providerFor(entry.definition, installId),
+            current: () => !closed && supervisor.state(entry.definition.manifest.plugin_id)?.status === "running" && supervisor.state(entry.definition.manifest.plugin_id)?.install_id === installId }];
+        }) });
       return report;
     },
   };

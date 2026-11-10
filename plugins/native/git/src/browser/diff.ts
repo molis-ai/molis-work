@@ -1,3 +1,4 @@
+import { setContentHtml } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { active, diffState, request, reveal, sayRefusal, showReviews } from "./page.js";
 import type { GitPage } from "./page.js";
@@ -20,7 +21,7 @@ export async function fixed(page: GitPage, item: Selected, serial: number, epoch
   const value = await diffState<HtmlAnswer>(page, item.reference);
   if (serial !== page.ticket || !active(page, epoch)) return;
   title(page, item);
-  q("[data-git-diff]").innerHTML = value.html || "";
+  setContentHtml(q("[data-git-diff]"), value.html || "");
   diffNotice.textContent = L("git.diff.as-read", { version: item.reference.version });
   page.resultPanel.hidden = true;
   page.displayed = item;

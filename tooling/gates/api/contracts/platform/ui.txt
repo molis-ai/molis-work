@@ -424,6 +424,14 @@ export declare const UI_FORMAT_VERSIONS: {
     readonly registry: 1;
 };
 
+export declare const UI_HOST_CLIENT_CODES: {
+    readonly crossOrigin: "ui_host.cross_origin";
+    readonly unreachable: "ui_host.unreachable";
+    readonly outcomeUnknown: "ui_host.outcome_unknown";
+    readonly invalidResponse: "ui_host.invalid_response";
+    readonly uncoded: "ui_host.uncoded";
+};
+
 export declare const UI_PAGE_ROUTE_PARAM_LIMIT = 256;
 
 export declare const UI_RESOURCE_KINDS: readonly ["spec", "skin", "font-scheme", "locale", "font", "asset"];
@@ -646,6 +654,8 @@ export interface UiHostApi {
     render<TModel>(request: UiRenderRequest<TModel>): string;
     mount<TModel>(request: UiMountRequest<TModel>): UiMountResult;
 }
+
+export type UiHostClientCode = typeof UI_HOST_CLIENT_CODES[keyof typeof UI_HOST_CLIENT_CODES];
 
 export interface UiLocalePack {
     readonly format_version: typeof UI_FORMAT_VERSIONS.locale;

@@ -3421,3 +3421,23 @@ test("PWA-144: the worker's own supports never meets a requirement; the person's
     close(data);
   }
 });
+
+test("D0193 decision JOIN and owner state remain isolated by project and Goal", () => {
+  const data = fixture();
+  try {
+    const ids = ["first", "second"].map(key => data.app.goalEvents.createIntent({ project_id: BOARD, title: key,
+      actor_id: "runtime-1", actor_kind: "runtime", idempotency_key: "D0193:" + key }).goal.goal_id);
+    for (const [index, goalId] of ids.entries()) {
+      configure(data.app, goalId, "D0193:cfg:" + index, { new_requirements: [{ requirement_id: "D0193:req:" + index, statement: "Review", human_decision_required: true }] });
+      data.app.goalEvents.recordTrustedDecision({ project_id: BOARD, goal_id: goalId, idempotency_key: "D0193:decision:" + index,
+        authority: hostEventDecisionAuthority("management", BOARD, "review-user", "D0193:decision:" + index), conclusion: "Decision " + index, accepts_requirements: true, scope: { requirement_ids: ["D0193:req:" + index] } });
+    }
+    for (const [index, goalId] of ids.entries()) {
+      const state = data.app.goalEvents.readState(BOARD, goalId);
+      assert.equal(state.owner?.kind, "event_work");
+      assert.equal(state.applied_decisions.length, 1);
+      assert.equal(state.applied_decisions[0]?.conclusion, "Decision " + index);
+      assert.throws(() => data.app.goalEvents.readState("foreign", goalId));
+    }
+  } finally { close(data); }
+});

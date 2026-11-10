@@ -1,3 +1,6 @@
+import { randomUUID } from "node:crypto";
+import { defineErrorCodes, ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { createServer as createSecureServer } from "node:https";
 import { readFile } from "node:fs/promises";
@@ -7,6 +10,11 @@ import { ContinuityService, progressInput } from "./continuity/service.js";
 import { ServerEvents } from "./events.js";
 import { isLoopbackHostname } from "@molis-ai/molis-work-contracts/platform/loopback";
 
+const httpErrors = defineErrorCodes("im", { invalid_path: "invalid" });
+function pathId(value: string): string {
+  try { return decodeURIComponent(value); }
+  catch (error) { if (error instanceof URIError) throw httpErrors.invalid_path("路径编码无效"); throw error; }
+}
 interface ImDomain {
   handleImRequest(input: {request:IncomingMessage;response:ServerResponse;url:URL;session:Session}): Promise<boolean>;
   assertRoomMember(roomId: string, memberId: string): void;
@@ -14,7 +22,7 @@ interface ImDomain {
 export interface ServerOptions {
   identity: Identity; continuity: ContinuityService; events: ServerEvents;
   hostname?: string; port?: number; publicOrigin?: string; tls?: {key:string;cert:string};
-  im?: ImDomain; imAssets?: {html:string;css:string;script:string};
+  im?: ImDomain; imAssets?: {html:string | ((request: IncomingMessage) => string);css:string;script:string};
 }
 function json(response: ServerResponse, body: unknown, status = 200): void {
   response.writeHead(status,{"content-type":"application/json; charset=utf-8"}); response.end(JSON.stringify(body));
@@ -45,6 +53,7 @@ export async function startServer(options: ServerOptions) {
 export function createServerRequestHandler(options: ServerOptions, getOrigin: () => string) {
   const {identity,continuity,events} = options;
   return async (request: IncomingMessage, response: ServerResponse) => {
+    const requestId = randomUUID();
     response.setHeader("cache-control","no-store"); response.setHeader("x-content-type-options","nosniff");
     response.setHeader("referrer-policy","no-referrer"); response.setHeader("content-security-policy","default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'self'; form-action 'self'");
     try {
@@ -59,7 +68,9 @@ export function createServerRequestHandler(options: ServerOptions, getOrigin: ()
         const files:Record<string,[string,string]> = {"/continuity":["continuity.html","text/html"],"/continuity/":["continuity.html","text/html"],"/continuity/style.css":["style.css","text/css"],"/continuity/client.js":["client.js","text/javascript"]};
         if (files[path]) {const [file,mime]=files[path]!;response.setHeader("content-type",mime+"; charset=utf-8");response.end(await readFile(new URL("../public/"+file,import.meta.url)));return;}
         if (path === "/") {response.writeHead(302,{location:"/continuity"});response.end();return;}
-        const imFiles:Record<string,[string|undefined,string]>={"/im":[options.imAssets?.html,"text/html"],"/im/styles.css":[options.imAssets?.css,"text/css"],"/im/client.js":[options.imAssets?.script,"text/javascript"]};
+        const imPage = options.imAssets?.html;
+        const imHtml = typeof imPage === "function" ? (path === "/im" ? imPage(request) : undefined) : imPage;
+        const imFiles:Record<string,[string|undefined,string]>={"/im":[imHtml,"text/html"],"/im/styles.css":[options.imAssets?.css,"text/css"],"/im/client.js":[options.imAssets?.script,"text/javascript"]};
         if (imFiles[path]?.[0] !== undefined) {response.setHeader("content-type",imFiles[path]![1]+"; charset=utf-8");response.end(imFiles[path]![0]);return;}
       }
       if (path === "/continuity/api/connect" && request.method === "POST") {
@@ -75,8 +86,8 @@ export function createServerRequestHandler(options: ServerOptions, getOrigin: ()
         const session = path === "/im/api/session" ? identity.ensure(request,response,!!options.tls) : identity.require(request);
         const stream = path.match(/^\/im\/api\/rooms\/([^/]+)\/events$/);
         if (stream && request.method === "GET") {
-          const roomId = decodeURIComponent(stream[1]!);
-          events.open(response,"room",roomId,eventCursor(request,url),() => {identity.requireMember(session);options.im!.assertRoomMember(roomId,session.member_id!);});return;
+          const roomId = pathId(stream[1]!);
+          events.open(response,"room",roomId,eventCursor(request,url),() => {identity.requireMember(session);options.im!.assertRoomMember(roomId,session.member_id!);},session.member_id!);return;
         }
         if (await options.im.handleImRequest({request,response,url,session})) return;
       }
@@ -93,10 +104,10 @@ export function createServerRequestHandler(options: ServerOptions, getOrigin: ()
       }
       const match = path.match(/^\/continuity\/api\/projects\/([^/]+)(?:\/(progress|invite|revoke|assets|events))?$/);
       if (!match) throw new ImError("im.server.not_found","找不到此入口",404);
-      const projectId = decodeURIComponent(match[1]!), operation = match[2];
+      const projectId = pathId(match[1]!), operation = match[2];
       if (!operation && request.method === "GET") {json(response,await continuity.read(session,projectId));return;}
       if (operation === "assets" && request.method === "GET") {json(response,await continuity.assets(session,projectId));return;}
-      if (operation === "events" && request.method === "GET") {events.open(response,"project",projectId,eventCursor(request,url),()=>identity.access(session,projectId));return;}
+      if (operation === "events" && request.method === "GET") {events.open(response,"project",projectId,eventCursor(request,url),()=>identity.access(session,projectId),session.member_id!);return;}
       if (request.method !== "POST") throw new ImError("im.server.method_denied","不支持此请求方式",405);
       const value = await body(request);
       if (operation === "progress") {json(response,await continuity.progress(session,progressInput(value,projectId)));return;}
@@ -106,13 +117,16 @@ export function createServerRequestHandler(options: ServerOptions, getOrigin: ()
     } catch (error) {
       if (response.headersSent) {response.end();return;}
       if (error instanceof ImError) {json(response,{code:error.code,error:error.message},error.status);return;}
-      const code = error && typeof error === "object" && "code" in error ? String(error.code) : "im.server.unavailable";
+      if (error instanceof ActionError && ["im.invalid_path", "im.stream_limit"].includes(error.code)) { json(response,{code:error.code,error:error.message},actionHttpStatus(error));return; }
+      const candidate = error && typeof error === "object" && "code" in error ? String(error.code) : "";
+      const code = /^[a-z][a-z0-9_]*(?:\.[a-z0-9_]+)+$/.test(candidate) ? candidate : "im.server.unavailable";
       // The injected IM domain owns its error class; translate known access failures without leaking arbitrary messages.
       if (code === "im.forbidden" || code === "im.unauthenticated") {
         json(response,{code,error:code === "im.forbidden" ? "你没有这个群的访问权限" : "请重新连接设备"},code === "im.forbidden" ? 403 : 401);return;
       }
-      // Host failures can include local paths; return an actionable boundary message only.
-      json(response,{code,error:"桌面服务暂不可用或尚未授权此成员。请在桌面检查连接和动作授权，再核对重试。"},503);
+      // D0017: the request can be correlated without logging inputs, paths, stacks or credentials.
+      process.stderr.write(JSON.stringify({event:"server.request_failed",request_id:requestId,code}) + "\n");
+      json(response,{code,request_id:requestId,error:"桌面服务暂不可用或尚未授权此成员。请在桌面检查连接和动作授权，再核对重试。"},503);
     }
   };
 }

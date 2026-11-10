@@ -166,12 +166,13 @@ function projectRuntimeContext(context: ProjectRequestContext, runtime: MolisWor
 }
 
 /** What the project page shows: the board, with Feed's and Inbox's judgments where those plugins answer, and the Home plugins' stages. */
-function projectWebView({ options, webViewCache, store, homeActions, localHost, hostReference, serverOptions, shownPlugins, goalsHere, url, composition, pluginPorts }: Omit<ProjectRuntimeContext, "readWebView">) {
+function projectWebView({ options, webViewCache, store, homeActions, localHost, hostReference, serverOptions, shownPluginSelection, goalsHere, url, composition, pluginPorts }: Omit<ProjectRuntimeContext, "readWebView">, withMembershipRevision = false) {
   return async (): Promise<GoalsWebView> => {
     let view = await cachedMolisWorkWebView(webViewCache, store, options, homeActions, await goalsHere());
     // What the project shows is its Catalog's selection now (enabled, minus hidden, with the personal plugins), read per request
     // and never kept behind the Goals cursor: the page, its refresh and its fragments all read this one view.
-    view = { ...view, shown_plugins: await shownPlugins(options.projectId) };
+    const { shown, revision } = await shownPluginSelection(options.projectId, withMembershipRevision);
+    view = { ...view, shown_plugins: shown, project_plugin_revision: revision };
     // Each shown plugin's stage reads its own data, as the person and with only that read's permissions (T-133).
     // A stage is given only the request parameters it names in `stage_data.input`, from its own plugin's declared page route (T-116).
     const pageMatch = matchPageRoute(url);
@@ -227,6 +228,11 @@ const capsuleRoute: WebRoute<ProjectRuntimeContext> = { id: "capsule", handle: a
     return true;
   }
   // A project without Goals has none to list (RAC-400); in one with Goals, a refused list is that refusal.
+  if (url.searchParams.get("view") === "menu") {
+    const summary = await goalsHere() ? await goalActions.invoke(goalsActions.capsuleMenu, {}) : { focus: null };
+    sendJson(response, 200, composition.buildCapsuleMenu(options.project, summary));
+    return true;
+  }
   const directory = await goalsHere() ? await goalActions.invoke(goalsActions.list, { limit: 100 }) : undefined;
   sendJson(response, 200, composition.buildCapsuleSnapshot(await readWebView(), directory?.goals ?? []));
   return true;
@@ -247,7 +253,7 @@ const goalsAndArtifactRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
     desktopShell: composition.isDesktopShellRequest(request, url), pageCsp: composition.PAGE_CSP,
   }) },
   { id: "goal-page", handle: context => context.composition.goalsReadHttp.page(context.request, context.response, context.url, context.options, context.serverOptions.homeDirectory,
-    projectWebView(context), context.controlToken, context.goalActions,
+    projectWebView(context, true), context.controlToken, context.goalActions,
     asPerson(context, ARTIFACT_ACTION_PERMISSIONS), context.store,
     { ...context.pluginServices, artifacts: context.pluginPorts.artifacts, processItems: context.pluginPorts.processItems }) },
 ];

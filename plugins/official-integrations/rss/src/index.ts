@@ -55,3 +55,5 @@ export * from "./http-state.js";
 export * from "./catalog.js";
 export * from "./custom-rss.js";
 export * from "./feed-body.js";
+
+export { createRssExactRouteResolver, type RssExactSourceDefinitions } from "./exact-source-routes.js";

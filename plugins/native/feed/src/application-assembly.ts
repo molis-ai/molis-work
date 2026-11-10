@@ -10,6 +10,7 @@ import {
   recoverInterruptedListenerRuns,
   saveListenerRun,
   SourcesModule,
+  SignalsModule,
   writeListenerCursor,
   type FeedAttentionPort,
   type FeedModuleOptions,
@@ -59,7 +60,7 @@ export function assembleFeedApplication(ports: FeedAssemblyPorts): FeedApplicati
     eventSink: event => appendEvent(event.project_id, "feed_item", event.item_id, event.type, event.reason, event.payload, event.at),
   });
   return new FeedApplication({
-    sources, feed, attention, appendEvent,
+    sources, feed, attention, appendEvent, signals: new SignalsModule(sql).commands,
     subscribeInboxCreated: ports.subscribeInboxCreated,
     outRules: ports.outRules,
     artifacts: ports.artifacts,

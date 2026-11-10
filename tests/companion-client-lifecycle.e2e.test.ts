@@ -173,6 +173,8 @@ test("W2-18-DIFF-FILE-01: a real Coding frozen output selects distinct files and
   platform.wiring.bind({ project_id: DEMO_PROJECT_ID, actor_id: "tester", target_plugin_id: "io.molis.work.diff", target_port: "changeset",
     source_plugin_id: "io.molis.work.coding", source_port: "changeset", origin: "user" });
   platform.wiring.selectInputGroup("io.molis.work.diff", "change-set"); await platform.wiring.drain();
+  // The assertion below measures fixed-output reads, after the producer's startup/wake jobs have settled and stopped.
+  await platform.stopProjectJobs(DEMO_PROJECT_ID);
   readable = false; const capturedReads = reads, indices: number[] = [];
   const fixedState = async (index: number) => {
     const state = await dispatch("/api/plugins/io.molis.work.diff/state", "GET", undefined, { change_index: String(index) }) as { view: DiffView };
@@ -346,7 +348,7 @@ test("SYS-50: a Git revision waits for the open difference, then refreshes witho
     if (path.endsWith("/view-revision")) return { revision: String(revision) };
     if (path.endsWith("/summary")) return { summary: null, workspace: { workspace_id: "ws" } };
     if (path.endsWith("/reviews")) return { reviews: [], html: "", omitted: 0 };
-    if (path === "/api/host/plugin-page-actions") return { html: '<p data-current-diff>fixed difference</p>' };
+    if (path === "/api/host/plugin-page-actions") return { html: '<p class=current-diff>fixed difference</p>' };
     if (path === "/git/prepare-index") return {};
     return { ...state("git"), view: { phase: "ready", head: "version-" + revision, conflicts: [], staged: [], changes: [{ path: ["note.md"], label: "note.md" }] } };
   }); if (!f) return;
@@ -362,7 +364,7 @@ test("SYS-50: a Git revision waits for the open difference, then refreshes witho
   pending.get(diff)![0]!.end(JSON.stringify({ result: { outcome: "diff" }, selected: {
     workspace_id: "ws", path: ["note.md"], side: "worktree", revision: "one", reference: { artifact_id: "fixed", version: 1 },
   } }));
-  await page.wait("document.querySelector('[data-current-diff]') && !document.querySelector('[data-git-index-action]').hidden");
+  await page.wait("document.querySelector('.current-diff')?.textContent==='fixed difference' && !document.querySelector('[data-git-index-action]').hidden");
   await page.wait("document.querySelector('[data-git-status]').textContent==='version-2' && !document.querySelector('[data-git-refresh]').disabled");
   assert.equal(count("POST /api/host/plugin-page-actions"), 1, "the fixed difference remains on its captured version");
   await page.click("[data-git-index-action]"); await until(() => count("POST /git/prepare-index") === 1);
@@ -380,7 +382,7 @@ test("SSC-15 Git offers 「设为输出」 beside a refusal that the folder is o
     if (path.endsWith("/view-revision")) return { revision: "1" };
     if (path.endsWith("/summary")) return { summary: null, workspace: { workspace_id: "ws" } };
     if (path.endsWith("/reviews")) return { reviews: [], html: "", omitted: 0 };
-    if (path === "/api/host/plugin-page-actions") return { html: "<p data-current-diff>fixed difference</p>" };
+    if (path === "/api/host/plugin-page-actions") return { html: "<p class=current-diff>fixed difference</p>" };
     if (path === "/git/diff") return { result: { outcome: "diff" }, selected: {
       workspace_id: "ws", path: ["note.md"], side: "worktree", revision: "one", reference: { artifact_id: "fixed", version: 1 } } };
     if (path === "/git/prepare-index") {
@@ -395,7 +397,7 @@ test("SSC-15 Git offers 「设为输出」 beside a refusal that the folder is o
   await page.evaluate("parentView.hidden=false");
   await page.wait("document.querySelector('[data-git-path]') && !document.querySelector('[data-git-refresh]').disabled");
   await page.click("[data-git-path]");
-  await page.wait("document.querySelector('[data-current-diff]') && !document.querySelector('[data-git-index-action]').hidden");
+  await page.wait("document.querySelector('.current-diff')?.textContent==='fixed difference' && !document.querySelector('[data-git-index-action]').hidden");
   await page.click("[data-git-index-action]");
   await page.wait("document.querySelector('[data-git-notice]').textContent.includes('没有权限') && !document.querySelector('[data-git-index-action]').disabled");
   assert.equal(await page.evaluate("!!document.querySelector('[data-git-notice] .git-set-output')"), false, "another refusal offers nothing to do");
@@ -539,7 +541,7 @@ for (const phase of ["reading", "shown"]) test(`SYS-51: a late Git decision pres
   `, path => {
     if (path.endsWith("/view-revision")) return { revision: "one" };
     if (path.endsWith("/summary")) return { summary: null, workspace: { workspace_id: "ws" } };
-    if (path === "/api/host/plugin-page-actions") return { html: '<p data-current-diff>fixed difference</p>' };
+    if (path === "/api/host/plugin-page-actions") return { html: '<p class=current-diff>fixed difference</p>' };
     if (path === "/git/prepare-index") return {};
     if (path === "/git/diff") return { result: { outcome: "diff" }, selected: selected(++reads) };
     return { ...state("git"), view: { phase: "ready", head: "current", conflicts: [], staged: [], changes: [{ path: ["note.md"], label: "note.md" }] } };

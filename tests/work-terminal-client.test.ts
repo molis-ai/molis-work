@@ -124,16 +124,17 @@ function panelsFixture(t: TestContext) {
     return body as T;
   };
   const shown: Array<string | null> = [];
+  const statuses: Array<{ text: string; kind: unknown }> = [];
   const options: TerminalPanelsOptions = {
     screens: screen as unknown as TerminalPanelsOptions["screens"],
     goalId: () => state.goal, parentReadOnly: () => state.parent, parentReadOnlyMessage: () => "parent read-only",
     canControlPanel: (panel): panel is PanelRecord => Boolean(panel && !state.parent && panel.goal_id === state.goal),
     text: (text) => text, errorText: (error) => String(error), route: (path) => "/projects/project-a" + path,
     terminalsRoute: () => "/api/plugins/goals-owner/goals/:goalId/terminals", request,
-    controlToken: () => "token", setStatus() {}, setMenuOpen() {}, renderTabs() {},
+    controlToken: () => "token", setStatus(text, kind) { statuses.push({ text, kind }); }, setMenuOpen() {}, renderTabs() {},
     showTerminal: (id) => shown.push(id),
   };
-  return { controller: createTerminalPanels(options), io, state, requests, sessions, shown, written, resets: () => resets };
+  return { controller: createTerminalPanels(options), io, state, requests, sessions, shown, written, statuses, resets: () => resets };
 }
 
 test("Switching Goals invalidates an in-flight panel response without adopting the old Goal's terminals", async (t) => {
@@ -229,4 +230,21 @@ test("Channel reconnect reattaches the live process and restores replay without 
   assert.equal(f.controller.isAlive(panel.panel_id), true);
   assert.equal(f.requests.filter((r) => r.method === "POST").length, 0);
   f.controller.stop();
+});
+
+test("D0267 a failed panel refresh preserves the visible panels and reports the current failure", async t => {
+  const f = panelsFixture(t);
+  f.io.respond = async () => Response.json({ panels: [listedPanel("goal-a", false)] });
+  await f.controller.loadPanels();
+  const previous = f.controller.panels;
+  f.io.respond = async () => { throw Error("refresh refused"); };
+  await f.controller.loadPanels();
+  assert.deepEqual(f.controller.panels, previous);
+  assert.match(f.statuses.at(-1)!.text, /refresh refused/); assert.equal(f.statuses.at(-1)!.kind, "error");
+  let reject!: (reason: Error) => void;
+  f.io.respond = () => new Promise((_resolve, no) => { reject = no; });
+  const old = f.controller.loadPanels();
+  f.state.goal = "goal-b"; f.controller.resetGoal(); f.statuses.length = 0;
+  reject(Error("old failure")); await old;
+  assert.deepEqual(f.statuses, [], "old failures cannot overwrite the next goal's status");
 });

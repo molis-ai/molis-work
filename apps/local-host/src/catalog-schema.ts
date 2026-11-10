@@ -10,10 +10,8 @@ import { CATALOG_OWNER, CATALOG_SCHEMA_VERSION, CATALOG_UPGRADES, catalogErrors,
 import {createProjectCatalogReplicationSchema} from './project-catalog-replication-schema.js';
 import {readDatabaseSpace} from '@molis-ai/molis-work-storage';
 
-export type CatalogDesktopSchema = (db: SqliteDatabase) => void;
-
 /** A new catalog: every owner's current tables on one local connection, at the catalog's version. */
-export function initializeCatalog(storage: LocalSqliteStorage, createDesktopPanelTables: CatalogDesktopSchema, personal = readDatabaseSpace(storage.db)?.kind === "personal"): void {
+export function initializeCatalog(storage: LocalSqliteStorage, personal = readDatabaseSpace(storage.db)?.kind === "personal"): void {
   const db = storage.db;
   const metadata = new LocalCatalogMetadata(db);
   metadata.create();
@@ -22,7 +20,6 @@ export function initializeCatalog(storage: LocalSqliteStorage, createDesktopPane
   createRuntimeContextBindingTables(db);
   createRuntimeContextSetupRequestTable(db);
   createRuntimeContextSuggestionRejectionTable(db);
-  createDesktopPanelTables(db);
   createPluginTerminalPanelTables(db);
   createModelProviderTables(db);
   metadata.initialize(CATALOG_OWNER, CATALOG_SCHEMA_VERSION);
@@ -31,7 +28,7 @@ export function initializeCatalog(storage: LocalSqliteStorage, createDesktopPane
 const catalogStatements = new Map<boolean, string>();
 /**
  * The catalog is built in code, not from one statement. Only an upgrade needs this as text, so opening a catalog never pays for it. The
- * desktop's panel tables are not the Host's to name: an extra table passes the comparison. A personal space's catalog journals its projects
+ * personal space's catalog journals its projects
  * for sync, so its triggers differ from every other catalog's: each kind has its own text.
  */
 function catalogSchemaStatements(personal: boolean): string {
@@ -40,7 +37,7 @@ function catalogSchemaStatements(personal: boolean): string {
   const reference = new LocalSqliteStorage(":memory:");
   try {
     createContextLedger(reference.db, { initializeSchema: true, authorize: () => false });
-    initializeCatalog(reference, () => undefined, personal);
+    initializeCatalog(reference, personal);
     const objects = reference.db.prepare("SELECT sql FROM sqlite_master WHERE sql IS NOT NULL AND name NOT LIKE 'sqlite_%' ORDER BY rowid").all() as Array<{ sql: string }>;
     const statements = objects.map(({ sql }) => `${sql};`).join("\n");
     catalogStatements.set(personal, statements);
@@ -90,14 +87,14 @@ export function assertCatalogMetadata(metadata:{owner:string|null;version:number
 /** The table Goals kept the person's planning methods in before they moved to its library in the Home (PG-094 S13). */
 const PERSONAL_PLANNING_TABLE = "personal_planning_method_packs";
 
-export function inspectCurrentCatalogSnapshot(database: SqliteDatabase, createPanelSchema: CatalogDesktopSchema): Readonly<Record<string,string|number>> {
+export function inspectCurrentCatalogSnapshot(database: SqliteDatabase): Readonly<Record<string,string|number>> {
     const current = new LocalSqliteStorage(":memory:");
     try {
       const space = readDatabaseSpace(database);
       if (!space) throw catalogErrors.database_invalid("快照项目目录缺少空间归属");
       bindDatabaseSpace(current.db, space);
       createContextLedger(current.db, { initializeSchema: true, authorize: () => false });
-      initializeCatalog(current, createPanelSchema);
+      initializeCatalog(current);
       const expected = new LocalCatalogMetadata(current.db), actual = new LocalCatalogMetadata(database);
       const triggers = (db: SqliteDatabase) => db.prepare("SELECT name, sql FROM sqlite_master WHERE type='trigger' ORDER BY name").all();
       if (expected.owner() !== actual.owner() || expected.version() !== actual.version() || !isDeepStrictEqual(triggers(database), triggers(current.db))

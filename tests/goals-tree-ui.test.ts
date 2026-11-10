@@ -57,8 +57,8 @@ test("collection selection preserves requested/active precedence without default
   );
   const current = select();
   // SYS-09: cancellation has its own count and cannot inflate the blocked count.
-  assert.equal(current.collectionNote, "需要你决定 1 · 正在推进 2 · 受阻 2 · 已取消 6");
-  assert.match(runWithLocale("en", () => select().collectionNote), /Blocked 2 · Cancelled 6$/);
+  assert.equal(current.collectionNote, "需要你决定 1 · 正在推进 2 · 可记录，尚不可完成 2 · 已取消 6");
+  assert.match(runWithLocale("en", () => select().collectionNote), /Can record; not ready to close 2 · Cancelled 6$/);
   const full = renderer.renderGoalDirectory(model, current, true);
   const compact = renderer.renderGoalRefreshDirectory(model, current);
   const stage = renderer.renderGoalStageList(model, current);

@@ -15,7 +15,7 @@ interface ConnectorCheckControl { signal?: AbortSignal; beforeEffect?(): void | 
 
 /** All entrypoints verify through the protocol owner. Discovery never executes a business tool. */
 export async function checkConnectorConnection(home: string, id: string, remember: ConnectorMcpDirectory["remember"], control: ConnectorCheckControl = {}) {
-  const row = withConnectorConnections(home, store => store.require(id));
+  const row = withConnectorConnections(home, store => store.require(id), "required");
   await control.beforeEffect?.(); control.signal?.throwIfAborted();
   // S-70: an account whose refresh the token endpoint refused stays marked until the person reconnects it or a forced refresh succeeds.
   // A check neither asks the service (the access token may still pass for a while, which would clear the mark) nor writes over the mark
@@ -40,7 +40,7 @@ export async function checkConnectorConnection(home: string, id: string, remembe
   // asking again here is only so the person is told to log in again rather than seeing "检查期间连接已变化".
   if (row.auth_method === "oauth" && refreshRefused(home, row)) throw new ApiOAuthError("这个账号的登录已失效，请重新登录", row.service_id, true);
   const checked_at = new Date().toISOString();
-  const protocol = row.auth_method === "mcp" ? withConnectorProtocols(home, store => store.get<StoredMcpConfiguration>(id)) : null;
+  const protocol = row.auth_method === "mcp" ? withConnectorProtocols(home, store => store.get<StoredMcpConfiguration>(id), true) : null;
   if (!rememberConnectorCheck(home, id, { at: checked_at, revision: row.updated_at, outcome: "connected",
     authorization: row.auth_method === "none" || protocol?.mode === "none" ? "not-required" : "verified",
     ...("verified_account" in result ? { account: result.verified_account } : "account" in result && typeof result.account === "object" ? { account: result.account } : {}) })) throw connectorErrors["connector.connection.invalid"]("检查期间连接已变化，请重新检查");

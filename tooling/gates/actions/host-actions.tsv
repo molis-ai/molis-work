@@ -159,6 +159,8 @@ connectors.setup.prepare	1	system.connectors	command	operation	home	write	-	agen
 connectors.setup.resolve	1	system.connectors	command	operation	home	write	-	agent	connectors:management:write	connector	-	-	e3b5144a4126	a2c799262a3c	-
 connectors.usages.read	1	system.connectors	query	query	home	read	concurrent	agent,mcp,user	connectors:management:read	connector	-	-	a343ab264882	5f20b95f01d0	-
 connectors.usages.switch	1	system.connectors	command	operation	home	write	concurrent	user	connectors:management:write	connector	-	-	e252a0385cf9	c74bb0f81d27	-
+contextual.draft_reference.issue	1	system.home	command	operation	project	write	-	user	ui:drafts	-	-	-	81c1bd043b3e	6cf4e7c19469	-
+contextual.draft_reference.take	1	system.home	command	operation	project	write	-	user	ui:drafts	-	-	-	17591f24942d	499784f3137f	-
 functions.authoring.catalog	1	system.functions	query	query	home	read	-	agent,mcp,user,workflow	functions:manage	-	-	-	d746974fa9af	3fb77bfd3549	-
 functions.authoring.configure	1	system.functions	command	operation	home	write	-	agent,mcp,user,workflow	functions:manage	-	-	-	edd82b576d7e	c4c6715b3c37	-
 functions.authoring.create	1	system.functions	command	operation	home	write	-	agent,mcp,plugin,user,workflow	functions:manage	-	-	-	5c778898fba7	d0e7a29830c7	-
@@ -192,7 +194,7 @@ home.recommendations.read	1	system.home	query	query	project	read	-	agent,mcp,use
 information.plan	1	system.information	query	query	project	read	concurrent	user	feed:read,inbox:read,model:invoke	-	-	-	8e2694dda5f5	4f388ba1b8eb	6249b1c8b85e
 knowledge.card.edit	1	system.knowledge	command	operation	project	write	-	user	knowledge:manage	-	-	-	6764c11200e2	d3f54c851bfe	-
 knowledge.card.exclude	1	system.knowledge	command	operation	project	write	-	user	knowledge:manage	-	-	-	0a3c56932129	d3f54c851bfe	-
-knowledge.cards	1	system.knowledge	query	query	project	read	-	user	knowledge:manage	-	-	-	78330c1cb10d	1b098be587c9	-
+knowledge.cards	1	system.knowledge	query	query	project	read	-	user	knowledge:manage	-	-	-	94f2438655bf	1b098be587c9	-
 knowledge.glob	1	system.knowledge	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	knowledge:read	-	-	-	52b3aedc093e	95ec33fe4a14	-
 knowledge.grep	1	system.knowledge	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	knowledge:read	-	-	-	174b52327e5d	3a6a8294b57c	-
 knowledge.list	1	system.knowledge	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	knowledge:read	-	-	-	bbbe6be930a8	9ed5d657f112	-
@@ -251,11 +253,12 @@ plugins.home.installed.list	1	plugin-install	query	query	home	read	-	user	plugin
 plugins.home.installed.uninstall	1	plugin-install	command	operation	home	write	-	user	plugin-install:write	-	-	-	58f4e0ac86dd	ed1bbfdbc8a1	-
 plugins.home.permissions.set	1	plugin-install	command	operation	home	write	-	user	plugin-install:write	-	-	-	a84e21e82492	5f69cd6b08ba	-
 plugins.install.confirm	1	plugin-install	command	operation	project	write	-	user	plugin-install:write	-	-	-	1ac5b8aa902d	d14b3d6b0630	-
-plugins.install.preview	1	plugin-install	command	operation	project	write	-	user	plugin-install:write	-	-	-	750c5d5fd01c	db44b239cf8d	-
+plugins.install.preview	1	plugin-install	command	operation	project	write	-	user	plugin-install:write	-	-	-	750c5d5fd01c	2fe6c1aede47	-
 plugins.installed.disable	1	plugin-install	command	operation	project	write	-	user	plugin-install:write	-	-	-	52c1f91a2943	ed1bbfdbc8a1	-
 plugins.installed.enable	1	plugin-install	command	operation	project	write	-	user	plugin-install:write	-	-	-	52c1f91a2943	ed1bbfdbc8a1	-
 plugins.installed.list	1	plugin-install	query	query	project	read	-	user	plugin-install:read	-	-	-	99334726611c	ac7a1ab2b686	-
 plugins.installed.uninstall	1	plugin-install	command	operation	project	write	-	user	plugin-install:write	-	-	-	58f4e0ac86dd	ed1bbfdbc8a1	-
+plugins.local_packages.sign	1	plugin-install	command	operation	home	write	-	user	plugin-install:write	-	-	-	797f765e3f76	5fc8c3bb5a54	-
 plugins.permissions.set	1	plugin-install	command	operation	project	write	-	user	plugin-install:write	-	-	-	a84e21e82492	5f69cd6b08ba	-
 plugins.project_reach.grant	1	plugin-consents	command	operation	project	write	-	user	plugin-consents:write	-	-	-	5fcc8f8605f2	91acffc20284	-
 plugins.project_reach.list	1	plugin-consents	query	query	project	read	-	user	plugin-consents:read	-	-	-	99334726611c	702ea66565ce	-
@@ -269,6 +272,8 @@ projects.directories.remove_input	1	system.project-workspaces	command	operation	
 projects.directories.repair	1	system.project-workspaces	command	operation	project	write	-	user	projects:settings	project	-	project.directories	53dd0114e42f	3a015074df9d	-
 projects.directories.set_output	1	system.project-workspaces	command	operation	project	write	-	user	projects:settings	project	-	project.directories	4caaf6a98bb7	3a015074df9d	-
 projects.directories.unmap_source	1	system.project-workspaces	command	operation	project	write	-	user	projects:settings	project	-	project.directories	a2a089faf780	3a015074df9d	-
+projects.plugins.get	1	system.project-workspaces	query	query	project	read	-	agent,plugin,user	-	project	-	project.plugin_membership	99334726611c	2a702bb14aae	-
+projects.plugins.set	1	system.project-workspaces	command	operation	project	write	concurrent	user	projects:settings	project	-	project.plugin_membership	af72fb37900e	2a702bb14aae	-
 projects.settings.runtime.read	1	platform	query	query	project	read	-	agent,mcp,user,workflow	-	project	-	project.runtime.optional	9cecb8ebe607	8c923fd28c9a	-
 projects.settings.runtime.select	1	platform	command	operation	project	write	-	user	projects:settings	project	-	project.runtime.optional	65d08d19afe5	8c923fd28c9a	-
 projects.workspace.files.read	1	platform	query	query	project	read	-	agent,mcp,user,workflow	workspace:read	workspace	-	-	9a0d0d76ae5b	a2c799262a3c	-

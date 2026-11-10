@@ -183,13 +183,14 @@ test("N54 a visible capsule reads every 2.5 s and updates its elapsed text every
   assert.equal(page.elapsedReads - readsBefore, 60);
 });
 
-test("N54 a hidden capsule has no elapsed timer and reads twice a minute, and the menu bar still gets each answer", async () => {
+test("D0044 N54 a hidden capsule reads only the menu projection twice a minute and never updates elapsed text", async () => {
   const page = await open(true);
   assert.equal(page.fetches.length, 1, "a window created hidden still reads once on open, so the menu bar has a status");
   assert.deepEqual(page.clock.cadences, [30_000]);
   const readsBefore = page.elapsedReads;
   await page.clock.advance(60_000);
   assert.equal(page.fetches.length, 1 + 2);
+  assert.ok(page.fetches.every(url => String(url).includes("view=menu")), "hidden polling asks for menu data only");
   assert.equal(page.elapsedReads - readsBefore, 0, "nobody sees the elapsed text, so nothing updates it");
   assert.equal(page.menuBarUpdates().length, page.fetches.length, "each read, hidden or not, sets the menu-bar title and tooltip");
 });

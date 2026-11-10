@@ -77,13 +77,15 @@ Goals 是内置插件，拥有 Goal 的事实；成果（Artifacts）的正式�
 - Artifact 类型由 `artifact_type_id + schema_version` 判断能否消费，生产者身份只做来源审计。
 - 接收端没有对应 Plugin 时，Server 仍可保存和转发 opaque payload；安装兼容 consumer 后再解释（Team 交换尚未实现）。
 
-当前本地 Goal 工作使用一套事件协议。Goals 保存意图、笔记、类型版本、报告、当前约定与要求，并决定显式收尾的完成效果；Governance 保存可信用户决定与有限树提案。Native Goals 组合用例和界面，Host 提供已绑定项目、Session 身份与同库事务，MCP/Web 不另算工作状态。普通记录不要求先建立规划。
+当前本地 Goal 工作使用一套事件协议。Goals 保存意图、笔记、类型版本、报告、当前约定与要求，并决定显式收尾的完成效果；其中 Governance 职责在 Goals 插件内部保存可信用户决定与有限树提案。Native Goals 组合用例和界面，Host 提供已绑定项目、Session 身份与同库事务，MCP/Web 不另算工作状态。普通记录不要求先建立规划。
 
 旧 Claim/Run/Evidence/Review 连同历史表、迁移与展示已于 2026-10-05 删除；Goal 历史就是事件记录加 Goals 日志。Runtime 进程和终端由 Runtime Host 与终端工作区负责（Sessions 已下线，重做见 BL-177）。当前调用合同见 [Goals](../modules/goals.md) 和 [Runtime](../runtime.md)。Governance（可信用户决定与有限树提案）现在是 Goals 插件内部的职责，不是独立的模块或事实 owner：原 `modules/governance-collaboration` 的代码已并入 `plugins/native/goals`（S9-3），其职责说明见 [Governance & Collaboration](../modules/governance-collaboration.md)。
 
 ## 6. Local 与 Server
 
 ### Local
+
+桌面、浏览器工作台、CLI 与 MCP 的正式本地入口都落到同一个常驻 Local Host，不经 `apps/server`；它是独立的实验性服务端启动器。Runtime Host 是执行服务职责，不是 `apps/server` 的别名。
 
 Local Host 是用户真正工作的地方，组合完整 Module、Horizontal Service、平台产品服务、Plugin Runtime、Storage 和 Adapter。Desktop、Workbench、CLI、MCP 共享同一个 Host 能力，不各自维护一套业务状态。
 

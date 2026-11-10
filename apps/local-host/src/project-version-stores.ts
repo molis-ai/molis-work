@@ -27,7 +27,7 @@ export function assertRestorableArtifactVersions(assets: readonly RestoredArtifa
 /**
  * Puts the versions of a work-assets bundle into the project rebuilt from it (S-81's one exception): each is registered as the bundle
  * recorded it (producer, type, content, none rewritten), and a producer the project has not installed is taken, the restore warns
- * that its plugin is missing. Only `apps/server/src/assets.ts` calls it, and only a project that holds nothing but what the bundle
+ * that its plugin is missing. Only `apps/local-host/src/work-assets.ts` calls it, and only a project that holds nothing but what the bundle
  * brings accepts it: a project with any other version refuses, so the entry is no way to write into a live library. The versions stay
  * out of every write path of the producer until it is installed here (the ordinary stores refuse it). Never a store handed out, never
  * an action, nothing in the SDK or contracts.

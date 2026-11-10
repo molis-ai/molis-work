@@ -1,4 +1,5 @@
 import {completeInstallationLogin} from './fixtures/installation-login.js';
+import { projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {createServer,type Server} from 'node:http';
@@ -36,7 +37,7 @@ test('PTR-02 local trial login creates a personal project, saves full text and a
   await json('/api/personal/space?kind=personal',{});token=readFileSync(join(home,'spaces',(await json('/api/spaces')).current.spaceId,'config/web-control-token'),'utf8').trim();
   const personal=(await json('/api/spaces')).current;assert.equal(personal.kind,'personal');
   const created=await json('/api/settings/projects',{display_name:'个人首用验证',user_confirmed:true}),id=created.project.project_id,prefix='/projects/'+id;
-  await json('/api/settings/projects/'+id+'/plugins',{plugin_id:'pages'});
+  await json('/api/settings/projects/'+id+'/plugins',{plugin_id:'pages',expected_revision:await projectPluginRevision({get:path=>json(path)},id)});
   const text='完整正文🌲\r\n'+('离线保存与重启\n'.repeat(7000));
   const page=(await json(prefix+'/api/plugins/io.molis.work.pages/pages',{title:'首用文档',markdown:text})).document;assert.ok(page.id);
   const attachment=Buffer.from(Array.from({length:300007},(_,i)=>(i*29)%256));

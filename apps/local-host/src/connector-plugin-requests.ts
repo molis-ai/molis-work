@@ -52,7 +52,7 @@ export function forgetInstallationBindings(home: string, install_id: string): vo
 
 /** The installations that have any plugin binding at all (BL-596); none when the Home never saved an account. */
 export function installationIdsWithBindings(home: string): string[] {
-  return existsSync(homeSqlitePath(home, "connectors")) ? withConnectorConnections(home, store => [...new Set(store.pluginBindings().map(binding => binding.install_id))]) : [];
+  return withConnectorConnections(home, store => [...new Set(store.pluginBindings().map(binding => binding.install_id))], true) ?? [];
 }
 
 /** A target's scope: an installation slot's, or a `per_record` slot's, which is also the call's project's and the record's (S-71 provisional). */
@@ -127,7 +127,7 @@ export function createCallConnectionsPort(home: string, options: PluginConnectio
         const connection = store.get(call.connection_id!);
         if (!connection || pinnedToAnother(store, connection.connection_id, call.install_id)) return { bound: true, state: "disconnected" as const };
         return { bound: true, display_name: connection.display_name, state: connection.service_id === call.service_id ? shownState(home, connection, store.state(connection), lastConnectorCheck(store, connection.connection_id)) : "disconnected" };
-      });
+      }, true) ?? { bound: true, state: "disconnected" as const };
     },
   };
 }
@@ -230,7 +230,7 @@ function describeBinding(home: string, target: PluginConnectionTarget): PluginCo
       ? store.targetOrigin(connection.connection_id) : null;
     const needsReconnect = state === "connected" && !origin && Boolean(CONNECTOR_REQUEST_SERVICES[target.service_id]?.tenant);
     return { bound: true, display_name: connection.display_name, state: needsReconnect ? "reauth_required" : state, ...(origin ? { origin } : {}) };
-  });
+  }, true) ?? { bound: false };
 }
 
 /** The connection bound to this installation's slot, `null` when none is; refuses one that cannot be used as it is. */
@@ -241,7 +241,7 @@ function boundConnection(home: string, target: PluginConnectionTarget, service: 
   return withConnectorConnections(home, store => {
     const binding = store.binding(targetScope(target), target.plugin_id, target.slot_id);
     return binding ? usableConnection(home, store, binding.connection_id, target.service_id, service, origin, target.install_id) : null;
-  });
+  }, true) ?? null;
 }
 
 /**

@@ -1,3 +1,4 @@
+import { imText as L } from "../locale.js";
 import type { ApiError, BrowserStorage } from './types.js';
 /** HTTP, local-host bridge and connection lifecycle have no conversation state. */
 export function createTransport(onUnauthorized: () => void) {
@@ -23,7 +24,7 @@ export function createTransport(onUnauthorized: () => void) {
       response = await fetch('/im/api' + path, { method: body === undefined ? 'GET' : 'POST', credentials: 'same-origin', headers: body === undefined ? {} : { 'Content-Type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(15000) });
     }
     catch {
-      const error: ApiError = new Error('暂时无法确认结果，请重试连接。');
+      const error: ApiError = new Error((L("暂时无法确认结果，请重试连接。")));
       error.uncertain = true;
       throw error;
     }
@@ -35,10 +36,10 @@ export function createTransport(onUnauthorized: () => void) {
       value = await response.json();
     }
     catch {
-      throw new Error('服务返回了无法读取的响应，请重新连接。');
+      throw new Error((L("服务返回了无法读取的响应，请重新连接。")));
     }
     if (!response.ok) {
-      const error: ApiError = new Error(value.error || '暂时无法完成，请重试。');
+      const error: ApiError = new Error(value.error || (L("暂时无法完成，请重试。")));
       error.code = value.code;
       error.status = response.status;
       if (response.status === 401)
@@ -50,7 +51,7 @@ export function createTransport(onUnauthorized: () => void) {
   function connectProject(): Promise<void> {
     return new Promise((resolve, reject) => {
       const requestId = crypto.randomUUID();
-      const timer = setTimeout(() => { removeEventListener('message', done); reject(new Error('工作台未能连接此项目，请重新打开讨论。')); }, 15000);
+      const timer = setTimeout(() => { removeEventListener('message', done); reject(new Error((L("工作台未能连接此项目，请重新打开讨论。")))); }, 15000);
       const done = (event: MessageEvent) => {
         if (event.source !== parent || event.origin !== location.origin || event.data?.type !== 'molis:im-connected' || event.data.requestId !== requestId)
           return;

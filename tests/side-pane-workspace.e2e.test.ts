@@ -1,3 +1,4 @@
+import { projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
@@ -149,6 +150,7 @@ test("PFG-22 a saved layout with a plugin taken out of the project keeps that pl
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { evaluate, waitFor, click, command, sessionId, navigate, origin, projectId, web } = browser;
+  assert.ok(projectId);
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   const visit = (query = "") => navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/${query}` }, sessionId));
   const tabs = "[...document.querySelectorAll('.tab-item[data-tab-id]')].map(tab => tab.dataset.plugin + (tab.dataset.itemId ? ':' + tab.dataset.itemId : ''))";
@@ -159,7 +161,7 @@ test("PFG-22 a saved layout with a plugin taken out of the project keeps that pl
   const before = await evaluate<string[]>(tabs);
   assert.ok(before.indexOf("todo") >= 0 && before.indexOf("todo") < before.indexOf("pages"), JSON.stringify(before));
 
-  await web.delete(`/api/settings/projects/${projectId}/plugins`, { plugin_id: "todo" });
+  await web.delete(`/api/settings/projects/${projectId}/plugins`, { plugin_id: "todo", expected_revision: await projectPluginRevision(web, projectId) });
   await visit();
   await waitFor("document.querySelector('.tab-item[data-plugin=\"todo\"][data-tab-removed]')", 15_000);
   assert.deepEqual(await evaluate<string[]>(tabs), before, "the tab stays and nothing else moves");
@@ -169,7 +171,7 @@ test("PFG-22 a saved layout with a plugin taken out of the project keeps that pl
   await waitFor("document.querySelector('[data-tab-removed-stage=\"todo\"]')?.checkVisibility()");
   assert.match(await evaluate<string>("document.querySelector('[data-tab-removed-stage]').textContent"), /加回这个项目/u);
 
-  await web.post(`/api/settings/projects/${projectId}/plugins`, { plugin_id: "todo" });
+  await web.post(`/api/settings/projects/${projectId}/plugins`, { plugin_id: "todo", expected_revision: await projectPluginRevision(web, projectId) });
   await visit();
   await waitFor("document.querySelector('.tab-item[data-plugin=\"todo\"]') && !document.querySelector('.tab-item[data-tab-removed], [data-group-state=\"removed\"]')", 15_000);
   assert.deepEqual(await evaluate<string[]>(tabs), before, "added back, the same tabs in the same places");
@@ -381,6 +383,7 @@ test("PFG-22 a plugin taken out of the project keeps its side tab in place, mark
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { evaluate, waitFor, click, command, sessionId, navigate, origin, projectId, web } = browser;
+  assert.ok(projectId);
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   const visit = () => navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   const VIEW = "plugin:lingguang/side";
@@ -389,7 +392,7 @@ test("PFG-22 a plugin taken out of the project keeps its side tab in place, mark
   await waitFor(`document.querySelector('${strip} [data-side-tab="${VIEW}"]')`, 15_000);
   const before = await evaluate<string[]>(order);
 
-  await web.delete(`/api/settings/projects/${projectId}/plugins`, { plugin_id: "lingguang" });
+  await web.delete(`/api/settings/projects/${projectId}/plugins`, { plugin_id: "lingguang", expected_revision: await projectPluginRevision(web, projectId) });
   await visit();
   await waitFor(`document.querySelector('${strip} [data-side-tab="${VIEW}"][data-side-removed]')`, 15_000);
   assert.deepEqual(await evaluate<string[]>(order), before, "the tab stays and nothing else moves");
@@ -399,7 +402,7 @@ test("PFG-22 a plugin taken out of the project keeps its side tab in place, mark
   await waitFor(`document.body.dataset.sideOpen === 'true' && [...document.querySelectorAll('[data-side-removed-body]')].find(body => body.dataset.sideBody === ${JSON.stringify(VIEW)})?.checkVisibility()`);
   assert.match(await evaluate<string>("document.querySelector('[data-side-removed-body]').textContent"), /加回这个项目/u);
 
-  await web.post(`/api/settings/projects/${projectId}/plugins`, { plugin_id: "lingguang" });
+  await web.post(`/api/settings/projects/${projectId}/plugins`, { plugin_id: "lingguang", expected_revision: await projectPluginRevision(web, projectId) });
   await visit();
   await waitFor(`document.querySelector('${strip} [data-side-tab="${VIEW}"]:not([data-side-removed])') && !document.querySelector('[data-side-removed], [data-side-removed-body]')`, 15_000);
   assert.deepEqual(await evaluate<string[]>(order), before, "added back, the same tabs in the same places");

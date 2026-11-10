@@ -43,13 +43,13 @@ function readSettings(home: string, declaration: ConsumerModelConfigurationDecla
   const connections = existsSync(join(home, "connectors", "connectors.db"))
     ? withConnectorConnections(home, store => store.list("model-api").map(connection => ({ connection_id: connection.connection_id,
       display_name: connection.display_name, state: !connection.enabled || connection.disconnected_at ? "disconnected" : connection.credential_ref
-        && runWithMolisWorkHome(home, () => peekSealedEntry(connection.credential_ref!)) ? "connected" : "reauth_required" }))) : [];
+        && runWithMolisWorkHome(home, () => peekSealedEntry(connection.credential_ref!)) ? "connected" : "reauth_required" })), true) ?? [] : [];
   let settings: { -readonly [Key in keyof PluginModelConfigurationView]: PluginModelConfigurationView[Key] } = { configured: false, providers: [], connections,
     ...(pref ? { selection: { provider_id: pref.provider_id, model_id: pref.model_id } } : {}), source: "none" };
   if (opened) try {
     settings.providers = opened.store.list().map(provider => ({ id: provider.provider_id, provider_id: provider.provider_id, name: provider.display_name, base_url: provider.base_url, api_format: provider.api_format, enabled: provider.enabled, has_credential: modelCredentialMetadata(home, provider).available, models: provider.models.map(model => ({ ...model })) }));
     const custom = opened.store.get(declaration.custom_provider.provider_id);
-    if (custom) settings.custom_connection_id = connections.find((connection) => withConnectorConnections(home, (store) => store.require(connection.connection_id).credential_ref === custom.credential_ref))?.connection_id;
+    if (custom) settings.custom_connection_id = connections.find((connection) => withConnectorConnections(home, (store) => store.require(connection.connection_id).credential_ref === custom.credential_ref, "required"))?.connection_id;
     const resolved = selectConfiguredTextModel(home, opened.store, pref);
     if (resolved) settings = { ...settings, configured: true, source: pref ? "selection" : "provider", effective_selection: { provider_id: resolved.provider.provider_id, model_id: resolved.model.model_id } };
   } finally { opened.storage.close(); }
@@ -82,7 +82,7 @@ function saveSettings(home: string, declaration: ConsumerModelConfigurationDecla
     const baseUrl = custom ? suppliedUrl ?? (existing ? validBaseUrl(existing.base_url) : undefined) : undefined;
     if (custom && !baseUrl) throw errors.model_configuration_invalid("请填写自定义模型的 Base URL");
     const selectedConnection = input.connection_id?.trim()
-      ? withConnectorConnections(home, (store) => store.require(input.connection_id!.trim(), "model-api")) : null;
+      ? withConnectorConnections(home, (store) => store.require(input.connection_id!.trim(), "model-api"), "required") : null;
     if (selectedConnection && (!selectedConnection.enabled || !selectedConnection.credential_ref || selectedConnection.disconnected_at)) throw errors.model_configuration_invalid("所选模型连接不可用");
     if (!selectedConnection && (!existing || !modelCredentialMetadata(home, { ...existing, base_url: baseUrl ?? existing.base_url }).available)) {
       throw errors.model_configuration_invalid("所选模型连接不可用，请恢复连接或重新选择；原选择已保留");
@@ -90,7 +90,7 @@ function saveSettings(home: string, declaration: ConsumerModelConfigurationDecla
     if (custom && baseUrl) {
       const connectionId = selectedConnection?.connection_id
         ?? listConnectorConnectionViews(home, "model-api").find((connection) =>
-          withConnectorConnections(home, (store) => store.require(connection.connection_id).credential_ref === existing?.credential_ref))?.connection_id;
+          withConnectorConnections(home, (store) => store.require(connection.connection_id).credential_ref === existing?.credential_ref, "required"))?.connection_id;
       if (connectionId) withConnectorConnections(home, (store) => store.assertTarget(connectionId, "model-api", baseUrl));
     }
     mkdirSync(join(home, declaration.preference.store_name), { recursive: true, mode: 0o700 });

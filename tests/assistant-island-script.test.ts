@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { L, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import { ASSISTANT_ISLAND_FACTORY_SCRIPT } from "../apps/workbench/dist/scripts/client/assistant-island.js";
+import { assistantWorkFixture } from "./fixtures/assistant-browser-contract.js";
 import { LOGIN_URLS_OPENED, LOGIN_URLS_REFUSED, loginOpens } from "./fixtures/connection-login-urls.js";
 
 // The bottom bar's client script is one template string: a single slip (a name declared twice, an unescaped newline)
@@ -119,4 +120,63 @@ test("S-plugin-connection-card B1 the Assistant's card checks the login address 
   const { opens, unchecked } = loginOpens(ASSISTANT_ISLAND_FACTORY_SCRIPT);
   assert.equal(opens, 2, "the card opens the login in the system browser or in the window it reserved");
   assert.deepEqual(unchecked, [], "each open comes after isConnectionLoginUrl");
+});
+
+test("D0007 D0337 actual list script rejects late A/B/A responses and preserves current drafts", async () => {
+  const begin = ASSISTANT_ISLAND_FACTORY_SCRIPT.indexOf("  let worksRead = ");
+  const end = ASSISTANT_ISLAND_FACTORY_SCRIPT.indexOf("  const reload = ", begin);
+  assert.ok(begin > 0 && end > begin);
+  const pending: Array<{ route: string; resolve(value: { works: Array<{ work_id: string; draft: string; draft_revision?: number }> }): void }> = [];
+  let route = "A";
+  const script = new Function("host", "api", `let works=[],curId=null,tabs=[],view=null;
+    const island={isConnected:true}, remember=()=>{},saveTabs=()=>{},openTab=()=>{},paintList=()=>{},paintAim=()=>{},paintSum=()=>{},drawTabs=()=>{};
+    ${ASSISTANT_ISLAND_FACTORY_SCRIPT.slice(begin,end)}
+    return {loadWorks,read:()=>works,edit:(id,text,revision)=>{curId=id;works=works.map(work=>work.work_id===id?{...work,draft:text,draft_revision:revision}:work);}};`);
+  const list = script({ route: () => route }, (_path: string, _method: string, _body: unknown, at: string) => new Promise(resolve => pending.push({ route: at, resolve })));
+  const a = list.loadWorks(); route = "B"; const b = list.loadWorks(); route = "A"; const again = list.loadWorks();
+  assert.deepEqual(pending.map(item => item.route), ["A", "B", "A"]);
+  const work = assistantWorkFixture;
+  pending[2]!.resolve({ works: [work] }); await again;
+  pending[1]!.resolve({ works: [{ work_id: "foreign", draft: "" }] }); await b;
+  pending[0]!.resolve({ works: [] }); await a;
+  assert.deepEqual(list.read(), [work], "old replies cannot clear the latest work or unsent draft");
+  list.edit(work.work_id, "new local text", 7);
+  const refresh = list.loadWorks();
+  pending[3]!.resolve({ works: [{ ...work, draft: "older server text", draft_revision: 2 }] }); await refresh;
+  assert.equal(list.read()[0].draft, "new local text", "refresh preserves the person's current draft");
+  assert.equal(list.read()[0].draft_revision, 7, "the draft and its revision remain one observation");
+});
+
+test("D0007: served Assistant response fixtures compile against the owning public contract", async () => {
+  const ts = (await import("typescript")).default;
+  const fixture = new URL("./fixtures/assistant-browser-contract.ts", import.meta.url).pathname;
+  const program = ts.createProgram([fixture], { noEmit: true, strict: true, skipLibCheck: true, target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.NodeNext, moduleResolution: ts.ModuleResolutionKind.NodeNext });
+  const errors = ts.getPreEmitDiagnostics(program);
+  assert.deepEqual(errors.map(item => ts.flattenDiagnosticMessageText(item.messageText, "\n")), [], "a renamed required field must fail this test, rather than be erased by tsx");
+});
+
+test("D0007 D0009: the served usage client reads empty, running and failed responses and never reuses an older round's model or tokens", async () => {
+  const { assistantViewFixtures } = await import("./fixtures/assistant-browser-contract.js");
+  const start = ASSISTANT_ISLAND_FACTORY_SCRIPT.indexOf("const usagePane = (") + "const usagePane = (".length;
+  const end = ASSISTANT_ISLAND_FACTORY_SCRIPT.indexOf(")({ L, el, progress, api, toast:", start);
+  assert.ok(start > 0 && end > start, "execute the usage factory actually embedded in the served Assistant client");
+  const ASSISTANT_SIDE_USAGE_FACTORY_SCRIPT = ASSISTANT_ISLAND_FACTORY_SCRIPT.slice(start, end);
+  class Node {
+    children: Array<Node | string> = []; hidden = false; dataset: Record<string, string> = {};
+    querySelector() { return null; }
+    append(...values: Array<Node | string>) { this.children.push(...values); }
+    replaceChildren(...values: Array<Node | string>) { this.children = values; }
+    text(): string { return this.children.map(value => typeof value === "string" ? value : value.text()).join(" "); }
+  }
+  const create = new Function(`return (${ASSISTANT_SIDE_USAGE_FACTORY_SCRIPT});`)();
+  for (const [name, view] of Object.entries(assistantViewFixtures)) {
+    const box = new Node();
+    const client = create({ L: (text: string) => text, el: (_tag: string, _class: string, text?: string) => { const node = new Node(); if (text) node.append(text); return node; },
+      progress: () => new Node(), box: () => box, current: () => JSON.parse(JSON.stringify(view)) });
+    client.paint(view.work);
+    assert.equal(box.hidden, name === "empty");
+    assert.doesNotMatch(box.text(), /old-model|777|888/, name);
+    if (name === "running" || name === "latestWithoutUsage") assert.match(box.text(), /进行中/);
+    if (name === "failed") assert.match(box.text(), /暂不可用/);
+  }
 });

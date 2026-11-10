@@ -46,9 +46,15 @@ test("UIC-06: the Enter hint is for someone sending the old way: one written lin
 
 test("UIC-08 RC-03: a delivery the target does not take is shown with its reason and never sent as another", () => {
   const unsupported = COMPOSER_AI_LABELS.unsupported;
-  // Nothing runs: a send starts the turn; interrupting is never offered, whatever the target says.
+  // Nothing runs: a send starts the turn, no supplement and never an interrupt; the target may still take 下一轮再做 (idle queue,
+  // 2026-11-09 audit fix), and without its word there is nothing to queue behind.
   const idle = composerDeliveries(false, { "next-boundary": { available: true }, interrupt: { available: true }, "after-run": { available: true } }, unsupported);
   assert.deepEqual(idle.interrupt, { available: false, reason: unsupported });
+  assert.equal(idle["after-run"].available, true, "a work that has run takes the queue while idle");
+  assert.deepEqual(pickComposerDelivery("after-run", idle), { mode: "after-run" });
+  const idleUnsaid = composerDeliveries(false, undefined, unsupported);
+  assert.deepEqual([idleUnsaid["next-boundary"].available, idleUnsaid.interrupt.available, idleUnsaid["after-run"].available], [true, false, false], "no word, no queue");
+  assert.deepEqual(pickComposerDelivery("interrupt", idleUnsaid), { refused: unsupported });
   // Running without the target's word: only the default supplement.
   const plain = composerDeliveries(true, undefined, unsupported);
   assert.deepEqual([plain["next-boundary"].available, plain.interrupt.available, plain["after-run"].available], [true, false, false]);

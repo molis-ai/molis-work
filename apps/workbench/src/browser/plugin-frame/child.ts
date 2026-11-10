@@ -1,3 +1,4 @@
+import { UI_HOST_CLIENT_CODES } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { childFrameAssets } from "./frame-assets.js";
 import { childPlacement } from "./placement.js";
@@ -52,7 +53,7 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
     return globalThis.molisFrameFillMessage(config.messages[key] ?? key, values);
   };
   bindStorage(port, config);
-  const call = createUiRequest({ fetch: fetchThroughPort, origin: config.origin, token: () => "", newKey: () => crypto.randomUUID(), translate: L });
+  const call = createUiRequest({ fetch: fetchThroughPort, origin: config.origin, token: () => "", newKey: () => crypto.randomUUID(), translate: L }, UI_HOST_CLIENT_CODES);
   const view = createUiFailureView({ createElement: tag => document.createElement(tag), translate: L,
     copy: text => copyText(text), setTimeout, clearTimeout: id => clearTimeout(id as ReturnType<typeof setTimeout>) });
   view.install(document);

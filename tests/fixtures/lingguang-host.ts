@@ -1,3 +1,4 @@
+import { UI_HOST_CLIENT_CODES } from "@molis-ai/molis-work-contracts/platform/ui";
 import { LINGGUANG_MESSAGES } from "@molis-ai/molis-work-plugin-lingguang";
 import { fillMessage } from "@molis-ai/molis-work-plugin-sdk";
 import { createUiRequest } from "@molis-ai/molis-work-ui-host";
@@ -13,7 +14,7 @@ export const zh = (key: string, values?: Record<string, string | number>): strin
  * `fetch` the test installs on `globalThis` (looked up when a request is made), and `pluginRoute` is the Manifest identity's path.
  */
 export function lingguangHost(lifetime: ReturnType<typeof fakeLifetime>, overrides: Record<string, unknown> = {}) {
-  const request = createUiRequest({ fetch: (input, init) => globalThis.fetch(input, init as RequestInit), origin: "http://lingguang.test", token: () => "t", newKey: () => "k-0000001", translate: zh });
+  const request = createUiRequest({ fetch: (input, init) => globalThis.fetch(input, init as RequestInit), origin: "http://lingguang.test", token: () => "t", newKey: () => "k-0000001", translate: zh }, UI_HOST_CLIENT_CODES);
   Object.assign(globalThis, { molisWorkRequest: request });
   return {
     translate: zh, route: (path: string) => path, pluginRoute: (path: string) => `/api/plugins/${LINGGUANG_PLUGIN_ID}${path}`, pluginId: LINGGUANG_PLUGIN_ID,

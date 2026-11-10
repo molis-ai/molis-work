@@ -1,3 +1,4 @@
+import { draftReferenceActions, DRAFT_REFERENCE_PERMISSION, type DraftReferences } from "./contextual/draft-references.js";
 import { canonicalJsonText, compareCodeUnits, createActionDefinition } from "@molis-ai/molis-work-plugin-sdk";
 import { homeOfferActions, createHomeOfferHandlers, type HomeActionOffer } from "./home-offer-actions.js";
 import { callerDirectory, prepareSubjectOffers } from "./contextual/contextual-service.js";
@@ -64,7 +65,7 @@ export const homeActions = {
   }, resultSchema, [...homeDockScene.permissions], homeDockScene, { cost: "metered" }),
   recommendations: define<Record<string, never>, HomeRecommendations>("home.recommendations.read", /* @version action.home.recommendations.read */ 1, "当前首页建议", "读取首页事项现有的判断结果（建议与可用动作），只含调用者有权读取的事项；没有启用判断规则时返回空。只读，不调用模型、不重新判断。", "query", empty, resultSchema, ["home:read"]),
 };
-export const HOME_ACTION_PERMISSIONS = ["home:read", "home:write", "feed:read", "inbox:read", "model:invoke", "functions:invoke"] as const;
+export const HOME_ACTION_PERMISSIONS = ["home:read", "home:write", "feed:read", "inbox:read", "model:invoke", "functions:invoke", DRAFT_REFERENCE_PERMISSION] as const;
 export const homeDockBindingId = (project: string) => `${HOME_DOCK_SCENE_ID}:${project}`;
 
 const sameBinding = (left: ActionSceneBinding | null, right: ActionSceneBinding) => !!left?.enabled && left.binding_id === right.binding_id
@@ -74,6 +75,7 @@ const sameBinding = (left: ActionSceneBinding | null, right: ActionSceneBinding)
 /** Home owns its consumption contract; Functions remains the owner of saved bindings and history. */
 export interface HomeSceneServices {
   actions: ActionClient; scenes: ActionSceneClient; functions?: FunctionsHostOptions;
+  pageDrafts?: Pick<DraftReferences, "handlers">;
   /** A running Host owns this connection; standalone scene callers use a scoped service. */
   readFunctions?: FunctionsActionPorts["read"];
   /** Whether the project reaches the plugin behind a provider (`projectPluginJudge`), so an unavailable source the project lists is shown instead of taken for one it does not have. */
@@ -183,7 +185,8 @@ export function homeActionProvider(home: string, projectId: string, services: Ho
     ...definition, handle: (caller, input) => handle(input as I, caller),
   });
   return { provider: { provider_id: HOME_PROVIDER_ID, title: "首页", kind: "system", project_id: projectId },
-    definitions: Object.values(homeActions), scenes: [homeDockScene], scene_handlers: [handler], handlers: [
+    definitions: [...Object.values(homeActions), ...(services.pageDrafts ? Object.values(draftReferenceActions) : [])], scenes: [homeDockScene], scene_handlers: [handler], handlers: [
+      ...(services.pageDrafts?.handlers() ?? []),
       ...createHomeOfferHandlers(services.actions),
       ...createHomeEventHandlers(services.actions, homeActions.recommendations, services.projectPlugins),
       bind(homeActions.readJudgment, async (_input, caller) => {

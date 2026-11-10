@@ -41,7 +41,8 @@ test("Goal kanban sits beside the canvas, opens Frame, and remembers the board v
   })()`);
   assert.equal(aligned, true, "Status columns share one left edge across depths");
   if (listRows.relationsLine) assert.equal(listRows.relationsLine, "nowrap");
-  assert.equal(await evaluate("document.querySelectorAll('[data-kanban-column]').length"), 6);
+  // D0015: every original category remains, with cancelled represented separately.
+  assert.deepEqual(await evaluate("[...document.querySelectorAll('[data-kanban-column]')].map(el => el.dataset.kanbanColumn)"), ["continue", "in_progress", "waiting_user", "waiting", "blocked", "completed", "cancelled"]);
   assert.doesNotMatch(await evaluate<string>("document.querySelector('[data-goal-kanban]')?.textContent || ''"), /从想要的结果开始|创建第一条 Goal|Click a card/);
   await evaluate("document.querySelector('[data-goal-stage-list] .tree-node[data-select-goal=\"" + goalId + "\"]').click()");
   await waitFor("document.querySelector('[data-goal-node-workspace]')?.dataset.expandedGoal === " + JSON.stringify(goalId) + " && !document.querySelector('[data-goal-node-workspace]').hidden && getComputedStyle(document.querySelector('[data-goal-stage-list]')).display === 'block'");
@@ -64,7 +65,7 @@ test("Goal kanban sits beside the canvas, opens Frame, and remembers the board v
   assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-goal-momentum]')).display === 'none'"), true);
   assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-goal-stage-list]')).display === 'none'"), true);
   const desktopFit = await evaluate<{ sw: number; cw: number }>("(() => { const el = document.querySelector('[data-goal-kanban]'); return { sw: el?.scrollWidth || 0, cw: el?.clientWidth || 0 }; })()");
-  assert.ok(desktopFit.sw <= desktopFit.cw + 1, "desktop kanban fits six columns without horizontal scroll");
+  assert.ok(desktopFit.sw <= desktopFit.cw + 1, "desktop kanban fits all seven status columns without horizontal scroll");
   assert.equal(await evaluate("document.querySelector('[data-kanban-card][data-goal-id=\"" + goalId + "\"]') != null"), true);
   await click('[data-kanban-card][data-goal-id="' + goalId + '"]');
   await waitFor("document.querySelector('[data-goal-node-workspace]')?.dataset.expandedGoal === " + JSON.stringify(goalId) + " && !document.querySelector('[data-goal-node-workspace]').hidden");
@@ -102,7 +103,7 @@ test("Goal kanban sits beside the canvas, opens Frame, and remembers the board v
   await waitFor("getComputedStyle(document.querySelector('[data-goal-kanban] .goal-kanban-board')).flexDirection === 'column'");
   const stacked = await evaluate<{ direction: string; overflowX: string; groups: number; outcome: string }>("(() => { const board = document.querySelector('[data-goal-kanban] .goal-kanban-board'); const shell = document.querySelector('[data-goal-kanban]'); const outcome = document.querySelector('.goal-kanban-card-outcome'); return { direction: getComputedStyle(board).flexDirection, overflowX: getComputedStyle(shell).overflowX, groups: document.querySelectorAll('[data-kanban-group]').length, outcome: outcome ? getComputedStyle(outcome).display : 'none' }; })()");
   assert.equal(stacked.direction, "column");
-  assert.equal(stacked.groups, 6);
+  assert.equal(stacked.groups, 7, "D0013: the cancelled group remains present on the narrow board");
   assert.equal(stacked.outcome, "none");
   assert.ok(stacked.overflowX === "hidden" || stacked.overflowX === "clip", "narrow kanban stacks groups instead of scrolling sideways " + JSON.stringify(stacked));
   assert.deepEqual(boardSnapshot(store, DEMO_PROJECT_ID).goals, before.goals);

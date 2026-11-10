@@ -41,7 +41,7 @@ Home 插件的 `PluginDatabaseDeclaration` / `PluginDatabase` 从 `platform/plug
 
 ## 接入与边界
 
-当前有 63 个公共子路径（外加根入口；以 `package.json` 的 `exports` 为准），其中部分表达未来能力；存在类型不代表已有服务。无数据库或网络依赖，根导出也不是所有业务类型的大集合。
+公共子路径以 `package.json` 的 `exports` 为准。其中部分表达未来能力。合同包无数据库或网络依赖，业务类型按领域子路径导出。
 
 工作区依赖：无。其他运行依赖见 [package.json](package.json)。
 
@@ -65,6 +65,16 @@ node scripts/run-tests.mjs tests/plugin-authoring.test.ts
 ## 开发要求
 
 插件同步集合/快照合同从 `/platform/plugin` 导出；spaceId 级配置格式从 `/modules/sync-replication` 导出。校验不负责授权、持久化或传输，详见[同步接入规范](../../skills/molis-plugin-dev/sync.md)。
+
+`/platform/settings` 提供设置条目、读写输入及共用返回的合同。动作输入只携带设置键和修改内容，主人和项目从可信上下文获得。写入用读到的 revision 与 `request_id`，返回同一事务内回读的有效值。接入见 [SDK 的设置说明](../plugin-sdk/README.md#设置)。
+
+`/platform/blueprints` 提供场景包正文的 `Blueprint`、`BlueprintPart`、`BlueprintProposal` 和 `BLUEPRINT_LIMITS`。正文的校验由 SDK 共用，场景身份由外层调用方给出。见 [SDK 的场景包正文说明](../plugin-sdk/README.md#场景包正文)。
+
+`/modules/characters` 的 `characterRoleActions` 定义角色模板采用和同主人批读。新建交模板，复用交固定的个人版本或项目成员的两项观察值；来源只是记录。声明尚未绑定角色层次服务，项目和调用者由实际主人从可信上下文取得。
+
+`/services/blueprints` 的 `blueprintActions` 定义草稿、预览、应用、回读、撤销、移除和另存，供场景服务登记。通用内容采用从 `/platform/blueprints` 取来源、选择、批读和撤销合同，正文 schema 由声明的主人给出。按操作和请求键回读的是原回执，当前状态独立返回。
+
+`/services/home` 的 `homePageActions` 定义生成首页的版本、文件、试用、采用与恢复。草稿采用用固定通用回执，`subject.id` 和数字 `revision` 给出页面与保存时的固定版本。保存不批准动作或切换首页；`home.read` 的批准回读用 `by: "approval_request"` 与草稿采用回读区分，可在同一批中并列。真实首页主人会接入权限、版本核对和文件送达。
 
 同步声明解析与依赖展开实现在 plugin-sdk；空间策略解析实现在 sync-replication。这里不定义同步 Error 子类，失败统一使用各 owner 声明的 ActionError。
 

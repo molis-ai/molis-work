@@ -26,7 +26,7 @@ export const itemKey = () => `f${++keys}`;
 export const letGo = (items: readonly Item[]) => { for (const item of items) if (item.thumb) URL.revokeObjectURL(item.thumb); };
 export type Source = ComposerMenuSource & { capability_id: string; version: number; provider_id: string };
 export type Status = MwComposerStatus | undefined;
-export type AiOptions = Extract<ComposerOptions, { kind: "ai" }>;
+type AiOptions = Extract<ComposerOptions, { kind: "ai" }>;
 type Check = () => Promise<"sent" | "not-sent" | "unknown">;
 
 export interface Composer {

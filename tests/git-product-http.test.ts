@@ -1,3 +1,4 @@
+import { projectPluginRevisionAt } from "./fixtures/project-plugin-settings.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { randomUUID } from "node:crypto";
@@ -36,7 +37,7 @@ test("Git formal routes select the current grant, publish exact staged/worktree 
     await writeFile(path.join(directory, "note"), "staged\n"); await git("add", "."); await writeFile(path.join(directory, "note"), "working\n");
     await chmod(path.join(directory, "note"), 0o644);
     await start(); const projects: string[] = [];
-    for (const display_name of ["Git A", "Git B"]) { const created = await request("/api/settings/projects", "POST", { display_name, user_confirmed: true }); assert.equal(created.status, 201); projects.push(created.body.project.project_id); await request(`/api/settings/projects/${projects.at(-1)}/plugins`, "POST", { plugin_id: "coding" }); }
+    for (const display_name of ["Git A", "Git B"]) { const created = await request("/api/settings/projects", "POST", { display_name, user_confirmed: true }); assert.equal(created.status, 201); projects.push(created.body.project.project_id); await request(`/api/settings/projects/${projects.at(-1)}/plugins`, "POST", { plugin_id: "coding", expected_revision: await projectPluginRevisionAt(origin, projects.at(-1)!) }); }
     const api = (plugin: string, suffix: string, project = projects[0]) => `/projects/${project}/api/plugins/io.molis.work.${plugin}${suffix}`;
     // Git shows and stages in the project's output, set in its settings as the person does (SSC-15, SSC-17).
     const web = directoriesWebOf(request);

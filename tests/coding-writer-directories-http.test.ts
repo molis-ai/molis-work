@@ -1,3 +1,4 @@
+import { projectPluginRevisionAt } from "./fixtures/project-plugin-settings.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { randomUUID } from "node:crypto";
@@ -28,7 +29,7 @@ test("Coding formal worktree preparation requires the original review, grants on
     await git("init","-b","main");await git("config","user.name","Fixture");await git("config","user.email","fixture@example.invalid");
     await writeFile(path.join(root,"sample.txt"),"original\n");await git("add",".");await git("commit","-m","base");
     await start();const projects:string[]=[];
-    for(const display_name of ["Writers A","Writers B"]){const created=await request("/api/settings/projects","POST",{display_name,user_confirmed:true});assert.equal(created.status,201);projects.push(created.body.project.project_id);await request(`/api/settings/projects/${projects.at(-1)}/plugins`,"POST",{plugin_id:"coding"});}
+    for(const display_name of ["Writers A","Writers B"]){const created=await request("/api/settings/projects","POST",{display_name,user_confirmed:true});assert.equal(created.status,201);projects.push(created.body.project.project_id);await request(`/api/settings/projects/${projects.at(-1)}/plugins`,"POST",{plugin_id:"coding", expected_revision: await projectPluginRevisionAt(origin, projects.at(-1)!) });}
     // A worktree is made from the repository by writing in it, so the repository is the project's output (SSC-15).
     await setProjectOutputFolder(directoriesWebOf(request),projects[0],root);
     const state=()=>request(`/projects/${projects[0]}/api/plugins/io.molis.work.coding/state`);

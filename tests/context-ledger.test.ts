@@ -134,3 +134,45 @@ test("Feed link and Attention changes roll back with Ledger when event persisten
     assert.deepEqual(h.ledger.query.history(access, feedLedgerKey(`feed.goal:${item.item_id}`)), []);
   } finally { h.db.close(); }
 });
+
+test("D0195: exact-key ledger batches are bounded, isolated and preserve removals", () => {
+  const db = openTestSqlite(":memory:");
+  try {
+    const ledger = createContextLedger(db, { authorize: request => request.actor_id === "alice" });
+    for (let n = 0; n < 205; n++) ledger.commands.put(access, { key: `edge-${n}`, type: "feed.goal", source: reference("feed", `item-${n}`), target: reference("goals", `goal-${n}`), cause: "test" });
+    const keys = Array.from({ length: 200 }, (_, n) => `edge-${n}`);
+    assert.equal(ledger.query.list(access, { keys }).length, 200);
+    assert.deepEqual(ledger.query.list(access, { keys: [] }), []);
+    assert.deepEqual(ledger.query.list(access, { keys: ["edge-204", "absent"] }).map(edge => edge.key), ["edge-204"]);
+    ledger.commands.remove(access, "edge-204", "removed");
+    assert.deepEqual(ledger.query.list(access, { keys: ["edge-204"] }), []);
+    assert.equal(ledger.query.list(access, { keys: ["edge-204"], include_removed: true })[0]?.state, "removed");
+    assert.deepEqual(ledger.query.list({ ...access, scope: { kind: "personal", id: "other" } }, { keys }), []);
+    assert.throws(() => ledger.query.list(access, { keys: [...keys, "one-too-many"] }), { code: "context_ledger.invalid_reference" });
+    assert.throws(() => ledger.query.list(access, { keys: [""] }), { code: "context_ledger.invalid_reference" });
+  } finally { db.close(); }
+});
+
+test("D0195: Feed pages fetch only selected materials and one exact-key ledger batch", () => {
+  const h = feedHarness();
+  try {
+    const ingesting = h.open();
+    for (let n = 0; n < 405; n++) {
+      const item = h.ingest(`page-${String(n).padStart(3, "0")}`);
+      ingesting.commands.upsertMaterial({ project_id: "project-a", item_id: item.item_id, material_id: `material-${n}`, canonical_url: null,
+        title: item.title, source_name: "GitHub", published_at: null, preview: `Selected material ${n}`, content_hash: null, content_ref: null,
+        content_available: true, content_type: "text/plain", character_count: 10, captured_at: null, provenance: {}, selected_for_context: false,
+        imported_at: "2026-11-08T00:00:00Z", updated_at: "2026-11-08T00:00:00Z" });
+    }
+    let gets = 0;
+    const batches: number[] = [];
+    const feed = h.open({ ...h.ledger, query: { ...h.ledger.query, get: (...args) => { gets++; return h.ledger.query.get(...args); }, list: (...args) => { batches.push(args[1]?.keys?.length ?? -1); return h.ledger.query.list(...args); } } });
+    const first = feed.query.list("project-a", { limit: 200, offset: 0 });
+    const next = feed.query.list("project-a", { limit: 200, offset: 200 });
+    const last = feed.query.list("project-a", { limit: 200, offset: 400 });
+    assert.deepEqual([first.length, next.length, last.length], [200, 200, 5]);
+    assert.equal(new Set([...first, ...next, ...last].map(item => item.item_id)).size, 405);
+    assert.deepEqual(batches, [200, 200, 5]); assert.equal(gets, 0, "listing never adds per-item ledger reads");
+    assert.ok([...first, ...next, ...last].every(item => item.materials.length === 1));
+  } finally { h.db.close(); }
+});

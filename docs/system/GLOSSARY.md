@@ -66,7 +66,8 @@
 | 展示快照 | 一页用的规格、皮肤、字体、语言的身份与问题，不带令牌值和译文（`UiEnvironmentSnapshot`，`resolveUiEnvironment` 算）；第 16 批进首屏 | 无 | — |
 | 成果（Artifact） | 人要留存、引用的固定版本与导入文件，存在成果库；类型在 Manifest 的 `artifacts.produces` 声明 | 成果 | 交给别的插件接着用的数据不是成果，叫过程项 |
 | 过程项（process item） | 交给别的插件接着用的数据，在 Manifest 的 `process_items.produces` 声明；不进成果库、侧栏文件和搜索 | 界面里没有单独的词 | 不要叫成果 |
-| 只有声明的插件（content） | Manifest 写 `kind: "content"` 的插件：只有身份与展示、`methods`（技能）、`requires`、`upgrade_compatibility`、双语文字和范围（`runtime: { scope: "home" }`）；入口、权限、能力、成果类型、界面贡献都是空列表，其余键一出现就由 SDK 的 `inspectContentPlugin` 点名拒绝（`plugin.declaration_invalid`）。只从签名的内容包（`CONTENT_PACKAGE_FILES`）安装，不起进程、不挂路由、不进 MCP 工具表；技能包是它，第 20 批的场景套组也用它（`specs/skill-packs/contract-design.md` 第 3 节）。不是场景包建议（第 20 批 `BlueprintProposal`）里的 `content` | 还没有界面；文档与将来的界面都叫「只有声明的插件」 | 内容插件；技能包（只指带技能的那种）；内容包（指它的安装包，不指插件）；`pack.json`、`SkillPackRegistry`（2026-10-19 删掉的第二条安装路） |
+| 只有声明的插件（content） | Manifest 写 `kind: "content"` 的插件：只有身份与展示、`methods`（技能）、`blueprint`（场景包）、`requires`、`upgrade_compatibility`、界面文字和范围（`runtime: { scope: "home" }`）；入口、权限、能力、成果类型、界面贡献都是空列表，其余键一出现就由 SDK 的 `inspectContentPlugin` 点名拒绝（`plugin.declaration_invalid`）。只从签名的内容包（`CONTENT_PACKAGE_FILES`）安装，不起进程、不挂路由、不进 MCP 工具表；技能包和场景包都用它（`specs/skill-packs/contract-design.md` 第 3 节）。不是场景包建议（第 20 批 `BlueprintProposal`）里的 `content` | 还没有界面；文档与将来的界面都叫「只有声明的插件」 | 内容插件；技能包（只指带技能的那种）；内容包（指它的安装包，不指插件）；`pack.json`、`SkillPackRegistry`（2026-10-19 删掉的第二条安装路） |
+| 场景包（blueprint） | 内容包的场景正文，定义起步步骤，以及角色、Skill、能力、账号、设置和内容建议。默认正文在 `blueprint.json`，Manifest 的 `blueprint.locales` 列出随包译文。 | 场景包 | 场景套组 |
 | 发布者签名 | 插件包由谁发布的签名；它只决定安装信任：要不要首次确认、跑不跑沙箱、动作提供方身份。官方、个人、创作台生成和第三方插件在别处待遇一样 | 界面里没有单独的词 | 官方插件、第三方插件（不是待遇上的分类） |
 | 归属角色 | SSOT 各表「归属」列的角色词，由 `scripts/package-owners.mjs` 的 `ROLE_BY_KIND` 按包的类别生成：应用、平台包、Module、横向服务、内置插件、官方集成、工具；`packages/contracts`、`packages/kernel`、`packages/plugin-sdk`、`apps/local-host`、`apps/workbench`、`horizontal/agent-host` 另记「共享核心」。评审人写在 `.github/CODEOWNERS`，同一个脚本生成，`pnpm boundary:check` 校验 | 界面里没有 | — |
 | 组件板 | 设计系统的组件与状态标本页，本地宿主的 `/__ui/catalog`（`pnpm web` 起宿主，默认 `http://127.0.0.1:4173`）；不是 Goals 的看板 | 规格板、控件板混用 | 规格板、控件板、component board |
@@ -454,7 +455,7 @@ B　说工作者本身的（做事、用自己的权限、请求授权和提问�
 
 - 现状：助理说「工作」，Coding 与看板说「任务」，同一件被委托出去的事在助理里叫「子任务」、在 Coding 看板叫「子代理」；同一个「轮」在助理英文里是 round、在 Coding 英文里是 turn；排到下一轮的那一项有「下一轮再做」「这一轮结束后再做」「排队」三种写法；输入框的接收者有「发到」「发给」「目标」几种写法。「工作简报」「受托工作」「子工作」只在文档里。盘点见 `specs/post-anticorruption-roadmap/reference/batches/10.md`「H4 对外用词方案」。
 - 决定（用户 2026-11-04，看第 10 批定样 `docs/design/unified-input/` 时定）：方案一。工作＝助理里一项持续的事；任务＝交给执行者的具体一件；子任务＝再委托出去的一件；「受托工作」「子工作」不对外，界面写「受托于 X」和「子任务」；简报的产物名仍叫「工作简报」。三条小决定：送达方式叫补充、打断并改向、下一轮再做（键位说明里叫排队）；接收者那一行写「发给」，界面上「目标」只指 Goal；一轮的英文统一 turn。英文 work、task、sub-task。
-- 落地：第 1 节的六行；界面文案替换在第 10 批做完——H4 用词替换 #1851（助理 round 改 turn、subtask 改 sub-task、Coding 看板「子代理」标签），它留给 #1846 之后的工作台英文四处 sub-task 随本批补上，并与本批统一输入（接收者行「发给」、送达方式三名用稳定键 `workbench.composer.next-boundary` 等）。原计划：第 1 节的六行；界面文案替换随第 10 批实现做（助理约 38 处 round、若干 subtask，Coding 看板的「子代理」标签改成「子任务」或说明它是执行者）。
+- 落地：第 1 节的六行；界面文案替换在第 10 批做完——H4 用词替换 #1851（助理 round 改 turn、subtask 改 sub-task、Coding 看板「子代理」标签），它留给 #1846 之后的工作台英文四处 sub-task 随本批补上，并与本批统一输入（接收者行「发给」、送达方式三名用稳定键 `workbench.composer.next-boundary` 等）。接收者行英文保持 `Send to`（用户 2026-11-09 确认改回，本批把组件板英文词典与测试里的写法一并改回）。
 
 ## 5. 代码改名后续清单
 

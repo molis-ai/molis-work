@@ -1,3 +1,4 @@
+import { feedDemoSeedAction, seedFeedDemo } from "./demo-seed.js";
 import { syncBindings } from "./sync-binding.js";
 import { ActionError, resolveActionSubject, type ActionClient, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition, PluginRouteRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -43,7 +44,7 @@ const RELEASES_ACCOUNT = new Set([feedSourceActions.disconnect.capability_id, fe
 
 /**
  * Feed as a Plugin Runtime plugin, one instance per project (specs/archive/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md §11).
- * The application is the same one the Host builds; what changes is what it stands on. Its tables are the plugin's own library, its Inbox
+ * The application owns its runtime and demo facts. Its tables are the plugin's own library, its Inbox
  * entries are Attention's (`services.attention`), its links to Goals the Context Ledger's, what its out rules capture the 成果库's
  * (`services.artifacts.join`, in the same commit), its journal the project's, and its retained
  * bodies are read through the platform (`services.sourcePull.evidence`). Writes happen only inside `createFeedWriter`'s commit.
@@ -149,6 +150,7 @@ export function createFeedPlugin(): PluginDefinition {
     // A home event's subject is read through the directory as the caller, as the Inbox reads its own (`resolveActionSubject`).
     const subjects: ActionClient | undefined = delegation && { discover: () => delegation.discover(), invoke: (_caller, reference, input) => delegation.invoke(reference, input) };
     const bindings: ActionHandlerBinding[] = [
+      { capability_id: feedDemoSeedAction.capability_id, version: feedDemoSeedAction.version, handle: caller => seedFeedDemo(feed, sourcesFor(caller), projectId) },
       ...createFeedContentHandlers(feed, projectId, hydrate, subjects ? async (subject, caller) => (await resolveActionSubject(subjects, caller, subject)).context : undefined),
       ...createFeedQueryHandlers(feed, projectId, { hydrate, authStatus: connector ? () => runtimeConnectorStatus(connector) : later("连接状态"), linkedContext,
         stage: { sourceCatalog: vocabulary ? () => feedSourceCatalog(vocabulary) : noVocabulary, recommendations: sceneRuntime.selection.recommendations,

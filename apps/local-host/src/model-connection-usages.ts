@@ -7,7 +7,7 @@ export const modelConnectionUsages = defineConnectorUsagesAction("models.connect
 export function modelConnectionUsagesHandler(home: string): ActionHandlerBinding {
   return { ...modelConnectionUsages, handle: (_caller, value) => {
     const id = (value as ConnectorUsagesInput).connection_id;
-    const connection = withConnectorConnections(home, store => store.get(id));
+    const connection = withConnectorConnections(home, store => store.get(id), true);
     if (!connection || connection.service_id !== "model-api") return { usages: [] };
     const catalog = openConfiguredModels(home);
     try {

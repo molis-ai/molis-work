@@ -1,10 +1,14 @@
-import type { ProjectPluginId } from "@molis-ai/molis-work-contracts/modules/projects";
+import type { ProjectPluginId, ProjectPluginMembership } from "@molis-ai/molis-work-contracts/modules/projects";
 import { PLATFORM_PLUGIN_REGISTRATIONS, availableProjectPluginIds, shownProjectPlugins } from "./plugin-registry.js";
 import type { ActionAvailability, ActionCallContext, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import type { MolisWorkProjectCatalog } from "./project-catalog.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { homePluginsOutsideBuild } from "./home-registration.js";
+
+export function projectMembershipReach({ plugins, hidden }: ProjectPluginMembership): ReadonlySet<string> {
+  return availableProjectPluginIds(shownProjectPlugins(plugins, hidden));
+}
 
 /**
  * The plugins a project's actions and routes may reach right now (PG-013): what it shows (enabled ones, and personal ones the person
@@ -16,9 +20,9 @@ import { homePluginsOutsideBuild } from "./home-registration.js";
 export function projectReachablePlugins(catalog: Pick<MolisWorkProjectCatalog, "projectPluginMembership">, projectId: string,
   outsideBuild: readonly string[] = [], directory?: () => readonly ProjectPluginId[]): ReadonlySet<string> | null {
   try {
-    const { plugins, hidden } = catalog.projectPluginMembership(projectId, directory);
-    const reachable = new Set(availableProjectPluginIds(shownProjectPlugins(plugins, hidden)));
-    for (const key of outsideBuild) if (!hidden.includes(key)) reachable.add(key);
+    const membership = catalog.projectPluginMembership(projectId, directory);
+    const reachable = new Set(projectMembershipReach(membership));
+    for (const key of outsideBuild) if (!membership.hidden.includes(key)) reachable.add(key);
     return reachable;
   }
   catch (error) {

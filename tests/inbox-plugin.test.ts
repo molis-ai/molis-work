@@ -1,3 +1,4 @@
+import { projectPluginRevisionAt } from "./fixtures/project-plugin-settings.js";
 import { inboxActions, inboxContentActions, createInboxContentHandlers, inboxManifest, INBOX_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-inbox";
 import { createActionMcpPorts, actionMcpToolName, handleMcpMessage } from "@molis-ai/molis-work-app-mcp";
 import { sceneConfigurationActions, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -71,7 +72,7 @@ test("Inbox plugin lists Attention entries, completes without deleting the Feed 
       "x-molis-work-control-token": TOKEN,
       "x-molis-work-idempotency-key": "add-feed",
     },
-    body: JSON.stringify({ plugin_id: "feed" }),
+    body: JSON.stringify({ plugin_id: "feed", expected_revision: await projectPluginRevisionAt(origin, project.project_id) }),
   });
   assert.equal(addFeed.status, 200);
 

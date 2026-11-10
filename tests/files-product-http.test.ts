@@ -1,3 +1,4 @@
+import { projectPluginRevisionAt } from "./fixtures/project-plugin-settings.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { randomUUID } from "node:crypto";
@@ -33,7 +34,7 @@ test("Files formal workspace selection, bounded reads, fixed snapshots, real def
     for (const display_name of ["文件 A", "文件 B"]) {
       const created = await request("/api/settings/projects", "POST", { display_name, user_confirmed: true });
       assert.equal(created.status, 201); projects.push(created.body.project.project_id);
-      await request(`/api/settings/projects/${projects.at(-1)}/plugins`, "POST", { plugin_id: "coding" });
+      await request(`/api/settings/projects/${projects.at(-1)}/plugins`, "POST", { plugin_id: "coding", expected_revision: await projectPluginRevisionAt(origin, projects.at(-1)!) });
     }
     const api = (plugin: string, suffix: string, project = projects[0]) => `/projects/${project}/api/plugins/io.molis.work.${plugin}${suffix}`;
     const web = directoriesWebOf(request);

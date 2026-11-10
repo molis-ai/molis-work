@@ -1,18 +1,22 @@
 import assert from "node:assert/strict";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { syncBuiltinESMExports } from "node:module";
+import os, { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionExecutionContext, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginInstanceRecord, PluginPackageBundle, PluginPackageSigner } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { ActionError, LOCAL_PERSON_ACTOR_ID, retainActionAuthority, type ActionExecutionContext, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { PluginInstanceRecord, PluginPackageBundle } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { externalTool } from "@molis-ai/molis-work-contracts/platform/external-tools";
 import { SKILL_LIMITS } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
+import { localPackageSignAction, type LocalPackageSignResult } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import { CHARACTER_IMPORT_RUNTIMES } from "@molis-ai/molis-work-contracts/modules/characters";
-import { skillImportActions, skillCatalogActions, SKILLS_READ_PERMISSION, type SkillCatalogEntry, SKILLS_MANAGE_PERMISSION } from "@molis-ai/molis-work-contracts/services/skills";
+import { skillImportActions, skillCatalogActions, SKILLS_READ_PERMISSION, type SkillCatalogEntry, type SkillImportPreview, SKILLS_MANAGE_PERMISSION } from "@molis-ai/molis-work-contracts/services/skills";
+import { ActionService, type CallOutcome } from "@molis-ai/molis-work-kernel";
 import { MemoryPluginConsentLedger, signPluginPackage, verifyPluginPackageSignature } from "@molis-ai/molis-work-plugin-runtime";
-import { contentPackagePayload, parseContentPackage, skillDeclarationFromFrontmatter, skillFromFolder } from "@molis-ai/molis-work-plugin-sdk";
+import { contentPackageDraft, contentPackagePayload, parseContentPackage, skillDeclarationFromFrontmatter, skillFromFolder } from "@molis-ai/molis-work-plugin-sdk";
 import { runPluginCli } from "@molis-ai/molis-work-plugin-cli";
-import { PluginInstallService, SandboxPackageStore, SkillImportService, homeAgentDefinitions, localSkillScan, pluginInstallActions, pluginInstallProvider, suggestedAppliesTo } from "@molis-ai/molis-work-app-local-host";
+import { PLUGIN_INSTALL_PERMISSIONS, PluginInstallService, SandboxPackageStore, SkillImportService, homeAgentDefinitions, localSkillScan, pluginInstallActions, pluginInstallProvider, suggestedAppliesTo } from "@molis-ai/molis-work-app-local-host";
 import { newPublisher } from "./fixtures/sandbox-package.js";
 import { caller, installedPackageHost, mac } from "./fixtures/signed-package-host.js";
 
@@ -28,6 +32,9 @@ const AT = "2026-11-08T00:00:00.000Z";
 const who = { project_id: "project-one", actor_id: LOCAL_PERSON_ACTOR_ID };
 const refused = (code: string) => (error: unknown) => error instanceof ActionError && error.code === code;
 const reasons = (error: unknown) => (((error as ActionError).details as { problems?: Array<{ reason: string }> } | undefined)?.problems ?? []).map(problem => problem.reason);
+const signing = { capability_id: localPackageSignAction.capability_id, version: localPackageSignAction.version, provider_id: "plugin-install" };
+const confirming = { capability_id: skillImportActions.confirm.capability_id, version: skillImportActions.confirm.version, provider_id: "plugin-install" };
+const identityPath = (home: string) => join(home, "config", "plugin-publisher.json");
 
 /** A SKILL.md with these frontmatter lines and this body. */
 const skillMd = (lines: string[], body = "按步骤做。\n") => ["---", ...lines, "---", "", body].join("\n");
@@ -63,26 +70,33 @@ async function harness(hooks: { installed?(): Promise<void>; committing?(): Prom
     },
     installInHome: async () => { throw new Error("imports here go to the project"); },
     installed: async project => { await hooks.committing?.(); return recordsFor(project).map(record => ({ record, manifest: undefined })); }, control: async () => "disabled" });
-  const publisher = newPublisher();
-  let signed = 0;
-  const signer: PluginPackageSigner = { ...publisher.signer, sign: bytes => { signed += 1; return publisher.signer.sign(bytes); } };
-  const importer = new SkillImportService({ install, scan: localSkillScan(userHome, {}), signer: async control => { await control.beforeEffect(); control.assertCurrent(); return signer; },
-    retained: pluginId => packages.releases(pluginId, publisher.identity),
+  const signOutcomes: CallOutcome[] = [];
+  const actions = new ActionService(undefined, { settled: (_caller, action, outcome) => {
+    if (action.capability_id === signing.capability_id) signOutcomes.push(outcome);
+  } });
+  const publisherKeyId = () => existsSync(identityPath(home)) ? (JSON.parse(readFileSync(identityPath(home), "utf8")) as { key_id: string }).key_id : null;
+  const importer = new SkillImportService({ install, scan: localSkillScan(userHome, {}), publisherKeyId, readSealedPublisherKeyId: async () => null,
+    sign: async (input, caller) => await actions.invoke(retainActionAuthority(caller, confirming, caller.beforeEffect), signing, input) as LocalPackageSignResult,
+    retained: (pluginId, keyId) => packages.releases(pluginId, keyId),
     installed: async (pluginId, scope, project) => {
       await hooks.installed?.();
       const record = scope === "project" ? recordsFor(project).find(item => item.plugin_id === pluginId) : undefined;
       return record && packages.load(pluginId, record.publisher_signature, record.version).packaged;
     } });
-  const control: ActionExecutionContext = { ...who, call_id: "skill-import-test", audience: "user", permissions: [], beforeEffect: async () => undefined };
-  const service = { preview: importer.preview.bind(importer), confirm: (input: Parameters<SkillImportService['confirm']>[0], person: typeof who, caller = control) => importer.confirm(input, person, caller) };
+  actions.registerProvider(pluginInstallProvider(install, importer, home));
+  const control: ActionExecutionContext = { ...who, call_id: "skill-import-test", audience: "user", permissions: [...PLUGIN_INSTALL_PERMISSIONS, SKILLS_MANAGE_PERMISSION],
+    user_action: { source: "web", conversation_ref: "test", message_ref: "confirm" }, beforeEffect: async () => undefined };
+  const service = { preview: importer.preview.bind(importer), confirm: (input: Parameters<SkillImportService['confirm']>[0], person: typeof who) =>
+    importer.confirm(input, person, { ...control, ...person }) };
   const kept = () => records.map(record => packages.load(record.plugin_id, record.publisher_signature, record.version).packaged!);
   const nothingWritten = () => {
     assert.deepEqual(ledger.publishers(), [], "no publisher was pinned");
     assert.equal(existsSync(join(home, "plugin-packages")), false, "no package was kept");
     assert.deepEqual(records, [], "nothing was installed");
-    assert.equal(signed, 0, "nothing was signed");
+    assert.equal(publisherKeyId(), null, "no signing identity was created");
+    assert.equal(signOutcomes.some(outcome => outcome.ok), false, "no signing completed");
   };
-  return { root, userHome, skills, home, ledger, records, recordsFor, packages, install, service, importer, publisher, kept, nothingWritten, signedCount: () => signed,
+  return { root, userHome, skills, home, ledger, records, recordsFor, packages, service, actions, publisherKeyId, kept, nothingWritten, signOutcomes,
     done: () => rm(root, { recursive: true, force: true }) };
 }
 
@@ -157,8 +171,8 @@ test("SKC-10 S-skill-import confirming makes one content package signed by this 
     const source = { kind: "runtime" as const, runtime_id: "claude-code" as const };
     const first = await h.service.preview({ source }, who);
     const result = await h.service.confirm({ preview_id: first.preview_id, skill_ids: ["notes", "agenda"], scope: "project" }, who);
-    assert.deepEqual(result, { plugin_id: first.package.plugin_id, version: "1.0.0", publisher_key_id: h.publisher.identity });
-    assert.deepEqual(h.ledger.publishers().map(pin => [pin.key_id, pin.label]), [[h.publisher.identity, "这台电脑"]], "this Home's publisher, pinned when the person confirmed");
+    assert.deepEqual(result, { plugin_id: first.package.plugin_id, version: "1.0.0", publisher_key_id: h.publisherKeyId() });
+    assert.deepEqual(h.ledger.publishers().map(pin => [pin.key_id, pin.label]), [[h.publisherKeyId(), "这台电脑"]], "this Home's publisher, pinned when the person confirmed");
     const [installed] = h.kept();
     assert.equal(installed!.manifest.kind, "content");
     assert.deepEqual(installed!.manifest.methods!.map(method => [method.skill_id, method.version]), [["notes", 1], ["agenda", 1]]);
@@ -241,19 +255,19 @@ test("SKC-10 S-skill-import more Skills than one package holds are refused, not 
 test("SKC-10 S-skill-import CLI pack-content packs a folder of Skills with the same packer as the import, refuses a link, and its package is signed like any other", async () => {
   const h = await harness();
   try {
-    const folder = join(h.root, "pack"), output = join(h.root, "out.json"), lines: string[] = [];
+    const folder = join(h.root, "pack"), output = join(h.root, "out.json"), lines: string[] = [], publisher = newPublisher();
     await writeSkill(folder, "notes", good("notes"), { "references/template.md": "## 模板\n" });
     const out = { stdout: (value: string) => lines.push(value), stderr: (value: string) => lines.push(value) };
-    const options = ["--plugin-id", "io.molis.work.example.packed-skills", "--name", "打包的技能", "--version", "1.0.0", "--publisher-id", "example", "--publisher-key-id", h.publisher.identity];
+    const options = ["--plugin-id", "io.molis.work.example.packed-skills", "--name", "打包的技能", "--version", "1.0.0", "--publisher-id", "example", "--publisher-key-id", publisher.identity];
     assert.equal(await runPluginCli(["pack-content", folder, output, ...options], out), 0, lines.join(""));
     const bundle = JSON.parse(await readFile(output, "utf8")) as PluginPackageBundle;
     assert.deepEqual(parseContentPackage(bundle.payload).manifest.methods!.map(method => method.skill_id), ["notes"]);
     // The import's packer makes the same package from the same folder.
     const files = new Map([["SKILL.md", Buffer.from(good("notes"))], ["references/template.md", Buffer.from("## 模板\n")]]);
     assert.deepEqual(contentPackagePayload({ plugin_id: "io.molis.work.example.packed-skills", version: "1.0.0", name: "打包的技能", scope: "project",
-      publisher: { publisher_id: "example", signature: h.publisher.identity }, skills: [skillFromFolder(files)] }), bundle.payload);
-    const signed = signPluginPackage(bundle, h.publisher.signer);
-    assert.equal(verifyPluginPackageSignature(signed).key_id, h.publisher.identity);
+      publisher: { publisher_id: "example", signature: publisher.identity }, skills: [skillFromFolder(files)] }), bundle.payload);
+    const signed = signPluginPackage(bundle, publisher.signer);
+    assert.equal(verifyPluginPackageSignature(signed).key_id, publisher.identity);
 
     await symlink(join(folder, "notes", "SKILL.md"), join(folder, "notes", "references", "again.md"));
     lines.length = 0;
@@ -263,7 +277,7 @@ test("SKC-10 S-skill-import CLI pack-content packs a folder of Skills with the s
   } finally { await h.done(); }
 });
 
-test("SKC-10 S-skill-import in a real Host the person imports a local Skills folder through the actions, it installs as a content plugin and its Skills are registered; an Agent or a call without the person's entry is refused", mac, async () => {
+for (const scope of ["project", "home"] as const) test(`SKC-10 SPC-15 S-skill-import in a real Host the person imports a local Skills folder through the actions, it installs as a content plugin and its Skills are registered; an Agent or a call without the person's entry is refused (${scope})`, mac, async () => {
   const userHome = await mkdtemp(join(tmpdir(), "molis-work-user-")), was = process.env.HOME;
   process.env.HOME = userHome;
   try {
@@ -271,7 +285,15 @@ test("SKC-10 S-skill-import in a real Host the person imports a local Skills fol
     await writeSkill(join(userHome, ".claude", "skills"), "plain", skillMd(["name: plain", "description: 用户要整理时使用。"]));
     const h = await installedPackageHost();
     try {
-      const person: ActionCallContext = { ...h.person, permissions: [...h.person.permissions, SKILLS_MANAGE_PERMISSION] };
+      const prior = contentPackageDraft({ plugin_id: "io.molis.work.example.previously-signed", version: "1.0.0", name: "Previous publication",
+        scope: "home", skills: [skillFromFolder(new Map([["SKILL.md", Buffer.from(good("prior"))]]))] });
+      const { preview_id: priorPreview } = await h.client.invoke(h.person, signing, prior) as LocalPackageSignResult;
+      await h.client.invoke(h.person, pluginInstallActions.confirm, { preview_id: priorPreview, consent: true, pin_label: "My existing publisher" });
+      const signChecks: string[] = [];
+      const person: ActionCallContext = { ...h.person, permissions: [...h.person.permissions, SKILLS_MANAGE_PERMISSION],
+        validate_authority: async reference => {
+          if (reference.capability_id === signing.capability_id) signChecks.push(reference.provider_id!);
+        } };
       const ref = (action: typeof skillImportActions.preview | typeof skillImportActions.confirm) => ({ capability_id: action.capability_id, version: action.version });
       const input = { source: { kind: "runtime", runtime_id: "claude-code" } };
       await assert.rejects(h.client.invoke({ ...caller, permissions: [SKILLS_MANAGE_PERMISSION] }, ref(skillImportActions.preview), input), "without the person's protected entry");
@@ -280,13 +302,15 @@ test("SKC-10 S-skill-import in a real Host the person imports a local Skills fol
         { preview_id: string; applies_to: string; candidates: Array<{ skill_id: string; importable: boolean; applies_to_from: string }> };
       assert.deepEqual(preview.candidates.map(item => [item.skill_id, item.importable, item.applies_to_from]).sort(), [["notes", true, "file"], ["plain", true, "suggested"]]);
       assert.equal(preview.applies_to, "coding");
-      const result = await h.client.invoke(person, ref(skillImportActions.confirm), { preview_id: preview.preview_id, skill_ids: ["notes", "plain"], scope: "project",
-        applies_to: [{ skill_id: "plain", applies_to: "coding" }] }) as { plugin_id: string; version: string };
-      const listed = await h.client.invoke(h.person, { capability_id: pluginInstallActions.installed.capability_id, version: pluginInstallActions.installed.version }, {}) as
+      const selected = { skill_ids: ["notes", "plain"], scope, applies_to: [{ skill_id: "plain", applies_to: "coding" }] };
+      const result = await h.client.invoke(person, confirming, { preview_id: preview.preview_id, ...selected }) as { plugin_id: string; version: string; publisher_key_id: string };
+      const listed = await h.client.invoke(h.person, scope === "home" ? pluginInstallActions.homeInstalled : pluginInstallActions.installed, {}) as
         { plugins: Array<{ plugin_id: string; version: string; state: string }> };
       assert.deepEqual(listed.plugins.filter(item => item.plugin_id === result.plugin_id).map(item => [item.version, item.state]), [["1.0.0", "running"]]);
       assert.deepEqual(homeAgentDefinitions(h.home).methods().filter(item => item.owner_id === result.plugin_id).map(item => item.name).sort(), ["notes", "plain"]);
-      assert.deepEqual(h.ledger.publishers().map(pin => pin.label), ["这台电脑"]);
+      assert.deepEqual(h.ledger.publishers().map(pin => [pin.key_id, pin.label]), [[result.publisher_key_id, "My existing publisher"]]);
+      assert.ok(signChecks.length > 0, "the import entered the shared signing action with this person's authority");
+      assert.deepEqual([...new Set(signChecks)], [signing.provider_id]);
       await h.reopen();
       const catalog = await h.client.invoke({ ...person, permissions: [...person.permissions, SKILLS_READ_PERMISSION] },
         { capability_id: skillCatalogActions.list.capability_id, version: skillCatalogActions.list.version }, {}) as { skills: SkillCatalogEntry[] };
@@ -296,6 +320,24 @@ test("SKC-10 S-skill-import in a real Host the person imports a local Skills fol
       assert.equal(imported.availability.available, false);
       if (!imported.availability.available) assert.equal(imported.availability.reason, "native_only");
 
+      // Interrupted identity creation already has the sealed key and retained releases. The import preview must never repair metadata.
+      const metadata = await readFile(identityPath(h.home), "utf8");
+      await rm(identityPath(h.home));
+      await writeFile(join(userHome, ".claude", "skills", "notes", "SKILL.md"), good("notes").replace("按步骤做。", "更新后的正文。"));
+      const nextPreview = async () => (await h.client.invoke(person, ref(skillImportActions.preview), input) as { preview_id: string }).preview_id;
+      const unauthorized = await nextPreview();
+      assert.equal(existsSync(identityPath(h.home)), false);
+      await assert.rejects(h.client.invoke({ ...person, permissions: [SKILLS_MANAGE_PERMISSION] }, confirming, { preview_id: unauthorized, ...selected }), refused("actions.forbidden"));
+      assert.equal(existsSync(identityPath(h.home)), false, "a caller without signing authority cannot repair the metadata");
+
+      const next = await h.client.invoke(person, confirming, { preview_id: await nextPreview(), ...selected }) as typeof result;
+      assert.deepEqual(next, { ...result, version: "2.0.0" });
+      assert.equal(await readFile(identityPath(h.home), "utf8"), metadata);
+      const store = new SandboxPackageStore(h.home);
+      const upgraded = store.load(next.plugin_id, next.publisher_key_id, next.version).packaged!;
+      assert.deepEqual(upgraded.manifest.upgrade_compatibility?.compatible_from_versions, ["1.0.0"]);
+      assert.deepEqual(upgraded.manifest.methods?.map(method => [method.skill_id, method.version]), [["notes", 2], ["plain", 1]]);
+      assert.deepEqual(h.ledger.publishers().map(pin => pin.label), ["My existing publisher"]);
     } finally { await h.close(); }
   } finally {
     if (was === undefined) delete process.env.HOME; else process.env.HOME = was;
@@ -303,6 +345,49 @@ test("SKC-10 S-skill-import in a real Host the person imports a local Skills fol
   }
 });
 
+
+test("SPC-15 S-skill-import a retained 9.0.0 makes the final import exceed the budget without restoring public metadata", mac, async t => {
+  const userHome = await mkdtemp(join(tmpdir(), "molis-skill-budget-user-"));
+  const mockedHome = t.mock.method(os, "homedir", () => userHome);
+  syncBuiltinESMExports();
+  t.after(async () => { mockedHome.mock.restore(); syncBuiltinESMExports(); await rm(userHome, { recursive: true, force: true }); });
+  const skillsDir = join(userHome, ".claude", "skills"), markdown = good("notes");
+  await writeSkill(skillsDir, "notes", markdown);
+  const h = await installedPackageHost();
+  t.after(h.close);
+  const person: ActionCallContext = { ...h.person, permissions: [...h.person.permissions, SKILLS_MANAGE_PERMISSION] };
+  const preview = async () => await h.client.invoke(person, skillImportActions.preview, { source: { kind: "runtime", runtime_id: "claude-code" } }) as SkillImportPreview;
+  const pluginId = (await preview()).package.plugin_id, body = Buffer.from(markdown);
+  const pack = { plugin_id: pluginId, name: `从 ${externalTool("claude-code").display_name} 导入的技能`, scope: "project" as const };
+  const retained = contentPackageDraft({ ...pack, version: "9.0.0", skills: [skillFromFolder(new Map([["SKILL.md", body]]), { version: 9 })] });
+  const { preview_id } = await h.client.invoke(person, signing, retained) as LocalPackageSignResult;
+  const { publisher_key_id } = await h.client.invoke(person, pluginInstallActions.confirm, { preview_id, consent: true, pin_label: "Previous publisher" }) as { publisher_key_id: string };
+  await h.control("uninstall", { plugin_id: pluginId, keep_data: true });
+  await rm(identityPath(h.home));
+
+  // The current selection fits exactly in the provisional version. With the retained release, both the package and its changed Skill take version 10.
+  const chunk = Buffer.alloc(SKILL_LIMITS.fileBytes, "x");
+  const chunkCount = Math.floor(SKILL_LIMITS.packageBytes / SKILL_LIMITS.fileBytes);
+  const files = new Map<string, Buffer>([["SKILL.md", body]]);
+  for (let index = 0; index < chunkCount; index++) files.set(`assets/chunk-${index}.txt`, chunk);
+  const manifestBytes = () => {
+    const skill = skillFromFolder(files), { manifest } = contentPackageDraft({ ...pack, version: "1.0.0", skills: [{ ...skill, files: new Map() }] });
+    return Buffer.byteLength(JSON.stringify({ ...manifest, publisher: { publisher_id: "molis-home", signature: publisher_key_id } }));
+  };
+  const tailBytes = SKILL_LIMITS.packageBytes - body.length - (chunkCount - 1) * chunk.length - manifestBytes();
+  assert.ok(tailBytes > 0 && tailBytes < chunk.length);
+  files.set(`assets/chunk-${chunkCount - 1}.txt`, chunk.subarray(0, tailBytes));
+  assert.equal([...files.values()].reduce((bytes, file) => bytes + file.length, manifestBytes()), SKILL_LIMITS.packageBytes);
+  await mkdir(join(skillsDir, "notes", "assets"));
+  for (const [path, bytes] of files) await writeFile(join(skillsDir, "notes", path), bytes);
+  const next = await preview();
+  assert.equal(next.package.installed_version, null);
+  assert.equal(next.candidates.find(skill => skill.skill_id === "notes")?.importable, true);
+  await assert.rejects(h.client.invoke(person, confirming, { preview_id: next.preview_id, skill_ids: ["notes"], scope: "project" }),
+    error => refused("plugin.declaration_invalid")(error) && reasons(error).some(reason => reason.includes("内容包合计超过")));
+  assert.equal(existsSync(identityPath(h.home)), false, "a rejected final package never restores publisher metadata");
+  assert.deepEqual(new SandboxPackageStore(h.home).releases(pluginId, publisher_key_id).map(pkg => pkg.manifest.version), ["9.0.0"]);
+});
 
 test("SKC-10 S-skill-import cancelled or revoked imports cannot sign or commit after asynchronous reads", async () => {
   for (const stage of ["source", "commit"] as const) for (const reason of ["cancelled", "forbidden"] as const) {
@@ -314,13 +399,16 @@ test("SKC-10 S-skill-import cancelled or revoked imports cannot sign or commit a
       await writeSkill(h.skills, "notes", good("notes"));
       const preview = await h.service.preview({ source: { kind: "runtime", runtime_id: "claude-code" } }, who);
       const controller = new AbortController(); let revoked = false;
-      const context: ActionExecutionContext = { ...who, audience: "user", call_id: "cancel-import", permissions: [SKILLS_MANAGE_PERMISSION],
-        signal: controller.signal, beforeEffect: async () => undefined,
-        assert_authority_current: () => { if (revoked) throw new ActionError("actions.forbidden", "revoked"); },
+      const context: ActionCallContext = { ...who, audience: "user", call_id: "cancel-import", permissions: [...PLUGIN_INSTALL_PERMISSIONS, SKILLS_MANAGE_PERMISSION],
+        signal: controller.signal,
+        assert_authority_current: reference => {
+          if (revoked && reference?.capability_id === confirming.capability_id && reference.provider_id === confirming.provider_id) {
+            throw new ActionError("actions.forbidden", "import confirmation revoked");
+          }
+        },
         user_action: { source: "web", conversation_ref: "test", message_ref: "confirm" } };
-      const handler = pluginInstallProvider(h.install, h.importer).handlers!.find(row => row.capability_id === skillImportActions.confirm.capability_id)!;
       waiting = true;
-      const pending = handler.handle(context, { preview_id: preview.preview_id, skill_ids: ["notes"], scope: "project" });
+      const pending = h.actions.invoke(context, confirming, { preview_id: preview.preview_id, skill_ids: ["notes"], scope: "project" });
       const rejected = assert.rejects(pending, refused(`actions.${reason}`));
       await reached;
       if (reason === "cancelled") controller.abort(new ActionError("actions.cancelled", "cancelled")); else revoked = true;
@@ -328,7 +416,8 @@ test("SKC-10 S-skill-import cancelled or revoked imports cannot sign or commit a
       assert.deepEqual(h.ledger.publishers(), [], "no pin committed after the wait");
       assert.equal(existsSync(join(h.home, "plugin-packages")), false, "no package committed");
       assert.deepEqual(h.records, [], "no install committed");
-      if (stage === "source") assert.equal(h.signedCount(), 0, "a cancelled source read never reaches signing");
+      assert.equal(h.signOutcomes.some(outcome => outcome.ok), false, "the nested signing action never returned a preview");
+      if (stage === "source") assert.equal(h.publisherKeyId(), null, "a cancelled source read never creates a signing identity");
     } finally { resume(); await h.done(); }
   }
 });
@@ -352,7 +441,7 @@ test("SKC-10 imported versions span projects, selections and uninstall without o
     const fourth = await importInto(who.project_id, ["notes", "plain"]);
     assert.deepEqual([first, second, third, fourth].map(row => row.version), ["1.0.0", "2.0.0", "3.0.0", "4.0.0"]);
     assert.equal(new Set([first, second, third, fourth].map(row => row.plugin_id)).size, 1);
-    const retained = h.packages.releases(first.plugin_id, h.publisher.identity).sort((a, b) => a.manifest.version.localeCompare(b.manifest.version));
+    const retained = h.packages.releases(first.plugin_id, first.publisher_key_id).sort((a, b) => a.manifest.version.localeCompare(b.manifest.version));
     assert.deepEqual(retained.map(pkg => pkg.manifest.methods!.map(method => [method.skill_id, method.version, method.applies_to])), [
       [["notes", 1, "both"], ["plain", 1, "assistant"]], [["notes", 2, "both"], ["plain", 2, "coding"]],
       [["plain", 3, "assistant"]], [["notes", 2, "both"], ["plain", 3, "assistant"]],
@@ -360,6 +449,6 @@ test("SKC-10 imported versions span projects, selections and uninstall without o
     assert.match(retained[0]!.agentBodies![0]!.body, /按步骤做/u, "the retained first release is unchanged");
     const upgraded = await importInto("project-two", ["notes", "plain"]);
     assert.equal(upgraded.version, "5.0.0");
-    assert.deepEqual(h.packages.load(upgraded.plugin_id, h.publisher.identity, upgraded.version).packaged!.manifest.upgrade_compatibility?.compatible_from_versions, ["2.0.0"]);
+    assert.deepEqual(h.packages.load(upgraded.plugin_id, first.publisher_key_id, upgraded.version).packaged!.manifest.upgrade_compatibility?.compatible_from_versions, ["2.0.0"]);
   } finally { await h.done(); }
 });

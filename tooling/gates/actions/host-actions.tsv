@@ -254,6 +254,7 @@ plugins.installed.disable	1	plugin-install	command	operation	project	write	-	use
 plugins.installed.enable	1	plugin-install	command	operation	project	write	-	user	plugin-install:write	-	-	-	52c1f91a2943	ed1bbfdbc8a1	-
 plugins.installed.list	1	plugin-install	query	query	project	read	-	user	plugin-install:read	-	-	-	99334726611c	ac7a1ab2b686	-
 plugins.installed.uninstall	1	plugin-install	command	operation	project	write	-	user	plugin-install:write	-	-	-	58f4e0ac86dd	ed1bbfdbc8a1	-
+plugins.local_packages.sign	1	plugin-install	command	operation	home	write	-	user	plugin-install:write	-	-	-	797f765e3f76	5fc8c3bb5a54	-
 plugins.permissions.set	1	plugin-install	command	operation	project	write	-	user	plugin-install:write	-	-	-	a84e21e82492	5f69cd6b08ba	-
 plugins.project_reach.grant	1	plugin-consents	command	operation	project	write	-	user	plugin-consents:write	-	-	-	5fcc8f8605f2	91acffc20284	-
 plugins.project_reach.list	1	plugin-consents	query	query	project	read	-	user	plugin-consents:read	-	-	-	99334726611c	702ea66565ce	-
@@ -267,6 +268,8 @@ projects.directories.remove_input	1	system.project-workspaces	command	operation	
 projects.directories.repair	1	system.project-workspaces	command	operation	project	write	-	user	projects:settings	project	-	project.directories	53dd0114e42f	3a015074df9d	-
 projects.directories.set_output	1	system.project-workspaces	command	operation	project	write	-	user	projects:settings	project	-	project.directories	4caaf6a98bb7	3a015074df9d	-
 projects.directories.unmap_source	1	system.project-workspaces	command	operation	project	write	-	user	projects:settings	project	-	project.directories	a2a089faf780	3a015074df9d	-
+projects.plugins.get	1	system.project-workspaces	query	query	project	read	-	agent,plugin,user	-	project	-	project.plugin_membership	99334726611c	2a702bb14aae	-
+projects.plugins.set	1	system.project-workspaces	command	operation	project	write	concurrent	user	projects:settings	project	-	project.plugin_membership	af72fb37900e	2a702bb14aae	-
 projects.settings.runtime.read	1	platform	query	query	project	read	-	agent,mcp,user,workflow	-	project	-	project.runtime.optional	9cecb8ebe607	8c923fd28c9a	-
 projects.settings.runtime.select	1	platform	command	operation	project	write	-	user	projects:settings	project	-	project.runtime.optional	65d08d19afe5	8c923fd28c9a	-
 projects.workspace.files.read	1	platform	query	query	project	read	-	agent,mcp,user,workflow	workspace:read	workspace	-	-	9a0d0d76ae5b	a2c799262a3c	-

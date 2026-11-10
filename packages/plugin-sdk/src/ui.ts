@@ -23,6 +23,7 @@ export * from "./ui/text.js";
 export * from "./ui/text-ref.js";
 export * from "./ui/message-format.js";
 export * from "./ui/locale-pack.js";
+export * from "./ui/plugin-locales.js";
 export * from "./ui/text-reader.js";
 export * from "./ui/strict-json.js";
 export * from "./ui/appearance-files.js";

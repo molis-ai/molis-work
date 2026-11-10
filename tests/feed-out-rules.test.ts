@@ -1,3 +1,4 @@
+import { projectPluginRevisionAt } from "./fixtures/project-plugin-settings.js";
 import { listTestFeedSourceCatalog } from "./fixtures/feed-library.js";
 import { feedCaptureFixture } from "./feed-capture-fixture.js";
 import assert from "node:assert/strict";
@@ -442,7 +443,7 @@ test("Feed out-rule HTTP CRUD is owned by Feed plugin routes", async (t) => {
       "x-molis-work-control-token": TOKEN,
       "x-molis-work-idempotency-key": "add-feed",
     },
-    body: JSON.stringify({ plugin_id: "feed" }),
+    body: JSON.stringify({ plugin_id: "feed", expected_revision: await projectPluginRevisionAt(origin, project.project_id) }),
   });
   assert.equal(addFeed.status, 200);
 

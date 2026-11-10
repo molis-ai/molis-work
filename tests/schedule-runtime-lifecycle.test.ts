@@ -1,3 +1,4 @@
+import { projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { scheduleServiceFor } from "@molis-ai/molis-work-app-local-host";
@@ -19,9 +20,9 @@ test("SYS-15-S7: new projects enable Schedule; settings stop its Runtime, preser
   const before = records.list().find(record => record.plugin_id === SCHEDULE_PLUGIN_ID)!;
   assert.equal(before.state, "running");
   const clock = scheduleServiceFor(store.db), job = clock.get(created.task.job_id!)!;
-  const change = (method: string) => method === "DELETE"
-    ? f.web.delete(`/api/settings/projects/${encodeURIComponent(project.project_id)}/plugins`, { plugin_id: "schedule" })
-    : f.web.post(`/api/settings/projects/${encodeURIComponent(project.project_id)}/plugins`, { plugin_id: "schedule" });
+  const change = async (method: string) => method === "DELETE"
+    ? f.web.delete(`/api/settings/projects/${encodeURIComponent(project.project_id)}/plugins`, { plugin_id: "schedule", expected_revision: await projectPluginRevision(f.web, project.project_id) })
+    : f.web.post(`/api/settings/projects/${encodeURIComponent(project.project_id)}/plugins`, { plugin_id: "schedule", expected_revision: await projectPluginRevision(f.web, project.project_id) });
   await change("DELETE");
   assert.equal(records.get(before.install_id)!.state, "disabled");
   assert.ok(!(await client.discover(caller)).some(view => view.provider.plugin_id === SCHEDULE_PLUGIN_ID));

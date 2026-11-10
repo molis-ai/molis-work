@@ -7,10 +7,11 @@ import { matchPageRoute } from "./page-routes.js";
 import { sendLocalWebJson } from "./web-http.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
+import { readOnlyAlwaysOnProjectPlugins } from "./always-on-plugins.js";
 
 /** GET display projection only. Availability, commands and content routes must use the strict Catalog methods. */
 export function projectPluginMembershipForPage(catalog: MolisWorkProjectCatalog, projectId: string) {
-  try { return catalog.projectPluginMembership(projectId); }
+  try { return catalog.projectPluginMembershipWithRevision(projectId, () => readOnlyAlwaysOnProjectPlugins(catalog.homeDirectory)); }
   catch (error) {
     if (!isHomePluginStoreRefusal(error)) throw error;
     return { ...catalog.storedProjectPluginMembership(projectId), unavailable: L("Home 插件运行库不可用") };

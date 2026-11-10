@@ -16,6 +16,7 @@ import {
   ProjectService,
   type ProjectRecordDraftInput,
 } from "./project-service.js";
+import { ProjectPluginMembershipService } from "./project-plugin-membership.js";
 import type { StoredProjectDeletion } from "./deletion-repository.js";
 import {
   createProjectsSchema,
@@ -103,6 +104,7 @@ export class ProjectsModule implements ProjectsApplicationApi {
     const id = options.id ?? ((prefix: string) => `${prefix}-${randomUUID()}`);
     const repository = new ProjectsRepository(options.db, options.projects_directory, options.outputs_directory, options.spaceId);
     this.records = new ProjectService(repository, options.projects_directory, now, id, options.plugins);
+    const membership = new ProjectPluginMembershipService(repository, this.records, options.plugins);
     this.recycle = new ProjectRecycle(options.db, now, options.projects_directory);
     this.workspaces = new ProjectWorkspaceService(repository, now, id, options.root_home_directory ?? dirnameOf(options.outputs_directory));
     this.deletionSteps = new ProjectDeletionSteps(options.db, now);
@@ -114,6 +116,7 @@ export class ProjectsModule implements ProjectsApplicationApi {
         return { plugins: repository.projects.listProjectPlugins(projectId), hidden: repository.projects.listHiddenPlugins(projectId) };
       },
       projectPluginMembership: (projectId) => this.records.pluginMembership(projectId),
+      projectPluginMembershipWithRevision: (projectId) => membership.get(projectId),
       listProjectPlugins: (projectId) => this.records.listPlugins(projectId),
       listHiddenPlugins: (projectId) => this.records.listHidden(projectId),
       listProjects: () => this.records.list(),
@@ -134,6 +137,7 @@ export class ProjectsModule implements ProjectsApplicationApi {
     this.commands = {
       addProjectPlugin: (input) => this.records.addPlugin(input),
       removeProjectPlugin: (input) => this.records.removePlugin(input),
+      setProjectPlugin: (projectId, actorId, input) => membership.set(projectId, actorId, input),
       renameProject: (projectId, displayName, actorId, expectedDisplayName) => this.records.rename(projectId, displayName, actorId, expectedDisplayName),
       addWorkspaceProject: (input) => this.workspaces.add(input),
       changeDirectories: (input) => this.workspaces.change(input),

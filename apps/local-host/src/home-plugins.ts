@@ -7,7 +7,7 @@ import { pluginErrors, type PluginDefinition, type PluginInstanceRecord, type Pl
 import { PLUGIN_PRESENTATION_CAPABILITY } from "@molis-ai/molis-work-contracts/platform/ui";
 import { randomUUID } from "node:crypto";
 import { installedArtifacts, supervisedArtifacts } from "./artifact-type-registry.js";
-import { declarationOwnersFor } from "./declaration-owners.js";
+import { declarationOwnersFor, type SettingsVersionClaims } from "./declaration-owners.js";
 import { HOST_BUILD_TRUST, leaveRefusal, PluginRouteRouter, PluginRuntime, PluginSupervisor, SqlitePluginConsentLedger, SqlitePluginRuntimeReleaseArtifactRepository, type PluginProjectReach } from "@molis-ai/molis-work-plugin-runtime";
 import { HomePluginExecutor } from "./home-plugin-executor.js";
 import { nativePluginReleaseArtifact } from "./native-plugin-release-artifact.js";
@@ -62,6 +62,7 @@ export class HomePluginHost {
   private readonly releaseRegistration: () => void;
   constructor(private readonly options: { home: string; actorId: string; registry: ActionRegistryPort; client: ActionClient;
     entries: readonly HomePluginEntry[]; fixtures?: readonly PluginFixture[]; installed?: ReadonlySet<PluginDefinition>; projectReach?: PluginProjectReach;
+    settingsVersionClaims?: SettingsVersionClaims;
     projectActions?(projectId: string, pluginId: string): Promise<ProjectActions>;
     /** The Home's action directory without the Host's preparation of it (which waits for this host to be ready): what an installed package's capability catalog is read from. */
     inspect?(caller: ActionCallContext): Promise<readonly ActionView[]> | readonly ActionView[] }) {
@@ -264,7 +265,7 @@ export class HomePluginHost {
     // The Home half of a dual-instance plugin offers only its share, and no project reaches it: its ports and events are the project half's.
     const ledger = new SqlitePluginConsentLedger(db);
     recordHostAlwaysOnAgreements(ledger, new Set(entries.map(entry => entry.definition.manifest.plugin_id)), new Date().toISOString());
-    const runtime = new PluginRuntime(repository, executor, { consents: ledger, scope: "home", hostIds: HOST_PLUGIN_IDS, inProcess: fixtureAdmission(pluginFixtureEntries(this.options.fixtures ?? []), this.options.installed), declarationOwners: declarationOwnersFor(this.options.home, { db, scope: { kind: "home" } }, (pluginId: string): PluginManifest | undefined => supervisor.manifest(pluginId)), reservedRuleKeys: hostReservedRuleKeys,
+    const runtime = new PluginRuntime(repository, executor, { consents: ledger, scope: "home", hostIds: HOST_PLUGIN_IDS, inProcess: fixtureAdmission(pluginFixtureEntries(this.options.fixtures ?? []), this.options.installed), declarationOwners: declarationOwnersFor(this.options.home, { db, scope: { kind: "home" } }, (pluginId: string): PluginManifest | undefined => supervisor.manifest(pluginId), this.options.settingsVersionClaims), reservedRuleKeys: hostReservedRuleKeys,
       redemption: definition => identity.dualInstance(definition) ? { partial: true, outside_project: true } : {},
       actions: { registry: this.options.registry, providerId: (record, definition) => identity.providerFor(definition, record.install_id),
         register: (definition, contribution, record, registration) => registerInstalledActions(definition, contribution, record, registration,

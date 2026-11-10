@@ -1,5 +1,5 @@
 import type { ContractDescriptor } from "../platform/package.js";
-import { defineErrorCodes, type ActionDefinition, type ActionMetadata, type ActionSchema } from "../platform/actions.js";
+import { defineErrorCodes, inputSchemaFor, type ActionDefinition, type ActionMetadata, type ActionSchema } from "../platform/actions.js";
 import {
   MATERIAL_ORIGIN_ANSWER_SCHEMA, MATERIAL_ORIGIN_QUERY_SCHEMA, MATERIAL_ORIGIN_SCHEMA, MATERIAL_ORIGINS_MAX, MATERIAL_RECENT_KEEP, MATERIAL_RECENT_RECORD_MAX, MATERIAL_REF_SCHEMA,
   type MaterialOriginAnswer, type MaterialOriginQuery, type MaterialRef, type RecentMaterial,
@@ -93,6 +93,17 @@ export interface RemoveProjectPluginInput {
 export interface ProjectPluginMembership {
   plugins: ProjectPluginId[];
   hidden: ProjectPluginId[];
+}
+
+export interface VersionedProjectPluginMembership extends ProjectPluginMembership {
+  /** The caller keeps this opaque observation and sends it back as `expected_revision`. */
+  revision: string;
+}
+
+export interface SetProjectPluginInput {
+  plugin_id: ProjectPluginId;
+  enabled: boolean;
+  expected_revision: string;
 }
 
 export interface ProjectWorkspaceRef {
@@ -281,6 +292,8 @@ export interface ProjectsQueryApi {
   storedProjectPluginMembership(projectId: string): ProjectPluginMembership;
   /** Current derived membership and hidden marks, sharing one synchronous registry read. Later execution must read current state again. */
   projectPluginMembership(projectId: string): ProjectPluginMembership;
+  /** The membership observation used to prepare a `projects.plugins.set@1` write. */
+  projectPluginMembershipWithRevision(projectId: string): VersionedProjectPluginMembership;
   listProjectPlugins(projectId: string): ProjectPluginId[];
   listHiddenPlugins(projectId: string): ProjectPluginId[];
   listProjects(): ProjectRecord[];
@@ -309,6 +322,8 @@ export interface ProjectsQueryApi {
 export interface ProjectsCommandApi {
   addProjectPlugin(input: AddProjectPluginInput): ProjectPluginId[];
   removeProjectPlugin(input: RemoveProjectPluginInput): ProjectPluginMembership;
+  /** Project and actor are supplied by the trusted entry. A stale observation fails with `actions.conflict`. */
+  setProjectPlugin(projectId: string, actorId: string, input: SetProjectPluginInput): VersionedProjectPluginMembership;
   /** expectedDisplayName is the name observed by the editor, not a fresh server read. */
   renameProject(projectId: string, displayName: string, actorId: string, expectedDisplayName: string): ProjectRecord;
   addWorkspaceProject(input: AddWorkspaceProjectInput): ProjectWorkspaceDirectoryRecord;
@@ -354,7 +369,7 @@ export const projectSettingsCapabilities = {
 
 const folderPath = { type: "string", minLength: 1, maxLength: 4096 }, folderId = { type: "string", minLength: 1, maxLength: 200 };
 
-/** The provider that answers the directory and recent-material actions below; the Host registers it from `modules/projects`. */
+/** The provider for directories, project plugin membership, and recent materials, registered by the Host. */
 export const PROJECT_WORKSPACE_PROVIDER_ID = "system.project-workspaces";
 
 const PROJECT_DIRECTORIES_SCHEMA: ActionSchema = { type: "object", properties: {
@@ -368,7 +383,7 @@ const PROJECT_DIRECTORIES_SCHEMA: ActionSchema = { type: "object", properties: {
   revision: { type: "string" },
 }, required: ["project_id", "directories", "source_links", "revision"], additionalProperties: false };
 
-const expectedRevision = { type: "string", minLength: 1, maxLength: 200 };
+const expectedRevision = { type: "string", minLength: 1, maxLength: 200 } as const;
 const closedInput = (properties: Record<string, unknown>): ActionSchema => ({ type: "object", properties: { ...properties, expected_revision: expectedRevision },
   required: [...Object.keys(properties), "expected_revision"], additionalProperties: false });
 /** A change to this project's directories: the local user's, who stands for the confirmation, committed from the revision they read. */
@@ -408,6 +423,47 @@ export const projectDirectoryActions = {
     "取消对应；文件夹还是当前项目的目录，磁盘上的文件不动",
     closedInput({ source_workspace_id: folderId }), { effect: "write" }),
 };
+
+const membershipPluginIds = { type: "array", items: { type: "string" }, uniqueItems: true };
+const projectPluginMembershipSchema: ActionSchema = {
+  type: "object",
+  properties: { plugins: membershipPluginIds, hidden: membershipPluginIds, revision: expectedRevision },
+  required: ["plugins", "hidden", "revision"],
+  additionalProperties: false,
+};
+
+/** The call context supplies the project and actor. */
+export const projectPluginActions = {
+  get: {
+    capability_id: "projects.plugins.get",
+    version: /* @version action.projects.plugins.get */ 1,
+    operation: "query",
+    action: {
+      title: "项目插件成员",
+      description: "读取当前项目的插件成员和隐藏状态，返回供保存时核对的版本",
+      kind: "query", scope: "project", audiences: ["user", "plugin", "agent"], permissions: [], subject_kinds: ["project"],
+      input_schema: inputSchemaFor<Record<string, never>>()({ type: "object", properties: {}, additionalProperties: false }),
+      output_schema: projectPluginMembershipSchema, output_type: "project.plugin_membership",
+    },
+  } as ActionDefinition<Record<string, never>, VersionedProjectPluginMembership>,
+  set: {
+    capability_id: "projects.plugins.set",
+    version: /* @version action.projects.plugins.set */ 1,
+    operation: "command",
+    action: {
+      title: "更改项目插件成员",
+      description: "按读取时的版本在当前项目启用或移除一个插件，随行插件一起调整",
+      kind: "operation", scope: "project", scheduling: "concurrent", audiences: ["user"], permissions: ["projects:settings"], subject_kinds: ["project"],
+      input_schema: inputSchemaFor<SetProjectPluginInput>()({
+        type: "object",
+        properties: { plugin_id: { type: "string", minLength: 1 }, enabled: { type: "boolean" }, expected_revision: expectedRevision },
+        required: ["plugin_id", "enabled", "expected_revision"],
+        additionalProperties: false,
+      }),
+      output_schema: projectPluginMembershipSchema, output_type: "project.plugin_membership",
+    },
+  } as ActionDefinition<SetProjectPluginInput, VersionedProjectPluginMembership>,
+} as const;
 
 /** A person's and a plugin's recent materials in this project; the caller and the project come from the call context (§2.1). */
 export const materialRecentActions = {

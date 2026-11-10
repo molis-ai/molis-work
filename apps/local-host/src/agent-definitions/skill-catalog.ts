@@ -24,8 +24,8 @@ export interface CatalogSkill {
 }
 export interface SkillCatalogPorts {
   definitions: AgentDefinitions;
-  /** One scope read per action, including all installations and their current grants. */
-  skills(caller: ActionCallContext): Promise<CatalogSkill[]>;
+  /** After asynchronous preparation, read the current grants once and call the consumer synchronously with them. */
+  withSkills<Result>(caller: ActionCallContext, use: (skills: readonly CatalogSkill[]) => Result): Promise<Result>;
   resource(skill: CatalogSkill, path: string): Uint8Array;
   /** Read after an await, once per action: the ledger's current pins, for `assertPublisher`. */
   publishers(): ReadonlyMap<string, PluginPublisherPin>;
@@ -52,19 +52,21 @@ function entry(skill: CatalogSkill, setting: SkillSetting | undefined): SkillCat
 export class SkillCatalog {
   constructor(private readonly ports: SkillCatalogPorts) {}
 
-  private async snapshot(caller: ActionCallContext) {
-    const skills = await this.ports.skills(caller);
-    const settings = new Map(this.ports.definitions.skills.settings(scopeOf(caller)).map(row => [settingKey(row.install_id, row.skill_id), row]));
-    return { skills, settings };
+  private withSnapshot<Result>(caller: ActionCallContext, use: (skills: readonly CatalogSkill[], settings: ReadonlyMap<string, SkillSetting>) => Result): Promise<Result> {
+    return this.ports.withSkills(caller, skills => {
+      const settings = new Map(this.ports.definitions.skills.settings(scopeOf(caller)).map(row => [settingKey(row.install_id, row.skill_id), row]));
+      return use(skills, settings);
+    });
   }
 
-  async list(caller: ActionCallContext, input: SkillCatalogListRequest): Promise<{ skills: SkillCatalogEntry[] }> {
-    const { skills, settings } = await this.snapshot(caller);
-    const latest = this.ports.definitions.skills.latestUses(scopeOf(caller));
-    return { skills: skills.filter(skill => (!input.applies_to || skill.declaration.applies_to === "both" || skill.declaration.applies_to === input.applies_to)
-      && (caller.audience === "user" || applicable(skill, caller))).map(skill => entry(skill, settings.get(settingKey(skill.ref.install_id, skill.ref.skill_id))))
-      .map(row => { const used = latest.get(settingKey(row.ref.install_id, row.ref.skill_id)); return used ? { ...row, last_used: { at: used.at, caller: used.caller, ...(used.run_ref ? { run_ref: used.run_ref } : {}) } } : row; })
-      .filter(row => (caller.audience === "user" || row.state !== "off") && (!input.states || input.states.includes(row.state))) };
+  list(caller: ActionCallContext, input: SkillCatalogListRequest): Promise<{ skills: SkillCatalogEntry[] }> {
+    return this.withSnapshot(caller, (skills, settings) => {
+      const latest = this.ports.definitions.skills.latestUses(scopeOf(caller));
+      return { skills: skills.filter(skill => (!input.applies_to || skill.declaration.applies_to === "both" || skill.declaration.applies_to === input.applies_to)
+        && (caller.audience === "user" || applicable(skill, caller))).map(skill => entry(skill, settings.get(settingKey(skill.ref.install_id, skill.ref.skill_id))))
+        .map(row => { const used = latest.get(settingKey(row.ref.install_id, row.ref.skill_id)); return used ? { ...row, last_used: { at: used.at, caller: used.caller, ...(used.run_ref ? { run_ref: used.run_ref } : {}) } } : row; })
+        .filter(row => (caller.audience === "user" || row.state !== "off") && (!input.states || input.states.includes(row.state))) };
+    });
   }
 
   private refusal(skill: CatalogSkill | undefined, ref: SkillRef, caller: ActionCallContext, setting: SkillSetting | undefined): SkillReadRefusal | undefined {
@@ -77,29 +79,31 @@ export class SkillCatalog {
     return undefined;
   }
 
-  async readBodies(caller: ActionCallContext, refs: readonly SkillRef[]): Promise<{ results: SkillBodyReadResult[] }> {
-    const { skills, settings } = await this.snapshot(caller);
-    const byKey = new Map(skills.map(skill => [settingKey(skill.ref.install_id, skill.ref.skill_id), skill]));
-    return { results: refs.map(ref => {
-      const key = settingKey(ref.install_id, ref.skill_id), skill = byKey.get(key), reason = this.refusal(skill, ref, caller, settings.get(key));
-      return reason ? { ref, ok: false as const, reason } : { ref, ok: true as const, name: skill!.declaration.name, body: skill!.body };
-    }) };
+  readBodies(caller: ActionCallContext, refs: readonly SkillRef[]): Promise<{ results: SkillBodyReadResult[] }> {
+    return this.withSnapshot(caller, (skills, settings) => {
+      const byKey = new Map(skills.map(skill => [settingKey(skill.ref.install_id, skill.ref.skill_id), skill]));
+      return { results: refs.map(ref => {
+        const key = settingKey(ref.install_id, ref.skill_id), skill = byKey.get(key), reason = this.refusal(skill, ref, caller, settings.get(key));
+        return reason ? { ref, ok: false as const, reason } : { ref, ok: true as const, name: skill!.declaration.name, body: skill!.body };
+      }) };
+    });
   }
 
-  async readResource(caller: ActionCallContext, ref: SkillRef, path: string): Promise<SkillResourceContent> {
-    const { skills, settings } = await this.snapshot(caller);
-    const skill = skills.find(item => item.ref.install_id === ref.install_id && item.ref.skill_id === ref.skill_id);
-    const reason = this.refusal(skill, ref, caller, settings.get(settingKey(ref.install_id, ref.skill_id)));
-    if (reason) throw skillErrors.read_refused("这个技能当前不能读取", { reason });
-    const resource = skill!.declaration.resources?.find(item => item.path === path);
-    if (!resource) throw skillErrors.resource_undeclared("技能没有声明这个附带文件");
-    let bytes: Buffer;
-    try { bytes = Buffer.from(this.ports.resource(skill!, path)); }
-    catch { throw skillErrors.read_refused("技能的附带文件无法读取", { reason: "resource_invalid" }); }
-    if (bytes.length !== resource.bytes || createHash("sha256").update(bytes).digest("hex") !== resource.sha256)
-      throw skillErrors.read_refused("技能的附带文件与声明不符", { reason: "resource_invalid" });
-    const encoding = resource.media_type.startsWith("text/") || resource.media_type === "application/json" ? "utf8" : "base64";
-    return { ref, ...resource, encoding, content: bytes.toString(encoding) };
+  readResource(caller: ActionCallContext, ref: SkillRef, path: string): Promise<SkillResourceContent> {
+    return this.withSnapshot(caller, (skills, settings) => {
+      const skill = skills.find(item => item.ref.install_id === ref.install_id && item.ref.skill_id === ref.skill_id);
+      const reason = this.refusal(skill, ref, caller, settings.get(settingKey(ref.install_id, ref.skill_id)));
+      if (reason) throw skillErrors.read_refused("这个技能当前不能读取", { reason });
+      const resource = skill!.declaration.resources?.find(item => item.path === path);
+      if (!resource) throw skillErrors.resource_undeclared("技能没有声明这个附带文件");
+      let bytes: Buffer;
+      try { bytes = Buffer.from(this.ports.resource(skill!, path)); }
+      catch { throw skillErrors.read_refused("技能的附带文件无法读取", { reason: "resource_invalid" }); }
+      if (bytes.length !== resource.bytes || createHash("sha256").update(bytes).digest("hex") !== resource.sha256)
+        throw skillErrors.read_refused("技能的附带文件与声明不符", { reason: "resource_invalid" });
+      const encoding = resource.media_type.startsWith("text/") || resource.media_type === "application/json" ? "utf8" : "base64";
+      return { ref, ...resource, encoding, content: bytes.toString(encoding) };
+    });
   }
 
   /** The trusted round owner calls this only with its acceptance receipt; reads alone never count as use. */
@@ -108,7 +112,7 @@ export class SkillCatalog {
     const selection = currentSkillSelection(caller);
     // A round owner records its round's uses; a page view names a Skill for reading only and never records one.
     if (!selection?.consumer) return;
-    const { skills } = await this.snapshot(caller);
+    const skills = await this.ports.withSkills(caller, skills => skills);
     await caller.beforeEffect();
     caller.assert_authority_current?.(); caller.signal?.throwIfAborted();
     const store = this.ports.definitions.skills, scope = scopeOf(caller), seen = new Set<string>();
@@ -131,7 +135,7 @@ export class SkillCatalog {
     if (input.scope === "project" && !caller.project_id) throw skillErrors.scope_mismatch("需要当前项目才能设置项目技能");
     const scoped = input.scope === "home" ? { ...caller, project_id: null } : caller;
     // Await authority, then recheck the captured installation synchronously before committing.
-    const { skills } = await this.snapshot(scoped);
+    const skills = await this.ports.withSkills(scoped, skills => skills);
     await caller.beforeEffect();
     caller.assert_authority_current?.();
     caller.signal?.throwIfAborted();

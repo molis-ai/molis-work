@@ -1,3 +1,4 @@
+import { projectPluginRevisionAt } from "./fixtures/project-plugin-settings.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -174,7 +175,7 @@ for (const hidden of [false, true]) {
       assert.equal(response.status, 200, await response.clone().text()); await entered.promise;
       assert.equal(probe.controls[0]!.project_id, project.project_id); await assert.rejects(probe.requests[0]!.execution!.beforeEffect());
       if (hidden) {
-        const hide = await f.request(`/api/settings/projects/${project.project_id}/plugins`, { method: "DELETE", body: { plugin_id: "issues" } });
+        const hide = await f.request(`/api/settings/projects/${project.project_id}/plugins`, { method: "DELETE", body: { plugin_id: "issues", expected_revision: await projectPluginRevisionAt(f.origin, project.project_id) } });
         assert.equal(hide.status, 200); await assert.rejects(probe.controls[0]!.beforeEffect(), { code: "actions.plugin_disabled" });
         const rejected = assert.rejects(probe.handles[0]!.result, { code: "actions.plugin_disabled" }); release.resolve(); await rejected;
         assert.equal(probe.stored("result.project"), null); assert.equal(probe.stored("failure.project"), null);

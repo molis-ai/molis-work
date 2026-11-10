@@ -1,3 +1,4 @@
+import { projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
@@ -95,10 +96,10 @@ test("RAC-968 a running Home package is reached from every project unless the pr
   assert.equal(await add(one, "from one"), true);
   assert.equal(await add(two, "from two"), true, "a project that never installed anything reaches the same instance");
   const projectPlugins = `/api/settings/projects/${encodeURIComponent(one.project_id)}/plugins`;
-  await home.web.delete(projectPlugins, { plugin_id: PACKAGE_PLUGIN_ID });
+  await home.web.delete(projectPlugins, { plugin_id: PACKAGE_PLUGIN_ID, expected_revision: await projectPluginRevision(home.web, one.project_id) });
   await assert.rejects(add(one, "hidden"), refused("actions.plugin_disabled"), "the project that hid it does not reach it");
   assert.equal(await add(two, "still reached"), true, "hiding is the project's own");
-  await home.web.post(projectPlugins, { plugin_id: PACKAGE_PLUGIN_ID });
+  await home.web.post(projectPlugins, { plugin_id: PACKAGE_PLUGIN_ID, expected_revision: await projectPluginRevision(home.web, one.project_id) });
   assert.equal(await add(one, "shown again"), true);
 
   const disable = await home.web.post<{ disabled: boolean }>(`/api/plugins/${PACKAGE_PLUGIN_ID}/disable`, {});

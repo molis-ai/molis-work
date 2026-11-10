@@ -38,6 +38,7 @@ import type {
   ProjectPluginMembership,
   ProjectPluginRegistry,
   RemoveProjectPluginInput,
+  VersionedProjectPluginMembership,
   AddWorkspaceProjectInput,
   ChangeDirectoriesInput,
   DeleteProjectInput,
@@ -159,17 +160,26 @@ async function prepareCatalogStorage(options: MolisWorkProjectCatalogOptions) {
   return { homeDirectory, databasePath, existed, storage };
 }
 
-/** Local catalog resource lifetime and explicit composition of Project, Session and platform owners. */
+type ProjectPluginDirectory = () => readonly ProjectPluginId[];
 /**
  * The registry a Home's projects validate against. Which Plugins a project may enable comes from what this build ships, not from a list
  * compiled into Projects; which are 常开 is worked out from the install records and the Home's consent ledger each time it is asked. The
  * Home's own registration adds its personal plugins outside the build, so a project can hide those too (#679).
  */
-function homeProjectPlugins(homeDirectory: string, directory: () => readonly ProjectPluginId[]): ProjectPluginRegistry {
-  return { ...BUILTIN_PLUGIN_REGISTRY, alwaysOn: () => [...directory()],
+function homeProjectPlugins(homeDirectory: string) {
+  let current: ProjectPluginDirectory | undefined;
+  const registry: ProjectPluginRegistry = { ...BUILTIN_PLUGIN_REGISTRY, alwaysOn: () => [...(current?.() ?? alwaysOnProjectPlugins(homeDirectory))],
     isPersonal: pluginId => BUILTIN_PLUGIN_REGISTRY.isPersonal?.(pluginId) === true || homePluginsOutsideBuild(homeDirectory).includes(pluginId) };
+  // A page may borrow its own directory snapshot only during this synchronous read. Other callers see the live registry.
+  const withDirectory = <T>(directory: ProjectPluginDirectory | undefined, read: () => T): T => {
+    const previous = current;
+    current = directory;
+    try { return read(); } finally { current = previous; }
+  };
+  return { registry, withDirectory };
 }
 
+/** Local catalog resource lifetime and explicit composition of Project, Session and platform owners. */
 export class MolisWorkProjectCatalog {
   readonly homeDirectory: string;
   readonly projectsDirectory: string;
@@ -177,9 +187,10 @@ export class MolisWorkProjectCatalog {
   private readonly projectFiles: ManagedProjectFiles;
   readonly projectDeletion: ManagedProjectDeletion;
   readonly recycle: ProjectsModule['recycle'];
+  readonly setProjectPlugin: ProjectsModule["commands"]["setProjectPlugin"];
   private readonly demoProjects: DemoProjectLifecycle;
   private readonly projects: ProjectsModule;
-  private projectPluginDirectory?: () => readonly ProjectPluginId[];
+  private readonly withProjectPluginDirectory: ReturnType<typeof homeProjectPlugins>["withDirectory"];
   private readonly runtimeContexts: ReturnType<typeof createRuntimeContextModule>;
   /** The terminals plugins start through `services.terminal`. */
   readonly terminalPanels: PluginTerminalPanels;
@@ -208,13 +219,15 @@ export class MolisWorkProjectCatalog {
     this.databasePath = path.join(this.projectsDirectory, "catalog.db");
     // `outputs` is derived from the trusted Home each time the catalog opens, never stored: a copied Home reads its own (S-102).
     const space = ensureStorageSpace(homeDirectory), realHome = realpathSync.native(homeDirectory), outputsDirectory = path.join(realHome, "outputs");
+    const { registry, withDirectory } = homeProjectPlugins(homeDirectory);
+    this.withProjectPluginDirectory = withDirectory;
     this.projects = new ProjectsModule({
       spaceId: space.spaceId,
       db, projects_directory: this.projectsDirectory,
       outputs_directory: outputsDirectory,
       // An account Home is `<root>/spaces/<space_id>`: a folder named for another device's directory stays out of the whole root (SSC-27).
       root_home_directory: space.kind === "local" ? realHome : path.dirname(path.dirname(realHome)),
-      plugins: homeProjectPlugins(homeDirectory, () => this.projectPluginDirectory?.() ?? alwaysOnProjectPlugins(homeDirectory)),
+      plugins: registry,
     });
     this.runtimeContexts = createRuntimeContextModule({
       db, ledger, projects: this.projects, validation: contextBindingValidation,
@@ -222,6 +235,7 @@ export class MolisWorkProjectCatalog {
     this.projectFiles = new ManagedProjectFiles(this.projects, this.projectsDirectory, contextBindingValidation, this.commit);
     this.personalProjects = new PersonalProjectProvisioner(homeDirectory, this.projectFiles, this.projects);
     this.recycle=this.projects.recycle;this.wasProjectPluginRemoved=this.projects.query.wasProjectPluginRemoved;
+    this.setProjectPlugin = this.projects.commands.setProjectPlugin;
     this.ensureSyncedProject = this.personalProjects.ensureSyncedProject.bind(this.personalProjects);
     this.prepareSyncedProjectRestore = this.personalProjects.prepareSyncedProjectRestore.bind(this.personalProjects);
     this.projectPluginRequirements=id=>{this.projects.query.getProject(id);return projectPluginRequirements(db,id,p=>BUILTIN_PLUGIN_REGISTRY.has(p)||BUILTIN_PLUGIN_REGISTRY.isPersonal?.(p)===true);};
@@ -318,15 +332,11 @@ export class MolisWorkProjectCatalog {
     return this.projects.query.listProjects();
   }
 
-  /** The override exists only during this synchronous owner query; default callers always read the live directory. */
-  private withProjectPluginDirectory<T>(directory: (() => readonly ProjectPluginId[]) | undefined, read: () => T): T {
-    const previous = this.projectPluginDirectory;
-    this.projectPluginDirectory = directory;
-    try { return read(); } finally { this.projectPluginDirectory = previous; }
-  }
-
   projectPluginMembership(projectId: string, directory?: () => readonly ProjectPluginId[]): ProjectPluginMembership {
     return this.withProjectPluginDirectory(directory, () => this.projects.query.projectPluginMembership(projectId));
+  }
+  projectPluginMembershipWithRevision(projectId: string, directory?: ProjectPluginDirectory): VersionedProjectPluginMembership {
+    return this.withProjectPluginDirectory(directory, () => this.projects.query.projectPluginMembershipWithRevision(projectId));
   }
 
   listProjectPlugins(projectId: string, directory?: () => readonly ProjectPluginId[]): ProjectPluginId[] {

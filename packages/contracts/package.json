@@ -126,6 +126,14 @@
       "types": "./dist/platform/storage.d.ts",
       "import": "./dist/platform/storage.js"
     },
+    "./platform/settings": {
+      "types": "./dist/platform/settings.d.ts",
+      "import": "./dist/platform/settings.js"
+    },
+    "./platform/blueprints": {
+      "types": "./dist/platform/blueprints.d.ts",
+      "import": "./dist/platform/blueprints.js"
+    },
     "./platform/testing": {
       "types": "./dist/platform/testing.d.ts",
       "import": "./dist/platform/testing.js"
@@ -153,6 +161,14 @@
     "./services/assistant": {
       "types": "./dist/services/assistant.d.ts",
       "import": "./dist/services/assistant.js"
+    },
+    "./services/blueprints": {
+      "types": "./dist/services/blueprints.d.ts",
+      "import": "./dist/services/blueprints.js"
+    },
+    "./services/home": {
+      "types": "./dist/services/home.d.ts",
+      "import": "./dist/services/home.js"
     },
     "./services/contextual": {
       "types": "./dist/services/contextual.d.ts",

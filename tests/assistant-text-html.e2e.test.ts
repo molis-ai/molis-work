@@ -27,7 +27,7 @@ test("VUX-33: Assistant fences keep literal code during an open, closed or corre
   assert.match(prose, /<li>60 分钟<\/li><li>30 分钟<\/li>/);
 });
 
-test("PAS-15: Host text streams, keeps reading state, copies exact code, opens named objects and submits real review decisions", { timeout: 180_000 }, async t => {
+test("PAS-15 / BBA-02: Host text streams, keeps reading state, copies exact code, opens named objects and submits real review decisions", { timeout: 180_000 }, async t => {
   const pageTitle = "代码验证文档";
   // VUX-33: indentation, mixed line endings, list-like patch lines and a shorter fence are literal code.
   const code = "  // 首行缩进\r\n-old\n- item\n~~~\n" + Array.from({ length: 19 }, (_, index) => `const value${index} = "<safe>&";`).join("\n") + "\n";
@@ -102,16 +102,24 @@ test("PAS-15: Host text streams, keeps reading state, copies exact code, opens n
     await click("[data-assistant-composer] [data-composer-send]");
     await waitFor("document.querySelector('[data-review] [data-assistant-decision]')", 30_000);
     assert.match(await evaluate<string>("document.querySelector('[data-review]').textContent"), new RegExp(`投影测试-${decision}`));
+    const action = `[data-assistant-decision=${decision}]`;
     if (decision === "reject") {
       // Hold only this review request: failure restores the same card's decisions and exposes the original diagnostic.
-      await evaluate(`(() => { const original=window.fetch;window.restoreReviewFetch=()=>{window.fetch=original};window.fetch=(url,init)=>String(url).includes('/reviews/') ? new Promise((resolve,reject)=>{window.failReview=()=>reject(new Error('review transport unavailable'))}) : original(url,init);document.querySelector('[data-assistant-decision=reject]').click(); })()`);
-      assert.equal(await evaluate("[...document.querySelectorAll('[data-review] .assistant-card-actions button')].every(button=>button.disabled)"), true);
+      await evaluate(`(() => { const original=window.fetch; window.reviewAttempts=0; window.restoreReviewFetch=()=>{window.fetch=original};
+        window.fetch=(url,init)=>String(url).includes('/reviews/') ? new Promise((resolve,reject)=>{window.reviewAttempts++; window.failReview=()=>reject(new Error('review transport unavailable'))}) : original(url,init); })()`);
+      await click(action);
+      await waitFor("window.reviewAttempts === 1");
+      assert.equal(await evaluate("[...document.querySelectorAll('[data-review] .assistant-card-actions button')].every(button=>button.getAttribute('aria-disabled')==='true')"), true);
+      await click("[data-assistant-decision=approve]");
+      assert.equal(await evaluate("window.reviewAttempts"), 1, "another press cannot send a second decision while the card is busy");
       await evaluate("window.failReview()");
-      await waitFor("document.querySelector('.assistant-problem')?.textContent.includes('不知道这次操作有没有完成，请刷新后核对') && [...document.querySelectorAll('[data-review] .assistant-card-actions button')].every(button=>!button.disabled)");
+      await waitFor("document.querySelector('.assistant-problem')?.textContent.includes('不知道这次操作有没有完成，请刷新后核对') && [...document.querySelectorAll('[data-review] .assistant-card-actions button')].every(button=>!button.hasAttribute('aria-disabled'))");
+      assert.equal(await evaluate("document.activeElement.dataset.assistantDecision"), "approve", "the error preserves where focus moved during the request");
       await evaluate("window.restoreReviewFetch()");
     }
-    await evaluate(`document.querySelector('[data-assistant-decision=${decision}]').click()`);
+    await click(action);
     await waitFor("!document.querySelector('[data-review]')", 30_000);
+    assert.equal(await evaluate("document.activeElement.matches('[data-assistant-composer] .mw-composer__input')"), true);
     await waitFor(`fetch(${JSON.stringify(api + '/works')}).then(r=>r.json()).then(b=>b.works.find(w=>w.work_id===${CURRENT_WORK})?.state==='completed')`, 30_000);
     const todos = openTodoStore(homeDirectory);
     try {

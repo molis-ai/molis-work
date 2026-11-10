@@ -66,17 +66,30 @@ export const ASSISTANT_CONVERSATION_PART = String.raw`  /* ─── Showing a t
       if (cached?.draft_revision === draft_revision) { cached.draft = saved.draft; cached.draft_revision = saved.draft_revision; }
     }); });
   };
+  const removeReview = (card) => {
+    if (card.contains(document.activeElement) && input.getClientRects().length && !input.closest("[inert]")) input.focus({ preventScroll: true });
+    card.remove();
+  };
   const renderReview = (card, work, review) => {
     card.innerHTML = review.html;
     card.querySelectorAll("[data-assistant-review-glyph]").forEach((node) => node.replaceWith(glyph(node.dataset.assistantReviewGlyph)));
     bindText(card);
     const row = card.querySelector(".assistant-card-actions");
+    const buttons = row.querySelectorAll("[data-assistant-decision]");
     const decide = async (decision) => {
-      row.querySelectorAll("button").forEach((one) => { one.disabled = true; });
-      try { view = await api("/works/" + encodeURIComponent(work.work_id) + "/reviews/" + encodeURIComponent(review.review_id), "POST", { decision }); render(); poll(); }
-      catch (error) { showError(error); row.querySelectorAll("button").forEach((one) => { one.disabled = false; }); }
+      if (row.ariaBusy === "true") return;
+      row.ariaBusy = "true";
+      buttons.forEach((button) => { button.ariaDisabled = "true"; });
+      try {
+        const next = await api("/works/" + encodeURIComponent(work.work_id) + "/reviews/" + encodeURIComponent(review.review_id), "POST", { decision });
+        if (card.isConnected) { view = next; render(); poll(); }
+      } catch (error) {
+        row.removeAttribute("aria-busy");
+        buttons.forEach((button) => button.removeAttribute("aria-disabled"));
+        if (card.isConnected) showError(error);
+      }
     };
-    row.querySelectorAll("[data-assistant-decision]").forEach((button) => button.addEventListener("click", () => decide(button.dataset.assistantDecision)));
+    buttons.forEach((button) => button.addEventListener("click", () => decide(button.dataset.assistantDecision)));
   };
   const renderCard = (node, work, card) => {
     node.dataset.status = card.status;

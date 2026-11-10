@@ -290,6 +290,31 @@
 
 通用 OAuth 回调仍由平台按 state 处理声明，不把授权执行代码搬进插件；Gmail 既有回调与 Notion 的 localhost 别名按原声明保留。通用连接管理 HTTP 与 R2/R3 分别登记，不因本片删除其它管理入口。
 
+#### 10.1.1 B9 接入前登记
+
+按 2026-11-01 的决定登记实际效果和主人，后续逐组接入动作。这些路径由 `apps/local-host/src/web-server.ts` 的本机请求检查保护。每组接入前须按实际效果定输入、权限与重试，原保护继续有效。
+
+首次引导整理旅程的入口在 `apps/local-host/src/web-context-onboarding.ts`。下表的 `/<id>` 路径接在 `/api/onboarding/context` 之后。旅程状态由 `apps/local-host/src/context-onboarding-store.ts` 持有，读写流程在 `apps/local-host/src/context-onboarding-service.ts`。
+
+| 路径 | 主人和实际效果 | 接入时保留 |
+| --- | --- | --- |
+| `POST /api/onboarding/context` | 整理旅程存储创建一轮，供本人继续选择来源 | 同一旅程标识的现行创建行为 |
+| `POST /<id>/files` | `apps/local-host/src/context-onboarding-staging.ts` 把本人选的一份原文件流写入本轮暂存，返回供选择引用的文件摘要 | 原文件继续走流式传输，按本轮与选择阶段限制暂存 |
+| `POST /<id>/selection` | 整理旅程保存来源范围、预览与自动开始选择，必要时撤回等待中的 Gmail 授权状态 | 只接受可选阶段的本轮输入，范围相同的已读材料可继续用 |
+| `POST /<id>/start` | 整理旅程记进入读取阶段并启动后台整理，保存进度。整理经现有模型入口与 Todo 的动作生成草稿 | 同一进程内同轮只开一个作业，中断保留读取进度，继续时沿原检查点 |
+| `POST /<id>/reopen` | 整理旅程回到选择阶段，清理错误与自动开始标记 | 正在处理、已经确认内容或已完成的旅程按现行条件拒绝 |
+| `POST /<id>/draft` | 整理旅程保存本人修改的摘要标题与正文 | 只在可编辑的审核阶段接受修改 |
+| `POST /<id>/adopt` | 整理旅程固定确认内容并记录进度，经 Projects 目录创建项目与启用 Pages，已有 Pages、成果库和 Todo 动作保存各自数据，成功后写引导完成状态并清本轮暂存 | 继续固定项目和已确认内容，保留分步检查点、重试幂等和各提供方授权 |
+| `GET /<id>`、`GET /<id>/text/<sha256>` | 两个读取路径都经 `readContextJourney`。Gmail 授权过期，或重启后原读取、采用作业已失去持有者时，整理旅程会保存恢复状态 | 按写入盘点恢复步骤；材料正文只由本轮已登记的引用读取 |
+
+Agent 审批的入口在 `apps/local-host/src/agent-review-http.ts`，审批状态归 `horizontal/agent-host/src/reviews.ts`，具体执行与恢复由原操作的主人负责。审批权限只来自现行受保护的本人入口，项目来自可信页面与运行上下文。
+
+| 路径 | 主人和实际效果 | 接入时保留 |
+| --- | --- | --- |
+| `POST /api/agent/reviews/decide` | Agent Host 经原执行方记录允许或拒绝。项目页与无项目入口沿原归属核对，后者由 `handleUnscopedAgentReviews` 装配 | 保留安装复核、项目归属、阻断助理自批的等待期与现行免询问范围；回执区分已决定和已执行 |
+| `POST /api/agent/reviews/recovery` | 仅项目内的 Git 暂存操作由 `horizontal/agent-host/src/adapters/prologue-git-recovery.ts` 核对。`refresh` 据原派发记录收口；`not-happened` 需本人确认、依据和所见版本 | 核对与裁定都沿原执行记录，保持未知状态与明确拒绝条件 |
+| `GET /api/agent/reviews`、`GET /api/agent/reviews/recovery` | 读取前的 `reviews.refresh` 由各执行方恢复原回执。Git 执行方首次恢复时可取消重启前已证实未派发的操作 | 区分历史回执恢复与本人新决定。查询、恢复和主动核对均沿原执行权，已有动作不会因查看再次派发 |
+
 ### 10.2 已定要修的偏离
 
 这些不是长期例外，是已经决定要改、还没改完的偏离；改完就从这张表里删掉。
@@ -304,5 +329,3 @@
 **待逐条登记的只走 HTTP 的写入**。B9 的 2026-11-01 决定要求按现行实际写入登记主人和理由，再逐组迁入动作。下列组仍须区分业务写入、已进动作的路径和纯传输。
 - 助理面板自己的路由：`/api/assistant/` 下除设置页用的几条以外的写入（发送、卡片、附件、通知处理 `notices`、取消跟进 `followups/remove`、记忆建议的认可与放弃 `memory-candidates/…`、工作里的操作），在 `apps/local-host/src/assistant/assistant-http.ts`。链 3 只写了发送这一条。
 - 插件创作台自己的 HTTP：`apps/local-host/src/plugin-builder/agent-surface.ts` 的 `handleAgentStudioHttp`，路径在 `/api/plugin-builder/studio/` 下，含保存密钥 `POST …/secrets`、`…/settings`、新建构建 `…/builds`、构建里的 `…/action`、`…/call`。
-- 首次引导里的整理旅程 `/api/onboarding/context/…`（`apps/local-host/src/web-context-onboarding.ts`）。
-- Agent 审批 `POST /api/agent/reviews/decide`、`/api/agent/reviews/recovery`（`apps/local-host/src/agent-review-http.ts`）。

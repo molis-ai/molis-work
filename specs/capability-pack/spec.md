@@ -45,7 +45,7 @@
 ### 4.0 包：装东西的对象（2026-11-09 用户定）
 
 - **谁说一个包里有什么**：插件本身就是一个包，应用插件与第 08 批的内容包一样，包里有什么就是它 Manifest 声明的（角色、提示词、技能、它的 MCP；工具是它的角色 `host_tools` 点的名字）；不加新的 Manifest 键，不另存。另有两个系统包：**Molis Work 自带**（个人助理角色与它的提示词、全部 Agent 工具、对外的 Molis Work MCP 与 `goal-advance`、平台连接驱动带的 MCP）和**你的角色**（你写的 Character）。
-- **用户自己组包**：本批不做，记 BL（不新建用户数据与注册表）。
+- **用户自己组包**：本批不做，记 [BL-kit-user-packs](../backlog/BL-kit-user-packs.md)（不新建用户数据与注册表）。
 - **角色与提示词怎么连**：插件 Agent 的提示词用现有的「角色点名它由哪些提示词组成」（Manifest `agent.roles[].prompts`）；直接调模型的提示词可以写它属于哪个角色（新加的可选字段）。**没有归属角色的提示词默认归个人助理**（默认都由个人助理执行）：在插件包里挂到一行「个人助理」下面，这一行引用自带包里的个人助理，不复制。
 - **一条能在几个包里**：工具能（工具是系统的，哪个包的角色点了它，它就在哪个包里）；技能、MCP、提示词只在一个包（各有唯一的主人）；个人助理只作为提示词的挂处出现在别的包里。
 - **包的状态从内容读出**，没有「整包停用」开关：已卸载（只剩包头与「重新添加」）、已停用（插件停用，去处是启用插件）、要处理（逐项写出哪一条用不了）、在用。
@@ -138,7 +138,7 @@
 | Coding 旧方法路：`agent.skills.discover.v1`／`install.v1`、`molis-coding-method`、`routes-setup.ts` 的三个路由、`browser/settings/methods.ts` | 删（9-4、9-5；`molis-coding-method` 不认也不迁，用户 2026-11-06 定） |
 | 助理按「有可用动作」过滤方法 | 改成读目录（9-2） |
 | `SignedAgentReference` 的方法引用 | 换 `SkillRef`（9-1、9-2） |
-| 六种技能引用写法 | `AgentSkillRef`、`AssistantMethodSelection.method_id`、`SignedAgentReference` 的 method 在本批收成 `SkillRef`；`BuilderSkill`（创作台，随 BL-377 重做）、`CharacterImportSkill`（BL-957）记候选 |
+| 六种技能引用写法 | `AgentSkillRef`、`AssistantMethodSelection.method_id`、`SignedAgentReference` 的 method 在本批收成 `SkillRef`；`BuilderSkill`（创作台，随 BL-377 重做）、`CharacterImportSkill`（BL-957）记候选，写进两条 BL 的正文 |
 | `recordSignedUse` 用字符串切片重拼提示词键（重复了 `sandboxAgentBodyIdentity`） | 改成调同一个函数 |
 | 签名角色在 `roles()`、`methods()` 各出现一次 | 只留 `roles()` |
 | Agent Host 内部散着的工具名单（`GATEWAY_TOOLS`、`childRoleTools`、`STEP_TOOLS`、创作台 `TOOLS`）与 `assistant-present.ts` 的名字表 | 收成 Agent Host 的一处（§4.2）；`change-reversible` 不进技能工具的理由写进合同注释 |
@@ -146,11 +146,11 @@
 | Coding 设置页自己声明的 `McpServer` | 改用 `AgentMcpServerView` |
 | 设置里的重复视图：「提示词」「角色」「技能」、Coding 的方法页与 MCP 页、助理 `/` 菜单各列一份 | 收成能力包的聚合目录，哪些页并进来、哪些只留链接，按 9-11 的定样；第 08 批的「技能」一节怎么处理要尽早定 |
 | `UNREGISTERED_MODEL_CALLS`（已是空表，`/diagnostics` 还在传）、`AgentRoleSkillsDeclaration`（公开合同，SDK 还在校验）、`AgentSkillsCapability`（没有实现者）、`builtin-registrations.ts` 的转发 | 核过消费者再删；删公开合同的跑 `pnpm api:update`，按 `docs/system/CONTRACT-CHANGES.md` 写影响 |
-| 两条「MCP 工具登记成动作」的流水线（`external-mcp-actions.ts`、`connector-mcp-actions.ts`）各写一遍 | **不在本批**：它们是 MCP 调用链，四份 JSON（`config/*-mcp-actions.json`、`*-mcp-tools.json`）存着动作版本，流程与对外授权按这些版本固定引用，合并要改带版本文件的结构。记 BL，主人连接器线，去处第 61 批第 1 项 |
-| 提示词版本写法三种（`@version` 标记、创作台 `"designer/1"`、章节摘要） | **不在本批**：创作台是用户批过的构建期例外，随 BL-377 重做；章节摘要连着 `pnpm studio:replay`。记候选，主人创作台 |
-| Goals 的规划方法库（`plugins/native/goals/methods/`，37 个，自有启用与个人副本） | **不在本批**：它是 Goals 的业务数据，要不要变成技能是产品决定。记 BL，主人 Goals |
+| 两条「MCP 工具登记成动作」的流水线（`external-mcp-actions.ts`、`connector-mcp-actions.ts`）各写一遍 | **不在本批**：它们是 MCP 调用链，四份 JSON（`config/*-mcp-actions.json`、`*-mcp-tools.json`）存着动作版本，流程与对外授权按这些版本固定引用，合并要改带版本文件的结构。记 [BL-mcp-action-pipelines-merge](../backlog/BL-mcp-action-pipelines-merge.md)，主人连接器线，去处第 61 批第 1 项 |
+| 提示词版本写法三种（`@version` 标记、创作台 `"designer/1"`、章节摘要） | **不在本批**：创作台是用户批过的构建期例外，随 BL-377 重做；章节摘要连着 `pnpm studio:replay`。记候选，主人创作台（写进 [BL-377](../backlog/BL-377.md)） |
+| Goals 的规划方法库（`plugins/native/goals/methods/`，37 个，自有启用与个人副本） | **不在本批**：它是 Goals 的业务数据，要不要变成技能是产品决定。记 [BL-goals-methods-as-skills](../backlog/BL-goals-methods-as-skills.md)，主人 Goals |
 | 安装器 `runtime-config-adapters.ts` 手写的命令名与路径、Shelf 的 `SHELF_ENGINES` | **不在本批**：外部工具登记表的余项，归第 22 批（BL-955） |
-| 运行时登记的 MCP 动作不在动作快照里 | **不在本批**：记 BL，主人 C1（动作合同快照），本批不改门禁 |
+| 运行时登记的 MCP 动作不在动作快照里 | **不在本批**：记 [BL-runtime-mcp-actions-snapshot](../backlog/BL-runtime-mcp-actions-snapshot.md)，主人 C1（动作合同快照），本批不改门禁 |
 
 旧数据：一次清掉（用户 2026-11-09 定，现在没有用户）。Coding 的技能统一由能力包／共同目录管理：旧的发现、安装、存储（`molis-coding-method`）与旧形状全删；Coding 会话里存的 `methods:<会话>` 与助理历史材料里的旧方法形状，不管存量、不做读取兜底、不做迁移，也不做「请重新选择」提示。
 
@@ -161,7 +161,7 @@
 3. ~~设置页合并~~ 已定（2026-11-09，主会话按设计台建议）：技能页并进能力包，导航「技能」换成「能力包」；提示词列表并进，编辑页保留、从提示词详情进入；角色、能力库、服务连接、对外接入、调用记录、AI 与执行工具、Coding 的 MCP 页保留，从详情链过去；Coding 方法页删；Goals 规划方法库不并。合并后「AI」组是：模型设置 · 助理 · 角色 · 能力包。
 4. ~~英文名~~ 已定（2026-11-09，主会话）：AI kits。
 5. 9-8 合同稿里写明的边角：
-   - **主人不在了**：插件卸载后，它的包只剩包头（名称、版本、「重新添加」）；它的提示词改写、技能、角色不再列为条目；用量历史照 08 保留在各主人那里。删掉的 MCP 服务器、删掉的 Character 同样。要在包里列历史条目，记 BL。
+   - **主人不在了**：插件卸载后，它的包只剩包头（名称、版本、「重新添加」）；它的提示词改写、技能、角色不再列为条目；用量历史照 08 保留在各主人那里。删掉的 MCP 服务器、删掉的 Character 同样。要在包里列历史条目，记 [BL-kit-uninstalled-history](../backlog/BL-kit-uninstalled-history.md)。
    - **文字**：条目名称与说明的界面文字按 AGENTS.md 的文字规则：插件的取它的语言文件，平台工具的说明用键，不把译好的句子存进数据；第 16 批切换前照当时的写法。
    - **范围**：目录按调用上下文的项目汇总；Home 级插件、个人助理的条目标「个人空间」。
    - **搜索**：目录页内可搜（照 08）；系统搜索不收能力包条目，要收另提。

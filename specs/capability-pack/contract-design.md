@@ -1122,7 +1122,7 @@ CPK-13、CPK-14 是第 3 稿新加的，同一提交写进能力包需求 §11�
 主会话 2026-11-09 定的三件事，本稿已按它写：
 
 1. **排期**：`b09/contract` 等 #1991 合入后再开工，本批分支届时从新 main 重切（第 8 节）。
-2. **两条 BL 的号**：用户自组包（第 4.1 节）、已卸载包列历史条目（第 4.4 节），由 9-12 写手按 `specs/BACKLOG.md` 取下一个空号。
+2. **两条 BL 的号**：用户自组包（第 4.1 节）、已卸载包列历史条目（第 4.4 节），由 9-12 写手按 `specs/BACKLOG.md` 取下一个空号。**结果（9-12）**：`specs/BACKLOG.md` 现在用语义名，记为 [BL-kit-user-packs](../backlog/BL-kit-user-packs.md) 与 [BL-kit-uninstalled-history](../backlog/BL-kit-uninstalled-history.md)。
 3. **定样示例**：设计台已按本稿改了示例数据：对外 MCP 进「Molis Work 自带」，已卸载的包只显示包头。
 
 没有仍开着的待决。

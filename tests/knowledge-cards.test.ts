@@ -323,3 +323,39 @@ test("D0244-06 source withdrawal during model preparation is checked again at ac
   const work = organizer.kick("a"); await entered.promise; const before = f.cards.list("a"); current = false; release.resolve(); await work;
   assert.equal(sent, 0); assert.deepEqual(f.cards.list("a"), before);
 });
+
+test("D0030 catalog pages return metadata and load only the chosen original text; D0234 cards select and page at their owner", async t => {
+  const f = await fixture(t); await f.indexAll(); await f.organizer.reconcile("a");
+  const first = f.index.catalog("a").entries[0]!;
+  const large = Array.from({ length: 405 }, (_, index) => ({ ...f.index.document(first.source_key, first.kind, first.object_id)!, object_id: `many-${String(index).padStart(4, "0")}`, content: "Text held for lazy reading", revision: "1" }));
+  f.index.upsert(large);
+  let cursor: string | undefined, count = 0;
+  do { const page = f.index.catalog("a", cursor); assert.ok(page.entries.length <= 200); assert.ok(page.entries.every(entry => !("content" in entry))); count += page.entries.length; cursor = page.next_cursor ?? undefined; } while (cursor !== undefined);
+  assert.ok(count >= 405);
+  const original = f.index.document.bind(f.index); let reads = 0;
+  t.mock.method(f.index, "document", (...args) => { reads++; return original(...args); });
+  const pieces = knowledgeCatalog(f.index, "a"); assert.equal(reads, 0);
+  assert.equal(pieces.find(piece => piece.subject.id === "many-0404")!.content, "Text held for lazy reading"); assert.equal(reads, 1);
+  const selected = f.manage.list(owner, { subject: { kind: "page", id: "p1" }, limit: 1 });
+  assert.equal(selected.total, 1); assert.equal(selected.cards[0]!.subject.id, "p1");
+  const record = selected.cards[0]!;
+  for (let i = 0; i < 405; i++) f.cards.put({ ...record, subject: { kind: "page", id: `card-${i}` }, state: i % 2 ? "pending" : "ready" });
+  const page = f.manage.list(owner, { states: ["ready"], limit: 200 });
+  const rest = f.manage.list(owner, { states: ["ready"], limit: 200, offset: 200 });
+  assert.equal(page.cards.length, 200); assert.ok(rest.cards.length > 0); assert.equal(page.cards.length + rest.cards.length, page.total);
+  assert.ok([...page.cards, ...rest.cards].every(card => card.state === "ready"));
+});
+
+test("D0019 a rare term at the end of a long repeated query is retained; D0032 filtered FTS candidates do not hide a later exact card", async t => {
+  const f = await fixture(t); await f.indexAll(); await f.organizer.reconcile("a");
+  const metadata = f.index.catalog("a").entries[0]!;
+  const document = f.index.document(metadata.source_key, metadata.kind, metadata.object_id)!;
+  f.index.upsert([{ ...document, object_id: "rare-tail", title: "special", content: "预算审计", revision: "1" }]);
+  const common = Array.from({ length: 64 }, (_, index) => String.fromCharCode(0x4e00 + index)).join("");
+  assert.ok(f.index.related("a", common.repeat(50) + "预算审计", 20).some(row => row.object_id === "rare-tail"));
+  const base = card(f, "p1");
+  for (let i = 0; i < 405; i++) f.cards.put({ ...base, subject: { kind: "page", id: `false-positive-${i}` }, title: "candidate", brief: "预算 算审 审计 ".repeat(30), keywords: [], outline: [] });
+  f.cards.put({ ...base, subject: { kind: "page", id: "true-later" }, title: "candidate", brief: "预算审计", keywords: [], outline: [] });
+  const matches = f.cards.search("a", "预算审计", 1);
+  assert.equal(matches.length, 1); assert.equal(matches[0]!.subject.id, "true-later");
+});

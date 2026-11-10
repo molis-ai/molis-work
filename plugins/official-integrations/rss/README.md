@@ -16,6 +16,7 @@ createRssIntegrationPlugin 接收 Provider port 并注册轮询贡献；catalog/
 | --- | --- |
 | [src/index.ts](src/index.ts) | Integration 工厂 |
 | [src/catalog.ts](src/catalog.ts) | 来源目录 |
+| [src/exact-source-routes.ts](src/exact-source-routes.ts) | RSS/YouTube 精确路由，定义与地址校验由调用者传入，不读 Feed 状态 |
 | [src/custom-rss.ts](src/custom-rss.ts) | 自定义订阅 |
 | [src/http-state.ts](src/http-state.ts) | HTTP 状态 |
 | [src/feed-body.ts](src/feed-body.ts) | 正文读取 |

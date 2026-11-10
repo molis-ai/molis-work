@@ -29,6 +29,9 @@ export class FeedSourceService {
   register(input: RegisterFeedSourceInput): { source: FeedSourceRecord; registered: boolean } {
     const normalized = normalizeRegistration(input, this.ports.providers);
     const syncKind = "public_source";
+    const sourceId = stableId("feed-source", `${this.projectId}\u0000${normalized.kind}\u0000${normalized.configFingerprint}`);
+    const stored = this.storedSource(sourceId);
+    if (stored && sourceDeletedAt(stored)) throw feedErrors.source_invalid_state("这个来源已删除，不能通过重复注册恢复");
     const existing = this.feed.sources.find(
       this.projectId,
       syncKind,
@@ -47,7 +50,7 @@ export class FeedSourceService {
     const now = new Date().toISOString();
     const source = this.feed.sources.upsert({
       project_id: this.projectId,
-      source_id: stableId("feed-source", `${this.projectId}\u0000${normalized.kind}\u0000${normalized.configFingerprint}`),
+      source_id: sourceId,
       kind: normalized.kind,
       definition_id: normalized.definitionId,
       sync_kind: syncKind,

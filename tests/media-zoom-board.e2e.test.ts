@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { openBoardBrowser as openGoalBrowser } from "./fixtures/board-browser.js";
 
 // specs/visual-ui-experience VUX-32, VUX-39: the component board's media zoom is the shipped helper on the shipped page,
 // and its own control says what it does next, as a preview's would.
@@ -25,4 +25,22 @@ test("VUX-32 VUX-39 the board's media zoom specimen fits, zooms about the pointe
   await evaluate("document.querySelector('[data-catalog-media-zoom]').click()");
   await waitFor("document.querySelector('[data-catalog-media]').dataset.zoom === 'fit'");
   assert.equal((await read()).button, "原始尺寸");
+});
+
+test("D0021 a cancelled media drag never swallows the next real click or keyboard activation", { timeout: 90_000 }, async t => {
+  const browser = await openGoalBrowser(t, true); if (!browser) return;
+  await browser.navigate(() => browser.command("Page.navigate", { url: `${browser.origin}/__ui/catalog#foundation` }, browser.sessionId));
+  await browser.waitFor("document.querySelector('[data-catalog-media].mw-media-zoom')");
+  await browser.evaluate("document.querySelector('[data-catalog-media]').scrollIntoView({block:'center'});document.querySelector('[data-catalog-media-zoom]').click()");
+  await browser.waitFor("document.querySelector('[data-catalog-media]').dataset.zoom === 'zoomed'");
+  await browser.evaluate<{x:number;y:number}>(`(() => { const v=document.querySelector('[data-catalog-media]'),r=v.getBoundingClientRect();window.mediaClicks=0;
+    v.parentElement.addEventListener('click',()=>window.mediaClicks++);
+    for(const [type,x] of [['pointerdown',r.x+40],['pointermove',r.x+80],['pointercancel',r.x+80]])v.dispatchEvent(new PointerEvent(type,{bubbles:true,pointerId:99,pointerType:'touch',button:0,clientX:x,clientY:r.y+40}));
+    return {x:r.x+60,y:r.y+60}; })()`);
+  await browser.click("[data-catalog-media]");
+  assert.equal(await browser.evaluate("window.mediaClicks"), 1, "a real pointer down/up/click after cancellation reaches the container");
+  await browser.evaluate(`(() => { const v=document.querySelector('[data-catalog-media]'),r=v.getBoundingClientRect();
+    for(const [type,x] of [['pointerdown',r.x+40],['pointermove',r.x+80],['pointerup',r.x+80]])v.dispatchEvent(new PointerEvent(type,{bubbles:true,pointerId:98,pointerType:'touch',button:0,clientX:x,clientY:r.y+40}));
+    v.click(); })()`);
+  assert.equal(await browser.evaluate("window.mediaClicks"), 2, "keyboard-style activation is not the drag's trailing pointer click");
 });

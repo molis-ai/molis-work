@@ -1,3 +1,4 @@
+import { versionConsumptionCompatibility } from "./compatibility.js";
 import type { ArtifactsApplicationApi, ProcessItemsApplicationApi, ProcessItemRecord, ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { artifactLineHeadOf, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginArtifactClient, PluginArtifactPublishInput, PluginArtifactWriter, PluginProcessItemClient, PluginManifest, PluginProcessItemInput, PluginConsumableVersion } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -102,14 +103,28 @@ export function createPluginArtifactOperations(input: PluginArtifactOperationsIn
     listConsumable() {
       requirePermission("artifact:read");
       checked("list", {});
-      const artifacts = api.query.listArtifacts(project_id);
-      // Include even rejected 成果: read always chooses that store when both stores have the same fixed reference.
-      const artifactRefs = new Set(artifacts.map(referenceKey));
-      return [
-        ...artifacts.filter(value => !issue(value, "artifact")).map(value => summary(value, "artifact", value.title)),
-        ...process.query.listArtifacts(project_id).filter(value => !artifactRefs.has(referenceKey(value)) && !issue(value, "process_item"))
-          .map(value => summary(value, "process_item", value.metadata.title)),
-      ];
+      // Filter declarations, availability and lifecycle in SQL; only one bounded content page is held at a time.
+      const listed: PluginConsumableVersion[] = [];
+      const walk = (query: ArtifactsApplicationApi["query"] | ProcessItemsApplicationApi["query"], types: PluginManifest["artifacts"]["consumes"], consume: (page: Array<ArtifactVersionRecord | ProcessItemRecord>) => void, personalOwner?: string) => {
+        if (!types.length) return;
+        for (let offset = 0;; offset += 200) {
+          requirePermission("artifact:read");
+          const page = query.listArtifacts(project_id, { supported_types: types, personal_owner_actor_id: personalOwner, lifecycle_state: "active", availability: "available", limit: 200, offset });
+          consume(page);
+          if (page.length < 200) return;
+        }
+      };
+      walk(api.query, manifest.artifacts.consumes, page => {
+        listed.push(...page.filter(value => !issue(value, "artifact")).map(value => summary(value, "artifact", "title" in value ? value.title : null)));
+      });
+      walk(process.query, manifest.process_items?.consumes ?? [], page => {
+        // Even a rejected artifact owns its fixed reference ahead of a process item. Ask for exact existence, never its body.
+        const reserved = new Set(api.query.existingReferences(project_id, page).map(referenceKey));
+        listed.push(...page.filter(value => !reserved.has(referenceKey(value)) && !issue(value, "process_item"))
+          .map(value => summary(value, "process_item", value.metadata.title)));
+      }, actor_id);
+      requirePermission("artifact:read");
+      return listed;
     },
   }, process: {
     record(value) {
@@ -139,8 +154,7 @@ function consumptionIssue(input: Pick<PluginArtifactOperationsInput, "api" | "pr
   if (kind === "process_item" && value.scope === "personal" && value.owner_actor_id !== input.actor_id) {
     return { kind: "denied" as const, message: "不能读取其他用户的个人过程项" };
   }
-  const compatibility = kind === "artifact" ? input.api.query.consumptionCompatibility(input.project_id, value, manifest.artifacts.consumes)
-    : input.process.query.consumptionCompatibility(input.project_id, value, manifest.process_items?.consumes ?? []);
+  const compatibility = versionConsumptionCompatibility(value, kind === "artifact" ? manifest.artifacts.consumes : manifest.process_items?.consumes ?? []);
   return compatibility.consumable ? null : { kind: "incompatible" as const, reason: compatibility.reason,
     message: UNCONSUMABLE_MESSAGE[compatibility.reason] ?? "这一版成果不能在这里使用" };
 }
@@ -156,7 +170,7 @@ function ownsRecord(value: Pick<ProcessItemRecord, "producer_plugin_id" | "produ
     && (actor === null || value.scope !== "personal" || value.owner_actor_id === actor);
 }
 
-const referenceKey = (value: ProcessItemRecord) => JSON.stringify([value.artifact_id, value.version]);
+const referenceKey = (value: Pick<ProcessItemRecord, "artifact_id" | "version">) => JSON.stringify([value.artifact_id, value.version]);
 function summary(value: ProcessItemRecord | ArtifactVersionRecord, kind: PluginConsumableVersion["kind"], title: unknown): PluginConsumableVersion {
   return { ...referenceInput(value), kind, artifact_type_id: value.artifact_type_id, schema_version: value.schema_version,
     title: typeof title === "string" && title.trim().length > 0 ? title : null };

@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
-import { CATALOG_SCHEMA_VERSION } from "@molis-ai/molis-work-app-local-host";
+import { CATALOG_SCHEMA_VERSION, CATALOG_UPGRADES } from "@molis-ai/molis-work-app-local-host";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import {
   createProjectsSchema,
@@ -82,7 +82,7 @@ test("RAC-2302 the project.created event records the project, not a path; the mo
 
 test("RAC-2303 the derived file name is the one the storage package names, and the catalog uses the declared current version", () => {
   assert.equal(projectDatabasePath("/home/projects", "p"), join("/home/projects", "p", PROJECT_DATABASE_FILENAME));
-  assert.equal(CATALOG_SCHEMA_VERSION, 2, "the current catalog includes synchronization and directory roles (batch 05: 1→2) and stores no path");
+  assert.equal(CATALOG_SCHEMA_VERSION, 3, "D0057/D0273: version 3 no longer includes retired desktop tables");
 });
 
 test("RAC-2303 a current catalog reopens; another version is refused without changing its bytes or project facts", async () => {
@@ -124,5 +124,24 @@ test("RAC-800 a current catalog has no personal planning table and refuses one w
     await assert.rejects(() => openMolisWorkProjectCatalog({ homeDirectory: home }), (error: { code?: string; message?: string }) =>
       error.code === "catalog.unsupported_schema" && /personal_planning_method_packs/.test(error.message ?? ""));
     assert.deepEqual(readFileSync(file), before);
+  } finally { rmSync(home, { recursive: true, force: true }); }
+});
+
+test("D0057 D0273 new catalogs omit retired desktop tables; explicit upgrade refuses nonempty tables atomically", async () => {
+  const home = scratch();
+  try {
+    const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home }); catalog.close();
+    const db = openTestSqlite(join(home, "projects", "catalog.db"));
+    try {
+      assert.deepEqual(db.prepare("SELECT name FROM sqlite_master WHERE name LIKE 'goal_desktop_%'").all(), []);
+      const step = CATALOG_UPGRADES.find(step => step.from === 2)!;
+      const retired = () => db.exec("CREATE TABLE goal_desktop_panels(panel_id TEXT PRIMARY KEY); CREATE TABLE goal_desktop_panel_aliases(panel_id TEXT)");
+      retired(); db.transaction(() => step.run!(db))();
+      assert.deepEqual(db.prepare("SELECT name FROM sqlite_master WHERE name LIKE 'goal_desktop_%'").all(), []);
+      retired(); db.exec("INSERT INTO goal_desktop_panels VALUES ('retained')");
+      assert.throws(() => db.transaction(() => step.run!(db))(), { code: "catalog.unsupported_schema" });
+      assert.equal(db.prepare("SELECT panel_id FROM goal_desktop_panels").get()?.panel_id, "retained");
+      assert.ok(db.prepare("SELECT name FROM sqlite_master WHERE name='goal_desktop_panel_aliases'").get(), "earlier drops roll back too");
+    } finally { db.close(); }
   } finally { rmSync(home, { recursive: true, force: true }); }
 });

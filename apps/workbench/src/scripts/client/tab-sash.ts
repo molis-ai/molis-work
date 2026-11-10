@@ -41,7 +41,7 @@ export const TAB_SASH_FACTORY = String.raw`({ panes, root, find, sync, persist, 
       if (!bounds) return;
       const at = (node.direction === "row" ? pointer.clientX - box.left : pointer.clientY - box.top) / size;
       const next = snap(Math.min(bounds[1], Math.max(bounds[0], at)), defaultRatio, drag.snapped, size);
-      drag.snapped = next.snapped; set(node, next.ratio);
+      drag.snapped = next.snapped; set(node, Math.min(bounds[1], Math.max(bounds[0], next.ratio)));
     });
     on(sash, "pointerup", (pointer) => { if (pointer.pointerId === drag?.pointer) finish(true); });
     on(window, "pointerup", (pointer) => { if (pointer.pointerId === drag?.pointer) finish(true); });

@@ -65,3 +65,34 @@ test("a phone Kanban preserves a person's folded column through hidden refresh a
   await waitFor(`document.querySelector(${JSON.stringify(group)}).open`);
   assert.equal(await evaluate(`document.querySelector('[data-goal-kanban] [data-goal-id="${created.goal_id}"]').getBoundingClientRect().height > 0`), true);
 });
+
+
+test("D0013 cancelled goals remain selectable in list filters and their own Kanban column", { timeout: 120_000 }, async t => {
+  const browser = await openGoalBrowser(t, "seeded", undefined, null); if (!browser) return;
+  const { command, sessionId, navigate, origin, projectId, click, evaluate, waitFor } = browser;
+  for (const width of [1440, 390]) {
+    await command("Emulation.setDeviceMetricsOverride", {width,height:900,deviceScaleFactor:1,mobile:width===390}, sessionId);
+    await navigate(() => command("Page.navigate", {url:`${origin}/projects/${projectId}/`},sessionId));
+    await click('[data-plugin-id="goals"]');
+    await waitFor("document.querySelector('[data-goal-momentum]')?.dataset.loaded === 'true'");
+    await click('[data-board-view-tab="list"]');
+    const id=await evaluate<string>("document.querySelector('[data-tree-item][data-goal-status=cancelled]')?.dataset.goalId");
+    assert.ok(id, "the seeded cancelled goal is still listed");
+    await click('[data-tree-filter-trigger]');
+    const checkbox='[data-status-filter][value="cancelled"]';
+    await waitFor(`document.querySelector(${JSON.stringify(checkbox)})`);
+    await click(checkbox);
+    assert.equal(await evaluate(`document.querySelector(${JSON.stringify(checkbox)}).checked`),true);
+    assert.equal(await evaluate(`document.querySelector('[data-tree-item][data-goal-id="${id}"] .tree-row').getBoundingClientRect().height > 0`),true);
+    await click('[data-clear-status-filter]');
+    await click('[data-tree-filter-trigger]');
+    await click('[data-board-view-tab="kanban"]');
+    const group='[data-kanban-column="cancelled"] [data-kanban-group]';
+    await waitFor(`document.querySelector(${JSON.stringify(group)})`);
+    if (!await evaluate(`document.querySelector(${JSON.stringify(group)}).open`)) await click(`${group} > summary`);
+    const card=`[data-kanban-column="cancelled"] [data-kanban-card][data-goal-id="${id}"]`;
+    await evaluate(`document.querySelector(${JSON.stringify(card)}).scrollIntoView({block:'nearest',inline:'nearest',behavior:'instant'})`);
+    assert.equal(await evaluate(`document.querySelector(${JSON.stringify(card)}).getBoundingClientRect().height > 0`),true);
+    assert.equal(await evaluate(`Boolean(document.querySelector('[data-kanban-column="continue"] [data-goal-id="${id}"]'))`),false);
+  }
+});

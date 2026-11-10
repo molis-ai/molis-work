@@ -1,3 +1,4 @@
+export { rollbackPreservingError } from "./transaction-errors.js";
 export { PLUGIN_ID } from "./plugin-id.js";
 /** The page runtime installs this helper; its shape is owned by the UI contract. */
 declare global {

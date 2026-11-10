@@ -1,3 +1,4 @@
+import { imText as L } from "../locale.js";
 import type { ImMessage, ImMessagePage } from '@molis-ai/molis-work-contracts/services/im';
 import type { StreamKind, ApiError } from './types.js';
 import type { ImBaseCtx, ImCtx } from './controller-types.js';
@@ -47,7 +48,7 @@ export function createImNavigate(base: ImBaseCtx, context: () => ImCtx): Pick<Im
     const wasFocused = document.activeElement === c.inputFor(kind);
     s.busyTargets.add(id);
     c.syncComposer(kind);
-    c.status(kind, '正在发送…');
+    c.status(kind, (L("正在发送…")));
     try {
       const result = await api<{
         message: ImMessage;
@@ -59,9 +60,9 @@ export function createImNavigate(base: ImBaseCtx, context: () => ImCtx): Pick<Im
           c.paintQuote(kind);
           c.resizeInput(kind);
         }
-        c.status(kind, '已发送');
+        c.status(kind, (L("已发送")));
         setTimeout(() => {
-          if (id === c.target(kind) && q('[data-compose-status="' + kind + '"]').textContent === '已发送')
+          if (id === c.target(kind) && q('[data-compose-status="' + kind + '"]').textContent === (L("已发送")))
             c.status(kind, '');
         }, 1800);
         if (kind === 'group')
@@ -75,7 +76,7 @@ export function createImNavigate(base: ImBaseCtx, context: () => ImCtx): Pick<Im
     catch (cause) {
       const error = cause as ApiError;
       if (id === c.target(kind))
-        c.status(kind, error.uncertain ? '未能确认发送结果。原文已保留，再次发送不会重复。' : error.message, true);
+        c.status(kind, error.uncertain ? (L("未能确认发送结果。原文已保留，再次发送不会重复。")) : error.message, true);
     }
     finally {
       s.busyTargets.delete(id);

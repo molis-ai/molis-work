@@ -3478,6 +3478,10 @@ export interface PluginLocalesDeclaration {
 }
 
 export interface PluginManifest {
+    demo_seed?: {
+        capability_id: string;
+        version: number;
+    };
     sync?: import("@molis-ai/molis-work-contracts/platform/plugin-sync").PluginSyncDeclaration;
     schema_version: 1;
     plugin_id: string;

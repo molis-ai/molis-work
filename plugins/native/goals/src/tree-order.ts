@@ -29,6 +29,7 @@ const GOAL_TREE_DISPLAY_STATUS_ORDER: readonly GoalDisplayStatus[] = [
   "blocked",
   "waiting",
   "completed",
+  "cancelled",
 ];
 
 function goalTreeStatusRank(status: string): number {

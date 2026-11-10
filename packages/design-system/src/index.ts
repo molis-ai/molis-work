@@ -87,3 +87,6 @@ export * from './input-receipts-client.js';
 export { INPUT_RECEIPTS_STYLES } from './styles/input-receipts.js';
 export { CONTEXT_TOOLBAR_CLIENT_SCRIPT, CONTEXT_TOOLBAR_STYLES } from './context-toolbar.js';
 export { sanitizeContextTools } from './context-tools.js';
+
+export { BUTTON_STYLES } from "./styles/buttons.js";
+export { TOAST_STYLES } from "./styles/toast.js";

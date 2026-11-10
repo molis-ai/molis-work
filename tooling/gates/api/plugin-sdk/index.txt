@@ -909,6 +909,8 @@ export { resolveActionSubject } from "@molis-ai/molis-work-contracts/platform/ac
 
 export declare function resolveEffectiveSetting(snapshot: SettingSnapshot): EffectiveSetting;
 
+export declare function rollbackPreservingError(original: unknown, rollback: () => unknown): void;
+
 export declare function runActionCard<Card extends ActionCard>(card: Card, input: {
     revision: number;
     values: Record<string, string>;

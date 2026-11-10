@@ -8,6 +8,7 @@ export type CapsuleStateKind =
   | "complete"
   | "ready"
   | "waiting"
+  | "cancelled"
   | "empty";
 
 export interface CapsuleState {

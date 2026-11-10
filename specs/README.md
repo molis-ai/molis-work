@@ -86,6 +86,8 @@
 
 - [daily-quality-d0033](daily-quality-d0033/spec.md)：高项真实侧栏隔离核查；补拒绝证据并纠正外层 frame 的旧评估，待 PR 核回。
 
+- [daily-quality-medium-20261108](daily-quality-medium-20261108/spec.md)：2026-11-08日评中优先级A类54编号，用户2026-11-09批准，分批实施与验证。
+
 ## 现行规范
 
 仍被 `AGENTS.md`、SSOT、Skill 或包 README 引为现行规则的 spec。它们不归档；改规则就改它们。

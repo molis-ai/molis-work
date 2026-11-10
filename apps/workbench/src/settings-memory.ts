@@ -388,9 +388,12 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
           run(() => change({ action: "move", to: item.scope === "project" ? "personal" : "project" }), "已改范围");
         });
         menuItem(L("历史版本"), () => historyPanel(item, copy));
-        if (item.scope === "project" && project) menuItem(L("升级为项目说明"), () => {
-          const target = "/projects/" + encodeURIComponent(project) + "/settings/guidance?memory_id=" + encodeURIComponent(item.memory_id) + "&memory_version=" + encodeURIComponent(item.version);
-          window.location.assign(target);
+        if (item.scope === "project" && project) menuItem(L("升级为项目说明"), async () => {
+          try {
+            const prefix = "/projects/" + encodeURIComponent(project);
+            const draft = await molisWorkRequest(prefix + "/api/contextual/draft-reference/issue", { body: { purpose: "project-guidance", text: JSON.stringify([item.memory_id, item.version]) } });
+            window.location.assign(prefix + "/settings/guidance?draft_ref=" + encodeURIComponent(draft.reference));
+          } catch (failure) { fail(failure); }
         });
         menuItem(L("删除"), async () => {
           if (await ask(L("删除这条记忆？"), L("删除后任何地方都不会再用到「{text}」，历史版本也一起删除。", { text: item.text }), L("删除"), summary)) {

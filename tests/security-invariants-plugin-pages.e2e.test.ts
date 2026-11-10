@@ -108,9 +108,10 @@ test("SYS-15 S-47 a page link never navigates the owner document: a settings add
   assert.deepEqual(await evaluate(owner), before, "the owner document did not navigate, reload or lose its frame");
   assert.equal(await evaluate<string>("window.__ownerMarker"), "owner-page", "no full page load happened");
   assert.equal(await child.evaluate<string>("location.href"), page, "the page itself did not follow the link");
-  // The message path without any click moves nothing either, for an owner address that opens no surface.
+  // D0124/D0335: settings hid the originating frame; its later link message is refused before forwarding to the shell.
   await child.evaluate(`molisWorkOpenExternalUrl(${JSON.stringify(`/projects/${browser.projectId}/desk`)})`);
-  await waitFor("window.__settingsAddresses.some(href=>href.endsWith('/desk'))");
+  await child.evaluate("new Promise(resolve=>setTimeout(resolve,100))");
+  assert.deepEqual(await evaluate<string[]>("window.__settingsAddresses"), [`${browser.origin}/settings/models`], "the hidden frame cannot forward a second link");
   assert.deepEqual(await evaluate(owner), before, "a host address that opens no surface still moves nothing");
 });
 
@@ -292,6 +293,59 @@ test("D0033-01 S-47 the real side plugin cannot read either trusted ancestor, it
   // The page collapses the side from the layout menu (收起右侧); the side has no close event of its own (07-1 S4b).
   await browser.evaluate("document.body.dataset.sideOpen === 'true' && (document.querySelector('[data-layout-open]').click(), document.querySelector('[data-layout-action=side]').click())");
   await browser.waitFor("document.body.dataset.sideOpen==='false'");
+});
+
+test("D0124 D0335 S-47 hidden plugin UI cannot navigate or open an object; visible typed requests still work", { timeout: 60_000 }, async t => {
+  const browser = await openGoalBrowser(t, true); if (!browser) return;
+  await pluginFrameInitScript(t, browser, `
+    let factories;Object.defineProperty(globalThis,'molisWorkbenchPluginFactories',{configurable:true,get:()=>factories,set:value=>{
+      factories=new Proxy(value,{set:(target,key,factory)=>{target[key]=host=>{window.uiForTest=host;return factory(host)};return true}});
+    }});
+  `);
+  const child = await pluginFrameBrowser(t, browser, "cognia");
+  await browser.navigate(() => browser.command("Page.navigate", { url: browser.origin + "/projects/" + browser.projectId + "/?openPlugin=cognia" }, browser.sessionId));
+  await child.waitFor("window.uiForTest && document.querySelector('[data-cognia-rows]')");
+  const state = () => browser.evaluate("JSON.stringify({surface:document.body.dataset.workSurface,panes:[...document.querySelectorAll('[data-tab-pane]')].map(p=>[p.dataset.tabPane,[...p.querySelectorAll('[data-tab-id]')].map(t=>[t.dataset.tabId,t.getAttribute('aria-selected'),t.hasAttribute('data-current')])]),frames:[...document.querySelectorAll('iframe[data-plugin-frame]')].map(f=>f.dataset.pluginFrame)})");
+  assert.ok(await browser.evaluate("document.querySelectorAll('[data-tab-pane]').length > 0"), "the actual workspace pane is observed");
+  const before = await state();
+  await browser.evaluate("document.querySelector('iframe[data-plugin-frame=cognia]').hidden=true");
+  await child.evaluate("uiForTest.view.refreshShell();uiForTest.openPlugin('todo');uiForTest.openItem('todo','fake','Fake');uiForTest.openBeside('todo','fake','Fake');new Promise(resolve=>setTimeout(resolve,100))");
+  assert.equal(await state(), before, "hidden messages do not change the active pane or create item tabs");
+  await browser.evaluate("document.querySelector('iframe[data-plugin-frame=cognia]').hidden=false");
+  await child.evaluate("uiForTest.openPlugin('todo',{},[]);uiForTest.openItem('todo',{},[]);uiForTest.openItem('todo','fake',{});new Promise(resolve=>setTimeout(resolve,100))");
+  assert.equal(await state(), before, "malformed arguments are ignored before the trusted UI is called");
+  await child.evaluate("uiForTest.openPlugin('todo')");
+  await browser.waitFor("document.querySelector('iframe[data-plugin-frame=todo]')");
+  await browser.click('[data-plugin-id=cognia]');
+  await browser.waitFor("document.body.dataset.desktopSurface==='cognia'");
+  await child.evaluate("uiForTest.openItem('todo','fake',undefined)");
+  await browser.waitFor("document.body.dataset.desktopSurface==='todo'");
+});
+
+test("D0124 S-47 refresh cooldown survives the document reload", { timeout: 90_000 }, async t => {
+  const browser = await openGoalBrowser(t, true); if (!browser) return;
+  await browser.command("Page.addScriptToEvaluateOnNewDocument", { source: "window.__refreshDocument=crypto.randomUUID()" }, browser.sessionId);
+  await pluginFrameInitScript(t, browser, `
+    window.__refreshDocument=crypto.randomUUID();
+    let factories;Object.defineProperty(globalThis,'molisWorkbenchPluginFactories',{configurable:true,get:()=>factories,set:value=>{
+      factories=new Proxy(value,{set:(target,key,factory)=>{target[key]=host=>{window.uiForTest=host;return factory(host)};return true}});
+    }});
+  `);
+  const child = await pluginFrameBrowser(t, browser, "cognia");
+  await browser.navigate(() => browser.command("Page.navigate", { url: `${browser.origin}/projects/${browser.projectId}/?openPlugin=cognia` }, browser.sessionId));
+  await child.waitFor("window.uiForTest");
+  const before = await browser.evaluate<string>("window.__refreshDocument");
+  await browser.navigate(() => child.evaluate("setTimeout(()=>uiForTest.view.refreshShell(),100);true"));
+  const fresh = child;
+  await fresh.waitFor("window.uiForTest");
+  const after = await browser.evaluate<string>("window.__refreshDocument");
+  assert.notEqual(after, before, "the first visible request actually reloads the shell");
+  const key = await browser.evaluate<string>("Object.keys(sessionStorage).find(key=>key.startsWith('molis-shell-refresh:'))");
+  assert.ok(key, "the limiter is retained outside the plugin's storage namespace");
+  // Keep this check independent of browser startup speed: the parent time is inside the just-opened cooldown window.
+  await browser.evaluate(`sessionStorage.setItem(${JSON.stringify(key)},String(Date.now()))`);
+  await fresh.evaluate("uiForTest.view.refreshShell();uiForTest.view.refreshShell();new Promise(resolve=>setTimeout(resolve,150))");
+  assert.equal(await browser.evaluate("window.__refreshDocument"), after, "the new document rejects a reload burst too");
 });
 
 // D0109 / S-47: use the actual child SDK and parent bridge, but keep the browser's print UI out of this lifecycle check.

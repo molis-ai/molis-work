@@ -75,6 +75,7 @@ export class SignalsModule implements SignalsApi {
 
   readonly commands = {
     submitDraft: (draft: SignalDraft) => this.submitDraft(draft),
+    deleteBySource: (projectId: string, sourceId: string) => this.deleteBySource(projectId, sourceId),
   };
 
   readonly events = {
@@ -85,6 +86,15 @@ export class SignalsModule implements SignalsApi {
     private readonly db: FeedSql,
     private readonly now: () => Date = () => new Date(),
   ) {}
+
+  /** D0117: revisions contain the old payloads too; remove all three tables in the caller's history transaction. */
+  private deleteBySource(projectId: string, sourceId: string): void {
+    this.db.transaction(() => {
+      this.db.run("DELETE FROM signal_revisions WHERE project_id = ? AND signal_id IN (SELECT signal_id FROM signals WHERE project_id = ? AND source_id = ?)", projectId, projectId, sourceId);
+      this.db.run("DELETE FROM signal_events WHERE project_id = ? AND source_id = ?", projectId, sourceId);
+      this.db.run("DELETE FROM signals WHERE project_id = ? AND source_id = ?", projectId, sourceId);
+    });
+  }
 
   private get(projectId: string, signalId: string): SignalRecord {
     const row = this.db.get("SELECT * FROM signals WHERE project_id = ? AND signal_id = ?", projectId, signalId) as Row | undefined;

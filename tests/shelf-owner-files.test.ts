@@ -161,3 +161,13 @@ test("PG-026-S2-2 the Home instance captures a page on this machine through the 
   }
   assert.equal(hits.length, 2, "none of them reached the page server");
 });
+
+test("D0338 two Shelf instances retain concurrent admissions", async () => {
+  await withHome(async home => {
+    const one = openTestShelfStore(home, { disabled: true }), two = openTestShelfStore(home, { disabled: true });
+    const admitted = await Promise.all(Array.from({ length: 12 }, (_, index) => (index % 2 ? one : two).admit({ filename: `concurrent-${index}.md`, bytes: Buffer.from(`body ${index}`), mime: "text/markdown" })));
+    assert.equal(new Set(admitted.map(item => item.item_id)).size, 12);
+    assert.equal((await one.snapshot()).materials.filter(item => item.name.startsWith("concurrent-")).length, 12);
+    assert.equal((await two.snapshot()).materials.filter(item => item.name.startsWith("concurrent-")).length, 12);
+  });
+});

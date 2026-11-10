@@ -108,7 +108,8 @@ export const projectRoutePrefix = (options: ResolvedWebBoardOptions) => options.
 
 export function projectPluginServices({ localHost, hostReference, options, agentHost, serverOptions }: ProjectRequestContext): ProjectPluginServices {
   return {
-    actions: { registry: localHost.actionRegistry(hostReference), client: { ...localHost.actionClient(hostReference), ...localHost.syncActionClient(hostReference) }, scenes: localHost.sceneClient(hostReference), project_id: hostReference.project_id, inspect: caller => localHost.inspectActions(caller, hostReference) },
+    // These ports are used while the project Runtime starts. Re-entering its public preparation would wait on that same start.
+    actions: { registry: localHost.actionRegistry(hostReference), client: { ...localHost.actionClient(hostReference, false), ...localHost.syncActionClient(hostReference) }, scenes: localHost.sceneClient(hostReference), project_id: hostReference.project_id, inspect: caller => localHost.inspectActions(caller, hostReference) },
     observeReviewSettlements: listener => observeReviewSettlements(agentHost.reviews, options.projectId, listener),
     homeDirectory: serverOptions.homeDirectory,
     homePlugins: localHost.homePlugins,

@@ -103,7 +103,7 @@ test("Goal kanban sits beside the canvas, opens Frame, and remembers the board v
   await waitFor("getComputedStyle(document.querySelector('[data-goal-kanban] .goal-kanban-board')).flexDirection === 'column'");
   const stacked = await evaluate<{ direction: string; overflowX: string; groups: number; outcome: string }>("(() => { const board = document.querySelector('[data-goal-kanban] .goal-kanban-board'); const shell = document.querySelector('[data-goal-kanban]'); const outcome = document.querySelector('.goal-kanban-card-outcome'); return { direction: getComputedStyle(board).flexDirection, overflowX: getComputedStyle(shell).overflowX, groups: document.querySelectorAll('[data-kanban-group]').length, outcome: outcome ? getComputedStyle(outcome).display : 'none' }; })()");
   assert.equal(stacked.direction, "column");
-  assert.equal(stacked.groups, 7, "the phone keeps the cancelled category too");
+  assert.equal(stacked.groups, 7, "D0013: the cancelled group remains present on the narrow board");
   assert.equal(stacked.outcome, "none");
   assert.ok(stacked.overflowX === "hidden" || stacked.overflowX === "clip", "narrow kanban stacks groups instead of scrolling sideways " + JSON.stringify(stacked));
   assert.deepEqual(boardSnapshot(store, DEMO_PROJECT_ID).goals, before.goals);

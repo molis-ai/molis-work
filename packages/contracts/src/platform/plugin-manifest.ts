@@ -124,6 +124,8 @@ export interface PluginLocalesDeclaration {
 export const PLUGIN_LOCALE_LIMITS = { available: 32 } as const;
 
 export interface PluginManifest {
+  /** Optional project demo initializer: own workflow command with an empty object input. Invoked after Runtime startup only for trusted regenerable_demo projects. */
+  demo_seed?: { capability_id: string; version: number };
   /** Portable collections; requires an authorized owner adapter. */
   sync?: import("./plugin-sync.js").PluginSyncDeclaration;
   /** The current Manifest format; all plugins declare version 1. */

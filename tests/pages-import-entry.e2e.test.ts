@@ -38,7 +38,7 @@ async function capture(browser: Browser, name: string): Promise<void> {
 async function openImportPreview(browser: Browser, child: Child, width: number, height = width === 390 ? 844 : 750): Promise<void> {
   const {command,sessionId,navigate,origin,projectId}=browser;
   const {evaluate,waitFor,click}=child;
-  await command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: width === 390 }, sessionId);
+  await browser.setViewport(width, height, width === 390);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages` }, sessionId));
   await browser.waitFor("document.querySelector('[data-plugin-id=pages]')");
@@ -64,6 +64,8 @@ for (const width of [1440, 1024, 390]) {
     const child = await pluginFrameBrowser(t,browser,"pages");
     const {evaluate,waitFor,click}=child;
     const {projectId, homeDirectory, store: project} = browser;
+    // D0041: start the demo Runtime (including Feed's own seed) before measuring what the Pages import writes.
+    await browser.web.get(`/projects/${projectId}/api/board/refresh`);
     const artifactsBefore = (project.db.prepare("SELECT COUNT(*) AS n FROM library_artifact_versions").get() as { n: number }).n;
 
     await openImportPreview(browser, child, width);

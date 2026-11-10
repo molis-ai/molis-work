@@ -168,6 +168,7 @@ tests/connector-record-actions.test.ts
 tests/connector-document-import.test.ts
 tests/connector-method-directory.test.ts
 tests/connector-oauth-choice.test.ts
+tests/connector-oauth-declarations.test.ts
 tests/connector-provider-contracts.test.ts
 tests/connector-reconnect-regressions.test.ts
 
@@ -514,6 +515,5 @@ tests/account-client.test.ts
 tests/goals-plugin-prefix-routes.test.ts
 tests/goals-contract-ownership.test.ts
 tests/memory-retention-roundtrip.test.ts
-tests/connector-oauth-declarations.test.ts
 tests/goals-project-database.test.ts
 tests/goal-events-state.test.ts

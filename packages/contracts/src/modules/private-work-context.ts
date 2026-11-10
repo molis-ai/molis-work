@@ -80,3 +80,6 @@ export interface RuntimeContextBindingEventRecord {
   actor_id: string;
   created_at: string;
 }
+
+/** Bounded owner query; the Home administrator may narrow it to a project from its trusted catalog. */
+export interface RuntimeContextBindingPage { limit: number; offset: number; project_id?: string }

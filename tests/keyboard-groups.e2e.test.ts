@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { openBoardBrowser as openGoalBrowser } from "./fixtures/board-browser.js";
 import { KEYBOARD_FOCUS, KEYBOARD_GROUPS, type KeyboardGroup } from "./fixtures/keyboard-audit.js";
 
 // specs/visual-ui-experience §adaptive-focus (VUX-28): every semantic group on the real surfaces is one tab stop, arrows

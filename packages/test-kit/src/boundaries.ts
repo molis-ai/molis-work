@@ -105,8 +105,7 @@ export const APP_IMPORT_ALLOWLIST: readonly string[] = [
   "apps/local-host -> apps/cli",
   "apps/local-host -> apps/mcp",
   "apps/local-host -> apps/workbench",
-  "apps/server -> apps/desktop",
-  "apps/server -> apps/local-host",
+  ". -> apps/server",
 ];
 
 /**

@@ -4,7 +4,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { BASELINE_SKIN } from "@molis-ai/molis-work-design-system";
 import { skinTokenDeclarations } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { openBoardBrowser as openGoalBrowser } from "./fixtures/board-browser.js";
 import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
 
 // T8b's three parts on the component board (docs/design/appearance-selection/README.md「组件板新增」; specs/font-and-skin-system/a-section-contract.md
@@ -143,12 +143,14 @@ test("FSS-66: picking a card says which look the specimen shows, and the keyboar
   await navigate(() => command("Page.navigate", { url: `${origin}/__ui/catalog` }, sessionId));
   await waitFor("document.readyState === 'complete' && !!document.querySelector('#look-card')", 20_000);
   const press = async (key: string, vk: number) => { for (const type of ["keyDown", "keyUp"]) await command("Input.dispatchKeyEvent", { type, key, code: key, windowsVirtualKeyCode: vk, ...(type === "keyDown" && key === "Enter" ? { text: "\r" } : {}) }, sessionId); };
+  const savedPreferences = await evaluate("JSON.stringify(Object.fromEntries(Object.entries(localStorage).filter(([key])=>/skin|theme|appearance/.test(key))))");
   const row = "#look-card [data-look-cards]:not(.mw-look-grid--narrow)";
   const states = () => evaluate<Array<{ id: string; pressed: string | null; trial: boolean; inUse: boolean }>>(`[...document.querySelectorAll('${row} .mw-look-card')].map((card) => ({ id: card.dataset.lookCard, pressed: card.querySelector('.mw-look-card__pick').getAttribute('aria-pressed'), trial: !card.querySelector('.mw-look-card__trial').hidden, inUse: card.querySelector('.mw-look-card__pick').hasAttribute('data-look-in-use') }))`);
 
   assert.deepEqual(await states(), [{ id: "soft", pressed: "false", trial: false, inUse: true }, { id: "teal", pressed: "true", trial: true, inUse: false }, { id: "warm", pressed: "false", trial: false, inUse: false }], "the row starts with the sample on the teal card");
   await evaluate(`document.querySelector('${row} [data-look-card=warm] .mw-look-card__pick').click()`);
   assert.deepEqual((await states()).map((s) => [s.id, s.pressed, s.trial]), [["soft", "false", false], ["teal", "false", false], ["warm", "true", true]], "pressing one card lets go of the others and badges the new one");
+  assert.equal(await evaluate("JSON.stringify(Object.fromEntries(Object.entries(localStorage).filter(([key])=>/skin|theme|appearance/.test(key))))"), savedPreferences, "D0292: trying a specimen does not save a product-wide appearance preference");
   await evaluate(`document.querySelector('${row} [data-look-card=soft] .mw-look-card__pick').click()`);
   assert.deepEqual((await states()).map((s) => [s.id, s.pressed, s.trial]), [["soft", "true", false], ["teal", "false", false], ["warm", "false", false]], "the look in use is pressed without a second badge: it is already said");
 

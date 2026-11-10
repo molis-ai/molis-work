@@ -443,7 +443,7 @@ test("capsule shell is one menu-bar popover with horizontal state tabs and inlin
   assert.doesNotMatch(html, />Pause<|>Resume<|>Start</);
 });
 
-test("SYS-09 a cancelled Goal's production event projection stays Cancelled and explicitly resumable in the capsule", t => {
+test("D0013 SYS-09 a cancelled Goal's production event projection stays Cancelled and explicitly resumable in the capsule", t => {
   const home = mkdtempSync(join(tmpdir(), "cancelled-capsule-"));
   const store = new LocalProjectDatabase(join(home, "project.db"));
   t.after(() => { store.close(); rmSync(home, { recursive: true, force: true }); });
@@ -458,11 +458,21 @@ test("SYS-09 a cancelled Goal's production event projection stays Cancelled and 
   const record = boardSnapshot(store, project_id).goals.find(row => row.goal_id === goal_id)!;
   const item = { ...webGoal(record, "invalidated"), ...projection };
   const result = buildCapsuleSnapshot(view([item], goal_id), []);
+  assert.equal(result.state.kind, "cancelled");
   assert.equal(result.state.label, "已取消");
   assert.equal(result.state.action_label, "显式继续");
   assert.equal(result.default_tab, "cancelled");
   assert.equal(result.tabs.some(tab => tab.kind === "continue"), false);
   assert.equal(result.tabs.some(tab => tab.kind === "blocked"), false);
+  assert.equal(result.tabs.some(tab => tab.kind === "continue"), false);
+  assert.deepEqual(result.tabs.map(tab => tab.kind), ["cancelled"]);
+  assert.equal(result.default_tab, "cancelled");
+  const advertised = buildCapsuleSnapshot(view([item], goal_id), [{goal_id}]);
+  assert.equal(advertised.tabs.some(tab => tab.kind === "continue"), false, "a stale directory hint cannot make a cancelled goal immediately actionable");
+  const other = goal("real-next", "真正可以推进的目标");
+  const withNext = buildCapsuleSnapshot(view([item,webGoal(other,"execution_pending")],goal_id), [{goal_id}, {goal_id:other.goal_id}]);
+  assert.equal(withNext.default_goal_id, other.goal_id, "cancelled work does not displace an actionable goal");
+  assert.equal(withNext.tabs.find(tab=>tab.kind === "cancelled")?.items[0]?.action_label,"显式继续");
 });
 
 test("D0044 menu query returns one bounded owner summary without expanding Goal event bodies", () => {

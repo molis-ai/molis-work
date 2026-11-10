@@ -297,6 +297,19 @@ test("PTG-01 PTG-06 PTG-07 PTG-09 plugins stay on the strip as coloured groups; 
   await evaluate(`(() => {
     const transfer = new DataTransfer(), body = document.querySelector('[data-tab-pane-body]'), r = body.getBoundingClientRect();
     document.querySelector('${plugin("feed")}').dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: transfer }));
+    // D0029: browsers can still send pointermove during native drag; this must not cancel the tab's drag state.
+    document.dispatchEvent(new PointerEvent('pointermove',{bubbles:true,clientX:r.left+10,clientY:r.top+10}));
+    if(!document.querySelector('.is-tab-dragging'))throw new Error('D0029 pointermove cancelled native drag');
+    const target=document.querySelector('${plugin("goals")}'), surface=target.closest('[data-tab-panes],[data-titlebar-tabs]'), box=target.getBoundingClientRect();
+    if(!surface)throw new Error("D0029 target has no real drag surface");
+    surface.dispatchEvent(new DragEvent('dragenter',{bubbles:true,dataTransfer:transfer}));
+    target.dispatchEvent(new DragEvent('dragenter',{bubbles:true,dataTransfer:transfer}));
+    target.dispatchEvent(new DragEvent('dragover',{bubbles:true,cancelable:true,dataTransfer:transfer,clientX:box.left+box.width/2,clientY:box.top+box.height/2}));
+    const preview=document.querySelector('[data-tab-reorder-slot]:not([data-tab-slot-leaving])');
+    if(!preview)throw new Error('D0029 real tab reorder slot was not painted');
+    target.dispatchEvent(new DragEvent('dragleave',{bubbles:true,dataTransfer:transfer,relatedTarget:null}));
+    if(!preview.isConnected||preview!==document.querySelector('[data-tab-reorder-slot]:not([data-tab-slot-leaving])'))throw new Error('D0029 nested leave changed the reorder slot while still inside the surface');
+
     const at = { bubbles: true, cancelable: true, dataTransfer: transfer, clientX: r.left + r.width * 0.95, clientY: r.top + r.height / 2 };
     body.dispatchEvent(new DragEvent('dragover', at)); body.dispatchEvent(new DragEvent('drop', at));
   })()`);

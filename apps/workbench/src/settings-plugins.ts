@@ -254,7 +254,14 @@ const body = el("div", "plugin-trust-agent-body");
 body.append(el("strong", "", L(item.kind === "role" ? "角色资料" : "方法") + "：" + item.name));
 if (item.change) body.append(el("p", "settings-muted", L({ added: "新增正文", changed: "正文已变化", removed: "已移除正文" }[item.change])));
 const excerpt = el("pre", "", item.excerpt); excerpt.style.whiteSpace = "pre-wrap"; excerpt.style.overflowWrap = "anywhere";
-body.append(excerpt); bodies.append(body);
+body.append(excerpt);
+if (item.truncated) {
+body.append(el("p", "settings-muted", L("正文已截断，确认前可展开查看完整内容。")));
+const details = el("details", ""); details.append(el("summary", "", L("查看完整正文")));
+const full = el("pre", "", item.body); full.style.whiteSpace = "pre-wrap"; full.style.overflowWrap = "anywhere";
+details.append(full); body.append(details);
+}
+bodies.append(body);
 }); panel.append(bodies);
 }
 const effects = Object.keys(shown.effects || {}).filter((key) => shown.effects[key] && shown.effects[key].length);

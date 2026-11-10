@@ -35,7 +35,7 @@ git grep -l -E '"text-stats"|text-stats:' -- apps packages scripts package.json 
 | # | 方向 | 现在 | 目标 | 靠什么到目标 |
 | --- | --- | --- | --- | --- |
 | 1 | 内置插件（项目插件，经 Plugin Runtime） | 11（另需 SSOT 文档一行）；Home 路径已有 Issue，通用服务见 W3-06 F | 1（另需 SSOT 文档一行）；没有 X-1 是 4 | W3-06、W4-03、W5-02、W5-06 加 X-1（4.3）；W4-04 先做样板 |
-| 2 | 第三方插件 | 改本仓库 0 处，但用户今天装不上 | 0；平台新增 4 件 | THIRD-PARTY-PLUGINS.md（信任模型已定，方案未实现） |
+| 2 | 第三方插件 | 0，用户可预览并安装支持的签名沙箱包 | 0 | 现行安装与发布者信任见 §3.2 |
 | 3 | 服务集成 | token 型 1；公开来源型 5–7；OAuth 原实测基线 11，父采用后按 §3.3 分场景核定（未实测） | 1 | OAuth 型靠 W5-11；公开来源型无切片 |
 | 4 | AI 能力、Agent 角色、提示词 | 已有插件 0；新 Runtime 插件 +1；系统级 2 | 0 / 0 / 2 | W3-06（`services.model`） |
 | 5 | 动作与消费场景 | 0 | 0 | 已达到 |
@@ -66,7 +66,7 @@ git grep -l -E '"text-stats"|text-stats:' -- apps packages scripts package.json 
 | 登记 | `package.json`、`apps/local-host/package.json`、`apps/workbench/package.json` | 依赖行（根下的测试按包名 import 工作区包，靠根包的依赖解析）。PR-C 后由 `node scripts/generate-plugin-registry.mjs` 写，`--check` 核对，与生成文件 import 的包一致时门禁不计 |
 | 登记 | `apps/local-host/src/project-plugins.ts` | 历史接线：当时在此 import / 构造 `PluginSupervisorEntry`；现行新增项目插件在自己的 `registration.project_runtime` 登记，由此文件统一装配，不为新增插件改此文件（PG-067） |
 | 登记 | `plugins/native/<目录>/src/registration.ts`、该包的 `package.json` | 在包里：导出 `registration`（manifest、`summary`、`personal`，以及 `workbench` 包：`order`、`contributions`、`stylesheet`、`clientFactory`、`searchRow`，可选 `instructions`、`agent`、`methods`）；`package.json` 声明 `exports["./registration"]` 与 `molis-work.registration`。再运行 `node scripts/generate-plugin-registry.mjs`，它写出 `apps/workbench/src/builtin-plugins.ts`（生成的，不手改，不计一处） |
-| 登记 | `apps/local-host/src/web-goals-read.ts` + 一个宿主渲染文件 | 舞台页：`plugin_stages` 由几个具名函数（`codingCompanionStages`、`codingWorkbenchPanel` 等）拼出，新插件要加一个函数和一处调用；Shelf 走另一条路（`ui-composition.ts`、`renderer.ts`、`shell-page-renderer.ts` 三处），两条路没有统一规则。W5-06 第 2 片（2026-10-23）后：贡献带 `workbench` surface 的插件，舞台由 Manifest 视图画（`apps/workbench/src/declared-stages.ts`），不用再加函数。PG-036 C9 后，Coding、Files、Git、Diff 和 Text Stats 均由插件自己的贡献提供舞台；Characters 已归入平台设置 |
+| 登记 | 插件自己的 Manifest 与登记 | 有 `workbench` surface 的插件按 Manifest 视图进入 `apps/workbench/src/declared-stages.ts`。PG-036 C9 后，Coding、Files、Git、Diff 和 Text Stats 均从各自声明提供舞台，Characters 归平台设置。旧基线的两处宿主接线只用于历史计数 |
 | 名单 | `apps/workbench/src/i18n/en.ts` | 历史 Host `L()` / `_EN` 总表路径需要 import / 展开。现行 Runtime 插件按实际使用的 Manifest `ui.messages` / `ui.translations` 声明界面消息和翻译（Text Stats 同时使用两者），不因新增插件而把插件词典接入 Host 总表；Host 自有 `L()` / `_EN` 文案仍走原 import / 展开及翻译检查路径，旧未迁路径也未据此宣称已迁移 |
 | 外加 | `docs/SSOT-MATRIX.md` | 一行 owner |
 
@@ -88,9 +88,9 @@ Text Stats 原来的 12 个文件是：上表的 `scripts/workspace-packages.mjs
 
 **怎么加**：作者用 `tooling/plugin-cli`：`create`、`validate`、`pack`、`identity`、`sign`、`verify`（`tooling/plugin-cli/src/cli.ts`）。本机试跑用 `molis-work plugin dev <源码目录> <隔离状态目录> <授权列表> --allow-unsigned-development`，在隔离目录里 `import()` 源码，不进用户的 Home，授权也「不是 OS sandbox」。手册：`docs/platform/PLUGIN-DEVELOPMENT.md`「创建和运行」「打包与签名」。
 
-**现在**：作者改本仓库 0 处；用户装不上。`cli.ts` 没有 `install`，`verifyPluginPackage` 的可信公钥要调用方传入（没有保存信任根），`loadDevelopmentPlugin` 是开发用的本地源码加载，产品里的「插件市场」卡片只读内置目录（`pluginMarketCards()` 读 `BUILTIN_PLUGIN_CATALOG`）；用户自己做的插件走创作台发布、再由 `installed-plugin-host.ts` 安装运行，那条路径是沙箱里的生成插件。
+**现在**。作者改本仓库 0 处。设置里的「安装插件包」先用 `plugins.install.preview@1` 验证包并展示发布者、声明和所需权限。本人确认后由 `plugins.install.confirm@1` 安装，首次接受的发布者公钥在 Home 固定，插件经 Runtime 在独立沙箱进程运行。开发目录的试跑仍走上面的隔离加载路径。发布者撤销和安装拒绝见 S-84／S-87。[设置入口](../../apps/workbench/src/settings-plugins.ts) · [安装服务](../../apps/local-host/src/plugin-install-service.ts) · [原信任设计](THIRD-PARTY-PLUGINS.md)
 
-**目标**：仓库内 0 处（作者不改本仓库）；平台新增四件：安装命令 `molis-work plugin install <bundle>`、受信发布者表、独立进程的沙箱运行、市场入口。信任模型用户 2026-10-08 已定：本地装，首次安装时确认并记住发布者密钥，在独立进程的沙箱里运行；这一步只写计划，不实现。方案见 [THIRD-PARTY-PLUGINS.md](THIRD-PARTY-PLUGINS.md)。
+**目标**。作者改本仓库 0 处，本地签名包已达该口径。面向第三方的上架与审核仍按 BL-058 跟踪。
 
 ### 3.3 服务集成
 
@@ -247,7 +247,7 @@ Text Stats 原来的 12 个文件是：上表的 `scripts/workspace-packages.mjs
 | # | 功能 | 现在 | 目标 | 补扩展点后再推演 | 补什么 |
 | --- | --- | --- | --- | --- | --- |
 | F1 | 风险记录插件 | 12（带 AI 建议时 13），另需 SSOT 文档一行 | 1，另需 SSOT 文档一行 | 1，另需 SSOT 文档一行 | W3-06、W4-03、W5-02、W5-06 加 X-1 |
-| F2 | Coding 质量保证 | 2 | 0 | 0 | X-5（项目库基线由 owner 声明）；端口走服务 |
+| F2 | Coding 质量保证 | 0（库与运行接入） | 0 | 0 | Coding 自有数据库与 Runtime 登记已接入 |
 | F3 | 新的外部服务（自带 OAuth） | 11（原实测基线；父采用后待核） | 1（目标） | 1（目标，未实测） | W5-11 |
 | F4 | 团队与权限（成员、角色、访问决定） | 约 52（推演） | 10 | 10 | X-1、X-2、X-5、X-7、W4-11 |
 | F5 | 自动化规则（事件触发动作） | 约 21（推演），另需 SSOT 文档一行 | 6，另需 SSOT 文档一行 | 6，另需 SSOT 文档一行 | X-1、X-6 加 4 项已有切片 |
@@ -263,8 +263,7 @@ Text Stats 原来的 12 个文件是：上表的 `scripts/workspace-packages.mjs
 
 **F2 Coding 质量保证**（`specs/coding-quality-assurance/spec.md`：自检、交叉评审、对抗评审，设置放在 Coding，结论写回关联 Goal 的事件）。
 
-- 现在：2。一是 `apps/local-host/src/project-database-schema.ts`（评审结果若要建表，`CODING_SCHEMA_SQL` 来自 Coding 包，但基线总版本号在宿主文件里，改表要升版本）；二是 `apps/local-host/src/project-plugins.ts` 的 `codingPorts`（评审子运行需要的新端口）。设置页由 Coding 包自己的 `codingSettingsContribution` 提供，结论写回 Goal 走 Goals 的公开动作并在 Manifest `capabilities.consumes` 声明，提示词追加到 `CODING_INSTRUCTIONS`，都是包内。
-- 补什么：X-5 让项目库基线由各 owner 包声明的 SQL 汇总、版本由声明推出；端口走 W3-06 的平台服务。**再推演：0。**
+- 现行库与运行接入成本为包外 0 处。Coding 的表与版本由自己的 `databases.project` 声明，项目监督器按 Coding 的 `registration.project_runtime` 装配。宿主的项目库基线只管宿主和 Module 的表，旧的 `codingPorts` 装配已撤。设置贡献、给 Goals 的公开动作消费声明与角色指令按原需求在 Coding 包内处理。[库声明](../../plugins/native/coding/src/database.ts) · [Runtime 登记](../../plugins/native/coding/src/registration.ts)
 
 **F3 新的外部服务（自带 OAuth，GitHub、Gmail 形）**（来源：BL-060、BL-061）。
 

@@ -116,10 +116,13 @@ export async function readPageDocument(port: MessagePort, id: number, root: HTML
       await readOwnPageDocument(root, route, pack.plugin_id, pageId, scope, signal);
     } else {
       html = await readOwnPageDocument(root, route, pack.plugin_id, pageId, scope, signal);
+    }
+    scope.assertCurrent(signal);
+    // Parameterized pages also replace the trusted document used to authorize their rendered connection slots.
+    if (!object) {
       const payload = root.querySelector("script[data-plugin-document]");
       if (payload) payload.textContent = JSON.stringify(html);
     }
-    scope.assertCurrent(signal);
     port.postMessage({ type: "document", id, html } satisfies FrameDown);
   } catch (error) {
     if (scope.alive && !signal?.aborted) port.postMessage({ type: "document", id, error: error instanceof Error ? error.message : "View unavailable" } satisfies FrameDown);

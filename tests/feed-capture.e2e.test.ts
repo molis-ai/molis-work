@@ -247,6 +247,8 @@ test("FBR-07 the real Feed page reaches later messages and materials and filters
   await child.waitFor("document.querySelectorAll('[data-feed-entry-id]').length===1");
   await child.click(`[data-feed-entry-id="${target.item_id}"]`);
   await child.waitFor("document.querySelector('[data-feed-material-page=\"200\"]:not(:disabled)')");
+  await child.click('.feed-materials:not([open]) > summary');
+  await child.waitFor("document.querySelector('.feed-materials')?.open === true");
   await child.click('[data-feed-material-page="200"]');
   await child.waitFor("document.querySelector('[data-feed-detail]')?.textContent.includes('Material 204')");
   await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);

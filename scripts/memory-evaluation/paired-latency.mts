@@ -40,7 +40,7 @@ export const PAIRED_LATENCY_PLAN = Object.freeze({
   order: ["B1", "B2", "B2", "B1"],
   gate: { warmMedianMs: 30, warmP95Ms: 50, firstMs: 100 },
   statistic: "pooled per arm over its two slots; warm = all reads with index > 0; P95 = nearest rank ceil(0.95n); first = median of first reads; increase = B2 - B1",
-  observed: "run completed; no recall failure; every SDK retrieval ready (B2 needs at least one); memory reached the round's request; exactly one round request; otherwise failed",
+  observed: "run completed; no recall failure; no SDK retrieval or attempt unavailable/failed/timeout/cancelled (B2 needs at least one ready; none is a legitimate empty result); memory reached the round's request; exactly one round request; otherwise failed",
   /** Arm identity is pinned, not taken from the label: B1 frozen tool tree and SDK, B2 the current SDK on any other head. */
   arms: {
     B1: { head: "5e47ed2bc369c8c0123c651b4e2a70fa0e1f2665", sdkCommit: "753dbae8359e56a74397d030af4d18abf402d5b5" },
@@ -54,7 +54,7 @@ type Arm = "B1" | "B2";
 /** The fields read from either arm's own task result (B1 tool 5e47ed2bc, B2 current tool); nothing else is relied on. */
 interface TaskRow {
   phase?: string; error?: string | null; recallFailure?: string | null;
-  retrievals?: Array<{ outcome?: string; cost?: { elapsed_ms?: number } }> | null;
+  retrievals?: Array<{ receipt_id?: string; outcome?: string; attempts?: Array<{ algorithm?: string; outcome?: string; fallback_from?: string }>; cost?: { elapsed_ms?: number } }> | null;
   recipeLatencyMs?: number | null; recallLatencyMs?: number | null; selected?: unknown[];
   runtimeContextReferences?: unknown[]; runtimePackedInjected?: unknown[];
 }
@@ -162,14 +162,16 @@ async function measureArm(root: string, arm: Arm, slot: number) {
           const rounds = arrivals.filter(arrival => arrival.kind === "round"), firstRound = rounds[0];
           const retrievals = row?.retrievals ?? [];
           const references = row?.runtimeContextReferences ?? row?.runtimePackedInjected ?? [];
-          const retrievalsReady = retrievals.every(item => item.outcome === "ready") && (arm === "B1" || retrievals.length > 0);
+          const degraded = (outcome?: string) => outcome === undefined || ["unavailable", "failed", "timeout", "cancelled"].includes(outcome);
+          const retrievalsReady = !retrievals.some(item => degraded(item.outcome) || (item.attempts ?? []).some(attempt => degraded(attempt.outcome) || attempt.fallback_from))
+            && (arm === "B1" || retrievals.some(item => item.outcome === "ready"));
           // A degraded round carries no memory and would look faster; it is a failure, never an observed sample.
           const problem = failure || row?.error || (row?.phase !== "completed" ? `运行结束于 ${row?.phase ?? "unknown"}` : null)
-            || (row?.recallFailure ? `召回失败：${row.recallFailure}` : null) || (retrievalsReady ? null : "SDK 任务召回没有全部 ready")
+            || (row?.recallFailure ? `召回失败：${row.recallFailure}` : null) || (retrievalsReady ? null : "SDK 任务召回降级或没有 ready")
             || (references.length ? null : "记忆没有进入这一轮的请求") || (rounds.length === 1 ? null : `这一轮发出 ${rounds.length} 个模型请求（应为 1）`);
           const elapsed = retrievals.map(item => item.cost?.elapsed_ms);
           samples.push({ index, phase: index === 0 ? "first-after-runtime-reopen" : "warm", status: problem ? "failed" : "observed",
-            error: problem || null, runPhase: row?.phase ?? null, retrievalOutcomes: retrievals.map(item => item.outcome ?? null),
+            error: problem || null, runPhase: row?.phase ?? null, retrievals: retrievals.map(item => ({ receipt: item.receipt_id?.split(":").at(-1) ?? null, outcome: item.outcome ?? null, attempts: (item.attempts ?? []).map(attempt => `${attempt.algorithm}:${attempt.outcome}`), elapsedMs: item.cost?.elapsed_ms ?? null })),
             contextAssemblyMs: firstRound ? firstRound.at - started : null,
             // Absent is unknown, never zero: one retrieval without its own time makes the sum unknown.
             taskRecallMs: retrievals.length && elapsed.every(value => typeof value === "number") ? elapsed.reduce((sum, value) => sum! + value!, 0)! : null,

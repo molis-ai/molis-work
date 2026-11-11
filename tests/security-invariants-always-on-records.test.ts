@@ -131,9 +131,10 @@ function seedStore(home: string): DatabaseSync {
 function filesAt(root: string, parent = ""): unknown[] {
   return readdirSync(root, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name)).map(entry => {
     const file = join(root, entry.name), stat = statSync(file), relative = parent ? `${parent}/${entry.name}` : entry.name;
-    // The existing catalog connection updates WAL reader marks in shared memory even for SELECTs. Its database and WAL,
-    // and every Runtime file, still compare byte for byte; the catalog's coordination file must keep its size and metadata.
-    const content = entry.isDirectory() ? filesAt(file, relative) : relative === "projects/catalog.db-shm" ? stat.size : readFileSync(file);
+    // An open SQLite connection updates WAL reader marks in shared memory even for SELECTs: the catalog's for the queries here,
+    // and the search index's when its background refresh reads (horizontal/search, 800 ms after a change), whenever that lands.
+    // Every database and WAL still compares byte for byte; a coordination file (`*-shm`) must keep its size and metadata.
+    const content = entry.isDirectory() ? filesAt(file, relative) : relative.endsWith(".db-shm") ? stat.size : readFileSync(file);
     return [entry.name, stat.mode, stat.mtimeMs, content];
   });
 }

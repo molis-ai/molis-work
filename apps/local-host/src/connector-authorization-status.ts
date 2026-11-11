@@ -1,4 +1,5 @@
-import { rollbackPreservingError } from "@molis-ai/molis-work-storage";
+import { homeSqlitePath, rollbackPreservingError } from "@molis-ai/molis-work-storage";
+import { existsSync } from "node:fs";
 import { createHash, randomUUID } from "node:crypto";
 import { openConnectorsStore, readConnectorsStore } from "./connectors-store.js";
 import { defineErrorCodes, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -52,8 +53,12 @@ export function beginConnectorAuthorization(home: string, state: string, connect
   bindConnectorAuthorizationProtocol(home, id, state, serviceId);
   return id;
 }
-/** Uses the existing protocol timer; terminal conversation receipts outlive their one-use credentials. */
+/**
+ * Uses the existing protocol timer; terminal conversation receipts outlive their one-use credentials. A Home without connectors is
+ * left as it is: the timer runs every two seconds from startup and must not create the store for a Home that never began a setup.
+ */
 export function expireConnectorAuthorizations(home: string, now = Date.now()): void {
+  if (!existsSync(homeSqlitePath(home, "connectors"))) return;
   const rows = withAttempts(home, db => db.prepare("UPDATE connector_authorization_results SET status='expired' WHERE status IN ('prepared','pending') AND expires_at<? RETURNING id").all(now)) as Array<{ id: string }>;
   for (const row of rows) { invalidateConnectorRequests(home, row.id); clearConnectorAuthorizationPresentation(home, row.id); }
 }

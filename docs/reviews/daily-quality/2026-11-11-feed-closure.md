@@ -111,3 +111,5 @@ DRT-13 本机超时已在独立干净基线 `93eb5590a`（离线安装、整体�
 Full 43028790915 的后续多次尝试在测试前安装fonts-wqy-zenhei时因security.ubuntu.com DNS解析失败退出100，已通过19分片，未完成13分片。用户要求继续CI并确保合入；先准备具体补丁并说明CI改动需确认，用户再次要求继续推进后落地该方案。仅在默认APT源失败时，对该字体安装使用Ubuntu官方archive和临时隔离的源/索引目录，保留Ubuntu归档签名keyring，不启用trusted/allow-unauthenticated，不忽略安装失败，不改测试时限或fail-fast。
 
 实际工作流脚本的5条执行路径测试覆盖默认成功、默认update失败、默认install失败、备用update失败、备用install失败，后两者必须非零退出且不进入字体列表/后续步骤；加原CI安装门禁26项，31/31通过。真实Ubuntu下载/签名/安装仍以新头CI结果为准。原产品源码未再改，最终task list与合并核验在PR持续更新。
+
+8e12头CI确认runner对archive.ubuntu.com同样DNS失败，Ubuntu签名/安装拒绝保持有效，未进入测试。沿相同签名备用源方案将备用地址改为Kernel.org的Ubuntu镜像（[Ubuntu官方镜像登记](https://launchpad.net/ubuntu/+archivemirrors)、[Kernel.org镜像服务](https://mirrors.edge.kernel.org/ubuntu/)），避开故障的ubuntu.com域名；仍由Ubuntu系统归档keyring验证，不引入第三方签名钥匙。临时lists/partial目录交给APT的_apt用户，保留下载沙箱。当前头Coding项目导航原用例1/1通过，原CI失败保留待新头复验。

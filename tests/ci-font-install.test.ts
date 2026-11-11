@@ -40,7 +40,7 @@ fc-list() { printf '%s\\n' font-list >> "$RUNNER_TEMP/calls"; printf 'WenQuanYi 
       else {
         const sources = readFileSync(join(dir, "molis-font-apt", "sources.list"), "utf8");
         assert.equal(sources.trim().split("\n").length, 3);
-        for (const line of sources.trim().split("\n")) assert.match(line, /^deb \[signed-by=\/usr\/share\/keyrings\/ubuntu-archive-keyring.gpg\] https:\/\/archive.ubuntu.com\/ubuntu resolute(?:-updates|-security)? universe$/);
+        for (const line of sources.trim().split("\n")) assert.match(line, /^deb \[signed-by=\/usr\/share\/keyrings\/ubuntu-archive-keyring.gpg\] https:\/\/mirrors.edge.kernel.org\/ubuntu resolute(?:-updates|-security)? universe$/);
         assert.match(calls, /Dir::Etc::sourceparts=-/);
         assert.match(calls, /Dir::State::lists=.*molis-font-apt\/lists/);
         assert.ok(!/allow-unauthenticated|trusted=yes|AllowInsecure/.test(calls + sources));

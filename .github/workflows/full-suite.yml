@@ -122,14 +122,16 @@ jobs:
       - name: CJK font for the browser files
         run: |
           # Keep the runner's signed repositories first. If their mirror cannot be reached,
-          # install the same font from Ubuntu's signed archive using isolated apt lists.
+          # install the same font from Ubuntu's signed Kernel.org mirror using isolated apt lists.
           if ! sudo apt-get update -qq || ! sudo apt-get install -y -qq --no-install-recommends fonts-wqy-zenhei; then
             # The runner supplies this standard Ubuntu file.
             # shellcheck source=/dev/null
             . /etc/os-release
             font_apt="$RUNNER_TEMP/molis-font-apt"
             mkdir -p "$font_apt/lists/partial"
-            printf 'deb [signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg] https://archive.ubuntu.com/ubuntu %s universe\n' \
+            chmod 755 "$font_apt" "$font_apt/lists" "$font_apt/lists/partial"
+            sudo chown _apt:root "$font_apt/lists/partial"
+            printf 'deb [signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg] https://mirrors.edge.kernel.org/ubuntu %s universe\n' \
               "$VERSION_CODENAME" "$VERSION_CODENAME-updates" "$VERSION_CODENAME-security" > "$font_apt/sources.list"
             font_options=(-o "Dir::Etc::sourcelist=$font_apt/sources.list" -o "Dir::Etc::sourceparts=-"
               -o "Dir::State::lists=$font_apt/lists" -o Acquire::Retries=2)

@@ -2,7 +2,7 @@ import type { SandboxSchema, SandboxVisibleText } from "@molis-ai/molis-work-con
 import { isRecord } from '@molis-ai/molis-work-plugin-sdk';
 import { inspectLocaleSet, parseLocalePack, textRefProblems } from '@molis-ai/molis-work-plugin-sdk/ui';
 import { UI_FORMAT_VERSIONS, type PluginLocalesDeclaration, type TextRef, type UiLocalePack } from '@molis-ai/molis-work-contracts/platform/ui';
-import { PLUGIN_COMPONENT_PROP_KEYS, PLUGIN_COMPONENT_WORD_KEYS, type PluginComponentPlan, pluginFieldWords, pluginTemplateName, pluginTemplatePaths, pluginTemplateBindings, pluginMessageNames, pluginSchemaAt, pluginTextSlot, pluginTextSlotKey } from '@molis-ai/molis-work-design-system';
+import { PLUGIN_COMPONENT_PROP_KEYS, PLUGIN_COMPONENT_WORD_KEYS, type PluginComponentPlan, pluginFieldWords, pluginTemplateName, pluginTemplatePaths, pluginTemplateBindings, pluginMessageNames, pluginSchemaAt, pluginTextSlot, pluginTextSlotKey, sandboxUiTextRefs } from '@molis-ai/molis-work-design-system';
 import type { AgentDesign } from './agent-model.js';
 
 export interface StudioDesignLanguages {
@@ -136,19 +136,17 @@ export function freezeStudioUi(design: AgentDesign, supplied: unknown, languages
 export const studioLocaleFiles = (packs: readonly UiLocalePack[] = []): Record<string, string> =>
   Object.fromEntries(packs.map(pack => [`locales/${pack.locale}.json`, JSON.stringify(pack)]));
 
-/** Only the visible slots can hold word references. Plain drafts keep their authored words and schema data. */
-function hasStudioWordReferences(design: AgentDesign): boolean {
-  const isKey = (word: unknown) => isRecord(word) && Object.hasOwn(word, 'key');
-  return (design.contract?.pages ?? []).some(page => isKey(page.title) || page.regions.some(region => isKey(region.title)))
-    || (design.parts ?? []).some(part => PLUGIN_COMPONENT_WORD_KEYS.some(key => isKey(part.props?.[key]))
-      || (part.props?.columns ?? []).some(column => isKey(column.label) || Object.values(column.values ?? {}).some(isKey)));
+/** A proposal preview or a draft without language files can show its own strings and literals. */
+export function validateStudioPlainWords({ contract, parts }: Pick<AgentDesign, 'contract' | 'parts'>): void {
+  if (contract?.ui !== undefined || contract?.pages && sandboxUiTextRefs(contract, parts ?? []).some(word => isRecord(word) && Object.hasOwn(word, 'key')))
+    throw new Error('The Studio design has word references without language files.');
 }
 
 /** Synced/local records carry the same bound words as a freshly accepted answer. Do not repair a partial persisted design. */
 export function validateFrozenStudioWords(design: AgentDesign): void {
   const declared = design.contract?.ui?.locales, raw = design.localePacks;
   if (design.contract?.ui === undefined && raw === undefined) {
-    if (hasStudioWordReferences(design)) throw new Error('The frozen Studio design has word references without language files.');
+    validateStudioPlainWords(design);
     return;
   }
   if (!declared || Object.keys(design.contract.ui!).length !== 1 || !Array.isArray(raw) || raw.length !== declared.available.length) throw new Error('The frozen Studio language files do not match the declaration.');

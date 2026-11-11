@@ -90,6 +90,7 @@ function mount(initial: WorkbenchAppearance): void {
     },
   });
   if (settings) picker = mountAppearancePicker(settings, initial, sync, readText);
+  document.addEventListener("molis-work:language-changed", () => picker?.redraw());
   const page = mountDocumentAppearance(initial, problem => {
     renderError = problem === "partial" ? uiText.text("workbench.appearance-entry.some-appearance-settings-unavailable-showing-available-combinati")
       : problem === "loading-failed" ? uiText.text("workbench.appearance-entry.window-couldnt-load-new-appearance-keeping-current-look") : "";

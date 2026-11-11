@@ -201,6 +201,7 @@ test('S-119 PCSYNC-01/14 design schemas, component bindings, observations and hi
   row=>{row.design!.acceptance[0]!.steps=[{action:'expect',componentId:'absent-component',text:'not there'}];},
   row=>{row.design!.contract.operations.push(structuredClone(row.design!.contract.operations[0]!));},
   row=>{const design=row.design!;row.candidates=[{id:'proposal',title:'proposal',description:'saved',rationale:'saved',journey:['read'],effects:effectsFromContract(design.contract),preview:{contract:structuredClone(design.contract),parts:structuredClone(design.parts)}}];row.candidates[0]!.preview.parts[0]!.pageId='absent-page';},
+  row=>{const design=row.design!;row.candidates=[{id:'proposal',title:'proposal',description:'saved',rationale:'saved',journey:['read'],effects:effectsFromContract(design.contract),preview:{contract:structuredClone(design.contract),parts:structuredClone(design.parts)}}];row.candidates[0]!.preview.contract.pages[0]!.title={key:'notes.ui.page.main.title'};},
  ];
  for(const mutate of mutations){const value=structuredClone(op.value) as {content:{builds:AgentBuild[]}};mutate(value.content.builds[0]!);
   assert.throws(()=>validatePrivateValueReplication(value,f.definitions[1]!,{spaceId:f.space.spaceId,projectId,title:'Builder owner',authorize(){}},op.key),/创作同步内容或归属无效/);

@@ -1,6 +1,6 @@
 import {defineErrorCodes} from '@molis-ai/molis-work-contracts/platform/actions';
-import {validateFrozenStudioWords} from './agent-ui-text.js';
-import type {AgentBuild,AgentBuildSnapshot,AgentDesign,AgentRelease} from './agent-model.js';
+import {validateFrozenStudioWords,validateStudioPlainWords} from './agent-ui-text.js';
+import type {AgentBuild,AgentBuildSnapshot,AgentDesign,AgentProposal,AgentRelease} from './agent-model.js';
 import {isStudioBuildFailure,isStudioStepLabel} from './studio-collaboration.js';
 
 export interface BuilderSavedState {format:/* @version format.builder.saved-state */ 1;builds:AgentBuild[];releases:AgentRelease[];revisions:Record<string,number>}
@@ -9,6 +9,9 @@ const invalid=():never=>{throw errors.store_invalid('创作数据格式版本无
 function wordsAreValid(design: AgentDesign | null | undefined): boolean {
  if (!design) return true;
  try { validateFrozenStudioWords(design); return true; } catch { return false; }
+}
+function previewWordsAreValid(candidate: AgentProposal): boolean {
+ try { if (candidate?.preview) validateStudioPlainWords(candidate.preview); return true; } catch { return false; }
 }
 const identity=(value:unknown):value is string=>typeof value==='string'&&!!value.trim()&&value.length<=200;
 const revision=(value:unknown):value is number=>Number.isSafeInteger(value)&&Number(value)>0;
@@ -31,6 +34,7 @@ export function parseBuilderState(raw:string|null):BuilderSavedState{
  for(const item of row.builds){
   if(!item||typeof item!=='object'||!identity(item.id)||!revision(item.revision)||ids.has(item.id)
    ||!Object.hasOwn(floors,item.id)||floors[item.id]!==item.revision || !wordsAreValid(item.design) || !isStudioBuildFailure(item.error)
+   || Array.isArray(item.candidates) && item.candidates.some((candidate: AgentProposal) => !previewWordsAreValid(candidate))
    ||!Array.isArray(item.steps)||item.steps.some((step:unknown)=>!step||typeof step!=='object'||!('label' in step)||!isStudioStepLabel(step.label))
    || Array.isArray(item.history) && item.history.some((entry: AgentBuildSnapshot) => !wordsAreValid(entry?.design)))return invalid();
   ids.add(item.id);

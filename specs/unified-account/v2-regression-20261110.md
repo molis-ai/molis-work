@@ -146,3 +146,11 @@ Work [PR #2013](https://github.com/molis-ai/molis-work/pull/2013) 首轮 CI 指�
 Frame 根因：缓存写入已分区，但原生 storage 事件仍暴露物理键。公共缓存 owner 现在将本 scope 的原生事件转为逻辑键，阻断其他 scope 与撤销后的事件，保留原生 isTrusted。夹具的独立原生 Window 写正确物理分区；Frame 3 项通过，WUA-32 真实同源 Window 事件隔离及退出实际清理通过。构建过程中还复现字符串池把 return 与变量名粘连的问题，替换时保留词法分隔，新增 minified return/typeof 回归；构建工具 2 项通过。
 
 日志：`/private/tmp/work-pr-storage-events-tests2.log`（Frame 通过；新其他账号夹具首次未纳入既有保留分区，随后修正）、`/private/tmp/work-pr-storage-events-isolation-final.log`（最终 WUA-32 通过）、`/private/tmp/work-pr-storage-events-health.log`（健康通过）。资源增量许可新增 84+188=272 字节，用户 2026-11-11 明确批准；最新完整 CI 仍须按最终提交核验。
+
+### 2026-11-11 主线集成后的最终检查
+
+- 合入主线 f1e618f3a 的提交 2ac7348df，CI Full 42958594708 的 32 分片和汇总全部通过。常规 CI 的 macOS 原生检查第一次发生 foreign exception/SIGABRT，无断言失败；原提交原代码重跑通过。
+- 主线集成改变压缩结果，workbench 资源比许可多 39 字节。将 accountTransition 内部两处锁定调用复用同一局部 lock 函数，公开 lock 方法与 prepare/invalidate 使用同一实现，不改锁定、草稿、撤销和清理顺序。
+- 整体构建后对照 f1e618f3a 的 CI 实测产物（artifact 13825848326）：53 个资源，workbench +6,846 字节（许可 6,878），plugin-frame +3,371 字节（许可 3,446），无新增资源，不增加许可。
+- 配套 Auth PR #5 已在全部检查通过后合并，合并提交 21b60baea72b7912c4af2602daf70ef251192b2f。Work 最终提交的全量/CI 结果以 PR #2013 的检查清单和链接记录为准。
+- 局部 lock 复用后，账号菜单 5 项、缓存隔离 1 项通过，健康门禁与密钥扫描通过。主线新加入的 RAC-2516/RAC-2518 原生拖拽本机连续失败（dragend 超时 / 未截获原生拖拽），其余 Frame 两项均通过；正在独立干净主线比对，失败未计为通过。

@@ -1,6 +1,7 @@
 import {readFileSync,writeFileSync} from 'node:fs';
 import ts from 'typescript';
 import {transformSync} from 'esbuild';
+import {isMainScript} from './script-paths.mjs';
 
 /** Pool repeated expression strings inside existing function scopes only; never rename public keys or change literals. */
 export function poolClientLiterals(source, { byBytes = false } = {}) {
@@ -51,7 +52,7 @@ export function compactClientFactory(source) {
   return start + compactClientScript(source.slice(start.length, -end.length)) + end;
 }
 
-if (import.meta.main) {
+if (isMainScript(import.meta.url)) {
   const [mode, file] = process.argv.slice(2);
   if (mode === '--factory' && file) writeFileSync(file, compactClientFactory(readFileSync(file, 'utf8')));
   else if (mode === undefined) process.stdout.write(compactClientScript(readFileSync(0, 'utf8')));

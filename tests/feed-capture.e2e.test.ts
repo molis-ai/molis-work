@@ -225,7 +225,8 @@ test("FBR-07 FSS-35 the real Feed page reaches later messages and materials and 
   const feed = createLocalFeedApplication(store.db);
   const source = createLocalFeedSourceService(store.db, projectId).register({ kind: "web_query", query: "bounded-browser", name: "Bounded source" }).source;
   const items = store.db.transaction(() => Array.from({ length: 205 }, (_, n) => feed.ingestItem({ source,
-    externalId: `page-${n}`, title: `Page message ${String(n).padStart(3, "0")}`, summary: "Paging sample", body: "Detail remains available",
+    externalId: `page-${n}`, title: `Page message ${String(n).padStart(3, "0")}`, summary: "Paging sample",
+    body: "Detail remains available" + (n === 0 ? "\n\nReading position.".repeat(40) : ""),
     occurredAt: new Date(Date.UTC(2026, 10, 11, 0, n)).toISOString(), attention: false }).item))();
   const target = items[0]!;
   feed.markRead(projectId, target.item_id);
@@ -239,7 +240,14 @@ test("FBR-07 FSS-35 the real Feed page reaches later messages and materials and 
     const read=host.view.readDocument;
     host.view.readDocument=async query=>{
       pagingReads.push([query?.input?.offset ?? null, query?.input?.material_offset ?? null]); pagingPending++;
-      try { return await read(query); } finally { pagingPending--; }
+      try {
+        const html=await read(query);
+        if (window.pagingHold && query?.input?.material_offset !== undefined) {
+          window.pagingHold=false;
+          await new Promise(resolve=>{window.pagingRelease=resolve;});
+        }
+        return html;
+      } finally { pagingPending--; }
     };
     return value(host);
   }:value;return true}});`);
@@ -276,11 +284,31 @@ test("FBR-07 FSS-35 the real Feed page reaches later messages and materials and 
   const observe = ({ method, url }: import("node:http").IncomingMessage) => { if (method !== "GET" && url?.includes("/api/plugins/io.molis.work.feed/")) writes.push(`${method} ${url}`); };
   b.server.on("request", observe); t.after(() => { b.server.off("request", observe); });
   for (const [tag, previous, attachments] of [["en", "Previous page", "Attachments"], ["zh", "上一页", "附带资料"]]) {
+    const row = `[data-feed-entry-id="${target.item_id}"]`;
+    if (tag === "zh") await child.evaluate(`(() => {
+      document.querySelector('.feed-materials').open=false;
+      document.querySelector(${JSON.stringify(row)}).focus();
+      window.pagingHold=true;
+    })()`);
     const readCount = await child.evaluate<number>("pagingReads.length");
     await b.evaluate(`(() => {
       const link=document.createElement('a'); link.dataset.uiLanguage=${JSON.stringify(tag)};
       link.href='/locale?lang='+link.dataset.uiLanguage; document.body.append(link); link.click(); link.remove();
     })()`);
+    let readerTop = 0;
+    if (tag === "zh") {
+      await child.waitFor("typeof window.pagingRelease === 'function'");
+      assert.equal(await child.evaluate(`document.activeElement===document.querySelector(${JSON.stringify(row)})`), true);
+      readerTop = await child.evaluate<number>(`(() => {
+        document.querySelector('.feed-materials').open=true;
+        const pager=document.querySelector('[data-feed-material-page="0"]:not(:disabled)');
+        pager.focus({preventScroll:true});
+        const slot=pager.closest('[data-feed-item-slot]'); slot.scrollTop=180;
+        return slot.scrollTop;
+      })()`);
+      assert.ok(readerTop > 0);
+      await child.evaluate("window.pagingRelease()");
+    }
     await child.waitFor(`document.documentElement.dataset.uiLanguageTag===${JSON.stringify(tag)} && pagingReads.length>${readCount} && pagingPending===0`);
     assert.deepEqual(await child.evaluate(`pagingReads.slice(${readCount})`), [["200", null], [null, "200"]]);
     assert.deepEqual(await child.evaluate(`[
@@ -291,7 +319,8 @@ test("FBR-07 FSS-35 the real Feed page reaches later messages and materials and 
       document.querySelector('.feed-materials')?.open,
       document.querySelector('[data-feed-detail]')?.textContent.includes('Material 204')
     ]`), [true, 5, target.item_id, previous, attachments, true, true]);
-    assert.deepEqual(await child.evaluate(searchState), [true, "Page message", 1, 5, "backward"]);
+    if (tag === "en") assert.deepEqual(await child.evaluate(searchState), [true, "Page message", 1, 5, "backward"]);
+    else assert.deepEqual(await child.evaluate(`[document.activeElement?.dataset.feedMaterialPage, document.activeElement?.closest('[data-feed-item-slot]')?.scrollTop]`), ["0", readerTop]);
   }
   assert.deepEqual(writes, []);
   await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);

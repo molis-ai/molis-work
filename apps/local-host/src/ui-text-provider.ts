@@ -1,10 +1,10 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
-import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { UiLocalePack, UiResourceRow, UiTextProvider } from "@molis-ai/molis-work-contracts/platform/ui";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { BASELINE_REGISTRY } from "@molis-ai/molis-work-design-system";
-import { pluginLocaleReader, type PluginLocaleReader } from "@molis-ai/molis-work-plugin-runtime";
+import { pluginLocaleReader, pluginManifestDigest, type PluginLocaleReader } from "@molis-ai/molis-work-plugin-runtime";
 import { createTextReader, installUiText, localeMessageArguments, say, textKeyPrefix } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { installCatalogTextScope, workbenchPlatformText, type MolisWorkSettingsView } from "@molis-ai/molis-work-app-workbench";
 import { pluginTextForOwner, pluginTextOwnerOfPrefix, registerPlatformText, type DirectoryWordResolver, type PluginTextReader } from "@molis-ai/molis-work-ui-host";
@@ -108,6 +108,13 @@ export function registeredBuiltinText(manifest: PluginManifest): PluginLocaleRea
   const reader = pluginLocaleReader(manifest, registeredPluginLocaleFiles(entry.package_name, manifest));
   registeredWords.set(manifest, reader);
   return reader;
+}
+
+/** The installed declaration must match the build before its words can come from the registration. */
+export function registeredInstallationText(record: PluginInstanceRecord): PluginLocaleReader | null {
+  if (record.publisher_trust !== "host") return null;
+  const manifest = PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.manifest.plugin_id === record.plugin_id)?.manifest;
+  return manifest && pluginManifestDigest(manifest) === record.manifest_digest ? registeredBuiltinText(manifest) : null;
 }
 
 /** Read the Workbench's own selected display words from its registered language files. */

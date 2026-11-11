@@ -3,6 +3,7 @@ import type { UiPluginClientHost } from "@molis-ai/molis-work-contracts/platform
 import { feedStage, FILTER_FIELDS } from "./stage.js";
 import { feedSources } from "./sources.js";
 import { feedRules } from "./rule-authoring.js";
+import { feedFocusReplacement } from "./focus.js";
 
 const uiText = globalThis.t;
 type FeedField = HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
@@ -71,6 +72,7 @@ export function feedClient(host: FeedHost): void {
       if (!next) throw new Error(uiText.text("feed.factory.could-not-refresh-feed"));
       const focus = root.ownerDocument.hasFocus() ? root.ownerDocument.activeElement : null;
       let nextFocus: HTMLElement | null = focus instanceof HTMLElement && root.contains(focus) ? focus : null;
+      const replacementFocus = nextFocus && feedFocusReplacement(nextFocus, next);
       // Preserve unsaved settings and the rule composer while authoritative rows/configuration are redrawn.
       for (const previous of page.all("[data-feed-task-config]")) {
         const replacement = next.querySelector<HTMLElement>('[data-feed-task-config="' + CSS.escape(previous.dataset.feedTaskConfig!) + '"]');
@@ -107,6 +109,7 @@ export function feedClient(host: FeedHost): void {
       const filterPanel = page.q("[data-feed-filter-panel]"); if (filterPanel) filterPanel.hidden = !filterOpen;
       page.q("[data-feed-filter-trigger]")?.setAttribute("aria-expanded", String(filterOpen));
       page.select(page.selection, "restore", page.panel); stage.restoreScroll(scroll, reason !== "language"); rules.hydrate();
+      if (!nextFocus?.isConnected) nextFocus = replacementFocus;
       if (nextFocus?.isConnected) {
         nextFocus.focus({ preventScroll: true });
         if ((nextFocus instanceof HTMLInputElement || nextFocus instanceof HTMLTextAreaElement)

@@ -230,7 +230,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
   const { visible } = environment;
   // One registry of framed areas a page: the reads area and the connection card share its four places, layer and checks (§13.5).
   const areas = pageFramedAreas(scope, root, frame, visible), owner = frame.title;
-  const taskGrants = pageTaskGrants(port, scope, areas, grant.page_id, route, uiText.text, owner);
+  const taskGrants = pageTaskGrants(port, scope, areas, grant.page_id, route, uiText.text, () => frame.title);
   const returns = pageReturns(port, scope, root, pack, grant.storage_scope, visible), connectionNeed = pageConnectionNeed(port, scope, areas, grant.page_id, route, uiText.text, owner, returns.connection);
   const state = () => {
     const shown = visible();

@@ -1,4 +1,5 @@
 import type { FeedPage } from "./factory.js";
+import { feedFocusReplacement } from "./focus.js";
 
 const uiText = globalThis.t;
 
@@ -15,6 +16,22 @@ function restoreMaterialDisclosure(detail: Element, previous: Element | null, op
     const contents = materials.querySelector<HTMLDetailsElement>(`[data-feed-material-content="${CSS.escape(expanded.dataset.feedMaterialContent!)}"]`);
     if (contents) contents.open = true;
   }
+}
+
+type ReadingPosition = { readonly detail: HTMLElement | null; readonly top: number; readonly materialsOpen?: boolean };
+
+function replaceDetail(slot: HTMLElement, detail: HTMLElement, kept: ReadingPosition | undefined, settle: (node: HTMLElement) => void): void {
+  const live = slot.querySelector<HTMLElement>("[data-feed-detail]");
+  const top = kept && (live ? slot.scrollTop : kept.top);
+  const focused = slot.ownerDocument.hasFocus() ? slot.ownerDocument.activeElement : null;
+  const replacement = focused && live?.contains(focused) ? feedFocusReplacement(focused, detail) : null;
+  if (kept) {
+    const previous = live ?? kept.detail;
+    restoreMaterialDisclosure(detail, previous, previous?.querySelector<HTMLDetailsElement>(".feed-materials")?.open ?? kept.materialsOpen);
+  }
+  slot.replaceChildren(detail); settle(detail);
+  if (top !== undefined) slot.scrollTop = top;
+  replacement?.focus({ preventScroll: true });
 }
 
 /** Feed's list/reader, within this one surface. No source directory or pane DOM is read here. */
@@ -59,11 +76,9 @@ export function feedStage(page: FeedPage) {
       try {
         const html = await host.view.readDocument({ object: { id: itemId, surface: "persisted-detail" }, input: { material_offset: String(materialOffset) }, signal: AbortSignal.any([controller.signal, page.signal()]) }); check();
         if (selected !== id || detailRequest !== controller) return;
-        detail = new DOMParser().parseFromString(html, "text/html").querySelector(detailOf(id));
+        detail = new DOMParser().parseFromString(html, "text/html").querySelector<HTMLElement>(detailOf(id));
         if (!detail) throw new Error(uiText.text("feed.stage.item-detail-response-incomplete"));
-        if (kept?.id === id) restoreMaterialDisclosure(detail, kept.detail, kept.materialsOpen);
-        slot.replaceChildren(detail); settle(detail);
-        if (kept?.id === id) slot.scrollTop = kept.top;
+        replaceDetail(slot, detail, kept?.id === id ? kept : undefined, settle);
         publish();
       } catch (error) { if (error instanceof DOMException && error.name === "AbortError") return; if (selected === id && detailRequest === controller) { try { check(); if (carried) page.error(error); else placeholder(molisWorkRequest.text(error, uiText.text("feed.stage.could-not-load-item")), true); } catch { /* A departed reader keeps no late result. */ } } return; }
       finally { if (detailRequest === controller && host.scope.alive && host.scope.visible) detailRequest = null; }

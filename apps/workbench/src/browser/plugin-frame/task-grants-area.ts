@@ -30,6 +30,14 @@ type LineText = Omit<TaskGrantsLine, "text"> & { readonly key: string; readonly 
 export const taskGrantCategoryName = (ref: TaskGrantCategoryReference) => ref.provider_id + "\n" + (ref.group_id ?? "");
 const refOf = (ref: TaskGrantCategoryReference): TaskGrantSetCategory => ref.group_id === undefined ? { provider_id: ref.provider_id } : { provider_id: ref.provider_id, group_id: ref.group_id };
 
+export function taskGrantWords(categories: readonly TaskGrantCategory[]) {
+  const words = new Map(categories.map(category => [taskGrantCategoryName(category), category]));
+  return <T extends TaskGrantCategory>(category: T): T => {
+    const next = words.get(taskGrantCategoryName(category));
+    return next ? { ...category, title: next.title, description: next.description } : category;
+  };
+}
+
 /** One row per category: what this project offers, then what the task holds that is no longer offered (unavailable or removed). */
 export function taskGrantRows(reads: Reads): Row[] {
   const held = new Map(reads.subject.categories.map(category => [taskGrantCategoryName(category), category]));
@@ -114,7 +122,7 @@ interface Entry { readonly id: number; readonly key: string; readonly area: Fram
  * The trusted half (§2–§3). `owner` is the installation's name as the shell lists it. Every write is the person's own `set`
  * through the Host's page route, which takes the installation and project from the page's authority, never from here.
  */
-export function pageTaskGrants(port: MessagePort, scope: FrameScope, areas: PageFramedAreas, pageId: string, route: (path: string) => string, t: Translate, owner: string) {
+export function pageTaskGrants(port: MessagePort, scope: FrameScope, areas: PageFramedAreas, pageId: string, route: (path: string) => string, t: Translate, ownerName: () => string) {
   const entries = new Map<number, Entry>(), pattern = new RegExp(TASK_GRANT_SUBJECT_KEY_PATTERN, "u");
   const send = (message: TaskGrantsDown) => { if (scope.alive) port.postMessage(message); };
   const request = <T>(entry: Entry, body: Record<string, unknown>) => molisWorkRequest<T>(route("/api/host/plugin-page-task-grants"),
@@ -126,6 +134,7 @@ export function pageTaskGrants(port: MessagePort, scope: FrameScope, areas: Page
     const title = category ? rows.find(row => row.name === category)?.title ?? name : name;
     const text = t(key, title === undefined ? undefined : { name: title }), fresh = entry.drawn !== undefined && entry.drawn !== text;
     entry.drawn = text;
+    const owner = ownerName();
     entry.area.surface.setAttribute("aria-label", t("workbench.task-grants-area.molis-work-only-you-can-change-this") + " · " + owner);
     entry.area.redraw(taskGrantsAreaHtml(t, owner, rows, { ...line, text }, entry.busy, fresh));
   };
@@ -135,8 +144,9 @@ export function pageTaskGrants(port: MessagePort, scope: FrameScope, areas: Page
   const unread = (): LineText => ({ key: "workbench.task-grants-area.cannot-read-what-this-task-may-read", act: "read", tone: "danger" });
 
   const read = async (entry: Entry) => {
-    entry.reads = await request<Reads>(entry, { mode: "read" });
+    const current = await request<Reads>(entry, { mode: "read" });
     scope.assertCurrent();
+    return current;
   };
   /** A change, sent once; the answer is the task's new state, shown as it is without reading again (§6). */
   const write = async (entry: Entry, change: Change) => {
@@ -153,7 +163,7 @@ export function pageTaskGrants(port: MessagePort, scope: FrameScope, areas: Page
       // Changed elsewhere (the same task open beside, or the grants page): read again, and the undo no longer applies.
       if ((error as { code?: string }).code === "actions.conflict") {
         entry.last = null; entry.line = { key: "workbench.task-grants-area.changed-elsewhere-refreshed" };
-        try { await read(entry); } catch { entry.line = unread(); }
+        try { entry.reads = await read(entry); } catch { entry.line = unread(); }
       } else {
         // The switch goes back as it was; an undo that failed is spent (§3.6 「失败」).
         entry.last = change.kind === "undo" ? null : change;
@@ -196,11 +206,20 @@ export function pageTaskGrants(port: MessagePort, scope: FrameScope, areas: Page
     if (!row || !fits) return;
     void write(entry, taskGrantChange(switched ? (row.status === "off" ? "on" : "off") : act as "allow" | "remove", row, subject));
   };
+  const currentLanguage = () => document.documentElement.dataset.uiLanguageTag ?? document.documentElement.lang;
   const reread = async (entry: Entry) => {
-    const language = entry.stale === "language";
+    const language = entry.stale === "language" ? currentLanguage() : null;
     entry.busy = true; entry.stale = undefined; draw(entry);
-    try { await read(entry); if (!language) entry.line = idle(); }
-    catch { if (entries.get(entry.id) === entry) entry.line = unread(); }
+    try {
+      const current = await read(entry), held = entry.reads;
+      if (language !== null && held) {
+        if (language !== currentLanguage()) return;
+        // Undo still belongs to the revision it was offered on, even if another window wrote since then.
+        const words = taskGrantWords([...current.categories, ...current.subject.categories]);
+        entry.reads = { categories: held.categories.map(words), subject: { ...held.subject, categories: held.subject.categories.map(words) } };
+      } else { entry.reads = current; entry.line = idle(); }
+    }
+    catch { if (language === null && entries.get(entry.id) === entry) entry.line = unread(); }
     finally { if (entries.get(entry.id) === entry) { entry.busy = false; draw(entry); catchUp(entry); } }
   };
   /** The one read again a return into view asks for, once nothing is under way (for an area still open); none while hidden. */
@@ -208,10 +227,10 @@ export function pageTaskGrants(port: MessagePort, scope: FrameScope, areas: Page
   // Back in view, each area reads once (§3.6): a read or a write under way may have started before what changed while it was hidden,
   // so it reads after that one ends. Every area here was opened in view, so this runs only after the page was hidden.
   scope.whenVisible(() => { for (const entry of entries.values()) { entry.stale = "visibility"; catchUp(entry); } });
-  let language = document.documentElement.lang;
+  let language = currentLanguage();
   scope.listen(document, "molis-work:language-changed", () => {
-    if (language === document.documentElement.lang) return;
-    language = document.documentElement.lang;
+    if (language === currentLanguage()) return;
+    language = currentLanguage();
     for (const entry of entries.values()) { entry.stale ??= "language"; catchUp(entry); }
   });
 
@@ -248,7 +267,7 @@ export function pageTaskGrants(port: MessagePort, scope: FrameScope, areas: Page
     entries.set(entry.id, entry);
     surface.addEventListener("click", event => press(entry, event));
     try {
-      await read(entry);
+      entry.reads = await read(entry);
       if (entries.get(entry.id) !== entry) return;
       draw(entry); send({ type: "task-grants-shown", id: entry.id }); catchUp(entry);
     } catch {

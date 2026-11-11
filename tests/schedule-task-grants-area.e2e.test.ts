@@ -7,6 +7,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pluginFrameBrowser, pluginFrameInitScript } from "./fixtures/plugin-frame-browser.js";
+import type { TaskGrantListResult, TaskGrantSubject } from "@molis-ai/molis-work-contracts/services/agent-task-grants";
 
 const WIDE = 396, NARROW = 468;
 const AREA = "[data-task-grants-area]";
@@ -150,4 +151,26 @@ test("TGA-21 TGA-22 FSS-35 Schedule keeps the open task's grants and its localiz
   await browser.waitFor(`${status} === '已撤销刚才的改动' && ${categoryWords}[0] === '提醒'`);
   await settle(300);
   assert.equal(await grantReads(), before, "TGA-22 the marks follow the area without another read of the grants");
+
+  // A language read refreshes words while leaving the original Undo bound to its write's revision.
+  await ready();
+  await press(`${control} [data-framed-control^="switch:"]`);
+  await browser.waitFor(`${status} === '已允许读 提醒，下一次运行起能读到'`);
+  const endpoint = `/projects/${browser.projectId}/api/settings/task-grants`;
+  const listed = await browser.web.post<TaskGrantListResult>(endpoint, { mode: "list" });
+  const subject = listed.subjects.find(item => item.key === first);
+  const additional = listed.categories.find(category => category.provider_id + "\n" + (category.group_id ?? "") !== REMINDERS);
+  assert.ok(subject && additional);
+  const { subject: changed } = await browser.web.post<{ subject: TaskGrantSubject }>(endpoint, { mode: "set",
+    plugin_install_id: subject.plugin_install_id, key: first, expected_revision: subject.revision,
+    categories: [{ provider_id: "io.molis.work.schedule", group_id: "reminders" },
+      { provider_id: additional.provider_id, ...(additional.group_id ? { group_id: additional.group_id } : {}) }] });
+  assert.notEqual(changed.revision, subject.revision);
+  await choose("en");
+  await browser.waitFor(`${status} === 'Reminders allowed; the next run can read it' && ${categoryWords}[0] === 'Reminders'`);
+  await ready();
+  await press(undo);
+  await browser.waitFor(`${status} === 'Changed elsewhere; refreshed'`);
+  const after = (await browser.web.post<TaskGrantListResult>(endpoint, { mode: "list" })).subjects.find(item => item.key === first);
+  assert.deepEqual(after, changed, "the outdated undo cannot change permissions written elsewhere");
 });

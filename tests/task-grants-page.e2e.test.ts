@@ -142,6 +142,37 @@ test("TGA-24 TGA-25 TGA-27 授权与放行 reads once, takes a category back wit
   await p.shot("zh-light-empty");
 });
 
+test("FSS-35 cached task grant settings use the current language when reopened", { timeout: 90_000 }, async t => {
+  const p = await open(t); if (!p) return;
+  const { browser, prefix } = p;
+  const offered = (await p.call<Listed>({ mode: "list" })).categories;
+  const reminders = offered.find(category => category.provider_id === SCHEDULE && category.group_id === "reminders");
+  const install = readPluginRuntimeRecords(browser.store.db).find(record => record.plugin_id === SCHEDULE && record.state !== "uninstalled")?.install_id;
+  assert.ok(reminders && install);
+  await p.call({ mode: "set", plugin_install_id: install, key: "daily", categories: [ref(reminders)], expected_revision: "" });
+  await browser.navigate(() => browser.command("Page.navigate", { url: browser.origin + "/locale?lang=zh&next=" + encodeURIComponent(prefix + "/") }, browser.sessionId));
+  await browser.click(".navigator-project-settings");
+  const nav = (section: string) => `[data-directory-panel=project-settings] [data-settings-section="${section}"]`;
+  await browser.click(nav("grants"));
+  const row = p.row(install + "\ndaily", rowName(reminders));
+  await browser.waitFor(`(${row})?.querySelector("strong")?.textContent === '提醒'`);
+  await browser.evaluate("window.tgpCached = document.querySelector('[data-task-grants-settings]')");
+  const before = (await p.sent()).length;
+  await browser.click(nav("general"));
+  await browser.waitFor("!window.tgpCached.isConnected");
+  await browser.evaluate(`(() => {
+    const link=document.createElement('a'); link.dataset.uiLanguage='en'; link.href='/locale?lang=en';
+    document.body.append(link); link.click(); link.remove();
+  })()`);
+  await browser.waitFor("document.documentElement.dataset.uiLanguageTag === 'en'");
+  assert.equal((await p.sent()).length, before, "the detached panel makes no additional grants request");
+  await browser.click(nav("grants"));
+  await browser.waitFor(`(${row})?.querySelector("strong")?.textContent === 'Reminders'`);
+  assert.equal(await browser.evaluate("window.tgpCached === document.querySelector('[data-task-grants-settings]')"), true);
+  assert.deepEqual((await p.sent()).slice(before), [{ mode: "list" }]);
+  assert.deepEqual(await p.rows(install + "\ndaily"), [{ name: rowName(reminders), status: "granted" }]);
+});
+
 /**
  * A provider's title that is markup and every character that needs escaping: the page shows it as words, makes no element of it,
  * and its `onerror` never runs (it would mark `window.tgpRan`).

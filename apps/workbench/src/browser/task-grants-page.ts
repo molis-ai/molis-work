@@ -1,7 +1,7 @@
 import type { UiRequest } from "@molis-ai/molis-work-contracts/platform/ui";
-import type { TaskGrantCategory, TaskGrantListResult, TaskGrantSubject } from "@molis-ai/molis-work-contracts/services/agent-task-grants";
+import type { TaskGrantListResult, TaskGrantSubject } from "@molis-ai/molis-work-contracts/services/agent-task-grants";
 import { escapeHtml as escape } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { taskGrantCategoryName, taskGrantChange, taskGrantRowHtml, taskGrantRows } from "./plugin-frame/task-grants-area.js";
+import { taskGrantChange, taskGrantRowHtml, taskGrantRows, taskGrantWords } from "./plugin-frame/task-grants-area.js";
 
 const uiText = globalThis.t;
 
@@ -87,17 +87,19 @@ const doneText = (act: "off" | "allow" | "remove", row: Row) => uiText.text(act 
   : row.status === "granted" ? "workbench.task-grants-page.name-withdrawn-next-run-cannot-read" : "workbench.task-grants-page.name-withdrawn-read-again-turn-task-s-data", { name: row.title });
 
 export function bindTaskGrantsSettings(root: HTMLElement): void {
-  if (root.dataset.taskGrantsBound === "1") return;
+  if (root.dataset.taskGrantsBound === "1") { refreshSettingsLanguage.get(root)?.(); return; }
   root.dataset.taskGrantsBound = "1";
   const project = root.dataset.project ?? "", endpoint = "/projects/" + encodeURIComponent(project) + "/api/settings/task-grants";
   const list = root.querySelector<HTMLElement>("[data-task-grants-list]")!;
   const post: Post = body => molisWorkRequest(endpoint, { body, fallback: uiText.text("workbench.task-grants-page.that-did-not-finish") });
   let listed: Listed | null = null;
+  const currentLanguage = () => document.documentElement.dataset.uiLanguageTag ?? document.documentElement.lang;
+  let drawnLanguage = "", pendingLanguage = "", languageTurn = 0;
   /** Titles found this time the page is open, by installation; `asked` is which keys each installation was asked for. */
   const titles = new Map<string, Map<string, Title>>(), asked = new Map<string, Set<string>>(), busy = new Set<string>();
 
   async function load(): Promise<void> {
-    const language = document.documentElement.lang;
+    const language = currentLanguage();
     list.setAttribute("aria-busy", "true");
     try {
       const next = await post<Listed>({ mode: "list" });
@@ -109,28 +111,27 @@ export function bindTaskGrantsSettings(root: HTMLElement): void {
         titles.set(install.plugin_install_id, found); asked.set(install.plugin_install_id, keys);
         return readTitles(post, install.plugin_install_id, keys, found);
       }));
-      listed = next; draw();
-      if (language !== document.documentElement.lang) void retitle();
+      listed = next; drawnLanguage = language; draw();
+      if (language !== currentLanguage()) void retitle();
     } catch {
       list.innerHTML = `<div class="task-grants-page__state is-error"><span>${escape(uiText.text("workbench.task-grants-page.cannot-read-background-tasks-permissions-right-now"))}</span>${button("common.control.retry", "mw-btn--secondary", "reload")}</div>`;
     } finally { list.removeAttribute("aria-busy"); }
   }
 
-  let languageTurn = 0;
   async function retitle(): Promise<void> {
-    if (!listed) return;
+    const language = currentLanguage();
+    if (!listed || language === drawnLanguage || language === pendingLanguage) return;
     const turn = ++languageTurn;
+    pendingLanguage = language;
     try {
       const current = await post<Listed>({ mode: "list" });
-      if (!root.isConnected || !listed || turn !== languageTurn) return;
-      const words = new Map([...current.categories, ...current.subjects.flatMap(subject => subject.categories)]
-        .map(category => [taskGrantCategoryName(category), category]));
-      const retitleCategory = <T extends TaskGrantCategory>(category: T): T => {
-        const next = words.get(taskGrantCategoryName(category));
-        return next ? { ...category, title: next.title, description: next.description } : category;
-      };
-      listed = { ...listed, categories: listed.categories.map(retitleCategory),
-        subjects: listed.subjects.map(subject => ({ ...subject, categories: subject.categories.map(retitleCategory) })) };
+      if (!root.isConnected || !listed || turn !== languageTurn || language !== currentLanguage()) return;
+      const words = taskGrantWords([...current.categories, ...current.subjects.flatMap(subject => subject.categories)]);
+      const names = new Map(current.installations.map(install => [install.plugin_install_id, install.name]));
+      listed = { ...listed, categories: listed.categories.map(words),
+        subjects: listed.subjects.map(subject => ({ ...subject, categories: subject.categories.map(words) })),
+        installations: listed.installations.map(install => ({ ...install, name: names.get(install.plugin_install_id) ?? install.name })) };
+      drawnLanguage = language;
       const focused = document.activeElement instanceof HTMLElement && list.contains(document.activeElement) ? document.activeElement : null;
       const task = focused?.closest<HTMLElement>("[data-task-grants-task]")?.dataset.taskGrantsTask;
       const category = focused?.closest<HTMLElement>("[data-task-grants-row]")?.dataset.taskGrantsRow;
@@ -142,7 +143,8 @@ export function bindTaskGrantsSettings(root: HTMLElement): void {
         const replacement = action === undefined ? area?.querySelector("a") : area?.querySelector(`[data-task-grants-act="${CSS.escape(action)}"]`);
         if (replacement instanceof HTMLElement) replacement.focus({ preventScroll: true });
       }
-    } catch { if (root.isConnected && turn === languageTurn) toast(uiText.text("workbench.language.window-failed"), true); }
+    } catch { if (root.isConnected && turn === languageTurn && language === currentLanguage()) toast(uiText.text("workbench.language.window-failed"), true); }
+    finally { if (turn === languageTurn) pendingLanguage = ""; }
   }
   refreshSettingsLanguage.set(root, () => { void retitle(); });
 

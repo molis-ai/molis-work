@@ -137,7 +137,7 @@ test("TGA-21 TGA-22 FSS-35 Schedule keeps the open task's grants and its localiz
     throw error;
   }
   assert.equal(await browser.evaluate(`document.querySelector(${JSON.stringify(undo)})?.textContent`), "Undo");
-  assert.deepEqual(await browser.evaluate(categoryWords), ["Reminders", "This project's reminders: what they say (including the text of reminders other plugins set), which plugin set them and when they are next due"]);
+  assert.deepEqual(await browser.evaluate(categoryWords), ["Reminders", "This project’s reminders: what they say (including the text of reminders other plugins set), which plugin set them and when they are next due"]);
   assert.deepEqual(await browser.evaluate(`tgaKeys.slice(${areaRequests})`), [first], "language reads the current task once");
   assert.equal(await browser.evaluate(`document.querySelector(${JSON.stringify(control)}).dataset.status`), "granted");
   // Undo takes it back, and the mark with it.

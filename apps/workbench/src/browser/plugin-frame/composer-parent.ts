@@ -116,7 +116,10 @@ export function pageComposer(port: MessagePort, scope: FrameScope, root: HTMLEle
     : { state: "sent", ...(value.receipt && typeof value.receipt === "object" ? { receipt: value.receipt as never } : {}) };
   const act = (mine: number, kind: "control" | "command" | "receiver", key: string, value?: string) => { if (mine === id) post({ type: "composer-act", id, act: kind, key, ...(value === undefined ? {} : { value }) }); };
   const options = (): ComposerOptions => {
-    const now = () => snapshot!, mine = id;
+    // A mount let go keeps drawing what it last showed (the bar may read it once more while it unmounts); its calls are refused.
+    const mine = id;
+    let last = snapshot!;
+    const now = () => (mine === id && snapshot ? (last = snapshot) : last);
     const control = (item: ComposerSnapshot["controls"][number]): ComposerControl => item.kind === "select" ? { ...item, change: (value: string) => act(mine, "control", item.id, value) }
       : item.kind === "toggle" ? { ...item, change: (on: boolean) => act(mine, "control", item.id, on ? "on" : "off") } : { ...item, run: () => act(mine, "control", item.id) };
     const draft = { read: (signal: AbortSignal) => call(mine, "draft-read", undefined, signal).then(value => typeof value === "string" ? value : ""),

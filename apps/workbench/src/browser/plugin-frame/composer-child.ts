@@ -69,13 +69,17 @@ export function childComposer(port: MessagePort, scope: FrameScope, bar: boolean
       });
     };
     // The page's own text box, hidden: what the page writes into it goes to the bar, and the bar's text comes back into it.
+    let heard = field?.value ?? "";
     const mirror = (text: string) => {
       if (!field || field.value === text) return;
-      field.value = text; echo = true;
-      try { field.dispatchEvent(new Event("input", { bubbles: true })); } finally { echo = false; }
+      echo = true; heard = text;
+      try { field.value = text; field.dispatchEvent(new Event("input", { bubbles: true })); } finally { echo = false; }
     };
-    const typed = () => { if (!echo && field && live === id) send({ type: "composer-text", id, text: field.value }); };
+    const typed = () => { if (!echo && field && live === id && field.value !== heard) { heard = field.value; send({ type: "composer-text", id, text: heard }); } };
     field?.addEventListener("input", typed);
+    // A page that sets its box from script (a draft another device saved, a receipt clearing it) fires no input event: the bar hears it too.
+    const value = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value");
+    if (field && value?.get && value.set) Object.defineProperty(field, "value", { configurable: true, get() { return value.get!.call(this); }, set(text: string) { value.set!.call(this, text); typed(); } });
     // The page putting the cursor in its own box (it cannot take focus, hidden) puts it in the bar's, as the handle's focus does.
     if (field) field.focus = () => send({ type: "composer-focus", id });
     // A page that presses its own send (finishing a send the person began, after a way back from settings) asks the bar to.
@@ -160,7 +164,7 @@ export function childComposer(port: MessagePort, scope: FrameScope, bar: boolean
       for (const controller of calls.values()) controller.abort();
       calls.clear(); checks.clear();
       // As the composer itself does when it goes: the box is empty for the next mount, whose draft is its own.
-      if (field) { field.value = ""; Reflect.deleteProperty(field, "focus"); }
+      if (field) { Reflect.deleteProperty(field, "value"); field.value = ""; Reflect.deleteProperty(field, "focus"); }
       for (const button of sendButtons) Reflect.deleteProperty(button, "click");
       if (live === id) send({ type: "composer-destroy", id });
     };

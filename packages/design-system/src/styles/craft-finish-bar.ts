@@ -251,6 +251,8 @@ export const CRAFT_BAR_STYLES = `
   }
   /* The input stands over the work (UIV-19): bar-column.ts measures the focused pane and gives the first two columns their width,
      so the input's edges are the page's; the right group keeps what its buttons need. */
+  /* Until that first measure the input is not shown, so it appears where it stays rather than sliding over (VUX-31). */
+  @media (min-width: 761px) { ${SHELL} .workbench-bar[data-bar-placing] > .bar-center { visibility: hidden; } }
   @media (min-width: 761px) { ${SHELL} .workbench-bar[data-bar-column] { grid-template-columns: minmax(150px, var(--bar-start-w)) minmax(200px, var(--bar-column-w)) minmax(max-content, 1fr); } }
   /* Each side stays inside its column: the Dock folds what does not fit instead of running under the Assistant. */
   /* The composer grows upward; the two sides stay in the rest band at the bottom, level with its foot. */

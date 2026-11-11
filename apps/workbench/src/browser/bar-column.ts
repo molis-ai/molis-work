@@ -4,7 +4,9 @@
  * page's. The Dock on the left keeps at least 150px and room for its switcher, 项目首页, one chosen plugin and its 「+N」; the
  * right group keeps what its buttons need. When the window is too narrow the input narrows around the same centre down to
  * 400px, and below that takes the room there is (the bar's own 200px at least) and leaves the centre. Below 761px wide the bar
- * keeps its own layout (`craft-finish-bar.ts`), and while nothing is measured the CSS columns stand.
+ * keeps its own layout (`craft-finish-bar.ts`), and while nothing is measured the CSS columns stand. The page draws the bar marked
+ * `data-bar-placing`, which keeps the input unseen until its first placement here (it then appears where it stays, instead of
+ * sliding from the CSS columns to the pane's once the script runs: VUX-31, nothing moves under the reader while it loads).
  *
  * Bundled by esbuild into dist/bar-column-client.js and carried in workbench.js; the workbench's start calls the page global
  * `molisWorkBarColumn` once its shell is drawn (not in a pane-embedded page, which has no bar).
@@ -14,7 +16,7 @@ const READING = 680, NARROW = 400, INSET = 24, START = 150, INPUT = 200;
 export function placeBarColumn(): void {
   const bar = document.querySelector<HTMLElement>("[data-dock]");
   const stage = document.querySelector<HTMLElement>("[data-plugin-stage]");
-  if (!bar || !stage || !("ResizeObserver" in window)) return;
+  if (!bar || !stage || !("ResizeObserver" in window)) { bar?.removeAttribute("data-bar-placing"); return; }
   const end = bar.querySelector<HTMLElement>(".bar-end");
   // A page in front that takes the input names its conversation column (one input, O3): the input stands over that, not over the
   // whole pane with the page's own list beside it.
@@ -79,6 +81,7 @@ export function placeBarColumn(): void {
   window.addEventListener("resize", soon);
   (globalThis as { molisWorkBarPlace?: () => void }).molisWorkBarPlace = soon;
   place();
+  bar.removeAttribute("data-bar-placing");
 }
 
 (globalThis as { molisWorkBarColumn?: () => void }).molisWorkBarColumn = placeBarColumn;

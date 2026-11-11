@@ -262,7 +262,7 @@ test("VUX-31: the Assistant's slash menu reads its lists once, however much is t
   await waitFor("!!document.querySelector('[data-assistant-composer] .mw-composer__input')", 20_000);
   const input = "[data-assistant-composer] .mw-composer__input";
   const slash = `(() => { const input = document.querySelector(${JSON.stringify(input)}); input.focus(); input.value = '/'; input.setSelectionRange(1, 1); input.dispatchEvent(new InputEvent('input', { bubbles: true, data: '/', inputType: 'insertText' })); })()`;
-  const menu = () => evaluate<{ hidden: boolean; commands: string[] }>("(() => { const pop = document.querySelector('[data-assistant-composer] [data-compose-menu]'); return { hidden: pop.hidden, commands: [...pop.querySelectorAll('[data-composer-command]')].map((node) => node.textContent) }; })()");
+  const menu = () => evaluate<{ hidden: boolean; commands: string[] }>("(() => { const pop = document.querySelector('[data-assistant-composer] [data-compose-menu]'); return { hidden: pop.hidden, commands: [...pop.querySelectorAll('[data-composer-command] .mw-menu__shortcut')].map((node) => node.textContent) }; })()");
   const hold = await holdReads(browser, ["*/api/assistant/capabilities", "*/api/assistant/methods"]);
   try {
     await evaluate(`document.querySelector(${JSON.stringify(input)}).focus()`);
@@ -274,7 +274,8 @@ test("VUX-31: the Assistant's slash menu reads its lists once, however much is t
     await evaluate(slash);
     await waitFor("!document.querySelector('[data-assistant-composer] [data-compose-menu]').hidden", 10_000);
     const open = await menu();
-    assert.ok(open.commands.some((text) => text.startsWith("/用 ")), "the late lists are in the menu once they came: " + JSON.stringify(open.commands));
+    // A row is the command's name, what it does, and its `/word` where a shortcut stands (the menu as batch 11 drew it).
+    assert.ok(open.commands.includes("/用"), "the late lists are in the menu once they came: " + JSON.stringify(open.commands));
     assert.equal(hold.seen.length, 2, JSON.stringify(hold.seen));
   } finally { await hold.close(); }
 });

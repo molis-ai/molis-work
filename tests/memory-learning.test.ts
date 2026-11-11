@@ -60,7 +60,7 @@ test("a wish said once is only suggested; a second independent original is kept 
   const [kept] = (await service.list(person)).items;
   assert.equal(kept!.source, "auto");
   assert.equal(kept!.basis, "repeated");
-  assert.deepEqual(kept!.approved_by, { by: "policy", policy: "memory.write-gate", version: 3 });
+  assert.deepEqual(kept!.approved_by, { by: "policy", policy: "memory.write-gate", version: 1 });
   assert.match(kept!.origin, new RegExp(`^${MEMORY_GATE_RULE}`));
   assert.deepEqual((await service.candidates(person, { scope: "project" })).map(item => [item.candidate_id, item.state]), [[waiting!.candidate_id, "pending"]], "the original single-source suggestion retains its real pending state");
   const [change] = (await service.changes(person, { scope: "project" }));
@@ -291,7 +291,7 @@ async function queuedLearning(t: test.TestContext) {
         sourceAllowed: (actor, scope, owner, refs) => service.sourceAllowed(actor, scope, owner, refs),
         sessionAllowed: async owner => owner.actor_id === LOCAL_PERSON_ACTOR_ID && owner.project_id === "project-q4"
           && owner.plugin_id === ASSISTANT_PLUGIN_ID && owner.install_id === ASSISTANT_INSTALL_ID,
-      }))), promotion: { policy: "memory.write-gate", version: 3, decide: (caller, request) => service.promotion.decide(caller, request),
+      }))), promotion: { policy: "memory.write-gate", version: 1, decide: (caller, request) => service.promotion.decide(caller, request),
         undo: { prepare: (caller, request) => service.promotion.undo.prepare(caller, request), record: (caller, request) => service.promotion.undo.record(caller, request) } } },
       modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
     const withCaller = value.memory!.withCaller.bind(value.memory!);

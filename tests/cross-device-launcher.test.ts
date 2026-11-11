@@ -1,15 +1,15 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { spawn } from 'node:child_process';
-import { mkdtemp, writeFile, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, writeFile, readFile, readdir, rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { openServerDatabase, Identity, ServerEvents, ContinuityService } from '@molis-ai/molis-work-server';
 
-const launcher=new URL('../apps/server/dist/main.js',import.meta.url).pathname;
+const launcher=new URL('../dist/cli/main.js',import.meta.url).pathname;
 function launch(args:string[],entry=launcher,nodeArgs:string[]=[]){
-  const child=spawn(process.execPath,[...nodeArgs,entry,...args],{stdio:['ignore','pipe','pipe'],env:{...process.env,MOLIS_WORK_DEBUG:''}});
+  const child=spawn(process.execPath,[...nodeArgs,entry,...(entry===launcher?["server"]:[]),...args],{stdio:['ignore','pipe','pipe'],env:{...process.env,MOLIS_WORK_DEBUG:''}});
   let output='',errors='';child.stdout.on('data',chunk=>output+=chunk);child.stderr.on('data',chunk=>errors+=chunk);
   const exited=new Promise<number|null>((resolve,reject)=>{child.once('error',reject);child.once('exit',code=>resolve(code));});
   return {child,exited,output:()=>output,errors:()=>errors};
@@ -71,6 +71,14 @@ test('compiled standalone launcher starts headless, restores a real Catalog proj
       origin:{kind:'pinned',subject:{kind:'document',id:'headless-artifact'},revision:'1'},title:'CLI artifact',media_type:'application/json',supersedes_version:null,source_supersedes_version:null,
     }]};
     const bundleFile=join(directory,'bundle.json');await writeFile(bundleFile,JSON.stringify(bundle));
+    // D0002-05: the compiled CLI must not turn a bundle's team scope into sharing authority either.
+    const deniedDestination=join(directory,'refused-team-home');
+    const denied=launch(['restore','--bundle',bundleFile,'--destination',deniedDestination]);
+    assert.notEqual(await denied.exited,0);assert.match(denied.errors(),/"code":"actions.forbidden"/);
+    assert.ok(!(await readdir(directory)).includes('refused-team-home'),'the rejected CLI creates no destination');
+    // The caller supplies a separate personal bundle; the restore command itself never changes a scope.
+    const personalBundle={...bundle,artifacts:bundle.artifacts.map(asset=>({...asset,scope:'personal'}))};
+    await writeFile(bundleFile,JSON.stringify(personalBundle));
     const destination=join(directory,'new-home');
     const restored=await command(['restore','--bundle',bundleFile,'--destination',destination]);assert.equal(restored.restored,1);assert.match(restored.project_id,/^project-onboarding-/);assert.ok(restored.warnings.some((warning:string)=>warning.includes('io.test.writer@1.0.0')));
     const read=await command(['read-assets','--destination',destination,'--project','headless-source']);

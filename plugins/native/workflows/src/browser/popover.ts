@@ -1,4 +1,5 @@
-import { esc, ico, said } from "./dom.js";
+import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { ico, said } from "./dom.js";
 import type { WorkflowsPage } from "./page.js";
 import { tint } from "./chain.js";
 import { label } from "./state.js";

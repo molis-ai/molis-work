@@ -42,10 +42,10 @@ interface Source {
 }
 
 const kinds = [{ kind: "note", title: "笔记", surface: "notes" }];
-const entries = defineSearchEntriesAction("notes.search.entries", kinds, "笔记", ["notes:read"]);
-const reader = defineSubjectContextAction("notes.subject.read", "note", "笔记", ["notes:read"]);
+const entries = defineSearchEntriesAction("notes.search.entries", 1, kinds, "笔记", ["notes:read"]);
+const reader = defineSubjectContextAction("notes.subject.read", 1, "note", "笔记", ["notes:read"]);
 const personalKinds = [{ kind: "memo", title: "备忘", surface: "memos" }];
-const personalEntries = defineSearchEntriesAction("memos.search.entries", personalKinds, "备忘", ["memos:read"], "home");
+const personalEntries = defineSearchEntriesAction("memos.search.entries", 1, personalKinds, "备忘", ["memos:read"], "home");
 
 function source(notes: Note[] = []): Source {
   return { notes: new Map(notes.map(note => [note.id, note])), lists: 0, reads: 0, fail: false, availability: { available: true } };
@@ -53,8 +53,8 @@ function source(notes: Note[] = []): Source {
 function register(service: ActionService, state: Source, provider: { provider_id: string; project_id?: string; plugin_id?: string },
   capabilities: { entries?: string; reader?: string } = {}) {
   // A second provider in the same project needs its own capability ids: the registry holds one provider per (id, version, project).
-  const ownEntries = capabilities.entries ? defineSearchEntriesAction(capabilities.entries, kinds, "笔记", ["notes:read"]) : entries;
-  const ownReader = capabilities.reader ? defineSubjectContextAction(capabilities.reader, "note", "笔记", ["notes:read"]) : reader;
+  const ownEntries = capabilities.entries ? defineSearchEntriesAction(capabilities.entries, 1, kinds, "笔记", ["notes:read"]) : entries;
+  const ownReader = capabilities.reader ? defineSubjectContextAction(capabilities.reader, 1, "note", "笔记", ["notes:read"]) : reader;
   // RAC-2738: the spread comes after the default, so a caller that passes `plugin_id: undefined` explicitly overrides `"notes"` with
   // undefined instead of keeping it. That is how the tests write a provider without its own plugin id, and why the discarded reader's
   // `where` falls back to the provider id. Not a bug — keep this order if the helper changes.
@@ -132,7 +132,7 @@ test("search source protocol rejects declarations that do not honor the canonica
   const loose = { ...entries, action: { ...entries.action, output_schema: { type: "object" } } };
   assert.match(inspectActionDeclarations([loose], undefined).join(), /搜索来源协议/);
   // A source may be narrower than the default, never closed to the local person who builds the index.
-  const localOnly = defineSearchEntriesAction("notes.local.search.entries", [{ kind: "note", title: "笔记", surface: "notes" }], "本机笔记", ["notes:read"], "project", ["user"]);
+  const localOnly = defineSearchEntriesAction("notes.local.search.entries", 1, [{ kind: "note", title: "笔记", surface: "notes" }], "本机笔记", ["notes:read"], "project", ["user"]);
   assert.deepEqual(localOnly.action.audiences, ["user"]);
   assert.deepEqual(inspectActionDeclarations([localOnly], undefined), []);
   const agentOnly = { ...entries, action: { ...entries.action, audiences: ["agent", "mcp"] } };
@@ -592,4 +592,36 @@ test("RAC-2737 a discarded reader's record carries the code only, never the deta
     "only the plain error shape: no details, cause or kind from the refusal");
   assert.equal("details" in record.error, false, "the refusal's details are not carried");
   assert.equal("cause" in record.error, false, "the refusal's cause is not carried");
+});
+
+test("D0244-02 indexed catalogs omit unavailable, failed and foreign sources and withhold body without the reader", async t => {
+  const f = await fixture(t), notes = source([{ id: "n1", title: "试用资料", body: "private indexed body", version: 1 }]);
+  register(f.actions, notes, { provider_id: "notes", project_id: "a" });
+  const caller = owner("a"), access = { client: f.actions, caller };
+  await ask(f, caller, "试用");
+  const full = await f.search.indexedCatalog(access), metadata = full.catalog("a").entries[0]!;
+  assert.ok(metadata); assert.equal("content" in metadata, false, "catalog metadata never loads bodies");
+  assert.equal(full.document(metadata.source_key, metadata.kind, metadata.object_id)?.content, "private indexed body");
+  assert.deepEqual(full.catalog("b").entries, []);
+  const listingOnly = { ...caller, allowed_actions: [{ capability_id: entries.capability_id, version: 1, provider_id: "notes" }] };
+  const limited = await f.search.indexedCatalog({ client: f.actions, caller: listingOnly });
+  const withheld = limited.catalog("a").entries[0]!;
+  assert.equal(withheld.has_content, false); assert.equal(withheld.content_chars, 0); assert.equal(withheld.content_policy, "summary");
+  assert.equal(limited.document(withheld.source_key, withheld.kind, withheld.object_id), null, "a metadata grant never grants body access");
+  notes.availability = { available: false, code: "actions.plugin_disabled", reason: "disabled" };
+  assert.deepEqual((await f.search.indexedCatalog(access)).catalog("a").entries, [], "stale indexed bytes are never catalog material");
+  notes.availability = { available: true }; notes.fail = true;
+  f.tick(60_001); await ask(f, caller, "试用");
+  assert.deepEqual((await f.search.indexedCatalog(access)).catalog("a").entries, [], "failed catch-up does not give stale content to a model");
+});
+
+for (const scope of ["project", "home"] as const) test(`D0244-03 ${scope} indexed catalog authority is not restored by a later provider registration`, async t => {
+  const f = await fixture(t), notes = source([{ id: "n1", title: "试用资料", body: "body", version: 1 }]);
+  register(f.actions, notes, { provider_id: "notes", ...(scope === "project" ? { project_id: "a" } : {}) });
+  await ask(f, owner("a"), "试用");
+  const snapshot = await f.search.indexedCatalog({ client: f.actions, caller: owner("a") });
+  snapshot.assertCurrent(); f.search.markRegistration("notes", scope === "project" ? "a" : null);
+  assert.throws(() => snapshot.assertCurrent(), { code: "actions.forbidden" });
+  assert.throws(() => snapshot.catalog("a"), { code: "actions.forbidden" });
+  const fresh = await f.search.indexedCatalog({ client: f.actions, caller: owner("a") }); fresh.assertCurrent();
 });

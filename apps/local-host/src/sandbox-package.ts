@@ -10,12 +10,12 @@ import { isDeepStrictEqual } from 'node:util';
 import { pluginErrors, SANDBOX_PACKAGE_FILES, type PluginManifest, type SandboxAgentBody, type SandboxPackageManifest, type PluginPackagePayload, type SandboxPackagePrompt } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { SANDBOX_INTEGRATION_CONTRACT, SANDBOX_INTEGRATION_OPERATIONS, type SandboxEffects, type SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { CONNECTOR_REQUEST_SERVICES } from '@molis-ai/molis-work-contracts/services/connector-host';
-import { parsePluginManifest, parsePluginPackageManifest } from '@molis-ai/molis-work-plugin-sdk';
+import { parseContentPackage, type ContentPackage, parsePluginManifest, parsePluginPackageManifest, refuseDeclarations } from '@molis-ai/molis-work-plugin-sdk';
 import { PLUGIN_ICON_NAMES } from '@molis-ai/molis-work-plugin-sdk/ui';
 import { assertContract } from '@molis-ai/molis-work-plugin-sandbox';
 import { validatePluginComponentNodes, validatePluginComponentPlans, validatePluginPresentation,
   type PluginComponentNode, type PluginComponentPlan, type PluginPresentation } from '@molis-ai/molis-work-design-system';
-import { readSandboxAgentBodies } from './sandbox-agent-bodies.js';
+import { packagedMethodBodies, readSandboxAgentBodies, sandboxAgentBodyPaths } from './sandbox-agent-bodies.js';
 import { assertPluginHomeSchema } from '@molis-ai/molis-work-plugin-runtime';
 
 
@@ -42,6 +42,13 @@ export interface SandboxPackage {
 }
 
 const refuse = (detail: string): never => { throw pluginErrors.declaration_invalid('沙箱包：' + detail); };
+/**
+ * Before the file and shape checks, whose own refusals would tell an author nothing about why (FSS-53). The way in comes with batch 16
+ * (specs/font-and-skin-system/a-section-contract.md §6.3), which reads a package's languages through `inspectPluginLocales`: strict, as this is not a content pack.
+ */
+function refuseLocales(manifest: PluginPackagePayload['manifest']): void {
+  if (manifest?.ui?.locales !== undefined) refuse('ui.locales 第 16 批才支持沙箱包。要试语言文件，用 molis-work plugin dev 跑；要安装，先去掉 ui.locales 和 locales/ 下的文件');
+}
 const plain = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
 
 function jsonFile(files: ReadonlyMap<string, Uint8Array>, name: string): unknown {
@@ -75,11 +82,14 @@ function promptsOf(value: unknown): SandboxPackagePrompt[] {
 export function readSandboxPackage(payload: PluginPackagePayload): SandboxPackage {
   const wire = validated('manifest', () => parsePluginPackageManifest(payload.manifest));
   if (wire.kind !== 'app' || (wire.agent !== undefined && !Array.isArray(wire.agent))) refuse('文字正文只用于 app 包');
+  refuseLocales(wire);
   const manifest = wire as SandboxPackageManifest;
-  const wanted = [...Object.values(SANDBOX_PACKAGE_FILES), ...(manifest.agent ?? []).map(item => item.body), ...(manifest.methods ?? []).map(item => item.body)];
+  const wanted = [...Object.values(SANDBOX_PACKAGE_FILES), ...sandboxAgentBodyPaths(manifest)];
   const files = new Map(payload.files.map(file => [file.path, Buffer.from(file.content_base64, 'base64')] as const));
   if (files.size !== payload.files.length) refuse('包内文件路径重复');
-  for (const path of files.keys()) if (!wanted.includes(path)) refuse('包里有格式之外的文件：' + path);
+  // A path is the publisher's text: each one is named, quoted and cut short, as every package refusal names a file.
+  const outside = [...files.keys()].filter(path => !wanted.includes(path));
+  if (outside.length) refuseDeclarations(outside.map(path => ({ path, reason: '沙箱包的格式里没有这个文件' })));
   const entrypoint = files.get(SANDBOX_PACKAGE_FILES.entrypoint) ?? refuse('缺少 ' + SANDBOX_PACKAGE_FILES.entrypoint);
   if (!entrypoint.length || entrypoint.length > MAX_ENTRYPOINT_BYTES) refuse(SANDBOX_PACKAGE_FILES.entrypoint + ' 为空或太大');
 
@@ -131,6 +141,32 @@ export function readKeptSandboxPackage(payload: PluginPackagePayload): KeptSandb
   return payload.manifest.kind === 'integration' ? readSandboxIntegrationPackage(payload) : readSandboxPackage(payload);
 }
 
+/**
+ * A content package as the Host keeps it (specs/skill-packs/contract-design.md §3): the Manifest of a plugin with only declarations and
+ * each declared Skill with the body its package ships. No code, contract, interface or prompts, and it asks for nothing.
+ */
+export interface ContentKeptPackage {
+  readonly manifest: PluginManifest;
+  readonly blueprint?: ContentPackage["blueprint"];
+  readonly agentBodies: SandboxAgentBody[];
+  readonly permissions: SandboxEffects;
+}
+
+/** Every package the Host keeps and installs: a sandbox package, or a content package. */
+export type KeptPackage = KeptSandboxPackage | ContentKeptPackage;
+export const isContentPackage = (pkg: KeptPackage): pkg is ContentKeptPackage => pkg.manifest.kind === 'content';
+
+/**
+ * Reads a verified package by its Manifest's kind: a content package through the SDK's `parseContentPackage` (every declared file there,
+ * nothing else, each path inside the package, each resource's size and digest as declared), any other as a sandbox package. One install
+ * path for both: the same signature check before, the same preview and confirmation after.
+ */
+export function readKeptPackage(payload: PluginPackagePayload): KeptPackage {
+  if (payload.manifest?.kind !== 'content') return readKeptSandboxPackage(payload);
+  const { manifest, skills, blueprint } = parseContentPackage(payload);
+  return { manifest, agentBodies: packagedMethodBodies(manifest.methods ?? [], skills), permissions: {}, ...(blueprint ? { blueprint } : {}) };
+}
+
 /** A sandboxed integration as the Host runs it (BL-530): its Manifest, its contract of the platform's operations and its code. */
 export interface SandboxIntegrationPackage {
   readonly manifest: PluginManifest;
@@ -148,6 +184,7 @@ export interface SandboxIntegrationPackage {
  * origins; any other declares its own (S-95), checked by the SDK's Manifest rules. Nothing here is written anywhere.
  */
 export function readSandboxIntegrationPackage(payload: PluginPackagePayload): SandboxIntegrationPackage {
+  refuseLocales(payload.manifest);
   const wanted = [SANDBOX_PACKAGE_FILES.manifest, SANDBOX_PACKAGE_FILES.contract, SANDBOX_PACKAGE_FILES.entrypoint] as string[];
   const files = new Map(payload.files.map(file => [file.path, Buffer.from(file.content_base64, 'base64')] as const));
   for (const path of files.keys()) if (!wanted.includes(path)) refuse('集成包只有清单、合同和代码，不能带 ' + path);

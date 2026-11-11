@@ -10,7 +10,7 @@ import { ChromeHarness, locateTestChrome } from "@molis-ai/molis-work-test-kit/b
 import { LocalHostHttpClient } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { DEMO_PROJECT_ID, seedDemoGoals, MolisWorkLocalHost, projectActionAvailability, type HostCompleteText, type WebServerOptions, PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
-import { createMolisWorkWebServer } from "../../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer } from "./local-web-core.js";
 import { boardSnapshot } from "./goal-application.js";
 
 /** The control token every Goals browser fixture serves with; e2e files that call the server by hand use this one (`controlToken` in the return). */
@@ -27,7 +27,7 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
   let store: LocalProjectDatabase | undefined;
   let localHost: MolisWorkLocalHost | undefined;
   let harness: ChromeHarness | undefined;
-  let server: ReturnType<typeof createMolisWorkWebServer> | undefined;
+  let server: ReturnType<typeof createSingleHomeTestWebServer> | undefined;
   const connections = new Set<Socket>();
   t.after(async () => {
     const failures: unknown[] = [];
@@ -99,7 +99,7 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
     const withCatalog = localHost.configurePersonalPlanning(directory,
       localHost.ensureWebCatalog(directory, openMolisWorkProjectCatalog).withCatalog);
   }
-  server = createMolisWorkWebServer({ ...(catalogMode ? {} : { databasePath, projectId: DEMO_PROJECT_ID }), homeDirectory: directory, ...(localHost ? { localHost } : {}),
+  server = createSingleHomeTestWebServer({ ...(catalogMode ? {} : { databasePath, projectId: DEMO_PROJECT_ID }), homeDirectory: directory, ...(localHost ? { localHost } : {}),
     controlToken: CONTROL_TOKEN, ...serverOptions });
   const setFrameInitScript = observePluginFrames(server);
   server.on("connection", connection => {
@@ -130,16 +130,36 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
   const { sessionId } = await command<{ sessionId: string }>("Target.attachToTarget", { targetId, flatten: true });
   await command("Target.activateTarget", { targetId });
   await command("Page.enable", {}, sessionId);
+  const { result: { value: windowInsets } } = await command<{ result: { value: { width: number; height: number } } }>("Runtime.evaluate", {
+    expression: "({width:Math.max(0,outerWidth-innerWidth),height:Math.max(0,outerHeight-innerHeight)})", returnByValue: true,
+  }, sessionId);
   async function setViewport(width: number, height: number, mobile = false): Promise<void> {
     // Emulation alone leaves the native window small: pointer events outside it can miss plugin frames.
     // Size this window for the current scenario before applying its layout and mobile emulation.
     const { windowId } = await command<{ windowId: number }>("Browser.getWindowForTarget", { targetId });
-    await command("Browser.setWindowBounds", { windowId, bounds: { width, height } });
+    // Bounds include Chrome's native frame; emulation describes only its content viewport.
+    await command("Browser.setWindowBounds", { windowId, bounds: { width: width + windowInsets.width, height: height + windowInsets.height } });
     await command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile }, sessionId);
   }
   // The product shows tool names by default; these journeys measure content at a given width, so they
   // start from the icon rail unless a test chooses otherwise.
   await command("Page.addScriptToEvaluateOnNewDocument", { source: "try { if (localStorage.getItem('molis-work-navigation-labels') === null) localStorage.setItem('molis-work-navigation-labels', 'false'); } catch {}" }, sessionId);
+  // This fixture selects one business Home, without an installation account owner. Supply its explicit unconfigured
+  // account/sync facts instead of mistaking absent installation routes for a production account failure.
+  // Real Auth tests navigate to a different installation origin; those requests keep their actual transport and authority.
+  await command("Page.addScriptToEvaluateOnNewDocument", { source: `{
+    const original = window.fetch.bind(window), fixtureOrigin = ${JSON.stringify(origin)};
+    window.fetch = (input, init) => {
+      const request = input instanceof Request ? input : null;
+      const url = new URL(request ? request.url : String(input), location.href);
+      const method = String(init?.method ?? request?.method ?? 'GET').toUpperCase();
+      if (url.origin === fixtureOrigin && method === 'GET') {
+        if (url.pathname === '/api/personal/status') return Promise.resolve(Response.json({ configured: false, identity: null, ready: true, space: 'local', syncEnabled: false }));
+        if (url.pathname === '/api/sync') return Promise.resolve(Response.json({ available: false, reason: '本地空间不参与同步，请先切换到个人空间。' }));
+      }
+      return original(input, init);
+    };
+  }` }, sessionId);
   async function evaluate<T = unknown>(expression: string): Promise<T> {
     const result = await command<{ result: { value: T }; exceptionDetails?: unknown }>("Runtime.evaluate", { expression, awaitPromise: true, returnByValue: true }, sessionId);
     assert.equal(result.exceptionDetails, undefined, JSON.stringify(result.exceptionDetails));
@@ -167,7 +187,8 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
         const picker = element.closest('[data-plugin-picker-popover]');
         if (picker && picker.hidden) document.querySelector('[data-plugin-picker-toggle]')?.click();
         const sidePanel = element.closest('[data-side-panel]');
-        if (sidePanel && sidePanel.hidden) document.querySelector('[data-side-toggle]')?.click();
+        // The side opens from its current glyph in the titlebar (the bar's side button left in 07-1 S4b).
+        if (sidePanel && sidePanel.hidden) document.querySelector('[data-side-tabs] [data-side-tab][aria-selected=true]')?.click();
         const rail = element.closest('.plugin-rail-items');
         if (rail && !element.getClientRects().length && !rail.classList.contains('is-tools-open')) rail.querySelector('[data-rail-tools-toggle]')?.click();
         // A Goal tab opens on its Frame; its workspace (directory, records, timeline) is behind 打开工作区.

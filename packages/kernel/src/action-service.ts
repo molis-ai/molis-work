@@ -15,7 +15,7 @@ import { assertCurrentAuthority, bindCall, describeCall, settleCall, settleCallS
 import { actionSchemaAccepts, createActionSchemaCompiler, validateActionValue, type ActionValidator } from "./action-schema.js";
 import { validateActionInput } from "./version-precondition.js";
 import { subjectOfferCompatibilityReason } from "./subject-offer-choices.js";
-import { createExecutionLifetime, inspectActionCrossReferences, inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
+import { createExecutionLifetime, inspectActionCrossReferences, inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk/execution";
 
 interface RegisteredScene {
   definition: ActionSceneDefinition;
@@ -236,12 +236,22 @@ export class ActionService implements ActionClient, ActionRegistryPort {
     });
   }
 
+  private sceneDeclarations(context: ActionCallContext) {
+    return [...this.scenes.values()].filter(scene => sceneVisible(scene, context)).map(scene => ({ scene,
+      metadata: { definition: structuredClone(scene.definition), provider: structuredClone(scene.provider) } }));
+  }
+
+  /** Composition-only declarations. No handler, availability evaluation or execution authority is returned. */
+  inspectSceneMetadata(context: ActionCallContext): Array<Pick<ActionSceneView, "definition" | "provider">> {
+    return this.sceneDeclarations(context).map(({ metadata }) => metadata);
+  }
+
   discoverScenes(context: ActionCallContext, judgment?: ActionReference): ActionSceneView[] {
     const directory = judgment ? this.discover(context) : [];
     const fn = judgment ? directory.find(d => actionKey(d) === actionKey(judgment)) : undefined;
-    return [...this.scenes.values()].filter(s => sceneVisible(s, context)).map(scene => {
+    return this.sceneDeclarations(context).map(({ scene, metadata }) => {
       const reason = judgment ? actionSceneCompatibilityReason(scene.definition, fn, judgment, directory, scene.provider) : undefined;
-      return { definition: structuredClone(scene.definition), provider: structuredClone(scene.provider),
+      return { ...metadata,
         configuration_availability: scene.configurationAvailability(context), availability: scene.availability(context), compatible: !reason, ...(reason ? { reason } : {}) };
     });
   }

@@ -1,4 +1,4 @@
-import { ActionError, requireSynchronous, type ActionAvailability, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionHandler, requireSynchronous, type ActionAvailability, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginRouteBinding, PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { actionErrorResponse, isCodedFailure } from "./errors.js";
 
@@ -52,7 +52,7 @@ export function bindOwnerPluginAction<Input, Output>(
     }
     return { available: true };
   };
-  return { ...definition, availability, async handle(caller, input) {
+  return bindActionHandler(definition, async (input, caller) => {
     const owner = availability(caller);
     if (!owner.available) throw new ActionError(owner.code, owner.reason, { kind: owner.kind });
     const beforeWrite = async () => {
@@ -73,6 +73,6 @@ export function bindOwnerPluginAction<Input, Output>(
     // availability. Only a command confirms, before it writes, that the action is still the one published: discovering
     // every action of the project on each read made plain page refreshes pay for it.
     if (definition.operation !== "query") await beforeWrite();
-    return handle(input as Input, beforeWrite);
-  } };
+    return handle(input, beforeWrite);
+  }, { availability });
 }

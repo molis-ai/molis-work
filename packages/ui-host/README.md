@@ -84,7 +84,7 @@ node scripts/run-tests.mjs tests/workbench-ui-platform.test.ts tests/plugin-host
   - 注册与渲染协议不等于任意 HTML 或脚本获得隔离执行。
   - 插件客户端的注册释放由 Host 生命周期负责；不解释 Goal、Feed、Artifact 状态。
   - `invalidate()` 只推调用者自己的 revision，没有参数；没声明 `ui.views`、激活已停时拒绝（`ui_host.plugin_denied`），不记任何东西。
-  - 请求助手只发本页同源，令牌不随它发到别的源；不自动重试；诊断编号只取错误体的 `call_id`。
+  - 请求助手只发本页同源，cookie 配对的页面 CSRF 证明不随它发到别的源；不读取宿主控制令牌；不自动重试；诊断编号只取错误体的 `call_id`。
 - 改动后必跑：`node scripts/run-tests.mjs tests/workbench-ui-platform.test.ts tests/plugin-host-executor.test.ts tests/plugin-declarative-mounting.test.ts tests/ui-client-lifecycle.e2e.test.ts tests/ui-request-client.test.ts tests/security-invariants-browser-request.test.ts tests/client-script-undeclared.test.ts tests/ui-request-client-pages.test.ts tests/ui-request-client.e2e.test.ts tests/request-failure-call-id.e2e.test.ts tests/ui-call-id.test.ts tests/plugin-ui-invalidate.test.ts`
 - 相关手册：[docs/platform/UI-PLATFORM.md](../../docs/platform/UI-PLATFORM.md)、[skills/molis-plugin-dev/ui.md](../../skills/molis-plugin-dev/ui.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
@@ -97,3 +97,5 @@ node scripts/run-tests.mjs tests/workbench-ui-platform.test.ts tests/plugin-host
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。
 
 `scope.watchRevision(read, refresh)` 复用可见轮询，每两秒核对不透明 revision；首次进入、变更和断线恢复后重新读取事实。refresh 返回 false 表示当前忙，下一轮保留变更继续尝试；隐藏和卸载释放请求与定时器。真实消费者是 Files/Git。revision 由插件服务端的 `services.ui.invalidate()` 推动（PG-061）。
+
+受保护的同源读取可在 `UiRequestInit` 显式设置 `control: true`；请求助手只使用页面拥有的控制 Token，仍移除调用方提供的同名头，且不为 GET 领取一次性写键。普通 GET 默认不附加控制 Token。对应拒绝测试为 `tests/ui-request-client.test.ts` 的 WUA-10 用例。

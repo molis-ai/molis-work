@@ -36,7 +36,7 @@ function hostReader(body: ChangeBody, query: URLSearchParams, locale: ActionLoca
 
 /** A child's file as the Host drew it: a one-file change set of the reviewed text. */
 function hostIntegration(file: IntegrationBody["files"][number], locale: ActionLocale) {
-  const view = compareRunChangeSet({ content: { scope: "run-frozen", run_id: "integration", applied: false, coverage: "text-reviews", files: [{ path: file.path.join("/"),
+  const view = compareRunChangeSet({ content: { scope: "run-frozen", run_id: "integration", applied: false, coverage: "text-reviews", origin: { session_id: "s", runtime_session_id: "r", workspace_id: "w", workspace_name: "w" }, files: [{ path: file.path.join("/"),
     kind: file.before_text === null ? "added" : file.after_text === null ? "deleted" : "modified", added_lines: 0, removed_lines: 0, diff: "",
     review: { review_id: "integration", before_text: file.before_text!, after_text: file.after_text ?? "", decision: "approved", execution: "applied" } }] } as never,
     source_plugin_id: CODING, content_version: 1 }, undefined, 0);
@@ -61,7 +61,7 @@ test("PG062-09: Coding's change reader and integration preview draw their own ma
     { path: ["image.png"], target: "modified", selectable: false, reason: "binary" }];
   const actions = fakeWriterActions(pluginActions(store, DEMO_PROJECT_ID), definition => {
     if (definition.capability_id !== writerIntegrationCapabilities.read.capability_id) throw new Error(`Unexpected action ${definition.capability_id}`);
-    return { workspace_id: "work", writer_workspace_id: "child", source_path: `${root}-child`, target_path: root, branch: "writer/child", base_commit: "abc123", files: structuredClone(files) };
+    return { workspace_id: "work", worktree_id: "child", source_path: `${root}-child`, target_path: root, branch: "writer/child", base_commit: "abc123", files: structuredClone(files) };
   });
   const host = () => ({ store, ...openProjectVersionStores(store), homeDirectory: root, projectId: DEMO_PROJECT_ID, actions, actorId: "web-user", escapeHtml: String, translate: (value: string) => value,
     agentHost: { async invoke<I, O>(definition: { capability_id: string }, args: I): Promise<O> {

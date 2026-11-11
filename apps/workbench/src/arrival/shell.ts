@@ -1,14 +1,18 @@
-import type { PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { renderCaption, renderWordmark } from "@molis-ai/molis-work-design-system";
-import { homePluginSideTabs, renderHomePluginNavigation, type HomePluginNavigationEntry } from "../home-plugin-navigation.js";
-import { renderSidePanel, SIDE_PANEL_SCRIPT, SIDE_PANEL_STYLES } from "../side-panel.js";
-import { NO_FAVICON_LINK } from "../document-shell.js";
+import { UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
+import { ACCOUNT_CLIENT_SCRIPT } from "../scripts/account.js";
+import { escapeHtml, icon, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { renderCaption, renderIconSprite, renderWordmark, THEME_BOOTSTRAP_SCRIPT } from "@molis-ai/molis-work-design-system";
+import { homePluginSideTabs } from "../home-plugin-navigation.js";
+import { renderSidePanel, renderSideStrip, SIDE_PANEL_SCRIPT, SIDE_PANEL_STYLES } from "../side-panel.js";
+import { ACCOUNT_REGISTRATION_BODY, NO_FAVICON_LINK, renderWorkbenchDocument } from "../document-shell.js";
+import { createWorkbenchLocale } from "../i18n.js";
 
 /**
  * The frame every arrival screen shares: a titlebar, a stage and the resident bottom bar on the desk. A screen is
  * what goes inside the stage and the bar's three blocks; the frame itself never moves (specs/archive/project-arrival-flow).
  */
 export interface ArrivalShellPrimitives {
+  accountRegistration?: boolean;
   L(text: string, values?: Record<string, string | number>): string;
   escapeHtml(value: unknown): string;
   icon(name: PluginIconName): string;
@@ -34,12 +38,12 @@ interface ArrivalTitlebarOptions {
   account?: boolean;
   /** The AI caption sits beside the wordmark on the chooser only. */
   caption?: boolean;
-  /** Background tasks, capabilities and settings; the opening has none of them. */
+  /** The account, capabilities, settings and the right side's tabs; the opening has none of them. */
   tools?: boolean;
+  /** The background tasks as a tab of the right side, where the screen reads them (the chooser). */
+  tasks?: boolean;
   /** Welcome's way to switch the theme before anything else is set. */
   theme?: boolean;
-  /** The packages installed in the Home, beside its built-in tools. */
-  home_plugins?: readonly HomePluginNavigationEntry[];
 }
 
 interface ArrivalDocumentOptions {
@@ -68,10 +72,12 @@ export function createArrivalShell(p: ArrivalShellPrimitives) {
   function tools(desktopShell: boolean, options: ArrivalTitlebarOptions): string {
     const link = (path: string, glyph: PluginIconName, label: string, aria: string) =>
       `<a class="mw-btn mw-btn--ghost mw-btn--md" data-slot="button" href="${href(desktopShell, path)}" aria-label="${escapeHtml(aria)}">${icon(glyph)}<span data-slot="button-label">${escapeHtml(label)}</span></a>`;
-    const background = `<span class="arrival-bg"><button class="mw-btn mw-btn--ghost mw-btn--md background-tasks-button" data-slot="button" type="button" data-background-tasks aria-label="${L("后台任务")}" title="${L("后台任务")}" hidden>${icon("activity")}<span data-slot="button-label">${L("后台任务")}</span></button><span data-background-tasks-count hidden>0</span></span>`;
     const theme = options.theme
       ? `<span class="arrival-theme"><button class="mw-btn mw-btn--ghost mw-btn--md" data-slot="button" type="button" id="cx-theme" aria-label="${L("切换主题")}">${icon("switch")}<span data-slot="button-label">${L("切换主题")}</span></button></span>` : "";
-    const global = options.tools === false ? "" : `<span class="arrival-global">${renderHomePluginNavigation(path => href(desktopShell, path), options.home_plugins)}${background}${link("/capabilities/library", "sparkles", L("能力"), L("打开能力服务"))}${link("/settings/appearance", "settings", L("设置"), L("打开系统设置"))}</span>`;
+    // The right side's tabs end the bar, as on a project page: the Home's side views, and the background tasks where they are read.
+    const side = renderSideStrip(p, homePluginSideTabs(), { projectTools: false, tasks: options.tasks === true });
+    const unifiedAccount = options.account ? `<button class="mw-btn mw-btn--ghost mw-btn--md" type="button" data-slot="button" data-unified-account-link aria-label="${L("Molis 账号")}">${icon("user")}<span data-slot="button-label" data-unified-account-name>${L("Molis 账号")}</span></button>` : "";
+    const global = options.tools === false ? "" : `<span class="arrival-global">${unifiedAccount}${link("/capabilities/library", "sparkles", L("能力"), L("打开能力服务"))}${link("/settings/appearance", "settings", L("设置"), L("打开系统设置"))}${side.includes("data-side-tab=") ? side : ""}</span>`;
     const account = options.account ? `<button class="mw-btn mw-btn--ghost mw-btn--md" data-slot="button" type="button" data-account-link aria-label="${L("账号管理")}">${icon("user")}<span data-slot="button-label" data-personal-name>${L("未登录")}</span></button>` : "";
     return `<nav class="arrival-tools" aria-label="${L("全局")}">${theme}${account}${global}</nav>`;
   }
@@ -88,7 +94,7 @@ export function createArrivalShell(p: ArrivalShellPrimitives) {
   }
 
   function document(options: ArrivalDocumentOptions): string {
-    const side = options.titlebar.includes("data-side-plugin-open") ? renderSidePanel(p, homePluginSideTabs(), false) : "";
+    const side = options.titlebar.includes("data-side-tab=") ? renderSidePanel(p, homePluginSideTabs(), { projectTools: false, tasks: options.titlebar.includes('data-side-tab="tasks"') }) : "";
     return `<!doctype html>
 <html lang="${p.htmlLang()}">
 <head>
@@ -101,7 +107,7 @@ export function createArrivalShell(p: ArrivalShellPrimitives) {
   <link rel="stylesheet" href="/assets/molis-work-arrival.css">
   ${side ? `<style>${SIDE_PANEL_STYLES}body.immersive-workbench.arrival-page{--desktop-titlebar-height:var(--arrival-titlebar-h)}</style>` : ""}
 </head>
-<body class="arrival-page immersive-workbench" data-arrival="${options.screen}"${options.desktopShell ? ' data-native-desktop="true"' : ""}${options.bodyAttrs ?? ""}>
+<body${p.accountRegistration ? ACCOUNT_REGISTRATION_BODY : ''} class="arrival-page immersive-workbench" data-arrival="${options.screen}"${options.desktopShell ? ' data-native-desktop="true"' : ""}${options.bodyAttrs ?? ""}>
   ${p.renderIconSprite()}
   <div class="arrival" data-workspace data-screen="${options.screen}">
     ${options.titlebar}
@@ -110,10 +116,52 @@ export function createArrivalShell(p: ArrivalShellPrimitives) {
     ${side}
   </div>
   ${options.after ?? ""}
-  <script>${options.scripts}${side ? SIDE_PANEL_SCRIPT : ""}</script>
+  <script>${options.scripts}${options.screen === "chooser" ? ACCOUNT_CLIENT_SCRIPT : ""}${side ? SIDE_PANEL_SCRIPT : ""}</script>
 </body>
 </html>`;
   }
 
   return { href, titlebar, bar, document, caption, wordmark: () => renderWordmark() };
+}
+
+/** The same workbench document and account controls, without opening an anonymous business Home. */
+export function renderPersonalAccountEntry(controlToken: string, desktop: boolean, message?: string,
+  locale: Pick<ReturnType<typeof createWorkbenchLocale>, "L" | "htmlLang" | "clientI18nScript"> = createWorkbenchLocale(() => "zh"), nativeBootstrap = "", installationLogin = false): string {
+  const { L } = locale;
+  return renderWorkbenchDocument({lang: locale.htmlLang(), title: "Molis Work",
+    body_attributes: {class: "arrival-page immersive-workbench", "data-arrival": "welcome", "data-account-entry": true, "data-native-desktop": desktop ? "true" : null},
+    head_html: `<meta name="molis-work-page-session" content="${escapeHtml(controlToken)}"><script>${THEME_BOOTSTRAP_SCRIPT}${desktop ? nativeBootstrap : ""}</script><link rel="stylesheet" href="/assets/molis-work-arrival.css">`,
+    body_html: `${renderIconSprite()}<div class="arrival" data-screen="welcome"><header class="arrival-titlebar"${desktop ? ' data-tauri-drag-region="deep"' : ""}><span class="arrival-brand">${icon("brand")}${renderWordmark()}</span></header>
+      <main class="arrival-stage"><section class="mw-empty">
+      <button type="button" data-unified-account-link hidden></button>
+      <p role="status" data-account-entry-status>${escapeHtml(message ? L(message) : (installationLogin ? "" : L("正在打开登录页面…")))}</p><button class="mw-btn mw-btn--secondary" type="button" data-account-entry-retry${message ? "" : " hidden"}>${escapeHtml(L("重试"))}</button></section></main></div>
+      <script>${locale.clientI18nScript()}${UI_REQUEST_CLIENT_SCRIPT}${message ? `document.querySelector('[data-account-entry-retry]').onclick=()=>location.reload();` : installationLogin ? ACCOUNT_CLIENT_SCRIPT : `
+      (() => {
+        const status=document.querySelector('[data-account-entry-status]'),retry=document.querySelector('[data-account-entry-retry]');
+        const start=async()=>{
+          retry.hidden=true;
+          try {
+            if(document.body.dataset.nativeDesktop==='true'){
+              const state=await molisWorkRequest('/api/personal/status');
+              if(state.identity && state.ready && state.browserSessionTicket){
+                await molisWorkRequest('/api/personal/native-attach?ticket='+encodeURIComponent(state.browserSessionTicket),{method:'POST',body:{}});
+                location.replace('/?desktop=1');
+                return;
+              }
+            }
+            const result=await molisWorkRequest('/api/personal/login',{control:true,body:{}});
+            const url=new URL(result.loginUrl,location.origin);
+            url.searchParams.set('accountEntry','1');
+            if(document.body.dataset.nativeDesktop==='true')url.searchParams.set('desktop','1');
+            location.replace(url.href);
+          } catch(error) { molisWorkRequest.show(status,error);retry.hidden=false; }
+        };
+        const open=()=>navigator.locks?navigator.locks.request('molis-account-entry',start):start();
+        retry.onclick=()=>void open();void open();
+      })();`}</script>`});
+}
+
+/** Credential-free document for external entry; the next navigation uses the normal session rules. */
+export function renderAccountSameOriginEntry(): string {
+  return '<!doctype html><meta charset="utf-8"><title>Molis Work</title><script>location.replace(location.href)</script><noscript><a href="/">Molis Work</a></noscript>';
 }

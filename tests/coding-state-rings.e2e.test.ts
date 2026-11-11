@@ -161,14 +161,14 @@ test("VUX-40: the writer directories and integration dialogs speak English in En
       const lifetime=(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})()(root),errors=[],q=selector=>root.querySelector(selector);
       const settle=()=>new Promise(resolve=>setTimeout(resolve,20));
       const writers=(${embeddedFactory("writerDirectories")})({lifetime,translate:L,q,reviews:()=>{},current:()=>'s',workspace:()=>'w',workspaceLabel:()=>'/repo',status:message=>errors.push(message),
-        assignments:()=>[{workspace_id:'wa',task:'Write the parser'}],saveAssignments:async()=>{},select:async()=>{},
-        api:async()=>({directories:[{canonical_path:'/repo-a',branch:'part-a',base_commit:'abc123',workspace_id:'wa'},{canonical_path:'/repo-b',branch:'part-b',problem:'its branch moved'},
-          {canonical_path:'/repo-c',branch:null,base_commit:'def456'}]})});
+        assignments:()=>[{worktree_id:'wa',task:'Write the parser'}],saveAssignments:async()=>{},select:async()=>{},chosen:()=>'wc',integrate:()=>{},
+        api:async()=>({directories:[{canonical_path:'/repo-a',branch:'part-a',base_commit:'abc123',worktree_id:'wa'},{canonical_path:'/repo-b',branch:'part-b',problem:'its branch moved',worktree_id:'wb'},
+          {canonical_path:'/repo-c',branch:null,base_commit:'def456',worktree_id:'wc'}]})});
       q('[data-coding-writer-directories-open]').click();await settle();
       q('[data-coding-writer-assignments-save]').click();await settle();
       const turn=document.createElement('div');document.body.append(turn);
-      writers.renderTurn(turn,{frozen:{role_id:'writers',subagent_workspaces:[{workspace_id:'wa',directory:{canonical_path:'/repo-a'}}]}},
-        {kind:'user',text:'Split the work'+${JSON.stringify(marker)}+JSON.stringify([{workspace_id:'wa',directory:'/repo-a',task:'Write the parser',branch:'part-a',base_commit:'abc123'}])});
+      writers.renderTurn(turn,{frozen:{role_id:'writers',subagent_workspaces:[{worktree_id:'wa',directory:{canonical_path:'/repo-a'}}]}},
+        {kind:'user',text:'Split the work'+${JSON.stringify(marker)}+JSON.stringify([{worktree_id:'wa',directory:'/repo-a',task:'Write the parser',branch:'part-a',base_commit:'abc123'}])});
       const writersText=q('[data-coding-writer-directories-dialog]').textContent.replace(/\\s+/g,' ');
       q('[data-coding-writer-directories-dialog]').close();
       const integrations=(${embeddedFactory("integrations")})({lifetime,translate:L,q,reviews:()=>{},status:message=>errors.push(message),
@@ -188,7 +188,13 @@ test("VUX-40: the writer directories and integration dialogs speak English in En
     assert.match(result.writers, /Main repository: \/repo/);
     assert.match(result.writers, /Branch: part-a.*Started from: abc123.*Include in the parallel split/);
     assert.match(result.writers, /Can no longer be used as a separate worktree: its branch moved\./);
-    assert.match(result.writers, /The directory exists but isn't authorized for this project/);
+    // Every worktree the Host lists is its own: it takes work, and the session's next round can run in it; none is a folder of the project to link (plan A).
+    assert.match(result.writers, /\/repo-a.*Started from: abc123.*Include in the parallel split.*Use for the next turn/);
+    assert.equal(result.writers.match(/Use for the next turn/g)?.length, 1, "a worktree that takes work, not the one whose branch moved, nor the one the session already runs in");
+    // CODING-WORKTREE-05: the worktree the session runs in brings its changes back from its own row.
+    assert.match(result.writers, /\/repo-c.*Started from: def456.*Include in the parallel split.*Bring back into the main workspace/);
+    assert.equal(result.writers.match(/Bring back into the main workspace/g)?.length, 1);
+    assert.doesNotMatch(result.writers, /isn't authorized for this project/);
     assert.match(result.writers, /Split saved, not sent yet\./);
     assert.match(result.turn, /^Split the work.*This turn's split · separate directories: 1.*Branch: part-a · started from: abc123/);
     assert.match(result.integration, /From: \/tmp\/child · child.*Back into: \/repo/);
@@ -226,7 +232,7 @@ test("VUX-40: the step report dialog and the change set reader speak English in 
           reference:{artifact_id:'a',version:2},saved_at:Date.UTC(2026,9,20,9,30),output:null,net_groups:[{path:'a.ts',available:true,indices:[0,1]}],
           change:{files:[{path:'a.ts',kind:'modified',added_lines:2,removed_lines:1,review:{decision:'approved',execution:'applied'}},
             {path:'a.ts',kind:'modified',added_lines:1,removed_lines:0,review:{decision:'approved',execution:'failed'}},
-            {path:'src/b.ts',kind:'added',added_lines:4,removed_lines:0,review:{decision:'rejected'}},{path:'c.ts',kind:'modified',added_lines:1,removed_lines:1}]}})});
+            {path:'src/b.ts',kind:'added',added_lines:4,removed_lines:0,review:{decision:'rejected',execution:'not-applied'}}]}})});
       const opener=document.createElement('button');opener.dataset.codingChangeOpen='r';root.append(opener);opener.click();
       await new Promise(resolve=>setTimeout(resolve,20));
       q('[data-coding-line]').click();
@@ -242,9 +248,9 @@ test("VUX-40: the step report dialog and the change set reader speak English in 
     assert.match(result.step, /You asked for rework.*Missing an edge case.*This assessment is for an earlier report/);
     assert.equal(result.stepStatus, "The run has ended; the step reports keep their states, so check each one.");
     assert.match(result.files, /a\.ts\s*Writes: 2\s*Net change this turn.*Write 1.*Written.*Write 2.*Write failed/);
-    assert.match(result.files, /b\.ts\s*new.*Rejected.*c\.ts\s*modified.*Older record/);
+    assert.match(result.files, /b\.ts\s*new.*Rejected/);
     assert.match(result.reader, /Fixed v2/);
-    assert.match(result.reader, /Files: 3 · writes: 4/);
+    assert.match(result.reader, /Files: 2 · writes: 3/);
     assert.match(result.reader, /Click a line number to leave a comment/);
     assert.equal(result.comments, "Comment on a.ts · write 1 · line 3 after");
   } finally { await browser.close(); rmSync(directory, { recursive: true, force: true }); }

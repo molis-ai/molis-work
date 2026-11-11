@@ -1,4 +1,7 @@
+import { projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
 import assert from "node:assert/strict";
+import { mkdirSync, rmSync } from "node:fs";
+import { join } from "node:path";
 import { createServer } from "node:http";
 import test, { type TestContext } from "node:test";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
@@ -15,9 +18,14 @@ import { createLocalFeedApplication } from "./fixtures/feed-library.js";
 
 async function scheduledAgent(t: TestContext, options: { hold?: boolean; workspace?: boolean; model?: boolean } = {}) {
   const f = await openTestHome(t), project = await f.createProject("Scheduled Agent");
-  if (options.workspace !== false) await f.host.configurePersonalPlanning(f.home, withMolisWorkProjectCatalog)({ homeDirectory: f.home }, catalog => catalog.commit(() => catalog.addWorkspaceProject({
-    project_id: project.project_id, canonical_path: f.home, actor_id: "web-user", user_confirmed: true,
-  })));
+  // Every project has an output folder; the one a task cannot use is an output that is gone from disk.
+  const gone = join(f.home, "removed-output");
+  if (options.workspace === false) mkdirSync(gone);
+  await f.host.configurePersonalPlanning(f.home, withMolisWorkProjectCatalog)({ homeDirectory: f.home }, catalog => catalog.commit(() => options.workspace === false
+    ? catalog.changeDirectories({ project_id: project.project_id, actor_id: "web-user", change: { kind: "set_output", target: { workspace_path: gone } },
+      expected_revision: catalog.projectDirectories(project.project_id).revision })
+    : catalog.addWorkspaceProject({ project_id: project.project_id, canonical_path: f.home, actor_id: "web-user", user_confirmed: true })));
+  if (options.workspace === false) rmSync(gone, { recursive: true });
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), disconnected = Promise.withResolvers<void>(), prompts: string[] = [];
   const model = createServer(async (request, response) => {
     let body = ""; for await (const part of request) body += part;
@@ -72,14 +80,15 @@ for (const missing of ["workspace", "model"] as const) test(`Schedule persists a
   const f = await scheduledAgent(t, { [missing]: false });
   assert.equal((await f.tick()).failed, 1);
   assert.equal(f.prompts.length, 0); assert.equal(f.task().turns.at(-1)?.kind, "system");
-  assert.match(f.task().last_error ?? "", missing === "workspace" ? /工作区/ : /模型|model/i);
+  // A missing folder is the output deleted from disk: the agent runtime refuses to start in it and says so (its own sentence).
+  assert.match(f.task().last_error ?? "", missing === "workspace" ? /folder does not exist/i : /还没有配置可用的模型/);
 });
 
 test("SYS-15-S7/A3: disabling Schedule during the actual model request cancels it and writes no late task result or notification", { timeout: 60_000 }, async t => {
   const f = await scheduledAgent(t, { hold: true }), before = f.task().turns;
   const ticking = f.tick();
   await f.entered;
-  await f.web.delete(`/api/settings/projects/${encodeURIComponent(f.project.project_id)}/plugins`, { plugin_id: "schedule" });
+  await f.web.delete(`/api/settings/projects/${encodeURIComponent(f.project.project_id)}/plugins`, { plugin_id: "schedule", expected_revision: await projectPluginRevision(f.web, f.project.project_id) });
   await f.disconnected; f.release(); await ticking;
   assert.deepEqual(f.task().turns, before);
   assert.equal(createLocalFeedApplication(f.store.db).snapshot(f.project.project_id).feed_items.length, 0);

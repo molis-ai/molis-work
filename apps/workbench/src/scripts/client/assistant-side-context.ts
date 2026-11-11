@@ -3,7 +3,8 @@
  * (待发送), what the latest round used (本次使用) and what earlier rounds used (历史引用), kept apart so a draft, this
  * execution and an old reference are never read as one another.
  *
- * - 待发送 is what the strip above the input names, read from the island (`pending()`); removing one stays in the strip.
+ * - 待发送 is what the strip above the input names and the files and picks the composer's own strip carries once read, read from
+ *   the island (`pending()`); removing one stays in its strip.
  * - 本次使用 and 历史引用 are the work's own facts: each round's materials and the selection it saw, and the objects the work holds as materials,
  *   each once, under the latest round that used it (a round's materials name their objects). Only an object no round names
  *   (recorded outside a Send) is placed by when it was recorded against the latest round's start. Objects are read again
@@ -167,7 +168,7 @@ export const ASSISTANT_SIDE_USAGE_FACTORY_SCRIPT = String.raw`({ L, el, progress
   return { paint(work) {
     const node = box(), view = current();
     if (!node) return;
-    const usage = work && view && view.usage ? view.usage : null, last = work && view ? view.rounds[view.rounds.length - 1] : null, round = last && (last.usage || last.model) ? last : null;
+    const usage = work && view && view.usage ? view.usage : null, last = work && view ? view.rounds[view.rounds.length - 1] : null, round = last || null;
     const signature = JSON.stringify([work && work.work_id, usage, round && [round.run_id, round.usage, round.model, round.ended_at]]);
     if (node.dataset.signature === signature) return;
     const wasOpen = node.querySelector("details")?.open;

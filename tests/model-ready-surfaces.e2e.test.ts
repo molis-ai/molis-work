@@ -77,9 +77,11 @@ test("workflows: an AI handoff stops saying the model is missing", { timeout: 90
   await evaluate(`(() => { const field = document.querySelector('[data-wf-link-field=instructions]');
     field.value = '整理成一页说明'; field.dispatchEvent(new Event('input', { bubbles: true })); })()`);
   await waitFor("document.querySelector('[data-wf-readiness]')?.dataset.ready === 'false' && /还没有可用的文字模型/.test(document.querySelector('[data-wf-readiness]').textContent)", 10_000);
+  // The way to the settings is the page's own return trip (specs/draft-and-return §4), not an address.
+  assert.equal(await evaluate("Boolean(document.querySelector('[data-wf-readiness] button[data-wf-action=model-settings]'))"), true, "the way to the settings is offered while the model is missing");
   await firstModelIsReady(browser);
   await waitFor("document.querySelector('[data-wf-readiness]')?.dataset.ready === 'true'", 10_000);
-  assert.equal(await evaluate("document.querySelector('[data-wf-readiness] a[href=\"/settings/models\"]')"), null, "the pointer to the settings is gone with the problem");
+  assert.equal(await evaluate("document.querySelector('[data-wf-readiness] [data-wf-action=model-settings]')"), null, "the way to the settings is gone with the problem");
 });
 
 test("alchemist: the banner that asks for a model is gone from the open direction", { timeout: 90_000 }, async t => {
@@ -191,19 +193,27 @@ test("jelly: settings opened some other way stay as they are when the first mode
 const CLIENTS_READY = `!document.querySelector('[data-ui-client-state="loading"]')
   && ![...document.querySelectorAll('[data-deferred-surface]')].some(surface => !surface.closest('[hidden]') && surface.dataset.uiClientState !== 'failed')`;
 
-async function openScheduleDialog({ waitFor, click }: Pick<Awaited<ReturnType<typeof pluginFrameBrowser>>, "waitFor" | "click">) {
+// Every project has an output (batch 05, SSC-17: the default one is made on the first run), so the Host always reports a folder. To show
+// the folder hint beside the model one, the page's readiness answer says the folder is missing; the model half stays the Host's own.
+const NO_FOLDER = `if (!window.realFetch) { window.realFetch = window.fetch; window.fetch = async (url, options) => {
+  const answer = await window.realFetch(url, options);
+  if (!String(url).endsWith('/api/plugins/io.molis.work.schedule/readiness') || !answer.ok) return answer;
+  return new Response(JSON.stringify({ ...await answer.json(), workspace: false }), { status: 200, headers: { 'content-type': 'application/json' } }); }; }`;
+
+async function openScheduleDialog({ waitFor, click }: Pick<Awaited<ReturnType<typeof pluginFrameBrowser>>, "waitFor" | "click">, page: { evaluate: (expression: string) => Promise<unknown> }) {
+  await page.evaluate(NO_FOLDER);
   await waitFor(`document.querySelector('[data-schedule-new]') && ${CLIENTS_READY}`, 20_000);
   await click("[data-schedule-new]");
   const shown = (kind: string) => `(() => { const hint = document.querySelector('[data-schedule-hint="${kind}"]'); return Boolean(hint) && !hint.hidden && hint.getClientRects().length > 0; })()`;
   await waitFor(`${shown("model")} && ${shown("workspace")}`, 20_000);
 }
 
-test("schedule: the new-task dialog's model hint goes when the first model is ready, and its links lead to where each is fixed", { timeout: 90_000 }, async t => {
+test("schedule: the new-task form's model hint goes when the first model is ready, and its links lead to where each is fixed", { timeout: 90_000 }, async t => {
   const browser = await open(t, "schedule");
   if (!browser) return;
   const {projectId}=browser;
   const {evaluate,waitFor}=browser.child;
-  await openScheduleDialog(browser.child);
+  await openScheduleDialog(browser.child, browser);
   // The desktop page adds ?desktop=1 to the links it serves; where each one goes is the path.
   const linkPath = (kind: string) => evaluate<string | null>(`(() => { const link = document.querySelector('[data-schedule-hint=${kind}] a'); return link && new URL(link.getAttribute('href'), ${JSON.stringify(browser.origin)}).pathname; })()`);
   assert.equal(await linkPath("model"), "/settings/models", "a plain link to the model settings");
@@ -221,27 +231,28 @@ test("schedule: the new-task dialog's model hint goes when the first model is re
   }
   // Two hints one under the other sit a form-gap apart (12px): a paragraph's default margins would add 26px to it.
   assert.ok(await evaluate<number>(`(() => { const top = document.querySelector('[data-schedule-hint=model]').getBoundingClientRect(), next = document.querySelector('[data-schedule-hint=workspace]').getBoundingClientRect(); return Math.round(next.top - top.bottom); })()`) <= 16, "the hints are a form-gap apart");
-  // The model is set up somewhere else (another pane, another tab) while the dialog stays open.
+  // The model is set up somewhere else (another pane, another tab) while the form stays open.
   await firstModelIsReady(browser);
   await waitFor("document.querySelector('[data-schedule-hint=model]').hidden", 10_000);
-  assert.equal(await evaluate("!document.querySelector('[data-schedule-hint=workspace]').hidden && document.querySelector('[data-schedule-create-dialog]').open"), true, "the folder is still missing, and the person's dialog is still there");
+  assert.equal(await evaluate("!document.querySelector('[data-schedule-hint=workspace]').hidden && !document.querySelector('[data-schedule-create-pane]').hidden"), true, "the folder is still missing, and the person's form is still there");
   assert.equal(await evaluate("document.querySelector('[data-schedule-create-form] [type=submit]').disabled"), false, "and creating was never blocked");
-  // The project settings open over the page; the modal dialog would sit over them, so the link leaves it first.
+  // The project settings open over the page. The form is part of the page, not a dialog over it (batch 18: no dialog), so it stays
+  // where it is, with what the person wrote, under the settings.
   await evaluate("document.querySelector('[data-schedule-hint=workspace] a').click()");
-  await waitFor("!document.querySelector('[data-schedule-create-dialog]').open",10_000);
   await browser.waitFor("document.body.dataset.desktopSurface === 'project-settings'",10_000);
-  assert.equal(await evaluate("document.querySelectorAll(':modal').length"), 0, "nothing modal is left over the settings");
+  assert.equal(await evaluate("document.querySelectorAll(':modal').length"), 0, "nothing modal is over the settings");
+  assert.equal(await evaluate("!document.querySelector('[data-schedule-create-pane]').hidden"), true, "and the form waits under them");
 });
 
-test("schedule: the model link leaves the modal dialog for the model settings", { timeout: 90_000 }, async t => {
+test("schedule: the model link opens the model settings with nothing modal over them, and the form waits under them", { timeout: 90_000 }, async t => {
   const browser = await open(t, "schedule");
   if (!browser) return;
   const { evaluate, waitFor } = browser.child;
-  await openScheduleDialog(browser.child);
+  await openScheduleDialog(browser.child, browser);
   await evaluate("document.querySelector('[data-schedule-hint=model] a').click()");
   await browser.waitFor("document.body.dataset.desktopSurface === 'settings'",10_000);
-  await waitFor("!document.querySelector('[data-schedule-create-dialog]').open",10_000);
-  assert.equal(await evaluate("document.querySelectorAll(':modal').length"), 0, "nothing modal is left over the settings");
+  assert.equal(await evaluate("document.querySelectorAll(':modal').length"), 0, "nothing modal is over the settings");
+  assert.equal(await evaluate("!document.querySelector('[data-schedule-create-pane]').hidden"), true, "and the form waits under them");
 });
 
 test("plugin builder studio: the empty model list and the link to the settings are read again", { timeout: 90_000 }, async t => {

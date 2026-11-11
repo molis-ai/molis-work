@@ -86,6 +86,11 @@ export interface AgentCommandOutput {
     timed_out?: boolean;
     cancelled?: boolean;
     stop_reason?: "cancelled" | "timed-out";
+    after_write_check?: {
+        checker_id: string;
+        display_name: string;
+        version: number;
+    };
 }
 
 export interface AgentCommandOutputRef {
@@ -216,6 +221,24 @@ export interface AgentDraftTextResult {
     } | null;
 }
 
+export interface AgentEvidenceCheck {
+    owner_plugin_id: string;
+    run: AgentRunRef;
+    commands: Array<{
+        call_id: string;
+        recorded: boolean;
+        exit_code: number | null;
+        timed_out: boolean;
+        cancelled: boolean;
+        changed_after: boolean;
+    }>;
+}
+
+export interface AgentEvidenceCheckRequest {
+    run_id: string;
+    command_call_ids: string[];
+}
+
 export interface AgentExecutionPlan {
     source: ArtifactReference;
     title: string;
@@ -248,6 +271,7 @@ export interface AgentFrozenRole {
     };
     character_skill_ids?: string[];
     subagent_workspaces?: AgentSubagentWorkspace[];
+    directories?: RunDirectories;
     subagents?: AgentFrozenSubagentRole[];
     character?: AgentFrozenCharacter;
     role_id: string;
@@ -261,8 +285,17 @@ export interface AgentFrozenRole {
         prompt: AgentPromptText;
     };
     prompts: AgentPromptText[];
-    skills?: AgentSkillDefinition[];
+    skills?: AgentRoundSkill[];
+    reply_locale?: ActionLocale;
     host_tools: string[];
+}
+
+export interface AgentFrozenSkill {
+    ref: SkillRef;
+    origin: "own" | "catalog";
+    name: string;
+    tools: string[];
+    named: boolean;
 }
 
 export type AgentFrozenStart = AgentFrozenStartFields & AgentWorkspace & ActionCallOrigin;
@@ -306,7 +339,7 @@ export interface AgentGitIntegrationReviewDocument {
     source: {
         session_id: string;
         run_id: string;
-        subagent_id: string;
+        subagent_id?: string;
         branch: string;
         base_commit: string;
         directory: string;
@@ -345,13 +378,6 @@ export interface AgentMcpCallResult {
     truncated: boolean;
 }
 
-export interface AgentMcpCapability {
-    catalog(session: AgentSessionRef): Promise<{
-        servers: AgentMcpServerHealth[];
-        tools: AgentMcpToolRef[];
-    }>;
-}
-
 export interface AgentMcpLibrary {
     catalog?(): Promise<Array<{
         owner: AgentSkillOwner;
@@ -381,11 +407,6 @@ export interface AgentMcpReviewDocument {
     server: string;
     tool: string;
     arguments_json: string;
-}
-
-export interface AgentMcpServerHealth {
-    server: string;
-    status: "ready" | "failed" | "unknown";
 }
 
 export interface AgentMcpServerInput {
@@ -438,9 +459,9 @@ export interface AgentMcpToolDescriptor extends Required<Pick<AgentMcpToolRef, "
 export interface AgentMcpToolRef {
     server: string;
     tool: string;
-    version?: string;
+    version: string;
     server_label?: string;
-    configuration_version?: number;
+    configuration_version: number;
 }
 
 export interface AgentMemoryBatchPreview {
@@ -1421,6 +1442,10 @@ export interface AgentRewindReviewDocument {
     }>;
 }
 
+export interface AgentRoundSkill extends AgentFrozenSkill {
+    body: string;
+}
+
 export interface AgentRunBudget {
     max_turns?: number;
     max_output_tokens?: number;
@@ -1535,10 +1560,7 @@ export interface AgentRuntimeAdapter {
     control(run: AgentRunRef, control: AgentRunControl): Promise<void>;
     readCommandOutput(session: AgentSessionRef, ref: AgentCommandOutputRef): Promise<AgentCommandOutput>;
     readonly checkpoints?: AgentCheckpointsCapability;
-    readonly skills?: AgentSkillsCapability;
-    readonly skillLibrary?: AgentSkillLibrary;
     readonly mcpLibrary?: AgentMcpLibrary;
-    readonly mcp?: AgentMcpCapability;
     readonly subagents?: AgentSubagentsCapability;
 }
 
@@ -1748,39 +1770,9 @@ export interface AgentSessionWriteObservation {
     dispose(): void;
 }
 
-export interface AgentSkillCandidate {
-    candidate_id: string;
-    name: string;
-    summary: string;
-    source_label: string;
-    files: string[];
-    body: string;
-}
-
-export interface AgentSkillCatalogEntry extends AgentSkillDeclaration {
-    source: "builtin" | "installed";
-    enabled: boolean;
-}
-
-export interface AgentSkillLibrary {
-    list(owner: AgentSkillOwner): Promise<AgentSkillCatalogEntry[]>;
-    read(owner: AgentSkillOwner, ref: AgentSkillRef): Promise<AgentSkillDefinition>;
-    discover(owner: AgentSkillOwner, directory: AgentWorkingDirectory, path: string): Promise<AgentSkillCandidate[]>;
-    install(owner: AgentSkillOwner, candidateId: string): Promise<AgentSkillCatalogEntry>;
-}
-
 export interface AgentSkillOwner {
     project_id: string;
     plugin_id: string;
-}
-
-export interface AgentSkillRef {
-    skill_id: string;
-    version: number;
-}
-
-export interface AgentSkillsCapability {
-    catalog(session: AgentSessionRef): Promise<AgentSkillCatalogEntry[]>;
 }
 
 export interface AgentStartExecution extends ActionCallOrigin {
@@ -1882,7 +1874,7 @@ export interface AgentSubagentView {
 }
 
 export interface AgentSubagentWorkspace {
-    workspace_id: string;
+    worktree_id: string;
     directory: AgentWorkingDirectory;
 }
 
@@ -2057,7 +2049,7 @@ export interface BuilderAgentActivity {
 
 export interface BuilderAgentRecord {
     id: string;
-    role: BuilderAgentRequest['role'] | 'model';
+    role: BuilderAgentRequest['role'];
     promptVersion: string;
     contractRevision: string;
     instruction: string;
@@ -2172,10 +2164,6 @@ export declare const agentHostCapabilities: {
     readonly readBackground: ActionDefinition<[runtimeId: string, sessionId?: string], AgentBackgroundTask[]>;
     readonly stopBackground: ActionDefinition<[runtimeId: string, taskId: string], boolean>;
     readonly releaseProjectRound: ActionDefinition<[runtimeId: string, workId: string, note: string], void>;
-    readonly listSkills: ActionDefinition<[runtimeId: string], AgentSkillCatalogEntry[]>;
-    readonly readSkill: ActionDefinition<[runtimeId: string, ref: AgentSkillRef], AgentSkillDefinition>;
-    readonly discoverSkills: ActionDefinition<[runtimeId: string, directory: AgentWorkingDirectory, path: string], AgentSkillCandidate[]>;
-    readonly installSkill: ActionDefinition<[runtimeId: string, candidateId: string], AgentSkillCatalogEntry>;
     readonly listMcp: ActionDefinition<[runtimeId: string], AgentMcpServerView[]>;
     readonly saveMcp: ActionDefinition<[runtimeId: string, input: AgentMcpServerInput], AgentMcpServerView>;
     readonly controlMcp: ActionDefinition<[runtimeId: string, id: string, action: "connect" | "disconnect" | "cancel" | "remove"], void>;
@@ -2188,6 +2176,7 @@ export declare const agentHostCapabilities: {
     }>;
     readonly controlRun: ActionDefinition<[session: AgentSessionRef, run: AgentRunRef, control: AgentRunControl], void>;
     readonly readCommandOutput: ActionDefinition<[session: AgentSessionRef, ref: AgentCommandOutputRef], AgentCommandOutput>;
+    readonly checkEvidence: ActionDefinition<AgentEvidenceCheckRequest, AgentEvidenceCheck>;
     readonly inspectRecovery: ActionDefinition<[session: AgentSessionRef], AgentRecoveryReport>;
     readonly recoverRun: ActionDefinition<[session: AgentSessionRef, run: AgentRunRef, expectedVersion: number], AgentRecoveryReport>;
     readonly listCheckpoints: ActionDefinition<[session: AgentSessionRef], AgentCheckpoint[]>;
@@ -2248,6 +2237,7 @@ interface AgentFrozenStartFields {
     execution_plan?: AgentExecutionPlan;
     continues_step_board_of?: string;
     subagent_workspaces?: AgentSubagentWorkspace[];
+    directories?: RunDirectories;
     character?: AgentFrozenCharacter;
     role_id: string;
     role_version: number;
@@ -2276,7 +2266,8 @@ interface AgentFrozenStartFields {
         layer: AgentPromptLayer;
         user_revision?: number;
     }>;
-    skills: AgentSkillDeclaration[];
+    skills: AgentFrozenSkill[];
+    reply_locale?: ActionLocale;
     mcp_tools: AgentMcpToolRef[];
     mcp_sources?: AgentMcpSourceRef[];
     host_tools: string[];
@@ -2336,7 +2327,7 @@ interface AgentStartInputFields {
     reasoning_effort?: AgentReasoningEffort;
     text_materials?: AgentTextMaterial[];
     image_materials?: AgentImageMaterial[];
-    skills?: AgentSkillRef[];
+    skills?: SkillRef[];
     mcp_tools?: AgentMcpToolRef[];
     mcp_sources?: AgentMcpSourceRef[];
     budget?: AgentRunBudget;

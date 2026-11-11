@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { purgeAssistantProject } from "@molis-ai/molis-work-app-local-host";
 import { openWork, putInput, readWork, seedWork, sendBarrier, sendBrowser, waitWork } from "./fixtures/assistant-send-journey.js";
+import { CURRENT_WORK } from "./fixtures/assistant-current-work.js";
 
 // W2-18-ASSISTANT-404-01: the real owner removes A, Chrome delays its actual 404, and B's real read wins first.
 test("W2-18-ASSISTANT-404-01: A's late 404 preserves B while deleting the work still in view exits it", { timeout: 120_000 }, async t => {
@@ -32,22 +33,22 @@ test("W2-18-ASSISTANT-404-01: A's late 404 preserves B while deleting the work s
     await delivered;
     // Drain the page's fetch/JSON reaction after Chrome delivered the HTTP reply.
     await browser.evaluate("new Promise(resolve => setTimeout(resolve, 0))");
-    assert.equal(await browser.evaluate("localStorage.getItem('molis.assistant.current')"), b);
-    assert.equal(await browser.evaluate("document.querySelector('[data-assistant-input]').value"), "B 留下的草稿");
+    assert.equal(await browser.evaluate(CURRENT_WORK), b);
+    assert.equal(await browser.evaluate("document.querySelector('[data-assistant-composer] .mw-composer__input').value"), "B 留下的草稿");
     assert.match(await browser.evaluate<string>("document.querySelector('[data-assistant-context-strip]:not([hidden])').textContent"), /B 的材料/);
     assert.deepEqual((await readWork(browser, b)).rounds, beforeB.rounds);
     await waitWork(browser, b, view => view.work.draft === "B 留下的草稿");
   } finally { await barrier.close(); }
   await browser.reloadPage();
-  await browser.waitFor("document.querySelector('[data-assistant-input]').value === 'B 留下的草稿'");
-  assert.equal(await browser.evaluate("localStorage.getItem('molis.assistant.current')"), b, "B's choice and unsent draft persist across reload");
+  await browser.waitFor("document.querySelector('[data-assistant-composer] .mw-composer__input').value === 'B 留下的草稿'");
+  assert.equal(await browser.evaluate(CURRENT_WORK), b, "B's choice and unsent draft persist across reload");
 
   const c = await seedWork(browser, "当前页被删除的工作");
   await openWork(browser, c);
   await browser.waitFor("document.querySelector('[data-assistant-thread]').textContent.includes('当前页被删除的工作')");
   assert.equal(await purgeAssistantProject(browser.homeDirectory, browser.projectId!), 1);
   await browser.evaluate("window.dispatchEvent(new Event('focus'))");
-  await browser.waitFor("localStorage.getItem('molis.assistant.current') === null && document.querySelector('[data-assistant-target-wrap]').dataset.mode === 'new'");
+  await browser.waitFor(`${CURRENT_WORK} === null && !document.querySelector('[data-assistant-composer] .mw-composer__to [data-tag-remove]')`);
   assert.equal(await browser.evaluate("document.querySelectorAll('[data-assistant-thread] > [data-round]').length"), 0);
   assert.deepEqual((await readWork(browser, b)).rounds, beforeB.rounds, "exiting a deleted work leaves the valid work alone");
 });

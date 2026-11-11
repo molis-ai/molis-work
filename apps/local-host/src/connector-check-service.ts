@@ -9,14 +9,13 @@ import { rememberConnectorCheck } from "./connector-observations.js";
 import { refreshRefused } from "./connector-refresh-refusals.js";
 import { ApiOAuthError } from "./connector-api-oauth.js";
 import { withConnectorProtocols } from "./connector-protocol-store.js";
-import { isCatalogConnectorId } from "@molis-ai/molis-work-integration-catalog";
 import type { StoredMcpConfiguration } from "./connector-mcp-configuration.js";
 
 interface ConnectorCheckControl { signal?: AbortSignal; beforeEffect?(): void | Promise<void> }
 
 /** All entrypoints verify through the protocol owner. Discovery never executes a business tool. */
 export async function checkConnectorConnection(home: string, id: string, remember: ConnectorMcpDirectory["remember"], control: ConnectorCheckControl = {}) {
-  const row = withConnectorConnections(home, store => store.require(id));
+  const row = withConnectorConnections(home, store => store.require(id), "required");
   await control.beforeEffect?.(); control.signal?.throwIfAborted();
   // S-70: an account whose refresh the token endpoint refused stays marked until the person reconnects it or a forced refresh succeeds.
   // A check neither asks the service (the access token may still pass for a while, which would clear the mark) nor writes over the mark
@@ -41,7 +40,7 @@ export async function checkConnectorConnection(home: string, id: string, remembe
   // asking again here is only so the person is told to log in again rather than seeing "检查期间连接已变化".
   if (row.auth_method === "oauth" && refreshRefused(home, row)) throw new ApiOAuthError("这个账号的登录已失效，请重新登录", row.service_id, true);
   const checked_at = new Date().toISOString();
-  const protocol = row.auth_method === "mcp" ? withConnectorProtocols(home, store => store.get<StoredMcpConfiguration>(id)) : null;
+  const protocol = row.auth_method === "mcp" ? withConnectorProtocols(home, store => store.get<StoredMcpConfiguration>(id), true) : null;
   if (!rememberConnectorCheck(home, id, { at: checked_at, revision: row.updated_at, outcome: "connected",
     authorization: row.auth_method === "none" || protocol?.mode === "none" ? "not-required" : "verified",
     ...("verified_account" in result ? { account: result.verified_account } : "account" in result && typeof result.account === "object" ? { account: result.account } : {}) })) throw connectorErrors["connector.connection.invalid"]("检查期间连接已变化，请重新检查");
@@ -58,14 +57,3 @@ export async function verifyEnabledConnection(home: string, id: string, remember
   }
 }
 
-/**
- * Right after a key is saved (ASC-45, PF-A04) the connection is checked once and the result kept with its time, so the page shows whether
- * it works without another click. A key only the place that uses it can test (a model, image or MCP bearer key: `inspectApiConnection`
- * cannot read an account with it) is left unchecked rather than shown as failed. The save is already committed; a failed check is the
- * answer the page shows, not the save's failure.
- */
-export async function checkSavedConnection(home: string, id: string, remember: ConnectorMcpDirectory["remember"], control: ConnectorCheckControl = {}) {
-  const row = withConnectorConnections(home, store => store.get(id));
-  const checkable = row?.auth_method === "token" && (isCatalogConnectorId(row.service_id) || row.service_id === "github" || row.service_id === "gmail");
-  return checkable ? verifyEnabledConnection(home, id, remember, control) : undefined;
-}

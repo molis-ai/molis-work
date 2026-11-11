@@ -5,10 +5,11 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
-import { createDesktopWebHost, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { createDesktopWebCore, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, resolveWebControlToken, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { runWithMolisWorkHome, resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import type { AssistantSendResult, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
+import type { SkillCatalogEntry } from "@molis-ai/molis-work-contracts/services/skills";
 import { ISSUES_PLUGIN_ID, type Issue, type IssueListResult } from "@molis-ai/molis-work-plugin-issues";
 import { asideReply } from "./fixtures/ending-review.js";
 
@@ -51,7 +52,7 @@ async function assistantHome(t: TestContext) {
       api_format: "anthropic-messages", models: [{ model_id: "fixture", enabled: true }] });
   }));
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null }), token = resolveWebControlToken({ homeDirectory: home });
-  const server = createDesktopWebHost({ ptyClientFilePath: () => "" })({ homeDirectory: home, localHost: host, controlToken: token });
+  const server = createDesktopWebCore({ ptyClientFilePath: () => "" })({ homeDirectory: home, localHost: host, controlToken: token });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address === "object");
   const origin = `http://127.0.0.1:${address.port}`;
@@ -145,8 +146,13 @@ test("ISSUE-25 ISSUE-38 ISSUE-53 asked to record, the Assistant saves the spoken
   // contract, nothing runs, and the corrected call in the same round saves once.
   replies.push(reply({ name: "change-reversible", input: { ...identity, title: input.title, type: input.type, input: "" } }),
     reply({ name: "change-reversible", input: { ...identity, input } }), reply());
+  // Issue's capture Skill is chosen from the shared catalog by its exact reference, once the person turned it on (09 §2.2).
+  const { skills } = await request<{ skills: SkillCatalogEntry[] }>("/api/skills/list", {});
+  const capture = skills.find(skill => skill.ref.source.plugin_id === ISSUES_PLUGIN_ID && skill.ref.skill_id === "issues-capture");
+  assert.ok(capture, "Issue declares its capture Skill");
+  await request("/api/skills/set", { install_id: capture.ref.install_id, skill_id: capture.ref.skill_id, scope: "home", expected_revision: capture.settings_revision, state: "auto" });
   const sent = await send("记个 issue：切换项目后草稿丢失", {
-    materials: [{ material_id: "issue-method", kind: "method", title: "Issue", explicit: true, method: { method_id: `${ISSUES_PLUGIN_ID}/issues-capture` } }] });
+    materials: [{ material_id: "issue-method", kind: "method", title: "Issue", explicit: true, method: { kind: "skill", ref: capture.ref } }] });
   const done = await state(sent.work.work_id, view => view.work.state === "completed");
   assert.equal(done.reviews.length, 0, "no confirmation: the save says how it is undone"); assert.equal(done.cards.length, 0);
   const { items } = await list();

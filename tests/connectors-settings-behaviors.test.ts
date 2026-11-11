@@ -20,7 +20,7 @@ import { feedUiContribution, type FeedUiModel } from "@molis-ai/molis-work-plugi
 import { DEMO_PROJECT_ID, LocalProjectDatabase, liveHostJudgmentRuleAuthoringCatalog, seedDemoBoard, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { createFileSecretStore, resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { connectorAccountActions, readConnectorAccount } from "../apps/local-host/dist/connector-account-actions.js";
 import { connectorDirectory, listConnectorSettingsCards } from "../apps/local-host/dist/connector-directory.js";
 import { CONNECTOR_MARKS } from "../apps/workbench/dist/connector-marks.js";
@@ -188,15 +188,16 @@ test("Connectors settings cards distinguish account states and never echo the se
     icon: () => "",
   });
   assert.match(html, /data-connectors-settings/);
-  assert.match(html, /class="mw-card settings-connector-card"/);
-  assert.match(html, /data-connector-group="live"/);
-  assert.doesNotMatch(html, /data-connector-group="placeholder"/);
-  assert.match(html, /添加服务/);
+  // ASC-73: one column grouped by use; each service is a row that opens in place.
+  assert.match(html, /class="settings-connection-item" data-connection-item data-open="false" data-connector-item="github"/);
+  assert.match(html, /data-connector-subgroup="code"><h3>代码与项目<\/h3>/);
+  assert.match(html, /data-connector-subgroup="mail"><h3>邮件与日程<\/h3>/);
+  assert.match(html, /data-connectors-search/);
   assert.match(html, /octocat/);
   assert.match(html, /me@example.com/);
-  assert.match(html, /settings-state--neutral[^>]*>已保存/);
+  assert.match(html, /settings-state--success[^>]*>已连接 · \{account\}/);
   assert.match(html, /settings-state--warning[^>]*>需重新授权/);
-  assert.match(html, /data-connector-open="wechat"/);
+  assert.match(html, /data-connector-item="wechat"/);
   assert.match(html, /data-connector-mark="github"/);
   assert.match(html, /data-connector-mark="wechat"/);
   assert.match(html, /<img src="data:image\/svg\+xml,/);
@@ -220,11 +221,11 @@ test("RAC-2418: a package's long connector name and summary are cut to whole cha
   const name = `${wide(119)}…`, summary = `${wide(399)}…`;
   assert.equal([...name].length, 120, "the name limit is 120 characters, the last one 「…」");
   assert.equal([...summary].length, 400, "the summary limit is 400 characters, the last one 「…」");
-  const cardName = /<span class="settings-connector-card__title"><strong>([^<]*)<\/strong>/.exec(html)?.[1];
-  const cardSummary = /<span class="settings-connector-card__copy">([^<]*)<\/span>/.exec(html)?.[1];
-  assert.equal(cardName, name, "the card shows the name cut to whole characters");
-  assert.equal(cardSummary, summary, "the card shows the summary cut to whole characters");
-  assert.equal(html.includes(`<h2 tabindex="-1">${name}</h2>`), true, "the detail shows the same cut name");
+  const cardName = /<strong id="connector-example-name">([^<]*)<\/strong>/.exec(html)?.[1];
+  const cardSummary = /<strong id="connector-example-name">[^<]*<\/strong><small>([^<]*)<\/small>/.exec(html)?.[1];
+  assert.equal(cardName, name, "the row shows the name cut to whole characters");
+  assert.equal(cardSummary, summary, "the row shows the summary cut to whole characters");
+  assert.equal(html.includes('aria-labelledby="connector-example-name"'), true, "the open part is named by the same cut name");
   // The page's filter searches the card's own attribute: cutting what it shows must not hide the words past the limit.
   const filtered = renderConnectorsSettings({ connectors: [{
     connector_id: "example", title: `${wide(120)}tail-name`, summary: "Short, but the name goes on past its limit.", availability: "live", auth_kind: "token", group_id: "work", capabilities: [],
@@ -350,15 +351,15 @@ test("ASC-20 ASC-23: an existing Home account offers lifecycle controls and targ
     icon: () => "",
   });
   assert.match(html, /data-connection-reauthorize="33333333-3333-4333-8333-333333333333"/);
-  // RING-05: the saved credentials retain their original claim beside the shared mark.
-  assert.match(html, /data-connection-state data-mw-state="saved">已保存/);
+  // ASC-74: an account that was never checked says so in its 连得上吗 row, with the shared mark.
+  assert.match(html, /<span data-connection-state><span class="mw-status mw-status--quiet mw-status--plain"[^>]*>[\s\S]*?<span>还没检查过<\/span>/);
   assert.match(html, /data-protocol-start="oauth"/);
   assert.doesNotMatch(html, /data-device-login/, "Gmail signs in through the web flow, not a device code");
   assert.match(html, /data-connection-disconnect="33333333-3333-4333-8333-333333333333"/);
   assert.match(html, /data-connection-manage="disable"/);
   assert.match(html, /data-connection-manage="remove"/);
   assert.doesNotMatch(html, /data-connection-manage="enable"/);
-  assert.match(html, /添加另一个账号/);
+  assert.match(html, /<summary>再加一个账号<\/summary>/);
   const manualTokenHtml = renderConnectorsSettings({
     connectors: HOST_CONNECTOR_DIRECTORY
       .filter((row) => row.connector_id === "gmail")
@@ -493,7 +494,7 @@ test("Connectors HTTP saves a GitHub connection, hides plaintext, and gates the 
       });
       const disconnectedPage = await (await fetch(`${origin}/settings/connectors`)).text();
       assert.match(disconnectedPage, /data-connectors-settings/);
-      assert.match(disconnectedPage, /class="mw-card settings-connector-card"/);
+      assert.match(disconnectedPage, /class="settings-connection-item" data-connection-item data-open="false" data-connector-item="github"/);
       assert.match(disconnectedPage, /type="password"[^>]*data-connector-token="github"/);
       assert.doesNotMatch(disconnectedPage, new RegExp(TOKEN));
       const mcp = await (await fetch(`${origin}/settings/mcp`)).text();
@@ -611,7 +612,8 @@ test("Connector next steps follow the active connection method and never send MC
   const row = { connection_id: "review-connection", service_id: "notion", display_name: "Work", account_label: null,
     source: "managed" as const, state: "connected" as const, auth_method: "mcp" as const };
   const p = { L: (value: string) => value, escapeHtml: (value: unknown) => String(value ?? ""), icon: () => "" };
-  const render = (connections: NonNullable<Parameters<typeof renderConnectorsSettings>[0]["connector_connections"]>) => renderConnectorsSettings({ connectors: [card], connector_connections: connections }, p).split('data-connector-next>')[1]!.split('</section>')[0]!;
+  // Next steps are shown once there is an account to use; before that the row says what the service can do.
+  const render = (connections: NonNullable<Parameters<typeof renderConnectorsSettings>[0]["connector_connections"]>) => renderConnectorsSettings({ connectors: [card], connector_connections: connections }, p).split('data-connector-next>')[1]?.split('</section>')[0] ?? "";
   assert.doesNotMatch(render([]), /data-connector-next-link/);
   assert.match(render([row]), /settings\/coding-settings/);
   assert.doesNotMatch(render([row]), /data-connector-next-link="feed"/);

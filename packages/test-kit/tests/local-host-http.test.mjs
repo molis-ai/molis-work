@@ -204,7 +204,8 @@ test("the management reads and project routes use the Host's own paths and shape
   const { seen, client, stop } = await fakeHost(request => request.url.startsWith("/api/settings/mcp/actions")
     ? { body: { client_id: "c 1", project_id: "p/1", actions: [], grants: [], entries: [] } }
     : request.url === "/api/settings/projects" ? { status: 201, body: { project: { project_id: "p1", display_name: "N", database_path: "/h/p1.db" }, project_path: "/projects/p1/" } }
-      : { body: { project_id: "p1", plugins: ["goals", "feed"], hidden: [] } });
+      : request.url === "/api/settings/project-plugins" ? { body: { projects: [{ project_id: "p/1", plugins: ["goals"], hidden: [], revision: "observed" }] } }
+      : { body: { project_id: "p/1", plugins: ["goals", "feed"], hidden: [], revision: "committed" } });
   try {
     const access = await readMcpActionAccess(client, { clientId: "c 1", projectId: "p/1" });
     assert.deepEqual(access.grants, []);
@@ -216,7 +217,9 @@ test("the management reads and project routes use the Host's own paths and shape
     assert.deepEqual(seen[2].body, { display_name: "项目", user_confirmed: true });
     const plugins = await addProjectPlugin(client, "p/1", "feed");
     assert.deepEqual(plugins, ["goals", "feed"]);
-    assert.equal(seen[3].url, "/api/settings/projects/p%2F1/plugins");
-    assert.deepEqual(seen[3].body, { plugin_id: "feed" });
+    assert.equal(seen[3].url, "/api/settings/project-plugins");
+    assert.equal(seen[3].method, "GET");
+    assert.equal(seen[4].url, "/api/settings/projects/p%2F1/plugins");
+    assert.deepEqual(seen[4].body, { plugin_id: "feed", expected_revision: "observed" });
   } finally { await stop(); }
 });

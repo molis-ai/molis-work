@@ -286,7 +286,7 @@ test("MEM-V0-C2 existing assisted policy keeps the original two-source v3 automa
   const after = await f.call<{ items: Array<{ text: string; source: string; basis: string; approved_by: { by: string; policy: string; version: number } }> }>(f.project.project_id, "/api/memory/overview?scope=project");
   assert.equal(extracted, 2); assert.equal(after.body.items.length, 1);
   assert.equal(after.body.items[0]!.text, text); assert.equal(after.body.items[0]!.source, "auto"); assert.equal(after.body.items[0]!.basis, "repeated");
-  assert.deepEqual(after.body.items[0]!.approved_by, { by: "policy", policy: "memory.write-gate", version: 3 });
+  assert.deepEqual(after.body.items[0]!.approved_by, { by: "policy", policy: "memory.write-gate", version: 1 });
 });
 
 test("MEM-V0-C2 SDK candidate success followed by App projection failure retries the same operation and records one candidate", { timeout: 60_000 }, async t => {

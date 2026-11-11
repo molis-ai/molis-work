@@ -123,13 +123,28 @@ test("pruning leaves memory alone when every project is there, and never touches
   });
 });
 
-test("a damaged or foreign file reads as an empty memory and is mended by the next visit", () => {
+// UPG1-06 (upgrade-chain-design §2.6): this test used to have the next visit write over both. A file of a newer version or one that cannot be read is
+// not this build's to replace: the chooser still works, with an empty memory, and the file stays as it was.
+test("a damaged or newer file reads as an empty memory, and no visit writes over it", () => {
   withHome(home => {
     const file = join(home, PROJECT_ARRIVAL_RELATIVE_PATH);
     mkdirSync(join(home, "config"), { recursive: true });
-    writeFileSync(file, "{ not json");
-    assert.deepEqual(readProjectArrival(home).projects, {});
-    writeFileSync(file, JSON.stringify({ schema_version: 9, last_project_id: 7, projects: { ok: { last_opened_at: "2026-10-01T08:00:00Z", description: " 一句 " }, bad: { last_opened_at: "yesterday", description: 3 }, worse: "x" } }));
+    for (const text of ["{ not json", JSON.stringify({ schema_version: 9, last_project_id: "x", projects: { ok: { last_opened_at: "2026-10-01T08:00:00Z", description: "一句" } } })]) {
+      writeFileSync(file, text);
+      assert.deepEqual(readProjectArrival(home).projects, {});
+      assert.doesNotThrow(() => markProjectOpened(home, "c", at("2026-10-01T09:00:00Z")));
+      assert.doesNotThrow(() => setProjectDescription(home, "c", "x"));
+      assert.doesNotThrow(() => pruneProjectArrival(home, new Set()));
+      assert.equal(readFileSync(file, "utf8"), text);
+    }
+  });
+});
+
+test("a file of this version with odd rows is tidied as it is read, and the next visit keeps what was good", () => {
+  withHome(home => {
+    const file = join(home, PROJECT_ARRIVAL_RELATIVE_PATH);
+    mkdirSync(join(home, "config"), { recursive: true });
+    writeFileSync(file, JSON.stringify({ schema_version: 1, last_project_id: 7, projects: { ok: { last_opened_at: "2026-10-01T08:00:00Z", description: " 一句 " }, bad: { last_opened_at: "yesterday", description: 3 }, worse: "x" } }));
     const state = readProjectArrival(home);
     assert.equal(state.last_project_id, null);
     assert.deepEqual(state.projects.ok, { last_opened_at: "2026-10-01T08:00:00.000Z", description: "一句" });

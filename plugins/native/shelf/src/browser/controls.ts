@@ -1,6 +1,7 @@
 import { admitFiles, showAdmissionError } from "./admit.js";
 import { renderBar } from "./bar.js";
-import { closest, messageOf } from "./dom.js";
+import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
+import { closest } from "./dom.js";
 import { submitComposer } from "./composer.js";
 import { copyFiles } from "./clips.js";
 import { flushEdit, saveCopy, startEdit, stopEdit, focusEditor } from "./edit.js";

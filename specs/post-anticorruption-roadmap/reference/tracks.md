@@ -6,7 +6,7 @@
 
 ## 冲突面与轨道
 
-轨道只划定独占的文件：一条轨道独占的文件、同一份合同快照，同一时间只有一个写手在改；不碰同一批文件的片可以同时做，同轨的片按依赖先后叠分支，轨道之间按依赖并行。每批由它的主会话独立安排，独立任务开子会话，写手一律用子代理，一批可以同时有多个写手；会话不再按轨道跨批（用户 2026-11-05 定，[决定 26](decisions.md#decision-26)，取代决定 17 与决定 22 中「会话按轨道跨批」）；批 02 由 Codex 收尾不变。统筹是 Claude（本机）统筹会话（用户 2026-11-04 定，[决定 22](decisions.md#decision-22)）；谁正在做哪一项看[认领板 #1743](https://github.com/molis-ai/molis-work/issues/1743)。下表最后一列只写评审职责与协作边界，不指定由哪个会话来写。历史热点与旧人员建议见[历史记录](baseline-and-history.md#track-history)。
+轨道只划定独占的文件：一条轨道独占的文件、同一份合同快照，同一时间只有一个会话在改；不碰同一批文件的片可以同时做，同轨的片按依赖先后叠分支，轨道之间按依赖并行。每批由它的主会话从头做到尾，不开子会话、不派写手子代理，只有评审起一个只读子代理（用户 2026-11-11 定，[决定 34](decisions.md#decision-34)）；会话不再按轨道跨批（用户 2026-11-05 定，[决定 26](decisions.md#decision-26)，取代决定 17 与决定 22 中「会话按轨道跨批」）；批 02 由 Codex 收尾不变。统筹是 Claude（本机）统筹会话（用户 2026-11-04 定，[决定 22](decisions.md#decision-22)）；谁正在做哪一项看[认领板 #1743](https://github.com/molis-ai/molis-work/issues/1743)。下表最后一列只写评审职责与协作边界，不指定由哪个会话来写。历史热点与旧人员建议见[历史记录](baseline-and-history.md#track-history)。
 
 | 轨道 | 这条轨道独占的文件 | 主要的活 | 有效归属与协作 |
 | --- | --- | --- | --- |
@@ -20,23 +20,23 @@
 | F 场景引导与发布 | `apps/desktop/`、安装器、`docs/releases/`、引导页与引导路由 | 首次/项目/任务引导完整路径、设置映射、首日旅程；运行条件、签名与升级、正式 OAuth | 账号、证书、真实 Home 按原用户边界 |
 | G 服务端 | 同步 Worker（`personal` 分支上的 `apps/sync-worker/`）、平台同步服务与团队协作服务（新的 `horizontal/` 包，见 C3 一行的用户决定）；各插件 Manifest 里的同步声明按规则 4 一起落；M2 的桌面一侧在 `apps/desktop/`，由 F 落（规则 7） | [服务端批](server-batch.md#server-batch)：同步合同、Worker、各插件接入、两台真电脑验收，团队协作与团队记忆，M2 的服务一侧；01～89 期间不开工 | personal 分支上已有的工作保留；用户定开工，C 轨评合同，F 写桌面部分 |
 
-本文里的“C 轨”“1·C”指 C1～C3 合起来。C1～C3 各有独占的文件，按文件判断冲突：同一批文件、同一份快照同一时间一个写手，不同的可以同时写（[决定 26](decisions.md#decision-26)取代决定 17 的「C 轨一个写手」）。
+本文里的“C 轨”“1·C”指 C1～C3 合起来。C1～C3 各有独占的文件，按文件判断冲突：同一批文件、同一份快照同一时间一个会话在改，不同的可以同时写（[决定 26](decisions.md#decision-26)取代决定 17 的「C 轨一个写手」）。
 
 规则：
 
-1. **合同先行。** 要改 Manifest、SDK 或 `packages/contracts` 的，先单独开一个只改合同的小 PR（带 `pnpm api:update`、`pnpm actions:update` 的快照），C 轨评审、尽快合；功能 PR 叠在它后面。合同 PR 按快照排队：`tooling/gates/api/` 下同一份子路径快照同一时间只有一个合同 PR 在途，不同子路径可独立设计／评审；同一个合同文件、同一份快照同一时间只有一个写手在改，改之前在认领板认领；Manifest（`packages/contracts/src/platform/plugin.ts`，快照 10-19 起改过 48 次）最热，C1 先把它按功能拆成几段声明，技能包、同步、场景、语言样式各改各的。共同设计可并行，写合同按实际依赖串行。技能包、场景与生成页面、情境 W4、卡片撤销、字体皮肤语言 A 段的合同改动按这条排队，先核已有合同能否复用。
+1. **合同先行。** 要改 Manifest、SDK 或 `packages/contracts` 的，在本批分支上先做合同（带 `pnpm api:update`、`pnpm actions:update` 的快照），实现叠在后面，合同和实现随本批 PR 一起合入；设计稿的评审、合审不变，公共合同台（C 轨）的合审在最终的头上，本批跑全量（[开发流程第 8.4 节](development-workflow.md#batch-grouping)，[决定 31](decisions.md#decision-31)，用户 2026-11-07 定）。只有别的批、服务端批或别的片确实在等这份合同，或有人排队改同一份快照时，才切出一个只改合同的小 PR，C 轨评审、尽快合。合同按快照排队：`tooling/gates/api/` 下同一份子路径快照同一时间只有一个批次或合同 PR 在改，不同子路径可独立设计／评审；同一个合同文件、同一份快照同一时间只有一个会话在改，改之前在认领板认领；Manifest（`packages/contracts/src/platform/plugin.ts`，快照 10-19 起改过 48 次）最热，C1 先把它按功能拆成几段声明，技能包、同步、场景、语言样式各改各的。共同设计可并行，写合同按实际依赖串行。技能包、场景与生成页面、情境 W4、卡片撤销、字体皮肤语言 A 段的合同改动按这条排队，先核已有合同能否复用。
 2. **换包窗口。** 每个阶段最多换一次 Prologue 包，放在阶段中段。这一阶段要上游补的东西提前列进窗口清单一起提，窗口外不换包。阶段 1 不换包：记忆 P0 沿原暂停与负责人边界，恢复授权后只做不需上游的部分；要上游的仍进窗口一，排期不等于解除暂停。阶段 2 的窗口一装子代理、P5 协作；记忆 SDK 余项仅在原暂停解除后纳入，并补项目助理团、主对话与后台任务所必需且当前 SDK 尚缺的能力，已有合同直接复用；阶段 3 的窗口二装 Skill、Context、MCP、Tool 四份策略要的上游能力。
-3. **切换窗口。** 字体皮肤语言的 C 段（全部插件的文字与样式一次切换）占一个窗口，在 16：B 段验完即切（用户 2026-11-03 定）。窗口里 E 轨不改插件的界面文字和样式，只做逻辑；新插件在窗口之前就按新格式写，不留到窗口里转。窗口只管这些共享文件的合入时段，独立服务逻辑按实际依赖和所在轨道的写手推进。同步已移到 M1 之后的服务端批，不与这个窗口相交。
+3. **切换窗口。** 字体皮肤语言的 C 段（全部插件的文字与样式一次切换）占一个窗口，在 16：B 段验完即切（用户 2026-11-03 定）。窗口里 E 轨不改插件的界面文字和样式，只做逻辑；新插件在窗口之前继续用现行写法（内置插件不写 `ui.locales`，决定 20、用户 2026-11-07 定），窗口里和存量一起转。窗口只管这些共享文件的合入时段，独立服务逻辑按实际依赖和所在轨道的批次推进。同步已移到 M1 之后的服务端批，不与这个窗口相交。
 4. **同路径一起落。** 碰同一批聚合文件（`scripts/gates/page-assets.mjs`、`tests/ci-product-subset.txt`、`packages/contracts/src/platform/dom-events.ts`、`pnpm-lock.yaml`，以及不归任何轨道的宿主与外壳热文件：`apps/local-host/src/index.ts`、`project-plugins.ts`、`project-host.ts`、`web-request.ts`、`plugin-host-services.ts`、`home-plugin-executor.ts`，`apps/workbench/src/index.ts`、`immersive-shell.ts`，`scripts/workspace-packages.mjs`、`scripts/check-package-boundaries.mjs`，`tooling/gates/actions/*.tsv`、`giant-exceptions.json`、`error-owners.json`）的 PR 按批落规则合成批 PR，冲突由统筹一次解。
 5. **新插件按实际依赖安排。** 风险等独立新包可放空档；Work Brief 与首页合并后需要 C/D 先交公共来源／呈现和挂载，E 再接综合首页与简报核心，不能仍按完全独立的新包安排。各轨道只修改自己负责的部分。
-6. **每批独立安排，轨道只管文件。** 每批由它的主会话独立安排：独立任务开子会话，写手一律用子代理，一批可以同时有多个写手；会话不再按轨道跨批（用户 2026-11-05 定，[决定 26](decisions.md#decision-26)）。轨道只管独占文件：一条轨道独占的文件、同一份合同快照，同一时间只有一个写手在改，同轨的片按依赖先后叠分支。
-7. **借文件由主人落。** 别的轨道的需求要改某条轨道独占的文件时，由那条轨道落这处改动：交给正在改这批文件的写手；没人在改时，在认领板认领后单开一片先落。需求方叠在后面。阶段 1 已知两处：技能包要改助理的 `methods()`（`apps/local-host/src/assistant/assistant-work-reads.ts`），harness R2 要改委派入口（`apps/local-host/src/assistant/assistant-executor.ts`），都在 A 轨。这两处和输入框的文件不重叠，对应合同就绪时插进来，不挡输入框的大改；阶段 1 A 行的「先……再……」按这条读。场景引导同理：F 轨负责需求与完整路径，个人助理接点由 A 落，角色/设置/Runtime 公共能力由 C 落，工作台页面与视觉由 D 落，插件配置和工作流程由 E 落；F 不横跨这些独占文件另写一套。
+6. **每批一个会话，轨道只管文件。** 每批由它的主会话从头做到尾，子分支按依赖一个接一个做，不开子会话、不派写手子代理，只有评审起一个只读子代理；会话不按轨道跨批（用户 2026-11-05、11-11 定，[决定 26](decisions.md#decision-26)、[决定 34](decisions.md#decision-34)）。轨道只管独占文件：一条轨道独占的文件、同一份合同快照，同一时间只有一个会话在改，同轨的片按依赖先后叠分支。
+7. **借文件由主人落。** 别的轨道的需求要改某条轨道独占的文件时，由那条轨道落这处改动：交给正在改这批文件的批次；没人在改时，在认领板认领后单开一片先落。需求方叠在后面。阶段 1 已知两处：技能包要改助理的 `methods()`（`apps/local-host/src/assistant/assistant-work-reads.ts`），harness R2 要改委派入口（`apps/local-host/src/assistant/assistant-executor.ts`），都在 A 轨。这两处和输入框的文件不重叠，对应合同就绪时插进来，不挡输入框的大改；阶段 1 A 行的「先……再……」按这条读。场景引导同理：F 轨负责需求与完整路径，个人助理接点由 A 落，角色/设置/Runtime 公共能力由 C 落，工作台页面与视觉由 D 落，插件配置和工作流程由 E 落；F 不横跨这些独占文件另写一套。
 
 <a id="section-5-1"></a>
 
 ### C 轨职责与写入边界
 
-C1 管合同与快照，C2 管 AI 运行时与换包，C3 管独立平台服务；实际顺序只维护在[执行目录](../spec.md#execution-batches)所链接的批次详情。设计与只读核查可以并行；实现由各批派写手（[决定 26](decisions.md#decision-26)），同包、同合同快照同一时间只有一个写手。
+C1 管合同与快照，C2 管 AI 运行时与换包，C3 管独立平台服务；实际顺序只维护在[执行目录](../spec.md#execution-batches)所链接的批次详情。设计与只读核查可以并行；实现由各批主会话自己写（[决定 34](decisions.md#decision-34)），同包、同合同快照同一时间只有一个会话在改。
 
 创作台、Sessions、团队仍是各自完整交付项，未分配的保持待分配；C/D/E/G 是所需的协作职责，不取代原任务负责人。服务端批开工后，合同同样按本文件规则 1 排队。
 
@@ -44,7 +44,7 @@ C1 管合同与快照，C2 管 AI 运行时与换包，C3 管独立平台服务�
 
 ### 批次与轨道对照
 
-认领前查这里：一项占哪条轨道，决定它要不要等别人。下面三张表覆盖全部 87 批、199 个交付项，由批次详情与需求记录推导，用户 2026-11-04 确认。[全景图](https://molis-ai.github.io/molis-work/)按它算「可领」。执行目录增删或改名交付行时，同一个改动里改这里。
+认领前查这里：一项占哪条轨道，决定它要不要等别人。下面三张表覆盖全部 87 批、203 个交付项，由批次详情与需求记录推导，用户 2026-11-04 确认；2026-11-08 随状态机能力并入 26-7／27-6／46-2／47-5，交付项增到 203。[全景图](https://molis-ai.github.io/molis-work/)按它算「可领」。执行目录增删或改名交付行时，同一个改动里改这里。
 
 怎样算占用：
 
@@ -64,7 +64,7 @@ C1 管合同与快照，C2 管 AI 运行时与换包，C3 管独立平台服务�
 | C3 平台新服务 | [28](batches/28.md)、[29](batches/29.md)、[30](batches/30.md)、[34](batches/34.md)、[59](batches/59.md)、[62](batches/62.md) | — |
 | C（同批细分不同或未细分） | [22](batches/22.md)、[24](batches/24.md)、[36](batches/36.md)、[39](batches/39.md)、[42](batches/42.md)、[60](batches/60.md)、[61](batches/61.md) | [24-1](batches/24.md#batch-24-item-1)、[24-3](batches/24.md#batch-24-item-3)、[60-3](batches/60.md#batch-60-item-3) |
 | D 外观与语言 | [07](batches/07.md)、[13](batches/13.md)、[14](batches/14.md)、[16](batches/16.md)、[40](batches/40.md)、[70](batches/70.md) | — |
-| E 插件 | [17](batches/17.md)、[18](batches/18.md)、[19](batches/19.md)、[38](batches/38.md)、[47](batches/47.md)、[54](batches/54.md)、[67](batches/67.md)、[68](batches/68.md)、[69](batches/69.md)、[76](batches/76.md)、[77](batches/77.md)、[81](batches/81.md) | [47-4](batches/47.md#batch-47-item-4)、[54-3](batches/54.md#batch-54-item-3)、[54-8](batches/54.md#batch-54-item-8)、[67-3](batches/67.md#batch-67-item-3)、[67-6](batches/67.md#batch-67-item-6) |
+| E 插件 | [17](batches/17.md)、[18](batches/18.md)、[19](batches/19.md)、[38](batches/38.md)、[54](batches/54.md)、[67](batches/67.md)、[68](batches/68.md)、[69](batches/69.md)、[76](batches/76.md)、[77](batches/77.md)、[81](batches/81.md) | [54-3](batches/54.md#batch-54-item-3)、[54-8](batches/54.md#batch-54-item-8)、[67-3](batches/67.md#batch-67-item-3)、[67-6](batches/67.md#batch-67-item-6) |
 | F 场景引导与发布 | [44](batches/44.md)、[74](batches/74.md) | — |
 | G 服务端 | [SRV-2](batches/srv-2.md)、[SRV-5](batches/srv-5.md)、[SRV-6](batches/srv-6.md)、[SRV-7](batches/srv-7.md) | [SRV-5-3](batches/srv-5.md#srv-5-item-3)、[SRV-5-4](batches/srv-5.md#srv-5-item-4)、[SRV-5-5](batches/srv-5.md#srv-5-item-5) |
 
@@ -93,7 +93,7 @@ C1 管合同与快照，C2 管 AI 运行时与换包，C3 管独立平台服务�
 | [02-3](batches/02.md#batch-02-item-3) | 版本归一与重建清理 | 统筹 | 否 | — |
 | [02-4](batches/02.md#batch-02-item-4) | 升级起点与合同规则 U0 | C1 | 否 | — |
 | [02-5](batches/02.md#batch-02-item-5) | 对外许可口径与 BACKLOG 整理 | 不属于任何轨道 | 否 | — |
-| [06-1](batches/06.md#batch-06-item-1) | 公共资料与迁移清单 | C1 | 是 | D |
+| [06-1](batches/06.md#batch-06-item-1) | 公共资料与 Files 退役 | C1、B、D | 是 | E |
 | [06-2](batches/06.md#batch-06-item-2) | 文档记录协议与 SDK 共用实现 | C1 | 是 | A、B、E |
 | [06-3](batches/06.md#batch-06-item-3) | 宿主调用整治与缓存核查 | 统筹 | 否 | — |
 | [06-4](batches/06.md#batch-06-item-4) | 各包调用成本补齐 | C1 | 是 | E |
@@ -110,11 +110,13 @@ C1 管合同与快照，C2 管 AI 运行时与换包，C3 管独立平台服务�
 | [26-4](batches/26.md#batch-26-item-4) | 本机日志、崩溃恢复与诊断包 | F | 是 | D |
 | [26-5](batches/26.md#batch-26-item-5) | 插件升级 U4 与合同过渡 U5 | C1 | 是 | A、E |
 | [26-6](batches/26.md#batch-26-item-6) | 副本演练与回退 U6 | F | 是 | — |
+| [26-7](batches/26.md#batch-26-item-7) | 状态与状态机合同与词表 | C1 | 是 | D |
 | [27-1](batches/27.md#batch-27-item-1) | 基础交互体验债 | E | 是 | A、D |
 | [27-2](batches/27.md#batch-27-item-2) | 代码／Diff 及性能余项 | D | 是 | B |
 | [27-3](batches/27.md#batch-27-item-3) | 首批文案与帮助 | D | 是 | A、B、E |
 | [27-4](batches/27.md#batch-27-item-4) | Runtime、Goals 与沙箱余项 | C1 | 是 | E |
 | [27-5](batches/27.md#batch-27-item-5) | 宿主出口、文档门禁与各包清理 | 统筹 | 否 | — |
+| [27-6](batches/27.md#batch-27-item-6) | 状态词汇门禁与文档 | 统筹 | 否 | C1、D、E |
 | [33-1](batches/33.md#batch-33-item-1) | Coding 任务与环境恢复 | B | 是 | — |
 | [33-2](batches/33.md#batch-33-item-2) | 材料、大清单与重启接续 | F | 是 | — |
 | [35-1](batches/35.md#batch-35-item-1) | 引导接入已有 Sessions | F | 是 | C3 |
@@ -125,11 +127,17 @@ C1 管合同与快照，C2 管 AI 运行时与换包，C3 管独立平台服务�
 | [43-2](batches/43.md#batch-43-item-2) | Dataset 汇总、追加与规模性能 | E | 是 | — |
 | [45-1](batches/45.md#batch-45-item-1) | 情境 W4 创建与准备声明 | E | 是 | C1、F |
 | [45-2](batches/45.md#batch-45-item-2) | 通用任务引导与场景复用 | F | 是 | A、E |
+| [47-1](batches/47.md#batch-47-item-1) | 新插件创建、隔离试用与安装预演 | E | 是 | —
+| [47-2](batches/47.md#batch-47-item-2) | 成果、搜索与工作流内容站声明 | E | 是 | —
+| [47-3](batches/47.md#batch-47-item-3) | 依赖、来源与权限可见 | E | 是 | D
+| [47-4](batches/47.md#batch-47-item-4) | 首次可用率与返修评测样本 | E | 否 | —
+| [47-5](batches/47.md#batch-47-item-5) | 安装预演与插件目录的状态展示 | D | 是 | E
 | [52-1](batches/52.md#batch-52-item-1) | 回执与交互余项 | A | 是 | B、C2、E |
 | [52-2](batches/52.md#batch-52-item-2) | 智能呈现第二片 | D | 是 | A、C1、C3、E |
 | [52-3](batches/52.md#batch-52-item-3) | 主线第二片 | A | 是 | D、E |
 | [55-1](batches/55.md#batch-55-item-1) | Attention 唤醒、角标与系统通知 | F | 是 | C3 |
 | [55-2](batches/55.md#batch-55-item-2) | 切换后新入口文字与翻译复核 | D | 否 | — |
+| [55-3](batches/55.md#batch-55-item-3) | N22 全量迁移与收口 | 不属于任何轨道 | 否 | A、B、C1、E |
 | [63-1](batches/63.md#batch-63-item-1) | 主动发现、持续工作与周期报告 | A | 是 | C3、F |
 | [63-2](batches/63.md#batch-63-item-2) | 智能组合第三片 | C3 | 是 | A、C2、E |
 | [63-3](batches/63.md#batch-63-item-3) | 主线建议与跨项目个人视图 | A | 是 | C3 |

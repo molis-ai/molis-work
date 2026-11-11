@@ -1,6 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { HostSurfaceDriver } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
+import { assertVersionedFileWritable, type VersionedFile, type VersionedFileStep } from "@molis-ai/molis-work-storage";
+import { readVersionedFileOr } from "../versioned-file-read.js";
 
 /**
  * What the Agent Host may attach from the side panel's browser (specs/archive/side-panel P5): one driver per project page,
@@ -26,6 +28,19 @@ export function browserSurfacesFor(owner: object): BrowserSurfaceProvider | unde
 }
 
 /** Sites the person allowed without asking, or blocked outright; kept per Home beside the browser's own profile. */
+const BROWSER_SITES_VERSION = /* @version format.browser.site-decisions */ 1;
+const BROWSER_SITES_UPGRADES: readonly VersionedFileStep[] = [];
+
+function parseBrowserSites(value: unknown): { sites: SurfaceSiteDecision[]; assistant: boolean } {
+  const parsed = value as { sites?: unknown; assistant?: unknown };
+  const sites = Array.isArray(parsed.sites) ? parsed.sites.filter((row): row is SurfaceSiteDecision => !!row && typeof row === "object"
+    && typeof (row as SurfaceSiteDecision).scope === "string" && ["allow", "block"].includes((row as SurfaceSiteDecision).decision)) : [];
+  return { sites, assistant: parsed.assistant !== false };
+}
+
+export const BROWSER_SITES_FILE: VersionedFile<{ sites: SurfaceSiteDecision[]; assistant: boolean }> =
+  { version: BROWSER_SITES_VERSION, field: "version", upgrades: BROWSER_SITES_UPGRADES, parse: parseBrowserSites };
+
 export class BrowserSiteDecisions {
   private readonly file: string;
   private rows: SurfaceSiteDecision[];
@@ -41,7 +56,7 @@ export class BrowserSiteDecisions {
 
   get assistantEnabled(): boolean { return this.assistant; }
 
-  setAssistantEnabled(enabled: boolean): void { this.assistant = enabled; this.save(); }
+  setAssistantEnabled(enabled: boolean): void { this.save(this.rows, enabled); this.assistant = enabled; }
 
   list(): readonly SurfaceSiteDecision[] { return this.rows; }
 
@@ -49,25 +64,24 @@ export class BrowserSiteDecisions {
 
   set(scope: string, decision: "allow" | "block" | "forget"): readonly SurfaceSiteDecision[] {
     if (!/^https?:\/\/[^/?#\s]+$/u.test(scope)) throw new Error("网站必须写成 https://example.com 这样的来源，不带路径");
-    this.rows = this.rows.filter(row => row.scope !== scope);
-    if (decision !== "forget") this.rows.push({ scope, decision, at: new Date().toISOString() });
-    this.save();
+    const rows = this.rows.filter(row => row.scope !== scope);
+    if (decision !== "forget") rows.push({ scope, decision, at: new Date().toISOString() });
+    this.save(rows, this.assistant);
+    this.rows = rows;
     return this.rows;
   }
 
-  private save(): void {
+  /** The decisions in memory change only once they are on disk: a refused save (§2.6) leaves the browser deciding as it did before. */
+  private save(sites: readonly SurfaceSiteDecision[], assistant: boolean): void {
+    assertVersionedFileWritable(BROWSER_SITES_FILE, this.file);
     fs.mkdirSync(path.dirname(this.file), { recursive: true, mode: 0o700 });
     const temp = `${this.file}.${process.pid}.tmp`;
-    fs.writeFileSync(temp, JSON.stringify({ version: 1, assistant: this.assistant, sites: this.rows }, null, 2), { mode: 0o600 });
+    fs.writeFileSync(temp, JSON.stringify({ version: BROWSER_SITES_VERSION, assistant, sites }, null, 2), { mode: 0o600 });
     fs.renameSync(temp, this.file);
   }
 
+  /** No file is the default. One too new or unreadable also reads as the default, in memory only: `save` refuses to replace it. */
   private read(): { sites: SurfaceSiteDecision[]; assistant: boolean } {
-    try {
-      const parsed = JSON.parse(fs.readFileSync(this.file, "utf8")) as { sites?: unknown; assistant?: unknown };
-      const sites = Array.isArray(parsed.sites) ? parsed.sites.filter((row): row is SurfaceSiteDecision => !!row && typeof row === "object"
-        && typeof (row as SurfaceSiteDecision).scope === "string" && ["allow", "block"].includes((row as SurfaceSiteDecision).decision)) : [];
-      return { sites, assistant: parsed.assistant !== false };
-    } catch { return { sites: [], assistant: true }; }
+    return readVersionedFileOr(BROWSER_SITES_FILE, this.file, () => ({ sites: [], assistant: true }));
   }
 }

@@ -18,6 +18,7 @@ import {
   todoOrganizeActions,
 } from "@molis-ai/molis-work-plugin-todo";
 import { L, runWithLocale, homeAgentDefinitions, homeStores, type HostCompleteText, PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS, builtinMarketDirectory } from "@molis-ai/molis-work-app-local-host";
+import { SKILLS_PERMISSIONS, skillCatalogActions, type SkillCatalogEntry } from "@molis-ai/molis-work-contracts/services/skills";
 import { person, serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { renderMolisWorkWorkbenchClientScript } from "./workbench-renderer-fixture.js";
 import { manifestProblems } from "./fixtures/declaration-manifest.js";
@@ -70,7 +71,7 @@ test("RAC-130 every word the Todo page says has a stable key with both languages
     assert.deepEqual(names(text.zh), names(text.en), `${key} uses the same placeholders in both languages`);
   }
   assert.ok(used.size > 200, "the page's keys were found");
-  const dynamicOwners = new Set(["actions.ts", "organize-actions.ts", "home-events.ts", "search.ts", "database.ts"].map(file => "plugins/native/todo/src/" + file));
+  const dynamicOwners = new Set(["actions.ts", "organize-actions.ts", "home-events.ts", "search.ts", "database.ts", "manifest.ts", "roles.ts"].map(file => "plugins/native/todo/src/" + file));
   for (const key of Object.keys(TODO_EN)) {
     assert.ok(scan.calls.some(call => call.key === key && call.file.startsWith("plugins/native/todo/"))
       || scan.files.some(file => dynamicOwners.has(file.file) && file.mentions.has(key)), `${key} must have a Todo translator or an existing dynamic declaration owner`);
@@ -102,6 +103,19 @@ test("RAC-134 stable Todo words keep the formerly displayed English after the gl
   runWithLocale("en", () => {
     for (const [key, expected] of Object.entries(displayed)) assert.equal(L(key), expected, key);
   });
+});
+
+test("RAC-130 the actual English Skill catalog translates Todo names and usage guidance from its declaration owner", async t => {
+  const f = await serveHomeRuntime(t);
+  const answer = await f.host.homeActionClient().invoke({ ...person(SKILLS_PERMISSIONS), locale: "en" }, skillCatalogActions.list, {}) as { skills: SkillCatalogEntry[] };
+  const rows = answer.skills.filter(skill => skill.pack.plugin_id === todoManifest.plugin_id);
+  assert.deepEqual(rows.map(skill => [skill.ref.skill_id, skill.name]), [["todo-organize", "Organize todos"], ["todo-advance", "Advance a todo"]]);
+  assert.equal(rows[0]!.description, "Use when the user wants tasks extracted from mail, files, meeting notes, web pages or current content, asks about missed tasks, or asks how an email changes existing plans. Present proposed tasks for confirmation first.");
+  assert.equal(rows[1]!.description, "Use when the user asks to move a specific todo forward. Identify the next step and blockers, create useful drafts, and propose status changes without applying them unasked.");
+  for (const row of rows) {
+    assert.ok(row.when_to_use && row.when_not_to_use, "the directory includes both usage boundaries");
+    assert.doesNotMatch(row.when_to_use + row.when_not_to_use, /\p{Script=Han}/u);
+  }
 });
 
 test("RAC-132 the Todo page asks the Host only through the shared request helper, and its browser code is typed", () => {

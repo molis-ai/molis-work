@@ -1,0 +1,12 @@
+{
+  "exceptions": {
+    "class apps/local-host/src/assistant/assistant-store.ts#AssistantStore": {
+      "kind": "cohesive-unit",
+      "reason": "助理模块的 SQLite 存储：37 个方法共 258 行（均值 7 行），每个是对某张助理表的一两条 SQL（回合、卡片、通知、用量、设置）；一个模块的存储由一个类独占，行数没超、只是方法数超限。提醒与跟进已在 W4-05 拆成自己的表与协作者；第 10 批只读发送核对将同一请求账本的 claim、finish、release 与 read 放在 AssistantRequests；第 13 批⑥加的按去重键前缀清提醒也是通知表上的一条 SQL。",
+      "size": {
+        "lines": 258,
+        "methods": 37
+      }
+    }
+  }
+}

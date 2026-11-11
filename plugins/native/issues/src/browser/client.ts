@@ -1,6 +1,7 @@
 import { installCapture, remembered } from "./capture.js";
 import { installDetail } from "./detail.js";
-import { messageOf, statusOf } from "./dom.js";
+import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
+import { statusOf } from "./dom.js";
 import { installImages } from "./images.js";
 import { installList } from "./list.js";
 import { isPending, issuesPage } from "./page.js";

@@ -1,5 +1,6 @@
 import { itemField } from "./item.js";
-import { addDays, civil, dayDate, esc, dateLabel, mondayIndex, monthLabel } from "./util.js";
+import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { addDays, civil, dayDate, dateLabel, mondayIndex, monthLabel } from "./util.js";
 import type { JellyPage } from "./types.js";
 
 const PICKER = ".jelly-date-picker";

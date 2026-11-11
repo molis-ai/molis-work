@@ -25,6 +25,7 @@ export interface HostCapabilityInvocation extends ActionCallOrigin {
     readonly signal?: AbortSignal;
     readonly plugin?: HostPluginCaller;
     readonly consumer?: "plugin";
+    readonly runtime_session_id?: string;
     beforeEffect(): Promise<void>;
     assertAuthorityCurrent(): void;
 }
@@ -151,7 +152,7 @@ export interface RuntimeTerminalSessionAlias {
     host_session_id: string;
 }
 
-export declare const SUPPORTED_RUNTIME_IDS: readonly ["codex", "claude-code", "opencode", "pi-agent", "grok-build"];
+export declare const SUPPORTED_RUNTIME_IDS: readonly ("codex" | "claude-code" | "opencode" | "pi-agent" | "grok-build")[];
 
 export type SupportedRuntimeId = (typeof SUPPORTED_RUNTIME_IDS)[number];
 

@@ -25,7 +25,7 @@ import type { WriterDirectories } from "../writers.js";
 import type { WriterIntegration } from "../writer-integration.js";
 import type { CodingHost } from "./host.js";
 import type {
-  ArtifactRow, SessionRecord, GoalChoice, GoalSummary, McpSourceRef, McpToolRef, MethodRef, ProgressView, ReportOutput, RunView, SessionConfiguration, SessionData, StateRead,
+  ArtifactRow, SessionRecord, GoalChoice, GoalSummary, McpSourceRef, McpToolRef, ProgressView, SkillRef, ReportOutput, RunView, SessionConfiguration, SessionData, StateRead,
 } from "./shapes.js";
 
 /** Everything the page remembers between one event and the next. */
@@ -34,7 +34,7 @@ export interface State {
   SECTION_SHORT: Record<string, string>;
   SESSION_STATE: Record<string, string>;
   actionSelections: Map<string, readonly ActionRef[]>;
-  adoptedConfigurations: Map<string, string>;
+  adoptedConfigurations: Map<string, string | undefined>;
   allRuns: RunView[];
   answeredQuestions: Set<string>;
   artifactRows: ArtifactRow[];
@@ -85,9 +85,8 @@ export interface State {
   mcpSelections: Map<string, readonly McpToolRef[]>;
   mcpSourceChoices: McpSourceRef[];
   mcpSourceSelections: Map<string, readonly McpSourceRef[]>;
-  methodChoices: MethodRef[];
-  methodDocumentTicket: number;
-  methodSelections: Map<string, readonly MethodRef[]>;
+  methodChoices: SkillRef[];
+  methodSelections: Map<string, readonly SkillRef[]>;
   offeredApprovals: Set<string>;
   offsets: Map<string, number>;
   olderPlanEntries: PlanEntry[];
@@ -129,7 +128,12 @@ export interface State {
   viewSignal: AbortSignal | undefined;
   windowRuns: RunView[];
   workspaceId: string;
+  /** The Host's worktree of `workspaceId` the session's rounds run in, when the person chose one (「用于下一轮」); the folder stays the output. */
+  worktree: WorktreeChoice | null;
 }
+
+/** A worktree the session's rounds run in: its id is what a round is started with, its path only says where. */
+export interface WorktreeChoice { readonly worktree_id: string; readonly canonical_path: string }
 
 /** The pieces the page is made of, each built once when the page mounts. */
 export interface Refs {

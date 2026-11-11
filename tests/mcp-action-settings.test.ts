@@ -1,3 +1,4 @@
+import { changeMcpClientCredential } from "@molis-ai/molis-work-app-local-host";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { randomUUID } from "node:crypto";
@@ -7,7 +8,7 @@ import { join } from "node:path";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LocalMcpServer, MolisWorkLocalHost, molisWorkHostProjectReference, readMcpToolPreference } from "@molis-ai/molis-work-app-local-host";
 import { ActionError, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 
 test("local management discovers an unknown plugin, authorizes its exact contract and can revoke a missing provider without granting from supplied permissions", { timeout: 30_000 }, async () => {
@@ -63,6 +64,7 @@ test("local management discovers an unknown plugin, authorizes its exact contrac
     const page = await fetch(`${origin}/capabilities/access?client=${input.client_id}&project=${input.project_id}`);
     assert.equal(page.status, 200);
     assert.match(await page.text(), /runtime:external/);
+    changeMcpClientCredential(home, "runtime:external", "connect");
     const external = new LocalMcpServer(withMolisWorkProjectCatalog, "runtime", { projectId: project.project_id,
       databasePath: project.database_path, webBaseUrl: origin }, { homeDirectory: home,
       runtimeContext: { runtime_id: "external", stable_work_context_id: null, host_declares_stable: false } }, host);

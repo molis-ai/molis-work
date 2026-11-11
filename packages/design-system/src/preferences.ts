@@ -152,7 +152,7 @@ export const VISUAL_FOUNDATION_CLIENT_SCRIPT = `
     const density = target?.closest("[data-density-option]");
     if (density) { applyDensity(density.getAttribute("data-density-option"), true); return; }
     const skin = target?.closest("[data-skin-option]");
-    if (skin) { applySkin(skin.getAttribute("data-skin-option"), true); return; }
+    if (skin) { applySkin(skin.getAttribute("data-skin-option"), !document.querySelector(".mw-catalog")); return; }
     const terminal = target?.closest("[data-terminal-theme-option]");
     if (terminal) applyTerminalTheme(terminal.getAttribute("data-terminal-theme-option"), true);
   });

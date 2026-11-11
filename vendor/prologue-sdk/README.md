@@ -1,6 +1,12 @@
 # Prologue SDK 构建来源
 
-当前唯一隔离采用包为 `prologue-sdk-0.0.0-rc.1-memory-p0.tgz`，版本 `0.0.0-rc.1`，**1,424,552 字节**，SHA-256 `ed6d0b584fe3a7c950e74a524f4fa88bfd64856283b50623bbf6fd74014fbb8a`。来源为准确干净本地提交 `6664b9ca87aaff1994e8804b2d78e6bf6be245fa`，tree `60a63ecc91451d109078e3db9e0a7b20c0cf2124`，父提交 `6785a84b9cb168966f654e193b818c672cb459d1`。用户2026-11-07批准本地合入最新 main 并正式换入；源码未推送、未合并或发布。
+当前唯一采用包为 `prologue-sdk-0.0.0-rc.1-memory-p0.tgz`，版本 `0.0.0-rc.1`，**1,424,552 字节**，SHA-256 `bbbfea21da604f9302f283bf060c48ae7de9992d484f44f4c0106d623f3a6275`。来源为上游 main 的 [#109](https://github.com/molis-ai/molis-prologue/pull/109) 合并提交 `314a27a73aa1674faa1c0a4d4dce7f137f97c37c`（tree `4196b1320ef9352c9d8c845399bff290d75a10c8`，父提交 `ccafbb74` 与 `008e1b0f`），包含 Molis main 此前所用的 `1cc80b05`。#109 的远端 CI 因 GitHub 账单限制没有启动；用户 2026-11-11 定按本地门禁合并：头 `008e1b0f` 干净检出的 `pnpm quality`（74 文件 785 项）与干净消费者通过，本机没有 Rust 工具链、`crates/` 未改。
+
+Node 24.15.0（engines 写 24.14.0，本机没有，如实记录）/ pnpm 11.9.0，两个独立干净目录经 build 槽离线 frozen 安装、整体 build/pack，完整 tgz 逐字节相同，打包后源码树干净。824 个普通文件；相对上一份 6664 只变 `dist/host/plugin/node-storage.js`（`write` 合成一行，行为不变），manifest 逐字不变。替换掉的 Molis main 旧包（来源 `1cc80b05`）记在 `patch-history.json`，6664 记在相邻 provenance 的 `previousArtifact`。这只是来源记录，不是性能、完整 App 或用户验收结果。
+
+## 上一份隔离采用：6664（保留原记录）
+
+上一份隔离采用包为 `prologue-sdk-0.0.0-rc.1-memory-p0.tgz`，版本 `0.0.0-rc.1`，**1,424,552 字节**，SHA-256 `ed6d0b584fe3a7c950e74a524f4fa88bfd64856283b50623bbf6fd74014fbb8a`。来源为准确干净本地提交 `6664b9ca87aaff1994e8804b2d78e6bf6be245fa`，tree `60a63ecc91451d109078e3db9e0a7b20c0cf2124`，父提交 `6785a84b9cb168966f654e193b818c672cb459d1`。用户2026-11-07批准本地合入最新 main 并正式换入；源码未推送、未合并或发布。
 
 固定Node24.14.0/pnpm11.9.0，两个独立干净目录经原build槽离线frozen安装、整体build/pack，完整tgz逐字节相同。824个普通文件，相对6785新增0、删除0、变化18个包文件，manifest逐字不变。旧6785包及sidecars保留于 `/private/tmp/memory-v0-adopt-6664-20261107/previous-6785-vendor/`，相邻provenance的previousArtifact保留完整来源链。这只是来源记录，不是性能、完整App或用户验收结果。
 
@@ -454,7 +460,7 @@ shasum -a 256 /absolute/path/to/prologue-sdk-0.0.0-rc.1-side-panel-memory.tgz   
 
 - `patches`：26 项，每项有 `bytes`、`sha256`、`gitBlob`（补丁在 Git 里的对象号）、`base`（基线提交）、`commit`（补丁重建出其树的上游提交，没有则为 `null`）、`sourceKind`、`source`、`summary`，以及它产出的包 `package`（文件名、字节数、SHA-256、`gitBlob`）；
 - `packagesWithoutPatch`：32 个没有补丁的历史包（文件名、字节数、SHA-256、`gitBlob`、提交、说明），含本次换掉的 attachment-order、之前的 after-write-check-marker、after-write-check-key、after-write-check、parked-run、app-wait-ends-step、mcp-schema-annotations、app-tools-waits 与 mcp-refresh，以及 2026-10-12 换掉的 dirty 候选 a0-s1 和 adoption-receipts-fields、2026-10-13 换掉的 adoption-receipts-handling 与 main 上的 computer-use、2026-10-14 换掉的 interim-p1-cu，同日换掉的 interim-p1-cu-image，2026-10-15 换掉的 interim-p1-cu-image-acceptance，2026-10-16 换掉的 collaboration、found-tools 与 find-tools-deferral，2026-10-17 换掉的 parameter-branches 与 reference-kinds，以及随 #472 进入 main 历史的 molis-adoption；换掉的 side-panel-memory 包记在 `patches` 里 `side-panel-memory.patch` 的 `package`；
-- `upstream`：42 个 Prologue 提交于 2026-10-25 对准确 main `f1753ec8fa2cbca45667e60e101b93702acc6640` 逐项用 Git 祖先关系复核：历史 `08b84296`、`923e5a40`、`4007a93c` 与当前 `ba75c9f8` 四个过渡源不是 main 祖先，其余均为祖先；当前 ba75 是本节说明的 base2c7 + final103 适配，不是 main 升级。更早 `21cdfbf8`、`d4a2f41b` 是 Molis 提交，不是 Prologue 提交。
+- `upstream`：43 个 Prologue 提交。其中 42 个于 2026-10-25 对准确 main `f1753ec8fa2cbca45667e60e101b93702acc6640` 逐项用 Git 祖先关系复核：历史 `08b84296`、`923e5a40`、`4007a93c` 与当前 `ba75c9f8` 四个过渡源不是 main 祖先，其余均为祖先；当前 ba75 是本节说明的 base2c7 + final103 适配，不是 main 升级。更早 `21cdfbf8`、`d4a2f41b` 是 Molis 提交，不是 Prologue 提交。第 43 个 `1cc80b05` 于 2026-11-11 随换包追加（它是 Molis main 此前所用 memory-p0 包的来源），对上游 main `314a27a7` 核过是祖先。
 
 怎么取回并核对：
 

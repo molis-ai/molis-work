@@ -80,7 +80,7 @@ async function sourceHome(t: test.TestContext, response: (turn: number) => Respo
   assert.ok(generate);
   const open = async () => {
     adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "agent-runtime"), storageOwner,
-      memory: { ...memoryRuntimePolicy(() => policy, memoryExtractor(home, () => generate)), sources: { ...sources, check: async (caller, request) => { const result = await sources.check(caller, request); afterSourceCheck?.(); return result; }, resolve: async (caller, request) => { const result = await sources.resolve(caller, request); await afterSourceRead?.(); return result; } }, promotion: { policy: "memory.write-gate", version: 3,
+      memory: { ...memoryRuntimePolicy(() => policy, memoryExtractor(home, () => generate)), sources: { ...sources, check: async (caller, request) => { const result = await sources.check(caller, request); afterSourceCheck?.(); return result; }, resolve: async (caller, request) => { const result = await sources.resolve(caller, request); await afterSourceRead?.(); return result; } }, promotion: { policy: "memory.write-gate", version: 1,
         decide: (caller, request) => service.promotion.decide(caller, request), undo: {
           prepare: (caller, request) => service.promotion.undo.prepare(caller, request), record: (caller, request) => service.promotion.undo.record(caller, request) } } },
       modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: model.base + "/v1/messages", model: "fixture", credential_ref: "fixture",

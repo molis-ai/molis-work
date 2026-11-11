@@ -1,6 +1,7 @@
+import { rollbackPreservingError } from "@molis-ai/molis-work-storage";
 import { setTimeout as delay } from "node:timers/promises";
 import { performance } from "node:perf_hooks";
-import type { SqliteDatabase } from "@molis-ai/molis-work-storage";
+import { sqliteErrorName, type SqliteDatabase } from "@molis-ai/molis-work-storage";
 
 export type CatalogCommit = <T>(operation: () => T, beforeAcquire?: () => Promise<void>) => Promise<T>;
 
@@ -20,7 +21,7 @@ export function createCatalogCommit(db: SqliteDatabase, validate: () => void): C
           db.exec("BEGIN IMMEDIATE");
           break;
         } catch (error) {
-          if ((error as { code?: string }).code !== "SQLITE_BUSY" || performance.now() >= deadline) throw error;
+          if (sqliteErrorName(error) !== "SQLITE_BUSY" || performance.now() >= deadline) throw error;
         } finally { db.pragma(`busy_timeout = ${timeout}`); }
         await delay(Math.min(10, Math.max(1, deadline - performance.now())));
       }
@@ -30,7 +31,7 @@ export function createCatalogCommit(db: SqliteDatabase, validate: () => void): C
         if (result instanceof Promise) throw new TypeError("Catalog commit requires a synchronous owner operation");
         db.exec("COMMIT");
         return result;
-      } catch (error) { db.exec("ROLLBACK"); throw error; }
+      } catch (error) { rollbackPreservingError(error, () => db.exec("ROLLBACK")); throw error; }
     });
     tail = task.then(() => undefined, () => undefined);
     return task;

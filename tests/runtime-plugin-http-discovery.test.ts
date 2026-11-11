@@ -13,7 +13,7 @@ import { ensureProjectPlugins, releaseProjectPlugins, runningProjectPlatform } f
 import { pluginActions } from "./fixtures/plugin-actions.js";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { deferred, person, serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { streamProbe } from "./fixtures/plugin-stream.js";
 import { backgroundProbe } from "./fixtures/plugin-background.js";
@@ -509,12 +509,14 @@ test("RAC-612 RAC-613 RAC-614 the served client ignores forged controls, shows a
   const button = stage + ' button[data-project-plugin-restart]', note = stage + ' [data-project-plugin-restart-status]';
   const requests: Array<{ url: string; method: string; token: string | string[] | undefined }> = [];
   browser.server.on("request", request => {
-    if (/\/(restart|release-quarantine)$/u.test(request.url ?? "")) requests.push({ url: request.url!, method: request.method!, token: request.headers["x-molis-work-control-token"] });
+    if (/\/(restart|release-quarantine)$/u.test(request.url ?? "")) requests.push({ url: request.url!, method: request.method!, token: request.headers["x-molis-work-page-session"] });
   });
   await platform.runtime.reportCrash(installId);
   await reloadPage();
   await click('[data-plugin-strip] [data-plugin-id="form"]');
   await waitFor(`!!document.querySelector(${JSON.stringify(button)})`);
+  const pageProof = await evaluate<string>('document.querySelector("meta[name=molis-work-page-session]").content');
+  assert.notEqual(pageProof, browser.controlToken, "the page sends a session proof, never the Host control credential");
 
   // The real fetch is retained. Recording at dispatch makes zero requests observable without a timing sleep.
   await evaluate(`(() => {
@@ -549,7 +551,7 @@ test("RAC-612 RAC-613 RAC-614 the served client ignores forged controls, shows a
   await waitFor(`document.querySelector(${JSON.stringify(note)})?.textContent === ${JSON.stringify(reason)} && !document.querySelector(${JSON.stringify(button)}).disabled`);
   assert.equal(await evaluate(`document.querySelector(${JSON.stringify(note)}).hidden`), false);
   assert.equal(await evaluate(`document.querySelector(${JSON.stringify(note)}).querySelector('b')`), null, "the Host reason is text, never HTML");
-  assert.deepEqual(requests, [{ url: `/projects/${projectId}/api/plugins/${encodeURIComponent(FORM_PLUGIN_ID)}/restart`, method: "POST", token: browser.controlToken }]);
+  assert.deepEqual(requests, [{ url: `/projects/${projectId}/api/plugins/${encodeURIComponent(FORM_PLUGIN_ID)}/restart`, method: "POST", token: pageProof }]);
   assert.equal(platform.runtime.get(installId).state, "crashed", "the refused restart did not restore the instance");
 
   // Transport probe on the same Host-rendered control: reserved characters stay inside one encoded plugin-id segment.
@@ -587,7 +589,7 @@ test("RAC-612 RAC-613 RAC-614 the served client ignores forged controls, shows a
   await navigate(() => click(button));
   await waitFor(`!document.querySelector(${JSON.stringify(stage)})`);
   assert.equal(platform.runtime.get(installId).state, "running");
-  assert.deepEqual(requests.at(-1), { url: `/projects/${projectId}/api/plugins/${encodeURIComponent(FORM_PLUGIN_ID)}/release-quarantine`, method: "POST", token: browser.controlToken });
+  assert.deepEqual(requests.at(-1), { url: `/projects/${projectId}/api/plugins/${encodeURIComponent(FORM_PLUGIN_ID)}/release-quarantine`, method: "POST", token: pageProof });
 });
 
 // PG094-STAGE-01: a genuinely declared Home stage still reports stopped or missing runtime content.

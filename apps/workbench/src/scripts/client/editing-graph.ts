@@ -215,6 +215,7 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
         showCanvas: () => frameContainer?.showCanvas(),
         restoreBoard: () => frameContainer?.restoreBoard(),
         releaseFrame: () => frameContainer?.releaseFrame(),
+        openEntry: (plugin, origin) => openSurfaceEntry(plugin, origin),
       });
     } catch (error) {
       console.warn("Molis Work tab workspace failed to start", error);

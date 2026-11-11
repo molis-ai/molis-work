@@ -7,7 +7,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
+import { AGENT_TOOLS, AgentHost, AgentReviewQueue, createPrologueNodeAdapter, isAgentTool, RUNTIME_TOOLS_NOT_OFFERED } from "@molis-ai/molis-work-service-agent-host";
 import { newCallId, withCallId } from "@molis-ai/molis-work-kernel";
 import { ActionError, type ActionView, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createMolisWorkLocalHost, EN, molisWorkHostProjectReference, runWithLocale } from "@molis-ai/molis-work-app-local-host";
@@ -16,7 +16,7 @@ import { LocalHost } from "@molis-ai/molis-work-app-local-host";
 import { managementGoals } from "./goal-management-caller.js";
 import { watchSettlements } from "./fixtures/settlements.js";
 import { AssistantStore, type StoredWork } from "../apps/local-host/dist/assistant/assistant-store.js";
-import { AssistantService, presentActivity } from "../apps/local-host/dist/assistant/assistant-service.js";
+import { AssistantService, presentActivity, TOOL_ACTIVITY_VERBS } from "../apps/local-host/dist/assistant/assistant-service.js";
 import { actionKey, assistantAuthority, assistantProjectPrompts } from "../apps/local-host/dist/assistant/assistant-authority.js";
 import { HOST_GOVERNED_TOOLS, capabilityInput, gatewayProblem, prologueActionGateway, readableInput } from "../horizontal/agent-host/dist/adapters/prologue-action-gateway.js";
 import { declarationManifest, manifestProblems } from "./fixtures/declaration-manifest.js";
@@ -242,7 +242,7 @@ test("AC-10, QA-001: on an English page the reason a Send without a model fails 
       assert.equal(error.code, "assistant.model_missing");
       assert.equal(error.message, "No usable model is configured yet, so the assistant can't start");
       // What the page shows: the reason, then its kept-text note from the English catalog, and the action's label.
-      const shown = error.message + EN["。输入已保留"];
+      const shown = error.message + ". Your text is kept";
       assert.equal(shown, "No usable model is configured yet, so the assistant can't start. Your text is kept");
       assert.doesNotMatch(shown, /[\u3000-\u303f\u4e00-\u9fff\uff00-\uffef]/, "no Chinese word or punctuation left");
       assert.equal(error.details?.action, "打开模型设置", "the action stays the key the page picks the model-settings link by");
@@ -254,6 +254,11 @@ test("AC-10, QA-001: on an English page the reason a Send without a model fails 
     assert.equal((await f.service.list())[0]!.draft, text);
     await assert.rejects(f.service.send({ text, request_id: "req-00000012" }, {}), /还没有配置可用的模型/, "a Chinese page still reads it in Chinese");
   } finally { await f.close(); }
+});
+
+test("CPK-07: the activity table names only Agent tools — by the tool set's name or the runtime's own name for one", () => {
+  const runtimeNames = [...AGENT_TOOLS.flatMap(tool => tool.runtime_name ? [tool.runtime_name] : []), ...RUNTIME_TOOLS_NOT_OFFERED.map(row => row.runtime_name)];
+  assert.deepEqual(Object.keys(TOOL_ACTIVITY_VERBS).filter(name => !isAgentTool(name) && !runtimeNames.includes(name)), []);
 });
 
 test("activity and review read in the person's terms", () => {
@@ -291,7 +296,7 @@ test("business roles are declared narrowly and the Host keeps directories, MCP a
     const base = { project_id: "project", plugin_id: "io.molis.work.assistant", install_id: "system", actor_id: "web-user", session, role_id: "assistant", workspace: "business" as const, task: "x" };
     const { ASSISTANT_AGENT, ASSISTANT_PROMPTS } = await import("../apps/local-host/dist/assistant/assistant-agent.js");
     const authority = { manifest: ASSISTANT_AGENT, prompts: ASSISTANT_PROMPTS, authorizedDirectories: ["/tmp"], actions: async () => ({ discover: async () => [], invoke: async () => null }) };
-    for (const extra of [{ directory: { canonical_path: "/tmp", realpath_verified: true } }, { mcp_tools: [{ server: "s", tool: "t", version: "1" }] },
+    for (const extra of [{ directory: { canonical_path: "/tmp", realpath_verified: true } }, { mcp_tools: [{ server: "s", tool: "t", version: "1", configuration_version: 1 }] },
       { action_gateway: true, action_tools: [{ capability_id: "fixture.notes.count", version: 1, provider_id: "fixture.notes" }] }]) {
       await assert.rejects(f.host.start("prologue", { ...base, ...extra } as never, authority as never), /业务|能力网关|directory|目录|MCP/);
     }

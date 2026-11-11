@@ -1,4 +1,4 @@
-import { canonicalJsonValue as canonicalize } from "@molis-ai/molis-work-plugin-sdk";
+import { canonicalJsonText } from "@molis-ai/molis-work-plugin-sdk";
 import { goalErrors } from "./errors.js";
 import { createHash } from "node:crypto";
 import type { GoalRecord } from "../contract/goals.js";
@@ -6,16 +6,20 @@ import { GoalsRepository } from "./repository.js";
 
 export interface GoalsCommandContextOptions {
   now?: () => Date;
+  /** The Goal's confirmed deliverables, read where they are kept. Without it, a verified report meets nothing: only the person's acceptance does. */
+  deliverables?: (projectId: string, goalId: string) => ReadonlyArray<{ artifact_id: string; version: number }>;
 }
 
 export class GoalsCommandContext {
   readonly now: () => Date;
+  readonly deliverables: GoalsCommandContextOptions["deliverables"];
 
   constructor(
     readonly repository: GoalsRepository,
     options: GoalsCommandContextOptions = {},
   ) {
     this.now = options.now ?? (() => new Date());
+    this.deliverables = options.deliverables;
   }
 
   requireGoalsLibrary(projectId: string): void {
@@ -77,7 +81,7 @@ export class GoalsCommandContext {
 }
 
 export function requestHash(value: unknown): string {
-  return createHash("sha256").update(JSON.stringify(canonicalize(value))).digest("hex");
+  return createHash("sha256").update(canonicalJsonText(value)!).digest("hex");
 }
 
 export function unique<T>(values: T[]): T[] {

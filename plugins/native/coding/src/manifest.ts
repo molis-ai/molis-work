@@ -6,9 +6,10 @@ import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plu
 import { agentHostCapabilities, agentOfferActions } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentCollaborationActions } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
 import { agentInputActions } from "@molis-ai/molis-work-contracts/services/agent-inputs";
-import { projectsCapabilities, projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
+import { projectDirectoryActions, projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { GOALS_ACTIONS } from "./goals-actions.js";
 import { KNOWLEDGE_READ_PERMISSION, knowledgeActions } from "@molis-ai/molis-work-contracts/services/knowledge";
+import { SKILLS_READ_PERMISSION, skillCatalogActions } from "@molis-ai/molis-work-contracts/services/skills";
 import { CODING_GOAL_CONTEXT_TYPE, CODING_PLAN_TYPE } from "./artifacts.js";
 import {
   CODING_CHANGESET_TYPE,
@@ -21,7 +22,7 @@ import { CODING_SETTINGS_UI_CONTRIBUTION_ID, CODING_UI_CONTRIBUTION_ID } from ".
 import { CODING_ACTIONS } from "./route-actions.js";
 import { codingExecutorActions } from "./executor-actions.js";
 import { codingArtifactPreview } from "./artifact-preview.js";
-import { CODING_PLAN_SCHEMA_VERSION } from "./plans.js";
+import { CODING_ARTIFACT_SCHEMA_VERSIONS } from "./artifacts.js";
 import { codingSync } from './session-replication.js';
 import { codingHomeBackgroundTasks } from "./home-background.js";
 import { codingResultDocument } from "./contract.js";
@@ -48,10 +49,10 @@ export const CODING_PROJECT_PLUGIN_ID = "coding";
  * Their absence never blocks an ordinary task.
  */
 export const codingManifest: PluginManifest = {
-  schema_version: 1,
-  host_api_version: 1,
+  schema_version: /* @version manifest.schema */ 1,
+  host_api_version: /* @version host.api */ 1,
   plugin_id: CODING_PLUGIN_ID,
-  version: "0.3.0",
+  version: /* @version product.release */ "0.1.0",
   name: "Coding",
   sync: codingSync,
   summary: "和 Agent 一起写代码，留每轮记录。",
@@ -65,6 +66,7 @@ export const codingManifest: PluginManifest = {
     { permission: "goals:write", required: true, reason: "按用户确认把固定执行报告记录为原目标的进展" },
     { permission: "artifact:read", required: true, reason: "读取本项目已保存的执行报告、计划与变更集" },
     { permission: KNOWLEDGE_READ_PERMISSION, required: true, reason: "读取用户为下一轮选定的项目资料" },
+    { permission: SKILLS_READ_PERMISSION, required: true, reason: "列出共同目录里给 Coding 用的技能，并按这一轮选定的技能读取正文" },
     { permission: "storage:private", required: true, reason: "保存编码会话的未发送草稿" },
     {
       permission: "artifact:write",
@@ -96,11 +98,11 @@ export const codingManifest: PluginManifest = {
       ...Object.values(characterPluginActions).map(entry => entry.capability_id),
       knowledgeActions.read.capability_id,
       knowledgeActions.list.capability_id,
-      projectsCapabilities.readWorkspace.capability_id,
+      skillCatalogActions.list.capability_id,
+      skillCatalogActions.readBodies.capability_id,
+      projectDirectoryActions.get.capability_id,
       workspaceReadActions.file.capability_id,
       workspaceReadActions.git.capability_id,
-      projectSettingsCapabilities.workspaces.capability_id,
-      projectSettingsCapabilities.browsingWorkspace.capability_id,
       projectSettingsCapabilities.runtime.capability_id,
       ...Object.values(writerDirectoryCapabilities).map(entry => entry.capability_id),
       ...Object.values(writerIntegrationCapabilities).map(entry => entry.capability_id),
@@ -108,30 +110,30 @@ export const codingManifest: PluginManifest = {
   },
   // The run report is the version people keep; plans, goal context, change sets and diagrams are exchange data.
   artifacts: {
-    produces: [{ artifact_type_id: CODING_REPORT_TYPE, schema_version: 1, title: "Coding 执行报告", preview: { capability_id: "coding.artifacts.preview", version: 1 } }],
-    consumes: [CHARACTER_ARTIFACT_TYPE, CODING_REPORT_TYPE].map(artifact_type_id => ({ artifact_type_id, schema_version: 1 })),
+    produces: [{ artifact_type_id: CODING_REPORT_TYPE, schema_version: /* @version type.coding.report */ 1, title: "Coding 执行报告", preview: { capability_id: "coding.artifacts.preview", version: /* @version action.coding.artifacts.preview */ 1 } }],
+    consumes: [CHARACTER_ARTIFACT_TYPE, CODING_REPORT_TYPE].map(artifact_type_id => ({ artifact_type_id, schema_version: artifact_type_id === CHARACTER_ARTIFACT_TYPE ? /* @version type.character.definition */ 1 : CODING_ARTIFACT_SCHEMA_VERSIONS[artifact_type_id]! })),
   },
   process_items: {
-    produces: [CODING_PLAN_TYPE, CODING_GOAL_CONTEXT_TYPE, CODING_CHANGESET_TYPE, CODING_DIAGRAM_TYPE].map(artifact_type_id => ({ artifact_type_id, schema_version: artifact_type_id === CODING_PLAN_TYPE ? CODING_PLAN_SCHEMA_VERSION : 1 })),
-    consumes: [CODING_PLAN_TYPE, CODING_GOAL_CONTEXT_TYPE, CODING_CHANGESET_TYPE].map(artifact_type_id => ({ artifact_type_id, schema_version: artifact_type_id === CODING_PLAN_TYPE ? CODING_PLAN_SCHEMA_VERSION : 1 })),
+    produces: [CODING_PLAN_TYPE, CODING_GOAL_CONTEXT_TYPE, CODING_CHANGESET_TYPE, CODING_DIAGRAM_TYPE].map(artifact_type_id => ({ artifact_type_id, schema_version: CODING_ARTIFACT_SCHEMA_VERSIONS[artifact_type_id]! })),
+    consumes: [CODING_PLAN_TYPE, CODING_GOAL_CONTEXT_TYPE, CODING_CHANGESET_TYPE].map(artifact_type_id => ({ artifact_type_id, schema_version: CODING_ARTIFACT_SCHEMA_VERSIONS[artifact_type_id]! })),
   },
   ports: {
     // What a round takes from elsewhere is picked from project knowledge (specs/project-knowledge §9), not wired in by port.
     inputs: [],
     outputs: [
-      { port: "changeset", artifact_type_id: CODING_CHANGESET_TYPE, schema_version: 1 },
-      { port: "report", artifact_type_id: CODING_REPORT_TYPE, schema_version: 1 },
-      { port: "diagram", artifact_type_id: CODING_DIAGRAM_TYPE, schema_version: 1 },
+      { port: "changeset", artifact_type_id: CODING_CHANGESET_TYPE, schema_version: /* @version type.coding.changeset */ 1 },
+      { port: "report", artifact_type_id: CODING_REPORT_TYPE, schema_version: /* @version type.coding.report */ 1 },
+      { port: "diagram", artifact_type_id: CODING_DIAGRAM_TYPE, schema_version: /* @version type.coding.diagram */ 1 },
     ],
   },
   events: {
     // What Coding tells the project: a file under the workspace changed, and a
     // prepared change set no longer matches what is on disk.
     publishes: [
-      { event_type_id: CODING_RUN_UPDATED_EVENT, type_version: 1 },
-      { event_type_id: CODING_FILE_CHANGED_EVENT, type_version: 1 },
-      { event_type_id: CODING_WORKSPACE_INVALIDATED_EVENT, type_version: 1 },
-      { event_type_id: CODING_PREFERENCE_EVENT, type_version: 1 },
+      { event_type_id: CODING_RUN_UPDATED_EVENT, type_version: /* @version event.io.molis.work.coding.run-updated */ 1 },
+      { event_type_id: CODING_FILE_CHANGED_EVENT, type_version: /* @version event.io.molis.work.coding.file-changed */ 1 },
+      { event_type_id: CODING_WORKSPACE_INVALIDATED_EVENT, type_version: /* @version event.io.molis.work.coding.workspace-invalidated */ 1 },
+      { event_type_id: CODING_PREFERENCE_EVENT, type_version: /* @version event.io.molis.work.coding.preference */ 1 },
     ],
     subscribes: [],
   },
@@ -153,6 +155,8 @@ export const codingManifest: PluginManifest = {
     { route_id: "coding.prepare-writer-directory", method: "POST", path: "/workspaces/:workspaceId/writers" },
     { route_id: "coding.read-integration", method: "GET", path: "/sessions/:sessionId/runs/:runId/subagents/:childId/integration" },
     { route_id: "coding.prepare-integration", method: "POST", path: "/sessions/:sessionId/runs/:runId/subagents/:childId/integration" },
+    { route_id: "coding.read-worktree-integration", method: "GET", path: "/sessions/:sessionId/worktrees/:worktreeId/integration" },
+    { route_id: "coding.prepare-worktree-integration", method: "POST", path: "/sessions/:sessionId/worktrees/:worktreeId/integration" },
     { route_id: "coding.control-subagent", method: "POST", path: "/sessions/:sessionId/runs/:runId/subagents/:childId" },
     { route_id: "coding.read-plan", method: "GET", path: "/sessions/:sessionId/plan" },
     { route_id: "coding.save-plan", method: "POST", path: "/sessions/:sessionId/plan" },
@@ -183,9 +187,6 @@ export const codingManifest: PluginManifest = {
     { route_id: "coding.prepare-rewind", method: "POST", path: "/sessions/:sessionId/checkpoints/:checkpointId/rewind" },
     { route_id: "coding.save-mcp", method: "POST", path: "/mcp" },
     { route_id: "coding.control-mcp", method: "POST", path: "/mcp/:serverId/control" },
-    { route_id: "coding.discover-methods", method: "POST", path: "/methods/discover" },
-    { route_id: "coding.install-method", method: "POST", path: "/methods/install" },
-    { route_id: "coding.read-method", method: "GET", path: "/methods/:skillId/:version" },
     { route_id: "coding.state", method: "GET", path: "/state" },
     { route_id: "coding.list-sessions", method: "GET", path: "/sessions" },
     { route_id: "coding.create-session", method: "POST", path: "/sessions" },

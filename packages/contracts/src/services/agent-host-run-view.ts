@@ -107,6 +107,37 @@ export interface AgentCommandOutput {
   timed_out?: boolean;
   cancelled?: boolean;
   stop_reason?: "cancelled" | "timed-out";
+  /**
+   * On the receipt of a person's after-write check only: which checker ran, from which version of its workspace's list,
+   * as its executor noted when it answered the write. The command's receipt itself carries neither.
+   */
+  after_write_check?: { checker_id: string; display_name: string; version: number };
+}
+
+/** Which commands of one round the caller asks about (`agent.evidence.check`); the session is the caller's own, never an input. */
+export interface AgentEvidenceCheckRequest {
+  run_id: string;
+  command_call_ids: string[];
+}
+
+/**
+ * What the Agent Host itself recorded of those commands, for an owner elsewhere (a Goal's requirement) to weigh. Facts only, no
+ * output text: whether each has a receipt and how it ended, and whether the round wrote a file after it ran.
+ */
+export interface AgentEvidenceCheck {
+  /** The plugin whose installation owns the session, and the round asked about. */
+  owner_plugin_id: string;
+  run: AgentRunRef;
+  commands: Array<{
+    call_id: string;
+    /** False when the round kept no receipt under this id (never run, refused, or not this round's): the rest is then unknown. */
+    recorded: boolean;
+    exit_code: number | null;
+    timed_out: boolean;
+    cancelled: boolean;
+    /** The round finished a write, or recorded a file change, after this command was called: what it checked may not be what was left. */
+    changed_after: boolean;
+  }>;
 }
 
 /** One step of a Run's own list, as the runtime keeps it. */
@@ -195,7 +226,7 @@ export interface AgentTurnChanges {
 }
 
 export interface AgentSessionView {
-  /** Immutable session mode; missing historical values mean required. */
+  /** Immutable session mode; absent means required. A sub-task's index entry need not write it: its frozen intent carries the granted directory. */
   workspace?: "required" | "none" | "business";
   /** A manual rewind is in progress or has an unresolved execution outcome. */
   checkpoint_busy?: boolean;

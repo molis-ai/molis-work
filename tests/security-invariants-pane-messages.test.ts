@@ -11,6 +11,8 @@ const ORIGIN = "http://127.0.0.1:4173";
 interface Panes {
   from(event: unknown): unknown;
   fromParent(event: unknown): boolean;
+  recordAsk(event: unknown): { plugin: string; itemId: string; quiet: boolean } | null;
+  recordGone(event: unknown): { plugin: string; itemId: string } | null;
   keep(token: string, frame: unknown, value: unknown): void;
   take(token: string, frame: unknown): unknown;
 }
@@ -79,6 +81,98 @@ test("S-30 RAC-2687 generic view updates retain the exact pane-window and parent
     assert.equal(inside.panes.fromParent({ origin: ORIGIN, source: paneB.contentWindow, data: reply }), false);
     assert.equal(inside.panes.fromParent({ origin: "null", source: inside.around, data: reply }), false);
   }
+});
+
+// 07-S2: a main tab moved to the right side shows in a pane page whose frame is `iframe[data-pane-owner="side"]`, and a pane
+// page hands ⌘⇧↵ up as `workbench-pane-solo`. The check is the same one; this puts the new sender and message in its evidence.
+test("S-30 07-S2 the right side's pane page frame and workbench-pane-solo pass the same check: only that frame's own window, from this origin", () => {
+  const top: Record<string, unknown> = {};
+  top.parent = top;
+  const main = { contentWindow: { name: "pane a" }, dataset: { paneOwner: "a" } };
+  const side = { contentWindow: { name: "moved tab on the right" }, dataset: { paneOwner: "side" } };
+  const sidePlugin = { contentWindow: { name: "a side panel plugin frame" }, dataset: { sideFrame: "" } };
+  const document = { querySelectorAll: (selector: string) => selector === "iframe[data-pane-owner]" ? [main, side] : [main, side, sidePlugin] };
+  const panes = vm.runInNewContext(PANE_MESSAGES_SCRIPT, { window: top, document, location: { origin: ORIGIN } }) as Panes;
+  for (const data of [{ type: "workbench-pane-solo" }, { type: "workbench-pane-open", plugin: "goals" }, { type: "workbench-pane-focus" }]) {
+    assert.equal(panes.from({ origin: ORIGIN, source: side.contentWindow, data }), side, `${data.type} from the side's pane page names its frame`);
+    assert.equal(panes.from({ origin: ORIGIN, source: main.contentWindow, data: { ...data, paneOwner: "side", paneId: "side" } }), main, `${data.type}: a main pane cannot speak as the side by saying so`);
+    assert.equal(panes.from({ origin: ORIGIN, source: sidePlugin.contentWindow, data }), null, `${data.type}: a side panel plugin frame is not a pane page`);
+    assert.equal(panes.from({ origin: ORIGIN, source: top, data }), null, `${data.type}: the page itself`);
+    assert.equal(panes.from({ origin: ORIGIN, source: { name: "a popup" }, data }), null, `${data.type}: a window that is not a frame here`);
+    for (const origin of ["http://127.0.0.1:4174", "https://example.com", "null", ""]) {
+      assert.equal(panes.from({ origin, source: side.contentWindow, data }), null, `${data.type} from ${JSON.stringify(origin)}`);
+    }
+  }
+});
+
+test("S-30 a pane passes on the page's ask for a record only from the page around it, and only in its exact shape", () => {
+  const { around, self, panes } = pane();
+  const ask = { type: "workbench-select-item", plugin: "dataset", itemId: "record-1", quiet: false };
+  // Copied out of the script's realm so the comparison is of the fields alone.
+  assert.deepEqual({ ...panes.recordAsk({ origin: ORIGIN, source: around, data: ask }) }, { plugin: "dataset", itemId: "record-1", quiet: false });
+  assert.deepEqual({ ...panes.recordAsk({ origin: ORIGIN, source: around, data: { ...ask, quiet: true } }) }, { plugin: "dataset", itemId: "record-1", quiet: true });
+  // Not from the page around it.
+  assert.equal(panes.recordAsk({ origin: ORIGIN, source: self, data: ask }), null, "the pane's own window");
+  assert.equal(panes.recordAsk({ origin: ORIGIN, source: { name: "a sibling pane" }, data: ask }), null, "another frame");
+  assert.equal(panes.recordAsk({ origin: ORIGIN, source: page().paneA.contentWindow, data: ask }), null, "a pane of the page");
+  for (const origin of ["http://127.0.0.1:4174", "http://localhost:4173", "https://example.com", "null", ""]) {
+    assert.equal(panes.recordAsk({ origin, source: around, data: ask }), null, `from ${JSON.stringify(origin)}`);
+  }
+  // A page that is not framed has no page around it: not even what it posts to itself is an ask.
+  const alone: Record<string, unknown> = {};
+  alone.parent = alone;
+  const top = vm.runInNewContext(PANE_MESSAGES_SCRIPT, { window: alone, document: { querySelectorAll: () => [] }, location: { origin: ORIGIN } }) as Panes;
+  assert.equal(top.recordAsk({ origin: ORIGIN, source: alone, data: ask }), null, "a window that is not a frame");
+  // From the page around it, but not in the ask's shape: nothing is passed on.
+  const cases: Array<[string, unknown]> = [
+    ["another message type", { ...ask, type: "workbench-view" }],
+    ["plugin not a string", { ...ask, plugin: 7 }],
+    ["plugin null", { ...ask, plugin: null }],
+    ["plugin an object", { ...ask, plugin: { toString: () => "dataset" } }],
+    ["plugin empty", { ...ask, plugin: "" }],
+    ["plugin missing", { type: ask.type, itemId: ask.itemId, quiet: ask.quiet }],
+    ["itemId not a string", { ...ask, itemId: 42 }],
+    ["itemId an array", { ...ask, itemId: ["record-1"] }],
+    ["itemId empty", { ...ask, itemId: "" }],
+    ["itemId over 1000 characters", { ...ask, itemId: "r".repeat(1001) }],
+    ["quiet a string", { ...ask, quiet: "true" }],
+    ["quiet a number", { ...ask, quiet: 1 }],
+    ["quiet null", { ...ask, quiet: null }],
+    ["quiet missing", { type: ask.type, plugin: ask.plugin, itemId: ask.itemId }],
+    ["an extra field", { ...ask, view: "work" }],
+    ["an extra intent", { ...ask, intent: "open" }],
+  ];
+  for (const [why, data] of cases) assert.equal(panes.recordAsk({ origin: ORIGIN, source: around, data }), null, why);
+});
+
+test("S-30 a pane's gone-record report is taken only from a pane frame, in its exact shape", () => {
+  const { paneA, paneB, stray, panes } = page();
+  const gone = { type: "workbench-pane-record-gone", paneId: "pane-a", plugin: "goals", itemId: "goal-1" };
+  // Copied out of the script's realm so the comparison is of the fields alone.
+  assert.deepEqual({ ...panes.recordGone({ origin: ORIGIN, source: paneA.contentWindow, data: gone }) }, { plugin: "goals", itemId: "goal-1" });
+  assert.deepEqual({ ...panes.recordGone({ origin: ORIGIN, source: paneB.contentWindow, data: { type: gone.type, plugin: gone.plugin, itemId: gone.itemId } }) }, { plugin: "goals", itemId: "goal-1" }, "paneId is optional");
+  // Not from a pane frame or not from this origin: nothing is marked.
+  assert.equal(panes.recordGone({ origin: ORIGIN, source: stray.contentWindow, data: gone }), null, "a frame that is not a pane");
+  assert.equal(panes.recordGone({ origin: ORIGIN, source: { name: "a popup" }, data: gone }), null, "a window that is not a frame here");
+  for (const origin of ["http://127.0.0.1:4174", "http://localhost:4173", "https://example.com", "null", ""]) {
+    assert.equal(panes.recordGone({ origin, source: paneA.contentWindow, data: gone }), null, `from ${JSON.stringify(origin)}`);
+  }
+  // From a pane, but not in the report's shape: nothing is marked.
+  const cases: Array<[string, unknown]> = [
+    ["another message type", { ...gone, type: "workbench-pane-open" }],
+    ["plugin not a string", { ...gone, plugin: 7 }],
+    ["plugin empty", { ...gone, plugin: "" }],
+    ["plugin over 1000 characters", { ...gone, plugin: "p".repeat(1001) }],
+    ["plugin missing", { type: gone.type, itemId: gone.itemId }],
+    ["itemId not a string", { ...gone, itemId: null }],
+    ["itemId empty", { ...gone, itemId: "" }],
+    ["itemId over 1000 characters", { ...gone, itemId: "r".repeat(1001) }],
+    ["itemId missing", { type: gone.type, plugin: gone.plugin }],
+    ["paneId not a string", { ...gone, paneId: 9 }],
+    ["paneId empty", { ...gone, paneId: "" }],
+    ["an extra field", { ...gone, title: "A Goal" }],
+  ];
+  for (const [why, data] of cases) assert.equal(panes.recordGone({ origin: ORIGIN, source: paneA.contentWindow, data }), null, why);
 });
 
 test("S-30 a token handed to one pane is taken back only by that pane's frame, and only once", () => {

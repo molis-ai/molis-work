@@ -24,7 +24,13 @@ export type WorkspaceFileResult =
   /** The file's bytes, base64. */
   | { outcome: "bytes"; data: string; bytes: number; fingerprint: string }
   | { outcome: "too-large"; bytes: number; limit: number }
-  | { outcome: "binary" | "unsupported" | "missing" | "denied" | "changed" };
+  /**
+   * A text read that found bytes it could not show as text. The content was read, so it carries the same fingerprint as a `bytes`
+   * read and a reference can be written from it (specs/shared-sources-and-surfaces §2); `unsupported` here is a file that would not decode.
+   */
+  | { outcome: "binary" | "unsupported"; fingerprint: string }
+  /** `unsupported` with no fingerprint is not a regular file: there was no content to read. */
+  | { outcome: "unsupported" | "missing" | "denied" | "changed" };
 
 /** Git reads are scoped by the current project grant, never by a caller path. */
 export type GitFileMode = "100644" | "100755";
@@ -86,7 +92,7 @@ export type GitOperation =
  * Preparing starts a Host review and returns its identity, never permission to execute: a person approves each one.
  */
 export const prepareGitOperationCapability = {
-  capability_id: "projects.workspace.git.operation.prepare", version: 1, operation: "command",
+  capability_id: "projects.workspace.git.operation.prepare", version: /* @version action.projects.workspace.git.operation.prepare */ 1, operation: "command",
   action: /* @__PURE__ */ gitHostAction("发起 Git 操作的审查", "按调用方看到的仓库修订，为一次提交、分支、推送、PR、合并、拉取或解决冲突发起宿主审查；只返回审查身份，用户批准后才执行，期间仓库变化会被拒绝", "operation", "review:git-operation",
     /* @__PURE__ */ object({ workspace_id: id, operation_id: operationId, revision: id, operation: gitOperation }), reviewIdentity),
 } as ActionDefinition<{ workspace_id: string; operation_id: string; revision: string; operation: GitOperation }, { review_id: string }>;
@@ -105,14 +111,14 @@ export interface GitOperationRecord {
   decided_at: string | null;
 }
 export const readGitOperationsCapability = {
-  capability_id: "projects.workspace.git.operations", version: 1, operation: "query",
+  capability_id: "projects.workspace.git.operations", version: /* @version action.projects.workspace.git.operations */ 1, operation: "query",
   action: /* @__PURE__ */ gitHostAction("读取 Git 操作记录", "读取一个已授权工作目录里各次 Git 操作的审查结果和产出；不把等待或未知当作成功", "query", "workspace:read",
     /* @__PURE__ */ object({ workspace_id: id }), { type: "array", items: gitOperationRecord }),
 } as ActionDefinition<{ workspace_id: string }, readonly GitOperationRecord[]>;
 
 /** Preparing returns a Host review identity, never permission to execute. */
 export const prepareGitIndexCapability = {
-  capability_id: "projects.workspace.git.prepare-index", version: 1, operation: "command",
+  capability_id: "projects.workspace.git.prepare-index", version: /* @version action.projects.workspace.git.prepare-index */ 1, operation: "command",
   action: /* @__PURE__ */ gitHostAction("发起暂存审查", "按调用方看到的修订，为暂存或取消暂存一个文件发起宿主审查；只返回审查身份，用户批准后才改动暂存区，磁盘文件不改写", "operation", "review:git-index",
     /* @__PURE__ */ object({ workspace_id: id, path: filePath, action: { enum: ["stage", "unstage"] }, revision: id, operation_id: id }), reviewIdentity),
 } as ActionDefinition<{ workspace_id: string; path: readonly string[]; action: "stage" | "unstage"; revision: string; operation_id: string }, { review_id: string }>;
@@ -123,7 +129,7 @@ export type { WriterWorktree, WriterFileTarget, PreparedWriterDirectory, WriterI
 
 /** Read-only, project-scoped projections of terminal SDK-backed Git reviews. */
 export const readGitResultsCapability = {
-  capability_id: "projects.workspace.git.results", version: 1, operation: "query",
+  capability_id: "projects.workspace.git.results", version: /* @version action.projects.workspace.git.results */ 1, operation: "query",
   action: /* @__PURE__ */ gitHostAction("读取暂存审查结果", "读取一个已授权工作目录里已经结束的暂存与取消暂存审查；等待中或结果未知的不列出", "query", "workspace:read",
     /* @__PURE__ */ object({ workspace_id: id }), { type: "array", items: gitReviewedResult }),
 } as ActionDefinition<{ workspace_id: string }, readonly GitReviewedResult[]>;
@@ -138,8 +144,6 @@ export interface GitReviewedResult extends GitOperationResult {
     decided_at: string | null;
     failure_reason?: string;
     reconciliation?: { actor_id: string; at: string; reason: string };
-    /** Older fixed results may only have the reason; never invent their actor or time. */
-    reconciliation_reason?: string;
   };
 }
 
@@ -159,9 +163,9 @@ export interface GitReviewedResult extends GitOperationResult {
  */
 
 export const workspaceArtifactsContract = {
-  contractId: "io.molis.work.modules.workspace-artifacts.v1",
+  contractId: /* @version contract.io.molis.work.modules.workspace-artifacts "io.molis.work.modules.workspace-artifacts.v{version}" */ "io.molis.work.modules.workspace-artifacts.v1",
   kind: "module",
-  schemaVersion: 1,
+  schemaVersion: /* @version contract.io.molis.work.modules.workspace-artifacts */ 1,
   maturity: "partial",
   ssot: "docs/SSOT-MATRIX.md",
 } as const satisfies ContractDescriptor;
@@ -189,8 +193,8 @@ function requiredText(value: unknown, field: string, maxLength: number): string 
  * Workspace reference
  * ------------------------------------------------------------------ */
 
-export const WORKSPACE_REF_TYPE = "workspace.ref.v1";
-export const WORKSPACE_REF_SCHEMA_VERSION = 1;
+export const WORKSPACE_REF_TYPE = /* @version type.workspace.ref "workspace.ref.v{version}" */ "workspace.ref.v1";
+export const WORKSPACE_REF_SCHEMA_VERSION = /* @version type.workspace.ref */ 1;
 
 export const WORKSPACE_NAME_MAX_LENGTH = 256;
 export const WORKSPACE_HANDLE_MAX_LENGTH = 128;
@@ -300,6 +304,30 @@ export function parseWorkspaceFileSubjectId(id: string): { workspace_id: string;
   if (at <= 0) return null;
   try { return { workspace_id: id.slice(0, at), path: parseFilePath(id.slice(at + 1).split("/")) }; } catch { return null; }
 }
+/** A project's folders and the folders the person named for another device's ids, as `projects.directories.get@1` answers them. */
+export interface WorkspaceIdMapping {
+  directories: readonly { workspace_id: string }[];
+  source_links: readonly { source_workspace_id: string; workspace_id: string }[];
+}
+/**
+ * The folder of this project a folder id names on this device: the id itself when it is one of the project's directories, otherwise
+ * the folder the person named for it (`source_links`, SSC-26). Null when neither. The one place this rule is written: a reference is
+ * read through it (`resolveWorkspaceFileSubject`) and a page naming a folder is too. A write is never given another device's id.
+ */
+export function resolveWorkspaceId(workspaceId: string, directories: WorkspaceIdMapping): string | null {
+  if (directories.directories.some(item => item.workspace_id === workspaceId)) return workspaceId;
+  const link = directories.source_links.find(item => item.source_workspace_id === workspaceId);
+  return link && directories.directories.some(item => item.workspace_id === link.workspace_id) ? link.workspace_id : null;
+}
+/**
+ * The folder of this project a workspace file subject reads from on this device (`resolveWorkspaceId`) and the path in it. Null when
+ * the id names none: the reference is `unmapped`. Only the places that read a reference call this.
+ */
+export function resolveWorkspaceFileSubject(subject: { id: string }, directories: WorkspaceIdMapping): { workspace_id: string; path: string[] } | null {
+  const named = parseWorkspaceFileSubjectId(subject.id);
+  const workspaceId = named ? resolveWorkspaceId(named.workspace_id, directories) : null;
+  return named && workspaceId ? { workspace_id: workspaceId, path: named.path } : null;
+}
 /** Folders that are built, fetched or tool state rather than the project's own files: walking a workspace skips them unless asked by name. */
 export const WORKSPACE_SKIPPED_FOLDERS = ["node_modules", ".git", "dist", "build", ".next", ".cache", "target", "__pycache__", ".venv", "vendor"] as const;
 
@@ -326,8 +354,8 @@ export function samePath(left: readonly string[], right: readonly string[]): boo
  * File snapshots and selections
  * ------------------------------------------------------------------ */
 
-export const FILE_SNAPSHOT_TYPE = "files.snapshot.v1";
-export const FILE_SNAPSHOT_SCHEMA_VERSION = 1;
+export const FILE_SNAPSHOT_TYPE = /* @version type.files.snapshot "files.snapshot.v{version}" */ "files.snapshot.v1";
+export const FILE_SNAPSHOT_SCHEMA_VERSION = /* @version type.files.snapshot */ 1;
 
 /** Above this, a snapshot is a reference rather than an inline payload. */
 export const FILE_SNAPSHOT_MAX_INLINE_BYTES = 1_048_576;
@@ -374,8 +402,8 @@ export function fileSnapshotFitsInline(content: FileSnapshot): boolean {
   return fileSnapshotInlineBytes(content) <= FILE_SNAPSHOT_MAX_INLINE_BYTES;
 }
 
-export const FILE_TEXT_SELECTION_TYPE = "files.text-selection.v1";
-export const FILE_TEXT_SELECTION_SCHEMA_VERSION = 1;
+export const FILE_TEXT_SELECTION_TYPE = /* @version type.files.text-selection "files.text-selection.v{version}" */ "files.text-selection.v1";
+export const FILE_TEXT_SELECTION_SCHEMA_VERSION = /* @version type.files.text-selection */ 1;
 
 export interface FileTextSelection extends FileSnapshot {
   /** UTF-16 code unit offsets into the file, half-open. */
@@ -424,8 +452,8 @@ export function selectionCitationLabel(selection: FileTextSelection): string {
  * File collection
  * ------------------------------------------------------------------ */
 
-export const FILES_COLLECTION_TYPE = "files.collection.v1";
-export const FILES_COLLECTION_SCHEMA_VERSION = 1;
+export const FILES_COLLECTION_TYPE = /* @version type.files.collection "files.collection.v{version}" */ "files.collection.v1";
+export const FILES_COLLECTION_SCHEMA_VERSION = /* @version type.files.collection */ 1;
 
 export interface FilesCollectionAccess {
   /** Opaque Host handle for the workspace root. Never a path. */
@@ -488,8 +516,8 @@ export function parseFilesCollection(content: unknown): FilesCollection {
  * Change sets
  * ------------------------------------------------------------------ */
 
-export const DIFF_CHANGESET_TYPE = "diff.changeset.v1";
-export const DIFF_CHANGESET_SCHEMA_VERSION = 1;
+export const DIFF_CHANGESET_TYPE = /* @version type.diff.changeset "diff.changeset.v{version}" */ "diff.changeset.v1";
+export const DIFF_CHANGESET_SCHEMA_VERSION = /* @version type.diff.changeset */ 1;
 
 export type ChangeSetSource =
   | { kind: "run"; run_id: string }
@@ -514,7 +542,7 @@ export interface ChangeSet {
   before: string;
   after: string;
   source: ChangeSetSource;
-  /** Optional for older/text-only producers; absent means metadata is unknown. */
+  /** Absent when the producer only supplies text: the Git metadata is unknown then. */
   git?: { before_mode: GitFileMode | null; after_mode: GitFileMode | null; previous_path?: readonly string[] };
 }
 
@@ -581,8 +609,8 @@ function parseChangeSetSource(value: unknown): ChangeSetSource {
  * Git operation receipts
  * ------------------------------------------------------------------ */
 
-export const GIT_RESULT_TYPE = "git.result.v1";
-export const GIT_RESULT_SCHEMA_VERSION = 1;
+export const GIT_RESULT_TYPE = /* @version type.git.result "git.result.v{version}" */ "git.result.v1";
+export const GIT_RESULT_SCHEMA_VERSION = /* @version type.git.result */ 1;
 
 export type GitResultOutcome =
   | "succeeded"
@@ -653,16 +681,13 @@ export const CODING_PREFERENCE_EVENT = "io.molis.work.coding.preference";
  * A Run's change set
  * ------------------------------------------------------------------ */
 
-export const CODING_CHANGESET_TYPE = "coding.changeset.v1";
+export const CODING_CHANGESET_TYPE = /* @version type.coding.changeset "coding.changeset.v{version}" */ "coding.changeset.v1";
 
 /**
- * Which facts a Run's change set describes.
- *
- * These are different things and a surface must never merge them: one is what
- * this run proposed and is frozen, the other is what the working tree looks
- * like now and moves under your feet.
+ * Which facts a Run's change set describes: what this run proposed, frozen.
+ * What the working tree looks like now moves under your feet and is not one of these.
  */
-export type CodingChangeScope = "run-frozen" | "workspace-current";
+export type CodingChangeScope = "run-frozen";
 
 export type CodingFileChangeKind = "added" | "modified" | "deleted";
 
@@ -672,10 +697,10 @@ export interface CodingFileChange {
   kind: CodingFileChangeKind;
   added_lines: number;
   removed_lines: number;
-  /** Unified diff for this file alone. */
+  /** Always empty: `review` carries both ends of the file. */
   diff: string;
   /** Original immutable review text. Multiple edits to one path stay separate. */
-  review?: {
+  review: {
     review_id: string;
     before_text: string | null;
     after_text: string;
@@ -696,15 +721,15 @@ export interface CodingChangeSet {
    * approval is not the same event as the write.
    */
   applied: boolean;
-  origin?: { session_id: string; runtime_session_id: string; workspace_id: string; workspace_name: string };
+  origin: { session_id: string; runtime_session_id: string; workspace_id: string; workspace_name: string };
   /** This set covers original text reviews; command/external effects are separate receipts. */
-  coverage?: "text-reviews";
+  coverage: "text-reviews";
 }
 
 export type { DiffLine, DiffOp, TextDiff, TextDiffRow, SplitPair } from "./workspace-text-diff.js";
 
 export function parseCodingChangeSet(value: unknown): CodingChangeSet {
-  if (!isRecord(value) || !["run-frozen", "workspace-current"].includes(String(value.scope))
+  if (!isRecord(value) || value.scope !== "run-frozen"
     || typeof value.run_id !== "string" || !value.run_id || typeof value.applied !== "boolean"
     || !Array.isArray(value.files) || value.files.length > 1000) throw new Error("固定变更格式无效");
   const files = value.files.map((file): CodingFileChange => {
@@ -712,18 +737,16 @@ export function parseCodingChangeSet(value: unknown): CodingChangeSet {
       || !Number.isSafeInteger(file.added_lines) || Number(file.added_lines) < 0
       || !Number.isSafeInteger(file.removed_lines) || Number(file.removed_lines) < 0 || typeof file.diff !== "string") throw new Error("固定文件变更格式无效");
     parseFilePath(file.path.split("/"));
-    if (file.review !== undefined) {
-      const review = file.review;
-      if (!isRecord(review) || typeof review.review_id !== "string" || !review.review_id
-        || !(review.before_text === null || typeof review.before_text === "string") || typeof review.after_text !== "string"
-        || !["pending", "approved", "rejected", "cancelled", "expired"].includes(String(review.decision))
-        || !["applied", "failed", "unknown", "not-applied"].includes(String(review.execution))) throw new Error("原审查内容无效");
-    }
+    const review = file.review;
+    if (!isRecord(review) || typeof review.review_id !== "string" || !review.review_id
+      || !(review.before_text === null || typeof review.before_text === "string") || typeof review.after_text !== "string"
+      || !["pending", "approved", "rejected", "cancelled", "expired"].includes(String(review.decision))
+      || !["applied", "failed", "unknown", "not-applied"].includes(String(review.execution))) throw new Error("原审查内容无效");
     return structuredClone(file) as unknown as CodingFileChange;
   });
   const origin = value.origin;
-  if (origin !== undefined && (!isRecord(origin) || !["session_id", "runtime_session_id", "workspace_id", "workspace_name"].every(key => typeof origin[key] === "string" && origin[key]))) throw new Error("固定变更来源无效");
-  if (value.coverage !== undefined && value.coverage !== "text-reviews") throw new Error("变更覆盖范围无效");
+  if (!isRecord(origin) || !["session_id", "runtime_session_id", "workspace_id", "workspace_name"].every(key => typeof origin[key] === "string" && origin[key])) throw new Error("固定变更来源无效");
+  if (value.coverage !== "text-reviews") throw new Error("变更覆盖范围无效");
   return { ...structuredClone(value), files } as unknown as CodingChangeSet;
 }
 
@@ -738,12 +761,12 @@ const workspaceRead = (title: string, description: string, input: Record<string,
   input_schema: { type: "object", properties: input, required, additionalProperties: false }, output_schema: { type: "object" },
 });
 export const workspaceReadActions = {
-  file: { capability_id: "projects.workspace.files.read", version: 1, operation: "query",
+  file: { capability_id: "projects.workspace.files.read", version: /* @version action.projects.workspace.files.read */ 1, operation: "query",
     action: /* @__PURE__ */ workspaceRead("读取项目目录文件", "按路径列出当前项目已关联工作目录中的条目，或读取一个文本文件；只读，路径相对于工作目录。kind 为 bytes（整份文件，供图片、PDF 预览）时，只有宿主运行的、在 Manifest 的 capabilities.consumes 里列出本动作并持有 workspace:read 的插件能用；其他调用方（用户、内置 Agent、工作流、MCP 客户端、生成的沙箱插件）用 bytes 会被拒绝（actions.forbidden），请读目录或文本",
       { workspace_id: { type: "string", minLength: 1, title: "工作目录" }, path: { type: "array", items: { type: "string", minLength: 1 }, maxItems: 256, title: "路径" },
         kind: { enum: ["directory", "text", "bytes"], title: "读取目录、文本，或整份文件（bytes，仅限宿主运行的插件）" } }, ["workspace_id", "path", "kind"]),
   } as ActionDefinition<WorkspaceFileQuery, WorkspaceFileResult>,
-  git: { capability_id: "projects.workspace.git.inspect", version: 1, operation: "query",
+  git: { capability_id: "projects.workspace.git.inspect", version: /* @version action.projects.workspace.git.inspect */ 1, operation: "query",
     action: /* @__PURE__ */ workspaceRead("读取项目仓库状态", "读取当前项目已关联工作目录的 Git 状态、摘要、差异或冲突文件；只读，不改变仓库",
       { workspace_id: { type: "string", minLength: 1, title: "工作目录" }, kind: { enum: ["status", "summary", "pr-support", "diff", "conflict"], title: "读取什么" },
         path: { type: ["array", "string"], title: "路径" }, side: { enum: ["index", "worktree"], title: "差异一侧" } }, ["workspace_id", "kind"]),

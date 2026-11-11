@@ -163,23 +163,23 @@ async function findEntry(client: ActionClient, caller: ActionCallContext, source
 
 /** hit_id carries only public identity: scope, provider, source version, kind and object id. */
 export function encodeSearchHitId(input: { project_id: string | null; provider_id: string; capability_id: string; version: number; kind: string; id: string }): string {
-  return JSON.stringify(["search-hit-v1", input.project_id ?? "", input.provider_id, input.capability_id, input.version, input.kind, input.id]);
+  return JSON.stringify([/* @version type.search-hit "search-hit-v{version}" */ "search-hit-v1", input.project_id ?? "", input.provider_id, input.capability_id, input.version, input.kind, input.id]);
 }
 export function decodeSearchHitId(value: string) {
   try {
     const parsed = JSON.parse(value) as unknown[];
-    if (!Array.isArray(parsed) || parsed.length !== 7 || parsed[0] !== "search-hit-v1" || !parsed.slice(1).every((part, index) => index === 3 ? Number.isSafeInteger(part) : typeof part === "string")) throw new Error();
+    if (!Array.isArray(parsed) || parsed.length !== 7 || parsed[0] !== /* @version type.search-hit "search-hit-v{version}" */ "search-hit-v1" || !parsed.slice(1).every((part, index) => index === 3 ? Number.isSafeInteger(part) : typeof part === "string")) throw new Error();
     const [, project, provider_id, capability_id, version, kind, id] = parsed as [string, string, string, string, number, string, string];
     if (!provider_id || !capability_id || !kind || !id) throw new Error();
     return { project_id: project || null, provider_id, capability_id, version, kind, id };
   } catch { throw new ActionError("actions.input_invalid", "搜索结果标识无效，请重新搜索"); }
 }
-const cursorOf = (query: string, offset: number) => JSON.stringify(["search-cursor-v1", query, offset]);
+const cursorOf = (query: string, offset: number) => JSON.stringify([/* @version type.search-cursor "search-cursor-v{version}" */ "search-cursor-v1", query, offset]);
 function offsetOf(cursor: string | null | undefined, query: string): number {
   if (!cursor) return 0;
   try {
     const [tag, forQuery, offset] = JSON.parse(cursor) as [unknown, unknown, unknown];
-    if (tag === "search-cursor-v1" && forQuery === query && Number.isSafeInteger(offset) && Number(offset) >= 0) return Number(offset);
+    if (tag === /* @version type.search-cursor "search-cursor-v{version}" */ "search-cursor-v1" && forQuery === query && Number.isSafeInteger(offset) && Number(offset) >= 0) return Number(offset);
   } catch { /* falls through */ }
   throw new ActionError("actions.input_invalid", "翻页位置已失效，请从第一页重新搜索");
 }
@@ -220,10 +220,10 @@ export class SearchService {
 
   /**
    * Called by the Host when a provider is registered or withdrawn (install, enable, upgrade, disable, uninstall).
-   * The next query re-checks that provider's sources and drops the ones that are gone; nothing runs now.
+   * Known sources refresh shortly after; the next query also re-checks them and drops the ones that are gone.
    */
   markRegistration(providerId: string, projectId: string | null): void {
-    this.announce(providerId, projectId);
+    if (this.announce(providerId, projectId)) this.scheduleRefresh(providerId, projectId);
   }
 
   private announce(providerId: string, projectId: string | null): boolean {
@@ -308,6 +308,15 @@ export class SearchService {
     }
     if (refusal !== null) return { state: "unavailable", hit_id, reason: refusal };
     return { state: "ok", hit_id, subject: entry.subject, open: entry.open ?? defaultOpen(source, hit.kind, hit.id), title: entry.title, revision: entry.revision };
+  }
+
+  /** Indexed material for a trusted consumer, retaining the original provider revision across its waits. */
+  indexedCatalog(access: SearchAccess) {
+    const revisions = new Map(this.changed);
+    return authorizedSearchCatalog(this.options.index, access, this.options.onError, source => {
+      const key = `${source.view.provider.project_id ?? ""}|${source.reference.provider_id}`, revision = revisions.get(key);
+      return () => { if (this.closed || this.changed.get(key) !== revision) throw new ActionError("actions.forbidden", "原资料来源已变化，请重新整理"); };
+    });
   }
 
   async status(access: SearchAccess, input: { scope?: SearchScope }): Promise<SearchStatusResponse> {
@@ -447,13 +456,14 @@ export class SearchService {
   /** Only sources already in the index are refreshed in the background; new ones are indexed when first searched. */
   private async refreshKnown(providerId: string, projectId: string | null): Promise<void> {
     if (this.closed) return;
-    const records = this.options.index.sources().filter(record => record.provider_id === providerId && (record.project_id === projectId || record.project_id === null));
+    const records = this.options.index.sources().filter(record => record.provider_id === providerId && (projectId === null || record.project_id === projectId || record.project_id === null));
     for (const scope of new Set(records.map(record => record.project_id))) {
       const owner = this.owner(scope);
       const { access, views } = await owner();
-      const sources = entrySources(views, access.caller)
-        .filter(source => source.project_id === scope && source.reference.provider_id === providerId && source.view.availability.available);
-      await Promise.allSettled(sources.map(source => this.sync(source, owner)));
+      const all = entrySources(views, access.caller).filter(source => source.project_id === scope && source.reference.provider_id === providerId);
+      await this.purgeDisabled(all);
+      await this.reconcile(scope);
+      await Promise.allSettled(all.filter(source => source.view.availability.available).map(source => this.sync(source, owner)));
     }
   }
 
@@ -476,6 +486,48 @@ export class SearchService {
 
 export { searchActions, SEARCH_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/search";
 export { confirmReferences, findReferenceCandidates, readReferences, type ReferenceAccess } from "./references.js";
+
+/** A project-only view of indexed material under the caller's original source and reader authority. */
+async function authorizedSearchCatalog(index: Pick<SearchIndexPort, "sources" | "catalog" | "document">, access: SearchAccess,
+  onError: SearchServiceOptions["onError"], capture: (source: SourceView) => () => void) {
+  const project = access.caller.project_id;
+  if (!project) throw new ActionError("actions.scope_mismatch", "索引目录需要当前项目");
+  const views = await access.client.discover(access.caller);
+  const before = entrySources(views, access.caller).filter(source => source.project_id === project && source.view.availability.available);
+  const authority = queryAuthority(access.caller, before, views, null, undefined, (error, where) => onError?.(error, where));
+  const fences = before.map(capture);
+  const assertCurrent = () => { authority.assertCurrent(); for (const fence of fences) fence(); };
+  await authority.validate();
+  const currentViews = await access.client.discover(access.caller);
+  assertCurrent();
+  const current = entrySources(currentViews, access.caller).filter(source => source.project_id === project && source.view.availability.available
+    && before.some(original => original.key === source.key));
+  const sources = index.sources().filter(source => source.project_id === project && source.state === "ready" && !source.error
+    && source.collection_revision !== null && current.some(live => live.key === source.source_key));
+  const readable = (sourceKey: string, kind: string) => {
+    const source = current.find(source => source.key === sourceKey);
+    return source && sources.some(record => record.source_key === source.key) && source.kinds.has(kind) ? source : null;
+  };
+  // Metadata pages keep the raw cursor even when every entry on a page is hidden.
+  return { sources: () => { assertCurrent(); return sources; }, assertCurrent,
+    catalog: (projectId: string, cursor?: string) => {
+      assertCurrent();
+      if (projectId !== project) return { entries: [], next_cursor: null };
+      const page = index.catalog(projectId, cursor);
+      return { ...page, entries: page.entries.flatMap(document => {
+        const source = readable(document.source_key, document.kind);
+        if (!source) return [];
+        return [{ ...document, ...(authority.canRead(source, document.kind, currentViews) ? {} : { content_chars: 0, has_content: false, content_policy: "summary" as const }) }];
+      }) };
+    },
+    document: (sourceKey: string, kind: string, objectId: string) => {
+      assertCurrent();
+      const source = readable(sourceKey, kind);
+      if (!source || !authority.canRead(source, kind, currentViews)) return null;
+      const document = index.document(sourceKey, kind, objectId); assertCurrent(); return document;
+    },
+  };
+}
 
 function entrySources(views: readonly ActionView[], caller: ActionCallContext): SourceView[] {
   return views.filter(view => isSearchEntriesSource(view.action) && view.action.search_source?.kinds.length).map(view => {

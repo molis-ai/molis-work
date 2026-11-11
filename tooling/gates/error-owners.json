@@ -10,6 +10,16 @@
     "reason": "actions.* is the platform's own family; placement.same_location, search.entry_duplicate, files.entry_duplicate and files.too_large are the protocol codes the contracts' helpers raise. Every one of them has a row in ACTION_ERROR_KINDS and may be raised by anyone."
   },
   "owners": {
+    "account": {
+      "paths": [
+        "horizontal/account/",
+        "apps/local-host/src/account-auth-http.ts",
+        "apps/local-host/src/account-callback-http.ts",
+        "apps/local-host/src/account-host.ts",
+        "apps/local-host/src/account-session-storage.ts"
+      ],
+      "reason": "The central account client and its trusted Host protocol map Auth failures to the account owner without exposing credentials."
+    },
     "sample_notes": {
       "paths": [
         "examples/personal-sync-plugin/"
@@ -41,9 +51,10 @@
     },
     "agent_definitions": {
       "paths": [
-        "apps/local-host/src/agent-definitions/"
+        "apps/local-host/src/agent-definitions/",
+        "packages/contracts/src/services/agent-definitions.ts"
       ],
-      "reason": "The Host's registry of Agent definitions and its HTTP edge: its codes already start with agent_definitions."
+      "reason": "The Host's registry of Agent definitions, its HTTP edge, and its contract, where the refusals callers outside the Host see are declared (specs/capability-pack/contract-design.md §4.11): its codes already start with agent_definitions."
     },
     "alchemist": {
       "paths": [
@@ -60,7 +71,7 @@
     },
     "assets": {
       "paths": [
-        "apps/server/src/assets.ts"
+        "apps/local-host/src/work-assets.ts"
       ],
       "reason": "Exporting and restoring a work-assets bundle: assets.* is its own feature, raised through ImError."
     },
@@ -97,6 +108,12 @@
       ],
       "reason": "The project catalog: creating, binding, recovering and deleting projects (MolisWorkProjectCatalogError folds into the catalog.* codes, spec W3-02 G2). Its public module contract holds the single Catalog error declaration used by Projects and Work."
     },
+    "projects": {
+      "paths": [
+        "packages/contracts/src/modules/projects-errors.ts"
+      ],
+      "reason": "The refusals of a project's input and output directories (specs/shared-sources-and-surfaces §3, §4), whose codes are projects.directory_*. Kept apart from the Catalog's error declaration in modules/projects.ts, which stays catalog's."
+    },
     "catalog_integration": {
       "paths": [
         "plugins/official-integrations/catalog/"
@@ -118,6 +135,12 @@
         "apps/local-host/src/computer/"
       ],
       "reason": "The desktop computer helper, its driver and the operation records in the file list. Its codes start with computer."
+    },
+    "composer": {
+      "paths": [
+        "packages/contracts/src/platform/composer.ts"
+      ],
+      "reason": "The unified input's public contract (specs/unified-input-voice/implementation-plan.md §6 answer 13): a source that went away, a pick the target cannot read at send time and a mount page's missing required field are the composer's own refusals, declared once here for the mount pages and the client (slice K2) that raise them."
     },
     "connector": {
       "paths": [
@@ -200,6 +223,16 @@
       ],
       "reason": "The action kernel: kernel.* for its own failures (the runtime-identity code mcp.runtime_identity_missing becomes kernel.runtime_identity_missing)."
     },
+    "kit": {
+      "paths": [
+        "apps/local-host/src/kit-actions.ts",
+        "apps/local-host/src/kit-mcp-reports.ts",
+        "horizontal/kit/",
+        "packages/contracts/src/platform/kit-report.ts",
+        "packages/contracts/src/services/kit.ts"
+      ],
+      "reason": "The AI kit (specs/capability-pack/contract-design.md §4, D-4): the report protocol, the kit.catalog.list contract, the gatherer (horizontal/kit/) and its Host wiring and reporters; its codes are kit.* like its action ids."
+    },
     "knowledge": {
       "paths": [
         "horizontal/knowledge/",
@@ -261,6 +294,14 @@
       ],
       "reason": "The Plugin Runtime, the plugin SDK's manifest and definition checks, the plugin CLI and the Host's installed-plugin files: their plugin_* codes become plugin.* (spec W3-02 J1). The shared public contract declares Runtime and authoring refusals once."
     },
+    "ui": {
+      "paths": [
+        "packages/plugin-sdk/src/ui/text-errors.ts",
+        "packages/design-system/src/baseline.ts",
+        "apps/workbench/src/plugin-text.ts"
+      ],
+      "reason": "The failures of the interface text tools (specs/font-and-skin-system/a-section-contract.md §3.1): a bad binding, a wrong installation, a development path with no language. The rest of packages/plugin-sdk/ stays plugin's. And the baseline files of the interface (§7.3): a broken one is ui.baseline_invalid, naming the file and the field; the rest of packages/design-system/ has no owner yet. And the words a process holds for the text tools (§8.3): two owners of one key segment are ui.text_owner_conflict, the refusal the SDK's own index gives; the rest of apps/workbench/ has no owner yet."
+    },
     "plugin_builder": {
       "paths": [
         "apps/local-host/src/plugin-builder/",
@@ -300,6 +341,12 @@
       ],
       "reason": "The search horizontal and its Host actions and HTTP edge; search.entry_duplicate is also a platform protocol code."
     },
+    "sessions": {
+      "paths": [
+        "packages/contracts/src/services/sessions.ts"
+      ],
+      "reason": "The Sessions service contract declares sessions.* once, so the shell and callers can tell the refusals apart; horizontal/sessions/ joins when the service package is created."
+    },
     "shelf": {
       "paths": [
         "modules/shelf/"
@@ -311,6 +358,12 @@
         "plugins/native/feed/src/store/signals.ts"
       ],
       "reason": "The signals module (inside Feed's store since FI-5): its signal_* codes become signals.*."
+    },
+    "skills": {
+      "paths": [
+        "packages/contracts/src/services/skills.ts"
+      ],
+      "reason": "The Skill catalog, settings and import contract (specs/skill-packs/contract-design.md §6–§8), whose refusals are skills.* like its action ids. A new file only; the Host's Agent definition register that will serve the catalog keeps its agent_definitions owner."
     },
     "sources": {
       "paths": [

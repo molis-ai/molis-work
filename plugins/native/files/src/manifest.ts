@@ -1,6 +1,6 @@
 import { FILES_ACTIONS } from "./actions.js";
 import { HOST_WORKSPACE_CHANGED_EVENT, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
+import { projectDirectoryActions } from "@molis-ai/molis-work-contracts/modules/projects";
 import {
   CODING_RUN_UPDATED_EVENT,
   GIT_OPERATION_UPDATED_EVENT,
@@ -44,10 +44,10 @@ export const FILES_SELECTION_OUTPUT_PORT = "selection";
  * current value.
  */
 export const filesManifest: PluginManifest = {
-  schema_version: 1,
-  host_api_version: 1,
+  schema_version: /* @version manifest.schema */ 1,
+  host_api_version: /* @version host.api */ 1,
   plugin_id: FILES_PLUGIN_ID,
-  version: "0.3.0",
+  version: /* @version product.release */ "0.1.0",
   name: "Files",
   summary: "查看工作区文件与保留的内容。",
   kind: "app",
@@ -61,7 +61,7 @@ export const filesManifest: PluginManifest = {
   ],
   capabilities: {
     provides: [],
-    consumes: [projectSettingsCapabilities.browsingWorkspace.capability_id, workspaceReadActions.file.capability_id, "diff.state", "text-stats.state"],
+    consumes: [projectDirectoryActions.get.capability_id, workspaceReadActions.file.capability_id, "diff.state", "text-stats.state"],
   },
   actions: FILES_ACTIONS,
   artifacts: { produces: [], consumes: [] },
@@ -102,26 +102,26 @@ export const filesManifest: PluginManifest = {
   events: {
     publishes: [],
     subscribes: [
-      { event_type_id: CODING_RUN_UPDATED_EVENT, type_version: 1, from_plugin_ids: [CODING_PLUGIN_ID] },
-      { event_type_id: GIT_OPERATION_UPDATED_EVENT, type_version: 1, from_plugin_ids: ["io.molis.work.git"] },
+      { event_type_id: CODING_RUN_UPDATED_EVENT, type_version: /* @version event.io.molis.work.coding.run-updated */ 1, from_plugin_ids: [CODING_PLUGIN_ID] },
+      { event_type_id: GIT_OPERATION_UPDATED_EVENT, type_version: /* @version event.io.molis.work.git.operation-updated */ 1, from_plugin_ids: ["io.molis.work.git"] },
       {
         event_type_id: CODING_FILE_CHANGED_EVENT,
-        type_version: 1,
+        type_version: /* @version event.io.molis.work.coding.file-changed */ 1,
         from_plugin_ids: [CODING_PLUGIN_ID],
       },
       {
         event_type_id: CODING_WORKSPACE_INVALIDATED_EVENT,
-        type_version: 1,
+        type_version: /* @version event.io.molis.work.coding.workspace-invalidated */ 1,
         from_plugin_ids: [CODING_PLUGIN_ID],
       },
       {
         event_type_id: GIT_FILE_CHANGED_EVENT,
-        type_version: 1,
+        type_version: /* @version event.io.molis.work.git.file-changed */ 1,
         from_plugin_ids: ["io.molis.work.git"],
       },
       // A person-approved workspace operation of this project ran, whoever asked for it (BL-379). Only the Host sends it, to
       // each installation that subscribes and holds `workspace:read`, so no source is named.
-      { event_type_id: HOST_WORKSPACE_CHANGED_EVENT, type_version: 1 },
+      { event_type_id: HOST_WORKSPACE_CHANGED_EVENT, type_version: /* @version event.host.workspace.changed */ 1 },
     ],
   },
   routes: [

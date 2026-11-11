@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginOAuthMethodDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
-import { runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { assertSecretStoreWritable, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { ApiOAuthError, assertStillDeclared, commitApiOAuth, declared, declaredMethod, localOrigin, methodFingerprint, object, registryOwners, sender, serialized,
   settingsOf, text, type Json, type OAuthConfiguration, type OAuthOwners } from "./connector-api-oauth.js";
 import { assertConnectorAuthorizationPending, beginConnectorAuthorization, expireConnectorAuthorizations, finishConnectorAuthorization, pendingConnectorAuthorizations } from "./connector-authorization-status.js";
@@ -65,14 +65,16 @@ export async function startDeviceOAuth(home: string, input: { serviceId: string;
   let previousRevision: string | undefined;
   let clientId = input.clientId?.trim() ?? "";
   if (input.connectionId) {
-    const current = withConnectorConnections(home, store => store.require(input.connectionId!, input.serviceId));
+    const current = withConnectorConnections(home, store => store.require(input.connectionId!, input.serviceId), "required");
     if (current.auth_method !== "oauth") throw new ApiOAuthError("这条连接不是 OAuth 连接");
     previousRevision = current.updated_at;
-    const before = withConnectorProtocols(home, store => store.get<OAuthConfiguration>(input.connectionId!));
+    const before = withConnectorProtocols(home, store => store.get<OAuthConfiguration>(input.connectionId!), true);
     if (!clientId && before?.protocol === "oauth" && before.serviceId === input.serviceId && before.grant === "device") clientId = before.clientId;
   }
   if (!clientId) clientId = connectorProductAuth(input.serviceId, "oauth")?.clientId ?? "";
   if (!clientId || clientId.length > 512 || /[\r\n]/u.test(clientId)) throw new ApiOAuthError("请填写有效的 OAuth Client ID");
+  // The device code is the vault's to keep: a vault this build cannot write is found before the service is asked for one.
+  assertSecretStoreWritable(home);
   const request = declared(() => oauthDeviceRequest(method, settings, clientId), input.serviceId);
   const send = sender(fetchImpl, { current: () => checkConnectorSetupSubmission(home, input.setupId, setup) });
   let started: Json;
@@ -117,7 +119,9 @@ export async function startDeviceOAuth(home: string, input: { serviceId: string;
 export async function pollDeviceOAuth(home: string, input: { origin: string; state: string; signal?: AbortSignal }, fetchImpl?: typeof fetch, owners: OAuthOwners = registryOwners(home)) {
   const origin = localOrigin(input.origin), state = input.state;
   const read = () => {
-    const config = withConnectorProtocols(home, store => store.read<DeviceConfiguration>(state, origin)).configuration;
+    const session = withConnectorProtocols(home, store => store.read<DeviceConfiguration>(state, origin), true);
+    if (!session) throw new ApiOAuthError("授权已失效，请重新开始");
+    const config = session.configuration;
     if (config.protocol !== "oauth" || config.grant !== "device") throw new ApiOAuthError("设备授权方式不匹配，请重新开始");
     return config;
   };
@@ -143,6 +147,8 @@ export async function pollDeviceOAuth(home: string, input: { origin: string; sta
       const method = deviceMethod(declaredMethod(await owners(config.serviceId, "device"), config.serviceId), config.serviceId);
       const deviceCode = secrets.get("device");
       if (!deviceCode) throw new ApiOAuthError("设备授权已失效，请重新开始", config.serviceId);
+      // A token the service hands over is claimed once: the vault that keeps it is asked before the poll goes.
+      assertSecretStoreWritable(home);
       const send = sender(fetchImpl, { beforeEffect: () => assertStillDeclared(config, owners), current: () => assertConnectorAuthorizationPending(home, state) });
       const request = declared(() => oauthTokenRequest(method, settingsOf(config.serviceId, method, config.settings), { clientId: config.clientId, clientSecret: "", redirectUri: "", deviceCode }), config.serviceId);
       let tokens: Json;

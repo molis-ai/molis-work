@@ -19,7 +19,7 @@ const FACTS = ["jobs", "job_events", "pulse_runs", "source_fetches", "supply_sig
 
 test("QA-023 W5-01-ALC-RES07: a Pulse whose studio closes while a source waits records nothing after the close", async t => {
   for (const fail of [false, true]) await t.test(fail ? "the source fails late" : "the source answers late", async t => {
-    const home = await mkdtemp(join(tmpdir(), "alchemist-pulse-close-")), library = join(home, "a.sqlite");
+    const home = await mkdtemp(join(tmpdir(), "alchemist-pulse-close-")), library = join(home, "a", "studio.sqlite");
     const entered = Promise.withResolvers<AbortSignal>(), release = Promise.withResolvers<void>();
     // Watcha, asked second, leaves through the process's own fetch: a closed studio never gets that far.
     let laterCalls = 0;

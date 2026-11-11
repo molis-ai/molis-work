@@ -10,6 +10,8 @@ export interface PluginDevelopmentInput {
   project_id: string;
   grants: string[];
   allow_unsigned_development: true;
+  /** The language this run renders in: left out, `ui.locales.default`; one outside `ui.locales.available` is refused. The run reads it from slice T8 (specs/font-and-skin-system/a-section-contract.md §8.3). */
+  locale?: string;
 }
 export interface PluginDevelopmentResult {
   installation: PluginInstanceRecord;
@@ -20,9 +22,9 @@ export interface PluginDevelopmentResult {
 }
 
 export const platformToolingContract = {
-  contractId: "io.molis.work.platform.tooling.v1",
+  contractId: /* @version contract.io.molis.work.platform.tooling "io.molis.work.platform.tooling.v{version}" */ "io.molis.work.platform.tooling.v1",
   kind: "platform",
-  schemaVersion: 1,
+  schemaVersion: /* @version contract.io.molis.work.platform.tooling */ 1,
   maturity: "contract-only",
   ssot: "docs/platform/CONTRACTS-AND-OPERATIONS.md",
 } as const satisfies ContractDescriptor;

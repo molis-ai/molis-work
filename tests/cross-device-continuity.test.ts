@@ -11,7 +11,7 @@ import { openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { openServerDatabase, Identity, ServerEvents, ContinuityService, startServer, memberClientId, CONTINUITY_ACTIONS } from "@molis-ai/molis-work-server";
 import type { ActionFactory } from "@molis-ai/molis-work-server";
-import { restoreWorkAssets, readRestoredAssets } from "../apps/server/src/assets.js";
+import { restoreWorkAssets, readRestoredAssets } from "@molis-ai/molis-work-app-local-host";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
 import { GoalProjectApplication } from "./fixtures/goal-application.js";
 
@@ -115,20 +115,25 @@ test("real Goal/Artifact actions survive phone retry, two members, revocation, r
     assert.equal((await phone.get('/session')).member,null);
     assert.equal((await phone.request('/continuity/api'+path)).status,401);
     const bundle=await desktop.get(path+'/assets');assert.doesNotMatch(JSON.stringify(bundle),/never-export|database_path/);
+    // D0002-04: exporting a shared version grants no authority to share it in a destination Home.
+    await assert.rejects(()=>restoreWorkAssets(bundle,join(directory,'refused-team-device')),{code:'actions.forbidden'});
+    assert.ok(!(await readdir(directory)).includes('refused-team-device'));
+    // A separate, explicitly personal input exercises permitted local restore; production never rewrites a team's scope.
+    const personalBundle={...bundle,artifacts:bundle.artifacts.map((asset:typeof bundle.artifacts[number])=>({...asset,scope:'personal'}))};
     const unadopted=await mkdtemp(join(directory,'unadopted-'));
     await writeFile(join(unadopted,'retained.txt'),'retained');
-    await assert.rejects(()=>restoreWorkAssets(bundle,unadopted),{code:'memory.unavailable'});
+    await assert.rejects(()=>restoreWorkAssets(personalBundle,unadopted),{code:'memory.unavailable'});
     assert.deepEqual(await readdir(unadopted),['retained.txt'],'refused Home has no recovery identity or catalog writes');
     assert.equal(await readFile(join(unadopted,'retained.txt'),'utf8'),'retained');
-    const restored=await restoreWorkAssets(bundle,join(directory,'new-device'));
+    const restored=await restoreWorkAssets(personalBundle,join(directory,'new-device'));
     assert.equal(restored.restored,1);assert.ok(restored.warnings.some(w=>w.includes('io.test.writer')));
     const moved=await readRestoredAssets(join(directory,'new-device'),projectId);
     assert.equal(moved.artifacts[0]?.artifact_id,'shared-artifact');assert.equal(moved.artifacts[0]?.version,2);
     assert.deepEqual(moved.artifacts[0]?.payload,{content:'实际固定成果正文'});
-    await restoreWorkAssets(bundle,join(directory,'new-device'));assert.equal((await readRestoredAssets(join(directory,'new-device'),projectId)).artifacts.length,1);
-    const tampered=structuredClone(bundle);tampered.artifacts[0].content.payload={content:'tampered'};
+    await restoreWorkAssets(personalBundle,join(directory,'new-device'));assert.equal((await readRestoredAssets(join(directory,'new-device'),projectId)).artifacts.length,1);
+    const tampered=structuredClone(personalBundle);tampered.artifacts[0].content.payload={content:'tampered'};
     await assert.rejects(()=>restoreWorkAssets(tampered,join(directory,'bad-device')),/摘要|内容/);
-    const foreign=structuredClone(bundle);foreign.artifacts[0].content={kind:'reference',content_ref:'../../private-home',digest:'x',size_bytes:3,available:true};
+    const foreign=structuredClone(personalBundle);foreign.artifacts[0].content={kind:'reference',content_ref:'../../private-home',digest:'x',size_bytes:3,available:true};
     await assert.rejects(()=>restoreWorkAssets(foreign,join(directory,'bad-reference')),/引用/);
   } finally {await running.close();storage.close();await host.close();await rm(directory,{recursive:true,force:true});}
 });

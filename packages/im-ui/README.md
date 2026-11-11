@@ -25,7 +25,7 @@ Workspace registration: `goal-reorg-f2`。
 
 所有服务请求同源 `/im/api`，身份由 HttpOnly cookie 解析。消息写入携带稳定 `client_id`，同一次不确定结果的重试复用原键；具名成员回执跨恢复后的设备会话识别，匿名命名仍按原会话隔离；成功发送与后续刷新失败分开处理。通过本机控制凭证与实际项目目录验证的宿主，可在匿名/失效会话时恢复该项目持久化 owner 身份，复用共享 Identity；不按名字匹配，不替换另一具名成员，不开放远端自动授权。
 
-邀请采用 v2 的安全状态合同。打开弹窗只读状态；本人明确生成/更换时，页面用至少 32 字节安全随机数和稳定 `client_id` 表达一次意图，原文只在当前页面内存，不存草稿或 localStorage。同一未知结果重试沿用原值，服务端当前哈希不匹配时不展示旧链接有效。刷新或换设备后无法取回原文；已分享链接仍有效，只有明确更换才使旧链接失效。新建群没有尚无人持有的令牌。复制走既有 `molisCopy`。真实路径与浅深色三宽度验证：`tests/im-invitations.e2e.test.ts`；服务端/维护见 [Home 数据](../../docs/system/HOME-DATA.md)。
+邀请采用安全状态合同。打开弹窗只读状态；本人明确生成/更换时，页面用至少 32 字节安全随机数和稳定 `client_id` 表达一次意图，原文只在当前页面内存，不存草稿或 localStorage。同一未知结果重试沿用原值，服务端当前哈希不匹配时不展示旧链接有效。刷新或换设备后无法取回原文；已分享链接仍有效，只有明确更换才使旧链接失效。新建群没有尚无人持有的令牌。复制走既有 `molisCopy`。真实路径与浅深色三宽度验证：`tests/im-invitations.e2e.test.ts`；服务端/维护见 [Home 数据](../../docs/system/HOME-DATA.md)。
 
 主群和 Thread 在同一区域切换，每个发送目标独立保存草稿、引用与阅读位置。新话题允许没有来源，要求标题及首条正文；服务端一次事务创建正式话题与首条消息，未发送的表单只作为本地草稿。成功回执只清除相同 client_id 的版本，不会删除期间编辑的新草稿。引用只指向同群真实消息，来源定位可回到主群并补载历史。
 
@@ -63,3 +63,6 @@ node scripts/run-tests.mjs tests/im-controller-initialization.test.ts tests/im-b
 - 改动后必跑：`node scripts/run-tests.mjs tests/im-controller-initialization.test.ts tests/im-browser-state.test.ts tests/im-local-project.test.ts tests/im-domain.test.ts`；改了消息流的滚动、复制或页面脚本的拼装加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/im-follow-copy.e2e.test.ts`
 - 消息流的滚动只有一个主人（设计系统的 `window.molisFollow`，VUX-26），复制走同一个 `window.molisCopy`（VUX-19）：两段页面脚本和它们的样式随 `IM_CLIENT_SCRIPT`、`IM_STYLES` 一起发，自己不再判断离底多少像素。
 - 相关手册：[docs/platform/UI-PLATFORM.md](../../docs/platform/UI-PLATFORM.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+
+
+讨论页语言沿用Host的当前语言，独立Server按请求语言绘制；不保存第二份语言偏好。`src/locale.ts`拥有界面词典并复用SDK的`fillMessage`，日期按页面语言格式化。构建在TypeScript完成后由`tooling/minify-client.mjs`压缩同一个`/im/client.js`资源，不在运行时加载构建器；模块公开常量和浏览器工厂行为不变。

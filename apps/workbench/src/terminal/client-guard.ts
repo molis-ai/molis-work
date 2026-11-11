@@ -1,4 +1,5 @@
-import { escapeHtml, type TerminalPaneElements, type TerminalStatus, type TerminalTranslate } from "./client-dom.js";
+import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { type TerminalPaneElements, type TerminalStatus, type TerminalTranslate } from "./client-dom.js";
 import type { PanelRecord } from "./types.js";
 
 export type ChildGoalSummary = {

@@ -162,10 +162,14 @@ async function cursorAfter(client: LocalHostHttpClient, prefix: string, before: 
 async function browser(t: TestContext) { const b = await openGoalBrowser(t, 'seeded', seedBoard, null); assert.ok(b, 'A dedicated Chrome is required'); return b; }
 
 test('RAC-2840: an unrelated Goal refresh preserves the current source menu and its native add/choose/cancel path', { timeout: 120_000 }, async t => {
-  const b = await browser(t), gate = refreshGate(b), failures: unknown[] = [];
+  const b = await browser(t), client = http(b), prefix = `/projects/${b.projectId}`;
+  await page(b, t);
+  const c0 = (await client.get<{ observed_event_cursor: number }>(prefix + '/api/board/cursor')).observed_event_cursor;
+  // T01-BOARD-CURSOR-01: first synchronize the independent platform cursor, then observe the controlled Goal write.
+  await b.waitFor(`Number(document.querySelector('#molis-work-data').boardCursor) >= ${c0}`);
+  const gate = refreshGate(b), failures: unknown[] = [];
   try {
-    await gate.start(); await page(b, t); gate.control(); const initial = await snapshot(b); const client = http(b), prefix = `/projects/${b.projectId}`;
-    const c0 = (await client.get<{ observed_event_cursor: number }>(prefix + '/api/board/cursor')).observed_event_cursor;
+    await gate.start(); gate.control(); const initial = await snapshot(b);
     assert.equal(initial.cursor, c0); assert.equal(initial.project, b.projectId); assert.equal(initial.collection, 'current'); assert.equal(initial.selected, ''); assert.deepEqual(initial.goals, []);
     assert.ok(initial.same && initial.bodySame && initial.visible && initial.top && !initial.dirty); assert.equal(initial.task, 'all'); assert.equal(initial.menuOpen, false, 'Restore must not open a closed menu');
     await native(b, 'summary'); await child(b).waitFor('window.__feedMenuTest.snapshot().menuOpen'); await native(b, railAdd);

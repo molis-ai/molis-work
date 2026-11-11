@@ -1,4 +1,6 @@
-import { esc, isAbort, messageOf, required } from "./dom.js";
+import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
+import { isAbort, required } from "./dom.js";
 import { issuesRequest } from "./request.js";
 import type { Current, EditorData, Issue, IssuesHost, IssuesPage, IssuesState, Pending, Translate } from "./types.js";
 

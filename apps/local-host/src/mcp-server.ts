@@ -1,7 +1,10 @@
+import { connectResidentAccount, type ResidentAccountConnection } from "./resident-account-connection.js";
 import { DEFAULT_RESIDENT_HOST_URL } from "./resident-host-request.js";
 import { mcpErrors } from "./mcp-errors.js";
 import { resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { ensureSystemAgentService } from "./system-agent-service.js";
+import { workspaceRefFor } from "./agent-host-composition.js";
+import type { MolisWorkProjectCatalog } from "./project-catalog.js";
 import { projectActionAvailability } from "./project-action-availability.js";
 import type { MolisWorkRuntimeConnection, MolisWorkRuntimeContextHost } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { bindActionClient, ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -39,11 +42,13 @@ export class LocalMcpServer {
   private readonly connectionState: RuntimeProjectConnection;
   get runtimeConnection(): MolisWorkRuntimeConnection | null { return this.connectionState.connection; }
   set runtimeConnection(connection: MolisWorkRuntimeConnection | null) { this.connectionState.connection = connection; }
+  private residentAccount:Promise<ResidentAccountConnection>|undefined;
   private currentRuntimeHost: MolisWorkRuntimeContextHost | null = null;
   private transportLifetime = new AbortController();
   get runtimeContextHost(): MolisWorkRuntimeContextHost | null { return this.currentRuntimeHost; }
   set runtimeContextHost(value: MolisWorkRuntimeContextHost | null) {
     if (value !== this.currentRuntimeHost) {
+      this.residentAccount=undefined;
       this.transportLifetime.abort(mcpErrors.context_changed("MCP 调用主体已变化"));
       this.transportLifetime = new AbortController();
       this.currentRuntimeHost = value ? frozenRuntimeHost(value) : null;
@@ -88,8 +93,7 @@ export class LocalMcpServer {
         ? projectActionAvailability((settings, operation) => this.withCatalog(settings, operation), this.runtimeContextHost.homeDirectory) : undefined,
       actionAvailability: this.runtimeContextHost?.homeDirectory
         ? projectActionAvailability((settings, operation) => this.withCatalog(settings, operation), this.runtimeContextHost.homeDirectory) : undefined,
-      ...(this.runtimeContextHost?.homeDirectory ? { workspacesFor: (projectId: string) => this.withCatalog(
-        { homeDirectory: this.runtimeContextHost!.homeDirectory }, catalog => catalog.listWorkspaceDirectory(projectId)) } : {}),
+      ...(this.runtimeContextHost?.homeDirectory ? this.directoryPorts(this.runtimeContextHost.homeDirectory) : {}),
     });
     if (!this.actionServiceUrl && this.runtimeContextHost?.homeDirectory) this.withCatalog = this.localHost.configurePersonalPlanning(this.runtimeContextHost.homeDirectory, this.withCatalog);
     if (!this.actionServiceUrl && this.runtimeContextHost?.homeDirectory) {
@@ -104,6 +108,20 @@ export class LocalMcpServer {
   }
 
   /**
+   * The project's folders as this MCP server's own Host reads them from the catalog, as the web server's does: the folders and their roles,
+   * the output (what names no folder uses, SSC-17), and the check before a folder is touched on disk (§3 「碰磁盘的调用方」).
+   */
+  private directoryPorts(homeDirectory: string) {
+    const catalog = <T>(operation: (catalog: MolisWorkProjectCatalog) => T) => this.withCatalog({ homeDirectory }, operation);
+    return {
+      workspacesFor: (projectId: string) => catalog(item => item.listWorkspaceDirectory(projectId)),
+      workspaceFor: (projectId: string) => catalog(item => workspaceRefFor(item, projectId)),
+      directoriesFor: (projectId: string) => catalog(item => item.projectDirectories(projectId)),
+      prepareDirectory: (projectId: string, workspaceId: string, mode: "read" | "write") => catalog(item => item.prepareWorkspaceDirectory(projectId, workspaceId, mode)),
+    };
+  }
+
+  /**
    * Embedded MCP uses the same deletion service over its own resources. Forwarding MCP invokes the resident context
    * handlers instead; it never enters this local path or opens a catalog to prepare a request.
    */
@@ -111,7 +129,16 @@ export class LocalMcpServer {
     const identity = runtimeConnectionIdentity(host, callContext);
     const home = host.homeDirectory;
     return new ProjectDeletionService(this.withCatalog, { isPanelAlive: () => false, releaseProject: async databasePath => { await this.localHost.closeProject(databasePath); } })
-      .deleteProject(home, { ...request, actor_id: identity.actor_id });
+      // MCP has no dialog to ask: the files in the default output directory stay where they are, whatever the request carries (SSC-23).
+      .deleteProject(home, { ...request, actor_id: identity.actor_id, output_files: "keep" });
+  }
+
+  /** The Runtime connection pins the installation-selected Home and credential once, until an explicit new context. */
+  private async connectedResident(signal:AbortSignal):Promise<ResidentAccountConnection> {
+    const home=this.runtimeContextHost?.homeDirectory??resolveMolisWorkHome();
+    await ensureMcpRequestResident(this.ensureResident,home,this.actionServiceUrl!,signal);signal.throwIfAborted();
+    const pending=this.residentAccount??=connectResidentAccount(home,this.actionServiceUrl!,signal);
+    try{return await pending;}catch(error){if(this.residentAccount===pending)this.residentAccount=undefined;throw error;}
   }
 
   private currentActions() {
@@ -149,8 +176,9 @@ export class LocalMcpServer {
     const home = this.runtimeContextHost?.homeDirectory;
     if (this.actionServiceUrl) {
       if (!home) throw new ActionError("actions.home_required", "跨进程动作需要明确的 Runtime Home");
-      await ensureMcpRequestResident(this.ensureResident, home, this.actionServiceUrl, signal); checkContext();
-      const service = new LocalActionGatewayClient({ url: this.actionServiceUrl, homeDirectory: home,
+      const connected=await this.connectedResident(signal); checkContext();
+      const service = new LocalActionGatewayClient({ url: this.actionServiceUrl, homeDirectory: connected.homeDirectory, controlToken:connected.controlToken,
+        credentialHomeDirectory: home,
         clientId: current.context.actor_id, projectId: current.context.project_id, runtimeSessionId });
       const context: ActionCallContext = { ...current.context,
         signal,
@@ -257,11 +285,12 @@ export class LocalMcpServer {
     }
     const contextHandler = lookupContextTool(this.contextTools, name);
     if (contextHandler) return contextHandler(arguments_ ?? {}, callContext);
+    const resident=this.actionServiceUrl&&this.audience==="management"?await this.connectedResident(mcpRequestSignal(this.transportLifetime.signal)):undefined;
     return callMcpV1Tool({ localHost: this.localHost, audience: this.audience,
       runtimeConnection: this.audience === "runtime" ? this.runtimeConnection : null,
       ...(this.audience === "management" && (this.ownsLocalHost || this.actionServiceUrl) ? { resident: mcpResidentManagement(this.ensureResident,
-        this.runtimeContextHost?.homeDirectory ?? resolveMolisWorkHome(), this.actionServiceUrl ?? readProductEnv("WEB_URL") ?? DEFAULT_RESIDENT_HOST_URL,
-        mcpRequestSignal(this.transportLifetime.signal)) } : {}) }, name, arguments_);
+        resident?.homeDirectory ?? this.runtimeContextHost?.homeDirectory ?? resolveMolisWorkHome(), this.actionServiceUrl ?? readProductEnv("WEB_URL") ?? DEFAULT_RESIDENT_HOST_URL,
+        mcpRequestSignal(this.transportLifetime.signal),resident?.controlToken) } : {}) }, name, arguments_);
   }
 
   private requireRuntimeContextHost(context: MolisWorkMcpToolCallContext = EMPTY_TOOL_CALL_CONTEXT): MolisWorkRuntimeContextHost {
@@ -274,9 +303,9 @@ export class LocalMcpServer {
     if (!host) throw mcpErrors.context_host_missing("MCP 宿主没有提供 Runtime 标识");
     const signal = mcpRequestSignal(this.transportLifetime.signal, this.connectionState.signal);
     if (!host.homeDirectory) throw new ActionError("actions.home_required", "MCP 自动启动需要明确的 Runtime Home");
-    await ensureMcpRequestResident(this.ensureResident, host.homeDirectory, this.actionServiceUrl!, signal); signal.throwIfAborted();
+    const connected=await this.connectedResident(signal);signal.throwIfAborted();
     const cacheContext = operation === "restore" ? host.runtimeContext : requireMcpRuntimeContextHost({ runtimeContextHost: host }, context).runtimeContext;
-    return forwardMcpContext({ url: this.actionServiceUrl!, host, context, operation, tool, signal,
+    return forwardMcpContext({ url: this.actionServiceUrl!, host:{...host,homeDirectory:connected.homeDirectory}, controlToken:connected.controlToken, context, operation, tool, signal,
       checkCurrent: () => { signal.throwIfAborted(); if (this.runtimeContextHost !== host) throw mcpErrors.context_changed("MCP 调用主体已变化"); },
       updateCache: (update: ContextCacheUpdate) => {
         if (update.kind === "clear") this.connectionState.clear(update.clearRefresh);

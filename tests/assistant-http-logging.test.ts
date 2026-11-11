@@ -8,7 +8,7 @@ import test, { type TestContext } from "node:test";
 import { AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID, type AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
-import { createDesktopWebHost } from "@molis-ai/molis-work-app-desktop";
+import { createDesktopWebCore } from "@molis-ai/molis-work-app-desktop";
 import {
   assistantServiceFor, captureHostLog, closeAssistantService, ensureSystemAgentService, hostQuestionTypes, MolisWorkLocalHost,
   type AssistantHttpPorts, type HostLogEntry,
@@ -172,7 +172,7 @@ async function httpFixture(t: TestContext) {
   // The question test registers its own real SDK; reads without a session need no model or second Home runtime.
   t.mock.getter(f.agents, "ready", () => Promise.resolve());
   const entry = assistantServiceFor(f.ports), token = randomUUID();
-  const server = createDesktopWebHost({ ptyClientFilePath: () => "" })({ homeDirectory: f.home, localHost: f.local, controlToken: token });
+  const server = createDesktopWebCore({ ptyClientFilePath: () => "" })({ homeDirectory: f.home, localHost: f.local, controlToken: token });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address === "object");
   const origin = `http://127.0.0.1:${address.port}`;

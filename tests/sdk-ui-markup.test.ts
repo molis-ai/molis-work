@@ -12,6 +12,7 @@ import {
   renderButton,
   renderCalendar,
   renderCheckbox,
+  renderComposer,
   renderDatePicker,
   renderDirectoryAdd,
   renderDirectoryHeading,
@@ -21,6 +22,7 @@ import {
   renderEmpty,
   renderField,
   renderInput,
+  renderKept,
   renderPluginStageShell,
   renderProgress,
   renderSidebar,
@@ -28,14 +30,16 @@ import {
   renderSpinner,
   renderStateRing,
   renderStatusMark,
+  renderStepDot,
   renderSwitch,
   renderToast,
   STATE_RING_FAMILIES,
   type MwButtonVariant,
   type MwTone,
 } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { listedIconNames, registeredIconNames } from "@molis-ai/molis-work-design-system";
+import { listedIconNames, registeredIconNames, renderComposerAddMenu, renderComposerDeliveryMenu, renderComposerPick, renderComposerRestore, renderComposerStrip } from "@molis-ai/molis-work-design-system";
 import { renderMolisWorkArrivalStylesheet, renderMolisWorkSettingsStylesheet, renderMolisWorkWorkbenchStylesheet } from "./workbench-renderer-fixture.js";
+import { COMPOSER_AI_LABELS, COMPOSER_PLAIN_LABELS } from "./fixtures/composer-labels.js";
 
 // The parts of the Plugin SDK's `/ui` write class names and `data-*` hooks that the host's style sheets and page scripts define,
 // so the markup is a contract with the host page (specs/archive/repository-anti-corruption/slices/pg055-sdk-ui-parts.md §4).
@@ -53,6 +57,9 @@ function samples(): readonly string[] {
     renderPluginStageShell({ surface: "demo", label: "Demo", dataset: "demo", body: "<p>x</p>" }),
     ...TONES.map((tone) => renderBadge({ label: "新", tone })),
     ...TONES.map((tone) => renderAlert({ title: "提示", body: "正文", tone })),
+    renderAlert({ title: "已载入", body: "正文", tone: "success", state: "done", rise: true, actions: [{ label: "收起" }, { label: "载入最新版", variant: "primary" }] }),
+    renderKept({ who: "你写的", text: "", blankText: "你清空了这一栏", swapped: true, rise: true, index: 1, action: { label: "换回" }, more: { label: "收起", open: true } }),
+    renderStepDot({ label: "这一步有改动要看" }),
     ...TONES.map((tone) => renderToast({ message: "完成", tone, action: { label: "撤销" } })),
     renderEmpty({ icon: "file", title: "空", body: "还没有内容", action: "" }),
     renderStatusMark({ label: "进行中", state: "running", tone: "progress" }),
@@ -77,6 +84,26 @@ function samples(): readonly string[] {
     renderCalendar({ year: 2026, month: 9, compact: true }),
     renderDatePicker({ name: "d", value: "2026-10-25", calendar: { year: 2026, month: 9 } }),
     icon("folder", "extra"),
+    // UIC-13 (K2): the unified input's shell and the parts its client puts in, in every state, are served like every other part.
+    ...composerSamples(),
+  ];
+}
+
+function composerSamples(): readonly string[] {
+  const ai = COMPOSER_AI_LABELS, plain = COMPOSER_PLAIN_LABELS;
+  const controls = [{ kind: "select" as const, id: "mode", label: "方式", value: "a", options: [{ value: "a", label: "甲" }] }, { kind: "toggle" as const, id: "web", label: "联网", on: true }];
+  const yes = { available: true } as const;
+  return [
+    renderComposer({ kind: "ai", labels: ai, receiver: { label: "Coding", resetLabel: "改回发给助理" }, state: "running", text: "补一句", controls, voice: "语音", status: { caption: "运行中", text: "正在做这一轮", action: "查看" } }),
+    renderComposer({ kind: "plain", labels: plain, placeholder: "写评论", disabled: { caption: "不可用", reason: "这条已关闭" } }),
+    renderComposer({ kind: "plain", labels: plain, state: "sending", text: "好的", status: { caption: "发送中", text: "正在发送…" } }),
+    renderComposerDeliveryMenu("c1", ai, { "next-boundary": yes, interrupt: { available: false, reason: "不收" }, "after-run": yes }, true),
+    renderComposerAddMenu(plain, { files: true, sources: [{ provider: "Todo", title: "待办" }], commands: [{ slash: "plan", label: "计划", hint: "先列步骤" }] }),
+    renderComposerAddMenu(plain, { files: false, commands: [] }),
+    renderComposerPick(plain, { provider: "Todo", title: "待办" }, "", "Todo 现在用不了"),
+    renderComposerStrip(plain, [{ key: "f1", title: "a.png", state: "reading" }, { key: "f2", title: "b.pdf", state: "failed", reason: "太大" }, { key: "f3", title: "待办一", state: "attached", from: "Todo · 待办" },
+      { key: "f4", title: "c.png", state: "failed", reason: "服务暂时读不了", retry: true }, { key: "f5", title: "d.png", state: "attached", thumb: "blob:d" }], (text) => text),
+    renderComposerRestore(plain, "刚才", (text) => text),
   ];
 }
 
@@ -173,4 +200,17 @@ test("no plugin but Plugin Studio imports the design system, in source or in its
     }
   }
   assert.deepEqual(offenders, []);
+});
+
+test("the resume prompt's buttons are renderButton's secondary text buttons, and the return bar puts its one button under the words", () => {
+  // resume-prompt.ts writes its two buttons out (a page that uses only the prompt takes no icon set); they stay what renderButton draws.
+  const prompt = sdkUi.renderResumePrompt({ title: "The model is ready", body: "Kept", resume: "Send <it>", dismiss: "Not now" });
+  assert.ok(prompt.includes(renderButton({ label: "Send <it>", variant: "secondary", attrs: { "data-resume-prompt": "resume" } })), prompt);
+  assert.ok(prompt.includes(renderButton({ label: "Not now", variant: "secondary", attrs: { "data-resume-prompt": "dismiss" } })), prompt);
+  assert.match(prompt, /class="mw-alert mw-alert--info"/u, "an info alert, as the connections page's 接着改／放弃改动");
+  const bar = sdkUi.renderReturnBar({ title: "From Coding", body: "Goes back", back: "Go back now", label: "Where you came from" });
+  assert.match(bar, /<p data-return-bar-body aria-live="polite">Goes back<\/p><div class="mw-return-bar__actions"><button [^>]*mw-btn--secondary[^>]*data-return-bar-back/u);
+  assert.match(bar, /data-return-bar-back[^>]*><svg aria-hidden="true"><use href="#icon-back">/u, "going back has the back arrow");
+  const gone = sdkUi.renderReturnBar({ title: "From Images", body: "The page is closed", back: "Close settings", label: "Where you came from", state: "gone" });
+  assert.match(gone, /data-return-bar-back[^>]*><span data-slot="button-label">Close settings<\/span><\/button>/u, "closing the settings has no back arrow");
 });

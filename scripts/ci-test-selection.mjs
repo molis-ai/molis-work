@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-// Which files of the two test jobs of .github/workflows/ci.yml (`security-invariants`, `product-subset`) a pull request runs (T-130),
+// CIP-01/06: which files of the two test jobs of .github/workflows/ci.yml (`security-invariants`, `product-subset`) a pull request runs (T-130),
 // and whether the macOS job `native-checks` (Rust and Swift) runs at all, on a pull request and in the merge queue (用户 2026-11-04).
 // Both block (decision #14). On a PR, some runs selected files, whole runs both complete shards, and only a successful none
 // skips the corresponding job. Verify reads the selector result and both modes to authorize those skips. Selector faults retain
-// the complete runs. The merge queue, direct pushes, nightly and manual runs run both lists whole.
+// the complete runs. Only ordinary-document merge groups may skip runtime checks; other merge groups, direct pushes, nightly and manual runs run both lists whole.
 //
 // For a pull request it asks scripts/affected-tests.mjs which tests the change touches (`--json --wide`: every limit lifted, so a
 // test that reaches a changed file only through a shared helper is selected too) and keeps, for each job, the files of that job's
@@ -13,8 +13,7 @@
 //           code deleted), when a changed source file is read by no test (it cannot say who is affected), when a file the job or the
 //           selection itself depends on changed (FULL_WHEN below), when more than all but one file would be selected anyway, or when
 //           anything here fails: no base, affected-tests exits non-zero or prints something that is not its JSON;
-//   some    the selected files only, on as many runners as they need at the size of a shard of the whole list (LEGS: four for the
-//           security invariants, three for the product subset), at least one;
+//   some    the selected files only, on enough runners for the selected duration (LEGS: eight security, six product), at least one;
 //   none    when none of its files is selected: the job is skipped.
 // When in doubt it runs more, never less: every way out of this script that is not a clean answer is `whole`.
 //
@@ -29,7 +28,10 @@ import { execFileSync } from "node:child_process";
 import { appendFileSync, readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { isMainScript } from "./script-paths.mjs";
 import { readPlan } from "./ci-product-subset/plan.mjs";
+import { changedPaths, decideChecks } from "./ci-check-selection.mjs";
+import { planShards, readWeights } from "./run-tests/shard.mjs";
 
 /**
  * Changed paths that make a job run whole whatever affected-tests says: what the job runs with (its runner, its list, the workflow,
@@ -39,13 +41,13 @@ import { readPlan } from "./ci-product-subset/plan.mjs";
 export const FULL_WHEN = {
   both: [
     ".github/workflows/ci.yml", "package.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", "AGENTS.md", "skills/", "vendor/",
-    "scripts/ci-test-selection.mjs", "scripts/affected-tests.mjs", "scripts/affected-tests/", "scripts/run-tests.mjs", "scripts/run-tests/",
+    "scripts/ci-test-selection.mjs", "scripts/ci-check-selection.mjs", "scripts/affected-tests.mjs", "scripts/affected-tests/", "scripts/run-tests.mjs", "scripts/run-tests/",
     "scripts/build-workspace.mjs", "scripts/workspace-packages.mjs",
     // What this script, affected-tests and the two runners import (tests/ci-test-selection.test.ts follows the imports and holds this):
     // the READMEs' test lists, the browser marks and the probe's runner, the product list's rules, the machine slot.
-    "scripts/package-dev-requirements.mjs", "scripts/ci-linux-probe/", "scripts/ci-product-subset/plan.mjs", "scripts/machine-slot.mjs",
+    "scripts/package-dev-requirements.mjs", "scripts/ci-linux-probe/", "scripts/ci-product-subset/plan.mjs", "scripts/machine-slot.mjs", "scripts/script-paths.mjs",
   ],
-  security: ["docs/system/SECURITY-INVARIANTS.md", "tests/security-invariants-", "scripts/gates/security-invariants.mjs"],
+  security: ["docs/system/SECURITY-INVARIANTS.md", "docs/system/security-invariants/", "tests/security-invariants-", "scripts/gates/security-invariants.mjs"],
   product: ["tests/ci-product-subset.txt", "tests/quarantine.json", "scripts/ci-product-subset.mjs", "scripts/ci-product-subset/", "scripts/ci-linux-probe.mjs"],
 };
 /** A file at the root of the repository that is not a Markdown document (a config of the install, the build or the tests). */
@@ -53,16 +55,35 @@ const ROOT_CONFIG = /^[^/]+$/;
 
 /**
  * What makes `native-checks` (rustfmt, clippy, cargo test, the Swift type check, on a macOS runner whose capacity is scarce) run: the
- * desktop shell, any Rust, Swift, shell or Python file (an added, changed, renamed or deleted one), the Swift helpers under
+ * desktop shell, any Rust or Swift file (an added, changed, renamed or deleted one), the Swift helpers under
  * apps/local-host/native/, the workflows, the script and tests of the checks and of this selection, the Rust toolchain and its caches,
  * and any file at the root that is not a Markdown document. The list errs wide: a change outside it is one the job cannot see.
  */
 export const NATIVE_RUN_WHEN = {
   prefixes: ["apps/desktop/", "apps/local-host/native/", ".github/workflows/", ".cargo/"],
-  files: ["scripts/gates/native-checks.mjs", "tests/native-checks.test.mjs", "scripts/ci-test-selection.mjs"],
-  extensions: [".rs", ".swift", ".sh", ".py"],
+  files: ["scripts/gates/native-checks.mjs", "scripts/script-paths.mjs", "tests/native-checks.test.mjs", "scripts/ci-test-selection.mjs", "scripts/ci-check-selection.mjs"],
+  extensions: [".rs", ".swift"],
   names: ["Cargo.toml", "Cargo.lock", "rust-toolchain", "rust-toolchain.toml", "clippy.toml", ".clippy.toml", "rustfmt.toml", ".rustfmt.toml"],
 };
+
+/**
+ * What makes the macOS half of the golden replay run (`golden-replay-third-party`; design specs/upgrade-continuity/golden-replay-design.md §5, 用户 2026-11-07): the only
+ * replay of the signed samples before a merge, since the sandbox exists only there. The plugin runtime and its SDK, the sandbox, the storage, the contracts they speak, the
+ * Host's installed-plugin and Home-library code and the statement process their libraries run in, the CLI the replay installs and upgrades the samples with (its launcher,
+ * the plugin CLI, the client that reaches the resident Host, the web host it is served by), the goldens and samples themselves, the scripts that replay them, the Prologue
+ * package, the workflows, and any file at the root that is not a Markdown document (the Node pin, the lockfile). The list errs wide; what it leaves out is caught by the daily run on macOS.
+ */
+export const GOLDEN_THIRD_PARTY_RUN_WHEN = {
+  prefixes: [
+    "packages/plugin-runtime/", "packages/plugin-sandbox/", "packages/plugin-sdk/", "packages/storage/", "packages/contracts/",
+    "apps/local-host/src/plugin-", "apps/local-host/src/sandbox-", "apps/local-host/src/installed-plugin-", "apps/local-host/src/home-plugin", "apps/local-host/src/home-installed-plugins", "apps/local-host/src/home-stor", "apps/local-host/src/project-plugin", "apps/local-host/src/project-database", "apps/local-host/src/project-statement-",
+    "apps/desktop/launchers/cli/", "tooling/plugin-cli/",
+    "tests/fixtures/golden-homes/", "tests/fixtures/golden-home-library/", "tests/fixtures/replay-plugins/", "tests/golden-writes/", "scripts/golden/", "scripts/replay-plugins/", "vendor/", ".github/workflows/",
+  ],
+  files: ["apps/local-host/src/resident-host-request.ts", "apps/desktop/src/web-host.ts", "scripts/golden-home.mjs", "scripts/replay-golden-homes.mjs", "scripts/ci-golden-replay.mjs", "scripts/replay-plugins.mjs", "scripts/ci-test-selection.mjs", "scripts/ci-check-selection.mjs", "tests/golden-home.test.ts"],
+};
+/** A new Prologue package replays every golden, not the latest three (UPG-11). */
+const GOLDEN_HISTORY_WHEN = "vendor/prologue-sdk/";
 
 const matches = (file, entry) => (entry.endsWith("/") || entry.endsWith("-") ? file.startsWith(entry) : file === entry);
 
@@ -80,7 +101,7 @@ export function securityList(packageJsonText, testFiles) {
 }
 
 /** How many runners each job spreads its whole list over (the matrix of the whole run in .github/workflows/ci.yml). */
-export const LEGS = { security: 4, product: 3 };
+export const LEGS = { security: 8, product: 6 };
 const legsOf = (job) => Array.from({ length: LEGS[job] }, (_, index) => index + 1);
 
 /**
@@ -90,8 +111,8 @@ const legsOf = (job) => Array.from({ length: LEGS[job] }, (_, index) => index + 
 export function decideNative({ affected, failure }) {
   const whole = (reasons) => ({ mode: "whole", reasons });
   if (!affected) return whole([failure ?? "affected-tests gave no answer"]);
-  if (!Array.isArray(affected.changes)) return whole(["affected-tests answered without changes"]);
-  const changed = [...new Set(affected.changes.flatMap((change) => [change.path, change.from].filter(Boolean)))];
+  const changed = changedPaths(affected);
+  if (!changed) return whole(["affected-tests answered without valid changes"]);
   const reads = (file) => NATIVE_RUN_WHEN.prefixes.some((prefix) => file.startsWith(prefix)) || NATIVE_RUN_WHEN.files.includes(file)
     || NATIVE_RUN_WHEN.extensions.some((extension) => file.endsWith(extension)) || NATIVE_RUN_WHEN.names.includes(file.split("/").pop())
     || (ROOT_CONFIG.test(file) && !file.endsWith(".md"));
@@ -100,13 +121,32 @@ export function decideNative({ affected, failure }) {
   return { mode: "none", reasons: [`none of the ${changed.length} changed files is one the Rust and Swift checks read`] };
 }
 
+/** Runs unless a clean answer says no changed file is on the list; every other way out runs it. */
+export function decideGoldenThirdParty({ affected, failure }) {
+  const whole = (reasons) => ({ mode: "whole", reasons });
+  if (!affected) return whole([failure ?? "affected-tests gave no answer"]);
+  const changed = changedPaths(affected);
+  if (!changed) return whole(["affected-tests answered without valid changes"]);
+  const touched = changed.filter((file) => GOLDEN_THIRD_PARTY_RUN_WHEN.prefixes.some((prefix) => file.startsWith(prefix)) || GOLDEN_THIRD_PARTY_RUN_WHEN.files.includes(file) || (ROOT_CONFIG.test(file) && !file.endsWith(".md")));
+  if (touched.length) return whole([`the replay of the signed samples reads these changed files: ${touched.join(", ")}`]);
+  return { mode: "none", reasons: [`none of the ${changed.length} changed files is on the list for the replay of the signed samples`] };
+}
+
+/** `all` replays every golden; only a clean answer that the Prologue package did not change keeps it to the latest three. */
+export function decideGoldenHistory({ affected, failure }) {
+  const changed = affected ? changedPaths(affected) : null;
+  if (!changed) return { mode: "all", reasons: [failure ?? "no valid list of changes"] };
+  const touched = changed.filter((file) => file.startsWith(GOLDEN_HISTORY_WHEN));
+  return touched.length ? { mode: "all", reasons: [`a new Prologue package replays every golden: ${touched.join(", ")}`] } : { mode: "latest", reasons: ["the Prologue package did not change"] };
+}
+
 const escape = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /**
  * The decision for one job. `list` is the job's whole list (for the product subset, `{ file, browser }` entries; for the security
  * invariants, file names). `affected` is the parsed JSON of affected-tests, or null when it could not be had (`failure` says why).
  */
-export function decideJob({ job, list, affected, failure }) {
+export function decideJob({ job, list, affected, failure, weights = {} }) {
   const entries = list.map((item) => (typeof item === "string" ? { file: item, browser: false } : item));
   const whole = (reasons) => ({ mode: "whole", shards: legsOf(job), files: [], reasons });
   if (!affected) return whole([failure ?? "affected-tests gave no answer"]);
@@ -116,7 +156,8 @@ export function decideJob({ job, list, affected, failure }) {
   const reasons = [];
   for (const item of affected.full) reasons.push(`affected-tests recommends the full suite (${item.rule}): ${item.detail}`);
   if (affected.uncovered.length) reasons.push(`no test reads ${affected.uncovered.join(", ")}, so who is affected cannot be told`);
-  const changed = affected.changes.flatMap((change) => [change.path, change.from].filter(Boolean));
+  const changed = changedPaths(affected);
+  if (!changed) return whole(["affected-tests answered without valid changes"]);
   const pinned = changed.filter((file) => [...FULL_WHEN.both, ...FULL_WHEN[job]].some((entry) => matches(file, entry))
     || (ROOT_CONFIG.test(file) && !file.endsWith(".md")));
   if (pinned.length) reasons.push(`the job runs whole when these change: ${[...new Set(pinned)].join(", ")}`);
@@ -126,17 +167,20 @@ export function decideJob({ job, list, affected, failure }) {
   const selected = entries.filter((entry) => wanted.has(entry.file));
   if (!selected.length) return { mode: "none", shards: [1], files: [], reasons: [`none of its ${entries.length} files is among the ${wanted.size} tests this change touches`] };
   if (selected.length >= entries.length - 1) return whole([`${selected.length} of its ${entries.length} files are selected`]);
-  // As many runners as the selection needs at the size of a shard of the whole list (the browser smokes, which have their own budget,
-  // counted apart): one runner when it is no bigger than a shard, all of them when it is bigger than all but one.
-  const legs = LEGS[job];
-  const smokes = entries.filter((entry) => entry.browser), others = entries.filter((entry) => !entry.browser);
-  const needed = (chosen, listed) => (listed.length ? Math.ceil(chosen / Math.ceil(listed.length / legs)) : 0);
-  const count = Math.min(legs, Math.max(1, needed(selected.filter((entry) => entry.browser).length, smokes), needed(selected.filter((entry) => !entry.browser).length, others)));
+  // CIP-06: target six minutes of tests per runner. A few slow files can need more runners than many short files.
+  // Product smokes run before the other files, while the security runner shares its worker slots with browser files.
+  const maximum = Math.min(LEGS[job], selected.length);
+  const targetSeconds = Math.max(360, ...selected.map((entry) => weights[entry.file] ?? 0));
+  let count = 1;
+  for (; count < maximum; count++) {
+    const plan = planShards(selected, { count, jobs: job === "product" ? 4 : 2, browserJobs: job === "product" ? 1 : 2, separateBrowser: job === "product" }, weights, (entry) => entry.file, (entry) => entry.browser);
+    if (Math.max(...plan.loads.map((load) => load.seconds)) <= targetSeconds) break;
+  }
   return {
     mode: "some",
     shards: legsOf(job).slice(0, count),
     files: selected.map((entry) => entry.file),
-    reasons: [`${selected.length} of its ${entries.length} files are among the tests this change touches`],
+    reasons: [`${selected.length} of its ${entries.length} files are among the tests this change touches; ${count} runner(s), targeting ${targetSeconds} s of tests per runner (six minutes or the longest indivisible file)`],
   };
 }
 
@@ -144,17 +188,17 @@ export function decideJob({ job, list, affected, failure }) {
 export function outputLines(decisions) {
   const lines = [];
   for (const job of ["security", "product"]) lines.push(`${job}_mode=${decisions[job].mode}`, `${job}_shards=${JSON.stringify(decisions[job].shards)}`);
-  if (decisions.native) lines.push(`native_mode=${decisions.native.mode}`);
+  for (const job of ["native", "documentation", "gate_rules", "shell", "golden_third_party", "golden_history"]) if (decisions[job]) lines.push(`${job}_mode=${decisions[job].mode}`);
   lines.push(`security_files=${decisions.security.mode === "some" ? decisions.security.files.join(" ") : ""}`);
   lines.push(`product_only=${decisions.product.mode === "some" ? `^(?:${decisions.product.files.map(escape).join("|")})$` : ""}`);
   return lines;
 }
 
 function summary(decisions, base) {
-  const out = [`## PR test selection`, "", `Compared with \`${base}\`. On a pull request \`some\` runs selected files, \`whole\` runs the complete list, and only successful \`none\` skips it. The merge queue runs both whole and waits for them.`, ""];
-  const titles = { security: "Security invariants", product: "Product subset", native: "Rust and Swift checks" };
+  const out = [`## CI test selection`, "", `Compared with \`${base}\`. On a pull request \`some\` runs selected files, \`whole\` runs the complete list, and only successful \`none\` skips it. Only an ordinary-document-only merge group skips the security and product jobs; other merge groups run both whole.`, ""];
+  const titles = { security: "Security invariants", product: "Product subset", native: "Rust and Swift checks", golden_third_party: "Golden replay of the signed samples (macOS)", golden_history: "Goldens the replay takes", documentation: "Documentation scope", gate_rules: "Gate-rule tests", shell: "Shell and Python checks" };
   for (const [job, decision] of Object.entries(decisions)) {
-    out.push(`### ${titles[job]}: ${decision.mode}${decision.mode === "none" ? " (skipped)" : job === "native" ? " (runs)" : `, ${decision.shards.length} runner${decision.shards.length === 1 ? "" : "s"}`}`, "");
+    out.push(`### ${titles[job]}: ${decision.mode}${decision.mode === "none" ? " (skipped)" : !decision.shards ? "" : `, ${decision.shards.length} runner${decision.shards.length === 1 ? "" : "s"}`}`, "");
     for (const reason of decision.reasons) out.push(`- ${reason}`);
     if (decision.mode === "some") out.push("", ...decision.files.map((file) => `- \`${file}\``));
     out.push("");
@@ -162,8 +206,7 @@ function summary(decisions, base) {
   return out.join("\n");
 }
 
-const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
-if (isMain) {
+if (isMainScript(import.meta.url)) {
   const args = process.argv.slice(2);
   const value = (name) => { const index = args.indexOf(name); return index === -1 ? undefined : args[index + 1]; };
   const known = new Set(["--base", "--root"]);
@@ -197,12 +240,20 @@ if (isMain) {
     affected = null;
     failure = `the job lists could not be read: ${error instanceof Error ? error.message : String(error)}`;
   }
+  const checks = decideChecks({ affected, failure });
+  const weights = readWeights(root);
   const decisions = {
-    security: decideJob({ job: "security", list: lists?.security ?? [], affected, failure }),
-    product: decideJob({ job: "product", list: lists?.product ?? [], affected, failure }),
+    security: decideJob({ job: "security", list: lists?.security ?? [], affected, failure, weights }),
+    product: decideJob({ job: "product", list: lists?.product ?? [], affected, failure, weights }),
     // The native checks read no test list: only whether the change touches what they check, so a list that could not be read does not change it.
     native: decideNative({ affected: nativeAnswer, failure: nativeFailure }),
+    golden_third_party: decideGoldenThirdParty({ affected: nativeAnswer, failure: nativeFailure }),
+    golden_history: decideGoldenHistory({ affected: nativeAnswer, failure: nativeFailure }),
+    ...checks,
   };
+  if (checks.documentation.mode === "only") for (const job of ["security", "product"]) {
+    decisions[job] = { mode: "none", shards: [1], files: [], reasons: ["only ordinary documentation changed; no product build or runtime test is needed"] };
+  }
   const lines = outputLines(decisions);
   const text = summary(decisions, base);
   console.log(text);

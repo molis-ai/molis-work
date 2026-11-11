@@ -256,7 +256,7 @@ export class MemoryScopeCommands {
     }
     if (selected.some(one => this.ports.hidden(one.scope, one.owner, one.entry.memory_id)))
       throw memoryErrors.conflict("导出期间记忆已被遗忘，没有生成记忆包");
-    return { format: "molis.memory", version: 2, exported_at: this.ports.now().toISOString(), scope, entries, redactions: [...redactions].map(([kind, count]) => ({ kind, count })) };
+    return { format: "molis.memory", version: /* @version format.memory.export */ 1, exported_at: this.ports.now().toISOString(), scope, entries, redactions: [...redactions].map(([kind, count]) => ({ kind, count })) };
   }
 
   /**

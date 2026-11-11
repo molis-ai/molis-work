@@ -5,7 +5,8 @@ import { empty, keepListScroll, matches, run, setStatus } from "./page.js";
 import { renderView } from "./view.js";
 import { command } from "./workspace.js";
 import { cutHead } from "@molis-ai/molis-work-plugin-sdk/whole-units";
-import { dateLabel, esc, statusOf } from "./util.js";
+import { escapeHtml as esc } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { dateLabel, statusOf } from "./util.js";
 import type { JellyBlock, JellyNote, JellyPage } from "./types.js";
 
 const draftKey = (id: string): string => `molis-jelly-draft:${id}`;

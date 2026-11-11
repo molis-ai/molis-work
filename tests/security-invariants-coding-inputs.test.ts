@@ -24,7 +24,7 @@ test('Coding input edits require the original revision and preserve independent 
  const saved=data<{input_revision:number}>(await fixture.call(url,{draft:'original',question_drafts:questions,configuration,expected_input_revision:0},'PATCH'));
  assert.equal(saved.input_revision,1);
  const invalid=await fixture.call(url,{draft:'must not write',question_drafts:[],expected_input_revision:1},'PATCH');assert.equal(invalid?.status,400);
- for(const bad of [{mcp_sources:[{}]},{mcp_tools:[{}]},{methods:[{}]},{budget:{tokens:1}},{title:''}]){
+ for(const bad of [{mcp_sources:[{}]},{mcp_tools:[{}]},{mcp_tools:[{server:'s',tool:'t',version:'v'}]},{skills:[{}]},{budget:{tokens:1}},{title:''}]){
   const refused=await fixture.call(url,{draft:'invalid mixed request',expected_input_revision:1,configuration:{...configuration,intent:'execute'},...bad},'PATCH');
   assert.equal(refused?.status,400,JSON.stringify(refused));
   const after=data<Saved>(await fixture.call(url));assert.equal(after.draft,'original');assert.equal(after.input_revision,1);assert.deepEqual(after.configuration,configuration);

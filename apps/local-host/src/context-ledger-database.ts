@@ -1,3 +1,4 @@
+import { rollbackPreservingError } from "@molis-ai/molis-work-storage";
 import type { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import type { ContextLedgerDatabase } from "@molis-ai/molis-work-module-context-ledger";
 
@@ -7,7 +8,7 @@ export function ledgerDatabase(db: ReturnType<typeof openHomeSqliteDatabase>): C
     if (db.isTransaction) return operation();
     db.exec("BEGIN IMMEDIATE");
     try { const value = operation(); db.exec("COMMIT"); return value; }
-    catch (error) { db.exec("ROLLBACK"); throw error; }
+    catch (error) { rollbackPreservingError(error, () => db.exec("ROLLBACK")); throw error; }
   };
   return {
     exec: sql => db.exec(sql),

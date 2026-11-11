@@ -1,3 +1,4 @@
+import { contentHtml, setContentHtml } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { el } from "../dom.js";
 import { paintable } from "./boundary.js";
 import { enrichCode, linkedText } from "./code.js";
@@ -15,9 +16,9 @@ function drawText(page: Page, node: HTMLElement, run: RunView, turn: TurnView, w
   const { s } = page, { growCode, plans, writerDirectories } = page.refs;
   if (plans.renderTurn(node, run, turn) || writerDirectories.renderTurn(node, run, turn)) return;
   if (turn.html && window.molisStreamText) {
-    window.molisStreamText(node, turn.html, { reveal: s.renderedText.has(node) && turn.kind === "assistant" && writing && !document.hidden, grow: (kept, next) => kept instanceof HTMLElement && next instanceof HTMLElement && growCode(paintable(kept), paintable(next)) });
+    window.molisStreamText(node, contentHtml(turn.html, node.ownerDocument), { reveal: s.renderedText.has(node) && turn.kind === "assistant" && writing && !document.hidden, grow: (kept, next) => kept instanceof HTMLElement && next instanceof HTMLElement && growCode(paintable(kept), paintable(next)) });
   } else {
-    node.innerHTML = turn.html || "";
+    setContentHtml(node, turn.html || "");
   }
   if (!turn.html) linkedText(node, turn.text);
 }

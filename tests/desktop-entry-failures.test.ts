@@ -9,6 +9,7 @@ import { fileURLToPath } from "node:url";
 import test, { type TestContext } from "node:test";
 import { acquireStorageOwner } from "@molis-ai/molis-work-storage";
 import { openEntryEventStream, openEntryTerminal, seedEntryProject, entryRequestHeaders } from "./fixtures/desktop-entry-streams.js";
+import { desktopEntryAccount } from "./fixtures/desktop-entry-account.js";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const cliEntry = join(root, "dist/cli/main.js");
@@ -43,13 +44,13 @@ function cli(t: TestContext, args: string[], mode?: string) {
   return { ...result, directory, observed: mode ? JSON.parse(readFileSync(report, "utf8")) as Observed : undefined };
 }
 
-async function message(child: ChildProcess, exited: Promise<Exit>): Promise<Record<string, unknown>> {
+async function message(child: ChildProcess, exited: Promise<Exit>, stderr: () => string = () => ""): Promise<Record<string, unknown>> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 10_000);
   try {
     return await Promise.race([
       once(child, "message", { signal: controller.signal }).then(([value]) => value as Record<string, unknown>),
-      exited.then(value => { throw new Error(`Desktop exited before its IPC handshake: ${JSON.stringify(value)}`); }),
+      exited.then(value => { throw new Error(`Desktop exited before its IPC handshake: ${JSON.stringify(value)}\n${stderr()}`); }),
     ]);
   } finally {
     clearTimeout(timer); controller.abort();
@@ -58,11 +59,14 @@ async function message(child: ChildProcess, exited: Promise<Exit>): Promise<Reco
 
 async function web(t: TestContext, mode: string, prepare?: (directory: string) => Promise<void>) {
   const directory = mkdtempSync(join(tmpdir(), "molis-desktop-entry-")), report = join(directory, "observed.json");
-  try { await prepare?.(directory); }
+  const account = await desktopEntryAccount(t);
+  const businessHome = await account.prepareHome(directory);
+  try { await prepare?.(businessHome); }
   catch (error) { rmSync(directory, { recursive: true, force: true }); throw error; }
-  const child = spawn(process.execPath, [...flags, "--import", preload, webEntry, "--home", directory, "--port", "0"], {
+  const child = spawn(process.execPath, [...flags, "--import", preload, webEntry, "--home", directory, "--port", String(account.webPort)], {
     cwd: root, stdio: ["ignore", "pipe", "pipe", "ipc"],
     env: { ...process.env, MOLIS_WORK_HOME: directory, MOLIS_WORK_DEBUG: "",
+      ...account.environment,
       MOLIS_WORK_TEST_DESKTOP_FAULT: mode, MOLIS_WORK_TEST_DESKTOP_REPORT: report },
   });
   let stdout = "", stderr = "";
@@ -72,7 +76,8 @@ async function web(t: TestContext, mode: string, prepare?: (directory: string) =
     child.once("error", reject);
     child.once("close", (code, signal) => resolve({ code, signal }));
   });
-  const deadline = setTimeout(() => child.kill("SIGKILL"), 15_000);
+  // D0169: permit the 10s startup observation plus the production 12s shutdown deadline.
+  const deadline = setTimeout(() => child.kill("SIGKILL"), 25_000);
   deadline.unref();
   child.once("close", () => clearTimeout(deadline));
   t.after(async () => {
@@ -83,10 +88,12 @@ async function web(t: TestContext, mode: string, prepare?: (directory: string) =
       clearTimeout(deadline); rmSync(directory, { recursive: true, force: true });
     }
   });
-  const ready = await message(child, exited);
+  const ready = await message(child, exited, () => stderr);
   assert.equal(ready.type, "ready", stderr);
   assert.equal(typeof ready.port, "number");
-  return { directory, child, exited, origin: `http://127.0.0.1:${ready.port}`, stdout: () => stdout, stderr: () => stderr,
+  const origin = `http://127.0.0.1:${ready.port}`;
+  const identityHeaders = await account.login(directory, origin);
+  return { directory, businessHome, identityHeaders, child, exited, origin, stdout: () => stdout, stderr: () => stderr,
     observed: () => JSON.parse(readFileSync(report, "utf8")) as Observed };
 }
 
@@ -139,9 +146,9 @@ test("RAC-119 Desktop Web normal signal waits for real HTTP and Host cleanup, th
 test("RAC-119 Desktop Web stops live SSE and upgraded PTY connections with real cleanup and exit 0", async t => {
   let projectId = "";
   const f = await web(t, "live-streams", async directory => { projectId = await seedEntryProject(directory); });
-  const stream = await openEntryEventStream(t, f.origin, f.directory, projectId);
-  const terminal = await openEntryTerminal(t, f.origin, f.directory, projectId);
-  const revision = await fetch(`${f.origin}/projects/${projectId}/api/plugins/io.molis.work.files/view-revision`);
+  const stream = await openEntryEventStream(t, f.origin, f.businessHome, projectId, f.identityHeaders);
+  const terminal = await openEntryTerminal(t, f.origin, f.businessHome, projectId, f.identityHeaders);
+  const revision = await fetch(`${f.origin}/projects/${projectId}/api/plugins/io.molis.work.files/view-revision`, { headers: f.identityHeaders });
   assert.equal(revision.status, 200);
   assert.equal(typeof (await revision.json() as { revision: string }).revision, "string", "view-revision answers JSON rather than holding a poll");
   assert.equal(stream.ended(), false);
@@ -158,7 +165,7 @@ test("RAC-119 Desktop Web stops live SSE and upgraded PTY connections with real 
 test("RAC-119 Desktop Web ends a real SSE whose owner has not ended it before HTTP close", async t => {
   let projectId = "";
   const f = await web(t, "live-sse", async directory => { projectId = await seedEntryProject(directory); });
-  const stream = await openEntryEventStream(t, f.origin, f.directory, projectId);
+  const stream = await openEntryEventStream(t, f.origin, f.businessHome, projectId, f.identityHeaders);
   assert.equal(stream.ended(), false);
   assert.equal(f.child.kill("SIGTERM"), true);
   assert.deepEqual(await f.exited, { code: 0, signal: null }, JSON.stringify({ stderr: f.stderr(), observed: f.observed() }));
@@ -172,7 +179,7 @@ test("RAC-119 Desktop Web disconnects an unfinished authorized HTTP request befo
   const f = await web(t, "live-http");
   const entered = message(f.child, f.exited);
   let answered = false;
-  const pending = request(`${f.origin}/api/settings/projects`, { method: "POST", headers: { ...entryRequestHeaders(f.directory, f.origin), "content-length": "128" } }, response => { answered = true; response.resume(); });
+  const pending = request(`${f.origin}/api/settings/projects`, { method: "POST", headers: { ...entryRequestHeaders(f.businessHome, f.origin), ...f.identityHeaders, "content-length": "128" } }, response => { answered = true; response.resume(); });
   const disconnected = new Promise<void>(resolve => { pending.once("close", resolve); });
   pending.on("error", () => { /* Shutdown may reset a request whose body has not finished. */ });
   t.after(() => { pending.destroy(); });
@@ -193,7 +200,7 @@ test("RAC-119 Desktop Web reports callback or Host cleanup failure without claim
   for (const mode of ["transport-reject", "host-reject"]) await t.test(mode, async t => {
     const f = await web(t, mode);
     // RAC-105-A-19: the child really holds the Home, including before any Agent work.
-    const storageRoot=join(f.directory,"agent-runtime");
+    const storageRoot=join(f.businessHome,"agent-runtime");
     assert.ok(existsSync(join(storageRoot,".molis-runtime-owner.db")));
     assert.throws(()=>acquireStorageOwner(storageRoot),{code:"storage.owner.busy"});
     assert.equal(f.child.kill("SIGINT"), true);
@@ -229,14 +236,25 @@ test("RAC-119 Desktop Web unfinished cleanup keeps its deadline alive and repeat
     assert.equal((await closing).type, "closing");
     if (mode === "transport-blocked") assert.equal(f.child.kill("SIGINT"), true);
     assert.deepEqual(await f.exited, { code: 1, signal: null });
-    assert.ok(Date.now() - started >= 1800, "unfinished cleanup must retain the real two-second deadline");
+    assert.ok(Date.now() - started >= 11_800, "D0169 unfinished cleanup retains the real twelve-second deadline");
     const observed = f.observed();
     assert.equal(observed.transport, 1);
     assert.equal(observed.host, mode === "transport-blocked" ? 0 : 1);
     assert.equal(observed.hostClosed, mode !== "transport-blocked");
     if (mode === "socket-close-blocked") assert.equal(observed.socketCloseDropped, true);
     assert.deepEqual(log(f.stderr(), f.directory, "shutdown_timed_out", "web", false).fields, {
-      deadline_ms: 2000, remaining_cleanup_skipped: true,
+      deadline_ms: 12_000, remaining_cleanup_skipped: true,
     });
   });
+});
+
+test("D0169 Desktop Web lets a slow Home close finish beyond two seconds without a hard exit", async t => {
+  const f = await web(t, "host-delayed");
+  const closing = message(f.child, f.exited), started = Date.now();
+  assert.equal(f.child.kill("SIGTERM"), true);
+  assert.equal((await closing).type, "closing");
+  assert.deepEqual(await f.exited, { code: 0, signal: null });
+  assert.ok(Date.now() - started >= 3_300, "the Home's delayed cleanup actually ran");
+  assert.equal(f.observed().hostClosed, true);
+  assert.doesNotMatch(f.stderr(), /shutdown_timed_out|shutdown_failed/);
 });

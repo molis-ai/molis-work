@@ -17,7 +17,6 @@ function leaveSession(page: Page) {
   s.materialTicket++;
   s.goalTicket++;
   s.goalReading++;
-  s.methodDocumentTicket++;
   // Materials are picked in the page's one knowledge picker, not a dialog here: the ticket above drops its answer.
   for (const name of s.choosers) if (name !== "material") q<HTMLDialogElement>("[data-coding-" + name + "-dialog]").close();
   closeReport(page);

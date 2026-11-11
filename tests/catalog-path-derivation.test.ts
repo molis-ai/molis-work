@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
-import { CATALOG_SCHEMA_VERSION } from "@molis-ai/molis-work-app-local-host";
+import { CATALOG_SCHEMA_VERSION, CATALOG_UPGRADES } from "@molis-ai/molis-work-app-local-host";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import {
   createProjectsSchema,
@@ -24,7 +24,7 @@ const open = (file: string, projectsDirectory: string, initialize = true) => {
   const db = openTestSqlite(file);
   db.pragma("foreign_keys = ON");
   if (initialize) createProjectsSchema(db);
-  return { db, projects: new ProjectsModule({ db, projects_directory: projectsDirectory, plugins }) };
+  return { db, projects: new ProjectsModule({ db, projects_directory: projectsDirectory, outputs_directory: join(projectsDirectory, "..", "outputs"), plugins }) };
 };
 const scratch = () => mkdtempSync(join(tmpdir(), "catalog-path-derivation-"));
 
@@ -73,7 +73,7 @@ test("RAC-2302 the project.created event records the project, not a path; the mo
     const { db, projects } = open(join(directory, "catalog.db"), directory);
     const record = projects.lifecycle.prepareRecord({ project_id: "project-b", display_name: "乙", data_class: "user" });
     projects.lifecycle.register(record, "project.created", "tester");
-    const payload = JSON.parse(String(db.prepare("SELECT payload_json FROM project_events WHERE type = 'project.created'").pluck().get()));
+    const payload = JSON.parse(String(db.prepare<unknown[], { payload_json: unknown }>("SELECT payload_json FROM project_events WHERE type = 'project.created'").get()?.payload_json));
     assert.deepEqual(payload, { project_id: "project-b" });
     assert.equal("updateDatabasePath" in projects.lifecycle, false);
     db.close();
@@ -82,7 +82,7 @@ test("RAC-2302 the project.created event records the project, not a path; the mo
 
 test("RAC-2303 the derived file name is the one the storage package names, and the catalog uses the declared current version", () => {
   assert.equal(projectDatabasePath("/home/projects", "p"), join("/home/projects", "p", PROJECT_DATABASE_FILENAME));
-  assert.equal(CATALOG_SCHEMA_VERSION, 26, "the current catalog includes synchronization and stores no path");
+  assert.equal(CATALOG_SCHEMA_VERSION, 3, "D0057/D0273: version 3 no longer includes retired desktop tables");
 });
 
 test("RAC-2303 a current catalog reopens; another version is refused without changing its bytes or project facts", async () => {
@@ -95,18 +95,18 @@ test("RAC-2303 a current catalog reopens; another version is refused without cha
     assert.equal(reopened.getProject(project.project_id).database_path, join(home, "projects", project.project_id, "molis-work.db"));
     reopened.close();
     const wrong = openTestSqlite(file);
-    assert.equal(wrong.prepare("SELECT value FROM catalog_meta WHERE key = 'schema_version'").pluck().get(), String(CATALOG_SCHEMA_VERSION));
+    assert.equal(wrong.prepare<unknown[], { value: unknown }>("SELECT value FROM catalog_meta WHERE key = 'schema_version'").get()?.value, String(CATALOG_SCHEMA_VERSION));
     assert.equal(wrong.pragma("integrity_check", { simple: true }), "ok");
     assert.deepEqual(wrong.pragma("foreign_key_check"), []);
     wrong.prepare("UPDATE catalog_meta SET value = ? WHERE key = 'schema_version'").run(String(CATALOG_SCHEMA_VERSION + 1));
     wrong.pragma("journal_mode = DELETE"); wrong.close();
     const before = readFileSync(file);
-    await assert.rejects(() => openMolisWorkProjectCatalog({ homeDirectory: home }), { code: "catalog.reader_too_old" });
+    await assert.rejects(() => openMolisWorkProjectCatalog({ homeDirectory: home }), { code: "storage.store_too_new" });
     assert.deepEqual(readFileSync(file), before);
     const preserved = openTestSqlite(file, { readonly: true });
     try {
-      assert.equal(preserved.prepare("SELECT value FROM catalog_meta WHERE key = 'schema_version'").pluck().get(), String(CATALOG_SCHEMA_VERSION + 1));
-      assert.equal(preserved.prepare("SELECT display_name FROM projects WHERE project_id = ?").pluck().get(project.project_id), "current catalog");
+      assert.equal(preserved.prepare<unknown[], { value: unknown }>("SELECT value FROM catalog_meta WHERE key = 'schema_version'").get()?.value, String(CATALOG_SCHEMA_VERSION + 1));
+      assert.equal(preserved.prepare<unknown[], { display_name: unknown }>("SELECT display_name FROM projects WHERE project_id = ?").get(project.project_id)?.display_name, "current catalog");
     } finally { preserved.close(); }
   } finally { rmSync(home, { recursive: true, force: true }); }
 });
@@ -124,5 +124,24 @@ test("RAC-800 a current catalog has no personal planning table and refuses one w
     await assert.rejects(() => openMolisWorkProjectCatalog({ homeDirectory: home }), (error: { code?: string; message?: string }) =>
       error.code === "catalog.unsupported_schema" && /personal_planning_method_packs/.test(error.message ?? ""));
     assert.deepEqual(readFileSync(file), before);
+  } finally { rmSync(home, { recursive: true, force: true }); }
+});
+
+test("D0057 D0273 new catalogs omit retired desktop tables; explicit upgrade refuses nonempty tables atomically", async () => {
+  const home = scratch();
+  try {
+    const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home }); catalog.close();
+    const db = openTestSqlite(join(home, "projects", "catalog.db"));
+    try {
+      assert.deepEqual(db.prepare("SELECT name FROM sqlite_master WHERE name LIKE 'goal_desktop_%'").all(), []);
+      const step = CATALOG_UPGRADES.find(step => step.from === 2)!;
+      const retired = () => db.exec("CREATE TABLE goal_desktop_panels(panel_id TEXT PRIMARY KEY); CREATE TABLE goal_desktop_panel_aliases(panel_id TEXT)");
+      retired(); db.transaction(() => step.run!(db))();
+      assert.deepEqual(db.prepare("SELECT name FROM sqlite_master WHERE name LIKE 'goal_desktop_%'").all(), []);
+      retired(); db.exec("INSERT INTO goal_desktop_panels VALUES ('retained')");
+      assert.throws(() => db.transaction(() => step.run!(db))(), { code: "catalog.unsupported_schema" });
+      assert.equal(db.prepare("SELECT panel_id FROM goal_desktop_panels").get()?.panel_id, "retained");
+      assert.ok(db.prepare("SELECT name FROM sqlite_master WHERE name='goal_desktop_panel_aliases'").get(), "earlier drops roll back too");
+    } finally { db.close(); }
   } finally { rmSync(home, { recursive: true, force: true }); }
 });

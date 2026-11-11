@@ -200,7 +200,7 @@ export interface MemoryEvidenceInput extends Omit<MemoryEvidence, "kind" | "ref"
 
 export interface MemoryExportPackage {
     format: "molis.memory";
-    version: 2;
+    version: 1;
     exported_at: string;
     scope: MemoryScope;
     entries: Array<{

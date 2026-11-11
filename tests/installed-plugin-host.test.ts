@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import test from 'node:test';
 import { createHash, randomUUID } from 'node:crypto';
-import { copyFile, mkdtemp, readFile, readdir, writeFile, rm } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, readFile, readdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { AgentBuilderStore, type AgentRelease } from '@molis-ai/molis-work-plugin-builder';
@@ -15,7 +15,7 @@ import type { PluginPackageBundle } from '@molis-ai/molis-work-contracts/platfor
 import type { SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { LocalProjectDatabase } from '@molis-ai/molis-work-app-local-host';
 import { seedDemoBoard, DEMO_PROJECT_ID, runningPluginDirectory } from '@molis-ai/molis-work-app-local-host';
-import { HomeConsentLedger, MolisWorkLocalHost, PLUGIN_INSTALL_PERMISSIONS, PluginInstallService, SandboxPackageStore, molisWorkHostProjectReference, pluginInstallActions } from '@molis-ai/molis-work-app-local-host';
+import { HomeConsentLedger, MolisWorkLocalHost, PLUGIN_INSTALL_PERMISSIONS, PluginInstallService, SandboxPackageStore, molisWorkHostProjectReference, pluginInstallActions, readMcpToolPreference } from '@molis-ai/molis-work-app-local-host';
 import { ensureInstalledPlugins, releaseInstalledPlugins } from '../apps/local-host/dist/installed-plugin-host.js';
 import { installedSignature, sandboxedPluginDefinition } from '../apps/local-host/dist/plugin-builder/installed.js';
 import { exposedActionId } from '../apps/local-host/dist/plugin-builder/exposed-actions.js';
@@ -27,7 +27,7 @@ import { SCHEDULE_OPERATION_WAKEUP, SCHEDULE_PLUGIN_ID } from '@molis-ai/molis-w
 import { pluginBindingScope } from '@molis-ai/molis-work-service-connector-host';
 import { callAs, callerPlugin, issuedCaller, registerProbe, startProjectPlugins } from './fixtures/plugin-callers.js';
 import { agentDefinitionsFor } from '../apps/local-host/dist/agent-definitions/agent-definitions.js';
-import { builtinRegistrations } from '../apps/local-host/dist/agent-definitions/builtin-registrations.js';
+import { builtinRegistrations } from '../apps/local-host/dist/agent-definitions/builtin-agents.js';
 import { PACKAGE_PLUGIN_ID, newPublisher, signedPackage } from './fixtures/sandbox-package.js';
 
 const mac = { skip: process.platform !== 'darwin', timeout: 30_000 };
@@ -189,6 +189,29 @@ test('SYS-15-S1 Host alone restores installed actions and scheduled operations, 
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });
 
+// SECURITY-INVARIANTS S-task-grant-subjects ⑩: what the person let a project installation's background tasks read goes with that installation when it
+// is uninstalled there (the installed-plugin lifecycle's `forget`), and only that: the same installation's tasks in another project, and
+// another installation's tasks here, keep theirs. The grants are written as an earlier `agent.task_grants.set` left them (setup only).
+test("S-task-grant-subjects uninstalling a plugin from a project takes its tasks' grants there with it, and leaves another project's and another installation's", mac, async () => {
+  const home = await mkdtemp(join(tmpdir(), 'installed-task-grants-'));
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
+  const fixture = await publishedFixture(home, 'project');
+  const host = new MolisWorkLocalHost({ homeDirectory: home });
+  try {
+    const installed = await host.withProject(fixture.ref, runtime => ensureInstalledPlugins({ store: runtime.store, projectId: DEMO_PROJECT_ID, homeDirectory: home,
+      actions: { registry: host.actionRegistry(fixture.ref), client: { ...host.actionClient(fixture.ref), ...host.syncActionClient(fixture.ref) }, project_id: DEMO_PROJECT_ID } }));
+    const install = fixture.install.install_id;
+    const grant = (project_id: string, install_id: string) => ({ client_id: `agent:task:${project_id}:${install_id}:daily`, project_id, capability_id: 'fixture.read',
+      version: 1, provider_id: 'fixture', permissions: [], enabled: true, generation: randomUUID() });
+    const kept = [grant('project-elsewhere', install), grant(DEMO_PROJECT_ID, 'plugin-install-another')];
+    await mkdir(join(home, 'config'), { recursive: true });
+    await writeFile(join(home, 'config', 'mcp-tools.json'), `${JSON.stringify({ version: 1, action_grants: [grant(DEMO_PROJECT_ID, install), ...kept] }, null, 2)}\n`);
+    await installed.lifecycle('uninstall', fixture.release, { keepData: true });
+    assert.deepEqual((await readMcpToolPreference(home)).action_grants.map(row => row.client_id).sort(), kept.map(row => row.client_id).sort(),
+      'kept data or not, what its tasks in this project could read goes with it');
+  } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
+});
+
 test('explicitly disabled installations stay disabled after Host restart and only an explicit enable restores discovery', mac, async () => {
   const home = await mkdtemp(join(tmpdir(), 'installed-disabled-'));
   await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
@@ -246,7 +269,7 @@ test('missing publication or approval is reported without borrowing another Home
     assert.equal((await one.actions.client.discover(context)).filter(view => view.capability_id.startsWith('generated.')).length, 3, 'new consent repairs a missing approval without borrowing another installation');
     await releaseInstalledPlugins(stores[1]!, DEMO_PROJECT_ID);
     const secondStorage = studioStorage(stores[1]!.db, DEMO_PROJECT_ID);
-    secondStorage.set('plugin-builder:agent-built:v1', JSON.stringify({ format:2,builds: [], releases: [],revisions:{} }));
+    secondStorage.set('plugin-builder:agent-built:v1', JSON.stringify({ format:1,builds: [], releases: [],revisions:{} }));
     const missing = await ensureInstalledPlugins({ store: stores[1]!, projectId: DEMO_PROJECT_ID, homeDirectory: home });
     assert.match(missing.recoveryErrors.get(second.release.pluginId) ?? '', /发布记录/);
     assert.equal((await missing.actions.client.discover(context)).some(view => view.capability_id.startsWith('generated.')), false);
@@ -386,7 +409,7 @@ test('a reinstall that cannot read the data an uninstall kept is refused until t
   const fixture = await publishedFixture(home, 'project'), rig = await hostWithProject(home, fixture);
   const action = (release: AgentRelease, operation: string) => ({ capability_id: exposedActionId(release, operation), version: release.version, provider_id: 'plugin:' + release.pluginId });
   const working = await readFile(fixture.release.bundlePath, 'utf8');
-  const only = (installed: Awaited<ReturnType<typeof rig.control>>, release: AgentRelease) => installed.storage.set('plugin-builder:agent-built:v1', JSON.stringify({ format:2,builds: [], releases: [release],revisions:{} }));
+  const only = (installed: Awaited<ReturnType<typeof rig.control>>, release: AgentRelease) => installed.storage.set('plugin-builder:agent-built:v1', JSON.stringify({ format:1,builds: [], releases: [release],revisions:{} }));
   const kept = () => rig.host.withProject(fixture.ref, runtime => new SqlitePluginPrivateStorage(runtime.store.db).snapshotInstallationData(fixture.install.install_id).length);
   try {
     const installed = await rig.control(), client = rig.host.actionClient(fixture.ref);
@@ -417,7 +440,7 @@ test('an install that fails over kept data puts the uninstalled record back exac
   const fixture = await publishedFixture(home, 'project'), rig = await hostWithProject(home, fixture);
   const action = (release: AgentRelease, operation: string) => ({ capability_id: exposedActionId(release, operation), version: release.version, provider_id: 'plugin:' + release.pluginId });
   const working = await readFile(fixture.release.bundlePath, 'utf8'), broken = "throw new Error('broken bundle');";
-  const only = (installed: Awaited<ReturnType<typeof rig.control>>, ...releases: AgentRelease[]) => installed.storage.set('plugin-builder:agent-built:v1', JSON.stringify({ format:2,builds: [], releases,revisions:{} }));
+  const only = (installed: Awaited<ReturnType<typeof rig.control>>, ...releases: AgentRelease[]) => installed.storage.set('plugin-builder:agent-built:v1', JSON.stringify({ format:1,builds: [], releases,revisions:{} }));
   const rows = () => rig.host.withProject(fixture.ref, runtime => new SqlitePluginPrivateStorage(runtime.store.db).snapshotInstallationData(fixture.install.install_id));
   const row = (installed: Awaited<ReturnType<typeof rig.control>>) => installed.platform.runtime.get(fixture.install.install_id);
   try {
@@ -1162,7 +1185,8 @@ for (const [order, gonePluginId, keptPluginId] of [
       try {
         if (!new SqlitePluginRuntimeRepository(closed.db).get(gone.installId)) {
           const columns = Object.keys(saved);
-          closed.db.prepare(`INSERT INTO plugin_runtime_installs (${columns.join(', ')}) VALUES (${columns.map(column => '@' + column).join(', ')})`).run(saved);
+          closed.db.prepare(`INSERT INTO plugin_runtime_installs (${columns.join(', ')}) VALUES (${columns.map(() => '?').join(', ')})`)
+            .run(...columns.map(column => saved![column]));
         }
       } finally { closed.close(); }
     }

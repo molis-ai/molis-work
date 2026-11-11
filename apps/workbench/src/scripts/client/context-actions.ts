@@ -73,11 +73,19 @@ const PANE_PART = String.raw`  const L = host.translate;
       return "paragraph";
     };
     // A heading names the passage only if it is in what is shown: a surface's closed dialog or hidden panel keeps its own h2 in the DOM
-    // (Shelf's "Save to project knowledge" dialog), and that is interface text, not a heading of what was selected (BL-952).
+    // (Shelf's "Save to project knowledge" dialog), and that is interface text, not a heading of what was selected (BL-952). The same
+    // goes for a subtree the page has marked aria-hidden and for the body of a folded details — while a heading inside the fold's own
+    // summary line is shown whenever the fold is read at all, so it stays in the path.
     const headingPath = (root, node) => {
       const stack = [];
       root.querySelectorAll("h1, h2, h3, h4").forEach((heading) => {
-        if (!(heading.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING) || heading.closest("dialog:not([open]),[hidden],[inert]")) return;
+        if (!(heading.compareDocumentPosition(node) & Node.DOCUMENT_POSITION_FOLLOWING) || heading.closest('dialog:not([open]),[hidden],[inert],[aria-hidden="true"]')) return;
+        // Every closed details ancestor hides its body; only the fold's own summary line — its first summary child — stays visible.
+        for (let ancestor = heading.parentElement; ancestor; ancestor = ancestor.parentElement) {
+          if (ancestor.tagName !== "DETAILS" || ancestor.open) continue;
+          const summary = Array.prototype.find.call(ancestor.children, (child) => child.tagName === "SUMMARY");
+          if (!summary || !summary.contains(heading)) return;
+        }
         const level = Number(heading.tagName.slice(1));
         while (stack.length && stack[stack.length - 1].level >= level) stack.pop();
         stack.push({ level, text: cutWhole(heading.textContent.trim(), 120) });

@@ -4,6 +4,7 @@ import type { HostOfferedOriginalInput } from "@molis-ai/molis-work-contracts/pl
 import type { AgentAnswerControl } from "@molis-ai/molis-work-contracts/services/agent-interaction";
 import { AGENT_INPUT_KEY_PATTERN, type AgentInputSend, type AgentInputsPort, type AgentSteerMode, type AgentSteerReceipt } from "@molis-ai/molis-work-contracts/services/agent-inputs";
 import type { AssistantContextSnapshot, AssistantMaterial, AssistantSendInput, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
+import type { WebLocale } from "../web-locale.js";
 import { textFieldId } from "../agent-question-card.js";
 import { assistantErrors } from "./assistant-errors.js";
 import type { StoredWork } from "./assistant-store.js";
@@ -18,10 +19,10 @@ type RoundInputOutcome = "answered" | "steered" | "queued";
  * the person's (a page or the Host wrote them), so the runtime records them as the Host's. `about`: the earlier input
  * these words correct (D34); the runtime keeps the link, the words say what changes.
  */
-export interface SendIntent { id?: string; target?: AssistantSendInput["target"]; delivery?: AgentSteerMode; byHost?: boolean; about?: string; original_input?: Omit<HostOfferedOriginalInput, "action">; continued_from?: AgentRunRef }
+export interface SendIntent { id?: string; target?: AssistantSendInput["target"]; delivery?: AgentSteerMode; byHost?: boolean; about?: string; original_input?: Omit<HostOfferedOriginalInput, "action">; continued_from?: AgentRunRef; reply_locale?: WebLocale; draftCurrent?: () => boolean }
 
 /** Source identities point into the Runtime's immutable originals; run_id is only the route used to re-read them. */
-export interface AssistantMemorySourceRef { run_id: string; input_id: string | null; version: "1"; original?: AgentOriginalInputRef }
+export interface AssistantMemorySourceRef { run_id: string; input_id: string | null; /** @record-revision Initial revision of immutable source input. */ version: "1"; original?: AgentOriginalInputRef }
 export interface AssistantMemorySource extends AssistantMemorySourceRef { text: string }
 export function memorySourceIdentity(source: AssistantMemorySourceRef): string {
   return JSON.stringify(source.original ? ["original", source.original.session_id, source.original.input_id, source.original.version] : ["input", source.input_id, source.version]);
@@ -144,9 +145,9 @@ export class AssistantInputs {
   compose(text: string, materials: AssistantMaterial[], context: AssistantContextSnapshot | null): string {
     const parts = [text];
     if (context?.selection) parts.push(`【发送时的选区，数据】${context.selection.text.slice(0, 4000)}`);
-    for (const material of materials) parts.push(material.method?.default_ref ? `【签名插件资料，数据】${material.text ?? ""}` : `【附带材料「${material.title}」，数据】${(material.text ?? "").slice(0, 4000)}`);
+    for (const material of materials) parts.push(material.method?.kind === "role" ? `【签名插件资料，数据】${material.text ?? ""}` : `【附带材料「${material.title}」，数据】${(material.text ?? "").slice(0, 4000)}`);
     const joined = parts.join("\n\n");
-    if (materials.some(item => item.method?.default_ref) && joined.length > this.maxText) throw assistantErrors.invalid("签名资料正文超过本次输入预算，请减少材料后重发");
+    if (materials.some(item => item.method?.kind === "role") && joined.length > this.maxText) throw assistantErrors.invalid("签名资料正文超过本次输入预算，请减少材料后重发");
     return joined.slice(0, this.maxText);
   }
 }

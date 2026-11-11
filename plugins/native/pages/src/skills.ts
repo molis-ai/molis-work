@@ -1,16 +1,21 @@
-import type { AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
+import type { PluginMethodDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 
 /**
  * Methods Pages offers to other Agents (the Assistant, a Character) for business work. Each is declared in the
- * Manifest's `methods` with the same id, version, name, summary and tools; the Host registers the body from here.
+ * Manifest's `methods` with the same id, version, name, summary, tools, description, when_to_use, when_not_to_use and applies_to;
+ * the Host registers the body from here. `applies_to` is "assistant": it works through the business tools Coding's roles lack.
  */
-export const pagesSkills: readonly AgentSkillDefinition[] = [
+export const pagesSkills: readonly PluginMethodDefinition[] = [
   {
     skill_id: "meeting-notes",
-    version: 2,
+    version: /* @version method.meeting-notes */ 1,
     name: "会议纪要整理",
     summary: "把一段会议记录或一篇会议文档整理成结论、待办（谁、做什么、何时）和待定问题，每条注明依据；用户要时写成 Pages 文档。",
     tools: ["find-capabilities", "read-capability", "change-capability"],
+    description: "用户给了一段会议记录或一篇会议文档，要整理成一份能照着执行的纪要时用：结论、待办（谁、做什么、何时）和待定问题，每条注明原文依据；用户要时再写成文档。",
+    when_to_use: "手上有会议的原始记录、转写或笔记，要整理成结论、待办和待定问题。",
+    when_not_to_use: "要把会议里的待办直接加进待办列表（用“整理待办”）；要写的不是会议纪要，或只想总结一篇普通文章。",
+    applies_to: "assistant",
     body: [
       "适用：用户给了会议记录（原文、附件，或指向一篇 Pages 文档），要一份能照着执行的纪要。",
       "1. 先读原文。给的是文档就用 read-capability 读它的正文，不要凭标题或摘要推测内容。",

@@ -63,7 +63,7 @@ test("export has a version and no secrets or absolute paths; importing twice add
   await memory.write(person(), { scope: "personal", text: "提交前先跑检查", kind: "convention", applies: { task: "改 /Users/someone/code/goalboard 里的代码时" } });
   const pack = await memory.exportScope(person(), "personal");
   assert.equal(pack.format, "molis.memory");
-  assert.equal(pack.version, 2);
+  assert.equal(pack.version, 1);
   const text = JSON.stringify(pack);
   assert.doesNotMatch(text, /\/Users\/someone/, "no absolute path");
   assert.ok(pack.redactions.some(item => item.kind === "absolute-path" && item.count >= 1), "says what was taken out");
@@ -90,7 +90,7 @@ test("export has a version and no secrets or absolute paths; importing twice add
   assert.ok(imported.every(item => item.source === "imported" && /导入/.test(item.origin)));
   // A damaged or unknown package: refused whole, nothing written.
   const before = (await memory.list(person(), { scope: "project" })).items.length;
-  await assert.rejects(memory.importScope(person(), "project", { ...pack, version: 1 }), /版本 1 不认识/);
+  await assert.rejects(memory.importScope(person(), "project", { ...pack, version: 2 }), /版本 2 不认识/);
   await assert.rejects(memory.importScope(person(), "project", { ...pack, version: 3 }), /版本 3 不认识/);
   await assert.rejects(memory.importScope(person(), "project", { ...pack, entries: [...pack.entries.map(item => ({ ...item, text: `${item.text}（新）` })), { text: "", kind: "preference" }] }), /第 4 条/);
   assert.equal((await memory.list(person(), { scope: "project" })).items.length, before);

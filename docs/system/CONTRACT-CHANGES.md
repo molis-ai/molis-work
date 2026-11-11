@@ -4,7 +4,7 @@
 
 状态：现行（2026-10-08 入库；同日用户定了读取兼容的起点；2026-10-29 用户定 1.0.0 之前都是开发版本）。分两个阶段：现在在**阶段一，不留兼容期**；**阶段二，读取兼容**从第一个装到开发机之外的版本开始，这个版本不早于 1.0.0。
 
-> **阶段二的起点（用户 2026-10-08 定，`specs/archive/repository-anti-corruption/spec.md` §1「『不留兼容』何时结束」；路线图待决 #15）：第一个装到开发机之外的版本。** 用户 2026-10-29 又定「1.0.0 之前都是开发版本」：0.3.0 和 1.0.0 之前的其他版本都是开发版本，不是起点，所以起点不早于 1.0.0。开发机指参与开发的人（现在是用户和同事）用来开发和试用的机器。起点之前一律按阶段一的「不留兼容」做。
+> **阶段二的起点（用户 2026-10-08 定，`specs/archive/repository-anti-corruption/spec.md` §1「『不留兼容』何时结束」；路线图待决 #15）：第一个装到开发机之外的版本。** 用户 2026-10-29 又定「1.0.0 之前都是开发版本」：现行 0.1.0 候选、原 0.3.0 候选和 1.0.0 之前的其他版本都是开发版本，不是起点，所以起点不早于 1.0.0。开发机指参与开发的人（现在是用户和同事）用来开发和试用的机器。起点之前一律按阶段一的「不留兼容」做。
 >
 > 起点日期：**还没到，没有固定日期。** 起点发生时，发那个版本的 PR 在这里写下版本号、日期和提交，第 3 节标为已结束，第 4 节开始适用。第 5 节的前置要在那之前就位。
 
@@ -20,6 +20,8 @@
 
 这里的合同是别人（别的包、别的进程、外部插件、用户的数据）依赖的形状：
 
+2026-11-08 D0071：动作网关移除请求体 `client_id`，使用独立注册凭据签发的短时证明取得身份；原接入不自动换凭据，用户重新确认 Runtime 接入。新私有文件格式 `format.mcp.client.credential` 从第 1 版开始，凭据不进入快照。动作 id/schema、MCP 工具名与公开 contracts/SDK 形状不变；实验 Server 管理员授权必须指定本机安装 Home。
+
 | 合同 | 在哪里 | 版本记在哪 |
 | --- | --- | --- |
 | `packages/contracts` 的公开子路径 | `packages/contracts/package.json` 的 `exports` | 没有版本号；形状记在公开 API 快照 `tooling/gates/api/contracts/<子路径>.txt`，`pnpm health:check` 对照源码，有任何不同就失败，有意改用 `pnpm api:update`（第 3 节第 6 条）。新子路径不能只导出一个没人用的 `ContractDescriptor` 占位，`pnpm health:check` 的占位子路径规则（`scripts/gates/contract-placeholders.mjs`）直接失败 |
@@ -30,9 +32,13 @@
 | 对外合同 id | 现在没有（Casebook 的 `molis-work.casebook.*` 已于 2026-10-10 删除；以后出现新的对外合同 id，就在这里登记） | 合同 id 里的版本 |
 | Home 里存的数据 | 项目库、目录库等，清单与版本方案见 `docs/system/HOME-DATA.md` | 库的结构版本（`PRAGMA user_version` 或自带的 meta 表），经 `packages/storage/src/sqlite-baseline.ts` 的 `applySqliteBaseline` 建库，版本不符就拒绝 |
 
+2026-11-08 D0244：Search 的仓库内部公开服务新增 `SearchService.indexedCatalog`，提供受当前来源/读取器权限约束的同项目快照及原来源同步检查，Host 同片接入 Knowledge 整理。没有动作 id/schema、Manifest、MCP 工具名或公开 contracts/SDK 形状变化，也不改持久化格式；旧业务缓存保留，失效来源或失败缓存不用于新模型整理。
+
+2026-11-09 日报 A 类：Manifest 新增可选 `demo_seed` 动作引用，由通用 Runtime 启动后调用；新增 `feed.demo.seed@1`（仅 workflow）、`goals.states.read@1` 批量读取和 `contextual.draft_reference.issue/take@1` 项目动作。Goals 输出加入取消状态；列表合同增加 owner SQL 分页/筛选、情境账按键批量读取，SDK 新增统一 HTML 清理与事务错误保全。仓库内所有调用方同片更新，API 与动作快照随片更新；当前阶段一，不保留旧形状或旧命令兼容。Server 组合入口统一为 `molis-work server …`，本机恢复适配器仍归 Host，不新增插件恢复权限。完整消费影响与验证见[本批需求](../../specs/archive/daily-quality-medium-20261108/spec.md)。
+
 ## 2. 版本号的编号方案
 
-产品版本的编号方案已定（`specs/archive/repository-anti-corruption/spec.md` §1，2026-10-08「版本与发布策略」）：一个产品版本，下一版 0.3.0；根包、桌面端、Tauri 跟同一版本，内置插件的 Manifest 跟宿主版本，工作区包保持私有 0.0.0；每次发布有说明、CHANGELOG 和带各库版本表的检查单。这个方案的落地由路线图做，现在还没完成。
+产品只有一个版本，根包、桌面端、Tauri 和内置插件的 Manifest 同版，工作区包保持私有 0.0.0；每次发布有说明、CHANGELOG 和带各库版本表的检查单。2026-10-08 原定的下一版 0.3.0，已由用户 2026-11-02 的 N34 决定改为复位 0.1.0。2026-11-06 依追加授权删除旧 GoalBoard `v0.1.0` release 与同名 tag、核实名称释放后，现行产品载体及全部内置 Manifest 已复位 0.1.0；版本归属和发布流程见 [版本策略](../releases/POLICY.md)，候选范围见 [v0.1.0.md](../releases/v0.1.0.md)。这是未发布的开发候选，不登记首次外部安装或真实 Home 的统一起点日期。
 
 能力定义的 `version`、Home 库的结构版本、对外合同 `$id` 里的版本是各自合同的版本，是代码里单独的字段，不跟产品版本走。第 3 节规定阶段一怎样改形状，第 4 节规定首次外部安装后的过渡期。Home 库与带版本文件以重建为升级起点，见[升级连续性 §3](../../specs/upgrade-continuity/spec.md#3-起点库从统一起点开始升级链)。
 
@@ -45,7 +51,7 @@
 5. **外部已经在用的名字**（Runtime 用的 MCP 工具名）：改动是产品决定，先问用户，在 spec §1 记一行，PR 里列新旧名，外部插件同步。
 6. **门禁守着**：源码里的兼容标记（`legacy`、`compat`、`@deprecated`、`backfill`）按文件计数，只许减少，新文件从零（`pnpm health:check`，`AGENTS.md` 健康门禁一条）。就地补表、测试引用包内部同样只许减少。
 
-   **统一起点版本检查（N41）。** 重建窗口以 `node scripts/gates/initial-versions.mjs` 复核当前构建。它在临时 Home 检查内置 Manifest 与宿主登记的动作，再读内置提示词、主角色和子角色的登记，以及产品代码中自有的版本常量。外部服务的协议号、SQLite 引擎版本、产品 SemVer 与匹配 SemVer 的正则分别由各自的主人检查。任何一项未复位都会指出名字并返回失败。窗口前继续执行现有兼容标记检查，到窗口再切换阶段一的合并门禁。窗口的执行结果、构建和日期由维护者另记。之后，公开合同、提示词与角色沿阶段一规则；持久化库或文件的结构版本依第 3 节第 4 条升级。U1 首次接入这类版本时，须在同一变更中以主人的升级链及回放验收接替该项初始值检查，不能直接删检查来放行高版本。
+   **统一起点版本检查（N41）。** 分两半。不用构建的一半是产品代码中自有的 `*VERSION` 常量和 `tooling/versions.json` 里持久化格式的条目：它是 `pnpm health:check` 的绝对规则（用户 2026-11-07 定），CI 里跑。另一半只有 `node scripts/gates/initial-versions.mjs` 查：它在临时 Home 检查内置 Manifest 与宿主登记的动作，再读内置提示词、主角色和子角色的登记和提示词、方法的版本条目，并把前一半再查一遍。这一半只在有人跑时才查，现在是重建窗口手跑，复核当前构建。外部服务的协议号、SQLite 引擎版本、产品 SemVer 与匹配 SemVer 的正则分别由各自的主人检查。任何一项未复位都会指出名字并返回失败。窗口已于 2026-11-07 执行，结果记在发布检查单第 4 节；现在合并时就查不用构建的一半。之后，公开合同、提示词与角色沿阶段一规则；持久化库或文件的结构版本依第 3 节第 4 条升级。持久化格式的名单在 `scripts/gates/initial-versions.mjs`，大于 1 时要有登记的连续升级链且回放通过。这份登记（`chains`）由 U1-d 接，脚本和 `pnpm health:check` 两处都接了；「回放通过」由 U2-d 接到金样：金样清单要存着这个格式从 1 到新版本减 1 的每个版本，回放本身由挡合并的 `golden-replay` 作业跑。U1 首次接入这类版本时，须在同一变更中以主人的升级链及回放验收接替该项初始值检查，不能直接删检查来放行高版本。
 
    **公开 API 快照门禁**（`scripts/gates/api-snapshot.mjs`，口径在 `tooling/gates/README.md`「公开 API 快照」）：`packages/contracts` 每个子路径和 `packages/plugin-sdk` 的公开 API 由编译器的声明输出生成（名字加签名，去注释），入库在 `tooling/gates/api/`。`pnpm health:check` 把源码生成的内容和入库的快照比，有任何不同就失败：加、删、改签名、新子路径没有快照、已删子路径的快照还在、快照被手改。它是一份不许静默变化的清单，不是只许减少的数字，所以 `--update` 和改基线都碰不到它。有意改 API 的 PR：先改代码，再跑 `pnpm api:update`，提交 `tooling/gates/api/` 的变化，并在 PR「公开合同与 API 影响」一栏写这个变化对插件和调用方的影响（`.github/pull_request_template.md`）；`--base` 时门禁日志还会列出相对 merge-base 的 API 变化，评审读它。它只管形状：函数体、注释、语义变化看不到，各插件 Manifest 里的动作声明与 schema 也不在里面（那是路线图 W2-15 的动作合同快照），所以第 3 条的版本字段和评审照旧要做。
 
@@ -60,22 +66,56 @@
 
 | 机制 | 目的与允许边界 | owner 与移除条件 |
 | --- | --- | --- |
+| 记忆新一代起点（Memory V0，用户 2026-11-07 定不迁移） | `memory` 1 → 2 只删账本里关于旧记忆的行（历史、候选、变更、信号、使用、配对、标记），保留归属标题和每个开关；偏好里唯一新增的 `class_restrictions` 在缺少时补成空列表（不限制任何类别，用户 2026-11-11 定），不改其他字段；并留一个标记；持主人锁的下一次启动只凭这个标记，先永久删除 `agent-runtime/records/` 下旧布局的 `io.molis.work~memories` 与 `io.molis.work~memory-candidates` 两个目录（SDK 索引库在它们存在时拒绝挂载；不是普通目录的拒绝、不删；用户 2026-11-11 定），再写空的 `memory-forgetting-v2.json`，最后删标记；中途停下的下一次启动重做。其他 SDK 记录不动，旧记忆不读、不搬；别的缺遗忘文件的 Home 照旧拒绝。真实 Home 升级前按发布检查单先做完整备份 | 记忆账本（`packages/storage`）；最早支持的金样不再需要第 1 版时删除此升级段与标记处理 |
+| 技能设置与用量建表（08-7，用户 2026-11-06 同意） | `agent-definitions` 1 → 2 只创建空的 `skill_settings`、`skill_uses` 及用量索引；既有提示词覆盖、历史和用量不变。由 U1 升级执行，普通打开仍拒绝旧版本 | 宿主 Agent 定义；最早支持的金样不再需要第 1 版时移除此升级段，不保留旧结构读取 |
 | 插件升级声明（`upgrade_compatibility.compatible_from_versions`、`migratable_from_versions`）、同版本重装与发行物留存 | 插件版本之间的升级是现行产品功能，不是读取旧业务数据；内置插件为过去版本写的旧声明不因此保留 | Manifest 合同与 plugin SDK，使用规则见 [插件开发手册](../platform/PLUGIN-DEVELOPMENT.md)；随该现行升级功能或相应发行物生命周期处理，不作为永久历史读取许可 |
 | pdfjs 的 `legacy/build` 路径 | 第三方包给 Node 的构建名，不是本产品的旧格式读取分支 | 引用 pdfjs 的现行功能及该依赖；上游构建入口改变或功能移除时随之修改 |
 | 产品文案中的「回填」与规划方法说明 | 给人看的现行文字，不是数据转换逻辑 | 各文案的功能 owner；随文案修改或功能移除，不据词面保留旧读取代码 |
 | 各库的版本号与基线 | 一份当前 schema 加版本，版本不符就拒绝；可由权威事实重建的派生库按自身既有合同重建，不算兼容 | 各库 owner 及 [Home 数据表](HOME-DATA.md)；库移除时移除，不留已移除库的读取路径 |
 | Goal 事件历史、成果的固定版本 | 现行历史记录和固定版本功能，不是旧格式 | Goals 与成果事实 owner；按对应功能和留存合同处理，不因防腐清理删除用户历史 |
 | 中文原文作为翻译键（2026-10-25 决定） | 现行翻译键机制；插件词典由插件在 Manifest 声明，平台同样加载内置与第三方插件，不在工作台导入插件词典 | [工作台「界面文字」](../../apps/workbench/README.md#界面文字翻译检查与一个文件怎样迁到稳定键)及各插件词典 owner；稳定键接续按该处规则，不新增旧键读取兜底 |
+| 库与带版本文件的升级链（`SqliteBaseline.upgrades`、`VersionedFile.upgrades`、`PluginDatabaseDeclaration.upgrades`、升级记录、升级快照） | 统一起点之后，让 `n → n+1` 的结构变更不再要求重建 Home。只在持存储主人锁的升级过程里执行（安装器自己的 `config/installation.json`、`release.json` 在安装器读它们时升，这时还没有宿主），读写路径只认现行版本，不做读时兼容、不做回写回退。比程序新的库只拒绝。起点：第 02 批的统一起点；段的跑法和范围检查对所有插件同一份，唯一的暂时例外是装上的插件写了段在安装时拒绝，移除条件是 U4（用户 2026-11-06 定） | `packages/storage` 负责机制，各库主人负责自己的段。某段在最早支持的金样都用不到时删段；机制随产品保留，不是过渡期 |
+
+第 02 批 N30/N36/N37 的 Feed 清理以[本片需求](../../specs/post-anticorruption-roadmap/reference/batches/02.md#origin-reset-preflight)为准：证据正文只用 `feed/evidence/` 和 `system:feed:evidence-content-key:v1`，搜索意图只用 `feed-intent-v1`；环境口令的派生盐为 `molis-work-secretstore-v1`。删除第二密钥、恢复目录和命名空间绕行；旧盐不参与解密，缺钥或认证失败保留错误与原密文，不补副本、不就地迁移。该构建只在隔离 Home 验证，真实 Home 的切换仍要求原可恢复备份和重建窗口；代码合入不表示现场维护完成。
 
 ### 存储版本变更登记
 
 当前版本的唯一清单是 [CHECKLIST.md 第 3 节](../releases/CHECKLIST.md#3-各库版本表)，本表只登记版本变化及其来源、取消或未验证状态。2026-10-30 已取消的旧维护不因搬迁复活；真实重建、Memory 与旧 Home 的授权和 HOLD 仍按原决定。表内的 `slices/` 路径均相对原 `specs/archive/repository-anti-corruption/` 目录。
 
-**库版本维护清单**（门禁 `scripts/gates/store-versions.mjs` 只读这张表）：检查清单第 3 节表里某个库的版本，和 merge-base 比变了（升或降），同一个 PR 就要在这里加一行，不然 `pnpm health:check` 失败。写法固定：「位置」一格是检查清单第 3 节同一行的位置，原样加反引号；「版本」一格写 `旧 → 新`，两边是数字，箭头是 `→`；后两格写哪个提交或 PR 改的版本、怎样维护和做没做。别处正文里写的不算。
+**2026-11-08 审计更正：** 下表「维护」列里写「真实重建未开始／尚未重建／真实Home未操作」的行，都是统一起点登记（2026-11-07）之前的旧状态；记录中的真实 Home 已于 2026-11-07 在记录里的那台开发机按[发布检查单第 4 节](../releases/CHECKLIST.md#4-真实-home搬开后干净重建)重建并登记统一起点。本次审计／维修所在的机器不是那台机器，本机无法核验（见[第 02 批记录](../../specs/post-anticorruption-roadmap/reference/batches/02.md#batch-02)）。行文保留历史原文，不逐行改写。
+
+**助理库本次决定（用户 2026-11-08）：** 第 10 批的独立草稿版本与第 16 批的通知文字工作维持第 1 版；用户明确「版本号不升，其他照常，不用考虑迁移」。撤回 #1991 在途的 1→2 升级段，隔离金样直接使用当前结构，不新增读取兼容，不执行真实 Home 维护。此决定仅涉及这两批共享的助理库，不重置其他库。
+
+**库版本维护清单**（门禁 `scripts/gates/store-versions.mjs` 只认这张表；统一起点登记之后还读升级段所在的代码文件）：检查清单第 3 节表里某个库的版本，和 merge-base 比变了（升或降），同一个 PR 就要在这里加一行，不然 `pnpm health:check` 失败。写法固定：「位置」一格是检查清单第 3 节同一行的位置，原样加反引号；「版本」一格写 `旧 → 新`，两边是数字，箭头是 `→`；后两格写哪个提交或 PR 改的版本、怎样维护和做没做。别处正文里写的不算。
+
+统一起点已登记（检查清单第 4 节），之后这张表多三条规则：版本不许降，写了行也不行；升版本的行，「维护」一格固定写成 `定义处#旧→新`，整格用反引号包住，比如 `` `plugins/native/pages/src/database.ts#PAGES_DATABASE#1→2` ``，定义处和检查清单同一行的「定义处」完全相同，旧、新和「版本」一格的两个数字相同；这个定义的 `upgrades` 字面量里，要有从旧到新减一的每个 `from`。表里留着历史，同样数字的旧行写着文字不碍事，写成指针的每一行都要站得住。完整口径见 [tooling/gates/README.md](../../tooling/gates/README.md)。
 
 | 位置 | 版本 | 改版本的提交 | 维护 |
 | --- | --- | --- | --- |
-| `memory/memory.db` | 1 → 2 | Memory V0 隔离候选 `abdb74a9d647f545f187ab5903be77a2e3599017` 的索引采用；本地整合待验证 | 此箭头仅记录源码基线变化，不代表已升级任何旧库。现行格式2仅在授权隔离新容器建立；旧库转换已取消，错版拒绝，禁止降回1；真实 Home 维护、统一起点 N41 与未来 U1 连续升级均未执行或验收。 |
+| `agent-definitions/agent-definitions.db` | 1 → 2 | 第08批 #1984；2026-11-06 已授权新增空表 | `apps/local-host/src/agent-definitions/agent-definitions.ts#AGENT_DEFINITIONS_BASELINE#1→2` |
+| `projects/<project_id>/molis-work.db` | 17 → 1 | 第02批 #1837（`67d04ce981`，接 Personal 后复位） | 保留当前完整结构与同步表。2026-11-07 旧Home完整备份、搬开后新建，统一起点已登记（[发布检查单第 4 节](../releases/CHECKLIST.md#4-真实-home搬开后干净重建)）；错版和不符所属结构仍拒绝，不就地升级。 |
+| `projects/<project_id>/molis-work.db#coding` | 3 → 1 | 同上 | 同上 |
+| `projects/<project_id>/molis-work.db#goals` | 2 → 1 | 同上 | 同上 |
+| `projects/<project_id>/molis-work.db#inbox` | 2 → 1 | 同上 | 同上 |
+| `projects/<project_id>/molis-work.db#schedule` | 2 → 1 | 同上 | 同上 |
+| `projects/catalog.db` | 26 → 1 | 同上 | 同上 |
+| `spaces/<spaceId>/sync/sync.db` | 5 → 1 | 同上 | 同上 |
+| `plugin-runtime/plugin-runtime.db` | 4 → 1 | 同上 | 同上 |
+| `issues/issues.db` | 4 → 1 | 同上 | 同上 |
+| `form/form.db` | 4 → 1 | 同上 | 同上 |
+| `cognia/cognia.db` | 3 → 1 | 同上 | 同上 |
+| `dataset/dataset.db` | 3 → 1 | 同上 | 同上 |
+| `images/images.db` | 3 → 1 | 同上 | 同上 |
+| `jelly/jelly.db` | 3 → 1 | 同上 | 同上 |
+| `lingguang/lingguang.db` | 3 → 1 | 同上 | 同上 |
+| `pages/pages.db` | 4 → 1 | 同上 | 同上 |
+| `ppt/ppt.db` | 3 → 1 | 同上 | 同上 |
+| `todo/todo.db` | 4 → 1 | 同上 | 同上 |
+| `workflows/workflows.db` | 3 → 1 | 同上 | 同上 |
+| `alchemist/projects/<编码后的 project_id>/studio.sqlite` | 3 → 1 | 同上 | 同上 |
+| `characters/characters.sqlite` | 4 → 1 | 同上 | 同上 |
+| `shelf/catalog.json` | 2 → 1 | 同上 | 同上 |
+| `projects/<project_id>/molis-work.db#feed` | 2 → 1 | 同上 | 同上 |
 | `projects/catalog.db` | 22 → 1 | W5-17（`feature/maintenance-w517-a`；统筹 #1332 6517794305） | 原迁移已取消，真实重建未开始。当前结构无projects.database_path，路径由可信Home与project_id推导；删除catalog维护脚本、旧结构夹具与演练。新建/错版拒绝及S-102在 `tests/catalog-path-derivation.test.ts`、`tests/security-invariants-project-storage.test.ts`。旧Home整体搬开后新建当前结构1，等全部代码合入/构建就绪后用户另说“开始”；不碰#1101分支。 |
 | `config/mcp-tools.json` | 2 → 3 | ACA005（`feature/aca005-search-authority`，本片 PR） | 已被2026-10-30干净Home重建取代；旧转换取消，工具、旧结构夹具与演练删除，历史证据从Git查，不作为安装步骤。 |
 | `server/server.sqlite` | 1 → 2 | W5-16 B1（`anticorr/codex-w5-16-im-invite-hash`） | 已被2026-10-30干净Home重建取代；旧转换取消，工具、旧结构夹具与演练删除，历史证据从Git查，不作为安装步骤。 |
@@ -125,6 +165,11 @@
 | `workflows/workflows.db` | 1 → 3 | 2026-11-04 personal/main 集成（personal `e33e1ade4`、main `8de0b0740`；本次合并提交） | 将个人同步技术表合入现行 owner 完整基线，版本取两分支已用编号以上；只验证隔离新 Home 和旧库拒绝，未维护真实 Home。旧 Home 不自动升级，安装前须另行明确维护或新建方案；本轮只合代码，不更换运行中的应用。 |
 | `alchemist/projects/<编码后的 project_id>/studio.sqlite` | 1 → 3 | 2026-11-04 personal/main 集成（personal `e33e1ade4`、main `8de0b0740`；本次合并提交） | 将个人同步技术表合入现行 owner 完整基线，版本取两分支已用编号以上；只验证隔离新 Home 和旧库拒绝，未维护真实 Home。旧 Home 不自动升级，安装前须另行明确维护或新建方案；本轮只合代码，不更换运行中的应用。 |
 | `characters/characters.sqlite` | 1 → 4 | 2026-11-04 personal/main 集成（personal `e33e1ade4`、main `8de0b0740`；本次合并提交） | 将个人同步技术表合入现行 owner 完整基线，版本取两分支已用编号以上；只验证隔离新 Home 和旧库拒绝，未维护真实 Home。旧 Home 不自动升级，安装前须另行明确维护或新建方案；本轮只合代码，不更换运行中的应用。 |
+| `projects/<project_id>/molis-work.db` | 1 → 2 | 第 05 批 #1979（项目目录合同：去掉浏览目录设置、加材料最近使用） | `apps/local-host/src/project-database-schema.ts#PROJECT_DATABASE_BASELINE#1→2` |
+| `projects/catalog.db` | 1 → 2 | 第 05 批 #1979（项目目录合同：工作目录的输入、输出两种角色取代 `is_default`，加来源链接表） | `apps/local-host/src/project-catalog-contract.ts#CATALOG_SCHEMA_VERSION#1→2` |
+| `projects/<project_id>/molis-work.db#goals` | 1 → 2 | 第 24 批（逐项依据合同：判断记下所核对的版本、依据与可信层级，结论记下它针对的版本；只加列，旧行按「自述」读） | `plugins/native/goals/src/project-database.ts#GOALS_PROJECT_DATABASE#1→2` |
+| `projects/catalog.db` | 2 → 3 | 2026-11-08 日报 A 类 D0057/D0273；删除退役空表，非空拒绝并保留原库 | `apps/local-host/src/project-catalog-contract.ts#CATALOG_SCHEMA_VERSION#2→3` |
+| `memory/memory.db` | 1 → 2 | Memory V0 收口（#2020，BL-1071；用户 2026-11-07「不管旧的，不考虑迁移，只做新的」）：记忆改存 SDK 索引库，旧记忆不搬；账本里关于旧记忆的记录清空，归属标题和所有开关保留，新增的按类别限制补为空（用户 2026-11-11 定），下次启动删除两个旧布局记忆目录并建新的空遗忘文件 | `packages/storage/src/adapters/memory-ledger.ts#MEMORY_LEDGER_BASELINE#1→2` |
 
 ## 4. 阶段二：起点之后，读取兼容
 
@@ -159,7 +204,7 @@
 
 ## 7. 已决与还开着的
 
-已决（用户 2026-10-08，路线图待决 #15）：起点是第一个装到开发机之外的版本，日期到时写进本文。没有选的两个方案：现在就对已有外部消费者的合同开始（Casebook，Runtime 使用的 MCP 工具名）；各合同的主人在发布它时各自开始。补充（用户 2026-10-29）：「1.0.0 之前都是开发版本」，0.3.0 不是第一个外部版本，起点不早于 1.0.0；发版（W5-15 余下）不算进防腐完成标准。
+已决（用户 2026-10-08，路线图待决 #15）：起点是第一个装到开发机之外的版本，日期到时写进本文。没有选的两个方案：现在就对已有外部消费者的合同开始（Casebook，Runtime 使用的 MCP 工具名）；各合同的主人在发布它时各自开始。补充（用户 2026-10-29）：「1.0.0 之前都是开发版本」，现行 0.1.0 候选和原 0.3.0 候选均不是第一个外部版本，起点不早于 1.0.0；发版（W5-15 余下）不算进防腐完成标准。
 
 Casebook 已于 2026-10-10 按用户决定删除，不再有对外合同 id；以后重做时按本文重新登记。起点之前，改外部已经在用的名字（如 Runtime 用的 MCP 工具名）是产品决定，先问用户（第 3 节第 5 条）。
 
@@ -170,6 +215,8 @@ Casebook 已于 2026-10-10 按用户决定删除，不再有对外合同 id；�
 - 第 5 节列的前置还没做完。
 
 ## 8. 阶段一已做、对插件作者有影响的合同改动
+
+- 2026-11-08，D0038（用户选择 D）：工作台页面改为 `molis-work-page-session` meta 与 `x-molis-work-page-session` 请求头，只传 HttpOnly 会话配对的 CSRF 证明；账号状态从返回 `viewToken` 改为非授权的 `viewScope` 修订标识。页面不得依赖宿主控制令牌或把证明当作进程凭据；共用 UI 请求助手及 socket 消费者同期更新，旧页面须刷新。不新增读取兼容。CLI/MCP 的私有控制认证、独立客户端证明和原生身份保持各自检查；动作 id/schema、Manifest 与持久库版本不变。见 [实施及验收](../../specs/daily-quality-d0038/spec.md)。
 
 只记插件作者要知道的改动（不是兼容窗口，阶段一不留兼容期）；新的写在最后。
 
@@ -186,3 +233,34 @@ Casebook 已于 2026-10-10 按用户决定删除，不再有对外合同 id；�
 - **Manifest 的 `attention.inbox`：插件声明哪些种类的条目是人的 Inbox；Inbox 读取入口改按声明解析；Feed 不再能开 `goal_decision` 条目**（PG-094 S12，RAC-806～809，统筹 2026-10-25 定）：`attention` 在 `subjects` 之外可选地加 `inbox`（`subjects` 的子集，不空、不重复）；`AttentionQuery` 加 `listInbox(projectId, declared)` 与 `getInbox(projectId, entryId, declared)`，`declared` 是 `AttentionInboxDeclarations`（主人插件号 → 它声明的种类）。Inbox 是未归属条目，加上「主人声明了该种类」的有主条目，别的一律不解析（声明只对声明者自己的条目生效，A 声明的种类不会让 B 的条目出现）。宿主从项目库里运行中的安装、按发行物归档里的 Manifest 读出声明（`apps/local-host/src/plugin-inbox-declarations.ts`），Feed 的 `listInboxEntries`、`getInboxEntry`、`setInboxEntryStatus` 经 `FeedApplicationPorts.inboxDeclarations` 调这两个查询，代码里不点名任何插件。Goals 的 Manifest 声明 `inbox: ["goal_decision"]`。停用、卸载或发行物未归档的安装不贡献声明。同时 Feed 不再读 Goals 的表，`inbox.add` 一类入口对 `goal_decision` 一律以 `feed.invalid_transition` 拒绝（提醒由 Goals 自己开）。调用方的影响：不声明 `inbox` 的插件，它的有主条目不进 Inbox（照旧只经 `services.attention` 读）；想往 Inbox 手动加一个 Goal 的客户端会得到拒绝，没有正常路径依赖它。
 - **没有 Home 的 Host，项目插件名单里不含声明 Home 库的插件**（PG-094 S12）：Goals 声明了 Home 库，没有 Home 的 Host 原先整张名单被 `assertDatabaseEntries` 拒绝而全部起不来，现在只是 Goals 不在名单里、其余照常启动。产品里的 Host 都有 Home，不受影响。
 - **`services.artifacts.join(tx, write)` 与 `PluginArtifactWriter`；Feed 六个动作多声明 `artifact:write`**（RAC-510，S-100 暂定号，统筹 2026-10-27 批）：`PluginArtifactClient` 多一个可选方法 `join`，只给有项目库的插件，没有项目库的拿到的是 `undefined`。`write` 同步拿到一个 `PluginArtifactWriter`（`head`、`publish`）；它钉的成果版本是插件当前项目事务的一个保存点，和插件自己的行一起提交、一起回滚，日志事件也在同一个事务里，事务结束后写入器失效。写入器每次 `head`、`publish` 都问 S-68 那道门：安装在跑、持有 `artifact:write`、原调用方仍有效，调用是声明了 `artifact:write` 的可等待并行动作。产出者、作者（原调用方的 `audit_actor_id ?? actor_id`）、项目和范围由平台盖，类型照 Manifest 的 `artifacts.produces` 核。原有的 `services.artifacts.publish` 不变。调用方的影响：`feed.sources.sync`、`feed.sources.tick`、`feed.sources.wake`、`feed.notifications.receive`、`feed.rules.evaluate`、`feed.content.receive` 多声明 `artifact:write`，`feed.content.receive` 另多声明 `attention:write`（FI-C-08）；调用它们的客户端（页面、助手、MCP、工作流、场景）要多持有这几项，不留兼容期。动作合同快照里这 6 行的 `谁能调` 随之变，输入输出形状不变，版本不升。
+- **动作工厂的版本必填；`compareCodeUnits`**（第 02 批 N34-VS、N4，#1837）：20 个 `define*Action` 工厂的签名变成 `(id, version, …)`，`createActionDefinition` 的末位 `version`、`defineWorkExecutorAction` 的 `options.version` 也必须传。插件作者的每个调用都要补版本：写错位置时 TypeScript 编译失败，JS 作者过不了声明检查。插件开发包新增 `compareCodeUnits(a, b)`，按 UTF-16 码元比较，不随语言环境变化；摘要、签名和幂等排序都用它。
+- **`host.returns`、`host.connectionNeed` 可用；SDK 的 `renderReturnBar`、`renderResumePrompt`；`molis-work:place-changed` 多 `cover`**（第 12 批第 3 项草稿与返回、第 13 批④c-2，`specs/draft-and-return/spec.md`）：`UiPluginClientHost` 多一个**必需**成员 `returns`（`go(need, carry?, { signal? })`、`arrived()`，类型 `UiPageReturns`、`UiReturnNeed`、`UiReturnCarry`、`UiReturnOutcome` 从 `platform/ui` 与 SDK 入口取，`carry` 的上限是 `UI_RETURN_CARRY_LIMITS`，按码点计、不许为空）；`host.connectionNeed` 从固定拒绝变成真实实现，签名不变。插件作者只调用这两个成员；自己写宿主替身（测试里的假 host）的要补上 `returns`。SDK 的 `@molis-ai/molis-work-plugin-sdk/ui` 新增 `renderReturnBar`（设置顶上的返回条，外壳用）与 `renderResumePrompt`（回到原处后问一句「接着做」，插件放位置、给文字，不自己画）。页面事件 `molis-work:place-changed` 的 detail 多一个 `cover`（缺省读作 `null`），已有监听方不受影响；新增 `molis-work:layout-holds`、`molis-work:return-claim`、`molis-work:return-settled` 三个外层文档事件，只给外壳与框架宿主用。都是新增，不需要升级须知。
+- **N39 合同复位与工作执行方协议（第 02 批复查修复，[#1960](https://github.com/molis-ai/molis-work/pull/1960)）**：在原版本上改，不升版本。
+  - **改成必填：** `CodingFileChange.review`、`CodingChangeSet.origin` 与 `coverage`，以及 `AgentMcpToolRef.version`、`configuration_version` 和 `AgentMcpSourceRef.configuration_version`。Coding 是 `type.coding.changeset` 唯一的写入方，一直写全；自己产出这种成果的插件要写全。MCP 引用缺这两项，此前在 MCP 校验时就被拒。
+  - **删掉的：** `CodingChangeScope` 的 `workspace-current`；没人用的 `AgentRuntimeAdapter.mcp?`、`AgentMcpCapability`、`AgentMcpServerHealth`；`UiSlotDescriptor.version`（槽位不带版本，带了也不读）。
+  - **工作执行方协议：** `session.read` 的输出里，`mcp_tools` 每项多两个必填字段 `version`、`configuration_version`，所以 `coding.executor.session.read@1` 同版本改了形状；`agent.run.start@1` 也同版本改了形状，原因是上面的 `AgentMcpToolRef` 必填，不是执行方协议。SDK 在 Manifest 校验时把执行方声明和规范 schema 逐字比较，按旧合同打包的第三方工作执行方插件会被拒，要按新合同重新打包。
+  - **其他：** contracts 新导出 `WORKFLOW_CONTENT_OUTPUT_VERSIONS`，值和原先两份副本相同。
+- **判断规则的编辑动作必带 `expected_updated_at`；`functions.authoring.get` 对插件开放**（第 05 批 N14，AIC-01～16，#1961）：
+  - `functions.authoring.update`、`preview`、`publish`、`delete`、`sample.add`、`sample.remove` 的输入改为必须带读取时的版本 `expected_updated_at`（非空字符串，取读到的记录的 `updated_at`），旧字段 `updated_at` 不再接受。其中 update、preview、publish 本来就对 `plugin` 受众开放，插件调用时同样要带。
+  - 版本过期得到 `functions.draft_stale`，样例不在得到 `functions.sample_not_found`，已发布后读到的不是发布的那一版得到 `functions.published_immutable`。
+  - `functions.authoring.get` 的受众加了 `plugin`，权限和 `list` 一样是 `functions:manage`。插件收到 `draft_stale` 后用它读回最新记录，就地接住（Feed 的规则页就是这样做的，界面写法见 `docs/design/rule-stale-reload/README.md`）。
+  - `updated_at` 只随定义内容变化，试跑、样例、发布不推它。
+  - 都在原版本上改（§3 第 3 条），MCP 工具名不变。动作合同快照里 6 行的输入哈希、`get` 一行的「谁能调」随之变。
+- **`projects.directories.*` 取代 `projects.workspaces.*`、`projects.workspace.read` 和浏览目录设置；`is_default` 改 `roles`**（第 05 批 #1979，路线书 05 ②，`specs/shared-sources-and-surfaces/spec.md` §3、§8）：项目的文件夹分成输入（只读，可多个）和输出（唯一，可写），都在原版本 @1 上改，旧名不留（§3 第 3 条）。
+  - **删掉的动作：** `projects.workspaces.add@1`、`projects.workspaces.repair@1`、`projects.workspaces.unlink@1`、`projects.workspaces.list@1`、`projects.workspace.read@1`（首选工作区，没有替身：要输出目录就取 `roles` 含 `output` 的那一项）、`projects.settings.workspaces.read@1`、`projects.settings.browsing-workspace.read@1`、`projects.settings.browsing-workspace.select@1`；项目库的表 `project_browsing_settings` 也删了（项目库升到第 2 版）。
+  - **删掉的导出（contracts `modules/projects`）：** `projectWorkspaceActions`、`projectsCapabilities`（`listWorkspaces`、`readWorkspace`）；`projectSettingsCapabilities` 的 `workspaces`、`browsingWorkspace`、`selectBrowsingWorkspace`（只剩 `runtime`、`selectRuntime`）；类型 `ChangeWorkspaceProjectInput`、`RepairWorkspaceProjectInput`；`ProjectsCommandApi` 的 `repairWorkspaceProject`、`setWorkspaceDefault`、`removeWorkspaceMembership`；`ProjectsQueryApi.preferredWorkspacePath`；错误码 `catalog.context.workspace_default_unsupported`。
+  - **新增：** `projectDirectoryActions`：`projects.directories.get@1`（读；受众 `user`、`plugin`、`agent`、`mcp`、`workflow`；输入是空对象；输出 `ProjectDirectories`，即 `{ project_id, directories: [{ workspace_id, canonical_path, realpath_verified, display_name, roles, state }], source_links, revision }`，恰好一项带 `output`）与 `add_input`、`remove_input`、`set_output`、`repair`、`map_source`、`unmap_source`（只给 `user`，权限 `projects:settings`，输入都带必填的 `expected_revision`，过期以 `actions.conflict` 拒绝；`set_output`、`map_source` 的目标三选一：`workspace_id`、`workspace_path`、`default_output: true`）。类型 `DirectoryRole`、`DirectoryTarget`、`DirectoryChange`、`ChangeDirectoriesInput`、`ProjectDirectory`、`ProjectDirectories`、`RunDirectories`；`ProjectsQueryApi` 多 `projectDirectories`、`outputDirectory`、`defaultOutputDirectoryId`、`workspaceIdAt`，`ProjectsCommandApi` 多 `changeDirectories`；错误码 `projects.directory_unmapped`、`projects.directory_input_only`（`directoryInputOnly`）。
+  - **`is_default` → `roles`：** `ProjectWorkspaceMembership.is_default: boolean` 改成 `roles: ("input" | "output")[]`（同一个文件夹既是输入又是输出时两项都有）；目录库的 `workspace_project_memberships` 用 `role_input`、`role_output` 两列，另有新表 `workspace_source_links`（另一台设备的目录对应到本机的哪个文件夹，只在本机）。存量按上面第 3 节登记的 `projects/catalog.db` 1 → 2 升级：关联过恰好一个文件夹的项目，它成为输出（仍是输入），关联过几个的每个都是输入，没有输出的项目补上默认输出目录。
+  - **默认输出目录：** 没选过输出的项目，输出是 Home 的 `outputs/<project_id>/`，目录库里是真实的一行（`canonical_path` 记为 `project-output:<project_id>`，不存路径）；文件夹第一次在里面写或运行时才建，`directories` 里照样列出，`state` 是 `ok`。`default_output: true` 把输出设回它。
+  - **Git 默认在输出目录里写，输入只读：** Agent 的会话和轮次、原生 Character、终端、本机进程的 MCP、Git 的写在只作输入的目录里开会被拒（`projects.directory_input_only`）；Git 的读取在 `workspace_id` 缺省时看输出目录（见下一条）。
+  - **宿主路由：** `POST /api/workspaces`、`PATCH /api/workspaces/:id/path`、`POST /api/workspaces/:id/unlink`、`GET|POST /api/project-settings/workspaces` 删掉；新增 `GET|POST /api/project-settings/directories`（POST 带 `{ change, input }`，`change` 是 `add_input`、`remove_input`、`set_output`、`repair`、`map_source`、`unmap_source` 之一，其余键 400）；`POST /api/workspaces/pick` 不变。
+  - **对调用方：** Manifest `capabilities.consumes`、工作流程步骤与绑定、Skill 里写旧 id 的都要改成 `projects.directories.get`（入参 `{}`，原来是 `[]`）；MCP 工具 `molis_work_v1_action_projects.workspace.read__v1` 没有了，新增 `molis_work_v1_action_projects.directories.get__v1`（改目录的动作只给本人，MCP 调不到）。动作合同快照里，原有的 `projects.workspace.read`、`projects.workspaces.add`、`repair`、`unlink` 四行删去，新增七行 `projects.directories.*`；公开 API 快照 `modules/projects` 随之变。
+- **`UiPageWorkspaces.select` 改 `setOutput`；`files.state` 与 `git.*` 的读取按页面说的文件夹**（第 05 批 #1979）：
+  - `UiPluginClientHost.workspaces`（`UiPageWorkspaces`）：`select(workspaceId)`（切换当前浏览目录）删掉，项目不再记浏览目录；换成 `setOutput(workspaceId)`——宿主显示插件、项目和这个目录的名字（宿主自己读，不用页面给的），人确认后把项目已有的目录设为输出，用在「只作输入，设为输出后才能写」的拒绝旁边。`add(path)` 不变，现在加的是输入目录。页面看哪个文件夹是页面自己的状态。
+  - 在原版本 @1 上改：`files.state` 的输入从 `{}` 变成 `{ workspace_id?: string }`，输出多一个必有字段 `resolved`（`string | null`，页面说的 id 在本机对应哪个文件夹）；`git.state`、`git.summary`、`git.operations`、`git.results`、`git.pr-support` 的输入从 `{}` 变成 `{ workspace_id?: string }`，`git.conflict` 的输入多可选的 `workspace_id`。`workspace_id` 缺省就是项目的输出目录，原来是项目设置里选的浏览目录；说的 id 已不在项目里时，`files.state` 与 `git.state` 退回输出目录，别的读取被拒。动作合同快照里 `files.state` 与六个 `git.*` 的输入哈希随之变，`files.state` 的输出哈希也变。
+  - contracts `modules/workspace-artifacts` 多导出 `resolveWorkspaceFileSubject`、`resolveWorkspaceId`、`WorkspaceIdMapping`（读另一台设备的引用时，把它的目录 id 换算成本机对应的文件夹）；`WorkspaceFileResult` 的 `binary` 结果多带 `fingerprint`。并行写手的 `worktree_id` 等改动见 CHANGELOG 的 05 ② 一条。
+- **同版本下形状变了的其他动作**（第 05 批 #1979，都在原版本 @1 上改，仓库里没有工作流、场景或绑定固定它们）：`files.open`、`files.directory` 的输出里 `binary` 必带 `fingerprint`、`unsupported` 可带（读到但解不出来；不带的是「不是普通文件」），按 `outcome` 分支的调用方不受影响，严格按输出 schema 校验的调用方要接受 `fingerprint`；`git.conflict` 输入多可选 `workspace_id`；`agent.run.start` 输入 `subagent_workspaces[].workspace_id` 改 `worktree_id`；`agent.run.read`、`agent.run.wait`、`agent.session.read` 输出多可选 `directories`（开轮时冻结的输出、输入和执行位置）；`projects.workspace.writers.{list, prepare, integration.read, integration.prepare}` 的写手工作树改用 `worktree_id`、`subagent_id` 可选；`coding.runs.start` 输入多可选 `worktree_id`。上面「新增」里的 `projectDirectoryActions` 及其类型此前已在合同里声明，本 PR 起由宿主登记（动作快照多 7 行）；真正新增的导出是 `DirectoryChange`、`ChangeDirectoriesInput`、`directoryInputOnly`。
+- **`materials.recent`、`materials.recent.record`、`materials.origins`：最近用过的资料与引用的出处**（第 05 批 #1979，`specs/shared-sources-and-surfaces/spec.md` §2）：由宿主在提供方 `system.project-workspaces` 上登记（动作合同快照 `host-actions.tsv` 多三行），受众 `user`、`plugin`。`materials.recent@1` 返回 `{ items: [{ ref, origin }] }`，新的在前，每个调用方在每个项目里最多 20 份；给插件时只返回它此刻读得了的，读不了的不说是哪一个，也不数；`materials.recent.record@1` 输入 `{ refs }`（1 到 10 个 `MaterialRef`），读不了的引用静默不记；`materials.origins@1` 输入 `{ items }`（1 到 20 项，每项 `{ ref }` 或只有 `{ subject }`），按给的顺序返回 `{ items: [{ origin }] }`，读不了的 `origin` 为 null、不说原因。三个都声明 `scheduling: "concurrent"`（要等各主人答出处），`materials.recent.record` 在 `beforeEffect()` 之后提交。contracts `platform/project-materials` 多导出 `MaterialOriginQuery`、`MaterialOriginAnswer`、`MATERIAL_ORIGINS_MAX`、`MATERIAL_ORIGINS_COMPARE`、`MATERIAL_ORIGIN_NOTES`、`MATERIAL_ORIGIN_QUERY_SCHEMA`、`MATERIAL_ORIGIN_ANSWER_SCHEMA`，`modules/projects` 多导出 `materialOriginActions`；`RecentMaterial.origin` 从 `MaterialOrigin` 变成 `MaterialOrigin | null`（给本人时找不到唯一的主人就是 null）。项目库的表 `material_recent_uses`（`modules/projects` 独占）随项目库升到第 2 版新增，从空开始。
+
+- **第 08 批：只有声明的插件、方法声明、Skill 目录与安装预览**（#1936 先合、#1984 合入，用户 2026-11-08 合并）：`AgentSkillDeclaration` 增可选 `description`、`when_to_use`、`when_not_to_use`、`applies_to`、`user_invocable`、`argument_hint`、`resources`、`connector_categories`、`native_only_reason`；Manifest `methods` 类型改为 `PluginMethodDeclaration`，`description`/`applies_to` 必填，旧三键 `{ name, purpose, body }` 的签名沙箱包明确拒绝、不读不转换（2026-11-08 用户定，作者重新打包签名；`docs/releases/CHANGELOG.md` 升级须知同文）。`plugins.install.preview@1` 在原版本上扩形状：输入支持 `bundle` 或 `bundled` 二选一，输出多 `skills`、`requires`，`agent_bodies` 只留角色；新增 `plugins.bundled.list@1`；新增 `contracts/services/skills` 子路径与 `skills.catalog.list@1`、`skills.body.read@1`、`skills.resource.read@1`、`skills.settings.set@1`、`skills.import.preview@1`、`skills.import.confirm@1`（导入登记在 `plugin-install` 提供方）；SDK 出口 `ContentPackageSkill` 改 `PackagedSkillBody`、`sandboxAgentBodyIdentity` 改 `sandboxRoleIdentity`，新增 `contentPackagePayload`、`skillFromFolder`、`readPackagedSkills`。库 `agent-definitions` 1→2 只建空的 `skill_settings`、`skill_uses`（见上文建表一步）；动作快照新增 7 行、`plugins.install.preview@1` 两列哈希变化。固定调用 `plugins.install.preview@1` 的调用方须接受新输出形状；本仓库内安装界面已同批更新。
+- **（宿主侧，不影响插件作者）08 技能导入的执行控制**（2026-11-09）：`PluginRuntimeApi.upgrade` 输入、`start` 的可选第二参数增加进程内 `assertCurrent` 回调；Supervisor 与 Host 安装生命周期原样传递到异步准备之后、安装锁内及版本／运行状态提交之前。它不来自动作输入，不进 Manifest 或持久化，不增加权限；未传控制的宿主恢复路径保持原行为。取消只恢复旧安装，不记新的失败状态。`platform/plugin` API 快照同步，动作 schema／MCP 名称与库版本不变。验收见 [SKC-10](../../specs/skill-packs/contract-design.md#14-验收编号候选) 与 `tests/plugin-upgrades.test.ts`。

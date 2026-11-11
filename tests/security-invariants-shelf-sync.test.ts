@@ -48,7 +48,7 @@ test('S-139 PCSYNC-11/15/22 Shelf transfers full text, binary, nested folders an
   assert.equal(job.job.status,'succeeded');let rev=transfer(a,b);
   assert.deepEqual(target.readFile(text.item_id).bytes,bytes);assert.deepEqual(target.readFile(binary.item_id).bytes,Buffer.from([255,0,254,128]));
   assert.deepEqual(target.readChild(folder.item_id,'nested/a.bin').bytes,Buffer.from([0,255]));assert.ok(job.result);assert.equal(target.readFile(job.result.item_id).bytes.toString(),source.readFile(job.result.item_id).bytes.toString());
-  const received=JSON.parse(readFileSync(b.filename,'utf8'));assert.equal(received.version,2);assert.equal(received.settings.drop_wheel_enabled,true);assert.equal(received.clipboard[0].body,'target clipboard');
+  const received=JSON.parse(readFileSync(b.filename,'utf8'));assert.equal(received.version,1);assert.equal(received.settings.drop_wheel_enabled,true);assert.equal(received.clipboard[0].body,'target clipboard');
   assert.equal(received.jobs[0].runtime,'');assert.equal(received.jobs[0].isolation,'');assert.equal(received.jobs[0].execution,undefined);assert.equal(received.items.find((row:{item_id:string})=>row.item_id===text.item_id).origin_realpath,null);
   assert.equal(target.replica().next(),null);assert.equal((await target.snapshot()).materials.length,3,'receive never adds an example');
   const frozenBytes=source.readFile(text.item_id).bytes;(await source.writeCopy(text.item_id,'new complete body',hashBytes(frozenBytes)));

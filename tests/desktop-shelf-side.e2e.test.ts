@@ -20,7 +20,7 @@ test("DESK-SHELF-01 DESK-SHELF-02 the hotkey's Shelf opens its side tab, and the
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Page.addScriptToEvaluateOnNewDocument", { source: BRIDGE }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-  await waitFor("document.querySelector('[data-side-toggle]') && new URLSearchParams(location.search).get('desktop') === '1'", 15_000);
+  await waitFor("document.querySelector('[data-side-tabs] [data-side-tab]') && new URLSearchParams(location.search).get('desktop') === '1'", 15_000);
   const reports = "(window.__invokes || []).filter((call) => call.command === 'shelf_surface_changed')";
   const last = `${reports}.at(-1)?.args`;
   await waitFor(`${reports}.length > 0`);
@@ -28,7 +28,7 @@ test("DESK-SHELF-01 DESK-SHELF-02 the hotkey's Shelf opens its side tab, and the
 
   // DESK-SHELF-01: the hotkey and the menu bar call molisWorkOpenShelf; it opens Shelf by name, into its side tab.
   await evaluate("globalThis.molisWorkOpenShelf()");
-  await waitFor(`document.body.dataset.sideOpen === 'true' && document.querySelector('#side-panel [role=tab][aria-selected=true]')?.dataset.sideTab === ${JSON.stringify(SHELF_TAB)}`, 8_000);
+  await waitFor(`document.body.dataset.sideOpen === 'true' && document.querySelector('[data-side-tabs] [role=tab][aria-selected=true]')?.dataset.sideTab === ${JSON.stringify(SHELF_TAB)}`, 8_000);
   assert.equal(await evaluate("document.querySelector('[data-work-surface=shelf], [data-tab-workspace] [data-tab-plugin=shelf]')"), null, "nothing of Shelf opens in the work area");
 
   // DESK-SHELF-02: the shell is told where the Shelf tab is, as the page lays it out once the panel has settled.
@@ -39,11 +39,12 @@ test("DESK-SHELF-01 DESK-SHELF-02 the hotkey's Shelf opens its side tab, and the
   assert.ok(await evaluate<boolean>(`${reports}.every((call) => call.top)`), "only the top page reports; a frame never does");
 
   // Another tab in the panel, then the panel closed: no Shelf box either way.
-  await evaluate(`document.querySelector('#side-panel [role=tab][data-side-tab]:not([data-side-tab=${JSON.stringify(SHELF_TAB)}])').click()`);
+  await evaluate(`document.querySelector('[data-side-tabs] [role=tab][data-side-tab]:not([data-side-tab=${JSON.stringify(SHELF_TAB)}])').click()`);
   await waitFor(`${last}?.panel === null`, 8_000);
   await evaluate("globalThis.molisWorkOpenShelf()");
   await waitFor(`Boolean(${last}?.panel)`, 8_000);
-  await evaluate("document.dispatchEvent(new CustomEvent('molis:side-close'))");
+  // The page collapses the side from the layout menu (收起右侧); the side has no close event of its own (07-1 S4b).
+  await evaluate("document.body.dataset.sideOpen === 'true' && (document.querySelector('[data-layout-open]').click(), document.querySelector('[data-layout-action=side]').click())");
   await waitFor(`document.body.dataset.sideOpen === 'false' && ${last}?.panel === null`, 8_000);
 });
 
@@ -53,25 +54,26 @@ for (const locale of ["zh", "en"] as const) test(`PG-026-S1-S3-5 PG-026-S1-S3-7 
   const { evaluate, waitFor, command, sessionId, navigate, origin, projectId } = browser;
   await command("Page.addScriptToEvaluateOnNewDocument", { source: BRIDGE }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/locale?lang=${locale}&next=${encodeURIComponent(`/projects/${projectId}/`)}` }, sessionId));
-  await waitFor("typeof globalThis.molisWorkShelfNotice === 'function' && globalThis.molisWorkRequest?.toast && document.querySelector('[data-side-toggle]')");
+  await waitFor("typeof globalThis.molisWorkShelfNotice === 'function' && globalThis.molisWorkRequest?.toast && document.querySelector('[data-plugin-picker-toggle]')");
   assert.equal(await evaluate("document.documentElement.lang.startsWith(" + JSON.stringify(locale) + ")"), true);
   const message = "副本已收下，但未能登记原件；后续处理将无法核对原件是否变化。";
   const translated = locale === "en" ? "The copy was saved, but the original could not be registered. Later processing cannot check whether the original has changed." : message;
   const toast = "document.querySelector('[data-settings-toast], [data-toast]')";
   const state = `({open:document.body.dataset.sideOpen,
-    tab:document.querySelector('#side-panel [role=tab][aria-selected=true]')?.dataset.sideTab ?? null,
-    focus:document.activeElement === document.querySelector('[data-side-toggle]')})`;
+    tab:document.querySelector('[data-side-tabs] [role=tab][aria-selected=true]')?.dataset.sideTab ?? null,
+    focus:document.activeElement === document.querySelector('[data-plugin-picker-toggle]')})`;
   await evaluate("window.__shelfNotices=[];window.addEventListener('molis-shelf-notice',event=>window.__shelfNotices.push(event.detail.message))");
   for (const opened of [false, true]) {
     if (opened) {
       await evaluate("globalThis.molisWorkOpenShelf()");
-      await waitFor(`document.body.dataset.sideOpen === 'true' && document.querySelector('#side-panel [role=tab][aria-selected=true]')?.dataset.sideTab === ${JSON.stringify(SHELF_TAB)}`);
+      await waitFor(`document.body.dataset.sideOpen === 'true' && document.querySelector('[data-side-tabs] [role=tab][aria-selected=true]')?.dataset.sideTab === ${JSON.stringify(SHELF_TAB)}`);
       await waitFor(`document.querySelector('[data-side-body=${JSON.stringify(SHELF_TAB)}] iframe')`);
     } else {
-      await evaluate("document.dispatchEvent(new CustomEvent('molis:side-close'))");
+      await evaluate("document.body.dataset.sideOpen === 'true' && (document.querySelector('[data-layout-open]').click(), document.querySelector('[data-layout-action=side]').click())");
       await waitFor("document.body.dataset.sideOpen === 'false'");
     }
-    await evaluate("document.querySelector('[data-side-toggle]').focus()");
+    // Focus on a control in the bar, outside Shelf (the switcher; the bar's side button is gone since 07-1 S4b).
+    await evaluate("document.querySelector('[data-plugin-picker-toggle]').focus()");
     const before = await evaluate(state);
     await evaluate(`globalThis.molisWorkShelfNotice(${JSON.stringify(message)},true)`);
     await waitFor(`${toast}?.classList.contains('is-visible') && ${toast}.textContent === ${JSON.stringify(translated)}`);

@@ -22,6 +22,7 @@ import { larkMcpLaunch, type LarkMcpLaunchInput } from "./lark-mcp-launch.js";
 import type { OAuthClientInformationMixed, OAuthTokens } from "@modelcontextprotocol/sdk/shared/auth.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { connectorProtocolSecrets, withConnectorProtocols, type ConnectorProtocolConfiguration } from "./connector-protocol-store.js";
+import { assertSecretStoreWritable } from "@molis-ai/molis-work-storage";
 import { isLoopbackHttpOrigin, isLoopbackHttpUrl } from "@molis-ai/molis-work-contracts/platform/loopback";
 import { PRODUCT_VERSION } from "./product-version.js";
 import { activeMcpOperation, resolveMcpServer, mcpOperationAuthority, mcpSourcePin, productMcpClientEligible, type McpSourcePin, type McpOperationAuthority } from "./connector-mcp-configuration.js";
@@ -103,8 +104,17 @@ function safeError(error: unknown): ActionError {
 function readOAuthCredential<T extends { issuer?: string }>(raw: string | null, allowUnbound = false): T | undefined {
   if (!raw) return undefined;
   const credential = JSON.parse(raw) as T;
-  if (!allowUnbound && !credential.issuer?.trim()) throw authorizationError("MCP 授权凭据来自旧版本，请重新连接");
+  if (!allowUnbound && !credential.issuer?.trim()) throw authorizationError("MCP 授权凭据缺少签发方，请重新连接");
   return credential;
+}
+
+/**
+ * The client as the SDK's `auth()` reads it, first, before each request whose answer it saves in the vault: registration, the code's exchange,
+ * a refresh. So the vault is asked here (`assertSecretStoreWritable`), before any of them goes. A Feishu/Lark child only reads the client to start.
+ */
+function storedClient(home: string, secrets: ReturnType<typeof connectorProtocolSecrets>, stdio: boolean): OAuthClientInformationMixed | undefined {
+  if (!stdio) assertSecretStoreWritable(home);
+  return readOAuthCredential<OAuthClientInformationMixed>(secrets.get("client"), stdio);
 }
 
 function bindStagedOAuthClient(secrets: ReturnType<typeof connectorProtocolSecrets>, issuer: string, staged: boolean): void {
@@ -194,7 +204,7 @@ export function createConnectorMcpHost(options: ConnectorMcpHostOptions = {}) {
         return { client_name: "Molis", client_uri: "https://molis.ai", redirect_uris: [config.redirectUri], grant_types: ["authorization_code", "refresh_token"], response_types: ["code"], token_endpoint_auth_method: client?.client_secret ? "client_secret_post" : "none" };
       },
       state: () => { checkActive(); if (!state) throw connectorErrors["connector.mcp.authorization"]("MCP 授权已失效，请重新连接"); return state; },
-      clientInformation: () => { checkActive(); return readOAuthCredential<OAuthClientInformationMixed>(secrets.get("client"), Boolean(authority.server.stdio)); },
+      clientInformation: () => { checkActive(); return storedClient(home, secrets, Boolean(authority.server.stdio)); },
       saveClientInformation: client => { checkActive?.(); secrets.put("client", JSON.stringify(client)); },
       tokens: () => { checkActive?.(); return readOAuthCredential<OAuthTokens>(secrets.get("oauth")); },
       saveTokens: tokens => {
@@ -366,11 +376,11 @@ export function createConnectorMcpHost(options: ConnectorMcpHostOptions = {}) {
   const inspectMcpConnection = (home: string, id: string, options: McpRequestOptions = {}) => runConnection(home, id, options, inspect);
   const getMcpConnectionDescriptor = async (home: string, id: string, options: { signal?: AbortSignal } = {}) => {
     const { config: before, authority } = await active(home, id);
-    const row = withConnectorConnections(home, store => store.require(id));
+    const row = withConnectorConnections(home, store => store.require(id), "required");
     const revision = createHash("sha256").update(JSON.stringify([row.updated_at, before.transport === "stdio" ? before.launch : before.endpoint, before.mode])).digest("hex");
     const capabilities = await inspectMcpConnection(home, id, options);
     authority.check();
-    if (withConnectorConnections(home, store => store.require(id)).updated_at !== row.updated_at) throw connectorErrors["connector.mcp.configuration"]("连接已改变，请重新读取");
+    if (withConnectorConnections(home, store => store.require(id), "required").updated_at !== row.updated_at) throw connectorErrors["connector.mcp.configuration"]("连接已改变，请重新读取");
     return { kind: "mcp" as const, connection_id: id, service_id: row.service_id, display_name: row.display_name, revision, available: true, ...capabilities };
   };
   const callMcpConnectionTool = (home: string, id: string, name: string, args: Record<string, unknown>, options: McpToolRequestOptions = {}) => runConnection(home, id, options, async (client, signal, checkCurrent) => {

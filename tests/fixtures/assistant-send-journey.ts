@@ -3,6 +3,7 @@ import type { TestContext } from "node:test";
 import type { AssistantSendResult, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
 import { openGoalBrowser } from "./goal-browser.js";
 import { issueModel } from "./issue-model.js";
+import { CURRENT_WORK } from "./assistant-current-work.js";
 
 export type SendBrowser = NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>;
 export async function sendBrowser(t: TestContext, modelAvailable = true) {
@@ -41,10 +42,10 @@ export async function waitWork(browser: SendBrowser, id: string, ready: (view: A
 }
 export async function openWork(browser: SendBrowser, id: string) {
   await browser.evaluate(`document.dispatchEvent(new CustomEvent('molis:assistant-open', { detail: { work_id: '${id}' } }))`);
-  await browser.waitFor(`localStorage.getItem('molis.assistant.current') === '${id}' && document.querySelector('[data-assistant-target-label]').textContent.includes('：')`);
+  await browser.waitFor(`${CURRENT_WORK} === '${id}' && Boolean(document.querySelector('[data-assistant-composer] .mw-composer__to [data-tag-remove]'))`);
 }
 export async function putInput(browser: SendBrowser, text: string, material?: string) {
-  await browser.evaluate(`(() => { const input = document.querySelector('[data-assistant-input]'); input.value = ${JSON.stringify(text)}; input.dispatchEvent(new Event('input', { bubbles: true }));
+  await browser.evaluate(`(() => { const input = document.querySelector('[data-assistant-composer] .mw-composer__input'); input.value = ${JSON.stringify(text)}; input.dispatchEvent(new Event('input', { bubbles: true }));
     ${material ? `document.dispatchEvent(new CustomEvent('molis:assistant-open', { detail: { materials: [{ title: ${JSON.stringify(material)}, text: ${JSON.stringify(material + "的正文")} }] } }));` : ""}
   })()`);
 }

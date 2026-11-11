@@ -7,11 +7,13 @@ import { mountCoding } from "./main/mount.js";
 /** What Files' and Git's clients hand back; each reads through its own plugin's routes. */
 interface CompanionBrowser {
   refresh?(): Promise<void> | void;
+  /** Shows another of the project's folders: which one Coding's panel shows is the page's own state. */
+  browse?(workspaceId: string): void;
   show?(face: string): boolean | void;
 }
 
 /** A companion plugin's client, as the workbench lends it (`clientUses`): it mounts on the ports of the panel it is given. */
-type CompanionClient = (ports: { readonly root: Element; readonly openResult: () => void; readonly closeResult: () => void; readonly onWorkspaceSelected?: () => void }) => CompanionBrowser | null;
+type CompanionClient = (ports: { readonly root: Element; readonly openResult: () => void; readonly closeResult: () => void; readonly onWorkspaceSelected?: (workspaceId: string) => void }) => CompanionBrowser | null;
 
 /**
  * What the workbench hands Coding's bundle when it mounts a root: the shell's ports, the Files and Git clients Coding's
@@ -37,6 +39,8 @@ export interface CodingWorkbenchHost {
   readonly workspaces: UiPageWorkspaces;
   readonly clients: Readonly<Record<string, CompanionClient | undefined>>;
   readonly reviews: UiPageReviews<Element>;
+  readonly drafts: CodingHost["drafts"];
+  readonly returns: CodingHost["returns"];
 }
 
 /**
@@ -71,14 +75,14 @@ export function codingWorkbench(host: CodingWorkbenchHost): void {
   const gitBrowser: CompanionBrowser | null = codingRoot ? clients.git?.({ root: codingRoot,
     openResult: () => openCompanionResult("git"), closeResult: closeCompanionResult }) ?? null : null;
   const filesBrowser: CompanionBrowser | null = codingRoot ? clients.files?.({ root: codingRoot,
-    onWorkspaceSelected: () => { void gitBrowser?.refresh?.(); },
+    onWorkspaceSelected: (id: string) => { gitBrowser?.browse?.(id); },
     openResult: () => openCompanionResult("files"), closeResult: closeCompanionResult }) ?? null : null;
-  mountCoding({ ...lent, interaction: host.interaction, receipts: host.receipts,
+  mountCoding({ ...lent, interaction: host.interaction, receipts: host.receipts, drafts: host.drafts, returns: host.returns,
     revealTask: () => { if (matchMedia("(max-width: 600px)").matches) host.hideDirectory?.(); closeCompanionResult(); },
     onDirectoryFace: (face: string) => { const handled = filesBrowser?.show?.(face) ?? false; gitBrowser?.show?.(face); return handled; },
     showReviews,
     addWorkspace: (workspacePath: string) => host.workspaces.add(workspacePath),
-    selectWorkspace: (id: string) => host.workspaces.select(id),
+    selectWorkspace: async (id: string) => { filesBrowser?.browse?.(id); gitBrowser?.browse?.(id); },
     openItem: (plugin: string, id: string, title?: string) => host.openItem?.(plugin, id, title),
     openBeside: (plugin: string, id: string, title?: string) => host.openBeside?.(plugin, id, title),
   });

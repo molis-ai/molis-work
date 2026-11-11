@@ -11,12 +11,12 @@ export function syncDevicePreference(home:string,spaceId:string) {
     if(!fs.existsSync(file))return {automatic:null};
     if(!fs.lstatSync(file).isFile())throw syncError('invalid','无法读取本机同步设置');
     const value:unknown=JSON.parse(fs.readFileSync(file,'utf8'));
-    if(!value||typeof value!=='object'||!('version' in value)||value.version!==1||!('spaceId' in value)||value.spaceId!==spaceId||!('automatic' in value)||typeof value.automatic!=='boolean')throw syncError('invalid','本机同步设置无效，请检查当前账号空间');
+    if(!value||typeof value!=='object'||!('version' in value)||value.version!==/* @version format.sync.device */ 1||!('spaceId' in value)||value.spaceId!==spaceId||!('automatic' in value)||typeof value.automatic!=='boolean')throw syncError('invalid','本机同步设置无效，请检查当前账号空间');
     return {automatic:value.automatic};
   };
   const write=(automatic:boolean)=>{
     read();
-    atomicWriteFileSync(file,JSON.stringify({version:1,spaceId,automatic}),{mode:0o600});
+    atomicWriteFileSync(file,JSON.stringify({version:/* @version format.sync.device */ 1,spaceId,automatic}),{mode:0o600});
   };
   return {read,write};
 }

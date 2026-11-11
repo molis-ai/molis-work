@@ -12,7 +12,8 @@ import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { ASSISTANT_INSTALL_ID, type AssistantHandover, type AssistantPageCardInput, type AssistantSendInput } from "@molis-ai/molis-work-contracts/services/assistant";
 import { dispatchNativePluginJsonHttp, type NativePluginJsonResult, writeNativePluginJsonResponse } from "../native-plugin-http.js";
-import { L } from "../web-locale.js";
+import { L, pageLocale, type WebLocale } from "../web-locale.js";
+import { lastUsedLocale, rememberUiLocale } from "../ui-locale-memory.js";
 import { bindLocalWebActions, localWebActionContext } from "../local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "../local-owner-permissions.js";
 import type { MolisWorkLocalHost } from "../project-host.js";
@@ -20,6 +21,9 @@ import { ActionError, actionEffect, bindActionClient, type ActionCallContext, ty
 import { actionKey, assistantAuthority, assistantProjectPrompts } from "./assistant-authority.js";
 import { registerWorkAuthority } from "../agent-work-authority.js";
 import { AssistantService, type AssistantServicePorts } from "./assistant-service.js";
+import type { SignedBinding } from "./assistant-service-shared.js";
+import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-definitions";
+import { skillCatalogActions } from "@molis-ai/molis-work-contracts/services/skills";
 import { assistantSurroundings } from "./assistant-surroundings.js";
 import { assistantErrors } from "./assistant-errors.js";
 import type { PersonActions } from "./assistant-executor.js";
@@ -43,6 +47,7 @@ import { retainConnectorSetupsForSession } from "../connector-setup-retain.js";
 import { assistantSetupMaterial } from "./assistant-setup-material.js";
 import { pageChoices } from "./assistant-pages.js";
 import { hostLog } from "../host-log.js";
+import { assistantConnectionCard } from "./assistant-connection-card.js";
 
 /** The works related to an object, and each one's objects, as `assistant.works.related@1` and its HTTP read them. */
 const relatedSource = (service: AssistantService): RelatedWorksSource => ({ related: (projectId, subject) => service.reads.related(projectId, subject), read: workId => service.read(workId) });
@@ -61,6 +66,18 @@ export interface AssistantHttpPorts {
   projectReference?(projectId: string): Promise<LocalHostProjectReference>;
   /** The page ids installed in this Home's projects, which an attention rule may name (PG-036). */
   pages(): Promise<readonly string[]>;
+}
+
+/**
+ * The language of a round the page itself starts (a message, an answer, a card prepared again): the page's own, whatever
+ * the record says, and using it moves the record (FSS-71). A request with no page language leaves the round to the record. It is read
+ * here at the entry and carried down as a parameter, so nothing below looks at the request again.
+ */
+function pageRoundLanguage(ports: Pick<AssistantHttpPorts, "homeDirectory">): { reply_locale?: WebLocale } {
+  const reply_locale = pageLocale();
+  if (!reply_locale) return {};
+  rememberUiLocale(ports.homeDirectory, reply_locale);
+  return { reply_locale };
 }
 
 /** Half-written answers to a work's questions, kept with the work. */
@@ -116,8 +133,15 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
       return await bindActionClient(client, () => caller).invoke(definition, input, control, transport);
     } };
   };
+  const definitions = () => agentDefinitionsFor(ports.homeDirectory, builtinRegistrations);
+  // The shared Skill catalog, read as the person for an Assistant round: the Host's own entry freezes what the person named (§2.3).
+  const skillReader = async (reference: LocalHostProjectReference | undefined, named: readonly SkillRef[]) => {
+    const caller: ActionCallContext = { ...await personContext(reference), skill_round: { consumer: "assistant", named } };
+    return bindActionClient(reference ? ports.localHost.actionClient(reference) : ports.localHost.homeActionClient(), () => caller);
+  };
   let threads: AssistantThreads;
   const servicePorts: AssistantServicePorts = {
+    lastLocale: () => lastUsedLocale(ports.homeDirectory),
     cancelSetups: sessionId => cancelConnectorAuthorizationsForSession(ports.homeDirectory, sessionId, WEB_ACTOR),
     retainSetups: sessionId => retainConnectorSetupsForSession(ports.homeDirectory, sessionId, WEB_ACTOR, (...args) => ports.localHost.connectorMcp!.remember(...args)),
     holdSetups: (sessionId, revision) => holdConnectorAuthorizationsForSession(ports.homeDirectory, sessionId, WEB_ACTOR, revision),
@@ -147,34 +171,43 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
     // The Characters the person may choose, read as the person from Characters' own actions (PG-086).
     characters: project => assistantCharacterChoices(personClient(project)),
     projectTitle: ports.projectTitle,
-    // Methods Plugins offer for business work, from the Home's registry of Agent definitions.
-    methods: { list: () => agentDefinitionsFor(ports.homeDirectory, builtinRegistrations).methods(),
-      read: (owner, skill, version) => agentDefinitionsFor(ports.homeDirectory, builtinRegistrations).method(owner, skill, version),
-      readSigned: (install, ref) => agentDefinitionsFor(ports.homeDirectory, builtinRegistrations).signedMaterial(install, ref),
-      recordSignedUse: (material, caller) => agentDefinitionsFor(ports.homeDirectory, builtinRegistrations).recordSignedUse(material, caller),
-      bindSigned: async (project, installId, ref) => {
+    // Role material from the Home's registry of Agent definitions; Skills from the shared catalog, read as the person.
+    methods: { roles: () => definitions().signedRoles(),
+      readSigned: (install, ref) => definitions().signedMaterial(install, ref),
+      recordSignedUse: (material, caller) => definitions().recordSignedUse(material, caller),
+      recordSkillUse: use => definitions().skills.recordUse(use),
+      bindSigned: async (project, installs) => {
+        // One read of each record source for every installation a list names (09 §3.4), never one per role.
         const projectRows = project ? await ports.localHost.withProject(project, runtime => pluginInstallRecords(runtime.store.db)) : undefined;
-        const inProject = projectRows?.get(installId);
-        const current = inProject ? () => projectRows!.get(installId) : () => ports.localHost.homePlugins?.installations().find(row => row.install_id === installId);
-        const original = current(), ledger = new HomeConsentLedger(ports.homeDirectory);
-        const assertCurrent = () => {
-          const record = current();
-          if (!original || !record || record.state !== "running" || record.installation_generation !== original.installation_generation
-            || record.plugin_id !== ref.source.plugin_id || record.version !== ref.source.plugin_version || record.publisher_signature !== ref.source.publisher_signature
-            || record.publisher_trust !== "pinned" || !ledger.publishers().some(pin => pin.key_id === record.publisher_signature && !pin.revoked_at)) {
-            throw assistantErrors.invalid("角色资料或方法的安装来源已失效，请重新选择");
-          }
-        };
-        assertCurrent();
-        return { installation: { install_id: installId, installation_generation: original!.installation_generation, project_id: inProject ? project!.project_id : null }, assertCurrent };
-      } },
+        const homeRows = () => ports.localHost.homePlugins?.installations() ?? [];
+        const ledger = new HomeConsentLedger(ports.homeDirectory), atBind = homeRows();
+        const bound = new Map<string, SignedBinding>();
+        for (const { install_id: installId, source } of installs) {
+          const inProject = projectRows?.get(installId);
+          const current = inProject ? () => projectRows!.get(installId) : () => homeRows().find(row => row.install_id === installId);
+          const original = inProject ?? atBind.find(row => row.install_id === installId);
+          if (!original || bound.has(installId)) continue;
+          const assertCurrent = () => {
+            const record = current();
+            if (!record || record.state !== "running" || record.installation_generation !== original.installation_generation || record.plugin_id !== source.plugin_id
+              || record.version !== source.plugin_version || record.publisher_signature !== source.publisher_signature
+              || record.publisher_trust !== "pinned" || !ledger.publishers().some(pin => pin.key_id === record.publisher_signature && !pin.revoked_at)) {
+              throw assistantErrors.invalid("角色资料的安装来源已失效，请重新选择");
+            }
+          };
+          bound.set(installId, { installation: { install_id: installId, installation_generation: original.installation_generation, project_id: inProject ? project!.project_id : null }, assertCurrent });
+        }
+        return bound;
+      },
+      skills: async project => (await skillReader(project, [])).invoke(skillCatalogActions.list, { applies_to: "assistant", states: ["auto", "manual"] }).then(found => found.skills),
+      readSkills: async (project, refs) => (await skillReader(project, refs)).invoke(skillCatalogActions.readBodies, { refs: [...refs] }).then(read => read.results) },
     // The person's own actions in the work's project, as the page there would use them. A dispatch, a follow-up's round among them,
     // binds the person's client anew when it acts, never the snapshot the reads share: what was granted or withdrawn by then counts.
-    personActions: async (work, use, original, executorPluginId) => {
+    personActions: async (work, use, handed, executorPluginId) => {
       if (!work.project_ref) throw assistantErrors.scope("执行方插件在项目里工作");
-      if (original) {
-        if (!executorPluginId) throw assistantErrors.scope("补充原件没有明确的执行方");
-        return executorInputActions(ports.localHost, work.project_ref, LOCAL_OWNER_PERMISSIONS, original, executorPluginId);
+      if (handed?.original || handed?.skills?.length) {
+        if (!executorPluginId) throw assistantErrors.scope("交给执行方的内容没有明确的执行方");
+        return executorInputActions(ports.localHost, work.project_ref, LOCAL_OWNER_PERMISSIONS, handed, executorPluginId);
       }
       return use === "dispatch" ? bindLocalWebActions(ports.localHost, work.project_ref, LOCAL_OWNER_PERMISSIONS) : personBound(work.project_ref);
     },
@@ -264,20 +297,13 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
         return { status: 200, body: await service.offers.offerFromPage(body as unknown as AssistantPageCardInput, ports.projectRef ? { project_ref: ports.projectRef } : {}) };
       }
       if (method === "POST" && parts.length === 1 && parts[0] === "send") {
-        // A page marks the words it wrote itself ("page"); the marks of the Host's and the Assistant's own rounds are set in code and cannot be claimed from outside.
-        if (body.written_by !== undefined && body.written_by !== "page") throw assistantErrors.invalid("written_by 只能是 page");
-        if (body.target !== undefined && body.target !== "answer" && body.target !== "steer") throw assistantErrors.invalid("target 只能是 answer 或 steer");
-        // A re-ask names a closed question of an existing work, and is not an answer: refused before any work is made or touched.
-        if (body.reask !== undefined && (!body.work_id || body.target === "answer" || body.about !== undefined)) throw assistantErrors.invalid("重新问只能用在已有的工作上，不能同时作为回答或指向一条输入");
-        // A correction names the input it corrects, in a work that has one; it is a supplement, never an answer. Only the id's
-        // shape is checked: the runtime keeps `about` as a pointer without looking it up (D34), so an id that is not one of this
-        // session's inputs names nothing, and the receipt shows 「更早的一条」.
-        if (body.about !== undefined && (typeof body.about !== "string" || !body.about || body.about.length > 200 || !body.work_id || body.target === "answer")) throw assistantErrors.invalid("about 要写一条输入的 id，只能用在已有的工作里，且不能用于回答");
-        return { status: 200, body: await service.send(body as unknown as AssistantSendInput, { ...(ports.projectRef ? { project_ref: ports.projectRef } : {}),
+        checkSendRequest(body);
+        return { status: 200, body: await service.send(body as unknown as AssistantSendInput, { ...pageRoundLanguage(ports), ...(ports.projectRef ? { project_ref: ports.projectRef } : {}),
           ...(!body.written_by && body.reask === undefined && typeof body.text === "string" && typeof body.request_id === "string" ? { original_input: {
             input_id: body.request_id, text: body.text, written_by: "person" as const, occurred_at: new Date().toISOString(), install_id: ASSISTANT_INSTALL_ID,
           } } : {}) }) };
       }
+      if (method === "GET" && parts.length === 2 && parts[0] === "requests") return { status: 200, body: store.requests.read(WEB_ACTOR, parts[1]!) };
       // What the Assistant may use here, and what the person switched off for it.
       if (method === "GET" && parts.length === 1 && parts[0] === "capabilities") {
         const off = store.disabledActions(WEB_ACTOR), confirm = store.confirmAlways(WEB_ACTOR);
@@ -356,11 +382,15 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
       if (method === "GET" && parts.length === 3 && parts[2] === "surroundings") return { status: 200, body: await surroundings(workId) };
       if (method === "GET" && parts.length === 4 && parts[2] === "materials") return { status: 200, body: { material: service.materials.material(workId, parts[3]!) } };
       if (method === "GET" && parts.length === 5 && parts[2] === "materials" && parts[4] === "image") return { status: 200, body: { image: await service.materials.materialImage(workId, parts[3]!) } };
+      // The connection card of a result that left a connection to finish (ASC-69): read, and cancelled, as whoever prepared it.
+      if (parts.length === 5 && parts[2] === "cards" && parts[4] === "connection" && (method === "GET" || method === "POST" && body.step === "cancel")) {
+        return { status: 200, body: await assistantConnectionCard(ports.localHost, ports.homeDirectory, store.get(WEB_ACTOR, workId), service.offers.card(workId, parts[3]!), method === "GET" ? "read" : "cancel", L) };
+      }
       if (method !== "POST") return null;
       const threadWork = await threadWorkRoute(workId, parts, body, ports);
       if (threadWork) return threadWork;
       if (parts.length === 3 && parts[2] === "control") return { status: 200, body: await service.control(workId, body as never) };
-      const interaction = await interactionRoute(workId, parts, body, service, store, ports.projectRef);
+      const interaction = await interactionRoute(workId, parts, body, service, store, ports);
       if (interaction) return interaction;
       if (parts.length === 3 && parts[2] === "draft") return { status: 200, body: { work: service.saveDraft(workId, body.draft as string) } };
       if (parts.length === 3 && parts[2] === "rename") return { status: 200, body: { work: await service.rename(workId, Number(body.revision), String(body.title ?? "")) } };
@@ -426,15 +456,15 @@ function writeDrawn(ports: AssistantHttpPorts, response: ServerResponse, result:
  * fields hold it, a half-written answer kept with the work, a card run, set aside or asked to be prepared again.
  */
 async function interactionRoute(workId: string, parts: string[], body: Record<string, unknown>, service: AssistantService, store: AssistantStore,
-  projectRef: LocalHostProjectReference | undefined): Promise<NativePluginJsonResult | null> {
-  const drafts = questionDrafts(store);
+  ports: AssistantHttpPorts & { projectRef?: LocalHostProjectReference }): Promise<NativePluginJsonResult | null> {
+  const drafts = questionDrafts(store), projectRef = ports.projectRef;
   // The card sends what its fields hold; it becomes the Runtime's answer here, and its draft goes once the answer is taken.
   if (parts.length === 3 && parts[2] === "answer") {
     const answer = body.values === undefined ? {} : questionAnswer(body.values);
     if (!answer) throw assistantErrors.invalid("请先回答再提交");
     const view = await service.outcomes.answer(workId, { run_id: String(body.run_id ?? ""), pending_id: String(body.pending_id ?? ""),
       ...(body.pending_revision !== undefined ? { pending_revision: Number(body.pending_revision) } : {}), ...(typeof body.text === "string" ? { text: body.text } : {}),
-      ...(Array.isArray(body.answers) ? { answers: body.answers as never } : {}), ...answer }, projectRef ? { project_ref: projectRef } : {}).catch(async (error: { code?: string; message?: string; problems?: unknown }) => {
+      ...(Array.isArray(body.answers) ? { answers: body.answers as never } : {}), ...answer }, { ...pageRoundLanguage(ports), ...(projectRef ? { project_ref: projectRef } : {}) }).catch(async (error: { code?: string; message?: string; problems?: unknown }) => {
       // A questionnaire answer the Runtime refused: each question's reason goes beside its own field.
       if (error?.code !== "agent.answer_invalid") throw error;
       // Read back with the questions it answered, so each line can name the limit it crossed.
@@ -447,7 +477,7 @@ async function interactionRoute(workId: string, parts: string[], body: Record<st
     drafts.drop(workId, String(body.pending_id ?? ""));
     return { status: 200, body: view };
   }
-  if (parts.length === 3 && parts[2] === "question-draft") { drafts.save(workId, String(body.pending_id ?? ""), body.values); return { status: 200, body: { ok: true } }; }
+  if (parts.length === 3 && parts[2] === "question-draft") { return { status: 200, body: { ok: true, ...drafts.save(workId, String(body.pending_id ?? ""), body.values, body.draft_revision) } }; }
   if (parts.length !== 5 || parts[2] !== "cards") return null;
   if (parts[4] === "run") return { status: 200, body: await service.offers.runCard(workId, parts[3]!, { revision: Number(body.revision), values: body.values }) };
   if (parts[4] === "dismiss") return { status: 200, body: service.offers.dismissCard(workId, parts[3]!) };
@@ -455,5 +485,18 @@ async function interactionRoute(workId: string, parts: string[], body: Record<st
   if (parts[4] !== "redo") return null;
   const card = service.offers.card(workId, parts[3]!);
   return { status: 200, body: await service.send({ work_id: workId, request_id: randomUUID(), text: L("建议「{title}」没有执行：{why}。请读取最新状态，按现在的情况重新准备这一项的操作卡。",
-    { title: card.title, why: card.outcome || L("数据在建议之后变化了") }) }, projectRef ? { project_ref: projectRef } : {}, "page") };
+    { title: card.title, why: card.outcome || L("数据在建议之后变化了") }) }, { ...pageRoundLanguage(ports), ...(projectRef ? { project_ref: projectRef } : {}) }, "page") };
+}
+
+/** The Send HTTP input, before invoking its owner. */
+function checkSendRequest(body: Record<string, unknown>): void {
+        // A page marks the words it wrote itself ("page"); the marks of the Host's and the Assistant's own rounds are set in code and cannot be claimed from outside.
+        if (body.written_by !== undefined && body.written_by !== "page") throw assistantErrors.invalid("written_by 只能是 page");
+        if (body.target !== undefined && body.target !== "answer" && body.target !== "steer") throw assistantErrors.invalid("target 只能是 answer 或 steer");
+        // A re-ask names a closed question of an existing work, and is not an answer: refused before any work is made or touched.
+        if (body.reask !== undefined && (!body.work_id || body.target === "answer" || body.about !== undefined)) throw assistantErrors.invalid("重新问只能用在已有的工作上，不能同时作为回答或指向一条输入");
+        // A correction names the input it corrects, in a work that has one; it is a supplement, never an answer. Only the id's
+        // shape is checked: the runtime keeps `about` as a pointer without looking it up (D34), so an id that is not one of this
+        // session's inputs names nothing, and the receipt shows 「更早的一条」.
+        if (body.about !== undefined && (typeof body.about !== "string" || !body.about || body.about.length > 200 || !body.work_id || body.target === "answer")) throw assistantErrors.invalid("about 要写一条输入的 id，只能用在已有的工作里，且不能用于回答");
 }

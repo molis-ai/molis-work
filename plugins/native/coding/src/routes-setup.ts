@@ -1,20 +1,20 @@
-import { codingArtifacts, CODING_PLAN_TYPE } from "./artifacts.js";
+import { codingArtifacts, CODING_PLAN_SCHEMA_VERSION, CODING_PLAN_TYPE } from "./artifacts.js";
 import { savedCharacter, savedCharacterSkills } from "./characters.js";
 import { symbolsIn, workspaceFileIndex, workspaceFileReader } from "./mentions.js";
 import { parseCodingPlan } from "./plan-content.js";
-import { confirmedPlan, planFromRun, planMaterial, planReference, CODING_PLAN_SCHEMA_VERSION, portableCodingPlan } from "./plans.js";
+import { confirmedPlan, planFromRun, planMaterial, planReference, portableCodingPlan } from "./plans.js";
 import { type CodingActivation, selected } from "./route-activation.js";
-import { bodyOf, savedActions, methodSelection } from "./route-selections.js";
+import { bodyOf, savedActions } from "./route-selections.js";
 import { codingActions, codingActionControl } from "./route-entry.js";
 import { text } from "./run-inputs.js";
 import { libraryRuntime, limitsCharacters, runtimeDirectory } from "./runtime-choice.js";
-import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
+import { projectFolders } from "./project-folders.js";
 import type { PluginRouteBinding } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentHostCapabilities as agent, type AgentRunView, type AgentMcpServerInput } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { isDeepStrictEqual } from "node:util";
 import { codingFailure, codingText } from "./words.js";
 
-/** Coding routes for what the next round takes: materials, action tools, MCP, methods, plans, Characters, and the files named with @. */
+/** Coding routes for what the next round takes: materials, action tools, MCP, plans, Characters, and the files named with @. */
 
 type RouteMaker = (a: CodingActivation) => PluginRouteBinding | PluginRouteBinding[];
 
@@ -47,7 +47,7 @@ const ROUTES: RouteMaker[] = [
       const input = { id: body.id, expected_version: body.expected_version, label: body.label, enabled: body.enabled, timeout_ms: body.timeout_ms,
         transport: body.transport, executable: body.executable, argv: body.argv, endpoint: body.endpoint, auth: body.auth } as AgentMcpServerInput;
       if (input.transport === "stdio") {
-        const workspaces = await api!.invoke(projectSettingsCapabilities.workspaces, []);
+        const workspaces = await projectFolders(api!);
         const workspace = workspaces.find(item=>item.workspace_id === body.workspace_id);
         if (!workspace?.realpath_verified) throw codingFailure("coding.server.mcp-workspace");
         input.directory = { canonical_path: workspace.canonical_path, realpath_verified: true };
@@ -63,33 +63,6 @@ const ROUTES: RouteMaker[] = [
       const runtime = libraryRuntime(await runtimeDirectory(codingActions(context, beforeWrite), api!), "mcp");
       await codingActions(context, beforeWrite).invoke(agent.controlMcp, [runtime.runtime_id, text(request.params.serverId,"coding.field.mcp-server"), action as "connect" | "disconnect" | "cancel" | "remove"]);
       return { accepted: true };
-    });
-  },
-  (a) => {
-    const { context, route } = a;
-    return route("coding.discover-methods", async (request, api, _execution, beforeWrite) => {
-      const body = bodyOf(request);
-      const runtime = libraryRuntime(await runtimeDirectory(codingActions(context, beforeWrite), api!), "skills");
-      const workspaces = await api!.invoke(projectSettingsCapabilities.workspaces, []);
-      const workspace = workspaces.find(item => item.workspace_id === body.workspace_id);
-      if (!workspace?.realpath_verified) throw codingFailure("coding.server.pick-workspace");
-      return { candidates: await codingActions(context, beforeWrite).invoke(agent.discoverSkills, [runtime.runtime_id,
-        { canonical_path: workspace.canonical_path, realpath_verified: true }, text(body.path, "coding.field.method-path", 1000)]) };
-    });
-  },
-  (a) => {
-    const { context, route } = a;
-    return route("coding.install-method", async (request, api, _execution, beforeWrite) => {
-      const runtime = libraryRuntime(await runtimeDirectory(codingActions(context, beforeWrite), api!), "skills");
-      return { method: await codingActions(context, beforeWrite).invoke(agent.installSkill, [runtime.runtime_id, text(bodyOf(request).candidate_id, "coding.field.candidate")]) };
-    });
-  },
-  (a) => {
-    const { context, route } = a;
-    return route("coding.read-method", async (request, api, _execution, beforeWrite) => {
-      const runtime = libraryRuntime(await runtimeDirectory(codingActions(context, beforeWrite), api!), "skills");
-      const ref = methodSelection([{skill_id: request.params.skillId, version: Number(request.params.version)}])[0]!;
-      return { method: await codingActions(context, beforeWrite).invoke(agent.readSkill, [runtime.runtime_id, ref]) };
     });
   },
   (a) => {
@@ -179,7 +152,7 @@ const ROUTES: RouteMaker[] = [
     return route("coding.files", async (request, api, execution) => {
       selected(a, request, execution);
       const workspaceId = text(request.query?.workspace_id, "coding.field.workspace", 200);
-      const workspaces = await api!.invoke(projectSettingsCapabilities.workspaces, []);
+      const workspaces = await projectFolders(api!);
       if (!workspaces.some(entry => entry.workspace_id === workspaceId && entry.realpath_verified)) throw codingFailure("coding.server.authorize-workspace");
       const held = fileIndexes.get(workspaceId);
       if (held && Date.now() - held.at < 30_000) return await held.value;
@@ -194,7 +167,7 @@ const ROUTES: RouteMaker[] = [
     return route("coding.symbols", async (request, api, execution) => {
       selected(a, request, execution);
       const workspaceId = text(request.query?.workspace_id, "coding.field.workspace", 200), path = text(request.query?.path, "coding.field.file", 1000);
-      const workspaces = await api!.invoke(projectSettingsCapabilities.workspaces, []);
+      const workspaces = await projectFolders(api!);
       if (!workspaces.some(entry => entry.workspace_id === workspaceId && entry.realpath_verified)) throw codingFailure("coding.server.authorize-workspace");
       if (path.split("/").includes("..")) throw codingFailure("coding.server.file-path");
       const file = await workspaceFileReader(context)({ workspace_id: workspaceId, path: path.split("/").filter(Boolean), kind: "text" });

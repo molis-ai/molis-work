@@ -81,7 +81,7 @@ test("RAC2804 RAC2805 RAC2806: the right Goals page stays readable beside CORE",
   await gesture(corePoint);
   await waitFor("document.querySelector('.tab-item[aria-current][data-item-id=CORE]') && document.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal === 'CORE'");
   assert.deepEqual(await evaluate("window.__t380CoreTrusted"), [{ id: "CORE", trusted: true }, { id: "CORE", trusted: true }]);
-  await click('[data-tab-split]');
+  await click('[data-layout-open]');
   await click('[data-layout-split="right"]');
   await waitFor("document.querySelectorAll('[data-tab-pane]').length === 2");
   const paneIds = await evaluate<string[]>("[...document.querySelectorAll('[data-tab-pane]')].sort((a,b)=>a.getBoundingClientRect().left-b.getBoundingClientRect().left).map(p=>p.dataset.tabPane)");
@@ -255,7 +255,7 @@ test("PTG-01 PTG-06 PTG-07 PTG-09 plugins stay on the strip as coloured groups; 
   await browser.setViewport(1440, 1000);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
-  await waitFor("document.querySelector('.tab-item[data-tab-kind=home][aria-current]')");
+  await waitFor("document.body.dataset.desktopSurface === 'home' && !document.querySelector(':is([data-titlebar-tabs], [data-tab-strip]) .tab-item[aria-current]')");
   const plugin = (id: string) => `[data-titlebar-tabs] .tab-item[data-tab-kind=plugin][data-plugin=${id}]`;
 
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
@@ -297,6 +297,19 @@ test("PTG-01 PTG-06 PTG-07 PTG-09 plugins stay on the strip as coloured groups; 
   await evaluate(`(() => {
     const transfer = new DataTransfer(), body = document.querySelector('[data-tab-pane-body]'), r = body.getBoundingClientRect();
     document.querySelector('${plugin("feed")}').dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: transfer }));
+    // D0029: browsers can still send pointermove during native drag; this must not cancel the tab's drag state.
+    document.dispatchEvent(new PointerEvent('pointermove',{bubbles:true,clientX:r.left+10,clientY:r.top+10}));
+    if(!document.querySelector('.is-tab-dragging'))throw new Error('D0029 pointermove cancelled native drag');
+    const target=document.querySelector('${plugin("goals")}'), surface=target.closest('[data-tab-panes],[data-titlebar-tabs]'), box=target.getBoundingClientRect();
+    if(!surface)throw new Error("D0029 target has no real drag surface");
+    surface.dispatchEvent(new DragEvent('dragenter',{bubbles:true,dataTransfer:transfer}));
+    target.dispatchEvent(new DragEvent('dragenter',{bubbles:true,dataTransfer:transfer}));
+    target.dispatchEvent(new DragEvent('dragover',{bubbles:true,cancelable:true,dataTransfer:transfer,clientX:box.left+box.width/2,clientY:box.top+box.height/2}));
+    const preview=document.querySelector('[data-tab-reorder-slot]:not([data-tab-slot-leaving])');
+    if(!preview)throw new Error('D0029 real tab reorder slot was not painted');
+    target.dispatchEvent(new DragEvent('dragleave',{bubbles:true,dataTransfer:transfer,relatedTarget:null}));
+    if(!preview.isConnected||preview!==document.querySelector('[data-tab-reorder-slot]:not([data-tab-slot-leaving])'))throw new Error('D0029 nested leave changed the reorder slot while still inside the surface');
+
     const at = { bubbles: true, cancelable: true, dataTransfer: transfer, clientX: r.left + r.width * 0.95, clientY: r.top + r.height / 2 };
     body.dispatchEvent(new DragEvent('dragover', at)); body.dispatchEvent(new DragEvent('drop', at));
   })()`);

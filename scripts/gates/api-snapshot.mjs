@@ -32,9 +32,9 @@
 // not repeated: it is in that entry's snapshot.
 // NOT covered: a name reached through a namespace import (`import * as ns`), and declarations in packages other than the
 // snapshotted ones (zod, the node types).
-import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { pathToFileURL } from "node:url";
+import { isMainScript } from "../script-paths.mjs";
 import ts from "typescript";
 
 /** The packages whose public surface is snapshotted: a package.json "exports" map pointing into dist/ from src/. */
@@ -423,7 +423,7 @@ export const checkApiSnapshots = ({ root, git, mergeBase }) => {
 };
 
 // ---- command line ----------------------------------------------------------------------------------------------------
-if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(path.resolve(process.argv[1]))).href) {
+if (isMainScript(import.meta.url)) {
   const USAGE = "usage: api-snapshot.mjs [--update] [--root <dir>]";
   const args = process.argv.slice(2);
   let update = false, root = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../..");

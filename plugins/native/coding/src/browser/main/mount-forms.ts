@@ -142,7 +142,7 @@ async function saveMethods(page: Page, form: HTMLFormElement) {
   submit.disabled = true;
   const id = s.current, selection = structuredClone(s.methodChoices);
   try {
-    await refs.draft.save(id, input.value, { methods: selection });
+    await refs.draft.save(id, input.value, { skills: selection });
     s.methodSelections.set(id, selection);
     q<HTMLDialogElement>("[data-coding-method-dialog]").close();
     controls(page);
@@ -170,7 +170,9 @@ async function saveWorkspace(page: Page, form: HTMLFormElement) {
     if (s.current !== id) return;
     await useProjectWorkspace(page, chosen);
     if (s.current !== id) return;
+    // Choosing a folder ends a worktree choice: the session's rounds run in the folder again.
     s.workspaceId = chosen;
+    s.worktree = null;
     rememberConfiguration(page);
     await refs.draft.flush();
     await refreshState(page);
@@ -187,12 +189,11 @@ async function saveWorkspace(page: Page, form: HTMLFormElement) {
 }
 
 function listenChoiceForms(page: Page) {
-  const { directory, lifetime, q, s } = page;
+  const { directory, lifetime, q } = page;
   lifetime.listen(document, "molis-work:knowledge-picked", event => {
     const picked = detailOf<KnowledgePicked>(event);
     if (picked) void takeMaterials(page, picked);
   });
-  lifetime.listen(q("[data-coding-method-dialog]"), "cancel", () => { s.methodDocumentTicket++; });
   const forms: [string, (page: Page, form: HTMLFormElement) => Promise<void>][] = [["[data-coding-mcp-form]", saveMcp], ["[data-coding-method-form]", saveMethods], ["[data-coding-workspace-form]", saveWorkspace]];
   for (const [selector, save] of forms) {
     const form = q<HTMLFormElement>(selector);

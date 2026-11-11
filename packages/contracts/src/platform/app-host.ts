@@ -9,9 +9,9 @@ export type AsyncApplicationMethods<Application> = {
 };
 
 export const platformAppHostContract = {
-  contractId: "io.molis.work.platform.app-host.v1",
+  contractId: /* @version contract.io.molis.work.platform.app-host "io.molis.work.platform.app-host.v{version}" */ "io.molis.work.platform.app-host.v1",
   kind: "platform",
-  schemaVersion: 1,
+  schemaVersion: /* @version contract.io.molis.work.platform.app-host */ 1,
   maturity: "partial",
   ssot: "docs/system/ARCHITECTURE.md",
 } as const satisfies ContractDescriptor;
@@ -71,6 +71,11 @@ export interface HostCapabilityInvocation extends ActionCallOrigin {
   readonly signal?: AbortSignal;
   readonly plugin?: HostPluginCaller;
   readonly consumer?: "plugin";
+  /**
+   * The session the authenticated Host bound the caller to (`ActionCallContext.runtime_session_id`): an agent round's own session,
+   * also when another plugin's running action hands the call on for it. Absent for every other caller. Never business input.
+   */
+  readonly runtime_session_id?: string;
   /** Recheck original authority and live project policy immediately before a side effect. */
   beforeEffect(): Promise<void>;
   /** Final synchronous fence after the last await and immediately before the owner's effect. */

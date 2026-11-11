@@ -5,6 +5,8 @@ import { newCallId, withCallId } from "@molis-ai/molis-work-kernel";
 import type { AssistantService } from "./assistant/assistant-service.js";
 import type { PeriodicTasks } from "./periodic-tasks.js";
 import { hostLog } from "./host-log.js";
+import { lastUsedLocale } from "./ui-locale-memory.js";
+import { runBackgroundWork } from "./web-locale.js";
 
 /** Assistant background activity belongs to the serving Host, never to an open page or the request that started it. */
 export function attachWebAssistant(server: Server, home: string, assistant: () => AssistantService,
@@ -20,8 +22,9 @@ export function attachWebAssistant(server: Server, home: string, assistant: () =
       await pause(15_000, undefined, { signal: stopped.signal, ref: false });
     }
   }).catch(error => { if (!stopped.signal.aborted) hostLog.warn("assistant", "background_failed", error); });
+  const look = <T>(fn: () => Promise<T>) => runWithMolisWorkHome(home, () => withCallId(newCallId(), () => runBackgroundWork(lastUsedLocale(home), fn)));
   periodic.every({ id: "assistant.material", title: "为进行中的工作找新资料", owner: "assistant", intervalMs: 300_000,
-    run: () => runWithMolisWorkHome(home, () => withCallId(newCallId(), () => assistant().notices.scanNewMaterial())), onError: error => hostLog.warn("assistant", "new_material_scan_failed", error) });
+    run: () => look(() => assistant().notices.scanNewMaterial()), onError: error => hostLog.warn("assistant", "new_material_scan_failed", error) });
   periodic.every({ id: "assistant.reminders", title: "到期提醒", owner: "assistant", intervalMs: 60_000,
-    run: () => runWithMolisWorkHome(home, () => withCallId(newCallId(), () => assistant().followUps.sweepReminders())), onError: error => hostLog.warn("assistant", "reminder_sweep_failed", error) });
+    run: () => look(() => assistant().followUps.sweepReminders()), onError: error => hostLog.warn("assistant", "reminder_sweep_failed", error) });
 }

@@ -1,7 +1,11 @@
+import { UI_HOST_CLIENT_CODES } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { childFrameAssets } from "./frame-assets.js";
 import { childPlacement } from "./placement.js";
 import { childReviews } from "./review-slots.js";
+import { childTaskGrants } from "./task-grants-area.js";
+import { childConnectionNeed } from "./connection-need.js";
+import { childReturns } from "./returns.js";
 import { createUiFailureView, createUiRequest } from "@molis-ai/molis-work-ui-host";
 import type { SearchReferencesResponse } from "@molis-ai/molis-work-contracts/services/search";
 import type { UiPluginClientHost } from "@molis-ai/molis-work-contracts/platform/ui";
@@ -29,6 +33,7 @@ function bindStorage(port: MessagePort, config: FrameConfig): void {
   for (const area of ["localStorage", "sessionStorage"] as const) {
     const values = new Map(Object.entries(config.storage[area]));
     const write = (key: string, value: string | null) => {
+      if (document.body.inert) throw new Error("Account is switching");
       if (value === null) values.delete(key); else values.set(key, value);
       port.postMessage({ type: "storage", area, key, value } satisfies FrameUp);
     };
@@ -48,7 +53,7 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
     return globalThis.molisFrameFillMessage(config.messages[key] ?? key, values);
   };
   bindStorage(port, config);
-  const call = createUiRequest({ fetch: fetchThroughPort, origin: config.origin, token: () => "", newKey: () => crypto.randomUUID(), translate: L });
+  const call = createUiRequest({ fetch: fetchThroughPort, origin: config.origin, token: () => "", newKey: () => crypto.randomUUID(), translate: L }, UI_HOST_CLIENT_CODES);
   const view = createUiFailureView({ createElement: tag => document.createElement(tag), translate: L,
     copy: text => copyText(text), setTimeout, clearTimeout: id => clearTimeout(id as ReturnType<typeof setTimeout>) });
   view.install(document);
@@ -58,7 +63,7 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
   if (config.mount && ownRoots.length !== 1) throw new Error("View unavailable");
   const root = ownRoots[0] ?? document.querySelector<HTMLElement>("[data-work-surface]") ?? document.body;
   root.style.setProperty("--stage-title", config.stage.title); root.style.setProperty("--stage-desc", config.stage.description);
-  root.hidden = false; document.body.dataset.projectId = config.projectId; document.body.dataset.routePrefix = config.routePrefix;
+  root.hidden = false; document.body.dataset.projectId = config.projectId; document.body.dataset.pluginId = config.pluginId; document.body.dataset.routePrefix = config.routePrefix;
   const route = (path: string) => config.routePrefix + path;
   const ui = globalThis.molisFrameUi(L), scope = ui.mountPluginClient(document.body);
   if (!scope) throw new Error("Cannot mount plugin document");
@@ -73,14 +78,12 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
   let itemTab = config.itemTab;
   const intent = (name: Extract<FrameUp, { type: "ui" }>["name"], args: unknown[]) => send({ type: "ui", name, args });
   const host = { root, scope, translate: L, mountPluginClient: ui.mountPluginClient, side: config.side,
-    mount: config.mount, search: config.search, connectionSlot: childConnectionSlot(port, scope),
+    mount: config.mount, search: config.search, connectionSlot: childConnectionSlot(port, scope), connectionNeed: childConnectionNeed(port, scope),
     openView: (selection: import("@molis-ai/molis-work-contracts/platform/ui").UiViewSelection) => send({ type: "view-open", selection }),
     invalidateView: () => send({ type: "view-invalidate" }),
     ...pageDialogs(scope, L), confirmBox: pageConfirmBox(scope, L), drafts: childDrafts(port, scope),
     reviews: childReviews(port, scope), view: childView(port, scope), workspaces: childWorkspaces(port, scope),
-    // The platform's reads area (specs/proactive-assistant/task-grants-platform-area.md) is not drawn yet: every `place` is refused
-    // with one fixed error and nothing reaches the shell. P3-1 replaces this with the frame half that reports the element's place.
-    taskGrants: { place: () => Promise.reject(new Error("Unavailable")) },
+    taskGrants: childTaskGrants(port, scope), returns: childReturns(port, scope),
     ...pageFiles(port, scope, globalThis.molisWorkRequest, copyText),
     ...(config.nativeFiles ? { nativeFiles: childNativeFiles(port, scope) } : {}),
     terminal,
@@ -97,7 +100,7 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
     hideDirectory: () => intent("hideDirectory", []), showToast: (...args: unknown[]) => intent("showToast", args), page: () => config.page,
     status: (status: unknown) => intent("status", [status]), interaction: (element: HTMLElement, options: { onSubmit?: () => void }) => ui.interaction(element, {
       references: (source: string, query: string) => call<SearchReferencesResponse>(route("/api/host/plugin-page-actions"), {
-        body: { reference: { capability_id: "search.references", version: 1 }, input: { kinds: source.split(","), query, limit: 8 } }, scope,
+        body: { reference: { capability_id: "search.references", version: /* @version action.search.references */ 1 }, input: { kinds: source.split(","), query, limit: 8 } }, scope,
       }).then(found => ({ items: found.candidates.map(item => ({ value: item.kind + " " + item.id, label: item.label, meta: item.plugin_title })) })),
       ...options,
     }), receipts: ui.receipts,

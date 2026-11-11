@@ -65,13 +65,15 @@ export function registerAgentHostCapabilities<Context>(
   type Call = { source: Context; invocation: HostCapabilityInvocation };
   const denied = () => agentErrors.session_unknown("调用身份与插件或会话归属不一致");
   const waits = installationWaits(8);
+  // The Host-issued caller itself, never a copy: the Host knows its own issued callers by identity, so a round's reads as the plugin
+  // (`skills:read`, specs/capability-pack §3.1) carry the very one this call was admitted with.
   const pluginFor = (call: Call): (HostPluginCaller & { readonly project_id: string }) | undefined => {
     const caller = call.invocation.plugin;
     if (call.invocation.consumer === "plugin" && !caller) throw denied();
     if (!caller) return undefined;
     caller.assertActive();
-    if (caller.project_id === null || caller.project_id !== owners.projectId(call.source)) throw denied();
-    return { ...caller, project_id: caller.project_id };
+    if (!inProject(caller) || caller.project_id !== owners.projectId(call.source)) throw denied();
+    return caller;
   };
   const ports = {
     agentHost: (call: Call) => owners.agentHost(call.source),
@@ -96,7 +98,8 @@ export function registerAgentHostCapabilities<Context>(
     },
   };
   const register = <Input, Output>(definition: ActionDefinition<Input, Output>, handler: (call: Call, input: Input) => Output | Promise<Output>) =>
-    registrar.register(definition, async (source, input, invocation = { beforeEffect: async () => {}, assertAuthorityCurrent: () => {} }) => {
+    registrar.register(definition, async (source, input, invocation) => {
+      if (!invocation || typeof invocation.beforeEffect !== "function" || typeof invocation.assertAuthorityCurrent !== "function") throw denied();
       // Plugin hooks can run at every await. Validate and execute the same data,
       // even if a hook mutates the original request after its owner was checked.
       const snapshot = structuredClone(input);
@@ -223,6 +226,8 @@ function registerLifecycleActions<Context>(register: <Input, Output>(definition:
     return result.view;
   }));
 }
+/** A caller issued for a project, not the Home. */
+const inProject = (caller: HostPluginCaller): caller is HostPluginCaller & { readonly project_id: string } => caller.project_id !== null;
 
 function invocationAuthority(authority: AgentStartAuthority, invocation: HostCapabilityInvocation, caller?: HostPluginCaller): AgentStartAuthority {
   return { ...authority,

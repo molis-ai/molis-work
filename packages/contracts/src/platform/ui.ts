@@ -2,9 +2,19 @@ import type { ContractDescriptor } from "./package.js";
 import type { ActionAvailability, ActionReference } from "./actions.js";
 import type { AgentRuntimeDescriptor, AgentStepBoard } from "../services/agent-host.js";
 import type { AgentInputImpact, AgentInputKind, AgentInputQuestion, AgentInputTarget, AgentInputTreatment, AgentTurnSteer } from "../services/agent-inputs.js";
+import type { UiConnectionNeedOutcome, UiConnectionNeedTarget, UiConnectionSlotChoice, UiConnectionSlotRequest } from "./ui-connections.js";
+export * from "./ui-connections.js";
+import type { UiPageDrafts, UiPageReturns } from "./ui-returns.js";
+import type { UiSlotDescriptor } from "./ui-slots.js";
+export * from "./ui-returns.js";
+export * from "./ui-environment.js";
+export * from "./ui-files.js";
+export * from "./ui-text.js";
+export * from "./ui-state-rings.js";
+export * from "./ui-slots.js";
 
 /** A renderer contract requirement, not a callable business capability. */
-export const PLUGIN_PRESENTATION_CAPABILITY = { capability_id: "ui.plugin-presentation", version: 1 } as const;
+export const PLUGIN_PRESENTATION_CAPABILITY = { capability_id: "ui.plugin-presentation", version: /* @version action.ui.plugin-presentation */ 1 } as const;
 
 type AgentStepState = AgentStepBoard["nodes"][number]["state"];
 
@@ -52,24 +62,15 @@ export interface UiViewSelection {
   readonly intent?: "open" | "select";
 }
 
-/** Only the current or explicitly chosen account; the account directory stays in the trusted Host. */
-export interface UiConnectionSlotChoice {
-  readonly connection_id: string;
-  readonly label: string;
-  readonly auth_method: string;
-  readonly state: string;
-}
-
-export type UiConnectionSlotRequest<Element = unknown> = {
-  readonly slot_id: string;
-  readonly record_key: string;
-  readonly signal?: AbortSignal;
-} & ({ readonly mode: "read" } | { readonly mode: "choose"; readonly anchor: Element });
-
-/** Current-project directories only. Linking requires confirmation in the trusted Host; selecting grants no new access. */
+/**
+ * Current-project directories only: a page may ask to add an input folder, or to make one of the project's folders its output, and the
+ * trusted Host confirms each with the person first. Which folder a page shows is that page's own state (specs/shared-sources-and-surfaces
+ * §3); the project keeps no browsing choice to select.
+ */
 export interface UiPageWorkspaces {
   add(path: string): Promise<{ workspace_id: string }>;
-  select(workspaceId: string): Promise<void>;
+  /** For the 「设为输出」 beside a refusal that the folder is only an input (`projects.directory_input_only`); the Host's dialog names it as the Host reads it. */
+  setOutput(workspaceId: string): Promise<void>;
 }
 
 /** A Host-owned review surface. The page supplies filters and a slot, never a decision or review contents. */
@@ -102,18 +103,13 @@ export interface UiTaskGrantsAreaState {
  * The page supplies an empty element and the task's key (`TASK_GRANT_SUBJECT_KEY_PATTERN`); the installation and project come
  * from the page's authority, never from the page. The shell draws the area over that place, outside the page, and keeps its
  * switches, words and writes: what this project offers stays with the shell. All the page gets back is a height for the element,
- * one of two steps chosen by its width alone, and `UiTaskGrantsAreaState` after a write. Resolves once shown; rejects when
- * unavailable, with one fixed message whatever the reason. `signal`, the element leaving the document or the page closing
+ * one of two steps chosen by its width alone, and `UiTaskGrantsAreaState` after a write. Resolves once shown; a page placed while
+ * out of sight (opened behind, say) waits and is drawn when it shows, so the page need not try again. Rejects when unavailable,
+ * with one fixed message whatever the reason. `signal`, the element leaving the document or the page closing
  * closes the area; placing the same element again changes its key.
  */
 export interface UiPageTaskGrants<Element = unknown> {
   place(element: Element, key: string, options?: { signal?: AbortSignal; onChange?: (state: UiTaskGrantsAreaState) => void }): Promise<void>;
-}
-
-/** Browser-local unsent drafts, namespaced by the Host to this installation. Keys are at most 256 characters; values at most 16 MiB of UTF-8. */
-export interface UiPageDrafts {
-  read(key: string): Promise<string | null>;
-  write(key: string, value: string | null): Promise<void>;
 }
 
 /** Modal page interactions work without native browser dialogs in an isolated view. Closing the view cancels them. */
@@ -175,9 +171,9 @@ export interface UiPageFiles<Element = unknown> {
 }
 
 export const platformUiContract = {
-  contractId: "io.molis.work.platform.ui.v1",
+  contractId: /* @version contract.io.molis.work.platform.ui "io.molis.work.platform.ui.v{version}" */ "io.molis.work.platform.ui.v1",
   kind: "platform",
-  schemaVersion: 1,
+  schemaVersion: /* @version contract.io.molis.work.platform.ui */ 1,
   maturity: "partial",
   ssot: "docs/platform/UI-PLATFORM.md",
 } as const satisfies ContractDescriptor;
@@ -505,12 +501,6 @@ export interface UiSideContextMessage {
   readonly context: UiSideContext | null;
 }
 
-export interface UiSlotDescriptor {
-  readonly slot_id: string;
-  readonly version: number;
-  readonly accepts: readonly string[];
-}
-
 export interface UiSurfaceDescriptor {
   readonly surface_id: string;
   readonly target_slot_id: string;
@@ -646,6 +636,14 @@ export interface UiPluginClientHost<Element = unknown, Dialog = Element, Media =
   openView(selection: UiViewSelection): void;
   invalidateView(): void;
   connectionSlot(request: UiConnectionSlotRequest<Element>): Promise<UiConnectionSlotChoice | null>;
+  /**
+   * The platform's connection card at `place`, an empty element the page leaves where the account is missing. The shell draws it
+   * outside the page and keeps the account list, the key field and every write, each one the person's own click in the trusted
+   * card; asking writes nothing. Resolves `connected` (at once when the target already has a usable account) or `cancelled`; while
+   * the person is still connecting it waits, and `signal` is the page's only way out. Rejects with an `AbortError` when `signal`
+   * aborts, the view changes or the page closes, and with one fixed message when unavailable, whatever the reason.
+   */
+  connectionNeed(place: Element, target: UiConnectionNeedTarget, options?: { signal?: AbortSignal }): Promise<UiConnectionNeedOutcome>;
   openItem(surface: string, itemId: string, title?: string): void;
   openBeside(surface: string, itemId: string, title?: string): void;
   openPlugin(surface: string, view?: string, panel?: string): void;
@@ -668,15 +666,16 @@ export interface UiPluginClientHost<Element = unknown, Dialog = Element, Media =
   confirmBox(dialog: Dialog, ok: Element, run?: () => Promise<unknown>): Promise<boolean>;
   interaction(card: Element, options: { onSubmit?: () => void }): UiPageInteraction;
   readonly drafts: UiPageDrafts;
+  /** Settings for what a step needs, and the way back to this page with the step named (specs/draft-and-return §2.4). */
+  readonly returns: UiPageReturns;
   /** The platform's reads area on this installation's own tasks; the page gives a place and a key, never categories. */
   readonly taskGrants: UiPageTaskGrants<Element>;
 }
 
-/**
- * What a page asks of the Host over HTTP (specs/archive/repository-anti-corruption W3-10). Every request goes out with
- * `cache: "no-store"` and none is ever sent twice by the helper: whether to ask again is the person's decision.
- */
+/** A page's HTTP request to the Host (W3-10). The helper uses `cache: "no-store"` and leaves retries to the caller. */
 export interface UiRequestInit {
+  /** Include the page control token on a protected same-origin GET; no one-time write key is added. */
+  readonly control?: boolean;
   /** Default: `POST` when there is a `body`, otherwise `GET`. */
   readonly method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   /** Sent as JSON. A `GET` carries none. */
@@ -796,3 +795,5 @@ export type ReceiptWords = {
   IMPACT: Record<AgentInputImpact, string>; TARGET: Record<AgentInputTarget["kind"], string>; QUESTION: Record<AgentInputQuestion["state"], string>;
   STEP: Record<AgentStepState, string>; MARK: Partial<Record<AgentStepState, string>>;
 };
+
+export { UI_HOST_CLIENT_CODES, type UiHostClientCode } from "./ui-request-errors.js";

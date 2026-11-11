@@ -13,7 +13,8 @@ const NAMES = ["first", "second", "third", "fourth", "fifth", "sixth"];
 
 // What an approved Git operation produced is kept in one Home file beside its review (`git-operation-details.json`), since a receipt
 // only says whether it happened. Operations in different workspaces run at the same time when a person approves them together, and
-// each keeps its own description: the saves are made one after another, so none overwrites or renames away another's.
+// each keeps its own description: the saves are made one after another, so none overwrites or renames away another's. Git writes only
+// in a project's output (SSC-15), so each workspace is the output of a project of its own, all in one Home.
 test("Git operations approved together in several workspaces each keep what they produced", { timeout: 60_000 }, async t => {
   const root = await realpath(await mkdtemp(join(tmpdir(), "git-operation-details-")));
   const workspaces = [];
@@ -28,33 +29,38 @@ test("Git operations approved together in several workspaces each keep what they
     workspaces.push({ workspace_id: name, canonical_path: repo, display_name: name, realpath_verified: true });
   }
   t.mock.method(globalThis, "fetch", async () => { throw new Error("this test sends nothing"); });
-  const workspacesFor = async () => workspaces;
-  const host = new MolisWorkLocalHost({ completeText: null, workspacesFor, workspaceFor: () => workspaces[0]! });
-  const reference = molisWorkHostProjectReference({ databasePath: join(root, "project.sqlite"), projectId: "project" });
-  const composition = composeAgentHost({ localHost: host, homeDirectory: root, workspaceFor: () => workspaces[0]!, workspacesFor,
+  const workspaceFor = (projectId: string) => workspaces.find(workspace => workspace.workspace_id === projectId)!;
+  const workspacesFor = async (projectId: string) => [workspaceFor(projectId)];
+  const host = new MolisWorkLocalHost({ completeText: null, workspacesFor, workspaceFor });
+  const composition = composeAgentHost({ localHost: host, homeDirectory: root, workspaceFor, workspacesFor,
     prologue: { storageRoot: join(root, "runtime"), resolveCredential: () => "fixture-only",
       modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }) } });
-  const store = new LocalProjectDatabase(join(root, "plugins.sqlite"));
-  registerProbe(host.actionRegistry(reference), "project");
-  t.after(async () => { await composition.dispose(); await host.close(); store.close(); await rm(root, { recursive: true, force: true }); });
+  const stores: LocalProjectDatabase[] = [];
+  t.after(async () => { await composition.dispose(); await host.close(); for (const store of stores) store.close(); await rm(root, { recursive: true, force: true }); });
   const plugin = callerPlugin("details", "project", { [OPERATION]: false, "workspace:read": true },
     [prepareGitOperationCapability.capability_id, readGitOperationsCapability.capability_id, workspaceReadActions.git.capability_id]);
-  await startPlugin(host, reference, store, plugin, { grants: [OPERATION], dependencies: host.client(reference) });
-  const actions = plugin.actions("project"), reviews = composition.agentHost.reviews;
+  for (const name of NAMES) {
+    const reference = molisWorkHostProjectReference({ databasePath: join(root, `${name}.sqlite`), projectId: name });
+    const store = new LocalProjectDatabase(join(root, `${name}-plugins.sqlite`));
+    stores.push(store);
+    registerProbe(host.actionRegistry(reference), "project");
+    await startPlugin(host, reference, store, plugin, { grants: [OPERATION], dependencies: host.client(reference) });
+  }
+  const actions = (projectId: string) => plugin.actions(projectId), reviews = composition.agentHost.reviews;
   const prepared = [];
   for (const { workspace_id } of workspaces) {
-    const summary = await actions.invoke(workspaceReadActions.git, { workspace_id, kind: "summary" });
+    const summary = await actions(workspace_id).invoke(workspaceReadActions.git, { workspace_id, kind: "summary" });
     assert.ok(summary.outcome === "summary", "the fixture repository reads");
-    prepared.push(await actions.invoke(prepareGitOperationCapability, { workspace_id, operation_id: `operation-${workspace_id}`, revision: summary.revision,
+    prepared.push(await actions(workspace_id).invoke(prepareGitOperationCapability, { workspace_id, operation_id: `operation-${workspace_id}`, revision: summary.revision,
       operation: { action: "branch-create", name: "fixture-branch", checkout: false } }));
   }
   // The person approves all of them at once: the operations run, and save what they produced, at the same time.
   const receipts = await Promise.all(prepared.map(({ review_id }) => reviews.respond({ review_id, decision: "approve", actor_id: "web-user" })));
   assert.deepEqual(receipts.map(receipt => [receipt.status, receipt.effect_settled, receipt.effect_error]), NAMES.map(() => ["approved", true, null]));
   for (const { workspace_id } of workspaces) {
-    const records = await actions.invoke(readGitOperationsCapability, { workspace_id });
+    const records = await actions(workspace_id).invoke(readGitOperationsCapability, { workspace_id });
     assert.deepEqual(records.map(record => [record.operation_id, record.outcome, record.detail]), [[`operation-${workspace_id}`, "succeeded", "已新建分支「fixture-branch」"]],
       `${workspace_id} keeps what its operation produced`);
   }
-  assert.deepEqual(Object.keys(JSON.parse(await readFile(join(root, "git-operation-details.json"), "utf8"))).sort(), NAMES.map(name => `project:operation-${name}`).sort());
+  assert.deepEqual(Object.keys(JSON.parse(await readFile(join(root, "git-operation-details.json"), "utf8"))).sort(), NAMES.map(name => `${name}:operation-${name}`).sort());
 });

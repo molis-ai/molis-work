@@ -1,22 +1,21 @@
 import type { McpToolDefinition } from "./protocol.js";
 import { managementGoalTools, type McpManagementActionSource } from "./goal-tools.js";
+import { MANAGEMENT_GOAL_TOOL_NAMES } from "./tool-dispatch.js";
 import { CONTEXT_TOOLS } from "./context-tools.js";
 
 /**
  * Platform MCP tools only: connecting a Runtime to a project, and the trusted management entry's own tools. Every
  * capability is an action tool, discovered from the action catalog and granted per client (Local Host assembles them).
  */
-const SERVER_INFO = { name: "molis-work-mcp", version: "1.0.0" };
+const SERVER_INFO = { name: "molis-work-mcp", version: /* @version identity.mcp.server */ "1.0.0" };
 
-/** The management tools that call Goals; their text comes from the action directory, so the list of them is the Host's to build. */
-const MANAGEMENT_GOAL_TOOL_NAMES = ["molis_work_v1_initialize", "molis_work_v1_goal_tree_decide", "molis_work_v1_event_decide"] as const;
 
 /** Every platform tool, in the order a management client lists them: the Goals management tools, then the connection tools. */
 export function platformMcpTools(read: McpManagementActionSource): McpToolDefinition[] {
   return [...managementGoalTools(read), ...CONTEXT_TOOLS];
 }
 
-const PLATFORM_TOOL_NAMES: ReadonlySet<string> = new Set<string>([...MANAGEMENT_GOAL_TOOL_NAMES, ...CONTEXT_TOOLS.map(tool => tool.name)]);
+const PLATFORM_TOOL_NAMES: ReadonlySet<string> = new Set<string>([...Object.values(MANAGEMENT_GOAL_TOOL_NAMES), ...CONTEXT_TOOLS.map(tool => tool.name)]);
 
 const RUNTIME_CONTEXT_TOOL_NAMES = new Set([
   "molis_work_v1_context_resolve",

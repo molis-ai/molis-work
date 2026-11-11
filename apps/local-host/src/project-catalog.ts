@@ -1,7 +1,9 @@
+import type { RuntimeContextBindingPage } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 import { createCatalogCommit, type CatalogCommit } from "./catalog-commit.js";
 import { preflightMemoryHome, prepareMemoryHome } from "./memory/memory-initialization.js";
 import { ModelProviderStore } from "./model-provider-store.js";
-import { acquireStorageOwner, assertStorageOwner, assertNoPendingHomeRestore, retainStorageOwner, type StorageOwner, ensureStorageSpace, bindDatabaseSpace, createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { assertStorageOwner, assertNoPendingHomeRestore, retainStorageOwner, type StorageOwner, ensureStorageSpace, bindDatabaseSpace, createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { acquireUpgradedHomeOwner } from "./home-storage-lifetime.js";
 import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
 import { ManagedProjectFiles } from "./managed-project-files.js";
 import { PERSONAL_SPACE_PROJECT_ID } from "./personal-space.js";
@@ -24,7 +26,7 @@ import { assertCurrentCatalog, assertOwnedCatalog, inspectCurrentCatalogSnapshot
 import { PluginTerminalPanels } from "./plugin-terminal-panels.js";
 import { catalogErrors } from "./project-catalog-contract.js";
 export { catalogSchemaCompatibilityError } from "./project-catalog-contract.js";
-import { promises as fs } from "node:fs";
+import { promises as fs, realpathSync } from "node:fs";
 import path from "node:path";
 import { resolveConfiguredHome } from "./product-home.js";
 import { LocalSqliteStorage, type SqliteDatabase } from "@molis-ai/molis-work-storage";
@@ -36,17 +38,20 @@ import type {
   ProjectPluginMembership,
   ProjectPluginRegistry,
   RemoveProjectPluginInput,
+  VersionedProjectPluginMembership,
   AddWorkspaceProjectInput,
-  ChangeWorkspaceProjectInput,
+  ChangeDirectoriesInput,
   DeleteProjectInput,
   ProjectDeletionRecord,
   ProjectDeletionResult,
   ProjectRecord,
   ProjectSelection,
   ProjectWorkspaceDirectoryRecord,
+  ProjectDirectories,
   ProjectWorkspaceMembership,
-  RepairWorkspaceProjectInput,
+  ProjectWorkspaceRef,
 } from "@molis-ai/molis-work-contracts/modules/projects";
+import { directoryInputOnly, projectDirectoryErrors } from "@molis-ai/molis-work-contracts/modules/projects";
 import {
   normalizeProjectWorkspace,
   ProjectsModule,
@@ -92,7 +97,7 @@ export type MolisWorkProjectBindingScope = import("@molis-ai/molis-work-contract
 
 export type MolisWorkWorkspaceMembership = ProjectWorkspaceMembership;
 export type MolisWorkWorkspaceDirectoryRecord = ProjectWorkspaceDirectoryRecord;
-export type { AddWorkspaceProjectInput, RepairWorkspaceProjectInput, ChangeWorkspaceProjectInput };
+export type { AddWorkspaceProjectInput, ChangeDirectoriesInput };
 export type MolisWorkProjectSelection = ProjectSelection;
 
 /**
@@ -135,10 +140,6 @@ export type MolisWorkProjectDeletionResult = ProjectDeletionResult;
  */
 export type CreateAndBindRuntimeContextInput = import("@molis-ai/molis-work-contracts/modules/private-work-context").CreateAndBindRuntimeContextInput;
 
-export interface LocalCatalogPlatform {
-  createPanelSchema(db: SqliteDatabase): void;
-}
-
 /** The complete memory preference gate precedes the catalog's first filesystem or SQLite write. */
 async function prepareCatalogStorage(options: MolisWorkProjectCatalogOptions) {
   const homeDirectory = resolveConfiguredHome(options.homeDirectory);
@@ -159,17 +160,26 @@ async function prepareCatalogStorage(options: MolisWorkProjectCatalogOptions) {
   return { homeDirectory, databasePath, existed, storage };
 }
 
-/** Local catalog resource lifetime and explicit composition of Project, Session and platform owners. */
+type ProjectPluginDirectory = () => readonly ProjectPluginId[];
 /**
  * The registry a Home's projects validate against. Which Plugins a project may enable comes from what this build ships, not from a list
  * compiled into Projects; which are 常开 is worked out from the install records and the Home's consent ledger each time it is asked. The
  * Home's own registration adds its personal plugins outside the build, so a project can hide those too (#679).
  */
-function homeProjectPlugins(homeDirectory: string): ProjectPluginRegistry {
-  return { ...BUILTIN_PLUGIN_REGISTRY, alwaysOn: () => alwaysOnProjectPlugins(homeDirectory),
+function homeProjectPlugins(homeDirectory: string) {
+  let current: ProjectPluginDirectory | undefined;
+  const registry: ProjectPluginRegistry = { ...BUILTIN_PLUGIN_REGISTRY, alwaysOn: () => [...(current?.() ?? alwaysOnProjectPlugins(homeDirectory))],
     isPersonal: pluginId => BUILTIN_PLUGIN_REGISTRY.isPersonal?.(pluginId) === true || homePluginsOutsideBuild(homeDirectory).includes(pluginId) };
+  // A page may borrow its own directory snapshot only during this synchronous read. Other callers see the live registry.
+  const withDirectory = <T>(directory: ProjectPluginDirectory | undefined, read: () => T): T => {
+    const previous = current;
+    current = directory;
+    try { return read(); } finally { current = previous; }
+  };
+  return { registry, withDirectory };
 }
 
+/** Local catalog resource lifetime and explicit composition of Project, Session and platform owners. */
 export class MolisWorkProjectCatalog {
   readonly homeDirectory: string;
   readonly projectsDirectory: string;
@@ -177,8 +187,10 @@ export class MolisWorkProjectCatalog {
   private readonly projectFiles: ManagedProjectFiles;
   readonly projectDeletion: ManagedProjectDeletion;
   readonly recycle: ProjectsModule['recycle'];
+  readonly setProjectPlugin: ProjectsModule["commands"]["setProjectPlugin"];
   private readonly demoProjects: DemoProjectLifecycle;
   private readonly projects: ProjectsModule;
+  private readonly withProjectPluginDirectory: ReturnType<typeof homeProjectPlugins>["withDirectory"];
   private readonly runtimeContexts: ReturnType<typeof createRuntimeContextModule>;
   /** The terminals plugins start through `services.terminal`. */
   readonly terminalPanels: PluginTerminalPanels;
@@ -205,10 +217,17 @@ export class MolisWorkProjectCatalog {
     this.homeDirectory = homeDirectory;
     this.projectsDirectory = path.join(homeDirectory, "projects");
     this.databasePath = path.join(this.projectsDirectory, "catalog.db");
+    // `outputs` is derived from the trusted Home each time the catalog opens, never stored: a copied Home reads its own (S-102).
+    const space = ensureStorageSpace(homeDirectory), realHome = realpathSync.native(homeDirectory), outputsDirectory = path.join(realHome, "outputs");
+    const { registry, withDirectory } = homeProjectPlugins(homeDirectory);
+    this.withProjectPluginDirectory = withDirectory;
     this.projects = new ProjectsModule({
-      spaceId: ensureStorageSpace(homeDirectory).spaceId,
+      spaceId: space.spaceId,
       db, projects_directory: this.projectsDirectory,
-      plugins: homeProjectPlugins(homeDirectory),
+      outputs_directory: outputsDirectory,
+      // An account Home is `<root>/spaces/<space_id>`: a folder named for another device's directory stays out of the whole root (SSC-27).
+      root_home_directory: space.kind === "local" ? realHome : path.dirname(path.dirname(realHome)),
+      plugins: registry,
     });
     this.runtimeContexts = createRuntimeContextModule({
       db, ledger, projects: this.projects, validation: contextBindingValidation,
@@ -216,13 +235,14 @@ export class MolisWorkProjectCatalog {
     this.projectFiles = new ManagedProjectFiles(this.projects, this.projectsDirectory, contextBindingValidation, this.commit);
     this.personalProjects = new PersonalProjectProvisioner(homeDirectory, this.projectFiles, this.projects);
     this.recycle=this.projects.recycle;this.wasProjectPluginRemoved=this.projects.query.wasProjectPluginRemoved;
+    this.setProjectPlugin = this.projects.commands.setProjectPlugin;
     this.ensureSyncedProject = this.personalProjects.ensureSyncedProject.bind(this.personalProjects);
     this.prepareSyncedProjectRestore = this.personalProjects.prepareSyncedProjectRestore.bind(this.personalProjects);
     this.projectPluginRequirements=id=>{this.projects.query.getProject(id);return projectPluginRequirements(db,id,p=>BUILTIN_PLUGIN_REGISTRY.has(p)||BUILTIN_PLUGIN_REGISTRY.isPersonal?.(p)===true);};
     this.projectDeletion = new ManagedProjectDeletion(this.projects, this.projectsDirectory, {
       removeBindings: (projectId, actorId, at) => this.runtimeContexts.removeProjectFacts(projectId, actorId, at),
       removePanels: projectId => this.terminalPanels.deleteForProject(projectId),
-    }, contextBindingValidation, this.commit, projectDeletedHooksFor(homeDirectory));
+    }, contextBindingValidation, this.commit, projectDeletedHooksFor(homeDirectory), outputsDirectory);
     this.demoProjects = new DemoProjectLifecycle(
       this.projects,
       this.projectsDirectory,
@@ -236,24 +256,21 @@ export class MolisWorkProjectCatalog {
       appendProjectEvent: (projectId: string, type: string, actorId: string, payload: Record<string, unknown>) => this.projects.lifecycle.appendEvent(projectId, type, actorId, payload) });
   }
 
-  /** Current owner composition in disposable memory authenticates the full archived catalog, including desktop tables. */
-  static inspectSnapshot(database: SqliteDatabase, platform: LocalCatalogPlatform): Readonly<Record<string, string | number>> {
-    return inspectCurrentCatalogSnapshot(database, platform.createPanelSchema);
+  /** Current owner composition in disposable memory authenticates the full archived catalog, without retired desktop tables. */
+  static inspectSnapshot(database: SqliteDatabase): Readonly<Record<string, string | number>> {
+    return inspectCurrentCatalogSnapshot(database);
   }
 
-  static async open(options: MolisWorkProjectCatalogOptions, platform: LocalCatalogPlatform): Promise<MolisWorkProjectCatalog> {
+  static async open(options: MolisWorkProjectCatalogOptions): Promise<MolisWorkProjectCatalog> {
     const home = resolveConfiguredHome(options.homeDirectory), root = agentRuntimeDirectory(home);
-    if (options.storageOwner === undefined) {
-      assertNoPendingHomeRestore(root);
-      preflightMemoryHome(home);
-    }
-    const owned = options.storageOwner === undefined ? acquireStorageOwner(root) : undefined;
+    // Given an owner, that owner's taker has already upgraded this Home.
+    const owned = options.storageOwner === undefined ? acquireUpgradedHomeOwner(home, preflightMemoryHome) : undefined;
     const owner = options.storageOwner ?? owned!;
     let retained: ReturnType<typeof retainStorageOwner> | undefined;
     let opened: MolisWorkProjectCatalog | undefined;
     try {
       retained = retainStorageOwner(root, owner);
-      opened = await this.openOwned({ ...options, homeDirectory: home, storageOwner: owner }, platform);
+      opened = await this.openOwned({ ...options, homeDirectory: home, storageOwner: owner });
     } catch (error) { retained?.release(); owned?.release(); throw error; }
     const holding = retained;
     opened.releaseOwner = () => { holding.release(); owned?.release(); };
@@ -261,7 +278,7 @@ export class MolisWorkProjectCatalog {
     return opened;
   }
 
-  private static async openOwned(options: MolisWorkProjectCatalogOptions, platform: LocalCatalogPlatform): Promise<MolisWorkProjectCatalog> {
+  private static async openOwned(options: MolisWorkProjectCatalogOptions): Promise<MolisWorkProjectCatalog> {
     const { homeDirectory, databasePath, existed, storage } = await prepareCatalogStorage(options);
     const db = storage.db;
     try {
@@ -286,7 +303,7 @@ export class MolisWorkProjectCatalog {
           initializeSchema: !initialized,
           authorize: (access) => access.scope.kind === "personal" && access.scope.id === "private-work-context",
         });
-        if (!initialized) { bindDatabaseSpace(db,ensureStorageSpace(homeDirectory)); initializeCatalog(storage, platform.createPanelSchema); }
+        if (!initialized) { bindDatabaseSpace(db,ensureStorageSpace(homeDirectory)); initializeCatalog(storage); }
         return new MolisWorkProjectCatalog(storage, homeDirectory, ledger);
       }).immediate();
       return catalog;
@@ -315,12 +332,15 @@ export class MolisWorkProjectCatalog {
     return this.projects.query.listProjects();
   }
 
-  projectPluginMembership(projectId: string): ProjectPluginMembership {
-    return this.projects.query.projectPluginMembership(projectId);
+  projectPluginMembership(projectId: string, directory?: () => readonly ProjectPluginId[]): ProjectPluginMembership {
+    return this.withProjectPluginDirectory(directory, () => this.projects.query.projectPluginMembership(projectId));
+  }
+  projectPluginMembershipWithRevision(projectId: string, directory?: ProjectPluginDirectory): VersionedProjectPluginMembership {
+    return this.withProjectPluginDirectory(directory, () => this.projects.query.projectPluginMembershipWithRevision(projectId));
   }
 
-  listProjectPlugins(projectId: string): ProjectPluginId[] {
-    return this.projects.query.listProjectPlugins(projectId);
+  listProjectPlugins(projectId: string, directory?: () => readonly ProjectPluginId[]): ProjectPluginId[] {
+    return this.withProjectPluginDirectory(directory, () => this.projects.query.listProjectPlugins(projectId));
   }
 
   addProjectPlugin(input: AddProjectPluginInput): ProjectPluginId[] {
@@ -349,12 +369,35 @@ export class MolisWorkProjectCatalog {
     });
   }
   listRuntimeContextBindingEvents(
-    context?: RuntimeWorkContext,
-  ): MolisWorkRuntimeContextBindingEvent[] { return this.runtimeContexts.records.listRuntimeContextBindingEvents(context); }
-  listRuntimeContextBindings(): MolisWorkRuntimeContextBinding[] { return this.runtimeContexts.records.listRuntimeContextBindings(); }
+    context?: RuntimeWorkContext, page?: RuntimeContextBindingPage,
+  ): MolisWorkRuntimeContextBindingEvent[] { return this.runtimeContexts.records.listRuntimeContextBindingEvents(context, page); }
+  listRuntimeContextBindings(page?: RuntimeContextBindingPage): MolisWorkRuntimeContextBinding[] { return this.runtimeContexts.records.listRuntimeContextBindings(page); }
 
-  preferredWorkspacePath(projectId: string): string | null {
-    return this.projects.query.preferredWorkspacePath(projectId);
+  /** The project's inputs and output, a folder's state looked at now (`projects.directories.get@1`). */
+  projectDirectories(projectId: string): ProjectDirectories {
+    return this.projects.query.projectDirectories(projectId);
+  }
+
+  /** Where a read, a write or a run that names no folder goes (SSC-17). */
+  outputDirectory(projectId: string): ProjectWorkspaceRef {
+    return this.projects.query.outputDirectory(projectId);
+  }
+
+  /** The id of this project's default output directory, whether or not it is the output now. */
+  defaultOutputDirectoryId(projectId: string): string {
+    return this.projects.query.defaultOutputDirectoryId(projectId);
+  }
+
+  /**
+   * Before a folder of the project is touched on disk. Only this project's folders: an id from elsewhere is refused before anything
+   * looks at the disk. `write` (a write, a terminal, a Character or an Agent run in it) needs the output role — an input folder is only
+   * read (SSC-15, user 2026-11-08) — and makes a default output directory that is not there yet (§3, SSC-24).
+   */
+  prepareWorkspaceDirectory(projectId: string, workspaceId: string, mode: "read" | "write"): { path: string; exists: boolean } {
+    const folder = this.projects.query.projectDirectories(projectId).directories.find(item => item.workspace_id === workspaceId);
+    if (!folder) throw projectDirectoryErrors.directory_revoked("这个文件夹已经不是当前项目的目录");
+    if (mode === "write" && !folder.roles.includes("output")) throw directoryInputOnly(workspaceId);
+    return this.projects.lifecycle.prepareWorkspaceDirectory(workspaceId, mode);
   }
 
   /** Safe Web/settings view: deliberately omits the canonical filesystem path. */
@@ -371,16 +414,9 @@ export class MolisWorkProjectCatalog {
     return this.projects.commands.addWorkspaceProject(input);
   }
 
-  repairWorkspaceProject(input: RepairWorkspaceProjectInput): MolisWorkWorkspaceDirectoryRecord {
-    return this.projects.commands.repairWorkspaceProject(input);
-  }
-
-  setWorkspaceDefault(input: ChangeWorkspaceProjectInput): MolisWorkWorkspaceMembership[] {
-    return this.projects.commands.setWorkspaceDefault(input);
-  }
-
-  removeWorkspaceMembership(input: ChangeWorkspaceProjectInput): MolisWorkWorkspaceMembership[] {
-    return this.projects.commands.removeWorkspaceMembership(input);
+  /** One change of `projects.directories.*`, from the revision the person read. */
+  changeDirectories(input: ChangeDirectoriesInput): ProjectDirectories {
+    return this.projects.commands.changeDirectories(input);
   }
   async createProject(input: CreateMolisWorkProjectInput): Promise<MolisWorkProjectRecord> { return this.projectFiles.createProject(input); }
   /** The personal space exists once it is first used; creating it again returns the same one. */

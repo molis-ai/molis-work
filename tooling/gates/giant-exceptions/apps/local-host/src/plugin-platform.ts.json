@@ -1,0 +1,9 @@
+{
+  "exceptions": {
+    "function apps/local-host/src/plugin-platform.ts#createPluginPlatform": {
+      "kind": "cohesive-unit",
+      "reason": "一个项目插件平台的组合根：构造既有 executor、Runtime、supervisor、wiring 与 events，并绑定统一的启动关闭顺序；Home 权限上限是此处注入的端口，拆开会分散构造顺序及生命周期所有权。",
+      "size": 166
+    }
+  }
+}

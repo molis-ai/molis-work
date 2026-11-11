@@ -1,6 +1,7 @@
 import type { WorkflowLink, WorkflowVerdict } from "../model.js";
 import { ruleKey } from "./chain.js";
-import { messageOf, said } from "./dom.js";
+import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
+import { said } from "./dom.js";
 import type { WorkflowsPage } from "./page.js";
 import { toast } from "./toast.js";
 import type { JudgmentChoice, Ready, Station, StationInfo } from "./types.js";

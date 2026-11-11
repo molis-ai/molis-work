@@ -66,6 +66,10 @@
       "types": "./dist/platform/dom-events.d.ts",
       "import": "./dist/platform/dom-events.js"
     },
+    "./platform/external-tools": {
+      "types": "./dist/platform/external-tools.d.ts",
+      "import": "./dist/platform/external-tools.js"
+    },
     "./platform/kernel": {
       "types": "./dist/platform/kernel.d.ts",
       "import": "./dist/platform/kernel.js"
@@ -98,6 +102,10 @@
       "types": "./dist/platform/model-prompts.d.ts",
       "import": "./dist/platform/model-prompts.js"
     },
+    "./platform/kit-report": {
+      "types": "./dist/platform/kit-report.d.ts",
+      "import": "./dist/platform/kit-report.js"
+    },
     "./platform/plugin-events": {
       "types": "./dist/platform/plugin-events.d.ts",
       "import": "./dist/platform/plugin-events.js"
@@ -121,6 +129,14 @@
     "./platform/storage": {
       "types": "./dist/platform/storage.d.ts",
       "import": "./dist/platform/storage.js"
+    },
+    "./platform/settings": {
+      "types": "./dist/platform/settings.d.ts",
+      "import": "./dist/platform/settings.js"
+    },
+    "./platform/blueprints": {
+      "types": "./dist/platform/blueprints.d.ts",
+      "import": "./dist/platform/blueprints.js"
     },
     "./platform/testing": {
       "types": "./dist/platform/testing.d.ts",
@@ -149,6 +165,14 @@
     "./services/assistant": {
       "types": "./dist/services/assistant.d.ts",
       "import": "./dist/services/assistant.js"
+    },
+    "./services/blueprints": {
+      "types": "./dist/services/blueprints.d.ts",
+      "import": "./dist/services/blueprints.js"
+    },
+    "./services/home": {
+      "types": "./dist/services/home.d.ts",
+      "import": "./dist/services/home.js"
     },
     "./services/contextual": {
       "types": "./dist/services/contextual.d.ts",
@@ -198,6 +222,10 @@
       "types": "./dist/services/knowledge.d.ts",
       "import": "./dist/services/knowledge.js"
     },
+    "./services/sessions": {
+      "types": "./dist/services/sessions.d.ts",
+      "import": "./dist/services/sessions.js"
+    },
     "./services/search": {
       "types": "./dist/services/search.d.ts",
       "import": "./dist/services/search.js"
@@ -206,9 +234,21 @@
       "types": "./dist/services/placement.d.ts",
       "import": "./dist/services/placement.js"
     },
+    "./services/surface-composition": {
+      "types": "./dist/services/surface-composition.d.ts",
+      "import": "./dist/services/surface-composition.js"
+    },
     "./services/memory": {
       "types": "./dist/services/memory.d.ts",
       "import": "./dist/services/memory.js"
+    },
+    "./services/skills": {
+      "types": "./dist/services/skills.d.ts",
+      "import": "./dist/services/skills.js"
+    },
+    "./services/kit": {
+      "types": "./dist/services/kit.d.ts",
+      "import": "./dist/services/kit.js"
     },
     "./modules/characters": {
       "types": "./dist/modules/characters.d.ts",
@@ -246,6 +286,18 @@
       "types": "./dist/platform/plugin-integrations.d.ts",
       "import": "./dist/platform/plugin-integrations.js"
     },
+    "./platform/project-materials": {
+      "types": "./dist/platform/project-materials.d.ts",
+      "import": "./dist/platform/project-materials.js"
+    },
+    "./platform/composer": {
+      "types": "./dist/platform/composer.d.ts",
+      "import": "./dist/platform/composer.js"
+    },
+    "./platform/presentation": {
+      "types": "./dist/platform/presentation.d.ts",
+      "import": "./dist/platform/presentation.js"
+    },
     "./platform/plugin-attention": {
       "types": "./dist/platform/plugin-attention.d.ts",
       "import": "./dist/platform/plugin-attention.js"
@@ -253,6 +305,10 @@
     "./platform/plugin-sync": {
       "types": "./dist/platform/plugin-sync.d.ts",
       "import": "./dist/platform/plugin-sync.js"
+    },
+    "./services/account": {
+      "types": "./dist/services/account.d.ts",
+      "import": "./dist/services/account.js"
     }
   },
   "files": [

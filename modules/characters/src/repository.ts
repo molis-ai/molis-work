@@ -1,3 +1,4 @@
+import { rollbackPreservingError } from "@molis-ai/molis-work-storage";
 import type { DatabaseSync } from "node:sqlite";
 import type { CharacterDraft } from "@molis-ai/molis-work-contracts/modules/characters";
 
@@ -30,6 +31,6 @@ export class CharactersRepository {
   immediate<T>(operation: () => T): T {
     this.db.exec("BEGIN IMMEDIATE");
     try { const result = operation(); this.db.exec("COMMIT"); return result; }
-    catch (error) { this.db.exec("ROLLBACK"); throw error; }
+    catch (error) { rollbackPreservingError(error, () => this.db.exec("ROLLBACK")); throw error; }
   }
 }

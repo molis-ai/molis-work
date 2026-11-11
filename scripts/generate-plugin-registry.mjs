@@ -33,6 +33,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { isMainScript } from "./script-paths.mjs";
 import ts from "typescript";
 
 export const CATALOG_FILE = "apps/workbench/src/builtin-plugins.ts";
@@ -240,8 +241,7 @@ export function pluginRegistryProblems(snapshot, packages) {
   return [...stale, ...manifests];
 }
 
-const invokedPath = process.argv[1] ? pathToFileURL(path.resolve(process.argv[1])).href : null;
-if (invokedPath === import.meta.url) {
+if (isMainScript(import.meta.url)) {
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
   const snapshot = { read: (file) => { try { return readFileSync(path.join(root, file), "utf8"); } catch { return null; } } };
   // Loaded here, not imported above: the health gate imports this module in scratch layouts that have no registry.

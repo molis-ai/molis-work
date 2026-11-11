@@ -675,3 +675,19 @@ fn unregister() {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{register_chord, HotKeyChord};
+    use std::ptr;
+    #[test]
+    fn d0061_unmodified_hotkey_is_refused_before_calling_carbon() {
+        let chord = HotKeyChord {
+            key_code: 2,
+            carbon_modifiers: 0,
+        };
+        let (registered, reference) = register_chord(ptr::null_mut(), chord, 0, 1);
+        assert!(!registered);
+        assert!(reference.is_null());
+    }
+}

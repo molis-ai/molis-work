@@ -16,8 +16,9 @@ function fixtureCleanup(t: TestContext) {
   return { context, async close() { if (callback) await callback(); } };
 }
 
-// AC27: typing Chinese through an input method, the Enter that commits a candidate is the IME's, never a Send.
-test("底栏：输入法组合中按回车只确认候选、不发送；组合结束后回车才发送", { timeout: 60_000 }, async t => {
+// AC27: typing Chinese through an input method, the Enter that commits a candidate is the IME's, never a Send — not even with
+// the send modifier held (UIC-05: ⌘/Ctrl+Enter sends, a bare Enter is a new line).
+test("底栏：输入法组合中按 ⌘↵ 只确认候选、不发送；组合结束后 ⌘↵ 才发送", { timeout: 60_000 }, async t => {
   const cleanup = fixtureCleanup(t);
   let homeDirectory: string | undefined;
   t.after(async () => {
@@ -34,34 +35,34 @@ test("底栏：输入法组合中按回车只确认候选、不发送；组合�
   const { command, sessionId, evaluate, waitFor, navigate, origin, projectId } = browser;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId, 20_000));
-  await waitFor("document.querySelector('[data-dock] [data-assistant-input]')");
+  await waitFor("document.querySelector('[data-dock] [data-assistant-composer] .mw-composer__input')");
   const works = async () => (await evaluate<number>(`fetch(${JSON.stringify(`/projects/${projectId}/api/assistant/works`)}).then(r => r.json()).then(b => b.works.length)`));
   const before = await works();
-  await evaluate("(() => { const input = document.querySelector('[data-assistant-input]'); window.__keys = []; input.addEventListener('keydown', e => window.__keys.push([e.key, e.keyCode, e.isComposing]), true); input.focus(); })()");
+  await evaluate("(() => { const input = document.querySelector('[data-assistant-composer] .mw-composer__input'); window.__keys = []; input.addEventListener('keydown', e => window.__keys.push([e.key, e.keyCode, e.isComposing]), true); input.focus(); })()");
   // Pinyin still being composed; the IME's own Enter (key code 229) arrives while the composition is open.
   // RAC-1459: no native key code on these synthetic Enters. 229 is Windows' VK_PROCESSKEY and 13 is not Enter on macOS;
   // as the native code they can hide the page in macOS Chrome (BL-393), so only the Windows virtual key code stays.
   await command("Input.imeSetComposition", { text: "ceshi", selectionStart: 5, selectionEnd: 5 }, sessionId);
-  await command("Input.dispatchKeyEvent", { type: "rawKeyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 229 }, sessionId);
-  await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 229 }, sessionId);
+  await command("Input.dispatchKeyEvent", { type: "rawKeyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 229, modifiers: 2 }, sessionId);
+  await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 229, modifiers: 2 }, sessionId);
   await new Promise(resolve => setTimeout(resolve, 600));
   assert.equal(await works(), before, "nothing was sent while composing");
   // The page did receive that Enter: the guard, not a lost key, is what kept it from sending.
   assert.ok((await evaluate<Array<[string, number, boolean]>>("window.__keys")).some(([key, code, composing]) => key === "Enter" && (code === 229 || composing)), "the IME's Enter reached the input");
   // Since Chrome 155 a synthetic Enter during composition makes the browser itself commit the pinyin (a bare textarea
   // does the same), so the candidate is checked on a composition of its own: picking it replaces the pinyin.
-  await evaluate("(() => { const input = document.querySelector('[data-assistant-input]'); input.value = ''; input.dispatchEvent(new Event('input', { bubbles: true })); input.focus(); })()");
+  await evaluate("(() => { const input = document.querySelector('[data-assistant-composer] .mw-composer__input'); input.value = ''; input.dispatchEvent(new Event('input', { bubbles: true })); input.focus(); })()");
   await command("Input.imeSetComposition", { text: "ceshi", selectionStart: 5, selectionEnd: 5 }, sessionId);
   await command("Input.insertText", { text: "测试" }, sessionId);
   await new Promise(resolve => setTimeout(resolve, 600));
-  assert.equal(await evaluate("document.querySelector('[data-assistant-input]').value"), "测试", "the candidate is committed into the input");
+  assert.equal(await evaluate("document.querySelector('[data-assistant-composer] .mw-composer__input').value"), "测试", "the candidate is committed into the input");
   assert.equal(await works(), before, "committing a candidate sends nothing");
   assert.equal(await evaluate("document.querySelector('[data-assistant-panel]').hidden"), true, "no work opened");
-  // With the composition over, Enter sends what was typed.
-  await command("Input.dispatchKeyEvent", { type: "rawKeyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
-  await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
+  // With the composition over, ⌘/Ctrl+Enter sends what was typed.
+  await command("Input.dispatchKeyEvent", { type: "rawKeyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, sessionId);
+  await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, sessionId);
   await waitFor(`!document.querySelector('[data-assistant-panel]').hidden`);
-  assert.equal(await works(), before + 1, "one Enter after the composition sends once");
+  assert.equal(await works(), before + 1, "one ⌘/Ctrl+Enter after the composition sends once");
 });
 
 

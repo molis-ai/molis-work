@@ -19,7 +19,7 @@ export function samplePluginActions(pluginId: string): ActionDefinition[] {
     },
   });
   const selfCalled = (definition: ActionDefinition): ActionDefinition => ({ ...definition, action: { ...definition.action, audiences: [...definition.action.audiences, "plugin"] } });
-  const preview = defineArtifactPreviewAction(`${pluginId}.results.preview`, "sample result", ["artifact:read"]);
+  const preview = defineArtifactPreviewAction(`${pluginId}.results.preview`, 1, "sample result", ["artifact:read"]);
   return [
     define("health", "Sample health", "Read the sample connector's health without accessing private results.", [], {
       type: "object", properties: { ok: { type: "boolean" }, status: { enum: ["connected"] }, message: { type: "string" } }, required: ["ok", "status", "message"], additionalProperties: false,
@@ -36,7 +36,11 @@ export function samplePluginActions(pluginId: string): ActionDefinition[] {
 
 /** Uses only the packed public SDK, never repository implementation paths. */
 export const samplePluginSource = `import { definePlugin, defineAction, definePollingIntegrationPlugin, bindOwnerPluginAction, bindArtifactPreview } from "@molis-ai/molis-work-plugin-sdk";
+import { t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import manifest from "./manifest.json" with { type: "json" };
+
+/** Where the sample says its results come from. */
+const SAMPLE_SOURCE = "Tom's R&D notes";
 
 export default definePlugin({
   manifest,
@@ -78,7 +82,10 @@ export default definePlugin({
         surfaces: [{ surface_id: "main", target_slot_id: "plugin.main", format: "html" }],
       },
       render() {
-        return "<section><h2>Local Plugin Sample</h2><p>Saved results: " + savedCount() + "</p></section>";
+        // The words are in locales/<language>.json; \`t\` takes the language from the page. A name may hold ' and &: \`t\` escapes it for HTML.
+        const count = savedCount();
+        return "<section><h2>" + t("notes.main.title") + "</h2><p>" + t("notes.main.saved", { count }) + "</p><p>" + t("notes.main.saved-count", { count })
+          + "</p><p>" + t("notes.main.source", { name: SAMPLE_SOURCE }) + "</p></section>";
       },
     });
     const provider = {

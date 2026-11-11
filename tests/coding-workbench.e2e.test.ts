@@ -4,7 +4,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { execFileSync } from "node:child_process";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
-import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { openBoardBrowser as openGoalBrowser } from "./fixtures/board-browser.js";
 
 // W5-02-REG-06: real generated-catalog startup, Files snapshots, Diff and Git readers, including Coding's embedded Files.
 test("Coding tools open real stages, preserve session tabs and read fixed workspace content", { timeout: 90000 }, async t => {
@@ -41,21 +41,20 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   await b.navigate(() => command("Page.navigate", { url: b.origin + "/__ui/catalog" }, sessionId));
   const boardFrame = await evaluate(`(()=>{const h=document.querySelector('.mw-catalog-shell .mw-frame__header'),title=h.querySelector('h2');return {padding:getComputedStyle(h).padding,font:getComputedStyle(title).fontSize,weight:getComputedStyle(title).fontWeight};})()`);
   await b.navigate(() => command("Page.navigate", { url: prefix + "/" }, sessionId));
-  // Folders are associated in project settings; the chosen one is the project's current directory for Files, Git and Coding.
+  // Folders are added in project settings (「输入与输出」); the output is the folder Files, Git and Coding use when none is named.
   const showWorkspaceSettings = async () => {
     active = b;
     await click('.navigator-project-settings');
     await waitFor("!!document.querySelector('[data-directory-panel=project-settings] [data-settings-section=workspaces]')");
     await click('[data-directory-panel=project-settings] [data-settings-section=workspaces]');
-    await waitFor("!!document.querySelector('[data-project-workspaces-add]') && !document.querySelector('[data-project-workspaces-refresh]').disabled");
+    await waitFor("!!document.querySelector('[data-directories-add]') && document.querySelector('[data-project-directories]')?.dataset.state==='ready'");
   };
   await showWorkspaceSettings();
-  await fill('[data-project-workspaces-add] [name=path]', workspace);
-  await click('[data-project-workspaces-add] [type=submit]');
-  await waitFor("document.querySelector('[data-project-workspaces-list]').textContent.includes('coding-fixture') && !document.querySelector('[data-project-workspaces-add] [type=submit]').disabled");
-  const workspaceId = await evaluate<string>("document.querySelector('[data-browse-workspace]').dataset.browseWorkspace");
-  if (await evaluate(`document.querySelector('[data-browse-workspace="${workspaceId}"]').getAttribute('aria-pressed')`) !== 'true') await click(`[data-browse-workspace="${workspaceId}"]`);
-  await waitFor(`document.querySelector('[data-browse-workspace="${workspaceId}"]')?.getAttribute('aria-pressed') === 'true'`);
+  await fill('[data-directories-add] [name=path]', workspace);
+  await click('[data-directories-add] [type=submit]');
+  await waitFor("document.querySelector('[data-directories-inputs]').textContent.includes('coding-fixture') && !document.querySelector('[data-directories-add] [type=submit]').disabled");
+  await click("[data-directories-inputs] [data-directory-row]:has([title$='/coding-fixture']) [data-act=set-output]");
+  await waitFor("document.querySelector('[data-directories-output] [data-directory-row] [data-text=path]')?.title.endsWith('/coding-fixture')");
   await capture("workspace-desktop");
   await open("files");
   await waitFor(`document.querySelector('${files} [data-files-tree] [title="note.txt"]')`);
@@ -209,7 +208,11 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   await click(`${coding} [data-coding-context-toggle]`);
   await capture("coding-mobile");
   await click(`${coding} [data-coding-results-open]`);
-  await b.click(`[data-tab-id="${firstTab.id}"]`);
+  // 07-1 S3: a phone's strip shows the current tab only; the others are opened from 全部标签.
+  await b.click("[data-titlebar-tabs] [data-tab-all]");
+  // The menu is the workbench's, not the Coding frame's, so it is waited for on the page itself.
+  await b.waitFor(`document.querySelector('[data-workspace-all-tabs] [data-all-tab="${firstTab.id}"]')?.checkVisibility()`);
+  await b.click(`[data-workspace-all-tabs] [data-all-tab="${firstTab.id}"]`);
   await waitFor(`document.querySelector('${coding}').dataset.codingResults === 'false' && document.querySelector('${coding} [data-coding-task]').value === 'first session draft'`);
   await click(`${coding} [data-coding-results-open]`);
   await click(`${coding} [data-coding-results-close]`);

@@ -103,3 +103,4 @@ export {
 } from "./settings.js";
 
 export { isConcealedClipboard, isHttpUrl, clipFingerprint, clipTitleFor } from "./clipboard.js";
+export { SHELF_CATALOG_FILE } from "./files-catalog.js";

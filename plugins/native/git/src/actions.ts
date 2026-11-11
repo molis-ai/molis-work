@@ -1,9 +1,9 @@
 import type { ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { bindOwnerPluginAction, parsePorcelainStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { gitActions, type GitSelected } from "./action-definitions.js";
-import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
+import { projectDirectoryActions } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { parseFilePath, workspaceReadActions, prepareGitIndexCapability, prepareGitOperationCapability, readGitOperationsCapability, readGitResultsCapability, GIT_RESULT_TYPE,
+import { parseFilePath, workspaceReadActions, prepareGitIndexCapability, prepareGitOperationCapability, readGitOperationsCapability, readGitResultsCapability, GIT_RESULT_SCHEMA_VERSION, GIT_RESULT_TYPE,
   type GitOperation, type GitReviewedResult, type WorkspaceGitQuery, type WorkspaceGitSummary } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { projectGit } from "./projection.js";
 import { gitErrors } from "./errors.js";
@@ -38,19 +38,25 @@ function gitOperation(value: unknown): GitOperation {
 
 export function gitActionHandlers(context: PluginStartContext): ActionHandlerBinding[] {
   const services = context.services!;
-  const browsing = [projectSettingsCapabilities.browsingWorkspace];
+  const browsing = [projectDirectoryActions.get];
   const reviewResults = [...browsing, readGitResultsCapability];
   let selectionSequence = 0;
-  const workspace = async () => {
-    const selected = await services?.actions?.invoke(projectSettingsCapabilities.browsingWorkspace, []);
-    if (!selected) throw gitErrors.invalid("请在项目设置的工作目录中选择可用浏览目录");
+  /**
+   * The project folder a call names, or the project's output when it names none (SSC-17): the page keeps which folder it shows and
+   * says so. With `fallback`, a folder that has left the project reads as the output instead of refusing.
+   */
+  const workspace = async (id?: unknown, fallback = false) => {
+    const all = await services.actions!.invoke(projectDirectoryActions.get, {});
+    const asked = typeof id === "string" && id ? id : null;
+    const named = asked ? all.directories.find(item => item.workspace_id === asked) : undefined;
+    const selected = named ?? (!asked || fallback ? all.directories.find(item => item.roles.includes("output")) : undefined);
+    if (!selected) throw gitErrors.invalid(asked && !fallback ? "这个文件夹已不在当前项目里，请刷新 Git" : "这个项目还没有输出目录，请在项目设置的「输入与输出」里指定");
     return { workspace_id: selected.workspace_id, name: selected.display_name, handle: selected.workspace_id };
   };
   const read = async (query: WorkspaceGitQuery) => {
-    const current = await workspace();
-    if (current.workspace_id !== query.workspace_id) throw gitErrors.invalid("工作目录已改变，请刷新 Git");
+    const current = await workspace(query.workspace_id);
     const result = await services.actions!.invoke(workspaceReadActions.git, query);
-    if ((await workspace()).workspace_id !== current.workspace_id) throw gitErrors.invalid("工作目录已改变，请刷新 Git");
+    if ((await workspace(query.workspace_id)).workspace_id !== current.workspace_id) throw gitErrors.invalid("这个文件夹已不在当前项目里，请刷新 Git");
     return { workspace: current, result };
   };
   const savedResults = () => {
@@ -58,32 +64,32 @@ export function gitActionHandlers(context: PluginStartContext): ActionHandlerBin
     return typeof saved === "string" ? JSON.parse(saved) as Record<string, { artifact_id: string; version: number }> : {};
   };
   const key = (result: GitReviewedResult) => JSON.stringify([result.workspace_id, result.operation_id]);
-  const results = async () => {
-    const current = await workspace();
+  const results = async (id?: string) => {
+    const current = await workspace(id);
     const items = await services.actions!.invoke(readGitResultsCapability, { workspace_id: current.workspace_id });
-    if ((await workspace()).workspace_id !== current.workspace_id) throw gitErrors.invalid("工作目录已改变，请重新读取结果");
+    if ((await workspace(current.workspace_id)).workspace_id !== current.workspace_id) throw gitErrors.invalid("这个文件夹已不在当前项目里，请重新读取结果");
     return { workspace: current, items };
   };
   const readSaved = (result: GitReviewedResult) => {
     const reference = savedResults()[key(result)];
     if (!reference) return null;
     const artifact = services.outputs!.read(reference);
-    if (!artifact || artifact.artifact_type_id !== GIT_RESULT_TYPE || artifact.schema_version !== 1) throw gitErrors.invalid("原固定结果已不可读取；不会重新生成或覆盖");
+    if (!artifact || artifact.artifact_type_id !== GIT_RESULT_TYPE || artifact.schema_version !== GIT_RESULT_SCHEMA_VERSION) throw gitErrors.invalid("原固定结果已不可读取；不会重新生成或覆盖");
     const payload = artifact.payload as unknown as GitReviewedResult;
     if (payload.workspace_id !== result.workspace_id || payload.operation_id !== result.operation_id || payload.review?.review_id !== result.review.review_id) throw gitErrors.invalid("固定结果与原操作不匹配");
     return { reference, result: payload, saved_at: artifact.created_at };
   };
   return [
-    bindOwnerPluginAction(context, gitActions.results, async () => {
-      const value = await results();
+    bindOwnerPluginAction(context, gitActions.results, async input => {
+      const value = await results(input?.workspace_id);
       return { workspace: value.workspace, results: value.items.map(result => {
         try { return { result, saved: readSaved(result) }; }
         catch (error) { return { result, saved: null, unavailable: error instanceof Error ? error.message : "固定结果不可读" }; }
       }) };
     }, reviewResults),
     bindOwnerPluginAction(context, gitActions.saveResult, async (input, beforeWrite) => {
-      const value = await results();
-      if (!input || input.workspace_id !== value.workspace.workspace_id || typeof input.review_id !== "string") throw gitErrors.invalid("结果保存请求无效或工作区已切换");
+      if (!input || typeof input.workspace_id !== "string" || !input.workspace_id || typeof input.review_id !== "string") throw gitErrors.invalid("结果保存请求无效");
+      const value = await results(input.workspace_id);
       const result = value.items.find(item => item.review.review_id === input.review_id);
       if (!result) throw gitErrors.invalid("原操作尚未结束、结果仍未知，或不属于当前工作区，不能保存确定结果");
       const existing = readSaved(result);
@@ -99,9 +105,9 @@ export function gitActionHandlers(context: PluginStartContext): ActionHandlerBin
       return { reference, result, saved_at: published.artifact.created_at };
     }, reviewResults),
     bindOwnerPluginAction(context, gitActions.prepareIndex, async (input, beforeWrite) => {
-      const current = await workspace();
-      if (!input || input.workspace_id !== current.workspace_id || !["stage", "unstage"].includes(String(input.action))
-        || typeof input.revision !== "string" || typeof input.operation_id !== "string") throw gitErrors.invalid("暂存请求无效或工作区已切换");
+      if (!input || typeof input.workspace_id !== "string" || !input.workspace_id || !["stage", "unstage"].includes(String(input.action))
+        || typeof input.revision !== "string" || typeof input.operation_id !== "string") throw gitErrors.invalid("暂存请求无效");
+      const current = await workspace(input.workspace_id);
       await beforeWrite();
       const result = await services.actions!.invoke(prepareGitIndexCapability, { workspace_id: current.workspace_id, path: parseFilePath(input.path),
         action: input.action as "stage" | "unstage", revision: input.revision, operation_id: input.operation_id }, { beforeEffect: beforeWrite });
@@ -109,37 +115,37 @@ export function gitActionHandlers(context: PluginStartContext): ActionHandlerBin
     }, [...browsing, prepareGitIndexCapability]),
     // Source control: commit, branch, push and PR, each prepared against the repository as the person saw it and run
     // only after Host review.
-    bindOwnerPluginAction(context, gitActions.summary, async () => {
-      const current = await workspace(), value = await read({ workspace_id: current.workspace_id, kind: "summary" });
+    bindOwnerPluginAction(context, gitActions.summary, async input => {
+      const current = await workspace(input?.workspace_id), value = await read({ workspace_id: current.workspace_id, kind: "summary" });
       if (value.result.outcome !== "summary") return { workspace: current, summary: null, message: "message" in value.result ? value.result.message : "Git 状态不可读" };
       return { workspace: current, summary: value.result, draft: commitDraft(value.result) };
     }, browsing),
-    bindOwnerPluginAction(context, gitActions.prSupport, async () => {
-      const current = await workspace();
+    bindOwnerPluginAction(context, gitActions.prSupport, async input => {
+      const current = await workspace(input?.workspace_id);
       return (await read({ workspace_id: current.workspace_id, kind: "pr-support" })).result;
     }, browsing),
     // A file a merge or pull left conflicted, markers included, so the person can pick and edit before resolving.
     bindOwnerPluginAction(context, gitActions.conflict, async (input) => {
-      const current = await workspace();
       if (!input || typeof input.path !== "string" || !input.path) throw gitErrors.invalid("请选择冲突文件");
+      const current = await workspace(input.workspace_id);
       return (await read({ workspace_id: current.workspace_id, kind: "conflict", path: input.path })).result;
     }, browsing),
-    bindOwnerPluginAction(context, gitActions.operations, async () => {
-      const current = await workspace();
+    bindOwnerPluginAction(context, gitActions.operations, async input => {
+      const current = await workspace(input?.workspace_id);
       const operations = await services.actions!.invoke(readGitOperationsCapability, { workspace_id: current.workspace_id });
-      if ((await workspace()).workspace_id !== current.workspace_id) throw gitErrors.invalid("工作目录已改变，请重新读取操作记录");
+      if ((await workspace(current.workspace_id)).workspace_id !== current.workspace_id) throw gitErrors.invalid("这个文件夹已不在当前项目里，请重新读取操作记录");
       return { workspace: current, operations };
     }, [...browsing, readGitOperationsCapability]),
     bindOwnerPluginAction(context, gitActions.prepareOperation, async (input, beforeWrite) => {
-      const current = await workspace();
-      if (!input || input.workspace_id !== current.workspace_id || typeof input.revision !== "string" || typeof input.operation_id !== "string") throw gitErrors.invalid("Git 操作请求无效或工作区已切换");
+      if (!input || typeof input.workspace_id !== "string" || !input.workspace_id || typeof input.revision !== "string" || typeof input.operation_id !== "string") throw gitErrors.invalid("Git 操作请求无效");
+      const current = await workspace(input.workspace_id);
       const operation = gitOperation(input.operation);
       await beforeWrite();
       return services.actions!.invoke(prepareGitOperationCapability, { workspace_id: current.workspace_id, operation_id: input.operation_id, revision: input.revision, operation },
         { beforeEffect: beforeWrite });
     }, [...browsing, prepareGitOperationCapability]),
-    bindOwnerPluginAction(context, gitActions.state, async () => {
-      const current = await workspace(), value = await read({ workspace_id: current.workspace_id, kind: "status" });
+    bindOwnerPluginAction(context, gitActions.state, async input => {
+      const current = await workspace(input?.workspace_id, true), value = await read({ workspace_id: current.workspace_id, kind: "status" });
       const saved = services.storage?.get("git-selection");
       const selected = typeof saved === "string" ? JSON.parse(saved) as GitSelected : null;
       if (value.result.outcome !== "status") return { workspace: current,

@@ -23,7 +23,7 @@ export const CHOOSER_CLIENT_SCRIPT = String.raw`
     session: { get(key) { try { return sessionStorage.getItem(key); } catch { return null; } }, set(key, value) { try { sessionStorage.setItem(key, value); } catch { /* per-viewer convenience only */ } } },
     local: { get(key) { try { return localStorage.getItem(key); } catch { return null; } }, set(key, value) { try { localStorage.setItem(key, value); } catch { /* per-viewer convenience only */ } } },
   };
-  const state = { selected: data.selected, query: '', drafts: new Map(), draftOwner: data.selected, controller: null, loaded: new Map() };
+  const state = { selected: data.selected, query: '', controller: null, loaded: new Map() };
   const rowOf = (id) => $$('.mw-dir-row', list).find((row) => row.dataset.id === id) || null;
   const nameOf = (id) => (id === PERSONAL ? data.personalTitle : rowOf(id)?.dataset.name) || '';
   const visibleRows = () => $$('.mw-dir-row', list).filter((row) => !row.hidden);
@@ -61,19 +61,12 @@ export const CHOOSER_CLIENT_SCRIPT = String.raw`
 
   /* ───────── The Assistant in the bar speaks for the project being looked at ───────── */
   const assistant = globalThis.__ARRIVAL_ASSISTANT__ || null;
-  const composerInput = () => $('[data-assistant-input]', bar);
   const aboutSelection = () => {
+    const id = state.selected && state.selected !== PERSONAL ? state.selected : "";
+    document.body.dataset.routePrefix = id ? "/projects/" + encodeURIComponent(id) : "";
+    document.body.dataset.projectId = id;
     if (!state.selected || state.selected === PERSONAL) { assistant?.setProject(null); return; }
     assistant?.setProject({ id: state.selected, title: nameOf(state.selected) });
-  };
-  const swapDraft = (nextOwner) => {
-    const input = composerInput();
-    if (!input || state.draftOwner === nextOwner) return;
-    state.drafts.set(state.draftOwner, input.value);
-    state.draftOwner = nextOwner;
-    input.value = state.drafts.get(nextOwner) || '';
-    // The Assistant keeps its own copy of what is typed; tell it the words changed.
-    input.dispatchEvent(new Event('input', { bubbles: true }));
   };
 
   /* ───────── The bar's left block and the way in ───────── */
@@ -198,7 +191,6 @@ export const CHOOSER_CLIENT_SCRIPT = String.raw`
       }
       if (focus) row?.focus({ preventScroll: true });
     }
-    swapDraft(id || PERSONAL);
     aboutSelection();
     paintBar();
     if (id) loadBrief(id);
@@ -229,7 +221,7 @@ export const CHOOSER_CLIENT_SCRIPT = String.raw`
     });
     none.hidden = any || !query;
     const visible = visibleRows();
-    if (!visible.length) { if (state.selected) state.previous = state.selected; state.selected = null; paintSelection(); swapDraft(PERSONAL); aboutSelection(); paintBar(); showNone(state.query); return; }
+    if (!visible.length) { if (state.selected) state.previous = state.selected; state.selected = null; paintSelection(); aboutSelection(); paintBar(); showNone(state.query); return; }
     if (!state.selected || !visible.some((row) => row.dataset.id === state.selected)) {
       const back = visible.find((row) => row.dataset.id === state.previous) || visible[0];
       state.selected = null;
@@ -250,7 +242,7 @@ export const CHOOSER_CLIENT_SCRIPT = String.raw`
     else if (act === 'new-named') { event.preventDefault(); location.assign(route('/onboarding?mode=new-project&name=' + encodeURIComponent(state.query.trim()))); }
     else if (act === 'retry-brief') { if (state.selected) loadBrief(state.selected, { force: true }); }
     else if (act === 'reload') location.reload();
-    else if (act === 'prefill') { const input = composerInput(); if (input) { input.value = target.dataset.text || ''; input.dispatchEvent(new Event('input', { bubbles: true })); input.focus(); } }
+    else if (act === 'prefill') assistant?.fill(target.dataset.text || '');
   });
   root.addEventListener('dblclick', (event) => { const row = event.target.closest('#chooser-dir .mw-dir-row'); if (row) { pick(row.dataset.id); enterSelected(row.dataset.id); } });
   search.addEventListener('input', () => { state.query = search.value; applySearch(); });
@@ -287,8 +279,6 @@ export const CHOOSER_CLIENT_SCRIPT = String.raw`
   $$('.mw-dir-row', list).forEach((row) => { if (row.dataset.id !== PERSONAL) { const summary = readCache(row.dataset.id)?.summary; if (summary) paintRow(summary); } });
   refreshTimes();
   aboutSelection();
-  const input = composerInput();
-  if (input) state.drafts.set(first, input.value);
   const base = cold ? 120 : 40;
   arrival.cascade($$('.mw-dir-row', list), { delay: base, step: 28 });
   arrival.arrive($('.chooser-head'), [{ opacity: 0, transform: 'translateY(4px)' }, { opacity: 1, transform: 'none' }], { duration: 420, delay: base - 40 });

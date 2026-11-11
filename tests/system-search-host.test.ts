@@ -18,7 +18,7 @@ import { shelfActions } from "@molis-ai/molis-work-plugin-shelf";
 import { searchActions, type SearchQueryResponse } from "@molis-ai/molis-work-contracts/services/search";
 import type { ActionCallContext, ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { bindSearchEntriesHandler, defineSearchEntriesAction, definePlugin, defineSubjectContextAction, subjectContext } from "@molis-ai/molis-work-plugin-sdk";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 
 const doc = (text: string) => ({ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text }] }] });
 const ids = (response: SearchQueryResponse) => response.hits.map(hit => `${hit.plugin_id}:${hit.subject.kind}`).sort();
@@ -116,8 +116,8 @@ test("real Host: unopened content of every wired plugin is searchable, kept curr
     assert.deepEqual(ids(await asClient([searchActions.query, formActions.searchEntries], "满意")), [], "reader-provided text needs the reader grant");
 
     // A plugin nobody told the Host about joins by declaring the protocol, through the real Plugin Runtime.
-    const entries = defineSearchEntriesAction("newcomer.search.entries", [{ kind: "newcomer-note", title: "新插件笔记", surface: "newcomer" }], "新插件笔记", ["newcomer:read"]);
-    const reader = defineSubjectContextAction("newcomer.subject.read", "newcomer-note", "新插件笔记", ["newcomer:read"]);
+    const entries = defineSearchEntriesAction("newcomer.search.entries", 1, [{ kind: "newcomer-note", title: "新插件笔记", surface: "newcomer" }], "新插件笔记", ["newcomer:read"]);
+    const reader = defineSubjectContextAction("newcomer.subject.read", 1, "newcomer-note", "新插件笔记", ["newcomer:read"]);
     const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.newcomer-search", version: "1.0.0", name: "新插件",
       kind: "app", publisher: { publisher_id: "example", signature: "example-newcomer" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
       permissions: [{ permission: "newcomer:read", required: false, reason: "读取笔记" }], actions: [entries, reader], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] } },

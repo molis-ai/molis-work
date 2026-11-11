@@ -4,9 +4,9 @@ import { ACTION_SUBJECT_SCHEMA, SEARCH_OPEN_TARGET_SCHEMA, type SearchOpenTarget
 import { FRAGMENT_ANY_OBJECT, defineFragmentOffersAction, type FragmentActionOffer, type FragmentOfferChoice, type FragmentOffersInput } from "../platform/action-fragments.js";
 
 export const servicesSearchContract = {
-  contractId: "io.molis.work.service.search.v1",
+  contractId: /* @version contract.io.molis.work.service.search "io.molis.work.service.search.v{version}" */ "io.molis.work.service.search.v1",
   kind: "service",
-  schemaVersion: 1,
+  schemaVersion: /* @version contract.io.molis.work.service.search */ 1,
   maturity: "partial",
   ssot: "docs/horizontal/search.md",
 } as const satisfies ContractDescriptor;
@@ -126,27 +126,27 @@ const metadata = {
  */
 export const SEARCH_FRAGMENT_CHOICES: readonly FragmentOfferChoice[] = [
   { offer_id: "find", title: "在项目里查找", intent: "understand", apply: "result", hint: "在本项目与个人资料里查找这个词还出现在哪里",
-    action: { capability_id: "search.query", version: 1 }, granularities: ["word"] },
+    action: { capability_id: "search.query", version: /* @version action.search.query */ 1 }, granularities: ["word"] },
 ];
 
 /** `search.query` input for a selected word; pure. */
 export function prepareSearchFragmentOffers(input: FragmentOffersInput): FragmentActionOffer[] {
   const word = input.fragment.granularity === "word" ? (input.fragment.targets[0]?.text ?? "").trim() : "";
   if (!word || word.length > 40) return [];
-  return [{ offer_id: "find", title: "在项目里查找", action: { capability_id: "search.query", version: 1, provider_id: SEARCH_PROVIDER_ID }, input: { query: word } }];
+  return [{ offer_id: "find", title: "在项目里查找", action: { capability_id: "search.query", version: /* @version action.search.query */ 1, provider_id: SEARCH_PROVIDER_ID }, input: { query: word } }];
 }
 
 /** Registered once by the Host as `system.search`; every entry reaches them through the shared directory. */
 export const searchActions = {
-  fragmentOffers: defineFragmentOffersAction("search.fragment.offers", [FRAGMENT_ANY_OBJECT], "选中的词可以查找的地方", [SEARCH_READ_PERMISSION], SEARCH_FRAGMENT_CHOICES, "home"),
-  query: { capability_id: "search.query", version: 1, operation: "query", action: { ...metadata, permissions: [SEARCH_READ_PERMISSION],
+  fragmentOffers: defineFragmentOffersAction("search.fragment.offers", /* @version action.search.fragment.offers */ 1, [FRAGMENT_ANY_OBJECT], "选中的词可以查找的地方", [SEARCH_READ_PERMISSION], SEARCH_FRAGMENT_CHOICES, "home"),
+  query: { capability_id: "search.query", version: /* @version action.search.query */ 1, operation: "query", action: { ...metadata, permissions: [SEARCH_READ_PERMISSION],
     title: "搜索内容", description: "在当前项目与个人范围里搜索已接入插件的真实内容，返回对象引用、所属插件、摘要与打开位置；只返回调用者当前可读取的来源。",
     input_schema: { type: "object", properties: { query: { type: "string", minLength: 1, maxLength: 200, pattern: "\\S" }, scope,
       kinds: { type: "array", maxItems: 50, items: token }, plugins: { type: "array", maxItems: 50, items: token }, cursor: nullableText,
       limit: { type: "integer", minimum: 1, maximum: 50 } }, required: ["query"], additionalProperties: false },
     output_schema: { type: "object", properties: { status: { enum: ["complete", "partial", "indexing", "empty_scope"] }, hits: { type: "array", items: hit }, next_cursor: nullableText, sources },
       required: ["status", "hits", "next_cursor", "sources"], additionalProperties: false } } } as ActionDefinition<SearchQueryRequest, SearchQueryResponse>,
-  open: { capability_id: "search.open", version: 1, operation: "query", action: { ...metadata, permissions: [SEARCH_READ_PERMISSION],
+  open: { capability_id: "search.open", version: /* @version action.search.open */ 1, operation: "query", action: { ...metadata, permissions: [SEARCH_READ_PERMISSION],
     title: "打开搜索结果", description: "按原提供方重新核对搜索结果的对象仍存在且可读，返回当前打开位置；对象已删除时说明并移出索引。不修改业务数据。",
     input_schema: { type: "object", properties: { hit_id: { type: "string", minLength: 1, maxLength: 2000 } }, required: ["hit_id"], additionalProperties: false },
     output_schema: { anyOf: [
@@ -154,7 +154,7 @@ export const searchActions = {
         required: ["state", "hit_id", "subject", "open", "title", "revision"], additionalProperties: false },
       { type: "object", properties: { state: { enum: ["missing", "unavailable"] }, hit_id: text, reason: text }, required: ["state", "hit_id", "reason"], additionalProperties: false },
     ] } } } as ActionDefinition<SearchOpenRequest, SearchOpenResponse>,
-  references: { capability_id: "search.references", version: 1, operation: "query", action: { ...metadata, permissions: [SEARCH_READ_PERMISSION],
+  references: { capability_id: "search.references", version: /* @version action.search.references */ 1, operation: "query", action: { ...metadata, permissions: [SEARCH_READ_PERMISSION],
     audiences: ["user", "plugin"] as ("user" | "plugin")[],
     title: "查找可引用的对象", description: "按种类在当前项目里查找调用者现在能读取的对象，供回答需要对象的问题时挑选；每一个都已向对象所属插件重新读取过。只读。",
     input_schema: { type: "object", properties: { kinds: { type: "array", minItems: 1, maxItems: 8, uniqueItems: true, items: token },
@@ -162,11 +162,11 @@ export const searchActions = {
     output_schema: { type: "object", properties: { status: { enum: ["complete", "partial", "indexing", "empty_scope"] }, candidates: { type: "array", items: { type: "object",
       properties: { kind: text, id: text, label: text, revision: text, plugin_title: text, snippet: text }, required: ["kind", "id", "label", "revision", "plugin_title", "snippet"], additionalProperties: false } } },
       required: ["status", "candidates"], additionalProperties: false } } } as ActionDefinition<SearchReferencesRequest, SearchReferencesResponse>,
-  status: { capability_id: "search.status", version: 1, operation: "query", action: { ...metadata, permissions: [SEARCH_READ_PERMISSION],
+  status: { capability_id: "search.status", version: /* @version action.search.status */ 1, operation: "query", action: { ...metadata, permissions: [SEARCH_READ_PERMISSION],
     title: "搜索索引状态", description: "查看当前范围内各插件的索引状态：已就绪、首次索引中、读取失败或已停用。",
     input_schema: { type: "object", properties: { scope }, additionalProperties: false },
     output_schema: { type: "object", properties: { sources }, required: ["sources"], additionalProperties: false } } } as ActionDefinition<{ scope?: SearchScope }, SearchStatusResponse>,
-  rebuild: { capability_id: "search.rebuild", version: 1, operation: "command", action: { ...metadata, kind: "operation" as const, effect: "write" as const, audiences: ["user"] as ("user")[],
+  rebuild: { capability_id: "search.rebuild", version: /* @version action.search.rebuild */ 1, operation: "command", action: { ...metadata, kind: "operation" as const, effect: "write" as const, audiences: ["user"] as ("user")[],
     permissions: [SEARCH_MANAGE_PERMISSION], title: "重建搜索索引", description: "删除当前范围的搜索索引并按各插件原数据重新建立；不修改任何业务数据。",
     input_schema: { type: "object", properties: { scope }, additionalProperties: false },
     output_schema: { type: "object", properties: { cleared: { type: "integer", minimum: 0 }, sources }, required: ["cleared", "sources"], additionalProperties: false } } } as ActionDefinition<SearchRebuildRequest, SearchRebuildResponse>,
@@ -205,6 +205,9 @@ export interface SearchIndexDocument {
   /** `context`: content came from the subject reader, so a caller must be able to read that kind to see it. */
   content_policy: "context" | "summary";
 }
+/** D0030: paged catalog metadata; original text is read separately for one selected subject. */
+export type SearchIndexMetadata = Omit<SearchIndexDocument, "content"> & { content_chars: number; has_content: boolean };
+export interface SearchIndexCatalogPage { entries: SearchIndexMetadata[]; next_cursor: string | null }
 export interface SearchIndexMatch {
   source_key: string;
   kind: string;
@@ -240,8 +243,8 @@ export interface SearchIndexPort {
   upsert(documents: readonly SearchIndexDocument[]): void;
   remove(sourceKey: string, keys: readonly { kind: string; object_id: string }[]): void;
   document(sourceKey: string, kind: string, objectId: string): SearchIndexDocument | null;
-  /** Every document indexed for one project: the catalog project knowledge organizes (specs/project-knowledge §5). */
-  documents(projectId: string): SearchIndexDocument[];
+  /** Stable keyset pages, at most 200 entries, without any document body. */
+  catalog(projectId: string, cursor?: string): SearchIndexCatalogPage;
   search(query: SearchIndexQuery): { matches: SearchIndexMatch[]; total: number };
   /**
    * One project's documents that hold some of the words of a question (CJK adjacent pairs and words), best first: the loose

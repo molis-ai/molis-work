@@ -107,7 +107,7 @@ test("S-13 memory, page context and Feed, Jelly and Cognia materials reach the m
     owners: id => ledger.owners(id), candidateOwners: id => ledger.candidateOwners(id),
     projectExists: async () => false, deletingProject: () => undefined };
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "agent-runtime"), storageOwner, reviewQueue: queue,
-    memory: { ...memoryRuntimePolicy(() => owner), promotion: { policy: "memory.write-gate", version: 3,
+    memory: { ...memoryRuntimePolicy(() => owner), promotion: { policy: "memory.write-gate", version: 1,
       decide: (caller, request) => memory.promotion.decide(caller, request),
       undo: { prepare: (caller, request) => memory.promotion.undo.prepare(caller, request), record: (caller, request) => memory.promotion.undo.record(caller, request) } } },
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });

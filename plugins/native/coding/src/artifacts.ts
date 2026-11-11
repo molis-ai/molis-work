@@ -25,10 +25,12 @@ export {
 
 import { CODING_CHANGESET_TYPE } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 
-export const CODING_REPORT_TYPE = "coding.report.v1";
-export const CODING_DIAGRAM_TYPE = "coding.diagram.v1";
-export const CODING_GOAL_CONTEXT_TYPE = "coding.goal-context.v1";
-export const CODING_PLAN_TYPE = "coding.plan.v1";
+export const CODING_REPORT_TYPE = /* @version type.coding.report "coding.report.v{version}" */ "coding.report.v1";
+export const CODING_DIAGRAM_TYPE = /* @version type.coding.diagram "coding.diagram.v{version}" */ "coding.diagram.v1";
+export const CODING_GOAL_CONTEXT_TYPE = /* @version type.coding.goal-context "coding.goal-context.v{version}" */ "coding.goal-context.v1";
+export const CODING_PLAN_TYPE = /* @version type.coding.plan "coding.plan.v{version}" */ "coding.plan.v1";
+/** The one number a plan is written and read at, and the Manifest declares. */
+export const CODING_PLAN_SCHEMA_VERSION = /* @version type.coding.plan */ 1;
 
 export const CODING_ARTIFACT_TYPES = [
   CODING_CHANGESET_TYPE,
@@ -115,3 +117,12 @@ export function codingArtifacts(context: import("@molis-ai/molis-work-contracts/
   if (!context.services?.artifacts) throw new Error("Coding 需要项目成果服务");
   return context.services.artifacts;
 }
+
+/** Payload versions follow the same owned identities in the Manifest and fixed-result readers. */
+export const CODING_ARTIFACT_SCHEMA_VERSIONS: Readonly<Record<string, number>> = {
+  [CODING_CHANGESET_TYPE]: /* @version type.coding.changeset */ 1,
+  [CODING_REPORT_TYPE]: /* @version type.coding.report */ 1,
+  [CODING_DIAGRAM_TYPE]: /* @version type.coding.diagram */ 1,
+  [CODING_GOAL_CONTEXT_TYPE]: /* @version type.coding.goal-context */ 1,
+  [CODING_PLAN_TYPE]: CODING_PLAN_SCHEMA_VERSION,
+};

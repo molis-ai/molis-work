@@ -12,7 +12,6 @@ import type { ManagedProjectDeletion } from "./managed-project-deletion.js";
 import type { ProjectDeletedPort } from "./project-deleted-hooks.js";
 import {
   enableDemoProjectPlugins,
-  seedDemoPluginSurfaces,
 } from "./demo-plugin-seed.js";
 /** The demo project has a fixed id; its seed writes under whichever project id it is given (an older demo keeps its own). */
 export interface DemoProjectSeedPort { projectId: string; seed(databasePath: string, projectId: string): Promise<void> }
@@ -33,7 +32,7 @@ export class DemoProjectLifecycle {
     const existing = this.projects.query.listProjects().find((project) => project.data_class === "regenerable_demo");
     const actorId = this.validation.requiredActorId(input.actor_id);
     if (existing) {
-      await this.finishDemoProject(existing.project_id, existing.database_path, actorId);
+      await this.finishDemoProject(existing.project_id, actorId);
       return { status: "existing", project: existing };
     }
     // The demo has a fixed id, so an earlier demo may have left data under it. A deletion that is still pending is finished
@@ -56,7 +55,6 @@ export class DemoProjectLifecycle {
       await fs.mkdir(stagingDirectory, { recursive: false });
       const stagedDatabasePath = path.join(stagingDirectory, "molis-work.db");
       await this.demo.seed(stagedDatabasePath, record.project_id);
-      seedDemoPluginSurfaces(stagedDatabasePath, record.project_id);
       validateManagedProject(stagedDatabasePath, record.project_id);
       await fs.rename(stagingDirectory, projectDirectory);
       promoted = true;
@@ -66,7 +64,7 @@ export class DemoProjectLifecycle {
       if (promoted) await fs.rm(projectDirectory, { recursive: true, force: true });
       throw error;
     }
-    await this.finishDemoProject(record.project_id, record.database_path, actorId);
+    await this.finishDemoProject(record.project_id, actorId);
     return { status: "created", project: record };
   }
 
@@ -90,7 +88,6 @@ export class DemoProjectLifecycle {
       await fs.mkdir(stagingDirectory, { recursive: false });
       const stagedDatabasePath = path.join(stagingDirectory, "molis-work.db");
       await this.demo.seed(stagedDatabasePath, project.project_id);
-      seedDemoPluginSurfaces(stagedDatabasePath, project.project_id);
       validateManagedProject(stagedDatabasePath, project.project_id);
       await fs.rename(projectDirectory, backupDirectory);
       previousMoved = true;
@@ -99,7 +96,6 @@ export class DemoProjectLifecycle {
       // A rebuilt demo starts without what the owners kept for the old one, except what only a running Molis Work can clear
       // and what stays valid for the project that stays (the owners that declare `survivesRebuild`).
       left = await this.owners.clearAll(project.project_id, { leaveElsewhere: true, rebuild: true });
-      seedDemoPluginSurfaces(project.database_path, project.project_id);
       updated = await this.commit(() => {
         enableDemoProjectPlugins(this.projects, project.project_id, actorId);
         return this.projects.lifecycle.touch(project.project_id, "project.demo_reset", actorId, {});
@@ -124,7 +120,8 @@ export class DemoProjectLifecycle {
     if (project.data_class !== "regenerable_demo") {
       throw catalogErrors.not_demo("只有明确标记为可重建演示数据的项目能走 demo 删除流程");
     }
-    return this.deletion.deleteProject(input);
+    // Removing the demo (the CLI, the settings page, uninstall) never deletes the files in its default output directory (SSC-23).
+    return this.deletion.deleteProject({ ...input, output_files: "keep" });
   }
 
   requireDemoConfirmation(userConfirmed: boolean): void {
@@ -133,8 +130,7 @@ export class DemoProjectLifecycle {
     );
   }
 
-  private async finishDemoProject(projectId: string, databasePath: string, actorId: string): Promise<void> {
+  private async finishDemoProject(projectId: string, actorId: string): Promise<void> {
     await this.commit(() => enableDemoProjectPlugins(this.projects, projectId, actorId));
-    seedDemoPluginSurfaces(databasePath, projectId);
   }
 }

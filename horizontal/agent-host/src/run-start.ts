@@ -1,13 +1,15 @@
 import { agentErrors } from "./errors.js";
+import { directoryInputOnly, type RunDirectories } from "@molis-ai/molis-work-contracts/modules/projects";
 import { assertChildRoleTools } from "./child-role-tools.js";
-import { requireSynchronous, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { isAgentTool } from "./tool-catalog.js";
+import { requireSynchronous, type ActionLocale, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { skillRefKey } from "@molis-ai/molis-work-plugin-sdk/skill-ref";
 import { currentCharacterMatches } from "./character-import.js";
 import type {
   AgentManifest,
   AgentPromptText,
   AgentRoleDeclaration,
   AgentRoleExecution,
-  AgentSkillDefinition,
 } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { BUSINESS_HOST_TOOLS, orderPromptsByLayer } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import type {
@@ -18,12 +20,14 @@ import type {
   AgentMcpLibrary,
   AgentRunHandle,
   AgentRuntimeAdapter,
+  AgentRoundSkill,
   AgentRuntimeCapability,
   AgentSessionRef,
   AgentSessionView,
   AgentSkillOwner,
   AgentStartRequest,
   AgentSubagentWorkspace,
+  AgentWorkingDirectory,
 } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { SUGGEST_HOST_TOOL } from "./adapters/prologue-action-tools.js";
 import type { AgentStartAuthority } from "./index.js";
@@ -65,6 +69,9 @@ function declaredSidePrompt(authority: AgentStartAuthority, promptId: string | u
  * Layers are then ordered base → role → project, stably, so the order inside a
  * layer stays the one the role meant.
  *
+ * The reply language, when the Host gives one, comes after all of them: it is the
+ * Host's word about this round, in no layer a package or a project can reorder.
+ *
  * The task is not here. It travels as its own argument, because it is what the
  * user typed this time and nothing in a package may stand in for it.
  */
@@ -93,7 +100,19 @@ export function composeRolePrompts(
   }));
   const characterPrompt: AgentPromptText[] = character ? [{ prompt_id: `character-${character.character_id}`, version: character.reference.version,
     layer: "role", body: characterInstructions ?? character.instructions }] : [];
-  return orderPromptsByLayer([...own, ...characterPrompt, ...project]);
+  // Last, after the layers: whatever language the texts before it are written in, this is what the reply follows.
+  return [...orderPromptsByLayer([...own, ...characterPrompt, ...project]), ...(authority.reply_language ? [{ ...authority.reply_language.prompt }] : [])];
+}
+
+/**
+ * Every tool a role and the child roles it dispatches name is one the Agent Host has (contract-design §5.2): checked where the role's
+ * availability is, so an unknown name shows when the plugin is assembled, not when a round starts.
+ */
+export function assertKnownRoleTools(role: AgentRoleDeclaration, manifest: AgentManifest): void {
+  const children = manifest.subagents?.parent_role_ids.includes(role.role_id)
+    ? manifest.subagents.roles.filter(child => !child.parent_role_ids || child.parent_role_ids.includes(role.role_id)) : [];
+  const unknown = [role, ...children].flatMap(item => item.host_tools ?? []).find(tool => !isAgentTool(tool));
+  if (unknown !== undefined) throw agentErrors.role_tool_unknown(`角色 ${role.role_id} 声明的工具 ${unknown} 不在 Agent 工具全集里`);
 }
 
 /** Omitting `execution` means read-only. Callers must not reimplement this default. */
@@ -133,12 +152,46 @@ function frozenActionClient(source: AgentActionClient, validateCharacter: (() =>
   };
 }
 
+/** One of the Host's own worktrees of the output, as the Host verified it when a round or session asked for one. */
+export interface AgentHostWorktree { worktree_id: string; canonical_path: string }
+
+/**
+ * The Host's worktrees, read only when a request names a directory other than the output or hands children their own: reading them
+ * runs Git, and most rounds work in the output.
+ */
+export async function worktreesFor(authority: AgentStartAuthority, directory: AgentWorkingDirectory | undefined, children = 0): Promise<readonly AgentHostWorktree[]> {
+  const needed = children > 0 || directory !== undefined && !authority.authorizedDirectories.includes(directory.canonical_path);
+  return needed && authority.worktrees ? authority.worktrees() : [];
+}
+
+/**
+ * Where a round or a session may work (specs/shared-sources-and-surfaces §3, SSC-15): the project's output, or one of the Host's own
+ * worktrees of it. A folder of the project that is only an input is read, never run in; any other directory was never authorized.
+ */
+export function placeOf(directory: AgentWorkingDirectory | undefined, authority: AgentStartAuthority, worktrees: readonly AgentHostWorktree[], refusal: string): RunDirectories["execution"] {
+  if (directory?.realpath_verified) {
+    if (authority.authorizedDirectories.includes(directory.canonical_path)) return { kind: "output" };
+    const tree = worktrees.find(item => item.canonical_path === directory.canonical_path);
+    if (tree) return { kind: "worktree", worktree_id: tree.worktree_id };
+    const input = authority.directories?.inputs.find(item => item.canonical_path === directory.canonical_path);
+    if (input) throw directoryInputOnly(input.workspace_id);
+  }
+  throw agentErrors.directory_unauthorized(refusal);
+}
+
+/** Where the round works, frozen into its record from the folders the Host read for it; none for a round without a directory. */
+export function runDirectoriesOf(authority: AgentStartAuthority, place: RunDirectories["execution"] | undefined): RunDirectories | undefined {
+  const folders = authority.directories;
+  return place && folders ? { directories_revision: folders.revision, output: folders.output.workspace_id, inputs: folders.inputs.map(item => item.workspace_id), execution: place } : undefined;
+}
+
 /** The role is declared, the runtime carries what it needs, and the request's workspace is the one the role declares. */
-export function checkStartRole(adapter: AgentRuntimeAdapter, runtimeId: string, request: AgentStartRequest, authority: AgentStartAuthority) {
+export function checkStartRole(adapter: AgentRuntimeAdapter, runtimeId: string, request: AgentStartRequest, authority: AgentStartAuthority, worktrees: readonly AgentHostWorktree[] = []) {
   const role = authority.manifest.roles.find((item) => item.role_id === request.role_id);
   if (!role) {
     throw agentErrors.role_not_declared(`插件没有声明角色 ${request.role_id}`);
   }
+  assertKnownRoleTools(role, authority.manifest);
   const execution = roleExecution(role);
   const missing = EXECUTION_CAPABILITIES[execution]
     .filter((capability) => adapter.descriptor.capabilities[capability] === "unsupported");
@@ -161,11 +214,8 @@ export function checkStartRole(adapter: AgentRuntimeAdapter, runtimeId: string, 
       || request.subagent_workspaces?.length || request.execution_plan) {
       throw agentErrors.role_execution_exceeded("业务执行不能选择目录、MCP、子任务目录或执行计划");
     }
-  } else if (!request.directory?.realpath_verified
-    || !authority.authorizedDirectories.includes(request.directory.canonical_path)) {
-    throw agentErrors.directory_unauthorized("这个目录没有被授权给当前插件");
-  }
-  return { role, execution, workspace };
+  } else return { role, execution, workspace, place: placeOf(request.directory, authority, worktrees, "这个目录没有被授权给当前插件") };
+  return { role, execution, workspace, place: undefined };
 }
 
 /** The round is for the session it names, on this runtime, and the session is the requester's with the role's workspace. */
@@ -323,9 +373,12 @@ export function frozenSidePrompts(adapter: AgentRuntimeAdapter, authority: Agent
   return { compaction, endingReview };
 }
 
-/** Each writing child's own authorized directory, distinct and never the main workspace; only for a declared read-only coordinator. */
+/**
+ * Each writing child's own directory: one of the Host's worktrees, named by its own `worktree_id`, distinct and never the main workspace;
+ * only for a declared read-only coordinator. A round recorded under another name for it is not read as one (it is refused, and started again).
+ */
 function childWorkspacesOf(adapter: AgentRuntimeAdapter, role: AgentRoleDeclaration, execution: AgentRoleExecution, request: AgentStartRequest,
-  authority: AgentStartAuthority): AgentSubagentWorkspace[] | undefined {
+  authority: AgentStartAuthority, worktrees: readonly AgentHostWorktree[]): AgentSubagentWorkspace[] | undefined {
   if (role.subagent_workspaces !== "required") {
     if (request.subagent_workspaces?.length) throw agentErrors.directory_unauthorized("当前角色没有声明独立子目录");
     return undefined;
@@ -335,17 +388,17 @@ function childWorkspacesOf(adapter: AgentRuntimeAdapter, role: AgentRoleDeclarat
   const ids = new Set<string>(), paths = new Set<string>();
   return request.subagent_workspaces.map(grant => {
     const path = grant.directory?.canonical_path;
-    if (!/^[A-Za-z0-9][A-Za-z0-9._~-]{0,63}$/.test(grant.workspace_id) || ids.has(grant.workspace_id)
-      || !grant.directory?.realpath_verified || !authority.authorizedDirectories.includes(path)
-      || path === request.directory?.canonical_path || paths.has(path)) throw agentErrors.directory_unauthorized("子任务目录未授权、重复或指向主工作区");
-    ids.add(grant.workspace_id); paths.add(path); return structuredClone(grant);
+    if (!/^[A-Za-z0-9][A-Za-z0-9._~-]{0,63}$/.test(grant.worktree_id) || ids.has(grant.worktree_id)
+      || !grant.directory?.realpath_verified || !worktrees.some(tree => tree.worktree_id === grant.worktree_id && tree.canonical_path === path)
+      || path === request.directory?.canonical_path || paths.has(path)) throw agentErrors.directory_unauthorized("子任务目录不是宿主建的独立工作树、重复或指向主工作区");
+    ids.add(grant.worktree_id); paths.add(path); return structuredClone(grant);
   });
 }
 
 /** The child roles a parent role may dispatch, each frozen with no tool its parent does not hold (unless it writes in its own directory). */
 export function frozenSubagents(adapter: AgentRuntimeAdapter, role: AgentRoleDeclaration, execution: AgentRoleExecution, request: AgentStartRequest,
-  authority: AgentStartAuthority, hostTools: readonly string[]) {
-  const childWorkspaces = childWorkspacesOf(adapter, role, execution, request, authority);
+  authority: AgentStartAuthority, hostTools: readonly string[], worktrees: readonly AgentHostWorktree[] = []) {
+  const childWorkspaces = childWorkspacesOf(adapter, role, execution, request, authority, worktrees);
   let subagents: AgentFrozenSubagentRole[] | undefined;
   const declaration = authority.manifest.subagents;
   if (declaration?.parent_role_ids.includes(role.role_id)) {
@@ -381,7 +434,8 @@ export interface StartFrozen {
   mcp: unknown;
   sources: unknown;
   compaction: { prompt: AgentPromptText; above_tokens: number } | undefined;
-  skills: readonly AgentSkillDefinition[];
+  skills: readonly AgentRoundSkill[];
+  replyLocale: ActionLocale | undefined;
 }
 
 /**
@@ -389,7 +443,7 @@ export interface StartFrozen {
  * wider authority.
  */
 export function widensFrozen(handle: AgentRunHandle, expected: StartFrozen): boolean {
-  const { request, role, execution, workspace, actionRefs, gateway, character, characterSkillIds, childWorkspaces, hostTools, mcp, sources, compaction, skills } = expected;
+  const { request, role, execution, workspace, actionRefs, gateway, character, characterSkillIds, childWorkspaces, hostTools, mcp, sources, compaction, skills, replyLocale } = expected;
   return (handle.frozen.workspace ?? "required") !== workspace
     || JSON.stringify(handle.frozen.directory) !== JSON.stringify(request.directory)
     || workspace === "none" && handle.frozen.host_tools.length !== 0
@@ -405,5 +459,6 @@ export function widensFrozen(handle: AgentRunHandle, expected: StartFrozen): boo
     || handle.frozen.role_id !== role.role_id
     || handle.frozen.role_version !== role.version
     || handle.frozen.execution !== execution
-    || JSON.stringify(handle.frozen.skills.map(skill => [skill.skill_id, skill.version])) !== JSON.stringify(skills.map(skill => [skill.skill_id, skill.version]));
+    || handle.frozen.reply_locale !== replyLocale
+    || JSON.stringify(handle.frozen.skills.map(skill => [skillRefKey(skill.ref), skill.origin, skill.named])) !== JSON.stringify(skills.map(skill => [skillRefKey(skill.ref), skill.origin, skill.named]));
 }

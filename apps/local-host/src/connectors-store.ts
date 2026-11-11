@@ -1,11 +1,11 @@
 import { CONNECTOR_CONNECTIONS_SCHEMA, CONNECTOR_PROTOCOLS_SCHEMA, CONNECTOR_OBSERVATIONS_SCHEMA } from "@molis-ai/molis-work-service-connector-host";
-import { openBaselineHomeSqlite, type SqliteBaseline, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
+import { openBaselineHomeSqlite, openExistingBaselineHomeSqlite, type SqliteBaseline, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
 
 /**
  * The Home connectors store's one current schema (repository-anti-corruption §4.1): connections and protocols as the
  * connector host defines them, and the authorization receipts the settings page reads.
  */
-export const CONNECTORS_BASELINE: SqliteBaseline = { version: 1, schema: `${CONNECTOR_CONNECTIONS_SCHEMA}${CONNECTOR_PROTOCOLS_SCHEMA}${CONNECTOR_OBSERVATIONS_SCHEMA}
+export const CONNECTORS_BASELINE: SqliteBaseline = { version: /* @version database.connectors_baseline */ 1, schema: `${CONNECTOR_CONNECTIONS_SCHEMA}${CONNECTOR_PROTOCOLS_SCHEMA}${CONNECTOR_OBSERVATIONS_SCHEMA}
   CREATE TABLE connector_authorization_results (
     id TEXT PRIMARY KEY, state_hash TEXT UNIQUE NOT NULL, connection_id TEXT NOT NULL,
     service_id TEXT NOT NULL, status TEXT NOT NULL, expires_at INTEGER NOT NULL,
@@ -18,3 +18,10 @@ export function openConnectorsStore(home: string) {
 
 /** This store in the Home's store registry (W4-11). */
 export const CONNECTORS_HOME_STORE: HomeStoreDeclaration = { path: "connectors", library: { baseline: CONNECTORS_BASELINE } };
+
+/** Pure queries leave an empty Home unchanged; the caller supplies its own empty result. */
+export function readConnectorsStore<T>(home: string, empty: T, read: (db: ReturnType<typeof openBaselineHomeSqlite>) => T): T {
+  const db = openExistingBaselineHomeSqlite(home, CONNECTORS_HOME_STORE.path, CONNECTORS_BASELINE);
+  if (!db) return empty;
+  try { return read(db); } finally { db.close(); }
+}

@@ -23,6 +23,8 @@ test("The project button holds settings and the account, and opens settings in t
   assert.equal(await evaluate("document.querySelector('.personal-account-copy small').textContent"), "Local space");
   assert.equal(await evaluate("document.querySelector('.personal-account').disabled"), false);
   await waitFor("document.querySelector('.personal-account').getAttribute('aria-controls') === 'mw-account-menu'");
+  assert.equal(await evaluate("document.querySelector('[data-unified-account-link]').disabled"), false);
+  assert.equal(await evaluate("document.querySelector('[data-unified-account-link]').getAttribute('aria-label')"), "Molis account");
   for(const width of [761,760,600,390]){
     await command("Emulation.setDeviceMetricsOverride",{width,height:844,deviceScaleFactor:1,mobile:width<=600},sessionId);
     for(const theme of ["light","dark"]){
@@ -52,9 +54,20 @@ test("The project button holds settings and the account, and opens settings in t
   await command("Emulation.setDeviceMetricsOverride",{width:1440,height:900,deviceScaleFactor:1,mobile:false},sessionId);
   await evaluate("dispatchEvent(new Event('resize'))");
   await evaluate("new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))");
-  await evaluate("document.querySelector('.personal-account').click()");
-  await evaluate("new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))");
+  await click(".bar-end .navigator-project-selector");
+  await click(".bar-end [data-account-link]");
+  await waitFor("!document.querySelector('#mw-account-menu').hidden");
   assert.equal(await evaluate("location.pathname"), "/projects/"+projectId+"/");
+  // WORK-03 / T01-ACCOUNT-ENTRY-01: the enabled account entry opens in place and can return to this project.
+  await click(".bar-end .navigator-project-selector");
+  await click(".bar-end [data-unified-account-link]");
+  await waitFor("!!document.querySelector('.account-dialog[open] .account-form')");
+  assert.equal(await evaluate("document.querySelector('#account-title').textContent"), "Molis account");
+  assert.equal(await evaluate("location.pathname"), "/projects/"+projectId+"/");
+  await click(".account-dialog > button");
+  await waitFor("!document.querySelector('.account-dialog')");
+  assert.equal(await evaluate("document.activeElement === document.querySelector('.bar-end .navigator-project-selector')"), true);
+  await click(".bar-end .navigator-project-selector");
   await click("[data-plugin-id=settings]");
   await waitFor("document.querySelector('#goal-tree-pane').dataset.desktopDirectory==='settings' && document.querySelector('#goal-tree-pane').getBoundingClientRect().width>80 && document.querySelector('[data-tab-workspace]')?.dataset.exclusive==='settings' && document.querySelector('[data-work-surface=settings] [data-theme-option=dark]')");
   assert.equal(await evaluate("location.pathname"), "/projects/"+projectId+"/");
@@ -244,12 +257,13 @@ test("ASC-38, ASC-39: Home refresh cannot consume a click while Inbox offers are
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, store } = browser;
   assert.ok(projectId);
   const feed = createLocalFeedApplication(store.db);
-  const before = feed.listInboxEntries(projectId).find(entry => entry.subject_type === "feed_item" && entry.status === "open");
-  assert.ok(before);
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
   await waitFor("document.querySelector('[data-home-subject-kind=inbox_entry]')");
+  // D0041: Feed owns demo initialization after Runtime startup, before Home offers its seeded Inbox entry.
+  const before = feed.listInboxEntries(projectId).find(entry => entry.subject_type === "feed_item" && entry.status === "open");
+  assert.ok(before);
   const row = '[data-home-subject-id="' + before.entry_id + '"]';
   await evaluate(`(() => {
     for (const day of [...document.querySelectorAll('[data-home-day]')].map(button => button.dataset.homeDay)) {

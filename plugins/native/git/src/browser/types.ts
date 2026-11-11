@@ -1,4 +1,4 @@
-import type { UiClientTranslate, UiPageReviews } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { UiClientTranslate, UiPageReviews, UiPageWorkspaces } from "@molis-ai/molis-work-contracts/platform/ui";
 
 export type Translate = UiClientTranslate;
 
@@ -32,8 +32,10 @@ export interface GitFactoryHost {
   /** Given only by the page that mounts Git in its own panel (Coding): where the result opens and closes. */
   openResult?(): void;
   closeResult?(): void;
-  /** Reads the browsing workspace again for every client on the page; Git alone refreshes when it is absent. */
+  /** Reads the folder the page shows again for every client on the page; Git alone refreshes when it is absent. */
   refreshWorkspace?(): void;
+  /** The Host's folder service: making a folder the output, which the person confirms in the Host's own dialog. */
+  readonly workspaces?: Pick<UiPageWorkspaces, "setOutput">;
 }
 
 /** What Git's client uses: the factory's host with the requests Git makes and the ports of the page it is mounted in. */
@@ -50,6 +52,7 @@ export interface GitHost {
   /** Shows the Host's reviews of this workspace in `element`; resolves when they are drawn. */
   showReviews?(element: Element, refs: readonly { run_id: string }[], sessionId: string | null, workspaceId: string, query: undefined, control: { lifetime: GitLifetime; signal: AbortSignal | undefined }): Promise<unknown> | undefined;
   refreshWorkspace?(): void;
+  readonly workspaces?: Pick<UiPageWorkspaces, "setOutput">;
 }
 
 declare global {
@@ -91,7 +94,6 @@ export interface ReviewRecord {
   readonly decided_by?: string | null;
   readonly decided_at?: string | null;
   readonly reconciliation?: Reconciliation | null;
-  readonly reconciliation_reason?: string | null;
   readonly failure_reason?: string | null;
 }
 export interface ReviewResult { readonly review: ReviewRecord; readonly outcome: string; readonly summary?: string }
@@ -121,6 +123,8 @@ export interface PrSupportAnswer { readonly message: string; readonly tool: stri
 /** What Git hands back to the bundle that mounts it. */
 export interface GitBrowser {
   refresh(): Promise<void>;
+  /** Shows another of the project's folders: the page that mounts Git keeps where it looks. */
+  browse(workspaceId: string): void;
   afterDecision(outcome: DecisionOutcome): Promise<void>;
   show(face: string): void;
 }

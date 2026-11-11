@@ -1,3 +1,4 @@
+import { projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
@@ -95,7 +96,7 @@ for (const failure of ["disabled", "invalid"] as const) test(`W3-09-2-01 assista
   const before = await home.web.get(subject.path(project.project_id));
   const offered = await home.host.inspectActions({ actor_id: "web-user", audience: "agent", project_id: project.project_id, permissions: ["schedule:write"] }, project.reference);
   const create = offered.find(view => view.capability_id === subject.create.capability_id); assert.ok(create);
-  if (failure === "disabled") await home.web.delete(`/api/settings/projects/${encodeURIComponent(project.project_id)}/plugins`, { plugin_id: "schedule" });
+  if (failure === "disabled") await home.web.delete(`/api/settings/projects/${encodeURIComponent(project.project_id)}/plugins`, { plugin_id: "schedule", expected_revision: await projectPluginRevision(home.web, project.project_id) });
   const queue = new AgentReviewQueue(), agent = new AgentHost({ reviews: queue });
   const adapter = await createPrologueNodeAdapter({ app: { appId: `io.molis.work.cross-entry-preflight-${failure}`, appVersion: "1.0.0" }, storageRoot: join(home.home, "preflight-sdk"), reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
@@ -123,7 +124,7 @@ for (const failure of ["disabled", "invalid"] as const) test(`W3-09-2-01 assista
   if (failure === "disabled") {
     const now = await home.host.inspectActions({ actor_id: "web-user", audience: "agent", project_id: project.project_id, permissions: ["schedule:write"] }, project.reference);
     assert.equal(now.some(row => row.capability_id === subject.create.capability_id), false, "a disabled Runtime no longer registers actions");
-    await home.web.post(`/api/settings/projects/${encodeURIComponent(project.project_id)}/plugins`, { plugin_id: "schedule" });
+    await home.web.post(`/api/settings/projects/${encodeURIComponent(project.project_id)}/plugins`, { plugin_id: "schedule", expected_revision: await projectPluginRevision(home.web, project.project_id) });
   }
   assert.deepEqual(await home.web.get(subject.path(project.project_id)), before, "both preflight refusals leave all owner tasks unchanged");
 });

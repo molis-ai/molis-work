@@ -1,0 +1,11 @@
+{
+  "format_version": 1,
+  "owner": "io.molis.work.example.notes",
+  "locale": "en",
+  "messages": {
+    "notes.main.saved": "Saved results: {count}",
+    "notes.main.saved-count": { "plural_arg": "count", "forms": { "one": "{count} result saved", "other": "{count} results saved" } },
+    "notes.main.source": "Source: {name}",
+    "notes.main.title": "Local Plugin Sample"
+  }
+}

@@ -1,3 +1,4 @@
+import {trialAccountConfig} from '../examples/personal-trial-tools/mock-auth.mjs';
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
@@ -10,6 +11,7 @@ import { createFileSecretStore, createLazyFileSecretStore, openBaselineHomeSqlit
 import { CONNECTORS_BASELINE } from "@molis-ai/molis-work-app-local-host";
 import { withFunctionsService, withFunctionsServiceAsync } from "../apps/local-host/dist/judgment-rules-host.js";
 import { functionsActions } from "@molis-ai/molis-work-module-judgment-rules";
+import { createSingleHomeTestWebServer } from "./fixtures/local-web-core.js";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
 // All Keychain calls resolve to this test executable. PATH contains no system
@@ -180,9 +182,9 @@ test("Functions local reads work with locked Keychain across Host, HTTP and fres
     assert.deepEqual(calls(), [], "fixture has not used Keychain");
     const live = await withFunctionsServiceAsync(home, async (service) => {
       const draft = service.createChoice({ name: "无需凭据浏览的函数", function_key: "lazy_keychain" });
-      service.updateDraft(draft.id, { instructions: "Choose yes", criteria: [{ key: "yes", description: "yes" }, { key: "no", description: "no" }] });
-      await service.preview(draft.id, "publish fixture");
-      return service.publish(draft.id);
+      service.updateDraft(draft.id, { instructions: "Choose yes", criteria: [{ key: "yes", description: "yes" }, { key: "no", description: "no" }] }, service.get(draft.id).updated_at);
+      await service.preview(draft.id, "publish fixture", service.get(draft.id).updated_at);
+      return service.publish(draft.id, service.get(draft.id).updated_at);
     }, setup);
     assert.deepEqual(calls(), [], "environment-authenticated preview must not use Keychain");
     assert.equal(withFunctionsService(home, service => service.listPublished()).some(row => row.function_key === live.function_key), true);
@@ -212,7 +214,8 @@ test("Functions local reads work with locked Keychain across Host, HTTP and fres
     const actionHost = new MolisWorkLocalHost({ homeDirectory: home, functions: {
       env: {}, provider: { async evaluate() { providerCalls++; throw new Error("must not reach provider"); } },
     } });
-    const server = createMolisWorkWebServer({ homeDirectory: home, localHost: actionHost, controlToken: "keychain-fixture-control-0123456789" });
+    // This already-selected Home owns the fixture credentials; the same production business core must reach its actual Keychain refusal.
+    const server = createSingleHomeTestWebServer({ homeDirectory: home, localHost: actionHost, controlToken: "keychain-fixture-control-0123456789" });
     try {
       await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
       const address = server.address();
@@ -240,6 +243,25 @@ test("Functions local reads work with locked Keychain across Host, HTTP and fres
       await actionHost.close();
     }
   }, "exit 36", true));
+
+test("ASR-02 installation first login refuses locked Keychain without anonymous fallback or repeated unlock prompts",
+  { skip: process.platform !== "darwin" }, () => withKeychainFixture(async ({ home, calls }) => {
+    const file=join(home,"feed","secrets.json"),before=readFileSync(file),token="keychain-first-login-control-0123456789";
+    const config={MOLIS_WORK_ACCOUNT_CONFIG:JSON.stringify({...trialAccountConfig("https://auth.example.test","http://127.0.0.1:4173"),environmentKind:"TEST"})};
+    const previous=Object.fromEntries(Object.keys(config).map(key=>[key,process.env[key]]));Object.assign(process.env,config);
+    const server=createMolisWorkWebServer({homeDirectory:home,controlToken:token});
+    try{
+      await new Promise<void>(resolve=>server.listen(0,"127.0.0.1",resolve));const address=server.address();assert.ok(address&&typeof address==="object");const origin=`http://127.0.0.1:${address.port}`;
+      for(let attempt=0;attempt<3;attempt++){
+        const response=await fetch(origin+"/api/personal/login",{method:"POST",headers:{Origin:origin,"content-type":"application/json","x-molis-work-control-token":token,"x-molis-work-idempotency-key":"locked-first-login-"+attempt},body:"{}"});
+        assert.equal(response.status,503,"credential failure remains a failed real installation login");assert.match((await response.json()).error,/登录会话暂时不可用/);
+      }
+      assert.equal((await fetch(origin+"/api/functions")).status,401,"credential failure never selects an anonymous editable Home");
+      assert.deepEqual(calls(),["find-generic-password"]);assert.deepEqual(readFileSync(file),before);assert.equal(existsSync(join(home,"feed","secrets.key")),false);
+    }finally{
+      if(server.listening)await new Promise<void>(resolve=>server.close(()=>resolve()));for(const[key,value]of Object.entries(previous))if(value===undefined)delete process.env[key];else process.env[key]=value;
+    }
+  },"exit 36",true));
 
 // The Keychain item is shared by every Home on this machine, so a Home without Keychain ciphertext never deletes
 // or replaces it: another Home's secrets may depend on the key it holds.

@@ -20,10 +20,10 @@ const SEPARATOR = "；";
 const TYPE_ID = "example.note";
 const KEY = `${TYPE_ID}@1`;
 
-const preview = defineArtifactPreviewAction(`${ID}.preview`, "笔记", []);
-const pin = defineArtifactPinAction(`${ID}.pin`, "note", "笔记", []);
-const compare = defineArtifactCompareAction(`${ID}.compare`, "笔记", []);
-const resume = defineArtifactContinueAction(`${ID}.continue`, "笔记", []);
+const preview = defineArtifactPreviewAction(`${ID}.preview`, 1, "笔记", []);
+const pin = defineArtifactPinAction(`${ID}.pin`, 1, "note", "笔记", []);
+const compare = defineArtifactCompareAction(`${ID}.compare`, 1, "笔记", []);
+const resume = defineArtifactContinueAction(`${ID}.continue`, 1, "笔记", []);
 const reference = (action: { capability_id: string; version: number }) => ({ capability_id: action.capability_id, version: action.version });
 const ref = (action: { capability_id: string; version: number }) => `${action.capability_id}@${action.version}`;
 /** A copy of an action definition with fields of its `action` replaced. */
@@ -176,7 +176,7 @@ function definitionOf(manifest: Record<string, unknown>): PluginDefinition {
 test("Runtime refuses to install a plugin whose type has no preview, and installs one that has", () => {
   const unreadable = definitionOf(declarationManifest({ artifacts: { produces: [{ artifact_type_id: TYPE_ID, schema_version: 1, title: "笔记" }], consumes: [] } }));
   assert.throws(() => new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS }).install({ trust: { level: "unsigned" }, definition: unreadable, deployment: "local" }),
-    (error: unknown) => (error instanceof ActionError && error.kind === "invalid") && error.code === "plugin.manifest_invalid" && error.message.includes(`成果类型 ${KEY} 缺少预览动作（preview）`));
+    (error: unknown) => (error instanceof ActionError && error.kind === "invalid") && error.code === "plugin.declaration_invalid" && error.message.includes(`成果类型 ${KEY} 缺少预览动作（preview）`));
   const note = artifactPreview(ID, TYPE_ID);
   const readable = definitionOf(declarationManifest({ actions: [note.definition], artifacts: { produces: [note.type], consumes: [] } }));
   assert.equal(new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS }).install({ trust: { level: "unsigned" }, definition: readable, deployment: "local" }).install.plugin_id, ID);

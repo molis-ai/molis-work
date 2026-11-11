@@ -1,5 +1,5 @@
 // Security invariants S-01 .. S-08 (docs/system/SECURITY-INVARIANTS.md): the local control entry of the web host.
-// Every test asserts the REFUSAL itself, on the real web host (createMolisWorkWebServer) or the real launcher process:
+// Every test asserts the REFUSAL itself on the production single-Home core or the real installation launcher:
 //   S-01  the launcher listens on loopback only
 //   S-02  a foreign Host header (DNS rebinding) is refused, for every method and every route
 //   S-03  a mutation needs a same-origin Origin, the control token and a one-time operation key; a non-API mutation is refused
@@ -22,15 +22,17 @@ import { WebSocket } from "ws";
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { BROWSER_SOCKET_PATH } from "@molis-ai/molis-work-contracts/services/browser";
 import { COMPUTER_SOCKET_PATH } from "@molis-ai/molis-work-contracts/services/computer";
+import { PLUGIN_STATEMENT_SQLITE_VERSION } from "@molis-ai/molis-work-plugin-runtime";
+import { createSingleHomeTestWebServer } from "./fixtures/local-web-core.js";
 import { createMolisWorkWebServer, resolveWebControlToken, WEB_CONTROL_TOKEN_RELATIVE_PATH } from "../apps/desktop/launchers/web/server.js";
 
 const TOKEN = "security-invariants-control-token-0123456789abcdef";
 const LAUNCHER = fileURLToPath(new URL("../apps/desktop/launchers/web/server.ts", import.meta.url));
 
 interface Host { home: string; port: number; origin: string; sockets: WebSocket[] }
-async function startHost(t: TestContext, options: Parameters<typeof createMolisWorkWebServer>[0] = {}): Promise<Host> {
+async function startHost(t: TestContext, options: Parameters<typeof createSingleHomeTestWebServer>[0] = {}, createServer=createSingleHomeTestWebServer): Promise<Host> {
   const home = await mkdtemp(join(os.tmpdir(), "security-invariants-"));
-  const server = createMolisWorkWebServer({ homeDirectory: home, controlToken: TOKEN, ...options });
+  const server = createServer({ homeDirectory: home, controlToken: TOKEN, ...options });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const port = (server.address() as AddressInfo).port;
   const sockets: WebSocket[] = [];
@@ -127,6 +129,46 @@ test("S-01 the launcher listens on 127.0.0.1 only: it announces that address and
   const reachable = others.filter(address => !/^198\.1[89]\./.test(address));
   for (const address of reachable) assert.equal(await answersAt(address, port, child.pid!), false, `${address}:${port} must not reach the launcher`);
   assert.equal(await answersAt("::1", port, child.pid!), false, "the IPv6 loopback is another socket and is not bound either");
+});
+
+// SQLD-06: the start line for a Node whose SQLite is not the one the plugin statement check was read against. It is said on the
+// real launcher, in a temporary Home, and only said: the check itself refuses on its own (security-invariants-plugin-project-database).
+// Two starts, because one start can only prove one half on a given machine: with this Node as it is, the launcher says nothing on the
+// locked Node (.nvmrc, CI) and says so on any other; with a preload that makes `process.versions.sqlite` another version, it says so
+// on every machine, which is what keeps the launcher's call to the notice from being deleted unseen.
+async function launcherStartLines(t: TestContext, preload: string[] = []): Promise<{ output: string; errors: string }> {
+  const home = await mkdtemp(join(os.tmpdir(), "sqlite-version-launcher-"));
+  const port = await freePort();
+  const child = spawn(process.execPath, [...preload, "--import", "tsx", LAUNCHER, "--port", String(port), "--home", home], { stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, MOLIS_WORK_HOME: home } });
+  let output = "", errors = "";
+  child.stdout.on("data", chunk => { output += String(chunk); });
+  child.stderr.on("data", chunk => { errors += String(chunk); });
+  t.after(async () => {
+    child.kill("SIGTERM");
+    await new Promise<void>(resolve => { child.once("exit", () => resolve()); setTimeout(() => { child.kill("SIGKILL"); resolve(); }, 3000).unref(); });
+    await rm(home, { recursive: true, force: true });
+  });
+  const deadline = Date.now() + 40_000;
+  while (!output.includes("项目列表") && child.exitCode === null && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 100));
+  assert.match(output, /项目列表/, `the launcher started (stderr: ${errors})`);
+  await new Promise(resolve => setTimeout(resolve, 300));
+  return { output, errors };
+}
+const SQLITE_NOTICE = `插件语句检查审过的是 ${PLUGIN_STATEMENT_SQLITE_VERSION}`;
+const SQLITE_NOTICE_ENTRY = '"event":"sqlite_version_unreviewed"';
+
+test("SQLD-06 the launcher on this Node says at start that its SQLite is not the reviewed one, and says nothing when it is", { timeout: 60_000 }, async t => {
+  const { output, errors } = await launcherStartLines(t);
+  const reviewed = process.versions.sqlite === PLUGIN_STATEMENT_SQLITE_VERSION;
+  t.diagnostic(`this Node ${process.version} has SQLite ${process.versions.sqlite}; the reviewed one is ${PLUGIN_STATEMENT_SQLITE_VERSION}`);
+  assert.equal(output.includes(SQLITE_NOTICE), !reviewed, `the start lines: ${output}`);
+  assert.equal(errors.includes(SQLITE_NOTICE_ENTRY), !reviewed, `the Host log: ${errors}`);
+});
+
+test("SQLD-06 the launcher says so at start on every machine when the Node's SQLite is another version (a preload makes it 0.0.0)", { timeout: 60_000 }, async t => {
+  const { output, errors } = await launcherStartLines(t, ["--import", 'data:text/javascript,Object.defineProperty(process.versions,"sqlite",{value:"0.0.0"})']);
+  assert.ok(output.includes(SQLITE_NOTICE) && output.includes("SQLite 是 0.0.0"), `the start lines: ${output}`);
+  assert.ok(errors.includes(SQLITE_NOTICE_ENTRY), `the Host log: ${errors}`);
 });
 
 // ---- S-02 ------------------------------------------------------------------------------------------------------
@@ -434,7 +476,7 @@ test("S-06 the control token is long and random, written owner-only, and a short
 test("S-21 no answer of the host can be shown in another origin's frame: every route says SAMEORIGIN, and the pages' policy says frame-ancestors 'self'", { timeout: 60_000 }, async t => {
   const host = await startHost(t);
   const routes: Array<[string, string, Record<string, string | undefined>]> = [
-    ["GET", "/", {}], ["GET", "/onboarding", {}], ["GET", "/health", {}], ["GET", "/__ui/catalog", {}], ["GET", "/api/settings/projects", {}], ["GET", "/assets/missing.css", {}],
+    ["GET", "/", {}], ["GET", "/onboarding", {}], ["GET", "/health", {}], ["GET", "/__ui/catalog", {}], ["GET", "/desktop/capsule", {}], ["GET", "/api/settings/projects", {}], ["GET", "/assets/missing.css", {}],
     ["GET", "/no/such/page", {}], ["GET", "/locale?lang=en", {}],
     ["GET", "/api/spaces", {}], ["GET", "/api/sync", {}],
     // Refusals carry it as well: the header is made before any route decides.
@@ -457,7 +499,9 @@ test("S-21 no answer of the host can be shown in another origin's frame: every r
       }
     }
   }
-  const account = await send(host, "GET", "/api/personal/status");
+  // Account entry belongs to the installation owner; the selected business core does not manufacture account responses.
+  const installation=await startHost(t,{},createMolisWorkWebServer);
+  const account = await send(installation, "GET", "/api/personal/status");
   assert.equal(account.headers["x-frame-options"], "DENY", "account responses retain their stricter no-framing policy");
   assert.ok(pages >= 2, `the sweep looked at pages with a policy (${pages})`);
 });

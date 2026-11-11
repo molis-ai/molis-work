@@ -5,13 +5,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { compareRunChangeSet } from "@molis-ai/molis-work-plugin-diff";
-import { parseUnifiedDiff, unifiedPatch } from "@molis-ai/molis-work-plugin-sdk/diff-view";
+import { compareHunks, parseUnifiedDiff, unifiedPatch } from "@molis-ai/molis-work-plugin-sdk/diff-view";
 
 // specs/visual-ui-experience §code-diff「复制代码/补丁内容明确且等真实结果」(VUX-33): what 复制补丁 copies is a patch git takes,
 // and applying it to the text before gives exactly the text after.
 
 const view = (before: string | null, after: string) => compareRunChangeSet({
-  content: { scope: "run-frozen", run_id: "r", applied: false, coverage: "text-reviews", files: [{ path: "src/a.txt", kind: before === null ? "added" : "modified", added_lines: 0, removed_lines: 0, diff: "",
+  content: { scope: "run-frozen", run_id: "r", applied: false, coverage: "text-reviews", origin: { session_id: "s", runtime_session_id: "r", workspace_id: "w", workspace_name: "w" }, files: [{ path: "src/a.txt", kind: before === null ? "added" : "modified", added_lines: 0, removed_lines: 0, diff: "",
     review: { review_id: "v", before_text: before, after_text: after, decision: "approved", execution: "applied" } }] } as never,
   source_plugin_id: "c", content_version: 1 }, undefined, 0);
 
@@ -57,8 +57,8 @@ test("VUX-33: the copied patch applies with git and gives exactly the text after
 
 test("VUX-33: a producer's hunks copy as the same hunks, gaps kept, and nothing changed copies nothing", () => {
   const diff = "@@ -10,4 +10,4 @@ fn\n a\n b\n-c\n+C\n d\n@@ -50,3 +50,4 @@\n x\n+y\n z\n w\n";
-  const shown = compareRunChangeSet({ content: { scope: "run-frozen", run_id: "r", applied: false, files: [{ path: "src/a.txt", kind: "modified", added_lines: 2, removed_lines: 1, diff }] } as never,
-    source_plugin_id: "c", content_version: 1 });
+  const side = { workspace_id: "w", workspace_name: "w", path: "src/a.txt", source_plugin_id: "c", content_version: 1 };
+  const shown = compareHunks(null, { before: side, after: { ...side } }, diff);
   const patch = unifiedPatch(shown.rows, { path: "src/a.txt" });
   assert.deepEqual(parseUnifiedDiff(patch).map((hunk) => [hunk.before_start, hunk.before_count, hunk.after_start, hunk.after_count]),
     [[10, 4, 10, 4], [50, 3, 50, 4]], "the gap between the two hunks is not bridged");

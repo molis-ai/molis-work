@@ -1,4 +1,5 @@
 import { resolveModelPrompt } from "./agent-definitions/instructions.js";
+import { objectSchema } from "@molis-ai/molis-work-plugin-sdk";
 import { retainActionAuthority, type ActionClient, type ActionDefinition, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import { hostCompleteText, textModelAvailability, textModelRequired, type HostCompleteText } from "./host-complete-text.js";
 import { planInformationWork, type InformationPlanEntry, type InformationPlanSnapshot } from "./information-planner.js";
@@ -6,22 +7,21 @@ import { planInformationWork, type InformationPlanEntry, type InformationPlanSna
 export const INFORMATION_PROVIDER_ID = "system.information";
 
 /** The two owner actions the plan reads, named by capability id only: the directory decides which provider answers each. */
-const feedSnapshot = { capability_id: "feed.snapshot", version: 1 } as const;
-const inboxList = { capability_id: "inbox.list", version: 1 } as const;
+const feedSnapshot = { capability_id: "feed.snapshot", version: /* @version action.feed.snapshot */ 1 } as const;
+const inboxList = { capability_id: "inbox.list", version: /* @version action.inbox.list */ 1 } as const;
 
 const text = { type: "string" };
-const fields = (properties: Record<string, unknown>) => ({ type: "object", properties, required: Object.keys(properties), additionalProperties: false });
 
 export const informationActions = {
-  plan: { capability_id: "information.plan", version: 1, operation: "query", action: {
+  plan: { capability_id: "information.plan", version: /* @version action.information.plan */ 1, operation: "query", action: {
     title: "起草信息处理方案", description: "根据当前项目的 Feed 与 Inbox 提出筛选或写作方案；不会执行方案中的操作",
     kind: "query", scope: "project", scheduling: "concurrent", execution: { cost: "metered" }, audiences: ["user"], permissions: ["feed:read", "inbox:read", "model:invoke"], subject_kinds: [],
     required_actions: [feedSnapshot, inboxList],
     input_schema: { type: "object", properties: { prompt: { type: "string", minLength: 1, maxLength: 4000 }, selected_item_id: { type: "string", maxLength: 200 } }, required: ["prompt"], additionalProperties: false },
-    output_schema: fields({ message: text, action: { anyOf: [{ type: "null" },
-      fields({ kind: { const: "configure_filter" }, source_id: text, sample_item_id: text, name: text, instructions: text }),
-      fields({ kind: { const: "draft_pages" }, entry_ids: { type: "array", items: text }, title: text, instructions: text }),
-    ] }, context: fields({ project_id: text, items: { type: "integer", minimum: 0 }, inbox: { type: "integer", minimum: 0 } }) }),
+    output_schema: objectSchema({ message: text, action: { anyOf: [{ type: "null" },
+      objectSchema({ kind: { const: "configure_filter" }, source_id: text, sample_item_id: text, name: text, instructions: text }),
+      objectSchema({ kind: { const: "draft_pages" }, entry_ids: { type: "array", items: text }, title: text, instructions: text }),
+    ] }, context: objectSchema({ project_id: text, items: { type: "integer", minimum: 0 }, inbox: { type: "integer", minimum: 0 } }) }),
   } } satisfies ActionDefinition<{ prompt: string; selected_item_id?: string }, Awaited<ReturnType<typeof planInformationWork>>>,
 };
 

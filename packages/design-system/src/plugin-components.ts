@@ -117,11 +117,12 @@ export const PLUGIN_COMPONENTS: readonly PluginComponentMetadata[] = [
 ];
 /**
  * English for the catalog's component names and descriptions, which the studio's spec board shows (the Chinese text is the
- * key; the studio looks each one up through its translator). A name that other owners already translate (卡片, 分隔线, 侧栏,
- * 日历, 路径) keeps that English and is not repeated here; the groups (版面, 展示 …) are the studio's own words.
+ * key; the studio looks each one up through its translator). A name that other owners already translate (卡片, 分隔线, 日历,
+ * 路径) keeps that English and is not repeated here; the groups (版面, 展示 …) are the studio's own words. 侧栏 is here: the
+ * workbench calls its side 右侧 now (07-S1), so no other owner says it.
  */
 export const PLUGIN_COMPONENTS_EN: Readonly<Record<string, string>> = {
-  "页框": "Page frame", "标签页": "Tabs", "折叠列表": "Accordion", "折叠段": "Collapsible section", "按钮组": "Button group", "滚动区": "Scroll area",
+  "页框": "Page frame", "侧栏": "Side panel", "标签页": "Tabs", "折叠列表": "Accordion", "折叠段": "Collapsible section", "按钮组": "Button group", "滚动区": "Scroll area",
   "条目列表": "Item list", "表格": "Table", "徽标": "Badge", "量表": "Meter", "进度条": "Progress bar", "头像": "Avatar", "按键": "Key",
   "表单": "Form", "字段": "Field", "输入框": "Input box", "带图标的输入": "Input with icon", "多行输入": "Multiline input", "数字输入": "Number input",
   "下拉选择": "Dropdown", "选项组": "Option group", "复选框": "Checkbox", "日期选择": "Date picker", "多选组": "Checkbox group", "单选组": "Radio group",

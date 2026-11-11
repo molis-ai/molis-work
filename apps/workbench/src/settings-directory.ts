@@ -1,4 +1,4 @@
-import { renderDirectoryPanel, renderDirectoryRow, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { renderDirectoryPanel, renderDirectoryRow, renderReturnBar, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderAppearanceSettingsDocument } from "./settings-appearance.js";
 import { createProjectSettingsFolds, type ProjectSettingsFoldProject } from "./project-settings-folds.js";
 import { groupedGlobalSettingsSections } from "./settings-sections.js";
@@ -14,11 +14,13 @@ export interface SettingsDirectoryPrimitives {
 
 const PROJECT_SETTINGS_SECTIONS = [
   { id: "general", label: "常规", icon: "tune" },
-  { id: "workspaces", label: "工作目录", icon: "folder" },
+  { id: "workspaces", label: "输入与输出", icon: "folder" },
   { id: "guidance", label: "项目说明", icon: "book" },
   { id: "memory", label: "记忆", icon: "bookmark" },
   { id: "knowledge", label: "项目资料", icon: "file" },
   { id: "plugins", label: "插件", icon: "package" },
+  { id: "kit", label: "能力包", icon: "sparkles" },
+  { id: "grants", label: "授权与放行", icon: "shield" },
 ] as const satisfies readonly { id: string; label: string; icon: PluginIconName }[];
 
 function localeSwitchHref(locale: "zh" | "en", nextPath: string): string {
@@ -33,6 +35,7 @@ export function renderPersonalMenuItems(primitives: SettingsDirectoryPrimitives)
       <span class="personal-account-avatar" aria-hidden="true">${icon("user")}</span>
       <span class="personal-account-copy"><strong data-personal-name>${L("未登录")}</strong><small data-personal-status>${L("本地空间")}</small></span>
     </button>
+    <button class="immersive-plugin-link account-global-item" type="button" data-unified-account-link aria-label="${L("Molis 账号")}" title="${L("Molis 账号")}">${icon("user")}<span data-unified-account-name>${L("Molis 账号")}</span></button>
     <a class="immersive-plugin-link account-global-item" href="__SYSTEM_CAPABILITIES__" data-capabilities-open aria-label="${L("打开能力服务")}" title="${L("能力")}">${icon("sparkles")}<span>${L("能力")}</span></a>
     <button class="immersive-plugin-link account-global-item personal-settings" type="button" data-plugin-id="settings" data-directory-open="settings" aria-label="${L("打开全局设置")}" title="${L("设置")}">${icon("settings")}<span>${L("设置")}</span></button>
   </div>`;
@@ -87,6 +90,11 @@ export function renderProjectSettingsDirectorySection(primitives: SettingsDirect
   </section>`;
 }
 
+/** The return bar the settings-return owner puts on top of the settings it opened for a page (specs/draft-and-return §9); it fills the words. */
+function returnBarTemplate(L: SettingsDirectoryPrimitives["L"]): string {
+  return `<template data-settings-return-bar-template>${renderReturnBar({ title: "", body: "", back: L("现在回去"), label: L("从哪里来") })}</template>`;
+}
+
 /** Settings inside a project. `nextPath` is where switching the language lands: this project with Settings open on the same page (VUX-40). */
 export function renderSettingsWorkSurface(primitives: SettingsDirectoryPrimitives, nextPath: string): string {
   const { L, htmlLang } = primitives;
@@ -100,7 +108,7 @@ export function renderSettingsWorkSurface(primitives: SettingsDirectoryPrimitive
     '<section class="settings-document appearance-document" data-settings-panel="appearance"',
   );
   return `<section class="desktop-work-surface settings-stage" data-work-surface="settings" data-work-surface-label="${L("设置")}" hidden>
-    <div class="settings-content" data-settings-stage-body>${appearance}</div>
+    ${returnBarTemplate(L)}<div class="settings-content" data-settings-stage-body>${appearance}</div>
   </section>`;
 }
 
@@ -118,6 +126,6 @@ export function renderProjectSettingsWorkSurface(
   });
   const general = project ? folds.renderGeneralPage(project, desktopShell) : "";
   return `<section class="desktop-work-surface settings-stage" data-work-surface="project-settings" data-work-surface-label="${L("项目设置")}" hidden>
-    <div class="settings-content" data-settings-stage-body>${general}</div>
+    ${returnBarTemplate(L)}<div class="settings-content" data-settings-stage-body>${general}</div>
   </section>`;
 }

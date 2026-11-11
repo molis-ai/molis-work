@@ -47,7 +47,7 @@ function mountGoalTerminal(pane: HTMLElement) {
     parentReadOnlyMessage: guard.parentReadOnlyMessage,
     canControlPanel,
     text: L, errorText, route, request, terminalsRoute: () => pane.dataset.tuiTerminalsRoute || "",
-    controlToken: () => document.querySelector('meta[name="molis-work-control-token"]')?.getAttribute("content") || "",
+    controlToken: () => document.querySelector('meta[name="molis-work-page-session"]')?.getAttribute("content") || "",
     setStatus, setMenuOpen: (open) => menu.setMenuOpen(open),
     renderTabs: () => view.renderTabs(),
     showTerminal: (panelId) => view.showTerminal(panelId),

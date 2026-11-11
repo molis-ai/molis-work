@@ -61,7 +61,10 @@ export const ASSISTANT_CONVERSATION_PART = String.raw`  /* ─── Showing a t
         finally { button.disabled = false; delete button.dataset.loading; button.querySelector(".mw-spinner")?.remove(); }
       },
     }, question.pending_id + question.pending_revision + question.answerable);
-    fills.set(question.pending_id, (field, text) => { const now = client.read()[field]; client.write({ [field]: now ? now + " " + text : text }); clearTimeout(saving); return api(path + "/question-draft", "POST", held()); });
+    fills.set(question.pending_id, (field, text, draft_revision) => { const now = client.read()[field]; client.write({ [field]: now ? now + " " + text : text }); clearTimeout(saving); return api(path + "/question-draft", "POST", { ...held(), draft_revision }).then(saved => {
+      const cached = works.find(one => one.work_id === work.work_id);
+      if (cached?.draft_revision === draft_revision) { cached.draft = saved.draft; cached.draft_revision = saved.draft_revision; }
+    }); });
   };
   const renderReview = (card, work, review) => {
     card.innerHTML = review.html;
@@ -94,6 +97,8 @@ export const ASSISTANT_CONVERSATION_PART = String.raw`  /* ─── Showing a t
         if (hadFocus) (node.isConnected ? node.querySelector("[data-ix-action], [data-ix-operation]") : (neighbour && neighbour.isConnected && neighbour.querySelector("button")) || input)?.focus();
       } catch (error) { showError(error); lock(false); if (hadFocus) button.focus(); }
     } });
+    const pending = node.querySelector("[data-assistant-connection]");
+    if (pending) connectionCard(pending, work, card);
   };
   /** A card no round proposed: a page put it in (it names the page in from), or its round is not one of this work's. */
   const pageCard = (card) => Boolean(card.from) || !card.run_id || !(view && view.rounds.some((round) => round.run_id === card.run_id));

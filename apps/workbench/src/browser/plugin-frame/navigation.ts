@@ -8,6 +8,8 @@ export function pageNavigation(scope: FrameScope, port: MessagePort, side: boole
   }
   const shortcuts = [...owner.querySelectorAll<HTMLElement>("[data-side-keys]")].map(node => node.dataset.sideKeys!).filter(Boolean);
   if (owner.querySelector("[data-global-search-dialog]")) shortcuts.push("Mod+K", "Mod+F");
+  // ⌘\ / Ctrl+\ collapses or opens the shell's right side wherever the keyboard is.
+  if (owner.querySelector("[data-side-tabs]")) shortcuts.push("Mod+Backslash");
   // The channel keeps focus after the visibility message, including a previously hidden side view.
   const focus = () => { if (side && scope.visible && document.hasFocus()) port.postMessage({ type: "focus" } satisfies FrameDown); };
   scope.listen(window, "focus", focus);
@@ -19,7 +21,7 @@ export function pageNavigation(scope: FrameScope, port: MessagePort, side: boole
       if (parent !== window) parent.postMessage({ type: "molis:side-key", keys: message.keys }, location.origin);
       else {
         const keys = message.keys.split("+"), key = keys.at(-1)!;
-        window.dispatchEvent(new KeyboardEvent("keydown", { key, code: "Key" + key,
+        window.dispatchEvent(new KeyboardEvent("keydown", { key, code: key.length === 1 ? "Key" + key : key,
           metaKey: keys.includes("Mod"), shiftKey: keys.includes("Shift"), altKey: keys.includes("Alt"), bubbles: true }));
       }
     }
@@ -57,8 +59,10 @@ export function childNavigation(port: MessagePort, scope: FrameScope, config: Fr
   scope.listen(window, "keydown", event => {
     const key = event as KeyboardEvent;
     if (key.repeat || key.isComposing || key.defaultPrevented) return;
+    // Backslash is named by the character typed: on a German or JIS layout the key in that place types something else.
+    const named = key.key === "\\" ? "Backslash" : key.code === "Backslash" ? "" : key.code.replace(/^Key/, "");
     const chord = (key.metaKey || key.ctrlKey ? "Mod+" : "") + (key.shiftKey ? "Shift+" : "")
-      + (key.altKey ? "Alt+" : "") + key.code.replace(/^Key/, "");
+      + (key.altKey ? "Alt+" : "") + named;
     if ((chord === "Mod+K" || chord === "Mod+F") && key.target instanceof Element && key.target.closest("[data-tui-pane],.xterm")) return;
     if (config.shortcuts.includes(chord)) { key.preventDefault(); port.postMessage({ type: "shortcut", keys: chord } satisfies FrameUp); }
     else if (config.side && key.key === "Escape" && !document.querySelector("dialog[open],:popover-open")) {

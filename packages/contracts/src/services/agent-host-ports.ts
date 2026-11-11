@@ -1,8 +1,7 @@
 /** The agent-host contract (`services/agent-host`): a runtime's checkpoints, Skills, MCP, subagents, schedule and recovery. */
-import type { AgentWorkingDirectory, AgentSkillRef, AgentMcpToolRef, AgentMcpSourceRef } from "./agent-host-start.js";
+import type { AgentWorkingDirectory, AgentMcpToolRef, AgentMcpSourceRef } from "./agent-host-start.js";
 import type { AgentSessionRef, AgentRunRef } from "./agent-host-runtime.js";
 import type { AgentReviewRequest } from "./agent-host-reviews.js";
-import type { AgentSkillDeclaration, AgentSkillDefinition } from "../platform/plugin-agent.js";
 import type { AgentToolActivity, AgentRunUsage } from "./agent-host-run-view.js";
 
 export interface AgentCheckpoint {
@@ -23,37 +22,8 @@ export interface AgentCheckpointsCapability {
   prepareRewind(session: AgentSessionRef, checkpointId: string): Promise<AgentReviewRequest>;
 }
 
-export interface AgentSkillCatalogEntry extends AgentSkillDeclaration {
-  source: "builtin" | "installed";
-  enabled: boolean;
-}
-
+/** The project and plugin a runtime library (today its MCP servers) belongs to. */
 export interface AgentSkillOwner { project_id: string; plugin_id: string }
-
-export interface AgentSkillCandidate {
-  candidate_id: string;
-  name: string;
-  summary: string;
-  source_label: string;
-  files: string[];
-  body: string;
-}
-
-export interface AgentSkillLibrary {
-  list(owner: AgentSkillOwner): Promise<AgentSkillCatalogEntry[]>;
-  read(owner: AgentSkillOwner, ref: AgentSkillRef): Promise<AgentSkillDefinition>;
-  discover(owner: AgentSkillOwner, directory: AgentWorkingDirectory, path: string): Promise<AgentSkillCandidate[]>;
-  install(owner: AgentSkillOwner, candidateId: string): Promise<AgentSkillCatalogEntry>;
-}
-
-export interface AgentSkillsCapability {
-  catalog(session: AgentSessionRef): Promise<AgentSkillCatalogEntry[]>;
-}
-
-export interface AgentMcpServerHealth {
-  server: string;
-  status: "ready" | "failed" | "unknown";
-}
 
 export interface AgentMcpServerInput {
   id?: string;
@@ -109,13 +79,6 @@ export interface AgentMcpToolDescriptor extends Required<Pick<AgentMcpToolRef, "
 
 /** What the external tool returned; untrusted data, never instructions. */
 export interface AgentMcpCallResult { text: string; truncated: boolean }
-
-export interface AgentMcpCapability {
-  catalog(session: AgentSessionRef): Promise<{
-    servers: AgentMcpServerHealth[];
-    tools: AgentMcpToolRef[];
-  }>;
-}
 
 export type AgentSubagentState = "running" | "completed" | "failed" | "cancelled" | "reconcile-required";
 

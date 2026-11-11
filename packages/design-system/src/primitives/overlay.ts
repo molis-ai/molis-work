@@ -99,19 +99,34 @@ export function renderHint(options: {
   return `<span class="mw-hint"><button type="button" class="mw-hint__trigger" popovertarget="${escapeHtml(ident)}" aria-label="${escapeHtml(options.label)}" style="anchor-name: ${anchor}">${icon(options.iconName ?? "circle-alert")}</button><div id="${escapeHtml(ident)}" class="mw-tooltip mw-hint__tooltip" data-slot="tooltip" role="tooltip" popover="auto" style="position-anchor: ${anchor}">${body}</div></span>`;
 }
 
-export function renderMenu(options: { items: string; className?: string; labelledBy?: string }): string {
+/** `attrs` carries what places the menu: an `id` and `popover` for one anchored under its button (`data-anchored-menu`). */
+export function renderMenu(options: { items: string; className?: string; labelledBy?: string; attrs?: Record<string, AttrValue> }): string {
   return `<div class="${cx("mw-menu", options.className)}" data-slot="menu" role="menu"${
     options.labelledBy ? ` aria-labelledby="${escapeHtml(options.labelledBy)}"` : ""
-  }>${options.items}</div>`;
+  }${renderAttrs(options.attrs)}>${options.items}</div>`;
+}
+
+/** A stable id for a described item that was given none: the same label and description give the same id on every render. */
+function describedItemIdent(label: string, description: string): string {
+  let hash = 0x811c9dc5;
+  for (const char of `${label}\u0000${description}`) hash = Math.imul(hash ^ char.codePointAt(0)!, 0x01000193) >>> 0;
+  return `mw-menu-item-${hash.toString(36)}`;
 }
 
 /**
  * A menu item; `checked` makes it a checkbox item whose leading slot holds the tick, `shortcut` sits at the far end.
  * `description` is a quiet second line under the name (`mw-menu__desc`): what choosing it does, or why it cannot be chosen.
+ * A described item's accessible name is its label alone (`aria-labelledby` → `<id>-label`) and the line is its description
+ * (`aria-describedby` → `<id>-desc`), so a screen reader says the name, then the consequence, instead of one run-on sentence.
+ * `id` names the two; without one it is derived from the label and the description, so an item drawn twice on one page (the
+ * same menu in two places) needs one from its caller. K2's composer client gives `<composer id>-delivery-<mode>`.
+ * The description line's rules are in the served primitive styles: it aims for one or two lines and wraps, never cut, and
+ * stays `--muted` on an item that cannot be chosen, since it is then the reason.
  */
 export function renderMenuItem(options: {
   label: string;
   description?: string;
+  id?: string;
   iconName?: Parameters<typeof icon>[0];
   danger?: boolean;
   shortcut?: string;
@@ -121,12 +136,13 @@ export function renderMenuItem(options: {
 }): string {
   const checkable = options.checked !== undefined;
   const lead = checkable ? `<span class="mw-menu__check" aria-hidden="true">${options.checked ? icon("check") : ""}</span>` : options.iconName ? icon(options.iconName) : "";
+  const ident = options.description ? escapeHtml(options.id ?? describedItemIdent(options.label, options.description)) : "";
   const label = options.description
-    ? `<span>${escapeHtml(options.label)}</span><small class="mw-menu__desc">${escapeHtml(options.description)}</small>`
+    ? `<span id="${ident}-label">${escapeHtml(options.label)}</span><small class="mw-menu__desc" id="${ident}-desc">${escapeHtml(options.description)}</small>`
     : escapeHtml(options.label);
   return `<button type="button" class="${cx("mw-menu__item", options.danger && "mw-menu__item--danger", options.description && "mw-menu__item--described")}" role="${checkable ? "menuitemcheckbox" : "menuitem"}"${
     checkable ? ` aria-checked="${options.checked}"` : ""
-  }${options.disabled ? " disabled" : ""}${renderAttrs(options.attrs)}>${lead}<span data-slot="menu-item-label">${label}</span>${
+  }${options.description ? ` aria-labelledby="${ident}-label" aria-describedby="${ident}-desc"` : ""}${options.disabled ? " disabled" : ""}${renderAttrs(options.attrs)}>${lead}<span data-slot="menu-item-label">${label}</span>${
     options.shortcut ? `<span class="mw-menu__shortcut">${escapeHtml(options.shortcut)}</span>` : ""
   }</button>`;
 }

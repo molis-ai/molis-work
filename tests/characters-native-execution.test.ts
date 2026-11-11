@@ -26,7 +26,8 @@ test("native preparation saves exact files and provenance in Characters' own run
       rules: [{ path: "/config/AGENTS.md", scope: "global", content: "exact rule" }], skills: [{ id: "s", name: "s", description: "test", path: "/config/skills/s", compatibility: "native-only",
         files: [{ path: "SKILL.md", encoding: "utf8", content: "Read refs/guide.md" }, { path: "refs/guide.md", encoding: "utf8", content: "complete resource" }, { path: "asset.bin", encoding: "base64", content: "AAEC/w==" }] }] } };
   const spawned: any[] = [];
-  const options = { home, actorId: "user", projectId: "board", spawn: (request: unknown) => { spawned.push(request); return {attached:false,started:true,replay:""}; }, workspaces: async () => [{ workspace_id: "ws", canonical_path: home, realpath_verified: true, display_name: "Test" }], executable: () => "/known/codex" };
+  const options = { home, actorId: "user", projectId: "board", spawn: (request: unknown) => { spawned.push(request); return {attached:false,started:true,replay:""}; }, workspaces: async () => [{ workspace_id: "ws", canonical_path: home, realpath_verified: true, display_name: "Test" }], executable: () => "/known/codex",
+    output: async () => ({ workspace_id: "ws", canonical_path: home, realpath_verified: true, display_name: "Test" }) };
   const ports = characterNativeExecution(options), ref = { artifact_id: "character:board:c", version: 1 };
   const input = { task: "Use my verifier", workspace_id: "ws", request_id: "b9a2b3d4-4333-4222-b555-987654321012" };
   await assert.rejects(ports.launch(content, ref, { ...input, workspace_id: "unknown" }), /已绑定/);
@@ -76,7 +77,8 @@ test("server-dispatched native PTY reads the saved bundle, shows its output, rea
   const pty=attachMolisWorkPtySocket(server,'fixture-control-token-123456789');
   t.after(async()=>{pty.killAll();await new Promise<void>(resolve=>server.close(()=>resolve()));rmSync(home,{recursive:true,force:true});});
   await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
-  const ports=characterNativeExecution({home,actorId:'user',projectId:'b',workspaces:async()=>[{workspace_id:'w',canonical_path:home,display_name:'fixture',realpath_verified:true}],spawn:request=>pty.spawn(request),executable:()=>command});
+  const ports=characterNativeExecution({home,actorId:'user',projectId:'b',workspaces:async()=>[{workspace_id:'w',canonical_path:home,display_name:'fixture',realpath_verified:true}],spawn:request=>pty.spawn(request),executable:()=>command,
+    output:async()=>({workspace_id:'w',canonical_path:home,display_name:'fixture',realpath_verified:true})});
   const content:CharacterContent={character_id:'c',title:'test',instructions:'',host_tools:null,source:{owner_actor_id:'user',draft_revision:1},import_snapshot:{runtime_id:'codex',config_root:home,captured_at:'2026-09-23T00:00:00Z',rules:[{path:join(home,'AGENTS.md'),scope:'global',content:'EXACT_FROZEN_RULE'}],skills:[]}};
   const input={workspace_id:'w',task:'fixture',request_id:'5e74e4c2-b296-476d-b52e-613ce3e1af76'},ref={artifact_id:'character:b:c',version:1};
   const started=await ports.launch(content,ref,input);assert.equal(started.run.status,'dispatched');
@@ -102,7 +104,8 @@ for (const phase of ["workspace", "final-check"] as const) test(`native Characte
     source: { owner_actor_id: "owner", draft_revision: 1 }, import_snapshot: { runtime_id: "codex", config_root: home, captured_at: "2026-10-12T00:00:00Z", rules: [], skills: [] } };
   const ports = characterNativeExecution({ home, actorId: "owner", projectId: "project", executable: () => "/fixture/codex",
     workspaces: async () => { if (phase === "workspace") await barrier(); return [{ workspace_id: "work", canonical_path: home, realpath_verified: true, display_name: "Fixture" }]; },
-    spawn: () => { spawned++; return { attached: false, started: true, replay: "" }; } });
+    spawn: () => { spawned++; return { attached: false, started: true, replay: "" }; },
+    output: async () => ({ workspace_id: "work", canonical_path: home, realpath_verified: true, display_name: "Fixture" }) });
   const reference = { artifact_id: "character:project:guarded", version: 1 }, input = { workspace_id: "work", task: "Use fixed instructions", request_id: "cbd7c047-773a-4382-81c2-8ad37ec691f6" };
   const assert_current = () => { if (!valid) throw new Error("original publication or provider withdrawn"); };
   const pending = ports.launch(content, reference, input, { beforeStart: async () => { assert_current(); if (phase === "final-check") await barrier(); }, assert_current });
@@ -124,7 +127,8 @@ for (const invalidation of ["cancel", "revoke", "publication", "provider"] as co
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), finished = Promise.withResolvers<void>(); let holding = true, valid = true, spawns = 0;
   const native = characterNativeExecution({ home, actorId: "user", projectId: DEMO_PROJECT_ID, executable: () => "/fixture/codex",
     workspaces: async () => { if (holding) { entered.resolve(); await release.promise; } return [{ workspace_id: "work", canonical_path: home, realpath_verified: true, display_name: "Fixture" }]; },
-    spawn: () => { spawns++; return { attached: false, started: true, replay: "" }; } });
+    spawn: () => { spawns++; return { attached: false, started: true, replay: "" }; },
+    output: async () => ({ workspace_id: "work", canonical_path: home, realpath_verified: true, display_name: "Fixture" }) });
   const actionPorts: CharactersActionPorts = { actorId: "user", drafts: personal,
     references: () => artifacts.query.listArtifacts(DEMO_PROJECT_ID).map(record => ({ artifact_id: record.artifact_id, version: record.version })),
     publish: (id, revision, publisher) => personal.publish(id, revision, publisher),

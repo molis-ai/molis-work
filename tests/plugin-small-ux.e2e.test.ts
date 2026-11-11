@@ -20,7 +20,7 @@ const CLIENTS_READY = `!document.querySelector('[data-ui-client-state="loading"]
 const WATCH_TOASTS = `window.toasts = []; new MutationObserver(() => window.toasts.push(document.querySelector('[data-toast]').textContent))
   .observe(document.querySelector('[data-toast]'), { childList: true, characterData: true, subtree: true })`;
 
-test("Schedule's new-task dialog says what a due task still needs, and creating is still possible", { timeout: 90_000 }, async t => {
+test("Schedule's new-task form (in the detail pane) says what a due task still needs, and creating is still possible", { timeout: 90_000 }, async t => {
   const b = await openGoalBrowser(t, true); if (!b) return;
   const schedule = await pluginFrameBrowser(t,b,"schedule");
   const { navigate, command, sessionId, origin, projectId, click, evaluate, waitFor } = b;
@@ -32,16 +32,18 @@ test("Schedule's new-task dialog says what a due task still needs, and creating 
   assert.equal(await schedule.evaluate("document.querySelector('[data-schedule-hint=model]').hidden && document.querySelector('[data-schedule-hint=workspace]').hidden"), true,
     "nothing is claimed before the Host has answered");
   await schedule.click("[data-schedule-new]");
-  await schedule.waitFor(`${shown("model")} && ${shown("workspace")}`, 20_000);
+  await schedule.waitFor(shown("model"), 20_000);
   assert.match(await schedule.evaluate("document.querySelector('[data-schedule-hint=model]').textContent"), /还没有配置文字模型/);
-  assert.match(await schedule.evaluate("document.querySelector('[data-schedule-hint=workspace]').textContent"), /还没有绑定工作区/);
+  // Every project has an output (batch 05, SSC-17: the default one is made on the first run), so the Host reports a folder; the
+  // folder hint is checked below with an answer that has none.
+  assert.equal(await schedule.evaluate("document.querySelector('[data-schedule-hint=workspace]').hidden"), true, "the project's output counts as its folder");
   assert.equal(await schedule.evaluate("document.querySelector('[data-schedule-create-form] [type=submit]').disabled"), false, "the hint does not block");
   await schedule.evaluate(`{ const form = document.querySelector('[data-schedule-create-form]');
     form.elements.title.value = '提示不拦创建'; form.elements.instructions.value = '只读汇总'; form.elements.time.value = '07:45'; }`);
   await schedule.click("[data-schedule-create-form] [type=submit]");
-  await schedule.waitFor("!document.querySelector('[data-schedule-create-dialog]').open && document.querySelector('[data-schedule-detail]:not([hidden]) h1')?.textContent === '提示不拦创建'", 20_000);
+  await schedule.waitFor("document.querySelector('[data-schedule-create-pane]').hidden && document.querySelector('[data-schedule-detail]:not([hidden]) h1')?.textContent === '提示不拦创建'", 20_000);
   assert.equal(await schedule.evaluate("document.querySelector('[data-schedule-detail]:not([hidden]) [data-schedule-detail-status]').textContent"), "已启用", "created and enabled, as before");
-  // Editing is not creating: the same dialog opens without the hint.
+  // Editing is not creating: the same form opens without the hint.
   await schedule.click("[data-schedule-task-edit]");
   assert.equal(await schedule.evaluate("document.querySelector('[data-schedule-hint=model]').hidden && document.querySelector('[data-schedule-hint=workspace]').hidden"), true);
   await schedule.click("[data-schedule-create-form] footer [data-schedule-create-close]");
@@ -54,13 +56,14 @@ test("Schedule's new-task dialog says what a due task still needs, and creating 
   await schedule.click("[data-schedule-new]");
   await schedule.waitFor(shown("workspace"), 20_000);
   assert.equal(await schedule.evaluate("document.querySelector('[data-schedule-hint=model]').hidden"), true, "the model is there now");
+  assert.match(await schedule.evaluate("document.querySelector('[data-schedule-hint=workspace]').textContent"), /还没有绑定工作区/);
   await schedule.click("[data-schedule-create-form] footer [data-schedule-create-close]");
-  // A readiness read that fails says nothing, and the dialog still works.
+  // A readiness read that fails says nothing, and the form still works.
   await evaluate("window.readinessAnswer = null");
   await schedule.click("[data-schedule-new]");
   await new Promise(resolve => setTimeout(resolve, 300));
   assert.equal(await schedule.evaluate("document.querySelector('[data-schedule-hint=model]').hidden && document.querySelector('[data-schedule-hint=workspace]').hidden"), true);
-  assert.equal(await schedule.evaluate("document.querySelector('[data-schedule-create-dialog]').open && !document.querySelector('[data-schedule-create-form] [type=submit]').disabled"), true);
+  assert.equal(await schedule.evaluate("!document.querySelector('[data-schedule-create-pane]').hidden && !document.querySelector('[data-schedule-create-form] [type=submit]').disabled"), true);
 });
 
 test("Pages: 「新建文档」 left empty is gone when the person goes back, and one that was written in stays", { timeout: 90_000 }, async t => {
@@ -154,7 +157,7 @@ test("Pages and 灵光: reloading with a blank item open takes it back, and the 
   const titles = () => { const store = openPagesStore(homeDirectory); try { return store.list(projectId!).map(page => page.title); } finally { store.close(); } };
   const sparks = () => { const store = openLingguangStore(homeDirectory); try { return store.list(projectId!).map(spark => spark.title); } finally { store.close(); } };
   // The record the workbench reopens in a plugin's page after a reload (per device, in localStorage).
-  const remembered = (plugin: string) => evaluate<string[]>(`Object.keys(localStorage).filter(key => key.startsWith('molis-work-plugin-records:'))
+  const remembered = (plugin: string) => evaluate<string[]>(`Array.from({length:localStorage.length},(_,index)=>localStorage.key(index)).filter(key=>key!==null).filter(key => key.startsWith('molis-work-plugin-records:'))
     .map(key => JSON.parse(localStorage.getItem(key) || '{}')[${JSON.stringify(plugin)}]).filter(Boolean)`);
   // Before the reload the record is there to be reopened, so the checks after it are about something.
   const waitRemembered = async (plugin: string) => {
@@ -311,7 +314,7 @@ test("Pages and 灵光: the workbench's Back and Forward do not bring back a bla
   const titles = () => { const store = openPagesStore(homeDirectory); try { return store.list(projectId!).map(page => page.title); } finally { store.close(); } };
   const sparks = () => { const store = openLingguangStore(homeDirectory); try { return store.list(projectId!).map(spark => spark.title); } finally { store.close(); } };
   // The record the workbench reopens in a plugin's page after a reload (per device, in localStorage).
-  const remembered = (plugin: string) => evaluate<string[]>(`Object.keys(localStorage).filter(key => key.startsWith('molis-work-plugin-records:'))
+  const remembered = (plugin: string) => evaluate<string[]>(`Array.from({length:localStorage.length},(_,index)=>localStorage.key(index)).filter(key=>key!==null).filter(key => key.startsWith('molis-work-plugin-records:'))
     .map(key => JSON.parse(localStorage.getItem(key) || '{}')[${JSON.stringify(plugin)}]).filter(Boolean)`);
   const untilAsync = async (check: () => Promise<boolean>, what: string, ms = 20_000) => {
     const end = Date.now() + ms;
@@ -408,7 +411,7 @@ test("Pages: a document opened while the workbench is still looking for a taken-
   await click("[data-plugin-strip] [data-plugin-id=pages]");
   await pages.waitFor(`document.querySelector('[data-pages-new]') && ${CLIENTS_READY}`, 20_000);
   const ids = () => { const store = openPagesStore(homeDirectory); try { return store.list(projectId!).map(page => page.id); } finally { store.close(); } };
-  const remembered = () => evaluate<string[]>(`Object.keys(localStorage).filter(key => key.startsWith('molis-work-plugin-records:'))
+  const remembered = () => evaluate<string[]>(`Array.from({length:localStorage.length},(_,index)=>localStorage.key(index)).filter(key=>key!==null).filter(key => key.startsWith('molis-work-plugin-records:'))
     .map(key => JSON.parse(localStorage.getItem(key) || '{}').pages).filter(Boolean)`);
   const untilRemembered = async (count: number, what: string) => {
     const end = Date.now() + 8_000;
@@ -459,7 +462,7 @@ test("Pages: Back and then Forward at once, while the workbench is still looking
   await click("[data-plugin-strip] [data-plugin-id=pages]");
   await pages.waitFor(`document.querySelector('[data-pages-new]') && ${CLIENTS_READY}`, 20_000);
   const count = () => { const store = openPagesStore(homeDirectory); try { return store.list(projectId!).length; } finally { store.close(); } };
-  const remembered = () => evaluate<string[]>(`Object.keys(localStorage).filter(key => key.startsWith('molis-work-plugin-records:'))
+  const remembered = () => evaluate<string[]>(`Array.from({length:localStorage.length},(_,index)=>localStorage.key(index)).filter(key=>key!==null).filter(key => key.startsWith('molis-work-plugin-records:'))
     .map(key => JSON.parse(localStorage.getItem(key) || '{}').pages).filter(Boolean)`);
   const before = count();
   await pages.click("[data-pages-new]");

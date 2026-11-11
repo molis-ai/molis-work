@@ -5,7 +5,7 @@ import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { Server } from "node:http";
 import { MolisWorkLocalHost, LocalHost, HomePluginHost, ensureSystemAgentService, captureHostLog, hostLog, type HomeInitializationFailure } from "@molis-ai/molis-work-app-local-host";
-import { createDesktopWebHost, openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { createDesktopWebCore, openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ALCHEMIST_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/alchemist";
 import { PrologueAgentAdapter } from "@molis-ai/molis-work-service-agent-host";
@@ -184,7 +184,7 @@ function failedConstruction(t: TestContext, options: { mode: "host" | "web"; pen
   Server.prototype.close = function (...args: Parameters<typeof Server.prototype.close>) { state.serverCloses++; originalServerClose.apply(this, args); return this; };
   try {
     if (mode === "host") new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
-    else createDesktopWebHost({ ptyClientFilePath: () => join(home, "unused-pty.js") })({ homeDirectory: home, localHost: borrowedHost });
+    else createDesktopWebCore({ ptyClientFilePath: () => join(home, "unused-pty.js") })({ homeDirectory: home, localHost: borrowedHost });
     assert.fail("the real initialization fault must be reached");
   } catch (error) {
     assert.ok(error instanceof Error && "close" in error && typeof error.close === "function", "the thrown public failure must retain its actual cleanup entry");
@@ -241,7 +241,7 @@ test("RAC-105-A-14: a failed borrowed Web transport never closes or releases its
   const inode = statSync(join(f.root, ".molis-runtime-owner.db")).ino, peer = await f.peers.start(f.root);
   assert.deepEqual(await peer.request("acquire"), { code: "storage.owner.busy" });
   f.restoreUpgrade();
-  const server = createDesktopWebHost({ ptyClientFilePath: () => join(f.home, "unused-pty.js") })({ homeDirectory: f.home, localHost: f.borrowedHost });
+  const server = createDesktopWebCore({ ptyClientFilePath: () => join(f.home, "unused-pty.js") })({ homeDirectory: f.home, localHost: f.borrowedHost });
   await new Promise<void>(resolve => { server.listen(0, "127.0.0.1", resolve); });
   await new Promise<void>((resolve, reject) => { server.close(error => error ? reject(error) : resolve()); });
   assert.equal(f.borrowedHost.lifecycle(), "running"); assert.equal(f.state.hostCloses, 0);
@@ -275,7 +275,7 @@ test("RAC-105-A-14: borrowing a Host of another Home preserves its original refu
   const other = mkdtempSync(join(tmpdir(), "home-before-web-refusal-"));
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   t.after(async () => { await host.close(); rmSync(home, { recursive: true, force: true }); rmSync(other, { recursive: true, force: true }); });
-  assert.throws(() => createDesktopWebHost({ ptyClientFilePath: () => join(home, "unused-pty.js") })({ homeDirectory: other, localHost: host }), error => {
+  assert.throws(() => createDesktopWebCore({ ptyClientFilePath: () => join(home, "unused-pty.js") })({ homeDirectory: other, localHost: host }), error => {
     assert.ok(error instanceof ActionError); assert.equal(error.code, "actions.scope_mismatch"); assert.equal("close" in error, false); return true;
   });
   assert.deepEqual(readdirSync(other), []); assert.equal(host.lifecycle(), "running");

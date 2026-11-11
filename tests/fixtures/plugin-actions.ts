@@ -4,7 +4,7 @@ import { ActionError, type ActionCallContext, type ActionDefinition, type Action
 import { writerDirectoryCapabilities, writerIntegrationCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { goalPluginActions } from "@molis-ai/molis-work-plugin-goals/contract";
 import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { projectSettingsCapabilities, type ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
+import { projectDirectoryActions, projectSettingsCapabilities, type ProjectDirectories, type ProjectDirectory, type ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { KNOWLEDGE_PROVIDER_ID, knowledgeActions, type KnowledgeReadRequest, type KnowledgeReadResponse } from "@molis-ai/molis-work-contracts/services/knowledge";
 
 /**
@@ -107,24 +107,31 @@ export function withFakeAgentHost<H extends { actions: ReturnType<typeof pluginA
   return { ...rest, ...fakeProjectSettings(host.actions, definition => agentHost.invoke(definition, [] as never), settings) };
 }
 
-/** The project settings reads that say which folders a plugin may work in, and which one Files and Git browse. */
-export const PROJECT_FOLDER_READS: readonly ActionDefinition[] = [projectSettingsCapabilities.workspaces, projectSettingsCapabilities.browsingWorkspace];
+/**
+ * The read that says which folders a plugin may work in: the project's inputs and its one output (`projects.directories.get@1`).
+ * Where Files and Git browse is the page's own state, not a project setting, so there is no read for it (specs/shared-sources-and-surfaces §3).
+ */
+export const PROJECT_FOLDER_READS: readonly ActionDefinition[] = [projectDirectoryActions.get];
 /** The folder reads and the Agent runtime the project picked, for a test whose table also answers which runtime Coding starts on. */
 export const PROJECT_SETTINGS_READS: readonly ActionDefinition[] = [...PROJECT_FOLDER_READS, projectSettingsCapabilities.runtime];
 export type ProjectFolderPorts = { dependencyCheck(reference: { capability_id: string }): { available: true } | { available: false; code: string; reason: string } };
 
 /**
  * The project settings reads a plugin consumes, for a test without the project settings service (the real handlers are tested
- * in tests/host-action-registration.test.ts): `answer` gives what an action returns to its caller; a folder it names comes back as a complete
- * `ProjectWorkspaceRef` (its name defaults to its id), as the action's output contract requires. The first call for a project's
- * actions is the one that answers. Returns the Host port that goes with it: a dependency check that reports only these reads as present.
+ * in tests/host-action-registration.test.ts and tests/action-project-materials.test.ts): `answer` gives what an action returns to its
+ * caller. For `projects.directories.get@1` it may give the folders alone, the first the output and the rest inputs (`projectDirectories`),
+ * or the whole answer; each folder comes back complete (its name defaults to its id, its state `ok`), as the action's output contract
+ * requires. The first call for a project's actions is the one that answers. Returns the Host port that goes with it: a dependency check
+ * that reports only these reads as present.
  */
 export function fakeProjectSettings(actions: ReturnType<typeof pluginActions>, answer: (definition: ActionDefinition, caller: ActionCallContext) => unknown, settings: readonly ActionDefinition[] = PROJECT_FOLDER_READS): ProjectFolderPorts {
-  const complete = (value: unknown): unknown => Array.isArray(value) ? value.map(folderRef) : value && typeof value === "object" && "workspace_id" in value ? folderRef(value as ProjectWorkspaceRef) : value;
+  const complete = (definition: ActionDefinition, value: unknown): unknown => definition.capability_id !== projectDirectoryActions.get.capability_id ? value
+    : Array.isArray(value) ? projectDirectories(actions.project_id, value)
+    : isRecord(value) && Array.isArray(value.directories) ? { project_id: actions.project_id, source_links: [], revision: "directories-1", ...value, directories: (value.directories as FolderRow[]).map(directory) } : value;
   if (!settingsServed.has(actions.registry)) {
     settingsServed.add(actions.registry);
     actions.registry.registerProvider({ provider: { provider_id: "project-settings-fixture", title: "项目设置", kind: "system" }, definitions: [...settings],
-      handlers: settings.map(definition => ({ ...definition, handle: async (caller: ActionCallContext) => complete(await answer(definition, caller)) })) });
+      handlers: settings.map(definition => ({ ...definition, handle: async (caller: ActionCallContext) => complete(definition, await answer(definition, caller)) })) });
   }
   const present = new Set(settings.map(definition => definition.capability_id));
   return {
@@ -132,8 +139,12 @@ export function fakeProjectSettings(actions: ReturnType<typeof pluginActions>, a
   };
 }
 const settingsServed = new WeakSet<object>();
-const folderRef = (folder: Pick<ProjectWorkspaceRef, "workspace_id" | "canonical_path"> & Partial<ProjectWorkspaceRef>): ProjectWorkspaceRef =>
-  ({ realpath_verified: true, display_name: folder.workspace_id, ...folder });
+type FolderRow = Pick<ProjectWorkspaceRef, "workspace_id" | "canonical_path"> & Partial<ProjectDirectory>;
+const directory = (folder: FolderRow): ProjectDirectory => ({ realpath_verified: true, display_name: folder.workspace_id, roles: ["input"], state: "ok", ...folder });
+/** A project's folders as `projects.directories.get@1` answers them: the first is the output, the others inputs, unless a row names its roles. */
+export function projectDirectories(project_id: string, rows: readonly FolderRow[]): ProjectDirectories {
+  return { project_id, directories: rows.map((row, i) => directory({ roles: [i === 0 ? "output" : "input"], ...row })), source_links: [], revision: "directories-1" };
+}
 
 /*
  * A fake names only what its test reads; the rest of a session's or round's view takes neutral values here, so the answer
@@ -145,9 +156,7 @@ const USAGE = { tokens: { input: 0, output: 0 } };
 const RUN_VIEW = { ref: { session_id: "session", run_id: "run" }, phase: "completed", frozen: FROZEN, turns: [], activity: [], usage: USAGE, awaiting_input: [], started_at: "2026-01-01T00:00:00.000Z", ended_at: null };
 const SESSION_VIEW = { owner: { project_id: "project", plugin_id: "plugin", install_id: "install" }, session: { session_id: "session", runtime_id: "runtime" }, title: "", runs: [], latest_run: null };
 const RUNTIME = { display_name: "", provider_version: "", capabilities: {} };
-const SKILL_TEXT = { version: 1, name: "", summary: "", tools: [] }, SKILL = { ...SKILL_TEXT, source: "installed", enabled: true };
 const MCP_SERVER = { id: "server", version: 0, label: "", enabled: true, transport: "http", timeout_ms: 1000, credential: "none", health: "disconnected", tools: [], resources: [] };
-const CANDIDATE = { candidate_id: "candidate", name: "", summary: "", source_label: "", files: [], body: "" };
 const runView = (value: unknown) => isRecord(value)
   ? { ...RUN_VIEW, ...value, frozen: { ...FROZEN, ...(isRecord(value.frozen) ? value.frozen : {}) }, usage: { ...USAGE, ...(isRecord(value.usage) ? value.usage : {}) } } : value;
 const filled = (base: object) => (value: unknown) => isRecord(value) ? { ...base, ...value } : value;
@@ -163,10 +172,6 @@ function completeView(definition: ActionDefinition, value: unknown): unknown {
     case agentHostCapabilities.listSubagents.capability_id:
       return Array.isArray(value) ? value.map(child => isRecord(child) ? { role_id: "", task: "", state: "running", result: null, workspace_path: null, parent_run: RUN_VIEW.ref, ...child } : child) : value;
     case agentHostCapabilities.listRuntimes.capability_id: return eachFilled(RUNTIME)(value);
-    case agentHostCapabilities.listSkills.capability_id: return eachFilled(SKILL)(value);
-    case agentHostCapabilities.installSkill.capability_id: return filled(SKILL)(value);
-    case agentHostCapabilities.readSkill.capability_id: return filled({ ...SKILL_TEXT, body: "" })(value);
-    case agentHostCapabilities.discoverSkills.capability_id: return eachFilled(CANDIDATE)(value);
     case agentHostCapabilities.listMcp.capability_id: return eachFilled(MCP_SERVER)(value);
     case agentHostCapabilities.saveMcp.capability_id: return filled(MCP_SERVER)(value);
     default: return value;

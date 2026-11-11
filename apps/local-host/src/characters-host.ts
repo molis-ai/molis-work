@@ -14,7 +14,7 @@ import type { PtySpawnRequest } from "@molis-ai/molis-work-contracts/services/ru
 import type { MolisWorkLocalHostOptions, MolisWorkProjectRuntime } from "./project-host.js";
 
 /** What the Host gives Characters in one project besides its own stores: the project's folders and the native terminal. */
-export type CharactersHostOptions = Pick<MolisWorkLocalHostOptions, "characterSpawn" | "workspacesFor" | "workspaceFor"> & { readonly homeDirectory: string };
+export type CharactersHostOptions = Pick<MolisWorkLocalHostOptions, "characterSpawn" | "workspacesFor" | "workspaceFor" | "prepareDirectory"> & { readonly homeDirectory: string };
 
 /**
  * Characters in one project, registered by the Host as its own provider: the person's drafts in the Home, publications in the
@@ -91,14 +91,16 @@ function characterActionPorts(options: CharactersHostOptions, actorId: string, p
         if (!snapshot) throw characterErrors.invalid("预览已过期，请重新扫描本地 Agent");
         return use(service => service.import(snapshot, selection, existing));
       },
-      ...characterNativeExecution({ home, actorId, projectId, workspaces, spawn, executable: runtime => discovery.executable(runtime) }),
+      ...characterNativeExecution({ home, actorId, projectId, workspaces, spawn, executable: runtime => discovery.executable(runtime),
+        output: async () => options.workspaceFor ? await options.workspaceFor(projectId) : null,
+        prepare: async workspaceId => { await options.prepareDirectory?.(projectId, workspaceId, "write"); } }),
     },
     drafts: {
       list: () => use(service => service.list()), get: id => use(service => service.get(id)),
       create: () => use(service => service.create()), update: (id, revision, patch) => use(service => service.update(id, revision, patch)),
       setState: (id, revision, state) => use(service => service.setState(id, revision, state)),
     },
-    references: () => artifacts.listArtifacts(projectId, { artifact_type_id: CHARACTER_ARTIFACT_TYPE, schema_version: 1 })
+    references: () => artifacts.listArtifacts(projectId, { artifact_type_id: CHARACTER_ARTIFACT_TYPE, schema_version: /* @version type.character.definition */ 1 })
       .map(({ artifact_id, version }) => ({ artifact_id, version })),
     publish: (id, revision, publisher) => use(service => service.publish(id, revision, publisher)),
   };
@@ -110,7 +112,7 @@ export function freezeProjectCharacter(homeDirectory: string | undefined, actorI
   const record = artifacts.getArtifactVersion(projectId, reference);
   if (!record || record.project_id !== projectId || record.owner_actor_id !== actorId
     || record.producer_plugin_id !== CHARACTER_PLUGIN_ID || record.producer_binding_signature !== CHARACTER_PUBLISHER_SIGNATURE
-    || record.artifact_type_id !== CHARACTER_ARTIFACT_TYPE || record.schema_version !== 1 || record.content_kind !== "inline"
+    || record.artifact_type_id !== CHARACTER_ARTIFACT_TYPE || record.schema_version !== /* @version type.character.definition */ 1 || record.content_kind !== "inline"
     || record.lifecycle_state !== "active" || record.availability !== "available") throw new Error("所选 Character 版本不可用，请明确选择其他版本或移除角色后再执行");
   const content = parseCharacterContent(record.payload);
   if (content.source.owner_actor_id !== actorId || record.artifact_id !== `character:${projectId}:${content.character_id}`) throw new Error("Character 版本的来源或身份不一致");

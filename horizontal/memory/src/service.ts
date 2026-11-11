@@ -398,7 +398,7 @@ export class MemoryService {
       if (!prefs.consumers.plugin || rule?.allowed === false) throw memoryErrors.forbidden("用户没有允许这个插件使用记忆");
       return this.commit(caller, { scope: request.scope, text: request.text, kind: request.kind ?? "preference", applies: request.applies ?? {}, expires_at: request.expires_at ?? null,
         classificationMeta: requestedMemoryClassification(caller, request.expires_at ?? null, request.classification), source: "plugin", basis: "explicit", evidence: [],
-        approved_by: { by: "policy", policy: `plugin:${caller.plugin_id}`, version: 1 }, ...(request.replaces ? { replaces: request.replaces } : {}) });
+        approved_by: { by: "policy", policy: `plugin:${caller.plugin_id}`, version: /* @version policy.memory.plugin-write */ 1 }, ...(request.replaces ? { replaces: request.replaces } : {}) });
     }
     if (!caller.person && !said) throw memoryErrors.invalid("记住一件事要附上用户的原话（said）；用户没有明确要求时，用建议（等用户认可）而不是直接记");
     return this.commit(caller, {

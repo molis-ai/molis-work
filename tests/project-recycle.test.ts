@@ -5,7 +5,7 @@ import test from 'node:test';
 import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { createProjectsSchema, ProjectsModule, projectReplicationOwner, installProjectReplicationJournal } from '@molis-ai/molis-work-module-projects';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
+import { existsSync, mkdtempSync, realpathSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { openMolisWorkProjectCatalog } from '@molis-ai/molis-work-app-desktop';
@@ -14,13 +14,15 @@ import { createMolisWorkLocalHost, ProjectDeletionService } from '@molis-ai/moli
 
 test('PCSYNC-17/20 owner recycling keeps facts, rejects stale confirmations, and replays receipts without changing a later state', () => {
   const db = openTestSqlite(':memory:');
+  // A folder that is there: linking one that realpath cannot verify is refused (SSC-16).
+  const folder = realpathSync(mkdtempSync(join(tmpdir(), 'recycle-workspace-')));
   try {
     db.pragma('foreign_keys=ON');createProjectsSchema(db);
-    const projects = new ProjectsModule({ db, projects_directory:'/tmp/recycle', spaceId: 'personal:test', plugins: { has: id => id === 'pages', companions: () => [] } });
+    const projects = new ProjectsModule({ db, projects_directory:'/tmp/recycle', outputs_directory:'/tmp/recycle-outputs', spaceId: 'personal:test', plugins: { has: id => id === 'pages', companions: () => [] } });
     const p = projects.lifecycle.prepareRecord({ display_name: '原项目', data_class: 'user' });
     projects.lifecycle.register(p, 'project.created', 'alice');
     projects.commands.addProjectPlugin({ project_id: p.project_id, plugin_id: 'pages', actor_id: 'alice' });
-    const workspace = projects.commands.addWorkspaceProject({ project_id: p.project_id, canonical_path: '/tmp/recycle-workspace', actor_id: 'alice', user_confirmed: true });
+    const workspace = projects.commands.addWorkspaceProject({ project_id: p.project_id, canonical_path: folder, actor_id: 'alice', user_confirmed: true });
     const original = projects.query.getProject(p.project_id);
     const plugins = projects.query.listProjectPlugins(p.project_id);
     const portable = projectReplicationOwner(db, { spaceId: 'personal:test', authorize() {}, excludedProjectIds: [] });
@@ -40,7 +42,8 @@ test('PCSYNC-17/20 owner recycling keeps facts, rejects stale confirmations, and
     const restored = projects.recycle.change({ ...input, operation_id: 'restore-one', expected_state: archived.state, recycled: false }, () => {});
     assert.equal(restored.generation, 2);assert.notEqual(restored.state, first.state);
     assert.deepEqual(projects.query.getProject(p.project_id), original);assert.deepEqual(projects.query.listProjectPlugins(p.project_id), plugins);
-    assert.equal(projects.query.preferredWorkspacePath(p.project_id), '/tmp/recycle-workspace');
+    assert.deepEqual(projects.query.projectDirectories(p.project_id).directories.map(item => [item.canonical_path, item.roles]),
+      [[join('/tmp/recycle-outputs', p.project_id), ['output']], [folder, ['input']]], 'restored with its default output and the folder');
     assert.deepEqual(portable.read(p.project_id), body);
     assert.deepEqual(projects.recycle.change(input, () => {}), archived, 'retry returns original receipt');
     assert.equal(projects.recycle.inspect(p.project_id).recycled, false, 'old receipt never rearchives restored project');
@@ -50,7 +53,7 @@ test('PCSYNC-17/20 owner recycling keeps facts, rejects stale confirmations, and
     assert.throws(() => projects.recycle.change({ ...input, operation_id: 'revoked', expected_state: restored.state }, () => { if (++checks === 2) throw new Error('revoked'); }), /revoked/);
     assert.deepEqual(projects.recycle.inspect(p.project_id), restored, 'tail authorization failure rolls back facts and receipt');
     assert.equal(db.prepare("SELECT COUNT(*) AS n FROM project_recycle_receipts WHERE operation_id='revoked'").get()?.n, 0);
-  } finally { db.close(); }
+  } finally { db.close(); rmSync(folder, { recursive: true, force: true }); }
 });
 
 test('PCSYNC-20 the unique Host service retains project bytes, refuses active terminals and stale release results, and restores without starting execution', async t => {
@@ -92,7 +95,7 @@ test('PCSYNC-20 frozen actual v23 catalog is refused before modifying any bytes'
   const file = join(home, 'projects', 'catalog.db'), db = openTestSqlite(file);
   db.exec(await readFile(new URL('./fixtures/project-catalog-v23.sql', import.meta.url), 'utf8'));db.close();
   const bytes = await readFile(file);
-  await assert.rejects(openMolisWorkProjectCatalog({ homeDirectory: home }), { code: 'catalog.unsupported_schema' });
+  await assert.rejects(openMolisWorkProjectCatalog({ homeDirectory: home }), { code: 'storage.store_too_new' });
   assert.deepEqual(await readFile(file), bytes);
 });
 
@@ -109,7 +112,7 @@ test('PCSYNC-20 receiver retains unknown project tombstones without ghost projec
   replica.receive({key:'other-unseen',operationId:'delete-other',base:0,revision:2,value:null});
   assert.equal(db.prepare('SELECT COUNT(*) AS n FROM projects').get()?.n,0);
   assert.equal(db.prepare('SELECT recycled FROM project_recycle WHERE project_id=?').get('other-unseen')?.recycled,1);
-  const projects=new ProjectsModule({db,projects_directory:'/tmp/recycle',spaceId:'personal:test',plugins:{has:()=>true,companions:()=>[]}});
+  const projects=new ProjectsModule({db,projects_directory:'/tmp/recycle',outputs_directory:'/tmp/recycle-outputs',spaceId:'personal:test',plugins:{has:()=>true,companions:()=>[]}});
   assert.deepEqual(projects.recycle.list(),[],'unknown tombstones do not become user-visible fake projects');
   replica.receive({key:'other-unseen',operationId:'old',base:0,revision:1,value:{bad:true}});
   assert.equal(db.prepare('SELECT generation FROM project_recycle WHERE project_id=?').get('other-unseen')?.generation,1,'old events cannot revive or change tombstone');
@@ -124,10 +127,10 @@ test('PCSYNC-20 receiver retains unknown project tombstones without ghost projec
  }finally{db.close();}
 });
 
-test('PCSYNC-20 actual frozen v24 catalog is refused unchanged by v26',async t=>{
+test('PCSYNC-20 actual frozen v24 catalog is refused unchanged by the unified v1 reader',async t=>{
  const home=await mkdtemp(join(tmpdir(),'molis-project-v24-'));t.after(()=>rm(home,{recursive:true,force:true}));
  prepareSyncTestHome(home);
  const {mkdir}=await import('node:fs/promises');await mkdir(join(home,'projects'));
  const file=join(home,'projects/catalog.db'),db=openTestSqlite(file);db.exec(await readFile(new URL('./fixtures/project-catalog-v24.sql',import.meta.url),'utf8'));db.close();
- const before=await readFile(file);await assert.rejects(openMolisWorkProjectCatalog({homeDirectory:home}),{code:'catalog.unsupported_schema'});assert.deepEqual(await readFile(file),before);
+ const before=await readFile(file);await assert.rejects(openMolisWorkProjectCatalog({homeDirectory:home}),{code:'storage.store_too_new'});assert.deepEqual(await readFile(file),before);
 });

@@ -1,3 +1,4 @@
+import { changeMcpClientCredential } from "@molis-ai/molis-work-app-local-host";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -6,7 +7,6 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { createDesktopPanelTables } from "../apps/desktop/dist/adapters/sqlite-panels.js";
 import { MolisWorkProjectCatalog } from "@molis-ai/molis-work-app-local-host";
 import { textStatsActions } from "@molis-ai/molis-work-plugin-text-stats";
 import { filesActions } from "@molis-ai/molis-work-plugin-files";
@@ -28,7 +28,7 @@ test("headless runtime companions are discovered and called by the official MCP 
     completeText: async () => { completions++; throw new Error("Discovery must not call a model"); },
   });
   const withCatalog = host.configurePersonalPlanning(home, host.ensureWebCatalog(home, options =>
-    MolisWorkProjectCatalog.open(options, { createPanelSchema: createDesktopPanelTables })).withCatalog);
+    MolisWorkProjectCatalog.open(options)).withCatalog);
   try {
     await withCatalog({ homeDirectory: home }, async catalog => {
       const project = await catalog.createProject({ display_name: "Headless companions", actor_id: "owner" });
@@ -38,6 +38,7 @@ test("headless runtime companions are discovered and called by the official MCP 
       const caller: ActionCallContext = { actor_id: "runtime:reader", project_id: project.project_id, audience: "mcp", permissions: ["artifact:read"] };
       const client = host.actionClient(reference), clients: Client[] = [];
       const connect = async (identity: string) => {
+    changeMcpClientCredential(home, `runtime:${identity}`, "connect");
         const sdk = new Client({ name: "untrusted", version: "1" }); clients.push(sdk);
         const transport = new StdioClientTransport({ command: process.execPath, args: ["--import", "tsx",
           fileURLToPath(new URL("./fixtures/production-action-mcp-server.ts", import.meta.url)), home, project.project_id, identity, project.database_path, served.origin], stderr: "pipe" });

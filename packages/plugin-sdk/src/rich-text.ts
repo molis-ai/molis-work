@@ -1,54 +1,7 @@
 import { marked } from "marked";
 import sanitizeHtml from "sanitize-html";
 
-const ALLOWED_TAGS = [
-  "p",
-  "br",
-  "h1",
-  "h2",
-  "h3",
-  "h4",
-  "h5",
-  "h6",
-  "blockquote",
-  "ul",
-  "ol",
-  "li",
-  "strong",
-  "em",
-  "del",
-  "code",
-  "pre",
-  "hr",
-  "a",
-  "table",
-  "thead",
-  "tbody",
-  "tr",
-  "th",
-  "td",
-  "details",
-  "summary",
-  "sup",
-  "sub",
-  "kbd",
-] as const;
-
-const NON_TEXT_TAGS = [
-  "script",
-  "style",
-  "textarea",
-  "option",
-  "xmp",
-  "noscript",
-  "template",
-  "iframe",
-  "object",
-  "embed",
-  "svg",
-  "math",
-  "form",
-];
+import { CONTENT_TAGS as ALLOWED_TAGS, NON_TEXT_TAGS } from "./browser.js";
 
 const BLOCK_TAG_PATTERN = /<\/?(?:p|div|h[1-6]|blockquote|ul|ol|li|pre|hr|table|thead|tbody|tr|th|td|details|summary)\b[^>]*>/giu;
 const LEADING_INVISIBLE_PATTERN = /^[\u200B\u200C\u200D\u200E\u200F\uFEFF]+/u;
@@ -82,7 +35,7 @@ function sanitizeRichHtml(value: string): string {
     disallowedTagsMode: "discard",
     enforceHtmlBoundary: false,
     nestingLimit: 30,
-    nonTextTags: NON_TEXT_TAGS,
+    nonTextTags: [...NON_TEXT_TAGS],
     parseStyleAttributes: false,
     transformTags: {
       a: (tagName, attributes) => {
@@ -123,7 +76,7 @@ function fallbackPlainParagraph(value: string): string {
     allowedTags: [],
     allowedAttributes: {},
     enforceHtmlBoundary: false,
-    nonTextTags: NON_TEXT_TAGS,
+    nonTextTags: [...NON_TEXT_TAGS],
   }).trim();
   return text ? `<p>${text}</p>` : "";
 }

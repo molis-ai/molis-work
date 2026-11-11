@@ -7,6 +7,7 @@ import { requireSynchronous, type ActionView } from "@molis-ai/molis-work-contra
 import type { AssistantDelegations } from "./assistant-delegation.js";
 import { ASSISTANT_INSTALL_ID, ASSISTANT_PLUGIN_ID, type AssistantUnsettledChange, type AssistantContextSnapshot, type AssistantMaterial, type AssistantRound, type AssistantSendResult, type AssistantWorkView, type AssistantHandover, type AssistantExecutorOffer } from "@molis-ai/molis-work-contracts/services/assistant";
 import { L } from "../web-locale.js";
+import { replyLanguage } from "../reply-language.js";
 import { ASSISTANT_DELEGATED_ROLE_ID, ASSISTANT_ROLE_ID } from "./assistant-agent.js";
 import { agentActions } from "./assistant-directory.js";
 import { openSession } from "./assistant-executor-session.js";
@@ -16,6 +17,7 @@ import { assistantErrors } from "./assistant-errors.js";
 import { randomUUID } from "node:crypto";
 import type { MemoryService } from "@molis-ai/molis-work-service-memory";
 import { WorkExecutor, executorProviders, offerExecutors, type ExecutorControl } from "./assistant-executor.js";
+import type { ExecutorHanded } from "./assistant-executor-input.js";
 import { AssistantInputs, addressesRound, assertRoundToAddress, inputsOf, type SendIntent } from "./assistant-inputs.js";
 import { ownerOf, roundStartInput } from "./assistant-round-start.js";
 import { recoveryAction } from "./assistant-parked-answer.js";
@@ -113,11 +115,12 @@ export class AssistantDispatch {
   }
 
   /** The executor a work is kept with (or the plugin named), found again in the project's directory as the person; refused, not replaced, when it is not there. */
-  async executorOf(work: Pick<StoredWork, "project_ref" | "executor"> | Pick<StoredWork, "project_ref">, pluginId?: string, dispatch?: { control?: ExecutorControl; original?: SendIntent["original_input"] }): Promise<WorkExecutor> {
+  async executorOf(work: Pick<StoredWork, "project_ref" | "executor"> | Pick<StoredWork, "project_ref">, pluginId?: string, dispatch?: ExecutorHanded & { control?: ExecutorControl }): Promise<WorkExecutor> {
     if (!this.ports.personActions) throw assistantErrors.unsupported("当前环境不能从这里使用执行方插件");
     const id = pluginId ?? ("executor" in work && work.executor.kind === "plugin" ? work.executor.plugin_id : undefined);
     if (!id) throw assistantErrors.invalid("这项工作不由执行方插件承担");
-    return WorkExecutor.bind(await this.ports.personActions(work, dispatch ? "dispatch" : undefined, dispatch?.original, id), id, dispatch?.control);
+    const handed = dispatch && { original: dispatch.original, skills: dispatch.skills };
+    return WorkExecutor.bind(await this.ports.personActions(work, dispatch ? "dispatch" : undefined, handed, id), id, dispatch?.control);
   }
 
   /** The plugins that can carry a work in the project the page is on, with the ways each offers; none for personal work. */
@@ -139,8 +142,13 @@ export class AssistantDispatch {
   /** A work carried by a plugin: its round starts, continues or is answered in the plugin's own session. */
   async executorDispatch(work: StoredWork, text: string, materials: AssistantMaterial[], context: AssistantContextSnapshot | null, mode?: string, writtenBy?: StoredRound["written_by"], stillCurrent?: () => boolean, intent?: SendIntent, beforeStart?: () => Promise<void>, assertBeforeStart?: () => void, handoff?: MethodHandoff): Promise<AssistantSendResult> {
     if (materials.some(item => item.kind === "image")) throw assistantErrors.unsupported("这项工作的执行方暂时不能带图片；可以把图里的要点写成文字再发");
-    const executor = await this.executorOf(work, undefined, { original: !intent?.byHost && !work.delegated_by && !work.reply_target ? intent?.original_input : undefined, control: { beforeEffect: async () => { await beforeStart?.(); requireSynchronous(assertBeforeStart?.(), "最终授权检查必须同步完成"); assertSendCurrent(stillCurrent); handoff?.assertCurrent(); },
-      assert_authority_current: () => { requireSynchronous(assertBeforeStart?.(), "最终授权检查必须同步完成"); assertSendCurrent(stillCurrent); handoff?.assertCurrent(); } } });
+    // The Skills the person chose go to the executor by their exact references, named by the Host on its `run.start` (§2.3); the
+    // round replies in this round's language (§2.4). Neither is text in the task.
+    const skills = [...new Map(materials.flatMap(item => item.kind === "method" && item.method?.kind === "skill" ? [[JSON.stringify(item.method.ref), item.method.ref] as const] : [])).values()];
+    const told = materials.filter(item => !(item.kind === "method" && item.method?.kind === "skill"));
+    const locale = intent?.reply_locale ?? this.ports.lastLocale?.();
+    const executor = await this.executorOf(work, undefined, { original: !intent?.byHost && !work.delegated_by && !work.reply_target ? intent?.original_input : undefined, skills, control: { beforeEffect: async () => { await beforeStart?.(); requireSynchronous(assertBeforeStart?.(), "最终授权检查必须同步完成"); assertSendCurrent(stillCurrent); handoff?.assertCurrent(); },
+      assert_authority_current: () => { requireSynchronous(assertBeforeStart?.(), "最终授权检查必须同步完成"); assertSendCurrent(stillCurrent); handoff?.assertCurrent(); }, ...(locale ? { locale } : {}) } });
     if (work.executor.kind !== "plugin") throw assistantErrors.invalid("这项工作不由执行方插件承担");
     // The mode chosen before the first Send is saved on the session, where the plugin's page reads it too.
     if (!work.executor.session_id) work = await openSession(this.store, this.actorId, work, executor, mode);
@@ -151,17 +159,19 @@ export class AssistantDispatch {
     const latest = read.runs.at(-1);
     assertRoundToAddress(Boolean(latest), intent?.delivery);
     if (latest && (!isTerminalAgentPhase(latest.phase) || intent?.about || addressesRound(intent?.delivery))) {
+      // A Skill is the start of a round's own: a round already running takes none, and none is dropped on the way.
+      if (skills.length) throw assistantErrors.invalid("选定的技能要在新一轮开始时交给执行方：等这一轮结束后再发");
       // The executor's own control carries both: every answer with the revision it answers, every supplement with its receipt and its source, so words a page wrote reach the round as a note (BL-144).
       const outcome = await this.inputs.deliver(latest, text, materials, context, { answer: control => executor.control(sessionId, latest.ref.run_id, control),
         send: async input => { const receipt = await executor.send(sessionId, latest.ref.run_id, input); handoff?.accepted(); return receipt; } }, intent);
-      return this.result(work, outcome, latest.ref.run_id, stillCurrent);
+      return this.result(work, outcome, latest.ref.run_id, stillCurrent, intent?.draftCurrent);
     }
     const task = work.handover_brief ? `${work.handover_brief}\n\n用户现在的要求：${text}` : text;
-    const runId = await executor.start(sessionId, this.inputs.compose(task, materials, context));
+    const runId = await executor.start(sessionId, this.inputs.compose(task, told, context), skills);
     handoff?.accepted();
     if (work.handover_brief) work = this.store.update(this.actorId, work.work_id, null, { handover_brief: undefined }, false);
     this.store.addRound(work.work_id, { run_id: runId, executor: "plugin", text, materials, context, started_at: this.now().toISOString(), ...(writtenBy ? { written_by: writtenBy } : {}) });
-    return this.result(work, "started", runId);
+    return this.result(work, "started", runId, stillCurrent, intent?.draftCurrent);
   }
 
   async dispatch(work: StoredWork, text: string, materials: AssistantMaterial[], context: AssistantContextSnapshot | null, mode?: string, writtenBy?: StoredRound["written_by"], stillCurrent?: () => boolean, beforeStart?: () => Promise<void>, assertBeforeStart?: () => void, intent?: SendIntent, sourceHandoff?: MethodHandoff): Promise<AssistantSendResult> {
@@ -172,12 +182,14 @@ export class AssistantDispatch {
     const adapter = host.adapter(RUNTIME);
     let base = await this.ports.authority(work);
     const original_input = !work.delegated_by && !work.reply_target ? intent?.original_input : undefined;
+    // A round no page gave a language to reads the last used one here, whichever entry started it, and never the language of the page its async chain began in.
+    const replyLocale = intent?.reply_locale ?? this.ports.lastLocale?.();
     const startAuthority = () => ({ ...(stillCurrent || beforeStart || assertBeforeStart || sourceHandoff ? { ...base, beforeStart: async () => {
       await base.beforeStart?.(); await beforeStart?.(); assertSendCurrent(stillCurrent); handoff.assertCurrent();
     }, assertBeforeStart: () => {
       requireSynchronous(base.assertBeforeStart?.(), "最终授权检查必须同步完成");
       requireSynchronous(assertBeforeStart?.(), "最终授权检查必须同步完成"); assertSendCurrent(stillCurrent); handoff.assertCurrent();
-    } } : base), original_input });
+    } } : base), original_input, ...(replyLocale ? { reply_language: replyLanguage(replyLocale) } : {}) });
     let authority = startAuthority();
     const role = work.reply_target ? "thread-reply" : work.delegated_by ? ASSISTANT_DELEGATED_ROLE_ID : ASSISTANT_ROLE_ID;
     if (!work.session_id) {
@@ -202,9 +214,12 @@ export class AssistantDispatch {
           const receipt = await inputsOf(adapter).send(latest.ref, input, assertCurrent);
           handoff.accepted(); return receipt;
         },
-        // A running round cannot be shown a picture any more; it goes with the next round.
-        beforeSteer: () => { if (materials.some(item => item.kind === "image")) throw assistantErrors.state("这一轮还在进行，图片只能随新的一轮发送：等它结束后再发，或先停止这一轮"); } }, { ...intent, original_input });
-      return this.result(work, outcome, latest.ref.run_id, stillCurrent);
+        // A round under way cannot be shown a picture any more, and words kept for the next turn of an ended one cannot carry it
+        // either (they are queued text): the picture goes only with a new turn, and the words say which case this is.
+        beforeSteer: () => { if (materials.some(item => item.kind === "image")) throw assistantErrors.state(isTerminalAgentPhase(latest.phase)
+          ? "这一轮刚结束，留给下一轮的话带不了图片：直接再发一次，就会和图片一起开始新的一轮"
+          : "这一轮还在进行，图片只能随新的一轮发送：等它结束后再发，或先停止这一轮"); } }, { ...intent, original_input });
+      return this.result(work, outcome, latest.ref.run_id, stillCurrent, intent?.draftCurrent);
     }
     const previousWaitWithdrawn = !intent?.byHost && await this.link.continuations.withdraw(work, "用户更新了任务，接下来按最新要求处理");
     await this.link.assertBudget();
@@ -257,14 +272,14 @@ export class AssistantDispatch {
     this.chosenMemory.delete(work.work_id);
     this.starting.delete(work.work_id);
     this.link.continuations.watch(work, handle.ref);
-    return this.result(work, "started", handle.ref.run_id, stillCurrent);
+    return this.result(work, "started", handle.ref.run_id, stillCurrent, intent?.draftCurrent);
   }
 
-  private async result(work: StoredWork, outcome: AssistantSendResult["outcome"], runId: string, current?: () => boolean): Promise<AssistantSendResult> {
+  private async result(work: StoredWork, outcome: AssistantSendResult["outcome"], runId: string, current?: () => boolean, draftCurrent?: () => boolean): Promise<AssistantSendResult> {
     // A round that started is seen as running from here: however soon it ends, its end is news (a new work included).
     if (outcome === "started") this.link.notice(work, "running");
-    // Sent text is no longer a draft; the work moves to the top of the list.
-    const updated = !current || current() ? this.store.update(this.actorId, work.work_id, null, { draft: "" }) : this.store.get(this.actorId, work.work_id);
+    // Only this Send's unchanged draft is consumed; a later saved draft stays while the work moves to the top.
+    const updated = !current || current() ? this.store.update(this.actorId, work.work_id, null, !draftCurrent || draftCurrent() ? { draft: "" } : {}) : this.store.get(this.actorId, work.work_id);
     return { work: this.link.publicWork(updated, await this.link.stateSafely(updated)), outcome, run_id: runId };
   }
 

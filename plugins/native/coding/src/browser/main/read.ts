@@ -3,7 +3,8 @@ import { SESSION_WINDOW } from "../../session-window-sizes.js";
 import { errorMessage } from "../dom.js";
 import { terminal } from "./composer-state.js";
 import { boardUpdate } from "./board.js";
-import { applyConfiguration, canonical, retitle } from "./configuration.js";
+import { jsonComparisonText } from "@molis-ai/molis-work-plugin-sdk/browser";
+import { applyConfiguration, retitle } from "./configuration.js";
 import { controls } from "./controls.js";
 import { renderDirectory } from "./directory.js";
 import { showReviews } from "./helpers.js";
@@ -69,10 +70,10 @@ function adoptHeader(page: Page, id: string, data: SessionData) {
  * not saved yet; otherwise its next save would quietly put the old choice back.
  */
 function adoptConfiguration(page: Page, id: string, data: SessionData, fresh: boolean) {
-  const { q, s } = page, saved = canonical(data.configuration ?? null), adopted = s.adoptedConfigurations.get(id);
+  const { q, s } = page, saved = jsonComparisonText(data.configuration ?? null), adopted = s.adoptedConfigurations.get(id);
   if (!s.configurations.has(id)) {
     s.configurations.set(id, data.configuration ?? undefined);
-  } else if (adopted !== undefined && saved !== adopted && canonical(s.configurations.get(id) ?? null) === adopted) {
+  } else if (adopted !== undefined && saved !== adopted && jsonComparisonText(s.configurations.get(id) ?? null) === adopted) {
     s.configurations.set(id, data.configuration ?? undefined);
     if (!fresh) {
       applyConfiguration(page);
@@ -80,7 +81,7 @@ function adoptConfiguration(page: Page, id: string, data: SessionData, fresh: bo
     }
   }
   // In step with what is saved: from here a difference is someone else's change. Out of step: this page's own change is still on its way.
-  if (adopted === undefined || canonical(s.configurations.get(id) ?? null) === saved) s.adoptedConfigurations.set(id, saved);
+  if (adopted === undefined || jsonComparisonText(s.configurations.get(id) ?? null) === saved) s.adoptedConfigurations.set(id, saved);
   if (!fresh) return;
   if (!s.configurations.get(id)) {
     const first = s.state.models[0];
@@ -104,7 +105,7 @@ function adoptSelections(page: Page, id: string, data: SessionData) {
     s.characterTitles.set(id, data.character_title || "");
     if (data.character_skill_ids !== undefined) s.characterSkills.set(id, data.character_skill_ids);
   }
-  if (!s.methodSelections.has(id)) s.methodSelections.set(id, data.methods || []);
+  if (!s.methodSelections.has(id)) s.methodSelections.set(id, data.skills || []);
   page.refs.inputEditor.observe(id, data);
 }
 

@@ -5,12 +5,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog, desktopWorkbenchRendererPorts,
   isDesktopShellRequest, NATIVE_DESKTOP_BOOTSTRAP_SCRIPT, renderDesktopCapsuleShell } from "@molis-ai/molis-work-app-desktop";
-import { createLocalWebServerFactory } from "@molis-ai/molis-work-app-local-host";
+import { createLocalWebCoreFactory } from "@molis-ai/molis-work-app-local-host";
 import { LocalHostHttpClient, createProject } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { acquireStorageOwner } from "@molis-ai/molis-work-storage";
 import { captureHostLog, type HostLogEntry, MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { createWebCatalogAccess } from "../apps/local-host/dist/web-catalog-access.js";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 test("health becomes ready after a transient catalog lock without a business request", { timeout: 20_000 }, async t => {
@@ -21,7 +21,7 @@ test("health becomes ready after a transient catalog lock without a business req
   // The first preparation meets a lock another process holds; the catalog itself is current.
   let locked = true;
   localHost.ensureWebCatalog(home, async options => {
-    if (locked) { locked = false; throw Object.assign(new Error("database is locked"), { code: "SQLITE_BUSY" }); }
+    if (locked) { locked = false; throw Object.assign(new Error("database is locked"), { code: "ERR_SQLITE_ERROR", errcode: 5 }); }
     return openMolisWorkProjectCatalog(options);
   });
   const server = createMolisWorkWebServer({ homeDirectory: home, localHost, controlToken: "catalog-recovery-control-token-0123456789" });
@@ -44,16 +44,25 @@ test("health becomes ready after a transient catalog lock without a business req
 test("permanent catalog refusal is not retried, and closing cancels a queued transient retry", async () => {
   const home = await mkdtemp(join(tmpdir(), "molis-web-retry-lifecycle-"));
   try {
-    for (const code of ["catalog.reader_too_old", "catalog.unknown_database", "SQLITE_BUSY"]) {
+    // Busy as node:sqlite raises it: every failure is ERR_SQLITE_ERROR, SQLite's own code (5) beside it.
+    for (const failure of [{ code: "storage.store_too_new" }, { code: "catalog.unknown_database" }, { code: "ERR_SQLITE_ERROR", errcode: 5 }]) {
+      const { code } = failure;
       let opens = 0;
-      const access = createWebCatalogAccess(home, async () => { opens++; throw Object.assign(new Error(code), { code }); });
+      const access = createWebCatalogAccess(home, async () => { opens++; throw Object.assign(new Error(code), failure); });
       await assert.rejects(access.warm(), { code });
-      if (code === "SQLITE_BUSY") await access.close();
+      if ("errcode" in failure) await access.close();
       await delay(160);
       assert.equal(opens, 1, code);
       assert.equal(access.ready, false);
       await access.close();
     }
+    // That the busy one stayed at one open is the close at work, not a retry never queued: left open, the same failure is tried again.
+    let opens = 0;
+    const left = createWebCatalogAccess(home, async () => { opens++; throw Object.assign(new Error("database is locked"), { code: "ERR_SQLITE_ERROR", errcode: 5 }); });
+    await assert.rejects(left.warm(), { code: "ERR_SQLITE_ERROR" });
+    await delay(160);
+    assert.ok(opens > 1, `a busy catalog is tried again (${opens} opens)`);
+    await left.close();
   } finally { await rm(home, { recursive: true, force: true }); }
 });
 
@@ -61,7 +70,7 @@ test("concurrent borrowers share preparation and a transient retry never replays
   const home = await mkdtemp(join(tmpdir(), "molis-web-preparation-retry-"));
   let opens = 0, effects = 0;
   const access = createWebCatalogAccess(home, options => {
-    if (++opens === 1) return Promise.reject(Object.assign(new Error("held lock"), { code: "SQLITE_BUSY" }));
+    if (++opens === 1) return Promise.reject(Object.assign(new Error("held lock"), { code: "ERR_SQLITE_ERROR", errcode: 5 }));
     return openMolisWorkProjectCatalog(options);
   });
   try {
@@ -103,7 +112,8 @@ test("SYS-39 an unhandled HTTP failure has a safe localized answer and a matchin
 test("RAC-2918: a Web factory without openCatalog reuses its actual Host owner for HTTP Catalog operations", async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-web-bound-fallback-"));
   const token = "catalog-fallback-test-control-token-0123456789";
-  const create = createLocalWebServerFactory({
+  // This exercises the already selected Home's real Catalog owner, without an installation login wrapper.
+  const create = createLocalWebCoreFactory({
     withCatalog: withMolisWorkProjectCatalog, desktopRenderer: desktopWorkbenchRendererPorts,
     cliAvailability: () => ({}), isDesktopShellRequest, nativeDesktopBootstrapScript: NATIVE_DESKTOP_BOOTSTRAP_SCRIPT,
     renderDesktopCapsuleShell, ptyClientFilePath: () => "unused.js",

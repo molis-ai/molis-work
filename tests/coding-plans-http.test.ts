@@ -8,8 +8,9 @@ import { createServer } from "node:http";
 import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, handleProjectPluginHttp, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { ProcessItemsModule, createProcessItemReplication } from "@molis-ai/molis-work-module-artifacts";
 import { agentHostCapabilities as agent, type AgentStartRequest, type AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
+import { projectDirectoryActions } from "@molis-ai/molis-work-contracts/modules/projects";
 import { writerDirectoryCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { CODING_PLAN_TYPE, codingManifest } from "@molis-ai/molis-work-plugin-coding";
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 import { seedConfiguredModels } from "./fixtures/configured-models.js";
 
@@ -31,14 +32,15 @@ test("Plan formal routes preserve confirmed revisions, reject stale/blocked/fore
   const starts: AgentStartRequest[] = [];
   // The one writer directory the Host lists; the other writer actions are not asked here.
   const writerActions = fakeWriterActions(pluginActions(store, DEMO_PROJECT_ID), definition => {
-    if (definition.capability_id === writerDirectoryCapabilities.list.capability_id) return [{ worktree_id: "writer-a", workspace_id: "foreign", canonical_path: home + "-other", branch: "writer/a", base_commit: "abc123" }];
+    if (definition.capability_id === writerDirectoryCapabilities.list.capability_id) return [{ worktree_id: "writer-a", canonical_path: home + "-other", branch: "writer/a", base_commit: "abc123" }];
     throw new Error(`Unexpected action ${definition.capability_id}`);
   });
   const host = () => ({ store, ...openProjectVersionStores(store), homeDirectory: activeHome, projectId: DEMO_PROJECT_ID, actions: writerActions, actorId: "web-user",
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
     agentHost: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
       const input = args as any[];
-      if (definition.capability_id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "work", canonical_path: home, realpath_verified: true }, { workspace_id: "foreign", canonical_path: home + "-other", realpath_verified: true }] as Output;
+      // The project's output and one input elsewhere; the fixture completes them into `projects.directories.get@1`'s answer.
+      if (definition.capability_id === projectDirectoryActions.get.capability_id) return [{ workspace_id: "work", canonical_path: home }, { workspace_id: "foreign", canonical_path: home + "-other" }] as Output;
       if (definition.capability_id === agent.availableRoles.capability_id) return ["planner", "builder", "reader", "writers"].map(role_id => ({ role_id, available: true })) as Output;
       if (definition.capability_id === agent.listActions.capability_id) return [] as Output;
       if (definition.capability_id === agent.readSession.capability_id) return { runs: input[0].session_id === "sdk-app" ? runs.map(run => run.ref) : [] } as Output;
@@ -86,7 +88,10 @@ test("Plan formal routes preserve confirmed revisions, reject stale/blocked/fore
       { appendEvent: event => database.appendEvent(event), eventCursor: id => database.eventCursor(id) });
     try {
       const bundle = replication(store).read(fixed.confirmed.artifact_id)!;
-      assert.equal(bundle.versions[0]!.schema_version, 2);
+      // What the confirmation really wrote is what the Manifest declares: the Host refuses any other pair (declared-types.ts).
+      const declared = codingManifest.process_items!.produces.find(type => type.artifact_type_id === bundle.versions[0]!.artifact_type_id);
+      assert.equal(bundle.versions[0]!.artifact_type_id, CODING_PLAN_TYPE);
+      assert.equal(bundle.versions[0]!.schema_version, declared?.schema_version);
       assert.deepEqual(bundle.versions[0]!.payload, fixed);
       assert.equal(JSON.stringify(bundle).includes(home), false, "the owner's fixed bytes contain no original directory");
       replication(targetStore).apply(bundle);
@@ -102,18 +107,18 @@ test("Plan formal routes preserve confirmed revisions, reject stale/blocked/fore
       assert.equal(starts.length, 0, "a synced plan and a guessed continuation cannot start a Run");
     } finally { await releaseProjectPlugins(targetStore, DEMO_PROJECT_ID); store = originalStore; activeHome = home; targetStore.close(); }
     const processItems = new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: id => store.eventCursor(id) });
-    for (const [revision, schema_version] of [[900, 1], [901, 2]] as const) {
+    for (const [revision, schema_version] of [[900, 2], [901, 1]] as const) {
       const reference = { artifact_id: `coding-plan:app:${revision}`, version: 1 };
       processItems.commands.registerVersion({ project_id: DEMO_PROJECT_ID, ...reference, schema_version,
         artifact_type_id: "coding.plan.v1", actor_id: "web-user", producer: { plugin_id: "io.molis.work.coding", plugin_version: "0.3.0", binding_signature: "official-coding-binding" },
         content: { kind: "inline", payload: { ...localFixed, revision, confirmed: reference } } });
       const refused=await request(`/plan?revision=${revision}`);
       assert.equal(refused.status,400,JSON.stringify(refused.body));
-      if(schema_version===1)assert.equal(refused.body.code,"artifacts.plugin_incompatible");
+      if(schema_version===2)assert.equal(refused.body.code,"artifacts.plugin_incompatible");
       else assert.match(refused.body.error,/计划来源与当前会话不一致/);
       assert.equal(Object.hasOwn(refused.body,"plan"),false,"old schema and native-path-shaped fixed plans are not portable facts");
     }
-    assert.equal((await start({ workspace_id: "foreign" })).status, 409);
+    assert.equal((await start({ workspace_id: "foreign" })).status, 409, "a plan made in the output does not run in another of the project's folders");
     const wrongIntent = await start({ intent: "discuss" }); assert.equal(wrongIntent.status, 400, JSON.stringify(wrongIntent.body));
     const planning = runs.find(run => run.ref.run_id === "proposal")!;
     planning.phase = "running"; assert.equal((await start()).body.code, "coding.plan_origin_unavailable"); planning.phase = "completed";
@@ -137,7 +142,7 @@ test("Plan formal routes preserve confirmed revisions, reject stale/blocked/fore
     assert.equal((await request("/plan", "POST", { expected_revision: 1, content })).status, 400);
     await request("/plan", "POST", { expected_revision: 2, content: { ...adjusted, blockers: "" } });
     assert.equal((await request("/plan/confirm", "POST", { expected_revision: 3 })).status, 200);
-    const parallel = { plan_revision:3, intent:"parallel", writer_assignments:[{workspace_id:"foreign",task:"只核对既定运费边界并补测试"}] };
+    const parallel = { plan_revision:3, intent:"parallel", writer_assignments:[{worktree_id:"writer-a",task:"只核对既定运费边界并补测试"}] };
     assert.equal((await start({...parallel,writer_assignments:[]})).status,400);assert.equal(starts.length,1);
     assert.equal((await start(parallel)).status, 200);assert.equal(starts.length, 2);
     assert.equal(starts[1].role_id,"writers");assert.equal(starts[1].subagent_workspaces?.[0]?.directory.canonical_path,home+"-other");

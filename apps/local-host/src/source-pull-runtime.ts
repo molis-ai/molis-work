@@ -6,7 +6,7 @@ import {
   createEvidenceContentStore, createFileSecretStore,
   type EvidenceContentStore, type SecretStore, type SqliteDatabase,
 } from "@molis-ai/molis-work-storage";
-import { createFeedExactRouteResolver } from "@molis-ai/molis-work-plugin-feed";
+import { createRssExactRouteResolver } from "@molis-ai/molis-work-integration-rss";
 import {
   listFeedUrls, listRegisterableFeeds, readRssHttpState, type RssFetchReceipt,
   CUSTOM_RSS_DEFINITION_ID, customRssFeedHost, isCustomRssFeedUrl,
@@ -65,15 +65,15 @@ export function createSourcePullRuntime(options: {
     content: createSearchContentPort(content, options.assertCurrent, options.beforeContentWrite),
   });
   const rssRuntime = createSearchRuntime({
-    app: { id: APP_ID, version: PRODUCT_VERSION, dataCompatibilityVersion: 1 },
+    app: { id: APP_ID, version: PRODUCT_VERSION, dataCompatibilityVersion: /* @version format.search-evidence.data-compatibility */ 1 },
     host: rssHost.host,
-    providers: [{ revision: 1, provider: createRssProvider({ appId: APP_ID }), transportProfileId: "molis-work-rss-allowlist-v1" }],
+    providers: [{ revision: 1, provider: createRssProvider({ appId: APP_ID }), transportProfileId: /* @version type.molis-work-rss-allowlist "molis-work-rss-allowlist-v{version}" */ "molis-work-rss-allowlist-v1" }],
   });
   const shared = createSearchEvidenceRuntime({
     db: options.db, secretStore, content, assertCurrent: options.assertCurrent, beforeDispatch: options.beforeDispatch, beforeContentWrite: options.beforeContentWrite,
     source: {
       runtime: rssRuntime,
-      routeResolver: createFeedExactRouteResolver({
+      routeResolver: createRssExactRouteResolver({
         listCatalog: listRegisterableFeeds,
         customRss: { id: CUSTOM_RSS_DEFINITION_ID, acceptsUrl: isCustomRssFeedUrl, host: customRssFeedHost },
         youtube: { id: YOUTUBE_CHANNEL_DEFINITION_ID, host: YOUTUBE_PUBLIC_FEED_HOST, acceptsUrl: isYouTubePublicFeedUrl },

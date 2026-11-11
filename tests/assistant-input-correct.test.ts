@@ -1,5 +1,6 @@
 import { answeringEndingReviews } from "./fixtures/ending-review.js";
 import { installedPackageHost } from "./fixtures/signed-package-host.js";
+import { roleOf } from "./fixtures/assistant-roles.js";
 import { signedAgentPackage, newPublisher, PACKAGE_PLUGIN_ID } from "./fixtures/sandbox-package.js";
 // Stage 3b-2a of specs/ai-input-receipts (§4.6, D34): from the Assistant, a supplement its round has not put in the context
 // is taken back, and a correction names the input it corrects; one sent after the round ended waits in the session. The
@@ -92,7 +93,7 @@ test("RAC-2639/2641/2642 S-105 signed supplements keep an 8000-unit body, reject
     requests.push(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array)); enteredModel.resolve(); await releaseModel.promise; return reply("检查完成。");
   }));
   const { service } = assistantServiceFor({ localHost: h.host, homeDirectory: h.home, agentHost, agentReady: async () => {}, projectTitle: async () => "正文项目", pages: async () => [] });
-  const role = (await service.reads.methods(null, { project_ref: h.reference })).find(item => item.plugin_id === PACKAGE_PLUGIN_ID && item.kind === "role")!;
+  const role = (await service.reads.methods(null, { project_ref: h.reference })).find(roleOf(PACKAGE_PLUGIN_ID))!;
   const prompt = homeAgentDefinitions(h.home).prompts().find(item => item.default_ref?.entry_id === role.default_ref?.entry_id)!;
   const material = { material_id: "signed", kind: "method" as const, explicit: true, title: "角色资料", method: role };
   const send = adapter.inputs!.send.bind(adapter.inputs!);
@@ -107,15 +108,15 @@ test("RAC-2639/2641/2642 S-105 signed supplements keep an 8000-unit body, reject
     const runRef = { session_id: started.work.session_id!, run_id: started.run_id! };
     const accepted = await adapter.read(runRef);
     assert.ok(accepted.turns.some(turn => turn.text?.includes(body)), "the accepted Runtime input contains all 8000 UTF16 units including its tail");
-    assert.equal(homeAgentDefinitions(h.home).uses(prompt.key).length, 1);
+    assert.equal(homeAgentDefinitions(h.home).uses.list(prompt.key).length, 1);
     await assert.rejects(service.send({ text: "超预算补充", request_id: "signed-running-overflow", work_id: started.work.work_id, materials: [material, { ...material, material_id: "second" }, { ...material, material_id: "third" }] }, {}), /输入预算/);
-    assert.equal(homeAgentDefinitions(h.home).uses(prompt.key).length, 1);
+    assert.equal(homeAgentDefinitions(h.home).uses.list(prompt.key).length, 1);
     pause = true;
     const pending = service.send({ text: "拒绝迟到补充", request_id: "signed-running-late", work_id: started.work.work_id, materials: [material] }, {});
     const refused = assert.rejects(pending, /来源已失效|没有登记|停用/);
     await Promise.race([enteredSend.promise, pending.then(() => assert.fail("handoff completed before send barrier"), error => { throw error; }), new Promise<never>((_resolve, reject) => { const timer = setTimeout(() => reject(new Error("send barrier not reached")), 10_000); timer.unref(); })]); await h.control("disable", { plugin_id: PACKAGE_PLUGIN_ID }); releaseSend.resolve(); await refused;
     assert.ok(!(await adapter.read(runRef)).turns.some(turn => turn.text?.includes("拒绝迟到补充")));
-    assert.equal(homeAgentDefinitions(h.home).uses(prompt.key).length, 1, "only the earlier accepted handoff is kept");
+    assert.equal(homeAgentDefinitions(h.home).uses.list(prompt.key).length, 1, "only the earlier accepted handoff is kept");
     releaseModel.resolve();
     // The failed new send keeps its draft/hold; the already accepted Runtime round still finishes after source withdrawal.
     await until(async () => (await adapter.read(runRef)).phase === "completed", "accepted Runtime round after source withdrawal");

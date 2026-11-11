@@ -1,5 +1,6 @@
 export {refreshCodingSavedHistory} from './saved-history.js';
 export { CODING_INSTRUCTIONS, CODING_COMMIT_DRAFT, CODING_HISTORY_SUMMARY } from "./prompts.js";
+export { goalContextReference } from "./goal-context.js";
 export { codingReportPreview } from "./report.js";
 export { codingChangeSetPreview, codingNetChange } from "./changeset.js";
 export { codingResultDocumentHandler } from "./results-document.js";
@@ -13,6 +14,7 @@ export { planMaterial, planTask } from "./plans.js";
 export { executionSteps, parseCodingPlan } from "./plan-content.js";
 export { mentionedPaths, attachMentions, workspaceFileIndex, symbolsIn, symbolBlock } from "./mentions.js";
 export { codingHistoryDigest, historySummaryMaterial, summaryDigest, nextHistoryMode, digestTask, HISTORY_DIGEST_MARKER, HISTORY_DIGEST_RATIO, MODEL_DIGEST_HEAD } from "./history-digest.js";
+export { writeCheckCache, type CodingWriteCheck } from "./write-checks.js";
 export { MAX_DELEGATION_HOPS, DELEGATION_STATE_KEY, type DelegationState } from "./cooperation.js";
 export { codingRunForDisplay, codingRunSummary, codingSessionUsage, summaryCache, summariesFingerprint, SESSION_WINDOW, SESSION_PAGE, type CodingRunSummary, type CodingSessionUsage } from "./session-window.js";
 
@@ -121,18 +123,6 @@ export { reaskMaterial as codingReaskMaterial, codingReaskErrors } from "./reask
 export type { CodingExecution } from "./routes.js";
 export type { CodingModelChoice } from "./models.js";
 export { codingSessionTitleFrom, DEFAULT_SESSION_TITLE, planContinuesAfterTalk } from "./routes.js";
-export {
-  projectMcp,
-  projectSkills,
-  type CodingMcpView,
-  type CodingSkillsView,
-  type McpProjectionInput,
-  type McpServerRow,
-  type McpToolRow,
-  type SelectionFrame,
-  type SkillRow,
-  type SkillsProjectionInput,
-} from "./selection.js";
 export {
   projectCheckpoints,
   projectSubagents,

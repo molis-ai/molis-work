@@ -82,7 +82,7 @@ export interface IngestFeedItemInput {
 }
 
 export interface FeedQuery {
-  list(projectId: string): FeedItemRecord[];
+  list(projectId: string, page?: { limit: number; offset: number }): FeedItemRecord[];
   get(projectId: string, itemId: string): FeedItemRecord;
   exists(projectId: string, itemId: string): boolean;
   countBySource(projectId: string, sourceId: string): number;

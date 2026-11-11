@@ -6,6 +6,9 @@ import type { PrologueRewindIntent } from "./prologue-checkpoints.js";
 import type { PrologueSubagentRoot } from "./prologue-subagents.js";
 import type { NodeHost } from "./prologue-node-kit.js";
 
+/** The one number the index is written and read at: every writer takes it from here. */
+export const SESSION_INDEX_SCHEMA = /* @version format.prologue.session-index */ 1;
+
 /**
  * Each session's Host record beside the SDK's ledger: who owns it, its workspace mode, and the frozen intent of every
  * start (with display times). App provenance is encrypted in the existing Host store; model events and conversation stay
@@ -20,7 +23,7 @@ export interface ChildOpeningFact {
 }
 
 export interface SessionIndex {
-  schema: 1;
+  schema: typeof SESSION_INDEX_SCHEMA;
   /** Rooted child sessions may omit this; their frozen intent carries the authorized directory. */
   workspace?: "required" | "none" | "business";
   parent_run?: AgentRunRef;
@@ -59,7 +62,7 @@ export function createSessionIndexStore(host: NodeHost, appId: string): SessionI
     const bytes = new TextEncoder().encode(JSON.stringify(value));
     try {
       const record = await host.storage.commit({ kind: indexKind, id: value.ref.id,
-        expectedVersion: indexes.get(value.ref.id)?.version ?? 0, metadata: { schema: 1 }, secureBody: bytes });
+        expectedVersion: indexes.get(value.ref.id)?.version ?? 0, metadata: { schema: SESSION_INDEX_SCHEMA }, secureBody: bytes });
       indexes.set(value.ref.id, { value: structuredClone(value), version: record.version });
     } finally { bytes.fill(0); }
   };
@@ -71,7 +74,7 @@ export function createSessionIndexStore(host: NodeHost, appId: string): SessionI
     const bytes = await host.storage.readSecure({ kind: indexKind, id });
     try {
       const value: SessionIndex = JSON.parse(new TextDecoder().decode(bytes));
-      if (value.schema !== 1 || value.ref?.id !== id || value.ref?.kind !== "session"
+      if (value.schema !== SESSION_INDEX_SCHEMA || value.ref?.id !== id || value.ref?.kind !== "session"
         || typeof value.title !== "string" || !Array.isArray(value.attempts)
         || ![value.owner?.project_id, value.owner?.plugin_id, value.owner?.install_id].every(v => typeof v === "string" && v.length > 0)) {
         throw new Error("Coding 会话归属索引损坏，不能当作空会话继续");

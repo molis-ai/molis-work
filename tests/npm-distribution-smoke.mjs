@@ -15,7 +15,11 @@ const temporary = await mkdtemp(path.join(tmpdir(), "molis-work-npm-smoke-"));
 const home = path.join(temporary, "home");
 const environment = { ...process.env, HOME: temporary, MOLIS_WORK_HOME: home, NODE_PATH: "" };
 const cli = path.join(consumer, "node_modules", ".bin", "molis-work");
-const run = (command, args, cwd = temporary) => exec(command, args, { cwd, env: environment, timeout: 30_000, maxBuffer: 4 * 1024 * 1024 });
+// Installing the actual npm dependency tree scans and copies about 28,000 files.
+// Observed local install/upgrade times for both 0.3.0 and 0.1.0: 38-61 seconds.
+// Keep fast commands at 30 seconds; give only installation operations two minutes.
+const run = (command, args, cwd = temporary, timeout = 30_000) => exec(command, args, { cwd, env: environment, timeout, maxBuffer: 4 * 1024 * 1024 });
+const install = args => run(cli, ["install", "--home", home, ...args, "--json"], temporary, 120_000);
 try {
   assert.match((await run(cli, ["--help"])).stdout, /molis-work plugin/);
   const manifest = JSON.parse(await readFile(path.join(product, "package.json"), "utf8"));
@@ -50,13 +54,13 @@ try {
     console.log('native persistence, real PTY and planning assets passed');
   `;
   await run(process.execPath, ["--input-type=module", "-e", probe], product);
-  const installed = JSON.parse((await run(cli, ["install", "--home", home, "--json"])).stdout);
+  const installed = JSON.parse((await install([])).stdout);
   assert.equal(installed.status, "installed");
-  const repeat = JSON.parse((await run(cli, ["install", "--home", home, "--json"])).stdout);
+  const repeat = JSON.parse((await install([])).stdout);
   assert.equal(repeat.status, "unchanged");
   const demo = JSON.parse((await run(cli, ["demo", "create", "--confirm", "--home", home, "--json"])).stdout);
   const databaseBefore = await readFile(demo.project.database_path);
-  const upgraded = JSON.parse((await run(cli, ["install", "--home", home, "--version", `${manifest.version}-npm-smoke`, "--json"])).stdout);
+  const upgraded = JSON.parse((await install(["--version", `${manifest.version}-npm-smoke`])).stdout);
   assert.equal(upgraded.status, "upgraded");
   assert.deepEqual(await readFile(demo.project.database_path), databaseBefore);
   await run(process.execPath, ["--input-type=module", "-e", `
@@ -69,9 +73,9 @@ try {
       version: 'npm-smoke-failure', beforeStep(step) { if (step === 'before_write_install_manifest') throw new Error('release-test-failure'); }
     }), /release-test-failure/);
     assert.deepEqual(await readFile(launcher), before);
-  `], product);
+  `], product, 120_000);
   assert.deepEqual(await readFile(demo.project.database_path), databaseBefore);
-  const restored = JSON.parse((await run(cli, ["install", "--home", home, "--version", manifest.version, "--json"])).stdout);
+  const restored = JSON.parse((await install(["--version", manifest.version])).stdout);
   assert.equal(restored.version, manifest.version);
   assert.deepEqual(await readFile(demo.project.database_path), databaseBefore);
   const moved = `${product}-temporarily-unavailable`;

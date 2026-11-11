@@ -1,3 +1,4 @@
+import { projectPluginRevisionAt } from "./fixtures/project-plugin-settings.js";
 import { MolisWorkLocalHost, projectActionAvailability, workspaceRefFor } from "@molis-ai/molis-work-app-local-host";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -6,7 +7,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 
 async function catalogWebHost(homeDirectory: string) {
   let withCatalog = withMolisWorkProjectCatalog;
@@ -38,9 +39,9 @@ test("Project plugin HTTP persists only the selected project, rejects unauthoriz
     await host.close(); await rm(homeDirectory, { recursive: true, force: true });
   });
   let sequence = 0;
-  const add = (projectId: string, plugin: string, authorized = true) => fetch(`${origin}/api/settings/projects/${projectId}/plugins`, {
+  const add = async (projectId: string, plugin: string, authorized = true) => fetch(`${origin}/api/settings/projects/${projectId}/plugins`, {
     method: "POST", headers: { origin, "content-type": "application/json", "x-molis-work-control-token": authorized ? token : "invalid",
-      "x-molis-work-idempotency-key": `add-plugin-${++sequence}` }, body: JSON.stringify({ plugin_id: plugin }),
+      "x-molis-work-idempotency-key": `add-plugin-${++sequence}` }, body: JSON.stringify({ plugin_id: plugin, expected_revision: await projectPluginRevisionAt(origin, projectId === "missing" ? second.project_id : projectId) }),
   });
   assert.deepEqual(catalog.listProjectPlugins(first.project_id), ["goals", "schedule"]);
   assert.equal((await add(second.project_id, "inbox", false)).status, 403);
@@ -50,7 +51,7 @@ test("Project plugin HTTP persists only the selected project, rejects unauthoriz
   for (let attempt = 0; attempt < 2; attempt++) {
     const response = await add(second.project_id, "inbox");
     assert.equal(response.status, 200);
-    assert.deepEqual(await response.json(), { project_id: second.project_id, plugins: ["goals", "inbox", "schedule"], hidden: [] });
+    assert.deepEqual(await response.json(), { project_id: second.project_id, plugins: ["goals", "inbox", "schedule"], hidden: [], revision: await projectPluginRevisionAt(origin, second.project_id) });
   }
   assert.deepEqual(catalog.listProjectPlugins(first.project_id), ["goals", "schedule"]);
   await host.configurePersonalPlanning(homeDirectory, withMolisWorkProjectCatalog)({ homeDirectory }, reopened => {
@@ -80,14 +81,14 @@ test("Adding Feed also enables Inbox, Inbox can be added alone, and repeats stay
     await host.close(); await rm(homeDirectory, { recursive: true, force: true });
   });
   let sequence = 0;
-  const add = (projectId: string, plugin: string) => fetch(`${origin}/api/settings/projects/${projectId}/plugins`, {
+  const add = async (projectId: string, plugin: string) => fetch(`${origin}/api/settings/projects/${projectId}/plugins`, {
     method: "POST", headers: { origin, "content-type": "application/json", "x-molis-work-control-token": token,
-      "x-molis-work-idempotency-key": `add-plugin-${++sequence}` }, body: JSON.stringify({ plugin_id: plugin }),
+      "x-molis-work-idempotency-key": `add-plugin-${++sequence}` }, body: JSON.stringify({ plugin_id: plugin, expected_revision: await projectPluginRevisionAt(origin, projectId) }),
   });
   for (let attempt = 0; attempt < 2; attempt++) {
     const response = await add(project.project_id, "feed");
     assert.equal(response.status, 200);
-    assert.deepEqual(await response.json(), { project_id: project.project_id, plugins: ["feed", "goals", "inbox", "schedule"], hidden: [] });
+    assert.deepEqual(await response.json(), { project_id: project.project_id, plugins: ["feed", "goals", "inbox", "schedule"], hidden: [], revision: await projectPluginRevisionAt(origin, project.project_id) });
   }
   assert.deepEqual((await (await add(inboxOnly.project_id, "inbox")).json()).plugins, ["goals", "inbox", "schedule"]);
   const feedPage = await (await fetch(`${origin}/projects/${project.project_id}/`)).text();
@@ -127,9 +128,9 @@ test("Removing a project plugin leaves companions, removing a dependency takes d
     await host.close(); await rm(homeDirectory, { recursive: true, force: true });
   });
   let sequence = 0;
-  const change = (method: "POST" | "DELETE", projectId: string, plugin: string, authorized = true) => fetch(`${origin}/api/settings/projects/${projectId}/plugins`, {
+  const change = async (method: "POST" | "DELETE", projectId: string, plugin: string, authorized = true) => fetch(`${origin}/api/settings/projects/${projectId}/plugins`, {
     method, headers: { origin, "content-type": "application/json", "x-molis-work-control-token": authorized ? token : "invalid",
-      "x-molis-work-idempotency-key": `change-plugin-${++sequence}` }, body: JSON.stringify({ plugin_id: plugin }),
+      "x-molis-work-idempotency-key": `change-plugin-${++sequence}` }, body: JSON.stringify({ plugin_id: plugin, expected_revision: await projectPluginRevisionAt(origin, projectId === "missing" ? project.project_id : projectId) }),
   });
   assert.equal((await change("DELETE", project.project_id, "inbox", false)).status, 403);
   assert.equal((await change("DELETE", project.project_id, "unknown")).status, 400);
@@ -145,19 +146,19 @@ test("Removing a project plugin leaves companions, removing a dependency takes d
   assert.equal((await change("POST", project.project_id, "feed")).status, 200);
   const removedFeed = await change("DELETE", project.project_id, "feed");
   assert.equal(removedFeed.status, 200);
-  assert.deepEqual(await removedFeed.json(), { project_id: project.project_id, plugins: ["goals", "inbox", "schedule"], hidden: [] });
+  assert.deepEqual(await removedFeed.json(), { project_id: project.project_id, plugins: ["goals", "inbox", "schedule"], hidden: [], revision: await projectPluginRevisionAt(origin, project.project_id) });
   assert.equal((await change("POST", project.project_id, "feed")).status, 200);
   const removedInbox = await change("DELETE", project.project_id, "inbox");
   assert.deepEqual((await removedInbox.json()).plugins, ["goals", "schedule"]);
   assert.equal((await change("DELETE", project.project_id, "inbox")).status, 200);
   const hidden = await change("DELETE", project.project_id, "pages");
   assert.equal(hidden.status, 200);
-  assert.deepEqual(await hidden.json(), { project_id: project.project_id, plugins: ["goals", "schedule"], hidden: ["pages"] });
+  assert.deepEqual(await hidden.json(), { project_id: project.project_id, plugins: ["goals", "schedule"], hidden: ["pages"], revision: await projectPluginRevisionAt(origin, project.project_id) });
   assert.equal((await change("DELETE", project.project_id, "pages")).status, 200);
   const hiddenPage = await (await fetch(`${origin}/projects/${project.project_id}/`)).text();
   assert.doesNotMatch(hiddenPage, /data-plugin-id="pages"/);
   const restored = await change("POST", project.project_id, "pages");
-  assert.deepEqual(await restored.json(), { project_id: project.project_id, plugins: ["goals", "schedule"], hidden: [] });
+  assert.deepEqual(await restored.json(), { project_id: project.project_id, plugins: ["goals", "schedule"], hidden: [], revision: await projectPluginRevisionAt(origin, project.project_id) });
   const restoredPage = await (await fetch(`${origin}/projects/${project.project_id}/`)).text();
   assert.match(restoredPage, /data-plugin-id="pages"/);
   // RAC-73: Characters is no plugin since CHR-1: Settings › 角色 is the Host's own section, which no project hides.

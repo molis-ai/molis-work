@@ -36,7 +36,7 @@ import type { createPrologueWaits } from "./prologue-waits.js";
 import type { PrologueEvent, PrologueUsageReceipt } from "./prologue-stream.js";
 import type { PrologueRuntimePort, PrologueStartInput } from "./prologue.js";
 import { prologueToolName, sameRef, stageInstructions, stageTextResource, type DispatchGuards, type PrologueNodeAdapterOptions, type RoundState } from "./prologue-node-kit.js";
-import type { SessionIndex, SessionIndexStore } from "./prologue-session-index.js";
+import { SESSION_INDEX_SCHEMA, type SessionIndex, type SessionIndexStore } from "./prologue-session-index.js";
 import { ensureStopGuard, guardRound, watchRoundFacts } from "./prologue-stop-guard.js";
 
 /**
@@ -99,7 +99,9 @@ function assertWorkspace(input: PrologueStartInput, index: SessionIndex | undefi
 }
 
 /** The round's Prologue system tools. Suggesting is the round's own action pack tool (prologue-action-tools.ts), not one of them. */
-const systemTools = (input: PrologueStartInput) => input.character.tools.filter(tool => tool !== SUGGEST_HOST_TOOL).map(prologueToolName);
+/** The role's own tools in the Host's words, and as Prologue names them. */
+const hostSystemTools = (input: PrologueStartInput) => input.character.tools.filter(tool => tool !== SUGGEST_HOST_TOOL);
+const systemTools = (input: PrologueStartInput) => hostSystemTools(input).map(prologueToolName);
 
 /**
  * The round's actions: the business gateway's three tools, or one tool per frozen action. What the round really keeps,
@@ -174,7 +176,7 @@ async function childSetup(deps: RunDeps, input: PrologueStartInput) {
     const overlaps = (a: string, b: string) => { const relative = path.relative(a, b); return !relative || !relative.startsWith(`..${path.sep}`) && relative !== ".." && !path.isAbsolute(relative); };
     if ([input.root_path!, ...childRoots.map(root => root.path)].some(other => overlaps(other, grant.directory.canonical_path) || overlaps(grant.directory.canonical_path, other))) throw new Error("子任务目录必须与主目录及其他子目录互不包含");
     const authorized = await runtime.workspace.authorize({ path: grant.directory.canonical_path });
-    childRoots.push({ id: grant.workspace_id, rootRef: authorized.ref, path: grant.directory.canonical_path });
+    childRoots.push({ id: grant.worktree_id, rootRef: authorized.ref, path: grant.directory.canonical_path });
   }
   const childRoles = new Map<string, ChildRole>();
   for (const role of input.subagents ?? []) {
@@ -379,7 +381,7 @@ function watchChild(deps: RunDeps, input: PrologueStartInput, index: SessionInde
     if (!children.roots.length && (role.execution !== "workspace-write" || !children.root || !input.root_path)) return;
     const granted = children.roots.length ? children.roots.find(root => root.id === observed.workspace!.id)! : { rootRef: children.root!.ref, path: input.root_path! };
     const childRun = { session_id: observed.childSession.ref.id, run_id: observed.run.ref.id };
-    await deps.index.save({ schema: 1, ref: observed.childSession.ref, title: role.name, owner: index.owner,
+    await deps.index.save({ schema: SESSION_INDEX_SCHEMA, ref: observed.childSession.ref, title: role.name, owner: index.owner,
       parent_run: { session_id: observed.parentSession.id, run_id: observed.parentRun.id },
       attempts: [{ started_at: new Date().toISOString(), task: caller, run_id: childRun.run_id, root_ref: granted.rootRef,
         frozen: { ...input.provenance.frozen, role_id: role.role_id, role_version: role.version, execution: role.execution,
@@ -614,7 +616,7 @@ export async function startPrologueRun(deps: RunDeps, input: PrologueStartInput)
   if (bindActions && session) state.actionToolSessions.add(input.session_id);
   if (session === undefined) throw new Error("agent.session_unknown");
   const root = mode.none || mode.business ? undefined : await runtime.workspace.authorize({ path: input.root_path! });
-  const methods = inlineMethods(runtime, state.registeredMethods, input.skills ?? [], systemTools(input), prologueToolName);
+  const methods = inlineMethods(runtime, state.registeredMethods, input.skills ?? [], hostSystemTools(input), prologueToolName);
   const textResources: Array<{ ref: ExactRef<"resource">; as: "original" }> = [];
   for (const material of input.text_materials ?? []) textResources.push({ ref: await stageTextResource(runtime, agentTextMaterialContent(material), "coding-material"), as: "original" });
   const { childRoots, childRoles, childInstructions } = await childSetup(deps, input);

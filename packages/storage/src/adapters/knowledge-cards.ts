@@ -1,7 +1,8 @@
+import { rollbackPreservingError } from "../transaction-errors.js";
 import { prepareFtsStatement } from "./fts-statement.js";
 import type { DatabaseSync } from "node:sqlite";
 import type { ActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
-import { KNOWLEDGE_RECEIPT_DAYS, KNOWLEDGE_RECEIPT_MAX, type KnowledgeCardMatch, type KnowledgeCardRecord, type KnowledgeCardStorePort, type KnowledgeReadReceipt } from "@molis-ai/molis-work-contracts/services/knowledge";
+import { KNOWLEDGE_RECEIPT_DAYS, KNOWLEDGE_RECEIPT_MAX, type KnowledgeCardsRequest, type KnowledgeCardMatch, type KnowledgeCardRecord, type KnowledgeCardStorePort, type KnowledgeReadReceipt } from "@molis-ai/molis-work-contracts/services/knowledge";
 import type { HomeStoreDeclaration } from "../home-stores.js";
 import { clearInExistingHomeSqlite, openBaselineHomeSqlite, type SqliteBaseline } from "../sqlite-baseline.js";
 import { normalizeSearchText, relatedQueryPlan, searchQueryPlan, searchTokens } from "./text-search-index.js";
@@ -13,7 +14,7 @@ import { normalizeSearchText, relatedQueryPlan, searchQueryPlan, searchTokens } 
  */
 export const KNOWLEDGE_CARDS_STORE = "knowledge";
 
-export const KNOWLEDGE_CARDS_BASELINE: SqliteBaseline = { version: 1, schema: `
+export const KNOWLEDGE_CARDS_BASELINE: SqliteBaseline = { version: /* @version database.knowledge_cards_baseline */ 1, schema: `
 CREATE TABLE knowledge_cards (
   card_id INTEGER PRIMARY KEY, project_id TEXT NOT NULL, kind TEXT NOT NULL, object_id TEXT NOT NULL, body TEXT NOT NULL,
   UNIQUE (project_id, kind, object_id)
@@ -33,17 +34,30 @@ CREATE INDEX knowledge_receipts_subject ON knowledge_receipts (project_id, kind,
 type Row = Record<string, unknown>;
 const cardText = (record: KnowledgeCardRecord) => [record.brief, record.keywords.join(" "), ...record.outline.map(note => `${note.title} ${note.summary}`)].join("\n");
 
+/** D0234: selection and pagination happen before JSON bodies leave SQLite. */
+function cardPage(db: DatabaseSync, projectId: string, query: KnowledgeCardsRequest) {
+  const clauses = ["project_id = ?"], values: Array<string | number> = [projectId];
+  if (query.subject) { clauses.push("kind = ? AND object_id = ?"); values.push(query.subject.kind, query.subject.id); }
+  if (query.states?.length) { clauses.push(`json_extract(body, '$.state') IN (${query.states.map(() => "?").join(",")})`); values.push(...query.states); }
+  const where = clauses.join(" AND ");
+  const total = Number((prepareFtsStatement(db, `SELECT COUNT(*) AS n FROM knowledge_cards WHERE ${where}`).get(...values) as Row).n);
+  const rows = prepareFtsStatement(db, `SELECT body FROM knowledge_cards WHERE ${where} ORDER BY card_id LIMIT ? OFFSET ?`)
+    .all(...values, Math.min(200, Math.max(1, query.limit ?? 50)), Math.max(0, query.offset ?? 0)) as Row[];
+  return { cards: rows.map(row => JSON.parse(String(row.body)) as KnowledgeCardRecord), total };
+}
+
 export function openKnowledgeCards(options: { homeDirectory: string }): KnowledgeCardStorePort {
   const db = openBaselineHomeSqlite(options.homeDirectory, KNOWLEDGE_CARDS_STORE, KNOWLEDGE_CARDS_BASELINE);
   db.exec("PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;");
   const transaction = <T>(run: () => T): T => {
     db.exec("BEGIN IMMEDIATE");
-    try { const value = run(); db.exec("COMMIT"); return value; } catch (error) { db.exec("ROLLBACK"); throw error; }
+    try { const value = run(); db.exec("COMMIT"); return value; } catch (error) { rollbackPreservingError(error, () => db.exec("ROLLBACK")); throw error; }
   };
   const idOf = (projectId: string, subject: ActionSubject) =>
     (prepareFtsStatement(db, "SELECT card_id FROM knowledge_cards WHERE project_id = ? AND kind = ? AND object_id = ?").get(projectId, subject.kind, subject.id) as Row | undefined)?.card_id;
   const drop = (cardId: unknown) => { prepareFtsStatement(db, "DELETE FROM knowledge_cards_fts WHERE rowid = ?").run(Number(cardId)); prepareFtsStatement(db, "DELETE FROM knowledge_cards WHERE card_id = ?").run(Number(cardId)); };
   return {
+    page: (projectId, query) => cardPage(db, projectId, query),
     get: (projectId, subject) => {
       const row = prepareFtsStatement(db, "SELECT body FROM knowledge_cards WHERE project_id = ? AND kind = ? AND object_id = ?").get(projectId, subject.kind, subject.id) as Row | undefined;
       return row ? JSON.parse(String(row.body)) as KnowledgeCardRecord : null;
@@ -106,7 +120,8 @@ function receiptsOf(db: DatabaseSync, projectId: string, options: { subject?: Ac
 
 function removeProjectCards(db: DatabaseSync, projectId: string): number {
   const ids = prepareFtsStatement(db, "SELECT card_id FROM knowledge_cards WHERE project_id = ?").all(projectId) as Row[];
-  for (const row of ids) prepareFtsStatement(db, "DELETE FROM knowledge_cards_fts WHERE rowid = ?").run(Number(row.card_id));
+  const removeFts = prepareFtsStatement(db, "DELETE FROM knowledge_cards_fts WHERE rowid = ?");
+  for (const row of ids) removeFts.run(Number(row.card_id));
   prepareFtsStatement(db, "DELETE FROM knowledge_cards WHERE project_id = ?").run(projectId);
   prepareFtsStatement(db, "DELETE FROM knowledge_usage WHERE project_id = ?").run(projectId);
   prepareFtsStatement(db, "DELETE FROM knowledge_receipts WHERE project_id = ?").run(projectId);
@@ -117,15 +132,18 @@ function removeProjectCards(db: DatabaseSync, projectId: string): number {
 function searchCards(db: DatabaseSync, projectId: string, query: string, limit: number): KnowledgeCardMatch[] {
   const plan = searchQueryPlan(query);
   if (!plan) return [];
-  const rows = prepareFtsStatement(db, `SELECT c.body, bm25(knowledge_cards_fts, 4.0, 1.0) AS rank FROM knowledge_cards_fts JOIN knowledge_cards c ON c.card_id = knowledge_cards_fts.rowid
-    WHERE knowledge_cards_fts MATCH ? AND c.project_id = ? ORDER BY rank LIMIT 200`).all(plan.expression, projectId) as Row[];
   const found: KnowledgeCardMatch[] = [];
+  for (let offset = 0; ; offset += 200) {
+  const rows = prepareFtsStatement(db, `SELECT c.body, bm25(knowledge_cards_fts, 4.0, 1.0) AS rank FROM knowledge_cards_fts JOIN knowledge_cards c ON c.card_id = knowledge_cards_fts.rowid
+    WHERE knowledge_cards_fts MATCH ? AND c.project_id = ? ORDER BY rank, c.card_id LIMIT 200 OFFSET ?`).all(plan.expression, projectId, offset) as Row[];
   for (const row of rows) {
     const record = JSON.parse(String(row.body)) as KnowledgeCardRecord;
     const title = normalizeSearchText(record.title).text, rest = normalizeSearchText(cardText(record)).text;
     if (!plan.runs.every(run => title.includes(run) || rest.includes(run))) continue;
     found.push({ subject: record.subject, field: plan.runs.every(run => title.includes(run)) ? "title" : "card" });
-    if (found.length >= limit) break;
+    if (found.length >= limit) return found;
+  }
+    if (rows.length < 200) break;
   }
   return found;
 }

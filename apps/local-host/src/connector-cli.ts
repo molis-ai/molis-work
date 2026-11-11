@@ -132,7 +132,7 @@ async function readIdentity(service: string, signal?: AbortSignal, launch?: Mana
 export async function connectCli(home: string, input: { serviceId: string; displayName: string; installationId?: string }, signal?: AbortSignal, beforeCommit?: () => void | Promise<void>,
   commit?: (completion: ConnectorActivation) => ReturnType<typeof submitConnectorActivation>) {
   const spec = definition(input.serviceId);
-  const expectedRevisions = withConnectorConnections(home, store => store.cliRevisions(input.serviceId));
+  const expectedRevisions = withConnectorConnections(home, store => store.cliRevisions(input.serviceId), true) ?? new Map();
   const launch = input.installationId ? managedCliLaunch(home, input.installationId) : undefined;
   const result = await readIdentity(input.serviceId, signal, launch);
   await beforeCommit?.();
@@ -147,13 +147,13 @@ export async function connectCli(home: string, input: { serviceId: string; displ
 }
 export async function inspectCliConnection(home: string, id: string, read = false, signal?: AbortSignal, beforeRead?: () => void | Promise<void>) {
   return withConnectorRequest(home, id, signal, async activeSignal => {
-    const connection = withConnectorConnections(home, store => store.require(id));
+    const connection = withConnectorConnections(home, store => store.require(id), "required");
     if (!connection.enabled || connection.disconnected_at || connection.auth_method !== "cli") throw new ConnectorCliError("CLI 连接已断开");
-    const config = withConnectorProtocols(home, store => store.get<CliConfiguration>(id));
+    const config = withConnectorProtocols(home, store => store.get<CliConfiguration>(id), true);
     if (!config || config.protocol !== "cli") throw new ConnectorCliError("请重新连接此 CLI");
     const assertCurrent = () => {
       activeSignal.throwIfAborted();
-      const current = withConnectorConnections(home, store => store.require(id));
+      const current = withConnectorConnections(home, store => store.require(id), "required");
       if (!current.enabled || current.disconnected_at || current.updated_at !== connection.updated_at) throw new ConnectorCliError("检查期间 CLI 连接已变化，请重新检查");
     };
     const spec = definition(connection.service_id), launch = config.installation_id ? managedCliLaunch(home, config.installation_id) : undefined;

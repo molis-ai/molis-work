@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { openBoardBrowser as openGoalBrowser } from "./fixtures/board-browser.js";
 import { pluginSurfaceClients, pluginWorkbenchPacks } from "@molis-ai/molis-work-app-workbench";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { OVERLAY_AFTER, OVERLAY_BEFORE, OVERLAY_OPEN, OVERLAY_TRIGGERS, type OverlayLayer, type OverlayTrigger } from "./fixtures/overlay-audit.js";

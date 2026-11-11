@@ -3,6 +3,10 @@ import {artifactErrors} from './errors.js';
 import type {SyncBlobReference,SyncBlobSource,SyncContentCodec} from '@molis-ai/molis-work-contracts/platform/sync-transport';
 import {IMPORTED_DOCUMENT_TYPE} from '@molis-ai/molis-work-contracts/modules/artifacts';
 import {canonicalArtifactJson,normalizeArtifactPayload} from './content.js';
+import {ARTIFACT_INLINE_ENCODING} from './fixed-version-replication-shape.js';
+
+/** The other value of the bundle's `format`: the payloads went out as attachments. Not a later version of the inline encoding. */
+const ARTIFACT_ATTACHED_ENCODING={format:2} as const;
 
 function object(value:unknown):Record<string,unknown>{if(!value||typeof value!=='object'||Array.isArray(value))throw artifactErrors['artifacts.artifact.payload_invalid']('成果同步内容格式无效');return value as Record<string,unknown>;}
 const hash=(bytes:Uint8Array)=>createHash('sha256').update(bytes).digest('hex');
@@ -16,7 +20,7 @@ export function createArtifactSyncContent(spaceId:string):SyncContentCodec {
   return {
     encode(key,input){
       const {value,artifact,versions}=envelope(key,input);
-      if(artifact.format!==1)throw artifactErrors['artifacts.artifact.payload_invalid']('成果同步内容格式无效');
+      if(artifact.format!==ARTIFACT_INLINE_ENCODING.format)throw artifactErrors['artifacts.artifact.payload_invalid']('成果同步内容格式无效');
       const needs=versions.some(v=>Buffer.byteLength(JSON.stringify(v.payload))>64*1024||v.artifact_type_id===IMPORTED_DOCUMENT_TYPE&&v.payload&&typeof v.payload==='object'&&'original_file' in v.payload);
       if(!needs)return {value:input,blobs:[]};
       const blobs=new Map<string,SyncBlobSource>();
@@ -33,12 +37,12 @@ export function createArtifactSyncContent(spaceId:string):SyncContentCodec {
         const body=add(Buffer.from(canonicalArtifactJson(normalizeArtifactPayload(payload))));
         return {...version,payload:{body,file}};
       });
-      return {value:{...value,artifact:{...artifact,format:2,versions:projected}},blobs:[...blobs.values()].sort((a,b)=>a.digest.localeCompare(b.digest))};
+      return {value:{...value,artifact:{...artifact,...ARTIFACT_ATTACHED_ENCODING,versions:projected}},blobs:[...blobs.values()].sort((a,b)=>a.digest.localeCompare(b.digest))};
     },
     async decode(key,input,read){
       const {value,artifact,versions}=envelope(key,input);
-      if(artifact.format===1)return input;
-      if(artifact.format!==2)throw artifactErrors['artifacts.artifact.payload_invalid']('成果同步内容格式无效');
+      if(artifact.format===ARTIFACT_INLINE_ENCODING.format)return input;
+      if(artifact.format!==ARTIFACT_ATTACHED_ENCODING.format)throw artifactErrors['artifacts.artifact.payload_invalid']('成果同步内容格式无效');
       const restored=[];
       for(const version of versions){
         const content=object(version.payload);if(Object.keys(content).length!==2||!('body' in content)||!('file' in content))throw artifactErrors['artifacts.artifact.payload_invalid']('成果同步内容格式无效');
@@ -51,7 +55,7 @@ export function createArtifactSyncContent(spaceId:string):SyncContentCodec {
         }
         restored.push({...version,payload});
       }
-      return {...value,artifact:{...artifact,format:1,versions:restored}};
+      return {...value,artifact:{...artifact,...ARTIFACT_INLINE_ENCODING,versions:restored}};
     },
   };
 }

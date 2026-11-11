@@ -14,7 +14,7 @@ import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { readMcpActionAccess } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { serveTestHost } from "./fixtures/test-home.js";
 import { callerPlugin, projectPluginCaller } from "./fixtures/plugin-callers.js";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { initializeBoard } from "./fixtures/goals-board.js";
 import { goalApplicationOf, boardSnapshot } from "./fixtures/goal-application.js";
 

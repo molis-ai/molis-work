@@ -1,3 +1,4 @@
+import { webRequestAuthenticated, webBrowserReadAuthenticated, handleWebSessionHttp } from "./web-sessions.js";
 import { currentCallId } from "@molis-ai/molis-work-kernel";
 import type { IncomingMessage, OutgoingHttpHeaders, ServerResponse } from "node:http";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -7,7 +8,6 @@ import { L } from "./web-locale.js";
 import { withRecordedCallId } from "./call-id-response.js";
 import { hostLog } from "./host-log.js";
 import { hostErrors } from "./host-errors.js";
-import { controlTokenMatches } from "./web-control-token.js";
 
 /**
  * A person's own navigation to a top-level page (address bar, link, refresh, history), as the browser reports it. A page's
@@ -56,7 +56,9 @@ export function decodeLocalWebPathPart(part: string): string {
 }
 
 /** Unexpected route failures retain a diagnostic call id, never their raw message or stack. */
-export function sendUnhandledWebError(response: ServerResponse, error: unknown): void {
+export function sendUnhandledWebError(response: ServerResponse, error: unknown, request?: IncomingMessage): void {
+  // A reset of this aborted body is request cancellation; unrelated upstream or handler errors retain their diagnostic.
+  if(request?.aborted&&request.errored===error&&error instanceof Error&&"code" in error&&error.code==="ECONNRESET")return;
   hostLog.error("web", "request_failed", error);
   const failed = error instanceof ActionError ? error : new ActionError("actions.execution_failed", L("请求未能完成，请重试。"));
   const answer = actionErrorResponse(failed);
@@ -140,6 +142,24 @@ function isGuardedMutationPath(pathname: string): boolean {
 }
 const SELF_GUARDED_MOUNT = /^\/im(?:\/|$)/;
 
+/** Account reads expose cloud identity, so they require the same local control proof as writes.
+ * Browsers omit Origin on same-origin GET; only an exact same-origin Referer may replace it.
+ */
+function authorizeAccountRead(request: IncomingMessage, response: ServerResponse, host: string, controlToken: string): boolean {
+  if (!webRequestAuthenticated(request, controlToken)) return refuse(response);
+  const site = request.headers["sec-fetch-site"];
+  if (site !== undefined && site !== "same-origin" && site !== "none") return refuse(response);
+  const origin = request.headers.origin, referer = request.headers.referer;
+  const proof = origin === undefined ? referer : origin;
+  if (typeof proof !== "string") return refuse(response);
+  try {
+    const parsed = new URL(proof);
+    if (parsed.username || parsed.password || parsed.origin !== `http://${host}` || !isLoopbackHostname(parsed.hostname)) return refuse(response);
+    if (origin !== undefined && origin !== parsed.origin) return refuse(response);
+  } catch { return refuse(response); }
+  return true;
+}
+
 export function authorizeLocalWebRequest(
   request: IncomingMessage,
   response: ServerResponse,
@@ -149,7 +169,12 @@ export function authorizeLocalWebRequest(
 ): boolean {
   const host = requestHost(request);
   if (!host) return refuse(response);
-  if (!request.method || ["GET", "HEAD"].includes(request.method)) return true;
+  if (request.headers["x-molis-work-page-session"] !== undefined && !webRequestAuthenticated(request, controlToken)) return refuse(response);
+  if (!request.method || ["GET", "HEAD"].includes(request.method)) {
+    if (request.headers["sec-fetch-site"] !== undefined && isGuardedMutationPath(url.pathname) && !webBrowserReadAuthenticated(request, controlToken)) return refuse(response);
+    return url.pathname === "/api/account" || url.pathname.startsWith("/api/account/")
+      ? authorizeAccountRead(request, response, host, controlToken) : true;
+  }
   if (!isGuardedMutationPath(url.pathname)) {
     if (SELF_GUARDED_MOUNT.test(url.pathname)) return true;
     return refuse(response);
@@ -163,7 +188,7 @@ export function authorizeLocalWebRequest(
     return refuse(response);
   }
   if (origin.protocol !== "http:" || !isLoopbackHostname(origin.hostname) || origin.host !== host) return refuse(response);
-  if (!controlTokenMatches(controlToken, requestHeader(request, "x-molis-work-control-token"))) return refuse(response);
+  if (!webRequestAuthenticated(request, controlToken)) return refuse(response);
   const idempotencyKey = requestHeader(request, "x-molis-work-idempotency-key");
   if (
     typeof idempotencyKey !== "string"
@@ -208,6 +233,7 @@ export function authorizeLocalWebRequest(
     const end = response.end;
     response.end = function (this: ServerResponse, ...args: Parameters<ServerResponse["end"]>) { const result = end.apply(this, args); settle(); return result; } as ServerResponse["end"];
   });
+  if (handleWebSessionHttp(request, response, url)) return false;
   return true;
 }
 

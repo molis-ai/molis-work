@@ -1,11 +1,14 @@
 import type { PluginDevelopmentInput, PluginDevelopmentResult } from "@molis-ai/molis-work-contracts/platform/tooling";
-import type { PluginRuntimeRepository } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { loadDevelopmentPlugin, PluginRuntime, UNSIGNED_TRUST } from "@molis-ai/molis-work-plugin-runtime";
+import type { PluginManifest, PluginRuntimeRepository } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { inspectLocaleSet } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { loadDevelopmentLocalePacks, loadDevelopmentPlugin, PluginRuntime, refuseLocaleProblems, UNSIGNED_TRUST, type PluginLocaleReader } from "@molis-ai/molis-work-plugin-runtime";
 import { PluginHostExecutor, type PluginHostExecutorOptions } from "./plugin-executor.js";
 import { developmentDeclarationOwners } from "./declaration-owners.js";
 import { HOST_PLUGIN_IDS } from "./host-plugin-ids.js";
 import { hostReservedRuleKeys } from "./scene-rule-admission.js";
 import type { InstalledArtifactView } from "./artifact-type-registry.js";
+import { runDevelopmentText } from "./web-locale.js";
 
 /** Who the development run acts as: the Host fixes it for this door, so a caller's arguments never name it. */
 export const PLUGIN_DEVELOPMENT_ACTOR_ID = "local-plugin-developer";
@@ -21,7 +24,40 @@ export async function runPluginDevelopment(input: PluginDevelopmentInput, option
 }): Promise<PluginDevelopmentResult> {
   if (input.allow_unsigned_development !== true) throw new Error("需要明确授权运行未签名本地开发代码");
   const definition = await loadDevelopmentPlugin(input.directory);
-  const runtime = new PluginRuntime(options.repository, new PluginHostExecutor({ ...options, record: id => options.repository.get(id) }), { declarationOwners: developmentDeclarationOwners(), actions: options.actions, hostIds: HOST_PLUGIN_IDS, inProcess: { admit: new Set([definition]) }, reservedRuleKeys: hostReservedRuleKeys });
+  const locale = developmentLocale(definition.manifest, input.locale);
+  const words = await loadDevelopmentLocalePacks(input.directory, definition.manifest);
+  if (words !== null && locale !== null) refuseBrokenLocaleFiles(words, locale);
+  // A developer's run: the page renders in the chosen language, and a sentence anywhere with no language throws, so the mistake shows here (§5.2).
+  return runDevelopmentText(null, () => developPlugin(input, options, definition, words, locale));
+}
+
+/** The language the run renders in: `--locale`, or the plugin's default. One the plugin does not declare is refused, saying which it has. */
+function developmentLocale(manifest: PluginManifest, requested: string | undefined): string | null {
+  const declared = manifest.ui?.locales;
+  if (declared === undefined) {
+    if (requested !== undefined) throw new ActionError("actions.input_invalid", `插件没有声明 ui.locales，不能用 --locale ${requested}：先在 Manifest 写 ui.locales 并加上 locales/<语言>.json`);
+    return null;
+  }
+  if (requested === undefined) return declared.default;
+  if (!declared.available.includes(requested)) throw new ActionError("actions.input_invalid", `插件没有声明语言 ${requested}，可选的是：${declared.available.join("、")}`);
+  return requested;
+}
+
+/**
+ * The two languages a run can show, read before anything starts: a broken file is the author's to fix, so it stops the run with every problem it has.
+ * The two are then compared as `validate` compares them (`inspectLocaleSet`): differing arguments or a key the default lacks would show an unreplaced
+ * `{…}`, so they stop the run the same way (§8.3 item 7). Another language short of a key is coverage, not a fault, and does not stop it. A plugin
+ * here is never a content pack, so its words are held to the strict rules.
+ */
+function refuseBrokenLocaleFiles(words: PluginLocaleReader, locale: string): void {
+  const packs = [...new Set([words.default, locale])].flatMap(tag => words.pack(tag) ?? []);
+  const read = words.problems().filter(problem => problem.blocking);
+  refuseLocaleProblems(read.length > 0 ? read : inspectLocaleSet(packs, { default: words.default }));
+}
+
+async function developPlugin(input: PluginDevelopmentInput, options: Parameters<typeof runPluginDevelopment>[1], definition: Awaited<ReturnType<typeof loadDevelopmentPlugin>>,
+  words: PluginLocaleReader | null, locale: string | null): Promise<PluginDevelopmentResult> {
+  const runtime = new PluginRuntime(options.repository, new PluginHostExecutor({ ...options, record: id => options.repository.get(id), localePacks: given => given.manifest.plugin_id === definition.manifest.plugin_id ? words : null }), { declarationOwners: developmentDeclarationOwners(), actions: options.actions, hostIds: HOST_PLUGIN_IDS, inProcess: { admit: new Set([definition]) }, reservedRuleKeys: hostReservedRuleKeys });
   const installed = runtime.install({ definition, deployment: "local", trust: UNSIGNED_TRUST, grants: input.grants, retain_private_data: true });
   const id = installed.install.install_id;
   const inEffect = () => { const state = runtime.get(id)?.state; return state === "installed" || state === "running"; };
@@ -44,7 +80,7 @@ export async function runPluginDevelopment(input: PluginDevelopmentInput, option
     const poll = await connector_driver.poll({ cursor: null }, control);
     const rendered_ui = options.ui.list().filter(value => value.plugin_id === definition.manifest.plugin_id)
       .flatMap(value => (value.surfaces ?? []).map(surface => ({ contribution_id: value.contribution_id,
-        surface: surface.surface_id, html: options.ui.render({ contribution_id: value.contribution_id, surface: surface.surface_id, model: null }) })));
+        surface: surface.surface_id, html: runDevelopmentText(locale, () => options.ui.render({ contribution_id: value.contribution_id, surface: surface.surface_id, model: null })) })));
     // A personal 成果 belongs to the Home's person, so the run's own versions are told apart by who produced them, not by owner.
     result = { health, poll, rendered_ui, artifacts: options.artifacts.query.listArtifacts(options.project_id)
       .filter(value => value.producer_plugin_id === definition.manifest.plugin_id

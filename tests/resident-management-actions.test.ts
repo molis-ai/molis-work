@@ -1,3 +1,4 @@
+import { changeMcpClientCredential } from "@molis-ai/molis-work-app-local-host";
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -38,8 +39,9 @@ test("W3-07-7-03 CLI and management MCP reuse the resident project and its actua
   const fallbackHost = createMolisWorkLocalHost({ onRuntimeOpen: ref => fallbackOpened.push(ref.storage_key) });
   const mcp = new LocalMcpServer(withMolisWorkProjectCatalog, "management", null, { homeDirectory: env.home, runtimeContext: { runtime_id: "management-test", stable_work_context_id: "resident-test", host_declares_stable: true } }, fallbackHost, env.origin);
   t.after(async () => { await mcp.close(); await fallbackHost.close(); });
-  const cli = await promisify(execFile)(process.execPath, ["--import", "tsx", fileURLToPath(new URL("../apps/desktop/launchers/cli/main.ts", import.meta.url)),
-    "v1", "snapshot", "--db", alias, "--json", JSON.stringify({ project_id: env.project.project_id, call_id: FORGED_CALL })],
+  // This resident fixture has already selected one Home; installation login/attachment is covered by account-process-connection.
+  const cli = await promisify(execFile)(process.execPath, ["--import", "tsx", fileURLToPath(new URL("./fixtures/home-snapshot-selected-cli.ts", import.meta.url)),
+    env.home, "snapshot", "--db", alias, "--json", JSON.stringify({ project_id: env.project.project_id, call_id: FORGED_CALL })],
     { env: { ...process.env, MOLIS_WORK_HOME: env.home, MOLIS_WORK_WEB_URL: env.origin }, timeout: 10_000 });
   assert.deepEqual(JSON.parse(cli.stdout), await env.host.withProject(env.reference, runtime => boardSnapshot(runtime.store, env.project.project_id)));
   // A directory refresh is allowed after the CLI completes and has no operation of its own.
@@ -123,6 +125,7 @@ test("W3-07-7-03 an authorized management action tool still executes through the
   const reference = { capability_id: action.capability_id, version: 1, provider_id: "management-routing" };
   await grantMcpAction(web, { clientId: actor, projectId: env.project.project_id, action: reference });
   const opened: string[] = [], fallbackHost = createMolisWorkLocalHost({ onRuntimeOpen: ref => opened.push(ref.storage_key) });
+  changeMcpClientCredential(env.home, actor, "connect");
   const mcp = new LocalMcpServer(withMolisWorkProjectCatalog, "management", { projectId: env.project.project_id,
     databasePath: env.project.database_path, webBaseUrl: env.origin }, { homeDirectory: env.home, runtimeContext: context }, fallbackHost, env.origin);
   t.after(async () => { await mcp.close(); await fallbackHost.close(); });

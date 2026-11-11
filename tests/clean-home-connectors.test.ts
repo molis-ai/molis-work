@@ -5,7 +5,8 @@ import { tmpdir } from "node:os";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { withConnectorConnections, withConnectorProtocols } from "@molis-ai/molis-work-app-local-host";
-import { describeSqliteSchema, SqliteSchemaVersionError, ensureStorageSpace, readDatabaseSpace } from "@molis-ai/molis-work-storage";
+import { describeSqliteSchema, ensureStorageSpace, readDatabaseSpace } from "@molis-ai/molis-work-storage";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 
 const sql = readFileSync(new URL("./fixtures/home-store-schemas/connectors.sql", import.meta.url), "utf8");
 const shape = (bound = false) => { const db = new DatabaseSync(":memory:"); try { db.exec(sql); if (bound) db.exec("CREATE TABLE molis_storage_space (singleton INTEGER PRIMARY KEY CHECK(singleton=1), space_id TEXT NOT NULL, descriptor TEXT NOT NULL)"); return describeSqliteSchema(db); } finally { db.close(); } };
@@ -36,8 +37,8 @@ test("RAC-2383 a complete connector schema and row at version 2 is refused befor
     seeded.exec("INSERT INTO connector_authorization_results VALUES ('kept','fixture-state','fixture-connection','fixture-service','pending',100,'{}',NULL); PRAGMA user_version = 2");
     seeded.close(); chmodSync(file, 0o600);
     const before = readFileSync(file); let called = false;
-    for (const run of [withConnectorConnections, withConnectorProtocols]) {
-      assert.throws(() => run(home, () => { called = true; }), (error: unknown) => error instanceof SqliteSchemaVersionError && error.path === file && error.found === 2 && error.expected === 1);
+    for (const run of [() => withConnectorConnections(home, () => { called = true; }), () => withConnectorProtocols(home, () => { called = true; })]) {
+      assert.throws(run, (error: unknown) => error instanceof ActionError && error.code === "storage.store_too_new" && error.details?.path === "connectors/connectors.db" && error.details?.found === 2 && error.details?.expected === 1);
       assert.equal(called, false);
       assert.deepEqual(readFileSync(file), before);
     }

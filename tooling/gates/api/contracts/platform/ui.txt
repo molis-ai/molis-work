@@ -13,6 +13,19 @@ export interface InteractionNextStep {
     waitingLabel?: string;
 }
 
+export declare const LOCALE_TAG: RegExp;
+
+export declare const OWNED_TEXT_REF_SCHEMA: SandboxSchema;
+
+export type OwnedTextRef = {
+    readonly owner: string;
+    readonly key: string;
+    readonly args?: readonly TextArg[];
+    readonly fallback?: string;
+} | {
+    readonly literal: string;
+};
+
 export interface OwnedUiContribution<TModel = unknown> {
     readonly descriptor: UiContributionDescriptor;
     render(request: UiRenderRequest<TModel>): string;
@@ -98,6 +111,92 @@ export type ReceiptWords = {
     STEP: Record<AgentStepState, string>;
     MARK: Partial<Record<AgentStepState, string>>;
 };
+
+export declare const STATE_RING_FAMILIES: readonly [{
+    readonly key: "idle";
+    readonly label: "未开始";
+    readonly states: readonly ["idle"];
+}, {
+    readonly key: "connected";
+    readonly label: "已就绪";
+    readonly states: readonly ["ready", "connected"];
+}, {
+    readonly key: "running";
+    readonly label: "进行 / 执行";
+    readonly states: readonly ["doing", "starting", "running", "generating", "saving", "indexing"];
+}, {
+    readonly key: "done";
+    readonly label: "完成 / 已保存";
+    readonly states: readonly ["done", "saved", "round-ended", "staged"];
+}, {
+    readonly key: "waiting";
+    readonly label: "排队 / 等待";
+    readonly states: readonly ["queued", "waiting"];
+}, {
+    readonly key: "answer";
+    readonly label: "等你处理";
+    readonly states: readonly ["answer", "approval", "reauth"];
+}, {
+    readonly key: "paused";
+    readonly label: "暂停 / 停止";
+    readonly states: readonly ["paused", "stopped", "cancelled", "disabled"];
+}, {
+    readonly key: "blocked";
+    readonly label: "无法继续";
+    readonly states: readonly ["blocked", "unavailable", "quarantined"];
+}, {
+    readonly key: "syncing";
+    readonly label: "同步中";
+    readonly states: readonly ["syncing"];
+}, {
+    readonly key: "retrying";
+    readonly label: "重试中";
+    readonly states: readonly ["retrying"];
+}, {
+    readonly key: "failed";
+    readonly label: "失败";
+    readonly states: readonly ["failed"];
+}, {
+    readonly key: "partial";
+    readonly label: "部分完成";
+    readonly states: readonly ["partial"];
+}, {
+    readonly key: "interrupted";
+    readonly label: "已中断";
+    readonly states: readonly ["interrupted"];
+}, {
+    readonly key: "verify";
+    readonly label: "需要核对";
+    readonly states: readonly ["verify", "conflict"];
+}, {
+    readonly key: "stale";
+    readonly label: "已过时";
+    readonly states: readonly ["stale"];
+}, {
+    readonly key: "disconnected";
+    readonly label: "已断开";
+    readonly states: readonly ["disconnected"];
+}, {
+    readonly key: "unsaved";
+    readonly label: "待整理 / 写入";
+    readonly states: readonly ["unsaved", "draft", "unstaged", "untracked"];
+}, {
+    readonly key: "unread";
+    readonly label: "未读";
+    readonly states: readonly ["unread"];
+}, {
+    readonly key: "read";
+    readonly label: "已读";
+    readonly states: readonly ["read"];
+}, {
+    readonly key: "archived";
+    readonly label: "已收存";
+    readonly states: readonly ["archived", "material"];
+}, {
+    readonly key: "trashed";
+    readonly label: "回收站";
+    readonly states: readonly ["trashed"];
+}];
 
 export interface SettingsPageContext {
     readonly projects: ReadonlyArray<{
@@ -233,7 +332,122 @@ export interface StageTerminalPaneModel {
     icon: (name: "chevron-right" | "target" | "plus" | "tree" | "play" | "copy" | "refresh" | "terminal") => string;
 }
 
+export type StateRingFamily = typeof STATE_RING_FAMILIES[number]["key"];
+
+export type StateRingState = typeof STATE_RING_FAMILIES[number]["states"][number];
+
+export declare const TEXT_DATE_STYLES: readonly ["date", "time", "datetime", "relative", "weekday", "weekday-narrow", "month-day", "weekday-month-day", "year-month"];
+
+export declare const TEXT_NUMBER_STYLES: readonly ["decimal", "percent", "compact"];
+
+export declare const TEXT_REF_LIMITS: {
+    readonly key: 120;
+    readonly args: 8;
+    readonly arg_name: 64;
+    readonly arg_text: 2000;
+    readonly arg_at: 40;
+    readonly literal: 2000;
+    readonly fallback: 2000;
+    readonly owner: 200;
+};
+
+export declare const TEXT_REF_SCHEMA: SandboxSchema;
+
+export type TextArg = {
+    readonly name: string;
+    readonly kind: "text";
+    readonly text: string;
+} | {
+    readonly name: string;
+    readonly kind: "number";
+    readonly number: number;
+    readonly style?: TextNumberStyle;
+} | {
+    readonly name: string;
+    readonly kind: "date";
+    readonly at: string;
+    readonly style: TextDateStyle;
+};
+
+export type TextArgValue = string | number | {
+    readonly kind: "number";
+    readonly number: number;
+    readonly style?: TextNumberStyle;
+} | {
+    readonly kind: "date";
+    readonly at: string;
+    readonly style: TextDateStyle;
+};
+
+export type TextArgs = Readonly<Record<string, TextArgValue>>;
+
+export type TextDateStyle = (typeof TEXT_DATE_STYLES)[number];
+
+export type TextNumberStyle = (typeof TEXT_NUMBER_STYLES)[number];
+
+export type TextRef = {
+    readonly key: string;
+    readonly args?: readonly TextArg[];
+    readonly fallback?: string;
+} | {
+    readonly literal: string;
+};
+
+export declare const UI_CONNECTION_NEED_REASON_MAX = 80;
+
+export declare const UI_FILE_LIMITS: {
+    readonly spec: 262144;
+    readonly skin: 65536;
+    readonly font: 65536;
+    readonly locale: 1048576;
+    readonly registry: 65536;
+    readonly depth: 12;
+};
+
+export declare const UI_FILE_PATTERNS: {
+    readonly definition_id: RegExp;
+    readonly role_name: RegExp;
+    readonly color: RegExp;
+    readonly font_name: RegExp;
+    readonly unicode_range: RegExp;
+    readonly resource_id: RegExp;
+    readonly route: RegExp;
+};
+
+export declare const UI_FONT_ROLE_NAMES: readonly ["body", "control", "title", "display", "code"];
+
+export declare const UI_FORMAT_VERSIONS: {
+    readonly spec: 1;
+    readonly skin: 1;
+    readonly font: 1;
+    readonly locale: 1;
+    readonly registry: 1;
+};
+
+export declare const UI_HOST_CLIENT_CODES: {
+    readonly crossOrigin: "ui_host.cross_origin";
+    readonly unreachable: "ui_host.unreachable";
+    readonly outcomeUnknown: "ui_host.outcome_unknown";
+    readonly invalidResponse: "ui_host.invalid_response";
+    readonly uncoded: "ui_host.uncoded";
+};
+
 export declare const UI_PAGE_ROUTE_PARAM_LIMIT = 256;
+
+export declare const UI_RESOURCE_KINDS: readonly ["spec", "skin", "font-scheme", "locale", "font", "asset"];
+
+export declare const UI_RESOURCE_LOADS: readonly ["startup", "first-screen", "fallback", "on-open", "on-select", "tool"];
+
+export declare const UI_RETURN_CARRY_LIMITS: {
+    readonly draft_key: 256;
+    readonly step: 128;
+    readonly object_id: 256;
+    readonly object_kind: 64;
+};
+
+export declare const UI_ROLE_TYPES: readonly ["color", "shadow", "length", "duration", "easing", "stroke", "number"];
+
+export declare const UI_ROLE_VARIES_BY: readonly ["theme", "none", "terminal"];
 
 export declare const UI_VIEW_GROUPS: readonly ["advance", "make", "personal", "research", "code"];
 
@@ -260,6 +474,23 @@ export interface UiClientScope extends UiRequestScope {
 }
 
 export type UiClientTranslate = (key: string, values?: Record<string, string | number>) => string;
+
+export type UiConnectionNeedOutcome = {
+    readonly status: "connected";
+    readonly account: {
+        readonly label: string;
+    };
+} | {
+    readonly status: "cancelled";
+};
+
+export type UiConnectionNeedTarget = {
+    readonly kind: "slot";
+    readonly slot_id: string;
+    readonly record_key?: string;
+} | ({
+    readonly kind: "image";
+} & PluginImageTarget);
 
 export interface UiConnectionSlotChoice {
     readonly connection_id: string;
@@ -299,6 +530,45 @@ export interface UiContributionDescriptor extends UiContributionDeclaration {
 
 export type UiContributionKind = "primary-page" | "embedded" | "overlay" | "settings-page";
 
+export interface UiDefinitionRef {
+    readonly id: string;
+    readonly revision: number;
+}
+
+export interface UiDevicePreferences {
+    readonly theme: "light" | "dark" | "system";
+    readonly resolved_theme: "light" | "dark";
+    readonly density: "standard" | "compact";
+    readonly terminal_theme: "auto" | "light" | "dark";
+    readonly resolved_terminal_theme: "light" | "dark";
+    readonly reduced_motion: boolean;
+}
+
+export interface UiEnvironmentProblem {
+    readonly code: string;
+    readonly subject: string;
+    readonly detail?: string;
+}
+
+export interface UiEnvironmentSnapshot {
+    readonly revision: string;
+    readonly spec: UiDefinitionRef;
+    readonly skin: UiDefinitionRef;
+    readonly font: {
+        readonly scheme: UiDefinitionRef;
+        readonly policy: "follow-skin" | "pinned";
+        readonly mono: UiDefinitionRef;
+    };
+    readonly locale: {
+        readonly tag: string;
+        readonly direction: UiTextDirection;
+        readonly source: "explicit" | "system" | "default";
+        readonly formatting: string;
+    };
+    readonly device: UiDevicePreferences | null;
+    readonly problems: readonly UiEnvironmentProblem[];
+}
+
 export interface UiFailureTarget {
     textContent: string | null;
     append(node: unknown): void;
@@ -308,6 +578,68 @@ export interface UiFailureView {
     text(error: unknown, fallback?: string): string;
     show(target: UiFailureTarget, error: unknown, fallback?: string): void;
     toast(target: UiToastTarget, error: unknown, fallback?: string, options?: UiToastOptions): void;
+}
+
+export interface UiFileProblem {
+    readonly file: string;
+    readonly path: string;
+    readonly code: string;
+    readonly reason: string;
+    readonly fix: string;
+    readonly line?: number;
+    readonly column?: number;
+}
+
+export type UiFileResult<T> = {
+    readonly ok: true;
+    readonly value: T;
+} | {
+    readonly ok: false;
+    readonly problems: readonly UiFileProblem[];
+};
+
+export interface UiFontFace {
+    readonly family: string;
+    readonly weight: number | readonly [number, number];
+    readonly unicode_range: readonly string[];
+    readonly resource: string;
+}
+
+export type UiFontFamily = {
+    readonly system: string;
+} | {
+    readonly face: string;
+};
+
+export interface UiFontRole {
+    readonly families?: readonly UiFontFamily[];
+    readonly weight?: number;
+    readonly tracking_em?: number;
+}
+
+export type UiFontRoleName = (typeof UI_FONT_ROLE_NAMES)[number];
+
+export interface UiFontRoleSpec {
+    readonly name: UiFontRoleName;
+    readonly tokens: {
+        readonly family?: string;
+        readonly weight?: string;
+        readonly tracking?: string;
+    };
+}
+
+export interface UiFontSchemeFile {
+    readonly format_version: typeof UI_FORMAT_VERSIONS.font;
+    readonly id: string;
+    readonly revision: number;
+    readonly name: TextRef;
+    readonly roles: Readonly<Record<UiFontRoleName, UiFontRole>>;
+    readonly faces: readonly UiFontFace[];
+}
+
+export interface UiFormatTool {
+    date(at: string, style: TextDateStyle): string;
+    number(value: number, style?: TextNumberStyle): string;
 }
 
 export interface UiFrameAssetReference {
@@ -322,6 +654,24 @@ export interface UiHostApi {
     render<TModel>(request: UiRenderRequest<TModel>): string;
     mount<TModel>(request: UiMountRequest<TModel>): UiMountResult;
 }
+
+export type UiHostClientCode = typeof UI_HOST_CLIENT_CODES[keyof typeof UI_HOST_CLIENT_CODES];
+
+export interface UiLocalePack {
+    readonly format_version: typeof UI_FORMAT_VERSIONS.locale;
+    readonly owner: string;
+    readonly locale: string;
+    readonly direction?: UiTextDirection;
+    readonly revision?: number;
+    readonly messages: Readonly<Record<string, UiMessage>>;
+}
+
+export type UiMessage = string | {
+    readonly plural_arg: string;
+    readonly forms: Readonly<Partial<Record<Intl.LDMLPluralRule, string>>> & {
+        readonly other: string;
+    };
+};
 
 export interface UiMountRequest<TModel = unknown> {
     readonly slot: UiSlotDescriptor;
@@ -384,6 +734,13 @@ export interface UiPageMessage {
 export interface UiPageMessages {
     send(message: UiPageMessage): void;
     listen(receive: (message: UiPageMessage) => void): () => void;
+}
+
+export interface UiPageReturns {
+    go(need: UiReturnNeed, carry?: UiReturnCarry, options?: {
+        signal?: AbortSignal;
+    }): Promise<UiReturnOutcome>;
+    arrived(): Promise<UiReturnOutcome | null>;
 }
 
 export type UiPageReviewOutcome = "unavailable" | "uncertain" | "rejected" | "reconciled" | "failed" | "settled" | "pending";
@@ -450,7 +807,7 @@ export interface UiPageWorkspaces {
     add(path: string): Promise<{
         workspace_id: string;
     }>;
-    select(workspaceId: string): Promise<void>;
+    setOutput(workspaceId: string): Promise<void>;
 }
 
 export interface UiPluginClientHost<Element = unknown, Dialog = Element, Media = Element> extends UiPageFiles<Media>, UiPageDialogs, UiPageActions {
@@ -463,6 +820,9 @@ export interface UiPluginClientHost<Element = unknown, Dialog = Element, Media =
     openView(selection: UiViewSelection): void;
     invalidateView(): void;
     connectionSlot(request: UiConnectionSlotRequest<Element>): Promise<UiConnectionSlotChoice | null>;
+    connectionNeed(place: Element, target: UiConnectionNeedTarget, options?: {
+        signal?: AbortSignal;
+    }): Promise<UiConnectionNeedOutcome>;
     openItem(surface: string, itemId: string, title?: string): void;
     openBeside(surface: string, itemId: string, title?: string): void;
     openPlugin(surface: string, view?: string, panel?: string): void;
@@ -480,6 +840,7 @@ export interface UiPluginClientHost<Element = unknown, Dialog = Element, Media =
         onSubmit?: () => void;
     }): UiPageInteraction;
     readonly drafts: UiPageDrafts;
+    readonly returns: UiPageReturns;
     readonly taskGrants: UiPageTaskGrants<Element>;
 }
 
@@ -506,6 +867,7 @@ export interface UiRequestFailure extends Error {
 }
 
 export interface UiRequestInit {
+    readonly control?: boolean;
     readonly method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
     readonly body?: unknown;
     readonly file?: Blob;
@@ -524,6 +886,68 @@ export interface UiRequestScope {
     assertCurrent(signal?: AbortSignal): void;
 }
 
+export type UiResourceKind = (typeof UI_RESOURCE_KINDS)[number];
+
+export interface UiResourceLicense {
+    readonly spdx: string;
+    readonly source: string;
+    readonly notice_path?: string;
+}
+
+export type UiResourceLoad = (typeof UI_RESOURCE_LOADS)[number];
+
+export interface UiResourceRegistry {
+    readonly format_version: typeof UI_FORMAT_VERSIONS.registry;
+    readonly resources: readonly UiResourceRow[];
+}
+
+export type UiResourceRow = (UiResourceFields & {
+    readonly kind: Exclude<UiResourceKind, "font" | "asset">;
+}) | (UiResourceFields & {
+    readonly kind: "font" | "asset";
+    readonly sha256: string;
+    readonly license: UiResourceLicense;
+});
+
+export interface UiReturnCarry {
+    readonly draft_key?: string;
+    readonly step?: string;
+    readonly object?: {
+        readonly kind: string;
+        readonly id: string;
+    };
+}
+
+export type UiReturnNeed = {
+    readonly kind: "model";
+};
+
+export interface UiReturnOutcome {
+    readonly status: "ready" | "not_ready";
+    readonly carry: UiReturnCarry;
+}
+
+export type UiRgba = readonly [red: number, green: number, blue: number, alpha: number];
+
+export interface UiRoleSpec {
+    readonly name: string;
+    readonly type: (typeof UI_ROLE_TYPES)[number];
+    readonly varies_by: (typeof UI_ROLE_VARIES_BY)[number];
+    readonly follows?: string;
+    readonly alias_of?: string;
+    readonly locked?: UiTokenValue;
+}
+
+export interface UiSayOptions {
+    readonly extra?: readonly TextArg[];
+    readonly locale?: string | null;
+}
+
+export interface UiSayTool {
+    (ref: OwnedTextRef, options?: UiSayOptions): string;
+    text(ref: OwnedTextRef, options?: UiSayOptions): string;
+}
+
 export interface UiSettingsAddressParamsDeclaration {
     readonly query?: readonly string[];
     readonly hash?: readonly string[];
@@ -531,6 +955,18 @@ export interface UiSettingsAddressParamsDeclaration {
 
 export interface UiSettingsDataDeclaration {
     readonly action: string;
+}
+
+export interface UiShadowLayer {
+    readonly x: number;
+    readonly y: number;
+    readonly blur: number;
+    readonly spread?: number;
+    readonly color: string | {
+        readonly rgba: UiRgba;
+    } | {
+        readonly role: string;
+    };
 }
 
 export interface UiSideContext {
@@ -554,10 +990,39 @@ export interface UiSideContextMessage {
     readonly context: UiSideContext | null;
 }
 
+export interface UiSkinFile {
+    readonly format_version: typeof UI_FORMAT_VERSIONS.skin;
+    readonly id: string;
+    readonly revision: number;
+    readonly spec: UiDefinitionRef;
+    readonly name: TextRef;
+    readonly recommended_font: UiDefinitionRef;
+    readonly light: UiTokenMap;
+    readonly dark: UiTokenMap;
+    readonly shared: UiTokenMap;
+    readonly terminal: {
+        readonly unset?: UiTokenMap;
+        readonly light?: UiTokenMap;
+        readonly dark?: UiTokenMap;
+    };
+}
+
 export interface UiSlotDescriptor {
     readonly slot_id: string;
-    readonly version: number;
     readonly accepts: readonly string[];
+    readonly accepts_forms?: readonly FormKind[];
+    readonly max?: number;
+    readonly refuse_kinds?: readonly string[];
+}
+
+export interface UiSpecFile {
+    readonly format_version: typeof UI_FORMAT_VERSIONS.spec;
+    readonly id: string;
+    readonly revision: number;
+    readonly baseline_skin: UiDefinitionRef;
+    readonly baseline_font: UiDefinitionRef;
+    readonly groups: readonly UiTokenGroup[];
+    readonly font_roles: readonly UiFontRoleSpec[];
 }
 
 export interface UiStageDataDeclaration {
@@ -634,6 +1099,28 @@ export interface UiTerminalView {
     dispose(): void;
 }
 
+export type UiTextDirection = "ltr" | "rtl";
+
+export interface UiTextProvider {
+    locale(): string | null;
+    noContext(): "default" | "throw";
+    ownerOfPrefix(prefix: string): string | null;
+    message(owner: string, key: string, locale: string): UiMessage | null;
+    defaultLocale(owner: string): string | null;
+    problem?(problem: {
+        readonly code: string;
+        readonly owner?: string;
+        readonly key?: string;
+        readonly locale?: string;
+    }): void;
+    produced?(output: string, ref: OwnedTextRef): void;
+}
+
+export interface UiTextTool {
+    (key: string, args?: TextArgs): string;
+    text(key: string, args?: TextArgs): string;
+}
+
 export interface UiToastOptions {
     readonly ms?: number;
 }
@@ -648,6 +1135,42 @@ export interface UiToastTarget extends UiFailureTarget {
     };
     addEventListener(type: string, listener: () => void): void;
 }
+
+export interface UiTokenGroup {
+    readonly group: string;
+    readonly roles: readonly UiRoleSpec[];
+}
+
+export type UiTokenMap = Readonly<Record<string, UiTokenValue>>;
+
+export type UiTokenValue = string | {
+    readonly rgba: UiRgba;
+} | {
+    readonly role: string;
+    readonly fallback?: string;
+} | {
+    readonly mix: {
+        readonly role: string;
+        readonly percent: number;
+        readonly with: "transparent";
+    };
+} | {
+    readonly shadow: readonly UiShadowLayer[];
+} | {
+    readonly px: number;
+} | {
+    readonly ms: number;
+} | {
+    readonly number: number;
+} | {
+    readonly bezier: readonly [number, number, number, number];
+} | {
+    readonly stroke: {
+        readonly width_px: number;
+        readonly style: "solid";
+        readonly role: string;
+    };
+};
 
 export interface UiViewCreateEntry {
     readonly station: string;
@@ -724,3 +1247,12 @@ export declare const platformUiContract: {
 // Declarations the exports above refer to, which no entry exports itself:
 
 type AgentStepState = AgentStepBoard["nodes"][number]["state"];
+
+interface UiResourceFields {
+    readonly id: string;
+    readonly owner: string;
+    readonly package: string;
+    readonly path: string;
+    readonly load: UiResourceLoad;
+    readonly route?: string;
+}

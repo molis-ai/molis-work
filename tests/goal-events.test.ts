@@ -293,7 +293,7 @@ test("latest related report updates only that requirement; human_decision stays 
     assert.equal(byId["choice-response"]?.current_report?.event_id, contradict.events[0]?.event_id);
     assert.equal(byId["human-signoff"]?.current_report?.verdict, "supports");
     assert.equal(byId["human-signoff"]?.human_decision_required, true);
-    assert.equal(byId["human-signoff"]?.current_report?.independent_verification, false);
+    assert.equal(byId["human-signoff"]?.current_report?.tier, "self_reported");
     assert.equal(byId["human-signoff"]?.current_report?.substitutes_human_decision, false);
 
     data.module.events.report({
@@ -314,9 +314,10 @@ test("latest related report updates only that requirement; human_decision stays 
 
     const oldEvent = data.module.events.readEvent(BOARD, GOAL, support.events[0]!.event_id);
     assert.deepEqual(oldEvent.judgments, [
-      { requirement_id: "choice-response", verdict: "supports" },
-      { requirement_id: "human-signoff", verdict: "supports" },
-      { requirement_id: "playable-scene", verdict: "supports" },
+      // A judgment with no basis is the reporter's own word (evidence contract, 2026-11-11).
+      { requirement_id: "choice-response", verdict: "supports", basis: null, tier: "self_reported", gap: null },
+      { requirement_id: "human-signoff", verdict: "supports", basis: null, tier: "self_reported", gap: null },
+      { requirement_id: "playable-scene", verdict: "supports", basis: null, tier: "self_reported", gap: null },
     ]);
   } finally {
     close(data);

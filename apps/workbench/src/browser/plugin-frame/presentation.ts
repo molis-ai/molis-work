@@ -1,4 +1,5 @@
 import type { FramePack, FrameScope } from "./types.js";
+import { accountTransition } from "../account-transition.js";
 
 export type PresentationMessage = { type: "presentation"; name: "assistant-message" | "assistant-open" | "assistant-surface-changed" | "placement-result" | "placement-request" | "placement-convert"; value: unknown };
 
@@ -23,7 +24,7 @@ export function childPresentation(port: MessagePort, scope: FrameScope): void {
 /** A child cannot select its source identity or turn a presentation event into an automatic result write. */
 export function pagePresentation(scope: FrameScope, frame: HTMLIFrameElement, root: HTMLElement, pack: FramePack, pageId: string) {
   scope.listen(window, "beforeunload", event => {
-    if (scope.alive && JSON.parse(root.getAttribute("data-assistant-context") ?? "{}").unsaved === true) {
+    if (scope.alive && !accountTransition().preparing && JSON.parse(root.getAttribute("data-assistant-context") ?? "{}").unsaved === true) {
       event.preventDefault(); (event as BeforeUnloadEvent).returnValue = "";
     }
   });

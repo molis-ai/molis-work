@@ -126,8 +126,32 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
     const unread = L("读取未完成，请重新读取。");
     const el = (tag, className, text) => { const node = document.createElement(tag); if (className) node.className = className; if (text !== undefined && text !== null) node.textContent = text; return node; };
     const button = (text, variant, label) => { const node = el("button", "mw-btn " + (variant || "mw-btn--ghost") + " mw-btn--sm", text); node.type = "button"; if (label) node.setAttribute("aria-label", label); return node; };
+    // Whichever way a dialog closes, focus goes back to the element the person used: focus they have genuinely moved
+    // somewhere visible stands, but a stale hidden remnant (the menu item a closed fold hides, the old dialog's own
+    // focus) does not block the way back. A trigger that has since been hidden or redrawn away hands focus to a
+    // visible fallback — the page's add button, or one the caller names.
+    // Shown is more than a box: the focus a closing dialog hands back can still carry geometry from menu content its
+    // fold has already closed, so every closed details ancestor decides — only a detail's own first summary line shows.
+    const shown = (element) => {
+      if (!element || !element.isConnected || !element.getClientRects().length || element.closest("[hidden]")) return null;
+      for (let ancestor = element.parentElement; ancestor; ancestor = ancestor.parentElement) {
+        if (ancestor.tagName !== "DETAILS" || ancestor.open) continue;
+        const summary = Array.prototype.find.call(ancestor.children, (child) => child.tagName === "SUMMARY");
+        if (!summary || !summary.contains(element)) return null;
+      }
+      return element;
+    };
+    const focusBack = (trigger, fallback) => {
+      if (document.querySelector("dialog[open]")) return;
+      const current = document.activeElement;
+      // Unset focus — none, the body, the root — is not a choice the person made: the way back stays open.
+      const chosen = current instanceof Element && current !== document.body && current !== document.documentElement
+        && current !== trigger && shown(current);
+      if (chosen) return;
+      (shown(trigger) || shown(fallback) || $("[data-memory-add]"))?.focus({ preventScroll: true });
+    };
     // A step that cannot be undone asks first, in the catalog's alert dialog (never the browser's own prompt).
-    const ask = (title, description, yesLabel) => new Promise((resolve) => {
+    const ask = (title, description, yesLabel, trigger) => new Promise((resolve) => {
       const dialog = el("dialog", "mw-dialog mw-dialog--alert memory-confirm"); dialog.dataset.slot = "alert-dialog";
       const titleId = "memory-confirm-" + Date.now().toString(36); dialog.setAttribute("aria-labelledby", titleId);
       const form = el("form", "mw-form mw-dialog__shell"); form.method = "dialog";
@@ -140,7 +164,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       cancel.addEventListener("click", () => dialog.close());
       yes.addEventListener("click", () => { answer = true; dialog.close(); });
       dialog.addEventListener("click", (event) => { if (event.target === dialog) dialog.close(); });
-      dialog.addEventListener("close", () => { dialog.remove(); resolve(answer); });
+      dialog.addEventListener("close", () => { dialog.remove(); focusBack(trigger); resolve(answer); });
       root.append(dialog); dialog.showModal(); cancel.focus();
     });
     const KIND = { preference: "偏好", convention: "约定", fact: "背景事实", experience: "经验" };
@@ -689,12 +713,19 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
           const editor = renewalEditor(item, change); copy.replaceChildren(editor); editor.querySelector("input").focus();
         });
         menuItem(L("历史版本"), () => historyPanel(item, copy));
-        if (item.scope === "project" && project) menuItem(L("升级为项目说明"), () => {
-          const target = "/projects/" + encodeURIComponent(project) + "/settings/guidance?draft=" + encodeURIComponent(item.text);
-          window.location.assign(target);
+        if (item.scope === "project" && project) menuItem(L("升级为项目说明"), async () => {
+          try {
+            const prefix = "/projects/" + encodeURIComponent(project);
+            const draft = await molisWorkRequest(prefix + "/api/contextual/draft-reference/issue", { body: { purpose: "project-guidance", text: JSON.stringify([item.memory_id, item.version]) } });
+            window.location.assign(prefix + "/settings/guidance?draft_ref=" + encodeURIComponent(draft.reference));
+          } catch (failure) { fail(failure); }
         });
         menuItem(L("删除"), async () => {
-          if (await ask(L("删除这条记忆？"), L("删除后任何地方都不会再用到这条，历史版本也一起删除。") + "「" + item.text + "」", L("删除"))) run(() => change({ action: "remove" }), "已删除");
+          if (await ask(L("删除这条记忆？"), L("删除后任何地方都不会再用到「{text}」，历史版本也一起删除。", { text: item.text }), L("删除"), summary)) {
+            await run(() => change({ action: "remove" }), "已删除");
+            // The confirmed delete repaints the list and takes the row's more button away: focus falls to the page's add button.
+            focusBack(summary);
+          }
         }, true);
         more.append(summary, menu);
         actions.append(edit, toggle, more);
@@ -816,7 +847,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
         if (!clearPreview) {
           const preview = await api("/clear/preview", {});
           if (!preview.preview_id) { toast(L("没有可以清除的会话记忆或候选")); return; }
-          if (!await ask(L("清除本会话记忆？"), L("正式记忆") + " " + preview.memory_count + " · " + L("待审候选") + " " + preview.candidate_count + "。" + L("只处理本次预览，不删除对话或其他记忆。"), L("确定清除"))) return;
+          if (!await ask(L("清除本会话记忆？"), L("正式记忆") + " " + preview.memory_count + " · " + L("待审候选") + " " + preview.candidate_count + "。" + L("只处理本次预览，不删除对话或其他记忆。"), L("确定清除"), clearButton)) return;
           clearPreview = preview;
         }
         await dispatch(Object.freeze({ id: "memory-session-clear:" + clearPreview.preview_id, path: "/clear/apply", body: JSON.stringify({ preview_id: clearPreview.preview_id }), title: L("清除本会话记忆"), removal: true })); return;
@@ -824,7 +855,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       if (!clearPreview) {
         const preview = await api("/preview", { scope });
         if (!preview.count) { toast(L("没有可以清空的记忆")); return; }
-        if (!await ask(L("清空这些记忆？"), L("将删除") + " " + preview.count + " " + L("条记忆，删除后任何地方都不会再用到。"), L("确定清空"))) return;
+        if (!await ask(L("清空这些记忆？"), L("将删除 {count} 条记忆，删除后任何地方都不会再用到。", { count: preview.count }), L("确定清空"), clearButton)) return;
         clearPreview = preview;
       }
       showClear(L("本次清空尚未完成；重试仍只处理已确认的记忆。"));
@@ -832,8 +863,10 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
         body: JSON.stringify({ scope, fingerprint: clearPreview.fingerprint }), title: L("清空记忆"), removal: true }));
     }));
     resetClear.addEventListener("click", () => run(async () => {
-      if (!await ask(L("重新预览清空范围？"), L("停止重试本次确认。已删除的不会恢复；新的清空范围需要重新确认。"), L("重新预览…"))) return;
+      // The reset ask's own button hides when it lands, so the clear button — visible before and after — is the fallback.
+      if (!await ask(L("重新预览清空范围？"), L("停止重试本次确认。已删除的不会恢复；新的清空范围需要重新确认。"), L("重新预览…"), resetClear)) return;
       clearPreview = null; showClear(L("下次清空会重新预览并确认当前范围。"));
+      focusBack(resetClear, clearButton);
     }));
     root.querySelectorAll("[data-memory-pref]").forEach((box) => box.addEventListener("change", () => {
       const path = box.dataset.memoryPref.split(".");

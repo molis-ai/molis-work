@@ -1,3 +1,5 @@
+export { rollbackPreservingError } from "./transaction-errors.js";
+export { PLUGIN_ID } from "./plugin-id.js";
 /** The page runtime installs this helper; its shape is owned by the UI contract. */
 declare global {
   var molisWorkRequest: import("@molis-ai/molis-work-contracts/platform/ui").UiRequest;
@@ -11,14 +13,29 @@ import { parsePluginManifest } from "./manifest.js";
 
 export { sandboxPluginManifest, sandboxIntegrationManifest, sandboxUiContribution, sandboxDerivedPermissions, sandboxRequestedPermissions, sandboxOperationPermissions, SANDBOX_IMAGE_PERMISSIONS, effectsFromContract, type SandboxManifestInput, type SandboxIntegrationManifestInput } from "./sandbox-manifest.js";
 export { sandboxOperationActions, sandboxActionId, sandboxPackageBuildId, sandboxOperationEffects, sandboxBackgroundProblems } from "./sandbox-actions.js";
+export { assertJson as assertSandboxJson, assertSchema as assertSandboxSchema, assertMatches as assertSandboxMatches, type SandboxSchemaFailure } from "./sandbox-schema.js";
 export { parsePluginManifest, comparePluginVersions } from "./manifest.js";
+export { inspectContentPlugin } from "./content-plugin.js";
+export { completeContentPackagePayload, parseContentPackage, type ContentPackage } from "./content-package.js";
+export { readPackagedSkills, type PackagedSkillBody, type PackagedSkills } from "./skill-files.js";
+/** The one refusal of a declaration or package check (`plugin.declaration_invalid`): outside paths quoted and cut short, at most 30 problems listed. */
+export { refuseDeclarations } from "./declaration-problems.js";
+export { inspectCharacterTemplateAdoption, inspectRoleTemplate, type RoleTemplateInspectionOptions } from "./role-template.js";
+export { inspectBlueprint, inspectBlueprintLocales } from "./blueprints.js";
+export { validateAdoptsDeclaration } from "./adopts-declaration.js";
+export { inspectHomePageDraft } from "./home-page.js";
+export { defineSettingsActions, validateSettingsDeclaration, type SettingsActions, type SettingsActionsOptions } from "./settings-declaration.js";
+export { bindSettingsHandlers, resolveEffectiveSetting, type SettingSnapshot, type SettingsOwner, type SettingsOwnerScope,
+  type SettingsRequestIdentity, type SettingsTransaction, type SettingsWriteReceipt } from "./settings.js";
+export { skillDeclarationFromFrontmatter, type SkillFrontmatterOptions } from "./skill-frontmatter.js";
+export { contentPackageDraft, contentPackagePayload, skillFromFolder, type ContentPackageInput, type FolderSkill } from "./skill-folder.js";
 export { parsePluginSyncDeclaration, expandPluginSyncSelection } from "./plugin-sync.js";
 export { createSyncJsonContent, type SyncJsonContentOptions } from './sync-content.js';
 export { createSyncDocument, type SyncDocument, type SyncDocumentOwner, type SyncDocumentStorage } from './sync-document.js';
 export { syncTupleLocation } from './sync-location.js';
 export { createSyncConflictState } from './sync-conflict.js';
 export type { PluginSyncDeclaration, PluginSyncCollection, PluginSyncIdentity, PluginSyncSnapshot, PluginSyncSnapshotAdapter, PluginSyncBinding, PluginSyncContext } from "@molis-ai/molis-work-contracts/platform/plugin";
-export { assertSandboxAgentDefinition, parsePluginPackageManifest, sandboxAgentBodyIdentity, sandboxAgentDeclarations } from "./sandbox-agent-declarations.js";
+export { assertSandboxAgentDefinition, parsePluginPackageManifest, sandboxPromptId, sandboxRoleIdentity, sandboxAgentDeclarations } from "./sandbox-agent-declarations.js";
 export { inspectActionDeclarations, isHomeAggregateQuery } from "./action-declarations.js";
 export { inspectActionCrossReferences } from "./action-cross-references.js";
 /** Bounded line comparison. Its result and row types are in the contracts (modules/workspace-artifacts). */
@@ -41,6 +58,7 @@ export { cardInputValues, instantIn, wallClockIn } from "./card-values.js";
 export { QUESTION_LIMITS, questionProblems, questionSetFlaw } from "./question-rules.js";
 export { sceneConfigurationActions } from "@molis-ai/molis-work-contracts/platform/actions";
 export { createActionDefinition, defineAction } from "./actions.js";
+export { bindActionHandler, inputSchemaFor, type FlatUnion, type InferActionInput } from "@molis-ai/molis-work-contracts/platform/actions";
 /** The two binders: an HTTP route over an action, and an action over the local owner's personal state. A route answers a failure by its kind. */
 export { PLUGIN_ROUTE_STREAM_LIMITS, bindPluginActionRoute, bindOwnerPluginAction } from "./routes.js";
 export { PAGE_ROUTE_LIMITS, matchDeclaredPageRoute, matchPageRoute, pageRouteProblems, stageRequestParams, type DeclaredPageRouteMatch, type PageRouteMatch } from "./page-routes.js";
@@ -50,6 +68,11 @@ export { actionErrorKind, actionHttpStatus, actionErrorBody, actionErrorResponse
 export { defineSubjectContextAction, subjectContext, resolveActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineSubjectOffersAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineActionUsagesAction, referencesAction, type ActionUsage, type ActionUsagesInput } from "@molis-ai/molis-work-contracts/platform/actions";
+/** Reporting what your plugin's pack holds on the AI kit page (能力包): its prompts, roles and MCP, found by type, stamped as yours by the Host. */
+export { defineKitReportAction, KIT_KINDS, KIT_TOOL_ORIGINS } from "@molis-ai/molis-work-contracts/platform/kit-report";
+export type {
+  KitAvailability, KitDeclared, KitKind, KitManageLink, KitMcpRef, KitMcpState, KitReport, KitReportInput, KitReportedEntry, KitRoleRef, KitToolOrigin, KitUsage, KitVersion,
+} from "@molis-ai/molis-work-contracts/platform/kit-report";
 export type { SubjectOffersInput, SubjectActionOffer, SubjectOfferChoice } from "@molis-ai/molis-work-contracts/platform/actions";
 /** Putting what the person has in hand somewhere: declare `intake` (this command creates an Item) or `attach` (it adds to one) on the command itself. */
 export type { ActionIntake, ActionAttach, ItemAttachPosition } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -64,6 +87,9 @@ export type { FileEntry, FileContent, FileSourceKind } from "@molis-ai/molis-wor
 export { defineWorkExecutorAction, defineWorkExecutorActions, WORK_EXECUTOR_ROLES } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { WorkExecutorRole, WorkExecutorActionOptions, WorkExecutorCalls, WorkExecutorState, WorkExecutorSession, WorkExecutorRunControl } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { SearchEntry, SearchEntriesInput, SearchEntriesPage, SearchOpenTarget, SearchSourceKind } from "@molis-ai/molis-work-contracts/platform/actions";
+/** Intelligent surfaces: the owner's values for the fields its presentation declaration shows, and the plugin's overview (`/presentation` has the checks). */
+export { definePresentationValuesAction, bindPresentationValuesHandler, isPresentationValuesAction, definePresentationOverviewAction, PRESENTATION_VALUES_AUDIENCES } from "@molis-ai/molis-work-contracts/platform/presentation";
+export type { PresentationValuesInput, PresentationValues, PresentationValueItem, PresentationOverview } from "@molis-ai/molis-work-contracts/platform/presentation";
 export type { HomeEventWindow, HomeEvent, HomeEventCollection, HomeOpenTarget } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { HomeBackgroundTask, HomeBackgroundTaskCollection, HomeBackgroundTaskCommand, HomeBackgroundTaskPhrase } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { ActionSubject, ActionSubjectContext } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -83,7 +109,7 @@ export { PLUGIN_MODEL_LIMITS } from "@molis-ai/molis-work-contracts/platform/plu
 export { defineInstructionPrompt, instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 export type { InstructionPrompt, InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 export type { ArtifactReference, ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
-export type { UiPluginClientHost, UiClientScope, UiClientTranslate, UiRequest, UiContribution, UiContributionDeclaration, UiContributionDescriptor, UiRenderRequest, UiPageActions, UiPageView, UiPageWorkspaces, UiPageReviewQuery, UiPageReviewOutcome, UiPageReviews, UiPageDrafts, UiPageDialogs, UiPageMessage, UiPageMessages, UiPageFiles, UiTerminalCommand, UiTerminalEvent, UiTerminalView, UiTerminalMountOptions, UiPageTerminal, UiPageTaskGrants, UiTaskGrantsAreaState } from "@molis-ai/molis-work-contracts/platform/ui";
+export type { UiPluginClientHost, UiClientScope, UiClientTranslate, UiRequest, UiContribution, UiContributionDeclaration, UiContributionDescriptor, UiRenderRequest, UiPageActions, UiPageView, UiPageWorkspaces, UiPageReviewQuery, UiPageReviewOutcome, UiPageReviews, UiPageDrafts, UiPageDialogs, UiPageMessage, UiPageMessages, UiPageFiles, UiTerminalCommand, UiTerminalEvent, UiTerminalView, UiTerminalMountOptions, UiPageTerminal, UiPageTaskGrants, UiTaskGrantsAreaState, UiConnectionNeedTarget, UiConnectionNeedOutcome, UiReturnNeed, UiReturnCarry, UiReturnOutcome, UiPageReturns } from "@molis-ai/molis-work-contracts/platform/ui";
 
 import type {
   IntegrationProviderPort,
@@ -301,7 +327,7 @@ export type { PluginInstallationClient, PluginInstallationProjects, PluginInstal
 export type { PluginNotificationClient, PluginNotificationDelivery, PluginNotificationDeliveryReceipt, PluginNotificationInput, PluginNotificationReceipt, PluginNotificationReceiverDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 export { PLUGIN_NOTIFICATION_DELIVERY_ACTOR } from "@molis-ai/molis-work-contracts/platform/plugin";
 export { arraySchema, nullableSchema, objectSchema } from "./action-schemas.js";
-export { canonicalJsonText, canonicalJsonValue, isRecord } from "./json-value.js";
+export { canonicalJsonText, canonicalJsonValue, compareCodeUnits, isRecord } from "./json-value.js";
 
 export { controlledConnectorFetch } from "./connector-call.js";
 

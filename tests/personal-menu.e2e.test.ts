@@ -10,7 +10,7 @@ test('an idle closed account menu does not poll, but focus, opening and a pendin
   // Identity presentation only: the separate personal HTTP tests retain the real PKCE/session exchange.
   await command('Page.addScriptToEvaluateOnNewDocument', { source: `{
     const original = window.fetch.bind(window), interval = window.setInterval.bind(window), now = Date.now.bind(Date);
-    window.accountPollProbe = { calls: [], ticks: [], offset: 0, complete: false, loginUrl: '', popupClosed: false };
+    window.accountPollProbe = { calls: [], ticks: [], offset: 0, complete: sessionStorage.getItem('accountPollProbeDone')==='1', loginUrl: '', popupClosed: sessionStorage.getItem('accountPopupClosed')==='1' };
     const probe = window.accountPollProbe;
     Date.now = () => now() + probe.offset;
     window.setInterval = (callback, delay, ...args) => {
@@ -19,14 +19,17 @@ test('an idle closed account menu does not poll, but focus, opening and a pendin
     };
     window.open = () => ({ closed: false, opener: null,
       location: { replace(url) { probe.loginUrl = url; } },
-      close() { this.closed = true; probe.popupClosed = true; } });
+      close() { this.closed = true; probe.popupClosed = true; sessionStorage.setItem('accountPopupClosed','1'); } });
     window.fetch = (input, init) => {
       const url = new URL(String(input), location.href);
       if (url.pathname === '/api/personal/status') {
         probe.calls.push(url.search);
-        return Promise.resolve(Response.json({ configured: true, space: 'local',
+        if(probe.complete)sessionStorage.setItem('accountPollProbeDone','1');
+        const response=Response.json({ configured: true, space: 'local',
           identity: probe.complete ? { userId: 'test-alice', displayName: '测试用户', emails: ['alice@example.test'] } : null,
-          loginCompleted: probe.complete }));
+          accountGeneration: probe.complete ? 2 : 1, ready: probe.complete, loginCompleted: probe.complete });
+        if(probe.holdNext){probe.holdNext=false;return new Promise(resolve=>{probe.release=()=>resolve(response);});}
+        return Promise.resolve(response);
       }
       if (url.pathname === '/api/personal/login') return Promise.resolve(Response.json({
         loginUrl: location.origin + '/health', loginAttempt: 'presentation-only-attempt' }));
@@ -51,8 +54,13 @@ test('an idle closed account menu does not poll, but focus, opening and a pendin
   await evaluate("window.accountPollProbe.ticks.forEach(tick => tick())");
   await waitFor("window.accountPollProbe.calls.some(query => new URLSearchParams(query).get('attempt') === 'presentation-only-attempt')");
   await evaluate("new Promise(resolve => setTimeout(resolve, 0))");
-  await evaluate("window.accountPollProbe.complete = true; window.accountPollProbe.ticks.forEach(tick => tick())");
+  // Completion now replaces the document. Wait for that real navigation rather than keeping a Runtime promise in the old context.
+  await evaluate("window.accountPollProbe.holdNext=true;window.accountPollProbe.ticks.forEach(tick=>tick())");
+  await waitFor("Boolean(window.accountPollProbe.release)");
+  // ASR-10: a completion notification while a previous status read is pending is queued, not lost until the next poll.
+  await navigate(() => command('Runtime.evaluate', {expression:"setTimeout(() => { const probe=window.accountPollProbe;probe.complete=true;const channel=new BroadcastChannel('molis-work-account');channel.postMessage('changed');channel.close();setTimeout(()=>probe.release(),50); }, 0)", returnByValue:true}, sessionId));
   await waitFor("document.querySelector('[data-personal-name]')?.textContent === '测试用户' && document.querySelector('#mw-account-menu').hidden && window.accountPollProbe.popupClosed");
+  await waitFor("document.querySelector('.mw-account-toast:not([hidden])')?.textContent === '登录成功'");
   assert.equal(await evaluate("document.querySelector('.mw-account-toast:not([hidden])')?.textContent"), '登录成功');
   const completed = await evaluate<number>('window.accountPollProbe.calls.length');
   await evaluate("(async () => { window.accountPollProbe.offset += 61000; window.accountPollProbe.ticks.forEach(tick => tick()); await new Promise(resolve => setTimeout(resolve, 0)); })()");
@@ -113,7 +121,7 @@ test('PCSYNC-KBD-01: account entry and Escape work by keyboard at desktop, table
   assert.equal(await evaluate("document.querySelector('#mw-account-menu').hidden && document.activeElement === document.querySelector('[data-account-link]')"), true);
 });
 
-test('signed-in account menu offers explicit local/personal choices without auto-moving assets', {timeout:90_000}, async t => {
+test('ASR-02 signed-in account menu has switch and logout, without an anonymous workspace choice', {timeout:90_000}, async t => {
   const browser=await openGoalBrowser(t,true);if(!browser)return;
   const {command,sessionId,navigate,origin,projectId,evaluate,waitFor,click}=browser;
   await command('Page.addScriptToEvaluateOnNewDocument',{source:`{
@@ -127,13 +135,96 @@ test('signed-in account menu offers explicit local/personal choices without auto
   await click('[data-project-menu] > summary');
   await click('[data-personal-menu] [data-account-link]');
   await waitFor("!document.querySelector('#mw-account-menu').hidden");
-  // PCSYNC-KBD-01: an authenticated identity starts at the first visible space choice, not the hidden login button.
-  assert.equal(await evaluate("document.activeElement?.dataset.personalAction"), 'local');
-  assert.equal(await evaluate("document.querySelector('[data-personal-action=local]').getAttribute('aria-pressed')"),'true');
-  assert.equal(await evaluate("document.querySelector('[data-personal-action=space]').getAttribute('aria-pressed')"),'false');
+  assert.equal(await evaluate("document.activeElement?.dataset.personalAction"), 'switch');
+  assert.equal(await evaluate("document.querySelector('[data-personal-action=local], [data-personal-action=space]')"),null);
   assert.equal(await evaluate("document.querySelector('[data-personal-action=login]').hidden"),true);
-  assert.equal(await evaluate("document.querySelector('[data-personal-action=space]').getClientRects().length > 0"),true);
+  assert.equal(await evaluate("document.querySelector('[data-personal-action=logout]').getClientRects().length > 0"),true);
   const shot=await command('Page.captureScreenshot',{format:'png'},sessionId) as {data:string};
   mkdirSync('.impeccable/qa/review',{recursive:true});
   writeFileSync('.impeccable/qa/review/personal-space-menu.png',Buffer.from(shot.data,'base64'));
+});
+
+test('account menu localizes its dynamic controls and accessible labels in English', {timeout:90_000}, async t => {
+  const browser=await openGoalBrowser(t,true);if(!browser)return;
+  const {command,sessionId,navigate,origin,projectId,evaluate,waitFor,click}=browser;
+  await command('Network.setCookie',{name:'molis_work_locale',value:'en',url:origin},sessionId);
+  await command('Page.addScriptToEvaluateOnNewDocument',{source:`{
+    window.accountEnglishSignedIn=sessionStorage.getItem('accountEnglishSignedIn')==='1';
+    const original=window.fetch.bind(window);
+    window.fetch=(input,init)=>new URL(String(input),location.href).pathname.startsWith('/api/personal/status')
+      ? Promise.resolve(Response.json({configured:true,identity:window.accountEnglishSignedIn
+        ? {userId:'test-alice',displayName:'<img src=x onerror=alert(1)>',emails:[]} : null,space:'local',syncEnabled:false}))
+      : original(input,init);
+  }`},sessionId);
+  await navigate(()=>command('Page.navigate',{url:origin+'/projects/'+projectId+'/'},sessionId));
+  await waitFor("document.querySelector('#mw-account-menu') && document.querySelector('[data-personal-name]')?.textContent === 'Not signed in'");
+  await click('[data-project-menu] > summary');
+  await click('[data-personal-menu] [data-account-link]');
+  await waitFor("!document.querySelector('#mw-account-menu').hidden");
+  assert.equal(await evaluate("document.querySelector('#mw-account-menu').getAttribute('aria-label')"),'Account');
+  assert.deepEqual(await evaluate("['login','switch','logout'].map(action=>document.querySelector('[data-personal-action='+action+']').textContent)"),['Sign in / sign up','Switch account','Sign out']);
+  assert.equal(await evaluate("document.querySelector('[data-menu-name]').textContent"),'Not signed in');
+  assert.equal(await evaluate("document.querySelector('[data-menu-email]').textContent"),'Sign in to manage your molis account');
+  assert.equal(await evaluate("document.querySelector('[data-account-link]').getAttribute('aria-label')"),'Sign in / sign up to molis AI');
+  // The menu's opening status read must finish before the next focus refresh (idle pages deliberately do not poll).
+  await evaluate("new Promise(resolve => setTimeout(resolve, 0))");
+  await evaluate("window.accountEnglishSignedIn=true; sessionStorage.setItem('accountEnglishSignedIn','1'); setTimeout(() => window.dispatchEvent(new Event('focus')), 0)");
+  await waitFor("document.querySelector('[data-menu-name]').textContent === '<img src=x onerror=alert(1)>'");
+  assert.equal(await evaluate("document.querySelector('[data-account-link]').getAttribute('aria-label')"),'<img src=x onerror=alert(1)> · Switch account / Sign out');
+  assert.equal(await evaluate("document.querySelector('#mw-account-menu img')"),null,'identity text is never interpreted as HTML');
+  assert.equal(await evaluate("document.querySelector('[data-personal-action=local], [data-personal-action=space]')"),null);
+});
+
+test('ASR-04/05 account switching waits for the Host preparation and cancellation keeps editing available', {timeout:90_000}, async t => {
+  const browser=await openGoalBrowser(t,true);if(!browser)return;
+  const {command,sessionId,navigate,origin,projectId,evaluate,waitFor,click}=browser;
+  // Presentation harness: the separate HTTP/cohort tests exercise the real participant owner and lease.
+  await command('Page.addScriptToEvaluateOnNewDocument',{source:`{
+    const original=window.fetch.bind(window), Source=window.EventSource;
+    window.preparationProbe={confirm:false,acks:0,cancels:0,logins:0,connections:0};
+    const probe=window.preparationProbe;
+    window.confirm=()=>probe.confirm;
+    window.open=()=>({closed:false,opener:null,location:{replace(){}},close(){this.closed=true;}});
+    window.EventSource=function(url,options){
+      if(new URL(url,location.href).pathname==='/api/personal/events'){probe.connections++;return probe.events={close(){}};}
+      return new Source(url,options);
+    };
+    window.fetch=(input,init)=>{
+      const url=new URL(String(input),location.href);
+      if(url.pathname==='/api/personal/status')return Promise.resolve(Response.json({configured:true,identity:{userId:'alice',displayName:'Alice',emails:[]},pageBinding:'synthetic-page-binding',accountGeneration:1,ready:true,space:'account'}));
+      if(url.pathname==='/api/personal/prepare'){
+        const action=url.searchParams.get('action');
+        if(action==='start')probe.preparation={id:'test-preparation',ownerPageId:url.searchParams.get('page'),intent:'switch',ready:false};
+        if(action==='ack')probe.acks++;
+        if(action==='cancel'){probe.cancels++;probe.preparation=null;}
+        return Promise.resolve(Response.json(probe.preparation||{preparation:null}));
+      }
+      if(url.pathname==='/api/personal/switch'){probe.logins++;return Promise.resolve(Response.json({loginUrl:location.origin+'/health',loginAttempt:'prepared-attempt'}));}
+      return original(input,init);
+    };
+  }`},sessionId);
+  await navigate(()=>command('Page.navigate',{url:origin+'/projects/'+projectId+'/'},sessionId));
+  await waitFor("document.querySelector('[data-personal-name]')?.textContent==='Alice' && window.preparationProbe.events");
+  await evaluate("const dirty=document.createElement('div');dirty.dataset.accountDirtyProbe='';dirty.setAttribute('data-assistant-context',JSON.stringify({unsaved:true}));document.body.append(dirty)");
+  await click('[data-project-menu] > summary');await click('[data-personal-menu] [data-account-link]');
+  await click('[data-personal-action=switch]');
+  await waitFor("window.preparationProbe.cancels===1 && !document.querySelector('[data-personal-action=switch]').disabled");
+  assert.equal(await evaluate("window.preparationProbe.logins"),0);
+  assert.equal(await evaluate("molisWorkAccountTransition.preparing"),false);
+  await evaluate("window.preparationProbe.confirm=true");
+  await click('[data-personal-action=switch]');
+  await waitFor("window.preparationProbe.acks===1");
+  assert.equal(await evaluate("window.preparationProbe.logins"),0,'this page ACK cannot substitute for other Host participants');
+  assert.equal(await evaluate("molisWorkAccountTransition.preparing && document.querySelector('[data-account-dirty-probe]').inert"),true);
+  assert.equal(await evaluate("!document.querySelector('[data-account-transition-notice]').hidden && !document.querySelector('[data-account-transition-notice] button').disabled"),true,'a following or initiating page can visibly cancel while business editing is frozen');
+  await evaluate("window.preparationProbe.events.onerror()");
+  await waitFor("window.preparationProbe.cancels===2 && !molisWorkAccountTransition.preparing && !document.querySelector('[data-personal-action=switch]').disabled");
+  assert.equal(await evaluate("window.preparationProbe.logins"),0,'a disconnected participant stream cancels the preparation before authentication');
+  assert.equal(await evaluate("document.querySelector('[data-account-dirty-probe]').inert"),false);
+  assert.equal(await evaluate("document.querySelector('[data-account-transition-notice]').hidden"),true);
+  await waitFor("window.preparationProbe.connections===2");
+  await click('[data-personal-action=switch]');
+  await waitFor("window.preparationProbe.acks===2");
+  await evaluate("const probe=window.preparationProbe;probe.preparation.ready=true;probe.events.onmessage({data:JSON.stringify({type:'changed',preparation:probe.preparation})})");
+  await waitFor("window.preparationProbe.logins===1");
 });

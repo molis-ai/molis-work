@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import { compareCodeUnits } from "@molis-ai/molis-work-plugin-sdk";
 import type { ImReadState, ImMessage, ImRoom, ImThreadState } from "@molis-ai/molis-work-contracts/services/im";
 import type { ImDatabase, ImEvents, ImSession } from "./types.js";
 import { clientId, ImError, textInput } from "./errors.js";
@@ -22,7 +23,7 @@ export class ImWrites {
 
   mutate<T>(session: ImSession, pathname: string, body: Record<string, unknown>, operation: () => T, authorize?: () => void): T {
     const key = clientId(body.client_id);
-    const fingerprint = hash(`${pathname}\n${JSON.stringify(Object.fromEntries(Object.entries(body).sort(([a], [b]) => a.localeCompare(b))))}`);
+    const fingerprint = hash(`${pathname}\n${JSON.stringify(Object.fromEntries(Object.entries(body).sort(([a], [b]) => compareCodeUnits(a, b))))}`);
     const previousMemberId = session.member_id;
     try {
       const committed = this.db.transaction(() => {

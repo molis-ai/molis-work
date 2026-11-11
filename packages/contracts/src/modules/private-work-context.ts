@@ -2,9 +2,9 @@ import type { ContractDescriptor } from "../platform/package.js";
 export * from "./runtime-project-context.js";
 
 export const modulesPrivateWorkContextContract = {
-  contractId: "io.molis.work.module.private-work-context.v1",
+  contractId: /* @version contract.io.molis.work.module.private-work-context "io.molis.work.module.private-work-context.v{version}" */ "io.molis.work.module.private-work-context.v1",
   kind: "module",
-  schemaVersion: 1,
+  schemaVersion: /* @version contract.io.molis.work.module.private-work-context */ 1,
   maturity: "partial",
   ssot: "docs/modules/private-work-context.md",
 } as const satisfies ContractDescriptor;
@@ -28,8 +28,8 @@ export interface RuntimeWorkspaceContext {
   realpath_verified: boolean;
 }
 
+/** A runtime's folder as checked: its path resolved where it can be. It names no folder row; `ProjectsQueryApi.workspaceIdAt` finds one by the path. */
 export interface NormalizedRuntimeWorkspaceContext extends RuntimeWorkspaceContext {
-  workspace_id: string;
   display_name: string;
 }
 
@@ -80,3 +80,6 @@ export interface RuntimeContextBindingEventRecord {
   actor_id: string;
   created_at: string;
 }
+
+/** Bounded owner query; the Home administrator may narrow it to a project from its trusted catalog. */
+export interface RuntimeContextBindingPage { limit: number; offset: number; project_id?: string }

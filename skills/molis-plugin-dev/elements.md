@@ -6,13 +6,13 @@ Manifest 定义在 `packages/contracts/src/platform/plugin-manifest.ts`，仍从
 
 - `schema_version`：现行格式为 `1`，支持 ports、events、views、routes、agent 和 actions。
 - `host_api_version`：与 schema 对齐，使用 `1`。
-- `plugin_id`：反向域名，如 `io.molis.work.feed`。
+- `plugin_id`：反向域名，前缀必须是 `io.molis.work.`，后面只用小写字母、数字、点和连字符，如 `io.molis.work.feed`；最长 200 个字符。声明了 `ui.locales` 的，最后一段是文字键的第一段，要以小写字母开头，不能是 `common`（[text-and-appearance.md](text-and-appearance.md)）。
 - `*_PROJECT_PLUGIN_ID`：项目库短名（`feed`）。和全球 id 不是同一个字段。
 - `name`、`version`：给人看的名字；代码变化必须自己递增 version。同一 `plugin_id + version + signature` 的 Manifest 不能静默改内容。升级来源要通过 `upgrade_compatibility` 精确声明。
 - `publisher.signature` 变了 = 新身份，旧 grant 不继承。
 - `entrypoints[]`：`deployment: "local" | "server"` + `entrypoint` 路径。一等插件常用 `./index.js`。
 - `kind`：`native` | `app` | `integration`。选贡献形态，不是信任等级。
-- `always_on`（schema 2）：常开插件，每个项目都开着、不进插件列表与市场，服务端拒绝把它从项目移除、停用、卸载。它生不生效看同意账本里有没有一行有效同意（见下文「装的时候用户会被问哪些声明」），不看插件从哪来：随宿主发布的插件由宿主代为同意，其他插件要本人同意，本人撤回后它就是普通插件。声明本身不会被安装拒绝，写了没人同意就不生效，所以别让插件的基本功能依赖「一定常开」。外部装的常开插件现在只有卸载拒绝，进项目成员列表随安装服务（ac-trust T2）。
+- `always_on`：常开插件，每个项目都开着、不进插件列表与市场，服务端拒绝把它从项目移除、停用、卸载。它生不生效看同意账本里有没有一行有效同意（见下文「装的时候用户会被问哪些声明」），不看插件从哪来：随宿主发布的插件由宿主代为同意，其他插件要本人同意，本人撤回后它就是普通插件。声明本身不会被安装拒绝，写了没人同意就不生效，所以别让插件的基本功能依赖「一定常开」。外部装的常开插件现在只有卸载拒绝，进项目成员列表随安装服务（ac-trust T2）。
 
 ## 版本升级
 
@@ -121,9 +121,9 @@ Manifest 里没有 `behaviors`、`function_scenes`、`judgment_subjects`（2026-
 同步工作中草稿与只发布 Artifact 是不同需求。可选 `sync` 集合声明和本地快照适配见 [sync.md](sync.md)；它不自动开启上传或注册 Runtime 同步处理器。
 
 - `artifacts.produces/consumes`：成果，人要留存、引用的固定版本，进成果库。`artifact_type_id` + `schema_version`。消费方按类型匹配，不指定生产者插件。
-- 每种 `artifacts.produces` 写 `title`（显示名，如「文档」）与 `preview`（用 `defineArtifactPreviewAction` 定义、`bindArtifactPreview` 绑定的动作：只把这一版的 payload 转成 Markdown、CSV、文本或位图，不读存储）。工作对象能当场固定成一版的（Goal 收尾时交付），再写 `pin`：用 `defineArtifactPinAction(id, 对象种类, 显示名, 权限)` 定义，输入 `{subject_id}`，输出 `{artifact, recovered}`，内部就是你的「存为成果」；每种对象至多一个 owner；能当场固定的类型还要写 `compare`（`defineArtifactCompareAction` + `bindArtifactCompare`：读自己的对象、只比内容字段，答 same、changed、moved、missing（对象不在这个项目里时，`bindArtifactCompare` 的第五个参数告诉成果库它是否还在别处：移走不是删除），成果库据此提示「原对象之后改过了」「原对象已移到别处」）。能从某个成果类型的一版新建自己的对象的插件，在那个类型上写 `continue`（`defineArtifactContinueAction` + `bindArtifactContinue`，自己生产的写在 `produces`，只读取的写在 `consumes`），成果库给出「在 X 继续」；没有「继续」的类型要在门禁的例外名单里写明理由。门禁 `tests/artifact-type-gate.test.ts`。
-- 自己的对象能链接到成果库里的某一版（文档正文里的版本链接）的，加一个 `defineArtifactReferrersAction(id, 对象显示名, 读权限)` 查询：输入 `{reference}`，返回链接到这一版的对象（`subject`、`title`、`open`）。正文里认链接用 `linksToArtifactVersion(body, reference)`。成果详情的「被谁引用」按协议问每个声明了它的插件，不写名单（例：`pages.artifacts.referrers`）。
-- 在 Manifest `artifacts.links` 里声明了链接种类（自己的对象把某一版记为输入或产出，边写进上下文关联）的，再加一个 `defineArtifactLinkSubjectsAction(id, 对象显示名, 读权限)` 查询：输入 `{ids}`，返回这些 id 里现在还在、调用者读得到的对象（`id`、`title`、`open`），读不到的不返回（一个读不到的 id 不能让整批失败）；一次最多 200 个 id，`open` 只能指向你自己的 surface。受众由这个函数定成与 `artifacts.links` 相同，因为它以那个调用者的身份被问。「被谁引用」把你的对象列在你的插件名下，名字和打开位置就从这里来；没有这个动作，你的对象只显示 id（例：`goals.artifacts.link_subjects`）。
+- 每种 `artifacts.produces` 写 `title`（显示名，如「文档」）与 `preview`（用 `defineArtifactPreviewAction` 定义、`bindArtifactPreview` 绑定的动作：只把这一版的 payload 转成 Markdown、CSV、文本或位图，不读存储）。工作对象能当场固定成一版的（Goal 收尾时交付），再写 `pin`：用 `defineArtifactPinAction(id, version, 对象种类, 显示名, 权限)` 定义，输入 `{subject_id}`，输出 `{artifact, recovered}`，内部就是你的「存为成果」；每种对象至多一个 owner；能当场固定的类型还要写 `compare`（`defineArtifactCompareAction` + `bindArtifactCompare`：读自己的对象、只比内容字段，答 same、changed、moved、missing（对象不在这个项目里时，`bindArtifactCompare` 的第五个参数告诉成果库它是否还在别处：移走不是删除），成果库据此提示「原对象之后改过了」「原对象已移到别处」）。能从某个成果类型的一版新建自己的对象的插件，在那个类型上写 `continue`（`defineArtifactContinueAction` + `bindArtifactContinue`，自己生产的写在 `produces`，只读取的写在 `consumes`），成果库给出「在 X 继续」；没有「继续」的类型要在门禁的例外名单里写明理由。门禁 `tests/artifact-type-gate.test.ts`。
+- 自己的对象能链接到成果库里的某一版（文档正文里的版本链接）的，加一个 `defineArtifactReferrersAction(id, version, 对象显示名, 读权限)` 查询：输入 `{reference}`，返回链接到这一版的对象（`subject`、`title`、`open`）。正文里认链接用 `linksToArtifactVersion(body, reference)`。成果详情的「被谁引用」按协议问每个声明了它的插件，不写名单（例：`pages.artifacts.referrers`）。
+- 在 Manifest `artifacts.links` 里声明了链接种类（自己的对象把某一版记为输入或产出，边写进上下文关联）的，再加一个 `defineArtifactLinkSubjectsAction(id, version, 对象显示名, 读权限)` 查询：输入 `{ids}`，返回这些 id 里现在还在、调用者读得到的对象（`id`、`title`、`open`），读不到的不返回（一个读不到的 id 不能让整批失败）；一次最多 200 个 id，`open` 只能指向你自己的 surface。受众由这个函数定成与 `artifacts.links` 相同，因为它以那个调用者的身份被问。「被谁引用」把你的对象列在你的插件名下，名字和打开位置就从这里来；没有这个动作，你的对象只显示 id（例：`goals.artifacts.link_subjects`）。
 - `process_items.produces/consumes`：过程项，插件之间交换的数据（快照、变更集、回执），记在生产插件名下，不进成果库、侧栏文件和搜索。一种类型要么是成果、要么是过程项。端口发布一律记成过程项；直接记用 `services.processItems.record`。
 - **新类型先写合同**（如 `packages/contracts/src/modules/workspace-artifacts.ts` 或该插件的 `modules/<id>.ts`），再声明 `produces`。只写端口、合同里没有这个类型，连不上。
 - `ports.inputs/outputs`：按 Artifact 类型连接，不指定生产者插件。声明输出口必须同时 `artifact:write` 且类型在 `process_items.produces`（或固定后再选择的成果在 `artifacts.produces`）。输入同理 `artifact:read` + `consumes`。
@@ -173,7 +173,7 @@ Manifest 里没有 `behaviors`、`function_scenes`、`judgment_subjects`（2026-
 
 提示词层级是 `base` | `role` | `project`，省略等于 `role`。`task` 是用户这一次写的，插件声明会被拒绝。提示词正文放在 `PluginDefinition.agent_prompts`，Skill 正文放在 `PluginDefinition.agent_skills`，不进 Manifest；Manifest 声明的每段 Prompt、`compaction` 与 `ending_review` 都要在 `agent_prompts` 里有正文，否则开跑时角色是空的。运行中的非沙箱插件由 Host 从 Manifest 的 `agent` 与定义的正文登记（内置与安装的插件同一条路，PG-051），停下后按「未运行」留在设置里，作者不必再另接一份 catalog。沙箱插件的登记尚待 PG-017。正文与缺失检查见 [authoring.md](authoring.md#sdk)。
 
-`subagent_workspaces: "required"` 只放在只读父角色上（Coding 的协调者、并行写入）。工作目录是 Host 事实，候选通过 `projectSettingsCapabilities.workspaces` 读取。`directory_input_port` 不会让 Host 采信目录。
+`subagent_workspaces: "required"` 只放在只读父角色上（Coding 的协调者、并行写入）。工作目录是 Host 事实：项目的输入目录和输出目录用 `projects.directories.get` 读（见下面「当前项目设置能力」），并行写手的独立工作树由宿主建、按 `worktree_id` 认，不是项目的目录。`directory_input_port` 不会让 Host 采信目录。
 
 今天三例：`plugins/native/coding`（kind `app`），以及 `plugins/native/schedule`、`plugins/native/todo`（kind `native`）。不要把 Coding 的 agent 块抄到普通内容插件。合同里还有 `compaction`、`ending_review`、`text_sources`、`skills`，只有 Coding 用了 `compaction`、`ending_review` 与 `skills`，先不要写成必填。`ending_review` 指向自己 `prompts` 里的一条：可写的一轮没有成功的改动就要结束时，宿主用它对照这一轮的事实核对最后的话（用户能在「设置 › 提示词」的「收尾核对」下改）；不声明就不核对。
 
@@ -183,7 +183,9 @@ Manifest 里没有 `behaviors`、`function_scenes`、`judgment_subjects`（2026-
 
 ## 当前项目设置能力
 
-从 `contracts/modules/projects` 导入 `projectSettingsCapabilities`：`workspaces` 返回当前项目已关联目录，`browsingWorkspace` 返回 Files/Git 的当前浏览目录或 null。逐项将完整 `capability_id` 写入 Manifest consumes，然后调用 `invoke(capability, [])`。不可传 project_id，不支持 key 袋或通配读取。Host 裁剪其他项目关联字段。工作目录在项目设置中维护，不再接 Workspace 输出。Coding 会话执行目录独立；`projects.workspace.read` 返回项目的首选工作区，Coding 在没有浏览目录时用它。
+项目的目录是项目设置的一项：从 `contracts/modules/projects` 导入 `projectDirectoryActions`，`get`（`projects.directories.get`）返回当前项目的 `{ project_id, directories, source_links, revision }`。`directories` 每项带 `workspace_id`、`canonical_path`、`display_name`、`roles`（`"input"`、`"output"`，同一个文件夹既是输入又是输出时两项都有）和 `state`（`ok`、`missing`）；恰好一项带 `output`，没选过输出的项目指向默认输出目录（Home 的 `outputs/<项目>`，第一次在里面写或运行时才建）。把完整的 `capability_id` 写入 Manifest consumes，然后调用 `invoke(projectDirectoryActions.get, {})`（输入是空对象）。不可传 project_id，不支持 key 袋或通配读取，Host 只回当前项目的目录。`projectSettingsCapabilities` 现在只剩 Agent 运行时的两项（`runtime`、`selectRuntime`）。
+
+没有「浏览目录」这项设置，也没有「首选工作区」：读写不指定目录时就是输出目录，页面在几个目录里看哪一个是页面自己的状态，不写回项目。输入目录只读，输出目录才可写：Git 的写、终端、Agent 的会话和轮次、原生 Character 在只作输入的目录里开会被拒（`projects.directory_input_only`），本人把它设为输出之后再开。改目录（`add_input`、`remove_input`、`set_output`、`repair`、`map_source`、`unmap_source`，都带读到的 `expected_revision`）只给本人，插件、Agent 与 MCP 调不到；页面里的插件要关联目录或换输出，用 `host.workspaces.add(path)`、`host.workspaces.setOutput(id)`，由宿主显示并真实确认。Coding 并行写手的独立工作树由宿主建、按 `worktree_id` 认，不是项目的目录。
 
 `settings` 槽只放页面，不给其他插件读权；`storage:private` 只存自己的偏好。项目说明仍属 Goals。归属与例子见 `docs/platform/PROJECT-SETTINGS.md`。
 

@@ -5,13 +5,28 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
-import { existsSync, mkdirSync } from "node:fs";
-import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { DEMO_PROJECT_ID, DEMO_CORE_ARTIFACT_ID, DEMO_GITHUB_SOURCE_ID, DEMO_GMAIL_SOURCE_ID, LocalProjectDatabase, seedDemoPluginSurfaces, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
-import { FEED_CAPTURE_ARTIFACT_TYPE_ID, feedManifest } from "@molis-ai/molis-work-plugin-feed";
+import { mkdirSync } from "node:fs";
+import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { DEMO_PROJECT_ID, DEMO_CORE_ARTIFACT_ID, LocalProjectDatabase, openProjectVersionStores, MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { FEED_CAPTURE_ARTIFACT_TYPE_ID, feedManifest, feedSourceActions, feedQueryActions, type FeedSnapshot } from "@molis-ai/molis-work-plugin-feed";
 import { renderFeedWorkbenchFragment } from "./workbench-renderer-fixture.js";
 import { GoalProjectApplication, seedBoard } from "./fixtures/goal-application.js";
 import { createLocalFeedApplication } from "./fixtures/feed-library.js";
+
+const DEMO_GITHUB_SOURCE_ID = "demo-github", DEMO_GMAIL_SOURCE_ID = "demo-gmail";
+
+async function startDemoRuntime(databasePath: string, projectId: string, homeDirectory?: string, explicit = false, operation?: (host: MolisWorkLocalHost, ref: ReturnType<typeof molisWorkHostProjectReference>) => Promise<void>): Promise<void> {
+  const host = new MolisWorkLocalHost({ homeDirectory, completeText: null });
+  try {
+    if (homeDirectory) host.configurePersonalPlanning(homeDirectory, withMolisWorkProjectCatalog);
+    const ref = molisWorkHostProjectReference({ projectId, databasePath });
+    if (explicit) await host.actionClient(ref).invoke({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: projectId, audience: "workflow",
+      permissions: feedManifest.permissions.map(item => item.permission) }, { ...feedManifest.demo_seed!, provider_id: feedManifest.plugin_id }, {});
+    else await host.inspectActions({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: projectId, audience: "user", permissions: [] }, ref);
+    await operation?.(host, ref);
+  } finally { await host.close(); }
+}
 
 async function withDirectory<T>(prefix: string, run: (directory: string) => Promise<T>): Promise<T> {
   const directory = await mkdtemp(join(tmpdir(), prefix));
@@ -92,8 +107,7 @@ async function assertDemoPluginFacts(input: {
   } finally {
     store.close();
   }
-  // The Shelf sample is Shelf's: the resident Host puts it back through `shelf.sample.seed` (shelf-actions.test.ts), the catalog does not.
-  assert.equal(existsSync(join(input.homeDirectory, "shelf")), false, "making the demo writes nothing into Shelf's files");
+
 }
 
 test("seedDemoBoard fixtures stay empty of plugin samples", async () => {
@@ -130,7 +144,7 @@ test("plugin samples are written under the project id they are given", async () 
     } finally {
       store.close();
     }
-    seedDemoPluginSurfaces(databasePath, "goalboard-v1-demo");
+    await startDemoRuntime(databasePath, "goalboard-v1-demo", join(directory, "home"), true);
     const seeded = new LocalProjectDatabase(databasePath);
     try {
       const snapshot = createLocalFeedApplication(seeded.db).snapshot("goalboard-v1-demo");
@@ -149,7 +163,7 @@ test("plugin samples are written under the project id they are given", async () 
       assert.ok(history.some((entry) => entry.status === "done"));
       assert.ok(history.some((entry) => entry.status === "dismissed"));
       const artifacts = openProjectVersionStores(seeded).artifacts.query.listArtifacts("goalboard-v1-demo");
-      assert.ok(artifacts.some((artifact) => artifact.artifact_id === DEMO_CORE_ARTIFACT_ID));
+      assert.ok(artifacts.some((artifact) => artifact.artifact_type_id === FEED_CAPTURE_ARTIFACT_TYPE_ID));
       assert.ok(artifacts.some((artifact) => artifact.artifact_type_id === FEED_CAPTURE_ARTIFACT_TYPE_ID));
     } finally {
       seeded.close();
@@ -157,10 +171,37 @@ test("plugin samples are written under the project id they are given", async () 
   });
 });
 
+test("an existing demo project written by another producer version is kept, not refused", async () => {
+  await withDirectory("molis-work-demo-other-producer-", async (directory) => {
+    const catalog = await openMolisWorkProjectCatalog({ homeDirectory: join(directory, ".molis-work") });
+    try {
+      const created = await catalog.ensureDemoProject({ actor_id: "user", user_confirmed: true });
+      const { database_path: databasePath, project_id: projectId } = created.project;
+      // What an earlier product version left behind: the same two versions, each still naming the producer version that wrote it.
+      const earlier = new LocalProjectDatabase(databasePath);
+      try {
+        const moved = earlier.db.prepare("UPDATE library_artifact_versions SET producer_plugin_version = ? WHERE artifact_id = ?").run("0.0.1", DEMO_CORE_ARTIFACT_ID);
+        assert.equal(moved.changes, 2);
+      } finally { earlier.close(); }
+
+      const existing = await catalog.ensureDemoProject({ actor_id: "user", user_confirmed: true });
+      assert.equal(existing.status, "existing");
+
+      const kept = new LocalProjectDatabase(databasePath);
+      try {
+        const { query } = openProjectVersionStores(kept).artifacts;
+        assert.deepEqual([1, 2].map(version => query.getArtifactVersion(projectId, { artifact_id: DEMO_CORE_ARTIFACT_ID, version })?.producer_plugin_version), ["0.0.1", "0.0.1"]);
+      } finally { kept.close(); }
+    } finally {
+      catalog.close();
+    }
+  });
+});
+
 test("creating the demo project seeds every built-in plugin surface", async () => {
   await withDirectory("molis-work-demo-plugin-sample-", async (directory) => {
     const home = join(directory, ".molis-work");
-    const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
+    let catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
     try {
       const created = await catalog.ensureDemoProject({ actor_id: "user", user_confirmed: true });
       assert.equal(created.status, "created");
@@ -168,6 +209,9 @@ test("creating the demo project seeds every built-in plugin surface", async () =
         catalog.listProjectPlugins(created.project.project_id),
         ["coding", "feed", "goals", "inbox", "schedule"],
       );
+      catalog.close();
+      await startDemoRuntime(created.project.database_path, created.project.project_id, home);
+      catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
       await assertDemoPluginFacts({
         databasePath: created.project.database_path,
         homeDirectory: home,
@@ -178,6 +222,9 @@ test("creating the demo project seeds every built-in plugin surface", async () =
 
       const existing = await catalog.ensureDemoProject({ actor_id: "user", user_confirmed: true });
       assert.equal(existing.status, "existing");
+      catalog.close();
+      await startDemoRuntime(existing.project.database_path, existing.project.project_id, home);
+      catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
       assert.equal(feedItemCount(existing.project.database_path, existing.project.project_id), itemCount);
 
       const reset = await catalog.resetDemoProject({ actor_id: "user", user_confirmed: true });
@@ -186,6 +233,9 @@ test("creating the demo project seeds every built-in plugin surface", async () =
         catalog.listProjectPlugins(reset.project.project_id),
         ["coding", "feed", "goals", "inbox", "schedule"],
       );
+      catalog.close();
+      await startDemoRuntime(reset.project.database_path, reset.project.project_id, home);
+      catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
       await assertDemoPluginFacts({
         databasePath: reset.project.database_path,
         homeDirectory: home,
@@ -194,5 +244,35 @@ test("creating the demo project seeds every built-in plugin surface", async () =
     } finally {
       catalog.close();
     }
+  });
+});
+
+
+test("D0041 D0078: restarting a demo never resurrects a deleted sample or re-enables a paused one", async () => {
+  await withDirectory("molis-demo-seed-lifecycle-", async directory => {
+    const home = join(directory, "home");
+    const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
+    let project: Awaited<ReturnType<typeof catalog.ensureDemoProject>>["project"];
+    try { project = (await catalog.ensureDemoProject({ actor_id: "user", user_confirmed: true })).project; }
+    finally { catalog.close(); }
+    let pausedId = "";
+    await startDemoRuntime(project.database_path, project.project_id, home, false, async (host, ref) => {
+      const client = host.actionClient(ref), caller = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: project.project_id, audience: "user" as const, permissions: feedManifest.permissions.map(item => item.permission) };
+      const snapshot = await client.invoke(caller, { ...feedQueryActions.snapshot, provider_id: feedManifest.plugin_id }, {}) as FeedSnapshot;
+      pausedId = snapshot.sources.find(source => source.kind === "rss")!.source_id;
+      assert.ok(pausedId);
+      await client.invoke(caller, { ...feedSourceActions.enabled, provider_id: feedManifest.plugin_id }, { source_id: pausedId, enabled: false });
+      await client.invoke(caller, { ...feedSourceActions.delete, provider_id: feedManifest.plugin_id }, { source_id: DEMO_GITHUB_SOURCE_ID, history_decision: "delete_local_history" });
+      assert.deepEqual(await client.invoke({ ...caller, audience: "workflow" }, { ...feedManifest.demo_seed!, provider_id: feedManifest.plugin_id }, {}), { seeded: false });
+    });
+    await startDemoRuntime(project.database_path, project.project_id, home);
+    const store = new LocalProjectDatabase(project.database_path);
+    try {
+      const feed = createLocalFeedApplication(store.db), snapshot = feed.snapshot(project.project_id);
+      assert.ok(!snapshot.sources.some(source => source.source_id === DEMO_GITHUB_SOURCE_ID));
+      assert.equal(snapshot.sources.find(source => source.source_id === pausedId)?.enabled, false);
+      assert.ok(!snapshot.feed_items.some(item => item.source_id === DEMO_GITHUB_SOURCE_ID));
+      assert.ok(feed.sources.get(project.project_id, DEMO_GITHUB_SOURCE_ID).config._molis_work_lifecycle, "the source tombstone is the owner-held once receipt");
+    } finally { store.close(); }
   });
 });

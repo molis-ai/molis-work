@@ -1,3 +1,4 @@
+import { ACCOUNT_PROVIDER_ID, ACCOUNT_PERMISSIONS } from "@molis-ai/molis-work-service-account";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import { CHARACTER_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/characters";
 import { CHARACTER_ACTION_PERMISSIONS } from "@molis-ai/molis-work-module-characters";
@@ -11,8 +12,7 @@ import { informationActions, INFORMATION_PROVIDER_ID } from "./information-actio
 import { ASSISTANT_RULES_PROVIDER, ASSISTANT_RULE_ACTIONS, ASSISTANT_FOLLOW_UP_ACTIONS } from "./assistant/assistant-rule-actions.js";
 import { assistantThreadActions } from "./assistant/assistant-thread-actions.js";
 import { FUNCTIONS_PROVIDER_ID, functionsActions, functionAuthoringActions, functionContextActions } from "@molis-ai/molis-work-module-judgment-rules";
-import { projectWorkspaceActions } from "@molis-ai/molis-work-contracts/modules/projects";
-import { PROJECT_WORKSPACE_PROVIDER_ID } from "./project-workspace-actions.js";
+import { materialOriginActions, materialRecentActions, PROJECT_WORKSPACE_PROVIDER_ID, projectDirectoryActions, projectPluginActions } from "@molis-ai/molis-work-contracts/modules/projects";
 import { HOST_PROVIDER_ID } from "./local-host.js";
 import { EXTERNAL_MCP_PERMISSION } from "./mcp-tool-actions.js";
 import { NATIVE_CONTENT_PERMISSIONS } from "./native-content-permissions.js";
@@ -21,6 +21,10 @@ import { PLACEMENT_PERMISSIONS, PLACEMENT_PROVIDER_ID } from "@molis-ai/molis-wo
 import { MEMORY_PERMISSIONS, MEMORY_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/memory";
 import { KNOWLEDGE_PERMISSIONS, KNOWLEDGE_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/knowledge";
 import { ARTIFACT_ACTION_PERMISSIONS, ARTIFACTS_PROVIDER_ID } from "@molis-ai/molis-work-module-artifacts";
+import { agentTaskGrantActions } from "@molis-ai/molis-work-contracts/services/agent-task-grants";
+import { SKILLS_PROVIDER_ID, SKILLS_PERMISSIONS, skillImportActions } from "@molis-ai/molis-work-contracts/services/skills";
+import { TASK_GRANTS_PROVIDER_ID } from "./task-grant-actions.js";
+import { KIT_AGENT_DEFINITIONS_PROVIDER_ID, KIT_AGENT_MCP_PROVIDER_ID, KIT_AGENT_TOOLS_PROVIDER_ID, KIT_MCP_ACCESS_PROVIDER_ID, KIT_PROVIDER_ID, KIT_READ_PERMISSION } from "@molis-ai/molis-work-contracts/services/kit";
 
 const asks = (definitions: Iterable<{ readonly action?: { readonly permissions: readonly string[] } }>) =>
   [...definitions].flatMap(definition => definition.action?.permissions ?? []);
@@ -41,18 +45,29 @@ function ownerProviders(): ReadonlyMap<string, readonly string[]> {
       .map(entry => [entry.manifest.plugin_id, asks(entry.manifest.actions ?? [])] as const),
     [ARTIFACTS_PROVIDER_ID, ARTIFACT_ACTION_PERMISSIONS],
     [HOME_PROVIDER_ID, HOME_ACTION_PERMISSIONS],
-    [CONNECTOR_PROVIDER_ID, [...CONNECTOR_ACCOUNT_PERMISSIONS, CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGEMENT_WRITE, ...connectorRecordActions.read.action.permissions]],
+    [ACCOUNT_PROVIDER_ID, ACCOUNT_PERMISSIONS],
+    [CONNECTOR_PROVIDER_ID, [...CONNECTOR_ACCOUNT_PERMISSIONS, CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGEMENT_WRITE, ...connectorRecordActions.read.action.permissions, KIT_READ_PERMISSION]],
     [PLUGIN_CONSENT_PROVIDER_ID, PLUGIN_CONSENT_PERMISSIONS],
-    [PLUGIN_INSTALL_PROVIDER_ID, PLUGIN_INSTALL_PERMISSIONS],
+    // Importing Skills is installing the package the import makes: the same provider, the person's own (batch 08, 08-8).
+    [PLUGIN_INSTALL_PROVIDER_ID, [...PLUGIN_INSTALL_PERMISSIONS, ...asks(Object.values(skillImportActions))]],
+    [SKILLS_PROVIDER_ID, SKILLS_PERMISSIONS],
+    // The AI kit and the Host's own reporters it gathers: the person's to read (specs/capability-pack/contract-design.md §4.7).
+    [KIT_PROVIDER_ID, [KIT_READ_PERMISSION]],
+    [KIT_AGENT_TOOLS_PROVIDER_ID, [KIT_READ_PERMISSION]],
+    [KIT_AGENT_DEFINITIONS_PROVIDER_ID, [KIT_READ_PERMISSION]],
+    [KIT_AGENT_MCP_PROVIDER_ID, [KIT_READ_PERMISSION]],
+    [KIT_MCP_ACCESS_PROVIDER_ID, [KIT_READ_PERMISSION]],
     [INFORMATION_PROVIDER_ID, asks(Object.values(informationActions))],
     [FUNCTIONS_PROVIDER_ID, asks([...Object.values(functionsActions), ...Object.values(functionAuthoringActions), ...Object.values(functionContextActions)])],
-    [PROJECT_WORKSPACE_PROVIDER_ID, asks(Object.values(projectWorkspaceActions))],
+    [PROJECT_WORKSPACE_PROVIDER_ID, asks([...Object.values(projectDirectoryActions), ...Object.values(projectPluginActions), ...Object.values(materialRecentActions), ...Object.values(materialOriginActions)])],
     [CHARACTER_PLUGIN_ID, CHARACTER_ACTION_PERMISSIONS],
     [ASSISTANT_RULES_PROVIDER, asks([...Object.values(ASSISTANT_RULE_ACTIONS), ...Object.values(ASSISTANT_FOLLOW_UP_ACTIONS), ...Object.values(assistantThreadActions)])],
     [SEARCH_PROVIDER_ID, SEARCH_PERMISSIONS],
     [KNOWLEDGE_PROVIDER_ID, [...KNOWLEDGE_PERMISSIONS, "model:invoke"]],
     [PLACEMENT_PROVIDER_ID, PLACEMENT_PERMISSIONS],
     [MEMORY_PROVIDER_ID, MEMORY_PERMISSIONS],
+    // The person sets a task's grants (`set` is offered to `user` alone; S-task-grant-subjects ⑤).
+    [TASK_GRANTS_PROVIDER_ID, asks(Object.values(agentTaskGrantActions))],
   ];
   const providers = new Map<string, readonly string[]>();
   for (const [provider, permissions] of entries) providers.set(provider, [...new Set([...providers.get(provider) ?? [], ...permissions])]);

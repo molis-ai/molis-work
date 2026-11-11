@@ -1,15 +1,15 @@
 import { createHash } from "node:crypto";
 import { chmodSync, closeSync, fsyncSync, lstatSync, openSync, realpathSync } from "node:fs";
-import Database from "better-sqlite3";
 import { isDeepStrictEqual } from "node:util";
 import { readDatabaseSpace, spaceMetadataShapeMatches, STORAGE_SPACE_SCHEMA_SQL, type StorageSpace } from "./space.js";
 import { snapshotProgramsMatch } from "./sqlite-baseline-inspection.js";
-import { openSqliteConnection } from "./sqlite-connection.js";
+import { openSqliteConnection, sqliteErrorName } from "./sqlite-connection.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
   describeSqliteBaseline,
   describeSqliteSchema,
-  SqliteSchemaVersionError,
+  isSqliteVersionRefusal,
+  sqliteVersionMismatch,
   type SqliteBaseline,
 } from "./sqlite-baseline.js";
 import type { SqliteDatabase } from "./sqlite.js";
@@ -73,8 +73,7 @@ function inspect(
   } catch (error) {
     if (
       error !== options.signal?.reason &&
-      error instanceof Database.SqliteError &&
-      error.code === "SQLITE_ERROR"
+      sqliteErrorName(error) === "SQLITE_ERROR"
     )
       throw invalid(`快照库结构或完整性检查失败: ${file}`);
     throw error;
@@ -91,7 +90,7 @@ function inspectDatabase(
   if (previous && userVersion !== previous.user_version) throw changed(file);
   const expectedVersion = options.baseline?.version ?? options.version;
   if (expectedVersion !== undefined && userVersion !== expectedVersion)
-    throw new SqliteSchemaVersionError(file, userVersion, expectedVersion);
+    throw sqliteVersionMismatch(file, userVersion, expectedVersion);
   const shape = describeSqliteSchema(database);
   if (shape.tables.molis_storage_space && !spaceMetadataShapeMatches(database))
     throw invalid(`快照库的空间元数据结构不符: ${file}`);
@@ -132,7 +131,7 @@ function inspectDatabase(
     if (
       previous &&
       error !== options.signal?.reason &&
-      (error instanceof SqliteSchemaVersionError ||
+      (isSqliteVersionRefusal(error) ||
         error instanceof ActionError && error.kind === "invalid")
     )
       throw changed(file);
@@ -163,12 +162,7 @@ export async function backupSnapshotSqlite(
     database = openSqliteConnection(source, { readonly: true, fileMustExist: true, timeout: 0 });
     options.signal?.throwIfAborted();
     const original = inspect(database, source, options);
-    await database.backup(destination, {
-      progress: () => {
-        options.signal?.throwIfAborted();
-        return 128;
-      },
-    });
+    await database.backup(destination, { rate: 128, progress: () => options.signal?.throwIfAborted() });
     options.signal?.throwIfAborted();
     const current = lstatSync(source);
     if (
@@ -202,8 +196,7 @@ export async function backupSnapshotSqlite(
   } catch (error) {
     if (
       error !== options.signal?.reason &&
-      error instanceof Database.SqliteError &&
-      (error.code === "SQLITE_CORRUPT" || error.code === "SQLITE_NOTADB")
+      (sqliteErrorName(error) === "SQLITE_CORRUPT" || sqliteErrorName(error) === "SQLITE_NOTADB")
     )
       throw invalid(`快照库不是有效的 SQLite 数据: ${source}`);
     throw error;

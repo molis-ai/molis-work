@@ -1,14 +1,14 @@
 # Plugin 开发与打包命令
 
-给 Plugin 作者提供 validate、create、pack、pack-sandbox、identity、sign 和 verify 命令，并通过 Host 接入本地开发验证。
+给 Plugin 作者提供 validate、create、pack、pack-sandbox、pack-content、pack-bundled、identity、sign 和 verify 命令，并通过 Host 接入本地开发验证。
 
 包名：`@molis-ai/molis-work-plugin-cli`。工作区内部包，通过仓库构建和 Host 装配使用。
 
-`create` 默认生成 v2 Integration 插件。Manifest 注册健康查询、个人结果读取和保存动作；生成代码从这份定义绑定 handler，轮询调用同一个注册保存动作。健康查询可单独授权给 MCP，个人成果入口保留本地 owner 限制。原私人计数、Artifact 版本和 UI 仍由原服务持有；生成模板不会给未知消费者伪造场景或业务触发。需要判断场景时按 [SDK 合同](../../packages/plugin-sdk/README.md#动作与判断消费场景)声明真实 targets、绑定和消费。
+`create` 默认生成 Integration 插件。Manifest 注册健康查询、个人结果读取和保存动作；生成代码从这份定义绑定 handler，轮询调用同一个注册保存动作。健康查询可单独授权给 MCP，个人成果入口保留本地 owner 限制。原私人计数、Artifact 版本和 UI 仍由原服务持有；生成模板不会给未知消费者伪造场景或业务触发。需要判断场景时按 [SDK 合同](../../packages/plugin-sdk/README.md#动作与判断消费场景)声明真实 targets、绑定和消费。
 
 ## 一次典型调用
 
-runPluginCli 分发命令；validate 使用 Contracts 的 Manifest parser，pack 生成显式文件列表的 JSON bundle，签名和验证使用 Plugin Runtime 的公开包验证接口。dev 通过注入的 PluginCliHost 使用真实 Local Host。
+runPluginCli 分发命令；validate 使用 Contracts 的 Manifest parser，并按 Plugin Runtime 的规则读 Manifest 旁边声明的语言文件（`blocking` 的失败，只缺译文的放进输出的 `locale_notes`）；pack 生成显式文件列表的 JSON bundle，声明的语言文件自动带上、不用写进 `files`，同一套规则不过就不写输出，签名和验证使用 Plugin Runtime 的公开包验证接口。dev 通过注入的 PluginCliHost 使用真实 Local Host；独立的 `molis-work-plugin` 没有 Host，`dev`、`install` 报 `plugin.host_required`。
 
 ## 从哪里读代码
 
@@ -56,9 +56,19 @@ node tooling/plugin-cli/dist/main.js validate examples/plugin-sample/manifest.js
 
 ## 沙箱包
 
-`pack-sandbox <directory> <output.json>` 从 `plugin.mjs`、`contract.json`、`interface.json`、`prompts.json` 生成未签名包。必填 `--name`、`--version`、`--publisher-id`、`--publisher-key-id`；范围用 `--scope project|home`（默认 project），可选 `--icon`、逗号分隔的 `--compatible-from`，以及 JSON 三元组列表 `--agent`、`--methods`。清单、派生权限和 effects 由公开 SDK 的 `sandboxPluginManifest` / `effectsFromContract` 生成。
+`pack-sandbox <directory> <output.json>` 从 `plugin.mjs`、`contract.json`、`interface.json`、`prompts.json` 生成未签名包。必填 `--name`、`--version`、`--publisher-id`、`--publisher-key-id`；范围用 `--scope project|home`（默认 project），可选 `--icon`、逗号分隔的 `--compatible-from`，以及 JSON 列表 `--agent`（角色资料，每项 `{ name, purpose, body }`）与 `--methods`（完整的方法声明，`description`、`applies_to` 必填，`body` 是 `skills/<skill_id>/SKILL.md`，`tools` 为空）。清单、派生权限和 effects 由公开 SDK 的 `sandboxPluginManifest` / `effectsFromContract` 生成。
 
-命令只读取固定文件和正文声明引用的 `agent/` 文件，不读取源目录的 BuildManifest，不递归打包，也不把 `package.json` 放进沙箱包。输出不能覆盖；路径跳转、symlink、文件/包超限会拒绝。随后用既有 `sign`、`verify` 命令签名与核验。打包只检查它消费的结构；完整合同、界面和正文语义仍由 Host 在安装预览时检查，打包成功不代表插件可运行。
+命令只读取固定文件、角色资料引用的 `agent/` 文件和方法声明的正文与资源，不读取源目录的 BuildManifest，不递归打包，也不把 `package.json` 放进沙箱包。输出不能覆盖；路径跳转、symlink、文件/包超限会拒绝。随后用既有 `sign`、`verify` 命令签名与核验。打包只检查它消费的结构；完整合同、界面和正文语义仍由 Host 在安装预览时检查，打包成功不代表插件可运行。
+
+## 内容包
+
+`pack-content <skills-directory> <output.json>` 把一个目录下的各个技能目录（每个是 `<skill_id>/SKILL.md`，附带文件只能放在 `references/`、`scripts/`、`assets/` 下）打成只有声明的插件（`kind: "content"`）的未签名内容包。必填 `--plugin-id`、`--name`、`--version`、`--publisher-id`、`--publisher-key-id`；范围用 `--scope project|home`（默认 project），可选逗号分隔的 `--compatible-from`。每个技能的声明从 `SKILL.md` 的 frontmatter 读（SDK 的 `skillDeclarationFromFrontmatter`：只认下划线写法的键，`argument-hint` 一类带连字符的写法点名拒绝；多行值拒绝；`description`、`applies_to` 必填），资源的大小与 SHA-256 由命令算出；Manifest 由 SDK 的 `skillFromFolder` / `contentPackagePayload` 生成，与宿主「从本机导入技能」是同一个打包函数。
+
+符号链接、既不是文件也不是目录的条目、其他位置的文件、超过上限（一个包至多 128 个技能）都拒绝，不写输出、也不悄悄丢掉。输出不能覆盖。随后用既有 `sign`、`verify` 命令签名与核验，再从插件设置安装（`plugins.install.preview`／`confirm`，与别的包同一条路）。
+
+## 随安装包带上的包
+
+`pack-bundled <pack-directory> <output-directory> --publisher-key <private-key.pem>` 打随安装包带上的只有声明的插件（如 `plugins/content/design-accessibility/`）。包目录里是 `skills/` 与 `pack-content.json`（`pack-content` 的参数写成文件：`plugin_id`、`version`、`name`、`publisher_id`，可选 `name_en`、`summary`、`scope`、`compatible_from`、`translations`；多一个键就拒绝）。它用与 `pack-content` 同一个打包函数，同一步签名并自验，写到 `<output-directory>/<plugin_id>.json`，不覆盖。没有 `--publisher-key` 就以 `plugin.publisher_key_missing` 拒绝，不建目录、不写文件：官方发布者密钥与在发版构建里跑这一步归第 26 批（26-1）。宿主从自己构建产物里的 `bundled-plugins/` 读这些包（`plugins.bundled.list@1`），装仍走 `plugins.install.preview`／`confirm`。
 
 ## 开发要求
 
@@ -69,6 +79,7 @@ node tooling/plugin-cli/dist/main.js validate examples/plugin-sample/manifest.js
 - 不变量：
   - `create` 要求父目录已存在且目标不存在；`pack` 不覆盖输出，拒绝 symlink、越界路径与超过 64 MiB 的包；分发文件必须用 `package.json` 的 `files` 明确列出，不执行 glob 或生命周期脚本。
   - `validate` 只读校验，不启动插件。
+  - `dev`、`install` 只经注入的 `PluginCliHost` 跑；独立的 `molis-work-plugin` 没有 Host，这两条报 `plugin.host_required`（`unavailable`），在建任何状态目录之前；帮助按入口列命令，独立工具把这两条写成 `molis-work plugin …`。
   - 生成的模板不给未知消费者伪造场景或业务触发。
 - 改动后必跑：`node scripts/run-tests.mjs tests/plugin-authoring.test.ts tests/plugin-package.test.ts tests/npm-package.test.ts tests/plugin-declaration-rules.test.ts tests/action-artifact-references.test.ts`
 - 加跑：`node scripts/run-tests.mjs tests/plugin-sample.e2e.test.ts`（不开浏览器，要 `pnpm pack` 加 npm 离线安装，只在本机跑，不在 CI 里，见 BL-124）

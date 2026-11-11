@@ -16,7 +16,7 @@ import { openLingguangStore } from "./fixtures/plugin-home-stores.js";
 import { openMemoryLedger, openTextSearchIndex } from "@molis-ai/molis-work-storage";
 import { createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { homeBusinessTree } from "./fixtures/home-storage-files.js";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
 
 /**

@@ -193,13 +193,13 @@ test("Home judgment resolves a formally installed plugin's own subjects and pins
     const project = await host.withProject(reference, project => project);
     project.store.db.exec("CREATE TABLE fixture_home_judgment_notes (id TEXT PRIMARY KEY, revision INTEGER NOT NULL, content TEXT NOT NULL)");
     project.store.db.prepare("INSERT INTO fixture_home_judgment_notes VALUES (?, 1, ?)").run(subject.id, "插件私有记录的原始正文");
-    const reader = defineSubjectContextAction("unknown.notes.read", subject.kind, "原笔记", ["notes:read"]);
-    const events = defineHomeEventsAction("unknown.notes.events", [subject.kind], "笔记事项", ["notes:read"]);
+    const reader = defineSubjectContextAction("unknown.notes.read", 1, subject.kind, "原笔记", ["notes:read"]);
+    const events = defineHomeEventsAction("unknown.notes.events", 1, [subject.kind], "笔记事项", ["notes:read"]);
     const write: ActionDefinition = { capability_id: "unknown.notes.finish", version: 1, operation: "command", action: {
       title: "完成笔记", description: "修改插件原记录", kind: "operation", scope: "project", audiences: ["user", "mcp"],
       permissions: ["notes:write"], subject_kinds: [subject.kind], input_schema: { type: "object", properties: { id: { type: "string" }, revision: { type: "integer" }, marker: { type: "string" } }, required: ["id", "revision", "marker"], additionalProperties: false },
       output_schema: { type: "object", properties: { changed: { type: "integer" } }, required: ["changed"] } } };
-    const offerQuery = defineSubjectOffersAction("unknown.notes.offers", [subject.kind], "笔记动作", ["notes:read"], [
+    const offerQuery = defineSubjectOffersAction("unknown.notes.offers", 1, [subject.kind], "笔记动作", ["notes:read"], [
       { offer_id: "notes.finish", title: "完成笔记", action: { capability_id: write.capability_id, version: 1 } },
     ]);
     let marker = "original", available = true;
@@ -236,9 +236,9 @@ test("Home judgment resolves a formally installed plugin's own subjects and pins
     const authored = await withFunctionsServiceAsync(home, async service => {
       const draft = service.create({ primitive: "noul", function_key: "unknown_note_decision", name: "笔记完成判断" });
       service.updateDraft(draft.id, { instructions: "依据原文判断是否完成", criteria: { true_description: "已完成", false_description: "待确认完成" },
-        scene_id: HOME_DOCK_SCENE_ID, subject_kinds: [subject.kind], scene_map: { true: selectedKey, false: selectedKey } });
-      await service.preview(draft.id, "插件原始正文");
-      return service.publish(draft.id);
+        scene_id: HOME_DOCK_SCENE_ID, subject_kinds: [subject.kind], scene_map: { true: selectedKey, false: selectedKey } }, service.get(draft.id).updated_at);
+      await service.preview(draft.id, "插件原始正文", service.get(draft.id).updated_at);
+      return service.publish(draft.id, service.get(draft.id).updated_at);
     }, options);
     assert.equal((await host.sceneClient(reference).discoverScenes(caller, publishedFunctionAction(authored))).find(scene => scene.definition.scene_id === HOME_DOCK_SCENE_ID)!.compatible, true);
     await host.actionClient(reference).invoke(caller, homeActions.writeJudgment, { function_key: authored.function_key });

@@ -7,8 +7,10 @@ import { HomeConsentLedger, homeAgentDefinitions } from "@molis-ai/molis-work-ap
 import type { AssistantMethod, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { issueModel } from "./fixtures/issue-model.js";
-import { newPublisher, signedAgentPackage, PACKAGE_PLUGIN_ID } from "./fixtures/sandbox-package.js";
+import { newPublisher, packageMethod, signedAgentPackage, PACKAGE_PLUGIN_ID } from "./fixtures/sandbox-package.js";
 import { waitWork } from "./fixtures/assistant-send-journey.js";
+import { CURRENT_WORK } from "./fixtures/assistant-current-work.js";
+import { roleOf } from "./fixtures/assistant-roles.js";
 
 test("RAC-2636/2640/2641/2643 signed File preview and real picker preserve boundary names and source through model handoff", { skip: process.platform !== "darwin", timeout: 150_000 }, async t => {
   let model!: Awaited<ReturnType<typeof issueModel>>;
@@ -17,7 +19,8 @@ test("RAC-2636/2640/2641/2643 signed File preview and real picker preserve bound
   }); assert.ok(browser);
   const publisher = newPublisher(), names = ["中".repeat(80), "😀".repeat(40), "文".repeat(78) + "😀", "<img src=x onerror=globalThis.__agentInjected=1>"], prefix = "😀".repeat(200);
   const roles = names.map((name, index) => ({ name, purpose: "目".repeat(300), body: `agent/role-${index}.md` }));
-  const methods = [{ name: names[0]!, purpose: "同名方法", body: "agent/method.md" }, { name: "旧方法", purpose: "将被移除", body: "agent/removed.md" }];
+  // SKP-08 SKC-03: a signed package's methods are complete Skill declarations, each with its own skill_id.
+  const methods = [packageMethod("same-name", names[0]!, "同名方法"), packageMethod("old-method", "旧方法", "将被移除")];
   const bodies = Object.fromEntries(roles.map(entry => [entry.body, prefix + "<script>仅为正文</script>旧尾部"]));
   const bundle = signedAgentPackage(publisher, { version: "1.1.0", roles, methods, bodies });
   const settings = `/projects/${browser.projectId}/settings/plugins`;
@@ -33,7 +36,11 @@ test("RAC-2636/2640/2641/2643 signed File preview and real picker preserve bound
   const cancel = async () => { await browser.click("[data-plugin-trust-preview] .mw-btn--secondary"); await browser.waitFor("document.querySelector('[data-plugin-trust-preview]').hidden"); };
   const confirm = async () => {
     await browser.evaluate("(() => {const field=document.querySelector('[data-plugin-trust-preview] input');if(field)field.value='Signed publisher';})()");
-    await browser.click("[data-plugin-trust-preview] .mw-btn--primary"); await browser.waitFor("document.querySelector('[data-plugin-trust-preview]').hidden");
+    await browser.click("[data-plugin-trust-preview] .mw-btn--primary");
+    // A package with Skills asks next which of them to use here (08); finishing leaves them off, as installed.
+    await browser.waitFor("document.querySelector('[data-plugin-trust-preview]').hidden || !!document.querySelector('[data-plugin-trust-preview] .skill-toolbar')");
+    await browser.evaluate("document.querySelector('[data-plugin-trust-preview] .skill-toolbar .mw-btn--primary')?.click()");
+    await browser.waitFor("document.querySelector('[data-plugin-trust-preview]').hidden");
   };
   await go(settings); await browser.waitFor("!!document.querySelector('[data-plugin-trust-pick]')");
   await select(bundle, "cancelled");
@@ -41,19 +48,24 @@ test("RAC-2636/2640/2641/2643 signed File preview and real picker preserve bound
   assert.ok((await shown()).includes(publisher.identity));
   assert.equal(await browser.evaluate("document.querySelectorAll('[data-plugin-trust-preview] img,[data-plugin-trust-preview] script').length"), 0);
   assert.equal(await browser.evaluate("globalThis.__agentInjected || 0"), 0);
-  assert.deepEqual(await browser.evaluate<string[]>("[...document.querySelectorAll('.plugin-trust-agent-body pre')].map(node=>node.textContent)"), [...roles.map(() => prefix), "逐条核对可验证的事实。", "逐条核对可验证的事实。"]);
+  assert.deepEqual(await browser.evaluate<string[]>("[...document.querySelectorAll('.plugin-trust-agent-body > pre')].map(node=>node.textContent)"), roles.map(() => prefix));
+  // A truncated body can be read whole before confirming, behind its own disclosure.
+  assert.deepEqual(await browser.evaluate<string[]>("[...document.querySelectorAll('.plugin-trust-agent-body details pre')].map(node=>node.textContent)"), roles.map(entry => bodies[entry.body]));
+  // A method is a Skill (09 §2.2): the review lists it by name with the package's other Skills, never as a body excerpt.
+  assert.deepEqual(await browser.evaluate<string[]>("[...document.querySelectorAll('[data-plugin-trust-preview] .mw-items .mw-item strong')].map(node=>node.textContent)"), methods.map(item => item.name));
   await cancel();
   assert.deepEqual(new HomeConsentLedger(browser.homeDirectory).publishers(), []); assert.equal(existsSync(join(browser.homeDirectory, "plugin-packages")), false);
   assert.equal(homeAgentDefinitions(browser.homeDirectory).methods().some(item => item.owner_id === PACKAGE_PLUGIN_ID), false);
   await select(bundle, "install"); await confirm();
   await browser.waitFor("document.querySelector('[data-plugin-trust-list]').innerText.includes('1.1.0')");
-  const next = signedAgentPackage(publisher, { version: "1.2.0", compatibleFrom: ["1.1.0"], roles, methods: [methods[0]!, { name: "新增方法", purpose: "新增", body: "agent/new.md" }], bodies: Object.fromEntries(roles.map(entry => [entry.body, prefix + "新尾部"])) });
+  const next = signedAgentPackage(publisher, { version: "1.2.0", compatibleFrom: ["1.1.0"], roles, methods: [methods[0]!, packageMethod("new-method", "新增方法", "新增")], bodies: Object.fromEntries(roles.map(entry => [entry.body, prefix + "新尾部"])) });
   const evidence = join(process.cwd(), ".impeccable/qa/review/t144"); await mkdir(evidence, { recursive: true });
   for (const locale of ["zh", "en"] as const) {
     await go("/locale?lang=" + locale + "&next=" + encodeURIComponent(settings)); await browser.waitFor("!!document.querySelector('[data-plugin-trust-pick]')");
     await select(next, "upgrade-" + locale);
     const text = await shown(); assert.ok(text.includes(locale === "zh" ? "正文已变化" : "Body changed"));
-    assert.ok(text.includes(locale === "zh" ? "新增正文" : "Body added")); assert.ok(text.includes(locale === "zh" ? "已移除正文" : "Body removed"));
+    // The added and removed methods are Skill changes, shown in the package's Skill list.
+    assert.ok(text.includes(locale === "zh" ? "新加入" : "New")); assert.ok(text.includes(locale === "zh" ? "会移除" : "Will be removed"));
     for (const width of [1440, 1024, 390]) for (const theme of ["light", "dark"]) {
       await browser.setViewport(width, 1000);
       await browser.evaluate(`document.documentElement.dataset.theme=${JSON.stringify(theme)};document.documentElement.dataset.resolvedTheme=${JSON.stringify(theme)}`);
@@ -70,23 +82,31 @@ test("RAC-2636/2640/2641/2643 signed File preview and real picker preserve bound
   await select(other, "other-plugin"); await confirm();
   await browser.setViewport(1440, 1000); await go("/");
   await browser.waitFor(`document.querySelector('.chooser')?.dataset.selected === ${JSON.stringify(browser.projectId)}`);
+  // The package's method is a Skill of the shared catalog: offered to the Assistant once the person turns it on (09 §2.2).
+  const registry = homeAgentDefinitions(browser.homeDirectory), sameName = registry.methods().find(item => item.owner_id === PACKAGE_PLUGIN_ID && item.skill_id === "same-name")!;
+  assert.equal(registry.skills.set(browser.projectId, sameName.install_id!, sameName.skill_id, "auto", 0, "web-user"), "ok");
   const list = await browser.evaluate<{ methods: AssistantMethod[] }>(`fetch('/projects/${browser.projectId}/api/assistant/methods').then(response=>response.json())`);
-  const own = list.methods.filter(item => item.plugin_id === PACKAGE_PLUGIN_ID);
-  for (const name of names) assert.ok(own.some(item => item.name === name && item.default_ref?.source.plugin_version === "1.2.0"));
-  assert.ok(list.methods.filter(item => item.name === names[0]).length >= 2);
+  const own = list.methods.filter(roleOf(PACKAGE_PLUGIN_ID));
+  for (const name of names) assert.ok(own.some(item => item.name === name && item.default_ref.source.plugin_version === "1.2.0"));
+  assert.ok(list.methods.filter(item => (item.kind === "skill" ? item.skill.name : item.name) === names[0]).length >= 2);
+  // K3: "/" on an empty line opens the unified composer's menu, which lists the methods and Character material by name.
+  const slash = "(() => {const input=document.querySelector('[data-assistant-composer] .mw-composer__input');input.focus();input.value='/';input.setSelectionRange(1,1);input.dispatchEvent(new InputEvent('input',{bubbles:true,data:'/',inputType:'insertText'}));})()";
+  const commands = "[...document.querySelectorAll('[data-assistant-composer] [data-compose-menu] [data-composer-command]')]";
+  // The first role shares its name with a Skill; each role is picked as role material.
+  const role = (name: string) => `${commands}.find(node=>node.textContent.startsWith('/角色资料 ')&&node.textContent.includes(${JSON.stringify(name)}))`;
   for (const name of names.slice(0, 3)) {
-    await browser.evaluate(`(() => {const input=document.querySelector('[data-assistant-input]');input.value=${JSON.stringify("/" + name)};input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
-    await browser.waitFor(`Array.from(document.querySelectorAll('[data-assistant-starters] button')).some(node=>node.textContent.includes(${JSON.stringify(name)}))`);
-    const label = await browser.evaluate<string>(`(() => {const button=[...document.querySelectorAll('[data-assistant-starters] button')].find(node=>node.textContent.includes(${JSON.stringify(name)}));const text=button.textContent;button.click();return text;})()`);
+    await browser.evaluate(slash);
+    await browser.waitFor(`!!${role(name)}`);
+    const label = await browser.evaluate<string>(`(() => {const button=${role(name)};const text=button.textContent;button.click();return text;})()`);
     assert.ok(label.includes(name));
   }
-  await browser.evaluate(`(() => {const input=document.querySelector('[data-assistant-input]');input.value=${JSON.stringify("/" + names[0])};input.dispatchEvent(new Event('input',{bubbles:true}));})()`);
-  await browser.waitFor(`Array.from(document.querySelectorAll('[data-assistant-starters] button')).some(node=>node.textContent.startsWith('方法：')&&node.textContent.includes(${JSON.stringify(names[0])}))`);
-  await browser.evaluate(`Array.from(document.querySelectorAll('[data-assistant-starters] button')).find(node=>node.textContent.startsWith('方法：')&&node.textContent.includes(${JSON.stringify(names[0])})).click()`);
-  await browser.evaluate("(() => {const input=document.querySelector('[data-assistant-input]');input.value='用所选资料审稿';input.dispatchEvent(new Event('input',{bubbles:true}));})()");
-  await browser.click("[data-assistant-send]");
-  await browser.waitFor("!!localStorage.getItem('molis.assistant.current')");
-  const workId = await browser.evaluate<string>("localStorage.getItem('molis.assistant.current')");
+  await browser.evaluate(slash);
+  await browser.waitFor(`${commands}.some(node=>node.textContent.startsWith('/方法 ')&&node.textContent.includes(${JSON.stringify(names[0])}))`);
+  await browser.evaluate(`${commands}.find(node=>node.textContent.startsWith('/方法 ')&&node.textContent.includes(${JSON.stringify(names[0])})).click()`);
+  await browser.evaluate("(() => {const input=document.querySelector('[data-assistant-composer] .mw-composer__input');input.value='用所选资料审稿';input.dispatchEvent(new Event('input',{bubbles:true}));})()");
+  await browser.click("[data-assistant-composer] [data-composer-send]");
+  await browser.waitFor(`!!${CURRENT_WORK}`);
+  const workId = await browser.evaluate<string>(CURRENT_WORK);
   const view: AssistantWorkView = await waitWork(browser, workId, value => value.work.state === "completed");
   const adopted = view.rounds[0]!.materials.filter(item => item.kind === "method"); assert.equal(adopted.length, 4);
   for (const name of names.slice(0, 3)) assert.ok(adopted.some(item => item.method?.name === name));

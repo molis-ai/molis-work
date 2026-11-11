@@ -96,7 +96,7 @@ export async function memoryServiceHome(t: Pick<TestContext, "after" | "mock">, 
     ledger = openMemoryLedger({ homeDirectory: home, storageOwner });
     adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "agent-runtime"), storageOwner,
       memory: { ...memoryRuntimePolicy(() => owner, options.extractor ?? (options.generate ? memoryExtractor(home, () => options.generate) : undefined)), ...(options.sources ? { sources: options.sources } : {}),
-        promotion: { policy: "memory.write-gate", version: 3, decide: (caller, request) => service.promotion.decide(caller, request),
+        promotion: { policy: "memory.write-gate", version: 1, decide: (caller, request) => service.promotion.decide(caller, request),
           undo: { prepare: (caller, request) => service.promotion.undo.prepare(caller, request), record: (caller, request) => service.promotion.undo.record(caller, request) } } }, modelConfiguration: async () => { throw new Error("Memory fixture does not call a model"); } });
     service = new MemoryService({ backend: backend(), ledger, timeZone: "Asia/Shanghai",
       ...(options.now ? { now: options.now } : {}), ...(options.projectTitle ? { projectTitle: options.projectTitle } : {}) });

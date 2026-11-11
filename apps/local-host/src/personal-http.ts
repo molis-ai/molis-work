@@ -1,9 +1,12 @@
+import { webPageScope } from "./web-sessions.js";
+import { createPersonalAccountProtocol } from './personal-account-protocol.js';
+import { createPersonalPageHttp } from './personal-page-http.js';
+import { AccountRefreshPages } from './account-refresh-pages.js';
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { randomUUID, randomBytes } from "node:crypto";
-import { createFileSecretStore } from "@molis-ai/molis-work-storage";
-import { personalCloudConfig, PersonalAuth } from "./personal-auth.js";
+import { fileAccountSecrets, personalCloudConfig, PersonalAuth, type PersonalAccountLease } from "./personal-auth.js";
 import { sendLocalWebJson } from "./web-http.js";
-import { PersonalWebSessions, type AccountNavigation, type WebAccountSession } from './personal-web-sessions.js';
+import { PersonalWebSessions, type AccountNavigation, type WebAccountSession, WEB_ACCOUNT_COOKIE } from './personal-web-sessions.js';
 
 /** Only real local work surfaces can be resumed; never redirect to a caller's origin. */
 export function personalReturnPath(raw:string|null, desktop=false):string {
@@ -15,33 +18,165 @@ export function personalReturnPath(raw:string|null, desktop=false):string {
   return url.pathname+url.search+url.hash;
 }
 
+interface NativeTicket {auth:PersonalAuth;lease:PersonalAccountLease;expires:number}
+
+/** Configuration and credential access stay with the account HTTP owner; callers cache the successful Auth. */
+function loadPersonalAuth():{auth:PersonalAuth|null;error:string} {
+  let config;
+  try{config=personalCloudConfig();}
+  catch{return {auth:null,error:'账号服务配置不完整，请检查配置。'};}
+  try{return {auth:config?new PersonalAuth(config,fileAccountSecrets()):null,error:''};}
+  catch{return {auth:null,error:'客户端安全凭据存储不可用，请检查本机凭据存储权限。'};}
+}
+
+/** Ticket use is single shot, including a refused attempt; it never borrows a later account lease. */
+function consumeNativeTicket(tickets:Map<string,NativeTicket>,auth:PersonalAuth|null,key:string):PersonalAuth|null {
+  const ticket=tickets.get(key);tickets.delete(key);
+  try{ticket?.lease.assertCurrent();}catch{return null;}
+  return ticket&&ticket.expires>=Date.now()&&ticket.auth===auth&&auth?.identity()?auth:null;
+}
+function issueNativeTicket(tickets:Map<string,NativeTicket>,service:PersonalAuth):string|undefined {
+  for(const [key,value] of tickets)if(value.expires<Date.now())tickets.delete(key);
+  if(tickets.size>=32)return undefined;
+  const ticket=randomBytes(32).toString('base64url');tickets.set(ticket,{auth:service,lease:service.accountLease(),expires:Date.now()+30000});return ticket;
+}
+
+/** Native WebView attachment owns the existing cached web session and its one-shot tickets, never Auth identity. */
+function createNativeWebAttachment(webSessions:PersonalWebSessions) {
+  let current:WebAccountSession|null=null;
+  const tickets=new Map<string,NativeTicket>();
+  const session=(service:PersonalAuth)=>{
+    if(!current||!webSessions.get(webSessions.cookie(current,false)))current=webSessions.adopt(service);
+    return current;
+  };
+  return {
+    session,
+    owns(candidate:WebAccountSession|null){return candidate!==null&&candidate===current;},
+    issue:(service:PersonalAuth)=>issueNativeTicket(tickets,service),
+    clear(){tickets.clear();},
+    handle(request:IncomingMessage,response:ServerResponse,url:URL,origin:string,auth:PersonalAuth|null):boolean {
+      if(request.method!=='POST'||url.pathname!=='/api/personal/native-attach')return false;
+      const service=consumeNativeTicket(tickets,auth,url.searchParams.get('ticket')??'');
+      if(!service){sendLocalWebJson(response,401,{error:'客户端登录凭据已失效。'});return true;}
+      response.setHeader('Set-Cookie',webSessions.cookie(session(service),origin.startsWith('https:')));
+      sendLocalWebJson(response,200,{attached:true});return true;
+    },
+  };
+}
+
+/** A browser status request retains its original lease even if its shared session object is rotated during an await. */
+function browserStatusFence(desktop:boolean,session:WebAccountSession|null,response:ServerResponse,configured:boolean) {
+  const authenticated=!desktop&&!!session?.authenticated,lease=session?.lease,expires=session?.expires??0;
+  return ()=>{
+    if(!authenticated)return true;
+    try{if(lease&&expires>Date.now()){lease.assertCurrent();return true;}}catch{ /* The request's original browser lease was revoked. */ }
+    sendLocalWebJson(response,200,{configured,identity:null,syncEnabled:false,accountChanged:true,ready:false,switching:false});return false;
+  };
+}
+
+interface PersonalAccountEnvironment {
+  ready(retry?:boolean):Promise<void>;
+  status():{ready:boolean;switching:boolean;error?:string;viewScope?:string};
+}
+
+async function respondPersonalStatus({desktop,session,response,service,setupError,url,refreshPages,environment,nativeAttachment,navigation,setMode,controlToken}:{
+  desktop:boolean;session:WebAccountSession|null;response:ServerResponse;service:PersonalAuth|null;setupError:string;url:URL;
+  refreshPages:AccountRefreshPages;environment?:PersonalAccountEnvironment;nativeAttachment:ReturnType<typeof createNativeWebAttachment>;
+  navigation:AccountNavigation|null;setMode:(mode:'account')=>void;controlToken:string;
+}):Promise<void> {
+  const statusCurrent=browserStatusFence(desktop,session,response,!!service);
+  if(desktop && setupError){sendLocalWebJson(response,503,{error:setupError});return;}
+  let generation=service?.accountGeneration();const restoring=desktop&&!service?.identity();
+  let offline=false;
+  let identity:ReturnType<PersonalAuth['identity']>=null;
+  try {
+    identity=!desktop&&!session?.authenticated?null:await service?.currentIdentity()??null;
+    offline=!!identity&&!!service?.offlineCached();if(restoring)generation=service?.accountGeneration();
+  }catch{
+    offline=true;
+    identity=desktop||session?.authenticated?service?.identity()??null:null;
+  }
+  if(!statusCurrent())return;
+  const lease=identity&&service?service.accountLease():null;
+  const page=url.searchParams.get('page');
+  const pageBinding=lease&&page?refreshPages.register(page,lease):undefined;
+  if(lease)try{await environment?.ready();}catch{ /* The environment status retains the cleanup or initialization failure. */ }
+  if(!statusCurrent())return;
+  if(lease&&(lease.signal.aborted||generation!==service?.accountGeneration())){
+    sendLocalWebJson(response,200,{configured:!!service,identity:null,syncEnabled:false,accountChanged:true,ready:false,switching:false});return;
+  }
+  const status:ReturnType<PersonalAccountEnvironment['status']>=lease?(environment?.status()??{ready:true,switching:false}):{ready:false,switching:false};
+  // The native lease already proves this local account. A failed upstream check must not strand its WebView with a stale cookie.
+  const nativeSession=desktop&&lease&&service&&status.ready?nativeAttachment.session(service):null;
+  const browserSessionTicket=nativeSession&&service?nativeAttachment.issue(service):undefined;
+  const completed=!offline&&status.ready&&!!navigation?.complete&&navigation.expires>Date.now()&&url.searchParams.get('attempt')===navigation.id;
+  if(completed&&desktop)setMode('account');
+  sendLocalWebJson(response,200,{
+    configured:!!service,identity,syncEnabled:false,...(offline?{offline:true}:{}),
+    ...(pageBinding?{pageBinding}:{}),accountGeneration:service?.accountGeneration(),loginPending:service?.loginPending()??false,
+    preparation:lease?refreshPages.snapshot(lease):null,...status,
+    space:(nativeSession??session)?.space??'local',viewScope:status.viewScope??controlToken.split(".")[1]??webPageScope(controlToken),
+    ...(browserSessionTicket?{browserSessionTicket}:{}),
+    ...(completed?{loginCompleted:true,returnTo:navigation!.returnTo}:{}),
+  });
+}
+
+/** Anonymous entry owns Cookie creation; a refused competitor cannot overwrite the pending owner. */
+async function openAnonymousSession(load:()=>PersonalAuth|null,sessions:PersonalWebSessions,pending:()=>AccountNavigation|null,response:ServerResponse,origin:string):Promise<WebAccountSession|null> {
+  try {
+    const shared=load();if(!shared)throw new Error('LOGIN_REQUIRED');await shared.currentIdentity();
+    const navigation=pending();
+    if(shared.loginPending()||navigation&&!navigation.complete&&navigation.expires>Date.now()){
+      sendLocalWebJson(response,409,{error:'已有账号操作正在进行，请在原页面完成或取消。'});return null;
+    }
+    const session=sessions.adopt(shared,false);
+    response.setHeader('Set-Cookie',sessions.cookie(session,origin.startsWith('https:')));return session;
+  } catch {sendLocalWebJson(response,503,{error:'登录会话暂时不可用，请稍后重试。'});return null;}
+}
+
 /** Construct lazily in the server's Home scope; no credentials/configuration means no network. */
-export function createPersonalAccountHttp(isNativeRequest: (request:IncomingMessage)=>boolean = ()=>false) {
+export function createPersonalAccountHttp(isNativeRequest: (request:IncomingMessage)=>boolean = ()=>false, environment?:PersonalAccountEnvironment) {
   let auth:PersonalAuth|null=null;
   let setupError='';
   const webSessions=new PersonalWebSessions();
+  const refreshPages=new AccountRefreshPages(30_000,()=>auth?.cancelLogin());
+  const pageHttp=createPersonalPageHttp(refreshPages);
   let desktopNavigation:AccountNavigation|null=null;
-  let nativeBrowser:WebAccountSession|null=null;
-  const tickets=new Map<string,{auth:PersonalAuth;expires:number}>();
-  function nativeSession(service:PersonalAuth):WebAccountSession {
-    if(!nativeBrowser || !webSessions.get(webSessions.cookie(nativeBrowser,false)))nativeBrowser=webSessions.adopt(service);
-    return nativeBrowser;
-  }
+  let pendingNavigation:AccountNavigation|null=null;
+  let pendingNative=false,pendingAttachOnly=false;
+  let loginNonce:string|null=null;
+  let pendingBrowser:WebAccountSession|null=null;
+  const nativeAttachment=createNativeWebAttachment(webSessions);
   function getAuth():PersonalAuth|null {
     if(auth)return auth;
-    setupError='';
-    let config;
-    try{config=personalCloudConfig();}
-    catch{setupError='账号服务配置不完整，请检查配置。';return null;}
-    try{if(config)auth=new PersonalAuth(config,createFileSecretStore());}
-    catch{setupError='客户端安全凭据存储不可用，请检查本机凭据存储权限。Web 登录不受此影响。';}
-    return auth;
+    const loaded=loadPersonalAuth();setupError=loaded.error;return auth=loaded.auth;
   }
+  const protocol=createPersonalAccountProtocol(()=>{
+    const service=auth,navigation=pendingNavigation,nonce=loginNonce;
+    if(!service||!navigation||!nonce)return null;
+    return {auth:service,nonce,native:pendingNative,attachOnly:pendingAttachOnly,expires:navigation.expires,complete:navigation.complete,
+      accepts(request:IncomingMessage){return pendingNative||webSessions.get(request.headers.cookie)===pendingBrowser;},
+      assertCurrent(){if(auth!==service||pendingNavigation!==navigation||loginNonce!==nonce||(!navigation.complete&&!service.loginPending()))throw new Error('LOGIN_CANCELLED');},
+      fail(){if(!navigation.complete&&pendingNavigation===navigation){service.cancelLogin();pendingNavigation=null;loginNonce=null;}},
+      async completeLogin(response:ServerResponse){
+        await service.adoptLogin(pendingAttachOnly);
+        if(!await service.currentIdentity())throw new Error('LOGIN_REQUIRED');
+        navigation.complete=true;
+        if(!pendingNative){
+          const session=webSessions.adopt(service);session.navigation=navigation;
+          if(pendingBrowser)webSessions.remove(pendingBrowser);
+          pendingBrowser=session;
+          response.setHeader('Set-Cookie',webSessions.cookie(session,service.config.productOrigin.startsWith('https:')));
+        }else response.setHeader('Set-Cookie','molis-work-mode=account; Path=/; HttpOnly; SameSite=Strict; Max-Age=31536000');
+        // Anonymous auto-entry must not replace this attempt while its final account read or response is still pending.
+        const delivered=()=>{if(pendingNavigation===navigation)service.finishLogin();};
+        response.once('finish',delivered);response.once('close',delivered);
+        await environment?.ready(true);
+      },
+    };
+  });
   async function handle(request:IncomingMessage,response:ServerResponse,url:URL,origin:string,_controlToken:string,_desktopScript:string):Promise<boolean> {
-    const callback=url.pathname==='/account/callback';
-    // A UI query/header is not proof of native identity. The external browser
-    // callback instead proves the single-use PKCE state of a native login.
-    const desktop=callback ? !!auth?.callbackState() && auth.callbackState()===url.searchParams.get('state') : isNativeRequest(request);
+    const desktop=isNativeRequest(request);
     const home=personalReturnPath(url.searchParams.get('returnTo'),desktop || url.searchParams.get('desktop')==='1');
     const setMode=(value:'local'|'account')=>response.setHeader('Set-Cookie',`molis-work-mode=${value}; Path=/; HttpOnly; SameSite=Strict; Max-Age=31536000`);
     if(request.method==='GET' && url.pathname==='/')return false;
@@ -49,88 +184,85 @@ export function createPersonalAccountHttp(isNativeRequest: (request:IncomingMess
     if(request.method==='GET' && ['/welcome','/account'].includes(url.pathname)){
       response.writeHead(303,{Location:home,'Cache-Control':'no-store'});response.end();return true;
     }
-    if(!['/welcome','/account','/account/callback','/api/personal/status','/api/personal/local','/api/personal/login','/api/personal/switch','/api/personal/logout','/api/personal/space','/api/personal/native-attach'].includes(url.pathname))return false;
+    if(!['/welcome','/account','/account/callback','/api/personal/status','/api/personal/local','/api/personal/login','/api/personal/switch','/api/personal/logout','/api/personal/space','/api/personal/native-attach','/api/personal/login-cancel','/api/personal/prepare','/api/personal/events'].includes(url.pathname))return false;
     response.setHeader('Cache-Control','no-store');response.setHeader('Referrer-Policy','no-referrer');
     response.setHeader('X-Content-Type-Options','nosniff');response.setHeader('X-Frame-Options','DENY');
-    if(request.method==='POST' && url.pathname==='/api/personal/native-attach'){
-      const key=url.searchParams.get('ticket')??'',ticket=tickets.get(key);tickets.delete(key);
-      if(!ticket || ticket.expires<Date.now() || ticket.auth!==auth || !auth?.identity()){
-        sendLocalWebJson(response,401,{error:'客户端登录凭据已失效。'});return true;
-      }
-      response.setHeader('Set-Cookie',webSessions.cookie(nativeSession(ticket.auth),origin.startsWith('https:')));
-      sendLocalWebJson(response,200,{attached:true});return true;
-    }
+    if(nativeAttachment.handle(request,response,url,origin,auth))return true;
     if(request.method==='POST' && url.pathname==='/api/personal/local'){
-      const current=desktop&&auth?nativeSession(auth):webSessions.get(request.headers.cookie);if(current)current.space='local';
-      setMode('local');sendLocalWebJson(response,200,{redirectTo:home});return true;
+      sendLocalWebJson(response,400,{error:'此安装使用当前登录账号，不能切换匿名工作区。'});return true;
     }
     let config;try{config=personalCloudConfig();}catch{ /* Session cleanup is best effort; no authenticated response is returned. */ }
     const configured=!!config;
     let session=desktop?null:webSessions.get(request.headers.cookie);
     const setSessionCookie=()=>response.setHeader('Set-Cookie',webSessions.cookie(session,origin.startsWith('https:')));
     if(!desktop && !session && config && request.method==='POST' && ['/api/personal/login','/api/personal/switch'].includes(url.pathname)){
-      try{session=webSessions.create(config);setSessionCookie();}
-      catch{sendLocalWebJson(response,503,{error:'登录会话暂时不可用，请稍后重试。'});return true;}
+      session=await openAnonymousSession(getAuth,webSessions,()=>pendingNavigation,response,origin);
+      if(!session)return true;
     }
     if(request.method==='GET' && url.pathname==='/api/personal/status' && !desktop && !session){
-      sendLocalWebJson(response,200,{configured,identity:null,syncEnabled:false});return true;
+      sendLocalWebJson(response,200,{configured,identity:null,syncEnabled:false,accountChanged:request.headers.cookie?.split(';').some(part=>part.trim().startsWith(WEB_ACCOUNT_COOKIE+'='))??false,accountGeneration:auth?.accountGeneration(),ready:false,switching:false});return true;
     }
     const service=desktop?getAuth():session?.auth??null;
     let navigation=desktop?desktopNavigation:session?.navigation??null;
     try{
       if(request.method==='GET' && url.pathname==='/api/personal/status') {
-        if(desktop && setupError){sendLocalWebJson(response,503,{error:setupError});return true;}
-        try {
-          const identity=await service?.currentIdentity()??null;
-          let browserSessionTicket:string|undefined;
-          if(desktop && identity && service){
-            for(const [key,value] of tickets)if(value.expires<Date.now())tickets.delete(key);
-            if(tickets.size<32){browserSessionTicket=randomBytes(32).toString('base64url');tickets.set(browserSessionTicket,{auth:service,expires:Date.now()+30000});}
-          }
-          const completed=!!identity && !!navigation?.complete && navigation.expires>Date.now() && url.searchParams.get('attempt')===navigation.id;
-          if(completed && desktop)setMode('account');
-          sendLocalWebJson(response,200,{configured:!!service,identity,syncEnabled:false,space:(desktop&&service?nativeSession(service):session)?.space??'local',viewToken:_controlToken,...(browserSessionTicket?{browserSessionTicket}:{}),...(completed?{loginCompleted:true,returnTo:navigation!.returnTo}:{})});
-        }catch{
-          sendLocalWebJson(response,200,{configured:!!service,identity:service?.identity()??null,syncEnabled:false,offline:true,space:session?.space??'local',viewToken:_controlToken});
-        }
+        await respondPersonalStatus({desktop,session,response,service,setupError,url,refreshPages,environment,nativeAttachment,navigation,setMode,controlToken:_controlToken});
         return true;
       }
+      if(request.method==='GET'&&url.pathname==='/api/personal/events')return pageHttp(request,response,url,service,desktop||!!session?.authenticated);
       if(!service){sendLocalWebJson(response,configured?401:503,{error:desktop?setupError:'登录会话已失效，请重新登录。'});return true;}
+      if(!desktop&&!session?.authenticated&&!['/account/callback','/api/personal/login','/api/personal/switch','/api/personal/login-cancel'].includes(url.pathname)){
+        sendLocalWebJson(response,401,{error:'请先连接当前账号。'});return true;
+      }
+      if(request.method==='POST'&&url.pathname==='/api/personal/login-cancel'){
+        if(!navigation||navigation.complete||navigation.id!==url.searchParams.get('attempt')||navigation!==pendingNavigation&&(pendingNavigation!==null||service.loginPending())){sendLocalWebJson(response,409,{error:'此登录请求已失效，不能取消其他页面的登录。'});return true;}
+        service.cancelLogin();pendingNavigation=null;loginNonce=null;
+        if(service.identity()&&(desktop||session?.authenticated)){const lease=service.accountLease(),preparation=refreshPages.snapshot(lease);if(preparation)refreshPages.cancel(preparation.ownerPageId,lease,preparation.id);}
+        sendLocalWebJson(response,200,{cancelled:true});return true;
+      }
+      if(pageHttp(request,response,url,service,desktop||!!session?.authenticated))return true;
       if(request.method==='POST' && url.pathname==='/api/personal/space') {
         const kind=url.searchParams.get('kind');
-        if(kind!=='local' && kind!=='personal'){sendLocalWebJson(response,400,{error:'仅支持本地空间和个人空间。'});return true;}
-        if(!service.identity()){sendLocalWebJson(response,401,{error:'请先登录。'});return true;}
-        const current=desktop?nativeSession(service):session!;
-        current.space=kind==='personal'?'account':'local';
+        if(kind!=='personal'){sendLocalWebJson(response,400,{error:'此安装只使用当前登录账号的工作区。'});return true;}
+        if(!service.identity()||!desktop&&!session?.authenticated){sendLocalWebJson(response,401,{error:'请先登录。'});return true;}
+        await environment?.ready(true);
+        const current=desktop?nativeAttachment.session(service):session!;current.space='account';
         sendLocalWebJson(response,200,{redirectTo:'/'});return true;
       }
-      if(request.method==='GET' && url.pathname==='/account/callback') {
-        if(url.searchParams.get('error')==='access_denied'){
-          service.cancel(url.searchParams.get('state')??'');
-          response.writeHead(303,{Location:navigation?.returnTo??'/'});response.end();return true;
-        }
-        const destination=navigation;
-        await service.complete(url.searchParams.get('code')??'',url.searchParams.get('state')??'');
-        if(destination && (desktop?desktopNavigation:session?.navigation)===destination)destination.complete=true;
-        if(session){webSessions.rotate(session);setSessionCookie();}else setMode('account');
-        response.writeHead(303,{Location:session?.space==='account'?'/':destination?.returnTo??'/'});response.end();return true;
-      }
       if(request.method==='POST' && ['/api/personal/login','/api/personal/switch'].includes(url.pathname)) {
+        // Reopening an anonymous entry resumes only its own installation attempt; it never replaces a different browser's login.
+        if(url.pathname==='/api/personal/login'&&service.loginPending()&&navigation===pendingNavigation&&navigation&&!navigation.complete&&navigation.expires>Date.now()&&loginNonce&&pendingNative===desktop&&(desktop?!service.identity():session===pendingBrowser&&!session?.authenticated)){
+          const resume=new URL('/',origin);resume.searchParams.set('accountLogin',loginNonce);
+          sendLocalWebJson(response,200,{loginUrl:resume.href,loginAttempt:navigation.id});return true;
+        }
+        if(service.loginPending()||(!desktop&&!session?.authenticated&&!!service.identity()&&refreshPages.snapshot(service.accountLease()))){sendLocalWebJson(response,409,{error:'已有账号操作正在进行，请在原页面完成或取消。'});return true;}
+        if(service.identity()&&(desktop||session?.authenticated))refreshPages.requirePrepared(url.searchParams.get('page')??'',service.accountLease(),url.searchParams.get('preparation')??'', 'switch');
         const attempt={id:randomUUID(),returnTo:home,complete:false,expires:Date.now()+600000};
-        navigation=attempt;if(session)session.navigation=attempt;else desktopNavigation=attempt;
-        // Switching must not silently restore Auth's existing browser session.
-        // Keep the current account until a replacement has successfully authenticated.
+        pendingNavigation=attempt;navigation=attempt;if(session)session.navigation=attempt;else desktopNavigation=attempt;
+        // A candidate has no Home authority until verification and the installation handoff both succeed.
+        pendingNative=desktop;pendingAttachOnly=!desktop&&!session?.authenticated&&!!service.identity();
+        pendingBrowser=session;
         const loginUrl=await service.begin(`${origin}/account/callback`,desktop,url.pathname==='/api/personal/switch');
+        loginNonce=service.callbackState();
         sendLocalWebJson(response,200,{loginUrl,loginAttempt:attempt.id});return true;
       }
       if(request.method==='POST' && url.pathname==='/api/personal/logout') {
+        refreshPages.requirePrepared(url.searchParams.get('page')??'',service.accountLease(),url.searchParams.get('preparation')??'','logout');
         navigation=null;if(desktop)desktopNavigation=null;
-        const remoteRevoked=await service.logout();
+        const scope=url.searchParams.get('scope')??'CURRENT_LOGIN';
+        if(scope!=='CURRENT_LOGIN'&&scope!=='ALL_MOLIS_PRODUCTS'){sendLocalWebJson(response,400,{error:'退出范围无效。'});return true;}
+        const remoteRevoked=await service.logout(scope);
+        nativeAttachment.clear();pendingNavigation=null;pendingBrowser=null;loginNonce=null;desktopNavigation=null;await environment?.ready(true);
         if(session){webSessions.remove(session);session=null;setSessionCookie();}else setMode('local');
         sendLocalWebJson(response,200,{signedOut:true,remoteRevoked,redirectTo:home});return true;
       }
       sendLocalWebJson(response,405,{error:'不支持此操作。'});
     }catch{
+      const failedLogin=(['/api/personal/login','/api/personal/switch'].includes(url.pathname))&&navigation!==null&&navigation===pendingNavigation;
+      if(failedLogin)service?.cancelLogin();
+      if(failedLogin&&service?.identity()&&(desktop||session?.authenticated)){
+        const lease=service.accountLease(),preparation=refreshPages.snapshot(lease);if(preparation)refreshPages.cancel(preparation.ownerPageId,lease,preparation.id);
+      }
       // Keep the user at a useful local surface, without echoing codes or upstream responses.
       if(url.pathname==='/account/callback'){
         response.writeHead(400,{'content-type':'text/html; charset=utf-8'});
@@ -140,10 +272,15 @@ export function createPersonalAccountHttp(isNativeRequest: (request:IncomingMess
     return true;
   }
   return Object.assign(handle, {
-    context(request:IncomingMessage){
-      const current=isNativeRequest(request)?(auth?nativeSession(auth):null):webSessions.get(request.headers.cookie);
-      return current?.auth.identity()?current:null;
+    protocol,
+    async drained(){await auth?.drained();},
+    async restore(){await getAuth()?.currentIdentity();},
+    preparing(){const service=getAuth();return !!service?.identity()&&!!refreshPages.snapshot(service.accountLease());},
+    current(){const service=getAuth();return service?.identity()?nativeAttachment.session(service):null;},
+    context(request:IncomingMessage,nativeOnly=false){
+      const current=isNativeRequest(request)?(auth?nativeAttachment.session(auth):null):webSessions.get(request.headers.cookie);
+      return current?.authenticated&&current.auth.identity()&&(!nativeOnly||nativeAttachment.owns(current))?current:null;
     },
-    close(){webSessions.close();auth?.suspend();desktopNavigation=null;tickets.clear();},
+    close(){pageHttp.close();refreshPages.close();webSessions.close();auth?.suspend();desktopNavigation=null;nativeAttachment.clear();},
   });
 }

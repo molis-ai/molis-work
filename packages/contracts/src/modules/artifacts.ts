@@ -1,9 +1,9 @@
 import type { ContractDescriptor } from "../platform/package.js";
 
 export const modulesArtifactsContract = {
-  contractId: "io.molis.work.module.artifacts.v1",
+  contractId: /* @version contract.io.molis.work.module.artifacts "io.molis.work.module.artifacts.v{version}" */ "io.molis.work.module.artifacts.v1",
   kind: "module",
-  schemaVersion: 1,
+  schemaVersion: /* @version contract.io.molis.work.module.artifacts */ 1,
   maturity: "partial",
   ssot: "docs/modules/artifacts.md",
 } as const satisfies ContractDescriptor;
@@ -29,11 +29,11 @@ export interface ArtifactReference {
 export const ARTIFACT_SUBJECT_KIND = "artifact";
 
 /** Imports a file into the caller's current project through its owner. */
-export const ARTIFACT_FILE_IMPORT_ACTION = { capability_id: "artifacts.import.file", version: 1, provider_id: "io.molis.work.artifacts" } as const;
+export const ARTIFACT_FILE_IMPORT_ACTION = { capability_id: "artifacts.import.file", version: /* @version action.artifacts.import.file */ 1, provider_id: "io.molis.work.artifacts" } as const;
 
 /**
  * An imported file or document in the 成果库 (specs/artifact-positioning A3): its type, and its original file as imported
- * (bytes for any file, or the text of an older text import). The 成果库 shows it; a plugin that continues from it reads it.
+ * (bytes for any file, or only the text when a text or external document import keeps no original). The 成果库 shows it; a plugin that continues from it reads it.
  */
 export const IMPORTED_DOCUMENT_TYPE = "io.molis.work.document";
 /**
@@ -212,10 +212,18 @@ export type ArtifactVersionResult = FixedVersionResult<ArtifactVersionRecord>;
 export type ProcessItemResult = FixedVersionResult<ProcessItemRecord>;
 
 export interface ArtifactListQuery {
+  /** An explicit page, up to 200 versions; omit for a complete owner-maintenance traversal. */
+  limit?: number;
+  offset?: number;
   artifact_type_id?: string;
   schema_version?: number;
   scope?: ArtifactScope;
   lifecycle_state?: ArtifactLifecycleState;
+  availability?: ArtifactAvailability;
+  /** A declaration set is filtered inside the owner, before paging or reading content. */
+  supported_types?: readonly ArtifactConsumerType[];
+  /** Only personal versions are narrowed; platform consumers supply their trusted actor. */
+  personal_owner_actor_id?: string;
 }
 
 export interface ArtifactConsumerType {
@@ -234,6 +242,8 @@ export interface FixedVersionQueryApi<R extends FixedVersionRecord> {
   listArtifactVersions(projectId: string, artifactId: string): R[];
   latestArtifactVersion(projectId: string, artifactId: string): R | null;
   listArtifacts(projectId: string, query?: ArtifactListQuery): R[];
+  /** Exact existence only, without loading content; at most 200 fixed references. */
+  existingReferences(projectId: string, references: readonly ArtifactReference[]): ArtifactReference[];
   consumptionCompatibility(
     projectId: string,
     reference: ArtifactReference,

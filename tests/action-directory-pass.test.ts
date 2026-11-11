@@ -142,3 +142,14 @@ test("RAC-1134 a list of allowed actions answers the same in a directory as one 
   const calls = await Promise.allSettled(definitions.map(definition => service.invoke(allowed, definition, {})));
   assert.deepEqual(calls.map(call => call.status), ["fulfilled", "fulfilled", "rejected", "rejected", "rejected"], "a call outside a directory checks the list itself");
 });
+
+test("D0012 nested directory passes share a read and restore the outer pass after throws", () => {
+  const owner = {}; let reads = 0;
+  inDirectoryPass(() => {
+    assert.equal(rememberInDirectoryPass(owner, "key", () => ++reads), 1);
+    assert.equal(inDirectoryPass(() => rememberInDirectoryPass(owner, "key", () => ++reads)), 1);
+    assert.throws(() => inDirectoryPass(() => { throw new Error("nested"); }), /nested/);
+    assert.equal(rememberInDirectoryPass(owner, "key", () => ++reads), 1);
+  });
+  assert.equal(inDirectoryPass(() => rememberInDirectoryPass(owner, "key", () => ++reads)), 2);
+});

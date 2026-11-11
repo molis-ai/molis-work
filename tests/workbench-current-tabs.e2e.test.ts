@@ -33,7 +33,7 @@ test("W1-18-TAB-FORMAT-01: real item tabs, collapsed user groups and a nested sp
   await browser.click("[data-tab-menu-action=new-group]");
   await browser.click(".tab-group-label");
   await browser.waitFor("!!document.querySelector('.tab-group[data-collapsed=true]')");
-  await browser.click("[data-tab-split]"); await browser.click('[data-layout-split="right"]');
+  await browser.click("[data-layout-open]"); await browser.click('[data-layout-split="right"]');
   await browser.waitFor("document.querySelectorAll('[data-tab-pane]').length === 2");
   const key = "molis-work-tab-workspace:" + browser.projectId;
   await browser.evaluate(`(() => { const state=JSON.parse(localStorage.getItem(${JSON.stringify(key)}));
@@ -45,7 +45,7 @@ test("W1-18-TAB-FORMAT-01: real item tabs, collapsed user groups and a nested sp
     throw error;
   }
   const saved = await browser.evaluate<string>(`localStorage.getItem(${JSON.stringify(key)})`);
-  const before = JSON.parse(saved) as { panes: Array<{ tabs: Array<{ kind: string; itemId?: string }>; groups: Array<{ collapsed: boolean }> }> };
+  const before = JSON.parse(saved) as { panes: Array<{ tabs: Array<{ kind: string; itemId?: string }>; groups: Array<{ collapsed: boolean }>; viewPlugin?: string | null }> };
   assert.equal(before.panes.length, 3);
   assert.ok(before.panes.every(pane => pane.tabs.some(tab => tab.kind === "item" && tab.itemId === "CORE")));
   assert.ok(before.panes.some(pane => pane.groups.some(group => group.collapsed)));
@@ -60,7 +60,7 @@ test("W1-18-TAB-FORMAT-01: real item tabs, collapsed user groups and a nested sp
   for (const change of [
     "tab.kind='mother'", "tab.preview=true", "pane.collapsed=true",
     "tab.plugin='task';tab.kind='task';tab.goalId='CORE';delete tab.itemId",
-    "tab.plugin='task';tab.kind='item'", "tab.goalView='canvas'",
+    "tab.goalView='canvas'",
   ]) {
     await browser.evaluate(`(() => { const stored=${saved},pane=stored.panes[0],tab=pane.tabs.find(row=>row.kind==='item');${change};
       localStorage.setItem(${JSON.stringify(key)},JSON.stringify(stored)); })()`);
@@ -68,9 +68,23 @@ test("W1-18-TAB-FORMAT-01: real item tabs, collapsed user groups and a nested sp
     await browser.waitFor("document.querySelectorAll('[data-tab-pane]').length === 1", 15_000);
     const current = JSON.parse(await browser.evaluate<string>(`localStorage.getItem(${JSON.stringify(key)})`)) as typeof before;
     assert.equal(current.panes.length, 1, change);
-    assert.ok(current.panes.every(pane => pane.tabs.every(tab => tab.kind === "home")), change + " starts from current Home rather than converting the old item");
+    // 07-S2 (口径 3, 4): the project home is no longer a tab; a fresh workspace is one pane with no tab and no plugin page.
+    assert.ok(current.panes.every(pane => pane.tabs.length === 0 && pane.viewPlugin === null), change + " starts from current Home rather than converting the old item");
     assert.equal(await browser.evaluate("document.querySelector('.tab-item[data-tab-kind=mother], .tab-item[data-preview]')"), null);
   }
+
+  // 口径 4 (07-S1 review B1): a plugin id is a value, not the shape. A tab of a plugin neither this build nor Home knows (one
+  // uninstalled from Home, or named before a rename) is read as it is: the three panes and the nested split stay, the other
+  // tabs are where they were, and that tab is drawn removed.
+  await browser.evaluate(`(() => { const stored=${saved},tab=stored.panes[0].tabs.find(row=>row.kind==='item');tab.plugin='uninstalled-plugin';
+    localStorage.setItem(${JSON.stringify(key)},JSON.stringify(stored)); })()`);
+  await browser.reloadPage();
+  await browser.waitFor("document.querySelectorAll('[data-tab-pane]').length === 3 && document.querySelector('.tab-item[data-plugin=uninstalled-plugin][data-tab-removed]')", 15_000);
+  const kept = JSON.parse(await browser.evaluate<string>(`localStorage.getItem(${JSON.stringify(key)})`)) as typeof before & { layout: unknown };
+  const ids = (state: typeof before) => state.panes.map(pane => pane.tabs.filter(tab => tab.kind !== "plugin").map(tab => tab.itemId ?? tab.kind));
+  assert.deepEqual(ids(kept), ids(before), "every pane keeps its tabs in their places");
+  assert.deepEqual(kept.layout, (JSON.parse(saved) as { layout: unknown }).layout, "the split is the same");
+  assert.ok(kept.panes[0].tabs.some(tab => (tab as { plugin?: string }).plugin === "uninstalled-plugin"), "the unknown plugin's tab is still saved");
 });
 
 test("personal Home uses the bottom navigation while Goals retains its current plugin group", { timeout: 90_000 }, async t => {
@@ -142,8 +156,9 @@ test("RAC-2687 old layout and UI caches reset once; a real browser restart resto
       await page.command("Browser.setWindowBounds", { windowId, bounds: { width: 1440, height: 1000 } });
       await page.command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false });
       await Promise.all([chrome.event("Page.domContentEventFired"), page.command("Page.navigate", { url })]);
-      // A restored split draws tabs in each pane, while a single pane uses the titlebar strip.
-      await page.wait("[...document.querySelectorAll('[data-titlebar-tabs] .tab-item, [data-tab-pane] .tab-item')].some(tab=>tab.getClientRects().length>0)", {
+      // A restored split draws tabs in each pane, while a single pane uses the titlebar strip; the project home has no tab
+      // (07-S2, 口径 3), so the titlebar strip is drawn once its ＋ is.
+      await page.wait("[...document.querySelectorAll('[data-titlebar-tabs] .tab-add-button, [data-titlebar-tabs] .tab-item, [data-tab-pane] .tab-item')].some(tab=>tab.getClientRects().length>0)", {
         describe: "JSON.stringify({url:location.href,title:document.title,readyState:document.readyState,body:document.body?.innerText.slice(0,1200),panes:document.querySelectorAll('[data-tab-pane]').length})",
       });
     };
@@ -160,9 +175,10 @@ test("RAC-2687 old layout and UI caches reset once; a real browser restart resto
       sessionStorage.setItem('molis-work-ui:other-project:current','preserved');
     })()`);
     await load(prefix);
-    const reset = await page.evaluate<{ panes: Array<{ tabs: Array<{ kind: string }> }> }>(`JSON.parse(localStorage.getItem(${JSON.stringify(key)}))`);
+    const reset = await page.evaluate<{ panes: Array<{ tabs: Array<{ kind: string }>; viewPlugin: string | null }> }>(`JSON.parse(localStorage.getItem(${JSON.stringify(key)}))`);
     assert.equal(reset.panes.length, 1);
-    assert.ok(reset.panes[0]!.tabs.every(tab => tab.kind === "home"));
+    // 07-S2 (口径 3): the fresh workspace shows the project home with no tab for it.
+    assert.deepEqual([reset.panes[0]!.tabs.length, reset.panes[0]!.viewPlugin], [0, null]);
     assert.equal(await page.evaluate(`sessionStorage.getItem(${JSON.stringify(ui)})`), null);
     assert.equal(await page.evaluate(`(sessionStorage.getItem(${JSON.stringify(history)})||'').includes('old-pane')`), false);
     assert.equal(await page.evaluate("localStorage.getItem('molis-work-tab-workspace:other-project')"), "preserved");
@@ -184,7 +200,7 @@ test("RAC-2687 old layout and UI caches reset once; a real browser restart resto
     await feed.click(`[data-feed-task="${source.source_id}"]`);
     await feed.waitFor(`document.querySelector('[data-feed-workbench]').dataset.selectedSource===${JSON.stringify(source.source_id)}`);
     await page.wait(`(()=>{const state=JSON.parse(localStorage.getItem(${JSON.stringify(key)})),pane=state.panes.find(p=>p.id===state.focusedPaneId);return pane.viewPlugin==='feed' && pane.tabs.find(tab=>tab.kind==='plugin' && tab.plugin==='feed')?.view===${JSON.stringify(source.source_id)};})()`);
-    await page.click('[data-titlebar-tabs] [data-tab-split]');
+    await page.click('[data-layout-open]');
     await page.click('[data-layout-split="right"]');
     const feedPanes = "document.querySelectorAll('iframe.tab-content-frame:not([hidden])').length===2 && [...document.querySelectorAll('iframe.tab-content-frame:not([hidden])')].every(f=>f.contentDocument?.querySelector('[data-plugin-owner=\"io.molis.work.feed\"][data-plugin-surface=workbench][data-plugin-slot=\"workbench.main\"] iframe[data-plugin-frame=feed]'))";
     await page.wait(feedPanes, { timeoutMs: 30_000 });

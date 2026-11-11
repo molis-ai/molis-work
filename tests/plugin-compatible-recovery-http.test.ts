@@ -1,3 +1,4 @@
+import { projectPluginRevisionAt } from "./fixtures/project-plugin-settings.js";
 import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -9,7 +10,7 @@ import { openTestSqlite, type SqliteDatabase } from "@molis-ai/molis-work-test-k
 import { createDiffPlugin } from "@molis-ai/molis-work-plugin-diff";
 import { createCodingPlugin } from "@molis-ai/molis-work-plugin-coding";
 import { PluginRuntime, SqlitePluginRuntimeRepository, pluginManifestDigest } from "@molis-ai/molis-work-plugin-runtime";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 
 for (const quarantined of [false, true]) test(`SYS-15-S8 authorized retry restores an older Coding install (quarantined=${quarantined}) at the Host's version`, async () => {
   const root = await mkdtemp(path.join(tmpdir(), "compatible-recovery-http-"));
@@ -28,7 +29,7 @@ for (const quarantined of [false, true]) test(`SYS-15-S8 authorized retry restor
     const created = await request("/api/settings/projects", "POST", { display_name: "Recovery", user_confirmed: true });
     assert.equal(created.status, 201);
     const projectId = (await created.json()).project.project_id;
-    assert.equal((await request(`/api/settings/projects/${projectId}/plugins`, "POST", { plugin_id: "coding" })).status, 200);
+    assert.equal((await request(`/api/settings/projects/${projectId}/plugins`, "POST", { plugin_id: "coding", expected_revision: await projectPluginRevisionAt(origin, projectId) })).status, 200);
     db = openTestSqlite(path.join(root, "projects", projectId, "molis-work.db"));
     const repository = new SqlitePluginRuntimeRepository(db);
     const oldRuntime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, maxRecoveryAttempts: 1 });

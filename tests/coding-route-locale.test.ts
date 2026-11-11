@@ -1,10 +1,11 @@
+import { projectPluginRevisionAt } from "./fixtures/project-plugin-settings.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { randomUUID } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 
 // specs/visual-ui-experience VUX-40 (user decision 2026-10-20): what a plugin's route sends back follows the page's language.
 // The Host resolves the language from the request (the page's language cookie, else Accept-Language) and puts it on the
@@ -26,7 +27,7 @@ test("VUX-40: a Coding route answers in the language of the page that called it"
     const created = await request("/api/settings/projects", "POST", { display_name: "Locale", user_confirmed: true });
     assert.equal(created.status, 201);
     const project = (created.body.project as { project_id: string }).project_id;
-    assert.equal((await request(`/api/settings/projects/${project}/plugins`, "POST", { plugin_id: "coding" })).status, 200);
+    assert.equal((await request(`/api/settings/projects/${project}/plugins`, "POST", { plugin_id: "coding", expected_revision: await projectPluginRevisionAt(origin, project) })).status, 200);
     const coding = `/projects/${project}/api/plugins/io.molis.work.coding`;
     const session = await request(coding + "/sessions", "POST", { title: "Locale" });
     assert.equal(session.status, 200, JSON.stringify(session.body));

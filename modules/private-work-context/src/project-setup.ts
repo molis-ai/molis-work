@@ -9,7 +9,7 @@ import { boundResolution } from "./project-resolution.js";
 
 export interface RuntimeProjectSetupPorts {
   bindings: Pick<RuntimeProjectBindingCommands, "resolveRuntimeContext" | "bindRuntimeContextInTransaction">;
-  records: Pick<RuntimeBindingRecords, "findRuntimeContextSetupRequest" | "findWorkspaceMembershipByIds">;
+  records: Pick<RuntimeBindingRecords, "findRuntimeContextSetupRequest" | "findWorkspaceMembershipAt">;
   validation: RuntimeProjectBindingValidation;
   getProject(projectId: string): ProjectRecord;
   registerProject(record: ProjectRecord, eventType: "project.created", actorId: string): void;
@@ -49,7 +49,7 @@ return async function createProjectAndBindRuntimeContext(
       }
       const current = ports.bindings.resolveRuntimeContext(input.context);
       const replayMembership = normalized.workspace
-        ? ports.records.findWorkspaceMembershipByIds(normalized.workspace.workspace_id, replay.project_id)
+        ? ports.records.findWorkspaceMembershipAt(normalized.workspace.canonical_path, replay.project_id)
         : null;
       if (
         (current.status === "bound" && current.project?.project_id !== replay.project_id)

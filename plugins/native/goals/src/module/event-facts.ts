@@ -115,6 +115,10 @@ export class GoalEventFacts implements GoalEventFactsApi {
     return readCurrentGoalEventRequirements(this.context, this.records, projectId, goalId);
   }
 
+  selfSupportingSessions(projectId: string, goalId: string, requirementId: string): ReadonlySet<string> {
+    return this.records.workEvents.selfSupportingSessions(projectId, goalId, requirementId);
+  }
+
   readIntentSourceKind(projectId: string, goalId: string): GoalIntentSourceKind | null {
     return this.reads.readIntentSourceKind(projectId, goalId);
   }

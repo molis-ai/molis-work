@@ -1,6 +1,7 @@
 import { scheduleServiceFor } from "./project-clock.js";
 import type { ProjectVersionStores } from "./project-version-stores.js";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createPluginPlatform, type PluginPlatform, type PluginPlatformEntry } from "./plugin-platform.js";
 import { closePlugin, supervisedInstall } from "./plugin-platform-close.js";
@@ -13,7 +14,7 @@ import { bindDeclaredDefaults } from "./plugin-default-bindings.js";
 import { nativePluginReleaseArtifact } from "./native-plugin-release-artifact.js";
 import { fixtureAdmission, installedFixturesFor, pluginHomeFor, projectFixtureEntries } from "./home-side.js";
 import { projectScopeEntries } from "./plugin-scope-entries.js";
-import { installationSwitchedOff, projectPluginEnablement, projectPluginEnablementRefresh } from "./project-plugin-enablement.js";
+import { installationSwitchedOff, projectPluginEnablement, projectPluginEnablementRefresh, type ProjectPluginRefreshResult } from "./project-plugin-enablement.js";
 import { projectPluginDatabaseRefusal, withoutRefusedPlugins } from "./project-plugin-databases.js";
 import { reviewSettlementForwarder, type ObserveReviewSettlements } from "./review-settlement-events.js";
 import { withPluginWords } from "@molis-ai/molis-work-app-workbench";
@@ -47,7 +48,7 @@ export interface ProjectPluginState {
   error?: string;
   updateObservers?(): void;
   stopObservers?(): void;
-  refreshEnablement?(): Promise<void>;
+  refreshEnablement?(): Promise<ProjectPluginRefreshResult | null>;
   /** The `consentRevision` this project last reconciled its default wirings at. */
   reconciledAt?: number;
 }
@@ -70,6 +71,16 @@ export async function runningProjectPlatform(store: LocalProjectDatabase, projec
   return opening ? (await opening.ready).platform : null;
 }
 
+/** Reconcile through the project's existing queue without starting a plugin platform. */
+export async function refreshRunningProjectPlugins(store: LocalProjectDatabase, projectId: string): Promise<ProjectPluginRefreshResult | null> {
+  const opening = started.get(store)?.get(projectId);
+  if (!opening) return null;
+  const state = await opening.ready;
+  const result = await state.refreshEnablement?.();
+  if (result == null) throw new ActionError("actions.service_unavailable", "项目插件平台当前无法刷新");
+  return result;
+}
+
 /** Drops a project's platform, so a closed project does not keep one alive. */
 export async function releaseProjectPlugins(store: LocalProjectDatabase, projectId: string): Promise<void> {
   const boards = started.get(store);
@@ -80,11 +91,12 @@ export async function releaseProjectPlugins(store: LocalProjectDatabase, project
   const record = await opening.ready;
   record.stopObservers?.();
   if (!record.platform) return;
-  await stopProjectPlugins(record.platform);
+  await stopProjectPlugins(record.platform, projectId);
 }
 
-async function stopProjectPlugins(platform: PluginPlatform): Promise<void> {
+async function stopProjectPlugins(platform: PluginPlatform, projectId: string): Promise<void> {
   const failures: unknown[] = [];
+  await platform.stopProjectJobs(projectId);
   await platform.closeCoordination();
   // Closing the project is not switching the plugin off (see closePlugin): the next start runs it, and only a plugin list keeps a
   // project plugin off; stored disabled records are restarted, with grants still checked (BL-755, choice A).
@@ -163,7 +175,7 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
   } catch (error) {
     record.stopObservers?.();
     if (record.platform) {
-      try { await stopProjectPlugins(record.platform); }
+      try { await stopProjectPlugins(record.platform, ports.projectId); }
       catch (cleanupError) { error = new AggregateError([error, cleanupError], "项目插件启动及清理失败"); }
       record.platform = null;
     }

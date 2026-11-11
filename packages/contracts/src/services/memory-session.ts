@@ -62,7 +62,7 @@ const base = { scope: "home", audiences: ["user"], permissions: ["memory:configu
 
 /** The protected Host context supplies the binding; neither action accepts a raw execution ref. */
 export const memorySessionActions = {
-  sessionClearPreview: { capability_id: "memory.session.clear.preview", version: 1, operation: "query", action: { ...base,
+  sessionClearPreview: { capability_id: "memory.session.clear.preview", version: /* @version action.memory.session.clear.preview */ 1, operation: "query", action: { ...base,
     title: "预览本会话记忆清除", description: "完整预览当前业务会话固定的正式记忆和候选，不删除对话。", kind: "query", effect: "read",
     input_schema: { type: "object", properties: {}, additionalProperties: false },
     output_schema: { oneOf: [
@@ -70,7 +70,7 @@ export const memorySessionActions = {
       { type: "object", properties: { preview_id: id, memory_count: count, candidate_count: count }, required: ["preview_id", "memory_count", "candidate_count"],
         anyOf: [{ properties: { memory_count: { type: "integer", minimum: 1 } } }, { properties: { candidate_count: { type: "integer", minimum: 1 } } }], additionalProperties: false },
     ] } } } as ActionDefinition<Record<string, never>, MemorySessionClearPreview>,
-  sessionClearApply: { capability_id: "memory.session.clear.apply", version: 1, operation: "command", action: { ...base,
+  sessionClearApply: { capability_id: "memory.session.clear.apply", version: /* @version action.memory.session.clear.apply */ 1, operation: "command", action: { ...base,
     title: "只清除本会话记忆", description: "继续原固定清理计划；保留对话和未选长期记忆，逐项报告确定结果。", kind: "operation", effect: "irreversible",
     input_schema: { type: "object", properties: { preview_id: id }, required: ["preview_id"], additionalProperties: false },
     output_schema: { type: "object", properties: { complete: { type: "boolean" }, items: { type: "array", minItems: 1, items: item } },

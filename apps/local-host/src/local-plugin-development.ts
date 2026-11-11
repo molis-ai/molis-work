@@ -11,6 +11,7 @@ import { bindGoalsManagementActions, goalsHostActions, refusePayloadIdentity } f
 import { bindProjectArtifacts } from "./declared-types.js";
 import type { PluginDevelopmentInput, PluginDevelopmentResult } from "@molis-ai/molis-work-contracts/platform/tooling";
 import { withPluginWords } from "@molis-ai/molis-work-app-workbench";
+import { installHostUiText } from "./ui-text-provider.js";
 
 /**
  * The Hosts made for the developer door (BL-588, S-75 ⑥) have no Home, or only the validated development state's own Home; each is closed when its run ends. The door runs
@@ -28,10 +29,12 @@ export function createPrivateDevelopmentHost(): MolisWorkLocalHost {
 /** Development data is explicitly separate from the user's catalog and existing projects. */
 export async function runLocalPluginDevelopment(input: {
   directory: string; state_directory: string; grants: string[]; allow_unsigned_development: true;
+  /** The language the run renders in (`--locale`); left out, the plugin's default. */
+  locale?: string;
 }): Promise<PluginDevelopmentResult> {
   const directory = resolve(input.state_directory);
   const markerName = ".molis-work-plugin-development.json";
-  const marker = { kind: "molis-work-plugin-development", schema_version: 1 };
+  const marker = { kind: "molis-work-plugin-development", schema_version: /* @version format.plugin.development-marker */ 1 };
   await mkdir(directory, { recursive: true });
   const names = await readdir(directory);
   if (names.includes(markerName)) {
@@ -47,7 +50,7 @@ export async function runLocalPluginDevelopment(input: {
   try {
     const reference = molisWorkHostProjectReference({ databasePath: join(directory, "development.db"), projectId });
     return await developInPrivateHost(host, reference, { directory: input.directory, project_id: projectId,
-      grants: input.grants, allow_unsigned_development: input.allow_unsigned_development });
+      grants: input.grants, allow_unsigned_development: input.allow_unsigned_development, ...(input.locale === undefined ? {} : { locale: input.locale }) });
   } finally { await host.close(); }
 }
 
@@ -64,6 +67,8 @@ async function ensureBoard(host: MolisWorkLocalHost, reference: LocalHostProject
 /** Host function for the isolated developer door; it is never a plugin capability. */
 export async function developInPrivateHost(host: MolisWorkLocalHost, reference: LocalHostProjectReference, input: PluginDevelopmentInput): Promise<PluginDevelopmentResult> {
   if (!developmentHosts.has(host)) throw new ActionError("actions.forbidden", "Plugin 开发只在为开发建的隔离宿主里运行，不在普通或真实 Home 的宿主里运行");
+  // The plugin's `t` reads the process's text context; this door has no web server to have installed it.
+  installHostUiText();
   const request = structuredClone(input);
   if (request.project_id !== reference.project_id.trim()) throw new ActionError("actions.scope_mismatch", "Plugin 开发不属于已打开的项目");
   refusePayloadIdentity(request, ["audit_actor_id"]);

@@ -1,4 +1,5 @@
-import { messageOf, required, settle, targetOf } from "./dom.js";
+import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
+import { required, settle, targetOf } from "./dom.js";
 import { filterPicks } from "./dialog.js";
 import { cancelHand, resumeRun } from "./handoff.js";
 import type { WorkflowsPage } from "./page.js";

@@ -1,3 +1,4 @@
+import { projectPluginRevisionAt } from "./fixtures/project-plugin-settings.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { randomUUID } from "node:crypto";
@@ -6,7 +7,8 @@ import { promisify } from "node:util";
 import { mkdtemp, mkdir, writeFile, rm, chmod } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
+import { changeProjectDirectories, directoriesWebOf, setProjectOutputFolder } from "./fixtures/project-directories-http.js";
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { GIT_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-git";
 const exec = promisify(execFile);
@@ -35,11 +37,11 @@ test("Git formal routes select the current grant, publish exact staged/worktree 
     await writeFile(path.join(directory, "note"), "staged\n"); await git("add", "."); await writeFile(path.join(directory, "note"), "working\n");
     await chmod(path.join(directory, "note"), 0o644);
     await start(); const projects: string[] = [];
-    for (const display_name of ["Git A", "Git B"]) { const created = await request("/api/settings/projects", "POST", { display_name, user_confirmed: true }); assert.equal(created.status, 201); projects.push(created.body.project.project_id); await request(`/api/settings/projects/${projects.at(-1)}/plugins`, "POST", { plugin_id: "coding" }); }
-    const api = (plugin: string, suffix: string, project = projects[0]) => plugin === "workspace" ? `/projects/${project}/api/project-settings/workspaces` : `/projects/${project}/api/plugins/io.molis.work.${plugin}${suffix}`;
-    assert.equal((await request(`/projects/${projects[0]}/api/workspaces`, "POST", { workspace_path: directory, user_confirmed: true })).status, 201);
-    const ws = (await request(api("workspace", "/state"))).body.workspaces[0].workspace_id;
-    await request(api("workspace", "/select"), "POST", { workspace_id: ws });
+    for (const display_name of ["Git A", "Git B"]) { const created = await request("/api/settings/projects", "POST", { display_name, user_confirmed: true }); assert.equal(created.status, 201); projects.push(created.body.project.project_id); await request(`/api/settings/projects/${projects.at(-1)}/plugins`, "POST", { plugin_id: "coding", expected_revision: await projectPluginRevisionAt(origin, projects.at(-1)!) }); }
+    const api = (plugin: string, suffix: string, project = projects[0]) => `/projects/${project}/api/plugins/io.molis.work.${plugin}${suffix}`;
+    // Git shows and stages in the project's output, set in its settings as the person does (SSC-15, SSC-17).
+    const web = directoriesWebOf(request);
+    const ws = (await setProjectOutputFolder(web, projects[0], directory)).workspace_id;
     const state = await request(api("git", "/state")); assert.equal(state.status, 200, JSON.stringify(state));
     assert.equal(state.body.view.phase, "ready"); assert.equal(state.body.view.staged.length, 1); assert.equal(state.body.view.changes.length, 1);
     assert.ok(!JSON.stringify(state.body).includes(directory));
@@ -132,12 +134,14 @@ test("Git formal routes select the current grant, publish exact staged/worktree 
     const undo = await prepare("unstage"); assert.equal((await decide(undo)).body.receipt.effect_settled, true);
     assert.equal((await git("show", ":note")).stdout, "base\n"); assert.equal((await git("diff", "--numstat")).stdout.trim().length > 0, true, "unstaging preserves disk edits");
     const authorizationChanged = await prepare("stage");
-    await request(`/projects/${projects[0]}/api/workspaces/${ws}/unlink`, "POST", { user_confirmed: true });
+    // The person sets the output back to the default location: the repository was only the output, so it leaves the project.
+    const moved = await changeProjectDirectories(web, projects[0], "set_output", { default_output: true });
+    assert.equal(moved.directories.some(item => item.workspace_id === ws), false, JSON.stringify(moved));
     assert.equal((await decide(authorizationChanged)).body.receipt.effect_settled, false);
     assert.equal((await git("show", ":note")).stdout, "base\n");
-    refused(await saveResult(approved), "git.invalid", "unlinking prevents further result publication");
+    refused(await saveResult(approved), "git.invalid", "leaving the project prevents further result publication");
     const revoked = await request(api("git", "/diff"), "POST", input);
     refused(revoked, "git.invalid");
-    assert.match(revoked.body.error, /项目设置/);
+    assert.match(revoked.body.error, /已不在当前项目里/, "the refusal says the folder has left the project");
   } finally { if (server!) await close(); await rm(root, { recursive: true, force: true }); }
 });

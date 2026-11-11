@@ -454,15 +454,15 @@ class KnowledgeSourceReader {
     const caller = retainActionAuthority(knowledgeReader(access), { capability_id: origin.capability_id, version: origin.version, provider_id: KNOWLEDGE_PROVIDER_ID });
     try {
       const { context, reader } = await resolveActionSubject(access.client, caller, subject);
-      let content = context.content, page = context;
-      while (page.truncated && page.length !== undefined && content.length < Math.min(page.length, KNOWLEDGE_TEXT_MAX_CHARS)) {
-        page = await access.client.invoke(caller, reader, { subject_id: subject.id, offset: content.length }) as ActionSubjectContext;
-        if (page.revision !== context.revision || page.offset !== content.length || !page.content) throw knowledgeErrors.unreadable("这份资料在读取时变了，请重试");
-        content += page.content;
+      let content = context.content, page = context, characters = [...content].length;
+      while (page.truncated && page.length !== undefined && characters < Math.min(page.length, KNOWLEDGE_TEXT_MAX_CHARS)) {
+        page = await access.client.invoke(caller, reader, { subject_id: subject.id, offset: characters }) as ActionSubjectContext;
+        if (page.revision !== context.revision || page.offset !== characters || !page.content) throw knowledgeErrors.unreadable("这份资料在读取时变了，请重试");
+        content += page.content; characters += [...page.content].length;
       }
-      content = content.slice(0, KNOWLEDGE_TEXT_MAX_CHARS);
+      content = [...content].slice(0, KNOWLEDGE_TEXT_MAX_CHARS).join("");
       await this.assertActive(access, subject);
-      return { ...context, content, truncated: content.length < (page.length ?? content.length) || (page.length === undefined && context.truncated) };
+      return { ...context, content, truncated: [...content].length < (page.length ?? characters) || (page.length === undefined && context.truncated) };
     } catch (error) {
       // A subject no card knows, of a kind this caller may read, that its owner does not take is not a piece here: most often
       // one written differently from how it was given. Said as that, so the caller does not take the owner's refusal of the id

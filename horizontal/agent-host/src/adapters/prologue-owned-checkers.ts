@@ -11,7 +11,7 @@ type OwnedCheckScope = AgentSessionView["owner"] & { session_id: string };
  */
 export interface OwnedConditionChecker {
   readonly id: string;
-  readonly version: "1";
+  readonly version: string;
   readonly params: Readonly<Record<string, unknown>>;
   checkParams(params: unknown): string | undefined;
   /** Recheck ownership and current grants at registration and before and after every read. Throws to refuse. */

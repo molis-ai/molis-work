@@ -1,0 +1,6577 @@
+{
+  "contractVersion": "1.2.0",
+  "syntheticOnly": true,
+  "fixtures": [
+    {
+      "name": "Id:minimal-valid",
+      "schema": "Id",
+      "valid": true,
+      "value": "xxxxxxxx"
+    },
+    {
+      "name": "Id:wrong-root-type",
+      "schema": "Id",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "Timestamp:minimal-valid",
+      "schema": "Timestamp",
+      "valid": true,
+      "value": "2026-11-04T08:00:00Z"
+    },
+    {
+      "name": "Timestamp:wrong-root-type",
+      "schema": "Timestamp",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "OpaqueSecret:minimal-valid",
+      "schema": "OpaqueSecret",
+      "valid": true,
+      "value": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    },
+    {
+      "name": "OpaqueSecret:wrong-root-type",
+      "schema": "OpaqueSecret",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "Version:minimal-valid",
+      "schema": "Version",
+      "valid": true,
+      "value": 1
+    },
+    {
+      "name": "Version:wrong-root-type",
+      "schema": "Version",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "PlanVersionNumber:minimal-valid",
+      "schema": "PlanVersionNumber",
+      "valid": true,
+      "value": 1
+    },
+    {
+      "name": "PlanVersionNumber:wrong-root-type",
+      "schema": "PlanVersionNumber",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "Email:minimal-valid",
+      "schema": "Email",
+      "valid": true,
+      "value": "sample@example.invalid"
+    },
+    {
+      "name": "Email:wrong-root-type",
+      "schema": "Email",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "Phone:minimal-valid",
+      "schema": "Phone",
+      "valid": true,
+      "value": "+8613800000000"
+    },
+    {
+      "name": "Phone:wrong-root-type",
+      "schema": "Phone",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "HttpUrl:minimal-valid",
+      "schema": "HttpUrl",
+      "valid": true,
+      "value": "https://auth.example.invalid"
+    },
+    {
+      "name": "HttpUrl:wrong-root-type",
+      "schema": "HttpUrl",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "LoginPassword:minimal-valid",
+      "schema": "LoginPassword",
+      "valid": true,
+      "value": "xxxxxxxx"
+    },
+    {
+      "name": "LoginPassword:wrong-root-type",
+      "schema": "LoginPassword",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "NewPassword:minimal-valid",
+      "schema": "NewPassword",
+      "valid": true,
+      "value": "xxxxxxxx"
+    },
+    {
+      "name": "NewPassword:wrong-root-type",
+      "schema": "NewPassword",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "PngDataUrl:minimal-valid",
+      "schema": "PngDataUrl",
+      "valid": true,
+      "value": "data:image/png;base64,AAAAAAAAAAAA"
+    },
+    {
+      "name": "PngDataUrl:wrong-root-type",
+      "schema": "PngDataUrl",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "DisplayName:minimal-valid",
+      "schema": "DisplayName",
+      "valid": true,
+      "value": "xxxxxxxx"
+    },
+    {
+      "name": "DisplayName:wrong-root-type",
+      "schema": "DisplayName",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "S256Challenge:minimal-valid",
+      "schema": "S256Challenge",
+      "valid": true,
+      "value": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    },
+    {
+      "name": "S256Challenge:wrong-root-type",
+      "schema": "S256Challenge",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "CodeVerifier:minimal-valid",
+      "schema": "CodeVerifier",
+      "valid": true,
+      "value": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    },
+    {
+      "name": "CodeVerifier:wrong-root-type",
+      "schema": "CodeVerifier",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "LoginMethodType:minimal-valid",
+      "schema": "LoginMethodType",
+      "valid": true,
+      "value": "EMAIL"
+    },
+    {
+      "name": "LoginMethodType:wrong-root-type",
+      "schema": "LoginMethodType",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "Empty:minimal-valid",
+      "schema": "Empty",
+      "valid": true,
+      "value": {}
+    },
+    {
+      "name": "Empty:wrong-root-type",
+      "schema": "Empty",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "Scope:minimal-valid",
+      "schema": "Scope",
+      "valid": true,
+      "value": {
+        "kind": "PERSONAL"
+      }
+    },
+    {
+      "name": "Scope:wrong-root-type",
+      "schema": "Scope",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "Scope:variant-1",
+      "schema": "Scope",
+      "valid": true,
+      "value": {
+        "kind": "PERSONAL"
+      }
+    },
+    {
+      "name": "Scope:variant-2",
+      "schema": "Scope",
+      "valid": true,
+      "value": {
+        "kind": "TENANT",
+        "tenantId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "UserView:minimal-valid",
+      "schema": "UserView",
+      "valid": true,
+      "value": {
+        "issuer": "https://auth.example.invalid",
+        "userId": "xxxxxxxx",
+        "displayName": "xxxxxxxx",
+        "email": "sample@example.invalid",
+        "avatarUrl": "https://auth.example.invalid",
+        "version": 1
+      }
+    },
+    {
+      "name": "UserView:wrong-root-type",
+      "schema": "UserView",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "LoginMethod:minimal-valid",
+      "schema": "LoginMethod",
+      "valid": true,
+      "value": {
+        "bindingId": "xxxxxxxx",
+        "type": "EMAIL",
+        "maskedLabel": "xxxxxxxx",
+        "verified": true,
+        "usableForLogin": true
+      }
+    },
+    {
+      "name": "LoginMethod:wrong-root-type",
+      "schema": "LoginMethod",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "SessionView:minimal-valid",
+      "schema": "SessionView",
+      "valid": true,
+      "value": {
+        "loginSessionId": "xxxxxxxx",
+        "applicationId": "xxxxxxxx",
+        "clientId": "xxxxxxxx",
+        "authenticatedAt": "2026-11-04T08:00:00Z",
+        "lastActiveAt": "2026-11-04T08:00:00Z",
+        "idleExpiresAt": "2026-11-04T08:00:00Z",
+        "absoluteExpiresAt": "2026-11-04T08:00:00Z",
+        "sessionRevision": 1
+      }
+    },
+    {
+      "name": "SessionView:wrong-root-type",
+      "schema": "SessionView",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "PlatformCapability:minimal-valid",
+      "schema": "PlatformCapability",
+      "valid": true,
+      "value": "TENANT_CREATE"
+    },
+    {
+      "name": "PlatformCapability:wrong-root-type",
+      "schema": "PlatformCapability",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "MeView:minimal-valid",
+      "schema": "MeView",
+      "valid": true,
+      "value": {
+        "user": {
+          "issuer": "https://auth.example.invalid",
+          "userId": "xxxxxxxx",
+          "displayName": "xxxxxxxx",
+          "email": "sample@example.invalid",
+          "avatarUrl": "https://auth.example.invalid",
+          "version": 1
+        },
+        "loginMethods": [],
+        "passwordEnabled": true,
+        "session": {
+          "loginSessionId": "xxxxxxxx",
+          "applicationId": "xxxxxxxx",
+          "clientId": "xxxxxxxx",
+          "authenticatedAt": "2026-11-04T08:00:00Z",
+          "lastActiveAt": "2026-11-04T08:00:00Z",
+          "idleExpiresAt": "2026-11-04T08:00:00Z",
+          "absoluteExpiresAt": "2026-11-04T08:00:00Z",
+          "sessionRevision": 1
+        },
+        "platformCapabilities": []
+      }
+    },
+    {
+      "name": "MeView:wrong-root-type",
+      "schema": "MeView",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "TokenSet:minimal-valid",
+      "schema": "TokenSet",
+      "valid": true,
+      "value": {
+        "accessToken": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "refreshToken": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "tokenType": "Bearer",
+        "accessExpiresAt": "2026-11-04T08:00:00Z",
+        "session": {
+          "loginSessionId": "xxxxxxxx",
+          "applicationId": "xxxxxxxx",
+          "clientId": "xxxxxxxx",
+          "authenticatedAt": "2026-11-04T08:00:00Z",
+          "lastActiveAt": "2026-11-04T08:00:00Z",
+          "idleExpiresAt": "2026-11-04T08:00:00Z",
+          "absoluteExpiresAt": "2026-11-04T08:00:00Z",
+          "sessionRevision": 1
+        }
+      }
+    },
+    {
+      "name": "TokenSet:wrong-root-type",
+      "schema": "TokenSet",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "SensitiveOperation:minimal-valid",
+      "schema": "SensitiveOperation",
+      "valid": true,
+      "value": {
+        "operation": "BIND_METHOD",
+        "target": {
+          "method": "EMAIL"
+        }
+      }
+    },
+    {
+      "name": "SensitiveOperation:wrong-root-type",
+      "schema": "SensitiveOperation",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "SensitiveOperation:variant-1",
+      "schema": "SensitiveOperation",
+      "valid": true,
+      "value": {
+        "operation": "BIND_METHOD",
+        "target": {
+          "method": "EMAIL"
+        }
+      }
+    },
+    {
+      "name": "SensitiveOperation:variant-2",
+      "schema": "SensitiveOperation",
+      "valid": true,
+      "value": {
+        "operation": "REPLACE_METHOD",
+        "target": {
+          "bindingId": "xxxxxxxx"
+        }
+      }
+    },
+    {
+      "name": "SensitiveOperation:variant-3",
+      "schema": "SensitiveOperation",
+      "valid": true,
+      "value": {
+        "operation": "UNLINK_METHOD",
+        "target": {
+          "bindingId": "xxxxxxxx"
+        }
+      }
+    },
+    {
+      "name": "SensitiveOperation:variant-4",
+      "schema": "SensitiveOperation",
+      "valid": true,
+      "value": {
+        "operation": "CHANGE_PASSWORD",
+        "target": {
+          "kind": "PASSWORD"
+        }
+      }
+    },
+    {
+      "name": "CreateTransactionRequest:minimal-valid",
+      "schema": "CreateTransactionRequest",
+      "valid": true,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "redirectUri": "https://auth.example.invalid",
+        "state": "xxxxxxxxxxxxxxxx",
+        "codeChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "codeChallengeMethod": "S256",
+        "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "purpose": "LOGIN",
+        "method": "EMAIL_PASSWORD"
+      }
+    },
+    {
+      "name": "CreateTransactionRequest:wrong-root-type",
+      "schema": "CreateTransactionRequest",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "CreateTransactionRequest:variant-1",
+      "schema": "CreateTransactionRequest",
+      "valid": true,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "redirectUri": "https://auth.example.invalid",
+        "state": "xxxxxxxxxxxxxxxx",
+        "codeChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "codeChallengeMethod": "S256",
+        "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "purpose": "LOGIN",
+        "method": "EMAIL_PASSWORD"
+      }
+    },
+    {
+      "name": "CreateTransactionRequest:variant-2",
+      "schema": "CreateTransactionRequest",
+      "valid": true,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "redirectUri": "https://auth.example.invalid",
+        "state": "xxxxxxxxxxxxxxxx",
+        "codeChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "codeChallengeMethod": "S256",
+        "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "purpose": "LOGIN",
+        "method": "PHONE_OTP"
+      }
+    },
+    {
+      "name": "CreateTransactionRequest:variant-3",
+      "schema": "CreateTransactionRequest",
+      "valid": true,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "redirectUri": "https://auth.example.invalid",
+        "state": "xxxxxxxxxxxxxxxx",
+        "codeChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "codeChallengeMethod": "S256",
+        "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "purpose": "LOGIN",
+        "method": "GOOGLE"
+      }
+    },
+    {
+      "name": "CreateTransactionRequest:variant-4",
+      "schema": "CreateTransactionRequest",
+      "valid": true,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "redirectUri": "https://auth.example.invalid",
+        "state": "xxxxxxxxxxxxxxxx",
+        "codeChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "codeChallengeMethod": "S256",
+        "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "purpose": "LOGIN",
+        "method": "GITHUB"
+      }
+    },
+    {
+      "name": "CreateTransactionRequest:variant-5",
+      "schema": "CreateTransactionRequest",
+      "valid": true,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "redirectUri": "https://auth.example.invalid",
+        "state": "xxxxxxxxxxxxxxxx",
+        "codeChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "codeChallengeMethod": "S256",
+        "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "purpose": "EMAIL_SIGNUP",
+        "method": "EMAIL_CODE"
+      }
+    },
+    {
+      "name": "CreateTransactionRequest:variant-6",
+      "schema": "CreateTransactionRequest",
+      "valid": true,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "redirectUri": "https://auth.example.invalid",
+        "state": "xxxxxxxxxxxxxxxx",
+        "codeChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "codeChallengeMethod": "S256",
+        "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "purpose": "REAUTH",
+        "method": "EMAIL_PASSWORD",
+        "operation": "BIND_METHOD",
+        "target": {
+          "method": "EMAIL"
+        }
+      }
+    },
+    {
+      "name": "CreateTransactionRequest:variant-7",
+      "schema": "CreateTransactionRequest",
+      "valid": true,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "redirectUri": "https://auth.example.invalid",
+        "state": "xxxxxxxxxxxxxxxx",
+        "codeChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "codeChallengeMethod": "S256",
+        "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "purpose": "REAUTH",
+        "method": "EMAIL_PASSWORD",
+        "operation": "REPLACE_METHOD",
+        "target": {
+          "bindingId": "xxxxxxxx"
+        }
+      }
+    },
+    {
+      "name": "CreateTransactionRequest:variant-8",
+      "schema": "CreateTransactionRequest",
+      "valid": true,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "redirectUri": "https://auth.example.invalid",
+        "state": "xxxxxxxxxxxxxxxx",
+        "codeChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "codeChallengeMethod": "S256",
+        "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "purpose": "REAUTH",
+        "method": "EMAIL_PASSWORD",
+        "operation": "UNLINK_METHOD",
+        "target": {
+          "bindingId": "xxxxxxxx"
+        }
+      }
+    },
+    {
+      "name": "CreateTransactionRequest:variant-9",
+      "schema": "CreateTransactionRequest",
+      "valid": true,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "redirectUri": "https://auth.example.invalid",
+        "state": "xxxxxxxxxxxxxxxx",
+        "codeChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "codeChallengeMethod": "S256",
+        "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "purpose": "REAUTH",
+        "method": "EMAIL_PASSWORD",
+        "operation": "CHANGE_PASSWORD",
+        "target": {
+          "kind": "PASSWORD"
+        }
+      }
+    },
+    {
+      "name": "CreateTransactionRequest:variant-10",
+      "schema": "CreateTransactionRequest",
+      "valid": true,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "redirectUri": "https://auth.example.invalid",
+        "state": "xxxxxxxxxxxxxxxx",
+        "codeChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "codeChallengeMethod": "S256",
+        "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "purpose": "REAUTH",
+        "method": "PHONE_OTP",
+        "operation": "BIND_METHOD",
+        "target": {
+          "method": "EMAIL"
+        }
+      }
+    },
+    {
+      "name": "CreateTransactionRequest:variant-11",
+      "schema": "CreateTransactionRequest",
+      "valid": true,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "redirectUri": "https://auth.example.invalid",
+        "state": "xxxxxxxxxxxxxxxx",
+        "codeChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "codeChallengeMethod": "S256",
+        "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "purpose": "REAUTH",
+        "method": "PHONE_OTP",
+        "operation": "REPLACE_METHOD",
+        "target": {
+          "bindingId": "xxxxxxxx"
+        }
+      }
+    },
+    {
+      "name": "CreateTransactionRequest:variant-12",
+      "schema": "CreateTransactionRequest",
+      "valid": true,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "redirectUri": "https://auth.example.invalid",
+        "state": "xxxxxxxxxxxxxxxx",
+        "codeChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "codeChallengeMethod": "S256",
+        "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "purpose": "REAUTH",
+        "method": "PHONE_OTP",
+        "operation": "UNLINK_METHOD",
+        "target": {
+          "bindingId": "xxxxxxxx"
+        }
+      }
+    },
+    {
+      "name": "CreateTransactionRequest:variant-13",
+      "schema": "CreateTransactionRequest",
+      "valid": true,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "redirectUri": "https://auth.example.invalid",
+        "state": "xxxxxxxxxxxxxxxx",
+        "codeChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "codeChallengeMethod": "S256",
+        "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "purpose": "REAUTH",
+        "method": "PHONE_OTP",
+        "operation": "CHANGE_PASSWORD",
+        "target": {
+          "kind": "PASSWORD"
+        }
+      }
+    },
+    {
+      "name": "CreateTransactionRequest:variant-14",
+      "schema": "CreateTransactionRequest",
+      "valid": true,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "redirectUri": "https://auth.example.invalid",
+        "state": "xxxxxxxxxxxxxxxx",
+        "codeChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "codeChallengeMethod": "S256",
+        "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "purpose": "REAUTH",
+        "method": "GOOGLE",
+        "operation": "BIND_METHOD",
+        "target": {
+          "method": "EMAIL"
+        }
+      }
+    },
+    {
+      "name": "CreateTransactionRequest:variant-15",
+      "schema": "CreateTransactionRequest",
+      "valid": true,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "redirectUri": "https://auth.example.invalid",
+        "state": "xxxxxxxxxxxxxxxx",
+        "codeChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "codeChallengeMethod": "S256",
+        "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "purpose": "REAUTH",
+        "method": "GOOGLE",
+        "operation": "REPLACE_METHOD",
+        "target": {
+          "bindingId": "xxxxxxxx"
+        }
+      }
+    },
+    {
+      "name": "CreateTransactionRequest:variant-16",
+      "schema": "CreateTransactionRequest",
+      "valid": true,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "redirectUri": "https://auth.example.invalid",
+        "state": "xxxxxxxxxxxxxxxx",
+        "codeChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "codeChallengeMethod": "S256",
+        "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "purpose": "REAUTH",
+        "method": "GOOGLE",
+        "operation": "UNLINK_METHOD",
+        "target": {
+          "bindingId": "xxxxxxxx"
+        }
+      }
+    },
+    {
+      "name": "CreateTransactionRequest:variant-17",
+      "schema": "CreateTransactionRequest",
+      "valid": true,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "redirectUri": "https://auth.example.invalid",
+        "state": "xxxxxxxxxxxxxxxx",
+        "codeChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "codeChallengeMethod": "S256",
+        "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "purpose": "REAUTH",
+        "method": "GOOGLE",
+        "operation": "CHANGE_PASSWORD",
+        "target": {
+          "kind": "PASSWORD"
+        }
+      }
+    },
+    {
+      "name": "CreateTransactionRequest:variant-18",
+      "schema": "CreateTransactionRequest",
+      "valid": true,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "redirectUri": "https://auth.example.invalid",
+        "state": "xxxxxxxxxxxxxxxx",
+        "codeChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "codeChallengeMethod": "S256",
+        "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "purpose": "REAUTH",
+        "method": "GITHUB",
+        "operation": "BIND_METHOD",
+        "target": {
+          "method": "EMAIL"
+        }
+      }
+    },
+    {
+      "name": "CreateTransactionRequest:variant-19",
+      "schema": "CreateTransactionRequest",
+      "valid": true,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "redirectUri": "https://auth.example.invalid",
+        "state": "xxxxxxxxxxxxxxxx",
+        "codeChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "codeChallengeMethod": "S256",
+        "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "purpose": "REAUTH",
+        "method": "GITHUB",
+        "operation": "REPLACE_METHOD",
+        "target": {
+          "bindingId": "xxxxxxxx"
+        }
+      }
+    },
+    {
+      "name": "CreateTransactionRequest:variant-20",
+      "schema": "CreateTransactionRequest",
+      "valid": true,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "redirectUri": "https://auth.example.invalid",
+        "state": "xxxxxxxxxxxxxxxx",
+        "codeChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "codeChallengeMethod": "S256",
+        "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "purpose": "REAUTH",
+        "method": "GITHUB",
+        "operation": "UNLINK_METHOD",
+        "target": {
+          "bindingId": "xxxxxxxx"
+        }
+      }
+    },
+    {
+      "name": "CreateTransactionRequest:variant-21",
+      "schema": "CreateTransactionRequest",
+      "valid": true,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "redirectUri": "https://auth.example.invalid",
+        "state": "xxxxxxxxxxxxxxxx",
+        "codeChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "codeChallengeMethod": "S256",
+        "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "purpose": "REAUTH",
+        "method": "GITHUB",
+        "operation": "CHANGE_PASSWORD",
+        "target": {
+          "kind": "PASSWORD"
+        }
+      }
+    },
+    {
+      "name": "CreateTransactionRequest:variant-22",
+      "schema": "CreateTransactionRequest",
+      "valid": true,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "redirectUri": "https://auth.example.invalid",
+        "state": "xxxxxxxxxxxxxxxx",
+        "codeChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "codeChallengeMethod": "S256",
+        "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "purpose": "BIND",
+        "method": "EMAIL_CODE"
+      }
+    },
+    {
+      "name": "CreateTransactionRequest:variant-23",
+      "schema": "CreateTransactionRequest",
+      "valid": true,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "redirectUri": "https://auth.example.invalid",
+        "state": "xxxxxxxxxxxxxxxx",
+        "codeChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "codeChallengeMethod": "S256",
+        "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "purpose": "REPLACE",
+        "method": "EMAIL_CODE",
+        "bindingId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "CreateTransactionRequest:variant-24",
+      "schema": "CreateTransactionRequest",
+      "valid": true,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "redirectUri": "https://auth.example.invalid",
+        "state": "xxxxxxxxxxxxxxxx",
+        "codeChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "codeChallengeMethod": "S256",
+        "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "purpose": "BIND",
+        "method": "PHONE_OTP"
+      }
+    },
+    {
+      "name": "CreateTransactionRequest:variant-25",
+      "schema": "CreateTransactionRequest",
+      "valid": true,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "redirectUri": "https://auth.example.invalid",
+        "state": "xxxxxxxxxxxxxxxx",
+        "codeChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "codeChallengeMethod": "S256",
+        "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "purpose": "REPLACE",
+        "method": "PHONE_OTP",
+        "bindingId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "CreateTransactionRequest:variant-26",
+      "schema": "CreateTransactionRequest",
+      "valid": true,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "redirectUri": "https://auth.example.invalid",
+        "state": "xxxxxxxxxxxxxxxx",
+        "codeChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "codeChallengeMethod": "S256",
+        "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "purpose": "BIND",
+        "method": "GOOGLE"
+      }
+    },
+    {
+      "name": "CreateTransactionRequest:variant-27",
+      "schema": "CreateTransactionRequest",
+      "valid": true,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "redirectUri": "https://auth.example.invalid",
+        "state": "xxxxxxxxxxxxxxxx",
+        "codeChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "codeChallengeMethod": "S256",
+        "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "purpose": "REPLACE",
+        "method": "GOOGLE",
+        "bindingId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "CreateTransactionRequest:variant-28",
+      "schema": "CreateTransactionRequest",
+      "valid": true,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "redirectUri": "https://auth.example.invalid",
+        "state": "xxxxxxxxxxxxxxxx",
+        "codeChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "codeChallengeMethod": "S256",
+        "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "purpose": "BIND",
+        "method": "GITHUB"
+      }
+    },
+    {
+      "name": "CreateTransactionRequest:variant-29",
+      "schema": "CreateTransactionRequest",
+      "valid": true,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "redirectUri": "https://auth.example.invalid",
+        "state": "xxxxxxxxxxxxxxxx",
+        "codeChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "codeChallengeMethod": "S256",
+        "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "purpose": "REPLACE",
+        "method": "GITHUB",
+        "bindingId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "CreateTransactionRequest:variant-30",
+      "schema": "CreateTransactionRequest",
+      "valid": true,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "redirectUri": "https://auth.example.invalid",
+        "state": "xxxxxxxxxxxxxxxx",
+        "codeChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "codeChallengeMethod": "S256",
+        "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "purpose": "PASSWORD_RESET",
+        "method": "EMAIL_CODE"
+      }
+    },
+    {
+      "name": "ReauthenticationRequest:minimal-valid",
+      "schema": "ReauthenticationRequest",
+      "valid": true,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "redirectUri": "https://auth.example.invalid",
+        "state": "xxxxxxxxxxxxxxxx",
+        "codeChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "codeChallengeMethod": "S256",
+        "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "method": "EMAIL_PASSWORD",
+        "operation": "BIND_METHOD",
+        "target": {
+          "method": "EMAIL"
+        }
+      }
+    },
+    {
+      "name": "ReauthenticationRequest:wrong-root-type",
+      "schema": "ReauthenticationRequest",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "ReauthenticationRequest:variant-1",
+      "schema": "ReauthenticationRequest",
+      "valid": true,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "redirectUri": "https://auth.example.invalid",
+        "state": "xxxxxxxxxxxxxxxx",
+        "codeChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "codeChallengeMethod": "S256",
+        "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "method": "EMAIL_PASSWORD",
+        "operation": "BIND_METHOD",
+        "target": {
+          "method": "EMAIL"
+        }
+      }
+    },
+    {
+      "name": "ReauthenticationRequest:variant-2",
+      "schema": "ReauthenticationRequest",
+      "valid": true,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "redirectUri": "https://auth.example.invalid",
+        "state": "xxxxxxxxxxxxxxxx",
+        "codeChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "codeChallengeMethod": "S256",
+        "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "method": "EMAIL_PASSWORD",
+        "operation": "REPLACE_METHOD",
+        "target": {
+          "bindingId": "xxxxxxxx"
+        }
+      }
+    },
+    {
+      "name": "ReauthenticationRequest:variant-3",
+      "schema": "ReauthenticationRequest",
+      "valid": true,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "redirectUri": "https://auth.example.invalid",
+        "state": "xxxxxxxxxxxxxxxx",
+        "codeChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "codeChallengeMethod": "S256",
+        "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "method": "EMAIL_PASSWORD",
+        "operation": "UNLINK_METHOD",
+        "target": {
+          "bindingId": "xxxxxxxx"
+        }
+      }
+    },
+    {
+      "name": "ReauthenticationRequest:variant-4",
+      "schema": "ReauthenticationRequest",
+      "valid": true,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "redirectUri": "https://auth.example.invalid",
+        "state": "xxxxxxxxxxxxxxxx",
+        "codeChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "codeChallengeMethod": "S256",
+        "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "method": "EMAIL_PASSWORD",
+        "operation": "CHANGE_PASSWORD",
+        "target": {
+          "kind": "PASSWORD"
+        }
+      }
+    },
+    {
+      "name": "ReauthenticationRequest:variant-5",
+      "schema": "ReauthenticationRequest",
+      "valid": true,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "redirectUri": "https://auth.example.invalid",
+        "state": "xxxxxxxxxxxxxxxx",
+        "codeChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "codeChallengeMethod": "S256",
+        "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "method": "PHONE_OTP",
+        "operation": "BIND_METHOD",
+        "target": {
+          "method": "EMAIL"
+        }
+      }
+    },
+    {
+      "name": "ReauthenticationRequest:variant-6",
+      "schema": "ReauthenticationRequest",
+      "valid": true,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "redirectUri": "https://auth.example.invalid",
+        "state": "xxxxxxxxxxxxxxxx",
+        "codeChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "codeChallengeMethod": "S256",
+        "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "method": "PHONE_OTP",
+        "operation": "REPLACE_METHOD",
+        "target": {
+          "bindingId": "xxxxxxxx"
+        }
+      }
+    },
+    {
+      "name": "ReauthenticationRequest:variant-7",
+      "schema": "ReauthenticationRequest",
+      "valid": true,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "redirectUri": "https://auth.example.invalid",
+        "state": "xxxxxxxxxxxxxxxx",
+        "codeChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "codeChallengeMethod": "S256",
+        "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "method": "PHONE_OTP",
+        "operation": "UNLINK_METHOD",
+        "target": {
+          "bindingId": "xxxxxxxx"
+        }
+      }
+    },
+    {
+      "name": "ReauthenticationRequest:variant-8",
+      "schema": "ReauthenticationRequest",
+      "valid": true,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "redirectUri": "https://auth.example.invalid",
+        "state": "xxxxxxxxxxxxxxxx",
+        "codeChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "codeChallengeMethod": "S256",
+        "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "method": "PHONE_OTP",
+        "operation": "CHANGE_PASSWORD",
+        "target": {
+          "kind": "PASSWORD"
+        }
+      }
+    },
+    {
+      "name": "ReauthenticationRequest:variant-9",
+      "schema": "ReauthenticationRequest",
+      "valid": true,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "redirectUri": "https://auth.example.invalid",
+        "state": "xxxxxxxxxxxxxxxx",
+        "codeChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "codeChallengeMethod": "S256",
+        "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "method": "GOOGLE",
+        "operation": "BIND_METHOD",
+        "target": {
+          "method": "EMAIL"
+        }
+      }
+    },
+    {
+      "name": "ReauthenticationRequest:variant-10",
+      "schema": "ReauthenticationRequest",
+      "valid": true,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "redirectUri": "https://auth.example.invalid",
+        "state": "xxxxxxxxxxxxxxxx",
+        "codeChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "codeChallengeMethod": "S256",
+        "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "method": "GOOGLE",
+        "operation": "REPLACE_METHOD",
+        "target": {
+          "bindingId": "xxxxxxxx"
+        }
+      }
+    },
+    {
+      "name": "ReauthenticationRequest:variant-11",
+      "schema": "ReauthenticationRequest",
+      "valid": true,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "redirectUri": "https://auth.example.invalid",
+        "state": "xxxxxxxxxxxxxxxx",
+        "codeChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "codeChallengeMethod": "S256",
+        "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "method": "GOOGLE",
+        "operation": "UNLINK_METHOD",
+        "target": {
+          "bindingId": "xxxxxxxx"
+        }
+      }
+    },
+    {
+      "name": "ReauthenticationRequest:variant-12",
+      "schema": "ReauthenticationRequest",
+      "valid": true,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "redirectUri": "https://auth.example.invalid",
+        "state": "xxxxxxxxxxxxxxxx",
+        "codeChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "codeChallengeMethod": "S256",
+        "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "method": "GOOGLE",
+        "operation": "CHANGE_PASSWORD",
+        "target": {
+          "kind": "PASSWORD"
+        }
+      }
+    },
+    {
+      "name": "ReauthenticationRequest:variant-13",
+      "schema": "ReauthenticationRequest",
+      "valid": true,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "redirectUri": "https://auth.example.invalid",
+        "state": "xxxxxxxxxxxxxxxx",
+        "codeChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "codeChallengeMethod": "S256",
+        "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "method": "GITHUB",
+        "operation": "BIND_METHOD",
+        "target": {
+          "method": "EMAIL"
+        }
+      }
+    },
+    {
+      "name": "ReauthenticationRequest:variant-14",
+      "schema": "ReauthenticationRequest",
+      "valid": true,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "redirectUri": "https://auth.example.invalid",
+        "state": "xxxxxxxxxxxxxxxx",
+        "codeChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "codeChallengeMethod": "S256",
+        "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "method": "GITHUB",
+        "operation": "REPLACE_METHOD",
+        "target": {
+          "bindingId": "xxxxxxxx"
+        }
+      }
+    },
+    {
+      "name": "ReauthenticationRequest:variant-15",
+      "schema": "ReauthenticationRequest",
+      "valid": true,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "redirectUri": "https://auth.example.invalid",
+        "state": "xxxxxxxxxxxxxxxx",
+        "codeChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "codeChallengeMethod": "S256",
+        "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "method": "GITHUB",
+        "operation": "UNLINK_METHOD",
+        "target": {
+          "bindingId": "xxxxxxxx"
+        }
+      }
+    },
+    {
+      "name": "ReauthenticationRequest:variant-16",
+      "schema": "ReauthenticationRequest",
+      "valid": true,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "redirectUri": "https://auth.example.invalid",
+        "state": "xxxxxxxxxxxxxxxx",
+        "codeChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "codeChallengeMethod": "S256",
+        "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "method": "GITHUB",
+        "operation": "CHANGE_PASSWORD",
+        "target": {
+          "kind": "PASSWORD"
+        }
+      }
+    },
+    {
+      "name": "NextStep:minimal-valid",
+      "schema": "NextStep",
+      "valid": true,
+      "value": "REQUEST_CHALLENGE"
+    },
+    {
+      "name": "NextStep:wrong-root-type",
+      "schema": "NextStep",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "TransactionCreated:minimal-valid",
+      "schema": "TransactionCreated",
+      "valid": true,
+      "value": {
+        "transactionId": "xxxxxxxx",
+        "status": "PENDING",
+        "nextStep": "REQUEST_CHALLENGE",
+        "expiresAt": "2026-11-04T08:00:00Z"
+      }
+    },
+    {
+      "name": "TransactionCreated:wrong-root-type",
+      "schema": "TransactionCreated",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "TransactionView:minimal-valid",
+      "schema": "TransactionView",
+      "valid": true,
+      "value": {
+        "transactionId": "xxxxxxxx",
+        "status": "PENDING",
+        "nextStep": "REQUEST_CHALLENGE",
+        "expiresAt": "2026-11-04T08:00:00Z"
+      }
+    },
+    {
+      "name": "TransactionView:wrong-root-type",
+      "schema": "TransactionView",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "TransactionView:variant-1",
+      "schema": "TransactionView",
+      "valid": true,
+      "value": {
+        "transactionId": "xxxxxxxx",
+        "status": "PENDING",
+        "nextStep": "REQUEST_CHALLENGE",
+        "expiresAt": "2026-11-04T08:00:00Z"
+      }
+    },
+    {
+      "name": "TransactionView:variant-2",
+      "schema": "TransactionView",
+      "valid": true,
+      "value": {
+        "transactionId": "xxxxxxxx",
+        "status": "VERIFIED",
+        "nextStep": "COMPLETE",
+        "expiresAt": "2026-11-04T08:00:00Z"
+      }
+    },
+    {
+      "name": "TransactionView:variant-3",
+      "schema": "TransactionView",
+      "valid": true,
+      "value": {
+        "transactionId": "xxxxxxxx",
+        "status": "CONSUMED",
+        "nextStep": "NONE",
+        "expiresAt": "2026-11-04T08:00:00Z"
+      }
+    },
+    {
+      "name": "ChallengeRequest:minimal-valid",
+      "schema": "ChallengeRequest",
+      "valid": true,
+      "value": {
+        "channel": "EMAIL",
+        "address": "sample@example.invalid"
+      }
+    },
+    {
+      "name": "ChallengeRequest:wrong-root-type",
+      "schema": "ChallengeRequest",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "ChallengeRequest:variant-1",
+      "schema": "ChallengeRequest",
+      "valid": true,
+      "value": {
+        "channel": "EMAIL",
+        "address": "sample@example.invalid"
+      }
+    },
+    {
+      "name": "ChallengeRequest:variant-2",
+      "schema": "ChallengeRequest",
+      "valid": true,
+      "value": {
+        "channel": "SMS",
+        "address": "+8613800000000"
+      }
+    },
+    {
+      "name": "ChallengeCreated:minimal-valid",
+      "schema": "ChallengeCreated",
+      "valid": true,
+      "value": {
+        "challengeId": "xxxxxxxx",
+        "expiresAt": "2026-11-04T08:00:00Z",
+        "retryAfterSeconds": 1
+      }
+    },
+    {
+      "name": "ChallengeCreated:wrong-root-type",
+      "schema": "ChallengeCreated",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "VerifyChallengeRequest:minimal-valid",
+      "schema": "VerifyChallengeRequest",
+      "valid": true,
+      "value": {
+        "credential": "123456"
+      }
+    },
+    {
+      "name": "VerifyChallengeRequest:wrong-root-type",
+      "schema": "VerifyChallengeRequest",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "VerificationResult:minimal-valid",
+      "schema": "VerificationResult",
+      "valid": true,
+      "value": {
+        "verificationProof": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "expiresAt": "2026-11-04T08:00:00Z"
+      }
+    },
+    {
+      "name": "VerificationResult:wrong-root-type",
+      "schema": "VerificationResult",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "PasswordLoginRequest:minimal-valid",
+      "schema": "PasswordLoginRequest",
+      "valid": true,
+      "value": {
+        "email": "sample@example.invalid",
+        "password": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "PasswordLoginRequest:wrong-root-type",
+      "schema": "PasswordLoginRequest",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "EmailSignupRequest:minimal-valid",
+      "schema": "EmailSignupRequest",
+      "valid": true,
+      "value": {
+        "email": "sample@example.invalid",
+        "password": "xxxxxxxx",
+        "verificationProof": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      }
+    },
+    {
+      "name": "EmailSignupRequest:wrong-root-type",
+      "schema": "EmailSignupRequest",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "PhoneLoginRequest:minimal-valid",
+      "schema": "PhoneLoginRequest",
+      "valid": true,
+      "value": {
+        "verificationProof": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      }
+    },
+    {
+      "name": "PhoneLoginRequest:wrong-root-type",
+      "schema": "PhoneLoginRequest",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "VerifiedResult:minimal-valid",
+      "schema": "VerifiedResult",
+      "valid": true,
+      "value": {
+        "status": "VERIFIED",
+        "nextStep": "COMPLETE"
+      }
+    },
+    {
+      "name": "VerifiedResult:wrong-root-type",
+      "schema": "VerifiedResult",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "ProviderStartResult:minimal-valid",
+      "schema": "ProviderStartResult",
+      "valid": true,
+      "value": {
+        "browserStartUrl": "https://auth.example.invalid"
+      }
+    },
+    {
+      "name": "ProviderStartResult:wrong-root-type",
+      "schema": "ProviderStartResult",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "TransactionCompleteResult:minimal-valid",
+      "schema": "TransactionCompleteResult",
+      "valid": true,
+      "value": {
+        "kind": "LOGIN_CODE",
+        "code": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "state": "xxxxxxxxxxxxxxxx",
+        "expiresAt": "2026-11-04T08:00:00Z"
+      }
+    },
+    {
+      "name": "TransactionCompleteResult:wrong-root-type",
+      "schema": "TransactionCompleteResult",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "TransactionCompleteResult:variant-1",
+      "schema": "TransactionCompleteResult",
+      "valid": true,
+      "value": {
+        "kind": "LOGIN_CODE",
+        "code": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "state": "xxxxxxxxxxxxxxxx",
+        "expiresAt": "2026-11-04T08:00:00Z"
+      }
+    },
+    {
+      "name": "TransactionCompleteResult:variant-2",
+      "schema": "TransactionCompleteResult",
+      "valid": true,
+      "value": {
+        "kind": "OPERATION_PROOF",
+        "operationProof": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "expiresAt": "2026-11-04T08:00:00Z"
+      }
+    },
+    {
+      "name": "TransactionCompleteResult:variant-3",
+      "schema": "TransactionCompleteResult",
+      "valid": true,
+      "value": {
+        "kind": "NEW_IDENTITY_PROOF",
+        "newIdentityProof": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "expiresAt": "2026-11-04T08:00:00Z"
+      }
+    },
+    {
+      "name": "TransactionCompleteResult:variant-4",
+      "schema": "TransactionCompleteResult",
+      "valid": true,
+      "value": {
+        "kind": "RESET_PROOF",
+        "resetProof": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "expiresAt": "2026-11-04T08:00:00Z"
+      }
+    },
+    {
+      "name": "TransactionCancelResult:minimal-valid",
+      "schema": "TransactionCancelResult",
+      "valid": true,
+      "value": {
+        "status": "CANCELLED"
+      }
+    },
+    {
+      "name": "TransactionCancelResult:wrong-root-type",
+      "schema": "TransactionCancelResult",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "TokenRequest:minimal-valid",
+      "schema": "TokenRequest",
+      "valid": true,
+      "value": {
+        "grantType": "authorization_code",
+        "clientId": "xxxxxxxx",
+        "code": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "redirectUri": "https://auth.example.invalid",
+        "codeVerifier": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      }
+    },
+    {
+      "name": "TokenRequest:wrong-root-type",
+      "schema": "TokenRequest",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "TokenRequest:variant-1",
+      "schema": "TokenRequest",
+      "valid": true,
+      "value": {
+        "grantType": "authorization_code",
+        "clientId": "xxxxxxxx",
+        "code": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "redirectUri": "https://auth.example.invalid",
+        "codeVerifier": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      }
+    },
+    {
+      "name": "TokenRequest:variant-2",
+      "schema": "TokenRequest",
+      "valid": true,
+      "value": {
+        "grantType": "refresh_token",
+        "clientId": "xxxxxxxx",
+        "refreshToken": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      }
+    },
+    {
+      "name": "ProfileUpdateRequest:minimal-valid",
+      "schema": "ProfileUpdateRequest",
+      "valid": true,
+      "value": {
+        "expectedVersion": 1,
+        "displayName": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "ProfileUpdateRequest:wrong-root-type",
+      "schema": "ProfileUpdateRequest",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "LoginMethodsView:minimal-valid",
+      "schema": "LoginMethodsView",
+      "valid": true,
+      "value": {
+        "loginMethods": [],
+        "version": 1
+      }
+    },
+    {
+      "name": "LoginMethodsView:wrong-root-type",
+      "schema": "LoginMethodsView",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "BindMethodRequest:minimal-valid",
+      "schema": "BindMethodRequest",
+      "valid": true,
+      "value": {
+        "operationProof": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "newIdentityProof": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "expectedVersion": 1
+      }
+    },
+    {
+      "name": "BindMethodRequest:wrong-root-type",
+      "schema": "BindMethodRequest",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "UnlinkMethodRequest:minimal-valid",
+      "schema": "UnlinkMethodRequest",
+      "valid": true,
+      "value": {
+        "operationProof": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "expectedVersion": 1
+      }
+    },
+    {
+      "name": "UnlinkMethodRequest:wrong-root-type",
+      "schema": "UnlinkMethodRequest",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "PasswordChangeRequest:minimal-valid",
+      "schema": "PasswordChangeRequest",
+      "valid": true,
+      "value": {
+        "operationProof": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "newPassword": "xxxxxxxx",
+        "expectedVersion": 1
+      }
+    },
+    {
+      "name": "PasswordChangeRequest:wrong-root-type",
+      "schema": "PasswordChangeRequest",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "PasswordChangeResult:minimal-valid",
+      "schema": "PasswordChangeResult",
+      "valid": true,
+      "value": {
+        "passwordChanged": true,
+        "keptLoginSessionId": "xxxxxxxx",
+        "session": {
+          "loginSessionId": "xxxxxxxx",
+          "applicationId": "xxxxxxxx",
+          "clientId": "xxxxxxxx",
+          "authenticatedAt": "2026-11-04T08:00:00Z",
+          "lastActiveAt": "2026-11-04T08:00:00Z",
+          "idleExpiresAt": "2026-11-04T08:00:00Z",
+          "absoluteExpiresAt": "2026-11-04T08:00:00Z",
+          "sessionRevision": 1
+        }
+      }
+    },
+    {
+      "name": "PasswordChangeResult:wrong-root-type",
+      "schema": "PasswordChangeResult",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "PasswordResetRequest:minimal-valid",
+      "schema": "PasswordResetRequest",
+      "valid": true,
+      "value": {
+        "transactionId": "xxxxxxxx",
+        "resetProof": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "newPassword": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "PasswordResetRequest:wrong-root-type",
+      "schema": "PasswordResetRequest",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "PasswordResetResult:minimal-valid",
+      "schema": "PasswordResetResult",
+      "valid": true,
+      "value": {
+        "passwordChanged": true,
+        "nextStep": "LOGIN_REQUIRED"
+      }
+    },
+    {
+      "name": "PasswordResetResult:wrong-root-type",
+      "schema": "PasswordResetResult",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "ActivityRequest:minimal-valid",
+      "schema": "ActivityRequest",
+      "valid": true,
+      "value": {
+        "eventId": "xxxxxxxx",
+        "kind": "OPEN"
+      }
+    },
+    {
+      "name": "ActivityRequest:wrong-root-type",
+      "schema": "ActivityRequest",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "LogoutRequest:minimal-valid",
+      "schema": "LogoutRequest",
+      "valid": true,
+      "value": {}
+    },
+    {
+      "name": "LogoutRequest:wrong-root-type",
+      "schema": "LogoutRequest",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "LogoutRequest:variant-1",
+      "schema": "LogoutRequest",
+      "valid": true,
+      "value": {}
+    },
+    {
+      "name": "LogoutRequest:variant-2",
+      "schema": "LogoutRequest",
+      "valid": true,
+      "value": {
+        "refreshProof": {
+          "clientId": "xxxxxxxx",
+          "refreshToken": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        }
+      }
+    },
+    {
+      "name": "CurrentLogoutResult:minimal-valid",
+      "schema": "CurrentLogoutResult",
+      "valid": true,
+      "value": {
+        "revokedScope": "CURRENT_LOGIN",
+        "status": "REVOKED",
+        "loginSessionId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "CurrentLogoutResult:wrong-root-type",
+      "schema": "CurrentLogoutResult",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "GlobalLogoutResult:minimal-valid",
+      "schema": "GlobalLogoutResult",
+      "valid": true,
+      "value": {
+        "revokedScope": "ALL_MOLIS_PRODUCTS",
+        "status": "REVOKED"
+      }
+    },
+    {
+      "name": "GlobalLogoutResult:wrong-root-type",
+      "schema": "GlobalLogoutResult",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "ExpectedVersionRequest:minimal-valid",
+      "schema": "ExpectedVersionRequest",
+      "valid": true,
+      "value": {
+        "expectedVersion": 1
+      }
+    },
+    {
+      "name": "ExpectedVersionRequest:wrong-root-type",
+      "schema": "ExpectedVersionRequest",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "TenantRole:minimal-valid",
+      "schema": "TenantRole",
+      "valid": true,
+      "value": "OWNER"
+    },
+    {
+      "name": "TenantRole:wrong-root-type",
+      "schema": "TenantRole",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "TenantView:minimal-valid",
+      "schema": "TenantView",
+      "valid": true,
+      "value": {
+        "tenantId": "xxxxxxxx",
+        "name": "xxxxxxxx",
+        "status": "ACTIVE",
+        "myRole": "OWNER",
+        "membershipId": "xxxxxxxx",
+        "version": 1
+      }
+    },
+    {
+      "name": "TenantView:wrong-root-type",
+      "schema": "TenantView",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "PlatformTenantView:minimal-valid",
+      "schema": "PlatformTenantView",
+      "valid": true,
+      "value": {
+        "tenantId": "xxxxxxxx",
+        "name": "xxxxxxxx",
+        "status": "ACTIVE",
+        "ownerUserId": "xxxxxxxx",
+        "version": 1
+      }
+    },
+    {
+      "name": "PlatformTenantView:wrong-root-type",
+      "schema": "PlatformTenantView",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "Membership:minimal-valid",
+      "schema": "Membership",
+      "valid": true,
+      "value": {
+        "membershipId": "xxxxxxxx",
+        "tenantId": "xxxxxxxx",
+        "userId": "xxxxxxxx",
+        "role": "OWNER",
+        "status": "ACTIVE",
+        "version": 1
+      }
+    },
+    {
+      "name": "Membership:wrong-root-type",
+      "schema": "Membership",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "TenantUpdateRequest:minimal-valid",
+      "schema": "TenantUpdateRequest",
+      "valid": true,
+      "value": {
+        "name": "xxxxxxxx",
+        "expectedVersion": 1
+      }
+    },
+    {
+      "name": "TenantUpdateRequest:wrong-root-type",
+      "schema": "TenantUpdateRequest",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "TenantCreateRequest:minimal-valid",
+      "schema": "TenantCreateRequest",
+      "valid": true,
+      "value": {
+        "name": "xxxxxxxx",
+        "ownerUserId": "xxxxxxxx",
+        "reason": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "TenantCreateRequest:wrong-root-type",
+      "schema": "TenantCreateRequest",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "PlatformApplication:minimal-valid",
+      "schema": "PlatformApplication",
+      "valid": true,
+      "value": {
+        "applicationId": "xxxxxxxx",
+        "name": "xxxxxxxx",
+        "status": "ACTIVE",
+        "version": 1
+      }
+    },
+    {
+      "name": "PlatformApplication:wrong-root-type",
+      "schema": "PlatformApplication",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "PlatformApplicationPage:minimal-valid",
+      "schema": "PlatformApplicationPage",
+      "valid": true,
+      "value": {
+        "items": [],
+        "nextCursor": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "PlatformApplicationPage:wrong-root-type",
+      "schema": "PlatformApplicationPage",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "ApplicationCreateRequest:minimal-valid",
+      "schema": "ApplicationCreateRequest",
+      "valid": true,
+      "value": {
+        "name": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "ApplicationCreateRequest:wrong-root-type",
+      "schema": "ApplicationCreateRequest",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "ApplicationUpdateRequest:minimal-valid",
+      "schema": "ApplicationUpdateRequest",
+      "valid": true,
+      "value": {
+        "name": "xxxxxxxx",
+        "status": "ACTIVE",
+        "expectedVersion": 1
+      }
+    },
+    {
+      "name": "ApplicationUpdateRequest:wrong-root-type",
+      "schema": "ApplicationUpdateRequest",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "PlatformLoginClient:minimal-valid",
+      "schema": "PlatformLoginClient",
+      "valid": true,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "applicationId": "xxxxxxxx",
+        "clientType": "WEB",
+        "status": "ACTIVE",
+        "version": 1,
+        "environmentId": "xxxxxxxx",
+        "policyVersion": 1,
+        "allowedOrigins": [
+          "https://auth.example.invalid"
+        ],
+        "redirectAllowlist": [
+          "https://auth.example.invalid"
+        ],
+        "product": "WORK"
+      }
+    },
+    {
+      "name": "PlatformLoginClient:wrong-root-type",
+      "schema": "PlatformLoginClient",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "PlatformLoginClientPage:minimal-valid",
+      "schema": "PlatformLoginClientPage",
+      "valid": true,
+      "value": {
+        "items": [],
+        "nextCursor": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "PlatformLoginClientPage:wrong-root-type",
+      "schema": "PlatformLoginClientPage",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "LoginClientCreateRequest:minimal-valid",
+      "schema": "LoginClientCreateRequest",
+      "valid": true,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "clientType": "WEB",
+        "environmentId": "xxxxxxxx",
+        "allowedOrigins": [
+          "https://auth.example.invalid"
+        ],
+        "redirectAllowlist": [
+          "https://auth.example.invalid"
+        ]
+      }
+    },
+    {
+      "name": "LoginClientCreateRequest:wrong-root-type",
+      "schema": "LoginClientCreateRequest",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "LoginClientUpdateRequest:minimal-valid",
+      "schema": "LoginClientUpdateRequest",
+      "valid": true,
+      "value": {
+        "status": "ACTIVE",
+        "allowedOrigins": [
+          "https://auth.example.invalid"
+        ],
+        "redirectAllowlist": [
+          "https://auth.example.invalid"
+        ],
+        "expectedPolicyVersion": 1,
+        "expectedVersion": 1
+      }
+    },
+    {
+      "name": "LoginClientUpdateRequest:wrong-root-type",
+      "schema": "LoginClientUpdateRequest",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "PlatformUser:minimal-valid",
+      "schema": "PlatformUser",
+      "valid": true,
+      "value": {
+        "userId": "xxxxxxxx",
+        "displayName": "xxxxxxxx",
+        "email": "sample@example.invalid",
+        "status": "ACTIVE",
+        "version": 1
+      }
+    },
+    {
+      "name": "PlatformUser:wrong-root-type",
+      "schema": "PlatformUser",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "PlatformUserPage:minimal-valid",
+      "schema": "PlatformUserPage",
+      "valid": true,
+      "value": {
+        "items": [],
+        "nextCursor": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "PlatformUserPage:wrong-root-type",
+      "schema": "PlatformUserPage",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "UserEmailRequest:minimal-valid",
+      "schema": "UserEmailRequest",
+      "valid": true,
+      "value": {
+        "email": "sample@example.invalid",
+        "expectedVersion": 1,
+        "reason": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "UserEmailRequest:wrong-root-type",
+      "schema": "UserEmailRequest",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "UserStatusRequest:minimal-valid",
+      "schema": "UserStatusRequest",
+      "valid": true,
+      "value": {
+        "status": "ACTIVE",
+        "expectedVersion": 1,
+        "reason": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "UserStatusRequest:wrong-root-type",
+      "schema": "UserStatusRequest",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "PlatformPermission:minimal-valid",
+      "schema": "PlatformPermission",
+      "valid": true,
+      "value": {
+        "userId": "xxxxxxxx",
+        "capability": "TENANT_CREATE",
+        "status": "ACTIVE",
+        "version": 1
+      }
+    },
+    {
+      "name": "PlatformPermission:wrong-root-type",
+      "schema": "PlatformPermission",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "PlatformPermissionPage:minimal-valid",
+      "schema": "PlatformPermissionPage",
+      "valid": true,
+      "value": {
+        "items": [],
+        "nextCursor": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "PlatformPermissionPage:wrong-root-type",
+      "schema": "PlatformPermissionPage",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "PlatformPermissionRequest:minimal-valid",
+      "schema": "PlatformPermissionRequest",
+      "valid": true,
+      "value": {
+        "enabled": true,
+        "expectedVersion": 1,
+        "reason": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "PlatformPermissionRequest:wrong-root-type",
+      "schema": "PlatformPermissionRequest",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "SelfTenantCreateRequest:minimal-valid",
+      "schema": "SelfTenantCreateRequest",
+      "valid": true,
+      "value": {
+        "name": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "SelfTenantCreateRequest:wrong-root-type",
+      "schema": "SelfTenantCreateRequest",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "TenantCreationPolicyView:minimal-valid",
+      "schema": "TenantCreationPolicyView",
+      "valid": true,
+      "value": {
+        "mode": "SELF_SERVICE"
+      }
+    },
+    {
+      "name": "TenantCreationPolicyView:wrong-root-type",
+      "schema": "TenantCreationPolicyView",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "PlatformVersionRequest:minimal-valid",
+      "schema": "PlatformVersionRequest",
+      "valid": true,
+      "value": {
+        "expectedVersion": 1,
+        "reason": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "PlatformVersionRequest:wrong-root-type",
+      "schema": "PlatformVersionRequest",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "RoleUpdateRequest:minimal-valid",
+      "schema": "RoleUpdateRequest",
+      "valid": true,
+      "value": {
+        "role": "ADMIN",
+        "expectedVersion": 1
+      }
+    },
+    {
+      "name": "RoleUpdateRequest:wrong-root-type",
+      "schema": "RoleUpdateRequest",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "InvitationTarget:minimal-valid",
+      "schema": "InvitationTarget",
+      "valid": true,
+      "value": {
+        "kind": "EMAIL",
+        "value": "sample@example.invalid"
+      }
+    },
+    {
+      "name": "InvitationTarget:wrong-root-type",
+      "schema": "InvitationTarget",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "InvitationTarget:variant-1",
+      "schema": "InvitationTarget",
+      "valid": true,
+      "value": {
+        "kind": "EMAIL",
+        "value": "sample@example.invalid"
+      }
+    },
+    {
+      "name": "InvitationTarget:variant-2",
+      "schema": "InvitationTarget",
+      "valid": true,
+      "value": {
+        "kind": "PHONE",
+        "value": "+8613800000000"
+      }
+    },
+    {
+      "name": "InvitationTarget:variant-3",
+      "schema": "InvitationTarget",
+      "valid": true,
+      "value": {
+        "kind": "USER",
+        "value": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "InvitationCreateRequest:minimal-valid",
+      "schema": "InvitationCreateRequest",
+      "valid": true,
+      "value": {
+        "target": {
+          "kind": "EMAIL",
+          "value": "sample@example.invalid"
+        }
+      }
+    },
+    {
+      "name": "InvitationCreateRequest:wrong-root-type",
+      "schema": "InvitationCreateRequest",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "Invitation:minimal-valid",
+      "schema": "Invitation",
+      "valid": true,
+      "value": {
+        "invitationId": "xxxxxxxx",
+        "tenantId": "xxxxxxxx",
+        "targetSummary": "xxxxxxxx",
+        "status": "PENDING",
+        "expiresAt": "2026-11-04T08:00:00Z",
+        "version": 1
+      }
+    },
+    {
+      "name": "Invitation:wrong-root-type",
+      "schema": "Invitation",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "InvitationAcceptResult:minimal-valid",
+      "schema": "InvitationAcceptResult",
+      "valid": true,
+      "value": {
+        "invitation": {
+          "invitationId": "xxxxxxxx",
+          "tenantId": "xxxxxxxx",
+          "targetSummary": "xxxxxxxx",
+          "status": "PENDING",
+          "expiresAt": "2026-11-04T08:00:00Z",
+          "version": 1
+        },
+        "membership": {
+          "membershipId": "xxxxxxxx",
+          "tenantId": "xxxxxxxx",
+          "userId": "xxxxxxxx",
+          "role": "OWNER",
+          "status": "ACTIVE",
+          "version": 1
+        }
+      }
+    },
+    {
+      "name": "InvitationAcceptResult:wrong-root-type",
+      "schema": "InvitationAcceptResult",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "TransferCreateRequest:minimal-valid",
+      "schema": "TransferCreateRequest",
+      "valid": true,
+      "value": {
+        "targetMembershipId": "xxxxxxxx",
+        "expectedVersion": 1
+      }
+    },
+    {
+      "name": "TransferCreateRequest:wrong-root-type",
+      "schema": "TransferCreateRequest",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "OwnershipTransfer:minimal-valid",
+      "schema": "OwnershipTransfer",
+      "valid": true,
+      "value": {
+        "transferId": "xxxxxxxx",
+        "tenantId": "xxxxxxxx",
+        "fromMembershipId": "xxxxxxxx",
+        "toMembershipId": "xxxxxxxx",
+        "status": "PENDING",
+        "expiresAt": "2026-11-04T08:00:00Z",
+        "version": 1
+      }
+    },
+    {
+      "name": "OwnershipTransfer:wrong-root-type",
+      "schema": "OwnershipTransfer",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "TransferAcceptResult:minimal-valid",
+      "schema": "TransferAcceptResult",
+      "valid": true,
+      "value": {
+        "transfer": {
+          "transferId": "xxxxxxxx",
+          "tenantId": "xxxxxxxx",
+          "fromMembershipId": "xxxxxxxx",
+          "toMembershipId": "xxxxxxxx",
+          "status": "PENDING",
+          "expiresAt": "2026-11-04T08:00:00Z",
+          "version": 1
+        },
+        "previousOwner": {
+          "membershipId": "xxxxxxxx",
+          "tenantId": "xxxxxxxx",
+          "userId": "xxxxxxxx",
+          "role": "OWNER",
+          "status": "ACTIVE",
+          "version": 1
+        },
+        "owner": {
+          "membershipId": "xxxxxxxx",
+          "tenantId": "xxxxxxxx",
+          "userId": "xxxxxxxx",
+          "role": "OWNER",
+          "status": "ACTIVE",
+          "version": 1
+        },
+        "tenantVersion": 1
+      }
+    },
+    {
+      "name": "TransferAcceptResult:wrong-root-type",
+      "schema": "TransferAcceptResult",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "Feature:minimal-valid",
+      "schema": "Feature",
+      "valid": true,
+      "value": {
+        "featureId": "xxxxxxxx",
+        "product": "WORK",
+        "name": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "Feature:wrong-root-type",
+      "schema": "Feature",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "SeatType:minimal-valid",
+      "schema": "SeatType",
+      "valid": true,
+      "value": {
+        "seatTypeId": "xxxxxxxx",
+        "name": "xxxxxxxx",
+        "featureIds": []
+      }
+    },
+    {
+      "name": "SeatType:wrong-root-type",
+      "schema": "SeatType",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "PlanVersion:minimal-valid",
+      "schema": "PlanVersion",
+      "valid": true,
+      "value": {
+        "planId": "xxxxxxxx",
+        "planVersion": 1,
+        "name": "xxxxxxxx",
+        "personalFeatureIds": [],
+        "seatTypes": []
+      }
+    },
+    {
+      "name": "PlanVersion:wrong-root-type",
+      "schema": "PlanVersion",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "FeatureCreateRequest:minimal-valid",
+      "schema": "FeatureCreateRequest",
+      "valid": true,
+      "value": {
+        "featureId": "xxxxxxxx",
+        "product": "WORK",
+        "name": "xxxxxxxx",
+        "reason": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "FeatureCreateRequest:wrong-root-type",
+      "schema": "FeatureCreateRequest",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "PlanVersionCreateRequest:minimal-valid",
+      "schema": "PlanVersionCreateRequest",
+      "valid": true,
+      "value": {
+        "planVersion": 1,
+        "name": "xxxxxxxx",
+        "personalFeatureIds": [],
+        "seatTypes": [],
+        "reason": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "PlanVersionCreateRequest:wrong-root-type",
+      "schema": "PlanVersionCreateRequest",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "SubscriptionOwner:minimal-valid",
+      "schema": "SubscriptionOwner",
+      "valid": true,
+      "value": {
+        "kind": "USER",
+        "id": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "SubscriptionOwner:wrong-root-type",
+      "schema": "SubscriptionOwner",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "Subscription:minimal-valid",
+      "schema": "Subscription",
+      "valid": true,
+      "value": {
+        "subscriptionId": "xxxxxxxx",
+        "owner": {
+          "kind": "USER",
+          "id": "xxxxxxxx"
+        },
+        "planId": "xxxxxxxx",
+        "planVersion": 1,
+        "enabled": true,
+        "startsAt": "2026-11-04T08:00:00Z",
+        "endsAt": "2026-11-04T08:00:00Z",
+        "version": 1,
+        "status": "SCHEDULED"
+      }
+    },
+    {
+      "name": "Subscription:wrong-root-type",
+      "schema": "Subscription",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "SeatQuantities:minimal-valid",
+      "schema": "SeatQuantities",
+      "valid": true,
+      "value": {}
+    },
+    {
+      "name": "SeatQuantities:wrong-root-type",
+      "schema": "SeatQuantities",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "SubscriptionCreateRequest:minimal-valid",
+      "schema": "SubscriptionCreateRequest",
+      "valid": true,
+      "value": {
+        "planId": "xxxxxxxx",
+        "planVersion": 1,
+        "startsAt": "2026-11-04T08:00:00Z",
+        "endsAt": "2026-11-04T08:00:00Z",
+        "reason": "xxxxxxxx",
+        "owner": {
+          "kind": "USER",
+          "id": "xxxxxxxx"
+        }
+      }
+    },
+    {
+      "name": "SubscriptionCreateRequest:wrong-root-type",
+      "schema": "SubscriptionCreateRequest",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "SubscriptionCreateRequest:variant-1",
+      "schema": "SubscriptionCreateRequest",
+      "valid": true,
+      "value": {
+        "planId": "xxxxxxxx",
+        "planVersion": 1,
+        "startsAt": "2026-11-04T08:00:00Z",
+        "endsAt": "2026-11-04T08:00:00Z",
+        "reason": "xxxxxxxx",
+        "owner": {
+          "kind": "USER",
+          "id": "xxxxxxxx"
+        }
+      }
+    },
+    {
+      "name": "SubscriptionCreateRequest:variant-2",
+      "schema": "SubscriptionCreateRequest",
+      "valid": true,
+      "value": {
+        "planId": "xxxxxxxx",
+        "planVersion": 1,
+        "startsAt": "2026-11-04T08:00:00Z",
+        "endsAt": "2026-11-04T08:00:00Z",
+        "reason": "xxxxxxxx",
+        "owner": {
+          "kind": "TENANT",
+          "id": "xxxxxxxx"
+        },
+        "seatQuantities": {}
+      }
+    },
+    {
+      "name": "SubscriptionUpdateRequest:minimal-valid",
+      "schema": "SubscriptionUpdateRequest",
+      "valid": true,
+      "value": {
+        "expectedVersion": 1,
+        "reason": "xxxxxxxx",
+        "plan": {
+          "planId": "xxxxxxxx",
+          "planVersion": 1
+        }
+      }
+    },
+    {
+      "name": "SubscriptionUpdateRequest:wrong-root-type",
+      "schema": "SubscriptionUpdateRequest",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "SubscriptionRenewRequest:minimal-valid",
+      "schema": "SubscriptionRenewRequest",
+      "valid": true,
+      "value": {
+        "endsAt": "2026-11-04T08:00:00Z",
+        "expectedVersion": 1,
+        "reason": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "SubscriptionRenewRequest:wrong-root-type",
+      "schema": "SubscriptionRenewRequest",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "SeatPool:minimal-valid",
+      "schema": "SeatPool",
+      "valid": true,
+      "value": {
+        "subscriptionId": "xxxxxxxx",
+        "tenantId": "xxxxxxxx",
+        "seatTypeId": "xxxxxxxx",
+        "quantity": 1,
+        "assignedCount": 1,
+        "availableCount": 1,
+        "version": 1
+      }
+    },
+    {
+      "name": "SeatPool:wrong-root-type",
+      "schema": "SeatPool",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "Assignment:minimal-valid",
+      "schema": "Assignment",
+      "valid": true,
+      "value": {
+        "assignmentId": "xxxxxxxx",
+        "subscriptionId": "xxxxxxxx",
+        "seatTypeId": "xxxxxxxx",
+        "membershipId": "xxxxxxxx",
+        "userId": "xxxxxxxx",
+        "assignedAt": "2026-11-04T08:00:00Z",
+        "version": 1,
+        "status": "ASSIGNED",
+        "endedAt": null,
+        "endReason": null
+      }
+    },
+    {
+      "name": "Assignment:wrong-root-type",
+      "schema": "Assignment",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "Assignment:variant-1",
+      "schema": "Assignment",
+      "valid": true,
+      "value": {
+        "assignmentId": "xxxxxxxx",
+        "subscriptionId": "xxxxxxxx",
+        "seatTypeId": "xxxxxxxx",
+        "membershipId": "xxxxxxxx",
+        "userId": "xxxxxxxx",
+        "assignedAt": "2026-11-04T08:00:00Z",
+        "version": 1,
+        "status": "ASSIGNED",
+        "endedAt": null,
+        "endReason": null
+      }
+    },
+    {
+      "name": "Assignment:variant-2",
+      "schema": "Assignment",
+      "valid": true,
+      "value": {
+        "assignmentId": "xxxxxxxx",
+        "subscriptionId": "xxxxxxxx",
+        "seatTypeId": "xxxxxxxx",
+        "membershipId": "xxxxxxxx",
+        "userId": "xxxxxxxx",
+        "assignedAt": "2026-11-04T08:00:00Z",
+        "version": 1,
+        "status": "ENDED",
+        "endedAt": "2026-11-04T08:00:00Z",
+        "endReason": "RELEASED"
+      }
+    },
+    {
+      "name": "SeatAssignRequest:minimal-valid",
+      "schema": "SeatAssignRequest",
+      "valid": true,
+      "value": {
+        "subscriptionId": "xxxxxxxx",
+        "seatTypeId": "xxxxxxxx",
+        "membershipId": "xxxxxxxx",
+        "expectedVersion": 1
+      }
+    },
+    {
+      "name": "SeatAssignRequest:wrong-root-type",
+      "schema": "SeatAssignRequest",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "SeatReleaseRequest:minimal-valid",
+      "schema": "SeatReleaseRequest",
+      "valid": true,
+      "value": {
+        "expectedVersion": 1
+      }
+    },
+    {
+      "name": "SeatReleaseRequest:wrong-root-type",
+      "schema": "SeatReleaseRequest",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "SeatReassignRequest:minimal-valid",
+      "schema": "SeatReassignRequest",
+      "valid": true,
+      "value": {
+        "targetMembershipId": "xxxxxxxx",
+        "expectedVersion": 1
+      }
+    },
+    {
+      "name": "SeatReassignRequest:wrong-root-type",
+      "schema": "SeatReassignRequest",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "SeatMutationResult:minimal-valid",
+      "schema": "SeatMutationResult",
+      "valid": true,
+      "value": {
+        "assignment": {
+          "assignmentId": "xxxxxxxx",
+          "subscriptionId": "xxxxxxxx",
+          "seatTypeId": "xxxxxxxx",
+          "membershipId": "xxxxxxxx",
+          "userId": "xxxxxxxx",
+          "assignedAt": "2026-11-04T08:00:00Z",
+          "version": 1,
+          "status": "ASSIGNED",
+          "endedAt": null,
+          "endReason": null
+        },
+        "pool": {
+          "subscriptionId": "xxxxxxxx",
+          "tenantId": "xxxxxxxx",
+          "seatTypeId": "xxxxxxxx",
+          "quantity": 1,
+          "assignedCount": 1,
+          "availableCount": 1,
+          "version": 1
+        },
+        "entitlementRevision": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "SeatMutationResult:wrong-root-type",
+      "schema": "SeatMutationResult",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "SeatReassignResult:minimal-valid",
+      "schema": "SeatReassignResult",
+      "valid": true,
+      "value": {
+        "endedAssignment": {
+          "assignmentId": "xxxxxxxx",
+          "subscriptionId": "xxxxxxxx",
+          "seatTypeId": "xxxxxxxx",
+          "membershipId": "xxxxxxxx",
+          "userId": "xxxxxxxx",
+          "assignedAt": "2026-11-04T08:00:00Z",
+          "version": 1,
+          "status": "ASSIGNED",
+          "endedAt": null,
+          "endReason": null
+        },
+        "assignment": {
+          "assignmentId": "xxxxxxxx",
+          "subscriptionId": "xxxxxxxx",
+          "seatTypeId": "xxxxxxxx",
+          "membershipId": "xxxxxxxx",
+          "userId": "xxxxxxxx",
+          "assignedAt": "2026-11-04T08:00:00Z",
+          "version": 1,
+          "status": "ASSIGNED",
+          "endedAt": null,
+          "endReason": null
+        },
+        "pool": {
+          "subscriptionId": "xxxxxxxx",
+          "tenantId": "xxxxxxxx",
+          "seatTypeId": "xxxxxxxx",
+          "quantity": 1,
+          "assignedCount": 1,
+          "availableCount": 1,
+          "version": 1
+        },
+        "entitlementRevision": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "SeatReassignResult:wrong-root-type",
+      "schema": "SeatReassignResult",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "AuditEvent:minimal-valid",
+      "schema": "AuditEvent",
+      "valid": true,
+      "value": {
+        "auditEventId": "xxxxxxxx",
+        "actorUserId": "xxxxxxxx",
+        "operation": "xxxxxxxx",
+        "target": {
+          "kind": "xxxxxxxx",
+          "id": "xxxxxxxx"
+        },
+        "tenantId": "xxxxxxxx",
+        "occurredAt": "2026-11-04T08:00:00Z",
+        "result": "SUCCEEDED",
+        "changes": []
+      }
+    },
+    {
+      "name": "AuditEvent:wrong-root-type",
+      "schema": "AuditEvent",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "EntitlementSource:minimal-valid",
+      "schema": "EntitlementSource",
+      "valid": true,
+      "value": {
+        "kind": "PERSONAL_SUBSCRIPTION",
+        "subscriptionId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "EntitlementSource:wrong-root-type",
+      "schema": "EntitlementSource",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "EntitlementSource:variant-1",
+      "schema": "EntitlementSource",
+      "valid": true,
+      "value": {
+        "kind": "PERSONAL_SUBSCRIPTION",
+        "subscriptionId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "EntitlementSource:variant-2",
+      "schema": "EntitlementSource",
+      "valid": true,
+      "value": {
+        "kind": "TENANT_SEAT",
+        "subscriptionId": "xxxxxxxx",
+        "seatTypeId": "xxxxxxxx",
+        "assignmentId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "EntitlementDecision:minimal-valid",
+      "schema": "EntitlementDecision",
+      "valid": true,
+      "value": {
+        "featureId": "xxxxxxxx",
+        "allowed": true,
+        "reason": "GRANTED",
+        "validUntil": "2026-11-04T08:00:00Z",
+        "sources": [
+          {
+            "kind": "PERSONAL_SUBSCRIPTION",
+            "subscriptionId": "xxxxxxxx"
+          }
+        ]
+      }
+    },
+    {
+      "name": "EntitlementDecision:wrong-root-type",
+      "schema": "EntitlementDecision",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "EntitlementDecision:variant-1",
+      "schema": "EntitlementDecision",
+      "valid": true,
+      "value": {
+        "featureId": "xxxxxxxx",
+        "allowed": true,
+        "reason": "GRANTED",
+        "validUntil": "2026-11-04T08:00:00Z",
+        "sources": [
+          {
+            "kind": "PERSONAL_SUBSCRIPTION",
+            "subscriptionId": "xxxxxxxx"
+          }
+        ]
+      }
+    },
+    {
+      "name": "EntitlementDecision:variant-2",
+      "schema": "EntitlementDecision",
+      "valid": true,
+      "value": {
+        "featureId": "xxxxxxxx",
+        "allowed": false,
+        "reason": "FEATURE_NOT_GRANTED",
+        "validUntil": "2026-11-04T08:00:00Z",
+        "sources": []
+      }
+    },
+    {
+      "name": "EntitlementCheckRequest:minimal-valid",
+      "schema": "EntitlementCheckRequest",
+      "valid": true,
+      "value": {
+        "scope": {
+          "kind": "PERSONAL"
+        },
+        "featureIds": [
+          "xxxxxxxx"
+        ]
+      }
+    },
+    {
+      "name": "EntitlementCheckRequest:wrong-root-type",
+      "schema": "EntitlementCheckRequest",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "EntitlementCheckResult:minimal-valid",
+      "schema": "EntitlementCheckResult",
+      "valid": true,
+      "value": {
+        "scope": {
+          "kind": "PERSONAL"
+        },
+        "evaluatedAt": "2026-11-04T08:00:00Z",
+        "revision": "xxxxxxxx",
+        "decisions": [
+          {
+            "featureId": "xxxxxxxx",
+            "allowed": true,
+            "reason": "GRANTED",
+            "validUntil": "2026-11-04T08:00:00Z",
+            "sources": [
+              {
+                "kind": "PERSONAL_SUBSCRIPTION",
+                "subscriptionId": "xxxxxxxx"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "EntitlementCheckResult:wrong-root-type",
+      "schema": "EntitlementCheckResult",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "LoginMethodPage:minimal-valid",
+      "schema": "LoginMethodPage",
+      "valid": true,
+      "value": {
+        "items": [],
+        "nextCursor": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "LoginMethodPage:wrong-root-type",
+      "schema": "LoginMethodPage",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "TenantViewPage:minimal-valid",
+      "schema": "TenantViewPage",
+      "valid": true,
+      "value": {
+        "items": [],
+        "nextCursor": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "TenantViewPage:wrong-root-type",
+      "schema": "TenantViewPage",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "PlatformTenantViewPage:minimal-valid",
+      "schema": "PlatformTenantViewPage",
+      "valid": true,
+      "value": {
+        "items": [],
+        "nextCursor": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "PlatformTenantViewPage:wrong-root-type",
+      "schema": "PlatformTenantViewPage",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "MembershipPage:minimal-valid",
+      "schema": "MembershipPage",
+      "valid": true,
+      "value": {
+        "items": [],
+        "nextCursor": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "MembershipPage:wrong-root-type",
+      "schema": "MembershipPage",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "InvitationPage:minimal-valid",
+      "schema": "InvitationPage",
+      "valid": true,
+      "value": {
+        "items": [],
+        "nextCursor": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "InvitationPage:wrong-root-type",
+      "schema": "InvitationPage",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "OwnershipTransferPage:minimal-valid",
+      "schema": "OwnershipTransferPage",
+      "valid": true,
+      "value": {
+        "items": [],
+        "nextCursor": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "OwnershipTransferPage:wrong-root-type",
+      "schema": "OwnershipTransferPage",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "FeaturePage:minimal-valid",
+      "schema": "FeaturePage",
+      "valid": true,
+      "value": {
+        "items": [],
+        "nextCursor": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "FeaturePage:wrong-root-type",
+      "schema": "FeaturePage",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "PlanVersionPage:minimal-valid",
+      "schema": "PlanVersionPage",
+      "valid": true,
+      "value": {
+        "items": [],
+        "nextCursor": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "PlanVersionPage:wrong-root-type",
+      "schema": "PlanVersionPage",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "SubscriptionPage:minimal-valid",
+      "schema": "SubscriptionPage",
+      "valid": true,
+      "value": {
+        "items": [],
+        "nextCursor": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "SubscriptionPage:wrong-root-type",
+      "schema": "SubscriptionPage",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "SeatPoolPage:minimal-valid",
+      "schema": "SeatPoolPage",
+      "valid": true,
+      "value": {
+        "items": [],
+        "nextCursor": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "SeatPoolPage:wrong-root-type",
+      "schema": "SeatPoolPage",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "AssignmentPage:minimal-valid",
+      "schema": "AssignmentPage",
+      "valid": true,
+      "value": {
+        "items": [],
+        "nextCursor": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "AssignmentPage:wrong-root-type",
+      "schema": "AssignmentPage",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "AuditEventPage:minimal-valid",
+      "schema": "AuditEventPage",
+      "valid": true,
+      "value": {
+        "items": [],
+        "nextCursor": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "AuditEventPage:wrong-root-type",
+      "schema": "AuditEventPage",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "MyTenantsPage:minimal-valid",
+      "schema": "MyTenantsPage",
+      "valid": true,
+      "value": {
+        "personalScope": {
+          "kind": "PERSONAL"
+        },
+        "items": [],
+        "nextCursor": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "MyTenantsPage:wrong-root-type",
+      "schema": "MyTenantsPage",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "AccountView:minimal-valid",
+      "schema": "AccountView",
+      "valid": true,
+      "value": {
+        "state": "ANONYMOUS"
+      }
+    },
+    {
+      "name": "AccountView:wrong-root-type",
+      "schema": "AccountView",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "AccountView:variant-1",
+      "schema": "AccountView",
+      "valid": true,
+      "value": {
+        "state": "ANONYMOUS"
+      }
+    },
+    {
+      "name": "AccountView:variant-2",
+      "schema": "AccountView",
+      "valid": true,
+      "value": {
+        "state": "AUTHENTICATED",
+        "user": {
+          "issuer": "https://auth.example.invalid",
+          "userId": "xxxxxxxx",
+          "displayName": "xxxxxxxx",
+          "email": "sample@example.invalid",
+          "avatarUrl": "https://auth.example.invalid",
+          "version": 1
+        },
+        "session": {
+          "loginSessionId": "xxxxxxxx",
+          "applicationId": "xxxxxxxx",
+          "clientId": "xxxxxxxx",
+          "authenticatedAt": "2026-11-04T08:00:00Z",
+          "lastActiveAt": "2026-11-04T08:00:00Z",
+          "idleExpiresAt": "2026-11-04T08:00:00Z",
+          "absoluteExpiresAt": "2026-11-04T08:00:00Z",
+          "sessionRevision": 1
+        },
+        "capabilities": []
+      }
+    },
+    {
+      "name": "AccountView:variant-3",
+      "schema": "AccountView",
+      "valid": true,
+      "value": {
+        "state": "OFFLINE_CACHED",
+        "user": {
+          "issuer": "https://auth.example.invalid",
+          "userId": "xxxxxxxx",
+          "displayName": "xxxxxxxx",
+          "email": "sample@example.invalid",
+          "avatarUrl": "https://auth.example.invalid",
+          "version": 1
+        }
+      }
+    },
+    {
+      "name": "ProductTransactionRequest:minimal-valid",
+      "schema": "ProductTransactionRequest",
+      "valid": true,
+      "value": {
+        "purpose": "LOGIN",
+        "method": "EMAIL_PASSWORD"
+      }
+    },
+    {
+      "name": "ProductTransactionRequest:wrong-root-type",
+      "schema": "ProductTransactionRequest",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "ProductTransactionRequest:variant-1",
+      "schema": "ProductTransactionRequest",
+      "valid": true,
+      "value": {
+        "purpose": "LOGIN",
+        "method": "EMAIL_PASSWORD"
+      }
+    },
+    {
+      "name": "ProductTransactionRequest:variant-2",
+      "schema": "ProductTransactionRequest",
+      "valid": true,
+      "value": {
+        "purpose": "LOGIN",
+        "method": "PHONE_OTP"
+      }
+    },
+    {
+      "name": "ProductTransactionRequest:variant-3",
+      "schema": "ProductTransactionRequest",
+      "valid": true,
+      "value": {
+        "purpose": "LOGIN",
+        "method": "GOOGLE"
+      }
+    },
+    {
+      "name": "ProductTransactionRequest:variant-4",
+      "schema": "ProductTransactionRequest",
+      "valid": true,
+      "value": {
+        "purpose": "LOGIN",
+        "method": "GITHUB"
+      }
+    },
+    {
+      "name": "ProductTransactionRequest:variant-5",
+      "schema": "ProductTransactionRequest",
+      "valid": true,
+      "value": {
+        "purpose": "EMAIL_SIGNUP",
+        "method": "EMAIL_CODE"
+      }
+    },
+    {
+      "name": "ProductTransactionRequest:variant-6",
+      "schema": "ProductTransactionRequest",
+      "valid": true,
+      "value": {
+        "purpose": "PASSWORD_RESET",
+        "method": "EMAIL_CODE"
+      }
+    },
+    {
+      "name": "ProductTransactionRequest:variant-7",
+      "schema": "ProductTransactionRequest",
+      "valid": true,
+      "value": {
+        "purpose": "BIND",
+        "method": "EMAIL_CODE",
+        "reauthHandle": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "ProductTransactionRequest:variant-8",
+      "schema": "ProductTransactionRequest",
+      "valid": true,
+      "value": {
+        "purpose": "REPLACE",
+        "method": "EMAIL_CODE",
+        "reauthHandle": "xxxxxxxx",
+        "bindingId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "ProductTransactionRequest:variant-9",
+      "schema": "ProductTransactionRequest",
+      "valid": true,
+      "value": {
+        "purpose": "BIND",
+        "method": "PHONE_OTP",
+        "reauthHandle": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "ProductTransactionRequest:variant-10",
+      "schema": "ProductTransactionRequest",
+      "valid": true,
+      "value": {
+        "purpose": "REPLACE",
+        "method": "PHONE_OTP",
+        "reauthHandle": "xxxxxxxx",
+        "bindingId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "ProductTransactionRequest:variant-11",
+      "schema": "ProductTransactionRequest",
+      "valid": true,
+      "value": {
+        "purpose": "BIND",
+        "method": "GOOGLE",
+        "reauthHandle": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "ProductTransactionRequest:variant-12",
+      "schema": "ProductTransactionRequest",
+      "valid": true,
+      "value": {
+        "purpose": "REPLACE",
+        "method": "GOOGLE",
+        "reauthHandle": "xxxxxxxx",
+        "bindingId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "ProductTransactionRequest:variant-13",
+      "schema": "ProductTransactionRequest",
+      "valid": true,
+      "value": {
+        "purpose": "BIND",
+        "method": "GITHUB",
+        "reauthHandle": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "ProductTransactionRequest:variant-14",
+      "schema": "ProductTransactionRequest",
+      "valid": true,
+      "value": {
+        "purpose": "REPLACE",
+        "method": "GITHUB",
+        "reauthHandle": "xxxxxxxx",
+        "bindingId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "ProductReauthenticationRequest:minimal-valid",
+      "schema": "ProductReauthenticationRequest",
+      "valid": true,
+      "value": {
+        "method": "EMAIL_PASSWORD",
+        "operation": "BIND_METHOD",
+        "target": {
+          "method": "EMAIL"
+        }
+      }
+    },
+    {
+      "name": "ProductReauthenticationRequest:wrong-root-type",
+      "schema": "ProductReauthenticationRequest",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "ProductReauthenticationRequest:variant-1",
+      "schema": "ProductReauthenticationRequest",
+      "valid": true,
+      "value": {
+        "method": "EMAIL_PASSWORD",
+        "operation": "BIND_METHOD",
+        "target": {
+          "method": "EMAIL"
+        }
+      }
+    },
+    {
+      "name": "ProductReauthenticationRequest:variant-2",
+      "schema": "ProductReauthenticationRequest",
+      "valid": true,
+      "value": {
+        "method": "EMAIL_PASSWORD",
+        "operation": "REPLACE_METHOD",
+        "target": {
+          "bindingId": "xxxxxxxx"
+        }
+      }
+    },
+    {
+      "name": "ProductReauthenticationRequest:variant-3",
+      "schema": "ProductReauthenticationRequest",
+      "valid": true,
+      "value": {
+        "method": "EMAIL_PASSWORD",
+        "operation": "UNLINK_METHOD",
+        "target": {
+          "bindingId": "xxxxxxxx"
+        }
+      }
+    },
+    {
+      "name": "ProductReauthenticationRequest:variant-4",
+      "schema": "ProductReauthenticationRequest",
+      "valid": true,
+      "value": {
+        "method": "EMAIL_PASSWORD",
+        "operation": "CHANGE_PASSWORD",
+        "target": {
+          "kind": "PASSWORD"
+        }
+      }
+    },
+    {
+      "name": "ProductReauthenticationRequest:variant-5",
+      "schema": "ProductReauthenticationRequest",
+      "valid": true,
+      "value": {
+        "method": "PHONE_OTP",
+        "operation": "BIND_METHOD",
+        "target": {
+          "method": "EMAIL"
+        }
+      }
+    },
+    {
+      "name": "ProductReauthenticationRequest:variant-6",
+      "schema": "ProductReauthenticationRequest",
+      "valid": true,
+      "value": {
+        "method": "PHONE_OTP",
+        "operation": "REPLACE_METHOD",
+        "target": {
+          "bindingId": "xxxxxxxx"
+        }
+      }
+    },
+    {
+      "name": "ProductReauthenticationRequest:variant-7",
+      "schema": "ProductReauthenticationRequest",
+      "valid": true,
+      "value": {
+        "method": "PHONE_OTP",
+        "operation": "UNLINK_METHOD",
+        "target": {
+          "bindingId": "xxxxxxxx"
+        }
+      }
+    },
+    {
+      "name": "ProductReauthenticationRequest:variant-8",
+      "schema": "ProductReauthenticationRequest",
+      "valid": true,
+      "value": {
+        "method": "PHONE_OTP",
+        "operation": "CHANGE_PASSWORD",
+        "target": {
+          "kind": "PASSWORD"
+        }
+      }
+    },
+    {
+      "name": "ProductReauthenticationRequest:variant-9",
+      "schema": "ProductReauthenticationRequest",
+      "valid": true,
+      "value": {
+        "method": "GOOGLE",
+        "operation": "BIND_METHOD",
+        "target": {
+          "method": "EMAIL"
+        }
+      }
+    },
+    {
+      "name": "ProductReauthenticationRequest:variant-10",
+      "schema": "ProductReauthenticationRequest",
+      "valid": true,
+      "value": {
+        "method": "GOOGLE",
+        "operation": "REPLACE_METHOD",
+        "target": {
+          "bindingId": "xxxxxxxx"
+        }
+      }
+    },
+    {
+      "name": "ProductReauthenticationRequest:variant-11",
+      "schema": "ProductReauthenticationRequest",
+      "valid": true,
+      "value": {
+        "method": "GOOGLE",
+        "operation": "UNLINK_METHOD",
+        "target": {
+          "bindingId": "xxxxxxxx"
+        }
+      }
+    },
+    {
+      "name": "ProductReauthenticationRequest:variant-12",
+      "schema": "ProductReauthenticationRequest",
+      "valid": true,
+      "value": {
+        "method": "GOOGLE",
+        "operation": "CHANGE_PASSWORD",
+        "target": {
+          "kind": "PASSWORD"
+        }
+      }
+    },
+    {
+      "name": "ProductReauthenticationRequest:variant-13",
+      "schema": "ProductReauthenticationRequest",
+      "valid": true,
+      "value": {
+        "method": "GITHUB",
+        "operation": "BIND_METHOD",
+        "target": {
+          "method": "EMAIL"
+        }
+      }
+    },
+    {
+      "name": "ProductReauthenticationRequest:variant-14",
+      "schema": "ProductReauthenticationRequest",
+      "valid": true,
+      "value": {
+        "method": "GITHUB",
+        "operation": "REPLACE_METHOD",
+        "target": {
+          "bindingId": "xxxxxxxx"
+        }
+      }
+    },
+    {
+      "name": "ProductReauthenticationRequest:variant-15",
+      "schema": "ProductReauthenticationRequest",
+      "valid": true,
+      "value": {
+        "method": "GITHUB",
+        "operation": "UNLINK_METHOD",
+        "target": {
+          "bindingId": "xxxxxxxx"
+        }
+      }
+    },
+    {
+      "name": "ProductReauthenticationRequest:variant-16",
+      "schema": "ProductReauthenticationRequest",
+      "valid": true,
+      "value": {
+        "method": "GITHUB",
+        "operation": "CHANGE_PASSWORD",
+        "target": {
+          "kind": "PASSWORD"
+        }
+      }
+    },
+    {
+      "name": "ProductTransactionView:minimal-valid",
+      "schema": "ProductTransactionView",
+      "valid": true,
+      "value": {
+        "handle": "xxxxxxxx",
+        "status": "PENDING",
+        "nextStep": "REQUEST_CHALLENGE",
+        "expiresAt": "2026-11-04T08:00:00Z"
+      }
+    },
+    {
+      "name": "ProductTransactionView:wrong-root-type",
+      "schema": "ProductTransactionView",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "ProductTransactionView:variant-1",
+      "schema": "ProductTransactionView",
+      "valid": true,
+      "value": {
+        "handle": "xxxxxxxx",
+        "status": "PENDING",
+        "nextStep": "REQUEST_CHALLENGE",
+        "expiresAt": "2026-11-04T08:00:00Z"
+      }
+    },
+    {
+      "name": "ProductTransactionView:variant-2",
+      "schema": "ProductTransactionView",
+      "valid": true,
+      "value": {
+        "handle": "xxxxxxxx",
+        "status": "VERIFIED",
+        "nextStep": "COMPLETE",
+        "expiresAt": "2026-11-04T08:00:00Z"
+      }
+    },
+    {
+      "name": "ProductTransactionView:variant-3",
+      "schema": "ProductTransactionView",
+      "valid": true,
+      "value": {
+        "handle": "xxxxxxxx",
+        "status": "CONSUMED",
+        "nextStep": "NONE",
+        "expiresAt": "2026-11-04T08:00:00Z"
+      }
+    },
+    {
+      "name": "ProductSubmitRequest:minimal-valid",
+      "schema": "ProductSubmitRequest",
+      "valid": true,
+      "value": {
+        "step": "REQUEST_CHALLENGE",
+        "address": "sample@example.invalid"
+      }
+    },
+    {
+      "name": "ProductSubmitRequest:wrong-root-type",
+      "schema": "ProductSubmitRequest",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "ProductSubmitRequest:variant-1",
+      "schema": "ProductSubmitRequest",
+      "valid": true,
+      "value": {
+        "step": "REQUEST_CHALLENGE",
+        "address": "sample@example.invalid"
+      }
+    },
+    {
+      "name": "ProductSubmitRequest:variant-2",
+      "schema": "ProductSubmitRequest",
+      "valid": true,
+      "value": {
+        "step": "VERIFY_CHALLENGE",
+        "challengeHandle": "xxxxxxxx",
+        "credential": "123456"
+      }
+    },
+    {
+      "name": "ProductSubmitRequest:variant-3",
+      "schema": "ProductSubmitRequest",
+      "valid": true,
+      "value": {
+        "step": "PASSWORD_LOGIN",
+        "email": "sample@example.invalid",
+        "password": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "ProductSubmitRequest:variant-4",
+      "schema": "ProductSubmitRequest",
+      "valid": true,
+      "value": {
+        "step": "EMAIL_SIGNUP",
+        "email": "sample@example.invalid",
+        "password": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "ProductSubmitRequest:variant-5",
+      "schema": "ProductSubmitRequest",
+      "valid": true,
+      "value": {
+        "step": "PHONE_LOGIN"
+      }
+    },
+    {
+      "name": "ProductSubmitRequest:variant-6",
+      "schema": "ProductSubmitRequest",
+      "valid": true,
+      "value": {
+        "step": "START_PROVIDER"
+      }
+    },
+    {
+      "name": "ProductSubmitRequest:variant-7",
+      "schema": "ProductSubmitRequest",
+      "valid": true,
+      "value": {
+        "step": "COMPLETE"
+      }
+    },
+    {
+      "name": "ProductSubmitResult:minimal-valid",
+      "schema": "ProductSubmitResult",
+      "valid": true,
+      "value": {
+        "handle": "xxxxxxxx",
+        "status": "PENDING",
+        "nextStep": "REQUEST_CHALLENGE",
+        "expiresAt": "2026-11-04T08:00:00Z"
+      }
+    },
+    {
+      "name": "ProductSubmitResult:wrong-root-type",
+      "schema": "ProductSubmitResult",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "ProductSubmitResult:variant-1",
+      "schema": "ProductSubmitResult",
+      "valid": true,
+      "value": {
+        "handle": "xxxxxxxx",
+        "status": "PENDING",
+        "nextStep": "REQUEST_CHALLENGE",
+        "expiresAt": "2026-11-04T08:00:00Z"
+      }
+    },
+    {
+      "name": "ProductSubmitResult:variant-2",
+      "schema": "ProductSubmitResult",
+      "valid": true,
+      "value": {
+        "challengeHandle": "xxxxxxxx",
+        "expiresAt": "2026-11-04T08:00:00Z",
+        "retryAfterSeconds": 1,
+        "nextStep": "VERIFY_CHALLENGE"
+      }
+    },
+    {
+      "name": "ProductSubmitResult:variant-3",
+      "schema": "ProductSubmitResult",
+      "valid": true,
+      "value": {
+        "browserStartUrl": "https://auth.example.invalid"
+      }
+    },
+    {
+      "name": "ProductSubmitResult:variant-4",
+      "schema": "ProductSubmitResult",
+      "valid": true,
+      "value": {
+        "account": {
+          "state": "ANONYMOUS"
+        }
+      }
+    },
+    {
+      "name": "ProductSubmitResult:variant-5",
+      "schema": "ProductSubmitResult",
+      "valid": true,
+      "value": {
+        "operationReady": true
+      }
+    },
+    {
+      "name": "ProductCallbackQuery:minimal-valid",
+      "schema": "ProductCallbackQuery",
+      "valid": true,
+      "value": {
+        "transactionId": "xxxxxxxx",
+        "state": "xxxxxxxxxxxxxxxx",
+        "result": "VERIFIED"
+      }
+    },
+    {
+      "name": "ProductCallbackQuery:wrong-root-type",
+      "schema": "ProductCallbackQuery",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "ProductCallbackResult:minimal-valid",
+      "schema": "ProductCallbackResult",
+      "valid": true,
+      "value": {
+        "account": {
+          "state": "ANONYMOUS"
+        }
+      }
+    },
+    {
+      "name": "ProductCallbackResult:wrong-root-type",
+      "schema": "ProductCallbackResult",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "ProductCallbackResult:variant-1",
+      "schema": "ProductCallbackResult",
+      "valid": true,
+      "value": {
+        "account": {
+          "state": "ANONYMOUS"
+        }
+      }
+    },
+    {
+      "name": "ProductCallbackResult:variant-2",
+      "schema": "ProductCallbackResult",
+      "valid": true,
+      "value": {
+        "operationReady": true
+      }
+    },
+    {
+      "name": "ProductCallbackResult:variant-3",
+      "schema": "ProductCallbackResult",
+      "valid": true,
+      "value": {
+        "status": "CANCELLED"
+      }
+    },
+    {
+      "name": "ProductLogoutRequest:minimal-valid",
+      "schema": "ProductLogoutRequest",
+      "valid": true,
+      "value": {
+        "scope": "CURRENT_LOGIN"
+      }
+    },
+    {
+      "name": "ProductLogoutRequest:wrong-root-type",
+      "schema": "ProductLogoutRequest",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "ProductLogoutResult:minimal-valid",
+      "schema": "ProductLogoutResult",
+      "valid": true,
+      "value": {
+        "localCleared": true,
+        "remoteRevocation": "CONFIRMED"
+      }
+    },
+    {
+      "name": "ProductLogoutResult:wrong-root-type",
+      "schema": "ProductLogoutResult",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "ProductBindRequest:minimal-valid",
+      "schema": "ProductBindRequest",
+      "valid": true,
+      "value": {
+        "reauthHandle": "xxxxxxxx",
+        "identityHandle": "xxxxxxxx",
+        "expectedVersion": 1
+      }
+    },
+    {
+      "name": "ProductBindRequest:wrong-root-type",
+      "schema": "ProductBindRequest",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "ProductUnlinkRequest:minimal-valid",
+      "schema": "ProductUnlinkRequest",
+      "valid": true,
+      "value": {
+        "reauthHandle": "xxxxxxxx",
+        "expectedVersion": 1
+      }
+    },
+    {
+      "name": "ProductUnlinkRequest:wrong-root-type",
+      "schema": "ProductUnlinkRequest",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "ProductPasswordChangeRequest:minimal-valid",
+      "schema": "ProductPasswordChangeRequest",
+      "valid": true,
+      "value": {
+        "reauthHandle": "xxxxxxxx",
+        "newPassword": "xxxxxxxx",
+        "expectedVersion": 1
+      }
+    },
+    {
+      "name": "ProductPasswordChangeRequest:wrong-root-type",
+      "schema": "ProductPasswordChangeRequest",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "ProductPasswordResetRequest:minimal-valid",
+      "schema": "ProductPasswordResetRequest",
+      "valid": true,
+      "value": {
+        "resetHandle": "xxxxxxxx",
+        "newPassword": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "ProductPasswordResetRequest:wrong-root-type",
+      "schema": "ProductPasswordResetRequest",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "DeliveryTemplate:minimal-valid",
+      "schema": "DeliveryTemplate",
+      "valid": true,
+      "value": "EMAIL_SIGNUP"
+    },
+    {
+      "name": "DeliveryTemplate:wrong-root-type",
+      "schema": "DeliveryTemplate",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "SmsDelivery:minimal-valid",
+      "schema": "SmsDelivery",
+      "valid": true,
+      "value": {
+        "deliveryId": "xxxxxxxx",
+        "templateKey": "PHONE_LOGIN",
+        "templateData": {
+          "credential": "123456"
+        },
+        "expiresAt": "2026-11-04T08:00:00Z",
+        "toE164": "+8613800000000"
+      }
+    },
+    {
+      "name": "SmsDelivery:wrong-root-type",
+      "schema": "SmsDelivery",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "MailDelivery:minimal-valid",
+      "schema": "MailDelivery",
+      "valid": true,
+      "value": {
+        "deliveryId": "xxxxxxxx",
+        "templateKey": "EMAIL_SIGNUP",
+        "templateData": {
+          "credential": "123456"
+        },
+        "expiresAt": "2026-11-04T08:00:00Z",
+        "to": "sample@example.invalid"
+      }
+    },
+    {
+      "name": "MailDelivery:wrong-root-type",
+      "schema": "MailDelivery",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "DeliveryResult:minimal-valid",
+      "schema": "DeliveryResult",
+      "valid": true,
+      "value": {
+        "status": "ACCEPTED",
+        "providerMessageId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "DeliveryResult:wrong-root-type",
+      "schema": "DeliveryResult",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "DeliveryResult:variant-1",
+      "schema": "DeliveryResult",
+      "valid": true,
+      "value": {
+        "status": "ACCEPTED",
+        "providerMessageId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "DeliveryResult:variant-2",
+      "schema": "DeliveryResult",
+      "valid": true,
+      "value": {
+        "status": "FAILED",
+        "code": "REJECTED"
+      }
+    },
+    {
+      "name": "DeliveryResult:variant-3",
+      "schema": "DeliveryResult",
+      "valid": true,
+      "value": {
+        "status": "UNKNOWN",
+        "code": "TIMEOUT"
+      }
+    },
+    {
+      "name": "ProviderIdentity:minimal-valid",
+      "schema": "ProviderIdentity",
+      "valid": true,
+      "value": {
+        "issuer": "https://auth.example.invalid",
+        "subject": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "ProviderIdentity:wrong-root-type",
+      "schema": "ProviderIdentity",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "ProviderServerContext:minimal-valid",
+      "schema": "ProviderServerContext",
+      "valid": true,
+      "value": {
+        "transactionId": "xxxxxxxx",
+        "provider": "GOOGLE",
+        "providerState": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "browserBindingDigest": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "providerNonceDigest": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "providerCodeChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "providerCodeVerifierRef": "xxxxxxxx",
+        "callbackUri": "https://auth.example.invalid",
+        "environmentId": "xxxxxxxx",
+        "expiresAt": "2026-11-04T08:00:00Z"
+      }
+    },
+    {
+      "name": "ProviderServerContext:wrong-root-type",
+      "schema": "ProviderServerContext",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "ProviderCallback:minimal-valid",
+      "schema": "ProviderCallback",
+      "valid": true,
+      "value": {
+        "state": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "code": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "ProviderCallback:wrong-root-type",
+      "schema": "ProviderCallback",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "ProviderCallback:variant-1",
+      "schema": "ProviderCallback",
+      "valid": true,
+      "value": {
+        "state": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "code": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "ProviderCallback:variant-2",
+      "schema": "ProviderCallback",
+      "valid": true,
+      "value": {
+        "state": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "error": "access_denied"
+      }
+    },
+    {
+      "name": "ClientEnvironmentConfig:minimal-valid",
+      "schema": "ClientEnvironmentConfig",
+      "valid": true,
+      "value": {
+        "environmentId": "xxxxxxxx",
+        "authOrigin": "https://auth.example.invalid",
+        "productOrigin": "https://auth.example.invalid",
+        "clientId": "xxxxxxxx",
+        "policyProfile": "unified-account-v2",
+        "redirectAllowlist": [
+          "https://auth.example.invalid"
+        ],
+        "environmentKind": "LOCAL",
+        "deliveryMode": "MOCK",
+        "providerMode": "MOCK"
+      }
+    },
+    {
+      "name": "ClientEnvironmentConfig:wrong-root-type",
+      "schema": "ClientEnvironmentConfig",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "ClientEnvironmentConfig:variant-1",
+      "schema": "ClientEnvironmentConfig",
+      "valid": true,
+      "value": {
+        "environmentId": "xxxxxxxx",
+        "authOrigin": "https://auth.example.invalid",
+        "productOrigin": "https://auth.example.invalid",
+        "clientId": "xxxxxxxx",
+        "policyProfile": "unified-account-v2",
+        "redirectAllowlist": [
+          "https://auth.example.invalid"
+        ],
+        "environmentKind": "LOCAL",
+        "deliveryMode": "MOCK",
+        "providerMode": "MOCK"
+      }
+    },
+    {
+      "name": "ClientEnvironmentConfig:variant-2",
+      "schema": "ClientEnvironmentConfig",
+      "valid": true,
+      "value": {
+        "environmentId": "xxxxxxxx",
+        "authOrigin": "https://auth.example.invalid",
+        "productOrigin": "https://auth.example.invalid",
+        "clientId": "xxxxxxxx",
+        "policyProfile": "unified-account-v2",
+        "redirectAllowlist": [
+          "https://auth.example.invalid"
+        ],
+        "environmentKind": "PRODUCTION",
+        "deliveryMode": "LIVE",
+        "providerMode": "LIVE"
+      }
+    },
+    {
+      "name": "EnvironmentConfig:minimal-valid",
+      "schema": "EnvironmentConfig",
+      "valid": true,
+      "value": {
+        "environmentId": "xxxxxxxx",
+        "kind": "LOCAL",
+        "authOrigin": "https://auth.example.invalid",
+        "deliveryMode": "MOCK",
+        "providerMode": "MOCK"
+      }
+    },
+    {
+      "name": "EnvironmentConfig:wrong-root-type",
+      "schema": "EnvironmentConfig",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "EnvironmentConfig:variant-1",
+      "schema": "EnvironmentConfig",
+      "valid": true,
+      "value": {
+        "environmentId": "xxxxxxxx",
+        "kind": "LOCAL",
+        "authOrigin": "https://auth.example.invalid",
+        "deliveryMode": "MOCK",
+        "providerMode": "MOCK"
+      }
+    },
+    {
+      "name": "EnvironmentConfig:variant-2",
+      "schema": "EnvironmentConfig",
+      "valid": true,
+      "value": {
+        "environmentId": "xxxxxxxx",
+        "kind": "PRODUCTION",
+        "authOrigin": "https://auth.example.invalid",
+        "deliveryMode": "LIVE",
+        "providerMode": "LIVE"
+      }
+    },
+    {
+      "name": "MigrationMapping:minimal-valid",
+      "schema": "MigrationMapping",
+      "valid": true,
+      "value": {
+        "issuer": "https://auth.example.invalid",
+        "authUserId": "xxxxxxxx",
+        "product": "WORK",
+        "localUserId": "xxxxxxxx",
+        "evidence": "VERIFIED_EXISTING_LINK",
+        "status": "PENDING",
+        "version": 1
+      }
+    },
+    {
+      "name": "MigrationMapping:wrong-root-type",
+      "schema": "MigrationMapping",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "MigrationInventoryRecord:minimal-valid",
+      "schema": "MigrationInventoryRecord",
+      "valid": true,
+      "value": {
+        "product": "AUTH",
+        "sourceRecordId": "xxxxxxxx",
+        "kind": "USER",
+        "disposition": "PRESERVE",
+        "verificationPreserved": true,
+        "evidenceReference": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "MigrationInventoryRecord:wrong-root-type",
+      "schema": "MigrationInventoryRecord",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "Error400:minimal-valid",
+      "schema": "Error400",
+      "valid": true,
+      "value": {
+        "requestId": "xxxxxxxx",
+        "error": {
+          "code": "INVALID_REQUEST"
+        }
+      }
+    },
+    {
+      "name": "Error400:wrong-root-type",
+      "schema": "Error400",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "Error401:minimal-valid",
+      "schema": "Error401",
+      "valid": true,
+      "value": {
+        "requestId": "xxxxxxxx",
+        "error": {
+          "code": "LOGIN_REQUIRED"
+        }
+      }
+    },
+    {
+      "name": "Error401:wrong-root-type",
+      "schema": "Error401",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "Error403:minimal-valid",
+      "schema": "Error403",
+      "valid": true,
+      "value": {
+        "requestId": "xxxxxxxx",
+        "error": {
+          "code": "FORBIDDEN"
+        }
+      }
+    },
+    {
+      "name": "Error403:wrong-root-type",
+      "schema": "Error403",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "Error404:minimal-valid",
+      "schema": "Error404",
+      "valid": true,
+      "value": {
+        "requestId": "xxxxxxxx",
+        "error": {
+          "code": "NOT_FOUND"
+        }
+      }
+    },
+    {
+      "name": "Error404:wrong-root-type",
+      "schema": "Error404",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "Error409:minimal-valid",
+      "schema": "Error409",
+      "valid": true,
+      "value": {
+        "requestId": "xxxxxxxx",
+        "error": {
+          "code": "VERSION_CONFLICT"
+        }
+      }
+    },
+    {
+      "name": "Error409:wrong-root-type",
+      "schema": "Error409",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "Error429:minimal-valid",
+      "schema": "Error429",
+      "valid": true,
+      "value": {
+        "requestId": "xxxxxxxx",
+        "error": {
+          "code": "RATE_LIMITED",
+          "retryAfterSeconds": 1
+        }
+      }
+    },
+    {
+      "name": "Error429:wrong-root-type",
+      "schema": "Error429",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "Error501:minimal-valid",
+      "schema": "Error501",
+      "valid": true,
+      "value": {
+        "requestId": "xxxxxxxx",
+        "error": {
+          "code": "UNIFIED_ACCOUNT_NOT_IMPLEMENTED"
+        }
+      }
+    },
+    {
+      "name": "Error501:wrong-root-type",
+      "schema": "Error501",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "Error503:minimal-valid",
+      "schema": "Error503",
+      "valid": true,
+      "value": {
+        "requestId": "xxxxxxxx",
+        "error": {
+          "code": "UPSTREAM_UNAVAILABLE"
+        }
+      }
+    },
+    {
+      "name": "Error503:wrong-root-type",
+      "schema": "Error503",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "ErrorResponse:minimal-valid",
+      "schema": "ErrorResponse",
+      "valid": true,
+      "value": {
+        "requestId": "xxxxxxxx",
+        "error": {
+          "code": "INVALID_REQUEST"
+        }
+      }
+    },
+    {
+      "name": "ErrorResponse:wrong-root-type",
+      "schema": "ErrorResponse",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "ErrorResponse:variant-1",
+      "schema": "ErrorResponse",
+      "valid": true,
+      "value": {
+        "requestId": "xxxxxxxx",
+        "error": {
+          "code": "INVALID_REQUEST"
+        }
+      }
+    },
+    {
+      "name": "ErrorResponse:variant-2",
+      "schema": "ErrorResponse",
+      "valid": true,
+      "value": {
+        "requestId": "xxxxxxxx",
+        "error": {
+          "code": "LOGIN_REQUIRED"
+        }
+      }
+    },
+    {
+      "name": "ErrorResponse:variant-3",
+      "schema": "ErrorResponse",
+      "valid": true,
+      "value": {
+        "requestId": "xxxxxxxx",
+        "error": {
+          "code": "FORBIDDEN"
+        }
+      }
+    },
+    {
+      "name": "ErrorResponse:variant-4",
+      "schema": "ErrorResponse",
+      "valid": true,
+      "value": {
+        "requestId": "xxxxxxxx",
+        "error": {
+          "code": "NOT_FOUND"
+        }
+      }
+    },
+    {
+      "name": "ErrorResponse:variant-5",
+      "schema": "ErrorResponse",
+      "valid": true,
+      "value": {
+        "requestId": "xxxxxxxx",
+        "error": {
+          "code": "VERSION_CONFLICT"
+        }
+      }
+    },
+    {
+      "name": "ErrorResponse:variant-6",
+      "schema": "ErrorResponse",
+      "valid": true,
+      "value": {
+        "requestId": "xxxxxxxx",
+        "error": {
+          "code": "RATE_LIMITED",
+          "retryAfterSeconds": 1
+        }
+      }
+    },
+    {
+      "name": "ErrorResponse:variant-7",
+      "schema": "ErrorResponse",
+      "valid": true,
+      "value": {
+        "requestId": "xxxxxxxx",
+        "error": {
+          "code": "UNIFIED_ACCOUNT_NOT_IMPLEMENTED"
+        }
+      }
+    },
+    {
+      "name": "ErrorResponse:variant-8",
+      "schema": "ErrorResponse",
+      "valid": true,
+      "value": {
+        "requestId": "xxxxxxxx",
+        "error": {
+          "code": "UPSTREAM_UNAVAILABLE"
+        }
+      }
+    },
+    {
+      "name": "TransactionCreatedResponse:minimal-valid",
+      "schema": "TransactionCreatedResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "transactionId": "xxxxxxxx",
+          "status": "PENDING",
+          "nextStep": "REQUEST_CHALLENGE",
+          "expiresAt": "2026-11-04T08:00:00Z"
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "TransactionCreatedResponse:wrong-root-type",
+      "schema": "TransactionCreatedResponse",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "TransactionViewResponse:minimal-valid",
+      "schema": "TransactionViewResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "transactionId": "xxxxxxxx",
+          "status": "PENDING",
+          "nextStep": "REQUEST_CHALLENGE",
+          "expiresAt": "2026-11-04T08:00:00Z"
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "TransactionViewResponse:wrong-root-type",
+      "schema": "TransactionViewResponse",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "ChallengeCreatedResponse:minimal-valid",
+      "schema": "ChallengeCreatedResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "challengeId": "xxxxxxxx",
+          "expiresAt": "2026-11-04T08:00:00Z",
+          "retryAfterSeconds": 1
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "ChallengeCreatedResponse:wrong-root-type",
+      "schema": "ChallengeCreatedResponse",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "VerificationResultResponse:minimal-valid",
+      "schema": "VerificationResultResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "verificationProof": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+          "expiresAt": "2026-11-04T08:00:00Z"
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "VerificationResultResponse:wrong-root-type",
+      "schema": "VerificationResultResponse",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "VerifiedResultResponse:minimal-valid",
+      "schema": "VerifiedResultResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "status": "VERIFIED",
+          "nextStep": "COMPLETE"
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "VerifiedResultResponse:wrong-root-type",
+      "schema": "VerifiedResultResponse",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "TransactionCompleteResultResponse:minimal-valid",
+      "schema": "TransactionCompleteResultResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "kind": "LOGIN_CODE",
+          "code": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+          "state": "xxxxxxxxxxxxxxxx",
+          "expiresAt": "2026-11-04T08:00:00Z"
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "TransactionCompleteResultResponse:wrong-root-type",
+      "schema": "TransactionCompleteResultResponse",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "TransactionCancelResultResponse:minimal-valid",
+      "schema": "TransactionCancelResultResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "status": "CANCELLED"
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "TransactionCancelResultResponse:wrong-root-type",
+      "schema": "TransactionCancelResultResponse",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "ProviderStartResultResponse:minimal-valid",
+      "schema": "ProviderStartResultResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "browserStartUrl": "https://auth.example.invalid"
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "ProviderStartResultResponse:wrong-root-type",
+      "schema": "ProviderStartResultResponse",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "TokenSetResponse:minimal-valid",
+      "schema": "TokenSetResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "accessToken": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+          "refreshToken": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+          "tokenType": "Bearer",
+          "accessExpiresAt": "2026-11-04T08:00:00Z",
+          "session": {
+            "loginSessionId": "xxxxxxxx",
+            "applicationId": "xxxxxxxx",
+            "clientId": "xxxxxxxx",
+            "authenticatedAt": "2026-11-04T08:00:00Z",
+            "lastActiveAt": "2026-11-04T08:00:00Z",
+            "idleExpiresAt": "2026-11-04T08:00:00Z",
+            "absoluteExpiresAt": "2026-11-04T08:00:00Z",
+            "sessionRevision": 1
+          }
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "TokenSetResponse:wrong-root-type",
+      "schema": "TokenSetResponse",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "MeViewResponse:minimal-valid",
+      "schema": "MeViewResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "user": {
+            "issuer": "https://auth.example.invalid",
+            "userId": "xxxxxxxx",
+            "displayName": "xxxxxxxx",
+            "email": "sample@example.invalid",
+            "avatarUrl": "https://auth.example.invalid",
+            "version": 1
+          },
+          "loginMethods": [],
+          "passwordEnabled": true,
+          "session": {
+            "loginSessionId": "xxxxxxxx",
+            "applicationId": "xxxxxxxx",
+            "clientId": "xxxxxxxx",
+            "authenticatedAt": "2026-11-04T08:00:00Z",
+            "lastActiveAt": "2026-11-04T08:00:00Z",
+            "idleExpiresAt": "2026-11-04T08:00:00Z",
+            "absoluteExpiresAt": "2026-11-04T08:00:00Z",
+            "sessionRevision": 1
+          },
+          "platformCapabilities": []
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "MeViewResponse:wrong-root-type",
+      "schema": "MeViewResponse",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "UserViewResponse:minimal-valid",
+      "schema": "UserViewResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "issuer": "https://auth.example.invalid",
+          "userId": "xxxxxxxx",
+          "displayName": "xxxxxxxx",
+          "email": "sample@example.invalid",
+          "avatarUrl": "https://auth.example.invalid",
+          "version": 1
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "UserViewResponse:wrong-root-type",
+      "schema": "UserViewResponse",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "LoginMethodsViewResponse:minimal-valid",
+      "schema": "LoginMethodsViewResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "loginMethods": [],
+          "version": 1
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "LoginMethodsViewResponse:wrong-root-type",
+      "schema": "LoginMethodsViewResponse",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "PasswordChangeResultResponse:minimal-valid",
+      "schema": "PasswordChangeResultResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "passwordChanged": true,
+          "keptLoginSessionId": "xxxxxxxx",
+          "session": {
+            "loginSessionId": "xxxxxxxx",
+            "applicationId": "xxxxxxxx",
+            "clientId": "xxxxxxxx",
+            "authenticatedAt": "2026-11-04T08:00:00Z",
+            "lastActiveAt": "2026-11-04T08:00:00Z",
+            "idleExpiresAt": "2026-11-04T08:00:00Z",
+            "absoluteExpiresAt": "2026-11-04T08:00:00Z",
+            "sessionRevision": 1
+          }
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "PasswordChangeResultResponse:wrong-root-type",
+      "schema": "PasswordChangeResultResponse",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "PasswordResetResultResponse:minimal-valid",
+      "schema": "PasswordResetResultResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "passwordChanged": true,
+          "nextStep": "LOGIN_REQUIRED"
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "PasswordResetResultResponse:wrong-root-type",
+      "schema": "PasswordResetResultResponse",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "SessionViewResponse:minimal-valid",
+      "schema": "SessionViewResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "loginSessionId": "xxxxxxxx",
+          "applicationId": "xxxxxxxx",
+          "clientId": "xxxxxxxx",
+          "authenticatedAt": "2026-11-04T08:00:00Z",
+          "lastActiveAt": "2026-11-04T08:00:00Z",
+          "idleExpiresAt": "2026-11-04T08:00:00Z",
+          "absoluteExpiresAt": "2026-11-04T08:00:00Z",
+          "sessionRevision": 1
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "SessionViewResponse:wrong-root-type",
+      "schema": "SessionViewResponse",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "CurrentLogoutResultResponse:minimal-valid",
+      "schema": "CurrentLogoutResultResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "revokedScope": "CURRENT_LOGIN",
+          "status": "REVOKED",
+          "loginSessionId": "xxxxxxxx"
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "CurrentLogoutResultResponse:wrong-root-type",
+      "schema": "CurrentLogoutResultResponse",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "GlobalLogoutResultResponse:minimal-valid",
+      "schema": "GlobalLogoutResultResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "revokedScope": "ALL_MOLIS_PRODUCTS",
+          "status": "REVOKED"
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "GlobalLogoutResultResponse:wrong-root-type",
+      "schema": "GlobalLogoutResultResponse",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "PlatformUserPageResponse:minimal-valid",
+      "schema": "PlatformUserPageResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "items": [],
+          "nextCursor": "xxxxxxxx"
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "PlatformUserPageResponse:wrong-root-type",
+      "schema": "PlatformUserPageResponse",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "PlatformUserResponse:minimal-valid",
+      "schema": "PlatformUserResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "userId": "xxxxxxxx",
+          "displayName": "xxxxxxxx",
+          "email": "sample@example.invalid",
+          "status": "ACTIVE",
+          "version": 1
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "PlatformUserResponse:wrong-root-type",
+      "schema": "PlatformUserResponse",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "PlatformPermissionPageResponse:minimal-valid",
+      "schema": "PlatformPermissionPageResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "items": [],
+          "nextCursor": "xxxxxxxx"
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "PlatformPermissionPageResponse:wrong-root-type",
+      "schema": "PlatformPermissionPageResponse",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "PlatformPermissionResponse:minimal-valid",
+      "schema": "PlatformPermissionResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "userId": "xxxxxxxx",
+          "capability": "TENANT_CREATE",
+          "status": "ACTIVE",
+          "version": 1
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "PlatformPermissionResponse:wrong-root-type",
+      "schema": "PlatformPermissionResponse",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "PlatformApplicationPageResponse:minimal-valid",
+      "schema": "PlatformApplicationPageResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "items": [],
+          "nextCursor": "xxxxxxxx"
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "PlatformApplicationPageResponse:wrong-root-type",
+      "schema": "PlatformApplicationPageResponse",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "PlatformApplicationResponse:minimal-valid",
+      "schema": "PlatformApplicationResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "applicationId": "xxxxxxxx",
+          "name": "xxxxxxxx",
+          "status": "ACTIVE",
+          "version": 1
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "PlatformApplicationResponse:wrong-root-type",
+      "schema": "PlatformApplicationResponse",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "PlatformLoginClientPageResponse:minimal-valid",
+      "schema": "PlatformLoginClientPageResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "items": [],
+          "nextCursor": "xxxxxxxx"
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "PlatformLoginClientPageResponse:wrong-root-type",
+      "schema": "PlatformLoginClientPageResponse",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "PlatformLoginClientResponse:minimal-valid",
+      "schema": "PlatformLoginClientResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "clientId": "xxxxxxxx",
+          "applicationId": "xxxxxxxx",
+          "clientType": "WEB",
+          "status": "ACTIVE",
+          "version": 1,
+          "environmentId": "xxxxxxxx",
+          "policyVersion": 1,
+          "allowedOrigins": [
+            "https://auth.example.invalid"
+          ],
+          "redirectAllowlist": [
+            "https://auth.example.invalid"
+          ],
+          "product": "WORK"
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "PlatformLoginClientResponse:wrong-root-type",
+      "schema": "PlatformLoginClientResponse",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "MyTenantsPageResponse:minimal-valid",
+      "schema": "MyTenantsPageResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "personalScope": {
+            "kind": "PERSONAL"
+          },
+          "items": [],
+          "nextCursor": "xxxxxxxx"
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "MyTenantsPageResponse:wrong-root-type",
+      "schema": "MyTenantsPageResponse",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "TenantCreationPolicyViewResponse:minimal-valid",
+      "schema": "TenantCreationPolicyViewResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "mode": "SELF_SERVICE"
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "TenantCreationPolicyViewResponse:wrong-root-type",
+      "schema": "TenantCreationPolicyViewResponse",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "TenantViewResponse:minimal-valid",
+      "schema": "TenantViewResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "tenantId": "xxxxxxxx",
+          "name": "xxxxxxxx",
+          "status": "ACTIVE",
+          "myRole": "OWNER",
+          "membershipId": "xxxxxxxx",
+          "version": 1
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "TenantViewResponse:wrong-root-type",
+      "schema": "TenantViewResponse",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "PlatformTenantViewResponse:minimal-valid",
+      "schema": "PlatformTenantViewResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "tenantId": "xxxxxxxx",
+          "name": "xxxxxxxx",
+          "status": "ACTIVE",
+          "ownerUserId": "xxxxxxxx",
+          "version": 1
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "PlatformTenantViewResponse:wrong-root-type",
+      "schema": "PlatformTenantViewResponse",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "PlatformTenantViewPageResponse:minimal-valid",
+      "schema": "PlatformTenantViewPageResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "items": [],
+          "nextCursor": "xxxxxxxx"
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "PlatformTenantViewPageResponse:wrong-root-type",
+      "schema": "PlatformTenantViewPageResponse",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "MembershipPageResponse:minimal-valid",
+      "schema": "MembershipPageResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "items": [],
+          "nextCursor": "xxxxxxxx"
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "MembershipPageResponse:wrong-root-type",
+      "schema": "MembershipPageResponse",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "MembershipResponse:minimal-valid",
+      "schema": "MembershipResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "membershipId": "xxxxxxxx",
+          "tenantId": "xxxxxxxx",
+          "userId": "xxxxxxxx",
+          "role": "OWNER",
+          "status": "ACTIVE",
+          "version": 1
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "MembershipResponse:wrong-root-type",
+      "schema": "MembershipResponse",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "InvitationResponse:minimal-valid",
+      "schema": "InvitationResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "invitationId": "xxxxxxxx",
+          "tenantId": "xxxxxxxx",
+          "targetSummary": "xxxxxxxx",
+          "status": "PENDING",
+          "expiresAt": "2026-11-04T08:00:00Z",
+          "version": 1
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "InvitationResponse:wrong-root-type",
+      "schema": "InvitationResponse",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "InvitationPageResponse:minimal-valid",
+      "schema": "InvitationPageResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "items": [],
+          "nextCursor": "xxxxxxxx"
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "InvitationPageResponse:wrong-root-type",
+      "schema": "InvitationPageResponse",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "InvitationAcceptResultResponse:minimal-valid",
+      "schema": "InvitationAcceptResultResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "invitation": {
+            "invitationId": "xxxxxxxx",
+            "tenantId": "xxxxxxxx",
+            "targetSummary": "xxxxxxxx",
+            "status": "PENDING",
+            "expiresAt": "2026-11-04T08:00:00Z",
+            "version": 1
+          },
+          "membership": {
+            "membershipId": "xxxxxxxx",
+            "tenantId": "xxxxxxxx",
+            "userId": "xxxxxxxx",
+            "role": "OWNER",
+            "status": "ACTIVE",
+            "version": 1
+          }
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "InvitationAcceptResultResponse:wrong-root-type",
+      "schema": "InvitationAcceptResultResponse",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "OwnershipTransferResponse:minimal-valid",
+      "schema": "OwnershipTransferResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "transferId": "xxxxxxxx",
+          "tenantId": "xxxxxxxx",
+          "fromMembershipId": "xxxxxxxx",
+          "toMembershipId": "xxxxxxxx",
+          "status": "PENDING",
+          "expiresAt": "2026-11-04T08:00:00Z",
+          "version": 1
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "OwnershipTransferResponse:wrong-root-type",
+      "schema": "OwnershipTransferResponse",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "OwnershipTransferPageResponse:minimal-valid",
+      "schema": "OwnershipTransferPageResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "items": [],
+          "nextCursor": "xxxxxxxx"
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "OwnershipTransferPageResponse:wrong-root-type",
+      "schema": "OwnershipTransferPageResponse",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "TransferAcceptResultResponse:minimal-valid",
+      "schema": "TransferAcceptResultResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "transfer": {
+            "transferId": "xxxxxxxx",
+            "tenantId": "xxxxxxxx",
+            "fromMembershipId": "xxxxxxxx",
+            "toMembershipId": "xxxxxxxx",
+            "status": "PENDING",
+            "expiresAt": "2026-11-04T08:00:00Z",
+            "version": 1
+          },
+          "previousOwner": {
+            "membershipId": "xxxxxxxx",
+            "tenantId": "xxxxxxxx",
+            "userId": "xxxxxxxx",
+            "role": "OWNER",
+            "status": "ACTIVE",
+            "version": 1
+          },
+          "owner": {
+            "membershipId": "xxxxxxxx",
+            "tenantId": "xxxxxxxx",
+            "userId": "xxxxxxxx",
+            "role": "OWNER",
+            "status": "ACTIVE",
+            "version": 1
+          },
+          "tenantVersion": 1
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "TransferAcceptResultResponse:wrong-root-type",
+      "schema": "TransferAcceptResultResponse",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "PlanVersionPageResponse:minimal-valid",
+      "schema": "PlanVersionPageResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "items": [],
+          "nextCursor": "xxxxxxxx"
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "PlanVersionPageResponse:wrong-root-type",
+      "schema": "PlanVersionPageResponse",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "FeaturePageResponse:minimal-valid",
+      "schema": "FeaturePageResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "items": [],
+          "nextCursor": "xxxxxxxx"
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "FeaturePageResponse:wrong-root-type",
+      "schema": "FeaturePageResponse",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "FeatureResponse:minimal-valid",
+      "schema": "FeatureResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "featureId": "xxxxxxxx",
+          "product": "WORK",
+          "name": "xxxxxxxx"
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "FeatureResponse:wrong-root-type",
+      "schema": "FeatureResponse",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "PlanVersionResponse:minimal-valid",
+      "schema": "PlanVersionResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "planId": "xxxxxxxx",
+          "planVersion": 1,
+          "name": "xxxxxxxx",
+          "personalFeatureIds": [],
+          "seatTypes": []
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "PlanVersionResponse:wrong-root-type",
+      "schema": "PlanVersionResponse",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "SubscriptionPageResponse:minimal-valid",
+      "schema": "SubscriptionPageResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "items": [],
+          "nextCursor": "xxxxxxxx"
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "SubscriptionPageResponse:wrong-root-type",
+      "schema": "SubscriptionPageResponse",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "SeatPoolPageResponse:minimal-valid",
+      "schema": "SeatPoolPageResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "items": [],
+          "nextCursor": "xxxxxxxx"
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "SeatPoolPageResponse:wrong-root-type",
+      "schema": "SeatPoolPageResponse",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "AssignmentPageResponse:minimal-valid",
+      "schema": "AssignmentPageResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "items": [],
+          "nextCursor": "xxxxxxxx"
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "AssignmentPageResponse:wrong-root-type",
+      "schema": "AssignmentPageResponse",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "SubscriptionResponse:minimal-valid",
+      "schema": "SubscriptionResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "subscriptionId": "xxxxxxxx",
+          "owner": {
+            "kind": "USER",
+            "id": "xxxxxxxx"
+          },
+          "planId": "xxxxxxxx",
+          "planVersion": 1,
+          "enabled": true,
+          "startsAt": "2026-11-04T08:00:00Z",
+          "endsAt": "2026-11-04T08:00:00Z",
+          "version": 1,
+          "status": "SCHEDULED"
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "SubscriptionResponse:wrong-root-type",
+      "schema": "SubscriptionResponse",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "SeatMutationResultResponse:minimal-valid",
+      "schema": "SeatMutationResultResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "assignment": {
+            "assignmentId": "xxxxxxxx",
+            "subscriptionId": "xxxxxxxx",
+            "seatTypeId": "xxxxxxxx",
+            "membershipId": "xxxxxxxx",
+            "userId": "xxxxxxxx",
+            "assignedAt": "2026-11-04T08:00:00Z",
+            "version": 1,
+            "status": "ASSIGNED",
+            "endedAt": null,
+            "endReason": null
+          },
+          "pool": {
+            "subscriptionId": "xxxxxxxx",
+            "tenantId": "xxxxxxxx",
+            "seatTypeId": "xxxxxxxx",
+            "quantity": 1,
+            "assignedCount": 1,
+            "availableCount": 1,
+            "version": 1
+          },
+          "entitlementRevision": "xxxxxxxx"
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "SeatMutationResultResponse:wrong-root-type",
+      "schema": "SeatMutationResultResponse",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "SeatReassignResultResponse:minimal-valid",
+      "schema": "SeatReassignResultResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "endedAssignment": {
+            "assignmentId": "xxxxxxxx",
+            "subscriptionId": "xxxxxxxx",
+            "seatTypeId": "xxxxxxxx",
+            "membershipId": "xxxxxxxx",
+            "userId": "xxxxxxxx",
+            "assignedAt": "2026-11-04T08:00:00Z",
+            "version": 1,
+            "status": "ASSIGNED",
+            "endedAt": null,
+            "endReason": null
+          },
+          "assignment": {
+            "assignmentId": "xxxxxxxx",
+            "subscriptionId": "xxxxxxxx",
+            "seatTypeId": "xxxxxxxx",
+            "membershipId": "xxxxxxxx",
+            "userId": "xxxxxxxx",
+            "assignedAt": "2026-11-04T08:00:00Z",
+            "version": 1,
+            "status": "ASSIGNED",
+            "endedAt": null,
+            "endReason": null
+          },
+          "pool": {
+            "subscriptionId": "xxxxxxxx",
+            "tenantId": "xxxxxxxx",
+            "seatTypeId": "xxxxxxxx",
+            "quantity": 1,
+            "assignedCount": 1,
+            "availableCount": 1,
+            "version": 1
+          },
+          "entitlementRevision": "xxxxxxxx"
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "SeatReassignResultResponse:wrong-root-type",
+      "schema": "SeatReassignResultResponse",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "AuditEventPageResponse:minimal-valid",
+      "schema": "AuditEventPageResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "items": [],
+          "nextCursor": "xxxxxxxx"
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "AuditEventPageResponse:wrong-root-type",
+      "schema": "AuditEventPageResponse",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "EntitlementCheckResultResponse:minimal-valid",
+      "schema": "EntitlementCheckResultResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "scope": {
+            "kind": "PERSONAL"
+          },
+          "evaluatedAt": "2026-11-04T08:00:00Z",
+          "revision": "xxxxxxxx",
+          "decisions": [
+            {
+              "featureId": "xxxxxxxx",
+              "allowed": true,
+              "reason": "GRANTED",
+              "validUntil": "2026-11-04T08:00:00Z",
+              "sources": [
+                {
+                  "kind": "PERSONAL_SUBSCRIPTION",
+                  "subscriptionId": "xxxxxxxx"
+                }
+              ]
+            }
+          ]
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "EntitlementCheckResultResponse:wrong-root-type",
+      "schema": "EntitlementCheckResultResponse",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "AccountViewResponse:minimal-valid",
+      "schema": "AccountViewResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "state": "ANONYMOUS"
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "AccountViewResponse:wrong-root-type",
+      "schema": "AccountViewResponse",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "ProductTransactionViewResponse:minimal-valid",
+      "schema": "ProductTransactionViewResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "handle": "xxxxxxxx",
+          "status": "PENDING",
+          "nextStep": "REQUEST_CHALLENGE",
+          "expiresAt": "2026-11-04T08:00:00Z"
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "ProductTransactionViewResponse:wrong-root-type",
+      "schema": "ProductTransactionViewResponse",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "ProductSubmitResultResponse:minimal-valid",
+      "schema": "ProductSubmitResultResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "handle": "xxxxxxxx",
+          "status": "PENDING",
+          "nextStep": "REQUEST_CHALLENGE",
+          "expiresAt": "2026-11-04T08:00:00Z"
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "ProductSubmitResultResponse:wrong-root-type",
+      "schema": "ProductSubmitResultResponse",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "ProductCallbackResultResponse:minimal-valid",
+      "schema": "ProductCallbackResultResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "account": {
+            "state": "ANONYMOUS"
+          }
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "ProductCallbackResultResponse:wrong-root-type",
+      "schema": "ProductCallbackResultResponse",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "ProductLogoutResultResponse:minimal-valid",
+      "schema": "ProductLogoutResultResponse",
+      "valid": true,
+      "value": {
+        "data": {
+          "localCleared": true,
+          "remoteRevocation": "CONFIRMED"
+        },
+        "requestId": "xxxxxxxx"
+      }
+    },
+    {
+      "name": "ProductLogoutResultResponse:wrong-root-type",
+      "schema": "ProductLogoutResultResponse",
+      "valid": false,
+      "value": null
+    },
+    {
+      "name": "purpose-email-password-reset-forbidden",
+      "schema": "CreateTransactionRequest",
+      "valid": false,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "redirectUri": "https://auth.example.invalid",
+        "state": "xxxxxxxxxxxxxxxx",
+        "codeChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "codeChallengeMethod": "S256",
+        "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "purpose": "PASSWORD_RESET",
+        "method": "EMAIL_PASSWORD"
+      }
+    },
+    {
+      "name": "reauth-missing-operation",
+      "schema": "CreateTransactionRequest",
+      "valid": false,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "redirectUri": "https://auth.example.invalid",
+        "state": "xxxxxxxxxxxxxxxx",
+        "codeChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "codeChallengeMethod": "S256",
+        "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "purpose": "REAUTH",
+        "method": "EMAIL_PASSWORD"
+      }
+    },
+    {
+      "name": "reauth-cross-operation-target",
+      "schema": "CreateTransactionRequest",
+      "valid": false,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "redirectUri": "https://auth.example.invalid",
+        "state": "xxxxxxxxxxxxxxxx",
+        "codeChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "codeChallengeMethod": "S256",
+        "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "purpose": "REAUTH",
+        "method": "EMAIL_PASSWORD",
+        "operation": "CHANGE_PASSWORD",
+        "target": {
+          "bindingId": "binding_example"
+        }
+      }
+    },
+    {
+      "name": "reauth-email-code-not-existing-login-method",
+      "schema": "CreateTransactionRequest",
+      "valid": false,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "redirectUri": "https://auth.example.invalid",
+        "state": "xxxxxxxxxxxxxxxx",
+        "codeChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "codeChallengeMethod": "S256",
+        "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "purpose": "REAUTH",
+        "method": "EMAIL_CODE",
+        "operation": "CHANGE_PASSWORD",
+        "target": {
+          "kind": "PASSWORD"
+        }
+      }
+    },
+    {
+      "name": "replace-missing-binding",
+      "schema": "CreateTransactionRequest",
+      "valid": false,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "redirectUri": "https://auth.example.invalid",
+        "state": "xxxxxxxxxxxxxxxx",
+        "codeChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "codeChallengeMethod": "S256",
+        "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "purpose": "REPLACE",
+        "method": "PHONE_OTP"
+      }
+    },
+    {
+      "name": "transaction-actor-injection",
+      "schema": "CreateTransactionRequest",
+      "valid": false,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "redirectUri": "https://auth.example.invalid",
+        "state": "xxxxxxxxxxxxxxxx",
+        "codeChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "codeChallengeMethod": "S256",
+        "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "purpose": "LOGIN",
+        "method": "EMAIL_PASSWORD",
+        "userId": "victim"
+      }
+    },
+    {
+      "name": "transaction-policy-injection",
+      "schema": "CreateTransactionRequest",
+      "valid": false,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "redirectUri": "https://auth.example.invalid",
+        "state": "xxxxxxxxxxxxxxxx",
+        "codeChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "codeChallengeMethod": "S256",
+        "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "purpose": "LOGIN",
+        "method": "EMAIL_PASSWORD",
+        "policyProfile": "legacy"
+      }
+    },
+    {
+      "name": "transaction-pkce-plain",
+      "schema": "CreateTransactionRequest",
+      "valid": false,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "redirectUri": "https://auth.example.invalid",
+        "state": "xxxxxxxxxxxxxxxx",
+        "codeChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "codeChallengeMethod": "plain",
+        "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "purpose": "LOGIN",
+        "method": "EMAIL_PASSWORD"
+      }
+    },
+    {
+      "name": "transaction-pkce-short",
+      "schema": "CreateTransactionRequest",
+      "valid": false,
+      "value": {
+        "clientId": "xxxxxxxx",
+        "redirectUri": "https://auth.example.invalid",
+        "state": "xxxxxxxxxxxxxxxx",
+        "codeChallenge": "short",
+        "codeChallengeMethod": "S256",
+        "initiatorChallenge": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "purpose": "LOGIN",
+        "method": "EMAIL_PASSWORD"
+      }
+    },
+    {
+      "name": "challenge-phone-outside-86",
+      "schema": "ChallengeRequest",
+      "valid": false,
+      "value": {
+        "channel": "SMS",
+        "address": "+12025550123"
+      }
+    },
+    {
+      "name": "challenge-channel-target-mismatch",
+      "schema": "ChallengeRequest",
+      "valid": false,
+      "value": {
+        "channel": "EMAIL",
+        "address": "+8613800000000"
+      }
+    },
+    {
+      "name": "challenge-rewrite-purpose",
+      "schema": "VerifyChallengeRequest",
+      "valid": false,
+      "value": {
+        "credential": "123456",
+        "purpose": "LOGIN"
+      }
+    },
+    {
+      "name": "credential-length",
+      "schema": "VerifyChallengeRequest",
+      "valid": false,
+      "value": {
+        "credential": "12345"
+      }
+    },
+    {
+      "name": "proof-kind-confusion",
+      "schema": "TransactionCompleteResult",
+      "valid": false,
+      "value": {
+        "kind": "RESET_PROOF",
+        "operationProof": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "expiresAt": "2026-11-04T08:00:00Z"
+      }
+    },
+    {
+      "name": "proof-unexpected-extra",
+      "schema": "TransactionCompleteResult",
+      "valid": false,
+      "value": {
+        "kind": "LOGIN_CODE",
+        "code": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "resetProof": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "state": "statestatestatestate",
+        "expiresAt": "2026-11-04T08:00:00Z"
+      }
+    },
+    {
+      "name": "token-grants-mixed",
+      "schema": "TokenRequest",
+      "valid": false,
+      "value": {
+        "grantType": "refresh_token",
+        "clientId": "client_example",
+        "refreshToken": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "code": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      }
+    },
+    {
+      "name": "password-select-except-session",
+      "schema": "PasswordChangeRequest",
+      "valid": false,
+      "value": {
+        "operationProof": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "newPassword": "xxxxxxxx",
+        "expectedVersion": 1,
+        "exceptSessionId": "victim"
+      }
+    },
+    {
+      "name": "profile-empty-update",
+      "schema": "ProfileUpdateRequest",
+      "valid": false,
+      "value": {
+        "expectedVersion": 1
+      }
+    },
+    {
+      "name": "profile-null-avatar-removes",
+      "schema": "ProfileUpdateRequest",
+      "valid": true,
+      "value": {
+        "avatarDataUrl": null,
+        "expectedVersion": 1
+      }
+    },
+    {
+      "name": "profile-external-fetch-forbidden",
+      "schema": "ProfileUpdateRequest",
+      "valid": false,
+      "value": {
+        "avatarUrl": "https://example.invalid/a.png",
+        "expectedVersion": 1
+      }
+    },
+    {
+      "name": "activity-client-time",
+      "schema": "ActivityRequest",
+      "valid": false,
+      "value": {
+        "eventId": "event_example",
+        "kind": "INTERACT",
+        "timestamp": "2026-11-04T08:00:00Z"
+      }
+    },
+    {
+      "name": "activity-background-kind",
+      "schema": "ActivityRequest",
+      "valid": false,
+      "value": {
+        "eventId": "event_example",
+        "kind": "REFRESH"
+      }
+    },
+    {
+      "name": "scope-user-injection",
+      "schema": "Scope",
+      "valid": false,
+      "value": {
+        "kind": "PERSONAL",
+        "userId": "victim"
+      }
+    },
+    {
+      "name": "self-tenant-owner-injection",
+      "schema": "SelfTenantCreateRequest",
+      "valid": false,
+      "value": {
+        "name": "Example",
+        "ownerUserId": "another_user"
+      }
+    },
+    {
+      "name": "tenant-creation-unknown-policy",
+      "schema": "TenantCreationPolicyView",
+      "valid": false,
+      "value": {
+        "mode": "UNKNOWN"
+      }
+    },
+    {
+      "name": "scope-personal-tenant-injection",
+      "schema": "Scope",
+      "valid": false,
+      "value": {
+        "kind": "PERSONAL",
+        "tenantId": "tenant_example"
+      }
+    },
+    {
+      "name": "member-owner-escalation",
+      "schema": "RoleUpdateRequest",
+      "valid": false,
+      "value": {
+        "role": "OWNER",
+        "expectedVersion": 1
+      }
+    },
+    {
+      "name": "invitation-admin-escalation",
+      "schema": "InvitationCreateRequest",
+      "valid": false,
+      "value": {
+        "target": {
+          "kind": "USER",
+          "value": "user_example"
+        },
+        "role": "ADMIN"
+      }
+    },
+    {
+      "name": "seat-member-actor-injection",
+      "schema": "SeatAssignRequest",
+      "valid": false,
+      "value": {
+        "subscriptionId": "xxxxxxxx",
+        "seatTypeId": "xxxxxxxx",
+        "membershipId": "xxxxxxxx",
+        "expectedVersion": 1,
+        "userId": "victim"
+      }
+    },
+    {
+      "name": "personal-subscription-seat-quantities",
+      "schema": "SubscriptionCreateRequest",
+      "valid": false,
+      "value": {
+        "planId": "xxxxxxxx",
+        "planVersion": 1,
+        "startsAt": "2026-11-04T08:00:00Z",
+        "endsAt": "2026-11-04T08:00:00Z",
+        "reason": "xxxxxxxx",
+        "owner": {
+          "kind": "USER",
+          "id": "xxxxxxxx"
+        },
+        "seatQuantities": {
+          "demo": 1
+        }
+      }
+    },
+    {
+      "name": "subscription-empty-patch",
+      "schema": "SubscriptionUpdateRequest",
+      "valid": false,
+      "value": {
+        "expectedVersion": 1,
+        "reason": "test-only"
+      }
+    },
+    {
+      "name": "seat-negative-quantity",
+      "schema": "SeatQuantities",
+      "valid": false,
+      "value": {
+        "demo": -1
+      }
+    },
+    {
+      "name": "seat-fractional-quantity",
+      "schema": "SeatQuantities",
+      "valid": false,
+      "value": {
+        "demo": 1.5
+      }
+    },
+    {
+      "name": "ended-assignment-missing-end-reason",
+      "schema": "Assignment",
+      "valid": false,
+      "value": {
+        "assignmentId": "xxxxxxxx",
+        "subscriptionId": "xxxxxxxx",
+        "seatTypeId": "xxxxxxxx",
+        "membershipId": "xxxxxxxx",
+        "userId": "xxxxxxxx",
+        "assignedAt": "2026-11-04T08:00:00Z",
+        "version": 1,
+        "status": "ENDED",
+        "endedAt": null,
+        "endReason": null
+      }
+    },
+    {
+      "name": "deny-with-source",
+      "schema": "EntitlementDecision",
+      "valid": false,
+      "value": {
+        "featureId": "demo.feature",
+        "allowed": false,
+        "reason": "FEATURE_NOT_GRANTED",
+        "validUntil": "2026-11-04T08:00:00Z",
+        "sources": [
+          {
+            "kind": "PERSONAL_SUBSCRIPTION",
+            "subscriptionId": "sub_example"
+          }
+        ]
+      }
+    },
+    {
+      "name": "grant-without-source",
+      "schema": "EntitlementDecision",
+      "valid": false,
+      "value": {
+        "featureId": "demo.feature",
+        "allowed": true,
+        "reason": "GRANTED",
+        "validUntil": "2026-11-04T08:00:00Z",
+        "sources": []
+      }
+    },
+    {
+      "name": "entitlement-duplicate-features",
+      "schema": "EntitlementCheckRequest",
+      "valid": false,
+      "value": {
+        "scope": {
+          "kind": "PERSONAL"
+        },
+        "featureIds": [
+          "demo.feature",
+          "demo.feature"
+        ]
+      }
+    },
+    {
+      "name": "entitlement-101-features",
+      "schema": "EntitlementCheckRequest",
+      "valid": false,
+      "value": {
+        "scope": {
+          "kind": "PERSONAL"
+        },
+        "featureIds": [
+          "demo.0",
+          "demo.1",
+          "demo.2",
+          "demo.3",
+          "demo.4",
+          "demo.5",
+          "demo.6",
+          "demo.7",
+          "demo.8",
+          "demo.9",
+          "demo.10",
+          "demo.11",
+          "demo.12",
+          "demo.13",
+          "demo.14",
+          "demo.15",
+          "demo.16",
+          "demo.17",
+          "demo.18",
+          "demo.19",
+          "demo.20",
+          "demo.21",
+          "demo.22",
+          "demo.23",
+          "demo.24",
+          "demo.25",
+          "demo.26",
+          "demo.27",
+          "demo.28",
+          "demo.29",
+          "demo.30",
+          "demo.31",
+          "demo.32",
+          "demo.33",
+          "demo.34",
+          "demo.35",
+          "demo.36",
+          "demo.37",
+          "demo.38",
+          "demo.39",
+          "demo.40",
+          "demo.41",
+          "demo.42",
+          "demo.43",
+          "demo.44",
+          "demo.45",
+          "demo.46",
+          "demo.47",
+          "demo.48",
+          "demo.49",
+          "demo.50",
+          "demo.51",
+          "demo.52",
+          "demo.53",
+          "demo.54",
+          "demo.55",
+          "demo.56",
+          "demo.57",
+          "demo.58",
+          "demo.59",
+          "demo.60",
+          "demo.61",
+          "demo.62",
+          "demo.63",
+          "demo.64",
+          "demo.65",
+          "demo.66",
+          "demo.67",
+          "demo.68",
+          "demo.69",
+          "demo.70",
+          "demo.71",
+          "demo.72",
+          "demo.73",
+          "demo.74",
+          "demo.75",
+          "demo.76",
+          "demo.77",
+          "demo.78",
+          "demo.79",
+          "demo.80",
+          "demo.81",
+          "demo.82",
+          "demo.83",
+          "demo.84",
+          "demo.85",
+          "demo.86",
+          "demo.87",
+          "demo.88",
+          "demo.89",
+          "demo.90",
+          "demo.91",
+          "demo.92",
+          "demo.93",
+          "demo.94",
+          "demo.95",
+          "demo.96",
+          "demo.97",
+          "demo.98",
+          "demo.99",
+          "demo.100"
+        ]
+      }
+    },
+    {
+      "name": "browser-token-leak",
+      "schema": "AccountView",
+      "valid": false,
+      "value": {
+        "state": "ANONYMOUS",
+        "accessToken": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      }
+    },
+    {
+      "name": "browser-identity-assertion",
+      "schema": "ProductSubmitRequest",
+      "valid": false,
+      "value": {
+        "step": "START_PROVIDER",
+        "subject": "victim"
+      }
+    },
+    {
+      "name": "browser-proof-injection",
+      "schema": "ProductBindRequest",
+      "valid": false,
+      "value": {
+        "reauthHandle": "xxxxxxxx",
+        "identityHandle": "xxxxxxxx",
+        "expectedVersion": 1,
+        "operationProof": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      }
+    },
+    {
+      "name": "browser-absolute-return-url",
+      "schema": "ProductTransactionRequest",
+      "valid": false,
+      "value": {
+        "purpose": "LOGIN",
+        "method": "GOOGLE",
+        "returnTo": "https://evil.example.invalid"
+      }
+    },
+    {
+      "name": "browser-protocol-relative-return-url",
+      "schema": "ProductTransactionRequest",
+      "valid": false,
+      "value": {
+        "purpose": "LOGIN",
+        "method": "GOOGLE",
+        "returnTo": "//evil.example.invalid"
+      }
+    },
+    {
+      "name": "browser-backslash-return-url",
+      "schema": "ProductTransactionRequest",
+      "valid": false,
+      "value": {
+        "purpose": "LOGIN",
+        "method": "GOOGLE",
+        "returnTo": "/\\evil.example.invalid"
+      }
+    },
+    {
+      "name": "config-production-mock",
+      "schema": "EnvironmentConfig",
+      "valid": false,
+      "value": {
+        "environmentId": "xxxxxxxx",
+        "kind": "PRODUCTION",
+        "authOrigin": "https://auth.example.invalid",
+        "deliveryMode": "MOCK",
+        "providerMode": "MOCK"
+      }
+    },
+    {
+      "name": "config-origin-path",
+      "schema": "EnvironmentConfig",
+      "valid": false,
+      "value": {
+        "environmentId": "xxxxxxxx",
+        "kind": "LOCAL",
+        "authOrigin": "https://auth.example.invalid/path",
+        "deliveryMode": "MOCK",
+        "providerMode": "MOCK"
+      }
+    },
+    {
+      "name": "provider-without-email",
+      "schema": "ProviderIdentity",
+      "valid": true,
+      "value": {
+        "issuer": "https://github.com",
+        "subject": "test_subject_1"
+      }
+    },
+    {
+      "name": "provider-browser-authority-injection",
+      "schema": "ProviderIdentity",
+      "valid": false,
+      "value": {
+        "issuer": "https://github.com",
+        "subject": "test_subject_1",
+        "userId": "victim"
+      }
+    },
+    {
+      "name": "invalid-calendar-date",
+      "schema": "Timestamp",
+      "valid": false,
+      "value": "2026-02-30T00:00:00Z"
+    },
+    {
+      "name": "timestamp-offset-not-utc",
+      "schema": "Timestamp",
+      "valid": false,
+      "value": "2026-11-04T08:00:00+08:00"
+    },
+    {
+      "name": "error-does-not-echo-secret",
+      "schema": "ErrorResponse",
+      "valid": false,
+      "value": {
+        "requestId": "req_example",
+        "error": {
+          "code": "INVALID_CREDENTIALS",
+          "password": "test-secret-do-not-use"
+        }
+      }
+    },
+    {
+      "name": "error-code-unknown",
+      "schema": "ErrorResponse",
+      "valid": false,
+      "value": {
+        "requestId": "req_example",
+        "error": {
+          "code": "UNKNOWN"
+        }
+      }
+    },
+    {
+      "name": "rate-limit-needs-wait",
+      "schema": "Error429",
+      "valid": false,
+      "value": {
+        "requestId": "req_example",
+        "error": {
+          "code": "RATE_LIMITED"
+        }
+      }
+    },
+    {
+      "name": "initial-resource-version-zero",
+      "schema": "ExpectedVersionRequest",
+      "valid": true,
+      "value": {
+        "expectedVersion": 0
+      }
+    },
+    {
+      "name": "initial-session-revision-zero",
+      "schema": "SessionView",
+      "valid": true,
+      "value": {
+        "loginSessionId": "xxxxxxxx",
+        "applicationId": "xxxxxxxx",
+        "clientId": "xxxxxxxx",
+        "authenticatedAt": "2026-11-04T08:00:00Z",
+        "lastActiveAt": "2026-11-04T08:00:00Z",
+        "idleExpiresAt": "2026-11-04T08:00:00Z",
+        "absoluteExpiresAt": "2026-11-04T08:00:00Z",
+        "sessionRevision": 0
+      }
+    },
+    {
+      "name": "plan-version-zero-rejected",
+      "schema": "PlanVersionNumber",
+      "valid": false,
+      "value": 0
+    },
+    {
+      "name": "existing-eight-character-password-login",
+      "schema": "PasswordLoginRequest",
+      "valid": true,
+      "value": {
+        "email": "sample@example.invalid",
+        "password": "DemoAb9!"
+      }
+    },
+    {
+      "name": "new-password-eight-characters-transport",
+      "schema": "NewPassword",
+      "valid": true,
+      "value": "DemoAb9!"
+    },
+    {
+      "name": "new-password-seven-rejected",
+      "schema": "NewPassword",
+      "valid": false,
+      "value": "DemoA9!"
+    },
+    {
+      "name": "provider-short-opaque-code",
+      "schema": "ProviderCallback",
+      "valid": true,
+      "value": {
+        "state": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "code": "0123456789abcdefghij"
+      }
+    },
+    {
+      "name": "provider-subject-not-local-id",
+      "schema": "ProviderIdentity",
+      "valid": true,
+      "value": {
+        "issuer": "https://provider.example.invalid",
+        "subject": "opaque|subject/with spaces"
+      }
+    },
+    {
+      "name": "product-consumed-cannot-complete-again",
+      "schema": "ProductTransactionView",
+      "valid": false,
+      "value": {
+        "handle": "handle_example",
+        "status": "CONSUMED",
+        "nextStep": "COMPLETE",
+        "expiresAt": "2026-11-04T08:00:00Z"
+      }
+    },
+    {
+      "name": "id-trailing-newline",
+      "schema": "Id",
+      "valid": false,
+      "value": "user_example\n"
+    },
+    {
+      "name": "email-trailing-newline",
+      "schema": "Email",
+      "valid": false,
+      "value": "sample@example.invalid\n"
+    },
+    {
+      "name": "token-trailing-newline",
+      "schema": "OpaqueSecret",
+      "valid": false,
+      "value": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n"
+    },
+    {
+      "name": "url-unicode-host-must-be-punycode",
+      "schema": "HttpUrl",
+      "valid": false,
+      "value": "https://例子.example/path"
+    },
+    {
+      "name": "url-unicode-path-must-be-percent-encoded",
+      "schema": "HttpUrl",
+      "valid": false,
+      "value": "https://auth.example.invalid/回调"
+    },
+    {
+      "name": "url-percent-encoded-path",
+      "schema": "HttpUrl",
+      "valid": true,
+      "value": "https://auth.example.invalid/%E5%9B%9E%E8%B0%83"
+    }
+  ]
+}

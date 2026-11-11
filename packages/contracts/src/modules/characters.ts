@@ -1,21 +1,62 @@
 import { defineArtifactPreviewAction, parseExactActionReferences, type ActionDefinition, type ActionSchema, type ExactActionReference } from "../platform/actions.js";
+import { ACTION_REFERENCE_SCHEMA } from "../platform/action-offers.js";
+import { inputSchemaFor, type InferActionInput } from "../platform/action-input.js";
+import { BLUEPRINT_PART_ORIGIN_SCHEMA, type BlueprintPartOrigin } from "../platform/blueprint-source.js";
+import { closedObjectSchema } from "../platform/closed-object-schema.js";
+import { TEXT_REF_LIMITS, TEXT_REF_SCHEMA, type TextRef } from "../platform/ui-text.js";
 import type { ArtifactReference } from "./artifacts.js";
 import { parseCharacterImportSnapshot, type CharacterImportSnapshot } from "./character-import.js";
+import {
+  CHARACTER_ROLE_READ_INPUT_SCHEMA, CHARACTER_ROLE_READ_OUTPUT_SCHEMA, CHARACTER_TEMPLATE_ADOPTION_RESULT_SCHEMA,
+  personalVersion, projectRef, type CharacterRoleReadInput, type CharacterRoleReadOutput, type CharacterTemplateAdoptionResult,
+  type PersonalCharacterVersionRef, type ProjectCharacterMemberRef,
+} from "./character-role-scope.js";
 export * from "./character-import.js";
+export {
+  BLUEPRINT_PART_ORIGIN_SCHEMA,
+  BLUEPRINT_SOURCE_SCHEMA,
+  type BlueprintPartOrigin,
+  type BlueprintSource,
+} from "../platform/blueprint-source.js";
+export {
+  CHARACTER_DEFAULT_SELECTION_SCHEMA,
+  CHARACTER_EFFECTIVE_SELECTION_SCHEMA,
+  CHARACTER_ROLE_READ_INPUT_SCHEMA,
+  CHARACTER_ROLE_READ_OUTPUT_SCHEMA,
+  CHARACTER_ROLE_READ_RESULT_SCHEMA,
+  CHARACTER_ROLE_VERSION_REF_SCHEMA,
+  CHARACTER_TEMPLATE_ADOPTION_RESULT_SCHEMA,
+  type CharacterDefaultSelection,
+  type CharacterRole,
+  type CharacterRoleReadInput,
+  type CharacterRoleReadOutput,
+  type CharacterRoleReadQuery,
+  type CharacterRoleReadResult,
+  type CharacterRoleSection,
+  type CharacterRoleVersionRef,
+  type CharacterSectionStatus,
+  type CharacterTaskSelection,
+  type CharacterTemplateAdoptionResult,
+  type EffectiveCharacterSelection,
+  type PersonalCharacterRef,
+  type PersonalCharacterVersionRef,
+  type ProjectCharacterMemberRef,
+  type ProjectCharacterVersionRef,
+} from "./character-role-scope.js";
 export { characterErrors } from "./characters-errors.js";
 import type { ContractDescriptor } from "../platform/package.js";
 
 export const modulesCharactersContract = {
-  contractId: "io.molis.work.module.characters.v1", kind: "module", schemaVersion: 1,
+  contractId: /* @version contract.io.molis.work.module.characters "io.molis.work.module.characters.v{version}" */ "io.molis.work.module.characters.v1", kind: "module", schemaVersion: /* @version contract.io.molis.work.module.characters */ 1,
   maturity: "partial", ssot: "specs/coding-plugin/spec.md",
 } as const satisfies ContractDescriptor;
 
-export const CHARACTER_ARTIFACT_TYPE = "character.definition.v1";
+export const CHARACTER_ARTIFACT_TYPE = /* @version type.character.definition "character.definition.v{version}" */ "character.definition.v1";
 export const CHARACTER_PLUGIN_ID = "io.molis.work.characters";
 export const CHARACTER_PUBLISHER_SIGNATURE = "official-characters-binding";
 
 /** How a published Character reads in the 成果库; Characters answers it, the 成果库 and the Host's producer table name it. */
-export const characterArtifactPreviewAction = defineArtifactPreviewAction("characters.artifacts.preview", "角色", ["artifact:read"]);
+export const characterArtifactPreviewAction = defineArtifactPreviewAction("characters.artifacts.preview", /* @version action.characters.artifacts.preview */ 1, "角色", ["artifact:read"]);
 
 /**
  * What Characters writes to the 成果库, declared the way a Manifest's `artifacts.produces` would be: Characters is part of the
@@ -23,11 +64,105 @@ export const characterArtifactPreviewAction = defineArtifactPreviewAction("chara
  */
 export const CHARACTER_ARTIFACT_PRODUCER = {
   plugin_id: CHARACTER_PLUGIN_ID, name: "Characters", binding_signature: CHARACTER_PUBLISHER_SIGNATURE,
-  produces: [{ artifact_type_id: CHARACTER_ARTIFACT_TYPE, schema_version: 1, title: "角色",
+  produces: [{ artifact_type_id: CHARACTER_ARTIFACT_TYPE, schema_version: /* @version type.character.definition */ 1, title: "角色",
     preview: { capability_id: characterArtifactPreviewAction.capability_id, version: characterArtifactPreviewAction.version } }],
 } as const;
 
 export type CharacterState = "active" | "disabled" | "tombstoned";
+
+/** Reusable character content declared by a scene package or draft. */
+export interface RoleTemplate {
+  title: TextRef;
+  instructions: string;
+  /** Omitted or null inherits the caller's selection. An empty list removes all Host tools. */
+  host_tools?: string[] | null;
+  /** Omitted or null inherits the explicit run selection. An empty list removes all actions. */
+  action_tools?: ExactActionReference[] | null;
+  skills?: Array<{ pack: string; skill_id: string }>;
+  materials?: TextRef;
+  outputs?: TextRef;
+  works_with?: string[];
+}
+
+/** Wire shape. TextRef combinations, parser semantics and UTF-16 limits belong to SDK validation. */
+export const ROLE_TEMPLATE_SCHEMA = {
+  type: "object",
+  properties: {
+    title: TEXT_REF_SCHEMA,
+    instructions: { type: "string", maxLength: 20_000 },
+    host_tools: { type: ["array", "null"], maxItems: 100, items: { type: "string" } },
+    action_tools: {
+      type: ["array", "null"],
+      maxItems: 100,
+      items: { ...ACTION_REFERENCE_SCHEMA, required: ["capability_id", "version", "provider_id"] },
+    },
+    skills: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          pack: { type: "string", pattern: "^io\\.molis\\.work\\.[a-z0-9][a-z0-9.-]*$", maxLength: TEXT_REF_LIMITS.owner },
+          skill_id: { type: "string", pattern: "^[a-z0-9][a-z0-9-]*$" },
+        },
+        required: ["pack", "skill_id"],
+        additionalProperties: false,
+      },
+    },
+    materials: TEXT_REF_SCHEMA,
+    outputs: TEXT_REF_SCHEMA,
+    works_with: { type: "array", items: { type: "string", minLength: 1 }, uniqueItems: true },
+  },
+  required: ["title", "instructions"],
+  additionalProperties: false,
+} as const satisfies ActionSchema;
+
+type CharacterTemplateSelection<Template> =
+  | { layer: "personal" | "project"; selection: { kind: "create" }; template: Template }
+  | { layer: "personal"; selection: { kind: "reuse"; role: PersonalCharacterVersionRef } }
+  | { layer: "project"; selection: { kind: "reuse"; role: ProjectCharacterMemberRef; expected_revision: string; expected_original_version: number } };
+
+type CharacterTemplateRequest = { origin: BlueprintPartOrigin; request_id: string };
+
+/** Origin is provenance. The owner resolves the layer and references in the caller's trusted scope. */
+export type CharacterTemplateAdoptionInput = CharacterTemplateRequest & CharacterTemplateSelection<RoleTemplate>;
+
+const observation = { type: "string", pattern: "\\S" } as const;
+const templateRequest = { origin: BLUEPRINT_PART_ORIGIN_SCHEMA, request_id: observation };
+// TextRef's combinations are checked by the SDK after the gateway checks the wire envelope.
+type CharacterTemplateAdoptionEnvelope = CharacterTemplateRequest & CharacterTemplateSelection<InferActionInput<typeof ROLE_TEMPLATE_SCHEMA>>;
+export const CHARACTER_TEMPLATE_ADOPTION_INPUT_SCHEMA = inputSchemaFor<CharacterTemplateAdoptionEnvelope>()({ oneOf: [
+  closedObjectSchema({
+    ...templateRequest, layer: { enum: ["personal", "project"] }, selection: closedObjectSchema({ kind: { const: "create" } }),
+    template: ROLE_TEMPLATE_SCHEMA,
+  }),
+  closedObjectSchema({
+    ...templateRequest, layer: { const: "personal" }, selection: closedObjectSchema({ kind: { const: "reuse" }, role: personalVersion }),
+  }),
+  closedObjectSchema({
+    ...templateRequest, layer: { const: "project" }, selection: closedObjectSchema({
+      kind: { const: "reuse" }, role: projectRef, expected_revision: observation, expected_original_version: personalVersion.properties.version,
+    }),
+  }),
+] });
+
+/** Declaration only. Characters binds both actions when the role hierarchy has a real owner. */
+export const characterRoleActions: {
+  fromTemplate: ActionDefinition<CharacterTemplateAdoptionInput, CharacterTemplateAdoptionResult>;
+  read: ActionDefinition<CharacterRoleReadInput, CharacterRoleReadOutput>;
+} = {
+  fromTemplate: {
+    capability_id: "characters.from_template", version: /* @version action.characters.from_template */ 1, operation: "command",
+    action: { title: "采用角色模板", description: "按已确认的选择创建或复用角色", kind: "operation", effect: "write",
+      scope: "home", audiences: ["user"], permissions: [], subject_kinds: ["character"],
+      input_schema: CHARACTER_TEMPLATE_ADOPTION_INPUT_SCHEMA, output_schema: CHARACTER_TEMPLATE_ADOPTION_RESULT_SCHEMA },
+  },
+  read: {
+    capability_id: "characters.roles.read", version: /* @version action.characters.roles.read */ 1, operation: "query",
+    action: { title: "批读角色与采用回执", description: "按角色引用或采用请求读取角色及回执", kind: "query", effect: "read",
+      scope: "home", audiences: ["user"], permissions: [], subject_kinds: ["character"],
+      input_schema: CHARACTER_ROLE_READ_INPUT_SCHEMA, output_schema: CHARACTER_ROLE_READ_OUTPUT_SCHEMA },
+  },
+};
 
 /** A personal draft. Its revision is NOT an Artifact publication version. */
 export interface CharacterDraft {
@@ -122,13 +257,13 @@ export const characterPluginActions: {
   readonly runnable: ActionDefinition<{ reference: ArtifactReference }, { available: true } | { available: false; reason: string }>;
 } = {
   list: {
-    capability_id: "characters.list", version: 1, operation: "query",
+    capability_id: "characters.list", version: /* @version action.characters.list */ 1, operation: "query",
     action: { title: "角色列表", description: "读取本人的角色草稿和本项目已发布的固定版本", kind: "query", scope: "project",
       audiences: ["user", "agent", "workflow", "mcp", "plugin"], permissions: ["artifact:read"], subject_kinds: ["character"],
       input_schema: closedObject({}), output_schema: closedObject({ drafts: { type: "array" }, publications: { type: "array" } }) },
   },
   runnable: {
-    capability_id: "characters.runnable", version: 1, operation: "query",
+    capability_id: "characters.runnable", version: /* @version action.characters.runnable */ 1, operation: "query",
     action: { title: "角色能否运行", description: "核对这个发布版本现在能否运行：是本项目当前的发布版本，角色也没有停用或删除；不能运行时给出原因", kind: "query", scope: "project",
       audiences: ["user", "plugin"], permissions: ["artifact:read"], subject_kinds: ["character"],
       input_schema: closedObject({ reference: versionReference }),

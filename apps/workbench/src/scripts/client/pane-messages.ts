@@ -6,6 +6,12 @@
  *   one of the panes (`iframe[data-pane-owner]`); else null and the message is dropped.
  * - `fromParent(event)`: in a pane, whether a message came from the page around it, from this origin.
  * - `keep` / `take`: a token handed to one pane (a choice it may confirm) is taken back by that pane's frame alone, once.
+ * - `recordAsk(event)`: in a pane, the page's ask to open one record of a plugin here (`workbench-select-item`, its jump to a
+ *   record): `{ plugin, itemId, quiet }` when it came from the page around it and has exactly those fields (two non-empty
+ *   strings of at most 1000 characters and a boolean), else null and nothing is passed on to the plugin.
+ * - `recordGone(event)`: on the page, a pane page's report that the record it showed is gone (`workbench-pane-record-gone`):
+ *   `{ plugin, itemId }` when it came from a pane frame, from this origin, and has exactly `type`, `plugin`, `itemId` and an
+ *   optional string `paneId` (two non-empty strings of at most 1000 characters), else null and the page marks no tab.
  *
  * An expression. The workbench page makes it once (`paneMessages` in the client bootstrap) and hands it to each factory
  * that listens for these messages; a document of its own (a plugin's side view) joins it in.
@@ -13,9 +19,26 @@
 export const PANE_MESSAGES_SCRIPT = String.raw`(() => {
     const held = new Map();
     const typed = (event) => event.origin === location.origin && Boolean(event.data) && typeof event.data.type === "string";
+    const fromParent = (event) => window.parent !== window && event.source === window.parent && typed(event);
+    const text = (value) => typeof value === "string" && value.length > 0 && value.length <= 1000;
+    const from = (event) => typed(event) && [...document.querySelectorAll("iframe[data-pane-owner]")].find((node) => node.contentWindow === event.source) || null;
     return {
-      from: (event) => typed(event) && [...document.querySelectorAll("iframe[data-pane-owner]")].find((node) => node.contentWindow === event.source) || null,
-      fromParent: (event) => window.parent !== window && event.source === window.parent && typed(event),
+      from,
+      fromParent,
+      recordAsk(event) {
+        if (!fromParent(event) || event.data.type !== "workbench-select-item" || Object.keys(event.data).sort().join() !== "itemId,plugin,quiet,type") return null;
+        const { plugin, itemId, quiet } = event.data;
+        return text(plugin) && text(itemId) && typeof quiet === "boolean" ? { plugin, itemId, quiet } : null;
+      },
+      recordGone(event) {
+        // A pane page is another document: the record it read is not one of the page's tabs. It reports it with the frame it
+        // was opened in, and only that frame's window, from this origin, in this exact shape, may mark a tab (S-30).
+        if (!from(event) || event.data.type !== "workbench-pane-record-gone") return null;
+        const keys = Object.keys(event.data).sort().join();
+        if (keys !== "itemId,plugin,type" && keys !== "itemId,paneId,plugin,type") return null;
+        const { plugin, itemId, paneId } = event.data;
+        return text(plugin) && text(itemId) && (paneId === undefined || text(paneId)) ? { plugin, itemId } : null;
+      },
       keep: (token, frame, value) => held.set(token, { frame, value }),
       take(token, frame) {
         const entry = held.get(token);

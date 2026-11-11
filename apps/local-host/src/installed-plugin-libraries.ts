@@ -6,7 +6,7 @@ import { pluginErrors, type HomePluginDatabaseDeclaration, type HomeStoreDeclara
 import { reservedHomeName } from "./sandbox-home-names.js";
 import { openPluginDatabaseConnection } from "./plugin-database.js";
 import { inspectPluginHomeSchema, type PluginProjectSchemaInspector } from "@molis-ai/molis-work-plugin-runtime";
-import { readStorageSpace, readDatabaseSpace, STORAGE_SPACE_SCHEMA_SQL, describeSqliteBaseline, describeSqliteSchema, homeSqlitePath, listSqliteObjects, snapshotFileStat, openBaselineHomeSqlite, openHomeSqliteFile, openReadOnlyHomeSqlite, type HomeStoreRegistry, type SqliteBaseline } from "@molis-ai/molis-work-storage";
+import { checkSqliteBaselineVersion, sqliteVersionRefusal, readStorageSpace, readDatabaseSpace, STORAGE_SPACE_SCHEMA_SQL, describeSqliteBaseline, describeSqliteSchema, homeSqlitePath, listSqliteObjects, snapshotFileStat, openBaselineHomeSqlite, openHomeSqliteFile, openReadOnlyHomeSqlite, type HomeStoreRegistry, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 
 // A library in the Home for a plugin the Host did not ship (PG-022 P1b, specs/archive/repository-anti-corruption/slices/pg022-manifest-declarations.md).
 // The plugin declares it in its Manifest (`databases.home`), like a shipped one; what a shipped plugin has from the Host's store registry
@@ -27,7 +27,7 @@ export const installedLibraryErrors = defineErrorCodes("plugin.home_database", {
 export const INSTALLED_LIBRARY_NAME = /^[a-z][a-z0-9-]*$/u;
 
 const LEDGER_BASELINE: SqliteBaseline = {
-  version: 1,
+  version: /* @version database.ledger_baseline */ 1,
   schema: `
     CREATE TABLE IF NOT EXISTS plugin_home_libraries (
       plugin_id TEXT PRIMARY KEY,
@@ -68,8 +68,7 @@ export function installedLibrarySnapshotsFile(file: string, reserved: HomeStoreR
   snapshotFileStat(file);
   const ledger = openHomeSqliteFile(file, { readOnly: true });
   try {
-    const version = Number(ledger.prepare("PRAGMA user_version").get()?.user_version);
-    if (version !== LEDGER_BASELINE.version || !matchesScopedLibrary(ledger, LEDGER_BASELINE, home)) {
+    if (!checkSqliteBaselineVersion(ledger, file, LEDGER_BASELINE, home) || !matchesScopedLibrary(ledger, LEDGER_BASELINE, home)) {
       throw installedLibraryErrors.shape_mismatch("安装库账本不是现行版本或完整结构，未枚举快照");
     }
     const rows: LedgerRow[] = [];
@@ -118,9 +117,8 @@ export function initializeInstalledSandboxHomeLibrary(home: string, owner: Insta
       if (!existsSync(homeSqlitePath(home, declaration.store_name))) throw installedLibraryErrors.shape_mismatch("已有归属记录的 Home 库文件缺失，不会重放初始化");
       const inspection = openReadOnlyHomeSqlite(home, declaration.store_name);
       try {
-        if (Number(inspection.prepare("PRAGMA user_version").get()?.user_version) !== declaration.version) {
-          throw installedLibraryErrors.version_mismatch("已有归属记录的 Home 库实际版本不符，不会重放初始化");
-        }
+        const found = Number(inspection.prepare("PRAGMA user_version").get()?.user_version);
+        if (found !== declaration.version) throw sqliteVersionRefusal(homeSqlitePath(home, declaration.store_name), found, declaration.version, home);
         if (!matchesScopedLibrary(inspection, declaration, home) || listSqliteObjects(inspection).some(object => object.type === "trigger" || object.type === "view")) {
           throw installedLibraryErrors.shape_mismatch("已有归属记录的 Home 库结构不符，不会重放初始化");
         }

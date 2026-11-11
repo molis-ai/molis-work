@@ -62,15 +62,22 @@ if (options.skipMacosOnly) {
   console.log(`run-tests: left out ${targets.length - kept.length} macOS-only files of ${targets.length}`);
   targets.splice(0, targets.length, ...kept);
 }
+const fromEnvironment = (name, fallback) => process.env[name] === undefined ? fallback : whole(name, process.env[name], 1);
+const jobs = options.jobs ?? fromEnvironment("MOLIS_WORK_TEST_JOBS", Math.max(1, Math.min(6, Math.floor(availableParallelism() / 2))));
+const browserJobs = Math.min(jobs, options.browserJobs ?? fromEnvironment("MOLIS_WORK_TEST_BROWSER_JOBS", 2));
 if (options.shard) {
   const { index, count } = options.shard;
-  const { pickShard, readWeights } = await import("./run-tests/shard.mjs");
-  const mine = pickShard(targets, { index, count }, readWeights(root), (file) => relative(root, resolve(file)));
+  const { planShards, readWeights, describeShards } = await import("./run-tests/shard.mjs");
+  const { classifyFile } = await import("./ci-linux-probe/select.mjs");
+  const name = (file) => relative(root, resolve(file));
+  const plan = planShards(targets, { count, jobs, browserJobs }, readWeights(root), name, (file) => classifyFile(root, name(file)).marks.includes("browser"));
+  console.log(`run-tests: ${describeShards(plan.loads)}`);
+  const mine = plan.shards[index];
   if (!mine.length) { console.log(`run-tests: shard ${index + 1}/${count} of ${targets.length} files has no file`); process.exit(0); }
   targets.splice(0, targets.length, ...mine);
 }
 
-// One browser batch at a time on this machine (docs/system/PARALLEL-DEVELOPMENT.md §5): a run with a browser file takes the machine's
+// Up to three browser batches at a time on this machine (docs/system/PARALLEL-DEVELOPMENT.md §5): a run with a browser file takes the machine's
 // browser slot first and waits its turn when another checkout holds it (scripts/machine-slot.mjs; not in CI, not inside a test).
 {
   const { classifyFile } = await import("./ci-linux-probe/select.mjs");
@@ -80,10 +87,8 @@ if (options.shard) {
   }
 }
 
-if (targets.length > 1) {
-  const fromEnvironment = (name, fallback) => process.env[name] === undefined ? fallback : whole(name, process.env[name], 1);
-  const jobs = options.jobs ?? fromEnvironment("MOLIS_WORK_TEST_JOBS", Math.max(1, Math.min(6, Math.floor(availableParallelism() / 2))));
-  const browserJobs = Math.min(jobs, options.browserJobs ?? fromEnvironment("MOLIS_WORK_TEST_BROWSER_JOBS", 2));
+// A one-file shard still needs the coordinator's timeout, retries and timed summary.
+if (targets.length > 1 || options.shard) {
   const { runParallel } = await import("./run-tests/pool.mjs");
   process.exitCode = await runParallel(root, targets, { jobs, browserJobs, timeoutSeconds: options.timeoutSeconds, testArgs, verbose: options.verbose, retries: options.retries, bail: options.bail });
 } else {

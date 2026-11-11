@@ -147,7 +147,7 @@ export const GOAL_CANVAS_STYLES = `
   }
   body.immersive-workbench .goal-stage-list .tree-entry {
     display: grid;
-    grid-template-columns: minmax(12rem, 1fr) 6.25rem 4.75rem 8.5rem auto;
+    grid-template-columns: minmax(12rem, 1fr) minmax(6.25rem, .3fr) 4.75rem 8.5rem auto;
     grid-template-rows: var(--goal-row-h, 34px);
     column-gap: 12px;
     align-items: center;
@@ -161,6 +161,12 @@ export const GOAL_CANVAS_STYLES = `
   /* A phone has room for the title and its status: the progress, relations and creator columns step aside instead of running off the screen.
      The title comes first: a long status gives way at 45% and is read whole from its tooltip. */
   @media (max-width: 760px) {
+    body.immersive-workbench .goal-stage-list .tree-entry { grid-template-columns: minmax(0, 1fr) fit-content(45%); }
+    body.immersive-workbench .goal-stage-list .tree-entry > :is(.tree-progress, .tree-relations, .tree-created-meta) { display: none !important; }
+  }
+  /* A narrow column on a wide window is the same: the right side kept open beside Goals (07-S1) or a split leaves it under the
+     five columns' 600-odd px, and the row keeps the title and its status rather than sliding sideways. */
+  @container goal-board (max-width: 640px) {
     body.immersive-workbench .goal-stage-list .tree-entry { grid-template-columns: minmax(0, 1fr) fit-content(45%); }
     body.immersive-workbench .goal-stage-list .tree-entry > :is(.tree-progress, .tree-relations, .tree-created-meta) { display: none !important; }
   }

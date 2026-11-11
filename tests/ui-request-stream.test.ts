@@ -1,3 +1,4 @@
+import { UI_HOST_CLIENT_CODES } from "@molis-ai/molis-work-contracts/platform/ui";
 import assert from "node:assert/strict";
 import test from "node:test";
 import vm from "node:vm";
@@ -10,7 +11,7 @@ const encoder = new TextEncoder();
 function fixture(response: Response | (() => Response)) {
   const sent: UiFetchInit[] = [];
   const request = createUiRequest({ origin: "http://127.0.0.1:4173", token: () => "page-token", newKey: () => "new-intent", translate: text => text,
-    fetch: async (_url, init) => { sent.push(init); return typeof response === "function" ? response() : response; } });
+    fetch: async (_url, init) => { sent.push(init); return typeof response === "function" ? response() : response; } }, UI_HOST_CLIENT_CODES);
   return { request, sent };
 }
 function chunks(text: string, split: number, close = true) {
@@ -35,9 +36,9 @@ test("RAC-35 streamed UTF-8, CRLF, empty lines and a final line without newline 
 
 test("RAC-35 stream uses the common POST controls, protects their casing and never retries", async () => {
   const f = fixture(new Response(line({ type: "result", result: 5 })));
-  await f.request.stream("/reply", { body: { a: 1 }, headers: { "Content-Type": "text/plain", "X-Molis-Work-Control-Token": "spoof", "x-molis-work-idempotency-key": "spoof" } });
+  await f.request.stream("/reply", { body: { a: 1 }, headers: { "Content-Type": "text/plain", "X-Molis-Work-Control-Token": "spoof", "X-Molis-Work-Page-Session": "spoof", "x-molis-work-idempotency-key": "spoof" } });
   assert.deepEqual(f.sent, [{ method: "POST", cache: "no-store", body: '{"a":1}', headers: {
-    "content-type": "application/json", "x-molis-work-control-token": "page-token", "x-molis-work-idempotency-key": "new-intent",
+    "content-type": "application/json", "x-molis-work-page-session": "page-token", "x-molis-work-idempotency-key": "new-intent",
   } }]);
 });
 

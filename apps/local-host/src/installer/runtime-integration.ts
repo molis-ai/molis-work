@@ -13,6 +13,7 @@ import { captureRuntimeConfigBackup, runtimeConfigBackupPath } from "./runtime-c
 import { digest } from "./runtime-config-text.js";
 import { inspectSkillLink, writeAtomic, readTextOrNull, pathState, anyPathExists, canExecute, isInside } from "./runtime-installation-files.js";
 import { resolveConfiguredHome } from "../product-home.js";
+import { hasMcpClientCredential } from "../mcp-client-credentials.js";
 
 export class RuntimeIntegrationService {
   private readonly planner: RuntimeIntegrationPlanner;
@@ -65,13 +66,14 @@ export class RuntimeIntegrationService {
     return structuredClone(prepared.publicPlan);
   }
 
-  confirm(confirmation: RuntimeIntegrationConfirmation): Promise<RuntimeIntegrationResult> {
+  confirm(confirmation: RuntimeIntegrationConfirmation, assertCurrent: () => void = () => {}): Promise<RuntimeIntegrationResult> {
     const request = structuredClone(confirmation);
     const target = adapterFor(request.runtime_id).configPath(this.userHomeDirectory);
-    return serializeRuntimeConfirmation(target, () => this.confirmPrepared(request));
+    return serializeRuntimeConfirmation(target, () => this.confirmPrepared(request, assertCurrent));
   }
 
-  private async confirmPrepared(confirmation: RuntimeIntegrationConfirmation): Promise<RuntimeIntegrationResult> {
+  private async confirmPrepared(confirmation: RuntimeIntegrationConfirmation, assertCurrent: () => void): Promise<RuntimeIntegrationResult> {
+    assertCurrent();
     const prepared = this.preparedPlans.get(confirmation.plan_id);
     if (!prepared) {
       return integrationResult(
@@ -112,10 +114,12 @@ export class RuntimeIntegrationService {
     }
 
     const current = await this.snapshot(prepared.adapter);
+    assertCurrent();
     if (plan.action === "connect" && !current.artifacts) {
       return integrationResult("unavailable", plan.runtime_id, plan.plan_id, null, null, "Molis Work 本体安装不完整，请先修复安装。");
     }
     const replay = await this.replayedResult(prepared, current);
+    assertCurrent();
     if (replay) return replay;
     if (current.configHash !== prepared.beforeConfigHash || current.skill.signature !== prepared.beforeSkill.signature) {
       return integrationResult(
@@ -133,11 +137,12 @@ export class RuntimeIntegrationService {
     }
 
     return applyRuntimeIntegration(prepared, {
+      assertCurrent,
       homeDirectory: this.homeDirectory, userHomeDirectory: this.userHomeDirectory,
-      receiptPath: this.receiptPath(plan.runtime_id), validate: () => this.validateAppliedPlan(prepared),
-      writeBackup: (contents, mode) => captureRuntimeConfigBackup(this.homeDirectory, plan.runtime_id, plan.plan_id, contents, mode),
-      writeReceipt: receipt => this.writeReceipt(receipt),
-      writeAttempt: (attemptPlan, status, message) => this.writeAttempt(attemptPlan, status, message),
+      receiptPath: this.receiptPath(plan.runtime_id), validate: () => this.validateAppliedPlan(prepared, assertCurrent),
+      writeBackup: (contents, mode) => captureRuntimeConfigBackup(this.homeDirectory, plan.runtime_id, plan.plan_id, contents, mode, assertCurrent),
+      writeReceipt: (receipt, mode) => this.writeReceipt(receipt, assertCurrent, mode),
+      writeAttempt: (attemptPlan, status, message) => this.writeAttempt(attemptPlan, status, message, assertCurrent),
     });
   }
 
@@ -162,6 +167,8 @@ export class RuntimeIntegrationService {
         entryFingerprint: null,
       };
     }
+    const credentialPresent = hasMcpClientCredential(this.homeDirectory, `runtime:${adapter.id}`);
+    if (configInspection.state === "current" && !credentialPresent) configInspection = { ...configInspection, state: "outdated", summary: "独立客户端连接凭据缺失，请重新接入" };
     const skill = await inspectSkillLink(adapter.skillPath(this.userHomeDirectory), artifacts?.skillSourcePath ?? null, this.homeDirectory);
     return {
       adapter,
@@ -171,6 +178,7 @@ export class RuntimeIntegrationService {
       configText,
       configHash: configText == null ? null : digest(configText),
       configInspection,
+      credentialPresent,
       skill,
     };
   }
@@ -210,9 +218,11 @@ export class RuntimeIntegrationService {
     return null;
   }
 
-  private async validateAppliedPlan(prepared: PreparedPlan): Promise<boolean> {
+  private async validateAppliedPlan(prepared: PreparedPlan, assertCurrent: () => void): Promise<boolean> {
+    assertCurrent();
     const plan = prepared.publicPlan;
     const current = await this.snapshot(prepared.adapter);
+    assertCurrent();
     if (plan.action === "remove") {
       return current.configInspection.state === "absent" && current.skill.state === "absent";
     }
@@ -220,12 +230,14 @@ export class RuntimeIntegrationService {
       return false;
     }
     const validate = this.options.validateConnection ?? validateMolisWorkMcpLauncher;
-    return Boolean(await validate({
+    const valid = await validate({
       runtime_id: plan.runtime_id,
       launcher_path: prepared.artifacts.launcherPath,
       home_directory: this.homeDirectory,
       plan_id: plan.plan_id,
-    }));
+    });
+    assertCurrent();
+    return Boolean(valid);
   }
 
   private async replayedResult(prepared: PreparedPlan, current: RuntimeSnapshot): Promise<RuntimeIntegrationResult | null> {
@@ -260,7 +272,7 @@ export class RuntimeIntegrationService {
     if (text == null) return null;
     try {
       const receipt = JSON.parse(text) as IntegrationReceipt;
-      if (!isOwnedIntegrationOwner(receipt.owner) || receipt.schema_version !== 1 || receipt.runtime_id !== runtimeId) {
+      if (!isOwnedIntegrationOwner(receipt.owner) || receipt.schema_version !== /* @version format.runtime.integration.receipt */ 1 || receipt.runtime_id !== runtimeId) {
         throw new Error("owner mismatch");
       }
       return receipt;
@@ -269,14 +281,16 @@ export class RuntimeIntegrationService {
     }
   }
 
-  private async writeReceipt(receipt: IntegrationReceipt): Promise<void> {
-    await writeAtomic(this.receiptPath(receipt.runtime_id), `${JSON.stringify(receipt, null, 2)}\n`);
+  private async writeReceipt(receipt: IntegrationReceipt, assertCurrent?: () => void, mode?: number): Promise<{identity: import("node:fs").Stats; contents: string}> {
+    const contents = `${JSON.stringify(receipt, null, 2)}\n`;
+    const identity = await writeAtomic(this.receiptPath(receipt.runtime_id), contents, mode, assertCurrent);
+    return { identity, contents };
   }
 
-  private async writeAttempt(plan: RuntimeIntegrationPlan, status: "rolled_back" | "conflict", message: string): Promise<void> {
+  private async writeAttempt(plan: RuntimeIntegrationPlan, status: "rolled_back" | "conflict", message: string, assertCurrent?: () => void): Promise<void> {
     const filePath = path.join(this.homeDirectory, "runtime-integration-attempts", `${plan.plan_id}-${randomUUID()}.json`);
     await writeAtomic(filePath, `${JSON.stringify({
-      schema_version: 1,
+      schema_version: /* @version format.runtime.integration.receipt */ 1,
       owner: INTEGRATION_OWNER,
       plan_id: plan.plan_id,
       runtime_id: plan.runtime_id,
@@ -284,7 +298,7 @@ export class RuntimeIntegrationService {
       status,
       message,
       recorded_at: new Date().toISOString(),
-    }, null, 2)}\n`);
+    }, null, 2)}\n`, undefined, assertCurrent);
   }
 }
 

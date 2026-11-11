@@ -1,0 +1,3679 @@
+{
+  "schema_version": 1,
+  "golden_version": "0.1.0-dev.1",
+  "commit": "ecdfe102d2bdd99b451a9cbbb53d5b6d3f12848e",
+  "node": "v24.15.0",
+  "third_party": "generated-list",
+  "home_library": "golden-home-library",
+  "synthetic": true,
+  "test_key": {
+    "name": "MOLIS_WORK_ENCRYPTION_KEY",
+    "value": "molis-work-golden-home-test-key-not-a-secret",
+    "label": "测试"
+  },
+  "homes": [
+    {
+      "path": "",
+      "space": {
+        "spaceId": "space_golden_root_home",
+        "kind": "local",
+        "ownerUserId": null,
+        "teamId": null,
+        "issuer": null,
+        "applicationId": null
+      },
+      "projects": {
+        "primary": {
+          "project_id": "project-4f160099-5107-48ca-8d08-7e4b6a17355c",
+          "database": "projects/project-4f160099-5107-48ca-8d08-7e4b6a17355c/molis-work.db"
+        },
+        "demo": {
+          "project_id": "molis-work-v1-demo",
+          "database": "projects/molis-work-v1-demo/molis-work.db"
+        },
+        "history": {
+          "project_id": "goalboard-v1-demo",
+          "database": "projects/goalboard-v1-demo/molis-work.db"
+        }
+      }
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935",
+      "space": {
+        "spaceId": "space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935",
+        "kind": "personal",
+        "ownerUserId": "golden-person",
+        "teamId": null,
+        "issuer": "https://golden.invalid",
+        "applicationId": "io.molis.work.golden"
+      },
+      "projects": {
+        "primary": {
+          "project_id": "project-3d8a36de-2c47-47c7-98b8-9054bd5e8545",
+          "database": "projects/project-3d8a36de-2c47-47c7-98b8-9054bd5e8545/molis-work.db"
+        }
+      }
+    }
+  ],
+  "imports": [
+    {
+      "path": "projects/goalboard-v1-demo/molis-work.db",
+      "reason": "历史 Goal 事件没有写入动作，取自 tests/fixtures/goal-event-history"
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/sync/sync.db",
+      "reason": "同步库没有写入动作，用主人的现行结构建空库"
+    },
+    {
+      "path": "knowledge/knowledge.db",
+      "reason": "卡片的编号取决于后台定时器的先后，生成结束时删库，由主人按目录逐项目重建；两个 Home 都如此"
+    },
+    {
+      "path": "plugin-directories/plugin-directories.db",
+      "reason": "授权目录的行记本机的真实路径、设备号和 inode，只有桌面选择器能写；用主人的现行结构建空库"
+    },
+    {
+      "path": "plugin-originals/plugin-originals.db",
+      "reason": "原始文件的行记本机的真实路径，只有桌面入口带来的路径能写；用主人的现行结构建空库"
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/plugin-libraries/plugin-libraries.db",
+      "reason": "台账的行要一个声明 Home 库的已签名沙箱包，这个 Home 没装；用主人的现行结构建空库"
+    },
+    {
+      "path": "alchemist/projects/<project>/search.sqlite",
+      "reason": "行来自联网搜索，金样不联网；由主人的搜索入口建空库"
+    }
+  ],
+  "directories": [
+    {
+      "path": "agent-declarations",
+      "mode": 448
+    },
+    {
+      "path": "agent-definitions",
+      "mode": 448
+    },
+    {
+      "path": "agent-runtime",
+      "mode": 448
+    },
+    {
+      "path": "agent-runtime/records",
+      "mode": 448
+    },
+    {
+      "path": "agent-runtime/records/io.molis.work~idempotency",
+      "mode": 448
+    },
+    {
+      "path": "agent-runtime/records/io.molis.work~lineage",
+      "mode": 448
+    },
+    {
+      "path": "agent-runtime/records/io.molis.work~memories",
+      "mode": 448
+    },
+    {
+      "path": "agent-runtime/records/io.molis.work~policy-snapshot",
+      "mode": 448
+    },
+    {
+      "path": "agent-runtime/records/io.molis.work~published-resource",
+      "mode": 448
+    },
+    {
+      "path": "agent-runtime/records/io.molis.work~published-resource-chunk",
+      "mode": 448
+    },
+    {
+      "path": "agent-runtime/records/io.molis.work~queued-tasks",
+      "mode": 448
+    },
+    {
+      "path": "agent-runtime/records/io.molis.work~runs",
+      "mode": 448
+    },
+    {
+      "path": "agent-runtime/records/io.molis.work~sessions",
+      "mode": 448
+    },
+    {
+      "path": "agent-runtime/records/io.molis.work~taskboards",
+      "mode": 448
+    },
+    {
+      "path": "agent-runtime/records/molis-agent-index-022e733141b0e17b8feffad3",
+      "mode": 448
+    },
+    {
+      "path": "alchemist",
+      "mode": 493
+    },
+    {
+      "path": "alchemist/projects",
+      "mode": 493
+    },
+    {
+      "path": "alchemist/projects/personal",
+      "mode": 493
+    },
+    {
+      "path": "alchemist/projects/project-4f160099-5107-48ca-8d08-7e4b6a17355c",
+      "mode": 493
+    },
+    {
+      "path": "assistant",
+      "mode": 448
+    },
+    {
+      "path": "browser",
+      "mode": 448
+    },
+    {
+      "path": "characters",
+      "mode": 448
+    },
+    {
+      "path": "cognia",
+      "mode": 448
+    },
+    {
+      "path": "config",
+      "mode": 493
+    },
+    {
+      "path": "connectors",
+      "mode": 448
+    },
+    {
+      "path": "context-onboarding",
+      "mode": 448
+    },
+    {
+      "path": "dataset",
+      "mode": 448
+    },
+    {
+      "path": "feed",
+      "mode": 493
+    },
+    {
+      "path": "feed-content",
+      "mode": 448
+    },
+    {
+      "path": "form",
+      "mode": 448
+    },
+    {
+      "path": "functions",
+      "mode": 448
+    },
+    {
+      "path": "goals",
+      "mode": 448
+    },
+    {
+      "path": "images",
+      "mode": 448
+    },
+    {
+      "path": "issues",
+      "mode": 448
+    },
+    {
+      "path": "jelly",
+      "mode": 448
+    },
+    {
+      "path": "knowledge",
+      "mode": 448
+    },
+    {
+      "path": "lingguang",
+      "mode": 448
+    },
+    {
+      "path": "memory",
+      "mode": 448
+    },
+    {
+      "path": "pages",
+      "mode": 448
+    },
+    {
+      "path": "placement",
+      "mode": 448
+    },
+    {
+      "path": "plugin-directories",
+      "mode": 448
+    },
+    {
+      "path": "plugin-files",
+      "mode": 448
+    },
+    {
+      "path": "plugin-files/plugin-install-4d1a4ffe21b5bf34194c32df752c6416",
+      "mode": 448
+    },
+    {
+      "path": "plugin-files/plugin-install-4d1a4ffe21b5bf34194c32df752c6416/files",
+      "mode": 448
+    },
+    {
+      "path": "plugin-libraries",
+      "mode": 448
+    },
+    {
+      "path": "plugin-originals",
+      "mode": 448
+    },
+    {
+      "path": "plugin-packages",
+      "mode": 448
+    },
+    {
+      "path": "plugin-packages/702d57b9ef8334948d6ceafc7cb61e40",
+      "mode": 448
+    },
+    {
+      "path": "plugin-packages/c861427de0348ce0d342472ce862c484",
+      "mode": 448
+    },
+    {
+      "path": "plugin-runtime",
+      "mode": 448
+    },
+    {
+      "path": "ppt",
+      "mode": 448
+    },
+    {
+      "path": "projects",
+      "mode": 493
+    },
+    {
+      "path": "projects/goalboard-v1-demo",
+      "mode": 493
+    },
+    {
+      "path": "projects/molis-work-v1-demo",
+      "mode": 493
+    },
+    {
+      "path": "projects/personal",
+      "mode": 493
+    },
+    {
+      "path": "projects/project-4f160099-5107-48ca-8d08-7e4b6a17355c",
+      "mode": 493
+    },
+    {
+      "path": "sbxdb-7cca75c1b8e5c4f45a135088b2538bae",
+      "mode": 448
+    },
+    {
+      "path": "server",
+      "mode": 448
+    },
+    {
+      "path": "shelf",
+      "mode": 448
+    },
+    {
+      "path": "shelf/files",
+      "mode": 448
+    },
+    {
+      "path": "shelf/files/item_mkf7y5c0_4064074c",
+      "mode": 448
+    },
+    {
+      "path": "shelf/files/item_mkf7y5c0_7c43631c",
+      "mode": 448
+    },
+    {
+      "path": "shelf/files/item_mkf7y5c0_7c43631c/versions",
+      "mode": 448
+    },
+    {
+      "path": "shelf/files/item_mkf7y5c0_7c43631c/versions/696af09bf599009e7f30496ec0b592af39f169a3e783169360a4606b20ba012c",
+      "mode": 448
+    },
+    {
+      "path": "spaces",
+      "mode": 448
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935",
+      "mode": 448
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/agent-declarations",
+      "mode": 448
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/agent-definitions",
+      "mode": 448
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/agent-runtime",
+      "mode": 448
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/agent-runtime/records",
+      "mode": 448
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/agent-runtime/records/io.molis.work~memories",
+      "mode": 448
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/agent-runtime/records/io.molis.work~queued-tasks",
+      "mode": 448
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/agent-runtime/records/io.molis.work~sessions",
+      "mode": 448
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/agent-runtime/records/molis-agent-index-022e733141b0e17b8feffad3",
+      "mode": 448
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/alchemist",
+      "mode": 493
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/alchemist/projects",
+      "mode": 493
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/alchemist/projects/personal",
+      "mode": 493
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/alchemist/projects/project-3d8a36de-2c47-47c7-98b8-9054bd5e8545",
+      "mode": 493
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/characters",
+      "mode": 448
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/cognia",
+      "mode": 448
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/connectors",
+      "mode": 448
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/dataset",
+      "mode": 448
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/feed",
+      "mode": 493
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/feed-content",
+      "mode": 448
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/form",
+      "mode": 448
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/functions",
+      "mode": 448
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/goals",
+      "mode": 448
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/images",
+      "mode": 448
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/issues",
+      "mode": 448
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/jelly",
+      "mode": 448
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/knowledge",
+      "mode": 448
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/lingguang",
+      "mode": 448
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/memory",
+      "mode": 448
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/pages",
+      "mode": 448
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/placement",
+      "mode": 448
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/plugin-directories",
+      "mode": 448
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/plugin-libraries",
+      "mode": 448
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/plugin-originals",
+      "mode": 448
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/plugin-runtime",
+      "mode": 448
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/ppt",
+      "mode": 448
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/projects",
+      "mode": 493
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/projects/personal",
+      "mode": 493
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/projects/project-3d8a36de-2c47-47c7-98b8-9054bd5e8545",
+      "mode": 493
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/sync",
+      "mode": 448
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/todo",
+      "mode": 448
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/workflows",
+      "mode": 448
+    },
+    {
+      "path": "todo",
+      "mode": 448
+    },
+    {
+      "path": "workflows",
+      "mode": 448
+    }
+  ],
+  "stores": [
+    {
+      "path": "agent-declarations/agent-declarations.db",
+      "owner": "apps/local-host",
+      "mode": 384,
+      "payload": "stores/agent-declarations/agent-declarations.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "install_declarations": 13,
+        "molis_storage_space": 1
+      },
+      "sha256": "ca1f542ced98c57a3927a26d65fff1e63f588425c6eea470e8709f3f37afb15e"
+    },
+    {
+      "path": "agent-definitions/agent-definitions.db",
+      "owner": "apps/local-host",
+      "mode": 384,
+      "payload": "stores/agent-definitions/agent-definitions.db.sql",
+      "schema_version": 2,
+      "tables": {
+        "molis_storage_space": 1,
+        "prompt_history": 1,
+        "prompt_overrides": 1,
+        "prompt_uses": 22,
+        "skill_settings": 0,
+        "skill_uses": 0,
+        "sqlite_sequence": 0
+      },
+      "sha256": "19b06b87887f6b534f27a4a0d759167d1c52441a305d023fe3416efeb72bf342"
+    },
+    {
+      "path": "alchemist/projects/personal/studio.sqlite",
+      "owner": "apps/local-host",
+      "mode": 420,
+      "payload": "stores/alchemist/projects/personal/studio.sqlite.sql",
+      "schema_version": 1,
+      "tables": {
+        "action_proposals": 0,
+        "activity_events": 0,
+        "annotations": 0,
+        "claim_evidence": 0,
+        "claims": 0,
+        "conversation_messages": 0,
+        "decisions": 0,
+        "directions": 0,
+        "evidence": 0,
+        "exploration_runs": 0,
+        "idea_cards": 0,
+        "idea_versions": 0,
+        "ideas": 0,
+        "job_events": 0,
+        "jobs": 0,
+        "lens_reports": 0,
+        "lens_runs": 0,
+        "memory_rule_applications": 0,
+        "molis_storage_space": 1,
+        "mvp_scope_versions": 0,
+        "opportunities": 0,
+        "opportunity_signals": 0,
+        "pulse_report_signals": 0,
+        "pulse_reports": 0,
+        "pulse_runs": 0,
+        "replica_changes": 0,
+        "replica_conflicts": 0,
+        "replica_heads": 0,
+        "replica_outbox": 0,
+        "replica_resolutions": 0,
+        "replica_state": 0,
+        "research_plans": 0,
+        "research_playbook_revisions": 0,
+        "research_playbook_rules": 0,
+        "runtime_settings": 0,
+        "source_fetches": 0,
+        "source_settings": 0,
+        "sqlite_sequence": 0,
+        "studio_sync_identity": 1,
+        "supply_signals": 0,
+        "taste_rules": 0,
+        "ui_context": 0,
+        "work_reuse_receipts": 0,
+        "workspace_actors": 0,
+        "workspaces": 0
+      },
+      "sha256": "af9f99bcb791a86babade806183a70cb03e8089ecb7c8d0d73866f12a414f7ff"
+    },
+    {
+      "path": "alchemist/projects/project-4f160099-5107-48ca-8d08-7e4b6a17355c/search.sqlite",
+      "owner": "apps/local-host",
+      "mode": 420,
+      "payload": "stores/alchemist/projects/project-4f160099-5107-48ca-8d08-7e4b6a17355c/search.sqlite.sql",
+      "schema_version": 1,
+      "tables": {
+        "feed_runtime_blobs": 0
+      },
+      "sha256": "ee4d02b5256189366336c345c28770d5fff4efdcd9cefd8bfd38498dc3bb1949"
+    },
+    {
+      "path": "alchemist/projects/project-4f160099-5107-48ca-8d08-7e4b6a17355c/studio.sqlite",
+      "owner": "apps/local-host",
+      "mode": 420,
+      "payload": "stores/alchemist/projects/project-4f160099-5107-48ca-8d08-7e4b6a17355c/studio.sqlite.sql",
+      "schema_version": 1,
+      "tables": {
+        "action_proposals": 0,
+        "activity_events": 0,
+        "annotations": 0,
+        "claim_evidence": 0,
+        "claims": 0,
+        "conversation_messages": 0,
+        "decisions": 0,
+        "directions": 1,
+        "evidence": 0,
+        "exploration_runs": 0,
+        "idea_cards": 0,
+        "idea_versions": 0,
+        "ideas": 0,
+        "job_events": 0,
+        "jobs": 0,
+        "lens_reports": 0,
+        "lens_runs": 0,
+        "memory_rule_applications": 0,
+        "molis_storage_space": 1,
+        "mvp_scope_versions": 0,
+        "opportunities": 0,
+        "opportunity_signals": 0,
+        "pulse_report_signals": 0,
+        "pulse_reports": 0,
+        "pulse_runs": 0,
+        "replica_changes": 0,
+        "replica_conflicts": 0,
+        "replica_heads": 0,
+        "replica_outbox": 0,
+        "replica_resolutions": 0,
+        "replica_state": 0,
+        "research_plans": 0,
+        "research_playbook_revisions": 0,
+        "research_playbook_rules": 0,
+        "runtime_settings": 1,
+        "source_fetches": 0,
+        "source_settings": 3,
+        "sqlite_sequence": 1,
+        "studio_sync_identity": 1,
+        "supply_signals": 0,
+        "taste_rules": 0,
+        "ui_context": 0,
+        "work_reuse_receipts": 0,
+        "workspace_actors": 1,
+        "workspaces": 1
+      },
+      "sha256": "70e663b5bba9fab4cbe5e1f0bdb8dd51aa1cc1d3a157b1432f7014d216221048"
+    },
+    {
+      "path": "assistant/assistant.db",
+      "owner": "apps/local-host",
+      "mode": 384,
+      "payload": "stores/assistant/assistant.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "assistant_cards": 0,
+        "assistant_followups": 0,
+        "assistant_jobs": 0,
+        "assistant_notices": 1,
+        "assistant_observed": 1,
+        "assistant_requests": 1,
+        "assistant_rounds": 1,
+        "assistant_settings": 1,
+        "assistant_undos": 0,
+        "assistant_unsettled": 0,
+        "assistant_usage": 1,
+        "assistant_works": 1,
+        "context_edges": 0,
+        "molis_storage_space": 1
+      },
+      "sha256": "783a69e0bc07e20d7d296ab355809a86ff61ebbd7a9d6f58ff1f84e039ede677"
+    },
+    {
+      "path": "characters/characters.sqlite",
+      "owner": "modules/characters",
+      "mode": 384,
+      "payload": "stores/characters/characters.sqlite.sql",
+      "schema_version": 1,
+      "tables": {
+        "character_drafts": 1,
+        "character_runs": 0,
+        "characters_replica_changes": 0,
+        "characters_replica_conflicts": 0,
+        "characters_replica_heads": 0,
+        "characters_replica_outbox": 0,
+        "characters_replica_resolutions": 0,
+        "characters_replica_state": 0,
+        "molis_storage_space": 1,
+        "sqlite_sequence": 1
+      },
+      "sha256": "f8710a9988f7900f757e689cdee22853af748be9511c7533b74b3fd7bbe74b72"
+    },
+    {
+      "path": "cognia/cognia.db",
+      "owner": "io.molis.work.cognia",
+      "mode": 384,
+      "payload": "stores/cognia/cognia.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "cognia_domains": 1,
+        "cognia_drafts": 0,
+        "cognia_materials": 1,
+        "cognia_previews": 0,
+        "cognia_sources": 1,
+        "cognia_versions": 2,
+        "molis_storage_space": 1,
+        "sqlite_sequence": 1,
+        "sync_9c148ae77e23da148100ce206111_aggregate_editor_versions": 0,
+        "sync_9c148ae77e23da148100ce206111_context": 1,
+        "sync_9c148ae77e23da148100ce206111_replica_changes": 6,
+        "sync_9c148ae77e23da148100ce206111_replica_conflicts": 0,
+        "sync_9c148ae77e23da148100ce206111_replica_heads": 0,
+        "sync_9c148ae77e23da148100ce206111_replica_outbox": 0,
+        "sync_9c148ae77e23da148100ce206111_replica_resolutions": 0,
+        "sync_9c148ae77e23da148100ce206111_replica_state": 1
+      },
+      "sha256": "2a4a68ce0137d72233a3c99e0e31d49e99cbd79721c8854991b2da263b7f0c3f"
+    },
+    {
+      "path": "connectors/connectors.db",
+      "owner": "apps/local-host",
+      "mode": 384,
+      "payload": "stores/connectors/connectors.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "connector_authorization_results": 1,
+        "connector_authorization_sessions": 0,
+        "connector_bindings": 0,
+        "connector_connection_declarers": 0,
+        "connector_connection_targets": 2,
+        "connector_connections": 2,
+        "connector_observations": 0,
+        "connector_protocols": 0,
+        "molis_storage_space": 1
+      },
+      "sha256": "b8b47e230118e45194b27388f32fcbedcd254555ede4ce873d0410598ad0183b"
+    },
+    {
+      "path": "context-onboarding/context-onboarding.db",
+      "owner": "apps/local-host",
+      "mode": 384,
+      "payload": "stores/context-onboarding/context-onboarding.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "journeys": 1,
+        "molis_storage_space": 1
+      },
+      "sha256": "a9df5480e4e15e43c6288c30f73699a8f948e3679a7c9af6c3e7fbd2bd031eed"
+    },
+    {
+      "path": "dataset/dataset.db",
+      "owner": "io.molis.work.dataset",
+      "mode": 384,
+      "payload": "stores/dataset/dataset.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "dataset_receipts": 0,
+        "dataset_versions": 0,
+        "datasets": 1,
+        "molis_storage_space": 1,
+        "sqlite_sequence": 1,
+        "sync_aa98c46361f294dbb01ea79b1b42_aggregate_editor_versions": 1,
+        "sync_aa98c46361f294dbb01ea79b1b42_context": 1,
+        "sync_aa98c46361f294dbb01ea79b1b42_replica_changes": 2,
+        "sync_aa98c46361f294dbb01ea79b1b42_replica_conflicts": 0,
+        "sync_aa98c46361f294dbb01ea79b1b42_replica_heads": 0,
+        "sync_aa98c46361f294dbb01ea79b1b42_replica_outbox": 0,
+        "sync_aa98c46361f294dbb01ea79b1b42_replica_resolutions": 0,
+        "sync_aa98c46361f294dbb01ea79b1b42_replica_state": 1
+      },
+      "sha256": "1241559265b9f25fa9e586165d0d90c53a32f6774f3c75e30cf865d861a2b570"
+    },
+    {
+      "path": "feed-content/feed-content.db",
+      "owner": "io.molis.work.feed",
+      "mode": 384,
+      "payload": "stores/feed-content/feed-content.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "feed_content_holds": 0,
+        "molis_storage_space": 1
+      },
+      "sha256": "830727b1512b0b18559df902c4daff89f0d67a960722100d2c570266ef43eb29"
+    },
+    {
+      "path": "form/form.db",
+      "owner": "io.molis.work.form",
+      "mode": 384,
+      "payload": "stores/form/form.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "form_copies": 0,
+        "forms": 1,
+        "molis_storage_space": 1,
+        "sqlite_sequence": 1,
+        "submissions": 0,
+        "sync_1299cb8ea8bacadaced737bb64d2_aggregate_editor_versions": 1,
+        "sync_1299cb8ea8bacadaced737bb64d2_context": 1,
+        "sync_1299cb8ea8bacadaced737bb64d2_replica_changes": 2,
+        "sync_1299cb8ea8bacadaced737bb64d2_replica_conflicts": 0,
+        "sync_1299cb8ea8bacadaced737bb64d2_replica_heads": 0,
+        "sync_1299cb8ea8bacadaced737bb64d2_replica_outbox": 0,
+        "sync_1299cb8ea8bacadaced737bb64d2_replica_resolutions": 0,
+        "sync_1299cb8ea8bacadaced737bb64d2_replica_state": 1
+      },
+      "sha256": "88d7fb4acf587274e6e9a652cedd49cf79ed29ce26e2dc7dee05cc387b54237d"
+    },
+    {
+      "path": "functions/functions.db",
+      "owner": "modules/functions",
+      "mode": 384,
+      "payload": "stores/functions/functions.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "function_judgments": 0,
+        "function_scene_bindings": 0,
+        "functions": 4,
+        "molis_storage_space": 1
+      },
+      "sha256": "41ee66130e3366bf47db2d9edee5eb1dcc2ecb794ca812e329f9ba745093c434"
+    },
+    {
+      "path": "goals/goals.db",
+      "owner": "io.molis.work.goals",
+      "mode": 384,
+      "payload": "stores/goals/goals.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "molis_storage_space": 1,
+        "personal_planning_method_packs": 1
+      },
+      "sha256": "6d22e962ceea96adfcfd315b3d98dbeaaa0322814878deaa69d23e1f9c19a8e5"
+    },
+    {
+      "path": "images/images.db",
+      "owner": "io.molis.work.images",
+      "mode": 384,
+      "payload": "stores/images/images.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "connections": 1,
+        "jobs": 0,
+        "molis_storage_space": 1,
+        "sqlite_sequence": 1,
+        "sync_3a28c22289ed28c8fdbe3056c102_aggregate_editor_versions": 0,
+        "sync_3a28c22289ed28c8fdbe3056c102_context": 1,
+        "sync_3a28c22289ed28c8fdbe3056c102_replica_changes": 0,
+        "sync_3a28c22289ed28c8fdbe3056c102_replica_conflicts": 0,
+        "sync_3a28c22289ed28c8fdbe3056c102_replica_heads": 0,
+        "sync_3a28c22289ed28c8fdbe3056c102_replica_outbox": 0,
+        "sync_3a28c22289ed28c8fdbe3056c102_replica_resolutions": 0,
+        "sync_3a28c22289ed28c8fdbe3056c102_replica_state": 1
+      },
+      "sha256": "d0fb4ba02d87a70258284223083d9b5835b4390c437463011dc4ef8fc3931365"
+    },
+    {
+      "path": "issues/issues.db",
+      "owner": "io.molis.work.issues",
+      "mode": 384,
+      "payload": "stores/issues/issues.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "issue_editor_versions": 0,
+        "issues": 1,
+        "molis_storage_space": 1,
+        "sqlite_sequence": 1,
+        "sync_547a53110031b73814823e489835_aggregate_editor_versions": 0,
+        "sync_547a53110031b73814823e489835_context": 1,
+        "sync_547a53110031b73814823e489835_replica_changes": 0,
+        "sync_547a53110031b73814823e489835_replica_conflicts": 0,
+        "sync_547a53110031b73814823e489835_replica_heads": 0,
+        "sync_547a53110031b73814823e489835_replica_outbox": 0,
+        "sync_547a53110031b73814823e489835_replica_resolutions": 0,
+        "sync_547a53110031b73814823e489835_replica_state": 1
+      },
+      "sha256": "409fc15b25f86f764af9bf927301815078a3cdf0e0d2a52a7896d7c6725a0ff0"
+    },
+    {
+      "path": "jelly/jelly.db",
+      "owner": "io.molis.work.jelly",
+      "mode": 384,
+      "payload": "stores/jelly/jelly.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "jelly_history": 2,
+        "jelly_note_versions": 1,
+        "jelly_previews": 0,
+        "jelly_workspace": 1,
+        "molis_storage_space": 1,
+        "sqlite_sequence": 2,
+        "sync_fdf2cac8555825a37edee87d5d45_aggregate_editor_versions": 0,
+        "sync_fdf2cac8555825a37edee87d5d45_context": 1,
+        "sync_fdf2cac8555825a37edee87d5d45_replica_changes": 2,
+        "sync_fdf2cac8555825a37edee87d5d45_replica_conflicts": 0,
+        "sync_fdf2cac8555825a37edee87d5d45_replica_heads": 0,
+        "sync_fdf2cac8555825a37edee87d5d45_replica_outbox": 0,
+        "sync_fdf2cac8555825a37edee87d5d45_replica_resolutions": 0,
+        "sync_fdf2cac8555825a37edee87d5d45_replica_state": 1
+      },
+      "sha256": "b1d0fbca8088084c097d7dfdc220af5e68bb606d950444747ae0c84668acb4d4"
+    },
+    {
+      "path": "knowledge/knowledge.db",
+      "owner": "packages/storage",
+      "mode": 384,
+      "payload": "stores/knowledge/knowledge.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "knowledge_cards": 14,
+        "knowledge_receipts": 0,
+        "knowledge_usage": 2,
+        "molis_storage_space": 1
+      },
+      "sha256": "be080edd03e3ff829893a6174cb643eed7d9f399fabfb0c10990e893a38813b0"
+    },
+    {
+      "path": "lingguang/lingguang.db",
+      "owner": "io.molis.work.lingguang",
+      "mode": 384,
+      "payload": "stores/lingguang/lingguang.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "conversations": 0,
+        "messages": 0,
+        "molis_storage_space": 1,
+        "spark_requests": 0,
+        "sparks": 1,
+        "sqlite_sequence": 1,
+        "sync_764756c5c01e4432072de4c80de9_aggregate_editor_versions": 0,
+        "sync_764756c5c01e4432072de4c80de9_context": 1,
+        "sync_764756c5c01e4432072de4c80de9_replica_changes": 2,
+        "sync_764756c5c01e4432072de4c80de9_replica_conflicts": 0,
+        "sync_764756c5c01e4432072de4c80de9_replica_heads": 0,
+        "sync_764756c5c01e4432072de4c80de9_replica_outbox": 0,
+        "sync_764756c5c01e4432072de4c80de9_replica_resolutions": 0,
+        "sync_764756c5c01e4432072de4c80de9_replica_state": 1
+      },
+      "sha256": "fe4fce5e6873422ea39c1c9b28ce5bfb760e332357bfd7e8e46123eb77eadd27"
+    },
+    {
+      "path": "memory/memory.db",
+      "owner": "packages/storage",
+      "mode": 384,
+      "payload": "stores/memory/memory.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "memory_candidates": 0,
+        "memory_changes": 2,
+        "memory_markers": 6,
+        "memory_owners": 0,
+        "memory_pairs": 0,
+        "memory_prefs": 2,
+        "memory_revisions": 2,
+        "memory_signal_events": 0,
+        "memory_uses": 1,
+        "molis_storage_space": 1
+      },
+      "sha256": "da6ead28b122703ae4da06473c5002cf0770489f8023a1cc5637ab50d472168c"
+    },
+    {
+      "path": "pages/pages.db",
+      "owner": "io.molis.work.pages",
+      "mode": 384,
+      "payload": "stores/pages/pages.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "folders": 0,
+        "molis_storage_space": 1,
+        "page_changes": 0,
+        "page_comments": 0,
+        "page_generations": 0,
+        "page_imports": 0,
+        "pages": 2,
+        "pages_editor_versions": 2,
+        "sqlite_sequence": 1,
+        "sync_32ffaf99782a7333c6784e247a81_aggregate_editor_versions": 0,
+        "sync_32ffaf99782a7333c6784e247a81_context": 1,
+        "sync_32ffaf99782a7333c6784e247a81_replica_changes": 7,
+        "sync_32ffaf99782a7333c6784e247a81_replica_conflicts": 0,
+        "sync_32ffaf99782a7333c6784e247a81_replica_heads": 0,
+        "sync_32ffaf99782a7333c6784e247a81_replica_outbox": 0,
+        "sync_32ffaf99782a7333c6784e247a81_replica_resolutions": 0,
+        "sync_32ffaf99782a7333c6784e247a81_replica_state": 1
+      },
+      "sha256": "c0b26b950695f34ac6668dcdb9dfaa7b7effcf1641ac5b5f298062804288a00b"
+    },
+    {
+      "path": "placement/placement.db",
+      "owner": "apps/local-host",
+      "mode": 384,
+      "payload": "stores/placement/placement.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "context_edges": 5,
+        "molis_storage_space": 1,
+        "placement_titles": 1
+      },
+      "sha256": "ee568bd8791a3d508b7de69b8e3ca69fdb38ca49914304222c617b67fb8add4b"
+    },
+    {
+      "path": "plugin-directories/plugin-directories.db",
+      "owner": "apps/local-host",
+      "mode": 384,
+      "payload": "stores/plugin-directories/plugin-directories.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "molis_storage_space": 1,
+        "plugin_directory_grants": 0,
+        "plugin_directory_reads": 0,
+        "sqlite_sequence": 0
+      },
+      "sha256": "10f85a7062408d10a503ee30b56119fdaf37cef296ba3ad59949ae2dbcba99b1"
+    },
+    {
+      "path": "plugin-libraries/plugin-libraries.db",
+      "owner": "apps/local-host",
+      "mode": 384,
+      "payload": "stores/plugin-libraries/plugin-libraries.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "molis_storage_space": 1,
+        "plugin_home_libraries": 1
+      },
+      "sha256": "42b8520dd8843f30a28d86d0713c1513cb98392ef64ef3f137080e8c3c2c6449"
+    },
+    {
+      "path": "plugin-originals/plugin-originals.db",
+      "owner": "apps/local-host",
+      "mode": 384,
+      "payload": "stores/plugin-originals/plugin-originals.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "molis_storage_space": 1,
+        "plugin_original_files": 0
+      },
+      "sha256": "75f3aca74838a48bd2fd666aba09e0e576b426c62f851e300f038a40e370a6a7"
+    },
+    {
+      "path": "plugin-runtime/plugin-runtime.db",
+      "owner": "apps/local-host",
+      "mode": 384,
+      "payload": "stores/plugin-runtime/plugin-runtime.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "molis_storage_space": 1,
+        "plugin_consents": 10,
+        "plugin_private_values": 1,
+        "plugin_publishers": 2,
+        "plugin_runtime_installs": 9,
+        "plugin_runtime_release_artifacts": 8
+      },
+      "sha256": "4b8229ab9ef0093ac466f58ae726332690a185f065167eba654baf13e7bf30a4",
+      "expanded_sha256": "dc8c7e3120e206339dc73c97bcca3b67c8c5fb08c451c9a4a55b821402f5842c"
+    },
+    {
+      "path": "ppt/ppt.db",
+      "owner": "io.molis.work.ppt",
+      "mode": 384,
+      "payload": "stores/ppt/ppt.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "molis_storage_space": 1,
+        "presentation_copies": 0,
+        "presentations": 1,
+        "sqlite_sequence": 1,
+        "sync_4c235c6e5ce01f475d0e44c40a33_aggregate_editor_versions": 1,
+        "sync_4c235c6e5ce01f475d0e44c40a33_context": 1,
+        "sync_4c235c6e5ce01f475d0e44c40a33_replica_changes": 2,
+        "sync_4c235c6e5ce01f475d0e44c40a33_replica_conflicts": 0,
+        "sync_4c235c6e5ce01f475d0e44c40a33_replica_heads": 0,
+        "sync_4c235c6e5ce01f475d0e44c40a33_replica_outbox": 0,
+        "sync_4c235c6e5ce01f475d0e44c40a33_replica_resolutions": 0,
+        "sync_4c235c6e5ce01f475d0e44c40a33_replica_state": 1
+      },
+      "sha256": "8b7fb3691c3e2e0d5a912ff3ccd039e7c914fa9a551664035bfb982ab7b1c55f"
+    },
+    {
+      "path": "projects/catalog.db",
+      "owner": "apps/local-host",
+      "mode": 420,
+      "payload": "stores/projects/catalog.db.sql",
+      "schema_version": 2,
+      "tables": {
+        "catalog_meta": 2,
+        "context_edges": 0,
+        "goal_desktop_panel_aliases": 0,
+        "goal_desktop_panels": 0,
+        "model_providers": 1,
+        "molis_storage_space": 1,
+        "plugin_terminal_panel_aliases": 0,
+        "plugin_terminal_panels": 0,
+        "project_catalog_replica_changes": 0,
+        "project_catalog_replica_conflicts": 0,
+        "project_catalog_replica_heads": 0,
+        "project_catalog_replica_outbox": 0,
+        "project_catalog_replica_resolutions": 0,
+        "project_catalog_replica_state": 1,
+        "project_deletion_steps": 0,
+        "project_deletions": 0,
+        "project_events": 23,
+        "project_plugin_exclusions": 0,
+        "project_plugins": 23,
+        "project_portable_plugins": 23,
+        "project_recycle": 0,
+        "project_recycle_receipts": 0,
+        "projects": 4,
+        "runtime_context_binding_events": 0,
+        "runtime_context_bindings": 0,
+        "runtime_context_setup_requests": 0,
+        "runtime_context_suggestion_rejections": 0,
+        "sqlite_sequence": 1,
+        "workspace_project_memberships": 4,
+        "workspace_source_links": 0,
+        "workspaces": 4
+      },
+      "sha256": "95ba67f8391b40b98eb50b553b4af4038e8779bbd1ca74dc70afb34aba547895"
+    },
+    {
+      "path": "projects/goalboard-v1-demo/molis-work.db",
+      "owner": "apps/local-host",
+      "mode": 420,
+      "payload": "stores/projects/goalboard-v1-demo/molis-work.db.sql",
+      "schema_version": 2,
+      "plugin_tables": {
+        "io.molis.work.coding": 1,
+        "io.molis.work.feed": 1,
+        "io.molis.work.goals": 1,
+        "io.molis.work.inbox": 1,
+        "io.molis.work.schedule": 1
+      },
+      "tables": {
+        "acceptance_criteria": 17,
+        "artifacts_replica_changes": 0,
+        "artifacts_replica_conflicts": 0,
+        "artifacts_replica_heads": 0,
+        "artifacts_replica_outbox": 0,
+        "artifacts_replica_resolutions": 0,
+        "artifacts_replica_state": 1,
+        "attention_events": 0,
+        "boards": 1,
+        "builder_replica_changes": 0,
+        "builder_replica_conflicts": 0,
+        "builder_replica_heads": 0,
+        "builder_replica_outbox": 0,
+        "builder_replica_resolutions": 0,
+        "builder_replica_state": 1,
+        "coding_input_versions": 0,
+        "coding_inputs": 0,
+        "coding_plan_drafts": 0,
+        "coding_plan_versions": 0,
+        "coding_saved_history": 0,
+        "coding_sessions": 0,
+        "context_edges": 0,
+        "events": 44,
+        "feed_item_events": 0,
+        "feed_items": 0,
+        "feed_materials": 0,
+        "feed_out_rules": 0,
+        "feed_runtime_blobs": 0,
+        "feed_source_runs": 0,
+        "feed_sources": 0,
+        "goal_event_agreements": 17,
+        "goal_event_applied_decisions": 1,
+        "goal_event_closures": 1,
+        "goal_event_concerns": 3,
+        "goal_event_config_versions": 1,
+        "goal_event_configs": 1,
+        "goal_event_decision_requests": 0,
+        "goal_event_progress_summaries": 0,
+        "goal_event_requirement_bindings": 0,
+        "goal_event_requirement_conclusions": 1,
+        "goal_event_requirements": 34,
+        "goal_event_state_owners": 17,
+        "goal_event_trusted_decisions": 1,
+        "goal_event_types": 1,
+        "goal_event_work_status": 17,
+        "goal_relations": 17,
+        "goal_trash_records": 1,
+        "goal_trash_relation_records": 0,
+        "goal_tree_proposal_decisions": 0,
+        "goal_tree_proposal_items": 0,
+        "goal_tree_proposals": 0,
+        "goal_work_event_judgments": 1,
+        "goal_work_events": 7,
+        "goals": 17,
+        "idempotency_records": 33,
+        "inbox_entries": 0,
+        "inbox_scene_bindings": 0,
+        "input_bindings": 0,
+        "library_artifact_versions": 0,
+        "library_artifacts": 0,
+        "listener_deliveries": 0,
+        "listener_instances": 0,
+        "material_recent_uses": 0,
+        "molis_storage_space": 1,
+        "planning_method_packs": 0,
+        "plugin_event_cursors": 8,
+        "plugin_event_resolutions": 0,
+        "plugin_events": 0,
+        "plugin_input_groups": 1,
+        "plugin_notifications": 0,
+        "plugin_port_artifact_bindings": 0,
+        "plugin_port_bindings": 7,
+        "plugin_port_outputs": 0,
+        "plugin_private_values": 0,
+        "plugin_project_databases": 5,
+        "plugin_runtime_installs": 16,
+        "plugin_runtime_release_artifacts": 16,
+        "policy_bindings": 2,
+        "process_item_versions": 0,
+        "process_items": 0,
+        "process_items_replica_changes": 0,
+        "process_items_replica_conflicts": 0,
+        "process_items_replica_heads": 0,
+        "process_items_replica_outbox": 0,
+        "process_items_replica_resolutions": 0,
+        "process_items_replica_state": 1,
+        "project_guidance_entries": 0,
+        "project_guidance_revisions": 0,
+        "project_root": 1,
+        "schedule_action_bindings": 1,
+        "schedule_conversation_tasks": 0,
+        "schedule_conversation_turns": 0,
+        "schedule_jobs": 1,
+        "schedule_operation_occurrences": 0,
+        "schedule_operations": 0,
+        "schedule_plugin_reminders": 0,
+        "schedule_wakeups": 0,
+        "signal_events": 0,
+        "signal_revisions": 0,
+        "signals": 0,
+        "source_events": 0,
+        "sqlite_sequence": 2,
+        "sync_14ff60cd5b3b2f8842d99bea7ef6_aggregate_editor_versions": 0,
+        "sync_14ff60cd5b3b2f8842d99bea7ef6_context": 1,
+        "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_changes": 0,
+        "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_conflicts": 0,
+        "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_heads": 0,
+        "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_outbox": 0,
+        "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_resolutions": 0,
+        "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_state": 1,
+        "sync_21391483cd8d8dcc743c2ecd02ca_aggregate_editor_versions": 0,
+        "sync_21391483cd8d8dcc743c2ecd02ca_context": 1,
+        "sync_21391483cd8d8dcc743c2ecd02ca_replica_changes": 0,
+        "sync_21391483cd8d8dcc743c2ecd02ca_replica_conflicts": 0,
+        "sync_21391483cd8d8dcc743c2ecd02ca_replica_heads": 0,
+        "sync_21391483cd8d8dcc743c2ecd02ca_replica_outbox": 0,
+        "sync_21391483cd8d8dcc743c2ecd02ca_replica_resolutions": 0,
+        "sync_21391483cd8d8dcc743c2ecd02ca_replica_state": 1,
+        "sync_522a4260e0bcbee35d4d9f85406c_aggregate_editor_versions": 0,
+        "sync_522a4260e0bcbee35d4d9f85406c_context": 1,
+        "sync_522a4260e0bcbee35d4d9f85406c_replica_changes": 0,
+        "sync_522a4260e0bcbee35d4d9f85406c_replica_conflicts": 0,
+        "sync_522a4260e0bcbee35d4d9f85406c_replica_heads": 0,
+        "sync_522a4260e0bcbee35d4d9f85406c_replica_outbox": 0,
+        "sync_522a4260e0bcbee35d4d9f85406c_replica_resolutions": 0,
+        "sync_522a4260e0bcbee35d4d9f85406c_replica_state": 1,
+        "sync_daec9cf494e58d382d6262de3af9_aggregate_editor_versions": 0,
+        "sync_daec9cf494e58d382d6262de3af9_context": 1,
+        "sync_daec9cf494e58d382d6262de3af9_replica_changes": 0,
+        "sync_daec9cf494e58d382d6262de3af9_replica_conflicts": 0,
+        "sync_daec9cf494e58d382d6262de3af9_replica_heads": 0,
+        "sync_daec9cf494e58d382d6262de3af9_replica_outbox": 0,
+        "sync_daec9cf494e58d382d6262de3af9_replica_resolutions": 0,
+        "sync_daec9cf494e58d382d6262de3af9_replica_state": 1,
+        "sync_dd6dd4054975ce4abcd1e12268d3_aggregate_editor_versions": 0,
+        "sync_dd6dd4054975ce4abcd1e12268d3_context": 1,
+        "sync_dd6dd4054975ce4abcd1e12268d3_replica_changes": 0,
+        "sync_dd6dd4054975ce4abcd1e12268d3_replica_conflicts": 0,
+        "sync_dd6dd4054975ce4abcd1e12268d3_replica_heads": 0,
+        "sync_dd6dd4054975ce4abcd1e12268d3_replica_outbox": 0,
+        "sync_dd6dd4054975ce4abcd1e12268d3_replica_resolutions": 0,
+        "sync_dd6dd4054975ce4abcd1e12268d3_replica_state": 1,
+        "sync_ebbb9ae341b34cbb8aedd65a41e6_aggregate_editor_versions": 0,
+        "sync_ebbb9ae341b34cbb8aedd65a41e6_context": 1,
+        "sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes": 158,
+        "sync_ebbb9ae341b34cbb8aedd65a41e6_replica_conflicts": 0,
+        "sync_ebbb9ae341b34cbb8aedd65a41e6_replica_heads": 0,
+        "sync_ebbb9ae341b34cbb8aedd65a41e6_replica_outbox": 0,
+        "sync_ebbb9ae341b34cbb8aedd65a41e6_replica_resolutions": 0,
+        "sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state": 1,
+        "sync_fc44281fa4e6ae1ad919f15bea63_aggregate_editor_versions": 0,
+        "sync_fc44281fa4e6ae1ad919f15bea63_context": 1,
+        "sync_fc44281fa4e6ae1ad919f15bea63_replica_changes": 0,
+        "sync_fc44281fa4e6ae1ad919f15bea63_replica_conflicts": 0,
+        "sync_fc44281fa4e6ae1ad919f15bea63_replica_heads": 0,
+        "sync_fc44281fa4e6ae1ad919f15bea63_replica_outbox": 0,
+        "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
+        "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
+      },
+      "sha256": "9e2ca687e6c90f12eb7021f4192d30b5fb2c6b73a76d27707402011f8b83df41",
+      "expanded_sha256": "7ee3d08d0e5c3daa8db1aa8c2a8bbc4c0d539fa1c234b698429b6886c1c7f5e6"
+    },
+    {
+      "path": "projects/molis-work-v1-demo/molis-work.db",
+      "owner": "apps/local-host",
+      "mode": 420,
+      "payload": "stores/projects/molis-work-v1-demo/molis-work.db.sql",
+      "schema_version": 2,
+      "plugin_tables": {
+        "io.molis.work.coding": 1,
+        "io.molis.work.feed": 1,
+        "io.molis.work.goals": 1,
+        "io.molis.work.inbox": 1,
+        "io.molis.work.schedule": 1
+      },
+      "tables": {
+        "acceptance_criteria": 0,
+        "artifacts_replica_changes": 5,
+        "artifacts_replica_conflicts": 0,
+        "artifacts_replica_heads": 0,
+        "artifacts_replica_outbox": 0,
+        "artifacts_replica_resolutions": 0,
+        "artifacts_replica_state": 1,
+        "attention_events": 7,
+        "boards": 1,
+        "builder_replica_changes": 0,
+        "builder_replica_conflicts": 0,
+        "builder_replica_heads": 0,
+        "builder_replica_outbox": 0,
+        "builder_replica_resolutions": 0,
+        "builder_replica_state": 1,
+        "coding_input_versions": 0,
+        "coding_inputs": 0,
+        "coding_plan_drafts": 0,
+        "coding_plan_versions": 0,
+        "coding_saved_history": 0,
+        "coding_sessions": 0,
+        "context_edges": 1,
+        "events": 112,
+        "feed_item_events": 6,
+        "feed_items": 6,
+        "feed_materials": 0,
+        "feed_out_rules": 1,
+        "feed_runtime_blobs": 0,
+        "feed_source_runs": 0,
+        "feed_sources": 5,
+        "goal_event_agreements": 20,
+        "goal_event_applied_decisions": 2,
+        "goal_event_closures": 3,
+        "goal_event_concerns": 1,
+        "goal_event_config_versions": 7,
+        "goal_event_configs": 7,
+        "goal_event_decision_requests": 1,
+        "goal_event_progress_summaries": 4,
+        "goal_event_requirement_bindings": 0,
+        "goal_event_requirement_conclusions": 2,
+        "goal_event_requirements": 19,
+        "goal_event_state_owners": 19,
+        "goal_event_trusted_decisions": 2,
+        "goal_event_types": 7,
+        "goal_event_work_status": 19,
+        "goal_relations": 25,
+        "goal_trash_records": 1,
+        "goal_trash_relation_records": 0,
+        "goal_tree_proposal_decisions": 0,
+        "goal_tree_proposal_items": 0,
+        "goal_tree_proposals": 0,
+        "goal_work_event_judgments": 4,
+        "goal_work_events": 45,
+        "goals": 19,
+        "idempotency_records": 96,
+        "inbox_entries": 5,
+        "inbox_scene_bindings": 0,
+        "input_bindings": 0,
+        "library_artifact_versions": 3,
+        "library_artifacts": 2,
+        "listener_deliveries": 0,
+        "listener_instances": 5,
+        "material_recent_uses": 0,
+        "molis_storage_space": 1,
+        "planning_method_packs": 0,
+        "plugin_event_cursors": 8,
+        "plugin_event_resolutions": 0,
+        "plugin_events": 0,
+        "plugin_input_groups": 1,
+        "plugin_notifications": 0,
+        "plugin_port_artifact_bindings": 0,
+        "plugin_port_bindings": 7,
+        "plugin_port_outputs": 0,
+        "plugin_private_values": 0,
+        "plugin_project_databases": 5,
+        "plugin_runtime_installs": 16,
+        "plugin_runtime_release_artifacts": 16,
+        "policy_bindings": 0,
+        "process_item_versions": 0,
+        "process_items": 0,
+        "process_items_replica_changes": 0,
+        "process_items_replica_conflicts": 0,
+        "process_items_replica_heads": 0,
+        "process_items_replica_outbox": 0,
+        "process_items_replica_resolutions": 0,
+        "process_items_replica_state": 1,
+        "project_guidance_entries": 0,
+        "project_guidance_revisions": 0,
+        "project_root": 1,
+        "schedule_action_bindings": 1,
+        "schedule_conversation_tasks": 0,
+        "schedule_conversation_turns": 0,
+        "schedule_jobs": 1,
+        "schedule_operation_occurrences": 0,
+        "schedule_operations": 0,
+        "schedule_plugin_reminders": 0,
+        "schedule_wakeups": 0,
+        "signal_events": 0,
+        "signal_revisions": 0,
+        "signals": 0,
+        "source_events": 5,
+        "sqlite_sequence": 7,
+        "sync_14ff60cd5b3b2f8842d99bea7ef6_aggregate_editor_versions": 0,
+        "sync_14ff60cd5b3b2f8842d99bea7ef6_context": 1,
+        "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_changes": 10,
+        "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_conflicts": 0,
+        "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_heads": 0,
+        "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_outbox": 0,
+        "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_resolutions": 0,
+        "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_state": 1,
+        "sync_21391483cd8d8dcc743c2ecd02ca_aggregate_editor_versions": 0,
+        "sync_21391483cd8d8dcc743c2ecd02ca_context": 1,
+        "sync_21391483cd8d8dcc743c2ecd02ca_replica_changes": 14,
+        "sync_21391483cd8d8dcc743c2ecd02ca_replica_conflicts": 0,
+        "sync_21391483cd8d8dcc743c2ecd02ca_replica_heads": 0,
+        "sync_21391483cd8d8dcc743c2ecd02ca_replica_outbox": 0,
+        "sync_21391483cd8d8dcc743c2ecd02ca_replica_resolutions": 0,
+        "sync_21391483cd8d8dcc743c2ecd02ca_replica_state": 1,
+        "sync_522a4260e0bcbee35d4d9f85406c_aggregate_editor_versions": 0,
+        "sync_522a4260e0bcbee35d4d9f85406c_context": 1,
+        "sync_522a4260e0bcbee35d4d9f85406c_replica_changes": 12,
+        "sync_522a4260e0bcbee35d4d9f85406c_replica_conflicts": 0,
+        "sync_522a4260e0bcbee35d4d9f85406c_replica_heads": 0,
+        "sync_522a4260e0bcbee35d4d9f85406c_replica_outbox": 0,
+        "sync_522a4260e0bcbee35d4d9f85406c_replica_resolutions": 0,
+        "sync_522a4260e0bcbee35d4d9f85406c_replica_state": 1,
+        "sync_daec9cf494e58d382d6262de3af9_aggregate_editor_versions": 0,
+        "sync_daec9cf494e58d382d6262de3af9_context": 1,
+        "sync_daec9cf494e58d382d6262de3af9_replica_changes": 1,
+        "sync_daec9cf494e58d382d6262de3af9_replica_conflicts": 0,
+        "sync_daec9cf494e58d382d6262de3af9_replica_heads": 0,
+        "sync_daec9cf494e58d382d6262de3af9_replica_outbox": 0,
+        "sync_daec9cf494e58d382d6262de3af9_replica_resolutions": 0,
+        "sync_daec9cf494e58d382d6262de3af9_replica_state": 1,
+        "sync_dd6dd4054975ce4abcd1e12268d3_aggregate_editor_versions": 0,
+        "sync_dd6dd4054975ce4abcd1e12268d3_context": 1,
+        "sync_dd6dd4054975ce4abcd1e12268d3_replica_changes": 0,
+        "sync_dd6dd4054975ce4abcd1e12268d3_replica_conflicts": 0,
+        "sync_dd6dd4054975ce4abcd1e12268d3_replica_heads": 0,
+        "sync_dd6dd4054975ce4abcd1e12268d3_replica_outbox": 0,
+        "sync_dd6dd4054975ce4abcd1e12268d3_replica_resolutions": 0,
+        "sync_dd6dd4054975ce4abcd1e12268d3_replica_state": 1,
+        "sync_ebbb9ae341b34cbb8aedd65a41e6_aggregate_editor_versions": 0,
+        "sync_ebbb9ae341b34cbb8aedd65a41e6_context": 1,
+        "sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes": 310,
+        "sync_ebbb9ae341b34cbb8aedd65a41e6_replica_conflicts": 0,
+        "sync_ebbb9ae341b34cbb8aedd65a41e6_replica_heads": 0,
+        "sync_ebbb9ae341b34cbb8aedd65a41e6_replica_outbox": 0,
+        "sync_ebbb9ae341b34cbb8aedd65a41e6_replica_resolutions": 0,
+        "sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state": 1,
+        "sync_fc44281fa4e6ae1ad919f15bea63_aggregate_editor_versions": 0,
+        "sync_fc44281fa4e6ae1ad919f15bea63_context": 1,
+        "sync_fc44281fa4e6ae1ad919f15bea63_replica_changes": 0,
+        "sync_fc44281fa4e6ae1ad919f15bea63_replica_conflicts": 0,
+        "sync_fc44281fa4e6ae1ad919f15bea63_replica_heads": 0,
+        "sync_fc44281fa4e6ae1ad919f15bea63_replica_outbox": 0,
+        "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
+        "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
+      },
+      "sha256": "c42c68d9ca1f0c06785061572ddcd3b43eb01aabb1118026cd6acd465880ff77",
+      "expanded_sha256": "8d90c8b2216ec7e15a265f80735bb6fa931a10010f1933f9a77c760fe5374410"
+    },
+    {
+      "path": "projects/personal/molis-work.db",
+      "owner": "apps/local-host",
+      "mode": 420,
+      "payload": "stores/projects/personal/molis-work.db.sql",
+      "schema_version": 2,
+      "plugin_tables": {
+        "io.molis.work.coding": 1,
+        "io.molis.work.feed": 1,
+        "io.molis.work.goals": 1,
+        "io.molis.work.inbox": 1,
+        "io.molis.work.schedule": 1
+      },
+      "tables": {
+        "acceptance_criteria": 0,
+        "artifacts_replica_changes": 0,
+        "artifacts_replica_conflicts": 0,
+        "artifacts_replica_heads": 0,
+        "artifacts_replica_outbox": 0,
+        "artifacts_replica_resolutions": 0,
+        "artifacts_replica_state": 1,
+        "attention_events": 0,
+        "boards": 1,
+        "builder_replica_changes": 0,
+        "builder_replica_conflicts": 0,
+        "builder_replica_heads": 0,
+        "builder_replica_outbox": 0,
+        "builder_replica_resolutions": 0,
+        "builder_replica_state": 1,
+        "coding_input_versions": 0,
+        "coding_inputs": 0,
+        "coding_plan_drafts": 0,
+        "coding_plan_versions": 0,
+        "coding_saved_history": 0,
+        "coding_sessions": 0,
+        "context_edges": 0,
+        "events": 1,
+        "feed_item_events": 0,
+        "feed_items": 0,
+        "feed_materials": 0,
+        "feed_out_rules": 0,
+        "feed_runtime_blobs": 0,
+        "feed_source_runs": 0,
+        "feed_sources": 0,
+        "goal_event_agreements": 0,
+        "goal_event_applied_decisions": 0,
+        "goal_event_closures": 0,
+        "goal_event_concerns": 0,
+        "goal_event_config_versions": 0,
+        "goal_event_configs": 0,
+        "goal_event_decision_requests": 0,
+        "goal_event_progress_summaries": 0,
+        "goal_event_requirement_bindings": 0,
+        "goal_event_requirement_conclusions": 0,
+        "goal_event_requirements": 0,
+        "goal_event_state_owners": 0,
+        "goal_event_trusted_decisions": 0,
+        "goal_event_types": 0,
+        "goal_event_work_status": 0,
+        "goal_relations": 0,
+        "goal_trash_records": 0,
+        "goal_trash_relation_records": 0,
+        "goal_tree_proposal_decisions": 0,
+        "goal_tree_proposal_items": 0,
+        "goal_tree_proposals": 0,
+        "goal_work_event_judgments": 0,
+        "goal_work_events": 0,
+        "goals": 0,
+        "idempotency_records": 1,
+        "inbox_entries": 0,
+        "inbox_scene_bindings": 0,
+        "input_bindings": 0,
+        "library_artifact_versions": 0,
+        "library_artifacts": 0,
+        "listener_deliveries": 0,
+        "listener_instances": 0,
+        "material_recent_uses": 0,
+        "molis_storage_space": 1,
+        "planning_method_packs": 0,
+        "plugin_event_cursors": 0,
+        "plugin_event_resolutions": 0,
+        "plugin_events": 0,
+        "plugin_input_groups": 0,
+        "plugin_notifications": 0,
+        "plugin_port_artifact_bindings": 0,
+        "plugin_port_bindings": 2,
+        "plugin_port_outputs": 0,
+        "plugin_private_values": 0,
+        "plugin_project_databases": 5,
+        "plugin_runtime_installs": 9,
+        "plugin_runtime_release_artifacts": 9,
+        "policy_bindings": 0,
+        "process_item_versions": 0,
+        "process_items": 0,
+        "process_items_replica_changes": 0,
+        "process_items_replica_conflicts": 0,
+        "process_items_replica_heads": 0,
+        "process_items_replica_outbox": 0,
+        "process_items_replica_resolutions": 0,
+        "process_items_replica_state": 1,
+        "project_guidance_entries": 0,
+        "project_guidance_revisions": 0,
+        "project_root": 1,
+        "schedule_action_bindings": 0,
+        "schedule_conversation_tasks": 0,
+        "schedule_conversation_turns": 0,
+        "schedule_jobs": 0,
+        "schedule_operation_occurrences": 0,
+        "schedule_operations": 0,
+        "schedule_plugin_reminders": 0,
+        "schedule_wakeups": 0,
+        "signal_events": 0,
+        "signal_revisions": 0,
+        "signals": 0,
+        "source_events": 0,
+        "sqlite_sequence": 2,
+        "sync_14ff60cd5b3b2f8842d99bea7ef6_aggregate_editor_versions": 0,
+        "sync_14ff60cd5b3b2f8842d99bea7ef6_context": 1,
+        "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_changes": 0,
+        "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_conflicts": 0,
+        "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_heads": 0,
+        "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_outbox": 0,
+        "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_resolutions": 0,
+        "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_state": 1,
+        "sync_21391483cd8d8dcc743c2ecd02ca_aggregate_editor_versions": 0,
+        "sync_21391483cd8d8dcc743c2ecd02ca_context": 1,
+        "sync_21391483cd8d8dcc743c2ecd02ca_replica_changes": 0,
+        "sync_21391483cd8d8dcc743c2ecd02ca_replica_conflicts": 0,
+        "sync_21391483cd8d8dcc743c2ecd02ca_replica_heads": 0,
+        "sync_21391483cd8d8dcc743c2ecd02ca_replica_outbox": 0,
+        "sync_21391483cd8d8dcc743c2ecd02ca_replica_resolutions": 0,
+        "sync_21391483cd8d8dcc743c2ecd02ca_replica_state": 1,
+        "sync_522a4260e0bcbee35d4d9f85406c_aggregate_editor_versions": 0,
+        "sync_522a4260e0bcbee35d4d9f85406c_context": 1,
+        "sync_522a4260e0bcbee35d4d9f85406c_replica_changes": 0,
+        "sync_522a4260e0bcbee35d4d9f85406c_replica_conflicts": 0,
+        "sync_522a4260e0bcbee35d4d9f85406c_replica_heads": 0,
+        "sync_522a4260e0bcbee35d4d9f85406c_replica_outbox": 0,
+        "sync_522a4260e0bcbee35d4d9f85406c_replica_resolutions": 0,
+        "sync_522a4260e0bcbee35d4d9f85406c_replica_state": 1,
+        "sync_daec9cf494e58d382d6262de3af9_aggregate_editor_versions": 0,
+        "sync_daec9cf494e58d382d6262de3af9_context": 1,
+        "sync_daec9cf494e58d382d6262de3af9_replica_changes": 0,
+        "sync_daec9cf494e58d382d6262de3af9_replica_conflicts": 0,
+        "sync_daec9cf494e58d382d6262de3af9_replica_heads": 0,
+        "sync_daec9cf494e58d382d6262de3af9_replica_outbox": 0,
+        "sync_daec9cf494e58d382d6262de3af9_replica_resolutions": 0,
+        "sync_daec9cf494e58d382d6262de3af9_replica_state": 1,
+        "sync_dd6dd4054975ce4abcd1e12268d3_aggregate_editor_versions": 0,
+        "sync_dd6dd4054975ce4abcd1e12268d3_context": 1,
+        "sync_dd6dd4054975ce4abcd1e12268d3_replica_changes": 0,
+        "sync_dd6dd4054975ce4abcd1e12268d3_replica_conflicts": 0,
+        "sync_dd6dd4054975ce4abcd1e12268d3_replica_heads": 0,
+        "sync_dd6dd4054975ce4abcd1e12268d3_replica_outbox": 0,
+        "sync_dd6dd4054975ce4abcd1e12268d3_replica_resolutions": 0,
+        "sync_dd6dd4054975ce4abcd1e12268d3_replica_state": 1,
+        "sync_ebbb9ae341b34cbb8aedd65a41e6_aggregate_editor_versions": 0,
+        "sync_ebbb9ae341b34cbb8aedd65a41e6_context": 1,
+        "sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes": 0,
+        "sync_ebbb9ae341b34cbb8aedd65a41e6_replica_conflicts": 0,
+        "sync_ebbb9ae341b34cbb8aedd65a41e6_replica_heads": 0,
+        "sync_ebbb9ae341b34cbb8aedd65a41e6_replica_outbox": 0,
+        "sync_ebbb9ae341b34cbb8aedd65a41e6_replica_resolutions": 0,
+        "sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state": 1,
+        "sync_fc44281fa4e6ae1ad919f15bea63_aggregate_editor_versions": 0,
+        "sync_fc44281fa4e6ae1ad919f15bea63_context": 1,
+        "sync_fc44281fa4e6ae1ad919f15bea63_replica_changes": 0,
+        "sync_fc44281fa4e6ae1ad919f15bea63_replica_conflicts": 0,
+        "sync_fc44281fa4e6ae1ad919f15bea63_replica_heads": 0,
+        "sync_fc44281fa4e6ae1ad919f15bea63_replica_outbox": 0,
+        "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
+        "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
+      },
+      "sha256": "85ed174463b00227c17bd5ea8b0b85be9269c2f40b9dd4551206716b20ffdf30",
+      "expanded_sha256": "2e5233292c852b92881704edbb42fbd1204dcf619332c582c0432726a2f9fd1e"
+    },
+    {
+      "path": "projects/project-4f160099-5107-48ca-8d08-7e4b6a17355c/molis-work.db",
+      "owner": "apps/local-host",
+      "mode": 420,
+      "payload": "stores/projects/project-4f160099-5107-48ca-8d08-7e4b6a17355c/molis-work.db.sql",
+      "schema_version": 2,
+      "plugin_tables": {
+        "io.molis.work.coding": 1,
+        "io.molis.work.feed": 1,
+        "io.molis.work.goals": 1,
+        "io.molis.work.inbox": 1,
+        "io.molis.work.schedule": 1
+      },
+      "tables": {
+        "acceptance_criteria": 0,
+        "artifacts_replica_changes": 2,
+        "artifacts_replica_conflicts": 0,
+        "artifacts_replica_heads": 0,
+        "artifacts_replica_outbox": 0,
+        "artifacts_replica_resolutions": 0,
+        "artifacts_replica_state": 1,
+        "attention_events": 0,
+        "boards": 1,
+        "builder_replica_changes": 0,
+        "builder_replica_conflicts": 0,
+        "builder_replica_heads": 0,
+        "builder_replica_outbox": 0,
+        "builder_replica_resolutions": 0,
+        "builder_replica_state": 1,
+        "coding_input_versions": 0,
+        "coding_inputs": 0,
+        "coding_plan_drafts": 0,
+        "coding_plan_versions": 0,
+        "coding_saved_history": 0,
+        "coding_sessions": 1,
+        "context_edges": 0,
+        "events": 5,
+        "feed_item_events": 0,
+        "feed_items": 0,
+        "feed_materials": 0,
+        "feed_out_rules": 1,
+        "feed_runtime_blobs": 0,
+        "feed_source_runs": 0,
+        "feed_sources": 0,
+        "goal_event_agreements": 0,
+        "goal_event_applied_decisions": 0,
+        "goal_event_closures": 0,
+        "goal_event_concerns": 0,
+        "goal_event_config_versions": 0,
+        "goal_event_configs": 0,
+        "goal_event_decision_requests": 0,
+        "goal_event_progress_summaries": 0,
+        "goal_event_requirement_bindings": 0,
+        "goal_event_requirement_conclusions": 0,
+        "goal_event_requirements": 0,
+        "goal_event_state_owners": 1,
+        "goal_event_trusted_decisions": 0,
+        "goal_event_types": 0,
+        "goal_event_work_status": 1,
+        "goal_relations": 0,
+        "goal_trash_records": 0,
+        "goal_trash_relation_records": 0,
+        "goal_tree_proposal_decisions": 0,
+        "goal_tree_proposal_items": 0,
+        "goal_tree_proposals": 0,
+        "goal_work_event_judgments": 0,
+        "goal_work_events": 1,
+        "goals": 1,
+        "idempotency_records": 4,
+        "inbox_entries": 0,
+        "inbox_scene_bindings": 0,
+        "input_bindings": 0,
+        "library_artifact_versions": 1,
+        "library_artifacts": 1,
+        "listener_deliveries": 0,
+        "listener_instances": 0,
+        "material_recent_uses": 0,
+        "molis_storage_space": 1,
+        "planning_method_packs": 0,
+        "plugin_event_cursors": 8,
+        "plugin_event_resolutions": 0,
+        "plugin_events": 0,
+        "plugin_input_groups": 1,
+        "plugin_notifications": 0,
+        "plugin_port_artifact_bindings": 0,
+        "plugin_port_bindings": 7,
+        "plugin_port_outputs": 0,
+        "plugin_private_values": 2,
+        "plugin_project_databases": 5,
+        "plugin_runtime_installs": 17,
+        "plugin_runtime_release_artifacts": 16,
+        "policy_bindings": 0,
+        "process_item_versions": 0,
+        "process_items": 0,
+        "process_items_replica_changes": 0,
+        "process_items_replica_conflicts": 0,
+        "process_items_replica_heads": 0,
+        "process_items_replica_outbox": 0,
+        "process_items_replica_resolutions": 0,
+        "process_items_replica_state": 1,
+        "project_guidance_entries": 0,
+        "project_guidance_revisions": 0,
+        "project_root": 1,
+        "schedule_action_bindings": 2,
+        "schedule_conversation_tasks": 1,
+        "schedule_conversation_turns": 1,
+        "schedule_jobs": 2,
+        "schedule_operation_occurrences": 0,
+        "schedule_operations": 0,
+        "schedule_plugin_reminders": 0,
+        "schedule_wakeups": 0,
+        "signal_events": 0,
+        "signal_revisions": 0,
+        "signals": 0,
+        "source_events": 0,
+        "sqlite_sequence": 7,
+        "sync_14ff60cd5b3b2f8842d99bea7ef6_aggregate_editor_versions": 0,
+        "sync_14ff60cd5b3b2f8842d99bea7ef6_context": 1,
+        "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_changes": 0,
+        "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_conflicts": 0,
+        "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_heads": 0,
+        "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_outbox": 0,
+        "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_resolutions": 0,
+        "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_state": 1,
+        "sync_21391483cd8d8dcc743c2ecd02ca_aggregate_editor_versions": 0,
+        "sync_21391483cd8d8dcc743c2ecd02ca_context": 1,
+        "sync_21391483cd8d8dcc743c2ecd02ca_replica_changes": 0,
+        "sync_21391483cd8d8dcc743c2ecd02ca_replica_conflicts": 0,
+        "sync_21391483cd8d8dcc743c2ecd02ca_replica_heads": 0,
+        "sync_21391483cd8d8dcc743c2ecd02ca_replica_outbox": 0,
+        "sync_21391483cd8d8dcc743c2ecd02ca_replica_resolutions": 0,
+        "sync_21391483cd8d8dcc743c2ecd02ca_replica_state": 1,
+        "sync_522a4260e0bcbee35d4d9f85406c_aggregate_editor_versions": 0,
+        "sync_522a4260e0bcbee35d4d9f85406c_context": 1,
+        "sync_522a4260e0bcbee35d4d9f85406c_replica_changes": 0,
+        "sync_522a4260e0bcbee35d4d9f85406c_replica_conflicts": 0,
+        "sync_522a4260e0bcbee35d4d9f85406c_replica_heads": 0,
+        "sync_522a4260e0bcbee35d4d9f85406c_replica_outbox": 0,
+        "sync_522a4260e0bcbee35d4d9f85406c_replica_resolutions": 0,
+        "sync_522a4260e0bcbee35d4d9f85406c_replica_state": 1,
+        "sync_daec9cf494e58d382d6262de3af9_aggregate_editor_versions": 0,
+        "sync_daec9cf494e58d382d6262de3af9_context": 1,
+        "sync_daec9cf494e58d382d6262de3af9_replica_changes": 2,
+        "sync_daec9cf494e58d382d6262de3af9_replica_conflicts": 0,
+        "sync_daec9cf494e58d382d6262de3af9_replica_heads": 0,
+        "sync_daec9cf494e58d382d6262de3af9_replica_outbox": 0,
+        "sync_daec9cf494e58d382d6262de3af9_replica_resolutions": 0,
+        "sync_daec9cf494e58d382d6262de3af9_replica_state": 1,
+        "sync_dd6dd4054975ce4abcd1e12268d3_aggregate_editor_versions": 0,
+        "sync_dd6dd4054975ce4abcd1e12268d3_context": 1,
+        "sync_dd6dd4054975ce4abcd1e12268d3_replica_changes": 2,
+        "sync_dd6dd4054975ce4abcd1e12268d3_replica_conflicts": 0,
+        "sync_dd6dd4054975ce4abcd1e12268d3_replica_heads": 0,
+        "sync_dd6dd4054975ce4abcd1e12268d3_replica_outbox": 0,
+        "sync_dd6dd4054975ce4abcd1e12268d3_replica_resolutions": 0,
+        "sync_dd6dd4054975ce4abcd1e12268d3_replica_state": 1,
+        "sync_ebbb9ae341b34cbb8aedd65a41e6_aggregate_editor_versions": 0,
+        "sync_ebbb9ae341b34cbb8aedd65a41e6_context": 1,
+        "sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes": 8,
+        "sync_ebbb9ae341b34cbb8aedd65a41e6_replica_conflicts": 0,
+        "sync_ebbb9ae341b34cbb8aedd65a41e6_replica_heads": 0,
+        "sync_ebbb9ae341b34cbb8aedd65a41e6_replica_outbox": 0,
+        "sync_ebbb9ae341b34cbb8aedd65a41e6_replica_resolutions": 0,
+        "sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state": 1,
+        "sync_fc44281fa4e6ae1ad919f15bea63_aggregate_editor_versions": 0,
+        "sync_fc44281fa4e6ae1ad919f15bea63_context": 1,
+        "sync_fc44281fa4e6ae1ad919f15bea63_replica_changes": 5,
+        "sync_fc44281fa4e6ae1ad919f15bea63_replica_conflicts": 0,
+        "sync_fc44281fa4e6ae1ad919f15bea63_replica_heads": 0,
+        "sync_fc44281fa4e6ae1ad919f15bea63_replica_outbox": 0,
+        "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
+        "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
+      },
+      "sha256": "b6acf751cf9e58c428ddf55236bd7df271c55ea429ba120a962eb014b5cbe86c",
+      "expanded_sha256": "fd27f19e1200744315161d44084162fd8dc18bf8b64d47988d130759fec40c37"
+    },
+    {
+      "path": "sbxdb-7cca75c1b8e5c4f45a135088b2538bae/sbxdb-7cca75c1b8e5c4f45a135088b2538bae.db",
+      "owner": "io.molis.work.example.golden-home-library",
+      "mode": 384,
+      "payload": "stores/sbxdb-7cca75c1b8e5c4f45a135088b2538bae/sbxdb-7cca75c1b8e5c4f45a135088b2538bae.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "molis_storage_space": 1,
+        "notes": 1
+      },
+      "sha256": "a82a0379cc3e54381b75d9a0369777462a66157582f03337c5ccd2d257a6e9a3"
+    },
+    {
+      "path": "server/server.sqlite",
+      "owner": "server",
+      "mode": 384,
+      "payload": "stores/server/server.sqlite.sql",
+      "schema_version": 1,
+      "tables": {
+        "im_members": 0,
+        "im_messages": 1,
+        "im_read_positions": 0,
+        "im_receipts": 2,
+        "im_rooms": 1,
+        "im_thread_context": 0,
+        "im_threads": 0,
+        "mw_access": 1,
+        "mw_codes": 0,
+        "mw_commands": 0,
+        "mw_events": 1,
+        "mw_members": 1,
+        "mw_projects": 1,
+        "mw_server_identity": 1,
+        "mw_sessions": 1,
+        "sqlite_sequence": 2
+      },
+      "sha256": "e5862e3a2c0ac443f7b81782f400c7a2f0afc6fdecd408bf5203e48926497bd4"
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/agent-declarations/agent-declarations.db",
+      "owner": "apps/local-host",
+      "mode": 384,
+      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/agent-declarations/agent-declarations.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "install_declarations": 13,
+        "molis_storage_space": 1
+      },
+      "sha256": "a582107d64772683d242a3099fddaabe957992b417522d20b0e8bc6b1584272d"
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/agent-definitions/agent-definitions.db",
+      "owner": "apps/local-host",
+      "mode": 384,
+      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/agent-definitions/agent-definitions.db.sql",
+      "schema_version": 2,
+      "tables": {
+        "molis_storage_space": 1,
+        "prompt_history": 0,
+        "prompt_overrides": 0,
+        "prompt_uses": 0,
+        "skill_settings": 0,
+        "skill_uses": 0,
+        "sqlite_sequence": 0
+      },
+      "sha256": "a0963d6be259b515adc6ca99f9cd0612ab1dfbf6279e798e7d673ddbd3e0dee0"
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/alchemist/projects/personal/studio.sqlite",
+      "owner": "apps/local-host",
+      "mode": 420,
+      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/alchemist/projects/personal/studio.sqlite.sql",
+      "schema_version": 1,
+      "tables": {
+        "action_proposals": 0,
+        "activity_events": 0,
+        "annotations": 0,
+        "claim_evidence": 0,
+        "claims": 0,
+        "conversation_messages": 0,
+        "decisions": 0,
+        "directions": 0,
+        "evidence": 0,
+        "exploration_runs": 0,
+        "idea_cards": 0,
+        "idea_versions": 0,
+        "ideas": 0,
+        "job_events": 0,
+        "jobs": 0,
+        "lens_reports": 0,
+        "lens_runs": 0,
+        "memory_rule_applications": 0,
+        "molis_storage_space": 1,
+        "mvp_scope_versions": 0,
+        "opportunities": 0,
+        "opportunity_signals": 0,
+        "pulse_report_signals": 0,
+        "pulse_reports": 0,
+        "pulse_runs": 0,
+        "replica_changes": 0,
+        "replica_conflicts": 0,
+        "replica_heads": 0,
+        "replica_outbox": 0,
+        "replica_resolutions": 0,
+        "replica_state": 1,
+        "research_plans": 0,
+        "research_playbook_revisions": 0,
+        "research_playbook_rules": 0,
+        "runtime_settings": 0,
+        "source_fetches": 0,
+        "source_settings": 0,
+        "sqlite_sequence": 0,
+        "studio_sync_identity": 1,
+        "supply_signals": 0,
+        "taste_rules": 0,
+        "ui_context": 0,
+        "work_reuse_receipts": 0,
+        "workspace_actors": 0,
+        "workspaces": 0
+      },
+      "sha256": "b07fff1fc36687fc67c4796dd2c041743714d31bd62682dab9ce05098c7537d4"
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/alchemist/projects/project-3d8a36de-2c47-47c7-98b8-9054bd5e8545/search.sqlite",
+      "owner": "apps/local-host",
+      "mode": 420,
+      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/alchemist/projects/project-3d8a36de-2c47-47c7-98b8-9054bd5e8545/search.sqlite.sql",
+      "schema_version": 1,
+      "tables": {
+        "feed_runtime_blobs": 0
+      },
+      "sha256": "ee4d02b5256189366336c345c28770d5fff4efdcd9cefd8bfd38498dc3bb1949"
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/alchemist/projects/project-3d8a36de-2c47-47c7-98b8-9054bd5e8545/studio.sqlite",
+      "owner": "apps/local-host",
+      "mode": 420,
+      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/alchemist/projects/project-3d8a36de-2c47-47c7-98b8-9054bd5e8545/studio.sqlite.sql",
+      "schema_version": 1,
+      "tables": {
+        "action_proposals": 0,
+        "activity_events": 0,
+        "annotations": 0,
+        "claim_evidence": 0,
+        "claims": 0,
+        "conversation_messages": 0,
+        "decisions": 0,
+        "directions": 1,
+        "evidence": 0,
+        "exploration_runs": 0,
+        "idea_cards": 0,
+        "idea_versions": 0,
+        "ideas": 0,
+        "job_events": 0,
+        "jobs": 0,
+        "lens_reports": 0,
+        "lens_runs": 0,
+        "memory_rule_applications": 0,
+        "molis_storage_space": 1,
+        "mvp_scope_versions": 0,
+        "opportunities": 0,
+        "opportunity_signals": 0,
+        "pulse_report_signals": 0,
+        "pulse_reports": 0,
+        "pulse_runs": 0,
+        "replica_changes": 4,
+        "replica_conflicts": 0,
+        "replica_heads": 0,
+        "replica_outbox": 0,
+        "replica_resolutions": 0,
+        "replica_state": 1,
+        "research_plans": 0,
+        "research_playbook_revisions": 0,
+        "research_playbook_rules": 0,
+        "runtime_settings": 1,
+        "source_fetches": 0,
+        "source_settings": 3,
+        "sqlite_sequence": 1,
+        "studio_sync_identity": 1,
+        "supply_signals": 0,
+        "taste_rules": 0,
+        "ui_context": 0,
+        "work_reuse_receipts": 0,
+        "workspace_actors": 1,
+        "workspaces": 1
+      },
+      "sha256": "cc5ca74860e6de6750003281f649b677326f71079e5de969841f5efaca198e9c"
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/characters/characters.sqlite",
+      "owner": "modules/characters",
+      "mode": 384,
+      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/characters/characters.sqlite.sql",
+      "schema_version": 1,
+      "tables": {
+        "character_drafts": 1,
+        "character_runs": 0,
+        "characters_replica_changes": 2,
+        "characters_replica_conflicts": 0,
+        "characters_replica_heads": 0,
+        "characters_replica_outbox": 0,
+        "characters_replica_resolutions": 0,
+        "characters_replica_state": 1,
+        "molis_storage_space": 1,
+        "sqlite_sequence": 1
+      },
+      "sha256": "6ebeed87bfc76fe90eb4f41f0cca0cf0398661d28d0ca14866fce6e2536d7910"
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/cognia/cognia.db",
+      "owner": "io.molis.work.cognia",
+      "mode": 384,
+      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/cognia/cognia.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "cognia_domains": 1,
+        "cognia_drafts": 0,
+        "cognia_materials": 1,
+        "cognia_previews": 0,
+        "cognia_sources": 1,
+        "cognia_versions": 2,
+        "molis_storage_space": 1,
+        "sqlite_sequence": 1,
+        "sync_9c148ae77e23da148100ce206111_aggregate_editor_versions": 0,
+        "sync_9c148ae77e23da148100ce206111_context": 1,
+        "sync_9c148ae77e23da148100ce206111_replica_changes": 6,
+        "sync_9c148ae77e23da148100ce206111_replica_conflicts": 0,
+        "sync_9c148ae77e23da148100ce206111_replica_heads": 0,
+        "sync_9c148ae77e23da148100ce206111_replica_outbox": 0,
+        "sync_9c148ae77e23da148100ce206111_replica_resolutions": 0,
+        "sync_9c148ae77e23da148100ce206111_replica_state": 1
+      },
+      "sha256": "b5dba89d7aac7f40a6c7a9c15ab379de4ce930a067982a6f02d9443adde754d6"
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/connectors/connectors.db",
+      "owner": "apps/local-host",
+      "mode": 384,
+      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/connectors/connectors.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "connector_authorization_results": 1,
+        "connector_authorization_sessions": 0,
+        "connector_bindings": 0,
+        "connector_connection_declarers": 0,
+        "connector_connection_targets": 0,
+        "connector_connections": 0,
+        "connector_observations": 0,
+        "connector_protocols": 0,
+        "molis_storage_space": 1
+      },
+      "sha256": "6bcea17d7efb1e1ed0b00d5af78f93406d4707b659c7089c1dcfda3a73dbdd69"
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/dataset/dataset.db",
+      "owner": "io.molis.work.dataset",
+      "mode": 384,
+      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/dataset/dataset.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "dataset_receipts": 0,
+        "dataset_versions": 0,
+        "datasets": 1,
+        "molis_storage_space": 1,
+        "sqlite_sequence": 1,
+        "sync_aa98c46361f294dbb01ea79b1b42_aggregate_editor_versions": 1,
+        "sync_aa98c46361f294dbb01ea79b1b42_context": 1,
+        "sync_aa98c46361f294dbb01ea79b1b42_replica_changes": 2,
+        "sync_aa98c46361f294dbb01ea79b1b42_replica_conflicts": 0,
+        "sync_aa98c46361f294dbb01ea79b1b42_replica_heads": 0,
+        "sync_aa98c46361f294dbb01ea79b1b42_replica_outbox": 0,
+        "sync_aa98c46361f294dbb01ea79b1b42_replica_resolutions": 0,
+        "sync_aa98c46361f294dbb01ea79b1b42_replica_state": 1
+      },
+      "sha256": "e2303ed514d26cca1c121565afbd795b000238520966b0e2494e445528d2cdb2"
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/feed-content/feed-content.db",
+      "owner": "io.molis.work.feed",
+      "mode": 384,
+      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/feed-content/feed-content.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "feed_content_holds": 0,
+        "molis_storage_space": 1
+      },
+      "sha256": "d09f42286a440913e2eb205f71007b21cb970a57c17e1d492e16c9d9b8db557b"
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/form/form.db",
+      "owner": "io.molis.work.form",
+      "mode": 384,
+      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/form/form.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "form_copies": 0,
+        "forms": 1,
+        "molis_storage_space": 1,
+        "sqlite_sequence": 1,
+        "submissions": 0,
+        "sync_1299cb8ea8bacadaced737bb64d2_aggregate_editor_versions": 1,
+        "sync_1299cb8ea8bacadaced737bb64d2_context": 1,
+        "sync_1299cb8ea8bacadaced737bb64d2_replica_changes": 2,
+        "sync_1299cb8ea8bacadaced737bb64d2_replica_conflicts": 0,
+        "sync_1299cb8ea8bacadaced737bb64d2_replica_heads": 0,
+        "sync_1299cb8ea8bacadaced737bb64d2_replica_outbox": 0,
+        "sync_1299cb8ea8bacadaced737bb64d2_replica_resolutions": 0,
+        "sync_1299cb8ea8bacadaced737bb64d2_replica_state": 1
+      },
+      "sha256": "1b1814423f8d548b95deb77a975c2eb642584ef9d382a47027f7ca77200e8e68"
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/functions/functions.db",
+      "owner": "modules/functions",
+      "mode": 384,
+      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/functions/functions.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "function_judgments": 0,
+        "function_scene_bindings": 0,
+        "functions": 4,
+        "molis_storage_space": 1
+      },
+      "sha256": "c466efb8432444f625979c5ba8931f91a4b23cd43fe7d20d8f6ceca6d9f898b5"
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/goals/goals.db",
+      "owner": "io.molis.work.goals",
+      "mode": 384,
+      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/goals/goals.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "molis_storage_space": 1,
+        "personal_planning_method_packs": 1
+      },
+      "sha256": "a5b926ad747be8870001827e3cd0e075655bab7b9276a9e6bfdd9c7851d752e9"
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/images/images.db",
+      "owner": "io.molis.work.images",
+      "mode": 384,
+      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/images/images.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "connections": 1,
+        "jobs": 0,
+        "molis_storage_space": 1,
+        "sqlite_sequence": 1,
+        "sync_3a28c22289ed28c8fdbe3056c102_aggregate_editor_versions": 0,
+        "sync_3a28c22289ed28c8fdbe3056c102_context": 1,
+        "sync_3a28c22289ed28c8fdbe3056c102_replica_changes": 0,
+        "sync_3a28c22289ed28c8fdbe3056c102_replica_conflicts": 0,
+        "sync_3a28c22289ed28c8fdbe3056c102_replica_heads": 0,
+        "sync_3a28c22289ed28c8fdbe3056c102_replica_outbox": 0,
+        "sync_3a28c22289ed28c8fdbe3056c102_replica_resolutions": 0,
+        "sync_3a28c22289ed28c8fdbe3056c102_replica_state": 1
+      },
+      "sha256": "20a1cd71407a2e25e49f1ba817111d36c26512d8237b34b02e244c5067476e4a"
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/issues/issues.db",
+      "owner": "io.molis.work.issues",
+      "mode": 384,
+      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/issues/issues.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "issue_editor_versions": 0,
+        "issues": 1,
+        "molis_storage_space": 1,
+        "sqlite_sequence": 1,
+        "sync_547a53110031b73814823e489835_aggregate_editor_versions": 0,
+        "sync_547a53110031b73814823e489835_context": 1,
+        "sync_547a53110031b73814823e489835_replica_changes": 0,
+        "sync_547a53110031b73814823e489835_replica_conflicts": 0,
+        "sync_547a53110031b73814823e489835_replica_heads": 0,
+        "sync_547a53110031b73814823e489835_replica_outbox": 0,
+        "sync_547a53110031b73814823e489835_replica_resolutions": 0,
+        "sync_547a53110031b73814823e489835_replica_state": 1
+      },
+      "sha256": "b72f8162da42e7b3619169d6251e8b574695f693c5a401d2c3dc93c5c82dc287"
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/jelly/jelly.db",
+      "owner": "io.molis.work.jelly",
+      "mode": 384,
+      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/jelly/jelly.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "jelly_history": 2,
+        "jelly_note_versions": 1,
+        "jelly_previews": 0,
+        "jelly_workspace": 1,
+        "molis_storage_space": 1,
+        "sqlite_sequence": 2,
+        "sync_fdf2cac8555825a37edee87d5d45_aggregate_editor_versions": 0,
+        "sync_fdf2cac8555825a37edee87d5d45_context": 1,
+        "sync_fdf2cac8555825a37edee87d5d45_replica_changes": 2,
+        "sync_fdf2cac8555825a37edee87d5d45_replica_conflicts": 0,
+        "sync_fdf2cac8555825a37edee87d5d45_replica_heads": 0,
+        "sync_fdf2cac8555825a37edee87d5d45_replica_outbox": 0,
+        "sync_fdf2cac8555825a37edee87d5d45_replica_resolutions": 0,
+        "sync_fdf2cac8555825a37edee87d5d45_replica_state": 1
+      },
+      "sha256": "51eb7fb1c8f6c2bedcabb6e81095fc589a8ba12f213e7bbeb8c0f5c693719988"
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/knowledge/knowledge.db",
+      "owner": "packages/storage",
+      "mode": 384,
+      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/knowledge/knowledge.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "knowledge_cards": 14,
+        "knowledge_receipts": 0,
+        "knowledge_usage": 0,
+        "molis_storage_space": 1
+      },
+      "sha256": "76d62a6bea78c02842c0ef7f63eb269b0f9f181771efbf0555531c949802bd82"
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/lingguang/lingguang.db",
+      "owner": "io.molis.work.lingguang",
+      "mode": 384,
+      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/lingguang/lingguang.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "conversations": 0,
+        "messages": 0,
+        "molis_storage_space": 1,
+        "spark_requests": 0,
+        "sparks": 1,
+        "sqlite_sequence": 1,
+        "sync_764756c5c01e4432072de4c80de9_aggregate_editor_versions": 0,
+        "sync_764756c5c01e4432072de4c80de9_context": 1,
+        "sync_764756c5c01e4432072de4c80de9_replica_changes": 2,
+        "sync_764756c5c01e4432072de4c80de9_replica_conflicts": 0,
+        "sync_764756c5c01e4432072de4c80de9_replica_heads": 0,
+        "sync_764756c5c01e4432072de4c80de9_replica_outbox": 0,
+        "sync_764756c5c01e4432072de4c80de9_replica_resolutions": 0,
+        "sync_764756c5c01e4432072de4c80de9_replica_state": 1
+      },
+      "sha256": "9307ac5d3a6cd93d398d9b61cc86c11523432a218194fec0b6b39d13ba9d26d3"
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/memory/memory.db",
+      "owner": "packages/storage",
+      "mode": 384,
+      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/memory/memory.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "memory_candidates": 0,
+        "memory_changes": 2,
+        "memory_markers": 6,
+        "memory_owners": 0,
+        "memory_pairs": 0,
+        "memory_prefs": 2,
+        "memory_revisions": 2,
+        "memory_signal_events": 0,
+        "memory_uses": 0,
+        "molis_storage_space": 1
+      },
+      "sha256": "8c78f8316e5f56727cc4c5c40cf16540b7328fd0a46632e7bce5974842fafffd"
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/pages/pages.db",
+      "owner": "io.molis.work.pages",
+      "mode": 384,
+      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/pages/pages.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "folders": 0,
+        "molis_storage_space": 1,
+        "page_changes": 0,
+        "page_comments": 0,
+        "page_generations": 0,
+        "page_imports": 0,
+        "pages": 2,
+        "pages_editor_versions": 2,
+        "sqlite_sequence": 1,
+        "sync_32ffaf99782a7333c6784e247a81_aggregate_editor_versions": 0,
+        "sync_32ffaf99782a7333c6784e247a81_context": 1,
+        "sync_32ffaf99782a7333c6784e247a81_replica_changes": 7,
+        "sync_32ffaf99782a7333c6784e247a81_replica_conflicts": 0,
+        "sync_32ffaf99782a7333c6784e247a81_replica_heads": 0,
+        "sync_32ffaf99782a7333c6784e247a81_replica_outbox": 0,
+        "sync_32ffaf99782a7333c6784e247a81_replica_resolutions": 0,
+        "sync_32ffaf99782a7333c6784e247a81_replica_state": 1
+      },
+      "sha256": "62cbc5a9500810b2ad540e1902929fbf5a7f34e931552a4f6750d1a001a5ad60"
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/placement/placement.db",
+      "owner": "apps/local-host",
+      "mode": 384,
+      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/placement/placement.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "context_edges": 5,
+        "molis_storage_space": 1,
+        "placement_titles": 1
+      },
+      "sha256": "7f3a332574f80a18d118bfe436e4f354e9a5c3bbd8d2cf83fd402d12e35a358b"
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/plugin-directories/plugin-directories.db",
+      "owner": "apps/local-host",
+      "mode": 384,
+      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/plugin-directories/plugin-directories.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "molis_storage_space": 1,
+        "plugin_directory_grants": 0,
+        "plugin_directory_reads": 0,
+        "sqlite_sequence": 0
+      },
+      "sha256": "eff48523a9843096891409a58b1508522eff2dbcf04228741c76d1b0f16e9250"
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/plugin-libraries/plugin-libraries.db",
+      "owner": "apps/local-host",
+      "mode": 384,
+      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/plugin-libraries/plugin-libraries.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "molis_storage_space": 1,
+        "plugin_home_libraries": 0
+      },
+      "sha256": "d703dc1502e4c284ead87bee4bd15c5bdc98f7b81856fbf27cba6c1d4e199ec4"
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/plugin-originals/plugin-originals.db",
+      "owner": "apps/local-host",
+      "mode": 384,
+      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/plugin-originals/plugin-originals.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "molis_storage_space": 1,
+        "plugin_original_files": 0
+      },
+      "sha256": "7cc088dc88a766ab735b0396c703c71a30c2369f04ca961fcabbdfaa1a5cc58f"
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/plugin-runtime/plugin-runtime.db",
+      "owner": "apps/local-host",
+      "mode": 384,
+      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/plugin-runtime/plugin-runtime.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "molis_storage_space": 1,
+        "plugin_consents": 10,
+        "plugin_private_values": 0,
+        "plugin_publishers": 0,
+        "plugin_runtime_installs": 8,
+        "plugin_runtime_release_artifacts": 8
+      },
+      "sha256": "64cabacb4efde5c8c3b48f276bee8ea6537de48365e22f8871f5617ec47ede79",
+      "expanded_sha256": "b0aafc4ff3172690820f3d5f5bb2a0c76cb1fb4b298336ddd21f716d93f30567"
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/ppt/ppt.db",
+      "owner": "io.molis.work.ppt",
+      "mode": 384,
+      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/ppt/ppt.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "molis_storage_space": 1,
+        "presentation_copies": 0,
+        "presentations": 1,
+        "sqlite_sequence": 1,
+        "sync_4c235c6e5ce01f475d0e44c40a33_aggregate_editor_versions": 1,
+        "sync_4c235c6e5ce01f475d0e44c40a33_context": 1,
+        "sync_4c235c6e5ce01f475d0e44c40a33_replica_changes": 2,
+        "sync_4c235c6e5ce01f475d0e44c40a33_replica_conflicts": 0,
+        "sync_4c235c6e5ce01f475d0e44c40a33_replica_heads": 0,
+        "sync_4c235c6e5ce01f475d0e44c40a33_replica_outbox": 0,
+        "sync_4c235c6e5ce01f475d0e44c40a33_replica_resolutions": 0,
+        "sync_4c235c6e5ce01f475d0e44c40a33_replica_state": 1
+      },
+      "sha256": "dd9c23e62d204877835833bd891e0849d0f2cc7ff6f478c2fc5980733826396c"
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/projects/catalog.db",
+      "owner": "apps/local-host",
+      "mode": 420,
+      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/projects/catalog.db.sql",
+      "schema_version": 2,
+      "tables": {
+        "catalog_meta": 2,
+        "context_edges": 0,
+        "goal_desktop_panel_aliases": 0,
+        "goal_desktop_panels": 0,
+        "model_providers": 0,
+        "molis_storage_space": 1,
+        "plugin_terminal_panel_aliases": 0,
+        "plugin_terminal_panels": 0,
+        "project_catalog_replica_changes": 9,
+        "project_catalog_replica_conflicts": 0,
+        "project_catalog_replica_heads": 0,
+        "project_catalog_replica_outbox": 0,
+        "project_catalog_replica_resolutions": 0,
+        "project_catalog_replica_state": 1,
+        "project_deletion_steps": 0,
+        "project_deletions": 0,
+        "project_events": 10,
+        "project_plugin_exclusions": 0,
+        "project_plugins": 10,
+        "project_portable_plugins": 10,
+        "project_recycle": 0,
+        "project_recycle_receipts": 0,
+        "projects": 2,
+        "runtime_context_binding_events": 0,
+        "runtime_context_bindings": 0,
+        "runtime_context_setup_requests": 0,
+        "runtime_context_suggestion_rejections": 0,
+        "sqlite_sequence": 1,
+        "workspace_project_memberships": 2,
+        "workspace_source_links": 0,
+        "workspaces": 2
+      },
+      "sha256": "8a47e4e8618a7765408263bb4205b0ec50acdc1cfa54aad466091f23ce6f606a"
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/projects/personal/molis-work.db",
+      "owner": "apps/local-host",
+      "mode": 420,
+      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/projects/personal/molis-work.db.sql",
+      "schema_version": 2,
+      "plugin_tables": {
+        "io.molis.work.coding": 1,
+        "io.molis.work.feed": 1,
+        "io.molis.work.goals": 1,
+        "io.molis.work.inbox": 1,
+        "io.molis.work.schedule": 1
+      },
+      "tables": {
+        "acceptance_criteria": 0,
+        "artifacts_replica_changes": 0,
+        "artifacts_replica_conflicts": 0,
+        "artifacts_replica_heads": 0,
+        "artifacts_replica_outbox": 0,
+        "artifacts_replica_resolutions": 0,
+        "artifacts_replica_state": 1,
+        "attention_events": 0,
+        "boards": 1,
+        "builder_replica_changes": 0,
+        "builder_replica_conflicts": 0,
+        "builder_replica_heads": 0,
+        "builder_replica_outbox": 0,
+        "builder_replica_resolutions": 0,
+        "builder_replica_state": 1,
+        "coding_input_versions": 0,
+        "coding_inputs": 0,
+        "coding_plan_drafts": 0,
+        "coding_plan_versions": 0,
+        "coding_saved_history": 0,
+        "coding_sessions": 0,
+        "context_edges": 0,
+        "events": 1,
+        "feed_item_events": 0,
+        "feed_items": 0,
+        "feed_materials": 0,
+        "feed_out_rules": 0,
+        "feed_runtime_blobs": 0,
+        "feed_source_runs": 0,
+        "feed_sources": 0,
+        "goal_event_agreements": 0,
+        "goal_event_applied_decisions": 0,
+        "goal_event_closures": 0,
+        "goal_event_concerns": 0,
+        "goal_event_config_versions": 0,
+        "goal_event_configs": 0,
+        "goal_event_decision_requests": 0,
+        "goal_event_progress_summaries": 0,
+        "goal_event_requirement_bindings": 0,
+        "goal_event_requirement_conclusions": 0,
+        "goal_event_requirements": 0,
+        "goal_event_state_owners": 0,
+        "goal_event_trusted_decisions": 0,
+        "goal_event_types": 0,
+        "goal_event_work_status": 0,
+        "goal_relations": 0,
+        "goal_trash_records": 0,
+        "goal_trash_relation_records": 0,
+        "goal_tree_proposal_decisions": 0,
+        "goal_tree_proposal_items": 0,
+        "goal_tree_proposals": 0,
+        "goal_work_event_judgments": 0,
+        "goal_work_events": 0,
+        "goals": 0,
+        "idempotency_records": 1,
+        "inbox_entries": 0,
+        "inbox_scene_bindings": 0,
+        "input_bindings": 0,
+        "library_artifact_versions": 0,
+        "library_artifacts": 0,
+        "listener_deliveries": 0,
+        "listener_instances": 0,
+        "material_recent_uses": 0,
+        "molis_storage_space": 1,
+        "planning_method_packs": 0,
+        "plugin_event_cursors": 0,
+        "plugin_event_resolutions": 0,
+        "plugin_events": 0,
+        "plugin_input_groups": 0,
+        "plugin_notifications": 0,
+        "plugin_port_artifact_bindings": 0,
+        "plugin_port_bindings": 2,
+        "plugin_port_outputs": 0,
+        "plugin_private_values": 0,
+        "plugin_project_databases": 5,
+        "plugin_runtime_installs": 9,
+        "plugin_runtime_release_artifacts": 9,
+        "policy_bindings": 0,
+        "process_item_versions": 0,
+        "process_items": 0,
+        "process_items_replica_changes": 0,
+        "process_items_replica_conflicts": 0,
+        "process_items_replica_heads": 0,
+        "process_items_replica_outbox": 0,
+        "process_items_replica_resolutions": 0,
+        "process_items_replica_state": 1,
+        "project_guidance_entries": 0,
+        "project_guidance_revisions": 0,
+        "project_root": 1,
+        "schedule_action_bindings": 0,
+        "schedule_conversation_tasks": 0,
+        "schedule_conversation_turns": 0,
+        "schedule_jobs": 0,
+        "schedule_operation_occurrences": 0,
+        "schedule_operations": 0,
+        "schedule_plugin_reminders": 0,
+        "schedule_wakeups": 0,
+        "signal_events": 0,
+        "signal_revisions": 0,
+        "signals": 0,
+        "source_events": 0,
+        "sqlite_sequence": 2,
+        "sync_14ff60cd5b3b2f8842d99bea7ef6_aggregate_editor_versions": 0,
+        "sync_14ff60cd5b3b2f8842d99bea7ef6_context": 1,
+        "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_changes": 0,
+        "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_conflicts": 0,
+        "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_heads": 0,
+        "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_outbox": 0,
+        "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_resolutions": 0,
+        "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_state": 1,
+        "sync_21391483cd8d8dcc743c2ecd02ca_aggregate_editor_versions": 0,
+        "sync_21391483cd8d8dcc743c2ecd02ca_context": 1,
+        "sync_21391483cd8d8dcc743c2ecd02ca_replica_changes": 0,
+        "sync_21391483cd8d8dcc743c2ecd02ca_replica_conflicts": 0,
+        "sync_21391483cd8d8dcc743c2ecd02ca_replica_heads": 0,
+        "sync_21391483cd8d8dcc743c2ecd02ca_replica_outbox": 0,
+        "sync_21391483cd8d8dcc743c2ecd02ca_replica_resolutions": 0,
+        "sync_21391483cd8d8dcc743c2ecd02ca_replica_state": 1,
+        "sync_522a4260e0bcbee35d4d9f85406c_aggregate_editor_versions": 0,
+        "sync_522a4260e0bcbee35d4d9f85406c_context": 1,
+        "sync_522a4260e0bcbee35d4d9f85406c_replica_changes": 0,
+        "sync_522a4260e0bcbee35d4d9f85406c_replica_conflicts": 0,
+        "sync_522a4260e0bcbee35d4d9f85406c_replica_heads": 0,
+        "sync_522a4260e0bcbee35d4d9f85406c_replica_outbox": 0,
+        "sync_522a4260e0bcbee35d4d9f85406c_replica_resolutions": 0,
+        "sync_522a4260e0bcbee35d4d9f85406c_replica_state": 1,
+        "sync_daec9cf494e58d382d6262de3af9_aggregate_editor_versions": 0,
+        "sync_daec9cf494e58d382d6262de3af9_context": 1,
+        "sync_daec9cf494e58d382d6262de3af9_replica_changes": 0,
+        "sync_daec9cf494e58d382d6262de3af9_replica_conflicts": 0,
+        "sync_daec9cf494e58d382d6262de3af9_replica_heads": 0,
+        "sync_daec9cf494e58d382d6262de3af9_replica_outbox": 0,
+        "sync_daec9cf494e58d382d6262de3af9_replica_resolutions": 0,
+        "sync_daec9cf494e58d382d6262de3af9_replica_state": 1,
+        "sync_dd6dd4054975ce4abcd1e12268d3_aggregate_editor_versions": 0,
+        "sync_dd6dd4054975ce4abcd1e12268d3_context": 1,
+        "sync_dd6dd4054975ce4abcd1e12268d3_replica_changes": 0,
+        "sync_dd6dd4054975ce4abcd1e12268d3_replica_conflicts": 0,
+        "sync_dd6dd4054975ce4abcd1e12268d3_replica_heads": 0,
+        "sync_dd6dd4054975ce4abcd1e12268d3_replica_outbox": 0,
+        "sync_dd6dd4054975ce4abcd1e12268d3_replica_resolutions": 0,
+        "sync_dd6dd4054975ce4abcd1e12268d3_replica_state": 1,
+        "sync_ebbb9ae341b34cbb8aedd65a41e6_aggregate_editor_versions": 0,
+        "sync_ebbb9ae341b34cbb8aedd65a41e6_context": 1,
+        "sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes": 0,
+        "sync_ebbb9ae341b34cbb8aedd65a41e6_replica_conflicts": 0,
+        "sync_ebbb9ae341b34cbb8aedd65a41e6_replica_heads": 0,
+        "sync_ebbb9ae341b34cbb8aedd65a41e6_replica_outbox": 0,
+        "sync_ebbb9ae341b34cbb8aedd65a41e6_replica_resolutions": 0,
+        "sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state": 1,
+        "sync_fc44281fa4e6ae1ad919f15bea63_aggregate_editor_versions": 0,
+        "sync_fc44281fa4e6ae1ad919f15bea63_context": 1,
+        "sync_fc44281fa4e6ae1ad919f15bea63_replica_changes": 0,
+        "sync_fc44281fa4e6ae1ad919f15bea63_replica_conflicts": 0,
+        "sync_fc44281fa4e6ae1ad919f15bea63_replica_heads": 0,
+        "sync_fc44281fa4e6ae1ad919f15bea63_replica_outbox": 0,
+        "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
+        "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
+      },
+      "sha256": "62e1da7437a9c688c746c58c8a24f6a6602545906aedfa67360f25cde97683ea",
+      "expanded_sha256": "13a96801af562deefb0201e224a58aecefcd1ae966f4c8771f01f7cc58b44208"
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/projects/project-3d8a36de-2c47-47c7-98b8-9054bd5e8545/molis-work.db",
+      "owner": "apps/local-host",
+      "mode": 420,
+      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/projects/project-3d8a36de-2c47-47c7-98b8-9054bd5e8545/molis-work.db.sql",
+      "schema_version": 2,
+      "plugin_tables": {
+        "io.molis.work.coding": 1,
+        "io.molis.work.feed": 1,
+        "io.molis.work.goals": 1,
+        "io.molis.work.inbox": 1,
+        "io.molis.work.schedule": 1
+      },
+      "tables": {
+        "acceptance_criteria": 0,
+        "artifacts_replica_changes": 2,
+        "artifacts_replica_conflicts": 0,
+        "artifacts_replica_heads": 0,
+        "artifacts_replica_outbox": 0,
+        "artifacts_replica_resolutions": 0,
+        "artifacts_replica_state": 1,
+        "attention_events": 0,
+        "boards": 1,
+        "builder_replica_changes": 0,
+        "builder_replica_conflicts": 0,
+        "builder_replica_heads": 0,
+        "builder_replica_outbox": 0,
+        "builder_replica_resolutions": 0,
+        "builder_replica_state": 1,
+        "coding_input_versions": 0,
+        "coding_inputs": 0,
+        "coding_plan_drafts": 0,
+        "coding_plan_versions": 0,
+        "coding_saved_history": 0,
+        "coding_sessions": 1,
+        "context_edges": 0,
+        "events": 5,
+        "feed_item_events": 0,
+        "feed_items": 0,
+        "feed_materials": 0,
+        "feed_out_rules": 1,
+        "feed_runtime_blobs": 0,
+        "feed_source_runs": 0,
+        "feed_sources": 0,
+        "goal_event_agreements": 0,
+        "goal_event_applied_decisions": 0,
+        "goal_event_closures": 0,
+        "goal_event_concerns": 0,
+        "goal_event_config_versions": 0,
+        "goal_event_configs": 0,
+        "goal_event_decision_requests": 0,
+        "goal_event_progress_summaries": 0,
+        "goal_event_requirement_bindings": 0,
+        "goal_event_requirement_conclusions": 0,
+        "goal_event_requirements": 0,
+        "goal_event_state_owners": 1,
+        "goal_event_trusted_decisions": 0,
+        "goal_event_types": 0,
+        "goal_event_work_status": 1,
+        "goal_relations": 0,
+        "goal_trash_records": 0,
+        "goal_trash_relation_records": 0,
+        "goal_tree_proposal_decisions": 0,
+        "goal_tree_proposal_items": 0,
+        "goal_tree_proposals": 0,
+        "goal_work_event_judgments": 0,
+        "goal_work_events": 1,
+        "goals": 1,
+        "idempotency_records": 4,
+        "inbox_entries": 0,
+        "inbox_scene_bindings": 0,
+        "input_bindings": 0,
+        "library_artifact_versions": 1,
+        "library_artifacts": 1,
+        "listener_deliveries": 0,
+        "listener_instances": 0,
+        "material_recent_uses": 0,
+        "molis_storage_space": 1,
+        "planning_method_packs": 0,
+        "plugin_event_cursors": 8,
+        "plugin_event_resolutions": 0,
+        "plugin_events": 0,
+        "plugin_input_groups": 1,
+        "plugin_notifications": 0,
+        "plugin_port_artifact_bindings": 0,
+        "plugin_port_bindings": 7,
+        "plugin_port_outputs": 0,
+        "plugin_private_values": 0,
+        "plugin_project_databases": 5,
+        "plugin_runtime_installs": 16,
+        "plugin_runtime_release_artifacts": 16,
+        "policy_bindings": 0,
+        "process_item_versions": 0,
+        "process_items": 0,
+        "process_items_replica_changes": 0,
+        "process_items_replica_conflicts": 0,
+        "process_items_replica_heads": 0,
+        "process_items_replica_outbox": 0,
+        "process_items_replica_resolutions": 0,
+        "process_items_replica_state": 1,
+        "project_guidance_entries": 0,
+        "project_guidance_revisions": 0,
+        "project_root": 1,
+        "schedule_action_bindings": 2,
+        "schedule_conversation_tasks": 1,
+        "schedule_conversation_turns": 1,
+        "schedule_jobs": 2,
+        "schedule_operation_occurrences": 0,
+        "schedule_operations": 0,
+        "schedule_plugin_reminders": 0,
+        "schedule_wakeups": 0,
+        "signal_events": 0,
+        "signal_revisions": 0,
+        "signals": 0,
+        "source_events": 0,
+        "sqlite_sequence": 6,
+        "sync_14ff60cd5b3b2f8842d99bea7ef6_aggregate_editor_versions": 0,
+        "sync_14ff60cd5b3b2f8842d99bea7ef6_context": 1,
+        "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_changes": 0,
+        "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_conflicts": 0,
+        "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_heads": 0,
+        "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_outbox": 0,
+        "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_resolutions": 0,
+        "sync_14ff60cd5b3b2f8842d99bea7ef6_replica_state": 1,
+        "sync_21391483cd8d8dcc743c2ecd02ca_aggregate_editor_versions": 0,
+        "sync_21391483cd8d8dcc743c2ecd02ca_context": 1,
+        "sync_21391483cd8d8dcc743c2ecd02ca_replica_changes": 0,
+        "sync_21391483cd8d8dcc743c2ecd02ca_replica_conflicts": 0,
+        "sync_21391483cd8d8dcc743c2ecd02ca_replica_heads": 0,
+        "sync_21391483cd8d8dcc743c2ecd02ca_replica_outbox": 0,
+        "sync_21391483cd8d8dcc743c2ecd02ca_replica_resolutions": 0,
+        "sync_21391483cd8d8dcc743c2ecd02ca_replica_state": 1,
+        "sync_522a4260e0bcbee35d4d9f85406c_aggregate_editor_versions": 0,
+        "sync_522a4260e0bcbee35d4d9f85406c_context": 1,
+        "sync_522a4260e0bcbee35d4d9f85406c_replica_changes": 0,
+        "sync_522a4260e0bcbee35d4d9f85406c_replica_conflicts": 0,
+        "sync_522a4260e0bcbee35d4d9f85406c_replica_heads": 0,
+        "sync_522a4260e0bcbee35d4d9f85406c_replica_outbox": 0,
+        "sync_522a4260e0bcbee35d4d9f85406c_replica_resolutions": 0,
+        "sync_522a4260e0bcbee35d4d9f85406c_replica_state": 1,
+        "sync_daec9cf494e58d382d6262de3af9_aggregate_editor_versions": 0,
+        "sync_daec9cf494e58d382d6262de3af9_context": 1,
+        "sync_daec9cf494e58d382d6262de3af9_replica_changes": 2,
+        "sync_daec9cf494e58d382d6262de3af9_replica_conflicts": 0,
+        "sync_daec9cf494e58d382d6262de3af9_replica_heads": 0,
+        "sync_daec9cf494e58d382d6262de3af9_replica_outbox": 0,
+        "sync_daec9cf494e58d382d6262de3af9_replica_resolutions": 0,
+        "sync_daec9cf494e58d382d6262de3af9_replica_state": 1,
+        "sync_dd6dd4054975ce4abcd1e12268d3_aggregate_editor_versions": 0,
+        "sync_dd6dd4054975ce4abcd1e12268d3_context": 1,
+        "sync_dd6dd4054975ce4abcd1e12268d3_replica_changes": 2,
+        "sync_dd6dd4054975ce4abcd1e12268d3_replica_conflicts": 0,
+        "sync_dd6dd4054975ce4abcd1e12268d3_replica_heads": 0,
+        "sync_dd6dd4054975ce4abcd1e12268d3_replica_outbox": 0,
+        "sync_dd6dd4054975ce4abcd1e12268d3_replica_resolutions": 0,
+        "sync_dd6dd4054975ce4abcd1e12268d3_replica_state": 1,
+        "sync_ebbb9ae341b34cbb8aedd65a41e6_aggregate_editor_versions": 0,
+        "sync_ebbb9ae341b34cbb8aedd65a41e6_context": 1,
+        "sync_ebbb9ae341b34cbb8aedd65a41e6_replica_changes": 8,
+        "sync_ebbb9ae341b34cbb8aedd65a41e6_replica_conflicts": 0,
+        "sync_ebbb9ae341b34cbb8aedd65a41e6_replica_heads": 0,
+        "sync_ebbb9ae341b34cbb8aedd65a41e6_replica_outbox": 0,
+        "sync_ebbb9ae341b34cbb8aedd65a41e6_replica_resolutions": 0,
+        "sync_ebbb9ae341b34cbb8aedd65a41e6_replica_state": 1,
+        "sync_fc44281fa4e6ae1ad919f15bea63_aggregate_editor_versions": 0,
+        "sync_fc44281fa4e6ae1ad919f15bea63_context": 1,
+        "sync_fc44281fa4e6ae1ad919f15bea63_replica_changes": 5,
+        "sync_fc44281fa4e6ae1ad919f15bea63_replica_conflicts": 0,
+        "sync_fc44281fa4e6ae1ad919f15bea63_replica_heads": 0,
+        "sync_fc44281fa4e6ae1ad919f15bea63_replica_outbox": 0,
+        "sync_fc44281fa4e6ae1ad919f15bea63_replica_resolutions": 0,
+        "sync_fc44281fa4e6ae1ad919f15bea63_replica_state": 1
+      },
+      "sha256": "fa31219338d7dee9a2993182fcb73707fb7baa60973fad3f7e6055d06d4cec1f",
+      "expanded_sha256": "17733cfd88e0bddf1a0e1252e9e5e77e88f9298a2f964b75724543a9724ea792"
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/sync/sync.db",
+      "owner": "modules/sync-replication",
+      "mode": 384,
+      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/sync/sync.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "molis_storage_space": 1,
+        "sync_blob_parts": 0,
+        "sync_blob_uploads": 0,
+        "sync_failures": 0,
+        "sync_partition_cursors": 0,
+        "sync_payload_modes": 0,
+        "sync_policy": 0,
+        "sync_stream_cursors": 0
+      },
+      "sha256": "8b5840f0172ba9252b83e94e63acb7b89d836e8ef1951723c7ed21084aaaef9e"
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/todo/todo.db",
+      "owner": "io.molis.work.todo",
+      "mode": 384,
+      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/todo/todo.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "molis_storage_space": 1,
+        "sqlite_sequence": 1,
+        "sync_7850314bc5fb74741120b35ad6fa_aggregate_editor_versions": 0,
+        "sync_7850314bc5fb74741120b35ad6fa_context": 1,
+        "sync_7850314bc5fb74741120b35ad6fa_replica_changes": 2,
+        "sync_7850314bc5fb74741120b35ad6fa_replica_conflicts": 0,
+        "sync_7850314bc5fb74741120b35ad6fa_replica_heads": 0,
+        "sync_7850314bc5fb74741120b35ad6fa_replica_outbox": 0,
+        "sync_7850314bc5fb74741120b35ad6fa_replica_resolutions": 0,
+        "sync_7850314bc5fb74741120b35ad6fa_replica_state": 1,
+        "todo_batches": 0,
+        "todo_changes": 2,
+        "todo_deleted_projects": 0,
+        "todo_editor_versions": 1,
+        "todo_imported_changes": 0,
+        "todo_items": 1,
+        "todo_requests": 0,
+        "todo_source_memory": 0
+      },
+      "sha256": "ca154cbd9483a7b32b946d4e3f16d6773ce422dbcb234bd7c889f40326ac5966"
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/workflows/workflows.db",
+      "owner": "io.molis.work.native.workflows",
+      "mode": 384,
+      "payload": "stores/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/workflows/workflows.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "instances": 0,
+        "molis_storage_space": 1,
+        "sqlite_sequence": 1,
+        "sync_b1502527af2ce1127314acbe774c_aggregate_editor_versions": 0,
+        "sync_b1502527af2ce1127314acbe774c_context": 1,
+        "sync_b1502527af2ce1127314acbe774c_replica_changes": 2,
+        "sync_b1502527af2ce1127314acbe774c_replica_conflicts": 0,
+        "sync_b1502527af2ce1127314acbe774c_replica_heads": 0,
+        "sync_b1502527af2ce1127314acbe774c_replica_outbox": 0,
+        "sync_b1502527af2ce1127314acbe774c_replica_resolutions": 0,
+        "sync_b1502527af2ce1127314acbe774c_replica_state": 1,
+        "workflow_editor_versions": 1,
+        "workflow_imported_instances": 0,
+        "workflows": 1
+      },
+      "sha256": "faf633c660faaeb512a192dda5221f67848112affb5589da5dbb89a1e4ef9ef7"
+    },
+    {
+      "path": "todo/todo.db",
+      "owner": "io.molis.work.todo",
+      "mode": 384,
+      "payload": "stores/todo/todo.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "molis_storage_space": 1,
+        "sqlite_sequence": 1,
+        "sync_7850314bc5fb74741120b35ad6fa_aggregate_editor_versions": 0,
+        "sync_7850314bc5fb74741120b35ad6fa_context": 1,
+        "sync_7850314bc5fb74741120b35ad6fa_replica_changes": 2,
+        "sync_7850314bc5fb74741120b35ad6fa_replica_conflicts": 0,
+        "sync_7850314bc5fb74741120b35ad6fa_replica_heads": 0,
+        "sync_7850314bc5fb74741120b35ad6fa_replica_outbox": 0,
+        "sync_7850314bc5fb74741120b35ad6fa_replica_resolutions": 0,
+        "sync_7850314bc5fb74741120b35ad6fa_replica_state": 1,
+        "todo_batches": 0,
+        "todo_changes": 2,
+        "todo_deleted_projects": 0,
+        "todo_editor_versions": 1,
+        "todo_imported_changes": 0,
+        "todo_items": 1,
+        "todo_requests": 0,
+        "todo_source_memory": 0
+      },
+      "sha256": "8b84c854dea5b5e779a76d9b62ac47e28eea1b3e7555a32b85bf432c5b96fcec"
+    },
+    {
+      "path": "workflows/workflows.db",
+      "owner": "io.molis.work.native.workflows",
+      "mode": 384,
+      "payload": "stores/workflows/workflows.db.sql",
+      "schema_version": 1,
+      "tables": {
+        "instances": 0,
+        "molis_storage_space": 1,
+        "sqlite_sequence": 1,
+        "sync_b1502527af2ce1127314acbe774c_aggregate_editor_versions": 0,
+        "sync_b1502527af2ce1127314acbe774c_context": 1,
+        "sync_b1502527af2ce1127314acbe774c_replica_changes": 2,
+        "sync_b1502527af2ce1127314acbe774c_replica_conflicts": 0,
+        "sync_b1502527af2ce1127314acbe774c_replica_heads": 0,
+        "sync_b1502527af2ce1127314acbe774c_replica_outbox": 0,
+        "sync_b1502527af2ce1127314acbe774c_replica_resolutions": 0,
+        "sync_b1502527af2ce1127314acbe774c_replica_state": 1,
+        "workflow_editor_versions": 1,
+        "workflow_imported_instances": 0,
+        "workflows": 1
+      },
+      "sha256": "172a42e76993cfe4454719687a665f755e34033220411031035ce2265e66ef35"
+    }
+  ],
+  "files": [
+    {
+      "path": "agent-runtime/records/io.molis.work~idempotency/v2.11.agent-start.molis-work-3-8348a-eaabebd0-20b6-477d-8dda-c4bf172c2c8c.json",
+      "owner": "horizontal/agent-host",
+      "mode": 384,
+      "payload": "files/agent-runtime/records/io.molis.work~idempotency/v2.11.agent-start.molis-work-3-8348a-eaabebd0-20b6-477d-8dda-c4bf172c2c8c.json",
+      "size": 1576,
+      "sha256": "30c5f16a129a3f023592a4b8f06a09849fa569a63fb02dbc9d52c203fd4b1d0f"
+    },
+    {
+      "path": "agent-runtime/records/io.molis.work~lineage/graph.json",
+      "owner": "horizontal/agent-host",
+      "mode": 384,
+      "payload": "files/agent-runtime/records/io.molis.work~lineage/graph.json",
+      "size": 152,
+      "sha256": "62c2cab292746ba5d920ef11362383d6b1bac966adf847b7762e59d70d66f056"
+    },
+    {
+      "path": "agent-runtime/records/io.molis.work~memories/owner.user-web-user.once.user.8.web-user.0c43d445-026e-4fca-a44c-9909ee62005c_3aappend.v1.json",
+      "owner": "horizontal/agent-host",
+      "mode": 384,
+      "payload": "files/agent-runtime/records/io.molis.work~memories/owner.user-web-user.once.user.8.web-user.0c43d445-026e-4fca-a44c-9909ee62005c_3aappend.v1.json",
+      "size": 2017,
+      "sha256": "bcaf0c2429b8c4985ba76067ab2f13576352b8fd8cbed8576308b75c92a7a0ad"
+    },
+    {
+      "path": "agent-runtime/records/io.molis.work~policy-snapshot/44bfa5a3.json",
+      "owner": "horizontal/agent-host",
+      "mode": 384,
+      "payload": "files/agent-runtime/records/io.molis.work~policy-snapshot/44bfa5a3.json",
+      "size": 5879,
+      "sha256": "62e0e7e6154969e54623d44b78d1d2a7a6ba86fef0de2428f094e7b01a0c06ed"
+    },
+    {
+      "path": "agent-runtime/records/io.molis.work~published-resource-chunk/5-3lmu7-0.json",
+      "owner": "horizontal/agent-host",
+      "mode": 384,
+      "payload": "files/agent-runtime/records/io.molis.work~published-resource-chunk/5-3lmu7-0.json",
+      "size": 513,
+      "sha256": "22b4d1d6ff7682345abc0a8defc5f10c8013280e6eb0fcc594ca1af803e19587"
+    },
+    {
+      "path": "agent-runtime/records/io.molis.work~published-resource-chunk/6-5cgv7-0.json",
+      "owner": "horizontal/agent-host",
+      "mode": 384,
+      "payload": "files/agent-runtime/records/io.molis.work~published-resource-chunk/6-5cgv7-0.json",
+      "size": 8617,
+      "sha256": "1cd16e288353c147e2605770580a242337e83c0250c4d8fe20f11c60bd7348cd"
+    },
+    {
+      "path": "agent-runtime/records/io.molis.work~published-resource-chunk/7-3kp8v-0.json",
+      "owner": "horizontal/agent-host",
+      "mode": 384,
+      "payload": "files/agent-runtime/records/io.molis.work~published-resource-chunk/7-3kp8v-0.json",
+      "size": 2245,
+      "sha256": "0470d61ead07ba71731535a610a5b4dd9a1ffbe10bc1a4de2b34afdf28385ed7"
+    },
+    {
+      "path": "agent-runtime/records/io.molis.work~published-resource-chunk/8-75jbb-0.json",
+      "owner": "horizontal/agent-host",
+      "mode": 384,
+      "payload": "files/agent-runtime/records/io.molis.work~published-resource-chunk/8-75jbb-0.json",
+      "size": 18285,
+      "sha256": "de77b1a1ce133022047795a6b72e9c3cb93d652d4c10b30fa5bf3c6b7646d8a5"
+    },
+    {
+      "path": "agent-runtime/records/io.molis.work~published-resource/5-3lmu7.json",
+      "owner": "horizontal/agent-host",
+      "mode": 384,
+      "payload": "files/agent-runtime/records/io.molis.work~published-resource/5-3lmu7.json",
+      "size": 181,
+      "sha256": "e32eecc573d5a40328dd2f9154b1545d7dfda5497fd8af7f04f24f7facdb31f5"
+    },
+    {
+      "path": "agent-runtime/records/io.molis.work~published-resource/6-5cgv7.json",
+      "owner": "horizontal/agent-host",
+      "mode": 384,
+      "payload": "files/agent-runtime/records/io.molis.work~published-resource/6-5cgv7.json",
+      "size": 182,
+      "sha256": "2d72100793e6bbd9fc556ea9892c9fd885ca9075855b3467b016298bdfb37f0c"
+    },
+    {
+      "path": "agent-runtime/records/io.molis.work~published-resource/7-3kp8v.json",
+      "owner": "horizontal/agent-host",
+      "mode": 384,
+      "payload": "files/agent-runtime/records/io.molis.work~published-resource/7-3kp8v.json",
+      "size": 182,
+      "sha256": "e877d569e2cc3ccd4701e7e937b159b2bb2962ad1b6f339be3ae9ab4eaf6e6da"
+    },
+    {
+      "path": "agent-runtime/records/io.molis.work~published-resource/8-75jbb.json",
+      "owner": "horizontal/agent-host",
+      "mode": 384,
+      "payload": "files/agent-runtime/records/io.molis.work~published-resource/8-75jbb.json",
+      "size": 185,
+      "sha256": "ff4c9f562c6000fc0a46e09a8a90b76dd666722e496d952dcfe7587f715db2d4"
+    },
+    {
+      "path": "agent-runtime/records/io.molis.work~queued-tasks/global.2-2x6w0.v1.json",
+      "owner": "horizontal/agent-host",
+      "mode": 384,
+      "payload": "files/agent-runtime/records/io.molis.work~queued-tasks/global.2-2x6w0.v1.json",
+      "size": 485,
+      "sha256": "4abaea12918b7f4545350b6d9ff4658b2b7d491c1fd5490d9b4aff8eef1fae17"
+    },
+    {
+      "path": "agent-runtime/records/io.molis.work~runs/3-8348a.b-6ke6q.json",
+      "owner": "horizontal/agent-host",
+      "mode": 384,
+      "payload": "files/agent-runtime/records/io.molis.work~runs/3-8348a.b-6ke6q.json",
+      "size": 2891,
+      "sha256": "8349d1639d73d7d5c5c34ad9703bae6b9ffe1ce70556c52a336054956cda5aa3"
+    },
+    {
+      "path": "agent-runtime/records/io.molis.work~sessions/1-7lz6r.json",
+      "owner": "horizontal/agent-host",
+      "mode": 384,
+      "payload": "files/agent-runtime/records/io.molis.work~sessions/1-7lz6r.json",
+      "size": 200,
+      "sha256": "1c92ffd34c0fce263714efb1deae4062a62e96290c47b2de1725574047c8edd9"
+    },
+    {
+      "path": "agent-runtime/records/io.molis.work~sessions/3-8348a.json",
+      "owner": "horizontal/agent-host",
+      "mode": 384,
+      "payload": "files/agent-runtime/records/io.molis.work~sessions/3-8348a.json",
+      "size": 233,
+      "sha256": "711576b71b94f726a96b99dba1ad71550b8b4e9035fd9d06af0800f0acd8cbbb"
+    },
+    {
+      "path": "agent-runtime/records/io.molis.work~taskboards/global.4-3jbol.v1.json",
+      "owner": "horizontal/agent-host",
+      "mode": 384,
+      "payload": "files/agent-runtime/records/io.molis.work~taskboards/global.4-3jbol.v1.json",
+      "size": 1245,
+      "sha256": "d2320d50bca6cabf75cbb455ea00b285777c6fc7cd49b5b29f3c57424cf424db"
+    },
+    {
+      "path": "agent-runtime/records/molis-agent-index-022e733141b0e17b8feffad3/1-7lz6r.json",
+      "owner": "horizontal/agent-host",
+      "mode": 384,
+      "payload": "files/agent-runtime/records/molis-agent-index-022e733141b0e17b8feffad3/1-7lz6r.json",
+      "size": 482,
+      "sha256": "0815c19050190df09e9fdae9bb77344f829e0cc9eb1233922e07459881ce74ca"
+    },
+    {
+      "path": "agent-runtime/records/molis-agent-index-022e733141b0e17b8feffad3/3-8348a.json",
+      "owner": "horizontal/agent-host",
+      "mode": 384,
+      "payload": "files/agent-runtime/records/molis-agent-index-022e733141b0e17b8feffad3/3-8348a.json",
+      "size": 2850,
+      "sha256": "de5e2ac79b528af811485b250eb7e41f15283a90ed3f4b77531ca7bdc7ab5252"
+    },
+    {
+      "path": "agent-runtime/storage.key",
+      "owner": "horizontal/agent-host",
+      "mode": 384,
+      "payload": "files/agent-runtime/storage.key",
+      "size": 32,
+      "sha256": "0a95232f90ce1a3781e5de48364211185cb237dcdb40a48014110f45970293b7",
+      "test_key": true
+    },
+    {
+      "path": "browser/sites.json",
+      "owner": "apps/local-host",
+      "mode": 384,
+      "payload": "files/browser/sites.json",
+      "size": 181,
+      "sha256": "5f40974f88602004ef14d6357120b23af0af4286ca6a017a8175d398a62e4091"
+    },
+    {
+      "path": "config/mcp-tools.json",
+      "owner": "apps/local-host",
+      "mode": 420,
+      "payload": "files/config/mcp-tools.json",
+      "size": 402,
+      "sha256": "5d5ac53a4a8d4199ab3f3bc29b4981cdf6d682bdc30843b812e9313c94df7d95"
+    },
+    {
+      "path": "config/onboarding.json",
+      "owner": "apps/local-host",
+      "mode": 384,
+      "payload": "files/config/onboarding.json",
+      "size": 305,
+      "sha256": "e6ca3f06ed3963b15851172227cd4145adb69ba810f2c496587ea5dc0f602150"
+    },
+    {
+      "path": "config/project-arrival.json",
+      "owner": "apps/local-host",
+      "mode": 384,
+      "payload": "files/config/project-arrival.json",
+      "size": 254,
+      "sha256": "209356da6a449bc26ee2d69e036edc767de76a5003e42b486f4be464438d32da"
+    },
+    {
+      "path": "config/ui-locale.json",
+      "owner": "apps/local-host",
+      "mode": 384,
+      "payload": "files/config/ui-locale.json",
+      "size": 44,
+      "sha256": "43d020f1f17ca14dc04b60ee003843aa0c46a51ff9edc6c9cc128ea86e47e332"
+    },
+    {
+      "path": "feed/secrets.json",
+      "owner": "packages/storage",
+      "mode": 384,
+      "payload": "files/feed/secrets.json",
+      "size": 555,
+      "sha256": "4806f513f9bfe398ea33793c59c7a50edbf80e2711fb40ae9775756bfbc7ffb9"
+    },
+    {
+      "path": "jelly/preferences.json",
+      "owner": "io.molis.work.jelly",
+      "mode": 384,
+      "payload": "files/jelly/preferences.json",
+      "size": 94,
+      "sha256": "c60aaf0cbe2864f839914ac0fe58c44290e49ff2ed1002f581575b8761f039d8"
+    },
+    {
+      "path": "plugin-files/plugin-install-4d1a4ffe21b5bf34194c32df752c6416/files/notes.txt",
+      "owner": "apps/local-host",
+      "mode": 384,
+      "payload": "files/plugin-files/plugin-install-4d1a4ffe21b5bf34194c32df752c6416/files/notes.txt",
+      "size": 6,
+      "sha256": "dd56de4137951d9c92681b03416ec15f886b4482a27e3a517d32f085244cbe5d"
+    },
+    {
+      "path": "plugin-packages/702d57b9ef8334948d6ceafc7cb61e40/bundle.json",
+      "owner": "apps/local-host",
+      "mode": 256,
+      "payload": "files/plugin-packages/702d57b9ef8334948d6ceafc7cb61e40/bundle.json",
+      "size": 29898,
+      "sha256": "755dd9e8b7348782d3acea7dd3556dac4a927c554d33730a2ef8ad10803b7d22"
+    },
+    {
+      "path": "plugin-packages/702d57b9ef8334948d6ceafc7cb61e40/plugin.mjs",
+      "owner": "apps/local-host",
+      "mode": 256,
+      "payload": "files/plugin-packages/702d57b9ef8334948d6ceafc7cb61e40/plugin.mjs.data",
+      "size": 3467,
+      "sha256": "2e1954c68e7a9e8afea8b5bb98a8f467318e67c6a6c1d1c30b321e2f78733d64"
+    },
+    {
+      "path": "plugin-packages/c861427de0348ce0d342472ce862c484/bundle.json",
+      "owner": "apps/local-host",
+      "mode": 256,
+      "payload": "files/plugin-packages/c861427de0348ce0d342472ce862c484/bundle.json",
+      "size": 8165,
+      "sha256": "169bbacff96c1bf373951b2760e3380e6e0674226489b307228e3d51a4e7e099"
+    },
+    {
+      "path": "plugin-packages/c861427de0348ce0d342472ce862c484/plugin.mjs",
+      "owner": "apps/local-host",
+      "mode": 256,
+      "payload": "files/plugin-packages/c861427de0348ce0d342472ce862c484/plugin.mjs.data",
+      "size": 658,
+      "sha256": "704edde5820a1eb52d8e600940b816019048d483182d1419884ae981c5ab1c98"
+    },
+    {
+      "path": "shelf/catalog.json",
+      "owner": "io.molis.work.shelf",
+      "mode": 384,
+      "payload": "files/shelf/catalog.json",
+      "size": 2398,
+      "sha256": "1ee1b7666baf208952c911a747845907d1ca1efa45e1b0f54cfe46f5124324ae"
+    },
+    {
+      "path": "shelf/files/item_mkf7y5c0_4064074c/试用示例.pdf",
+      "owner": "io.molis.work.shelf",
+      "mode": 384,
+      "payload": "files/shelf/files/item_mkf7y5c0_4064074c/试用示例.pdf",
+      "size": 646,
+      "sha256": "22aca42073c15e57256b2e205614f3976e6828c635015a687e1adc038463de95"
+    },
+    {
+      "path": "shelf/files/item_mkf7y5c0_7c43631c/versions/696af09bf599009e7f30496ec0b592af39f169a3e783169360a4606b20ba012c/金样条目 seed.md",
+      "owner": "io.molis.work.shelf",
+      "mode": 384,
+      "payload": "files/shelf/files/item_mkf7y5c0_7c43631c/versions/696af09bf599009e7f30496ec0b592af39f169a3e783169360a4606b20ba012c/金样条目 seed.md",
+      "size": 30,
+      "sha256": "696af09bf599009e7f30496ec0b592af39f169a3e783169360a4606b20ba012c"
+    },
+    {
+      "path": "shelf/files/item_mkf7y5c0_7c43631c/金样条目 seed.md",
+      "owner": "io.molis.work.shelf",
+      "mode": 384,
+      "payload": "files/shelf/files/item_mkf7y5c0_7c43631c/金样条目 seed.md",
+      "size": 23,
+      "sha256": "9df8b8bf267c86a66bed0096abf5536ef9cd560b3bf20bafac4c8ccb73efcf1e"
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/agent-runtime/records/io.molis.work~memories/owner.user-web-user.once.user.8.web-user.2786ba0a-21ac-4bd5-9522-0dab4fd3e392_3aappend.v1.json",
+      "owner": "horizontal/agent-host",
+      "mode": 384,
+      "payload": "files/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/agent-runtime/records/io.molis.work~memories/owner.user-web-user.once.user.8.web-user.2786ba0a-21ac-4bd5-9522-0dab4fd3e392_3aappend.v1.json",
+      "size": 2017,
+      "sha256": "e24d868934bcc32a273fe11ebed98918d5f21e37e22640efea5a3aad2e52abe7"
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/agent-runtime/records/io.molis.work~queued-tasks/global.2-46fk7.v1.json",
+      "owner": "horizontal/agent-host",
+      "mode": 384,
+      "payload": "files/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/agent-runtime/records/io.molis.work~queued-tasks/global.2-46fk7.v1.json",
+      "size": 485,
+      "sha256": "ebbc9c460959cecc947ced09f34efca16bce646834f19a3956cf9b017e401575"
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/agent-runtime/records/io.molis.work~sessions/1-3pj1k.json",
+      "owner": "horizontal/agent-host",
+      "mode": 384,
+      "payload": "files/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/agent-runtime/records/io.molis.work~sessions/1-3pj1k.json",
+      "size": 200,
+      "sha256": "d7a73748898b6612a73c16e98d6f9a85bf276df1d8f26659d5095693f87527fb"
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/agent-runtime/records/molis-agent-index-022e733141b0e17b8feffad3/1-3pj1k.json",
+      "owner": "horizontal/agent-host",
+      "mode": 384,
+      "payload": "files/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/agent-runtime/records/molis-agent-index-022e733141b0e17b8feffad3/1-3pj1k.json",
+      "size": 482,
+      "sha256": "abe9ee3bf2e2d5a7617ead37715966286302663d33f0d973afebe4650b02c191"
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/agent-runtime/storage.key",
+      "owner": "horizontal/agent-host",
+      "mode": 384,
+      "payload": "files/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/agent-runtime/storage.key",
+      "size": 32,
+      "sha256": "093e3650f76641cf26b8b5929723fc4400bdd7acc7c29ad2cb2ffe1e0a3754c0",
+      "test_key": true
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/storage-space.json",
+      "owner": "apps/local-host",
+      "mode": 384,
+      "payload": "files/spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/storage-space.json",
+      "size": 220,
+      "sha256": "24f3d7bbc8dcc960bb15d274212cbfe5a38cfebdde6cc36a8de3ffe4be3fb424"
+    },
+    {
+      "path": "storage-space.json",
+      "owner": "apps/local-host",
+      "mode": 384,
+      "payload": "files/storage-space.json",
+      "size": 120,
+      "sha256": "2f8f75d12b54d13c772429c8004793afb10bf0ab9a62d591e6214d6cd71fe340"
+    }
+  ],
+  "excluded": [
+    {
+      "path": "agent-runtime/.molis-runtime-owner.db",
+      "reason": "Storage ownership lock"
+    },
+    {
+      "path": "agent-runtime/.molis-runtime-owner.db-journal",
+      "reason": "Storage ownership lock"
+    },
+    {
+      "path": "agent-runtime/leases",
+      "reason": "Agent temporary state"
+    },
+    {
+      "path": "config/web-control-token",
+      "reason": "Host control token is regenerated; never exported"
+    },
+    {
+      "path": "feed/secrets.lock.sqlite",
+      "reason": "SecretStore mutex"
+    },
+    {
+      "path": "logs",
+      "reason": "Diagnostic logs"
+    },
+    {
+      "path": "plugin-packages",
+      "reason": "Verified installed software stays with its original Home"
+    },
+    {
+      "path": "search",
+      "reason": "Rebuildable full-text index"
+    },
+    {
+      "path": "spaces",
+      "reason": "Each account space has its own Home and storage authority"
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/agent-runtime/.molis-runtime-owner.db",
+      "reason": "Storage ownership lock"
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/agent-runtime/.molis-runtime-owner.db-journal",
+      "reason": "Storage ownership lock"
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/agent-runtime/leases",
+      "reason": "Agent temporary state"
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/feed/secrets.lock.sqlite",
+      "reason": "SecretStore mutex"
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/logs",
+      "reason": "Diagnostic logs"
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/search",
+      "reason": "Rebuildable full-text index"
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/storage-space.json",
+      "reason": "The original Home owns its immutable space identity"
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/sync",
+      "reason": "Device consent, transfer queues and cursors belong to this Home"
+    },
+    {
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/upgrade",
+      "reason": "Upgrade snapshots and progress"
+    },
+    {
+      "path": "storage-space.json",
+      "reason": "The original Home owns its immutable space identity"
+    },
+    {
+      "path": "upgrade",
+      "reason": "Upgrade snapshots and progress"
+    }
+  ],
+  "product_version": "0.1.0",
+  "module_sources": [
+    {
+      "digest": "00551bb444a6fd902c4a3b0a59f13746c98b744f36263eec0139d711f6f38978",
+      "payload": "files/module-sources/00551bb444a6fd902c4a3b0a59f13746c98b744f36263eec0139d711f6f38978.br",
+      "bytes": 433271
+    },
+    {
+      "digest": "0fbd57812f6b13fc986120fb62013d40571d1a04882559a73eb869f70b7577c7",
+      "payload": "files/module-sources/0fbd57812f6b13fc986120fb62013d40571d1a04882559a73eb869f70b7577c7.br",
+      "bytes": 157013
+    },
+    {
+      "digest": "1dab0dbffd9c2241650816d1a2f5b2310e27e71a5ff665a54756569a7910deb2",
+      "payload": "files/module-sources/1dab0dbffd9c2241650816d1a2f5b2310e27e71a5ff665a54756569a7910deb2.br",
+      "bytes": 744169
+    },
+    {
+      "digest": "2fd9e443640694c798343a4bf48b6cc9572a7a3afe66d08cee2c9ea862658bc9",
+      "payload": "files/module-sources/2fd9e443640694c798343a4bf48b6cc9572a7a3afe66d08cee2c9ea862658bc9.br",
+      "bytes": 126731
+    },
+    {
+      "digest": "4922d625a993644ed594a17e23053133815ad3f7544a7d4afbc3bd0f0497c0aa",
+      "payload": "files/module-sources/4922d625a993644ed594a17e23053133815ad3f7544a7d4afbc3bd0f0497c0aa.br",
+      "bytes": 195099
+    },
+    {
+      "digest": "4ccc298f5e48d2f5600760b8e3f8d5172dc727740b93fe92b52a4345c155e94d",
+      "payload": "files/module-sources/4ccc298f5e48d2f5600760b8e3f8d5172dc727740b93fe92b52a4345c155e94d.br",
+      "bytes": 109885
+    },
+    {
+      "digest": "50334c8b1e796e833cac9b9ccde0e30d0bdec31d80e062cbcd199ef5b0beee4f",
+      "payload": "files/module-sources/50334c8b1e796e833cac9b9ccde0e30d0bdec31d80e062cbcd199ef5b0beee4f.br",
+      "bytes": 1093487
+    },
+    {
+      "digest": "678e6e424aac95e2ae4c3f7c2aff2aded9ff6184c1c43b359c411b86c641793b",
+      "payload": "files/module-sources/678e6e424aac95e2ae4c3f7c2aff2aded9ff6184c1c43b359c411b86c641793b.br",
+      "bytes": 292846
+    },
+    {
+      "digest": "69a2d2620f535c3542833207d306cf67ac3d4153670329e35a75f548f89d601d",
+      "payload": "files/module-sources/69a2d2620f535c3542833207d306cf67ac3d4153670329e35a75f548f89d601d.br",
+      "bytes": 1328923
+    },
+    {
+      "digest": "71f5999ffffd3fb2dba45dd8dc548c0d456ffe85280e822a478f2f652e8066c9",
+      "payload": "files/module-sources/71f5999ffffd3fb2dba45dd8dc548c0d456ffe85280e822a478f2f652e8066c9.br",
+      "bytes": 165848
+    },
+    {
+      "digest": "7ca05b81ca62e45fafcdb24ccde9bef8ffc0b86a7b7975d7d1a7528dd4488037",
+      "payload": "files/module-sources/7ca05b81ca62e45fafcdb24ccde9bef8ffc0b86a7b7975d7d1a7528dd4488037.br",
+      "bytes": 1612382
+    },
+    {
+      "digest": "9f6161d835d968609d8733a67d3b4b4c04e9222402e00c44bffad309f5f265b7",
+      "payload": "files/module-sources/9f6161d835d968609d8733a67d3b4b4c04e9222402e00c44bffad309f5f265b7.br",
+      "bytes": 160472
+    },
+    {
+      "digest": "a748148eceb76363ea6973b128d8e8278c51c91a310ee0d1a1d575f764bfa66a",
+      "payload": "files/module-sources/a748148eceb76363ea6973b128d8e8278c51c91a310ee0d1a1d575f764bfa66a.br",
+      "bytes": 249947
+    },
+    {
+      "digest": "a903c208dd0f93285e424cd87fb4b7a2f08591201a0e468b11a6990c7e4f3420",
+      "payload": "files/module-sources/a903c208dd0f93285e424cd87fb4b7a2f08591201a0e468b11a6990c7e4f3420.br",
+      "bytes": 183211
+    },
+    {
+      "digest": "a9f6dfddcb1151023c2fa9e5473aee3914d49f48c67d4eccf1c79e759f5b4976",
+      "payload": "files/module-sources/a9f6dfddcb1151023c2fa9e5473aee3914d49f48c67d4eccf1c79e759f5b4976.br",
+      "bytes": 106471
+    },
+    {
+      "digest": "aabb99e8794fe4e2e9b5fbf723a5d4f884e3739f9800523e3573450194abac1a",
+      "payload": "files/module-sources/aabb99e8794fe4e2e9b5fbf723a5d4f884e3739f9800523e3573450194abac1a.br",
+      "bytes": 681642
+    },
+    {
+      "digest": "be3cf6bd0ae7fffdd7d5a85fe922d2d8efda2ce34aeafdaa029a3f6f91c2aad2",
+      "payload": "files/module-sources/be3cf6bd0ae7fffdd7d5a85fe922d2d8efda2ce34aeafdaa029a3f6f91c2aad2.br",
+      "bytes": 151293
+    },
+    {
+      "digest": "bf348de23204d5a515c4c0d75a9d91d643d464e841584b484076cf8aa152d132",
+      "payload": "files/module-sources/bf348de23204d5a515c4c0d75a9d91d643d464e841584b484076cf8aa152d132.br",
+      "bytes": 208589
+    },
+    {
+      "digest": "bf7a3047d38d3e24b318dbb35bad0b62962d728babafe762361a053341652988",
+      "payload": "files/module-sources/bf7a3047d38d3e24b318dbb35bad0b62962d728babafe762361a053341652988.br",
+      "bytes": 136414
+    },
+    {
+      "digest": "e15cbaa4a2923aab02fcc9c72541c252655230395ce0377c3fb51b1df50f963d",
+      "payload": "files/module-sources/e15cbaa4a2923aab02fcc9c72541c252655230395ce0377c3fb51b1df50f963d.br",
+      "bytes": 78012
+    },
+    {
+      "digest": "ed6a1dfced79a0906874a7acc74745da3086f6547520e7ce64d9732825dbbee1",
+      "payload": "files/module-sources/ed6a1dfced79a0906874a7acc74745da3086f6547520e7ce64d9732825dbbee1.br",
+      "bytes": 42833
+    },
+    {
+      "digest": "f2ed37cf7620c9a6016b67867e784d8691ce5d32ec6312efee7dca44344891a2",
+      "payload": "files/module-sources/f2ed37cf7620c9a6016b67867e784d8691ce5d32ec6312efee7dca44344891a2.br",
+      "bytes": 152841
+    },
+    {
+      "digest": "f97ebaa85d75e749c71a2bf52c756cabcfe2ef1eb94c951f2dfbe26c273a7d88",
+      "payload": "files/module-sources/f97ebaa85d75e749c71a2bf52c756cabcfe2ef1eb94c951f2dfbe26c273a7d88.br",
+      "bytes": 216615
+    },
+    {
+      "digest": "fc8a75eab9c8f8f17abc6c4ae73775a4f7b99099dedf37ecf949f15818d3f816",
+      "payload": "files/module-sources/fc8a75eab9c8f8f17abc6c4ae73775a4f7b99099dedf37ecf949f15818d3f816.br",
+      "bytes": 146833
+    }
+  ],
+  "release_manifests": [
+    {
+      "digest": "06318aaf0e9a9bc6677efa2084a9efd0e1f701b77a457211d82e664b61e54770",
+      "payload": "files/release-manifests/06318aaf0e9a9bc6677efa2084a9efd0e1f701b77a457211d82e664b61e54770.br",
+      "bytes": 35274
+    },
+    {
+      "digest": "1a95ace4ddb3b6b0b6d9881c4875f83f9a425d881f9f7718a25ee1effe59d957",
+      "payload": "files/release-manifests/1a95ace4ddb3b6b0b6d9881c4875f83f9a425d881f9f7718a25ee1effe59d957.br",
+      "bytes": 109975
+    },
+    {
+      "digest": "288f588fe5a044ca628eadcf75d77f41a0760b6c1107801b3454b2898fd23f0a",
+      "payload": "files/release-manifests/288f588fe5a044ca628eadcf75d77f41a0760b6c1107801b3454b2898fd23f0a.br",
+      "bytes": 55090
+    },
+    {
+      "digest": "3221eaceb1867c82b0f6b83c62379b76b644af4aa629649bf41b942c29e7a558",
+      "payload": "files/release-manifests/3221eaceb1867c82b0f6b83c62379b76b644af4aa629649bf41b942c29e7a558.br",
+      "bytes": 29566
+    },
+    {
+      "digest": "50ba17b6b764b004b9b065e01177a675001023942fced93becb35709a6382764",
+      "payload": "files/release-manifests/50ba17b6b764b004b9b065e01177a675001023942fced93becb35709a6382764.br",
+      "bytes": 55797
+    },
+    {
+      "digest": "5cd3e6d16318e6eca6313496801b09ec9bf4e489d8802b1bbb761e3e04f51287",
+      "payload": "files/release-manifests/5cd3e6d16318e6eca6313496801b09ec9bf4e489d8802b1bbb761e3e04f51287.br",
+      "bytes": 37744
+    },
+    {
+      "digest": "6a6dee69c84d7f25a959cb5a24a390d5e78a1b97b5d3a698a7f6b2fde7d9ea10",
+      "payload": "files/release-manifests/6a6dee69c84d7f25a959cb5a24a390d5e78a1b97b5d3a698a7f6b2fde7d9ea10.br",
+      "bytes": 151430
+    },
+    {
+      "digest": "7a11a229a68e372d52817ccbf57f84bad4a9846ceeb8058273c581943ea00a8d",
+      "payload": "files/release-manifests/7a11a229a68e372d52817ccbf57f84bad4a9846ceeb8058273c581943ea00a8d.br",
+      "bytes": 55673
+    },
+    {
+      "digest": "96f6dac47c18f8ef42181994e5ec75c007df1652a594406f4110fc7483e8cff8",
+      "payload": "files/release-manifests/96f6dac47c18f8ef42181994e5ec75c007df1652a594406f4110fc7483e8cff8.br",
+      "bytes": 47156
+    },
+    {
+      "digest": "9e1a4b5f42b8e7a14cb16163fe01eca57136d1e95f7b9ffcda30e8eaaaf7498a",
+      "payload": "files/release-manifests/9e1a4b5f42b8e7a14cb16163fe01eca57136d1e95f7b9ffcda30e8eaaaf7498a.br",
+      "bytes": 595565
+    },
+    {
+      "digest": "b7faa2e0cd41cec59b64909e56d896b64bf95d88302c9aae89bcefa0056b356c",
+      "payload": "files/release-manifests/b7faa2e0cd41cec59b64909e56d896b64bf95d88302c9aae89bcefa0056b356c.br",
+      "bytes": 244607
+    },
+    {
+      "digest": "bd39630b8089239f88f77b7cf64d7e2ec3379d5149e246e77c7483068f43c542",
+      "payload": "files/release-manifests/bd39630b8089239f88f77b7cf64d7e2ec3379d5149e246e77c7483068f43c542.br",
+      "bytes": 68730
+    },
+    {
+      "digest": "c5ac2b9b87053d5c691b7bec62b7de4df383e51b86e63c482f78724c56b4214d",
+      "payload": "files/release-manifests/c5ac2b9b87053d5c691b7bec62b7de4df383e51b86e63c482f78724c56b4214d.br",
+      "bytes": 21826
+    },
+    {
+      "digest": "d1d0a0e511b037b07af5b235ab2a96f346a219e4f501d808724ef7e479fb01bf",
+      "payload": "files/release-manifests/d1d0a0e511b037b07af5b235ab2a96f346a219e4f501d808724ef7e479fb01bf.br",
+      "bytes": 43893
+    },
+    {
+      "digest": "d8073d0df0d96d2491961f77151ce42a6da79f656895e701b2ae2ec19fb23269",
+      "payload": "files/release-manifests/d8073d0df0d96d2491961f77151ce42a6da79f656895e701b2ae2ec19fb23269.br",
+      "bytes": 91694
+    },
+    {
+      "digest": "d8fe5224e27e489682f037f04f2fc2dba2a5193ecc916a53929198fbaaa78068",
+      "payload": "files/release-manifests/d8fe5224e27e489682f037f04f2fc2dba2a5193ecc916a53929198fbaaa78068.br",
+      "bytes": 11438
+    },
+    {
+      "digest": "d95b455f8bee22376ed7bb0a2d4a34f25c1ddfb110da7af89ad0ee54535668ca",
+      "payload": "files/release-manifests/d95b455f8bee22376ed7bb0a2d4a34f25c1ddfb110da7af89ad0ee54535668ca.br",
+      "bytes": 61050
+    },
+    {
+      "digest": "e54f0b8ecfa747328da8b757dab772e7d83d8571f3351b1d3e0c62a92d70538d",
+      "payload": "files/release-manifests/e54f0b8ecfa747328da8b757dab772e7d83d8571f3351b1d3e0c62a92d70538d.br",
+      "bytes": 380607
+    },
+    {
+      "digest": "e85915509f151220deaf73972032a386f538c8b9babce0f350a7b3c5419d021f",
+      "payload": "files/release-manifests/e85915509f151220deaf73972032a386f538c8b9babce0f350a7b3c5419d021f.br",
+      "bytes": 40578
+    },
+    {
+      "digest": "fbef08f30cf9b668c21bb7a1eaab856d1f07c2590bcc1cba6d6efe8651eee506",
+      "payload": "files/release-manifests/fbef08f30cf9b668c21bb7a1eaab856d1f07c2590bcc1cba6d6efe8651eee506.br",
+      "bytes": 59990
+    },
+    {
+      "digest": "fd6cd030277cef6fc9e3dc9b29bf3a8e8c462a0cd03cc044f3a09efe108ffaaf",
+      "payload": "files/release-manifests/fd6cd030277cef6fc9e3dc9b29bf3a8e8c462a0cd03cc044f3a09efe108ffaaf.br",
+      "bytes": 4603
+    }
+  ],
+  "formats": [
+    {
+      "entry": "database.home.catalog",
+      "path": "projects/catalog.db",
+      "version": 2
+    },
+    {
+      "entry": "database.home.catalog",
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/projects/catalog.db",
+      "version": 2
+    },
+    {
+      "entry": "database.ledger_baseline",
+      "path": "plugin-libraries/plugin-libraries.db",
+      "version": 1
+    },
+    {
+      "entry": "database.ledger_baseline",
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/plugin-libraries/plugin-libraries.db",
+      "version": 1
+    },
+    {
+      "entry": "database.memory_ledger_baseline",
+      "path": "memory/memory.db",
+      "version": 1
+    },
+    {
+      "entry": "database.memory_ledger_baseline",
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/memory/memory.db",
+      "version": 1
+    },
+    {
+      "entry": "format.browser.site-decisions",
+      "path": "browser/sites.json",
+      "version": 1
+    },
+    {
+      "entry": "format.home.onboarding",
+      "path": "config/onboarding.json",
+      "version": 1
+    },
+    {
+      "entry": "format.jelly.workspace",
+      "path": "jelly/jelly.db",
+      "version": 1
+    },
+    {
+      "entry": "format.jelly.workspace",
+      "path": "spaces/space_04997413ba8096afe8b259a0f06b0f75225516519ebb95ecb8d215fce8263935/jelly/jelly.db",
+      "version": 1
+    },
+    {
+      "entry": "format.mcp.tool-preference",
+      "path": "config/mcp-tools.json",
+      "version": 1
+    },
+    {
+      "entry": "format.model.preference",
+      "path": "jelly/preferences.json",
+      "version": 1
+    },
+    {
+      "entry": "format.project.arrival",
+      "path": "config/project-arrival.json",
+      "version": 1
+    },
+    {
+      "entry": "format.secret-store.map",
+      "path": "feed/secrets.json",
+      "version": 1
+    },
+    {
+      "entry": "format.shelf.catalog",
+      "path": "shelf/catalog.json",
+      "version": 1
+    }
+  ]
+}

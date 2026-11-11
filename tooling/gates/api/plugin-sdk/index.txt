@@ -116,6 +116,31 @@ export interface CardStore<Card extends ActionCard = ActionCard> {
     update(card: Card, expected: number, patch: Partial<ActionCard>): Card;
 }
 
+export interface ContentPackage {
+    manifest: PluginManifest;
+    skills: PackagedSkillBody[];
+    blueprint?: {
+        default: Blueprint;
+        others: readonly {
+            locale: string;
+            blueprint: Blueprint;
+        }[];
+    };
+}
+
+export interface ContentPackageInput {
+    plugin_id: string;
+    version: string;
+    name: string;
+    name_en?: string;
+    summary?: string;
+    translations?: PluginTranslationsDeclaration;
+    publisher: PluginManifest["publisher"];
+    scope?: "home" | "project";
+    compatible_from?: readonly string[];
+    skills: readonly FolderSkill[];
+}
+
 export declare const DIFF_STEP_BUDGET = 200000;
 
 export interface DeclaredPageRouteMatch extends PageRouteMatch {
@@ -154,6 +179,14 @@ export { FRAGMENT_ROLES } from "@molis-ai/molis-work-contracts/platform/actions"
 export type { FileContent } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { FileEntry } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { FileSourceKind } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { FlatUnion } from "@molis-ai/molis-work-contracts/platform/actions";
+
+export interface FolderSkill {
+    declaration: PluginMethodDeclaration;
+    files: Map<string, Uint8Array>;
+    applies_to_written: boolean;
+}
+
 export type { FragmentActionOffer } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { FragmentApply } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { FragmentGranularity } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -205,9 +238,25 @@ export type { HomeEvent } from "@molis-ai/molis-work-contracts/platform/actions"
 export type { HomeEventCollection } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { HomeEventWindow } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { HomeOpenTarget } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { InferActionInput } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 export type { InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 export type { ItemAttachPosition } from "@molis-ai/molis-work-contracts/platform/actions";
+export { KIT_KINDS } from "@molis-ai/molis-work-contracts/platform/kit-report";
+export { KIT_TOOL_ORIGINS } from "@molis-ai/molis-work-contracts/platform/kit-report";
+export type { KitAvailability } from "@molis-ai/molis-work-contracts/platform/kit-report";
+export type { KitDeclared } from "@molis-ai/molis-work-contracts/platform/kit-report";
+export type { KitKind } from "@molis-ai/molis-work-contracts/platform/kit-report";
+export type { KitManageLink } from "@molis-ai/molis-work-contracts/platform/kit-report";
+export type { KitMcpRef } from "@molis-ai/molis-work-contracts/platform/kit-report";
+export type { KitMcpState } from "@molis-ai/molis-work-contracts/platform/kit-report";
+export type { KitReport } from "@molis-ai/molis-work-contracts/platform/kit-report";
+export type { KitReportInput } from "@molis-ai/molis-work-contracts/platform/kit-report";
+export type { KitReportedEntry } from "@molis-ai/molis-work-contracts/platform/kit-report";
+export type { KitRoleRef } from "@molis-ai/molis-work-contracts/platform/kit-report";
+export type { KitToolOrigin } from "@molis-ai/molis-work-contracts/platform/kit-report";
+export type { KitUsage } from "@molis-ai/molis-work-contracts/platform/kit-report";
+export type { KitVersion } from "@molis-ai/molis-work-contracts/platform/kit-report";
 
 export declare const MATERIAL_EXTENSIONS: {
     readonly text: readonly [".txt", ".md", ".markdown", ".html", ".htm", ".csv", ".json", ".log"];
@@ -232,6 +281,8 @@ export declare const PAGE_ROUTE_LIMITS: Readonly<{
 
 export { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 
+export declare const PLUGIN_ID: RegExp;
+
 export declare const PLUGIN_MESSAGE_LIMITS: {
     readonly entries: 5000;
     readonly keyLength: 120;
@@ -246,6 +297,20 @@ export declare const PLUGIN_ROUTE_STREAM_LIMITS: Readonly<{
     lines: 10000;
     progress_bytes: 1048576;
 }>;
+
+export { PRESENTATION_VALUES_AUDIENCES } from "@molis-ai/molis-work-contracts/platform/presentation";
+
+export interface PackagedSkillBody {
+    skill_id: string;
+    version: number;
+    body: string;
+}
+
+export interface PackagedSkills {
+    paths: ReadonlySet<string>;
+    bodies: PackagedSkillBody[];
+    problems: PluginDeclarationProblem[];
+}
 
 export interface PageRouteMatch {
     readonly route_id: string;
@@ -327,6 +392,10 @@ export interface PorcelainInput {
     truncated?: boolean;
 }
 
+export type { PresentationOverview } from "@molis-ai/molis-work-contracts/platform/presentation";
+export type { PresentationValueItem } from "@molis-ai/molis-work-contracts/platform/presentation";
+export type { PresentationValues } from "@molis-ai/molis-work-contracts/platform/presentation";
+export type { PresentationValuesInput } from "@molis-ai/molis-work-contracts/platform/presentation";
 export type { ProjectCopyAsset } from "@molis-ai/molis-work-contracts/services/placement";
 export type { ProjectCopyIdentity } from "@molis-ai/molis-work-contracts/services/placement";
 export type { ProjectCopyOwner } from "@molis-ai/molis-work-contracts/services/placement";
@@ -352,6 +421,13 @@ export declare const QUESTION_REASK: Readonly<{
     maxValueChars: 1000;
     maxTextChars: 8000;
 }>;
+
+export type RoleTemplateInspectionOptions = {
+    readonly source: "draft";
+} | {
+    readonly source: "package";
+    readonly owner: string;
+};
 
 export declare const SANDBOX_IMAGE_PERMISSIONS: Readonly<{
     read: "image-api:read";
@@ -393,11 +469,72 @@ export interface SandboxManifestInput {
     ownerFiles?: readonly PluginOwnerFileEntry[];
 }
 
+export type SandboxSchemaFailure = (kind: "invalid_json" | "invalid_schema" | "schema_mismatch", reason: string) => never;
+
 export type { SearchEntriesInput } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { SearchEntriesPage } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { SearchEntry } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { SearchOpenTarget } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { SearchSourceKind } from "@molis-ai/molis-work-contracts/platform/actions";
+
+export type SettingSnapshot = {
+    readonly key: string;
+    readonly revision: string;
+} & ({
+    readonly state: "ok";
+    readonly layers: SettingLayers;
+} | {
+    readonly state: "unavailable";
+    readonly reason: string;
+});
+
+export interface SettingsActions {
+    readonly read: ActionDefinition<SettingsReadInput, SettingsValues>;
+    readonly write: ActionDefinition<SettingsWriteInput, SettingsValues>;
+}
+
+export interface SettingsActionsOptions {
+    readonly scope: ActionMetadata["scope"];
+    readonly read: SettingsActionOptions;
+    readonly write: SettingsActionOptions;
+}
+
+export interface SettingsOwner {
+    readonly owner_id: string;
+    readonly errors: ErrorCodeRaisers<{
+        setting_conflict: "conflict";
+        setting_invalid: "invalid";
+    }>;
+    read(scope: SettingsOwnerScope, keys: readonly string[]): readonly SettingSnapshot[] | Promise<readonly SettingSnapshot[]>;
+    transaction<R>(scope: SettingsOwnerScope, run: (transaction: SettingsTransaction) => R): R;
+}
+
+export interface SettingsOwnerScope {
+    readonly owner_id: string;
+    readonly actor_id: string;
+    readonly project_id: string | null;
+}
+
+export type SettingsRequestIdentity = Pick<SettingsWriteInput, "key" | "layer" | "request_id">;
+
+export interface SettingsTransaction {
+    readReceipt(identity: SettingsRequestIdentity): SettingsWriteReceipt | undefined;
+    readCurrent(key: string): SettingSnapshot;
+    writeChange(input: Pick<SettingsWriteInput, "key" | "layer" | "change">): void;
+    saveReceipt(identity: SettingsRequestIdentity, receipt: SettingsWriteReceipt): void;
+}
+
+export interface SettingsWriteReceipt {
+    readonly request: SettingsWriteInput;
+    readonly result: SettingsValues;
+}
+
+export interface SkillFrontmatterOptions {
+    version?: number;
+    resources?: SkillResourceDeclaration[];
+    applies_to?: SkillAppliesTo;
+}
+
 export type { SubjectActionOffer } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { SubjectOfferChoice } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { SubjectOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -442,6 +579,8 @@ export type { SyncReplicaAdapter } from "@molis-ai/molis-work-contracts/platform
 export type { SyncTrackedTable } from "@molis-ai/molis-work-contracts/platform/plugin-sync";
 export type { UiClientScope } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiClientTranslate } from "@molis-ai/molis-work-contracts/platform/ui";
+export type { UiConnectionNeedOutcome } from "@molis-ai/molis-work-contracts/platform/ui";
+export type { UiConnectionNeedTarget } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiContributionDeclaration } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiContributionDescriptor } from "@molis-ai/molis-work-contracts/platform/ui";
@@ -451,6 +590,7 @@ export type { UiPageDrafts } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiPageFiles } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiPageMessage } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiPageMessages } from "@molis-ai/molis-work-contracts/platform/ui";
+export type { UiPageReturns } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiPageReviewOutcome } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiPageReviewQuery } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiPageReviews } from "@molis-ai/molis-work-contracts/platform/ui";
@@ -461,6 +601,9 @@ export type { UiPageWorkspaces } from "@molis-ai/molis-work-contracts/platform/u
 export type { UiPluginClientHost } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiRequest } from "@molis-ai/molis-work-contracts/platform/ui";
+export type { UiReturnCarry } from "@molis-ai/molis-work-contracts/platform/ui";
+export type { UiReturnNeed } from "@molis-ai/molis-work-contracts/platform/ui";
+export type { UiReturnOutcome } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiTaskGrantsAreaState } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiTerminalCommand } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiTerminalEvent } from "@molis-ai/molis-work-contracts/platform/ui";
@@ -495,9 +638,9 @@ export declare function actionHttpStatus(error: unknown): number;
 
 export declare function alignSplitRows(rows: readonly TextDiffRow[]): SplitPair[];
 
-export declare function arraySchema(items: unknown): {
+export declare function arraySchema<const I>(items: I): {
     type: "array";
-    items: unknown;
+    items: I;
 };
 
 export { assertDueReminderWindow } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -507,6 +650,16 @@ export declare function assertManifest(manifest: PluginManifest): void;
 
 export declare function assertSandboxAgentDefinition(definition: Pick<PluginDefinition, "manifest" | "agent_prompts" | "agent_prompt_names" | "agent_skills" | "methods">): void;
 
+export declare function assertJson(value: unknown, fail: SandboxSchemaFailure): asserts value is SandboxJson;
+// exported from this entry as "assertSandboxJson"
+
+export declare function assertMatches(schema: SandboxSchema, value: unknown, fail: SandboxSchemaFailure, path?: string): asserts value is SandboxJson;
+// exported from this entry as "assertSandboxMatches"
+
+export declare function assertSchema(schema: unknown, fail: SandboxSchemaFailure): asserts schema is SandboxSchema;
+// exported from this entry as "assertSandboxSchema"
+
+export { bindActionHandler } from "@molis-ai/molis-work-contracts/platform/actions";
 export { bindArtifactCompare } from "@molis-ai/molis-work-contracts/platform/actions";
 export { bindArtifactContinue } from "@molis-ai/molis-work-contracts/platform/actions";
 export { bindArtifactPreview } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -519,7 +672,14 @@ export declare function bindOwnerPluginAction<Input, Output>(context: PluginStar
 
 export declare function bindPluginActionRoute<Input, Output>(context: PluginStartContext, definition: ActionDefinition<Input, Output>, input: (request: PluginRouteRequest) => Input, route_id?: string): PluginRouteBinding;
 
+export { bindPresentationValuesHandler } from "@molis-ai/molis-work-contracts/platform/presentation";
 export { bindSearchEntriesHandler } from "@molis-ai/molis-work-contracts/platform/actions";
+
+export declare function bindSettingsHandlers(actions: SettingsActions, declaration: SettingsDeclaration, owner: SettingsOwner): {
+    readonly read: ActionHandlerBinding;
+    readonly write: ActionHandlerBinding;
+};
+
 export { bindWorkflowContentHandlers } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export declare function canonicalJsonText(value: unknown, unsupported: "null"): string;
@@ -539,13 +699,21 @@ export declare function checkedSourcePresentation(value: unknown): SourcePresent
 
 export declare function checkedSourcePresentationInput(value: unknown): SourcePresentationInput;
 
+export declare function compareCodeUnits(left: string, right: string): number;
+
 export declare function comparePluginVersions(left: string, right: string): number;
 
 export declare function compareTexts(before: string, after: string): TextDiff;
 
+export declare function completeContentPackagePayload(input: LocalPackageSignInput, publisher: PluginManifest["publisher"]): PluginPackagePayload;
+
+export declare function contentPackageDraft(input: Omit<ContentPackageInput, "publisher">): LocalPackageSignInput;
+
+export declare function contentPackagePayload(input: ContentPackageInput): PluginPackagePayload;
+
 export declare function controlledConnectorFetch<Input>(fetchImpl: (input: Input, init?: RequestInit) => Promise<Response>, control: ConnectorCallControl): (this: unknown, input: Input, init?: RequestInit) => Promise<Response>;
 
-export declare function createActionDefinition<Input = unknown, Output = unknown>(capability_id: string, operation: ActionDefinition["operation"], metadata: Omit<ActionMetadata, "kind" | "scope"> & Partial<Pick<ActionMetadata, "kind" | "scope">>, version?: number): ActionDefinition<Input, Output>;
+export declare function createActionDefinition<Input = unknown, Output = unknown>(capability_id: string, operation: ActionDefinition["operation"], metadata: Omit<ActionMetadata, "kind" | "scope"> & Partial<Pick<ActionMetadata, "kind" | "scope">>, version: number): ActionDefinition<Input, Output>;
 
 export declare function createExecutionLifetime(options?: ExecutionLifetimeOptions): ExecutionLifetime;
 
@@ -556,6 +724,11 @@ export declare function createSyncDocument<T>(owner: SyncDocumentOwner<T>): Sync
 export declare function createSyncJsonContent(options: SyncJsonContentOptions): SyncContentCodec;
 
 export declare function decodeMaterialUpload(upload: MaterialUpload): MaterialSource;
+
+export declare function defineAction<const S extends ActionSchema, Output>(definition: LiteralSchemaDefinition<S, Output>, handle: (context: ActionExecutionContext, input: InferActionInput<S>) => Output | Promise<Output>): {
+    readonly definition: ActionDefinition<InferActionInput<S>, Output>;
+    readonly handler: ActionHandlerBinding;
+};
 
 export declare function defineAction<Input, Output>(definition: ActionDefinition<Input, Output>, handle: (context: ActionExecutionContext, input: Input) => Output | Promise<Output>): {
     readonly definition: ActionDefinition<Input, Output>;
@@ -577,6 +750,7 @@ export { defineFragmentOffersAction } from "@molis-ai/molis-work-contracts/platf
 export { defineHomeBackgroundTasksAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineHomeEventsAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineInstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
+export { defineKitReportAction } from "@molis-ai/molis-work-contracts/platform/kit-report";
 export { defineObjectCopyAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineObjectMoveAction } from "@molis-ai/molis-work-contracts/platform/actions";
 
@@ -590,7 +764,12 @@ export declare function definePollingIntegrationPlugin(input: {
     now?: () => Date;
 }): PluginDefinition;
 
+export { definePresentationOverviewAction } from "@molis-ai/molis-work-contracts/platform/presentation";
+export { definePresentationValuesAction } from "@molis-ai/molis-work-contracts/platform/presentation";
 export { defineSearchEntriesAction } from "@molis-ai/molis-work-contracts/platform/actions";
+
+export declare function defineSettingsActions(options: SettingsActionsOptions): SettingsActions;
+
 export { defineSubjectContextAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineSubjectOffersAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineWorkExecutorAction } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -610,9 +789,28 @@ export { fileEntriesPage } from "@molis-ai/molis-work-contracts/platform/actions
 
 export declare function fillMessage(text: string, values?: Readonly<Record<string, string | number>>): string;
 
+export { inputSchemaFor } from "@molis-ai/molis-work-contracts/platform/actions";
+
 export declare function inspectActionCrossReferences(definitions: unknown): string[];
 
 export declare function inspectActionDeclarations(definitions: unknown, scenes: unknown): string[];
+
+export declare function inspectBlueprint(value: unknown, options: RoleTemplateInspectionOptions): readonly PluginDeclarationProblem[];
+
+export declare function inspectBlueprintLocales(defaultBlueprint: unknown, others: readonly {
+    locale: string;
+    blueprint: unknown;
+}[], options: {
+    owner: string;
+}): readonly PluginDeclarationProblem[];
+
+export declare function inspectCharacterTemplateAdoption(input: CharacterTemplateAdoptionInput): readonly PluginDeclarationProblem[];
+
+export declare function inspectContentPlugin(manifest: Readonly<Record<string, unknown>>): PluginDeclarationProblem[];
+
+export declare function inspectHomePageDraft(value: unknown): readonly PluginDeclarationProblem[];
+
+export declare function inspectRoleTemplate(value: unknown, options: RoleTemplateInspectionOptions): readonly PluginDeclarationProblem[];
 
 export declare function instantIn(day: string, time: string, zone: string | undefined): string | null;
 
@@ -624,6 +822,8 @@ export declare function isHomeAggregateQuery(definition: {
     readonly operation: string;
     readonly action: object;
 }): boolean;
+
+export { isPresentationValuesAction } from "@molis-ai/molis-work-contracts/platform/presentation";
 
 export declare function isRecord(value: unknown): value is Record<string, unknown>;
 
@@ -644,20 +844,24 @@ export declare function messageDeclarationProblems(parsed: Pick<PluginManifest, 
 
 export { nextPinnedVersion } from "@molis-ai/molis-work-contracts/platform/actions";
 
-export declare function nullableSchema(schema: unknown): {
-    anyOf: unknown[];
+export declare function nullableSchema<const S>(schema: S): {
+    anyOf: readonly [S, {
+        readonly type: "null";
+    }];
 };
 
 export { objectOrMissing } from "@molis-ai/molis-work-contracts/platform/actions";
 
-export declare function objectSchema(properties: Record<string, unknown>, required?: readonly string[]): {
+export declare function objectSchema<const P extends Readonly<Record<string, unknown>>, const R extends readonly string[] = readonly (keyof P & string)[]>(properties: P, required?: R): {
     type: "object";
-    properties: Record<string, unknown>;
-    required: readonly string[];
+    properties: P;
+    required: R;
     additionalProperties: false;
 };
 
 export declare function pageRouteProblems(manifest: PluginManifest): string[];
+
+export declare function parseContentPackage(payload: unknown): ContentPackage;
 
 export declare function parsePluginManifest(input: unknown): PluginManifest;
 
@@ -704,6 +908,8 @@ export declare function questionProblems(questions: readonly AgentQuestion[], an
 
 export declare function questionSetFlaw(questions: readonly AgentQuestion[]): string | null;
 
+export declare function readPackagedSkills(methods: readonly AgentSkillDeclaration[], files: ReadonlyMap<string, Uint8Array>): PackagedSkills;
+
 export declare function reconstructSides(ops: readonly DiffOp[]): {
     before: string;
     after: string;
@@ -712,7 +918,14 @@ export declare function reconstructSides(ops: readonly DiffOp[]): {
 export declare function redactSecrets(value: string): string;
 
 export { referencesAction } from "@molis-ai/molis-work-contracts/platform/actions";
+
+export declare function refuseDeclarations(problems: ReadonlyArray<string | PluginDeclarationProblem>): never;
+
 export { resolveActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
+
+export declare function resolveEffectiveSetting(snapshot: SettingSnapshot): EffectiveSetting;
+
+export declare function rollbackPreservingError(original: unknown, rollback: () => unknown): void;
 
 export declare function runActionCard<Card extends ActionCard>(card: Card, input: {
     revision: number;
@@ -722,11 +935,6 @@ export declare function runActionCard<Card extends ActionCard>(card: Card, input
 export { sameArtifactFields } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export declare const sandboxActionId: (buildId: string, operationId: string) => string;
-
-export declare function sandboxAgentBodyIdentity(pluginId: string, kind: "role" | "method", name: string): {
-    entry_id: string;
-    prompt_id: string;
-};
 
 export declare function sandboxAgentDeclarations(manifest: SandboxPackageManifest): Pick<PluginManifest, "agent" | "methods">;
 
@@ -752,7 +960,14 @@ export declare const sandboxPackageBuildId: (pluginId: string, signature: string
 
 export declare function sandboxPluginManifest(input: SandboxManifestInput): PluginManifest;
 
+export declare function sandboxPromptId(entryId: string): string;
+
 export declare function sandboxRequestedPermissions(effects: DerivedEffects | undefined): string[];
+
+export declare function sandboxRoleIdentity(pluginId: string, name: string): {
+    entry_id: string;
+    prompt_id: string;
+};
 
 export declare const sandboxUiContribution: (pluginId: string) => string;
 
@@ -760,6 +975,13 @@ export { sceneConfigurationActions } from "@molis-ai/molis-work-contracts/platfo
 export { searchEntriesPage } from "@molis-ai/molis-work-contracts/platform/actions";
 export { searchRevisionOf } from "@molis-ai/molis-work-contracts/platform/actions";
 export { searchText } from "@molis-ai/molis-work-contracts/platform/actions";
+
+export declare function skillDeclarationFromFrontmatter(markdown: string, options?: SkillFrontmatterOptions): PluginMethodDeclaration;
+
+export declare function skillFromFolder(files: ReadonlyMap<string, Uint8Array>, options?: {
+    version?: number;
+    applies_to?: SkillAppliesTo;
+}): FolderSkill;
 
 export declare function splitLines(text: string): DiffLine[];
 
@@ -783,6 +1005,18 @@ export declare function syncTupleLocation(surface: string, project: boolean, ind
 
 export declare function textDiffRow(op: DiffOp): TextDiffRow;
 
+export declare function validateAdoptsDeclaration(manifest: {
+    readonly adopts?: unknown;
+    readonly actions?: unknown;
+    readonly plugin_id?: unknown;
+}): readonly PluginDeclarationProblem[];
+
+export declare function validateSettingsDeclaration(manifest: {
+    readonly settings_entries?: unknown;
+    readonly actions?: unknown;
+    readonly plugin_id?: unknown;
+}): readonly PluginDeclarationProblem[];
+
 export declare function wallClockIn(at: number, zone: string | undefined): {
     day: string;
     time: string;
@@ -797,3 +1031,17 @@ export { withinHomeEventWindow } from "@molis-ai/molis-work-contracts/platform/a
 // Declarations the exports above refer to, which no entry exports itself:
 
 type DerivedEffects = Pick<SandboxEffects, 'storage' | 'background' | 'projects' | 'model' | 'modelSettings' | 'imageGeneration' | 'homeDatabase' | 'connections' | 'materials' | 'ownerFiles'>;
+
+type LiteralSchemaDefinition<S extends ActionSchema, Output> = Omit<ActionDefinition<unknown, Output>, "action"> & {
+    readonly action: Omit<ActionMetadata, "input_schema"> & {
+        readonly input_schema: S & (string extends keyof S ? never : unknown);
+    };
+};
+
+interface SettingsActionOptions {
+    readonly capability_id: string;
+    readonly version: number;
+    readonly title: string;
+    readonly description: string;
+    readonly permissions: readonly string[];
+}

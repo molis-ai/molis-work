@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { createCipheriv, createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -11,6 +11,7 @@ import {
   peekSealedEntry,
   resetSecretStoreCache,
 } from "@molis-ai/molis-work-storage";
+import { homeStorageTree } from "./fixtures/home-storage-files.js";
 
 function withFeedHome<T>(directory: string, run: () => T): T {
   const oldHome = process.env.MOLIS_WORK_HOME;
@@ -58,28 +59,23 @@ test("Molis Work Feed secrets and retained content are AES-GCM sealed", () => {
   }
 });
 
-test("retained content recovery re-seals a migrated hash without overwriting unreadable ciphertext", () => {
-  const directory = mkdtempSync(join(tmpdir(), "molis-work-feed-content-recovery-"));
+test("N30 N36: a clean Home reopens one evidence key and directory without rewriting repeated content", () => {
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-feed-content-current-"));
   try {
     withFeedHome(directory, () => {
       const secrets = createFileSecretStore();
       const content = createEvidenceContentStore({ secretStore: secrets });
-      const markdown = "# Migrated feed body\n\nThe original ciphertext must remain untouched.";
+      const markdown = "# Retained feed body\n\nOriginal evidence stays sealed in one place.";
       const written = content.write(markdown);
-      const digest = written.contentRef.split("/").at(-1)!;
-      const originalPath = join(directory, "molis-work-home", "feed", "evidence", "blobs", digest.slice(0, 2), `${digest}.blob`);
-      const originalCiphertext = readFileSync(originalPath, "utf8");
-
-      secrets.deleteIfPresent("system:feed:evidence-content-key:v1");
-      const migrated = createEvidenceContentStore({ secretStore: secrets });
-      assert.throws(() => migrated.read(written.contentRef), /key unavailable/u);
-      assert.deepEqual(migrated.write(markdown), written);
-      assert.equal(migrated.read(written.contentRef), markdown);
-      const fresh = migrated.write("# A new body after migration");
-      assert.equal(migrated.read(fresh.contentRef), "# A new body after migration");
-      assert.equal(readFileSync(originalPath, "utf8"), originalCiphertext, "v1 ciphertext is retained byte-for-byte");
-      const recoveryPath = join(directory, "molis-work-home", "feed", "evidence-recovered-v2", "blobs", digest.slice(0, 2), `${digest}.blob`);
-      assert.equal(readFileSync(recoveryPath, "utf8").includes("Migrated feed body"), false);
+      const home = join(directory, "molis-work-home"), before = homeStorageTree(join(home, "feed"));
+      resetSecretStoreCache();
+      const reopened = createEvidenceContentStore({ secretStore: createFileSecretStore() });
+      assert.equal(reopened.read(written.contentRef), markdown);
+      assert.deepEqual(reopened.write(markdown), written);
+      assert.deepEqual(homeStorageTree(join(home, "feed")), before);
+      const vault = JSON.parse(readFileSync(join(home, "feed", "secrets.json"), "utf8"));
+      assert.deepEqual(Object.keys(vault.entries), ["system:feed:evidence-content-key:v1"]);
+      assert.deepEqual(readdirSync(join(home, "feed")).filter(name => name.startsWith("evidence")), ["evidence"]);
     });
   } finally {
     rmSync(directory, { recursive: true, force: true });

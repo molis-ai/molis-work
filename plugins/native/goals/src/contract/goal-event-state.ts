@@ -290,6 +290,8 @@ export interface GoalEventUserConclusion {
   verdict: GoalEventUserConclusionVerdict;
   received_at: string;
   journal_seq: number;
+  /** The version the requirement's report had checked when the person decided; null when that report named none. */
+  checked: { artifact_id: string; version: number } | null;
 }
 
 export interface RecordGoalProgressSummaryInput {

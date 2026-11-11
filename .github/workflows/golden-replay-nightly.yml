@@ -1,0 +1,66 @@
+name: Golden replay nightly
+
+# Every golden Home, on macOS, once a day (specs/upgrade-continuity/golden-replay-design.md §5, 用户 2026-11-07): the only run of the signed samples that no path list can
+# leave out, and of goldens older than the latest three. It decides nothing about a merge: branch protection and the merge queue wait only for `Verify` (ci.yml). A failure
+# opens one issue, or adds to the one still open, so a broken night is seen without a new issue every day.
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 18 * * *"
+
+permissions:
+  contents: read
+
+jobs:
+  replay:
+    name: Replay every golden Home
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24.15.0
+
+      # The version is the root package.json "packageManager", the pin the other jobs use.
+      - name: Install pnpm
+        run: npm install --global "$(node -p 'require("./package.json").packageManager')"
+        timeout-minutes: 3
+
+      - name: Install dependencies
+        timeout-minutes: 5
+        run: |
+          export npm_config_nodedir="$(dirname "$(dirname "$(command -v node)")")"
+          pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      - name: Replay
+        run: node scripts/ci-golden-replay.mjs --all
+
+  report:
+    name: Open an issue for a failed night
+    needs: [replay]
+    if: ${{ github.event_name == 'schedule' && needs.replay.result == 'failure' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Open or add to the issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          title="金样回放（定时）失败"
+          open="$(gh issue list --state open --search "in:title \"$title\"" --json number --jq '.[0].number // empty')"
+          if [ -n "$open" ]; then
+            gh issue comment "$open" --body "又失败一次：$RUN_URL"
+          else
+            gh issue create --title "$title" --body "每天的金样回放没过：$RUN_URL。它不挡合并，只是路径清单和最近三份之外的问题要靠它发现。设计见 specs/upgrade-continuity/golden-replay-design.md 第 5 节。"
+          fi

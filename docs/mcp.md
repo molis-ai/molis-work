@@ -1,5 +1,7 @@
 # MCP 接入
 
+独立客户端连接：更新到 D0071 修复后，已有 Runtime 须在设置中重新接入并重启 MCP。凭据由确认接入生成，保存在安装 Home 的私有配置目录，不填写在 Runtime 配置中；移除接入即撤销。仅持 Home 主令牌的动作网关请求不能选择客户端身份。Home 快照不携带该凭据，恢复后须重新接入。工具名与动作合同不变。
+
 Molis Work 通过统一 Skill 连接项目。Runtime 消费 `molis_work_v1_context_resolve` 返回的公开状态、项目身份和连接，不读取 catalog 或数据库路径，也不从仓库名推断项目。已绑定 Session 或唯一、已验证 workspace membership 可以只读恢复；候选本身不授权绑定。
 
 ## Runtime 工作入口绑定（推荐）
@@ -30,20 +32,21 @@ MOLIS_WORK_MCP_AUDIENCE="runtime" \
 - 用户在当前对话明确要求新建一个命名项目后，Skill 调用 `molis_work_v1_context_create_and_bind` 并传入 `user_confirmed=true`、项目名称和幂等键。它只在 `~/.molis-work` 创建项目 DB 并绑定；失败不会留下孤儿项目。
 - 用户要求查看项目时，Skill 调用 `molis_work_v1_context_list_projects`；它不暴露数据库路径，也不改变当前连接。
 - 用户明确要求仅解绑当前工作入口时，Skill 调用 `molis_work_v1_context_unbind` 并传入 `user_confirmed=true`。它不删除项目、DB 或其他 Runtime 的绑定。
-- 删除项目及其 DB 是另一项单独确认：用户明确点名项目并确认删除后，Skill 调用 `molis_work_v1_project_delete` 并传入 `delete_confirmed=true` 和幂等键。成功后返回删除收据（含各插件数据所有者的清理步骤，未完成的步骤用同一个幂等键重试），Runtime 不能继续使用旧连接。各插件为这个项目保存的数据（文稿、问卷与回答、待办、记忆、助理工作等）一并删除。Molis Work 正在运行时，stdio MCP 把删除交给它执行（项目的终端和运行环境都在它那里）：项目里还有正在运行的终端时拒绝（`catalog.project_terminal_live`，请用户先关闭终端，再用同一个幂等键重试），否则它先释放项目的运行环境再删除，记忆一步也由它当场完成。Molis Work 没有运行时，MCP 进程自己删除（此时没有终端可检查）：记忆放在 Agent 执行服务里，MCP 进程不运行它，所以 Home 里有 Agent 运行环境时这一步留在收据里（pending），由之后运行的 Molis Work 接着清理（它启动时和运行中每分钟做一次），收据完成之前不能把它当作已经删净；Molis Work 没有运行时，用同一个幂等键重试也只会得到同样的 pending。
+- 删除项目及其 DB 是另一项单独确认：用户明确点名项目并确认删除后，Skill 调用 `molis_work_v1_project_delete` 并传入 `delete_confirmed=true` 和幂等键。成功后返回删除收据（含各插件数据所有者的清理步骤，未完成的步骤用同一个幂等键重试），Runtime 不能继续使用旧连接。各插件为这个项目保存的数据（文稿、问卷与回答、待办、记忆、助理工作等）一并删除。Molis Work 正在运行时，stdio MCP 把删除交给它执行（项目的终端和运行环境都在它那里）：项目里还有正在运行的终端时拒绝（`catalog.project_terminal_live`，请用户先关闭终端，再用同一个幂等键重试），否则它先释放项目的运行环境再删除，记忆一步也由它当场完成。Molis Work 没有运行时，MCP 进程自己删除（此时没有终端可检查）：记忆放在 Agent 执行服务里，MCP 进程不运行它，所以 Home 里有 Agent 运行环境时这一步留在收据里（pending），由之后运行的 Molis Work 接着清理（它启动时和运行中每分钟做一次），收据完成之前不能把它当作已经删净；Molis Work 没有运行时，用同一个幂等键重试也只会得到同样的 pending。MCP 入口不删默认输出目录里的文件：结果里的 `kept_output_directory` 指明留下的文件夹位置。
 
 Web 是可选查看和用户确认界面，不是连接项目或推进 Goal 的前置条件。浏览页面不会绑定 Runtime；项目设置管理 Session 关联与 workspace membership，不保存目录默认项目。项目创建、Runtime 配置、解除关联与删除仍各有自己的授权。
 
 ## 当前工具
 
-`molis-work-mcp` 只有两类工具：
+`molis-work-mcp` 对 Runtime 只有两类工具，受信管理入口另有第三类：
 
 - **连接工具**（平台工具，名称以 `molis_work_v1_` 开头）：`context_resolve`、`context_list_projects`、`context_reject_suggestion`、`context_bind`、`context_unbind`、`context_create_and_bind`、`project_delete`。连接工具不收 `actor_id`：宿主记录这次调用的 MCP 客户端与 Runtime 会话（`runtime:<runtime_id>:<会话>`；宿主没有声明稳定会话时只记 `runtime:<runtime_id>`），参数里带了身份字段会被 `mcp.unexpected_field` 拒绝，什么也不写。
 - **动作工具**：系统同一能力注册表里的每个动作，名称是 `molis_work_v1_action_<动作>__v<版本>`，例如 `molis_work_v1_action_goals.list__v1`。Goals、判断规则和各插件的能力都只经这一种方式对外。
+- **管理工具**（只在受信管理入口 `MOLIS_WORK_MCP_AUDIENCE=management` 出现）：`molis_work_v1_initialize`、`molis_work_v1_goal_tree_decide`、`molis_work_v1_event_decide`，各调用一个 Goals 动作（`goals.board.initialize@1`、`goals.tree.decide@1`、`goals.decisions.record@1`）；说明与业务字段取自动作定义，名字只在 `apps/mcp/src/tool-dispatch.ts` 与动作并列写一处。身份与参数的规则见本节末尾「用户的决定」那一段。
 
-动作工具只在用户为这个客户端、这个范围（全局或某个项目）逐项授权后出现。在「能力 → 对外接入」选择客户端和范围，可按名称或来源搜索、查看所需权限并逐项授权或撤销。授权准确绑定能力版本与提供方；发现和每次实际执行都检查最新授权，撤销后原连接的下一次调用也会被拒绝；客户端自己的工具列表可能需要刷新。项目绑定本身不授予任何动作。 在途搜索与已受理后台任务保留这次受理时的原精确授权代次；撤销后同值重新授权只对新受理调用生效，无关授权编辑和幂等保存不会打断合法调用。授权配置现为 v3，旧 v2 由统一离线维护窗口处理，运行时拒绝并保留原件。
+动作工具只在用户为这个客户端、这个范围（全局或某个项目）逐项授权后出现。在「能力 → 对外接入」选择客户端和范围，可按名称或来源搜索、查看所需权限并逐项授权或撤销。授权准确绑定能力版本与提供方；发现和每次实际执行都检查最新授权，撤销后原连接的下一次调用也会被拒绝；客户端自己的工具列表可能需要刷新。项目绑定本身不授予任何动作。 在途搜索与已受理后台任务保留这次受理时的原精确授权代次；撤销后同值重新授权只对新受理调用生效，无关授权编辑和幂等保存不会打断合法调用。错版的授权配置由统一离线维护窗口处理，运行时拒绝并保留原件。
 
-`goals.events.list`、`goals.events.latest`、`goals.events.read` 当前为 @2（MCP 工具名分别以 `__v2` 结尾），输出包含 `input_acknowledged` 系统记录。@1 已不再登记；固定的工作流程引用和外部客户端授权需重新选择 @2，刷新工具目录。`goals.events.acknowledge` 仍是 @1。
+`goals.events.list`、`goals.events.latest`、`goals.events.read` 的输出包含 `input_acknowledged` 系统记录。
 
 常用的 Goals 动作：
 
@@ -59,7 +62,7 @@ Web 是可选查看和用户确认界面，不是连接项目或推进 Goal 的�
 
 已精确授权的动作暂不可用时，`tools/list` 隐藏它；调用原工具名仍交给 Host 判断，返回同一原因和稳定错误码（例如 `actions.plugin_disabled`），并在这次操作留行时附可查询的诊断编号。未知、未授权、撤权或 provider/version 不匹配的名字仍在 MCP 入口拒绝，不恢复管理工具权限。
 
-AI来源修改已有对象时，提交动作schema声明的读取版本（`expected_version`、`expected_revision`、`expected_revisions`、`expected_updated_at`，Functions authoring用`updated_at`）。缺版本或版本表未覆盖全部`ids`时返回`actions.version_required`，原事实不变；先重新读取再由当前意图决定提交。实际schema允许的`expected_revision: null`仍表示create-if-absent，陈旧版本由owner拒绝。
+AI来源修改已有对象时，提交动作schema声明的读取版本（`expected_version`、`expected_revision`、`expected_revisions`、`expected_updated_at`）。缺版本或版本表未覆盖全部`ids`时返回`actions.version_required`，原事实不变；先重新读取再由当前意图决定提交。实际schema允许的`expected_revision: null`仍表示create-if-absent，陈旧版本由owner拒绝。
 
 动作的输入只含业务字段：项目、操作者和创建渠道由宿主从连接与会话注入，不接受 `project_id`、数据库路径、Web URL、`actor_id` / `actor_kind` / `runtime_actor_id`、`source_kind`。Runtime 写入时，宿主用会话身份生成审计作者（`runtime:<runtime_id>:<会话>`），没有稳定会话身份时写入被拒绝。
 
@@ -84,4 +87,4 @@ AI来源修改已有对象时，提交动作schema声明的读取版本（`expec
 
 Goals 事件拒绝的现行 code 使用 goals.<原前缀>.<原因>，例如 goals.event_config.version_conflict、goals.event_progress.stale_goal、goals.event_http.unexpected_field。消息、kind 与 details 保持原含义；不读取或返回旧前缀。
 
-规划 issue.code 的现行 enum 为 goals.planning.*；包含该输出的 goals.planning.impact、goals.planning.graph.check、goals.tree.check、goals.tree.decide 均为版本2。MCP树检查名为 molis_work_v1_action_goals.tree.check__v1；发现与授权应固定当前版本，旧工具名不再提供。semantic_review.review_action固定goals.planning.impact@2。
+规划 issue.code 的现行 enum 为 goals.planning.*；包含该输出的 goals.planning.impact、goals.planning.graph.check、goals.tree.check、goals.tree.decide 均为版本1。MCP树检查名为 molis_work_v1_action_goals.tree.check__v1；发现与授权应固定当前版本，旧工具名不再提供。semantic_review.review_action固定goals.planning.impact@1。

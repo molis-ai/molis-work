@@ -8,13 +8,13 @@ import { fileURLToPath } from "node:url";
 import test, { type TestContext } from "node:test";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
-const entry = join(root, "apps/server/dist/main.js"); // The package's documented `start` entry, launched as a program.
+const entry = join(root, "dist/cli/main.js"); // The public product CLI command, launched as a program.
 assert.ok(existsSync(entry), "Server CLI build is missing; run pnpm build before tests/server-cli.test.ts");
 const fixture = fileURLToPath(new URL("./fixtures/server-cli-close.mjs", import.meta.url));
 const stdoutFixture = fileURLToPath(new URL("./fixtures/server-cli-stdout.mjs", import.meta.url));
 const help = "serve --state DIR --config FILE --host-home DIR [--host-url http://127.0.0.1:4173] [--port 4187]\n"
   + "For LAN add --hostname ADDRESS --origin https://ADDRESS:PORT --cert FILE --key FILE\n"
-  + "authorize --state DIR --member ID --project ID --control-token-file FILE [--host-url URL] [--revoke]\n"
+  + "authorize --state DIR --member ID --project ID --host-home DIR --control-token-file FILE [--host-url URL] [--revoke]\n"
   + "members --state DIR\nrestore --bundle FILE --destination DIR\nread-assets --destination DIR --project SOURCE_PROJECT_ID\n";
 
 function home(t: TestContext): string {
@@ -25,7 +25,7 @@ function home(t: TestContext): string {
 
 function command(directory: string, args: string[], options: { preload?: boolean; env?: Record<string, string> } = {}) {
   const result = spawnSync(process.execPath, ["--no-warnings", "--unhandled-rejections=strict",
-    ...(options.preload ? ["--import", fixture] : []), entry, ...args], {
+    ...(options.preload ? ["--import", fixture] : []), entry, "server", ...args], {
     cwd: root, encoding: "utf8", timeout: 30_000,
     env: { ...process.env, MOLIS_WORK_HOME: directory, MOLIS_WORK_DEBUG: "", ...options.env },
   });
@@ -61,7 +61,7 @@ function assertForcedLog(stderr: string, signal: string): void {
 
 function closedPipe(t: TestContext, args: (directory: string) => string[]) {
   const directory = mkdtempSync(join(tmpdir(), "molis-server-pipe-"));
-  const child = spawn(process.execPath, ["--no-warnings", "--unhandled-rejections=strict", "--import", stdoutFixture, entry, ...args(directory)], {
+  const child = spawn(process.execPath, ["--no-warnings", "--unhandled-rejections=strict", "--import", stdoutFixture, entry, "server", ...args(directory)], {
     cwd: root, stdio: ["ignore", "pipe", "pipe", "ipc"],
     env: { ...process.env, MOLIS_WORK_HOME: directory, MOLIS_WORK_DEBUG: "" },
   });
@@ -84,7 +84,7 @@ function closedPipe(t: TestContext, args: (directory: string) => string[]) {
 async function forceShutdown(t: TestContext, first: NodeJS.Signals, second: NodeJS.Signals) {
   const directory = home(t), report = join(directory, "close.json"), config = join(directory, "config.json");
   writeFileSync(config, JSON.stringify({ projects: [] }));
-  const child = spawn(process.execPath, ["--no-warnings", "--unhandled-rejections=strict", "--import", fixture, entry,
+  const child = spawn(process.execPath, ["--no-warnings", "--unhandled-rejections=strict", "--import", fixture, entry, "server",
     "serve", "--state", join(directory, "server"), "--config", config, "--host-home", directory, "--port", "0"], {
     cwd: root, stdio: ["ignore", "pipe", "pipe", "ipc"],
     env: { ...process.env, MOLIS_WORK_HOME: directory, MOLIS_WORK_DEBUG: "", MOLIS_WORK_TEST_SERVER_CLOSE: "blocked",
@@ -137,7 +137,7 @@ test("RAC-110: server help, JSON output and startup instructions retain stdout a
   assert.match(lines[0], /^Molis Work Server: http:\/\/127\.0\.0\.1:[1-9]\d*\/continuity$/);
   assert.equal(lines[1], `Owner pairing code: ${join(started.state, "connect.json")} (10 minutes)`);
   assert.equal(lines[2], `Host action client: runtime:cross-device:${owner.id}`);
-  assert.equal(lines[3], "Required action grants: goals.state.read@1, goals.progress.record@1, goals.progress.receipt@1, artifacts.read@1");
+  assert.equal(lines[3], "Required action grants: goals.states.read@1, goals.progress.record@1, goals.progress.receipt@1, artifacts.read@1");
   assert.deepEqual(lines.slice(4), [""]);
   const listed = command(started.directory, ["members", "--state", started.state]);
   assert.equal(listed.status, 0, listed.stderr);
@@ -202,7 +202,7 @@ test("RAC-110: stdout errors other than EPIPE remain visible and fail the comman
   writeFileSync(file, "not a writable output");
   const fd = openSync(file, "r");
   try {
-    const result = spawnSync(process.execPath, ["--no-warnings", entry], {
+    const result = spawnSync(process.execPath, ["--no-warnings", entry, "server"], {
       cwd: root, stdio: ["ignore", fd, "pipe"], encoding: "utf8", timeout: 30_000,
       env: { ...process.env, MOLIS_WORK_HOME: directory, MOLIS_WORK_DEBUG: "" },
     });

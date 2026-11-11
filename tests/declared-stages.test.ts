@@ -105,6 +105,8 @@ test("MEM-V0-A4-L the noncurrent Feed directory frame stays inside its hidden ow
 
 test("T405-FULL-15: the shell applies the same project's saved directory width before CSS, with collection isolation and embedded exclusion", () => {
   const key = "molis-work-ui:" + PROJECT;
+  for (const scope of [undefined, "account/scope"] as const) {
+  const prefix = scope ? "molis-account-cache:" + encodeURIComponent(scope) + ":" : "";
   for (const [collection, width, storage, expected] of [
     ["current", 820, { [key + ":current"]: '{"treeWidth":240}' }, 240],
     ["current", 1440, { [key]: '{"treeWidth":311}' }, 311],
@@ -127,13 +129,14 @@ test("T405-FULL-15: the shell applies the same project's saved directory width b
     const documentElement: { dataset: Record<string, string> } = { dataset: {} };
     runInNewContext(script, { window, innerWidth: width, matchMedia,
       localStorage: { getItem(name: string) { localReads.push(name); return null; } },
-      sessionStorage: { getItem(name: string) { reads.push(name); return (storage as Record<string, string>)[name] ?? null; } },
-      document: { documentElement, createElement: () => ({}), head: { append: (style: { textContent?: string }) => styles.push(style) } } });
+      sessionStorage: { getItem(name: string) { reads.push(name); return name.startsWith(prefix) ? (storage as Record<string, string>)[name.slice(prefix.length)] ?? null : null; } },
+      document: { querySelector: () => scope ? { content: "page." + scope + ".signature" } : null, documentElement, createElement: () => ({}), head: { append: (style: { textContent?: string }) => styles.push(style) } } });
     // The skin preference (DESIGN「皮肤」) is read and applied with the other pre-paint preferences.
     assert.deepEqual(localReads, ["molis-work:theme", "molis-work:density", "molis-work:terminal-theme", "molis-work:skin"]);
     assert.deepEqual(documentElement.dataset, { theme: "system", resolvedTheme: "light", density: "standard", skin: "soft", terminalTheme: "auto", resolvedTerminalTheme: "light" });
     assert.deepEqual(styles.map(style => style.textContent), expected === undefined ? [] : [`body.immersive-workbench .immersive-workspace[data-workspace]{--tree-width:${expected}px}`]);
-    assert.ok(reads.every(name => name === key + ":" + collection || collection === "current" && name === key));
+    assert.ok(reads.every(name => name === prefix + key + ":" + collection || collection === "current" && name === prefix + key));
+  }
   }
   const embedded = renderMolisWorkWeb({ ...emptyView(), shown_plugins: [], pane_plugin: "home" });
   assert.ok(![...embedded.matchAll(/<script>([\s\S]*?)<\/script>/g)].some(match => match[1]!.includes(key)), "embedded panes do not read the outer project's directory preference");

@@ -1,5 +1,6 @@
+import { UI_HOST_CLIENT_CODES } from "@molis-ai/molis-work-contracts/platform/ui";
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
@@ -204,6 +205,26 @@ test("operation records are listed for the project that owns them, including no 
   }
 });
 
+// BL-computer-records-shape (#1960): a record missing what the list sorts by used to throw out of `list`, and the hourly sweep stopped with it.
+test("a record without its start time is skipped, so the others are still listed and their screenshots still swept", t => {
+  const home = mkdtempSync(path.join(tmpdir(), "cu-records-shape-"));
+  t.after(() => rmSync(home, { recursive: true, force: true }));
+  const records = new ComputerRecords(home);
+  const good = records.start({ session_id: "s", run_id: null, project_id: null, goal: "完整的一轮" });
+  records.step(good.id, { kind: "act", app: null, summary: "点一下" }, new Uint8Array([1, 2, 3]));
+  records.finish(good.id, { outcome: "completed", conclusion: "做完了", unfinished: [] });
+  const broken = records.start({ session_id: "s", run_id: null, project_id: null, goal: "缺开始时间" });
+  const file = path.join(home, "computer", "records", broken.id, "record.json");
+  const { started_at: _started, ...rest } = JSON.parse(readFileSync(file, "utf8")) as Record<string, unknown>;
+  writeFileSync(file, JSON.stringify(rest));
+  const before = readFileSync(file, "utf8");
+  assert.deepEqual(records.list().map(record => record.id), [good.id]);
+  assert.equal(records.get(broken.id), null);
+  assert.equal(records.sweep(Date.now() + 31 * 24 * 60 * 60 * 1000), 1, "the good record's screenshot is swept");
+  assert.equal(records.get(good.id)?.shots_removed_at !== null, true);
+  assert.equal(readFileSync(file, "utf8"), before, "the broken record is left as it is");
+});
+
 test("the desktop driver stores the round's project and frees the computer when that same driver releases", async () => {
   const home = mkdtempSync(path.join(tmpdir(), "cu-round-"));
   const settings = new ComputerSettings(home);
@@ -402,7 +423,7 @@ test("W3-10-4-01 RAC-910: the computer tab hands the record's words to the Host,
         const body = url.endsWith("/api/computer/records/rec-1") ? { record } : shelved.body;
         return new Response(JSON.stringify(body), { status: url.endsWith("/shelf") ? shelved.status : 200, headers: { "content-type": "application/json" } });
       },
-    });
+    }, UI_HOST_CLIENT_CODES);
     await put({ request, routePrefix: "/projects/p1", say: (text) => { said.push(text); },
       sayError: (error, fallback) => { said.push(error instanceof Error ? error.message : fallback ?? ""); },
       L: (text, vars) => text.replace(/\{(\w+)\}/g, (_, name: string) => String(vars?.[name] ?? "")), state: { record_id: "rec-1" } });

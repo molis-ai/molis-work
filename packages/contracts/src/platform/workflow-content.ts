@@ -1,3 +1,5 @@
+import { bindActionHandler, inputSchemaFor } from "./action-input.js";
+import { closedObjectSchema as object } from "./closed-object-schema.js";
 import type { ActionDefinition, ActionExecutionContext, ActionHandlerBinding, ActionReference, ActionSchema } from "./actions.js";
 
 /** Content handoffs are one explicit workflow protocol, not a claim that every action returns text. */
@@ -7,7 +9,7 @@ export interface WorkflowContentStation {
   readonly title: string;
   readonly icon: string;
   readonly role: WorkflowContentRole;
-  readonly protocol: 1;
+  readonly protocol: /* @version protocol.workflow-content */ 1;
   /** `false` on every role of a station that only starts a run; a station that receives says nothing. */
   readonly receives?: false;
 }
@@ -26,7 +28,10 @@ export interface WorkflowItemRef { readonly plugin: string; readonly item_id: st
 export interface WorkflowStartItem { readonly item_id: string; readonly title: string; readonly caption: string; readonly at: string | null }
 /** The version each role of the protocol is at now. A role changes shape only by raising its own number here: a station declares
  * every role at this version (the platform refuses another), so a saved reference to an older one stays pinned and reports why. */
-export const WORKFLOW_CONTENT_VERSIONS = { list: 1, read: 1, receive: 1, create: 1 } as const;
+export const WORKFLOW_CONTENT_VERSIONS = { list: /* @version protocol.workflow-content.list */ 1, read: /* @version protocol.workflow-content.read */ 1, receive: /* @version protocol.workflow-content.receive */ 1, create: /* @version protocol.workflow-content.create */ 1 } as const;
+
+/** The version each role's output format is at, maintained apart from the role's protocol number above. */
+export const WORKFLOW_CONTENT_OUTPUT_VERSIONS = { list: /* @version type.molis.workflow.content.list.output */ 1, read: /* @version type.molis.workflow.content.read.output */ 1, receive: /* @version type.molis.workflow.content.receive.output */ 1, create: /* @version type.molis.workflow.content.create.output */ 1 } as const;
 
 export interface WorkflowReceiveInput extends WorkflowPayload {
   /** One delivery. A receiver makes one object for a request id and returns that same object when the id arrives again (a retry
@@ -35,19 +40,19 @@ export interface WorkflowReceiveInput extends WorkflowPayload {
   readonly request_id: string;
 }
 
-const text = { type: "string" };
-const nullableText = { type: ["string", "null"] };
-const object = (properties: Record<string, unknown>, required = Object.keys(properties)): ActionSchema =>
-  ({ type: "object", properties, required, additionalProperties: false });
-const item = object({ plugin: { type: "string", pattern: "^[a-z][a-z0-9-]{1,40}$" }, item_id: { type: "string", minLength: 1 }, title: text });
-const requestId = { type: "string", minLength: 1, maxLength: 160 };
-const payloadProperties = { title: text, body: text, url: nullableText, source: nullableText, feed_item_id: nullableText };
-const payload = object(payloadProperties, ["title", "body"]);
+const text = { type: "string" } as const;
+const nullableText = { type: ["string", "null"] } as const;
+// The outputs stay erased: only the inputs are compared, and the exported type keeps no literal.
+const item: ActionSchema = object({ plugin: { type: "string", pattern: "^[a-z][a-z0-9-]{1,40}$" }, item_id: { type: "string", minLength: 1 }, title: text });
+const startItem: ActionSchema = object({ item_id: { type: "string", minLength: 1 }, title: text, caption: text, at: nullableText });
+const requestId = { type: "string", minLength: 1, maxLength: 160 } as const;
+const payloadProperties = { title: text, body: text, url: nullableText, source: nullableText, feed_item_id: nullableText } as const;
+const payload: ActionSchema = object(payloadProperties, ["title", "body"]);
 export const WORKFLOW_CONTENT_SCHEMAS = {
-  list: { input: object({}), output: { type: "array", items: object({ item_id: { type: "string", minLength: 1 }, title: text, caption: text, at: nullableText }) } },
-  read: { input: object({ item_id: { type: "string", minLength: 1 } }), output: payload },
-  receive: { input: object({ ...payloadProperties, request_id: requestId }, ["title", "body", "request_id"]), output: item },
-  create: { input: object({ title: text }), output: item },
+  list: { input: inputSchemaFor<Record<string, never>>()(object({})), output: { type: "array", items: startItem } },
+  read: { input: inputSchemaFor<{ item_id: string }>()(object({ item_id: { type: "string", minLength: 1 } })), output: payload },
+  receive: { input: inputSchemaFor<WorkflowReceiveInput>()(object({ ...payloadProperties, request_id: requestId }, ["title", "body", "request_id"])), output: item },
+  create: { input: inputSchemaFor<{ title: string }>()(object({ title: text })), output: item },
 } as const;
 
 export interface WorkflowContentActions {
@@ -67,13 +72,13 @@ const ROLE_TITLE = { list: "可交接内容", read: "读取内容", receive: "�
 const ROLE_SUMMARY = { list: "列出全部可选内容", read: "读取现有内容", receive: "写入交接内容", create: "创建空白内容" } as const;
 const isQueryRole = (role: WorkflowContentRole) => role === "read" || role === "list";
 
-/** What a role takes and returns is named by its own version; what it returns stays at `output.v1` until a role changes it. */
+/** Input types follow their role; each output format has its own independently maintained version. */
 function roleTypes(role: WorkflowContentRole) {
-  return { input_type: `molis.workflow.content.${role}.input.v${WORKFLOW_CONTENT_VERSIONS[role]}`, output_type: `molis.workflow.content.${role}.output.v1` };
+  return { input_type: `molis.workflow.content.${role}.input.v${WORKFLOW_CONTENT_VERSIONS[role]}`, output_type: `molis.workflow.content.${role}.output.v${WORKFLOW_CONTENT_OUTPUT_VERSIONS[role]}` };
 }
 
 function roleStation(station: WorkflowStationSpec & { receive?: boolean }, role: WorkflowContentRole): WorkflowContentStation {
-  return { id: station.id, title: station.title, icon: station.icon, role, protocol: 1, ...(station.receive === false ? { receives: false as const } : {}) };
+  return { id: station.id, title: station.title, icon: station.icon, role, protocol: /* @version protocol.workflow-content */ 1, ...(station.receive === false ? { receives: false as const } : {}) };
 }
 
 /** One role of one station, at the role's current version. Every station gets its roles from here, so a version moves for all of them at once. */
@@ -112,11 +117,12 @@ export interface WorkflowContentHandlers {
   receive?(input: WorkflowReceiveInput, caller: ActionExecutionContext): WorkflowItemRef | Promise<WorkflowItemRef>;
   create?(input: { title: string }, caller: ActionExecutionContext): WorkflowItemRef | Promise<WorkflowItemRef>;
 }
+function bindRole<I, O>(definition: ActionDefinition<I, O>, handler: ((input: I, caller: ActionExecutionContext) => O | Promise<O>) | undefined): ActionHandlerBinding {
+  if (!handler) throw new Error(`工作流内容能力缺少实现：${definition.capability_id}`);
+  return bindActionHandler(definition, handler);
+}
 export function bindWorkflowContentHandlers(definitions: WorkflowContentActions | WorkflowSourceContentActions, handlers: WorkflowContentHandlers): ActionHandlerBinding[] {
-  return Object.entries(definitions).map(([role, definition]) => {
-    const handler = handlers[role as WorkflowContentRole];
-    if (!handler) throw new Error(`工作流内容能力缺少实现：${definition.capability_id}`);
-    return { capability_id: definition.capability_id, version: definition.version,
-      handle: (caller, input) => role === "list" ? handlers.list(caller) : (handler as (value: unknown, caller: ActionExecutionContext) => unknown)(input, caller) };
-  });
+  const receive = "receive" in definitions ? definitions.receive : undefined;
+  return [bindRole(definitions.list, handlers.list && ((_input, caller) => handlers.list(caller))), bindRole(definitions.read, handlers.read),
+    ...(receive ? [bindRole(receive, handlers.receive)] : []), ...(definitions.create ? [bindRole(definitions.create, handlers.create)] : [])];
 }

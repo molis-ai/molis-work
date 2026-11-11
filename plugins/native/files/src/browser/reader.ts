@@ -1,6 +1,8 @@
+import { setContentHtml } from "@molis-ai/molis-work-plugin-sdk/browser";
 import type {} from "@molis-ai/molis-work-plugin-sdk/page-globals";
 import { FILES_PLUGIN_ID } from "../plugin-id.js";
-import { messageOf, said } from "./dom.js";
+import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
+import { said } from "./dom.js";
 import { active, companionState, request } from "./page.js";
 import type { FilesPage } from "./page.js";
 import { readErrors } from "./tree.js";
@@ -38,8 +40,8 @@ export function clearReader(page: FilesPage): void {
 export async function companions(page: FilesPage, ticket: number): Promise<void> {
   const [stats, diff] = await Promise.all([companionState<HtmlAnswer>(page, "text-stats"), companionState<HtmlAnswer>(page, "diff")]);
   if (!active(page, ticket)) return;
-  page.q("[data-files-stats]").innerHTML = stats.html ?? "";
-  page.q("[data-files-diff]").innerHTML = diff.html ?? "";
+  setContentHtml(page.q("[data-files-stats]"), stats.html ?? "");
+  setContentHtml(page.q("[data-files-diff]"), diff.html ?? "");
 }
 
 /** Reads one file into the reader. */

@@ -114,7 +114,7 @@ renderPluginStageShell({
 
 Pages 族：交互在插件包的 `CLIENT_FACTORY_SCRIPT`（常是 `src/client.ts` 导出的工厂字符串），在包 `registration` 里声明 `workbench.clientFactory` / `settingsClient`，由 `plugin-workbench.ts` 自动派生并注入。
 
-Feed / Inbox：没有这条 factory。列表、详情、来源对话框在 `apps/workbench/src/scripts/client/navigation-feed.ts`、`navigation-inbox.ts`、`events-primary.ts`。抄 Pages 的 client 到 Feed 不会接到现有画面。
+Feed / Inbox：随迁到 Plugin Runtime（FI-6）后，列表、详情、来源对话框在各自包里的 `plugins/native/feed/src/client.ts`、`plugins/native/inbox/src/client.ts`，由包 `registration` 声明；外壳的 `apps/workbench/src/scripts/client/navigation-surfaces.ts` 只管工作面切换（原 `navigation-feed.ts`，07-1 改名）。
 
 要做：打开列表、点一行、主按钮、返回、空态、错误、搜索。只服务端渲 HTML、不写客户端，主路径点不动。
 
@@ -161,6 +161,8 @@ Feed / Inbox：没有这条 factory。列表、详情、来源对话框在 `apps
 硬规则与用法：`packages/design-system/README.md`。
 
 ## 文案与 i18n
+
+这一节是内置插件第 16 批之前的写法，新写的外部插件用 `t` 和语言文件，见 [text-and-appearance.md](text-and-appearance.md)。
 
 - UI 字符串用中文当 key：`p.text("加入 Inbox")`。英文写插件 `src/en.ts`，**还要**在 `apps/workbench/src/i18n/en.ts` 里 `import { X_EN }` 并展开进总表。只写插件文件，英文界面仍是中文 key。两种漏写都由 `pnpm health:check` 拦下（CI 也跑）：调用的中文原文没有英文，和 `X_EN` 写了却没并进总表；`node scripts/gates/translations.mjs --missing` 列出缺哪句、该加到哪个词典，哪本词典没接上。检查靠变量名以 `_EN` 结尾认词典。
 - 带数的句子整句当一个 key，数用 `{name}` 填（`L("已选 {count} 项", { count })`），不要把数和半句拼起来。英文里跟着数变的词写成 `{count|one|other}`：`"{count} {count|file|files} selected"`，数是 1 时取前一个；同一个名字还要照常写一次 `{count}` 让数本身出现。填值只有一份写法，插件 SDK 的 `fillMessage`（Host 的 `L`、页面的 `L` 和 Coding 的 `codingText` 都用它），自己填值的地方也调它，不另写替换。`tests/fill-message.test.ts` 查英文里没有「{count} 名词s」这种不论单复数都用复数的写法。

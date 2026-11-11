@@ -28,8 +28,8 @@ const ACTIONS = ["save", "propose", "accept", "promote", "read", "manage-read", 
 
 /** The App's declared classification, intersected below with the person's live scope switches. */
 const POLICY: Options["policy"] = {
-  version: 2, preset: "manual",
-  taxonomy: { version: 1,
+  version: /* @version policy.memory.config */ 1, preset: "manual",
+  taxonomy: { version: /* @version policy.memory.taxonomy */ 1,
     scenes: { values: SCENES.map(id => ({ id, label: id })) },
     kinds: { values: ["preference", "convention", "fact", "experience", "habit", "project-decision"].map(id => ({ id, label: id })) },
     lifecycles: { values: [{ id: "long-term", label: "长期", retention: "persistent" },

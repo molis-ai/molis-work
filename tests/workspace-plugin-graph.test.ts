@@ -22,7 +22,7 @@ import { FILES_PLUGIN_ID, createFilesPlugin } from "@molis-ai/molis-work-plugin-
 import { GIT_PLUGIN_ID, createGitPlugin } from "@molis-ai/molis-work-plugin-git";
 import { TEXT_STATS_PLUGIN_ID, createTextStatsPlugin } from "@molis-ai/molis-work-plugin-text-stats";
 import { createShelfPlugin } from "@molis-ai/molis-work-plugin-shelf";
-import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
+import { projectDirectoryActions } from "@molis-ai/molis-work-contracts/modules/projects";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
 
 /** Artifact companions run independently of the retired Workspace plugin. */
@@ -41,17 +41,20 @@ function capturing(
   };
 }
 
-/** `browsing` answers the project's browsing folder, the only project setting the fixture serves; without it nothing is served. */
-function project(directory: string, browsing?: () => unknown) {
+/**
+ * `folders` answers the project's folders (`projects.directories.get@1`; the first is the output, the rest inputs), the only project
+ * setting the fixture serves; without it nothing is served.
+ */
+function project(directory: string, folders?: () => unknown) {
   const file = join(directory, "board.db");
   seedDemoBoard(file);
   const store = new LocalProjectDatabase(file);
   const artifacts = new ArtifactsModule({ db: store.db, appendEvent: (event) => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) });
   const actions = pluginActions(store, DEMO_PROJECT_ID);
-  const settings = browsing && fakeProjectSettings(actions, definition => {
-    assert.equal(definition.capability_id, projectSettingsCapabilities.browsingWorkspace.capability_id);
-    return browsing();
-  }, [projectSettingsCapabilities.browsingWorkspace]);
+  const settings = folders && fakeProjectSettings(actions, definition => {
+    assert.equal(definition.capability_id, projectDirectoryActions.get.capability_id);
+    return folders();
+  });
   const platform = createPluginPlatform({ actions,
     project_id: DEMO_PROJECT_ID,
     actor_id: "tester",
@@ -94,19 +97,31 @@ test("五个插件在真平台上一起起来，没有一个被依赖挡住", as
   }
 });
 
-test("Files reads browsing settings without a Workspace binding and rejects the retired input", async () => {
+// The folder Files browses is the page's own state (SSC-05): the page names it, and with none named Files reads the output (SSC-17).
+test("SSC-05 SSC-17 Files reads the folder the page names, or the output, without a Workspace binding and rejects the retired input", async () => {
   const directory = mkdtempSync(join(tmpdir(), "workspace-settings-graph-"));
-  let selected = { workspace_id: "one", display_name: "One", canonical_path: "/one", realpath_verified: true };
-  const { store, platform } = project(directory, () => selected);
+  let output = { workspace_id: "one", display_name: "One", canonical_path: "/one" };
+  const input = { workspace_id: "two", display_name: "Two", canonical_path: "/two" };
+  const { store, platform } = project(directory, () => [output, input]);
   try {
     const report = await platform.start([{ definition: createFilesPlugin(), trust: { level: "host" } }]);
     assert.deepEqual(report.failed, []);
-    const read = () => platform.router().dispatch({ method: "GET", pathname: "/api/plugins/io.molis.work.files/state", actor_id: "tester", query: {} });
+    type FilesState = { workspace: { workspace_id: string }; resolved: string | null };
+    const read = async (query: Record<string, string> = {}) => {
+      const response = await platform.router().dispatch({ method: "GET", pathname: "/api/plugins/io.molis.work.files/state", actor_id: "tester", query });
+      return { status: response?.status, body: response?.body as FilesState };
+    };
     const first = await read();
-    assert.equal(first?.status, 200);
-    assert.equal((first!.body as any).workspace.workspace_id, "one");
-    selected = { ...selected, workspace_id: "two", canonical_path: "/two" };
-    assert.equal(((await read())!.body as any).workspace.workspace_id, "two");
+    assert.equal(first.status, 200);
+    assert.equal(first.body.workspace.workspace_id, "one", "with none named, Files reads the output");
+    const named = await read({ workspace_id: "two" });
+    assert.equal(named.body.workspace.workspace_id, "two", "the folder the page names");
+    assert.equal(named.body.resolved, "two");
+    const foreign = await read({ workspace_id: "not-this-project" });
+    assert.equal(foreign.body.workspace.workspace_id, "one", "a folder that is not the project's is never read; the output is");
+    assert.equal(foreign.body.resolved, null);
+    output = { ...output, workspace_id: "three", canonical_path: "/three" };
+    assert.equal((await read()).body.workspace.workspace_id, "three", "a new output is read at once");
     assert.throws(() => platform.wiring.bind({ project_id: DEMO_PROJECT_ID, actor_id: "tester", target_plugin_id: FILES_PLUGIN_ID,
       target_port: "workspace", source_plugin_id: "io.molis.work.workspace", source_port: "workspace", origin: "user" }));
   } finally { store.close(); rmSync(directory, { recursive: true, force: true }); }
@@ -170,7 +185,7 @@ test("Coding fixed output reaches Diff through the production default binding wi
     assert.equal(platform.wiring.selectedGroup(DIFF_PLUGIN_ID), "snapshots", "publishing must not change the user's comparison group");
     // Coding records its change set as a process item (artifact-positioning A2), then selects it into the port.
     const saved = coding!.services!.processItems!.record({ artifact_id: "fixed-coding", version: 1, artifact_type_id: "coding.changeset.v1", schema_version: 1,
-      content: { kind: "inline", payload: { scope: "run-frozen", run_id: "run", applied: true, coverage: "text-reviews", files: [{ path: "a.ts", kind: "modified", diff: "", added_lines: 1, removed_lines: 1,
+      content: { kind: "inline", payload: { scope: "run-frozen", run_id: "run", applied: true, coverage: "text-reviews", origin: { session_id: "s", runtime_session_id: "r", workspace_id: "w", workspace_name: "w" }, files: [{ path: "a.ts", kind: "modified", diff: "", added_lines: 1, removed_lines: 1,
         review: { review_id: "review", before_text: "original\r\n", after_text: "fixed\n", decision: "approved", execution: "applied" } }] } } });
     coding!.services!.outputs!.select({ port: "changeset", reference: { artifact_id: saved.artifact.artifact_id, version: 1 }, expected_reference: null });
     await platform.wiring.drain();

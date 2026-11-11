@@ -210,15 +210,16 @@ describe("the records of this repository", () => {
     assert.deepEqual(vendoredProvenanceProblems(repoRoot), []);
   });
 
-  test("the current Prologue package is the clean merged Memory107 source consumed by agent-host", () => {
+  test("the current Prologue package is the clean upstream main merge of Memory V0 (#109) consumed by agent-host", () => {
     const provenance = json(`${folder}/${current}.provenance.json`);
     assert.equal(provenance.artifact.file, current);
     assert.equal(json("horizontal/agent-host/package.json").dependencies["@prologue/sdk"], `file:../../${folder}/${current}`);
-    assert.equal(provenance.source.commit, "1cc80b05253df798eeb34afff65d1bda06bee587");
-    assert.equal(provenance.source.candidateUpstream.pullRequest, "https://github.com/molis-ai/molis-prologue/pull/107");
-    assert.equal(provenance.source.candidateUpstream.head, provenance.source.commit);
+    // Built from the merge commit itself, which holds the former 1cc80b05 (#107) source.
+    assert.equal(provenance.source.commit, "314a27a73aa1674faa1c0a4d4dce7f137f97c37c");
+    assert.equal(provenance.source.candidateUpstream.pullRequest, "https://github.com/molis-ai/molis-prologue/pull/109");
+    assert.equal(provenance.source.candidateUpstream.head, "008e1b0f7dd25238c6a80ed975b9bfea83d98b5c");
     assert.equal(provenance.source.candidateUpstream.status, "merged");
-    assert.equal(provenance.source.candidateUpstream.mergeCommit, "ccafbb74fb9db0e3a124ec502c57291677487e23");
+    assert.equal(provenance.source.candidateUpstream.mergeCommit, provenance.source.commit);
     assert.equal(provenance.source.inFlight, undefined);
     assert.deepEqual(provenance.source.patches, []);
     assert.equal(provenance.source.dirty, false);
@@ -252,12 +253,14 @@ describe("the records of this repository", () => {
     assert.deepEqual(patches, named ? [named] : []);
   });
 
-  test("patch-history.json holds the 26 deleted patches and the 32 packages that never had one", () => {
+  test("patch-history.json holds the 26 deleted patches and the 33 packages that never had one", () => {
     const record = json(`${folder}/patch-history.json`);
     assert.equal(record.patches.length, 26);
-    assert.equal(record.packagesWithoutPatch.length, 32);
-    // The 32nd is the preceding formal retry-waiting dependency; local42 was not formally adopted.
-    assert.equal(record.packagesWithoutPatch.at(-1).file, "prologue-sdk-0.0.0-rc.1-retry-waiting.tgz");
+    assert.equal(record.packagesWithoutPatch.length, 33);
+    // The 32nd is the preceding formal retry-waiting dependency; local42 was not formally adopted. The 33rd is main's
+    // memory-p0 package from 1cc80b05, replaced under the same name by the #109 merge (2026-11-11).
+    assert.equal(record.packagesWithoutPatch.at(-2).file, "prologue-sdk-0.0.0-rc.1-retry-waiting.tgz");
+    assert.equal(record.packagesWithoutPatch.at(-1).commit, "1cc80b05253df798eeb34afff65d1bda06bee587");
     assert.equal(record.patches.reduce((sum: number, patch: { bytes: number }) => sum + patch.bytes, 0), 2_791_897);
     const kinds = record.patches.reduce((count: Record<string, number>, patch: { sourceKind: string }) => ({ ...count, [patch.sourceKind]: (count[patch.sourceKind] ?? 0) + 1 }), {});
     assert.deepEqual(kinds, { "upstream-commit": 8, "uncommitted-worktree": 17, "molis-repo": 1 });
@@ -266,7 +269,7 @@ describe("the records of this repository", () => {
     const networkDispatch = record.patches.find((patch: { file: string }) => patch.file === "network-dispatch.patch");
     assert.equal(networkDispatch.package.sha256, "7ee09e00ef074b761c0d44a86a7d357e11485ea26868f3e77fb99ed757ae384e");
     assert.equal(networkDispatch.package.file, "prologue-sdk-0.0.0-rc.1-network-dispatch.tgz");
-    assert.equal(record.upstream.commitsChecked.length, 42);
+    assert.equal(record.upstream.commitsChecked.length, 43);
     // The commit named for retrieval is one that is known to hold every patch; it is not "the last one" (every later commit
     // on main up to the deletion holds them too), so the key must not say so.
     assert.deepEqual(Object.keys(record.retrieval).filter((key) => /^last/i.test(key)), []);
@@ -285,6 +288,6 @@ describe("the records of this repository", () => {
     // the source commits are pushed (merged upstream as PR #3), the network-dispatch hash was recorded.
     assert.doesNotMatch(readme, /暂未推到|没有推到 molis-ai\/prologue|当时没有记录|未记录/);
     assert.doesNotMatch(readme, /最后一次含有它们的提交/);
-    assert.doesNotMatch(file("specs/BACKLOG.md"), /^\| BL-024 \|/m);
+    assert.equal(existsSync(path.join(repoRoot, "specs/backlog/BL-024.md")), false, "the completed item must not remain in the independent backlog records");
   });
 });

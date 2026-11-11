@@ -10,9 +10,13 @@ export type PluginDeployment = "local" | "server";
 /**
  * `app` is a v2 Plugin that contributes views, commands, routes, ports and
  * events. `native` stays the v1 first-party entry; `integration` stays the
- * Provider shape. The kind selects the contribution, never the trust level.
+ * Provider shape. `content` is a plugin with only declarations (「只有声明的插件」,
+ * specs/skill-packs/contract-design.md §3): no entrypoint, permission, capability,
+ * 成果 type or UI contribution, only the keys the SDK's `inspectContentPlugin`
+ * allows; it is installed from a signed content package and never started.
+ * The kind selects the contribution, never the trust level.
  */
-export type PluginKind = "native" | "integration" | "app";
+export type PluginKind = "native" | "integration" | "app" | "content";
 
 export interface PluginPermissionDeclaration {
   permission: string;
@@ -110,11 +114,22 @@ export type PluginMessagesDeclaration = Readonly<Record<string, { readonly zh: s
 /** A Plugin's English for words still keyed by their Chinese source text. */
 export type PluginTranslationsDeclaration = Readonly<Record<string, string>>;
 
+/** The languages a Plugin has words in; the words of each are the package's `locales/<language>.json`. */
+export interface PluginLocalesDeclaration {
+  readonly default: string;
+  readonly available: readonly string[];
+}
+
+/** A bad list costs one message per entry, and a language is a file in the package: far more than any plugin translates into, so the author's mistake, not a real need. */
+export const PLUGIN_LOCALE_LIMITS = { available: 32 } as const;
+
 export interface PluginManifest {
+  /** Optional project demo initializer: own workflow command with an empty object input. Invoked after Runtime startup only for trusted regenerable_demo projects. */
+  demo_seed?: { capability_id: string; version: number };
   /** Portable collections; requires an authorized owner adapter. */
   sync?: import("./plugin-sync.js").PluginSyncDeclaration;
   /** The current Manifest format; all plugins declare version 1. */
-  schema_version: 1;
+  schema_version: /* @version manifest.schema */ 1;
   plugin_id: string;
   version: string;
   name: string;
@@ -130,7 +145,7 @@ export interface PluginManifest {
     /** Signature identity. A changed value creates a different Plugin identity. */
     signature: string;
   };
-  host_api_version: 1;
+  host_api_version: /* @version host.api */ 1;
   /**
    * 常开插件. Enabled in every project, never listed where plugins are chosen, added or removed (the plugin list, the
    * market, the Dock, a project's plugin settings), so it cannot be removed. Only a plugin that ships with the Host may
@@ -193,6 +208,8 @@ export interface PluginManifest {
      * Plugin is not changed by it, and the Host's own English wins. New words use `messages`.
      */
     translations?: PluginTranslationsDeclaration;
+    /** The Plugin's languages. A Manifest that declares them writes neither `messages` nor `translations`: no Plugin takes both roads. */
+    locales?: PluginLocalesDeclaration;
   };
   /** named, typed connection points wired by the user inside a project. */
   ports?: PluginPortsDeclaration;
@@ -209,7 +226,7 @@ export interface PluginManifest {
    * in its domain with the capability gateway. Bodies ship in the package; the Host registers them with the Plugin and
    * gives them to a round only by id and version. `agent.skills` is the Plugin's own Agent's; this is for others.
    */
-  methods?: import("./plugin-agent.js").AgentSkillDeclaration[];
+  methods?: import("./plugin-agent.js").PluginMethodDeclaration[];
   /** Exact old installation versions this release can upgrade from. */
   upgrade_compatibility?: PluginUpgradeCompatibilityDeclaration;
   /** The plugin's own tables, by scope (PG-020, specs/archive/plugin-project-database). */
@@ -242,6 +259,12 @@ export interface PluginManifest {
   background?: { jobs: readonly import("./plugin-background.js").PluginJobDeclaration[]; wakeups?: readonly import("./plugin-scheduler.js").PluginWakeupDeclaration[] };
   /** the plugin takes the platform's notifications (`services.notifications` of the plugins that send them), by one of its own actions (D6-2). */
   notifications?: import("./plugin-notifications.js").PluginNotificationReceiverDeclaration;
+  /** Stable setting entries and the declaring owner’s read and write actions. */
+  settings_entries?: import("./settings.js").SettingsDeclaration;
+  /** A content pack's Blueprint files. The default is blueprint.json; this lists the translated editions. */
+  blueprint?: { locales: string[] };
+  /** Content types this owner can adopt, through its declared actions. */
+  adopts?: readonly import("./blueprints.js").AdoptsDeclaration[];
   /** Complete, callable capabilities registered with the system action service. */
   actions?: readonly import("./actions.js").ActionDefinition[];
   /** Actual judgment consumption points, automatically discovered by configuration UIs. */
@@ -250,4 +273,9 @@ export interface PluginManifest {
   read_groups?: readonly import("./plugin-read-groups.js").PluginReadGroupDeclaration[];
   /** What this plugin's background tasks are, by its own object kind (`plugin-task-subjects.ts`). */
   task_subjects?: import("./plugin-task-subjects.js").PluginTaskSubjectsDeclaration;
+  /**
+   * How its objects are shown in the four basic forms and how the plugin is summed up (`platform/presentation`, specs/shared-sources-and-surfaces §5).
+   * `parsePluginManifest` checks it with the SDK's `validatePresentationDeclaration`.
+   */
+  presentation?: import("./presentation.js").PresentationDeclaration;
 }

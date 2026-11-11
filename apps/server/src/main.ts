@@ -3,11 +3,10 @@ import { resolve, join } from "node:path";
 import { parseArgs } from "node:util";
 import { openServerDatabase, transaction, Identity, ServerEvents, ContinuityService, startServer, createImDomain, memberClientId, CONTINUITY_ACTIONS, type ProjectScope } from "@molis-ai/molis-work-server";
 import { renderImPage, IM_STYLES, IM_CLIENT_SCRIPT } from "@molis-ai/molis-work-im-ui";
-import { hostLog } from "@molis-ai/molis-work-app-local-host";
-import { configureMemberActions } from "./admin-grants.js";
-import { gatewayFactory } from "./gateway.js";
-import { restoreWorkAssets, readRestoredAssets } from "./assets.js";
+import type { ServerCompositionPorts } from "./ports.js";
 
+export async function runServer(args: string[], ports: ServerCompositionPorts): Promise<"serving" | "done"> {
+const { configureMemberActions, gatewayFactory, restoreWorkAssets, readRestoredAssets, diagnostics } = ports;
 // A closed pipe is an expected consumer decision; other output failures must remain visible.
 process.stdout.on("error", (error: NodeJS.ErrnoException) => {
   if (error.code !== "EPIPE") throw error;
@@ -16,15 +15,15 @@ function writeOutput(text: string): void {
   process.stdout.write(text);
 }
 
-const {values,positionals}=parseArgs({allowPositionals:true,options:{state:{type:"string"},config:{type:"string"},"host-home":{type:"string"},"host-url":{type:"string"},port:{type:"string"},hostname:{type:"string"},origin:{type:"string"},cert:{type:"string"},key:{type:"string"},bundle:{type:"string"},destination:{type:"string"},project:{type:"string"},name:{type:"string"},member:{type:"string"},"control-token-file":{type:"string"},revoke:{type:"boolean"}}});
+const {values,positionals}=parseArgs({args,allowPositionals:true,options:{state:{type:"string"},config:{type:"string"},"host-home":{type:"string"},"host-url":{type:"string"},port:{type:"string"},hostname:{type:"string"},origin:{type:"string"},cert:{type:"string"},key:{type:"string"},bundle:{type:"string"},destination:{type:"string"},project:{type:"string"},name:{type:"string"},member:{type:"string"},"control-token-file":{type:"string"},revoke:{type:"boolean"}}});
 const command=positionals[0] ?? "help";
 if(command === "authorize") {
-  if(!values.state || !values.member || !values.project || !values["control-token-file"])throw Error("authorize requires --state, --member, --project and --control-token-file");
+  if(!values.state || !values.member || !values.project || !values["control-token-file"] || !values["host-home"])throw Error("authorize requires --state, --member, --project, --host-home and --control-token-file");
   const storage=openServerDatabase(resolve(values.state));
   try {
     const role=new Identity(storage.db).roleOf(values.project,values.member);
     if(!values.revoke && !role)throw Error("Member has no access to this project");
-    writeOutput(JSON.stringify(await configureMemberActions({hostUrl:values["host-url"] ?? "http://127.0.0.1:4173",controlTokenFile:resolve(values["control-token-file"]),memberId:values.member,projectId:values.project,role:values.revoke?"revoked":role!}),null,2) + "\n");
+    writeOutput(JSON.stringify(await configureMemberActions({hostUrl:values["host-url"] ?? "http://127.0.0.1:4173",homeDirectory:resolve(values["host-home"]),controlTokenFile:resolve(values["control-token-file"]),memberId:values.member,projectId:values.project,role:values.revoke?"revoked":role!}),null,2) + "\n");
   } finally {storage.close();}
 } else if(command === "members") {
   if(!values.state)throw Error("members requires --state");
@@ -57,24 +56,31 @@ if(command === "authorize") {
   const bootstrap=identity.code("bootstrap",owner.id);await writeFile(join(state,"connect.json"),JSON.stringify(bootstrap,null,2),{mode:0o600});
   const tls=values.cert && values.key ? {cert:await readFile(resolve(values.cert),"utf8"),key:await readFile(resolve(values.key),"utf8")} : undefined;
   const running=await startServer({identity,continuity,events,im:createImDomain({db:storage.db,identity,events}),port:Number(values.port ?? 4187),hostname:values.hostname,
-    publicOrigin:values.origin,tls,imAssets:{html:renderImPage({embedded:false}),css:IM_STYLES,script:IM_CLIENT_SCRIPT}});
+    publicOrigin:values.origin,tls,imAssets:{html:request=>renderImPage({embedded:false,locale:request.headers["accept-language"]?.toLowerCase().startsWith("en")?"en":"zh-CN"}),css:IM_STYLES,script:IM_CLIENT_SCRIPT}});
   const address = running.server.address();
-  if (address && typeof address === "object") hostLog.debug("server", "listening", { address: address.address, port: address.port, tls: Boolean(tls) });
+  if (address && typeof address === "object") diagnostics.debug("listening", { address: address.address, port: address.port, tls: Boolean(tls) });
   writeOutput(`Molis Work Server: ${running.origin}/continuity\nOwner pairing code: ${join(state,"connect.json")} (10 minutes)\nHost action client: ${memberClientId(owner.id)}\n`);
   writeOutput(`Required action grants: ${CONTINUITY_ACTIONS.map(a=>a.capability_id+"@"+a.version).join(", ")}\n`);
   let closing = false;
   const close = async (signal: "SIGINT" | "SIGTERM") => {
     if (closing) {
-      hostLog.warn("server", "shutdown_forced", undefined, { signal, remaining_cleanup_skipped: true });
+      diagnostics.warn("shutdown_forced", { signal, remaining_cleanup_skipped: true });
       process.exit(signal === "SIGINT" ? 130 : 143);
     }
     closing = true;
     let exitCode = 0;
     try { await running.close(); }
-    catch (error) { exitCode = 1; hostLog.error("server", "shutdown_failed", error, { phase: "transport" }); }
+    catch (error) { exitCode = 1; diagnostics.error("shutdown_failed", error, { phase: "transport" }); }
     try { storage.close(); }
-    catch (error) { exitCode = 1; hostLog.error("server", "shutdown_failed", error, { phase: "storage" }); }
+    catch (error) { exitCode = 1; diagnostics.error("shutdown_failed", error, { phase: "storage" }); }
     process.exit(exitCode);
   };
   process.on("SIGINT", () => close("SIGINT")); process.on("SIGTERM", () => close("SIGTERM"));
-} else writeOutput("serve --state DIR --config FILE --host-home DIR [--host-url http://127.0.0.1:4173] [--port 4187]\nFor LAN add --hostname ADDRESS --origin https://ADDRESS:PORT --cert FILE --key FILE\nauthorize --state DIR --member ID --project ID --control-token-file FILE [--host-url URL] [--revoke]\nmembers --state DIR\nrestore --bundle FILE --destination DIR\nread-assets --destination DIR --project SOURCE_PROJECT_ID\n");
+  return "serving";
+} else writeOutput("serve --state DIR --config FILE --host-home DIR [--host-url http://127.0.0.1:4173] [--port 4187]\nFor LAN add --hostname ADDRESS --origin https://ADDRESS:PORT --cert FILE --key FILE\nauthorize --state DIR --member ID --project ID --host-home DIR --control-token-file FILE [--host-url URL] [--revoke]\nmembers --state DIR\nrestore --bundle FILE --destination DIR\nread-assets --destination DIR --project SOURCE_PROJECT_ID\n");
+
+await new Promise<void>((resolve, reject) => process.stdout.write("", error => {
+  if (error && (!("code" in error) || error.code !== "EPIPE")) reject(error); else resolve();
+}));
+return "done";
+}

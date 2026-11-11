@@ -1,8 +1,10 @@
 /** The agent-host contract (`services/agent-host`): what a run is started with, frozen when it starts — workspace, materials, references, budget, the Character and its role, the action client — and the authority checks the Host adds. */
-import type { ActionCallOrigin, ExactActionReference, ActionView } from "../platform/actions.js";
+import type { ActionCallOrigin, ActionLocale, ExactActionReference, ActionView } from "../platform/actions.js";
 import type { ArtifactReference, ArtifactProducerIdentity } from "../modules/artifacts.js";
 import type { CharacterContent } from "../modules/characters.js";
-import type { AgentRoleExecution, AgentPromptLayer, AgentSkillDeclaration, AgentPromptText, AgentSkillDefinition } from "../platform/plugin-agent.js";
+import type { RunDirectories } from "../modules/projects.js";
+import type { AgentRoleExecution, AgentPromptLayer, AgentPromptText } from "../platform/plugin-agent.js";
+import type { SkillRef } from "./agent-definitions.js";
 import type { AgentActionOffer } from "./agent-host-offers.js";
 import type { AgentRecalledMemory } from "./agent-host-memory.js";
 import type { AgentSessionRef } from "./agent-host-runtime.js";
@@ -24,7 +26,7 @@ export interface AgentWorkingDirectory {
   realpath_verified: boolean;
 }
 
-/** Absence retains the historical workspace requirement. No process cwd fallback is permitted. */
+/** Absent means required, the default mode: the request names its directory. No process cwd fallback is permitted. */
 export type AgentWorkspace =
   | { workspace?: "required"; directory: AgentWorkingDirectory }
   | { workspace: "none"; directory?: never }
@@ -70,19 +72,31 @@ export function agentTextMaterialContent(material: AgentTextMaterial): string {
   return content;
 }
 
-export interface AgentSkillRef {
-  skill_id: string;
-  version: number;
+/** A Skill a round was frozen with (`AgentRunView.frozen.skills`), without its body (specs/capability-pack/contract-design.md §2.5). */
+export interface AgentFrozenSkill {
+  ref: SkillRef;
+  /** `own`: the starting plugin's own `agent.skills`; `catalog`: another plugin's Manifest `methods`, read from `system.skills`. */
+  origin: "own" | "catalog";
+  name: string;
+  /** Declared. For `catalog`, only a description; what the round could use is `host_tools`. */
+  tools: string[];
+  /** It was in the round's frozen named list. */
+  named: boolean;
+}
+
+/** A frozen Skill with the exact body the Host read for the round. Host composition only; the body is never in the run's record. */
+export interface AgentRoundSkill extends AgentFrozenSkill {
+  body: string;
 }
 
 export interface AgentMcpToolRef {
   server: string;
   tool: string;
-  /** Required for execution; older unversioned selections must be reselected. */
-  version?: string;
+  /** The tool's shape as chosen: execution refuses it once the service offers another shape, and the person chooses again. */
+  version: string;
   server_label?: string;
   /** Pins the endpoint, credentials and launch configuration, independently of tool schema. */
-  configuration_version?: number;
+  configuration_version: number;
 }
 
 /** Explicit access to the documents of a configured MCP service, without its external tools. */
@@ -149,6 +163,11 @@ interface AgentFrozenStartFields {
   continues_step_board_of?: string;
   /** Child directory grants frozen for this run; never a grant to write the parent. */
   subagent_workspaces?: AgentSubagentWorkspace[];
+  /**
+   * Where the round works, as the project's folders were when it started (specs/shared-sources-and-surfaces §3): this says where,
+   * never whether. Present on a round in a directory; a view shows it beside the project's folders now.
+   */
+  directories?: RunDirectories;
   /** Authoritative fixed Character content and source at start, never looked up for history. */
   character?: AgentFrozenCharacter;
   role_id: string;
@@ -180,7 +199,9 @@ interface AgentFrozenStartFields {
   prompts: Array<{ prompt_id: string; version: number; layer: AgentPromptLayer;
     /** Present when the run used the person's edit of this prompt (its revision) instead of the default. */
     user_revision?: number }>;
-  skills: AgentSkillDeclaration[];
+  skills: AgentFrozenSkill[];
+  /** The language the round was told to reply in (`AgentStartAuthority.reply_language`); absent when it was told none. */
+  reply_locale?: ActionLocale;
   mcp_tools: AgentMcpToolRef[];
   mcp_sources?: AgentMcpSourceRef[];
   host_tools: string[];
@@ -222,8 +243,9 @@ export interface AgentFrozenSubagentRole {
   prompts: AgentPromptText[]; host_tools: string[];
 }
 
+/** A writing child's own directory: one of the Host's worktrees of the output, named by its `worktree_id` (never a directory of the project). */
 export interface AgentSubagentWorkspace {
-  workspace_id: string;
+  worktree_id: string;
   directory: AgentWorkingDirectory;
 }
 
@@ -313,6 +335,8 @@ export interface AgentFrozenRole {
   actions?: { tools: ActionView[]; client: AgentActionClient };
   character_skill_ids?: string[];
   subagent_workspaces?: AgentSubagentWorkspace[];
+  /** Trusted Host composition only: where the round works, frozen into its record (`directories`). */
+  directories?: RunDirectories;
   subagents?: AgentFrozenSubagentRole[];
   character?: AgentFrozenCharacter;
   role_id: string;
@@ -324,8 +348,10 @@ export interface AgentFrozenRole {
   ending_review?: { prompt: AgentPromptText };
   /** Prompt bodies in composition order. */
   prompts: AgentPromptText[];
-  /** Exact method bodies resolved by the Host, never accepted from the request. */
-  skills?: AgentSkillDefinition[];
+  /** Exact Skill bodies resolved by the Host, never accepted from the request. */
+  skills?: AgentRoundSkill[];
+  /** The language the Host told the round to reply in; its words are among `prompts`. */
+  reply_locale?: ActionLocale;
   /** Host tool names this role may call. */
   host_tools: string[];
 }
@@ -381,7 +407,12 @@ interface AgentStartInputFields {
   text_materials?: AgentTextMaterial[];
   /** Images for the model to see in this Run; refused when the selected model is marked as not seeing images. */
   image_materials?: AgentImageMaterial[];
-  skills?: AgentSkillRef[];
+  /**
+   * Exact references: the starting plugin's own `agent.skills`, or Skills of the shared catalog (`skills.catalog.list@1`), at most
+   * `SKILL_BODY_READ_MAX_REFS`. What to load, not who named them: a `manual` Skill is read only if the Host's frozen named list for
+   * this round has it (specs/capability-pack/contract-design.md §3.1).
+   */
+  skills?: SkillRef[];
   mcp_tools?: AgentMcpToolRef[];
   mcp_sources?: AgentMcpSourceRef[];
   budget?: AgentRunBudget;

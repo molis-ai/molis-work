@@ -1,11 +1,9 @@
-import type { AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
-import type { AgentImageMaterial, AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentImageMaterial, AgentRoundSkill, AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentPendingQuestion } from "@molis-ai/molis-work-contracts/services/agent-interaction";
 import type {
   AgentRuntimeAdapter,
   AgentRecalledMemory,
   AgentMemoryUseReceipt,
-  AgentSkillLibrary,
   AgentMcpLibrary,
   AgentMcpToolRef,
   AgentMcpSourceRef,
@@ -115,7 +113,7 @@ export interface PrologueStartInput {
   text_materials?: readonly AgentTextMaterial[];
   /** Images shown to the model in this Run (runtime resource references). */
   image_materials?: readonly AgentImageMaterial[];
-  skills?: readonly AgentSkillDefinition[];
+  skills?: readonly AgentRoundSkill[];
   mcp_tools?: readonly AgentMcpToolRef[];
   mcp_sources?: readonly AgentMcpSourceRef[];
   /** Read-only work never asks to write; the Host decides this, not the model. */
@@ -161,7 +159,6 @@ export interface PrologueRuntimePort {
   /** Documents parsed by the runtime's own parsers. */
   documents?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentDocumentCapability;
   checkpoints?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentCheckpointsCapability;
-  skillLibrary?: AgentSkillLibrary;
   mcpLibrary?: AgentMcpLibrary;
   saveRunTiming?(run: AgentRunRef, timing: PrologueRunTiming): Promise<void>;
   /** This runtime prepares selected bounded text methods through SDK public APIs. */

@@ -1,3 +1,4 @@
+import { projectPluginRevisionAt } from "./fixtures/project-plugin-settings.js";
 import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -18,10 +19,12 @@ import { workspaceReadActions } from "@molis-ai/molis-work-contracts/modules/wor
 import type { ActionCallContext, ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { HOST_WORKSPACE_CHANGED_EVENT, type PluginDefinition, type PluginManifest, type PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { DEMO_PROJECT_ID, HOST_PROVIDER_ID, LocalProjectDatabase, MolisWorkLocalHost, PluginHostExecutor, molisWorkHostProjectReference, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
+import { directoriesWebOf, setProjectOutputFolder } from "./fixtures/project-directories-http.js";
 import { callAs, callerPlugin, issuedCaller, registerProbe, startProjectPlugins } from "./fixtures/plugin-callers.js";
 import { PENDING, within } from "./fixtures/stopped-calls.js";
 import { initializeBoard } from "./fixtures/goals-board.js";
+import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 
 /** The parts of the routes' JSON answers this test reads; a key a route does not send fails the assertion that reads it. */
 interface Reply {
@@ -141,12 +144,22 @@ test("one read action serves everyone: the whole file is for plugins, and a call
   await mkdir(home, { recursive: true }); await mkdir(folder, { recursive: true });
   await writeFile(join(folder, "chart.png"), PNG);
   execFileSync("git", ["init", "-q", "-b", "main"], { cwd: folder });
-  const workspace = { workspace_id: "workspace-one", canonical_path: folder, realpath_verified: true, display_name: "repository" };
-  const reference = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "project-one" });
-  const person = (permissions: readonly string[], audience: ActionCallContext["audience"] = "user"): ActionCallContext => ({ actor_id: "web-user", project_id: "project-one", audience, permissions });
+  // The read's dependents read the project's directories, so the Host keeps a real catalog, with the folder as the project's output.
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
+  const project = await catalog.createProject({ display_name: "repository", actor_id: "web-user" });
+  const projectId = project.project_id;
+  catalog.changeDirectories({ project_id: projectId, actor_id: "web-user", change: { kind: "set_output", target: { workspace_path: folder } },
+    expected_revision: catalog.projectDirectories(projectId).revision });
+  for (const plugin_id of ["files", "git"]) catalog.addProjectPlugin({ project_id: projectId, plugin_id, actor_id: "web-user" });
+  catalog.close();
+  const workspace = (await withMolisWorkProjectCatalog({ homeDirectory: home }, item => item.listWorkspaceDirectory(projectId))).find(item => item.canonical_path === folder)!;
+  const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId });
+  const person = (permissions: readonly string[], audience: ActionCallContext["audience"] = "user"): ActionCallContext => ({ actor_id: "web-user", project_id: projectId, audience, permissions });
   const everything = ["artifact:read", "artifact:write", "storage:private", "workspace:read"];
   const reader = callerPlugin("workspacereader", "project", { "workspace:read": true });
-  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, workspacesFor: async () => [workspace], pluginFixtures: { project: [reader.definition] } });
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, workspacesFor: async id => run({ homeDirectory: home }, item => item.listWorkspaceDirectory(id)), pluginFixtures: { project: [reader.definition] } });
+  // The Host holds the Home, so its folders are read through the catalog runner it hands back, as the web server does.
+  const run = host.configurePersonalPlanning(home, withMolisWorkProjectCatalog);
   const bare = new MolisWorkLocalHost({ homeDirectory: join(root, "bare"), completeText: null });
   const bareReference = molisWorkHostProjectReference({ databasePath: join(root, "bare-project.sqlite"), projectId: "project-bare" });
   try {
@@ -167,7 +180,7 @@ test("one read action serves everyone: the whole file is for plugins, and a call
     await host.withProject(reference, () => undefined);
     const probe = registerProbe(host.actionRegistry(reference), "project");
     await startProjectPlugins(host, reference);
-    const asPlugin = callAs(await issuedCaller(probe, reader, "project-one"), ["workspace:read"]);
+    const asPlugin = callAs(await issuedCaller(probe, reader, projectId), ["workspace:read"]);
     assert.equal((await client.invoke(asPlugin, readFile, { ...text, kind: "text" }) as { outcome: string }).outcome, "binary", "plugin, issued, text");
     assert.equal((await client.invoke(asPlugin, readFile, { ...text, kind: "bytes" }) as { outcome: string }).outcome, "bytes", "plugin, issued, bytes");
 
@@ -207,13 +220,13 @@ test("one read action serves everyone: the whole file is for plugins, and a call
     const status = await client.invoke(person(everything), gitActions.summary, {}) as { summary: { branch: string } | null };
     assert.equal(status.summary?.branch, "main");
 
-    // Without a workspace port on the Host there is no read to depend on: the dependents say so.
+    // Without the project catalog the read is registered but has no directories to read from: the dependents pass on its answer.
     await initializeBoard(bare, bareReference, { actor_id: "web-user", idempotency_key: "init" });
     const bareDirectory = await bare.actionClient(bareReference).discover({ ...person(everything), project_id: "project-bare" });
     for (const definition of reading) {
       const row = bareDirectory.find(item => item.capability_id === definition.capability_id);
       assert.deepEqual(row?.availability.available, false, definition.capability_id);
-      assert.equal((row?.availability as { code?: string } | undefined)?.code, "actions.dependency_missing", definition.capability_id);
+      assert.equal((row?.availability as { code?: string } | undefined)?.code, "actions.service_unavailable", definition.capability_id);
     }
   } finally {
     await host.close(); await bare.close();
@@ -237,14 +250,14 @@ test("Files, Git and Coding read the linked folder through the one action in a r
     const created = await request("/api/settings/projects", "POST", { display_name: "读取同一个动作", user_confirmed: true });
     assert.equal(created.status, 201);
     const id = created.body.project.project_id as string;
-    for (const pluginId of ["coding", "files", "git"]) assert.equal((await request(`/api/settings/projects/${id}/plugins`, "POST", { plugin_id: pluginId })).status, 200);
+    for (const pluginId of ["coding", "files", "git"]) assert.equal((await request(`/api/settings/projects/${id}/plugins`, "POST", { plugin_id: pluginId, expected_revision: await projectPluginRevisionAt(origin, id) })).status, 200);
     const directory = path.join(root, "repository"); await mkdir(join(directory, "src"), { recursive: true });
     await writeFile(join(directory, "note.txt"), "中文🙂\nfirst\n");
     await writeFile(join(directory, "chart.png"), PNG);
     await writeFile(join(directory, "src", "streaks.ts"), "export function currentStreak(days: number) { return days; }\n");
     execFileSync("git", ["init", "-q", "-b", "main"], { cwd: directory });
-    assert.equal((await request(`/projects/${id}/api/workspaces`, "POST", { workspace_path: directory, user_confirmed: true })).status, 201);
-    const workspace = (await request(`/projects/${id}/api/project-settings/workspaces`)).body.workspaces[0].workspace_id as string;
+    // The folder is the project's output, set in its settings as the person does: the side panel and Git show the output (SSC-17).
+    const workspace = (await setProjectOutputFolder(directoriesWebOf(request), id, directory)).workspace_id;
     const plugin = (name: string, suffix: string) => `/projects/${id}/api/plugins/io.molis.work.${name}${suffix}`;
 
     // Files: the side panel previews a picture in the linked folder whole, which only a plugin may ask the Host for.

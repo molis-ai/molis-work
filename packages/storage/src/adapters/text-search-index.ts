@@ -4,6 +4,7 @@ import type { DatabaseSync } from "node:sqlite";
 import type {
   SearchHitField,
   SearchIndexDocument,
+  SearchIndexCatalogPage,
   SearchIndexMatch,
   SearchIndexPort,
   SearchIndexQuery,
@@ -22,7 +23,7 @@ import type { HomeStoreDeclaration } from "../home-stores.js";
  * which removes pair-matches that are not a real substring and gives the snippet and hit position.
  */
 export const TEXT_SEARCH_STORE = "search";
-const SCHEMA_VERSION = "1";
+const SCHEMA_VERSION = /* @version database.search.text-index "{version}" */ "1";
 const MAX_CANDIDATES = 400;
 const SNIPPET_BEFORE = 36;
 const SNIPPET_LENGTH = 160;
@@ -98,13 +99,14 @@ export function relatedQueryPlan(query: string): string | null {
 
 /** The terms of the loose ranking, as normalized text: CJK adjacent pairs, and words (matched by prefix). */
 function relatedTerms(query: string): Run[] {
-  const terms = new Map<string, Run>();
+  const terms = new Map<string, Run>(), frequency = new Map<string, number>();
+  const add = (term: Run) => { terms.set(term.text, term); frequency.set(term.text, (frequency.get(term.text) ?? 0) + 1); };
   for (const run of runs(normalizeSearchText(query).text)) {
-    if (run.kind === "word") { terms.set(run.text, run); continue; }
+    if (run.kind === "word") { add(run); continue; }
     const chars = [...run.text];
-    for (let index = 1; index < chars.length; index += 1) terms.set(`${chars[index - 1]}${chars[index]}`, { kind: "cjk", text: `${chars[index - 1]}${chars[index]}` });
+    for (let index = 1; index < chars.length; index += 1) add({ kind: "cjk", text: `${chars[index - 1]}${chars[index]}` });
   }
-  return [...terms.values()];
+  return [...terms.values()].sort((a, b) => frequency.get(a.text)! - frequency.get(b.text)! || b.text.length - a.text.length).slice(0, 32);
 }
 
 type Row = Record<string, unknown>;
@@ -156,10 +158,24 @@ function relatedSnippet(content: string, terms: readonly Run[]): string {
   const field = normalizeSearchText(content);
   const marks = occurrences(field, terms.map(term => term.text)).slice(0, MAX_SNIPPET_MARKS);
   if (!marks.length) return "";
-  let best = marks[0]!, most = 0;
-  for (const mark of marks) {
-    const near = new Set(marks.filter(([start, end]) => start >= mark[0] && end <= mark[0] + SNIPPET_LENGTH - SNIPPET_BEFORE).map(([start, end]) => content.slice(start, end).toLowerCase()));
-    if (near.size > most) { most = near.size; best = mark; }
+  let best = marks[0]!, most = 0, right = 0;
+  const counts = new Map<string, number>(), active = new Set<[number, number]>();
+  const key = (mark: [number, number]) => content.slice(mark[0], mark[1]).toLowerCase();
+  const ends = [...marks].sort((a, b) => a[1] - b[1]);
+  for (let left = 0; left < marks.length;) {
+    const mark = marks[left]!, position = mark[0];
+    while (right < ends.length && ends[right]![1] <= position + SNIPPET_LENGTH - SNIPPET_BEFORE) {
+      const entry = ends[right++]!;
+      if (entry[0] < position) continue;
+      active.add(entry); const value = key(entry); counts.set(value, (counts.get(value) ?? 0) + 1);
+    }
+    if (counts.size > most) { most = counts.size; best = mark; }
+    while (left < marks.length && marks[left]![0] === position) {
+      const entry = marks[left++]!;
+      if (!active.delete(entry)) continue;
+      const value = key(entry), count = counts.get(value)! - 1;
+      if (count) counts.set(value, count); else counts.delete(value);
+    }
   }
   return snippetOf(content, best[0], marks).snippet;
 }
@@ -291,7 +307,15 @@ export function openTextSearchIndex(options: TextSearchIndexOptions): SearchInde
       const row = prepareFtsStatement(db, "SELECT * FROM search_documents WHERE source_key = ? AND kind = ? AND object_id = ?").get(key, kind, objectId) as Row | undefined;
       return row ? fromDocument(row) : null;
     },
-    documents: projectId => (prepareFtsStatement(db, "SELECT * FROM search_documents WHERE project_id = ? ORDER BY doc_id").all(projectId) as Row[]).map(fromDocument),
+    catalog: (projectId, cursor = "0"): SearchIndexCatalogPage => {
+      if (!/^\d+$/.test(cursor) || !Number.isSafeInteger(Number(cursor))) throw new TypeError("Invalid search catalog cursor");
+      const rows = prepareFtsStatement(db, `SELECT doc_id,source_key,kind,object_id,project_id,revision,title,summary,updated_at,open_json,content_policy,
+        length(content) AS content_chars, length(trim(content, char(9,10,11,12,13,32,133,160,5760,8192,8193,8194,8195,8196,8197,8198,8199,8200,8201,8202,8232,8233,8239,8287,12288,65279))) > 0 AS has_content
+        FROM search_documents WHERE project_id = ? AND doc_id > ? ORDER BY doc_id LIMIT 201`).all(projectId, Number(cursor)) as Row[];
+      const page = rows.slice(0, 200);
+      return { entries: page.map(row => { const { content: _content, ...metadata } = fromDocument(row); return { ...metadata, content_chars: Number(row.content_chars), has_content: Boolean(row.has_content) }; }),
+        next_cursor: rows.length > 200 ? String(page.at(-1)!.doc_id) : null };
+    },
     search: (input: SearchIndexQuery) => {
       const plan = searchQueryPlan(input.query);
       const allowed = input.sources.filter((source, index, all) => all.findIndex(other => other.source_key === source.source_key) === index);

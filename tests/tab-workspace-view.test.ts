@@ -6,7 +6,7 @@ import { CLIENT_SCRIPT } from "@molis-ai/molis-work-app-workbench";
 
 interface Tab { id: string; plugin: string; kind: string; title: string; itemId?: string; view?: string; pinned?: boolean; groupId?: string }
 interface Pane { id: string; tabs: Tab[]; activeTabId: string | null; groups: Array<{ id: string; title: string; color: string; collapsed: boolean }>; viewPlugin: string | null }
-interface State { panes: Pane[]; focusedPaneId: string; exclusive: string | null; layout: { direction: string; sizes: number[]; tree?: unknown } }
+interface State { panes: Pane[]; focusedPaneId: string; exclusive: string | null; layout: { direction: string; sizes: number[]; tree?: unknown }; side: { id: string; tabs: unknown[]; activeTabId: string | null; open: boolean; ratio: number; closed: string[] }; solo: { paneId: string; side: boolean } | null }
 interface Ops {
   create(): State;
   focused(state: State): Pane;
@@ -26,7 +26,7 @@ interface Ops {
 // Call the exact rules shipped in the public browser program, including its grouped-ops composition.
 // This also catches a source implementation that was changed but left out of the shipped program.
 const syntax = ts.createSourceFile("workbench.js", CLIENT_SCRIPT, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
-const names = new Set(["createTabWorkspaceOps", "withPluginGroups", "settlePluginTabs", "isLoosePluginTab", "isCurrentTabWorkspace"]);
+const names = new Set(["createTabWorkspaceOps", "withPluginGroups", "withSidePane", "withLayout", "settlePluginTabs", "isLoosePluginTab", "isCurrentTabWorkspace"]);
 const bodies = new Map<string, string>();
 const visit = (node: ts.Node): void => {
   if ((ts.isFunctionExpression(node) || ts.isFunctionDeclaration(node)) && node.name && names.has(node.name.text)) bodies.set(node.name.text, node.getText(syntax));
@@ -36,7 +36,8 @@ visit(syntax);
 assert.equal(bodies.size, names.size, "the shipped rules include all production owners");
 const context = vm.createContext({ __name: (value: unknown) => value });
 const compiled = Object.fromEntries([...bodies].map(([name, body]) => [name, vm.runInContext("(" + body + ")", context)]));
-const fresh = (): Ops => compiled.withPluginGroups(compiled.createTabWorkspaceOps(), compiled.settlePluginTabs, compiled.isLoosePluginTab);
+// The shipped composition, withLayout (07-S2: 独看, moves between the main area and the side) outermost.
+const fresh = (): Ops => compiled.withLayout(compiled.withSidePane(compiled.withPluginGroups(compiled.createTabWorkspaceOps(), compiled.settlePluginTabs, compiled.isLoosePluginTab)));
 const valid = (value: unknown): boolean => compiled.isCurrentTabWorkspace(value);
 const roundTrip = (state: State): State => JSON.parse(JSON.stringify(state));
 
@@ -157,4 +158,30 @@ test("RAC-2687 copying moving and closing then reopening a plugin group preserve
   assert.equal(ops.readView(state, first.id, item.id), "source-a");
   assert.equal(ops.readView(state, first.id, head.id), "all");
   assert.equal(valid(roundTrip(state)), true);
+});
+
+test("D0037 the shipped divider clamps the snapped ratio to the live pane range", () => {
+  let factory = "";
+  const findFactory = (node: ts.Node): void => {
+    if (ts.isArrowFunction(node) && node.parameters[0] && ts.isObjectBindingPattern(node.parameters[0].name)) {
+      const keys = node.parameters[0].name.elements.map(item => (item.propertyName ?? item.name).getText(syntax));
+      if (["panes", "range", "snap", "defaultRatio"].every(key => keys.includes(key))) factory = node.getText(syntax);
+    }
+    ts.forEachChild(node, findFactory);
+  };
+  findFactory(syntax); assert.ok(factory, "use the actual served divider factory");
+  const listeners = new Map<string, (event: unknown) => void>();
+  const target = (prefix: string) => ({ addEventListener: (type: string, handle: (event: unknown) => void) => listeners.set(prefix + type, handle) });
+  const panes = target("panes:"), sash = { ...target("sash:"), dataset: { tabSash: "split" }, classList: { add() {}, remove() {} }, isConnected: true,
+    parentElement: { getBoundingClientRect: () => ({ left: 0, top: 0, width: 1000, height: 1000 }) }, setPointerCapture() {}, hasPointerCapture: () => false, releasePointerCapture() {} };
+  const node = { direction: "row", ratio: 0.7 }, root = { classList: { add() {}, remove() {} }, dataset: {} };
+  let bounds = [0.55, 0.95];
+  const compiled = vm.runInNewContext("(" + factory + ")", { window: target("window:"), document: target("document:"), AbortController, ResizeObserver: class { observe() {} disconnect() {} } });
+  compiled({ panes, root, find: () => node, sync() {}, persist() {}, range: () => bounds, snap: () => ({ ratio: 0.5, snapped: true }), defaultRatio: 0.5 });
+  listeners.get("panes:pointerdown")!({ button: 0, pointerId: 1, clientX: 700, clientY: 0, target: { closest: () => sash }, preventDefault() {} });
+  listeners.get("sash:pointermove")!({ pointerId: 1, clientX: 560, clientY: 0, preventDefault() {} });
+  assert.equal(node.ratio, 0.55, "a default below the live minimum never escapes the range");
+  bounds = [0.1, 0.45];
+  listeners.get("sash:pointermove")!({ pointerId: 1, clientX: 440, clientY: 0, preventDefault() {} });
+  assert.equal(node.ratio, 0.45, "the maximum is enforced after snapping too");
 });

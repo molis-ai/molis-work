@@ -1,9 +1,10 @@
-import { ActionError, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionReference, type ExactActionReference, type RetainedActionAuthority } from "./actions.js";
+import { inputSchemaFor } from "./action-input.js";
+import { ActionError, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionReference, type ActionView, type ExactActionReference, type RetainedActionAuthority } from "./actions.js";
 
-export const SUBJECT_REFERENCE_TYPE = "molis.subject-reference.v1";
-export const SUBJECT_CONTEXT_TYPE = "molis.subject-context.v1";
+export const SUBJECT_REFERENCE_TYPE = /* @version type.molis.subject-reference "molis.subject-reference.v{version}" */ "molis.subject-reference.v1";
+export const SUBJECT_CONTEXT_TYPE = /* @version type.molis.subject-context "molis.subject-context.v{version}" */ "molis.subject-context.v1";
 /** Current owner visibility; deleted means currently absent, not a permanent tombstone. */
-export const SUBJECT_STATE_TYPE = "molis.subject-state.v1";
+export const SUBJECT_STATE_TYPE = /* @version type.molis.subject-state "molis.subject-state.v{version}" */ "molis.subject-state.v1";
 export interface ActionSubjectState { subject: ActionSubject; state: "active" | "archived" | "deleted" }
 /** Host-only current owner control. Never serialized as an Action result. */
 export interface ActionSubjectCurrentState extends ActionSubjectState {
@@ -43,7 +44,7 @@ export interface ActionSubjectContext {
    */
   project_id?: string | null;
   /**
-   * Where `content` starts in the object's whole text and how long that text is. A reader gives both when it reads a page
+   * Where `content` starts in the object's whole text and how long that text is, in Unicode code points. A reader gives both when it reads a page
    * past the first (`offset` in its input; specs/project-knowledge §4.4); a reader that leaves them out gives only the first page.
    */
   offset?: number;
@@ -52,10 +53,10 @@ export interface ActionSubjectContext {
 /** What one reader call gives at most; a longer text is read page by page from `offset` by a reader that takes it. */
 export const SUBJECT_CONTEXT_PAGE_CHARS = 32_000;
 export interface SubjectContextRequest { subject_id: string; offset?: number }
-const id = { type: "string", minLength: 1 };
-const position = { type: "integer", minimum: 0 };
-export const ACTION_SUBJECT_SCHEMA = { type: "object", properties: { kind: id, id }, required: ["kind", "id"], additionalProperties: false };
-export const SUBJECT_CONTEXT_INPUT_SCHEMA = { type: "object", properties: { subject_id: id, offset: position }, required: ["subject_id"], additionalProperties: false };
+const id = { type: "string", minLength: 1 } as const;
+const position = { type: "integer", minimum: 0 } as const;
+export const ACTION_SUBJECT_SCHEMA = { type: "object", properties: { kind: id, id }, required: ["kind", "id"], additionalProperties: false } as const;
+export const SUBJECT_CONTEXT_INPUT_SCHEMA = { type: "object", properties: { subject_id: id, offset: position }, required: ["subject_id"], additionalProperties: false } as const;
 const required = { subject: ACTION_SUBJECT_SCHEMA, revision: id, title: { type: "string", maxLength: 1000 }, content: { type: "string", maxLength: SUBJECT_CONTEXT_PAGE_CHARS },
   truncated: { type: "boolean" } };
 const properties = { ...required, goal_ids: { type: "array", items: id, uniqueItems: true } };
@@ -71,20 +72,25 @@ export const SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_OPEN = { type: "object", prop
  * A reader of one object kind's context. `scope` is where its objects live: a project's (the default), or the
  * person's own Home (a calendar, personal notes), so personal work can read them back too. An object that belongs to no Goal can omit `goal_ids`.
  */
-export function defineSubjectContextAction(capabilityId: string, kind: string, title: string, permissions: string[], scope: "project" | "home" = "project"): ActionDefinition<SubjectContextRequest, ActionSubjectContext> {
-  return { capability_id: capabilityId, version: 1, operation: "query", action: { title: `读取${/^[A-Za-z]/.test(title) ? " " : ""}${title}${/[A-Za-z]$/.test(title) ? " " : ""}的正文与关联`, description: `读取${title}的当前正文、版本及真实关联，供调用者明确引用。`,
+export function defineSubjectContextAction(capabilityId: string, version: number, kind: string, title: string, permissions: string[], scope: "project" | "home" = "project"): ActionDefinition<SubjectContextRequest, ActionSubjectContext> {
+  return { capability_id: capabilityId, version: version, operation: "query", action: { title: `读取${/^[A-Za-z]/.test(title) ? " " : ""}${title}${/[A-Za-z]$/.test(title) ? " " : ""}的正文与关联`, description: `读取${title}的当前正文、版本及真实关联，供调用者明确引用。`,
     kind: "query", scope, scheduling: "concurrent", audiences: ["user", "agent", "workflow", "mcp", "plugin"], permissions, subject_kinds: [kind],
-    input_type: SUBJECT_REFERENCE_TYPE, output_type: SUBJECT_CONTEXT_TYPE, input_schema: SUBJECT_CONTEXT_INPUT_SCHEMA, output_schema: SUBJECT_CONTEXT_OUTPUT_SCHEMA } };
+    input_type: SUBJECT_REFERENCE_TYPE, output_type: SUBJECT_CONTEXT_TYPE, input_schema: inputSchemaFor<SubjectContextRequest>()(SUBJECT_CONTEXT_INPUT_SCHEMA), output_schema: SUBJECT_CONTEXT_OUTPUT_SCHEMA } };
 }
 /**
  * One page of an object's context. A reader that passes its own `request` reads from `request.offset` and says where the page
  * starts and how long the whole text is, so a long object is read page by page; without it the first page is all there is.
  */
 export function subjectContext(input: Omit<ActionSubjectContext, "truncated" | "offset" | "length"> & { truncated?: boolean }, request?: Pick<SubjectContextRequest, "offset">): ActionSubjectContext {
-  const offset = Math.min(Math.max(0, Math.floor(request?.offset ?? 0)), input.content.length);
-  const content = input.content.slice(offset, offset + SUBJECT_CONTEXT_PAGE_CHARS);
-  return { ...input, title: input.title.slice(0, 1000), content, truncated: input.truncated === true || offset + content.length < input.content.length,
-    ...(input.goal_ids?.length ? { goal_ids: [...new Set(input.goal_ids)] } : {}), ...(request ? { offset, length: input.content.length } : {}) };
+  const requested = Math.max(0, Math.floor(request?.offset ?? 0));
+  let length = 0, content = "";
+  for (const character of input.content) {
+    if (length >= requested && length < requested + SUBJECT_CONTEXT_PAGE_CHARS) content += character;
+    length++;
+  }
+  const offset = Math.min(requested, length);
+  return { ...input, title: [...input.title].slice(0, 1000).join(""), content, truncated: input.truncated === true || offset + [...content].length < length,
+    ...(input.goal_ids?.length ? { goal_ids: [...new Set(input.goal_ids)] } : {}), ...(request ? { offset, length } : {}) };
 }
 
 /**
@@ -118,17 +124,35 @@ export function actionResultSubject(action: Pick<ActionDefinition["action"], "ki
 export function isSubjectReader(action: Pick<ActionDefinition["action"], "input_type" | "output_type">): boolean {
   return action.input_type === SUBJECT_REFERENCE_TYPE && action.output_type === SUBJECT_CONTEXT_TYPE;
 }
+/** What looking for the reader of one kind of object among the actions a caller discovered found. */
+export type SubjectReaderLookup =
+  /** Exactly one reader is available now. */
+  | { found: "one"; view: ActionView }
+  /** Readers are declared but none is available now: the first one, for its availability and its provider. */
+  | { found: "unavailable"; view: ActionView }
+  /** More than one is available: the platform never picks one. */
+  | { found: "ambiguous" }
+  | { found: "none" };
+/**
+ * The reader of `kind`'s objects (`isSubjectReader`, with `kind` in its `subject_kinds`). The one lookup `resolveActionSubject` and the
+ * origins of references (`materials.origins@1`) both use, so who owns an object never comes out two ways.
+ */
+export function findSubjectReader(views: readonly ActionView[], kind: string): SubjectReaderLookup {
+  const matches = views.filter(view => isSubjectReader(view.action) && view.action.subject_kinds.includes(kind));
+  const available = matches.filter(view => view.availability.available);
+  if (available.length > 1) return { found: "ambiguous" };
+  if (available[0]) return { found: "one", view: available[0] };
+  return matches[0] ? { found: "unavailable", view: matches[0] } : { found: "none" };
+}
 /** Protocol discovery confers no authority; invocation keeps the original caller and exact provider. */
 export async function resolveActionSubject(client: ActionClient, caller: ActionCallContext, subject: ActionSubject): Promise<{ context: ActionSubjectContext; reader: ActionReference }> {
-  const matches = (await client.discover(caller)).filter(view => view.action.input_type === SUBJECT_REFERENCE_TYPE
-    && view.action.output_type === SUBJECT_CONTEXT_TYPE && view.action.subject_kinds.includes(subject.kind));
-  const available = matches.filter(view => view.availability.available);
-  if (available.length > 1) throw new ActionError("actions.subject_ambiguous", "有多个能力提供此对象上下文，不能任意选择提供方");
-  const selected = available[0];
-  if (!selected) {
-    const state = matches[0]?.availability;
+  const lookup = findSubjectReader(await client.discover(caller), subject.kind);
+  if (lookup.found === "ambiguous") throw new ActionError("actions.subject_ambiguous", "有多个能力提供此对象上下文，不能任意选择提供方");
+  if (lookup.found !== "one") {
+    const state = lookup.found === "unavailable" ? lookup.view.availability : undefined;
     throw new ActionError(state && !state.available ? state.code : "actions.subject_unavailable", state && !state.available ? state.reason : "此对象尚未提供可读取的上下文");
   }
+  const selected = lookup.view;
   const reader = { capability_id: selected.capability_id, version: selected.version, provider_id: selected.provider.provider_id };
   const context = await client.invoke(caller, reader, { subject_id: subject.id }) as ActionSubjectContext;
   if (context.subject.id !== subject.id || context.subject.kind !== subject.kind) throw new ActionError("actions.subject_mismatch", "对象上下文与当前选择不一致");

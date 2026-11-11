@@ -87,7 +87,8 @@ export interface AgentGitIndexReviewDocument {
 
 export interface AgentGitIntegrationReviewDocument {
   kind: "git-integration";
-  source: { session_id: string; run_id: string; subagent_id: string; branch: string; base_commit: string; directory: string };
+  /** `subagent_id` names a parallel writer's child; a round that ran in one of the Host's worktrees has none. */
+  source: { session_id: string; run_id: string; subagent_id?: string; branch: string; base_commit: string; directory: string };
   target_directory: string;
   files: AgentGitIndexReviewDocument["files"];
 }

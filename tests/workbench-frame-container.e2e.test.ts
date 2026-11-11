@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 import { pluginFrameBrowser, pluginFrameInitScript } from "./fixtures/plugin-frame-browser.js";
-import { LocalHostHttpClient } from "@molis-ai/molis-work-test-kit/local-host-http";
+import { LocalHostHttpClient, projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { sendBarrier } from "./fixtures/assistant-send-journey.js";
 import test from "node:test";
 import { DEMO_PROJECT_ID, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
@@ -32,7 +32,8 @@ async function syncFrameStorage(browser: NonNullable<Awaited<ReturnType<typeof o
       });
     };
     view.addEventListener('storage',done);
-    writer.contentWindow.localStorage.setItem(key,newValue);
+    const scope=view.document.querySelector('meta[name="molis-work-page-session"]')?.content.split('.')[1];
+    writer.contentWindow.localStorage.setItem((scope?'molis-account-cache:'+encodeURIComponent(scope)+':':'')+key,newValue);
   })`);
   assert.equal(receipt.trusted, true, "the browser delivers storage from another same-origin Window");
   assert.notEqual(receipt.newValue, receipt.oldValue, "the other Window really writes storage");
@@ -40,16 +41,25 @@ async function syncFrameStorage(browser: NonNullable<Awaited<ReturnType<typeof o
   return receipt;
 }
 
+
+// T01-FRAME-CURSOR-01: fixture writes must finish refreshing the page before measuring camera-only reads.
+// A real board refresh may reread the owner; it is not a second read caused by the tested storage event.
+async function awaitFrameCursor(browser: NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>, owner: LocalHostHttpClient, receiver = "window") {
+  const cursor = await owner.get<{ observed_event_cursor: number }>(`/projects/${browser.projectId}/api/board/cursor`);
+  await browser.waitFor(`Number(${receiver}.document.querySelector('#molis-work-data').boardCursor) >= ${cursor.observed_event_cursor}`);
+}
+
 test("RAC-2516 RAC-2518 trusted Feed and Inbox drag handles reach the actual Goal pane; child messages and late withdrawn sources cannot add blocks", { timeout: 90000 }, async t => {
   const b = await openGoalBrowser(t, true, undefined, null, undefined, undefined, {}, undefined, undefined, true); if (!b) return;
   const { command, sessionId, projectId, origin } = b;
+  assert.ok(projectId);
   const capture = async (name: string) => {
     const output=reviewEvidenceUrl("t403-native/"); await mkdir(output,{recursive:true});
     await writeFile(new URL(name+".png",output),Buffer.from((await command<{data:string}>("Page.captureScreenshot",{format:"png"},sessionId)).data,"base64"));
   };
   const owner = new LocalHostHttpClient({ origin, controlToken: b.controlToken });
-  await owner.post(`/api/settings/projects/${projectId}/plugins`, { plugin_id: "feed" });
-  await owner.post(`/api/settings/projects/${projectId}/plugins`, { plugin_id: "inbox" });
+  await owner.post(`/api/settings/projects/${projectId}/plugins`, { plugin_id: "feed", expected_revision: await projectPluginRevision(owner, projectId) });
+  await owner.post(`/api/settings/projects/${projectId}/plugins`, { plugin_id: "inbox", expected_revision: await projectPluginRevision(owner, projectId) });
   const feed = createLocalFeedApplication(b.store.db), now = new Date().toISOString();
   const source = feed.sources.upsert({ project_id: projectId!, source_id: "native-frame-source", kind: "rss", definition_id: "rss", sync_kind: "manual", name: "Frame drag source", description: "", status: "active", enabled: true, item_count: 0, origin: "molis_work", config: {}, schedule: { mode: "manual" }, cursor: null, credential_ref: null, account_label: null, last_sync_at: null, last_outcome: null, last_error_code: null, imported_at: now, updated_at: now });
   const item = feed.ingestItem({ source, externalId: "native-frame-drag", title: "Actual opaque drag", summary: "Owner display fields", body: "Original material", occurredAt: now, attention: false }).item;
@@ -84,7 +94,7 @@ test("RAC-2516 RAC-2518 trusted Feed and Inbox drag handles reach the actual Goa
   await b.waitFor("document.querySelector('[data-graph-node][data-goal-id=CORE] [data-graph-frame]')");
   await b.evaluate("document.querySelector('[data-graph-node][data-goal-id=CORE] [data-graph-frame]').click()");
   await b.waitFor("document.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal==='CORE' && !document.querySelector('[data-goal-frame-surface]').hidden && !!window.molisPluginFrames");
-  await b.click('[data-titlebar-tabs] [data-tab-split]'); await b.click('[data-layout-split=right]');
+  await b.click('[data-layout-open]'); await b.click('[data-layout-split=right]');
   await b.waitFor("document.querySelectorAll('iframe.tab-content-frame').length===2");
   try { await b.click('[data-plugin-strip] [data-plugin-id=feed]'); }
   catch (error) {
@@ -234,6 +244,7 @@ test("RAC-2516 RAC-2518 trusted Feed and Inbox drag handles reach the actual Goa
   assert.ok(firstStored.blocks[0]!.x >= 16 && firstStored.blocks[0]!.y >= 16, "the actual target canvas chooses the stored position");
   await b.click(`[data-tab-pane="${goalPane}"] .tab-item[aria-current] .tab-item-trigger`);
   const goalWindow = "document.querySelector('iframe[data-t403-goal-pane]').contentWindow";
+  await awaitFrameCursor(b, owner, goalWindow);
   const gesture = <T>(expression: string) => b.evaluate<T>(`(() => {const view=${goalWindow},doc=view.document,p=view.t403Gesture;return (${expression});})()`);
   await b.evaluate(`(() => {
     const view=${goalWindow},doc=view.document,p=view.t403Gesture={events:[],reads:[],target:null,article:null};
@@ -321,7 +332,7 @@ test("RAC-2516 RAC-2518 trusted Feed and Inbox drag handles reach the actual Goa
   const barrier = await sendBarrier(b, [{ urlPattern: `*/projects/${projectId}/?*`, requestStage: "Request" }]);
   try {
     await drop(data); await barrier.next();
-    await owner.delete(`/api/settings/projects/${projectId}/plugins`, { plugin_id: "feed" });
+    await owner.delete(`/api/settings/projects/${projectId}/plugins`, { plugin_id: "feed", expected_revision: await projectPluginRevision(owner, projectId) });
     await b.evaluate("document.querySelector('iframe[data-t403-goal-pane]').contentDocument.querySelector('[data-board-view-tab=list]').click()");
   } finally { await barrier.close(); }
   await b.waitFor("document.querySelector('iframe[data-t403-goal-pane]').contentDocument.querySelector('[data-goal-frame-surface]').hidden");
@@ -335,10 +346,22 @@ test("Goal Frames use outer tabs, preserve references, and isolate project state
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, store, projectId } = browser;
+  assert.ok(projectId);
+  // RAR-09 / T01-FRAME-01: a Frame redraw can replace the ready preview between two CDP calls.
+  // Capture readiness, content and forbidden controls together, with the original 10 s deadline.
+  const readPreview = (ready: string, forbidden: string) => evaluate<{ text: string; hasForbidden: boolean; surface: string; expanded: number }>(`new Promise((resolve, reject) => {
+    const deadline = Date.now() + 10000;
+    const read = () => {
+      const block = document.querySelector('[data-frame-block].is-expanded');
+      if (block?.querySelector(${JSON.stringify(ready)})) return resolve({ text: block.textContent || '', hasForbidden: !!block.querySelector(${JSON.stringify(forbidden)}), surface: document.body.dataset.desktopSurface, expanded: document.querySelectorAll('[data-frame-block].is-expanded').length });
+      if (Date.now() >= deadline) reject(new Error('Frame preview did not become ready: ' + ${JSON.stringify(ready)}));
+      else setTimeout(read, 16);
+    }; read();
+  })`);
   // T405-FULL-01: the running Host keeps ownership while this fixture enables its project plugins.
   const owner = new LocalHostHttpClient({ origin, controlToken: browser.controlToken });
   for (const plugin_id of ["feed", "inbox"] as const) {
-    await owner.post(`/api/settings/projects/${projectId}/plugins`, { plugin_id });
+    await owner.post(`/api/settings/projects/${projectId}/plugins`, { plugin_id, expected_revision: await projectPluginRevision(owner, projectId) });
   }
   const now = new Date().toISOString();
   const feed = createLocalFeedApplication(store.db);
@@ -373,7 +396,8 @@ test("Goal Frames use outer tabs, preserve references, and isolate project state
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
   await waitFor("document.body.dataset.desktopSurface === 'home'");
-  await waitFor("Boolean(document.querySelector('[data-titlebar-tabs] .tab-item[data-tab-kind=home], [data-tab-workspace] .tab-item[data-tab-kind=home]'))");
+  // 07-S2: the project home is not a tab; the titlebar's strip is drawn once its ＋ is there.
+  await waitFor("Boolean(document.querySelector('[data-titlebar-tabs] .tab-add-button'))");
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
   await waitFor("document.querySelector('[data-goal-momentum]')?.dataset.loaded === 'true' && document.body.dataset.desktopSurface === 'goals' && !document.querySelector('.tab-item[data-tab-kind=mother]')");
   await evaluate("document.querySelector('[data-board-view-tab=canvas]')?.click()");
@@ -430,11 +454,12 @@ test("Goal Frames use outer tabs, preserve references, and isolate project state
   await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item[data-plugin=goals][data-item-id=CORE][aria-current]') && !document.querySelector('[data-goal-frame-surface]').hidden");
   assert.equal(await evaluate("document.querySelectorAll('[data-frame-block]').length"), 3);
   await evaluate("document.querySelector('[data-frame-block][data-frame-block-kind=feed] > p').click()");
-  await waitFor("document.querySelector('[data-frame-block].is-expanded .frame-reading .feed-rich-content')");
-  assert.match(await evaluate<string>("document.querySelector('[data-frame-block].is-expanded').textContent || ''"), /只验证引用/);
-  assert.equal(await evaluate("document.querySelector('[data-frame-block].is-expanded .feed-detail-actions, [data-frame-block].is-expanded [data-open-source-record], [data-frame-block].is-expanded [data-feed-action]')"), null);
-  assert.equal(await evaluate("document.body.dataset.desktopSurface"), "goals");
-  assert.equal(await evaluate("document.querySelectorAll('[data-frame-block].is-expanded').length"), 1);
+  const feedPreview = await readPreview('.frame-reading .feed-rich-content', '.feed-detail-actions, [data-open-source-record], [data-feed-action]');
+  assert.match(feedPreview.text, /只验证引用/);
+  assert.equal(feedPreview.hasForbidden, false);
+  assert.equal(feedPreview.surface, "goals");
+  assert.equal(feedPreview.expanded, 1);
+  await awaitFrameCursor(browser, owner);
   // FCS-02: observe real GETs and hold the actual first response; no body or loaded marker is supplied by the test.
   await evaluate(`(() => {
     window.t403Artifact={reads:[]};const fetch=window.fetch;
@@ -449,9 +474,9 @@ test("Goal Frames use outer tabs, preserve references, and isolate project state
     assert.equal(await evaluate("document.querySelector('[data-frame-block].is-expanded [data-frame-block-body]').dataset.loaded"),undefined);
     assert.equal(await evaluate("document.querySelector('[data-frame-block].is-expanded .artifact-facts')"),null,"the first response must arrive before any artifact facts appear");
   } finally { await firstArtifact.close(); }
-  await waitFor("document.querySelector('[data-frame-block].is-expanded .frame-reading .artifact-facts')");
-  assert.match(await evaluate<string>("document.querySelector('[data-frame-block].is-expanded').textContent || ''"), /example\.note/);
-  assert.equal(await evaluate("document.querySelector('[data-frame-block].is-expanded .artifact-actions, [data-frame-block].is-expanded .artifact-raw')"), null);
+  const artifactPreview = await readPreview('.frame-reading .artifact-facts', '.artifact-actions, .artifact-raw');
+  assert.match(artifactPreview.text, /example\.note/);
+  assert.equal(artifactPreview.hasForbidden, false);
   await waitFor("document.querySelector('[data-frame-block].is-expanded [data-frame-block-body]')?.dataset.loaded==='artifact:frame-note#1'");
   await evaluate("Object.assign(t403Artifact,{body:document.querySelector('[data-frame-block].is-expanded [data-frame-block-body]'),facts:document.querySelector('[data-frame-block].is-expanded .artifact-facts'),id:document.querySelector('[data-frame-block].is-expanded').dataset.frameBlock})");
   const repeatedArtifact = await sendBarrier(browser,[{urlPattern:"*/artifacts/frame-note/versions/1*",requestStage:"Request"}]);
@@ -479,9 +504,9 @@ test("Goal Frames use outer tabs, preserve references, and isolate project state
   assert.match(await evaluate<string>("document.querySelector('[data-frame-block].is-expanded .artifact-facts').textContent"),/Schema 1/);
   assert.deepEqual(await evaluate("t403Artifact.reads.map(read=>({version:new URL(read.url,location.href).pathname.split('/').pop(),method:read.method}))"),[{version:"1",method:"GET"},{version:"2",method:"GET"}]);
   await evaluate("document.querySelector('[data-frame-block][data-frame-block-kind=inbox]').click()");
-  await waitFor("document.querySelector('[data-frame-block].is-expanded [data-frame-reading=inbox]')");
-  assert.match(await evaluate<string>("document.querySelector('[data-frame-block].is-expanded').textContent || ''"), /你手工加入/);
-  assert.match(await evaluate<string>("document.querySelector('[data-frame-block].is-expanded').textContent || ''"), /查看原消息并处理/);
+  const inboxPreview = await readPreview('[data-frame-reading=inbox]', '[data-frame-block-retry]');
+  assert.match(inboxPreview.text, /你手工加入/);
+  assert.match(inboxPreview.text, /查看原消息并处理/);
   await evaluate(`(() => {
     const canvas = document.querySelector("[data-frame-canvas]");
     const event = new Event("drop", { bubbles: true, cancelable: true });

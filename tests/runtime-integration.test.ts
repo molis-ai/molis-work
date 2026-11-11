@@ -459,10 +459,10 @@ test("failed validation restores Codex config bytes and Skill state", async () =
   });
 });
 
-test("default validation tolerates slow MCP startup before initialize and tools-list", async () => {
+test("N34-MCP-01 default validation allows cold startup beyond ten seconds before initialize and tools-list", async () => {
   await withFixture(async (fixture) => {
     const builtServer = join(process.cwd(), "dist", "mcp", "server.js");
-    await writeFile(fixture.launcher, `#!/bin/sh\nsleep 3.2\nexec node ${JSON.stringify(builtServer)}\n`, { mode: 0o755 });
+    await writeFile(fixture.launcher, `#!/bin/sh\nsleep 11.2\nexec node ${JSON.stringify(builtServer)}\n`, { mode: 0o755 });
     const integration = new RuntimeIntegrationService({
       homeDirectory: fixture.home,
       userHomeDirectory: fixture.userHome,

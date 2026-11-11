@@ -1,4 +1,4 @@
-import { projectsCapabilities, projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
+import { outputFolder, projectFolders } from "./project-folders.js";
 import { defineErrorCodes, type WorkExecutorMode } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginActionClient } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentHostCapabilities as agent, type AgentMcpToolRef, type AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -6,7 +6,8 @@ import type { AgentSteerReceipt } from "@molis-ai/molis-work-contracts/services/
 import { codingExecutorActions } from "./executor-actions.js";
 import type { CodingActivation } from "./route-activation.js";
 import { codingActions, type CodingActionCall } from "./route-entry.js";
-import { unlessMissing } from "./route-selections.js";
+import { mergedSkills, savedSkills, unlessMissing } from "./route-selections.js";
+import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import { nextConfiguration } from "./run-inputs.js";
 import { projectRuntime, runtimeDirectory, supports } from "./runtime-choice.js";
 
@@ -34,10 +35,10 @@ const known = (mode: string) => {
   if (!CODING_EXECUTOR_MODES.some(entry => entry.id === mode)) throw executorErrors.executor_mode_unknown(`Coding 没有「${mode}」这种方式`);
 };
 /**
- * The directory a round the Assistant starts runs in: the project's preferred one. Not the folder Files and Git browse — looking around
- * there must not move where work runs (batch 12 item 1, BL-023).
+ * The directory a round the Assistant starts runs in: the project's output (SSC-17). Not the folder a panel shows — looking around there
+ * must not move where work runs (batch 12 item 1, BL-023).
  */
-const currentWorkspace = async (api: PluginActionClient) => await unlessMissing(api.invoke(projectsCapabilities.readWorkspace, []), null);
+const currentWorkspace = async (api: PluginActionClient) => await unlessMissing(outputFolder(api), null);
 /** The session's next-round settings as Coding keeps them, or null when none were chosen. */
 const kept = (a: CodingActivation, sessionId: string): Settings | null => {
   const saved = a.context.services?.storage?.get(`configuration:${sessionId}`);
@@ -55,16 +56,18 @@ async function settings(call: CodingActionCall, own: Settings | null, mode?: str
 const keep = (call: CodingActionCall, sessionId: string, configuration: Settings) =>
   call.routed("coding.update-session", { method: "PATCH", params: { sessionId }, query: {}, body: { configuration } });
 /**
- * What the page sends with every round it starts besides the settings (`client.ts` startRound): the session's methods and MCP
- * choices, and writer assignments only for parallel writers. The start reads the session's other choices itself.
+ * What the page sends with every round it starts besides the settings (`client.ts` startRound): the Skills and MCP choices, and writer
+ * assignments only for parallel writers. The start reads the session's other choices itself. The Skills are the ones the delegating round
+ * hands over, then the session's own choice (`mergedSkills`); whether a `manual` one was named is the Host's to say, from the call.
  */
-const roundOf = (a: CodingActivation, sessionId: string, { writer_assignments, ...chosen }: Settings, task: string) => {
+const roundOf = (a: CodingActivation, sessionId: string, { writer_assignments, worktree, ...chosen }: Settings, task: string, delegated: readonly SkillRef[]) => {
   const saved = (key: string) => {
     const value = a.context.services?.storage?.get(`${key}:${sessionId}`);
     return typeof value === "string" ? JSON.parse(value) as unknown : undefined;
   };
-  return { ...chosen, ...(chosen.intent === "parallel" && writer_assignments ? { writer_assignments } : {}),
-    methods: saved("methods"), mcp_tools: saved("mcp"), mcp_sources: saved("mcp-sources"), task };
+  // The worktree the person pointed the session at runs the Assistant's rounds too, as it runs the page's.
+  return { ...chosen, ...(chosen.intent === "parallel" && writer_assignments ? { writer_assignments } : {}), ...(worktree ? { worktree_id: worktree.worktree_id } : {}),
+    skills: mergedSkills(delegated, savedSkills(a.context, sessionId)), mcp_tools: saved("mcp"), mcp_sources: saved("mcp-sources"), task };
 };
 
 /**
@@ -75,7 +78,7 @@ export function codingExecutor(a: CodingActivation): void {
   const { action } = a.route;
   action(codingExecutorActions.state, async (_input, { api, beforeWrite }) => {
     const actions = codingActions(a.context, beforeWrite);
-    const workspace = await currentWorkspace(api), workspaces = await unlessMissing(api.invoke(projectSettingsCapabilities.workspaces, []), []);
+    const workspace = await currentWorkspace(api), workspaces = await unlessMissing(projectFolders(api), []);
     const { runtime } = projectRuntime(await runtimeDirectory(actions, api));
     return { modes: [...CODING_EXECUTOR_MODES], default_mode: DEFAULT_MODE, images: false, workspace_id: workspace?.workspace_id ?? null,
       workspaces: workspaces.map(row => ({ workspace_id: row.workspace_id, path: row.canonical_path,
@@ -105,7 +108,7 @@ export function codingExecutor(a: CodingActivation): void {
   action(codingExecutorActions["run.start"], async (input, call) => {
     const own = kept(a, input.session_id), chosen = await settings(call, own);
     const started = await call.routed("coding.start-run", { method: "POST", params: { sessionId: input.session_id }, query: {},
-      body: roundOf(a, input.session_id, chosen, input.task) }) as { run: { ref: { run_id: string } } };
+      body: roundOf(a, input.session_id, chosen, input.task, input.skills ?? []) }) as { run: { ref: { run_id: string } } };
     // Kept once the round runs, so a refused start leaves the session as it was; settings the person chose meanwhile stay theirs.
     if (!own) {
       await call.beforeWrite();

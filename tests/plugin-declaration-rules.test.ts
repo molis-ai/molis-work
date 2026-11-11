@@ -255,7 +255,7 @@ const ARTIFACT_PERMISSIONS = [
 ];
 // A type pinned into the 成果库 is named and has a preview action of its own plugin (W3-05-2); `OUTPUT_TYPE` itself stays the bare
 // type the ports and the process items name.
-const OUTPUT_PREVIEW = defineArtifactPreviewAction("example.output.preview", "输出", []);
+const OUTPUT_PREVIEW = defineArtifactPreviewAction("example.output.preview", 1, "输出", []);
 const PRODUCED_OUTPUT = { ...OUTPUT_TYPE, title: "输出", preview: { capability_id: OUTPUT_PREVIEW.capability_id, version: OUTPUT_PREVIEW.version } };
 const CONSUMES_INPUT = { produces: [PRODUCED_OUTPUT], consumes: [INPUT_TYPE] };
 
@@ -359,7 +359,14 @@ const MANIFEST_RULES: ReadonlyArray<{ rule: string; manifest: Record<string, unk
 ];
 
 function method(over: Part = {}): Part {
-  return { skill_id: "summarize", version: 1, name: "Summarize", summary: "Summarizes what the person selected", tools: ["find-capabilities"], ...over };
+  // C-3: `description` and `applies_to` are required in Manifest methods (SKP-08).
+  return { skill_id: "summarize", version: 1, name: "Summarize", summary: "Summarizes what the person selected", tools: ["find-capabilities"],
+    description: "When the person asks to summarize what they selected", applies_to: "assistant", ...over };
+}
+/** A plugin's own Agent's Skill: the same declaration without what only `methods` write. */
+function agentSkill(over: Part = {}): Part {
+  const { description: _description, applies_to: _appliesTo, ...skill } = method();
+  return { ...skill, ...over };
 }
 function view(over: Part = {}): Part { return { view_id: "main", slot: "stage", title: "Main", ...over }; }
 function uiOf(over: Part = {}): Part {
@@ -424,8 +431,8 @@ const AGENT_RULES: ReadonlyArray<{ rule: string; agent: Part; ports?: Part; expe
   { rule: "a compaction prompt that is not declared", agent: agentOf({ compaction: { prompt_id: "nowhere", above_tokens: 1000 } }), expected: "Agent 压缩 Prompt nowhere 未声明" },
   { rule: "a compaction threshold of 0", agent: agentOf({ compaction: { prompt_id: "reader", above_tokens: 0 } }), expected: "Agent 压缩阈值无效" },
   { rule: "a skill with a bad id", agent: agentOf({ skills: [{ skill_id: "Bad", version: 1, name: "Bad", summary: "x", tools: ["t"] }] }), expected: "Agent 方法声明不合法" },
-  { rule: "a skill twice", agent: agentOf({ skills: [method(), method()] }), expected: "Agent 方法重复：summarize" },
-  { rule: "a skill without tools", agent: agentOf({ skills: [method({ tools: [] })] }), expected: "Agent 方法 summarize 必须声明可用工具" },
+  { rule: "a skill twice", agent: agentOf({ skills: [agentSkill(), agentSkill()] }), expected: "Agent 方法重复：summarize" },
+  { rule: "a skill without tools", agent: agentOf({ skills: [agentSkill({ tools: [] })] }), expected: "Agent 方法 summarize 必须声明可用工具" },
   { rule: "a sub-Agent parent that is not a declared role", agent: withChild({}, { subagents: { parent_role_ids: ["nowhere"], roles: [] } }), expected: "子 Agent 父角色 nowhere 未声明" },
   { rule: "a sub-Agent role with a bad id", agent: withChild({ role_id: "Bad" }), expected: "子 Agent 角色声明不合法" },
   { rule: "a sub-Agent role twice", agent: agentOf({ prompts: [readerPrompt, { prompt_id: "child", version: 1 }], subagents: { parent_role_ids: ["reader"], roles: [TASK_DELEGATE, TASK_DELEGATE] } }), expected: "子 Agent 角色重复：child" },
@@ -452,7 +459,7 @@ test("Agent declarations: a block that breaks every segment reports them in the 
     roles: [{ ...reader, prompts: ["nowhere"], workspace: "none", execution: "text-edit" }, { role_id: "Bad2", version: 1, name: "Bad" }, reader],
     characters: { selection: "any", scope: "project-owner", role_ids: ["reader"] },
     compaction: { prompt_id: "nowhere", above_tokens: 0 },
-    skills: [method({ skill_id: "tooling", tools: [] })],
+    skills: [agentSkill({ skill_id: "tooling", tools: [] })],
     subagents: { parent_role_ids: ["nowhere"], roles: [{ ...TASK_DELEGATE, parent_role_ids: ["other"] }] },
   };
   assert.equal(manifestProblems(declarationManifest({ agent })), [
@@ -477,7 +484,7 @@ test("Agent declarations: a block that breaks every segment reports them in the 
   ].join(SEPARATOR));
 });
 
-test("Manifest declarations: a v2 Manifest that breaks every section reports them in the order the sections are checked", () => {
+test("Manifest declarations: a Manifest that breaks every section reports them in the order the sections are checked", () => {
   const broken = declarationManifest({
     actions: [defined({ permissions: ["storage:private"], result_scene: { scene_id: "example.review" } })],
     action_scenes: [scene({ permissions: ["a:one"], configuration_permissions: ["c:two"] })],
@@ -530,7 +537,7 @@ test("N26: each extended declaration is read in the current format and refused w
     const manifest = blockFixture();
     add(manifest);
     assert.equal(manifestProblems(manifest), "", name);
-    assert.match(manifestProblems({ ...manifest, schema_version: 2, host_api_version: 2 }), /必须都是 1/, name);
+    assert.match(manifestProblems({ ...manifest, schema_version: 2, host_api_version: 2 }), /版本不受支持/, name);
   }
 });
 
@@ -544,20 +551,20 @@ test("ui.commands remains invalid even in the current format (BL-363)", () => {
 
 /** A background job the fixture Manifest may declare: it names no permission, since the fixture declares none. */
 const JOB = { job_id: "follow", reason: "Follow what was accepted", permissions: [] };
-type ManifestCode = "plugin.manifest_invalid" | "plugin.entrypoint_missing" | "plugin.permission_invalid" | "plugin.declaration_invalid";
+type ManifestCode = "plugin.manifest_invalid" | "plugin.manifest_version_invalid" | "plugin.entrypoint_missing" | "plugin.permission_invalid" | "plugin.declaration_invalid";
 const SHAPE_RULES: ReadonlyArray<{ rule: string; input: unknown; code: ManifestCode; message: string }> = [
   { rule: "not an object", input: null, code: "plugin.manifest_invalid", message: "Manifest 必须为对象" },
   { rule: "an array", input: [], code: "plugin.manifest_invalid", message: "Manifest 必须为对象" },
   { rule: "no publisher", input: declarationManifest({ publisher: undefined }), code: "plugin.manifest_invalid", message: "publisher 必须为对象" },
-  { rule: "schema_version 3", input: declarationManifest({ schema_version: 3, host_api_version: 3 }), code: "plugin.manifest_invalid", message: "Plugin Manifest schema_version 与 host_api_version 必须都是 1" },
-  { rule: "a host_api_version that differs", input: declarationManifest({ host_api_version: 2 }), code: "plugin.manifest_invalid", message: "Plugin Manifest schema_version 与 host_api_version 必须都是 1" },
+  { rule: "schema_version 3", input: declarationManifest({ schema_version: 3, host_api_version: 3 }), code: "plugin.manifest_version_invalid", message: "Plugin Manifest 版本不受支持" },
+  { rule: "a host_api_version that differs", input: declarationManifest({ host_api_version: 2 }), code: "plugin.manifest_version_invalid", message: "Plugin Manifest 版本不受支持" },
   { rule: "a plugin id outside the namespace", input: declarationManifest({ plugin_id: "io.example.thing" }), code: "plugin.manifest_invalid", message: "Plugin Manifest 身份、名称、类型或版本不合法" },
   { rule: "a version that is not SemVer", input: declarationManifest({ version: "1.0" }), code: "plugin.manifest_invalid", message: "Plugin Manifest 身份、名称、类型或版本不合法" },
   { rule: "a numeric prerelease with a leading zero", input: declarationManifest({ version: "1.0.0-01" }), code: "plugin.manifest_invalid", message: "Plugin Manifest 身份、名称、类型或版本不合法" },
   { rule: "a blank name", input: declarationManifest({ name: " " }), code: "plugin.manifest_invalid", message: "Plugin Manifest 身份、名称、类型或版本不合法" },
   { rule: "an empty signature", input: declarationManifest({ publisher: { publisher_id: "molis", signature: "" } }), code: "plugin.manifest_invalid", message: "Plugin Manifest 身份、名称、类型或版本不合法" },
   { rule: "an unknown kind", input: declarationManifest({ kind: "service" }), code: "plugin.manifest_invalid", message: "Plugin Manifest 身份、名称、类型或版本不合法" },
-  { rule: "an app on unsupported schema_version 2", input: declarationManifest({ kind: "app", schema_version: 2, host_api_version: 2 }), code: "plugin.manifest_invalid", message: "Plugin Manifest schema_version 与 host_api_version 必须都是 1" },
+  { rule: "an app on unsupported schema_version 2", input: declarationManifest({ kind: "app", schema_version: 2, host_api_version: 2 }), code: "plugin.manifest_version_invalid", message: "Plugin Manifest 版本不受支持" },
   { rule: "no entrypoint", input: declarationManifest({ entrypoints: [] }), code: "plugin.entrypoint_missing", message: "Plugin 至少需要一个 entrypoint" },
   { rule: "an entrypoint for an unknown deployment", input: declarationManifest({ entrypoints: [{ deployment: "edge", entrypoint: "./entry.mjs" }] }), code: "plugin.entrypoint_missing", message: "同一部署环境只能声明一个有效 entrypoint" },
   { rule: "two entrypoints for one deployment", input: declarationManifest({ entrypoints: [{ deployment: "local", entrypoint: "./a.mjs" }, { deployment: "local", entrypoint: "./b.mjs" }] }), code: "plugin.entrypoint_missing", message: "同一部署环境只能声明一个有效 entrypoint" },
@@ -596,7 +603,7 @@ const SHAPE_RULES: ReadonlyArray<{ rule: string; input: unknown; code: ManifestC
 function parseFailure(input: unknown): { code: string; message: string } | null {
   try { parsePluginManifest(input); return null; }
   catch (error) {
-    if ((error instanceof ActionError && ["plugin.manifest_invalid","plugin.entrypoint_missing","plugin.permission_invalid","plugin.declaration_invalid"].includes(error.code) && error.kind === "invalid")) return { code: error.code, message: error.message };
+    if ((error instanceof ActionError && ["plugin.manifest_invalid","plugin.manifest_version_invalid","plugin.entrypoint_missing","plugin.permission_invalid","plugin.declaration_invalid"].includes(error.code) && error.kind === "invalid")) return { code: error.code, message: error.message };
     throw error;
   }
 }

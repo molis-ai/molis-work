@@ -153,6 +153,7 @@ export function retireFeedSource(
     if (historyDecision === "delete_local_history") {
       held.value = holdingsOfSource(ports, projectId, sourceId);
       ports.feed.commands.deleteBySource(projectId, sourceId);
+      ports.signals.deleteBySource(projectId, sourceId);
       ports.attention.commands.deleteSubject(projectId, "source_fault", sourceId);
       ports.listener.deleteSourceState(projectId, sourceId);
     } else {

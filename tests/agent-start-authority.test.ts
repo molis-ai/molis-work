@@ -134,3 +134,22 @@ test("C3 typed dispatch returns one original caller fence after startup is gone"
   explicit = false; assert.throws(() => fence!(), /original explicit authority revoked/);
   explicit = true; active = false; assert.throws(() => fence!(), /original activation revoked/);
 });
+
+// D0134: exercise every registered wrapper, before any owner/handler can run.
+test("D0134 missing invocation and failed authority never reach Agent Host", async () => {
+  const handlers = new Map<string, Function>();
+  registerAgentHostCapabilities({ register(definition, handler) { handlers.set(definition.capability_id, handler); return () => {}; } }, {
+    agentHost: () => assert.fail("uncontrolled handler reached the host"), projectId: () => "project",
+    authority: () => assert.fail("uncontrolled handler requested authority"),
+  });
+  assert.ok(handlers.size > 0);
+  for (const handler of handlers.values()) {
+    for (const invocation of [undefined, null, {}, { beforeEffect() {} }]) {
+      await assert.rejects(Promise.resolve(Reflect.apply(handler, undefined, [{}, [], invocation])), { code: "agent.session_unknown" });
+    }
+    const refusal = new Error("revoked or cancelled");
+    await assert.rejects(Promise.resolve(Reflect.apply(handler, undefined, [{}, [], {
+      async beforeEffect() { throw refusal; }, assertAuthorityCurrent() { throw refusal; },
+    }])), error => error === refusal);
+  }
+});

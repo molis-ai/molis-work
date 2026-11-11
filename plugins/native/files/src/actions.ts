@@ -1,16 +1,16 @@
 import { defineFileContentAction, defineFileEntriesAction, fileContentOf, fileEntriesPage, type ActionDefinition, type ActionHandlerBinding, type FileEntry, type FileEntriesInput, type FileSourceKind } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createActionDefinition, bindOwnerPluginAction } from "@molis-ai/molis-work-plugin-sdk";
 import { object, id, integer, path, rootPath, workspace, fileResult, nullable, snapshot, publication } from "@molis-ai/molis-work-contracts/modules/workspace-action-schemas";
-import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
+import { projectDirectoryActions, type ProjectDirectories, type ProjectDirectory } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { parseFilePath, parseFileSnapshot, parseFileTextSelection, fileSnapshotFitsInline, parseWorkspaceFileSubjectId, workspaceFileSubjectId,
+import { parseFilePath, parseFileSnapshot, parseFileTextSelection, fileSnapshotFitsInline, resolveWorkspaceFileSubject, resolveWorkspaceId, workspaceFileSubjectId,
   workspaceReadActions, WORKSPACE_FILE_SUBJECT_KIND, WORKSPACE_SKIPPED_FOLDERS, type WorkspaceFileResult, type FileSnapshot } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import type { ArtifactVersionResult } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { parseReadingPosition, serializeReadingPosition, READING_POSITION_KEY, type ReadingPosition } from "./position.js";
 import { filesErrors } from "./errors.js";
 
-const define = <Input, Output>(capability_id: string, title: string, description: string, input_schema: Record<string, unknown>, output_schema: Record<string, unknown>): ActionDefinition<Input, Output> => createActionDefinition<Input, Output>(capability_id, "command", { title, description,
-    audiences: ["user", "agent", "workflow", "mcp", "plugin"], permissions: ["artifact:read", "artifact:write", "storage:private"], subject_kinds: ["workspace", "file"], input_schema, output_schema });
+const define = <Input, Output>(capability_id: string, version: number, title: string, description: string, input_schema: Record<string, unknown>, output_schema: Record<string, unknown>): ActionDefinition<Input, Output> => createActionDefinition<Input, Output>(capability_id, "command", { title, description,
+    audiences: ["user", "agent", "workflow", "mcp", "plugin"], permissions: ["artifact:read", "artifact:write", "storage:private"], subject_kinds: ["workspace", "file"], input_schema, output_schema }, version);
 /**
  * An action that cannot work without reading the linked folder says so: it needs the one workspace read action, and the
  * callers of the action hold `workspace:read` for it (a declaration never grants what the dependency needs).
@@ -21,18 +21,20 @@ const readingFolder = <Input, Output>(definition: ActionDefinition<Input, Output
 interface FileWorkspace { workspace_id: string; name: string; handle: string }
 interface FileRead { workspace: FileWorkspace; result: WorkspaceFileResult }
 export interface FileInput { workspace_id: string; path: readonly string[] }
+/** The folder the page browses now (page state), or none for the project's output. */
+export interface FileStateInput { workspace_id?: string }
 export interface FileCaptureInput extends FileInput { port: "before" | "after" | "selection"; fingerprint: string; start?: number; end?: number }
 export const filesActions = {
-  state: define<Record<string, never>, { workspace: FileWorkspace; position: ReadingPosition | null }>("files.state", "同步文件浏览状态", "读取当前浏览目录和阅读位置；切换目录时使旧快照输出失效", object({}), object({ workspace, position: nullable(object({ workspace_id: id, path })) })),
-  directory: readingFolder(define<FileInput, FileRead>("files.directory", "浏览目录", "列出当前授权目录下的内容；工作区切换时同步失效原输出", object({ workspace_id: id, path: rootPath }), object({ workspace, result: fileResult }))),
-  open: readingFolder(define<FileInput, FileRead & { path: readonly string[] }>("files.open", "打开文件", "有界读取当前工作区的文本，保存阅读位置并更新文件集合输出", object({ workspace_id: id, path }), object({ workspace, result: fileResult, path }))),
-  capture: readingFolder(define<FileCaptureInput, { saved: ArtifactVersionResult; port: "before" | "after" | "selection"; snapshot: FileSnapshot }>("files.capture", "固定文件快照", "重新读取并核对已查看的指纹，保存固定全文或选区；不改写原文件", object({ workspace_id: id, path, port: { enum: ["before", "after", "selection"] }, fingerprint: id, start: integer, end: integer }, ["workspace_id", "path", "port", "fingerprint"]), object({ saved: publication, port: { enum: ["before", "after", "selection"] }, snapshot }))),
+  state: define<FileStateInput, { workspace: FileWorkspace; resolved: string | null; position: ReadingPosition | null }>("files.state", /* @version action.files.state */ 1, "同步文件浏览状态", "读取要浏览的项目文件夹（没指定时是输出目录）和阅读位置；所浏览的文件夹换了或不在项目里了，使旧快照输出失效", object({ workspace_id: id }, []), object({ workspace, resolved: nullable(id), position: nullable(object({ workspace_id: id, path })) })),
+  directory: readingFolder(define<FileInput, FileRead>("files.directory", /* @version action.files.directory */ 1, "浏览目录", "列出当前授权目录下的内容；工作区切换时同步失效原输出", object({ workspace_id: id, path: rootPath }), object({ workspace, result: fileResult }))),
+  open: readingFolder(define<FileInput, FileRead & { path: readonly string[] }>("files.open", /* @version action.files.open */ 1, "打开文件", "有界读取当前工作区的文本，保存阅读位置并更新文件集合输出", object({ workspace_id: id, path }), object({ workspace, result: fileResult, path }))),
+  capture: readingFolder(define<FileCaptureInput, { saved: ArtifactVersionResult; port: "before" | "after" | "selection"; snapshot: FileSnapshot }>("files.capture", /* @version action.files.capture */ 1, "固定文件快照", "重新读取并核对已查看的指纹，保存固定全文或选区；不改写原文件", object({ workspace_id: id, path, port: { enum: ["before", "after", "selection"] }, fingerprint: id, start: integer, end: integer }, ["workspace_id", "path", "port", "fingerprint"]), object({ saved: publication, port: { enum: ["before", "after", "selection"] }, snapshot }))),
 };
 /** Workspace files in the side panel (specs/archive/side-panel): listed through the same browsing grant, previewed as text. */
 const workspaceFileKinds: FileSourceKind[] = [{ kind: WORKSPACE_FILE_SUBJECT_KIND, title: "工作区文件", surface: "files" }];
 const filesSideActions = {
-  entries: readingFolder(defineFileEntriesAction("files.side.entries", workspaceFileKinds, "工作区文件", ["artifact:read", "storage:private"])),
-  content: readingFolder(defineFileContentAction("files.side.content", workspaceFileKinds, "工作区文件", ["artifact:read", "storage:private"])),
+  entries: readingFolder(defineFileEntriesAction("files.side.entries", /* @version action.files.side.entries */ 1, workspaceFileKinds, "工作区文件", ["artifact:read", "storage:private"])),
+  content: readingFolder(defineFileContentAction("files.side.content", /* @version action.files.side.content */ 1, workspaceFileKinds, "工作区文件", ["artifact:read", "storage:private"])),
 };
 export const FILES_ACTIONS = [...Object.values(filesActions), ...Object.values(filesSideActions)];
 /** A tree walk stops here: the side panel lists what a person browses, not a whole dependency cache. */
@@ -43,41 +45,59 @@ const MEDIA: Record<string, string> = { md: "text/markdown", markdown: "text/mar
   csv: "text/csv", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", svg: "image/svg+xml", pdf: "application/pdf" };
 const mediaOf = (name: string) => MEDIA[name.split(".").pop()?.toLowerCase() ?? ""] ?? "text/plain";
 
-/** The folder Files browses. A switch since it last looked withdraws the snapshots it handed on from the old folder. */
+/** The folder of this project an id names on this device: one of its folders, or the one the person named for another device's (SSC-26). */
+const folderOf = (all: ProjectDirectories, id: string): ProjectDirectory | null => {
+  const resolved = resolveWorkspaceId(id, all);
+  return resolved ? all.directories.find(item => item.workspace_id === resolved) ?? null : null;
+};
+
+/**
+ * Which folder Files reads. The page keeps the folder it browses (page state) and names it; with none named it is the project's
+ * output (specs/shared-sources-and-surfaces SSC-17). The snapshots Files handed on came from one folder: reading another, or that
+ * folder leaving the project, withdraws them.
+ */
 export function filesBrowsing(context: PluginStartContext) {
   const services = context.services;
   let previousWorkspace = services?.storage?.get("last-workspace") ?? null;
   return {
-    /** The folder selected now, or null; with `beforeWrite`, a switch is recorded and the old folder's snapshots withdrawn. */
-    async confirm(beforeWrite?: () => Promise<void>) {
-      const selected = await services?.actions?.invoke(projectSettingsCapabilities.browsingWorkspace, []);
-      const id = selected?.workspace_id ?? null;
-      if (beforeWrite && id !== previousWorkspace) {
+    /** The last folder snapshots came from, or null. */
+    get last() { return previousWorkspace; },
+    /**
+     * The folder `id` names (or the output, when `id` is absent or names none of the project's), and the folder `id` itself named,
+     * or null; with `beforeWrite`, a change from the last folder is recorded and its snapshots withdrawn.
+     */
+    async confirm(beforeWrite?: () => Promise<void>, id?: string | null) {
+      const all = await services?.actions?.invoke(projectDirectoryActions.get, {});
+      const named = all && id ? folderOf(all, id) : null;
+      const selected = named ?? all?.directories.find(item => item.roles.includes("output")) ?? null;
+      const now = selected?.workspace_id ?? null;
+      if (beforeWrite && now !== previousWorkspace) {
         await beforeWrite();
-        if (id) services?.storage?.set("last-workspace", id);
+        if (now) services?.storage?.set("last-workspace", now);
         else services?.storage?.delete("last-workspace");
-        for (const port of ["files", "before", "after", "selection"]) services?.outputs?.invalidate(port, "工作目录已切换，请在当前目录重新固定快照");
-        previousWorkspace = id;
+        for (const port of ["files", "before", "after", "selection"]) services?.outputs?.invalidate(port, "浏览的文件夹换了，请在这个文件夹里重新固定快照");
+        previousWorkspace = now;
       }
-      return selected ?? null;
+      return { selected, named, all };
     },
   };
 }
 
 export function filesActionHandlers(context: PluginStartContext, folder = filesBrowsing(context)): ActionHandlerBinding[] {
   const services = context.services;
-  const browsing = [projectSettingsCapabilities.browsingWorkspace];
+  const browsing = [projectDirectoryActions.get];
   let openSequence = 0;
-  const workspace = async (beforeWrite?: () => Promise<void>) => {
-    const selected = await folder.confirm(beforeWrite);
-    if (!selected) throw filesErrors.invalid("请在项目设置的工作目录中选择可用浏览目录");
-    return { workspace_id: selected.workspace_id, name: selected.display_name, handle: selected.workspace_id };
+  const shown = (selected: ProjectDirectory) => ({ workspace_id: selected.workspace_id, name: selected.display_name, handle: selected.workspace_id });
+  const workspace = async (beforeWrite?: () => Promise<void>, id?: string | null) => {
+    const { selected } = await folder.confirm(beforeWrite, id);
+    if (!selected) throw filesErrors.invalid("这个项目还没有输出目录，请在项目设置的「输入与输出」里指定");
+    return shown(selected);
   };
   async function read(id: unknown, path: readonly string[], kind: "directory" | "text" | "bytes", beforeWrite?: () => Promise<void>) {
-    const current = await workspace(beforeWrite);
-    if (id !== current.workspace_id || !services?.actions) throw filesErrors.invalid("工作目录已经变化，请重新选择文件");
+    const current = typeof id === "string" && id ? await workspace(beforeWrite, id) : null;
+    if (!current || id !== current.workspace_id || !services?.actions) throw filesErrors.invalid("这个文件夹已不在项目里，请刷新后重新选择文件");
     const result = await services.actions.invoke(workspaceReadActions.file, { workspace_id: current.workspace_id, path, kind });
-    if ((await workspace(beforeWrite)).workspace_id !== current.workspace_id) throw filesErrors.invalid("工作目录已经变化，请重试");
+    if ((await workspace(beforeWrite, current.workspace_id)).workspace_id !== current.workspace_id) throw filesErrors.invalid("这个文件夹已不在项目里，请重试");
     return { workspace: current, result };
   }
   function readable(result: WorkspaceFileResult): asserts result is Extract<WorkspaceFileResult, { outcome: "text" }> {
@@ -104,14 +124,15 @@ export function filesActionHandlers(context: PluginStartContext, folder = filesB
       return fileEntriesPage(files, input);
     }, browsing),
     bindOwnerPluginAction(context, filesSideActions.content, async input => {
-      const current = await workspace();
-      const named = parseWorkspaceFileSubjectId(String(input.subject?.id ?? ""));
-      if (named?.workspace_id !== current.workspace_id) throw Object.assign(new Error("这个文件不在当前浏览目录里"), { code: "files.not_found" });
+      // A file named by another device's folder reads from the folder the person named for it here (SSC-26).
+      const { all } = await folder.confirm();
+      const named = all ? resolveWorkspaceFileSubject({ id: String(input.subject?.id ?? "") }, all) : null;
+      if (!named) throw Object.assign(new Error("这个文件不在当前项目的文件夹里"), { code: "files.not_found" });
       const path = named.path;
       const title = path.at(-1) ?? "文件", media = mediaOf(title);
       // Pictures and PDFs are shown as they are; everything else, SVG included, as text.
       const whole = (media.startsWith("image/") && media !== "image/svg+xml") || media === "application/pdf";
-      const { result } = await read(current.workspace_id, path, whole ? "bytes" : "text");
+      const { result } = await read(named.workspace_id, path, whole ? "bytes" : "text");
       if (result.outcome === "bytes") return fileContentOf({ subject: input.subject, revision: result.fingerprint, title, media_type: media, bytes: Uint8Array.from(atob(result.data), char => char.charCodeAt(0)) });
       if (result.outcome === "text") return fileContentOf({ subject: input.subject, revision: result.fingerprint, title, media_type: media, text: result.text });
       if (result.outcome === "missing") throw Object.assign(new Error("文件已不存在"), { code: "files.not_found" });
@@ -119,7 +140,12 @@ export function filesActionHandlers(context: PluginStartContext, folder = filesB
         : result.outcome === "binary" ? "这是二进制文件，侧栏只预览文本。" : result.outcome === "denied" ? "这个路径不可读取。" : "这个文件现在不能预览。";
       return fileContentOf({ subject: input.subject, revision: "unreadable", title, media_type: "text/plain", text: why });
     }, browsing),
-    bindOwnerPluginAction(context, filesActions.state, async (_input, beforeWrite) => ({ workspace: await workspace(beforeWrite), position: parseReadingPosition(services?.storage?.get(READING_POSITION_KEY)) ?? null }), browsing),
+    bindOwnerPluginAction(context, filesActions.state, async (input, beforeWrite) => {
+      const asked = typeof input?.workspace_id === "string" && input.workspace_id ? input.workspace_id : null;
+      const { selected, named } = await folder.confirm(beforeWrite, asked);
+      if (!selected) throw filesErrors.invalid("这个项目还没有输出目录，请在项目设置的「输入与输出」里指定");
+      return { workspace: shown(selected), resolved: named?.workspace_id ?? null, position: parseReadingPosition(services?.storage?.get(READING_POSITION_KEY)) ?? null };
+    }, browsing),
     bindOwnerPluginAction(context, filesActions.directory, async (input, beforeWrite) => {
       const path = parseFilePath(input.path, true);
       return read(input.workspace_id, path, "directory", beforeWrite);

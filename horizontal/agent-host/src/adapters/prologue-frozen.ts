@@ -17,6 +17,7 @@ export function freezeRunStart(input: { request: AgentStartRequest; role: NonNul
   }
   return {
     ...(role.subagent_workspaces ? { subagent_workspaces: structuredClone(role.subagent_workspaces) } : {}),
+    ...(role.directories ? { directories: structuredClone(role.directories) } : {}),
     ...(role.character ? { character: structuredClone(role.character) } : {}),
     ...(role.character_skill_ids === undefined ? {} : { character_skill_ids: [...role.character_skill_ids] }),
     role_id: role.role_id,
@@ -33,7 +34,8 @@ export function freezeRunStart(input: { request: AgentStartRequest; role: NonNul
       layer: promptLayerOf(prompt),
       ...(prompt.user_revision !== undefined ? { user_revision: prompt.user_revision } : {}),
     })),
-    skills: (role.skills ?? []).map(({ body: _body, ...definition }) => ({ ...definition, tools: [...definition.tools] })),
+    skills: (role.skills ?? []).map(({ body: _body, ...skill }) => structuredClone(skill)),
+    ...(role.reply_locale ? { reply_locale: role.reply_locale } : {}),
     ...(request.action_tools === undefined ? {} : { action_tools: structuredClone(request.action_tools) }),
     ...(role.action_gateway ? { action_gateway: true as const } : {}),
     mcp_tools: request.mcp_tools ?? [],

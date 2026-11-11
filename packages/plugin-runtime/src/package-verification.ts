@@ -1,7 +1,8 @@
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createHash, createPublicKey, type KeyObject, verify } from "node:crypto";
-import { isRecord, parsePluginPackageManifest } from "@molis-ai/molis-work-plugin-sdk";
+import { canonicalJsonText, compareCodeUnits, isRecord, parsePluginPackageManifest } from "@molis-ai/molis-work-plugin-sdk";
 import type { PluginPackageBundle, PluginPackagePayload, PluginPackageSigner } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { pluginLocaleFilePaths } from "./locale-packs.js";
 
 
 
@@ -34,7 +35,7 @@ export function assertPluginPackagePath(value: string): void {
 export function parsePluginPackage(input: unknown): PluginPackageBundle {
   const bundle = object(input);
   const payload = object(bundle.payload);
-  if (payload.schema_version !== 1 || !Array.isArray(payload.files)) invalid("不支持的 Plugin package schema");
+  if (payload.schema_version !== /* @version format.plugin.package */ 1 || !Array.isArray(payload.files)) invalid("不支持的 Plugin package schema");
   const manifest = parsePluginPackageManifest(payload.manifest);
   const paths = new Set<string>();
   const files = payload.files.map(value => {
@@ -45,12 +46,14 @@ export function parsePluginPackage(input: unknown): PluginPackageBundle {
     paths.add(file.path);
     if (Buffer.from(file.content_base64, "base64").toString("base64") !== file.content_base64) invalid("包内文件不是有效 base64 字节");
     return { path: file.path, content_base64: file.content_base64 };
-  }).sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
+  }).sort((a, b) => compareCodeUnits(a.path, b.path));
   for (const entry of manifest.entrypoints) {
     const path = entry.entrypoint.replace(/^\.\//u, "");
     assertPluginPackagePath(path);
     if (!paths.has(path)) invalid("包内缺少 Manifest 声明的入口");
   }
+  // Only that they are there: this runs on every read of a package, and a language's file is parsed the first time it is used (`locale-packs.ts`).
+  for (const path of pluginLocaleFilePaths(manifest)) if (!paths.has(path)) invalid(`包内缺少 Manifest 声明的语言文件 ${path}`);
   const manifestFile = files.find(file => file.path === "manifest.json");
   if (!manifestFile) invalid("包内缺少 manifest.json");
   let fileManifest: unknown;
@@ -69,7 +72,7 @@ export function parsePluginPackage(input: unknown): PluginPackageBundle {
     publisherKey = parsePublisherKey(bundle.publisher_key);
     if (pluginPublisherIdentity(publicKeyFromSpki(publisherKey.spki_base64)) !== manifest.publisher.signature) throw pluginErrors.signer_mismatch("随包的公钥不是 Manifest 发布者身份对应的公钥");
   }
-  return { payload: { schema_version: 1, manifest, files }, signature, publisher_key: publisherKey };
+  return { payload: { schema_version: /* @version format.plugin.package */ 1, manifest, files }, signature, publisher_key: publisherKey };
 }
 
 export function pluginPackageSigningBytes(payload: PluginPackagePayload): Buffer {
@@ -114,10 +117,7 @@ export function verifyPluginPackageSignature(input: unknown): { bundle: PluginPa
 }
 
 function canonical(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
-  if (value && typeof value === "object") return `{${Object.entries(value).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)
-    .map(([key, item]) => `${JSON.stringify(key)}:${canonical(item)}`).join(",")}}`;
-  return JSON.stringify(value) ?? "null";
+  return canonicalJsonText(value, "null");
 }
 
 function object(value: unknown): Record<string, unknown> {

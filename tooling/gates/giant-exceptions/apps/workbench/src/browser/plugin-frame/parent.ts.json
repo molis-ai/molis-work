@@ -1,0 +1,9 @@
+{
+  "exceptions": {
+    "function apps/workbench/src/browser/plugin-frame/parent.ts#mountFrame": {
+      "kind": "cohesive-unit",
+      "reason": "单个不透明插件 frame 的生命周期与私有端口适配：消息分派共享同一个 scope、page、窗口和清理闭包，统一在显隐与卸载时撤销；业务处理已在独立模块，拆开此入口会分散同一端口的所有权和释放顺序。",
+      "size": 232
+    }
+  }
+}

@@ -88,7 +88,7 @@ export const SIDE_COMPUTER_SCRIPT = String.raw`(() => {
     if(socket)return;clearTimeout(retryTimer);
     socket=new WebSocket((location.protocol==='https:'?'wss:':'ws:')+'//'+location.host+'/computer');
     socket.binaryType='arraybuffer';
-    socket.addEventListener('open',()=>socket.send(JSON.stringify({type:'auth',token:document.querySelector('meta[name="molis-work-control-token"]')?.content||''})));
+    socket.addEventListener('open',()=>socket.send(JSON.stringify({type:'auth',token:document.querySelector('meta[name="molis-work-page-session"]')?.content||''})));
     socket.addEventListener('message',event=>{
       if(event.data instanceof ArrayBuffer){pending=event.data;if(!drawing)draw();return;}
       let message;try{message=JSON.parse(event.data);}catch{return;}

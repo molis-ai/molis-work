@@ -1,3 +1,5 @@
+import {completeInstallationLogin} from './fixtures/installation-login.js';
+import { projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {createServer,type Server} from 'node:http';
@@ -7,7 +9,7 @@ import {join} from 'node:path';
 import {createDesktopWebHost} from '@molis-ai/molis-work-app-desktop';
 import {NATIVE_SESSION_FILE,NATIVE_SESSION_HEADER} from '@molis-ai/molis-work-app-local-host';
 import {resetSecretStoreCache} from '@molis-ai/molis-work-storage';
-import {createTrialAuthServer} from '../examples/personal-trial-tools/mock-auth.mjs';
+import {createTrialAuthServer,trialAccountConfig} from '../examples/personal-trial-tools/mock-auth.mjs';
 
 async function listen(server:Server,port=0){await new Promise<void>(resolve=>server.listen(port,'127.0.0.1',resolve));const a=server.address();assert.ok(a&&typeof a==='object');return 'http://127.0.0.1:'+a.port;}
 const close=(server:Server)=>new Promise<void>(resolve=>server.close(()=>resolve()));
@@ -17,22 +19,25 @@ test('PTR-02 local trial login creates a personal project, saves full text and a
  const root=mkdtempSync(join(tmpdir(),'personal-trial-flow-')),home=join(root,'home');
  const reserve=createServer(),origin=await listen(reserve),port=Number(new URL(origin).port);await close(reserve);
  let auth=createTrialAuthServer({webOrigin:origin,stateFile:join(root,'mock-auth.json')}),authOrigin=await listen(auth);
- const names=['MOLIS_WORK_AUTH_ORIGIN','MOLIS_WORK_AUTH_CLIENT_ID','MOLIS_WORK_AUTH_DESKTOP_CLIENT_ID','MOLIS_WORK_SYNC_ORIGIN','MOLIS_WORK_SYNC_LOCAL','MOLIS_WORK_CLOUD_ORIGIN','MOLIS_WORK_SECRET_BACKEND'];
+ const names=['MOLIS_WORK_ACCOUNT_CONFIG','MOLIS_WORK_SYNC_ORIGIN','MOLIS_WORK_SYNC_LOCAL','MOLIS_WORK_CLOUD_ORIGIN','MOLIS_WORK_SECRET_BACKEND'];
  const previous=names.map(name=>process.env[name]);names.forEach(name=>delete process.env[name]);
- Object.assign(process.env,{MOLIS_WORK_AUTH_ORIGIN:authOrigin,MOLIS_WORK_AUTH_CLIENT_ID:'molis-work-personal-trial',MOLIS_WORK_AUTH_DESKTOP_CLIENT_ID:'molis-work-personal-trial-desktop',MOLIS_WORK_SECRET_BACKEND:'file'});
+ Object.assign(process.env,{MOLIS_WORK_ACCOUNT_CONFIG:JSON.stringify(trialAccountConfig(authOrigin,origin)),MOLIS_WORK_SECRET_BACKEND:'file'});
  const factory=createDesktopWebHost({ptyClientFilePath:()=>'/unused-for-http-test'}),rootToken='synthetic-personal-trial-control-0123456789';
  let server=factory({homeDirectory:home,controlToken:rootToken}),token=rootToken,sequence=0;await listen(server,port);
  const proof=readFileSync(join(home,NATIVE_SESSION_FILE),'utf8');
- const request=(path:string,body?:unknown)=>fetch(origin+path,{method:body===undefined?'GET':'POST',headers:{Connection:'close',Origin:origin,[NATIVE_SESSION_HEADER]:proof,'content-type':'application/json','x-molis-work-control-token':token,'x-molis-work-idempotency-key':'trial-flow-'+(++sequence)},...(body===undefined?{}:{body:JSON.stringify(body)}),redirect:'manual'});
+ const request=(path:string,body?:unknown,extra:Record<string,string>={})=>fetch(origin+path,{method:body===undefined?'GET':'POST',headers:{Connection:'close',Origin:origin,[NATIVE_SESSION_HEADER]:proof,'content-type':'application/json','x-molis-work-control-token':token,'x-molis-work-idempotency-key':'trial-flow-'+(++sequence),...extra},...(body===undefined?{}:{body:JSON.stringify(body)}),redirect:'manual'});
  const json=async(path:string,body?:unknown)=>{const r=await request(path,body),value=await r.json();assert.ok(r.status<400,JSON.stringify({path,status:r.status,value}));return value;};
  try{
-  const login=await json('/api/personal/login',{}),redirect=await fetch(login.loginUrl,{redirect:'manual'});assert.equal(redirect.status,303);
-  const callback=await fetch(redirect.headers.get('location')!,{redirect:'manual'});assert.equal(callback.status,303);
-  const signed=await json('/api/personal/status?attempt='+login.loginAttempt);assert.equal(signed.identity.displayName,'个人试用用户（本机模拟）');
-  await json('/api/personal/space?kind=personal',{});token=(await json('/api/personal/status')).viewToken;
-  assert.equal((await json('/api/spaces')).current.kind,'personal');
+  const login=await json('/api/personal/login',{});
+  const callback=await completeInstallationLogin((path,init)=>request(path,JSON.parse(String(init?.body)),Object.fromEntries(new Headers(init?.headers))),login.loginUrl);assert.equal(callback.status,200);
+  const signed=await json('/api/personal/status?attempt='+login.loginAttempt);assert.equal(signed.identity.userId,'local-personal-trial-user');
+  const attach=(ticket:string,cookie='')=>fetch(origin+'/api/personal/native-attach?ticket='+encodeURIComponent(ticket),{method:'POST',headers:{Connection:'close',Cookie:cookie,Origin:origin,'content-type':'application/json','x-molis-work-control-token':rootToken,'x-molis-work-idempotency-key':'trial-attach-'+(++sequence)},body:'{}'});
+  const firstAttachment=await attach(signed.browserSessionTicket);assert.equal(firstAttachment.status,200);
+  const staleCookie=firstAttachment.headers.get('set-cookie')!.split(';')[0];await firstAttachment.json();
+  await json('/api/personal/space?kind=personal',{});token=readFileSync(join(home,'spaces',(await json('/api/spaces')).current.spaceId,'config/web-control-token'),'utf8').trim();
+  const personal=(await json('/api/spaces')).current;assert.equal(personal.kind,'personal');
   const created=await json('/api/settings/projects',{display_name:'个人首用验证',user_confirmed:true}),id=created.project.project_id,prefix='/projects/'+id;
-  await json('/api/settings/projects/'+id+'/plugins',{plugin_id:'pages'});
+  await json('/api/settings/projects/'+id+'/plugins',{plugin_id:'pages',expected_revision:await projectPluginRevision({get:path=>json(path)},id)});
   const text='完整正文🌲\r\n'+('离线保存与重启\n'.repeat(7000));
   const page=(await json(prefix+'/api/plugins/io.molis.work.pages/pages',{title:'首用文档',markdown:text})).document;assert.ok(page.id);
   const attachment=Buffer.from(Array.from({length:300007},(_,i)=>(i*29)%256));
@@ -45,11 +50,23 @@ test('PTR-02 local trial login creates a personal project, saves full text and a
   await close(server);resetSecretStoreCache();
   // Stop the identity substitute too: no network identity or cloud service is required to retain local work.
   await close(auth);server=factory({homeDirectory:home,controlToken:rootToken});await listen(server,port);
-  const offline=await json('/api/personal/status');assert.equal(offline.identity.userId,'local-personal-trial-user');assert.equal(offline.offline,true);token=offline.viewToken;
-  assert.equal((await json('/api/spaces')).current.kind,'local','restart begins at the local surface until the person chooses their account space');
-  assert.ok(!(await json('/api/settings/projects')).projects.some((p:{project_id:string})=>p.project_id===id),'the local space cannot see the personal project');
-  assert.equal((await request(attachmentPath)).ok,false,'the local space cannot download the personal attachment');
-  await json('/api/personal/space?kind=personal',{});token=(await json('/api/personal/status')).viewToken;
+  const offline=await json('/api/personal/status');assert.equal(offline.identity.userId,'local-personal-trial-user');assert.equal(offline.offline,true);token=readFileSync(join(home,'spaces',personal.spaceId,'config/web-control-token'),'utf8').trim();assert.equal(offline.viewToken,undefined);
+  assert.equal(token,readFileSync(join(home,'spaces',personal.spaceId,'config','web-control-token'),'utf8').trim(),'the explicit process fixture reads the newly opened account credential privately');
+  const webStatus=async(cookie:string)=>(await fetch(origin+'/api/personal/status?browser=1',{headers:{Connection:'close',Cookie:cookie}})).json();
+  const staleStatus=await webStatus(staleCookie);
+  assert.equal(staleStatus.identity,null,'ASR-05 the persisted WebView cookie does not survive a Host restart');
+  assert.equal(staleStatus.browserSessionTicket,undefined,'a stale cookie cannot mint a native reattachment ticket');
+  assert.equal(typeof offline.browserSessionTicket,'string','ASR-05 the verified native caller can reattach its WebView while Auth is unreachable');
+  assert.equal(offline.space,'account','offline and online status refer to the same account space');
+  const attached=await attach(offline.browserSessionTicket,staleCookie);assert.equal(attached.status,200);
+  const freshCookie=attached.headers.get('set-cookie')!.split(';')[0];await attached.json();
+  assert.notEqual(freshCookie,staleCookie);
+  const current=await webStatus(freshCookie);assert.equal(current.identity?.userId,offline.identity.userId);
+  assert.equal(current.browserSessionTicket,undefined,'the WebView cookie does not grant native ticket issuance');
+  const replay=await attach(offline.browserSessionTicket,staleCookie);assert.equal(replay.status,401);await replay.json();
+  assert.equal((await json('/api/spaces')).current.kind,'personal','ASR-02 restart and offline use restore the persisted installation account directly');
+  assert.ok((await json('/api/settings/projects')).projects.some((p:{project_id:string})=>p.project_id===id),'the same account immediately sees its existing project offline');
+  assert.deepEqual(await readAttachment(),attachment,'offline restart preserves the complete existing attachment without a second workspace selection');
   assert.equal((await json('/api/spaces')).current.kind,'personal');
   assert.ok((await json('/api/settings/projects')).projects.some((p:{project_id:string})=>p.project_id===id));
   assert.deepEqual((await json(prefix+'/api/plugins/io.molis.work.pages/pages/'+page.id)).document.body,saved.body);

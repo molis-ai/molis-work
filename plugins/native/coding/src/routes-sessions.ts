@@ -7,15 +7,16 @@ import { confirmedPlan } from "./plans.js";
 import { type Capabilities, type CodingActivation, selected } from "./route-activation.js";
 import { codingActions, codingActionControl, type CodingBeforeWrite } from "./route-entry.js";
 import { codingError, codingText } from "./words.js";
-import { bodyOf, methodSelection, mcpSelection, mcpSources, unlessMissing } from "./route-selections.js";
+import { bodyOf, skillSelection, mcpSelection, mcpSources, unlessMissing } from "./route-selections.js";
 import type { CodingExecution } from "./routes.js";
 import { nextConfiguration, runControl, text, codingBudgetSelection } from "./run-inputs.js";
 import { projectRuntime, requireProjectRuntime, runtimeDirectory, supports } from "./runtime-choice.js";
 import { DEFAULT_SESSION_TITLE, codingSessionTitleFrom } from "./session-title.js";
 import { roundAfterParkedAnswer, startRound } from "./start-round.js";
+import { codingSkillChoices } from "./skill-choices.js";
 import { codingInputPatch } from "./inputs.js";
 import type { CodingSessionRecord } from "./store.js";
-import { projectsCapabilities, projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
+import { outputFolder, projectFolders } from "./project-folders.js";
 import { ActionError, defineErrorCodes, parseExactActionReferences, searchEntriesPage } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginRouteBinding } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentHostCapabilities as agent, isTerminalAgentPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -56,20 +57,18 @@ const readState = async (a: CodingActivation, api: Capabilities, execution: Codi
   const { context } = a, actions = codingActions(context, beforeWrite);
   const directory = await runtimeDirectory(actions, api), { runtimes } = directory;
   const sessions = await readCodingSessions(a, execution, beforeWrite);
-  // The methods and MCP servers are the project's Runtime's, and only what its own capability matrix offers (PG-054).
+  // The MCP servers are the project's Runtime's, and only what its own capability matrix offers (PG-054).
   const { runtime: library } = projectRuntime(directory);
-  const methods = library && supports(library, "skills") ? await actions.invoke(agent.listSkills, [library.runtime_id]) : [];
   const mcp = library && supports(library, "mcp") ? await actions.invoke(agent.listMcp, [library.runtime_id]) : [];
   const shown = await Promise.all(sessions.map(async record => ({ ...record, execution_state: await executionState(actions, record) })));
-  return { sessions: shown, methods, mcp, models: execution.models.list(),
+  return { sessions: shown, skills: await codingSkillChoices(a, actions), mcp, models: execution.models.list(),
     // The Runtime a new session runs on; the page reads the role matrix of the open session's Runtime, or this one when none is open.
     project_runtime_id: library?.runtime_id ?? null,
-    // The page's directory: the one chosen in project settings (and by Coding's own workspace choice) is where the page's new rounds
-    // run and what Files and Git show. Only when none was chosen does the catalog's pick stand. Rounds the Assistant starts use the
-    // project's preferred directory instead (`executor.ts`, batch 12 item 1).
+    // Where the page's new rounds run unless the person picks another folder on the page: the project's output (SSC-17). Which folder
+    // the page shows is the page's own state, never a setting (specs/shared-sources-and-surfaces §4).
     // A host without workspace settings offers none of these: sessions still list and open, and a round asks for a directory.
-    workspace: await unlessMissing(api.invoke(projectSettingsCapabilities.browsingWorkspace, []), null) ?? await unlessMissing(api.invoke(projectsCapabilities.readWorkspace, []), null),
-    workspaces: await unlessMissing(api.invoke(projectSettingsCapabilities.workspaces, []), []),
+    workspace: await unlessMissing(outputFolder(api), null),
+    workspaces: await unlessMissing(projectFolders(api), []),
     runtimes: await Promise.all(runtimes.map(async (runtime) => ({ ...runtime,
       roles: await actions.invoke(agent.availableRoles, [runtime.runtime_id]),
     }))),
@@ -77,7 +76,7 @@ const readState = async (a: CodingActivation, api: Capabilities, execution: Codi
 };
 /** The workspace a send names, as the directory it will run in. */
 const directoryOf = async (api: Capabilities, workspaceId: unknown) => {
-  const workspace = (await api.invoke(projectSettingsCapabilities.workspaces, [])).find(entry => entry.workspace_id === workspaceId);
+  const workspace = (await projectFolders(api)).find(entry => entry.workspace_id === workspaceId);
   if (!workspace?.realpath_verified) throw codingError(codingSessionErrors.choose_workspace, "coding.server.choose-workspace");
   return workspace.canonical_path;
 };
@@ -197,14 +196,14 @@ const ROUTES: RouteMaker[] = [
       const actionTools = body.action_tools === undefined ? undefined : parseExactActionReferences(body.action_tools);
       const sources = body.mcp_sources === undefined ? undefined : mcpSources(body.mcp_sources);
       const tools = body.mcp_tools === undefined ? undefined : mcpSelection(body.mcp_tools);
-      const methods = body.methods === undefined ? undefined : methodSelection(body.methods);
+      const skills = body.skills === undefined ? undefined : skillSelection(body.skills);
       const budget = body.budget === undefined ? undefined : codingBudgetSelection(body.budget);
       const title = body.title === undefined ? undefined : text(body.title, "coding.field.session-title");
       const savedInputs=inputPatch?await execution.sessions.inputs.write(beforeWrite,projectId,record.session_id,inputPatch.expected,inputPatch.value):null;
       if (actionTools !== undefined) context.services!.storage!.set(`actions:${record.session_id}`, JSON.stringify(actionTools));
       if (sources !== undefined) context.services!.storage!.set(`mcp-sources:${record.session_id}`,JSON.stringify(sources));
       if (tools !== undefined) context.services!.storage!.set(`mcp:${record.session_id}`, JSON.stringify(tools));
-      if (methods !== undefined) context.services!.storage!.set(`methods:${record.session_id}`, JSON.stringify(methods));
+      if (skills !== undefined) context.services!.storage!.set(`skills:${record.session_id}`, JSON.stringify(skills));
       if (character !== undefined) context.services!.storage!.set(`character:${record.session_id}`, JSON.stringify(character));
       if (characterSkills !== undefined) context.services!.storage!.set(`character-skills:${record.session_id}`, JSON.stringify(characterSkills));
       // The person's budget for this session: reaching it is reported, never enforced (the person's choice).

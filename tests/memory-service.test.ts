@@ -270,10 +270,10 @@ test("automatic writes follow the gate table, show in recent changes with their 
   const auto = await env.automatic(memory, "项目甲的周报把风险放最前面");
   assert.equal(auto.outcome, "written");
   assert.equal(auto.memory!.source, "auto");
-  assert.deepEqual(auto.memory!.approved_by, { by: "policy", policy: "memory.write-gate", version: 3 });
+  assert.deepEqual(auto.memory!.approved_by, { by: "policy", policy: "memory.write-gate", version: 1 });
   // It went in as a promotion in Prologue's candidate box: the box wrote the approver on the entry, not the Host.
   assert.deepEqual((await env.raw().candidates.list("project", "project-a")).map(item => [item.state, item.memory_id]), [["promoted", auto.memory!.memory_id]]);
-  assert.deepEqual((await env.raw().list("project", "project-a"))[0]!.meta.approved_by, { by: "policy", policy: "memory.write-gate", version: 3 });
+  assert.deepEqual((await env.raw().list("project", "project-a"))[0]!.meta.approved_by, { by: "policy", policy: "memory.write-gate", version: 1 });
   assert.match(auto.memory!.origin, new RegExp(`^${MEMORY_GATE_RULE}`));
   const [change] = (await memory.changes(person(), { scope: "project" }));
   assert.equal(change!.kind, "auto_kept");

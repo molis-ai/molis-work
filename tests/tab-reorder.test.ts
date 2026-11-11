@@ -9,26 +9,26 @@ import { tabIdsAfterMove, TAB_REORDER_MS } from "../apps/workbench/src/tab-reord
 test("moveTab preview order matches the drop that will commit", () => {
   const ops = createTabWorkspaceOps();
   const state = ops.create();
-  const home = ops.activeTab(state);
+  const first = ops.openItem(state, "pages", "P1", "Page one");
   const goal = ops.openItem(state, "goals", "CORE", "Core");
   const paneId = state.focusedPaneId;
-  const moved = tabIdsAfterMove(state, ops, paneId, goal.id, paneId, home.id, false);
-  assert.deepEqual(moved.ids, [goal.id, home.id]);
+  const moved = tabIdsAfterMove(state, ops, paneId, goal.id, paneId, first.id, false);
+  assert.deepEqual(moved.ids, [goal.id, first.id]);
   assert.equal(moved.movingId, goal.id);
-  assert.equal(ops.focused(state).tabs[0].id, home.id, "preview clones state and does not mutate the live workspace");
+  assert.equal(ops.focused(state).tabs[0].id, first.id, "preview clones state and does not mutate the live workspace");
 });
 
 test("copy preview inserts a new id and leaves the source in place", () => {
   const ops = createTabWorkspaceOps();
   const state = ops.create();
-  const home = ops.activeTab(state);
+  const first = ops.openItem(state, "pages", "P1", "Page one");
   const goal = ops.openItem(state, "goals", "CORE", "Core");
   const paneId = state.focusedPaneId;
-  const copied = tabIdsAfterMove(state, ops, paneId, home.id, paneId, goal.id, true);
+  const copied = tabIdsAfterMove(state, ops, paneId, first.id, paneId, goal.id, true);
   assert.equal(copied.ids.length, 3);
-  assert.equal(copied.ids[0], home.id);
+  assert.equal(copied.ids[0], first.id);
   assert.equal(copied.ids[2], goal.id);
-  assert.notEqual(copied.movingId, home.id);
+  assert.notEqual(copied.movingId, first.id);
   assert.equal(copied.ids[1], copied.movingId);
   assert.equal(ops.focused(state).tabs.length, 2);
 });

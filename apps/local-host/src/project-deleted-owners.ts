@@ -21,6 +21,7 @@ import { forgetProjectOriginalFiles } from "./material-original-files.js";
 import { forgetProjectConnectionBindings } from "./connector-plugin-requests.js";
 import { forgetOrphanedInstallationBindings } from "./plugin-installation-cleanup.js";
 import { HomeConsentLedger } from "./home-plugin-store.js";
+import { forgetTaskGrantSubjects } from "./task-grant-subjects.js";
 
 /** The two owners whose data sits in a running service: what each says in the deletion receipt and, if it has one, in the dialog. */
 export const MEMORY_OWNER = { id: "memory", label: "这个项目及其角色的记忆" } as const;
@@ -127,6 +128,8 @@ export function homeProjectOwners(home: string): ProjectDeletedOwner[] {
     // Which account a plugin uses for each of its records in the project (`per_record` slots); the accounts are the person's and stay.
     { id: "plugin-connections", label: null, clear: projectId => { forgetProjectConnectionBindings(home, projectId); forgetOrphanedInstallationBindings(home); } },
     { id: "plugin-project-reach", label: null, clear: projectId => { new HomeConsentLedger(home).revokeProjectReach({ project_id: projectId }, new Date().toISOString()); } },
+    // What the person let the project's background tasks read (task grant subjects of this project, in the Home's action grants).
+    { id: "task-grants", label: null, clear: async projectId => { await forgetTaskGrantSubjects(home, subject => subject.project_id === projectId); } },
     // Their services exist only in a Host: here they wait for it (the Host's own owners take these ids over while it runs).
     memoryOwnerWithoutService(home),
     searchOwnerWithoutService(home),

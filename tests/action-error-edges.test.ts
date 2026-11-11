@@ -1,3 +1,4 @@
+import { changeMcpClientCredential } from "@molis-ai/molis-work-app-local-host";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -21,7 +22,7 @@ import { createContextLedger, type ContextLedgerDatabase } from "@molis-ai/molis
 import { TODO_ACTION_PERMISSIONS, createTodoActionHandlers, todoActions, todoManifest, ownTodoStores } from "@molis-ai/molis-work-plugin-todo";
 import { openTodoStore } from "./fixtures/plugin-home-stores.js";
 import { PLACEMENT_LEDGER_ACCESS, PlacementService } from "@molis-ai/molis-work-service-placement";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { serveNativeHttp } from "./fixtures/native-http.js";
 
 // specs/archive/repository-anti-corruption W3-02-A. Todo's failures used to be a class of their own (`TodoError extends Error`: a code on a plain Error, not an
@@ -88,6 +89,7 @@ test("the Host's own MCP server: a Todo failure carries its code line", async t 
   body: JSON.stringify({ client_id: "runtime:external", project_id: null, capability_id: todoActions.get.capability_id, version: 1,
     provider_id: todoManifest.plugin_id, enabled: true }) });
   assert.equal(grant.status, 200, await grant.clone().text());
+  changeMcpClientCredential(home, "runtime:external", "connect");
   external = new LocalMcpServer(withMolisWorkProjectCatalog, "runtime", { projectId: project.project_id, databasePath: project.database_path, webBaseUrl: origin },
     { homeDirectory: home, runtimeContext: { runtime_id: "external", stable_work_context_id: null, host_declares_stable: false } }, host);
   const reply = await external.handleMessage({ id: 1, method: "tools/call", params: { name: molisWorkActionToolName(todoActions.get), arguments: { id: "no-such-todo" } } }) as

@@ -263,7 +263,7 @@ export interface AgentMemoryScopePreview {
   operation_id: string;
   items: Array<{ memory_id: string; version: number }>;
   /** Fixed SDK purge decision, not permission; it carries no memory content. */
-  decision: { version: 1; binding: string; scope: AgentMemoryEntry["scope"]; owner: string;
+  decision: { /** @upstream-version Prologue SDK purge decision. */ version: 1; binding: string; scope: AgentMemoryEntry["scope"]; owner: string;
     items: readonly { ref: { kind: "memory"; id: string; revision: 1 }; expectedVersion: number;
       operationId: string; mutation: { kind: "purge" } }[] };
 }

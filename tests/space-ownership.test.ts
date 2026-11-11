@@ -1,6 +1,9 @@
+import {v2AccountPeer} from './fixtures/v2-account-peer.js';
+import {completeInstallationLogin} from './fixtures/installation-login.js';
+import { changeMcpClientCredential } from "@molis-ai/molis-work-app-local-host";
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { mkdtempSync, rmSync, readFileSync, cpSync } from 'node:fs';
+import { mkdtempSync, rmSync, readFileSync, cpSync, mkdirSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createServer, type Server } from 'node:http';
@@ -9,7 +12,7 @@ import {
   ensureStorageSpace, personalStorageSpace, bindDatabaseSpace, readDatabaseSpace, spaceAssetRef,
   openHomeSqliteDatabase,
 } from '@molis-ai/molis-work-storage';
-import { LocalProjectDatabase } from '@molis-ai/molis-work-app-local-host';
+import { LocalProjectDatabase, RuntimeIntegrationService, MolisWorkWebServiceManager } from '@molis-ai/molis-work-app-local-host';
 import { openMolisWorkProjectCatalog } from '@molis-ai/molis-work-app-desktop';
 import { createMolisWorkWebServer } from '../apps/desktop/launchers/web/server.js';
 import { LocalActionGatewayClient } from '@molis-ai/molis-work-app-local-host';
@@ -93,74 +96,100 @@ async function listen(server:Server):Promise<string> {
 }
 async function close(server:Server) {await new Promise<void>(resolve=>server.close(()=>resolve()));}
 
-test('real Web routing isolates local/A/B, keeps login local, rejects stale pages and restores the same account', async () => {
+test('ASR-02/03 real Web routing isolates A/B, retains root data behind login, rejects stale clients and restores the same account', async () => {
   const home=mkdtempSync(join(tmpdir(),'space-web-'));
-  let transaction:{state:string;codeChallenge:string;clientId:string;forceLogin?:boolean},remote='', user='alice';
-  const upstream=createServer(async(req,res)=>{
-    let raw='';for await(const chunk of req)raw+=chunk;
-    res.setHeader('content-type','application/json');
-    if(req.url==='/api/v1/auth/transactions') {transaction=JSON.parse(raw);res.end(JSON.stringify({data:{loginUrl:remote+'/login'}}));}
-    else if(req.url==='/oauth2/token')res.end(JSON.stringify({access_token:'synthetic-access',refresh_token:'synthetic-refresh',expires_in:3600}));
-    else if(req.url==='/api/v1/users/me')res.end(JSON.stringify({data:{userId:user,displayName:user,emails:[],applicationId:'work',clientId:'web-test'}}));
-    else res.end('{}');
-  });
+  let remote='', user='alice';
+  const peer=v2AccountPeer(()=>user),upstream=peer.server;
   remote=await listen(upstream);
-  const names=['MOLIS_WORK_AUTH_ORIGIN','MOLIS_WORK_AUTH_CLIENT_ID','MOLIS_WORK_AUTH_DESKTOP_CLIENT_ID','MOLIS_WORK_CLOUD_ORIGIN'];
+  const names=['MOLIS_WORK_ACCOUNT_CONFIG'];
   const previous=names.map(name=>process.env[name]);
-  [remote,'web-test','desktop-test',remote].forEach((value,i)=>process.env[names[i]]=value);
+  process.env.MOLIS_WORK_ACCOUNT_CONFIG='';
   const rootToken='synthetic-space-web-root-control-0123456789';
   const localCatalog=await openMolisWorkProjectCatalog({homeDirectory:home});
   const localProject=await localCatalog.createProject({display_name:'Local retained project',actor_id:'local'});localCatalog.close();
-  const server=createMolisWorkWebServer({homeDirectory:home,controlToken:rootToken});
+  const localOriginal=readFileSync(localProject.database_path);
+  mkdirSync(join(home,'config'),{recursive:true});
+  writeFileSync(join(home,'config','installation.json'),JSON.stringify({installer:'molis-work-home-install-v1',version:'account-owner-test',release_path:'releases/account-owner-test'}));
+  const userHome=join(home,'synthetic-user');
+  const runtimeIntegrationService=new RuntimeIntegrationService({homeDirectory:home,userHomeDirectory:userHome,pathEnvironment:''});
+  const webServiceManager=new MolisWorkWebServiceManager({homeDirectory:home,userHomeDirectory:userHome,platform:'linux'});
+  const server=createMolisWorkWebServer({homeDirectory:home,controlToken:rootToken,runtimeIntegrationService,webServiceManager});
   const origin=await listen(server);let cookie='',token=rootToken,sequence=0;
+  process.env.MOLIS_WORK_ACCOUNT_CONFIG=peer.configure(origin);
   const request=async(path:string,init:RequestInit={})=>{
-    const response=await fetch(origin+path,{...init,headers:{Cookie:cookie,...init.headers}});
+    const response=await fetch(origin+path,{...init,headers:{Cookie:cookie,Origin:origin,'content-type':'application/json','x-molis-work-control-token':token,'x-molis-work-idempotency-key':'space-v2-'+(++sequence),...init.headers}});
     if(response.headers.get('set-cookie')?.startsWith('molis-work-session='))cookie=response.headers.get('set-cookie')!.split(';')[0];
     return response;
   };
   const post=(path:string,body:unknown={})=>request(path,{method:'POST',headers:{Origin:origin,'content-type':'application/json',
     'x-molis-work-control-token':token,'x-molis-work-idempotency-key':'space-test-'+(++sequence)},body:JSON.stringify(body)});
   const scopes=async()=>{const response=await request('/api/spaces');assert.equal(response.status,200);return response.json();};
+  const installation=async(projectCount:number)=>{
+    const diagnostic=await request('/api/settings/diagnostics');assert.equal(diagnostic.status,200);
+    const facts=await diagnostic.json();assert.equal(facts.home_directory,home);assert.equal(facts.installation_state,'ready');
+    assert.equal(facts.version,'account-owner-test');assert.equal(facts.release_directory,join(home,'releases','account-owner-test'));assert.equal(facts.project_count,projectCount);
+    const runtimes=await request('/api/settings/runtimes');assert.equal(runtimes.status,200);
+    const detected=await runtimes.json();assert.ok(detected.runtimes.length>0);assert.ok(detected.runtimes.every((runtime:{config_path:string})=>runtime.config_path.startsWith(userHome)));
+    const service=await request('/api/settings/web-service');assert.equal(service.status,200);assert.equal((await service.json()).command[0],join(home,'bin','molis-work-web'));
+  };
+  const prepare=async(intent:'switch'|'logout')=>{
+    const state=await(await request('/api/personal/status?page=space-main')).json();if(!state.identity)return '';
+    const start=await post('/api/personal/prepare?action=start&page=space-main&intent='+intent);assert.equal(start.status,200);const {id}=await start.json();
+    const ack=await post('/api/personal/prepare?action=ack&page=space-main&id='+id);assert.equal((await ack.json()).ready,true);return '&page=space-main&preparation='+id;
+  };
   const login=async(name:string)=>{
-    user=name;assert.equal((await post('/api/personal/login')).status,200);
-    assert.equal((await request('/account/callback?code=synthetic&state='+transaction.state,{redirect:'manual'})).status,303);
-    const state=await(await request('/api/personal/status')).json();token=state.viewToken;
+    const prepared=await prepare('switch');user=name;const begun=await post('/api/personal/'+(prepared?'switch':'login')+'?returnTo=%2F'+prepared);assert.equal(begun.status,200);
+    assert.equal((await completeInstallationLogin(request,(await begun.json()).loginUrl,name+'@example.test')).status,200);
+    const state=await(await request('/api/personal/status')).json();token=readFileSync(join(home,"spaces",personalStorageSpace(remote,state.identity.applicationId,state.identity.userId).spaceId,"config/web-control-token"),"utf8").trim();
   };
   try {
-    await login('alice');assert.equal((await scopes()).current.kind,'local');
-    assert.equal((await request('/projects/'+localProject.project_id)).status,200);
+    assert.equal((await request('/api/settings/projects')).status,401,'an installation without an account never opens root business data');
+    assert.equal((await request('/api/settings/diagnostics')).status,401,'installation facts require the current account, too');
+    assert.doesNotMatch(await(await request('/')).text(),/Local retained project/);
+    await login('alice');assert.equal((await scopes()).current.kind,'personal');
     assert.equal((await post('/api/personal/space?kind=team')).status,400);
     assert.equal((await post('/api/personal/space?kind=personal&userId=bob')).status,200);
     const a=(await scopes()).current;assert.equal(a.ownerUserId,'alice');assert.equal(a.kind,'personal');
-    token=(await(await request('/api/personal/status')).json()).viewToken;
+    token=readFileSync(join(home,'spaces',a.spaceId,'config/web-control-token'),'utf8').trim();
     const aToken=token;
     assert.notEqual(token,rootToken);
     assert.notEqual((await request('/projects/'+localProject.project_id)).status,200);
     const aHome=join(home,'spaces',a.spaceId);
+    await installation(0);assert.equal(existsSync(join(aHome,'config','installation.json')),false,'installation metadata is not copied into the business Home');
+    const servicePlan=await post('/api/settings/web-service/plan',{action:'start'});assert.equal(servicePlan.status,200);const {plan_id}=await servicePlan.json();
     const created=await post('/api/settings/projects',{display_name:'Alice private project',user_confirmed:true});
     assert.equal(created.status,201);const {project:aProject}=await created.json();
     const projectDb=openTestSqlite(join(aHome,'projects',aProject.project_id,'molis-work.db'),{readonly:true,fileMustExist:true});
     try { assert.deepEqual(readDatabaseSpace(projectDb),a); } finally { projectDb.close(); }
     assert.equal((await request('/projects/'+aProject.project_id)).status,200);
-    const gateway=new LocalActionGatewayClient({url:origin,homeDirectory:aHome,clientId:'runtime:space-test',projectId:aProject.project_id});
+    changeMcpClientCredential(home, "runtime:space-test", "connect");
+    const gateway=new LocalActionGatewayClient({url:origin,homeDirectory:aHome,credentialHomeDirectory:home,clientId:'runtime:space-test',projectId:aProject.project_id});
     const caller={actor_id:'runtime:space-test',project_id:aProject.project_id,audience:'mcp' as const,permissions:[]};
     assert.ok(Array.isArray(await gateway.discover(caller)),'active personal MCP routes to the same scoped Host');
     assert.doesNotMatch(await(await request('/')).text(),/Local retained project/);
     assert.equal((await request('/api/personal/not-an-api')).status,404);
     await login('bob');const b=(await scopes()).current;assert.equal(b.ownerUserId,'bob');assert.notEqual(b.spaceId,a.spaceId);
+    await installation(0);
+    const stalePlan=await request('/api/settings/web-service/confirm',{method:'POST',headers:{Origin:origin,'content-type':'application/json','x-molis-work-control-token':aToken,'x-molis-work-idempotency-key':'stale-installation-plan'},body:JSON.stringify({plan_id,decision:'declined'})});assert.equal(stalePlan.status,403);
+    const declined=await post('/api/settings/web-service/confirm',{plan_id,decision:'declined'});assert.equal(declined.status,200);assert.equal((await declined.json()).status,'declined','the installation keeps one plan owner across account Homes');
     await assert.rejects(gateway.discover(caller),{code:'host.request_refused'},'old account MCP cannot reopen its Home after sign-out; unknown/closed Homes share the opaque control refusal');
     assert.equal((await request('/',{headers:{'x-molis-work-control-token':aToken}})).status,409);
     assert.notEqual((await request('/projects/'+aProject.project_id)).status,200);
     assert.doesNotMatch(await(await request('/')).text(),/Alice private project/);
     const bToken=token;
     await login('alice');assert.equal((await scopes()).current.spaceId,a.spaceId);
+    await installation(1);assert.equal(existsSync(join(aHome,'config','installation.json')),false);
+    await assert.rejects(gateway.discover(caller),{code:'host.request_refused'},'ASR-03 the original A client cannot adopt the new A credential');
+    const reconnected=new LocalActionGatewayClient({url:origin,homeDirectory:aHome,credentialHomeDirectory:home,clientId:'runtime:space-test',projectId:aProject.project_id});
+    assert.ok(Array.isArray(await reconnected.discover(caller)),'an explicit new A connection reads the current personal credential');
     assert.equal((await request('/projects/'+aProject.project_id)).status,200);
     assert.equal((await request('/',{headers:{'x-molis-work-control-token':bToken}})).status,409);
-    assert.equal((await post('/api/personal/logout')).status,200);token=rootToken;
-    assert.equal((await scopes()).current.kind,'local');
-    assert.equal((await request('/projects/'+localProject.project_id)).status,200);
-    assert.notEqual((await request('/projects/'+aProject.project_id)).status,200);
-    assert.equal((await scopes()).syncEnabled,false);
+    const prepared=await prepare('logout');assert.equal((await post('/api/personal/logout?'+prepared.slice(1))).status,200);token=rootToken;
+    assert.equal((await request('/api/spaces')).status,401);
+    assert.equal((await request('/api/settings/projects')).status,401);
+    assert.match(await(await request('/projects/'+localProject.project_id)).text(),/data-account-entry/);
+    assert.match(await(await request('/projects/'+aProject.project_id)).text(),/data-account-entry/);
+    assert.deepEqual(readFileSync(localProject.database_path),localOriginal,'root data is retained without moving, opening or relabelling it');
     assert.doesNotMatch(readFileSync(join(aHome,'storage-space.json'),'utf8'),/synthetic-access|synthetic-refresh/);
   } finally {
     await close(server);await close(upstream);

@@ -50,7 +50,7 @@ export const connectorReadErrors = defineErrorCodes("connector.read", { refused:
  * without a status, such as GitHub's account read, is mostly a 5xx or an unreadable answer: the service failed). A failure that never
  * reached the service (no credential, no reader) stays a plain error.
  */
-function readFailure(result: { message: string; failure?: string; retryAfterAt?: string; http_status?: number; httpStatus?: number }): Error {
+export function connectorReadFailure(result: { message: string; failure?: string; retryAfterAt?: string; http_status?: number; httpStatus?: number }): Error {
   const retry_at = boundedRetryAt(result.retryAfterAt);
   if (result.failure === "rate_limited") return connectorCheckErrors.rate_limited(result.message, retry_at ? { retry_at } : undefined);
   const status = result.http_status ?? result.httpStatus;
@@ -78,7 +78,7 @@ export function resolveApiConnection(home: string, id: string, control: Connecto
 export async function resolveApiConnection(home: string, id: string, control: ConnectorCallControl, service?: string, forceRefresh: boolean | "if_available" = false,
   network?: OAuthNetwork): Promise<ApiConnectionAccess | null> {
   control.current();
-  const connection = withConnectorConnections(home, store => store.require(id, service));
+  const connection = withConnectorConnections(home, store => store.require(id, service), "required");
   const accountCurrent = oauthRefreshGuard(home, id);
   const current = () => { control.current(); accountCurrent(); };
   if (!connection.enabled || connection.disconnected_at || connection.auth_method === "mcp" || connection.auth_method === "none") throw new Error("所选连接不能用于此 API 读取，请选择有效的 API 账号");
@@ -126,7 +126,7 @@ async function previewRead(home: string, service: string, access: ApiConnectionA
   if (!provider) return {};
   await beforeRead?.(); signal.throwIfAborted();
   const read = await provider.sync({ cursor: null }, control);
-  if (!read.ok) throw readFailure(read);
+  if (!read.ok) throw connectorReadFailure(read);
   return { record_count: read.items.length, items: read.items };
 }
 
@@ -156,7 +156,7 @@ export async function inspectApiConnection(home: string, id: string, preview = f
       result = await catalogWhoami({ connectorId: service, token: access.token, authExtras: access.authExtras, fetchImpl });
       await control.beforeEffect(); control.current();
     }
-    if (!result.ok) throw readFailure(result);
+    if (!result.ok) throw connectorReadFailure(result);
     const verified = { ok: true, account: result.login, verified_account: { login: result.login, ...(result.account_id ? { account_id: result.account_id } : {}) }, checked_at: new Date().toISOString() };
     if (!preview) return verified;
     return { ...verified, ...await previewRead(home, service, access, fetchImpl, control, signal, beforeRead) };
@@ -164,7 +164,7 @@ export async function inspectApiConnection(home: string, id: string, preview = f
   if (!["github", "gmail"].includes(service)) throw new Error("请在使用此连接的模型、Images、Functions 或 Coding 设置中运行对应功能，验证目标服务");
   const provider = runWithMolisWorkHome(home, () => service === "github" ? createGithubConnector({ token: access.token, fetchImpl, allowFixture: false }) : createGmailConnector({ accessToken: access.token, fetchImpl, allowFixture: false }));
   const health = await provider.health(control);
-  if (!health.ok) throw readFailure(health);
+  if (!health.ok) throw connectorReadFailure(health);
   if (!preview) return { ...health, checked_at: new Date().toISOString() };
   return { ...health, ...await previewRead(home, service, access, fetchImpl, control, signal, beforeRead), checked_at: new Date().toISOString() };
   });

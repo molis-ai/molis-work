@@ -9,7 +9,7 @@ test("dragging a tab on the strip shows a live landing slot", { timeout: 90_000 
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
-  await waitFor("document.body.dataset.desktopSurface === 'home' && document.querySelector('.tab-item[data-tab-kind=home][aria-current]')");
+  await waitFor("document.body.dataset.desktopSurface === 'home' && !document.querySelector(':is([data-titlebar-tabs], [data-tab-strip]) .tab-item[aria-current]')");
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
   await waitFor("document.body.dataset.desktopSurface === 'goals' && document.querySelector('[data-goal-momentum]')?.dataset.loaded === 'true'");
   await openGoalFrame('.tree-node[data-select-goal="CORE"]');
@@ -23,7 +23,7 @@ test("dragging a tab on the strip shows a live landing slot", { timeout: 90_000 
     goalWidth: number;
     overlay: boolean;
   }>(`(() => {
-    const home = document.querySelector('[data-titlebar-tabs] .tab-item[data-tab-kind=home]');
+    const home = document.querySelector('[data-titlebar-tabs] .tab-item[data-tab-kind=plugin][data-plugin=goals]');
     const goal = document.querySelector('[data-titlebar-tabs] .tab-item[data-item-id=CORE]');
     const transfer = new DataTransfer();
     goal.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: transfer }));
@@ -44,7 +44,8 @@ test("dragging a tab on the strip shows a live landing slot", { timeout: 90_000 
     };
   })()`);
   assert.equal(preview.goalSource, true);
-  // PTG-03 a Goal's tab belongs to the Goals group: dragged toward Home, its slot stays after the group's plugin tab.
+  // PTG-03 a Goal's tab belongs to the Goals group: dragged toward the strip's start (the group's own plugin tab, now that the
+  // project home is no tab, 07-S2), its slot stays after the group's plugin tab.
   assert.equal(preview.slotGroup, "goals");
   assert.equal(preview.slotAfter, "plugin");
   assert.ok(Math.abs(preview.slotWidth - preview.goalWidth) < 12, "slot matches dragged tab width: " + JSON.stringify(preview));
@@ -78,10 +79,10 @@ test("dragging a tab on the strip shows a live landing slot", { timeout: 90_000 
   assert.ok(Math.abs(group.start.width - group.groupWidth) < 2, "the slot is the group's width: " + JSON.stringify(group));
   assert.equal(group.start.next, "feed", "the first slot is where the group was");
   assert.deepEqual(group.over, { parent: true, previous: "feed" }, "a group's slot lands after the group it is over, between groups");
-  assert.equal(group.order, "home:home,plugin:feed,plugin:goals,item:goals");
+  assert.equal(group.order, "plugin:feed,plugin:goals,item:goals");
 
   const edge = await evaluate<boolean>(`(() => {
-    const home = document.querySelector('[data-titlebar-tabs] .tab-item[data-tab-kind=home]');
+    const home = document.querySelector('[data-titlebar-tabs] .tab-item[data-tab-kind=plugin][data-plugin=feed]');
     const body = document.querySelector('[data-tab-pane-body]');
     const transfer = new DataTransfer();
     document.body.dataset.tabDragCopy = '1';
@@ -106,7 +107,7 @@ test("VUX-23 a tab dragged off the strips previews its own place, and a tab redr
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
-  await waitFor("document.body.dataset.desktopSurface === 'home' && document.querySelector('.tab-item[data-tab-kind=home][aria-current]')");
+  await waitFor("document.body.dataset.desktopSurface === 'home' && !document.querySelector(':is([data-titlebar-tabs], [data-tab-strip]) .tab-item[aria-current]')");
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
   await waitFor("document.body.dataset.desktopSurface === 'goals' && document.querySelector('[data-goal-momentum]')?.dataset.loaded === 'true'");
   await openGoalFrame('.tree-node[data-select-goal="CORE"]');
@@ -128,14 +129,17 @@ test("VUX-23 a tab dragged off the strips previews its own place, and a tab redr
   assert.equal(left.over, "feed", "over Feed the slot is after Feed");
   assert.deepEqual(left.off, { next: "feed", previews: 0, overlay: false }, "off the strips the slot is the group's own place, before Feed, with no split preview");
   await evaluate("document.querySelector('[data-titlebar-tabs] .tab-item[data-tab-kind=plugin][data-plugin=goals]').dispatchEvent(new DragEvent('dragend', { bubbles: true }))");
-  assert.equal(await evaluate("[...document.querySelectorAll('[data-titlebar-tabs] .tab-item')].map((tab) => tab.dataset.tabKind + ':' + tab.dataset.plugin).join(',')"), "home:home,plugin:goals,item:goals,plugin:feed", "and nothing moved");
+  assert.equal(await evaluate("[...document.querySelectorAll('[data-titlebar-tabs] .tab-item')].map((tab) => tab.dataset.tabKind + ':' + tab.dataset.plugin).join(',')"), "plugin:goals,item:goals,plugin:feed", "and nothing moved");
 
   // Redrawn mid-drag: the node that would take dragend is gone. The first pointer move after the drag cleans up.
   const guard = () => evaluate<{ workspace: boolean; body: boolean; slots: number; frames: string[] }>(`({ workspace: document.querySelector('[data-tab-workspace]').classList.contains('is-tab-dragging'), body: document.body.classList.contains('is-tab-dragging'),
     slots: document.querySelectorAll('[data-tab-reorder-slot]:not([data-tab-slot-leaving])').length, frames: [...document.querySelectorAll('iframe.tab-content-frame')].map(frame => getComputedStyle(frame).pointerEvents) })`);
-  await evaluate(`(() => { const goal = document.querySelector('[data-titlebar-tabs] .tab-item[data-item-id=CORE]'), home = document.querySelector('[data-titlebar-tabs] .tab-item[data-tab-kind=home]'), transfer = new DataTransfer();
+  await evaluate(`(() => { const goal = document.querySelector('[data-titlebar-tabs] .tab-item[data-item-id=CORE]'), home = document.querySelector('[data-titlebar-tabs] .tab-item[data-tab-kind=plugin][data-plugin=goals]'), transfer = new DataTransfer();
     goal.dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: transfer }));
     const box = home.getBoundingClientRect(); home.dispatchEvent(new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: transfer, clientX: box.left + 8, clientY: box.top + box.height / 2 }));
+    // D0029: a move while its source remains connected keeps the drag; cleanup must still work after a later redraw.
+    document.dispatchEvent(new PointerEvent('pointermove', { bubbles: true }));
+    if (!document.body.classList.contains('is-tab-dragging')) throw new Error('A live drag was cancelled');
     goal.replaceWith(goal.cloneNode(true)); })()`);
   const during = await guard();
   assert.equal(during.workspace, true, "the drag is on");

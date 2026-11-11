@@ -50,7 +50,8 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
+import { isMainScript } from "../script-paths.mjs";
 import ts from "typescript";
 
 const HAN = /\p{Script=Han}/u;
@@ -840,4 +841,4 @@ export function main(argv) {
 }
 
 // exitCode, not exit(): a pipe is not drained when the process exits at once, and --dead is long.
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) process.exitCode = main(process.argv.slice(2));
+if (isMainScript(import.meta.url)) process.exitCode = main(process.argv.slice(2));

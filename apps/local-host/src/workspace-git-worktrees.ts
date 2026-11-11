@@ -2,12 +2,33 @@ import { ActionError, defineErrorCodes } from "@molis-ai/molis-work-contracts/pl
 import { createHash } from "node:crypto";
 import { lstat, mkdir, realpath } from "node:fs/promises";
 import path from "node:path";
+import { compareCodeUnits } from "@molis-ai/molis-work-plugin-sdk";
 import { runWorkspaceGit } from "./workspace-git.js";
 
 import type { WriterFileTarget, WriterWorktree } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 
 const SAFE_NAME = /^[a-z0-9][a-z0-9-]{0,63}$/u;
 const BRANCH_PREFIX = "molis-work/writer/";
+/** The ids the Host gives writers' worktrees (`hostWriterId`). */
+const HOST_WRITER_ID = /^writer-[0-9a-f]{24}$/u;
+
+/** The id of the worktree a writer's preparation makes: the same operation names the same worktree. */
+export function hostWriterId(operationId: string): string {
+  return "writer-" + createHash("sha256").update(operationId).digest("hex").slice(0, 24);
+}
+
+/** Where the Host makes the writers' worktrees of a repository whose real root is `root`: beside it, under a key of that root. */
+function writersDirectory(root: string): string {
+  return path.join(path.dirname(root), ".molis-work-writers", createHash("sha256").update(root).digest("hex").slice(0, 16));
+}
+
+/**
+ * Whether `candidate` is a worktree the Host made, by its own rule above, for a writer of one of `roots` (real repository roots). Read
+ * from the paths alone, without Git: the catalog upgrade asks it of the links earlier Hosts made (`project-catalog-contract.ts`).
+ */
+export function isHostWriterWorktree(candidate: string, roots: readonly string[]): boolean {
+  return HOST_WRITER_ID.test(path.basename(candidate)) && roots.some(root => root !== candidate && path.dirname(candidate) === writersDirectory(root));
+}
 
 const gitWorktreeErrors = defineErrorCodes("workspace_git.worktree", {
   unavailable: "invalid",
@@ -74,9 +95,8 @@ export function createGitWorktreePort(workspacePath: string): GitWorktreePort {
     const top = await realpath((await git(root, ["rev-parse", "--show-toplevel"])).trimEnd());
     if (top !== root) throw gitWorktreeErrors.not_a_repository("并行写入需要授权仓库根，不能把子目录权限扩大到整个仓库");
     const head = (await git(root, ["rev-parse", "--verify", "HEAD^{commit}"])).trim();
-    const ownerKey = createHash("sha256").update(root).digest("hex").slice(0, 16);
-    const container = path.join(path.dirname(root), ".molis-work-writers");
-    return { root, head, container, directory: path.join(container, ownerKey) };
+    const directory = writersDirectory(root);
+    return { root, head, container: path.dirname(directory), directory };
   }
 
   async function ensureDirectory(directory: string) {
@@ -107,7 +127,7 @@ export function createGitWorktreePort(workspacePath: string): GitWorktreePort {
     let origin: { version: number; owner: string; base: string };
     try { origin = JSON.parse(await git(ctx.root, ["config", "--local", "--get", metadataKey(row.branch)])); }
     catch { throw gitWorktreeErrors.not_owned("工作树缺少原始来源，不能猜测基线或接管"); }
-    if (origin?.version !== 1 || origin.owner !== ctx.root || !/^[0-9a-f]{40,64}$/u.test(origin.base)) {
+    if (origin?.version !== /* @version format.workspace.git-worktree */ 1 || origin.owner !== ctx.root || !/^[0-9a-f]{40,64}$/u.test(origin.base)) {
       throw gitWorktreeErrors.not_owned("工作树原始来源不属于当前工作区");
     }
     if (!(await lstat(row.directory)).isDirectory() || await realpath(row.directory) !== row.directory
@@ -149,7 +169,7 @@ export function createGitWorktreePort(workspacePath: string): GitWorktreePort {
       await ensureDirectory(ctx.directory);
       await git(ctx.root, ["worktree", "add", "-b", branch, directory, ctx.head]);
       // A metadata failure leaves the real worktree intact for reconciliation, never force-deletes it.
-      await git(ctx.root, ["config", "--local", metadataKey(branch), JSON.stringify({ version: 1, owner: ctx.root, base: ctx.head })]);
+      await git(ctx.root, ["config", "--local", metadataKey(branch), JSON.stringify({ version: /* @version format.workspace.git-worktree */ 1, owner: ctx.root, base: ctx.head })]);
       return { worktree_id: slotId, branch, base_commit: ctx.head, directory: path.relative(ctx.root, directory) };
     },
     async list() {
@@ -183,7 +203,7 @@ export function createGitWorktreePort(workspacePath: string): GitWorktreePort {
       for (const file of (await git(directory, ["ls-files", "--others", "--exclude-standard", "-z"])).split("\0")) {
         if (file) changes.set(file, "added");
       }
-      return [...changes].sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)
+      return [...changes].sort(([left], [right]) => compareCodeUnits(left, right))
         .map(([file, target]) => ({ path: file.split("/"), target }));
     },
     async remove(worktree) {

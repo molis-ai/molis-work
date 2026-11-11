@@ -5,6 +5,7 @@ import { collectRun, fillSkillBody, prepareSkillIntent, type ExactRef, type Runt
 import type { PrologueModelConfiguration } from './prologue.js';
 
 import type { BuilderAgentActivity, BuilderAgentRequest, BuilderAgentRecord } from '@molis-ai/molis-work-contracts/services/agent-host';
+import { PLUGIN_CHECKS_TOOL } from '../tool-catalog.js';
 export type { BuilderAgentActivity, BuilderAgentRequest, BuilderAgentRecord } from '@molis-ai/molis-work-contracts/services/agent-host';
 
 export interface PluginBuilderAgentOptions {
@@ -28,7 +29,7 @@ export const MODEL_CALL_LIMIT_MS = { designer: 600_000, coder: 300_000 } as cons
 /** The most one request may write: a designer's whole answer, or one code turn. */
 export const MAX_OUTPUT_TOKENS = { designer: 32768, coder: 16384 } as const;
 // No search: every file the code role needs is named in its task, and real runs spent most turns on empty searches.
-const TOOLS = ['read', 'write', 'edit', 'plugin-checks'] as const;
+const TOOLS = ['read', 'write', 'edit', PLUGIN_CHECKS_TOOL] as const;
 const WRITABLE = /^(?:src\/(?!index\.ts$)[a-zA-Z0-9_./-]+\.ts|tests\/[a-zA-Z0-9_./-]+\.ts|package\.json)$/;
 
 /** Only the owning Node adapter supplies these bindings. Plugins never receive a raw Runtime. */
@@ -296,11 +297,11 @@ export async function createPluginBuilderAgent(options: PluginBuilderAgentOption
 }
 
 function checkPack(): ScenarioPack {
-  return { id: 'molis-plugin-checks', version: '1.0.0', source: { kind: 'app-embedded' },
+  return { id: 'molis-plugin-checks', version: /* @version protocol.prologue.pack.plugin-checks */ "1.0.0", source: { kind: 'app-embedded' },
     needs: { hostCapabilities: [], executors: ['plugin-checks'] }, permissions: { tools: ['plugin-checks'], paths: [], network: [] },
     memory: { scope: 'session', write: 'deny' }, roster: [{ role: 'builder-code', skills: [], writes: true }],
     planning: { plannedBy: 'builder-code', planFirst: false }, config: {}, tools: [{ executor: 'plugin-checks', registration: {
-      name: 'plugin-checks', version: '1', description: 'Run host-owned type, bundle, contract, tests and sandbox checks for the current operation. Read the exact failure and repair implementation or tests. The host rechecks after your run.',
+      name: 'plugin-checks', version: /* @version protocol.prologue.plugin-check-tool "{version}" */ "1", description: 'Run host-owned type, bundle, contract, tests and sandbox checks for the current operation. Read the exact failure and repair implementation or tests. The host rechecks after your run.',
       parameters: { type: 'object', properties: { operations: { type: 'array', items: { type: 'string' } } }, additionalProperties: false },
       effectKind: 'mutate-local', gate: 'broker', timeoutMs: 300_000, idempotency: 'none' } }] };
 }

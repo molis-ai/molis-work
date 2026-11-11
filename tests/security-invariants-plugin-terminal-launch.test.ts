@@ -1,3 +1,4 @@
+import { ChromeHarness, locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
@@ -7,7 +8,7 @@ import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { WebSocket } from "ws";
-import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { HomePluginHost, LocalHost, LocalProjectDatabase, PluginHostExecutor, captureHostLog, hostDependencyCheck, runningProjectPlatform, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionDefinition, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition, PluginHostServices, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -75,21 +76,37 @@ type Probe = ReturnType<typeof launchProbe>;
 
 /** A served Home with the probes' halves, a program that writes the folder it ran in to its first argument, and a folder for its markers. */
 async function open(t: TestContext, probes: readonly Probe[]) {
+  const sockets = new Set<WebSocket>();
+  // Register before the served Home's cleanup: HTTP close does not drain upgraded sockets.
+  t.after(async () => { await Promise.all([...sockets].map(closeSocket)); });
   const f = await serveHomeRuntime(t, { pluginFixtures: { project: probes.flatMap(probe => probe.fixtures.project), home: probes.flatMap(probe => probe.fixtures.home) } });
   const bin = join(f.home, "bin"), markers = join(f.home, "markers"); await mkdir(bin); await mkdir(markers);
   const program = join(bin, "term");
   await writeFile(program, "#!/bin/sh\npwd -P > \"$1\"\nexec /bin/cat\n", { mode: 0o700 });
   let count = 0;
-  return { ...f, withCatalog: f.host.configurePersonalPlanning(f.home, withMolisWorkProjectCatalog), program, marker: () => join(markers, String(++count)) };
+  const access = f.host.ensureWebCatalog(f.home, openMolisWorkProjectCatalog);
+  return { ...f, withCatalog: f.host.configurePersonalPlanning(f.home, access.withCatalog), program, marker: () => join(markers, String(++count)),
+    terminalSocket() {
+      const socket = new WebSocket(f.origin.replace("http:", "ws:") + "/pty");
+      sockets.add(socket); socket.once("close", () => sockets.delete(socket));
+      return socket;
+    } };
 }
 type Served = Awaited<ReturnType<typeof open>>;
+
+async function closeSocket(socket: WebSocket): Promise<void> {
+  if (socket.readyState === WebSocket.CLOSED) return;
+  const closed = new Promise<void>(resolve => socket.once("close", resolve));
+  socket.terminate(); await closed;
+}
 
 /**
  * A folder outside the Home linked to the project as its workspace, with a sub-folder, a file, a link that leaves it, and a folder named
  * `trail ` (ending in a space) beside a link `trail` that leaves it. (The catalog trims a linked folder's path, so the workspace's own name
- * never ends in a space.)
+ * never ends in a space.) A linked folder is an input; a terminal runs only in the output (SSC-15), so it is made the output, as the person
+ * does on the settings page, unless `role` says it stays an input.
  */
-async function linkWorkspace(t: TestContext, f: Served, project: Project) {
+async function linkWorkspace(t: TestContext, f: Served, project: Project, role: "output" | "input" = "output") {
   const folder = await realpath(await mkdtemp(join(tmpdir(), "terminal-workspace-")));
   t.after(() => rm(folder, { recursive: true, force: true }));
   await mkdir(join(folder, "sub")); await writeFile(join(folder, "file.txt"), "not a folder");
@@ -97,7 +114,10 @@ async function linkWorkspace(t: TestContext, f: Served, project: Project) {
   await mkdir(join(folder, "trail ")); await symlink(tmpdir(), join(folder, "trail"));
   const workspace = await f.withCatalog({ homeDirectory: f.home }, async catalog => {
     await catalog.commit(() => catalog.addWorkspaceProject({ canonical_path: folder, project_id: project.project_id, actor_id: "test-user", user_confirmed: true }));
-    return catalog.listWorkspaceDirectory(project.project_id).find(record => record.canonical_path === folder)!;
+    const linked = catalog.listWorkspaceDirectory(project.project_id).find(record => record.canonical_path === folder)!;
+    if (role === "output") await catalog.commit(() => catalog.changeDirectories({ project_id: project.project_id, actor_id: "test-user",
+      change: { kind: "set_output", target: { workspace_id: linked.workspace_id } }, expected_revision: catalog.projectDirectories(project.project_id).revision }));
+    return linked;
   });
   assert.ok(workspace, "the folder is linked to the project");
   return { folder, workspace_id: workspace.workspace_id };
@@ -145,7 +165,7 @@ const panelOf = (installId: string, projectId: string | null, key: string, actor
 
 /** What the Host's own terminal connection finds for a panel: a running one is attached, none is reported not started. */
 async function panelState(f: Served, panelId: string): Promise<{ started: unknown; attached: unknown }> {
-  const socket = new WebSocket(f.origin.replace("http:", "ws:") + "/pty");
+  const socket = f.terminalSocket();
   try {
     const reply = new Promise<Record<string, unknown>>((resolve, reject) => socket.on("message", raw => {
       const message = JSON.parse(raw.toString());
@@ -157,7 +177,7 @@ async function panelState(f: Served, panelId: string): Promise<{ started: unknow
     socket.send(JSON.stringify({ type: "auth", token: f.token }));
     const spawned = await reply;
     return { started: spawned.started, attached: spawned.attached };
-  } finally { socket.terminate(); }
+  } finally { await closeSocket(socket); }
 }
 
 /** The program ran: its marker names the folder it ran in. */
@@ -196,9 +216,9 @@ async function pageSocket(t: TestContext, f: Served, pluginId: string, project: 
   const opened = await f.request(`/projects/${project.project_id}/api/host/plugin-pages`, { method: "POST", body: { plugin_id: pluginId } });
   assert.equal(opened.status, 200, await opened.clone().text());
   const { page_id } = await opened.json() as { page_id: string };
-  const socket = new WebSocket(f.origin.replace("http:", "ws:") + "/pty"), messages: Array<Record<string, unknown>> = [];
+  const socket = f.terminalSocket(), messages: Array<Record<string, unknown>> = [];
   socket.on("message", raw => messages.push(JSON.parse(raw.toString())));
-  t.after(() => socket.terminate());
+  t.after(() => closeSocket(socket));
   const wait = async (predicate: (message: Record<string, unknown>) => boolean) => {
     const deadline = Date.now() + 5000;
     while (Date.now() < deadline) {
@@ -211,7 +231,7 @@ async function pageSocket(t: TestContext, f: Served, pluginId: string, project: 
   await new Promise<void>((resolve, reject) => { socket.once("open", resolve); socket.once("error", reject); });
   const send = (message: unknown) => socket.send(JSON.stringify(message));
   send({ type: "page-auth", pageId: page_id }); await wait(message => message.type === "ready");
-  return { send, wait, close: () => socket.terminate() };
+  return { send, wait, close: () => closeSocket(socket) };
 }
 
 const launch = (f: Served, key: string, marker: string, directory: unknown) => ({ key, title: "探针", program: { command: f.program, args: [marker] }, directory });
@@ -236,11 +256,11 @@ test("RAC-2550 S-103 a project plugin starts its terminal in a folder of the pro
   for (const [page, why] of [[await pageSocket(t, f, b.id, project), "another plugin's page in the project"], [await pageSocket(t, f, a.id, other), "the same plugin's page in another project"]] as const) {
     page.send({ type: "spawn", panelId, attachOnly: true });
     assert.match(String((await page.wait(message => message.type === "error")).message), /不属于/, why);
-    page.close();
+    await page.close();
   }
   own.send({ type: "kill", panelId });
   await own.wait(message => message.type === "exit");
-  own.close();
+  await own.close();
 });
 
 test("RAC-2551 S-103 a plugin that does not declare terminal:run has no terminal service; an optional terminal:run the person did not approve starts nothing", { timeout: 60_000 }, async t => {
@@ -368,6 +388,21 @@ test("RAC-2554 S-103 the folder must be in the project's own linked workspace (w
   await refused(f, answer, "actions.forbidden", marker, panelOf(homeInstall.install_id, null, "homeless"), "a Home call has no project, so no workspace");
 });
 
+test("S-directory-output-only SSC-15 a terminal does not start in a folder that is only an input: nothing runs; in the output it does", { timeout: 60_000 }, async t => {
+  const probe = launchProbe("launchinput");
+  const f = await open(t, [probe]), project = await f.project("只作输入");
+  const input = await linkWorkspace(t, f, project, "input"), output = await linkWorkspace(t, f, project);
+  const { install } = await grantInProject(f, project, probe);
+  const marker = f.marker();
+  const answer = await run(f, probe, "project", "run", own => opened(own, launch(f, "input", marker, { root: "workspace", workspace_id: input.workspace_id })), { project });
+  await refused(f, answer, "projects.directory_input_only", marker, panelOf(install.install_id, project.project_id, "input"), "a folder that is only an input");
+  // The same start in the output runs there: the refusal is the folder's role, not the fixture.
+  const ran = f.marker();
+  const started = await run(f, probe, "project", "run", own => opened(own, launch(f, "output", ran, { root: "workspace", workspace_id: output.workspace_id })), { project });
+  assert.equal(started.outcome, "ok", started.message);
+  assert.equal(await ranIn(ran), output.folder);
+});
+
 test("RAC-2555 S-103 the input is the five keys and nothing else, bounded, the program one of two shapes; the identity is the call's", { timeout: 60_000 }, async t => {
   const probe = launchProbe("launchinput");
   const f = await open(t, [probe]), project = await f.project("输入不对");
@@ -444,7 +479,7 @@ test("RAC-2556 S-103 revoking terminal:run or workspace:read, or cancelling the 
   f.host.configurePersonalPlanning(f.home, async (options, read) => {
     const held = gate; gate = undefined;
     if (held) { held.entered.resolve(); await held.release.promise; }
-    return withMolisWorkProjectCatalog(options, read);
+    return f.withCatalog(options, read);
   });
   for (const invalidation of ["terminal:run", "workspace:read", "cancel"] as const) {
     const { platform, install } = await grantInProject(f, project, probe);
@@ -574,35 +609,53 @@ test("RAC-2565 S-103 a session a runtime reports or a record holds reaches the r
   t.after(() => { if (previousHome === undefined) delete process.env.HOME; else process.env.HOME = previousHome; });
   const runs = async () => existsSync(log) ? (await readFile(log, "utf8")).split("\n").filter(Boolean) : [];
   const panelId = (key: string) => panelOf(install.install_id, project.project_id, key);
-  /** Opens the key with the runtime and waits until it ran and ended: what it was started with. */
-  const start = async (key: string) => {
-    const before = (await runs()).length;
-    const answer = await run(f, probe, "project", "run", own => opened(own, { key, program: { runtime: "codex" }, directory }), { project });
-    assert.equal(answer.outcome, "ok", `${key}: ${answer.message}`);
-    await until(async () => (await runs()).length > before && (await panelState(f, panelId(key))).attached === false, `${key}: the runtime ran and ended`);
-    return (await runs()).at(-1);
-  };
-  const reported = (key: string, session: string) => f.withCatalog({ homeDirectory: f.home }, catalog =>
-    catalog.commit(() => { catalog.terminalPanels.aliasSession({ panel_id: panelId(key), runtime_id: "codex", host_session_id: session }); }));
-  const recorded = (key: string) => f.withCatalog({ homeDirectory: f.home }, async catalog => catalog.terminalPanels.get(panelId(key))?.host_session_id);
-  for (const [key, session] of [["reported-option", "--dangerously-bypass-approvals-and-sandbox"], ["reported-spaced", "s-1 --yolo"]] as const) {
-    assert.equal(await start(key), "[]", `${key}: a new session`);
-    await reported(key, session);
-    assert.equal(await recorded(key), null, `${key}: what the runtime reported is not the terminal's session`);
-    assert.equal(await start(key), "[]", `${key}: started again as a new session, without the reported value`);
-  }
-  // A record that holds one anyway (written past the service here) is checked again on the way out, and starts a new session.
-  assert.equal(await start("recorded-option"), "[]");
-  // The catalog's own SQLite (better-sqlite3): a second SQLite copy in this process would drop the Host's file locks when it closes.
-  const db = openTestSqlite(join(f.home, "projects", "catalog.db"), { timeout: 5000 });
+  // CCR-09: observe exits before starting the short-lived probe. An attach-only poll resizes the PTY and can race its close.
+  const socket = f.terminalSocket(), exits = new Map<string, number>();
   try {
-    db.prepare("UPDATE plugin_terminal_panels SET host_session_id = ? WHERE panel_id = ?").run("--dangerously-bypass-approvals-and-sandbox", panelId("recorded-option"));
-  } finally { db.close(); }
-  assert.equal(await start("recorded-option"), "[]", "the recorded option never reaches the resume arguments");
-  // A session in the format is the one it resumes.
-  await reported("recorded-option", "019a-b2");
-  assert.equal(await recorded("recorded-option"), "019a-b2");
-  assert.equal(await start("recorded-option"), "[resume 019a-b2]");
+    let socketError: Error | undefined;
+    await new Promise<void>((resolve, reject) => {
+      socket.once("open", () => socket.send(JSON.stringify({ type: "auth", token: f.token })));
+      socket.on("error", error => { socketError = error; reject(error); });
+      socket.on("message", raw => {
+        const message = JSON.parse(raw.toString());
+        if (message.type === "ready") resolve();
+        if (message.type === "exit") exits.set(message.panelId, (exits.get(message.panelId) ?? 0) + 1);
+        if (message.type === "error") { socketError = new Error(String(message.message)); reject(socketError); }
+      });
+    });
+    /** Opens the key with the runtime and waits until it ran and ended: what it was started with. */
+    const start = async (key: string) => {
+      const before = (await runs()).length, exited = exits.get(panelId(key)) ?? 0;
+      const answer = await run(f, probe, "project", "run", own => opened(own, { key, program: { runtime: "codex" }, directory }), { project });
+      assert.equal(answer.outcome, "ok", `${key}: ${answer.message}`);
+      await until(async () => {
+        if (socketError) throw socketError;
+        return (await runs()).length > before && (exits.get(panelId(key)) ?? 0) > exited;
+      }, `${key}: the runtime ran and ended`);
+      return (await runs()).at(-1);
+    };
+    const reported = (key: string, session: string) => f.withCatalog({ homeDirectory: f.home }, catalog =>
+      catalog.commit(() => { catalog.terminalPanels.aliasSession({ panel_id: panelId(key), runtime_id: "codex", host_session_id: session }); }));
+    const recorded = (key: string) => f.withCatalog({ homeDirectory: f.home }, async catalog => catalog.terminalPanels.get(panelId(key))?.host_session_id);
+    for (const [key, session] of [["reported-option", "--dangerously-bypass-approvals-and-sandbox"], ["reported-spaced", "s-1 --yolo"]] as const) {
+      assert.equal(await start(key), "[]", `${key}: a new session`);
+      await reported(key, session);
+      assert.equal(await recorded(key), null, `${key}: what the runtime reported is not the terminal's session`);
+      assert.equal(await start(key), "[]", `${key}: started again as a new session, without the reported value`);
+    }
+    // A record that holds one anyway (written past the service here) is checked again on the way out, and starts a new session.
+    assert.equal(await start("recorded-option"), "[]");
+    // The Host's own kind of connection: a second SQLite library in this process would drop the Host's file locks when it closes.
+    const db = openTestSqlite(join(f.home, "projects", "catalog.db"), { timeout: 5000 });
+    try {
+      db.prepare("UPDATE plugin_terminal_panels SET host_session_id = ? WHERE panel_id = ?").run("--dangerously-bypass-approvals-and-sandbox", panelId("recorded-option"));
+    } finally { db.close(); }
+    assert.equal(await start("recorded-option"), "[]", "the recorded option never reaches the resume arguments");
+    // A session in the format is the one it resumes.
+    await reported("recorded-option", "019a-b2");
+    assert.equal(await recorded("recorded-option"), "019a-b2");
+    assert.equal(await start("recorded-option"), "[resume 019a-b2]");
+  } finally { await closeSocket(socket); }
 });
 
 // The login shell environment is given here, so this runs the same on every machine (CI's runner may have no zsh, and no shell configuration
@@ -675,18 +728,26 @@ test("TERM-CATALOG-01 TERM-CATALOG-02 TERM-CATALOG-03 terminal list hides a real
   const snapshot = () => f.withCatalog({ homeDirectory: f.home }, catalog =>
     ({ ids: catalog.terminalPanels.listIds(project.project_id), record: catalog.terminalPanels.get(panelId) }));
   const records = await snapshot(), logged: HostLogEntry[] = [];
+  let damagedColumn: "actor_id" | "panel_id" | undefined;
+  f.host.configurePersonalPlanning(f.home, (options, read) => f.withCatalog(options, async catalog => {
+    if (!damagedColumn) return read(catalog);
+    // The real cached owner performs its schema/lease checks first; unrelated directory reads remain usable.
+    const column = damagedColumn, db = openTestSqlite(catalog.databasePath);
+    try {
+      db.exec(`ALTER TABLE plugin_terminal_panels RENAME COLUMN ${column} TO ${column}_hidden`);
+      // commit may wait for its turn; keep the fault until the entire callback settles.
+      try { return await read(catalog); }
+      finally { db.exec(`ALTER TABLE plugin_terminal_panels RENAME COLUMN ${column}_hidden TO ${column}`); }
+    } finally { db.close(); }
+  }));
   let observed: unknown;
   const failed = await run(f, probe, "project", "query", async own => {
-    // Break the actual list query in the isolated catalog; keep its data and restore with the Host's SQLite binding.
-    const db = openTestSqlite(join(f.home, "projects", "catalog.db"));
-    db.exec("ALTER TABLE plugin_terminal_panels RENAME COLUMN actor_id TO actor_id_hidden"); db.close();
+    damagedColumn = "actor_id";
     const stopCapturing = captureHostLog(logged);
     try { return await own.terminal!.list({ subject: "kept-subject" }); }
     catch (error) { observed = error; throw error; }
     finally {
-      stopCapturing();
-      const back = openTestSqlite(join(f.home, "projects", "catalog.db"));
-      try { back.exec("ALTER TABLE plugin_terminal_panels RENAME COLUMN actor_id_hidden TO actor_id"); } finally { back.close(); }
+      damagedColumn = undefined; stopCapturing();
     }
   }, { project });
   assert.equal(failed.outcome, "actions.unavailable", failed.message);
@@ -697,13 +758,42 @@ test("TERM-CATALOG-01 TERM-CATALOG-02 TERM-CATALOG-03 terminal list hides a real
   assert.equal(logged.length, 1);
   const warning = logged[0]!;
   assert.equal(warning.level, "warn"); assert.equal(warning.area, "terminal"); assert.equal(warning.event, "catalog_unreadable");
-  assert.deepEqual(warning.error, { name: "SqliteError", code: "SQLITE_ERROR" });
+  assert.deepEqual(warning.error, { name: "Error", code: "SQLITE_ERROR" });
   assert.equal(warning.fields, undefined);
   assert.doesNotMatch(JSON.stringify(warning), /catalog\.db|actor_id|home-runtime-|\/(?:Users|private|var)\//u);
+  // D0256: the same catalog failure in command paths is projected identically, before a process/record effect.
+  for (const method of ["open", "close"] as const) {
+    const denied = await run(f, probe, "project", "run", async own => {
+      damagedColumn = "panel_id";
+      const stopCapturing = captureHostLog(logged);
+      try { return method === "open" ? await own.terminal!.open({ ...launch(f, "kept", marker, { root: "workspace", workspace_id }), directory: { root: "workspace", workspace_id }, subject: "kept-subject" })
+        : await own.terminal!.close({ key: "kept" }); }
+      finally { damagedColumn = undefined; stopCapturing(); }
+    }, { project });
+    assert.equal(denied.outcome, "actions.unavailable", method + ": " + denied.message);
+    assert.equal(denied.message, "项目目录暂时读不到");
+    assert.doesNotMatch(JSON.stringify(denied), /SQLITE|panel_id|catalog\.db|未装配|尚未配置/);
+    assert.deepEqual(await snapshot(), records, method + " leaves the terminal record unchanged");
+    assert.deepEqual(await panelState(f, panelId), { started: false, attached: true }, method + " leaves the existing process running");
+  }
+  assert.equal(logged.length, 3, "one safe diagnostic per list/open/close failure");
   assert.deepEqual(await list(), before, "the same plugin action reads its unchanged row after recovery");
   assert.deepEqual(await snapshot(), records, "no record was added, removed or rewritten");
   assert.deepEqual(await panelState(f, panelId), { started: false, attached: true }, "the existing process still runs");
   assert.equal(await ranIn(marker), folder);
+  // D0256: a real catalog refusal rendered by the real workbench helper is readable to the person, without internal/old terms.
+  const chrome = locateTestChrome(); assert.ok(chrome, "TERM-CATALOG visible negative needs the dedicated browser");
+  const browser = await ChromeHarness.start(join(f.home, "catalog-visible-browser"), { executable: chrome });
+  try {
+    const page = await browser.page();
+    await page.command("Page.navigate", { url: f.origin + "/projects/" + project.project_id + "/" });
+    await page.wait("Boolean(globalThis.molisWorkRequest?.show)");
+    await page.evaluate(`(() => { const notice = document.createElement('p'); notice.id = 'terminal-catalog-error'; document.body.append(notice);
+      molisWorkRequest.show(notice, Object.assign(new Error(${JSON.stringify(failed.message)}), { code: ${JSON.stringify(failed.outcome)} })); })()`);
+    const visible = await page.evaluate<string>("document.getElementById('terminal-catalog-error').innerText");
+    assert.equal(visible, "项目目录暂时读不到");
+    assert.doesNotMatch(visible, /catalog|workspace|board|尚未配置|未装配|SQLITE|actor_id|\/(?:Users|private|var)\//iu);
+  } finally { await browser.close(); }
 });
 
 test("TERM-CATALOG-04 terminal list preserves ActionError identity and refuses a read cancelled or revoked during its catalog await", { timeout: 90_000 }, async t => {
@@ -717,7 +807,7 @@ test("TERM-CATALOG-04 terminal list preserves ActionError identity and refuses a
     if (error) throw error;
     const held = gate; gate = undefined;
     if (held) { held.entered.resolve(); await held.release.promise; if (held.error) throw held.error; }
-    return withMolisWorkProjectCatalog(options, read);
+    return f.withCatalog(options, read);
   });
   const sentinel = new ActionError("actions.conflict", "controlled catalog refusal", { kind: "conflict" });
   let observed: unknown;
@@ -758,7 +848,7 @@ test("TERM-CATALOG-04 terminal list preserves ActionError identity and refuses a
 
 test("RAC-2560 S-103 the terminal channel only attaches: a control-token connection that asks to start a program, leaves out attachOnly, adds a key or sends a size out of bounds is refused and starts nothing", { timeout: 60_000 }, async t => {
   const f = await open(t, []);
-  const socket = new WebSocket(f.origin.replace("http:", "ws:") + "/pty"), messages: Array<Record<string, unknown>> = [];
+  const socket = f.terminalSocket(), messages: Array<Record<string, unknown>> = [];
   socket.on("message", raw => messages.push(JSON.parse(raw.toString())));
   const reply = async (panelId: string) => {
     const deadline = Date.now() + 5000;
@@ -791,5 +881,5 @@ test("RAC-2560 S-103 the terminal channel only attaches: a control-token connect
     // Attaching to a panel nobody started answers that nothing runs there, and starts nothing.
     socket.send(JSON.stringify({ type: "spawn", panelId: "rac-2560-none", attachOnly: true, cols: 80, rows: 24 }));
     assert.deepEqual(await reply("rac-2560-none"), { type: "spawned", panelId: "rac-2560-none", attached: false, started: false, replay: "" });
-  } finally { socket.terminate(); }
+  } finally { await closeSocket(socket); }
 });

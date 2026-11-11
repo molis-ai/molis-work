@@ -1,6 +1,6 @@
 # 防腐后路线书 · 执行目录
 
-状态：规划（2026-11-03 整理；统筹与排期维护：Claude（本机）统筹会话，2026-11-04 起（用户定，此前 Codex）；实施由各批主会话独立安排、派写手（[决定 26](reference/decisions.md#decision-26)），谁在做哪一项看[认领板 #1743](https://github.com/molis-ai/molis-work/issues/1743)）。01 已按最终 main 核准，当前交付是核账、归档和本人试用单；其余批次尚未由本批启动。
+状态：规划（2026-11-03 整理；统筹与排期维护：Claude（本机）统筹会话，2026-11-04 起（用户定，此前 Codex）；实施由各批主会话一个会话做完（[决定 26](reference/decisions.md#decision-26)、[决定 34](reference/decisions.md#decision-34)），谁在做哪一项看[认领板 #1743](https://github.com/molis-ai/molis-work/issues/1743)）。01 已按最终 main 核准，当前交付是核账、归档和本人试用单；其余批次尚未由本批启动。
 
 **当前入口：[01 主线核账](reference/batches/01.md#baseline-01) · [本人试用单](reference/acceptance-01.md)。** 01 已按主线核实并交单；实际试用、真实 Home 和后续批次另计。
 
@@ -40,7 +40,7 @@
 |  | [页面读取与轮询整治](reference/batches/07.md#batch-07-item-2) |
 |  | [Feed 投影归回插件](reference/batches/07.md#batch-07-item-3) |
 | [08](reference/batches/08.md) | [技能包基础能力](reference/batches/08.md#batch-08-item-1) |
-| [09](reference/batches/09.md) | [助理与 Coding 接点](reference/batches/09.md#batch-09-item-1) |
+| [09](reference/batches/09.md) | [能力包](reference/batches/09.md#batch-09-item-2)；[助理与 Coding 接点](reference/batches/09.md#batch-09-item-1) |
 | [10](reference/batches/10.md) | [统一输入公共组件](reference/batches/10.md#batch-10-item-1) |
 | [11](reference/batches/11.md) | [三入口接入统一输入](reference/batches/11.md#batch-11-item-1) |
 | [12](reference/batches/12.md) | [Coding 执行、委派与可见状态](reference/batches/12.md#batch-12-item-1) |
@@ -61,7 +61,7 @@
 | [22](reference/batches/22.md) | [Sessions 来源与历史合同](reference/batches/22.md#batch-22-item-1) |
 | [23](reference/batches/23.md) | [同步与团队共同设计 → SRV-1](reference/batches/23.md#batch-23-item-1) |
 | [24](reference/batches/24.md) | [Prologue 采用与任务能力核准](reference/batches/24.md#batch-24-item-1) |
-|  | [Memory P0 非上游余项](reference/batches/24.md#batch-24-item-2) |
+|  | [Memory P0 非上游余项](reference/batches/24.md#batch-24-item-2)（2026-11-11 移出本批：独立的 Memory V0 收口批，以 #2020 为基线；P1 在 [31](reference/batches/31.md#batch-31-item-2)，见 [Memory 去向](reference/requirements.md#memory-paused)） |
 |  | [逐项交付与证据关联合同](reference/batches/24.md#batch-24-item-3) |
 | [25](reference/batches/25.md) | [常驻、休眠与单 Home 执行恢复](reference/batches/25.md#batch-25-item-1) |
 |  | [按主人隔离升级失败 U3](reference/batches/25.md#batch-25-item-2) |
@@ -71,11 +71,13 @@
 |  | [本机日志、崩溃恢复与诊断包](reference/batches/26.md#batch-26-item-4) |
 |  | [插件升级 U4 与合同过渡 U5](reference/batches/26.md#batch-26-item-5) |
 |  | [副本演练与回退 U6](reference/batches/26.md#batch-26-item-6) |
+|  | [状态与状态机合同与词表](reference/batches/26.md#batch-26-item-7) |
 | [27](reference/batches/27.md) | [基础交互体验债](reference/batches/27.md#batch-27-item-1) |
 |  | [代码／Diff 及性能余项](reference/batches/27.md#batch-27-item-2) |
 |  | [首批文案与帮助](reference/batches/27.md#batch-27-item-3) |
 |  | [Runtime、Goals 与沙箱余项](reference/batches/27.md#batch-27-item-4) |
 |  | [宿主出口、文档门禁与各包清理](reference/batches/27.md#batch-27-item-5) |
+|  | [状态词汇门禁与文档](reference/batches/27.md#batch-27-item-6) |
 | [28](reference/batches/28.md) | [采集事实接入](reference/batches/28.md#batch-28-item-1) |
 | [29](reference/batches/29.md) | [历史查询与记录管理](reference/batches/29.md#batch-29-item-1) |
 | [30](reference/batches/30.md) | [最小真实评测路径](reference/batches/30.md#batch-30-item-1) |
@@ -104,10 +106,12 @@
 | [45](reference/batches/45.md) | [情境 W4 创建与准备声明](reference/batches/45.md#batch-45-item-1) |
 |  | [通用任务引导与场景复用](reference/batches/45.md#batch-45-item-2) |
 | [46](reference/batches/46.md) | [正式插件交付的平台前置](reference/batches/46.md#batch-46-item-1) |
+|  | [状态机登记与只读查询](reference/batches/46.md#batch-46-item-2) |
 | [47](reference/batches/47.md) | [新插件创建、隔离试用与安装预演](reference/batches/47.md#batch-47-item-1) |
 |  | [成果、搜索与工作流内容站声明](reference/batches/47.md#batch-47-item-2) |
 |  | [依赖、来源与权限可见](reference/batches/47.md#batch-47-item-3) |
 |  | [首次可用率与返修评测样本](reference/batches/47.md#batch-47-item-4) |
+|  | [安装预演与插件目录的状态展示](reference/batches/47.md#batch-47-item-5) |
 | [48](reference/batches/48.md) | [个人同步核心 → SRV-2](reference/batches/48.md#batch-48-item-1) |
 | [49](reference/batches/49.md) | [团队关键协作 → SRV-3](reference/batches/49.md#batch-49-item-1) |
 | [50](reference/batches/50.md) | [双身份协作实证 → SRV-3](reference/batches/50.md#batch-50-item-1) |
@@ -128,6 +132,7 @@
 |  | [连续两期场景](reference/batches/54.md#batch-54-item-8) |
 | [55](reference/batches/55.md) | [Attention 唤醒、角标与系统通知](reference/batches/55.md#batch-55-item-1) |
 |  | [切换后新入口文字与翻译复核](reference/batches/55.md#batch-55-item-2) |
+|  | [N22 全量迁移与收口](reference/batches/55.md#batch-55-item-3) |
 | [56](reference/batches/56.md) | [个人工作完整路径与 M1 交付](reference/batches/56.md#batch-56-item-1) |
 | [57](reference/batches/57.md) | [子代理公共交互组件](reference/batches/57.md#batch-57-item-1) |
 | [58](reference/batches/58.md) | [子代理双入口接入](reference/batches/58.md#batch-58-item-1) |

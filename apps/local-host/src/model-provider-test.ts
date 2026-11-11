@@ -23,7 +23,7 @@ export async function testConfiguredModel(selection: ResolvedModelSelection) {
     const handle = await adapter.start({
       project_id: "model-settings", install_id: "host", actor_id: "user", plugin_id: "host", session, task: "Reply with exactly MOLIS_OK.", role_id: "model-check",
       directory: { canonical_path: directory, realpath_verified: true },
-      role: { role_id: "model-check", version: 1, execution: "read-only", prompts: [], host_tools: [] },
+      role: { role_id: "model-check", version: /* @version role.model-check */ 1, execution: "read-only", prompts: [], host_tools: [] },
     });
     const activeAdapter = adapter;
     const final = await new Promise<Awaited<ReturnType<typeof activeAdapter.read>>>((resolve, reject) => {

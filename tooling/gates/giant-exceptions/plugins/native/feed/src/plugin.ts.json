@@ -1,0 +1,14 @@
+{
+  "exceptions": {
+    "function plugins/native/feed/src/plugin.ts#createFeedPlugin": {
+      "kind": "cohesive-unit",
+      "reason": "Feed 单个项目实例的生命周期装配：在同一启动上下文中取得服务、构造应用和动作处理器、绑定路由与后台唤醒，业务实现仍归各独立模块；工厂与内嵌 start 是同一份装配过程，拆开会分散共享闭包和启动顺序。",
+      "size": 160
+    },
+    "function plugins/native/feed/src/plugin.ts#start": {
+      "kind": "cohesive-unit",
+      "reason": "Feed 单个项目实例的生命周期装配：在同一启动上下文中取得服务、构造应用和动作处理器、绑定路由与后台唤醒，业务实现仍归各独立模块；工厂与内嵌 start 是同一份装配过程，拆开会分散共享闭包和启动顺序。",
+      "size": 158
+    }
+  }
+}

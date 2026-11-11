@@ -3,6 +3,8 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { L, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import { ASSISTANT_ISLAND_FACTORY_SCRIPT } from "../apps/workbench/dist/scripts/client/assistant-island.js";
+import { assistantWorkFixture } from "./fixtures/assistant-browser-contract.js";
+import { LOGIN_URLS_OPENED, LOGIN_URLS_REFUSED, loginOpens } from "./fixtures/connection-login-urls.js";
 
 // The bottom bar's client script is one template string: a single slip (a name declared twice, an unescaped newline)
 // stops the whole Assistant, search and plugin switching with it, and only a browser run would show it otherwise.
@@ -27,14 +29,18 @@ test("every Send the bottom bar writes itself is marked as the page's; only the 
     }
     return script.slice(start, index - 1).trim();
   });
-  assert.equal(calls.length, 4, "the bottom bar sends from four places: the browser hand-back, asking a closed question again (D5), the frozen composer and a receipt's correction");
+  assert.equal(calls.length, 4, "the bottom bar sends from four places: the browser hand-back, asking a closed question again (D5), the one Send (`post`) and a receipt's correction");
   assert.equal(calls.filter(call => call === "intent.body, intent.route").length, 1, "the composer sends the frozen body and trusted route it captured");
   // RCPT-326: a correction is what the person typed in the receipt's form, so it is theirs, with the input it corrects.
   const correction = "{ work_id: work(), text, about, request_id: key }";
   assert.equal(calls.filter(call => call === correction).length, 1, "a receipt's correction sends the person's words, the input it corrects and the receipt's key");
   for (const call of calls.filter(call => call !== "intent.body, intent.route" && call !== correction)) assert.match(call, /written_by: "page"/, call.slice(0, 100));
-  assert.match(script, /const body = \{[^\n]*\.\.\.\(byPage \? \{ written_by: "page" \} : \{\}\)/, "the composer marks a hand-over the person neither wrote nor changed");
-  assert.match(script, /pageText = message\.text && input\.value\.trim\(\);/, "a hand-over with words is remembered as the page's until it is sent");
+  // K3: the one Send carries the mark it is given; the composer gives none (the words are the person's), a page's hand-over gives the page's.
+  assert.match(script, /const body = \{[^\n]*\n[^\n]*\.\.\.\(extra\.written_by \? \{ written_by: extra\.written_by \} : \{\}\)/, "the one Send marks what it is told is the page's");
+  assert.match(script, /void say\(message\.text, \{ named: "msg-" \+ message\.message_id, written_by: "page" \}\);/, "a hand-over with words goes out as the page's");
+  const delegate = script.match(/const delegate = async \(message\) => \{[\s\S]*?\n  \};/)?.[0] ?? "";
+  assert.ok(delegate, "the delegated Send is found");
+  assert.doesNotMatch(delegate, /input\.value =|setWords\(/, "and never through the input, where the person's words would mix with it");
 });
 
 // A sentence the person reads is one translated text with its own punctuation: gluing a translated word to a Chinese colon
@@ -62,13 +68,11 @@ test("a plugin's name in the bottom bar comes from the catalog, not from the plu
   assert.match(renderMolisWorkWorkbenchClientScript(), /pluginTitle:\s*[\w$]+\.pluginTitle/);
 });
 
-// The line is measured with its chips on it, whether or not the phone's typing rule is hiding them, so a tap into the input and away
-// leaves the steps where they were; and the steps that take parts off the line are made only where the stylesheet applies them
-// (44px targets), never in a fine-pointer window, where a folded chip would still be on the line. tests/touch-targets.e2e.test.ts measures both.
-test("the bottom bar measures its line with its chips on it and folds parts off only in touch windows", () => {
-  const fit = ASSISTANT_ISLAND_FACTORY_SCRIPT.match(/const fitInput = \(\) => \{[\s\S]*?\n  \};/)?.[0] ?? "";
-  assert.match(fit, /compose\.dataset\.measuring = "";[\s\S]*dataset\.crowded = step;[\s\S]*delete compose\.dataset\.measuring;/, "the typing rule is off from the first measurement to the last");
-  assert.match(fit, /if \(matchMedia\("\(max-width: 600px\), \(pointer: coarse\)"\)\.matches\) for \(const step of \["choosers", "mark", "chips"\]\)/, "and the steps are the touch rules'");
+// K3: the bar's line is the platform composer now, which folds its controls behind 更多 on a narrow box by its own sheet: the island
+// measures nothing and takes no parts off. What it still does is tell the sheets above the bar how tall the bar is (one variable).
+test("the bottom bar measures no line of its own and gives the bar's height to the sheets above it through --dock-h", () => {
+  assert.doesNotMatch(ASSISTANT_ISLAND_FACTORY_SCRIPT, /const fitInput = |dataset\.crowded|dataset\.measuring/, "no line fitting left in the island");
+  assert.match(ASSISTANT_ISLAND_FACTORY_SCRIPT, /new ResizeObserver\(\(\) => \{ const height = bar\.offsetHeight; if \(height\) document\.body\.style\.setProperty\("--dock-h", height \+ "px"\); else document\.body\.style\.removeProperty\("--dock-h"\); \}\)/, "the bar's measured height is --dock-h");
 });
 
 // RAC-2571: the script is cut by job into twelve parts joined in place (W5-10 batch A, T-060), so the main file stays under the
@@ -98,5 +102,81 @@ test("RAC-2571: the bottom-bar script is twelve String.raw parts joined in place
     assert.equal(source.match(/^export /gm)?.length, 1, `${file} exports nothing else`);
     assert.ok(source.split("\n").length < 800, `${file} has ${source.split("\n").length} lines`);
     assert.equal(main.split("\n").filter(line => line === "${" + name + "}").length, 1, `the main file joins ${name} once, on a line of its own`);
+  }
+});
+
+// S-plugin-connection-card B1: the Assistant's connection card checks the login address with the card's own function, written into
+// the script from it (on the one loopback spelling); the same addresses are opened and refused as by the shell's card.
+test("S-plugin-connection-card B1 the Assistant's card opens only an https login or one on this computer, never one with a user name in it", () => {
+  const script = ASSISTANT_ISLAND_FACTORY_SCRIPT, start = script.indexOf("const isLoopbackHostname = "), end = script.indexOf("let state = null", start);
+  assert.ok(start > 0 && end > start, "the card writes the check in");
+  assert.equal(/127\\\.0\\\.0\\\.1\|localhost\)\[:\/\]/u.test(script), false, "no second spelling of this computer is left");
+  const check = new Function(`${script.slice(start, end)}; return isConnectionLoginUrl;`)() as (value: string) => boolean;
+  for (const url of LOGIN_URLS_OPENED) assert.equal(check(url), true, url);
+  for (const url of LOGIN_URLS_REFUSED) assert.equal(check(url), false, url);
+});
+
+test("S-plugin-connection-card B1 the Assistant's card checks the login address before it opens the browser or the window it reserved", () => {
+  const { opens, unchecked } = loginOpens(ASSISTANT_ISLAND_FACTORY_SCRIPT);
+  assert.equal(opens, 2, "the card opens the login in the system browser or in the window it reserved");
+  assert.deepEqual(unchecked, [], "each open comes after isConnectionLoginUrl");
+});
+
+test("D0007 D0337 actual list script rejects late A/B/A responses and preserves current drafts", async () => {
+  const begin = ASSISTANT_ISLAND_FACTORY_SCRIPT.indexOf("  let worksRead = ");
+  const end = ASSISTANT_ISLAND_FACTORY_SCRIPT.indexOf("  const reload = ", begin);
+  assert.ok(begin > 0 && end > begin);
+  const pending: Array<{ route: string; resolve(value: { works: Array<{ work_id: string; draft: string; draft_revision?: number }> }): void }> = [];
+  let route = "A";
+  const script = new Function("host", "api", `let works=[],curId=null,tabs=[],view=null;
+    const island={isConnected:true}, remember=()=>{},saveTabs=()=>{},openTab=()=>{},paintList=()=>{},paintAim=()=>{},paintSum=()=>{},drawTabs=()=>{};
+    ${ASSISTANT_ISLAND_FACTORY_SCRIPT.slice(begin,end)}
+    return {loadWorks,read:()=>works,edit:(id,text,revision)=>{curId=id;works=works.map(work=>work.work_id===id?{...work,draft:text,draft_revision:revision}:work);}};`);
+  const list = script({ route: () => route }, (_path: string, _method: string, _body: unknown, at: string) => new Promise(resolve => pending.push({ route: at, resolve })));
+  const a = list.loadWorks(); route = "B"; const b = list.loadWorks(); route = "A"; const again = list.loadWorks();
+  assert.deepEqual(pending.map(item => item.route), ["A", "B", "A"]);
+  const work = assistantWorkFixture;
+  pending[2]!.resolve({ works: [work] }); await again;
+  pending[1]!.resolve({ works: [{ work_id: "foreign", draft: "" }] }); await b;
+  pending[0]!.resolve({ works: [] }); await a;
+  assert.deepEqual(list.read(), [work], "old replies cannot clear the latest work or unsent draft");
+  list.edit(work.work_id, "new local text", 7);
+  const refresh = list.loadWorks();
+  pending[3]!.resolve({ works: [{ ...work, draft: "older server text", draft_revision: 2 }] }); await refresh;
+  assert.equal(list.read()[0].draft, "new local text", "refresh preserves the person's current draft");
+  assert.equal(list.read()[0].draft_revision, 7, "the draft and its revision remain one observation");
+});
+
+test("D0007: served Assistant response fixtures compile against the owning public contract", async () => {
+  const ts = (await import("typescript")).default;
+  const fixture = new URL("./fixtures/assistant-browser-contract.ts", import.meta.url).pathname;
+  const program = ts.createProgram([fixture], { noEmit: true, strict: true, skipLibCheck: true, target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.NodeNext, moduleResolution: ts.ModuleResolutionKind.NodeNext });
+  const errors = ts.getPreEmitDiagnostics(program);
+  assert.deepEqual(errors.map(item => ts.flattenDiagnosticMessageText(item.messageText, "\n")), [], "a renamed required field must fail this test, rather than be erased by tsx");
+});
+
+test("D0007 D0009: the served usage client reads empty, running and failed responses and never reuses an older round's model or tokens", async () => {
+  const { assistantViewFixtures } = await import("./fixtures/assistant-browser-contract.js");
+  const start = ASSISTANT_ISLAND_FACTORY_SCRIPT.indexOf("const usagePane = (") + "const usagePane = (".length;
+  const end = ASSISTANT_ISLAND_FACTORY_SCRIPT.indexOf(")({ L, el, progress, api, toast:", start);
+  assert.ok(start > 0 && end > start, "execute the usage factory actually embedded in the served Assistant client");
+  const ASSISTANT_SIDE_USAGE_FACTORY_SCRIPT = ASSISTANT_ISLAND_FACTORY_SCRIPT.slice(start, end);
+  class Node {
+    children: Array<Node | string> = []; hidden = false; dataset: Record<string, string> = {};
+    querySelector() { return null; }
+    append(...values: Array<Node | string>) { this.children.push(...values); }
+    replaceChildren(...values: Array<Node | string>) { this.children = values; }
+    text(): string { return this.children.map(value => typeof value === "string" ? value : value.text()).join(" "); }
+  }
+  const create = new Function(`return (${ASSISTANT_SIDE_USAGE_FACTORY_SCRIPT});`)();
+  for (const [name, view] of Object.entries(assistantViewFixtures)) {
+    const box = new Node();
+    const client = create({ L: (text: string) => text, el: (_tag: string, _class: string, text?: string) => { const node = new Node(); if (text) node.append(text); return node; },
+      progress: () => new Node(), box: () => box, current: () => JSON.parse(JSON.stringify(view)) });
+    client.paint(view.work);
+    assert.equal(box.hidden, name === "empty");
+    assert.doesNotMatch(box.text(), /old-model|777|888/, name);
+    if (name === "running" || name === "latestWithoutUsage") assert.match(box.text(), /进行中/);
+    if (name === "failed") assert.match(box.text(), /暂不可用/);
   }
 });

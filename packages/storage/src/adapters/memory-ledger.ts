@@ -1,3 +1,4 @@
+import { rollbackPreservingError } from "../transaction-errors.js";
 import type {
   MemoryCandidateRecord,
   MemoryChangeRecord,
@@ -17,7 +18,7 @@ import { DatabaseSync } from "node:sqlite";
 import { assertNoPendingHomeRestore } from "./home-restore-guard.js";
 import { inspectMemoryForgetting, openMemoryForgetting } from "./memory-forgetting.js";
 import { readSnapshotFile, snapshotFileStat } from "../snapshot-files.js";
-import { describeSqliteBaseline, describeSqliteSchema } from "../sqlite-baseline.js";
+import { checkSqliteBaselineVersion, describeSqliteBaseline, describeSqliteSchema } from "../sqlite-baseline.js";
 import { snapshotProgramsMatch } from "../sqlite-baseline-inspection.js";
 import { readDatabaseSpace, readStorageSpace, STORAGE_SPACE_SCHEMA_SQL } from "../space.js";
 import { homeSqlitePath } from "../home-sqlite.js";
@@ -33,9 +34,10 @@ import { openBaselineHomeSqlite, type SqliteBaseline } from "../sqlite-baseline.
  * that entry's history, and forgets it with the entry.
  */
 export const MEMORY_LEDGER_STORE = "memory";
+const FORGETTING_PENDING = "memory-generation:forgetting-pending";
 
 /** The memory ledger's one current schema (repository-anti-corruption §4.1). */
-export const MEMORY_LEDGER_BASELINE: SqliteBaseline = { version: 2, schema: `
+export const MEMORY_LEDGER_BASELINE: SqliteBaseline = { version: /* @version database.memory_ledger_baseline */ 2, schema: `
 CREATE TABLE memory_revisions (
   memory_id TEXT NOT NULL, version INTEGER NOT NULL, body TEXT NOT NULL, PRIMARY KEY (memory_id, version)
 );
@@ -70,7 +72,31 @@ CREATE TABLE memory_pairs (
 CREATE TABLE memory_markers (
   actor_id TEXT NOT NULL, key TEXT NOT NULL, at TEXT NOT NULL, body TEXT NOT NULL, PRIMARY KEY (actor_id, key)
 );
-` };
+`, upgrades: [
+  // 1 → 2 (specs/prologue-memory-strategy, user 2026-11-07: no migration): memories move to the SDK's indexed store, which never reads the old
+  // layout, so the ledger's facts about the old memories go with them. Owner titles stay, and so does every switch: the one new preference, the
+  // per-class restriction list, starts empty, which restricts nothing (user 2026-11-11). The marker asks the next start for the new
+  // generation's empty forgetting file, the one file this build reads that an older Home cannot have (finishMemoryLedgerUpgrade).
+  { from: 1, sql: `UPDATE memory_prefs SET body = json_insert(body, '$.class_restrictions', json('[]'));
+DELETE FROM memory_revisions; DELETE FROM memory_candidates; DELETE FROM memory_changes; DELETE FROM memory_signal_events;
+DELETE FROM memory_uses; DELETE FROM memory_pairs; DELETE FROM memory_markers;
+INSERT INTO memory_markers(actor_id,key,at,body) VALUES ('', '${FORGETTING_PENDING}', strftime('%Y-%m-%dT%H:%M:%fZ','now'), '{}');`,
+    reduces_rows: ["memory_revisions", "memory_candidates", "memory_changes", "memory_signal_events", "memory_uses", "memory_pairs", "memory_markers"] },
+] };
+
+/**
+ * Finish the 1 → 2 upgrade once the Host holds the Home: only a ledger the upgrade itself marked gets a new forgetting file, through `start`.
+ * A Home that lost its forgetting file any other way stays refused. Returns whether the marker was there.
+ */
+export function finishMemoryLedgerUpgrade(homeDirectory: string, start: () => void): boolean {
+  const db = openBaselineHomeSqlite(homeDirectory, MEMORY_LEDGER_STORE, MEMORY_LEDGER_BASELINE);
+  try {
+    if (!db.prepare("SELECT 1 FROM memory_markers WHERE actor_id='' AND key=?").get(FORGETTING_PENDING)) return false;
+    start();
+    db.prepare("DELETE FROM memory_markers WHERE actor_id='' AND key=?").run(FORGETTING_PENDING);
+    return true;
+  } finally { db.close(); }
+}
 
 const parse = <T>(row: Record<string, unknown> | undefined): T | null => row ? JSON.parse(String(row.body)) as T : null;
 
@@ -108,11 +134,11 @@ export function inspectMemoryLedgerSnapshot<T>(homeDirectory: string, read: (db:
     });
     if (!unchanged()) throw inspectionErrors.changed("只读检查期间记忆账本已变化");
     db = new DatabaseSync(join(stage, "memory.db"), { readOnly: true });
-    const version = db.prepare("PRAGMA user_version").get()?.user_version;
+    const current = checkSqliteBaselineVersion(db, file, MEMORY_LEDGER_BASELINE, homeDirectory);
     const databaseSpace = readDatabaseSpace(db), homeSpace = readStorageSpace(homeDirectory);
     if (homeSpace && !isDeepStrictEqual(databaseSpace, homeSpace)) throw inspectionErrors.invalid("记忆账本的空间归属与 Home 不同");
     const expected = databaseSpace ? { ...MEMORY_LEDGER_BASELINE, schema: STORAGE_SPACE_SCHEMA_SQL + MEMORY_LEDGER_BASELINE.schema } : MEMORY_LEDGER_BASELINE;
-    if (version !== MEMORY_LEDGER_BASELINE.version || !snapshotProgramsMatch(db,expected.schema,false) || !isDeepStrictEqual(describeSqliteSchema(db), describeSqliteBaseline(expected))
+    if (!current || !snapshotProgramsMatch(db,expected.schema,false) || !isDeepStrictEqual(describeSqliteSchema(db), describeSqliteBaseline(expected))
       || db.prepare("PRAGMA integrity_check").all().some(row => Object.values(row).some(value => value !== "ok"))
       || db.prepare("PRAGMA foreign_key_check").all().length) throw inspectionErrors.invalid("记忆账本不是完整的现行结构");
     const result = read(db);
@@ -334,7 +360,7 @@ export function openMemoryLedger(options: { homeDirectory: string; storageOwner?
         }
         db.exec("COMMIT"); return result;
       }
-      catch (error) { db.exec("ROLLBACK"); throw error; }
+      catch (error) { rollbackPreservingError(error, () => db.exec("ROLLBACK")); throw error; }
       finally { depth -= 1; receiptFacts = []; receiptFailure = undefined; receiptPhase = 0; }
     },
     close: () => { db.close(); closed = true; },

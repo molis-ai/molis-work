@@ -167,3 +167,26 @@ test("A4-K read and grep recheck owner state after the receipt authority wait an
     assert.equal(f.cards.receipts("a", { limit: 10, offset: 0 }).total, before);
   }
 });
+
+test("D0036 subject pages count code points and never split emoji at a boundary", () => {
+  const base = { subject: { kind: "note", id: "unicode" }, revision: "1", title: "😀".repeat(1001), content: "a".repeat(31999) + "😀" + "尾😀" };
+  const first = subjectContext(base, { offset: 0 }), second = subjectContext(base, { offset: 32000 });
+  assert.equal([...first.content].length, 32000);
+  assert.ok(first.content.endsWith("😀"));
+  assert.equal(second.content, "尾😀");
+  assert.equal(first.content + second.content, base.content);
+  assert.equal(second.length, 32002);
+  assert.equal(second.truncated, false);
+  assert.equal([...first.title].length, 1000);
+});
+
+test("D0036 knowledge consumes Unicode context pages with the same cursor unit as the owner", async t => {
+  const f = await fixture(t);
+  f.pages.set("unicode", { id: "unicode", title: "Unicode", body: "# First\n" + "a".repeat(31990) + "😀\n# End\n完整尾页😀", version: 1 });
+  const access = f.access(round(undefined));
+  const outline = await f.knowledge.outline(access, { subject: { kind: "page", id: "unicode" } });
+  assert.equal(outline.owner_truncated, false);
+  assert.deepEqual(outline.sections.map(section => section.title), ["First", "End"]);
+  const ending = await f.knowledge.read(access, { subject: { kind: "page", id: "unicode" }, anchor: "h2" });
+  assert.match(ending.text, /完整尾页😀/u);
+});

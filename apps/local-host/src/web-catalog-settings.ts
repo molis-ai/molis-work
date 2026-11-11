@@ -14,7 +14,6 @@ import { modelTemplatePageData } from "./model-provider-setup.js";
 import { withModelChecks } from "./model-provider-checks.js";
 import { modelAddressFromTemplate, modelKeyHint } from "./model-provider-templates.js";
 import { selectedTypeSafeConnection } from "./typesafe-connection.js";
-import { installationDiagnostics } from "./web-project-presentation.js";
 import { molisWorkHostProjectReference } from "./project-host.js";
 import { shownProjectPlugins } from "./plugin-registry.js";
 import { sendLocalWebJson as sendJson } from "./web-http.js";
@@ -38,7 +37,7 @@ export async function handleSettingsPage(ctx: CatalogRequestContext): Promise<bo
   const { request, response, url, serverOptions, runtimeIntegrations, webService, controlToken, localHost, composition } = ctx;
   const { PAGE_CSP, isDesktopShellRequest, projectSettings } = composition;
   const { renderMolisWorkSettings } = composition.workbenchRenderer;
-  const settingsPageMatch = url.pathname.match(/^\/settings\/(appearance|directories|models|runtimes|assistant|characters|prompts|memory|mcp|connectors|projects|diagnostics|sync)$/);
+  const settingsPageMatch = url.pathname.match(/^\/settings\/(appearance|directories|models|runtimes|assistant|characters|prompts|kit|memory|mcp|connectors|projects|diagnostics|sync)$/);
   const capabilityPageMatch = url.pathname.match(/^\/capabilities\/(library|connections|access|history|rules)$/);
   if (!(request.method === "GET" && (settingsPageMatch || capabilityPageMatch))) return false;
   const rules = capabilityPageMatch?.[1] === "rules";
@@ -69,7 +68,7 @@ export async function handleSettingsPage(ctx: CatalogRequestContext): Promise<bo
     const shown = templates.draft_provider ?? providers.find((provider) => provider.provider_id === selected) ?? providers[0];
     // Which key each provider holds, read in one pass over the connections rather than one open per provider and connection.
     const refs = modelConnections.length ? withConnectorConnections(serverOptions.homeDirectory!, (store) =>
-      new Map(modelConnections.map((connection) => [store.require(connection.connection_id).credential_ref, connection.connection_id]))) : new Map<string | null, string>();
+      new Map(modelConnections.map((connection) => [store.require(connection.connection_id).credential_ref, connection.connection_id])), "required") : new Map<string | null, string>();
     return {
       // Each provider's last real check, so the page says "checked at …" or "never checked" rather than guessing (PF-A04).
       providers, health: withModelChecks(serverOptions.homeDirectory, providers, catalog.models.health()), connections: modelConnections,
@@ -107,7 +106,7 @@ export async function handleSettingsPage(ctx: CatalogRequestContext): Promise<bo
     ...(section === "connectors" ? await connectorSettingsView(localHost, serverOptions.homeDirectory, url, contextProject ? molisWorkHostProjectReference({ databasePath: contextProject.database_path, projectId: contextProject.project_id }) : undefined) : {}),
     projects,
     web_service: await webService.detect(),
-    diagnostics: installationDiagnostics(serverOptions.homeDirectory, projects.length), ...(section === "diagnostics" ? { ...callDiagnosticsView(localHost.callLog, url), periodic_tasks: composition.periodicTasks.list() } : {}),
+    diagnostics: composition.installationDiagnostics(projects.length), ...(section === "diagnostics" ? { ...callDiagnosticsView(localHost.callLog, url), periodic_tasks: composition.periodicTasks.list() } : {}),
   }, controlToken, isDesktopShellRequest(request, url)));
   return true;
 }
@@ -152,7 +151,7 @@ export async function handlePluginSettingsPage(ctx: CatalogRequestContext): Prom
     runtimes: [],
     projects,
     web_service: await webService.detect(),
-    diagnostics: installationDiagnostics(serverOptions.homeDirectory, projects.length),
+    diagnostics: composition.installationDiagnostics(projects.length),
   }, controlToken, isDesktopShellRequest(request, url)));
   return true;
 }

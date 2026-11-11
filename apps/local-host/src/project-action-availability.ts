@@ -1,9 +1,14 @@
+import type { ProjectPluginId, ProjectPluginMembership } from "@molis-ai/molis-work-contracts/modules/projects";
 import { PLATFORM_PLUGIN_REGISTRATIONS, availableProjectPluginIds, shownProjectPlugins } from "./plugin-registry.js";
 import type { ActionAvailability, ActionCallContext, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import type { MolisWorkProjectCatalog } from "./project-catalog.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { homePluginsOutsideBuild } from "./home-registration.js";
+
+export function projectMembershipReach({ plugins, hidden }: ProjectPluginMembership): ReadonlySet<string> {
+  return availableProjectPluginIds(shownProjectPlugins(plugins, hidden));
+}
 
 /**
  * The plugins a project's actions and routes may reach right now (PG-013): what it shows (enabled ones, and personal ones the person
@@ -13,11 +18,11 @@ import { homePluginsOutsideBuild } from "./home-registration.js";
  * that passes none reaches none of them.
  */
 export function projectReachablePlugins(catalog: Pick<MolisWorkProjectCatalog, "projectPluginMembership">, projectId: string,
-  outsideBuild: readonly string[] = []): ReadonlySet<string> | null {
+  outsideBuild: readonly string[] = [], directory?: () => readonly ProjectPluginId[]): ReadonlySet<string> | null {
   try {
-    const { plugins, hidden } = catalog.projectPluginMembership(projectId);
-    const reachable = new Set(availableProjectPluginIds(shownProjectPlugins(plugins, hidden)));
-    for (const key of outsideBuild) if (!hidden.includes(key)) reachable.add(key);
+    const membership = catalog.projectPluginMembership(projectId, directory);
+    const reachable = new Set(projectMembershipReach(membership));
+    for (const key of outsideBuild) if (!membership.hidden.includes(key)) reachable.add(key);
     return reachable;
   }
   catch (error) {
@@ -75,6 +80,7 @@ export function projectActionAvailability(withCatalog: LocalWebCatalogRunner, ho
   const live = (caller: ActionCallContext, action: Pick<ActionView, "provider">): ActionAvailability | Promise<ActionAvailability> =>
     entryOf(action) ? read(caller).then(reachable => state(caller, action, reachable)) : { available: true };
   return Object.assign(live, { snapshotForDiscovery: async (caller: ActionCallContext) => {
+    // A later discovery can be the post-await withdrawal check of an aggregate. Never reuse its presentation directory here.
     const reachable = await read(caller);
     return (_caller: ActionCallContext, action: Pick<ActionView, "provider">): ActionAvailability => state(caller, action, reachable);
   } });

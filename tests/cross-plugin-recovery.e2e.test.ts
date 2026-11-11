@@ -42,23 +42,24 @@ test('Shelf saves the last keystroke before returning and keeps a failed draft a
   // Pin the viewport to the regression scenario so geometry does not depend on the host window size.
   await command('Emulation.setDeviceMetricsOverride', { width: 756, height: 469, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command('Page.navigate', { url: `${origin}/projects/${projectId}/` }, sessionId));
-  // craft-finish round 4, side-shelf §3.1: the right of the bottom bar is the side panel's one button (Shelf, 灵光 and the
-  // rest are its tabs). At this short, narrow window it must still be a whole, uncovered 32px+ target inside the viewport.
+  // side-shelf §3.1: Shelf, 灵光 and the rest are the side panel's tabs. Since 07-1 S4b the way in is the side's current glyph in
+  // the titlebar (the bar's side button is gone). At this short, narrow window it must still be a whole, uncovered 32px+ target
+  // inside the viewport.
   const layout = await evaluate<any>(`(() => {
-    const shelf = document.querySelector('.workbench-bar [data-side-toggle]');
+    const shelf = document.querySelector('.immersive-titlebar [data-side-tabs] [data-side-tab][aria-selected=true]');
     const r = shelf?.getBoundingClientRect();
     const hit = r ? document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2) : null;
-    const neighbours = [...document.querySelectorAll('.workbench-bar :is(.dock-pin, .navigator-project-selector, .bar-composer)')].filter(e => e !== shelf && e.getClientRects().length)
+    const neighbours = [...document.querySelectorAll('.immersive-titlebar :is(.tab-item, .tab-add-button, .tab-strip-button, [data-side-tab], [data-layout-open])')].filter(e => e !== shelf && !e.contains(shelf) && e.getClientRects().length)
       .map(e => e.getBoundingClientRect()).filter(n => r && n.left < r.right && n.right > r.left && n.top < r.bottom && n.bottom > r.top).length;
     return { viewport: { w: innerWidth, h: innerHeight }, shelf: r ? { w: r.width, h: r.height, top: r.top, bottom: r.bottom, left: r.left, right: r.right } : null,
       hitsShelf: !!(hit && shelf.contains(hit)), hitTag: hit?.tagName.toLowerCase(), neighbours };
   })()`);
   assert.equal(layout.viewport.w, 756);
   assert.equal(layout.viewport.h, 469);
-  assert.ok(layout.shelf, 'the bottom bar has the side panel button');
+  assert.ok(layout.shelf, "the titlebar has the side panel's current glyph");
   assert.ok(layout.shelf.w >= 32 && layout.shelf.h >= 32, 'the side panel button keeps a whole target: ' + JSON.stringify(layout.shelf));
   assert.ok(layout.shelf.top >= 0 && layout.shelf.bottom <= layout.viewport.h && layout.shelf.right <= layout.viewport.w, 'the side panel button stays inside the viewport');
-  assert.equal(layout.neighbours, 0, 'no other bar control overlaps the side panel button');
+  assert.equal(layout.neighbours, 0, "no other titlebar control overlaps the side panel's glyph");
   assert.equal(layout.hitsShelf, true, `elementFromPoint must hit the side panel button (got ${layout.hitTag})`);
   // Shelf's side panel tab, in the document the panel's frame loads.
   await navigate(() => command('Page.navigate', { url: `${origin}/projects/${projectId}/side/shelf/side` }, sessionId));
@@ -129,11 +130,11 @@ test('Schedule keeps the submitting draft stable, retries failures, and opens th
   await command('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 }, sessionId);
   await child.evaluate("document.querySelector('[data-schedule-create-form]').requestSubmit()");
   assert.equal(await evaluate('window.scheduleRequests'), 2);
-  assert.equal(await child.evaluate("document.querySelector('[data-schedule-create-dialog]').open"), true);
+  assert.equal(await child.evaluate("!document.querySelector('[data-schedule-create-pane]').hidden"), true);
   assert.equal(await child.evaluate("document.querySelector('[data-schedule-create-form] .mw-form__body').inert"), true);
   await evaluate('window.releaseScheduleResponse()');
   const created=await evaluate<string>('window.createdScheduleId');
-  await child.waitFor(`!document.querySelector('[data-schedule-create-dialog]').open && document.querySelector('[data-schedule-detail="${created}"]:not([hidden])')`);
+  await child.waitFor(`document.querySelector('[data-schedule-create-pane]').hidden && document.querySelector('[data-schedule-detail="${created}"]:not([hidden])')`);
   await child.click('[data-schedule-collapse]');
   await child.click('[data-schedule-new]');
   assert.equal(await child.evaluate("document.querySelector('[data-schedule-create-form]').elements.title.value"), '');

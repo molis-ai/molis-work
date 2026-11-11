@@ -1,6 +1,6 @@
-import { messageOf } from "./dom.js";
+import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { open } from "./diff.js";
-import { active, reading, request, rowOf, showReviews } from "./page.js";
+import { active, inFolder, reading, request, rowOf, showReviews } from "./page.js";
 import type { GitPage } from "./page.js";
 import { clearResults } from "./results.js";
 import { loadSource } from "./source.js";
@@ -73,8 +73,10 @@ export async function refresh(page: GitPage): Promise<void> {
   reopen.hidden = true;
   history.disabled = true;
   try {
-    const value = await request<StateAnswer>(page, "/state");
+    const value = await request<StateAnswer>(page, inFolder("/state", page.folder));
     if (!active(page, epoch)) return;
+    // The folder the page asked for left the project: it shows the output and follows it from now on.
+    if (page.folder && value.workspace.workspace_id !== page.folder) page.folder = "";
     if (page.workspace !== value.workspace.workspace_id) {
       list.replaceChildren();
       clearResults(page);

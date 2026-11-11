@@ -60,10 +60,10 @@ async function assistantAsking(t: TestContext, asked: object, done: string) {
 
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/?openPlugin=todo" }, sessionId));
-  await waitFor("document.querySelector('[data-assistant-input]')");
-  await click("[data-assistant-input]"); await command("Input.insertText", { text: "约个复盘会" }, sessionId);
-  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
-  await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
+  await waitFor("document.querySelector('[data-assistant-composer] .mw-composer__input')");
+  await click("[data-assistant-composer] .mw-composer__input"); await command("Input.insertText", { text: "约个复盘会" }, sessionId);
+  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, sessionId);
+  await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, sessionId);
   return { ...browser, requests };
 }
 
@@ -122,9 +122,9 @@ test("AC-27-5, D34: one text question is answered from the composer, and the run
   const page = await assistantAsking(t, { why: "给复盘会起个标题", questions: [{ id: "title", type: "text", prompt: "会议标题" }] }, "标题记下了。"); if (!page) return;
   const { command, sessionId, evaluate, waitFor, click, requests } = page;
   await waitFor("document.querySelector('[data-ix-question] [data-ix-field=t0]') && !document.querySelector('[data-assistant-answer]').hidden", 20_000);
-  assert.equal(await evaluate("document.querySelector('[data-assistant-answer]').textContent"), "回答上面的问题", "the default is to answer it");
-  await click("[data-assistant-input]"); await command("Input.insertText", { text: "Q4 发布复盘" }, sessionId);
-  await click("[data-assistant-send]");
+  assert.equal(await evaluate("document.querySelector('[data-assistant-answer]').textContent"), "回答上面的问题", "the default is on the chip");
+  await click("[data-assistant-composer] .mw-composer__input"); await command("Input.insertText", { text: "Q4 发布复盘" }, sessionId);
+  await click("[data-assistant-composer] [data-composer-send]");
   for (let attempt = 0; requests.length < 2 && attempt < 300; attempt++) await new Promise(resolve => setTimeout(resolve, 50));
   assert.ok(JSON.stringify(requests[1]?.messages ?? "").includes("Q4 发布复盘"), "the words answer the question");
   await waitFor("document.querySelector('[data-assistant-thread]')?.textContent.includes('标题记下了。')", 15_000);
@@ -147,15 +147,17 @@ test("AC-03, R4: among other questions, the composer writes into the questionnai
   const page = await assistantAsking(t, asked, "复盘会安排好了。"); if (!page) return;
   const { command, sessionId, evaluate, waitFor, click, navigate, requests, homeDirectory } = page;
   const chip = "document.querySelector('[data-assistant-answer]')", notes = "document.querySelector('[data-ix-question] [data-ix-field=t1] textarea, [data-ix-question] [data-ix-field=t1] input')";
-  const send = async (text: string) => { await click("[data-assistant-input]"); await command("Input.insertText", { text }, sessionId); await click("[data-assistant-send]"); };
-  const work = () => evaluate<Array<{ revision: number }>>(`fetch(document.body.dataset.routePrefix + '/api/assistant/works', { headers: molisWorkControlHeaders() }).then(r => r.json()).then(body => body.works)`);
-  const apart = (works: Array<{ revision: number }>) => works.map(({ revision: _revision, ...rest }) => rest);
+  const send = async (text: string) => { await click("[data-assistant-composer] .mw-composer__input"); await command("Input.insertText", { text }, sessionId); await click("[data-assistant-composer] [data-composer-send]"); };
+  // One click of the chip (ai-input-receipts §4.1, restored by the 2026-11-09 audit fix).
+  const flip = `${chip}.click()`;
+  const work = () => evaluate<Array<{ revision: number; draft_revision: number }>>(`fetch(document.body.dataset.routePrefix + '/api/assistant/works', { headers: molisWorkControlHeaders() }).then(r => r.json()).then(body => body.works)`);
+  const apart = (works: Array<{ revision: number; draft_revision: number }>) => works.map(({ revision: _revision, draft_revision: _draftRevision, ...rest }) => rest);
   await waitFor(`${notes} && !${chip}.hidden`, 20_000);
   assert.equal(await evaluate(`${chip}.textContent`), "写进问卷", "the default is on the chip");
   const before = { files: await runtimeFiles(homeDirectory), works: await work() };
 
   await send("只约周三下午");
-  await waitFor(`${notes}.value === '只约周三下午' && document.querySelector('[data-assistant-input]').value === ''`, 10_000);
+  await waitFor(`${notes}.value === '只约周三下午' && document.querySelector('[data-assistant-composer] .mw-composer__input').value === ''`, 10_000);
   await send("会议室要有投影");
   await waitFor(`${notes}.value === '只约周三下午 会议室要有投影'`, 10_000);
   await new Promise(resolve => setTimeout(resolve, 800));
@@ -163,15 +165,16 @@ test("AC-03, R4: among other questions, the composer writes into the questionnai
   assert.deepEqual(await runtimeFiles(homeDirectory), before.files, "the session, its run and its queue are unchanged on disk: nothing was handed back or queued");
   const after = await work();
   assert.deepEqual(apart(after), apart(before.works), "the Assistant's works are unchanged");
-  // The card's drafts are kept on its work (`question_drafts`, assistant-questions.ts); each save is one revision and nothing else.
-  assert.equal(after[0]!.revision, before.works[0]!.revision + 2, "the only writes are the two draft saves");
+  // B10-R3: each fill first saves its composer draft, then writes the questionnaire and clears that exact draft generation atomically.
+  assert.equal(after[0]!.revision, before.works[0]!.revision + 4, "two composer saves and two atomic questionnaire fills, with no post-success clear");
+  assert.equal(after[0]!.draft_revision, before.works[0]!.draft_revision + 4, "both writes belong to the corresponding draft generation");
   assert.equal(await evaluate("document.querySelectorAll('[data-assistant-thread] .assistant-msg--user').length"), 1, "only the first message: no supplement in the thread");
   assert.equal(await evaluate("document.querySelectorAll('[data-assistant-thread] [data-entry^=receipt]').length"), 0, "and no receipt");
 
   await navigate(() => command("Page.reload", {}, sessionId));
   await waitFor(`${notes}?.value === '只约周三下午 会议室要有投影'`, 20_000);
 
-  await click("[data-assistant-answer]");
+  await evaluate(flip);
   assert.equal(await evaluate(`${chip}.textContent`), "补充这一轮");
   assert.match(await evaluate<string>(`${chip}.title`), /写进问卷/u, "the way back names the form");
   await send("顺便发个日历邀请");
@@ -179,7 +182,7 @@ test("AC-03, R4: among other questions, the composer writes into the questionnai
   assert.notDeepEqual(await runtimeFiles(homeDirectory), before.files, "switched, the words reach the round as a supplement");
   assert.equal(requests.length, 1, "a supplement waits behind the answer; the AI is not called");
   assert.equal(await evaluate(`${notes}.value`), "只约周三下午 会议室要有投影", "the supplement does not touch the draft");
-  await click("[data-assistant-answer]");
+  await evaluate(flip);
   assert.equal(await evaluate(`${chip}.textContent`), "写进问卷", "one click back");
   assert.equal(await evaluate(`${notes}.value`), "只约周三下午 会议室要有投影", "and the draft is still on the card");
 
@@ -309,4 +312,29 @@ test("AC-08: two tabs answer one question: one is taken, the other is refused wi
     .filter((block: { type?: string }) => block.type === "tool_result"));
   assert.ok(results.includes("45") && !results.includes("77"), "it heard the answer that was taken, not the refused one");
   assert.deepEqual(await runtimeFiles(homeDirectory), taken.files, "the refused answer writes nothing: the session, its run and its queue are unchanged on disk");
+});
+
+
+test("B10-R1 B10-R2: questionnaire filling refuses attachments; switching to supplement preserves explicit queue delivery", { timeout: 120_000 }, async t => {
+  const asked = { why: "补充会议要求", questions: [{ id: "minutes", type: "number", prompt: "时长" }, { id: "notes", type: "text", prompt: "要求", required: false }] };
+  const page = await assistantAsking(t, asked, "已收到"); if (!page) return;
+  const { evaluate, waitFor, click, command, sessionId } = page;
+  await waitFor("!document.querySelector('[data-assistant-answer]').hidden", 20_000);
+  await evaluate(`(() => { const original = window.fetch.bind(window); window.queueSends = [];
+    window.fetch = (url, init) => { if (String(url).endsWith('/api/assistant/send')) window.queueSends.push(JSON.parse(init.body)); return original(url, init); };
+    const input = document.querySelector('[data-assistant-composer] textarea'); input.value = '下轮再整理'; input.dispatchEvent(new Event('input', { bubbles: true }));
+    const data = new DataTransfer(); data.items.add(new File(['附件正文'], 'question.txt', { type: 'text/plain' }));
+    input.dispatchEvent(new ClipboardEvent('paste', { bubbles: true, clipboardData: data })); })()`);
+  await waitFor("document.querySelector('[data-assistant-composer] .mw-upload:not(.is-reading)')");
+  await click("[data-assistant-composer] [data-composer-send]");
+  await waitFor("document.querySelector('[data-assistant-composer]').textContent.includes('问卷这里只能写文字')");
+  assert.equal(await evaluate("document.querySelector('[data-assistant-composer] textarea').value"), "下轮再整理");
+  assert.equal(await evaluate("document.querySelectorAll('[data-assistant-composer] .mw-upload').length"), 1);
+  assert.deepEqual(await evaluate("window.queueSends"), []);
+  await click("[data-assistant-composer] [data-composer-remove]");
+  await evaluate(`(() => { document.querySelector('[data-assistant-answer]').click(); document.querySelector('[data-assistant-composer] textarea').focus(); })()`);
+  await command("Input.dispatchKeyEvent", { type: "rawKeyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 10 }, sessionId);
+  await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 10 }, sessionId);
+  await waitFor("window.queueSends.length === 1");
+  assert.deepEqual(await evaluate("[window.queueSends[0].target, window.queueSends[0].delivery]"), ["steer", "after-run"]);
 });

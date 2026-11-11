@@ -4,6 +4,7 @@ import { openPagesStore, openTodoStore } from "./fixtures/plugin-home-stores.js"
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { assistantTextModel } from "./fixtures/assistant-text-model.js";
+import { CURRENT_WORK } from "./fixtures/assistant-current-work.js";
 
 test("PAS-15: Host text streams, keeps reading state, copies exact code, opens named objects and submits real review decisions", { timeout: 180_000 }, async t => {
   const pageTitle = "代码验证文档";
@@ -21,7 +22,7 @@ test("PAS-15: Host text streams, keeps reading state, copies exact code, opens n
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${page.id}` }, sessionId));
   await child.waitFor("document.querySelector('[data-pages-title]')?.value === '代码验证文档'");
-  await click("[data-assistant-input]");
+  await click("[data-assistant-composer] .mw-composer__input");
   // The work is linked under the document because the hand-over brings it (viewing a page no longer adds it, context-program
   // §21.5), so the hand-over names the document by its own kind.
   await evaluate(`window.dispatchEvent(new CustomEvent('molis:assistant-message', {detail:{message_id:'text-projection-delegate',purpose:'delegate',source:{surface:'pages',title:'文档'},object:{kind:'pages_document',id:${JSON.stringify(page.id)},title:${JSON.stringify(page.title)},version:1},text:'整理这份文档',materials:[]}}))`);
@@ -67,17 +68,17 @@ test("PAS-15: Host text streams, keeps reading state, copies exact code, opens n
   assert.match(await evaluate<string>("document.querySelector('.assistant-rich').textContent"), /「代码验证文档」/);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await waitFor("document.querySelector('.assistant-code-more')");
-  await click("[data-assistant-input]");
-  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
-  await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 }, sessionId);
+  await click("[data-assistant-composer] .mw-composer__input");
+  await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, sessionId);
+  await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 }, sessionId);
   await waitFor("!document.querySelector('[data-assistant-panel]').hidden");
 
   for (const decision of ["reject", "approve"]) {
     model.review(`投影测试-${decision}`);
     await click("[data-assistant-new]");
-    await click("[data-assistant-input]");
+    await click("[data-assistant-composer] .mw-composer__input");
     await command("Input.insertText", { text: `添加待办：投影测试-${decision}` }, sessionId);
-    await click("[data-assistant-send]");
+    await click("[data-assistant-composer] [data-composer-send]");
     await waitFor("document.querySelector('[data-review] [data-assistant-decision]')", 30_000);
     assert.match(await evaluate<string>("document.querySelector('[data-review]').textContent"), new RegExp(`投影测试-${decision}`));
     if (decision === "reject") {
@@ -90,7 +91,7 @@ test("PAS-15: Host text streams, keeps reading state, copies exact code, opens n
     }
     await evaluate(`document.querySelector('[data-assistant-decision=${decision}]').click()`);
     await waitFor("!document.querySelector('[data-review]')", 30_000);
-    await waitFor(`fetch(${JSON.stringify(api + '/works')}).then(r=>r.json()).then(b=>b.works.find(w=>w.work_id===localStorage.getItem('molis.assistant.current'))?.state==='completed')`, 30_000);
+    await waitFor(`fetch(${JSON.stringify(api + '/works')}).then(r=>r.json()).then(b=>b.works.find(w=>w.work_id===${CURRENT_WORK})?.state==='completed')`, 30_000);
     const todos = openTodoStore(homeDirectory);
     try {
       assert.equal(todos.list({ projectId, projectIds: [], actor: "user", actorId: "web-user" }).filter(item => item.title === `投影测试-${decision}`).length, decision === "approve" ? 1 : 0,

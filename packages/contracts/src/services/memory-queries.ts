@@ -50,7 +50,7 @@ const pageProperties = { cursor: text, exhausted: { type: "boolean" }, stopped: 
 /** Built at the existing memory Action owner; reuse the formal item schema without broadening write outputs. */
 export function memoryPageAction(item: { properties: Record<string, unknown>; required: string[] }, permission: string, writeKinds: readonly string[], sources: readonly string[]): ActionDefinition<MemoryPageRequest, MemoryPageResponse> {
   const kinds = { enum: [...writeKinds, "habit", "project-decision"] };
-  return { capability_id: "memory.page", version: 1, operation: "query", action: {
+  return { capability_id: "memory.page", version: /* @version action.memory.page */ 1, operation: "query", action: {
     scope: "home", subject_kinds: [], kind: "query", effect: "read", plugin: false, scheduling: "concurrent", audiences: ["user"], permissions: [permission],
     title: "分批查看记忆", description: "按当前管理权限分批查看记忆及真实分类、状态和期限；未查完不推算总数。",
     input_schema: { type: "object", properties: {

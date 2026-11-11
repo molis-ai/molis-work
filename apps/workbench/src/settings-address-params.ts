@@ -38,7 +38,7 @@ export const GLOBAL_SETTINGS_QUERY_EXTRAS: Readonly<Record<string, string>> = {
 };
 
 /** Project settings pages that read more than the defaults, by the section the workbench opens. */
-export const PROJECT_SETTINGS_QUERY_EXTRAS: Readonly<Record<string, string>> = { planning: "project", memory: "memory_session_kind memory_session_id" };
+export const PROJECT_SETTINGS_QUERY_EXTRAS: Readonly<Record<string, string>> = { planning: "project", guidance: "draft_ref", memory: "memory_session_kind memory_session_id" };
 
 /**
  * The fragments settings pages read today, by section; any other fragment is dropped. `prompts` also reads `#diagnostics`

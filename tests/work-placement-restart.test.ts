@@ -11,7 +11,7 @@ import test from "node:test";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LocalHost, MolisWorkLocalHost, projectActionAvailability } from "@molis-ai/molis-work-app-local-host";
 import { openFormStore, openPagesStore } from "./fixtures/plugin-home-stores.js";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 
 // specs/archive/work-placement AC6 through the whole stack: where things are, how they relate, what was copied or moved, and a
 // failed move are all still true after the Host stops and starts again on the same Home; nothing depends on the page.
@@ -131,7 +131,7 @@ for (const operation of ["link", "convert"] as const) for (const stop of ["cance
     const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(); let valid = true, holding = true;
     // A failing step must not leave the owner reader held: closing the Host waits for it.
     t.after(async () => { holding = false; release.resolve(); await host.close(); await rm(home, { recursive: true, force: true }); });
-    const reader = defineSubjectContextAction("fixture.clip.read", "fixture-clip", "Fixture", [], "home");
+    const reader = defineSubjectContextAction("fixture.clip.read", 1, "fixture-clip", "Fixture", [], "home");
     host.actionRegistry().registerProvider({ provider: { provider_id: "fixture-clip", title: "Fixture", kind: "system" }, definitions: [reader],
       handlers: [{ ...reader, handle: async () => { if (holding) { entered.resolve(); await release.promise; }
         return subjectContext({ subject: { kind: "fixture-clip", id: "original" }, revision: "1", title: "Fixed source", content: "original body", goal_ids: [] }); } }] });

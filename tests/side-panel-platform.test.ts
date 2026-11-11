@@ -24,9 +24,9 @@ import { WORKSPACE_BYTES_LIMIT, workspaceReadActions } from "@molis-ai/molis-wor
 import {
   bindFileEntriesHandler, defineFileContentAction, defineFileEntriesAction, definePlugin, fileContentOf, fileEntriesPage, FILE_CONTENT_MAX_BYTES,
 } from "@molis-ai/molis-work-plugin-sdk";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { browserAddress, safeFilename } from "../apps/local-host/dist/browser/browser-host.js";
-import { renderSidePanel } from "../apps/workbench/dist/side-panel.js";
+import { renderSidePanel, renderSideStrip } from "../apps/workbench/dist/side-panel.js";
 
 /*
  * The side panel as a platform capability (specs/archive/side-panel §3.3, D11, D13): the file source protocol, the `side`
@@ -38,8 +38,8 @@ const kinds = [{ kind: "memo", title: "备忘", surface: "memos" }];
 const canonical = (value: unknown) => JSON.stringify(value);
 
 test("file source declarations pass the manifest check only in the protocol's exact shape", () => {
-  const entries = defineFileEntriesAction("memos.files.entries", kinds, "备忘", ["memos:read"]);
-  const content = defineFileContentAction("memos.files.content", kinds, "备忘", ["memos:read"]);
+  const entries = defineFileEntriesAction("memos.files.entries", 1, kinds, "备忘", ["memos:read"]);
+  const content = defineFileContentAction("memos.files.content", 1, kinds, "备忘", ["memos:read"]);
   assert.deepEqual(inspectActionDeclarations([entries, content]), []);
   assert.equal(entries.action.file_source?.role, "entries");
   assert.deepEqual(entries.action.audiences, ["user"], "a side panel source is for the person unless its owner widens it");
@@ -79,13 +79,20 @@ test("PAS-08: the side slot places a plugin's tab only while the plugin is enabl
   assert.deepEqual(new UiViewRegistry([{ manifest: manifest as never, enabled: false }]).slot("side"), [], "a disabled plugin leaves no tab behind");
   assert.equal(new UiViewRegistry([{ manifest: manifest as never, enabled: true }]).slot("side")[0]!.context_binding, "focused-object");
   assert.throws(() => parsePluginManifest({ ...manifest, ui: { ...manifest.ui, views: [{ ...manifest.ui.views[0], slot: "stage" }] } }), /context_binding/);
-  const html = renderSidePanel({ L: text => text, escapeHtml: value => String(value), icon: name => `<svg data-icon="${name}"></svg>` },
-    [{ key: "example/notes", title: "随手记", icon: "note", src: "/projects/p1/side/example/notes", contextOwner: manifest.plugin_id, contextSurface: "example" }]);
-  assert.match(html, /data-side-tab="plugin:example\/notes"/u);
-  assert.match(html, /data-side-context-owner="io\.molis\.work\.example\.side" data-side-context-surface="example" hidden/u);
-  assert.match(html, /data-side-src="\/projects\/p1\/side\/example\/notes"/u);
-  assert.match(html, /data-side-tab="files"[\s\S]*data-side-tab="browser"[\s\S]*data-side-tab="computer"[\s\S]*data-side-tab="discussion"/u, "the panel's own tabs in side-shelf §3.2's order");
-  assert.doesNotMatch(html, /assistant-/u, "the panel stays out of the Assistant's classes");
+  const primitives = { L: (text: string) => text, escapeHtml: (value: unknown) => String(value), icon: (name: string) => `<svg data-icon="${name}"></svg>` };
+  const tabs = [{ key: "example/notes", title: "随手记", icon: "note", src: "/projects/p1/side/example/notes", contextOwner: manifest.plugin_id, contextSurface: "example" }] as const;
+  // The tabs sit at the right end of the title bar (07-S1), the views they show in the panel; the two share ids.
+  const strip = renderSideStrip(primitives, tabs, { tasks: true });
+  const html = renderSidePanel(primitives, tabs, { tasks: true });
+  assert.match(strip, /data-side-tab="plugin:example\/notes"/u);
+  assert.match(strip, /data-side-context-owner="io\.molis\.work\.example\.side" data-side-context-surface="example" hidden/u);
+  assert.match(html, /data-side-body="plugin:example\/notes" data-side-src="\/projects\/p1\/side\/example\/notes"/u);
+  assert.match(strip, /data-side-tab="files"[\s\S]*data-side-tab="browser"[\s\S]*data-side-tab="computer"[\s\S]*data-side-tab="discussion"[\s\S]*data-side-tab="tasks"/u, "the panel's own tabs in side-shelf §3.2's order, the background tasks after them");
+  assert.match(html, /data-side-body="files"[\s\S]*data-side-body="browser"[\s\S]*data-side-body="computer"[\s\S]*data-side-body="discussion"[\s\S]*data-side-body="tasks"/u);
+  assert.doesNotMatch(html, /data-side-tab=/u, "the panel holds views only; its tabs are in the title bar");
+  assert.match(strip, /data-side-tasks[^>]*>[\s\S]*data-background-tasks-count/u, "the background tasks' tab carries the count of tasks not finished");
+  assert.doesNotMatch(renderSideStrip(primitives, tabs), /data-side-tab="tasks"/u, "only a page that reads the tasks offers their tab");
+  assert.doesNotMatch(html + strip, /assistant-/u, "the panel stays out of the Assistant's classes");
 });
 
 test("the address bar opens web addresses, searches the rest and refuses other schemes", () => {
@@ -128,8 +135,8 @@ test("real Host: the file tab lists and previews plugin files through the action
     assert.match(preview.body.content.data, /^# 周报草稿\n[\s\S]*- 完成侧栏/u);
 
     // A plugin nobody told the Host about: its declarations alone put its files in the panel.
-    const entries = defineFileEntriesAction("newcomer.files.entries", [{ kind: "newcomer-file", title: "新插件文件", surface: "newcomer" }], "新插件文件", ["newcomer:read"]);
-    const content = defineFileContentAction("newcomer.files.content", [{ kind: "newcomer-file", title: "新插件文件", surface: "newcomer" }], "新插件文件", ["newcomer:read"]);
+    const entries = defineFileEntriesAction("newcomer.files.entries", 1, [{ kind: "newcomer-file", title: "新插件文件", surface: "newcomer" }], "新插件文件", ["newcomer:read"]);
+    const content = defineFileContentAction("newcomer.files.content", 1, [{ kind: "newcomer-file", title: "新插件文件", surface: "newcomer" }], "新插件文件", ["newcomer:read"]);
     const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.newcomer-files", version: "1.0.0", name: "新插件",
       kind: "app", publisher: { publisher_id: "example", signature: "example-newcomer" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
       permissions: [{ permission: "newcomer:read", required: false, reason: "读取文件" }], actions: [entries, content], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] } },

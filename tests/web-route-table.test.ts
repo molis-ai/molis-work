@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 
 // specs/archive/repository-anti-corruption W5-07: handleMolisWorkWebRequest became an ordered route table. What the table must keep is which
 // handler answers each address, in the same order, and what falls through to the 404s. This asks the public web server (the same
@@ -70,8 +70,10 @@ const PROJECT_PROBES: Probe[] = [
   { method: "GET", path: "/settings/connectors", html: true },
   { method: "GET", path: "/plugins/todo", html: true },
   { method: "GET", path: "/api/plugins/todo/no-such-operation" },
+  // A project's inputs and output (projects.directories.*); the route that listed and chose a browsing folder is gone.
+  { method: "GET", path: "/api/project-settings/directories" },
+  { method: "POST", path: "/api/project-settings/directories", body: {} },
   { method: "GET", path: "/api/project-settings/workspaces" },
-  { method: "POST", path: "/api/project-settings/workspaces", body: {} },
   { method: "GET", path: "/api/project-settings/write-checkers" },
   { method: "POST", path: "/api/project-settings/write-checkers", body: {} },
   { method: "GET", path: "/side/todo/no-such-view", html: true },

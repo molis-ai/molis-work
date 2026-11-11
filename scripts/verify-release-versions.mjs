@@ -1,8 +1,9 @@
 #!/usr/bin/env node
-// Release version consistency (docs/releases/POLICY.md). One product version lives in the root package.json; everything
-// that carries it must agree, the workspace packages stay private 0.0.0, the current version has release notes and a
-// CHANGELOG section, and the per-database version table in docs/releases/CHECKLIST.md is the one the code has (every
-// SqliteBaseline constant is listed, and every baseline handed to applySqliteBaseline is such a constant).
+// Release version consistency (docs/releases/POLICY.md). Every first-party version lives in tooling/versions.json: everything
+// that carries one must agree, no declaration may bypass it (scripts/gates/version-declarations.mjs), the workspace packages
+// stay private 0.0.0, the current version has release notes and a CHANGELOG section, and the per-database version table in
+// docs/releases/CHECKLIST.md is the one the code has (every SqliteBaseline constant is listed, and every baseline handed to
+// applySqliteBaseline is such a constant).
 //
 //   node scripts/verify-release-versions.mjs [--root <dir>] [--tag <vX.Y.Z>]
 //
@@ -11,24 +12,18 @@
 // Exit codes: 0 consistent, 1 something disagrees (every finding is listed), 2 the command line is unusable.
 // It only reads files: no build, no git.
 import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { generateVersions } from "./generate-versions.mjs";
+import { versionDeclarationProblems } from "./gates/version-declarations.mjs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import ts from "typescript";
+import { walkFiles } from "./script-paths.mjs";
+import { VERSION_FIELD, scriptKind, withoutMarkers } from "./version-source.mjs";
 
 const USAGE = "usage: verify-release-versions.mjs [--root <dir>] [--tag <vX.Y.Z>]";
 const SEMVER = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
 const CHECKLIST = "docs/releases/CHECKLIST.md";
 const CHANGELOG = "docs/releases/CHANGELOG.md";
-
-// Everything besides the root package.json that must carry exactly the product version. The only place in code that spells
-// it out is PRODUCT_VERSION in the Host: Feed's User-Agent and the app version it and the search runtime hand to the Search
-// Evidence Layer, the MCP client version, and the client version the Codex session transport announces all take it from there.
-// A new place in code that announces the product version imports that constant; it is not another entry here.
-const CARRIERS = [
-  { file: "apps/desktop/src-tauri/tauri.conf.json", label: "apps/desktop/src-tauri/tauri.conf.json", pick: text => JSON.parse(text).version },
-  { file: "apps/desktop/src-tauri/Cargo.toml", label: "apps/desktop/src-tauri/Cargo.toml", pick: text => text.match(/^\[package\][^[]*?^version = "([^"]+)"$/ms)?.[1] },
-  { file: "apps/desktop/src-tauri/Cargo.lock", label: "apps/desktop/src-tauri/Cargo.lock#molis-work-desktop", pick: text => text.match(/\[\[package\]\]\nname = "molis-work-desktop"\nversion = "([^"]+)"/)?.[1] },
-  { file: "apps/local-host/src/product-version.ts", label: "apps/local-host/src/product-version.ts#PRODUCT_VERSION", pick: text => text.match(/^export const PRODUCT_VERSION = "([^"]+)";$/m)?.[1] },
-];
 
 // ---- command line ---------------------------------------------------------------------------------------------------
 const fail = message => { console.error(message); process.exit(2); };
@@ -46,7 +41,15 @@ const root = path.resolve(options.root ?? path.join(path.dirname(fileURLToPath(i
 // ---- reading --------------------------------------------------------------------------------------------------------
 const problems = [];
 const problem = message => problems.push(message);
-const readOptional = file => existsSync(path.join(root, file)) ? readFileSync(path.join(root, file), "utf8") : null;
+// Markers are comments next to the literal; the checks below read the literal.
+const inspectSource = (file, text) => /\.m?[tj]s$/.test(file) ? withoutMarkers(text) : text;
+const readOptional = file => existsSync(path.join(root, file)) ? inspectSource(file, readFileSync(path.join(root, file), "utf8")) : null;
+try {
+  for (const file of generateVersions({ root })) problem(`${file}: differs from tooling/versions.json (run pnpm versions:generate)`);
+} catch (error) { problem(`tooling/versions.json: ${error.message}`); }
+try {
+  for (const finding of versionDeclarationProblems(root)) problem(finding);
+} catch (error) { problem(`version declarations: ${error.message}`); }
 function readNeeded(file) {
   const text = readOptional(file);
   if (text === null) problem(`${file}: the file is missing`);
@@ -64,13 +67,6 @@ function checkProductVersion() {
   if (typeof version !== "string" || !SEMVER.test(version)) {
     problem(`package.json: version ${JSON.stringify(version)} is not MAJOR.MINOR.PATCH`);
     return null;
-  }
-  for (const carrier of CARRIERS) {
-    const text = readNeeded(carrier.file);
-    if (text === null) continue;
-    let found;
-    try { found = carrier.pick(text); } catch { found = undefined; }
-    if (found !== version) problem(`${carrier.label}: ${found ?? "no version found"}, but package.json is ${version}`);
   }
   if (options.tag !== undefined && options.tag !== `v${version}`) problem(`tag ${options.tag} is not v${version} (package.json)`);
   return version;
@@ -129,8 +125,8 @@ function checkReleaseFiles(version) {
 }
 
 // ---- the per-database version table ---------------------------------------------------------------------------------
-// Rows of the table under the heading "各库版本表" (numbered or not) in the checklist, found by their column names: 版本 is a number (or 无
-// for a database that carries none) and 定义处 is `path#NAME` (or just `path` for the databases without a version).
+// Rows of the table under the heading "各库版本表" (numbered or not) in the checklist, found by their column names: 版本 is a whole number
+// and 定义处 is `path#NAME`. scripts/gates/store-versions.mjs reads the same 版本 cells and accepts the same numbers.
 function tableRows(text) {
   const lines = text.split("\n");
   const heading = lines.findIndex(line => /^#{2,4}\s+(?:\d+\.\s+)?各库版本表\s*$/.test(line));
@@ -224,33 +220,53 @@ function baselineVersion(text, name) {
   return close < 0 ? null : objectVersion(text.slice(open, close + 1));
 }
 
-// What the code says about one table row: its version, "无" when the file carries no version marker at all, or null when
-// the declared definition cannot be found.
-function codeVersion(source, name) {
-  if (name === undefined) return /SqliteBaseline|PluginDatabaseDeclaration|user_version|schema_version/.test(source) ? null : "无";
+// A JSON file's version is what the code that writes it puts at `name`, read from the syntax tree: every property of that name, quoted
+// or not, in an object (`name: 1`, `"name": 1`) or a type (`name: 1;`), and `name: N` written inside a string or template. They must all
+// be the same number; two different ones read as none. A property whose value is not a number, such as a constant (`name: FORMAT`) or
+// `{ name }`, is refused (`named`): the 定义处 of a JSON file is the literal it writes. Not read: comments, a type that is not one number
+// (`name: number` describes what is read), and a version put together elsewhere (a spread object, a computed key). (VG-24, VG-41)
+function fieldVersion(file, source, name) {
+  const tree = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, scriptKind(file));
+  const inText = new RegExp(`\\b${name}["']?\\s*:\\s*(\\d+)\\b`, "g");
+  const numbers = new Set(), named = [];
+  const visit = node => {
+    const typed = ts.isPropertySignature(node) || ts.isPropertyDeclaration(node);
+    const key = (typed || ts.isPropertyAssignment(node) || ts.isShorthandPropertyAssignment(node))
+      && (ts.isIdentifier(node.name) || ts.isStringLiteral(node.name)) ? node.name.text : undefined;
+    if (key === name && typed) {
+      if (node.type && ts.isLiteralTypeNode(node.type) && ts.isNumericLiteral(node.type.literal)) numbers.add(node.type.literal.text);
+    } else if (key === name) {
+      let value = ts.isPropertyAssignment(node) ? node.initializer : node.name;
+      while (ts.isAsExpression(value) || ts.isSatisfiesExpression(value) || ts.isParenthesizedExpression(value)) value = value.expression;
+      if (ts.isNumericLiteral(value)) numbers.add(value.text);
+      else named.push(value.getText(tree));
+    } else if (ts.isStringLiteralLike(node) || ts.isTemplateHead(node) || ts.isTemplateMiddle(node) || ts.isTemplateTail(node)) {
+      for (const match of node.text.matchAll(inText)) numbers.add(match[1]);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(tree);
+  if (named.length) return { named: named[0] };
+  return numbers.size === 1 ? [...numbers][0] : null;
+}
+
+// What the code says about one table row: its version; null when the declared definition cannot be found; `{ named }` for a JSON
+// file's field written from a name instead of a number.
+function codeVersion(file, source, name) {
   if (name === "PRAGMA user_version") return source.match(/PRAGMA user_version = (\d+)/)?.[1] ?? null;
+  if (VERSION_FIELD.test(name)) return fieldVersion(file, source, name);
   return baselineVersion(source, name) ?? source.match(new RegExp(`\\bconst\\s+${escapeRegExp(name)}\\s*=\\s*"?(\\d+)"?\\s*;`))?.[1] ?? null;
 }
 
-function sourceFiles(directory) {
-  const files = [];
-  const walk = relative => {
-    if (!existsSync(path.join(root, relative))) return;
-    for (const entry of readdirSync(path.join(root, relative), { withFileTypes: true })) {
-      if (entry.isDirectory()) { if (entry.name !== "node_modules" && entry.name !== "dist") walk(`${relative}/${entry.name}`); }
-      else if (/\.m?[tj]s$/.test(entry.name)) files.push(`${relative}/${entry.name}`);
-    }
-  };
-  walk(`${directory}/src`);
-  return files;
-}
+// A package's own source: .ts, .js, .mts and .mjs under src/. A baseline is a server-side declaration, so .tsx and .cjs are not read.
+const sourceFiles = directory => walkFiles(root, [`${directory}/src`], file => /\.m?[tj]s$/.test(file));
 
 // Each baseline in package sources is a database the table has to list, as `file#NAME`.
 function declaredBaselines(directories) {
   const found = [];
   for (const directory of directories) {
     for (const file of sourceFiles(directory)) {
-      for (const name of baselineNames(readFileSync(path.join(root, file), "utf8"))) found.push(`${file}#${name}`);
+      for (const name of baselineNames(inspectSource(file, readFileSync(path.join(root, file), "utf8")))) found.push(`${file}#${name}`);
     }
   }
   return found;
@@ -275,13 +291,16 @@ function callArguments(text, open) {
 
 // A baseline handed to `applySqliteBaseline(db, path, baseline)` or `openBaselineHomeSqlite(home, name, baseline)` has to be a
 // named, declared constant. An inline object or a name no package declares is a database the table cannot list. The file that
-// defines the two functions is exempt: it only passes its own parameter on.
+// defines the two functions is exempt: it only passes its own parameter on. `runSqliteUpgrade(db, path, baseline)` forwards what
+// a store's descriptor carries (specs/upgrade-continuity/upgrade-chain-design.md §2.3), so there, and only there, a property is
+// fine too. Nothing else is exempt: the aggregate copy openers and their file were deleted with U1-d, so the rule reads these
+// three entries and no others.
 function checkBaselineCalls(directories, declaredNames) {
   for (const directory of directories) {
     for (const file of sourceFiles(directory)) {
       if (file === "packages/storage/src/sqlite-baseline.ts") continue;
       const text = readFileSync(path.join(root, file), "utf8");
-      for (const match of text.matchAll(/(?<!function\s)\b(applySqliteBaseline|openBaselineHomeSqlite)\s*\(/g)) {
+      for (const match of text.matchAll(/(?<!function\s)\b(applySqliteBaseline|openBaselineHomeSqlite|runSqliteUpgrade)\s*\(/g)) {
         const args = callArguments(text, match.index + match[0].length - 1);
         const baseline = args[2];
         // This one typed connection bridge forwards the trusted declaration for the Host client and the SQL worker, and the
@@ -292,6 +311,7 @@ function checkBaselineCalls(directories, declaredNames) {
           && /function openPluginDatabaseConnection\(home: string, declaration: PluginDatabaseDeclaration,/.test(text)) continue;
         const unnamed = `declare the baseline as a named constant so the 各库版本表 can list it`;
         if (baseline === undefined) problem(`${file}: ${match[1]} is called without a baseline`);
+        else if (match[1] === "runSqliteUpgrade" && /^\w+(?:\.\w+)+$/.test(baseline)) continue;
         else if (!/^\w+$/.test(baseline)) problem(`${file}: ${match[1]} is called with an inline baseline; ${unnamed}`);
         else if (!declaredNames.has(baseline)) problem(`${file}: ${match[1]} is called with ${baseline}, which no package declares as a SqliteBaseline; ${unnamed}`);
       }
@@ -307,13 +327,14 @@ function checkDatabaseTable(directories) {
   const listed = new Set();
   for (const row of rows) {
     const where = `${CHECKLIST}: ${row.store}`;
-    if (!row.file || !/^(\d+|无)$/.test(row.version ?? "")) { problem(`${where}: needs a number or 无 in 版本 and a file in 定义处`); continue; }
+    if (!row.file || !row.name || !/^\d+$/.test(row.version ?? "")) { problem(`${where}: needs a whole number in 版本 and \`path#NAME\` in 定义处`); continue; }
     const source = readOptional(row.file);
     if (source === null) { problem(`${where}: ${row.file} does not exist`); continue; }
-    listed.add(row.name === undefined ? row.file : `${row.file}#${row.name}`);
-    const actual = codeVersion(source, row.name);
-    if (actual === null) problem(`${where}: ${row.name ? `${row.file} has no ${row.name} with a version` : `${row.file} now carries a version marker; give the table a number`}`);
-    else if (actual !== row.version) problem(`${where}: the table says ${row.version}, the code (${row.file}${row.name ? `#${row.name}` : ""}) says ${actual}`);
+    listed.add(`${row.file}#${row.name}`);
+    const actual = codeVersion(row.file, source, row.name);
+    if (actual?.named) problem(`${where}: ${row.file} writes ${row.name}: ${actual.named}; write the number itself at every ${row.name} (定义处写字面量)`);
+    else if (actual === null) problem(`${where}: ${row.file} has no ${row.name} with a version`);
+    else if (actual !== row.version) problem(`${where}: the table says ${row.version}, the code (${row.file}#${row.name}) says ${actual}`);
   }
   const baselines = declaredBaselines(directories);
   for (const definition of baselines) {

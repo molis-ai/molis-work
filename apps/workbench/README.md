@@ -58,6 +58,8 @@ node scripts/run-tests.mjs tests/workbench-ui-platform.test.ts
 
 ## 界面文字：翻译检查，与一个文件怎样迁到稳定键
 
+这一节是工作台、宿主和内置插件第 16 批之前的写法（`L`、`p.text`、`ui.messages`、`ui.translations`），到第 16 批一起换成 SDK 的 `t` 和每个主人自己的语言文件，那时这一节重写。新写的外部插件今天就用新写法，见 [文字与外观](../../skills/molis-plugin-dev/text-and-appearance.md)；平台一侧（文字上下文、各主人的词 [`src/plugin-text.ts`](src/plugin-text.ts)、工作台自己的语言目录 [`resources/locales/`](resources/locales/)、切语言时原地换字 [`src/browser/locale-switch.ts`](src/browser/locale-switch.ts)）见 [UI Platform 第 5 节](../../docs/platform/UI-PLATFORM.md#5-界面文字语言与外观)。
+
 ### 现在怎么工作
 
 翻译调用支持主人稳定键（如 `L("images.compose.generate")`）与尚未迁移的中文键（如 `L("设置")`）。稳定词典由插件自己的 `src/messages.ts` 定义，在插件 Manifest 的 `ui.messages` 里声明（PG-071：Manifest 是纯数据，内置与第三方插件同一条路，平台只读已安装插件的 Manifest）；[`src/i18n.ts`](src/i18n.ts) 的插件词条表（[`src/plugin-messages.ts`](src/plugin-messages.ts)）在内置插件启动时、其他插件被 Host 启用时登记它们，按当前请求语言查找，浏览器收到当前页面语言的同一份词条，只含已登记插件的。中文键的英文：Workbench 自己的写在 `X_EN` 词典里，由 [`src/i18n/en.ts`](src/i18n/en.ts) 按顺序并成 `EN`；插件自己的 `X_EN` 写在插件包里，由它的 Manifest 的 `ui.translations` 声明（任何发布者的插件都可用，等它的文字换成稳定键就不再需要；过渡机制记在 `docs/system/CONTRACT-CHANGES.md` 的「当前保留机制」）。`ui.translations` 只翻译声明它的插件自己的框架和贡献、不进全页目录（中文原文不属于任何人，同一句在宿主和别的插件里都出现）：框架里的脚本从 `MOLIS_WORK_PLUGIN_WORDS[plugin_id]` 取自己的词，贡献由 `UiHost` 的 `drawingAs`（`withPluginWords`）在画的那一刻套上；查词时先 `ui.messages`，再宿主 `EN`，最后该插件自己的 `ui.translations`。宿主（包括外壳画的 Goals、Feed 等）画一个插件交来的文字时，用该插件自己的词：画的那一处包上 `withPluginWords(插件 id, …)`（渲染器收到的 `L` 已是套着自己词的版本），页面脚本用 `LFor(插件 id)`（浏览器里的 `LF(插件 id, 键)`）；所以第三方插件的动作标题、删除项目时的数据说明也有英文，且只限它自己交的文字。宿主词典里只留宿主自己的、或几个插件共用的句子（[`src/i18n/shared-words-en.ts`](src/i18n/shared-words-en.ts)，并进 `EN`），不再有给某个内置插件开的词表；中文页直接显示中文原文。两种调用均在查词后替换参数。
@@ -68,7 +70,7 @@ node scripts/run-tests.mjs tests/workbench-ui-platform.test.ts
 | --- | --- | --- |
 | 缺英文 | 翻译调用里的中文字面量，在所有词典里都没有 | 失败；头上必须为零 |
 | 词典没接上 | 某本 `*_EN` 词典，[`src/i18n/en.ts`](src/i18n/en.ts) 建的 `EN` 从来没有引用它（直接，或经它引用的另一本词典：`GOALS_EN` 里的 `...GOALS_DIALOGS_EN`、`Object.assign(EN, X_EN)`）。只写了 import、只在别处 `export … from` 转发、只给它 `Object.assign` 填内容，都不算引用——英文照样显示不出来 | 失败；头上必须为零 |
-| 冲突 | 同一句中文有两条译文不同的条目（跨词典，或同一词典的前后两块） | 冻结在 `tooling/gates/baseline.json` 的 `translationConflicts`（键 → 有几种译法）。新键、或老键多一种译法就失败；`--base` 时对照 merge-base 自己的扫描，改基线放不过。冲突少了，用 `--update --base origin/main` 降基线 |
+| 冲突 | 同一句中文有两条译文不同的条目（跨词典，或同一词典的前后两块） | 冻结在 工作树 Git 元数据里的本地快查 的 `translationConflicts`（键 → 有几种译法）。新键、或老键多一种译法就失败；`--base` 时对照 merge-base 自己的扫描，改基线放不过。冲突少了，用 `--update --base origin/main` 降基线 |
 | 无用键 | 词典里的键，源码里没有任何地方以字面量出现 | 只报告。动态拼出的键先改成常量或稳定键，再删（[路线图](../../specs/archive/repository-anti-corruption/roadmap-2026-10-07.md) W5-03） |
 | 稳定键 | 见下 | 一出现就检查 |
 
@@ -157,7 +159,8 @@ Images 首片迁移 `ui.ts` 的 46 处服务端调用与 `client.ts` 的 61 处�
   - 助理操作卡按完整集合清理，逐张放到时间线时保留其他卡；刷新工作所得成功或失败只影响仍对应原工作 ID 的页面。回归 `tests/assistant-page-cards.e2e.test.ts` 验同一工作的两张页面卡、独立执行/忽略与重读；`tests/assistant-stale-refresh.e2e.test.ts` 验真实 owner 删除、迟到 404 与后选工作的草稿保持（W2-18-PAGE-CARDS-01、W2-18-ASSISTANT-404-01）。
   - 进入工作台之前的页面是一个框架（标题栏 · 舞台 · 常驻底栏，`arrival/shell.ts`）和一张样式表（`/assets/molis-work-arrival.css`，`styles/arrival.ts`）：页面之间是整页跳转，框架不动；控件与部件只用 design-system 的 `mw-*`，页面样式只排版，不另画一套。
   - 项目简介由 `composeProjectBrief` 从公开读口（Goals 目录与状态、Home 事项、长期背景）的结果决定，读不到的部分如实写「读不到」，不猜、不补示例数据；选择页不读任何项目的私有存储。
-  - 模型设置页（`scripts/settings-models.ts`）在第一个能用的模型出现时通过绑定选项报告给设置外壳，`settings-directory.ts` 宣布 `molis-work:model-ready`，开始使用页（`scripts/context-onboarding.ts`）经同名 `BroadcastChannel` 收到；先关设置再宣布、窗格框架、跨标签与桌面壳的限制，机制只写在 `packages/contracts/src/platform/dom-events.ts` 的登记条目（主人是 `settings-directory`），这里不复述，监听者用 `node scripts/gates/dom-events.mjs --report` 查。独立 Home 的 `scripts/home-model-settings.ts` 同时消费既有打开设置请求与本页链接，使用同一同源/路径校验，不导航宿主。回归：`tests/issue-home-locale.e2e.test.ts`、`tests/model-first-setup.e2e.test.ts`、`tests/model-ready-surfaces.e2e.test.ts`、`tests/model-ready-cross-tab.e2e.test.ts`（两个标签页），后三项在下面的「界面改动加跑」里。
+  - 模型设置页（`scripts/settings-models.ts`）在第一个能用的模型出现时通过绑定选项报告给设置外壳，`settings-directory.ts` 宣布 `molis-work:model-ready`，开始使用页（`scripts/context-onboarding.ts`）经同名 `BroadcastChannel` 收到；先关设置再宣布、窗格框架、跨标签与桌面壳的限制，机制只写在 `packages/contracts/src/platform/dom-events.ts` 的登记条目（主人是 `settings-directory`），这里不复述，监听者用 `node scripts/gates/dom-events.mjs --report` 查。独立 Home 的 `scripts/home-model-settings.ts` 同时消费既有打开设置请求与本页链接，使用同一同源/路径校验，不导航宿主。回归：`tests/issue-home-locale.e2e.test.ts`、`tests/model-first-setup.e2e.test.ts`、`tests/model-ready-surfaces.e2e.test.ts`、`tests/model-ready-cross-tab.e2e.test.ts`（两个标签页）
+  - 回程（`specs/draft-and-return/spec.md`）：页面的 `host.returns`、普通设置链接、助理的「继续接入」与原处连接卡去设置时开一张回程。形状检查与窗口号在 `src/browser/return-trips.ts`，外层文档的唯一写入方 `settings-return` 在 `src/browser/settings-return.ts`（与前者一起由 esbuild 打成 `dist/settings-return-client.js`，`scripts/client/settings-return.ts` 读进客户端脚本最前面，在任何框架挂上之前），框架宿主的一半在 `src/browser/plugin-frame/returns.ts`；`settings-directory.ts` 在打开设置后调它的 `open`／`link`，模型设置与连接页保存后调 `saved`；布局回答 `molis-work:layout-holds` 在 `scripts/client/tab-workspace-places.ts`；返回条的模板与样式归设置外壳，共用件 `renderReturnBar`、`renderResumePrompt` 在插件 SDK 的 `ui`。改动跑 `node scripts/run-tests.mjs tests/security-invariants-return-trips.test.ts tests/settings-return-trips.e2e.test.ts tests/security-invariants-return-trips.e2e.test.ts tests/model-first-setup.e2e.test.ts tests/model-ready-surfaces.e2e.test.ts`，后三项在下面的「界面改动加跑」里。
 - 改动后必跑：`node scripts/run-tests.mjs tests/style-has-scope.test.ts tests/plugin-declarative-mounting.test.ts tests/builtin-plugin-agent-texts.test.ts tests/builtin-manifests-contract.test.ts tests/builtin-plugin-composition.test.ts tests/workbench-ui-platform.test.ts tests/i18n.test.ts tests/client-script-undeclared.test.ts tests/ui-request-client.test.ts tests/ui-request-client-pages.test.ts tests/settings-requests-through-helper.test.ts tests/web-service-settings-client.test.ts tests/assistant-island-script.test.ts tests/plugin-client-served.test.ts tests/plugin-list-developer-mode.test.ts tests/plugin-picker-pins.test.ts tests/settings-call-diagnostics.test.ts tests/capabilities-page.test.ts`
 - 插件安装预览的范围、服务地址或确认交互改动，验证 `node scripts/run-tests.mjs tests/plugin-trust-view.test.ts tests/plugin-trust-home-upgrade.e2e.test.ts tests/i18n.test.ts`。局部 view 输入单列；RAC-2619 用真实 File、服务端预览/确认与 Home runner 核取消零写、旧版本比较、来源文本、中英文及三宽度明暗状态。
 - 写后检查设置改动加跑：`node scripts/run-tests.mjs tests/write-checkers-settings-http.test.ts tests/write-checkers-settings.e2e.test.ts`。后者以真实 Chrome 与临时 Home 验证保存/重读、毫秒时限、删除确认及焦点、版本冲突/重读失败保留输入、撤权无写入与中英文响应式页面。
@@ -176,7 +179,7 @@ Images 首片迁移 `ui.ts` 的 46 处服务端调用与 `client.ts` 的 61 处�
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。
 
-当前项目的目录关联与 Files/Git 浏览选择由项目设置的「工作目录」页统一维护，Workspace 不再作为导航插件。页面与嵌入工作台共用 `project-settings-pages.ts` / `scripts/project-settings.ts`；协议和设置归属见 [PROJECT-SETTINGS.md](../../docs/platform/PROJECT-SETTINGS.md)。
+当前项目的输入目录与输出目录由项目设置的「工作目录」页统一维护（项目不记 Files/Git 的浏览选择，页面看哪个目录是页面自己的状态），Workspace 不再作为导航插件。页面与嵌入工作台共用 `project-settings-pages.ts` / `scripts/project-settings.ts`；协议和设置归属见 [PROJECT-SETTINGS.md](../../docs/platform/PROJECT-SETTINGS.md)。
 
 工作台从现有内置目录派生独立客户端资源，首次打开时装入惯有 surface DOM 并准备 `clientAssets` 后挂载。原 surface 根节点和已挂载实例持续保留；隐藏时使用原 UI Host 生命周期暂停读取。独立侧栏文档同样在执行工厂前加载插件声明的 `clientAssets`，不依赖主区先打开。Pages 编辑器由 Pages 的登记声明依赖。Coding 与伴随视图的装配在 Coding 包里（`plugins/native/coding/src/browser/workbench.ts`），工作台没有 Coding 专用脚本：Files、Git、Diff、Text Stats 各有自己的客户端包（`/assets/molis-work-plugins/<id>.js`）与样式（登记的 `stylesheet`），不借 Coding 的，打开一个伴随面只下载它自己的一份（`pluginSurfaceClients()` 是主区、侧栏文档和按需加载共用的一份名单）；Coding 的登记写 `clientUses: ["git", "files"]`，`plugin-workbench.ts` 把这两个包加进 Coding 的 `clientAssets`（挂载前先加载），并把这两个插件登记的客户端作为 `host.clients.git`、`host.clients.files`，以各自插件的身份，把宿主的评审动作作为 `host.reviews` 交给 Coding 的工厂（只是渲染钩子，不给决定权），两边写得不对应就在派生时抛错。失败保留内容并提供仅重载 UI 资源的按钮，不自动重试业务动作。分屏省略其他独立客户端 surface 的正文，通用 Goals/Feed/Inbox 与设置绑定保留；CSS 为保持现有全局层叠仍由 shell 按原顺序提供。回归见 `tests/workbench-deferred-clients.e2e.test.ts`、`tests/workbench-hidden-refresh.e2e.test.ts`。
 
@@ -208,3 +211,8 @@ Memory 设置的正式条目经 `/api/memory/page` 分页查询；筛选变化�
 本片仅对已接受遗忘与已确认批量补离页发现，普通编辑等正文请求仍只留当前页。选中时可见序号；原计划保存无正文选择顺序，分组、部分失败及重启后的逐项结果沿同一次序。结果序号可标在当前仍获准展示的条目上，不恢复已遗忘正文。原清空的详细部分结果与导入原请求重试继续保留；列表刷新复用同身份重试行。
 
 原清空按钮与通用恢复卡共用原清空结果展示。complete:false 只更新真实已删除/冲突/未知/未执行计数，保留原 fingerprint 和重试入口，不提示完成；只有 complete:true 才移除原卡并显示清空完成。离页和 Host 重开后仍从服务核验的原计划继续，不重新预览后继范围。
+账号入口使用 `src/browser/account.ts` 的 typed 浏览器程序，构建后并入既有页面脚本；入口页与工作台共用弹窗，凭据仅经 Host 窄入口，不写浏览器持久存储。`src/browser/account-management.ts` 提供资料与登录方式管理，`src/browser/account-verification.ts` 共用当前/新身份验证表单。WORK-03 至 WORK-05 的注册登录、第三方回跳和资料安全联调及复现方式见 [账号规范](../../specs/unified-account/spec.md)。
+
+WORK-06 的个人/租户选择、定向邀请、角色管理、交接与平台租户操作经现有账号入口和同一动作目录接入，中央负责权限与版本；不切换本地 Home。专项验证：`MOLIS_AUTH_SOURCE=/absolute/path/to/auth node scripts/account-tenants.test.mjs`（临时 Home/D1、Chrome，外部服务 mock）。
+
+WORK-07 的订阅、席位与平台变更专项联调：构建后以 `MOLIS_AUTH_SOURCE=/absolute/path/to/auth node scripts/account-billing.test.mjs` 运行（按机器 browser 时段包裹）。使用真实 Auth/Host、临时 Home/D1 和 Chrome，外部服务 mock。平台库存只读合同为 Auth 1.1.0，席位写操作仍由租户管理角色授权。

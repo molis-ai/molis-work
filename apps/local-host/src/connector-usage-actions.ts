@@ -2,7 +2,7 @@ import { withConnectorConnections } from "./connector-connection-store.js";
 import { ActionError, actionReachesAudience, retainActionAuthority, type ActionClient, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { CONNECTOR_USAGES_INPUT_TYPE, CONNECTOR_USAGES_OUTPUT_TYPE, CONNECTOR_USAGES_INPUT_SCHEMA, type ConnectorUsage, type ConnectorUsagesInput } from "@molis-ai/molis-work-contracts/services/connector-host";
 
-export const connectorUsagesAction: ActionDefinition<ConnectorUsagesInput, object> = { capability_id: "connectors.usages.read", version: 1, operation: "query", action: {
+export const connectorUsagesAction: ActionDefinition<ConnectorUsagesInput, object> = { capability_id: "connectors.usages.read", version: /* @version action.connectors.usages.read */ 1, operation: "query", action: {
   title: "查看连接的业务用途", description: "从当前可读的业务模块汇总实际使用这条连接的模型、服务配置和项目对象，以及其已有动作和当前调用权限。只读，不创建绑定、不执行业务操作；看不到其他项目。",
   kind: "query", scope: "home", scheduling: "concurrent", audiences: ["user", "agent", "mcp"], permissions: ["connectors:management:read"], subject_kinds: ["connector"],
   input_schema: CONNECTOR_USAGES_INPUT_SCHEMA, output_schema: { type: "object", properties: { usages: { type: "array" }, issues: { type: "array", items: { type: "string" } } }, required: ["usages", "issues"], additionalProperties: false },
@@ -29,7 +29,7 @@ export function connectorUsagesHandler(home: string, clientFor?: (caller: Action
     }
     await caller.beforeEffect();
     const current = await client.discover(nested);
-    const connectionActive = withConnectorConnections(home, store => { const row = store.get((value as ConnectorUsagesInput).connection_id); return !!row && row.enabled && !row.disconnected_at; });
+    const connectionActive = withConnectorConnections(home, store => { const row = store.get((value as ConnectorUsagesInput).connection_id); return !!row && row.enabled && !row.disconnected_at; }, true) ?? false;
     const valid: typeof reports = [];
     for (const report of reports) {
       try {

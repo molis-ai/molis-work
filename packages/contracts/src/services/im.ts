@@ -112,9 +112,9 @@ export interface ImShareInput extends ImMutation { message_id: string; body?: st
  * cannot report an old token as current, so that route rereads the safe state.
  */
 export const servicesImContract = {
-  contractId: "io.molis.work.service.im.v1",
+  contractId: /* @version contract.io.molis.work.service.im "io.molis.work.service.im.v{version}" */ "io.molis.work.service.im.v1",
   kind: "horizontal",
-  schemaVersion: 1,
+  schemaVersion: /* @version contract.io.molis.work.service.im */ 1,
   maturity: "partial",
   ssot: "specs/archive/molis-work-im/spec.md",
 } as const;

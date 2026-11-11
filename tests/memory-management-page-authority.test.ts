@@ -31,7 +31,7 @@ test("SDK management scope and diagnostic permission are checked again before a 
       const permission = await policy.authorizeManagement(caller, request);
       return { ...permission, storageCost: mode === "redact" && queryChecks === 2 ? "redacted" : "visible" };
     },
-    promotion: { policy: "memory.write-gate", version: 3, decide: (caller, request) => service.promotion.decide(caller, request),
+    promotion: { policy: "memory.write-gate", version: 1, decide: (caller, request) => service.promotion.decide(caller, request),
       undo: { prepare: (caller, request) => service.promotion.undo.prepare(caller, request), record: (caller, request) => service.promotion.undo.record(caller, request) } },
   };
   adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "agent-runtime"), storageOwner, memory,

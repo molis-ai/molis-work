@@ -1,6 +1,6 @@
 /** Read-only projections of the immutable raw report. Never changes labels, retries failures or calls a model. */
 import { readFile, writeFile } from "node:fs/promises";
-import { pathToFileURL } from "node:url";
+import { isMainScript } from "../script-paths.mjs";
 import type { AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { PrologueExecutionReceipt } from "@molis-ai/molis-work-service-agent-host";
 import type { SequenceRow } from "./sequence-replay.mjs";
@@ -101,7 +101,7 @@ function reviewMarkdown(report: RawReport, input: string) {
   return sections.join("\n") + "\n";
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isMainScript(import.meta.url)) {
   const [input, output] = process.argv.slice(2);
   if (!input) throw new Error("用法：report.mts <原始报告.json> [不存在的审查视图.md]");
   const report: RawReport = JSON.parse(await readFile(input, "utf8"));

@@ -8,7 +8,7 @@ import test, { type TestContext } from "node:test";
 import { WebSocket } from "ws";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createMolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { addTerminalGoal, goalTerminalsPath, linkTerminalFolder } from "./fixtures/goal-terminal.js";
 
 const TOKEN = "project-settings-deletion-test-0123456789";
@@ -119,7 +119,8 @@ test("RAC-1330 project settings deletion requires authorization and confirmation
   const result = await deleted.json() as { replayed: boolean; deletion: { deletion_id: string; cleanup_state: string; deleted_binding_count: number; actor_id: string } };
   assert.equal(result.replayed, false);
   assert.equal(result.deletion.cleanup_state, "complete");
-  assert.equal(result.deletion.deleted_binding_count, 2);
+  // One more than the bindings the test made: the project's own default output membership (every project has one, SSC-20).
+  assert.equal(result.deletion.deleted_binding_count, 3);
   assert.equal(result.deletion.actor_id, "web-user");
   assert.equal(existsSync(dirname(project.database_path)), false);
   assert.equal(localHost.status().projects.some(item => item.project_id === project.project_id), false);
@@ -264,4 +265,61 @@ test("RAC-1616 the deletion scope of a project id that is not valid percent-enco
   const raw = await response.text();
   assert.equal(response.status, 400, raw);
   assert.equal((JSON.parse(raw) as { code?: string }).code, "host.request_path_invalid");
+});
+
+test("SSC-23 the settings page asks about the default output directory only when it has files, keeps them unless the person chose to delete them, and one request key keeps its choice", async t => {
+  const { homeDirectory, withCatalog, project, other, post, origin } = await fixture(t);
+  const scope = async (projectId: string) =>
+    ((await (await fetch(origin + `/api/settings/projects/${projectId}/delete-scope`)).json()) as { default_output?: string }).default_output;
+  const deletePath = (projectId: string) => `/api/settings/projects/${projectId}/delete`;
+  const outputs = join(await realpath(homeDirectory), "outputs");
+  const report = join(outputs, project.project_id, "report.md");
+  // Nothing has written there yet, so there is no folder: nothing to ask. An empty folder is nothing to ask about either.
+  assert.equal(await scope(project.project_id), "empty");
+  await mkdir(dirname(report), { recursive: true });
+  assert.equal(await scope(project.project_id), "empty");
+  await writeFile(report, "the person's report\n");
+  assert.equal(await scope(project.project_id), "has_files");
+
+  // Neither keeping nor deleting: refused before anything changes.
+  const refused = await post(deletePath(project.project_id), { delete_confirmed: true, idempotency_key: "output-files-other", output_files: "trash" });
+  assert.equal(refused.status, 400);
+  assert.equal(existsSync(project.database_path), true);
+  assert.equal((await withCatalog({ homeDirectory }, catalog => catalog.listProjectDeletions())).length, 0, "nothing was deleted");
+
+  // Kept: the files stay, the answer says where, and no step deletes them later.
+  type Answer = { replayed: boolean; kept_output_directory?: string; deletion: { cleanup_state: string; owner_steps: Array<{ owner_id: string; state: string }> } };
+  const keptBody = { delete_confirmed: true, idempotency_key: "output-files-kept", output_files: "keep" };
+  const kept = await post(deletePath(project.project_id), keptBody);
+  assert.equal(kept.status, 200);
+  const keptAnswer = await kept.json() as Answer;
+  assert.equal(keptAnswer.deletion.cleanup_state, "complete");
+  assert.equal(keptAnswer.kept_output_directory, dirname(report));
+  assert.equal(keptAnswer.deletion.owner_steps.some(step => step.owner_id === "project-output"), false);
+  assert.equal(existsSync(project.database_path), false);
+  assert.equal(await readFile(report, "utf8"), "the person's report\n");
+  // The same key with the other choice is another request; giving no choice is keeping them, the same request.
+  const changed = await post(deletePath(project.project_id), { ...keptBody, output_files: "delete" });
+  assert.equal(changed.status, 400);
+  assert.equal((await changed.json() as { code?: string }).code, "catalog.deletion_idempotency_conflict");
+  assert.equal(await readFile(report, "utf8"), "the person's report\n");
+  const replay = await post(deletePath(project.project_id), { delete_confirmed: true, idempotency_key: "output-files-kept" });
+  assert.equal(replay.status, 200);
+  assert.deepEqual(await replay.json(), { ...keptAnswer, replayed: true });
+
+  // Deleted: the folder goes with the project, and the same key without that choice is another request.
+  const draft = join(outputs, other.project_id, "draft.md");
+  await mkdir(dirname(draft), { recursive: true });
+  await writeFile(draft, "a draft\n");
+  const deletedBody = { delete_confirmed: true, idempotency_key: "output-files-deleted", output_files: "delete" };
+  const deleted = await post(deletePath(other.project_id), deletedBody);
+  assert.equal(deleted.status, 200);
+  const deletedAnswer = await deleted.json() as Answer;
+  assert.equal(deletedAnswer.deletion.cleanup_state, "complete");
+  assert.equal(deletedAnswer.kept_output_directory, undefined);
+  assert.deepEqual(deletedAnswer.deletion.owner_steps.filter(step => step.owner_id === "project-output").map(step => step.state), ["complete"]);
+  assert.equal(existsSync(dirname(draft)), false);
+  const kept2 = await post(deletePath(other.project_id), { ...deletedBody, output_files: "keep" });
+  assert.equal(kept2.status, 400);
+  assert.equal((await kept2.json() as { code?: string }).code, "catalog.deletion_idempotency_conflict");
 });

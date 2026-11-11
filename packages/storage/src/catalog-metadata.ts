@@ -1,13 +1,14 @@
 import type { SqliteDatabase } from "./sqlite.js";
+import type { SqliteVersionAccess } from "./sqlite-baseline.js";
 import {DatabaseSync} from 'node:sqlite';
-import Database from 'better-sqlite3';
+import { openSqliteConnection } from './sqlite-connection.js';
 import {existsSync,statSync} from 'node:fs';
 import {pathToFileURL} from 'node:url';
 import {defineErrorCodes} from '@molis-ai/molis-work-contracts/platform/actions';
 
 interface CatalogReader {prepare(sql:string):{get():unknown}}
 const probeErrors=defineErrorCodes('storage',{catalog_probe_busy:'conflict'});
-function catalogOwner(db:CatalogReader):string|null {
+export function catalogOwner(db:CatalogReader):string|null {
   if(!db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'catalog_meta'").get())return null;
   const row=db.prepare("SELECT value FROM catalog_meta WHERE key = 'owner'").get() as {value:unknown}|undefined;
   return typeof row?.value==='string'?row.value:null;
@@ -16,6 +17,15 @@ function catalogVersion(db:CatalogReader):number {
   const row=db.prepare("SELECT value FROM catalog_meta WHERE key = 'schema_version'").get() as {value:unknown}|undefined;
   return Number(row?.value);
 }
+/** The upgrade run's way to the catalog's version. No catalog table, or no version in it, reads as 0: no version at all, which only an open can judge. */
+export const CATALOG_VERSION_ACCESS:SqliteVersionAccess={
+  read:db=>{
+    if(!db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'catalog_meta'").get())return 0;
+    const version=catalogVersion(db);
+    return Number.isInteger(version)?version:0;
+  },
+  write:(db,version)=>{db.exec(`UPDATE catalog_meta SET value = '${version}' WHERE key = 'schema_version'`);},
+};
 function fileState(filename:string){
   const stat=statSync(filename,{bigint:true});
   return {stamp:[stat.dev,stat.ino,stat.size,stat.mtimeNs,stat.ctimeNs].join(':'),wal:existsSync(filename+'-wal'),shm:existsSync(filename+'-shm'),journal:existsSync(filename+'-journal')};
@@ -28,9 +38,9 @@ export function inspectCatalogFile(filename:string):{owner:string|null;version:n
   const before=fileState(filename);
   if(before.journal||before.wal!==before.shm)throw probeErrors.catalog_probe_busy('目录库日志尚未就绪，请稍后重试，原件已保留');
   const uri=pathToFileURL(filename);uri.searchParams.set('mode','ro');if(!before.wal)uri.searchParams.set('immutable','1');
-  // A second SQLite library in this process can release the resident driver's POSIX locks on close.
-  // Live WAL readers must share that driver's connection/lock bookkeeping; immutable is only for closed files.
-  const db=before.wal?new Database(filename,{readonly:true,fileMustExist:true}):new DatabaseSync(uri.href,{readOnly:true,allowExtension:false});let result:{owner:string|null;version:number};
+  // A live WAL reader opens the way the resident catalog connection does, so closing it leaves that connection's locks alone;
+  // immutable reads take no locks at all, and are only for closed files.
+  const db=before.wal?openSqliteConnection(filename,{readonly:true,fileMustExist:true}):new DatabaseSync(uri.href,{readOnly:true,allowExtension:false});let result:{owner:string|null;version:number};
   try{db.exec('BEGIN');const owner=catalogOwner(db);result={owner,version:owner===null?Number.NaN:catalogVersion(db)};db.exec('COMMIT');}finally{db.close();}
   const after=fileState(filename);
   if(after.stamp!==before.stamp||after.journal||after.wal!==before.wal||after.shm!==before.shm)throw probeErrors.catalog_probe_busy('目录库在检查期间发生变化，请重试，原件已保留');

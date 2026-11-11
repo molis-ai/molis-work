@@ -2,12 +2,12 @@ import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { UiSlotDescriptor, WorkbenchDocumentRenderRequest } from '@molis-ai/molis-work-contracts/platform/ui';
 
 export const WORKBENCH_UI_SLOTS = {
-  directory: { slot_id: 'workbench.directory', version: 1, accepts: ['declarative-html'] },
-  main: { slot_id: 'workbench.main', version: 1, accepts: ['declarative-html'] },
-  overlay: { slot_id: 'workbench.overlay', version: 1, accepts: ['declarative-html'] },
-  settings: { slot_id: 'workbench.settings', version: 1, accepts: ['declarative-html'] },
+  directory: { slot_id: 'workbench.directory', accepts: ['declarative-html'] },
+  main: { slot_id: 'workbench.main', accepts: ['declarative-html'] },
+  overlay: { slot_id: 'workbench.overlay', accepts: ['declarative-html'] },
+  settings: { slot_id: 'workbench.settings', accepts: ['declarative-html'] },
   /** One tab of the side panel (specs/archive/side-panel D13): served in its own document, sized and placed by the Host. */
-  side: { slot_id: 'workbench.side', version: 1, accepts: ['declarative-html'] },
+  side: { slot_id: 'workbench.side', accepts: ['declarative-html'] },
 } as const satisfies Record<string, UiSlotDescriptor>;
 
 
@@ -27,6 +27,8 @@ export function renderWorkbenchRefreshDocument(request: Pick<WorkbenchDocumentRe
  * N53); an empty `data:` icon (the page CSP allows `img-src data:`) answers it in the page, so nothing is requested.
  */
 export const NO_FAVICON_LINK = '<link rel="icon" href="data:,">';
+/** Interactions start only after this document joins the current account's page cohort. */
+export const ACCOUNT_REGISTRATION_BODY = ' inert data-account-registering';
 
 /** Stable document shell, shared by native and installed app surfaces. */
 export function renderWorkbenchDocument(request: WorkbenchDocumentRenderRequest): string {
@@ -44,4 +46,15 @@ export function renderWorkbenchDocument(request: WorkbenchDocumentRenderRequest)
 ${request.body_html}
 </body>
 </html>`;
+}
+
+/** Compose the document's initial account-registration barrier at its shell owner. */
+export function createWorkbenchDocumentRenderer(accountRegistration = false): typeof renderWorkbenchDocument {
+  return request => renderWorkbenchDocument({
+    ...request,
+    body_attributes: {
+      ...request.body_attributes,
+      ...(accountRegistration ? { inert: true, 'data-account-registering': true } : {}),
+    },
+  });
 }

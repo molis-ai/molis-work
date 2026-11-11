@@ -4,7 +4,10 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginExecutionControl, PluginRouteResponse } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import type { PluginPlatform } from "./plugin-platform.js";
-import { offerRoutedOriginalFile, offerRoutedOriginalInput } from "./plugin-actions-client.js";
+import { offerRoutedNamedSkills, offerRoutedOriginalFile, offerRoutedOriginalInput } from "./plugin-actions-client.js";
+import { assertActionInput } from "@molis-ai/molis-work-kernel";
+import { SKILL_BODY_READ_MAX_REFS, SKILL_REF_SCHEMA } from "@molis-ai/molis-work-contracts/services/skills";
+import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import { offeredOriginalFile } from "./material-original-entry.js";
 import { withPluginInteraction } from "./plugin-interaction-answer.js";
 import { answerPluginRouteStream } from "./plugin-route-stream.js";
@@ -47,6 +50,22 @@ function takeOriginalInput(body: unknown, installId: string | null | undefined, 
     throw new ActionError("actions.input_invalid", "原始输入信封无效");
   }
   offerRoutedOriginalInput(control, { ...(value.use === "supplement" ? { use: "supplement" as const } : {}), install_id: installId, input_id: value.input_id, text: value.text, written_by: "person", occurred_at: new Date().toISOString() });
+  return input;
+}
+
+/**
+ * The page's naming envelope (specs/capability-pack/contract-design.md §2.3), removed before the plugin's input is built like
+ * `original_input`: the Skills the person named on this installation's own page for the round the route starts. Only this installation's
+ * own Skills count; another installation's are dropped here, since naming another plugin's Skill is the Host's own entries' to do (D-1).
+ */
+function takeNamedSkills(body: unknown, installId: string | null | undefined, control: PluginExecutionControl | undefined): unknown {
+  if (!body || typeof body !== "object" || Array.isArray(body) || !Object.hasOwn(body, "named_skills")) return body;
+  const { named_skills: offered, ...input } = body as Record<string, unknown>;
+  if (!installId || !control) throw new ActionError("actions.input_invalid", "点名信封无效");
+  try { assertActionInput({ type: "array", maxItems: SKILL_BODY_READ_MAX_REFS, items: SKILL_REF_SCHEMA }, offered); }
+  catch { throw new ActionError("actions.input_invalid", "点名信封无效"); }
+  const own = (offered as SkillRef[]).filter(ref => ref.install_id === installId);
+  if (own.length) offerRoutedNamedSkills(control, own);
   return input;
 }
 
@@ -133,7 +152,7 @@ export async function dispatchRuntimePluginRoute(
   if (!["GET", "HEAD"].includes(request.method ?? "GET")) {
     try {
       body = await (controls.readBody ?? ((request, maxBytes) => readLocalWebBody(request, maxBytes)))(request, match.max_body_bytes ?? undefined);
-      body = takeOriginalInput(body, active.install_id, controls.execution);
+      body = takeNamedSkills(takeOriginalInput(body, active.install_id, controls.execution), active.install_id, controls.execution);
     }
     catch (error) {
       if (!(error instanceof ActionError)) throw error;

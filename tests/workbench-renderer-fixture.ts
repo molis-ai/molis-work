@@ -1,4 +1,4 @@
-import { createLocalHostWorkbenchRenderer, type buildMolisWorkWebView } from "@molis-ai/molis-work-app-local-host";
+import { createLocalHostWorkbenchRenderer, installHostUiText, type buildMolisWorkWebView } from "@molis-ai/molis-work-app-local-host";
 import { desktopWorkbenchRendererPorts } from "@molis-ai/molis-work-app-desktop";
 import { buildFeedReaderUiModel, feedUiContribution, feedSourcePresentationId, FEED_UI_CONTRIBUTION_ID, type FeedItemRecord, type FeedSnapshot, type FeedStageData } from "@molis-ai/molis-work-plugin-feed";
 import { gmailSourcePresentation } from "@molis-ai/molis-work-integration-gmail";
@@ -18,6 +18,8 @@ export type { GoalDocumentCollection } from "@molis-ai/molis-work-plugin-goals";
 import { BUILTIN_PLUGIN_CATALOG, pluginOnDemandStylesheet, renderWorkbenchRefreshDocument } from "@molis-ai/molis-work-app-workbench";
 export type { MolisWorkOnboardingRenderOptions } from "@molis-ai/molis-work-app-workbench";
 
+// The platform's words, as the Host installs them when it starts: pages say stable keys (`t`) as well as `L`.
+installHostUiText();
 const renderer = createLocalHostWorkbenchRenderer(desktopWorkbenchRendererPorts);
 export const { renderMolisWorkProjectIndex, renderMolisWorkSettings, renderMolisWorkOnboarding, renderMolisWorkProjectSettingsHub, renderMolisWorkProjectSettings, renderMolisWorkProjectGuidanceSettings, renderMolisWorkPlanningLibrary, renderMolisWorkPlanningMethodPage, renderMolisWorkPlanningSettings, renderMolisWorkWorkbenchStylesheet, renderMolisWorkArrivalStylesheet, renderMolisWorkSettingsStylesheet, renderMolisWorkWorkbenchClientScript } = renderer;
 

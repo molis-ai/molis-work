@@ -16,6 +16,8 @@ export const pluginErrors = defineErrorCodes("plugin", {
   event_type_missing: "invalid",
   event_type_undeclared: "invalid",
   executor_failed: "invalid",
+  /** A package that cannot be exported (`details.reason`: `host_build`, `not_content_package`, `package_missing`; capability-pack §4.9). */
+  export_unavailable: "not_found",
   grant_denied: "invalid",
   home_scope_unavailable: "invalid",
   id_namespace_conflict: "invalid",
@@ -25,6 +27,7 @@ export const pluginErrors = defineErrorCodes("plugin", {
   integration_unavailable: "unavailable",
   kept_data_incompatible: "invalid",
   manifest_invalid: "invalid",
+  manifest_version_invalid: "invalid",
   package_invalid: "invalid",
   permission_invalid: "invalid",
   preview_unknown: "not_found",
@@ -43,3 +46,14 @@ export const pluginErrors = defineErrorCodes("plugin", {
   upgrade_validation_failed: "invalid",
   upgrade_validation_missing: "invalid",
 });
+
+/**
+ * One reason a declaration was refused, pointing at the Skill and the package file when there is one, e.g.
+ * `{ skill_id: "meeting-notes", path: "skills/meeting-notes/SKILL.md", reason: "包里找不到" }`. A `plugin.declaration_invalid` from the
+ * Manifest or package checks carries all of them as `details.problems`, in the order found; the page lists them as they are.
+ */
+export interface PluginDeclarationProblem {
+  skill_id?: string;
+  path?: string;
+  reason: string;
+}

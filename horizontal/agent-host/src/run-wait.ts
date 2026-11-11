@@ -25,14 +25,16 @@ export function waitForRunChange(adapter: AgentRuntimeAdapter, run: AgentRunRef,
     let latest: AgentRunView | undefined, gather: ReturnType<typeof setTimeout> | undefined, stop: (() => void) | undefined, finished = false;
     // The published view only names pending questions; a full read resolves them into something a person can answer.
     const finish = () => { if (finished) return; finished = true; clearTimeout(timer); clearTimeout(gather); stop?.(); signal?.removeEventListener("abort", cancel);
-      const version = runViewVersion(latest!);
-      if (!latest!.awaiting_input.length) { resolve({ version, view: latest! }); return; }
-      adapter.read(run).then(view => resolve({ version, view }), () => resolve({ version, view: latest! })); };
+      const view = latest;
+      if (!view) { reject(agentErrors.run_unknown("等待超时，运行时尚未提供这一轮的状态")); return; }
+      const version = runViewVersion(view);
+      if (!view.awaiting_input.length) { resolve({ version, view }); return; }
+      adapter.read(run).then(next => resolve({ version, view: next }), () => resolve({ version, view })); };
     const timer = setTimeout(finish, timeoutMs), cancel = () => { if (finished) return; finished = true; clearTimeout(timer); clearTimeout(gather); stop?.(); reject(signal!.reason); };
     try {
       stop = adapter.observe(run, view => { latest = view; if (runViewVersion(view) !== since && !gather) gather = setTimeout(finish, 40); });
       if (finished) stop(); else if (signal?.aborted) cancel(); else signal?.addEventListener("abort", cancel, { once: true });
-    } catch (error) { clearTimeout(timer); reject(error); }
+    } catch (error) { finished = true; clearTimeout(timer); clearTimeout(gather); stop?.(); signal?.removeEventListener("abort", cancel); reject(error); }
   });
 }
 

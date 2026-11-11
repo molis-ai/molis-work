@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
-import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { openBoardBrowser as openGoalBrowser } from "./fixtures/board-browser.js";
 import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
 
 // 07-1 S0 (docs/design/workbench-navigation, 组件板新增 1–3, 6–10, 12–16): the component board's 工作台导航 frame draws every
@@ -71,17 +71,23 @@ test("07-S0 the navigation frame draws every new part, named for screen readers,
     assert.equal(await evaluate("getComputedStyle(document.querySelector('[data-nav-titlebar=ok] .tab-pane-switch')).display !== 'none'"), width <= 760);
     const switchHeights = await evaluate<number[]>(`[...document.querySelectorAll('${width <= 760 ? "[data-nav-titlebar=ok], " : ""}[data-nav-specimen=pane-switch]')].flatMap((at) => [...at.querySelectorAll('.tab-pane-switch > .mw-toggle')].map((t) => Math.round(t.getBoundingClientRect().height)))`);
     assert.ok(switchHeights.length && switchHeights.every((h) => h >= 44), `${lang} ${width}px: the pane switch's halves are 44px targets (${switchHeights})`);
-    // On a phone the titlebar's strip gives the current tab a row of its own: its title reads in full, 全部标签 shows its whole
-    // count, and no tab is squeezed to nothing (the others are reached from 全部标签), in both states.
+    // On a phone the titlebar's strip is one row (07-1 S3, the 定样's 52px row): the current tab takes the rest of it, at least 98px,
+    // and a title longer than that ends in an ellipsis, the whole of it in the tab's title and name; 全部标签 shows its whole count,
+    // and no tab is squeezed to nothing (the others are reached from 全部标签), in both states.
     if (width <= 760) for (const state of ["ok", "wrong"]) {
-      const phone = await evaluate<{ title: [number, number]; count: boolean; squeezed: number; shown: number }>(`(() => {
+      const phone = await evaluate<{ title: { width: number; fills: boolean; fits: boolean; ellipsis: boolean; whole: boolean }; count: boolean; squeezed: number; shown: number }>(`(() => {
         const bar = document.querySelector('[data-nav-titlebar=${state}]'), strip = bar.querySelector('[data-titlebar-tabs]'), edge = strip.getBoundingClientRect();
         const name = strip.querySelector('.tab-item[aria-current] .tab-item-name'), button = strip.querySelector('.tab-all-button'), count = button.querySelector('.tab-all-count');
         const inside = (el, box) => { const b = el.getBoundingClientRect(); return b.width > 0 && b.left >= box.left - 0.5 && b.right <= box.right + 0.5; };
         const shown = [...strip.querySelectorAll('.tab-item')].filter((tab) => getComputedStyle(tab).display !== 'none');
-        return { title: [name.scrollWidth, name.clientWidth], count: inside(count, button.getBoundingClientRect()) && inside(button, edge) && count.scrollWidth <= count.clientWidth,
+        const tab = name.closest('.tab-item'), style = getComputedStyle(name), last = [...strip.children].filter((child) => getComputedStyle(child).display !== 'none').at(-1);
+        const title = { width: Math.round(tab.getBoundingClientRect().width), fills: last.getBoundingClientRect().right >= edge.right - parseFloat(getComputedStyle(strip).paddingRight) - 1,
+          fits: name.scrollWidth <= name.clientWidth, ellipsis: style.textOverflow === 'ellipsis' && style.whiteSpace === 'nowrap' && style.overflow === 'hidden',
+          whole: tab.title === name.textContent && tab.querySelector('[role=tab]').getAttribute('aria-label') === name.textContent };
+        return { title, count: inside(count, button.getBoundingClientRect()) && inside(button, edge) && count.scrollWidth <= count.clientWidth,
           squeezed: shown.filter((tab) => tab.getBoundingClientRect().width < 44).length, shown: shown.length }; })()`);
-      assert.ok(phone.title[0] <= phone.title[1], `${lang} ${state}: the current tab's title reads in full (${phone.title})`);
+      assert.ok(phone.title.width >= 98 && phone.title.fills, `${lang} ${state}: the current tab takes the rest of the row, at least 98px (${JSON.stringify(phone.title)})`);
+      assert.ok((phone.title.fits || phone.title.ellipsis) && phone.title.whole, `${lang} ${state}: the current tab's title reads in full or ends in an ellipsis, whole in its title and name (${JSON.stringify(phone.title)})`);
       assert.ok(phone.count, `${lang} ${state}: 全部标签 shows its whole count`);
       assert.deepEqual([phone.shown, phone.squeezed], [1, 0], `${lang} ${state}: only the current tab shows, at full width`);
       const small = await evaluate<string[]>(`[...document.querySelectorAll('[data-nav-titlebar=${state}] :is(.tab-add-button, .tab-all-button, .titlebar-layout > .mw-btn, .tab-undo-chip)')].flatMap((b) => {
@@ -95,7 +101,8 @@ test("07-S0 the navigation frame draws every new part, named for screen readers,
       b.click(); return seen; })`);
     assert.deepEqual(outside, [], `${lang} ${width}px: the titlebar's ＋, 全部标签 and 布局 menus open inside the window`);
     if (width <= 760) {
-      const send = await evaluate<[number, number]>("(() => { const box = document.querySelector('[data-nav-composer] .mw-btn').getBoundingClientRect(); return [Math.round(box.width), Math.round(box.height)]; })()");
+      // The bar's composer is the platform's since K3 (unified input): its send button is the one marked data-composer-send.
+      const send = await evaluate<[number, number]>("(() => { const box = document.querySelector('[data-nav-bar] .assistant-composer [data-composer-send]').getBoundingClientRect(); return [Math.round(box.width), Math.round(box.height)]; })()");
       assert.ok(send[0] >= 44 && send[1] >= 44, `${lang}: the composer's send button is a 44 × 44 target on a phone (${send})`);
     }
     // Nothing in the titlebar covers ＋ or 全部标签: the glyph row keeps its width and the strip gives way.

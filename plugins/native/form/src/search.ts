@@ -8,8 +8,8 @@ import { formErrors } from "./error.js";
  * Answers belong to the people who filled them in and stay in Form's results.
  */
 export const formSearchActions = {
-  entries: defineSearchEntriesAction("form.search.entries", [{ kind: "form", title: "问卷", surface: FORM_PROJECT_PLUGIN_ID }], "问卷", ["form:read"]),
-  subject: defineSubjectContextAction("form.subject.read", "form", "问卷", ["form:read"]),
+  entries: defineSearchEntriesAction("form.search.entries", /* @version action.form.search.entries */ 1, [{ kind: "form", title: "问卷", surface: FORM_PROJECT_PLUGIN_ID }], "问卷", ["form:read"]),
+  subject: defineSubjectContextAction("form.subject.read", /* @version action.form.subject.read */ 1, "form", "问卷", ["form:read"]),
 };
 
 function formSearchContent(form: FormRecord): string {

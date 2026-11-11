@@ -1,5 +1,5 @@
-import { messageOf } from "./dom.js";
-import { active, request } from "./page.js";
+import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
+import { active, inFolder, request } from "./page.js";
 import type { GitPage } from "./page.js";
 import { operationLabel, prepare } from "./source.js";
 import type { ConflictAnswer } from "./types.js";
@@ -65,7 +65,7 @@ async function openConflict(page: GitPage, path: string): Promise<void> {
   conflictEditor.hidden = false;
   s("[data-git-conflict-state]").textContent = L("git.conflict.reading", { path });
   try {
-    const file = await request<ConflictAnswer>(page, `/conflict?path=${encodeURIComponent(path)}`);
+    const file = await request<ConflictAnswer>(page, inFolder(`/conflict?path=${encodeURIComponent(path)}`, page.workspace));
     if (!active(page, epoch) || serial !== page.conflictTicket) return;
     if (file.outcome !== "conflict-file") throw new Error(file.message ? S(file.message) : L("git.conflict.unreadable"));
     page.conflictPath = path;

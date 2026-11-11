@@ -38,7 +38,8 @@ export function assertProjectCleanupEntries(entries: readonly PluginProjectClean
  * and close and refuse its library of the project.
  */
 export interface PluginProjectLibraries {
-  stopProjectBackground(installId: string, projectId: string): void;
+  stopProjectBackground(installId: string, projectId: string): Promise<void> | undefined;
+  blockProjectLibrary(installId: string, projectId: string): () => void;
   clearProjectLibrary(installId: string, projectId: string): () => void;
 }
 
@@ -58,8 +59,7 @@ export function registerPluginProjectCleanup(home: string, runtime: PluginRuntim
     const pluginId = entry.definition.manifest.plugin_id, signature = entry.definition.manifest.publisher.signature;
     const stopBackground = (projectId: string) => {
       const record = runtime.list().find(item => item.plugin_id === pluginId && item.publisher_signature === signature && item.state !== "uninstalled");
-      if (record) libraries.stopProjectBackground(record.install_id, projectId);
-      return record;
+      return { record, settled: record ? libraries.stopProjectBackground(record.install_id, projectId) : undefined };
     };
     const owner = cleanupOwner(home, entry, stopBackground, libraries);
     return owner ? [hooks.register(owner)] : [];
@@ -67,7 +67,7 @@ export function registerPluginProjectCleanup(home: string, runtime: PluginRuntim
   return () => { for (const release of dispose.reverse()) release(); };
 }
 
-type StopBackground = (projectId: string) => PluginInstanceRecord | undefined;
+type StopBackground = (projectId: string) => { record: PluginInstanceRecord | undefined; settled: Promise<void> | undefined };
 
 function cleanupOwner(home: string, entry: PluginProjectCleanupEntry, stopBackground: StopBackground, libraries: PluginProjectLibraries): ProjectDeletedOwner | null {
   const { manifest } = entry.definition, library = manifest.databases?.home;
@@ -77,13 +77,18 @@ function cleanupOwner(home: string, entry: PluginProjectCleanupEntry, stopBackgr
     return {
       id: entry.project_data?.owner_id ?? manifest.plugin_id, ...partitionLabel(manifest.name), words_of: manifest.plugin_id,
       async clear(projectId) {
-        const record = stopBackground(projectId);
-        const release = record ? libraries.clearProjectLibrary(record.install_id, projectId) : undefined;
-        try { await rm(homeSqlitePartitionDirectory(home, store, projectId), { recursive: true, force: true }); } finally { release?.(); }
+        const { record, settled } = stopBackground(projectId);
+        // Keep the same-turn refusal even while a cancelled activation job is still unwinding.
+        const unblock = settled && record ? libraries.blockProjectLibrary(record.install_id, projectId) : undefined;
+        try {
+          if (settled) await settled;
+          const release = record ? libraries.clearProjectLibrary(record.install_id, projectId) : undefined;
+          try { await rm(homeSqlitePartitionDirectory(home, store, projectId), { recursive: true, force: true }); } finally { release?.(); }
+        } finally { unblock?.(); }
       },
     };
   }
-  return hasPluginBackground(entry.definition) ? { id: `plugin-background:${manifest.plugin_id}`, label: "{name} 的后台工作（将停止）", label_values: { name: manifest.name }, words_of: manifest.plugin_id, clear(projectId) { stopBackground(projectId); } } : null;
+  return hasPluginBackground(entry.definition) ? { id: `plugin-background:${manifest.plugin_id}`, label: "{name} 的后台工作（将停止）", label_values: { name: manifest.name }, words_of: manifest.plugin_id, async clear(projectId) { await stopBackground(projectId).settled; } } : null;
 }
 
 /** What the confirmation dialog says of a library partitioned by project: the Host's words, with the plugin's name. */
@@ -99,8 +104,9 @@ function declaredRowsOwner(home: string, entry: PluginProjectCleanupEntry, libra
   return {
     id: shipped?.owner_id ?? manifest.plugin_id, words_of: manifest.plugin_id,
     ...shipped ? { label: rows.label } : { label: "{name} 的项目数据：{detail}", label_values: { name: manifest.name, detail: rows.label } },
-    clear(projectId) {
-      stopBackground(projectId);
+    async clear(projectId) {
+      const { settled } = stopBackground(projectId);
+      if (settled) await settled;
       clearProjectRows(home, library, manifest.plugin_id, projectId, manifest.owner_files);
     },
   };

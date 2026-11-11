@@ -6,22 +6,142 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LOCAL_OWNER_PERMISSIONS } from "@molis-ai/molis-work-app-local-host";
-import { LocalProjectDatabase, MolisWorkLocalHost, molisWorkHostProjectReference, resolveWebControlToken, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { LocalHost, LocalProjectDatabase, MolisWorkLocalHost, molisWorkHostProjectReference, resolveWebControlToken, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { feedItemActions, feedManifest } from "@molis-ai/molis-work-plugin-feed";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { SqlitePluginRuntimeRepository, PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { PROJECT_WORKSPACE_PROVIDER_ID, projectDirectoryActions, projectPluginActions, type VersionedProjectPluginMembership } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { TODO_PLUGIN_ID } from "@molis-ai/molis-work-plugin-todo/contract";
 import { CHARACTER_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/characters";
 import { definePlugin, defineSubjectContextAction, subjectContext } from "@molis-ai/molis-work-plugin-sdk";
 import { COGNIA_PLUGIN_ID } from "@molis-ai/molis-work-plugin-cognia";
 import { todoManifest } from "@molis-ai/molis-work-plugin-todo";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
-import { bindLocalWebAction, bindLocalWebActions, localWebActionContext } from "../apps/local-host/dist/local-web-actions.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
+import { bindLocalWebAction, bindLocalWebActions, invokeLocalWebCatalogAction, localWebActionContext } from "../apps/local-host/dist/local-web-actions.js";
 import { HOME_ACTION_PERMISSIONS } from "../apps/local-host/dist/home-actions.js";
-import { deferred, serveHomeRuntime } from "./fixtures/home-runtime.js";
+import { deferred, serveHomeRuntime, homeProbe, grantHomeProbe } from "./fixtures/home-runtime.js";
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
+
+test("SPC-C08 S-15 the Web Catalog caller refuses foreign providers, missing route authority, and ordinary project actions before opening a project", async t => {
+  const opened: string[] = [];
+  const f = await serveHomeRuntime(t, { onRuntimeOpen: reference => { opened.push(reference.project_id); } });
+  const project = await f.project("Catalog authority");
+  const client = f.host.actionClient(project.reference, false);
+  const caller = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: project.project_id, audience: "user" as const, permissions: [] };
+  const read = () => client.invoke(caller, projectPluginActions.get, {});
+  const initial = await read() as VersionedProjectPluginMembership;
+  assert.ok(initial.plugins.includes("schedule"));
+  const input = { plugin_id: "schedule", enabled: false, expected_revision: initial.revision };
+  const membership = { ...projectPluginActions.set, provider_id: PROJECT_WORKSPACE_PROVIDER_ID };
+  const authority = { signal: new AbortController().signal, sessionCurrent() {} };
+  let lookups = 0;
+  const resolveProject = async () => { lookups++; return project.reference; };
+
+  await assert.rejects(async () => f.host.projectCatalogActions.client(project.reference).discover(caller), { code: "actions.forbidden" });
+  await assert.rejects(invokeLocalWebCatalogAction(f.host, resolveProject, { ...membership, provider_id: "test.other-owner" }, input, authority), { code: "actions.forbidden" });
+  const missingPermission = { ...membership, action: { ...membership.action, permissions: [] } };
+  await assert.rejects(invokeLocalWebCatalogAction(f.host, resolveProject, missingPermission, input, authority), { code: "actions.forbidden" });
+  const directories = { ...projectDirectoryActions.get, provider_id: PROJECT_WORKSPACE_PROVIDER_ID };
+  await assert.rejects(invokeLocalWebCatalogAction(f.host, resolveProject, directories, {}, authority), { code: "actions.forbidden" });
+  const plugin = { ...goalsActions.state, provider_id: "goals" };
+  await assert.rejects(invokeLocalWebCatalogAction(f.host, resolveProject, plugin, { goal_id: "example" }, authority), { code: "actions.forbidden" });
+  assert.equal(lookups, 0);
+  assert.deepEqual(await read(), initial);
+  assert.deepEqual(opened, []);
+});
+
+test("SPC-C08 the Web Catalog entry does not start a project if its registration is replaced during Home preparation", { timeout: 30_000 }, async t => {
+  const actionRegistry = LocalHost.prototype.actionRegistry;
+  let retireCatalog: (() => void) | undefined;
+  t.mock.method(LocalHost.prototype, "actionRegistry", function(this: LocalHost<unknown>, ...args: Parameters<typeof actionRegistry>) {
+    const registry = actionRegistry.apply(this, args);
+    if (args[1] !== "project-catalog") return registry;
+    return { registerProvider(registration: Parameters<typeof registry.registerProvider>[0]) {
+      const retire = registry.registerProvider(registration);
+      retireCatalog = retire;
+      return retire;
+    } };
+  });
+  const opened: string[] = [];
+  const f = await serveHomeRuntime(t, { onRuntimeOpen: reference => { opened.push(reference.project_id); } });
+  const project = await f.project("Catalog registration replaced");
+  const readIndex = async () => {
+    const response = await f.request("/api/settings/project-plugins");
+    assert.equal(response.status, 200);
+    const { projects } = await response.json() as { projects: Array<VersionedProjectPluginMembership & { project_id: string }> };
+    const row = projects.find(row => row.project_id === project.project_id);
+    assert.ok(row);
+    return row;
+  };
+  const initial = await readIndex(), retire = retireCatalog, homePlugins = f.host.homePlugins;
+  assert.ok(retire && homePlugins);
+  const ready = homePlugins.ready.bind(homePlugins), entered = deferred(), release = deferred();
+  t.mock.method(homePlugins, "ready", async () => { entered.resolve(); await release.promise; return ready(); });
+  const action = { ...projectPluginActions.set, provider_id: PROJECT_WORKSPACE_PROVIDER_ID };
+  const refused = assert.rejects(invokeLocalWebCatalogAction(f.host, async () => project.reference, action,
+    { plugin_id: "schedule", enabled: false, expected_revision: initial.revision },
+    { signal: new AbortController().signal, sessionCurrent() {} }), { code: "actions.forbidden" });
+  let replacementCalls = 0;
+  try {
+    await Promise.race([entered.promise, refused.then(() => assert.fail("the write refused before preparing Home actions"))]);
+    retire();
+    f.host.actionRegistry().registerProvider({ provider: { provider_id: PROJECT_WORKSPACE_PROVIDER_ID, title: "Replacement", kind: "system" },
+      definitions: [action], handlers: [{ ...action, handle: () => { replacementCalls++; return initial; } }] });
+  } finally { release.resolve(); }
+  await refused;
+  assert.equal(replacementCalls, 0);
+  assert.deepEqual(opened, []);
+  assert.deepEqual(await readIndex(), initial);
+});
+
+test("ASR-12 local caller construction reads declarations without evaluating discarded availability; real dispatch still enforces current policy and grants", async t => {
+  const probe = homeProbe("metadataread"), counts = { action: 0, scene: 0 };
+  let blocked = false;
+  const f = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] },
+    actionAvailability: (_caller, action) => {
+      counts.action++;
+      return blocked && action.capability_id === probe.state.capability_id
+        ? { available: false, code: "actions.forbidden", reason: "current policy refused" } : { available: true };
+    },
+    sceneAvailability: () => { counts.scene++; return { available: true }; },
+  });
+  await grantHomeProbe(f.host, probe);
+  const project = await f.project("metadata declarations");
+  await localWebActionContext(f.host, project.reference, []);
+  counts.action = 0; counts.scene = 0;
+  const caller = await localWebActionContext(f.host, project.reference, []);
+  assert.deepEqual(counts, { action: 0, scene: 0 }, "constructing a caller does not compute availability for every action and scene");
+  assert.equal(caller.actor_id, LOCAL_PERSON_ACTOR_ID); assert.equal(caller.audience, "user"); assert.equal(caller.project_id, project.project_id);
+  assert.ok(caller.permissions.includes("metadataread:read"));
+  assert.ok(caller.allowed_actions?.some(action => action.capability_id === probe.state.capability_id));
+  assert.equal(probe.seen.length, 0, "declaration inspection never runs the provider");
+  const scenes = f.host.inspectSceneMetadata(caller, project.reference).filter(scene => scene.provider.plugin_id === probe.id);
+  assert.equal(scenes.length, probe.scenes.length);
+  assert.ok(scenes.every(scene => !("availability" in scene) && !("configuration_availability" in scene)), "declarations never pretend to be an execution grant");
+  assert.equal(f.host.inspectSceneMetadata({ ...caller, permissions: [] }, project.reference).some(scene => scene.provider.plugin_id === probe.id), false, "the original scene visibility rule still filters missing grants");
+  assert.deepEqual(f.host.inspectSceneMetadata({ ...caller, actor_id: "" }, project.reference), []);
+  assert.throws(() => f.host.inspectSceneMetadata({ ...caller, project_id: "other-project" }, project.reference), { code: "actions.scope_mismatch" });
+  const cancelled = new AbortController(); cancelled.abort(new Error("metadata request ended"));
+  assert.throws(() => f.host.inspectSceneMetadata({ ...caller, signal: cancelled.signal }, project.reference), /metadata request ended/u);
+  Reflect.set(scenes[0]!.definition, "title", "changed clone"); Reflect.set(scenes[0]!.provider, "title", "changed provider clone");
+  const again = f.host.inspectSceneMetadata(caller, project.reference).find(scene => scene.definition.scene_id === scenes[0]!.definition.scene_id)!;
+  assert.notEqual(again.definition.title, "changed clone"); assert.notEqual(again.provider.title, "changed provider clone");
+  assert.deepEqual(counts, { action: 0, scene: 0 });
+
+  blocked = true;
+  await assert.rejects(f.host.actionClient(project.reference).invoke(caller, probe.state, {}), { code: "actions.forbidden" });
+  assert.ok(counts.action > 0, "the actual invocation evaluates live policy"); assert.equal(probe.seen.length, 0);
+  blocked = false;
+  await f.host.actionClient(project.reference).invoke(caller, probe.state, {});
+  assert.equal(probe.seen.length, 1);
+  await grantHomeProbe(f.host, probe, probe.permissions.filter(permission => permission !== "metadataread:read"));
+  await assert.rejects(f.host.actionClient(project.reference).invoke(caller, probe.state, {}), { code: "actions.forbidden" });
+  const later = await localWebActionContext(f.host, project.reference, []);
+  assert.ok(!later.allowed_actions?.some(action => action.capability_id === probe.state.capability_id));
+  assert.equal(probe.seen.length, 1, "neither an old caller nor a new declaration can revive a withdrawn grant");
+});
 
 test("real Home HTTP and capability library use installed plugin grants without a Host permission list", { timeout: 60_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "home-local-grants-"));
@@ -30,7 +150,7 @@ test("real Home HTTP and capability library use installed plugin grants without 
   const host = new MolisWorkLocalHost({ homeDirectory: home });
   const token = resolveWebControlToken({ homeDirectory: home });
   const server = createMolisWorkWebServer({ homeDirectory: home, localHost: host, controlToken: token });
-  const definition = defineSubjectContextAction("newcomer.notes.context", "newcomer-note", "新插件事项", ["newcomer:read"]);
+  const definition = defineSubjectContextAction("newcomer.notes.context", 1, "newcomer-note", "新插件事项", ["newcomer:read"]);
   let reads = 0;
   const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.newcomer", version: "1.0.0", name: "新插件事项",
     kind: "app", publisher: { publisher_id: "example", signature: "example-newcomer" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
@@ -437,7 +557,7 @@ test("S-15 with images:read revoked from its installation, the Images jobs route
 test("S-15 RAC-651 the permissions a route names reach a Runtime plugin's action only through its installation's grants", { timeout: 90_000 }, async t => {
   const { host, project } = await serveHomeRuntime(t);
   const { reference } = await project("路由写下的权限");
-  const definition = defineSubjectContextAction("capped.notes.context", "capped-note", "路由上限", ["capped:read"]);
+  const definition = defineSubjectContextAction("capped.notes.context", 1, "capped-note", "路由上限", ["capped:read"]);
   let reads = 0;
   const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.capped", version: "1.0.0", name: "路由上限",
     kind: "app", publisher: { publisher_id: "example", signature: "example-capped" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
@@ -539,7 +659,7 @@ test("RAC-2507 RAC-2509 trusted stage reads keep an external single entry and in
   await assert.rejects(bound.invoke(entry, { mode: "metadata-directory" }), { code: "actions.dependency_missing" }, "the original delegated executable directory cannot see the metadata-only target");
   assert.equal(counts.write, 0); assert.equal(counts.metered, 0);
   // The original person's snapshot still decides which precise child references may enter it.
-  const inspect = host.inspectActions.bind(host), mock = t.mock.method(host, "inspectActions", async (...args: Parameters<typeof inspect>) => (await inspect(...args)).filter(view => view.capability_id !== source.capability_id));
+  const inspect = host.inspectPreparedActionMetadata.bind(host), mock = t.mock.method(host, "inspectPreparedActionMetadata", async (...args: Parameters<typeof inspect>) => (await inspect(...args)).filter(view => view.capability_id !== source.capability_id));
   try { await assert.rejects(bind().invoke(entry, {})); assert.equal(counts.source, 1); } finally { mock.mock.restore(); }
   hold = { entered: deferred(), release: deferred() }; const wait = hold;
   const pending = bound.invoke(entry, {}), refused = assert.rejects(pending);

@@ -1,5 +1,6 @@
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { canonicalJsonText } from "@molis-ai/molis-work-plugin-sdk";
 import type { PluginRuntimeDatabase } from "./repository.js";
 
 // A plugin's own tables in a project's library (PG-020, specs/archive/plugin-project-database). The plugin declares them in its Manifest
@@ -38,6 +39,12 @@ export const pluginProjectDatabaseErrors = defineErrorCodes("plugin.project_data
   result_too_large: "too_large",
   /** The process that runs a sandboxed plugin's statements would not start, or ended on its own. */
   process_failed: "unavailable",
+  /** An upgrade step reaches past the plugin's own tables, or is a statement a step may not be (`plugin-upgrade-steps.ts`, S-upgrade-plugin-steps-scope). */
+  upgrade_out_of_scope: "forbidden",
+  /** An upgrade step changes rows by something that differs from device to device: the time, a random value (`plugin-upgrade-steps.ts`). */
+  upgrade_nondeterministic: "invalid",
+  /** The steps ran and would leave the tables otherwise than the declaration says, or SQLite stopped one: nothing of the run is kept. */
+  upgrade_failed: "internal",
 });
 
 /** One entry of a database's schema table, as storage's `listSqliteObjects` gives it. */
@@ -63,7 +70,8 @@ export interface PluginProjectDatabaseRecord {
   readonly created_at: string;
 }
 
-interface DeclaredSchema { readonly tables: readonly string[]; readonly objects: readonly string[]; readonly shape: PluginSchemaShape["tables"]; readonly triggers?: ReadonlyMap<string, string> }
+/** What a declaration makes, tried on an empty database: its tables, its objects by name, their shape, and (composed by the platform) its triggers. */
+export interface DeclaredSchema { readonly tables: readonly string[]; readonly objects: readonly string[]; readonly shape: PluginSchemaShape["tables"]; readonly triggers?: ReadonlyMap<string, string> }
 
 const NAME = String.raw`(?:Q|[A-Za-z_\u0080-\u{10FFFF}][\w$\u0080-\u{10FFFF}]*)`;
 const CREATE_TABLE = new RegExp(String.raw`^CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?${NAME}\s*\(`, "iu");
@@ -76,7 +84,7 @@ const fold = (name: string) => name.replace(/[A-Z]/gu, letter => letter.toLowerC
  * Split a declaration at every semicolon outside quotes and comments, as SQLite reads it, and give each statement with its quoted
  * parts masked: a string becomes `''`, a quoted name `Q`, a comment a space.
  */
-function statements(schema: string): Array<{ text: string; masked: string }> {
+export function statements(schema: string): Array<{ text: string; masked: string }> {
   const found: Array<{ text: string; masked: string }> = [];
   let masked = "", start = 0, index = 0;
   const end = (at: number) => {
@@ -201,11 +209,7 @@ function inspectSchema(schema: string, inspector: PluginProjectSchemaInspector,
 }
 
 function canonical(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
-  if (value && typeof value === "object") {
-    return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${canonical((value as Record<string, unknown>)[key])}`).join(",")}}`;
-  }
-  return JSON.stringify(value) ?? "null";
+  return canonicalJsonText(value, "null");
 }
 
 /** The plugin's tables as they stand in the library, in the declaration's terms; a missing table is `null`. */
@@ -215,7 +219,7 @@ function standing(connection: PluginRuntimeDatabase, declared: DeclaredSchema, i
 }
 
 /** Host-only current baseline extension. The original package schema still passes the ordinary declaration gate first. */
-function platformDeclaration(declaration: PluginDatabaseDeclaration, inspector: PluginProjectSchemaInspector, schema?: string, prelude?: string): DeclaredSchema {
+export function platformDeclaration(declaration: PluginDatabaseDeclaration, inspector: PluginProjectSchemaInspector, schema?: string, prelude?: string): DeclaredSchema {
   const business = inspectPluginProjectSchema(declaration, inspector);
   if (!schema) return business;
   const scratch = inspector.scratch();

@@ -3,6 +3,11 @@
  * owners' pages look up that no other dictionary defines. The page's own words are stable keys in `messages.ts`.
  */
 export const PAGES_EN: Record<string, string> = {
+  "会议纪要整理": "Organize meeting notes",
+  "用户给了一段会议记录或一篇会议文档，要整理成一份能照着执行的纪要时用：结论、待办（谁、做什么、何时）和待定问题，每条注明原文依据；用户要时再写成文档。": "Use to turn raw meeting notes into actionable conclusions, tasks with owners and dates, and open questions, each grounded in the source. Create a document when requested.",
+  "手上有会议的原始记录、转写或笔记，要整理成结论、待办和待定问题。": "Raw meeting notes, a transcript or personal notes need to become conclusions, tasks and open questions.",
+  "要把会议里的待办直接加进待办列表（用“整理待办”）；要写的不是会议纪要，或只想总结一篇普通文章。": "Do not use to add tasks directly to a todo list; use Organize todos. Do not use for other writing or a general article summary.",
+
   "评论与备注": "Comments and notes",
   "回复": "Reply",
   "正文已改变，请保存后重新发起评论": "The document changed. Save it before commenting again.",
@@ -85,7 +90,6 @@ export const PAGES_EN: Record<string, string> = {
   "无标题": "Untitled",
   "已保存": "Saved",
   "保存失败": "Could not save",
-  "缺少项目": "Project is missing",
   "未分类": "Unfiled",
   "删除文件夹": "Delete folder",
   "会议纪要": "Meeting notes",

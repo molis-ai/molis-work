@@ -2,6 +2,7 @@ import path from "node:path";
 import { INTEGRATION_OWNER } from "./runtime-integration-contract.js";
 import type { RuntimeAdapter, SupportedRuntimeId, RuntimeSnapshot, IntegrationReceipt, PreparedPlan, RuntimeIntegrationPlan, RuntimeIntegrationChange, RuntimeIntegrationAction, SkillSnapshot } from "./runtime-integration-contract.js";
 import { digest } from "./runtime-config-text.js";
+import { mcpClientCredentialPath } from "../mcp-client-credentials.js";
 
 interface RuntimeIntegrationPlanPaths {
   homeDirectory: string;
@@ -46,7 +47,7 @@ export class RuntimeIntegrationPlanner {
         target_path: adapter.configPath(this.paths.userHomeDirectory),
         operation: snapshot.configInspection.state === "absent" ? "add" : "replace",
         before: snapshot.configInspection.summary,
-        after: `Molis Work MCP（命令 ${snapshot.artifacts.launcherPath}；环境仅含 MOLIS_WORK_HOME、MOLIS_WORK_MCP_AUDIENCE、MOLIS_WORK_RUNTIME_ID）`,
+        after: `Molis Work MCP（命令 ${snapshot.artifacts.launcherPath}；环境仅含 MOLIS_WORK_HOME、MOLIS_WORK_MCP_AUDIENCE、MOLIS_WORK_RUNTIME_ID、MOLIS_WORK_CLIENT_AUTH，不含密钥）`,
       });
     }
     if (snapshot.skill.state !== "current") {
@@ -67,6 +68,8 @@ export class RuntimeIntegrationPlanner {
         after: "记录 Molis Work 写入的字段指纹和 Skill 链接，不保存用户配置内容",
       });
     }
+    if (!snapshot.credentialPresent) changes.push({ kind: "client_credential", target_path: mcpClientCredentialPath(this.paths.homeDirectory, `runtime:${adapter.id}`),
+      operation: "add", before: "无", after: "创建仅属于此客户端的连接凭据，不显示密钥；旧 Session 需重新连接" });
 
     const publicPlan = this.publicPlan(common, alreadyConnected && receipt ? "no_change" : "ready", changes, backupPath,
       alreadyConnected && receipt ? `${adapter.displayName} 已经接入，无需重复写入。` : `准备接入 ${adapter.displayName}。`);
@@ -113,6 +116,7 @@ export class RuntimeIntegrationPlanner {
       ? this.paths.backupPath(adapter.id, common.planId)
       : null;
     const changes: RuntimeIntegrationChange[] = [
+      { kind: "client_credential", target_path: mcpClientCredentialPath(this.paths.homeDirectory, `runtime:${adapter.id}`), operation: "remove", before: "此客户端的连接凭据", after: "撤销此客户端连接凭据，包含在途调用" },
       {
         kind: "runtime_config",
         target_path: adapter.configPath(this.paths.userHomeDirectory),
@@ -182,7 +186,7 @@ export class RuntimeIntegrationPlanner {
   ): RuntimeIntegrationPlan {
     const verb = common.action === "connect" ? "接入" : "移除接入";
     return {
-      schema_version: 1,
+      schema_version: /* @version format.runtime.integration.plan */ 1,
       plan_id: common.planId,
       plan_hash: common.planHash,
       runtime_id: common.adapter.id,
@@ -209,7 +213,7 @@ function preparedWithStatus(
   const verb = common.action === "connect" ? "接入" : "移除接入";
   return {
     publicPlan: {
-      schema_version: 1,
+      schema_version: /* @version format.runtime.integration.plan */ 1,
       plan_id: common.planId,
       plan_hash: common.planHash,
       runtime_id: common.adapter.id,

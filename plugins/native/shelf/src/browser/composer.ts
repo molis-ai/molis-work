@@ -1,4 +1,5 @@
-import { closest, messageOf } from "./dom.js";
+import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
+import { closest } from "./dom.js";
 import { flushEdit } from "./edit.js";
 import { shortcutActions } from "./model.js";
 import { expandShelfStage, paintPreview, syncShelfStage } from "./preview.js";

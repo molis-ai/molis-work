@@ -1,3 +1,4 @@
+import { readOnlyAlwaysOnProjectPlugins } from "./always-on-plugins.js";
 import { readPluginRuntimeRecords } from "@molis-ai/molis-work-plugin-runtime";
 import { hostLog } from "./host-log.js";
 import { installedPluginStages } from "./plugin-builder/agent-surface.js";
@@ -28,7 +29,7 @@ import { builtinMarketDirectory, mergePluginDirectories, runningPluginDirectory 
 
 /** The page still opens without the installed plugins' entries; why they are missing is written. */
 /** The project settings page each path opens; `/settings` alone opens 常规. */
-const SETTINGS_SECTIONS = new Map((["workspaces", "guidance", "memory", "knowledge", "plugins", "rules", "planning", "general"] as const)
+const SETTINGS_SECTIONS = new Map((["workspaces", "guidance", "memory", "knowledge", "plugins", "kit", "grants", "rules", "planning", "general"] as const)
   .map(section => [`/settings/${section}` as string, section] as const)).set("/settings", "general");
 const noInstalledStages = (error: unknown): [] => { hostLog.warn("plugins", "installed_stages_unavailable", error); return []; };
 async function projectSettingsRequirements(homeDirectory: string | undefined, store: LocalProjectDatabase, projectId: string, withCatalog: LocalWebCatalogRunner) {
@@ -147,7 +148,7 @@ export function createLocalGoalsReadHttp(ports: {
     }));
     if (renderedGoalsRead) {
       if ("error" in renderedGoalsRead) {
-        sendJson(response, renderedGoalsRead.status, { error: renderedGoalsRead.error });
+        sendJson(response, renderedGoalsRead.status, { error: renderedGoalsRead.error, ...(renderedGoalsRead.code ? { code: renderedGoalsRead.code } : {}) });
         return true;
       }
       response.writeHead(200, {
@@ -174,7 +175,7 @@ export function createLocalGoalsReadHttp(ports: {
       },
       async view => {
         const desktopShell = isDesktopShellRequest(request, url);
-        const projectConfiguration = options.project ? await withMolisWorkProjectCatalog({ homeDirectory }, catalog => catalog.projectPluginMembership(options.project!.project_id)) : null;
+        const projectConfiguration = options.project ? await withMolisWorkProjectCatalog({ homeDirectory }, catalog => catalog.projectPluginMembership(options.project!.project_id, homeDirectory ? () => readOnlyAlwaysOnProjectPlugins(homeDirectory) : undefined)) : null;
         // `shown_plugins` comes with the view (`projectWebView`), the one projection the page, its refresh and its fragments share.
         if (projectConfiguration) view = { ...view, enabled_plugins: projectConfiguration.plugins, hidden_plugins: projectConfiguration.hidden, project: view.project && store ? { ...view.project, plugin_requirements: await projectSettingsRequirements(homeDirectory, store, view.project.project_id, withMolisWorkProjectCatalog) } : view.project };
         if (store) {

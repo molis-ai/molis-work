@@ -1,9 +1,9 @@
 import type { ContractDescriptor } from "../platform/package.js";
 
 export const modulesContextLedgerContract = {
-  contractId: "io.molis.work.module.context-ledger.v1",
+  contractId: /* @version contract.io.molis.work.module.context-ledger "io.molis.work.module.context-ledger.v{version}" */ "io.molis.work.module.context-ledger.v1",
   kind: "module",
-  schemaVersion: 1,
+  schemaVersion: /* @version contract.io.molis.work.module.context-ledger */ 1,
   maturity: "partial",
   ssot: "docs/modules/context-ledger.md",
 } as const satisfies ContractDescriptor;
@@ -39,9 +39,20 @@ export interface ContextAccess {
   scope: ContextScope;
 }
 
+/**
+ * The relation types the platform knows between two objects (specs/shared-sources-and-surfaces §6). An edge's `type` stays the string its
+ * writer names; only these say that two objects are one piece of work, which a composed surface shows once (`SurfaceItem.merged`).
+ * `copied_from`: a copy made of an object; `derived_from`: a version made from another object's content. Placement writes both, under its
+ * own names. `created_from`: another thing made from this one on a surface (「从这件新建」), written by the platform path that makes it and
+ * never claimed by a plugin; the two may have different owners.
+ */
+export const CONTEXT_RELATION_TYPES = { copied_from: "placement.copied_from", derived_from: "placement.derived_from", created_from: "created_from" } as const;
+export type ContextRelationType = (typeof CONTEXT_RELATION_TYPES)[keyof typeof CONTEXT_RELATION_TYPES];
+
 export interface ContextEdge {
   key: string;
   revision: number;
+  /** Free for its writer; a relation the platform reads is one of `CONTEXT_RELATION_TYPES`. */
   type: string;
   source: ObjectRef;
   target: ObjectRef;
@@ -61,6 +72,8 @@ export interface ContextEdgeInput {
 }
 
 export interface ContextEdgeQuery {
+  /** Exact keys, at most 200; an empty selection returns no edges. Plugin clients use their own bare keys. */
+  keys?: readonly string[];
   include_removed?: boolean;
   type?: string;
   source?: ObjectRef;

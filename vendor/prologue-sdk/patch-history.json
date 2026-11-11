@@ -11,7 +11,7 @@
     "repository": "https://github.com/molis-ai/molis-prologue",
     "checkedOn": "2026-10-25",
     "mainHead": "f1753ec8fa2cbca45667e60e101b93702acc6640",
-    "statement": "2026-10-25 在准确上游 main f1753ec8fa2cbca45667e60e101b93702acc6640 上对42个commitsChecked逐个执行git merge-base --is-ancestor：除已换掉的08b84296、923e5a40、4007a93c三个历史过渡源及当前ba75c9f8之外，其余均为main祖先。当前final103-bridge依赖来自公开固定分支feature/node-storage-final103-bridge的ba75c9f8437018904b24dabeaaef6ded8054add5，不是main祖先：基点2c7feba5（PR60），只移植PR103定稿6523abb47..513237d2的功能；4e018e1a保旧普通分页/读取及旧合同，ba75只修导航。按accepted WO #1267/6395049480作为过渡包采用，不带PR61–101、PR104或旧42。旧42只曾作为本PR候选验证、未正式合入，不将其伪记为已采用的历史包。原已删除的26份补丁与32包记录保持，后续可按Git blob取回。",
+    "statement": "2026-10-25 在准确上游 main f1753ec8fa2cbca45667e60e101b93702acc6640 上对42个commitsChecked逐个执行git merge-base --is-ancestor：除已换掉的08b84296、923e5a40、4007a93c三个历史过渡源及当前ba75c9f8之外，其余均为main祖先。当前final103-bridge依赖来自公开固定分支feature/node-storage-final103-bridge的ba75c9f8437018904b24dabeaaef6ded8054add5，不是main祖先：基点2c7feba5（PR60），只移植PR103定稿6523abb47..513237d2的功能；4e018e1a保旧普通分页/读取及旧合同，ba75只修导航。按accepted WO #1267/6395049480作为过渡包采用，不带PR61–101、PR104或旧42。旧42只曾作为本PR候选验证、未正式合入，不将其伪记为已采用的历史包。原已删除的26份补丁与32包记录保持，后续可按Git blob取回。 2026-11-11 追加 1cc80b05（Molis main 自 #1064 起所用同名 memory-p0 包的来源，已换掉）：对上游 main 314a27a73aa1674faa1c0a4d4dce7f137f97c37c 用 git merge-base --is-ancestor 核过，是 main 祖先。",
     "commitsChecked": [
       "03c6ba0b24ddd46ff1cd0f604e3e2bcb134687c2",
       "07ad08a11e3b4a01b9fe877dedff1efba6f4833c",
@@ -54,7 +54,8 @@
       "a51607fbfa11e8f59ac0962906aa1bcbf155d8e6",
       "753dbae8359e56a74397d030af4d18abf402d5b5",
       "2c7feba5a6ea85e81e4a263671fb5e68f536d86a",
-      "ba75c9f8437018904b24dabeaaef6ded8054add5"
+      "ba75c9f8437018904b24dabeaaef6ded8054add5",
+      "1cc80b05253df798eeb34afff65d1bda06bee587"
     ]
   },
   "patches": [
@@ -783,6 +784,14 @@
       "gitBlob": "fd00b166b99637c31406a41367fba0577f1a3f34",
       "commit": "2c7feba5a6ea85e81e4a263671fb5e68f536d86a",
       "description": "上游 main 2c7feba5（Prologue #60，含 retry-waiting、#59、#58、#53 与此前各项）。2026-10-24 由同一准确基点加 C2-SDK-INSPECT 固定42ccc75a的零写 Node 存储认证包替换；SDK源头本地提交未声称已合上游，未带整个Memory Draft；旧包及来源记录从Git历史取回。"
+    },
+    {
+      "file": "prologue-sdk-0.0.0-rc.1-memory-p0.tgz",
+      "bytes": 1397575,
+      "sha256": "6893801bb36df43630c0ea1cfe44eb08c2fcd0b57ae0b0abbffab42623ad5a78",
+      "gitBlob": "0c7e8e75d8729017e415faba443e5f72118ddc99",
+      "commit": "1cc80b05253df798eeb34afff65d1bda06bee587",
+      "description": "Molis main 自 #1064 起所用的同名 memory-p0 包，来源上游 1cc80b05（含 #107）。2026-11-11 由 Memory V0 收口（#2020）换成上游 main 314a27a7（#109 合并，含 1cc80b05）重建的同名包；旧包从 Git 历史取回。"
     }
   ],
   "notes": [

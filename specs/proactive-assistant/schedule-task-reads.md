@@ -1,6 +1,6 @@
 # 定时任务按任务授权读取业务数据：第 18 批实施方案与开工前检查
 
-状态：方案已由统筹审过（2026-11-04，E 轨起草）；第 8 节三项统筹已定；P1 定样已由用户定并合入（#1789，F 开关即生效，见 §3.7 末）；2026-11-05 完整性复查见第 9 节（G1～G5 已定，O1 用户定 B：按读取分组）；P0 合同已合入（#1841，2026-11-05）；P2 开工前带入的几条与用户同日两项决定见第 10 节。下一步 P2（E）、P3（D）。原需求是[主动助理 §5.4.1](spec.md) 与验收 PWA-148～154；核账见[第 18 批「本批核账」](../post-anticorruption-roadmap/reference/batches/18.md#batch-18-audit)。
+状态：已完成（2026-11-07）。P0 #1841、#1856，P2 #1879，P3 #1929 都已合入 main；P4 实走记录在 [evidence/18-p4-walkthrough.md](evidence/18-p4-walkthrough.md)；用户 2026-11-07 表示按验收通过处理。下面保留方案与决定的原文。
 
 - **类型**：横向能力（按任务的动作授权）为主；产品线（Schedule 插件）；底层与架构（授权与安全边界）。按[需求开发流程](../post-anticorruption-roadmap/reference/development-workflow.md)第 1.1 节属**大需求**：跨 C1、宿主和 E 三处，带一处合同改动和安全边界变化。
 - **决策标记**：要决策：勾选界面定样（第 5 节）。可信写入放在平台确认面、由 D 落，统筹 2026-11-04 已定（第 8 节）。
@@ -56,16 +56,16 @@ agent:task:<project_id>:<plugin_install_id>:<subject_key>
 
 **按什么粒度记。** 用户勾的是「类」，记下的是**这一刻**目录里这一类的每个只读动作各一条：
 
-- 「类」是提供方在 Manifest 里声明的**读取分组**（用户 2026-11-05 定，第 9 节 O1）：一组有自己的 id、显示名、一句「包含什么」，列出本插件自己的几个动作；宿主装配时核对组里每个动作都是本插件的、`audiences` 含 `agent`、只读（判据见第 9 节 G3），不符就拒绝这份 Manifest。可勾的类就是目录里本项目可见的这些分组；名单从目录来，宿主里不写插件名（硬约束：不另写名单）。没声明分组的插件，它全部符合条件的动作合成一类（插件同等待遇：第三方不声明也能用）；声明了分组的插件，不在任何组里的动作不给任务主体。本批的口径：待办 = Todo 的「待办」组，Inbox = Inbox 的「来信」组，日程 = Jelly 的「日历」组加 Schedule 的「提醒」组，目标 = Goals 的「目标」组；Jelly 的笔记、Schedule 的定时操作各自另成一组，默认不勾。
+- 「类」是提供方在 Manifest 里声明的**读取分组**（用户 2026-11-05 定，第 9 节 O1）：一组有自己的 id、显示名、一句「包含什么」，列出本插件自己的几个动作；宿主装配时核对组里每个动作都是本插件的、`audiences` 含 `agent`、只读（判据见第 9 节 G3），不符就拒绝这份 Manifest。可勾的类就是目录里本项目可见的这些分组；名单从目录来，宿主里不写插件名（硬约束：不另写名单）。没声明分组的插件，它全部符合条件的动作合成一类（插件同等待遇：第三方不声明也能用）；声明了分组的插件，不在任何组里的动作不给任务主体。**系统提供方默认不进任务类别**（第 18 批统筹 2026-11-06 定）：类别来自插件（有 Manifest 的安装），或来自在自己登记时声明 `task_readable: true` 的提供方（`ActionProvider.task_readable`，整个提供方算一类）。没有这一声明的系统提供方（`system.*`，如搜索、放置、记忆）与 MCP 来源没有 Manifest、可能跨插件读，会绕开按插件分组的授权，所以 `list` 不列它们，`set` 点名它们整次 `actions.input_invalid`，主体即使有它们的记录一轮里也找不到。宿主不写提供方名单，`task-grant-categories.ts` 的 `readableByTask` 只认 `kind` 为 `plugin` 或这一声明（S-task-grant-subjects ⑥）；本批只有项目资料（`system.knowledge`，只读本项目的资料、不跨插件）声明，所以它照第 8 节第 2 条作为一类出现、默认不勾。本批的口径：待办 = Todo 的「待办」组，Inbox = Inbox 的「来信」组，日程 = Jelly 的「日历」组加 Schedule 的「提醒」组，目标 = Goals 的「目标」组；Jelly 的笔记、Schedule 的定时操作各自另成一组，默认不勾。
 - 界面上每一类写明包含什么（就是分组声明里那一句，例如 Jelly「日历」写「日历事项与进展」），用户知道勾了什么。分组的显示名与说明照 Manifest 的其余文字一样走翻译（英文随插件包）。
 - 只读动作才收：宿主建授权时拒绝 `operation` 不是 `query` 的动作。
 - 以后提供方新增或改了只读动作、或往已勾的组里加了动作，已勾的类**不自动扩大**：新动作没有记录，读不到；版本或权限变了的动作，原记录不再匹配（`matches` 的现有规则），读不到。宿主在读授权时报出「这一类有未确认的读取能力」，任务卡片上标出来。
 
 **谁写。** 只有本人，经平台自己的确认面：
 
-- 平台动作 `agent.task_grants.set@1`：受众只有 `user`，输入是任务主体（插件安装与 key）和勾选的类；宿主在执行时重新读目录、展开成动作记录、整体替换这个主体的记录。插件、Agent、MCP 客户端、工作流都调不到（S-17 的同一条规矩）。
+- 平台动作 `agent.task_grants.set@1`：受众只有 `user`，输入是任务主体（插件安装与 key）和勾选的类；宿主在执行时重新读目录，整体替换这个主体的记录：主体原来就有记录的类原样保留（新增的能力仍未确认，提供方暂时不在时记录等它回来），只有新勾的类、和本人带 `confirm: true` 重新允许的类按此刻目录展开成动作记录，展开为空的整次拒绝（规则 R1～R5 见 `specs/proactive-assistant/task-grants-platform-area.md` §3.6（#1860），2026-11-05 统筹，#1860 评审）。插件、Agent、MCP 客户端、工作流都调不到（S-17 的同一条规矩）。
 - 平台动作 `agent.task_grants.clear@1`：受众 `user` 和 `plugin`；插件只能清**自己安装下**的主体。只减不增，所以给插件是安全的（Schedule 归档任务时调）。
-- 平台动作 `agent.task_grants.list@1`：受众 `user` 和 `plugin`，插件只能列自己安装下的主体；一次返回这个安装在本项目的全部主体与各类状态（已授权、需重新确认），任务列表打开时调一次，不按任务逐个请求（开工前检查第 9 项）。
+- 平台动作 `agent.task_grants.list@1`：受众 `user` 和 `plugin`，插件只能列自己安装下的主体；一次返回这个安装在本项目的全部主体与各类状态（`granted` 已授权、`needs_confirmation` 需重新确认、`unavailable` 暂时读不到、`removed` 已不再提供）；给本人的可勾类别只列 `set` 此刻能当新类接受的（R5）：此刻没有可调用动作的类（提供方停用、展开为空）不列，已持有它的主体在自己的状态里看到 `unavailable`；任务列表打开时调一次，不按任务逐个请求（开工前检查第 9 项）。
 - 「对外接入」一页（`apps/local-host/src/mcp-action-access.ts:54`）目前把授权里出现过的客户端 id 都列成可编辑的客户端：任务主体要从那份列表里排除，改在「授权与放行」一页按任务列出，可撤回（D 轨）。
 
 **谁读。** 只有宿主：插件 Agent 服务启动这一轮时把主体交给动作客户端；每次 Agent 调动作时由 `authorizeMcpActions` 重新读。
@@ -78,7 +78,7 @@ agent:task:<project_id>:<plugin_install_id>:<subject_key>
    - 带了 `grant_subject` 的，启动请求设 `action_gateway: true`，动作客户端的身份换成任务主体（`preparePlugin(caller, subject)`，`apps/local-host/src/agent-host-composition.ts:263` 的 `actor_id` 从固定的 `agent:${runtimeId}` 改为由这里传入；审计作者照旧 `agent:<runtime>:<会话>`）。
    - **没带的业务角色不给网关**：插件启动的 Agent 不能借内置 Agent（`agent:prologue`）那份共用授权。这是今天的行为，写成不变量钉住。
 3. 网关（`horizontal/agent-host/src/run-start.ts` 的 `frozenGateway`）：角色只读，`operate` 为 false，写类工具一律回「只能读」（`adapters/prologue-action-gateway.ts:243`、`250`、`368`），这一层不用改。
-4. 目录：`find-capabilities` 只列这个主体被授权的动作（`resolveMcpActionContext` 按 `client_id` 过滤）。任务主体**没有默认放开的动作**：`openByDefault` 对任务主体一律 false，连项目资料也要勾（最少权限；项目资料作为一类出现、默认不勾，统筹 2026-11-04 定）。
+4. 目录：`find-capabilities` 只列这个主体被授权的动作（`resolveMcpActionContext` 按 `client_id` 过滤）。任务主体**没有默认放开的动作**：`openByDefault` 对任务主体一律 false，连项目资料也要勾（最少权限；项目资料作为一类出现、默认不勾，统筹 2026-11-04 定）。项目资料能成为一类，是因为它的提供方在登记时声明了 `task_readable`（§3.2）；别的系统提供方不声明，不是类别。
 
 ### 3.4 撤权、停用、删任务之后
 
@@ -88,6 +88,7 @@ agent:task:<project_id>:<plugin_install_id>:<subject_key>
 | 任务停用 | 不再到点运行，授权留着；再启用照旧能读 | Schedule 现有逻辑 |
 | 任务归档 | 授权清除 | Schedule 归档时调 `clear`；宿主另在读取时核对：插件的 `list` 结果里找不到对应任务的主体，由 Schedule 在对账作业里清（防止漏清） |
 | Schedule 停用 | 插件 Agent 服务拒绝启动（安装不是运行中、`agent:run` 不在授权里，`plugin-agent-service.ts:35` 的 `check`）；授权留着，再启用照旧能读 | 现有 |
+| Schedule 从项目移除 | 等同停用：授权留着；安装编号不变，加回来后照旧能读。要收回授权，在「能读的数据」或「授权与放行」里撤回 | 现有（移除不清授权，只有卸载清） |
 | Schedule 卸载 | 这个安装下全部任务主体的授权清除 | 宿主卸载插件的动作（`plugins.installed.uninstall@1`，`apps/local-host/src/plugin-install-actions.ts:123`）按 `agent:task:<project>:<install>:` 前缀清 |
 | 删项目 | 这个项目的任务主体授权清除 | `ProjectDeletionService`（`apps/local-host/src/project-deletion-service.ts`）按 `agent:task:<project>:` 前缀清 |
 | 提供方停用或卸载 | 那一类的动作不在目录里，调用被拒；记录留着，提供方回来、形状没变就恢复 | 现有目录与授权规矩 |
@@ -103,7 +104,7 @@ agent:task:<project_id>:<plugin_install_id>:<subject_key>
 - **新角色** `brief`：`workspace: "business"`、`execution: "read-only"`、`host_tools: []`（业务角色可用的宿主工具都不需要），提示词 `schedule-brief`：说明手边是经目录查到的只读能力、读不到就说读不到、回复第一行的 IMPORTANT 标记沿用。原 `reader` 角色不变。
 - **任务种类不存表**：有任务主体授权的任务用 `brief`，没有的用 `reader`。到点时 Schedule 用一次 `agent.task_grants.list`（或按单个主体读）决定。所以 Schedule 的表、动作输入输出都不变，不碰 05 批的升级链（「首次改库结构前 U1 必须就位」）。
 - **就绪检查按种类**：`tasks.readiness` 的输出不变（`model`、`workspace`）；页面按任务种类解读：读数据的任务不要求工作区，要求至少一类已授权；读文件的任务照旧要工作区。
-- **归档清授权**：`tasks.archive` 成功后调 `agent.task_grants.clear`；对账作业（现有 `SCHEDULE_RECONCILE_JOB`）顺手清掉已归档或不存在任务的主体。
+- **归档清授权**：`tasks.archive` 成功后调 `agent.task_grants.clear`；对账作业（现有 `SCHEDULE_RECONCILE_JOB`）顺手清掉已归档或不存在任务的主体：没清成的 `clear` 留着重试；每次启动后扫一遍，用的是 Schedule 本来就要读的第一份 `list`（到点的一轮读它来选角色），对账作业自己不调，所以项目只是启动、没有任务到点时不产生任务授权调用（#1879 Full suite 的 `cli-goals-actions` 用例，2026-11-06）。
 - **界面**（用户 2026-11-04 定样，见 3.7 末）：任务详情里「能读的数据」一段，放平台区域（3.7）；任务列表的每行标出种类（读文件／读数据）和「需要重新确认」。新建任务改在详情里直接写，不再弹对话框；能读的数据在任务建好后选。
 
 ### 3.7 勾选与确认放在哪（要定样，并发预警）
@@ -204,7 +205,7 @@ P2 与 P3 改不同的文件，可以并行；两者都依赖 P0。按「一项�
 统筹 2026-11-04 定（[#1764 评论](https://github.com/molis-ai/molis-work/pull/1764)），三条都按方案的推荐：
 
 1. **勾选放在平台确认面**（3.7 方案 A），由 D 轨落；Schedule 只做入口和状态显示。
-2. **项目资料作为一类出现，默认不勾。**
+2. **项目资料作为一类出现，默认不勾。**（落法见 §3.2：它的提供方登记时声明 `task_readable`。）
 3. **新不变量的编号落地时顺延**（表里现在排到 S-107）。
 
 ## 9. 完整性复查（2026-11-05）
@@ -241,7 +242,7 @@ P0 合同（#1841）评审时，合同台与评审台留给 P2 的几条，加�
 
 | # | 事项 | 现状与做法 |
 | --- | --- | --- |
-| C1 | 提供方删掉一个读取分组后，已勾这一类的任务显示什么 | **用户 2026-11-05 定**：那一行写「这一类已不再提供」，给「移除」，任务从此读不到这一类。合同加第 4 个状态 `removed`（`agent.task_grants.list`，随本节同一个合同 PR）。没声明分组的提供方开始声明分组时，原来「整个提供方」那一类同样是 `removed`。这一类自己的名字已经不在，行上显示提供方的名字。宿主要知道一条授权当初是勾哪一类得来的：授权记录本身不带分组，P2 设计时定在哪里记（记在授权记录旁，或读取时按「动作已不在任何组里」判断），写进 P2 的开工前检查第 6 项 |
+| C1 | 提供方删掉一个读取分组后，已勾这一类的任务显示什么 | **用户 2026-11-05 定**：那一行写「这一类已不再提供」，给「移除」，任务从此读不到这一类。合同加第 4 个状态 `removed`（`agent.task_grants.list`，随本节同一个合同 PR）。没声明分组的提供方开始声明分组时，原有记录按动作归入新的组，不扩大；不在任何组里的显示「这一类已不再提供」（用户 2026-11-06 改定，取代原来「整个提供方那一类同样是 `removed`」的说法，见 [spec.md §5.4.1](spec.md) 决策记录）。这一类自己的名字已经不在，行上显示提供方的名字。宿主要知道一条授权当初是勾哪一类得来的：授权记录本身不带分组，P2 设计时定在哪里记（记在授权记录旁，或读取时按「动作已不在任何组里」判断），写进 P2 的开工前检查第 6 项 |
 | C2 | `scope: "home"` 的查询怎样归组：`todo.items.list` 带 `all_projects` 会跨项目读（第 9 节 O1） | **不用另定**：`all_projects` 要 `readable_project_ids`，宿主只把它给本人的调用（`project_reach: "person"`，PG-014）；任务主体是 `agent` 受众，Todo 按 `actions.forbidden` 拒绝（`plugins/native/todo/src/actions.ts` 的 `todoAccess`）。所以任务只读得到本项目的待办。S-108 加一条拒绝用例钉住：给任务主体授权「待办」后带 `all_projects: true` 调，被拒、不写记录。另要在 P2 核实：项目里的任务主体能否被授权 Home 级插件（Todo）的 `home` 范围查询——「对外接入」一页现在按调用的范围筛目录（`mcp-action-access.ts` 的 `catalog`），按任务授权不能照搬这一筛法 |
 | C3 | 省略 `group_id` 只对没声明分组的提供方有效 | 合同注释已写（#1841）；S-108 加一条：对声明了分组的提供方省略 `group_id`，`set` 整次被拒。**2026-11-06 收窄**（[P3 设计稿 §3.6](task-grants-platform-area.md) R1，#1860 复审，统筹定）：这条与「组不存在」的校验只对请求里**新加入**的类生效；这个主体原本就有记录的类按原记录认、不再校验（`removed` 的类可能带已不再声明的 `group_id`，或不带 `group_id`），否则任务上有一个 `removed` 的类时拨任何开关都会被拒。P2a 改合同注释时同步写一句 |
 | C4 | GLOSSARY 加「读取分组」「任务主体」 | 随 P2 加（`docs/system/GLOSSARY.md`） |

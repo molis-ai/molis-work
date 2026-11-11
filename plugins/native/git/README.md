@@ -14,14 +14,14 @@ and a parallel writer's result comes back through Coding's integration review
 (`review:git-integration`).
 
 
-Directory candidates and browsing preferences come from the [current-project settings protocol](../../../docs/platform/PROJECT-SETTINGS.md). Files/Git consume `projectSettingsCapabilities.browsingWorkspace`; Coding consumes `workspaces` and keeps its execution directory per session. Manage directories in Project Settings → Workspaces.
+The folders come from the [current-project settings protocol](../../../docs/platform/PROJECT-SETTINGS.md): Git reads them through `projects.directories.get` (declared in `capabilities.consumes`), each folder an input (read-only) or the project's one output. The page keeps which folder it shows and names it; with none named, Git works in the output. Reads work in any of the project's folders, but a write (stage, commit and the other operations) is refused in a folder that is only an input (`projects.directory_input_only`), and the page offers to set that folder as the output. The default output directory is created the first time something is written or run in it: until then reads answer empty and stage and commit answer `workspace_git.not_a_repository`. The project keeps no browsing choice. Manage the folders in Project Settings → Inputs and output.
 
 ## 开发要求
 
 - 负责：工作树变更与提交草稿。
 - 不负责：运行 git、批准操作、渲染比较。
 - 公开入口：`@molis-ai/molis-work-plugin-git`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
-- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（`bindOwnerPluginAction`、`bindPluginActionRoute`、`parsePorcelainStatus`）。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（动作声明与路由绑定、`parsePorcelainStatus`、错误码、页面部件和 `messageOf`）。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 插件从不运行 `git`；写操作经 Host 与审查。
   - 页面重新读取由插件自己调 `services.ui.invalidate()`，只在事件回调和宿主的操作回执监听里调；监听在 `stop` 一开始就清掉（BL-411）。

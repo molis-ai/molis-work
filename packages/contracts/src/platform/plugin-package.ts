@@ -6,21 +6,26 @@ export interface PluginPackageFile {
   content_base64: string;
 }
 
-/** The signed app package declares text resources, not executable Agent permissions. */
+/** A role material the signed app package declares (`agent`): a text resource, not executable Agent permissions. */
 export interface SandboxAgentBodyDeclaration {
   name: string;
   purpose: string;
   body: string;
 }
 
-/** Wire bytes are signed before the Host projects these text declarations into a runtime Manifest. */
-export type SandboxPackageManifest = Omit<PluginManifest, "agent" | "methods"> & {
+/**
+ * Wire bytes are signed before the Host projects the role materials into a runtime Manifest. `methods` are the Manifest's own Skill
+ * declarations (`PluginMethodDeclaration`), each with its body's path `skills/<skill_id>/SKILL.md` in the package; nothing is derived.
+ */
+export type SandboxPackageManifest = Omit<PluginManifest, "agent"> & {
   agent?: SandboxAgentBodyDeclaration[];
-  methods?: SandboxAgentBodyDeclaration[];
 };
 export type PluginPackageManifest = PluginManifest | SandboxPackageManifest;
 
-/** A decoded text resource, with its deterministic identity. Trust comes from the installation, not this text. */
+/**
+ * A decoded text resource with its identity: a role material's derived id, or a method's own `skill_id`, and a method's `summary` as
+ * its purpose. Trust comes from the installation, not this text.
+ */
 export interface SandboxAgentBody {
   kind: "role" | "method";
   entry_id: string;
@@ -31,7 +36,7 @@ export interface SandboxAgentBody {
 }
 
 export interface PluginPackagePayload {
-  schema_version: 1;
+  schema_version: /* @version format.plugin.package */ 1;
   manifest: PluginPackageManifest;
   files: PluginPackageFile[];
 }
@@ -73,6 +78,21 @@ export const SANDBOX_PACKAGE_FILES = {
   interface: "interface.json",
   /** What the plugin tells the model: an array of `SandboxPackagePrompt`. */
   prompts: "prompts.json",
+} as const;
+
+/**
+ * The content package format: the package of a plugin with only declarations (Manifest `kind: "content"`,
+ * specs/skill-packs/contract-design.md §3). `payload.files` hold exactly `manifest.json` and the bodies and resources the Manifest's
+ * `methods` declare, no more and no fewer, each at a relative path without `..`; there is no code, contract, interface or prompts
+ * file. The Host picks the content or the sandbox parse by the Manifest's `kind` and checks the signature the same way for both.
+ */
+export const CONTENT_PACKAGE_FILES = {
+  /** The Manifest, the same object as `payload.manifest`. */
+  manifest: "manifest.json",
+  /** The folder of every Skill: `skills/<skill_id>/`. */
+  skills: "skills",
+  /** A Skill's body inside its folder, so `skills/<skill_id>/SKILL.md`. */
+  body: "SKILL.md",
 } as const;
 
 /** One prompt a sandbox plugin declares; the Host registers it so the person sees and edits it with every other prompt. */

@@ -1,0 +1,9 @@
+{
+  "exceptions": {
+    "function apps/workbench/src/tab-workspace-ops.ts#createTabWorkspaceOps": {
+      "kind": "cohesive-unit",
+      "reason": "标签布局的纯操作集（拆分、移动、并排打开、规范化、关闭、固定），对同一棵布局树做变换；它被 toString 注入浏览器，必须自成一体，W5-04 打包后才能分文件。07-S2 去掉首页标签、把召回与跨栏移动放进 withLayout、去掉 ensureHome 别名后变小。",
+      "size": 406
+    }
+  }
+}

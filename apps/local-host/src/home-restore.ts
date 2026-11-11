@@ -18,6 +18,8 @@ import { collectRestoreStoreInputs } from "./home-restore-stores.js";
 import { planHomeRestoreTarget } from "./home-restore-target.js";
 import { memoryRestoreWritable, prepareHomeRestoreRetention, retainHomeRestoreMemory } from "./home-restore-retention.js";
 import { prepareHomeRestoreSessions, retainHomeRestoreSessions } from "./home-restore-sessions.js";
+import { homeSnapshotErrors } from "./home-store-snapshot.js";
+import { homeUpgradeUnfinished } from "./home-upgrade-ledger.js";
 import { resolveConfiguredHome } from "./product-home.js";
 
 interface HomeRestoreBaseOptions {
@@ -54,6 +56,7 @@ export async function restoreHomeSnapshot(options: HomeRestoreOptions): Promise<
   const owner = acquireStorageOwner(root);
   let cleanupOwnsLease = false;
   try {
+    if (homeUpgradeUnfinished(home)) throw homeSnapshotErrors.maintenance_pending("上一轮升级还没有做完，所以没有恢复。先启动一次 Molis Work 让它做完，再来恢复。");
     const scope = snapshotSpaceDigest(home);
     const lease = () => {
       assertStorageOwner(root, owner);

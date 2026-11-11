@@ -1,4 +1,6 @@
-import type { SignedAgentReference, SignedAgentInstallation } from "./agent-definitions.js";
+import type { MaterialRef } from "../platform/project-materials.js";
+import type { SignedAgentReference, SignedAgentInstallation, SkillRef } from "./agent-definitions.js";
+import type { SkillCatalogEntry } from "./skills.js";
 import type { AssistantMemoryCandidate, AssistantRoundMemory } from "./assistant-memory.js";
 export type { AssistantMemory, AssistantMemoryCandidate, AssistantMemoryPrefs, AssistantRoundMemory } from "./assistant-memory.js";
 import type { AssistantCard, AssistantPreparedCard } from "./assistant-cards.js";
@@ -19,9 +21,9 @@ import type { MemoryChange } from "./memory.js";
  * context and capability contracts, never by the Assistant knowing them one by one.
  */
 export const servicesAssistantContract = {
-  contractId: "io.molis.work.service.assistant.v1",
+  contractId: /* @version contract.io.molis.work.service.assistant "io.molis.work.service.assistant.v{version}" */ "io.molis.work.service.assistant.v1",
   kind: "service",
-  schemaVersion: 1,
+  schemaVersion: /* @version contract.io.molis.work.service.assistant */ 1,
   maturity: "partial",
   ssot: "specs/archive/system-assistant/spec.md",
 } as const satisfies ContractDescriptor;
@@ -219,8 +221,8 @@ export interface AssistantMaterial {
    * picker (specs/project-knowledge PMAT-17), the piece itself. Either is only a pointer: the Host checks it again with its
    * owner and reads the text itself before the round (a piece through `knowledge.read`, as the person).
    */
-  reference?: { hit_id: string } | { subject: { kind: string; id: string } };
-  /** For `method`: the method the person chose with “/” for this round; the Host gives its registered body. */
+  reference?: { hit_id: string } | { subject: { kind: string; id: string } } | { material: MaterialRef };
+  /** For `method`: the Skill or role material the person chose with “/” for this round; the Host reads its body from its owner. */
   method?: AssistantMethodSelection & { name?: string; plugin_title?: string; effective?: "default" | "user"; user_revision?: number | null };
   /** For `image`: the picture the person added, taken in by the runtime (only a reference; the bytes stay there). */
   image?: { resource_id: string; revision: number; media_type: string; byte_length: number };
@@ -281,6 +283,8 @@ export interface AssistantWork {
   session_id: string | null;
   /** Unsent text for this work. Never sent, never read by a model. */
   draft: string;
+  /** Advances on every draft write, independently of other work changes. */
+  draft_revision: number;
   created_at: string;
   updated_at: string;
   archived: boolean;
@@ -510,18 +514,25 @@ export interface AssistantSendInput extends Pick<AgentInputSend, "about"> {
   target?: "answer" | "steer";
   /**
    * How a supplement reaches the round under way (specs/ai-input-receipts §4.1; specs/unified-input-voice §4): `next-boundary`
-   * (补充) when absent, `interrupt` (打断并改向) or `after-run` (下一轮再做). Only for an existing work's supplement: refused with
-   * `target: "answer"`, on a new work, and for any other value. `interrupt` and `after-run` never start a round: when the
-   * round has ended they wait in its session for the next one (outcome `queued`); a work with no round yet refuses them.
+   * (补充) when absent, `interrupt` (打断并改向) or `after-run` (下一轮再做). Only for an existing work's supplement: refused
+   * (`assistant.invalid`) with `target: "answer"`, on a new work, and for any other value. `interrupt` and `after-run` never start
+   * a round: when the round has ended they wait in its session for the next one (outcome `queued`); a work with no round yet
+   * refuses them (`assistant.state`).
    */
   delivery?: AgentSteerMode;
   reask?: AgentQuestionReask;
+  /** Identifies the content of this attempt when recovering a lost Send with the same request_id. Echoed only for the attempt that claimed it. */
+  submission_id?: string;
+  /** Draft revision paired with the text read or saved by the page. A delayed Send cannot replace a newer saved draft. */
+  draft_revision?: number;
   /** One per press of Send. A repeat returns the first outcome and starts nothing. */
   request_id: string;
 }
 
 /** What one Send did: started a round, reached a running one, waits for the next (its round had just ended), or answered its question. */
 export interface AssistantSendResult {
+  /** The content attempt that won request_id, when the caller supplied one; replays and read-only checks preserve it. */
+  submission_id?: string;
   work: AssistantWork;
   outcome: "started" | "steered" | "queued" | "answered" | "repeated";
   run_id?: string;
@@ -588,24 +599,21 @@ export interface AssistantUsage {
   daily_tokens: number | null;
 }
 
-/** A method a Plugin offers for business work that a work in this scope can use (registered with the Host). */
-export interface AssistantMethodSelection {
-  method_id: string;
-  version?: number;
-  default_ref?: SignedAgentReference;
-  installation?: SignedAgentInstallation;
-}
+/**
+ * What the person chose with “/” for one round (specs/capability-pack/contract-design.md §2.2): a Skill of the shared catalog by its exact
+ * reference, or a signed package's role material by its signed default and installation. Nothing else names a method.
+ */
+export type AssistantMethodSelection =
+  | { kind: "skill"; ref: SkillRef }
+  | { kind: "role"; /** `signed/<role_id>`. */ method_id: string; version?: number; default_ref: SignedAgentReference; installation: SignedAgentInstallation };
 
-export interface AssistantMethod extends AssistantMethodSelection {
-  kind?: "role" | "method";
-  /** `<plugin_id>/<skill_id>`. */
-  method_id: string;
-  plugin_id: string;
-  plugin_title: string;
-  version: number;
-  name: string;
-  summary: string;
-}
+/**
+ * What a work in this scope may follow: a Skill the shared catalog (`skills.catalog.list@1`) offers the Assistant here, or a signed
+ * package's role material.
+ */
+export type AssistantMethod =
+  | { kind: "skill"; skill: SkillCatalogEntry }
+  | (Extract<AssistantMethodSelection, { kind: "role" }> & { plugin_id: string; plugin_title: string; version: number; name: string; summary: string });
 
 /**
  * `material`: new items elsewhere (Feed, Inbox…) that share a Goal with the work — a light notice, merged per work.

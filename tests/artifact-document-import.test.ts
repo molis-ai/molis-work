@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { createRequire } from "node:module";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -10,7 +10,7 @@ import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contrac
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { MolisWorkLocalHost, withConnectorConnections, DEMO_PROJECT_ID, LocalProjectDatabase, openProjectVersionStores, homeIntegrationRegistry, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { artifactsActions, artifactAnalysisContext, artifactOriginalPath, DOCUMENT_ARTIFACT_TYPE, DOCUMENT_IMPORT_MAX_BYTES, importArtifactDocument, type ArtifactDocumentImportPorts, type ImportedArtifactDocument } from "@molis-ai/molis-work-module-artifacts";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { documentImportConnections, importLocalArtifactDocument } from "../apps/local-host/dist/artifact-document-import.js";
 import { blankPng, epub, odt, pptx, rtf, xlsx } from "./fixtures/office-files.js";
 import { GoalProjectApplication, boardSnapshot, seedBoard } from "./fixtures/goal-application.js";
@@ -319,8 +319,13 @@ test("catalog project HTTP imports keep independent snapshots and all read paths
     assert.throws(() => catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "artifacts", actor_id: "fixture-user" }),
       (error: unknown) => error instanceof Error && "code" in error && error.code === "catalog.plugin_not_found");
   }
+  // Each project reads its references in its output folder: both set the same folder as their output.
+  const outputFolder = join(directory, "shared-output");
+  await mkdir(outputFolder, { recursive: true });
+  await writeFile(join(outputFolder, "result.txt"), "Explicit configured workspace result");
+  for (const project of [alpha, beta]) catalog.changeDirectories({ project_id: project.project_id, actor_id: "fixture-user",
+    change: { kind: "set_output", target: { workspace_path: outputFolder } }, expected_revision: catalog.projectDirectories(project.project_id).revision });
   catalog.close();
-  await writeFile(join(directory, "result.txt"), "Explicit configured workspace result");
   server = createMolisWorkWebServer({ homeDirectory: directory, projectRoot: directory, controlToken });
   await new Promise<void>(resolve => server!.listen(0, "127.0.0.1", resolve));
   const address = server.address();

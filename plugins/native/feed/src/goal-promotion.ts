@@ -9,9 +9,9 @@ const wholeCharacters = (text: string, max: number) => [...text.slice(0, 2 * max
 
 /** The three Goals actions a promotion calls, by id and version as the action directory lists them (PG-111). */
 const GOALS = {
-  directoryItem: { capability_id: "goals.directory.read", version: 1 },
-  create: { capability_id: "goals.create", version: 1 },
-  inputsConfirm: { capability_id: "goals.inputs.confirm", version: 1 },
+  directoryItem: { capability_id: "goals.directory.read", version: /* @version action.goals.directory.read */ 1 },
+  create: { capability_id: "goals.create", version: /* @version action.goals.create */ 1 },
+  inputsConfirm: { capability_id: "goals.inputs.confirm", version: /* @version action.goals.inputs.confirm */ 1 },
 } as const;
 
 /**

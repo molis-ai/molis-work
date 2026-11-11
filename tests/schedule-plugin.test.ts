@@ -3,18 +3,18 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
-import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
+import { fillMessage, parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import type { ScheduleJobRecord } from "@molis-ai/molis-work-contracts/services/scheduler";
 import type { StagePageModel } from "@molis-ai/molis-work-contracts/platform/ui";
 import {
-  SCHEDULE_CLIENT_FACTORY_SCRIPT,
+  SCHEDULE_CLIENT_FACTORY_SCRIPT, SCHEDULE_MESSAGES,
   SCHEDULE_UI_CONTRIBUTION_ID,
   createScheduleActionHandlers,
   createScheduleRouteHandlers,
   createSchedulePlugin,
-  scheduleUiContribution,
+  scheduleUiContribution, scheduleManifest,
   type ScheduleConversationTaskView,
   type ScheduleStageData,
   type ScheduleUiModel,
@@ -128,7 +128,9 @@ test("Workbench registers the Schedule UI Contribution through the generic UI Ho
   assert.match(empty, /还没有定时任务/);
   assert.match(empty, /新建定时任务/);
   assert.match(empty, /到点会在它自己的对话里跑一轮只读 Agent/);
-  assert.match(empty, /data-schedule-create-dialog/);
+  // New tasks are written in the detail pane, not a dialog (batch 18 P2, decided 2026-11-04).
+  assert.match(empty, /<section[^>]*data-schedule-create-pane[^>]*hidden>/);
+  assert.doesNotMatch(empty, /data-schedule-create-dialog/);
   assert.doesNotMatch(empty, /这里只负责闹钟/);
   assert.doesNotMatch(empty, /data-directory-panel="schedule"/);
   const populated = host.render({
@@ -265,4 +267,16 @@ test("启用 Schedule 后导航出现且没有第二列目录", () => {
   assert.match(html, /data-work-surface="schedule" data-work-surface-label="Schedule"/);
   const documents = [...html.matchAll(/<script type="application\/json" data-plugin-document>([^<]+)<\/script>/g)].map(match => JSON.parse(match[1]!));
   assert.ok(documents.some(document => /data-work-surface="schedule"/.test(document) && /data-schedule-job-id="job-1"/.test(document)), 'the actual Schedule projection is inert until mounted in its isolated frame');
+});
+
+test("N0705 rendered permission-read warning distinguishes retrying the read from the due task run in both languages", () => {
+  const host = new UiHost(); host.register({ ...scheduleUiContribution, descriptor: { ...scheduleUiContribution.descriptor, plugin_id: scheduleManifest.plugin_id } });
+  for (const locale of ["zh", "en"] as const) {
+    const text: typeof primitives.text = (key, values) => fillMessage(SCHEDULE_MESSAGES[key as keyof typeof SCHEDULE_MESSAGES]?.[locale] ?? key, values);
+    const html = host.render({ contribution_id: SCHEDULE_UI_CONTRIBUTION_ID, surface: "workbench", model: { ...model({ tasks: [task()] }), primitives: { ...primitives, text } } });
+    const warning = html.match(/<div[^>]*data-schedule-reads-failed[\s\S]*?<\/div>/u)?.[0] ?? "";
+    assert.match(warning, locale === "zh" ? /可重试读取/u : /retry reading them/u);
+    assert.match(warning, locale === "zh" ? /届时仍读不到则本轮失败/u : /that run fails/u);
+    assert.doesNotMatch(warning, /last confirmed|上次确认/u);
+  }
 });

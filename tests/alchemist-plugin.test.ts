@@ -13,6 +13,10 @@ const primitives = {
   text: (value: string) => value,
 };
 
+test("VG-21 the served client finds a pulse job by the same string it always did, now that the table holds its version", () => {
+  assert.equal(ALCHEMIST_CLIENT_FACTORY_SCRIPT.split("j.kind==='discovery.pulse.v1'").length, 2);
+});
+
 test("炼金术士是个人侧栏插件，舞台挂载完整工作面", () => {
   parsePluginManifest(alchemistManifest);
   assert.equal(alchemistManifest.kind, "native");

@@ -1,4 +1,4 @@
-import { effectsFromContract } from '@molis-ai/molis-work-plugin-sdk';
+import { canonicalJsonValue as canonical, effectsFromContract } from '@molis-ai/molis-work-plugin-sdk';
 import { constants } from 'node:fs';
 import { mkdir, readdir, realpath, writeFile, open, lstat } from 'node:fs/promises';
 import { dirname, join, resolve, relative, isAbsolute } from 'node:path';
@@ -10,7 +10,7 @@ import { sdkDeclarations } from './build-sdk-declarations.js';
 
 export const SDK_MODULE = '@molis/plugin-sdk';
 export function buildManifest(contract: SandboxPluginContract): BuildManifest {
-  return { version: 1, pluginId: contract.pluginId, revision: contract.revision, effects: effectsFromContract(contract) };
+  return { version: /* @version format.builder.build-manifest */ 1, pluginId: contract.pluginId, revision: contract.revision, effects: effectsFromContract(contract) };
 }
 export function operationEntry(contract: SandboxPluginContract): string {
   return contract.operations.map((_op, index) => `import operation${index} from './operations/${index}.js';`).join('\n')
@@ -80,7 +80,7 @@ await assert.rejectsCode(() => call(input), 'code'). Every test must assert some
       },
     ];
 `);
-  await writeFile(join(root, 'package.json'), JSON.stringify({ name: 'generated-plugin', version: '0.0.0', private: true, type: 'module', dependencies: {} }, null, 2), { flag: 'wx', mode: 0o600 });
+  await writeFile(join(root, 'package.json'), JSON.stringify({ name: 'generated-plugin', version: "0.0.0", private: true, type: 'module', dependencies: {} }, null, 2), { flag: 'wx', mode: 0o600 });
   const operationFiles: Record<string, string> = {}, testFiles: Record<string, string> = {};
   for (const [index, operation] of contract.operations.entries()) {
     const operationPath = join(root, `src/operations/${index}.ts`), testPath = join(root, `tests/operations/${index}.ts`);
@@ -94,11 +94,6 @@ await assert.rejectsCode(() => call(input), 'code'). Every test must assert some
 /** The generated implementation an operation starts from; checks and G4 recognise it by NOT_IMPLEMENTED. */
 export function operationStub(operationId: string): string {
   return `import type { SandboxJson, SandboxSdk } from '${SDK_MODULE}';\nexport default async function operation(_input: SandboxJson, _sdk: SandboxSdk): Promise<SandboxJson> {\n  throw Object.assign(new Error('Implement ${operationId}'), { code: 'NOT_IMPLEMENTED' });\n}\n`;
-}
-export function canonical(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(canonical);
-  if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b)).map(([key, item]) => [key, canonical(item)]));
-  return value;
 }
 /** Carry authored helpers and dependency declarations, never generated entrypoints, installed packages or grants. */
 async function copyBuildRevisionInputs(source: string, target: string, reuseHelpers: boolean): Promise<void> {

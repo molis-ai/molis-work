@@ -2,7 +2,8 @@ import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { constants } from "node:fs";
 import { lstat, open, readFile, realpath, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { assertPluginPackagePath, parsePluginPackage } from "@molis-ai/molis-work-plugin-runtime";
+import { assertPluginLocales, assertPluginPackagePath, parsePluginPackage, pluginLocaleFilePaths } from "@molis-ai/molis-work-plugin-runtime";
+import { parsePluginPackageManifest } from "@molis-ai/molis-work-plugin-sdk";
 import type { PluginPackageBundle } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 const MAX_BUNDLE_BYTES = 64 * 1024 * 1024;
@@ -49,6 +50,16 @@ export async function packageFileReader(directory: string): Promise<(name: strin
   };
 }
 
+/** A declared language's file, or `null` when it is not there: the rules in `locale-packs.ts` say what that means. A link or anything else that is no plain file is still refused. */
+export async function readLocaleFileOrNull(read: Awaited<ReturnType<typeof packageFileReader>>, name: string): Promise<Buffer | null> {
+  try {
+    return await read(name);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw error;
+  }
+}
+
 export async function packPluginProject(directory: string, output: string): Promise<PluginPackageBundle> {
   const read = await packageFileReader(directory);
   const packageBytes = await read("package.json");
@@ -61,7 +72,17 @@ export async function packPluginProject(directory: string, output: string): Prom
     files.push({ path: file, content_base64: (await read(file)).toString("base64") });
   }
   const manifest = JSON.parse(Buffer.from(files.find(file => file.path === "manifest.json")!.content_base64, "base64").toString("utf8")) as unknown;
-  const bundle = parsePluginPackage({ payload: { schema_version: 1, manifest, files }, signature: null, publisher_key: null });
+  // The Manifest already says which language files ship, so `files` does not have to say it again; one that is missing is `parsePluginPackage`'s to refuse.
+  for (const file of pluginLocaleFilePaths(parsePluginPackageManifest(manifest))) {
+    const bytes = files.some(({ path }) => path === file) ? null : await readLocaleFileOrNull(read, file);
+    if (bytes !== null) files.push({ path: file, content_base64: bytes.toString("base64") });
+  }
+  const bundle = parsePluginPackage({ payload: { schema_version: /* @version format.plugin.package */ 1, manifest, files }, signature: null, publisher_key: null });
+  const packed = new Map(bundle.payload.files.map(({ path, content_base64 }) => [path, content_base64]));
+  assertPluginLocales(bundle.payload.manifest, (path) => {
+    const content = packed.get(path);
+    return content === undefined ? null : Buffer.from(content, "base64").toString("utf8");
+  });
   await writePluginPackageFile(output, bundle);
   return bundle;
 }

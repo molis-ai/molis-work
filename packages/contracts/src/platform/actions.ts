@@ -1,5 +1,6 @@
 export * from "./action-scene-configuration.js";
 export * from "./action-result.js";
+export * from "./action-input.js";
 export * from "./action-execution.js";
 import { ActionError, type ActionErrorKind } from "./action-errors.js";
 export * from "./action-errors.js";
@@ -13,6 +14,7 @@ export * from "./action-offers.js";
 export * from "./action-usages.js";
 export * from "./action-subjects.js";
 import type { HostCapabilityDescriptor } from "./app-host.js";
+export * from "./action-named-skills.js";
 import type { WorkflowContentStation } from "./workflow-content.js";
 import type { PlacementRelationDeclaration } from "./placement.js";
 export * from "./workflow-content.js";
@@ -23,6 +25,7 @@ export * from "./action-fragments.js";
 import type { ActionAttach, ActionIntake } from "./item-intake.js";
 export * from "./item-intake.js";
 import type { FileSourceDeclaration } from "./file-sources.js";
+import type { ComposerSourceDeclaration } from "./composer.js";
 export * from "./file-sources.js";
 export * from "./artifact-pins.js";
 export * from "./local-person.js";
@@ -103,6 +106,14 @@ export interface StageSceneMetadataAuthority {
   readonly actions: readonly ExactActionReference[];
 }
 
+/** The identity the Host binds to one adopted homepage or preview in a project. */
+export interface HomePageSubject {
+  readonly kind: "home-page" | "home-page-preview";
+  readonly project_id: string;
+  readonly page_id: string;
+  readonly version: number;
+}
+
 /** Supplied by the authenticated host, never taken from model/tool arguments. */
 export interface ActionCallContext extends ActionCallOrigin {
   /** Host-only capture for one exact subject-state call; never business input. */
@@ -127,12 +138,14 @@ export interface ActionCallContext extends ActionCallOrigin {
   readonly assistant_reply?: import("../services/assistant.js").AssistantReplyDelivery;
   /** Optional page evidence supplied by a protected entry adapter, never business/model input. */
   readonly page_context?: { readonly url: string | null; readonly title: string | null; readonly provenance: "host_snapshot" | "client_reported" };
-  /**
-   * The language of the page the call came from, which the Host resolves from the request (the page's language cookie, else
-   * Accept-Language). It only picks the words a handler sends back to be shown; it grants nothing and is never read from
-   * business input. Absent when no page asked (a model's tool call, a timer): the handler uses its own default.
-   */
+  /** The page's language (from the request: language cookie, else Accept-Language), or the one a delegating round hands on. It picks
+   * only shown words and a round's reply language; grants nothing, is never business input; absent otherwise (handlers use a default). */
   readonly locale?: ActionLocale;
+  /** Host-only: Skills named by the routed naming envelope or the Host's `run.start` call, bound to that installation and action; not
+   * carried by nested or gateway calls; freezes only that round's `system.skills` reads. A `SkillRef` in action input names nothing. */
+  readonly named_skills?: import("./action-named-skills.js").ActionNamedSkills;
+  /** Host-only, on a round's own `system.skills` calls: the reads' `consumer`, the frozen `named` list, `engine: "local"` for `native_only`. */
+  readonly skill_round?: import("./action-named-skills.js").ActionSkillRound;
   /** Optional historical author supplied by a trusted adapter; grants still belong to actor_id. Never business input. */
   readonly audit_actor_id?: string;
   /**
@@ -281,6 +294,8 @@ export interface ActionMetadata {
   readonly search_source?: SearchSourceDeclaration;
   /** A side panel file source: the file kinds it lists (or previews) and where each opens (specs/archive/side-panel §3.3). */
   readonly file_source?: FileSourceDeclaration;
+  /** A source in the unified input's `+` menu: what it is called, the kinds it picks and which composers list it (specs/unified-input-voice/implementation-plan.md §3.3). */
+  readonly composer_source?: ComposerSourceDeclaration;
   /** Common owner protocol for reading a discussion and committing its fixed reply destination. */
   readonly thread_source?: { readonly role: "context" | "reply"; readonly subject_kind: string };
   /**
@@ -374,6 +389,14 @@ export interface ActionProvider {
    * under its installation id, so `provider_id` alone does not say which installation a registration belongs to.
    */
   readonly plugin_install_id?: string;
+  /**
+   * A provider of the Host's own (`kind` `system`) declares itself, where the Host registers it, as one a background task may be given
+   * to read (`agent.task_grants`): then its agent-audience read-only queries are one category, granted only when the person turns it
+   * on. Only a provider that reads within the calling project, never across plugins, declares it. An external MCP source (`kind`
+   * `mcp`) must not declare it: it is never a task's category (S-task-grant-subjects ⑥). A plugin is offered by its Manifest's read groups and does
+   * not need it (specs/proactive-assistant/schedule-task-reads.md §3.2).
+   */
+  readonly task_readable?: true;
 }
 
 export type ActionAvailability = { readonly available: true } | {

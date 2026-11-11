@@ -75,10 +75,16 @@ export class ContinuityService {
       const result = await operation(bound,validate); validate(); return result;
     } finally { clearTimeout(timeout);this.active.delete(active); }
   }
-  private async goal(bound: BoundActions, goalId: string): Promise<GoalProjection> {
-    const state = await this.actions.invoke<GoalStateFacts>(bound,"goals.state.read",{goal_id:goalId});
-    return {goal_id:goalId,title:state.intent.title,outcome:state.agreement.outcome,status:state.work_status,cursor:state.goal_event_cursor,
-      can_record:state.can_record,summary:state.progress_summary?.summary ?? "",next_step:state.progress_summary?.next_step ?? "",next_actor:state.progress_summary?.next_actor ?? "",updated_at:state.progress_summary?.recorded_at ?? null};
+  private async goals(bound: BoundActions, goalIds: string[]): Promise<GoalProjection[]> {
+    if (!goalIds.length) return [];
+    const records = await this.actions.invoke<Array<{ goal_id: string; state: GoalStateFacts }>>(bound,"goals.states.read",{goal_ids:[...new Set(goalIds)]});
+    const states = new Map(records.map(record => [record.goal_id, record.state]));
+    return goalIds.map(goal_id => {
+      const state = states.get(goal_id);
+      if (!state) throw new ImError("im.continuity.goal_missing", "共享目标状态不完整", 503);
+      return {goal_id,title:state.intent.title,outcome:state.agreement.outcome,status:state.work_status,cursor:state.goal_event_cursor,
+        can_record:state.can_record,summary:state.progress_summary?.summary ?? "",next_step:state.progress_summary?.next_step ?? "",next_actor:state.progress_summary?.next_actor ?? "",updated_at:state.progress_summary?.recorded_at ?? null};
+    });
   }
   private async artifacts(bound: BoundActions, scope: ProjectScope, team: boolean): Promise<ArtifactVersionRecord[]> {
     const records: ArtifactVersionRecord[] = [];
@@ -93,7 +99,7 @@ export class ContinuityService {
   async read(session: Session, projectId: string) {
     return this.authorized(session,projectId,"viewer",async (bound,validate) => {
       const scope = this.scope(projectId), role = this.identity.access(session,projectId);
-      const goals = await Promise.all(scope.goal_ids.map(id => this.goal(bound,id)));
+      const goals = await this.goals(bound,scope.goal_ids);
       const artifacts = await this.artifacts(bound,scope,role !== "owner"); validate();
       return {project:{id:scope.id,title:scope.title,role},goals,artifacts:artifacts.map(a => ({artifact_id:a.artifact_id,version:a.version,
         title:a.title,
@@ -161,8 +167,8 @@ export class ContinuityService {
     return this.authorized(session,projectId,"viewer",async (bound,validate) => {
       const scope = this.scope(projectId), role = this.identity.access(session,projectId);
       const artifacts = await this.artifacts(bound,scope,role !== "owner");
-      const goals = await Promise.all(scope.goal_ids.map(id => this.goal(bound,id))); validate();
-      return {format:"molis-work-assets",version:1,source_project_id:projectId,title:scope.title,goals,
+      const goals = await this.goals(bound,scope.goal_ids); validate();
+      return {format:"molis-work-assets",version:/* @version format.asset.bundle */1,source_project_id:projectId,title:scope.title,goals,
         artifacts:artifacts.map(a => ({artifact_id:a.artifact_id,version:a.version,artifact_type_id:a.artifact_type_id,schema_version:a.schema_version,
           owner_actor_id:a.owner_actor_id,producer:{plugin_id:a.producer_plugin_id,plugin_version:a.producer_plugin_version,binding_signature:a.producer_binding_signature},
           content:a.content_kind === "inline" ? {kind:"inline",payload:a.payload} : {kind:"reference",content_ref:`unavailable://${encodeURIComponent(a.artifact_id)}/${a.version}`,digest:a.content_digest,size_bytes:a.size_bytes,available:false},

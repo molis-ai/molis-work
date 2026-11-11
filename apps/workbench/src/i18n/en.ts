@@ -1,6 +1,9 @@
+import { IM_EN } from "@molis-ai/molis-work-im-ui";
+import { SKILLS_EN } from "./skills-en.js";
 import { ARTIFACT_EN } from "../artifacts/en.js";
 import { FUNCTIONS_EN } from "../judgment-rules/en.js";
 import { GAP_EN } from "./gap-en.js";
+import { ACCOUNT_EN } from "./account-en.js";
 import { INFORMATION_LOOP_EN } from "./information-loop-en.js";
 import { ASSISTANT_EN } from "./assistant-en.js";
 import { PLACEMENT_EN } from "./placement-en.js";
@@ -14,14 +17,18 @@ import { HOME_EN } from "./home-en.js";
 import { FLOW_EN } from "./flow-en.js";
 import { MEMORY_EN } from "./memory-en.js";
 import { KNOWLEDGE_EN } from "./knowledge-en.js";
+import { KIT_EN } from "./kit-en.js";
 import { SHARED_WORDS_EN } from "./shared-words-en.js";
 import { PLUGIN_TRUST_EN } from "./plugin-trust-en.js";
 import { SERVICE_CONNECTION_EN } from "./service-connection-en.js";
 import { MODEL_SETTINGS_EN } from "./model-settings-en.js";
+import { TASK_GRANTS_AREA_EN } from "./task-grants-area-en.js";
+import { CONNECTION_NEED_EN } from "./connection-need-en.js";
+import { TASK_GRANTS_PAGE_EN } from "./task-grants-page-en.js";
 /** Existing Workbench English catalog, isolated from locale runtime state in AP3. */
 export const EN: Record<string, string> = {
+  ...IM_EN,
   "角色资料": "Role material",
-  "角色资料与方法": "Role materials and methods",
   "新增正文": "Body added",
   "正文已变化": "Body changed",
   "已移除正文": "Body removed",
@@ -33,6 +40,9 @@ export const EN: Record<string, string> = {
   ...SIDE_PANEL_EN,
   ...SERVICE_CONNECTION_EN,
   ...MODEL_SETTINGS_EN,
+  ...TASK_GRANTS_AREA_EN,
+  ...CONNECTION_NEED_EN,
+  ...TASK_GRANTS_PAGE_EN,
   "连接不可用": "Connection unavailable",
   "原连接已不可用，请重新选择": "Previous connection unavailable; choose another",
   "官方连接方式": "Official connection methods",
@@ -92,7 +102,7 @@ export const EN: Record<string, string> = {
   "处理文件回退": "Review file rollback",
   "回退待处理": "Rollback needs attention",
   "有阻塞": "Blocked",
-  "本轮子任务 · {count}": "Subtasks in this run · {count}",
+  "本轮子任务 · {count}": "Sub-tasks in this run · {count}",
   "当前计划 · 修订 {revision} · {state}": "Current plan · Revision {revision} · {state}",
   "本轮固定计划 · 修订 {revision}": "Frozen plan for this run · Revision {revision}",
   "原会话暂不可读，请刷新后重试。": "The original session is unavailable. Refresh and retry.",
@@ -100,12 +110,12 @@ export const EN: Record<string, string> = {
   "这轮引用的固定计划暂不可读；当前草稿不能替代原版本。": "The frozen plan referenced by this run is unavailable. The current draft cannot replace it.",
   "任务暂不可读：{message}；已显示内容可能过期。": "Task unavailable: {message}. Displayed content may be stale.",
 
-  "整合子任务成果": "Integrate subtask changes",
+  "整合子任务成果": "Integrate sub-task changes",
   "查看成果并整合": "Review and integrate changes",
   "重新读取成果": "Reload changes",
   "准备整合审查": "Prepare integration review",
   "这里显示子工作树的当前内容。选择带回的文件，经宿主审查后只更新主工作区；保留其他修改、暂存区与子工作树。整合不代表测试通过或用户验收。": "These are the current child-worktree contents. Select files to bring back through Host review. Other changes, the index and child worktree are preserved. Integration does not imply passing tests or user acceptance.",
-  "可选作下一轮工作区，或勾选目录并填写并行分工。保存分工后选择「并行写入」再发送；每项修改和命令仍需审查。子任务结束后可从结果区查看并选择成果，另经审查带回主工作区。": "Use a directory for the next run, or select directories and assign parallel tasks. Save assignments, then send using Parallel writing. Changes and commands need review. After a subtask ends, review its results and select files to integrate through a separate review.",
+  "可选作下一轮工作区，或勾选目录并填写并行分工。保存分工后选择「并行写入」再发送；每项修改和命令仍需审查。子任务结束后可从结果区查看并选择成果，另经审查带回主工作区。": "Use a directory for the next run, or select directories and assign parallel tasks. Save assignments, then send using Parallel writing. Changes and commands need review. After a sub-task ends, review its results and select files to integrate through a separate review.",
   "整合选定成果到主工作区": "Integrate selected changes into the main workspace",
   "来源目录": "Source directory",
   "目标目录": "Target directory",
@@ -120,7 +130,7 @@ export const EN: Record<string, string> = {
   "已准备审查。执行状态以下方原回执为准。": "Review prepared. See the original receipt below for execution status.",
   "正在准备整合审查…": "Preparing integration review…",
   "这个独立工作树相对原基线没有变更。": "This worktree has no changes relative to its original base.",
-  "正在读取原子任务的当前成果…": "Reading the original subtask’s current changes…",
+  "正在读取原子任务的当前成果…": "Reading the original sub-task’s current changes…",
   "原成果操作仍在处理，请稍后重新打开": "The previous integration operation is still being processed. Open it again shortly.",
 
   ...INFORMATION_LOOP_EN,
@@ -332,7 +342,7 @@ export const EN: Record<string, string> = {
   "导入本地知识，带来源检索问答。": "Import local knowledge; search and ask with sources.",
   "定义 AI 做事方式，供任务选用。": "Define how an AI works, for tasks to pick.",
   "写下方向，炼成可比较的卡再决定。": "Write a direction, refine it into comparable cards, then decide.",
-  "和 Agent 一起写代码，留每轮记录。": "Write code with an Agent; every round is kept.",
+  "和 Agent 一起写代码，留每轮记录。": "Write code with an Agent; every turn is kept.",
   "导入本地知识，带着来源检索和问答。": "Import local knowledge, then search and ask with sources kept.",
   "用自然语言设计、构建并使用自己的插件。": "Design, build and use your own plugin in plain language.",
   "连接生图服务，用一句描述生成图片。": "Connect an image service and generate pictures from a description.",
@@ -349,7 +359,7 @@ export const EN: Record<string, string> = {
   "写大纲，直接放映，或导出 PowerPoint。": "Write an outline, present it, or export to PowerPoint.",
   "写下方向，炼成可比较的卡，再决定做不做。": "Write down a direction, refine it into comparable cards, then decide.",
   "把几个插件串成一条流程，一步步做完。": "Chain plugins into one flow and finish it step by step.",
-  "和 Agent 一起写代码，保留每一轮记录。": "Write code with an Agent; every round is kept.",
+  "和 Agent 一起写代码，保留每一轮记录。": "Write code with an Agent; every turn is kept.",
   "查看工作区文件与保留的内容。": "Browse workspace files and what was captured.",
   "查看工作区的版本与变更。": "See the workspace's versions and changes.",
   "比较固定版本，逐项阅读差异。": "Compare fixed versions and read each difference.",
@@ -379,6 +389,24 @@ export const EN: Record<string, string> = {
   "项目已从目录移除，但本机数据清理未完成。请重试清理。": "The project has been removed from the directory, but local data cleanup is incomplete. Please retry cleanup.",
   "重试清理": "Retry cleanup",
   "请明确确认删除项目，并提供有效的删除请求键。": "Confirm project deletion and provide a valid deletion request key.",
+  "默认输出目录里的文件只能选择留下或删除。": "The files in the default output folder can only be kept or deleted.",
+  "默认输出目录里还有文件，要怎么处理？": "The default output folder still has files. What should happen to them?",
+  "删除项目，文件留下": "Delete the project, keep the files",
+  "默认输出目录原样留在这台电脑上，删除后告诉你它在哪里。": "The default output folder stays on this Mac as it is; after deleting, you'll see where.",
+  "删除项目和文件": "Delete the project and the files",
+  "默认输出目录和里面的文件一起删掉，包括还没提交的代码。": "The default output folder goes with its files, including code not yet committed.",
+  "两种都会永久删除项目，不能撤销。": "Both delete the project for good. This can't be undone.",
+  "永久删除这个项目在 Molis Work 中的目标、记录和关联。你自己选的文件夹里的代码和文件会保留。": "Permanently delete this project's goals, records and links in Molis Work. Code and files in folders you chose stay.",
+  "现在删不干净这些文件": "These files can't be deleted cleanly right now",
+  "这个项目还有任务在运行或排队，它们可能还在往这个文件夹里写。等任务结束，或者先在项目里停下它们，再来删除；也可以留下文件，现在就删除项目。": "This project still has tasks running or queued, and they may still be writing to this folder. Wait for them to finish, or stop them in the project first, then delete; or keep the files and delete the project now.",
+  "改成留下文件": "Keep the files instead",
+  "项目已删除": "Project deleted",
+  "默认输出目录留在这台电脑上": "The default output folder stays on this Mac",
+  "复制位置": "Copy location",
+  "没能复制": "Couldn't copy",
+  "文件夹以项目编号命名，Molis Work 里不会再列出它。要用里面的文件，到这个位置去找。": "The folder is named by the project's number and Molis Work won't list it again. To use its files, go to this location.",
+  "里面有文件，删除时没有动它们。": "It had files in it, so they were left alone. ",
+  "回到项目列表": "Back to projects",
   "请先关闭这个项目中正在运行的终端，再删除项目。": "Close the running terminals in this project before deleting it.",
   "这个项目还有未结束的执行记录，请结束工作后再删除。": "This project has unfinished execution records. Finish the work before deleting it.",
   "返回 Feed 列表": "Back to Feed list",
@@ -1086,6 +1114,10 @@ export const EN: Record<string, string> = {
   "没有可探测的 Runtime": "No Runtime could be detected",
   "Molis Work 本体仍可使用；稍后安装 Runtime 后再回来检查。": "Molis Work itself still works. Come back after you install a Runtime.",
   "当前自动适配 Codex、Claude Code、OpenCode、Pi Agent 和 Grok Build。每次确认只对应当前 Runtime 和当前预览；配置在预览后变化时会要求重新生成。": "Codex, Claude Code, OpenCode, Pi Agent, and Grok Build are adapted automatically. Each confirmation is for the current Runtime and the current preview. If config changes after the preview, you will need a new one.",
+  "当前自动适配 Codex、Claude Code、OpenCode、Pi Agent 和 Grok Build。每次确认只对应当前 Runtime 和当前预览；配置在预览后变化时会要求重新生成。接入后，在对应的外部 Runtime 里新开会话即可使用。": "Codex, Claude Code, OpenCode, Pi Agent, and Grok Build are adapted automatically. Each confirmation is for the current Runtime and preview. If config changes after the preview, generate a new one. After connecting, a new session in the external Runtime picks it up.",
+  "发布者身份": "Publisher identity",
+  "查看并复制完整签名": "See and copy the full signature",
+  "发布者签名": "Publisher signature",
   "切换到": "Switch to",
   "确认只把这个 Session 从“{name}”切换到所选项目": "Confirm switching only this Session from “{name}” to the selected project",
   "确认切换": "Confirm switch",
@@ -1194,7 +1226,6 @@ export const EN: Record<string, string> = {
   "待决定": "Waiting for you",
   "查看回收站": "View trash",
   "打开 Molis Work 设置": "Open Molis Work settings",
-  "收起": "Collapse all",
   "移动端视图": "Mobile view",
   "Goal 正文": "Goal document",
   "调整 Goal Tree 宽度": "Resize Goal Tree",
@@ -2004,7 +2035,7 @@ Object.assign(EN, {
   "代码与发布": "Code & shipping",
   "任务与知识": "Tasks & knowledge",
   "设计": "Design",
-  "客户与增长": "Customers",
+  "客户与销售": "Customers & sales",
   "社交": "Social",
   "本机只显示令牌末四位": "This computer only shows the last four characters of the token",
   "账号属于这台电脑上的人，不是某个项目。凭据只进本机 SecretStore，这里不显示明文。": "The account belongs to the person on this computer, not to a project. Credentials go into the local SecretStore only; this page does not show them in plaintext.",
@@ -2815,8 +2846,6 @@ Object.assign(EN, {
   "预期效果": "Expected effect",
   "本次不改变": "What this change does not alter",
   "没有额外非目标": "No additional non-goals",
-  "这份历史方案缺少整体验证说明": "This historical proposal lacks a whole-change explanation",
-  "它创建于语义摘要成为大型提案必填项之前。请先让 Runtime 补充原问题、变更后的主链路、预期效果和非目标，再决定是否采用。": "It predates the required semantic summary for large proposals. Ask the Runtime to add the original problem, new main path, expected effect, and non-goals before deciding.",
   "主要解决": "Problem addressed",
   "会改变什么": "What changes",
   "明确不改变": "What stays unchanged",
@@ -3209,4 +3238,4 @@ Object.assign(EN, {
   "继续前必须打开「显式继续」并填写原因。": "Before continuing, open Resume explicitly and give a reason.",
   "这条 Goal 已从日常列表移除，但内容和历史仍然保留。": "This Goal was removed from the active list; its content and history remain.",
 });
-Object.assign(EN, GAP_EN, FLOW_EN, MEMORY_EN, KNOWLEDGE_EN, PLUGIN_TRUST_EN);
+Object.assign(EN, SKILLS_EN, GAP_EN, ACCOUNT_EN, FLOW_EN, MEMORY_EN, KNOWLEDGE_EN, PLUGIN_TRUST_EN, KIT_EN);

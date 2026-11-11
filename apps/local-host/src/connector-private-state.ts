@@ -3,6 +3,7 @@ import { closeSync, constants, fstatSync, lstatSync, opendirSync, openSync, read
 import { dirname, isAbsolute, join, relative, sep } from "node:path";
 import { ActionError, defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openExistingHomePayload, sealExistingHomePayload, type SealedHomePayload } from "@molis-ai/molis-work-storage";
+import { compareCodeUnits } from "@molis-ai/molis-work-plugin-sdk";
 import { readManagedConnectorTool, inspectManagedConnectorToolSnapshot } from "./connector-tool-install.js";
 
 export const CONNECTOR_PRIVATE_STATE_OWNER = "connector-private-state";
@@ -54,14 +55,14 @@ function ownerRead<T>(read: () => T): T {
 }
 
 export interface ConnectorPrivateStateSnapshot {
-  schema_version: 1;
+  schema_version: /* @version format.connector.private-state */ 1;
   owner: typeof CONNECTOR_PRIVATE_STATE_OWNER;
   installations: Array<{ installation_id: string; source_sha256: string; payload: SealedHomePayload }>;
 }
 
 interface PrivateDirectory { relative_path: string; mode: number }
 interface PrivateFile extends PrivateDirectory { contents_base64: string }
-interface PrivateTree { schema_version: 1; root_present: boolean; directories: PrivateDirectory[]; files: PrivateFile[] }
+interface PrivateTree { schema_version: /* @version format.connector.private-state */ 1; root_present: boolean; directories: PrivateDirectory[]; files: PrivateFile[] }
 type RestoredTree = Omit<PrivateTree, "files"> & { files: Array<PrivateDirectory & { bytes: Buffer }> };
 
 /** Plaintext is returned only to an explicit restore owner, after all installations have passed preflight. */
@@ -141,7 +142,7 @@ function readPrivateFile(file: string, before: Stats): Buffer {
 }
 
 function captureTree(root: string, budget: ReadBudget): PrivateTree {
-  const tree: PrivateTree = { schema_version: 1, root_present: plainDirectory(root, true), directories: [], files: [] };
+  const tree: PrivateTree = { schema_version: /* @version format.connector.private-state */ 1, root_present: plainDirectory(root, true), directories: [], files: [] };
   if (!tree.root_present) return tree;
   budget.nodes();
   const pending = [{ directory: root, path: "" }];
@@ -161,7 +162,7 @@ function captureTree(root: string, budget: ReadBudget): PrivateTree {
       }
     }
   }
-  const byPath = (a: PrivateDirectory, b: PrivateDirectory) => a.relative_path < b.relative_path ? -1 : a.relative_path > b.relative_path ? 1 : 0;
+  const byPath = (a: PrivateDirectory, b: PrivateDirectory) => compareCodeUnits(a.relative_path, b.relative_path);
   tree.directories.sort(byPath); tree.files.sort(byPath);
   return tree;
 }
@@ -180,7 +181,7 @@ export function captureConnectorPrivateState(homeDirectory: string): ConnectorPr
       budget.sealed(Buffer.byteLength(payload.ciphertext));
       installations.push({ installation_id: id, source_sha256: owned.source, payload });
     }
-    return { schema_version: 1, owner: CONNECTOR_PRIVATE_STATE_OWNER, installations };
+    return { schema_version: /* @version format.connector.private-state */ 1, owner: CONNECTOR_PRIVATE_STATE_OWNER, installations };
   });
 }
 
@@ -197,7 +198,7 @@ const parent = (path: string) => { const value = dirname(path); return value ===
 function parseTree(contents: string, budget: ReadBudget): RestoredTree {
   let body: unknown;
   try { body = JSON.parse(contents); } catch { throw fail(); }
-  if (!record(body) || body.schema_version !== 1 || typeof body.root_present !== "boolean" || !Array.isArray(body.directories) || !Array.isArray(body.files)) throw fail();
+  if (!record(body) || body.schema_version !== /* @version format.connector.private-state */ 1 || typeof body.root_present !== "boolean" || !Array.isArray(body.directories) || !Array.isArray(body.files)) throw fail();
   budget.nodes(body.directories.length + body.files.length);
   const directories: PrivateDirectory[] = [], files: RestoredTree["files"] = [], names = new Set<string>();
   for (const entry of body.directories) {
@@ -219,7 +220,7 @@ function parseTree(contents: string, budget: ReadBudget): RestoredTree {
     names.add(entry.relative_path); files.push({ relative_path: entry.relative_path, mode: entry.mode, bytes });
   }
   if (!body.root_present && (directories.length || files.length)) throw fail();
-  return { schema_version: 1, root_present: body.root_present, directories, files };
+  return { schema_version: /* @version format.connector.private-state */ 1, root_present: body.root_present, directories, files };
 }
 
 function inspectDestination(root: string, tree: RestoredTree, budget: ReadBudget): void {
@@ -246,7 +247,7 @@ function inspectDestination(root: string, tree: RestoredTree, budget: ReadBudget
 export function preflightConnectorPrivateStateRestore(homeDirectory: string, snapshot: unknown, options: { readonly archiveDataDirectory?: string } = {}): ConnectorPrivateStateRestorePlan[] {
   return ownerRead(() => {
     const home = homeRoot(homeDirectory);
-    if (!record(snapshot) || snapshot.schema_version !== 1 || snapshot.owner !== CONNECTOR_PRIVATE_STATE_OWNER || !Array.isArray(snapshot.installations)) throw fail();
+    if (!record(snapshot) || snapshot.schema_version !== /* @version format.connector.private-state */ 1 || snapshot.owner !== CONNECTOR_PRIVATE_STATE_OWNER || !Array.isArray(snapshot.installations)) throw fail();
     if (snapshot.installations.length > MAX_NODES) throw overLimit();
     const budget = readBudget(), destination = readBudget(), ids = installationIds(installsRoot(home), budget);
     if (snapshot.installations.length !== ids.length) throw fail();

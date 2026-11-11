@@ -1,4 +1,5 @@
 import { dockDefaultPins, pluginStageSummaries } from "../../plugin-catalog.js";
+import { UNAVAILABLE_STAGE } from "../../unavailable-plugin-stage.js";
 /** Menus of the bottom bar and the stage: presentation only; opening one never selects or starts a tool. */
 export const NAVIGATION_PRESENTATION_SCRIPT = `(L) => {
   // Plugin list pages draw their heading from the surface's own label (craft-finish, "Plugin list pages").
@@ -31,13 +32,14 @@ export const NAVIGATION_PRESENTATION_SCRIPT = `(L) => {
   document.addEventListener('click', dismiss);
 }`;
 
-/** The bottom bar. Left: the Dock menu, 项目首页 and the plugins chosen to stay; those that do not fit fold into
- * one overflow button instead of running under the Assistant. Centre: the resident Assistant with the plugin
- * switcher in front of it — one plugin, or one per pane when the work area is split. Right: the side panel's one
- * button (Shelf, 灵光, files, browser, computer and discussion, beside the work), then the project with its menu. Every button opens
- * its plugin through the switcher's own entry, so navigation has one path. Choices here are per-viewer conveniences.
+/** The bottom bar in three zones (07-1 S4b). Left: the switcher as its glyph alone, whose name says what the work area shows
+ * (one plugin, or one per pane when split), then the Dock: 项目首页 and the project's plugins chosen to stay. Centre: the
+ * resident Assistant. Right: the person's own plugins chosen to stay (those the directory marks `personal`), then the project
+ * with its menu. One list of kept plugins feeds both trays; every button opens its plugin through the switcher's own entry, so
+ * navigation has one path. A plugin that did not start carries the amber point here and in the switcher. Choices here are
+ * per-viewer conveniences.
  *
- * What the Dock folds (`fit`): the pins leave from the end until the "+N" button fits with them, and 项目首页 never
+ * What a tray folds (`fit`): the pins leave from the end until the "+N" button fits with them, and 项目首页 never
  * folds (specs/craft-finish, round four). When even 项目首页 and "+N" do not fit (a phone's second row under 356px with
  * a directory button), the "+N" button goes too: the switcher lists every plugin, the kept ones included, so nothing is
  * lost. */
@@ -58,10 +60,17 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
   const picker = dock.querySelector('[data-plugin-picker]');
   const pickerToggle = dock.querySelector('[data-plugin-picker-toggle]');
   const pickerPopover = dock.querySelector('[data-plugin-picker-popover]');
+  const toast = document.querySelector('[data-toast]');
   const current = dock.querySelector('[data-plugin-picker-current]');
+  // The switcher is its glyph alone: its name says what the work area shows, so a screen reader hears where it is.
+  const nameSwitcher = (names) => {
+    const label = L('切换插件 · 现在：{now}').replace('{now}', names.join(L('、')));
+    if (pickerToggle && pickerToggle.getAttribute('aria-label') !== label) pickerToggle.setAttribute('aria-label', label);
+  };
   const setPicker = (open) => {
     if (!pickerPopover || !pickerToggle) return;
     pickerPopover.hidden = !open;
+    toast?.toggleAttribute('data-plugin-picker-open', open);
     pickerToggle.setAttribute('aria-expanded', String(open));
     if (open) pickerPopover.querySelector('.plugin-rail-items [aria-current], .plugin-rail-items [data-plugin-id]')?.focus(); else stopAsking();
   };
@@ -98,102 +107,125 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
       if (cover) {
         const source = document.querySelector('[data-cover-chip]');
         put(chipOf(' is-focused is-cover', source?.querySelector('svg')?.cloneNode(true), source?.querySelector(':scope > span')?.textContent || ''));
+        nameSwitcher([source?.querySelector(':scope > span')?.textContent || '']);
         current.parentElement?.classList.remove('is-split');
         dock.querySelectorAll('[data-dock-pin][aria-current]').forEach((button) => button.removeAttribute('aria-current'));
-        more?.classList.remove('has-current');
+        trays.forEach((tray) => tray.more.classList.remove('has-current'));
         return;
       }
       const entries = shown();
       put(...entries.map((entry) => chipOf(entry.focused ? ' is-focused' : '', glyphOf(entry.plugin), nameOf(entry.plugin))));
+      nameSwitcher(entries.map((entry) => nameOf(entry.plugin)));
       current.parentElement?.classList.toggle('is-split', entries.length > 1);
       dock.querySelectorAll('[data-dock-pin]').forEach((button) => {
         const id = button.dataset.dockPin;
         const on = entries.some((entry) => entry.plugin === id && entry.focused);
         if (on) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current');
       });
-      if (more) {
-        const hidden = [...pins.querySelectorAll('[data-dock-pin][hidden]')];
-        more.classList.toggle('has-current', hidden.some((pin) => pin.hasAttribute('aria-current')));
-      }
+      trays.forEach((tray) => tray.more.classList.toggle('has-current', [...tray.pins.querySelectorAll('[data-dock-pin][hidden]')].some((pin) => pin.hasAttribute('aria-current'))));
     });
   };
 
-  /* The Dock: 项目首页 always, then the plugins chosen with the button at the end of their entry in the switcher. */
+  /* The Dock: 项目首页 always, then the plugins chosen with the button at the end of their entry in the switcher; those in the
+     switcher's 个人 group (the tile says its group) sit in the right tray instead. */
   const PINS_KEY = 'molis-work:dock-pins';
   const DEFAULT_PINS = ${JSON.stringify(dockDefaultPins())};
-  const pins = dock.querySelector('[data-dock-pins]');
+  const pins = dock.querySelector('[data-dock-pins]'), own = dock.querySelector('[data-bar-own]');
+  const personal = new Set([...dock.querySelectorAll('[data-plugin-tile][data-rail-group="personal"]')].map((tile) => tile.dataset.pluginTile));
+  // A plugin that did not start keeps its place and its stage says why; wherever it is named here it carries the amber point.
+  const failed = (id) => Boolean(document.querySelector('[data-work-surface="' + CSS.escape(id) + '"]${UNAVAILABLE_STAGE}'));
+  const warn = (node, id) => { if (failed(id) && !node.querySelector(':scope > .nav-warn-dot')) node.insertAdjacentHTML('beforeend', '<span class="nav-warn-dot" aria-hidden="true"></span>'); };
+  rail().forEach((item) => warn(item, item.dataset.pluginId));
   const readPins = () => {
     try { const value = JSON.parse(localStorage.getItem(PINS_KEY) || 'null'); if (Array.isArray(value)) return value.filter((id) => typeof id === 'string'); } catch {}
     return DEFAULT_PINS.slice();
   };
   const makePin = (id, fixed, arriving = false) => {
     const source = railItem(id);
-    if (!source || !pins) return null;
+    if (!source) return null;
     const pin = document.createElement('button');
     pin.type = 'button'; pin.className = 'dock-pin' + (fixed ? ' is-fixed' : '') + (arriving ? ' is-arriving' : ''); pin.dataset.dockPin = id;
     if (arriving) pin.addEventListener('animationend', () => pin.classList.remove('is-arriving'), { once: true });
-    pin.title = labelOf(source); pin.setAttribute('aria-label', labelOf(source));
+    pin.title = labelOf(source); pin.setAttribute('aria-label', labelOf(source) + (failed(id) ? ' · ' + L('没能启动') : ''));
     const glyph = glyphOf(id); if (glyph) pin.append(glyph);
+    warn(pin, id);
     return pin;
   };
-  /* What does not fit folds into one button at the end of the Dock; its list opens above it. */
-  const more = pins && document.createElement('button');
-  const overflow = pins && document.createElement('div');
-  if (more && overflow) {
+  /* What does not fit in a tray folds into one button at its end; its list opens above it. */
+  const makeTray = (container, label) => {
+    if (!container) return null;
+    const more = document.createElement('button'), overflow = document.createElement('div');
     more.type = 'button'; more.className = 'dock-pin dock-pin-more'; more.dataset.dockMore = '';
     more.setAttribute('aria-haspopup', 'true'); more.setAttribute('aria-expanded', 'false');
     overflow.className = 'dock-overflow'; overflow.dataset.dockOverflow = ''; overflow.hidden = true;
-    pins.parentElement?.append(overflow);
-  }
-  const setOverflow = (open) => {
-    if (!more || !overflow) return;
-    if (open) {
-      overflow.replaceChildren(...[...pins.querySelectorAll('[data-dock-pin][hidden]:not(.is-leaving)')].map((pin) => {
-        const row = document.createElement('button');
-        row.type = 'button'; row.className = 'dock-overflow-item'; row.dataset.dockPin = pin.dataset.dockPin;
-        if (pin.hasAttribute('aria-current')) row.setAttribute('aria-current', 'page');
-        const glyph = glyphOf(pin.dataset.dockPin); if (glyph) row.append(glyph);
-        const name = document.createElement('span'); name.textContent = pin.getAttribute('aria-label') || ''; row.append(name);
-        return row;
-      }));
-      const origin = pins.parentElement?.getBoundingClientRect().left ?? 0;
-      overflow.style.left = Math.max(0, more.getBoundingClientRect().left - origin - 6) + 'px';
-    }
-    overflow.hidden = !open;
-    more.setAttribute('aria-expanded', String(open));
-    if (open) overflow.querySelector('button')?.focus();
+    container.parentElement?.append(overflow);
+    const tray = { pins: container, more, overflow };
+    tray.setOverflow = (open) => {
+      if (open) {
+        overflow.replaceChildren(...[...container.querySelectorAll('[data-dock-pin][hidden]:not(.is-leaving)')].map((pin) => {
+          const row = document.createElement('button');
+          row.type = 'button'; row.className = 'dock-overflow-item'; row.dataset.dockPin = pin.dataset.dockPin;
+          if (pin.hasAttribute('aria-current')) row.setAttribute('aria-current', 'page');
+          const glyph = glyphOf(pin.dataset.dockPin); if (glyph) row.append(glyph);
+          const name = document.createElement('span'); name.textContent = pin.getAttribute('aria-label') || ''; row.append(name);
+          warn(row, pin.dataset.dockPin);
+          return row;
+        }));
+        const origin = container.parentElement?.getBoundingClientRect() ?? { left: 0, right: 0 }, at = more.getBoundingClientRect();
+        // The right tray's list opens toward the middle of the window, as the left one's does.
+        if (container === own) { overflow.style.left = 'auto'; overflow.style.right = Math.max(0, origin.right - at.right - 6) + 'px'; }
+        else overflow.style.left = Math.max(0, at.left - origin.left - 6) + 'px';
+      }
+      overflow.hidden = !open;
+      more.setAttribute('aria-expanded', String(open));
+      if (open) overflow.querySelector('button')?.focus();
+    };
+    tray.fit = () => {
+      const all = [...container.querySelectorAll('[data-dock-pin]:not(.is-leaving)')];
+      all.forEach((pin) => { pin.hidden = false; });
+      more.remove();
+      if (container.scrollWidth <= container.clientWidth + 1) { tray.setOverflow(false); return; }
+      container.append(more);
+      // 项目首页 never folds; the right tray has no such pin and can fold every one of its own.
+      const keep = container === pins ? 1 : 0;
+      for (let index = all.length; --index >= keep && container.scrollWidth > container.clientWidth + 1;) all[index].hidden = true;
+      if (container.scrollWidth > container.clientWidth + 1) more.remove();
+      const count = all.filter((pin) => pin.hidden).length;
+      more.textContent = '+' + count;
+      more.title = label; more.setAttribute('aria-label', label + ' ' + count);
+      if (!overflow.hidden) tray.setOverflow(more.isConnected);
+    };
+    return tray;
   };
-  const fit = () => {
-    if (!pins || !more) return;
-    const all = [...pins.querySelectorAll('[data-dock-pin]:not(.is-leaving)')];
-    all.forEach((pin) => { pin.hidden = false; });
-    more.remove();
-    if (pins.scrollWidth <= pins.clientWidth + 1) { setOverflow(false); paintCurrent(); return; }
-    pins.append(more);
-    for (let index = all.length; --index > 0 && pins.scrollWidth > pins.clientWidth + 1;) all[index].hidden = true;
-    if (pins.scrollWidth > pins.clientWidth + 1) more.remove();
-    const count = all.filter((pin) => pin.hidden).length;
-    more.textContent = '+' + count;
-    more.title = L('更多常驻插件'); more.setAttribute('aria-label', L('更多常驻插件') + ' ' + count);
-    if (overflow && !overflow.hidden) setOverflow(more.isConnected);
-    paintCurrent();
-  };
-  // The Dock keeps the buttons it has: one that is kept stays where it is, a new one lands, one that goes lets go.
+  const trays = [makeTray(pins, L('更多常驻插件')), makeTray(own, L('你自己的'))].filter(Boolean);
+  const fit = () => { trays.forEach((tray) => tray.fit()); paintCurrent(); };
+  const closeOverflows = (except) => trays.forEach((tray) => { if (tray !== except && !tray.overflow.hidden) tray.setOverflow(false); });
+  // The trays keep the buttons they have: one that is kept stays where it is, a new one lands, one that goes lets go.
   let dockPainted = false;
-  const paintDock = () => {
-    if (!pins) return;
-    const wanted = ['home', ...readPins().filter((id) => id !== 'home')];
-    const have = new Map([...pins.querySelectorAll('[data-dock-pin]:not(.is-leaving)')].map((pin) => [pin.dataset.dockPin, pin]));
+  const paintTray = (container, wanted) => {
+    const have = new Map([...container.querySelectorAll('[data-dock-pin]:not(.is-leaving)')].map((pin) => [pin.dataset.dockPin, pin]));
     const next = [];
     for (const id of wanted) {
       if (!railItem(id)) continue;
-      next.push(have.get(id) || makePin(id, id === 'home', dockPainted));
+      const pin = have.get(id) || makePin(id, id === 'home', dockPainted);
+      if (pin) next.push(pin);
     }
     for (const [, pin] of have) if (!next.includes(pin)) {
       pin.classList.add('is-leaving'); pin.setAttribute('aria-hidden', 'true'); pin.tabIndex = -1;
       setTimeout(() => pin.remove(), 260);
     }
-    next.forEach((pin, index) => { if (pins.children[index] !== pin) pins.insertBefore(pin, pins.children[index] || null); });
+    next.forEach((pin, index) => { if (container.children[index] !== pin) container.insertBefore(pin, container.children[index] || null); });
+  };
+  const paintDock = () => {
+    if (!pins) return;
+    const kept = readPins().filter((id) => id !== 'home');
+    paintTray(pins, ['home', ...kept.filter((id) => !personal.has(id))]);
+    if (own) {
+      const mine = kept.filter((id) => personal.has(id) && railItem(id));
+      paintTray(own, mine);
+      // The bar's columns read this mark (navigation-flow.ts), not a :has() over the whole bar (VUX-36).
+      dock.toggleAttribute('data-own-kept', mine.length > 0);
+    }
     dockPainted = true;
     fit();
   };
@@ -266,31 +298,28 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
   // The bar's width is the window's; watching it (not the Dock itself) keeps folding from feeding back into itself. The right
   // group too: a directory button joins it after the first fit. And the switcher, whose name (a long plugin name) takes room
   // from the pins.
-  if (pins && 'ResizeObserver' in window) { const watcher = new ResizeObserver(() => fit()); for (const node of [dock, dock.querySelector('.bar-end'), dock.querySelector('.plugin-picker')]) if (node) watcher.observe(node); }
+  if (pins && 'ResizeObserver' in window) { const watcher = new ResizeObserver(() => fit()); for (const node of [dock, dock.querySelector('.bar-end'), dock.querySelector('.plugin-picker'), own]) if (node) watcher.observe(node); }
 
   const searchKey = dock.querySelector('.plugin-picker-search kbd');
   if (searchKey && !/Mac|iPhone|iPad/.test(navigator.platform)) searchKey.textContent = 'Ctrl K';
 
-  /* The resident Assistant: its answer opens above the bar and stays until closed. */
+  /* The resident Assistant: its answer opens above the bar and stays until closed (the island opens it on a Send). */
   const panel = dock.querySelector('[data-assistant-panel]');
-  const composer = dock.querySelector('[data-assistant-composer]');
   const setPanel = (open) => { if (panel) panel.hidden = !open; };
-  composer?.addEventListener('submit', () => setPanel(true), true);
 
   dock.addEventListener('click', (event) => {
     const target = event.target?.nodeType === 1 ? event.target : null;
     if (!target) return;
-    // Opened on purpose from the bar, the side panel takes focus (its current tab); opened by context it never does.
-    if (target.closest('[data-side-toggle]')) { document.dispatchEvent(new CustomEvent(document.body.dataset.sideOpen === 'true' ? 'molis:side-close' : 'molis:side-open', { detail: { focus: true } })); return; }
     if (target.closest('[data-plugin-picker-toggle]')) { setPicker(pickerPopover?.hidden !== false); return; }
-    if (target.closest('[data-dock-more]')) { setOverflow(overflow?.hidden !== false); return; }
+    const moreOf = target.closest('[data-dock-more]'), tray = moreOf && trays.find((candidate) => candidate.more === moreOf);
+    if (tray) { closeOverflows(tray); tray.setOverflow(tray.overflow.hidden); return; }
     const pin = target.closest('[data-dock-pin]');
     if (pin) {
-      setOverflow(false);
+      closeOverflows();
       const id = pin.dataset.dockPin;
       // Pressed again while its plugin is showing, an entry of the bar puts back what was there before it.
       if (host.leavePlugin?.(id)) return;
-      railItem(id)?.click();
+      host.open?.(id, railItem(id));
       return;
     }
     // Choosing a plugin in the switcher (or the market or studio at its head) closes it; the Dock buttons keep it open.
@@ -313,13 +342,14 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
   document.addEventListener('click', (event) => {
     const inSearch = event.target?.nodeType === 1 && event.target.closest('[data-global-search-dialog]');
     if (pickerPopover && !pickerPopover.hidden && !inSearch && !(event.target?.nodeType === 1 && picker?.contains(event.target))) setPicker(false);
-    if (overflow && !overflow.hidden && !(event.target?.nodeType === 1 && event.target.closest('[data-dock-overflow], [data-dock-more]'))) setOverflow(false);
+    if (!(event.target?.nodeType === 1 && event.target.closest('[data-dock-overflow], [data-dock-more]'))) closeOverflows();
   });
   document.addEventListener('keydown', (event) => {
     if (event.key !== 'Escape' || event.defaultPrevented) return;
     if (event.target?.nodeType === 1 && event.target.closest('dialog[open]')) return;
     if (pickerPopover && !pickerPopover.hidden) { event.preventDefault(); setPicker(false); pickerToggle?.focus(); return; }
-    if (overflow && !overflow.hidden) { event.preventDefault(); setOverflow(false); more?.focus(); return; }
+    const opened = trays.find((tray) => !tray.overflow.hidden);
+    if (opened) { event.preventDefault(); opened.setOverflow(false); opened.more.focus(); return; }
     const active = document.activeElement;
     if (panel && !panel.hidden && active?.nodeType === 1 && active.closest('[data-assistant-island]')) { event.preventDefault(); setPanel(false); }
   });

@@ -97,11 +97,36 @@ test("binding changes and deletion atomically preserve metadata, events, Ledger 
     bind(data.first.project_id);
     const deletion = await catalog.deleteProject({ project_id: data.first.project_id, actor_id: "changing-user",
       delete_confirmed: true, idempotency_key: "delete-success" });
-    assert.equal(deletion.deletion.deleted_binding_count, 1);
+    // The Session binding and the project's own default output membership (every project has one, SSC-20).
+    assert.equal(deletion.deletion.deleted_binding_count, 2);
     assert.equal(catalog.resolveRuntimeContext(context("second")).project?.project_id, data.second.project_id);
     assert.deepEqual(catalog.listRuntimeContextBindings(), data.bindings.filter((binding) => binding.stable_work_context_id === "second"));
     assert.equal(ledger.query.list(access, { type: "work.binding_project" }).length, 1);
     assert.deepEqual(catalog.listRuntimeContextBindingEvents(context("first")).map((event) => event.type),
       ["context.bound", "context.rebound", "context.unbound", "context.bound"]);
   } finally { db.close(); catalog.close(); await rm(data.directory, { recursive: true, force: true }); }
+});
+
+test("D0253: binding and event pages retain all projects and narrow inside the owning query", async () => {
+  const data = await fixture(false);
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: data.homeDirectory });
+  try {
+    for (let n = 0; n < 405; n++) catalog.bindRuntimeContext({ context: context(`page-${String(n).padStart(3, "0")}`),
+      project_id: n % 2 ? data.second.project_id : data.first.project_id, actor_id: "page-owner", user_confirmed: true });
+    const pages = [0, 200, 400].map(offset => catalog.listRuntimeContextBindings({ limit: 200, offset }));
+    assert.deepEqual(pages.map(page => page.length), [200, 200, 7]);
+    assert.equal(new Set(pages.flat().map(binding => binding.binding_id)).size, 407);
+    assert.equal(catalog.listRuntimeContextBindings().length, 407, "complete maintenance callers explicitly traverse every page");
+    const first = catalog.listRuntimeContextBindings({ limit: 200, offset: 0, project_id: data.first.project_id });
+    const rest = catalog.listRuntimeContextBindings({ limit: 200, offset: 200, project_id: data.first.project_id });
+    assert.deepEqual([first.length, rest.length], [200, 4]);
+    assert.ok([...first, ...rest].every(binding => binding.project_id === data.first.project_id));
+    assert.deepEqual(catalog.listRuntimeContextBindings({ limit: 200, offset: 0, project_id: "another-project" }), []);
+    const events = [0, 200, 400].flatMap(offset => catalog.listRuntimeContextBindingEvents(undefined, { limit: 200, offset }));
+    assert.equal(new Set(events.map(event => event.event_id)).size, 407);
+    catalog.bindRuntimeContext({ context: context("page-000"), project_id: data.second.project_id, actor_id: "page-owner", user_confirmed: true, rebind_confirmed: true });
+    const history = catalog.listRuntimeContextBindingEvents(context("page-000"), { limit: 200, offset: 0, project_id: data.first.project_id });
+    assert.deepEqual(history.map(event => event.type), ["context.bound", "context.rebound"], "a source project retains the event that moved its binding away");
+    assert.ok(catalog.listRuntimeContextBindingEvents(undefined, { limit: 200, offset: 0, project_id: data.first.project_id }).every(event => event.project_id === data.first.project_id || event.previous_project_id === data.first.project_id));
+  } finally { catalog.close(); await rm(data.directory, { recursive: true, force: true }); }
 });

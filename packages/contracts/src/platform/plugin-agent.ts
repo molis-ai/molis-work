@@ -1,9 +1,9 @@
 import type { ContractDescriptor } from "./package.js";
 
 export const platformPluginAgentContract = {
-  contractId: "io.molis.work.platform.plugin-agent.v1",
+  contractId: /* @version contract.io.molis.work.platform.plugin-agent "io.molis.work.platform.plugin-agent.v{version}" */ "io.molis.work.platform.plugin-agent.v1",
   kind: "platform",
-  schemaVersion: 1,
+  schemaVersion: /* @version contract.io.molis.work.platform.plugin-agent */ 1,
   maturity: "partial",
   ssot: "docs/horizontal/agent-host.md",
 } as const satisfies ContractDescriptor;
@@ -27,6 +27,8 @@ export const BUSINESS_HOST_TOOLS = ["ask-user", "update-todo", "find-tools", "co
 /**
  * Tools a method for business work may name: the capability gateway and the tools that touch no directory. A method a
  * Plugin offers to other Agents (the Assistant, a Character) is text that says how to use these; it grants nothing.
+ * `change-reversible` is not among them: it runs a reversible change without the person's confirmation, granted by the role's
+ * execution and the person's own "ask each time" setting, and a Skill's text cannot decide for the person to skip that.
  */
 export const SKILL_TOOLS = ["find-capabilities", "read-capability", "change-capability", "suggest-action", ...BUSINESS_HOST_TOOLS] as const;
 
@@ -50,20 +52,8 @@ export interface AgentRoleDeclaration {
   prompts?: string[];
   /** Host tool names this role may call. Implementation and effect class stay with the Host. */
   host_tools?: string[];
-  /** The methods that go with this role's purpose. Omitted: the role names none of its own. */
-  skills?: AgentRoleSkillsDeclaration;
   /** Read-only parent roles that must hand each child its own directory. */
   subagent_workspaces?: "required";
-}
-
-/**
- * One purpose's methods. `allowed` are the block's `skills` a person may pick for this role; `default` are already picked
- * when a round of this role starts, and the person may take them off. Every allowed method's tools are among the role's
- * `host_tools`, so a method never asks for what the role cannot give.
- */
-export interface AgentRoleSkillsDeclaration {
-  allowed: string[];
-  default?: string[];
 }
 
 export interface AgentSubagentRoleDeclaration {
@@ -123,15 +113,102 @@ export interface AgentEndingReviewDeclaration {
   prompt_id: string;
 }
 
+/** Which built-in Agent may pick a method a Plugin offers to others (Manifest `methods`). */
+export const SKILL_APPLIES_TO = ["assistant", "coding", "both"] as const;
+export type SkillAppliesTo = (typeof SKILL_APPLIES_TO)[number];
+
+/** What a file a Skill ships besides its body is for, and the folder under `skills/<skill_id>/` it lives in. */
+export const SKILL_RESOURCE_FOLDERS = { reference: "references", script: "scripts", asset: "assets" } as const;
+export type SkillResourceRole = keyof typeof SKILL_RESOURCE_FOLDERS;
+
+/**
+ * One file a Skill ships besides its body, read on demand (`references/`), run only in the permission island and sandbox
+ * (`scripts/`, SKP-09), or used as is (`assets/`). The digest is checked when the package is assembled and on every read.
+ */
+export interface SkillResourceDeclaration {
+  /** `skills/<skill_id>/<folder of role>/…`, relative to the package root. */
+  path: string;
+  role: SkillResourceRole;
+  /** e.g. `text/markdown`, `text/x-python`, `image/png`. */
+  media_type: string;
+  bytes: number;
+  /** Lower-case hex SHA-256 of the file's bytes. */
+  sha256: string;
+}
+
+/**
+ * Prologue's `MAX_SKILL_BODY_CHARS` (`@prologue/sdk`, `skill/core/invoke`): the longest body a round takes whole. Written here
+ * again because contracts and the plugin SDK never depend on Prologue; change both together.
+ */
+export const MAX_SKILL_BODY_CHARS = 20_000;
+
+/**
+ * The limits a Skill declaration and its package are checked against (specs/skill-packs/contract-design.md §4.2). The package
+ * limits are `CHARACTER_IMPORT_LIMITS`' (`modules/character-import`): an imported folder and a package are held to the same.
+ */
+export const SKILL_LIMITS = {
+  /** A `skill_id`: lower-case letters, digits and hyphens, so it is also the folder name `skills/<skill_id>/`. */
+  skillIdChars: 64,
+  descriptionChars: 1024,
+  whenChars: 500,
+  argumentHintChars: 80,
+  bodyLines: 500,
+  bodyChars: MAX_SKILL_BODY_CHARS,
+  resourcesPerSkill: 300,
+  skillsPerPackage: 128,
+  filesPerPackage: 4000,
+  fileBytes: 8 * 1024 * 1024,
+  packageBytes: 64 * 1024 * 1024,
+} as const;
+
+/**
+ * A Skill: a versioned, on-demand way of doing something, which grants nothing. In Manifest `methods` it is offered to other
+ * Agents (`PluginMethodDeclaration`, where `description` and `applies_to` are required); in `agent.skills` it is the Plugin's own
+ * Agent's. The two differ only in what they may write, and the SDK's checks say so: `applies_to`, `user_invocable` and
+ * `argument_hint` are only for `methods` (specs/skill-packs/contract-design.md §4.2).
+ */
 export interface AgentSkillDeclaration {
   skill_id: string;
   version: number;
   name: string;
   summary: string;
+  /** A declaration, not a grant: each must be in `SKILL_TOOLS` for `methods`; a round still needs the action's authorization. */
   tools: string[];
+  /** When to pick it, 1 to 1024 characters. */
+  description?: string;
+  when_to_use?: string;
+  when_not_to_use?: string;
+  /** `methods` only. */
+  applies_to?: SkillAppliesTo;
+  /** `methods` only. Omitted: the person may name it. */
+  user_invocable?: boolean;
+  /** `methods` only: what to write after the name when naming it, at most 80 characters. */
+  argument_hint?: string;
+  /** methods only: this Skill requires a local Agent; the signed reason survives import and restart (1–512 characters). */
+  native_only_reason?: string;
+  /** The body's path in the package, always `skills/<skill_id>/SKILL.md`; required in a signed package. */
+  body?: string;
+  resources?: SkillResourceDeclaration[];
+  /** The connector categories the body writes placeholders for (`~~project tracker`), as lower-case tokens such as `project-tracker`. */
+  connector_categories?: string[];
 }
 
-export interface AgentSkillDefinition extends AgentSkillDeclaration {
+/**
+ * A Skill a Plugin offers to other Agents (Manifest `methods`): every plugin, built in, sandboxed or with only declarations, writes
+ * the same declaration, with when to pick it and which built-in Agent may. Nothing derives an id or fills in a default for it.
+ */
+export interface PluginMethodDeclaration extends AgentSkillDeclaration {
+  description: string;
+  applies_to: SkillAppliesTo;
+}
+
+export interface AgentSkillDefinition extends Omit<AgentSkillDeclaration, "body"> {
+  /** The body's text, not the package path a declaration's `body` names. */
+  body: string;
+}
+
+/** A method as a Plugin's code ships it (`PluginDefinition.methods`): its Manifest declaration, with the body's text. */
+export interface PluginMethodDefinition extends Omit<PluginMethodDeclaration, "body"> {
   body: string;
 }
 
@@ -178,9 +255,10 @@ export interface AgentManifest {
    *
    * Optional, and normally absent: the working directory is a **Host fact**.
    * The Host authorizes it, verifies its realpath, and passes it on the start
-   * request; a Plugin reads it through `projects.workspace.read`, not
-   * through a port. Declaring it here does not make the Host believe it —
-   * start authority checks the directory either way.
+   * request; with none named, a run goes in the project's one output directory.
+   * A Plugin reads the project's inputs and output through
+   * `projects.directories.get`, not through a port. Declaring it here does not
+   * make the Host believe it — start authority checks the directory either way.
    */
   directory_input_port?: string;
   text_sources?: AgentTextSourceDeclaration[];

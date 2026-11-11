@@ -22,15 +22,19 @@ export class FeedRecords {
     return this.options.now?.() ?? new Date();
   }
 
-  list(projectId: string): FeedItemRecord[] {
-    const links = this.goalLinks.list(projectId);
-    const materials = (this.db.all("SELECT * FROM feed_materials WHERE project_id = ? ORDER BY updated_at DESC, material_id", projectId) as Row[]).map(mapFeedMaterial);
+  list(projectId: string, page: { limit: number; offset: number }): FeedItemRecord[] {
+    const items = this.db.all("SELECT * FROM feed_items WHERE project_id = ? ORDER BY source_updated_at DESC, item_id LIMIT ? OFFSET ?", projectId,
+      Math.min(200, Math.max(1, page.limit)), Math.max(0, page.offset)) as Row[];
+    if (!items.length) return [];
+    const ids = JSON.stringify(items.map(row => text(row.item_id)));
+    const materials = (this.db.all("SELECT * FROM feed_materials WHERE project_id = ? AND item_id IN (SELECT value FROM json_each(?)) ORDER BY updated_at DESC, material_id", projectId, ids) as Row[]).map(mapFeedMaterial);
     const byItem = new Map<string, FeedMaterialRecord[]>();
     for (const material of materials) {
-      byItem.set(material.item_id, [...(byItem.get(material.item_id) ?? []), material]);
+      const held = byItem.get(material.item_id) ?? []; held.push(material); byItem.set(material.item_id, held);
     }
-    return (this.db.all("SELECT * FROM feed_items WHERE project_id = ? ORDER BY source_updated_at DESC, item_id", projectId) as Row[]).map((row) => mapFeedItem(row, byItem.get(text(row.item_id)) ?? [],
-      links.get(text(row.item_id)) ?? null));
+    // One owner query for this page: no full ledger scan and no per-item authorization/query loop.
+    const links = this.goalLinks.list(projectId, items.map(row => text(row.item_id)));
+    return items.map(row => mapFeedItem(row, byItem.get(text(row.item_id)) ?? [], links.get(text(row.item_id)) ?? null));
   }
 
   get(projectId: string, itemId: string): FeedItemRecord {

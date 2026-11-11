@@ -12,9 +12,9 @@ export function snapshotCaller(caller: ActionCallContext): ActionCallContext {
 }
 
 /** Long calls outside the project queue are cancelled before close waits for their cleanup. */
-export function callSignal(definition: { action?: { scheduling?: string } }, entry: () => Pick<RuntimeEntry<unknown>, "observing">, signal: AbortSignal | undefined): { signal?: AbortSignal } {
-  if (definition.action?.scheduling !== "concurrent") return signal ? { signal } : {};
-  const closing = entry().observing.signal;
+export function callSignal(definition: { action?: { scheduling?: string } }, entry: () => Pick<RuntimeEntry<unknown>, "observing"> | undefined, signal: AbortSignal | undefined): { signal?: AbortSignal } {
+  const closing = definition.action?.scheduling === "concurrent" ? entry()?.observing.signal : undefined;
+  if (!closing) return signal ? { signal } : {};
   return { signal: signal ? AbortSignal.any([signal, closing]) : closing };
 }
 
@@ -29,4 +29,13 @@ export function hostAuthorityContext(caller: ActionCallContext, current: () => b
     requireSynchronous(caller.assert_authority_current?.(reference, requiredPermissions), "最终授权检查必须同步完成");
     assertActive();
   } };
+}
+
+/**
+ * The session the Host itself bound the caller to: an agent round's, also when a plugin's running action hands the call on for it.
+ * An external Runtime client names its own session over MCP or the gateway and the Host does not verify it, so that one is not
+ * passed to a Host action as a bound session (S-agent-evidence-own-session).
+ */
+export function hostBoundSession(caller: ActionCallContext): string | undefined {
+  return (caller.delegated_audience ?? caller.audience) === "agent" ? caller.runtime_session_id : undefined;
 }

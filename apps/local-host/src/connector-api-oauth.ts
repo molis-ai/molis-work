@@ -1,6 +1,7 @@
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import { connectorErrors, type ConnectorCallControl } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { controlledConnectorFetch } from "@molis-ai/molis-work-plugin-sdk";
+import { assertSecretStoreWritable } from "@molis-ai/molis-work-storage";
 import { submitConnectorActivation } from "./connector-authorization-commit.js";
 import type { ConnectorActivation } from "./connector-activation.js";
 import { assertConnectorAuthorizationPending, beginConnectorAuthorization, finishConnectorAuthorization } from "./connector-authorization-status.js";
@@ -106,7 +107,8 @@ export async function assertStillDeclared(config: OAuthConfiguration, owners: OA
  * nothing yet (slices 6 and 7).
  */
 export async function assertHeldOAuthDeclared(home: string, completion: ConnectorActivation, owners: OAuthOwners = registryOwners(home)): Promise<void> {
-  if (completion.kind !== "oauth" || completion.protocol?.protocol !== "oauth") return;
+  if (completion.kind !== "oauth") return;
+  if (completion.protocol?.protocol !== "oauth" || !completion.declaration) throw connectorErrors["connector.connection.invalid"]("无法确认声明这个服务的插件，请重新连接");
   try {
     await assertStillDeclared({ ...completion.protocol as OAuthConfiguration, ...completion.declaration }, owners);
   } catch (error) {
@@ -159,14 +161,14 @@ export async function serialized<T>(home: string, id: string, run: () => Promise
   try { return await next; } finally { if (queues.get(key) === next) queues.delete(key); }
 }
 function configured(home: string, id: string): OAuthConfiguration {
-  const connection = withConnectorConnections(home, store => store.require(id));
+  const connection = withConnectorConnections(home, store => store.require(id), "required");
   if (!connection.enabled || connection.disconnected_at) throw new ApiOAuthError("连接已断开，请重新授权");
-  const config = withConnectorProtocols(home, store => store.get<OAuthConfiguration>(id));
+  const config = withConnectorProtocols(home, store => store.get<OAuthConfiguration>(id), true);
   if (!config || config.protocol !== "oauth" || config.serviceId !== connection.service_id) throw new ApiOAuthError("找不到此连接的 OAuth 配置");
   return config;
 }
 export function apiOAuthContext(home: string, id: string): Record<string, string> | undefined {
-  const config = withConnectorProtocols(home, store => store.get<OAuthConfiguration>(id));
+  const config = withConnectorProtocols(home, store => store.get<OAuthConfiguration>(id), true);
   return config?.protocol === "oauth" ? { ...config.context, auth_method: "oauth" } : undefined;
 }
 export async function startApiOAuth(home: string, input: {
@@ -182,10 +184,10 @@ export async function startApiOAuth(home: string, input: {
   let clientSource: "product" | "custom" = "custom";
   // Reauthorization keeps this account's app settings on the host. Never send a
   // saved client secret back to the browser or borrow another account's client.
-  const previous = input.connectionId ? withConnectorProtocols(home, store => store.get<OAuthConfiguration>(input.connectionId!)) : undefined;
+  const previous = input.connectionId ? withConnectorProtocols(home, store => store.get<OAuthConfiguration>(input.connectionId!), true) : undefined;
   const reauthorizing = previous?.protocol === "oauth" && previous.serviceId === input.serviceId;
   if (input.connectionId && !input.clientId.trim()) {
-    withConnectorConnections(home, store => store.require(input.connectionId!, input.serviceId));
+    withConnectorConnections(home, store => store.require(input.connectionId!, input.serviceId), "required");
     if (previous?.protocol === "oauth" && previous.serviceId === input.serviceId) {
       const secret = object(JSON.parse(connectorProtocolSecrets(home, input.connectionId).get("client") || "{}"));
       input = { ...input, clientId: previous.clientId, clientSecret: text(secret.clientSecret),
@@ -227,7 +229,7 @@ export async function startApiOAuth(home: string, input: {
   const connectionId = input.connectionId || randomUUID();
   let previousRevision: string | undefined;
   if (input.connectionId) {
-    const current = withConnectorConnections(home, store => store.require(connectionId, input.serviceId));
+    const current = withConnectorConnections(home, store => store.require(connectionId, input.serviceId), "required");
     if (current.auth_method !== "oauth") throw new ApiOAuthError("这条连接不是 OAuth 连接");
     previousRevision = current.updated_at;
   }
@@ -270,6 +272,8 @@ export async function startApiOAuth(home: string, input: {
 }
 async function exchange(home: string, config: OAuthConfiguration, method: PluginOAuthMethodDeclaration, input: { code?: string; refreshToken?: string },
   fetchImpl: typeof fetch): Promise<Json> {
+  // A code is spent and a refresh token rotated by this request: the vault that keeps the answer is asked before it goes.
+  assertSecretStoreWritable(home);
   if (config.brokerOrigin) {
     return jsonRequest(fetchImpl, `${config.brokerOrigin}/token`, { method: "POST", headers: { "content-type": "application/json" },
       body: JSON.stringify({ service_id: config.serviceId, ...(input.refreshToken ? { grant_type: "refresh_token", refresh_token: input.refreshToken }
@@ -382,7 +386,7 @@ export async function commitApiOAuth(home: string, state: string, config: OAuthC
   assertConnectorAuthorizationPending(home, state);
   // Rule 8: a reauthorization lands on the revision and the account it started from.
   if (config.previousRevision) {
-    const previous = withConnectorConnections(home, store => store.require(config.connectionId, config.serviceId));
+    const previous = withConnectorConnections(home, store => store.require(config.connectionId, config.serviceId), "required");
     if (previous.updated_at !== config.previousRevision) throw new ApiOAuthError("此连接在授权期间已变更，请重新开始");
     const previousContext = apiOAuthContext(home, config.connectionId);
     if (!previousContext?.account_id || previousContext.account_id !== config.context.account_id) throw new ApiOAuthError("无法确认这是原账号：请新增一条连接，并把原来绑在这条连接上的来源重新绑定到新连接");
@@ -431,7 +435,7 @@ export async function resolveApiOAuthToken(home: string, id: string, control: Co
       const expires = Number(secrets.get("expires"));
       if (token && !forceRefresh && (!expires || expires > Date.now() + 60_000)) { resolveTurn(token); return; }
       if (!secrets.get("oauth")) throw new ApiOAuthError("访问令牌已失效，请重新授权此连接");
-      const revision = withConnectorConnections(home, store => store.require(id)).updated_at;
+      const revision = withConnectorConnections(home, store => store.require(id), "required").updated_at;
       started = startSharedRefresh(control, refresh => renewed(home, id, { config, owner: owner!, method, revision }, refresh, { fetchImpl, network }, owners));
       refreshes.set(key, started);
       resolveTurn(started);
@@ -471,7 +475,7 @@ async function renewed(home: string, id: string, read: { config: OAuthConfigurat
   boundMethod(config, owner);
   // A disconnect during the network request must win over a token refresh.
   configured(home, id);
-  if (withConnectorConnections(home, store => store.require(id)).updated_at !== read.revision || secrets.get("oauth") !== sentRefreshToken) throw new ApiOAuthError("连接在刷新期间已变化，请重试");
+  if (withConnectorConnections(home, store => store.require(id), "required").updated_at !== read.revision || secrets.get("oauth") !== sentRefreshToken) throw new ApiOAuthError("连接在刷新期间已变化，请重试");
   secrets.put("access", next);
   if (text(json.refresh_token)) secrets.put("oauth", text(json.refresh_token));
   const nextExpiry = oauthExpiry(method, json, Date.now());

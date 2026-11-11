@@ -225,3 +225,44 @@ for (const shape of ["above the build's version", "at the build's version with a
     }
   });
 }
+
+test("SKC-10 S-skill-import cancellation during Runtime upgrade validation restores the old release without recording a failed new version", async () => {
+  const original = createGithubIntegrationPlugin({ providerFor: () => provider });
+  const repository = new MemoryPluginRuntimeRepository(), runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS });
+  const old: PluginDefinition = { ...original, manifest: { ...original.manifest, version: "1.0.0" } };
+  const supervisor = new PluginSupervisor(runtime);
+  await supervisor.start([{ definition: old }]);
+  const before = runtime.list()[0]!, writes: Array<{ version: string; error: string | null }> = [];
+  const save = repository.save.bind(repository);
+  repository.save = record => { writes.push({ version: record.version, error: record.last_error_code }); save(record); };
+  let entered!: () => void, resume!: () => void;
+  const reached = new Promise<void>(resolve => { entered = resolve; }), held = new Promise<void>(resolve => { resume = resolve; });
+  const controller = new AbortController(), cancelled = new Error("cancelled upgrade");
+  const next: PluginDefinition = { ...original, manifest: { ...original.manifest, version: "2.0.0", upgrade_compatibility: { compatible_from_versions: ["1.0.0"] } },
+    async validateUpgrade() { entered(); await held; } };
+  try {
+    const pending = supervisor.upgrade(old.manifest.plugin_id, next, { assertCurrent: () => controller.signal.throwIfAborted() });
+    const rejected = assert.rejects(pending, error => error === cancelled);
+    await reached; controller.abort(cancelled); resume(); await rejected;
+    const restored = runtime.get(before.install_id);
+    assert.equal(restored.version, "1.0.0"); assert.equal(restored.state, "running"); assert.equal(restored.last_error_code, before.last_error_code);
+    assert.equal(restored.installation_generation, before.installation_generation);
+    assert.ok(writes.every(row => row.version === "1.0.0" && row.error === null), "no candidate version or cancellation failure accounting was saved");
+  } finally { resume(); await runtime.stop(before.install_id); }
+});
+
+test("SKC-10 a cancelled Runtime start waits out the lock but cannot write running or crashed", async () => {
+  const original = createGithubIntegrationPlugin({ providerFor: () => provider });
+  let entered!: () => void, resume!: () => void, holdStop = false;
+  const reached = new Promise<void>(resolve => { entered = resolve; }), held = new Promise<void>(resolve => { resume = resolve; });
+  const definition: PluginDefinition = { ...original, async stop(context) { if (holdStop) { entered(); await held; } await original.stop?.(context); } };
+  const repository = new MemoryPluginRuntimeRepository(), runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS });
+  const supervisor = new PluginSupervisor(runtime); await supervisor.start([{ definition }]);
+  const id = runtime.list()[0]!.install_id, controller = new AbortController(), cancelled = new Error("cancelled queued start");
+  holdStop = true;
+  const stopping = runtime.stop(id); await reached;
+  const starting = runtime.start(id, { assertCurrent: () => controller.signal.throwIfAborted() });
+  const rejected = assert.rejects(starting, error => error === cancelled);
+  controller.abort(cancelled); resume(); await stopping; await rejected;
+  assert.equal(runtime.get(id).state, "disabled"); assert.equal(runtime.get(id).last_error_code, null);
+});

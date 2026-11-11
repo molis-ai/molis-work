@@ -1,5 +1,5 @@
 import { isDeepStrictEqual } from "node:util";
-import { readdirSync, type Stats } from "node:fs";
+import { lstatSync, readdirSync, type Stats } from "node:fs";
 import { join } from "node:path";
 import type { MemoryForgettingDecision, MemoryForgettingFacts, MemoryForgettingPort, MemoryScope } from "@molis-ai/molis-work-contracts/services/memory";
 import type { HomeStoreDeclaration } from "../home-stores.js";
@@ -115,6 +115,20 @@ export function initializeMemoryForgetting(input: ForgettingOwner): void {
   current(input);
   if (readdirSync(input.homeDirectory).some(name => name !== "agent-runtime" && (name !== "storage-space.json" || readStorageSpace(input.homeDirectory) === null))
     || !hasOnlyStorageOwnerFiles(join(input.homeDirectory, "agent-runtime"), input.storageOwner)) throw invalid();
+  atomicWriteFileSync(filePath(input.homeDirectory), serializeMemoryForgetting({ format_version: 1, decisions: [] }), { mode: 0o600, durable: true });
+  current(input);
+}
+
+/**
+ * The new generation's empty facts, only when the ledger's own 1 → 2 upgrade asks (finishMemoryLedgerUpgrade). A file already there is the one
+ * an interrupted start wrote; it is kept and must be valid.
+ */
+export function startMemoryForgettingGeneration(input: ForgettingOwner): void {
+  current(input);
+  let present = true;
+  try { lstatSync(filePath(input.homeDirectory)); }
+  catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw invalid(); present = false; }
+  if (present) { inspectMemoryForgetting(input.homeDirectory); return; }
   atomicWriteFileSync(filePath(input.homeDirectory), serializeMemoryForgetting({ format_version: 1, decisions: [] }), { mode: 0o600, durable: true });
   current(input);
 }

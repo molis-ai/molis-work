@@ -12,6 +12,7 @@ export * from "./proposal-ui.js";
 export * from "./proposal-ui-model.js";
 export { hostEventDecisionAuthority } from "./goal-event-application.js";
 export { createGoalsPlugin } from "./plugin.js";
+export { assessGoalReport, type GoalEvidenceArtifact, type GoalEvidencePorts, type GoalEvidenceRunCheck } from "./evidence-check.js";
 export { createHomeGoalsPlugin } from "./home-plugin.js";
 export { goalAdvancePrompt, goalsTerminalActions } from "./terminal-actions.js";
 export { GOALS_HOME_DATABASE } from "./home-database.js";
@@ -104,3 +105,5 @@ export { GOALS_PLUGIN_ID, GOALS_PROJECT_PLUGIN_ID, goalsManifest } from "./manif
 export { GOALS_PROJECT_DATABASE } from "./project-database.js";
 export { GOALS_SETTINGS_UI_CONTRIBUTION_ID, goalsSettingsUiContribution, goalsSettingsUiDescriptor } from "./settings-ui.js";
 export { PluginSqlite, type PluginSqliteDatabase } from "./plugin-sqlite.js";
+
+export { readGoalCapsuleMenu, type GoalCapsuleMenu } from "./capsule-menu.js";

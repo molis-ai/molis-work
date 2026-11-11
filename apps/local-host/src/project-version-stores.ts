@@ -1,4 +1,4 @@
-import { projectVersionStores, restoreVersionStores } from "@molis-ai/molis-work-module-artifacts";
+import { normalizeArtifactMetadata, projectVersionStores, restoreVersionStores } from "@molis-ai/molis-work-module-artifacts";
 import type { ArtifactVersionResult, ArtifactsApplicationApi, ProcessItemsApplicationApi, RegisterArtifactVersionInput } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { projectTypeDeclared } from "./declared-types.js";
@@ -16,15 +16,24 @@ export type RestoredArtifactVersion = Omit<RegisterArtifactVersionInput, "projec
   owner_actor_id: string; availability: "available" | "unavailable"; lifecycle_state: "active" | "archived"; source_supersedes_version?: number | null;
 };
 
+/** A local restore's identity belongs to the Host, never to the incoming bundle. */
+export const WORK_ASSET_RESTORE_ACTOR_ID = "continuity:local-restore";
+
+/** A bundle carries history, not permission to publish into a team. Check before creating its destination as well as before writing. */
+export function assertRestorableArtifactVersions(assets: readonly RestoredArtifactVersion[]): void {
+  if (assets.some(asset => asset.scope === "team_project")) throw new ActionError("actions.forbidden", "恢复包不能授予团队共享权限，请先明确授权共享范围");
+}
+
 /**
  * Puts the versions of a work-assets bundle into the project rebuilt from it (S-81's one exception): each is registered as the bundle
  * recorded it (producer, type, content, none rewritten), and a producer the project has not installed is taken, the restore warns
- * that its plugin is missing. Only `apps/server/src/assets.ts` calls it, and only a project that holds nothing but what the bundle
+ * that its plugin is missing. Only `apps/local-host/src/work-assets.ts` calls it, and only a project that holds nothing but what the bundle
  * brings accepts it: a project with any other version refuses, so the entry is no way to write into a live library. The versions stay
  * out of every write path of the producer until it is installed here (the ordinary stores refuse it). Never a store handed out, never
  * an action, nothing in the SDK or contracts.
  */
 export function restoreArtifactVersions(store: LocalProjectDatabase, projectId: string, assets: readonly RestoredArtifactVersion[]): ArtifactVersionResult[] {
+  assertRestorableArtifactVersions(assets);
   const journal = { now: () => new Date().toISOString(), appendEvent: store.appendEvent.bind(store), eventCursor: store.eventCursor.bind(store), declared: projectTypeDeclared(store.db, true) };
   const { artifacts } = restoreVersionStores({ db: store.db, homeOwner: LOCAL_PERSON_ACTOR_ID, ...journal });
   const brought = new Set(assets.map(asset => `${asset.artifact_id}@${asset.version}`));
@@ -34,10 +43,11 @@ export function restoreArtifactVersions(store: LocalProjectDatabase, projectId: 
     }
     return assets.map(asset => {
       const { owner_actor_id, availability, lifecycle_state, source_supersedes_version: _source, ...record } = asset;
-      const result = artifacts.commands.registerVersion({ ...record, project_id: projectId, actor_id: owner_actor_id, team_share_authorized: record.scope === "team_project" });
+      const result = artifacts.commands.registerVersion({ ...record, project_id: projectId, actor_id: WORK_ASSET_RESTORE_ACTOR_ID, team_share_authorized: false,
+        metadata: { ...normalizeArtifactMetadata(record.metadata), restore_source_owner_actor_id: owner_actor_id } });
       const version = { artifact_id: asset.artifact_id, version: asset.version };
-      if (availability === "unavailable") artifacts.commands.markUnavailable({ project_id: projectId, actor_id: owner_actor_id, ...version, reason: "原成果不可用，需要重新连接来源" });
-      if (lifecycle_state === "archived") artifacts.commands.archiveVersion({ project_id: projectId, actor_id: owner_actor_id, ...version });
+      if (availability === "unavailable") artifacts.commands.markUnavailable({ project_id: projectId, actor_id: WORK_ASSET_RESTORE_ACTOR_ID, ...version, reason: "原成果不可用，需要重新连接来源" });
+      if (lifecycle_state === "archived") artifacts.commands.archiveVersion({ project_id: projectId, actor_id: WORK_ASSET_RESTORE_ACTOR_ID, ...version });
       return result;
     });
   });

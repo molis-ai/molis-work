@@ -8,7 +8,7 @@ import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work
 import { MolisWorkLocalHost, resolveWebControlToken } from "@molis-ai/molis-work-app-local-host";
 import { FILE_PREVIEW_CLIENT_SCRIPT, renderFilePreviewHtml } from "@molis-ai/molis-work-design-system";
 import { artifactSubjectId } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 
 // specs/artifact-positioning A4b: the side panel previews a 成果 version through its owner, the same as the 成果库.
 test("the side panel previews a pinned document through its owner, as the 成果库 does", { timeout: 60_000 }, async () => {

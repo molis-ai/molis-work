@@ -8,6 +8,7 @@ export type CapsuleStateKind =
   | "complete"
   | "ready"
   | "waiting"
+  | "cancelled"
   | "empty";
 
 export interface CapsuleState {
@@ -35,7 +36,8 @@ export type CapsuleTabKind =
   | "continue"
   | "waiting"
   | "blocked"
-  | "completed";
+  | "completed"
+  | "cancelled";
 
 export interface CapsuleGoalItem {
   goal_id: string;

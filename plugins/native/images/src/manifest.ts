@@ -23,10 +23,10 @@ const routes: PluginRouteDeclaration[] = [
   {route_id:"images.images.shelf",method:"POST",path:"/jobs/:id/images/:image_id/shelf",permission:"images:read"},
 ];
 export const imagesManifest: PluginManifest = {
-  schema_version: 1,
-  host_api_version: 1,
+  schema_version: /* @version manifest.schema */ 1,
+  host_api_version: /* @version host.api */ 1,
   plugin_id: IMAGES_PLUGIN_ID,
-  version: "0.3.0",
+  version: /* @version product.release */ "0.1.0",
   name: "图片",
   sync: imagesSync,
   name_en: "Images",

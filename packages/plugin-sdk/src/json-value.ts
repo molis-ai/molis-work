@@ -3,14 +3,21 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-/** Sort object keys recursively by raw UTF-16 code units; preserve values and array order.
+/** Raw UTF-16 code unit order, the same on every host whatever its language. Anything that ends up in a digest, a
+ * signature or a stored comparison sorts with this; `localeCompare` is only for what a person reads. */
+export function compareCodeUnits(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
+/** Sort object keys recursively by raw UTF-16 code units; preserve values and array order. JavaScript still enumerates
+ * integer-shaped keys first in numeric order, so they do not stay in that order; `canonicalJsonText` holds them to it.
  * Returns a new value; this does not validate or serialize non-JSON inputs. */
 export function canonicalJsonValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(canonicalJsonValue);
   if (isRecord(value)) {
     return Object.fromEntries(
       Object.entries(value)
-        .sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)
+        .sort(([left], [right]) => compareCodeUnits(left, right))
         .map(([key, item]) => [key, canonicalJsonValue(item)]),
     );
   }

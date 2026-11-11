@@ -92,11 +92,13 @@ test("RAC-2910 the actual Feed page obeys its Home Functions switch while requir
   await child.waitFor(`document.querySelector('${section} [data-feed-rule-preview]')?.textContent.includes('匹配') && !document.querySelector('${composer}').inert`);
   const before = await functions(), draft = before.functions.find(row => row.name === "Optional Functions rule"); assert.ok(draft); assert.equal(trials, 1);
   assert.ok((await child.evaluate<{ functions: JudgmentRuleRecord[] }>("t403Host.invokeAction({capability_id:'functions.authoring.list',version:1,provider_id:'system.functions'}, {})")).functions.some(row => row.id === draft.id));
+  // AIC-08: the page reaches the latest record through the one action its Manifest declares for it.
+  assert.equal((await child.evaluate<{ function: JudgmentRuleRecord }>(`t403Host.invokeAction({capability_id:'functions.authoring.get',version:1,provider_id:'system.functions'}, {id:${JSON.stringify(draft.id)}})`)).function.updated_at, draft.updated_at);
   const bindings = feed.outRules.list(projectId), key = `/projects/${projectId}/:feed-rule:${source.source_id}`, saved = await child.evaluate<string>(`sessionStorage.getItem(${JSON.stringify(key)})`);
   await switchHome(false);
   for (const [name, input] of [["list", {}], ["create", { name: "Must not be created", function_key: "blocked_switch_draft", primitive: "noul" }],
-    ["update", { id: draft.id, updated_at: draft.updated_at, patch: { name: "Must not be changed" } }],
-    ["preview", { id: draft.id, updated_at: draft.updated_at, input: "Must not be evaluated" }], ["publish", { id: draft.id, updated_at: draft.updated_at }]] as const) {
+    ["update", { id: draft.id, expected_updated_at: draft.updated_at, patch: { name: "Must not be changed" } }],
+    ["preview", { id: draft.id, expected_updated_at: draft.updated_at, input: "Must not be evaluated" }], ["publish", { id: draft.id, expected_updated_at: draft.updated_at }]] as const) {
     const refusal = await child.evaluate<{ ok: boolean; code?: string }>(`t403Host.invokeAction({capability_id:${JSON.stringify("functions.authoring." + name)},version:1,provider_id:'system.functions'},${JSON.stringify(input)}).then(()=>({ok:true}),error=>({ok:false,code:error.code}))`);
     assert.equal(refusal.ok, false, name); assert.equal(refusal.code, "actions.dependency_missing", name + " is hidden from this page's current action directory while Home denies it");
   }
@@ -123,7 +125,7 @@ test("RAC-2910 the actual Feed page obeys its Home Functions switch while requir
 
   await switchHome(true); await selectRules();
   await child.click(section + " [data-feed-rule-preview-run]");
-  await child.waitFor(`document.querySelector('${status}')?.textContent.includes('预览完成') && !document.querySelector('${composer}').inert`);
+  await child.waitFor(`document.querySelector('${status}')?.textContent.includes('判断预览完成，模型调用可能产生费用') && !document.querySelector('${composer}').inert`);
   assert.equal(trials, 2, "a new sample trial works after Home enables the permission again");
   await child.click(section + " [data-feed-out-rule-create]");
   await child.waitFor(`document.querySelector('${section} [data-feed-out-rule-row]')?.textContent.includes('Optional Functions rule') && t403Reads.pending===0`);

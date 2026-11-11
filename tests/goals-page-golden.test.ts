@@ -78,10 +78,70 @@ const pages: Record<string, Draw> = {
 // The sixteen whole-page records were derived from independently built B ab82142f71761af160f9fc5103d6e2fe6933fa65:
 // each draw first matched its original record, then only the complete source-workbench section and its call whitespace were removed.
 // Every other byte, JSON block and record stayed fixed; the candidate was not used to record these expectations.
+// WORK-03 / T01-ACCOUNT-ENTRY-01: the earlier 16 whole-page account-entry records derived from independently built main 9f00fd0dad.
+// Its 66 normalized draws first matched every original hash. Only the personal-account button's disabled attribute
+// and unavailable title were replaced by the enabled Sign in / 登录 entry. All other markup and JSON stayed fixed;
+// each candidate draw matched that derived expectation byte for byte, without candidate RECORD mode.
+// Work #1846 after #1952: removing only the unified account button from the 16 normalized whole pages
+// reproduces their main ad25b414e hashes and lengths. The other 50 records match without changes.
 // PR #1877: all 66 original hashes were first reproduced by independently built main b1e0e5b6.
 // The 26 changed records were derived from those pages by only the reviewed personal-shell additions:
 // sync indicator/settings links, active account label/local-space status, and the observed project-name attribute
 // (plus its settings whitespace). The derived markup matched every candidate byte; no Goals content was re-recorded.
+// PR #1929 (batch 18 P3-3): the project settings gained the 「授权与放行」 section, so the shell's settings directory row
+// (`data-settings-section="grants"`, 361 / 391 characters in zh / en) is in the 16 records of the 8 project pages and the settings
+// link (120 / 135 characters with its line) in the 12 records of the 6 settings and planning pages. Each of those 28 records (14 pages
+// in two languages), drawn with only that row or link taken out, had its old hash and length exactly; they were then recorded with
+// MOLIS_WORK_GOLDEN_RECORD=1. The other 38 records (19 pages in two languages) did not change.
+// PR #1952 (batch 12 item 3, draft and return, specs/draft-and-return §9 U4): the shell's two settings surfaces each carry the return
+// bar's template (`<template data-settings-return-bar-template>`, the SDK's renderReturnBar; 546 / 568 characters in zh / en), so the
+// 16 records of the 8 project pages grew by 1092 / 1136. Each of those 16, drawn with only the two templates taken out, had its old hash
+// and length exactly; they were then recorded with MOLIS_WORK_GOLDEN_RECORD=1. The other 50 records did not change.
+// 07-1 S3–S5 (product-flow-governance §4.6.2; on main 6f39755f00, where S1+S2 landed as #1853): the shell's bar and titlebar changed, and
+// only they. All 66 pages were drawn on an independently built 6f39755f00 (each matched its record there) and on this branch, and compared token by token: the
+// 16 records of the 8 project pages differ in 22 distinct shell hunks and nothing else — the titlebar's personal-tool slot gone
+// (`data-home-plugin-open`), the Issue side glyph's title and `aria-keyshortcuts`, `data-rail-group` on the switcher's tiles, the
+// switcher's name (切换插件 ⌘K), the bar's side button replaced by the person's own tray (`data-bar-own`), and the 个人 group of the
+// switcher emptied here (this view has no Host directory, so no plugin carries the Host's personal and home marks that 个人 now reads;
+// 灵光, 待办, Jelly and Cognia list under 更多). No Goals markup or JSON changed; the 16 were then recorded with
+// MOLIS_WORK_GOLDEN_RECORD=1. The other 50 records did not change.
+// D0038: independently built main cee9bb122 reproduced all 66 original hashes. The 34 changed expectations were
+// derived only by renaming the complete meta name molis-work-control-token to molis-work-page-session in those draws.
+// Candidate normalized markup matched each derived page byte for byte; the other 32 records remained exact.
+// Candidate RECORD mode was not used; executable scripts remain covered by the existing page-asset checks.
+// Batch 05 (#1979, shared sources and surfaces): the shell's project settings section 工作目录 / its English is now 输入与输出 / its English
+// (the directory row and settings link), and the shell's project-delete dialog carries the default-output choice, the busy alert and the
+// kept-folder view. All 66 pages were drawn on an independently built main 481e3d7500 (with D0038) (each matched its record there) and on this branch merged with it,
+// and compared token by token: the 20 records of the 8 project pages and settings-general(-embedded) differ in the label and the dialog,
+// the other 10 (5 settings and planning pages) in the label alone; no Goals markup or JSON changed. The 30 were then recorded with
+// MOLIS_WORK_GOLDEN_RECORD=1. The other 36 records did not change.
+// Batch 10 (unified input): the 16 page-* records carry the shell's bar, where the platform composer replaced the assistant's own
+// input (the inputs, attachment block and private @ went with it); that change was recorded on its merge with main 500d868df3. After
+// it, the composer at rest carries ` data-rest` (+10 characters in every page-*), and the English placeholder is 「Ask the assistant…」
+// (16 fewer than 「…to do something…」): zh +10, en −6 on all 16, checked against the drawn pages. No Goals markup or JSON changed;
+// the 16 were recorded with MOLIS_WORK_GOLDEN_RECORD=1 and the other 50 records did not change.
+// Batch 08 (Skills): all 66 normalized draws were checked against the old records before updating. Removing only the new
+// Skills navigation restores every old hash and length: 16 whole pages have two directory buttons (706 zh / 722 en characters),
+// six personal planning records one link (92 zh / 96 en), and twelve project planning/settings records one link with its line
+// (115 zh / 119 en). Only those 34 records changed; the other 32, Goals JSON, view fixture and golden Home fixtures stayed fixed.
+// Batch 10 closeout after main 416ee8cef0: each of the 16 whole pages independently reproduced its previous hash and
+// length after removing only the two Skills buttons and replacing the receiver button with the former span (+41).
+// All other records retained the accepted main records; no Goals markup, data or assertions changed.
+// D0013: the current kanban and momentum fragments add one cancelled column. Removing only that complete column restores
+// all 66 prior hashes and lengths (14 changed: zh +2955 / en +2968); no other markup, JSON or view fixture was changed.
+// Main #2002: removing only the restored answer chip and changing English Send to: back to To: reproduces
+// all 66 previous hashes and lengths. Only the 16 whole-page records changed (zh +94 / en +99); Goals data stayed exact.
+// D0014/D0015 (2026-11-09): all 66 baseline renders on independently built ecdfe102d matched the accepted records.
+// Token comparison with the candidate found 22 changed records, solely the shared state labels/title/aria text,
+// the blocked count label, and the cancelled kanban column (including its paused ring and zero count). The other 44 stay byte-identical.
+// Main #2002 integration: all 66 preserved A-1 draws first reproduced their accepted hashes.
+// Derive only the hidden assistant-answer button and English To: → Send to: from that main change.
+// All 16 whole-page draws match the derived markup byte for byte; the other 50 remain identical.
+// Batch 09 (#2015, AI kits): all 66 pages drawn on independently built main bac5d62b9e (each matched its record there) and on this branch,
+// compared token by token: the 34 changed records (17 pages in two languages) differ only in the shell's settings navigation — the global
+// rows 提示词 and 技能 (Prompts, Skills; icons text and book) became one 能力包 / AI kits row (icon sparkles, `data-settings-section="kit"`),
+// and the settings links /settings/prompts, /settings/skills and the project's /settings/skills became /settings/kit — besides executable
+// scripts and dictionaries, which the hash leaves out. No Goals markup or JSON changed; the 34 were recorded with MOLIS_WORK_GOLDEN_RECORD=1.
 const RECORDED = new URL("golden.json", GOLDEN);
 interface Recorded { sha256: string; length: number }
 const recorded: Record<string, Recorded> = record ? {} : JSON.parse(readFileSync(RECORDED, "utf8"));

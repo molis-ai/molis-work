@@ -26,6 +26,21 @@ Home 安装、Runtime 接入、常驻 Web 服务和卸载的实现统一在 `app
 
 修改 workspace 源码后必须重新构建。`pnpm build` 最后通过 `apps/local-host/tooling/write-build-manifest.mjs` 调用 Local Host 的构建记录生成函数，覆盖根源码、workspace 包源码/配置和构建脚本；不要单独生成记录掩盖旧构建。新建 workspace 层级时同步 installer fingerprint 的包发现范围与构建列表。定向回归包括 `tests/install.test.ts`、`tests/service.test.ts`、`tests/uninstall.test.ts`、`tests/uninstall-catalog.test.ts`，真实 Web/Desktop 调用由对应集成测试覆盖。DV4 完整发布验收尚未完成，不能把这些回归当成可发布证明。
 
+## macOS 构建运行时
+
+2026-11-04 排查到本机 CLT 内的 `swift-package` 与 BuildServerProtocol framework 版本不一致，且默认 macOS 27 SDK 与 Swift 6.3.3 不匹配。使用 Swift 官方 6.3.3 发布包中完整的工具链，配合已安装 macOS 26.5 SDK，Foundation/AppKit 编译、SwiftPM 与整个 Work 构建已通过；没有绕过原生助手编译或更改系统 xcode-select。
+
+本机隔离工具链存放在主检出的已忽略 `node_modules/.cache/toolchains/`，包含激活脚本和来源记录。每个新的构建 shell 先执行：
+
+```sh
+source /path/to/molis-work/node_modules/.cache/toolchains/activate-work-build-env.sh
+pnpm build
+```
+
+2026-11-05 扩展验证又确认 Homebrew Node 26.9.0 依赖外部 `libnode.147.dylib`，插件的既有 Seatbelt 规则拒绝该动态库。采用官方独立 Node 26.9.0（ABI 147）后，原先 5 个失败文件在同一干净主线构建上全部通过，包含插件安装与项目清理。官方包 SHA-256 为 `8dd6e383c216dbadd04e6eaac5b8fcaec8ba700a58fa51ebd38d4f9532741909`，代码签名 Node.js Foundation（HX7739G8FX）有效；没有更改全局 Node、重装原生依赖或修改沙箱规则。组合激活脚本会同时选择这份 Node 和 Swift；两份来源记录保存在同一工具链缓存。
+
+脚本只设置该 shell 的 PATH、SDKROOT 和工具链路径。其他机器不依赖此绝对路径，使用一致的完整 Swift 工具链与匹配 SDK 即可。当前来源为 Swift 官方 `swift-6.3.3-RELEASE-osx.pkg`，SHA-256 为 `ee82e57774d6650f94aa06302435d6f44a055b9411698db8ecb85d9a3bcc91d0`，签名 Swift Open Source（V9AUD2URP3）与 Apple notarization 验证通过。
+
 ## 当前Goal、父目标与依赖
 
 当前工作由事件状态表示，公开读取使用 `goals.state.read`。父目标按自己的当前约定、报告、要求和适用阻塞判断完成，子目标数量不构成完成证明。未完成依赖影响正式完成，但不禁止记录普通笔记或部分结果。
@@ -41,7 +56,9 @@ init | snapshot | active-goal
 goal-tree-propose | goal-tree-read | goal-tree-check | goal-tree-decide
 ```
 
-上述每条 v1 命令都要用 `--db PATH` 指明项目数据库；没有默认路径，没给（缺值、空白，或 `--db` 后紧跟另一个 `--` 旗标）就报错，不会按当前目录猜一个库（`init` 也一样，数据库在 `PATH` 处创建）。相对路径按你写的那个，相对当前目录解析。复杂输入可以通过 `--json` 或 `--file payload.json` 传入。旧create-goal、Claim/Run、Evidence/Review和Contract/Candidate/Rewire等命令已退役，旧名字会报未知操作。日常笔记、报告、约定、收尾与继续使用MCP或Web，CLI没有同义事件写命令。每条 v1 命令调用 Goals 的一个动作（`goals.board.initialize`、`goals.snapshot.read`、`goals.active.set`、`goals.tree.submit`、`.read`、`.check`、`.decide`），调用者由宿主造：本机这个人，出处 `management`，只带这一个动作自己的权限；命令的输入与输出不变（只有一处例外，S8：`init` 不再收 `title`，项目的名字只在项目目录里，`snapshot` 里的看板也不再带 `title`；`goals.board.initialize`、`goals.snapshot.read` 因此各升到版本 2），命令的 JSON 必须带这条命令绑定的 `project_id`，否则 `actions.scope_mismatch`。CLI是用户/管理和本地调试入口，不是Runtime的服务故障回退。`init`、`goal-tree-propose`、`goal-tree-check`、`active-goal` 与 `goal-tree-decide` 以本机这个人的身份写入，参数里不带身份：`goal-tree-propose` 和 `goal-tree-check` 的参数带了 `actor_id` 或 `actor_kind` 会被拒绝（`actions.input_invalid`），`goal-tree-propose` 的 `submitted_session_id` 也一样（这扇门背后没有 Runtime 会话），`goal-tree-decide` 的参数带了 `actor_id`、`actor_kind`、`audit_actor_id` 或 `runtime_actor_id` 同样被拒绝（决定是本机这个人作的，没有 Runtime 转交；`authority` 只写 `conversation_ref`、`message_ref` 这类出处，写了 `actor_id`、`actor_kind` 或 `authority_source` 也被拒绝），`active-goal` 不再读 JSON 里的 `actor_id`，旧脚本多写这个字段也不会被当成别人。
+上述每条 v1 命令都要用 `--db PATH` 指明项目数据库；没有默认路径，没给（缺值、空白，或 `--db` 后紧跟另一个 `--` 旗标）就报错，不会按当前目录猜一个库（`init` 也一样，数据库在 `PATH` 处创建）。相对路径按你写的那个，相对当前目录解析。复杂输入可以通过 `--json` 或 `--file payload.json` 传入。旧create-goal、Claim/Run、Evidence/Review和Contract/Candidate/Rewire等命令已退役，旧名字会报未知操作。日常笔记、报告、约定、收尾与继续使用MCP或Web，CLI没有同义事件写命令。每条 v1 命令调用 Goals 的一个动作（`goals.board.initialize`、`goals.snapshot.read`、`goals.active.set`、`goals.tree.submit`、`.read`、`.check`、`.decide`），调用者由宿主造：本机这个人，出处 `management`，只带这一个动作自己的权限；命令的输入与输出不变（只有一处例外，S8：`init` 不再收 `title`，项目的名字只在项目目录里，`snapshot` 里的看板也不再带 `title`），命令的 JSON 必须带这条命令绑定的 `project_id`，否则 `actions.scope_mismatch`。CLI是用户/管理和本地调试入口，不是Runtime的服务故障回退。`init`、`goal-tree-propose`、`goal-tree-check`、`active-goal` 与 `goal-tree-decide` 以本机这个人的身份写入，参数里不带身份：`goal-tree-propose` 和 `goal-tree-check` 的参数带了 `actor_id` 或 `actor_kind` 会被拒绝（`actions.input_invalid`），`goal-tree-propose` 的 `submitted_session_id` 也一样（这扇门背后没有 Runtime 会话），`goal-tree-decide` 的参数带了 `actor_id`、`actor_kind`、`audit_actor_id` 或 `runtime_actor_id` 同样被拒绝（决定是本机这个人作的，没有 Runtime 转交；`authority` 只写 `conversation_ref`、`message_ref` 这类出处，写了 `actor_id`、`actor_kind` 或 `authority_source` 也被拒绝），`active-goal` 不再读 JSON 里的 `actor_id`，旧脚本多写这个字段也不会被当成别人。
+
+插件作者的命令（`molis-work plugin create`、`validate`、`dev`、`pack`）见[插件开发手册](platform/PLUGIN-DEVELOPMENT.md#创建和运行)；`validate` 也查 Manifest `ui.locales` 声明的语言文件，挡得住的失败、只提示的放进 `locale_notes`，读法见手册的[界面文字与语言文件](platform/PLUGIN-DEVELOPMENT.md#界面文字与语言文件)。
 
 `molis-work demo remove --confirm` 先问这个 Home 的常驻服务：常驻服务应答时，由它的删除服务来删（项目里的终端还开着就拒绝，和设置页一样；删除记在本机这个人名下），地址取环境变量 `MOLIS_WORK_WEB_URL`，没有就是 `http://127.0.0.1:4173`。Home 里没有控制令牌、或那个地址没人应答，命令才在自己的进程里删；应答的是别的 Home 的服务、或终端还开着，命令报错退出，示例项目原样保留。`molis-work uninstall` 先停掉常驻服务，再在自己的进程里清示例项目。
 
@@ -162,7 +179,7 @@ molis-work-mcp
 硬规则：
 
 - **不准把操作系统默认控件当成产品 UI。** 禁止系统下拉菜单、系统颜色选择器、系统日期/时间弹出、`alert` / `confirm` / `prompt`、未换肤的 `range`。选择打开后必须是 `mw-menu`，原生 `<select>` 只可隐藏当表单值。文件选择可隐藏原生 input，按钮必须是 `mw-btn`。原生 `<dialog>` 只留 Escape 和焦点圈，外观走 `mw-*`。详见 [mw-select-custom-menu](../specs/archive/mw-select-custom-menu/spec.md)。
-- **图标与色彩成套。** 动作图标从 Lucide 库取，色随表面（`--ink-soft`，当前 `--ink`）。插件没有身份色（画插件的地方 `--plugin-tint` 都是中性色）。石墨 `--action` 只给主操作和选中的选项；铜色 `--accent`（`--blue*` / `--focus` 的实际值）只给焦点、链接和进行中，不填按钮。状态走 status family。颜色、圆角、高度、时长只取 `palette.ts` 的 token，不写 hex，不用 `!important` 或按插件覆盖去压前面的层。不要第二套 emoji 图标。
+- **图标与色彩成套。** 动作图标从 Lucide 库取，色随表面（`--ink-soft`，当前 `--ink`）。插件没有身份色（画插件的地方 `--plugin-tint` 都是中性色）。石墨 `--action` 只给主操作和选中的选项；铜色 `--accent`（`--blue*` / `--focus` 的实际值）只给焦点、链接和进行中，不填按钮。状态走 status family。颜色、圆角、高度、时长只取共享 token（值只在 `packages/design-system/resources/` 的基线文件里），不写 hex，不用 `!important` 或按插件覆盖去压前面的层。不要第二套 emoji 图标。
 - **动效成套，而且要做。** 只用 `--dur-*`（按压 130、状态 250、到达 420）/ `--ease-quint` / `--ease-spring` 和已有位移（分段滑块、目录 yield、底栏菜单升起、`craft-rise` 到达）。状态变了要看得出走过去或到达，不要硬切。hover 是色阶，不是浮起；按下回弹。`prefers-reduced-motion` 去掉位移。不为动而动。
 - **键盘焦点**只用 `--focus-stroke`（2px 铜色、偏移 1px）；字段是铜色边框加 3px 铜色光晕。不要自己写焦点色，不要去掉焦点。旧的「内侧 1px ink」规则（[neutral-focus-stroke](../specs/archive/neutral-focus-stroke/spec.md)）已被 Soft Workbench 取代。
 - **字与层次。** 系统字体栈，字重只有 400 / 500 / 600（`--weight-body` / `--weight-control` / `--weight-title`），不准全局强制字重。工作都在一张连续白色工作面上，插件不画自己的外框卡片；只有浮起的东西投影。
@@ -207,11 +224,25 @@ pnpm --filter @molis-ai/molis-work-integration-github typecheck
 
 ### 页面资源体积
 
-改过样式、客户端脚本、插件客户端包或字体，在 `pnpm workspace:build` 之后跑 `node scripts/gates/page-assets.mjs --base origin/main`（即 `pnpm page-assets:check` 加 `--base`；CI 在 `workspace:verify` 之后跑同一条）。宿主在 `/assets/` 下发的文件按实测字节数记在 `tooling/gates/page-assets.json`；`--report` 打印逐文件的字节、gzip 与预算。
+改过样式、客户端脚本、插件客户端包或字体，在 `pnpm workspace:build` 之后跑 `node scripts/gates/page-assets.mjs --base origin/main`。`pnpm page-assets:check` 默认同样对照 `origin/main`；CI 在 `workspace:verify` 后以事件的实际基点比较。比较的是基点与候选的真实 Host 下发字节，不再提交绝对大小的共享预算。缩小直接通过；下一次从缩小后的实际大小比较，没有可以重新长回去的余量。`--report [--json]` 只测量当前构建，显示逐文件字节和 gzip，不代表比较通过。
 
-这是体积控制，不是硬上限（用户 2026-10-18 定）：默认只许变小，能省先省。功能确实需要、在同一个资源里又省不回的增长，PR 写明理由、字节数和试过的省法；评审认可后在 `scripts/gates/page-assets.mjs` 的 `APPROVED_CEILINGS` 加一条一次性放行，只认 merge-base 的准确数字，上限等于实测，下次添加放行时删掉用完的条目，合入后继续冻结。一个资源一次涨超过 10 KB 或新增资源，先问用户。
+默认只许变小，能省先省。必要增长在 `tooling/gates/page-asset-allowances/` 新建本任务独立 JSON，例如 `font-picker.json`：
 
-除这条放行外，CI 与 `--base <ref>` 对照 merge-base 的预算：调大数字、新增条目或删掉仍在下发的条目都不能过关，`--update` 也不会写入变大的数字。预算必须等于实测；变小就在同一个 PR 里跑 `node scripts/gates/page-assets.mjs --update --base origin/main` 降下来。合并前 main 若又改了资源，在合并结果上重新 `pnpm workspace:build` 后再检查。路由识别与未覆盖范围见 [`scripts/gates/page-assets.mjs`](../scripts/gates/page-assets.mjs) 头部和[防腐 spec](../specs/archive/repository-anti-corruption/spec.md) §5a。
+```json
+{
+  "reason": "复用现有控件后，新增字体筛选仍需 320 字节；已去掉重复提示文案",
+  "review": "PR 评审或需求书中的具体审阅出处",
+  "assets": { "/assets/molis-work-workbench.js": 320 }
+}
+```
+
+`assets` 写允许增加的最大字节数，不写基点的绝对大小。一个资源净增超过 10 KB（10,000 字节）或新增资源，先取得用户批准，并用 `userApproval` 字段记录具体出处；同一资源多份许可合计造成大额增长也要求用户批准。许可须经评审，不能自行填写虚构的批准。只消费比较基点尚未包含的新文件；已合入文件不改、不删、不重复使用。合并组累加组内新许可，再与整个组的实际净增比较。改名或复制许可也属于新批准，评审须核对来源。
+
+主线上的独立变化不会让增量许可因绝对基数变化失效；无需再为缩小或 main 的其他增长更新门禁代码。真正改变资源的合并仍要构建并检查，超额增长必须减小或重新取得对应批准。切换时旧许可已经体现在 main 的构建中，不转换成新额度；在途 PR 只把其未采用且已经获批的增量写成任务文件，旧预算和门禁内放行表的冲突删除，不替它改产品代码。
+
+基线先找同一提交、测量器、Node/pnpm 版本与平台的可信 CI 产物，仅接受成功 main push 或合并队列；任意 PR 产物不能当基线。缺失、过期、损坏或读取失败时，在临时检出中安装、构建并用同一测量器测量；失败不放行，成功、失败和取消都清理。冷基线多一次构建；后续复用是加速，不能改变判定。当前的工作树构建仍由开发者先完成。
+
+路由从 Host 的 `web-assets.ts` 和插件登记中发现，基点所有已测路径还会再次向候选 Host 探测；仍下发但已藏在不可读路由后的资源会失败。具体读取范围和局限见 [`scripts/gates/page-assets-measure.mjs`](../scripts/gates/page-assets-measure.mjs)。新增资产路径、测量范围或批准边界的改动仍要评审。
 
 ### 推送前扫描密钥
 
@@ -225,6 +256,23 @@ pnpm --filter @molis-ai/molis-work-integration-github typecheck
 
 当前 Desktop payload 包含根 dist、正式 workspace 运行依赖、Runtime Skill、Node 和 vendor 来源/许可资产，不包含第二套业务实现。npm 使用 `pnpm package:npm`：先完整构建，再由 Local Host tooling 在临时目录生成 `release/npm/*.tgz`。需要其他输出目录时用 `pnpm package:npm /absolute/output`。不要直接在源码根执行 npm/pnpm pack；它会提示正确命令，避免生成含 workspace:* 的不可安装包。
 
-npm 产物随包交付实际依赖的 workspace 与 vendor JavaScript 包，按各包 files 声明保留发布资产；注册表依赖由消费者正常安装，SQLite/PTY 不带入构建机二进制，也不附 Node。消费环境需要 Node 24+。本地验收先在新目录执行 `npm install /absolute/archive.tgz`（不能跳过安装脚本），再执行 `node tests/npm-distribution-smoke.mjs /absolute/consumer`。该检查通过实际产品入口验证 CLI、SQLite 持久化、PTY、方法资产、Home 安装及源包不可用时的 MCP 握手；只支持当前 Unix 测试宿主，不声称验证其他平台。
+npm 产物随包交付实际依赖的 workspace 与 vendor JavaScript 包，按各包 files 声明保留发布资产；注册表依赖由消费者正常安装，PTY 与 Alchemist 的 SQLite 不带入构建机二进制，也不附 Node。消费环境需要 Node 24.15.x：项目库用的就是它自带的 SQLite，别的 Node 上插件语句全部被拒，启动时会说。本地验收先在新目录执行 `npm install /absolute/archive.tgz`（不能跳过安装脚本），再执行 `node tests/npm-distribution-smoke.mjs /absolute/consumer`。该检查通过实际产品入口验证 CLI、SQLite 持久化、PTY、方法资产、Home 安装及源包不可用时的 MCP 握手；只支持当前 Unix 测试宿主，不声称验证其他平台。
 
 上句描述当前发布物；DV4 的干净环境完整发布验收仍未完成。
+
+## 账号环境启动
+
+macOS 首次准备 Node 24.15.x、pnpm 11.9.0，然后执行 `pnpm install --frozen-lockfile` 和 `pnpm build`。先在 Auth 仓库执行 `npm run setup`（首次）及 `npm run dev`，再在本仓库执行 `pnpm dev`。
+
+| 命令 | Auth | Work 端口 | 独立 Home |
+| --- | --- | --- | --- |
+| pnpm dev | 本机 8787 / LOCAL / MOCK | 4207 | ~/.molis-work-environments/dev |
+| pnpm start:test | auth-staging.molis.ai / TEST | 44207 | ~/.molis-work-environments/test |
+| pnpm start:prod | 已登记的 production Workers 域名 / PRODUCTION / LIVE | 4207 | ~/.molis-work-environments/prod |
+
+公共配置统一在 scripts/account-environments.mjs，改端口必须同时修改 Auth 对应客户端登记。dev 不需要手动配置密钥或客户端；Auth 创建普通测试账号 preview@example.test，初始密码 Molis-dev-2026!，重启保留已修改密码。启动器不停止任何已有服务，不使用日常 ~/.molis-work，端口被占用直接提示。构建后改源码需重新 pnpm build。
+
+test/prod 只选择对应环境，不代表云端资源已经部署；prod 首次须由部署人员应用 Auth 的 worker/deploy/production/work-client.sql 并配置密钥和外部渠道。没有可用 Auth 时不会偷偷回退 dev。启动脚本只配置账号依赖，其他插件的外部服务仍按各自配置处理。
+### 测试文件的类型盘点
+
+`pnpm typecheck:tests` 使用严格noEmit配置检查全部测试及类型依赖，目前因存量问题返回非零；暂不属于必过CI。口径、起点对照和后续分批方案见[D0069阶段记录](reviews/daily-quality/2026-11-08-test-types.md)。

@@ -128,27 +128,36 @@ function memoryActivityResult(item: AgentToolActivity): Partial<Pick<AssistantAc
   if (result.memory_id === "" && candidate) return { verb: "memory-suggest", target: "" };
   return typeof result.memory_id === "string" && result.memory_id.length > 0 && !candidate ? {} : { state: "unknown" };
 }
+/**
+ * The Agent tools' activity as the person reads it, keyed by a tool's name in the Agent Host's tool set or the runtime's own name for it
+ * (`AGENT_TOOLS`; the side panel's browser tools are the runtime's, offered by the surface). Presenting stays here; the names are the set's.
+ */
+export const TOOL_ACTIVITY_VERBS: Readonly<Record<string, string>> = { "find-capabilities": "lookup", "read-capability": "read", "change-capability": "change", "change-reversible": "change", "ask-user": "ask", "update-todo": "todo",
+  "suggest-action": "suggest",
+  // A professional Agent's own tools, as the person reads them: on files and commands, never a business capability.
+  "read": "file-read", "read-file": "file-read", "list": "file-list", "search": "file-search", "edit": "file-change", "edit-file": "file-change",
+  "write": "file-change", "run-command": "command", "command-output": "command-output", "await-commands": "command-output", "find-tools": "lookup-tools",
+  // Sub-tasks handed to works of their own.
+  "delegate-work": "delegate", "check-delegated-work": "delegate-check", "follow-up-delegated-work": "delegate-follow-up", "stop-delegated-work": "delegate-stop",
+  // The side panel's browser.
+  "surface-list": "browser-list", "surface-observe": "browser-look", "surface-act": "browser-act",
+  // The person's memory.
+  "remember": "memory-keep", "list-memories": "memory-list", "forget-memory": "memory-forget", "suggest-memory": "memory-suggest",
+};
+/** What the Host itself did to a round, shown as activity. */
+const HOST_ACTIVITY_VERBS: Readonly<Record<string, string>> = {
+  // The Host let a round that only announced its next step continue; the runtime condensed a long work's context.
+  "自动续做": "auto-continue", "上下文整理": "compact",
+  // It ended still only saying what it would do, after its one continuation: nothing was done.
+  "只说未做": "ended-on-promise",
+};
+const ACTIVITY_VERBS: Readonly<Record<string, string>> = { ...TOOL_ACTIVITY_VERBS, ...HOST_ACTIVITY_VERBS };
 
 /** Activity in the person's terms: what was looked up, read or changed — not the tool log. */
 export function presentActivity(activity: readonly AgentToolActivity[], titles: CapabilityTitles | undefined, ended = false): AssistantActivity[] {
-  const verbs: Record<string, string> = { "find-capabilities": "lookup", "read-capability": "read", "change-capability": "change", "change-reversible": "change", "ask-user": "ask", "update-todo": "todo",
-    "suggest-action": "suggest",
-    // A professional Agent's own tools, as the person reads them: on files and commands, never a business capability.
-    "read": "file-read", "read-file": "file-read", "list": "file-list", "search": "file-search", "edit": "file-change", "edit-file": "file-change",
-    "write": "file-change", "run-command": "command", "command-output": "command-output", "await-commands": "command-output", "find-tools": "lookup-tools",
-    // Sub-tasks handed to works of their own.
-    "delegate-work": "delegate", "check-delegated-work": "delegate-check", "follow-up-delegated-work": "delegate-follow-up", "stop-delegated-work": "delegate-stop",
-    // The side panel's browser.
-    "surface-list": "browser-list", "surface-observe": "browser-look", "surface-act": "browser-act",
-    // The person's memory.
-    "remember": "memory-keep", "list-memories": "memory-list", "forget-memory": "memory-forget", "suggest-memory": "memory-suggest",
-    // The Host let a round that only announced its next step continue; the runtime condensed a long work's context.
-    "自动续做": "auto-continue", "上下文整理": "compact",
-    // It ended still only saying what it would do, after its one continuation: nothing was done.
-    "只说未做": "ended-on-promise" };
   return activity.flatMap(item => {
     if (item.name === "reasoning" || item.name === "context-remaining" || item.name === "acknowledge-inputs" || item.name === "board-wait") return [];
-    const verb = desktopVerb(item, verbs[item.name] ?? item.name);
+    const verb = desktopVerb(item, ACTIVITY_VERBS[item.name] ?? item.name);
     const named = titles?.get(shownActivityTarget(item.target));
     const target = (verb === "read" || verb === "change" || verb === "suggest") && named ? `${named.provider} · ${named.title}` : shownActivityTarget(item.target);
     // Sent and not finished: it may have happened, so it is neither done nor a failure to retry.

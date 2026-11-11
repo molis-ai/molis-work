@@ -11,7 +11,7 @@ import { goalAction as action, goalActor } from "./action-contract.js";
 
 type GoalAcknowledgeActionInput = Omit<AcknowledgeGoalEventInput, "project_id" | "actor_id" | "actor_kind" | "by">;
 
-const acknowledge = action<GoalAcknowledgeActionInput, GoalEventMutationResult>("goals.events.acknowledge", "说明如何处理目标上的笔记、要求或决定",
+const acknowledge = action<GoalAcknowledgeActionInput, GoalEventMutationResult>("goals.events.acknowledge", /* @version action.goals.events.acknowledge */ 1, "说明如何处理目标上的笔记、要求或决定",
   "外部 AI 会话读到本人写在目标上的笔记、要求或决定后，说明读到了什么、打算怎么处理；记在目标时间线上。这是 AI 自己的说法，不代表已经照做，也不改变目标的状态、要求或决定。重试须保留相同 idempotency_key", "command",
   object({ goal_id: identifier, event_id: identifier, treatment: enumeration(goalEventAcknowledgementTreatments),
     note: { ...identifier, maxLength: 300 }, read_cursor: { type: "number" }, idempotency_key: identifier }),

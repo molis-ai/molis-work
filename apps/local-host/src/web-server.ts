@@ -1,7 +1,12 @@
+import { WebSessions, webPageToken, withWebSessionRequest } from "./web-sessions.js";
+import { renderPersonalAccountEntry, renderAccountSameOriginEntry } from "@molis-ai/molis-work-app-workbench";
+import { createLocalWebAssets } from "./web-assets.js";
+import { createLocalHostWorkbenchRenderer } from "./workbench-renderer.js";
 import { createSpaceWebServer, type SpaceWebSurface } from "./space-web-server.js";
 import { runtimeSyncSurface } from "./runtime-sync-discovery.js";
 import { ProjectDeletionService } from "./project-deletion-service.js";
 import { pluginPagesFor } from "./plugin-page-authority.js";
+import { bindAccountHost, handleAccountHttp } from "./account-host.js";
 import { projectOrNull } from "./catalog-lookup.js";
 import { projectActionAvailability } from "./project-action-availability.js";
 import { handleManagementActionHttp } from "./management-action-gateway.js";
@@ -27,7 +32,9 @@ import type { MolisWorkWebViewCache } from "./web-view.js";
 import { startDemoSeed } from "./demo-seed.js";
 import { attachMolisWorkPtySocket } from "./pty-socket.js";
 import { bindPluginTerminalHost } from "./plugin-terminal-service.js";
-import { isWebLocale, localeSetCookie, resolveWebLocale, runWithLocale, safeNextPath } from "./web-locale.js";
+import { L, htmlLang, clientI18nScript, isWebLocale, localeSetCookie, resolveWebLocale, runWithLocale, safeNextPath } from "./web-locale.js";
+import { rememberUiLocale } from "./ui-locale-memory.js";
+import { installHostUiText } from "./ui-text-provider.js";
 import { fixtureWebBoardOptions } from "./web-routing.js";
 import { createLocalWebComposition, type LocalWebPlatform } from "./web-composition.js";
 import type { WebServerOptions } from "./web-types.js";
@@ -45,6 +52,7 @@ import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { closeHostResourceSteps, retainHomeStorageResources, retainInitializationCleanup } from "./home-storage-lifetime.js";
 import { finishLeftOverDeletions } from "./web-deletion-sweep.js";
 import { serviceProcessId } from "./web-runtime-settings.js";
+import { installationDiagnostics } from "./web-project-presentation.js";
 import { awaitWebServerShutdown } from "./web-server-close.js";
 
 function loopbackWebOrigin(server: http.Server): string {
@@ -62,6 +70,21 @@ function nativeTerminal() {
   return terminal;
 }
 
+/** The language switch. This is a GET a foreign page's <img> reaches too: the browser's Cookie goes as ever, but only the page itself moves the Home's remembered language (S-ui-locale-memory). */
+function switchLocale(request: http.IncomingMessage, response: http.ServerResponse, url: URL, home: string): void {
+  const requested = url.searchParams.get("lang");
+  if (request.headers["sec-fetch-site"] === "same-origin") rememberUiLocale(home, requested);
+  const nextLocale = isWebLocale(requested)
+    ? requested
+    : resolveWebLocale(request.headers.cookie, request.headers["accept-language"]);
+  response.writeHead(302, {
+    location: safeNextPath(url.searchParams.get("next")),
+    "set-cookie": localeSetCookie(nextLocale),
+    "cache-control": "no-store",
+  });
+  response.end();
+}
+
 function webWorkspaceFor(projectId: string, options: WebServerOptions, fixture: ReturnType<typeof fixtureWebBoardOptions>, home: string, withCatalog: LocalWebCatalogRunner) {
   const configuredRoot = () => {
     if (!options.projectRoot) return null;
@@ -72,8 +95,10 @@ function webWorkspaceFor(projectId: string, options: WebServerOptions, fixture: 
   return withCatalog({homeDirectory: home}, catalog => workspaceRefFor(catalog, projectId) ?? configuredRoot());
 }
 
-export function createLocalWebServerFactory(platform: LocalWebPlatform) {
+export function createLocalWebCoreFactory(platform: LocalWebPlatform) {
   function createMolisWorkWebServer(options: WebServerOptions = {}): SpaceWebSurface {
+    // The text tools' context, once a process: a page's `t` finds the request's language and the owners' words through it (§8.3).
+    installHostUiText();
     const storageHome = resolveConfiguredHome(options.homeDirectory);
     let catalogAccess: ReturnType<typeof createWebCatalogAccess> | undefined;
     const baseCatalog: LocalWebCatalogRunner = (settings, operation) => (catalogAccess?.withCatalog ?? platform.withCatalog)(settings, operation);
@@ -101,6 +126,8 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
       projectRoutePrefix: projectId => fixture && projectId === fixture.projectId ? "" : `/projects/${encodeURIComponent(projectId)}`,
       workspacesFor: (projectId) => withCatalog({ homeDirectory: storageHome }, catalog => catalog.listWorkspaceDirectory(projectId)),
       workspaceFor: projectId => webWorkspaceFor(projectId, serverOptions, fixture, storageHome, withCatalog),
+      directoriesFor: projectId => withCatalog({ homeDirectory: storageHome }, catalog => catalog.projectDirectories(projectId)),
+      prepareDirectory: (projectId, workspaceId, mode) => withCatalog({ homeDirectory: storageHome }, catalog => catalog.prepareWorkspaceDirectory(projectId, workspaceId, mode)),
     });
     const ownsLocalHost = !serverOptions.localHost;
     const completed = new Set<string>(), resources: Array<readonly [string, () => unknown]> = [];
@@ -110,14 +137,16 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     try {
     // The Host, including a borrowed one, cannot relinquish its lease while this transport still owns storage.
     boundCatalog = localHost.configurePersonalPlanning(storageHome, baseCatalog);
+    const account = bindAccountHost(localHost, storageHome, serverOptions.account, serverOptions.assertAccountCurrent);
     releaseTransport = retainHomeStorageResources(localHost, () => shutdown ? shutdown() : cleanup());
     if (platform.openCatalog) catalogAccess = localHost.ensureWebCatalog(storageHome, platform.openCatalog);
     const runtimeIntegrations = serverOptions.runtimeIntegrationService ?? new RuntimeIntegrationService({ homeDirectory: storageHome });
     const webService = serverOptions.webServiceManager ?? new MolisWorkWebServiceManager({ homeDirectory: storageHome });
     const agents = ensureSystemAgentService(localHost, storageHome, withCatalog);
-    const composition = createLocalWebComposition({ ...platform, withCatalog }, storageHome);
+    const composition = createLocalWebComposition({ ...platform, withCatalog }, storageHome,serverOptions.accountRegistration??false,serverOptions.installationDiagnostics);
     const { serveWorkbenchAsset } = composition;
     const controlToken = resolveWebControlToken(serverOptions);
+    const sessions = serverOptions.webSessions ?? new WebSessions(storageHome);
     const mutationKeys = new Map<string, LocalMutationState>();
     const webViewCache: MolisWorkWebViewCache = new Map();
     const demoSeeding = startDemoSeed(fixture);
@@ -126,24 +155,13 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     const { im, browserHost, sites, computer, projectExists, projectSchedules } = createWebStorageResources({
       home: storageHome, localHost, withCatalog, fixture, periodic, webViewCache, resources, server: () => server,
     });
-    const server = trackHostListener(http.createServer((request, response) => runWithMolisWorkHome(storageHome, () => withCallId(newCallId(), async () => {
+    const server = trackHostListener(http.createServer((request, response) => withWebSessionRequest(request, () => runWithMolisWorkHome(storageHome, () => withCallId(newCallId(), async () => {
       const url = new URL(request.url ?? "/", "http://localhost");
       try { await demoSeeding;
         // Every route (locale switch included) answers only a request addressed to this machine by a loopback name, and none can be framed by another origin (S-02, S-21).
         if (refuseForeignRequest(request, response)) return;
-        if (request.method === "GET" && url.pathname === "/locale") {
-          const requested = url.searchParams.get("lang");
-          const nextLocale = isWebLocale(requested)
-            ? requested
-            : resolveWebLocale(request.headers.cookie, request.headers["accept-language"]);
-          response.writeHead(302, {
-            location: safeNextPath(url.searchParams.get("next")),
-            "set-cookie": localeSetCookie(nextLocale),
-            "cache-control": "no-store",
-          });
-          response.end();
-          return;
-        }
+        sessions.bind(request, controlToken, response);
+        if (request.method === "GET" && url.pathname === "/locale") { switchLocale(request, response, url, storageHome); return; }
         const capsuleLocale = request.method === "GET" && (
           url.pathname === "/desktop/capsule" ||
           /^\/projects\/[^/]+\/api\/capsule$/.test(url.pathname)
@@ -157,6 +175,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
           if (!authorizeLocalWebRequest(request, response, url, controlToken, mutationKeys)) return;
           if (localHost.lifecycle() !== "running") throw new Error("Local Host is closing");
           await pluginPagesFor(storageHome).bind(request, url, response);
+          if (await handleAccountHttp(request, response, url, account, serverOptions.isNativeAccountRequest)) return;
           if (request.method === "GET" && url.pathname === "/health" && catalogAccess) {
             const ready = server.address() !== null && Boolean(pty.host) && (Boolean(fixture) || catalogAccess.ready);
             sendWebHealth(response, ready ? 200 : 503, {
@@ -171,7 +190,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
           if (await im.handle(request, response, url, loopbackWebOrigin(server))) return;
           if (await handleMcpContextHttp(request, response, url, { home: storageHome, host: localHost, withCatalog,
             deletion: webProjectDeletionPorts({ isPanelAlive: panelId => pty.host?.alive(panelId) ?? false, projectSchedules, webViewCache, localHost }) })) return;
-          if (await handleManagementActionHttp(request, response, url, storageHome, localHost) || await handlePluginInstallHttp(request, response, url, storageHome, localHost) || await handleActionGatewayHttp(request, response, url, storageHome, localHost, withCatalog)) return;
+          if (await handleManagementActionHttp(request, response, url, storageHome, localHost) || await handlePluginInstallHttp(request, response, url, storageHome, localHost) || await handleActionGatewayHttp(request, response, url, storageHome, localHost, withCatalog, serverOptions.mcpCredentialHomeDirectory ?? storageHome)) return;
           if (serveWorkbenchAsset(request, response, url.pathname)) return;
           if (!pty.host) throw new Error("终端宿主尚未就绪");
           await handleMolisWorkWebRequest(
@@ -181,7 +200,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
             serverOptions,
             runtimeIntegrations,
             webService,
-            controlToken,
+            webPageToken(request),
             webViewCache,
             projectSchedules,
             pty.host,
@@ -193,15 +212,16 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
           );
         });
       } catch (error) {
-        runWithLocale(resolveWebLocale(request.headers.cookie, request.headers["accept-language"]), () => sendUnhandledWebError(response, error));
+        runWithLocale(resolveWebLocale(request.headers.cookie, request.headers["accept-language"]), () => sendUnhandledWebError(response, error, request));
       }
-    }))));
+    })))));
     // SSE is an active HTTP response, so stop its streams before close waits. The side panel's browser is asked to quit
     // at once, not when the last connection ends: a shutdown that is cut short still leaves its sign-ins written.
-    shutdown = awaitWebServerShutdown(server, () => { im.stop(); }, cleanup, async () => {
+    shutdown = awaitWebServerShutdown(server, () => { im.stop(); sessions.revokeScope(controlToken); }, cleanup, async () => {
       releaseTransport?.();
       if (ownsLocalHost) await localHost.close();
     });
+    server.prependListener("upgrade", request => sessions.bind(request, controlToken));
     attachMolisWorkBrowserSocket(server, controlToken, browserHost, { projectExists });
     computer.attach(server, controlToken);
     pty.host = attachMolisWorkPtySocket(server, controlToken, storageHome);
@@ -212,13 +232,32 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
       projectTitle: async projectId => withCatalog({ homeDirectory: storageHome }, catalog => projectOrNull(catalog, projectId)?.display_name ?? null), pages: installedPagesPort(withCatalog, storageHome) }).service;
     attachWebAssistant(server, storageHome, assistant, agents, periodic);
     if (!fixture && catalogAccess) finishLeftOverDeletions(server, storageHome, catalogAccess, periodic, serverOptions.deletionSweepMs);
-    return Object.assign(runtimeSyncSurface(server, storageHome, localHost, withCatalog, operation=>{if(!catalogAccess)throw new Error('同步项目目录尚未就绪');return catalogAccess.read(operation);}), { attachPublicListener: (close:()=>Promise<void>)=>{resources.unshift(["space_listener",close]);}, projectSyncLifecycle: new ProjectDeletionService(withCatalog, webProjectDeletionPorts({ isPanelAlive: panelId => pty.host?.alive(panelId) ?? false, projectSchedules, webViewCache, localHost })) });
+    return Object.assign(runtimeSyncSurface(server, storageHome, localHost, withCatalog, operation=>{if(!catalogAccess)throw new Error('同步项目目录尚未就绪');return catalogAccess.read(operation);}), { matchesNativeAccountCallback: account.matchesNativeCallback, projectSyncLifecycle: new ProjectDeletionService(withCatalog, webProjectDeletionPorts({ isPanelAlive: panelId => pty.host?.alive(panelId) ?? false, projectSchedules, webViewCache, localHost })) });
     } catch (error) {
       if (!ownsLocalHost && !releaseTransport) throw error;
       throw retainInitializationCleanup(error, () => ownsLocalHost ? localHost.close() : (async () => { await (shutdown ? shutdown() : cleanup()); releaseTransport?.(); })(), "web_initialization_cleanup_failed");
     }
   }
 
-  return (options: WebServerOptions = {}) => createSpaceWebServer(options, createMolisWorkWebServer, platform.withCatalog);
+  return createMolisWorkWebServer;
+}
+
+/** Installation entry: the account owner chooses the only active business Home. */
+export function createLocalWebServerFactory(platform: LocalWebPlatform) {
+  const createMolisWorkWebServer=createLocalWebCoreFactory(platform);
+  const entryAssets=createLocalWebAssets({ptyClientFilePath:platform.ptyClientFilePath,renderer:createLocalHostWorkbenchRenderer(platform.desktopRenderer)});
+  return (options: WebServerOptions = {}) => {
+    const homeDirectory=resolveConfiguredHome(options.homeDirectory);
+    const installation:WebServerOptions={...options,
+      runtimeIntegrationService:options.runtimeIntegrationService??new RuntimeIntegrationService({homeDirectory}),
+      webServiceManager:options.webServiceManager??new MolisWorkWebServiceManager({homeDirectory}),
+      installationDiagnostics:options.installationDiagnostics??(projectCount=>installationDiagnostics(homeDirectory,projectCount)),
+    };
+    return createSpaceWebServer(installation, createMolisWorkWebServer, platform.withCatalog,{
+    renderSameOriginEntry:renderAccountSameOriginEntry,
+    render:(token,request,url,message)=>runWithLocale(resolveWebLocale(request.headers.cookie,request.headers['accept-language']),()=>renderPersonalAccountEntry(token,platform.isDesktopShellRequest(request,url),message,{L,htmlLang,clientI18nScript},platform.nativeDesktopBootstrapScript,url.searchParams.has('accountLogin'))),
+    asset:(request,response,url)=>runWithLocale(resolveWebLocale(request.headers.cookie,request.headers['accept-language']),()=>entryAssets.serveWorkbenchAsset(request,response,url.pathname)),
+    });
+  };
 
 }

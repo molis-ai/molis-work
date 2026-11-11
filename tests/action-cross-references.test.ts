@@ -119,9 +119,9 @@ test("the job id is read from the output of the command; the status query takes 
 // ---- fragment and subject options ---------------------------------------------------------------------------------------------
 
 const fragmentChoice: FragmentOfferChoice = { offer_id: "make", title: "Make", intent: "organize", apply: "record", hint: "Make something", action: { capability_id: "notes.make", version: 1 } };
-const fragments = (...choices: FragmentOfferChoice[]) => defineFragmentOffersAction("notes.fragments", [FRAGMENT_ANY_OBJECT], "Fragments", [], choices);
+const fragments = (...choices: FragmentOfferChoice[]) => defineFragmentOffersAction("notes.fragments", 1, [FRAGMENT_ANY_OBJECT], "Fragments", [], choices);
 const subjectChoice: SubjectOfferChoice = { offer_id: "open", title: "Open", action: { capability_id: "notes.open", version: 1 } };
-const subjects = (...choices: SubjectOfferChoice[]) => defineSubjectOffersAction("notes.offers", ["note"], "Offers", [], choices);
+const subjects = (...choices: SubjectOfferChoice[]) => defineSubjectOffersAction("notes.offers", 1, ["note"], "Offers", [], choices);
 
 test("each fragment option points at an action of the same registration and scope", () => {
   const make = defined("notes.make", "command");
@@ -296,7 +296,7 @@ test("the Plugin Runtime does not install a plugin whose Manifest has a referenc
   const runtime = new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS });
   assert.doesNotThrow(() => runtime.install({ trust: { level: "unsigned" }, definition: definition(add(), remove()), deployment: "local", grants: [] }));
   assert.throws(() => new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS }).install({ trust: { level: "unsigned" }, definition: definition(add()), deployment: "local", grants: [] }),
-    (error: unknown) => (error instanceof ActionError && error.kind === "invalid") && error.code === "plugin.manifest_invalid" && /撤销命令 notes\.remove@1 不在同一提供方的声明里/.test(error.message));
+    (error: unknown) => (error instanceof ActionError && error.kind === "invalid") && error.code === "plugin.declaration_invalid" && /撤销命令 notes\.remove@1 不在同一提供方的声明里/.test(error.message));
 });
 
 // ---- the bundled Manifests ----------------------------------------------------------------------------------------------------

@@ -1,6 +1,6 @@
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, realpath, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -61,16 +61,16 @@ test("catalog session closes its catalog when work fails", async () => {
 test("a reader that is older than the catalog reports exact versions and a non-destructive recovery", () => {
   const error = catalogSchemaCompatibilityError(9, 8);
   assert.ok(error instanceof ActionError);
-  assert.equal(error.code, "catalog.reader_too_old");
+  assert.equal(error.code, "storage.store_too_new");
   assert.deepEqual(error.details, {
     actual_schema_version: 9,
-    supported_schema_min: 1,
+    supported_schema_min: 8,
     supported_schema_max: 8,
-    recovery: "new_or_fork_session_then_context_resolve",
+    recovery: "upgrade_then_context_resolve",
   });
   assert.match(error.message, /catalog schema=9/);
-  assert.match(error.message, /reader.*1\.\.8/);
-  assert.match(error.message, /新建或 Fork/);
+  assert.match(error.message, /只认 8/);
+  assert.match(error.message, /升级到能读它的版本/);
   assert.match(error.message, /确认当前任务焦点/);
   assert.match(error.message, /context_resolve/);
   assert.match(error.message, /不要回滚 catalog\.db/);
@@ -86,7 +86,7 @@ test("opening a future catalog fails without rewriting its schema or project fac
 
     const databasePath = join(home, "projects", "catalog.db");
     const future = openTestSqlite(databasePath);
-    const supportedVersion = Number(future.prepare("SELECT value FROM catalog_meta WHERE key = 'schema_version'").pluck().get());
+    const supportedVersion = Number(future.prepare<unknown[], { value: unknown }>("SELECT value FROM catalog_meta WHERE key = 'schema_version'").get()?.value);
     const futureVersion = supportedVersion + 1;
     try {
       future.prepare("UPDATE catalog_meta SET value = ? WHERE key = 'schema_version'").run(String(futureVersion));
@@ -98,7 +98,7 @@ test("opening a future catalog fails without rewriting its schema or project fac
       () => openMolisWorkProjectCatalog({ homeDirectory: home }),
       (error: unknown) =>
         error instanceof ActionError
-        && error.code === "catalog.reader_too_old"
+        && error.code === "storage.store_too_new"
         && error.details?.actual_schema_version === futureVersion
         && error.details?.supported_schema_max === supportedVersion,
     );
@@ -106,11 +106,11 @@ test("opening a future catalog fails without rewriting its schema or project fac
     const preserved = openTestSqlite(databasePath, { readonly: true });
     try {
       assert.equal(
-        preserved.prepare("SELECT value FROM catalog_meta WHERE key = 'schema_version'").pluck().get(),
+        preserved.prepare<unknown[], { value: unknown }>("SELECT value FROM catalog_meta WHERE key = 'schema_version'").get()?.value,
         String(futureVersion),
       );
       assert.equal(
-        preserved.prepare("SELECT display_name FROM projects WHERE project_id = ?").pluck().get(project.project_id),
+        preserved.prepare<unknown[], { display_name: unknown }>("SELECT display_name FROM projects WHERE project_id = ?").get(project.project_id)?.display_name,
         "保留项目",
       );
     } finally {
@@ -495,17 +495,21 @@ test("canonical workspace routing supports symlinks, multiple project candidates
       });
       assert.equal(initial.project?.project_id, first.project_id);
       assert.equal(catalog.listRuntimeContextBindings().length, 0);
-      const initialMembership = catalog.listWorkspaceMemberships();
+      // SSC-22: the context carries the folder's path; its row is found by that path. Each project also has its own output membership.
+      const workspaceId = catalog.listWorkspaceDirectory().find(record => record.canonical_path === initial.context.workspace?.canonical_path)!.workspace_id;
+      const atWorkspace = () => catalog.listWorkspaceMemberships().filter(membership => membership.workspace_id === workspaceId);
+      const initialMembership = atWorkspace();
       assert.equal(initialMembership.length, 1);
-      assert.equal(initialMembership[0]?.is_default, false);
+      assert.deepEqual(initialMembership[0]?.roles, ["input"]);
       assert.equal(initialMembership[0]?.workspace_name, "ordinary-project-directory");
 
       const aliasResolved = catalog.resolveRuntimeContext(aliasSession);
       assert.deepEqual([aliasResolved.status, aliasResolved.project, aliasResolved.connection], ["suggested", null, null]);
       assert.deepEqual(aliasResolved.suggested_projects.map(item => item.project_id), [first.project_id]);
+      // The alias resolves to the same folder path, so to the same row.
       assert.equal(
-        aliasResolved.context.workspace?.workspace_id,
-        initial.context.workspace?.workspace_id,
+        aliasResolved.context.workspace?.canonical_path,
+        initial.context.workspace?.canonical_path,
       );
 
       catalog.bindRuntimeContext({
@@ -522,26 +526,20 @@ test("canonical workspace routing supports symlinks, multiple project candidates
         user_confirmed: true,
       });
       assert.equal(sessionOverride.project?.project_id, second.project_id);
-      assert.equal(catalog.listWorkspaceMemberships().length, 2);
-      assert.equal(catalog.listWorkspaceMemberships().some((membership) => membership.is_default), false);
+      // Both projects have the folder as an input; neither is its default (no default project is kept).
+      assert.deepEqual(atWorkspace().map(membership => [membership.project_id, membership.roles]).sort(),
+        [[first.project_id, ["input"]], [second.project_id, ["input"]]].sort());
       assert.equal(catalog.resolveRuntimeContext(firstSession).project?.project_id, first.project_id);
       assert.equal(catalog.resolveRuntimeContext(aliasSession).project?.project_id, second.project_id);
       assert.equal(catalog.resolveRuntimeContext(workspaceContext("codex", "thread-3", workspace)).status, "suggested");
       assert.equal(catalog.resolveRuntimeContext(workspaceContext("generic", null, workspace)).status, "suggested");
 
-      const workspaceId = initial.context.workspace!.workspace_id;
-      assert.throws(() => catalog.setWorkspaceDefault({
-        workspace_id: workspaceId,
-        project_id: second.project_id,
-        actor_id: "user",
-        user_confirmed: true,
-      }), /不再保存默认项目/);
       assert.equal(catalog.resolveRuntimeContext(workspaceContext("codex", "thread-4", workspace)).status, "suggested");
-      catalog.removeWorkspaceMembership({
-        workspace_id: workspaceId,
+      catalog.changeDirectories({
         project_id: second.project_id,
         actor_id: "user",
-        user_confirmed: true,
+        change: { kind: "remove_input", workspace_id: workspaceId },
+        expected_revision: catalog.projectDirectories(second.project_id).revision,
       });
       const needsChoice = catalog.resolveRuntimeContext(workspaceContext("generic", null, workspace));
       assert.equal(needsChoice.status, "suggested");
@@ -557,6 +555,28 @@ test("canonical workspace routing supports symlinks, multiple project candidates
         }).reason,
         "missing_stable_context",
       );
+    } finally {
+      catalog.close();
+    }
+  });
+});
+
+test("SSC-22 SSC-17 a Runtime in a project's default output directory is offered that project by the folder's path, and unlinking there leaves the output", async () => {
+  await withTemporaryDirectory(async (directory) => {
+    const catalog = await openMolisWorkProjectCatalog({ homeDirectory: join(directory, "home", ".molis-work") });
+    try {
+      const project = await catalog.createProject({ display_name: "产品规划", actor_id: "user" });
+      const outputId = catalog.outputDirectory(project.project_id).workspace_id;
+      const place = catalog.prepareWorkspaceDirectory(project.project_id, outputId, "write").path;
+      const there = workspaceContext("codex", null, place);
+      const resolved = catalog.resolveRuntimeContext(there);
+      assert.equal(resolved.status, "suggested");
+      assert.deepEqual(resolved.suggested_projects.map(item => item.project_id), [project.project_id]);
+      const unlinked = catalog.unbindRuntimeContext({ context: there, actor_id: "runtime-codex", user_confirmed: true,
+        binding_scope: "workspace", project_id: project.project_id });
+      assert.deepEqual([unlinked.changed, unlinked.unbound_project], [false, null]);
+      assert.deepEqual(catalog.projectDirectories(project.project_id).directories.map(item => [item.workspace_id, item.roles]), [[outputId, ["output"]]]);
+      assert.equal(catalog.resolveRuntimeContext(there).status, "suggested", "the folder still offers its project");
     } finally {
       catalog.close();
     }
@@ -827,7 +847,8 @@ test("project deletion needs separate confirmation and records an idempotent rec
       const deleted = await catalog.deleteProject(deletionInput);
       assert.equal(deleted.replayed, false);
       assert.equal(deleted.deletion.project_id, project.project_id);
-      assert.equal(deleted.deletion.deleted_binding_count, 1);
+      // The Session binding and the project's own default output membership (every project has one, SSC-20).
+      assert.equal(deleted.deletion.deleted_binding_count, 2);
       assert.equal(deleted.deletion.cleanup_state, "complete");
       assert.equal(catalog.resolveRuntimeContext(context).status, "unbound");
       assert.deepEqual(catalog.listProjects(), []);
@@ -996,5 +1017,32 @@ test("RAC-2835 S-103 a legal same session rebinds B after A and preserves the pa
       assert.equal(reopened.terminalPanels.get("legal-panel-b")?.updated_at, savedAt);
       for (const suffix of ["a", "b"]) assert.equal(reopened.resolveRuntimeContext(stableContext("codex", "legal-panel-" + suffix)).status, "bound");
     } finally { reopened.close(); }
+  });
+});
+
+test("SSC-23 the demo's default output directory keeps its files through a reset and a removal that asks to delete them, and the next demo has them again", async () => {
+  await withTemporaryDirectory(async (directory) => {
+    const home = join(directory, "home");
+    const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
+    try {
+      const created = await catalog.ensureDemoProject({ actor_id: "user", user_confirmed: true });
+      const made = join(await realpath(home), "outputs", created.project.project_id, "made-in-the-demo.md");
+      await mkdir(join(made, ".."), { recursive: true });
+      await writeFile(made, "the person's file\n");
+      await catalog.resetDemoProject({ actor_id: "user", user_confirmed: true });
+      assert.equal(await readFile(made, "utf8"), "the person's file\n", "a reset rebuilds the demo, not the person's files");
+      const removed = await catalog.removeDemoProject({
+        project_id: created.project.project_id, actor_id: "user", delete_confirmed: true, idempotency_key: "remove-demo-asking-to-delete-output", output_files: "delete",
+      });
+      assert.equal(await readFile(made, "utf8"), "the person's file\n", "removing the demo never deletes them, even when the request asks to");
+      assert.equal(removed.kept_output_directory, join(made, ".."));
+      assert.equal(removed.deletion.owner_steps.some(step => step.owner_id === "project-output"), false);
+      const again = await catalog.ensureDemoProject({ actor_id: "user", user_confirmed: true });
+      assert.equal(again.status, "created");
+      assert.equal(catalog.projectDeletion.outputContents(again.project.project_id), "has_files", "the demo has the same id, so the same folder");
+      assert.equal(await readFile(made, "utf8"), "the person's file\n");
+    } finally {
+      catalog.close();
+    }
   });
 });

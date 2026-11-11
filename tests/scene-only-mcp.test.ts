@@ -1,3 +1,4 @@
+import { changeMcpClientCredential } from "@molis-ai/molis-work-app-local-host";
 import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -10,7 +11,7 @@ import { LocalMcpServer, MolisWorkLocalHost, molisWorkHostProjectReference } fro
 import { PluginRuntime, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { ActionError, sceneConfigurationActions, type ActionDefinition, type ActionSceneBinding, type ActionSceneTarget } from "@molis-ai/molis-work-contracts/platform/actions";
 import { definePlugin } from "@molis-ai/molis-work-plugin-sdk";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 
 test("scene-only plugin receives exact MCP configuration grants through existing settings and updates its original storage", { timeout: 90_000 }, async () => {
@@ -85,6 +86,7 @@ test("scene-only plugin receives exact MCP configuration grants through existing
     assert.equal(settings.actions.filter((row: { provider: { provider_id: string } }) => row.provider.provider_id === installed.install_id).length, 3);
     await grant(management.targets, true, false);
     await grant(management.targets);
+    changeMcpClientCredential(home, "runtime:scene-only", "connect");
     external = new LocalMcpServer(withMolisWorkProjectCatalog, "runtime", { projectId: project.project_id,
       databasePath: project.database_path, webBaseUrl: origin }, { homeDirectory: home,
       runtimeContext: { runtime_id: "scene-only", stable_work_context_id: null, host_declares_stable: false } }, host);
@@ -134,4 +136,13 @@ test("scene-only plugin receives exact MCP configuration grants through existing
     if (server.listening) { server.closeAllConnections(); await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve())); }
     await host.close(); await rm(home, { recursive: true, force: true });
   }
+});
+
+// N34-VS-02: adapters inherit the scene version rather than creating a separate current action version.
+test("N34-VS-02 scene configuration adapters retain the declared scene version", () => {
+  const scene = { scene_id: "fixture.versioned-scene", version: 7, title: "场景", description: "版本来自场景", trigger: "检查",
+    scope: "project" as const, permissions: [], subject_kinds: [], input_schema: { type: "object" }, result_schema: { type: "object" } };
+  const actions = sceneConfigurationActions(scene);
+  assert.deepEqual([actions.targets.version, actions.enable.version, actions.disable.version], [7, 7, 7]);
+  assert.equal(actions.targets.capability_id, "scenes.targets:fixture.versioned-scene");
 });

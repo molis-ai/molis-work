@@ -41,6 +41,11 @@ ${STRIP_BUTTON}:focus-visible{outline:var(--focus-stroke);outline-offset:1px}
 .tab-all-count{color:var(--muted);font-variant-numeric:tabular-nums}
 .tab-solo-chip{background:var(--accent-soft);color:var(--accent-strong,var(--accent))}
 .tab-solo-chip:hover{background:color-mix(in srgb,var(--accent) 18%,var(--paper));color:var(--accent-strong,var(--accent))}
+/* 全部标签 shows only once the strip cannot hold its tabs (tab-workspace-strip.ts); the right side's 独看 chip sits before its glyphs. */
+${STRIP_BUTTON}[hidden]{display:none}
+.side-solo-chip{order:5}
+/* The right side without the focus: its current glyph keeps only its place, as a pane's tab does. */
+.tab-glyph-row[data-unfocused]>.tab-item[data-glyph-only][aria-current]{background:var(--nav-active);box-shadow:none}
 /* Menus that open from the titlebar: a search field on top, sections, a row's place and its "open beside", the keys at the foot. */
 .mw-menu.tab-menu[hidden]{display:none}
 .mw-menu.tab-menu{--ops-btn:var(--control-h,32px);width:320px;max-width:calc(100vw - 16px);max-height:min(70dvh,560px);overflow:auto;overscroll-behavior:contain}
@@ -65,6 +70,7 @@ ${STRIP_BUTTON}:focus-visible{outline:var(--focus-stroke);outline-offset:1px}
 /* A tab whose record is gone is struck through and still opens, so it keeps a readable ink; a plugin that did not start carries the amber point. */
 ${W} .tab-item[data-tab-state="gone"] .tab-item-name{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--ink-soft)}
 .tab-item-trigger>.nav-warn-dot{margin-left:-2px}
+.tab-menu .mw-menu__item[data-tab-state="gone"] [data-slot]{color:var(--muted);text-decoration:line-through;text-decoration-color:var(--ink-soft)}
 /* A removed plugin's group greys. Its hue is written inline on the group, which no sheet rule can override there, so the grey
    replaces what the group derives from the hue (its wash and head ink) and the hue itself on everything inside it, where the
    tabs' own ink is mixed from it. One step above the active group's wash (tab-groups.ts), so it holds while the group is active. */
@@ -80,30 +86,53 @@ ${PINNED_GROWN} .tab-item-name{display:block;animation:craft-fade-in ${EASE} bot
 .titlebar-layout{position:relative;display:flex;align-items:center;flex:none;gap:4px;padding-left:9px}
 .titlebar-layout::before{content:"";position:absolute;left:0;top:50%;width:1px;height:16px;margin-top:-8px;background:var(--line-strong)}
 /* Touch targets on a phone and under a coarse pointer at any width, as the tabs beside them. With no hover to look with,
-   "open beside" stays shown and the row's place moves left of it. */
+   "open beside" stays shown, as the row's own target after the item rather than over its end, so two targets never share a point. */
 @media (max-width:760px),(pointer:coarse){
 ${STRIP_BUTTON}{height:44px;min-width:44px}
 /* The small icon button is a fixed 28px square (primitives.ts); here it is the strip's touch target. */
 .titlebar-layout>.mw-btn{width:44px;min-width:44px;height:44px;min-height:44px}
 .tab-menu .mw-menu__item{min-height:44px}
-.tab-menu-row>.tab-menu-beside{opacity:1;transform:none}
-.tab-menu-row>.mw-menu__item{padding-right:calc(var(--ops-btn) + 8px)}
+.tab-menu-row>.tab-menu-beside{position:static;flex:none;margin:0 4px 0 2px;opacity:1;transform:none}
+.tab-menu-row>.mw-menu__item{flex:1;min-width:0}
 .tab-menu-row:is(:hover,:has(:focus-visible)) :is(.tab-menu-where,.tab-menu-note){opacity:1}
 }
 @media (max-width:760px){
 ${SWITCH}{display:inline-flex}
 /* The menus take the phone's width, less the gutters, so the search prompt reads whole. */
 .mw-menu.tab-menu{width:calc(100vw - 32px)}
-/* The titlebar's strip on a phone: the switch and the strip's chips on one row, the current tab alone on the next, as wide as the
-   strip so its title reads in full; the other tabs, pinned ones too, are reached from 全部标签, which a phone always shows. */
-${BAR}{flex-wrap:wrap;gap:4px;height:auto}
-${BAR}>.tab-scroll{order:1;flex:1 0 100%;width:auto}
+/* The titlebar's strip on a phone is one row, as tall as it paints first (the 定样's 52px): the switch, then the current tab taking
+   the rest of the width so its title reads as far as it can, then 全部标签 (a phone always shows it) and ＋. The other tabs, pinned
+   ones too, are reached from 全部标签. A second row for the tab would push the page down once the strip is drawn (VUX-31).
+   The 52px holds the switch's track (its 44px halves and the track's 4px around them) without clipping it; the 44px tabs centre in it. */
+${BAR}{gap:4px;height:52px;min-height:52px;padding-block:0}
+/* Only the current tab shows in it, so no gap: the gap before the scroll's end pad would take 6px of the tab's 98. */
+${BAR}>.tab-scroll{flex:1 1 0;width:auto;min-width:98px;gap:0}
+${BAR}>.tab-strip-spacer{display:none}
+/* The row's 4px gap spaces its parts; the switch's and the undo chip's own margins would double it and push 全部标签 out. */
+${BAR}>:is(.tab-pane-switch,.tab-undo-chip){margin-inline:0}
+/* A row that cannot hold it all (the undo chip as well, on a 360 or 320 phone) scrolls rather than clips, as scheme A narrows
+   the tabs to 96px and then scrolls: ＋ is reached by scrolling, and the strip keeps the current tab in view (tab-workspace-strip.ts). */
+${W} .immersive-titlebar [data-titlebar-tabs]:has(>.tab-pane-switch){overflow:auto hidden}
+/* Settings or the market in front is the current one: its chip takes the tab's place, and the tabs behind it are in 全部标签. */
+${BAR}:has(>.tab-view-chip:not([hidden]))>:is(.tab-scroll,.tab-view-divider){display:none}
+${BAR}>.tab-view-chip{flex:1 1 0;min-width:0}
+/* Down to 320px the row still holds the switch, a 98px tab, 全部标签 and ＋: the switch's halves give up some padding first. */
+@media (max-width:379px){${SWITCH}>.mw-toggle{padding-inline:8px}}
 ${BAR} :is(.tab-item:not([aria-current]),.tab-group:not(:has([aria-current])),.tab-group-sep,.tab-group-tag){display:none}
-${BAR} :is(.tab-group,.tab-group-pages,.tab-item[aria-current]){flex:1;min-width:0;max-width:none}
+/* A pinned tab keeps its 44px glyph when it is the current one: it has no title to read. */
+${BAR} :is(.tab-group,.tab-group-pages,.tab-item[aria-current]:not([data-pinned])){flex:1;min-width:0;max-width:none}
 /* Each half is a 44px target; the current one is told by a ring as well as the chip, which is faint against the track in the dark. */
-${SWITCH}>.mw-toggle{min-height:44px}
+${SWITCH}>.mw-toggle{min-height:44px;min-width:44px}
 ${SWITCH}>.mw-toggle.is-current{box-shadow:var(--shadow-soft),inset 0 0 0 1px var(--line-strong)}
 .tab-all-button>span:not(.tab-all-count){display:none}
+}
+/* Where the right side's glyphs share the first row (side-panel.ts), the layout button ends that row, after them, as it ends the
+   titlebar after the right side's glyphs on a wide window. The first row has the room since the Home tools left it (07-1 S4b), and
+   the second keeps the whole width for the strip above: the switch, a 98px tab, 全部标签 and ＋ down to 320px. */
+@media (max-width:600px){
+${W}:not(.arrival-page) .immersive-titlebar>.titlebar-layout{order:1}
+/* Picker save feedback sits above the phone bar's layer while the picker is open. */
+.toast.is-error[data-plugin-picker-open]{z-index:46}
 }
 @media (prefers-reduced-motion:reduce){
 ${PINNED_GROWN} .tab-item-name{animation:none}

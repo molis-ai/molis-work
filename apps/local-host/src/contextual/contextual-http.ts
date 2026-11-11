@@ -1,3 +1,5 @@
+import { draftReferenceActions } from "./draft-references.js";
+import { memoryActions } from "@molis-ai/molis-work-contracts/services/memory";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import path from "node:path";
@@ -65,7 +67,7 @@ const directory = (caller: Caller): Promise<readonly ActionView[]> => {
 
 /** The platform memory's capability when this directory has it; absent means no memory here, and nothing changes. */
 const memoryAction = (views: readonly ActionView[], capabilityId: "memory.recall" | "memory.signals.report") =>
-  views.find(view => view.capability_id === capabilityId && view.version === 1 && view.availability.available);
+  views.find(view => view.capability_id === capabilityId && view.version === (capabilityId === "memory.recall" ? memoryActions.recall.version : memoryActions.signal.version) && view.availability.available);
 
 /**
  * Preferences and conventions for this situation, through `memory.recall` (P3): a few short items, matched by plugin,
@@ -169,6 +171,15 @@ export async function handleContextualHttp(request: IncomingMessage, response: S
     if (request.method !== "GET") { sendJson(response, 405, { error: "请求方法不受支持" }); return true; }
     try { sendJson(response, 200, { surfaces: surfaceKinds(await ports.actions().discover()) }); }
     catch (error) { const failure = actionErrorResponse(error); sendJson(response, failure.status, failure.body); }
+    return true;
+  }
+  const draftReference = /^\/api\/contextual\/draft-reference\/(issue|take)$/.exec(url.pathname);
+  if (draftReference) {
+    if (request.method !== "POST") { sendJson(response, 405, { error: "请求方法不受支持" }); return true; }
+    try {
+      const action = draftReference[1] === "issue" ? draftReferenceActions.issue : draftReferenceActions.take;
+      sendJson(response, 200, await ports.actions().invoke(action, await readBody(request)));
+    } catch (error) { const failure = actionErrorResponse(error); sendJson(response, failure.status, failure.body); }
     return true;
   }
   const match = /^\/api\/contextual\/(candidates|judge|cancel|prepare|signal|draft|attach|create|undo)$/u.exec(url.pathname);

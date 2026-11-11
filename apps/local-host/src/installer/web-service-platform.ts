@@ -1,3 +1,4 @@
+import { unboundConfirmation, type ConfirmationAuthority } from "./confirmation-authority.js";
 import { installerErrors } from "./errors.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createHash, randomUUID } from "node:crypto";
@@ -23,6 +24,7 @@ export class WebServiceEnvironment {
   readonly nodeExecutablePath: string;
   readonly runCommand: NonNullable<MolisWorkWebServiceManagerOptions["runCommand"]>;
   readonly healthCheck: NonNullable<MolisWorkWebServiceManagerOptions["healthCheck"]>;
+  readonly upgradeCheck: NonNullable<MolisWorkWebServiceManagerOptions["upgradeCheck"]>;
   readonly portCheck: NonNullable<MolisWorkWebServiceManagerOptions["portCheck"]>;
   readonly transitionDelayMilliseconds: number;
   constructor(options: MolisWorkWebServiceManagerOptions = {}) {
@@ -40,6 +42,7 @@ export class WebServiceEnvironment {
     this.stderrLog = path.join(this.homeDirectory, "logs", "web-service.error.log");
     this.runCommand = options.runCommand ?? runCommand;
     this.healthCheck = options.healthCheck ?? molisWorkWebHealthCheck;
+    this.upgradeCheck = options.upgradeCheck ?? (options.healthCheck ? async () => false : molisWorkWebUpgrading);
     this.portCheck = options.portCheck ?? molisWorkWebPortCheck;
     this.transitionDelayMilliseconds = Math.max(0, options.transitionDelayMilliseconds ?? 250);
   }
@@ -144,6 +147,16 @@ async function molisWorkWebHealthCheck(expectedProcessId?: number): Promise<bool
   }
 }
 
+/** The process is there and still upgrading its data, which is not it failing to come up (upgrade-chain-design §4.3). */
+async function molisWorkWebUpgrading(expectedProcessId?: number): Promise<boolean> {
+  try {
+    const response = await fetch("http://127.0.0.1:4173/health", { headers: { accept: "application/json" }, signal: AbortSignal.timeout(1_000) });
+    if (response.status !== 503) return false;
+    const body = await response.json() as { status?: unknown; process_id?: unknown; service_process_id?: unknown };
+    return body.status === "upgrading" && (expectedProcessId == null || (body.service_process_id ?? body.process_id) === expectedProcessId);
+  } catch { return false; }
+}
+
 async function molisWorkWebPortCheck(): Promise<boolean> {
   return new Promise((resolve) => {
     const socket = createConnection({ host: "127.0.0.1", port: 4173 });
@@ -199,10 +212,16 @@ export async function readReceipt(filePath: string): Promise<WebServiceReceipt |
   try { return JSON.parse(text) as WebServiceReceipt; } catch { return null; }
 }
 
-export async function writeAtomic(filePath: string, content: string): Promise<void> {
+export async function writeAtomic(filePath: string, content: string, authority: ConfirmationAuthority = unboundConfirmation): Promise<import("node:fs").Stats> {
+  authority.effect();
   const temporary = `${filePath}.tmp-${randomUUID()}`;
   await fs.writeFile(temporary, content, { encoding: "utf8", mode: 0o644 });
-  await fs.rename(temporary, filePath);
+  try {
+    authority.current();
+    const identity = await fs.lstat(temporary); authority.current(); authority.effect();
+    await fs.rename(temporary, filePath);
+    return identity;
+  } finally { await fs.rm(temporary, { force: true }); }
 }
 
 export function digest(value: string): string { return createHash("sha256").update(value).digest("hex"); }

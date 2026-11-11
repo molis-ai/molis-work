@@ -110,11 +110,9 @@ export const SETTINGS_STYLES = `
   .settings-document[data-connectors-settings] > .settings-body { padding-top: 24px; }
   .settings-connection-section { display: grid; gap: 16px; padding-bottom: 32px; border-bottom: 1px solid var(--line-strong); }
   .settings-connection-section > header { display: flex; align-items: start; justify-content: space-between; gap: 24px; }
-  .settings-connection-section h2, .settings-connector-catalog h2 { margin: 0; font-size: 17px; letter-spacing: -.02em; }
-  .settings-connection-section header p, .settings-connector-catalog header p, .settings-connection-empty p { margin: 4px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
-  .settings-connection-list, .settings-connection-detail-list { display: grid; gap: 8px; }
-  .settings-connection-empty { padding: 24px; border: 1px dashed var(--line-strong); border-radius: 10px; }
-  .settings-connection-empty strong { font-size: 13px; font-weight: 500; }
+  .settings-connection-section h2 { margin: 0; font-size: 17px; letter-spacing: -.02em; }
+  .settings-connection-section header p { margin: 4px 0 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+  .settings-connection-list { display: grid; gap: 8px; }
   .settings-connection-row { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto auto; align-items: center; gap: 12px; padding: 12px 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface, transparent); }
   .settings-connection-row__identity { min-width: 0; display: grid; gap: 4px; }
   .settings-connection-row__identity strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 500; }
@@ -122,47 +120,8 @@ export const SETTINGS_STYLES = `
   .settings-connection-row__actions { grid-column: 2 / -1; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; border-top: 1px solid var(--line); padding-top: 12px; }
   .settings-connection-result, .settings-connection-tool { grid-column: 1 / -1; min-width: 0; }
   .settings-connection-output { max-height: 360px; max-width: 100%; overflow: auto; padding: 16px; border: 1px solid var(--line); border-radius: 8px; font: 12px/1.6 var(--font-mono, monospace); white-space: pre-wrap; overflow-wrap: anywhere; background: var(--rail); }
-  .settings-connector-protocol { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
-  .settings-connector-protocol > summary, .settings-connection-tool > summary { cursor: pointer; font-size: 13px; }
-  .settings-connector-protocol[open] { display: grid; gap: 12px; }
-  .settings-connector-protocol code { display: block; overflow-wrap: anywhere; }
-  .settings-connector-protocol [data-protocol-result] { overflow-wrap: anywhere; }
-  .settings-connection-inline { font-size: 12px; color: var(--muted); }
-  .settings-connection-inline summary { cursor: pointer; }
-  .settings-connection-inline form { display: flex; gap: 8px; margin-top: 8px; }
-  .settings-connection-inline input { width: min(240px, 45vw); }
-  .settings-connection-detail-list h3, .settings-connection-add-title { margin: 0 0 8px; font-size: 13px; font-weight: 500; }
-  .settings-connector-catalog { display: grid; gap: 24px; padding-top: 32px; scroll-margin-top: 24px; }
-  .settings-connector-group { display: grid; gap: 12px; }
-  .settings-connector-group + .settings-connector-group { margin-top: 32px; }
-  .settings-connector-group h2 { margin: 0; color: var(--muted); font-size: 13px; font-weight: var(--weight-title, 600); letter-spacing: -.01em; }
-  .settings-connector-subgroup + .settings-connector-subgroup { margin-top: 16px; }
+  .settings-connection-tool > summary { cursor: pointer; font-size: 13px; }
   .settings-connector-subgroup h3 { margin: 0 0 12px; color: var(--muted); font-size: 12px; font-weight: var(--weight-title, 600); letter-spacing: -.01em; }
-  .settings-connectors-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-    gap: 12px;
-  }
-  button.settings-connector-card {
-    min-width: 0;
-    padding: 16px;
-    display: grid;
-    grid-template-columns: 40px minmax(0, 1fr);
-    align-items: start;
-    gap: 12px;
-    text-align: left;
-    cursor: pointer;
-    color: inherit;
-    font: inherit;
-  }
-  button.settings-connector-card:hover { background: var(--nav-hover); }
-  button.settings-connector-card:focus-visible { outline: var(--focus-stroke); outline-offset: 1px; }
-  button.settings-connector-card--placeholder { color: var(--ink-soft); }
-  button.settings-connector-card--placeholder .settings-connector-card__copy { color: var(--faint, var(--muted)); }
-  .settings-connector-card__body { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
-  .settings-connector-card__title { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 8px; }
-  .settings-connector-card__title strong { font-size: 15px; font-weight: var(--weight-control, 500); }
-  .settings-connector-card__copy { color: var(--muted); font-size: 12px; line-height: 1.5; }
   .settings-connector-mark {
     width: 40px;
     height: 40px;
@@ -202,32 +161,8 @@ export const SETTINGS_STYLES = `
   .settings-connector-capabilities [data-fulfillment="live"] span { color: var(--green); }
   .settings-connector-detail { padding: 8px 0 80px; display: grid; gap: 16px; max-width: 44rem; }
   .settings-connector-detail[hidden], [data-connectors-list][hidden] { display: none !important; }
-  .settings-connector-detail__head { display: flex; align-items: center; gap: 12px; }
-  .settings-connector-detail__head h2 { margin: 0; font-size: 20px; letter-spacing: -.02em; }
-  .settings-connector-back { justify-self: start; }
   .settings-connector-auth { display: grid; gap: 16px; }
-  .settings-connector-auth > p, .settings-connector-note { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.55; }
-  .settings-connector-setup { display: grid; gap: 8px; }
-  .settings-connector-setup > p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.55; }
-  .settings-connector-setup ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; }
-  .settings-connector-setup a { width: fit-content; min-height: 28px; color: var(--blue-dark); font-size: 13px; text-decoration: underline; text-underline-offset: 3px; display: inline-flex; align-items: center; gap: 8px; }
-  .settings-connector-setup a:hover { color: var(--ink); }
-  .settings-connector-setup svg { width: 14px; height: 14px; flex: none; color: var(--muted); }
-  .settings-connector-methods { display: grid; gap: 8px; padding: 12px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
-  .settings-connector-methods > h3 { margin: 0; color: var(--ink); font-size: 13px; font-weight: 600; }
-  .settings-connector-methods > ul { margin: 0; padding: 0; list-style: none; display: grid; }
   .settings-connector-method { min-width: 0; display: grid; gap: 4px; padding: 12px 0; border-top: 1px solid var(--line); }
-  .settings-connector-method:first-child { border-top: 0; }
-  .settings-connector-method__head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
-  .settings-connector-method__head strong { font-size: 13px; font-weight: 600; }
-  .settings-connector-method__head .settings-state { font-size: 11px; }
-  .settings-connector-method p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
-  .settings-connector-method ul { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 4px 16px; }
-  .settings-connector-method a { width: fit-content; min-height: 26px; color: var(--blue-dark); font-size: 12px; text-decoration: underline; text-underline-offset: 3px; display: inline-flex; align-items: center; gap: 4px; overflow-wrap: anywhere; }
-  .settings-connector-method a:hover { color: var(--ink); }
-  .settings-connector-method a svg { width: 14px; height: 14px; flex: none; }
-  .settings-connector-setup-extra summary { color: var(--muted); font-size: 12px; cursor: pointer; }
-  .settings-connector-setup-extra .settings-connector-setup { padding: 8px 0 0; }
   .settings-connector-auth code { padding: 1px 4px; border: 1px solid var(--line); border-radius: 3px; color: var(--ink-soft); background: var(--rail); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
   .settings-connector-field { display: grid; gap: 8px; color: var(--ink-soft); font-size: 12px; }
   .settings-connector-actions { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -261,6 +196,21 @@ export const SETTINGS_STYLES = `
   .project-delete-dialog .runtime-plan-body > p:first-child { margin: 0; }
   .project-delete-dialog .settings-form-error { margin-top: 12px; }
   .project-delete-dialog header p { overflow-wrap: anywhere; }
+  /* The default output directory's question (A3): one column of the interaction option cards, then what both choices mean. */
+  .project-delete-output { margin-top: 16px; display: grid; gap: 8px; }
+  .project-delete-output__ask { margin: 0; color: var(--ink); font-size: 13px; font-weight: var(--weight-control, 500); }
+  .project-delete-output .mw-ix-options { grid-template-columns: 1fr; }
+  .project-delete-output__say { margin: 4px 0 0; color: var(--ink-soft); font-size: 13px; }
+  .project-delete-dialog .project-delete-busy { margin-top: 12px; }
+  /* Where a kept folder stays: its full path in a container, one copy button. */
+  .project-delete-kept { display: grid; gap: 12px; }
+  .project-delete-kept__box { display: grid; gap: 8px; min-width: 0; padding: 12px; border: 1px solid var(--line); border-radius: var(--r-card); background: var(--surface-soft); }
+  .project-delete-kept__title { display: flex; align-items: center; gap: 8px; color: var(--ink); font-size: 13px; font-weight: var(--weight-control, 500); }
+  .project-delete-kept__title svg { width: 16px; height: 16px; flex: none; color: var(--ink-soft); }
+  .project-delete-kept__path { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px; min-width: 0; }
+  .project-delete-kept__path code { flex: 1 1 240px; min-width: 0; padding: 6px 8px; border-radius: var(--r-tag); background: var(--paper); box-shadow: inset 0 0 0 1px var(--line); font: 12px/1.5 var(--mono); color: var(--ink); overflow-wrap: anywhere; user-select: all; }
+  .project-delete-kept > p { margin: 0; color: var(--ink-soft); font-size: 13px; line-height: 1.6; }
+  :is(.settings-page, body.immersive-workbench) .project-delete-dialog [hidden] { display: none; }
   .connection-settings-section { margin-top: 32px; padding-top: 32px; border-top: 1px solid var(--line-strong); }
   .connection-settings-heading { max-width: 72ch; margin-bottom: 8px; }
   .connection-settings-heading h2 { margin: 0; font-size: 17px; letter-spacing: -.02em; }

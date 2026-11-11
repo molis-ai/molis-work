@@ -6,6 +6,8 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
 import test from "node:test";
+import { NATIVE_SESSION_HEADER } from "@molis-ai/molis-work-app-local-host";
+import { installedAccountAuth } from "./fixtures/installed-account.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -59,17 +61,18 @@ async function stopChild(child: ChildProcessWithoutNullStreams): Promise<void> {
 }
 
 function controlTokenFrom(html: string): string {
-  const token = html.match(/<meta name="molis-work-control-token" content="([^"]+)">/)?.[1];
+  const token = html.match(/<meta name="molis-work-page-session" content="([^"]+)">/)?.[1];
   assert.ok(token, "设置页必须包含本地控制 token");
   return token;
 }
 
 let webMutationSequence = 0;
-function securePost(origin: string, token: string, pathname: string, body: Record<string, unknown>): Promise<Response> {
+function securePost(origin: string, token: string, pathname: string, body: Record<string, unknown>, accountHeaders: Record<string, string> = {}): Promise<Response> {
   webMutationSequence += 1;
   return fetch(`${origin}${pathname}`, {
     method: "POST",
     headers: {
+      ...accountHeaders,
       "content-type": "application/json",
       origin,
       "x-molis-work-control-token": token,
@@ -169,7 +172,7 @@ async function withMcpClient<T>(
   }
 }
 
-test("packed release completes fresh install, Web setup, Runtime dialogue, restart, removal, and upgrade", async () => {
+test("packed release completes fresh install, Web setup, Runtime dialogue, restart, removal, and upgrade", async t => {
   await withTemporaryDirectory(async (directory) => {
     const repository = process.cwd();
     const artifacts = join(directory, "artifacts");
@@ -264,16 +267,24 @@ test("packed release completes fresh install, Web setup, Runtime dialogue, resta
 
     const port = await freePort();
     const origin = `http://127.0.0.1:${port}`;
+    const auth = await installedAccountAuth(directory, origin); t.after(auth.close);
     const web = spawn(process.execPath, [installation.launchers.web, "--home", molisWorkHome, "--port", String(port)], {
       cwd: directory,
       // The Runtime check this Web runs starts the MCP launcher with the Web's own environment; without the URL the
       // launcher goes to the default 127.0.0.1:4173, which may be another Home's service on this machine.
-      env: { ...environment, MOLIS_WORK_WEB_URL: origin },
+      env: { ...environment, ...auth.environment, MOLIS_WORK_WEB_URL: origin },
       stdio: ["pipe", "pipe", "pipe"],
     });
     let token: string;
     try {
-      token = controlTokenFrom(await waitForWeb(origin, web));
+      controlTokenFrom(await waitForWeb(origin, web));
+      token = (await readFile(join(molisWorkHome, "config/web-control-token"), "utf8")).trim();
+      assert.equal((await globalThis.fetch(`${origin}/api/settings/projects`)).status, 401,
+        "a real fresh installation refuses anonymous business before login");
+      const account = await auth.login(molisWorkHome, token); token = account.token;
+      const fetch = account.request;
+      const post = (origin: string, token: string, path: string, body: Record<string, unknown>) =>
+        securePost(origin, token, path, body, { [NATIVE_SESSION_HEADER]: account.proof });
       const health = await (await fetch(`${origin}/health`)).json() as {
         status: string;
         process_id?: number;
@@ -300,12 +311,12 @@ test("packed release completes fresh install, Web setup, Runtime dialogue, resta
         ],
       });
 
-      const runtimePlanResponse = await securePost(origin, token, "/api/settings/runtimes/codex/plan", { action: "connect" });
+      const runtimePlanResponse = await post(origin, token, "/api/settings/runtimes/codex/plan", { action: "connect" });
       assert.equal(runtimePlanResponse.status, 200);
       const runtimePlan = await runtimePlanResponse.json() as { plan_id: string; status: string };
       assert.equal(runtimePlan.status, "ready");
       assert.equal(await readFile(join(userHome, ".codex", "config.toml"), "utf8"), unrelatedCodexConfig);
-      const runtimeConfirm = await securePost(origin, token, "/api/settings/runtimes/codex/confirm", {
+      const runtimeConfirm = await post(origin, token, "/api/settings/runtimes/codex/confirm", {
         plan_id: runtimePlan.plan_id,
         decision: "confirmed",
       });
@@ -347,12 +358,12 @@ test("packed release completes fresh install, Web setup, Runtime dialogue, resta
       assert.match(installedIndustryMethod, /method_id: industry-education/);
       assert.match(installedIndustryMethod, /## 必须覆盖/);
 
-      const claudePlanResponse = await securePost(origin, token, "/api/settings/runtimes/claude-code/plan", { action: "connect" });
+      const claudePlanResponse = await post(origin, token, "/api/settings/runtimes/claude-code/plan", { action: "connect" });
       assert.equal(claudePlanResponse.status, 200);
       const claudePlan = await claudePlanResponse.json() as { plan_id: string; status: string };
       assert.equal(claudePlan.status, "ready");
       assert.equal(await readFile(join(userHome, ".claude.json"), "utf8"), unrelatedClaudeConfig);
-      const claudeConfirm = await securePost(origin, token, "/api/settings/runtimes/claude-code/confirm", {
+      const claudeConfirm = await post(origin, token, "/api/settings/runtimes/claude-code/confirm", {
         plan_id: claudePlan.plan_id,
         decision: "confirmed",
       });
@@ -365,7 +376,7 @@ test("packed release completes fresh install, Web setup, Runtime dialogue, resta
       assert.ok(claudeConfig.mcpServers.other);
       assert.equal(claudeConfig.mcpServers["molis-work"].env?.MOLIS_WORK_RUNTIME_ID, "claude-code");
 
-      const projectResponse = await securePost(origin, token, "/api/settings/projects", {
+      const projectResponse = await post(origin, token, "/api/settings/projects", {
         display_name: "全新安装项目",
         user_confirmed: true,
       });
@@ -433,7 +444,7 @@ test("packed release completes fresh install, Web setup, Runtime dialogue, resta
         assert.equal(bound.connection.project_id, created.project.project_id);
         assert.equal("board_id" in bound.connection, false, "a connection names the project once");
         for (const capability_id of ["goals.create", "goals.note", "goals.list", "goals.state.read", "goals.events.list", "goals.events.read", "goals.events.configure", "goals.events.report", "goals.progress.record", "goals.concerns.apply", "goals.decisions.request", "goals.decisions.cite", "goals.agreement.set", "goals.closure.submit", "goals.work.resume"]) {
-          const granted = await securePost(origin, token, "/api/settings/mcp/actions", {
+          const granted = await post(origin, token, "/api/settings/mcp/actions", {
             client_id: "runtime:codex", project_id: created.project.project_id, capability_id,
             provider_id: "io.molis.work.goals", version: 1, enabled: true,
           });
@@ -546,11 +557,11 @@ test("packed release completes fresh install, Web setup, Runtime dialogue, resta
         assert.equal(freshGenericSession.connection, null);
       });
 
-      const removePlanResponse = await securePost(origin, token, "/api/settings/runtimes/codex/plan", { action: "remove" });
+      const removePlanResponse = await post(origin, token, "/api/settings/runtimes/codex/plan", { action: "remove" });
       assert.equal(removePlanResponse.status, 200);
       const removePlan = await removePlanResponse.json() as { plan_id: string; status: string };
       assert.equal(removePlan.status, "ready");
-      const removeResponse = await securePost(origin, token, "/api/settings/runtimes/codex/confirm", {
+      const removeResponse = await post(origin, token, "/api/settings/runtimes/codex/confirm", {
         plan_id: removePlan.plan_id,
         decision: "confirmed",
       });
@@ -558,11 +569,11 @@ test("packed release completes fresh install, Web setup, Runtime dialogue, resta
       assert.equal(await readFile(join(userHome, ".codex", "config.toml"), "utf8"), unrelatedCodexConfig);
       await assert.rejects(readFile(join(userHome, ".codex", "skills", "goal-advance", "SKILL.md"), "utf8"));
 
-      const removeClaudePlanResponse = await securePost(origin, token, "/api/settings/runtimes/claude-code/plan", { action: "remove" });
+      const removeClaudePlanResponse = await post(origin, token, "/api/settings/runtimes/claude-code/plan", { action: "remove" });
       assert.equal(removeClaudePlanResponse.status, 200);
       const removeClaudePlan = await removeClaudePlanResponse.json() as { plan_id: string; status: string };
       assert.equal(removeClaudePlan.status, "ready");
-      const removeClaudeResponse = await securePost(origin, token, "/api/settings/runtimes/claude-code/confirm", {
+      const removeClaudeResponse = await post(origin, token, "/api/settings/runtimes/claude-code/confirm", {
         plan_id: removeClaudePlan.plan_id,
         decision: "confirmed",
       });

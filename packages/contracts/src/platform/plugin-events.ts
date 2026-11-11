@@ -2,9 +2,9 @@ import type { ContractDescriptor } from "./package.js";
 import type { PluginReviewKind } from "../services/agent-host-reviews.js";
 
 export const platformPluginEventsContract = {
-  contractId: "io.molis.work.platform.plugin-events.v1",
+  contractId: /* @version contract.io.molis.work.platform.plugin-events "io.molis.work.platform.plugin-events.v{version}" */ "io.molis.work.platform.plugin-events.v1",
   kind: "platform",
-  schemaVersion: 1,
+  schemaVersion: /* @version contract.io.molis.work.platform.plugin-events */ 1,
   maturity: "partial",
   ssot: "docs/platform/PLUGIN-PLATFORM.md",
 } as const satisfies ContractDescriptor;
@@ -40,9 +40,9 @@ export interface HostEventType {
 }
 
 export const HOST_EVENT_TYPES: readonly HostEventType[] = [
-  { event_type_id: HOST_REVIEW_SETTLED_EVENT, type_version: 1, delivery: "addressed" },
-  { event_type_id: HOST_WORKSPACE_CHANGED_EVENT, type_version: 1, delivery: "broadcast", permission: "workspace:read" },
-  { event_type_id: HOST_CONNECTION_CHANGED_EVENT, type_version: 1, delivery: "broadcast", permission: HOST_CONNECTIONS_OBSERVE_PERMISSION },
+  { event_type_id: HOST_REVIEW_SETTLED_EVENT, type_version: /* @version event.host.review.settled */ 1, delivery: "addressed" },
+  { event_type_id: HOST_WORKSPACE_CHANGED_EVENT, type_version: /* @version event.host.workspace.changed */ 1, delivery: "broadcast", permission: "workspace:read" },
+  { event_type_id: HOST_CONNECTION_CHANGED_EVENT, type_version: /* @version event.host.connection.changed */ 1, delivery: "broadcast", permission: HOST_CONNECTIONS_OBSERVE_PERMISSION },
 ];
 
 /** `source_plugin_id` and `source_install_id` of a host event's record. Never a plugin id: those are `io.molis.work.…`. */
@@ -65,10 +65,10 @@ export interface HostReviewSettledPayload {
  * them again. It carries no review, operation, outcome or installation: it tells every subscriber that holds `workspace:read`
  * only what any of them could read for itself. Treat every `cause` alike; new causes come as new values: `plugin-operation` is a
  * plugin's person-reviewed operation, `agent-change` an Agent's own approved file edit, command or Git step in that workspace,
- * `workspace-settings` the project's folder settings changed (a folder linked, repaired or unlinked, or the browsing folder chosen)
- * and `workspace_id` names that folder (BL-521), and `project-opened` the project's plugin platform has just been opened through the
- * Host's web entry and tells what a subscriber could not hear while none ran: `workspace_id` names the folder the project browses
- * then, or is empty when it has none (BL-521).
+ * `workspace-settings` the project's folders changed (one added or removed as an input, made the output, repaired, or named for another
+ * device's folder) and `workspace_id` names each folder concerned, one event apiece (BL-521), and `project-opened` the project's plugin
+ * platform has just been opened through the Host's web entry and tells what a subscriber could not hear while none ran: `workspace_id`
+ * names the project's output directory then (which folder a page shows is that page's own state, never a setting).
  */
 export interface HostWorkspaceChangedPayload {
   workspace_id: string;

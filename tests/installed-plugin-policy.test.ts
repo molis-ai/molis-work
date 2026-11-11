@@ -52,7 +52,8 @@ async function fixture(t: TestContext) {
   const definition = sandboxedPluginDefinition(releaseFixture, effectsDeclaration, [], { capabilities: catalog,
     capability: catalogCapabilities({ actions, catalog, live: () => true, declaration: () => ({ manifest: definition.manifest }), granted: () => effectsDeclaration.capabilities }) });
   t.after(async () => { release.resolve(); dispose(); for (const record of platform.runtime.list()) await platform.runtime.stop(record.install_id); store.close(); await rm(directory, { recursive: true, force: true }); });
-  const report = await platform.start([{ definition, grants: ['storage:private'] }]); assert.ok(report.running.includes(contract.pluginId), JSON.stringify(report));
+  // Its operations call a platform capability, so the installation holds that switch (BL-701).
+  const report = await platform.start([{ definition, grants: ['storage:private', 'capabilities:call'] }]); assert.ok(report.running.includes(contract.pluginId), JSON.stringify(report));
   const call = async (operation: string, input = 'value', execution?: ActionExecutionContext) => (await platform.router().dispatch({ method: 'POST', pathname: '/api/plugins/' + contract.pluginId + '/call', actor_id: 'owner',
     execution: execution ?? { beforeEffect: async () => {} }, body: { operation, input } }))!;
   const unexpose = exposeInstalledPlugin(actions, releaseFixture, (_, operation, input, context) => call(operation, input as string, context));

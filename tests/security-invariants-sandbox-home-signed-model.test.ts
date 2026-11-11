@@ -64,7 +64,7 @@ function bundle(scope: "home" | "project", effects: SandboxEffects = EFFECTS, pl
 }
 
 const complete: HostCompleteText = async (_prompt, options = {}) => { await options.beforeDispatch?.(); return "摘要结果"; };
-const ALL = ["model:read", "model:invoke", "image-api:read", "image-api:write", "image-api:generate"];
+const ALL = ["model:read", "model:invoke", "image-api:read", "image-api:write", "image-api:generate", "network:request"];
 
 async function rig(t: test.TestContext, completeText: HostCompleteText = complete) {
   const previous = process.env.MOLIS_WORK_SECRET_BACKEND; process.env.MOLIS_WORK_SECRET_BACKEND = "file"; resetSecretStoreCache();

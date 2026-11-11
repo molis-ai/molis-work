@@ -34,6 +34,8 @@ import type {
   PluginExecutor,
   PluginInstanceRecord,
   PluginLifecycleReceipt,
+  PluginManifest,
+  PluginPermissionDeclaration,
   PluginRuntimeApi,
   PluginRuntimeRepository,
   PluginStartContext,
@@ -78,6 +80,8 @@ export class PluginRuntime implements PluginRuntimeApi {
       consents?: PluginConsentLedger;
       /** A trusted project half's optional permissions may be bounded by its Home owner. Captures no caller identity. */
       permissionBound?(record: PluginInstanceRecord, definition: PluginDefinition): ((permission: string) => () => void) | undefined;
+      /** Optional rows the Host projects onto a sandboxed definition it built from a verified release (BL-701): counted with its Manifest's in every grant ceiling, never in its digest. */
+      permissionDeclarations?(definition: PluginDefinition): readonly PluginPermissionDeclaration[] | undefined;
       /** The Host's actual shipped `plugin_id`s; required even for a Host shipping no plugins (S-75). `inProcess`: the definitions its own code lets run in the process without `host` trust, exactly these objects (BL-588, S-75 ⑥); none given, nothing is checked (a test's bare Runtime; a gate has every production construction name it). */
       hostIds: ReadonlySet<string>; scope?: "home" | "project"; inProcess?: InProcessAdmission;
       actions?: PluginRuntimeActions },
@@ -143,7 +147,7 @@ export class PluginRuntime implements PluginRuntimeApi {
         && (manifest.upgrade_compatibility?.compatible_from_versions ?? []).includes(current.version);
       if (compatibleSameVersion) {
         if (current.deployment !== input.deployment) throw pluginErrors.state_invalid("已有安装不能通过启动改变部署环境");
-        const grants = normalizeGrants(manifest, input.grants ?? current.grants);
+        const grants = normalizeGrants(grantCeiling(this.options, input.definition), input.grants ?? current.grants);
         if (!sameStrings(current.grants, grants)) {
           throw pluginErrors.state_invalid("兼容启动会保留现有 grant；权限变更必须通过单独授权操作");
         }
@@ -162,7 +166,7 @@ export class PluginRuntime implements PluginRuntimeApi {
       this.repository.save(moved);
       return this.receipt("install", moved, false);
     }
-    const grants = installationGrants(current, manifest, host, input.grants);
+    const grants = installationGrants(current, host ? manifest : grantCeiling(this.options, input.definition), host, input.grants);
     prepareInstallationData(this.executor, installId, current, manifest, host, input.discard_kept_data === true);
     this.register(input.definition);
     if (current && current.version !== manifest.version && current.state !== "uninstalled") {
@@ -263,11 +267,14 @@ export class PluginRuntime implements PluginRuntimeApi {
       if (!rollbackCode && !compatible && !migratable) {
         throw pluginErrors.upgrade_required("目标 Manifest 未声明支持从当前安装版本升级");
       }
-      const declaredPermissions = new Set(target.permissions.map(permission => permission.permission));
-      if (input.grants === undefined && !rollbackCode && current.grants.some(permission => !declaredPermissions.has(permission))) {
+      const ceiling = grantCeiling(this.options, input.definition), declaredPermissions = new Set(ceiling.permissions.map(permission => permission.permission));
+      // A projected switch (BL-701) the target no longer asks for goes with the upgrade; a Manifest row still has to be kept.
+      const before = this.definitions.get(definitionKey(current)), projected = new Set(before ? grantCeiling(this.options, before).permissions.slice(before.manifest.permissions.length).map(row => row.permission) : []);
+      const held = current.grants.filter(permission => declaredPermissions.has(permission) || !projected.has(permission));
+      if (input.grants === undefined && !rollbackCode && held.some(permission => !declaredPermissions.has(permission))) {
         throw pluginErrors.grant_denied("升级会丢失已有授权，目标 Manifest 未保留全部 grant");
       }
-      const targetGrants = normalizeGrants(target, input.grants ?? (rollbackCode ? current.grants.filter(permission => declaredPermissions.has(permission)) : current.grants));
+      const targetGrants = normalizeGrants(ceiling, input.grants ?? (rollbackCode ? held.filter(permission => declaredPermissions.has(permission)) : held));
       assertRequiredGrants(target, targetGrants);
       const deployment = input.deployment ?? current.deployment;
       const entrypoint = selectedEntrypoint(target, deployment);
@@ -357,7 +364,7 @@ export class PluginRuntime implements PluginRuntimeApi {
     const current = requireInstall(this.repository, installId);
     assertMutable(current);
     const definition = requireDefinition(this.definitions, current);
-    const grants = normalizeGrants(definition.manifest, permissions);
+    const grants = normalizeGrants(grantCeiling(this.options, definition), permissions);
     if (sameStrings(current.grants, grants)) return this.receipt("grant", current, true);
     if (current.state === "running") {
       throw pluginErrors.state_invalid("运行中的 Plugin 必须先停止，不能静默改变 grant");
@@ -369,7 +376,7 @@ export class PluginRuntime implements PluginRuntimeApi {
 
   /** The person's switch for one optional permission (PG-002, S-94); the steps are in `regrant.ts`, on the lifecycle steps this class lends. */
   regrant(installId: string, permission: string, granted: boolean): Promise<PluginLifecycleReceipt> {
-    return regrantInstall({ install: id => requireInstall(this.repository, id), manifest: record => requireDefinition(this.definitions, record).manifest, save: record => this.repository.save(record), now: () => this.now(),
+    return regrantInstall({ install: id => requireInstall(this.repository, id), manifest: record => grantCeiling(this.options, requireDefinition(this.definitions, record)), save: record => this.repository.save(record), now: () => this.now(),
       revoke: id => this.revokeContext(id, true), locked: (id, run) => this.locks.run(id, run), stop: id => this.stopOnce(id, true), start: id => this.startOnce(id),
       receipt: (record, replayed) => this.receipt("grant", record, replayed) }, installId, permission, granted);
   }
@@ -774,3 +781,9 @@ export { validateSyncSections } from "./sync-sections-validation.js";
 export { privateValueReplicationJournalSql } from './private-replication-journal.js';
 
 export { inspectPluginProjectDatabaseSet } from "./project-snapshot.js";
+
+/** The Manifest as far as grants go: its own rows, then those the Host projected onto this definition (BL-701). */
+function grantCeiling(options: { permissionDeclarations?(definition: PluginDefinition): readonly PluginPermissionDeclaration[] | undefined }, definition: PluginDefinition): PluginManifest {
+  const projected = options.permissionDeclarations?.(definitionOrigin(definition));
+  return projected?.length ? { ...definition.manifest, permissions: [...definition.manifest.permissions, ...projected] } : definition.manifest;
+}

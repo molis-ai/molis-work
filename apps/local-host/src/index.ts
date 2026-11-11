@@ -361,6 +361,7 @@ export { startWebProjectSchedulers } from "./web-project-schedulers.js";
 export { reportSqliteVersion, sqliteVersionNotice } from "./sqlite-version-notice.js";
 export { hostLog, captureHostLog, eachListener, logPreviewFailure, logSearchIndexFailure, repeatingFailure, type HostLogEntry, type HostLogField, type HostLogLevel } from "./host-log.js";
 export { PLUGIN_STOP_HOOK_MS } from "./plugin-stop-hook.js";
+export { projectedPermissionDeclarations } from "./installed-permission-projection.js";
 
 
 export { assistantConnectionCheckers } from "./assistant/assistant-connection-authority.js";

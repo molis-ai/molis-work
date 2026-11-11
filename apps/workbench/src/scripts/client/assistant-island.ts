@@ -95,7 +95,7 @@ ${ASSISTANT_BROWSER_HANDBACK_PART}
   let presentation, stepRow;
   const setPanel = (open) => { if (!presentation?.show(open) && panel) panel.hidden = !open; };
 
-  /* ─── Where the next Send goes: the composer's receiver row, its controls and the placeholder ─── */
+  /* ─── Where the next Send goes: the composer's receiver tag, its controls and the placeholder ─── */
   const paintAim = () => {
     const work = getWork(); presentation?.syncWork(work); input.readOnly = !!work?.reply_target;
     if (!executorsHere() && nextExec !== "assistant") nextExec = "assistant";

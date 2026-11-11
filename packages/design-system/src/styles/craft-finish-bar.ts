@@ -1,5 +1,6 @@
 import { baselineToken } from "../baseline.js";
 import { WORKBENCH, SHELL, ASSIST, RAIL_LINK, PAGES } from "./craft-finish-selectors.js";
+import { composerRestRules, composerRestTouch } from "../composer-styles.js";
 
 /** The finish layer, first part: tokens, the desk and sheet, titlebar tabs, the plugin rail and the bottom bar down to the switcher and the work tabs. */
 export const CRAFT_BAR_STYLES = `
@@ -244,6 +245,9 @@ export const CRAFT_BAR_STYLES = `
     display: grid; grid-template-columns: minmax(150px, 1fr) minmax(200px, 660px) minmax(max-content, 1fr); align-items: end; gap: 24px;
     padding: 0 var(--sheet-inset); background: var(--desk);
   }
+  /* The input stands over the work (UIV-19): bar-column.ts measures the focused pane and gives the first two columns their width,
+     so the input's edges are the page's; the right group keeps what its buttons need. */
+  @media (min-width: 761px) { ${SHELL} .workbench-bar[data-bar-column] { grid-template-columns: minmax(150px, var(--bar-start-w)) minmax(200px, var(--bar-column-w)) minmax(max-content, 1fr); } }
   /* Each side stays inside its column: the Dock folds what does not fit instead of running under the Assistant. */
   /* The composer grows upward; the two sides stay in the rest band at the bottom, level with its foot. */
   ${SHELL} .bar-start { justify-self: start; position: relative; display: flex; align-items: center; gap: 4px; min-width: 0; max-width: 100%; min-height: var(--dock-min); }
@@ -348,6 +352,10 @@ export const CRAFT_BAR_STYLES = `
   @media (max-width: 600px), (pointer: coarse) { ${SHELL} .assistant-composer > .assistant-answer { height: 44px; } }
   /* Its menus (＋, @, the delivery ▾) rise over the open Assistant panel above the bar (z 50), as the island's menus did (z 60). */
   ${SHELL} .assistant-composer :is(.mw-compose__menu, .mw-composer__controls) { z-index: 60; }
+  /* At rest the bar's input is one row at every size (user 2026-11-10, one input): ＋, who it goes to, the hint, the scene
+     controls, send; writing grows it. Only the bar has this class, so the short scope. */${composerRestRules(".assistant-composer > .mw-composer[data-rest]")}
+  ${SHELL} .bar-center > .assistant-composer:has(> .mw-composer[data-rest]) { padding-block: 6px; }
+  @media (max-width: 600px), (pointer: coarse) {${composerRestTouch(".assistant-composer > .mw-composer[data-rest]")} }
   /* The receiver's name opens its conversation (the island's click). */
   ${SHELL} .assistant-composer .mw-composer__to .mw-tag { cursor: pointer; }
   /* A short window gives its height to writing (DESIGN.md → Layout, ≤ 560px tall): at rest the composer is one row (its own

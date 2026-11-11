@@ -15,7 +15,7 @@ export function firstScreen(c: ComposerBasics, text: string): MwComposerOptions 
     ...(options.voice ? { voice: options.voice } : {}) };
   if (!ai) return { kind: "plain", labels, ...common };
   const receiver = ai.receiver?.();
-  return { kind: "ai", labels: ai.labels, ...common, ...(receiver ? { receiver: { label: receiver.label, ...(receiver.open ? { open: true } : {}), ...(receiver.reset ? { resetLabel: receiver.resetLabel ?? c.fill(labels.remove, { name: receiver.label }) } : {}) } } : {}) };
+  return { kind: "ai", labels: ai.labels, ...common, ...(receiver ? { receiver: { label: receiver.label, ...(receiver.icon ? { icon: receiver.icon } : {}), ...(receiver.open ? { open: true } : {}), ...(receiver.reset ? { resetLabel: receiver.resetLabel ?? c.fill(labels.remove, { name: receiver.label }) } : {}) } } : {}) };
 }
 
 /** The one status line: what is under way first, then what stops a send, then notes, then the turn running. */
@@ -56,7 +56,8 @@ function atRest(c: Composer) {
 }
 
 const SETTLE = "mw-composer-settle";
-const PARTS = [".mw-composer__to", ".mw-composer__input", ".mw-composer__start", ".mw-composer__end"];
+// The bar's own pieces, not the start group around them: at rest the group lets them into the row's columns (`display: contents`).
+const PARTS = [".mw-compose__anchor", ".mw-composer__to", ".mw-composer__more", ".mw-composer__controls", ".mw-composer__input", ".mw-composer__end"];
 const token = (name: string, fallback: string) => getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
 
 /**
@@ -90,7 +91,7 @@ function settle(c: Composer, change: () => void) {
   parts().forEach((node, index) => {
     const before = was[index], now = held[index];
     if (!node || !before || !now) return;
-    // A part inside the box moves with it already; the receiver row is outside it.
+    // A part inside the box moves with it already.
     const inside = box.contains(node), x = before.left - now.left - (inside ? lift.x : 0), y = before.top - now.top - (inside ? lift.y : 0);
     if (Math.abs(x) >= 0.5 || Math.abs(y) >= 0.5) node.animate([{ translate: `${x}px ${y}px` }, { translate: "0 0" }], { duration, easing, id: SETTLE });
   });
@@ -115,9 +116,9 @@ function draw(c: Composer, controls: boolean) {
   shell.toggleAttribute("data-rest", atRest(c));
   const was = shell.querySelector(".mw-composer__status"), line = next.querySelector(".mw-composer__status");
   if (line) was ? was.replaceWith(line) : shell.querySelector(".mw-composer__text")!.after(line); else was?.remove();
-  const to = next.querySelector(".mw-composer__to"), had = shell.querySelector(".mw-composer__to");
-  // Kept when it reads the same, so a part that is easing between one row and rows keeps its motion.
-  if (to) { if (!had) shell.prepend(to); else if (had.outerHTML !== to.outerHTML) had.replaceWith(to); } else had?.remove();
+  // The receiver tag is part of the start of the bar: kept when it reads the same, so a part easing between one row and rows keeps its motion.
+  const to = next.querySelector(".mw-composer__to")?.outerHTML ?? "", had = shell.querySelector(".mw-composer__to")?.outerHTML ?? "";
+  if (to !== had) controls = true;
   const end = next.querySelector<HTMLElement>(".mw-composer__end")!;
   if (!c.running || !c.ai?.stop) end.querySelector("[data-composer-stop]")?.remove();
   for (const button of end.querySelectorAll<HTMLButtonElement>("[data-composer-send]")) button.disabled = !sendable(c);

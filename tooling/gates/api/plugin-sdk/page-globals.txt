@@ -114,6 +114,7 @@ export type ComposerOptions = ComposerCommonOptions & ({
     labels: MwComposerAiLabels;
     receiver?: () => {
         label: string;
+        icon?: PluginIconName;
         open?: () => void;
         reset?: () => void;
         resetLabel?: string;

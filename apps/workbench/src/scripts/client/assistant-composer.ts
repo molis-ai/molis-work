@@ -124,9 +124,9 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
   /** Who the next Send goes to: the work in front, named by its place first when that is not this page (#1919); else a new work. */
   const receiverNow = () => {
     const work = getWork();
-    if (!work) return { open: openConversation, label: nextExec !== "assistant" && executorOffer(nextExec) ? executorOffer(nextExec).title : L("助理") };
+    if (!work) return { open: openConversation, icon: "sparkles", label: nextExec !== "assistant" && executorOffer(nextExec) ? executorOffer(nextExec).title : L("助理") };
     const where = work.scope?.project_id !== project?.id ? scopeLabel(work.scope, work.scope_title) : "";
-    return { open: openConversation, label: work.reply_target ? L("原评论：{title}", { title: work.reply_target.title }) : (where ? where + " · " : "") + work.title,
+    return { open: openConversation, icon: "sparkles", label: work.reply_target ? L("原评论：{title}", { title: work.reply_target.title }) : (where ? where + " · " : "") + work.title,
       reset: () => { void switchTo(null); input.focus(); }, resetLabel: L("改为开始新工作") };
   };
   /* The choices that are the next Send's, in the bar only once they differ from the default and while the side pane, where they
@@ -279,7 +279,7 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
   function addFiles(chosen) { composer?.attach(chosen); }
   stripPending = () => (composer ? composer.materials() : []).map((one) => ({ kind: one.kind === "attachment" ? (upload.material(one.ref) || {}).kind || "file" : "object", title: one.title }));
   function pickFile() { compose.querySelector("[data-composer-add]")?.click(); }
-  /* The conversation behind the receiver: its name on the receiver row opens it, and so does ⌘↵ on an empty box (the work in front,
+  /* The conversation behind the receiver: its tag beside ＋ opens it, and so does ⌘↵ on an empty box (the work in front,
      or the list of works when a new one is next and there are others). */
   const openConversation = () => {
     if (getWork()) { setPanel(true); reload().then(poll); return true; }

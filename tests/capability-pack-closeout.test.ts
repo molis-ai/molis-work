@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
  * CPK-02, CPK-08, CPK-10 (specs/capability-pack/spec.md §11, 2026-11-11 audit follow-up): the close-out table's deleted identifiers
  * are gone from the source trees; every record it left open names a concrete batch; the contract compares the three ways to place the
  * kit (the first draft is not kept in the repository, so the comparison has to live in the contract itself); and the two upgrade
- * differences the kit cannot produce this round stay recorded as a deviation, not reported as data.
+ * differences are produced from data already persisted (kept signed releases, the connection cache) without a store-format bump.
  *
  * Read from the repository root, never the process's working directory: `new URL("..", import.meta.url)`. Paths and prose are read as
  * a snapshot: a rename or a rewrite of the contract makes this fail on purpose, so the row it stood for is re-checked.
@@ -18,8 +18,6 @@ const repoRoot = fileURLToPath(new URL("..", import.meta.url));
 /** The source trees the close-out table covers: the Host, Coding, contracts and the Agent Host. Build output is not source. */
 const SOURCE_ROOTS = ["apps/local-host/src", "plugins/native/coding/src", "packages/contracts/src", "horizontal/agent-host/src"];
 
-/** The trees whose code produces kit data (contracts only carry the shapes, so they are left out here). */
-const PRODUCER_ROOTS = ["apps/local-host/src", "plugins/native/coding/src", "horizontal/agent-host/src"];
 
 async function sourceFiles(roots: readonly string[], extension: string): Promise<string[]> {
   const files: string[] = [];
@@ -87,22 +85,26 @@ test("CPK-10: the contract compares the three ways to place the kit; nothing poi
   assert.match(await read("docs/system/GLOSSARY.md"), /能力包/u);
 });
 
-test("CPK-02: the two upgrade differences this round cannot produce are a deviation in the contract, and no reporter reports them", async () => {
+test("CPK-02: the two upgrade differences come from data already persisted, without a store-format version change, and the contract says so", async () => {
   const contract = await read("specs/capability-pack/contract-design.md");
   const deviation = contract.slice(contract.indexOf("## 10. 偏离记录"), contract.indexOf("## 11. 待决"));
-  assert.match(deviation, /KitReportedPack\.upgraded/u, "the deviation names the pack's last upgrade");
-  assert.match(deviation, /discovered/u, "the deviation names MCP discovery's difference");
-  assert.match(deviation, /CPK-02 部分/u, "and marks CPK-02 as partial");
+  assert.match(deviation, /retainedVersions/u, "pack upgrades are read from the signed releases the Host kept");
+  assert.match(deviation, /connector-mcp-tools\.json/u, "connection discovery differences are kept in the existing JSON cache");
+  assert.match(deviation, /第 61 批 MCP 策略 M0/u, "project MCP servers' discovery difference stays with batch 61's M0");
+  assert.doesNotMatch(deviation, /本轮没有产出者/u, "the old 「nothing produces it this round」 deviation is gone");
   const acceptance = contract.slice(contract.indexOf("## 7. 验收对照表"), contract.indexOf("## 8. 子分支拆法建议"));
   const cpk02 = acceptance.split("\n").find(line => line.startsWith("| CPK-02 |"));
   assert.ok(cpk02, "the acceptance table still has CPK-02");
-  assert.match(cpk02, /部分/u, "CPK-02's evidence says partial and points at §10");
-  assert.match(cpk02, /第 10 节/u);
-  // No producer: the pack headers leave `upgraded` unset (pluginKitHeaders, §8), and no kit reporter answers a `discovered` change.
-  assert.doesNotMatch(await read("apps/local-host/src/kit-actions.ts"), /upgraded/u, "pluginKitHeaders reports no last upgrade");
-  const found: string[] = [];
-  for (const file of await sourceFiles(PRODUCER_ROOTS, ".ts")) {
-    if ((await read(file)).includes('"discovered"')) found.push(file);
-  }
-  assert.deepEqual(found, [], "no kit reporter answers MCP discovery's difference while there is no history to compare");
+  assert.doesNotMatch(cpk02, /\*\*部分\*\*/u, "CPK-02 is no longer partial");
+  assert.match(cpk02, /tests\/kit-catalog\.test\.ts/u, "it names the pack-upgrade test");
+  assert.match(cpk02, /tests\/connector-mcp\.test\.ts/u, "it names the connection-discovery test");
+  // The producers read data that was already there: the kept signed release, and the connection cache with one optional field.
+  assert.match(await read("apps/local-host/src/sandbox-package-store.ts"), /retainedVersions\(pluginId: string, keyId: string\)/u);
+  assert.match(await read("apps/local-host/src/kit-actions.ts"), /retainedVersions/u);
+  assert.match(await read("apps/local-host/src/kit-actions.ts"), /upgraded/u);
+  assert.match(await read("apps/local-host/src/connector-mcp-actions.ts"), /change\?: ConnectorMcpListingChange/u);
+  assert.match(await read("apps/local-host/src/kit-mcp-reports.ts"), /kind: "discovered"/u);
+  // No new store or format version: the cache stays the same plain JSON file with an optional field.
+  assert.match(await read("apps/local-host/src/connector-mcp-actions.ts"), /config\/connector-mcp-tools\.json/u);
 });
+

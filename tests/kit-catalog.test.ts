@@ -3,9 +3,9 @@ import test from "node:test";
 import type { KitEntry } from "@molis-ai/molis-work-contracts/platform/kit-report";
 import type { KitCatalog, KitPack } from "@molis-ai/molis-work-contracts/services/kit";
 import { skillCatalogActions, type SkillCatalogEntry } from "@molis-ai/molis-work-contracts/services/skills";
-import { pluginAgentRegistration, pluginControlActions } from "@molis-ai/molis-work-app-local-host";
+import { pluginAgentRegistration, pluginControlActions, SandboxPackageStore } from "@molis-ai/molis-work-app-local-host";
 import { AGENT_TOOLS } from "@molis-ai/molis-work-service-agent-host";
-import { CONTENT_PLUGIN_ID, signedContentPackage } from "./fixtures/content-package.js";
+import { CONTENT_PLUGIN_ID, MEETING_NOTES, signedContentPackage } from "./fixtures/content-package.js";
 import { kitHost } from "./fixtures/kit-host.js";
 import { newPublisher } from "./fixtures/sandbox-package.js";
 
@@ -54,11 +54,36 @@ test("CPK-01 CPK-02 CPK-13: plugin packs, Molis Work's own and your characters; 
   const fromCatalog = skills.filter(skill => skill.pack.plugin_id === CONTENT_PLUGIN_ID);
   assert.deepEqual(entriesOf(kit, content, content.skills).map(row => row.kind === "skill" && row.skill), fromCatalog);
   assert.ok(entriesOf(kit, content, content.skills).every(row => row.source.kind === "plugin" && row.source.install_id === fromCatalog[0]!.ref.install_id && row.reporter.provider_id === "system.skills"));
-  // CPK-02, partial this round (contract-design §10): every entry says which version it is; no pack reports a last upgrade and no MCP
-  // entry a discovery difference, because the install record keeps no old version and no owner keeps a previous tool list yet.
+  // CPK-02: every entry says which version it is; the two kinds of difference are covered by the tests below and in the connector MCP
+  // test (an upgraded sandbox pack, and a connection's last discovery).
   assert.ok(kit.entries.every(row => row.version.label.length > 0), "every entry names its version");
-  assert.ok(kit.packs.every(pack => pack.upgraded === undefined), "no pack reports a last upgrade without an old version to show");
-  assert.ok(kit.entries.filter(row => row.kind === "mcp").every(row => row.version.change === undefined), "no MCP entry reports a discovery difference without a history to compare");
+});
+
+test("CPK-02: the store reports each kept release of this publisher's plugin and when it was kept, and nothing else", { timeout: 120_000 }, async t => {
+  const h = await kitHost(t), publisher = newPublisher();
+  await h.install(signedContentPackage(publisher, { version: "1.0.0" }));
+  // The earlier release stays kept as it was signed, so 「上次升级」 can be read without the install record or a store-format version
+  // (contract-design §10, user 2026-11-11: no version bump).
+  await h.install(signedContentPackage(publisher, { version: "1.1.0", compatibleFrom: ["1.0.0"], skills: [{ ...MEETING_NOTES, version: 2, body: "# 会议纪要 v2\n\n按模板整理。\n" }] }));
+  const store = new SandboxPackageStore(h.f.home), retained = store.retainedVersions(CONTENT_PLUGIN_ID, publisher.identity);
+  assert.deepEqual(retained.map(entry => entry.version).sort(), ["1.0.0", "1.1.0"], "every kept release of this plugin and publisher");
+  assert.ok(retained.every(entry => /^\d{4}-\d{2}-\d{2}T/u.test(entry.saved_at)), "each says when it was kept");
+  assert.deepEqual(store.retainedVersions(CONTENT_PLUGIN_ID, newPublisher().identity), [], "another publisher's releases are not this plugin's");
+  assert.deepEqual(store.retainedVersions("io.example.not-installed", publisher.identity), [], "an uninstalled plugin keeps nothing");
+});
+
+test("CPK-02: a pack says which retained version it upgraded from; a first install says nothing", { timeout: 120_000 }, async t => {
+  const h = await kitHost(t), publisher = newPublisher();
+  // The version it started at: a pack with no release below it has no upgrade to show.
+  await h.install(signedContentPackage(publisher, { version: "1.0.0" }));
+  assert.equal(packOf(await h.kit(), CONTENT_PLUGIN_ID).upgraded, undefined, "a first install has no earlier release");
+  await h.install(signedContentPackage(publisher, { version: "1.1.0", compatibleFrom: ["1.0.0"], skills: [{ ...MEETING_NOTES, version: 2, body: "# 会议纪要 v2\n\n按模板整理。\n" }] }));
+  const retained = new SandboxPackageStore(h.f.home).retainedVersions(CONTENT_PLUGIN_ID, publisher.identity);
+  const { upgraded } = packOf(await h.kit(), CONTENT_PLUGIN_ID);
+  assert.deepEqual(upgraded && Object.keys(upgraded).sort(), ["at", "from", "to"]);
+  assert.equal(upgraded?.from, "1.0.0");
+  assert.equal(upgraded?.to, "1.1.0");
+  assert.equal(upgraded?.at, retained.find(entry => entry.version === "1.1.0")!.saved_at, "「at」 is when the current release was kept");
 });
 
 test("CPK-03 CPK-14: a pack has no switch; its state is read from its plugin and what it holds", { timeout: 120_000 }, async t => {

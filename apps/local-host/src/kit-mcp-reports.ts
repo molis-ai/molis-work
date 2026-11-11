@@ -5,7 +5,7 @@ import { defineKitReportAction, type KitReport, type KitReportedEntry } from "@m
 import type { AgentMcpLibrary } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { KIT_AGENT_MCP_PROVIDER_ID, KIT_MCP_ACCESS_PROVIDER_ID, KIT_READ_PERMISSION } from "@molis-ai/molis-work-contracts/services/kit";
 import { withConnectorConnections } from "./connector-connection-store.js";
-import { CONNECTOR_MCP_SEEN_PATH, type ConnectorMcpSeen } from "./connector-mcp-actions.js";
+import { CONNECTOR_MCP_SEEN_PATH, type ConnectorMcpListingChange, type ConnectorMcpSeen } from "./connector-mcp-actions.js";
 import { readMcpToolPreference } from "./mcp-settings-store.js";
 import { readJsonFile } from "./mcp-tool-actions.js";
 import { PRODUCT_VERSION } from "./product-version.js";
@@ -26,13 +26,16 @@ const NONE = { tools: [], permissions: [], connector_categories: [] };
 
 /** One server and each tool it listed, in one pack; the server's switch and health, each tool's own 「能调」. */
 function serverEntries(server: { owner: "project" | "connection"; id: string; label: string; version: number; label_version: string; enabled: boolean; health: Health; where: string },
-  tools: ReadonlyArray<{ name: string; description: string; live: boolean }>, placed: { pack: string; scope: "home" | "project"; manage: { href: string; label: string } }): KitReportedEntry[] {
+  tools: ReadonlyArray<{ name: string; description: string; live: boolean }>, placed: { pack: string; scope: "home" | "project"; manage: { href: string; label: string } },
+  discovered?: ConnectorMcpListingChange): KitReportedEntry[] {
   const source = { kind: "mcp_server" as const, owner: server.owner, server_id: server.id, label: server.label.slice(0, 200) };
   const usable = server.enabled && server.health === "connected";
   const common = { declares: NONE, scope: placed.scope, where: [server.where.slice(0, 200)], usage: { kind: "not_counted" as const }, manage: placed.manage, export: "reference" as const, source, pack: placed.pack };
   const id = `${placed.pack}/${server.id}`;
+  // Only a connection's server entry says what its last listing changed (§4.8); its tools do not repeat it.
+  const version = { label: server.label_version, ...(discovered ? { change: { kind: "discovered" as const, added: discovered.added, removed: discovered.removed, changed: discovered.changed } } : {}) };
   return [
-    { ...common, kind: "mcp", entry_id: id, name: source.label, description: "", version: { label: server.label_version },
+    { ...common, kind: "mcp", entry_id: id, name: source.label, description: "", version,
       availability: usable ? { available: true } : { available: false, reason: server.enabled ? server.health : "server_disabled" },
       ref: { part: "server", owner: server.owner, server_id: server.id, configuration_version: server.version }, mcp: { server_enabled: server.enabled, health: server.health } },
     ...tools.map((tool): KitReportedEntry => ({ ...common, kind: "mcp", entry_id: `${id}/tool:${tool.name}`, name: tool.name.slice(0, 200), description: tool.description.slice(0, 2000),
@@ -83,7 +86,8 @@ export async function connectorsKitEntries(home: string, source: ProjectPluginHo
     return serverEntries({ owner: "connection", id: row.connection_id, label: row.display_name, version: Number.isFinite(changed) ? Math.floor(changed / 1000) : 0,
       label_version: row.updated_at.slice(0, 10), enabled: row.enabled, health, where: row.display_name },
       (seen[row.connection_id]?.tools ?? []).map(tool => ({ name: tool.name, description: tool.description, live: true })),
-      { pack: declarer ? `plugin:${declarer.record.install_id}` : "system:builtin", scope: declarer ? declarer.scope : "home", manage: { href: "/capabilities/connections", label: say.connections } });
+      { pack: declarer ? `plugin:${declarer.record.install_id}` : "system:builtin", scope: declarer ? declarer.scope : "home", manage: { href: "/capabilities/connections", label: say.connections } },
+      seen[row.connection_id]?.change);
   }) };
 }
 

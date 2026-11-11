@@ -12,8 +12,26 @@ import type { StoredMcpConfiguration } from "./connector-mcp-configuration.js";
 
 /** A tool as the server listed it the last time the person looked; no credentials. */
 export interface ConnectorMcpTool { name: string; description?: string; inputSchema?: Record<string, unknown> }
+/** What one listing changed against the one before it: the AI kit's 「发现差异」 (§4.8). `at` is when this listing was seen. */
+export interface ConnectorMcpListingChange { added: number; removed: number; changed: number; at: string }
 /** What each MCP connection's server last listed (no secrets), kept so a restart registers it again; the AI kit reads it too. */
-export type ConnectorMcpSeen = Record<string, { tools: Array<{ name: string; description: string; input_schema: Record<string, unknown> }>; resources?: boolean }>;
+export type ConnectorMcpSeen = Record<string, { tools: Array<{ name: string; description: string; input_schema: Record<string, unknown> }>; resources?: boolean;
+  /** The last listing that differed from the one before it; absent in an older file, and while every listing says the same. */
+  change?: ConnectorMcpListingChange }>;
+
+/** What this listing changed against the previous one; same names with a different description or input shape count as changed. */
+function listingChange(previous: ConnectorMcpSeen[string]["tools"], next: ConnectorMcpSeen[string]["tools"]): Omit<ConnectorMcpListingChange, "at"> | undefined {
+  const before = new Map(previous.map(tool => [tool.name, tool]));
+  let added = 0, changed = 0;
+  for (const tool of next) {
+    const earlier = before.get(tool.name);
+    if (!earlier) added++;
+    else if (earlier.description !== tool.description || JSON.stringify(earlier.input_schema) !== JSON.stringify(tool.input_schema)) changed++;
+    before.delete(tool.name);
+  }
+  const removed = before.size;
+  return added || removed || changed ? { added, removed, changed } : undefined;
+}
 
 export const CONNECTOR_MCP_SEEN_PATH = "config/connector-mcp-tools.json";
 const VERSIONS_PATH = "config/connector-mcp-actions.json";
@@ -103,8 +121,14 @@ export function createConnectorMcpDirectory(options: { localHost: MolisWorkLocal
     if (row) rememberConnectorCheck(options.homeDirectory, connectionId, { at: new Date().toISOString(), revision: row.updated_at,
       outcome: "connected", authorization: config?.mode === "none" ? "not-required" : "verified" }, { listedBeforeCall: true });
     const seen = readJsonFile<ConnectorMcpSeen>(seenFile, {});
-    const next = { tools: tools.map(tool => ({ name: tool.name, description: tool.description ?? "", input_schema: tool.inputSchema ?? { type: "object" } })),
-      ...(resources?.length ? { resources: true } : {}) };
+    const listed = tools.map(tool => ({ name: tool.name, description: tool.description ?? "", input_schema: tool.inputSchema ?? { type: "object" } }));
+    const previous = seen[connectionId];
+    // A first listing says everything it found is new; a later one says what it added, removed or changed. The kit shows the last
+    // difference the server made, so an unchanged listing keeps the one before it and never rewrites the file (§4.8).
+    const difference = previous ? listingChange(previous.tools, listed) : listed.length ? { added: listed.length, removed: 0, changed: 0 } : undefined;
+    const next = { tools: listed,
+      ...(resources?.length ? { resources: true } : {}),
+      ...(difference ? { change: { ...difference, at: new Date().toISOString() } } : previous?.change ? { change: previous.change } : {}) };
     if (JSON.stringify(seen[connectionId]) !== JSON.stringify(next)) { seen[connectionId] = next; writeJsonFile(seenFile, seen); }
     register(connectionId, next.tools, next.resources);
   }

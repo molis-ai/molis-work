@@ -11,7 +11,7 @@ import { createProject } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { openBoardBrowser } from "./fixtures/board-browser.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { deferred } from "./fixtures/home-runtime.js";
-import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
+import { pluginFrameBrowser, pluginFrameInitScript } from "./fixtures/plugin-frame-browser.js";
 import { openPagesStore, openPptStore } from "./fixtures/plugin-home-stores.js";
 import { CODING_BOX, CODING_OPEN, codingAdd } from "./fixtures/coding-composer.js";
 import { signedContentPackage } from "./fixtures/content-package.js";
@@ -252,11 +252,21 @@ type LanguageBrowser = NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>;
 test("FSS-20 a late Feed document read leaves the committed language in the frame and its opening template", { timeout: 90_000 }, async t => {
   const b = await openGoalBrowser(t, "seeded", undefined, null); if (!b?.projectId) return;
   const feed = await pluginFrameBrowser(t, b, "feed"), path = `/projects/${b.projectId}/`;
+  await pluginFrameInitScript(t, b, `window.molisWorkbenchPluginFactories=new Proxy({}, {set(target,key,value){
+    target[key]=key==='feed'?host=>{
+      window.initialFeedRead={started:0,pending:0}; const read=host.view.readDocument;
+      host.view.readDocument=async query=>{
+        initialFeedRead.started++; initialFeedRead.pending++;
+        try { return await read(query); } finally { initialFeedRead.pending--; }
+      };
+      return value(host);
+    }:value;return true;
+  }});`);
   await b.navigate(() => b.command("Page.navigate", { url: b.origin + "/locale?lang=zh&next=" + encodeURIComponent(path), }, b.sessionId));
   await b.click('[data-plugin-strip] [data-plugin-id=feed]');
   const search = `document.querySelector('[data-feed-search]')`;
   await feed.waitFor(`${search}?.getAttribute('aria-label') === '搜索消息' && typeof t === 'function'`);
-  await feed.clientReady();
+  await feed.waitFor("window.initialFeedRead?.started > 0 && initialFeedRead.pending === 0");
   await b.evaluate(`(() => {
     const fetchOriginal = window.fetch;
     window.feedReadReplies = []; window.feedChecks = 0; window.feedReads = 0;
@@ -280,7 +290,12 @@ test("FSS-20 a late Feed document read leaves the committed language in the fram
   await b.waitFor("feedReadReplies[0]?.language === 'zh-CN'");
   await b.evaluate(`(() => { const link = document.createElement('a'); link.dataset.uiLanguage = 'en';
     link.href = '/locale?lang=en'; document.body.append(link); link.click(); link.remove(); })()`);
-  await b.waitFor("document.documentElement.lang === 'en' && feedReadReplies[1]?.language === 'en'");
+  try { await b.waitFor("document.documentElement.lang === 'en' && feedReadReplies[1]?.language === 'en'"); }
+  catch (error) {
+    t.diagnostic(JSON.stringify(await b.evaluate("[document.documentElement.lang, feedReadReplies.map(reply => reply?.language), document.querySelector('[data-ui-language-status]')?.textContent]")));
+    t.diagnostic(JSON.stringify(await feed.evaluate("[document.documentElement.lang, initialFeedRead, document.body.innerText.slice(-160)]")));
+    throw error;
+  }
   await feed.waitFor(`${search}.getAttribute('aria-label') === 'Search messages'`);
   assert.equal(await b.evaluate("feedOpeningName()"), "Search messages");
   const checks = await b.evaluate<number>("feedChecks");

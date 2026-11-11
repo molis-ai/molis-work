@@ -219,6 +219,7 @@ test("Feed discovers an installed plugin judgment, previews without admission, s
 
 test("FBR-07 FSS-35 the real Feed page reaches later messages and materials and keeps its place when language changes", { timeout: 120000 }, async t => {
   const b = await openGoalBrowser(t, true); if (!b) return;
+  await b.setViewport(1440, 960);
   const { projectId, store, command, sessionId } = b; assert.ok(projectId);
   await addProjectPlugin(b.web, projectId, "feed");
   const feed = createLocalFeedApplication(store.db);
@@ -297,7 +298,7 @@ test("FBR-07 FSS-35 the real Feed page reaches later messages and materials and 
   await child.waitFor("document.documentElement.scrollWidth <= innerWidth + 1");
   await child.click('[data-feed-material-page="0"]:not(:disabled)');
   await child.waitFor("document.querySelector('[data-feed-detail]')?.textContent.includes('Material 0')");
-  await command("Emulation.clearDeviceMetricsOverride", {}, sessionId);
+  await b.setViewport(1440, 960);
   await child.click('[data-feed-page="0"]:not(:disabled)');
   await child.waitFor("document.querySelectorAll('[data-feed-entry-id]').length===200");
   await child.evaluate(`(() => {const search=document.querySelector('[data-feed-search]'); search.value='Page message 000';search.dispatchEvent(new Event('input',{bubbles:true}));})()`);

@@ -347,7 +347,7 @@ test("FSS-36 a Feed detail checks the language of its own response after a withd
   assert.deepEqual(await b.evaluate("[detailLanguages, detailPreferences, detailWrites]"), [["en", "zh-CN"], [["en", 200], ["zh", 200]], []]);
 });
 
-async function chooseEnglishInSettings(t: TestContext, b: LanguageBrowser, target: "zh" | "en" = "en") {
+async function openLanguageSettings(t: TestContext, b: LanguageBrowser) {
   const { targetId } = await b.command<{ targetId: string }>("Target.createTarget", { url: "about:blank", background: true });
   t.after(async () => { await b.command("Target.closeTarget", { targetId }).catch(() => undefined); });
   const { sessionId } = await b.command<{ sessionId: string }>("Target.attachToTarget", { targetId, flatten: true });
@@ -400,6 +400,11 @@ async function chooseEnglishInSettings(t: TestContext, b: LanguageBrowser, targe
       throw error;
     }
   };
+  return select;
+}
+
+async function chooseEnglishInSettings(t: TestContext, b: LanguageBrowser, target: "zh" | "en" = "en") {
+  const select = await openLanguageSettings(t, b);
   await select(target);
   return select;
 }
@@ -600,7 +605,7 @@ test("FSS-35 FSS-36 Coding’s unified composer localizes its four built-in v2 m
   const b = await openGoalBrowser(t, "seeded", undefined, null); assert.ok(b?.projectId);
   const prefix = `/projects/${b.projectId}`, api = prefix + "/api/plugins/io.molis.work.coding";
   const originalBody = "---\nname: local-method\ndescription: Project-owned method\n---\n保留正文 · Original\n";
-  const bundle = signedContentPackage(newPublisher(), { skills: [{ id: "local-method", body: originalBody, applies_to: "coding" }] });
+  const bundle = signedContentPackage(newPublisher(), { skills: [{ id: "local-method", body: originalBody }] });
   await b.navigate(() => b.command("Page.navigate", { url: b.origin + "/locale?lang=zh&next=" + encodeURIComponent(prefix + "/") }, b.sessionId));
   await b.waitFor("typeof molisWorkRequest==='function'");
   await b.evaluate(`(async()=>{
@@ -610,21 +615,31 @@ test("FSS-35 FSS-36 Coding’s unified composer localizes its four built-in v2 m
     const catalog=await send("/api/skills/list",{}), skill=catalog.skills.find(row=>row.ref.skill_id==="local-method");
     await send("/api/skills/set",{scope:"project",install_id:skill.ref.install_id,skill_id:skill.ref.skill_id,state:"auto",expected_revision:skill.settings_revision});
   })()`);
+  // Open Settings before entering Coding so its own document doesn't restore a new plugin frame during the preference commit.
+  const select = await openLanguageSettings(t, b);
   const frame = await pluginFrameBrowser(t, b, "coding");
   await b.click('[data-plugin-strip] [data-plugin-id="coding"]');
   await b.surfaceReady("coding");
   await frame.click("[data-coding-new]");
   await b.waitFor(CODING_OPEN);
   const input = `document.querySelector(${JSON.stringify(CODING_BOX)})`;
-  await b.evaluate(`void (()=>{window.codingMethodDraft=${input};codingMethodDraft.value='草稿 · Draft';
-    codingMethodDraft.focus();codingMethodDraft.setSelectionRange(1,5,'backward');
-  })()`);
+  const receiver = "globalThis.molisBarReceivers.front().key";
+  const generation = await b.evaluate<string>(receiver);
+  assert.ok(generation);
+  const keptDraft = `[codingMethodDraft===${input},codingMethodDraft.value,codingMethodDraft.selectionStart,codingMethodDraft.selectionEnd,codingMethodDraft.selectionDirection,${receiver}]`;
+  await b.click(CODING_BOX);
+  await b.command("Input.insertText", { text: "草稿 · Draft" }, b.sessionId);
+  await b.evaluate(`void (()=>{window.codingMethodDraft=${input};codingMethodDraft.setSelectionRange(1,5,'backward');})()`);
+  await b.waitFor(`codingMethodDraft.value==='草稿 · Draft'`);
   await b.evaluate(codingAdd("methods"));
   const dialog = "document.querySelector('[data-coding-method-dialog]')";
   const rows = `[...${dialog}.querySelectorAll('[data-coding-method-list] .coding-method-heading')]`;
   const builtins = `${rows}.slice(0,4)`;
   const displayed = `${builtins}.map(row=>[row.querySelector('label span').textContent,row.nextElementSibling.textContent])`;
-  await frame.waitFor(`${dialog}.open && ${rows}.length >= 5`);
+  await frame.waitFor(`${dialog}.open && ${rows}.length >= 5`).catch(async error => {
+    t.diagnostic(JSON.stringify(await frame.evaluate(`({open:${dialog}.open,rows:${rows}.length,text:${dialog}.textContent})`)));
+    throw error;
+  });
   const methods = [
     ["coding-review-change", "审查改动", "根据实际代码与需求查找问题，区分已证实风险和待核实项。", "Review changes", "Find problems against the actual code and requirements, separating confirmed risks from items still to verify."],
     ["coding-diagnose-fix", "定位并修复问题", "先找到可复现原因，再做最小修复并检查失败与恢复。", "Find and fix a problem", "Find a reproducible cause first, then make the smallest fix and check both failure and recovery."],
@@ -646,14 +661,20 @@ test("FSS-35 FSS-36 Coding’s unified composer localizes its four built-in v2 m
     methodDocument===${document},methodButton===document.activeElement,methodDocument.querySelector('h3').textContent,methodDocument.querySelector('p').textContent]`;
   const originalExcerpt = await frame.evaluate<string>(`${document}.querySelector('p').textContent`);
   assert.equal(originalExcerpt.trimEnd(), originalBody.trimEnd());
-  const select = await chooseEnglishInSettings(t, b);
+  const expectedDraft = [true, "草稿 · Draft", 1, 5, "backward", generation];
+  assert.deepEqual(await b.evaluate(keptDraft), expectedDraft);
+  assert.equal(await b.evaluate(`${input}.getAttribute('aria-label')`), "任务或补充要求");
+  await select("en");
   await frame.waitFor(`document.documentElement.lang==='en' && JSON.stringify(${displayed})===${JSON.stringify(JSON.stringify(expected("en")))}`);
+  await b.waitFor(`${input}.getAttribute('aria-label')==='Task or added instructions'`);
+  assert.deepEqual(await b.evaluate(keptDraft), expectedDraft);
   assert.deepEqual(await frame.evaluate(retained), [true, true, true, true, true, "local-method · v1", originalExcerpt]);
   assert.equal(await frame.evaluate(`${builtins}[0].querySelector('button').getAttribute('aria-label')`), "Preview method: Review changes");
   await select("zh");
   await frame.waitFor(`document.documentElement.lang==='zh-CN' && JSON.stringify(${displayed})===${JSON.stringify(JSON.stringify(expected("zh")))}`);
+  await b.waitFor(`${input}.getAttribute('aria-label')==='任务或补充要求'`);
   assert.deepEqual(await frame.evaluate(retained), [true, true, true, true, true, "local-method · v1", originalExcerpt]);
-  assert.deepEqual(await b.evaluate(`[codingMethodDraft===${input},codingMethodDraft.value,codingMethodDraft.selectionStart,codingMethodDraft.selectionEnd,codingMethodDraft.selectionDirection]`), [true, "草稿 · Draft", 1, 5, "backward"]);
+  assert.deepEqual(await b.evaluate(keptDraft), expectedDraft);
 });
 
 test("FSS-20 FSS-35 FSS-36 the mounted AI kit retitles the same prompt, tools and search in place", { timeout: 120_000 }, async t => {

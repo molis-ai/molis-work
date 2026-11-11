@@ -50,6 +50,7 @@ test("RAC-545 the build type-checks the whole Coding page and bundles it with es
   const pkg = JSON.parse(readFileSync(join(DIR, "package.json"), "utf8")) as { scripts: Record<string, string> };
   assert.match(pkg.scripts.build, /tsc -p tsconfig\.browser\.json/u, "the build type-checks the browser code");
   assert.match(pkg.scripts.build, /esbuild src\/browser\/workbench-factory\.ts [^&]*'--banner:js=\(host\) => \{'[^&]*--outfile=dist\/workbench-bundle\.js/u, "and bundles the page as one function of the host");
+  assert.match(pkg.scripts.build, /--outfile=dist\/workbench-bundle\.js && node tooling\/compact-workbench-client\.mjs/u, "the existing bundle is compacted after esbuild");
   assert.match(pkg.scripts.build, /esbuild src\/browser\/settings\/index\.ts [^&]*--outfile=dist\/settings-bundle\.js/u, "and the settings page as another");
   for (const part of ["steps", "taskboard", "plan-progress", "input-receipts"]) {
     assert.match(pkg.scripts.build, new RegExp(`esbuild src/browser/pieces/${part}\\.ts [^&]*--outfile=dist/${part}-bundle\\.js`, "u"), `and the ${part} part the package exports, so the page-program gate reads its source`);

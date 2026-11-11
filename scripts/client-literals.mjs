@@ -1,4 +1,6 @@
+import {readFileSync} from 'node:fs';
 import ts from 'typescript';
+import {transformSync} from 'esbuild';
 
 /** Pool repeated expression strings inside existing function scopes only; never rename public keys or change literals. */
 export function poolClientLiterals(source, { byBytes = false } = {}) {
@@ -32,3 +34,12 @@ export function poolClientLiterals(source, { byBytes = false } = {}) {
   for(const {start,end,text} of edits.sort((a,b)=>b.start-a.start))source=source.slice(0,start)+text+source.slice(end);
   return source;
 }
+
+/** Compact an already assembled browser program without changing its globals or literal values. */
+export function compactClientScript(source) {
+  return transformSync(poolClientLiterals(source, { byBytes: true }), {
+    loader: 'js', target: 'es2022', charset: 'utf8', minifyWhitespace: true, minifyIdentifiers: true, minifySyntax: true, legalComments: 'none',
+  }).code;
+}
+
+if (import.meta.main) process.stdout.write(compactClientScript(readFileSync(0, 'utf8')));

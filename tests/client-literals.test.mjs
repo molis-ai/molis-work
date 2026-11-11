@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import test from 'node:test';
+import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 import { transformSync } from 'esbuild';
-import {poolClientLiterals} from './client-literals.mjs';
+import { poolClientLiterals } from '../scripts/client-literals.mjs';
 
 test('pooling preserves directives, literal values, object keys, defaults and nested closures',()=>{
   const literal='repeated selector with Unicode 🙂 and quotes "';
@@ -29,6 +31,8 @@ test('byte-based pooling preserves adjacent in and return tokens', () => {
     assert.equal(result(script), expected);
     assert.equal(result(transformSync(script, { target: 'es2022', minify: true, charset: 'utf8' }).code), expected);
   }
+  const compactor = fileURLToPath(new URL('../scripts/client-literals.mjs', import.meta.url));
+  assert.equal(result(execFileSync(process.execPath, [compactor], { input: source, encoding: 'utf8' })), expected);
 });
 
 // Minified keywords may touch a string quote; replacing it with an identifier needs a token boundary.

@@ -356,7 +356,11 @@ export type WorkspaceGitResult = {
     after_mode: GitFileMode | null;
     revision: string;
 } | {
-    outcome: "denied" | "not-a-repository" | "unavailable" | "changed" | "unsupported" | "binary" | "too-large" | "conflict" | "missing" | "error";
+    outcome: "not-a-repository";
+    message: string;
+    reason?: "directory_not_created";
+} | {
+    outcome: "denied" | "unavailable" | "changed" | "unsupported" | "binary" | "too-large" | "conflict" | "missing" | "error";
     message: string;
 };
 

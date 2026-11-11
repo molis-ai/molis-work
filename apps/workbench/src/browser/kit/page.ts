@@ -13,6 +13,7 @@ export function mountKit(root: HTMLElement): () => void {
   const body = $("body"), notice = $("notice"), search = $<HTMLInputElement>("search"), kindSelect = $<HTMLSelectElement>("kind"), groupSelect = $<HTMLSelectElement>("group");
   const pluginsHref = `/projects/${encodeURIComponent(project || "personal")}/settings/plugins`;
   const view: View = { query: "", kind: "all", group: "all", detail: false };
+  const selectedLanguage = () => document.documentElement.dataset.uiLanguageTag ?? document.documentElement.lang;
   let kit: Kit | undefined, failure: unknown, turn = 0, entering = false, requestedLanguage: string | undefined;
 
   const say = (text: string, tone: "success" | "danger" = "success") => {
@@ -21,7 +22,7 @@ export function mountKit(root: HTMLElement): () => void {
   };
 
   async function load(retitle = false): Promise<void> {
-    const mine = ++turn, language = document.documentElement.dataset.uiLanguageTag ?? document.documentElement.lang;
+    const mine = ++turn, language = selectedLanguage();
     requestedLanguage = language;
     failure = undefined;
     try {
@@ -145,7 +146,7 @@ export function mountKit(root: HTMLElement): () => void {
   draw();
   void load();
   return () => {
-    const language = document.documentElement.dataset.uiLanguageTag ?? document.documentElement.lang;
+    const language = selectedLanguage();
     if (language !== requestedLanguage && root.getClientRects().length) void load(true);
   };
 }

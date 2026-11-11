@@ -251,20 +251,29 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
     }
   };
   const shown = () => JSON.stringify([receiverNow().label, Boolean(getWork()), deliveryNow(), controlsNow().map((one) => [one.id, one.value, one.options])]);
+  const assistantInputName = () => input.setAttribute("aria-label", words.input);
+  let refreshComposerWords = assistantInputName;
   const mountPage = (target) => {
     mountedFor = target.key; boundPage = target; draftHere = null; painted = "";
     island.dataset.receiver = "page"; input.readOnly = false; input.placeholder = target.placeholder;
     // The page's own words, with the bar's where it gave none; its options are read live (getters kept), only the words are filled.
     const options = Object.defineProperties({}, Object.getOwnPropertyDescriptors(target.options));
-    options.labels = { ...words, ...target.options.labels, modes: { ...words.modes, ...target.options.labels.modes } };
+    const labels = options.labels = {};
+    refreshComposerWords = () => {
+      const own = target.options.labels;
+      Object.assign(labels, words, own, { adding: own.adding ?? words.adding, modes: { ...words.modes, ...own.modes } });
+      input.setAttribute("aria-label", labels.input);
+    };
+    refreshComposerWords();
     // Its tag opens 「发给」; the page's own name and glyph, nothing else of what it said.
     options.receiver = () => { const named = target.options.receiver?.(); return named ? { label: named.label, ...(named.icon ? { icon: named.icon } : {}), open: openSendTo } : null; };
     composer = window.molisComposer(compose, options);
-    target.bind(composer, input);
+    target.bind(composer, input, refreshComposerWords);
     keepGlyph(target);
   };
   const mountComposer = () => {
     island.removeAttribute("data-receiver"); paintAim(false);
+    refreshComposerWords = assistantInputName; refreshComposerWords();
     mountedFor = curId || scoped("new-draft"); draftHere = draftFor(curId); painted = shown();
     composer = window.molisComposer(compose, { kind: "ai", entry: "assistant", labels: words, draft: { adapter: draftHere },
       receiver: receiverNow, delivery: deliveryNow, get controls() { return controlsNow(); }, get commands() { return commands(); },

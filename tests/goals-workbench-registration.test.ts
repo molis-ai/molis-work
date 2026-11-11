@@ -1,5 +1,5 @@
 import { transformSync } from "esbuild";
-import { poolClientLiterals } from "../apps/workbench/tooling/client-literals.mjs";
+import { poolClientLiterals } from "../scripts/client-literals.mjs";
 import { UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -55,7 +55,7 @@ test("RAC-2093 Goals' settings scripts run from the registration's settings clie
 test("the shipped page preserves the assembled registration program after literal pooling and compaction", () => {
   const source = workbenchClientSource();
   assert.ok(source.startsWith(UI_REQUEST_CLIENT_SCRIPT));
-  const expected = UI_REQUEST_CLIENT_SCRIPT + transformSync(poolClientLiterals(source.slice(UI_REQUEST_CLIENT_SCRIPT.length)), {
+  const expected = UI_REQUEST_CLIENT_SCRIPT + transformSync(poolClientLiterals(source.slice(UI_REQUEST_CLIENT_SCRIPT.length), { byBytes: true }), {
     loader: "js", target: "es2022", charset: "utf8", minifyWhitespace: true, minifyIdentifiers: true, minifySyntax: true, legalComments: "none",
   }).code;
   const shipped = renderMolisWorkWorkbenchClientScript();

@@ -144,6 +144,24 @@ async function openFrameGrant(root: HTMLElement, pack: FramePack, scope: FrameSc
   return { grant, page: projected?.page };
 }
 
+/** Structured surfaces follow the Runtime's display revision only while their frame is visible. */
+function observeFrameRevision(scope: FrameScope, route: (path: string) => string, pluginId: string, pageId: string, invalidate: () => void): void {
+  let revision: string | undefined;
+  scope.whenVisible(() => {
+    const controller = new AbortController(); let timer: ReturnType<typeof setTimeout> | undefined;
+    const read = async () => {
+      try {
+        const value = await molisWorkRequest<{ revision: string }>(route("/api/plugins/" + pluginId + "/view-revision"), { scope, signal: controller.signal, headers: { "x-molis-plugin-page": pageId } });
+        scope.assertCurrent(); if (controller.signal.aborted) return;
+        if (revision !== undefined && revision !== value.revision) invalidate();
+        revision = value.revision;
+      } catch { /* A hidden or withdrawn page cannot publish a display update. */ }
+      if (!controller.signal.aborted && scope.alive) timer = setTimeout(() => void read(), 1500);
+    };
+    void read(); return () => { controller.abort(); clearTimeout(timer); };
+  });
+}
+
 /** The trusted shell binds a real frame, channel and server authorization; child-supplied identity never selects them. */
 export async function mountFrame(root: HTMLElement, host: FrameHost, pack: FramePack) {
   if (accountTransition().preparing) throw new Error("Account is switching");
@@ -224,21 +242,8 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
   };
   environment.observeState(state);
   scope.whenVisible(() => { state(); navigation.focus(); return state; });
-  // Structured surfaces follow the Runtime's existing display revision; each read is cancelled on hiding.
-  let revision: string | undefined;
-  if (clientMount) scope.whenVisible(() => {
-    const controller = new AbortController(); let timer: ReturnType<typeof setTimeout> | undefined;
-    const read = async () => {
-      try {
-        const value = await molisWorkRequest<{ revision: string }>(route("/api/plugins/" + pack.plugin_id + "/view-revision"), { scope, signal: controller.signal, headers: { "x-molis-plugin-page": grant.page_id } });
-        scope.assertCurrent(); if (controller.signal.aborted) return;
-        if (revision !== undefined && revision !== value.revision) port.postMessage({ type: "select", detail: { invalidate: true }, itemTab: ownItemTab(root, pack) });
-        revision = value.revision;
-      } catch { /* A hidden or withdrawn page cannot publish a display update. */ }
-      if (!controller.signal.aborted && scope.alive) timer = setTimeout(() => void read(), 1500);
-    };
-    void read(); return () => { controller.abort(); clearTimeout(timer); };
-  });
+  if (clientMount) observeFrameRevision(scope, route, pack.plugin_id, grant.page_id,
+    () => port.postMessage({ type: "select", detail: { invalidate: true }, itemTab: ownItemTab(root, pack) }));
   const fail = (error: Error) => {
     clearTimeout(deadline);
     if (own) { root.inert = false; root.removeAttribute("aria-busy"); root.dataset.uiClientState = "failed"; }

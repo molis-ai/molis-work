@@ -131,7 +131,9 @@ export function renderGitChanges(model: GitUiModel): string {
     const recovery = view.recovery === undefined
       ? ""
       : `<span class="git-recovery">${escape(view.recovery)}</span>`;
-    const message = view.reason === "directory_not_created" ? uiText.text("git.projection.directory-not-created") : view.message;
+    const message = view.phase === "not-a-repository"
+      ? uiText.text(view.reason === "directory_not_created" ? "git.projection.directory-not-created" : "git.projection.not-repository")
+      : view.message;
     return `<section class="git" data-phase="${escape(view.phase)}">`
       + `<p class="git-notice">${escape(message)}${recovery}</p></section>`;
   }

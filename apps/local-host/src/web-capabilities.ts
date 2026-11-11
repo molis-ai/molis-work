@@ -16,7 +16,6 @@ import { currentLocale } from "./web-locale.js";
 function libraryTitles(actions: readonly ActionView[]): ReadonlyMap<ActionView, string> {
   const titles = new Map<ActionView, string>(), readers = new Map<string, PluginTextReader | null>(), locale = currentLocale();
   for (const view of actions) {
-    if (view.version !== 1) continue;
     const { kind, provider_id, plugin_id } = view.provider, identity = JSON.stringify([kind, provider_id, plugin_id]);
     if (!readers.has(identity)) {
       // Only Host-built Runtime definitions and the existing Alchemist assembly use their Manifest ID as provider ID.
@@ -27,6 +26,7 @@ function libraryTitles(actions: readonly ActionView[]): ReadonlyMap<ActionView, 
     const reader = readers.get(identity);
     if (!reader) continue;
     const scope = kind === "system" ? provider_id.replaceAll(".", "-") + "--" : "";
+    // The approved display entries are keyed to their exact capability versions.
     const key = `${textKeyPrefix(reader.owner)}.capability-library.${scope}${view.capability_id.replaceAll(".", "-")}-v${view.version}.title`;
     const selected = locale ? reader.pack(locale) : null;
     const message = selected?.messages[key] ?? reader.pack(reader.default)?.messages[key];

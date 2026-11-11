@@ -588,6 +588,7 @@ ${ASSISTANT_PAGE_MESSAGES_PART}
     stepRow?.retitle();
     receipts.retitle();
     Object.assign(words, composerWords());
+    refreshComposerWords();
     paintAim();
     composer?.refresh();
   };

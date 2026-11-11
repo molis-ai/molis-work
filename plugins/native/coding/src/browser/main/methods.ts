@@ -73,26 +73,25 @@ export function renderMcp(page: Page) {
 }
 
 
-const BUILTIN_METHOD_WORDS: Readonly<Record<string, { name: string; description: string }>> = {
-  "coding-review-change": { name: "coding.skill.coding-review-change.name", description: "coding.skill.coding-review-change.description" },
-  "coding-diagnose-fix": { name: "coding.skill.coding-diagnose-fix.name", description: "coding.skill.coding-diagnose-fix.description" },
-  "coding-implement-change": { name: "coding.skill.coding-implement-change.name", description: "coding.skill.coding-implement-change.description" },
-  "coding-git-delivery": { name: "coding.skill.coding-git-delivery.name", description: "coding.skill.coding-git-delivery.description" },
+const BUILTIN_METHOD_WORDS: Readonly<Record<string, { version: number; name: string; description: string }>> = {
+  "coding-review-change": { version: /* @version method.coding-review-change */ 2, name: "coding.skill.coding-review-change.name", description: "coding.skill.coding-review-change.description" },
+  "coding-diagnose-fix": { version: /* @version method.coding-diagnose-fix */ 2, name: "coding.skill.coding-diagnose-fix.name", description: "coding.skill.coding-diagnose-fix.description" },
+  "coding-implement-change": { version: /* @version method.coding-implement-change */ 2, name: "coding.skill.coding-implement-change.name", description: "coding.skill.coding-implement-change.description" },
+  "coding-git-delivery": { version: /* @version method.coding-git-delivery */ 2, name: "coding.skill.coding-git-delivery.name", description: "coding.skill.coding-git-delivery.description" },
 };
 
 function methodWords(page: Page, skill: SkillChoice) {
   const { source, skill_id, version } = skill.ref;
-  const copy = version === 2 && source.plugin_id === page.host.pluginId && source.publisher_signature === CODING_PUBLISHER_BINDING
+  const copy = source.plugin_id === page.host.pluginId && source.publisher_signature === CODING_PUBLISHER_BINDING
     ? BUILTIN_METHOD_WORDS[skill_id] : undefined;
-  return copy ? { name: page.readText(copy.name), description: page.readText(copy.description), fixed: true }
+  return copy?.version === version ? { name: page.readText(copy.name), description: page.readText(copy.description), fixed: true }
     : { name: skill.name, description: skill.description, fixed: false };
 }
 
-function methodTitle(page: Page, skill: SkillChoice, tag: "span" | "h3"): HTMLElement {
-  const words = methodWords(page, skill);
+function methodTitle(words: { name: string; fixed: boolean }, version: number, tag: "span" | "h3"): HTMLElement {
   const title = el(tag), name = el("span", words.name);
   name.translate = words.fixed;
-  title.append(name, " · v" + skill.ref.version);
+  title.append(name, " · v" + version);
   return title;
 }
 
@@ -101,7 +100,7 @@ function showExcerpt(page: Page, skill: SkillChoice) {
   const doc = page.q("[data-coding-method-document]");
   doc.hidden = false;
   const excerpt = el("p", skill.excerpt); excerpt.translate = false;
-  doc.replaceChildren(methodTitle(page, skill, "h3"), excerpt);
+  doc.replaceChildren(methodTitle(methodWords(page, skill), skill.ref.version, "h3"), excerpt);
   doc.scrollIntoView({ block: "nearest" });
 }
 
@@ -115,7 +114,7 @@ function methodRow(page: Page, skill: SkillChoice): HTMLElement {
   // Another plugin's `manual` Skill is named only in the Assistant; one already kept can still be cleared.
   check.disabled = !chosen && (!skill.available || skill.assistant_only);
   const words = methodWords(page, skill);
-  label.append(check, methodTitle(page, skill, "span"));
+  label.append(check, methodTitle(words, skill.ref.version, "span"));
   lifetime.listen(check, "change", () => {
     s.methodChoices = s.methodChoices.filter(ref => skillRefKey(ref) !== key);
     if (check.checked) s.methodChoices.push(structuredClone(skill.ref));
@@ -139,10 +138,10 @@ export function renderMethods(page: Page) {
   const { readText, lifetime, q } = page, { s } = page;
   const list = q("[data-coding-method-list]"), needle = q<HTMLInputElement>("[data-coding-method-search]").value.trim().toLocaleLowerCase();
   list.replaceChildren();
-  const catalog = s.state.skills || [], rows = catalog.filter(item => {
+  const catalog = s.state.skills || [], rows = needle ? catalog.filter(item => {
     const { name, description } = methodWords(page, item);
     return (name + " " + description).toLocaleLowerCase().includes(needle);
-  });
+  }) : catalog;
   for (const skill of rows) list.append(methodRow(page, skill));
   if (!rows.length) list.append(el("p", needle ? readText("coding.method.no-match") : readText("coding.method.none")));
   for (const ref of s.methodChoices.filter(item => !catalog.some(skill => skillRefKey(skill.ref) === skillRefKey(item)))) {

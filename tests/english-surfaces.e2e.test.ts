@@ -3,7 +3,7 @@ import test from "node:test";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { CODING_COMPOSER, CODING_OPEN } from "./fixtures/coding-composer.js";
 import { execFileSync } from "node:child_process";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, stat, writeFile } from "node:fs/promises";
 import { delimiter, join } from "node:path";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { projectOutputOf, readProjectDirectories } from "./fixtures/project-directories-http.js";
@@ -35,8 +35,8 @@ test("VUX-40: Goals statuses, Jelly's fixed category and the Files, Git, Diff an
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
   const { navigate, command, sessionId, origin, projectId } = browser;
   assert.ok(projectId);
-  const initialDirectories = await readProjectDirectories(browser.web, projectId);
-  assert.equal(initialDirectories.default_output_made, false);
+  const output = projectOutputOf(await readProjectDirectories(browser.web, projectId)).canonical_path;
+  await assert.rejects(stat(output), { code: "ENOENT" });
   const views = Object.fromEntries(await Promise.all(["jelly", "files", "git", "diff", "text-stats", "coding"].map(async id => [id, await pluginFrameBrowser(t, browser, id)])));
   let active: Pick<typeof browser, "evaluate" | "waitFor"> = browser;
   const evaluate: typeof browser.evaluate = (...args) => active.evaluate(...args);
@@ -69,11 +69,10 @@ test("VUX-40: Goals statuses, Jelly's fixed category and the Files, Git, Diff an
     // The English is longer: none of it runs out of its box.
     assert.deepEqual((await evaluate<TextWrapIssue[]>(TEXT_WRAP_AUDIT)).filter((issue) => issue.kind === "spill"), [], `${plugin} in English fits`);
   }
-  assert.equal((await readProjectDirectories(browser.web, projectId)).default_output_made, false, "viewing Git never creates the project’s default output");
-  await mkdir(projectOutputOf(initialDirectories).canonical_path, { recursive: true });
-  await open("git", "document.querySelector('[data-git-status]')?.textContent.includes('not a git repository')");
-  assert.match(await evaluate<string>("document.querySelector('[data-git-status]').textContent"), /not a git repository/i);
-  assert.doesNotMatch(await evaluate<string>("document.querySelector('[data-git-status]').textContent"), /hasn’t been made/u);
+  await assert.rejects(stat(output), { code: "ENOENT" }, "viewing Git never creates the project’s default output");
+  await mkdir(output, { recursive: true });
+  await open("git", "document.querySelector('[data-git-status]')?.textContent === 'This directory is not a Git repository'");
+  assert.equal(await evaluate("document.querySelector('[data-git-status]').textContent"), "This directory is not a Git repository");
   await open("goals", pages[0]![1]);
   assert.ok((await evaluate<string>("[...document.querySelectorAll('.goal-status')].map((el) => el.textContent).join('|')")).includes("In progress"));
 });

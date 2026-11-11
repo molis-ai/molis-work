@@ -168,6 +168,10 @@ const pages: Record<string, Draw> = {
 // `mw-composer__to-label`, the Assistant's sparkles icon before the name) and the bar is drawn ` data-bar-placing` (the input stays
 // unseen until bar-column.ts places it, VUX-31): +110 characters in each — besides executable scripts and dictionaries, which the hash
 // leaves out. No Goals markup or JSON changed; the 16 were recorded with MOLIS_WORK_GOLDEN_RECORD=1 and the other 50 did not change.
+// Batch 16 final integration: an independent build of main 2630160877 reproduced all 66 accepted hashes and lengths. The token
+// comparison found 49 changed drawings from the approved language and appearance work, including the display-only Goal labels,
+// two added language data blocks and the translated planning methods. The Goal data, fixed view and golden Homes were unchanged.
+// The hashes below come from the checked draws with RECORD unset. The independent text and data assertions stay in place.
 const RECORDED = new URL("golden.json", GOLDEN);
 interface Recorded { sha256: string; length: number }
 const recorded: Record<string, Recorded> = record ? {} : JSON.parse(readFileSync(RECORDED, "utf8"));

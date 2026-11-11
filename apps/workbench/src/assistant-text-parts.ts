@@ -73,8 +73,11 @@ export function assistantInlineHtml(text: string, ports: AssistantTextPorts): st
 
 export const ASSISTANT_LIST_ITEM = /^(\s*)([-*+•]|\d+[.)])\s+(.*)$/;
 
-/** Accept a missing bullet space next to another list item, only when reading prose. */
-export function assistantListLine(lines: string[], index: number): string {
+/**
+ * Repairs `lines[index]` in place and returns it: a bullet missing its space next to another list item gets the space, so
+ * later reads of the same line (block starts, list bodies) agree. Only prose is read this way, never a fence's text.
+ */
+export function assistantRepairListLine(lines: string[], index: number): string {
   const line = lines[index]!;
   const loose = /^(\s*)([-•])([^\s\-•].*)$/.exec(line);
   if (loose) {
@@ -97,8 +100,8 @@ export function assistantListHtml(lines: string[], start: number, ports: Assista
   const roots: List[] = [], stack: Array<{ indent: number; list: List }> = [];
   let index = start, lastItem: ListItem | null = null;
   while (index < lines.length) {
-    const line = assistantListLine(lines, index);
-    if (!line.trim()) { if (index + 1 < lines.length && ASSISTANT_LIST_ITEM.test(assistantListLine(lines, index + 1))) { index += 1; continue; } break; }
+    const line = assistantRepairListLine(lines, index);
+    if (!line.trim()) { if (index + 1 < lines.length && ASSISTANT_LIST_ITEM.test(assistantRepairListLine(lines, index + 1))) { index += 1; continue; } break; }
     const match = ASSISTANT_LIST_ITEM.exec(line);
     if (!match) {
       if (lastItem && /^\s{2,}\S/.test(line)) { lastItem.parts.push("<br>" + assistantInlineHtml(line.trim(), ports)); index += 1; continue; }

@@ -314,13 +314,12 @@ export class AgentHost implements AgentHostApi {
     request = { ...request, original_input: trustedOriginalInput(request, authority.original_input), continued_from: request.continued_from && structuredClone(request.continued_from), budget: parseAgentRunBudget(request.budget), execution_plan: freezeExecutionPlan(request) };
     // What runs is the registered prompt as the person left it: their version when they edited it, otherwise the
     // default. Same id and version either way — the frozen record says which, and no text widens what the role may do.
-    if (authority.prompts?.length) {
-      const locale = authority.reply_language?.locale, resolve = this.#prompts;
-      authority = { ...authority, prompts: authority.prompts.map(({ body_by_locale, ...prompt }) => {
+    const locale = authority.reply_language?.locale, resolve = this.#prompts;
+    const promptAuthority = { manifest: authority.manifest, project_prompts: authority.project_prompts,
+      reply_language: authority.reply_language, prompts: authority.prompts?.map(({ body_by_locale, ...prompt }) => {
         const declaration = { ...prompt, ...(body_by_locale ? { body_by_locale } : {}) };
         return resolve ? resolve.effective(request.plugin_id, declaration, locale) : { ...prompt, body: agentBodyIn(declaration, locale) };
       }) };
-    }
     const adapter = this.adapter(runtimeId);
     const worktrees = request.workspace === "none" || request.workspace === "business" ? [] : await worktreesFor(authority, request.directory, request.subagent_workspaces?.length);
     const { role, execution, workspace, place } = checkStartRole(adapter, runtimeId, request, authority, worktrees);
@@ -347,12 +346,12 @@ export class AgentHost implements AgentHostApi {
     const actions = await frozenActions(source, actionRefs, character);
     const gateway = request.action_gateway ? await frozenGateway(source, workspace) : undefined;
     const { mcp, sources } = await frozenMcp(request, execution, character, hostTools, () => this.mcpLibrary(runtimeId, authority));
-    const { compaction, endingReview } = frozenSidePrompts(adapter, authority);
-    const { subagents, childWorkspaces } = frozenSubagents(adapter, role, execution, request, authority, hostTools, worktrees);
+    const { compaction, endingReview } = frozenSidePrompts(adapter, promptAuthority);
+    const { subagents, childWorkspaces } = frozenSubagents(adapter, role, execution, request, promptAuthority, hostTools, worktrees);
     const directories = runDirectoriesOf(authority, place);
     const characterSkillIds = request.character_skill_ids === undefined ? undefined : [...request.character_skill_ids];
     if (characterSkillIds && !character?.import_snapshot && characterSkillIds.length) throw new Error("请先选择包含导入 Skills 的 Character");
-    const prompts = composeRolePrompts(role, authority, character, character ? importedCharacterInstructions(character, request.directory?.canonical_path, characterSkillIds) : undefined);
+    const prompts = composeRolePrompts(role, promptAuthority, character, character ? importedCharacterInstructions(character, request.directory?.canonical_path, characterSkillIds) : undefined);
     // The memories this run is given: the Host's recall for this consumer. A failed recall runs without memory, never stops the run.
     const memory = authority.memory ? await authority.memory(request.task, character ? { character: { artifact_id: character.reference.artifact_id, title: character.title } } : {}).catch(() => null) : null;
     await beforeStart();

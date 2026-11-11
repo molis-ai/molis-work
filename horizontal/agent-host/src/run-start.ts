@@ -49,8 +49,10 @@ export const EXECUTION_CAPABILITIES: Readonly<Record<AgentRoleExecution, AgentRu
   operate: [],
 };
 
+type PromptAuthority = Pick<AgentStartAuthority, "manifest" | "prompts" | "project_prompts" | "reply_language">;
+
 /** A prompt the Agent sends on the side of its rounds (compaction, the ending review), at the version its manifest declares. */
-function declaredSidePrompt(authority: AgentStartAuthority, promptId: string | undefined): AgentPromptText | undefined {
+function declaredSidePrompt(authority: PromptAuthority, promptId: string | undefined): AgentPromptText | undefined {
   const declaration = promptId === undefined ? undefined : authority.manifest.prompts?.find(item => item.prompt_id === promptId);
   const prompt = authority.prompts?.find(item => item.prompt_id === declaration?.prompt_id && item.version === declaration.version);
   return prompt?.body.trim() ? { ...prompt } : undefined;
@@ -78,7 +80,7 @@ function declaredSidePrompt(authority: AgentStartAuthority, promptId: string | u
  */
 export function composeRolePrompts(
   role: AgentRoleDeclaration,
-  authority: AgentStartAuthority,
+  authority: PromptAuthority,
   character?: AgentFrozenCharacter,
   characterInstructions?: string,
 ): AgentPromptText[] {
@@ -356,7 +358,7 @@ export async function frozenMcp(request: AgentStartRequest, execution: AgentRole
 }
 
 /** The prompts sent beside the round — context compaction and the ending review — at the versions the manifest declares. */
-export function frozenSidePrompts(adapter: AgentRuntimeAdapter, authority: AgentStartAuthority) {
+export function frozenSidePrompts(adapter: AgentRuntimeAdapter, authority: PromptAuthority) {
   let compaction: { prompt: AgentPromptText; above_tokens: number } | undefined;
   const declaredCompaction = authority.manifest.compaction;
   if (declaredCompaction && adapter.descriptor.capabilities.compaction !== "unsupported") {
@@ -374,12 +376,12 @@ export function frozenSidePrompts(adapter: AgentRuntimeAdapter, authority: Agent
  * only for a declared read-only coordinator. A round recorded under another name for it is not read as one (it is refused, and started again).
  */
 function childWorkspacesOf(adapter: AgentRuntimeAdapter, role: AgentRoleDeclaration, execution: AgentRoleExecution, request: AgentStartRequest,
-  authority: AgentStartAuthority, worktrees: readonly AgentHostWorktree[]): AgentSubagentWorkspace[] | undefined {
+  manifest: AgentManifest, worktrees: readonly AgentHostWorktree[]): AgentSubagentWorkspace[] | undefined {
   if (role.subagent_workspaces !== "required") {
     if (request.subagent_workspaces?.length) throw agentErrors.directory_unauthorized("当前角色没有声明独立子目录");
     return undefined;
   }
-  if (execution !== "read-only" || !authority.manifest.subagents?.parent_role_ids.includes(role.role_id)) throw agentErrors.role_execution_exceeded("独立子目录必须由已声明的只读协调者分派");
+  if (execution !== "read-only" || !manifest.subagents?.parent_role_ids.includes(role.role_id)) throw agentErrors.role_execution_exceeded("独立子目录必须由已声明的只读协调者分派");
   if (!adapter.subagents?.workspaces || !request.subagent_workspaces?.length) throw agentErrors.capability_unavailable("请先为每个写入子任务选择独立的已授权目录");
   const ids = new Set<string>(), paths = new Set<string>();
   return request.subagent_workspaces.map(grant => {
@@ -393,8 +395,8 @@ function childWorkspacesOf(adapter: AgentRuntimeAdapter, role: AgentRoleDeclarat
 
 /** The child roles a parent role may dispatch, each frozen with no tool its parent does not hold (unless it writes in its own directory). */
 export function frozenSubagents(adapter: AgentRuntimeAdapter, role: AgentRoleDeclaration, execution: AgentRoleExecution, request: AgentStartRequest,
-  authority: AgentStartAuthority, hostTools: readonly string[], worktrees: readonly AgentHostWorktree[] = []) {
-  const childWorkspaces = childWorkspacesOf(adapter, role, execution, request, authority, worktrees);
+  authority: PromptAuthority, hostTools: readonly string[], worktrees: readonly AgentHostWorktree[] = []) {
+  const childWorkspaces = childWorkspacesOf(adapter, role, execution, request, authority.manifest, worktrees);
   let subagents: AgentFrozenSubagentRole[] | undefined;
   const declaration = authority.manifest.subagents;
   if (declaration?.parent_role_ids.includes(role.role_id)) {

@@ -83,6 +83,11 @@ export async function homePluginDirectory(host?: HomePluginHost, home?: string):
   catch (error) { hostLog.warn("plugins", "home_directory_unavailable", error); return []; }
 }
 
+/** The directory a Home's pages read (the project list's as well as each project's): its own Runtimes' plugins, then the market's. */
+export async function pagePluginDirectory(host: HomePluginHost | undefined, home: string | undefined): Promise<PluginDirectoryEntry[]> {
+  return mergePluginDirectories(await homePluginDirectory(host, home), builtinMarketDirectory(home));
+}
+
 /** Several Runtimes' entries as one directory: a plugin that runs in more than one (a dual-instance one) is listed once, by its first. */
 export function mergePluginDirectories(...parts: readonly PluginDirectory[]): PluginDirectoryEntry[] {
   const seen = new Set<string>();

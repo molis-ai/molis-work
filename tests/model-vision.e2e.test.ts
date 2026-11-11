@@ -27,7 +27,7 @@ test("SYS-12 ISSUE-54 model settings preserve three image states and Issue uses 
   await v.viewport(1440); await v.go(settings);
   await b.waitFor(selected);
   assert.deepEqual(await b.evaluate(`Array.from(${selected}.options, option => [option.value, option.textContent])`),
-    [["", "未声明"], ["true", "能看图"], ["false", "不能看图"]]);
+    [["", "不确定（照常发图）"], ["true", "能看图"], ["false", "不能看图"]]);
   for (const value of ["", "false", "true", ""]) {
     await v.go(settings); await b.waitFor(selected);
     if (value) await set("[data-model-vision]", value);
@@ -70,7 +70,7 @@ test("SYS-12 ISSUE-54 model settings preserve three image states and Issue uses 
   }
   await v.go(`/locale?lang=en&next=${encodeURIComponent(settings)}`); await b.waitFor(selected);
   assert.deepEqual(await b.evaluate(`Array.from(${selected}.options, option => option.textContent)`),
-    ["Not declared", "Can read images", "Cannot read images"]);
+    ["Unsure (send images anyway)", "Can read images", "Cannot read images"]);
   assert.match(await b.evaluate<string>(`${selected}.closest('label').textContent`), /Image input/);
   await v.viewport(480); assert.equal(await b.evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
   await b.evaluate(`(async () => { ${selected}.closest('label').scrollIntoView({ block: 'center', behavior: 'instant' }); await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))); return true; })()`);

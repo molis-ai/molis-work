@@ -57,7 +57,7 @@ const base = "/projects/" + encodeURIComponent(root.dataset.project || "") + "/a
 const $ = (name) => root.querySelector("[data-plugin-trust-" + name + "]");
 const el = (tag, className, text) => { const node = document.createElement(tag); if (className) node.className = className; if (text !== undefined && text !== null) node.textContent = text; return node; };
 const button = (text, variant) => { const node = el("button", "mw-btn " + variant + " mw-btn--sm", text); node.type = "button"; return node; };
-const TRUST = { host: "宿主随带", pinned: "你固定的发布者", unsigned: "没有签名" };
+const TRUST = { host: "随 Molis Work 提供", pinned: "你固定的发布者", unsigned: "没有签名" };
 const STATE = { installed: "已安装", running: "运行中", disabled: "已停用" };
 const KIND = { always_on: "常开", default_wiring: "默认连线", default_group: "默认输入组", local_directory: "本机目录" };
 const EFFECT = { storage: "保存数据", artifacts: "成果库", capabilities: "调用动作", events: "收发事件", networkDomains: "联网", secretRefs: "密钥", resources: "资源" };
@@ -231,7 +231,10 @@ reachViews = new Map(reachData.plugins.map((item) => [item.plugin_id, item])); r
 const managed = new Set(data.home_managed_install_ids || []);
 draw($("list"), L("这个项目里还没有装插件"), data.plugins.map((plugin) => {
 const paired = personal.some((home) => home.install_id === plugin.install_id && home.plugin_id === plugin.plugin_id && home.publisher_signature === plugin.publisher_signature && home.trust === plugin.trust);
-return installed(plugin, undefined, revoked, undefined, managed.has(plugin.install_id) ? paired ? "请在个人空间里管理这个插件的可选权限" : "个人空间插件权限当前不可用" : undefined);
+const item = installed(plugin, undefined, revoked, undefined, managed.has(plugin.install_id) ? paired ? "请在个人空间里管理这个插件的可选权限" : "个人空间插件权限当前不可用" : undefined);
+// A plugin that also runs in the personal space is listed in both groups (F-20): say why on the project's row.
+if (personal.some((home) => home.plugin_id === plugin.plugin_id)) item.querySelector(".setting-copy")?.append(el("span", "settings-muted", L("个人空间里也有一份：这个项目的内容在这里，你的个人内容在下面「个人空间里的插件」")));
+return item;
 }));
 const homeSend = (payload) => homeApi("set", payload);
 draw($("home"), L("个人空间里没有插件"), personal.map((plugin) => installed(plugin, homeSend, revoked, homeApi)));

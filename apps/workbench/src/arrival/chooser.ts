@@ -11,11 +11,15 @@ import {
 import { renderAssistantDock } from "../assistant-dock.js";
 import { ASSISTANT_ISLAND_FACTORY_SCRIPT } from "../scripts/client/assistant-island.js";
 import { ATTENTION_FACTORY_SCRIPT } from "../scripts/client/attention.js";
+import { GLOBAL_SEARCH_FACTORY_SCRIPT } from "../scripts/client/global-search.js";
+import { renderGlobalSearchOverlay } from "../immersive-shell.js";
 import { CONTROL_CLIENT_SCRIPT as UI_REQUEST_CLIENT_SCRIPT } from "../scripts/control.js";
 import { createArrivalShell, type ArrivalPrimitives } from "./shell.js";
 import { createBriefTime, createWorkbenchProjectBriefRenderer } from "./project-brief.js";
 import { CHOOSER_CLIENT_SCRIPT } from "./chooser-client.js";
 import type { WebProjectNavigation } from "../settings-navigation.js";
+import { renderPluginDirectoryData, type PluginDirectory } from "../plugin-directory.js";
+import { pluginDirectoryFor } from "../plugin-catalog.js";
 
 /** What the chooser remembers about this Home's projects. Presentation only; the Host reads it from `config/project-arrival.json`. */
 export interface ChooserArrival {
@@ -26,6 +30,8 @@ export interface ChooserArrival {
   opened: Readonly<Record<string, string>>;
   /** The project list could not be read: the chooser says so where the list would be, and the personal space still opens. */
   load_error?: boolean;
+  /** The plugins the Home's pages run, as each project page has them: where a personal search hit opens (BL-041). */
+  plugin_directory?: PluginDirectory;
 }
 
 const PERSONAL = "personal";
@@ -87,6 +93,7 @@ export function createWorkbenchProjectChooserRenderer(p: ArrivalPrimitives) {
       ? L("上次在 {name} · {when}", { name: last.display_name, when: time.ago(arrival.opened[last.project_id]!) }) : L("欢迎来到 Molis Work");
     const list = `<header class="chooser-head"><p class="chooser-greeting" data-greeting><strong>${greeting(now)}</strong><span>${escapeHtml(subtitle)}</span></p></header>
       <label class="mw-input-group chooser-search">${icon("search")}<input class="mw-input" id="chooser-q" type="search" placeholder="${L("搜索项目")}" aria-label="${L("搜索项目")}" autocomplete="off" spellcheck="false" aria-controls="chooser-dir"><span class="chooser-search__key">${renderKbd("⌘K")}</span></label>
+      ${renderButton({ variant: "secondary", icon: "search", label: L("搜索个人内容"), className: "chooser-personal-search", attrs: { "data-global-search-open": "", "aria-haspopup": "dialog" } })}
       <div class="chooser-dir" id="chooser-dir" role="listbox" aria-label="${L("个人空间与项目")}">${rows}</div>
       <p class="chooser-none" data-chooser-none hidden role="status">${L("没有匹配的项目")}</p>
       <p class="chooser-foot">${icon("folder")}<span>${L("项目和文档保存在这台电脑。")}</span></p>`;
@@ -124,11 +131,14 @@ const chosenRoute = path => { const id = document.querySelector('.chooser')?.dat
 (${ATTENTION_FACTORY_SCRIPT})({ translate: globalThis.L, route: chosenRoute, projectId: null, openItem: () => {} });
 globalThis.__ARRIVAL_ASSISTANT__ = (${ASSISTANT_ISLAND_FACTORY_SCRIPT})({ translate: globalThis.L, route: chosenRoute, headers: () => molisWorkControlHeaders(), project: null, interaction: (client => (root, host) => client(root, { references: (source, query) => molisWorkRequest(chosenRoute("/api/search/references"), { body: { kinds: source.split(","), query, limit: 8 }, fallback: L("暂时搜不了，稍后再试") }).then(found => ({ items: found.candidates.map(item => ({ value: item.kind + " " + item.id, label: item.label, meta: item.plugin_title })) })), ...host }))((${INTERACTION_CLIENT_SCRIPT_TYPED_DATES})), receipts: (${INPUT_RECEIPTS_CLIENT_SCRIPT})(globalThis.L),
   placeholder: project => project && project.title ? globalThis.L("问问「{name}」的进展，或交给助理一项工作…", { name: project.title }) : globalThis.L("在个人空间里，让助理做点什么…") });
+// The person's own content, searched from here with the workbench's dialog (BL-041): the Host fixes the scope to the Home, and a hit opens in its own space.
+globalThis.__CHOOSER_SEARCH__ = (${GLOBAL_SEARCH_FACTORY_SCRIPT})({ translate: globalThis.L, home: true, projectId: "", route: path => path, itemTabs: JSON.parse(document.querySelector("script[data-plugin-directory]")?.textContent || "[]").filter(entry => entry.accepts_objects).map(entry => entry.id),
+  setMobileView: () => {}, noteSearchActivity: () => {} });
 ${CHOOSER_CLIENT_SCRIPT}`;
     return shell.document({
       title: L("选择项目 · Molis Work"), screen: "chooser", desktopShell, controlToken,
       titlebar: shell.titlebar(desktopShell, { caption: true, tasks: true, account: true }), stage, bar,
-      after: `${templates}<script type="application/json" id="arrival-data">${data}</script>`,
+      after: `${renderGlobalSearchOverlay({ L, icon }, { personal: true })}${renderPluginDirectoryData(pluginDirectoryFor(arrival.plugin_directory))}${templates}<script type="application/json" id="arrival-data">${data}</script>`,
       scripts,
     });
   }

@@ -41,5 +41,6 @@ export const BUILTIN_INLINE_AGENT_ROLES: ReadonlyArray<{ owner_id: string; role:
 export const SYSTEM_INSTRUCTION_SOURCES: Readonly<Record<string, { module: string; title: string }>> = {
   "system:onboarding": { module: "onboarding", title: "项目上手" }, "system:information": { module: "information", title: "信息助手" },
   "system:memory": { module: "memory", title: "记忆" }, "system:contextual": { module: "contextual", title: "选区推荐" },
+  "system:knowledge": { module: "knowledge", title: "项目资料" },
   [BUILDER_PLUGIN_ID]: { module: "plugin-builder", title: "插件创作工作台" },
 };

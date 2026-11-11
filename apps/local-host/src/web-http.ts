@@ -82,7 +82,7 @@ export function requestHost(request: IncomingMessage): string | null {
 
 /**
  * A sandboxed plugin frame (srcdoc, no allow-same-origin) inherits this page policy. In that opaque frame WebKit does not
- * treat 'self' as this page's origin, so the frame's scripts and styles never load and the surface stays on "无法加载界面".
+ * treat 'self' as this page's origin, so the frame's scripts and styles never load and the surface never gets ready.
  * Naming the same loopback origin explicitly does not widen what the parent page can load. Chrome already treats 'self' as
  * the parent origin there, which is why the same page opens in Chrome.
  */

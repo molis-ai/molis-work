@@ -242,11 +242,14 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
         failed.dataset.settingsLoading = "1";
         failed.setAttribute("role", "alert");
         failed.innerHTML = '<span class="mw-empty__mark"><svg aria-hidden="true"><use href="#icon-circle-alert"></use></svg></span><strong></strong><p></p><button class="mw-btn mw-btn--secondary" type="button"></button>';
-        failed.querySelector("strong").textContent = L("无法加载设置");
-        molisWorkRequest.show(failed.querySelector("p"), error);
+        // A page that is not there is not fixed by trying again (F-20): say so, and offer the settings' first page instead.
+        const missing = error?.status === 404 && section !== options.preset;
+        failed.querySelector("strong").textContent = missing ? L("没有这个设置页") : L("无法加载设置");
+        if (missing) failed.querySelector("p").textContent = L("地址里的设置页不存在，可能写错了或已经移走。");
+        else molisWorkRequest.show(failed.querySelector("p"), error);
         const retry = failed.querySelector("button");
-        retry.textContent = L("重试");
-        retry.addEventListener("click", () => { if (!body.contains(failed)) return; retry.disabled = true; if (loading === request) loading = null; void loadSection(section, fetchPath); });
+        retry.textContent = missing ? L("回到设置首页") : L("重试");
+        retry.addEventListener("click", () => { if (!body.contains(failed)) return; retry.disabled = true; if (loading === request) loading = null; void (missing ? loadSection(options.preset) : loadSection(section, fetchPath)); });
         showNode(failed);
       } finally {
         if (loading === request) loading = null;

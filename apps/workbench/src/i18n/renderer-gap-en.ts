@@ -564,8 +564,8 @@ export const RENDERER_GAP_EN: Record<string, string> = {
   "自动整理": "Tidy automatically",
   "不能看图": "Cannot read images",
   "能看图": "Can read images",
-  "未声明": "Not declared",
-  "读图能力": "Image input",
+  "不确定（照常发图）": "Unsure (send images anyway)",
+  "看图": "Image input",
   // What the Coding page's companions (Files, Git, Diff, Text Stats) say around their lists; their stage shells carry their own words.
   // Settings › Connectors: how a connector connects, what it is for, and what to do next.
   "登录账号": "Sign in to your account",

@@ -29,6 +29,9 @@ export function takeSearchHits(
 
 export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
   const { translate: L, setMobileView, noteSearchActivity, openTabItem, openPlugin, openPluginRecord, expandDirectory, askAssistant, route, projectId, itemTabs: ITEM_TABS } = host;
+  // \`home\`: the Home's project list (BL-041). No project is open there, so the person's own content is the one scope, every hit
+  // opens in its own space (a Home-level record in the personal space), and there are no tools or quick actions to switch to.
+  const home = Boolean(host.home);
   const dialog = document.querySelector("[data-global-search-dialog]");
   const form = document.querySelector("[data-global-search-form]");
   const input = document.querySelector("[data-global-search]");
@@ -48,7 +51,7 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
   const scopes = hasProject && projectId !== ${JSON.stringify(PERSONAL_SPACE_PROJECT_ID)} ? ["all", "project", "personal"] : ["personal"];
   // A hit from another partition can only be the person's own space (search answers nothing else across projects).
   // A page without a catalog id has no other partitions: its hits are its own, opened in place.
-  const away = (hit) => Boolean(hit.project_id) && Boolean(projectId) && hit.project_id !== projectId;
+  const away = (hit) => home || (Boolean(hit.project_id) && Boolean(projectId) && hit.project_id !== projectId);
   let scope = (() => { try { const saved = sessionStorage.getItem("molis-work:search-scope"); return scopes.includes(saved) ? saved : scopes[0]; } catch { return scopes[0]; } })();
   let hits = [];
   let selected = 0;
@@ -69,6 +72,7 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
   const isBusy = () => composing || isOpen();
   const mobileDocument = () => { if (matchMedia("(max-width: 600px)").matches) setMobileView("document"); };
   const localGroups = (query) => {
+    if (home) return [];
     const q = query.toLowerCase();
     const groups = [];
     const items = [...document.querySelectorAll('[data-plugin-strip] [data-plugin-id], [data-assistant-island] [data-plugin-id], [data-dock] [data-plugin-id]')]
@@ -94,7 +98,7 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
   const remoteGroups = () => {
     const byPlugin = new Map();
     for (const hit of remote.hits) {
-      const label = (hit.plugin_title || hit.plugin_id) + (away(hit) ? " · " + L("个人空间") : "");
+      const label = (hit.plugin_title || hit.plugin_id) + (away(hit) && !home ? " · " + L("个人空间") : "");
       if (!byPlugin.has(label)) byPlugin.set(label, []);
       byPlugin.get(label).push({ kind: "hit", id: hit.subject.id, title: hit.title, plugin: label, hit });
     }
@@ -103,7 +107,7 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
   const statusMessage = (query) => {
     if (notice) return ["", notice];
     if (remote.status === "error") return ["failed", remote.error || L("搜索暂时不可用，请稍后重试")];
-    if (!query) return ["", hasProject ? L("搜索本项目与个人的全部内容，或按名称切换工具") : L("搜索个人内容，或按名称切换工具")];
+    if (!query) return ["", hasProject ? L("搜索本项目与个人的全部内容，或按名称切换工具") : home ? L("搜索个人内容") : L("搜索个人内容，或按名称切换工具")];
     if (remote.status === "loading" && !remote.hits.length) return ["running", L("正在搜索…")];
     const indexing = remote.sources.filter((source) => source.state === "indexing").map((source) => source.title);
     if (indexing.length) return ["indexing", L("正在建立搜索索引：") + indexing.join("、")];
@@ -231,7 +235,9 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
     render();
     if (remote.query) debounce = setTimeout(() => void search(), 140);
   };
-  const close = () => {
+  // \`returnTo\`: where focus goes once it has closed, in place of what opened it (the project list's ⌘K keeps its filter).
+  const close = (returnTo) => {
+    if (returnTo?.nodeType === 1) lastTrigger = returnTo;
     if (dialog.open) dialog.close();
   };
   // After the owner opened the object, bring the matched words into view in whichever pane shows it.
@@ -316,7 +322,7 @@ export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
       close();
       const target = opened.open || hit.open;
       if (!target) return;
-      if (away(hit)) { openElsewhere(hit.project_id, target, opened.title || hit.title); return; }
+      if (away(hit)) { openElsewhere(hit.project_id || ${JSON.stringify(PERSONAL_SPACE_PROJECT_ID)}, target, opened.title || hit.title); return; }
       requestAnimationFrame(() => {
         openTarget(target, hit.subject.kind, opened.title || hit.title);
         locate(target.surface, hit.locator?.field !== "title" ? hit.locator?.text : "");

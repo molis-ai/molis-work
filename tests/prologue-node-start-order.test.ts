@@ -23,7 +23,9 @@ test("W4-06-01: refusing overlapping child directories leaves no durable plan or
     const manifest = structuredClone(codingAgentManifest), role = manifest.roles.find(role => role.role_id === "coordinator")!;
     role.subagent_workspaces = "required"; role.execution = "read-only";
     role.host_tools = ["read-file", "dispatch-subagent", "await-subagents", "board-read", "board-report"];
-    manifest.subagents!.roles = [{ role_id: "coding-writer", version: 1, name: "独立写入", execution: "text-edit", host_tools: ["read-file", "write"] }];
+    const writer = manifest.prompts?.find(prompt => prompt.prompt_id === "coding-writer");
+    assert.ok(writer);
+    manifest.subagents!.roles = [{ role_id: writer.prompt_id, version: writer.version, name: "独立写入", execution: "text-edit", host_tools: ["read-file", "write"] }];
     const owner = { project_id: "b", plugin_id: "io.molis.work.coding", install_id: "i", actor_id: "user" }, directory = { canonical_path: parent, realpath_verified: true };
     const session = await adapter.createSession({ ...owner, directory, title: "Refused plan" });
     const plan = { source: { artifact_id: "confirmed-plan", version: 1 }, title: "Confirmed plan", steps: [{ id: "step-1", title: "Inspect", acceptance: "Report the evidence" }] };

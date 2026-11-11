@@ -131,7 +131,11 @@ test("TGA-21 TGA-22 FSS-35 Schedule keeps the open task's grants and its localiz
   })()`);
   const areaRequests = await browser.evaluate<number>("tgaKeys.length");
   await choose("en");
-  await browser.waitFor(`${status} === 'Reminders allowed; the next run can read it'`);
+  try { await browser.waitFor(`${status} === 'Reminders allowed; the next run can read it'`); }
+  catch (error) {
+    t.diagnostic(JSON.stringify(await browser.evaluate(`[document.documentElement.lang, ${status}, ${categoryWords}, tgaKeys.slice(${areaRequests}), document.querySelector('[data-ui-language-status]')?.textContent]`)));
+    throw error;
+  }
   assert.equal(await browser.evaluate(`document.querySelector(${JSON.stringify(undo)})?.textContent`), "Undo");
   assert.deepEqual(await browser.evaluate(categoryWords), ["Reminders", "This project's reminders: what they say (including the text of reminders other plugins set), which plugin set them and when they are next due"]);
   assert.deepEqual(await browser.evaluate(`tgaKeys.slice(${areaRequests})`), [first], "language reads the current task once");

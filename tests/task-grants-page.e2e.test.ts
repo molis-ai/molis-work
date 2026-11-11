@@ -261,5 +261,5 @@ test("TGA-25 TGA-26 a category in each state has its own action, sent with the r
   await browser.waitFor(`!(${p.row("install-a\nmorning", "plugin.inbox\n")})`);
   assert.deepEqual((await p.sent()).slice(mark3), [{ mode: "set", plugin_install_id: "install-a", key: "morning", expected_revision: "r1",
     categories: [{ provider_id: "plugin.todo" }, { provider_id: "plugin.notes", group_id: "pages" }, { provider_id: "plugin.feed" }] }]);
-  assert.equal(await p.toast(), "收件箱 withdrawn; to read it again, turn it on in the task's “Data it can read”");
+  assert.equal(await p.toast(), "收件箱 withdrawn; to read it again, turn it on in the task’s “Data it can read”");
 });

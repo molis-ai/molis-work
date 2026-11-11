@@ -4,10 +4,12 @@ import type { PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-
 import {
   agentTaskGrantActions, type TaskGrantClearRequest, type TaskGrantListRequest, type TaskGrantListResult, type TaskGrantSetCategory, type TaskGrantSetRequest, type TaskGrantSubject,
 } from "@molis-ai/molis-work-contracts/services/agent-task-grants";
+import { pluginManifestDigest } from "@molis-ai/molis-work-plugin-runtime";
 import { textKeyPrefix } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { createMcpActionGrant } from "./mcp-action-grants.js";
 import { actionGrantKey, readMcpToolPreference, removeMcpActionGrants, replaceMcpClientGrants, type McpActionGrant, type McpToolPreference } from "./mcp-settings-store.js";
 import { installedPluginEntries } from "./plugin-installation-directory.js";
+import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
 import { categoryKey, namedCategory, offeredCategories, recordedCategories, subjectCategories, subjectRevision, taskReadableCatalog, type DeclarationOf, type ProviderDeclaration } from "./task-grant-categories.js";
 import { parseTaskGrantSubject, taskGrantSubjectId, TASK_GRANT_SUBJECT_PREFIX, type TaskGrantSubjectIdentity } from "./task-grant-subjects.js";
@@ -44,16 +46,20 @@ export async function taskGrantDeclarations(host: Pick<Host, "withProject" | "ho
   const entries = await host.withProject(reference, runtime => installedPluginEntries(runtime.store.db));
   const home = host.homePlugins;
   const provides = (record: PluginInstanceRecord, providerId: string) => record.install_id === providerId || record.plugin_id === providerId && record.publisher_trust === "host";
-  const manifestOf = (providerId: string): { manifest: PluginManifest | undefined } | undefined => {
+  const manifestOf = (providerId: string): { record: PluginInstanceRecord; manifest: PluginManifest | undefined } | undefined => {
     const own = entries.find(({ record }) => provides(record, providerId));
-    if (own) return { manifest: own.manifest };
+    if (own) return own;
     const record = home?.installation(providerId);
-    return record && provides(record, providerId) ? { manifest: home?.manifest(record.plugin_id) } : undefined;
+    return record && provides(record, providerId) ? { record, manifest: home?.manifest(record.plugin_id) } : undefined;
   };
-  const declaration = (manifest: PluginManifest): ProviderDeclaration => {
-    const reader = registeredBuiltinText(manifest);
+  const declarations = new Map<string, ProviderDeclaration>();
+  const declaration = (manifest: PluginManifest, record: PluginInstanceRecord): ProviderDeclaration => {
+    const existing = declarations.get(record.install_id);
+    if (existing) return existing;
+    const registered = record.publisher_trust === "host" ? PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.manifest.plugin_id === record.plugin_id)?.manifest : undefined;
+    const reader = registered && pluginManifestDigest(registered) === record.manifest_digest ? registeredBuiltinText(registered) : null;
     const resolve = reader && directoryWordResolver(reader);
-    return { description: manifest.summary?.trim() ? manifest.summary : undefined, read_groups: manifest.read_groups,
+    const result: ProviderDeclaration = { description: manifest.summary?.trim() ? manifest.summary : undefined, read_groups: manifest.read_groups,
       display: resolve ? group => {
         const owner = manifest.plugin_id;
         if (!group) return {
@@ -64,11 +70,13 @@ export async function taskGrantDeclarations(host: Pick<Host, "withProject" | "ho
         return { title: resolve({ owner, key: key + ".title" }, group.title),
           description: resolve({ owner, key: key + ".description" }, group.description) };
       } : undefined };
+    declarations.set(record.install_id, result);
+    return result;
   };
   return {
     of: provider => {
       const found = manifestOf(provider.provider_id);
-      if (found) return found.manifest ? declaration(found.manifest) : null;
+      if (found) return found.manifest ? declaration(found.manifest, found.record) : null;
       return provider.kind === "plugin" ? null : {};
     },
     installed: installId => entries.some(({ record }) => record.install_id === installId) || home?.installation(installId)?.install_id === installId,

@@ -4,6 +4,7 @@ import { contentVersionKey } from "../scripts/gates/initial-versions.mjs";
 import { createHash } from "node:crypto";
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
+import ts from "typescript";
 import { SHELF_INSTRUCTIONS } from "@molis-ai/molis-work-plugin-shelf";
 import { BUILTIN_DEFINITIONS } from "./fixtures/builtin-definitions.js";
 import { builtinRegistrations } from "../apps/local-host/src/agent-definitions/builtin-agents.js";
@@ -134,12 +135,41 @@ test("a Plugin's model port takes registered instructions, not a raw prompt stri
   assert.deepEqual(raw, [], "插件的 completeText 端口应接收 InstructedPrompt / ModelPromptInput");
 });
 
+/** A prepared instruction counts only when the call uses the binding imported from the owning registry module. */
+function callsPreparedInstruction(path: string): boolean {
+  const name = join(ROOT, path), owner = join(ROOT, "apps/local-host/src/agent-definitions/instructions.js");
+  const program = ts.createProgram([name], { noResolve: true, noLib: true, types: [] });
+  const file = program.getSourceFile(name);
+  if (!file) return false;
+  const checker = program.getTypeChecker(), bindings = new Set<ts.Symbol>();
+  for (const node of file.statements) {
+    if (!ts.isImportDeclaration(node) || !ts.isStringLiteral(node.moduleSpecifier) || node.importClause?.isTypeOnly
+      || join(dirname(name), node.moduleSpecifier.text) !== owner) continue;
+    const imports = node.importClause?.namedBindings;
+    if (!imports || !ts.isNamedImports(imports)) continue;
+    for (const specifier of imports.elements) {
+      if (specifier.isTypeOnly || (specifier.propertyName ?? specifier.name).text !== "prepareInstructionPrompt") continue;
+      const binding = checker.getSymbolAtLocation(specifier.name);
+      if (binding) bindings.add(binding);
+    }
+  }
+  function calls(node: ts.Node): boolean {
+    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
+      const binding = checker.getSymbolAtLocation(node.expression);
+      if (binding && bindings.has(binding)) return true;
+    }
+    return ts.forEachChild(node, calls) === true;
+  }
+  return bindings.size > 0 && calls(file);
+}
+
 test("Host modules reach a model only through the register, apart from the transitional list", () => {
   const direct = /host(?:CompleteText|TextGeneration)\(|\.completeText(Result)?\(\{|\.evaluateTypeSafe\(/;
   const offenders = HOST.filter(path => {
     const text = read(path);
     if (!direct.test(text)) return false;
-    return !/resolveModelPrompt|resolveInstructionPrompt|withRegisteredPrompts|resolvePluginPrompt|registeredInstructionBody|declaredInstructionBody/.test(text) && !TRANSITIONAL[path] && !FACTORIES.has(path);
+    return !/resolveModelPrompt|resolveInstructionPrompt|withRegisteredPrompts|resolvePluginPrompt|registeredInstructionBody|declaredInstructionBody/.test(text)
+      && !TRANSITIONAL[path] && !FACTORIES.has(path) && !callsPreparedInstruction(path);
   });
   assert.deepEqual(offenders, [], "这些 Host 模块直接调用模型而没有经过登记的指令");
   for (const path of Object.keys(TRANSITIONAL)) assert.ok(direct.test(read(path)), `${path} 已不再直接调用模型，从过渡清单里去掉它`);

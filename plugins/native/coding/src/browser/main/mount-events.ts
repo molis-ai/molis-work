@@ -1,7 +1,7 @@
 import { errorMessage, part } from "../dom.js";
 import { renderGoalFace, renderGoalRows } from "./goals.js";
 import { applyConfiguration, refreshState, rememberConfiguration } from "./configuration.js";
-import { controls } from "./controls.js";
+import { controls, drawComposer } from "./controls.js";
 import { onClick } from "./click.js";
 import { renderDirectory } from "./directory.js";
 import { loadEarlier } from "./live.js";
@@ -26,6 +26,7 @@ function listenSelect(page: Page) {
     const itemId = detailOf<SelectDetail>(event)?.itemId;
     root.dataset.codingDetail = String(Boolean(itemId));
     s.sessionOnShow = Boolean(itemId);
+    drawComposer(page);
     if (itemId) { void openCodingItem(page, itemId).catch(error => status(page, errorMessage(error), true)); return; }
     refs.taskboard.refreshOutline();
     renderGoalFace(page);

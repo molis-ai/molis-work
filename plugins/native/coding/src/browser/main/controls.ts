@@ -33,7 +33,7 @@ export function drawComposer(page: Page) {
   composer.hold(unread(page) ? L("coding.composer.reading-session") : s.sending && !s.composerSending ? L("coding.composer.busy") : null);
   composer.setRunning(active);
   const title = s.state.sessions.find(item => item.session_id === s.current)?.title ?? "";
-  const drawn = JSON.stringify([s.current, title, active, s.lastRun?.phase, s.sending, s.intent, s.intents, refs.composerModels.scene()]);
+  const drawn = JSON.stringify([s.current, s.sessionOnShow, title, active, s.lastRun?.phase, s.sending, s.intent, s.intents, refs.composerModels.scene(), counts(page)]);
   if (drawn !== s.composerDrawn) {
     s.composerDrawn = drawn;
     composer.refresh();

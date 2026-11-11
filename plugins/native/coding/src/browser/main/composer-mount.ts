@@ -5,14 +5,17 @@ import { mac } from "../matching.js";
 import { codingCommands } from "./commands.js";
 import { chooseIntent, refreshState, rememberConfiguration } from "./configuration.js";
 import { terminal, unread } from "./composer-state.js";
-import { controls } from "./controls.js";
+import { controls, counts } from "./controls.js";
 import { currentSelection } from "./composer.js";
 import type { Page } from "./page.js";
 import { readCurrent } from "./read.js";
 import { api, sessionPath, status } from "./request.js";
-import { surfaceChanged } from "./select.js";
+import { select, surfaceChanged } from "./select.js";
 import { startFromComposer } from "./mount-submit.js";
 import type { RoundSelection } from "./shapes.js";
+
+/** How many other sessions 「发给」 lists: the latest; the rest are in the page's own list beside it. */
+const OTHERS = 5;
 
 /** A round of the session on show is under way (paused included): words go to it, and stop and pause are offered. */
 export const roundActive = (page: Page) => Boolean(page.s.lastRun && !terminal(page.s.lastRun.phase));
@@ -60,13 +63,22 @@ export async function stopRound(page: Page) {
   }
 }
 
-/** The bar's controls: the way of working (fixed while a round runs), then the model's. */
+/** What the next round is given (materials, methods, a Character, actions, MCP), as small tags in the bar once chosen; each opens its choice again. */
+function nextRound(page: Page): ComposerControl[] {
+  const held = counts(page);
+  const chosen: Record<string, number> = { materials: held.materials, character: held.character ? 1 : 0, methods: held.methods, actions: held.actions, mcp: held.mcp };
+  return codingCommands(page).filter(command => (chosen[command.slash] ?? 0) > 0)
+    .map(command => ({ kind: "button" as const, id: "next-" + command.slash, label: command.label, ...(command.hint ? { title: command.hint } : {}), disabled: command.enabled === false, run: () => void command.run() }));
+}
+
+/** The bar's controls: the way of working (fixed while a round runs), then the model's, then what the next round is given. */
 function sceneControls(page: Page): ComposerControl[] {
   const { L, s } = page;
   return [
     { kind: "select", id: "intent", label: L("coding.intent.label"), value: s.intent, options: s.intents, disabled: roundActive(page) || s.sending || unread(page),
       change: value => chooseIntent(page, value) },
     ...page.refs.composerModels.scene(),
+    ...nextRound(page),
   ];
 }
 
@@ -133,7 +145,13 @@ export function mountCodingComposer(page: Page, id: string) {
     ...(id ? { draft: { adapter: refs.draft.adapter(id) } } : {}),
     receiver: () => {
       const session = s.current ? s.state.sessions.find(item => item.session_id === s.current) : undefined;
-      return s.current ? { label: session?.title || L("coding.session.untitled") } : null;
+      // Only a session on show takes words: on the directory or the start page the bar is the Assistant's (one input, O3).
+      if (!s.current || !s.sessionOnShow) return null;
+      // 「发给」 lists the latest few other sessions too; picking one opens it as its row in the list would (§10.4).
+      const others = s.state.sessions.filter(item => item.session_id !== s.current).sort((a, b) => b.updated_at.localeCompare(a.updated_at)).slice(0, OTHERS)
+        .map(item => ({ id: item.session_id, label: item.title || L("coding.session.untitled"), detail: L("coding.receiver.detail") }));
+      return { label: session?.title || L("coding.session.untitled"), icon: "code", detail: L("coding.receiver.detail"), others,
+        choose: (other: string) => { const item = s.state.sessions.find(one => one.session_id === other); if (!item) return; page.host.openItem("coding", other, item.title); void select(page, other); } };
     },
     delivery: () => deliveries(page),
     stop: () => stopRound(page),

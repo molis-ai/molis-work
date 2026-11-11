@@ -31,7 +31,7 @@ export const CODING_SETTINGS_UI_CONTRIBUTION_ID = "io.molis.work.native.coding.s
 export const CODING_COMPANION_DIRECTORY_SLOT = "coding.companion-directory";
 export const CODING_COMPANION_RESULT_SLOT = "coding.companion-result";
 
-export type CodingUiSurface = "directory" | "workbench";
+export type CodingUiSurface = "workbench";
 
 /**
  * The five navigation faces the directory column switches between. Every face changes the directory column only:
@@ -72,7 +72,8 @@ export const codingUiDescriptor: UiContributionDeclaration = {
   navigation_id: "coding",
   label: "Coding",
   surfaces: [
-    { surface_id: "directory", target_slot_id: "workbench.directory", format: "declarative-html" },
+    // The session list is the page's own left column (its five faces follow the session on show); the workbench draws no second
+    // copy in its directory (one list, user 2026-11-10, specs/unified-input-voice §10.4).
     { surface_id: "workbench", target_slot_id: "workbench.main", format: "declarative-html" },
   ],
   slots: [
@@ -86,8 +87,6 @@ export const codingUiContribution: UiContribution<CodingUiModel> = {
   descriptor: codingUiDescriptor,
   render(request: UiRenderRequest<CodingUiModel>): string {
     switch (request.surface as CodingUiSurface) {
-      case "directory":
-        return renderCodingDirectory(request.model);
       case "workbench":
         return renderCodingWorkbench(request.model);
       default:
@@ -330,7 +329,7 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
           <div class="coding-composer-footnote"><div class="coding-meter" data-coding-meter hidden>
                   <button class="mw-btn mw-btn--ghost coding-meter-toggle" type="button" data-coding-meter-toggle aria-expanded="false" aria-controls="coding-meter-panel" title="${p.escape(p.text("coding.meter.title"))}"><svg class="coding-meter-ring" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="8"></circle><circle cx="10" cy="10" r="8" data-coding-meter-fill></circle></svg><span data-coding-meter-label>${p.escape(p.text("coding.meter.label"))}</span></button>
                   <div class="coding-meter-panel" id="coding-meter-panel" data-coding-meter-panel role="region" aria-label="${p.escape(p.text("coding.meter.title"))}" hidden></div>
-                </div><small class="coding-model-note" data-coding-model-note hidden></small><span class="coding-composer-keys"><kbd class="mw-kbd" title="${p.escape(p.text("coding.keys.palette-title"))}">${p.escape(p.text("coding.keys.palette"))}</kbd></span></div>
+                </div><small class="coding-model-note" data-coding-model-note hidden></small></div>
         </div>
       </div>
       <aside class="coding-tools" data-coding-tools>

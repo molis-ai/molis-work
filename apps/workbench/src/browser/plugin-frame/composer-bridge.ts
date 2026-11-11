@@ -26,7 +26,8 @@ export interface ComposerSnapshot {
   /** The page's words for its composer; the bar fills any it left out with its own, and the composer escapes every one it draws. */
   labels: Partial<import("@molis-ai/molis-work-plugin-sdk/ui").MwComposerAiLabels>;
   placeholder: string;
-  receiver: { label: string; icon?: string } | null;
+  /** Who the next send goes to, what it is, and the page's other receivers 「发给」 lists (ids are the page's own). */
+  receiver: { label: string; icon?: string; detail?: string; others?: { id: string; label: string; detail?: string }[] } | null;
   delivery: ComposerDelivery | null;
   pause: { label: string; title: string; busy?: boolean } | null;
   stop: boolean;
@@ -41,6 +42,8 @@ export interface ComposerSnapshot {
   required: string | null;
   submitKeys: boolean;
   draft: boolean;
+  /** Where the page's conversation stands across its frame (the box around the root it gave), so the bar lines up with it. */
+  column: { left: number; width: number } | null;
   running: boolean;
   hold: string | null;
 }
@@ -77,7 +80,8 @@ export type ComposerUp =
 export type ComposerDown =
   | { type: "composer-call"; id: number; call: number; op: ComposerOp; arg?: unknown }
   | { type: "composer-abort"; id: number; call: number }
-  | { type: "composer-act"; id: number; act: "control" | "command"; key: string; value?: string }
+  /** A control changed, a command chosen, or (`receiver`) another of the page's receivers picked in 「发给」, by the id the page gave. */
+  | { type: "composer-act"; id: number; act: "control" | "command" | "receiver"; key: string; value?: string }
   | { type: "composer-text"; id: number; text: string }
   | { type: "composer-materials"; id: number; materials: ComposerMaterial[] };
 
@@ -88,6 +92,8 @@ export interface BarReceiver {
   readonly root: HTMLElement;
   readonly placeholder: string;
   visible(): boolean;
+  /** The page's conversation column across the window, when it has one to show. */
+  column(): { left: number; width: number } | null;
   readonly options: import("@molis-ai/molis-work-plugin-sdk/page-globals").ComposerOptions;
   /** The bar mounted the composer on it (with the text box it uses), or let it go (null). */
   bind(handle: import("@molis-ai/molis-work-plugin-sdk/page-globals").ComposerHandle | null, field?: HTMLTextAreaElement): void;

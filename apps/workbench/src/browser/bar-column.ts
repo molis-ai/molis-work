@@ -1,6 +1,6 @@
 /**
  * The bottom bar's input stands over the work, not over the window (specs/unified-input-voice §10.2, UIV-19): its column is
- * centred on the focused pane at the reading width (at most 680px, 24px in from each side of the pane), so its edges are the
+ * centred on the focused pane (or on the conversation column of the page in front that takes it) at the reading width (at most 680px, 24px in from each side of the pane), so its edges are the
  * page's. The Dock on the left keeps at least 150px and room for its switcher, 项目首页, one chosen plugin and its 「+N」; the
  * right group keeps what its buttons need. When the window is too narrow the input narrows around the same centre down to
  * 400px, and below that takes the room there is (the bar's own 200px at least) and leaves the centre. Below 761px wide the bar
@@ -16,7 +16,11 @@ export function placeBarColumn(): void {
   const stage = document.querySelector<HTMLElement>("[data-plugin-stage]");
   if (!bar || !stage || !("ResizeObserver" in window)) return;
   const end = bar.querySelector<HTMLElement>(".bar-end");
-  const work = (): DOMRect | null => {
+  // A page in front that takes the input names its conversation column (one input, O3): the input stands over that, not over the
+  // whole pane with the page's own list beside it.
+  const work = (): { left: number; width: number } | null => {
+    const page = (globalThis as { molisBarReceivers?: { front(): { column(): { left: number; width: number } | null } | null } }).molisBarReceivers?.front()?.column();
+    if (page && page.width > 0) return page;
     const pane = stage.querySelector<HTMLElement>(".tab-workspace-panes > [data-tab-pane].is-focused:not([hidden])");
     const box = (pane ?? stage).getBoundingClientRect();
     return box.width > 0 ? box : null;
@@ -73,6 +77,7 @@ export function placeBarColumn(): void {
   // Panes split, close and take focus by class and children; the window moves the stage without resizing it.
   new MutationObserver(soon).observe(stage, { subtree: true, childList: true, attributes: true, attributeFilter: ["class", "hidden"] });
   window.addEventListener("resize", soon);
+  (globalThis as { molisWorkBarPlace?: () => void }).molisWorkBarPlace = soon;
   place();
 }
 

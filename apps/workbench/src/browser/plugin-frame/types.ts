@@ -155,6 +155,8 @@ declare global {
   var molisBarReceivers: { front(): BarReceiver | null } | undefined;
   /** Set by the bar (the Dock island's composer): told when the receiver in front may have changed. */
   var molisBarReceiverChanged: (() => void) | undefined;
+  /** Set by the bar's column (bar-column.ts): place the input again (the page in front, or its column, changed). */
+  var molisWorkBarPlace: (() => void) | undefined;
   var molisPlacement: { paintBar(slot: HTMLElement): Promise<void>; paintTargets(root: HTMLElement): void } | undefined;
   var molisFrameReviews: HostReviewFactory;
   var molisFrameFillMessage: Translate;

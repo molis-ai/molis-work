@@ -11,14 +11,14 @@ let scheduled = 0, watching: MutationObserver | null = null;
 /** Told once per frame, so a burst of changes (a tab switch hides one page and shows another) moves the bar once. */
 function changed(): void {
   if (scheduled) return;
-  scheduled = requestAnimationFrame(() => { scheduled = 0; globalThis.molisBarReceiverChanged?.(); });
+  scheduled = requestAnimationFrame(() => { scheduled = 0; globalThis.molisBarReceiverChanged?.(); globalThis.molisWorkBarPlace?.(); });
 }
 
-/** The page shown in the focused pane, if it takes words; else none, and the bar is the Assistant's. */
+/** The page shown in the focused pane, if it takes words now (it names who they go to); else none, and the bar is the Assistant's. */
 function front(): BarReceiver | null {
   const pane = document.querySelector<HTMLElement>(".tab-workspace-panes > [data-tab-pane].is-focused:not([hidden])");
   let found: BarReceiver | null = null;
-  for (const receiver of receivers) if (receiver.root.isConnected && (!pane || pane.contains(receiver.root)) && receiver.visible()) found = receiver;
+  for (const receiver of receivers) if (receiver.root.isConnected && (!pane || pane.contains(receiver.root)) && receiver.visible() && receiver.options.kind === "ai" && receiver.options.receiver?.()) found = receiver;
   return found;
 }
 
@@ -50,9 +50,12 @@ function bounded(snapshot: ComposerSnapshot): ComposerSnapshot | null {
     ...snapshot,
     labels: words(snapshot.labels),
     placeholder: short(snapshot.placeholder, 400),
-    receiver: snapshot.receiver ? { label: short(snapshot.receiver.label, 200), ...icon(snapshot.receiver.icon) } : null,
+    receiver: snapshot.receiver ? { label: short(snapshot.receiver.label, 200), ...icon(snapshot.receiver.icon), ...(typeof snapshot.receiver.detail === "string" ? { detail: short(snapshot.receiver.detail, 100) } : {}),
+      ...(Array.isArray(snapshot.receiver.others) ? { others: snapshot.receiver.others.slice(0, 20).filter(one => one && typeof one.id === "string" && one.id.length <= 200)
+        .map(one => ({ id: one.id, label: short(one.label, 200), ...(typeof one.detail === "string" ? { detail: short(one.detail, 100) } : {}) })) } : {}) } : null,
     controls: Array.isArray(snapshot.controls) ? snapshot.controls.slice(0, 12) : [],
     commands: Array.isArray(snapshot.commands) ? snapshot.commands.slice(0, 200).map(command => ({ ...command, ...icon(command.icon) })) : [],
+    column: snapshot.column && Number.isFinite(snapshot.column.left) && Number.isFinite(snapshot.column.width) && snapshot.column.width > 0 ? { left: snapshot.column.left, width: snapshot.column.width } : null,
     near: snapshot.near && typeof snapshot.near.kind === "string" && typeof snapshot.near.id === "string" ? { kind: snapshot.near.kind, id: snapshot.near.id } : null,
     required: snapshot.required === null ? null : short(snapshot.required, 400),
     hold: snapshot.hold === null ? null : short(snapshot.hold, 400),
@@ -85,7 +88,7 @@ const shape = (snapshot: ComposerSnapshot) => JSON.stringify([snapshot.entry, sn
  * The parent's side of the one input (composer-bridge.ts): the page's state becomes a receiver whose options the bar's composer
  * reads as any page's, each function a call to the page answered through the port. Only the receiver in front is bound to the bar.
  */
-export function pageComposer(port: MessagePort, scope: FrameScope, root: HTMLElement, pack: FramePack, visible: () => boolean) {
+export function pageComposer(port: MessagePort, scope: FrameScope, root: HTMLElement, frame: HTMLIFrameElement, pack: FramePack, visible: () => boolean) {
   let id = 0, snapshot: ComposerSnapshot | null = null, receiver: BarReceiver | null = null, bound: ComposerHandle | null = null, field: HTMLTextAreaElement | null = null;
   let sequence = 0, shown = "", text = "", generation = 0;
   const answers = new Map<number, { resolve(value: unknown): void; reject(error: Error): void }>();
@@ -104,7 +107,7 @@ export function pageComposer(port: MessagePort, scope: FrameScope, root: HTMLEle
     ? { state: "unknown", check: () => call("check", value.check) }
     : value.state === "failed" ? { state: "failed", message: short(value.message, 4000), ...(Array.isArray(value.unreadable) ? { unreadable: value.unreadable } : {}) }
     : { state: "sent", ...(value.receipt && typeof value.receipt === "object" ? { receipt: value.receipt as never } : {}) };
-  const act = (kind: "control" | "command", key: string, value?: string) => post({ type: "composer-act", id, act: kind, key, ...(value === undefined ? {} : { value }) });
+  const act = (kind: "control" | "command" | "receiver", key: string, value?: string) => post({ type: "composer-act", id, act: kind, key, ...(value === undefined ? {} : { value }) });
   const control = (item: ComposerSnapshot["controls"][number]): ComposerControl => item.kind === "select" ? { ...item, change: (value: string) => act("control", item.id, value) }
     : item.kind === "toggle" ? { ...item, change: (on: boolean) => act("control", item.id, on ? "on" : "off") } : { ...item, run: () => act("control", item.id) };
   const options = (): ComposerOptions => {
@@ -117,7 +120,7 @@ export function pageComposer(port: MessagePort, scope: FrameScope, root: HTMLEle
       // batch that opens them to pages with their own review.
       kind: "ai", entry: at.entry, labels: at.labels as MwComposerAiLabels, sources: false, ...(at.voice ? { voice: at.voice } : {}),
       ...(at.submitKeys ? {} : { submitKeys: false as const }), ...(at.draft ? { draft: { adapter: draft } } : {}),
-      receiver: () => now().receiver as { label: string; icon?: PluginIconName } | null, delivery: () => now().delivery ?? { "next-boundary": { available: true }, interrupt: { available: true }, "after-run": { available: true } },
+      receiver: () => { const named = now().receiver; return named ? { ...named, icon: named.icon as PluginIconName | undefined, choose: (key: string) => act("receiver", key) } : null; }, delivery: () => now().delivery ?? { "next-boundary": { available: true }, interrupt: { available: true }, "after-run": { available: true } },
       ...(at.stop ? { stop: (signal: AbortSignal) => call("stop", undefined, signal) } : {}),
       pause: () => { const pause = now().pause; return pause ? { ...pause, run: (signal: AbortSignal) => call("pause", undefined, signal) } : null; },
       get controls() { return now().controls.map(control); },
@@ -130,7 +133,12 @@ export function pageComposer(port: MessagePort, scope: FrameScope, root: HTMLEle
       submit: (input, signal) => call("submit", input, signal).then(outcome),
     };
   };
+  let named = false, placed = "";
   const apply = () => {
+    const where = JSON.stringify(snapshot?.column ?? null);
+    if (where !== placed) { placed = where; globalThis.molisWorkBarPlace?.(); }
+    // A page that starts or stops naming a receiver (a session opened or closed) takes the bar or gives it back.
+    if (Boolean(snapshot?.receiver) !== named) { named = !named; changed(); }
     if (!bound || !snapshot) return;
     bound.setRunning(snapshot.running); bound.hold(snapshot.hold);
     if (field && field.placeholder !== snapshot.placeholder) field.placeholder = snapshot.placeholder;
@@ -142,6 +150,10 @@ export function pageComposer(port: MessagePort, scope: FrameScope, root: HTMLEle
     if (receiver) receivers.delete(receiver);
     receiver = {
       key, root, visible, placeholder: at.placeholder, options: options(),
+      column: () => {
+        const column = snapshot?.column, box = frame.getBoundingClientRect();
+        return column && box.width > 0 ? { left: box.left + Math.max(0, column.left), width: Math.min(column.width, box.width) } : null;
+      },
       bind(handle, box) {
         if (bound && box !== field) field?.removeEventListener("input", typed);
         bound = handle; field = handle ? box ?? null : null; shown = "";
@@ -150,7 +162,7 @@ export function pageComposer(port: MessagePort, scope: FrameScope, root: HTMLEle
         text = field?.value ?? ""; apply();
       },
     };
-    receivers.add(receiver); watch(); changed();
+    receivers.add(receiver); watch(); named = Boolean(at.receiver); changed();
   };
   const drop = () => {
     for (const pending of answers.values()) pending.reject(new Error("View closed"));

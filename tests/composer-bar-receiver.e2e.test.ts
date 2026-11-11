@@ -22,14 +22,14 @@ const probe = () => {
     globalThis.probe = window.molisComposer(root, { kind: "ai", entry: "probe", labels: ${JSON.stringify(COMPOSER_AI_LABELS)}, sources: true,
       near: () => ({ kind: "composernotes.note", id: "n1", plugin_id: "io.molis.work.someone-else" }),
       draft: { adapter: { read: async () => draft, write: async (text) => { draft = text; seen.drafts.push(text); } } },
-      receiver: () => ({ label: ${JSON.stringify(PROBE_LABEL)}, icon: "code" }),
+      receiver: () => ({ label: ${JSON.stringify(PROBE_LABEL)}, icon: "code", detail: "探针页", others: [{ id: "s2", label: "另一个探针", detail: "探针页" }], choose: (id) => seen.acts.push("choose:" + id) }),
       controls: [{ kind: "select", id: "mode", label: "方式", value: "a", options: [{ value: "a", label: "甲" }, { value: "b", label: "乙" }], change: (value) => seen.acts.push(value) }],
       commands: [{ slash: "probe", label: "探针命令", add: false, run: () => seen.acts.push("command") }],
       submit: async (input) => { seen.sent.push({ text: input.text, controls: input.controls }); return { state: "sent" }; } });
   })()`;
 };
 
-test("UIV-21 UIV-22 S-composer-source-call item 5: a framed page's AI composer is the bar's receiver, carried as plain data, and acts on the bar only while in front", { timeout: 180_000 }, async (t) => {
+test("UIV-21 UIV-22 UIV-23 S-composer-source-call item 5: a framed page's AI composer is the bar's receiver, carried as plain data, and acts on the bar only while in front", { timeout: 180_000 }, async (t) => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const child = await pluginFrameBrowser(t, browser, "lingguang");
@@ -58,6 +58,34 @@ test("UIV-21 UIV-22 S-composer-source-call item 5: a framed page's AI composer i
   assert.equal(await child.evaluate("seen.sent[0].text"), "你好，探针");
   await browser.waitFor(`${BOX}.value === ''`);
   await child.waitFor("document.querySelector('#probe .mw-composer__input').value === ''");
+  // UIV-23 (O4): the tag opens 「发给」 — this page's receiver, the Assistant (a new conversation) and the page's other receivers.
+  const MENU = "document.querySelector('[data-assistant-send-to]')";
+  const pick = (label: string) => browser.evaluate(`[...${MENU}.querySelectorAll('[role=menuitemradio]')].find(item => item.textContent.includes(${JSON.stringify(label)})).click()`);
+  const openMenu = async () => { await browser.evaluate(`${BAR}.querySelector('[data-composer-receiver]').click()`); await browser.waitFor(`${MENU}.matches(':popover-open')`); };
+  await openMenu();
+  assert.deepEqual(await browser.evaluate(`[[...${MENU}.querySelectorAll('.mw-menu__label')].map(node => node.textContent), [...${MENU}.querySelectorAll('[role=menuitemradio]')].map(item => item.getAttribute('aria-checked') + ':' + item.querySelector('[data-slot=menu-item-label] > span').textContent), ${MENU}.querySelectorAll('img').length]`),
+    [["这一页", "助理", "别的会话"], ["true:" + PROBE_LABEL, "false:新对话", "false:另一个探针"], 0], "the page's names are text in the menu too");
+  // Choosing the Assistant keeps the bar the Assistant's on this page, with its own draft; the page keeps its own.
+  await pick("新对话");
+  await browser.waitFor(`!${BAR}.dataset.receiver && !${MENU}.matches(':popover-open') && globalThis.molisBarReceivers.front() !== null`);
+  await browser.evaluate(`(() => { const box = ${BOX}; box.value = '给助理的字'; box.dispatchEvent(new InputEvent('input', { bubbles: true, data: '字', inputType: 'insertText' })); })()`);
+  await new Promise(resolve => setTimeout(resolve, 300));
+  assert.equal(await child.evaluate("seen.drafts.at(-1)"), "", "the Assistant's words are not the page's draft");
+  await openMenu();
+  assert.deepEqual(await browser.evaluate(`[...${MENU}.querySelectorAll('[role=menuitemradio]')].map(item => item.getAttribute('aria-checked'))`), ["false", "true", "false"]);
+  await pick(PROBE_LABEL);
+  await browser.waitFor(`${BAR}.dataset.receiver === 'page' && ${BOX}.value === ''`);
+  // Another of the page's receivers reaches the page only as the id the page listed.
+  await openMenu();
+  await pick("另一个探针");
+  await child.waitFor("seen.acts.includes('choose:s2')");
+  // The Assistant's draft is still its own: picked again, it comes back; cleared for what follows.
+  await openMenu(); await pick("新对话");
+  await browser.waitFor(`!${BAR}.dataset.receiver && ${BOX}.value === '给助理的字'`);
+  await browser.evaluate(`(() => { const box = ${BOX}; box.value = ''; box.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+  await openMenu(); await pick(PROBE_LABEL);
+  await browser.waitFor(`${BAR}.dataset.receiver === 'page'`);
+
   // The page writes into its own box (a prefill): the bar shows it.
   await child.evaluate("(() => { const box = document.querySelector('#probe .mw-composer__input'); box.value = '页面放进来的字'; box.dispatchEvent(new Event('input', { bubbles: true })); })()");
   await browser.waitFor(`${BOX}.value === '页面放进来的字'`);

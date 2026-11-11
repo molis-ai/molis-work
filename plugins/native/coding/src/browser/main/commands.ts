@@ -25,8 +25,9 @@ function intentCommands(page: Page): CommandItem[] {
 
 /** Puts the focus on the composer's model choice (on a narrow screen it sits behind "more"). */
 function focusModel(page: Page) {
-  const select = page.root.querySelector<HTMLSelectElement>('[data-coding-input] [data-composer-control="model"]');
-  if (!select) return;
+  const select = page.root.querySelector<HTMLSelectElement>('[data-coding-input]:not([data-composer-remote]) [data-composer-control="model"]');
+  // In the bar (one input), the model is the bar's own control beside the box: the box takes the focus.
+  if (!select) { page.refs.composer.focus(); return; }
   select.closest(".mw-composer__start")?.querySelector<HTMLElement>("[data-composer-more][aria-expanded=false]")?.click();
   select.focus();
 }

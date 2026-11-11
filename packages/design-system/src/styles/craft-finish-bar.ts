@@ -366,6 +366,11 @@ export const CRAFT_BAR_STYLES = `
   @media (max-width: 600px), (pointer: coarse) {${composerRestTouch(".assistant-composer > .mw-composer[data-rest]")} }
   /* The receiver's name opens its conversation (the island's click). */
   ${SHELL} .assistant-composer .mw-composer__to .mw-tag { cursor: pointer; }
+  /* 「发给」 (one input, O4): the platform's menu in the top layer, risen from the tag (the island places it), the receiver now on the nav's active wash. */
+  ${SHELL} .assistant-send-to:popover-open { position: fixed; inset: auto; margin: 0; max-height: min(440px, 60vh); overflow-y: auto; animation-name: craft-rise-from-bar; }
+  ${SHELL} .assistant-send-to .mw-menu__item[aria-checked="true"] { background: var(--nav-active); }
+  ${SHELL} .assistant-send-to .mw-menu__shortcut { display: inline-grid; place-items: center; }
+  ${SHELL} .assistant-send-to .mw-menu__shortcut svg { width: 14px; height: 14px; color: var(--ink-soft); }
   /* A short window gives its height to writing (DESIGN.md → Layout, ≤ 560px tall): at rest the composer is one row (its own
      rule, composer-styles.ts); once something is written it starts at one line and sits tighter, so the panel above keeps room;
      it still grows with what is written, and its targets keep their size: the text row's top padding moves into the input, so the

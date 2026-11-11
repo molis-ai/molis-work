@@ -1,3 +1,4 @@
+import { icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { assistantComposerLabels } from "../../assistant-composer-labels.js";
 import { ASSISTANT_ATTACHMENTS_FACTORY_SCRIPT } from "./assistant-attachments.js";
 
@@ -124,9 +125,11 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
   /** Who the next Send goes to: the work in front, named by its place first when that is not this page (#1919); else a new work. */
   const receiverNow = () => {
     const work = getWork();
-    if (!work) return { open: openConversation, icon: "sparkles", label: nextExec !== "assistant" && executorOffer(nextExec) ? executorOffer(nextExec).title : L("助理") };
+    // With a page in front that takes words, the tag opens 「发给」 (O4), so the person can go back to it.
+    const open = globalThis.molisBarReceivers?.front() ? openSendTo : openConversation;
+    if (!work) return { open, icon: "sparkles", label: nextExec !== "assistant" && executorOffer(nextExec) ? executorOffer(nextExec).title : L("助理") };
     const where = work.scope?.project_id !== project?.id ? scopeLabel(work.scope, work.scope_title) : "";
-    return { open: openConversation, icon: "sparkles", label: work.reply_target ? L("原评论：{title}", { title: work.reply_target.title }) : (where ? where + " · " : "") + work.title,
+    return { open, icon: "sparkles", label: work.reply_target ? L("原评论：{title}", { title: work.reply_target.title }) : (where ? where + " · " : "") + work.title,
       reset: () => { void switchTo(null); input.focus(); }, resetLabel: L("改为开始新工作") };
   };
   /* The choices that are the next Send's, in the bar only once they differ from the default and while the side pane, where they
@@ -174,9 +177,14 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
   let composer = null, mountedFor = null, draftHere = null, painted = "", sending = 0, handedOver = false, inFlight = null;
   /* One input (unified-input-voice §10.3, O2): a framed page in front that takes words (Coding's session) is the receiver; the
      bar mounts the composer on its options, and the Assistant's own parts around the box step aside while it is. */
-  let boundPage = null;
-  // With the Assistant's thread open (or staged in its tab) the person is looking at it: the bar stays the Assistant's.
-  const pageInFront = () => panel && !panel.hidden ? null : globalThis.molisBarReceivers?.front() || null;
+  let boundPage = null, declined = null;
+  // With the Assistant's thread open (or staged in its tab) the person is looking at it: the bar stays the Assistant's. So it does on
+  // a page the person chose the Assistant over in 「发给」, until they pick the page again or another page comes to the front.
+  const pageInFront = () => {
+    const page = globalThis.molisBarReceivers?.front() || null;
+    if (declined && page !== declined) declined = null;
+    return (panel && !panel.hidden) || !page || page === declined ? null : page;
+  };
   if (panel) new MutationObserver(() => syncComposer()).observe(panel, { attributes: true, attributeFilter: ["hidden"] });
   let worksArrived; const worksIn = new Promise((resolve) => { worksArrived = resolve; });
   /* A work's Send (going), edits made meanwhile (later), and each pending draft's text + save promise (writing).
@@ -243,8 +251,11 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
     // The page's own words, with the bar's where it gave none; its options are read live (getters kept), only the words are filled.
     const options = Object.defineProperties({}, Object.getOwnPropertyDescriptors(target.options));
     options.labels = { ...words, ...target.options.labels, modes: { ...words.modes, ...target.options.labels.modes } };
+    // Its tag opens 「发给」; the page's own name and glyph, nothing else of what it said.
+    options.receiver = () => { const named = target.options.receiver?.(); return named ? { label: named.label, ...(named.icon ? { icon: named.icon } : {}), open: openSendTo } : null; };
     composer = window.molisComposer(compose, options);
     target.bind(composer, input);
+    keepGlyph(target);
   };
   const mountComposer = () => {
     island.removeAttribute("data-receiver"); paintAim(false);
@@ -267,7 +278,7 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
     if (mountedFor !== (page ? page.key : curId || scoped("new-draft")) && !(sending && handedOver && !page)) {
       // Destroy flushes captured edits, including typing before the shared script arrived.
       composer?.destroy(); boundPage?.bind(null); boundPage = null;
-      handedOver = false;
+      handedOver = false; closeSendTo(false);
       return page ? mountPage(page) : mountComposer();
     }
     // The page says itself when what it shows changed (composer-parent.ts).
@@ -298,6 +309,84 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
   globalThis.molisBarReceiverChanged = () => syncComposer();
   stripPending = () => (composer && !boundPage ? composer.materials() : []).map((one) => ({ kind: one.kind === "attachment" ? (upload.material(one.ref) || {}).kind || "file" : "object", title: one.title }));
   function pickFile() { compose.querySelector("[data-composer-add]")?.click(); }
+  /* 「发给」 (one input, unified-input-voice §10.4, O4): with a page in front that takes words, the tag beside ＋ lists who the next
+     Send can go to — this page's receiver, the Assistant (a new work or a recent one) and the page's other receivers — in the
+     platform's menu, risen from the tag. What is in the box stays with the receiver it was written for (each keeps its own draft). */
+  const sendToGlyphs = ${JSON.stringify({ sparkles: icon("sparkles"), check: icon("check") })};
+  const glyphOf = (html) => { const shell = document.createElement("template"); shell.innerHTML = html; return shell.content.firstElementChild; };
+  const pageGlyphs = new WeakMap();
+  // The page's glyph as its tag drew it (the composer draws only platform icons), kept for when the bar is the Assistant's.
+  const keepGlyph = (page) => { const drawn = compose.querySelector(".mw-composer__to svg"); if (drawn) pageGlyphs.set(page, drawn.cloneNode(true)); };
+  const sendTo = el("div", "mw-menu assistant-send-to"); sendTo.dataset.assistantSendTo = ""; sendTo.setAttribute("role", "menu"); sendTo.setAttribute("aria-label", L("发给"));
+  if (typeof sendTo.showPopover === "function") sendTo.popover = "manual";
+  island.append(sendTo);
+  const sendToOpen = () => sendTo.matches(":popover-open");
+  const sendToTag = () => compose.querySelector("[data-composer-receiver]");
+  const ago = (iso) => {
+    const at = Date.parse(iso || ""), minutes = Math.round((at - Date.now()) / 60000);
+    if (!Number.isFinite(at)) return "";
+    const format = new Intl.RelativeTimeFormat(document.documentElement.lang || undefined, { numeric: "auto" });
+    return Math.abs(minutes) < 60 ? format.format(minutes, "minute") : Math.abs(minutes) < 1440 ? format.format(Math.round(minutes / 60), "hour") : format.format(Math.round(minutes / 1440), "day");
+  };
+  const sendToItem = (mark, label, detail, on, pick) => {
+    const item = el("button", "mw-menu__item mw-menu__item--described"); item.type = "button";
+    item.setAttribute("role", "menuitemradio"); item.setAttribute("aria-checked", String(on));
+    const named = el("span"); named.dataset.slot = "menu-item-label"; named.append(el("span", "", label), ...(detail ? [el("small", "mw-menu__desc", detail)] : []));
+    item.append(...(mark ? [mark.cloneNode(true)] : []), named);
+    if (on) { const tick = el("span", "mw-menu__shortcut"); tick.setAttribute("aria-hidden", "true"); tick.append(glyphOf(sendToGlyphs.check)); item.append(tick); }
+    item.addEventListener("click", () => { closeSendTo(false); pick(); setTimeout(() => input.focus(), 0); });
+    return item;
+  };
+  const sendToGroup = (label, items) => {
+    const group = el("div", "mw-menu__group"), head = el("div", "mw-menu__label", label);
+    group.setAttribute("role", "group"); group.setAttribute("aria-label", label); head.setAttribute("aria-hidden", "true");
+    group.append(head, ...items);
+    return group;
+  };
+  const paintSendTo = () => {
+    const page = globalThis.molisBarReceivers?.front() || null, named = page?.options.receiver?.() || null;
+    if (!page || !named) return false;
+    const onPage = boundPage === page, mark = pageGlyphs.get(page) || null, spark = glyphOf(sendToGlyphs.sparkles);
+    const recent = works.filter((work) => !work.reply_target).sort((a, b) => String(b.updated_at || "").localeCompare(String(a.updated_at || ""))).slice(0, 3);
+    const assistant = (id) => () => { declined = page; void switchTo(id); syncComposer(); };
+    sendTo.replaceChildren(
+      sendToGroup(L("这一页"), [sendToItem(mark, named.label, named.detail || "", onPage, () => { declined = null; syncComposer(); })]),
+      sendToGroup(L("助理"), [sendToItem(spark, L("新对话"), L("问助理，不进这个会话"), !onPage && !curId, assistant(null)),
+        ...recent.map((work) => sendToItem(spark, work.title, ago(work.updated_at), !onPage && curId === work.work_id, assistant(work.work_id)))]),
+      ...(named.others?.length ? [sendToGroup(L("别的会话"), named.others.map((one) => sendToItem(mark, one.label, one.detail || "", false, () => named.choose?.(one.id))))] : []));
+    return true;
+  };
+  function closeSendTo(back) {
+    if (!sendToOpen()) return;
+    sendTo.hidePopover(); sendToTag()?.setAttribute("aria-expanded", "false");
+    if (back) (visible(sendToTag()) ? sendToTag() : input)?.focus();
+  }
+  function openSendTo() {
+    if (sendToOpen()) { closeSendTo(true); return; }
+    const tag = sendToTag();
+    if (!tag || typeof sendTo.showPopover !== "function") return;
+    if (boundPage) keepGlyph(boundPage);
+    if (!paintSendTo()) return;
+    // Rises from the tag: its left edge under the tag's, as wide as the mockup's 300px, inside the window's 16px gutter.
+    const box = tag.getBoundingClientRect(), width = Math.min(300, window.innerWidth - 32);
+    sendTo.style.width = width + "px";
+    sendTo.style.left = Math.round(Math.max(16, Math.min(box.left - 6, window.innerWidth - 16 - width))) + "px";
+    sendTo.style.bottom = Math.round(window.innerHeight - box.top + 8) + "px";
+    sendTo.showPopover(); tag.setAttribute("aria-expanded", "true");
+    (sendTo.querySelector("[aria-checked=true]") || sendTo.querySelector("button"))?.focus();
+  }
+  sendTo.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); closeSendTo(true); return; }
+    if (event.key === "Tab") { closeSendTo(false); return; }
+    if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+    const items = [...sendTo.querySelectorAll("button")], at = items.indexOf(document.activeElement);
+    event.preventDefault();
+    items[event.key === "Home" ? 0 : event.key === "End" ? items.length - 1 : (at + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length]?.focus();
+  });
+  document.addEventListener("pointerdown", (event) => {
+    if (sendToOpen() && event.target?.nodeType === 1 && !sendTo.contains(event.target) && !sendToTag()?.contains(event.target)) closeSendTo(false);
+  }, true);
+  window.addEventListener("resize", () => closeSendTo(false));
   /* The conversation behind the receiver: its tag beside ＋ opens it, and so does ⌘↵ on an empty box (the work in front,
      or the list of works when a new one is next and there are others). */
   const openConversation = () => {

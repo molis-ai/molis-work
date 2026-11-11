@@ -204,7 +204,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
   };
   const connectionSlot = pageConnectionSlot(port, scope, frame, root, grant.page_id, route, host.translate);
   const pickFile = pageFilePicker(port, scope, frame, grant.page_id, route, host.translate);
-  const composer = pageComposer(port, scope, root, pack, visible);
+  const composer = pageComposer(port, scope, root, frame, pack, visible);
   port.onmessage = (event: MessageEvent<FrameUp>) => {
     const message = event.data;
     if (!scope.alive || !message || typeof message.type !== "string") return;

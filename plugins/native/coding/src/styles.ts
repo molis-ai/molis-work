@@ -13,14 +13,14 @@ export const CODING_STYLES = `
 .coding-compare-column { min-width:0; display:grid; grid-template-columns:minmax(0, 1fr); align-content:start; gap:4px; padding:8px; border:1px solid var(--line); border-radius:8px; overflow-wrap:anywhere; }
 .coding-compare-column h4 { margin:0; font-size:13px; }
 .coding-compare-column p { margin:0; color:var(--muted); font-size:12px; }
-/* Auto margins would size the conclusion to its content (up to 76ch) instead of the column it sits in. */
+/* Auto margins would size the conclusion to its content (up to var(--coding-reading)) instead of the column it sits in. */
 .coding-compare-column .coding-turn { min-width:0; max-width:none; margin:4px 0 0; }
 .coding-compare-column pre { max-width:100%; overflow:auto; }
 [data-coding-subagents] .mw-field { display:grid; gap:4px; margin:12px 0 8px; }
 [data-coding-subagents] textarea { width:100%; resize:vertical; }
 .coding-plan-after { color:var(--muted); font-size:12px; }
 .coding-material pre { max-height:14rem; max-width:100%; overflow:auto; white-space:pre; font-size:12px; }
-[data-coding-workbench] { container: molis-coding / inline-size; }
+[data-coding-workbench] { container: molis-coding / inline-size; --coding-reading: 680px; } /* the reading column, as wide as the bar's input over it (one input, specs/unified-input-voice §10.2) */
 .coding-layout { display:grid; grid-template-columns:240px minmax(0,1fr); height:100%; min-height:0; }
 .coding-layout .coding-stage { min-width:0; }
 .coding-directory-back { display:none; }
@@ -207,7 +207,6 @@ export const CODING_STYLES = `
 .coding-turns > [data-run] { content-visibility:auto; contain-intrinsic-size:auto 480px; }
 /* Earlier rounds of a long session load as the reader scrolls up; the control is also a button for keyboard and screen readers. */
 /* The slash menu opens above the composer; the palette is a centred list. Both keep the keyboard in the field. */
-.coding-composer-keys { display:inline-flex; gap:4px; flex-wrap:wrap; }
 dialog.coding-palette { position:fixed; inset:12vh auto auto 50%; translate:-50% 0; margin:0; width:min(560px,calc(100vw - 32px)); padding:0; border:1px solid var(--line); border-radius:14px; background:var(--paper); box-shadow: var(--lift-3); }
 dialog.coding-palette::backdrop { background:var(--scrim); }
 .coding-palette-shell { display:grid; gap:0; }
@@ -235,7 +234,7 @@ dialog.coding-palette::backdrop { background:var(--scrim); }
 .tok-deleted { color:var(--red,#c0392b); }
 .tok-meta { color:var(--muted); }
 /* Sessions working together: the receiving session's banner, and the asking session's cards in the results panel. */
-.coding-delegation-banner { display:grid; gap:8px; margin:0 auto 4px; width:min(100%,var(--coding-reading,760px)); padding:12px 16px; border:1px solid color-mix(in srgb,var(--accent,var(--ink)) 25%,var(--line)); border-radius:12px; background:color-mix(in srgb,var(--accent,var(--ink)) 4%,var(--paper)); font-size:13px; }
+.coding-delegation-banner { display:grid; gap:8px; margin:0 auto 4px; width:min(100%,var(--coding-reading)); padding:12px 16px; border:1px solid color-mix(in srgb,var(--accent,var(--ink)) 25%,var(--line)); border-radius:12px; background:color-mix(in srgb,var(--accent,var(--ink)) 4%,var(--paper)); font-size:13px; }
 .coding-coop-head { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; }
 .coding-delegation-banner.is-ended { padding:8px 12px; gap:4px; background:transparent; }
 .coding-delegation-banner.is-ended .coding-coop-head { font-size:12px; }
@@ -285,24 +284,24 @@ dialog.coding-palette::backdrop { background:var(--scrim); }
 .coding-start .mw-empty { padding:24px 0; }
 .coding-dialogue > [data-coding-report-reader]:not([hidden]) ~ :is(.coding-composer,.coding-status) { display:none; }
 /* The report reads like a document in the same column as the conversation, with its actions kept in reach. */
-[data-coding-report-reader] > header { position:sticky; top:0; z-index:2; display:flex; flex-wrap:wrap; align-items:center; gap:8px; max-width:76ch; margin:0 auto; padding:12px 0; border-bottom:1px solid var(--line); background:color-mix(in srgb,var(--paper) 94%,transparent); backdrop-filter:blur(8px); }
+[data-coding-report-reader] > header { position:sticky; top:0; z-index:2; display:flex; flex-wrap:wrap; align-items:center; gap:8px; max-width:var(--coding-reading); margin:0 auto; padding:12px 0; border-bottom:1px solid var(--line); background:color-mix(in srgb,var(--paper) 94%,transparent); backdrop-filter:blur(8px); }
 [data-coding-report-reader] > header .mw-btn { height:28px; min-height:28px; padding-inline:12px; font-size:12px; }
 [data-coding-report-reader] > header [data-coding-report-close] { margin-right:auto; gap:4px; }
 [data-coding-report-reader] > header [data-coding-report-close] svg { width:14px; height:14px; }
 /* The reader is its own scroll area; without it a long report runs past the frame and cannot be reached. */
 [data-coding-report-reader] { flex:1 1 0; min-height:0; overflow-y:auto; overscroll-behavior:contain; padding:0 32px 32px; }
 /* 12px text measured in its own ch would sit narrower than the 13px column above and below it. */
-[data-coding-report-reader] > p { max-width:calc(76ch * 13 / 12); margin:8px auto 0; }
+[data-coding-report-reader] > p { max-width:calc(var(--coding-reading) * 13 / 12); margin:8px auto 0; }
 [data-coding-report-reader] > p:empty,[data-coding-report-reader] > p[hidden] { display:none; }
-.coding-report { max-width:76ch; margin:16px auto; overflow-wrap:anywhere; color:var(--ink); font-size:13px; line-height:1.7; }
+.coding-report { max-width:var(--coding-reading); margin:16px auto; overflow-wrap:anywhere; color:var(--ink); font-size:13px; line-height:1.7; }
 .coding-report h1,.coding-report h2,.coding-report h3 { margin:1.4em 0 .5em; font-weight:600; line-height:1.4; }.coding-report > :first-child { margin-top:0; }
 .coding-report h1 { font-size:20px; }.coding-report h2 { font-size:15px; }.coding-report h3 { font-size:15px; }.coding-report :not(pre) > code { padding:.12em .38em; border-radius:5px; background:color-mix(in srgb,var(--ink) 6%,transparent); font-size:.88em; }
 .coding-report pre { position:relative; overflow:auto; padding:12px 16px; background:var(--rail); border:1px solid var(--line); border-radius:var(--radius-control); }
 .coding-report .coding-code-copy { position:absolute; top:6px; right:6px; height:24px; min-height:24px; padding:0 8px; font-size:12px; opacity:0; transition:opacity 130ms var(--ease-quint); }.coding-report pre:hover .coding-code-copy,.coding-report pre:focus-within .coding-code-copy,.coding-report .coding-code-copy:focus-visible { opacity:1; }@media (hover:none) { .coding-report .coding-code-copy { opacity:1; } }
 .coding-report-source,[data-coding-report-status] { font-size:12px; color:var(--muted); }
-.coding-turn,[data-run] > .mw-tray { max-width:76ch; margin:0 auto 24px; font-size:13px; }.coding-turn { line-height:1.7; overflow-wrap:anywhere; }
+.coding-turn,[data-run] > .mw-tray { max-width:var(--coding-reading); margin:0 auto 24px; font-size:13px; }.coding-turn { line-height:1.7; overflow-wrap:anywhere; }
 /* The person's own words sit as a bubble on the column's right edge; the Agent's reply reads as the page. */
-.coding-turn[data-kind=user] { width:fit-content; max-width:min(64ch,85%); margin-left:auto; margin-right:max(0px,calc((100% - 76ch) / 2)); padding:12px 16px; border-radius:18px 18px 6px 18px; background:var(--rail); }
+.coding-turn[data-kind=user] { width:fit-content; max-width:min(64ch,85%); margin-left:auto; margin-right:max(0px,calc((100% - var(--coding-reading)) / 2)); padding:12px 16px; border-radius:18px 18px 6px 18px; background:var(--rail); }
 .coding-turn p { margin:0 0 .8em; }.coding-turn p:last-child { margin-bottom:0; }
 .coding-turn ul,.coding-turn ol { margin:.2em 0 .9em; padding-left:1.4em; }.coding-turn li + li { margin-top:.25em; }.coding-turn li > ul,.coding-turn li > ol { margin:.25em 0; }
 .coding-turn :not(pre) > code { padding:.12em .38em; border-radius:5px; background:color-mix(in srgb,var(--ink) 6%,transparent); font-size:.86em; }
@@ -310,13 +309,13 @@ dialog.coding-palette::backdrop { background:var(--scrim); }
 .coding-turn pre { position:relative; max-width:100%; margin:.4em 0 1em; overflow:auto; background:var(--rail); padding:12px 16px; border:1px solid var(--line); border-radius:10px; line-height:1.6; tab-size:var(--code-tab,4); }
 .coding-turn pre code { font-size:12px; }.coding-turn table { display:block; overflow:auto; border-collapse:collapse; }.coding-turn td,.coding-turn th { padding:4px 8px; border:1px solid var(--line); font-weight:400; }
 .coding-turn h1,.coding-turn h2,.coding-turn h3,.coding-turn h4 { margin:1.3em 0 .5em; font-weight:600; line-height:1.4; }.coding-turn > :first-child { margin-top:0; }.coding-turn h1 {font-size:17px}.coding-turn h2,.coding-turn h3,.coding-turn h4 {font-size:15px}
-.coding-turn .coding-code-copy { position:absolute; right:6px; top:6px; height:24px; min-height:24px; padding:0 8px; font-size:12px; opacity:0; transition:opacity 130ms var(--ease-quint); }.coding-turn pre:hover .coding-code-copy,.coding-turn pre:focus-within .coding-code-copy,.coding-turn .coding-code-copy:focus-visible { opacity:1; }@media (hover:none) { .coding-turn .coding-code-copy { opacity:1; } }.coding-activity { max-width:76ch; margin:0 auto 24px; color:var(--muted); font-size:12px; }.coding-activity pre { white-space:pre-wrap; overflow-wrap:anywhere; max-height:260px; overflow:auto; }.coding-activity summary { cursor:pointer; }
+.coding-turn .coding-code-copy { position:absolute; right:6px; top:6px; height:24px; min-height:24px; padding:0 8px; font-size:12px; opacity:0; transition:opacity 130ms var(--ease-quint); }.coding-turn pre:hover .coding-code-copy,.coding-turn pre:focus-within .coding-code-copy,.coding-turn .coding-code-copy:focus-visible { opacity:1; }@media (hover:none) { .coding-turn .coding-code-copy { opacity:1; } }.coding-activity { max-width:var(--coding-reading); margin:0 auto 24px; color:var(--muted); font-size:12px; }.coding-activity pre { white-space:pre-wrap; overflow-wrap:anywhere; max-height:260px; overflow:auto; }.coding-activity summary { cursor:pointer; }
 .coding-status { flex:none; min-height:18px; margin:0; padding:4px 16px; font-size:12px; color:var(--muted); }
 .coding-status[data-error=true] { color:var(--tone-blocked,var(--ink)); }
 /* A run's waiting question is the shared question card (A2); in the thread it keeps the reading width. */
-[data-coding-question],.coding-cards { max-width:76ch; margin:16px auto 24px; }.coding-cards { display:grid; gap:12px; }
+[data-coding-question],.coding-cards { max-width:var(--coding-reading); margin:16px auto 24px; }.coding-cards { display:grid; gap:12px; }
 .coding-composer { flex:none; display:flex; flex-direction:column; align-items:center; gap:8px; border:0; background:transparent; }
-.coding-composer > * { width:min(100%, 76ch); }
+.coding-composer > * { width:min(100%, var(--coding-reading)); }
 .coding-composer > .coding-context { justify-content:flex-start; }
 ${CODING_FOOTNOTE_STYLES}
 .coding-composer small { font-size:11px; color:var(--muted); overflow-wrap:anywhere; }
@@ -325,7 +324,7 @@ ${CODING_FOOTNOTE_STYLES}
 .coding-composer .coding-model-setup { align-self:center; justify-content:flex-start; padding:0; height:auto; min-height:20px; font-size:12px; }
 .coding-status { padding:4px 32px; min-height:0; }
 .coding-status:empty { display:none; }
-.coding-dialogue > .coding-status { width:min(100%, 76ch); margin-inline:auto; padding-inline:0; }
+.coding-dialogue > .coding-status { width:min(100%, var(--coding-reading)); margin-inline:auto; padding-inline:0; }
 .coding-tools { display:none; overflow-y:auto; overscroll-behavior:contain; min-width:0; min-height:0; border-left:1px solid var(--line); background:var(--paper); }
 [data-coding-results=true] .coding-tools { display:block; }
 .coding-tool-tabs { position:sticky; top:0; z-index:2; display:flex; align-items:center; gap:8px; min-height:56px; padding:12px 12px 12px 24px; border-bottom:1px solid var(--line); background:color-mix(in srgb,var(--paper) 94%,transparent); backdrop-filter:blur(8px); }
@@ -387,7 +386,10 @@ ${CODING_FOOTNOTE_STYLES}
   .coding-turns { flex:1 1 160px; min-height:80px; }
   .coding-dialogue { overflow-y:auto; }
   .coding-composer-footnote { display:none; }
-  .coding-status { padding-inline:16px; }
+  .coding-status, .coding-dialogue > .coding-status { padding-inline:16px; }
+  /* The title keeps its line; the view switch and the header's buttons go under it rather than squeezing it to nothing. */
+  .coding-dialogue-head { flex-wrap:wrap; row-gap:8px; }
+  .coding-identity { flex:1 1 220px; }
   [data-coding-workbench] :is(.mw-btn,.mw-toggle,.mw-dir-row,.mw-dir__add,.mw-select-picker__trigger) { min-height:44px; }
 }
 @media (prefers-reduced-motion:no-preference) {
@@ -400,7 +402,7 @@ ${CODING_FOOTNOTE_STYLES}
 
 /* Timeline: tool calls read as rows, a round closes with what happened. */
 /* The group and step folds are the shared process grammar (processFold in timeline-styles.ts); here only where they sit and what a line holds. */
-.coding-activity { max-width:76ch; margin:-12px auto 24px; }
+.coding-activity { max-width:var(--coding-reading); margin:-12px auto 24px; }
 .coding-activity > summary { display:flex; align-items:center; }
 .coding-tools-summary { display:inline-flex; align-items:center; gap:6px; min-width:0; }
 .coding-tools-summary > span:last-child { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
@@ -419,12 +421,12 @@ ${CODING_FOOTNOTE_STYLES}
 .coding-tool-state[data-tone=failed] { color:var(--red); }
 .coding-tool-state[data-tone=retry] { color:var(--muted); }
 .coding-tool-state[data-tone=unknown] { color:var(--amber); }
-.coding-inline-review { max-width:76ch; margin:0 auto 16px; animation:craft-rise var(--dur-move) var(--ease-quint); }
+.coding-inline-review { max-width:var(--coding-reading); margin:0 auto 16px; animation:craft-rise var(--dur-move) var(--ease-quint); }
 .coding-inline-review .agent-review { padding:0; border:0; }
 .coding-inline-review [data-agent-review-item]:not([data-agent-review-phase=pending]) { display:none; }
 .coding-inline-review [data-agent-review-phase=pending] { border-color:color-mix(in srgb, var(--amber) 45%, var(--line)); box-shadow:0 0 0 3px color-mix(in srgb, var(--amber) 10%, transparent), var(--lift-1); }
 .coding-inline-review .agent-review-actions .mw-btn--primary { min-width:96px; }
-.coding-run-footer { max-width:76ch; margin:0 auto 32px; }
+.coding-run-footer { max-width:var(--coding-reading); margin:0 auto 32px; }
 .coding-live { display:flex; align-items:center; gap:8px; color:var(--muted); font-size:13px; }
 .coding-live-text { color:var(--ink); }
 .coding-run-footer[data-state=live] .coding-live-text { background:linear-gradient(90deg, var(--muted) 0%, var(--ink) 50%, var(--muted) 100%); background-size:200% 100%; -webkit-background-clip:text; background-clip:text; color:transparent; animation: none; }
@@ -455,7 +457,7 @@ ${CODING_FOOTNOTE_STYLES}
 .coding-dialogue > .coding-turns[data-coding-welcoming] { display:flex; flex-direction:column; justify-content:flex-end; }
 .coding-turns[data-coding-welcoming] ~ .coding-composer { margin-bottom:clamp(24px, 18vh, 180px); }
 .coding-turns[data-coding-welcoming] ~ .coding-status:empty { display:none; }
-.coding-welcome { width:min(100%, 76ch); margin:0 auto; padding:0 0 16px; text-align:left; animation:craft-rise var(--dur-move) var(--ease-quint); }
+.coding-welcome { width:min(100%, var(--coding-reading)); margin:0 auto; padding:0 0 16px; text-align:left; animation:craft-rise var(--dur-move) var(--ease-quint); }
 .coding-welcome h2 { margin:8px 0; font-size:24px; font-weight:500; letter-spacing:-.01em; color:var(--ink); }
 .coding-welcome > p { margin:0; color:var(--muted); font-size:13px; line-height:1.6; }
 .coding-welcome-kicker { display:inline-flex; align-items:center; gap:8px; margin:0 !important; padding:4px 12px 4px 8px; border-radius:999px; background:var(--rail); color:var(--muted) !important; font-size:12px !important; }
@@ -489,7 +491,8 @@ ${CODING_FOOTNOTE_STYLES}
 .coding-view-count { color:var(--muted); font-variant-numeric:tabular-nums; }
 .coding-view-count[hidden] { display:none; }
 .mw-toggle.is-current .coding-view-count { color:var(--ink-soft, var(--ink)); }
-.coding-head-actions .coding-results-toggle { height:28px; min-height:28px; padding:0 12px; gap:8px; font-size:12px; color:var(--muted); }
+/* The header's buttons stand as tall as the view switch beside them, in its type size. */
+.coding-head-actions :is(.coding-priority-toggle,.coding-results-toggle) { height:32px; min-height:32px; padding:0 12px; gap:8px; font-size:12px; color:var(--muted); }
 .coding-head-actions .coding-results-toggle svg { width:16px; height:16px; }
 .coding-phase { display:inline-flex; align-items:center; gap:8px; height:24px; padding:0 12px; border-radius:999px; font-size:12px; background:color-mix(in srgb, var(--blue) 10%, transparent); color:var(--blue-dark, var(--blue)); }
 .coding-phase[data-phase=awaiting-review], .coding-phase[data-phase=awaiting-input] { background:color-mix(in srgb, var(--amber) 14%, transparent); color:var(--amber); }
@@ -630,7 +633,7 @@ ${CODING_FOOTNOTE_STYLES}
 .coding-turn.is-writing > :is(ul,ol,pre,table):last-child::after { content:none; }
 
 /* A Host-composed continuation reads as a quiet marker in the conversation, not a wall of text from the person. */
-.coding-turn.is-continuation[data-kind=user] { width:auto; max-width:76ch; margin-inline:auto; padding:0; border-radius:0; background:none; }
+.coding-turn.is-continuation[data-kind=user] { width:auto; max-width:var(--coding-reading); margin-inline:auto; padding:0; border-radius:0; background:none; }
 .coding-turn.is-continuation details > summary { list-style:none; display:flex; align-items:center; gap:8px; width:fit-content; max-width:100%; padding:4px 12px; border:1px dashed var(--line); border-radius:999px; color:var(--muted); font-size:13px; cursor:pointer; }
 .coding-turn.is-continuation details > summary::-webkit-details-marker { display:none; }
 .coding-turn.is-continuation details > summary:hover { color:var(--ink); background:var(--nav-hover); }
@@ -646,7 +649,7 @@ ${CODING_PLAN_PROGRESS_STYLES}
 @container molis-coding (max-width:760px) { .coding-board--compact .coding-board-entry { grid-template-columns:minmax(0,1fr) auto; } .coding-board--compact :is(.coding-board-deps,.coding-board-meta) { display:none; } .coding-board-tools { display:inline-flex; position:static; box-shadow:none; } }
 
 /* Subagents under the step that sent them: one card each, with its own timeline, approvals and conclusion. */
-.coding-children { max-width:76ch; margin:-8px auto 24px; display:grid; grid-template-columns:minmax(0,1fr); gap:8px; }
+.coding-children { max-width:var(--coding-reading); margin:-8px auto 24px; display:grid; grid-template-columns:minmax(0,1fr); gap:8px; }
 /* A long unwrapped preview must never widen a card past the reading column. */
 .coding-children > * { min-width:0; }
 .coding-child { min-width:0; overflow:hidden; }

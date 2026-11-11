@@ -755,4 +755,8 @@ export const ASSISTANT_EN: Record<string, string> = {
   "还没有工作可排；先发一轮": "There is no work to queue for yet; send one first",
   "不在运行时不能打断": "Nothing is running, so nothing can be interrupted",
   "写一句话再发": "Write something first",
+  "这一页": "This page",
+  "别的会话": "Other sessions",
+  "新对话": "New conversation",
+  "问助理，不进这个会话": "Ask the assistant, outside this session",
 };

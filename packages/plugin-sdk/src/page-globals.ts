@@ -143,13 +143,20 @@ export interface InteractionClient {
  * `receiver`, `delivery`, `pause`, `controls` and `commands` are read again on every draw: a page whose choices change gives them
  * as functions or getters and calls `refresh()` once they did, so the bar always shows the page's own state.
  */
+/** Another receiver of the page's that 「发给」 lists (another session), by its own id. */
+export interface ComposerReceiverChoice { id: string; label: string; detail?: string }
+
 export type ComposerOptions = ComposerCommonOptions & (
   /** The editor layer only. */
   | { kind: "plain"; labels: MwComposerLabels }
   /** The receiver row and the delivery menu besides. */
   | { kind: "ai"; labels: MwComposerAiLabels;
-      /** Who it goes to now, as a tag beside ＋ (`icon`: what it is); null or absent draws none. `open` makes its name a button that opens the conversation; `reset` puts back the default receiver (the tag's ×), named `resetLabel`. */
-      receiver?: () => { label: string; icon?: PluginIconName; open?: () => void; reset?: () => void; resetLabel?: string } | null;
+      /**
+       * Who it goes to now, as a tag beside ＋ (`icon`: what it is); null or absent draws none. `open` makes its name a button that opens the conversation; `reset` puts back the default receiver (the tag's ×), named `resetLabel`.
+       * In the workbench's bar (one input, specs/unified-input-voice §10.4) the tag opens 「发给」 instead: `detail` says what the receiver is (「Coding 会话」),
+       * `others` are the page's other receivers the person may switch to (its other sessions, at most 20), and `choose` opens the one picked by its `id`.
+       */
+      receiver?: () => { label: string; icon?: PluginIconName; detail?: string; others?: ComposerReceiverChoice[]; choose?: (id: string) => void; open?: () => void; reset?: () => void; resetLabel?: string } | null;
       /** Which deliveries the target takes now; without it only the default (`next-boundary`) is offered. */
       delivery?: () => ComposerDelivery;
       /** Stops the turn under way; without it no stop is drawn. */

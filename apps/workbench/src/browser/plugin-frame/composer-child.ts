@@ -38,16 +38,24 @@ export function childComposer(port: MessagePort, scope: FrameScope, bar: boolean
     const calls = new Map<number, AbortController>(), checks = new Map<number, () => Promise<"sent" | "not-sent" | "unknown">>();
     let running = false, hold: string | null = null, materials: readonly ComposerMaterial[] = [], gone = false, last = "", queued = false, echo = false;
     root.dataset.composerRemote = "";
+    // The box around the root (the page's conversation column): the bar stands over it.
+    const column = () => {
+      const box = root.parentElement?.getBoundingClientRect();
+      return box && box.width > 0 ? { left: Math.round(box.left), width: Math.round(box.width) } : null;
+    };
+    const sizes = new ResizeObserver(() => changed());
+    if (root.parentElement) sizes.observe(root.parentElement);
     const snapshot = (): ComposerSnapshot => {
       const receiver = ai.receiver?.() ?? null, pause = ai.pause?.() ?? null;
       return {
         entry: ai.entry, labels: { ...ai.labels }, placeholder: field?.placeholder ?? "",
-        receiver: receiver ? { label: receiver.label, ...(receiver.icon ? { icon: receiver.icon } : {}) } : null,
+        receiver: receiver ? { label: receiver.label, ...(receiver.icon ? { icon: receiver.icon } : {}), ...(receiver.detail ? { detail: receiver.detail } : {}),
+          ...(receiver.others ? { others: receiver.others.map(one => ({ id: one.id, label: one.label, ...(one.detail ? { detail: one.detail } : {}) })) } : {}) } : null,
         delivery: ai.delivery?.() ?? null, pause: pause ? { label: pause.label, title: pause.title, ...(pause.busy ? { busy: true } : {}) } : null,
         stop: Boolean(ai.stop), controls: (ai.controls ?? []).map(control), commands: (ai.commands ?? []).map(command),
         mentions: Boolean(ai.mentions), attachments: ai.attachments ? { ...(ai.attachments.accept ? { accept: ai.attachments.accept } : {}) } : null,
         sources: ai.sources ?? true, near: ai.near?.() ?? null, ...(ai.voice ? { voice: ai.voice } : {}), required: ai.required?.() ?? null,
-        submitKeys: ai.submitKeys !== false, draft: Boolean(ai.draft), running, hold,
+        submitKeys: ai.submitKeys !== false, draft: Boolean(ai.draft), column: column(), running, hold,
       };
     };
     // Every call of the handle may change what the bar shows: sent once per turn of the page's script, and only when it changed.
@@ -119,7 +127,11 @@ export function childComposer(port: MessagePort, scope: FrameScope, bar: boolean
       if (message.type === "composer-abort") { calls.get(message.call)?.abort(); calls.delete(message.call); return; }
       if (message.type === "composer-act") {
         if (message.act === "command") ai.commands?.find(item => item.slash === message.key)?.run();
-        else {
+        else if (message.act === "receiver") {
+          // Only one the page itself listed.
+          const named = ai.receiver?.();
+          if (named?.others?.some(one => one.id === message.key)) named.choose?.(message.key);
+        } else {
           const item = ai.controls?.find(one => one.id === message.key);
           if (item?.kind === "select" && item.options.some(option => option.value === message.value && !option.disabled)) item.change?.(message.value!);
           else if (item?.kind === "toggle") item.change?.(message.value === "on");
@@ -137,7 +149,7 @@ export function childComposer(port: MessagePort, scope: FrameScope, bar: boolean
     port.addEventListener("message", listen);
     const destroy = () => {
       if (gone) return;
-      gone = true; port.removeEventListener("message", listen); field?.removeEventListener("input", typed); root.removeEventListener("click", pressed, true);
+      gone = true; sizes.disconnect(); port.removeEventListener("message", listen); field?.removeEventListener("input", typed); root.removeEventListener("click", pressed, true);
       for (const controller of calls.values()) controller.abort();
       calls.clear(); checks.clear();
       if (live === id) send({ type: "composer-destroy", id });

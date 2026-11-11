@@ -107,6 +107,11 @@ export interface AgentCommandOutput {
   timed_out?: boolean;
   cancelled?: boolean;
   stop_reason?: "cancelled" | "timed-out";
+  /**
+   * On the receipt of a person's after-write check only: which checker ran, from which version of its workspace's list,
+   * as its executor noted when it answered the write. The command's receipt itself carries neither.
+   */
+  after_write_check?: { checker_id: string; display_name: string; version: number };
 }
 
 /** One step of a Run's own list, as the runtime keeps it. */

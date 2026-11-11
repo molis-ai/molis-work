@@ -447,6 +447,7 @@ ${CODING_COMPOSER_BAR_STYLES}
 .coding-tool-icon { display:inline-flex; color:var(--faint); }
 .coding-tool-verb { flex:none; }
 .coding-tool-state { display:inline-flex; align-items:center; gap:4px; flex:none; font-size:11px; font-variant-numeric:tabular-nums; }
+.coding-tool-check { flex:none; font-size:11px; font-variant-numeric:tabular-nums; color:var(--faint); }
 .coding-tool-state[data-tone=ok] { color:var(--green); }
 .coding-tool-state[data-tone=failed] { color:var(--red); }
 .coding-tool-state[data-tone=retry] { color:var(--muted); }

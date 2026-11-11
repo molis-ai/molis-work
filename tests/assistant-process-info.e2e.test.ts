@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
-import { createServer } from "node:http";
+import { createServer, type IncomingMessage } from "node:http";
 import { randomUUID } from "node:crypto";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
@@ -43,10 +43,14 @@ async function checkStepLanguageRoundTrip(b: NonNullable<Awaited<ReturnType<type
       raw, diagnostic: raw.lastElementChild, text: raw.lastElementChild.textContent, focused: document.activeElement };
   })()`);
   const businessWrites: string[] = [];
-  const stop = b.on("Network.requestWillBeSent", (event, session) => {
-    const request = event.request as { method: string; url: string };
-    if (session === b.sessionId && request.method === "POST" && /\/api\/(?:assistant|actions)\//u.test(new URL(request.url).pathname)) businessWrites.push(request.url);
-  });
+  let preferences = 0;
+  const observe = (request: IncomingMessage) => {
+    if (request.method !== "POST") return;
+    const path = new URL(request.url ?? "/", b.origin).pathname;
+    if (path === "/api/ui/locale") preferences++;
+    if (/\/api\/(?:assistant|actions)\//u.test(path)) businessWrites.push(path);
+  };
+  b.server.on("request", observe);
   const { targetId } = await b.command<{ targetId: string }>("Target.createTarget", { url: "about:blank", background: true });
   try {
     const { sessionId } = await b.command<{ sessionId: string }>("Target.attachToTarget", { targetId, flatten: true });
@@ -74,8 +78,9 @@ async function checkStepLanguageRoundTrip(b: NonNullable<Awaited<ReturnType<type
       assert.equal(await b.evaluate("window.__stepLanguage.raw.firstElementChild.textContent"), locale === "en" ? "Original message" : "原始说明");
     }
     assert.deepEqual(await b.evaluate(`fetch('/api/assistant/works/' + ${CURRENT_WORK}).then(r => r.json()).then(v => v.rounds.flatMap(r => r.activity))`), before);
+    assert.equal(preferences, 2, "the Host observed both actual language writes");
     assert.deepEqual(businessWrites, []);
-  } finally { stop(); await b.command("Target.closeTarget", { targetId }).catch(() => undefined); }
+  } finally { b.server.off("request", observe); await b.command("Target.closeTarget", { targetId }).catch(() => undefined); }
 }
 
 async function openScriptedAssistant(t: TestContext, script: Array<() => string | Promise<string>>) {

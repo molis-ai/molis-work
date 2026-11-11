@@ -292,64 +292,64 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
     } catch (error) { molisWorkRequest.show(status,error); }
     finally { pending = false; selector.disabled = !projects?.length; filter(); if (marketDirty && retry.hidden) void loadMarket(); }
   });
-  const directory = document.querySelector("[data-artifact-directory]");
-  const detail = document.querySelector("[data-artifact-detail]");
-  const artifactKey = "molis-work-artifact-selection:" + route("/");
+  const shell = document.querySelector("[data-artifact-stage-shell]");
+  const directory = shell?.querySelector("[data-artifact-directory]");
+  const detail = shell?.querySelector("[data-artifact-detail]");
+  const workspace = detail?.parentElement, selection = detail?.dataset;
+  const artifactBase = route("/artifacts"), artifactKey = "molis-work-artifact-selection:" + route("/");
+  const inArtifactStage = path => path === artifactBase || path?.startsWith(artifactBase + "/");
   let artifactPath = null, artifactRequest = null;
   try {
     const storedPath = sessionStorage.getItem(artifactKey);
-    if (storedPath === route("/artifacts") || storedPath?.startsWith(route("/artifacts/"))) artifactPath = storedPath;
+    if (inArtifactStage(storedPath)) artifactPath = storedPath;
   } catch {}
-  const readArtifactFragment = async (path, signal) => {
-    const headers = {"x-molis-work-fragment":"artifact-workbench"};
-    const fallback = globalThis.t.text("workbench.plugin-workbench.could-not-load-artifacts");
-    const html = await molisWorkRequest(path,{as:"text",accept:[404],headers,signal,fallback});
-    const template = document.createElement("template"); template.innerHTML = html;
-    const directory = template.content.querySelector("[data-artifact-directory]");
-    const detail = template.content.querySelector("[data-artifact-detail]");
-    if (!directory || !detail?.dataset.artifactFragmentLanguage) throw new Error(fallback);
-    return { directory, detail };
+  const showArtifacts = () => {
+    const selected = Boolean(detail.querySelector("[data-artifact-id]"));
+    shell?.setAttribute("data-expanded", String(selected));
+    if (workspace) workspace.hidden = !selected;
+    void loadArtifactWorks();
+    showHandoff();
   };
-  const loadArtifacts = async (path = artifactPath || route("/artifacts"), refresh = false) => {
-    if (!refresh && !artifactRequest && artifactPath === path && detail.childElementCount && !detail.querySelector("[data-artifact-retry]")) {
-      const selected = Boolean(detail.querySelector('[data-artifact-id]'));
-      document.querySelector('[data-artifact-stage-shell]')?.setAttribute('data-expanded', String(selected));
-      const workspace = document.querySelector('[data-artifact-stage-workspace]');
-      if (workspace) workspace.hidden = !selected;
-      void loadArtifactWorks();
-      showHandoff();
+  const loadArtifacts = async (path = artifactPath || artifactBase, refresh = false) => {
+    if (!refresh && !artifactRequest && selection.artifactFragmentPath === path) {
+      showArtifacts();
       return;
     }
     artifactRequest?.abort();
-    const controller = new AbortController(); artifactRequest = controller;
-    delete detail.dataset.artifactFragmentPath;
-    const message = document.createElement("p"); message.textContent = globalThis.t.text("workbench.plugin-workbench.loading-artifacts"); message.role = "status";
+    const controller = artifactRequest = new AbortController();
+    delete selection.artifactFragmentPath;
+    const message = document.createElement("p"); message.textContent = readText("workbench.plugin-workbench.loading-artifacts"); message.role = "status";
     detail.replaceChildren(message);
     try {
-      let next = await readArtifactFragment(path, controller.signal);
-      if (controller !== artifactRequest) return;
-      const language = document.documentElement.dataset.uiLanguageTag;
-      if (language && next.detail.dataset.artifactFragmentLanguage !== language) {
-        next = await readArtifactFragment(path, controller.signal);
+      const options = {as:"text",accept:[404],headers:{"x-molis-work-fragment":"artifact-workbench"},signal:controller.signal};
+      const template = document.createElement("template");
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const fallback = readText("workbench.plugin-workbench.could-not-load-artifacts");
+        template.innerHTML = await molisWorkRequest(path, { ...options, fallback });
         if (controller !== artifactRequest) return;
-        if (next.detail.dataset.artifactFragmentLanguage !== document.documentElement.dataset.uiLanguageTag) throw new Error(globalThis.t.text("workbench.language.window-failed"));
+        const nextDirectory = template.content.querySelector("[data-artifact-directory]");
+        const nextDetail = template.content.querySelector("[data-artifact-detail]");
+        const language = nextDetail?.dataset.artifactFragmentLanguage;
+        if (!nextDirectory || !language) throw new Error(fallback);
+        const current = document.documentElement.dataset.uiLanguageTag;
+        if ((current || attempt) && language !== current) {
+          if (attempt) throw new Error(readText("workbench.language.window-failed"));
+          continue;
+        }
+        directory.replaceChildren(...nextDirectory.childNodes);
+        detail.replaceChildren(...nextDetail.childNodes);
+        selection.artifactFragmentPath = path;
+        selection.artifactFragmentLanguage = language;
+        break;
       }
-      directory.replaceChildren(...next.directory.childNodes); detail.replaceChildren(...next.detail.childNodes);
-      detail.dataset.artifactFragmentPath = path;
-      detail.dataset.artifactFragmentLanguage = next.detail.dataset.artifactFragmentLanguage;
       artifactPath = path;
-      const shell = document.querySelector("[data-artifact-stage-shell]");
-      const workspace = document.querySelector("[data-artifact-stage-workspace]");
-      const selected = detail.querySelector("[data-artifact-id]");
-      if (shell) shell.dataset.expanded = selected ? "true" : "false";
-      if (workspace) workspace.hidden = !selected;
       try { sessionStorage.setItem(artifactKey, path); } catch {}
-      void loadArtifactWorks();
-      showHandoff();
+      showArtifacts();
     } catch (error) {
       if (controller.signal.aborted) return;
+      delete selection.artifactFragmentPath;
       molisWorkRequest.show(message,error);
-      const button = document.createElement("button"); button.type = "button"; button.dataset.artifactRetry = path; button.textContent = globalThis.t.text("common.control.retry");
+      const button = document.createElement("button"); button.type = "button"; button.dataset.artifactRetry = path; button.textContent = readText("common.control.retry");
       detail.replaceChildren(message, button);
     } finally { if (controller === artifactRequest) artifactRequest = null; }
   };
@@ -377,28 +377,26 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
     if (collapse) {
       event.preventDefault();
       openPlugin?.("artifacts");
-      void loadArtifacts(route("/artifacts"));
+      void loadArtifacts(artifactBase);
       return;
     }
     const link = event.target.closest("a[href]");
     if (!link || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || link.download || link.target) return;
     const url = new URL(link.href);
-    const base = route("/artifacts");
-    if (url.origin !== location.origin || !(url.pathname === base || url.pathname.startsWith(base + "/"))) return;
+    if (url.origin !== location.origin || !inArtifactStage(url.pathname)) return;
     event.preventDefault();
-    if (link.closest("[data-frame-block]")) { event.preventDefault(); return; }
+    if (link.closest("[data-frame-block]")) return;
     if (event.detail > 1) return;
     setSurface("artifacts");
     openTabItem?.("artifacts", url.pathname, link.dataset.tabTitle || link.textContent?.trim());
     void loadArtifacts(url.pathname);
-    if (matchMedia("(max-width: 600px)").matches) setMobileView(url.pathname === base ? "tree" : "document");
+    if (matchMedia("(max-width: 600px)").matches) setMobileView(url.pathname === artifactBase ? "tree" : "document");
   });
-  document.querySelector('[data-work-surface=artifacts]')?.addEventListener('molis-work:select-item', event => {
+  shell?.addEventListener('molis-work:select-item', event => {
     if (event.detail?.invalidate && event.detail.itemId === undefined) return;
-    const base = route('/artifacts');
     // A version's own path (/artifacts/ID/versions/N, as search, the side panel and toasts give it) opens in this project.
-    const raw = event.detail.itemId || base, path = !raw.startsWith(base) && raw.startsWith('/artifacts') ? route(raw) : raw;
-    if (path !== base && !path.startsWith(base + '/')) return;
+    const raw = event.detail.itemId || artifactBase, path = !inArtifactStage(raw) && raw.startsWith('/artifacts') ? route(raw) : raw;
+    if (!inArtifactStage(path)) return;
     void loadArtifacts(path);
   });
   void refreshUpdates();

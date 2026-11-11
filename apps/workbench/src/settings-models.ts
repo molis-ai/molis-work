@@ -426,8 +426,8 @@ function renderModelRow(providerId: string, model: ModelRecord, p: ModelSettings
     <input class="mw-input model-row-id" data-model-id value="${p.escape(model.model_id)}" aria-label="${p.L("模型 ID")}" placeholder="MiniMax-M3" maxlength="200">
     ${badges}
     <span class="model-row-spacer"></span>
-    <label class="model-row-flag">${p.L("读图能力")}<select class="mw-select" data-model-vision>
-      <option value="">${p.L("未声明")}</option>
+    <label class="model-row-flag">${p.L("看图")}<select class="mw-select" data-model-vision>
+      <option value="">${p.L("不确定（照常发图）")}</option>
       <option value="true"${model.vision === true ? " selected" : ""}>${p.L("能看图")}</option>
       <option value="false"${model.vision === false ? " selected" : ""}>${p.L("不能看图")}</option>
     </select></label>

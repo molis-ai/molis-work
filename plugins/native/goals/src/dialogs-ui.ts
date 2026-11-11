@@ -68,7 +68,7 @@ function createDialogsRenderer(primitives: GoalsDialogPrimitives) {
           <p class="relation-preview" id="dependency-relation-preview" data-dependency-preview>${L("关系预览：当前没有执行前置，Goal 可以独立推进。")}</p>
         </fieldset>
         <section class="create-more-group">
-          <div class="field-row field-row--split"><label class="mw-field"><span class="mw-field__label">Goal ID <small>${L("可选")}</small></span><input class="mw-input" name="goal_id" autocomplete="off" placeholder="${L("例如 GOAL-AUTHORING")}"></label><label class="mw-field"><span class="mw-field__label">${L("优先级")}</span><input class="mw-input" name="priority" type="number" min="0" max="100" value="50"></label></div>
+          <div class="field-row field-row--split"><label class="mw-field"><span class="mw-field__label">Goal ID <small>${L("可选")}</small></span><input class="mw-input" name="goal_id" autocomplete="off" placeholder="${L("不填会自动生成")}"></label><label class="mw-field"><span class="mw-field__label">${L("优先级")}</span><input class="mw-input" name="priority" type="number" min="0" max="100" value="50"></label></div>
         </section>
         </details>
         <p class="form-error mw-alert mw-alert--danger" data-create-error role="alert" hidden></p>

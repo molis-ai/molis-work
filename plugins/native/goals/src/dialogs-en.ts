@@ -10,7 +10,7 @@ export const GOALS_DIALOGS_EN: Record<string, string> = {
   "未选择 Goal": "No Goal selected",
   "该操作可恢复：Goal 历史会保留，当前仍生效的关联关系会暂时停止。若这条 Goal 仍有未结束的历史活动记录，系统不会改动它，而会指出还挡着的记录。": "This can be undone. Goal history is kept, and currently active relations pause. If this Goal still has unfinished historical activity, Molis Work will not change it and will show which records still block the move.",
   "说明为什么暂时不再保留这条 Goal": "Say why this Goal should leave the everyday list for now",
-  "例如 GOAL-AUTHORING": "For example GOAL-AUTHORING",
+  "不填会自动生成": "Generated if left empty",
   "一句话说明要完成什么": "One sentence for what should be finished",
   "完成后，用户或系统获得什么可观察结果": "What observable result the user or system gets when it is done",
   "这个问题为什么值得现在解决": "Why this problem is worth solving now",

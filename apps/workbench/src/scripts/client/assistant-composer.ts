@@ -172,6 +172,12 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
       "after-run": answering ? why : queue };
   };
   let composer = null, mountedFor = null, draftHere = null, painted = "", sending = 0, handedOver = false, inFlight = null;
+  /* One input (unified-input-voice §10.3, O2): a framed page in front that takes words (Coding's session) is the receiver; the
+     bar mounts the composer on its options, and the Assistant's own parts around the box step aside while it is. */
+  let boundPage = null;
+  // With the Assistant's thread open (or staged in its tab) the person is looking at it: the bar stays the Assistant's.
+  const pageInFront = () => panel && !panel.hidden ? null : globalThis.molisBarReceivers?.front() || null;
+  if (panel) new MutationObserver(() => syncComposer()).observe(panel, { attributes: true, attributeFilter: ["hidden"] });
   let worksArrived; const worksIn = new Promise((resolve) => { worksArrived = resolve; });
   /* A work's Send (going), edits made meanwhile (later), and each pending draft's text + save promise (writing).
      Edits persist immediately; the Host settles only the draft generation captured before the Send (B10-R3). */
@@ -231,7 +237,17 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
     }
   };
   const shown = () => JSON.stringify([receiverNow().label, Boolean(getWork()), deliveryNow(), controlsNow().map((one) => [one.id, one.value, one.options])]);
+  const mountPage = (target) => {
+    mountedFor = target.key; boundPage = target; draftHere = null; painted = "";
+    island.dataset.receiver = "page"; input.readOnly = false; input.placeholder = target.placeholder;
+    // The page's own words, with the bar's where it gave none; its options are read live (getters kept), only the words are filled.
+    const options = Object.defineProperties({}, Object.getOwnPropertyDescriptors(target.options));
+    options.labels = { ...words, ...target.options.labels, modes: { ...words.modes, ...target.options.labels.modes } };
+    composer = window.molisComposer(compose, options);
+    target.bind(composer, input);
+  };
   const mountComposer = () => {
+    island.removeAttribute("data-receiver"); paintAim(false);
     mountedFor = curId || scoped("new-draft"); draftHere = draftFor(curId); painted = shown();
     composer = window.molisComposer(compose, { kind: "ai", entry: "assistant", labels: words, draft: { adapter: draftHere },
       receiver: receiverNow, delivery: deliveryNow, get controls() { return controlsNow(); }, get commands() { return commands(); },
@@ -245,15 +261,17 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
   /** Keeps the composer on the receiver in front; redrawn only when what it shows changed, so a poll never closes its menu. */
   function syncComposer() {
     if (!window.molisComposer) return;
+    const page = pageInFront();
     // The person opened another receiver: the composer moves now, even with a Send on its way (its outcome is the Host's and the
     // thread's). A new work's first Send moving it to that work waits until the composer has settled the Send.
-    if (mountedFor !== (curId || scoped("new-draft")) && !(sending && handedOver)) {
+    if (mountedFor !== (page ? page.key : curId || scoped("new-draft")) && !(sending && handedOver && !page)) {
       // Destroy flushes captured edits, including typing before the shared script arrived.
-      composer?.destroy();
+      composer?.destroy(); boundPage?.bind(null); boundPage = null;
       handedOver = false;
-      return mountComposer();
+      return page ? mountPage(page) : mountComposer();
     }
-    if (sending) return;
+    // The page says itself when what it shows changed (composer-parent.ts).
+    if (page || sending) return;
     const work = getWork(); composer.setRunning(Boolean(work && isLive(work.state)));
     const now = shown();
     if (now !== painted) { painted = now; composer.refresh(); }
@@ -276,8 +294,9 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
     .finally(() => { sending -= 1; syncComposer(); }); };
   // Files the side pane takes go where every file goes: onto the composer's strip, whose upload reads them; 待发送 names what
   // the strip carries (a read file as a picture or a file, a pick as the object it is), told again by the composer's onMaterials.
-  function addFiles(chosen) { composer?.attach(chosen); }
-  stripPending = () => (composer ? composer.materials() : []).map((one) => ({ kind: one.kind === "attachment" ? (upload.material(one.ref) || {}).kind || "file" : "object", title: one.title }));
+  function addFiles(chosen) { if (!boundPage) composer?.attach(chosen); }
+  globalThis.molisBarReceiverChanged = () => syncComposer();
+  stripPending = () => (composer && !boundPage ? composer.materials() : []).map((one) => ({ kind: one.kind === "attachment" ? (upload.material(one.ref) || {}).kind || "file" : "object", title: one.title }));
   function pickFile() { compose.querySelector("[data-composer-add]")?.click(); }
   /* The conversation behind the receiver: its tag beside ＋ opens it, and so does ⌘↵ on an empty box (the work in front,
      or the list of works when a new one is next and there are others). */
@@ -288,7 +307,7 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
   };
   compose.addEventListener("keydown", (event) => {
     if (event.key !== "Enter" || !(event.metaKey || event.ctrlKey) || event.shiftKey || event.isComposing || event.keyCode === 229) return;
-    if (!event.target.matches?.(".mw-composer__input") || String(event.target.value || "").trim() || compose.querySelector(".mw-composer__files")) return;
+    if (boundPage || !event.target.matches?.(".mw-composer__input") || String(event.target.value || "").trim() || compose.querySelector(".mw-composer__files")) return;
     if (openConversation()) event.preventDefault();
   }, true);
   // What opens from the island besides the composer's own menus, and the button focus returns to.

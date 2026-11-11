@@ -354,6 +354,8 @@ export const CRAFT_BAR_STYLES = `
   }
   ${SHELL} .assistant-composer > .assistant-answer[hidden] { display: none; }
   ${SHELL} .assistant-composer > .assistant-answer:hover { background: var(--nav-active); color: var(--ink); }
+  /* A page in front takes the input (one input, O2): the Assistant's own parts around the box are not about it. */
+  ${SHELL} [data-assistant-island][data-receiver="page"] :is(.assistant-context-strip, .assistant-next-row, .assistant-answer) { display: none !important; }
   ${SHELL} .assistant-composer > .assistant-answer:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
   @media (max-width: 600px), (pointer: coarse) { ${SHELL} .assistant-composer > .assistant-answer { height: 44px; } }
   /* Its menus (＋, @, the delivery ▾) rise over the open Assistant panel above the bar (z 50), as the island's menus did (z 60). */

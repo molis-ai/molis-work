@@ -27,6 +27,7 @@ import { pageConnectionSlot } from "./connection-slot.js";
 import { pageFilePicker } from "./file-picker.js";
 import { pageWorkspaces } from "./workspaces.js";
 import { pageFrameAssets } from "./frame-assets.js";
+import { pageComposer } from "./composer-parent.js";
 import type { FrameConfig, FrameHost, FramePack, FrameUp } from "./types.js";
 
 function stored(prefix: string): FrameConfig["storage"] {
@@ -203,6 +204,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
   };
   const connectionSlot = pageConnectionSlot(port, scope, frame, root, grant.page_id, route, host.translate);
   const pickFile = pageFilePicker(port, scope, frame, grant.page_id, route, host.translate);
+  const composer = pageComposer(port, scope, root, pack, visible);
   port.onmessage = (event: MessageEvent<FrameUp>) => {
     const message = event.data;
     if (!scope.alive || !message || typeof message.type !== "string") return;
@@ -258,6 +260,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
     if (message.type === "context-key" || message.type === "context-report" || message.type === "context-taken" || message.type === "context-call" || message.type === "context-unreadable") { void contextMessage(message); return; }
     if (message.type === "native-files") { void handoffPageFiles(port, scope, grant.page_id, route, message); return; }
     if (message.type === "native-file-pick") { void pickFile(message); return; }
+    if (message.type.startsWith("composer-")) { composer(message as Extract<FrameUp, { type: `composer-${string}` }>); return; }
     if (["ui", "link", "refresh-shell"].includes(message.type) && (!root.isConnected || !visible())) return;
     if (message.type === "refresh-shell") {
       if (shellRefreshed) return;
@@ -318,6 +321,8 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
     const config: FrameConfig = { mount, subjectSurfaces: surfaces, search: location.search, origin: location.origin, pluginId: pack.plugin_id, bundle: pack.bundle, assets: pack.assets, searchRow: pack.searchRow, recordRow: pack.recordRow, itemTab: ownItemTab(root, pack), surface: pack.id,
       stage: { title: getComputedStyle(root).getPropertyValue("--stage-title") || JSON.stringify(host.translate(root.dataset.workSurfaceLabel ?? pack.id)), description: getComputedStyle(root).getPropertyValue("--stage-desc") },
       nativeFiles: Boolean(nativeFileInvoke()), shortcuts: navigation.shortcuts,
+      // The bar takes a page's AI composer only for a page shown under it: not a side view, a directory, or a pane of its own document.
+      bar: typeof globalThis.molisBarReceiverChanged === "function" && !document.body.hasAttribute("data-pane-embedded") && !host.side && mount?.target_slot_id !== "workbench.directory",
       projectId: host.projectId?.() ?? "", projectTitle: host.projectTitle?.() ?? "", routePrefix: route(""), side: Boolean(host.side), page: host.page?.() ?? null,
       messages: { ...globalThis.MOLIS_WORK_PLUGIN_WORDS?.[pack.plugin_id], ...globalThis.MOLIS_WORK_MESSAGES }, titles: globalThis.MOLIS_WORK_PLUGIN_TITLES ?? {}, storage };
     frame.contentWindow?.postMessage({ type: "molis:plugin-connect", config }, "*", [channel.port2]);

@@ -27,6 +27,7 @@ import { childNativeFiles } from "./native-files.js";
 import { pageEventSource } from "./events.js";
 import { createFrameFetch } from "./fetch.js";
 import { childContext } from "./context-child.js";
+import { childComposer } from "./composer-child.js";
 import type { FrameConfig, FrameDown, FrameUp, Translate } from "./types.js";
 
 function bindStorage(port: MessagePort, config: FrameConfig): void {
@@ -67,6 +68,7 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
   const route = (path: string) => config.routePrefix + path;
   const ui = globalThis.molisFrameUi(L), scope = ui.mountPluginClient(document.body);
   if (!scope) throw new Error("Cannot mount plugin document");
+  childComposer(port, scope, config.bar);
   childIntake(port, scope);
   childContext(port, scope, root); ui.surfaceFocus({ translate: L, surfaceOnly: true });
   globalThis.EventSource = pageEventSource(scope, config.origin);

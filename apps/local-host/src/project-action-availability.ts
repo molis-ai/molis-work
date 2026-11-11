@@ -1,10 +1,12 @@
 import type { ProjectPluginId } from "@molis-ai/molis-work-contracts/modules/projects";
-import { PLATFORM_PLUGIN_REGISTRATIONS, availableProjectPluginIds, shownProjectPlugins } from "./plugin-registry.js";
+import { availableProjectPluginIds, builtinPluginByManifestId, shownProjectPlugins } from "./plugin-registry.js";
 import type { ActionAvailability, ActionCallContext, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import type { MolisWorkProjectCatalog } from "./project-catalog.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { homePluginsOutsideBuild } from "./home-registration.js";
+
+type ReachEntry = PluginRegistration | { readonly personal: true; readonly project_plugin_id: string; readonly runtime?: never };
 
 /**
  * The plugins a project's actions and routes may reach right now (PG-013): what it shows (enabled ones, and personal ones the person
@@ -37,8 +39,8 @@ export function pluginReachable(entry: Pick<PluginRegistration, "personal" | "pr
  * What the reach judgement knows of a plugin in this Home: its catalog entry, or, for a personal Home plugin outside the build, the same
  * shape keyed by its plugin id. Anything else (a project's own Runtime plugin) is not the catalog's to judge.
  */
-export function reachEntry(homeDirectory: string | undefined, pluginId: string): Pick<PluginRegistration, "personal" | "project_plugin_id" | "runtime"> | undefined {
-  return PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.manifest.plugin_id === pluginId)
+export function reachEntry(homeDirectory: string | undefined, pluginId: string): ReachEntry | undefined {
+  return builtinPluginByManifestId(pluginId)
     ?? (homePluginsOutsideBuild(homeDirectory).includes(pluginId) ? { personal: true, project_plugin_id: pluginId } : undefined);
 }
 
@@ -64,8 +66,7 @@ export function projectActionAvailability(withCatalog: LocalWebCatalogRunner, ho
     if (!caller.project_id) return null;
     return withCatalog({ homeDirectory }, catalog => projectReachablePlugins(catalog, caller.project_id!, homePluginsOutsideBuild(homeDirectory)));
   };
-  const state = (caller: ActionCallContext, action: Pick<ActionView, "provider">, reachable: ReadonlySet<string> | null): ActionAvailability => {
-    const entry = entryOf(action);
+  const state = (caller: ActionCallContext, action: Pick<ActionView, "provider">, entry: ReachEntry | undefined, reachable: ReadonlySet<string> | null): ActionAvailability => {
     // Only Runtime stamps an installation id. A Home provider belongs to its trusted Home registration,
     // not to a project's shown-plugin list; a missing/deleted project is still a project caller.
     const homeRuntime = caller.project_id == null && action.provider.kind === "plugin"
@@ -73,11 +74,15 @@ export function projectActionAvailability(withCatalog: LocalWebCatalogRunner, ho
     return !entry || homeRuntime || pluginReachable(entry, reachable) ? { available: true }
       : { available: false, code: "actions.plugin_disabled", reason: "此项目未启用该插件" };
   };
-  const live = (caller: ActionCallContext, action: Pick<ActionView, "provider">): ActionAvailability | Promise<ActionAvailability> =>
-    entryOf(action) ? read(caller).then(reachable => state(caller, action, reachable)) : { available: true };
+  const live = (caller: ActionCallContext, action: Pick<ActionView, "provider">): ActionAvailability | Promise<ActionAvailability> => {
+    const entry = entryOf(action);
+    if (!entry) return { available: true };
+    // Only the built-in declaration survives the await. The Home's external registration may have changed.
+    return read(caller).then(reachable => state(caller, action, "manifest" in entry ? entry : entryOf(action), reachable));
+  };
   return Object.assign(live, { snapshotForDiscovery: async (caller: ActionCallContext) => {
     // A later discovery can be the post-await withdrawal check of an aggregate. Never reuse its presentation directory here.
     const reachable = await read(caller);
-    return (_caller: ActionCallContext, action: Pick<ActionView, "provider">): ActionAvailability => state(caller, action, reachable);
+    return (_caller: ActionCallContext, action: Pick<ActionView, "provider">): ActionAvailability => state(caller, action, entryOf(action), reachable);
   } });
 }

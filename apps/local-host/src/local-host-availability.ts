@@ -1,7 +1,7 @@
 import type { HostCapabilityDescriptor } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { ActionService, CapabilityRegistry } from "@molis-ai/molis-work-kernel";
-import { judgmentRecommendationKeys, subjectOfferChoices } from "@molis-ai/molis-work-kernel";
-import { ActionError, type ActionAvailability, type ActionCallContext, type ActionSceneView, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionDirectoryLookup, judgmentRecommendationKeys, subjectOfferChoices, type SubjectOfferChoiceView } from "@molis-ai/molis-work-kernel";
+import { ActionError, type ActionAvailability, type ActionCallContext, type ActionReference, type ActionSceneUsage, type ActionSceneView, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { admitPluginCall } from "./plugin-callers.js";
 import type { ActionAvailabilityPolicy, DiscoveryPass, LocalHostOptions } from "./local-host-types.js";
 
@@ -23,9 +23,7 @@ export class HostAvailability {
 
   async views(caller: ActionCallContext, views: ActionView[], dependencySnapshot?: readonly ActionView[]): Promise<ActionView[]> {
     const policy = await this.options.actionAvailability?.snapshotForDiscovery?.(caller) ?? this.options.actionAvailability;
-    // One dependency directory, scene list and binding list per discovery, including metadata inspection. Invocation uses live reads.
-    let dependencies = dependencySnapshot, scenes: ActionSceneView[] | undefined, usages: ReturnType<ActionService["usages"]> | undefined;
-    const pass: DiscoveryPass = { actions: () => dependencies ??= this.actionService.discover(caller), scenes: () => scenes ??= this.actionService.discoverScenes(caller), usages: () => usages ??= this.actionService.usages(caller) };
+    const pass = dependencyDirectory(this.actionService, caller, dependencySnapshot);
     return Promise.all(views.map(async view => ({ ...view,
       availability: await this.resolve(caller, view, new Set(), policy, pass),
     })));
@@ -39,9 +37,10 @@ export class HostAvailability {
     const state = await policy?.(caller, view) ?? view.availability;
     if (!state.available) return state;
     if (!view.action.required_actions?.length && !view.action.required_scene) return state;
-    const actions = pass?.actions() ?? this.actionService.discover(caller);
+    const actions = pass ? undefined : this.actionService.discover(caller);
+    const firstAction = pass?.actions() ?? ((ref: ActionReference) => actions!.find(row => row.capability_id === ref.capability_id && row.version === ref.version));
     for (const reference of view.action.required_actions ?? []) {
-      const dependency = actions.find(action => action.capability_id === reference.capability_id && action.version === reference.version);
+      const dependency = firstAction(reference);
       if (!dependency) return { available: false, code: "actions.dependency_missing", reason: "所需能力不存在或不可访问" };
       if (reference.provider_id && dependency.provider.provider_id !== reference.provider_id) {
         return { available: false, code: "actions.provider_changed", reason: "所需能力的提供方已变化，原引用不能自动替换" };
@@ -51,23 +50,27 @@ export class HostAvailability {
     }
     if (!view.action.required_scene) return state;
     const required = view.action.required_scene;
-    const scene = (pass?.scenes() ?? this.actionService.discoverScenes(caller)).find(item => item.definition.scene_id === required.scene_id && item.definition.version === required.version);
+    const scene = pass ? pass.scene(required) : this.actionService.discoverScenes(caller)
+      .find(item => item.definition.scene_id === required.scene_id && item.definition.version === required.version);
     if (!scene) return { available: false, code: "actions.scene_missing", reason: "消费场景不存在或不可访问" };
     const sceneState = scene.availability.available ? await this.options.sceneAvailability?.(caller, scene) ?? scene.availability : scene.availability;
     if (!sceneState.available) return sceneState;
-    const bindings = (await (pass?.usages() ?? this.actionService.usages(caller))).filter(binding => binding.scene_id === required.scene_id && binding.scene_version === required.version && binding.enabled);
+    const bindings = pass ? await pass.bindings(required) : (await this.actionService.usages(caller))
+      .filter(binding => binding.scene_id === required.scene_id && binding.scene_version === required.version && binding.enabled);
     if (!bindings.length) return { available: false, code: "actions.binding_required", reason: "请先为此场景选择并启用判断规则" };
     const states = await Promise.all(bindings.map(async binding => {
       if (!binding.availability.available) return binding.availability;
-      const fn = actions.find(action => action.capability_id === binding.function.capability_id && action.version === binding.function.version);
+      const fn = firstAction(binding.function);
       if (!fn) return { available: false as const, code: "actions.binding_invalid", reason: "已绑定的判断能力不可访问" };
       const fnState = await this.resolve(caller, fn, path, policy, pass);
       if (!fnState.available || scene.definition.recommendation_source !== "subject-offers") return fnState;
       const keys = judgmentRecommendationKeys(fn) ?? [];
-      const choices = subjectOfferChoices(actions).filter(choice => keys.includes(choice.key));
+      const choices = (pass?.choices() ?? subjectOfferChoices(actions!)).filter(choice => keys.includes(choice.key));
       for (const choice of choices) for (const reference of [choice.source, choice.action]) {
-        const dependency = actions.find(action => action.capability_id === reference.capability_id && action.version === reference.version && action.provider.provider_id === reference.provider_id);
-        if (!dependency) return { available: false as const, code: "actions.binding_invalid", reason: "推荐动作已不可访问" };
+        // This caller's directory has at most one row for this id/version. The offer still pins its exact provider.
+        const dependency = pass ? firstAction(reference) : actions!.find(row =>
+          row.capability_id === reference.capability_id && row.version === reference.version && row.provider.provider_id === reference.provider_id);
+        if (!dependency || dependency.provider.provider_id !== reference.provider_id) return { available: false as const, code: "actions.binding_invalid", reason: "推荐动作已不可访问" };
         const available = await this.resolve(caller, dependency, path, policy, pass);
         if (!available.available) return available;
       }
@@ -87,4 +90,41 @@ export class HostAvailability {
     const state = await this.resolve(caller, { ...definition, operation: definition.operation, action: definition.action, provider: definition.action_provider, availability });
     if (!state.available) throw new ActionError(state.code, state.reason);
   }
+}
+
+/** Share reference lookups only while projecting one caller's views, including the narrower dependency read for inspection. */
+function dependencyDirectory(service: ActionService, caller: ActionCallContext, snapshot?: readonly ActionView[]): DiscoveryPass {
+  let actions = snapshot, first: ReturnType<typeof actionDirectoryLookup> | undefined;
+  let scenes: ActionSceneView[] | undefined, choices: SubjectOfferChoiceView[] | undefined;
+  let bindings: Promise<Map<string, ActionSceneUsage[]>> | undefined;
+  const sceneMatches = new Map<string, ActionSceneView | undefined>();
+  const directory = () => actions ??= service.discover(caller);
+  return {
+    actions: () => first ??= actionDirectoryLookup(directory()),
+    scene: reference => {
+      const key = sceneKey(reference.scene_id, reference.version);
+      if (!sceneMatches.has(key)) {
+        sceneMatches.set(key, (scenes ??= service.discoverScenes(caller))
+          .find(row => row.definition.scene_id === reference.scene_id && row.definition.version === reference.version));
+      }
+      return sceneMatches.get(key);
+    },
+    bindings: async reference => (await (bindings ??= service.usages(caller).then(enabledBindings)))
+      .get(sceneKey(reference.scene_id, reference.version)) ?? [],
+    choices: () => choices ??= subjectOfferChoices(directory()),
+  };
+}
+
+function sceneKey(id: string, version: number): string { return `${id}@${version}`; }
+
+function enabledBindings(usages: readonly ActionSceneUsage[]): Map<string, ActionSceneUsage[]> {
+  const groups = new Map<string, ActionSceneUsage[]>();
+  for (const binding of usages) {
+    if (!binding.enabled) continue;
+    const key = sceneKey(binding.scene_id, binding.scene_version);
+    const group = groups.get(key);
+    if (group) group.push(binding);
+    else groups.set(key, [binding]);
+  }
+  return groups;
 }

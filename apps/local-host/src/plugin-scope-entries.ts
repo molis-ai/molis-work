@@ -1,4 +1,4 @@
-import { PLATFORM_PLUGIN_REGISTRATIONS, homeDefinitionEntries, runsInHome } from "./plugin-registry.js";
+import { PLATFORM_PLUGIN_REGISTRATIONS, builtinPluginByManifestId, homeDefinitionEntries, runsInHome } from "./plugin-registry.js";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginTrust } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import { homeFixtureEntries, pluginFixtureDeclarations, storesWithFixtures, type PluginFixture } from "./home-side.js";
@@ -20,7 +20,7 @@ export function assertFixtureScopes(fixtures: { home?: readonly PluginFixture[];
     if (projectIds.has(id) !== dualOf(fixture)) {
       throw new Error(dualOf(fixture) ? `双实例插件 ${id} 在项目启动名单里没有另一半` : `插件 ${id} 不能同时在 Home 与项目启动名单里`);
     }
-    if (PLATFORM_PLUGIN_REGISTRATIONS.some(entry => entry.manifest.plugin_id === id)) {
+    if (builtinPluginByManifestId(id)) {
       throw new Error(`Home 夹具 ${id} 不能冒充内置插件的定义`);
     }
   }

@@ -4,7 +4,7 @@ import { pluginPageRequest } from "./plugin-page-authority.js";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { PAGE_PLUGINS_WITHOUT_SELECTION } from "@molis-ai/molis-work-app-workbench";
 import type { GoalsWebView } from "./web-view.js";
-import { PLATFORM_PLUGIN_REGISTRATIONS, shownProjectPlugins } from "./plugin-registry.js";
+import { builtinPluginByManifestId, shownProjectPlugins } from "./plugin-registry.js";
 import { observeReviewSettlements } from "./review-settlement-events.js";
 import { bindLocalWebActions, localWebActionContext, type LocalWebEntry } from "./local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
@@ -61,7 +61,7 @@ export function projectRequestContext(context: WebRequestContext, options: Resol
     const home = localHost.homePlugins;
     try { await home?.ready(); } catch { /* A failed Home retains its registered unavailable stages. */ }
     const withExternal = (plugins: readonly string[], hidden: readonly string[]) => {
-      const external = (home?.registered() ?? []).filter(entry => !PLATFORM_PLUGIN_REGISTRATIONS.some(item => item.manifest.plugin_id === entry.manifest.plugin_id)
+      const external = (home?.registered() ?? []).filter(entry => !builtinPluginByManifestId(entry.manifest.plugin_id)
         && !hidden.includes(entry.key)).map(entry => entry.key);
       return [...new Set([...shownProjectPlugins(plugins, hidden), ...external])];
     };

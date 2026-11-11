@@ -1,4 +1,4 @@
-import { PLATFORM_PLUGIN_REGISTRATIONS } from "../plugin-registry.js";
+import { builtinPluginByManifestId } from "../plugin-registry.js";
 import type { AgentDefinitionRegistration, AgentDefinitionSource } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import { ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
 import { ASSISTANT_AGENT, ASSISTANT_PROMPTS } from "../assistant/assistant-agent.js";
@@ -17,7 +17,7 @@ export function builtinAgents(): BuiltinAgent[] {
 function sourceOf(ownerId: string): AgentDefinitionSource {
   const system = SYSTEM_INSTRUCTION_SOURCES[ownerId];
   if (system) return { kind: "system", ...system };
-  const manifest = PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.manifest.plugin_id === ownerId)?.manifest;
+  const manifest = builtinPluginByManifestId(ownerId)?.manifest;
   return { kind: "plugin", plugin_id: ownerId, plugin_version: manifest?.version ?? "", title: manifest?.name ?? ownerId };
 }
 

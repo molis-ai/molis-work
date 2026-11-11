@@ -1,6 +1,6 @@
 # 06-3 N43／46 投影与归属
 
-状态：N43／46 实施设计，尚未改代码（2026-11-10）。见[宿主调用成本需求](spec.md)和[第 06 批交付](../post-anticorruption-roadmap/reference/batches/06.md#batch-06-item-3)。对照第 06 批 `a12e8cd8a` 和本地 `origin/main` `c7873a0f2` 的实际代码。合并基点为 `54a12642c`。本稿给出可实施设计与定向验收，运行数字沿用主台已取得的证据。
+状态：N43／46 已实现，预算与拒绝路径已在批次工作树验证（2026-11-10）。见[宿主调用成本需求](spec.md)和[第 06 批交付](../post-anticorruption-roadmap/reference/batches/06.md#batch-06-item-3)。设计对照第 06 批 `a12e8cd8a` 和本地 `origin/main` `c7873a0f2`，合并基点为 `54a12642c`。实现与改前后实测见下文，批次最终集成验证另记。
 
 ## 接回主线已有实现
 
@@ -48,7 +48,7 @@ MOLIS_WORK_CALL_BUDGET_REPORT=1 node scripts/machine-slot.mjs run browser --labe
 - 五类 N44 拒绝分别验已读展示后隐藏，撤 always_on 或停用后请求拒绝，发现与调用间撤权拒绝，旧 brief/contextual 引用的真实点击被拒，延迟或失败 refresh 不复活已停用。#2000 的 SPC-C08 有最后一刻权限、关项目、撤 Web session 和恢复已提交选择的定向用例，可复用为现有边界证据。
 - BL-943 并发读保留两个 Goal 文档响应，按相同夹具实量目录读取。撤权另用真实等待点。可参照 `typed-effect-authority` 中原 MCP 权限在下游调用等待时撤回、真实 Goals note 库与日志断言，以及 `installed-plugin-execution` PLIB-10 的 Runtime 等待点。在实际 DB client 的下一次 `get/all` 前撤当前安装读权，观测 native statement 未执行。另在真正的 `beforeEffect` 等待中撤原权威或停用，恢复后让生产事务路径拒绝，检查业务表、日志/收据的业务行零写入。原生 DB 读当前走 `pluginDatabaseClient.permit` 的安装活状态与 read grant，写额外过原调用 `assertPluginActionCurrent`。仅撤原调用权且安装读 grant 仍有效的表现须单独实测，不能从写围栏推断读也拒绝。
 
-未测项包括实际绑定、subject-offers 配置入口的重复发现与撤权、外装 Home fallback、索引改后及受控反例、N44 失效覆盖、BL-943 并发节省与运行中拒绝。上述改前数据来自独立的隔离运行，本设计未改变产品。
+N44 失效覆盖、BL-943 并发节省与运行中拒绝由对应实施片验证。
 
 ## 写手边界
 
@@ -63,3 +63,30 @@ N49 接回后从本批切隔离子树。先实现同一次展示的目录和归�
 Home 的兼容 `subject-offers` 引用有 36 次配置位置读取同时命中两处 Host 发现，推荐筛选与同组调用各一次。内核总发现随既有绑定而为 5 或 7。其余场景没有这条推荐来源，只触发同组的一次 Host 发现。Home 另一次候选不可执行时也只触发一次。N43 要合并前 36 次中的同组两遍，等待后的 Kernel 发现另计。夹具继续断言配置、绑定和版本冲突结果，不能以少读为由减少检查。
 
 探针 `/private/tmp/molis06-s2-targets-baseline.test.mjs`，日志 `/private/tmp/molis06-s2-targets-baseline.log`。这是生产 Host 动作配置路径的数据，HTTP 扫描仍按独立的代表请求表。
+
+## N43／46 实施与定向证据
+
+内核的首行查找随本次目录推进，已经读过的条目按动作 id 和版本保存，遇到所需条目就停。宿主只在一次展示内共用该查找、场景首行、按原顺序分组的启用绑定和从原目录派生的事项选项。普通绑定回调之后，内核用原 caller 现读自己的目录；配置查询的两个 Host 分支共用同一次发现。内置登记通过校验后一次遍历建立两张索引，自定义目录按其输入建立索引。live reach 将一次解析所得的内置登记传到等待后的判定，外装 Home 登记仍再次读取。
+
+**BCC-05。** 在 `a3f449b65` 和候选实现各运行一次相同的 [HTTP 预算用例](../../tests/call-budget.test.ts)，每组取三个隔离请求的中位数。下表的动作与场景行计数包含真实目录返回后所有读到的数组元素，含建索引和保留的枚举。归属数为真实 `reachEntry` 调用。静态登记行包含同请求内的原有枚举；两张内置索引初始化时共访问 23 行，一次完成。
+
+| 请求 | 动作目录行 | 场景目录行 | 归属解析 | 内置登记行 |
+| --- | ---: | ---: | ---: | ---: |
+| 项目首页 | 176 → 176 | 0 → 0 | 110 → 107 | 6127 → 2714 |
+| 项目简介 | 3120 → 2649 | 4 → 4 | 1421 → 1417 | 17156 → 943 |
+| 右侧资料状态 | 6240 → 5298 | 6 → 6 | 2855 → 2841 | 35873 → 2622 |
+| Contextual | 1040 → 883 | 1 → 1 | 471 → 471 | 5507 → 230 |
+| 侧栏文件来源 | 1040 → 883 | 1 → 1 | 471 → 471 | 5639 → 207 |
+| 侧栏文件列表和预览（各） | 1040 → 883 | 1 → 1 | 473 → 472 | 5872 → 322 |
+| 侧栏缺参（三组各） | 0 → 0 | 0 → 0 | 0 → 0 | 0 → 0 |
+| 同项目两个 Goal 窗格并发 | 352 → 352 | 0 → 0 | 252 → 230 | 12472 → 5842 |
+
+原六项预算数与改前相同，逐项保留。36 次带兼容事项选项的 Home 配置读取各从两次 Host 发现合为一次。其中 33 次 Kernel 总发现从 7 降到 5，3 次从 5 降到 4。36 次各保留一次配置回调之后的现读，有启用绑定的 33 次也各保留一次普通绑定回调之后的现读。其余配置请求的 Host、Kernel 发现数相同。配置用例同时覆盖真实写入、停用、原 revision 冲突和管理授权拒绝。
+
+**BCC-06。** 用 [原预算文件](../../tooling/gates/call-budget.json) 固定新增计数的上限。在真实项目简介 GET 的每个样本中，额外访问同一生产动作目录的 715 行，预算按 `3364 > 2649` 拒绝。独立反例在每个样本将同一个已解析 Goals id 交给生产 resolver 再解析一次，按 `1418 > 1417` 拒绝。两次反例各只有对应计数上升，响应和原六项预算照常通过。两处注入仅在临时探针里。
+
+**BCC-07。** 项目内实际保存的混合启停绑定保持原顺序，首条拒绝和后续可用分支正确，菱形和真实动作／场景循环分别通过与拒绝。宽元数据展示无法补普通绑定的授权。绑定回调等待期间撤掉判断权威或换掉 provider，返回拒绝且原 binding revision 保持。真实配置回调等待期间重新注册场景，返回 `actions.provider_changed`。Home 事项推荐先核精确来源再核执行动作，替换插件的提供方后拒绝原绑定。见[依赖](../../tests/action-dependencies.test.ts)、[项目作用域](../../tests/action-service.test.ts)、[Home 推荐](../../tests/home-action-scenes.test.ts)和[配置](../../tests/functions-scene-configuration.test.ts)用例。
+
+**BCC-08。** 内置隐藏和嵌入过滤、Home 运行态身份、外装 Home 和未知项目 Runtime 的判定沿同一条 reach。真实外装 Home 插件的写入口在项目隐藏后拒绝此前已展示的引用；恢复显示后撤安装 grant，旧引用仍被拒，原存储读到空值。见[个人插件拒绝用例](../../tests/security-invariants-hidden-personal-plugin.test.ts)。
+
+运行记录在 `/private/tmp/molis06-s2-before-report.log`、`/private/tmp/molis06-s2-candidate-report.log`、`/private/tmp/molis06-s2-targets-after.log`、`/private/tmp/molis06-s2-repeat-scan.log` 和 `/private/tmp/molis06-s2-repeat-owner.log`。当前合并基点的整体构建、健康门禁与包边界已通过。最终集成须保留主线的同步目录签名、`/execution` 导入、`projectMembershipReach` 与安装恢复时序，并按同样输入复测预算。

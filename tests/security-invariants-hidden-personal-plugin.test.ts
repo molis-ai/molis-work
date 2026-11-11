@@ -180,19 +180,27 @@ test("RAC-582 S-72 a project-level personal plugin's routes (Form) are refused i
   await home.web.get(formList(hiding));
 });
 
-test("RAC-569 RAC-582 S-72 a personal Home plugin outside the build (named only by the Host's Home registration) is refused in the project that hid it, by its routes and its actions alike, and works in one that did not", { timeout: 60_000 }, async t => {
+test("BCC-08 RAC-569 RAC-582 S-72 a personal Home plugin outside the build (named only by the Host's Home registration) is refused in the project that hid it, by its routes and its actions alike, and works in one that did not", { timeout: 60_000 }, async t => {
   const probe = homeProbe("outsidebuild");
   const home = await openTestHome(t, { host: { pluginFixtures: { home: [probe.definition] } } });
   await grantHomeProbe(home.host, probe);
   const hiding = await home.createProject("Hides the probe"), showing = await home.createProject("Shows the probe");
   const state = (project: TestProject) => `/projects/${encodeURIComponent(project.project_id)}/api/plugins/${probe.id}/state`;
+  const save = (project: TestProject) => state(project).replace(/\/state$/u, "/save");
   const probeView: Pick<ActionView, "provider"> = { provider: { provider_id: probe.id, plugin_id: probe.id, title: "probe", kind: "plugin" } };
   const availability = projectActionAvailability(home.host.configurePersonalPlanning(home.home, withMolisWorkProjectCatalog), home.home);
   assert.equal((await home.web.get<{ project_id: string | null }>(state(hiding))).project_id, hiding.project_id, "shown until the project hides it");
   assert.deepEqual(probe.routed, [hiding.project_id]);
   assert.deepEqual(probe.seen.map(call => call.project_id), [hiding.project_id]);
+  const client = home.host.actionClient(hiding.reference);
+  const person = await home.host.localPersonContext(hiding.reference);
+  const offered = (await client.discover(person)).find((action: ActionView) => action.capability_id === probe.save.capability_id);
+  assert.ok(offered?.availability.available, "the live external installation offered the write");
+  const reference = { ...probe.save, provider_id: offered.provider.provider_id };
   await hide(home, hiding, probe.id);
   await assert.rejects(home.web.get(state(hiding)), { status: 403, code: "actions.plugin_disabled" });
+  await assert.rejects(home.web.post(save(hiding), { text: "hidden route" }), { status: 403, code: "actions.plugin_disabled" });
+  await assert.rejects(client.invoke(person, reference, { text: "previously offered write" }), { code: "actions.plugin_disabled" });
   assert.deepEqual(probe.routed, [hiding.project_id], "RAC-569: rejection precedes the route handler");
   assert.deepEqual(probe.seen.map(call => call.project_id), [hiding.project_id], "the hidden request never reached the action handler");
   assert.deepEqual(await availability(callerIn(hiding.project_id), probeView), { available: false, code: "actions.plugin_disabled", reason: "此项目未启用该插件" });
@@ -201,7 +209,9 @@ test("RAC-569 RAC-582 S-72 a personal Home plugin outside the build (named only 
   assert.deepEqual(probe.seen.map(call => call.project_id), [hiding.project_id, showing.project_id]);
   assert.deepEqual(await availability(callerIn(showing.project_id), probeView), { available: true });
   await unhide(home, hiding, probe.id);
-  assert.equal((await home.web.get<{ project_id: string | null }>(state(hiding))).project_id, hiding.project_id, "shown again, the very next call works");
+  await grantHomeProbe(home.host, probe, probe.permissions.filter(permission => !probe.save.action.permissions.includes(permission)));
+  await assert.rejects(client.invoke(person, reference, { text: "withdrawn grant" }), { code: "actions.forbidden" });
+  assert.deepEqual(await home.web.get(state(hiding)), { project_id: hiding.project_id, value: null }, "the resumed route reads no writes from a hidden or revoked reference");
   assert.deepEqual(probe.routed, [hiding.project_id, showing.project_id, hiding.project_id]);
   assert.deepEqual(probe.seen.map(call => call.project_id), [hiding.project_id, showing.project_id, hiding.project_id]);
 });

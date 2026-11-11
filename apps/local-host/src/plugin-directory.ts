@@ -4,7 +4,7 @@ import type { UiViewDeclaration } from "@molis-ai/molis-work-contracts/platform/
 import { hostLog } from "./host-log.js";
 import type { HomePluginHost } from "./home-plugins.js";
 import { readOnlyAlwaysOnProjectPlugins } from "./always-on-plugins.js";
-import { BUILTIN_PLUGIN_REGISTRY, PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
+import { BUILTIN_PLUGIN_REGISTRY, PLATFORM_PLUGIN_REGISTRATIONS, builtinPluginByManifestId } from "./plugin-registry.js";
 
 /** What the directory reads of a Runtime's supervisor: which plugins it holds enabled, how each one is doing, and its Manifest. */
 export interface DirectorySource {
@@ -36,8 +36,8 @@ export function runningPluginDirectory(source: DirectorySource, home?: string): 
   return source.enabledPluginIds().flatMap(pluginId => {
     const manifest = source.manifest(pluginId), state = source.state(pluginId);
     if (!manifest || !state || state.status === "blocked") return [];
-    const builtin = PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.manifest.plugin_id === manifest.plugin_id
-      && entry.manifest.publisher.signature === manifest.publisher.signature);
+    const registration = builtinPluginByManifestId(manifest.plugin_id);
+    const builtin = registration?.manifest.publisher.signature === manifest.publisher.signature ? registration : undefined;
     return [{ id: builtin?.project_plugin_id ?? manifest.plugin_id, plugin_id: manifest.plugin_id, name: manifest.name, ...(manifest.name_en !== undefined ? { name_en: manifest.name_en } : {}),
       chosen: builtin !== undefined, ...(builtin ? builtinMarks(builtin, alwaysOn) : {}), ui: { views: manifest.ui.views ?? [] } }];
   });

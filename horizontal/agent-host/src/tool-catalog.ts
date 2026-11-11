@@ -115,6 +115,14 @@ export function mayWriteFiles(name: string): boolean {
   return FILE_WRITING_TOOLS.has(name);
 }
 
+/** The tools whose work goes on after the call returns: a background command, and a child handed a sub-task. */
+const OUTLASTING_TOOLS: ReadonlySet<string> = new Set(["start-command", "dispatch-subagent"]);
+
+/** Whether what a tool call started may still be writing files after later calls of the round, whenever it was made. */
+export function mayKeepWriting(name: string): boolean {
+  return OUTLASTING_TOOLS.has(name);
+}
+
 /** The entry for a role's tool name; none for a name outside the set. */
 export function agentTool(name: string): AgentToolEntry | undefined {
   return BY_NAME.get(name);

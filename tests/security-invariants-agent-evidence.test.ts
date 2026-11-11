@@ -104,12 +104,17 @@ test("EVD-31: a write, an edit or a recorded change of the turn after the comman
     "r-child": { command_outputs: [{ call_id: "c-pass" }], activity: [command("c-pass", 1), wrote("x1", 2, "completed", "dispatch-subagent")] },
     // Reading, and a business capability (the report itself), change no file of the round's directory.
     "r-read": { command_outputs: [{ call_id: "c-pass" }], activity: [command("c-pass", 1), wrote("x1", 2, "completed", "read"), wrote("x2", 3, "completed", "capability-change")] },
+    // Started before the command, a background command or a child may still be writing after it (review round 2); one that failed to start is not.
+    "r-background-before": { command_outputs: [{ call_id: "c-pass" }], activity: [wrote("x1", 1, "completed", "start-command"), command("c-pass", 2)] },
+    "r-child-before": { command_outputs: [{ call_id: "c-pass" }], activity: [wrote("x1", 1, "completed", "dispatch-subagent"), command("c-pass", 2)] },
+    "r-background-failed": { command_outputs: [{ call_id: "c-pass" }], activity: [wrote("x1", 1, "failed", "start-command"), wrote("x2", 2, "completed", "run-command"), command("c-pass", 3)] },
     // The other cited commands are the check itself.
     "r-two": { command_outputs: [{ call_id: "c-pass" }, { call_id: "c-fail" }], activity: [wrote("c-pass", 1, "completed", "run-command"), wrote("c-fail", 2, "completed", "run-command")] },
   });
   const changed = async (run: string) => (await check(caller("agent", "s1"), run, ["c-pass"])).commands[0]!.changed_after;
   assert.deepEqual(await Promise.all(["r-edit", "r-write", "r-change", "r-before", "r-unplaced"].map(changed)), [true, true, true, false, true]);
   assert.deepEqual(await Promise.all(["r-command", "r-background", "r-child", "r-read"].map(changed)), [true, true, true, false]);
+  assert.deepEqual(await Promise.all(["r-background-before", "r-child-before", "r-background-failed"].map(changed)), [true, true, false]);
   assert.deepEqual((await check(caller("agent", "s1"), "r-two", ["c-pass", "c-fail"])).commands.map(item => item.changed_after), [false, false]);
   assert.equal((await check(caller("agent", "s1"), "r-two", ["c-pass"])).commands[0]!.changed_after, true, "a later command that is not cited counts");
 });

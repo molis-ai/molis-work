@@ -2,7 +2,7 @@ import { agentErrors } from "./errors.js";
 import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentCallPorts, Call, Register } from "./capability-ports.js";
 import type { AgentStartAuthority } from "./index.js";
-import { mayWriteFiles } from "./tool-catalog.js";
+import { mayKeepWriting, mayWriteFiles } from "./tool-catalog.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 
 /**
@@ -57,7 +57,9 @@ export function registerRecoveryActions<C extends Call>(register: Register<C>, p
         // Without the call's own position nothing says what came after it, so it is not taken as "nothing did".
         const at = run.activity.find(item => item.call_id === call_id)?.sequence;
         // The other cited commands are the check itself; anything else after it that may write a file means it did not see what was left.
-        const changed_after = at === undefined || run.activity.some(item => !cited.has(item.call_id) && mayWriteFiles(item.name) && item.state !== "failed" && (item.sequence ?? Infinity) > at)
+        // A background command or a child started earlier may still be writing: nothing here says when its work ended.
+        const changed_after = at === undefined || run.activity.some(item => !cited.has(item.call_id) && item.state !== "failed"
+          && (mayKeepWriting(item.name) || mayWriteFiles(item.name) && (item.sequence ?? Infinity) > at))
           || (run.turn_changes ?? []).some(change => change.sequence > at);
         return { call_id, recorded: true, exit_code: receipt.exit_code, timed_out: receipt.timed_out === true || receipt.stop_reason === "timed-out",
           cancelled: receipt.cancelled === true || receipt.stop_reason === "cancelled", changed_after };

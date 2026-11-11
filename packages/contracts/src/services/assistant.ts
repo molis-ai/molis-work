@@ -64,12 +64,10 @@ export interface AssistantSurfaceRef {
 }
 
 /**
- * How a surface tells the Assistant what the person is looking at: the root element of a plugin surface carries this
- * attribute with an `AssistantSurfaceContext` as JSON, and keeps it current. The Assistant reads it when the person
+ * How a surface tells the Assistant what the person is looking at: the root element of a plugin surface carries the
+ * `data-assistant-context` attribute with an `AssistantSurfaceContext` as JSON, and keeps it current. The Assistant reads it when the person
  * focuses the composer; nothing is sent until they send, and every item stays visible and removable before that.
  */
-export const ASSISTANT_CONTEXT_ATTRIBUTE = "data-assistant-context";
-
 export interface AssistantSurfaceContext {
   plugin_id: string;
   /** What the person calls this surface, e.g. "Pages". */

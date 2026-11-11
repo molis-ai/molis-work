@@ -1,6 +1,6 @@
 // Gate: what the agent-facing documents point at exists (specs/archive/repository-anti-corruption §4.13/§4.14).
 //
-// Checked documents: skills/**/*.md, AGENTS.md and docs/system/CALL-CHAINS.md (when it is tracked). A reader, human or
+// Checked documents: skills/**/*.md, AGENTS.md, docs/system/CALL-CHAINS.md and docs/system/EXTENSION-POINTS.md (when tracked). A reader, human or
 // model, follows these literally, so a path or an id that no longer exists is a wrong instruction, not a stale link.
 //
 // A citation is an inline code span (`like this`; fenced blocks are examples and are not read). Three kinds are verified:
@@ -47,7 +47,7 @@ const isSourceForIds = (file) => SOURCE_AREA.test(file) && /\.(?:ts|mts|mjs|js|t
 const FILE_EXTENSION = /\.(?:ts|mts|mjs|js|tsx|json|md|mdc|yaml|yml|html|css|sh|toml|rs|swift|py|txt|tgz|patch|sqlite|db|png|jpg|svg)$/;
 
 /** The documents whose citations are verified. */
-export const isCitingDoc = (file) => file === "AGENTS.md" || file === "docs/system/CALL-CHAINS.md" || /^skills\/.+\.md$/.test(file);
+export const isCitingDoc = (file) => file === "AGENTS.md" || file === "docs/system/CALL-CHAINS.md" || file === "docs/system/EXTENSION-POINTS.md" || /^skills\/.+\.md$/.test(file);
 
 // ---- what exists ------------------------------------------------------------------------------------------------------
 const globToRegExp = (pattern) => {

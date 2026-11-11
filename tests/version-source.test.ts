@@ -664,10 +664,11 @@ test("VG-11 one package's entry cannot be borrowed by another", () => {
 
 test("VG-12 what stays at its first version until the first outside install cannot be bumped in the table (CONTRACT-CHANGES §3)", () => {
   const problems = (versions: Record<string, number | string>) => versionDeclarationProblems(tree({ "tooling/versions.json": source(versions) })).filter((problem: string) => problem.includes("before the first outside install"));
-  for (const key of ["action.a.b", "role.a", "action-family.a", "scene.a", "manifest.schema", "host.api"]) {
+  for (const key of ["action.a.b", "action-family.a", "scene.a", "manifest.schema", "host.api"]) {
     assert.deepEqual(problems({ [key]: 2 }), [`tooling/versions.json: ${key} is 2; before the first outside install it stays 1 (docs/system/CONTRACT-CHANGES.md §3)`], key);
     assert.deepEqual(problems({ [key]: 1 }), [], key);
   }
+  assert.deepEqual(problems({ "role.a": 2, "prompt.a": 2, "method.a": 2 }), [], "the release check leaves authored content to the current-content checks");
   assert.deepEqual(problems({ "format.a": 2, "database.a": 2, "type.a": 2, "prompt.a": 2, "method.a": 2, "protocol.a": "1.0.0" }), []);
 });
 

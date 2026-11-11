@@ -33,8 +33,9 @@ const IDENTITY_FIELDS = { capability_id: ["action", "action-family"], scene_id: 
 // from the Host; it is not another entry here.
 const PRODUCT_CARRIERS = ["package.json", "apps/desktop/src-tauri/tauri.conf.json", "apps/desktop/src-tauri/Cargo.toml", "apps/desktop/src-tauri/Cargo.lock", "apps/local-host/src/product-version.ts"];
 const SNAPSHOTS = { actions: "actions.tsv", hostActions: "host-actions.tsv", scenes: "scenes.tsv", hostScenes: "host-scenes.tsv" };
-// Public contracts stay at their first version until the first outside install (§3). Prompt bodies are checked by contentVersionChanges.
-const STAGE_ONE = /^(?:action|action-family|scene|role)\.|^(?:manifest\.schema|host\.api)$/;
+// Public contracts stay at their first version until the first outside install (§3).
+// Built-in roles are versioned content and are checked against the current register by initial-versions.mjs.
+const STAGE_ONE = /^(?:action|action-family|scene)\.|^(?:manifest\.schema|host\.api)$/;
 // The kinds of entry that are a contract between packages by definition. Any other entry is one package's own number, so a second
 // package marking its literal with it has borrowed the number for something else. A new kind starts on that side.
 const SHARED_KINDS = /^(?:action|event|format|type|artifact|manifest|host|protocol|product)\.|^sync\.protocol$/;

@@ -281,6 +281,17 @@
     "todo.work.paused": "Paused",
     "todo.work.stopped": "Stopped",
     "todo.work.waiting-input": "Needs your answer",
-    "todo.work.waiting-review": "Needs your approval"
+    "todo.work.waiting-review": "Needs your approval",
+    "todo.agent-role.organizer.name": "Todo organizer",
+    "todo.agent-role.organizer.purpose": "Todo organizer (can call actions)",
+    "todo.agent-prompt.todo-organizer.title": "Todo organizer",
+    "todo.agent-prompt.todo-organize-basic.title": "Organize todos from material",
+    "todo.agent-prompt.todo-organize-basic.purpose": "Identify matters for the user, their commitments, things awaiting others and suggestions to consider, then compare them with existing todos; invent no owner, date, priority or completion state",
+    "todo.agent-prompt.todo-organize-organizer.title": "The Todo organizer’s method",
+    "todo.agent-prompt.todo-organize-organizer.purpose": "Beyond basic organization, find implicit expectations, informal commitments and unassigned actions, distinguish responsibility from participation, and suggest arrangements; invent nothing and write nothing directly",
+    "todo.capability-library.todo-placement-move-v1.title": "Todo",
+    "todo.capability-library.todo-reminders-acknowledge-v1.title": "Got it",
+    "todo.capability-library.todo-reminders-due-v1.title": "Reminders due",
+    "todo.capability-library.todo-reminders-window-v1.title": "Due reminders"
   }
 }

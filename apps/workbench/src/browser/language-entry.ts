@@ -85,6 +85,45 @@ async function prepareSettings(render: ReadSettings, prior: string, target: stri
   return { regions, assertCurrent };
 }
 
+/** The API already carries initial display strings. Only these existing language previews carry the full replacement model. */
+function prepareAgentDisplayModels(preparedPage: ParentNode, regions: readonly { root: ParentNode; next: ParentNode }[]) {
+  type Model = Record<string, { source: unknown; roles: Record<string, Record<string, unknown>>; prompts: Record<string, Record<string, unknown>> }>;
+  const models = [{ root: document, next: preparedPage }, ...regions].map(({ root, next }) => {
+    // A mounted Characters view lives in the document, but the Host's preview still has its exact deferred template.
+    const characters = next.querySelector<HTMLTemplateElement>('[data-work-surface="characters"] > template[data-deferred-content]')?.content;
+    const slots = new Map<string, { words: string; model: Model }>();
+    for (const kind of ["roles", "prompts"] as const) {
+      const selector = `script[data-agent-display-model="${kind}"]`;
+      const selected = next.querySelector(selector) ?? (kind === "roles" ? characters?.querySelector(selector) : null);
+      if (selected) { const words = selected.textContent ?? "{}"; slots.set(kind, { words, model: JSON.parse(words) }); }
+    }
+    return { root, slots };
+  });
+  return () => {
+    const changes = new Map<HTMLElement, { words: string; model: Model }>();
+    // Sample the live slots at commit so a view mounted while the preference was being saved also receives its words.
+    for (const { root, slots } of models) for (const slot of root.querySelectorAll<HTMLElement>("script[data-agent-display-model]")) {
+      const selected = slots.get(slot.dataset.agentDisplayModel ?? "");
+      if (selected) changes.set(slot, selected);
+    }
+    for (const [slot, { words, model }] of changes) {
+      slot.textContent = words;
+      const scope = slot.closest("[data-prompt-settings], [data-character-builtin]");
+      for (const node of scope?.querySelectorAll<HTMLElement>("[data-agent-display-id]") ?? []) {
+        const owner = model[node.dataset.agentDisplayOwner ?? ""], kind = node.dataset.agentDisplayKind === "roles" ? "roles" : "prompts";
+        const row = owner?.[kind][node.dataset.agentDisplayId ?? ""];
+        if (!owner || !row || row.version !== Number(node.dataset.agentDisplayVersion) || JSON.stringify(owner.source) !== node.dataset.agentDisplaySource) continue;
+        for (const field of node.querySelectorAll<HTMLElement>("[data-agent-display-field]")) {
+          const value = row[field.dataset.agentDisplayField ?? ""];
+          if (typeof value !== "string") continue;
+          if (field.dataset.agentDisplayAttribute === "edit-label") field.setAttribute("aria-label", t.text("workbench.settings-prompts.edit-prompt-title", { title: value }));
+          else field.textContent = value;
+        }
+      }
+    }
+  };
+}
+
 // The opening scope read can update the owners while a language is being saved. The same Settings render owns their words
 // at commit even when the live list differs from the old render, so generic text matching leaves these slots alone.
 function prepareDeletionScopeWords(preparedPage: ParentNode, regions: readonly { root: ParentNode; next: ParentNode }[]) {
@@ -167,7 +206,7 @@ function documentLanguage(initial: LanguageAsset, load: LoadAsset) {
         prepareSettings(render, displayed.pack.locale, locale, signal),
         discussion.prepare(frameUiLanguage(language), signal),
       ]) : [];
-      return { asset, choice, frames, settings, im, deletionScopeWords: next && prepareDeletionScopeWords(next, settings?.regions ?? []),
+      return { asset, choice, frames, settings, im, agentDisplayWords: next && prepareAgentDisplayModels(next, settings?.regions ?? []), deletionScopeWords: next && prepareDeletionScopeWords(next, settings?.regions ?? []),
         inline: projected, reader: createTextReader({ packs: packsFor(asset.pack, projected), locale, intlLocale: intlLocale(asset.catalog) }) };
     },
     regions: prepared => prepared?.settings?.regions ?? [],
@@ -196,6 +235,7 @@ function documentLanguage(initial: LanguageAsset, load: LoadAsset) {
         prepared?.frames?.apply();
         prepared?.deletionScopeWords?.();
         displayed = asset; inline = projected;
+        prepared?.agentDisplayWords?.();
       };
       if (prepared?.im) prepared.im.apply(commit); else commit();
     },

@@ -1,4 +1,7 @@
 import { readOnlyAlwaysOnProjectPlugins } from "./always-on-plugins.js";
+import { agentDisplayModel } from "./agent-definitions/display-words.js";
+import { openedAgentDefinitions } from "./agent-definitions/agent-definitions.js";
+import { currentLocale, inLanguagePreview } from "./web-locale.js";
 import { readPluginRuntimeRecords } from "@molis-ai/molis-work-plugin-runtime";
 import { hostLog } from "./host-log.js";
 import { installedPluginStages } from "./plugin-builder/agent-surface.js";
@@ -50,7 +53,8 @@ async function projectPluginStages(ports: ProjectPluginSurfacePorts, view: Molis
   const stageView = { ...view, plugin_directory: mergePluginDirectories(directory, view.plugin_directory ?? [], builtinMarketDirectory(ports.homeDirectory)) };
   const runtime = renderProjectRuntimeStages(record, ports.store, { shown: view.shown_plugins ?? shownProjectPlugins(configuration.plugins, configuration.hidden),
     drawn: view.plugin_stage_surfaces ?? [], views: view.plugin_stage_views, page_owner: view.page_owner, model: projectPluginId => model(projectPluginId, stageView), home: await homeStageHalves(ports.homePlugins) });
-  const characters = renderCharacters({ route_prefix: ports.routePrefix ?? "", primitives: { escape: value => escapeHtml(String(value)) } });
+  const characters = renderCharacters({ route_prefix: ports.routePrefix ?? "", primitives: { escape: value => escapeHtml(String(value)) },
+    ...(ports.homeDirectory && inLanguagePreview() ? { agent_display_model: agentDisplayModel(openedAgentDefinitions(ports.homeDirectory)?.registrations() ?? [], currentLocale() ?? undefined, "role") } : {}) });
   return { html: [characters, ...runtime.html], panels: runtime.panels, overlays: runtime.overlays, surfaces: runtime.surfaces, unavailable: runtime.unavailable, page: runtime.page,
     directory };
 }

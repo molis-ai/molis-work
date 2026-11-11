@@ -302,6 +302,17 @@
     "pages.version.save": "存为固定版本",
     "pages.version.save-hint": "把当前内容存成不会再变的一版，放进这个位置的成果（Artifacts）",
     "pages.version.saved-note": "第 {version} 版 · 放在这个位置的成果里；继续编辑不会改变这一版",
-    "pages.version.unfinished": "固定版本未存完"
+    "pages.version.unfinished": "固定版本未存完",
+    "pages.agent-prompt.pages-writing-assistant.title": "写作助手",
+    "pages.agent-prompt.pages-writing-assistant.purpose": "在编辑器里按所选命令改写、扩写、提炼或整理选中的文字",
+    "pages.agent-prompt.pages-generate-from-materials.title": "材料生成文稿",
+    "pages.agent-prompt.pages-generate-from-materials.purpose": "把 Inbox 里选中的研究材料整理成一篇可编辑的文稿",
+    "pages.capability-library.pages-create-v1.title": "新建文档",
+    "pages.capability-library.pages-folders-create-v1.title": "新建文件夹",
+    "pages.capability-library.pages-folders-delete-v1.title": "删除文件夹",
+    "pages.capability-library.pages-import-v1.title": "导入文档",
+    "pages.capability-library.pages-import-preview-v1.title": "预览导入",
+    "pages.capability-library.pages-placement-copy-v1.title": "文档",
+    "pages.capability-library.pages-placement-move-v1.title": "文档"
   }
 }

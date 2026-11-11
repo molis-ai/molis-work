@@ -80,6 +80,15 @@
     "dataset.version.rolled-back": "已回滚",
     "dataset.version.save": "存一版",
     "dataset.version.saved": "已保存版本",
-    "dataset.version.snapshot": "快照"
+    "dataset.version.snapshot": "快照",
+    "dataset.agent-prompt.dataset-name-column.title": "拟列名",
+    "dataset.agent-prompt.dataset-name-column.purpose": "按用户的描述为数据表拟一个简洁的中文列名",
+    "dataset.capability-library.dataset-columns-add-v1.title": "按列名加列",
+    "dataset.capability-library.dataset-create-v1.title": "新建数据表",
+    "dataset.capability-library.dataset-export-v1.title": "导出 CSV",
+    "dataset.capability-library.dataset-files-content-v1.title": "数据表",
+    "dataset.capability-library.dataset-files-entries-v1.title": "数据表",
+    "dataset.capability-library.dataset-placement-copy-v1.title": "数据表",
+    "dataset.capability-library.dataset-placement-move-v1.title": "数据表"
   }
 }

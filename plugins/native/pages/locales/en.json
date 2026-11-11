@@ -314,6 +314,17 @@
     "pages.version.save": "Save as fixed version",
     "pages.version.save-hint": "Save the current content as a version that won’t change, in this location’s Artifacts",
     "pages.version.saved-note": "Version {version} · kept in this location’s Artifacts; further edits won’t change it",
-    "pages.version.unfinished": "Fixed version not finished"
+    "pages.version.unfinished": "Fixed version not finished",
+    "pages.agent-prompt.pages-writing-assistant.title": "Writing assistant",
+    "pages.agent-prompt.pages-writing-assistant.purpose": "Rewrite, expand, distill or organize the selected text in the editor using the selected command",
+    "pages.agent-prompt.pages-generate-from-materials.title": "Draft from material",
+    "pages.agent-prompt.pages-generate-from-materials.purpose": "Organize selected research material from Inbox into an editable draft",
+    "pages.capability-library.pages-create-v1.title": "New page",
+    "pages.capability-library.pages-folders-create-v1.title": "New folder",
+    "pages.capability-library.pages-folders-delete-v1.title": "Delete folder",
+    "pages.capability-library.pages-import-v1.title": "Import documents",
+    "pages.capability-library.pages-import-preview-v1.title": "Preview import",
+    "pages.capability-library.pages-placement-copy-v1.title": "Page",
+    "pages.capability-library.pages-placement-move-v1.title": "Page"
   }
 }

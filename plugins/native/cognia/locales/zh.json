@@ -117,6 +117,10 @@
     "cognia.status.new": "新增",
     "cognia.status.skipped": "跳过",
     "cognia.status.unchanged": "不变",
-    "cognia.status.update": "更新"
+    "cognia.status.update": "更新",
+    "cognia.agent-prompt.cognia-answer.title": "知识整理与问答",
+    "cognia.agent-prompt.cognia-answer.purpose": "只依据选中的固定版本资料整理或回答，并用 [S1] 这样的标记引用来源",
+    "cognia.agent-prompt.cognia-evidence.title": "知识助手角色",
+    "cognia.agent-prompt.cognia-evidence.purpose": "Cognia 整理与问答运行时的角色说明"
   }
 }

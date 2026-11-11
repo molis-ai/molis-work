@@ -245,6 +245,8 @@
     "workflows.verdict.confidence": "{value}% confidence",
     "workflows.verdict.needs-review": "Needs a person to confirm",
     "workflows.verdict.no-result": "Result “None”",
-    "workflows.verdict.result": "Result “{choice}”"
+    "workflows.verdict.result": "Result “{choice}”",
+    "workflows.agent-prompt.workflows-ai-handoff.title": "AI handoff",
+    "workflows.agent-prompt.workflows-ai-handoff.purpose": "Organize the previous step’s result into content the next step can use, following this handoff’s requirements"
   }
 }

@@ -1,10 +1,14 @@
 import { chevron, el, messageOf, pageRequest, tag, type Part } from "./common.js";
+import type { AgentDisplayModel } from "../../settings-view.js";
 
 const uiText = globalThis.t;
 
 /** A Character registered with the Host by the system or a plugin (`/api/agent-definitions/roles`): only what the list reads. */
 interface BuiltinRole {
   key: string;
+  owner_id: string;
+  role_id: string;
+  version: number;
   name: string;
   execution: string;
   subagent?: boolean;
@@ -25,13 +29,17 @@ function settingsLink(section: HTMLElement, role: BuiltinRole): string {
     + (new URLSearchParams(location.search).get("desktop") === "1" ? "&desktop=1" : "");
 }
 
-function roleRow(section: HTMLElement, role: BuiltinRole): HTMLElement {
+function roleRow(section: HTMLElement, role: BuiltinRole, model: AgentDisplayModel): HTMLElement {
   const item = el("div");
   item.setAttribute("role", "listitem");
+  Object.assign(item.dataset, { agentDisplayOwner: role.owner_id, agentDisplayKind: "roles", agentDisplayId: role.role_id,
+    agentDisplayVersion: String(role.version), agentDisplaySource: JSON.stringify(role.source) });
   const link = el("a", undefined, "characters-row characters-builtin-item");
   link.href = settingsLink(section, role);
   const copy = el("span", undefined, "characters-row-copy");
-  const name = el("strong", role.name); name.translate = false;
+  const owner = model[role.owner_id], words = owner?.roles[role.role_id];
+  const name = el("strong", owner && words && words.version === role.version && JSON.stringify(owner.source) === JSON.stringify(role.source) ? words.name : role.name); name.translate = false;
+  name.dataset.agentDisplayField = "name";
   copy.append(name, el("small", uiText.text("workbench.characters.builtin-prompt-count", { count: role.prompt_keys.length })));
   const meta = el("span", undefined, "characters-row-meta");
   meta.append(tag(EXECUTION[role.execution] ? uiText.text(EXECUTION[role.execution]!) : role.execution));
@@ -58,6 +66,7 @@ export async function renderBuiltinRoles(q: Part): Promise<void> {
   try {
     const read = pageRequest();
     const payload = await read<{ roles: BuiltinRole[] }>(section.dataset.characterBuiltinApi ?? "", { fallback: uiText.text("workbench.characters.builtin-read-failed") });
+    const model = JSON.parse(section.querySelector("script[data-agent-display-model]")?.textContent ?? "{}") as AgentDisplayModel;
     const roles = [...payload.roles].sort((a, b) => (isSystem(a) ? 0 : 1) - (isSystem(b) ? 0 : 1));
     box.replaceChildren();
     if (!roles.length) { box.textContent = uiText.text("workbench.characters.builtin-empty"); return; }
@@ -65,7 +74,7 @@ export async function renderBuiltinRoles(q: Part): Promise<void> {
       const label = el("p", owner ?? uiText.text("workbench.characters.builtin-system"), "characters-group-label");
       if (owner !== null) label.translate = false;
       box.append(label);
-      for (const role of members) box.append(roleRow(section, role));
+      for (const role of members) box.append(roleRow(section, role, model));
     }
   } catch (error) {
     const reason = messageOf(error);

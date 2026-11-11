@@ -102,6 +102,10 @@
     "lingguang.save.retry": "Retry save",
     "lingguang.save.saved": "Saved",
     "lingguang.save.saving": "Saving…",
-    "lingguang.save.unsaved": "Unsaved"
+    "lingguang.save.unsaved": "Unsaved",
+    "lingguang.agent-prompt.lingguang-conversation.title": "Discuss an idea",
+    "lingguang.agent-prompt.lingguang-conversation.purpose": "Use the selected idea and conversation history to give a concrete response that can move the work forward",
+    "lingguang.capability-library.lingguang-placement-copy-v1.title": "Lingguang",
+    "lingguang.capability-library.lingguang-placement-move-v1.title": "Lingguang"
   }
 }

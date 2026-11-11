@@ -98,6 +98,7 @@
     "images.status.retry-help": "Reuse the prompt and adjust the connection to try again. Generating again submits a new request.",
     "images.status.running": "Generating",
     "images.status.succeeded": "Generated",
-    "images.status.waiting": "Waiting for the service to generate an image. You can leave this page and return later."
+    "images.status.waiting": "Waiting for the service to generate an image. You can leave this page and return later.",
+    "images.capability-library.images-jobs-start-v1.title": "Generate image"
   }
 }

@@ -1233,6 +1233,8 @@
     "goals.workbench-stage.goal-workspace": "Goal workspace",
     "goals.workbench-stage.list": "List",
     "goals.workbench-stage.work-planning": "Work planning",
-    "goals.workbench-stage.work-rules": "Work rules"
+    "goals.workbench-stage.work-rules": "Work rules",
+    "goals.capability-library.goals-list-v1.title": "Target directory",
+    "goals.capability-library.goals-policy-save-v1.title": "Save project rules"
   }
 }

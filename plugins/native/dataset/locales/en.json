@@ -92,6 +92,15 @@
     "dataset.version.rolled-back": "Rolled back",
     "dataset.version.save": "Save version",
     "dataset.version.saved": "Version saved",
-    "dataset.version.snapshot": "Snapshot"
+    "dataset.version.snapshot": "Snapshot",
+    "dataset.agent-prompt.dataset-name-column.title": "Suggest a column name",
+    "dataset.agent-prompt.dataset-name-column.purpose": "Suggest a concise Chinese column name from the user’s description",
+    "dataset.capability-library.dataset-columns-add-v1.title": "Add this column name",
+    "dataset.capability-library.dataset-create-v1.title": "New table",
+    "dataset.capability-library.dataset-export-v1.title": "Export CSV",
+    "dataset.capability-library.dataset-files-content-v1.title": "Dataset",
+    "dataset.capability-library.dataset-files-entries-v1.title": "Dataset",
+    "dataset.capability-library.dataset-placement-copy-v1.title": "Dataset",
+    "dataset.capability-library.dataset-placement-move-v1.title": "Dataset"
   }
 }

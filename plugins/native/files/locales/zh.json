@@ -58,6 +58,8 @@
     "files.snapshot.title": "固定快照",
     "files.stage.empty-body": "从目录选择文件，阅读内容、保存选区，或固定两份快照进行对比。",
     "files.stage.empty-title": "打开文件，开始阅读",
-    "files.stage.manage": "输入与输出设置"
+    "files.stage.manage": "输入与输出设置",
+    "files.capability-library.files-side-content-v1.title": "工作区文件",
+    "files.capability-library.files-side-entries-v1.title": "工作区文件"
   }
 }

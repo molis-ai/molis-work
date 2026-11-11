@@ -227,6 +227,8 @@
     "workflows.verdict.confidence": "把握 {value}%",
     "workflows.verdict.needs-review": "需要人确认",
     "workflows.verdict.no-result": "结果「无」",
-    "workflows.verdict.result": "结果「{choice}」"
+    "workflows.verdict.result": "结果「{choice}」",
+    "workflows.agent-prompt.workflows-ai-handoff.title": "AI 交接",
+    "workflows.agent-prompt.workflows-ai-handoff.purpose": "把上一步的结果按这段交接的要求整理成下一步能接着用的内容"
   }
 }

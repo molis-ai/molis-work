@@ -115,6 +115,14 @@
     "schedule.turn.assistant": "Agent",
     "schedule.turn.important": "Important",
     "schedule.turn.instructions": "Description",
-    "schedule.turn.system": "System"
+    "schedule.turn.system": "System",
+    "schedule.agent-role.reader.name": "Read-only runner",
+    "schedule.agent-role.reader.purpose": "Read-only runner (read only)",
+    "schedule.agent-role.brief.name": "Read data and run",
+    "schedule.agent-role.brief.purpose": "Read data and run (read only)",
+    "schedule.agent-prompt.schedule-base.title": "Base constraints",
+    "schedule.agent-prompt.schedule-reader.title": "Read-only runner",
+    "schedule.agent-prompt.schedule-brief.title": "Read data and run",
+    "schedule.capability-library.schedule-tasks-create-v1.title": "New scheduled task"
   }
 }

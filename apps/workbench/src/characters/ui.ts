@@ -3,10 +3,12 @@ import { icon, t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { CHARACTER_IMPORT_RUNTIMES } from "@molis-ai/molis-work-contracts/modules/characters";
 import { externalTool } from "@molis-ai/molis-work-contracts/platform/external-tools";
 import { renderCharacterImport, renderCharacterSource } from "./import-ui.js";
+import type { AgentDisplayModel } from "../settings-view.js";
+import { scriptJson } from "../plugin-directory.js";
 
 // 角色 is the Host's own page since CHR-1 (decision #26): Settings › 角色 is a host section, and inside a project the page below
 // is a stage surface the settings cover shows (it marks itself `data-settings-page`). Its browser program is src/browser/characters.
-export interface CharactersUiModel { route_prefix: string; primitives: { escape(value: unknown): string } }
+export interface CharactersUiModel { route_prefix: string; primitives: { escape(value: unknown): string }; agent_display_model?: AgentDisplayModel }
 
 export interface CharactersSettingsUiModel {
   readonly projects: readonly { readonly project_id: string; readonly name: string; readonly href: string }[];
@@ -52,6 +54,7 @@ export function renderCharacters(model: CharactersUiModel): string {
         <div class="characters-empty" data-character-empty hidden><strong>${uiText("workbench.characters.empty")}</strong><p>${uiText("workbench.characters.empty-hint")}</p></div>
       </section>
       <section class="settings-section characters-block characters-builtin" aria-labelledby="characters-builtin-title" data-character-builtin data-character-builtin-api="/api/agent-definitions/roles" data-character-builtin-settings="/settings/prompts">
+        <script type="application/json" data-agent-display-model="roles">${scriptJson(model.agent_display_model ?? {})}</script>
         <header class="characters-block-head"><div><h2 id="characters-builtin-title">${uiText("workbench.characters.builtin")}</h2>
           <p class="characters-hint">${uiText("workbench.characters.builtin-hint")}</p></div></header>
         <div class="characters-rows" data-character-builtin-list role="list"><p class="characters-hint mw-loading">${uiText("workbench.characters.loading")}</p></div>

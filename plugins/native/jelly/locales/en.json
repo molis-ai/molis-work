@@ -252,6 +252,9 @@
     "jelly.week.wed": "Wed",
     "jelly.workspace.export": "Export workspace",
     "jelly.workspace.exported": "Workspace exported",
-    "jelly.workspace.updated": "Workspace updated"
+    "jelly.workspace.updated": "Workspace updated",
+    "jelly.agent-prompt.jelly-decompose.title": "Break into activities",
+    "jelly.agent-prompt.jelly-decompose.purpose": "Break original text into concrete activities that can be scheduled, asking questions when key facts are unclear",
+    "jelly.capability-library.jelly-note-create-v1.title": "New note"
   }
 }

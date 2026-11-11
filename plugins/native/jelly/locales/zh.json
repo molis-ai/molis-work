@@ -252,6 +252,9 @@
     "jelly.week.wed": "三",
     "jelly.workspace.export": "导出工作区",
     "jelly.workspace.exported": "工作区已导出",
-    "jelly.workspace.updated": "工作区已更新"
+    "jelly.workspace.updated": "工作区已更新",
+    "jelly.agent-prompt.jelly-decompose.title": "拆成事项",
+    "jelly.agent-prompt.jelly-decompose.purpose": "把一段原文拆成可以排进日历的具体事项，关键事实不明时提出问题",
+    "jelly.capability-library.jelly-note-create-v1.title": "新建笔记"
   }
 }

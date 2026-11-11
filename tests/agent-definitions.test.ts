@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -14,13 +14,20 @@ import { ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/ass
 import { DEFAULT_JUDGMENT_WORDING, fragmentCandidates } from "@molis-ai/molis-work-kernel/contextual";
 import { pagesActions } from "@molis-ai/molis-work-plugin-pages";
 import { codingManifest, codingPrompts } from "@molis-ai/molis-work-plugin-coding";
-import { AgentDefinitions, agentDefinitionsFor, agentRegistration } from "../apps/local-host/dist/agent-definitions/agent-definitions.js";
+import { AgentDefinitions, agentDefinitionsFor, agentRegistration, openedAgentDefinitions } from "../apps/local-host/dist/agent-definitions/agent-definitions.js";
 import { builtinAgents, builtinRegistrations } from "../apps/local-host/dist/agent-definitions/builtin-agents.js";
 import { handleContextualHttp, judgmentWording, judgmentWordingRevision } from "../apps/local-host/dist/contextual/contextual-http.js";
 import { bindPrologueInference } from "../apps/local-host/dist/prologue-inference-host.js";
 import { ASSISTANT_PROMPTS } from "../apps/local-host/dist/assistant/assistant-agent.js";
 
 const BASE_VERSION = ASSISTANT_PROMPTS.find(prompt => prompt.prompt_id === "assistant-base")!.version;
+
+test("FSS-35 an Agent display preview's cold lookup does not create an Agent store", async t => {
+  const home = await mkdtemp(join(tmpdir(), "agent-preview-cold-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  assert.equal(openedAgentDefinitions(home), undefined);
+  assert.deepEqual(await readdir(home), []);
+});
 
 function registry(now = () => new Date("2026-09-28T00:00:00.000Z")) {
   const definitions = new AgentDefinitions(new DatabaseSync(":memory:"), now);

@@ -8,6 +8,7 @@ import type { AgentManifest, AgentPromptText, AgentRoleExecution, AgentSkillDecl
 import { promptLayerOf } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { agentBodyIn, type InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { hostLog } from "../host-log.js";
+import { cloneAgentRegistration, rememberComposedRoles } from "./display-words.js";
 import {
   AGENT_PROMPT_MAX_CHARS,
   type AgentDefinitionRegistration, type AgentDefinitionSource, type AgentPromptRegistration, type AgentPromptRevision, type AgentPromptUse,
@@ -87,7 +88,7 @@ export class AgentDefinitions {
       if (!method.body.trim() || method.body.length > 20_000) throw agentDefinitionsErrors.invalid(`${registration.owner_id}/${method.skill_id} 的方法正文为空或过长`);
     }
     const declarations = this.scopes.get(registration.owner_id) ?? new Map();
-    declarations.set(scope, structuredClone(registration));
+    declarations.set(scope, cloneAgentRegistration(registration));
     this.scopes.set(registration.owner_id, declarations);
     this.refreshOwner(registration.owner_id);
   }
@@ -120,7 +121,7 @@ export class AgentDefinitions {
 
   hasPrompt(ownerId: string, promptId: string): boolean { return Boolean(this.owners.get(ownerId)?.prompts.some(prompt => prompt.prompt_id === promptId)); }
 
-  registrations(): AgentDefinitionRegistration[] { return [...this.owners.values()].map(value => structuredClone(value)); }
+  registrations(): AgentDefinitionRegistration[] { return [...this.owners.values()].map(cloneAgentRegistration); }
 
   /** What one installation registered, running or not, never the settings aggregation: the Skill catalog reads its bodies here. */
   installation(ownerId: string, installId: string): AgentDefinitionRegistration | undefined {
@@ -350,14 +351,18 @@ export function agentRegistration(ownerId: string, source: AgentDefinitionSource
   }
   const declared = new Map(manifest.prompts.map(prompt => [prompt.prompt_id, prompt]));
   const prompts: AgentPromptRegistration[] = texts.filter(text => declared.has(text.prompt_id) || roles.some(role => role.subagent && role.role_id === text.prompt_id)).map(text => {
-    const users = roles.filter(role => role.prompt_ids.includes(text.prompt_id)).map(role => role.name);
+    const composed = roles.filter(role => role.prompt_ids.includes(text.prompt_id));
+    const users = composed.map(role => role.name);
     const side = manifest.compaction?.prompt_id === text.prompt_id ? SIDE_PROMPTS.compaction : manifest.ending_review?.prompt_id === text.prompt_id ? SIDE_PROMPTS.ending_review : undefined;
     const layer = promptLayerOf(declared.get(text.prompt_id) ?? text);
     const named = names.prompts?.[text.prompt_id];
     const title = named?.title ?? side?.title ?? (layer === "base" ? "基础约束" : users.length === 1 ? users[0]! : text.prompt_id);
-    return { prompt_id: text.prompt_id, version: text.version, kind: "agent", layer, title,
-      purpose: named?.purpose ?? side?.purpose ?? (users.length ? `组成角色：${users.join("、")}` : "未被任何角色使用"),
+    const purpose = named?.purpose ?? side?.purpose;
+    const prompt: AgentPromptRegistration = { prompt_id: text.prompt_id, version: text.version, kind: "agent", layer, title,
+      purpose: purpose ?? (users.length ? `组成角色：${users.join("、")}` : "未被任何角色使用"),
       used_by: side ? [side.title] : users, body: text.body, ...(text.body_by_locale ? { body_by_locale: text.body_by_locale } : {}) };
+    if (purpose === undefined && composed.length) rememberComposedRoles(prompt, composed.map(role => role.role_id));
+    return prompt;
   });
   return { owner_id: ownerId, source, prompts, roles };
 }
@@ -365,6 +370,9 @@ export function agentRegistration(ownerId: string, source: AgentDefinitionSource
 export interface BuiltinAgent { owner_id: string; source: AgentDefinitionSource; manifest: AgentManifest; prompts: readonly AgentPromptText[]; skills?: readonly AgentSkillDefinition[] }
 
 const registries = new Map<string, AgentDefinitions>(), declarations = new Map<string, AgentDeclarations>();
+
+/** A language preview may inspect an already opened register; it must never create its stores. */
+export const openedAgentDefinitions = (homeDirectory: string): AgentDefinitions | undefined => registries.get(path.resolve(homeDirectory));
 
 /** Whether an owner's methods are offered: not while its plugin does not run (a remembered declaration, PG-051 RAC-196). */
 const offering = (owner: AgentDefinitionRegistration) => owner.source.kind !== "plugin" || owner.source.state !== "disabled";
@@ -422,7 +430,7 @@ export function declaredMethods(declared: readonly AgentSkillDeclaration[], bodi
 /** Instruction prompts as registrations, grouped under their owners and merged into any Agent registration of the same owner. */
 export function withInstructions(registrations: readonly AgentDefinitionRegistration[], instructions: readonly InstructionPrompt[],
   sourceOf: (ownerId: string) => AgentDefinitionSource): AgentDefinitionRegistration[] {
-  const merged = new Map(registrations.map(registration => [registration.owner_id, structuredClone(registration)]));
+  const merged = new Map(registrations.map(registration => [registration.owner_id, cloneAgentRegistration(registration)]));
   for (const instruction of instructions) {
     const owner = merged.get(instruction.owner_id) ?? { owner_id: instruction.owner_id, source: sourceOf(instruction.owner_id), prompts: [], roles: [] };
     owner.prompts.push({ prompt_id: instruction.prompt_id, version: instruction.version, kind: "instruction", title: instruction.title, purpose: instruction.purpose,

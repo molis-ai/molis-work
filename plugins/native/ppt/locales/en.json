@@ -110,6 +110,12 @@
         "other": "{count} slides"
       }
     },
-    "ppt.slides.heading": "Slides"
+    "ppt.slides.heading": "Slides",
+    "ppt.agent-prompt.ppt-draft-outline.title": "Organize an outline",
+    "ppt.agent-prompt.ppt-draft-outline.purpose": "Organize the user’s text into a slide outline",
+    "ppt.capability-library.ppt-create-v1.title": "New deck",
+    "ppt.capability-library.ppt-files-entries-v1.title": "Presentation",
+    "ppt.capability-library.ppt-placement-copy-v1.title": "Presentation",
+    "ppt.capability-library.ppt-placement-move-v1.title": "Presentation"
   }
 }

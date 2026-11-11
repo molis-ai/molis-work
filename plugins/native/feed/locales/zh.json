@@ -374,6 +374,14 @@
     "feed.ui.what-wrote-still-here-not-saved-yet": "你写的都还在，还没存。",
     "feed.ui.what-wrote-still-here-preview-again-draft-rebuilt": "你写的都还在。重新预览一次，草稿就会再建好。",
     "feed.ui.which-messages-deserve-attention": "什么样的消息值得关注？",
-    "feed.ui.wrote": "你写的"
+    "feed.ui.wrote": "你写的",
+    "feed.capability-library.feed-items-admit-v1.title": "加入 Inbox",
+    "feed.capability-library.feed-items-inbox-v1.title": "加入 Inbox",
+    "feed.capability-library.feed-items-promote-v1.title": "升格为 Goal",
+    "feed.capability-library.feed-items-restore-v1.title": "恢复到 Feed",
+    "feed.capability-library.feed-rules-evaluate-v1.title": "处理已有消息",
+    "feed.capability-library.feed-sources-delete-v1.title": "删除来源",
+    "feed.capability-library.feed-sources-register-v1.title": "添加来源",
+    "feed.capability-library.feed-sources-sync-v1.title": "立即拉取"
   }
 }

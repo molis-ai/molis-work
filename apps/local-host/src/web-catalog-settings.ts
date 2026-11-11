@@ -17,7 +17,9 @@ import { selectedTypeSafeConnection } from "./typesafe-connection.js";
 import { molisWorkHostProjectReference } from "./project-host.js";
 import { shownProjectPlugins } from "./plugin-registry.js";
 import { sendLocalWebJson as sendJson } from "./web-http.js";
-import { readText } from "./web-locale.js";
+import { readText, currentLocale, inLanguagePreview } from "./web-locale.js";
+import { openedAgentDefinitions } from "./agent-definitions/agent-definitions.js";
+import { agentDisplayModel } from "./agent-definitions/display-words.js";
 import type { LocalWebComposition } from "./web-composition.js";
 import type { CatalogRequestContext } from "./web-catalog-routes.js";
 
@@ -89,6 +91,8 @@ export async function handleSettingsPage(ctx: CatalogRequestContext): Promise<bo
   });
   response.end(renderMolisWorkSettings({
     section,
+    ...(section === "prompts" && serverOptions.homeDirectory && inLanguagePreview()
+      ? { agent_display_model: agentDisplayModel(openedAgentDefinitions(serverOptions.homeDirectory)?.registrations() ?? [], currentLocale() ?? undefined) } : {}),
     capabilities: capabilities ? { ...capabilities, rules } : undefined,
     ...(characters ? { plugin_settings_html: characters.html } : {}),
     ...(capabilitySection === "connections" && serverOptions.homeDirectory ? { functions_settings: {

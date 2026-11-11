@@ -263,6 +263,17 @@
     "todo.work.paused": "已暂停",
     "todo.work.stopped": "已停止",
     "todo.work.waiting-input": "等你回答",
-    "todo.work.waiting-review": "等你确认"
+    "todo.work.waiting-review": "等你确认",
+    "todo.agent-role.organizer.name": "待办整理师",
+    "todo.agent-role.organizer.purpose": "待办整理师（可调用业务能力）",
+    "todo.agent-prompt.todo-organizer.title": "待办整理师",
+    "todo.agent-prompt.todo-organize-basic.title": "整理材料里的待办",
+    "todo.agent-prompt.todo-organize-basic.purpose": "从用户选定的材料里识别要用户处理的事、用户的承诺、在等别人的事和可考虑的建议，并与已有待办比对；不编造责任人、日期、优先级或完成状态",
+    "todo.agent-prompt.todo-organize-organizer.title": "待办整理师的整理方法",
+    "todo.agent-prompt.todo-organize-organizer.purpose": "在基本整理之外，查找隐含期待、随口承诺和未指派的行动项，分清负责与参与，并给出安排建议；仍然不编造、不直接写入",
+    "todo.capability-library.todo-placement-move-v1.title": "待办",
+    "todo.capability-library.todo-reminders-acknowledge-v1.title": "知道了",
+    "todo.capability-library.todo-reminders-due-v1.title": "到了时间的提醒",
+    "todo.capability-library.todo-reminders-window-v1.title": "到期提醒"
   }
 }

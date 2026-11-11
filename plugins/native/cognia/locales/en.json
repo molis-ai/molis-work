@@ -117,6 +117,10 @@
     "cognia.status.new": "Add",
     "cognia.status.skipped": "skipped",
     "cognia.status.unchanged": "Unchanged",
-    "cognia.status.update": "Update"
+    "cognia.status.update": "Update",
+    "cognia.agent-prompt.cognia-answer.title": "Organize knowledge and answer questions",
+    "cognia.agent-prompt.cognia-answer.purpose": "Organize or answer using only the selected fixed material versions and cite sources with markers such as [S1]",
+    "cognia.agent-prompt.cognia-evidence.title": "Knowledge assistant role",
+    "cognia.agent-prompt.cognia-evidence.purpose": "Role instructions for Cognia’s knowledge organization and question-answering runs"
   }
 }

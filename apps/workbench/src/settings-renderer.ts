@@ -91,7 +91,7 @@ function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "",
         : view.section === "assistant"
           ? renderAssistantSettings({ readText, projectId: contextProject?.project_id ?? null })
         : view.section === "skills" ? renderSkillSettings(null)
-        : view.section === "prompts" ? renderPromptSettings({ readText })
+        : view.section === "prompts" ? renderPromptSettings({ readText, displayModel: view.agent_display_model })
         : view.section === "memory"
           ? renderMemorySettings({ readText, scope: "personal", projectId: null })
         : view.section === "directories" ? renderLocalDirectorySettings({ readText })

@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
+import type { IncomingMessage } from "node:http";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
-import { ASSISTANT_STORE_NAME, AssistantStore, hostTextProblems, pluginPagesFor, projectDeletedHooksFor, runWithLocale } from "@molis-ai/molis-work-app-local-host";
+import { ASSISTANT_STORE_NAME, AssistantStore, homeAgentDefinitions, hostTextProblems, pluginPagesFor, projectDeletedHooksFor, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import { escapeHtml, format, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
@@ -1244,4 +1245,117 @@ test("FSS-07 the first visible discussion uses the already selected appearance",
   assert.match(await b.evaluate<string>(`${frame}.contentWindow.getComputedStyle(${frame}.contentDocument.body).fontFamily`), /Nunito Variable/u);
   await b.command("Fetch.disable", {}, b.sessionId);
   assert.deepEqual(interceptErrors, []);
+});
+
+// FSS-35/36: a delayed response still carries the real old-language prompt body and original facts. Only the selected display words change.
+test("FSS-35 catalog Agent display retains a real role and prompt draft through language changes and a late read", { timeout: 120_000 }, async t => {
+  const b = await openGoalBrowser(t, "seeded", undefined, null); assert.ok(b?.projectId);
+  const path = `/projects/${b.projectId}/`, go = (next: string) => b.navigate(() => b.command("Page.navigate", { url: b.origin + next }, b.sessionId));
+  await go(path);
+  // A same-ID/version generated registration keeps its original display words, even if they spell a built-in word.
+  const definitions = homeAgentDefinitions(b.homeDirectory), coding = definitions.registrations().find(row => row.owner_id === "io.molis.work.coding");
+  assert.ok(coding?.source.kind === "plugin");
+  definitions.register({ ...coding, source: { ...coding.source, origin: "generated", publisher_signature: "fixture-signed-source" },
+    roles: coding.roles.map(role => role.role_id === "planner" ? { ...role, name: "评论中的个人助理" } : role) }, "fixture-signed-installation");
+  const roleKey = "io.molis.work.assistant/role:thread-reply", promptKey = "io.molis.work.assistant/assistant-thread";
+  const link = `.characters-builtin-item[href*="role=${encodeURIComponent(roleKey)}"]`;
+  const raw = `.characters-builtin-item[href*="role=${encodeURIComponent("io.molis.work.coding/role:planner")}"]`;
+  const row = `[data-prompt-body] [data-key=${JSON.stringify(promptKey)}]`;
+  const reads: string[] = [];
+  const observe = (request: IncomingMessage) => {
+    if (request.method === "GET" && request.url?.startsWith("/api/agent-definitions/")) reads.push(request.url);
+  };
+  b.server.on("request", observe); t.after(() => { b.server.off("request", observe); });
+  await go(path + "?settings=characters");
+  await b.waitFor(`document.querySelector(${JSON.stringify(link)})?.checkVisibility()`);
+  await b.evaluate(`void (() => { window.catalogRole = document.querySelector(${JSON.stringify(link)}); window.catalogRawRole = document.querySelector(${JSON.stringify(raw)}); })()`);
+  assert.equal(await b.evaluate("catalogRole.querySelector('strong').textContent"), "评论中的个人助理");
+  assert.equal(await b.evaluate("catalogRawRole.querySelector('strong').textContent"), "评论中的个人助理");
+  const pending = Promise.withResolvers<{ requestId: string; responseStatusCode: number }>();
+  const stop = b.on("Fetch.requestPaused", (event, session) => {
+    if (session === b.sessionId) pending.resolve({ requestId: String(event.requestId), responseStatusCode: Number(event.responseStatusCode) });
+  });
+  await b.command("Fetch.enable", { patterns: [{ urlPattern: b.origin + "/api/agent-definitions/prompts", requestStage: "Response" }] }, b.sessionId);
+  let select: (target: "zh" | "en") => Promise<void>;
+  let originalBody: string;
+  try {
+    await b.click(link);
+    const held = await pending.promise; assert.equal(held.responseStatusCode, 200);
+    const old = await b.command<{ body: string; base64Encoded: boolean }>("Fetch.getResponseBody", { requestId: held.requestId }, b.sessionId);
+    const bytes = Buffer.from(old.body, old.base64Encoded ? "base64" : "utf8");
+    const payload = JSON.parse(bytes.toString("utf8")) as { prompts: Array<{ key: string; title: string; purpose: string; body: string }> };
+    const original = payload.prompts.find(item => item.key === promptKey);
+    assert.ok(original); assert.equal(original.title, "基础约束"); assert.equal(original.purpose, "组成角色：评论中的个人助理"); originalBody = original.body;
+    const before = reads.slice();
+    select = await chooseEnglishInSettings(t, b);
+    await b.waitFor("document.documentElement.lang === 'en'");
+    assert.deepEqual(reads, before, "the language preparation did not reread the held prompt list");
+    await b.command("Fetch.fulfillRequest", { requestId: held.requestId, responseCode: held.responseStatusCode,
+      responseHeaders: [{ name: "content-type", value: "application/json; charset=utf-8" }], body: bytes.toString("base64") }, b.sessionId);
+  } finally { stop(); await b.command("Fetch.disable", {}, b.sessionId).catch(() => undefined); }
+  await b.waitFor(`document.querySelector(${JSON.stringify(row + " textarea")})?.value.length > 0`);
+  const words = `(() => { const row = document.querySelector(${JSON.stringify(row)}); return [catalogRole.querySelector('strong').textContent, catalogRawRole.querySelector('strong').textContent,
+    document.querySelector('.prompt-role-focus-copy strong').textContent, row.querySelector('.prompt-row-copy strong').textContent, row.querySelector('.prompt-row-copy .settings-muted').textContent, row.querySelector('textarea').getAttribute('aria-label')]; })()`;
+  const english = ["Personal assistant in comments", "评论中的个人助理", "Personal assistant in comments", "Base constraints", "Composes role: Personal assistant in comments", "Edit Base constraints"];
+  assert.deepEqual(await b.evaluate(words), english);
+  assert.equal(await b.evaluate(`document.querySelector(${JSON.stringify(row + " textarea")}).value`), originalBody);
+  await b.evaluate(`void (() => { const row = document.querySelector(${JSON.stringify(row)}), area = row.querySelector('textarea'), history = row.querySelector('.prompt-history');
+    area.value = '未保存草稿 <raw> English'; area.dispatchEvent(new Event('input', { bubbles: true })); area.focus(); area.setSelectionRange(2, 9, 'backward'); history.open = true;
+    window.catalogEditor = { body: document.body, row, area, history, banner: document.querySelector('.prompt-role-focus-copy strong') }; })()`);
+  await b.waitFor("!!catalogEditor.history.querySelector('ul')");
+  const before = reads.slice();
+  for (const locale of ["zh", "en"] as const) {
+    await select(locale); await b.waitFor(`document.documentElement.lang === '${locale === "zh" ? "zh-CN" : "en"}'`);
+    assert.deepEqual(await b.evaluate(words), locale === "en" ? english
+      : ["评论中的个人助理", "评论中的个人助理", "评论中的个人助理", "基础约束", "组成角色：评论中的个人助理", "编辑：基础约束"]);
+    assert.deepEqual(await b.evaluate(`(() => { const { body, row, area, history, banner } = catalogEditor; return [body === document.body, row === document.querySelector(${JSON.stringify(row)}),
+      row.querySelector('textarea') === area, row.querySelector('.prompt-history') === history, banner === document.querySelector('.prompt-role-focus-copy strong'),
+      catalogRole === document.querySelector(${JSON.stringify(link)}), catalogRawRole === document.querySelector(${JSON.stringify(raw)}),
+      history.open, document.activeElement === area, area.value, area.selectionStart, area.selectionEnd, area.selectionDirection]; })()`),
+    [true, true, true, true, true, true, true, true, true, "未保存草稿 <raw> English", 2, 9, "backward"]);
+  }
+  assert.deepEqual(reads, before, "the existing previews retitle in place without another Agent definitions read");
+});
+
+test("FSS-35 approved library titles and Assistant settings words preserve exact actions in both languages", { timeout: 120_000 }, async t => {
+  const b = await openGoalBrowser(t, "seeded", undefined, null); assert.ok(b?.projectId);
+  const go = (path: string) => b.navigate(() => b.command("Page.navigate", { url: b.origin + path }, b.sessionId));
+  await go(`/projects/${b.projectId}/?settings=assistant`);
+  await b.waitFor("[...document.querySelectorAll('[data-assistant-capabilities] .prompt-tag')].some(node => node.textContent === '修改')");
+  await b.evaluate(`void (() => { const rows = [...document.querySelectorAll('[data-assistant-capabilities] .assistant-capability')];
+    window.catalogSettings = ['读取','修改'].map(word => { const row = rows.find(node => node.querySelector('.prompt-tag')?.textContent === word);
+      return { row, toggle: row.querySelector('[role=switch]'), title: row.querySelector('.prompt-row-copy strong').textContent }; });
+    catalogSettings[0].toggle.focus(); })()`);
+  const effects = `catalogSettings.map(({row,toggle,title}, index) => [row.isConnected && row.querySelector('[role=switch]') === toggle, toggle.checked, title,
+    row.querySelector('.prompt-row-copy strong').textContent, row.querySelector('.prompt-tag').textContent, toggle.getAttribute('aria-label'), index !== 0 || document.activeElement === toggle])`;
+  const before = await b.evaluate<Array<[boolean, boolean, string, string, string, string, boolean]>>(effects);
+  const select = await chooseEnglishInSettings(t, b);
+  for (const locale of ["en", "zh"] as const) {
+    if (locale === "zh") await select("zh");
+    await b.waitFor(`document.documentElement.lang === '${locale === "en" ? "en" : "zh-CN"}'`);
+    assert.deepEqual(await b.evaluate(effects), before.map(([, checked, title], i) => [true, checked, title, title,
+      (locale === "en" ? ["Read", "Edit"] : ["读取", "修改"])[i], (locale === "en" ? checked ? "Disable " : "Enable " : checked ? "关闭：" : "打开：") + title, true]));
+  }
+  const cases = [
+    ["account.seat.assign", "system.account", "分配席位", "Assign seat"],
+    ["alchemist.memory.playbook.revise", "io.molis.work.alchemist", "修改研究方法", "Edit research method"],
+    ["dataset.create", "io.molis.work.dataset", "新建数据表", "New table"],
+    ["goals.list", "io.molis.work.goals", "目标目录", "Target directory"],
+    ["todo.reminders.due", "io.molis.work.todo", "到了时间的提醒", "Reminders due"],
+  ];
+  const ids = cases.map(([id, provider]) => `library-index-${provider}:${id}@1`);
+  const detail = "library-detail-io.molis.work.dataset:dataset.create@1";
+  const library = `/capabilities/library?project=${encodeURIComponent(b.projectId)}`;
+  await go(library + "&action=dataset.create&version=1");
+  await b.waitFor(`!!document.getElementById(${JSON.stringify(detail)})`);
+  const titles = `[...${JSON.stringify(ids)}, ${JSON.stringify(detail)}].map(id => document.getElementById(id)?.textContent)`;
+  assert.deepEqual(await b.evaluate(titles), [...cases.map(row => row[2]), "新建数据表"]);
+  assert.match(await b.evaluate<string>("document.querySelector('.capability-detail').textContent"), /dataset\.create@1/u);
+  await b.evaluate(`void (window.catalogLibrary = [...${JSON.stringify(ids)}, ${JSON.stringify(detail)}].map(id => document.getElementById(id)))`);
+  await select("en"); await b.waitFor("document.documentElement.lang === 'en'");
+  assert.deepEqual(await b.evaluate(titles), [...cases.map(row => row[3]), "New table"]);
+  assert.ok(await b.evaluate("catalogLibrary.every(node => document.getElementById(node.id) === node)"));
+  await go(library + "&q=" + encodeURIComponent("新建数据表"));
+  await b.waitFor(`!!document.getElementById(${JSON.stringify(ids[2])})`);
+  assert.equal(await b.evaluate(`document.getElementById(${JSON.stringify(ids[2])}).textContent`), "New table", "the library still searches the original declaration");
 });

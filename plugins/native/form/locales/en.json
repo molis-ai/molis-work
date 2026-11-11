@@ -162,6 +162,13 @@
     "form.type.multi": "Multiple choice",
     "form.type.rating": "Rating",
     "form.type.single": "Single choice",
-    "form.type.text": "Text"
+    "form.type.text": "Text",
+    "form.agent-prompt.form-draft-questions.title": "Draft questions",
+    "form.agent-prompt.form-draft-questions.purpose": "Draft survey questions from the user’s request; ask a few choice questions first when the audience, number of questions or purpose is unclear",
+    "form.capability-library.form-create-v1.title": "New form",
+    "form.capability-library.form-placement-copy-v1.title": "Form",
+    "form.capability-library.form-placement-move-v1.title": "Form",
+    "form.capability-library.form-questions-add-v1.title": "Add this question",
+    "form.capability-library.form-questions-draft-v1.title": "Draft questions with AI"
   }
 }

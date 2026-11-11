@@ -96,6 +96,10 @@
     "lingguang.save.retry": "重试保存",
     "lingguang.save.saved": "已保存",
     "lingguang.save.saving": "保存中…",
-    "lingguang.save.unsaved": "尚未保存"
+    "lingguang.save.unsaved": "尚未保存",
+    "lingguang.agent-prompt.lingguang-conversation.title": "围绕灵光对话",
+    "lingguang.agent-prompt.lingguang-conversation.purpose": "联系选中的灵光与对话历史，给出具体、可推进的回应",
+    "lingguang.capability-library.lingguang-placement-copy-v1.title": "灵光",
+    "lingguang.capability-library.lingguang-placement-move-v1.title": "灵光"
   }
 }

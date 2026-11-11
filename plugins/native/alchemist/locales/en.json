@@ -295,6 +295,20 @@
     "alchemist.work-reuse-client.use-available-model": "Use an available model",
     "alchemist.work-reuse-client.what-corrected-time": "What you corrected this time",
     "alchemist.work-reuse-client.what-had-re-explain-time": "What you had to re-explain this time",
-    "alchemist.work-reuse-client.what-still-needed-preparing-time": "What still needed preparing this time"
+    "alchemist.work-reuse-client.what-still-needed-preparing-time": "What still needed preparing this time",
+    "alchemist.agent-prompt.alchemist-reuse.title": "Check whether prior work applies",
+    "alchemist.agent-prompt.alchemist-reuse.purpose": "Assess the conditions and risks of applying historical results and confirmed methods to the current task",
+    "alchemist.agent-prompt.alchemist-format-correction.title": "Correct JSON format",
+    "alchemist.agent-prompt.alchemist-format-correction.purpose": "Correct the model output format once, only when the budget explicitly allows it",
+    "alchemist.agent-prompt.alchemist-synthesis.title": "Synthesize research findings",
+    "alchemist.agent-prompt.alchemist-synthesis.purpose": "Use research judgments to produce a summary with evidence and conditions for use",
+    "alchemist.agent-prompt.alchemist-copilot.title": "Founder Copilot",
+    "alchemist.agent-prompt.alchemist-copilot.purpose": "Continue the discussion around the current object and known material",
+    "alchemist.agent-prompt.alchemist-exploration.title": "Draft Ideas",
+    "alchemist.agent-prompt.alchemist-exploration.purpose": "Turn a Direction into a grounded understanding of the direction and candidate Ideas",
+    "alchemist.agent-prompt.alchemist-cross-check.title": "Cross-check evidence",
+    "alchemist.agent-prompt.alchemist-cross-check.purpose": "Form grounded judgments that can be calibrated along the specified research dimensions",
+    "alchemist.capability-library.alchemist-memory-playbook-revise-v1.title": "Edit research method",
+    "alchemist.capability-library.alchemist-proposals-pending-v1.title": "Review pending methods"
   }
 }

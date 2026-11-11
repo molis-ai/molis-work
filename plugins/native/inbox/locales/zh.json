@@ -86,6 +86,7 @@
     "inbox.ui.verify-first": "先核查",
     "inbox.ui.view-original-message": "查看原消息",
     "inbox.ui.why-entered-inbox": "为什么进入 Inbox",
-    "inbox.ui.write-materials-pages": "整理材料到 Pages"
+    "inbox.ui.write-materials-pages": "整理材料到 Pages",
+    "inbox.capability-library.inbox-pages-generate-v1.title": "整理成文稿"
   }
 }

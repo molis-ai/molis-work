@@ -86,6 +86,7 @@
     "inbox.ui.verify-first": "Verify first",
     "inbox.ui.view-original-message": "View original message",
     "inbox.ui.why-entered-inbox": "Why it entered Inbox",
-    "inbox.ui.write-materials-pages": "Write from materials in Pages"
+    "inbox.ui.write-materials-pages": "Write from materials in Pages",
+    "inbox.capability-library.inbox-pages-generate-v1.title": "Create a document"
   }
 }

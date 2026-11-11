@@ -64,6 +64,8 @@
     "files.snapshot.title": "Pinned snapshots",
     "files.stage.empty-body": "Choose a file from the folder to read it, save a selection, or pin two snapshots to compare.",
     "files.stage.empty-title": "Open a file to start reading",
-    "files.stage.manage": "Inputs and output settings"
+    "files.stage.manage": "Inputs and output settings",
+    "files.capability-library.files-side-content-v1.title": "Workspace files",
+    "files.capability-library.files-side-entries-v1.title": "Workspace files"
   }
 }

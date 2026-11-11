@@ -295,6 +295,20 @@
     "alchemist.work-reuse-client.use-available-model": "使用可用模型",
     "alchemist.work-reuse-client.what-corrected-time": "本次纠正了什么",
     "alchemist.work-reuse-client.what-had-re-explain-time": "本次重新解释了什么",
-    "alchemist.work-reuse-client.what-still-needed-preparing-time": "本次仍需准备什么"
+    "alchemist.work-reuse-client.what-still-needed-preparing-time": "本次仍需准备什么",
+    "alchemist.agent-prompt.alchemist-reuse.title": "检查成果适用性",
+    "alchemist.agent-prompt.alchemist-reuse.purpose": "评估历史成果与已确认方法在当前任务中的适用条件和风险",
+    "alchemist.agent-prompt.alchemist-format-correction.title": "修正 JSON 格式",
+    "alchemist.agent-prompt.alchemist-format-correction.purpose": "仅在预算明确允许时修正一次模型输出格式",
+    "alchemist.agent-prompt.alchemist-synthesis.title": "综合研究结论",
+    "alchemist.agent-prompt.alchemist-synthesis.purpose": "根据研究判断生成有证据和适用条件的总结",
+    "alchemist.agent-prompt.alchemist-copilot.title": "Founder Copilot",
+    "alchemist.agent-prompt.alchemist-copilot.purpose": "围绕当前对象和已知材料继续讨论",
+    "alchemist.agent-prompt.alchemist-exploration.title": "生成 Idea 草案",
+    "alchemist.agent-prompt.alchemist-exploration.purpose": "将 Direction 转为有依据的方向理解和 Idea 候选",
+    "alchemist.agent-prompt.alchemist-cross-check.title": "交叉检查证据",
+    "alchemist.agent-prompt.alchemist-cross-check.purpose": "按指定研究维度形成有依据且可校准的判断",
+    "alchemist.capability-library.alchemist-memory-playbook-revise-v1.title": "修改研究方法",
+    "alchemist.capability-library.alchemist-proposals-pending-v1.title": "继续待确认方法"
   }
 }

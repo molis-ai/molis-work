@@ -422,6 +422,14 @@
     "feed.ui.what-wrote-still-here-not-saved-yet": "What you wrote is still here, not saved yet.",
     "feed.ui.what-wrote-still-here-preview-again-draft-rebuilt": "What you wrote is still here. Preview again and the draft is rebuilt.",
     "feed.ui.which-messages-deserve-attention": "Which messages deserve attention?",
-    "feed.ui.wrote": "You wrote"
+    "feed.ui.wrote": "You wrote",
+    "feed.capability-library.feed-items-admit-v1.title": "Add to Inbox",
+    "feed.capability-library.feed-items-inbox-v1.title": "Add to Inbox",
+    "feed.capability-library.feed-items-promote-v1.title": "Promote to Goal",
+    "feed.capability-library.feed-items-restore-v1.title": "Restore to Feed",
+    "feed.capability-library.feed-rules-evaluate-v1.title": "Apply to existing messages",
+    "feed.capability-library.feed-sources-delete-v1.title": "Delete source",
+    "feed.capability-library.feed-sources-register-v1.title": "Add source",
+    "feed.capability-library.feed-sources-sync-v1.title": "Pull now"
   }
 }

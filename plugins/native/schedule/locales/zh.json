@@ -115,6 +115,14 @@
     "schedule.turn.assistant": "Agent",
     "schedule.turn.important": "重要",
     "schedule.turn.instructions": "说明",
-    "schedule.turn.system": "系统"
+    "schedule.turn.system": "系统",
+    "schedule.agent-role.reader.name": "只读执行",
+    "schedule.agent-role.reader.purpose": "只读执行（只读）",
+    "schedule.agent-role.brief.name": "读数据执行",
+    "schedule.agent-role.brief.purpose": "读数据执行（只读）",
+    "schedule.agent-prompt.schedule-base.title": "基础约束",
+    "schedule.agent-prompt.schedule-reader.title": "只读执行",
+    "schedule.agent-prompt.schedule-brief.title": "读数据执行",
+    "schedule.capability-library.schedule-tasks-create-v1.title": "新建定时任务"
   }
 }

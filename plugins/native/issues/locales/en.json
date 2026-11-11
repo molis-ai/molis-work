@@ -106,6 +106,10 @@
     "issues.skill.issues-capture.name": "Record and manage personal issues",
     "issues.skill.issues-capture.description": "Use when the user asks to record, view, edit or delete a personal issue. Record only issues the user raises; do not diagnose causes or propose solutions.",
     "issues.skill.issues-capture.when-to-use": "The user explicitly wants to save an issue or view, edit or delete a recorded personal issue.",
-    "issues.skill.issues-capture.when-not-to-use": "Do not use for diagnosis, repairs, solution writing, an unrequested record, or shared team tickets."
+    "issues.skill.issues-capture.when-not-to-use": "Do not use for diagnosis, repairs, solution writing, an unrequested record, or shared team tickets.",
+    "issues.agent-prompt.issues-name.title": "Name an Issue",
+    "issues.agent-prompt.issues-name.purpose": "Create a title and classify the Issue from the user’s description and screenshots; ask one question if the evidence is insufficient",
+    "issues.capability-library.issues-create-v1.title": "Record an issue",
+    "issues.capability-library.issues-delete-v1.title": "Delete issue"
   }
 }

@@ -92,6 +92,12 @@
     "ppt.slide.up": "上移",
     "ppt.slides.add": "加一页",
     "ppt.slides.count": "{count} 页",
-    "ppt.slides.heading": "幻灯片"
+    "ppt.slides.heading": "幻灯片",
+    "ppt.agent-prompt.ppt-draft-outline.title": "整理大纲",
+    "ppt.agent-prompt.ppt-draft-outline.purpose": "把用户给的一段文字整理成幻灯片大纲",
+    "ppt.capability-library.ppt-create-v1.title": "新建演示稿",
+    "ppt.capability-library.ppt-files-entries-v1.title": "演示稿",
+    "ppt.capability-library.ppt-placement-copy-v1.title": "演示稿",
+    "ppt.capability-library.ppt-placement-move-v1.title": "演示稿"
   }
 }

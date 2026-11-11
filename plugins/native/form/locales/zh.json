@@ -126,6 +126,13 @@
     "form.type.multi": "多选",
     "form.type.rating": "评分",
     "form.type.single": "单选",
-    "form.type.text": "填空"
+    "form.type.text": "填空",
+    "form.agent-prompt.form-draft-questions.title": "生成题目",
+    "form.agent-prompt.form-draft-questions.purpose": "按用户的要求为问卷拟几道题；不清楚给谁填、要多少题或用来做什么时，先问几个选择题",
+    "form.capability-library.form-create-v1.title": "新建问卷",
+    "form.capability-library.form-placement-copy-v1.title": "问卷",
+    "form.capability-library.form-placement-move-v1.title": "问卷",
+    "form.capability-library.form-questions-add-v1.title": "按题目加题",
+    "form.capability-library.form-questions-draft-v1.title": "AI 生成题目"
   }
 }

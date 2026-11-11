@@ -98,6 +98,7 @@
     "images.status.retry-help": "可以复用提示词，调整服务配置后再次生成。再次生成会发起新的请求。",
     "images.status.running": "生成中",
     "images.status.succeeded": "已生成",
-    "images.status.waiting": "正在等待服务生成图片，可以离开此页后再回来查看。"
+    "images.status.waiting": "正在等待服务生成图片，可以离开此页后再回来查看。",
+    "images.capability-library.images-jobs-start-v1.title": "生成图片"
   }
 }

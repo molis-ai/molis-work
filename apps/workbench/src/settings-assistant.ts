@@ -117,10 +117,10 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
         const copy = el("div", "prompt-row-copy");
         copy.append(el("strong", "", row.title), el("span", "settings-muted", (row.description || "")));
         const meta = el("div", "prompt-row-meta");
-        meta.append(el("span", "prompt-tag", globalThis.t.text(EFFECT[row.effect] || row.effect)));
+        meta.append(el("span", "prompt-tag", EFFECT[row.effect] ? globalThis.t.text(EFFECT[row.effect]) : row.effect));
         const control = el("span", "mw-switch"), toggle = el("input"); toggle.type = "checkbox"; toggle.setAttribute("role", "switch"); toggle.checked = row.enabled;
         const track = el("span", "mw-switch__track"); track.setAttribute("aria-hidden", "true"); control.append(toggle, track);
-        toggle.setAttribute("aria-label", (row.enabled ? globalThis.t.text("common.control.close") : globalThis.t.text("common.control.open")) + "：" + row.title);
+        toggle.setAttribute("aria-label", globalThis.t.text(row.enabled ? "workbench.settings-assistant.disable-capability" : "workbench.settings-assistant.enable-capability", { title: row.title }));
         toggle.addEventListener("change", async () => {
           toggle.disabled = true;
           try { await api("/capabilities", { capability_id: row.capability_id, version: row.version, provider_id: row.provider_id, enabled: toggle.checked }); row.enabled = toggle.checked; paint(); }
@@ -212,7 +212,7 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
       copy.append(el("strong", "", rule.label), el("span", "settings-muted", describe(rule) + (expired ? " · " + globalThis.t.text("workbench.settings-assistant.expired") : "")));
       const control = el("span", "mw-switch"), toggle = el("input"); toggle.type = "checkbox"; toggle.setAttribute("role", "switch"); toggle.checked = rule.enabled;
       const track = el("span", "mw-switch__track"); track.setAttribute("aria-hidden", "true"); control.append(toggle, track);
-      toggle.setAttribute("aria-label", globalThis.t.text("workbench.settings-assistant.enable") + "：" + rule.label);
+      toggle.setAttribute("aria-label", globalThis.t.text("workbench.settings-assistant.enable-rule", { label: rule.label }));
       toggle.addEventListener("change", () => run(() => rulesApi("/rules", { rule_id: rule.rule_id, rule: Object.assign({}, rule, { enabled: toggle.checked }) })));
       const remove = el("button", "mw-btn mw-btn--ghost mw-btn--sm", globalThis.t.text("common.control.delete")); remove.type = "button";
       remove.addEventListener("click", () => run(() => rulesApi("/rules/remove", { rule_id: rule.rule_id })));

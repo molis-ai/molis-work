@@ -1,10 +1,13 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import type { AgentDisplayModel } from "./settings-view.js";
+import { scriptJson } from "./plugin-directory.js";
 /**
  * “Prompt 与 Character”: every prompt and role the Host registers — the system's, and each Plugin's — with the
  * person's edits. Editing changes the words a model reads from its next run on; it never changes what a role may do.
  */
-export function renderPromptSettings({ }: { readText(text: string): string }): string {
+export function renderPromptSettings({ displayModel }: { readText(text: string): string; displayModel?: AgentDisplayModel }): string {
   return `<section class="settings-document prompt-settings" aria-labelledby="settings-title" data-prompt-settings>
+    <script type="application/json" data-agent-display-model="prompts">${scriptJson(displayModel ?? {})}</script>
     <header class="settings-heading"><div class="settings-heading-title"><h1 id="settings-title">${uiText("workbench.settings-prompts.prompts")}</h1></div>
       <p>${uiText("workbench.settings-prompts.instructions-system-plugins-give-model-characters-made-some")}</p></header>
     <p class="prompt-settings-notice" role="note">${uiText("workbench.settings-prompts.editing-these-texts-never-changes-any-permission-which")}</p>
@@ -40,6 +43,21 @@ globalThis.molisWorkBindPromptSettings = (container = document, context = null) 
   let focusRole = new URLSearchParams(address.search || "").get("role");
   const focusedRole = () => focusRole ? roles.find((role) => role.key === focusRole) : undefined;
   const el = (tag, className, text) => { const node = document.createElement(tag); if (className) node.className = className; if (text !== undefined) node.textContent = text; return node; };
+  let displayJson = "", displayModel = {};
+  const display = (kind, record, field) => {
+    const json = root.querySelector("script[data-agent-display-model]")?.textContent || "{}";
+    if (json !== displayJson) { displayJson = json; displayModel = JSON.parse(json); }
+    const owner = displayModel[record.owner_id], row = owner?.[kind][kind === "roles" ? record.role_id : record.prompt_id];
+    return owner && row && row.version === (kind === "roles" ? record.version : record.default_version) && JSON.stringify(owner.source) === JSON.stringify(record.source) ? row[field] : record[field];
+  };
+  const bindDisplay = (node, kind, record) => {
+    Object.assign(node.dataset, { agentDisplayOwner: record.owner_id, agentDisplayKind: kind, agentDisplayId: kind === "roles" ? record.role_id : record.prompt_id,
+      agentDisplayVersion: String(kind === "roles" ? record.version : record.default_version), agentDisplaySource: JSON.stringify(record.source) });
+    return node;
+  };
+  const displayField = (tag, className, kind, record, field) => {
+    const node = el(tag, className, display(kind, record, field)); node.translate = false; node.dataset.agentDisplayField = field; return node;
+  };
   const api = (path, payload) => molisWorkRequest("/api/agent-definitions" + path, { body: payload });
   const problem = (failure) => { const note = el("p", "settings-form-error"); molisWorkRequest.show(note, failure); return note; };
   const toast = (text) => { const node = document.querySelector("[data-settings-toast]") || document.querySelector(".toast"); if (!node) return; node.textContent = text; node.classList.add("is-visible"); setTimeout(() => node.classList.remove("is-visible"), 2400); };
@@ -57,7 +75,7 @@ globalThis.molisWorkBindPromptSettings = (container = document, context = null) 
     if (filter === "edited" && prompt.effective !== "user") return false;
     if (filter === "updated" && !prompt.default_updated) return false;
     const query = String(search.value || "").trim().toLowerCase();
-    return !query || [prompt.title, prompt.purpose, prompt.prompt_id, prompt.body, prompt.used_by.join(" ")].some((text) => String(text).toLowerCase().includes(query));
+    return !query || [display("prompts", prompt, "title"), display("prompts", prompt, "purpose"), prompt.prompt_id, prompt.body, prompt.used_by.join(" ")].some((text) => String(text).toLowerCase().includes(query));
   };
   const stateBadge = (prompt) => {
     const badge = el("span", "prompt-state prompt-state--" + (prompt.default_updated ? "updated" : prompt.effective));
@@ -67,7 +85,8 @@ globalThis.molisWorkBindPromptSettings = (container = document, context = null) 
   const editor = (prompt) => {
     const box = el("div", "prompt-editor");
     const area = el("textarea", "mw-textarea prompt-editor-text"); area.value = prompt.body; area.rows = Math.min(24, Math.max(8, prompt.body.split("\n").length + 1));
-    area.setAttribute("aria-label", globalThis.t.text("workbench.settings-prompts.edit") + "：" + prompt.title); area.maxLength = 20000;
+    area.setAttribute("aria-label", globalThis.t.text("workbench.settings-prompts.edit-prompt-title", { title: display("prompts", prompt, "title") })); area.maxLength = 20000;
+    area.dataset.agentDisplayField = "title"; area.dataset.agentDisplayAttribute = "edit-label";
     const count = el("span", "settings-muted prompt-editor-count");
     const syncCount = () => { count.textContent = area.value.length + " / 20000"; };
     area.addEventListener("input", syncCount); syncCount();
@@ -118,11 +137,11 @@ globalThis.molisWorkBindPromptSettings = (container = document, context = null) 
     return box;
   };
   const promptRow = (prompt) => {
-    const row = el("li", "prompt-row");
+    const row = bindDisplay(el("li", "prompt-row"), "prompts", prompt);
     row.dataset.key = prompt.key;
     const head = el("div", "prompt-row-head");
     const copy = el("div", "prompt-row-copy");
-    copy.append(el("strong", "", prompt.title), el("span", "settings-muted", prompt.purpose));
+    copy.append(displayField("strong", "", "prompts", prompt, "title"), displayField("span", "settings-muted", "prompts", prompt, "purpose"));
     const meta = el("div", "prompt-row-meta");
     meta.append(el("span", "prompt-tag", globalThis.t.text(prompt.kind === "agent" && prompt.layer ? LAYER[prompt.layer] || prompt.layer : KIND[prompt.kind] || prompt.kind)),
       el("span", "prompt-tag", globalThis.t.text("workbench.settings-prompts.version-2") + " " + (prompt.default_ref ? signedVersion(prompt.default_ref) : prompt.default_version)), stateBadge(prompt));
@@ -142,8 +161,8 @@ globalThis.molisWorkBindPromptSettings = (container = document, context = null) 
     const role = focusedRole();
     if (role) {
       const banner = el("div", "prompt-role-focus");
-      const copy = el("div", "prompt-role-focus-copy");
-      copy.append(el("strong", "", role.name), el("p", "", globalThis.t.text("workbench.settings-prompts.character-made-prompts-below-given-model-order-changes")));
+      const copy = bindDisplay(el("div", "prompt-role-focus-copy"), "roles", role);
+      copy.append(displayField("strong", "", "roles", role, "name"), el("p", "", globalThis.t.text("workbench.settings-prompts.character-made-prompts-below-given-model-order-changes")));
       banner.append(copy);
       // The way back to where the role was chosen: Settings › 角色.
       const back = el("a", "mw-btn mw-btn--secondary mw-btn--sm", globalThis.t.text("workbench.settings-prompts.back-characters"));
@@ -186,10 +205,12 @@ globalThis.molisWorkBindPromptSettings = (container = document, context = null) 
         const list = el("ul", "prompt-roles");
         ownRoles.forEach((role) => {
           const item = el("li");
-          const button = el("button", "prompt-role"); button.type = "button";
+          const button = bindDisplay(el("button", "prompt-role"), "roles", role); button.type = "button";
           button.setAttribute("aria-pressed", String(focusRole === role.key));
           button.title = globalThis.t.text("workbench.settings-prompts.show-only-prompts-character-made");
-          button.append(el("strong", "", role.name + (role.subagent ? " · " + globalThis.t.text("workbench.settings-prompts.sub-task") : "")), el("span", "settings-muted", globalThis.t.text(EXECUTION[role.execution] || role.execution) + (role.edited ? " · " + globalThis.t.text("workbench.settings-prompts.includes-edits") : "")));
+          const name = el("strong", ""); name.append(displayField("span", "", "roles", role, "name"));
+          if (role.subagent) name.append(" · ", el("span", "", globalThis.t.text("workbench.settings-prompts.sub-task")));
+          button.append(name, el("span", "settings-muted", globalThis.t.text(EXECUTION[role.execution] || role.execution) + (role.edited ? " · " + globalThis.t.text("workbench.settings-prompts.includes-edits") : "")));
           button.addEventListener("click", () => { focusRole = focusRole === role.key ? null : role.key; paint(); });
           item.append(button);
           list.append(item);

@@ -297,7 +297,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     if (rest.startsWith("/memory")) return "memory";
     if (rest.startsWith("/knowledge")) return "knowledge";
     if (rest.startsWith("/plugins")) return "plugins";
-    if (rest.startsWith("/skills")) return "skills";
+    if (rest.startsWith("/kit")) return "kit";
     if (rest.startsWith("/grants")) return "grants";
     if (rest.startsWith("/rules")) return "rules";
     if (rest.startsWith("/planning")) return "planning";
@@ -306,6 +306,8 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
   const globalSectionFromPath = (pathname) => {
     if (pathname.startsWith("/settings/planning")) return "planning";
     if (pathname.startsWith("/settings/runtimes")) return "runtimes";
+    // Prompts have no row of their own: they belong to a role in a kit (09), so their page opens under 能力包.
+    if (pathname.startsWith("/settings/prompts")) return "kit";
     const capability = /^\\/capabilities(?:\\/([^/?#]+))?/.exec(pathname);
     if (capability) return CAPABILITY_SECTIONS.includes(capability[1]) ? capability[1] : "library";
     if (pathname.startsWith("/settings/diagnostics")) return "diagnostics";

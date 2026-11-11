@@ -14,6 +14,7 @@ export * from "./action-offers.js";
 export * from "./action-usages.js";
 export * from "./action-subjects.js";
 import type { HostCapabilityDescriptor } from "./app-host.js";
+export * from "./action-named-skills.js";
 import type { WorkflowContentStation } from "./workflow-content.js";
 import type { PlacementRelationDeclaration } from "./placement.js";
 export * from "./workflow-content.js";
@@ -105,6 +106,14 @@ export interface StageSceneMetadataAuthority {
   readonly actions: readonly ExactActionReference[];
 }
 
+/** The identity the Host binds to one adopted homepage or preview in a project. */
+export interface HomePageSubject {
+  readonly kind: "home-page" | "home-page-preview";
+  readonly project_id: string;
+  readonly page_id: string;
+  readonly version: number;
+}
+
 /** Supplied by the authenticated host, never taken from model/tool arguments. */
 export interface ActionCallContext extends ActionCallOrigin {
   readonly actor_id: string;
@@ -118,12 +127,14 @@ export interface ActionCallContext extends ActionCallOrigin {
   readonly assistant_reply?: import("../services/assistant.js").AssistantReplyDelivery;
   /** Optional page evidence supplied by a protected entry adapter, never business/model input. */
   readonly page_context?: { readonly url: string | null; readonly title: string | null; readonly provenance: "host_snapshot" | "client_reported" };
-  /**
-   * The language of the page the call came from, which the Host resolves from the request (the page's language cookie, else
-   * Accept-Language). It only picks the words a handler sends back to be shown; it grants nothing and is never read from
-   * business input. Absent when no page asked (a model's tool call, a timer): the handler uses its own default.
-   */
+  /** The page's language (from the request: language cookie, else Accept-Language), or the one a delegating round hands on. It picks
+   * only shown words and a round's reply language; grants nothing, is never business input; absent otherwise (handlers use a default). */
   readonly locale?: ActionLocale;
+  /** Host-only: Skills named by the routed naming envelope or the Host's `run.start` call, bound to that installation and action; not
+   * carried by nested or gateway calls; freezes only that round's `system.skills` reads. A `SkillRef` in action input names nothing. */
+  readonly named_skills?: import("./action-named-skills.js").ActionNamedSkills;
+  /** Host-only, on a round's own `system.skills` calls: the reads' `consumer`, the frozen `named` list, `engine: "local"` for `native_only`. */
+  readonly skill_round?: import("./action-named-skills.js").ActionSkillRound;
   /** Optional historical author supplied by a trusted adapter; grants still belong to actor_id. Never business input. */
   readonly audit_actor_id?: string;
   /**

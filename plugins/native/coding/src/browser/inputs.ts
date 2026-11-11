@@ -13,7 +13,8 @@ interface InputPorts {
 }
 export function codingInputs(ports: InputPorts) {
  const {lifetime,root,current,api,path,storageKey,localDraft,localQuestions,replace,note,status}=ports,states=new Map<string, InputState>();
- const local=(id: string)=>({draft:localDraft(id),question_drafts:localQuestions(id)});
+ // A window keeps only words the service has not confirmed (browser/draft.ts): keeping none, its words are the confirmed ones.
+ const local=(id: string)=>({draft:localDraft(id)??baseFor(id).base?.draft,question_drafts:localQuestions(id)});
  const L=ports.translate,notify=(text: string,bad?: boolean)=>status(text,bad);
  const copy=<T>(value: T): T=>structuredClone(value),shape=(value: Partial<InputValue>)=>JSON.stringify({draft:value.draft,question_drafts:value.question_drafts||{}});
  const saved=(value: InputSnapshot): InputBase=>({draft:value.draft||'',question_drafts:copy(value.question_drafts||{}),revision:value.input_revision});
@@ -71,7 +72,7 @@ export function codingInputs(ports: InputPorts) {
  };
  lifetime.listen(root,'click',event=>{if(event.target instanceof Element&&event.target.closest('[data-coding-input-compare]'))void compare().catch(error=>{if(lifetime.alive)notify(errorMessage(error),true);});});
  return {
-  write,notice,premise:(id: string)=>baseFor(id).generation,
+  write,notice,premise:(id: string)=>baseFor(id).generation,confirmed:(id: string)=>baseFor(id).base?.draft,
   observe(id: string,value: InputSnapshot){const incoming=saved(value);if(!valid(incoming))throw new Error(L('coding.input.unreadable'));const state=baseFor(id),mine=local(id),base=state.base;
    if(base&&incoming.revision<base.revision)return;
    const pristine=base?shape(mine)===shape(base):mine.draft===undefined&&mine.question_drafts===undefined;

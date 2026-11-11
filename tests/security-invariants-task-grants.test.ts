@@ -154,7 +154,7 @@ async function world(t: TestContext) {
         ...(frozenRole.workspace ? { workspace: frozenRole.workspace } : {}), model_id: "probe",
         prompts: frozenRole.prompts.map(prompt => ({ prompt_id: prompt.prompt_id, version: prompt.version, layer: promptLayerOf(prompt) })),
         host_tools: [...frozenRole.host_tools], skills: [], mcp_tools: [], mcp_sources: [], text_materials: [], budget: null, action_tools: given.action_tools,
-        ...(frozenRole.action_gateway ? { action_gateway: true as const } : {}) } };
+        ...(frozenRole.action_gateway ? { action_gateway: true as const } : {}), ...(frozenRole.reply_locale ? { reply_locale: frozenRole.reply_locale } : {}) } };
     },
   };
   Object.assign(composition.agentHost.adapter(RUNTIME), probe);

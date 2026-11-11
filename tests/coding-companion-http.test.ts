@@ -1,3 +1,4 @@
+import { projectPluginRevisionAt } from "./fixtures/project-plugin-settings.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { randomUUID } from "node:crypto";
@@ -40,7 +41,7 @@ test("Standalone companion HTTP routes admit only enabled surfaces and their emb
       const created = await request("/api/settings/projects", "POST", { display_name: `Standalone ${plugin}`, user_confirmed: true });
       assert.equal(created.status, 201); const id = created.body.project.project_id;
       if (plugin !== "none") {
-        const enabled = await request(`/api/settings/projects/${id}/plugins`, "POST", { plugin_id: plugin });
+        const enabled = await request(`/api/settings/projects/${id}/plugins`, "POST", { plugin_id: plugin, expected_revision: await projectPluginRevisionAt(origin, id) });
         assert.equal(enabled.status, 200);
         if (plugin !== "coding") assert.equal(enabled.body.plugins.includes("coding"), false);
       }

@@ -200,10 +200,19 @@ export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
   let statesTimer=0;
   const loadStates=async()=>{
     clearTimeout(statesTimer);
-    const result=await get('/api/knowledge/states').catch(()=>null);
-    modelReady=result?.model_ready!==false;
-    states=new Map((result?.states||[]).map(item=>[item.kind+'\u0000'+item.id,item]));
-    if(result?.listing)statesTimer=setTimeout(()=>{if(list.isConnected)void loadStates().then(paint);},3000);
+    const rows=[];let offset=0,ready=true,listing=false;
+    try {
+      for(;;){
+        const result=await get('/api/knowledge/states?offset='+offset);
+        rows.push(...result.states);ready=result.model_ready!==false;listing=listing||result.listing;
+        if(result.next_offset==null)break;
+        if(result.next_offset<=offset)throw new Error('Invalid knowledge cursor');
+        offset=result.next_offset;
+      }
+    }catch{return;}
+    modelReady=ready;
+    states=new Map(rows.map(item=>[item.kind+'\u0000'+item.id,item]));
+    if(listing)statesTimer=setTimeout(()=>{if(list.isConnected)void loadStates().then(paint);},3000);
   };
   const load=async(force)=>{
     if(loading)return loading;

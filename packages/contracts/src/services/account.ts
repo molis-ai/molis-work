@@ -4,7 +4,7 @@ import type { AccountView, ClientEnvironmentConfig } from "./account-dto.js";
 export type { LoginMethodsView, ProfileUpdateRequest, ProductReauthenticationRequest, ProductTransactionRequest, AccountView, SessionView, UserView, Scope as AccountScope } from "./account-dto.js";
 export type { Feature, EntitlementCheckResult, EntitlementDecision, EntitlementSource } from "./account-dto.js";
 export type { Subscription, PlanVersion, SeatPool, Assignment, AuditEvent } from "./account-dto.js";
-export type { TenantView, PlatformTenantView, Membership, Invitation, OwnershipTransfer } from "./account-dto.js";
+export type { TenantCreationPolicyView, TenantView, PlatformTenantView, Membership, Invitation, OwnershipTransfer } from "./account-dto.js";
 
 export const servicesAccountContract = {
   contractId: /* @version contract.io.molis.work.service.account "io.molis.work.service.account.v{version}" */ "io.molis.work.service.account.v1",

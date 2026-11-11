@@ -130,6 +130,7 @@ export interface MwComposerLabels {
     filesHint: string;
     dropRefused: string;
     commands: string;
+    adding?: string;
     searching: string;
     nothing: string;
     unavailable: string;
@@ -173,13 +174,22 @@ export type MwComposerOptions = {
     kind: "ai";
     labels: MwComposerAiLabels;
     delivery?: AgentSteerMode;
-    receiver?: {
-        label: string;
-        open?: boolean;
-        resetLabel?: string;
-    };
+    receiver?: MwComposerReceiver;
     state?: "sending" | "running" | "failed" | "unknown";
+    idleDelivery?: boolean;
+    pause?: {
+        label: string;
+        title: string;
+        busy?: boolean;
+    };
 });
+
+export interface MwComposerReceiver {
+    label: string;
+    icon?: Parameters<typeof icon>[0];
+    open?: boolean;
+    resetLabel?: string;
+}
 
 export interface MwComposerStatus {
     caption: string;
@@ -199,6 +209,24 @@ export type MwTone = "neutral" | "info" | "success" | "warning" | "danger";
 export declare const PLUGIN_ICON_NAMES: readonly ["presentation", "flask", "status-todo", "status-progress", "status-waiting", "status-needs-you", "status-blocked", "status-done", "status-cancelled", "accepted", "activity", "alert", "archive", "arrow", "back", "bell", "blocked", "board", "book", "bookmark", "brand", "bug", "calendar", "check", "chevron-down", "chevron-left", "chevron-right", "chevron-up", "circle-alert", "circle", "claim", "clipboard", "clock", "cloud", "code", "columns", "completed", "copy", "database", "dot", "download", "edit", "evidence", "external", "eye", "eye-off", "file", "filter", "flag", "folder", "folder-open", "folder-tree", "git-branch", "git-compare", "frame", "globe", "grid", "grip", "hash", "history", "home", "idea", "image", "impact", "inbox", "info", "input", "key", "library", "link", "list", "list-ordered", "lock", "logout", "mail", "maximize", "message", "mic", "minus", "moon", "more", "network", "note", "output", "package", "panel", "paperclip", "pause", "pin", "pin-off", "play", "plus", "question", "ready", "redo", "refresh", "rejected", "review", "risk", "rows", "rss", "save", "search", "send", "settings", "share", "shield", "sidebar", "sparkles", "star", "sun", "switch", "system", "tag", "target", "terminal", "text", "timer", "trash", "tree", "tune", "undo", "upload", "user", "waiting", "wand", "workflow", "x", "zap"];
 
 export type PluginIconName = typeof PLUGIN_ICON_NAMES[number];
+
+export interface PluginLocaleManifest {
+    readonly plugin_id: string;
+    readonly kind: string;
+    readonly ui?: {
+        readonly locales?: PluginLocalesDeclaration;
+    };
+}
+
+export type PluginLocaleRead = (path: string) => string | null;
+
+export interface PluginLocaleReader {
+    readonly owner: string;
+    readonly default: string;
+    readonly available: readonly string[];
+    pack(locale: string): UiLocalePack | null;
+    problems(): readonly LocaleSetProblem[];
+}
 
 export type ReturnBarState = "waiting" | "look" | "ready" | "gone";
 
@@ -339,6 +367,8 @@ export declare function icon(name: PluginIconName, className?: string): string;
 
 export declare function inspectLocaleSet(packs: readonly UiLocalePack[], options: LocaleSetOptions): readonly LocaleSetProblem[];
 
+export declare function inspectPluginLocales(manifest: PluginLocaleManifest, read: PluginLocaleRead): readonly LocaleSetProblem[];
+
 export declare function installTextForTest(input: TextForTest): () => void;
 
 export declare function installUiText(provider: UiTextProvider): () => void;
@@ -360,6 +390,10 @@ export declare function parseSkinFile(source: string, spec: UiSpecFile, options?
 export declare function parseStrictJson(source: string, options?: StrictJsonOptions): UiFileResult<unknown>;
 
 export declare function parseUiSpecFile(source: string, options?: UiFileOptions): UiFileResult<UiSpecFile>;
+
+export declare function pluginLocaleFilePaths(manifest: Pick<PluginLocaleManifest, "ui">): readonly string[];
+
+export declare function pluginLocaleReader(manifest: PluginLocaleManifest, read: PluginLocaleRead): PluginLocaleReader | null;
 
 export declare const processFold: (scope: string, { group, groupBody, step, stepBody }: {
     group: string;

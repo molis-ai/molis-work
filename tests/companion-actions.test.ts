@@ -7,7 +7,6 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { createDesktopPanelTables } from "../apps/desktop/dist/adapters/sqlite-panels.js";
 import { MolisWorkProjectCatalog } from "@molis-ai/molis-work-app-local-host";
 import { textStatsActions } from "@molis-ai/molis-work-plugin-text-stats";
 import { filesActions } from "@molis-ai/molis-work-plugin-files";
@@ -29,7 +28,7 @@ test("headless runtime companions are discovered and called by the official MCP 
     completeText: async () => { completions++; throw new Error("Discovery must not call a model"); },
   });
   const withCatalog = host.configurePersonalPlanning(home, host.ensureWebCatalog(home, options =>
-    MolisWorkProjectCatalog.open(options, { createPanelSchema: createDesktopPanelTables })).withCatalog);
+    MolisWorkProjectCatalog.open(options)).withCatalog);
   try {
     await withCatalog({ homeDirectory: home }, async catalog => {
       const project = await catalog.createProject({ display_name: "Headless companions", actor_id: "owner" });

@@ -64,14 +64,14 @@ function molisComposer(root: HTMLElement, options: ComposerOptions): ComposerHan
     waiting.length = 0; field?.removeEventListener("input", capture);
     if (pending.get(root) === destroy) pending.delete(root);
     if (edited !== undefined) {
-      if ("adapter" in options.draft) void options.draft.adapter.write(edited).catch(() => { /* The old owner has no mounted status line. */ });
+      if (options.draft && "adapter" in options.draft) void options.draft.adapter.write(edited).catch(() => { /* The old owner has no mounted status line. */ });
       else local?.write(edited);
     }
     if (field) field.value = "";
   };
   pending.set(root, destroy);
   return {
-    setRunning: later("setRunning"), refresh: later("refresh"), insert: later("insert"), attach: later("attach"),
+    setRunning: later("setRunning"), refresh: later("refresh"), insert: later("insert"), attach: later("attach"), hold: later("hold"),
     materials: () => handle ? handle.materials() : [],
     focus: () => { if (handle) handle.focus(); else root.querySelector<HTMLElement>(".mw-composer__input")?.focus(); },
     destroy,

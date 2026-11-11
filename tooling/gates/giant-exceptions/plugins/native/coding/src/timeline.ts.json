@@ -3,7 +3,7 @@
     "function plugins/native/coding/src/timeline.ts#createCodingTimeline": {
       "kind": "cohesive-unit",
       "reason": "Coding 时间线的浏览器部件（toString 注入）：行、分组、页脚与实时刷新共用一份时间线状态；W5-04 打包前不能分文件。",
-      "size": 224
+      "size": 239
     }
   }
 }

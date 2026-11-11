@@ -1,3 +1,6 @@
+import { createImText, IM_EN } from "./locale.js";
+import { fillMessage } from "@molis-ai/molis-work-plugin-sdk";
+import { escapeHtml as escapeImText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { COPY_FEEDBACK_CLIENT_SCRIPT, FIELD_FIT_CLIENT_SCRIPT, SCROLL_FOLLOW_CLIENT_SCRIPT, THEME_BOOTSTRAP_SCRIPT } from '@molis-ai/molis-work-design-system';
 import { createViews, updateViewMarkup } from './views.js';
 import { createMessageFormat } from './message-format.js';
@@ -21,9 +24,9 @@ import { createImClicks } from './browser/controller-clicks.js';
 // Dependencies are explicit arguments; no server-side imports execute in the browser.
 // The shared page mechanisms the conversation uses: one scroll owner per stream, one copy feedback, one intrinsic field
 // sizing (VUX-26, VUX-19, VUX-16).
-export const IM_CLIENT_SCRIPT = THEME_BOOTSTRAP_SCRIPT + SCROLL_FOLLOW_CLIENT_SCRIPT + ';\n' + COPY_FEEDBACK_CLIENT_SCRIPT + ';\n' + FIELD_FIT_CLIENT_SCRIPT + `;\n(${startIm})({
+export const IM_CLIENT_SCRIPT = THEME_BOOTSTRAP_SCRIPT + SCROLL_FOLLOW_CLIENT_SCRIPT + ';\n' + COPY_FEEDBACK_CLIENT_SCRIPT + ';\n' + FIELD_FIT_CLIENT_SCRIPT + `;\n((L, escapeImText) => { (${startIm})({
   createViews: ((updateViewMarkup) => (${createViews}))(${updateViewMarkup}), createMessageFormat: ${createMessageFormat},
   createHistory: ${createHistory}, createDrafts: ${createDrafts}, createTransport: ${createTransport}, createInvitations: ${createInvitations},
   createImShell: ${createImShell}, createImComposer: ${createImComposer}, createImSync: ${createImSync}, createImRooms: ${createImRooms}, createImTopics: ${createImTopics},
   createImNavigate: ${createImNavigate}, createImDialogs: ${createImDialogs}, createImStartup: ${createImStartup}, createImPage: ${createImPage}, createImClicks: ${createImClicks}
-});`;
+}); })((${createImText})(${fillMessage}, ${JSON.stringify(IM_EN).replaceAll("<", "\\u003c")}, document.documentElement.lang), ${escapeImText});`;

@@ -1,3 +1,6 @@
+import {createTrialAuthPeer,trialAccountConfig} from '../examples/personal-trial-tools/mock-auth.mjs';
+import {completeInstallationLogin} from './fixtures/installation-login.js';
+import { projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {mkdtempSync,rmSync,readFileSync,writeFileSync} from 'node:fs';
@@ -33,26 +36,22 @@ test('PTR-01 S-124 HTTP refuses permanent cleanup without opening credentials',a
 // ASR-02 / PTR-01: account selection and deletion refusal both run through the actual installation HTTP owner.
 test('ASR-02 PTR-01 S-124 authenticated personal cleanup refuses while complete document and attachment remain readable',async t=>{
  const home=mkdtempSync(join(tmpdir(),'trial-personal-http-')),authOrigin='https://auth.example.test',rootToken='synthetic-trial-owner-control-0123456789';
- const env={MOLIS_WORK_AUTH_ORIGIN:authOrigin,MOLIS_WORK_AUTH_CLIENT_ID:'trial-web',MOLIS_WORK_AUTH_DESKTOP_CLIENT_ID:'trial-desktop',MOLIS_WORK_SECRET_BACKEND:'file'};
+ const env={MOLIS_WORK_ACCOUNT_CONFIG:'',MOLIS_WORK_SECRET_BACKEND:'file'};
  const before=Object.fromEntries(Object.keys(env).map(key=>[key,process.env[key]]));Object.assign(process.env,env);
- let state='';const original=fetch;
- t.mock.method(globalThis,'fetch',(async(input,init)=>{
-  const url=new URL(String(input));if(url.origin!==authOrigin)return original(input,init);
-  if(url.pathname==='/api/v1/auth/transactions'){state=JSON.parse(String(init?.body)).state;return Response.json({data:{loginUrl:authOrigin+'/login'}});}
-  if(url.pathname==='/oauth2/token')return Response.json({access_token:'synthetic-trial-access',refresh_token:'synthetic-trial-refresh',expires_in:3600});
-  if(url.pathname==='/api/v1/users/me')return Response.json({data:{userId:'alice',displayName:'Alice',emails:[],applicationId:'work',clientId:'trial-desktop'}});
-  return Response.json({});
- }) as typeof fetch);
+ const original=fetch;let config:ReturnType<typeof trialAccountConfig>;
+ const peer=createTrialAuthPeer({configuration:()=>config,user:()=> 'alice'});
+ t.mock.method(globalThis,'fetch',(async(input,init)=>new URL(String(input)).origin===authOrigin?peer.fetch(input,init):original(input,init)) as typeof fetch);
  const server=createDesktopWebHost({ptyClientFilePath:()=>'/not-needed-for-this-test'})({homeDirectory:home,controlToken:rootToken});
  await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));const address=server.address();assert.ok(address&&typeof address==='object');const origin='http://127.0.0.1:'+address.port;
+ config={...trialAccountConfig(authOrigin,origin,'work','trial-desktop'),environmentKind:'TEST'};process.env.MOLIS_WORK_ACCOUNT_CONFIG=JSON.stringify(config);
  const proof=readFileSync(join(home,NATIVE_SESSION_FILE),'utf8');let token=rootToken,sequence=0;
- const request=(path:string,body?:unknown)=>fetch(origin+path,{method:body===undefined?'GET':'POST',headers:{Origin:origin,[NATIVE_SESSION_HEADER]:proof,'content-type':'application/json','x-molis-work-control-token':token,'x-molis-work-idempotency-key':'trial-original-'+(++sequence)},...(body===undefined?{}:{body:JSON.stringify(body)}),redirect:'manual'});
+ const request=(path:string,body?:unknown,extra:Record<string,string>={})=>fetch(origin+path,{method:body===undefined?'GET':'POST',headers:{Origin:origin,[NATIVE_SESSION_HEADER]:proof,'content-type':'application/json','x-molis-work-control-token':token,'x-molis-work-idempotency-key':'trial-original-'+(++sequence),...extra},...(body===undefined?{}:{body:JSON.stringify(body)}),redirect:'manual'});
  const json=async(path:string,body?:unknown)=>{const response=await request(path,body),value=await response.json();assert.ok(response.status<400,JSON.stringify({path,status:response.status,value}));return value;};
  try{
-  await json('/api/personal/login',{});assert.equal((await request('/account/callback?code=synthetic&state='+state)).status,303);
+  const begun=await json('/api/personal/login',{});assert.equal((await completeInstallationLogin((path,init)=>request(path,JSON.parse(String(init?.body)),Object.fromEntries(new Headers(init?.headers))),begun.loginUrl,'alice@example.test')).status,200);
   const current=(await json('/api/spaces')).current;token=readFileSync(join(home,'spaces',current.spaceId,'config/web-control-token'),'utf8').trim();
   const project=(await json('/api/settings/projects',{display_name:'唯一原件的个人项目',user_confirmed:true})).project,prefix='/projects/'+project.project_id;
-  await json('/api/settings/projects/'+project.project_id+'/plugins',{plugin_id:'pages'});
+  await json('/api/settings/projects/'+project.project_id+'/plugins',{plugin_id:'pages',expected_revision:await projectPluginRevision({get:path=>json(path)},project.project_id)});
   const markdown='唯一正文🌲\r\n'+('原件不可被清理\n'.repeat(1300));
   const document=(await json(prefix+'/api/plugins/io.molis.work.pages/pages',{title:'唯一正文',markdown})).document;
   const bytes=Buffer.from(Array.from({length:20017},(_,index)=>(index*31)%256)),items=prefix+'/api/plugins/io.molis.work.shelf/items';

@@ -109,13 +109,15 @@ export function composerDraft(storage: () => ComposerStorage, key: string) {
 export type ComposerChoice = { available: true } | { available: false; reason: string };
 
 /**
- * Which deliveries are offered now (UIC-08, RC-03). Outside a running turn there is nothing to supplement or interrupt: a send
- * starts the turn and no delivery is chosen. While one runs, the target's own word (`delivery()`) decides; without one only the
- * default supplement is offered. Interrupting is never offered while nothing runs, whatever the target says.
+ * Which deliveries are offered now (UIC-08, RC-03; 2026-11-09 audit fix, user decision: idle queue). Outside a running turn a send
+ * starts the turn and takes no supplement or interrupt; the target's own word (`delivery()`) may still take 下一轮再做 for a work
+ * that has run before — a queue the next turn the person begins carries, without starting one. While a turn runs, the target's
+ * own word decides every mode; without one only the default supplement is offered. Interrupting is never offered while nothing
+ * runs, whatever the target says.
  */
 export function composerDeliveries(running: boolean, offered: ComposerDelivery | undefined, unsupported: string): Readonly<Record<AgentSteerMode, ComposerChoice>> {
   const no: ComposerChoice = { available: false, reason: unsupported };
-  if (!running) return { "next-boundary": no, interrupt: no, "after-run": no };
+  if (!running) return { "next-boundary": { available: true }, interrupt: no, "after-run": offered?.["after-run"] ?? no };
   if (!offered) return { "next-boundary": { available: true }, interrupt: no, "after-run": no };
   return { "next-boundary": offered["next-boundary"], interrupt: offered.interrupt, "after-run": offered["after-run"] };
 }

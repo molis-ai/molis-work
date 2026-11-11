@@ -1,4 +1,5 @@
 import { SKILL_SETTINGS_CLIENT_SCRIPT } from "../settings-skills.js";
+import { KIT_SETTINGS_LOADER_SCRIPT } from "../settings-kit.js";
 import { pluginSettingsClients } from "../plugin-workbench.js";
 import { PROMPT_SETTINGS_CLIENT_SCRIPT } from "../settings-prompts.js";
 import { SYNC_SETTINGS_CLIENT_SCRIPT } from '../settings-sync.js';
@@ -12,6 +13,7 @@ import { PROJECT_SETTINGS_CLIENT_SCRIPT } from "./project-settings.js";
 import { WEB_SERVICE_SETTINGS_SCRIPT } from "./settings-web-service.js";
 import { FUNCTIONS_SETTINGS_CLIENT_SCRIPT } from "../judgment-rules/settings-client.js";
 import { CONNECTORS_SETTINGS_CLIENT_SCRIPT } from "./connectors-settings.js";
+import { SETTINGS_VIEW_HEIGHT_CLIENT_SCRIPT } from "./settings-view-height.js";
 
 export const RUNTIME_PLAN_CLIENT_SCRIPT = `
   (() => {
@@ -112,8 +114,8 @@ export const RUNTIME_PLAN_CLIENT_SCRIPT = `
   })();
 `;
 
-export const SETTINGS_CLIENT_SCRIPT = SKILL_SETTINGS_CLIENT_SCRIPT + MODEL_SETTINGS_CLIENT_SCRIPT + WEB_SERVICE_SETTINGS_SCRIPT + PROJECT_SETTINGS_CLIENT_SCRIPT + RUNTIME_PLAN_CLIENT_SCRIPT + CONNECTORS_SETTINGS_CLIENT_SCRIPT + PROMPT_SETTINGS_CLIENT_SCRIPT + ASSISTANT_SETTINGS_CLIENT_SCRIPT + LOCAL_DIRECTORY_SETTINGS_CLIENT_SCRIPT + MEMORY_SETTINGS_CLIENT_SCRIPT + AGENT_DIAGNOSTICS_CLIENT_SCRIPT + `
-` + pluginSettingsClients() + FUNCTIONS_SETTINGS_CLIENT_SCRIPT + MCP_ACCESS_CLIENT_SCRIPT + SYNC_SETTINGS_CLIENT_SCRIPT;
+export const SETTINGS_CLIENT_SCRIPT = SKILL_SETTINGS_CLIENT_SCRIPT + KIT_SETTINGS_LOADER_SCRIPT + MODEL_SETTINGS_CLIENT_SCRIPT + WEB_SERVICE_SETTINGS_SCRIPT + PROJECT_SETTINGS_CLIENT_SCRIPT + RUNTIME_PLAN_CLIENT_SCRIPT + CONNECTORS_SETTINGS_CLIENT_SCRIPT + PROMPT_SETTINGS_CLIENT_SCRIPT + ASSISTANT_SETTINGS_CLIENT_SCRIPT + LOCAL_DIRECTORY_SETTINGS_CLIENT_SCRIPT + MEMORY_SETTINGS_CLIENT_SCRIPT + AGENT_DIAGNOSTICS_CLIENT_SCRIPT + `
+` + pluginSettingsClients() + FUNCTIONS_SETTINGS_CLIENT_SCRIPT + MCP_ACCESS_CLIENT_SCRIPT + SYNC_SETTINGS_CLIENT_SCRIPT + SETTINGS_VIEW_HEIGHT_CLIENT_SCRIPT;
 
 
 export const PROJECT_GUIDANCE_CLIENT_SCRIPT = `
@@ -286,17 +288,20 @@ export const PROJECT_GUIDANCE_CLIENT_SCRIPT = `
         receipt.hidden = false;
       }
     } catch {}
-    // Promoted from a project memory (项目记忆 → 升级为项目说明): the ordinary confirmation, with the text filled in.
-    try {
-      const draft = new URLSearchParams(location.search).get("draft");
-      if (draft && draft.trim()) {
-        openEditor("add");
-        kindInput.value = "convention";
-        contentInput.value = draft.trim().slice(0, 4000);
+    // D0225: only an opaque, actor/project/purpose-bound one-time reference crosses the URL.
+    const reference = new URLSearchParams(location.search).get("draft_ref");
+    if (reference) {
+      history.replaceState(null, "", location.pathname);
+      void molisWorkRequest(routePrefix + "/api/contextual/draft-reference/take", { body: { purpose: "project-guidance", reference } }).then(async draft => {
+        const [id, version] = JSON.parse(draft.text);
+        const data = await molisWorkRequest(routePrefix + "/api/memory/overview?scope=project");
+        if (!editor.isConnected) return;
+        const memory = data.items.find(item => item.memory_id === id && item.scope === "project" && item.version === version);
+        if (!memory) throw new Error(L("这条记忆已变化或不可用，请返回记忆页重新选择"));
+        openEditor("add"); kindInput.value = "convention"; contentInput.value = memory.text.trim().slice(0, 4000);
         reasonInput.value = L("由项目记忆升级为项目说明");
-        history.replaceState(null, "", location.pathname);
-      }
-    } catch {}
+      }).catch(failure => { if (receipt?.isConnected) { receipt.hidden = false; receipt.setAttribute("role", "alert"); molisWorkRequest.show(receipt, failure); } });
+    }
     function copyReceipt(mode) {
       if (mode === "edit") return L("项目说明的新版本已生效。");
       if (mode === "deactivate") return L("项目说明已停用，Runtime 将不再收到它。");

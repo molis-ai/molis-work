@@ -11,7 +11,7 @@ import { defineInstructionPrompt, type InstructionPrompt } from '@molis-ai/molis
 import type { AgentDefinitionRegistration } from '@molis-ai/molis-work-contracts/services/agent-definitions';
 import type { AgentRelease, PluginPrompt } from '@molis-ai/molis-work-plugin-builder';
 import { agentDefinitionsFor } from '../agent-definitions/agent-definitions.js';
-import { builtinRegistrations } from '../agent-definitions/builtin-registrations.js';
+import { builtinRegistrations } from '../agent-definitions/builtin-agents.js';
 
 export const PROMPT_ID = /^[a-z][a-z0-9-]{0,39}$/;
 const MAX_BODY = 8000;

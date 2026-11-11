@@ -228,9 +228,13 @@ export const MICRO_INTERACTION_CLIENT_SCRIPT = `
     });
   };
 
-  /** Creation modals commit from the keyboard: the platform's Enter-with-modifier submits the form. */
+  /**
+   * Creation modals commit from the keyboard: the platform's Enter-with-modifier submits the form. Not while an input method is
+   * composing (Safari ends a composition with a keydown whose keyCode is 229 and isComposing already false), and not when a part of
+   * the dialog (a composer) took the keys itself: one key press, one submit.
+   */
   addEventListener("keydown", (event) => {
-    if (event.key !== "Enter" || !(event.metaKey || event.ctrlKey)) return;
+    if (event.key !== "Enter" || !(event.metaKey || event.ctrlKey) || event.isComposing || event.keyCode === 229 || event.defaultPrevented) return;
     const dialog = event.target instanceof Element && event.target.closest("dialog[open]");
     if (!dialog) return;
     const form = (event.target instanceof Element && event.target.closest("form")) || dialog.querySelector("form");

@@ -126,6 +126,8 @@ Runtime 原调用者查询委托由 `plugin-action-query.ts` 持有：只接受�
 
 ## 开发要求
 
+本机内容包签名由 `plugin-install` 的 `plugins.local_packages.sign@1` 持有。本人从发起项目确认导入后，宿主在接触发布身份前核对内容，再返回普通安装预览 ID。安装服务按原项目、操作者和有效期回取视图，沿同一次明确同意确认安装。发布者未被固定时，确认才会固定。隔离 Home 的回归在 [安装](../../tests/security-invariants-plugin-install.test.ts) 与 [导入](../../tests/security-invariants-skill-import.test.ts) 用例中。
+
 工作台页面由 `web-sessions.ts` 签发有界、精确 origin 和空间修订绑定的传输会话；HTML 与页面可读账号状态不返回宿主控制凭据。账号身份仍由既有账号会话独占，传输会话只拥有认证与 CSRF 证明。HTTP、三个 socket、插件页面和动作尾检查捕获原会话，撤销不借后继会话；受信进程认证独立，携带私有控制头的请求不签发浏览器会话。验证 `tests/security-invariants-web-sessions.test.ts`，完整范围见 [D0038 spec](../../specs/daily-quality-d0038/spec.md)。
 
 首次 Host 或独立 Catalog 取得 Home 所有权前，先以只读检查拒绝非空且缺少 Memory ledger 的 Home，避免拒绝后新增 owner 目录。未完成恢复优先拒绝；已有 owner 的借用路径不变。早检查不授予初始化许可，取得锁后仍重新判定完整 Memory 状态。回归：`tests/cross-device-continuity.test.ts`、`tests/memory-initialization.test.ts`、`tests/security-invariants-home-storage-owner.test.ts`、`tests/security-invariants-home-restore-guard.test.ts`。
@@ -159,7 +161,7 @@ Web 目录连接归每个服务实例及固定 Home 所有；传入外部 LocalH
 - 依赖：组合根：按 `package.json` 装配已登记的包，只做装配与 IO，不写业务规则。方向见[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节。
 - 不变量：
   - Home 包读写项目以触发调用的真实项目与该项目设置里的本人同意为准；Host 在预检、目录等待之后、目标效果之前及结果交付时复核安装、当前声明与原 consent_id。撤回再授不能复活旧调用，Home/后台无触发项目仍拒绝；删除项目与卸载从同一 ledger 清理。回归：`tests/home-package-project-reach.test.ts`、`tests/home-package-project-reach.e2e.test.ts`。
-  - 签名包的角色资料与方法共用完整 `pluginAgentRegistration`，安装、启停、多项目持有与失败恢复不另写 prompts-only 登记。AgentDefinitions 在原覆盖、history、uses 中保存准确来源；新取材和最后 handoff 检查安装世代、范围、发布者、包版本和用户修订，接受后才记使用。后续撤销不抹掉已接受历史，也不放行新的读取或交付。正文及元数据只作为不可信 JSON 材料，原消费者授权检查保持。
+  - 签名包的角色资料与方法共用完整 `pluginAgentRegistration`，安装、启停、多项目持有与失败恢复不另写 prompts-only 登记。签名角色只出现一次（`signedRoles()`，按安装列出）；方法是技能，引用只有共同目录的 `SkillRef`，助理经 `skills.catalog.list@1`、`skills.body.read@1` 读，接受后记进 `skill_uses`（`specs/capability-pack/contract-design.md` §2.2）。AgentDefinitions 在原覆盖、history、uses 中保存角色的准确来源；新取材和最后 handoff 检查安装世代、范围、发布者、包版本和用户修订，接受后才记使用，助理一次列表只读一遍安装记录。后续撤销不抹掉已接受历史，也不放行新的读取或交付。正文及元数据只作为不可信 JSON 材料，原消费者授权检查保持。
   - 沙箱项目库（S-59）：SQL 只在子进程的 Worker 中运行，子进程控制器独立执行截止时间、进程总 RSS 上限与宿主断线终止；宿主逐句复查授权并固定事务所属进程。`get`/`all` 的字节上限在 Worker 中拒绝，事务外写也拒绝；提交中断保持结果未知。回归：`tests/security-invariants-sandbox-project-database-limits.test.ts`，包括宿主同步写等锁与父宿主被杀的真实进程路径。
   - 页面 JS 交付统一经 `src/served-page-text.ts` 的 esbuild 转换，直接读原程序，压缩空白和等价语法但保留绑定名与文字；不能先剥注释或缩进改变换行返回、模板正文。工作台、能力页与插件脚本走同一路径，转换失败保留原文；回归见 `tests/served-script-text.test.ts`，缓存、locale 与 HEAD 的既有合同保持。
   - 产品版本在宿主代码里只有 `src/product-version.ts` 的 `PRODUCT_VERSION` 一处：Feed 的 User-Agent 与 `app.version`、搜索运行时的 `app.version`、MCP 客户端、Codex 会话传输的客户端版本都取它，不另写一份；发版脚本核对这一行（`docs/releases/POLICY.md` 第 1 节，`tests/verify-release-versions.test.ts`）。值由 `tooling/versions.json` 的 `product.release` 生成，不手改。

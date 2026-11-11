@@ -1,3 +1,4 @@
+import { UI_HOST_CLIENT_CODES } from "@molis-ai/molis-work-contracts/platform/ui";
 import assert from "node:assert/strict";
 import test from "node:test";
 import vm from "node:vm";
@@ -28,7 +29,7 @@ class Element {
 }
 /** The page's `molisWorkRequest`, built from the package's two public factories over the fixture's fake network (as the page program builds it). */
 function pageRequest(fakeFetch: (url: string, init: UiFetchInit) => Promise<Response>) {
-  const call = createUiRequest({ fetch: fakeFetch, origin: "http://127.0.0.1:4173", token: () => "token", newKey: () => "key", translate: text => text });
+  const call = createUiRequest({ fetch: fakeFetch, origin: "http://127.0.0.1:4173", token: () => "token", newKey: () => "key", translate: text => text }, UI_HOST_CLIENT_CODES);
   const view = createUiFailureView({ createElement: () => ({ textContent: "", append() {}, setAttribute() {}, getAttribute: () => null, remove() {} }), copy: async () => {}, translate: text => text, setTimeout: () => 0, clearTimeout() {} });
   return Object.assign(call, { text: view.text, show: view.show, toast: view.toast });
 }

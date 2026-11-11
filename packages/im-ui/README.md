@@ -63,3 +63,6 @@ node scripts/run-tests.mjs tests/im-controller-initialization.test.ts tests/im-b
 - 改动后必跑：`node scripts/run-tests.mjs tests/im-controller-initialization.test.ts tests/im-browser-state.test.ts tests/im-local-project.test.ts tests/im-domain.test.ts`；改了消息流的滚动、复制或页面脚本的拼装加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/im-follow-copy.e2e.test.ts`
 - 消息流的滚动只有一个主人（设计系统的 `window.molisFollow`，VUX-26），复制走同一个 `window.molisCopy`（VUX-19）：两段页面脚本和它们的样式随 `IM_CLIENT_SCRIPT`、`IM_STYLES` 一起发，自己不再判断离底多少像素。
 - 相关手册：[docs/platform/UI-PLATFORM.md](../../docs/platform/UI-PLATFORM.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+
+
+讨论页语言沿用Host的当前语言，独立Server按请求语言绘制；不保存第二份语言偏好。`src/locale.ts`拥有界面词典并复用SDK的`fillMessage`，日期按页面语言格式化。构建在TypeScript完成后由`tooling/minify-client.mjs`压缩同一个`/im/client.js`资源，不在运行时加载构建器；模块公开常量和浏览器工厂行为不变。

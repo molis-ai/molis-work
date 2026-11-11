@@ -46,10 +46,15 @@ export type ArtifactJsonValue = null | boolean | number | string | ArtifactJsonV
 export type ArtifactLifecycleState = "active" | "archived";
 
 export interface ArtifactListQuery {
+    limit?: number;
+    offset?: number;
     artifact_type_id?: string;
     schema_version?: number;
     scope?: ArtifactScope;
     lifecycle_state?: ArtifactLifecycleState;
+    availability?: ArtifactAvailability;
+    supported_types?: readonly ArtifactConsumerType[];
+    personal_owner_actor_id?: string;
 }
 
 export type ArtifactMetadata = Record<string, ArtifactJsonValue>;
@@ -108,6 +113,7 @@ export interface FixedVersionQueryApi<R extends FixedVersionRecord> {
     listArtifactVersions(projectId: string, artifactId: string): R[];
     latestArtifactVersion(projectId: string, artifactId: string): R | null;
     listArtifacts(projectId: string, query?: ArtifactListQuery): R[];
+    existingReferences(projectId: string, references: readonly ArtifactReference[]): ArtifactReference[];
     consumptionCompatibility(projectId: string, reference: ArtifactReference, supportedTypes: ArtifactConsumerType[]): ArtifactConsumptionCompatibility;
 }
 

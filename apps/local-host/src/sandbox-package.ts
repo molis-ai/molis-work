@@ -10,7 +10,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { pluginErrors, SANDBOX_PACKAGE_FILES, type PluginManifest, type SandboxAgentBody, type SandboxPackageManifest, type PluginPackagePayload, type SandboxPackagePrompt } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { SANDBOX_INTEGRATION_CONTRACT, SANDBOX_INTEGRATION_OPERATIONS, type SandboxEffects, type SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { CONNECTOR_REQUEST_SERVICES } from '@molis-ai/molis-work-contracts/services/connector-host';
-import { parseContentPackage, parsePluginManifest, parsePluginPackageManifest, refuseDeclarations } from '@molis-ai/molis-work-plugin-sdk';
+import { parseContentPackage, type ContentPackage, parsePluginManifest, parsePluginPackageManifest, refuseDeclarations } from '@molis-ai/molis-work-plugin-sdk';
 import { PLUGIN_ICON_NAMES } from '@molis-ai/molis-work-plugin-sdk/ui';
 import { assertContract } from '@molis-ai/molis-work-plugin-sandbox';
 import { validatePluginComponentNodes, validatePluginComponentPlans, validatePluginPresentation,
@@ -157,6 +157,7 @@ export function readKeptSandboxPackage(payload: PluginPackagePayload): KeptSandb
  */
 export interface ContentKeptPackage {
   readonly manifest: PluginManifest;
+  readonly blueprint?: ContentPackage["blueprint"];
   readonly agentBodies: SandboxAgentBody[];
   readonly permissions: SandboxEffects;
 }
@@ -172,8 +173,8 @@ export const isContentPackage = (pkg: KeptPackage): pkg is ContentKeptPackage =>
  */
 export function readKeptPackage(payload: PluginPackagePayload): KeptPackage {
   if (payload.manifest?.kind !== 'content') return readKeptSandboxPackage(payload);
-  const { manifest, skills } = parseContentPackage(payload);
-  return { manifest, agentBodies: packagedMethodBodies(manifest.methods ?? [], skills), permissions: {} };
+  const { manifest, skills, blueprint } = parseContentPackage(payload);
+  return { manifest, agentBodies: packagedMethodBodies(manifest.methods ?? [], skills), permissions: {}, ...(blueprint ? { blueprint } : {}) };
 }
 
 /** A sandboxed integration as the Host runs it (BL-530): its Manifest, its contract of the platform's operations and its code. */

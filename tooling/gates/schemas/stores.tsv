@@ -33,10 +33,10 @@ ppt/ppt.db	io.molis.work.ppt	1	f3762d71cb86ab0f	-
 projects/*/molis-work.db	apps/local-host	2	0866eff8b6d2f85b	1
 projects/*/molis-work.db#io.molis.work.coding	io.molis.work.coding	1	7554f5bd7e17b35e	-
 projects/*/molis-work.db#io.molis.work.feed	io.molis.work.feed	1	2c4808bcdff48a8f	-
-projects/*/molis-work.db#io.molis.work.goals	io.molis.work.goals	1	3e61d1b7bb556fdd	-
+projects/*/molis-work.db#io.molis.work.goals	io.molis.work.goals	2	acd0b4c100229f63	1
 projects/*/molis-work.db#io.molis.work.inbox	io.molis.work.inbox	1	56acddfd14f308b1	-
 projects/*/molis-work.db#io.molis.work.schedule	io.molis.work.schedule	1	9352bdf88ac5fabf	-
-projects/catalog.db	apps/local-host	2	24e0e3c5a6f72a76	1
+projects/catalog.db	apps/local-host	3	24e0e3c5a6f72a76	1,2
 server/server.sqlite	server	1	626a2905680637a9	-
 sync/sync.db	modules/sync-replication	1	19cf5fee78712da0	-
 todo/todo.db	io.molis.work.todo	1	edc487237edda4db	-

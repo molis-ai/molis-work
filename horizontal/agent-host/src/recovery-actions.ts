@@ -2,6 +2,8 @@ import { agentErrors } from "./errors.js";
 import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentCallPorts, Call, Register } from "./capability-ports.js";
 import type { AgentStartAuthority } from "./index.js";
+import { mayKeepWriting, mayWriteFiles } from "./tool-catalog.js";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 
 /**
  * The directories a checkpoint may be in: the output, and the Host's worktrees of it when a checkpoint is elsewhere (a writing child's).
@@ -23,6 +25,47 @@ export function registerRecoveryActions<C extends Call>(register: Register<C>, p
     register(agentHostCapabilities.readCommandOutput, async (context, [session, ref]) => {
       await readScopedSession(context, session);
       return ports.agentHost(context).adapter(session.runtime_id).readCommandOutput(session, ref);
+    }),
+
+    // Evidence another owner cites (a Goal's requirement report): only of the session the Host bound this caller's round to, so a
+    // round can cite what its own session ran and nothing else. A plugin, a person or a workflow of its own has no such session.
+    register(agentHostCapabilities.checkEvidence, async (context, input) => {
+      const sessionId = context.invocation.runtime_session_id, host = ports.agentHost(context);
+      if (!sessionId || context.invocation.plugin) throw ports.denied();
+      let found: { session: { runtime_id: string; session_id: string }; owner_plugin_id: string } | undefined, unread: unknown;
+      for (const { runtime_id } of host.descriptors()) {
+        const session = { runtime_id, session_id: sessionId };
+        // Only "this runtime has no such session" lets the search go on. A read that failed says nothing about whose round it is,
+        // and is never answered as "not this session's": the asker would take that for another worker's round.
+        const view = await host.adapter(runtime_id).readSession(session).catch((error: unknown) => {
+          if (!(error instanceof ActionError && error.code === "agent.session_unknown")) unread ??= error;
+          return undefined;
+        });
+        if (view?.owner?.project_id !== ports.projectId(context) || !view.runs.some(run => run.run_id === input.run_id && run.session_id === sessionId)) continue;
+        found = { session, owner_plugin_id: view.owner.plugin_id };
+        break;
+      }
+      if (!found && unread !== undefined) throw agentErrors.capability_unavailable("读不到调用方的会话，无法核对这一轮执行");
+      if (!found) throw agentErrors.run_unknown("调用方自己的会话里找不到这一轮执行");
+      const adapter = host.adapter(found.session.runtime_id), run = await adapter.read({ session_id: sessionId, run_id: input.run_id });
+      const kept = new Set((run.command_outputs ?? []).map(output => output.call_id)), cited = new Set(input.command_call_ids);
+      const commands = await Promise.all(input.command_call_ids.map(async call_id => {
+        const unknown = { call_id, recorded: false, exit_code: null, timed_out: false, cancelled: false, changed_after: true };
+        if (!kept.has(call_id)) return unknown;
+        const receipt = await adapter.readCommandOutput(found.session, { run_id: input.run_id, call_id }).catch(() => undefined);
+        if (!receipt) return unknown;
+        // Without the call's own position nothing says what came after it, so it is not taken as "nothing did".
+        const at = run.activity.find(item => item.call_id === call_id)?.sequence;
+        // The other cited commands are the check itself; anything else after it that may write a file means it did not see what was left.
+        // A background command or a child started earlier may still be writing: nothing here says when its work ended.
+        const changed_after = at === undefined || run.activity.some(item => !cited.has(item.call_id) && item.state !== "failed"
+          && (mayKeepWriting(item.name) || mayWriteFiles(item.name) && (item.sequence ?? Infinity) > at))
+          || (run.turn_changes ?? []).some(change => change.sequence > at);
+        return { call_id, recorded: true, exit_code: receipt.exit_code, timed_out: receipt.timed_out === true || receipt.stop_reason === "timed-out",
+          cancelled: receipt.cancelled === true || receipt.stop_reason === "cancelled", changed_after };
+      }));
+      await context.invocation.beforeEffect(); context.invocation.assertAuthorityCurrent();
+      return { owner_plugin_id: found.owner_plugin_id, run: { session_id: sessionId, run_id: input.run_id }, commands };
     }),
 
     register(agentHostCapabilities.inspectRecovery, async (context, [session]) => {

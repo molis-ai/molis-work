@@ -375,8 +375,9 @@ test("B10-R6: the receiver opens by keyboard with a draft present and does not s
     await browser.command('Input.dispatchKeyEvent', { type: 'keyDown', ...params, ...(key === 'Enter' ? { text: '\r' } : {}) }, browser.sessionId);
     await browser.command('Input.dispatchKeyEvent', { type: 'keyUp', ...params }, browser.sessionId);
   };
-  await press('Tab', 9, 8); await press('Tab', 9, 8);
-  assert.equal(await browser.evaluate("document.activeElement?.matches('[data-composer-receiver]')"), true, "the receiver name is a Tab stop before reset and input");
+  // One input (batch 11, O1): who it goes to is a tag in the foot after ＋, so from the text it is the second Tab stop.
+  await press('Tab', 9); await press('Tab', 9);
+  assert.equal(await browser.evaluate("document.activeElement?.matches('[data-composer-receiver]')"), true, "the receiver name is a Tab stop after the input and ＋");
   await press('Enter', 13);
   await browser.waitFor("!document.querySelector('[data-assistant-panel]').hidden");
   assert.equal(await browser.evaluate("document.querySelector('[data-assistant-composer] textarea').value"), "还没有发送的草稿");

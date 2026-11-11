@@ -85,7 +85,7 @@ ${ASSISTANT_BROWSER_HANDBACK_PART}
   const api=(path,method,body,route=host.route("/api/assistant"+path))=>molisWorkRequest(route,{method:method||"GET",body,fallback:L("助理暂时无法完成")});
   const loadExecutors = () => project ? api("/executors").then((res) => { executors = res.executors || []; if (nextExec !== "assistant" && !executorOffer(nextExec)) nextExec = "assistant"; paintAim(); paintSum(); }).catch(() => { executors = []; }) : Promise.resolve();
   const executorsLoaded = loadExecutors();
-  const el = ${ASSISTANT_ELEMENT_SCRIPT}, receipts = (${ASSISTANT_RECEIPTS_FACTORY_SCRIPT})({ L, shared: host.receipts, api, work: () => curId, reload: () => reload(),
+  const el = ${ASSISTANT_ELEMENT_SCRIPT}, receipts = (${ASSISTANT_RECEIPTS_FACTORY_SCRIPT})({ L, shared: host.receipts, chip: compose.querySelector("[data-assistant-answer]"), api, work: () => curId, reload: () => reload(),
     pact: (content, badge) => paintBlock(blocks.agreements, L("AI 记下的约定"), "list", content, badge) });
   const stateLabel = (state) => L(STATE_LABELS[state] || state || ""); const ringState = state => ({ "waiting-input": "answer", "waiting-review": "approval", "needs-check": "verify", completed: "round-ended" })[state] || state;
   const scopeLabel = (scope, title) => !scope ? "" : scope.kind === "personal" ? L("个人")
@@ -95,15 +95,19 @@ ${ASSISTANT_BROWSER_HANDBACK_PART}
   let presentation, stepRow;
   const setPanel = (open) => { if (!presentation?.show(open) && panel) panel.hidden = !open; };
 
-  /* ─── Where the next Send goes: the composer's receiver row, its controls and the placeholder ─── */
-  const paintAim = () => {
-    const work = getWork(); presentation?.syncWork(work); input.readOnly = !!work?.reply_target;
+  /* ─── Where the next Send goes: the composer's receiver tag, its controls and the placeholder ─── */
+  // \`sync\` false: only the words, for the composer about to be mounted on the Assistant again.
+  const paintAim = (sync = true) => {
+    const work = getWork(); presentation?.syncWork(work);
+    // A page in front takes the bar's input (O2): its words and placeholder are its own until the Assistant has the bar again.
+    if (island.dataset.receiver === "page") { if (sync) syncComposer(); return; }
+    input.readOnly = !!work?.reply_target;
     if (!executorsHere() && nextExec !== "assistant") nextExec = "assistant";
     // A page that knows what the person is looking at (the project list) may say so in the placeholder of a new work.
     const hint = !work && nextExec === "assistant" && host.placeholder ? host.placeholder(project) : "";
     input.placeholder = work?.reply_target ? L("请回到原评论继续回复") : work ? L("补充、回答或纠正…") : nextExec !== "assistant" && executorOffer(nextExec) ? L("让 {name} 做点什么…", { name: executorOffer(nextExec).title })
       : hint ? hint : searchKey() ? L("让助理做点什么，或按 {key} 搜索").replace("{key}", searchKey()) : L("让助理做点什么…");
-    syncComposer();
+    if (sync) syncComposer();
   };
   keyless?.addEventListener?.("change", () => paintAim());
   const remember = () => store.set(scoped("current"), curId);
@@ -509,23 +513,24 @@ ${ASSISTANT_TABS_PART}
   // Reads asked while one is in flight share it: the start, the panel opening, coming back to the page and the list's timer
   // ask for the same list. A caller after a change of its own (fresh) waits for one read that starts after it, shared by every such caller.
   // Shared only for the same address: on the chooser the route follows the selected project, and another project's list is another read.
-  let worksRead = null, worksAt = "", worksAgain = null;
+  let worksRead = null, worksAt = "", worksAgain = null, worksGeneration = 0;
   const loadWorks = (fresh) => {
     const at = host.route("/api/assistant/works");
     if (!worksRead || at !== worksAt) {
       worksAt = at; worksAgain = null;
-      const read = worksRead = readWorks().finally(() => { if (worksRead === read) worksRead = null; });
+      const read = worksRead = readWorks(at, ++worksGeneration).finally(() => { if (worksRead === read) worksRead = null; });
       return read;
     }
     if (!fresh) return worksRead;
     if (!worksAgain) worksAgain = worksRead.then(() => { worksAgain = null; return loadWorks(); });
     return worksAgain;
   };
-  const readWorks = async () => {
+  const readWorks = async (at, generation) => {
     try {
-      const res = await api("/works");
+      const res = await api("/works", "GET", undefined, at);
+      if (generation !== worksGeneration || at !== worksAt || at !== host.route("/api/assistant/works") || !island.isConnected) return;
       const drafts = new Map(works.map((work) => [work.work_id, { draft: work.draft, draft_revision: work.draft_revision }]));
-      works = (res.works || []).map((work) => drafts.has(work.work_id) && work.work_id === curId ? Object.assign(work, drafts.get(work.work_id)) : work);
+      works = (res.works || []).map((work) => ({ ...work, ...(work.work_id === curId ? drafts.get(work.work_id) : undefined) }));
       if (curId && !works.some((work) => work.work_id === curId)) { curId = null; remember(); view = null; }
       // A tab whose work is gone closes; the work in front always has one.
       const kept = tabs.filter((id) => works.some((work) => work.work_id === id));

@@ -130,7 +130,8 @@ test("W3-06-F-04 Home KV survives shutdown, isolates installs and rejects an int
   // BL-411: outside every call a handle kept after close is refused and does nothing; the restart below reads the draft unchanged.
   assert.equal(a.set("draft", "after close"), undefined);
   assert.equal(a.get("draft"), undefined, "it reads nothing either, though the draft is there");
-  assert.equal(host.homePlugins!.installations().length, 0);
+  // D0151/D0304: a closed owner refuses reads; an empty list would misreport unavailable facts as no installations.
+  assert.throws(() => host.homePlugins!.installations(), { code: "actions.plugin_unavailable", message: "Home 插件宿主已关闭" });
   // Opening another Host is allowed only after the old execution owner has closed.
   await host.close();
   const restarted = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, pluginFixtures: { home: [first.definition, other.definition] } });

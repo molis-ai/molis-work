@@ -18,7 +18,7 @@ test("public status mounts prefer collection state, retain hooks and escape tran
   assert.match(visible, /goal-status--waiting_user/);
   assert.match(visible, /data-state="current"/);
   assert.match(visible, /data-label="current"/);
-  assert.match(visible, /等你/);
+  assert.match(visible, /需要你决定/);
   // RING-05: an answer is needed; this is not a running or completed Goal. RING-08: the ring is as tall as its words, so it
   // carries no size of its own.
   assert.equal(renderer.visibleGoalStatusIcon({ status: "executing", display_status: "waiting_user" }), renderStateRing({ state: "answer" }));
@@ -45,4 +45,11 @@ test("factors contribution keeps owner content, live counts and accessible tab r
   assert.match(captured[0]!.body, /Relations \+ Decision history/);
   assert.match(captured[1]!.body, /Policy owner/);
   assert.match(html, /关联与约束/);
+});
+
+test("D0013 a cancelled goal keeps the cancelled state and shared visual mark", () => {
+  const renderer = goalsRenderers.status({ translate: L, escapeHtml, icon });
+  const item = { status: "cancelled" as const, display_status: "cancelled" as const };
+  assert.match(renderer.renderVisibleGoalStatus(item), /goal-status--cancelled/);
+  assert.equal(renderer.visibleGoalStatusIcon(item), renderStateRing({ state: "cancelled" }));
 });

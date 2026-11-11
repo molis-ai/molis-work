@@ -24,7 +24,7 @@ test("Characters navigation and work surface receive the one neutral tint every 
 });
 
 // Characters is how AI is asked to work, so its page is Settings › 角色, not a navigation entry (specs/archive/page-interaction-flow).
-// RAC-73: since CHR-1 that page is the Host's own section (D3), between 助理 and 提示词, and a project cannot hide it.
+// RAC-73: since CHR-1 that page is the Host's own section (D3), between 助理 and 能力包, and a project cannot hide it.
 /** Settings' sections in navigation order for the plugins a page shows (the Host's list, W5-02 B1): the grouped list the page draws, read as one list. */
 const settingsSections = (shown?: readonly string[]) => groupedGlobalSettingsSections(shown).flatMap((group) => group.sections);
 
@@ -35,7 +35,7 @@ test("Characters' page is the Host's Settings › 角色 with the user glyph, no
   const pages = sections.filter((item) => item.id === "characters");
   assert.deepEqual(pages.map(({ label, icon, group, kind }) => ({ label, icon, group, kind })), [{ label: "角色", icon: "user", group: "AI", kind: "host" }]);
   const ids = sections.map((item) => item.id);
-  assert.deepEqual(ids.slice(ids.indexOf("characters") - 1, ids.indexOf("characters") + 2), ["assistant", "characters", "prompts"]);
+  assert.deepEqual(ids.slice(ids.indexOf("characters") - 1, ids.indexOf("characters") + 2), ["assistant", "characters", "kit"]);
   assert.ok(settingsSections([]).some((item) => item.id === "characters"), "a page that shows no plugin still has the Host's page");
   // Settings › 角色 is the one place for it: the market neither lists it nor lets a project add or remove it.
   assert.equal(pluginMarketCards().find((item) => item.id === "characters"), undefined);

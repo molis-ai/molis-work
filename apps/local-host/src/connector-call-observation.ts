@@ -23,7 +23,7 @@ export const connectionSettingsPath = (serviceId: string) => `/settings/connecto
 export function recordConnectionUse(home: string, id: string, revision: string, identity: CallIdentity, outcome: ConnectorCallObservation["outcome"],
   use: ConnectionUse, always: boolean): void {
   const at = new Date().toISOString();
-  const row = withConnectorConnections(home, store => store.get(id));
+  const row = withConnectorConnections(home, store => store.get(id), true);
   if (!row || row.updated_at !== revision) return;
   const { previous, run } = withConnectorObservations(home, store => {
     const previous = store.read(id).call, run = nextRun(previous, revision, use, at);

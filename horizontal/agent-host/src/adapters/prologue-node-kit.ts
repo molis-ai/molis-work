@@ -10,6 +10,7 @@ import type { PrologueSurfacePorts } from "./prologue-surfaces.js";
 import type { AgentReviewQueue } from "../reviews.js";
 import type { RoundFacts } from "./announce-guard.js";
 import type { StopGuard } from "./prologue-stop-guard.js";
+import { agentTool } from "../tool-catalog.js";
 
 /**
  * What the parts of the Node composition share (W4-06 split `initializePrologueNodeAdapter` into them): the adapter's
@@ -154,8 +155,8 @@ export async function readResource(runtime: Runtime, ref: ExactRef<"resource">) 
 
 /** Translate the Host vocabulary at the SDK boundary; unknown tools fail before a Run. */
 export function prologueToolName(name: string): string {
-  const translated = name === "read-file" ? "read" : name === "edit-file" ? "edit" : name;
-  if (!(SYSTEM_TOOL_NAMES as readonly string[]).includes(translated)) {
+  const translated = agentTool(name)?.runtime_name;
+  if (!translated || !(SYSTEM_TOOL_NAMES as readonly string[]).includes(translated)) {
     throw new Error(`agent.capability_unavailable: Prologue 不认识工具 ${name}`);
   }
   return translated;

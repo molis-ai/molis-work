@@ -1,3 +1,4 @@
+import {trialAccountConfig} from '../examples/personal-trial-tools/mock-auth.mjs';
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
@@ -246,7 +247,7 @@ test("Functions local reads work with locked Keychain across Host, HTTP and fres
 test("ASR-02 installation first login refuses locked Keychain without anonymous fallback or repeated unlock prompts",
   { skip: process.platform !== "darwin" }, () => withKeychainFixture(async ({ home, calls }) => {
     const file=join(home,"feed","secrets.json"),before=readFileSync(file),token="keychain-first-login-control-0123456789";
-    const config={MOLIS_WORK_AUTH_ORIGIN:"https://auth.example.test",MOLIS_WORK_AUTH_CLIENT_ID:"keychain-first-login",MOLIS_WORK_CLOUD_ORIGIN:"https://auth.example.test"};
+    const config={MOLIS_WORK_ACCOUNT_CONFIG:JSON.stringify({...trialAccountConfig("https://auth.example.test","http://127.0.0.1:4173"),environmentKind:"TEST"})};
     const previous=Object.fromEntries(Object.keys(config).map(key=>[key,process.env[key]]));Object.assign(process.env,config);
     const server=createMolisWorkWebServer({homeDirectory:home,controlToken:token});
     try{

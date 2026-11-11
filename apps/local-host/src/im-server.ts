@@ -1,3 +1,4 @@
+import { currentLocale } from "./web-locale.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { join } from "node:path";
 import { openServerDatabase, SERVER_DATABASE_BASELINE, Identity, ServerEvents, ContinuityService, createServerRequestHandler, createImDomain } from "@molis-ai/molis-work-server";
@@ -22,7 +23,7 @@ export function createLocalImServer(homeDirectory: string, projectFor?: (id: str
       return { storage, events, identity, continuity, options: { identity, events, continuity,
         im: createImDomain({ db: storage.db, identity, events }),
         // Here the discussion is a frame of the workbench: a Home tool's chord pressed in it goes up to the shell.
-        imAssets: { html: renderImPage({ embedded: true }), css: IM_STYLES, script: `${IM_CLIENT_SCRIPT};\n${homeToolKeysScript()}` },
+        imAssets: { html: () => renderImPage({ embedded: true, locale: currentLocale() }), css: IM_STYLES, script: `${IM_CLIENT_SCRIPT};\n${homeToolKeysScript()}` },
       } };
     } catch (error) { storage.close(); throw error; }
   }

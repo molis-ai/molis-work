@@ -1,3 +1,4 @@
+import { projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
 import assert from "node:assert/strict";
 import { existsSync, statSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -62,8 +63,8 @@ async function setup(t: TestContext, probe: ReachProbe, extra: readonly PluginDe
   const call = async (definition: ActionDefinition, caller: ActionCallContext, input: unknown = {}) => (await home.host.homeActionClient().invoke(caller, definition, input)) as { readable: string[] | null };
   return { home, platform, grant, as, call };
 }
-const hide = (home: TestHome, project: TestProject, plugin: string) => home.web.delete(`/api/settings/projects/${encodeURIComponent(project.project_id)}/plugins`, { plugin_id: plugin });
-const unhide = (home: TestHome, project: TestProject, plugin: string) => home.web.post(`/api/settings/projects/${encodeURIComponent(project.project_id)}/plugins`, { plugin_id: plugin });
+const hide = async (home: TestHome, project: TestProject, plugin: string) => home.web.delete(`/api/settings/projects/${encodeURIComponent(project.project_id)}/plugins`, { plugin_id: plugin, expected_revision: await projectPluginRevision(home.web, project.project_id) });
+const unhide = async (home: TestHome, project: TestProject, plugin: string) => home.web.post(`/api/settings/projects/${encodeURIComponent(project.project_id)}/plugins`, { plugin_id: plugin, expected_revision: await projectPluginRevision(home.web, project.project_id) });
 const sorted = (ids: readonly string[] | null) => [...(ids ?? [])].sort();
 
 /** The existing close notification runs after resource release and is awaited before the Host drops its closing entry. */

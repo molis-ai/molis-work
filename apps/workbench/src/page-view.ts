@@ -18,6 +18,8 @@ export interface MolisWorkWebView {
   hidden_plugins?: import("@molis-ai/molis-work-contracts/modules/projects").ProjectPluginId[];
   /** The plugins the page shows (enabled ones, and personal ones the project did not hide), as the Host works it out (W5-02 B1). */
   shown_plugins?: readonly string[];
+  /** The Catalog observation used to draw the project's plugin picker. */
+  project_plugin_revision?: string;
   /**
    * Directory panels supplied by Plugins the Host is running, keyed by project
    * plugin id. Absent means the shell renders what it always rendered.

@@ -1,3 +1,4 @@
+import { versionConsumptionCompatibility } from "./compatibility.js";
 import type {
   ArchiveArtifactVersionInput,
   ArtifactConsumptionCompatibility,
@@ -94,7 +95,18 @@ export class ArtifactsService<
   }
 
   listArtifacts(projectId: string, query?: ArtifactListQuery): R[] {
-    return this.#repository.listArtifacts(projectId, query);
+    if (query?.limit !== undefined) return this.#repository.listArtifacts(projectId, query);
+    // D0264: callers needing the complete collection traverse bounded, filtered SQL pages explicitly.
+    const records: R[] = [];
+    for (let offset = query?.offset ?? 0;; offset += 200) {
+      const page = this.#repository.listArtifacts(projectId, { ...query, limit: 200, offset }); records.push(...page);
+      if (page.length < 200) return records;
+    }
+  }
+
+  existingReferences(projectId: string, references: readonly ArtifactReference[]): ArtifactReference[] {
+    if (!Array.isArray(references) || references.length > 200 || references.some(reference => !reference || typeof reference.artifact_id !== "string" || !reference.artifact_id || !Number.isInteger(reference.version) || reference.version < 1)) throw artifactErrors["artifacts.artifact.input_invalid"]("固定引用查询必须是不超过 200 项的有效版本引用");
+    return references.length ? this.#repository.existingReferences(projectId, references.map(({ artifact_id, version }) => ({ artifact_id, version }))) : [];
   }
 
   consumptionCompatibility(
@@ -102,21 +114,7 @@ export class ArtifactsService<
     reference: ArtifactReference,
     supportedTypes: ArtifactConsumerType[],
   ): ArtifactConsumptionCompatibility {
-    const artifact = this.requireVersion(projectId, reference);
-    if (artifact.lifecycle_state === "archived") {
-      return { artifact: reference, consumable: false, reason: "artifact_archived" };
-    }
-    if (artifact.availability === "unavailable") {
-      return { artifact: reference, consumable: false, reason: "artifact_unavailable" };
-    }
-    const compatible = supportedTypes.some((candidate) =>
-      candidate.artifact_type_id === artifact.artifact_type_id
-      && candidate.schema_version === artifact.schema_version);
-    return {
-      artifact: reference,
-      consumable: compatible,
-      reason: compatible ? "compatible_consumer" : "consumer_missing",
-    };
+    return versionConsumptionCompatibility(this.requireVersion(projectId, reference), supportedTypes);
   }
 
   registerVersion(input: I): FixedVersionResult<R> {

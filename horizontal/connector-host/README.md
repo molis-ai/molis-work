@@ -46,7 +46,7 @@ node scripts/run-tests.mjs tests/feed-receive-chain.test.ts
 - 负责：Provider 连接、凭据引用、调用、健康状态与技术回执。
 - 不负责：Source 期望状态、Signal/Feed/Action 事实、Provider 的业务规则。
 - 公开入口：`@molis-ai/molis-work-service-connector-host`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/services/connector-host`。
-- 依赖：`@molis-ai/molis-work-contracts`。方向：只依赖合同与同目录适配端口；不决定业务状态（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（共用事务错误保全工具）。方向：只依赖公开合同、SDK 与同目录适配端口；不决定业务状态（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 密钥正文只在安全适配器里出现。token 的规范化与格式校验由连接 owner 提供，授权暂存与正式保存复用它，错误输入不能成为待激活的凭据。
   - 超时、驱动缺失等调用错误不能转成“同步成功”。

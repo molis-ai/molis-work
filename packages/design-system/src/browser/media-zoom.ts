@@ -66,6 +66,7 @@ function molisMediaZoom(viewport: HTMLElement, image: HTMLImageElement, { onChan
   };
   const down = (event: PointerEvent) => {
     if (event.button !== 0 && event.pointerType === "mouse") return;
+    swallow = false;
     pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
     if (pointers.size === 2) {
       for (const id of pointers.keys()) viewport.setPointerCapture?.(id);
@@ -93,12 +94,12 @@ function molisMediaZoom(viewport: HTMLElement, image: HTMLImageElement, { onChan
   // A drag that moved, or a pinch, is not a click: the click that follows it (closing on the backdrop) goes no further.
   let swallow = false;
   const up = (event: PointerEvent) => {
-    if (drag?.moved || pinch) swallow = true;
+    if (event.type !== "pointercancel" && (drag?.moved || pinch)) swallow = true;
     pointers.delete(event.pointerId);
     if (pointers.size < 2) pinch = null;
     if (drag?.id === event.pointerId || !pointers.size) { drag = null; viewport.classList.remove("is-dragging"); }
   };
-  const click = (event: MouseEvent) => { if (swallow) { event.stopPropagation(); event.preventDefault(); } swallow = false; };
+  const click = (event: MouseEvent) => { if (swallow && event.detail > 0) { event.stopPropagation(); event.preventDefault(); } swallow = false; };
   const dblclick = (event: MouseEvent) => {
     event.preventDefault();
     if (!fitted) { fit(true); return; }

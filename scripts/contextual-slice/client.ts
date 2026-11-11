@@ -525,7 +525,7 @@ const actions = {
       }
       case "handoff": {
         parts.push(el("p", { class: "cx-text", text: preview.text ?? "" }));
-        button("在输入框里说说", true, () => { const input = $<HTMLTextAreaElement>("[data-assistant-input]"); if (input) { input.placeholder = "针对这段内容，你想怎么讨论？"; input.focus(); } });
+        button("在输入框里说说", true, () => { const input = $<HTMLTextAreaElement>("[data-assistant-composer] .mw-composer__input"); if (input) { input.placeholder = "针对这段内容，你想怎么讨论？"; input.focus(); } });
         break;
       }
     }
@@ -616,9 +616,9 @@ async function refreshDocs() {
 // ---- natural language input -----------------------------------------------------------------------------------
 function wireInput() {
   const form = $<HTMLFormElement>("[data-assistant-composer]");
-  const input = $<HTMLTextAreaElement>("[data-assistant-input]");
+  const input = $<HTMLTextAreaElement>("[data-assistant-composer] .mw-composer__input");
   if (!form || !input) return;
-  const send = form.querySelector<HTMLButtonElement>("[data-assistant-send]");
+  const send = form.querySelector<HTMLButtonElement>("[data-composer-send]");
   input.addEventListener("input", () => { if (send) send.disabled = !input.value.trim(); });
   form.addEventListener("submit", event => {
     event.preventDefault();

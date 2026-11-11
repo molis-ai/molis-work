@@ -18,7 +18,7 @@ export async function connectLocalMcp(home: string, input: { displayName: string
   if (!input.displayName.trim() || input.displayName.trim().length > 100) throw connectorErrors["connector.mcp.configuration"]("请填写最多 100 字的连接名称");
   const launch = validateLocalMcpLaunch(input.launch), environment = localMcpEnvironment(launch, input.environment);
   const id = input.connectionId ?? randomUUID();
-  const previous = withConnectorConnections(home, store => store.get(id));
+  const previous = withConnectorConnections(home, store => store.get(id), true);
   if (previous?.updated_at !== input.expectedRevision || Boolean(input.connectionId) !== Boolean(previous) || previous && (previous.service_id !== CUSTOM_MCP_SERVICE || previous.auth_method !== "mcp")) throw connectorErrors["connector.connection.invalid"]("原连接已变化，请重新读取并准备接入");
   const pending = options.submission ?? startConnectorSetupSubmission(home, input.setupId, { service_id: CUSTOM_MCP_SERVICE, method: "mcp", display_name: input.displayName.trim(),
     ...(input.connectionId ? { connection_id: input.connectionId } : {}), transport: "stdio", local_launch: launch });
@@ -26,7 +26,7 @@ export async function connectLocalMcp(home: string, input: { displayName: string
     mode: launch.environment_names.length ? "environment" : "none", launch, ...(input.installationId ? { installation_id: input.installationId } : {}) };
   const current = async () => {
     await options.beforeDispatch(); options.signal?.throwIfAborted(); pending?.assertCurrent();
-    if (withConnectorConnections(home, store => store.get(id))?.updated_at !== previous?.updated_at) throw connectorErrors["connector.connection.invalid"]("原连接在验证期间已变化，请重新准备接入");
+    if (withConnectorConnections(home, store => store.get(id), true)?.updated_at !== previous?.updated_at) throw connectorErrors["connector.connection.invalid"]("原连接在验证期间已变化，请重新准备接入");
   };
   try {
     const inspection = await withConnectorRequest(home, id, options.signal, signal => useLocalMcpClient(config, environment, { signal, beforeDispatch: current }, client => inspectMcpClient(client, signal)));

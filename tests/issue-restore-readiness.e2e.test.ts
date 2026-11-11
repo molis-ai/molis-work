@@ -16,7 +16,7 @@ test('list readiness does not mean its saved screenshot draft is ready to submit
     const gate=owner.issueDraftGate??=new Promise(resolve=>{owner.releaseIssueDraft=resolve});
     const open=caches.open.bind(caches);
     caches.open=async name=>{
-      if(name.startsWith('molis-plugin-page:')&&name.endsWith(':drafts')){owner.issueDraftWaiting=true;await gate;}
+      if(name.startsWith('molis-account-cache:')&&name.includes(':molis-plugin-page:')&&name.endsWith(':drafts')){owner.issueDraftWaiting=true;await gate;}
       return open(name);
     };
   })()`},b.sessionId);

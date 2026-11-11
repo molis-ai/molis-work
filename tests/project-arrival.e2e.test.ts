@@ -315,7 +315,9 @@ test("in English the chooser lays out cleanly too: longer words, the same room",
   }
 });
 
-test("the Assistant in the bar speaks for the project in view, and keeps a draft for each one", { timeout: 90_000 }, async t => {
+// UIC-14 (home draft, one per project): words typed while a project is in view, another project chosen and the first chosen
+// again, are where they were left; the personal space has its own, and no project's words follow the person into another.
+test("UIC-14: the Assistant in the bar speaks for the project in view, and keeps a draft for each one", { timeout: 90_000 }, async t => {
   const chooser = await openChooser(t);
   if (!chooser) return;
   const { evaluate, waitFor, click, view, open, settled, command, sessionId, others, projectId } = chooser;

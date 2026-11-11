@@ -1,6 +1,7 @@
+import { connectorErrors } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { existsSync } from "node:fs";
-import { createFileSecretStore, homeSqlitePath, peekSealedEntry, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
-import { openConnectorsStore } from "./connectors-store.js";
+import { openExistingBaselineHomeSqlite, createFileSecretStore, homeSqlitePath, peekSealedEntry, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { openConnectorsStore, CONNECTORS_BASELINE, CONNECTORS_HOME_STORE } from "./connectors-store.js";
 import { ConnectorConnectionStore, ConnectorObservationStore, forgetPluginBindings, type ConnectorCheckObservation, type ConnectorConnectionSecrets } from "@molis-ai/molis-work-service-connector-host";
 import { invalidateConnectorBindingRequests, invalidateConnectorRequests } from "./connector-lifecycle.js";
 import { settleConnectionNotices } from "./assistant/assistant-connection-notices.js";
@@ -8,8 +9,15 @@ import { settleConnectionNotices } from "./assistant/assistant-connection-notice
 export { ConnectorConnectionStore } from "@molis-ai/molis-work-service-connector-host";
 
 /** Opens one short-lived connection to the Home-owned registry. */
-export function withConnectorConnections<T>(homeDirectory: string, operation: (store: ConnectorConnectionStore) => T): T {
-  const db = openConnectorsStore(homeDirectory);
+export function withConnectorConnections<T>(homeDirectory: string, operation: (store: ConnectorConnectionStore) => T): T;
+export function withConnectorConnections<T>(homeDirectory: string, operation: (store: ConnectorConnectionStore) => T, existingOnly: true): T | undefined;
+export function withConnectorConnections<T>(homeDirectory: string, operation: (store: ConnectorConnectionStore) => T, existingOnly: "required"): T;
+export function withConnectorConnections<T>(homeDirectory: string, operation: (store: ConnectorConnectionStore) => T, existingOnly: boolean | "required" = false): T | undefined {
+  const db = existingOnly ? openExistingBaselineHomeSqlite(homeDirectory, CONNECTORS_HOME_STORE.path, CONNECTORS_BASELINE) : openConnectorsStore(homeDirectory);
+  if (!db) {
+    if (existingOnly === "required") throw connectorErrors["connector.connection.not_found"]("连接不存在");
+    return undefined;
+  }
   try {
     db.exec("PRAGMA busy_timeout = 5000; PRAGMA foreign_keys = ON");
     const secrets: ConnectorConnectionSecrets = {

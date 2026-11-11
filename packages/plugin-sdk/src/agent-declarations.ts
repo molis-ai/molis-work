@@ -28,6 +28,7 @@ interface ReviewedRoles extends Reviewed {
 export function inspectAgentDeclaration(
   agent: AgentManifest | undefined,
   declaredInputPorts: readonly string[],
+  methods: unknown,
 ): Array<string | PluginDeclarationProblem> {
   if (!agent) return [];
   const prompts = reviewPrompts(agent);
@@ -41,7 +42,7 @@ export function inspectAgentDeclaration(
     ...agentCompactionProblems(agent, prompts.ids),
     ...(agent.ending_review && !prompts.ids.has(agent.ending_review.prompt_id) ? [`Agent 收尾核对 Prompt ${agent.ending_review.prompt_id} 未声明`] : []),
     ...agentSkillProblems(agent),
-    ...agentRoleSkillProblems(agent),
+    ...agentSkillMethodProblems(agent, methods),
     ...agentSubagentProblems(agent, roles.ids, prompts.ids, roles.workspaceParents),
   ];
 }
@@ -200,34 +201,15 @@ function agentSkillProblems(agent: AgentManifest): Array<string | PluginDeclarat
 }
 
 /**
- * A role's methods for its purpose: picked from the block's own methods, defaults among the allowed, and each allowed
- * method's tools among the role's — the same rule the Host applies to a selection at start, checked before install.
+ * One `skill_id` both in `agent.skills` (the plugin's own Agent) and in `methods` (offered to other Agents through the shared catalog).
+ * A plugin's own round reads its own Skills without the catalog's states, so a shared id would let it read, as its own, a method the
+ * person keeps `off` or `manual` there (specs/capability-pack/contract-design.md §2.2). `methods` is the Manifest's, unchecked.
  */
-function agentRoleSkillProblems(agent: AgentManifest): string[] {
-  const problems: string[] = [];
-  const declared = new Map((agent.skills ?? []).map(skill => [skill.skill_id, skill]));
-  for (const role of agent.roles ?? []) {
-    const skills = role.skills;
-    if (skills === undefined) continue;
-    const allowed = skills.allowed, defaults = skills.default ?? [];
-    if (!Array.isArray(allowed) || !allowed.length || !Array.isArray(defaults)
-      || [...allowed, ...defaults].some(id => !validToken(id))
-      || new Set(allowed).size !== allowed.length || new Set(defaults).size !== defaults.length) {
-      problems.push(`角色 ${role.role_id} 的方法声明不合法：allowed 至少一项，各项不重复`);
-      continue;
-    }
-    if (role.workspace === "none") problems.push(`无工作区角色 ${role.role_id} 不能带方法`);
-    const tools = new Set(role.host_tools ?? []);
-    for (const id of allowed) {
-      const skill = declared.get(id);
-      if (!skill) problems.push(`角色 ${role.role_id} 引用了未声明的方法 ${id}`);
-      else if (Array.isArray(skill.tools) && skill.tools.some(tool => !tools.has(tool))) {
-        problems.push(`角色 ${role.role_id} 给不了方法 ${id} 要的工具：${skill.tools.filter(tool => !tools.has(tool)).join("、")}`);
-      }
-    }
-    for (const id of defaults) if (!allowed.includes(id)) problems.push(`角色 ${role.role_id} 的默认方法 ${id} 不在可选方法里`);
-  }
-  return problems;
+function agentSkillMethodProblems(agent: AgentManifest, methods: unknown): PluginDeclarationProblem[] {
+  if (!Array.isArray(methods)) return [];
+  const offered = new Set(methods.map((method: { skill_id?: unknown } | null) => method?.skill_id).filter(validToken));
+  return [...new Set((agent.skills ?? []).map(skill => skill.skill_id))].filter(skillId => offered.has(skillId))
+    .map(skill_id => ({ skill_id, reason: `Agent 方法 ${skill_id} 与 methods 里的方法同名：自己的方法和给别的 Agent 的方法不能用同一个 skill_id` }));
 }
 
 function agentSubagentProblems(

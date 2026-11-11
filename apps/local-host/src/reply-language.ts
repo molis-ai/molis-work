@@ -7,7 +7,12 @@ const REPLY_LANGUAGE: Readonly<Record<WebLocale, string>> = {
   en: "Reply language for this round: English. Write every reply to the person in English, even when they type in another language or the materials and methods you were given are in another language. If the person explicitly asks for another language in this round, use that one. Do not translate the person's own content or earlier conversation unless they ask.",
 };
 
-/** What a round is told about the language to reply in (`AgentStartAuthority.reply_language`). */
+/** What a round is told about the language to reply in. */
 export function replyLanguagePrompt(locale: WebLocale): AgentPromptText {
   return { prompt_id: "reply-language", version: /* @version prompt.reply-language */ 1, body: REPLY_LANGUAGE[locale] };
+}
+
+/** A round's reply language as the Agent Host takes it (`AgentStartAuthority.reply_language`): the language, for its record, and the words. */
+export function replyLanguage(locale: WebLocale): { locale: WebLocale; prompt: AgentPromptText } {
+  return { locale, prompt: replyLanguagePrompt(locale) };
 }

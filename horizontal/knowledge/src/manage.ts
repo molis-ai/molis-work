@@ -32,9 +32,8 @@ export class KnowledgeCards {
   /** `listing`: whether the catch-up before this list left a source still being listed (the caller's to know). */
   list(caller: ActionCallContext, input: KnowledgeCardsRequest, listing = false): KnowledgeCardsResponse {
     const project = this.project(caller);
-    const all = this.store.list(project).filter(card => !input.states?.length || input.states.includes(card.state));
-    const offset = input.offset ?? 0;
-    return { cards: all.slice(offset, offset + (input.limit ?? DEFAULT_PAGE)), total: all.length, quota: this.organizer.quota(project), model_ready: this.organizer.modelReady(), listing };
+    const page = this.store.page(project, { ...input, limit: input.limit ?? DEFAULT_PAGE });
+    return { ...page, quota: this.organizer.quota(project), model_ready: this.organizer.modelReady(), listing };
   }
 
   edit(caller: ActionCallContext, input: KnowledgeEditRequest): KnowledgeCardRecord {

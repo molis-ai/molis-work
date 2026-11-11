@@ -1,53 +1,87 @@
-import { pluginErrors, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { pluginErrors, type PluginInstanceRecord, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { holdsInstalledEdition, pluginManifestDigest, readPluginReleaseManifest, type DeclarationOwner, type DeclarationOwners } from "@molis-ai/molis-work-plugin-runtime";
 import { HOST_ARTIFACT_PRODUCERS } from "./artifact-type-registry.js";
-import { heldInstalls, type InstallScope } from "./plugin-holders.js";
+import { heldInstalls, sameInstallScope, type InstallScope } from "./plugin-holders.js";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 
-const sameScope = (a: InstallScope, b: InstallScope) => a.kind === b.kind && (a.kind === "home" || (b.kind === "project" && a.project_id === b.project_id));
+const settingKeys = (manifest: PluginManifest): string[] => manifest.settings_entries?.entries.map(entry => entry.key) ?? [];
 
-const versionOf = (manifest: PluginManifest | undefined, version: string) => manifest?.version === version ? manifest : undefined;
-
-type Owner = { plugin_id: string; artifacts: PluginManifest["artifacts"] };
-
-/** The plugins this build ships and the Host's own producers: their names are reserved on every Home. */
-const shippedOwners = (): Owner[] => [...PLATFORM_PLUGIN_REGISTRATIONS.map(entry => ({ plugin_id: entry.manifest.plugin_id, artifacts: entry.manifest.artifacts })),
-  ...HOST_ARTIFACT_PRODUCERS.map(host => ({ plugin_id: host.plugin_id, artifacts: { produces: host.produces, consumes: [] } }))];
-
-/**
- * The owners for the isolated plugin-development run (`molis-work plugin dev`): its state directory is a private Home of its own with
- * no installation but the plugin under development (earlier runs' retained rows are the same developer's, not other owners), so the
- * only names it can collide with are the ones this build reserves. The plugin then learns here what its real install would refuse (S-82).
- */
-export function developmentDeclarationOwners() {
-  const shipped = shippedOwners();
-  return (): readonly Owner[] => shipped;
+function exactDefinition(manifest: PluginManifest | undefined, record: PluginInstanceRecord): PluginManifest | undefined {
+  return manifest?.plugin_id === record.plugin_id && manifest.version === record.version
+    && manifest.publisher.publisher_id === record.publisher_id && manifest.publisher.signature === record.publisher_signature
+    && pluginManifestDigest(manifest) === record.manifest_digest ? manifest : undefined;
 }
 
-/**
- * Who owns the 成果 type ids and link kinds on this Home, for the Plugin Runtime to refuse an install, a version change or an enable
- * that would give a name a second owner (S-82). One namespace for the whole Home: the owners are the plugins this build ships (their
- * names stay reserved), the Host's own producers, and every installation the Home still holds, in the Home's plugin store and in
- * each project's, by the Manifest it was started with. A disabled installation still holds its names; the last one to be
- * uninstalled without its data lets them go. What cannot be read refuses, with two exceptions that read nothing less: the plugin being
- * checked is not held back by its own record (its names are the candidate Manifest's), and an installation put in from a directory
- * (`molis-work plugin dev`) keeps no release row, so the Manifest the supervisor of this very scope is running for it stands in.
- */
-export function declarationOwnersFor(home: string | null, current: NonNullable<Parameters<typeof heldInstalls>[1]>, running: (pluginId: string) => PluginManifest | undefined = () => undefined) {
+/** Old keys still needed if a candidate version in this Home fails to start. Each change releases its own entry after commit or restoration. */
+export function createSettingsVersionClaims() {
+  const claims = new Set<{ scope: InstallScope; candidate: PluginInstanceRecord; keys: readonly string[] }>();
+  return {
+    hold(scope: InstallScope, candidate: PluginInstanceRecord, keys: readonly string[]) {
+      const claim = { scope, candidate, keys };
+      claims.add(claim);
+      return () => { claims.delete(claim); };
+    },
+    keysFor(scope: InstallScope, record: PluginInstanceRecord): readonly string[] {
+      for (const claim of claims) {
+        if (sameInstallScope(claim.scope, scope) && holdsInstalledEdition(record, claim.candidate)) return claim.keys;
+      }
+      return [];
+    },
+  };
+}
+export type SettingsVersionClaims = ReturnType<typeof createSettingsVersionClaims>;
+
+/** The plugins this build ships and the Host's own producers: their artifact names are reserved on every Home. */
+const shippedOwners = (): DeclarationOwner[] => [...PLATFORM_PLUGIN_REGISTRATIONS.map(entry => ({ plugin_id: entry.manifest.plugin_id, artifacts: entry.manifest.artifacts })),
+  ...HOST_ARTIFACT_PRODUCERS.map(host => ({ plugin_id: host.plugin_id, artifacts: { produces: host.produces, consumes: [] } }))];
+
+/** A development run has only its own installation and the artifact names the build reserves (S-82). */
+export function developmentDeclarationOwners() {
+  const shipped = shippedOwners();
+  return (): readonly DeclarationOwner[] => shipped;
+}
+
+/** Artifacts keep one owner across the Home (S-82). Settings compare the current project and Home, or all scopes when checking Home. */
+export function declarationOwnersFor(home: string | null, current: NonNullable<Parameters<typeof heldInstalls>[1]>,
+  running: (pluginId: string) => PluginManifest | undefined = () => undefined, versions = createSettingsVersionClaims()): DeclarationOwners {
   const shipped = shippedOwners();
   const shippedIds = new Set(shipped.map(owner => owner.plugin_id));
-  return (manifest: PluginManifest): readonly Owner[] => {
-    // A plugin this build ships has its names from the build, so its own start asks nothing of the disks.
-    if (shippedIds.has(manifest.plugin_id)) return shipped;
+  const projectSettings = current.scope.kind === "project" ? { home: true, projects: new Set([current.scope.project_id]) } : undefined;
+  const unreadable = (record: PluginInstanceRecord) => new Error(`读不到已装插件 ${record.plugin_id} 的 Manifest`);
+
+  const owners: DeclarationOwners = (manifest, installId, onlySettings) => {
+    const artifacts = !onlySettings && !shippedIds.has(manifest.plugin_id) && (manifest.artifacts.produces.length > 0 || !!manifest.artifacts.links?.length);
+    const settings = !!manifest.settings_entries?.entries.length;
+    const artifactOwner = (record: PluginInstanceRecord) => artifacts && !shippedIds.has(record.plugin_id) && record.plugin_id !== manifest.plugin_id;
+    const settingOwner = (record: PluginInstanceRecord, scope: InstallScope) => settings && record.state !== "uninstalled"
+      && (scope.kind === "home" || current.scope.kind === "home" || sameInstallScope(scope, current.scope))
+      && !(record.install_id === installId && sameInstallScope(scope, current.scope));
     try {
-      const held = heldInstalls(home, current).filter(item => !shippedIds.has(item.record.plugin_id) && item.record.plugin_id !== manifest.plugin_id).map(item => {
-        // Only this scope's supervisor can say what a development installation in this scope declares; another scope's stays unreadable.
-        const readable = item.manifest ?? (sameScope(item.scope, current.scope) ? versionOf(running(item.record.plugin_id), item.record.version) : undefined);
-        if (!readable) throw new Error(`读不到已装插件 ${item.record.plugin_id} 的 Manifest`);
-        return { plugin_id: item.record.plugin_id, artifacts: readable.artifacts };
-      });
-      return [...shipped, ...held];
+      const held = artifacts || settings ? heldInstalls(home, current, artifacts ? undefined : projectSettings,
+        (record, scope) => artifactOwner(record) || settingOwner(record, scope)) : [];
+      return [...onlySettings ? [] : shipped, ...held.map(item => {
+        const readable = item.manifest ?? (sameInstallScope(item.scope, current.scope) ? exactDefinition(running(item.record.plugin_id), item.record) : undefined);
+        if (!readable) throw unreadable(item.record);
+        return { plugin_id: item.record.plugin_id,
+          ...(artifactOwner(item.record) ? { artifacts: readable.artifacts } : {}),
+          ...(settingOwner(item.record, item.scope) ? { settings: [...settingKeys(readable), ...versions.keysFor(item.scope, item.record)] } : {}),
+        };
+      })];
     } catch (error) {
-      throw pluginErrors.definition_conflict(`${manifest.plugin_id} 声明的成果类型和链接种类，现在核不了有没有被别的插件占着（${error instanceof Error ? error.message : String(error)}）`);
+      const declarations = artifacts && settings ? "成果类型、链接种类和设置键" : artifacts ? "成果类型和链接种类" : "设置键";
+      throw pluginErrors.definition_conflict(`${manifest.plugin_id} 声明的${declarations}，现在核不了有没有被别的插件占着（${error instanceof Error ? error.message : String(error)}）`);
     }
   };
+  owners.retainSettings = (previous, candidate, target, oldDefinition) => {
+    try {
+      const old = exactDefinition(oldDefinition, previous) ?? readPluginReleaseManifest(current.db, previous);
+      if (!old) throw unreadable(previous);
+      const next = new Set(settingKeys(target));
+      const lost = settingKeys(old).filter(key => !next.has(key));
+      return lost.length ? versions.hold(current.scope, candidate, lost) : undefined;
+    } catch (error) {
+      throw pluginErrors.definition_conflict(`换版前核不了旧设置声明（${error instanceof Error ? error.message : String(error)}）`);
+    }
+  };
+  return owners;
 }

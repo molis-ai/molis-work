@@ -8,6 +8,7 @@ import type {
   AgentSubagentsCapability,
 } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { emptyCapabilityMatrix } from "../capabilities.js";
+import { AGENT_RUNTIME } from "../tool-catalog.js";
 import type { PrologueAdapterOptions, PrologueRuntimePort } from "./prologue-ports.js";
 import { isEnded, type PrologueRunStore } from "./prologue-run-store.js";
 
@@ -50,7 +51,7 @@ export function prologueDescriptor(options: PrologueAdapterOptions): AgentRuntim
     ...(options.runtime.workspaceBusiness && options.runtime.actionTools ? { supports_workspace_business: true } : {}),
     ...(options.runtime.actionTools ? { supports_action_tools: true } : {}), supports_character_limits: true,
     display_name: "Prologue",
-    provider_version: options.providerVersion ?? "0.0.0-rc.1",
+    provider_version: options.providerVersion ?? AGENT_RUNTIME.version,
     capabilities,
   };
 }

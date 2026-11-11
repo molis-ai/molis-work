@@ -53,8 +53,8 @@ export function renderConnectorMark(connectorId: string, escapeHtml: ConnectorsS
 
 function renderNextSteps(card: ConnectorSettingsCardView, connections: readonly ConnectorConnectionView[], p: ConnectorsSettingsPrimitives): string {
   const { L, escapeHtml: e } = p;
-  const active = connections.filter(connection => connection.state === "connected");
-  if (!active.length) return "";
+  const active = connections.filter(connection => connection.state === "connected" && connection.enabled !== false);
+  if (!active.length || card.availability !== "live") return "";
   const instructions: Array<{ text: string; label?: string; href?: string; plugin?: string }> = [];
   if (active.some(row => row.auth_method === "mcp" && row.agent_available !== false) || card.connector_id === "mcp-bearer") instructions.push({ text: L("在 Coding 的 MCP 设置中选择已授权账号，保存并连接后，在会话中选择本轮工具。"), label: L("设置 Agent 工具"), href: "/settings/coding-settings" });
   if (active.some(row => row.auth_method === "mcp" && row.agent_available === false)) instructions.push({ text: L("此连接使用服务商的原生传输。可以在「高级」里查看工具并执行明确的工具操作；当前传输暂不支持 Coding。") });

@@ -35,9 +35,9 @@ type Row = { text: string; failed: boolean; acts: string[] };
 
 // K3 (UIV-12): the Assistant's files are the unified composer's own strip (one row per file inside the box, the board's upload rows).
 // Each file has its row from the moment it is added: being read (and the Send waits), read, or why it cannot go, with × to let it go;
-// a failed row holds the Send until it is let go (the composer's rule); a file let go while it is read stays gone when its late
-// answer comes. A picture let go can also be added again (重试 in its own row is the next test).
-test("VUX-18 UIV-12: an added file has its own row on the composer's strip while it is read, keeps its name and why when it cannot go, and a file let go while it is read stays gone", { timeout: 120_000 }, async (t) => {
+// a failed row holds the Send (greyed) until it is let go — UIC-15: removing it or reading it again frees the Send; a file let go
+// while it is read stays gone when its late answer comes. A picture let go can also be added again (重试 in its own row is the next test).
+test("VUX-18 UIV-12 UIC-15: an added file has its own row on the composer's strip while it is read, keeps its name and why when it cannot go, and a file let go while it is read stays gone", { timeout: 120_000 }, async (t) => {
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
   const { evaluate, waitFor, navigate, command, sessionId, origin, projectId } = browser;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
@@ -96,10 +96,11 @@ test("VUX-18 UIV-12: an added file has its own row on the composer's strip while
 // through its states, and the neighbours easing aside and closing up. Where the composer's design differs it is said at the line:
 // the rows are the board's upload rows, one under another inside the box (the box grows upward, so the rows above a gap come down into it, not across), each
 // named by `data-composer-file`; their names and buttons are the composer's ("移除 …", "重试 …"); and a failed row holds the Send
-// until it is retried or let go (K2's rule, UIV-12), where the island's strip let the Send go without it.
+// until it is retried or let go (K2's rule, UIV-12; UIC-15: the failed row greys the Send, and 重试 through to read or × frees it),
+// where the island's strip let the Send go without it.
 type Chip = { key: string; text: string; state: string; busy: boolean; acts: string[] };
 
-test("VUX-18: an added file has its own row while it is read, keeps its failure and 重试 on the strip, and its neighbours move aside and close up", { timeout: 120_000 }, async (t) => {
+test("VUX-18 UIC-15: an added file has its own row while it is read, keeps its failure and 重试 on the strip, and its neighbours move aside and close up", { timeout: 120_000 }, async (t) => {
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
   const { evaluate, waitFor, navigate, command, sessionId, origin, projectId } = browser;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);

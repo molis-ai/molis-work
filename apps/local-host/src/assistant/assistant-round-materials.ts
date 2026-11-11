@@ -1,9 +1,10 @@
-import { signedMethodData, SIGNED_MATERIAL_NOTICE, type MethodHandoff } from "./assistant-signed-materials.js";
+import { signedRoleData, SIGNED_MATERIAL_NOTICE, type MethodHandoff } from "./assistant-signed-materials.js";
 import type { AgentDocumentCapability, AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { isSubjectReader, type ActionSubjectContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AssistantDelegations } from "./assistant-delegation.js";
-import type { AssistantMethod, AssistantContextSnapshot, AssistantMaterial, AssistantMaterialText } from "@molis-ai/molis-work-contracts/services/assistant";
+import type { AssistantMethod, AssistantMethodSelection, AssistantContextSnapshot, AssistantMaterial, AssistantMaterialText } from "@molis-ai/molis-work-contracts/services/assistant";
 import { ASSISTANT_METHOD_ACTIONS } from "./assistant-rule-actions.js";
+import { SKILLS_PROVIDER_ID, skillCatalogActions } from "@molis-ai/molis-work-contracts/services/skills";
 import { capabilityDirectory, knowledgeDirectory, knowledgeFact } from "./assistant-directory.js";
 import { identity } from "./assistant-relations.js";
 import type { AssistantStore, StoredWork } from "./assistant-store.js";
@@ -18,6 +19,13 @@ import { RUNTIME, belongsElsewhere, whereNow, type AssistantServicePorts, type R
 import { RELATION_WORDS, describeObjects } from "./assistant-present.js";
 import type { AssistantWorkReads } from "./assistant-work-reads.js";
 import type { AssistantMemoryBridge } from "./assistant-memory-bridge.js";
+
+/** One chosen or listed method, whatever else the page sent with it: a Skill by its installation and id, a role by its installation and entry. */
+function methodKey(method: AssistantMethodSelection | AssistantMethod): string {
+  if (method.kind === "role") return `role\0${method.installation.install_id}\0${method.method_id}`;
+  const ref = "skill" in method ? method.skill.ref : method.ref;
+  return `skill\0${ref.install_id}\0${ref.skill_id}`;
+}
 
 /** Bytes per image, within what the model providers take; how many per Send is in assistant-send-materials.ts. */
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
@@ -39,7 +47,7 @@ function chunked(base: Pick<AgentTextMaterial, "title">, id: string, text: strin
     title: parts === 1 ? base.title : `${base.title}（${index + 1}/${parts}）`, text: text.slice(index * size, (index + 1) * size) }));
 }
 
-export type AssistantRoundMaterialsLinks = Pick<AssistantWorkReads, "workObjects" | "related" | "methods" | "readMethod"> & Pick<AssistantMemoryBridge, "memoryTools"> & { jobs: Pick<AssistantJobs, "material">; delegations: Pick<AssistantDelegations, "material"> };
+type AssistantRoundMaterialsLinks = Pick<AssistantWorkReads, "workObjects" | "related" | "methods" | "readRole" | "readSkills"> & Pick<AssistantMemoryBridge, "memoryTools"> & { jobs: Pick<AssistantJobs, "material">; delegations: Pick<AssistantDelegations, "material"> };
 
 /**
  * What a round is given and what the person brings: the round's situation as marked data, objects read again from
@@ -133,14 +141,18 @@ export class AssistantRoundMaterials {
     for (const [title, id, text] of [["可用能力目录", "capabilities", capabilityDirectory(offered, unavailable, this.store.confirmAlways(this.actorId))], ["项目资料目录", "knowledge", knowledgeDirectory(this.ports, work.scope.kind === "project" ? work.scope.project_id : null, offered, `${work.title}\n${this.starting.get(work.work_id) ?? ""}`)]] as const) if (text) out.push(...chunked({ title }, id, text));
     // Methods Plugins offer: listed, not loaded. A round that needs one reads it; one the person chose is already here.
     const methods = work.executor.kind === "plugin" ? [] : await this.link.methods(work).catch(() => [] as AssistantMethod[]);
-    const chosen = new Set(materials.filter(item => item.kind === "method").map(item => item.method?.method_id));
-    const listed: AssistantMethod[] = [];
-    for (const method of methods.filter(item => !chosen.has(item.method_id)).slice(0, 20)) {
-      if (JSON.stringify([...listed, method]).length > 18_000) break;
-      listed.push(method);
+    const chosen = new Set(materials.flatMap(item => item.kind === "method" && item.method ? [methodKey(item.method)] : []));
+    const listed: object[] = [];
+    for (const method of methods.filter(item => !chosen.has(methodKey(item))).slice(0, 20)) {
+      const row = method.kind === "skill" ? { kind: "skill", ref: method.skill.ref, name: method.skill.name, description: method.skill.description,
+        ...(method.skill.when_to_use ? { when_to_use: method.skill.when_to_use } : {}), plugin_title: method.skill.pack.title } : method;
+      if (JSON.stringify([...listed, row]).length > 18_000) break;
+      listed.push(row);
     }
+    const skillRead = skillCatalogActions.readBodies;
     if (listed.length) out.push({ material_id: "methods", title: "可用角色资料与方法", text:
-      `按需读取资料：read-capability 的 capability_id 为 ${ASSISTANT_METHOD_ACTIONS.read.capability_id}，version 为 ${ASSISTANT_METHOD_ACTIONS.read.version}，provider_id 为 ${ASSISTANT_METHOD_ACTIONS.read.provider_id}。input 是对象，例如 {"method_id":"owner/method","version":1}；签名条目必须附目录中的完整 default_ref 和 installation。\n` +
+      `按需读取资料：方法（kind 为 skill）用 read-capability，capability_id 为 ${skillRead.capability_id}，version 为 ${skillRead.version}，provider_id 为 ${SKILLS_PROVIDER_ID}，input 是对象，例如 {"refs":[目录中的完整 ref]}；` +
+      `角色资料（kind 为 role）用 read-capability 的 capability_id 为 ${ASSISTANT_METHOD_ACTIONS.read.capability_id}，version 为 ${ASSISTANT_METHOD_ACTIONS.read.version}，provider_id 为 ${ASSISTANT_METHOD_ACTIONS.read.provider_id}。input 是对象，例如 {"method_id":"signed/role-id"}，必须附目录中的完整 default_ref 和 installation。\n` +
       SIGNED_MATERIAL_NOTICE + "\n" + JSON.stringify(listed) });
     // The object the person is on, as its owner has it: where it stands and what it belongs to. The page's claim is
     // only a pointer; this is read again from the owner, so a work started in the plugin continues with its background.
@@ -156,7 +168,7 @@ export class AssistantRoundMaterials {
       out.push(...chunked({ title: "当前页面（发送时）" }, "page", lines), ...await landingMaterials(this.ports, work.scope.kind === "personal" ? null : work.scope.project_id, context));
     }
     for (const material of materials) {
-      if (material.method?.default_ref) {
+      if (material.method?.kind === "role") {
         if (!material.text || material.text.length > 20_000) throw assistantErrors.invalid("签名资料正文超过单份材料预算，请减少内容后重发");
         out.push({ material_id: `signed-${material.material_id}`, title: material.title, text: material.text }); continue;
       }
@@ -248,20 +260,30 @@ export class AssistantRoundMaterials {
     return out;
   }
 
-  /** Methods the person chose with “/”: the registered body goes with this round, said as their choice. */
+  /**
+   * What the person chose with “/”: each body goes with this round, said as their choice. The Skills they chose are this round's named
+   * list, read together in one catalog read; role material is read from its signed installation.
+   */
   async chosenMethods(work: StoredWork, materials: AssistantMaterial[], handoffs: MethodHandoff[] = []): Promise<AssistantMaterial[]> {
+    // A work an executor carries hands its Skills over by reference (§2.3): the executor's round reads them, as itself, not this one.
+    const handedOver = work.executor.kind === "plugin";
+    const refs = handedOver ? [] : [...new Map(materials.flatMap(item => item.kind === "method" && item.method?.kind === "skill" ? [[methodKey(item.method), item.method.ref] as const] : [])).values()];
+    const read = refs.length ? await this.link.readSkills(work, refs) : undefined;
+    if (read) handoffs.push(read.handoff);
     const out: AssistantMaterial[] = [];
     for (const material of materials) {
-      if (material.kind !== "method" || !material.method) { out.push(material); continue; }
-      const method = await this.link.readMethod(work, material.method.method_id, material.method);
-      if (method.handoff) handoffs.push(method.handoff);
-      if (method.default_ref) {
-        out.push({ ...material, title: method.kind === "role" ? "角色资料" : "方法", method: { method_id: method.method_id, version: method.version, name: method.name, plugin_title: method.plugin_title,
-          default_ref: method.default_ref, installation: method.installation, effective: method.effective, user_revision: method.user_revision }, text: signedMethodData(method) });
+      const chosen = material.kind === "method" ? material.method : undefined;
+      if (!chosen || (chosen.kind === "skill" && handedOver)) { out.push(material); continue; }
+      if (chosen.kind === "skill") {
+        const skill = read!.skills.find(item => methodKey({ kind: "skill", ref: item.ref }) === methodKey(chosen))!;
+        out.push({ ...material, title: `方法：${skill.name}`, method: { kind: "skill", ref: skill.ref, name: skill.name },
+          text: `用户为这一轮选定的方法「${skill.name}」（v${skill.ref.version}）。这一轮按它的步骤做：\n${skill.body}` });
         continue;
       }
-      out.push({ ...material, title: `方法：${method.name}`, method: { method_id: method.method_id, version: method.version, name: method.name, plugin_title: method.plugin_title },
-        text: `用户为这一轮选定的方法「${method.name}」（${method.plugin_title} 提供，v${method.version}）。这一轮按它的步骤做：\n${method.body}` });
+      const role = await this.link.readRole(work, chosen);
+      handoffs.push(role.handoff);
+      out.push({ ...material, title: "角色资料", method: { kind: "role", method_id: role.method_id, version: role.version, name: role.name, plugin_title: role.plugin_title,
+        default_ref: role.default_ref, installation: role.installation, effective: role.effective, user_revision: role.user_revision }, text: signedRoleData(role) });
     }
     return out;
   }

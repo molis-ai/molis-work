@@ -1,4 +1,8 @@
+import { DraftReferences } from "./contextual/draft-references.js";
 import { skillCatalogProviderFor } from "./agent-definitions/skill-catalog-host.js";
+import type { ProjectPluginHost } from "./project-plugin-ports.js";
+import { kitProviders } from "./kit-actions.js";
+import { withConnectorsKitReport } from "./kit-mcp-reports.js";
 import { accountActionProvider } from "@molis-ai/molis-work-service-account";
 import { accountSessionForHost } from "./account-host.js";
 import { projectSyncAccess } from './project-sync-access.js';
@@ -7,12 +11,13 @@ import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/p
 import { bindProjectNotifications } from "./plugin-notification-delivery.js";
 import { hostErrors } from "./host-errors.js";
 import { informationActionProvider } from "./information-actions.js";
+import { createSettingsVersionClaims } from "./declaration-owners.js";
 import { bindHomeSide, bindPluginCatalog, releaseHomeSide, type PluginFixture } from "./home-side.js";
 import { homeActionProvider } from "./home-actions.js";
 import { openProjectSchedulers, closeProjectSchedulers } from "./project-schedulers.js";
 import { precompileActionSchemas, refuseCall, type CallSettled } from "@molis-ai/molis-work-kernel";
 import { createConnectorMcpDirectory, type ConnectorMcpDirectory } from "./connector-mcp-actions.js";
-import { projectWorkspaceActionProvider } from "./project-workspace-actions.js";
+import { projectPluginMembershipActionProvider, projectWorkspaceActionProvider, type ProjectCatalogOwner } from "./project-workspace-actions.js";
 import { announceWorkspaceSettingsChange } from "./workspace-settings-events.js";
 import type { PtySpawnRequest, PtySpawnResult } from "@molis-ai/molis-work-contracts/services/runtime-host";
 import { artifactActionProvider } from "./artifact-actions.js";
@@ -45,10 +50,10 @@ import { LocalHost, type HostCapabilityHandler, type LocalHostOptions } from "./
 import { openProjectVersionStores, type ProjectVersionStores } from "./project-version-stores.js";
 import { LocalProjectDatabase } from "./project-database.js";
 import { registerProjectCapabilities, type PrepareProjectDirectory } from "./project-capabilities.js";
-import { releaseProjectPlugins } from "./project-plugins.js";
+import { refreshRunningProjectPlugins, releaseProjectPlugins } from "./project-plugins.js";
 import type { LocalHostProjectClient, LocalHostProjectReference, LocalHostStatus } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { ProjectDirectories, ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
-import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionProviderRegistration, type ActionRegistryPort, type ActionSceneClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionProviderRegistration, type ActionReference, type ActionRegistryPort, type ActionSceneClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentHostComposition } from "./agent-host-composition.js";
 import { createSearchHost, type SearchHost } from "./search-actions.js";
 import { createPlacementHost, type PlacementHost, type PlacementProjectRecord } from "./placement-actions.js";
@@ -139,7 +144,9 @@ export function molisWorkHostProjectReference(input: {
  */
 export class MolisWorkLocalHost {
   private readonly host: LocalHost<MolisWorkProjectRuntime>;
+  private readonly draftReferences = new DraftReferences();
   readonly synchronization: ReturnType<typeof projectSyncAccess>;
+  readonly projectCatalogActions: ReturnType<typeof registerHostPlatformProviders>;
   private personalPlanningHome?: string;
   /** Tools of remote MCP connections in 服务连接, as Home actions; absent without a Home. */
   readonly connectorMcp?: ConnectorMcpDirectory;
@@ -151,6 +158,7 @@ export class MolisWorkLocalHost {
   private readonly closing: { started?: boolean; completed: Set<string>; attempt?: Promise<void>; work?: Promise<void> } = { completed: new Set() };
   /** Commands that ran in this Home, for the 调用记录 page; absent without a Home directory. */
   readonly callLog?: ActionCallLog;
+  private readonly plugins: ProjectPluginHost; // What the plugin-reading services share: the Host, its options, the Agent Host and the Home plugins.
   /** System search over this Home's plugins; absent without a Home directory. */
   readonly search?: SearchHost;
   readonly placement?: PlacementHost;
@@ -162,6 +170,7 @@ export class MolisWorkLocalHost {
     prepareHostMemoryHome(this, options.homeDirectory);
     try {
     this.personalPlanningHome = options.homeDirectory ? resolveConfiguredHome(options.homeDirectory) : undefined;
+    const catalogOwner = () => this.personalPlanningHome && this.catalogRunner ? { home: this.personalPlanningHome, run: this.catalogRunner } : undefined;
     if (options.homeDirectory) this.callLog = new ActionCallLog(options.homeDirectory);
     this.host = new LocalHost({
       instanceId: options.instanceId,
@@ -186,9 +195,8 @@ export class MolisWorkLocalHost {
           const clock = options.clock ?? (() => new Date());
           const runtime: MolisWorkProjectRuntime = { store, ...openProjectVersionStores(store, clock), project_id: reference.project_id };
           try {
-            const scenes = this.sceneClient(reference);
             const providers: ActionProviderRegistration[] = [], add = (provider: ActionProviderRegistration) => { providers.push(provider); };
-            add(projectWorkspaceActionProvider(reference.project_id, () => this.personalPlanningHome && this.catalogRunner ? { home: this.personalPlanningHome, run: this.catalogRunner } : undefined,
+            add(projectWorkspaceActionProvider(reference.project_id, catalogOwner,
               workspaceId => announceWorkspaceSettingsChange(store, reference.project_id, workspaceId), {
                 client: this.actionClient(reference), db: store.db, now: clock,
                 versionKept: pin => (pin.mode === "fixed" ? runtime.artifacts.query : runtime.processItems.query)
@@ -199,7 +207,7 @@ export class MolisWorkLocalHost {
             if (options.homeDirectory) add(informationActionProvider(options.homeDirectory, reference.project_id, this.actionClient(reference), options.completeText));
             if (options.homeDirectory) add(charactersActionProvider(runtime, { ...options, homeDirectory: options.homeDirectory }, () => this.agents?.service.charactersCatalog(runtime)));
             if (options.homeDirectory) add(homeActionProvider(options.homeDirectory, reference.project_id,
-              { actions: this.actionClient(reference), scenes, functions: options.functions, readFunctions: this.systemFunctions?.read,
+              { actions: this.actionClient(reference), scenes: this.sceneClient(reference), functions: options.functions, readFunctions: this.systemFunctions?.read, pageDrafts: this.draftReferences,
                 projectPlugins: projectId => this.projectPluginReach(projectId) }, (judgment, caller) => {
                 new LocalSqliteJournal(store.db).appendEvent({ eventId: `event-${randomUUID()}`, projectId: reference.project_id, actorId: caller.actor_id,
                   objectType: "judgment", objectId: judgment.judgment_id, type: "judgment_completed", reason: judgment.outcome,
@@ -218,9 +226,10 @@ export class MolisWorkLocalHost {
       },
     });
     this.synchronization = projectSyncAccess(this.host);
-    if (options.homeDirectory) this.homePlugins = new HomePluginHost({ home: options.homeDirectory, actorId: LOCAL_PERSON_ACTOR_ID,
-      registry: this.host.actionRegistry(), client: homePluginActions(this.host), inspect: caller => this.host.inspectActions(caller), entries: homePluginEntries(), fixtures: options.pluginFixtures?.home, installed: options.pluginFixtures?.installed, projectReach: homeProjectReach(options.homeDirectory, () => this.host.projects()),
-      projectActions: (projectId, pluginId) => homePackageProjectActions(projectId, pluginId, options.homeDirectory, this.catalogRunner,
+    const home = options.homeDirectory, settingsVersionClaims = createSettingsVersionClaims();
+    if (home) this.homePlugins = new HomePluginHost({ home, actorId: LOCAL_PERSON_ACTOR_ID, settingsVersionClaims,
+      registry: this.host.actionRegistry(), client: homePluginActions(this.host), inspect: caller => this.host.inspectActions(caller), entries: homePluginEntries(), fixtures: options.pluginFixtures?.home, installed: options.pluginFixtures?.installed, projectReach: homeProjectReach(home, () => this.host.projects()),
+      projectActions: (projectId, pluginId) => homePackageProjectActions(projectId, pluginId, home, this.catalogRunner,
         this, this.host, molisWorkHostProjectReference) });
     if (options.homeDirectory) {
       this.alchemist = new AlchemistHostService(options.homeDirectory, options.alchemist);
@@ -232,17 +241,16 @@ export class MolisWorkLocalHost {
       return { actions: project ? this.actionClient(project) : this.homeActionClient(), scenes: this.sceneClient(project), projectId: project?.project_id };
     });
     // What the Host offers for as long as it runs, registered here and nowhere else: all `system`, none a plugin's (a plugin registers its own through the Plugin Runtime).
+    this.plugins = { host: this.host, options: this.options, agents: () => this.agents?.service, homePlugins: () => this.homePlugins };
+    const callerClient = (caller: ActionCallContext) => callerOwnClient(this, caller);
     const platform: ActionProviderRegistration[] = [
       accountActionProvider(() => accountSessionForHost(this)),
-      actionUsagesProvider(caller => {
-        const project = caller.project_id ? this.host.projects().find(row => row.project_id === caller.project_id) : undefined;
-        if (caller.project_id && !project) throw new ActionError("actions.scope_mismatch", "使用位置查询缺少当前项目运行环境");
-        return project ? this.actionClient(project) : this.homeActionClient();
-      }, options.homeDirectory),
-      ...(options.homeDirectory ? [skillCatalogProviderFor(options.homeDirectory, { host: this.host, options: this.options, agents: () => this.agents?.service, homePlugins: () => this.homePlugins }), taskGrantActionProvider(taskGrantHostPorts(options.homeDirectory, this)), pluginConsentProvider(new HomeConsentLedger(options.homeDirectory), () => this.homePlugins!.projectReachConsents(),
-        projectId => projectReachDetails(projectId, options.homeDirectory, this.catalogRunner, this, this.host, molisWorkHostProjectReference)), pluginInstallProviderFor(options.homeDirectory, { host: this.host, options: this.options, agents: () => this.agents?.service, homePlugins: () => this.homePlugins }), connectorAccountActionProvider(options.homeDirectory, (...args) => this.connectorMcp!.remember(...args), { library: async () => this.agents?.service.mcpLibrary(), refresh: async owner => { if (!this.agents) throw new Error("项目 MCP 运行服务未装配"); await this.agents.service.refreshExternalMcp(owner); } }, caller => this.inspectActions(caller, this.host.projects().find(project => project.project_id === caller.project_id)), caller => caller.project_id ? this.actionClient(this.host.projects().find(project => project.project_id === caller.project_id)!) : this.homeActionClient(), (caller, installId, pluginId) => installedConnectionSlots(installId, pluginId, this.homePlugins, reference => this.withProject(reference, runtime => installedPluginManifest(runtime.store.db, installId)), this.host.projects().find(project => project.project_id === caller.project_id)))] : []),
+      actionUsagesProvider(callerClient, options.homeDirectory),
+      ...kitProviders({ clientFor: callerClient, library: async () => this.agents?.service.mcpLibrary(), plugins: this.plugins, home: options.homeDirectory }),
+      ...(options.homeDirectory ? [skillCatalogProviderFor(options.homeDirectory, this.plugins), taskGrantActionProvider(taskGrantHostPorts(options.homeDirectory, this)), pluginConsentProvider(new HomeConsentLedger(options.homeDirectory), () => this.homePlugins!.projectReachConsents(),
+        projectId => projectReachDetails(projectId, options.homeDirectory, this.catalogRunner, this, this.host, molisWorkHostProjectReference)), pluginInstallProviderFor(options.homeDirectory, this.plugins), withConnectorsKitReport(connectorAccountActionProvider(options.homeDirectory, (...args) => this.connectorMcp!.remember(...args), { library: async () => this.agents?.service.mcpLibrary(), refresh: async owner => { if (!this.agents) throw new Error("项目 MCP 运行服务未装配"); await this.agents.service.refreshExternalMcp(owner); } }, caller => this.inspectActions(caller, this.host.projects().find(project => project.project_id === caller.project_id)), caller => caller.project_id ? this.actionClient(this.host.projects().find(project => project.project_id === caller.project_id)!) : this.homeActionClient(), (caller, installId, pluginId) => installedConnectionSlots(installId, pluginId, this.homePlugins, reference => this.withProject(reference, runtime => installedPluginManifest(runtime.store.db, installId)), this.host.projects().find(project => project.project_id === caller.project_id))), options.homeDirectory, this.plugins)] : []),
     ];
-    registerHostPlatformProviders(this.host.actionRegistry(), platform);
+    this.projectCatalogActions = registerHostPlatformProviders(this.host, platform, catalogOwner, () => this.prepareHomeActions(), this.settleAction);
     if (options.homeDirectory) {
       // Remote MCP servers connected in 服务连接: what each last offered is back in the directory at start.
       this.connectorMcp = createConnectorMcpDirectory({ localHost: this, homeDirectory: options.homeDirectory });
@@ -252,9 +260,8 @@ export class MolisWorkLocalHost {
       this.host,
       { workspaceFor: options.workspaceFor, workspacesFor: options.workspacesFor, prepareDirectory: options.prepareDirectory },
     );
-    if (options.homeDirectory) bindHomeSide(this, options.homeDirectory, options);
-    if (options.homeDirectory) {
-      const home = options.homeDirectory;
+    if (home) {
+      bindHomeSide(this, home, options, settingsVersionClaims);
       this.search = createSearchHost({ homeDirectory: home, registry: this.host.actionRegistry(),
         project: projectId => this.host.projects().find(row => row.project_id === projectId && row.state !== "closing"),
         projectClient: reference => this.actionClient(reference), homeClient: () => this.homeActionClient(),
@@ -354,7 +361,6 @@ export class MolisWorkLocalHost {
     return localWebActionContext(this, reference, LOCAL_OWNER_PERMISSIONS, signal);
   }
 
-  /** Local management inspects registered metadata without borrowing execution permissions. */
   /** Registered declarations only: no Runtime preparation, availability policy or execution authority. */
   inspectActionMetadata(caller: ActionCallContext, reference?: LocalHostProjectReference) { return this.host.inspectActionMetadata(caller, reference); }
 
@@ -382,11 +388,11 @@ export class MolisWorkLocalHost {
   private async prepareProjectPlugins(reference: LocalHostProjectReference, caller: ActionCallContext): Promise<void> {
     caller.signal?.throwIfAborted();
     if (caller.project_id !== reference.project_id.trim()) throw new ActionError("actions.scope_mismatch", "调用上下文与项目不一致");
-    await ensureProjectPluginActions({ host: this.host, options: this.options, agents: () => this.agents?.service, homePlugins: () => this.homePlugins }, reference);
+    await ensureProjectPluginActions(this.plugins, reference);
     caller.signal?.throwIfAborted();
     await this.agents?.service.restoreExternalMcp(reference);
     caller.signal?.throwIfAborted();
-    await this.host.withRuntime(reference, runtime => prepareInstalledPlugins({ host: this.host, options: this.options, agents: () => this.agents?.service, homePlugins: () => this.homePlugins }, reference, runtime));
+    await this.host.withRuntime(reference, runtime => prepareInstalledPlugins(this.plugins, reference, runtime));
     caller.signal?.throwIfAborted();
   }
 
@@ -419,7 +425,7 @@ export class MolisWorkLocalHost {
     reference: LocalHostProjectReference,
     operation: (runtime: MolisWorkProjectRuntime) => Result | Promise<Result>, options?: { activatePlugins?: boolean },
   ): Promise<Result> {
-    return withPreparedProject({ host: this.host, options: this.options, agents: () => this.agents?.service, homePlugins: () => this.homePlugins }, reference, operation, options?.activatePlugins);
+    return withPreparedProject(this.plugins, reference, operation, options?.activatePlugins);
   }
 
   closeProject(referenceOrStorageKey: LocalHostProjectReference | string): Promise<boolean> {
@@ -428,7 +434,7 @@ export class MolisWorkLocalHost {
 
   close(): Promise<void> {
     return closeHomeStorageLifetime(this, this.closing, [
-        ["search", () => this.search?.close()], ["placement", () => this.placement?.close()],
+        ["page-drafts", () => this.draftReferences.close()], ["search", () => this.search?.close()], ["placement", () => this.placement?.close()],
         ["projects", () => this.host?.close()], ["functions", () => this.systemFunctions?.dispose()],
         ["agents", () => this.agents?.service.dispose()], ["home-plugins", () => this.homePlugins?.close()],
     ], () => this.webCatalog?.access.close(), [["connectors", () => closeConnectorResources(this.options.homeDirectory, this.connectorMcp)],
@@ -477,11 +483,26 @@ function hostCallSettled(host: Pick<MolisWorkLocalHost, "callLog" | "search" | "
 }
 
 /** The Host's own providers are `system` and belong to no plugin; this is not a way to hand-register a plugin's actions. */
-function registerHostPlatformProviders(registry: ActionRegistryPort, providers: readonly ActionProviderRegistration[]): void {
-  for (const registration of providers) {
+function registerHostPlatformProviders(host: LocalHost<MolisWorkProjectRuntime>, providers: readonly ActionProviderRegistration[], catalogOwner: ProjectCatalogOwner,
+  prepareHome: () => Promise<void>, settle: CallSettled) {
+  const systemRegistry = host.actionRegistry(), catalogRegistry = host.actionRegistry(undefined, "project-catalog");
+  const membership = projectPluginMembershipActionProvider(catalogOwner, async projectId => {
+    const reference = host.projects().find(project => project.project_id === projectId);
+    return reference ? host.withExistingRuntime(reference, current => refreshRunningProjectPlugins(current.store, projectId)) : null;
+  });
+  for (const registration of [...providers, membership]) {
     if (registration.provider.kind !== "system" || registration.provider.plugin_id) throw new Error("Host 平台动作只登记 system 提供方：" + registration.provider.provider_id);
+    const registry = registration === membership ? catalogRegistry : systemRegistry;
     registry.registerProvider(registration);
   }
+  return {
+    descriptor: (reference: ActionReference) => host.projectCatalogActionDescriptor(reference),
+    client: (reference: LocalHostProjectReference): ActionClient => {
+      const client = host.actionClient(reference, false, "project-catalog");
+      const { invoke } = withPreparedActions(client, prepareHome, (caller, action, error) => refuseCall(settle, caller, action, error));
+      return { discover: client.discover, invoke };
+    },
+  };
 }
 
 /**
@@ -525,4 +546,11 @@ export function createMolisWorkLocalHost(options: MolisWorkLocalHostOptions = {}
   const host = new MolisWorkLocalHost(resolved);
   if (resolved.homeDirectory) registerProjectRuntimeOwner(host, path.resolve(resolved.homeDirectory));
   return host;
+}
+
+/** A query that calls others as its caller (where actions are used, the AI kit): the caller's own client, in the caller's own scope. */
+function callerOwnClient(host: MolisWorkLocalHost, caller: ActionCallContext): ActionClient {
+  const project = caller.project_id ? host.projects().find(row => row.project_id === caller.project_id) : undefined;
+  if (caller.project_id && !project) throw new ActionError("actions.scope_mismatch", "缺少当前项目运行环境");
+  return project ? host.actionClient(project) : host.homeActionClient();
 }

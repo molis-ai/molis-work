@@ -41,7 +41,7 @@ async function selectedPlan(home: string, input: ConnectorSetupInput): Promise<C
     throw errors.invalid("所选认证方式不适用于该服务的这个地址");
   }
   if (input.connection_id) {
-    const previous = withConnectorConnections(home, store => store.require(input.connection_id!, input.service_id));
+    const previous = withConnectorConnections(home, store => store.require(input.connection_id!, input.service_id), "required");
     if (previous.updated_at !== input.expected_revision) throw errors.changed("原连接已变化，请读取当前修订后重新准备");
     if (previous.auth_method !== input.method || !["token", "oauth"].includes(input.method)) throw errors.invalid("请使用原连接的接入方式；无法验证原账号的 MCP 新授权应单独准备");
   } else if (input.expected_revision) throw errors.invalid("修订必须对应一条已有连接");

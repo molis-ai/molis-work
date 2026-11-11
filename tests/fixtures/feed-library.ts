@@ -1,9 +1,10 @@
+import { createDemoFeedApplication, createDemoFeedSourceService, type DemoFeedApplicationOptions } from "./feed-assembly.js";
 import { createHash } from "node:crypto";
 import { realpathSync } from "node:fs";
 import { feedErrors } from "@molis-ai/molis-work-plugin-feed/contract";
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { ConnectorConnectionRecord } from "@molis-ai/molis-work-contracts/services/connector-host";
-import { createDemoFeedApplication, createDemoFeedSourceService, homeIntegrationRegistry, withConnectorConnections, type DemoFeedApplicationOptions, type IntegrationProviderFactory, type SourcePullRuntime } from "@molis-ai/molis-work-app-local-host";
+import { homeIntegrationRegistry, withConnectorConnections, type IntegrationProviderFactory, type SourcePullRuntime } from "@molis-ai/molis-work-app-local-host";
 import { ConnectorHost, pluginBindingScope } from "@molis-ai/molis-work-service-connector-host";
 import { LocalSqliteJournal, type SqliteDatabase } from "@molis-ai/molis-work-storage";
 import {

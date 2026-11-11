@@ -17,8 +17,8 @@ export class FeedGoalLinks {
     return this.ledger.get(projectId, this.key(itemId))?.target.id ?? null;
   }
 
-  list(projectId: string): Map<string, string> {
-    return new Map(this.ledger.list(projectId, { type: "feed.goal" })
+  list(projectId: string, itemIds?: readonly string[]): Map<string, string> {
+    return new Map(this.ledger.list(projectId, { type: "feed.goal", ...(itemIds ? { keys: itemIds.map(id => this.key(id)) } : {}) })
       .map((edge) => [edge.source.id, edge.target.id]));
   }
 

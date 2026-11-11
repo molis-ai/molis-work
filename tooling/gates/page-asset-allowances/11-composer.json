@@ -1,0 +1,11 @@
+{
+  "reason": "第 11 批 K4 Coding 换上统一输入框、K5 第一个真实来源，以及接入时对输入框本身的打磨（specs/post-anticorruption-roadmap/reference/batches/11.md#batch-11-progress）。对照 origin/main bac5d62b9 的独立构建实测：/assets/molis-work-composer.js +2271 B——＋ 与 `/` 分成两张菜单（命令表行带图标、作用与 `/词`，关键词筛选，`、` 同样打开）、页面自己的 `@` 查找（Coding 的文件与符号）、运行中的暂停、页面 hold 输入框并写明原因、required 未满足时按发送说原因、来源名与插件同名时只写一次、＋ 每次打开重读来源且有变化才重画、不带草稿的挂载不留东西；workbench.css 与 arrival.css 各 +338 B、settings.css +28 B——控制条场景选择按内容宽且挤时最长的先让、脚条不被撑出框外、菜单高亮行 [data-active]、框宽 601～760px 时设置不单独放大；workbench.js +228 B——助理的 `/` 每次来到输入框重读（关闭 BL-composer-source-refresh）、命令带图标、弹窗 ⌘↵ 的输入法与已处理守卫；plugin-frame.js +34 B——同一守卫（并入 11-frame-bridge.json 那一条用户批准的许可，这里不再许）。同批 Coding 删掉自己的任务框、`/` 菜单与工具条样式：coding.js -724 B、coding.css -5654 B，两侧合计净减。",
+  "review": "第 11 批主会话按隔离构建实测核对（2026-11-10，node scripts/gates/page-assets.mjs --base origin/main）；每项都在 10 KB 以内、没有新增资源；随第 11 批 PR 由评审台再核。",
+  "assets": {
+    "/assets/molis-work-composer.js": 2271,
+    "/assets/molis-work-workbench.css": 338,
+    "/assets/molis-work-arrival.css": 338,
+    "/assets/molis-work-settings.css": 28,
+    "/assets/molis-work-workbench.js": 228
+  }
+}

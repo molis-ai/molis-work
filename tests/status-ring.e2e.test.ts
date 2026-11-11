@@ -2,7 +2,7 @@ import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import test from "node:test";
-import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { openBoardBrowser as openGoalBrowser } from "./fixtures/board-browser.js";
 
 test("RING-01 RING-02 RING-03 RING-04 RING-05 catalog, lifecycle, Goals and Home plugin states", { timeout: 180_000 }, async t => {
   const browser = await openGoalBrowser(t, true);
@@ -84,7 +84,11 @@ test("RING-01 RING-02 RING-03 RING-04 RING-05 catalog, lifecycle, Goals and Home
   for (const [view, selector] of [["list", "[data-goal-stage-list]"], ["kanban", ".goal-kanban-card"], ["canvas", ".goal-canvas-node"]]) {
     await evaluate(`document.querySelector('[data-board-view-tab="${view}"]').click()`);
     await waitFor(`document.querySelector('${selector} .goal-status .mw-state-ring')?.checkVisibility({ visibilityProperty: true })`);
-    if (view === "kanban") assert.equal(await evaluate("document.querySelectorAll('.goal-kanban-column summary .mw-state-ring').length"), 6);
+    if (view === "kanban") {
+      // D0015: cancellation has its own static ring/category, alongside the original six states.
+      assert.equal(await evaluate("document.querySelectorAll('.goal-kanban-column summary .mw-state-ring').length"), 7);
+      assert.equal(await evaluate("document.querySelector('[data-kanban-column=cancelled] summary .mw-state-ring')?.dataset.mwState"), "cancelled");
+    }
     assert.equal(await evaluate(`getComputedStyle(document.querySelector('${selector} .goal-status'), '::before').content`), "none", "the ring replaces the old CSS dot");
     // RING-08: measure the actual business ring, including old view-specific CSS overrides of its size.
     for (const width of [1440, 390]) {

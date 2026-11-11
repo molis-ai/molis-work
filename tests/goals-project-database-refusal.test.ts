@@ -16,7 +16,7 @@ import { GOALS_PLUGIN_ID, goalsActions, goalsManifest } from "@molis-ai/molis-wo
 import type { PluginProjectDatabaseRecord, PluginRuntimeDatabase } from "@molis-ai/molis-work-plugin-runtime";
 import { SCHEDULE_ACTIONS, SCHEDULE_PLUGIN_ID } from "@molis-ai/molis-work-plugin-schedule";
 import { ensureStorageSpace, personalStorageSpace, describeSqliteSchema } from "@molis-ai/molis-work-storage";
-import { codingView } from "./fixtures/coding-view.js";
+import { CODING_OPENED, CODING_UNAVAILABLE, codingView } from "./fixtures/coding-view.js";
 
 /**
  * PLIB-14 (S8; specs/archive/plugin-project-database/spec.md §2.3 and §2.4): Goals' tables in a project's library are Goals' own, declared in
@@ -115,7 +115,7 @@ test("PLIB-14: a library this build made opens Goals' tables from its declaratio
     const outcome = store.pluginDatabases.get(GOALS_PLUGIN_ID);
     assert.ok(outcome && "record" in outcome, "Goals' tables were opened, not refused");
     assert.equal(outcome.record.store_name, "goals");
-    assert.equal(outcome.record.version, 1);
+    assert.equal(outcome.record.version, 2);
   } finally { store.close(); }
   const open = await directory(home, projectId, databasePath);
   assert.deepEqual([...open.plugins].sort(), [GOALS_PLUGIN_ID, ...OTHERS].sort());
@@ -125,7 +125,7 @@ test("PLIB-14: a library this build made opens Goals' tables from its declaratio
 });
 
 const cases = [
-  { change: "its ledger row says another version", sql: `UPDATE plugin_project_databases SET version = 2 WHERE plugin_id = '${GOALS_PLUGIN_ID}'`, code: "plugin.project_database.version_mismatch" },
+  { change: "its ledger row says another version", sql: `UPDATE plugin_project_databases SET version = 3 WHERE plugin_id = '${GOALS_PLUGIN_ID}'`, code: "plugin.project_database.version_mismatch" },
   { change: "its ledger row names another publisher", sql: `UPDATE plugin_project_databases SET publisher_signature = 'someone-else' WHERE plugin_id = '${GOALS_PLUGIN_ID}'`, code: "plugin.project_database.publisher_mismatch" },
   { change: "one of its tables gained a column", sql: "ALTER TABLE goals ADD COLUMN added_by_hand TEXT", code: "plugin.project_database.shape_mismatch" },
   { change: "its board has the name column version 7 gave it", sql: "ALTER TABLE boards ADD COLUMN title TEXT", code: "plugin.project_database.shape_mismatch" },
@@ -153,7 +153,9 @@ for(const personal of [false,true]) for (const { change, sql, code } of cases) {
     assert.equal(open.homeGoals, true, "the independent Home instance remains available");
     assert.deepEqual([...open.plugins].sort(), [...OTHERS].sort(), "the other plugins' actions are");
     assert.deepEqual(open.goalsCall, { code: "actions.missing" }, "and a call to a Goals action is refused: there is nothing registered to answer it");
-    assert.doesNotMatch(await codingPanel(databasePath, projectId), /role="alert"/, "Coding opens while Goals is refused");
+    const panel = await codingPanel(databasePath, projectId);
+    assert.doesNotMatch(panel, CODING_UNAVAILABLE, "Coding opens while Goals is refused");
+    assert.match(panel, CODING_OPENED, "and draws its page");
     const developer = await developmentState(t);
     withDatabase(developer.databasePath, db => { db.exec(sql); });
     const developerBefore = library(developer.databasePath);

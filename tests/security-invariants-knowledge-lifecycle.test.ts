@@ -4,6 +4,7 @@ import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { DatabaseSync } from "node:sqlite";
+import { setTimeout } from "node:timers/promises";
 import test, { type TestContext } from "node:test";
 import { homeSqlitePath, openKnowledgeCards } from "@molis-ai/molis-work-storage";
 import { knowledgeLocateData } from "@molis-ai/molis-work-service-knowledge";
@@ -124,7 +125,9 @@ test("RAC-2446: what the Host measures for knowledge.locate is exactly the data 
   assert.equal(parsed.pieces[0]!.piece, 1, "the first piece is piece 1");
 });
 
-test("D0244-05 S-41 real Host and SDK refuse an old source's held model result and allow a new explicit organize", { timeout: 60_000 }, async t => {
+for (const stoppedBeforeOrganize of [false, true]) test(stoppedBeforeOrganize
+  ? "D0244-07 D0242 S-41 pre-indexed stopped sources send no automatic or explicit model request"
+  : "D0244-05 S-41 real Host and SDK refuse an old source's held model result and allow a new explicit organize", { timeout: 60_000 }, async t => {
   const id = "io.molis.work.example.quality-source", permission = "quality:read";
   const entries = defineSearchEntriesAction("quality.entries", 1, [{ kind: "quality_piece", title: "资料", surface: "quality" }], "资料", [permission]);
   const reader = defineSubjectContextAction("quality.read", 1, "quality_piece", "资料", [permission]);
@@ -147,15 +150,29 @@ test("D0244-05 S-41 real Host and SDK refuse an old source's held model result a
   const model = await heldModel(t, home.home, home.host.ensureWebCatalog(home.home, openMolisWorkProjectCatalog).withCatalog);
   const cards = openKnowledgeCards({ homeDirectory: home.home });
   try {
-    await home.web.post(prefix + "/api/knowledge/organize", {}); await model.started;
-    await platform.runtime.stop(install.install_id);
-    await platform.supervisor.restart(id);
-    model.release();
-    await untilSetup(async () => logs.some(entry => entry.fields?.where === "knowledge.organize" && entry.error?.code === "actions.forbidden") || undefined,
-      "the real model returned and the original source fence refused its result");
-    assert.ok(!["ready", "failed"].includes(cards.get(project.project_id, subject)?.state ?? "missing"), "no late draft or business failure was saved");
+    if (stoppedBeforeOrganize) {
+      await platform.runtime.stop(install.install_id);
+      model.release(); // A regression must fail its count assertion, not hang on the model stand-in.
+      await home.web.get(prefix + "/api/knowledge/overview");
+      // The real Host schedules automatic organizing two seconds after a listing change.
+      await setTimeout(2_300);
+      assert.deepEqual(model.sent, [], "automatic organizing sends no pre-indexed disabled content");
+      await home.web.post(prefix + "/api/knowledge/organize", {});
+      await setTimeout(2_300);
+      assert.deepEqual(model.sent, [], "explicit organizing sends no pre-indexed disabled content");
+      assert.ok(!["ready", "failed"].includes(cards.get(project.project_id, subject)?.state ?? "missing"));
+      await platform.supervisor.restart(id);
+    } else {
+      await home.web.post(prefix + "/api/knowledge/organize", {}); await model.started;
+      await platform.runtime.stop(install.install_id);
+      await platform.supervisor.restart(id);
+      model.release();
+      await untilSetup(async () => logs.some(entry => entry.fields?.where === "knowledge.organize" && entry.error?.code === "actions.forbidden") || undefined,
+        "the real model returned and the original source fence refused its result");
+      assert.ok(!["ready", "failed"].includes(cards.get(project.project_id, subject)?.state ?? "missing"), "no late draft or business failure was saved");
+    }
     await home.web.get(prefix + "/api/knowledge/overview"); await home.web.post(prefix + "/api/knowledge/organize", {});
     await untilSetup(async () => cards.get(project.project_id, subject)?.state === "ready" || undefined, "a new authorized organize can complete");
-    assert.ok(model.sent.length >= 2, "the fresh call actually used the real SDK model path");
+    assert.ok(model.sent.length >= (stoppedBeforeOrganize ? 1 : 2), "the fresh call actually used the real SDK model path");
   } finally { model.release(); cards.close(); }
 });

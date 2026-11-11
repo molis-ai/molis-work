@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { openBoardBrowser as openGoalBrowser } from "./fixtures/board-browser.js";
 
 // specs/visual-ui-experience VUX-39 (the board shows production parts at their container's edges): every specimen on the
 // component board fits its own box at three widths, unless what spills is inside a box of its own that scrolls. Before, the

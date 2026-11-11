@@ -20,11 +20,11 @@ FeedApplication 组合注入的 Module API；FeedSourceService、FeedConnectorSy
 | [src/goal-promotion.ts](src/goal-promotion.ts) | Feed 推进为 Goal |
 | [src/route-handlers.ts](src/route-handlers.ts) | HTTP 用例适配 |
 
-Runtime 里的装配方式见 [src/plugin.ts](src/plugin.ts)（平台服务做端口）；演示数据的装配见 [apps/local-host/src/demo-feed-library.ts](../../../apps/local-host/src/demo-feed-library.ts)。
+Runtime 里的装配方式见 [src/plugin.ts](src/plugin.ts)（平台服务做端口）；演示数据由 [src/demo-seed.ts](src/demo-seed.ts) 的 Manifest 动作写入，平台在可重建演示项目的 Runtime 就绪后调用；离线测试装配仅在测试 fixture 中。
 
 ## 接入与边界
 
-本包不拥有 Source/Signal/Feed 数据表，也不直接实现 GitHub/Gmail 协议。正文渲染用插件 SDK 的 `/rich-text`（`renderRichText`、`richPlainText`），送模型的上下文先过 SDK 的 `redactSecrets`；Provider 失败、部分接收与重试不能混成同一个成功状态。
+本包拥有 Source/Signal/Feed 数据表，Attention 与情境账经平台服务读写；不直接实现 GitHub/Gmail/RSS 协议。正文渲染用插件 SDK 的 `/rich-text`（`renderRichText`、`richPlainText`），送模型的上下文先过 SDK 的 `redactSecrets`；Provider 失败、部分接收与重试不能混成同一个成功状态。
 
 `research_library` 来源由 Host 注入 `syncRepository`（Feed 自己的 `syncResearchLibrary`，读仓库的一步由注入的读取端口做：宿主版是宿主自己的读取器，Runtime 版是平台的 `repository.read`），沿用 Sources 的 `public_source` 同步入口与计划。GitHub integration 验证固定提交上的发布包和哈希，Feed 每条研究发现保存正文、原始引用、阅读范围与包版本。来源规则默认 `admission: "suggest"`；明确选 `inbox` 时，Feed 将匹配内容或需复核的判断结果写入 Attention。`evaluateItems` 可对最近至多 20 条消息重新运行规则；Functions 本身不执行写入。
 

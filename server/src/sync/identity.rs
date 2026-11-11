@@ -44,7 +44,7 @@ pub(crate) async fn identity(req: &Request, env: &Env) -> ApiResult<String> {
     headers.set("Authorization", &authorization)?;
     // Workers supports manual/follow. Never follow an Auth redirect with the Bearer token.
     let request = Request::new_with_init(
-        &format!("{}/api/v1/users/me", origin.trim_end_matches('/')),
+        &format!("{}/api/v2/users/me", origin.trim_end_matches('/')),
         RequestInit::new()
             .with_headers(headers)
             .with_redirect(RequestRedirect::Manual),
@@ -53,8 +53,13 @@ pub(crate) async fn identity(req: &Request, env: &Env) -> ApiResult<String> {
     require(response.status_code() == 200, 401, "UNAUTHORIZED")?;
     let identity: Value = response.json().await?;
     let data = &identity["data"];
-    let user = string(data, "userId", 500)?;
-    let application = string(data, "applicationId", 500)?;
+    let user = string(&data["user"], "userId", 500)?;
+    require(
+        string(&data["user"], "issuer", 2048)? == origin,
+        403,
+        "WRONG_ISSUER",
+    )?;
+    let application = string(&data["session"], "applicationId", 500)?;
     require(
         application == env.var("APPLICATION_ID")?.to_string(),
         403,

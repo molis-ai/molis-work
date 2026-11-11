@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { openBoardBrowser as openGoalBrowser } from "./fixtures/board-browser.js";
 
 // specs/visual-ui-experience VUX-39 (§render-lifecycle 同源标本), with VUX-08/09/10/13/18 as the board shows them: the
 // component board's 助理信息与任务 section runs the shipped Assistant island in its own bar on fixed works that the Host drew
@@ -129,7 +129,7 @@ test("VUX-39 the board's Assistant section drives the shipped island through sev
 
   // Nothing reached the Host and nothing the workbench remembers here changed: the island's memory stayed in the frame.
   assert.deepEqual(await inFrame("return w.performance.getEntriesByType('resource').map((e) => new URL(e.name).pathname).filter((p) => p.startsWith('/api/') || p.includes('/sample/'));"), []);
-  assert.deepEqual(await evaluate("Object.keys(localStorage).filter((key) => key.startsWith('molis.assistant.'))"), []);
+  assert.deepEqual(await evaluate("Array.from({length:localStorage.length},(_,index)=>localStorage.key(index)).filter(key=>key!==null).filter((key) => key.startsWith('molis.assistant.'))"), []);
 
   // A new work: where it would go is chosen before anything is sent.
   await choose("work", "new", "new");

@@ -1,6 +1,6 @@
 # Sessions 来源与历史的合同设计（路线书 22）
 
-状态：设计稿，2026-11-05 写，2026-11-06 按用户定的八项改完（第 13 节，决策记录在[需求 §8](spec.md#8-决策记录)）；没有实现，等公共合同台合审。第 02 批交完（#1762 已合入，#1775、#1786、#1790 在途）、C 轨交接之前不开合同代码。按 `origin/main` `1e8110a5e` 核对，形状按 #1762 合入后写（2026-11-06 已合入 `d82329833`）：动作 id 不带 `.v1`，版本写在 `version`，所以这里写 `projects.workspaces.list@1`。
+状态：设计稿，2026-11-05 写，2026-11-06 按用户定的八项改完（第 13 节，决策记录在[需求 §8](spec.md#8-决策记录)）；没有实现，等公共合同台合审。第 02 批交完（#1762 已合入，#1775、#1786、#1790 在途）、C 轨交接之前不开合同代码。按 `origin/main` `1e8110a5e` 核对，形状按 #1762 合入后写（2026-11-06 已合入 `d82329833`）：动作 id 不带 `.v1`，版本写在 `version`，所以这里写 `projects.workspaces.list@1`。2026-11-07 合同片 C-2 按写出的代码回写了第 5.1、6.1、6.2、7.1、7.2、7.4、9.1、9.3、9.4 节，答了合同台合审留的「命令接入的云端入口」，见第 5.1 节和第 12 节第 26 行。
 
 ## 0. 这份稿子做什么
 
@@ -287,15 +287,32 @@ export const externalTool = <Id extends ExternalToolId>(id: Id): Extract<(typeof
 
 本机的 `location_key` 不用读任何会话就算得出，所以还没允许时也有值。`data_root` 按宿主进程的环境展开（`env` 优先），路径存在时取真实路径。`data_root` 是 `null` 的工具分不开两个数据目录，这是缺口。云端来源选了连接才有 `location_key`。
 
+`data_root` 一旦这家接了适配就不再改：`location_key` 由它算，`session_key` 由 `location_key` 算，读取范围和单条决定都挂在上面，改了这些都断，而我们不写迁移。所以接适配的那一片先把这家的 `data_root` 定下来，`null` 也要先填好再接。之后只能加 `env`：变量没设时展开结果不变。
+
 `session_key` = `xs_` + 三者规范 JSON 的 SHA-256 前 32 位。确定值，重扫得到同一个，不靠随机号。
 
 ```ts
 export interface ExternalSessionIdentity { entry_id: ExternalToolId; location_key: string; native_id: string }
 ```
 
-列表行同时给 `session_key` 和 `identity`，读取只收 `session_key`。需求要「能辨认」，这里满足；同时调用方写不进任意原生 ID 或路径，只能读索引里已有、范围内的会话。
+给本人的列表行同时有 `session_key` 和 `identity`，读取只收 `session_key`。需求要「能辨认」，这里满足；同时调用方写不进任意原生 ID 或路径，只能读索引里已有、范围内的会话。
 
-云端用 `connection_id` 是因为 `ConnectorConnectionRecord` 只有 `account_label`，没有稳定账号号。代价：删掉连接再新建同一账号，等于新来源，旧行随旧连接移出范围，看不到重复，但旧的单条归属要重选。第 13 批以后连接有稳定账号号时，改合同换掉。
+`identity` 只给本人，别的受众的行没有这个字段（第 6.1 节）。`connection:` 的值在所有项目里都一样，给出去 MCP 客户端和插件就能跨项目认出同一账号，也看得出用户有几个账号；`local:` 暴露数据目录的哈希，路径猜中就能确认；原生 ID 别的受众用不上，读取只收 `session_key`。`session_key` 留着：它是哈希，读取要用，反推不出这三样。
+
+云端用 `connection_id` 是因为 `ConnectorConnectionRecord` 只有 `account_label`，没有稳定账号号。代价：删掉连接再新建同一账号，等于新来源，旧行随旧连接移出范围，看不到重复，但旧的单条归属要重选。第 13 批以后连接有稳定账号号时，改合同换掉。`cli` 连接没有这个代价，见下一段。
+
+**命令接入的云端入口（C-2 答合审）。** 云端入口靠命令读时（现在只有 `copilot-coding-agent`，走 `gh`），账号在那个程序里，不在 Molis 的密钥库，但连接表里有它的行：`ConnectorConnectionRecord` 的 `auth_method: "cli"`、`source: "external"`。这类入口走这条，不另立规则，`location_key` 还是 `connection:` + `connection_id`：
+
+- **能选哪条连接。** `externalSessionConnectionRoute(tool)` 给出 `{ via: "cli", program }`，`program` 是这一行命令的程序（`terminal.command`，否则 `detect.commands[0]`）；`cli` 连接的程序（宿主 `CONNECTOR_CLIS` 的 `binary`）等于它才算，`service_id` 不看。登记表不加字段。读 `via: "service"` 的云端入口给 `{ via: "service", service_id }`，按服务配连接。候选由 `sessions.scope.read@1` 的 `connections` 带回，要连哪个服务由宿主算好放在 `connect_service_id`（第 7.1 节）：`gh` 对应 `github` 写在宿主的 `CONNECTOR_CLIS`，页面推不出来。
+- **账号。** `cli` 连接的 `connection_id` 由程序核过的账号指纹算出（`saveCli`），同一账号断开再连还是这个 id，换账号是另一个 id，所以身份比普通连接更稳，上一段的代价不适用。
+- **读的时候。** 程序的当前账号可能被人在终端换掉，所以宿主按 `inspectCliConnection` 的做法读前读后都核指纹。对不上不返回内容，来源是 `needs_login`，原因 `account_changed`。程序走这条连接的启动方式（受管安装的路径和环境），由端口 `connections.command` 做（第 9.1 节）。
+- **账号换了之后。** 下一步是 `open_scope`，不是 `sign_in`：登录没过期，再登录一次帮不上忙。读取范围打开到这个来源那一行，说两条出路，用真实的名字：
+  1. 在终端把程序切回这条连接的账号（`connections` 里的 `account_label`），然后重试（`sessions.discovery.run@1`，写这个 `entry_id`）。来源原样恢复，已有的行和单条决定都还在。
+  2. 连上程序现在的账号（`connect_service_id` 指的服务），再在这一行改选新连接。新账号的 `connection_id` 不同，是另一个来源：旧行随旧连接移出范围，单条归属要重选，这一句要写出来。
+- **不做的。** 不按「本机 `gh` 现在登录的是谁就读谁」给 `local:default`：`gh auth switch` 之后两个账号的会话落进同一个 `location_key`，SRB-06 不许。
+- **没连过时。** 只在终端 `gh auth login` 过、没在 Molis 连过的人，这一行 `connections` 是空的，来源是 `not_allowed`，下一步 `open_scope`，要先连一次：读取范围这一行给去连接的入口，打开连接页的 `connect_service_id`，连好回到这一行选上。这一行的样子还没定样（第 12 节第 29 行）。这和第 1 节「账号与凭据归 connector-host」、需求 §1.2「账号与凭据沿同一服务连接」一致。
+
+`codex-cloud` 的 `codex cloud list` 现在是缺口。核完改成 `via: "command"` 时规则同样给 `{ via: "cli", program: "codex" }`，但 `CONNECTOR_CLIS` 里没有 `codex`，这一行没有可选连接，停在 `unsupported`，要先加这条连接的定义（第 12 节第 27 行）。
 
 本机的账号：工具不在记录里写账号时分不开，身份只到数据目录。同一目录下换账号，原生 ID 不同，不会误合并，但读取范围不能按账号收窄，界面不许写成能。
 
@@ -350,9 +367,10 @@ export interface ExternalSessionListInput {
 }
 
 export interface ExternalSessionListOutput {
-  sessions: ExternalSessionRow[];
-  /** 给本人时：每个来源一条，含未允许和暂不支持的。一个入口通常一条，云端一个连接一条，还没选连接的入口也有一条。 */
-  sources: ExternalSessionSource[];
+  /** 给本人是完整的行，别的受众是摘要。 */
+  sessions: Array<ExternalSessionRow | ExternalSessionRowSummary>;
+  /** 给本人时：每个来源一条，含未允许和暂不支持的。一个入口通常一条，云端一个连接一条，还没选连接的入口也有一条。别的受众只拿摘要。 */
+  sources: Array<ExternalSessionSource | ExternalSessionSourceSummary>;
   /** 只给本人；别的受众是 null。 */
   unfiled_count: number | null;
   next_cursor: string | null;
@@ -374,13 +392,16 @@ export interface ExternalSessionRow {
   forked_from: string | null;
   return_target: { kind: "command" | "url"; label: string } | null;
 }
+
+/** 别的受众拿到的行：没有 identity，也没有回到原工具的去处。 */
+export type ExternalSessionRowSummary = Omit<ExternalSessionRow, "identity" | "return_target"> & { return_target: null };
 ```
 
 - 排序 `last_activity_at DESC, session_key`，游标是这两项的键集，不用偏移：边读边发现新会话时不重不漏。
 - `view: "project"` 没有当前项目时报 `sessions.project_required`。
 - 每次都按当前读取范围过滤，范围外的行不返回（第 7 节）。`user` 以外的调用者另按第 7.4 节核许可。
 - 打开列表不等发现。来源过期（默认 5 分钟）且调用者是 `user` 时，服务去重后在后台排一次发现，不阻塞这次返回。Agent、MCP 调用不触发，防止循环调用变成频繁起子进程；带 `query_only` 的调用（首页聚合这样调）也不触发。
-- 非本人调用不漏全局信息：`unfiled_count` 是 `null`；`sources` 只留当前项目有会话的来源，`session_count` 是这个项目里 `confirmed`、`automatic` 的数，`skipped_count`、`progress`、`location_key` 不给。用户接了哪些工具、别的项目和待归类有多少，都看不到。`title` 过 SDK 的密钥脱敏，理由同第 6.3 节。
+- 非本人调用不漏全局信息：`unfiled_count` 是 `null`；`sources` 只留当前项目有会话的来源，`session_count` 是这个项目里 `confirmed`、`automatic` 的数，`skipped_count`、`progress`、`location_key` 不给，所以类型是 `ExternalSessionSourceSummary`：写成 `0` 或 `null` 都会说假话，`location_key: null` 本来的意思是云端还没选连接。行是 `ExternalSessionRowSummary`：没有 `identity`，整个响应里找不到 `location_key` 和 `native_id`（第 5.1 节）；`return_target` 是 `null`，`label` 写的是怎样回到原会话，给出去信息就从这里漏回去，留下 `kind` 也没有用。schema 是一个对象，`identity` 不在 `required` 里，所以两种行都合；分受众靠处理器，S-118 测。用户接了哪些工具、别的项目和待归类有多少，都看不到。`title` 过 SDK 的密钥脱敏，理由同第 6.3 节。
 - 页面不用第二个请求：`sources`、`unfiled_count` 都在这一个响应里。
 
 ### 6.2 来源状态
@@ -395,26 +416,36 @@ export type ExternalSessionSourceState =
   | "unsupported"         // 暂不支持
   | "not_allowed";        // 未允许
 
-export interface ExternalSessionSource {
+/** 所有受众都拿到的部分。 */
+export type ExternalSessionSourceSummary = ExternalSessionSourceStatus & {
   entry_id: ExternalToolId;
-  location_key: string | null;   // 本机来源总有值；云端来源没选连接时才空
   display_name: string;
-  state: ExternalSessionSourceState;
-  reason: ExternalSessionSourceReason | null;
   session_count: number;
-  skipped_count: number;
-  progress: { read: number; total: number | null } | null;
   /** 上次完整读完的时间；没读成时已有的结果照常显示，用它说明截止到什么时候。 */
   completed_at: string | null;
   next_step: "open_scope" | "sign_in" | "update_tool" | "retry" | "return_to_tool" | "export" | null;
-}
+};
 
-export type ExternalSessionSourceReason =
-  | "adapter_pending" | "tool_gap"                         // unsupported
-  | "tool_missing" | "timed_out" | "read_error"            // failed
-  | "version_mismatch" | "parse_error"                     // version_unreadable
-  | "login_expired" | "connection_removed";                // needs_login
+/** 本人看到的来源。 */
+export type ExternalSessionSource = ExternalSessionSourceSummary & {
+  location_key: string | null;   // 本机来源总有值；云端来源没选连接时才空
+  skipped_count: number;
+  progress: { read: number; total: number | null } | null;
+};
+
+/** 状态和它的原因配对：有原因的状态必须给属于自己的原因，其余的 reason 是 null。schema 同样按对核。 */
+export const EXTERNAL_SESSION_SOURCE_REASONS = {
+  complete: [], reading: [], not_allowed: [],
+  unsupported: ["adapter_pending", "tool_gap"],
+  failed: ["tool_missing", "timed_out", "read_error"],
+  version_unreadable: ["version_mismatch", "parse_error"],
+  needs_login: ["login_expired", "connection_removed", "account_changed"],
+} as const;
 ```
+
+`account_changed` 是 `cli` 连接的程序现在登录的不是这个账号：登录没过期，说成 `login_expired` 会把人引到错的地方，所以它的 `next_step` 是 `open_scope`，出路写在第 5.1 节。
+
+`next_step` 说去哪，`reason` 说为什么：`open_scope` 打开读取范围并定位到这个来源，`not_allowed` 一律给它；`sign_in` 打开连接页，定位到 `location_key` 里的那条连接，给 `login_expired` 这样再登录就好的情况。
 
 七个状态是互斥的当前状态，一个来源一个。「没有会话」只有一种写法：`complete` 且 `session_count` 为 0。其余任何情况都不返回「空且正常」（SRB-13、需求 §7 第 13 项）。
 
@@ -516,8 +547,20 @@ export interface ExternalSessionReadScope {
 /** sessions.scope.read@1 的输入：Sheet 要计数，就绪判断不要。 */
 export interface ExternalSessionScopeReadInput { include_counts?: boolean }
 
+/** 读取范围页上的一行，定没定过都有：`adapter` 要逐入口报（第 4.2 节），所以没定过的来源也在。 */
+export type ExternalSessionScopeSource = Omit<ExternalSessionReadScope, "location_key" | "decided_at"> & {
+  location_key: string | null;       // 云端没选连接时为空
+  decided_at: string | null;         // 从没定过时为空，allowed 为 false
+  display_name: string;
+  adapter: "available" | "none";
+  /** 这个云端来源能选的连接（第 5.1 节），一次请求带回；本机来源是空数组，还没连过的云端来源也是。 */
+  connections: Array<{ connection_id: string; display_name: string; account_label: string | null }>;
+  /** 宿主算好的要连的服务，`connections` 空不空都给：换账号时连新账号也要它。本机来源和现在没有办法连的云端来源是 null。 */
+  connect_service_id: string | null;
+};
+
 export interface ExternalSessionScopeView {
-  sources: Array<ExternalSessionReadScope & { adapter: "available" | "none" }>;
+  sources: ExternalSessionScopeSource[];
   /** 全部项目各一行，给「项目的 AI」那一页（第 7.4 节）。 */
   project_ai_reads: ExternalSessionProjectAiRead[];
   scope_revision: number;
@@ -544,7 +587,7 @@ export interface ExternalSessionScopeSetInput {
 // 输出：ExternalSessionScopeView
 ```
 
-整份替换。`location_key` 由服务算，不从输入读；云端来源第一次允许时给 `connection_id`。`expected_revision` 不符报 `sessions.scope_conflict`。步骤：
+整份替换。`location_key` 由服务算，不从输入读；云端来源第一次允许时给 `connection_id`，没给报平台码 `actions.connection_required`，给的不在这个来源能选的连接里报 `actions.connection_unavailable`。`expected_revision` 不符报 `sessions.scope_conflict`。步骤：
 
 1. 写新范围，`revision` 加一，全局 `scope_revision` 加一。
 2. 事务后取消被收窄来源的在跑任务（每个来源一个 `AbortController`）。
@@ -615,7 +658,7 @@ export interface ExternalSessionProjectCounts {
 
 **看全部：** `sessions.scope.read@1` 一次带回全部项目，只给 `user`。一次项目快照（第 8.1 节，含绑定，所以 `reported` 不会是旧的）、一次读表，要计数时再加一条聚合，不按项目逐个请求。
 
-**改一个项目：** `sessions.project_ai_read.set@1`，输入 `{ allowed: boolean; expected_revision: number }`，`expected_revision` 是这个项目那一行的。项目取自调用上下文，不从输入读。没有当前项目报 `sessions.project_required`，版本不符报 `sessions.scope_conflict`。
+**改一个项目：** `sessions.project_ai_read.set@1`，输入 `{ allowed: boolean; expected_revision: number }`，`expected_revision` 是这个项目那一行的，输出这一行的 `ExternalSessionProjectAiRead`，`counts` 是 `null`。项目取自调用上下文，不从输入读。没有当前项目报 `sessions.project_required`，版本不符报 `sessions.scope_conflict`。
 
 **全局 Sheet 改别的项目：** 外壳把请求发到目标项目的路径 `POST /projects/<目标项目>/api/sessions/project-ai-read`。工作台的项目上下文由请求路径定（`apps/local-host/src/web-routing.ts` 解析并核项目存在，`localWebActionContext` 写进调用上下文），和当前打开的页面无关；全局设置页已这样做（`settings-plugins.ts`、`settings-assistant.ts`）。这条路由写法同 `search-http.ts`，只有外壳页面能发，走 S-03 的控制令牌和一次性键，插件框架发不了。每次要打开目标项目并发现动作，一次点击的成本可以接受，所以 Sheet 不做批量改。按下就生效，失败时这一行退回原状并就地说明。
 
@@ -880,6 +923,8 @@ export interface SessionsPorts {
     current(connectionId: string): { enabled: boolean } | null;
     /** 云端适配经它发请求，凭据由宿主按引用解析，不进服务包。 */
     request(connectionId: string, request: SessionServiceRequest, signal: AbortSignal): Promise<SessionServiceResponse>;
+    /** 命令接入的云端入口经它跑命令：宿主用这条 `cli` 连接的启动方式，读前读后核账号指纹（第 5.1 节）。 */
+    command(connectionId: string, entry: ExternalToolId, argv: readonly string[], signal: AbortSignal): Promise<SessionCommandResult>;
   };
   projects: { read<T>(operation: (snapshot: SessionProjectSnapshot) => T): Promise<T> };
   directories: { identify(path: string): { real_path: string; repository_key: string | null; worktree_relative: string | null } | null };
@@ -915,7 +960,7 @@ export interface SessionsPorts {
 
 ### 9.3 错误码
 
-`horizontal/sessions/src/errors.ts`，一处声明，不写 Error 子类。这些码由动作抛出；合同里要点名的放合同，写法同 `projectCatalogErrors`。
+`packages/contracts/src/services/sessions.ts`，一处声明，不写 Error 子类，写法同 `projectCatalogErrors`。这些码由动作抛出，外壳和第 20 批要分得清，所以放合同，服务包直接用，不另写 `horizontal/sessions/src/errors.ts`。C-2 声明读取这一半的码；`project_unavailable`、`attribution_conflict`、`suggestion_unavailable`、`too_many_groups` 只有 C-3 的动作用，随 C-3 加。云端来源的连接缺了或不对，用平台码（第 7.2 节），不另声明。
 
 ```ts
 export const sessionsErrors = defineErrorCodes("sessions", {
@@ -945,9 +990,9 @@ export const sessionsErrors = defineErrorCodes("sessions", {
 | --- | --- | --- |
 | S-114 | 只读获准来源的数据根目录：`..`、绝对路径、指向根外的符号链接一律拒，沿 S-11 和角色导入的做法 | 根内放指向根外的链接，读被拒、内容不返回；未允许的来源不被扫描，读目录次数为 0 |
 | S-115 | 子进程只跑登记表写明的只读命令：不经 shell，`argv` 来自登记表，只有 `{session_id}`、`{query}` 被替换；前者过 `EXTERNAL_SESSION_NATIVE_ID_PATTERN`，后者占一个元素、不以 `-` 开头；有时限、输出上限、最小环境；`detect` 不符不跑解析。列表、历史、搜索不启动 `resume`、`exec`、`delete`、`queue` 一类命令。`detect` 要运行本机程序：先过 `real_path_pattern`，不过不运行；运行时只带 `version_argv`，同样有时限、无 shell、最小环境 | 原生 ID 写成 `--dangerously…`、带分号或空格时不起进程；搜索词以 `-` 开头时不起进程；`version_pattern` 不符时不解析；走一遍列表、历史、搜索后，假工具记录下的调用里没有写命令（SRB-12）；`agent` 的真实路径不符时假工具一次都没被运行 |
-| S-116 | 外部读取返回前再核范围：收窄、停止、撤连接、关掉项目的 AI 读取许可后，在途的读取不返回内容、发现不写库、建议不写表 | 假适配在等待中收窄范围、关掉许可、解除项目目录（`linked_projects` 下，`revision` 没变），各断言 `sessions.scope_changed`、响应里没有原文、索引行数不变；`sessions.tool.search@1` 在等待中收窄，范围外的行不返回；取消后来源进度不更新；连接失效时云端来源不返回内容 |
+| S-116 | 外部读取返回前再核范围：收窄、停止、撤连接、关掉项目的 AI 读取许可后，在途的读取不返回内容、发现不写库、建议不写表 | 假适配在等待中收窄范围、关掉许可、解除项目目录（`linked_projects` 下，`revision` 没变），各断言 `sessions.scope_changed`、响应里没有原文、索引行数不变；`sessions.tool.search@1` 在等待中收窄，范围外的行不返回；取消后来源进度不更新；连接失效时云端来源不返回内容；`cli` 连接的程序在读取前或等待中换了账号，不返回内容，来源是 `account_changed` |
 | S-117 | 外部会话的标题、原文、工具输出都是不可信数据：给模型时走 S-13 的 JSON 围栏，给 Agent 的输出带 `trust: "untrusted"` 并脱敏，不进系统提示和工具定义 | 标题里写伪造的结束标记和角色，留在 JSON 字符串里；原文里的密钥样式在 `agent` 受众下被脱敏；模型回了列表外的项目编号，这一项被丢弃 |
-| S-118 | 读取范围、项目的 AI 读取许可与单条决定只有本人能定：Agent、MCP、工作流、插件调 `sessions.scope.set@1`、`sessions.project_ai_read.set@1`、`sessions.attribution.set@1` 被拒；`actor_id`、`project_id` 等身份字段在输入里不认。工具能做的只有报绑定：它得到 `reported`，排在本人决定和本人目录关系之后，不改读取范围，不产生 `automatic`，不进项目 AI 的可读范围。项目 AI 的读取要许可开着，且只到当前项目的 `confirmed`、`automatic` 会话；待归类与 `view: "all"` 只有本人；归属不授予读取或控制权 | 四种受众逐个被拒且决定表没写；非本人调 `sessions.scope.read@1` 被拒，拿不到各项目的计数；`context_bind` 与终端面板把目录带进项目后，`linked_projects` 的范围不变，这个目录下没有绑定的会话是 `tool_linked`，绑定的那个会话是 `reported`，都不是 `automatic`；工具绑定不覆盖本人的目录来源和单条决定；`context_unbind` 解除不了本人建的目录关系，回 `changed: false`、`unbound_project: null` 和 `kept`，不说成已解除；`bound_by` 不是本人 id 的行（含旧的 `<客户端>:<会话>`）不算本人建的；本人目录下的会话，工具绑到别的项目：仍是 `automatic`、归本人目录的项目，项目 AI 的范围不变，`reported` 计数不变，本人的行带 `tool_reported_other`，非本人的输出没有这个字段；读取范围是「所有目录」时，没有本人目录关系的 Runtime 绑定显示 `reported` 不是 `confirmed`；许可开着时，`reported` 的会话不出现在 `agent`、`workflow`、`plugin`、`mcp` 的列表里，读原文报 `sessions.not_found`，本人确认后才可读；许可默认关时 `agent`、`workflow`、`plugin`、`mcp` 读列表和原文都报 `sessions.project_ai_read_off`；许可开着时读别的项目的会话报 `sessions.not_found`，用 `unfiled`、`all` 报 `actions.forbidden`；MCP 客户端有许可、没有 S-08 授权时被拒；未允许的来源里，归了项目或有 Runtime 绑定的会话照样读不到；自动归入的会话许可关时被拒、开时可读；非本人的 `sessions.list@1` 输出里 `unfiled_count` 是 `null`，`sources` 没有别的项目的来源和数量 |
+| S-118 | 读取范围、项目的 AI 读取许可与单条决定只有本人能定：Agent、MCP、工作流、插件调 `sessions.scope.set@1`、`sessions.project_ai_read.set@1`、`sessions.attribution.set@1` 被拒；`actor_id`、`project_id` 等身份字段在输入里不认。工具能做的只有报绑定：它得到 `reported`，排在本人决定和本人目录关系之后，不改读取范围，不产生 `automatic`，不进项目 AI 的可读范围。项目 AI 的读取要许可开着，且只到当前项目的 `confirmed`、`automatic` 会话；待归类与 `view: "all"` 只有本人；归属不授予读取或控制权 | 四种受众逐个被拒且决定表没写；非本人调 `sessions.scope.read@1` 被拒，拿不到各项目的计数；`context_bind` 与终端面板把目录带进项目后，`linked_projects` 的范围不变，这个目录下没有绑定的会话是 `tool_linked`，绑定的那个会话是 `reported`，都不是 `automatic`；工具绑定不覆盖本人的目录来源和单条决定；`context_unbind` 解除不了本人建的目录关系，回 `changed: false`、`unbound_project: null` 和 `kept`，不说成已解除；`bound_by` 不是本人 id 的行（含旧的 `<客户端>:<会话>`）不算本人建的；本人目录下的会话，工具绑到别的项目：仍是 `automatic`、归本人目录的项目，项目 AI 的范围不变，`reported` 计数不变，本人的行带 `tool_reported_other`，非本人的输出没有这个字段；读取范围是「所有目录」时，没有本人目录关系的 Runtime 绑定显示 `reported` 不是 `confirmed`；许可开着时，`reported` 的会话不出现在 `agent`、`workflow`、`plugin`、`mcp` 的列表里，读原文报 `sessions.not_found`，本人确认后才可读；许可默认关时 `agent`、`workflow`、`plugin`、`mcp` 读列表和原文都报 `sessions.project_ai_read_off`；许可开着时读别的项目的会话报 `sessions.not_found`，用 `unfiled`、`all` 报 `actions.forbidden`；MCP 客户端有许可、没有 S-08 授权时被拒；未允许的来源里，归了项目或有 Runtime 绑定的会话照样读不到；自动归入的会话许可关时被拒、开时可读；非本人的 `sessions.list@1` 输出里 `unfiled_count` 是 `null`，`sources` 没有别的项目的来源和数量；行里没有 `identity`，`return_target` 是 `null`，整个响应里找不到 `location_key` 和 `native_id` |
 | S-119 | 认仓库只读文件，不跑 git：只读 `.git`、`commondir`、`gitdir` 三个文件，各不超过 4 KB，内容只留哈希，不读 `config` 与 hooks；到用户主目录或根目录停止往上找；`.git` 文件必须和仓库里的 `gitdir` 互相指着才算 worktree，否则 `repository_key` 为空 | `PATH` 上放假 `git` 并记录调用，发现、归属、范围判断之后调用次数为 0；任意目录放 `.git` 文件写 `gitdir: <已关联仓库>/.git/worktrees/x`，而仓库那边没有指回：`repository_key` 为空，不进范围，不自动归入；`gitdir:` 指向不相干的目录、没有 `commondir`、超长、含 NUL 时 `repository_key` 都为空且不报错；仓库 `config` 里写 `core.fsmonitor` 也不执行；三个文件之外的读取次数为 0 |
 
 SRB-11 的「读取不推导控制」等第 59 批加控制动作时补进新行。
@@ -1100,6 +1145,17 @@ C-2、C-3 只有定义，宿主还没登记，所以不动 `tooling/gates/action
 | 23 | 绑定指向另一个项目 | 会话在本人连的 A 目录下，工具绑到 B | 已定（2026-11-06）：仍 `automatic` 归 A，行上标「工具另报」，打开后写「工具报的是另一个项目」，写在第 8.2 节、S-118 |
 | 24 | 项目设置 | 工具带进来的目录和本人连的看起来一样，「本人再连一次」没有入口 | **要进定样**：两种目录分开显示，后者给确认入口；实现列在片 S-5 |
 | 25 | 需求 §2「开放工具同走公共接入合同」 | 登记表在合同里、适配在服务包里，第三方插件现在贡献不了来源适配 | 本批不做；要开放成扩展点在第 59 批之后另议 |
+| 26 | 第 5.1 节云端的 `location_key`（公共合同台合审） | `copilot-coding-agent` 走 `gh`，账号在 `gh` 里，这一行原来写的 `connection:` + `connection_id` 取不到 | 已答（C-2）：走 `auth_method: "cli"` 的连接，不另立规则，规则和类型的改动写在第 5.1 节 |
+| 27 | `codex-cloud` | 命令 `codex cloud list` 核完之后，`CONNECTOR_CLIS` 里没有 `codex`，没有可选连接 | 现在是缺口，不影响 C-2；接这一家时要先加连接定义，第 34 批这一片定 |
+| 28 | `gh agent-task` 的权限 | `CONNECTOR_CLIS.github` 登录时要的 scope 是 `notifications,read:user`，这组 scope 能不能读 `agent-task` 没实测 | 第 34 批这一家的适配片实测；不够时改那条登录命令，那是 connector 的改动 |
+| 29 | 定样 | 云端来源没有可选连接时读取范围这一行怎样给去连接的入口，以及 `account_changed` 的两条出路（第 5.1 节），定样都没画 | **要进定样**，这片不做界面；合同给足了 `connections`、`connect_service_id`；实现列在片 S-5 |
+| 30 | 连接的使用方（S-1） | `session_read_scopes.connection_id` 是对连接的长期引用，`services/connector-usages.ts` 要每个使用方报告，否则连接页显示没人在用，删连接时也没有提示 | 服务片加 `defineConnectorUsagesAction`，是第 11 个动作。只报告，不声明 switch：换连接等于换 `location_key` |
+| 31 | `sessions.scope.set@1` 的边界（S-1） | 三处没写：整份替换时没列出的来源怎样算；同一 `entry_id` 同一连接写两行；本机来源带了 `connection_id` | 合同台建议：第一处写明保持原状或一律不允许，二选一；后两处报 `actions.input_invalid` |
+| 32 | 没有登记行的 `entry_id`（S-1） | schema 只核写法，文件头说服务会答，没说答什么 | 合同台建议报 `sessions.source_unsupported` |
+| 33 | `return_target.label`（S-1） | 不能写进原生 ID 或账号 | 非本人已是 `null`（第 6.1 节）；给本人的写法服务片定 |
+| 34 | 本人的权限（S-1） | 三个 `sessions:*` 不在 `LOCAL_OWNER_PERMISSIONS` 里，动作调不了 | 服务片加 |
+| 35 | 第 9.5 节（S-1） | 少两处：`cli` 连接每次读多跑两次进程（读前读后核指纹）；`sessions.scope.read@1` 要读一遍连接表 | 服务片补进调用次数 |
+| 36 | S-115 与 `cli` 连接（S-1） | S-115 要求最小环境，`cliEnvironment` 在没有受管安装时传整份 `process.env` | 走 `connections.command` 时定按哪条，要改 S-115 的写法就同步改表 |
 
 ## 13. 已定
 

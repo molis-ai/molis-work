@@ -32,7 +32,6 @@ function page(reply: (path: string, body: Record<string, unknown>) => Promise<un
     pact: (content: Node | null, badge: string) => { pacts.push([content, badge]); } }) as {
     line(thread: Node, node: Node, put: (node: Node) => void, turn: object, round: object): void; paint(round: object | undefined): void; target(): string | undefined; into(): { pending_id: string; draft_from_composer?: string } | null;
     after(thread: Node, put: (node: Node) => void, view: object | null): void;
-    choices(): { options: string[]; value: string } | null; label(one: string): string; choose(one: string): void;
   };
   const put = (node: Node) => { if (node.parent !== thread) { node.parent = thread; thread.children.push(node); } };
   return { ui, chip, thread, put, calls, acts, owners, trays, tray, asked, pacts, reloads: () => reloads };
@@ -52,46 +51,41 @@ test("RC-14, RCPT-313: under a supplement the Assistant places the shared receip
   assert.equal(thread.children.length, 0, "a turn that is not a supplement has no receipt");
 });
 
-// K3 (UIV-12): the chip is now the composer's own 「这次发送」 control (a select the composer draws with the board's controls, in
-// `controlsNow`): `choices()` is what it offers and which one it is on, `label` its words, `choose` the person's pick. Each
-// assertion on the chip is kept by intent on that control: shown only then, its default, the way to the other, and a redraw.
-test("RC-14: the 「这次发送」 control shows only while the round waits on its one free-text question, starts at answering it, and one pick switches", () => {
-  const { ui } = page();
+test("RC-14: the chip shows only while the round waits on its one free-text question, starts at answering it, and one click switches", () => {
+  const { ui, chip } = page();
   ui.paint(running);
-  assert.equal(ui.choices(), null); assert.equal(ui.target(), undefined, "with nothing waiting, Send adds to the round");
+  assert.equal(chip.hidden, true); assert.equal(ui.target(), undefined, "with nothing waiting, Send adds to the round");
   ui.paint(asking());
-  assert.deepEqual(JSON.parse(JSON.stringify(ui.choices())), { options: ["answer", "steer"], value: "answer" }, "the two things Send can do, at answering"); assert.equal(ui.label(ui.choices()!.value), "回答上面的问题"); assert.equal(ui.target(), "answer");
-  ui.choose("steer");
-  assert.equal(ui.label(ui.choices()!.value), "补充这一轮"); assert.equal(ui.label(ui.choices()!.options[0]!), "回答上面的问题", "the way back is offered beside it"); assert.equal(ui.target(), "steer");
+  assert.equal(chip.hidden, false); assert.equal(chip.textContent, "回答上面的问题"); assert.equal(ui.target(), "answer");
+  chip.click();
+  assert.equal(chip.textContent, "补充这一轮"); assert.match(chip.title, /回答上面的问题/u); assert.equal(ui.target(), "steer");
   ui.paint(asking());
   assert.equal(ui.target(), "steer", "a redraw keeps the person's choice");
   ui.paint(asking(2));
   assert.equal(ui.target(), "answer", "a new question starts again at answering it");
   ui.paint({ phase: "awaiting-input", awaiting_input: [{ pending_id: "q2", pending_revision: 1, allows_free_text: true, questions: [{ prompt: "选哪个？", type: "choice" }] }] });
-  assert.equal(ui.choices(), null, "a question the Host does not mark from_composer is answered on its own card (D34)");
+  assert.equal(chip.hidden, true, "a question the Host does not mark from_composer is answered on its own card (D34)");
   ui.paint(undefined);
   assert.equal(ui.target(), undefined);
 });
 
-test("AC-03, R4: a questionnaire with its text question among others starts the 「这次发送」 control at writing into that field; Send then targets nothing, and one pick switches to adding to the round", () => {
-  const { ui, calls } = page();
+test("AC-03, R4: a questionnaire with its text question among others starts the chip at writing into that field; Send then targets nothing, and one click switches to adding to the round", () => {
+  const { ui, chip, calls } = page();
   const form = (revision = 1) => ({ phase: "awaiting-input", awaiting_input: [{ pending_id: "q3", pending_revision: revision, questions: [{ index: 0, prompt: "选哪个？", type: "choice" }, { index: 1, prompt: "补充要求", type: "text" }], draft_from_composer: "t1" }] });
   ui.paint(form());
-  assert.equal(ui.label(ui.choices()!.value), "写进问卷", "the default is on the control");
-  assert.equal(ui.label(ui.choices()!.options[1]!), "补充这一轮");
+  assert.equal(chip.hidden, false); assert.equal(chip.textContent, "写进问卷", "the default is on the chip");
+  assert.match(chip.title, /补充这一轮/u);
   assert.equal(ui.target(), undefined, "nothing is sent as an answer or a supplement"); assert.equal(ui.into()?.pending_id, "q3"); assert.equal(ui.into()?.draft_from_composer, "t1");
-  ui.choose("steer");
-  assert.equal(ui.label(ui.choices()!.value), "补充这一轮"); assert.equal(ui.label(ui.choices()!.options[0]!), "写进问卷", "the way back names the form, not answering");
+  chip.click();
+  assert.equal(chip.textContent, "补充这一轮"); assert.match(chip.title, /写进问卷/u, "the way back names the form, not answering");
   assert.equal(ui.target(), "steer"); assert.equal(ui.into(), null);
-  ui.choose("draft");
-  assert.equal(ui.into()?.pending_id, "q3", "one pick back"); assert.equal(ui.target(), undefined);
-  ui.choose("answer");
-  assert.equal(ui.into()?.pending_id, "q3", "answering is not offered for a questionnaire: the pick is ignored");
-  ui.choose("steer"); ui.paint(form(2));
+  chip.click();
+  assert.equal(ui.into()?.pending_id, "q3", "one click back"); assert.equal(ui.target(), undefined);
+  chip.click(); ui.paint(form(2));
   assert.equal(ui.into()?.pending_id, "q3", "a new question starts again at its default");
   ui.paint(running);
-  assert.equal(ui.choices(), null); assert.equal(ui.into(), null, "nothing waiting, nothing to fill");
-  assert.equal(calls.length, 0, "the control itself writes nothing");
+  assert.equal(chip.hidden, true); assert.equal(ui.into(), null, "nothing waiting, nothing to fill");
+  assert.equal(calls.length, 0, "the chip itself writes nothing");
 });
 
 test("RCPT-326: from a receipt, the Assistant takes a supplement back through the work's control and sends a correction as a Send naming it", async () => {

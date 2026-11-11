@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
+import { CODING_COMPOSER, CODING_OPEN } from "./fixtures/coding-composer.js";
 import { execFileSync } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -167,15 +168,20 @@ test("VUX-40: the Coding page, its own script's words and Coding settings speak 
   // Coding's own script fills the page in English too: the session list, the composer's controls and the results column.
   await navigate(() => command("Page.navigate", { url: coding }, sessionId));
   active = views.coding!;
-  await waitFor("document.querySelector('[data-coding-workbench] [data-coding-model] option')", 30_000);
+  // Coding's page has started: its composer is mounted as a receiver of the bar (no session open, the bar stays the Assistant's).
+  await waitFor("Boolean(document.querySelector('[data-coding-input][data-composer-remote]'))", 30_000);
   assert.deepEqual(await evaluate(HAN_IN("[data-coding-workbench]")), [], "Coding with no session open, in English");
   assert.ok((await evaluate<string>("document.querySelector('[data-coding-workbench] .coding-start').textContent")).includes("Write code with an Agent"));
   // A fresh session: the welcome, the composer and its menus, the results column.
   await evaluate("document.querySelector('.coding-start [data-coding-new]').click()");
-  await waitFor("document.querySelector('[data-coding-welcome]') && !document.querySelector('[data-coding-task]').disabled", 30_000);
-  await evaluate("document.querySelector('[data-coding-attach-toggle]').click(); document.querySelector('[data-coding-results-open]').click()");
-  assert.deepEqual(await evaluate(HAN_IN("[data-coding-workbench]")), [], "a fresh Coding session, its menus and results, in English");
+  await waitFor("Boolean(document.querySelector('[data-coding-welcome]'))", 30_000);
+  // The composer is the workbench bar's (one input), in the session's own words: its ＋ menu is the bar's.
+  await browser.waitFor(CODING_OPEN, 30_000);
+  await browser.evaluate(`document.querySelector('${CODING_COMPOSER} [data-composer-add]').click()`);
+  await evaluate("document.querySelector('[data-coding-results-open]').click()");
+  assert.deepEqual(await evaluate(HAN_IN("[data-coding-workbench]")), [], "a fresh Coding session and its results, in English");
+  assert.deepEqual(await browser.evaluate(HAN_IN(CODING_COMPOSER)), [], "the bar's composer for the session and its ＋ menu, in English");
   // Words Coding's script writes itself, not the Host's markup.
-  assert.deepEqual(await evaluate("[document.querySelector('[data-coding-goal-label]').textContent, document.querySelector('[data-coding-send]').textContent]"), ["No goal for the next turn", "Send"]);
+  assert.deepEqual([await evaluate<string>("document.querySelector('[data-coding-goal-label]').textContent"), await browser.evaluate<string>(`document.querySelector('${CODING_COMPOSER} [data-composer-send]').textContent`)], ["No goal for the next turn", "Send"]);
   assert.deepEqual((await evaluate<TextWrapIssue[]>(TEXT_WRAP_AUDIT)).filter((issue) => issue.kind === "spill"), [], "Coding in English fits");
 });

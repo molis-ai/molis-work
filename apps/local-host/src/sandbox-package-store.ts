@@ -27,13 +27,15 @@ export function packagedRelease(pkg: KeptPackage, directory: string, publishedAt
   const contract: SandboxPluginContract = isContentPackage(pkg)
     ? { version: /* @version format.sandbox.contract */ 1, pluginId: manifest.plugin_id, revision: pluginManifestDigest(manifest), operations: [], entities: [], pages: [], acceptance: [] } : pkg.contract;
   const app: Pick<SandboxPackage, 'parts' | 'nodes' | 'prompts' | 'presentation'> = isContentPackage(pkg) || isIntegrationPackage(pkg) ? { parts: [], nodes: [], prompts: [] } : pkg;
+  const blueprint = isContentPackage(pkg) ? pkg.blueprint : undefined;
   return {
     // Names this plugin under this publisher: its actions are registered as `generated.<first 8>.<operation>`, so two plugins of one publisher must differ.
     buildId: sandboxPackageBuildId(manifest.plugin_id, manifest.publisher.signature), pluginId: manifest.plugin_id, version: 1,
     design: { id: contract.revision, title: manifest.name, description: '', rationale: '', journey: [], contract, parts: app.parts, acceptance: [], ...(app.presentation ? { presentation: app.presentation } : {}) },
     nodes: app.nodes, manifest: { version: /* @version format.builder.build-manifest */ 1, pluginId: contract.pluginId, revision: contract.revision, effects: pkg.permissions },
     directory, bundlePath: join(directory, SANDBOX_PACKAGE_FILES.entrypoint), packagePath: directory, permissions: pkg.permissions, publishedAt, prompts: app.prompts,
-    packaged: { manifest, ...('agentBodies' in pkg ? { agentBodies: pkg.agentBodies } : {}), trust: { level: 'pinned', publisher_key_id: manifest.publisher.signature } },
+    packaged: { manifest, ...('agentBodies' in pkg ? { agentBodies: pkg.agentBodies } : {}), ...(blueprint ? { blueprint } : {}),
+      trust: { level: 'pinned', publisher_key_id: manifest.publisher.signature } },
   };
 }
 
@@ -111,6 +113,12 @@ export class SandboxPackageStore {
     const pkg = readKeptPackage(bundle.payload);
     if ('entrypoint' in pkg && !Buffer.from(readFileSync(join(directory, SANDBOX_PACKAGE_FILES.entrypoint))).equals(Buffer.from(pkg.entrypoint))) throw new Error('已存的插件代码被改过：' + pluginId + ' ' + version);
     return { pkg, bundle, directory };
+  }
+
+  /** The kept bundle's text exactly as written, after the same checks as a load: what 「导出这个包」 hands out, never re-signed (capability-pack §4.9). */
+  keptText(pluginId: string, keyId: string, version: string): string {
+    const { directory } = this.read(pluginId, keyId, version);
+    return readFileSync(join(directory, BUNDLE_FILE), 'utf8');
   }
 
   load(pluginId: string, keyId: string, version: string): InstalledRelease {

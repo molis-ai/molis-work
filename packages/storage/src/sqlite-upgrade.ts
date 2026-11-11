@@ -1,3 +1,4 @@
+import { rollbackPreservingError } from "./transaction-errors.js";
 import {
   sqliteStoreLabel,
   sqliteVersionRefusal,
@@ -128,7 +129,7 @@ function upgradeInOneTransaction(db: SqliteBaselineDatabase, baseline: SqliteBas
     db.exec("COMMIT");
   } catch (error) {
     // A step that ended the transaction itself leaves nothing to roll back; what it committed is the snapshot's to restore.
-    if (transactionOpen(db)) db.exec("ROLLBACK");
+    rollbackPreservingError(error, () => { if (transactionOpen(db)) db.exec("ROLLBACK"); });
     throw error instanceof Error && "code" in error && error.code === "storage.upgrade_failed" ? error : fail("run_failed", { cause: error });
   }
 }

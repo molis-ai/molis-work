@@ -1,3 +1,5 @@
+import { imText as L } from "../locale.js";
+import { escapeHtml as escapeImText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { ImSearchResult } from '@molis-ai/molis-work-contracts/services/im';
 import type { ApiError } from './types.js';
 import type { ImCtx } from './controller-types.js';
@@ -8,15 +10,15 @@ export function createImPage(c: ImCtx) {
     event.preventDefault();
     const query = q<HTMLInputElement>('[data-search] input').value.trim(), version = s.epoch, search = ++s.searchVersion, results = q('[data-search-results]');
     if (!query) {
-      results.textContent = '输入消息内容或话题名称。';
+      results.textContent = (L("输入消息内容或话题名称。"));
       return;
     }
-    results.textContent = '正在搜索…';
+    results.textContent = (L("正在搜索…"));
     try {
       const result = await api<ImSearchResult>(c.pathFor(s.roomId) + '/search?q=' + encodeURIComponent(query));
       if (version !== s.epoch || search !== s.searchVersion)
         return;
-      results.innerHTML = result.messages.map(message => '<button type="button" class="im-search-result" data-action="jump-message" data-id="' + e(message.id) + '" data-thread="' + e(message.thread_id || '') + '"><small>' + e(message.author.display_name) + ' · ' + e(message.thread_id ? '# ' + (s.roomState!.threads.find(t => t.id === message.thread_id)?.title || '话题') : '主群') + ' · ' + v.time(message.created_at) + '</small>' + e(message.body.slice(0, 240)) + '</button>').join('') || '<p class="im-muted">没有找到相关消息，换个关键词试试。</p>';
+      results.innerHTML = result.messages.map(message => '<button type="button" class="im-search-result" data-action="jump-message" data-id="' + e(message.id) + '" data-thread="' + e(message.thread_id || '') + '"><small>' + e(message.author.display_name) + ' · ' + e(message.thread_id ? '# ' + (s.roomState!.threads.find(t => t.id === message.thread_id)?.title || (L("话题"))) : (L("主群"))) + ' · ' + v.time(message.created_at) + '</small>' + e(message.body.slice(0, 240)) + '</button>').join('') || ("<p class=\"im-muted\">" + escapeImText(L("没有找到相关消息，换个关键词试试。")) + "</p>");
     }
     catch (cause) {
       const error = cause as ApiError;
@@ -60,7 +62,7 @@ export function createImPage(c: ImCtx) {
   });
   addEventListener('resize', () => { c.resizeInput('group'); c.resizeInput('thread'); });
   addEventListener('online', () => { c.connectEvents(); c.scheduleRefresh(); });
-  addEventListener('offline', () => c.connection('已离线', true));
+  addEventListener('offline', () => c.connection((L("已离线")), true));
   addEventListener('pagehide', () => { c.rememberPosition(); s.events?.close(); drafts.save(); clearTimeout(s.refreshTimer); clearTimeout(s.readTimer); });
   addEventListener('pageshow', event => {
     if (event.persisted) {

@@ -261,12 +261,13 @@ test("ASC-38, ASC-39: Home refresh cannot consume a click while Inbox offers are
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, store } = browser;
   assert.ok(projectId);
   const feed = createLocalFeedApplication(store.db);
-  const before = feed.listInboxEntries(projectId).find(entry => entry.subject_type === "feed_item" && entry.status === "open");
-  assert.ok(before);
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
   await waitFor("document.querySelector('[data-home-subject-kind=inbox_entry]')");
+  // D0041: Feed owns demo initialization after Runtime startup, before Home offers its seeded Inbox entry.
+  const before = feed.listInboxEntries(projectId).find(entry => entry.subject_type === "feed_item" && entry.status === "open");
+  assert.ok(before);
   const row = '[data-home-subject-id="' + before.entry_id + '"]';
   await evaluate(`(() => {
     for (const day of [...document.querySelectorAll('[data-home-day]')].map(button => button.dataset.homeDay)) {

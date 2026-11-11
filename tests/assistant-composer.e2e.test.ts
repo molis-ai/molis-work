@@ -8,7 +8,8 @@ import { issueModel } from "./fixtures/issue-model.js";
 // composer. Its receiver row says who the next Send goes to (「发给：…」); Enter is a new line and ⌘↵ (Ctrl+↵) sends, with a
 // one-time tip the first time Enter could have been meant as Send; a work's draft is the Assistant's own (the Host keeps it, the
 // browser keeps no copy); while a turn runs the Send is 补充, interrupting selects 打断并改向 before a separate Send and the next Send
-// is 补充 again; ⌘⇧↵ is 下一轮再做, and with nothing running it retains the draft and explains why it cannot queue. Each Send's body is read as the page made it.
+// is 补充 again; ⌘⇧↵ is 下一轮再做, and with nothing running it queues for the next turn the person begins (2026-11-09 audit fix).
+// Each Send's body is read as the page made it.
 test("UIV-12 UIV-17 UIC-06 UIC-09 RC-03: the Assistant's composer names its receiver, sends on ⌘↵, keeps the work's draft on the Host and offers the three deliveries while a turn runs", { timeout: 150_000 }, async (t) => {
   let release!: () => void;
   const held = new Promise<void>((resolve) => { release = resolve; });
@@ -21,10 +22,12 @@ test("UIV-12 UIV-17 UIC-06 UIC-09 RC-03: the Assistant's composer names its rece
   await navigate(() => command("Page.navigate", { url: origin + "/" }, sessionId));
   await waitFor(`document.querySelector('.chooser')?.dataset.selected === ${JSON.stringify(projectId)}`);
   await waitFor("document.querySelector('[data-assistant-composer] .mw-composer__input')", 20_000);
+  // Delay the final send response: observing dispatch must not be mistaken for a completed send.
   await evaluate(`(() => { const real = window.fetch.bind(window); window.__sent = [];
     window.fetch = (input, init) => { const url = String(input && input.url || input);
       if (/\\/api\\/assistant\\/send$/.test(url) && init && init.body) window.__sent.push(JSON.parse(String(init.body)));
-      return real(input, init); }; })()`);
+      const response = real(input, init);
+      return window.__sent.length === 5 && /\\/api\\/assistant\\/send$/.test(url) ? response.then(async result => { await new Promise(resolve => setTimeout(resolve, 200)); return result; }) : response; }; })()`);
   const field = "document.querySelector('[data-assistant-composer] .mw-composer__input')";
   const to = () => evaluate<string>("document.querySelector('[data-assistant-composer] .mw-composer__to')?.textContent ?? ''");
   const sent = () => evaluate<Array<{ text: string; delivery?: string; work_id?: string }>>("window.__sent");
@@ -65,7 +68,7 @@ test("UIV-12 UIV-17 UIC-06 UIC-09 RC-03: the Assistant's composer names its rece
   await evaluate(`${field}.focus()`);
   await type("先把标题改短");
   await waitWork(browser, id, (view) => view.work.draft === "先把标题改短");
-  assert.equal(await evaluate<boolean>("Object.keys(localStorage).some((k) => String(localStorage.getItem(k)).includes('先把标题改短'))"), false, "no copy of the work's draft in the browser");
+  assert.equal(await evaluate<boolean>("Array.from({length:localStorage.length},(_,index)=>localStorage.key(index)).filter(key=>key!==null).some((k) => String(localStorage.getItem(k)).includes('先把标题改短'))"), false, "no copy of the work's draft in the browser");
 
   // While the turn runs the Send is 补充, with ▾ for the other two and Stop beside them.
   const running = await evaluate<{ send: string; stop: boolean }>(`(() => { const c = document.querySelector('[data-assistant-composer]');
@@ -108,17 +111,21 @@ test("UIV-12 UIV-17 UIC-06 UIC-09 RC-03: the Assistant's composer names its rece
   assert.equal((await sent())[3].delivery, "after-run", "⌘⇧↵ while a turn runs is 下一轮再做");
   await waitFor(settled, 15_000);
 
-  // B10-R1: stopped, nothing runs; the explicit queue shortcut never starts a round.
+  // 2026-11-09 audit fix (user decision): stopped, nothing runs; the explicit queue shortcut queues for the next turn the person
+  // begins (the Host's returned word is queued) instead of only explaining, and it does not start a round.
   await evaluate("document.querySelector('[data-assistant-composer] [data-composer-stop]').click()");
   release();
   await waitWork(browser, id, (view) => !["running", "queued"].includes(view.work.state) && view.rounds.at(-1)?.phase !== "running");
-  await waitFor("!document.querySelector('[data-assistant-composer] [data-compose-menu-toggle]')", 15_000);
   await evaluate(`${field}.focus()`);
   await type("空闲时也能发");
+  await waitFor("Boolean(document.querySelector('[data-assistant-composer] [data-compose-menu-toggle]'))", 15_000);
   await key(CTRL | SHIFT);
-  assert.equal((await sent()).length, 4, "idle queue is refused");
-  assert.equal(await evaluate(`${field}.value`), "空闲时也能发", "the unsent draft remains");
+  await waitFor("window.__sent.length === 5", 10_000);
+  assert.equal((await sent())[4].delivery, "after-run", "idle, ⌘⇧↵ queues for the next turn");
+  await waitFor(settled, 15_000);
+  assert.equal(await evaluate(`${field}.value`), "", "the queued words leave the box");
   assert.equal((await readWork(browser, id)).work.work_id, id);
+  assert.equal((await readWork(browser, id)).rounds.length, 1, "queuing starts no round");
 });
 
 // specs/unified-input-voice §3.3 (K3): `/` lists this page's commands and the Assistant's methods and capabilities; the words typed

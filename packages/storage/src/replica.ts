@@ -1,3 +1,4 @@
+import { rollbackPreservingError } from "./transaction-errors.js";
 import {authorizeReplicaValue,replicaKeyVisible} from './replica-authorization.js';
 import type {SQLInputValue,SQLOutputValue} from "node:sqlite";
 export type ReplicaInputValue=SQLInputValue;
@@ -79,7 +80,7 @@ export function retainLocalReplicaSnapshot(db:{prepare(sql:string):{run(...param
 export function replicaTransaction<T>(db: ReplicaDatabase, run: () => T): T {
   db.exec('SAVEPOINT replica_write');
   try { const result=run(); db.exec('RELEASE replica_write'); return result; }
-  catch(error) { db.exec('ROLLBACK TO replica_write; RELEASE replica_write'); throw error; }
+  catch(error) { rollbackPreservingError(error, () => db.exec('ROLLBACK TO replica_write; RELEASE replica_write')); throw error; }
 }
 
 export type ReplicaReceiveDisposition = 'ignore' | 'cursor' | 'acknowledge' | 'conflict' | 'apply';

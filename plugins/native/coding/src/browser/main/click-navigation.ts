@@ -2,6 +2,7 @@ import { loadArtifacts } from "./artifacts.js";
 import { showBoard, onShow } from "./board.js";
 import type { ClickRule } from "./click-types.js";
 import { shut } from "./composer-state.js";
+import { chooseIntent } from "./configuration.js";
 import { controls } from "./controls.js";
 import { renderDirectory } from "./directory.js";
 import { renderGoalFace } from "./goals.js";
@@ -34,14 +35,12 @@ async function openFace(page: Page, target: HTMLButtonElement) {
 
 /** A suggestion on the welcome fills the composer, in the way of working it names. */
 function usePrompt(page: Page, target: HTMLButtonElement) {
-  const { input, q } = page;
+  const { input, s } = page;
   if (input.value.trim() || shut(page)) return;
-  const intent = q<HTMLSelectElement>("[data-coding-intent]"), wanted = [...intent.options].find(option => option.value === target.dataset.codingPromptIntent && !option.disabled);
-  if (wanted) {
-    intent.value = wanted.value;
-    intent.dispatchEvent(new Event("change", { bubbles: true }));
-  }
+  const wanted = s.intents.find(option => option.value === target.dataset.codingPromptIntent && !option.disabled);
+  if (wanted) chooseIntent(page, wanted.value);
   input.value = target.dataset.codingPrompt || "";
+  window.molisFit?.(input);
   input.dispatchEvent(new Event("input", { bubbles: true }));
   input.focus();
   input.setSelectionRange(input.value.length, input.value.length);
@@ -93,11 +92,6 @@ export const NAVIGATION_CLICKS: readonly ClickRule[] = [
     query.hidden = !query.hidden;
     target.setAttribute("aria-expanded", String(!query.hidden));
     if (!query.hidden) page.directory.querySelector<HTMLElement>("[data-coding-search]")?.focus();
-  }],
-  ["[data-coding-context-toggle]", (page, target) => {
-    const context = page.q("[data-coding-context]");
-    context.hidden = !context.hidden;
-    target.setAttribute("aria-expanded", String(!context.hidden));
   }],
   ["[data-coding-workspace-open]", page => page.q<HTMLDialogElement>("[data-coding-workspace-dialog]").showModal()],
   ["[data-coding-workspace-close]", page => page.q<HTMLDialogElement>("[data-coding-workspace-dialog]").close()],

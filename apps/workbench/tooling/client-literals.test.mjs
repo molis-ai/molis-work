@@ -12,3 +12,11 @@ test('pooling preserves directives, literal values, object keys, defaults and ne
   assert.equal(JSON.stringify(vm.runInNewContext(pooled)),JSON.stringify(vm.runInNewContext(script)));
   assert.equal(poolClientLiterals(`(()=>{return ${quoted};})()`),`(()=>{return ${quoted};})()`,'small scopes stay untouched');
 });
+
+// Minified keywords may touch a string quote; replacing it with an identifier needs a token boundary.
+test('pooling preserves adjacent return and typeof tokens in minified code',()=>{
+  const quoted=JSON.stringify('shared repeated selector');
+  const script=`(()=>{const padding=${JSON.stringify('x'.repeat(16000))};function value(){return${quoted}}return [value(),typeof${quoted},${quoted},padding.length]})()`;
+  const pooled=poolClientLiterals(script);
+  assert.equal(JSON.stringify(vm.runInNewContext(pooled)),JSON.stringify(vm.runInNewContext(script)));
+});

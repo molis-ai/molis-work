@@ -1,0 +1,8 @@
+{
+  "reason": "第 07 批合后独立审计的修复（2026-11-08）：molis-work:record-gone 从分屏/右侧窗格页上报给外层标签条（pane-messages 的 recordGone + tab-workspace 的 workbench-pane-record-gone 转发、接收与侧栏重画），和手机（≤600）带快捷键的 Home 工具在右侧字形行滚出视野后仍固定在行首（position:sticky，同时去掉该行会把它一起淡掉的左缘 fade）；另删了两条无用翻译键、补了窗格标签的已不在样式。workbench.js 的实测增量随合入队列基点（相邻 PR 的同一工作表）在 +893～+1101 B 间浮动，许可取上界再加余量到 1200 B；workbench.css 实测 +515 B，许可 600 B；都是这个修复的最小实现，没有新增资源。",
+  "review": "待本修复 PR 的评审台审；合入前改成审过评论链接",
+  "assets": {
+    "/assets/molis-work-workbench.js": 1200,
+    "/assets/molis-work-workbench.css": 600
+  }
+}

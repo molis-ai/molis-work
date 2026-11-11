@@ -127,6 +127,27 @@ const pages: Record<string, Draw> = {
 // Batch 10 closeout after main 416ee8cef0: each of the 16 whole pages independently reproduced its previous hash and
 // length after removing only the two Skills buttons and replacing the receiver button with the former span (+41).
 // All other records retained the accepted main records; no Goals markup, data or assertions changed.
+// D0013: the current kanban and momentum fragments add one cancelled column. Removing only that complete column restores
+// all 66 prior hashes and lengths (14 changed: zh +2955 / en +2968); no other markup, JSON or view fixture was changed.
+// Main #2002: removing only the restored answer chip and changing English Send to: back to To: reproduces
+// all 66 previous hashes and lengths. Only the 16 whole-page records changed (zh +94 / en +99); Goals data stayed exact.
+// D0014/D0015 (2026-11-09): all 66 baseline renders on independently built ecdfe102d matched the accepted records.
+// Token comparison with the candidate found 22 changed records, solely the shared state labels/title/aria text,
+// the blocked count label, and the cancelled kanban column (including its paused ring and zero count). The other 44 stay byte-identical.
+// Main #2002 integration: all 66 preserved A-1 draws first reproduced their accepted hashes.
+// Derive only the hidden assistant-answer button and English To: → Send to: from that main change.
+// All 16 whole-page draws match the derived markup byte for byte; the other 50 remain identical.
+// Batch 09 (#2015, AI kits): all 66 pages drawn on independently built main bac5d62b9e (each matched its record there) and on this branch,
+// compared token by token: the 34 changed records (17 pages in two languages) differ only in the shell's settings navigation — the global
+// rows 提示词 and 技能 (Prompts, Skills; icons text and book) became one 能力包 / AI kits row (icon sparkles, `data-settings-section="kit"`),
+// and the settings links /settings/prompts, /settings/skills and the project's /settings/skills became /settings/kit — besides executable
+// scripts and dictionaries, which the hash leaves out. No Goals markup or JSON changed; the 34 were recorded with MOLIS_WORK_GOLDEN_RECORD=1.
+// Batch 11 (#2016, one input, UIV-19): all 66 pages drawn on independently built main ef06fed60 (each matched its record there) and on
+// this branch, compared token by token: the 16 page-* records (8 pages in two languages) differ only in the shell's bar — the receiver
+// moved from a row above the box into the foot after ＋ (`mw-composer__to` now after the box, its 发给： / Send to: in
+// `mw-composer__to-label`, the Assistant's sparkles icon before the name) and the bar is drawn ` data-bar-placing` (the input stays
+// unseen until bar-column.ts places it, VUX-31): +110 characters in each — besides executable scripts and dictionaries, which the hash
+// leaves out. No Goals markup or JSON changed; the 16 were recorded with MOLIS_WORK_GOLDEN_RECORD=1 and the other 50 did not change.
 const RECORDED = new URL("golden.json", GOLDEN);
 interface Recorded { sha256: string; length: number }
 const recorded: Record<string, Recorded> = record ? {} : JSON.parse(readFileSync(RECORDED, "utf8"));

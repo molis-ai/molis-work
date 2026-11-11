@@ -1,3 +1,4 @@
+import { imText as L } from "../locale.js";
 import type { createViews } from '../views.js';
 import type { createMessageFormat } from '../message-format.js';
 import type { createHistory } from './history.js';
@@ -56,7 +57,7 @@ export function startIm(factories: ImFactories) {
   const elements = { root, v, q, e, icon, dialog, dialogBody, projectId, s };
   // Cross-layer calls happen in the returned handlers, once the full context is assembled.
   const context = (): ImCtx => c;
-  const { api, storage, connectProject, subscribe } = factories.createTransport(() => { s.authLost = true; c.syncComposer('group'); c.syncComposer('thread'); c.syncError('身份连接已失效，请重新连接。已输入的内容会保留。'); });
+  const { api, storage, connectProject, subscribe } = factories.createTransport(() => { s.authLost = true; c.syncComposer('group'); c.syncComposer('thread'); c.syncError((L("身份连接已失效，请重新连接。已输入的内容会保留。"))); });
   const { merge, latest, reset: resetHistory } = factories.createHistory(api);
   const base: ImBaseCtx = Object.assign(elements, { api, storage, connectProject, subscribe, merge, latest, resetHistory, drafts: factories.createDrafts(storage) });
   // One typed source avoids Object.assign's variadic any overload; all factories run before base receives the methods.

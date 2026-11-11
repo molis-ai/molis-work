@@ -133,7 +133,8 @@ async function loadPanels(ctx: PanelContext) {
   let panels: PanelRecord[];
   try {
     panels = await listPanels(options, id);
-  } catch {
+  } catch (error) {
+    if (requestSequence === state.loadSequence && id === options.goalId()) options.setStatus(options.errorText(error), "error");
     return;
   }
   if (requestSequence !== state.loadSequence || id !== options.goalId()) return;

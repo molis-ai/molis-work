@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import test from "node:test";
-import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { openBoardBrowser as openGoalBrowser } from "./fixtures/board-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
 // specs/assistant-service-connections/spec.md §13.5, ASC-71: the connection card the shell draws on a plugin page, every stage as the

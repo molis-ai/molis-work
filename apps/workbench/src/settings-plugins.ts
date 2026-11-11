@@ -195,7 +195,7 @@ summary.append(copy); const mark = $("chevron"); if (mark) summary.append(mark.c
 const body = el("div", "plugin-trust-body");
 body.append(el("span", "settings-muted", plugin.plugin_id + (plugin.publisher_signature && plugin.trust !== "host" ? " · " + short(plugin.publisher_signature) : "")));
 if (revoked && revoked.has(plugin.publisher_signature)) body.append(el("span", "settings-muted", L("发布者的信任已撤销：它不再运行，只能卸载")));
-else if (plugin.recovery_error) body.append(el("span", "settings-form-error", L("没能启动：{error}", { error: plugin.recovery_error })));
+else if (plugin.recovery_error) body.append(el("span", "settings-form-error", L("没能启动：{error}", { error: L(plugin.recovery_error === "plugin.publisher_revoked" ? "发布者的信任已撤销" : plugin.recovery_error === "plugin.manifest_version_invalid" ? "插件版本与当前平台不匹配" : "插件暂时无法启动，请重试或查看诊断") })));
 const work = el("div"), repaint = () => work.replaceChildren(jobs(plugin.jobs, plugin.permissions));
 if (plugin.manifest_available) { body.append(grants(plugin, repaint, send, managed)); repaint(); body.append(work); } else body.append(el("span", "settings-muted", L("读不到这个插件安装时声明的权限")));
 const reach = act === homeApi ? reachViews.get(plugin.plugin_id) : null;
@@ -250,13 +250,20 @@ globalThis.molisSkillUI?.preview(panel, shown.skills);
 if (shown.requires?.length) panel.append(group(L("需要的能力"), "", shown.requires.map(item => row(item.capability_id, item.reason, L(item.satisfied ? "已具备" : "尚未具备")))));
 if (shown.origins?.length) panel.append(group(L("可访问的服务地址"), "", shown.origins.map((service) => row(service.title, service.service_id, ...service.origins))));
 if (shown.agent_bodies && shown.agent_bodies.length) {
-const bodies = el("div", "plugin-trust-agent-bodies"); bodies.append(el("h4", "", L("角色资料与方法")));
+const bodies = el("div", "plugin-trust-agent-bodies"); bodies.append(el("h4", "", L("角色资料")));
 shown.agent_bodies.forEach((item) => {
 const body = el("div", "plugin-trust-agent-body");
-body.append(el("strong", "", L(item.kind === "role" ? "角色资料" : "方法") + "：" + item.name));
+body.append(el("strong", "", L("角色资料：{name}", { name: item.name })));
 if (item.change) body.append(el("p", "settings-muted", L({ added: "新增正文", changed: "正文已变化", removed: "已移除正文" }[item.change])));
 const excerpt = el("pre", "", item.excerpt); excerpt.style.whiteSpace = "pre-wrap"; excerpt.style.overflowWrap = "anywhere";
-body.append(excerpt); bodies.append(body);
+body.append(excerpt);
+if (item.truncated) {
+body.append(el("p", "settings-muted", L("正文已截断，确认前可展开查看完整内容。")));
+const details = el("details", ""); details.append(el("summary", "", L("查看完整正文")));
+const full = el("pre", "", item.body); full.style.whiteSpace = "pre-wrap"; full.style.overflowWrap = "anywhere";
+details.append(full); body.append(details);
+}
+bodies.append(body);
 }); panel.append(bodies);
 }
 const effects = Object.keys(shown.effects || {}).filter((key) => shown.effects[key] && shown.effects[key].length);
@@ -299,6 +306,9 @@ pick.addEventListener("click", async () => { pick.disabled = true; try { review(
 for (const item of data.refused) box.append(el("p", "settings-form-error", item.file + " · " + item.message));
 }).catch(fail);
 load().catch(fail);
+// A content package 「能力包」's import handed over (browser/kit/files.ts): it goes through this same install review, read once.
+let handed = null; try { handed = sessionStorage.getItem("molis-work:kit-package"); sessionStorage.removeItem("molis-work:kit-package"); } catch { /* no storage here: nothing was handed */ }
+if (handed) (async () => { try { review(await api("/install/preview", { bundle: JSON.parse(handed) })); } catch (failure) { fail(failure, badPackage(failure)); } })();
 };
 globalThis.molisWorkBindPluginTrustSettings = (container = document) => {
 if (container.matches?.("[data-plugin-trust-settings]")) bind(container);

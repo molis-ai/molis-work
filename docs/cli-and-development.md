@@ -259,3 +259,20 @@ pnpm --filter @molis-ai/molis-work-integration-github typecheck
 npm 产物随包交付实际依赖的 workspace 与 vendor JavaScript 包，按各包 files 声明保留发布资产；注册表依赖由消费者正常安装，PTY 与 Alchemist 的 SQLite 不带入构建机二进制，也不附 Node。消费环境需要 Node 24.15.x：项目库用的就是它自带的 SQLite，别的 Node 上插件语句全部被拒，启动时会说。本地验收先在新目录执行 `npm install /absolute/archive.tgz`（不能跳过安装脚本），再执行 `node tests/npm-distribution-smoke.mjs /absolute/consumer`。该检查通过实际产品入口验证 CLI、SQLite 持久化、PTY、方法资产、Home 安装及源包不可用时的 MCP 握手；只支持当前 Unix 测试宿主，不声称验证其他平台。
 
 上句描述当前发布物；DV4 的干净环境完整发布验收仍未完成。
+
+## 账号环境启动
+
+macOS 首次准备 Node 24.15.x、pnpm 11.9.0，然后执行 `pnpm install --frozen-lockfile` 和 `pnpm build`。先在 Auth 仓库执行 `npm run setup`（首次）及 `npm run dev`，再在本仓库执行 `pnpm dev`。
+
+| 命令 | Auth | Work 端口 | 独立 Home |
+| --- | --- | --- | --- |
+| pnpm dev | 本机 8787 / LOCAL / MOCK | 4207 | ~/.molis-work-environments/dev |
+| pnpm start:test | auth-staging.molis.ai / TEST | 44207 | ~/.molis-work-environments/test |
+| pnpm start:prod | 已登记的 production Workers 域名 / PRODUCTION / LIVE | 4207 | ~/.molis-work-environments/prod |
+
+公共配置统一在 scripts/account-environments.mjs，改端口必须同时修改 Auth 对应客户端登记。dev 不需要手动配置密钥或客户端；Auth 创建普通测试账号 preview@example.test，初始密码 Molis-dev-2026!，重启保留已修改密码。启动器不停止任何已有服务，不使用日常 ~/.molis-work，端口被占用直接提示。构建后改源码需重新 pnpm build。
+
+test/prod 只选择对应环境，不代表云端资源已经部署；prod 首次须由部署人员应用 Auth 的 worker/deploy/production/work-client.sql 并配置密钥和外部渠道。没有可用 Auth 时不会偷偷回退 dev。启动脚本只配置账号依赖，其他插件的外部服务仍按各自配置处理。
+### 测试文件的类型盘点
+
+`pnpm typecheck:tests` 使用严格noEmit配置检查全部测试及类型依赖，目前因存量问题返回非零；暂不属于必过CI。口径、起点对照和后续分批方案见[D0069阶段记录](reviews/daily-quality/2026-11-08-test-types.md)。

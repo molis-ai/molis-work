@@ -1,8 +1,7 @@
 /**
  * Importing Skills from this machine (specs/skill-packs/contract-design.md §6, batch 08, 08-8): a local Agent's Skills folder, read by
  * Character import's scan (its roots, its link and size limits), made into one content package with the same packer as CLI
- * `pack-content`, signed with this Home's publisher identity (the Plugin Builder's) and installed by the one install path
- * (`PluginInstallService.preview`, then `confirm`). Nothing else: no second catalog, state or way to run. The package is the copy made at
+ * `pack-content`, signed by `plugins.local_packages.sign`, and installed by confirming its ordinary preview. The package is the copy made at
  * the preview; the folder changing afterwards changes nothing installed. Importing the same source again makes the next version of the
  * same plugin, each Skill's version counted up where its body, resources or 「给谁用」 changed (§4.3).
  *
@@ -14,18 +13,16 @@ import { createHash, randomUUID } from 'node:crypto';
 import { lstatSync } from 'node:fs';
 import { ActionError, type ActionExecutionContext } from '@molis-ai/molis-work-contracts/platform/actions';
 import type { CharacterImportRuntimeId, CharacterImportSkill } from '@molis-ai/molis-work-contracts/modules/characters';
-import type { PluginPackageSigner, SandboxAgentBody } from '@molis-ai/molis-work-contracts/platform/plugin';
+import type { SandboxAgentBody } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SkillAppliesTo } from '@molis-ai/molis-work-contracts/platform/plugin-agent';
+import type { LocalPackageSignInput, LocalPackageSignResult } from '@molis-ai/molis-work-contracts/platform/plugin-trust';
 import { skillErrors, type SkillImportCandidate, type SkillImportConfirmRequest, type SkillImportConfirmResult, type SkillImportPreview, type SkillImportPreviewRequest,
   type SkillImportSource, type SkillScope } from '@molis-ai/molis-work-contracts/services/skills';
-import { contentPackagePayload, skillFromFolder, type FolderSkill } from '@molis-ai/molis-work-plugin-sdk';
-import { signPluginPackage } from '@molis-ai/molis-work-plugin-runtime';
+import { contentPackageDraft, skillFromFolder, type FolderSkill } from '@molis-ai/molis-work-plugin-sdk';
 import { createCharacterDiscovery } from './character-import-discovery.js';
 import type { InstalledRelease } from './installed-release.js';
 import type { PluginInstallService } from './plugin-install-service.js';
 
-/** The import's own publisher name in the package; who signed it is the key's fingerprint, as for every package. */
-const PUBLISHER_ID = 'molis-home';
 /** The name this Home's publisher is pinned under the first time the person confirms an import. */
 const PIN_LABEL = '这台电脑';
 const PREVIEW_TTL_MS = 30 * 60 * 1000;
@@ -39,11 +36,12 @@ export interface SkillImportPorts {
   scan(runtime: CharacterImportRuntimeId): { root: string; skills: CharacterImportSkill[] } | null;
   /** The package of `pluginId` installed in the scope, as kept and checked again; the one an import of the same source upgrades. */
   installed(pluginId: string, scope: SkillScope, projectId: string): Promise<NonNullable<InstalledRelease['packaged']> | undefined>;
-  /** This Home's publisher identity; asked only when a confirmation signs, so a preview never makes one. */
-  signer(control: { beforeEffect(): Promise<void>; assertCurrent(): void }): Promise<PluginPackageSigner>;
+  publisherKeyId(): string | null;
+  readSealedPublisherKeyId(input: LocalPackageSignInput, caller: ActionExecutionContext): Promise<string | null>;
   /** Verified releases retained by the Home, including uninstalled and other-project versions of this source. */
-  retained(pluginId: string): NonNullable<InstalledRelease['packaged']>[];
-  install: Pick<PluginInstallService, 'preview' | 'confirm'>;
+  retained(pluginId: string, keyId: string): NonNullable<InstalledRelease['packaged']>[];
+  sign(input: LocalPackageSignInput, caller: ActionExecutionContext): Promise<LocalPackageSignResult>;
+  install: Pick<PluginInstallService, 'readPreview' | 'confirm'>;
 }
 
 /** The person's own local Agents under `userHome`, read as Character import reads them: the Skills only, the rules are not this import's. */
@@ -123,7 +121,9 @@ export class SkillImportService {
     }
     const preview_id = randomUUID();
     this.held.set(preview_id, { who, plugin_id, name: `从 ${externalTool(runtime).display_name} 导入的技能`, skills, expires: this.now() + PREVIEW_TTL_MS });
-    return { preview_id, package: { plugin_id, version: nextVersion(this.ports.retained(plugin_id)), installed_version: installed?.manifest.version ?? null }, applies_to, candidates };
+    const keyId = this.ports.publisherKeyId();
+    const retained = keyId ? this.ports.retained(plugin_id, keyId) : [];
+    return { preview_id, package: { plugin_id, version: nextVersion(retained), installed_version: installed?.manifest.version ?? null }, applies_to, candidates };
   }
 
   /**
@@ -156,24 +156,20 @@ export class SkillImportService {
       return selected;
     });
     const installed = await this.ports.installed(held.plugin_id, input.scope, who.project_id);
-    const assertCurrent = () => { caller.signal?.throwIfAborted(); caller.assert_authority_current?.(); };
-    const control = { beforeEffect: caller.beforeEffect, assertCurrent };
-    await control.beforeEffect(); assertCurrent();
-    const signer = await this.ports.signer(control);
-    assertCurrent();
-    // Home-scoped imports use the existing serial action line. No version is reserved outside the retained package owner.
-    const retained = this.ports.retained(held.plugin_id);
+    const packageFields = { plugin_id: held.plugin_id, name: held.name, scope: input.scope,
+      ...(installed ? { compatible_from: [installed.manifest.version] } : {}) };
+    const keyId = this.ports.publisherKeyId() ?? await this.ports.readSealedPublisherKeyId(
+      contentPackageDraft({ ...packageFields, version: nextVersion(installed ? [installed] : []), skills: chosen }), caller);
+    const retained = keyId ? this.ports.retained(held.plugin_id, keyId) : [];
     const skills = chosen.map(skill => {
       const prior = retained.filter(pkg => pkg.manifest.methods?.some(method => method.skill_id === skill.declaration.skill_id))
         .sort((a, b) => b.manifest.methods!.find(method => method.skill_id === skill.declaration.skill_id)!.version - a.manifest.methods!.find(method => method.skill_id === skill.declaration.skill_id)!.version)[0];
       return { ...skill, declaration: { ...skill.declaration, version: versionOf(skill, prior) } };
     });
-    const payload = contentPackagePayload({ plugin_id: held.plugin_id, version: nextVersion(retained), name: held.name,
-      publisher: { publisher_id: PUBLISHER_ID, signature: signer.publisher_identity }, scope: input.scope,
-      ...(installed ? { compatible_from: [installed.manifest.version] } : {}), skills });
-    const bundle = signPluginPackage({ payload, signature: null, publisher_key: null }, signer);
-    const preview = await this.ports.install.preview({ bundle }, who);
-    return this.ports.install.confirm({ preview_id: preview.preview_id, consent: true, ...(preview.publisher.pinned_label === null ? { pin_label: PIN_LABEL } : {}) }, who, caller);
+    const draft = contentPackageDraft({ ...packageFields, version: nextVersion(installed ? [...retained, installed] : retained), skills });
+    const { preview_id } = await this.ports.sign(draft, caller);
+    const preview = this.ports.install.readPreview(preview_id, who);
+    return this.ports.install.confirm({ preview_id, consent: true, ...(preview.publisher.pinned_label === null ? { pin_label: PIN_LABEL } : {}) }, who, caller);
   }
 }
 

@@ -1,0 +1,9 @@
+{
+  "reason": "第 11 批 #2016 全量里 side-pane-workspace（PFG-22）发现：601～760px 宽、矮窗口（≤560px）里，底栏静止的输入框按窄窗口的 44px 控件长到 48px，比 Dock 与右侧托盘（--bar-row 40px）高，底栏多占 8px，700×420 时工作区只剩 12px。精确指针（pointer: fine）宽于 600px 时底栏保留自己的尺寸（touch-targets.ts），静止时框里按钮跟 --bar-row 走（至多 44px），三段回到同一行高。对照 origin/main ef06fed60 的隔离构建实测：三份页面样式各 +440 B（这条规则随底栏样式进入三张样式表）。",
+  "review": "第 11 批主会话按隔离构建实测核对（2026-11-11，node scripts/gates/page-assets.mjs --base origin/main）；没有新增资源，单份增长远低于 10 KB；随 #2016 由评审台再核。",
+  "assets": {
+    "/assets/molis-work-arrival.css": 440,
+    "/assets/molis-work-settings.css": 440,
+    "/assets/molis-work-workbench.css": 440
+  }
+}

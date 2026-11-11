@@ -77,7 +77,6 @@ tests/agent-reference-questions.test.ts
 tests/agent-review-http.test.ts
 tests/agent-review-surface.test.ts
 tests/agent-run-wait.test.ts
-tests/agent-start-authority.test.ts
 tests/agent-workspace-none.test.ts
 
 # artifact
@@ -141,7 +140,6 @@ tests/coding-history-requirements.test.ts
 tests/coding-long-session.test.ts
 tests/coding-mcp-settings-client.test.ts
 tests/coding-mcp.test.ts
-tests/coding-method-install.test.ts
 tests/coding-net-change.test.ts
 tests/coding-plan-amend-http.test.ts
 tests/coding-plan-dependencies.test.ts
@@ -169,6 +167,7 @@ tests/connector-record-actions.test.ts
 tests/connector-document-import.test.ts
 tests/connector-method-directory.test.ts
 tests/connector-oauth-choice.test.ts
+tests/connector-oauth-declarations.test.ts
 tests/connector-provider-contracts.test.ts
 tests/connector-reconnect-regressions.test.ts
 
@@ -229,6 +228,7 @@ tests/goals-stored-json.test.ts
 tests/goals-tree-ui.test.ts
 
 # memory
+tests/memory-clear-restart.test.ts
 tests/memory-initialization.test.ts
 tests/memory-learning.test.ts
 tests/memory-plugin-save.test.ts
@@ -425,6 +425,7 @@ tests/personal-goals-sync.test.ts
 tests/personal-goals-sync-refusal.test.ts
 tests/personal-goals-sync-lifecycle.test.ts
 tests/personal-goals-sync-offline.test.ts
+tests/personal-sync-scheduler.test.ts
 tests/sync-device.test.ts
 tests/sync-json-content.test.ts
 tests/sync-item-isolation.test.ts
@@ -509,3 +510,13 @@ tests/host-ui-text.test.ts
 
 # Account session and Host refusal tests already run in the blocking security-invariants job (pnpm test:security).
 tests/account-client.test.ts
+tests/account-inflight-effects.test.ts
+
+# 2026-11-08 low A-1: D0215 / D0217 / D0232 (existing security cases remain in test:security)
+tests/goals-plugin-prefix-routes.test.ts
+tests/goals-contract-ownership.test.ts
+tests/memory-retention-roundtrip.test.ts
+tests/goals-project-database.test.ts
+tests/goal-events-state.test.ts
+
+tests/desktop-account-entry.test.ts

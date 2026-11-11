@@ -1,3 +1,4 @@
+import { UI_HOST_CLIENT_CODES } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { childFrameAssets } from "./frame-assets.js";
 import { childPlacement } from "./placement.js";
@@ -26,6 +27,7 @@ import { childNativeFiles } from "./native-files.js";
 import { pageEventSource } from "./events.js";
 import { createFrameFetch } from "./fetch.js";
 import { childContext } from "./context-child.js";
+import { childComposer } from "./composer-child.js";
 import type { FrameConfig, FrameDown, FrameUp, Translate } from "./types.js";
 
 function bindStorage(port: MessagePort, config: FrameConfig): void {
@@ -52,7 +54,7 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
     return globalThis.molisFrameFillMessage(config.messages[key] ?? key, values);
   };
   bindStorage(port, config);
-  const call = createUiRequest({ fetch: fetchThroughPort, origin: config.origin, token: () => "", newKey: () => crypto.randomUUID(), translate: L });
+  const call = createUiRequest({ fetch: fetchThroughPort, origin: config.origin, token: () => "", newKey: () => crypto.randomUUID(), translate: L }, UI_HOST_CLIENT_CODES);
   const view = createUiFailureView({ createElement: tag => document.createElement(tag), translate: L,
     copy: text => copyText(text), setTimeout, clearTimeout: id => clearTimeout(id as ReturnType<typeof setTimeout>) });
   view.install(document);
@@ -66,6 +68,7 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
   const route = (path: string) => config.routePrefix + path;
   const ui = globalThis.molisFrameUi(L), scope = ui.mountPluginClient(document.body);
   if (!scope) throw new Error("Cannot mount plugin document");
+  childComposer(port, scope, config.bar);
   childIntake(port, scope);
   childContext(port, scope, root); ui.surfaceFocus({ translate: L, surfaceOnly: true });
   globalThis.EventSource = pageEventSource(scope, config.origin);

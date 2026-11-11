@@ -1,3 +1,4 @@
+import { UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { ACCOUNT_CLIENT_SCRIPT } from "../scripts/account.js";
 import { escapeHtml, icon, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderCaption, renderIconSprite, renderWordmark, THEME_BOOTSTRAP_SCRIPT } from "@molis-ai/molis-work-design-system";
@@ -5,7 +6,6 @@ import { homePluginSideTabs } from "../home-plugin-navigation.js";
 import { renderSidePanel, renderSideStrip, SIDE_PANEL_SCRIPT, SIDE_PANEL_STYLES } from "../side-panel.js";
 import { ACCOUNT_REGISTRATION_BODY, NO_FAVICON_LINK, renderWorkbenchDocument } from "../document-shell.js";
 import { createWorkbenchLocale } from "../i18n.js";
-import { CONTROL_CLIENT_SCRIPT } from "../scripts/control.js";
 
 /**
  * The frame every arrival screen shares: a titlebar, a stage and the resident bottom bar on the desk. A screen is
@@ -126,14 +126,42 @@ export function createArrivalShell(p: ArrivalShellPrimitives) {
 
 /** The same workbench document and account controls, without opening an anonymous business Home. */
 export function renderPersonalAccountEntry(controlToken: string, desktop: boolean, message?: string,
-  locale: Pick<ReturnType<typeof createWorkbenchLocale>, "L" | "htmlLang" | "clientI18nScript"> = createWorkbenchLocale(() => "zh"), nativeBootstrap = ""): string {
+  locale: Pick<ReturnType<typeof createWorkbenchLocale>, "L" | "htmlLang" | "clientI18nScript"> = createWorkbenchLocale(() => "zh"), nativeBootstrap = "", installationLogin = false): string {
   const { L } = locale;
   return renderWorkbenchDocument({lang: locale.htmlLang(), title: "Molis Work",
     body_attributes: {class: "arrival-page immersive-workbench", "data-arrival": "welcome", "data-account-entry": true, "data-native-desktop": desktop ? "true" : null},
     head_html: `<meta name="molis-work-page-session" content="${escapeHtml(controlToken)}"><script>${THEME_BOOTSTRAP_SCRIPT}${desktop ? nativeBootstrap : ""}</script><link rel="stylesheet" href="/assets/molis-work-arrival.css">`,
     body_html: `${renderIconSprite()}<div class="arrival" data-screen="welcome"><header class="arrival-titlebar"${desktop ? ' data-tauri-drag-region="deep"' : ""}><span class="arrival-brand">${icon("brand")}${renderWordmark()}</span></header>
-      <main class="arrival-stage"><section class="mw-empty"><h1>${escapeHtml(L("登录 / 注册 molis AI"))}</h1><p>${escapeHtml(L("登录后可管理你的 molis 账号"))}</p>
-      <button class="mw-btn mw-btn--primary" type="button" data-account-link aria-label="${escapeHtml(L("账号管理"))}">${icon("user")}<span data-personal-name>${escapeHtml(L("未登录"))}</span></button>
-      <p role="status" data-account-entry-status>${escapeHtml(message ?? "")}</p><button class="mw-btn mw-btn--secondary" type="button" data-personal-action="retry"${message ? "" : " hidden"}>${escapeHtml(L("重试"))}</button></section></main></div>
-      <script>${locale.clientI18nScript()}${CONTROL_CLIENT_SCRIPT}</script>`});
+      <main class="arrival-stage"><section class="mw-empty">
+      <button type="button" data-unified-account-link hidden></button>
+      <p role="status" data-account-entry-status>${escapeHtml(message ? L(message) : (installationLogin ? "" : L("正在打开登录页面…")))}</p><button class="mw-btn mw-btn--secondary" type="button" data-account-entry-retry${message ? "" : " hidden"}>${escapeHtml(L("重试"))}</button></section></main></div>
+      <script>${locale.clientI18nScript()}${UI_REQUEST_CLIENT_SCRIPT}${message ? `document.querySelector('[data-account-entry-retry]').onclick=()=>location.reload();` : installationLogin ? ACCOUNT_CLIENT_SCRIPT : `
+      (() => {
+        const status=document.querySelector('[data-account-entry-status]'),retry=document.querySelector('[data-account-entry-retry]');
+        const start=async()=>{
+          retry.hidden=true;
+          try {
+            if(document.body.dataset.nativeDesktop==='true'){
+              const state=await molisWorkRequest('/api/personal/status');
+              if(state.identity && state.ready && state.browserSessionTicket){
+                await molisWorkRequest('/api/personal/native-attach?ticket='+encodeURIComponent(state.browserSessionTicket),{method:'POST',body:{}});
+                location.replace('/?desktop=1');
+                return;
+              }
+            }
+            const result=await molisWorkRequest('/api/personal/login',{control:true,body:{}});
+            const url=new URL(result.loginUrl,location.origin);
+            url.searchParams.set('accountEntry','1');
+            if(document.body.dataset.nativeDesktop==='true')url.searchParams.set('desktop','1');
+            location.replace(url.href);
+          } catch(error) { molisWorkRequest.show(status,error);retry.hidden=false; }
+        };
+        const open=()=>navigator.locks?navigator.locks.request('molis-account-entry',start):start();
+        retry.onclick=()=>void open();void open();
+      })();`}</script>`});
+}
+
+/** Credential-free document for external entry; the next navigation uses the normal session rules. */
+export function renderAccountSameOriginEntry(): string {
+  return '<!doctype html><meta charset="utf-8"><title>Molis Work</title><script>location.replace(location.href)</script><noscript><a href="/">Molis Work</a></noscript>';
 }

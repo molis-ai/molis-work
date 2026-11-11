@@ -13,6 +13,8 @@ Host 的 Home 与项目执行器共用可信定义对象的 provider 规则：bu
 
 `readPluginRuntimeRecords` 只读已验证库中的安装事实，与 Repository 的 `list` 使用同一读取；不构造 Repository、不建表、不启动/恢复实例或修改停用意图。Host 项目设置用这份观察识别已安装的独立插件，不能把同步来的依赖清单当作安装记录。只读连接与缺表拒绝由 `tests/plugin-runtime-integration.test.ts` 验证。
 
+设置声明随 Manifest 核对。安装、换版、启用和恢复读取 Host 给出的作用域归属，禁用保留设置键，卸载释放。异步换版在候选写入前同步重查新键，候选启动期间保留原版独有的键，直到启动完成或原记录恢复。运行定义要使用已安装发行版本的设置声明。验证见 [settings-declaration-admission.test.ts](../../tests/settings-declaration-admission.test.ts)。
+
 ## 一次典型调用
 
 PluginRuntime 使用注入的 repository 和 executor；启动或恢复产生新的 grant context，失败和卸载撤销旧 context。SQLite repository 保存安装事实，private storage 按安装 ID 隔离 opaque string 数据。

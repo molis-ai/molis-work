@@ -1,3 +1,5 @@
+import { imText as L } from "../locale.js";
+import { escapeHtml as escapeImText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { StreamKind, ApiError } from './types.js';
 import type { ImCtx } from './controller-types.js';
 /** The one document click handler that routes every data-action. */
@@ -44,7 +46,7 @@ export function createImClicks(c: ImCtx) {
         input.focus();
       }
       else if (action === 'format-help')
-        c.openDialog('消息格式', '<p>用 **文字** 标记重点；用反引号包住代码，三个反引号写代码块；用 &gt; 开头引用一段文字。</p><p>Enter 发送，Shift + Enter 换行。</p>');
+        c.openDialog((L("消息格式")), ("<p>" + escapeImText(L("用 **文字** 标记重点；用反引号包住代码，三个反引号写代码块；用 > 开头引用一段文字。")) + "</p><p>" + escapeImText(L("Enter 发送，Shift + Enter 换行。")) + "</p>"));
       else if (action === 'create-thread')
         c.newThread(button.dataset.id!);
       else if (action === 'source-message')

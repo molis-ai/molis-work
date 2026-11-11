@@ -1,14 +1,15 @@
 import { agentErrors } from "./errors.js";
 import { directoryInputOnly, type RunDirectories } from "@molis-ai/molis-work-contracts/modules/projects";
 import { assertChildRoleTools } from "./child-role-tools.js";
-import { requireSynchronous, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { isAgentTool } from "./tool-catalog.js";
+import { requireSynchronous, type ActionLocale, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { skillRefKey } from "@molis-ai/molis-work-plugin-sdk/skill-ref";
 import { currentCharacterMatches } from "./character-import.js";
 import type {
   AgentManifest,
   AgentPromptText,
   AgentRoleDeclaration,
   AgentRoleExecution,
-  AgentSkillDefinition,
 } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { BUSINESS_HOST_TOOLS, orderPromptsByLayer } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import type {
@@ -19,6 +20,7 @@ import type {
   AgentMcpLibrary,
   AgentRunHandle,
   AgentRuntimeAdapter,
+  AgentRoundSkill,
   AgentRuntimeCapability,
   AgentSessionRef,
   AgentSessionView,
@@ -99,7 +101,18 @@ export function composeRolePrompts(
   const characterPrompt: AgentPromptText[] = character ? [{ prompt_id: `character-${character.character_id}`, version: character.reference.version,
     layer: "role", body: characterInstructions ?? character.instructions }] : [];
   // Last, after the layers: whatever language the texts before it are written in, this is what the reply follows.
-  return [...orderPromptsByLayer([...own, ...characterPrompt, ...project]), ...(authority.reply_language ? [{ ...authority.reply_language }] : [])];
+  return [...orderPromptsByLayer([...own, ...characterPrompt, ...project]), ...(authority.reply_language ? [{ ...authority.reply_language.prompt }] : [])];
+}
+
+/**
+ * Every tool a role and the child roles it dispatches name is one the Agent Host has (contract-design §5.2): checked where the role's
+ * availability is, so an unknown name shows when the plugin is assembled, not when a round starts.
+ */
+export function assertKnownRoleTools(role: AgentRoleDeclaration, manifest: AgentManifest): void {
+  const children = manifest.subagents?.parent_role_ids.includes(role.role_id)
+    ? manifest.subagents.roles.filter(child => !child.parent_role_ids || child.parent_role_ids.includes(role.role_id)) : [];
+  const unknown = [role, ...children].flatMap(item => item.host_tools ?? []).find(tool => !isAgentTool(tool));
+  if (unknown !== undefined) throw agentErrors.role_tool_unknown(`角色 ${role.role_id} 声明的工具 ${unknown} 不在 Agent 工具全集里`);
 }
 
 /** Omitting `execution` means read-only. Callers must not reimplement this default. */
@@ -178,6 +191,7 @@ export function checkStartRole(adapter: AgentRuntimeAdapter, runtimeId: string, 
   if (!role) {
     throw agentErrors.role_not_declared(`插件没有声明角色 ${request.role_id}`);
   }
+  assertKnownRoleTools(role, authority.manifest);
   const execution = roleExecution(role);
   const missing = EXECUTION_CAPABILITIES[execution]
     .filter((capability) => adapter.descriptor.capabilities[capability] === "unsupported");
@@ -414,7 +428,8 @@ export interface StartFrozen {
   mcp: unknown;
   sources: unknown;
   compaction: { prompt: AgentPromptText; above_tokens: number } | undefined;
-  skills: readonly AgentSkillDefinition[];
+  skills: readonly AgentRoundSkill[];
+  replyLocale: ActionLocale | undefined;
 }
 
 /**
@@ -422,7 +437,7 @@ export interface StartFrozen {
  * wider authority.
  */
 export function widensFrozen(handle: AgentRunHandle, expected: StartFrozen): boolean {
-  const { request, role, execution, workspace, actionRefs, gateway, character, characterSkillIds, childWorkspaces, hostTools, mcp, sources, compaction, skills } = expected;
+  const { request, role, execution, workspace, actionRefs, gateway, character, characterSkillIds, childWorkspaces, hostTools, mcp, sources, compaction, skills, replyLocale } = expected;
   return (handle.frozen.workspace ?? "required") !== workspace
     || JSON.stringify(handle.frozen.directory) !== JSON.stringify(request.directory)
     || workspace === "none" && handle.frozen.host_tools.length !== 0
@@ -438,5 +453,6 @@ export function widensFrozen(handle: AgentRunHandle, expected: StartFrozen): boo
     || handle.frozen.role_id !== role.role_id
     || handle.frozen.role_version !== role.version
     || handle.frozen.execution !== execution
-    || JSON.stringify(handle.frozen.skills.map(skill => [skill.skill_id, skill.version])) !== JSON.stringify(skills.map(skill => [skill.skill_id, skill.version]));
+    || handle.frozen.reply_locale !== replyLocale
+    || JSON.stringify(handle.frozen.skills.map(skill => [skillRefKey(skill.ref), skill.origin, skill.named])) !== JSON.stringify(skills.map(skill => [skillRefKey(skill.ref), skill.origin, skill.named]));
 }

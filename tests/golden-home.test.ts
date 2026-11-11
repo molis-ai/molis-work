@@ -15,7 +15,7 @@ import { fileURLToPath } from "node:url";
 import { brotliCompressSync, constants } from "node:zlib";
 import { CATALOG_VERSION_ACCESS, countSqliteRows, dumpSqliteText } from "@molis-ai/molis-work-storage";
 import { CATALOG_SCHEMA_VERSION } from "@molis-ai/molis-work-app-local-host";
-import { assertTemporaryHome, compareGoldens, filePayload, restoreGolden, withFixedSandboxEntries } from "../scripts/golden/layout.mjs";
+import { assertTemporaryHome, compareGoldens, filePayload, goldenEnvironment, restoreGolden, withFixedSandboxEntries } from "../scripts/golden/layout.mjs";
 import { MODULE_SOURCES_DIRECTORY, RELEASE_MANIFESTS_DIRECTORY, releasePayloadReader, withoutReleasePayloads, withReleasePayloads, writeReleasePayloads } from "../scripts/golden/release-payloads.mjs";
 import { assertRecordedVersions, PERSISTENT_FORMAT_LOCATIONS } from "../scripts/golden/formats.mjs";
 
@@ -201,7 +201,103 @@ describe("what a dump holds in place of what cannot stay in it", () => {
   });
 });
 
+test("UPG2-03 a Golden HTTP write failure reports its owner and fixed transport code without its contents", () => {
+  const preload = `
+    const real = globalThis.fetch;
+    globalThis.fetch = async (input, init) => {
+      const url = new URL(String(input?.url ?? input));
+      if (url.hostname !== "127.0.0.1" || url.pathname !== "/api/onboarding/context" || init?.method !== "POST") return real(input, init);
+      const cause = Object.assign(new Error("golden-cause-message-sentinel"), {
+        code: "UND_ERR_SOCKET", body: "golden-response-body-sentinel", address: "golden-address-sentinel",
+      });
+      throw new TypeError("golden-fetch-message-sentinel", { cause });
+    };`;
+  const injected = `data:text/javascript;base64,${Buffer.from(preload).toString("base64")}`;
+  const replay = runWith(["--import", injected], REPLAY_SCRIPT, "--latest", "1");
+  assert.equal(replay.status, 1);
+  assert.match(replay.stdout.trim(), /^FAIL \S+ write root\/write\/context-onboarding golden\.http_request_socket_closed$/u);
+  assert.doesNotMatch(replay.output, /golden-(?:cause-message|response-body|address|fetch-message)-sentinel/u);
+});
+
+test("UPG2-03 the Golden HTTP client keeps a failed request, body, or decode distinct", async t => {
+  const { openGoldenHost } = await import("../scripts/golden/session.mjs");
+  const home = scratch(t), originalFetch = globalThis.fetch;
+  const savedEnvironment = Object.keys(goldenEnvironment(home)).map(name => [name, process.env[name]] as const);
+  let session: Awaited<ReturnType<typeof openGoldenHost>> | undefined;
+  try {
+    session = await openGoldenHost(home);
+    const route = "/api/onboarding/context";
+    const cause = Object.assign(new Error("golden-body-cause-sentinel"), { code: "ECONNRESET" });
+    const bodyFailure = new TypeError("golden-body-error-sentinel", { cause });
+    const unknown = new TypeError("golden-unknown-message-sentinel", { cause: { code: "golden-unknown-cause-sentinel" } });
+    const refused = new TypeError("golden-network-message-sentinel", { cause: { code: "golden.network_refused", where: "golden-network-host-sentinel" } });
+    const cases = [
+      { outcome: () => new Response(new ReadableStream({ start(controller) { controller.error(bodyFailure); } })),
+        code: "golden.http_body_connection_reset", where: "http/body", original: bodyFailure },
+      { outcome: () => new Response("golden-json-body-sentinel", { headers: { "content-type": "application/json" } }),
+        code: "golden.http_json_invalid", where: "http/decode" },
+      { outcome: () => { throw unknown; }, code: "golden.http_request_failed", where: "http/request", original: unknown },
+      { outcome: () => { throw refused; }, code: "golden.network_refused", where: "http/request", original: refused },
+      { outcome: () => new Response("golden-400-body-sentinel", { status: 400 }), code: "golden.http_400", where: route },
+    ];
+    for (const { outcome, code, where, original } of cases) {
+      let requests = 0;
+      globalThis.fetch = async () => { requests++; return outcome(); };
+      await assert.rejects(session.http(route), (error: { code?: string; where?: string; cause?: unknown }) => {
+        assert.equal(error.code, code);
+        assert.equal(error.where, where);
+        if (original) assert.equal(error.cause, original);
+        if (code === "golden.http_json_invalid") assert.ok(error.cause instanceof SyntaxError);
+        assert.doesNotMatch(JSON.stringify(error), /-sentinel/u);
+        return true;
+      });
+      assert.equal(requests, 1);
+    }
+    globalThis.fetch = async (_input, init) => {
+      assert.equal(new Headers(init?.headers).get("connection"), "close");
+      return new Response('{"saved":true}', { headers: { "content-type": "application/json" } });
+    };
+    assert.deepEqual(await session.http(route), { saved: true });
+  } finally {
+    globalThis.fetch = originalFetch;
+    try { await session?.close(); }
+    finally {
+      for (const [name, value] of savedEnvironment) {
+        if (value === undefined) delete process.env[name];
+        else process.env[name] = value;
+      }
+    }
+  }
+});
+
 describe("what the scripts refuse without generating anything", () => {
+  test("UPG2-03 the CI wrapper reports a damaged golden once without printing its contents", t => {
+    const directory = scratch(t), golden = path.join(directory, VERSION);
+    const summaryFile = path.join(directory, "summary.md"), launches = path.join(directory, "launches");
+    const privateText = "private-ci";
+    mkdirSync(golden);
+    writeFileSync(path.join(golden, "manifest.json"), `[${privateText}]`);
+    const countReplay = `
+      import { appendFileSync } from "node:fs";
+      import { basename } from "node:path";
+      if (basename(process.argv[1] ?? "") === "replay-golden-homes.mjs") appendFileSync(${JSON.stringify(launches)}, "replay\\n");`;
+    const preload = `data:text/javascript;base64,${Buffer.from(countReplay).toString("base64")}`;
+    const replay = spawnSync(process.execPath, [path.join(root, "scripts/ci-golden-replay.mjs"), "--dir", directory], {
+      cwd: root, encoding: "utf8", env: { ...process.env, NODE_OPTIONS: `--import=${preload}`, GITHUB_STEP_SUMMARY: summaryFile },
+    });
+    assert.equal(replay.status, 1);
+    const summary = readFileSync(summaryFile, "utf8");
+    const output = `${replay.stdout}\n${replay.stderr}\n${summary}`;
+    assert.deepEqual({
+      launches: readFileSync(launches, "utf8"),
+      printedPrivateDetails: output.includes(privateText) || /SyntaxError|readManifest/u.test(output),
+      printedDebugReplay: output.includes("--debug"),
+    }, { launches: "replay\n", printedPrivateDetails: false, printedDebugReplay: false });
+    const failure = `FAIL ${VERSION} restore - golden.unexpected_error`;
+    assert.equal(replay.stdout.trim(), failure);
+    assert.ok(summary.includes(`Failed.\n\n\`\`\`text\n${failure}\n`));
+  });
+
   test("UPG2-01: the real Home and anything outside the temporary directory are refused", t => {
     const refused = (home: string) => assert.throws(() => assertTemporaryHome(home), (error: { code?: string }) => error.code === "golden.real_home_refused");
     refused(homedir());
@@ -458,7 +554,7 @@ describe("a generated golden Home", { concurrency: false }, () => {
     for (const entry of recorded.stores as Store[]) assert.ok(Number.isInteger(entry.schema_version) && entry.schema_version >= 1, `${entry.path} records a real version, not 0`);
     for (const prefix of ["", `${account}/`]) assert.equal((recorded.stores as Store[]).find(entry => entry.path === `${prefix}projects/catalog.db`)?.schema_version, CATALOG_SCHEMA_VERSION, `${prefix}the catalog's catalog_meta`);
     const project = (recorded.stores as Store[]).find(entry => entry.path === `projects/${recorded.homes[0].projects.primary.project_id}/molis-work.db`);
-    assert.deepEqual(project?.plugin_tables, { "io.molis.work.coding": 1, "io.molis.work.feed": 1, "io.molis.work.goals": 1, "io.molis.work.inbox": 1, "io.molis.work.schedule": 1 });
+    assert.deepEqual(project?.plugin_tables, { "io.molis.work.coding": 1, "io.molis.work.feed": 1, "io.molis.work.goals": 2, "io.molis.work.inbox": 1, "io.molis.work.schedule": 1 });
     type Format = { entry: string; path: string; version: number };
     const formats = recorded.formats as Format[];
     // A golden made now holds every format at this build's version: the catalog has had its first upgrade step (05②), the rest are at 1.
@@ -482,8 +578,9 @@ describe("a generated golden Home", { concurrency: false }, () => {
     }],
     ["a plugin's project tables raised", recorded => {
       const at = `projects/${recorded.homes[0].projects.primary.project_id}/molis-work.db`, entry = recorded.stores.find(item => item.path === at);
-      assert.equal(entry?.plugin_tables?.["io.molis.work.goals"], 1);
-      entry!.plugin_tables!["io.molis.work.goals"] = 2;
+      // A golden made now holds Goals' tables at this build's version (2 since the evidence contract, batch 24).
+      assert.equal(entry?.plugin_tables?.["io.molis.work.goals"], 2);
+      entry!.plugin_tables!["io.molis.work.goals"] = 3;
       return `${at}#plugin_tables`;
     }],
     ["a format's version raised", recorded => {

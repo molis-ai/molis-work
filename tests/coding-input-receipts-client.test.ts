@@ -1,3 +1,4 @@
+import { UI_HOST_CLIENT_CODES } from "@molis-ai/molis-work-contracts/platform/ui";
 import assert from "node:assert/strict";
 import test from "node:test";
 import vm from "node:vm";
@@ -51,7 +52,7 @@ test("the shared request helper keeps a failed supplement's original identity un
           return new Response("not JSON", { status: 200 });
         }
         return Response.json(await taken("run", true));
-      } });
+      } }, UI_HOST_CLIENT_CODES);
     const { ui, sent } = receipts(body => request<Reply>("/sessions/s/control", { method: "POST", body }));
     await assert.rejects(ui.steer("s", "r", "保留原输入", "interrupt"), /没确认送到/u);
     assert.equal(ui.bubble("s", nothing)!.dataset.lost, "1");

@@ -20,7 +20,8 @@ import { firstScreen, paint } from "./composer-view.js";
  * follow are composer-rules.ts's, shared with the node tests.
  *
  * - Keys and the input method: Enter breaks the line, ⌘/Ctrl+Enter sends (a supplement while a turn runs), ⌘/Ctrl+Shift+Enter is
- *   for the next turn; nothing happens while a composition is open. Esc closes this composer's own menu only.
+ *   for the next turn; nothing happens while a composition is open. Esc closes this composer's own menu only. While a menu opened
+ *   by typing (`/`, `@`) is open, ↑ ↓ choose in it and Enter or Tab takes the row (composer-menus.ts).
  * - Every mount is a generation: mounting the same root again or `destroy` aborts the last one's signal, and whatever comes back
  *   for it later (an outcome, an upload, a pick, a draft read) is dropped. A page that takes the root away calls `destroy` first.
  * - A framed plugin page has no route to the sources (S-composer-source-call): its composer lists only its own files and commands.
@@ -60,10 +61,12 @@ function mount(root: HTMLElement, options: ComposerOptions): ComposerHandle {
   }
   wire(c, { drafts, menus, sender }, files);
 
-  /** Saves the last edit before letting go; the next conversation gets an empty field and none of this mount's late results. */
+  /** Saves the last edit before letting go; the next conversation gets an empty, open field and none of this mount's late results. */
   function release() {
     if (c.signal.aborted) return;
     drafts.stop(); c.close(); life.abort(); retained.release(); c.queries.end(); files.remove(); c.field.value = "";
+    // A hold is this mount's: the next mount starts open and holds again if its page says so.
+    c.field.disabled = false;
     if (carried.length) { carried = []; options.onMaterials?.(); }
     if (instances.get(root) === release) instances.delete(root);
   }
@@ -78,6 +81,12 @@ function mount(root: HTMLElement, options: ComposerOptions): ComposerHandle {
       c.field.setRangeText(text, c.field.selectionStart, c.field.selectionEnd, "end"); window.molisFit?.(c.field); drafts.save(); c.paint();
     },
     attach(given) { if (given.length) void sender.upload(given); },
+    hold(reason) {
+      const now = reason ?? "";
+      if (c.held === now || c.signal.aborted) return;
+      c.held = now; c.field.disabled = Boolean(now);
+      c.paint(true);
+    },
     materials: () => attached(c),
     destroy: release,
   };
@@ -100,6 +109,11 @@ function wire(c: Composer, { drafts, menus, sender }: Parts, files: HTMLInputEle
       c.stopping = true; c.paint();
       return void c.ai.stop(signal).catch(() => undefined).finally(() => { if (!signal.aborted) { c.stopping = false; c.paint(); } });
     }
+    const pause = data.composerPause !== undefined ? c.ai?.pause?.() : null;
+    if (pause) {
+      c.pausing = true; c.paint();
+      return void pause.run(signal).catch(() => undefined).finally(() => { if (!signal.aborted) { c.pausing = false; c.paint(); } });
+    }
     if (data.composerClear !== undefined) { field.value = ""; window.molisFit?.(field); drafts.clear(); field.focus(); return c.paint(); }
     if (data.composerRemove) {
       letGo(c.items.filter((item) => item.key === data.composerRemove));
@@ -116,7 +130,9 @@ function wire(c: Composer, { drafts, menus, sender }: Parts, files: HTMLInputEle
     }
     if (data.composerMention) {
       const hit = menus.mentioned(Number(data.composerMention));
-      if (hit) c.items = [...c.items, { key: itemKey(), title: hit.title, state: "attached", from: hit.plugin_title,
+      // The page's own reference is words in the text (Coding's `@path`); a search hit goes onto the strip, as a pick from ＋ does.
+      if (hit && "insert" in hit) { field.setRangeText(`${hit.insert} `, field.selectionStart, field.selectionEnd, "end"); window.molisFit?.(field); }
+      else if (hit) c.items = [...c.items, { key: itemKey(), title: hit.title, state: "attached", from: hit.plugin_title,
         material: { kind: "material", ref: { subject: hit.subject, pin: { mode: "current", read_revision: hit.revision } }, title: hit.title, source: hit.source, search: { hit_id: hit.hit_id, snippet: hit.snippet, plugin_id: hit.plugin_id, plugin_title: hit.plugin_title } } }];
       c.requestId = ""; drafts.save(); field.focus(); return c.paint();
     }
@@ -138,10 +154,9 @@ function wire(c: Composer, { drafts, menus, sender }: Parts, files: HTMLInputEle
   shell.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && c.open) { event.preventDefault(); event.stopPropagation(); return c.close(true); }
     if (event.target !== field) return;
-    if (event.key === "ArrowDown" && c.open && (c.mention || c.typed) && !composing(event)) {
-      const first = c.open.querySelector<HTMLElement>("[role^=menuitem]:not(:disabled)");
-      if (first) { event.preventDefault(); return first.focus({ preventScroll: true }); }
-    }
+    const plain = !composing(event) && !event.metaKey && !event.ctrlKey && !event.altKey;
+    if (plain && (event.key === "ArrowDown" || event.key === "ArrowUp") && menus.step(event.key === "ArrowDown" ? 1 : -1)) return event.preventDefault();
+    if (plain && !event.shiftKey && (event.key === "Enter" || event.key === "Tab") && menus.take()) return event.preventDefault();
     const key = composerKey(event, options.submitKeys !== false);
     if (key) { event.preventDefault(); return void sender.send(key === "after-run" ? "after-run" : undefined, true); }
     if (options.submitKeys !== false && !composing(event) && !enterHint.shown() && wantsEnterHint(event, field.value, field.selectionStart)) {
@@ -157,12 +172,13 @@ function wire(c: Composer, { drafts, menus, sender }: Parts, files: HTMLInputEle
     c.restored = "";
     drafts.save();
     const before = field.value.slice(0, field.selectionStart);
-    if (data === "/" && before === "/" && options.commands?.length) { c.typed = "/"; menus.openAdd(false); }
-    // `@` after a space starts a system search for the words that follow it (§3.3), in every page that mounts a composer.
-    else if (data === "@" && /(^|\s)@$/.test(before) && c.offersSources) menus.mention(before.length - 1);
+    // Chinese punctuation mode types `、` for `/` and may type `＠` for `@`: both open the same menus.
+    if ((data === "/" || data === "、") && before === data && options.commands?.length) { c.typed = before; menus.openAdd(false); }
+    // `@` after a space looks up the words that follow it: the system search (§3.3) in every page that offers sources, or the page's own references.
+    else if ((data === "@" || data === "＠") && /(^|\s)[@＠]$/u.test(before) && (options.mentions || c.offersSources)) menus.mention(before.length - 1);
     else if (c.mention) menus.mention();
     // The words after a `/` that opened the menu narrow its commands, until the line is left or the menu closed.
-    else if (c.typed && c.open && /^\/[^\n]{0,80}$/u.test(before)) { c.typed = before; menus.narrow(); }
+    else if (c.typed && c.open && /^[/、][^\n]{0,80}$/u.test(before)) { c.typed = before; menus.narrow(); }
     else if (c.typed) { c.close(); c.typed = ""; }
     c.paint();
   }, { signal });

@@ -8,7 +8,7 @@ for (const [name, expected] of Object.entries(manifest.sha256)) {
   assert.equal(createHash("sha256").update(fs.readFileSync(new URL(name, directory))).digest("hex"), expected, name);
 }
 const schemas = JSON.parse(fs.readFileSync(new URL("schemas.json", directory), "utf8")).$defs;
-const needed = new Set(["ClientEnvironmentConfig", "AccountView", "Scope", "MeView", "SessionView", "UserView", "LoginMethodsView", "ProfileUpdateRequest", "ProductReauthenticationRequest", "ProductTransactionRequest", "TenantView", "PlatformTenantView", "Membership", "Invitation", "OwnershipTransfer", "Subscription", "PlanVersion", "SeatPool", "Assignment", "AuditEvent", "Feature", "EntitlementCheckResult"]);
+const needed = new Set(["ClientEnvironmentConfig", "AccountView", "Scope", "MeView", "SessionView", "UserView", "LoginMethodsView", "ProfileUpdateRequest", "ProductReauthenticationRequest", "ProductTransactionRequest", "TenantView", "PlatformTenantView", "Membership", "Invitation", "OwnershipTransfer", "Subscription", "PlanVersion", "SeatPool", "Assignment", "AuditEvent", "Feature", "EntitlementCheckResult", "TenantCreationPolicyView"]);
 const typeOf = schema => {
   if (schema.$ref) { const name = schema.$ref.split("/").at(-1); needed.add(name); return name; }
   if ("const" in schema) return JSON.stringify(schema.const);

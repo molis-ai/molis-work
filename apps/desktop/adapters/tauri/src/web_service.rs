@@ -314,17 +314,42 @@ pub(crate) fn wait_for_upgrading_web(service_state: &WebServiceState) -> Result<
 /// Brings the service on 4173 up as far as the main thread may wait for it: a ready answer, or the
 /// first proof that this Home's Host is upgrading, which hands the rest over
 /// (`wait_for_upgrading_web`). Without that proof a started service still has its 8 seconds.
+// D0295: a failed installer may reuse only the authenticated service that is still healthy.
+fn install_or_reuse_healthy(
+    install: impl FnOnce() -> Result<(), String>,
+    healthy: impl FnOnce() -> bool,
+) -> Result<bool, String> {
+    match install() {
+        Ok(()) => Ok(true),
+        Err(_) if healthy() => {
+            eprintln!("嵌入运行时更新失败，继续使用仍健康的现有 Molis Work 服务；本次更新未完成。");
+            Ok(false)
+        }
+        Err(error) => Err(error),
+    }
+}
+
 pub(crate) fn start_molis_work_web(
     resource_dir: Option<&Path>,
     service_state: &WebServiceState,
 ) -> Result<Started, String> {
     let home = molis_work_home();
     let mut bin = web_launcher(&home);
-    let upgraded_runtime = resource_dir
-        .filter(|resource_dir| embedded_runtime_upgrade_available(resource_dir, &home))
-        .map(|resource_dir| install_embedded_molis_work(resource_dir, &home))
-        .transpose()?
-        .is_some();
+    // Never replace the runtime while this Home is already upgrading its data.
+    if matches!(crate::web_identity::answer(), Ok(Answer::Upgrading)) {
+        return Ok(Started::Upgrading);
+    }
+    let healthy_before = web_healthy();
+    let upgraded_runtime = if let Some(resource_dir) =
+        resource_dir.filter(|resource_dir| embedded_runtime_upgrade_available(resource_dir, &home))
+    {
+        install_or_reuse_healthy(
+            || install_embedded_molis_work(resource_dir, &home),
+            || healthy_before && web_healthy(),
+        )?
+    } else {
+        false
+    };
     if upgraded_runtime {
         let _ = sync_managed_web_service_after_upgrade(&home);
         bin = web_launcher(&home);
@@ -375,7 +400,10 @@ pub(crate) fn start_molis_work_web(
 
 #[cfg(test)]
 mod embedded_runtime_version_tests {
-    use super::{embedded_version_is_upgrade, sync_managed_web_service_after_upgrade, Version};
+    use super::{
+        embedded_version_is_upgrade, install_or_reuse_healthy,
+        sync_managed_web_service_after_upgrade, Version,
+    };
     use std::{
         fs,
         os::unix::fs::PermissionsExt,
@@ -383,6 +411,20 @@ mod embedded_runtime_version_tests {
         process,
         time::{SystemTime, UNIX_EPOCH},
     };
+
+    #[test]
+    fn d0295_failed_install_reuses_only_a_still_healthy_service() {
+        assert!(!install_or_reuse_healthy(|| Err("installer failed".into()), || true).unwrap());
+        assert_eq!(
+            install_or_reuse_healthy(|| Err("installer failed".into()), || false),
+            Err("installer failed".into())
+        );
+        assert!(install_or_reuse_healthy(
+            || Ok(()),
+            || panic!("successful install follows normal restart")
+        )
+        .unwrap());
+    }
 
     #[test]
     fn only_missing_or_newer_embedded_runtimes_install() {

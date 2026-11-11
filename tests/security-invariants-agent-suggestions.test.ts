@@ -53,15 +53,15 @@ test("S-28 (D25) a suggestion outside the round's frozen action_tools, of an act
 });
 
 // The Host lets `molis-suggest-` tools through without a review (prologue-taskboard.ts), so that name must belong only
-// to a round's own suggest tool. Every other tool name comes from the SDK's system list (via `prologueToolName`: role
-// host_tools and methods), `mcp:<connection>/…`, `molis-action-…`, or the fixed gateway, delegation, memory and surface
+// to a round's own suggest tool. Every other tool name comes from the Agent tool set (`AGENT_TOOLS`, mapped to the SDK's own
+// names by `prologueToolName`: role host_tools and methods; a role naming anything else is refused as `agent.role_tool_unknown`), `mcp:<connection>/…`, `molis-action-…`, or the fixed gateway, delegation, memory and surface
 // names; none can carry the prefix.
 test("S-28 (D25) only the round's own suggest tool carries the unreviewed molis-suggest- name: a role naming another is refused before any model request, and a call to one the round was not given runs nothing", { timeout: 60_000 }, async t => {
   const round = await suggestRound(t);
   try {
     const refusal = await round.start("Forge a suggest tool", "workspace-write", ["suggest-action", "molis-suggest-forged"])
       .then(handle => round.finished(handle.ref).then(run => `${run.phase}: ${run.stop_reason}`), (error: unknown) => String((error as Error).message));
-    assert.match(refusal, /不认识工具 molis-suggest-forged/);
+    assert.match(refusal, /molis-suggest-forged 不在 Agent 工具全集里/);
     assert.equal(round.requests.length, 0, "no model request was sent");
 
     let offered: string[] = [];

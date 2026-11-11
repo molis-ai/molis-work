@@ -11,6 +11,7 @@ import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { addProjectPlugin, createProject } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { asideReply } from "./fixtures/ending-review.js";
 import { GoalProjectApplication } from "./fixtures/goal-application.js";
+import { CODING_BOX, CODING_COMPOSER, CODING_OPEN, CODING_SEND, codingControl } from "./fixtures/coding-composer.js";
 
 // specs/ai-interaction-experience AC-05: what a person writes into a question, and what they answer, stays with the session,
 // project and object it was asked in. Each test asserts the refusal: the other session, project or object never gets it.
@@ -75,7 +76,7 @@ async function openCoding(t: TestContext, asked: readonly Asked[]) {
   const child = await pluginFrameBrowser(t,b,"coding");
   const { click, evaluate, waitFor } = child;
 
-  const fill = (selector: string, value: string) => (selector.includes("data-directories") ? b.evaluate : evaluate)(`(()=>{const node=document.querySelector(${JSON.stringify(selector)});node.value=${JSON.stringify(value)};node.dispatchEvent(new Event('input',{bubbles:true}));node.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+  const fill = (selector: string, value: string) => (selector.includes("data-directories") || selector.startsWith(CODING_COMPOSER) ? b.evaluate : evaluate)(`(()=>{const node=document.querySelector(${JSON.stringify(selector)});node.value=${JSON.stringify(value)};node.dispatchEvent(new Event('input',{bubbles:true}));node.dispatchEvent(new Event('change',{bubbles:true}));})()`);
   await command("Emulation.setDeviceMetricsOverride", { width: 1360, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   const coding = "[data-coding-workbench]";
   const prepared = new Set<string>();
@@ -130,12 +131,13 @@ async function openCoding(t: TestContext, asked: readonly Asked[]) {
   /** Starts a new session and sends `task` in it; resolves to the session's id once its question card is shown. */
   const ask = async (task: string) => {
     await click(`${coding} [data-coding-new]`);
-    await waitFor(`!document.querySelector('${coding} [data-coding-input] .mw-composer__input').disabled && document.querySelector('${coding} [data-coding-input] .mw-composer__input').value === '' && document.querySelector('${coding} [data-coding-input] [data-composer-control=model]').options.length >= 1`);
-    await fill(`${coding} [data-coding-input] [data-composer-control=model]`, JSON.stringify(["local-only", "fixture-plain"]));
-    await fill(`${coding} [data-coding-input] [data-composer-control=intent]`, "discuss");
-    await fill(`${coding} [data-coding-input] .mw-composer__input`, task);
-    await waitFor(`!document.querySelector('${coding} [data-coding-input] [data-composer-send]').disabled`);
-    await click(`${coding} [data-coding-input] [data-composer-send]`);
+    // The box is the workbench bar's one input (unified-input-voice §10.3): it is filled and sent in the top document.
+    await b.waitFor(`${CODING_OPEN} && document.querySelector('${CODING_BOX}').value === '' && document.querySelector('${codingControl("model")}').options.length >= 1`);
+    await fill(codingControl("model"), JSON.stringify(["local-only", "fixture-plain"]));
+    await fill(codingControl("intent"), "discuss");
+    await fill(CODING_BOX, task);
+    await b.waitFor(`!document.querySelector('${CODING_SEND}').disabled`);
+    await b.click(CODING_SEND);
     await waitFor(`Boolean(document.querySelector('${coding} [data-coding-question][data-ix-question]'))`, 30_000)
       .catch(async error => { throw new Error(`${(error as Error).message}\nstatus: ${await evaluate<string>(`document.querySelector('${coding} [data-coding-status]')?.textContent ?? ''`)}\ndialog: ${await evaluate<string>(`[...document.querySelectorAll('dialog[open],[role=dialog]:not([hidden]),[role=alertdialog]')].map(node => node.textContent.trim().slice(0, 300)).join(' | ')`)}\nposts: ${JSON.stringify(await evaluate(`window.__sent.filter(one => one.method === 'POST').slice(-4).map(one => [one.url.split('/api/')[1], one.status, one.reply])`))}\nmodel calls: ${JSON.stringify(prompts)}`); });
     return evaluate<string>(`document.querySelector('${coding} [data-coding-session][aria-current=true]').dataset.codingSession`);

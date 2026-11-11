@@ -52,6 +52,8 @@ export interface MwComposerLabels {
   dropRefused: string;
   /** The page's own `/` commands' group: "命令". */
   commands: string;
+  /** The same commands' group in ＋, where they add to the next send ("下一轮带上"); without it, `commands`. */
+  adding?: string;
   /** A source being searched, one that found nothing, one that cannot be used now ("{name} 现在用不了"). */
   searching: string;
   nothing: string;
@@ -132,10 +134,15 @@ export type MwComposerOptions = {
   attrs?: Record<string, AttrValue>;
 } & (
   | { kind: "plain"; labels: MwComposerLabels; state?: "sending" | "failed" | "unknown" }
-  | { kind: "ai"; labels: MwComposerAiLabels; delivery?: AgentSteerMode; receiver?: { label: string; open?: boolean; resetLabel?: string }; state?: "sending" | "running" | "failed" | "unknown";
+  | { kind: "ai"; labels: MwComposerAiLabels; delivery?: AgentSteerMode; receiver?: MwComposerReceiver; state?: "sending" | "running" | "failed" | "unknown";
       /** The target also takes 下一轮再做 while no turn runs (a work that has run before): the split button and its menu are drawn idle too. */
-      idleDelivery?: boolean }
+      idleDelivery?: boolean;
+      /** Pause as the target words it now (暂停, 继续…), drawn beside stop while a turn runs; `busy` while the change is on its way. */
+      pause?: { label: string; title: string; busy?: boolean } }
 );
+
+/** Who an AI composer sends to: its name, the glyph of what it is (a Coding session, the Assistant), whether the name opens it, and its reset (×). */
+export interface MwComposerReceiver { label: string; icon?: Parameters<typeof icon>[0]; open?: boolean; resetLabel?: string }
 
 type ShellState = "sending" | "running" | "failed" | "unknown" | "disabled";
 
@@ -147,13 +154,14 @@ const STATE_LOOK: Record<ShellState, { tone: MwStatusTone; ring: StateRingState 
   disabled: { tone: "hold", ring: "unavailable" },
 };
 
-function receiverRow(labels: MwComposerAiLabels, receiver: { label: string; open?: boolean; resetLabel?: string }): string {
+/** Who it goes to, as a tag in the bottom bar beside ＋ (user 2026-11-10, one input): "发给：" is its spoken name, not drawn. */
+function receiverTag(labels: MwComposerAiLabels, receiver: MwComposerReceiver): string {
   const reset = receiver.resetLabel
     ? `<button type="button" data-tag-remove aria-label="${escapeHtml(receiver.resetLabel)}" title="${escapeHtml(receiver.resetLabel)}">${icon("x")}</button>`
     : "";
   const name = escapeHtml(receiver.label);
   const target = receiver.open ? `<button type="button" data-composer-receiver>${name}</button>` : `<span>${name}</span>`;
-  return `<div class="mw-composer__to"><span>${escapeHtml(labels.to)}</span><span class="mw-tag">${target}${reset}</span></div>`;
+  return `<div class="mw-composer__to"><span class="mw-composer__to-label">${escapeHtml(labels.to)}</span><span class="mw-tag">${receiver.icon ? icon(receiver.icon) : ""}${target}${reset}</span></div>`;
 }
 
 function statusRow(status: MwComposerStatus | undefined, state: ShellState | undefined): string {
@@ -164,14 +172,15 @@ function statusRow(status: MwComposerStatus | undefined, state: ShellState | und
     status.action ? renderButton({ label: status.action, variant: "link", attrs: { "data-composer-status-action": status.actionId ?? "" } }) : ""}</div>`;
 }
 
-/** A scene control, drawn with the board's own: a small select, a pressed-or-not button, or a plain one. */
-function control(item: ComposerControl, disabled: boolean): string {
-  const hook = { "data-composer-control": item.id };
+/** A scene control, drawn with the board's own: a small select, a pressed-or-not button, or a plain one; held while the page holds it. */
+function control(item: ComposerControl, shellDisabled: boolean): string {
+  const hook = { "data-composer-control": item.id }, disabled = shellDisabled || item.disabled === true;
   if (item.kind === "select") {
-    const options = item.options.map((option) => `<option value="${escapeHtml(option.value)}"${option.value === item.value ? " selected" : ""}>${escapeHtml(option.label)}</option>`).join("");
+    const options = item.options.map((option) => `<option value="${escapeHtml(option.value)}"${option.value === item.value ? " selected" : ""}${option.disabled ? " disabled" : ""}>${escapeHtml(option.label)}</option>`).join("");
     return renderSelect({ disabled, optionsHtml: options, attrs: { ...hook, "aria-label": item.label, title: item.label } });
   }
-  return renderButton({ label: item.label, variant: "ghost", size: "sm", disabled, attrs: { ...hook, ...(item.kind === "toggle" ? { "aria-pressed": item.on ? "true" : "false" } : {}) } });
+  const title = item.kind === "button" && item.title ? { title: item.title } : {};
+  return renderButton({ label: item.label, variant: "ghost", size: "sm", disabled, attrs: { ...hook, ...title, ...(item.kind === "toggle" ? { "aria-pressed": item.on ? "true" : "false" } : {}) } });
 }
 
 /** ＋ first, then the controls; on a narrow box they fold behind "更多" (the client opens it; the rules are the page sheets'). */
@@ -183,7 +192,8 @@ function startGroup(options: MwComposerOptions, disabled: boolean): string {
     label: options.labels.more, variant: "ghost", size: "icon", icon: "more", iconOnly: true, disabled,
     attrs: { title: options.labels.more, "data-composer-more": "", "aria-expanded": "false" } })}</div><div class="mw-composer__controls" data-composer-controls>${
     options.controls.map((item) => control(item, disabled)).join("")}</div>` : "";
-  return `<div class="mw-composer__start">${add}${controls}</div>`;
+  const to = options.kind === "ai" && options.receiver ? receiverTag(options.labels, options.receiver) : "";
+  return `<div class="mw-composer__start">${add}${to}${controls}</div>`;
 }
 
 /** Send, or the split button: 补充 and the ▾ whose menu the client fills when it opens. While a turn runs, or while the target takes
@@ -208,19 +218,21 @@ function sendControl(options: MwComposerOptions, state: ShellState | undefined, 
 }
 
 /**
- * Stop and send at the end. The microphone's place is first, before them: a page that takes voice gives its name and it is drawn
+ * Pause (where the target takes it), stop and send at the end, while a turn runs. The microphone's place is first, before them: a page that takes voice gives its name and it is drawn
  * there, `aria-disabled` (so it keeps its focus stop and tooltip) until voice input is connected; without it nothing is drawn.
  */
 function endGroup(options: MwComposerOptions, state: ShellState | undefined): string {
   const mic = options.voice ? renderButton({ label: options.voice, variant: "ghost", size: "icon", icon: "mic", iconOnly: true,
     attrs: { title: options.voice, "aria-disabled": "true", "data-composer-voice": "" } }) : "";
-  const stop = options.kind === "ai" && state === "running"
-    ? renderButton({ label: options.labels.stop, variant: "danger-outline", size: "sm", attrs: { title: options.labels.stopTitle, "data-composer-stop": "" } }) : "";
-  return `<div class="mw-composer__end">${mic}${stop}${sendControl(options, state, !options.text?.trim())}</div>`;
+  const running = options.kind === "ai" && state === "running";
+  const pause = running && options.pause ? renderButton({ label: options.pause.label, variant: "ghost", size: "sm", disabled: options.pause.busy === true,
+    attrs: { title: options.pause.title, "data-composer-pause": "" } }) : "";
+  const stop = running ? renderButton({ label: options.labels.stop, variant: "danger-outline", size: "sm", attrs: { title: options.labels.stopTitle, "data-composer-stop": "" } }) : "";
+  return `<div class="mw-composer__end">${mic}${pause}${stop}${sendControl(options, state, !options.text?.trim())}</div>`;
 }
 
 /**
- * The composer's first screen: who it goes to (AI only), the text, the status and the bottom bar. `data-rest` marks it at rest
+ * The composer's first screen: the text, the status and the bottom bar (＋, who it goes to — AI only —, the scene controls, send). `data-rest` marks it at rest
  * (nothing written, no status, no state): on a phone or in a short window the page sheet lays it out as one row (＋, who it goes
  * to, the input, send) until something is written, attached or said; the client keeps the mark as that changes.
  */
@@ -231,7 +243,5 @@ export function renderComposer(options: MwComposerOptions): string {
   const textarea = `<textarea class="mw-composer__input" data-fit rows="1" aria-label="${escapeHtml(options.labels.input)}"${
     options.placeholder ? ` placeholder="${escapeHtml(options.placeholder)}"` : ""}${disabled ? " disabled" : ""}>${escapeHtml(options.text ?? "")}</textarea>`;
   const rest = !options.text && !status && !state;
-  return `<div class="mw-composer" data-slot="composer"${state ? ` data-state="${state}"` : ""}${rest ? " data-rest" : ""}${renderAttrs(options.attrs)}>${
-    options.kind === "ai" && options.receiver ? receiverRow(options.labels, options.receiver) : ""
-  }<div class="mw-composer__box"><div class="mw-composer__text">${textarea}</div>${statusRow(status, state)}<div class="mw-composer__foot">${startGroup(options, disabled)}${endGroup(options, state)}</div></div></div>`;
+  return `<div class="mw-composer" data-slot="composer"${state ? ` data-state="${state}"` : ""}${rest ? " data-rest" : ""}${renderAttrs(options.attrs)}><div class="mw-composer__box"><div class="mw-composer__text">${textarea}</div>${statusRow(status, state)}<div class="mw-composer__foot">${startGroup(options, disabled)}${endGroup(options, state)}</div></div></div>`;
 }

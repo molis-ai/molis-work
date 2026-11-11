@@ -1,7 +1,7 @@
 import type { AgentSteerMode } from "@molis-ai/molis-work-contracts/services/agent-inputs";
 import type { ComposerMaterial, ComposerPickItem } from "@molis-ai/molis-work-contracts/platform/composer";
 import type { SearchHit } from "@molis-ai/molis-work-contracts/services/search";
-import type { ComposerOptions } from "@molis-ai/molis-work-plugin-sdk/page-globals";
+import type { ComposerMention, ComposerOptions } from "@molis-ai/molis-work-plugin-sdk/page-globals";
 import { formatMessage, type MwComposerLabels, type MwComposerStatus } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { ComposerMenuSource, Fill } from "../composer-parts.js";
 import { composerGenerations } from "../composer-rules.js";
@@ -35,10 +35,12 @@ export interface Composer {
   readonly signal: AbortSignal; readonly queries: ReturnType<typeof composerGenerations>; readonly fill: Fill; readonly lang: string | undefined;
   readonly offersSources: boolean;
   delivery: AgentSteerMode; running: boolean; phase: "" | "sending" | "failed" | "unknown"; failure: string; check: Check | null; requestId: string;
-  items: Item[]; note: Status; unsaved: boolean; restored: string; stopping: boolean;
+  items: Item[]; note: Status; unsaved: boolean; restored: string; stopping: boolean; pausing: boolean;
+  /** Why the page holds the composer now (`hold`), or "". */
+  held: string;
   sources: Source[] | "unavailable" | undefined; picking: { source: Source; query: string; found?: ComposerPickItem[] | string } | null;
-  /** `@` typed at `at` in the text: the system search's hits for the words after it. */
-  mention: { at: number; query: string; found?: SearchHit[] | string } | null;
+  /** `@` typed at `at` in the text: what the system search, or the page's own `mentions`, found for the words after it. */
+  mention: { at: number; query: string; found?: readonly (SearchHit | ComposerMention)[] | string } | null;
   typed: string; open: HTMLElement | null; painted: string;
   /** Draws the parts again (composer-view.ts). */
   paint(controls?: boolean): void;
@@ -67,7 +69,7 @@ export function composerState(basics: ComposerBasics, root: HTMLElement, signal:
   return {
     ...basics, root, shell, box: shell.querySelector<HTMLElement>(".mw-composer__box")!, field: shell.querySelector<HTMLTextAreaElement>(".mw-composer__input")!, id,
     signal, queries: composerGenerations(),
-    delivery: "next-boundary", running: false, phase: "", failure: "", check: null, requestId: "", items: [], note: undefined, unsaved: false, restored: "", stopping: false,
+    delivery: "next-boundary", running: false, phase: "", failure: "", check: null, requestId: "", items: [], note: undefined, unsaved: false, restored: "", stopping: false, pausing: false, held: "",
     sources: undefined, picking: null, mention: null, typed: "", open: null, painted: "",
     paint: () => undefined, close: () => undefined,
   };
@@ -76,4 +78,4 @@ export function composerState(basics: ComposerBasics, root: HTMLElement, signal:
 export const attached = (c: Composer) => c.items.filter((item) => item.state === "attached" && item.material).map((item) => item.material!);
 export const blocked = (c: Composer) => c.items.some((item) => item.state !== "attached");
 export const busy = (c: Composer) => c.phase === "sending" || c.phase === "unknown";
-export const sendable = (c: Composer) => !busy(c) && !blocked(c) && (c.field.value.trim() !== "" || attached(c).length > 0);
+export const sendable = (c: Composer) => !c.held && !busy(c) && !blocked(c) && (c.field.value.trim() !== "" || attached(c).length > 0);

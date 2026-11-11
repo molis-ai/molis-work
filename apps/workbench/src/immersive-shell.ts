@@ -233,14 +233,15 @@ export function renderPickerExtend(primitives: ImmersiveShellPrimitives, enabled
  * input. Right, the person's own: the personal plugins chosen to stay (the built-in Home plugins and the packages installed in
  * the Home, `personal` in the directory), in a tray of the same buttons, then the project as a round button whose menu holds
  * the project and the person — switching, search, settings, capabilities. The right side opens from its glyphs in the title
- * bar and ⌘\; the bar has no switch for it.
+ * bar and ⌘\; the bar has no switch for it. `placing`: the page runs `bar-column.ts`, so the input stays unseen until it is
+ * placed over the work (the catalog and the board frame do not run it and draw the input at once).
  */
 export function renderWorkbenchBar(
   primitives: ImmersiveShellPrimitives,
-  parts: { rail: string; projectChrome: string; enabled: readonly string[]; sideTabs?: readonly SidePanelPluginTab[] },
+  parts: { rail: string; projectChrome: string; enabled: readonly string[]; sideTabs?: readonly SidePanelPluginTab[]; placing?: boolean },
 ): string {
   const { L, icon } = primitives;
-  return `<div class="workbench-bar" data-dock aria-label="${L("底栏")}">
+  return `<div class="workbench-bar" data-dock${parts.placing ? " data-bar-placing" : ""} aria-label="${L("底栏")}">
     <div class="bar-start">
       <div class="plugin-picker" data-plugin-picker>
         <button class="plugin-picker-trigger" type="button" data-plugin-picker-toggle aria-expanded="false" aria-haspopup="true" aria-label="${L("切换插件")}" title="${L("切换插件")} ⌘K"><span class="plugin-picker-all" aria-hidden="true">${icon("grid")}</span><span class="plugin-picker-current" data-plugin-picker-current>${icon("home")}<span>${L("项目首页")}</span></span>${icon("chevron-up")}</button>

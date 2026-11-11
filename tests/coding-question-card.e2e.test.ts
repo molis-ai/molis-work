@@ -5,6 +5,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
+import { CODING_COMPOSER, CODING_TAKEN } from "./fixtures/coding-composer.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { asideReply } from "./fixtures/ending-review.js";
@@ -63,7 +64,10 @@ async function openCoding(t: TestContext, ask: object) {
   const workspace = join(homeDirectory, "coding-question-fixture");
   await mkdir(workspace, { recursive: true });
   await writeFile(join(workspace, "note.txt"), "release notes go in CHANGELOG.md\n");
-  const fill = (selector: string, value: string) => evaluate(`(()=>{const node=document.querySelector(${JSON.stringify(selector)});node.value=${JSON.stringify(value)};node.dispatchEvent(new Event('input',{bubbles:true}));node.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+  const setValue = (selector: string, value: string) => `(()=>{const node=document.querySelector(${JSON.stringify(selector)});node.value=${JSON.stringify(value)};node.dispatchEvent(new Event('input',{bubbles:true}));node.dispatchEvent(new Event('change',{bubbles:true}));})()`;
+  const fill = (selector: string, value: string) => evaluate(setValue(selector, value));
+  // The box and its controls are the workbench bar's (one input): set in the top document.
+  const barFill = (selector: string, value: string) => b.evaluate(setValue(selector, value));
   await command("Emulation.setDeviceMetricsOverride", { width: 1360, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await b.navigate(() => command("Page.navigate", { url: `${b.origin}/projects/${b.projectId}/` }, sessionId));
   await b.click('.navigator-project-settings');
@@ -80,11 +84,11 @@ async function openCoding(t: TestContext, ask: object) {
   await b.waitFor(`document.querySelector('[data-work-surface="coding"]')?.getBoundingClientRect().width > 100`);
   await b.waitFor("document.querySelector('[data-work-surface=coding]')?.dataset.uiClientState === 'ready'");
   await click(`${coding} [data-coding-new]`);
-  await waitFor(`!document.querySelector('${coding} [data-coding-task]').disabled && document.querySelector('${coding} [data-coding-model]').options.length >= 1`);
-  await fill(`${coding} [data-coding-model]`, JSON.stringify(["local-only", "fixture-plain"]));
-  await fill(`${coding} [data-coding-intent]`, "discuss");
-  await fill(`${coding} [data-coding-task]`, "登录和导出都坏了，先修哪个？");
-  await waitFor(`!document.querySelector('${coding} [data-coding-send]').disabled`);
+  await b.waitFor(`${CODING_TAKEN} && !document.querySelector('${CODING_COMPOSER} .mw-composer__input').disabled && document.querySelector('${CODING_COMPOSER} [data-composer-control=model]').options.length >= 1`);
+  await barFill(`${CODING_COMPOSER} [data-composer-control=model]`, JSON.stringify(["local-only", "fixture-plain"]));
+  await barFill(`${CODING_COMPOSER} [data-composer-control=intent]`, "discuss");
+  await barFill(`${CODING_COMPOSER} .mw-composer__input`, "登录和导出都坏了，先修哪个？");
+  await b.waitFor(`!document.querySelector('${CODING_COMPOSER} [data-composer-send]').disabled`);
   return { ...b, ...frame, owner: b, coding, fill, bodies };
 }
 
@@ -92,11 +96,11 @@ async function openCoding(t: TestContext, ask: object) {
 // Assistant's), keeps what the person picked with the session, and answers with it; the Runtime offers the typed choice contract.
 test("AC-22: Coding answers a typed questionnaire through the shared question card", { timeout: 180_000 }, async t => {
   const opened = await openCoding(t, QUESTIONS); if (!opened) return;
-  const { click, evaluate, waitFor, command, sessionId, coding, bodies } = opened;
+  const { click, evaluate, waitFor, command, sessionId, coding, bodies, owner } = opened;
   // What the page keeps with the session while the person picks.
   await evaluate(`(() => { window.__drafts = []; const original = window.fetch; window.fetch = async (...args) => {
     if (args[1] && typeof args[1].body === 'string' && args[1].body.includes('question_drafts')) window.__drafts.push(JSON.parse(args[1].body).question_drafts); return original(...args); }; })()`);
-  await click(`${coding} [data-coding-send]`);
+  await owner.click(`${CODING_COMPOSER} [data-composer-send]`);
   // The card the Host drew is itself the element the page marks as Coding's question.
   const card = `${coding} [data-coding-question][data-ix-question]`;
   await waitFor(`Boolean(document.querySelector(${JSON.stringify(card)}))`, 30_000);
@@ -134,8 +138,8 @@ test("AC-22: Coding answers a typed questionnaire through the shared question ca
 test("AC-25, AC-10-3: Coding's next step answers a single choice through the card's own controls and focus ends in the composer", { timeout: 180_000 }, async t => {
   const opened = await openCoding(t, { why: "先确认要修哪一处。", questions: [{ prompt: "先修哪一个？", options: [{ label: "登录", recommended: true }, { label: "导出" }] }] });
   if (!opened) return;
-  const { click, evaluate, waitFor, coding, bodies } = opened;
-  await click(`${coding} [data-coding-send]`);
+  const { click, evaluate, waitFor, coding, bodies, owner } = opened;
+  await owner.click(`${CODING_COMPOSER} [data-composer-send]`);
   const steps = `${coding} [data-coding-steps]:not([hidden]) [data-ix-step-id]`;
   await waitFor(`document.querySelectorAll(${JSON.stringify(steps)}).length === 2`, 30_000);
   assert.deepEqual(await evaluate<string[]>(`[...document.querySelectorAll(${JSON.stringify(steps)})].map(step => step.querySelector('[data-ix-step-label]').textContent)`), ["登录（推荐）", "导出"]);
@@ -149,7 +153,7 @@ test("AC-25, AC-10-3: Coding's next step answers a single choice through the car
   assert.match(JSON.stringify(bodies[1]?.messages ?? ""), /导出/, "the model hears the option pressed in the row");
   await waitFor(`!document.querySelector('${coding} [data-coding-question]') && document.querySelector('${coding} [data-coding-steps]').hidden`, 15_000);
   // AC-10-3: the mouse press put focus on the step, and the row was hidden under it.
-  assert.equal(await evaluate<boolean>(`document.activeElement === document.querySelector('${coding} [data-coding-task]')`), true,
+  assert.equal(await owner.evaluate<boolean>(`document.activeElement === document.querySelector('${CODING_COMPOSER} .mw-composer__input')`), true,
     "AC-10-3: with the row hidden, focus is in the composer and not on the page");
 });
 
@@ -163,8 +167,8 @@ test("AC-27-5: Coding answers words, a number, a date and a date and time, and a
     { id: "at", type: "datetime", prompt: "开会时间" },
   ] });
   if (!opened) return;
-  const { click, evaluate, waitFor, command, sessionId, coding, bodies, fill } = opened;
-  await click(`${coding} [data-coding-send]`);
+  const { click, evaluate, waitFor, command, sessionId, coding, bodies, fill, owner } = opened;
+  await owner.click(`${CODING_COMPOSER} [data-composer-send]`);
   const card = `${coding} [data-coding-question][data-ix-question]`;
   await waitFor(`Boolean(document.querySelector(${JSON.stringify(card)}))`, 30_000);
   assert.deepEqual(bodies[0]?.tools?.find(tool => tool.name === "ask-user")?.input_schema.properties.questions.items.properties.type.enum, ["choice", "text", "number", "date", "datetime", "reference"], "AC-27-1: the model is offered what the card draws");
@@ -239,8 +243,8 @@ const LONG_QUESTIONS = { why: `先确认要修哪一处。${LONG}`, questions: [
 
 test("AC-10-1, AC-10-2, AC-10-7: Coding's card fits 1440, 1024 and 390 px, reads in Dark, and wraps long content", { timeout: 240_000 }, async t => {
   const opened = await openCoding(t, LONG_QUESTIONS); if (!opened) return;
-  const { click, evaluate, waitFor, command, sessionId, coding } = opened;
-  await click(`${coding} [data-coding-send]`);
+  const { click, evaluate, waitFor, command, sessionId, coding, owner } = opened;
+  await owner.click(`${CODING_COMPOSER} [data-composer-send]`);
   const card = `${coding} [data-coding-question][data-ix-question]`;
   await waitFor(`Boolean(document.querySelector(${JSON.stringify(card)}))`, 30_000);
   await evaluate(CONTRAST);
@@ -315,8 +319,8 @@ test("AC-10-3, AC-10-4, AC-10-5, AC-10-8: Coding's card by keyboard and input me
     { id: "extra", prompt: "顺手做什么？", required: false, multiple: true, options: [{ label: "补测试" }, { label: "写说明" }] },
   ] });
   if (!opened) return;
-  const { click, evaluate, waitFor, command, sessionId, coding, bodies } = opened;
-  const card = `${coding} [data-coding-question][data-ix-question]`, composer = `${coding} [data-coding-task]`;
+  const { click, evaluate, waitFor, command, sessionId, coding, bodies, owner } = opened;
+  const card = `${coding} [data-coding-question][data-ix-question]`, composer = `${CODING_COMPOSER} .mw-composer__input`;
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   // What runs in the card, or in the thread around it, a frame after each change; what the page keeps and what it answers.
   await evaluate(`(() => { const card = ${JSON.stringify(card)};
@@ -328,7 +332,7 @@ test("AC-10-3, AC-10-4, AC-10-5, AC-10-8: Coding's card by keyboard and input me
       if (typeof body === 'string' && body.includes('question_drafts')) window.__drafts.push(JSON.parse(body).question_drafts);
       if (typeof body === 'string' && body.includes('"kind":"answer"')) window.__answers.push(JSON.parse(body));
       return original(...args); }; })()`);
-  await click(`${coding} [data-coding-send]`);
+  await owner.click(`${CODING_COMPOSER} [data-composer-send]`);
   await waitFor(`Boolean(document.querySelector(${JSON.stringify(card)})) && window.__motion.length === 1`, 30_000);
   // Read back by value (CDP `returnByValue`): what the focused element lacks (a field, a role, an option) comes back null, not undefined.
   const focused = () => evaluate<[string | null, string | null, string | null]>(`[document.activeElement.closest('[data-ix-field]')?.dataset.ixField, document.activeElement.getAttribute('role'), document.activeElement.dataset.ixOption]`);
@@ -339,9 +343,10 @@ test("AC-10-3, AC-10-4, AC-10-5, AC-10-8: Coding's card by keyboard and input me
   assert.deepEqual(await states(), { name: "先确认要修哪一处。", tag: "ARTICLE", radios: ["false", "false"], toggles: ["false", "false"], status: "status" });
 
   // AC-10-3: from the composer back to the row above it; 「去回答」 takes focus to the first question's first option.
-  await waitFor(`!document.querySelector(${JSON.stringify(composer)}).disabled`);
-  await evaluate(`document.querySelector(${JSON.stringify(composer)}).focus()`);
-  for (let i = 0; i < 8 && !(await evaluate<boolean>(`document.activeElement.matches('[data-ix-step-id]')`)); i++) await press(opened, "Tab", SHIFT);
+  await owner.waitFor(`!document.querySelector(${JSON.stringify(composer)}).disabled`);
+  await owner.evaluate(`document.querySelector(${JSON.stringify(composer)}).focus()`);
+  // The composer is the workbench bar's (one input): Shift+Tab goes back through its ＋ and 发给, the Dock, then into the page from its end.
+  for (let i = 0; i < 20 && !(await evaluate<boolean>(`document.activeElement.matches('[data-ix-step-id]')`)); i++) await press(opened, "Tab", SHIFT);
   assert.equal(await evaluate<string>(`document.activeElement.querySelector('[data-ix-step-label]')?.textContent ?? ''`), "去回答（3 题）", "Shift+Tab from the composer reaches the step");
   await press(opened, "Enter");
   assert.deepEqual(await focused(), ["q0", "radio", "0"], "「去回答」 lands on the first question's first option");
@@ -372,9 +377,9 @@ test("AC-10-3, AC-10-4, AC-10-5, AC-10-8: Coding's card by keyboard and input me
   assert.deepEqual(await focused(), ["q2", null, "0"]);
   await press(opened, " ");
   assert.deepEqual(await states(), { name: "先确认要修哪一处。", tag: "ARTICLE", radios: ["false", "true"], toggles: ["true", "false"], status: "status" }, "each control says it is on");
-  // AC-10-8: every line written to the card's status line, with what holds focus at that moment.
-  await evaluate(`(() => { const note = document.querySelector(${JSON.stringify(card)}).querySelector('[data-ix-note]'), composer = document.querySelector(${JSON.stringify(composer)});
-    window.__note = []; new MutationObserver(() => { window.__note.push({ text: note.textContent, role: note.getAttribute('role'), connected: note.isConnected, composer: document.activeElement === composer, body: document.activeElement === document.body, shut: composer.disabled, hidden: document.hidden });
+  // AC-10-8: every line written to the card's status line.
+  await evaluate(`(() => { const note = document.querySelector(${JSON.stringify(card)}).querySelector('[data-ix-note]');
+    window.__note = []; new MutationObserver(() => { window.__note.push({ text: note.textContent, role: note.getAttribute('role'), connected: note.isConnected, hidden: document.hidden });
       if (window.__note.length === 1) window.__moving('submit').then(seen => window.__motion.push(seen)); }).observe(note, { childList: true, characterData: true, subtree: true }); })()`);
   await press(opened, "Enter", MOD);
   await waitFor(`window.__answers.length === 1`, 10_000);
@@ -383,13 +388,15 @@ test("AC-10-3, AC-10-4, AC-10-5, AC-10-8: Coding's card by keyboard and input me
   for (let i = 0; i < 600 && bodies.length < 2; i++) await new Promise(resolve => setTimeout(resolve, 50));
   assert.match(JSON.stringify(bodies[1]?.messages ?? ""), /导出/);
   await waitFor(`!document.querySelector('${coding} [data-coding-question]')`, 15_000);
-  const notes = await evaluate<Array<{ text: string; role: string | null; connected: boolean; composer: boolean; body: boolean; shut: boolean; hidden: boolean }>>("window.__note");
+  const notes = await evaluate<Array<{ text: string; role: string | null; connected: boolean; hidden: boolean }>>("window.__note");
   assert.equal(notes[0]?.text, "正在提交原问题的回答…");
   const receipt = notes.find(note => note.text === "回答已交给原执行者，继续这一轮任务。");
-  assert.deepEqual(receipt && { text: receipt.text, role: receipt.role, connected: receipt.connected, composer: receipt.composer, body: receipt.body },
-    { text: "回答已交给原执行者，继续这一轮任务。", role: "status", connected: true, composer: true, body: false },
-    `AC-10-8, AC-10-3: the receipt is written into the status line already on the page, and focus is back in the composer (composer disabled: ${receipt?.shut}, page hidden: ${receipt?.hidden})`);
-  assert.equal(await evaluate<boolean>(`document.activeElement === document.querySelector(${JSON.stringify(composer)})`), true, "after the card leaves, focus is still in the composer");
+  assert.deepEqual(receipt && { text: receipt.text, role: receipt.role, connected: receipt.connected },
+    { text: "回答已交给原执行者，继续这一轮任务。", role: "status", connected: true },
+    `AC-10-8: the receipt is written into the status line already on the page (page hidden: ${receipt?.hidden})`);
+  // AC-10-3: focus goes back to the composer, the bar's (one input), a message after the receipt: the page keeps none, nor its body.
+  await owner.waitFor(`document.activeElement === document.querySelector(${JSON.stringify(composer)})`, 5_000);
+  assert.equal(await evaluate<boolean>("document.hasFocus()"), false, "after the card leaves, focus is in the composer, not on the page");
   // AC-10-5: with reduced motion nothing runs as the card arrives, as an option is picked, or as the answer is sent.
   assert.deepEqual(await evaluate("window.__motion"), [["appear", []], ["pick", []], ["submit", []]]);
 });
@@ -400,12 +407,12 @@ test("AC-10-6: while Coding waits, the page reads the run again and the card, th
     { id: "note", type: "text", prompt: "还有什么要交代的？", required: false },
   ] });
   if (!opened) return;
-  const { click, evaluate, waitFor, command, sessionId, coding } = opened;
+  const { click, evaluate, waitFor, command, sessionId, coding, owner } = opened;
   const card = `${coding} [data-coding-question][data-ix-question]`, field = `${card} [data-ix-field="t1"] input`, turns = `${coding} [data-coding-turns]`;
   // A short window, so the thread scrolls and there is something above the card to read back.
   await command("Emulation.setDeviceMetricsOverride", { width: 1024, height: 640, deviceScaleFactor: 1, mobile: false }, sessionId);
   await evaluate(`(() => { window.__reads = 0; const original = window.fetch; window.fetch = (...args) => { if (String(args[0]).includes('?window=')) window.__reads++; return original(...args); }; })()`);
-  await click(`${coding} [data-coding-send]`);
+  await owner.click(`${CODING_COMPOSER} [data-composer-send]`);
   await waitFor(`Boolean(document.querySelector(${JSON.stringify(card)}))`, 30_000);
   await evaluate(`(() => { window.__card = document.querySelector(${JSON.stringify(card)}); document.querySelector(${JSON.stringify(field)}).focus(); })()`);
   await command("Input.insertText", { text: "写到一半的话" }, sessionId);

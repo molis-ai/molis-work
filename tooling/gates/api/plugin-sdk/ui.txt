@@ -130,6 +130,7 @@ export interface MwComposerLabels {
     filesHint: string;
     dropRefused: string;
     commands: string;
+    adding?: string;
     searching: string;
     nothing: string;
     unavailable: string;
@@ -173,14 +174,22 @@ export type MwComposerOptions = {
     kind: "ai";
     labels: MwComposerAiLabels;
     delivery?: AgentSteerMode;
-    receiver?: {
-        label: string;
-        open?: boolean;
-        resetLabel?: string;
-    };
+    receiver?: MwComposerReceiver;
     state?: "sending" | "running" | "failed" | "unknown";
     idleDelivery?: boolean;
+    pause?: {
+        label: string;
+        title: string;
+        busy?: boolean;
+    };
 });
+
+export interface MwComposerReceiver {
+    label: string;
+    icon?: Parameters<typeof icon>[0];
+    open?: boolean;
+    resetLabel?: string;
+}
 
 export interface MwComposerStatus {
     caption: string;

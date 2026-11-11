@@ -140,16 +140,18 @@ async function saveMethods(page: Page, form: HTMLFormElement) {
   const { L, input, lifetime, q, refs, s } = page, submit = submitOf(form);
   if (submit.disabled) return;
   submit.disabled = true;
-  const id = s.current, selection = structuredClone(s.methodChoices);
+  const id = s.current, selection = structuredClone(s.methodChoices), previous = s.methodSelections.get(id);
+  // Held before the save goes, as MCP's are: a typing save the composer sends meanwhile carries them, not the old ones.
+  s.methodSelections.set(id, selection);
   try {
-    await refs.draft.save(id, input.value, { skills: selection });
-    s.methodSelections.set(id, selection);
+    await refs.draft.saveChoices(id);
     q<HTMLDialogElement>("[data-coding-method-dialog]").close();
     controls(page);
     input.focus();
     status(page, L("coding.method.saved"));
   } catch (error) {
     if (!lifetime.alive) return;
+    s.methodSelections.set(id, previous || []);
     q("[data-coding-method-error]").textContent = errorMessage(error);
   } finally {
     submit.disabled = false;

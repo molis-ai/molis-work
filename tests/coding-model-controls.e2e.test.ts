@@ -4,6 +4,7 @@ import { createServer } from "node:http";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
+import { CODING_COMPOSER, CODING_TAKEN } from "./fixtures/coding-composer.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { asideReply } from "./fixtures/ending-review.js";
@@ -62,6 +63,8 @@ test("PA-24: the composer sends a chosen reasoning effort and switches a running
   await mkdir(workspace, { recursive: true });
   await writeFile(join(workspace, "note.txt"), "release notes go in CHANGELOG.md\n");
   const fill = (selector: string, value: string, page: Pick<typeof child, "evaluate"> = child) => page.evaluate(`(()=>{const node=document.querySelector(${JSON.stringify(selector)});node.value=${JSON.stringify(value)};node.dispatchEvent(new Event('input',{bubbles:true}));node.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+  // The box and its controls are the workbench bar's (one input): set in the top document.
+  const barFill = (selector: string, value: string) => b.evaluate(`(()=>{const node=document.querySelector(${JSON.stringify(selector)});node.value=${JSON.stringify(value)};node.dispatchEvent(new Event('input',{bubbles:true}));node.dispatchEvent(new Event('change',{bubbles:true}));})()`);
   await command("Emulation.setDeviceMetricsOverride", { width: 1360, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await b.navigate(() => command("Page.navigate", { url: `${b.origin}/projects/${b.projectId}/` }, sessionId));
   await b.click('.navigator-project-settings');
@@ -77,40 +80,40 @@ test("PA-24: the composer sends a chosen reasoning effort and switches a running
   await b.click(`[data-plugin-strip] [data-plugin-id="coding"]`);
   await b.waitFor(`document.querySelector('[data-work-surface="coding"]')?.getBoundingClientRect().width > 100`);
   await click(`${coding} [data-coding-new]`);
-  await waitFor(`!document.querySelector('${coding} [data-coding-task]').disabled && document.querySelector('${coding} [data-coding-model]').options.length >= 2`);
+  await b.waitFor(`${CODING_TAKEN} && !document.querySelector('${CODING_COMPOSER} .mw-composer__input').disabled && document.querySelector('${CODING_COMPOSER} [data-composer-control=model]').options.length >= 2`);
   const small = JSON.stringify(["local-only", "fixture-small"]), large = JSON.stringify(["local-only", "fixture-large"]), plain = JSON.stringify(["local-only", "fixture-plain"]);
   // An unmarked model offers no effort; the marked one does.
-  await fill(`${coding} [data-coding-model]`, plain);
-  await waitFor(`document.querySelector('${coding} [data-coding-effort-wrap]').hidden`);
-  await fill(`${coding} [data-coding-model]`, small);
-  await waitFor(`!document.querySelector('${coding} [data-coding-effort-wrap]').hidden`);
-  await fill(`${coding} [data-coding-effort]`, "high");
-  await fill(`${coding} [data-coding-intent]`, "discuss");
-  await fill(`${coding} [data-coding-task]`, "发布说明写在哪里？读 note.txt 再回答。");
-  await waitFor(`!document.querySelector('${coding} [data-coding-send]').disabled`);
-  await click(`${coding} [data-coding-send]`);
+  await barFill(`${CODING_COMPOSER} [data-composer-control=model]`, plain);
+  await b.waitFor(`!document.querySelector('${CODING_COMPOSER} [data-composer-control=effort]')`);
+  await barFill(`${CODING_COMPOSER} [data-composer-control=model]`, small);
+  await b.waitFor(`!!document.querySelector('${CODING_COMPOSER} [data-composer-control=effort]')`);
+  await barFill(`${CODING_COMPOSER} [data-composer-control=effort]`, "high");
+  await barFill(`${CODING_COMPOSER} [data-composer-control=intent]`, "discuss");
+  await barFill(`${CODING_COMPOSER} .mw-composer__input`, "发布说明写在哪里？读 note.txt 再回答。");
+  await b.waitFor(`!document.querySelector('${CODING_COMPOSER} [data-composer-send]').disabled`);
+  await b.click(`${CODING_COMPOSER} [data-composer-send]`);
   for (let i = 0; i < 600 && bodies.length < 1; i++) await new Promise(resolve => setTimeout(resolve, 50));
   assert.deepEqual(bodies[0]?.output_config, { effort: "high" }, "the round's first model call carries the effort");
   assert.equal(bodies[0]?.model, "fixture-small");
   // While the round runs: the effort is fixed for it, another model offers a switch.
   await waitFor(`document.querySelector('${coding} [data-coding-model-note]')?.textContent.includes('思考力度 深入')`);
-  assert.equal(await evaluate<boolean>(`document.querySelector('${coding} [data-coding-effort-wrap]').hidden`), true, "a running round's effort is fixed; the note says which");
+  assert.equal(await b.evaluate<boolean>(`!document.querySelector('${CODING_COMPOSER} [data-composer-control=effort]')`), true, "a running round's effort is fixed; the note says which");
   // A model that cannot carry the round's effort is refused, and the round goes on with its model.
-  await fill(`${coding} [data-coding-model]`, plain);
-  await waitFor(`!document.querySelector('${coding} [data-coding-model-switch]').hidden`);
-  await click(`${coding} [data-coding-model-switch]`);
+  await barFill(`${CODING_COMPOSER} [data-composer-control=model]`, plain);
+  await b.waitFor(`!!document.querySelector('${CODING_COMPOSER} [data-composer-control=model-switch]')`);
+  await b.click(`${CODING_COMPOSER} [data-composer-control=model-switch]`);
   await waitFor(`document.querySelector('${coding} [data-coding-status]')?.textContent.includes('没有换模型')`);
   assert.match(await evaluate<string>(`document.querySelector('${coding} [data-coding-status]').textContent`), /没有标注「fixture-plain」可调思考力度/);
   assert.doesNotMatch(await evaluate<string>(`document.querySelector('${coding} [data-coding-model-note]').textContent`), /已请求改用/);
-  await fill(`${coding} [data-coding-model]`, large);
-  await waitFor(`!document.querySelector('${coding} [data-coding-model-switch]').hidden`);
+  await barFill(`${CODING_COMPOSER} [data-composer-control=model]`, large);
+  await b.waitFor(`!!document.querySelector('${CODING_COMPOSER} [data-composer-control=model-switch]')`);
   const shot = async (name: string) => {
     const directory = join(process.cwd(), ".impeccable/qa/review/prologue-adoption"); await mkdir(directory, { recursive: true });
     const image = await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId);
     await writeFile(join(directory, `${name}.png`), Buffer.from(image.data, "base64"));
   };
   await shot("composer-switch-offered");
-  await click(`${coding} [data-coding-model-switch]`);
+  await b.click(`${CODING_COMPOSER} [data-composer-control=model-switch]`);
   for (let i = 0; i < 200; i++) {
     const seen = await evaluate<{ note: string; status: string }>(`({note:document.querySelector('${coding} [data-coding-model-note]')?.textContent||'',status:document.querySelector('${coding} [data-coding-status]')?.textContent||''})`);
     if (seen.note.includes("已请求改用 fixture-large") || /没有换模型.*fixture-large/.test(seen.status)) { assert.match(seen.note, /已请求改用 fixture-large/, seen.status); break; }

@@ -874,6 +874,7 @@
     "action.text-stats.state": 1,
     "action.todo.batch.subject.read": 1,
     "action.todo.changes.revert": 1,
+    "action.todo.composer.pick": 1,
     "action.todo.fragment.offers": 1,
     "action.todo.home.events": 1,
     "action.todo.item.subject.read": 1,

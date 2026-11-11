@@ -8,7 +8,8 @@ import type {
   UiNestedContentModel,
   UiRenderRequest,
 } from "@molis-ai/molis-work-contracts/platform/ui";
-import { icon, renderButton, renderDirectoryHeading, renderDirectoryPanel, renderSidebar } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { icon, renderButton, renderComposer, renderDirectoryHeading, renderDirectoryPanel, renderSidebar } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { codingComposerLabels, codingIntentOptions } from "./composer-labels.js";
 import type { AgentRunUsage } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { CodingIdentityView } from "./identity.js";
 import { codingAgentManifest } from "./roles.js";
@@ -30,7 +31,7 @@ export const CODING_SETTINGS_UI_CONTRIBUTION_ID = "io.molis.work.native.coding.s
 export const CODING_COMPANION_DIRECTORY_SLOT = "coding.companion-directory";
 export const CODING_COMPANION_RESULT_SLOT = "coding.companion-result";
 
-export type CodingUiSurface = "directory" | "workbench";
+export type CodingUiSurface = "workbench";
 
 /**
  * The five navigation faces the directory column switches between. Every face changes the directory column only:
@@ -71,7 +72,8 @@ export const codingUiDescriptor: UiContributionDeclaration = {
   navigation_id: "coding",
   label: "Coding",
   surfaces: [
-    { surface_id: "directory", target_slot_id: "workbench.directory", format: "declarative-html" },
+    // The session list is the page's own left column (its five faces follow the session on show); the workbench draws no second
+    // copy in its directory (one list, user 2026-11-10, specs/unified-input-voice §10.4).
     { surface_id: "workbench", target_slot_id: "workbench.main", format: "declarative-html" },
   ],
   slots: [
@@ -85,8 +87,6 @@ export const codingUiContribution: UiContribution<CodingUiModel> = {
   descriptor: codingUiDescriptor,
   render(request: UiRenderRequest<CodingUiModel>): string {
     switch (request.surface as CodingUiSurface) {
-      case "directory":
-        return renderCodingDirectory(request.model);
       case "workbench":
         return renderCodingWorkbench(request.model);
       default:
@@ -214,7 +214,7 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
       <header class="mw-form__header"><h2>${p.escape(p.text("coding.delegate.title"))}</h2></header>
       <section class="mw-form__body"><p>${p.escape(p.text("coding.delegate.note"))}</p>
       <label class="mw-field"><span>${p.escape(p.text("coding.delegate.title-label"))}</span><input class="mw-input" data-coding-delegate-title maxlength="80" placeholder="${p.escape(p.text("coding.delegate.title-placeholder"))}"></label>
-      <label class="mw-field"><span>${p.escape(p.text("coding.delegate.task-label"))}</span><textarea class="mw-textarea" rows="5" maxlength="20000" data-coding-delegate-task required></textarea></label>
+      <label class="mw-field"><span>${p.escape(p.text("coding.delegate.task-label"))}</span><textarea class="mw-textarea" rows="5" maxlength="20000" data-fit data-coding-delegate-task required></textarea></label>
       <fieldset class="mw-field coding-delegate-outputs"><legend>${p.escape(p.text("coding.delegate.outputs-legend"))}</legend><div data-coding-delegate-outputs></div>${renderButton({label:p.text("coding.delegate.pick"),variant:"secondary",attrs:{"data-coding-delegate-pick":""}})}</fieldset>
       <p data-coding-delegate-status role="status"></p></section>
       <footer class="mw-form__footer">${renderButton({label:p.text("coding.common.cancel"),variant:"secondary",attrs:{"data-coding-delegate-cancel":""}})}<button class="mw-btn mw-btn--primary" type="submit" data-coding-delegate-create>${p.escape(p.text("coding.delegate.create"))}</button></footer>
@@ -316,34 +316,21 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
         <button class="mw-btn coding-jump" type="button" data-coding-latest hidden>${p.icon("chevron-down")}<span>${p.escape(p.text("coding.dialogue.latest"))}</span></button>
         <p class="coding-status" data-coding-status role="status" aria-live="polite"></p>
         <div class="coding-queued" data-coding-queued role="status" hidden></div>
-        <form class="coding-composer mw-frame__footer" data-coding-composer><div data-coding-steps hidden></div>
+        <div class="coding-composer mw-frame__footer" data-coding-composer><div data-coding-steps hidden></div>
           <div class="coding-context mw-toolbar" data-coding-context hidden aria-label="${p.escape(p.text("coding.context.label"))}">
           ${renderButton({label:p.text("coding.context.workspace"),icon:"folder",variant:"ghost",attrs:{"data-coding-workspace-open":""}})}
           ${renderButton({label:p.text("coding.goal.link"),icon:"target",variant:"ghost",disabled:true,attrs:{"data-coding-goal-open":""}})}
           ${renderButton({label:p.text("coding.worktrees.title"),icon:"git-branch",variant:"ghost",attrs:{"data-coding-writer-directories-open":""}})}${renderButton({label:p.text("coding.context.open-beside"),icon:"columns",iconOnly:true,variant:"ghost",attrs:{"data-coding-open-beside":"",title:p.text("coding.context.open-beside-title")}})}${renderButton({label:p.text("coding.context.rename"),icon:"edit",iconOnly:true,variant:"ghost",attrs:{"data-coding-rename":"",hidden:true,title:p.text("coding.context.rename-title")}})}${renderButton({label:p.text("coding.context.archive"),variant:"ghost",attrs:{"data-coding-archive":"",hidden:true}})}<small data-coding-goal-label></small></div>
-          <div class="coding-composer-shell">
-            <label class="mw-sr-only" for="coding-task">${p.escape(p.text("coding.composer.task-label"))}</label>
-            <textarea class="mw-textarea" id="coding-task" data-coding-task data-fit rows="3" placeholder="${p.escape(p.text("coding.composer.placeholder"))}" aria-describedby="coding-slash-help" disabled></textarea>
-            <span class="mw-sr-only" id="coding-slash-help">${p.escape(p.text("coding.composer.slash-help"))}</span>
-            <div class="coding-slash" id="coding-slash-menu" data-coding-slash-menu role="listbox" aria-label="${p.escape(p.text("coding.slash.label"))}" hidden></div>
-            <div class="coding-composer-bar">
-              <div class="coding-composer-leading">
-                <div class="coding-attach"><button class="mw-btn mw-btn--ghost mw-btn--icon-only coding-attach-toggle" type="button" data-coding-attach-toggle aria-expanded="false" aria-haspopup="menu" aria-label="${p.escape(p.text("coding.attach.label"))}" title="${p.escape(p.text("coding.attach.title"))}">${p.icon("plus")}</button>
-                  <div class="coding-attach-menu" data-coding-attach-menu role="menu" hidden><div class="coding-composer-context" aria-label="${p.escape(p.text("coding.attach.menu"))}">${renderButton({label:p.text("coding.attach.material"),icon:"paperclip",variant:"ghost",attrs:{"data-coding-material-open":"","aria-label":p.text("coding.attach.material-label"),role:"menuitem"}})}${renderButton({label:p.text("coding.attach.character"),icon:"user",variant:"ghost",attrs:{"data-coding-character-open":"","aria-label":p.text("coding.character.title"),role:"menuitem"}})}${renderButton({label:p.text("coding.attach.method"),icon:"list",variant:"ghost",attrs:{"data-coding-method-open":"","aria-label":p.text("coding.method.title"),role:"menuitem"}})}${renderButton({label:p.text("coding.attach.actions"),icon:"workflow",variant:"ghost",attrs:{"data-coding-actions-open":"","aria-label":p.text("coding.actions.label"),role:"menuitem"}})}${renderButton({label:p.text("coding.attach.mcp"),icon:"network",variant:"ghost",attrs:{"data-coding-mcp-open":"","aria-label":p.text("coding.mcp.title"),role:"menuitem"}})}${renderButton({label:p.text("coding.delegate.title"),icon:"share",variant:"ghost",attrs:{"data-coding-delegate-open":"","aria-label":p.text("coding.attach.delegate-label"),role:"menuitem"}})}</div>
-                  ${renderButton({label:p.text("coding.attach.context"),icon:"tune",variant:"ghost",attrs:{"data-coding-context-toggle":"","aria-expanded":false,title:p.text("coding.attach.context"),role:"menuitem"}})}</div></div>
-                <select class="mw-select" data-coding-intent aria-label="${p.escape(p.text("coding.intent.label"))}"><option value="discuss">${p.escape(p.text("coding.intent.discuss"))}</option><option value="plan">${p.escape(p.text("coding.intent.plan"))}</option><option value="collaborate">${p.escape(p.text("coding.intent.collaborate"))}</option><option value="parallel" disabled>${p.escape(p.text("coding.intent.parallel"))}</option><option value="edit" disabled>${p.escape(p.text("coding.intent.edit-pending"))}</option><option value="execute" disabled>${p.escape(p.text("coding.intent.execute-pending"))}</option><option value="review">${p.escape(p.text("coding.intent.review"))}</option></select>
-                <select class="mw-select" data-coding-model aria-label="${p.escape(p.text("coding.model.label"))}"></select><span class="coding-effort" data-coding-effort-wrap hidden><select class="mw-select" data-coding-effort aria-label="${p.escape(p.text("coding.effort.label"))}" title="${p.escape(p.text("coding.effort.title"))}"><option value="">${p.escape(p.text("coding.effort.default"))}</option><option value="low">${p.escape(p.text("coding.effort.low"))}</option><option value="medium">${p.escape(p.text("coding.effort.medium"))}</option><option value="high">${p.escape(p.text("coding.effort.high"))}</option></select></span><button class="mw-btn mw-btn--ghost" type="button" data-coding-model-switch hidden>${p.escape(p.text("coding.model.switch"))}</button>
-              </div>
-              <div class="coding-composer-trailing"><div class="coding-meter" data-coding-meter hidden>
+          <div class="coding-input" data-coding-input>${renderComposer({ kind: "ai", labels: codingComposerLabels(p.text, true), placeholder: p.text("coding.composer.placeholder"), add: true,
+            disabled: { caption: p.text("coding.composer.notice"), reason: p.text("coding.composer.reading-session") },
+            controls: [{ kind: "select", id: "intent", label: p.text("coding.intent.label"), value: "discuss", options: codingIntentOptions(p.text, (intent) => !["parallel", "edit", "execute"].includes(intent)) },
+              { kind: "select", id: "model", label: p.text("coding.model.label"), value: "", options: [] }] })}</div>
+          <button type="button" class="mw-btn mw-btn--ghost coding-model-setup" data-coding-model-setup hidden>${p.escape(p.text("coding.model.open-settings"))}</button><div class="mw-field__hint" data-coding-input-status role="status" hidden></div>
+          <div class="coding-composer-footnote"><div class="coding-meter" data-coding-meter hidden>
                   <button class="mw-btn mw-btn--ghost coding-meter-toggle" type="button" data-coding-meter-toggle aria-expanded="false" aria-controls="coding-meter-panel" title="${p.escape(p.text("coding.meter.title"))}"><svg class="coding-meter-ring" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="8"></circle><circle cx="10" cy="10" r="8" data-coding-meter-fill></circle></svg><span data-coding-meter-label>${p.escape(p.text("coding.meter.label"))}</span></button>
                   <div class="coding-meter-panel" id="coding-meter-panel" data-coding-meter-panel role="region" aria-label="${p.escape(p.text("coding.meter.title"))}" hidden></div>
-                </div>
-                <span data-coding-mode hidden><select class="mw-select" data-coding-send-mode aria-label="${p.escape(p.text("coding.send-mode.label"))}" title="${p.escape(p.text("coding.send-mode.title"))}"><option value="next-boundary">${p.escape(p.text("coding.send-mode.next-boundary"))}</option><option value="interrupt">${p.escape(p.text("coding.send-mode.interrupt"))}</option><option value="after-run">${p.escape(p.text("coding.send-mode.after-run"))}</option></select></span><button class="mw-btn mw-btn--ghost" type="button" data-coding-pause title="${p.escape(p.text("coding.run.pause-title"))}" hidden>${p.escape(p.text("coding.run.pause"))}</button><button class="mw-btn mw-btn--danger-outline" type="button" data-coding-stop title="${p.escape(p.text("coding.run.stop-title"))}" hidden>${p.escape(p.text("coding.run.stop"))}</button><button class="mw-btn mw-btn--primary" type="submit" data-coding-send disabled>${p.escape(p.text("coding.composer.send"))}</button>
-              </div>
-            </div>
-          </div>
-          <button type="button" class="mw-btn mw-btn--ghost coding-model-setup" data-coding-model-setup hidden>${p.escape(p.text("coding.model.open-settings"))}</button><div class="mw-field__hint" data-coding-input-status role="status" hidden></div><div class="coding-composer-footnote"><small data-coding-draft-status>${p.escape(p.text("coding.composer.draft-note"))}</small><small class="coding-model-note" data-coding-model-note hidden></small><span class="coding-composer-keys"><kbd class="mw-kbd" title="${p.escape(p.text("coding.keys.slash-title"))}">${p.escape(p.text("coding.keys.slash"))}</kbd><kbd class="mw-kbd" title="${p.escape(p.text("coding.keys.palette-title"))}">${p.escape(p.text("coding.keys.palette"))}</kbd><kbd class="mw-kbd" title="${p.escape(p.text("coding.keys.send-title"))}">⌘ / Ctrl ↵</kbd></span></div>
-        </form>
+                </div><small class="coding-model-note" data-coding-model-note hidden></small></div>
+        </div>
       </div>
       <aside class="coding-tools" data-coding-tools>
         <nav class="coding-tool-tabs mw-toolbar" aria-label="${p.escape(p.text("coding.results.tools"))}"><h3 class="coding-tools-title">${p.escape(p.text("coding.results.title"))}</h3>${tools}<button class="mw-btn mw-btn--ghost coding-results-close" type="button" data-coding-results-close aria-label="${p.escape(p.text("coding.results.back"))}" title="${p.escape(p.text("coding.results.back"))}">${p.icon("x")}</button></nav>

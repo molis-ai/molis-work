@@ -4,10 +4,10 @@ import type { ClickRule } from "./click-types.js";
 import { continueRound, currentSelection, recoverAndContinue, startRound } from "./composer.js";
 import { refreshState } from "./configuration.js";
 import { shut } from "./composer-state.js";
-import { controls, openMaterials } from "./controls.js";
+import { controls } from "./controls.js";
 import { ownTask } from "./helpers.js";
 import { renderGoalFace } from "./goals.js";
-import { openMethods, renderMcp } from "./methods.js";
+import { renderMcp } from "./methods.js";
 import type { Page } from "./page.js";
 import { readCurrent } from "./read.js";
 import { api, sessionPath, status } from "./request.js";
@@ -16,12 +16,12 @@ const INTENT_BY_ROLE: Readonly<Record<string, string>> = { builder: "execute", w
 
 /** A round that only announced its next step goes on when the person asks, with the same way of working. */
 async function nudge(page: Page, target: HTMLButtonElement) {
-  const { L, q, s } = page;
+  const { L, s } = page;
   if (s.sending) return;
   const run = s.allRuns.find(item => item.ref.run_id === target.dataset.codingNudge);
   if (!run || run.light) return;
   const said = [...run.turns].reverse().find(turn => turn.kind === "assistant")?.text.trim() || "", asked = ownTask(run.turns.find(turn => turn.kind === "user")?.text || "");
-  const intent = INTENT_BY_ROLE[run.frozen.role_id] || q<HTMLSelectElement>("[data-coding-intent]").value, id = s.current, modelValue = q<HTMLSelectElement>("[data-coding-model]").value;
+  const intent = INTENT_BY_ROLE[run.frozen.role_id] || s.intent, id = s.current, modelValue = page.refs.composerModels.value();
   s.sending = true;
   controls(page);
   try {
@@ -39,7 +39,7 @@ async function nudge(page: Page, target: HTMLButtonElement) {
 }
 
 /** The tool choice dialog opens on the session's own choices, read fresh from the Host's list. */
-async function openMcp(page: Page) {
+export async function openMcp(page: Page) {
   const { q, s } = page, id = s.current;
   await refreshState(page);
   if (s.current !== id || shut(page)) return;
@@ -48,23 +48,6 @@ async function openMcp(page: Page) {
   renderMcp(page);
   q("[data-coding-mcp-error]").textContent = "";
   q<HTMLDialogElement>("[data-coding-mcp-dialog]").showModal();
-}
-
-/** Pauses or resumes the round on show. */
-async function pause(page: Page, target: HTMLButtonElement) {
-  const { L, s } = page;
-  if (!s.lastRun) return;
-  const action = target.dataset.action === "resume" ? "resume" : "pause";
-  target.disabled = true;
-  try {
-    await api(page, sessionPath(s.current) + "/control", "POST", { run_id: s.lastRun.ref.run_id, kind: action });
-    status(page, action === "pause" ? L("coding.run.pause-received") : L("coding.run.resumed"));
-    await readCurrent(page);
-  } catch (error) {
-    status(page, errorMessage(error), true);
-  } finally {
-    controls(page);
-  }
 }
 
 /** Archives the session after the person agrees; the page goes back to the list. */
@@ -119,16 +102,12 @@ function rename(page: Page) {
 }
 
 export const ROUND_CLICKS: readonly ClickRule[] = [
-  ["[data-coding-mcp-open]", openMcp],
   ["[data-coding-mcp-settings-link],[data-coding-mcp-close]", page => page.q<HTMLDialogElement>("[data-coding-mcp-dialog]").close()],
-  ["[data-coding-material-open]", page => openMaterials(page)],
-  ["[data-coding-delegate-open]", page => page.refs.cooperationUi.openDialog()],
   ["[data-coding-nudge]", nudge],
   ["[data-coding-commit-round]", commitRound],
-  ["[data-coding-method-open]", page => openMethods(page)],
   ["[data-coding-method-close]", page => {
     page.q<HTMLDialogElement>("[data-coding-method-dialog]").close();
-    page.input.focus();
+    page.refs.composer.focus();
   }],
   ["[data-coding-continue]", async (page, target) => {
     target.disabled = true;
@@ -139,15 +118,6 @@ export const ROUND_CLICKS: readonly ClickRule[] = [
     target.disabled = true;
     await recoverAndContinue(page, target.dataset.codingRecoverContinue || "");
     target.disabled = false;
-  }],
-  ["[data-coding-pause]", pause],
-  ["[data-coding-stop]", async (page, target) => {
-    const { L, s } = page;
-    if (!s.lastRun) return;
-    target.disabled = true;
-    await api(page, sessionPath(s.current) + "/control", "POST", { run_id: s.lastRun.ref.run_id, kind: "stop" });
-    status(page, L("coding.run.stop-received"));
-    await readCurrent(page);
   }],
   ["[data-coding-archive]", archive],
   ["[data-coding-rename]", rename],

@@ -15,7 +15,7 @@ export interface ComposerDrafts { load(): void; save(): void; clear(): void; sto
 export function composerDrafts(c: Composer, retained: ComposerRetained): ComposerDrafts {
   const { options, signal, field } = c;
   const local = composerLocalDraft(c.root, options);
-  const adapter = "adapter" in options.draft ? options.draft.adapter : null;
+  const adapter = options.draft && "adapter" in options.draft ? options.draft.adapter : null;
   let timer = 0, edited = false, pending: string | undefined;
   const loadedAt = retained.revision();
   const restore = (text: string, at?: string) => {

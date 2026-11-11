@@ -31,9 +31,9 @@ function ruleDraft(page: Page, run: RunView): string {
 
 /** The model drafts from every recent round that changed files (a call that costs a little); the rule draft stays as the fallback. */
 async function modelDraft(page: Page, id: string, run: RunView, fallback: string): Promise<{ draft: string; note: string; failed: boolean } | null> {
-  const { L, lifetime, q } = page;
+  const { L, lifetime, refs } = page;
   try {
-    const [provider_id, model_id] = JSON.parse(q<HTMLSelectElement>("[data-coding-model]").value || "[]") as [string?, string?];
+    const [provider_id, model_id] = JSON.parse(refs.composerModels.value() || "[]") as [string?, string?];
     const result = await api<{ message: string; rounds: readonly string[]; usage?: { input: number; output: number } }>(page, sessionPath(id, run.ref.run_id) + "/commit-draft", "POST", { provider_id, model_id });
     const rounds = result.rounds.join(L("coding.list.joiner")), tokens = result.usage ? (result.usage.input + result.usage.output).toLocaleString() : "";
     return { draft: result.message, note: result.usage ? L("coding.commit.drafted-usage", { rounds, tokens }) : L("coding.commit.drafted", { rounds, tokens }), failed: false };

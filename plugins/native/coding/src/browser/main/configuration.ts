@@ -1,26 +1,20 @@
-import { el } from "../dom.js";
+import { codingIntentOptions } from "../../composer-labels.js";
+import { el, errorMessage } from "../dom.js";
 import { renderDirectory } from "./directory.js";
 import { controls } from "./controls.js";
 import type { Page } from "./page.js";
-import { api } from "./request.js";
+import { api, status } from "./request.js";
+import { surfaceChanged } from "./select.js";
 import type { StateRead } from "./shapes.js";
 import { showWorkspace } from "./workspace.js";
 
 /** Puts the session's remembered start (intent, model, directory, effort) back on the composer. */
 export function applyConfiguration(page: Page) {
   const { L, q } = page, { composerModels } = page.refs, { s } = page;
-  const config = s.configurations.get(s.current), models = q<HTMLSelectElement>("[data-coding-model]");
-  models.querySelector("[data-unavailable]")?.remove();
+  const config = s.configurations.get(s.current);
   if (config) {
-    q<HTMLSelectElement>("[data-coding-intent]").value = config.intent ?? "";
-    const value = config.provider_id && config.model_id ? JSON.stringify([config.provider_id, config.model_id]) : "";
-    if (![...models.options].some(option => option.value === value)) {
-      const unavailable = el("option", L("coding.model.unavailable"));
-      unavailable.value = value;
-      unavailable.dataset.unavailable = "true";
-      models.append(unavailable);
-    }
-    models.value = value;
+    s.intent = config.intent || "discuss";
+    composerModels.choose(config.provider_id && config.model_id ? JSON.stringify([config.provider_id, config.model_id]) : "");
     s.workspaceId = config.workspace_id ?? "";
     composerModels.apply(config);
   }
@@ -33,14 +27,29 @@ export function applyConfiguration(page: Page) {
 
 /** Keeps what the composer is set to as the open session's start. */
 export function rememberConfiguration(page: Page) {
-  const { q } = page, { composerModels, draft } = page.refs, { s } = page;
+  const { composerModels, draft } = page.refs, { s } = page;
   if (!draft.owns(s.current)) return;
-  const [provider, model] = JSON.parse(q<HTMLSelectElement>("[data-coding-model]").value || "[]") as [string?, string?];
+  const [provider, model] = JSON.parse(composerModels.value() || "[]") as [string?, string?];
   const writers = s.configurations.get(s.current)?.writer_assignments;
   s.configurations.set(s.current, {
-    intent: q<HTMLSelectElement>("[data-coding-intent]").value, provider_id: provider || "", model_id: model || "", ...composerModels.effort(), workspace_id: s.workspaceId, ...(writers ? { writer_assignments: writers } : {}),
+    intent: s.intent, provider_id: provider || "", model_id: model || "", ...composerModels.effort(), workspace_id: s.workspaceId, ...(writers ? { writer_assignments: writers } : {}),
     ...(s.worktree ? { worktree: s.worktree } : {}),
   });
+}
+
+/** The person changed what the next round starts with (the way of working, the model, its effort): kept as the session's start and saved. */
+export function configurationChanged(page: Page) {
+  const { L, refs, s } = page, id = s.current;
+  rememberConfiguration(page);
+  controls(page);
+  void refs.draft.flush().then(() => surfaceChanged(page, id)).catch(error => status(page, L("coding.configuration.unsaved", { reason: errorMessage(error) }), true));
+}
+
+/** The next round's way of working, chosen in the bar, by a command or by a suggestion on the welcome. */
+export function chooseIntent(page: Page, value: string) {
+  if (page.s.intent === value) return;
+  page.s.intent = value;
+  configurationChanged(page);
 }
 
 /**
@@ -54,18 +63,11 @@ export function retitle(page: Page, id: string, before: string | undefined | fal
 
 /** The runtime's roles decide which kinds of round the composer offers. */
 function drawIntents(page: Page, result: StateRead) {
-  const { L, q } = page, { s } = page;
+  const { L, s } = page;
   const runtime = result.sessions.find(session => session.session_id === s.current)?.runtime_id || result.project_runtime_id;
   const roles = result.runtimes.find(item => item.runtime_id === runtime)?.roles || [];
-  const available = (id: string) => Boolean(roles.find(role => role.role_id === id)?.available);
-  const option = (value: string) => q<HTMLOptionElement>("[data-coding-intent] option[value=" + value + "]");
-  option("parallel").disabled = !available("writers");
-  option("collaborate").disabled = !available("coordinator");
-  const execute = option("execute"), edit = option("edit");
-  execute.disabled = !available("builder");
-  execute.textContent = available("builder") ? L("coding.intent.execute") : L("coding.intent.execute-pending");
-  edit.disabled = !available("writer");
-  edit.textContent = available("writer") ? L("coding.intent.edit") : L("coding.intent.edit-pending");
+  const needs: Readonly<Record<string, string>> = { parallel: "writers", collaborate: "coordinator", execute: "builder", edit: "writer" };
+  s.intents = codingIntentOptions(L, intent => !needs[intent] || Boolean(roles.find(role => role.role_id === needs[intent])?.available));
 }
 
 /** The directories the person may run rounds in, as the composer's choice. */

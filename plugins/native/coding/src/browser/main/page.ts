@@ -1,4 +1,4 @@
-import type { ScrollFollower } from "@molis-ai/molis-work-plugin-sdk/page-globals";
+import type { ComposerHandle, ComposerMention, ScrollFollower } from "@molis-ai/molis-work-plugin-sdk/page-globals";
 import { createCodingTimeline } from "../../timeline.js";
 import { createCodingTurnChanges } from "../../turn-changes-client.js";
 import { createCodingCodePaint } from "../../code-paint-client.js";
@@ -48,8 +48,12 @@ export interface State {
   checkpointBusy: boolean;
   checkpointKey: string;
   checkpointLoading: boolean;
-  /** The composer and what sets the next round (each a button by the box opening a dialog of that name). */
-  choosers: readonly string[];
+  /** The dialogs that set the next round of the session on show; switching sessions closes them unsaved. */
+  choiceDialogs: readonly string[];
+  /** What the composer's bar was last drawn from (`controls`): drawn again only when it changed, so an open select is not closed under the person. */
+  composerDrawn: string;
+  /** The composer's own send is on its way: unlike a round started by another button, the person may go on writing. */
+  composerSending: boolean;
   configurations: Map<string, Partial<SessionConfiguration> | undefined>;
   creating: boolean;
   creatingCharacterSession: boolean;
@@ -70,6 +74,10 @@ export interface State {
   goalSaving: boolean;
   goalTicket: number;
   indexSignature: string;
+  /** The way of working the next round is started in (the composer's first control). */
+  intent: string;
+  /** The ways of working as the bar lists them: one this session's runtime has no role for cannot be chosen. */
+  intents: readonly { readonly value: string; readonly label: string; readonly disabled?: boolean }[];
   indexTimer: number;
   indexed: HTMLElement[];
   itemTicket: number;
@@ -136,11 +144,11 @@ export interface WorktreeChoice { readonly worktree_id: string; readonly canonic
 
 /** The pieces the page is made of, each built once when the page mounts. */
 export interface Refs {
-  attachMenu: HTMLElement;
-  attachToggle: HTMLElement;
   changeReview: ChangesetClient;
   codeSource: ReturnType<typeof createCodingCodePaint>["source"];
   commandsUi: CommandsClient;
+  /** The platform's composer (unified-input-voice K4), mounted again for each session on show with that session's draft. */
+  composer: ComposerHandle;
   composerModels: ComposerModels;
   cooperationUi: CooperationClient;
   draft: CodingDraft;
@@ -153,6 +161,11 @@ export interface Refs {
   paintRows: ReturnType<typeof createCodingCodePaint>["paintRows"];
   pieceNode: ReturnType<typeof createCodingCodePaint>["pieceNode"];
   planProgress: PlanProgress;
+  /** What `@` names in the composer: the workspace's files and their definitions (mentions.ts). */
+  mentions: (query: string, signal: AbortSignal) => Promise<readonly ComposerMention[]>;
+  /** Opens the choice of the actions, and of the Character, the next round is given. */
+  openActions: () => void;
+  openCharacter: () => void;
   plans: PlansClient;
   renderCards: ReturnType<typeof actionsClient>["renderCards"];
   stepReports: StepReports;

@@ -34,11 +34,11 @@ function emptyState(L: Page["L"]): Omit<State, "ports" | "follow" | "earlierWatc
     actionSelections: new Map(), adoptedConfigurations: new Map(), allRuns: [], answeredQuestions: new Set(), artifactRows: [], artifactTicket: 0,
     boardAll: { key: "", id: "", value: null }, changeItem: "", characterSelections: new Map(), characterSkills: new Map(), characterTitles: new Map(),
     checkpointBusy: false, checkpointKey: "", checkpointLoading: false,
-    choosers: ["workspace", "goal", "writer-directories", "material", "method", "mcp", "actions", "character", "delegate"],
+    choiceDialogs: ["workspace", "goal", "writer-directories", "method", "mcp", "actions", "character", "delegate"], composerDrawn: "", composerSending: false,
     configurations: new Map(), creating: false, creatingCharacterSession: false, current: "", dialogueOffset: 0,
     directoryClaimed: false, directoryGroups: new Map(), directoryRows: new Map(), earlierFingerprint: "", earlierRuns: [],
     generation: 0, goalChoice: null, goalCursor: null, goalReading: 0, goalRows: [], goalSaving: false, goalTicket: 0,
-    indexSignature: "", indexTimer: 0, indexed: [], itemTicket: 0, lastData: null, lastRun: null, liveRun: "", liveTicket: 0, loading: false,
+    indexSignature: "", indexTimer: 0, intent: "discuss", intents: [], indexed: [], itemTicket: 0, lastData: null, lastRun: null, liveRun: "", liveTicket: 0, loading: false,
     materialSelections: new Map(), materialTicket: 0, mcpChoices: [], mcpSelections: new Map(), mcpSourceChoices: [], mcpSourceSelections: new Map(),
     methodChoices: [], methodSelections: new Map(), offeredApprovals: new Set(), offsets: new Map(),
     olderPlanEntries: [], olderSubagents: [], olderViews: new Map(), pageLoading: false, paintFrame: 0, phases: phaseWords(L), planEntries: [], pollingTicks: 0,
@@ -71,7 +71,7 @@ export function createPage(host: CodingHost): Page | null {
     return found;
   };
   const s = emptyState(L) as State, refs = {} as Refs;
-  const page: Page = { host, L, root, directory, lifetime, q, turns: q("[data-coding-turns]"), input: q<HTMLTextAreaElement>("[data-coding-task]"), s, refs };
+  const page: Page = { host, L, root, directory, lifetime, q, turns: q("[data-coding-turns]"), input: q<HTMLTextAreaElement>("[data-coding-input] .mw-composer__input"), s, refs };
   s.ports = { lifetime, translate: L, q, api: (path, method, body, signal) => api(page, path, method, body, signal), current: () => s.current, status: (message, isError) => status(page, message, isError), refresh: () => readCurrent(page) };
   return page;
 }

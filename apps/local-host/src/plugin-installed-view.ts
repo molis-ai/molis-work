@@ -2,7 +2,7 @@ import { ACTION_ERROR_CODE } from "@molis-ai/molis-work-contracts/platform/actio
 import { pluginErrors, type PluginInstanceRecord, type PluginManifest, type PluginPermissionDeclaration } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { projectedPermissionsOf } from './installed-permission-projection.js';
 import { platformPermissionMeaning, type PluginInstalledPermissionView, type PluginInstalledView, type PluginJobView, type PluginPermissionView } from '@molis-ai/molis-work-contracts/platform/plugin-trust';
-import type { PluginConsentLedger } from '@molis-ai/molis-work-plugin-runtime';
+import { UNINSTALL_PENDING, type PluginConsentLedger } from '@molis-ai/molis-work-plugin-runtime';
 
 /** One installation of a project or of the Home, the Manifest it was installed with (undefined when that cannot be read), and why it is not running when its plugin host knows. */
 export interface InstalledPluginEntry { record: PluginInstanceRecord; manifest: PluginManifest | undefined;
@@ -10,6 +10,13 @@ export interface InstalledPluginEntry { record: PluginInstanceRecord; manifest: 
   recoveryCode?: string;
   /** Recomputed from a validated saved package, never a second persisted grant list. Ordinary plugins request every declared row. */
   requestedPermissions?: readonly string[] }
+
+/** A signed sandbox row's uninstall target, and the first data choice of an uninstall whose clean-up has not finished (BL-915). */
+function uninstallFields(record: PluginInstanceRecord): Pick<PluginInstalledView, 'uninstall_target' | 'pending_keep_data'> {
+  if (record.publisher_trust !== 'pinned' || record.execution !== 'sandbox') return {};
+  const uninstall_target = { install_id: record.install_id, installation_generation: record.installation_generation, version: record.version, manifest_digest: record.manifest_digest };
+  return { uninstall_target, ...record.state === 'uninstalled' && record.last_error_code === UNINSTALL_PENDING ? { pending_keep_data: record.retain_private_data } : {} };
+}
 
 export type PermissionSwitchTarget = Pick<PluginInstanceRecord, 'installation_generation' | 'manifest_digest' | 'plugin_id' | 'publisher_signature' | 'version'>;
 /** A switch checked against a saved package cannot cross an asynchronous change to the installation or its published declaration. */
@@ -43,5 +50,6 @@ export function installedPluginViews(entries: readonly InstalledPluginEntry[], l
     trust: record.publisher_trust, publisher_signature: record.publisher_signature, publisher_label: pins.get(record.publisher_signature)?.label ?? null,
     manifest_available: manifest !== undefined, permissions: manifest ? installedPermissionViews(manifest, record.grants, requestedPermissions, projectedPermissionsOf(record)) : [], jobs: manifest ? jobViews(manifest) : [],
     consents: ledger.consents(record.plugin_id), recovery_error: recoveryCode ? (recoveryCode === "plugin.package_invalid" && record.last_error_code && ACTION_ERROR_CODE.test(record.last_error_code) ? record.last_error_code : recoveryCode) : null,
+    ...uninstallFields(record),
   }));
 }

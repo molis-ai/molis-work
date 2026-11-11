@@ -95,7 +95,10 @@ test("BL623-08 S-84 the project's 插件 page switches a signed plugin off and o
   assert.deepEqual((await step("enable")).body, { plugin_id: PACKAGE_PLUGIN_ID, state: "running" });
   assert.equal(await state(), "running");
   assert.equal((await step("uninstall")).body.code, "actions.input_invalid", "taking it off says whether its data is kept");
-  assert.deepEqual((await step("uninstall", { keep_data: true })).body, { plugin_id: PACKAGE_PLUGIN_ID, state: "uninstalled" });
+  const target = (await env.overview()).plugins.find(item => item.plugin_id === PACKAGE_PLUGIN_ID)!.uninstall_target;
+  assert.ok(target, "the row names the installation an uninstall takes off (BL-915)");
+  assert.equal((await step("uninstall", { keep_data: true })).body.code, "actions.input_invalid", "taking it off names the row's installation");
+  assert.deepEqual((await step("uninstall", { keep_data: true, target })).body, { plugin_id: PACKAGE_PLUGIN_ID, state: "uninstalled" });
   assert.equal(await state(), undefined, "it is gone from the overview");
   assert.equal((await step("disable", { plugin_id: "goals" })).body.code, "plugin.state_invalid", "a plugin that did not come from a signed package is not touched");
 });

@@ -6,7 +6,7 @@ export { definitionOrigin, isFrozenRegisteredManifest, platformDefinition } from
 import { assertContributionMatchesManifest, offeredManifest, redemptionIn, type RedemptionScope } from "./contribution.js";
 import { definitionOrigin, platformDefinition } from "./platform-definitions.js";
 import { pluginManifestDigest } from "./identity.js";
-import { abandonRefusal, assertMutable, followHostBuild, installationGrants, normalizeGrants, prepareInstallationData, recordToFollow, saveInstalled, assertDeclarationsFree, assertStartable, holdsInstalledEdition, versionChangeRecord, type DeclarationOwners } from "./install-rules.js";
+import { UNINSTALL_PENDING, uninstallRefusal, type UninstallOptions, abandonRefusal, assertMutable, followHostBuild, installationGrants, normalizeGrants, prepareInstallationData, recordToFollow, saveInstalled, assertDeclarationsFree, assertStartable, holdsInstalledEdition, versionChangeRecord, type DeclarationOwners } from "./install-rules.js";
 import { assertRuleKeysUnreserved, isHostTrust, type InProcessAdmission } from "./trust-rules.js";
 import { actionProviderId, assertInstallIdentity, assertStartIdentity, isIdentityFailure } from "./install-identity.js";
 import { InstallLocks } from "./install-locks.js";
@@ -24,7 +24,7 @@ import { regrantInstall } from "./regrant.js";
 import { assertPluginUpgradeStepsAdmitted } from "./plugin-upgrade-steps.js";
 
 export * from "./public-api.js";
-export { holdsInstalledEdition, type DeclarationOwner, type DeclarationOwners } from "./install-rules.js";
+export { holdsInstalledEdition, UNINSTALL_PENDING, type DeclarationOwner, type DeclarationOwners, type UninstallOptions } from "./install-rules.js";
 
 import type { PluginConsentGrant, PluginTrust } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import type {
@@ -134,6 +134,7 @@ export class PluginRuntime implements PluginRuntimeApi {
     const entrypoint = selectedEntrypoint(manifest, input.deployment);
     const current = this.repository.get(installId);
     if (current?.state === "uninstalled" && this.locks.busy(installId)) throw pluginErrors.state_invalid("Plugin 卸载尚未完成，请等待卸载完成后再安装");
+    if (current?.state === "uninstalled" && current.last_error_code === UNINSTALL_PENDING) throw pluginErrors.uninstall_cleanup_pending("上次卸载还没有清理完：请先在设置里重试卸载，再安装");
     if (input.definition.execution === "sandbox" && input.grants === undefined) throw pluginErrors.grant_denied("生成插件安装需要明确授权清单，且不能当作随宿主发布的插件授予全部权限");
     if (current && current.execution !== (input.definition.execution ?? "host")) throw pluginErrors.definition_conflict("不能改变已安装插件的执行信任边界");
     if (current && current.state !== "uninstalled" && current.publisher_trust !== trust.level) throw pluginErrors.definition_conflict("不能改变已安装插件的安装信任等级");
@@ -594,10 +595,8 @@ export class PluginRuntime implements PluginRuntimeApi {
     }
   }
 
-  uninstall(
-    installId: string,
-    options: { retain_private_data?: boolean } = {},
-  ): Promise<PluginLifecycleReceipt> {
+  /** See `UninstallOptions` (BL-915). */
+  uninstall(installId: string, options: UninstallOptions = {}): Promise<PluginLifecycleReceipt> {
     const refusal = leaveRefusal(this.options.consents, this.repository.get(installId), "卸载");
     return refusal ? Promise.reject(refusal) : this.locks.run(installId, () => this.uninstallOnce(installId, options));
   }
@@ -611,13 +610,14 @@ export class PluginRuntime implements PluginRuntimeApi {
     });
   }
 
-  private async uninstallOnce(
-    installId: string,
-    options: { retain_private_data?: boolean },
-    restore?: PluginInstanceRecord,
-  ): Promise<PluginLifecycleReceipt> {
-    const current = requireInstall(this.repository, installId);
-    const replayed = current.state === "uninstalled" && (!restore || restore.installation_generation === current.installation_generation);
+  private async uninstallOnce(installId: string, options: UninstallOptions, restore?: PluginInstanceRecord): Promise<PluginLifecycleReceipt> {
+    const current = requireInstall(this.repository, installId), refusal = restore ? undefined : uninstallRefusal(current, options);
+    if (refusal) throw refusal;
+    options.assertCurrent?.();
+    const host = !restore && options.cleanup !== undefined; // see `UninstallOptions`
+    const pending = !restore && current.state === "uninstalled" && current.last_error_code === UNINSTALL_PENDING;
+    const replayed = current.state === "uninstalled" && !pending && (!restore || restore.installation_generation === current.installation_generation);
+    if (replayed && host) return this.receipt("uninstall", current, true);
     if (current.state === "running" && this.hasLiveInstance(installId)) {
       const definition = requireDefinition(this.definitions, current);
       const live = this.liveContext(installId);
@@ -632,21 +632,25 @@ export class PluginRuntime implements PluginRuntimeApi {
     }
     this.revokeContext(installId);
     const at = this.now();
-    const updated = replayed ? current : restore ? cloneRecord(restore) : {
+    const updated = replayed || pending ? current : restore ? cloneRecord(restore) : {
       ...current,
       state: "uninstalled" as const,
       retain_private_data: options.retain_private_data ?? current.retain_private_data,
-      last_error_code: null,
+      last_error_code: host ? UNINSTALL_PENDING : null,
       updated_at: at,
       uninstalled_at: at,
     };
-    if (!replayed) this.repository.save(updated);
+    if (!replayed && !pending) this.repository.save(updated);
     try {
       await this.executor.uninstalled?.(updated);
+      if (!restore) { options.assertCurrent?.(); await options.cleanup?.(updated); }
     } finally {
       forgetUninstalledDefinitions(this.definitions, current);
     }
-    return this.receipt("uninstall", updated, replayed);
+    if (!host) return this.receipt("uninstall", updated, replayed);
+    const done = { ...updated, last_error_code: null, updated_at: this.now() };
+    this.repository.save(done);
+    return this.receipt("uninstall", done, false);
   }
 
   get(installId: string): PluginInstanceRecord {

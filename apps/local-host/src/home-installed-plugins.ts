@@ -13,7 +13,7 @@ import { installedDefinitions } from './installed-plugin-definition.js';
 import { installedPluginExposure } from './installed-plugin-exposure.js';
 import { PUBLISHER_REVOKED_MESSAGE, publisherStanding, publisherStops } from './installed-publisher-standing.js';
 import { INSTALLED_MODEL_KEY, sandboxDeclaration, sandboxGrants, staleInstallation } from './installed-plugin-host.js';
-import { APPROVED_KEY, installedLifecycle, type InstalledPluginPlatform } from './installed-plugin-lifecycle.js';
+import { APPROVED_KEY, installedLifecycle, type InstalledPluginPlatform, isPendingUninstall, onlyOne, uninstallInstalledRecord, type InstalledLifecycleContext } from './installed-plugin-lifecycle.js';
 import { installedVersion, type InstalledRelease } from './installed-release.js';
 import { assertHomePackageAllowed } from './home-package-admission.js';
 import { configuredModelChoices } from './configured-models.js';
@@ -32,6 +32,7 @@ import { sandboxedIntegrationDefinition } from './sandbox-integration.js';
 import type { SandboxServiceContext } from '@molis-ai/molis-work-plugin-sandbox';
 import { projectReachConsents } from './plugin-project-reach-consent.js';
 import { RecoveryErrors } from './installed-recovery-errors.js';
+import type { PluginUninstallTarget } from '@molis-ai/molis-work-contracts/platform/plugin-trust';
 
 /** What the Home's installs are kept under where a project's id would go: the approval, the secrets and the prompt registrations. Not a project's id. */
 export const HOME_INSTALL_SCOPE = '~home';
@@ -74,14 +75,10 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
   const isClosed = () => closed || options.closed();
   /** Packages from a signed publisher that run in the sandbox: the only installs of the Home that are not of the Host's build. */
   const records = () => platform.runtime.list().filter(item => item.publisher_trust === 'pinned' && item.execution === 'sandbox' && item.state !== 'uninstalled');
-  const recordFor = (pluginId: string, retryUninstall = false) => {
-    const current = records().find(item => item.plugin_id === pluginId);
-    if (current || !retryUninstall || approvedFor(pluginId) === null) return current;
-    // A failed cleanup keeps the existing approval until the same lifecycle finishes. Never choose another retired publisher/installation.
-    const retired = platform.runtime.list().filter(item => item.plugin_id === pluginId && item.publisher_trust === 'pinned'
-      && item.execution === 'sandbox' && item.state === 'uninstalled');
-    return retired.length === 1 ? retired[0] : undefined;
-  };
+  /** `retryUninstall`: also the one signed tombstone of this plugin whose uninstall has not finished its clean-up (BL-915), never another. */
+  const pendingUninstalls = () => platform.runtime.list().filter(isPendingUninstall);
+  const recordFor = (pluginId: string, retryUninstall = false) => records().find(item => item.plugin_id === pluginId)
+    ?? (retryUninstall ? onlyOne(pendingUninstalls().filter(item => item.plugin_id === pluginId)) : undefined);
   /** A package runs only while its publisher's pin stands (S-84, S-87): the ledger is asked at the start, at every effect, and before it is enabled again. */
   const standing = publisherStanding({ publishers: () => platform.consents?.publishers() ?? [] });
   /** A package is read back (and checked again) from the Home's package store the first time an installation asks for it. */
@@ -196,9 +193,10 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
     updatePluginAgentDefinitions(pluginHomeFor(home), value, record.install_id, state, restored); reconcileSkillSettings(home, "home", record.install_id, (value.manifest.methods ?? []).map(method => method.skill_id));
   };
   const stops = publisherStops({ standing, platform, recoveryErrors, withdraw: id => { withdraw(id); declared.release(id); }, records });
-  const lifecycle = installedLifecycle({ platform, storage, privateStorage: options.privateStorage, secrets, recoveryErrors, closed: isClosed, trusted: standing.trusted, recordFor, releaseFor, approvedFor,
+  const lifecycleContext: InstalledLifecycleContext = { platform, storage, privateStorage: options.privateStorage, secrets, recoveryErrors, closed: isClosed, trusted: standing.trusted, recordFor, releaseFor, approvedFor,
     definition, expose, withdraw, registerPrompts,
-    async forget(pluginId, installId) { declared.release(pluginId); forgetPluginAgentDefinitions(pluginHomeFor(home), installId); forgetDefinitions(pluginId); await forgetTaskGrantSubjects(home, subject => subject.plugin_install_id === installId); } });
+    async forget(pluginId, installId) { declared.release(pluginId); forgetPluginAgentDefinitions(pluginHomeFor(home), installId); forgetDefinitions(pluginId); await forgetTaskGrantSubjects(home, subject => subject.plugin_install_id === installId); } };
+  const lifecycle = installedLifecycle(lifecycleContext);
   const close = () => { closed = true; for (const id of [...exposed.keys(), ...attached.keys()]) withdraw(id); disposePlatform(); declared.releaseAll(); };
 
   try {
@@ -227,10 +225,12 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
   } catch (error) { close(); throw error; }
 
   return {
-    lifecycle, recordFor, releaseFor, records, recoveryErrors, close, projectReach: reach,
+    lifecycle, recordFor, releaseFor, records, recoveryErrors, close, projectReach: reach, pendingUninstalls,
+    /** Takes a signed package's installation off from its trusted row, its package not read (BL-915). */
+    uninstall: (pluginId: string, input: { keepData?: boolean; target?: PluginUninstallTarget; assertCurrent?: () => void }) => uninstallInstalledRecord(lifecycleContext, pluginId, input),
     /** The package an installation runs, read back and checked, without asking whether its publisher is still trusted: for the lifecycle (switch off, on, take off) only, so the person can still take a revoked publisher's package off; starting and running go through `releaseFor`. */
-    packageOf: (pluginId: string, retryUninstall = false): InstalledRelease | undefined => {
-      const record = recordFor(pluginId, retryUninstall);
+    packageOf: (pluginId: string): InstalledRelease | undefined => {
+      const record = recordFor(pluginId);
       return record ? packages.load(record.plugin_id, record.publisher_signature, record.version) : undefined;
     },
     /** Installs a release read from a signed package, under the trust it carries; the person's approval of its permissions is `consent`. */

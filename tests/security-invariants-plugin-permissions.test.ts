@@ -132,7 +132,7 @@ test("RAC-2603 S-94 switching a Home package off or on, or taking it off, is the
   const home = (extra: Partial<ActionCallContext> = {}) => caller({ project_id: null, ...extra });
   for (const name of ["homeDisable", "homeEnable", "homeUninstall"] as const) {
     const target = { capability_id: pluginControlActions[name].capability_id, version: 1 };
-    const input = { plugin_id: PACKAGE_PLUGIN_ID, ...(name === "homeUninstall" ? { keep_data: true } : {}) };
+    const input = { plugin_id: PACKAGE_PLUGIN_ID, ...(name === "homeUninstall" ? { keep_data: true, target: { install_id: "install", installation_generation: "generation", version: "1.0.0", manifest_digest: "digest" } } : {}) };
     assert.equal((await actions.discover(home())).some(view => view.capability_id === target.capability_id), true, `${name}: the person sees it`);
     for (const audience of ["agent", "mcp", "workflow", "plugin"] as const) {
       assert.deepEqual((await actions.discover(home({ audience }))).filter(view => view.capability_id === target.capability_id), [], `${name}: ${audience} does not see it`);

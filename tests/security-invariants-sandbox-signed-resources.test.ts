@@ -91,7 +91,11 @@ async function rig(t: TestContext) {
     project: (name: string) => served.createProject(name), projectSet: (projectId: string, input: unknown) => served.web.post(`/projects/${projectId}/api/plugin-trust/permissions/set`, input),
     install: (pkg = bundle()) => h.install(pkg),
     list: () => served.web.post<{ plugins: Array<{ plugin_id: string; permissions: Array<{ permission: string; requested: boolean; granted: boolean }> }> }>("/api/settings/plugin-permissions/list", {}),
-    control: (action: string, keep_data?: boolean, id = ID) => served.web.post(`/api/settings/plugin-permissions/${action}`, { plugin_id: id, ...(keep_data === undefined ? {} : { keep_data }) }),
+    // An uninstall names the row's installation, as the 插件 page does (BL-915); a row whose clean-up did not finish is still listed with it.
+    control: async (action: string, keep_data?: boolean, id = ID) => {
+      const target = action === "uninstall" ? (await served.web.post<{ plugins: Array<{ plugin_id: string; uninstall_target?: unknown }> }>("/api/settings/plugin-permissions/list", {})).plugins.find(row => row.plugin_id === id)?.uninstall_target : undefined;
+      return served.web.post(`/api/settings/plugin-permissions/${action}`, { plugin_id: id, ...(keep_data === undefined ? {} : { keep_data }), ...(target ? { target } : {}) });
+    },
     async reopen() { await served.close(); await h.reopen(); served = await serveTestHost(null, { home: h.home, host: h.host }); } };
 }
 const writeFile = (text: string, path = "notes.txt", mode = "create") => ({ op: "files.write", changes: [{ op: "write", path, data_base64: Buffer.from(text).toString("base64"), mode }] });

@@ -45,6 +45,8 @@ export const pluginErrors = defineErrorCodes("plugin", {
   stop_timeout: "timeout",
   storage_denied: "invalid",
   storage_input_invalid: "invalid",
+  /** An uninstall stopped the installation and wrote its tombstone but did not finish the Host's cleanup (BL-915): kept on the row, listed, retried with the first data choice; nothing installs, enables or upgrades over it. */
+  uninstall_cleanup_pending: "unavailable",
   upgrade_required: "invalid",
   upgrade_rollback_failed: "invalid",
   upgrade_validation_failed: "invalid",

@@ -3,7 +3,7 @@ import test from "node:test";
 import type { KitEntry } from "@molis-ai/molis-work-contracts/platform/kit-report";
 import type { KitCatalog, KitPack } from "@molis-ai/molis-work-contracts/services/kit";
 import { skillCatalogActions, type SkillCatalogEntry } from "@molis-ai/molis-work-contracts/services/skills";
-import { pluginAgentRegistration, pluginControlActions } from "@molis-ai/molis-work-app-local-host";
+import { pluginAgentRegistration, pluginControlActions, pluginInstallActions } from "@molis-ai/molis-work-app-local-host";
 import { AGENT_TOOLS } from "@molis-ai/molis-work-service-agent-host";
 import { CONTENT_PLUGIN_ID, signedContentPackage } from "./fixtures/content-package.js";
 import { kitHost } from "./fixtures/kit-host.js";
@@ -64,7 +64,11 @@ test("CPK-03 CPK-14: a pack has no switch; its state is read from its plugin and
   assert.equal(Object.keys(before).some(key => /^(?:enabled|switch|on|active)$/u.test(key)), false, "no switch field on a pack");
   await h.invoke(pluginControlActions.disable, { plugin_id: CONTENT_PLUGIN_ID });
   assert.deepEqual(packOf(await h.kit(), CONTENT_PLUGIN_ID).state, { kind: "disabled" });
-  await h.invoke(pluginControlActions.uninstall, { plugin_id: CONTENT_PLUGIN_ID, keep_data: true });
+  // Taken off at the project settings door, naming the row's installation (S-94, BL-915).
+  const rows = await h.invoke<{ plugins: Array<{ plugin_id: string; uninstall_target?: unknown }> }>(pluginInstallActions.installed, {});
+  const target = rows.plugins.find(row => row.plugin_id === CONTENT_PLUGIN_ID)!.uninstall_target;
+  const removed = await h.f.call(h.f.project.project_id, "/api/plugin-trust/installed/uninstall", { plugin_id: CONTENT_PLUGIN_ID, keep_data: true, target });
+  assert.equal(removed.status, 200, JSON.stringify(removed.body));
   const gone = await h.kit(), header = packOf(gone, CONTENT_PLUGIN_ID);
   assert.deepEqual(header.state, { kind: "uninstalled" });
   assert.deepEqual([header.roles, header.skills, header.mcp, header.tools], [[], [], [], []], "only the header is left");

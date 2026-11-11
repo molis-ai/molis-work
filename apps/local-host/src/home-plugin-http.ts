@@ -128,8 +128,12 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
     // A package installed in the Home (BL-628) is switched and removed by the install lifecycle a project's packages have, not by the supervisor alone.
     if (host.homePlugins.hasPackage(pluginId)) {
       try {
+        if (operation === "uninstall" && pluginPageRequest(request)) throw new ActionError("actions.forbidden", "插件页面不能代本人卸载插件");
         const body = operation === "uninstall" ? await readLocalWebBody(request) as { keep_data?: unknown } | null : null;
-        await host.homePlugins.packageAction(pluginId, operation as "enable" | "disable" | "uninstall", { keepData: body?.keep_data === true });
+        // The installation this request reaches is fixed when it arrives (BL-915): a reinstall or upgrade while it waits is not taken off in its place.
+        const row = operation === "uninstall" ? host.homePlugins.installation(pluginId) : undefined;
+        await host.homePlugins.packageAction(pluginId, operation as "enable" | "disable" | "uninstall", { keepData: body?.keep_data === true,
+          ...row ? { target: { install_id: row.install_id, installation_generation: row.installation_generation, version: row.version, manifest_digest: row.manifest_digest } } : {} });
         sendLocalWebJson(response, 200, { [operation === "enable" ? "enabled" : operation === "disable" ? "disabled" : "uninstalled"]: true });
       } catch (error) { const refused = actionErrorResponse(error); sendLocalWebJson(response, refused.status, refused.body); }
       return true;

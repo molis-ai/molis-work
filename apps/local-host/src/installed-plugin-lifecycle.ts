@@ -7,10 +7,11 @@
 import { ActionError } from '@molis-ai/molis-work-contracts/platform/actions';
 import { pluginErrors, type PluginDefinition, type PluginInstanceRecord, type PluginPrivateStorage } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxEffects } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
+import type { PluginUninstallTarget } from '@molis-ai/molis-work-contracts/platform/plugin-trust';
 import type { AgentBuilderPorts } from './installed-plugin-host.js';
 import type { InstalledRelease } from './installed-release.js';
 import { assertUpgradeOf } from './package-upgrade.js';
-import { leaveRefusal, UNSIGNED_TRUST, type SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime';
+import { leaveRefusal, UNINSTALL_PENDING, UNSIGNED_TRUST, type SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime';
 import type { PluginPlatform } from './plugin-platform.js';
 
 /** What the install lifecycle uses of a platform: a project's, or the Home's (BL-628). */
@@ -20,6 +21,13 @@ import { changeInstalledVersion } from './installed-plugin-version.js';
 import type { RecoveryErrors } from './installed-recovery-errors.js';
 
 export const APPROVED_KEY = 'plugin-builder:agent-studio:approved:';
+
+/** A signed sandbox tombstone whose uninstall has not finished its Host clean-up (BL-915): listed in the settings, and retried, until it has. */
+export const isPendingUninstall = (item: PluginInstanceRecord): boolean =>
+  item.publisher_trust === 'pinned' && item.execution === 'sandbox' && item.state === 'uninstalled' && item.last_error_code === UNINSTALL_PENDING;
+
+/** The one item, or none when there are none or several: a retry never picks among rows it cannot tell apart. */
+export const onlyOne = <Item>(items: readonly Item[]): Item | undefined => items.length === 1 ? items[0] : undefined;
 
 export const covered = (next: SandboxEffects, approved: SandboxEffects) =>
   Object.entries(next).every(([key, values]) => (values as string[]).every(value => ((approved as Record<string, string[]>)[key] ?? []).includes(value)));
@@ -70,7 +78,7 @@ export function installedLifecycle(c: InstalledLifecycleContext): AgentBuilderPo
    * it meanwhile), the prompts, secrets, scheduled work and data under this plugin belong to that install or to that
    * choice and none of it is touched (false). A failed take-back still cleans up what the Host holds, then reports itself.
    */
-  const uninstall = async (release: InstalledRelease, record: PluginInstanceRecord, keepData: boolean, attempt?: { earlier?: PluginInstanceRecord }): Promise<boolean> => {
+  const uninstall = async (release: Pick<InstalledRelease, 'pluginId'>, record: PluginInstanceRecord, keepData: boolean | undefined, attempt?: { earlier?: PluginInstanceRecord }): Promise<boolean> => {
     let undone: unknown;
     if (attempt) {
       try { await platform.runtime.abandonInstall(record, attempt.earlier); } catch (failure) {
@@ -79,12 +87,9 @@ export function installedLifecycle(c: InstalledLifecycleContext): AgentBuilderPo
       }
     }
     c.withdraw(release.pluginId); platform.supervisor.revoke(release.pluginId);
-    c.secrets.remove(release.pluginId);
-    if (!attempt) await platform.runtime.uninstall(record.install_id, { retain_private_data: keepData });
-    else if (undone) throw undone;
-    await c.forget(release.pluginId, record.install_id);
-    if (!keepData) c.privateStorage.deleteInstallationData(record.install_id);
-    c.storage.delete(APPROVED_KEY + release.pluginId); c.recoveryErrors.delete(release.pluginId);
+    if (!attempt) { await removeInstallation(c, release.pluginId, record, keepData); return true; }
+    if (undone) throw undone;
+    await cleanUpInstallation(c, release.pluginId, { ...record, retain_private_data: keepData === true });
     return true;
   };
   /**
@@ -188,6 +193,49 @@ export function installedLifecycle(c: InstalledLifecycleContext): AgentBuilderPo
       if (state.status !== 'running') throw new Error('启用没有完成：' + (c.recoveryErrors.get(pluginId) ?? state.message ?? ''));
       await c.expose(installed); c.registerPrompts(installed, 'enabled'); c.recoveryErrors.delete(pluginId); return;
     }
-    if (action === 'uninstall') await uninstall(release, record, record.state === 'uninstalled' ? record.retain_private_data : grants.keepData === true);
+    if (action === 'uninstall') await uninstall(release, record, record.state === 'uninstalled' ? undefined : grants.keepData === true);
   };
+}
+
+/**
+ * What the Host holds of one installation besides Plugin Runtime's row, let go once the row is a tombstone (BL-915): its secrets, what the Host
+ * remembers of it (prompts, code), its private data when the person chose not to keep it, and its approval. Run inside the Runtime's lock, after
+ * the executor's own clean-up; every step can be run again.
+ */
+async function cleanUpInstallation(c: InstalledLifecycleContext, pluginId: string, record: PluginInstanceRecord): Promise<void> {
+  c.secrets.remove(pluginId);
+  await c.forget(pluginId, record.install_id);
+  if (!record.retain_private_data) c.privateStorage.deleteInstallationData(record.install_id);
+  c.storage.delete(APPROVED_KEY + pluginId); c.recoveryErrors.delete(pluginId);
+}
+
+/** Plugin Runtime writes the tombstone (`plugin.uninstall_cleanup_pending` until the clean-up is done) and runs the Host's clean-up under the installation's lock. */
+async function removeInstallation(c: InstalledLifecycleContext, pluginId: string, record: PluginInstanceRecord, keepData: boolean | undefined,
+  target?: PluginUninstallTarget, assertCurrent?: () => void): Promise<void> {
+  await c.platform.runtime.uninstall(record.install_id, { ...keepData === undefined ? {} : { retain_private_data: keepData }, ...target ? { expected: target } : {},
+    cleanup: updated => cleanUpInstallation(c, pluginId, updated), ...assertCurrent ? { assertCurrent } : {} });
+}
+
+/**
+ * Takes off a signed sandbox installation from its trusted row alone (BL-915): its package is not read, imported or started, so one that is gone or
+ * altered comes off like any other. The row is the one the person's request names (`target`), and still that row under the lock: an installation
+ * that has been reinstalled or upgraded since is not touched (`plugin.install_replaced`). An uninstall whose clean-up did not finish is retried
+ * with its first data choice (`keepData` undefined, or the same); a finished one answers as it is. A standing 常开 agreement refuses first.
+ */
+export async function uninstallInstalledRecord(c: InstalledLifecycleContext, pluginId: string, input: { keepData?: boolean; target?: PluginUninstallTarget; assertCurrent?: () => void }): Promise<void> {
+  if (c.closed()) throw new Error('安装运行入口已关闭');
+  const { target } = input, live = c.recordFor(pluginId, true);
+  // The same request again after it finished: the tombstone it named, answered as it is by the Runtime, nothing withdrawn or cleaned twice.
+  const record = live ?? (target ? c.platform.runtime.list().find(item => item.install_id === target.install_id && item.plugin_id === pluginId && item.state === 'uninstalled') : undefined);
+  if (!record || record.publisher_trust !== 'pinned' || record.execution !== 'sandbox') throw pluginErrors.state_invalid('这里没有从签名的包装进来的这个插件');
+  // Asked again under the Runtime's lock; asked here first so that nothing of a newer installation is withdrawn on an old request's account.
+  if (target && (target.install_id !== record.install_id || target.installation_generation !== record.installation_generation || target.version !== record.version || target.manifest_digest !== record.manifest_digest)) {
+    throw pluginErrors.install_replaced('要卸载的已不是这次安装：它已经被重装或升级，请刷新后再试');
+  }
+  if (!live) { await removeInstallation(c, pluginId, record, undefined, target, input.assertCurrent); return; }
+  const refusal = leaveRefusal(c.platform.consents ?? undefined, record, '卸载');
+  if (refusal) throw refusal;
+  input.assertCurrent?.();
+  c.withdraw(pluginId); c.platform.supervisor.revoke(pluginId);
+  await removeInstallation(c, pluginId, record, record.state === 'uninstalled' ? input.keepData : input.keepData === true, target, input.assertCurrent);
 }

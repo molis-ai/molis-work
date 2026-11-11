@@ -217,7 +217,7 @@ test("BL623-06 S-84 only the person in a project reaches the three actions: an A
   actions.registerProvider(pluginInstallProvider(service));
   const person = (extra: Partial<ActionCallContext> = {}): ActionCallContext => ({ actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: "project-one", permissions: PLUGIN_INSTALL_PERMISSIONS, ...extra });
   const user_action = { source: "management" as const, conversation_ref: "test:lifecycle", message_ref: "test:request" };
-  const inputs = { disable: { plugin_id: "x" }, enable: { plugin_id: "x" }, uninstall: { plugin_id: "x", keep_data: true } } as const;
+  const inputs = { disable: { plugin_id: "x" }, enable: { plugin_id: "x" }, uninstall: { plugin_id: "x", keep_data: true, target: { install_id: "x", installation_generation: "g", version: "1.0.0", manifest_digest: "d" } } } as const;
   for (const name of ["disable", "enable", "uninstall"] as const) {
     const action: ActionReference = { capability_id: pluginControlActions[name].capability_id, version: 1 };
     for (const audience of ["agent", "mcp", "workflow", "plugin"] as const) {

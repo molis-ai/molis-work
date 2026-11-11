@@ -12,6 +12,8 @@ import type { MolisWorkLocalHostOptions, MolisWorkProjectRuntime } from "./proje
 import { ensureProjectPlugins, runningProjectPlatform } from "./project-plugins.js";
 import { hostDependencyCheck } from "./plugin-actions-client.js";
 import type { HomePluginHost } from "./home-plugins.js";
+import type { PluginUninstallTarget } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
+import { isPendingUninstall } from "./installed-plugin-lifecycle.js";
 
 /**
  * What the project's plugin ports are read from. `agents` is read when a call needs it, not when the Host is built: the
@@ -65,14 +67,21 @@ export async function installPackageInProject(source: ProjectPluginHost, project
  * is reached here; the package is read back without asking whether its publisher is still trusted, so a publisher taken back does not stop the
  * person from taking its plugin off. Answers the state the installation is in afterwards.
  */
-export async function controlPackageInProject(source: ProjectPluginHost, projectId: string, pluginId: string, action: "disable" | "enable" | "uninstall", input: { keep_data: boolean }): Promise<string> {
+export async function controlPackageInProject(source: ProjectPluginHost, projectId: string, pluginId: string, action: "disable" | "enable" | "uninstall",
+  input: { keep_data: boolean; target?: PluginUninstallTarget; assertCurrent?: () => void }): Promise<string> {
   const reference = source.host.projects().find(row => row.project_id === projectId);
   if (!reference || !source.options.homeDirectory) throw new ActionError("actions.scope_mismatch", "需要一个打开的项目");
   return await source.host.withRuntime(reference, async runtime => {
     const installed = await installedPluginsOf(source, reference, runtime);
+    // Taken off from its trusted row alone (BL-915): its package, gone or altered as it may be, is not read.
+    if (action === "uninstall") {
+      await installed.uninstall(pluginId, { keepData: input.keep_data, ...input.target ? { target: input.target } : {}, ...input.assertCurrent ? { assertCurrent: input.assertCurrent } : {} });
+      await installed.refreshPublicActions();
+      return installed.records().find(item => item.plugin_id === pluginId)?.state ?? "uninstalled";
+    }
     const release = installed.packageOf(pluginId);
     if (!release) throw pluginErrors.state_invalid("这个项目里没有从签名的包装进来的这个插件");
-    await installed.lifecycle(action, release, action === "uninstall" ? { keepData: input.keep_data } : {});
+    await installed.lifecycle(action, release, {});
     await installed.refreshPublicActions();
     return installed.records().find(item => item.plugin_id === pluginId)?.state ?? "uninstalled";
   });
@@ -95,7 +104,9 @@ export async function installedPluginsInProject(source: ProjectPluginHost, proje
     // A publisher the person took back since this project last looked: its installations are stopped before they are listed.
     await installed?.reconcilePublishers();
     // Why a package of this project is not running, when its plugin host knows; a plugin of the Host's build has none here.
-    return installedPluginEntries(runtime.store.db).map(entry => ({ ...entry, recoveryCode: installed?.recoveryErrors.code(entry.record.plugin_id) }));
+    // An uninstall whose clean-up did not finish stays listed, stopped, so the person can retry it with the same choice (BL-915).
+    const pending = (installed?.pendingUninstalls() ?? []).map(record => ({ record, manifest: undefined }));
+    return [...installedPluginEntries(runtime.store.db), ...pending].map(entry => ({ ...entry, recoveryCode: installed?.recoveryErrors.code(entry.record.plugin_id) }));
   });
   // The Home's own packages of that publisher stop the same way.
   await source.homePlugins()?.reconcilePublishers();
@@ -140,19 +151,20 @@ export async function installedHomePlugins(homePlugins: HomePluginHost | undefin
   if (!homePlugins) return [];
   await homePlugins.ready();
   await homePlugins.reconcilePublishers();
-  return homePlugins.installations().filter(record => record.state !== "uninstalled")
-    .map(record => ({ record, manifest: homePlugins.manifest(record.plugin_id), recoveryCode: homePlugins.packageErrorCode(record.plugin_id) }));
+  return homePlugins.installations().filter(record => record.state !== "uninstalled" || isPendingUninstall(record))
+    .map(record => ({ record, manifest: homePlugins.manifest(record.plugin_id), recoveryCode: homePlugins.packageError(record.plugin_id, "code") }));
 }
 
 /**
  * Switches a package installed in the Home off or on, or takes it off (BL-715), for the Host settings door: only an installation that came from
  * a signed package (a plugin of the Host's build or a fixture is not reached here). Answers the state it is in afterwards.
  */
-export async function controlHomePackage(homePlugins: HomePluginHost | undefined, pluginId: string, action: "disable" | "enable" | "uninstall", input: { keep_data: boolean }): Promise<string> {
+export async function controlHomePackage(homePlugins: HomePluginHost | undefined, pluginId: string, action: "disable" | "enable" | "uninstall", input: { keep_data: boolean; target?: PluginUninstallTarget; assertCurrent?: () => void }): Promise<string> {
   if (!homePlugins) throw pluginErrors.state_invalid("这个宿主没有个人空间");
   await homePlugins.ready();
-  if (!homePlugins.hasPackage(pluginId, action === "uninstall")) throw pluginErrors.state_invalid("个人空间里没有从签名的包装进来的这个插件");
-  await homePlugins.packageAction(pluginId, action, action === "uninstall" ? { keepData: input.keep_data } : {});
+  // An uninstall finds and checks its row itself, a finished one named again included (BL-915).
+  if (action !== "uninstall" && !homePlugins.hasPackage(pluginId)) throw pluginErrors.state_invalid("个人空间里没有从签名的包装进来的这个插件");
+  await homePlugins.packageAction(pluginId, action, action === "uninstall" ? { keepData: input.keep_data, ...input.target ? { target: input.target } : {}, ...input.assertCurrent ? { assertCurrent: input.assertCurrent } : {} } : {});
   return homePlugins.installation(pluginId)?.state ?? "uninstalled";
 }
 

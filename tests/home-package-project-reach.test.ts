@@ -29,7 +29,10 @@ async function setup(t: TestContext) {
   const install = async (bundle: PluginPackageBundle) => {
     const client = host.actionClient(a.reference), caller = person(a.project_id);
     const preview = await client.invoke(caller, ref(pluginInstallActions.preview), { bundle }) as { preview_id: string };
-    await client.invoke(caller, ref(pluginInstallActions.confirm), { preview_id: preview.preview_id, consent: true, pin_label: "Reach publisher" });
+    const { plugin_id } = await client.invoke(caller, ref(pluginInstallActions.confirm), { preview_id: preview.preview_id, consent: true, pin_label: "Reach publisher" }) as { plugin_id: string };
+    // Its operations call Goals: the person switches platform capabilities on in the Home's settings, off by default for a signed package (BL-701).
+    const platform = await host.homePlugins!.ready(), installed = host.homePlugins!.installation(plugin_id)!;
+    if (!installed.grants.includes("capabilities:call")) await platform.runtime.regrant(installed.install_id, "capabilities:call", true);
   };
   await install(projectReachPackage(publisher));
   const ledger = new HomeConsentLedger(f.home);
@@ -222,7 +225,9 @@ for (const keepData of [true, false]) test(`RAC-2648 uninstall keep_data=${keepD
   const before = f.ledger.consents(REACH_PLUGIN_ID).filter(row => row.kind === "project_reach" && !row.revoked_at);
   const installId = f.activeHost.homePlugins!.installation(REACH_PLUGIN_ID)!.install_id;
   assert.equal(before.length, 2);
-  const response = await f.request("/api/settings/plugin-permissions/uninstall", { method: "POST", body: { plugin_id: REACH_PLUGIN_ID, keep_data: keepData } });
+  const listed = await (await f.request("/api/settings/plugin-permissions/list", { method: "POST", body: {} })).json() as { plugins: Array<{ plugin_id: string; uninstall_target?: unknown }> };
+  const target = listed.plugins.find(row => row.plugin_id === REACH_PLUGIN_ID)!.uninstall_target;
+  const response = await f.request("/api/settings/plugin-permissions/uninstall", { method: "POST", body: { plugin_id: REACH_PLUGIN_ID, keep_data: keepData, target } });
   assert.equal(response.status, 200, await response.text());
   for (const row of before) assert.ok(f.ledger.consent(row.consent_id)!.revoked_at);
   await f.install(projectReachPackage(f.publisher));

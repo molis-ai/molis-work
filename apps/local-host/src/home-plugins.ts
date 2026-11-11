@@ -32,6 +32,7 @@ import { createCallConnectionsPort } from "./connector-plugin-requests.js";
 import type { ProjectActions } from "./plugin-builder/catalog.js";
 import type { ProjectReachConsents } from "./plugin-project-reach-consent.js";
 import { projectedPermissionDeclarations } from "./installed-permission-projection.js";
+import type { PluginUninstallTarget } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 
 export interface HomePluginEntry {
   readonly scope: "home";
@@ -129,12 +130,16 @@ export class HomePluginHost {
     await installed.refreshPublicActions();
   }
   /** Switches an installed package off or on, or removes it (keeping its data or not): the install lifecycle a project's packages have. */
-  async packageAction(pluginId: string, action: "enable" | "disable" | "uninstall", input: { keepData?: boolean } = {}): Promise<void> {
+  async packageAction(pluginId: string, action: "enable" | "disable" | "uninstall", input: { keepData?: boolean; target?: PluginUninstallTarget; assertCurrent?: () => void } = {}): Promise<void> {
     await this.ready();
-    const installed = this.installed, record = installed?.recordFor(pluginId, action === "uninstall");
-    if (!installed || this.closed || !record) throw new ActionError("actions.missing", "这个 Home 插件不是装进来的包");
-    // Read back without asking whether the publisher is still trusted: the lifecycle refuses to enable a revoked one, and can still take it off.
-    const release = installed.packageOf(pluginId, action === "uninstall");
+    const installed = this.installed;
+    if (!installed || this.closed) throw new ActionError("actions.missing", "这个 Home 插件不是装进来的包");
+    // Taken off from its trusted row alone (BL-915): its package, gone or altered as it may be, is not read; the row is found and checked there.
+    if (action === "uninstall") { await installed.uninstall(pluginId, input); await installed.refreshPublicActions(); return; }
+    const record = installed.recordFor(pluginId);
+    if (!record) throw new ActionError("actions.missing", "这个 Home 插件不是装进来的包");
+    // Read back without asking whether the publisher is still trusted: the lifecycle refuses to enable a revoked one.
+    const release = installed.packageOf(pluginId);
     if (!release) throw new Error(installed.recoveryErrors.get(pluginId) ?? "找不到已安装版本 " + record.version + " 的发布记录");
     await installed.lifecycle(action, release, input);
     await installed.refreshPublicActions();
@@ -160,10 +165,13 @@ export class HomePluginHost {
         await this.options.projectActions(projectId, pluginId);
       } : undefined }) : undefined;
   }
-  /** Why an installed package is not running, when it was not started or stopped itself; none when nothing is wrong with it. */
-  packageError(pluginId: string): string | undefined { return this.installed?.recoveryErrors.get(pluginId); }
-  /** The same reason as a code of ours, what the installed list hands the page (BL-915). */
-  packageErrorCode(pluginId: string): string | undefined { return this.installed?.recoveryErrors.code(pluginId); }
+  /**
+   * Why an installed package is not running, when it was not started or stopped itself; none when nothing is wrong with it: the Host's sentence, or
+   * (`"code"`) the reason's own code, what the installed list hands the page (BL-915).
+   */
+  packageError(pluginId: string, as: "message" | "code" = "message"): string | undefined {
+    return as === "code" ? this.installed?.recoveryErrors.code(pluginId) : this.installed?.recoveryErrors.get(pluginId);
+  }
   installations(): PluginInstanceRecord[] {
     if (this.platform) return this.platform.runtime.list();
     if (this.startFailure !== undefined) throw this.startFailure;

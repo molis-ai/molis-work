@@ -58,7 +58,7 @@ const $ = (name) => root.querySelector("[data-plugin-trust-" + name + "]");
 const el = (tag, className, text) => { const node = document.createElement(tag); if (className) node.className = className; if (text !== undefined && text !== null) node.textContent = text; return node; };
 const button = (text, variant) => { const node = el("button", "mw-btn " + variant + " mw-btn--sm", text); node.type = "button"; return node; };
 const TRUST = { host: "随 Molis Work 提供", pinned: "你固定的发布者", unsigned: "没有签名" };
-const STATE = { installed: "已安装", running: "运行中", disabled: "已停用" };
+const STATE = { installed: "已安装", running: "运行中", disabled: "已停用", uninstalled: "已卸载" };
 const KIND = { always_on: "常开", default_wiring: "默认连线", default_group: "默认输入组", local_directory: "本机目录" };
 const EFFECT = { storage: "保存数据", artifacts: "成果库", capabilities: "调用动作", events: "收发事件", networkDomains: "联网", secretRefs: "密钥", resources: "资源" };
 const day = (iso) => String(iso || "").slice(0, 10);
@@ -181,11 +181,13 @@ try { await act(name, { plugin_id: plugin.plugin_id, ...payload }); toast(done);
 });
 box.append(node);
 };
-const name = plugin.name;
+const name = plugin.name, target = plugin.uninstall_target;
+// An uninstall whose clean-up did not finish (BL-915) is only retried, with the choice it was made with.
+if (plugin.pending_keep_data !== undefined) { step(L("重试卸载"), "mw-btn--secondary", "uninstall", { keep_data: plugin.pending_keep_data, target }, L("已卸载")); return box; }
 if (plugin.state === "running") step(L("停用"), "mw-btn--secondary", "disable", {}, L("已停用"), L("停用这个插件？"), L("{plugin} 停用后不再运行，也不再提供动作；数据保留，可以随时重新启用。", { plugin: name }));
 else if (plugin.state === "disabled" && !revoked.has(plugin.publisher_signature)) step(L("启用"), "mw-btn--secondary", "enable", {}, L("已启用"));
-step(L("卸载并保留数据"), "mw-btn--ghost", "uninstall", { keep_data: true }, L("已卸载"), L("卸载这个插件？"), L("{plugin} 会被卸载，它的数据保留；以后再装同一个插件时会接着用。", { plugin: name }));
-step(L("卸载并删除数据"), "mw-btn--ghost", "uninstall", { keep_data: false }, L("已卸载"), L("卸载这个插件？"), L("{plugin} 会被卸载，它的数据一并删除，不能恢复。", { plugin: name }));
+step(L("卸载并保留数据"), "mw-btn--ghost", "uninstall", { keep_data: true, target }, L("已卸载"), L("卸载这个插件？"), L("{plugin} 会被卸载，它的数据保留；以后再装同一个插件时会接着用。", { plugin: name }));
+step(L("卸载并删除数据"), "mw-btn--ghost", "uninstall", { keep_data: false, target }, L("已卸载"), L("卸载这个插件？"), L("{plugin} 会被卸载，它的数据一并删除，不能恢复。", { plugin: name }));
 return box;
 };
 const installed = (plugin, send = (payload) => api("/permissions/set", payload), revoked = null, act, managed) => {
@@ -194,10 +196,12 @@ copy.append(el("strong", "", plugin.name + " · " + plugin.version), el("span", 
 summary.append(copy); const mark = $("chevron"); if (mark) summary.append(mark.content.cloneNode(true));
 const body = el("div", "plugin-trust-body");
 body.append(el("span", "settings-muted", plugin.plugin_id + (plugin.publisher_signature && plugin.trust !== "host" ? " · " + short(plugin.publisher_signature) : "")));
-if (revoked && revoked.has(plugin.publisher_signature)) body.append(el("span", "settings-muted", L("发布者的信任已撤销：它不再运行，只能卸载")));
+const pending = plugin.pending_keep_data !== undefined;
+if (pending) body.append(el("span", "settings-form-error", L(plugin.pending_keep_data ? "上次卸载（保留数据）没有清理完，可以重试" : "上次卸载（删除数据）没有清理完，可以重试")));
+else if (revoked && revoked.has(plugin.publisher_signature)) body.append(el("span", "settings-muted", L("发布者的信任已撤销：它不再运行，只能卸载")));
 else if (plugin.recovery_error) body.append(el("span", "settings-form-error", L("没能启动：{error}", { error: L(plugin.recovery_error === "plugin.publisher_revoked" ? "发布者的信任已撤销" : plugin.recovery_error === "plugin.manifest_version_invalid" ? "插件版本与当前平台不匹配" : plugin.recovery_error === "plugin.package_missing" ? "找不到这个插件安装时的包，只能卸载" : "插件暂时无法启动，请重试或查看诊断") })));
 const work = el("div"), repaint = () => work.replaceChildren(jobs(plugin.jobs, plugin.permissions));
-if (plugin.manifest_available) { body.append(grants(plugin, repaint, send, managed)); repaint(); body.append(work); } else body.append(el("span", "settings-muted", L("读不到这个插件安装时声明的权限")));
+if (plugin.manifest_available) { body.append(grants(plugin, repaint, send, managed)); repaint(); body.append(work); } else if (!pending) body.append(el("span", "settings-muted", L("读不到这个插件安装时声明的权限")));
 const reach = act === homeApi ? reachViews.get(plugin.plugin_id) : null;
 const agreements = plugin.consents.filter((consent) => consent.kind !== "project_reach");
 if (agreements.length || !reach) body.append(consents(plugin, agreements));

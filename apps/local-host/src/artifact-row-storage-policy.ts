@@ -32,10 +32,16 @@ function sidecarsAt(file: string): string[] {
 export const recoveryRequired = () => new ActionError("actions.conflict", "成果固定的 SQLite 日志仍待恢复，请先用正常入口启动并关闭原 Home");
 export const wrongArtifactSpace = () => new ActionError("actions.home_mismatch", "成果固定的库与当前 Home 空间不一致");
 
-export function assertArtifactProjectIdentity(db: SqliteDatabase, space: StorageSpace, project: string): void {
-  if (JSON.stringify(readDatabaseSpace(db)) !== JSON.stringify(space)) throw wrongArtifactSpace();
+/** The library holds exactly this project's root row: a copy registered under another project id cannot change its journal mode. */
+export function assertArtifactProjectRoot(db: SqliteDatabase, project: string): void {
   const roots = listProjectRoots(db);
   if (roots.length !== 1 || roots[0]?.project_id !== project) throw recoveryRequired();
+}
+
+/** Recovery replays only a library already bound to this Home's space; an ordinary open binds an unbound one first (`bindDatabaseSpace`). */
+export function assertArtifactProjectIdentity(db: SqliteDatabase, space: StorageSpace, project: string): void {
+  if (JSON.stringify(readDatabaseSpace(db)) !== JSON.stringify(space)) throw wrongArtifactSpace();
+  assertArtifactProjectRoot(db, project);
 }
 
 /** Even a read-only SQLite WAL connection can update SHM. Check its exact files before opening it. */

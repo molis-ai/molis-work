@@ -3,13 +3,13 @@ import type {ReplicaInputValue,ReplicaOutputValue} from "@molis-ai/molis-work-st
 import type {ReplicaDatabase} from "@molis-ai/molis-work-storage";
 import { catalogErrors } from "./project-catalog-contract.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import { shareReplicaTriggerDefinitions, applySqliteBaseline, LocalSqliteStorage, checkSqliteBaselineVersion, ensureStorageSpace, bindDatabaseSpace, readDatabaseSpace, readStorageSpace, assertStorageOwner, type StorageOwner, type StorageSpace } from "@molis-ai/molis-work-storage";
+import { sqliteErrorName, shareReplicaTriggerDefinitions, applySqliteBaseline, LocalSqliteStorage, checkSqliteBaselineVersion, ensureStorageSpace, bindDatabaseSpace, readDatabaseSpace, readStorageSpace, assertStorageOwner, type StorageOwner, type StorageSpace } from "@molis-ai/molis-work-storage";
 import pathUtil from 'node:path';
 import fs from 'node:fs';
 import { existsSync } from "node:fs";
 import { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";
 import { openProjectPluginDatabases, type ProjectPluginDatabaseOutcome } from "./project-plugin-databases.js";
-import { artifactRowLibraryDeclarations, assertArtifactLibraryReady, assertArtifactProjectIdentity } from "./artifact-row-storage-policy.js";
+import { artifactRowLibraryDeclarations, assertArtifactLibraryReady, assertArtifactProjectRoot } from "./artifact-row-storage-policy.js";
 import { projectDatabases } from "./platform-upgrade-stores.js";
 import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
 
@@ -47,7 +47,12 @@ export class LocalProjectDatabase extends LocalSqliteStorage {
       if (home) bindDatabaseSpace(this.db, ensureStorageSpace(home));
       if (project) {
         this.db.pragma("synchronous=EXTRA");
-        if (this.db.pragma("journal_mode=DELETE", { simple: true }) !== "delete") throw new ActionError("actions.service_unavailable", "项目库的回滚日志模式暂不可用");
+        // Leaving WAL needs the file to itself. While another connection still holds it (an independent Goals or catalog entry opened
+        // first) the project opens as it is: only pinning needs the rollback journal, and it checks the mode before every transaction.
+        let mode: unknown;
+        try { mode = this.db.pragma("journal_mode=DELETE", { simple: true }); }
+        catch (error) { if (sqliteErrorName(error) !== "SQLITE_BUSY") throw error; mode = "wal"; }
+        if (mode !== "delete" && mode !== "wal") throw new ActionError("actions.service_unavailable", "项目库的回滚日志模式暂不可用");
       }
     } catch (error) { this.close(); throw error; }
   }
@@ -69,7 +74,7 @@ function catalogArtifactProject(path: string, held: { home: string; owner: Stora
 }
 
 /** Reject before a writable connection can change journal mode; the normal baseline still rechecks after opening. */
-function inspectDatabase(path: string, existingOnly: boolean, home?: string, project?: { space: StorageSpace; id: string }): string {
+function inspectDatabase(path: string, existingOnly: boolean, home?: string, project?: { readonly id: string }): string {
   if (!existingOnly && !existsSync(path)) return path;
   const inspection = new LocalSqliteStorage(path, { readonly: true });
   try {
@@ -80,7 +85,8 @@ function inspectDatabase(path: string, existingOnly: boolean, home?: string, pro
     const { user_version: version } = inspection.db.prepare("PRAGMA user_version").get() as { user_version: number };
     if (existingOnly && version !== PROJECT_DATABASE_BASELINE.version) throw catalogErrors.project_recovery_unsupported_schema("catalog.project_recovery_unsupported_schema");
     if (!existingOnly) checkSqliteBaselineVersion(inspection.db, path, PROJECT_DATABASE_BASELINE, home);
-    if (project) assertArtifactProjectIdentity(inspection.db, project.space, project.id);
+    // The binding check above already refuses another Home's space; an unbound copy (a restored or imported file) is bound on open.
+    if (project) assertArtifactProjectRoot(inspection.db, project.id);
     if (version === PROJECT_DATABASE_BASELINE.version) projectReplicationTriggers(inspection.db);
     return path;
   } finally { inspection.close(); }

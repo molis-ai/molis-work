@@ -518,3 +518,5 @@ tests/goals-contract-ownership.test.ts
 tests/memory-retention-roundtrip.test.ts
 tests/goals-project-database.test.ts
 tests/goal-events-state.test.ts
+
+tests/desktop-account-entry.test.ts

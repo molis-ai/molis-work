@@ -57,7 +57,7 @@ function mount(initial: WorkbenchAppearance): void {
       page.present(next);
       if (recovery.open && recoveryRevision !== next.selection_revision) {
         recoveryRevision = next.selection_revision;
-        updateRecovery(recoveryRevision === null ? uiText.text("workbench.appearance-entry.current-appearance-settings-cant-be-read-changes-cant") : uiText.text("workbench.appearance-entry.another-window-updated-appearance-confirm-again"));
+        updateRecovery(recoveryRevision === null ? uiText.text("workbench.appearance-entry.state-unavailable") : uiText.text("workbench.appearance-entry.stale-confirmation"));
       }
       drawNotice();
     },
@@ -92,15 +92,15 @@ function mount(initial: WorkbenchAppearance): void {
   if (settings) picker = mountAppearancePicker(settings, initial, sync, readText);
   document.addEventListener("molis-work:language-changed", () => picker?.redraw());
   const page = mountDocumentAppearance(initial, problem => {
-    renderError = problem === "partial" ? uiText.text("workbench.appearance-entry.some-appearance-settings-unavailable-showing-available-combinati")
-      : problem === "loading-failed" ? uiText.text("workbench.appearance-entry.window-couldnt-load-new-appearance-keeping-current-look") : "";
+    renderError = problem === "partial" ? uiText.text("workbench.appearance-entry.partial-appearance")
+      : problem === "loading-failed" ? uiText.text("workbench.appearance-entry.update-failed") : "";
     drawNotice();
   });
   const discussion = mountDiscussionAppearance(failed => { discussionFailed = failed; drawNotice(); });
   const open = () => {
     if (recovery.open || document.body.inert) return;
     recoveryRevision = current.selection_revision;
-    updateRecovery(sync.uncertain ? unconfirmedText() : recoveryRevision === null ? uiText.text("workbench.appearance-entry.current-appearance-settings-cant-be-read-changes-cant") : "");
+    updateRecovery(sync.uncertain ? unconfirmedText() : recoveryRevision === null ? uiText.text("workbench.appearance-entry.state-unavailable") : "");
     recovery.showModal();
   };
   globalThis.molisWorkRestoreAppearance = open;
@@ -121,7 +121,7 @@ function mount(initial: WorkbenchAppearance): void {
       if (!result && sync.uncertain) updateRecovery(unconfirmedText());
     }, () => {
       recovering = false;
-      updateRecovery(uiText.text("workbench.appearance-entry.appearance-wasnt-saved-can-try-again"));
+      updateRecovery(uiText.text("workbench.appearance-entry.save-failed"));
     }).finally(() => {
       recoveryWrite = false;
       if (!sync.uncertain) recovering = false;
@@ -131,7 +131,7 @@ function mount(initial: WorkbenchAppearance): void {
   undo.addEventListener("click", () => {
     if (!receipt) return;
     undo.disabled = true;
-    void sync.undo(receipt).catch(() => { feedback = uiText.text("workbench.appearance-entry.appearance-has-changed-since-then-change-can-no"); drawNotice(); }).finally(() => { undo.disabled = false; });
+    void sync.undo(receipt).catch(() => { feedback = uiText.text("workbench.appearance-entry.undo-conflict"); drawNotice(); }).finally(() => { undo.disabled = false; });
   });
   reread.addEventListener("click", () => {
     if (discussion && discussionFailed && !renderError && !readError && !sync.uncertain) discussion.retry();

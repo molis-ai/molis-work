@@ -1,5 +1,6 @@
 import { installHostUiText, runBackgroundWork, verifySyncPluginDistribution } from '@molis-ai/molis-work-app-local-host';
 import { effectsFromContract, sandboxPluginManifest } from '@molis-ai/molis-work-plugin-sdk';
+import { textKeyPrefix } from '@molis-ai/molis-work-plugin-sdk/ui';
 import { signPluginPackage } from '@molis-ai/molis-work-plugin-runtime';
 import { assertContract } from '@molis-ai/molis-work-plugin-sandbox';
 import { newPublisher, payloadOf } from './fixtures/sandbox-package.js';
@@ -178,14 +179,23 @@ test('S-119 PCSYNC-11/14 an authored symlink refuses complete capture and never 
 
 test('S-119 PCSYNC-01/14 design schemas, component bindings, observations and history are validated before target staging',t=>{
  const f=fixture(t);f.create();const op=f.replicas[0]!.next()!,before=f.storage[0]!.get(KEY);
+ const copy=()=>structuredClone(op.value) as {content:{builds:AgentBuild[]}};
+ const validate=(value: ReturnType<typeof copy>)=>validatePrivateValueReplication(value,f.definitions[1]!,{spaceId:f.space.spaceId,projectId,title:'Builder owner',authorize(){}},op.key);
+ const word=(row:AgentBuild,slot:string)=>({key:`${textKeyPrefix(row.design!.contract.pluginId)}.ui.${slot}`});
+ const withProposal=copy(), proposed=withProposal.content.builds[0]!;
+ proposed.candidates=[normalizeProposal(proposal('quick','Short title'),0,proposed.design!.contract.pluginId,[])];
+ assert.doesNotThrow(()=>validate(withProposal),'a plain proposal is valid without a language pack');
+ proposed.candidates[0]!.preview.contract.pages[0]!.title=word(proposed,'page.main.title');
+ assert.throws(()=>validate(withProposal),/创作同步内容或归属无效/);
+ assert.equal(existsSync(join(f.homes[1]!,'plugin-builder')),false);
  const mutations:Array<(row:AgentBuild)=>void>=[
   row=>{row.design!.contract.operations[0]!.input={type:'array'};},
   row=>{Reflect.set(row.design!.contract,'native_state',{directory:'/not-portable'});},
   row=>{row.design!.contract.operations[0]!.effects.storage=['write'];},
   row=>{row.design!.contract.operations[0]!.examples[0]!.input='not-the-declared-object';},
   row=>{row.design!.contract.pages[0]!.regions[0]!.operationIds=['absent-operation'];},
-  row=>{row.design!.contract.pages[0]!.title={key:'notes.ui.page.main.title'};},
-  row=>{row.design!.parts[0]!.props.title={key:'notes.ui.part.title'};},
+  row=>{row.design!.contract.pages[0]!.title=word(row,'page.main.title');},
+  row=>{row.design!.parts[0]!.props.title=word(row,'part.title');},
   row=>{row.design!.parts[0]!.pageId='absent-page';},
   row=>{row.design!.parts.find(p=>p.read)!.read!.operationId='absent-operation';},
   row=>{const plan=row.design!.parts[0]!;row.nodes=[{...plan,kind:pluginComponentChoices(plan,row.design!.contract)[0]!.kind,props:{...plan.props,title:'different from the frozen plan'}}];},
@@ -197,14 +207,13 @@ test('S-119 PCSYNC-01/14 design schemas, component bindings, observations and hi
   row=>{row.rework={'absent-operation':'cannot resume this operation'};},
   row=>{row.browserResult={passed:true,cases:[{id:'absent-acceptance',passed:true,detail:'unbound'}],at:'2026-10-19T00:00:00Z'};},
   row=>{const design=structuredClone(row.design!);design.contract.pluginId='io.molis.work.generated.foreign';row.history=[{design,nodes:[],connected:[]}];},
-  row=>{const design=structuredClone(row.design!);design.contract.pages[0]!.regions[0]!.title={key:'notes.ui.region.main.title'};row.history=[{design,nodes:[],connected:[]}];},
+  row=>{const design=structuredClone(row.design!);design.contract.pages[0]!.regions[0]!.title=word(row,'region.main.title');row.history=[{design,nodes:[],connected:[]}];},
   row=>{row.design!.acceptance[0]!.steps=[{action:'expect',componentId:'absent-component',text:'not there'}];},
   row=>{row.design!.contract.operations.push(structuredClone(row.design!.contract.operations[0]!));},
   row=>{const design=row.design!;row.candidates=[{id:'proposal',title:'proposal',description:'saved',rationale:'saved',journey:['read'],effects:effectsFromContract(design.contract),preview:{contract:structuredClone(design.contract),parts:structuredClone(design.parts)}}];row.candidates[0]!.preview.parts[0]!.pageId='absent-page';},
-  row=>{const design=row.design!;row.candidates=[{id:'proposal',title:'proposal',description:'saved',rationale:'saved',journey:['read'],effects:effectsFromContract(design.contract),preview:{contract:structuredClone(design.contract),parts:structuredClone(design.parts)}}];row.candidates[0]!.preview.contract.pages[0]!.title={key:'notes.ui.page.main.title'};},
  ];
- for(const mutate of mutations){const value=structuredClone(op.value) as {content:{builds:AgentBuild[]}};mutate(value.content.builds[0]!);
-  assert.throws(()=>validatePrivateValueReplication(value,f.definitions[1]!,{spaceId:f.space.spaceId,projectId,title:'Builder owner',authorize(){}},op.key),/创作同步内容或归属无效/);
+ for(const mutate of mutations){const value=copy();mutate(value.content.builds[0]!);
+  assert.throws(()=>validate(value),/创作同步内容或归属无效/);
   assert.equal(existsSync(join(f.homes[1]!,'plugin-builder')),false);assert.equal(f.storage[0]!.get(KEY),before);
  }
 });

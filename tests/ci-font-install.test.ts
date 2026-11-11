@@ -16,7 +16,8 @@ for (const scenario of ["default", "update-fails", "install-fails", "archive-upd
     try {
       writeFileSync(join(dir, "os-release"), "VERSION_CODENAME=resolute\n");
       assert.match(script, /\. \/etc\/os-release/);
-      const fixture = script.replace(". /etc/os-release", '. "$RUNNER_TEMP/os-release"');
+      assert.match(script, /mktemp -d \/tmp\/molis-font-apt\.XXXXXX/);
+      const fixture = script.replace('$(mktemp -d /tmp/molis-font-apt.XXXXXX)', '$RUNNER_TEMP/molis-font-apt').replace(". /etc/os-release", '. "$RUNNER_TEMP/os-release"');
       const mocks = `
 sudo() {
   printf '%s\\n' "$*" >> "$RUNNER_TEMP/calls"
@@ -42,6 +43,7 @@ fc-list() { printf '%s\\n' font-list >> "$RUNNER_TEMP/calls"; printf 'WenQuanYi 
         assert.equal(sources.trim().split("\n").length, 3);
         for (const line of sources.trim().split("\n")) assert.match(line, /^deb \[signed-by=\/usr\/share\/keyrings\/ubuntu-archive-keyring.gpg\] https:\/\/mirrors.edge.kernel.org\/ubuntu resolute(?:-updates|-security)? universe$/);
         assert.match(calls, /Dir::Etc::sourceparts=-/);
+        assert.match(calls, /Acquire::ForceIPv4=true/);
         assert.match(calls, /Dir::State::lists=.*molis-font-apt\/lists/);
         assert.ok(!/allow-unauthenticated|trusted=yes|AllowInsecure/.test(calls + sources));
       }

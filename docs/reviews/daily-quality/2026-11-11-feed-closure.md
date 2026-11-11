@@ -113,3 +113,8 @@ Full 43028790915 的后续多次尝试在测试前安装fonts-wqy-zenhei时因se
 实际工作流脚本的5条执行路径测试覆盖默认成功、默认update失败、默认install失败、备用update失败、备用install失败，后两者必须非零退出且不进入字体列表/后续步骤；加原CI安装门禁26项，31/31通过。真实Ubuntu下载/签名/安装仍以新头CI结果为准。原产品源码未再改，最终task list与合并核验在PR持续更新。
 
 8e12头CI确认runner对archive.ubuntu.com同样DNS失败，Ubuntu签名/安装拒绝保持有效，未进入测试。沿相同签名备用源方案将备用地址改为Kernel.org的Ubuntu镜像（[Ubuntu官方镜像登记](https://launchpad.net/ubuntu/+archivemirrors)、[Kernel.org镜像服务](https://mirrors.edge.kernel.org/ubuntu/)），避开故障的ubuntu.com域名；仍由Ubuntu系统归档keyring验证，不引入第三方签名钥匙。临时lists/partial目录交给APT的_apt用户，保留下载沙箱。当前头Coding项目导航原用例1/1通过，原CI失败保留待新头复验。
+
+
+### CI 字体网络路径复验
+
+5c526890a 的 Full 43052089133 在第14分片安装前失败：镜像已解析，但 IPv6 连接不可达；其他分片取消，不算通过。备用 APT 显式使用 IPv4；临时索引改用 /tmp 下唯一目录，避免 RUNNER_TEMP 父目录阻止 _apt 访问。仍使用 Ubuntu 系统签名钥匙，保留安装失败退出与所有测试断言。定向测试覆盖 IPv4 参数和临时目录选择，真实下载及全量结果以 PR 最终运行记录为准。

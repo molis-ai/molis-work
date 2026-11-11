@@ -127,14 +127,14 @@ jobs:
             # The runner supplies this standard Ubuntu file.
             # shellcheck source=/dev/null
             . /etc/os-release
-            font_apt="$RUNNER_TEMP/molis-font-apt"
+            font_apt="$(mktemp -d /tmp/molis-font-apt.XXXXXX)"
             mkdir -p "$font_apt/lists/partial"
             chmod 755 "$font_apt" "$font_apt/lists" "$font_apt/lists/partial"
             sudo chown _apt:root "$font_apt/lists/partial"
             printf 'deb [signed-by=/usr/share/keyrings/ubuntu-archive-keyring.gpg] https://mirrors.edge.kernel.org/ubuntu %s universe\n' \
               "$VERSION_CODENAME" "$VERSION_CODENAME-updates" "$VERSION_CODENAME-security" > "$font_apt/sources.list"
             font_options=(-o "Dir::Etc::sourcelist=$font_apt/sources.list" -o "Dir::Etc::sourceparts=-"
-              -o "Dir::State::lists=$font_apt/lists" -o Acquire::Retries=2)
+              -o "Dir::State::lists=$font_apt/lists" -o Acquire::Retries=2 -o Acquire::ForceIPv4=true)
             sudo apt-get "${font_options[@]}" update -qq
             sudo apt-get "${font_options[@]}" install -y -qq --no-install-recommends fonts-wqy-zenhei
           fi

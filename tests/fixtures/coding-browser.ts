@@ -26,7 +26,8 @@ export async function openCoding(t: TestContext, before = "") {
   const { command, sessionId, navigate, origin, projectId, homeDirectory } = browser;
   const frame = await pluginFrameBrowser(t, browser, "coding");
   const { evaluate, waitFor, click } = frame;
-  if (before) await pluginFrameInitScript(t, browser, before);
+  // The page's own frame and the workbench around it: since one input (§10.3) the box Coding writes into is the bar's.
+  if (before) { await pluginFrameInitScript(t, browser, before); await command("Page.addScriptToEvaluateOnNewDocument", { source: before }, sessionId); }
   const interceptRequests = `
     window.hold={what:null,fail:false,next:null,except:'',seen:0,id:'',release:null,slow:0};window.stateReads=0;window.posts=[];window.patches=[];window.puts=[];window.fakes=[];const originalFetch=window.fetch;
     window.fetch=(input,init)=>{const path=String(input?.url||input),method=init?.method||'GET';

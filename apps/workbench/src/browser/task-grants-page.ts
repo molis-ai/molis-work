@@ -82,9 +82,9 @@ const rowHtml = (row: Row) => taskGrantRowHtml(uiText.text, row, (row.status ===
  * What a change did, in the page's words: the area's line points at its switch, which this page does not have, so a category
  * taken back that cannot simply be turned on again says where to turn it on (the task's 「能读的数据」).
  */
-const doneText = (act: "off" | "allow" | "remove", row: Row) => uiText.text(act === "allow" ? "workbench.task-grants-page.name-may-read-its-new-data-can-withdraw"
-  : act === "remove" ? "workbench.task-grants-page.name-removed-no-longer-offered"
-  : row.status === "granted" ? "workbench.task-grants-page.name-withdrawn-next-run-cannot-read" : "workbench.task-grants-page.name-withdrawn-read-again-turn-task-s-data", { name: row.title });
+const doneText = (act: "off" | "allow" | "remove", row: Row) => uiText.text(act === "allow" ? "workbench.task-grants-page.new-data-allowed"
+  : act === "remove" ? "workbench.task-grants-page.category-removed"
+  : row.status === "granted" ? "workbench.task-grants-page.withdrawn" : "workbench.task-grants-page.withdrawn-new-data", { name: row.title });
 
 function redrawGrantWords(list: HTMLElement, draw: () => void): void {
   const focused = document.activeElement instanceof HTMLElement && list.contains(document.activeElement) ? document.activeElement : null;
@@ -110,7 +110,7 @@ export function bindTaskGrantsSettings(root: HTMLElement): void {
   languageWarning.addEventListener("click", event => {
     if ((event.target as Element).closest("button")) void retitle();
   });
-  const post: Post = body => molisWorkRequest(endpoint, { body, fallback: uiText.text("workbench.task-grants-page.that-did-not-finish") });
+  const post: Post = body => molisWorkRequest(endpoint, { body, fallback: uiText.text("workbench.task-grants-page.request-failed") });
   let listed: Listed | null = null;
   const currentLanguage = () => document.documentElement.dataset.uiLanguageTag ?? document.documentElement.lang;
   let drawnLanguage = "", pendingLanguage = "", languageTurn = 0;
@@ -133,7 +133,7 @@ export function bindTaskGrantsSettings(root: HTMLElement): void {
       listed = next; drawnLanguage = language; draw();
       if (language !== currentLanguage()) void retitle();
     } catch {
-      list.innerHTML = `<div class="task-grants-page__state is-error"><span>${escape(uiText.text("workbench.task-grants-page.cannot-read-background-tasks-permissions-right-now"))}</span>${button("common.control.retry", "mw-btn--secondary", "reload")}</div>`;
+      list.innerHTML = `<div class="task-grants-page__state is-error"><span>${escape(uiText.text("workbench.task-grants-page.read-failed"))}</span>${button("common.control.retry", "mw-btn--secondary", "reload")}</div>`;
     } finally { list.removeAttribute("aria-busy"); }
   }
 
@@ -184,7 +184,7 @@ export function bindTaskGrantsSettings(root: HTMLElement): void {
   function draw(): void {
     if (!listed) return;
     const subjects = listed.subjects.filter(subject => held(subject).length > 0);
-    if (!subjects.length) { list.innerHTML = `<p class="task-grants-page__state">${escape(uiText.text("workbench.task-grants-page.no-background-task-may-read-project-s-data"))}</p>`; return; }
+    if (!subjects.length) { list.innerHTML = `<p class="task-grants-page__state">${escape(uiText.text("workbench.task-grants-page.empty"))}</p>`; return; }
     const groups = new Map<string, TaskGrantSubject[]>();
     for (const subject of subjects) groups.set(subject.plugin_install_id, [...groups.get(subject.plugin_install_id) ?? [], subject]);
     const installs = [...groups.keys()].map(id => listed!.installations.find(install => install.plugin_install_id === id) ?? { plugin_install_id: id, plugin_id: null, name: null, titled: false });
@@ -208,7 +208,7 @@ export function bindTaskGrantsSettings(root: HTMLElement): void {
   /** A write failed: changed elsewhere reads the page again (§3.6 冲突); anything else leaves the grants as they were. */
   async function failed(error: unknown): Promise<void> {
     if ((error as { code?: string }).code === "actions.conflict") { toast(uiText.text("workbench.task-grants-page.changed-elsewhere-refreshed")); await load(); return; }
-    toast(uiText.text("workbench.task-grants-page.not-saved-permissions-they-were"), true);
+    toast(uiText.text("workbench.task-grants-page.write-failed"), true);
   }
   async function write(subject: TaskGrantSubject, send: () => Promise<TaskGrantSubject | null>, done: () => string): Promise<void> {
     const id = subjectId(subject); if (busy.has(id)) return;
@@ -228,9 +228,9 @@ export function bindTaskGrantsSettings(root: HTMLElement): void {
   /** Everything a task may read, taken back in one `clear` once the person says so. */
   async function clear(subject: TaskGrantSubject): Promise<void> {
     const task = nameOf(subject);
-    if (!await ask(root, uiText.text("workbench.task-grants-page.withdraw-everything-task-may-read"), uiText.text("workbench.task-grants-page.its-next-run-task-reads-no-plugin-s", { task }))) return;
+    if (!await ask(root, uiText.text("workbench.task-grants-page.withdraw-all-title"), uiText.text("workbench.task-grants-page.withdraw-all-description", { task }))) return;
     await write(subject, async () => { await post({ mode: "clear", plugin_install_id: subject.plugin_install_id, key: subject.key }); return null; },
-      () => uiText.text("workbench.task-grants-page.everything-task-may-read-withdrawn", { task }));
+      () => uiText.text("workbench.task-grants-page.all-withdrawn", { task }));
   }
 
   // Which control, which task and which row, read from the markup: the task by its installation and key, the row by its category.

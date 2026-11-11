@@ -69,7 +69,7 @@ const summary = (subject: Reads["subject"]): UiTaskGrantsAreaState => ({
 });
 
 /** A row's note by its status, when it reads less than it is on for; translated where it is drawn. */
-const NOTES: Partial<Record<Status, string>> = { needs_confirmation: "workbench.task-grants-area.new-data-is-offered-approve-it-before", unavailable: "workbench.task-grants-area.unavailable-for-now-access-is-still-granted", removed: "workbench.task-grants-area.this-category-is-no-longer-offered" };
+const NOTES: Partial<Record<Status, string>> = { needs_confirmation: "workbench.task-grants-area.needs-confirmation", unavailable: "workbench.task-grants-area.category-unavailable", removed: "workbench.task-grants-area.category-removed" };
 
 /**
  * One category, one row (§3.5; the 授权与放行 page draws its rows with it too, §5): its name, what it is, and a note when it reads
@@ -88,12 +88,12 @@ export function taskGrantsAreaHtml(t: Translate, owner: string, rows: readonly R
   const item = (row: Row) => taskGrantRowHtml(t, row, row.status === "removed" ? control("remove:" + row.name, t("workbench.task-grants-area.remove"))
     : `${row.status === "needs_confirmation" ? control("allow:" + row.name, t("workbench.task-grants-area.allow")) : ""}<span class="mw-switch" data-slot="switch"><input type="checkbox" role="switch" aria-label="${escape(row.title)}"${row.status !== "off" ? " checked" : ""} data-framed-control="${escape("switch:" + row.name)}"><span class="mw-switch__track" aria-hidden="true"></span></span>`);
   const list = rows.length ? `<ul class="mw-items task-grants-area__rows">${rows.map(item).join("")}</ul>`
-    : `<p class="task-grants-area__empty">${escape(t("workbench.task-grants-area.nothing-in-this-project-can-be-read"))}</p>`;
+    : `<p class="task-grants-area__empty">${escape(t("workbench.task-grants-area.empty"))}</p>`;
   // The line stays put (D2): a persistent status line, the design system's `mw-alert`, not a passing toast (DESIGN「Toasts」).
   const act = line.act ? control(line.act, t(line.act === "undo" ? "workbench.task-grants-area.undo" : "common.control.retry"), "ghost") : "";
   const warning = languageFailed ? `<div class="mw-alert mw-alert--danger" role="alert"><span>${escape(t("workbench.language.window-failed"))}</span> ${control("retry-language", t("workbench.language.retry"), "ghost")}</div>` : "";
-  return `<header class="mw-platform-area__head" data-framed-area-head><span class="mw-platform-area__kicker"><svg aria-hidden="true"><use href="#icon-shield"></use></svg>${escape(t("workbench.task-grants-area.molis-work-only-you-can-change-this"))}</span><span class="mw-platform-area__owner" title="${escape(owner)}">${escape(owner)}</span>`
-    + `<p class="mw-platform-area__lead">${escape(t("workbench.task-grants-area.read-only-never-change-for-this-task"))}</p>${warning}</header>`
+  return `<header class="mw-platform-area__head" data-framed-area-head><span class="mw-platform-area__kicker"><svg aria-hidden="true"><use href="#icon-shield"></use></svg>${escape(t("workbench.task-grants-area.permission-owner"))}</span><span class="mw-platform-area__owner" title="${escape(owner)}">${escape(owner)}</span>`
+    + `<p class="mw-platform-area__lead">${escape(t("workbench.task-grants-area.read-only"))}</p>${warning}</header>`
     + `<div class="mw-platform-area__body" data-framed-scroll${busy ? ' aria-busy="true"' : ""}>${list}</div>`
     + `<footer class="mw-platform-area__foot" data-framed-area-foot><div class="mw-alert${line.tone === "danger" ? " mw-alert--danger" : ""}${fresh ? " is-fresh" : ""}" role="status"><span title="${escape(line.text)}">${escape(line.text)}</span>${act}</div></footer>`;
 }
@@ -105,12 +105,12 @@ export function taskGrantsAreaHtml(t: Translate, owner: string, rows: readonly R
 function doneLine(change: Change): LineText {
   const { kind, row } = change, status = row.status;
   return { key: kind === "undo" ? "workbench.task-grants-area.change-undone"
-    : kind === "on" ? "workbench.task-grants-area.name-allowed-the-next-run-can-read"
-    : kind === "allow" ? "workbench.task-grants-area.name-may-read-its-new-data"
-    : kind === "remove" ? "workbench.task-grants-page.name-removed-no-longer-offered"
-    : status === "needs_confirmation" ? "workbench.task-grants-area.name-withdrawn-turn-on-to-allow-current-data"
-    : status === "unavailable" ? "workbench.task-grants-area.name-withdrawn-turn-on-after-plugin-returns"
-    : "workbench.task-grants-area.name-withdrawn-the-next-run-cannot-read",
+    : kind === "on" ? "workbench.task-grants-area.allowed"
+    : kind === "allow" ? "workbench.task-grants-area.new-data-allowed"
+    : kind === "remove" ? "workbench.task-grants-page.category-removed"
+    : status === "needs_confirmation" ? "workbench.task-grants-area.withdrawn-new-data"
+    : status === "unavailable" ? "workbench.task-grants-area.withdrawn-unavailable"
+    : "workbench.task-grants-area.withdrawn",
   ...(kind !== "undo" ? { category: row.name, name: row.title } : {}),
   act: change.undo ? "undo" : undefined };
 }
@@ -126,7 +126,7 @@ function drawTaskGrantEntry(entry: Entry, t: Translate, owner: string): void {
   const title = category ? rows.find(row => row.name === category)?.title ?? name : name;
   const text = t(key, title === undefined ? undefined : { name: title }), fresh = entry.drawn !== undefined && entry.drawn !== text;
   entry.drawn = text;
-  entry.area.surface.setAttribute("aria-label", t("workbench.task-grants-area.molis-work-only-you-can-change-this") + " · " + owner);
+  entry.area.surface.setAttribute("aria-label", t("workbench.task-grants-area.permission-owner") + " · " + owner);
   entry.area.redraw(taskGrantsAreaHtml(t, owner, rows, { ...line, text }, entry.busy, fresh, entry.languageFailed));
 }
 
@@ -156,8 +156,8 @@ export function pageTaskGrants(port: MessagePort, scope: FrameScope, areas: Page
   const draw = (entry: Entry) => drawTaskGrantEntry(entry, t, ownerName());
   const close = (id: number) => { entries.get(id)?.area.close(); entries.delete(id); };
   scope.own(() => { for (const id of [...entries.keys()]) close(id); });
-  const idle = (): LineText => ({ key: "workbench.task-grants-area.a-switch-takes-effect-at-once-the" });
-  const unread = (): LineText => ({ key: "workbench.task-grants-area.cannot-read-what-this-task-may-read", act: "read", tone: "danger" });
+  const idle = (): LineText => ({ key: "workbench.task-grants-area.switch-effect" });
+  const unread = (): LineText => ({ key: "workbench.task-grants-area.read-failed", act: "read", tone: "danger" });
 
   const read = async (entry: Entry) => {
     const current = await request<Reads>(entry, { mode: "read" });
@@ -183,7 +183,7 @@ export function pageTaskGrants(port: MessagePort, scope: FrameScope, areas: Page
       } else {
         // The switch goes back as it was; an undo that failed is spent (§3.6 「失败」).
         entry.last = change.kind === "undo" ? null : change;
-        entry.line = { key: "workbench.task-grants-area.not-saved-the-permissions-are-as-they", act: change.kind === "undo" ? undefined : "retry", tone: "danger" };
+        entry.line = { key: "workbench.task-grants-area.write-failed", act: change.kind === "undo" ? undefined : "retry", tone: "danger" };
       }
     } finally {
       if (entries.get(entry.id) === entry) { entry.busy = false; draw(entry); catchUp(entry); }
@@ -202,7 +202,7 @@ export function pageTaskGrants(port: MessagePort, scope: FrameScope, areas: Page
     // ①⑤⑥ are said nowhere: a scripted press, a press while a write is under way, a page that has moved on.
     if (refusal?.reason === "silent" || entry.busy || !scope.alive || entries.get(entry.id) !== entry || !entry.reads) { draw(entry); return; }
     if (refusal) {
-      if (act !== "retry-language") entry.line = { key: refusal.reason === "moved" ? "workbench.task-grants-area.this-just-moved" : "workbench.task-grants-area.show-this-whole-area-first" };
+      if (act !== "retry-language") entry.line = { key: refusal.reason === "moved" ? "workbench.task-grants-area.area-moved" : "workbench.task-grants-area.reveal" };
       if (refusal.reason === "partial") {
         if (refusal.reveal) send({ type: "task-grants-reveal", id: entry.id });
         else control.closest("li")?.scrollIntoView({ block: "nearest" });

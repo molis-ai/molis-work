@@ -1,13 +1,14 @@
-import {readFileSync} from 'node:fs';
+import {readFileSync,writeFileSync} from 'node:fs';
 import ts from 'typescript';
 import {transformSync} from 'esbuild';
 
 /** Pool repeated expression strings inside existing function scopes only; never rename public keys or change literals. */
 export function poolClientLiterals(source, { byBytes = false } = {}) {
   const ast=ts.createSourceFile('client.js',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.JS);
+  const minimumScopeWidth = byBytes ? 1000 : 10000;
   const edits=[];let sequence=0;
   const visit=node=>{
-    if(!ts.isFunctionLike(node)||!node.body||!ts.isBlock(node.body)||node.getWidth()<10000){ts.forEachChild(node,visit);return;}
+    if(!ts.isFunctionLike(node)||!node.body||!ts.isBlock(node.body)||node.getWidth()<minimumScopeWidth){ts.forEachChild(node,visit);return;}
     const strings=new Map();
     const collect=child=>{
       if(ts.isStringLiteral(child)&&(byBytes||child.text.length>10)&&child.parent.name!==child&&child.parent.propertyName!==child&&!ts.isExpressionStatement(child.parent)){
@@ -37,9 +38,22 @@ export function poolClientLiterals(source, { byBytes = false } = {}) {
 
 /** Compact an already assembled browser program without changing its globals or literal values. */
 export function compactClientScript(source) {
-  return transformSync(poolClientLiterals(source, { byBytes: true }), {
+  const minify = script => transformSync(script, {
     loader: 'js', target: 'es2022', charset: 'utf8', minifyWhitespace: true, minifyIdentifiers: true, minifySyntax: true, legalComments: 'none',
   }).code;
+  return minify(poolClientLiterals(minify(source), { byBytes: true }));
 }
 
-if (import.meta.main) process.stdout.write(compactClientScript(readFileSync(0, 'utf8')));
+/** Compact the body of the factory emitted by the native plugin builds, preserving the Host's callable expression. */
+export function compactClientFactory(source) {
+  const start = '(host) => {\n', end = '}\n';
+  if (!source.startsWith(start) || !source.endsWith(end)) throw new Error('Expected a plugin client factory');
+  return start + compactClientScript(source.slice(start.length, -end.length)) + end;
+}
+
+if (import.meta.main) {
+  const [mode, file] = process.argv.slice(2);
+  if (mode === '--factory' && file) writeFileSync(file, compactClientFactory(readFileSync(file, 'utf8')));
+  else if (mode === undefined) process.stdout.write(compactClientScript(readFileSync(0, 'utf8')));
+  else throw new Error('Usage: client-literals.mjs [--factory <path>]');
+}

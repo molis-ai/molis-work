@@ -4,7 +4,7 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import vm from 'node:vm';
 import { transformSync } from 'esbuild';
-import { poolClientLiterals } from '../scripts/client-literals.mjs';
+import { compactClientFactory, poolClientLiterals } from '../scripts/client-literals.mjs';
 
 test('pooling preserves directives, literal values, object keys, defaults and nested closures',()=>{
   const literal='repeated selector with Unicode 🙂 and quotes "';
@@ -41,4 +41,15 @@ test('pooling preserves adjacent return and typeof tokens in minified code',()=>
   const script=`(()=>{const padding=${JSON.stringify('x'.repeat(16000))};function value(){return${quoted}}return [value(),typeof${quoted},${quoted},padding.length]})()`;
   const pooled=poolClientLiterals(script);
   assert.equal(JSON.stringify(vm.runInNewContext(pooled)),JSON.stringify(vm.runInNewContext(script)));
+});
+
+test('a native plugin factory keeps its host parameter and behavior when compacted', () => {
+  const key = JSON.stringify('[data-inbox-entry-results]');
+  const padding = JSON.stringify('x'.repeat(1100));
+  const source = `(host) => {\n(() => {const padding = ${padding}; host.receive(${key}, ${key}, ${key}, padding.length);})();\n}\n`;
+  const compact = compactClientFactory(source);
+  assert.ok(Buffer.byteLength(compact) < Buffer.byteLength(source));
+  const seen = [];
+  vm.runInNewContext(compact)({ receive: (...args) => seen.push(...args) });
+  assert.deepEqual(seen, ['[data-inbox-entry-results]', '[data-inbox-entry-results]', '[data-inbox-entry-results]', 1100]);
 });

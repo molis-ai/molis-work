@@ -1,8 +1,8 @@
 # 第 27 批门禁待决方案
 
-状态：概念方案，固定基点 `3387d6247` 核查完成，分项待一骏决定（2026-11-09；第 27 批统筹负责决策接续，实现写手待分配）。
+状态：四组已由用户 2026-11-11 全批（[决定 37](../../../post-anticorruption-roadmap/reference/decisions.md#decision-37) ③）并在 `batch/27` 实现：1a、1b、2 已是挡合并的规则，3 的 RAC-438 递归扫描已落、宿主入口有效宽度只报告；S-03 借产品子集算 CI 证据随 1a 一并实现。BL-914、BL-569、BL-901 已删条目。下文是批准前的方案原文。
 
-本片承接 [27-4／27-5](../../../post-anticorruption-roadmap/reference/batches/27.md)、[BL-914](../../../backlog/BL-914.md)、[BL-569](../../../backlog/BL-569.md)、[BL-901](../../../backlog/BL-901.md) 和[对抗式审查 R4／B1／G3、N10](../../../../docs/reviews/adversarial-review-2026-11-01.md)。类型为底层与架构；方案现在可审，工程目标是让开发者在已有健康门禁看到具体失败位置、改正后原命令通过。批次的产品验收不随本片调整。依据 [Goal Prompt 红线](../../../post-anticorruption-roadmap/reference/batches/27.md#goal-prompt)及[开发流程 §4／§8.4](../../../post-anticorruption-roadmap/reference/development-workflow.md#batch-grouping)，门禁改动须先批准；本片只交本文。[N3 的标题检查](../batch27-security-evidence/spec.md)和 [A2 的行数报告](../batch27-host-lines/spec.md)已交付，沿用原授权；27-6 已批先报告，仍等 26-7，与本片无依赖。
+本片承接 [27-4／27-5](../../../post-anticorruption-roadmap/reference/batches/27.md)、BL-914、BL-569、BL-901（均已完成删除） 和[对抗式审查 R4／B1／G3、N10](../../../../docs/reviews/adversarial-review-2026-11-01.md)。类型为底层与架构；方案现在可审，工程目标是让开发者在已有健康门禁看到具体失败位置、改正后原命令通过。批次的产品验收不随本片调整。依据 [Goal Prompt 红线](../../../post-anticorruption-roadmap/reference/batches/27.md#goal-prompt)及[开发流程 §4／§8.4](../../../post-anticorruption-roadmap/reference/development-workflow.md#batch-grouping)，门禁改动须先批准；本片只交本文。[N3 的标题检查](../batch27-security-evidence/spec.md)和 [A2 的行数报告](../batch27-host-lines/spec.md)已交付，沿用原授权；27-6 已批先报告，仍等 26-7，与本片无依赖。
 
 ## 三组决定
 

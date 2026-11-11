@@ -56,6 +56,7 @@ import { inventoryProblems, loadRegistry } from "./gates/package-inventory.mjs";
 import { structureMetrics, structureWantsText } from "./gates/structure.mjs";
 import { goldenHomeProblems } from "./gates/golden-homes.mjs";
 import { hostLineDetails, hostLineSummary, hostLinesWantText, reportHostLines } from "./gates/host-lines.mjs";
+import { hostEntryWidthSummary, measureHostEntryWidth } from "./gates/host-entry-exports.mjs";
 import { tableOwnerProblems } from "./gates/table-owners.mjs";
 import { storeVersionProblems } from "./gates/store-versions.mjs";
 import { storeSchemaProblems } from "./gates/store-schemas.mjs";
@@ -494,6 +495,8 @@ if (mergeBase) {
 // A2 is informational and is kept out of the metrics that determine admission or write the local baseline.
 const hostLines = reportHostLines(headSnapshot, baseSnapshot, renames);
 if (!report) console.log(hostLineSummary(hostLines));
+// R4: the Host entry's importable names, at the merge-base and now; report only until the batch's combined head is read (decision 37 ③).
+if (!report) console.log(hostEntryWidthSummary(measureHostEntryWidth(headSnapshot, root), baseSnapshot ? measureHostEntryWidth(baseSnapshot, root) : null));
 
 // ---- the guards ------------------------------------------------------------------------------------------------------
 const notes = [];

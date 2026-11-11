@@ -116,7 +116,7 @@ export async function readPageDocument(port: MessagePort, id: number, root: HTML
         || Object.keys(object).some(key => !["id", "surface"].includes(key)) || typeof object.id !== "string" || !object.id || object.id.length > 256 || object.id.includes("/")
         || typeof object.surface !== "string" || !object.surface || object.surface.length > 200) throw new Error("View unavailable");
       await molisWorkRequest(route("/api/host/plugin-page-check"), { body: { object_surface: object.surface }, scope, signal, headers: { "x-molis-plugin-page": pageId } });
-      html = await molisWorkRequest<string>(route("/api/stage/" + encodeURIComponent(root.dataset.pluginClient) + "/objects/" + encodeURIComponent(object.id)) + "?" + new URLSearchParams({ ...input, surface: object.surface }).toString(), { as: "text", scope, signal });
+      html = await molisWorkRequest<string>(route("/api/stage/" + encodeURIComponent(root.dataset.pluginClient) + "/objects/" + encodeURIComponent(object.id)) + "?" + new URLSearchParams({ ...input, surface: object.surface }), { as: "text", scope, signal });
       // Re-read the exact producer after the fragment: a new half or installation cannot supply this old page's result.
       await readOwnPageDocument(root, route, pack.plugin_id, pageId, scope, signal);
     } else if (input !== undefined) {

@@ -67,7 +67,7 @@ export function childView(port: MessagePort, scope: FrameScope): UiPageView<HTML
     };
     const abort = () => { port.postMessage({ type: "document-cancel", id } satisfies FrameUp); finish(undefined, new DOMException("View changed", "AbortError")); };
     pending.set(id, { finish, cancel: abort }); query?.signal?.addEventListener("abort", abort, { once: true });
-    port.postMessage({ type: "read-document", id, ...(query?.object ? { object: query.object } : {}) } satisfies FrameUp);
+    port.postMessage({ type: "read-document", id, ...(query?.object ? { object: query.object } : {}), ...(query?.input ? { input: query.input } : {}) } satisfies FrameUp);
   }) };
 }
 
@@ -93,24 +93,43 @@ export async function readOwnPageDocument(root: HTMLElement, route: (path: strin
     return html;
 }
 
+/** A parameterized page remains bound to the same owner before and after the read. */
+export async function readInputPageDocument(root: HTMLElement, route: (path: string) => string, pluginId: string, pageId: string,
+  input: Readonly<Record<string, string>>, scope?: FrameScope, signal?: AbortSignal): Promise<string> {
+  if (!root.dataset.pluginProducer || !root.dataset.pluginClient || !input || typeof input !== "object" || Array.isArray(input)
+    || Object.keys(input).length > 20 || Object.entries(input).some(([key, value]) => !/^[a-z][a-z0-9_]*$/.test(key) || key.length > 80 || typeof value !== "string" || value.length > 2000)) throw new Error("View unavailable");
+  await readOwnPageDocument(root, route, pluginId, pageId, scope, signal);
+  const html = await molisWorkRequest<string>(route("/api/stage/" + encodeURIComponent(root.dataset.pluginClient)) + "?" + new URLSearchParams(input), { as: "text", scope, signal });
+  await readOwnPageDocument(root, route, pluginId, pageId, scope, signal);
+  return html;
+}
+
 export async function readPageDocument(port: MessagePort, id: number, root: HTMLElement, route: (path: string) => string,
-  pack: FramePack, pageId: string, scope: FrameScope, object?: { id: string; surface: string }, signal?: AbortSignal): Promise<void> {
+  pack: FramePack, pageId: string, scope: FrameScope, object?: { id: string; surface: string }, signal?: AbortSignal, input?: Readonly<Record<string, string>>): Promise<void> {
   try {
     let html: string;
+    if (input !== undefined && (!input || typeof input !== "object" || Array.isArray(input) || Object.keys(input).length > 20
+      || Object.entries(input).some(([key, value]) => !/^[a-z][a-z0-9_]*$/.test(key) || key.length > 80 || typeof value !== "string" || value.length > 2000))) throw new Error("View unavailable");
+
     if (object !== undefined) {
       if (!root.dataset.pluginProducer || !root.dataset.pluginClient || !object || typeof object !== "object" || Array.isArray(object)
         || Object.keys(object).some(key => !["id", "surface"].includes(key)) || typeof object.id !== "string" || !object.id || object.id.length > 256 || object.id.includes("/")
         || typeof object.surface !== "string" || !object.surface || object.surface.length > 200) throw new Error("View unavailable");
       await molisWorkRequest(route("/api/host/plugin-page-check"), { body: { object_surface: object.surface }, scope, signal, headers: { "x-molis-plugin-page": pageId } });
-      html = await molisWorkRequest<string>(route("/api/stage/" + encodeURIComponent(root.dataset.pluginClient) + "/objects/" + encodeURIComponent(object.id)) + "?surface=" + encodeURIComponent(object.surface), { as: "text", scope, signal });
+      html = await molisWorkRequest<string>(route("/api/stage/" + encodeURIComponent(root.dataset.pluginClient) + "/objects/" + encodeURIComponent(object.id)) + "?" + new URLSearchParams({ ...input, surface: object.surface }), { as: "text", scope, signal });
       // Re-read the exact producer after the fragment: a new half or installation cannot supply this old page's result.
       await readOwnPageDocument(root, route, pack.plugin_id, pageId, scope, signal);
+    } else if (input !== undefined) {
+      html = await readInputPageDocument(root, route, pack.plugin_id, pageId, input, scope, signal);
     } else {
       html = await readOwnPageDocument(root, route, pack.plugin_id, pageId, scope, signal);
+    }
+    scope.assertCurrent(signal);
+    // Parameterized pages also replace the trusted document used to authorize their rendered connection slots.
+    if (!object) {
       const payload = root.querySelector("script[data-plugin-document]");
       if (payload) payload.textContent = JSON.stringify(html);
     }
-    scope.assertCurrent(signal);
     port.postMessage({ type: "document", id, html } satisfies FrameDown);
   } catch (error) {
     if (scope.alive && !signal?.aborted) port.postMessage({ type: "document", id, error: error instanceof Error ? error.message : "View unavailable" } satisfies FrameDown);

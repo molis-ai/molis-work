@@ -111,7 +111,7 @@ export type FrameUp =
   | { type: "embed-close"; id: number }
   | TaskGrantsUp | ConnectionNeedUp | ReturnUp | ComposerUp
   | FrameRequest | ContextUp | PresentationMessage | { type: "ready" } | { type: "failed"; message: string }
-  | { type: "interaction" } | { type: "modal"; open: boolean } | { type: "read-document"; id: number; object?: { id: string; surface: string } }
+  | { type: "interaction" } | { type: "modal"; open: boolean } | { type: "read-document"; id: number; object?: { id: string; surface: string }; input?: Readonly<Record<string, string>> }
   | { type: "document-cancel"; id: number } | { type: "refresh-shell" }
   | { type: "context-intake"; intake_id: string; id: string; title: string; text: string }
   | { type: "copy"; id: number; text: string }

@@ -202,3 +202,7 @@ Images 首片迁移 `ui.ts` 的 46 处服务端调用与 `client.ts` 的 61 处�
 WORK-06 的个人/租户选择、定向邀请、角色管理、交接与平台租户操作经现有账号入口和同一动作目录接入，中央负责权限与版本；不切换本地 Home。专项验证：`MOLIS_AUTH_SOURCE=/absolute/path/to/auth node scripts/account-tenants.test.mjs`（临时 Home/D1、Chrome，外部服务 mock）。
 
 WORK-07 的订阅、席位与平台变更专项联调：构建后以 `MOLIS_AUTH_SOURCE=/absolute/path/to/auth node scripts/account-billing.test.mjs` 运行（按机器 browser 时段包裹）。使用真实 Auth/Host、临时 Home/D1 和 Chrome，外部服务 mock。平台库存只读合同为 Auth 1.1.0，席位写操作仍由租户管理角色授权。
+
+### 内容选择器的 owner 分页
+
+冷启动内容选择器仍只投影 owner 的惰性 HTML 元数据。需要跨页完整枚举的 owner，在已授权页面上声明 `data-frame-assets-input`（字符串输入对象的 JSON）；每页在 `data-frame-assets-next-input` 声明下一页输入，末页省略。输入只经既有 Manifest 舞台参数合同，平台不识别具体插件或过滤值。每页读取前后校验同一个 producer/page 授权，重复输入拒绝；一位 owner 的任一页失败就不交付该 owner 的部分候选。对象解析可在找到精确引用后停止；拖拽仍必须先通过原句柄的投影范围检查，不以新页面放大旧句柄权限。FBR-05 的跨200条/归档候选、伪造与撤回拒绝由 `tests/workbench-frame-container.e2e.test.ts` 覆盖。

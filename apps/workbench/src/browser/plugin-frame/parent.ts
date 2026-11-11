@@ -274,7 +274,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
     if (message.type === "read-document") {
       if (!Number.isSafeInteger(message.id) || message.id <= 0 || documentReads.has(message.id)) return;
       const controller = new AbortController(); documentReads.set(message.id, controller);
-      void readPageDocument(port, message.id, root, route, pack, grant.page_id, scope, message.object, controller.signal)
+      void readPageDocument(port, message.id, root, route, pack, grant.page_id, scope, message.object, controller.signal, message.input)
         .finally(() => { if (documentReads.get(message.id) === controller) documentReads.delete(message.id); });
       return;
     }

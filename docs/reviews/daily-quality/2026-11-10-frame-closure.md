@@ -40,3 +40,7 @@ Node 24.15.0 最小复现：同一 test 注册两个 after，第一个抛错、�
 - `pnpm boundary:check`、健康门禁 `--base origin/main`（merge-base `98bcdd13e`）、`git diff --check` 均通过；没有调大门禁或新增例外。
 
 报告仅以打印 frame 仍带 allow-same-origin 维持开放状态，不足以证明可执行插件脚本获得同源权限。这是父页调用打印所需的现行设计；按已批准范围保留该配置，以禁脚本、CSP、父页读取拒绝与生命周期证据关闭 D0033 / N0801，不将隐藏属性当成安全边界。
+
+## 2026-11-11 交付状态核回
+
+在已 fetch 的 `origin/main`（`93eb5590a`）确认本专项已随 [#2011](https://github.com/molis-ai/molis-work/pull/2011) 合入，合并提交 `07840084d`。上文“尚未合入／尚未提交 PR”等文字是当时的阶段记录，当前交付状态以本段为准；既有测试结果仍只证明当时记录的验收基准，本次未重跑该专项，也不声称已发布或验证真实 Home。

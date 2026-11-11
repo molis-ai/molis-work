@@ -72,6 +72,12 @@ test("Feed reads and warm Web projections use each owner's current authority, re
     const base = `http://127.0.0.1:${address.port}/projects/${encodeURIComponent(projectId)}`;
     assert.equal((await fetch(`${base}/api/plugins/io.molis.work.feed/snapshot`)).status, 200);
     assert.match(await (await fetch(`${base}/api/stage/feed/objects/${encodeURIComponent(item.item_id)}?surface=persisted-detail`)).text(), /正文只在获得读取权限后提供/);
+    // FBR-06: only the current owner's declared data parameters reach the common stage action.
+    assert.equal((await fetch(`${base}/api/stage/feed?offset=0&filter=${encodeURIComponent(JSON.stringify({ search: "独立" }))}`)).status, 200);
+    for (const query of ["actor_id=other", "project_id=other", "object_id=other", "offset=-1", "offset=0&offset=200", "filter=not-json", `filter=${encodeURIComponent(JSON.stringify({ project_id: "other" }))}`]) {
+      assert.equal((await fetch(`${base}/api/stage/feed?${query}`)).status, 400, query);
+    }
+
     disabled.add("io.molis.work.feed"); disabled.add("io.molis.work.schedule");
     const revoked = await view();
     assert.strictEqual(revoked.goals, first.goals, "the authorized Goals cache is still warm");
@@ -209,7 +215,9 @@ for (const selected of ["project", "home"] as const) test(`RAC-2507 RAC-2508 RAC
   }
   draws.length = 0; seen.length = 0;
   for (const surface of ["persisted-detail", "frame-block"]) {
-    const response = await request(`${path}/objects/node%252Fone?surface=${surface}&actor_id=imposter&project_id=foreign&extra=never`);
+    const refused = await request(`${path}/objects/node%252Fone?surface=${surface}&actor_id=imposter&project_id=foreign&extra=never`);
+    assert.equal(refused.status, 400, "FBR-06 undeclared identity input is refused");
+    const response = await request(`${path}/objects/node%252Fone?surface=${surface}`);
     assert.equal(response.status, 200); assert.match(await response.text(), new RegExp(`data-owner-probe="${surface}"`));
     assert.deepEqual(seen.at(-1)!.input, { object_id: "node%2Fone" }); assert.equal(seen.at(-1)!.caller.actor_id, LOCAL_PERSON_ACTOR_ID);
     assert.equal(seen.at(-1)!.caller.project_id, one.project_id);

@@ -751,11 +751,11 @@ test("RAC-1745 a dual-instance plugin in the build is drawn by the half that off
   // A capability has one producer across Home/project scope. Withdraw the project read before the fixture moves it with its view.
   const projectInstallId = projectPlatform.supervisor.state(FEED_PLUGIN_ID)!.install_id!;
   await projectPlatform.runtime.stop(projectInstallId);
-  const data = { snapshot: { sources: [], feed_items: [], runs: [], out_rules: [] }, source_catalog: [],
+  const data = { snapshot: { sources: [], feed_items: [], runs: [], out_rules: [], offset: 0, next_offset: null, facets: [] }, source_catalog: [],
     connector_auth: { github: { bound: false }, gmail: { bound: false } }, inbox_entries: [], source_presentations: {} };
   let homeReads = 0;
   const registration = { provider: { provider_id: FEED_PLUGIN_ID, plugin_id: FEED_PLUGIN_ID,
-    plugin_install_id: install.install_id, title: "Feed Home stage", kind: "plugin" }, definitions: [feedQueryActions.stage],
+    plugin_install_id: install.install_id, title: "Feed Home stage", kind: "plugin" as const }, definitions: [feedQueryActions.stage],
     handlers: [{ ...feedQueryActions.stage, handle(caller) { homeReads++; assert.equal(caller.project_id, one.project_id); return data; } }] };
   const view = { descriptor: { contribution_id: stageId, kind: "embedded" as const, label: "Feed", surfaces: ["workbench", "source-workbench"]
     .map(surface_id => ({ surface_id, target_slot_id: "workbench.main", format: "declarative-html" })), slots: [] },

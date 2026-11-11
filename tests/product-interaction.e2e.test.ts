@@ -364,7 +364,10 @@ test("Feed reader keeps one title, tracks read state, collapses and retries a fa
   assert.equal(await evaluate(`document.querySelector('${row}').getAttribute('aria-expanded')`),'false');
   await click(row);assert.equal(await evaluate(`document.querySelector('[data-feed-detail="${item.item_id}"]').hidden`),false);
   await evaluate(`{const field=document.querySelector('[data-feed-search]');field.value='不存在的标题';field.dispatchEvent(new Event('input',{bubbles:true}));}`);
-  assert.equal(await evaluate(`document.querySelector('${row}').closest('[data-feed-item-wrap]').hidden`),true);
+  // FBR-02: the owner filters asynchronously and omits unmatched rows from the returned page.
+  await waitFor(`!document.querySelector('${row}') && document.querySelector('[data-feed-empty]')?.hidden===false`);
+  assert.equal(await evaluate(`Boolean(document.querySelector('${row}'))`),false);
   await evaluate("document.querySelector('[data-feed-clear-filters]').click()");
+  await waitFor(`document.querySelector('${row}')?.closest('[data-feed-item-wrap]').hidden===false`);
   assert.equal(await evaluate(`document.querySelector('${row}').closest('[data-feed-item-wrap]').hidden`),false);
 });

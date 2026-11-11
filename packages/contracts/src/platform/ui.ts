@@ -23,7 +23,7 @@ type AgentStepState = AgentStepBoard["nodes"][number]["state"];
 /** Refreshing the shell always uses its current address; plugins cannot select a host URL. */
 export interface UiPageView<Element = unknown> {
   /** An object's HTML uses this same owner and one declared main surface; the Host chooses its address. */
-  readDocument(query?: { object?: { id: string; surface: string }; signal?: AbortSignal }): Promise<string>;
+  readDocument(query?: { object?: { id: string; surface: string }; input?: Readonly<Record<string, string>>; signal?: AbortSignal }): Promise<string>;
   /** Replace the current own-action cleanup; null cancels it. The Host runs it before revoking this page. */
   onClosing(action: { reference: ActionReference; input: unknown } | null): void;
   refreshShell(): void;

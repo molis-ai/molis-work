@@ -53,10 +53,11 @@ export function feedClient(host: FeedHost): void {
     // This page's own operations always redraw: what they change can live outside the page document (the open item's detail,
     // a source's account), and only a redraw reads those again. A notice coalesced with one of them redraws too.
     if (!notice) redraw = true;
+    else stage.resetPage();
     const check = page.guard(), sequence = ++refreshSequence;
     const refresh = async () => {
       reading++;
-      const html = await host.view.readDocument({ signal: page.signal() }).finally(() => reading--); check();
+      const html = await host.view.readDocument({ ...(host.mount?.surface === "workbench" ? { input: stage.queryInput() } : {}), signal: page.signal() }).finally(() => reading--); check();
       if (sequence !== refreshSequence) { await activeRefresh; check(); return; }
       // A notice that reads back what is already drawn (the poll after this page's own save) leaves the page alone:
       // redrawing it would only swap out the controls in use and the result a person was just shown.
@@ -64,7 +65,7 @@ export function feedClient(host: FeedHost): void {
       redraw = false;
       const controls = page.all<HTMLInputElement | HTMLSelectElement>("[data-feed-search]," + FILTER_FIELDS).map(field => ({ attr: [...field.attributes].find(attr => attr.name.startsWith("data-feed-"))!.name, value: field.value }));
       const filterOpen = page.q("[data-feed-filter-panel]")?.hidden === false;
-      const next = new DOMParser().parseFromString(html, "text/html").querySelector<HTMLElement>("[data-ui-client-root]");
+      const next = new DOMParser().parseFromString(html, "text/html").querySelector<HTMLElement>(host.mount?.surface === "workbench" ? "[data-feed-workbench]" : "[data-ui-client-root]");
       if (!next) throw new Error(host.translate("无法更新 Feed 列表"));
       // Preserve unsaved settings and the rule composer while authoritative rows/configuration are redrawn.
       for (const previous of page.all("[data-feed-task-config]")) {
@@ -108,9 +109,11 @@ export function feedClient(host: FeedHost): void {
     if (host.mount?.surface === "workbench" && !page.all("[data-feed-task]").some(node => node.dataset.feedTask === id)) id = "all";
     // A change of selection cancels this page's reads. The page document is the same whichever view is selected, so a
     // refresh it cancels reads again: a change announced from outside meanwhile is still drawn.
-    if (id !== page.selection) { page.change(); if (reading) void page.refresh(true).catch(page.error); }
+    const changed = id !== page.selection;
+    if (changed) { page.change(); stage.resetPage(); stage.clearFocus(); }
     page.selection = id; if (panel) page.panel = panel; else if (intent !== "restore") page.panel = "messages";
     sources.select(id, intent); stage.filter();
+    if (changed) void page.refresh(true).catch(page.error);
     // Opening a view without naming a panel shows its messages, also when it was already selected with a panel open.
     if (panel || intent !== "restore" || page.panel !== "messages") sources.show(page.panel); rules.hydrate();
   };
@@ -119,7 +122,7 @@ export function feedClient(host: FeedHost): void {
     if (!detail) return;
     if (detail.invalidate) { if (scope.visible) void page.refresh(true).catch(error => page.error(error)); return; }
     page.select(detail.view ?? "all", detail.intent, detail.panel);
-    if (typeof detail.itemId === "string") void stage.select(detail.itemId, true).catch(error => page.error(error));
+    if (typeof detail.itemId === "string") void stage.open(detail.itemId).catch(error => page.error(error));
     else if (detail.itemId === null) stage.collapse();
   });
   page.listen("click", event => {

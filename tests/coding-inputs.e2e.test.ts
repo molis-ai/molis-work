@@ -35,8 +35,9 @@ test('Coding compares another writer against the original editor premise before 
  await request({draft:'another device changed this',expected_input_revision:1});await refresh();
  await waitFor("document.querySelector('[data-coding-input-compare]')");
  assert.equal(await hostEvaluate(`${input}.value`),'my unsent text');assert.equal((await request()).draft,'another device changed this');
- await reloadPage();await hostClick('[data-plugin-strip] [data-plugin-id="coding"]');
- // One list (§10.4): the reload brings the session's tab back, so the page opens on it rather than on its list.
+ // One list (§10.4): the reload brings the session's tab back in front, so the page opens on it rather than on its list (no
+ // switcher pick: Coding is already the plugin shown).
+ await reloadPage();
  await waitFor(`document.querySelector('[data-coding-session="${id}"]')?.classList.contains('is-selected') && document.querySelector('[data-coding-detail]')?.dataset.codingDetail === 'true'`);
  await hostWaitFor(CODING_OPEN);await waitFor("document.querySelector('[data-coding-input-compare]')");
  assert.equal(await hostEvaluate(`${input}.value`),'my unsent text','reload does not bless old cached text with a fresh server revision');

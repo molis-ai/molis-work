@@ -85,9 +85,12 @@ export async function pluginFrameBrowser(t: TestContext, browser: Browser, surfa
   // frames as they are, for tests about motion.
   const heldStill = new Set<string>();
   async function followPageMotion(session: string) {
+    // A frame in the page's own process already has the page's media, and setting it here would replace the page's
+    // other emulated features (setEmulatedMedia sets all of them at once).
+    if (session === browser.sessionId) return;
     const still = await browser.evaluate<boolean>("matchMedia('(prefers-reduced-motion: reduce)').matches");
     if (still === heldStill.has(session)) return;
-    await browser.command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: still ? "reduce" : "" }] }, session);
+    await browser.command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: still ? "reduce" : "no-preference" }] }, session);
     if (still) heldStill.add(session); else heldStill.delete(session);
   }
   async function context() {

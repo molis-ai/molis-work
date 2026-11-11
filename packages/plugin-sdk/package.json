@@ -50,6 +50,10 @@
       "types": "./dist/whole-units.d.ts",
       "import": "./dist/whole-units.js"
     },
+    "./skill-ref": {
+      "types": "./dist/skill-ref.d.ts",
+      "import": "./dist/skill-ref.js"
+    },
     "./execution": {
       "types": "./dist/execution.d.ts",
       "import": "./dist/execution.js"

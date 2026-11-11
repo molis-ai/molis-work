@@ -2,7 +2,7 @@ import { agentErrors } from "../errors.js";
 import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentRunHandle, AgentRunRef, AgentRunView, AgentRuntimeDescriptor, AgentStartExecution, AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { STEP_TOOLS } from "../execution-plan.js";
-import { skillRefKey } from "../round-skills.js";
+import { skillRefKey } from "@molis-ai/molis-work-plugin-sdk/skill-ref";
 import { freezeRunStart, validateRunAttachments } from "./prologue-frozen.js";
 import type { PrologueAdapterPorts, PrologueModelConfiguration, PrologueRuntimePort, PrologueStartInput } from "./prologue-ports.js";
 import { isEnded, type PrologueRunStore, type RunRecord, type SessionRecord } from "./prologue-run-store.js";

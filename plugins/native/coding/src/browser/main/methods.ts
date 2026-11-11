@@ -1,7 +1,8 @@
 import { el } from "../dom.js";
 import { shut } from "./composer-state.js";
 import type { Page } from "./page.js";
-import type { McpServer, McpToolRef, SkillChoice, SkillRef } from "./shapes.js";
+import { skillRefKey } from "@molis-ai/molis-work-plugin-sdk/skill-ref";
+import type { McpServer, McpToolRef, SkillChoice } from "./shapes.js";
 
 interface ToolRow extends McpToolRef { readonly label: string; readonly available: boolean; readonly description: string }
 interface SourceRow { readonly server: string; readonly configuration_version: number; readonly label: string; readonly resources: readonly unknown[]; readonly available: boolean }
@@ -69,7 +70,6 @@ export function renderMcp(page: Page) {
   if (!tools && !sources) list.textContent = page.L("coding.mcp.none");
 }
 
-const refKey = (ref: SkillRef) => JSON.stringify([ref.source.plugin_id, ref.source.plugin_version, ref.source.publisher_signature, ref.skill_id, ref.version, ref.install_id, ref.installation_generation]);
 
 /** A Skill's opening as the catalog keeps it: the menu reads no body (the round's start does). */
 function showExcerpt(page: Page, skill: SkillChoice) {
@@ -81,16 +81,16 @@ function showExcerpt(page: Page, skill: SkillChoice) {
 
 /** One Skill of the catalog: its box, its words, and its opening. */
 function methodRow(page: Page, skill: SkillChoice): HTMLElement {
-  const { L, lifetime } = page, { s } = page, key = refKey(skill.ref);
+  const { L, lifetime } = page, { s } = page, key = skillRefKey(skill.ref);
   const row = el("div", "", "mw-field"), label = el("label", "", "mw-check-row"), check = el("input", "", "mw-check");
-  const chosen = s.methodChoices.some(ref => refKey(ref) === key);
+  const chosen = s.methodChoices.some(ref => skillRefKey(ref) === key);
   check.type = "checkbox";
   check.checked = chosen;
   // Another plugin's `manual` Skill is named only in the Assistant; one already kept can still be cleared.
   check.disabled = !chosen && (!skill.available || skill.assistant_only);
   label.append(check, el("span", skill.name + " · v" + skill.ref.version));
   lifetime.listen(check, "change", () => {
-    s.methodChoices = s.methodChoices.filter(ref => refKey(ref) !== key);
+    s.methodChoices = s.methodChoices.filter(ref => skillRefKey(ref) !== key);
     if (check.checked) s.methodChoices.push(structuredClone(skill.ref));
   });
   const read = el("button", L("coding.method.read"), "mw-btn mw-btn--ghost");
@@ -112,7 +112,7 @@ export function renderMethods(page: Page) {
   const catalog = s.state.skills || [], rows = catalog.filter(item => (item.name + " " + item.description).toLocaleLowerCase().includes(needle));
   for (const skill of rows) list.append(methodRow(page, skill));
   if (!rows.length) list.append(el("p", needle ? L("coding.method.no-match") : L("coding.method.none")));
-  for (const ref of s.methodChoices.filter(item => !catalog.some(skill => refKey(skill.ref) === refKey(item)))) {
+  for (const ref of s.methodChoices.filter(item => !catalog.some(skill => skillRefKey(skill.ref) === skillRefKey(item)))) {
     const remove = el("button", L("coding.method.remove-gone", { method: ref.skill_id + " · v" + ref.version }), "mw-btn");
     remove.type = "button";
     lifetime.listen(remove, "click", () => {

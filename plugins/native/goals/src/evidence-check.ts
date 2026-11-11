@@ -1,4 +1,4 @@
-import { ActionError, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { goalErrors } from "./module/errors.js";
 import { goalEventAssessmentKey, type GoalEventJudgmentAssessment, type GoalEventJudgmentBasisInput, type ReportGoalEventsInput } from "./contract/goals.js";
@@ -15,15 +15,18 @@ export interface GoalEvidenceRunCheck {
   commands: ReadonlyArray<{ call_id: string; recorded: boolean; exit_code: number | null; timed_out: boolean; cancelled: boolean; changed_after: boolean }>;
 }
 
-export interface GoalEvidencePorts {
+/** What of the call the check itself reads: the session the Host bound it to, and its cancellation. The ports get the whole caller back. */
+export interface GoalEvidenceCaller { readonly runtime_session_id?: string; readonly signal?: AbortSignal }
+
+export interface GoalEvidencePorts<Caller extends GoalEvidenceCaller = GoalEvidenceCaller> {
   /** The Goal's confirmed deliverables, read in a window of their own. */
   deliverables(goalId: string): readonly ArtifactReference[];
   /** The sessions that said "supports" of the requirement on their own word alone. */
   selfSupportingSessions(goalId: string, requirementId: string): ReadonlySet<string>;
   /** A version in the 成果库 as this caller may read it; null when it is not there. */
-  readArtifact(caller: ActionExecutionContext, reference: ArtifactReference): Promise<GoalEvidenceArtifact | null>;
+  readArtifact(caller: Caller, reference: ArtifactReference): Promise<GoalEvidenceArtifact | null>;
   /** Asked as the caller, and answered only about a round of the caller's own session; "none" when that session has no such round. */
-  checkRun(caller: ActionExecutionContext, runId: string, callIds: readonly string[]): Promise<GoalEvidenceRunCheck | "none">;
+  checkRun(caller: Caller, runId: string, callIds: readonly string[]): Promise<GoalEvidenceRunCheck | "none">;
 }
 
 type ReportEvents = Omit<ReportGoalEventsInput, "project_id" | "actor_id" | "actor_kind" | "trusted">;
@@ -40,7 +43,7 @@ const sameVersion = (a: ArtifactReference, b: ArtifactReference) => a.artifact_i
  * own word, and only where the maker is known to be another session or another session has reported it done. Whatever cannot be
  * established stays the reporter's own word, with what was missing; nothing here fails the report for lack of evidence.
  */
-export async function assessGoalReport(ports: GoalEvidencePorts, caller: ActionExecutionContext, input: ReportEvents): Promise<NonNullable<ReportGoalEventsInput["trusted"]>> {
+export async function assessGoalReport<Caller extends GoalEvidenceCaller>(ports: GoalEvidencePorts<Caller>, caller: Caller, input: ReportEvents): Promise<NonNullable<ReportGoalEventsInput["trusted"]>> {
   const session = caller.runtime_session_id ?? null, assessments = new Map<string, GoalEventJudgmentAssessment>();
   const based = (input.events ?? []).flatMap((event, index) => (Array.isArray(event?.judgments) ? event.judgments : [])
     .flatMap(judgment => wellFormed(judgment?.basis) ? [{ index, requirement: judgment.requirement_id, verdict: judgment.verdict, basis: judgment.basis }] : []));
@@ -72,13 +75,13 @@ function wellFormed(basis: unknown): basis is GoalEventJudgmentBasisInput {
 const checkedOf = (basis: GoalEventJudgmentBasisInput): ArtifactReference => ({ artifact_id: basis.checked.artifact_id.trim(), version: basis.checked.version });
 
 /** A cancelled call stops here; any other failure of a lookup is only evidence that could not be read (the write asks the caller's authority again). */
-function rethrowStopped<T>(caller: ActionExecutionContext, error: unknown, otherwise: T): T {
+function rethrowStopped<T>(caller: GoalEvidenceCaller, error: unknown, otherwise: T): T {
   if (caller.signal?.aborted) throw error;
   if (error instanceof ActionError && error.code === "actions.cancelled") throw error;
   return otherwise;
 }
 
-async function assess(ports: GoalEvidencePorts, caller: ActionExecutionContext, session: string | null, goalId: string, requirement: string,
+async function assess<Caller extends GoalEvidenceCaller>(ports: GoalEvidencePorts<Caller>, caller: Caller, session: string | null, goalId: string, requirement: string,
   basis: GoalEventJudgmentBasisInput, artifactOf: (reference: ArtifactReference) => Promise<GoalEvidenceArtifact | null | "unreadable">): Promise<GoalEventJudgmentAssessment> {
   const receipts = (basis.evidence ?? []).flatMap(ref => ref.kind === "command_receipt" ? [ref] : []);
   // No platform session behind the call: nothing it cites can be looked up as its own, and it is nobody's reviewer.

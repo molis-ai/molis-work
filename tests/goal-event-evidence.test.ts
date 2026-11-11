@@ -1,4 +1,4 @@
-import { ActionError, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -199,7 +199,7 @@ test("EVD-07: a basis that names no exact version, says nothing of how it was ch
 // ---- What Goals works out before a report is saved (`assessGoalReport`), over what the 成果库 and the platform answer. ----
 
 const RUN = "run-made-v1", SESSION = "session-worker";
-const callerOf = (session: string | undefined, signal?: AbortSignal) => ({ runtime_session_id: session, signal }) as unknown as ActionExecutionContext;
+const callerOf = (session: string | undefined, signal?: AbortSignal) => ({ ...(session ? { runtime_session_id: session } : {}), ...(signal ? { signal } : {}) });
 interface World {
   deliverables?: Array<{ artifact_id: string; version: number }>;
   artifact?: { producer_plugin_id: string; origin: { kind: string; revision?: string } } | null | Error;

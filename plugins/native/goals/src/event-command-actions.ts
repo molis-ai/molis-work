@@ -55,11 +55,13 @@ export const goalsEventActions = {
 /** What Goals worked out about a report's evidence before its window opened, kept beside the call's input and never inside it. */
 export const goalReportTrust = new WeakMap<object, NonNullable<ReportGoalEventsInput["trusted"]>>();
 
+const trustOf = (input: unknown) => (typeof input === "object" && input !== null ? goalReportTrust.get(input) : undefined);
+
 export function createGoalsEventActionHandlers(events: GoalEventApplication, projectId: string): ActionHandlerBinding[] {
   return [
     { ...goalsEventActions.configure, handle: (caller, input) => events.configure({ ...input as BusinessInput<ConfigureGoalEventsApplicationInput>, project_id: projectId, ...goalActor(caller) }) },
     // `trusted` is never the caller's: whatever the input held under that name is replaced by what Goals itself worked out for this very call.
-    { ...goalsEventActions.report, handle: (caller, input) => events.report({ ...input as BusinessInput<ReportGoalEventsInput>, project_id: projectId, ...goalActor(caller), trusted: goalReportTrust.get(input as object) }) },
+    { ...goalsEventActions.report, handle: (caller, input) => events.report({ ...input as BusinessInput<ReportGoalEventsInput>, project_id: projectId, ...goalActor(caller), trusted: trustOf(input) }) },
     { ...goalsEventActions.progress, handle: (caller, input) => events.recordProgress({ ...input as BusinessInput<RecordGoalProgressSummaryInput>, project_id: projectId, ...goalActor(caller) }) },
     { ...goalsEventActions.concern, handle: (caller, input) => events.applyConcern({ ...input as BusinessInput<ApplyGoalConcernInput>, project_id: projectId, ...goalActor(caller) }) },
     { ...goalsEventActions.requestDecision, handle: (caller, input) => events.requestDecision({ ...input as BusinessInput<RequestGoalDecisionInput>, project_id: projectId, ...goalActor(caller) }) },

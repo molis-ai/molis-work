@@ -219,6 +219,24 @@ export interface AgentDraftTextResult {
     } | null;
 }
 
+export interface AgentEvidenceCheck {
+    owner_plugin_id: string;
+    run: AgentRunRef;
+    commands: Array<{
+        call_id: string;
+        recorded: boolean;
+        exit_code: number | null;
+        timed_out: boolean;
+        cancelled: boolean;
+        changed_after: boolean;
+    }>;
+}
+
+export interface AgentEvidenceCheckRequest {
+    run_id: string;
+    command_call_ids: string[];
+}
+
 export interface AgentExecutionPlan {
     source: ArtifactReference;
     title: string;
@@ -1970,6 +1988,7 @@ export declare const agentHostCapabilities: {
     }>;
     readonly controlRun: ActionDefinition<[session: AgentSessionRef, run: AgentRunRef, control: AgentRunControl], void>;
     readonly readCommandOutput: ActionDefinition<[session: AgentSessionRef, ref: AgentCommandOutputRef], AgentCommandOutput>;
+    readonly checkEvidence: ActionDefinition<AgentEvidenceCheckRequest, AgentEvidenceCheck>;
     readonly inspectRecovery: ActionDefinition<[session: AgentSessionRef], AgentRecoveryReport>;
     readonly recoverRun: ActionDefinition<[session: AgentSessionRef, run: AgentRunRef, expectedVersion: number], AgentRecoveryReport>;
     readonly listCheckpoints: ActionDefinition<[session: AgentSessionRef], AgentCheckpoint[]>;

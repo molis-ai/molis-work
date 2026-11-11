@@ -3560,6 +3560,7 @@ export interface PluginManifest {
         embedded_plugins?: string[];
         views?: UiViewDeclaration[];
         page_routes?: UiPageRouteDeclaration[];
+        subject_context?: UiSubjectContextDeclaration[];
         messages?: PluginMessagesDeclaration;
         translations?: PluginTranslationsDeclaration;
         locales?: PluginLocalesDeclaration;
@@ -4908,6 +4909,8 @@ export declare const SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_PROJECT: {
 
 export declare const SUBJECT_CONTEXT_PAGE_CHARS = 32000;
 
+export declare const SUBJECT_CONTEXT_PATH = "/api/host/subject-context";
+
 export declare const SUBJECT_CONTEXT_TYPE = "molis.subject-context.v1";
 
 export declare const SUBJECT_OFFERS_INPUT_SCHEMA: {
@@ -5144,6 +5147,13 @@ export interface SubjectActionOffer {
     input: unknown;
 }
 
+export interface SubjectContextAnswer {
+    readonly contexts: ReadonlyArray<{
+        readonly plugin_id: string;
+        readonly source_context: string;
+    }>;
+}
+
 export interface SubjectContextRequest {
     subject_id: string;
     offset?: number;
@@ -5305,6 +5315,19 @@ export interface SyncTrackedTable {
         readonly rowColumn: string;
     };
 }
+
+export declare const UI_SUBJECT_CONTEXT_KINDS: readonly ["goal"];
+
+export declare const UI_SUBJECT_CONTEXT_LIMIT = 12000;
+
+export declare const UI_SUBJECT_CONTEXT_PLUGINS = 4;
+
+export interface UiSubjectContextDeclaration {
+    readonly subject_kind: UiSubjectContextKind;
+    readonly action: string;
+}
+
+export type UiSubjectContextKind = (typeof UI_SUBJECT_CONTEXT_KINDS)[number];
 
 export declare const WORKFLOW_CONTENT_OUTPUT_VERSIONS: {
     readonly list: 1;

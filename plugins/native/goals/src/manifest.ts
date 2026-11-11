@@ -68,7 +68,7 @@ const GOALS_ROUTES: PluginRouteDeclaration[] = [
   { route_id: "goals.terminal-list", method: "GET", path: "/goals/:goalId/terminals" },
   { route_id: "goals.terminal-open", method: "POST", path: "/goals/:goalId/terminals" },
   { route_id: "goals.terminal-close", method: "DELETE", path: "/goals/:goalId/terminals/:key" },
-  { route_id: "goals.advance-prompt", method: "GET", path: "/goals/:goalId/advance-prompt" },
+  { route_id: "goals.advance-prompt", method: "POST", path: "/goals/:goalId/advance-prompt" },
 ];
 
 /**

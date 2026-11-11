@@ -15,9 +15,10 @@ export function goalTerminalRoutes(ports: GoalsRoutePorts): PluginRouteBinding[]
     goalsRoute("goals.terminal-close", ports, async context =>
       ({ status: 200, body: await context.actions.invoke(goalsTerminalActions.close, { goal_id: context.params.goalId!, key: context.params.key! }) })),
     goalsRoute("goals.advance-prompt", ports, async context => {
-      // The Feed item chain (`feed_item_id`) is not served here: the prompt binds only the Feed text still linked to the Goal.
+      // The Feed item chain (`feed_item_id`) is not served here: the body carries only the text the person's page read for this Goal.
       if (Object.keys(context.query).some(name => name !== "onboarding")) return goalsFailure(new ActionError("actions.input_invalid", "推进提示只接受 onboarding 参数"));
-      return { status: 200, body: await context.actions.invoke(goalsTerminalActions.prompt, { goal_id: context.params.goalId!, onboarding: context.query.onboarding === "1" }) };
+      return { status: 200, body: await context.actions.invoke(goalsTerminalActions.prompt,
+        { ...context.body, goal_id: context.params.goalId!, onboarding: context.query.onboarding === "1" }) };
     }),
   ];
 }

@@ -1,0 +1,69 @@
+{
+  "reason": "第 16 批 C 段把实际界面接入按主人取词。两份工作台启动词包各只在对应语言加载，原有静态文件按下列实测差额给额。默认首屏继续在 B2 整页额度内。",
+  "review": "候选 e081769b 对照基点 21faff5084 的真实 Host 与 20 次隔离 Chrome 样本，见 specs/font-and-skin-system/resource-budget.md §6.7。assets 计 B2 额度外的响应体差额。pages 记录每个默认首屏新增词包的批准，整页额外额度为 0 B。",
+  "userApproval": "用户于 2026-11-11 批准 §6.7 的两份新增启动词包、28 项静态增长、Issues 取词和讨论栏实测增量。",
+  "assets": {
+    "/assets/molis-work-workbench.js": 64446,
+    "/assets/molis-work-plugin-frame.js": 29337,
+    "/assets/molis-work-plugins/plugin-builder.js": 34737,
+    "/assets/molis-work-pages-editor.js": 15966,
+    "/assets/molis-work-plugins/coding.js": 15952,
+    "/assets/molis-work-plugins/alchemist.js": 6974,
+    "/assets/molis-work-capabilities.js": 4897,
+    "/assets/molis-work-plugins/characters.js": 2891,
+    "/assets/molis-work-plugins/workflows.js": 2052,
+    "/assets/molis-work-knowledge.js": 1892,
+    "/assets/molis-work-composer.js": 1588,
+    "/assets/molis-work-plugins/todo.js": 1221,
+    "/assets/molis-work-plugins/feed.js": 1055,
+    "/assets/molis-work-plugins/shelf.js": 1028,
+    "/assets/molis-work-plugins/form.js": 831,
+    "/assets/molis-work-plugins/issues.js": 811,
+    "/assets/molis-work-plugins/jelly.js": 740,
+    "/assets/molis-work-plugins/pages.js": 682,
+    "/assets/molis-work-plugins/lingguang.js": 527,
+    "/assets/molis-work-plugins/images.js": 504,
+    "/assets/molis-work-plugins/dataset.js": 460,
+    "/assets/molis-work-plugins/ppt.js": 438,
+    "/assets/molis-work-plugins/cognia.js": 366,
+    "/assets/molis-work-plugins/files.js": 314,
+    "/assets/molis-work-plugins/schedule.js": 220,
+    "/assets/molis-work-plugins/plugin-builder.css": 75,
+    "/assets/molis-work-plugins/text-stats.js": 20,
+    "/assets/molis-work-plugins/diff.js": 20
+  },
+  "pages": {
+    "arrival-empty/zh": {
+      "cold": 0,
+      "warm": 0
+    },
+    "arrival-empty/en": {
+      "cold": 0,
+      "warm": 0
+    },
+    "chooser/zh": {
+      "cold": 0,
+      "warm": 0
+    },
+    "chooser/en": {
+      "cold": 0,
+      "warm": 0
+    },
+    "workbench-default/zh": {
+      "cold": 0,
+      "warm": 0
+    },
+    "workbench-default/en": {
+      "cold": 0,
+      "warm": 0
+    },
+    "workbench-all-plugins/zh": {
+      "cold": 0,
+      "warm": 0
+    },
+    "workbench-all-plugins/en": {
+      "cold": 0,
+      "warm": 0
+    }
+  }
+}

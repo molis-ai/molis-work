@@ -1,4 +1,5 @@
 import type { UiPageTerminal, UiTerminalCommand, UiTerminalEvent, UiTerminalMountOptions, UiTerminalView } from "@molis-ai/molis-work-contracts/platform/ui";
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { createTerminalConnection, type PtyServerMessage } from "./connection.js";
 
 /** What draws a panel's screen (`molisTerminalRenderer`); given the page terminal itself to listen to and write through. */
@@ -16,7 +17,7 @@ export function createPageTerminal(render: TerminalRenderer): UiPageTerminal<HTM
   const attach = (panelId: string, size: { cols?: number; rows?: number }) => connection.send({ type: "spawn", panelId, ...size, attachOnly: true });
   const connection = createTerminalConnection({
     controlToken: () => document.querySelector('meta[name="molis-work-page-session"]')?.getAttribute("content") ?? "",
-    url: () => `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/pty`, text: key => globalThis.t.text(key),
+    url: () => `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/pty`, text: uiText.text,
     onDisconnected: () => emit({ type: "disconnected" }),
     reconnect: async () => {
       try { for (const [panelId, size] of attached) await attach(panelId, size); connection.resetReconnect(); }

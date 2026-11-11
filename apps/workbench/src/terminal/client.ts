@@ -1,4 +1,5 @@
 import xtermCss from "@xterm/xterm/css/xterm.css";
+import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { createPageToast, errorText, paintTerminalStatus, queryTerminalPane, type TerminalPaneElements, type TerminalStatus, type TerminalTranslate } from "./client-dom.js";
 import { listenGoalEvents } from "./client-goal-events.js";
 import { createTerminalGuard } from "./client-guard.js";
@@ -23,7 +24,7 @@ export function startWorkTerminalClient() {
 
 function mountGoalTerminal(pane: HTMLElement) {
   const els = queryTerminalPane(pane);
-  const readText: TerminalTranslate = (key, values) => globalThis.t.text(key, values);
+  const readText: TerminalTranslate = uiText.text;
   const routePrefix = document.body.dataset.routePrefix || "";
   const route = (pathname: string) => routePrefix + pathname;
   const request: TerminalRequest = (url, init) => molisWorkRequest(url, init);

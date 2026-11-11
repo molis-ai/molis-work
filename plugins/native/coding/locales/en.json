@@ -1018,7 +1018,7 @@
     "coding.method.note": "A skill gives the next turn steps to follow and adds no permissions. You can run a task without choosing one.",
     "coding.method.read": "Preview",
     "coding.method.read-label": "Preview skill: {name}",
-    "coding.method.remove-gone": "Remove unavailable skill {skill}",
+    "coding.method.remove-gone": "Remove unavailable skill {method}",
     "coding.method.save": "Save choice",
     "coding.method.saved": "Skill choice saved for the next turn; the current run keeps its skill.",
     "coding.method.search": "Search skills",

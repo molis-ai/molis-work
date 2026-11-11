@@ -38,13 +38,14 @@ export async function createPluginProject(input: CreatePluginProjectInput): Prom
   await mkdir(directory);
   await mkdir(join(directory, "locales"));
   // A key starts with the last segment of the plugin_id, so the sample's keys follow the id it was made with.
+  const localeFiles = Object.fromEntries(Object.entries(SAMPLE_WORDS).map(([locale, words]) => [`locales/${locale}.json`, JSON.stringify({ format_version: UI_FORMAT_VERSIONS.locale,
+    owner: input.plugin_id, locale, messages: Object.fromEntries(Object.entries(words).map(([name, text]) => [`${owner}.main.${name}`, text])) }, null, 2) + "\n"]));
   const files: Record<string, string> = {
     "manifest.json": JSON.stringify(manifest, null, 2) + "\n",
     "index.mjs": samplePluginSource.replaceAll('t("notes.', `t("${owner}.`),
-    ...Object.fromEntries(Object.entries(SAMPLE_WORDS).map(([locale, words]) => [`locales/${locale}.json`, JSON.stringify({ format_version: UI_FORMAT_VERSIONS.locale,
-      owner: input.plugin_id, locale, messages: Object.fromEntries(Object.entries(words).map(([name, text]) => [`${owner}.main.${name}`, text])) }, null, 2) + "\n"])),
+    ...localeFiles,
     "package.json": JSON.stringify({ name: input.plugin_id.replaceAll(".", "-"), version: "2.0.0", private: true,
-      type: "module", files: ["index.mjs", "manifest.json", "locales", "README.md"],
+      type: "module", files: ["index.mjs", "manifest.json", ...Object.keys(localeFiles), "README.md"],
       dependencies: { "@molis-ai/molis-work-plugin-sdk": "0.0.0" } }, null, 2) + "\n",
     "README.md": "# Local Plugin Sample\n\nThis is a local development sample, not a reviewed marketplace release.\n"
       + "The supplied publisher signature is a binding identity, not proof of cryptographic signing.\n\n"

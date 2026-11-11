@@ -129,7 +129,8 @@ test("real CLI creates, packs, signs and verifies a Plugin while rejecting tampe
     const unsigned = join(directory, "unsigned.json");
     const signed = join(directory, "signed.json");
     const code = readFileSync(join(project, "index.mjs"), "utf8");
-    assert.equal(invoke("pack", project, unsigned).status, 0);
+    const packed = invoke("pack", project, unsigned);
+    assert.equal(packed.status, 0, packed.stderr);
     assert.equal(invoke("verify", unsigned, publicFile).status, 1, "unsigned development code is not verified distribution");
     const signResult = invoke("sign", unsigned, privateFile, signed);
     assert.equal(signResult.status, 0, signResult.stderr);
@@ -140,6 +141,7 @@ test("real CLI creates, packs, signs and verifies a Plugin while rejecting tampe
     const data = JSON.parse(readFileSync(signed, "utf8"));
     const verified = verifyPluginPackage(data, keys.publicKey);
     assert.equal(Buffer.from(verified.payload.files.find(file => file.path === "index.mjs")!.content_base64, "base64").toString("utf8"), code);
+    assert.deepEqual(verified.payload.files.filter(file => file.path.startsWith("locales/")).map(file => file.path).sort(), ["locales/en.json", "locales/zh.json"]);
     const untouched = readFileSync(signed, "utf8");
     assert.equal(invoke("sign", unsigned, privateFile, signed).status, 1, "existing output is not overwritten");
     assert.equal(readFileSync(signed, "utf8"), untouched);

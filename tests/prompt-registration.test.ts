@@ -179,7 +179,7 @@ test("Plugin Builder's designer and code Agents are registered as the prompts th
   const known = registered();
   for (const name of ["designer", "experience", "ui", "review", "implement", "revise", "repair", "acceptance"]) assert.ok(known.has(`io.molis.work.plugin-builder/builder-${name}`), name);
   const designer = builtinRegistrations().find(owner => owner.owner_id === "io.molis.work.plugin-builder")!.prompts.find(prompt => prompt.prompt_id === "builder-designer")!;
-  assert.equal(designer.version, 2, "FSS-74: the translated designer ships as one current version");
+  assert.equal(designer.version, 3, "FSS-74: the translated designer ships as one current version");
   assert.match(designer.body_by_locale?.en ?? "", /design/iu);
   const roles = builtinRegistrations().find(owner => owner.owner_id === "io.molis.work.plugin-builder")!.roles;
   assert.deepEqual(roles.map(role => [role.role_id, role.prompt_ids.length]), [["designer", 4], ["coder", 4]], "两个 Agent 作为 Character 列出");

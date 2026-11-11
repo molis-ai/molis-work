@@ -86,7 +86,7 @@
 | 没有标记的当前版本 | 属性、变量、类字段、解构默认值、枚举成员里名字像版本的（`version`、`*_version`、`*Version`、`*VERSION`、`format`、`schema`、`v`、`protocol`，引号键也算）取数字或像版本的字符串；赋值、相等比较、`switch/case`、`{enum:[…]}`、`{const:…}`、`z.literal(…)`、三元与 `??` 的值；名为 version 的参数的默认值。0 表示「还没有」，不算 |
 | 字符串里的版本 | 任何字符串和模板字符串按形状认：`.vN`、`-vN`、`_vN`、`/vN`、`@N`、整串的 `/N`；没有前缀名单；模板拼出来再看；字符串里的 `PRAGMA user_version = N` 和脚本文本也看。MCP 工具命名空间 `molis_work_v1_` 这一个字面量前缀不算版本：只放过前缀本身，名字其余部分照样读（`molis_work_v1_x_v2` 会报），不是按字段放行 |
 | 借用别人的条目 | 只有 `action`、`event`、`format`、`type`、`artifact`、`manifest`、`host`、`protocol`、`product` 种类和 `sync.protocol` 可跨包共用，其他种类被第二个包用就失败。共用种类里的裸数字要放在叫得出自己是版本的名字上；`format.<插件>.*` 别的插件不许用 |
-| 第一版规则 | `action.*`、`action-family.*`、`scene.*`、`prompt.*`、`role.*`、`manifest.schema`、`host.api` 在表里必须是 1 |
+| 第一版规则 | `action.*`、`action-family.*`、`scene.*`、`manifest.schema`、`host.api` 在表里必须是 1。日常检查按登记的当前版本核对提示词、角色和方法。显式检查统一起点时，这些内容仍须是第 1 版 |
 | 用错条目 | `capability_id`、`prompt_id`、`role_id`、`scene_id` 或工厂的 id 字面量旁边，标记的 key 不是这个 id 的条目 |
 | 按位置引用的动作 | 表里有的动作 id 后面直接跟裸数字 |
 | 非代码文件 | 方法 Markdown 的 `version:`、官方集成 Manifest 的版本字段不在 `carriers` 里；产品版本的几处载体没有从表里取；`.rs`、`.sql`、`.toml` 里写了 `@version` 标记（生成器不读这些文件，标记不会生效，要改走 `carriers`） |

@@ -616,7 +616,7 @@ test("FSS-35 FSS-36 the open Diff wait state changes language without replacing 
   assert.deepEqual(requests, Array(3).fill("GET " + path), "initial comparison and one existing read for each language change");
 });
 
-test("FSS-35 FSS-36 Coding’s unified composer localizes its four built-in v2 methods and retains the draft and project method", { timeout: 120_000 }, async t => {
+test("FSS-35 FSS-36 Coding’s unified composer localizes its four built-in v2 skills and retains the draft and project skill", { timeout: 120_000 }, async t => {
   const b = await openGoalBrowser(t, "seeded", undefined, null); assert.ok(b?.projectId);
   const prefix = `/projects/${b.projectId}`, api = prefix + "/api/plugins/io.molis.work.coding";
   const originalBody = "---\nname: local-method\ndescription: Project-owned method\n---\n保留正文 · Original\n";
@@ -684,7 +684,7 @@ test("FSS-35 FSS-36 Coding’s unified composer localizes its four built-in v2 m
   await b.waitFor(`${input}.getAttribute('aria-label')==='Task or added instructions'`);
   assert.deepEqual(await b.evaluate(keptDraft), expectedDraft);
   assert.deepEqual(await frame.evaluate(retained), [true, true, true, true, true, "local-method · v1", originalExcerpt]);
-  assert.equal(await frame.evaluate(`${builtins}[0].querySelector('button').getAttribute('aria-label')`), "Preview method: Review changes");
+  assert.equal(await frame.evaluate(`${builtins}[0].querySelector('button').getAttribute('aria-label')`), "Preview skill: Review changes");
   await select("zh");
   await frame.waitFor(`document.documentElement.lang==='zh-CN' && JSON.stringify(${displayed})===${JSON.stringify(JSON.stringify(expected("zh")))}`);
   await b.waitFor(`${input}.getAttribute('aria-label')==='任务或补充要求'`);

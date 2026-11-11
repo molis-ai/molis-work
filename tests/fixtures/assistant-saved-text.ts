@@ -3,13 +3,16 @@ import { renderAssistantNoticeText, renderAssistantSavedText } from "@molis-ai/m
 import type { AssistantNotice, AssistantSavedText } from "@molis-ai/molis-work-contracts/services/assistant";
 import { say } from "@molis-ai/molis-work-plugin-sdk/ui";
 
-export function noticeText(notice: AssistantNotice, locale: WebLocale = "zh"): string {
+export function inAssistantPage<T>(locale: WebLocale, run: () => T): T {
   installHostUiText();
-  return runWithLocale(locale, () => renderAssistantNoticeText(notice, say.text, renderAssistantSavedText));
+  return runWithLocale(locale, run);
+}
+
+export function noticeText(notice: AssistantNotice, locale: WebLocale = "zh"): string {
+  return inAssistantPage(locale, () => renderAssistantNoticeText(notice, say.text, renderAssistantSavedText));
 }
 
 export function savedText(text: AssistantSavedText | undefined, locale: WebLocale = "zh"): string | undefined {
   if (text === undefined) return undefined;
-  installHostUiText();
-  return runWithLocale(locale, () => renderAssistantSavedText(text, say.text));
+  return inAssistantPage(locale, () => renderAssistantSavedText(text, say.text));
 }

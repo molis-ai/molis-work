@@ -1,4 +1,4 @@
-import { noticeText } from "./fixtures/assistant-saved-text.js";
+import { inAssistantPage, noticeText } from "./fixtures/assistant-saved-text.js";
 import assert from "node:assert/strict";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import test from "node:test";
@@ -391,7 +391,7 @@ test("W2-18-DELEGATION-PLACED-01: a round in a finished sub-task that does not s
     await handedBack(2);
     const parent = f.store.get("web-user", sent.work.work_id), childId = f.store.delegatedBy("web-user", parent)[0]!.work_id;
     f.flags.model = false;
-    await assert.rejects(f.service.send({ work_id: childId, text: "再改一下", request_id: "req-placed-refused-child" }, { project_ref: f.project }), /模型/);
+    await assert.rejects(inAssistantPage("zh", () => f.service.send({ work_id: childId, text: "再改一下", request_id: "req-placed-refused-child" }, { project_ref: f.project })), /模型/);
     f.flags.model = true;
     const nodes = await f.adapter.collaboration!.works!.read(parent.graph_id!);
     assert.deepEqual(nodes.filter(node => node.node_id !== "work" && !["succeeded", "failed", "cancelled"].includes(node.state)).map(node => node.node_id), [], "no step of the part is left open");

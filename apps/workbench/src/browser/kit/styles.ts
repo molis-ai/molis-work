@@ -16,8 +16,8 @@ const PAGE_STYLES = `
 .skill-import-row { padding-block: 12px; border-bottom: 1px solid var(--line); }
 .kit-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 16px; min-width: 0; }
 .kit-search { position: relative; display: inline-flex; align-items: center; flex: 1 1 240px; min-width: 0; max-width: 420px; }
-.kit-search > svg { position: absolute; left: 10px; width: 14px; height: 14px; color: var(--muted); pointer-events: none; }
-.kit-settings .kit-search input.mw-input { width: 100%; padding-left: 32px; }
+.kit-search > svg { position: absolute; left: 10px; width: 16px; height: 16px; color: var(--muted); pointer-events: none; }
+.kit-settings .kit-search input.mw-input { width: 100%; padding-left: 34px; }
 .kit-settings .kit-toolbar .mw-select { width: auto; flex: none; max-width: 100%; }
 .kit-settings .kit-toolbar .mw-select-picker { display: inline-flex; flex: none; width: auto; max-width: 100%; }
 .kit-settings .kit-toolbar .mw-select-picker__trigger { width: auto; }

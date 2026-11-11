@@ -373,7 +373,8 @@ test("DOCK-08 Coding comes in place: its page and its row in the settings list, 
   await evaluate("document.querySelector('[data-plugin-picker-toggle]').click()");
   await click('[data-directory-open="settings"]');
   await click(row);
-  await waitFor("Boolean(document.querySelector('[data-work-surface=settings] [data-coding-method-library]')) && document.querySelector('[data-work-surface=settings] [data-coding-method-library]').dataset.bound === 'true'", 15_000);
+  // Its MCP section's script answers once bound: the server-drawn "reading" line gives way to what it read.
+  await waitFor("(() => { const line = document.querySelector('[data-work-surface=settings] [data-coding-mcp-settings] [data-mcp-status]'); return !!line && !/MCP (配置…|settings…)$/.test(line.textContent.trim()); })()", 15_000);
   assert.equal(await stayed(), true, "still no reload");
   // Taking it away while its settings are showing: the row goes and the list falls back to its first section.
   await evaluate("document.querySelector('[data-plugin-picker-toggle]').click()");

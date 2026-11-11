@@ -141,7 +141,7 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 
 | 目标 package | 产品能力 | 当前来源 | 包成熟度 | 迁移 / 实现 Goal | 归属 |
 | --- | --- | --- | --- | --- | --- |
-| `plugins/native/goals` | Goals 内置插件的产品 UI：每个项目都带，拥有 Goal 的事实；原 Goals 与 Governance 模块并入本包的 `src/module/` 与 `src/governance/`（S9-3） | 当前事件意图、约定、报告、树决定，以及事件与 Journal 组成的历史；目录直接读当前状态；页面（项目页、片段、设置与规划页）由包内 `./page` 绘制，Workbench 只交外壳端口并注册贡献，不另算完成 | `production` | GW/DD/EX/Cutover；事件工作流收敛 | 内置插件：@yijunw0212 |
+| `plugins/native/goals` | Goals 内置插件的产品 UI：每个项目都带，拥有 Goal 的事实；原 Goals 与 Governance 模块并入本包的 `src/module/` 与 `src/governance/`（S9-3） | 当前事件意图、约定、报告、树决定，以及事件与 Journal 组成的历史；逐项依据也归这里（每条判断核对的确切交付版本、方法、证据引用与 Goals 核出的可信层级，用户结论针对的版本；第 24-3 批，不另建任务中心或验收事实库；命令回执的事实仍归 `horizontal/agent-host`，成果版本仍归 `modules/artifacts`，Goals 只存引用）；目录直接读当前状态；页面（项目页、片段、设置与规划页）由包内 `./page` 绘制，Workbench 只交外壳端口并注册贡献，不另算完成 | `production` | GW/DD/EX/Cutover；事件工作流收敛 | 内置插件：@yijunw0212 |
 | `plugins/native/inbox` | Inbox 一级入口与 Attention 处置 UI | 目录/详情只读 Attention；完成/忽略走 setStatus；`inbox.next` 沿用 Functions 绑定与显式重判，建议成稿/核查不自动执行；Host 将选中 Feed 材料交给 Pages，收据归 Pages，文稿可返回材料；缺片：Inbox/Feed 拆插件切片 2–3；后续：切片 2–3 计划 | `slice` | Inbox/Feed 拆插件切片 2–3；`specs/archive/functions-system-capability/spec.md`；`specs/archive/feed-inbox-pages-loop/validation.md` | 内置插件：@yijunw0212 |
 | `plugins/native/schedule` | Schedule 一级入口：对话任务与闹钟列表 | 人手创建日历日对话任务；其他插件 job 仍只展示与暂停；缺片：其他插件 job 的创建/编辑；后续：补齐 job 编辑 | `slice` | `specs/archive/schedule-conversation-tasks/spec.md` | 内置插件：@yijunw0212 |
 | `plugins/native/shelf` | Shelf 一级入口：材料/结果/剪贴板与本机抽字 | DropAgent 表面挂进目录与工作面；路由在插件自己的 `/api/plugins/io.molis.work.shelf/…`，Host 注入 Store；缺片：轮盘/抓页/CLI Recipe；后续：Desktop 接入 | `slice` | 工作台进货→抽字切片；轮盘/抓页/CLI Recipe 待 Desktop | 内置插件：@yijunw0212、@jingxusandra-gif |

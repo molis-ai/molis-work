@@ -1,9 +1,8 @@
 import type { AgentDefinitionRegistration, AgentDefinitionSource, AgentPromptView, AgentRoleView } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import type { PluginTextReader } from "@molis-ai/molis-work-ui-host";
-import { workbenchPlatformText, type MolisWorkSettingsView } from "@molis-ai/molis-work-app-workbench";
 import { createTextReader, localeMessageArguments, textArgs, textKeyPrefix } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { workbenchPlatformText, type AgentDisplayModel as DisplayModel } from "../ui-text-provider.js";
 
-type DisplayModel = NonNullable<MolisWorkSettingsView["agent_display_model"]>;
 interface DisplaySource { reader: PluginTextReader; namespace: string; source: AgentDefinitionSource }
 
 // Only the current trusted construction binds these objects. JSON declarations, signatures and user edits carry no marker.

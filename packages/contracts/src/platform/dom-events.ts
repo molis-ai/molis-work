@@ -375,8 +375,8 @@ export const DOM_EVENTS = [
   },
   {
     name: "molis:assistant-open", kind: "request", owner: "assistant", on: "document",
-    detail: "{ work_id?, new?, source?, materials? ({ title, text } or a piece of project knowledge { title, subject: { kind, id } }), object? }",
-    summary: "Open the Assistant panel on a Work, or a new one, with what is in hand (materials and the object they are from) put in its strip; no words are written and nothing is sent. A piece of project knowledge goes in by its subject (the knowledge picker sends these) and is read from its owner when the message is sent.",
+    detail: "{ work_id?, new?, source?, materials? ({ title, text }, a piece of project knowledge { title, subject: { kind, id } }, or a materials reference { title, ref: MaterialRef }), object? }",
+    summary: "Open the Assistant panel on a Work, or a new one, with what is in hand (materials and the object they are from) put in its strip; no words are written and nothing is sent. A piece of project knowledge goes in by its subject (the knowledge picker sends these), a quote or snapshot of the project's folders by its materials reference (the side panel's reader), and either is read from its owner when the message is sent.",
   },
   {
     name: "molis:assistant-starter-choose", kind: "request", owner: "context-actions", on: "document",

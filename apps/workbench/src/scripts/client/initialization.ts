@@ -12,10 +12,12 @@ import { SETTINGS_DIRECTORY_FACTORY_SCRIPT } from "./settings-directory.js";
 import { CONNECTORS_SETTINGS_CLIENT_SCRIPT } from "../connectors-settings.js";
 import { SYNC_SETTINGS_CLIENT_SCRIPT } from '../../settings-sync.js';
 import { ASSISTANT_ISLAND_FACTORY_SCRIPT } from "./assistant-island.js";
-import { INPUT_RECEIPTS_CLIENT_SCRIPT, INTERACTION_CLIENT_SCRIPT_TYPED_DATES } from "@molis-ai/molis-work-design-system";
+import { FILE_PREVIEW_CLIENT_SCRIPT, INPUT_RECEIPTS_CLIENT_SCRIPT, INTERACTION_CLIENT_SCRIPT_TYPED_DATES } from "@molis-ai/molis-work-design-system";
 import { PLACEMENT_FACTORY_SCRIPT } from "./placement.js";
 import { CONTEXT_ACTIONS_FACTORY_SCRIPT } from "./context-actions.js";
 import { SIDE_FILES_FACTORY_SCRIPT } from "../../side-panel-files.js";
+import { MATERIALS_STAGE_FACTORY_SCRIPT } from "../../materials-stage.js";
+import { MATERIALS_READER_CLIENT_SCRIPT } from "../../materials-reader-client.js";
 import { pluginWorkbenchClientBootstrap } from "../../plugin-workbench.js";
 /**
  * AP3 Workbench client segment: initialization.
@@ -25,7 +27,7 @@ import { pluginWorkbenchClientBootstrap } from "../../plugin-workbench.js";
  * (W5-06 余项 2). The script keeps no list by plugin.
  */
 export const CLIENT_INITIALIZATION_SCRIPT = `    });
-    const itemTabs = ["artifacts", ...JSON.parse(document.querySelector("script[data-plugin-directory]")?.textContent || "[]").filter(entry => entry.accepts_objects).map(entry => entry.id)];
+    const itemTabs = ["artifacts", "materials", ...JSON.parse(document.querySelector("script[data-plugin-directory]")?.textContent || "[]").filter(entry => entry.accepts_objects).map(entry => entry.id)];
     const mountPluginClient = (${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})();
     boardLifetime = mountPluginClient(document.body);
 
@@ -74,9 +76,15 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     (${ATTENTION_FACTORY_SCRIPT})({ translate: L, route, projectId: state.project?.project_id,
       openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title) });
     (${PLUGIN_NOTIFICATIONS_FACTORY_SCRIPT})({ projectId: state.project?.project_id });
+    // The main area's reader of the project's folders, where the side panel's 「在主区打开」 shows a file. Both places share one
+    // copy of the design system's file preview and of the reader.
+    const materialsKit = (() => { ${FILE_PREVIEW_CLIENT_SCRIPT}
+      ${MATERIALS_READER_CLIENT_SCRIPT}
+      return { renderFilePreview, materialsReader }; })();
+    (${MATERIALS_STAGE_FACTORY_SCRIPT})({ translate: L, route, kit: materialsKit });
     // The side panel's file tab opens a file in its plugin the way system search does (specs/archive/side-panel P3): an
     // object's tab where the surface opens objects by id, else the record in the plugin's list.
-    (${SIDE_FILES_FACTORY_SCRIPT})({ translate: L, route, openRecord: (plugin, id, title) => itemTabs.includes(plugin)
+    (${SIDE_FILES_FACTORY_SCRIPT})({ translate: L, route, kit: materialsKit, openRecord: (plugin, id, title) => itemTabs.includes(plugin)
       ? tabWorkspace?.openItem(plugin, id, title) : tabWorkspace?.openPluginRecord(plugin, id) });
     globalSearchPalette = (${GLOBAL_SEARCH_FACTORY_SCRIPT})({
       translate: L, itemTabs,

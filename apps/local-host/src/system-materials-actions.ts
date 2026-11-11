@@ -6,7 +6,7 @@ import { projectDirectoryActions, type ProjectDirectories, type ProjectDirectory
 import { FILE_SNAPSHOT_SCHEMA_VERSION, FILE_SNAPSHOT_TYPE, FILE_TEXT_SELECTION_SCHEMA_VERSION, FILE_TEXT_SELECTION_TYPE, FILES_COLLECTION_SCHEMA_VERSION, FILES_COLLECTION_TYPE,
   fileSnapshotFitsInline, parseFilePath, parseFileSnapshot, parseFileTextSelection, parseTextSelectionRange, resolveWorkspaceFileSubject, resolveWorkspaceId, workspaceFileSubjectId,
   workspaceReadActions, WORKSPACE_FILE_SUBJECT_KIND, WORKSPACE_SKIPPED_FOLDERS, type FileSnapshot, type FileTextSelection, type WorkspaceFileResult } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
-import { MATERIALS_PORTS, MATERIALS_PROVIDER_ID, materialsActions, materialsFileSource, SYSTEM_MATERIALS_PRODUCER_VERSION, SYSTEM_MATERIALS_SOURCE, type MaterialRef, type MaterialsCaptureInput,
+import { MATERIALS_PORTS, MATERIALS_PROVIDER_ID, MATERIALS_SURFACE, materialsActions, materialsFileSource, SYSTEM_MATERIALS_PRODUCER_VERSION, SYSTEM_MATERIALS_SOURCE, type MaterialRef, type MaterialsCaptureInput,
   type MaterialsPosition, type MaterialsReadResult, type MaterialsWorkspace } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import { projectWorkspaceFiles, type ProjectCapabilityPorts } from "./project-capabilities.js";
 import type { WorkspaceWindowPosition, WorkspaceWindowResult } from "./workspace-files.js";
@@ -273,7 +273,7 @@ function materialsFiles({ ports, nested, folders, read }: MaterialsCore) {
           if (entry.kind !== "file") continue;
           const id = workspaceFileSubjectId(folder.workspace_id, entry.path);
           files.push({ subject: { kind: WORKSPACE_FILE_SUBJECT_KIND, id }, revision: id, title: entry.name, folder: [folder.display_name, ...entry.path.slice(0, -1)],
-            media_type: mediaOf(entry.name), size: null, updated_at: null, open: null });
+            media_type: mediaOf(entry.name), size: null, updated_at: null, open: { surface: MATERIALS_SURFACE, id } });
         }
       };
       for (const folder of (await folders(call)).directories) await walk(folder, [], 0);
@@ -298,7 +298,8 @@ function materialsFiles({ ports, nested, folders, read }: MaterialsCore) {
       if (result.outcome === "missing") throw unavailable("文件已不存在");
       const why = result.outcome === "too-large" ? `文件太大（${Math.round(result.bytes / 1024)} KB），侧栏只预览 ${Math.round(result.limit / 1024)} KB 以内的文件。`
         : result.outcome === "binary" ? "这是二进制文件，侧栏只预览文本。" : result.outcome === "denied" ? "这个路径不可读取。" : "这个文件现在不能预览。";
-      return fileContentOf({ subject: input.subject, revision: "unreadable", title, media_type: "text/plain", text: why });
+      // A text file too long for one read is named by its size, the revision a windowed read answers to; the reader reads it on.
+      return fileContentOf({ subject: input.subject, revision: result.outcome === "too-large" ? `size:${result.bytes}` : "unreadable", title, media_type: "text/plain", text: why });
     }),
   ];
 }

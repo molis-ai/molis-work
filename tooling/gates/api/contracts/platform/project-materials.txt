@@ -13,6 +13,8 @@ export declare const MATERIALS_PORTS: Readonly<{
 
 export declare const MATERIALS_PROVIDER_ID = "system.materials";
 
+export declare const MATERIALS_SURFACE = "materials";
+
 export declare const MATERIAL_ORIGINS_COMPARE = 5;
 
 export declare const MATERIAL_ORIGINS_MAX = 20;

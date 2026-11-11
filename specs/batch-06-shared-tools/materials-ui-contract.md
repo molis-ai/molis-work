@@ -37,6 +37,8 @@
 - 当前阅读 revision 沿 SSC-28，现行指纹预算内才产生真 SHA，超预算标 size/不可精确比对；游标的文件观察身份独立于这份可比较指纹。固定选区由 owner 重新核同一观察和真实范围，抓取原文 UTF-16 半开区间，可选已加载的范围。现有 `MaterialRange` 只有 anchor/line/length/page；绝对 UTF-16 偏移保存在不可变过程项的原范围，由该 owner 证明，不悄悄塞入公共 ref。给人的 file_source.content 游标只用于该阅读调用，不转给 Agent 或借此扩大 audience。固定全文沿已有 1 MiB 序列化约束，超限明确告知「可固定选区」，仍可分段读到末尾。固定和续读都不返回静默截断的全文，二进制继续走原信任与预览规则。
 - 文件边界是 `apps/local-host/src/{workspace-files,project-capabilities}.ts`、`horizontal/knowledge/src/workspace.ts`、`packages/contracts/src/{platform/file-sources,modules/workspace-artifacts}.ts`。验证真实多字节字符跨分段、同大小改写、替换 inode、权限撤销、游标跨项目，以及捕获前发生变更。
 
+实施记录（2026-11-11，S4 阅读器）：侧栏与主区共用一份阅读器（`apps/workbench/src/materials-reader-client.ts`，页面上只建一次，与设计系统的文件预览一起交给两处）。项目文件夹里的文件在侧栏原位打开：拖选的文字按所在分段的 UTF-16 绝对位置固定成选区；没有拖选时「引用选区」列出段落，方向键与回车选择；整份文件可「固定快照」，长文件只能固定选区，「继续读取」逐段读到末尾；文件在展示后变了，固定被拒并在工具栏下一行说明，不留任何持有项。「加入任务」经 `molis:assistant-open` 以 `{ title, ref }` 交给助理输入框；发送时宿主经 `materials.read` 以本人身份重读（快照/选区读固定版本，当前引用核对 read_revision，变了就在任何模型调用前拒绝）。「在主区打开」是本人的显式打开：先调 `materials.open`（保存阅读位置、交出端口），再打开主区的「资料」标签（`apps/workbench/src/materials-stage.ts`）；标签显示和重载后恢复只读（`GET /api/materials/content`）。验收见 `tests/side-materials-reader.e2e.test.ts`（BSH-08）、`tests/shell-file-preview.e2e.test.ts`（RAC-84，目标由 Files 页改为主区阅读器）与 `tests/assistant-mentions.test.ts`。
+
 ## 5. 原阅读命令与端口
 
 - A 原型 `docs/design/batch-06-materials/app.js:909–913` 的 `read/place=coding` 是原 Coding 内嵌 Files 阅读面的文件行打开手势。将此手势接平台 `materials.open` 显式命令，成功仍在 A 的侧区就地显示。原 `files.open` 成功读文本后保存阅读位置并在可列目录时发布当前根的 files collection，移交该语义给系统资料 owner。保留 collection 的 workspace/handle/display_name/entry_count/truncated/selection.path 合同和用户已有合法绑定。没有内置 collection 默认消费者的证据；保留手绑/外装消费，实测已知 Diff before/after、Text Stats before。

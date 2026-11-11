@@ -1,6 +1,6 @@
 import type { SidePanelPrimitives } from "./side-panel.js";
-import { FILE_PREVIEW_CLIENT_SCRIPT } from "@molis-ai/molis-work-design-system";
 import { SIDE_FILE_SOURCES_CLIENT_SCRIPT } from "./side-file-sources-client.js";
+import { renderMaterialsTools } from "./materials-reader-client.js";
 
 /**
  * The 资料 tab of the side panel (specs/archive/side-panel P3, P8; specs/project-knowledge §8.1, formerly 文件). Lists the file
@@ -29,6 +29,7 @@ export function renderSideFiles({ L, icon }: SidePanelPrimitives): string {
           <button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-side-files-action="open" hidden>${icon("external")}<span>${L("在插件中打开")}</span></button>
         </header>
         <section class="side-files-card" data-side-files-card aria-label="${L("资料卡片")}" hidden></section>
+        ${renderMaterialsTools(L, "side-materials")}
         <div class="side-files-body" data-side-files-body tabindex="0"></div>
       </section>
     </div>`;
@@ -145,6 +146,20 @@ export const SIDE_FILES_STYLES = String.raw`
 .side-files-card-form{display:grid;gap:8px}
 .side-files-card-form label{display:grid;gap:4px;color:var(--ink-soft,var(--ink))}
 .side-files-card-form :is(.mw-input,.mw-textarea){width:100%;font-size:13px}
+.side-materials-tools{position:relative;display:flex;flex-wrap:wrap;align-items:center;gap:4px;flex:none;padding:6px 12px;border-bottom:1px solid var(--line)}
+.side-materials-tools[hidden],.side-materials-held[hidden]{display:none}
+.side-materials-held{display:inline-flex;align-items:center;gap:2px;min-width:0;max-width:100%;padding-left:8px;border-radius:6px;background:var(--wash,var(--nav-hover));color:var(--ink-soft,var(--ink));font-size:12px}
+.side-materials-held span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.side-materials-held .side-files-tool{width:24px;height:24px}
+.side-materials-add{margin-left:auto}
+.side-materials-problem{flex-basis:100%;margin:2px 0 0;color:var(--tone-blocked,var(--red));font-size:12px}
+.side-materials-problem[hidden]{display:none}
+.side-materials-passages{position:absolute;z-index:2;top:100%;left:8px;right:8px;max-height:260px;margin:4px 0 0;padding:4px;overflow:auto;list-style:none;border:1px solid var(--line);border-radius:8px;background:var(--paper);box-shadow:var(--shadow-pop,0 8px 24px rgb(0 0 0/.12));font-size:12px}
+.side-materials-passages:focus-visible{outline:2px solid var(--focus,var(--accent));outline-offset:-2px}
+.side-materials-passages li{padding:6px 8px;border-radius:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}
+.side-materials-passages li:is([aria-selected="true"],:hover){background:var(--nav-hover)}
+.side-files-body .side-materials-text+.side-materials-text{margin-top:0}
+.side-materials-more{margin:12px 0 0}
 dialog.mw-dialog.knowledge-import{width:min(520px,calc(100vw - 32px));max-height:calc(100dvh - 32px);overflow:auto;padding:20px}
 .knowledge-import-form{display:grid;gap:14px}
 .knowledge-import-form header{display:flex;align-items:center;justify-content:space-between;gap:12px}
@@ -178,8 +193,8 @@ dialog.mw-dialog.knowledge-import{width:min(520px,calc(100vw - 32px));max-height
 }
 `;
 
-/** Factory: the Workbench passes `route`, `translate` and `openRecord(surface, id)` (the search open target). */
-// Shipped without its full-line comments (they stay in this source).
+/** Factory: the Workbench passes `route`, `translate`, `openRecord(surface, id)` (the search open target) and the shared `kit` (the file preview and `materialsReader`, built once in initialization). */
+// Shipped without its full-line comments and indentation (they stay in this source).
 export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
   const root=document.querySelector('[data-side-files-root]');
   if(!root||document.body.hasAttribute('data-pane-embedded'))return;
@@ -253,9 +268,11 @@ export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
   };
   const find=(source,kind,id)=>(entries.get(source)?.items||[]).find(item=>item.subject.kind===kind&&item.subject.id===id);
   const show=(on)=>{preview.hidden=!on;browse.hidden=on&&!wide;};
-  const setOpen=(target)=>{openButton.hidden=!target;openButton.dataset.surface=target?.surface||'';openButton.dataset.id=target?.id||'';};
+  const openLabel=openButton.querySelector('span'),pluginLabel=openLabel?.textContent||'';
+  // A file of the project's folders opens in the main area's reader; another plugin's object in that plugin.
+  const setOpen=(target)=>{openButton.hidden=!target;openButton.dataset.surface=target?.surface||'';openButton.dataset.id=target?.id||'';if(openLabel)openLabel.textContent=target?.surface==='materials'?L('在主区打开'):pluginLabel;};
   // The shared preview renderer (design system), the same one the 成果库 uses: Markdown, CSV as a table, plain text.
-  ${FILE_PREVIEW_CLIENT_SCRIPT}
+  const {renderFilePreview,materialsReader}=host.kit;
   const render=(file,note)=>{
     body.classList.remove('is-frame');
     // Where a handed-over page came from: the page itself opens again in the side panel's browser.
@@ -269,6 +286,8 @@ export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
     if(file.encoding==='base64'){body.innerHTML=head+'<p class="side-files-note">'+esc(L('这种文件（{type}）不能在侧栏里预览，可以在插件中打开。',{type}))+'</p>';return;}
     body.innerHTML=head+renderFilePreview({...file,truncated:false},{escape:esc,text:L});
   };
+  // A file of the project's folders opens in the platform's reader: quote, pin, read on, add to the task (materials-ui-contract §4).
+  const reader=materialsReader({name:'side-materials',L,esc,body,tools:$('[data-side-materials-tools]'),held:$('[data-side-materials-held]'),problem:$('[data-side-materials-problem]'),post,renderFile:(file)=>render(file)});
   // The piece's card above its preview: how far it is organized, its brief and keywords, and what the person can do with it.
   const showCard=async(kind,id,request)=>{
     cardBox.hidden=true;cardBox.replaceChildren();
@@ -306,7 +325,7 @@ export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
   });
   const openFile=async(sourceId,kind,id,fallback)=>{
     const source=sources.find(item=>item.id===sourceId),item=find(sourceId,kind,id)||fallback||null;
-    const request=current={source:sourceId,kind,id};paint();show(true);
+    const request=current={source:sourceId,kind,id};paint();show(true);reader.close();
     // The file shown is the object a selection in it is about: what is in hand on the right (context-landing.ts); one it could not read is not.
     if(source?.plugin_id)body.dataset.assistantContext=JSON.stringify({plugin_id:source.plugin_id,object:{kind,id,title:item?.title||''}});else delete body.dataset.assistantContext;
     title.textContent=item?.title||L('文件');
@@ -317,6 +336,8 @@ export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
       const result=await get('/api/side/files/content?source='+encodeURIComponent(sourceId)+'&kind='+encodeURIComponent(kind)+'&id='+encodeURIComponent(id)+'&media_type='+encodeURIComponent(item?.media_type||''));
       if(current!==request)return;
       if(!result.content){body.innerHTML='<p class="side-files-note">'+esc(L('这个插件没有提供预览，可以在插件中打开。'))+'</p>';return;}
+      if(source?.plugin_id==='system.materials'&&await reader.open({item,file:result.content,isCurrent:()=>current===request}))return;
+      if(current!==request)return;
       const raw=host.route('/api/side/files/raw?source='+encodeURIComponent(sourceId)+'&kind='+encodeURIComponent(kind)+'&id='+encodeURIComponent(id));
       render({...result.content,raw});
     }catch(error){if(current===request){delete body.dataset.assistantContext;body.innerHTML='<p class="side-files-problem">'+esc(error.message)+'</p>';}}
@@ -325,7 +346,7 @@ export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
   // Only same-origin paths and inline images: a preview never loads another site or a script-bearing data URL.
   const safeUrl=(url)=>typeof url==='string'&&(/^\/(?!\/)/.test(url)||/^data:image\/(png|jpeg|gif|webp);base64,/.test(url))?url:'';
   const openGiven=(given)=>{
-    current={source:'',kind:'',id:given.id||given.title||''};paint();show(true);delete body.dataset.assistantContext;cardBox.hidden=true;
+    current={source:'',kind:'',id:given.id||given.title||''};paint();show(true);reader.close();delete body.dataset.assistantContext;cardBox.hidden=true;
     title.textContent=given.title||L('文件');meta.textContent=given.meta||'';setOpen(given.open||null);body.scrollTop=0;
     render({title:given.title||'',media_type:given.media_type||'text/plain',encoding:'utf8',data:given.text||'',url:safeUrl(given.url),truncated:!!given.truncated,source_url:given.source_url||''},given.problem||'');
   };
@@ -339,8 +360,12 @@ export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
     const moreButton=target.closest('[data-side-files-more]');if(moreButton){void more(moreButton.dataset.sideFilesMore);return;}
     const action=target.closest('[data-side-files-action]')?.dataset.sideFilesAction;
     if(action==='refresh'){void load();return;}
-    if(action==='back'){show(false);current=null;paint();list.querySelector('[data-side-file]')?.focus();return;}
-    if(action==='open'&&openButton.dataset.surface){host.openRecord?.(openButton.dataset.surface,openButton.dataset.id,title.textContent||'');return;}
+    if(action==='back'){show(false);current=null;reader.close();paint();list.querySelector('[data-side-file]')?.focus();return;}
+    if(action==='open'&&openButton.dataset.surface){
+      const surface=openButton.dataset.surface,id=openButton.dataset.id,name=title.textContent||'';
+      // The person's explicit open of a project-folder file (materials-ui-contract §5): where they read is kept, then the main area shows it.
+      if(surface==='materials'){const at=id.indexOf(':');void post('/api/materials/open',{workspace_id:id.slice(0,at),path:id.slice(at+1).split('/')}).then(()=>host.openRecord?.(surface,id,name),reader.say);return;}
+      host.openRecord?.(surface,id,name);return;}
     if(action==='source'){const url=target.closest('[data-url]')?.dataset.url;if(url)document.dispatchEvent(new CustomEvent('molis:side-open',{detail:{tab:'browser',target:{url},focus:true}}));return;}
   });
   root.addEventListener('keydown',event=>{if(event.key==='Escape'&&!preview.hidden&&!wide&&!event.target.closest?.('dialog')){event.preventDefault();show(false);current=null;paint();}});
@@ -361,4 +386,4 @@ export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
       else openGiven({title:target.title||L('文件'),problem:L('这个文件所在的插件没有向侧栏提供文件，或当前没有读取权限。'),open:target.open});
     }else await load();
   });
-}`.replace(/^[ \t]*\/\/.*\n/gm, "");
+}`.replace(/^[ \t]*\/\/.*\n/gm, "").replace(/^[ \t]+/gm, "");

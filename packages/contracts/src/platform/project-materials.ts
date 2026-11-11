@@ -273,7 +273,9 @@ export const materialsActions = {
  * The files of the project's folders as a side panel source (materials-ui-contract §6): every folder of the project, listed under its name
  * and previewed in place. They took over from the Files plugin's `files.side.*`; no plugin page opens them.
  */
-const projectFileKinds = [{ kind: WORKSPACE_FILE_SUBJECT_KIND, title: "项目文件夹里的文件", surface: "materials" }];
+/** The workbench's main-area reader of the project's folders: where a listed file opens when the person asks for room to read. */
+export const MATERIALS_SURFACE = "materials";
+const projectFileKinds = [{ kind: WORKSPACE_FILE_SUBJECT_KIND, title: "项目文件夹里的文件", surface: MATERIALS_SURFACE }];
 const readingFolders = <Definition extends ActionDefinition>(definition: Definition): Definition => ({ ...definition, action: { ...definition.action, ...materialsReading } });
 export const materialsFileSource = {
   entries: /* @__PURE__ */ readingFolders(defineFileEntriesAction("materials.files.entries", /* @version action.materials.files.entries */ 1, projectFileKinds, "项目文件夹", [])),

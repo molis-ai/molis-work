@@ -9,7 +9,7 @@ import type { ProjectDirectories } from "@molis-ai/molis-work-contracts/modules/
 import { FILE_SNAPSHOT_TYPE, FILE_TEXT_SELECTION_TYPE, FILES_COLLECTION_TYPE, workspaceFileSubjectId, workspaceReadActions,
   WORKSPACE_FILE_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { ActionError, type ActionCallContext, type ActionReference, type FileContent, type FileEntriesPage } from "@molis-ai/molis-work-contracts/platform/actions";
-import { MATERIALS_PROVIDER_ID, materialsActions, materialsFileSource, SYSTEM_MATERIALS_SOURCE, type MaterialRef, type MaterialsCaptureResult, type MaterialsOpenResult,
+import { MATERIALS_PROVIDER_ID, MATERIALS_SURFACE, materialsActions, materialsFileSource, SYSTEM_MATERIALS_SOURCE, type MaterialRef, type MaterialsCaptureResult, type MaterialsOpenResult,
   type MaterialsReadResult } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import { PluginInputGraph } from "@molis-ai/molis-work-plugin-runtime";
 import { person } from "./fixtures/home-runtime.js";
@@ -225,7 +225,8 @@ test("BSH-08 the side panel's folder source is the platform's: every project fol
   const listed = page.entries.map(entry => [...entry.folder, entry.title].join("/")).sort();
   assert.deepEqual(listed, [`${inputFolder.display_name}/chart.png`, `${inputFolder.display_name}/docs/brief.txt`, `${m.output.display_name}/notes.md`].sort(),
     "both folders, under their names; dependency caches and dot-folders are not walked");
-  assert.ok(page.entries.every(entry => entry.open === null && entry.subject.kind === WORKSPACE_FILE_SUBJECT_KIND), "previewed in place: no plugin page opens them");
+  assert.ok(page.entries.every(entry => entry.subject.kind === WORKSPACE_FILE_SUBJECT_KIND && entry.open?.surface === MATERIALS_SURFACE && entry.open.id === entry.subject.id),
+    "previewed in place, and opened in the main area by the platform's own reader: no plugin page opens them");
 
   const brief = page.entries.find(entry => entry.title === "brief.txt")!;
   const text = await m.call<FileContent>(materialsFileSource.content, { subject: brief.subject });

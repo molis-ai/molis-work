@@ -2,7 +2,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { ActionError, type ActionDefinition, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import type { MolisWorkWebView, WorkbenchRenderer } from "@molis-ai/molis-work-app-workbench";
-import { stageObjectAction, stageDataAction } from "@molis-ai/molis-work-app-workbench";
+import { stageObjectAction, stageDataAction, stageDataInput } from "@molis-ai/molis-work-app-workbench";
 import { readRuntimeStageOwner, type RuntimeStageOwner } from "./project-plugin-stages.js";
 import { sendLocalWebJson } from "./web-http.js";
 import { htmlLang } from "./web-locale.js";
@@ -54,9 +54,16 @@ export async function handlePluginStageFragmentHttp(request: IncomingMessage, re
     if (declared.length !== 1 || declared[0]!.target_slot_id !== "workbench.main" || declared[0]!.format !== "declarative-html") {
       throw new ActionError("actions.input_invalid", "表面必须由同一舞台贡献声明，且属于主区");
     }
+    const input: Record<string, string> = {};
+    const allowed = new Set(stageDataInput(owner.entry.manifest) ?? []);
+    for (const [key, value] of url.searchParams) {
+      if (target.object && key === "surface") continue;
+      if (!allowed.has(key) || key === "object_id" || Object.hasOwn(input, key) || value.length > 2000) throw new ActionError("actions.input_invalid", "舞台参数未声明或无效");
+      input[key] = value;
+    }
     abort.signal.throwIfAborted();
     ports.invalidateWebView();
-    const data = await readRuntimeStageOwner(owner, (action, bound) => ports.bind(action, bound, abort.signal), target.object ? { object_id: target.object.id } : {}, Boolean(target.object));
+    const data = await readRuntimeStageOwner(owner, (action, bound) => ports.bind(action, bound, abort.signal), target.object ? { ...input, object_id: target.object.id } : input, Boolean(target.object));
     if (!(await ports.shown()).includes(target.plugin)) throw new ActionError("actions.plugin_disabled", "此项目不再显示该插件");
     abort.signal.throwIfAborted(); owner.assertCurrent();
     const model = ports.renderer.stageFragmentModel(target.plugin, { ...ports.context, shown_plugins: showing }, data, target.object);

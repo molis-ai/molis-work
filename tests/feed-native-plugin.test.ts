@@ -532,7 +532,7 @@ test("Feed draws only what its model holds: an inbox-bound entry keeps the stage
 test("A demo project whose Feed holds nothing is given no invented sources or messages (E-3)", () => {
   const built = buildFeedStageUiModel({ route_prefix: "/projects/demo", shown_plugins: ["feed"], primitives,
     context: { project: { project_id: "demo", display_name: "Demo" }, demo: true, cli_availability: {} },
-    data: { snapshot: { feed_items: [], sources: [], runs: [], out_rules: [] }, inbox_entries: [], source_catalog: [], source_presentations: {},
+    data: { snapshot: { feed_items: [], sources: [], runs: [], out_rules: [], offset: 0, next_offset: null, facets: [] }, inbox_entries: [], source_catalog: [], source_presentations: {},
       connector_auth: { github: { bound: false }, gmail: { bound: false } } } });
   assert.deepEqual(built.entries, []);
   assert.deepEqual(built.sources, []);

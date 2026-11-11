@@ -273,6 +273,8 @@
     "feed.ui.overview": "概览",
     "feed.ui.pause-source": "暂停来源",
     "feed.ui.paused": "已暂停",
+    "feed.ui.previous-page": "上一页",
+    "feed.ui.next-page": "下一页",
     "feed.ui.pick-message-read": "选一条消息开始读",
     "feed.ui.preview-again": "重新预览",
     "feed.ui.preview-again-before-enabling": "再预览一次才能启用。",

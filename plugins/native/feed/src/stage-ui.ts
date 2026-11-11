@@ -18,6 +18,7 @@ export function buildFeedStageUiModel(model: StagePageModel<FeedStageData>): Fee
 export function buildFeedReaderUiModel(model: StagePageModel<FeedReaderData>): PersistedFeedDetailModel {
   if (!model.data || !model.object) throw new ActionError("actions.plugin_unavailable", "Feed 对象数据不可用");
   return { route_prefix: model.route_prefix, entry_id: model.object.id, item: itemModel(model.data.item), inbox_entry: null,
+    material_offset: model.data.material_offset, material_next_offset: model.data.material_next_offset,
     inbox_active: model.data.inbox_active, promote_available: model.data.promote_available, primitives: feedStagePrimitives(model) };
 }
 function feedStagePrimitives(model: Pick<StagePageModel, "primitives">): FeedUiPrimitives {
@@ -38,6 +39,8 @@ function buildFeedModel(
   return {
     route_prefix: view.route_prefix,
     preset,
+    facets: view.data.snapshot.facets,
+    page: { offset: view.data.snapshot.offset, next_offset: view.data.snapshot.next_offset },
     entries: feedEntries(view, text.readText),
     sources,
     source_catalog: (view.data.source_catalog ?? []).map((source) => ({

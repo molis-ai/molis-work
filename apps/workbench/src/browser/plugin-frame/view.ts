@@ -73,7 +73,7 @@ export function childView(port: MessagePort, scope: FrameScope): UiPageView<HTML
     };
     const abort = () => { port.postMessage({ type: "document-cancel", id } satisfies FrameUp); finish(undefined, new DOMException("View changed", "AbortError")); };
     pending.set(id, { finish, cancel: abort }); query?.signal?.addEventListener("abort", abort, { once: true });
-    port.postMessage({ type: "read-document", id, ...(query?.object ? { object: query.object } : {}) } satisfies FrameUp);
+    port.postMessage({ type: "read-document", id, ...(query?.object ? { object: query.object } : {}), ...(query?.input ? { input: query.input } : {}) } satisfies FrameUp);
   }) };
 }
 
@@ -92,7 +92,12 @@ export async function readOwnPageDocument(root: HTMLElement, route: (path: strin
     return html;
 }
 
-async function readStageObject(path: string, language: string, current: () => void, scope: FrameScope, signal?: AbortSignal) {
+function validStageInput(input: unknown): input is Readonly<Record<string, string>> {
+  return Boolean(input && typeof input === "object" && !Array.isArray(input) && Object.keys(input).length <= 20
+    && Object.entries(input).every(([key, value]) => /^[a-z][a-z0-9_]*$/.test(key) && key.length <= 80 && typeof value === "string" && value.length <= 2000));
+}
+
+async function readStageDocument(path: string, language: string, current: () => void, scope?: FrameScope, signal?: AbortSignal) {
   for (let attempt = 0; attempt < 2; attempt++) {
     const response = await molisWorkRequest<Response>(path, { as: "response", scope, signal });
     if (!response.ok) {
@@ -107,22 +112,49 @@ async function readStageObject(path: string, language: string, current: () => vo
   throw new Error("View unavailable");
 }
 
+/** A parameterized page remains bound to the same owner and language before and after the read. */
+export async function readInputPageDocument(root: HTMLElement, route: (path: string) => string, pluginId: string, pageId: string,
+  input: Readonly<Record<string, string>>, scope?: FrameScope, signal?: AbortSignal): Promise<string> {
+  if (!root.dataset.pluginProducer || !root.dataset.pluginClient || !validStageInput(input)) throw new Error("View unavailable");
+  const version = frameDocumentRevision(), language = document.documentElement.lang;
+  const current = () => {
+    scope?.assertCurrent(signal);
+    if (!root.isConnected || signal?.aborted || version !== frameDocumentRevision()) throw new Error("View unavailable");
+  };
+  await readOwnPageDocument(root, route, pluginId, pageId, scope, signal);
+  current();
+  const path = route("/api/stage/" + encodeURIComponent(root.dataset.pluginClient)) + "?" + new URLSearchParams(input);
+  const html = await readStageDocument(path, language, current, scope, signal);
+  await readOwnPageDocument(root, route, pluginId, pageId, scope, signal);
+  current();
+  return html;
+}
+
 export async function readPageDocument(port: MessagePort, id: number, root: HTMLElement, route: (path: string) => string,
-  pack: FramePack, pageId: string, scope: FrameScope, object?: { id: string; surface: string }, signal?: AbortSignal): Promise<void> {
+  pack: FramePack, pageId: string, scope: FrameScope, object?: { id: string; surface: string }, signal?: AbortSignal, input?: Readonly<Record<string, string>>): Promise<void> {
   const version = frameDocumentRevision(), language = document.documentElement.lang;
   const current = () => { scope.assertCurrent(signal); if (version !== frameDocumentRevision()) throw new Error("View unavailable"); };
   try {
     let html: string;
+    if (input !== undefined && !validStageInput(input)) throw new Error("View unavailable");
+
     if (object !== undefined) {
       if (!root.dataset.pluginProducer || !root.dataset.pluginClient || !object || typeof object !== "object" || Array.isArray(object)
         || Object.keys(object).some(key => !["id", "surface"].includes(key)) || typeof object.id !== "string" || !object.id || object.id.length > 256 || object.id.includes("/")
         || typeof object.surface !== "string" || !object.surface || object.surface.length > 200) throw new Error("View unavailable");
       await molisWorkRequest(route("/api/host/plugin-page-check"), { body: { object_surface: object.surface }, scope, signal, headers: { "x-molis-plugin-page": pageId } });
-      html = await readStageObject(route("/api/stage/" + encodeURIComponent(root.dataset.pluginClient) + "/objects/" + encodeURIComponent(object.id)) + "?surface=" + encodeURIComponent(object.surface), language, current, scope, signal);
+      const path = route("/api/stage/" + encodeURIComponent(root.dataset.pluginClient) + "/objects/" + encodeURIComponent(object.id))
+        + "?" + new URLSearchParams({ ...input, surface: object.surface });
+      html = await readStageDocument(path, language, current, scope, signal);
       // Re-read the exact producer after the fragment: a new half or installation cannot supply this old page's result.
       await readOwnPageDocument(root, route, pack.plugin_id, pageId, scope, signal);
-    } else html = await readOwnPageDocument(root, route, pack.plugin_id, pageId, scope, signal);
+    } else if (input !== undefined) {
+      html = await readInputPageDocument(root, route, pack.plugin_id, pageId, input, scope, signal);
+    } else {
+      html = await readOwnPageDocument(root, route, pack.plugin_id, pageId, scope, signal);
+    }
     current();
+    // Parameterized pages also replace the trusted document used to authorize their rendered connection slots.
     if (object === undefined) {
       const payload = root.querySelector("script[data-plugin-document]");
       if (payload) payload.textContent = JSON.stringify(html).replaceAll("<", "\\u003c");

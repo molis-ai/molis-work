@@ -321,6 +321,8 @@
     "feed.ui.overview": "Overview",
     "feed.ui.pause-source": "Pause source",
     "feed.ui.paused": "Paused",
+    "feed.ui.previous-page": "Previous page",
+    "feed.ui.next-page": "Next page",
     "feed.ui.pick-message-read": "Pick a message to read",
     "feed.ui.preview-again": "Preview again",
     "feed.ui.preview-again-before-enabling": "Preview again before enabling it.",

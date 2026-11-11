@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import { AssistantService, AssistantStore, LocalHost, assistantAuthority, hostQuestionTypes, runWithLocale } from "@molis-ai/molis-work-app-local-host";
+import { AssistantService, AssistantStore, LocalHost, assistantAuthority, hostQuestionTypes, installHostUiText, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 
 // specs/ai-interaction-experience AC-07 (§15.9, BL-156): a question the Assistant asked survives a restart. The round is parked
 // on it, the card takes the answer, and the next round carries it. A next round that cannot start leaves the answer queued
@@ -34,6 +34,7 @@ async function until<T>(read: () => T | Promise<T>, what: string): Promise<NonNu
 
 /** A work whose round asked, then a restart: the Host and its runtime are opened again on the same storage. */
 async function parkedWork(t: TestContext, name: string) {
+  installHostUiText();
   const home = await mkdtemp(join(tmpdir(), `interaction-parked-${name}-`));
   const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
   const bodies: string[] = [];
@@ -109,9 +110,9 @@ test("AC-10, QA-001: on an English page the reason a next round could not start 
   const fixture = await parkedWork(t, "refused-en");
   t.mock.method(fixture.current().host, "start", async () => { throw new ActionError("agent.model_not_configured", "fixture: no model"); });
   const view = await runWithLocale("en", () => fixture.answer());
-  assert.equal(view.problem?.message, "Answered, but the next turn couldn't start: No usable model is configured yet, so the assistant can't start");
+  assert.equal(view.problem?.message, "Answered, but the next turn couldn’t start: No usable model is configured yet, so the assistant can’t start");
   assert.doesNotMatch(view.problem?.message ?? "", /[\u3000-\u303f\u4e00-\u9fff\uff00-\uffef]/, "no Chinese word or punctuation left");
-  assert.equal(view.problem?.action, "说“继续”接着做", "the action stays the key the page translates");
+  assert.equal(view.problem?.action, "Say “Continue” to resume", "the action is ready for the English page to display");
 });
 
 test("AC-07 a session still being recovered is read once and the next round tried once more, never in a loop", { timeout: 60_000 }, async t => {

@@ -351,7 +351,8 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
     const right = briefPreview(s.title, s.body, {title:readText("workbench.context-onboarding.next-todo-drafts"), body:draftsHtml || '<p class="mw-brief__quiet">' + globalThis.t.text("workbench.context-onboarding.no-todo-drafts") + '</p>'}, globalThis.t.text("workbench.context-onboarding.just-now-n-n", {n:s.references.length}));
     return {kind:'onboard', view:'review', step:'start', left, right,
       bar:{start:exitButton() + stepsBar('start'), center:barStatus({glyph:'check', title:todoPicked ? globalThis.t.text("workbench.context-onboarding.project-suggestion-ready-n-n", {n:picks}) : globalThis.t.text("workbench.context-onboarding.project-suggestion-ready"), caption:globalThis.t.text(todoPicked&&todoPicked.size?"workbench.context-onboarding.summary-source-snapshot-todos-checked-saved-together-project":"workbench.context-onboarding.summary-snapshot-its-sources-saved-project")}),
-        end:secondary("workbench.context-onboarding.adjust-sources",'restart') + primary(busy ? "workbench.context-onboarding.saving" : todoPicked&&todoPicked.size ? globalThis.t.text("workbench.context-onboarding.use-count-count").replace('{count}',todoPicked.size) : "workbench.context-onboarding.use-start",'adopt',{disabled:busy})}};
+        end:secondary("workbench.context-onboarding.adjust-sources",'restart') + primaryText(busy ? readText("workbench.context-onboarding.saving")
+          : picks ? globalThis.t.text("workbench.context-onboarding.use-count-count", {count:picks}) : readText("workbench.context-onboarding.use-start"),'adopt',{disabled:busy})}};
   }
   function savingProject() {
     const saving = journey.phase === 'adopting';

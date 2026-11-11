@@ -65,12 +65,13 @@ function paintModel(page: CogniaPage): void {
   const { state } = page;
   const model = q(page, "[data-cognia-model]");
   model.hidden = false;
-  model.textContent = state.ai_unavailable_reason ? uiText.text(state.ai_unavailable_reason) : state.ai_runtime || uiText.text("cognia.model.none");
+  const reason = state.ai_unavailable_reason || uiText.text("cognia.model.none");
+  model.textContent = state.ai_unavailable_reason || state.ai_runtime || reason;
   q(page, "[data-cognia-action=model-settings]").hidden = Boolean(state.ai_available);
   for (const action of ["synthesize", "query", "synthesize-current"]) {
     const control = q<HTMLButtonElement>(page, `[data-cognia-action="${action}"]`);
     control.disabled = !state.ai_available;
-    control.title = state.ai_available ? "" : uiText.text(state.ai_unavailable_reason || "cognia.model.none");
+    control.title = state.ai_available ? "" : reason;
   }
   page.modelRead?.();
 }

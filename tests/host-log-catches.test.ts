@@ -3,7 +3,7 @@ import http from "node:http";
 import test from "node:test";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { projectCatalogErrors } from "@molis-ai/molis-work-contracts/modules/projects";
-import { captureHostLog, homeAggregatePorts, homeBackgroundTasks, createProjectArrivalHttp, handleBrowserHttp, logPreviewFailure, projectOrNull, repeatingFailure, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
+import { captureHostLog, homeAggregatePorts, homeBackgroundTasks, createProjectArrivalHttp, handleBrowserHttp, installHostUiText, logPreviewFailure, projectOrNull, repeatingFailure, runWithLocale, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
 import { backgroundPlugin, backgroundRig } from "./fixtures/home-background-plugin.js";
 
 /**
@@ -113,7 +113,8 @@ async function serve(handle: (request: http.IncomingMessage, response: http.Serv
 test("D0070 W5-13-11 the project brief: a project the catalog does not have is still a 404; a catalog that cannot be read is a 500 and one record, and the next request is served", async () => {
   let catalog: { getProject(id: string): never } = failingCatalog(projectCatalogErrors.project_not_found("找不到"));
   const handle = createProjectArrivalHttp({ localHost: {} as never, renderBrief: () => "", withCatalog: (async (_options: unknown, operation: (c: never) => unknown) => operation(catalog as never)) as never });
-  const site = await serve((request, response, url) => handle(request, response, url, undefined));
+  installHostUiText();
+  const site = await serve((request, response, url) => runWithLocale("zh", () => handle(request, response, url, undefined)));
   const entries: HostLogEntry[] = [];
   const restore = captureHostLog(entries);
   try {

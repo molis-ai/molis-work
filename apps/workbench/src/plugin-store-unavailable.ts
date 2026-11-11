@@ -42,6 +42,6 @@ export function renderPluginStoreUnavailablePage(input: {
         ${input.project ? `<section><h2>${escapeHtml(uiText.text("workbench.plugin-store-unavailable.saved-project-plugins"))}</h2>${members ? `<ul>${members}</ul>` : `<p>${escapeHtml(uiText.text("workbench.plugin-store-unavailable.no-saved-project-plugins"))}</p>`}</section>` : ""}
         ${statuses}
       </div></main>`,
-  });
+  }, { languageScript: false });
   return input.desktopShell ? locale.desktop.appendDesktopQueryToLocalHrefs(html) : html;
 }

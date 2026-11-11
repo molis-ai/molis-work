@@ -50,7 +50,7 @@ export const SETTINGS_STYLES = `
   .appearance-picker h2 { margin: 0; font-size: var(--type-title-size); line-height: var(--type-title-line-height); }
   .appearance-picker .mw-look-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .appearance-pick-row { display: grid; gap: 8px; }
-  .appearance-options { display: flex; flex-wrap: wrap; gap: 6px; }
+  .appearance-options { display: flex; flex-wrap: wrap; gap: 8px; }
   .appearance-options button[aria-pressed="true"] { color: var(--accent-strong); background: var(--nav-active); box-shadow: inset 0 0 0 1px var(--accent); }
   .appearance-controls > .appearance-proof-open { display: none; }
   .appearance-proof-sheet .mw-form__footer:empty { display: none; }

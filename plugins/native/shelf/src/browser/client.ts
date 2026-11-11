@@ -11,8 +11,6 @@ import { installTerminal } from "./terminal.js";
 import { installTui } from "./tui.js";
 import type { ShelfHost, ShelfPage } from "./types.js";
 
-const uiText = globalThis.t;
-
 /**
  * The Shelf page: materials in, results out, a command bar that runs actions on the copies. Built with esbuild into the plugin's
  * client pack (src/client.ts reads the bundle); type-checked by tsconfig.browser.json.
@@ -28,7 +26,7 @@ export function shelfClient(host: ShelfHost): void {
   const bar = bench.querySelector<HTMLElement>("[data-shelf-bar]");
   if (!stage || !preview || !bar) return;
   const page: ShelfPage = {
-    host, readText: uiText.text, lifetime, directory, bench, stage, preview, bar, reading,
+    host, lifetime, directory, bench, stage, preview, bar, reading,
     stageWorkspace: bench.querySelector<HTMLElement>("[data-shelf-stage-workspace]"),
     fileInput: bench.querySelector<HTMLInputElement>("[data-shelf-file]"),
     search: bench.querySelector<HTMLInputElement>("[data-shelf-search]"),

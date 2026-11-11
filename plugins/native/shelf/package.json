@@ -27,7 +27,7 @@
   ],
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
-    "build": "tsc -p tsconfig.json && tsc -p tsconfig.browser.json && esbuild src/browser/factory.ts --bundle --format=iife --platform=browser --minify --charset=utf8 '--banner:js=(host) => {' --footer:js=} --outfile=dist/shelf-client.js && esbuild src/browser/settings/factory.ts --bundle --format=iife --platform=browser --minify --charset=utf8 --outfile=dist/shelf-settings-client.js && node ../../../packages/plugin-sdk/tooling/build-native-markdown.mjs prompts",
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.browser.json && esbuild src/browser/factory.ts --bundle --format=iife --platform=browser --minify --charset=utf8 '--banner:js=(host) => {' --footer:js=} --outfile=dist/shelf-client.js && node ../../../scripts/client-literals.mjs --factory dist/shelf-client.js && esbuild src/browser/settings/factory.ts --bundle --format=iife --platform=browser --minify --charset=utf8 --outfile=dist/shelf-settings-client.js && node ../../../packages/plugin-sdk/tooling/build-native-markdown.mjs prompts",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc -p tsconfig.browser.json"
   },
   "dependencies": {

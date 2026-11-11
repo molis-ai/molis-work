@@ -17,7 +17,7 @@ import { artifactTypeDeclarations, artifactContinuers, artifactReferrerActions, 
 import { renderFilePreviewHtml } from "@molis-ai/molis-work-design-system";
 import { importedDocumentFile, type ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { ActionProgressEvent, ArtifactCompareResult, ArtifactContinueResult, ArtifactReferrersResult, FileContent } from "@molis-ai/molis-work-contracts/platform/actions";
-import { currentLocale, inLanguagePreview, readText } from "./web-locale.js";
+import { currentLocale, inLanguagePreview } from "./web-locale.js";
 import type { ReadArtifactDisplay } from "./artifact-display-words.js";
 import { requestHeader, sendLocalWebJson } from "./web-http.js";
 import { readArtifactImportBody } from "./artifact-document-import.js";
@@ -249,8 +249,7 @@ export function createLocalArtifactHttp() {
         languagePreview, typeTitle: version => words(version)?.title }, compact ? "frame-block" : "detail", currentLocale()));
       return true;
     } catch (error) {
-      // The status is the one of the failure's kind. This is the one edge where the Host translates a failure's message itself.
-      const failure = actionErrorResponse(error, { translate: readText });
+      const failure = actionErrorResponse(error);
       sendLocalWebJson(response, failure.status, failure.body);
       return true;
     }

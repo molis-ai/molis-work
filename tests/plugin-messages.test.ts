@@ -49,7 +49,7 @@ test("RAC-751 a current Manifest accepts locale files and rejects each retired i
       assert.throws(() => parsePluginManifest(manifest(extra)), { code: "plugin.declaration_invalid", message: /ui\.locales.*messages or translations|ui\.locales.*messages 或 translations/u }, field);
     }
   }
-  assert.throws(() => parsePluginManifest({ ...manifest({ locales: declared }), schema_version: 2 }), /schema_version/);
+  assert.throws(() => parsePluginManifest({ ...manifest({ locales: declared }), schema_version: 2 }), { code: "plugin.manifest_version_invalid", message: /Manifest 版本不受支持|Manifest version is not supported/ });
 });
 
 test("RAC-752 plugin text validation checks both languages and refuses a second owner with the same key prefix", () => {

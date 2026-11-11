@@ -137,7 +137,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     globalThis.molisWorkBindFunctionsRules?.(root, page);
     document.dispatchEvent(new CustomEvent("molis-work:settings-embed", { detail: { root } }));
   };
-  const extractContent = html => (${settingsContentOf.toString()})(new DOMParser().parseFromString(html, "text/html"));
+  const extractContent = ${settingsContentOf.toString()};
   const modifiedClick = (event) => event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button === 1;
   const bindPanel = (navRoot, bodyRoot, options) => {
     if (!navRoot || !bodyRoot) return null;
@@ -179,7 +179,8 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
       requestAnimationFrame(resetScroll);
     };
     const loadFromHtml = (section, html, fetchPath) => {
-      const wrap = extractContent(html);
+      const page = new DOMParser().parseFromString(html, "text/html");
+      const wrap = extractContent(page);
       wrap.dataset.settingsPanel = section;
       wrap.dataset.settingsSource = fetchPath || options.sectionPath(section);
       if (fetchPath) {
@@ -189,6 +190,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
         wrap.dataset.settingsHash = address.hash;
       }
       caches.set(section, wrap);
+      globalThis.molisWorkInstallSettingsText?.(wrap, page);
       showNode(wrap);
       active = section;
       markNav(section);

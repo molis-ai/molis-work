@@ -75,9 +75,9 @@ test("RAC-601 a new object and its card are named from the declared title on the
 test("RAC-602 the project home's starts are the shown plugins' declared `start`, in the declared order, and the page script keeps none", () => {
   withView(view => {
     assert.deepEqual(homeStarts(draw(showing(view, EVERYTHING))), [
-      { id: "goals", title: "推进一个目标", hint: "明确要做成什么，接着往下走。", glyph: "target" },
-      { id: "pages", title: "写一份文档", hint: "把思路写下来，逐步整理成作品。", glyph: "file" },
-      { id: "lingguang", title: "记下一点灵感", hint: "还没想清楚，也可以先留下。", glyph: "idea" },
+      { id: "goals", plugin_id: "io.molis.work.goals", title: "推进一个目标", hint: "明确要做成什么，接着往下走。", glyph: "target" },
+      { id: "pages", plugin_id: "io.molis.work.pages", title: "写一份文档", hint: "把思路写下来，逐步整理成作品。", glyph: "file" },
+      { id: "lingguang", plugin_id: "io.molis.work.lingguang", title: "记下一点灵感", hint: "还没想清楚，也可以先留下。", glyph: "idea" },
     ]);
     assert.deepEqual(homeStarts(draw(only(view, ["lingguang"]))).map(start => start.id), ["goals", "lingguang"]);
     assert.deepEqual(homeStarts(draw(only(view, []))).map(start => start.id), ["goals"], "a project that shows only Goals starts with Goals");
@@ -147,7 +147,7 @@ test("RAC-600 RAC-602 a default project's declared create reaches the real page,
     assert.deepEqual(creates(html)[0], { station: "default-goal", title: "默认 &quot;&lt;/button&gt;&lt;script&gt;&amp;", label: "默认 &quot;&lt;/button&gt;&lt;script&gt;&amp;" });
     assert.doesNotMatch(html, /默认 "<\/button><script>&/u);
     assert.deepEqual(homeStarts(html).map(start => start.id), ["goals", "pages", "lingguang"]);
-    assert.deepEqual(homeStarts(html)[0], { id: "goals", title: '起点 "</script>&', hint: '说明 " onmouseover="alert(1)', glyph: "target" });
+    assert.deepEqual(homeStarts(html)[0], { id: "goals", plugin_id: "io.molis.work.goals", title: '起点 "</script>&', hint: '说明 " onmouseover="alert(1)', glyph: "target" });
     assert.doesNotMatch(html, /起点 "<\/script>&/u);
 
     const goalHtml = draw({ ...defaults, enabled_plugins: ["goals"] }, goalId);

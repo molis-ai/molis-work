@@ -1,7 +1,4 @@
 import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
-import type { Translate } from "./types.js";
-
-const uiText = globalThis.t;
 
 export const escText = escapeHtml;
 export const escapeAttr = escapeHtml;
@@ -12,9 +9,6 @@ export function bufferToBase64(bytes: Uint8Array): string {
   for (let index = 0; index < bytes.length; index += chunk) binary += String.fromCharCode(...bytes.subarray(index, index + chunk));
   return btoa(binary);
 }
-
-/** Words the Host or this plugin's routes wrote (a recipe's name, a reason, a refusal) go through the translator here, and only here. */
-export const said = (_L: Translate, text: string): string => uiText.text(text);
 
 /** The nearest element of the event's target that matches `selector`. */
 export const closest = (event: Event, selector: string): HTMLElement | null => {

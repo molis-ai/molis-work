@@ -21,6 +21,8 @@ import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
 import { serveNativeHttp } from "./fixtures/native-http.js";
 
+hostModule.installHostUiText();
+
 // specs/archive/repository-anti-corruption W3-02-G2: the Host's page and catalog edges answer through the one error model. The Functions mapper, the
 // project catalog's error class, the artifact edge's four classes, the project-reference class and the edge refusals' bare 403 are gone; a failure
 // is an ActionError with a code and a kind, and the status comes from the kind (SDK `actionHttpStatus`).
@@ -33,7 +35,7 @@ import { serveNativeHttp } from "./fixtures/native-http.js";
 //   2. The catalog: its failures are ActionErrors carrying the kind each answered before (FAILS there: a class of its own), and the settings
 //      plugin routes that told "no such project" from every other failure by the class still do, now with the code in the body.
 //   3. The artifact edge answers a plugin that is off with 403 (FAILS there: 404), the 成果 browser's and the import's failures with a
-//      code and the status of their kind (415 and 422 are 400), and the English page still gets English text.
+//      code and the status of their kind (415 and 422 are 400). The edge carries the original refusal across languages.
 //   4. The edge refusals of the local web host (Host, Origin, control token) answer one opaque body, so the answer never says which check
 //      failed (FAILS there: no code). The other answers before an action runs (a missing or replayed one-time key) keep their status.
 //   5. A `project://` reference that cannot be opened is a coded failure of the Host's, the missing workspace the Artifacts plugin's.
@@ -292,14 +294,13 @@ test("the artifact edge answers by kind: a plugin that is off is 403, and the co
   assert.deepEqual([uncoded.status, uncoded.body], [500, { error: "读取失败", code: "actions.execution_failed" }]);
 });
 
-test("the artifact edge translates the message on an English page, and only there", async t => {
+test("the artifact edge preserves the original action refusal in both languages", async t => {
   const failure: { current: unknown } = { current: new ActionError("actions.missing", "这个版本没有可取回的文件") };
   const edge = await artifactEdge(t, failure);
   const english = await edge.send("GET", "/artifacts/a1/versions/1", { headers: { "x-molis-work-fragment": "artifact-workbench", "accept-language": "en" } });
   const chinese = await edge.send("GET", "/artifacts/a1/versions/1", { headers: { "x-molis-work-fragment": "artifact-workbench" } });
   assert.equal(chinese.body.error, "这个版本没有可取回的文件");
-  assert.equal(english.body.error, hostModule.runWithLocale("en", () => hostModule.L("这个版本没有可取回的文件")));
-  assert.notEqual(english.body.error, chinese.body.error, "the English page has English text here");
+  assert.equal(english.body.error, "这个版本没有可取回的文件");
   assert.equal(english.body.code, "actions.missing");
 });
 

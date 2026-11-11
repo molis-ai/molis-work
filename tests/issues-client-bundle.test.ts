@@ -3,7 +3,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 
-import { ISSUES_CLIENT_FACTORY_SCRIPT, renderIssuesWorkbench } from "@molis-ai/molis-work-plugin-issues";
+import { ISSUES_CLIENT_FACTORY_SCRIPT, ISSUES_INSTRUCTIONS, issuesManifest, renderIssuesWorkbench } from "@molis-ai/molis-work-plugin-issues";
 import { inspectLocaleSet, installTextForTest, parseLocalePack } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 const SRC = "plugins/native/issues/src";
@@ -12,10 +12,22 @@ const browserFiles = () => readdirSync(BROWSER).map(file => join(BROWSER, file))
 
 test("RAC-138 every word the Issue page says has a stable key with both languages, and none is a Chinese key", () => {
   const used = new Set<string>();
-  for (const file of [join(SRC, "ui.ts"), ...browserFiles()]) {
+  for (const file of [join(SRC, "ui.ts"), join(SRC, "naming.ts"), ...browserFiles()]) {
     const source = readFileSync(file, "utf8");
     assert.doesNotMatch(source, /data-issue-i18n|\bt(?:\.text)?\(["'][^"']*\p{Script=Han}/u, `${file} must draw with stable keys`);
     for (const match of source.matchAll(/"(issues\.[a-z][\w.-]+)"/gu)) used.add(match[1]!);
+  }
+  if (issuesManifest.summary_text && "key" in issuesManifest.summary_text) used.add(issuesManifest.summary_text.key);
+  for (const skill of issuesManifest.methods ?? []) for (const field of ["name", "description", "when_to_use", "when_not_to_use"] as const) {
+    if (skill[field]) used.add(`issues.skill.${skill.skill_id}.${field.replaceAll("_", "-")}`);
+  }
+  for (const prompt of ISSUES_INSTRUCTIONS) {
+    const id = prompt.prompt_id.replaceAll(".", "-");
+    used.add(`issues.agent-prompt.${id}.title`);
+    used.add(`issues.agent-prompt.${id}.purpose`);
+  }
+  for (const action of issuesManifest.actions ?? []) {
+    if (["issues.create", "issues.delete"].includes(action.capability_id)) used.add(`issues.capability-library.${action.capability_id.replaceAll(".", "-")}-v${action.version}.title`);
   }
   const packs = ["zh", "en"].map(locale => {
     const read = parseLocalePack(readFileSync(join(SRC, "..", "locales", locale + ".json"), "utf8"));

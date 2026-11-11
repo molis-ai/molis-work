@@ -7,7 +7,7 @@ const bundle = readFileSync(new URL("./settings-bundle.js", import.meta.url), "u
  * Coding's sections of the settings pages, bound in both standalone and embedded settings: the project-owned method library and
  * the MCP server list. Their code is the type-checked TypeScript in `src/browser/settings/`, bundled by esbuild into
  * `dist/settings-bundle.js` when the package builds (package.json "build"). The plugin's route goes in front of the bundle
- * as the constant its entry declares; the page defines `readText`.
+ * as the constant its entry declares. The bundle uses the Workbench text context.
  */
 export const CODING_SETTINGS_CLIENT_SCRIPT = [
   "(() => {",

@@ -26,6 +26,7 @@
     "issues.detail.delete": "删除",
     "issues.detail.edit": "编辑",
     "issues.detail.edited-on": "修改于 {time}",
+    "issues.detail.missing": "这条问题不存在或已删除",
     "issues.detail.recorded-on": "记录于 {page}",
     "issues.detail.still-organizing": "还在整理，稍等几秒",
     "issues.directory.summary": "记录、查看和整理自己的问题。",

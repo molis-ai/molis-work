@@ -14,7 +14,7 @@ import type { FrameScope, TaskGrantsDown, TaskGrantsUp, Translate } from "./type
  */
 
 /** The one thing the page hears when an area cannot be shown, whatever the reason: the frame rejects with it, the shell sends it. */
-export const TASK_GRANTS_UNAVAILABLE = "workbench.task-grants-area.cannot-display-this-right-now";
+export const TASK_GRANTS_UNAVAILABLE = "common.task-grants.cannot-display-this-right-now";
 /** The area's two heights (§3.1), by width alone; set on the component board's specimens so five categories need no scrolling. */
 export const TASK_GRANTS_AREA_HEIGHTS = { narrow: 468, wide: 396 } as const;
 
@@ -298,6 +298,7 @@ export function pageTaskGrants(port: MessagePort, scope: FrameScope, areas: Page
 /** The page's half: places an empty element, reports where it is, and keeps the element at the height the shell gives it. */
 export function childTaskGrants(port: MessagePort, scope: FrameScope): UiPageTaskGrants<HTMLElement> {
   let sequence = 0;
+  const unavailable = () => new Error(globalThis.t.text(TASK_GRANTS_UNAVAILABLE));
   const entries = new Map<number, { element: HTMLElement; onChange?: (state: UiTaskGrantsAreaState) => void;
     pending?: { resolve(): void; reject(error: Error): void }; stop?: () => void }>();
   const send = (message: TaskGrantsUp) => port.postMessage(message);
@@ -314,12 +315,12 @@ export function childTaskGrants(port: MessagePort, scope: FrameScope): UiPageTas
     if (message.type === "task-grants-size") entry.element.style.height = Math.max(0, message.height) + "px";
     else if (message.type === "task-grants-reveal") entry.element.scrollIntoView({ block: "nearest" });
     else if (message.type === "task-grants-changed") entry.onChange?.({ granted: message.state.granted === true, attention: message.state.attention === true });
-    else if (message.error) close(message.id, new Error(TASK_GRANTS_UNAVAILABLE));
+    else if (message.error) close(message.id, unavailable());
     else { entry.pending?.resolve(); entry.pending = undefined; }
   });
   return {
     place(element, key, options = {}) {
-      if (!scope.alive || !(element instanceof HTMLElement) || typeof key !== "string") return Promise.reject(new Error(TASK_GRANTS_UNAVAILABLE));
+      if (!scope.alive || !(element instanceof HTMLElement) || typeof key !== "string") return Promise.reject(unavailable());
       if (options.signal?.aborted) return Promise.reject(new DOMException("Area closed", "AbortError"));
       // The same element placed again changes its key: its area closes first.
       for (const [id, entry] of entries) if (entry.element === element) close(id);

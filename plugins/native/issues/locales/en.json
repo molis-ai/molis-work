@@ -26,6 +26,7 @@
     "issues.detail.delete": "Delete",
     "issues.detail.edit": "Edit",
     "issues.detail.edited-on": "Edited {time}",
+    "issues.detail.missing": "This issue does not exist or was deleted",
     "issues.detail.recorded-on": "Recorded on {page}",
     "issues.detail.still-organizing": "Still organizing, a few more seconds",
     "issues.directory.summary": "Record, review, and organize your issues.",

@@ -19,11 +19,9 @@ import {
 } from "@molis-ai/molis-work-module-shelf";
 import {
   SHELF_STYLES,
-  SHELF_EN,
-  SHELF_MESSAGES,
   SHELF_CLIENT_FACTORY_SCRIPT,
   SHELF_UI_CONTRIBUTION_ID,
-  renderShelfWorkbench,
+  renderShelfWorkbench as drawShelfWorkbench,
   shelfManifest,
   shelfUiContribution,
   type ShelfListModel,
@@ -33,6 +31,13 @@ import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { createSingleHomeTestWebServer as createMolisWorkWebServer } from "./fixtures/local-web-core.js";
 import { renderMolisWorkWorkbenchStylesheet } from "./workbench-renderer-fixture.js";
 import { openTestShelfFiles, openTestShelfStore } from "./shelf-direct-actions.js";
+import { registeredBuiltinText, runWithLocale, runWithRegisteredText } from "@molis-ai/molis-work-app-local-host";
+import { pagePack, pageText } from "./fixtures/page-text.js";
+
+const shelfWords = registeredBuiltinText(shelfManifest);
+assert.ok(shelfWords);
+const drawShelf = <T>(draw: () => T): T => runWithLocale("zh", () => runWithRegisteredText(shelfWords, draw));
+const renderShelfWorkbench = (view: ShelfListModel) => drawShelf(() => drawShelfWorkbench(view));
 
 const primitives: ShelfUiModel["primitives"] = {
   escape: (value) => String(value ?? "")
@@ -41,7 +46,7 @@ const primitives: ShelfUiModel["primitives"] = {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;"),
   // The page's words are stable keys; the test reads the Chinese of each.
-  text: (key, values) => (SHELF_MESSAGES as Record<string, { zh: string }>)[key]?.zh.replace(/\{(\w+)[^}]*\}/g, (_, name) => String(values?.[name] ?? name)) ?? key,
+  text: pageText("zh", "shelf"),
 };
 
 function model(overrides: Partial<ShelfListModel> = {}): ShelfListModel {
@@ -56,9 +61,13 @@ function model(overrides: Partial<ShelfListModel> = {}): ShelfListModel {
 }
 
 /** The key the Shelf page says a Chinese text by: its client carries the key, and the Host shows the words of the person's language. */
-const keyOf = (zh: string): string => Object.entries(SHELF_MESSAGES).find(([, text]) => text.zh === zh)?.[0] ?? assert.fail(`no key says "${zh}"`);
-/** English of a Chinese text: a Shelf page word has it in its message table, the settings page's and the module's in the dictionary. */
-const english = (zh: string): string | undefined => Object.values(SHELF_MESSAGES).find(text => text.zh === zh)?.en ?? SHELF_EN[zh];
+const chineseWords = Object.entries(pagePack("shelf", "zh").messages);
+const englishWords = pagePack("shelf", "en").messages;
+const keyOf = (zh: string): string => chineseWords.find(([, text]) => text === zh)?.[0] ?? assert.fail(`no key says "${zh}"`);
+const english = (zh: string): string | undefined => {
+  const word = englishWords[keyOf(zh)];
+  return typeof word === "string" ? word : undefined;
+};
 const clientSays = (zh: string) => SHELF_CLIENT_FACTORY_SCRIPT.includes(keyOf(zh));
 
 /** No terminal Agent: these tests describe the shelf, not this Mac's CLI. */
@@ -298,7 +307,7 @@ test("Shelf UI contribution paints stage folds and DropAgent command chrome", ()
   for (const surface of ["directory", "workbench"]) {
     assert.throws(() => host.render({ contribution_id: SHELF_UI_CONTRIBUTION_ID, surface, model: { primitives } }), /不存在/);
   }
-  const side = host.render({ contribution_id: SHELF_UI_CONTRIBUTION_ID, surface: "side", model: { primitives } satisfies ShelfUiModel });
+  const side = drawShelf(() => host.render({ contribution_id: SHELF_UI_CONTRIBUTION_ID, surface: "side", model: { primitives } satisfies ShelfUiModel }));
   assert.match(side, /data-shelf-stage-shell/);
   assert.match(side, /data-shelf="directory"[\s\S]*shelf-side-head[\s\S]*shelf-side-scroll[\s\S]*shelf-side-foot/);
   assert.doesNotMatch(side, /desktop-work-surface|plugin-stage-shell"/, "the side tab is not a work-area stage");
@@ -403,7 +412,8 @@ test("Shelf UI contribution paints stage folds and DropAgent command chrome", ()
   assert.match(SHELF_CLIENT_FACTORY_SCRIPT, /href="#icon-/);
   assert.match(SHELF_CLIENT_FACTORY_SCRIPT, /data-expanded|dataset\.expanded/);
   assert.match(SHELF_CLIENT_FACTORY_SCRIPT, /data-shelf-collapse/);
-  assert.match(SHELF_CLIENT_FACTORY_SCRIPT, /copy:"copy",hide:"x",down:"download",trash:"trash"/);
+  const rows = readFileSync(new URL("../plugins/native/shelf/src/browser/rows.ts", import.meta.url), "utf8");
+  assert.match(rows, /copy: "copy", hide: "x", down: "download", trash: "trash"/);
   // Soft Workbench (DESIGN.md → Typography): the confirm heading takes the 600 title role.
   assert.match(SHELF_STYLES, /shelf-confirm-title \{[^}]*font-weight: var\(--weight-title, 600\)/);
   assert.match(workbench, /data-shelf-confirm-out/);

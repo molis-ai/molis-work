@@ -50,8 +50,7 @@ function changeView(change: CodingChangeSet, index: number, version: number): Di
   const files: DiffFileEntry[] = change.files.map(file => ({ path: file.path, kind: file.kind, added_lines: file.added_lines, removed_lines: file.removed_lines }));
   if (files.length === 0) return emptyDiffView(GROUP, t.text("coding.change.reader.no-text-review"), "ready", t.text("coding.change.reader.run-again"));
   const chosen = change.files[index];
-  // The reader asks by index, so no path is known here: the sentence reads as the Host's did.
-  if (chosen === undefined) return { ...emptyDiffView(GROUP, t.text("coding.change.reader.no-change-in", { path: String(index) }), "unavailable", t.text("coding.change.reader.run-again")), files };
+  if (chosen === undefined) return { ...emptyDiffView(GROUP, t.text("coding.change.reader.no-such-change"), "unavailable", t.text("coding.change.reader.run-again")), files };
   const side: DiffSide = { workspace_id: change.origin.workspace_id, workspace_name: change.origin.workspace_name,
     path: chosen.path, source_plugin_id: CODING_PLUGIN_ID, content_version: version };
   return { ...compareChange(GROUP, { before: side, after: { ...side } }, { before: chosen.review.before_text ?? "", after: chosen.review.after_text,

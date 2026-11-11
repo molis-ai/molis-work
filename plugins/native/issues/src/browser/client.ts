@@ -51,7 +51,10 @@ function onSelectItem(page: IssuesPage, event: Event) {
     const status = statusOf(error);
     if (status !== 404 && status !== 403) throw error;
     page.el.root.dispatchEvent(new CustomEvent("molis-work:item-unreadable", { bubbles: true, detail: { itemId: id } }));
-    if (!quiet || status === 403) { page.el.gone.textContent = messageOf(error); page.el.gone.hidden = false; }
+    if (!quiet || status === 403) {
+      page.el.gone.textContent = status === 404 ? t.text("issues.detail.missing") : messageOf(error);
+      page.el.gone.hidden = false;
+    }
   }));
 }
 

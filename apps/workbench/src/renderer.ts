@@ -46,6 +46,7 @@ export function createWorkbenchRenderer(ports: WorkbenchRendererPorts) {
 
   const renderMolisWorkSettings = createWorkbenchSettingsRenderer({
     readText, escapeHtml, icon, currentLocale, localeSwitchHref, htmlLang, controlTokenMeta, renderIconSprite,
+    catalogTextPacks: ports.catalogTextPacks,
     withDesktopQuery, settingsContextHref, renderSettingsNavigation, accountRegistration, appearance: ports.appearance, projectDeletionLabels: ports.projectDeletionLabels,
     themeBootstrapScript: THEME_BOOTSTRAP_SCRIPT, visualFoundationClientScript: VISUAL_FOUNDATION_CLIENT_SCRIPT,
   });

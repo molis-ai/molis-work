@@ -5,8 +5,10 @@ import { promisify } from "node:util";
 import { mkdtemp, mkdir, writeFile, readFile, rm, realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { createGitWorktreePort, readWriterIntegration, prepareWriterIntegration } from "@molis-ai/molis-work-app-local-host";
+import { createGitWorktreePort, installHostUiText, readWriterIntegration, prepareWriterIntegration } from "@molis-ai/molis-work-app-local-host";
 const exec = promisify(execFile);
+
+installHostUiText();
 
 test("a file changed on both sides is never overwritten as-is: a clean three-way merge or a person's resolution is what gets written", { timeout: 30_000 }, async () => {
   const home = await realpath(await mkdtemp(path.join(tmpdir(), "integration-conflict-"))), root = path.join(home, "repo"); await mkdir(root);

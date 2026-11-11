@@ -10,9 +10,10 @@ import { pinnedArtifact } from "./fixtures/artifacts.js";
 import { LINGGUANG_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-lingguang";
 import { openLingguangStore, openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { buildInboxUiEntries } from "@molis-ai/molis-work-plugin-inbox";
-import { WORKFLOWS_CLIENT_FACTORY_SCRIPT, WORKFLOWS_PLUGIN_ID, WORKFLOWS_MESSAGES, WORKFLOWS_PROJECT_PLUGIN_ID, applyFunctionRule, insertStation, linkReadiness, manualLink, moveStation, newStation, parseAiHandoff, parseChain, removeStation, setLink, workflowsManifest, type WorkflowChain, type WorkflowInstance, type WorkflowLink } from "@molis-ai/molis-work-plugin-workflows";
+import { WORKFLOWS_CLIENT_FACTORY_SCRIPT, WORKFLOWS_PLUGIN_ID, WORKFLOWS_PROJECT_PLUGIN_ID, applyFunctionRule, insertStation, linkReadiness, manualLink, moveStation, newStation, parseAiHandoff, parseChain, removeStation, setLink, workflowsManifest, type WorkflowChain, type WorkflowInstance, type WorkflowLink } from "@molis-ai/molis-work-plugin-workflows";
 import { openWorkflowsStore } from "./fixtures/plugin-home-stores.js";
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
+import { assertPageWords, pageText, withPageText } from "./fixtures/page-text.js";
 
 const fn = (body: string, title = ""): WorkflowLink => ({ kind: "function", title_template: title, body_template: body, instructions: "" });
 const ai = (instructions: string): WorkflowLink => ({ kind: "ai", title_template: "", body_template: "", instructions });
@@ -78,7 +79,7 @@ test("Function 按规则填占位，AI 的第一行当标题", () => {
 test("工作流程是个人插件，排在左边栏，客户端脚本能解析，英文词条齐", () => {
   parsePluginManifest(workflowsManifest);
   assert.equal(PERSONAL_PLUGIN_IDS.includes(WORKFLOWS_PROJECT_PLUGIN_ID), true);
-  const entry = railEntries([...PERSONAL_PLUGIN_IDS]).find((item) => item.id === "workflows");
+  const entry = withPageText("zh", ["workflows"], () => railEntries([...PERSONAL_PLUGIN_IDS]).find((item) => item.id === "workflows"));
   assert.equal(entry?.label, "工作流程");
   assert.equal(entry?.glyph, "workflow");
   assert.doesNotThrow(() => new Function("return " + WORKFLOWS_CLIENT_FACTORY_SCRIPT));
@@ -87,7 +88,7 @@ test("工作流程是个人插件，排在左边栏，客户端脚本能解析�
   // The bundle carries its copy as double-quoted stable keys, and every one of them is defined.
   for (const match of WORKFLOWS_CLIENT_FACTORY_SCRIPT.matchAll(/"(workflows\.[a-z.-]+)"/g)) used.add(match[1]!);
   assert.ok(used.size > 80, `found only ${used.size} keys; the pattern no longer matches the client`);
-  assert.deepEqual([...used].filter((key) => !(key in WORKFLOWS_MESSAGES)), []);
+  assertPageWords("workflows", used);
   // Every station a run can reach opens the item handed to it, not just its list.
   assert.match(LINGGUANG_CLIENT_FACTORY_SCRIPT, /molis-work:select-item/);
   assert.match(LINGGUANG_CLIENT_FACTORY_SCRIPT, /panePlugin/);
@@ -170,7 +171,7 @@ test("一次实例按每段衔接走完 Feed → Inbox → Pages → 灵光，�
     assert.equal(entry.subject_id, items[0]!.item_id);
     // W4-6-03, W4-6-05: a workflow's handoff is still recorded as the workflow's, now read from the call's audience.
     assert.equal(entry.detail.added_by, "workflow");
-    const [ui] = buildInboxUiEntries([entry], () => ({ title: items[0]!.title, source_label: "Feed", available: true, open: null }) as never, (value, values) => value.replace(/\{(\w+)\}/g, (_, key) => String(values?.[key] ?? "")));
+    const [ui] = buildInboxUiEntries([entry], () => ({ title: items[0]!.title, source_label: "Feed", available: true, open: null }) as never, pageText("zh", "inbox"));
     assert.equal(ui!.kind_label, "Inbox · 工作流程");
     assert.equal(ui!.reason_label, "工作流程交过来");
 

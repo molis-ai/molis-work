@@ -1,5 +1,6 @@
 import { admitFiles, admitFolderEntry, showAdmissionError } from "./admit.js";
 import { renderBar } from "./bar.js";
+import { fillConfirm } from "./confirm.js";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { closest } from "./dom.js";
 import { copySelection, shelveClipboard } from "./clips.js";
@@ -7,6 +8,7 @@ import { stopEdit } from "./edit.js";
 import { isConcealed, matchesPanelKey, stageBusy } from "./model.js";
 import { showProblem } from "./panes.js";
 import { post } from "./request.js";
+import { retitleRun } from "./run.js";
 import { selectClip, selectItem } from "./select.js";
 import { applySnapshot, load } from "./snapshot.js";
 import type { ShelfPage, SnapshotAnswer } from "./types.js";
@@ -165,6 +167,10 @@ export function installDocument(page: ShelfPage): void {
 /** Messages other pages leave for this one: open an item, a notice for the hint, a refresh. */
 export function installPageEvents(page: ShelfPage): void {
   const { lifetime, bench } = page;
+  lifetime.listen(document, "molis-work:language-changed", () => {
+    if (page.stage.classList.contains("is-confirm")) fillConfirm(page);
+    if (page.stage.classList.contains("is-run")) retitleRun(page);
+  });
   if (typeof ResizeObserver === "function") {
     lifetime.observe(new ResizeObserver((entries) => {
       for (const entry of entries) page.stage.classList.toggle("is-narrow", entry.contentRect.width < 640);

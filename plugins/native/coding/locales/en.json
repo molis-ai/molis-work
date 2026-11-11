@@ -319,7 +319,7 @@
     "coding.change.reader.identical": "Both sides are the same",
     "coding.change.reader.insert": "Added",
     "coding.change.reader.mismatch": "The two sides come from different working folders",
-    "coding.change.reader.no-change-in": "This turn didn’t change {path}",
+    "coding.change.reader.no-such-change": "This change is missing from the turn",
     "coding.change.reader.no-text-review": "This turn has no text review to read. See the original receipt for commands and outside actions.",
     "coding.change.reader.partial": "Only the changed parts are here, not the whole file",
     "coding.change.reader.removed": "This file was deleted",

@@ -59,6 +59,11 @@ function wordsOf(node: Node, group: string, into: Word[], skip?: ReadonlySet<Par
       const element = child as Element;
       if (skip?.has(element)) continue;
       const inner = groupOf(element, group);
+      const pinned = element.getAttributeNode("translate");
+      if (pinned?.value === "no") {
+        // Keep identical words on opposite sides of protected content in separate runs.
+        into.push({ node: pinned, group: inner, key: "a:translate=no", value: "", read: () => null, set: () => undefined });
+      }
       for (const name of wordAttributes(element)) {
         const node = element.getAttributeNode(name)!, value = node.value;
         into.push({ node, group: inner, key: `a:${name}=${value}`, value, read: () => node.ownerElement === element ? node.value : null, set: next => { node.value = next; } });

@@ -1,4 +1,5 @@
 import { FEED_API, handleFeedTestHttp } from "./fixtures/feed-http.js";
+import { installHostUiText } from "@molis-ai/molis-work-app-local-host";
 import { handleInboxTestHttp } from "./fixtures/inbox-http.js";
 import { handleScheduleTestHttp } from "./fixtures/schedule-http.js";
 import { wakeupInstallation } from "./fixtures/scheduler-owner.js";
@@ -78,6 +79,7 @@ const platformErrors = (): Array<[string, number]> => [
 interface Answer { readonly status: number; readonly body: Record<string, unknown> }
 
 async function failingEdge(owner: "feed" | "inbox" | "schedule") {
+  installHostUiText();
   const failure: { current: unknown } = { current: undefined };
   const actions: BoundActionClient = { discover: async () => [], invoke: async () => { throw failure.current; } };
   const handle = (request: IncomingMessage, response: ServerResponse, url: URL): Promise<boolean> => owner === "feed" ? handleFeedTestHttp(request, response, url, actions)

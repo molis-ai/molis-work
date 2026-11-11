@@ -1,4 +1,4 @@
-import { escText, escapeAttr, said } from "./dom.js";
+import { escText, escapeAttr } from "./dom.js";
 import { actIdFor, agentMissing, ai, actionOrder, batch, hasFile, hiddenActions, recipeFor, runtime, shortcutFor, stageBusy } from "./model.js";
 import { opSvg } from "./rows.js";
 import type { BarKind, Item, Recipe, ShelfPage, Shortcut } from "./types.js";
@@ -13,18 +13,20 @@ const defaultTone = (id: string): string => id === "extract" ? "clay" : id === "
 export const recipeSvg = (id: string, tone?: string): string =>
   '<svg class="tone-' + (tone || defaultTone(id)) + '" aria-hidden="true"><use href="#icon-' + (RECIPE_ICON[id] || defaultIcon(id)) + '"></use></svg>';
 
-export function actButton(page: ShelfPage, label: string, id: string, enabled: boolean, title?: string, tone?: string): string {
+export function actButton(page: ShelfPage, label: string, id: string, enabled: boolean, title?: string, tone?: string, userLabel = false): string {
+  const words = escText(label);
   return '<span class="shelf-act' + (id === "talk" && page.stage.classList.contains("is-talk") ? " is-on" : "") + '" role="button" tabindex="' + (enabled ? "0" : "-1") + '" data-shelf-act="' + escapeAttr(id) + '"'
-    + (enabled ? "" : ' aria-disabled="true"') + (title ? ' title="' + escapeAttr(title) + '"' : "") + ">" + recipeSvg(id, tone) + escText(label) + "</span>";
+    + (enabled ? "" : ' aria-disabled="true"') + (title ? ' title="' + escapeAttr(title) + '"' : "") + ">" + recipeSvg(id, tone)
+    + (userLabel ? '<span translate="no">' + words + '</span>' : words) + "</span>";
 }
 
-function actChip(page: ShelfPage, id: string, label: string, enabled: boolean, title: string, tone: string, slot: string): string {
+function actChip(page: ShelfPage, id: string, label: string, enabled: boolean, title: string, tone: string, slot: string, userLabel: boolean): string {
   const key = slot || id;
   const hide = page.arranging
     ? '<span class="shelf-act-hide" role="button" tabindex="0" data-shelf-hide-act="' + escapeAttr(key) + '" title="' + escapeAttr(uiText.text("shelf.bar.remove-from-bar")) + '">' + opSvg("hide") + "</span>"
     : "";
   const grip = page.arranging ? '<span class="shelf-act-grip" aria-hidden="true"></span>' : "";
-  return '<span class="shelf-act-wrap" data-shelf-act-slot="' + escapeAttr(key) + '"' + (page.arranging ? ' draggable="true"' : "") + ">" + grip + actButton(page, label, id, enabled, title, tone) + hide + "</span>";
+  return '<span class="shelf-act-wrap" data-shelf-act-slot="' + escapeAttr(key) + '"' + (page.arranging ? ' draggable="true"' : "") + ">" + grip + actButton(page, label, id, enabled, title, tone, userLabel) + hide + "</span>";
 }
 
 function moreButton(page: ShelfPage): string {
@@ -34,26 +36,23 @@ function moreButton(page: ShelfPage): string {
 
 /** The words under a recipe or shortcut chip: why it is greyed out, or what it does. */
 function chipTitle(page: ShelfPage, action: Shortcut | null, recipe: Recipe | null, enough: boolean, needsVision: boolean): string {
-  const { readText } = page;
-  const name = action ? said(readText, action.name) : said(readText, recipe?.short_title || recipe?.label || "");
-  if (!enough) return uiText.text("shelf.bar.name-needs-at-least-two", { name });
+  if (!enough) return uiText.text("shelf.bar.needs-at-least-two");
   if (needsVision) return uiText.text("shelf.bar.this-mac-has-no-on");
   if (action) {
     const reason = ai(page).reason;
-    return ai(page).available === true ? uiText.text("shelf.bar.run-on-a-copy-and") : reason ? said(readText, reason) : uiText.text("shelf.bar.configure-an-ai-model-first");
+    return ai(page).available === true ? uiText.text("shelf.bar.run-on-a-copy-and") : reason || uiText.text("shelf.bar.configure-an-ai-model-first");
   }
-  if (recipe?.available === false) return recipe.reason ? said(readText, recipe.reason) : "";
-  return recipe?.blurb ? said(readText, recipe.blurb) : "";
+  if (recipe?.available === false) return recipe.reason ?? "";
+  return recipe?.blurb ?? "";
 }
 
 /** One action of the bar for the chosen materials, or a way to bring a hidden one back; nothing when it does not fit. */
 function actionChip(page: ShelfPage, slot: string, picked: Item[], hidden: Set<string>): string {
-  const { readText } = page;
   const action = shortcutFor(page, slot);
   const recipe = action ? null : recipeFor(page, slot);
   const spec = action
     ? { id: slot, accepts: action.kinds || [], minimum: 1, tone: "ochre", label: action.name }
-    : recipe ? { id: actIdFor(recipe.recipe), accepts: recipe.accepts || [], minimum: recipe.minimum_count || 1, tone: recipe.tone, label: said(readText, recipe.short_title || recipe.label) } : null;
+    : recipe ? { id: actIdFor(recipe.recipe), accepts: recipe.accepts || [], minimum: recipe.minimum_count || 1, tone: recipe.tone, label: recipe.short_title || recipe.label } : null;
   // The kind decides whether an action belongs here at all; too few materials only greys it out, the way DropAgent shows 整合.
   if (!spec || !(picked.length > 0 && picked.every((item) => (spec.accepts as readonly string[]).includes(item.kind)))) return "";
   const enough = picked.length >= spec.minimum;
@@ -63,7 +62,7 @@ function actionChip(page: ShelfPage, slot: string, picked: Item[], hidden: Set<s
   const imageOnly = recipe?.recipe === "extract_text" && picked.some((item) => item.kind === "image");
   const needsVision = imageOnly && runtime(page).image_text === false;
   const available = action ? ai(page).available === true : recipe?.available !== false && !needsVision;
-  return actChip(page, spec.id, spec.label, available && enough && !stageBusy(page), chipTitle(page, action, recipe, enough, needsVision), spec.tone, slot);
+  return actChip(page, spec.id, spec.label, available && enough && !stageBusy(page), chipTitle(page, action, recipe, enough, needsVision), spec.tone, slot, Boolean(action));
 }
 
 function paintHint(page: ShelfPage, kind: BarKind): void {

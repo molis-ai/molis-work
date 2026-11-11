@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { pageTextReaderScript } from "./fixtures/page-text.js";
 
 type Browser = NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>;
 const paragraph = (text: string) => ({ type: "paragraph", ...(text ? { content: [{ type: "text", text }] } : {}) });
@@ -18,11 +19,12 @@ async function openEditor(t: TestContext, texts: string[]) {
     const css=document.createElement('link');css.rel='stylesheet';css.href=href;
     css.onload=resolve;css.onerror=()=>reject(new Error('Workbench styles failed to load'));document.head.append(css);
   })))`);
+  await b.evaluate(pageTextReaderScript("zh", "pages"));
   // W5-10-PGI-01: the host's bundled editor and styles, mounted through its public contract in a visible fixture.
   await b.evaluate(`(() => {
     const root=document.createElement('div');root.id='insert-editor-fixture';root.className='pages-editor-host';
     root.style.cssText='width:640px;max-width:90vw;margin:48px auto';document.body.replaceChildren(root);
-    window.insertOptions={doc:${JSON.stringify(doc(...texts))},pages:()=>[{id:'alpha-page',title:'Alpha spec'},{id:'beta-page',title:'Beta notes'}]};
+    window.insertOptions={translate:isolatedEditorText,doc:${JSON.stringify(doc(...texts))},pages:()=>[{id:'alpha-page',title:'Alpha spec'},{id:'beta-page',title:'Beta notes'}]};
     window.insertEditor=window.MolisWorkPagesEditor.mount(root,insertOptions);insertEditor.view.focus();
   })()`);
   return b;

@@ -17,8 +17,6 @@ import type {
   ShelfSnapshot,
 } from "@molis-ai/molis-work-module-shelf/contract";
 import {
-  HOTKEY_GUIDE,
-  HOTKEY_RESET,
   SHELF_RECIPES,
   chordLabel,
   chordsEqual,
@@ -29,6 +27,7 @@ import {
   shortcutIdFromSlot,
 } from "@molis-ai/molis-work-module-shelf";
 import { SHELF_GLYPH } from "./glyphs.js";
+import { shelfRecipeTextKey } from "./recipe-text.js";
 import type { ShelfUiPrimitives } from "./ui.js";
 
 export const SHELF_SETTINGS_UI_CONTRIBUTION_ID = "io.molis.work.native.shelf.settings.v1";
@@ -67,38 +66,37 @@ export const shelfSettingsUiContribution: UiContribution<SettingsPageModel<Shelf
 
 /** DropAgent's settings sections: by purpose, not by data shape. */
 const SECTIONS = [
-  { id: "setup", title: "权限与连接", tone: "slate", glyph: SHELF_GLYPH.shield, detail: "按需要开启功能。暂存文件和本机文字提取无需这些权限。" },
-  { id: "actions", title: "快捷动作", tone: "ochre", glyph: SHELF_GLYPH.bolt, detail: "管理动作，设置动作栏的内容与顺序。" },
-  { id: "shortcuts", title: "快捷键", tone: "ochre", glyph: SHELF_GLYPH.keyboard, detail: "设置打开面板、添加文件和抓取网页的快捷键。" },
-  { id: "guide", title: "使用指南", tone: "slate", glyph: SHELF_GLYPH.book, detail: "了解材料导入、文件处理和结果导出。" },
-  { id: "machine", title: "AI、终端与存储", tone: "blue", glyph: SHELF_GLYPH.terminal, detail: "选择自动动作的 AI 模型、人工终端，以及材料存放位置。" },
-  { id: "appearance", title: "外观", tone: "plum", glyph: SHELF_GLYPH.sun, detail: "设置主题、语言和拖放显示。" },
+  { id: "setup", title: "shelf.settings-ui.section-setup", tone: "slate", glyph: SHELF_GLYPH.shield, detail: "shelf.settings-ui.section-setup-detail" },
+  { id: "actions", title: "shelf.settings-ui.section-actions", tone: "ochre", glyph: SHELF_GLYPH.bolt, detail: "shelf.settings-ui.section-actions-detail" },
+  { id: "shortcuts", title: "shelf.settings-ui.section-shortcuts", tone: "ochre", glyph: SHELF_GLYPH.keyboard, detail: "shelf.settings-ui.section-shortcuts-detail" },
+  { id: "guide", title: "shelf.settings-ui.section-guide", tone: "slate", glyph: SHELF_GLYPH.book, detail: "shelf.settings-ui.section-guide-detail" },
+  { id: "machine", title: "shelf.settings-ui.section-machine", tone: "blue", glyph: SHELF_GLYPH.terminal, detail: "shelf.settings-ui.section-machine-detail" },
+  { id: "appearance", title: "shelf.settings-ui.section-appearance", tone: "plum", glyph: SHELF_GLYPH.sun, detail: "shelf.settings-ui.section-appearance-detail" },
 ] as const;
 
 const KIND_LABELS: readonly { kind: ShelfItemKind; label: string }[] = [
-  { kind: "pdf", label: "PDF" },
-  { kind: "image", label: "图片" },
-  { kind: "markdown", label: "Markdown" },
-  { kind: "text", label: "文本" },
-  { kind: "website", label: "网页" },
-  { kind: "url", label: "链接" },
-  { kind: "file", label: "其他文件" },
-  { kind: "folder", label: "文件夹" },
+  { kind: "pdf", label: "shelf.settings-ui.kind-pdf" },
+  { kind: "image", label: "shelf.composer.images" },
+  { kind: "markdown", label: "shelf.settings-ui.kind-markdown" },
+  { kind: "text", label: "shelf.composer.text" },
+  { kind: "website", label: "shelf.composer.web-page" },
+  { kind: "url", label: "shelf.composer.link" },
+  { kind: "file", label: "shelf.composer.other-files" },
+  { kind: "folder", label: "shelf.composer.folder" },
 ];
 
 export function renderShelfSettings(model: ShelfSettingsUiModel): string {
-  const { primitives: p } = model;
   return `<section class="settings-document shelf-settings-document" data-shelf="settings" data-shelf-settings data-settings-panel="shelf" aria-labelledby="shelf-settings-title">
     <header class="settings-heading">
       <div class="settings-heading-title">
-        <h1 id="shelf-settings-title">${p.text("Shelf")}</h1>
+        <h1 id="shelf-settings-title">Shelf</h1>
       </div>
       <p>${uiText("shelf.settings-ui.these-settings-only-change-how-shelf-works-device")}</p>
     </header>
     <div class="shelf-settings-body">
       ${SECTIONS.map((section) => `<section class="settings-section" data-shelf-settings-pane="${section.id}" aria-labelledby="shelf-settings-${section.id}">
-          <h2 id="shelf-settings-${section.id}"><span class="shelf-glyph tone-${section.tone}" aria-hidden="true">${section.glyph}</span>${p.text(section.title)}</h2>
-          <p class="shelf-settings-detail">${p.text(section.detail)}</p>
+          <h2 id="shelf-settings-${section.id}"><span class="shelf-glyph tone-${section.tone}" aria-hidden="true">${section.glyph}</span>${uiText(section.title)}</h2>
+          <p class="shelf-settings-detail">${uiText(section.detail)}</p>
           ${paneBody(section.id, model)}
         </section>`).join("")}
     </div>
@@ -110,7 +108,7 @@ function paneBody(id: (typeof SECTIONS)[number]["id"], model: ShelfSettingsUiMod
     case "setup": return setupPane(model);
     case "actions": return actionsPane(model);
     case "shortcuts": return shortcutsPane(model);
-    case "guide": return guidePane(model);
+    case "guide": return guidePane();
     case "machine": return machinePane(model);
     default: return appearancePane(model);
   }
@@ -133,8 +131,8 @@ function actionsPane(model: ShelfSettingsUiModel): string {
     const shortcutId = shortcutIdFromSlot(slot);
     const action = shortcutId ? settings.shortcuts.find((entry) => entry.id === shortcutId) : undefined;
     const recipe = SHELF_RECIPES.find((entry) => entry.recipe === slot);
-    const title = action ? action.name : recipe ? recipe.label : slot;
     if (!action && !recipe) return "";
+    const title = action?.name ?? uiText.text(shelfRecipeTextKey(slot, "title"));
     const hidden = settings.hidden_actions.includes(slot);
     return `<li class="shelf-action-row" data-shelf-action-slot="${p.escape(slot)}" draggable="true">
         <span class="shelf-act-grip" aria-hidden="true"></span>
@@ -156,18 +154,17 @@ function actionsPane(model: ShelfSettingsUiModel): string {
     <div class="shelf-settings-block">
       <h3>${uiText("shelf.settings-ui.my-actions")}</h3>
       <p class="settings-hint">${uiText("shelf.settings-ui.one-line-about-what-do-runs-job-copy")}</p>
-      ${shortcutForm(model)}
+      ${shortcutForm()}
       <p class="shelf-settings-line" data-shelf-shortcut-error hidden></p>
     </div>`;
 }
 
-function shortcutForm(model: ShelfSettingsUiModel): string {
-  const { primitives: p } = model;
+function shortcutForm(): string {
   return `<form class="shelf-shortcut-form" data-shelf-shortcut-form>
       <input type="hidden" data-shelf-shortcut-id value="">
       <label class="shelf-field"><span>${uiText("shelf.settings-ui.name")}</span><input type="text" data-shelf-shortcut-name maxlength="40" placeholder="${uiText("shelf.settings-ui.example-extract-contacts")}"></label>
       <label class="shelf-field"><span>${uiText("shelf.settings-ui.instruction")}</span><textarea data-shelf-shortcut-prompt rows="3" maxlength="2000" placeholder="${uiText("shelf.settings-ui.list-every-contact-material-table")}"></textarea></label>
-      <fieldset class="shelf-kinds"><legend>${uiText("shelf.settings-ui.works")}</legend>${KIND_LABELS.map((entry) => `<label class="shelf-kind"><input type="checkbox" data-shelf-shortcut-kind="${entry.kind}"${["pdf", "markdown", "text", "website"].includes(entry.kind) ? " checked" : ""}><span>${p.text(entry.label)}</span></label>`).join("")}</fieldset>
+      <fieldset class="shelf-kinds"><legend>${uiText("shelf.settings-ui.works")}</legend>${KIND_LABELS.map((entry) => `<label class="shelf-kind"><input type="checkbox" data-shelf-shortcut-kind="${entry.kind}"${["pdf", "markdown", "text", "website"].includes(entry.kind) ? " checked" : ""}><span>${uiText(entry.label)}</span></label>`).join("")}</fieldset>
       <div class="shelf-form-actions">
         <button class="shelf-primary" type="submit" data-shelf-shortcut-save>${uiText("shelf.settings-ui.save-action")}</button>
         <button class="shelf-paper" type="button" data-shelf-shortcut-reset>${uiText("shelf.settings-ui.clear")}</button>
@@ -179,7 +176,7 @@ function shortcutsPane(model: ShelfSettingsUiModel): string {
   const { primitives: p, settings } = model;
   return `<div class="shelf-settings-block">
       <h3>${uiText("shelf.settings-ui.global")}</h3>
-      <p class="shelf-hotkey-lead">${p.text(HOTKEY_GUIDE)}</p>
+      <p class="shelf-hotkey-lead">${uiText("shelf.settings-ui.global-shortcut-guide")}</p>
       ${hotkeyRow(p, "toggle", "shelf.settings-ui.open-close-shelf", "shelf.settings-ui.bring-main-window-forward-open-shelf-if-shelf", settings.hotkeys.toggle)}
       ${hotkeyRow(p, "capture", "shelf.settings-ui.capture-current-page", "shelf.settings-ui.bring-safari-chrome-edge-front-capture-steel-blue", settings.hotkeys.capture)}
       ${hotkeyRow(p, "files", "shelf.settings-ui.add-frontmost-selected-files", "shelf.settings-ui.reads-finder-selection-first-if-browser-frontmost-capture", settings.hotkeys.files)}
@@ -201,15 +198,14 @@ function shortcutsPane(model: ShelfSettingsUiModel): string {
     </div>`;
 }
 
-function guidePane(model: ShelfSettingsUiModel): string {
-  const { primitives: p } = model;
+function guidePane(): string {
   const rows: readonly [string, string][] = [
-    ["拖到哪里", "菜单栏图标、拖放轮盘，或打开的 Shelf 工作面任意处。"],
-    ["收什么", "文件、文件夹、PDF、图片、文字与 Markdown、链接、抓下来的网页，以及多份材料一起。"],
-    ["读什么", "动作只读任务目录里的副本，Prompt 不写原路径，也不跟符号链接。"],
-    ["写到哪", "结果写进任务目录的 output/，再作为新文件进结果组。原件从不被改。"],
-    ["拖出去是什么", "系统认的文件、文字、图片和链接。接不住会弹回，架子上的还在。默认复制，不是移动。"],
-    ["不联网", "本机文字提取不调用 Agent、不上网。联网与否在确认页写明。"],
+    ["shelf.settings-ui.guide-drop", "shelf.settings-ui.guide-drop-detail"],
+    ["shelf.settings-ui.guide-inputs", "shelf.settings-ui.guide-inputs-detail"],
+    ["shelf.settings-ui.guide-reads", "shelf.settings-ui.guide-reads-detail"],
+    ["shelf.settings-ui.guide-outputs", "shelf.settings-ui.guide-outputs-detail"],
+    ["shelf.settings-ui.guide-drag-out", "shelf.settings-ui.guide-drag-out-detail"],
+    ["shelf.settings-ui.guide-offline", "shelf.settings-ui.guide-offline-detail"],
   ];
   return `<div class="shelf-settings-block">
       <button class="shelf-primary" type="button" data-shelf-try-sample>${uiText("shelf.settings-ui.try-sample-pdf-again")}</button>
@@ -217,7 +213,7 @@ function guidePane(model: ShelfSettingsUiModel): string {
     </div>
     <div class="shelf-settings-block">
       <h3>${uiText("shelf.settings-ui.what-can-do")}</h3>
-      <dl class="shelf-guide-list">${rows.map(([key, value]) => `<div class="shelf-guide-row"><dt>${p.text(key)}</dt><dd>${p.text(value)}</dd></div>`).join("")}</dl>
+      <dl class="shelf-guide-list">${rows.map(([key, value]) => `<div class="shelf-guide-row"><dt>${uiText(key)}</dt><dd>${uiText(value)}</dd></div>`).join("")}</dl>
     </div>`;
 }
 
@@ -314,11 +310,11 @@ function hotkeyRow(
   return `<section class="shelf-hotkey-row" data-shelf-hotkey-slot="${slot}">
         <div class="setting-copy">
           <strong>${uiText(title)}</strong>
-          <span data-shelf-hotkey-caption data-idle-caption="${p.escape(caption)}">${uiText(caption)}</span>
+          <span data-shelf-hotkey-caption data-caption="${p.escape(uiText(caption))}">${uiText(caption)}</span>
         </div>
         <div class="shelf-hotkey-keys">
-          <span class="shelf-paper shelf-hotkey-record" role="button" tabindex="0" data-shelf-hotkey-record data-key-code="${chord.key_code}" data-carbon-modifiers="${chord.carbon_modifiers}" aria-pressed="false">${p.text(label)}</span>
-          <span class="shelf-paper quiet" role="button" tabindex="0" data-shelf-hotkey-reset${resetHidden}>${p.text(HOTKEY_RESET)}</span>
+          <span class="shelf-paper shelf-hotkey-record" role="button" tabindex="0" data-shelf-hotkey-record data-key-code="${chord.key_code}" data-carbon-modifiers="${chord.carbon_modifiers}" aria-pressed="false">${p.escape(label)}</span>
+          <span class="shelf-paper quiet" role="button" tabindex="0" data-shelf-hotkey-reset${resetHidden}>${uiText("shelf.settings-ui.restore-default-shortcut")}</span>
         </div>
       </section>`;
 }
@@ -334,11 +330,11 @@ function panelKeyRow(
   return `<section class="shelf-hotkey-row" data-shelf-panel-slot="${slot}">
         <div class="setting-copy">
           <strong>${uiText(title)}</strong>
-          <span data-shelf-panel-caption data-idle-caption="${p.escape(caption)}">${uiText(caption)}</span>
+          <span data-shelf-panel-caption>${uiText(caption)}</span>
         </div>
         <div class="shelf-hotkey-keys">
-          <span class="shelf-paper shelf-hotkey-record" role="button" tabindex="0" data-shelf-panel-record data-code="${p.escape(chord.code)}" data-meta="${chord.meta}" data-ctrl="${chord.ctrl}" data-alt="${chord.alt}" data-shift="${chord.shift}" aria-pressed="false">${p.text(panelKeyLabel(chord))}</span>
-          <span class="shelf-paper quiet" role="button" tabindex="0" data-shelf-panel-reset${resetHidden}>${p.text(HOTKEY_RESET)}</span>
+          <span class="shelf-paper shelf-hotkey-record" role="button" tabindex="0" data-shelf-panel-record data-code="${p.escape(chord.code)}" data-meta="${chord.meta}" data-ctrl="${chord.ctrl}" data-alt="${chord.alt}" data-shift="${chord.shift}" aria-pressed="false">${p.escape(panelKeyLabel(chord))}</span>
+          <span class="shelf-paper quiet" role="button" tabindex="0" data-shelf-panel-reset${resetHidden}>${uiText("shelf.settings-ui.restore-default-shortcut")}</span>
         </div>
       </section>`;
 }

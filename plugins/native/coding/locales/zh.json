@@ -307,7 +307,7 @@
     "coding.change.reader.identical": "两侧完全相同",
     "coding.change.reader.insert": "新增",
     "coding.change.reader.mismatch": "两侧来自不同的工作目录",
-    "coding.change.reader.no-change-in": "这一轮没有改动 {path}",
+    "coding.change.reader.no-such-change": "这一轮找不到这条改动",
     "coding.change.reader.no-text-review": "这一轮没有可读取的文本审查；命令及外部操作请查看原回执",
     "coding.change.reader.partial": "这里只有改动的片段，不是整份文件",
     "coding.change.reader.removed": "这个文件被删除了",

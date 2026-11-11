@@ -193,19 +193,19 @@ test('FSS-36 held judgments follow both language changes and keep the run, verdi
       await child.evaluate(`(() => {
         window.heldRun = document.querySelector('.wf-run'); window.heldNote = heldRun.querySelector('.is-held');
         window.heldBack = heldRun.querySelector('[data-wf-action=back-to-flow]'); heldBack.focus();
-        if (!window.holdInvalidations) {
-          window.holdInvalidations = { count: 0 };
-          document.querySelector('[data-workflows=workbench]').addEventListener('molis-work:select-item', event => {
-            if (event.detail?.invalidate) holdInvalidations.count++;
+        if (!window.holdLanguageChanges) {
+          window.holdLanguageChanges = [];
+          document.addEventListener('molis-work:language-changed', event => {
+            holdLanguageChanges.push(event.detail.tag);
           });
         }
       })()`);
       await b.evaluate('holdRunRequests.length = 0');
       for (const [tag, locale] of [['zh', 'zh-CN'], ['en', 'en']] as const) {
-        const count = await child.evaluate<number>('holdInvalidations.count');
+        const count = await child.evaluate<number>('holdLanguageChanges.length');
         if (index === 2 && tag === 'zh') await b.evaluate('releaseHeldLocale()');
         else await selectLanguage(tag);
-        await child.waitFor(`document.documentElement.lang === '${locale}' && holdInvalidations.count > ${count}`);
+        await child.waitFor(`document.documentElement.lang === '${locale}' && holdLanguageChanges[${count}] === '${tag}'`);
         assert.deepEqual(await child.evaluate(words), expected[tag]);
         assert.deepEqual(await child.evaluate(`[document.querySelector('.wf-run')===heldRun, heldRun.dataset.id, heldRun.querySelector('.is-held')===heldNote,
           document.activeElement===heldBack]`), [true, runs[index]!.instance_id, true, true]);

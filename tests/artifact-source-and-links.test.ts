@@ -65,7 +65,7 @@ test("a pinned document shows when the original changed or was deleted, and whic
   const linked = await detail(pinned.artifact_id, pinned.version);
   const v1 = coordinator.goalQueries.getGoal(DEMO_PROJECT_ID, "V1")!.title, platform = coordinator.goalQueries.getGoal(DEMO_PROJECT_ID, "PLATFORM")!.title;
   const html = (value: string) => value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
-  const goalLink = (id: string, title: string) => `<a href="#" data-workbench-item-plugin="goals" data-workbench-item-id="${id}" data-workbench-item-title="${html(title)}">${html(title)}</a>`;
+  const goalLink = (id: string, title: string) => `<a href="#" data-workbench-item-plugin="goals" data-workbench-item-id="${id}" data-workbench-item-title="${html(title)}" translate="no">${html(title)}</a>`;
   assert.ok(linked.includes(`<h3 class="artifact-links-heading">Goals</h3><ul data-artifact-linked-plugin="io.molis.work.goals">`), "listed under Goals");
   assert.ok(linked.includes(`${goalLink("V1", v1)}<span>交付物</span>`), "the Goal that hands it in");
   assert.ok(linked.includes(`${goalLink("PLATFORM", platform)}<span>输入</span>`), "the Goal that takes it as input");
@@ -76,7 +76,7 @@ test("a pinned document shows when the original changed or was deleted, and whic
   const citing = (await post("/api/plugins/io.molis.work.pages/pages", { title: "周报", markdown: `本周交了[季度计划](${origin}${path})。` })).document as { id: string };
   await post("/api/plugins/io.molis.work.pages/pages", { title: "别的版本", markdown: `见[第 9 版](${path.replace(/\/\d+$/, "/9")})。` });
   const cited = await detail(pinned.artifact_id, pinned.version);
-  assert.ok(cited.includes(`data-workbench-item-plugin="pages" data-workbench-item-id="${citing.id}" data-workbench-item-title="周报">周报</a><span>Pages · 链接了这一版</span>`),
+  assert.ok(cited.includes(`data-workbench-item-plugin="pages" data-workbench-item-id="${citing.id}" data-workbench-item-title="周报" translate="no">周报</a><span>Pages · 链接了这一版</span>`),
     "the document that links to this version, opening in Pages");
   assert.doesNotMatch(cited, /别的版本/);
 

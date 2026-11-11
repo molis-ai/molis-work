@@ -853,6 +853,8 @@ test("FSS-35 a Pages editor retitles its controls in place without rewriting the
       ...Array.from({ length: 55 }, (_, index) => paragraph("Original paragraph " + (index + 1))),
     ] } });
   } finally { store.close(); } })();
+  // Establish the second window before the editor changes the workspace saved for the project.
+  const selectLanguage = await openLanguageSettings(t, b);
   const child = await pluginFrameBrowser(t, b, "pages");
   const path = `/projects/${projectId}/?openPlugin=pages&openItem=${record.id}`;
   await b.navigate(() => b.command("Page.navigate", { url: b.origin + "/locale?lang=zh&next=" + encodeURIComponent(path) }, b.sessionId));
@@ -875,7 +877,7 @@ test("FSS-35 a Pages editor retitles its controls in place without rewriting the
   const expected = (en: boolean) => [true, true, true, true, true, en ? "Document body" : "文档正文", en ? "Copy code" : "复制代码",
     en ? "Table of contents" : "目录", "目录（用户正文）", !en, true, true, 6, 1, original, true, title];
   assert.deepEqual(await child.evaluate(snapshot), expected(false));
-  await chooseEnglishInSettings(t, b);
+  await selectLanguage("en");
   await child.waitFor("codeCopy.title === 'Copy code' && contents.querySelector('.pages-toc-label')?.textContent === 'Table of contents'");
   assert.deepEqual(await child.evaluate(snapshot), expected(true));
   const read = () => {

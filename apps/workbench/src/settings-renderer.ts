@@ -1,7 +1,7 @@
 import { renderKitSettings } from "./settings-kit.js";
 import { renderModelSettingsDocument } from "./settings-models.js";
 import { ACCOUNT_REGISTRATION_BODY, NO_FAVICON_LINK } from "./document-shell.js";
-import { renderLanguageHead } from "./language-resource.js";
+import { renderInlinePageText, renderLanguageHead } from "./language-resource.js";
 import { t as uiText, icon as modelIcon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { SETTINGS_CLIENT_SCRIPT } from "./browser-assets.js";
 import { CONTROL_CLIENT_SCRIPT as UI_REQUEST_CLIENT_SCRIPT } from "./scripts/control.js";
@@ -10,7 +10,9 @@ import type { createWorkbenchSettingsNavigation } from "./settings-navigation.js
 import { renderAppearanceRecovery, renderAppearanceSettingsDocument, renderRuntimePlanDialog } from "./settings-appearance.js";
 import { appearanceClientTag, appearanceHead, type WorkbenchAppearancePorts } from "./appearance-document.js";
 import { findPluginSettingsNavItem } from "./plugin-settings-catalog.js";
-import { pluginSettingsStyleLinks } from "./plugin-workbench.js";
+import { BUILTIN_PLUGIN_WORKBENCH, pluginSettingsStyleLinks } from "./plugin-workbench.js";
+import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
+import type { ProjectSettingsPagePorts } from "./project-settings-pages.js";
 import { renderConnectorsSettings } from "./settings-connectors.js";
 import { renderPromptSettings } from "./settings-prompts.js";
 import { renderAssistantSettings } from "./settings-assistant.js";
@@ -31,6 +33,7 @@ const NETWORK_DOC_HREF = {
 } as const;
 export interface SettingsRenderPrimitives {
   accountRegistration?: boolean;
+  catalogTextPacks: ProjectSettingsPagePorts["catalogTextPacks"];
   readText(text: string, values?: Record<string, string | number>): string;
   escapeHtml(value: unknown): string;
   icon(name: "check" | "sun" | "moon" | "system" | "workflow" | "settings" | "chevron-down" | "chevron-right" | "database" | "refresh" | "x" | "brand" | "blocked" | "tree" | "plus" | "book" | "shield" | "link" | "mail" | "back", className?: string): string;
@@ -47,6 +50,20 @@ export interface SettingsRenderPrimitives {
   appearance?: WorkbenchAppearancePorts;
   projectDeletionLabels?(): readonly string[];
 }
+
+/** Settings clients use stable keys carried as literals in the registered bundle. */
+function settingsText(page: ReturnType<typeof findPluginSettingsNavItem>, packsFor: SettingsRenderPrimitives["catalogTextPacks"]): string {
+  if (!page) return "";
+  const manifest = BUILTIN_PLUGIN_CATALOG.find(entry => entry.manifest.plugin_id === page.plugin_id)?.manifest;
+  const client = BUILTIN_PLUGIN_WORKBENCH.find(pack => pack.contributions.some(contribution =>
+    contribution.descriptor.contribution_id === page.contribution_id))?.settingsClient;
+  if (!manifest || !client) return "";
+  const packs = packsFor(manifest).map(pack => ({ ...pack, messages: Object.fromEntries(
+    Object.entries(pack.messages).filter(([key]) => client.includes(JSON.stringify(key))),
+  ) })).filter(pack => Object.keys(pack.messages).length);
+  return packs.length ? renderInlinePageText([{ slot: `settings:${page.section_id}`, producer: manifest.plugin_id, packs }]) : "";
+}
+
 export function createWorkbenchSettingsRenderer(primitives: SettingsRenderPrimitives) {
   const { readText, escapeHtml, icon, currentLocale, localeSwitchHref, htmlLang, controlTokenMeta, renderIconSprite,
     withDesktopQuery, settingsContextHref, renderSettingsNavigation,
@@ -116,7 +133,7 @@ function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "",
   </main>
   ${renderRuntimePlanDialog({ readText, icon })}
   <div class="mw-toast toast" data-settings-toast role="status" aria-live="polite"></div>${renderAppearanceRecovery(readText, appearance)}
-  ${renderLanguageHead(htmlLang())}<script>${UI_REQUEST_CLIENT_SCRIPT}${SETTINGS_CLIENT_SCRIPT}${view.capabilities?.rules ? FUNCTIONS_SYSTEM_CLIENT_SCRIPT : ""}${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>${appearanceClientTag(appearance)}
+  ${settingsText(pluginPage, primitives.catalogTextPacks)}${renderLanguageHead(htmlLang())}<script>${UI_REQUEST_CLIENT_SCRIPT}${SETTINGS_CLIENT_SCRIPT}${view.capabilities?.rules ? FUNCTIONS_SYSTEM_CLIENT_SCRIPT : ""}${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>${appearanceClientTag(appearance)}
 </body></html>`;
 }
 

@@ -1,7 +1,6 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { GoalEventAcknowledgementBy, GoalEventAcknowledgementCategory, GoalEventSystemPayload } from "./contract/goals.js";
 import { RUNTIME_DISPLAY_NAMES } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { RECEIPT_WORDS } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { GoalsDocumentUiPrimitives } from "./document-ui-model.js";
 
 type Acknowledgement = Extract<GoalEventSystemPayload, { operation: "input_acknowledged" }>;
@@ -29,7 +28,9 @@ export function renderAcknowledgementBody(
     what: whatRead(payload.reference.category, context.acknowledgedActorKind === "user", readText),
     title: payload.reference.title,
   });
-  const treatment = uiText.text("goals.event-acknowledgement-body.how-will-be-handled-treatment", { treatment: (RECEIPT_WORDS.TREATMENT[payload.treatment]) });
+  const treatment = uiText.text("goals.event-acknowledgement-body.how-will-be-handled-treatment", {
+    treatment: uiText.text(`common.input-receipts.treatment.${payload.treatment}`),
+  });
   return `${heading}<p>${escapeHtml(sentence)}</p><p>${escapeHtml(treatment)}</p><p>${escapeHtml(payload.note)}</p>`
     + `<p class="form-note">${uiText("goals.event-acknowledgement-body.what-ai-says-itself-molis-has-not-checked")}</p>`
     + `<p><button type="button" class="mw-btn mw-btn--link" data-locate-event="${escapeHtml(payload.reference.event_id)}">${uiText("goals.event-acknowledgement-body.locate-record-answers")}</button></p></article>`;

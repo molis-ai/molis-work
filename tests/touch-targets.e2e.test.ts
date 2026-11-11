@@ -189,10 +189,10 @@ const CARRIED_BY_CODING = `(async () => {
 const popoversScript = (floor: number) => `(async () => {
   const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   const notices = [
-    { notice_id: "t1", kind: "needs-decision", text: "需要你决定发布时间", work_id: "w1" },
-    { notice_id: "t2", kind: "reminder", text: "下午三点的评审", work_id: "w2", open: { surface: "todo", id: "x", title: "评审" } },
-    { notice_id: "t3", kind: "finished", text: "整理待办已完成", work_id: "w3" },
-    { notice_id: "t4", kind: "finished", text: "一条被规则压下的结果", work_id: "w4", held: { reason: "安静时段" } },
+    { notice_id: "t1", kind: "needs-decision", text: { original: "需要你决定发布时间" }, work_id: "w1" },
+    { notice_id: "t2", kind: "reminder", text: { original: "下午三点的评审" }, work_id: "w2", open: { surface: "todo", id: "x", title: "评审" } },
+    { notice_id: "t3", kind: "finished", text: { original: "整理待办已完成" }, work_id: "w3" },
+    { notice_id: "t4", kind: "finished", text: { original: "一条被规则压下的结果" }, work_id: "w4", held: { reason: "安静时段" } },
   ];
   const real = window.fetch;
   // The notices come with the page's one attention read (W4-10): the test's notices replace the Assistant's in its answer.

@@ -6,6 +6,7 @@ import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "@molis-ai/molis-work-ui-host
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { seedConfiguredModels } from "./fixtures/configured-models.js";
+import { CODING_BOX, CODING_OPEN } from "./fixtures/coding-composer.js";
 const pause = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 test("FSS-35 an open Coding session keeps its draft and checkpoint seconds through both language changes", { timeout: 90_000 }, async t => {
@@ -22,7 +23,8 @@ test("FSS-35 an open Coding session keeps its draft and checkpoint seconds throu
       const response = await fetchOriginal(input, init);
       if (path.includes('/api/plugins/io.molis.work.coding/')) {
         const detail = await response.clone().json().catch(() => ({}));
-        codingLanguageReplies.push([path, response.status, detail.code || null, detail.models?.length ?? null]);
+        const draft = init?.method === 'PATCH' && typeof init.body === 'string' ? JSON.parse(init.body).draft : null;
+        codingLanguageReplies.push([path, response.status, detail.code || null, detail.models?.length ?? null, draft]);
       }
       return path.endsWith('/checkpoints') && response.ok ? Response.json({checkpoints:[${JSON.stringify(original)}]}) : response;
     };
@@ -31,7 +33,10 @@ test("FSS-35 an open Coding session keeps its draft and checkpoint seconds throu
   await browser.navigate(() => browser.command("Page.navigate", { url: browser.origin + "/locale?lang=en&next=" + encodeURIComponent(next) }, browser.sessionId));
   await child.waitFor("document.querySelector('[data-coding-new]') && typeof t === 'function'");
   await child.click("[data-coding-new]");
-  try { await child.waitFor("document.querySelector('[data-coding-checkpoints-list] time') && !document.querySelector('[data-coding-task]').disabled"); }
+  try {
+    await browser.waitFor(CODING_OPEN);
+    await child.waitFor("document.querySelector('[data-coding-checkpoints-list] time')");
+  }
   catch (error) {
     t.diagnostic(JSON.stringify({ requests: await browser.evaluate("codingLanguageRequests"), replies: await browser.evaluate("codingLanguageReplies"), view: await child.evaluate(`[document.querySelector('[data-coding-status]')?.textContent,
       document.querySelector('[data-coding-checkpoints-status]')?.textContent, document.querySelector('[data-coding-workbench]').dataset.codingDetail]`) }));
@@ -48,13 +53,19 @@ test("FSS-35 an open Coding session keeps its draft and checkpoint seconds throu
         output:null,net_groups:[],change:{files:[]}})});
     window.changeFixture = changes;
     window.checkpoint = q('[data-coding-checkpoints-list] section'); window.checkpointFold = checkpoint.closest('details'); checkpointFold.open = true;
-    window.codingDraft = q('[data-coding-task]'); codingDraft.value = '尚未发送的草稿'; codingDraft.dispatchEvent(new Event('input', {bubbles:true}));
-    codingDraft.focus(); codingDraft.setSelectionRange(1, 4, 'backward');
-    window.codingInvalidations = 0;
-    codingLanguageRoot.addEventListener('molis-work:select-item', event => { if (event.detail?.invalidate) codingInvalidations++; });
+    window.codingLanguageChanges = [];
+    document.addEventListener('molis-work:language-changed', event => { codingLanguageChanges.push(event.detail.tag); });
   })()`);
-  await child.waitFor("document.querySelector('[data-coding-draft-status]').textContent === t.text('coding.composer.draft-saved')");
-  assert.equal(await child.evaluate("document.activeElement===codingDraft"), true, "the wide view keeps the draft visible beside the review panel");
+  const input = `document.querySelector(${JSON.stringify(CODING_BOX)})`;
+  const session = await child.evaluate<string>("document.querySelector('[data-coding-session][aria-current=true]').dataset.codingSession");
+  const draftPath = `/projects/${browser.projectId}/api/plugins/io.molis.work.coding/sessions/${encodeURIComponent(session)}`;
+  await browser.evaluate(`(() => {
+    window.codingDraft = ${input}; codingDraft.focus(); codingDraft.value = '尚未发送的草稿';
+    codingDraft.dispatchEvent(new Event('input', {bubbles:true})); codingDraft.setSelectionRange(1, 4, 'backward');
+  })()`);
+  await browser.waitFor(`codingLanguageReplies.some(([path,status,,,draft]) => path === ${JSON.stringify(draftPath)} && status === 200 && draft === '尚未发送的草稿')`);
+  assert.equal((await browser.web.get<{ draft: string }>(draftPath + "?window=1")).draft, "尚未发送的草稿");
+  assert.equal(await browser.evaluate("document.activeElement===codingDraft"), true, "the wide view keeps the draft visible beside the review panel");
   await browser.evaluate("codingLanguageRequests.length = 0");
   const dates = "[checkpoint.querySelector('time').textContent, checkpoint.querySelector('.coding-checkpoint-done').textContent]";
   const accessibleName = async () => {
@@ -67,10 +78,10 @@ test("FSS-35 an open Coding session keeps its draft and checkpoint seconds throu
   assert.equal(await accessibleName(), `Preview the rollback again ${original.label} ${original.checkpoint_id}`);
   const languages = [["zh", "zh-CN"], ["en", "en"]] as const;
   const switchLanguage = async (tag: "zh" | "en", locale: "zh-CN" | "en") => {
-    const count = await child.evaluate<number>("codingInvalidations");
+    const count = await child.evaluate<number>("codingLanguageChanges.length");
     await browser.evaluate(`(() => { const link = document.createElement('a'); link.dataset.uiLanguage = '${tag}';
       link.href = '/locale?lang=${tag}'; document.body.append(link); link.click(); link.remove(); })()`);
-    await child.waitFor(`document.documentElement.lang === '${locale}' && codingInvalidations > ${count}`);
+    await child.waitFor(`document.documentElement.lang === '${locale}' && codingLanguageChanges[${count}] === '${tag}'`);
   };
   for (const [tag, locale] of languages) {
     await switchLanguage(tag, locale);
@@ -78,11 +89,12 @@ test("FSS-35 an open Coding session keeps its draft and checkpoint seconds throu
     if (tag === "en") assert.deepEqual(words, initial);
     else { assert.match(words[0]!, /:\d\d:09/u); assert.notEqual(words[0], initial[0]); assert.match(words[1]!, /^已于 .*:\d\d:49/u); }
     assert.equal(await accessibleName(), `${tag === "en" ? "Preview the rollback again" : "再次预览回退"} ${original.label} ${original.checkpoint_id}`);
-    assert.deepEqual(await child.evaluate(`[codingLanguageRoot.dataset.codingDetail, codingDraft===document.querySelector('[data-coding-task]'),
-      document.activeElement===codingDraft, codingDraft.value, codingDraft.selectionStart, codingDraft.selectionEnd, codingDraft.selectionDirection,
+    assert.deepEqual(await browser.evaluate(`[codingDraft===${input}, document.activeElement===codingDraft, codingDraft.value,
+      codingDraft.selectionStart, codingDraft.selectionEnd, codingDraft.selectionDirection]`), [true, true, "尚未发送的草稿", 1, 4, "backward"]);
+    assert.deepEqual(await child.evaluate(`[codingLanguageRoot.dataset.codingDetail,
       checkpoint===document.querySelector('[data-coding-checkpoints-list] section'), checkpointFold.open, checkpoint.querySelector('p').textContent,
       checkpoint.querySelector('small [translate=no]').textContent]`),
-      ["true", true, true, "尚未发送的草稿", 1, 4, "backward", true, true, original.label, original.directory.canonical_path]);
+      ["true", true, true, original.label, original.directory.canonical_path]);
   }
   await child.evaluate(`(async () => { await changeFixture.openFixed('fixture-round'); window.fixedChange = document.querySelector('[data-coding-change-fixed]'); })()`);
   const fixed = await child.evaluate<string>("fixedChange.title");

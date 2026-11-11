@@ -12,9 +12,8 @@ import type {
   ShelfSettingsPatch,
   ShelfShortcutAction,
 } from "@molis-ai/molis-work-module-shelf/contract";
-import type { UiClientTranslate, UiPluginClientHost, UiRequestScope } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { UiPluginClientHost, UiRequestScope } from "@molis-ai/molis-work-contracts/platform/ui";
 
-export type Translate = UiClientTranslate;
 export type Item = ShelfItemRecord;
 export type Child = ShelfFolderChild;
 export type Clip = ShelfClipboardRecord;
@@ -94,7 +93,6 @@ export interface Reading {
 /** The page: its parts, what it knows, and what the person has chosen so far. One per mounted root. */
 export interface ShelfPage {
   readonly host: ShelfHost;
-  readonly readText: Translate;
   readonly lifetime: ShelfLifetime;
   readonly directory: HTMLElement;
   readonly bench: HTMLElement;

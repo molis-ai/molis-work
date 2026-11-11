@@ -1,10 +1,10 @@
-import { pageText, withPageText } from "./fixtures/page-text.js";
+import { pageText } from "./fixtures/page-text.js";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { desktopWorkbenchRendererPorts, renderDesktopCapsuleShell } from "@molis-ai/molis-work-app-desktop";
-import { createLocalHostWorkbenchRenderer } from "@molis-ai/molis-work-app-local-host";
+import { createLocalHostWorkbenchRenderer, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import { HIDDEN_SCROLLBAR_STYLES } from "@molis-ai/molis-work-design-system";
 import { IM_STYLES } from "@molis-ai/molis-work-im-ui";
 
@@ -37,7 +37,7 @@ test("every product document carries the rule", () => {
     "arrival.css": renderer.renderMolisWorkArrivalStylesheet(),
     "settings.css": renderer.renderMolisWorkSettingsStylesheet(),
     "IM": IM_STYLES,
-    "capsule": withPageText("zh", [], () => renderDesktopCapsuleShell([], { translate: pageText("zh"), htmlLang: "zh-CN", languageHead: "", themeBootstrapScript: "" })),
+    "capsule": runWithLocale("zh", () => renderDesktopCapsuleShell([], { translate: pageText("zh"), htmlLang: "zh-CN", languageHead: "", themeBootstrapScript: "" })),
   };
   for (const [name, css] of Object.entries(documents)) assert.ok(css.includes(HIDDEN_SCROLLBAR_STYLES), `${name} hides scrollbars`);
 });

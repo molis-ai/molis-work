@@ -36,7 +36,7 @@ export function renderConnectorRequest(request: ConnectorSetupView | null, cards
     <div data-connectors-list hidden></div><p data-connectors-error role="alert" hidden></p>
     <section class="settings-connector-detail" data-connector-detail="${e(card.connector_id)}">
       <header class="settings-heading"><h2 tabindex="-1">${e(plan.display_name)}</h2><p>${e(plan.local_setup ? uiText.text("workbench.settings-connector-request.local-mcp") : card.title)}</p></header>
-      <p data-connector-feedback role="status">${message}</p><div class="settings-body">
+      <p data-connector-feedback role="status">${e(uiText.text(message))}</p><div class="settings-body">
       ${prepared ? `${plan.cli_setup ? renderLocalConnectorPlan(plan, p, request.installation_ready) + (request.installation_ready ? renderMethodGuide(card, selected!, p, plan, request.presentation?.cli_job) : "") : plan.local_setup ? renderLocalConnectorPlan(plan, p, request.installation_ready) : renderMethodGuide(card, selected!, p, plan, undefined, requestGuideVariant(selected!))}<input data-connector-new-name type="hidden" value="${e(plan.display_name)}">` : ""}
       ${pending ? `<div data-protocol="${e(plan.method)}" data-protocol-service="${e(card.connector_id)}" data-pending-setup="${e(request.id)}" data-setup-expires="${request.expires_at}"><div data-protocol-result></div>
         ${request.presentation?.authorization_url ? `<a class="mw-btn mw-btn--secondary" href="${e(request.presentation.authorization_url)}" target="_blank" rel="noopener noreferrer">${uiText("workbench.settings-connector-request.reopen-official-authorization-page")}</a>` : ""}

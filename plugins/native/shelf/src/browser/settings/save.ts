@@ -40,7 +40,7 @@ function paintOccupied(_page: SettingsPage, root: ParentNode, status: Record<str
     const caption = row.querySelector<HTMLElement>("[data-shelf-hotkey-caption]");
     if (!caption) return;
     const taken = status?.[row.dataset.shelfHotkeySlot ?? ""] === false;
-    caption.textContent = taken ? uiText.text("shelf.settings.hotkey-occupied") : (caption.dataset.idleCaption || caption.textContent);
+    caption.textContent = taken ? uiText.text("shelf.settings.hotkey-occupied") : (caption.dataset.caption || caption.textContent);
     caption.toggleAttribute("data-occupied", taken);
   });
 }

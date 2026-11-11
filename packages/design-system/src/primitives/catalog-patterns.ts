@@ -223,7 +223,7 @@ export function statSection(): string {
   }</div></div>`)}</div>`);
 }
 
-export function rowsSection(): string {
+export function rowsSection(say: (key: string) => string): string {
   const item = (mark: PluginIconName, title: string, meta: string, end: string) =>
     `<li class="mw-item"><span class="mw-mark">${icon(mark)}</span><span><strong>${title}</strong><small>${meta}</small></span><span class="mw-item__end">${end}</span></li>`;
   const more = (name: string) => ghostIcon(`${name} 的更多操作`, "more");
@@ -232,11 +232,11 @@ export function rowsSection(): string {
   const items = `<ul class="mw-items">${
     item("file", "季度复盘.pdf", "成果库 · 2.4 MB", `10 分钟前${more("季度复盘.pdf")}`)
     + item("image", "首页草图.png", "设计 · 820 KB", renderStatusMark({ label: "同步中", state: "syncing", tone: "progress" }) + more("首页草图.png"))
-    + item("database", "客户名单.csv", "导入 · 1,284 行", renderStatusMark({ label: "workbench.assistant-delivery.failed", state: "failed", tone: "blocked" }) + renderButton({ label: "common.control.retry", variant: "ghost", size: "sm" }))
+    + item("database", "客户名单.csv", "导入 · 1,284 行", renderStatusMark({ label: say("workbench.assistant-delivery.failed"), state: "failed", tone: "blocked" }) + renderButton({ label: say("common.control.retry"), variant: "ghost", size: "sm" }))
   }</ul>`;
   const settings = `<div class="mw-settings">${
     setting("catalog-set-boot", "登录时启动", "在后台开着常驻宿主，助理随叫随到", renderSwitch({ checked: true, attrs: { "aria-labelledby": "catalog-set-boot" } }))
-    + setting("catalog-set-lang", "workbench.context-onboarding.language-2", "", renderSelect({ optionsHtml: "<option selected>简体中文</option><option>English</option>", attrs: { "aria-labelledby": "catalog-set-lang" } }))
+    + setting("catalog-set-lang", say("workbench.context-onboarding.language-2"), "", renderSelect({ optionsHtml: "<option selected>简体中文</option><option>English</option>", attrs: { "aria-labelledby": "catalog-set-lang" } }))
     + setting("catalog-set-notify", "只在要你确认时提醒", "", renderSwitch({ attrs: { "aria-labelledby": "catalog-set-notify" } }))
     + setting("catalog-set-cache", "清空本机缓存", "不影响项目里的内容", renderButton({ label: "清空…", variant: "secondary", attrs: { "aria-describedby": "catalog-set-cache" } }))
   }</div>`;

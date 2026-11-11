@@ -1,6 +1,6 @@
 import { renderBar } from "./bar.js";
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
-import { said, setText } from "./dom.js";
+import { setText } from "./dom.js";
 import { aiLabel, batch, confirmRecipe, isLocalRecipe } from "./model.js";
 import { paintPreview } from "./preview.js";
 import { paintLists } from "./rows.js";
@@ -24,9 +24,13 @@ export function watchRun(page: ShelfPage): void {
 }
 
 function runLine(page: ShelfPage, recipe: ConfirmRecipe): string {
-  const { readText } = page;
   if (isLocalRecipe(recipe)) return page.selected?.kind === "image" ? uiText.text("shelf.run.reading-the-text-in-this") : uiText.text("shelf.run.extracting-selectable-text-from-the");
-  return uiText.text("shelf.run.agent-is-running-recipe-on", { agent: aiLabel(page), recipe: said(readText, recipe.short_title || recipe.label) });
+  return uiText.text("shelf.run.agent-is-running-recipe-on", { agent: aiLabel(page), recipe: recipe.short_title || recipe.label });
+}
+
+export function retitleRun(page: ShelfPage): void {
+  const recipe = confirmRecipe(page);
+  if (recipe) setText(page.bench, "[data-shelf-run-line]", runLine(page, recipe));
 }
 
 /** The job could not be done: the stage says why, or goes back when the person cancelled it. */

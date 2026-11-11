@@ -94,14 +94,14 @@ const STATUS_RING: Record<ModelProviderStatus, StateRingState> = { ready: "ready
 
 /** A failed check's reason (`ModelProviderCheck.code`) in the person's words, with the ring and tone it shows in. */
 const CHECK_FAILURES: Readonly<Record<string, readonly [string, StateRingState, MwStatusTone]>> = {
-  "model_provider.key_rejected": ["密钥被拒", "failed", "blocked"],
+  "model_provider.key_rejected": ["workbench.settings-models.check-key-rejected", "failed", "blocked"],
   // The model path reports the status only, so a throttle and an exhausted account read the same (§13.2, user 11-05).
-  "model_provider.rate_limited": ["请求太多或额度用完", "retrying", "hold"],
-  "model_provider.request_refused": ["服务不接受这次请求，多半是模型名不对", "failed", "attention"],
-  "model_provider.provider_failed": ["服务那边出错了", "failed", "attention"],
-  "model_provider.unreachable": ["连不上这个地址", "unavailable", "attention"],
-  "model_provider.timed_out": ["一直没等到回应", "unavailable", "attention"],
-  "model_provider.response_invalid": ["回应不像这个接口格式", "failed", "attention"],
+  "model_provider.rate_limited": ["workbench.settings-models.check-rate-limited", "retrying", "hold"],
+  "model_provider.request_refused": ["workbench.settings-models.check-request-refused", "failed", "attention"],
+  "model_provider.provider_failed": ["workbench.settings-models.check-provider-failed", "failed", "attention"],
+  "model_provider.unreachable": ["workbench.settings-models.check-unreachable", "unavailable", "attention"],
+  "model_provider.timed_out": ["workbench.settings-models.check-timed-out", "unavailable", "attention"],
+  "model_provider.response_invalid": ["workbench.settings-models.check-response-invalid", "failed", "attention"],
 };
 
 export function renderModelSettingsDocument(model: ModelSettingsModel): string {
@@ -270,7 +270,7 @@ function reachability(health: ModelProviderHealth | undefined, _p: ModelSettings
   const time = checkTime(last.at);
   if (last.outcome === "connected") return last.current ? mark(uiText.text("workbench.settings-models.reachable-checked-time", { time }), "connected", "done")
     : mark(uiText.text("workbench.settings-models.not-checked-since-change-reachable-time", { time }), "idle", "quiet");
-  const [words, state, tone] = CHECK_FAILURES[last.code ?? ""] ?? ["检查没有完成", "failed", "attention"] as const;
+  const [words, state, tone] = CHECK_FAILURES[last.code ?? ""] ?? ["workbench.settings-models.check-incomplete", "failed", "attention"] as const;
   const retry = last.retry_at ? ` · ${uiText.text("workbench.settings-models.checks-again-after-time", { time: checkTime(last.retry_at) })}` : "";
   return mark(`${uiText.text(words)} · ${time}${retry}`, state, tone);
 }

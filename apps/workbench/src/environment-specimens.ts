@@ -66,7 +66,7 @@ export function renderEnvironmentSpecimen(locale: WebLocale): string {
     <label class="mw-board-env__field"><span>${t("workbench.env.search")}</span><input class="mw-input" type="search" data-board-env-search placeholder="${t("workbench.env.search-hint")}" aria-label="${t("workbench.env.search")}"></label>
     <details class="mw-collapsible" data-board-env-more><summary>${t("workbench.env.more")}</summary><div class="mw-collapsible__body"><p>${t("workbench.env.more-body")}</p></div></details>
     <div class="mw-board-env__scroll" data-board-env-scroll tabindex="0" role="region" aria-label="${t("workbench.env.lines")}">${lines}</div>
-    <p class="mw-board-env__same" data-board-env-same><span>${t("workbench.env.same")}</span> <q data-board-env-user>保存</q> <span data-board-env-word>${t("workbench.env.save")}</span></p>
+    <p class="mw-board-env__same" data-board-env-same><span>${t("workbench.env.same")}</span> <q data-board-env-user translate="no">保存</q> <span data-board-env-word>${t("workbench.env.save")}</span></p>
     <p class="mw-board-env__same"><button type="button" class="mw-btn mw-btn--primary mw-btn--sm" data-board-env-save>${t("workbench.env.save")}</button><span class="mw-board-env__editable" contenteditable="true" data-board-env-editable role="textbox" aria-label="${t("workbench.env.editable")}">保存</span></p>
     <ul class="mw-board-env__rows" data-board-env-rows><li>${t("workbench.env.row", { n: 1 })}</li></ul>
     <p class="mw-board-env__actions">${renderButton({ label: t.text("workbench.env.add-row"), variant: "secondary", attrs: { "data-board-env-add-row": true } })}${renderButton({ label: t.text("workbench.env.add-user"), variant: "ghost", attrs: { "data-board-env-add-user": true } })}</p>

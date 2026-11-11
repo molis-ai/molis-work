@@ -1,4 +1,4 @@
-import { withPageText } from "./fixtures/page-text.js";
+import { runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { fillMessage } from "@molis-ai/molis-work-plugin-sdk";
@@ -88,12 +88,12 @@ test("RAC-551: every class these parts write has a rule in the host's sheets, th
   assert.deepEqual(waiting, UNTIL_N14);
   // The board's page links the settings sheet, so its specimens wear the same rules as the product.
   for (const token of written) if (!token.startsWith("is-")) assert.ok(defined(renderMolisWorkSettingsStylesheet(), token), `the settings sheet defines .${token}`);
-  const board = withPageText("zh", [], renderPrimitiveCatalog);
+  const board = runWithLocale("zh", renderPrimitiveCatalog);
   assert.doesNotMatch(board.slice(board.indexOf("<style>"), board.indexOf("</style>")), /\.mw-kept \{|\.mw-alert__actions \{/u, "the board no longer keeps a copy of the parts' rules");
 });
 
 test("the board's words all have English, and the motion takes only tokens", () => {
-  const english = withPageText("en", [], renderPrimitiveCatalog);
+  const english = runWithLocale("en", renderPrimitiveCatalog);
   const start = english.indexOf('id="alert-actions"');
   const sections = english.slice(start, english.indexOf("</section>", english.indexOf('id="field-wash"')));
   assert.deepEqual(sections.match(/[㐀-鿿]+/gu) ?? [], [], "no Chinese is left in English");

@@ -1,11 +1,15 @@
-import { pluginTabGlyphs, pluginTabTitles } from "@molis-ai/molis-work-app-workbench";
+import { pluginTabTitles } from "@molis-ai/molis-work-app-workbench";
+import { ARTIFACTS_PROJECT_PLUGIN_ID } from "@molis-ai/molis-work-module-artifacts";
 import { t } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { shownProjectPlugins } from "../plugin-registry.js";
+import { PLATFORM_PLUGIN_REGISTRATIONS, shownProjectPlugins } from "../plugin-registry.js";
 import { builtinMarketDirectory } from "../plugin-directory.js";
 import type { LocalWebCatalogRunner } from "../web-project-settings.js";
 
 /** The project's first page. It is a fixed entry of the workbench rail, not a plugin, so no project lists it. */
 const PROJECT_HOME_PAGE = "home";
+const RAIL_PAGES = new Set<string>([ARTIFACTS_PROJECT_PLUGIN_ID, ...PLATFORM_PLUGIN_REGISTRATIONS
+  .filter(({ manifest }) => manifest.ui.views?.some(view => view.slot === "navigator" || view.slot === "island"))
+  .map(({ project_plugin_id }) => project_plugin_id)]);
 
 /**
  * The page ids an attention rule may name (PG-036): the ids the workbench rail can be on. The client reports the page the
@@ -19,12 +23,11 @@ const PROJECT_HOME_PAGE = "home";
  */
 export function installedPagesPort(withCatalog: LocalWebCatalogRunner, homeDirectory: string): () => Promise<readonly string[]> {
   return () => withCatalog({ homeDirectory }, catalog => {
-    const railPages = pluginTabGlyphs();
     const pages = new Set<string>([PROJECT_HOME_PAGE]);
     for (const project of catalog.listProjects()) {
       const { plugins, hidden } = catalog.projectPluginMembership(project.project_id);
       for (const id of shownProjectPlugins(plugins, hidden)) {
-        if (Object.hasOwn(railPages, id)) pages.add(id);
+        if (RAIL_PAGES.has(id)) pages.add(id);
       }
     }
     return [...pages];

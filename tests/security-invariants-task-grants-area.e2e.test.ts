@@ -157,7 +157,7 @@ test("S-task-grants-area TGA-01 TGA-06 TGA-07 TGA-11 TGA-12 TGA-16 the area is t
   for (const id of ["two", "three", "four", "five"]) await p.place(id, "k" + id, `left:${700 + 10}px;top:${["two", "three", "four", "five"].indexOf(id) * 120}px;width:300px;height:1px`);
   assert.equal(await p.placed("five"), "refused: 暂时不能显示", "a fifth area on one page is not shown");
   const refusals = (await p.down()).filter(message => message.type === "task-grants-shown" && "error" in message);
-  assert.deepEqual(new Set(refusals.map(message => message.error)), new Set(["暂时不能显示"]), "every refusal is one fixed sentence");
+  assert.deepEqual(new Set(refusals.map(message => message.error)), new Set(["common.task-grants.cannot-display-this-right-now"]), "every refusal carries the same text key without details");
   assert.ok(refusals.some(message => message.id === 90) && refusals.some(message => message.id === 91), "the forged and the bad opens are refused");
   assert.equal(refusals.some(message => message.id === -1 || message.id === 0.5), false, "a bad id gets no answer at all");
   assert.equal(await browser.evaluate("document.querySelectorAll('[data-framed-area]').length"), 4);

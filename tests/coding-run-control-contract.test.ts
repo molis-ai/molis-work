@@ -122,7 +122,7 @@ test("the page still posts the provider and model, and the switch takes effect o
   assert.match(pageSource("main/mount-composer.ts"), /kind: "switch-model", run_id: run\.ref\.run_id, \.\.\.model/);
   assert.match(pageSource("composer-model.ts"), /provider_id: model\.provider_id, model_id: model\.model_id/);
   // The page says so through Coding's dictionary (VUX-40), in both languages.
-  assert.match(pageSource("composer-model.ts"), /status\(uiText\.text\("coding\.model\.switch-asked", \{ model: model\.label \}\)\)/);
+  assert.match(pageSource("composer-model.ts"), /status\(readText\("coding\.model\.switch-asked", \{ model: model\.label \}\)\)/);
   assert.match(pageText("zh", "coding")("coding.model.switch-asked", { model: offered.label }), /Claude：从下一次模型调用起生效/);
   assert.match(pageText("en", "coding")("coding.model.switch-asked", { model: offered.label }), /Claude: it takes effect from the next model call/);
 });

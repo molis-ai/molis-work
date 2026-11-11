@@ -229,8 +229,8 @@ export function renderPrimitiveCatalog(options: { readonly plugins?: readonly Ca
     ${craftSection()}
     ${motionSection()}
     ${arrivalSection()}
-    ${choiceSection()}
-    ${composeSection()}
+    ${choiceSection(say)}
+    ${composeSection(say)}
     ${renderCatalogExamples(section)}
     ${buttonSection()}
     ${buttonGroupSection()}
@@ -252,7 +252,7 @@ export function renderPrimitiveCatalog(options: { readonly plugins?: readonly Ca
     ${menuDescSection(say, options.delivery)}
     ${tabsSection()}
     ${directorySection()}
-    ${rowsSection()}
+    ${rowsSection(say)}
     ${itemChoiceSection(say)}
     ${itemDetailsSection(say)}
     ${listDetailSection(say)}

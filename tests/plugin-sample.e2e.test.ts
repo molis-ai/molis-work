@@ -168,6 +168,8 @@ test("clean developer project uses packed public SDK from CLI scaffold through i
     // FSS-60: a plugin that declares no languages has none to pick; asking for one says what to write first.
     const unlocalized = JSON.parse(originalManifest);
     delete unlocalized.ui.locales;
+    delete unlocalized.name_text;
+    delete unlocalized.summary_text;
     writeFileSync(manifestPath, JSON.stringify(unlocalized));
     const noLanguages = devIn("en", "state-unlocalized");
     assert.equal(noLanguages.status, 1, noLanguages.stderr);

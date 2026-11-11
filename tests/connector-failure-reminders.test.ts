@@ -213,7 +213,8 @@ test("ASC-58 a record read the service refuses or cannot answer is counted, and 
     db.prepare("UPDATE connector_observations SET call_json=? WHERE connection_id=?").run(JSON.stringify({ ...value, failing_since: new Date(Date.now() - 11 * 60_000).toISOString() }), row.connection_id);
   } finally { db.close(); }
   await readRecords();
-  assert.equal(notices()[0]?.text, "服务连接「{name}」连续几次没连上服务，打开连接看看。");
+  assert.deepEqual(notices()[0]?.text, { owner: "workbench", key: "workbench.assistant-connection.unavailable",
+    args: [{ kind: "text", name: "name", text: "Work GitHub" }] });
   // The person fixes the service and checks the connection: a check that goes through ends a run of `unavailable` (§13.2 ⑫), settles
   // its notice, and a piece of work waiting for the connection (`molis.connection-ready`) goes on.
   const assistant = openHomeSqliteDatabase(home.home, ASSISTANT_STORE_NAME), store = new AssistantStore(assistant);

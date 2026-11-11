@@ -27,6 +27,7 @@ import { basename, join, resolve } from "node:path";
 import { performance } from "node:perf_hooks";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { endingReviewReply } from "../../tests/fixtures/ending-review.js";
+import { isMainScript } from "../script-paths.mjs";
 
 /** Frozen before measurement (spec 第 3 条：1000 条，3 副本 ×（1 首读 + 9 暖读））。造数与规模工具 scale.mts 相同。 */
 export const PAIRED_LATENCY_PLAN = Object.freeze({
@@ -244,7 +245,7 @@ export function comparePairedLatency(slots: SlotReport[]) {
     slots: slots.map(slot => ({ slot: slot.slot, arm: slot.arm, head: slot.source.head, sdkCommit: slot.source.sdkCommit, startedAt: slot.startedAt, recordedAt: slot.recordedAt })) };
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (isMainScript(import.meta.url)) {
   const args = process.argv.slice(2);
   const option = (name: string) => { const at = args.indexOf(name); return at >= 0 ? args[at + 1] : undefined; };
   const out = option("--out");

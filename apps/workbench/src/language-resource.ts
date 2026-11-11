@@ -8,24 +8,50 @@ interface LanguageAsset { readonly href: string; readonly body: string; readonly
 const built = new Map<UiLanguageTag, LanguageAsset>();
 let client: string | undefined;
 
+const languageScriptJson = (value: unknown): string => JSON.stringify(value).replaceAll("<", "\\u003c");
+
+function sharedStringIndices(messages: UiLocalePack["messages"]): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const value of Object.values(messages)) {
+    if (typeof value === "string") counts.set(value, (counts.get(value) ?? 0) + 1);
+  }
+  const indices = new Map<string, number>();
+  for (const [value, count] of counts) {
+    if (count < 2) continue;
+    const bytes = Buffer.byteLength(languageScriptJson(value), "utf8");
+    const index = indices.size;
+    // Charge a separator even for the first table entry.
+    if ((count - 1) * bytes > 1 + count * String(index).length) indices.set(value, index);
+  }
+  return indices;
+}
+
 function languagePackScript(pack: UiLocalePack): string {
   const { messages, ...metadata } = pack;
-  const groups = new Map<string, UiMessage[]>();
+  const shared = sharedStringIndices(messages);
+  const groups = new Map<string, { suffixes: string[]; values: (UiMessage | number)[] }>();
   for (const [key, message] of Object.entries(messages)) {
     // Two-segment keys have no region prefix to remove.
     const prefixEnd = key.indexOf(".", key.indexOf(".") + 1) + 1;
     const prefix = key.slice(0, prefixEnd);
-    let words = groups.get(prefix);
-    if (!words) groups.set(prefix, words = []);
-    words.push(key.slice(prefixEnd), message);
+    let group = groups.get(prefix);
+    if (!group) groups.set(prefix, group = { suffixes: [], values: [] });
+    group.suffixes.push(key.slice(prefixEnd));
+    group.values.push(typeof message === "string" ? shared.get(message) ?? message : message);
   }
-  const payload = JSON.stringify({ catalog: WORKBENCH_LANGUAGES, pack: metadata, groups: [...groups] }).replaceAll("<", "\\u003c");
+  // The locale pack validator excludes "|" from every stable key.
+  const rows = Array.from(groups, ([prefix, { suffixes, values }]) => [prefix, suffixes.join("|"), values]);
+  const payload = languageScriptJson({ catalog: WORKBENCH_LANGUAGES, pack: metadata, strings: [...shared.keys()], groups: rows });
   return `
 {
-  const { catalog, pack, groups } = ${payload};
+  const { catalog, pack, strings, groups } = ${payload};
   const messages = Object.create(null);
-  for (const [prefix, words] of groups) {
-    for (let index = 0; index < words.length; index += 2) messages[prefix + words[index]] = words[index + 1];
+  for (const [prefix, suffixes, values] of groups) {
+    const keys = suffixes.split("|");
+    for (let index = 0; index < keys.length; index++) {
+      const value = values[index];
+      messages[prefix + keys[index]] = typeof value === "number" ? strings[value] : value;
+    }
   }
   globalThis.molisWorkLanguageAsset({ catalog, pack: { ...pack, messages } });
 }`;

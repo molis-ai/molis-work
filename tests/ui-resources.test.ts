@@ -117,12 +117,13 @@ test("FSS-34 the same Workbench build discovers and serves a language added only
       import { runInNewContext } from "node:vm";
       import { WEB_LOCALES, createWorkbenchLocale, renderWorkbenchDocument, workbenchLanguageResource, workbenchPlatformText } from "./dist/index.js";
       const word = "workbench.language.retry", escapedWord = process.argv[1];
+      const repeatedWords = { [word]: escapedWord, "workbench.settings-appearance.try-again": escapedWord };
       if (escapedWord) {
         // The registered reader has already validated the files. Exercise script escaping at the serialization boundary.
         const read = workbenchPlatformText.pack;
         workbenchPlatformText.pack = tag => {
           const pack = read(tag);
-          return tag === "en-GB" && pack ? { ...pack, messages: { ...pack.messages, [word]: escapedWord } } : pack;
+          return tag === "en-GB" && pack ? { ...pack, messages: { ...pack.messages, ...repeatedWords } } : pack;
         };
       }
       const catalog = JSON.parse(readFileSync("./resources/languages.json", "utf8"));
@@ -134,9 +135,10 @@ test("FSS-34 the same Workbench build discovers and serves a language added only
         assert.equal(asset?.href, href);
         const pack = JSON.parse(readFileSync("./resources/locales/" + tag + ".json", "utf8"));
         if (escapedWord && tag === "en-GB") {
-          pack.messages[word] = escapedWord;
+          Object.assign(pack.messages, repeatedWords);
           assert.ok(!asset.body.includes(escapedWord));
-          assert.ok(asset.body.includes(escapedWord.replaceAll("<", "\\u003c")));
+          const literal = JSON.stringify(escapedWord).replaceAll("<", "\\u003c");
+          assert.equal(asset.body.split(literal).length - 1, 1, "both groups share one escaped string");
         }
         const received = [];
         runInNewContext(asset.body, { molisWorkLanguageAsset: value => received.push(value) }, { filename: href });

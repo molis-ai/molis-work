@@ -26,7 +26,7 @@ import { GoalEventConfiguration } from "./event-facts-configure.js";
 import { GoalEventFactsConfig } from "./event-facts-config.js";
 import { GoalEventReads } from "./event-facts-reads.js";
 import { GoalEventFactsRepository } from "./event-facts-repository.js";
-import { GoalEventReporting } from "./event-facts-report.js";
+import { GoalEventReporting, REPORT_GOAL_EVENTS_OPERATION } from "./event-facts-report.js";
 import { applyGoalEventAgreementChange, readCurrentGoalEventRequirements } from "./event-facts-requirements.js";
 import type { GoalEventCompletionContext } from "./event-state-completion.js";
 import { GoalEventIntent } from "./event-intent.js";
@@ -113,6 +113,10 @@ export class GoalEventFacts implements GoalEventFactsApi {
 
   readCurrentRequirements(projectId: string, goalId: string): GoalEventRequirementStatus[] {
     return readCurrentGoalEventRequirements(this.context, this.records, projectId, goalId);
+  }
+
+  reportRecorded(projectId: string, actorId: string, idempotencyKey: string): boolean {
+    return this.context.repository.getIdempotency(projectId, actorId, REPORT_GOAL_EVENTS_OPERATION, idempotencyKey) !== null;
   }
 
   selfSupportingSessions(projectId: string, goalId: string, requirementId: string): ReadonlySet<string> {

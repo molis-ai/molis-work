@@ -788,6 +788,12 @@ export { fileEntriesPage } from "@molis-ai/molis-work-contracts/platform/actions
 
 export declare function fillMessage(text: string, values?: Readonly<Record<string, string | number>>): string;
 
+export declare function hostBoundSession(caller: {
+    readonly audience?: string;
+    readonly delegated_audience?: string;
+    readonly runtime_session_id?: string;
+}): string | undefined;
+
 export { inputSchemaFor } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export declare function inspectActionCrossReferences(definitions: unknown): string[];

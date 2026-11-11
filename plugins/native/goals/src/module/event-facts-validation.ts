@@ -327,13 +327,13 @@ export function normalizeJudgments(judgments: GoalEventJudgmentInput[] | undefin
 }
 
 /** A basis names an exact version and says in two short sentences how it was checked; its evidence is references only, at most eight. */
-function normalizeBasis(basis: GoalEventJudgmentBasisInput, requirementId: string): GoalEventJudgmentBasis {
+export function normalizeBasis(basis: GoalEventJudgmentBasisInput, requirementId: string): GoalEventJudgmentBasis {
   const refuse = (message: string) => goalErrors["goals.event_report.invalid_basis"](message, { requirement_id: requirementId });
   const exact = (value: unknown): value is { artifact_id: string; version: number } => typeof value === "object" && value !== null
     && typeof (value as { artifact_id?: unknown }).artifact_id === "string" && (value as { artifact_id: string }).artifact_id.trim() !== ""
     && Number.isSafeInteger((value as { version?: unknown }).version) && (value as { version: number }).version >= 1;
   const said = (value: unknown) => typeof value === "string" && value.trim() !== "" && value.length <= 500;
-  if (typeof basis !== "object" || !exact(basis.checked)) throw refuse("依据必须写明所核的确切版本（成果编号和版本号），不接受「最新版」");
+  if (typeof basis !== "object" || basis === null || !exact(basis.checked)) throw refuse("依据必须写明所核的确切版本（成果编号和版本号），不接受「最新版」");
   if (!said(basis.method) || !said(basis.observed)) throw refuse("依据必须写明检查方法和观察结果，各不超过 500 字");
   const evidence = basis.evidence ?? [];
   if (!Array.isArray(evidence) || evidence.length > GOAL_EVENT_EVIDENCE_MAX) throw refuse(`证据引用最多 ${GOAL_EVENT_EVIDENCE_MAX} 条`);

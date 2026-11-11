@@ -39,3 +39,12 @@ export function defineAction<Input, Output>(
     handler: bindActionHandler(definition, (input, context) => handle(context, input)),
   };
 }
+
+/**
+ * The session the Host itself bound a call to: an agent round's own, also when a plugin's running action hands the call on for it.
+ * An external Runtime client names its own session over MCP or the gateway and the Host does not verify it, so that one is not a
+ * bound session: nothing may be looked up or credited as that session's own (S-agent-evidence-own-session, S-goal-evidence-tier).
+ */
+export function hostBoundSession(caller: { readonly audience?: string; readonly delegated_audience?: string; readonly runtime_session_id?: string }): string | undefined {
+  return (caller.delegated_audience ?? caller.audience) === "agent" ? caller.runtime_session_id : undefined;
+}

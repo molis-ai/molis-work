@@ -149,6 +149,12 @@ test('S-goal-evidence-tier EVD-43: a replicated judgment and conclusion carry on
     wire=>{judgment(wire).tier='peer_reviewed';judgment(wire).basis_json=null;},
     wire=>{judgment(wire).basis_json='{not json';},
     wire=>{judgment(wire).basis_json=JSON.stringify({checked:{artifact_id:'artifact-report',version:0}});},
+    // The rest of the basis is held to the shape a saved report has (how it was checked, and references only, at most eight).
+    wire=>{judgment(wire).basis_json=JSON.stringify({checked});},
+    wire=>{judgment(wire).basis_json=JSON.stringify({checked,method:'跑了测试',observed:'全部通过',evidence:'none'});},
+    wire=>{judgment(wire).basis_json=JSON.stringify({checked,method:'跑了测试',observed:'全部通过',evidence:[{kind:'file_change',path:'a.ts'}]});},
+    wire=>{judgment(wire).basis_json=JSON.stringify({checked,method:'跑了测试',observed:'全部通过',evidence:Array.from({length:9},(_,index)=>({kind:'command_receipt',run_id:'r',call_id:'c'+index}))});},
+    wire=>{judgment(wire).basis_json='null';},
   ];
   for(const [index,mutate] of mutations.entries()){
     const value=structuredClone(next.value);mutate(goalWire(value) as Unit);

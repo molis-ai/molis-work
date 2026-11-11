@@ -62,7 +62,7 @@ export function createPluginBackgroundClient(gate: PluginInstance & {
       } catch (error) { active.delete(controller); throw error; }
       const pending = Promise.resolve().then(() => {
         control.assert_authority_current!();
-        return runInPluginAction({ ...scope, caller: control, checked }, () => work({ signal: control.signal, beforeEffect: control.beforeEffect,
+        return runInPluginAction({ ...scope, source: undefined, caller: control, checked }, () => work({ signal: control.signal, beforeEffect: control.beforeEffect,
           assert_authority_current: control.assert_authority_current, page_context: control.page_context, locale: control.locale, ...(control.project_id ? { project_id: control.project_id } : {}) }));
       }).then(value => { control.assert_authority_current!(); return value; });
       const result = lifetime.wait(pending).finally(() => { running = false; active.delete(controller); lifetime.dispose(); });

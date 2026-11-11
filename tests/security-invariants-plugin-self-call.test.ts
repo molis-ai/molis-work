@@ -61,13 +61,13 @@ async function setup(t: TestContext, probes: readonly Probe[], delegating: reado
     const install = served.host.homePlugins!.installation(probe.id)!;
     await platform.runtime.stop(install.install_id); platform.runtime.grant(install.install_id, ["storage:private", DELEGATE, "self_call:read"]); await platform.supervisor.restart(probe.id);
   }
-  const client = served.host.actionClient(project.reference), targetRan: string[] = [];
+  const client = served.host.actionClient(project.reference), targetRan: string[] = [], targetCallers: ActionExecutionContext[] = [];
   const dispose = served.host.actionRegistry().registerProvider({ provider: { provider_id: "self-call-targets", title: "Self call targets", kind: "system" }, definitions: [OPEN],
-    handlers: [{ ...OPEN, handle: async () => { targetRan.push(OPEN.capability_id); return "done"; } }] });
+    handlers: [{ ...OPEN, handle: async caller => { targetRan.push(OPEN.capability_id); targetCallers.push(caller); return "done"; } }] });
   t.after(dispose);
   const caller = (audience: ActionAudience): ActionCallContext => ({ actor_id: audience === "user" ? LOCAL_PERSON_ACTOR_ID : `runtime:${audience}`, audience, project_id: project.project_id,
     permissions: ["storage:private", "self_call:read"] });
-  return { ...served, project, platform, client, targetRan, caller, run: (probe: Probe, definition: ActionDefinition, audience: ActionAudience) => client.invoke(caller(audience), definition, {}) };
+  return { ...served, project, platform, client, targetRan, targetCallers, caller, run: (probe: Probe, definition: ActionDefinition, audience: ActionAudience) => client.invoke(caller(audience), definition, {}) };
 }
 
 for (const audience of ["user", "agent", "mcp", "workflow"] as const) {
@@ -135,4 +135,30 @@ test("RAC-586 S-73 a call made in a timer set up in start is the installation's 
   assert.equal(outcome("timer user_only").at(-1), "actions.forbidden");
   assert.ok(probe.saw(probe.actions.inner).length > 0 && probe.saw(probe.actions.inner).every(caller => caller.audience === "plugin"));
   assert.equal(probe.ran(probe.actions.userOnly), 0, "an action only the person is offered never ran for the installation's own call");
+});
+
+test("B27-DELEGATE-02 B27-DELEGATE-03 BL-803 only the Runtime says a call entered as the person's own, and the directory hands its target that one hop", async t => {
+  const probe = selfCallProbe("entry", { delegate: true });
+  const s = await setup(t, [probe], [probe]);
+  probe.behavior.outer = (context, caller) => {
+    // On an Agent's call the plugin writes the mark on its own view: that proves nothing, the directory reads the Runtime's scope.
+    if (caller.audience !== "user") (caller as { direct_person_entry?: true }).direct_person_entry = true;
+    return context.services!.actions!.directory!.invoke(ref(OPEN), {});
+  };
+  probe.behavior.user_only = (context, caller) => context.services!.actions!.invoke(probe.actions.inner, {}, caller) as Promise<unknown>;
+  assert.equal(await s.run(probe, probe.actions.outer, "user"), "done");
+  assert.equal(await s.run(probe, probe.actions.userOnly, "user"), "done");
+  const entered = probe.saw(probe.actions.outer).map(caller => caller.direct_person_entry ?? null);
+  assert.equal(await s.run(probe, probe.actions.outer, "agent"), "done");
+  assert.deepEqual(entered, [true], "the person's own call entered here");
+  assert.deepEqual(probe.saw(probe.actions.userOnly).map(caller => caller.direct_person_entry ?? null), [true]);
+  const inner = probe.saw(probe.actions.inner);
+  assert.deepEqual(inner.map(caller => [caller.audience, caller.direct_person_entry ?? null]), [["user", null]],
+    "called from the plugin's own other action it keeps the person's audience (S-73) but did not enter as the person's call");
+  const handed = s.targetCallers.map(caller => caller.delegated_action);
+  assert.ok(handed[0]?.provider_id, "the target is told the provider the dispatcher pinned");
+  const exact = { capability_id: probe.actions.outer.capability_id, version: probe.actions.outer.version, provider_id: handed[0]!.provider_id };
+  assert.deepEqual(handed, [{ ...exact, direct_person_entry: true }, exact],
+    "one hop: the exact running action, marked only when the Runtime saw the person's own entry, whatever the plugin wrote on its view");
+  assert.ok(s.targetCallers.every(caller => caller.direct_person_entry === undefined), "the target's own context never carries the entry mark");
 });

@@ -128,8 +128,8 @@ test("BL-152: the round's kinds are the only ones a question in it may name; a s
     parent++;
     if (parent === 1) parentKinds = enumOf(body);
     if (parent === 1) {
-      // N31: production child roles start at 1; the scripted model must choose the current frozen character.
-      const character = JSON.stringify(body.system).match(/molis-child-[a-z0-9-]+@1/)?.[0]; assert.ok(character, "the coordinator can dispatch a child");
+      // N31: the scripted model chooses the exact character and version in the current round.
+      const character = JSON.stringify(body.system).match(/molis-child-[a-z0-9-]+@\d+/u)?.[0]; assert.ok(character, "the coordinator can dispatch a child");
       return cogniaScriptedResponse({ name: "dispatch-subagent", input: { instruction: "CHILD_ASKS which note to use.", tools: ["read", "ask-user"], character, idempotencyKey: "kinds-child" } });
     }
     const ref = JSON.stringify(body.messages).match(/sub-[a-z0-9-]+/)?.[0];

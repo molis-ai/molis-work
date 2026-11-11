@@ -301,7 +301,6 @@ function documentLanguage(initial: LanguageAsset, load: LoadAsset) {
       if (artifactLanguage) artifactLanguage.sync();
       discussion.sync();
       if (!local && changed) publishNative();
-      if (changed) for (const surface of document.querySelectorAll("[data-work-surface]:not([hidden])")) surface.dispatchEvent(new CustomEvent("molis-work:select-item", { detail: { invalidate: true } }));
     } catch { if (intent === choice) retry(choice, anchor); }
   }
   const readCurrent = () => {

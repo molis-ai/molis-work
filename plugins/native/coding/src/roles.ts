@@ -44,11 +44,11 @@ export const codingAgentManifest: AgentManifest = {
   // A named child role brings the tools it declares, as far as its parent holds them (the user's "just give the tools"):
   // a parent that leaves one out of its dispatch list no longer fails the dispatch, and a child never exceeds its parent.
   subagents: { parent_role_ids: ["coordinator", "writers"], roles: [
-    { role_id: "coding-reader", version: /* @version role.coding-reader */ 1, name: "代码调查", parent_role_ids: ["coordinator"], execution: "read-only", host_tools: ["read-file", "list", "search"] },
+    { role_id: "coding-reader", version: /* @version role.coding-reader */ 2, name: "代码调查", parent_role_ids: ["coordinator"], execution: "read-only", host_tools: ["read-file", "list", "search"] },
     // The independent reviewer may run checks such as tests in the main workspace; each command is a Host review and it has no file-writing tool.
     // It may read and wait on a background command its parent started (a long test run, say), without asking again and again.
-    { role_id: "coding-reviewer", version: /* @version role.coding-reviewer */ 1, name: "独立评审", parent_role_ids: ["coordinator"], execution: "workspace-write", host_tools: ["read-file", "list", "search", "run-command", "command-output", "await-commands"] },
-    { role_id: "coding-builder", version: /* @version role.coding-builder */ 1, name: "独立实现", parent_role_ids: ["writers"], execution: "workspace-write", host_tools: ["read-file", "list", "search", "write", "edit-file", "run-command"] },
+    { role_id: "coding-reviewer", version: /* @version role.coding-reviewer */ 2, name: "独立评审", parent_role_ids: ["coordinator"], execution: "workspace-write", host_tools: ["read-file", "list", "search", "run-command", "command-output", "await-commands"] },
+    { role_id: "coding-builder", version: /* @version role.coding-builder */ 2, name: "独立实现", parent_role_ids: ["writers"], execution: "workspace-write", host_tools: ["read-file", "list", "search", "write", "edit-file", "run-command"] },
   ] },
   mcp: true,
   compaction: { prompt_id: "coding-compaction", above_tokens: 12_000 },

@@ -71,6 +71,9 @@ export function inboxClient(host: InboxHost): void {
     if (!dialog.open) dialog.showModal(); const check = guard(); void results().catch(failure => { try { check(); error(failure, q("[data-inbox-compose-status]", form)); } catch { /* The composer is no longer current. */ } });
   };
   listen("molis-work:select-item", event => { const detail = (event as CustomEvent<{ itemId?: string | null; invalidate?: boolean }>).detail; if (detail?.invalidate) { if (scope.visible) void refresh().catch(failure => error(failure)); } else if (typeof detail?.itemId === "string") select(detail.itemId); else if (detail?.itemId === null) collapse(); });
+  root.ownerDocument.addEventListener("molis-work:language-changed", () => {
+    if (scope.visible) void refresh().catch(failure => error(failure));
+  }, { signal: scope.signal });
   listen("input", event => { if (event.target instanceof Element && event.target.closest("[data-inbox-compose]")) remember(); });
   listen("cancel", () => remember());
   listen("click", event => {

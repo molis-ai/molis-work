@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { captureRuntimeStageOwner, pluginPagesFor, runningProjectPlatform } from "@molis-ai/molis-work-app-local-host";
 import { registerPluginText } from "@molis-ai/molis-work-ui-host";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
@@ -88,8 +89,8 @@ test("S-ui-text-page FSS-09 a scope that ends during the batch check delivers no
     const fixture = connectText(f.home, project.project_id, "Never delivered");
     const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), completed = Promise.withResolvers<void>();
     const session = await pageSession(f.origin, prefix + "/");
-    pages.open = (plugin, project, actor, scope, registered, selected) => open(plugin, project, actor, async () => {
-      await scope?.(); entered.resolve(); await release.promise;
+    pages.open = (plugin, project, actor, scope, registered, selected) => open(plugin, project, actor, async shown => {
+      await scope?.(shown); entered.resolve(); await release.promise;
     }, registered, selected);
     pages.withPageText = async (...args) => {
       try { await batch(...args); } finally { completed.resolve(); }
@@ -153,11 +154,15 @@ test("S-ui-text-page FSS-09 the Coding page cannot borrow a restarted embedded G
     assert.equal(response.status, 200, await response.clone().text());
     return (await response.json()).page_id as string;
   };
-  const read = (id: string) => f.request(prefix + "/api/ui/locales?" + new URLSearchParams({ locale: "en", page: id }), { authorized: false, headers });
-  const old = await grant(), first = await read(old);
+  const read = (...ids: string[]) => f.request(prefix + "/api/ui/locales?" + new URLSearchParams([["locale", "en"], ...ids.map(id => ["page", id])]), { authorized: false, headers });
+  const old = await grant(), another = await grant();
+  const catalog = await f.host.ensureWebCatalog(f.home, openMolisWorkProjectCatalog).withCatalog({ homeDirectory: f.home }, value => value);
+  const membership = t.mock.method(catalog, "projectPluginMembership");
+  const first = await read(old, another);
   assert.equal(first.status, 200, await first.clone().text());
+  assert.equal(membership.mock.callCount(), 1, "both real page grants share one project membership read");
   const projection = (await first.json()).owners.find((item: { owner: string }) => item.owner === "io.molis.work.git");
-  assert.deepEqual(projection.embedded, [old]);
+  assert.deepEqual(projection.embedded, [old, another]);
   assert.deepEqual(projection.pages, []);
   assert.equal(projection.packs[0].messages["git.commit.submit"], "Commit…");
   await platform.runtime.stop(git.install_id);

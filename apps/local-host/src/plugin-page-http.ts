@@ -49,7 +49,7 @@ async function stagePageSelection(context: WebRequestContext, project: LocalHost
 export async function handlePluginPageHttp(context: WebRequestContext, project?: LocalHostProjectReference,
   shown?: () => Promise<readonly string[]>): Promise<boolean> {
   const { request, response, url, localHost, serverOptions } = context;
-  if (url.pathname === "/api/ui/locales") { await handlePageLocales(context, project?.project_id ?? null); return true; }
+  if (url.pathname === "/api/ui/locales") { await handlePageLocales(context, project?.project_id ?? null, shown); return true; }
   const close = /^\/api\/host\/plugin-pages\/([^/]+)$/u.exec(url.pathname);
   const action = url.pathname === "/api/host/plugin-page-actions" && request.method === "POST";
   const files = url.pathname === "/api/host/plugin-page-files" && request.method === "POST";
@@ -113,8 +113,8 @@ export async function handlePluginPageHttp(context: WebRequestContext, project?:
     const entry = PLATFORM_PLUGIN_REGISTRATIONS.find(item => item.manifest.plugin_id === body.plugin_id);
     const selected = await stagePageSelection(context, project, body);
     const key = selected?.project_key ?? entry?.project_plugin_id;
-    const assertScope = async () => {
-      if (shown && key && !(await shown()).includes(key)) throw new ActionError("actions.plugin_disabled", "此项目未启用该插件");
+    const assertScope = async (readShown = shown) => {
+      if (readShown && key && !(await readShown()).includes(key)) throw new ActionError("actions.plugin_disabled", "此项目未启用该插件");
     };
     await assertScope();
     await localHost.homePlugins?.ready();

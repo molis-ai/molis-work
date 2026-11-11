@@ -3,7 +3,7 @@ import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plu
 import type { UiLocalePack } from "@molis-ai/molis-work-contracts/platform/ui";
 import { frameUiLanguage } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { pluginTextForOwner, type PluginTextReader } from "@molis-ai/molis-work-ui-host";
-import { pluginPagesFor } from "./plugin-page-authority.js";
+import { pluginPagesFor, type ReadShownProjectPlugins } from "./plugin-page-authority.js";
 import { isWebLocale, webLanguage } from "./web-locale.js";
 import { refuseLocalWebRequest, requestHost, respondLocalWebRefusal, sendLocalWebJson } from "./web-http.js";
 import type { WebRequestContext } from "./web-route-table.js";
@@ -11,7 +11,8 @@ import { shellPageRead } from "./web-sessions.js";
 import { projectTextPacks } from "./ui-text-provider.js";
 
 /** The common web guard has already checked the page proof against its bound cookie and transport. */
-export async function handlePageLocales({ request, response, url, serverOptions }: Pick<WebRequestContext, "request" | "response" | "url" | "serverOptions">, projectId: string | null): Promise<void> {
+export async function handlePageLocales({ request, response, url, serverOptions }: Pick<WebRequestContext, "request" | "response" | "url" | "serverOptions">,
+  projectId: string | null, shown?: ReadShownProjectPlugins): Promise<void> {
   if (!shellPageRead(request, `http://${requestHost(request)}`)) { refuseLocalWebRequest(response); return; }
   if (request.method !== "GET") { sendLocalWebJson(response, 405, { error: "此入口只读取界面语言包" }); return; }
   const locale = url.searchParams.get("locale"), ids = [...new Set(url.searchParams.getAll("page"))];
@@ -42,7 +43,7 @@ export async function handlePageLocales({ request, response, url, serverOptions 
         (embedded ? existing.embedded : existing.pages).push(id);
       }
       sendLocalWebJson(response, 200, { language: frameUiLanguage(webLanguage(locale)!), shared: projectTextPacks(common, locale, true, true), owners: [...owners.values()] });
-    });
+    }, shown);
   } catch (error) {
     if (!response.destroyed) respondLocalWebRefusal({ respond: (status, body) => sendLocalWebJson(response, status, body) }, error);
   } finally { response.off("close", closed); }

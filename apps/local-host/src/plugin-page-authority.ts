@@ -43,6 +43,9 @@ interface PageTextSource {
   readonly reader: PluginTextReader | null;
   readonly embedded: boolean;
 }
+export type ReadShownProjectPlugins = () => Promise<readonly string[]>;
+type AssertPageScope = (shown?: ReadShownProjectPlugins) => Promise<void>;
+
 interface Page {
   readonly activation: Activation;
   readonly embedded: readonly Activation[];
@@ -52,7 +55,7 @@ interface Page {
   expiresAt: number;
   sessionCurrent(reader?: IncomingMessage): void;
   closing?: boolean;
-  assertScope?(): Promise<void>;
+  assertScope?: AssertPageScope;
   selection?: PageSelection;
 }
 const refused = () => new ActionError("actions.forbidden", "插件页面权限已失效或未声明此入口");
@@ -112,7 +115,7 @@ export class PluginPageAuthority {
     };
   }
 
-  open(pluginId: string, projectId: string | null, actorId: string, assertScope?: () => Promise<void>, registered?: Activation & { readonly exact?: true },
+  open(pluginId: string, projectId: string | null, actorId: string, assertScope?: AssertPageScope, registered?: Activation & { readonly exact?: true },
     selected?: PageSelection): { page_id: string; storage_scope: string } {
     const candidates = [...this.activations].filter(item => item.install_id && item.manifest.plugin_id === pluginId && item.actor_id === actorId);
     const activation = registered?.exact ? registered : selected ? candidates.find(item => item.install_id === selected.install_id && item.project_id === selected.project_id
@@ -191,7 +194,7 @@ export class PluginPageAuthority {
 
   /** Capture the same grants already minted for this document, and read their exact owners only after the last asynchronous scope check. */
   async withPageText(request: IncomingMessage, ids: readonly string[], project: string | null, signal: AbortSignal,
-    read: (sources: readonly PageTextSource[]) => void): Promise<void> {
+    read: (sources: readonly PageTextSource[]) => void, shown?: ReadShownProjectPlugins): Promise<void> {
     const entries = ids.map(id => {
       const page = this.pages.get(id);
       if (!page || page.project_id !== project) throw refused();
@@ -207,7 +210,9 @@ export class PluginPageAuthority {
       }
     };
     check();
-    await Promise.all([...new Set(entries.map(({ page }) => page.assertScope))].map(scope => scope?.()));
+    let selection: ReturnType<ReadShownProjectPlugins> | undefined;
+    const requestSelection = shown && (() => selection ??= shown());
+    await Promise.all(entries.map(({ page }) => page.assertScope?.(requestSelection)));
     check();
     read(entries.flatMap(({ id, page }) => pageTextSources(id, page)));
   }

@@ -26,7 +26,7 @@ export function feedStage(page: FeedPage) {
   };
   const shown = (row: HTMLElement) => !row.hidden && !row.closest<HTMLElement>("[data-feed-item-wrap]")?.hidden;
   const detailOf = (id: string) => '[data-feed-detail="' + CSS.escape(id) + '"]', slotOf = (id: string) => q('[data-feed-entry-detail="' + CSS.escape(id) + '"] [data-feed-item-slot]');
-  const select = async (id: string, read = false, kept?: { id: string; detail: HTMLElement | null; top: number }): Promise<void> => {
+  const select = async (id: string, read = false, kept?: ReturnType<typeof scroll>): Promise<void> => {
     const row = all(ENTRY).find(row => row.dataset.feedEntryId === id && shown(row));
     if (!row) return;
     if (id !== selected) { page.change(); materialOffset = 0; } selected = id;
@@ -49,7 +49,12 @@ export function feedStage(page: FeedPage) {
         const html = await host.view.readDocument({ object: { id: itemId, surface: "persisted-detail" }, input: { material_offset: String(materialOffset) }, signal: AbortSignal.any([controller.signal, page.signal()]) }); check();
         if (selected !== id || detailRequest !== controller) return;
         detail = new DOMParser().parseFromString(html, "text/html").querySelector(detailOf(id));
-        if (!detail) throw new Error(uiText.text("feed.stage.item-detail-response-incomplete")); slot.replaceChildren(detail); settle(detail); publish();
+        if (!detail) throw new Error(uiText.text("feed.stage.item-detail-response-incomplete"));
+        const materials = detail.querySelector<HTMLDetailsElement>(".feed-materials");
+        if (kept?.id === id && materials && kept.materialsOpen !== undefined) materials.open = kept.materialsOpen;
+        slot.replaceChildren(detail); settle(detail);
+        if (kept?.id === id) slot.scrollTop = kept.top;
+        publish();
       } catch (error) { if (error instanceof DOMException && error.name === "AbortError") return; if (selected === id && detailRequest === controller) { try { check(); if (carried) page.error(error); else placeholder(molisWorkRequest.text(error, uiText.text("feed.stage.could-not-load-item")), true); } catch { /* A departed reader keeps no late result. */ } } return; }
       finally { if (detailRequest === controller && host.scope.alive && host.scope.visible) detailRequest = null; }
     }
@@ -138,12 +143,16 @@ export function feedStage(page: FeedPage) {
     if (next) { event.preventDefault(); next.focus(); void select(next.dataset.feedEntryId!, true).catch(error => page.error(error)); }
   });
   host.scope.own(() => detailRequest?.abort());
-  const scroll = () => ({ list: q(".feed-stage-tree")?.scrollTop ?? 0, id: selected, detail: q(detailOf(selected)), top: slotOf(selected)?.scrollTop ?? 0 });
+  const scroll = () => {
+    const detail = q(detailOf(selected));
+    return { list: q(".feed-stage-tree")?.scrollTop ?? 0, id: selected, detail, top: slotOf(selected)?.scrollTop ?? 0,
+      materialsOpen: detail?.querySelector<HTMLDetailsElement>(".feed-materials")?.open };
+  };
   const open = async (id: string) => {
     if (!all(ENTRY).some(row => row.dataset.feedEntryId === id && shown(row))) {
       focusedItem = id; offset = 0; await page.refresh();
     }
     await select(id, true);
   };
-  return { open, clearFocus: () => { focusedItem = ""; }, queryInput, resetPage: () => { offset = 0; }, select, collapse, filter, click, scroll, restoreScroll: (kept: ReturnType<typeof scroll>) => { const list = q(".feed-stage-tree"); if (list) list.scrollTop = kept.list; if (selected) void select(selected, true, kept).catch(error => page.error(error)); } };
+  return { open, clearFocus: () => { focusedItem = ""; }, queryInput, resetPage: () => { offset = 0; }, select, collapse, filter, click, scroll, restoreScroll: (kept: ReturnType<typeof scroll>, read: boolean) => { const list = q(".feed-stage-tree"); if (list) list.scrollTop = kept.list; if (selected) void select(selected, read, kept).catch(page.error); } };
 }

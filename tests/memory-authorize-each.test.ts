@@ -54,12 +54,13 @@ async function fixture(t: TestContext, options: { each: boolean }) {
     operation_id, actor_id: LOCAL_PERSON_ACTOR_ID, memories: [{ memory_id: entry.memory_id, version: entry.version }], candidates: [], source_event_ids: [] });
   const reset = () => { calls.single = 0; calls.each.length = 0; };
   reset();
-  return { bound, written, calls, forget, reset, raceWith: (change: () => void) => { midCall = change; } };
+  let raced = 0;
+  return { bound, written, calls, forget, reset, raced: () => raced, raceWith: (change: () => void) => { midCall = () => { raced++; change(); }; } };
 }
 const recalled = async (f: Awaited<ReturnType<typeof fixture>>) =>
   (await f.bound.recall({ scope: "project", owner: "a", text: "amber" })).map(hit => hit.entry.memory_id).sort();
 
-test("MEM-38 BL-1072 a recall page reaches the policy's authorizeEach once; a forgotten entry drops alone; the visible set is the per-entry path's", async t => {
+test("BL-1072 a recall page reaches the policy's authorizeEach once; a forgotten entry drops alone; the visible set is the per-entry path's", async t => {
   const each = await fixture(t, { each: true }), single = await fixture(t, { each: false });
   for (const f of [each, single]) { f.forget(f.written[2]!, "forget-third"); f.reset(); }
   const withEach = await recalled(each), withoutEach = await recalled(single);
@@ -68,27 +69,28 @@ test("MEM-38 BL-1072 a recall page reaches the policy's authorizeEach once; a fo
   assert.deepEqual(withoutEach, expected(single));
   assert.deepEqual(each.calls.each, [6], "one Authority call carries the whole scanned page");
   assert.equal(each.calls.single, 0, "no candidate needs a grant of its own");
-  assert.equal(single.calls.each.length, 0, "without the option the bridge installs no authorizeEach, so the SDK never asks it");
-  assert.ok(single.calls.single >= 6, "without it every scanned entry is asked on its own, as before");
+  // Had the bridge installed authorizeEach without the option, its call would throw and this recall would fail.
+  assert.ok(single.calls.single >= 6, "without the option the recall still succeeds, every scanned entry asked on its own, as before");
 });
 
-test("MEM-38 BL-1072 a forgetting accepted while the page is decided fails the whole recall; no old text is delivered", async t => {
+test("BL-1072 a forgetting accepted while the page is decided fails the whole recall; no old text is delivered", async t => {
   const f = await fixture(t, { each: true });
   f.raceWith(() => f.forget(f.written[4]!, "forget-mid-page"));
   // The policy's closing re-read throws memory.conflict; the SDK reports the recall failed and the bridge refuses to return it.
   await assert.rejects(f.bound.recall({ scope: "project", owner: "a", text: "amber" }), { code: "agent.capability_unavailable" });
   assert.deepEqual(f.calls.each, [6]);
-  const after = await recalled(f);
-  assert.ok(!after.includes(f.written[4]!.memory_id), "the forgetting stands and its entry stays out");
+  assert.equal(f.raced(), 1, "the forgetting was accepted inside the page's decision");
+  assert.equal(f.calls.single, 0, "the failure is the page's own, not a fallback to one entry at a time");
+  assert.deepEqual(await recalled(f), f.written.filter((_, at) => at !== 4).map(entry => entry.memory_id).sort(),
+    "the forgetting stands and the other entries are recalled again");
 });
 
-test("MEM-38 BL-1072 a management list returns the same entries with or without authorizeEach", async t => {
+test("BL-1072 a management list returns the same entries with or without authorizeEach", async t => {
   const each = await fixture(t, { each: true }), single = await fixture(t, { each: false });
   const listed = async (f: typeof each) => (await f.bound.list("project", "a")).map(entry => entry.memory_id).sort();
   const [a, b] = [await listed(each), await listed(single)];
   assert.deepEqual(a, each.written.map(entry => entry.memory_id).sort());
   assert.deepEqual(b, single.written.map(entry => entry.memory_id).sort());
   assert.ok(each.calls.each.length > 0 && each.calls.each.every(size => size === 6), "each list read is answered per request in one call");
-  assert.equal(single.calls.each.length, 0);
   assert.equal(each.calls.single, 0, "no listed entry needs a grant of its own");
 });

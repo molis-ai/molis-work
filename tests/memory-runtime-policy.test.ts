@@ -38,8 +38,10 @@ async function fixture(t: TestContext, onAuthorize?: MemoryOptions["authorize"])
       record: (caller, request) => service.promotion.undo.record(caller, request) },
   } } satisfies NonNullable<Parameters<typeof createPrologueNodeAdapter>[0]["memory"]>;
   if (onAuthorize) {
-    const authorize = options.authorize;
+    const authorize = options.authorize, authorizeEach = options.authorizeEach!;
     options.authorize = async (caller, requests) => await onAuthorize(caller, requests) && authorize(caller, requests);
+    // Read pages reach the App through authorizeEach (BL-1072): the same awaited App authority, so the same hook.
+    options.authorizeEach = async (caller, requests) => await onAuthorize(caller, requests) ? authorizeEach(caller, requests) : requests.map(() => false);
   }
   let network = 0;
   t.mock.method(globalThis, "fetch", async () => { network++; throw new Error("Memory policy must not send model requests"); });

@@ -221,6 +221,8 @@ interface World {
   /** The rounds of the caller's own session, and what each command of them did. */
   runs?: Record<string, { owner?: string; commands: Record<string, Partial<{ recorded: boolean; exit_code: number | null; timed_out: boolean; cancelled: boolean; changed_after: boolean }>> } | Error>;
   spoke?: string[];
+  /** Versions cited as evidence, by `id@version`; one not listed reads like the checked version. */
+  cited?: Record<string, null | Error>;
 }
 function portsOf(world: World): GoalEvidencePorts & { asked: string[] } {
   const asked: string[] = [];
@@ -228,7 +230,10 @@ function portsOf(world: World): GoalEvidencePorts & { asked: string[] } {
     asked,
     deliverables: () => world.deliverables ?? [V1],
     selfSupportingSessions: () => new Set(world.spoke ?? []),
-    readArtifact: async () => {
+    readArtifact: async (_caller, reference) => {
+      const cited = world.cited?.[`${reference.artifact_id}@${reference.version}`];
+      if (cited instanceof Error) throw cited;
+      if (cited === null) return null;
       const artifact = world.artifact === undefined ? { producer_plugin_id: "io.molis.work.coding", origin: { kind: "pinned", revision: RUN } } : world.artifact;
       if (artifact instanceof Error) throw artifact;
       return artifact;
@@ -332,6 +337,19 @@ test("EVD-16: several requirements citing the same commands of the same round as
     events: [{ type_id: "delivery", type_version: 1, title: "t", fields: {}, judgments: [judgment("r1", ["call-test", "call-lint"]), judgment("r2", ["call-lint", "call-test"]), judgment("r3", ["call-test"])] }] });
   assert.deepEqual([...trusted.assessments.values()].map(item => item.tier), ["machine_verified", "machine_verified", "machine_verified"]);
   assert.deepEqual(ports.asked, [`${RUN}:call-lint,call-test`, `${RUN}:call-test`]);
+});
+
+test("EVD-17: a version cited as evidence that is not in the 成果库, or cannot be read, backs nothing: a passed command and another session's review both stay the reporter's own word", async () => {
+  const other = { kind: "artifact_version" as const, artifact_id: "artifact-notes", version: 3 };
+  for (const [what, found] of [["not there", null], ["unreadable", new Error("成果库读不到")]] as const) {
+    const world = { runs: passed, spoke: [SESSION], cited: { "artifact-notes@3": found } };
+    const machine = await assessed(world, basisOf(V1, [receipt("call-test"), other]));
+    assert.deepEqual([machine.assessment, machine.asked], [{ tier: "self_reported", gap: "evidence_unreadable" }, []], `a passed command, ${what}`);
+    const review = await assessed(world, basisOf(V1, [other]), { session: "session-reviewer" });
+    assert.deepEqual(review.assessment, { tier: "self_reported", gap: "evidence_unreadable" }, `a review, ${what}`);
+  }
+  // A cited version that is there changes nothing.
+  assert.deepEqual((await assessed({ runs: passed }, basisOf(V1, [receipt("call-test"), other]))).assessment, { tier: "machine_verified", gap: null });
 });
 
 test("EVD-14: a cancelled call stops at the lookup instead of saving the report as unverified", async () => {

@@ -705,6 +705,7 @@
     "action.placement.spaces": 1,
     "action.placement.unlink": 1,
     "action.plugins.bundled.list": 1,
+    "action.plugins.consents.grant_default_source": 1,
     "action.plugins.consents.list": 1,
     "action.plugins.consents.revoke": 1,
     "action.plugins.home.installed.disable": 1,

@@ -245,6 +245,7 @@ placement.related	1	system.placement	query	query	home	read	concurrent	agent,user
 placement.spaces	1	system.placement	query	query	home	read	concurrent	agent,user	placement:read	-	-	-	d746974fa9af	afb3d85a8f08	-
 placement.unlink	1	system.placement	command	operation	home	write	-	user	placement:read,placement:write	-	-	-	767463c0e660	ffe64f3e9a62	-
 plugins.bundled.list	1	plugin-install	query	query	home	read	-	user	plugin-install:read	-	-	-	99334726611c	c1d2b4a1e6c3	-
+plugins.consents.grant_default_source	1	plugin-consents	command	operation	home	write	-	user	plugin-consents:write	-	-	-	acc8deac019a	41c687ca9fa6	-
 plugins.consents.list	1	plugin-consents	query	query	home	read	-	user	plugin-consents:read	-	-	-	0f4df4950e13	8c0cd2b99249	-
 plugins.consents.revoke	1	plugin-consents	command	operation	home	write	-	user	plugin-consents:write	-	-	-	3d297df1d589	41c687ca9fa6	-
 plugins.home.installed.disable	1	plugin-install	command	operation	home	write	-	user	plugin-install:write	-	-	-	52c1f91a2943	ed1bbfdbc8a1	-

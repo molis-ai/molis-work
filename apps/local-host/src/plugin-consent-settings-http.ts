@@ -16,6 +16,7 @@ export async function handlePluginConsentSettingsHttp({ request, response, url, 
     : url.pathname === "/api/settings/plugin-project-reach/revoke" ? projectReachActions.revoke : undefined;
   const definition = reach ?? (url.pathname === "/api/settings/plugin-consents/list" ? pluginConsentActions.list
     : url.pathname === "/api/settings/plugin-consents/revoke" ? pluginConsentActions.revoke
+    : url.pathname === "/api/settings/plugin-consents/grant-default-source" ? pluginConsentActions.grantDefaultSource
     : url.pathname === "/api/settings/plugin-publishers/revoke" ? pluginInstallActions.revokePublisher : undefined);
   if (request.method !== "POST" || !definition) return false;
   const controller = new AbortController();

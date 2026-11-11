@@ -81,3 +81,31 @@ test("BSH-06 the Host agrees for its build to read system.materials by default o
   const person = upgraded.record({ ...entry(DIFF, [grant]), granted_by: "user" as const });
   assert.equal(person.length, 1, "the person's own agreement is recorded");
 });
+
+test("BSH-06 the person agrees to a shipped plugin's default from system.materials only through the Host's settings entry, and only to what its Manifest declares", { timeout: 60_000 }, async t => {
+  const { openTestHome } = await import("./fixtures/test-home.js");
+  const { HomeConsentLedger, PLUGIN_CONSENT_PERMISSIONS, pluginConsentActions } = await import("@molis-ai/molis-work-app-local-host");
+  const { ActionError, LOCAL_PERSON_ACTOR_ID } = await import("@molis-ai/molis-work-contracts/platform/actions");
+  const f = await openTestHome(t);
+  const DIFF_ID = "io.molis.work.diff";
+  const grant = (input: unknown) => f.web.post<{ consent: { subject: string; granted_by: string; revoked_at: string | null } }>("/api/settings/plugin-consents/grant-default-source", input);
+  const subject = consentSubject.defaultWiring("before", { plugin_id: MATERIALS_PROVIDER_ID, port: "before" }, SYSTEM_MATERIALS_SOURCE.signature);
+  const { consent } = await grant({ plugin_id: DIFF_ID, port: "before" });
+  assert.deepEqual([consent.subject, consent.granted_by, consent.revoked_at], [subject, "user", null]);
+  assert.ok(new HomeConsentLedger(f.home).consents(DIFF_ID).some(row => row.subject === subject && row.granted_by === "user" && row.revoked_at === null));
+  // Agreeing again keeps the one standing row.
+  await grant({ plugin_id: DIFF_ID, port: "before" });
+  assert.equal(new HomeConsentLedger(f.home).consents(DIFF_ID).filter(row => row.subject === subject && row.revoked_at === null).length, 1);
+  // A port whose default is another plugin's, a port it does not have, and a plugin the Host does not ship are refused, and nothing is written.
+  const rows = new HomeConsentLedger(f.home).consents(DIFF_ID).length;
+  for (const input of [{ plugin_id: DIFF_ID, port: "changeset" }, { plugin_id: DIFF_ID, port: "nothing" }, { plugin_id: "io.molis.work.example.someone", port: "before" }]) {
+    await assert.rejects(grant(input), (error: unknown) => (error as { code?: string }).code === "actions.target_invalid", JSON.stringify(input));
+  }
+  assert.equal(new HomeConsentLedger(f.home).consents(DIFF_ID).length, rows);
+  // Not through the settings entry (a forged audit line, or none): refused before the ledger.
+  for (const user_action of [undefined, { source: "web", conversation_ref: "web:settings:plugin-consents", message_ref: "web:request:forged" }] as const) {
+    await assert.rejects(f.host.homeActionClient().invoke({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user", permissions: PLUGIN_CONSENT_PERMISSIONS, ...(user_action ? { user_action } : {}) },
+      pluginConsentActions.grantDefaultSource, { plugin_id: DIFF_ID, port: "after" }), (error: unknown) => error instanceof ActionError && error.code === "actions.forbidden");
+  }
+  assert.ok(!new HomeConsentLedger(f.home).consents(DIFF_ID).some(row => row.subject.startsWith("after<-system.materials") && row.granted_by === "user"));
+});

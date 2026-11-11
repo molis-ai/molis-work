@@ -6,7 +6,7 @@
 
 [27-4](../../../post-anticorruption-roadmap/reference/batches/27.md#batch-27-item-4) 的目标仍是交付、验收原有余项。本人能在「插件」里收回、恢复沙箱插件的一项权限，安装和数据都保留。本人直接从 Feed 升格时，Goals 确认来源和输入，其余调用者只能提议。插件的清理钩子失去响应时，宿主在规定时间内结束对它的等待，完成自身清理，停用、重启、卸载和关闭能继续。最终要在隔离 Home 走实际入口，带持久记录和拒绝证据。权限界面复用已有开关和确认，按第 27 批的界面要求核实成品和本人验收。工程、实操、本人验收分别记录。
 
-三项都属于横向能力和底层安全／可靠性，BL-701 还涉及工作台体验，BL-803 涉及 Feed／Goals 产品线。基点已有 02、07 提供的动作、安装及测试入口，日志衔接 [26-4](../../../post-anticorruption-roadmap/reference/batches/26.md#batch-26-item-4)。范围取自 [BL-701](../../../backlog/BL-701.md)、[BL-803](../../../backlog/BL-803.md)、BL-367（已实现，待办已删） 和 [需求清单](../../../post-anticorruption-roadmap/reference/requirements.md#section-3-8)。旧生成器的读取清理随 [46](../../../post-anticorruption-roadmap/reference/batches/46.md)，本机统计随 [74](../../../post-anticorruption-roadmap/reference/batches/74.md)，可选上报随 [SRV-8](../../../post-anticorruption-roadmap/reference/batches/srv-8.md)。
+三项都属于横向能力和底层安全／可靠性，BL-701 还涉及工作台体验，BL-803 涉及 Feed／Goals 产品线。基点已有 02、07 提供的动作、安装及测试入口，日志衔接 [26-4](../../../post-anticorruption-roadmap/reference/batches/26.md#batch-26-item-4)。范围取自 [BL-701](../../../backlog/BL-701.md)、BL-803（已实现，待办已删）、BL-367（已实现，待办已删） 和 [需求清单](../../../post-anticorruption-roadmap/reference/requirements.md#section-3-8)。旧生成器的读取清理随 [46](../../../post-anticorruption-roadmap/reference/batches/46.md)，本机统计随 [74](../../../post-anticorruption-roadmap/reference/batches/74.md)，可选上报随 [SRV-8](../../../post-anticorruption-roadmap/reference/batches/srv-8.md)。
 
 ## BL-701 沙箱插件的可选权限
 
@@ -73,6 +73,8 @@
 | B27-PERM-04 | 重启同一隔离 Home，验证已关权限仍关。签名同发布者升级实际缩小请求或新增已批准域名，关闭保持关闭；失败升级和生成插件回滚保留原授权及数据。原包/签名/批准缺失或被撤销，恢复与放宽拒绝，卸载依 BL-915 的批准范围。用同一夹具在真实设置页验证宽权限确认、取消不发 setter、重开后调用成功。 |
 
 ## BL-803 Goals 只认实际的 Feed 升格
+
+**实现记录（2026-11-11，第 27 批，按推荐 A）**：合同 `ActionExecutionContext.direct_person_entry?: true`、`ActionCallContext.delegated_action?`（`platform/actions`，字段写在 `action-source.ts` 再由两个接口继承，免得 `actions.ts` 超过巨大单元的行数；API 快照已更新，动作快照无变化）。Runtime 在 `action-provider.ts` 的 `entrySource` 里只在 `current_action` 正是这条登记时记下精确动作，并在受众 `user`、无 `delegated_by`、无 `scene_binding`、`currentPluginInvocation()` 为空时加 `direct_person_entry`；存进 `PluginActionScope.source`，插件视图上的同名字段先删后按它设（`callback-context.ts`）。后台执行接续时 `source` 置空；场景的嵌套调用者与委托的嵌套调用者先去掉原调用者带的两个字段。Host 委托从 `scope.source` 给 `delegated_action`。Goals 的 `PERSON_SOURCE_ACTIONS` 把 `feed`、`feed_item` 都收到 `feed.items.promote@1`／`io.molis.work.feed`，Feed 的 `by_person` 改读 `direct_person_entry`。证明：`tests/security-invariants-plugin-self-call.test.ts`「B27-DELEGATE-02 B27-DELEGATE-03」（真实 Home Runtime：本人直接调用带标记、Agent 的不带、插件改自己视图不算、本人经插件自己另一个动作转调不带，目标只拿到一跳）；`tests/security-invariants-goals-person.test.ts` 与 `tests/feed-goal-promotion.test.ts` 加了「只有插件名没有动作」「Feed 别的动作」「未本人进入」「错版本」「错提供方」各一行，都只提议；真实本人升格（B27-DELEGATE-01）由 `tests/feed-goal-promotion.test.ts` 第一例照旧断言 `confirmed` 与渠道 `feed`。B27-DELEGATE-04 的取消、撤权交错沿用该文件已有的「withdrawn while Goals worked」几例，没有改动。**断言的预期变化**：两份测试原来把「只带 Feed 插件名、没有动作证明」的手造调用者当本人，现在按本设计算提议，改为带上证明，并另加一行断言没有证明时只提议。
 
 ### 基点和调用链
 

@@ -95,7 +95,7 @@ export async function installedPluginsInProject(source: ProjectPluginHost, proje
     // A publisher the person took back since this project last looked: its installations are stopped before they are listed.
     await installed?.reconcilePublishers();
     // Why a package of this project is not running, when its plugin host knows; a plugin of the Host's build has none here.
-    return installedPluginEntries(runtime.store.db).map(entry => ({ ...entry, recoveryError: installed?.recoveryErrors.get(entry.record.plugin_id) }));
+    return installedPluginEntries(runtime.store.db).map(entry => ({ ...entry, recoveryCode: installed?.recoveryErrors.code(entry.record.plugin_id) }));
   });
   // The Home's own packages of that publisher stop the same way.
   await source.homePlugins()?.reconcilePublishers();
@@ -141,7 +141,7 @@ export async function installedHomePlugins(homePlugins: HomePluginHost | undefin
   await homePlugins.ready();
   await homePlugins.reconcilePublishers();
   return homePlugins.installations().filter(record => record.state !== "uninstalled")
-    .map(record => ({ record, manifest: homePlugins.manifest(record.plugin_id), recoveryError: homePlugins.packageError(record.plugin_id) }));
+    .map(record => ({ record, manifest: homePlugins.manifest(record.plugin_id), recoveryCode: homePlugins.packageErrorCode(record.plugin_id) }));
 }
 
 /**

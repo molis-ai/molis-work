@@ -2,6 +2,7 @@
 export const PLUGIN_TRUST_EN: Record<string, string> = {
   "发布者的信任已撤销": "Publisher trust has been revoked",
   "插件版本与当前平台不匹配": "The plugin version does not match this platform",
+  "找不到这个插件安装时的包，只能卸载": "The package this plugin was installed from is missing; it can only be uninstalled",
   "插件暂时无法启动，请重试或查看诊断": "The plugin could not start; retry or check diagnostics",
   "项目插件成员请求无效": "Invalid project plugin membership request",
   "项目地址无效": "Invalid project address",

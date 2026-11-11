@@ -38,6 +38,7 @@ import { APPROVED_KEY, installedLifecycle } from './installed-plugin-lifecycle.j
 import { forgetInstallationConnections } from './plugin-installation-cleanup.js';
 import { forgetTaskGrantSubjects } from './task-grant-subjects.js';
 import { withPluginWords } from "@molis-ai/molis-work-app-workbench";
+import { RecoveryErrors } from './installed-recovery-errors.js';
 
 export const INSTALLED_MODEL_KEY = 'plugin-builder:agent-studio:model';
 const SIGNATURE = installedSignature('');
@@ -135,7 +136,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
   const releaseFor = (pluginId: string): InstalledRelease | undefined => {
     const record = recordFor(pluginId);
     if (!record) return undefined;
-    if (record.publisher_trust === 'pinned') { try { return packagedFor(record); } catch (error) { recoveryErrors.set(pluginId, error instanceof Error ? error.message : String(error)); return undefined; } }
+    if (record.publisher_trust === 'pinned') { try { return packagedFor(record); } catch (error) { recoveryErrors.set(pluginId, error); return undefined; } }
     return releases.versions(record.publisher_signature.slice(SIGNATURE.length)).find(item => releaseVersion(item.version) === record.version);
   };
   const approvedFor = (pluginId: string): SandboxEffects | null => { const raw = storage.get(APPROVED_KEY + pluginId); return raw === null ? null : JSON.parse(raw); };
@@ -166,7 +167,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
     },
     selection: () => { const raw = storage.get(INSTALLED_MODEL_KEY); return raw ? JSON.parse(raw) : configuredModelChoices(homeDirectory)[0] ?? null; } });
   const disposePlatform = registerPlatformCapabilities(actions, { generate });
-  const exposed = new Map<string, InstalledPluginActions>(), recoveryErrors = new Map<string, string>();
+  const exposed = new Map<string, InstalledPluginActions>(), recoveryErrors = new RecoveryErrors();
   const withdraw = (pluginId: string) => { exposed.get(pluginId)?.dispose(); exposed.delete(pluginId); exposureRevision++; };
   const expose = installedPluginExposure({ actions, platform, exposed, recoveryErrors, recordFor, closed: () => closed, withdraw,
     changed: () => { exposureRevision++; }, catalog });
@@ -208,7 +209,8 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
       try {
         if (!standing.trusted(record)) { await stops.suspend(record); continue; }
         const release = releaseFor(record.plugin_id), approved = approvedFor(record.plugin_id);
-        if (!release) throw new Error(recoveryErrors.get(record.plugin_id) ?? '找不到已安装版本 ' + record.version + ' 的发布记录');
+        // The reason its package could not be read back is already recorded, with its own code (BL-915): kept, not wrapped.
+        if (!release) { if (!recoveryErrors.has(record.plugin_id)) recoveryErrors.set(record.plugin_id, '找不到已安装版本 ' + record.version + ' 的发布记录'); continue; }
         if (!approved) throw new Error('找不到此安装的批准记录，请在创作台卸载并保留数据，再重新确认安装');
         registerPrompts(release, record.state === 'disabled' || record.state === 'quarantined' ? 'disabled' : 'enabled');
         if (record.state === 'disabled' || record.state === 'quarantined') {
@@ -219,7 +221,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
         const report = await platform.start([{ definition: definition(release, approved), grants: record.grants, ...release.packaged ? { trust: release.packaged.trust } : {} }]);
         if (report.running.includes(record.plugin_id)) await expose(release);
         else throw new Error(platform.supervisor.state(record.plugin_id)?.message ?? '安装插件未能恢复');
-      } catch (error) { recoveryErrors.set(record.plugin_id, error instanceof Error ? error.message : String(error)); }
+      } catch (error) { recoveryErrors.set(record.plugin_id, error); }
     }
 
     return { platform, storage, actions, releases, catalog, capabilityFor, network, secrets, lifecycle, close, records, releaseFor, recoveryErrors,

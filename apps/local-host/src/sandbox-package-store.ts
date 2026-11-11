@@ -15,6 +15,10 @@ import { pluginManifestDigest, verifyPluginPackageSignature } from '@molis-ai/mo
 import { isContentPackage, isIntegrationPackage, readKeptPackage, type KeptPackage, type SandboxPackage } from './sandbox-package.js';
 import type { InstalledRelease } from './installed-release.js';
 
+/** `ENOENT` is a missing package; any other failure to read a file that should be there is an invalid one. */
+const missingOr = (error: unknown, said: string) => (error as { code?: unknown } | null)?.code === 'ENOENT' ? pluginErrors.package_missing(said) : pluginErrors.package_invalid(said);
+
+
 const BUNDLE_FILE = 'bundle.json';
 
 /**
@@ -106,12 +110,19 @@ export class SandboxPackageStore {
   private read(pluginId: string, keyId: string, version: string) {
     const directory = this.directory(pluginId, keyId, version);
     let raw: unknown;
-    try { raw = JSON.parse(readFileSync(join(directory, BUNDLE_FILE), 'utf8')); } catch { throw new Error('找不到已安装的插件包：' + pluginId + ' ' + version); }
+    let text: string;
+    // A file that is not there is a missing package; one that is there and does not read as a signed bundle is an invalid one (BL-915).
+    try { text = readFileSync(join(directory, BUNDLE_FILE), 'utf8'); } catch (error) { throw missingOr(error, '找不到已安装的插件包：' + pluginId + ' ' + version); }
+    try { raw = JSON.parse(text); } catch { throw pluginErrors.package_invalid('已存的插件包读不出来：' + pluginId + ' ' + version); }
     const { bundle, key_id } = verifyPluginPackageSignature(raw);
     const { manifest } = bundle.payload;
-    if (key_id !== keyId || manifest.plugin_id !== pluginId || manifest.version !== version) throw new Error('已存的插件包与安装记录对不上：' + pluginId + ' ' + version);
+    if (key_id !== keyId || manifest.plugin_id !== pluginId || manifest.version !== version) throw pluginErrors.package_invalid('已存的插件包与安装记录对不上：' + pluginId + ' ' + version);
     const pkg = readKeptPackage(bundle.payload);
-    if ('entrypoint' in pkg && !Buffer.from(readFileSync(join(directory, SANDBOX_PACKAGE_FILES.entrypoint))).equals(Buffer.from(pkg.entrypoint))) throw new Error('已存的插件代码被改过：' + pluginId + ' ' + version);
+    if ('entrypoint' in pkg) {
+      let entry: Buffer;
+      try { entry = readFileSync(join(directory, SANDBOX_PACKAGE_FILES.entrypoint)); } catch (error) { throw missingOr(error, '找不到已安装插件的代码：' + pluginId + ' ' + version); }
+      if (!entry.equals(Buffer.from(pkg.entrypoint))) throw pluginErrors.package_invalid('已存的插件代码被改过：' + pluginId + ' ' + version);
+    }
     return { pkg, bundle, directory };
   }
 

@@ -17,6 +17,7 @@ import type { PluginPlatform } from './plugin-platform.js';
 export type InstalledPluginPlatform = Pick<PluginPlatform, 'runtime' | 'supervisor' | 'start' | 'consents' | 'upgrade' | 'rollback'>;
 import type { PluginSecrets } from './plugin-builder/secrets.js';
 import { changeInstalledVersion } from './installed-plugin-version.js';
+import type { RecoveryErrors } from './installed-recovery-errors.js';
 
 export const APPROVED_KEY = 'plugin-builder:agent-studio:approved:';
 
@@ -29,7 +30,7 @@ export interface InstalledLifecycleContext {
   storage: PluginPrivateStorage;
   privateStorage: SqlitePluginPrivateStorage;
   secrets: PluginSecrets;
-  recoveryErrors: Map<string, string>;
+  recoveryErrors: RecoveryErrors;
   closed(): boolean;
   /** Whether the publisher behind a package installation is still trusted (BL-559); a record not from a package always is. */
   trusted(record: PluginInstanceRecord): boolean;

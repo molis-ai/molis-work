@@ -5,7 +5,9 @@ import { platformPermissionMeaning, type PluginInstalledPermissionView, type Plu
 import type { PluginConsentLedger } from '@molis-ai/molis-work-plugin-runtime';
 
 /** One installation of a project or of the Home, the Manifest it was installed with (undefined when that cannot be read), and why it is not running when its plugin host knows. */
-export interface InstalledPluginEntry { record: PluginInstanceRecord; manifest: PluginManifest | undefined; recoveryError?: string;
+export interface InstalledPluginEntry { record: PluginInstanceRecord; manifest: PluginManifest | undefined;
+  /** Why it is not running, as a code of ours (`RecoveryErrors.code`); none while it runs or when its plugin host does not know. */
+  recoveryCode?: string;
   /** Recomputed from a validated saved package, never a second persisted grant list. Ordinary plugins request every declared row. */
   requestedPermissions?: readonly string[] }
 
@@ -36,10 +38,10 @@ export const jobViews = (manifest: PluginManifest): PluginJobView[] =>
 /** The plugin detail page's rows (ac-trust T7): the trust the install carries, what it asked for and runs, and the agreements the person gave it. */
 export function installedPluginViews(entries: readonly InstalledPluginEntry[], ledger: PluginConsentLedger): PluginInstalledView[] {
   const pins = new Map(ledger.publishers().map(pin => [pin.key_id, pin]));
-  return entries.map(({ record, manifest, recoveryError, requestedPermissions }) => ({
+  return entries.map(({ record, manifest, recoveryCode, requestedPermissions }) => ({
     install_id: record.install_id, plugin_id: record.plugin_id, name: manifest?.name ?? record.plugin_id, version: record.version, state: record.state,
     trust: record.publisher_trust, publisher_signature: record.publisher_signature, publisher_label: pins.get(record.publisher_signature)?.label ?? null,
     manifest_available: manifest !== undefined, permissions: manifest ? installedPermissionViews(manifest, record.grants, requestedPermissions, projectedPermissionsOf(record)) : [], jobs: manifest ? jobViews(manifest) : [],
-    consents: ledger.consents(record.plugin_id), recovery_error: recoveryError ? (record.last_error_code && ACTION_ERROR_CODE.test(record.last_error_code) ? record.last_error_code : "plugin.package_invalid") : null,
+    consents: ledger.consents(record.plugin_id), recovery_error: recoveryCode ? (recoveryCode === "plugin.package_invalid" && record.last_error_code && ACTION_ERROR_CODE.test(record.last_error_code) ? record.last_error_code : recoveryCode) : null,
   }));
 }

@@ -162,6 +162,8 @@ export class HomePluginHost {
   }
   /** Why an installed package is not running, when it was not started or stopped itself; none when nothing is wrong with it. */
   packageError(pluginId: string): string | undefined { return this.installed?.recoveryErrors.get(pluginId); }
+  /** The same reason as a code of ours, what the installed list hands the page (BL-915). */
+  packageErrorCode(pluginId: string): string | undefined { return this.installed?.recoveryErrors.code(pluginId); }
   installations(): PluginInstanceRecord[] {
     if (this.platform) return this.platform.runtime.list();
     if (this.startFailure !== undefined) throw this.startFailure;

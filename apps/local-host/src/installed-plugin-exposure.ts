@@ -6,10 +6,11 @@ import { installedVersion, type InstalledRelease } from './installed-release.js'
 import { withProjectReachInvocation } from './plugin-project-reach-subject.js';
 import { followInstalledActions } from './installed-action-registration.js';
 import { operationGrantAvailability } from './installed-permission-projection.js';
+import type { RecoveryErrors } from './installed-recovery-errors.js';
 
 interface ExposurePorts {
   actions: Parameters<typeof exposeInstalledPlugin>[0]; platform: Pick<PluginPlatform, 'runtime' | 'supervisor' | 'router'>;
-  exposed: Map<string, InstalledPluginActions>; recoveryErrors: Map<string, string>;
+  exposed: Map<string, InstalledPluginActions>; recoveryErrors: RecoveryErrors;
   recordFor(pluginId: string): PluginInstanceRecord | undefined;
   closed(): boolean; withdraw(pluginId: string): void; changed(): void; catalog(): Promise<unknown>;
 }
@@ -45,7 +46,7 @@ export function installedPluginExposure(c: ExposurePorts) {
       if (!current()) throw new ActionError('actions.provider_replaced', '原插件曝光已失效，不能采用旧目录结果');
     } catch (error) {
       if (current()) {
-        c.recoveryErrors.set(pluginId, error instanceof Error ? error.message : String(error));
+        c.recoveryErrors.set(pluginId, error);
         // Install/enable owns their cleanup; a version switch restores its old release and keys instead of revoking itself first.
         if (onFailure !== 'caller') {
           c.withdraw(pluginId); c.platform.supervisor.revoke(pluginId);

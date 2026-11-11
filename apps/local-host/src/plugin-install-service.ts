@@ -393,7 +393,7 @@ export class PluginInstallService {
   private views(entries: InstalledPluginEntry[]): PluginInstalledView[] {
     return installedPluginViews(entries.map(entry => {
       try { return { ...entry, requestedPermissions: this.requested(entry) }; }
-      catch (error) { return { ...entry, manifest: undefined, recoveryError: error instanceof Error ? error.message : String(error) }; }
+      catch (error) { const code = (error as { code?: unknown } | null)?.code; return { ...entry, manifest: undefined, recoveryCode: typeof code === 'string' ? code : 'plugin.package_invalid' }; }
     }), this.ports.ledger);
   }
 

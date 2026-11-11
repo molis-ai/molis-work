@@ -29,6 +29,8 @@ export const pluginErrors = defineErrorCodes("plugin", {
   manifest_invalid: "invalid",
   manifest_version_invalid: "invalid",
   package_invalid: "invalid",
+  /** The signed package an installation names is not in the package store: no bundle, or no entry file (BL-915). Not the same as one there and not valid. */
+  package_missing: "not_found",
   permission_invalid: "invalid",
   preview_unknown: "not_found",
   publisher_revoked: "invalid",

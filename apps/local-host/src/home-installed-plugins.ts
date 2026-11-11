@@ -31,6 +31,7 @@ import { SandboxPackageStore } from './sandbox-package-store.js';
 import { sandboxedIntegrationDefinition } from './sandbox-integration.js';
 import type { SandboxServiceContext } from '@molis-ai/molis-work-plugin-sandbox';
 import { projectReachConsents } from './plugin-project-reach-consent.js';
+import { RecoveryErrors } from './installed-recovery-errors.js';
 
 /** What the Home's installs are kept under where a project's id would go: the approval, the secrets and the prompt registrations. Not a project's id. */
 export const HOME_INSTALL_SCOPE = '~home';
@@ -62,14 +63,13 @@ export interface HomeInstalledPluginsOptions {
 export type HomeInstalledPlugins = Awaited<ReturnType<typeof openHomeInstalledPlugins>>;
 
 const noBuilds = { get: () => null };
-const said = (error: unknown) => error instanceof Error ? error.message : String(error);
 
 export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOptions) {
   const { home, platform } = options;
   const actions: ProjectActions = { ...options.actions, project_id: null };
   const storage = studioStorage(options.db, HOME_INSTALL_SCOPE);
   const packages = new SandboxPackageStore(home), packaged = new Map<string, InstalledRelease>(), declared = declaredOnlyHolds(pluginHomeFor(home));
-  const exposed = new Map<string, InstalledPluginActions>(), recoveryErrors = new Map<string, string>();
+  const exposed = new Map<string, InstalledPluginActions>(), recoveryErrors = new RecoveryErrors();
   let closed = false, exposureRevision = 0, catalogPending: Promise<CatalogCapability[]> | undefined;
   const isClosed = () => closed || options.closed();
   /** Packages from a signed publisher that run in the sandbox: the only installs of the Home that are not of the Host's build. */
@@ -94,7 +94,7 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
       let release = packaged.get(key);
       if (!release) { release = packages.load(record.plugin_id, record.publisher_signature, record.version); packaged.set(key, release); }
       return release;
-    } catch (error) { recoveryErrors.set(pluginId, said(error)); return undefined; }
+    } catch (error) { recoveryErrors.set(pluginId, error); return undefined; }
   };
   const approvedFor = (pluginId: string): SandboxEffects | null => { const raw = storage.get(APPROVED_KEY + pluginId); return raw === null ? null : JSON.parse(raw); };
   const assertInstalled = (identity: Readonly<SandboxIdentity>) => {
@@ -209,7 +209,8 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
       try {
         if (!standing.trusted(record)) { await stops.suspend(record); continue; }
         const release = releaseFor(record.plugin_id), approved = approvedFor(record.plugin_id);
-        if (!release) throw new Error(recoveryErrors.get(record.plugin_id) ?? '找不到已安装版本 ' + record.version + ' 的发布记录');
+        // The reason its package could not be read back is already recorded, with its own code (BL-915): kept, not wrapped.
+        if (!release) { if (!recoveryErrors.has(record.plugin_id)) recoveryErrors.set(record.plugin_id, '找不到已安装版本 ' + record.version + ' 的发布记录'); continue; }
         if (!approved) throw new Error('找不到此安装的批准记录，请先卸载并重新确认安装');
         assertHomePackageAllowed(release.packaged!.manifest);
         registerPrompts(release, record.state === 'disabled' || record.state === 'quarantined' ? 'disabled' : 'enabled');
@@ -221,7 +222,7 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
         const report = await platform.start([{ definition: definition(release, approved), grants: record.grants, ...release.packaged ? { trust: release.packaged.trust } : {} }]);
         if (report.running.includes(record.plugin_id)) await expose(release);
         else throw new Error(platform.supervisor.state(record.plugin_id)?.message ?? '安装插件未能恢复');
-      } catch (error) { recoveryErrors.set(record.plugin_id, said(error)); }
+      } catch (error) { recoveryErrors.set(record.plugin_id, error); }
     }
   } catch (error) { close(); throw error; }
 

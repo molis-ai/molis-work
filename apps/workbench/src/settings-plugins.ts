@@ -195,7 +195,7 @@ summary.append(copy); const mark = $("chevron"); if (mark) summary.append(mark.c
 const body = el("div", "plugin-trust-body");
 body.append(el("span", "settings-muted", plugin.plugin_id + (plugin.publisher_signature && plugin.trust !== "host" ? " · " + short(plugin.publisher_signature) : "")));
 if (revoked && revoked.has(plugin.publisher_signature)) body.append(el("span", "settings-muted", L("发布者的信任已撤销：它不再运行，只能卸载")));
-else if (plugin.recovery_error) body.append(el("span", "settings-form-error", L("没能启动：{error}", { error: L(plugin.recovery_error === "plugin.publisher_revoked" ? "发布者的信任已撤销" : plugin.recovery_error === "plugin.manifest_version_invalid" ? "插件版本与当前平台不匹配" : "插件暂时无法启动，请重试或查看诊断") })));
+else if (plugin.recovery_error) body.append(el("span", "settings-form-error", L("没能启动：{error}", { error: L(plugin.recovery_error === "plugin.publisher_revoked" ? "发布者的信任已撤销" : plugin.recovery_error === "plugin.manifest_version_invalid" ? "插件版本与当前平台不匹配" : plugin.recovery_error === "plugin.package_missing" ? "找不到这个插件安装时的包，只能卸载" : "插件暂时无法启动，请重试或查看诊断") })));
 const work = el("div"), repaint = () => work.replaceChildren(jobs(plugin.jobs, plugin.permissions));
 if (plugin.manifest_available) { body.append(grants(plugin, repaint, send, managed)); repaint(); body.append(work); } else body.append(el("span", "settings-muted", L("读不到这个插件安装时声明的权限")));
 const reach = act === homeApi ? reachViews.get(plugin.plugin_id) : null;

@@ -791,7 +791,7 @@
       "sha256": "6893801bb36df43630c0ea1cfe44eb08c2fcd0b57ae0b0abbffab42623ad5a78",
       "gitBlob": "0c7e8e75d8729017e415faba443e5f72118ddc99",
       "commit": "1cc80b05253df798eeb34afff65d1bda06bee587",
-      "description": "Molis main 自 #1064 起所用的同名 memory-p0 包，来源上游 1cc80b05（含 #107）。2026-11-11 由 Memory V0 收口（#2020）换成上游 main 314a27a7（#109 合并，含 1cc80b05）重建的同名包；旧包从 Git 历史取回。"
+      "description": "Molis main 自 #1064 起所用的同名 memory-p0 包，来源上游 1cc80b05（含 #107）。2026-11-11 由 Memory V0 收口（#2020）换成上游 main 1128126d（#109、#110、#111 合并后，含 1cc80b05）重建的同名包；#2020 分支上途经的 314a27a7 包没有进 main；旧包从 Git 历史取回。"
     }
   ],
   "notes": [

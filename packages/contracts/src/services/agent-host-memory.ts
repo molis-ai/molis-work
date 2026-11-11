@@ -110,7 +110,9 @@ export interface AgentMemoryRecallFact {
     cost?: { recaller_calls: number; recaller_usage?: { input_tokens?: number; output_tokens?: number; cached_input_tokens?: number };
       directory_entries: number | "unknown"; directory_enumerations: number | "unknown"; directory_traversal: "full" | "bounded" | "unknown";
       metadata_reads: number | "unknown"; body_reads: number | "unknown"; records_scanned: number | "unknown";
-      candidates_exposed: number; elapsed_ms: number; complete: boolean } }>;
+      candidates_exposed: number; complete: boolean;
+      /** Measured on this machine: only a Run read while its events are live has it; a saved Run does not keep it (Prologue `serializeEvents`). */
+      elapsed_ms?: number } }>;
   /** Latest disposition of each prepared model call, measured with its complete memory wrapper. */
   contexts?: Array<{ call_id: string; status: "prepared" | "not-dispatched" | "dispatched-or-unknown" | "response-observed";
     tokens: number; budget_tokens: number; basis: "conservative-estimate" | "provider-reported";

@@ -120,7 +120,15 @@ for (const strategy of ["keyword", "vector-fallback"] as const) test(`${strategy
     await adapter.close(); adapter = await open();
     failUsage = false;
     const recovered = await adapter.read(first.ref);
-    assert.deepEqual(recovered.memory_recalled?.retrievals, first.memory_recalled?.retrievals, "Run replay preserves the exact attempts and cost without rerunning retrieval");
+    // The measured recall time belongs to the live run on this machine only: a saved Run does not keep it (Prologue
+    // serializeEvents), so the replay is the live view less elapsed_ms, everything else exactly as it was.
+    const unmeasured = first.memory_recalled?.retrievals.map(({ cost, ...rest }) => {
+      if (!cost) return rest;
+      const { elapsed_ms: _measured, ...kept } = cost;
+      return { ...rest, cost: kept };
+    });
+    assert.ok(recovered.memory_recalled?.retrievals.every(item => item.cost?.elapsed_ms === undefined), "a replayed Run carries no measured time");
+    assert.deepEqual(recovered.memory_recalled?.retrievals, unmeasured, "Run replay preserves the exact attempts and cost without rerunning retrieval");
     assert.equal(requests.length, 1, "restoring the original receipt does not dispatch another model request");
     assert.equal(recovered.memory_recalled?.recording_error, undefined);
     const firstUse = service.uses({ work_id: "work-context" });

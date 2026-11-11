@@ -24,7 +24,7 @@ export function applyMemoryRecalled(state: PrologueStreamState, event: PrologueE
         } } : {}),
         directory_entries: cost.directoryEntries, directory_enumerations: cost.directoryEnumerations, directory_traversal: cost.directoryTraversal,
         metadata_reads: cost.metadataReads, body_reads: cost.bodyReads, records_scanned: cost.recordsScanned,
-        candidates_exposed: cost.candidatesExposed, elapsed_ms: cost.elapsedMs, complete: cost.complete } } : {}) }] : [])] };
+        candidates_exposed: cost.candidatesExposed, ...(cost.elapsedMs !== undefined ? { elapsed_ms: cost.elapsedMs } : {}), complete: cost.complete } } : {}) }] : [])] };
   return true;
 }
 

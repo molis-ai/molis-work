@@ -9,28 +9,28 @@
   "source": {
     "repository": "git+https://github.com/molis-ai/molis-prologue.git",
     "path": "packages/sdk",
-    "commit": "314a27a73aa1674faa1c0a4d4dce7f137f97c37c",
-    "tree": "4196b1320ef9352c9d8c845399bff290d75a10c8",
+    "commit": "1128126de14e9209152f7dc36d152991fb933aea",
+    "tree": "4b46fffd9a42406be616e194b39ac250b964430b",
     "dirty": false,
     "dirtyPaths": [],
     "patches": [],
-    "baseCommit": "008e1b0f7dd25238c6a80ed975b9bfea83d98b5c",
+    "baseCommit": "8692cc61cbe7168c62a2994af8f35ed574b7c2b9",
     "branch": "main",
     "candidateUpstream": {
-      "pullRequest": "https://github.com/molis-ai/molis-prologue/pull/109",
-      "head": "008e1b0f7dd25238c6a80ed975b9bfea83d98b5c",
+      "pullRequest": "https://github.com/molis-ai/molis-prologue/pull/111",
+      "head": "65bed33afbab177591159c6d0a733f8ee2924d47",
       "status": "merged",
-      "mergeCommit": "314a27a73aa1674faa1c0a4d4dce7f137f97c37c"
+      "mergeCommit": "1128126de14e9209152f7dc36d152991fb933aea"
     },
     "localOnly": false,
     "pushed": true,
-    "note": "上游 main 的 #109 合并提交（父提交 ccafbb74 与 008e1b0f；含 Molis main 此前所用 1cc80b05）。#109 的远端 CI 因 GitHub 账单限制未启动，用户 2026-11-11 定按本地门禁合并：头 008e1b0f 干净检出的 pnpm quality（74 文件 785 项）与干净消费者通过；本机没有 Rust 工具链，crates/ 未改。"
+    "note": "上游 main 的 #111 合并提交（父提交 8692cc61 即 #110 的合并提交，与 #111 头 65bed33a）。包里的变化全部来自 #110（头 acab66a3）：索引库在文件里写明格式版本 user_version=1；存下的 Run 与导出的 Session 不带实测召回耗时 elapsedMs。#111 只改 SDK 测试，不进包。两个 PR 都经评审台审过最终头；远端 CI 因 GitHub 账单限制未启动，用户 2026-11-11 定按本地门禁合并。本机没有 Rust 工具链，crates/ 未改。"
   },
   "artifact": {
     "file": "prologue-sdk-0.0.0-rc.1-memory-p0.tgz",
-    "bytes": 1424552,
-    "sha256": "bbbfea21da604f9302f283bf060c48ae7de9992d484f44f4c0106d623f3a6275",
-    "integrity": "sha512-6Ry1fuc1lu6mZj/KFbXOi8fFw9aoBFB83JSm+S/xLDk27zGhh68iy/a5bLzyOFd6WOqnPisqqQJNBmLUR1+6Aw=="
+    "bytes": 1425250,
+    "sha256": "d37926c18b83701040ca7e61f3c34e6e4744a670ae7f22a0c19e771f2009588f",
+    "integrity": "sha512-eB9G3SAjgFwFksQgi8nkUJcmqOabEbLN1OfmHlD5/cak1ZH+ojh8NV1/3ga2f/dRLj1Cc7U2GHgIQWSOSeliow=="
   },
   "build": {
     "node": "24.15.0",
@@ -39,7 +39,7 @@
     "architecture": "arm64",
     "packedOn": "2026-11-11",
     "steps": [
-      "两个独立 git clone --shared --no-checkout，各自 detach 到准确 314a27a7。",
+      "两个独立 git clone --shared --no-checkout，各自 detach 到准确 1128126d。",
       "经 scripts/machine-slot.mjs 的 build 槽，Node 24.15.0（本机没有 engines 写的 24.14.0，如实记录）/ pnpm 11.9.0：各自 pnpm install --frozen-lockfile --offline --ignore-scripts。",
       "各自 pnpm build，再 pnpm -C packages/sdk pack --pack-destination <各自外部目录>；两棵源码树打包后 git status 均为空。",
       "两份完整 tgz 逐字节相同，采用其中一份原始字节。"
@@ -48,16 +48,20 @@
     "note": "A/B 两份独立干净构建逐字节相同；App 安装与验证另记在 Memory spec 与 #2020。"
   },
   "comparison": {
-    "baseCommit": "6664b9ca87aaff1994e8804b2d78e6bf6be245fa",
+    "baseCommit": "314a27a73aa1674faa1c0a4d4dce7f137f97c37c",
     "oldFiles": 824,
     "newFiles": 824,
     "added": [],
     "removed": [],
     "changed": [
-      "package/dist/host/plugin/node-storage.js"
+      "package/dist/host/plugin/node-indexed-records.js",
+      "package/dist/model/core/event-validation.js",
+      "package/dist/model/core/types.d.ts",
+      "package/dist/session/core/export.d.ts",
+      "package/dist/session/core/export.js"
     ],
     "packageJson": "逐字不变",
-    "note": "相对上一份 6664 包只变 NodeStorage.write 合成一行（上游质量行数上限），行为不变；相对 Molis main 此前的 1cc80b05 包（818 文件）新增 6 个、变化 82 个包文件，即 6785/6664 两轮已在本分支验证的内容。"
+    "note": "相对上一份 314a27a7 包只变 #110 的五个构建文件；314a27a7 包只在 #2020 分支上采用过，没有进 main。"
   },
   "previousArtifact": {
     "provenance": {
@@ -71,67 +75,55 @@
       "source": {
         "repository": "git+https://github.com/molis-ai/molis-prologue.git",
         "path": "packages/sdk",
-        "commit": "6664b9ca87aaff1994e8804b2d78e6bf6be245fa",
-        "tree": "60a63ecc91451d109078e3db9e0a7b20c0cf2124",
+        "commit": "314a27a73aa1674faa1c0a4d4dce7f137f97c37c",
+        "tree": "4196b1320ef9352c9d8c845399bff290d75a10c8",
         "dirty": false,
         "dirtyPaths": [],
         "patches": [],
-        "baseCommit": "6785a84b9cb168966f654e193b818c672cb459d1",
-        "branch": "codex/memory-v0-closeout-delivery-20261106",
-        "localOnly": true,
-        "pushed": false,
-        "note": "用户2026-11-07批准第1步：隔离树合入最新main并正式换入6664；未推送。"
+        "baseCommit": "008e1b0f7dd25238c6a80ed975b9bfea83d98b5c",
+        "branch": "main",
+        "candidateUpstream": {
+          "pullRequest": "https://github.com/molis-ai/molis-prologue/pull/109",
+          "head": "008e1b0f7dd25238c6a80ed975b9bfea83d98b5c",
+          "status": "merged",
+          "mergeCommit": "314a27a73aa1674faa1c0a4d4dce7f137f97c37c"
+        },
+        "localOnly": false,
+        "pushed": true,
+        "note": "上游 main 的 #109 合并提交（父提交 ccafbb74 与 008e1b0f；含 Molis main 此前所用 1cc80b05）。#109 的远端 CI 因 GitHub 账单限制未启动，用户 2026-11-11 定按本地门禁合并：头 008e1b0f 干净检出的 pnpm quality（74 文件 785 项）与干净消费者通过；本机没有 Rust 工具链，crates/ 未改。"
       },
       "artifact": {
         "file": "prologue-sdk-0.0.0-rc.1-memory-p0.tgz",
         "bytes": 1424552,
-        "sha256": "ed6d0b584fe3a7c950e74a524f4fa88bfd64856283b50623bbf6fd74014fbb8a",
-        "integrity": "sha512-tlymwK36YpqVP1g5gaWyT/Z/8SNU5F9wn3iV+cbhgsR3aMX/B7UmExCR+cudUgnd1ECkJqwx9GnA5LvKV1eNkA=="
+        "sha256": "bbbfea21da604f9302f283bf060c48ae7de9992d484f44f4c0106d623f3a6275",
+        "integrity": "sha512-6Ry1fuc1lu6mZj/KFbXOi8fFw9aoBFB83JSm+S/xLDk27zGhh68iy/a5bLzyOFd6WOqnPisqqQJNBmLUR1+6Aw=="
       },
       "build": {
-        "node": "24.14.0",
+        "node": "24.15.0",
         "pnpm": "11.9.0",
         "platform": "darwin",
         "architecture": "arm64",
-        "packedOn": "2026-11-07",
+        "packedOn": "2026-11-11",
         "steps": [
-          "两个独立git clone --shared --no-checkout，分别detach到准确6664b9ca。",
-          "原machine-slot.mjs build槽，精确Node24.14/pnpm11.9：各自pnpm install --frozen-lockfile --offline --ignore-scripts --store-dir /Users/oreal/Library/pnpm/store/v11。",
-          "各自pnpm build，再pnpm -C packages/sdk pack --pack-destination <各自外部目录>。",
-          "两份完整tgz逐字节比较相同，采用其中一份原始字节。"
+          "两个独立 git clone --shared --no-checkout，各自 detach 到准确 314a27a7。",
+          "经 scripts/machine-slot.mjs 的 build 槽，Node 24.15.0（本机没有 engines 写的 24.14.0，如实记录）/ pnpm 11.9.0：各自 pnpm install --frozen-lockfile --offline --ignore-scripts。",
+          "各自 pnpm build，再 pnpm -C packages/sdk pack --pack-destination <各自外部目录>；两棵源码树打包后 git status 均为空。",
+          "两份完整 tgz 逐字节相同，采用其中一份原始字节。"
         ],
-        "buildLog": "/private/tmp/memory-v0-adopt-6664-20261107/sdk-pack.log",
         "cleanSourceBeforeAfter": true,
-        "note": "A/B独立干净构建逐字节相同；App安装与定向验证另记。"
+        "note": "A/B 两份独立干净构建逐字节相同；App 安装与验证另记在 Memory spec 与 #2020。"
       },
       "comparison": {
-        "baseCommit": "6785a84b9cb168966f654e193b818c672cb459d1",
+        "baseCommit": "6664b9ca87aaff1994e8804b2d78e6bf6be245fa",
         "oldFiles": 824,
         "newFiles": 824,
         "added": [],
         "removed": [],
         "changed": [
-          "package/dist/host/core/storage-contract.d.ts",
-          "package/dist/host/plugin/node-indexed-records.d.ts",
-          "package/dist/host/plugin/node-indexed-records.js",
-          "package/dist/host/plugin/node-storage-reader.d.ts",
-          "package/dist/host/plugin/node-storage-reader.js",
-          "package/dist/host/plugin/node-storage.d.ts",
-          "package/dist/host/plugin/node-storage.js",
-          "package/dist/host/plugin/node.d.ts",
-          "package/dist/host/plugin/node.js",
-          "package/dist/memory/core/access.d.ts",
-          "package/dist/memory/core/access.js",
-          "package/dist/memory/core/memory-read.d.ts",
-          "package/dist/memory/core/memory-read.js",
-          "package/dist/memory/core/memory-storage.d.ts",
-          "package/dist/memory/core/memory-storage.js",
-          "package/dist/runtime/core/registry-store.d.ts",
-          "package/dist/runtime/core/registry-store.js",
-          "package/dist/runtime/core/scope.js"
+          "package/dist/host/plugin/node-storage.js"
         ],
-        "packageJsonUnchanged": true,
-        "independentBuildsIdentical": true
+        "packageJson": "逐字不变",
+        "note": "相对上一份 6664 包只变 NodeStorage.write 合成一行（上游质量行数上限），行为不变；相对 Molis main 此前的 1cc80b05 包（818 文件）新增 6 个、变化 82 个包文件，即 6785/6664 两轮已在本分支验证的内容。"
       },
       "previousArtifact": {
         "provenance": {
@@ -145,148 +137,70 @@
           "source": {
             "repository": "git+https://github.com/molis-ai/molis-prologue.git",
             "path": "packages/sdk",
-            "commit": "6785a84b9cb168966f654e193b818c672cb459d1",
-            "tree": "b1c3a9e1f7209dbdf2a10c70b7db01e0f8e82137",
+            "commit": "6664b9ca87aaff1994e8804b2d78e6bf6be245fa",
+            "tree": "60a63ecc91451d109078e3db9e0a7b20c0cf2124",
             "dirty": false,
             "dirtyPaths": [],
             "patches": [],
-            "baseCommit": "2a49a9826ef442c743eab8fb44a7594a7bbf52aa",
+            "baseCommit": "6785a84b9cb168966f654e193b818c672cb459d1",
             "branch": "codex/memory-v0-closeout-delivery-20261106",
             "localOnly": true,
             "pushed": false,
-            "note": "用户批准已独审冻结8文件一次本地提交和唯一隔离App采用；独立Git元数据，原工作树/分支不变。没有额外SDK实现。"
+            "note": "用户2026-11-07批准第1步：隔离树合入最新main并正式换入6664；未推送。"
           },
           "artifact": {
             "file": "prologue-sdk-0.0.0-rc.1-memory-p0.tgz",
-            "bytes": 1418384,
-            "sha256": "a1a3433d52b62fe05519b8348a47d643b39739f670e5ba26cbad646f01f5cc2c",
-            "integrity": "sha512-gXZivJ8F2c5FAizmLYGu3b00P3Ski9at0lOYsLj9o6yQaUuPNdYHyaZqhNc7jyasvmLRt4B7YtkWF2XlPPwVew=="
+            "bytes": 1424552,
+            "sha256": "ed6d0b584fe3a7c950e74a524f4fa88bfd64856283b50623bbf6fd74014fbb8a",
+            "integrity": "sha512-tlymwK36YpqVP1g5gaWyT/Z/8SNU5F9wn3iV+cbhgsR3aMX/B7UmExCR+cudUgnd1ECkJqwx9GnA5LvKV1eNkA=="
           },
           "build": {
             "node": "24.14.0",
             "pnpm": "11.9.0",
             "platform": "darwin",
             "architecture": "arm64",
-            "packedOn": "2026-11-06",
+            "packedOn": "2026-11-07",
             "steps": [
-              "独立git clone --shared --no-checkout；从准确2a49建本地分支，完整diff逐字匹配获批8文件后显式add并commit一次。",
-              "原machine-slot.mjs build槽，精确Node24.14/pnpm11.9：pnpm install --frozen-lockfile --offline --ignore-scripts --store-dir /Users/oreal/Library/pnpm/store/v11。",
-              "同build槽执行原pnpm build，再pnpm -C packages/sdk pack --pack-destination /private/tmp/memory-v0-approved-delivery-20261106。",
-              "核824普通文件、全部非manifest字节匹配本次clean构建、四个公开子路径目标存在；manifest与2a49包逐字相同。"
+              "两个独立git clone --shared --no-checkout，分别detach到准确6664b9ca。",
+              "原machine-slot.mjs build槽，精确Node24.14/pnpm11.9：各自pnpm install --frozen-lockfile --offline --ignore-scripts --store-dir /Users/oreal/Library/pnpm/store/v11。",
+              "各自pnpm build，再pnpm -C packages/sdk pack --pack-destination <各自外部目录>。",
+              "两份完整tgz逐字节比较相同，采用其中一份原始字节。"
             ],
-            "buildLog": "/private/tmp/memory-v0-approved-delivery-20261106/sdk-build-pack-authorized.log",
+            "buildLog": "/private/tmp/memory-v0-adopt-6664-20261107/sdk-pack.log",
             "cleanSourceBeforeAfter": true,
-            "note": "默认store离线缺Tauri tarball、固定store首次sandbox SQLite写权限失败均保留；授权后原命令自然exit0。source96与App15旧结果仅复用，不冒称本轮重跑。App安装和必要路径验证单独记录。"
+            "note": "A/B独立干净构建逐字节相同；App安装与定向验证另记。"
           },
           "comparison": {
-            "baseCommit": "2a49a9826ef442c743eab8fb44a7594a7bbf52aa",
+            "baseCommit": "6785a84b9cb168966f654e193b818c672cb459d1",
             "oldFiles": 824,
             "newFiles": 824,
             "added": [],
             "removed": [],
             "changed": [
+              "package/dist/host/core/storage-contract.d.ts",
+              "package/dist/host/plugin/node-indexed-records.d.ts",
+              "package/dist/host/plugin/node-indexed-records.js",
+              "package/dist/host/plugin/node-storage-reader.d.ts",
               "package/dist/host/plugin/node-storage-reader.js",
+              "package/dist/host/plugin/node-storage.d.ts",
+              "package/dist/host/plugin/node-storage.js",
+              "package/dist/host/plugin/node.d.ts",
+              "package/dist/host/plugin/node.js",
+              "package/dist/memory/core/access.d.ts",
               "package/dist/memory/core/access.js",
-              "package/dist/memory/core/memory-record.d.ts",
-              "package/dist/memory/core/memory-record.js",
+              "package/dist/memory/core/memory-read.d.ts",
+              "package/dist/memory/core/memory-read.js",
+              "package/dist/memory/core/memory-storage.d.ts",
               "package/dist/memory/core/memory-storage.js",
-              "package/dist/runtime/core/registry-store.js"
+              "package/dist/runtime/core/registry-store.d.ts",
+              "package/dist/runtime/core/registry-store.js",
+              "package/dist/runtime/core/scope.js"
             ],
             "packageJsonUnchanged": true,
-            "allNonManifestFilesMatchBuild": true,
-            "publicExportsExist": true
-          }
-        },
-        "previousArtifact": {
-          "provenance": {
-            "schema": "prologue-sdk-package-provenance-v1",
-            "package": {
-              "name": "@prologue/sdk",
-              "version": "0.0.0-rc.1",
-              "private": true,
-              "license": null
-            },
-            "source": {
-              "repository": "git+https://github.com/molis-ai/molis-prologue.git",
-              "path": "packages/sdk",
-              "commit": "2a49a9826ef442c743eab8fb44a7594a7bbf52aa",
-              "tree": "d8567cec7d27e2c23c1cccce7ab7ffae901a2d0f",
-              "dirty": false,
-              "dirtyPaths": [],
-              "patches": [],
-              "baseCommit": "7918e515d7f02c0a6a7d0e54588ac61d46e2819d",
-              "branch": "codex/memory-v0-combined-20261105",
-              "localOnly": true,
-              "pushed": false,
-              "note": "用户已明确批准准确冻结32路径的一次SDK本地提交与现隔离App采用。保留indexed、显式备用与冷/普通Node同资源收尾，不含推送、Full、模型或旧库迁移。"
-            },
-            "artifact": {
-              "file": "prologue-sdk-0.0.0-rc.1-memory-p0.tgz",
-              "bytes": 1417957,
-              "sha256": "a2fd5995448c5ae7036c0c77221add986746a9ed428e5174e0cacbd50d5e0542",
-              "integrity": "sha512-cMSjWcKm0BcD02d24SjCDZn02HGEIU5w2rkcg6gAvi2JW2EJjhbr1nKEjTglHW6/sd8m9XKxX0G7bcdpBAwuOg=="
-            },
-            "build": {
-              "node": "24.14.0",
-              "pnpm": "11.9.0",
-              "platform": "darwin",
-              "architecture": "arm64",
-              "packedOn": "2026-11-05",
-              "steps": [
-                "核对HEAD7918、完整diff逐字等于冻结patch、准确32路径、cached空且无活动Git hooks；只显式add32并本地commit一次为2a49a9826ef442c743eab8fb44a7594a7bbf52aa。",
-                "确认准确source HEAD2a49与clean，在原machine-slot.mjs公共build槽执行pnpm build。",
-                "在同一build槽packages/sdk运行pnpm pack --pack-destination /private/tmp/memory-v0-combined-clean-2a49a982-20261105。",
-                "完整tgz逐字节比较此前已独核候选；相同1,417,957B、SHA256，source打包后仍clean。",
-                "App仅同名tgz/sha/provenance/README与lock同包integrity更新，随后按原offline/frozen安装并核全部824文件。"
-              ],
-              "buildLog": "/private/tmp/memory-v0-combined-adoption-clean-build-pack-20261105.log",
-              "cleanSourceBeforeAfter": true,
-              "reviewedCandidateArchiveByteEqual": true,
-              "note": "没有第二次重复pack或重跑App build/tests。此前候选的实际安装包公开消费者与包内容核验适用于逐字相同的本次clean产物；来源证据与App产品/用户验收分开。"
-            },
-            "comparison": {
-              "baseCommit": "7918e515d7f02c0a6a7d0e54588ac61d46e2819d",
-              "oldFiles": 824,
-              "newFiles": 824,
-              "added": [],
-              "removed": [],
-              "changed": [
-                "package/dist/composition/core/agent-memory-context.js",
-                "package/dist/composition/plugin/node-recovery-inspection.d.ts",
-                "package/dist/composition/plugin/node-recovery-inspection.js",
-                "package/dist/composition/plugin/node-recovery-maintenance.d.ts",
-                "package/dist/composition/plugin/node-recovery-maintenance.js",
-                "package/dist/host/plugin/node-indexed-records.d.ts",
-                "package/dist/host/plugin/node-indexed-records.js",
-                "package/dist/host/plugin/node-storage-inspection.js",
-                "package/dist/host/plugin/node-storage-reader.d.ts",
-                "package/dist/host/plugin/node-storage-reader.js",
-                "package/dist/host/plugin/node-storage-verification.js",
-                "package/dist/host/plugin/node.d.ts",
-                "package/dist/host/plugin/node.js",
-                "package/dist/index.d.ts",
-                "package/dist/memory/api/index.d.ts",
-                "package/dist/memory/core/index.d.ts",
-                "package/dist/memory/core/memory-recall.d.ts",
-                "package/dist/memory/core/memory-recall.js",
-                "package/dist/memory/core/policy.d.ts",
-                "package/dist/memory/core/policy.js",
-                "package/dist/memory/core/recall-candidates.d.ts",
-                "package/dist/memory/core/recall-candidates.js",
-                "package/dist/memory/core/recall-plugin.d.ts",
-                "package/dist/memory/core/recall-plugin.js",
-                "package/dist/model/core/event-validation.js",
-                "package/dist/model/core/types.d.ts",
-                "package/dist/node.d.ts"
-              ],
-              "packageJsonUnchanged": true
-            },
-            "compatibility": {
-              "storage": "indexed-v1仍显式选择，两完整App Memory kind，默认文件布局不变；无旧库转换。",
-              "fallback": "App显式配方开启keyword备用，当前权限、同一窗口/预算和最终canonical门不变；没有新增Molis默认策略。",
-              "recovery": "只读Session不提前挂Memory；未知关闭由同一原连接的公开close能力收尾。App停止共享Runtime/I/O且确认closeStorage后才归还原owner。"
-            },
-            "previousArtifact": {
+            "independentBuildsIdentical": true
+          },
+          "previousArtifact": {
+            "provenance": {
               "schema": "prologue-sdk-package-provenance-v1",
               "package": {
                 "name": "@prologue/sdk",
@@ -297,85 +211,60 @@
               "source": {
                 "repository": "git+https://github.com/molis-ai/molis-prologue.git",
                 "path": "packages/sdk",
-                "commit": "7918e515d7f02c0a6a7d0e54588ac61d46e2819d",
+                "commit": "6785a84b9cb168966f654e193b818c672cb459d1",
+                "tree": "b1c3a9e1f7209dbdf2a10c70b7db01e0f8e82137",
                 "dirty": false,
                 "dirtyPaths": [],
                 "patches": [],
-                "baseCommit": "7155836f563407d01a4d9a0e134cac84359096b6",
-                "branch": "codex/memory-v0-indexed-20261105",
+                "baseCommit": "2a49a9826ef442c743eab8fb44a7594a7bbf52aa",
+                "branch": "codex/memory-v0-closeout-delivery-20261106",
                 "localOnly": true,
                 "pushed": false,
-                "note": "Exact user-authorized frozen 27-file indexed storage patch, one local commit only. No keyword fallback, push, App implementation or old-library migration."
+                "note": "用户批准已独审冻结8文件一次本地提交和唯一隔离App采用；独立Git元数据，原工作树/分支不变。没有额外SDK实现。"
               },
               "artifact": {
                 "file": "prologue-sdk-0.0.0-rc.1-memory-p0.tgz",
-                "bytes": 1413664,
-                "sha256": "07ea61aa74b48cd05b2622ee2fad81f4dbb96d20da1f6568c2d6a0b9ffa6ab1a",
-                "integrity": "sha512-q5eIF641woe505/X8Siz0Fdmhsdz6DMkoqvtp+9Hk9BbHZEh+yUUs9H/6IFTc4fL+BATuD2C8I97SjkjWgIOjw=="
+                "bytes": 1418384,
+                "sha256": "a1a3433d52b62fe05519b8348a47d643b39739f670e5ba26cbad646f01f5cc2c",
+                "integrity": "sha512-gXZivJ8F2c5FAizmLYGu3b00P3Ski9at0lOYsLj9o6yQaUuPNdYHyaZqhNc7jyasvmLRt4B7YtkWF2XlPPwVew=="
               },
               "build": {
                 "node": "24.14.0",
                 "pnpm": "11.9.0",
                 "platform": "darwin",
                 "architecture": "arm64",
-                "packedOn": "2026-11-05",
+                "packedOn": "2026-11-06",
                 "steps": [
-                  "Verify exact 27-path frozen patch on parent715 via expected/actual full Git tree equality; commit once as 7918e515d7f02c0a6a7d0e54588ac61d46e2819d.",
-                  "Confirm exact source HEAD7918 and clean status before build.",
-                  "Under common machine build slot run pnpm build in SDK worktree (existing @prologue/sdk tsc build).",
-                  "Run pnpm pack --pack-destination <first> in packages/sdk, repeat into <second>; compare complete archive bytes.",
-                  "Compare all packed files with the previously verified frozen candidate; exact archive bytes and file contents equal.",
-                  "Recheck source tree clean after build/pack."
+                  "独立git clone --shared --no-checkout；从准确2a49建本地分支，完整diff逐字匹配获批8文件后显式add并commit一次。",
+                  "原machine-slot.mjs build槽，精确Node24.14/pnpm11.9：pnpm install --frozen-lockfile --offline --ignore-scripts --store-dir /Users/oreal/Library/pnpm/store/v11。",
+                  "同build槽执行原pnpm build，再pnpm -C packages/sdk pack --pack-destination /private/tmp/memory-v0-approved-delivery-20261106。",
+                  "核824普通文件、全部非manifest字节匹配本次clean构建、四个公开子路径目标存在；manifest与2a49包逐字相同。"
                 ],
-                "buildLog": "/private/tmp/memory-v0-indexed-clean7918-build-20261105.log",
-                "repeatPackByteEqual": true,
-                "reviewedCandidateArchiveByteEqual": true,
-                "note": "Existing final 7-file/61-test, earlier 14-file/230-test, both installed public consumers and API/ratchet evidence remains bounded to the exact frozen patch. No mechanical rerun, Full, benchmark, scale, CI, real Home or model calls. New App build/tests await recovery contract review."
+                "buildLog": "/private/tmp/memory-v0-approved-delivery-20261106/sdk-build-pack-authorized.log",
+                "cleanSourceBeforeAfter": true,
+                "note": "默认store离线缺Tauri tarball、固定store首次sandbox SQLite写权限失败均保留；授权后原命令自然exit0。source96与App15旧结果仅复用，不冒称本轮重跑。App安装和必要路径验证单独记录。"
               },
               "comparison": {
-                "baseCommit": "7155836f563407d01a4d9a0e134cac84359096b6",
-                "oldFiles": 822,
+                "baseCommit": "2a49a9826ef442c743eab8fb44a7594a7bbf52aa",
+                "oldFiles": 824,
                 "newFiles": 824,
-                "added": [
-                  "package/dist/host/plugin/node-indexed-records.d.ts",
-                  "package/dist/host/plugin/node-indexed-records.js"
-                ],
+                "added": [],
                 "removed": [],
                 "changed": [
-                  "package/dist/composition/core/memory-owners.js",
-                  "package/dist/composition/plugin/node-recovery-inspection.d.ts",
-                  "package/dist/composition/plugin/node-recovery-inspection.js",
-                  "package/dist/composition/plugin/node-recovery-maintenance.d.ts",
-                  "package/dist/composition/plugin/node-recovery-maintenance.js",
-                  "package/dist/host/core/index.d.ts",
-                  "package/dist/host/core/storage-contract.d.ts",
-                  "package/dist/host/plugin/node-storage-inspection.d.ts",
-                  "package/dist/host/plugin/node-storage-inspection.js",
-                  "package/dist/host/plugin/node-storage-reader.d.ts",
                   "package/dist/host/plugin/node-storage-reader.js",
-                  "package/dist/host/plugin/node-storage.d.ts",
-                  "package/dist/host/plugin/node-storage.js",
-                  "package/dist/host/plugin/node.d.ts",
-                  "package/dist/host/plugin/node.js",
-                  "package/dist/memory/core/index.d.ts",
-                  "package/dist/memory/core/index.js",
-                  "package/dist/memory/core/memory-read.d.ts",
-                  "package/dist/memory/core/memory-read.js",
+                  "package/dist/memory/core/access.js",
                   "package/dist/memory/core/memory-record.d.ts",
-                  "package/dist/memory/core/memory-storage.d.ts",
+                  "package/dist/memory/core/memory-record.js",
                   "package/dist/memory/core/memory-storage.js",
-                  "package/dist/memory/core/recall-candidates.d.ts",
-                  "package/dist/memory/core/recall-candidates.js",
-                  "package/dist/memory/core/scope-scan.d.ts",
-                  "package/dist/runtime/core/index.d.ts",
-                  "package/dist/runtime/core/registry-store.d.ts",
-                  "package/dist/runtime/core/registry-store.js",
-                  "package/dist/runtime/core/scope.d.ts",
-                  "package/dist/runtime/core/scope.js"
+                  "package/dist/runtime/core/registry-store.js"
                 ],
-                "packageJsonUnchanged": true
-              },
-              "previousArtifact": {
+                "packageJsonUnchanged": true,
+                "allNonManifestFilesMatchBuild": true,
+                "publicExportsExist": true
+              }
+            },
+            "previousArtifact": {
+              "provenance": {
                 "schema": "prologue-sdk-package-provenance-v1",
                 "package": {
                   "name": "@prologue/sdk",
@@ -386,52 +275,82 @@
                 "source": {
                   "repository": "git+https://github.com/molis-ai/molis-prologue.git",
                   "path": "packages/sdk",
-                  "commit": "7155836f563407d01a4d9a0e134cac84359096b6",
+                  "commit": "2a49a9826ef442c743eab8fb44a7594a7bbf52aa",
+                  "tree": "d8567cec7d27e2c23c1cccce7ab7ffae901a2d0f",
                   "dirty": false,
                   "dirtyPaths": [],
                   "patches": [],
-                  "baseCommit": "49321405b9e9f2473f5dd0b84541fb3bdb29e6a1",
-                  "branch": "codex/memory-v0-context-identity-20261104",
+                  "baseCommit": "7918e515d7f02c0a6a7d0e54588ac61d46e2819d",
+                  "branch": "codex/memory-v0-combined-20261105",
                   "localOnly": true,
                   "pushed": false,
-                  "note": "Exact user-authorized 19-file opt-in canonical context identity commit; local only, no new SDK implementation during adoption."
+                  "note": "用户已明确批准准确冻结32路径的一次SDK本地提交与现隔离App采用。保留indexed、显式备用与冷/普通Node同资源收尾，不含推送、Full、模型或旧库迁移。"
                 },
                 "artifact": {
                   "file": "prologue-sdk-0.0.0-rc.1-memory-p0.tgz",
-                  "bytes": 1402859,
-                  "sha256": "9c55fa1f3de5296688c0641e822b8f68222aaac467f1dc2eb015628d65e7dbb0",
-                  "integrity": "sha512-WzQH/3EJJnu7QQj22iOVt63gzIqzqWBztv3KIgNNAKJKU7DKFI4hGlOCH4z9B3J+Mz6SSwB7MPyU4+/WjV2oKg=="
+                  "bytes": 1417957,
+                  "sha256": "a2fd5995448c5ae7036c0c77221add986746a9ed428e5174e0cacbd50d5e0542",
+                  "integrity": "sha512-cMSjWcKm0BcD02d24SjCDZn02HGEIU5w2rkcg6gAvi2JW2EJjhbr1nKEjTglHW6/sd8m9XKxX0G7bcdpBAwuOg=="
                 },
                 "build": {
                   "node": "24.14.0",
                   "pnpm": "11.9.0",
                   "platform": "darwin",
                   "architecture": "arm64",
-                  "packedOn": "2026-11-04",
+                  "packedOn": "2026-11-05",
                   "steps": [
-                    "Check clean 7155836f563407d01a4d9a0e134cac84359096b6 matches reviewed 19-file frozen patch.",
-                    "Under shared build slot: node node_modules/typescript/bin/tsc -p packages/sdk/tsconfig.build.json",
-                    "pnpm -C packages/sdk pack --pack-destination /private/tmp/memory-v0-c1-sdk715-package-20261104"
+                    "核对HEAD7918、完整diff逐字等于冻结patch、准确32路径、cached空且无活动Git hooks；只显式add32并本地commit一次为2a49a9826ef442c743eab8fb44a7594a7bbf52aa。",
+                    "确认准确source HEAD2a49与clean，在原machine-slot.mjs公共build槽执行pnpm build。",
+                    "在同一build槽packages/sdk运行pnpm pack --pack-destination /private/tmp/memory-v0-combined-clean-2a49a982-20261105。",
+                    "完整tgz逐字节比较此前已独核候选；相同1,417,957B、SHA256，source打包后仍clean。",
+                    "App仅同名tgz/sha/provenance/README与lock同包integrity更新，随后按原offline/frozen安装并核全部824文件。"
                   ],
-                  "note": "Prior exact frozen source targeted tests and installed consumer remain bounded prior evidence; no mechanical rerun of 114 tests. App final payload verification is separate."
+                  "buildLog": "/private/tmp/memory-v0-combined-adoption-clean-build-pack-20261105.log",
+                  "cleanSourceBeforeAfter": true,
+                  "reviewedCandidateArchiveByteEqual": true,
+                  "note": "没有第二次重复pack或重跑App build/tests。此前候选的实际安装包公开消费者与包内容核验适用于逐字相同的本次clean产物；来源证据与App产品/用户验收分开。"
                 },
                 "comparison": {
-                  "baseCommit": "49321405b9e9f2473f5dd0b84541fb3bdb29e6a1",
-                  "oldFiles": 822,
-                  "newFiles": 822,
+                  "baseCommit": "7918e515d7f02c0a6a7d0e54588ac61d46e2819d",
+                  "oldFiles": 824,
+                  "newFiles": 824,
                   "added": [],
                   "removed": [],
                   "changed": [
-                    "package/dist/agent/core/compaction-history.js",
-                    "package/dist/agent/core/memory-expansion.d.ts",
-                    "package/dist/agent/core/start-input.d.ts",
-                    "package/dist/agent/core/start-input.js",
                     "package/dist/composition/core/agent-memory-context.js",
-                    "package/dist/composition/core/agent-memory-expansion.js",
-                    "package/dist/context/core/memory-projection.js",
-                    "package/dist/context/core/provenance.d.ts",
-                    "package/dist/context/core/provenance.js"
-                  ]
+                    "package/dist/composition/plugin/node-recovery-inspection.d.ts",
+                    "package/dist/composition/plugin/node-recovery-inspection.js",
+                    "package/dist/composition/plugin/node-recovery-maintenance.d.ts",
+                    "package/dist/composition/plugin/node-recovery-maintenance.js",
+                    "package/dist/host/plugin/node-indexed-records.d.ts",
+                    "package/dist/host/plugin/node-indexed-records.js",
+                    "package/dist/host/plugin/node-storage-inspection.js",
+                    "package/dist/host/plugin/node-storage-reader.d.ts",
+                    "package/dist/host/plugin/node-storage-reader.js",
+                    "package/dist/host/plugin/node-storage-verification.js",
+                    "package/dist/host/plugin/node.d.ts",
+                    "package/dist/host/plugin/node.js",
+                    "package/dist/index.d.ts",
+                    "package/dist/memory/api/index.d.ts",
+                    "package/dist/memory/core/index.d.ts",
+                    "package/dist/memory/core/memory-recall.d.ts",
+                    "package/dist/memory/core/memory-recall.js",
+                    "package/dist/memory/core/policy.d.ts",
+                    "package/dist/memory/core/policy.js",
+                    "package/dist/memory/core/recall-candidates.d.ts",
+                    "package/dist/memory/core/recall-candidates.js",
+                    "package/dist/memory/core/recall-plugin.d.ts",
+                    "package/dist/memory/core/recall-plugin.js",
+                    "package/dist/model/core/event-validation.js",
+                    "package/dist/model/core/types.d.ts",
+                    "package/dist/node.d.ts"
+                  ],
+                  "packageJsonUnchanged": true
+                },
+                "compatibility": {
+                  "storage": "indexed-v1仍显式选择，两完整App Memory kind，默认文件布局不变；无旧库转换。",
+                  "fallback": "App显式配方开启keyword备用，当前权限、同一窗口/预算和最终canonical门不变；没有新增Molis默认策略。",
+                  "recovery": "只读Session不提前挂Memory；未知关闭由同一原连接的公开close能力收尾。App停止共享Runtime/I/O且确认closeStorage后才归还原owner。"
                 },
                 "previousArtifact": {
                   "schema": "prologue-sdk-package-provenance-v1",
@@ -444,110 +363,143 @@
                   "source": {
                     "repository": "git+https://github.com/molis-ai/molis-prologue.git",
                     "path": "packages/sdk",
-                    "commit": "49321405b9e9f2473f5dd0b84541fb3bdb29e6a1",
+                    "commit": "7918e515d7f02c0a6a7d0e54588ac61d46e2819d",
                     "dirty": false,
                     "dirtyPaths": [],
                     "patches": [],
-                    "baseCommit": "86ad75e10295c151c65bd6ffe59d2981e66f2f06",
-                    "branch": "codex/memory-v0-runtime-controls-20261104",
+                    "baseCommit": "7155836f563407d01a4d9a0e134cac84359096b6",
+                    "branch": "codex/memory-v0-indexed-20261105",
                     "localOnly": true,
                     "pushed": false,
-                    "note": "Exact user-authorized 38-file minimal runtime controls commit. Not merged into upstream main. No #108 Memory core, Registry, collection-read, cache or performance changes."
+                    "note": "Exact user-authorized frozen 27-file indexed storage patch, one local commit only. No keyword fallback, push, App implementation or old-library migration."
                   },
                   "artifact": {
                     "file": "prologue-sdk-0.0.0-rc.1-memory-p0.tgz",
-                    "bytes": 1402221,
-                    "sha256": "2e231153defc419f4b7c99307ff289d665d39e5098fbab619e8f7bbbf441e207",
-                    "integrity": "sha512-UP/ZD9o1xqy54Et0WMTj2pTdJ6KhBorfw+KPMfqnxHGBREEXdaIjN3tuiedZaUIU4t5DXkxOozL+EJDHaHk7Zg=="
+                    "bytes": 1413664,
+                    "sha256": "07ea61aa74b48cd05b2622ee2fad81f4dbb96d20da1f6568c2d6a0b9ffa6ab1a",
+                    "integrity": "sha512-q5eIF641woe505/X8Siz0Fdmhsdz6DMkoqvtp+9Hk9BbHZEh+yUUs9H/6IFTc4fL+BATuD2C8I97SjkjWgIOjw=="
                   },
                   "build": {
                     "node": "24.14.0",
                     "pnpm": "11.9.0",
                     "platform": "darwin",
                     "architecture": "arm64",
-                    "packedOn": "2026-11-04",
+                    "packedOn": "2026-11-05",
                     "steps": [
-                      "Check out clean local commit 49321405b9e9f2473f5dd0b84541fb3bdb29e6a1.",
-                      "With fixed Node 24.14.0 under the shared Molis build slot: node node_modules/typescript/bin/tsc -p packages/sdk/tsconfig.build.json (the existing SDK build script).",
-                      "In packages/sdk with fixed pnpm 11.9.0: pnpm pack --pack-destination /private/tmp/prologue-memory-v0-runtime-controls-local-package-20261104."
+                      "Verify exact 27-path frozen patch on parent715 via expected/actual full Git tree equality; commit once as 7918e515d7f02c0a6a7d0e54588ac61d46e2819d.",
+                      "Confirm exact source HEAD7918 and clean status before build.",
+                      "Under common machine build slot run pnpm build in SDK worktree (existing @prologue/sdk tsc build).",
+                      "Run pnpm pack --pack-destination <first> in packages/sdk, repeat into <second>; compare complete archive bytes.",
+                      "Compare all packed files with the previously verified frozen candidate; exact archive bytes and file contents equal.",
+                      "Recheck source tree clean after build/pack."
                     ],
-                    "note": "No behavior tests rerun at this commit; the exact frozen source had prior targeted/static/clean-consumer verification and independent review. That prior 220-case round included a default-Home incident in two unanswered-retry cases; their corrected explicit-tmp 2/2 rerun does not erase that incident. No investigation or cleanup of real Home performed here.",
-                    "consumerValidation": {
-                      "root": "/private/tmp/molis-memory-v0-integration-main-20261104",
-                      "head": "5a7e29ab81a8eedda1e0890da1a824522567f5bb",
-                      "install": "pnpm install --frozen-lockfile --offline --store-dir /Users/oreal/Library/pnpm/store/v11; unchanged versions; original supply-chain policy passed. Despite --offline, pnpm attempted registry metadata and logged ECONNRESET; no policy bypass.",
-                      "installedArchiveFilesByteEqual": 822,
-                      "cleanDistFilesByteEqual": 820,
-                      "build": "Original pnpm build completed after permission-only recovery from SwiftPM sandbox_apply denial; /tmp module caches, original project sandbox retained.",
-                      "runner": "node scripts/machine-slot.mjs run browser --label memory-v0-sdk493-six-adoption-files -- node scripts/run-tests.mjs <six named files> --jobs 1 --browser-jobs 1 --retries 0",
-                      "files": {
-                        "tests/memory-classification-edit.test.ts": "9/9 passed",
-                        "tests/prologue-memory-run-context.test.ts": "1/1 passed",
-                        "tests/coding-original-inputs.test.ts": "7/8 passed; MEM-35 production source assembly failed with MEMORY_SCOPE_DENIED",
-                        "tests/prologue-adoption-guard.test.ts": "3/3 passed",
-                        "tests/local-host-queue-scope.test.ts": "7/7 passed",
-                        "tests/assistant-memory.test.ts": "18/18 passed"
-                      },
-                      "failedCaseAnalysis": "Candidate cause only: this direct withCaller supplies session_id without the actual Run class_restrictions; B2 classAllowed explicitly denies that shape. No same-B2 old-SDK comparison or fixture modification was performed, so this is not claimed as a settled attribution.",
-                      "pageAssets": "Original gate passed against exact 5a7e29ab; all 51 measured resources byte-identical before/after adoption; workbench.js 1085440 B.",
-                      "scope": "No full App acceptance, user acceptance, Full, remote CI, paid models or real Home investigation."
-                    }
+                    "buildLog": "/private/tmp/memory-v0-indexed-clean7918-build-20261105.log",
+                    "repeatPackByteEqual": true,
+                    "reviewedCandidateArchiveByteEqual": true,
+                    "note": "Existing final 7-file/61-test, earlier 14-file/230-test, both installed public consumers and API/ratchet evidence remains bounded to the exact frozen patch. No mechanical rerun, Full, benchmark, scale, CI, real Home or model calls. New App build/tests await recovery contract review."
                   },
                   "comparison": {
-                    "baseCommit": "86ad75e10295c151c65bd6ffe59d2981e66f2f06",
-                    "oldArchive": "/private/tmp/prologue-memory-v0-clean-local-86ad75e1-20261104/prologue-sdk-0.0.0-rc.1.tgz",
-                    "oldBytes": 1397694,
-                    "oldFiles": 818,
-                    "newFiles": 822,
+                    "baseCommit": "7155836f563407d01a4d9a0e134cac84359096b6",
+                    "oldFiles": 822,
+                    "newFiles": 824,
                     "added": [
-                      "package/dist/orchestration/core/queue-admission.d.ts",
-                      "package/dist/orchestration/core/queue-admission.js",
-                      "package/dist/session/core/opening.d.ts",
-                      "package/dist/session/core/opening.js"
+                      "package/dist/host/plugin/node-indexed-records.d.ts",
+                      "package/dist/host/plugin/node-indexed-records.js"
                     ],
                     "removed": [],
                     "changed": [
-                      "package/dist/composition/core/agent-run-admission.d.ts",
-                      "package/dist/composition/core/agent-run-admission.js",
-                      "package/dist/composition/core/agent-run-drive.d.ts",
-                      "package/dist/composition/core/agent-run-drive.js",
-                      "package/dist/composition/core/agent-run-launch.d.ts",
-                      "package/dist/composition/core/agent-run-tool-runner.js",
-                      "package/dist/composition/core/assemble-orchestration.js",
-                      "package/dist/composition/core/runtime.d.ts",
-                      "package/dist/composition/core/start-agent-run.js",
-                      "package/dist/host/plugin/node-network.d.ts",
-                      "package/dist/host/plugin/node-network.js",
-                      "package/dist/host/plugin/node-outbound.d.ts",
-                      "package/dist/host/plugin/node-outbound.js",
-                      "package/dist/index.d.ts",
-                      "package/dist/model/core/event-validation.js",
-                      "package/dist/model/core/types.d.ts",
-                      "package/dist/orchestration/api/index.d.ts",
-                      "package/dist/orchestration/core/index.d.ts",
-                      "package/dist/orchestration/core/queue.d.ts",
-                      "package/dist/orchestration/core/queue.js",
-                      "package/dist/session/api/index.d.ts",
-                      "package/dist/session/core/conversation.d.ts",
-                      "package/dist/session/core/conversation.js",
-                      "package/dist/session/core/index.d.ts",
-                      "package/dist/session/core/run.d.ts",
-                      "package/dist/session/core/run.js",
-                      "package/dist/session/core/session.d.ts",
-                      "package/dist/session/core/session.js"
+                      "package/dist/composition/core/memory-owners.js",
+                      "package/dist/composition/plugin/node-recovery-inspection.d.ts",
+                      "package/dist/composition/plugin/node-recovery-inspection.js",
+                      "package/dist/composition/plugin/node-recovery-maintenance.d.ts",
+                      "package/dist/composition/plugin/node-recovery-maintenance.js",
+                      "package/dist/host/core/index.d.ts",
+                      "package/dist/host/core/storage-contract.d.ts",
+                      "package/dist/host/plugin/node-storage-inspection.d.ts",
+                      "package/dist/host/plugin/node-storage-inspection.js",
+                      "package/dist/host/plugin/node-storage-reader.d.ts",
+                      "package/dist/host/plugin/node-storage-reader.js",
+                      "package/dist/host/plugin/node-storage.d.ts",
+                      "package/dist/host/plugin/node-storage.js",
+                      "package/dist/host/plugin/node.d.ts",
+                      "package/dist/host/plugin/node.js",
+                      "package/dist/memory/core/index.d.ts",
+                      "package/dist/memory/core/index.js",
+                      "package/dist/memory/core/memory-read.d.ts",
+                      "package/dist/memory/core/memory-read.js",
+                      "package/dist/memory/core/memory-record.d.ts",
+                      "package/dist/memory/core/memory-storage.d.ts",
+                      "package/dist/memory/core/memory-storage.js",
+                      "package/dist/memory/core/recall-candidates.d.ts",
+                      "package/dist/memory/core/recall-candidates.js",
+                      "package/dist/memory/core/scope-scan.d.ts",
+                      "package/dist/runtime/core/index.d.ts",
+                      "package/dist/runtime/core/registry-store.d.ts",
+                      "package/dist/runtime/core/registry-store.js",
+                      "package/dist/runtime/core/scope.d.ts",
+                      "package/dist/runtime/core/scope.js"
                     ],
-                    "unchangedFiles": 790,
-                    "packageJsonUnchanged": true,
-                    "allMemoryDistUnchanged": true,
-                    "registryDistUnchanged": true
+                    "packageJsonUnchanged": true
                   },
-                  "compatibility": {
-                    "historyProjected": "New persistent ModelEvent; old 86ad cannot read records/exports containing it. Do not remove events to roll back; preserve a reader for the new event or fix forward.",
-                    "taskRowStore": "Custom Queue stores now require an exact get reader; no fake-absence compatibility fallback."
-                  },
-                  "adoption": "Adopted only into the user-authorized isolated Molis tree; Molis is uncommitted. Installation and build pass, but focused consumer validation is not fully passing: 5/6 files and 45/46 tests; the original MEM-35 Coding source assembly case fails with MEMORY_SCOPE_DENIED. No rerun or assertion/timeout change.",
                   "previousArtifact": {
-                    "provenance": {
+                    "schema": "prologue-sdk-package-provenance-v1",
+                    "package": {
+                      "name": "@prologue/sdk",
+                      "version": "0.0.0-rc.1",
+                      "private": true,
+                      "license": null
+                    },
+                    "source": {
+                      "repository": "git+https://github.com/molis-ai/molis-prologue.git",
+                      "path": "packages/sdk",
+                      "commit": "7155836f563407d01a4d9a0e134cac84359096b6",
+                      "dirty": false,
+                      "dirtyPaths": [],
+                      "patches": [],
+                      "baseCommit": "49321405b9e9f2473f5dd0b84541fb3bdb29e6a1",
+                      "branch": "codex/memory-v0-context-identity-20261104",
+                      "localOnly": true,
+                      "pushed": false,
+                      "note": "Exact user-authorized 19-file opt-in canonical context identity commit; local only, no new SDK implementation during adoption."
+                    },
+                    "artifact": {
+                      "file": "prologue-sdk-0.0.0-rc.1-memory-p0.tgz",
+                      "bytes": 1402859,
+                      "sha256": "9c55fa1f3de5296688c0641e822b8f68222aaac467f1dc2eb015628d65e7dbb0",
+                      "integrity": "sha512-WzQH/3EJJnu7QQj22iOVt63gzIqzqWBztv3KIgNNAKJKU7DKFI4hGlOCH4z9B3J+Mz6SSwB7MPyU4+/WjV2oKg=="
+                    },
+                    "build": {
+                      "node": "24.14.0",
+                      "pnpm": "11.9.0",
+                      "platform": "darwin",
+                      "architecture": "arm64",
+                      "packedOn": "2026-11-04",
+                      "steps": [
+                        "Check clean 7155836f563407d01a4d9a0e134cac84359096b6 matches reviewed 19-file frozen patch.",
+                        "Under shared build slot: node node_modules/typescript/bin/tsc -p packages/sdk/tsconfig.build.json",
+                        "pnpm -C packages/sdk pack --pack-destination /private/tmp/memory-v0-c1-sdk715-package-20261104"
+                      ],
+                      "note": "Prior exact frozen source targeted tests and installed consumer remain bounded prior evidence; no mechanical rerun of 114 tests. App final payload verification is separate."
+                    },
+                    "comparison": {
+                      "baseCommit": "49321405b9e9f2473f5dd0b84541fb3bdb29e6a1",
+                      "oldFiles": 822,
+                      "newFiles": 822,
+                      "added": [],
+                      "removed": [],
+                      "changed": [
+                        "package/dist/agent/core/compaction-history.js",
+                        "package/dist/agent/core/memory-expansion.d.ts",
+                        "package/dist/agent/core/start-input.d.ts",
+                        "package/dist/agent/core/start-input.js",
+                        "package/dist/composition/core/agent-memory-context.js",
+                        "package/dist/composition/core/agent-memory-expansion.js",
+                        "package/dist/context/core/memory-projection.js",
+                        "package/dist/context/core/provenance.d.ts",
+                        "package/dist/context/core/provenance.js"
+                      ]
+                    },
+                    "previousArtifact": {
                       "schema": "prologue-sdk-package-provenance-v1",
                       "package": {
                         "name": "@prologue/sdk",
@@ -558,99 +510,215 @@
                       "source": {
                         "repository": "git+https://github.com/molis-ai/molis-prologue.git",
                         "path": "packages/sdk",
-                        "commit": "86ad75e10295c151c65bd6ffe59d2981e66f2f06",
+                        "commit": "49321405b9e9f2473f5dd0b84541fb3bdb29e6a1",
                         "dirty": false,
                         "dirtyPaths": [],
                         "patches": [],
-                        "baseCommit": "ccafbb74fb9db0e3a124ec502c57291677487e23",
-                        "branch": "codex/memory-v0-committed-replay-20261104",
+                        "baseCommit": "86ad75e10295c151c65bd6ffe59d2981e66f2f06",
+                        "branch": "codex/memory-v0-runtime-controls-20261104",
                         "localOnly": true,
                         "pushed": false,
-                        "note": "User authorized this exact local five-file commit and isolated adoption on 2026-11-04; not merged into upstream main. No PR #108 changes are included."
+                        "note": "Exact user-authorized 38-file minimal runtime controls commit. Not merged into upstream main. No #108 Memory core, Registry, collection-read, cache or performance changes."
                       },
                       "artifact": {
                         "file": "prologue-sdk-0.0.0-rc.1-memory-p0.tgz",
-                        "bytes": 1397694,
-                        "sha256": "325846d8c495ac450f4452bddd46674f7cf3622e5312cb894e0f6b9182df309a",
-                        "integrity": "sha512-ekkYMGIzX7teriOEFeMkpxPWtxy0KvHDO+/hhUcqgz33b87n5uYFybI5nm++Ybaa+rUVy2TYdrxgMc2Bzv2/kA=="
+                        "bytes": 1402221,
+                        "sha256": "2e231153defc419f4b7c99307ff289d665d39e5098fbab619e8f7bbbf441e207",
+                        "integrity": "sha512-UP/ZD9o1xqy54Et0WMTj2pTdJ6KhBorfw+KPMfqnxHGBREEXdaIjN3tuiedZaUIU4t5DXkxOozL+EJDHaHk7Zg=="
                       },
                       "build": {
                         "node": "24.14.0",
                         "pnpm": "11.9.0",
                         "platform": "darwin",
                         "architecture": "arm64",
-                        "steps": [
-                          "Check out clean local commit 86ad75e10295c151c65bd6ffe59d2981e66f2f06.",
-                          "Use fixed Node 24.14.0 and pnpm 11.9.0 with existing store /Users/oreal/Library/pnpm/store/v11.",
-                          "Under Molis machine-slot build: node node_modules/typescript/bin/tsc -p packages/sdk/tsconfig.build.json (the existing SDK build script).",
-                          "In packages/sdk: pnpm pack --pack-destination <isolated-directory>.",
-                          "Fresh isolated consumer: pnpm install --offline --store-dir /Users/oreal/Library/pnpm/store/v11; run original consumer.mjs and review-replay-race.mjs under machine-slot browser."
-                        ],
                         "packedOn": "2026-11-04",
-                        "note": "818 archive files; no additions/removals compared with the previous package; only dist/memory/core/access.js and dist/memory/core/memory-mutations.js changed. Byte-identical to the independently reviewed r2 package. Fresh installed public Runtime/Node probes pass for setMeta/update TTL replay, no duplicate writes, current denial and observed deletion race. No remote CI, paid model, real Home or complete Molis product acceptance is claimed.",
+                        "steps": [
+                          "Check out clean local commit 49321405b9e9f2473f5dd0b84541fb3bdb29e6a1.",
+                          "With fixed Node 24.14.0 under the shared Molis build slot: node node_modules/typescript/bin/tsc -p packages/sdk/tsconfig.build.json (the existing SDK build script).",
+                          "In packages/sdk with fixed pnpm 11.9.0: pnpm pack --pack-destination /private/tmp/prologue-memory-v0-runtime-controls-local-package-20261104."
+                        ],
+                        "note": "No behavior tests rerun at this commit; the exact frozen source had prior targeted/static/clean-consumer verification and independent review. That prior 220-case round included a default-Home incident in two unanswered-retry cases; their corrected explicit-tmp 2/2 rerun does not erase that incident. No investigation or cleanup of real Home performed here.",
                         "consumerValidation": {
-                          "workspaceBuild": "pnpm build passed in the isolated Molis tree",
-                          "runner": "node scripts/run-tests.mjs",
-                          "options": [
-                            "--jobs",
-                            "1",
-                            "--browser-jobs",
-                            "1",
-                            "--retries",
-                            "0"
-                          ],
+                          "root": "/private/tmp/molis-memory-v0-integration-main-20261104",
+                          "head": "5a7e29ab81a8eedda1e0890da1a824522567f5bb",
+                          "install": "pnpm install --frozen-lockfile --offline --store-dir /Users/oreal/Library/pnpm/store/v11; unchanged versions; original supply-chain policy passed. Despite --offline, pnpm attempted registry metadata and logged ECONNRESET; no policy bypass.",
+                          "installedArchiveFilesByteEqual": 822,
+                          "cleanDistFilesByteEqual": 820,
+                          "build": "Original pnpm build completed after permission-only recovery from SwiftPM sandbox_apply denial; /tmp module caches, original project sandbox retained.",
+                          "runner": "node scripts/machine-slot.mjs run browser --label memory-v0-sdk493-six-adoption-files -- node scripts/run-tests.mjs <six named files> --jobs 1 --browser-jobs 1 --retries 0",
                           "files": {
-                            "tests/memory-classification-edit.test.ts": "9/9 passed; original cross-TTL repair failure closed",
-                            "tests/memory-settings-cas.e2e.test.ts": "17/17 passed; production renderer/client and HTTP protocol fixture",
-                            "tests/memory-management-page-authority.test.ts": "1/1 passed; real isolated Node SDK storage"
+                            "tests/memory-classification-edit.test.ts": "9/9 passed",
+                            "tests/prologue-memory-run-context.test.ts": "1/1 passed",
+                            "tests/coding-original-inputs.test.ts": "7/8 passed; MEM-35 production source assembly failed with MEMORY_SCOPE_DENIED",
+                            "tests/prologue-adoption-guard.test.ts": "3/3 passed",
+                            "tests/local-host-queue-scope.test.ts": "7/7 passed",
+                            "tests/assistant-memory.test.ts": "18/18 passed"
                           },
-                          "scope": "Local engineering and these observed test paths only; no full App or user acceptance."
+                          "failedCaseAnalysis": "Candidate cause only: this direct withCaller supplies session_id without the actual Run class_restrictions; B2 classAllowed explicitly denies that shape. No same-B2 old-SDK comparison or fixture modification was performed, so this is not claimed as a settled attribution.",
+                          "pageAssets": "Original gate passed against exact 5a7e29ab; all 51 measured resources byte-identical before/after adoption; workbench.js 1085440 B.",
+                          "scope": "No full App acceptance, user acceptance, Full, remote CI, paid models or real Home investigation."
                         }
                       },
+                      "comparison": {
+                        "baseCommit": "86ad75e10295c151c65bd6ffe59d2981e66f2f06",
+                        "oldArchive": "/private/tmp/prologue-memory-v0-clean-local-86ad75e1-20261104/prologue-sdk-0.0.0-rc.1.tgz",
+                        "oldBytes": 1397694,
+                        "oldFiles": 818,
+                        "newFiles": 822,
+                        "added": [
+                          "package/dist/orchestration/core/queue-admission.d.ts",
+                          "package/dist/orchestration/core/queue-admission.js",
+                          "package/dist/session/core/opening.d.ts",
+                          "package/dist/session/core/opening.js"
+                        ],
+                        "removed": [],
+                        "changed": [
+                          "package/dist/composition/core/agent-run-admission.d.ts",
+                          "package/dist/composition/core/agent-run-admission.js",
+                          "package/dist/composition/core/agent-run-drive.d.ts",
+                          "package/dist/composition/core/agent-run-drive.js",
+                          "package/dist/composition/core/agent-run-launch.d.ts",
+                          "package/dist/composition/core/agent-run-tool-runner.js",
+                          "package/dist/composition/core/assemble-orchestration.js",
+                          "package/dist/composition/core/runtime.d.ts",
+                          "package/dist/composition/core/start-agent-run.js",
+                          "package/dist/host/plugin/node-network.d.ts",
+                          "package/dist/host/plugin/node-network.js",
+                          "package/dist/host/plugin/node-outbound.d.ts",
+                          "package/dist/host/plugin/node-outbound.js",
+                          "package/dist/index.d.ts",
+                          "package/dist/model/core/event-validation.js",
+                          "package/dist/model/core/types.d.ts",
+                          "package/dist/orchestration/api/index.d.ts",
+                          "package/dist/orchestration/core/index.d.ts",
+                          "package/dist/orchestration/core/queue.d.ts",
+                          "package/dist/orchestration/core/queue.js",
+                          "package/dist/session/api/index.d.ts",
+                          "package/dist/session/core/conversation.d.ts",
+                          "package/dist/session/core/conversation.js",
+                          "package/dist/session/core/index.d.ts",
+                          "package/dist/session/core/run.d.ts",
+                          "package/dist/session/core/run.js",
+                          "package/dist/session/core/session.d.ts",
+                          "package/dist/session/core/session.js"
+                        ],
+                        "unchangedFiles": 790,
+                        "packageJsonUnchanged": true,
+                        "allMemoryDistUnchanged": true,
+                        "registryDistUnchanged": true
+                      },
+                      "compatibility": {
+                        "historyProjected": "New persistent ModelEvent; old 86ad cannot read records/exports containing it. Do not remove events to roll back; preserve a reader for the new event or fix forward.",
+                        "taskRowStore": "Custom Queue stores now require an exact get reader; no fake-absence compatibility fallback."
+                      },
+                      "adoption": "Adopted only into the user-authorized isolated Molis tree; Molis is uncommitted. Installation and build pass, but focused consumer validation is not fully passing: 5/6 files and 45/46 tests; the original MEM-35 Coding source assembly case fails with MEMORY_SCOPE_DENIED. No rerun or assertion/timeout change.",
                       "previousArtifact": {
-                        "source": {
-                          "repository": "git+https://github.com/molis-ai/molis-prologue.git",
-                          "path": "packages/sdk",
-                          "commit": "1cc80b05253df798eeb34afff65d1bda06bee587",
-                          "dirty": false,
-                          "dirtyPaths": [],
-                          "patches": [],
-                          "candidateUpstream": {
-                            "pullRequest": "https://github.com/molis-ai/molis-prologue/pull/107",
-                            "head": "1cc80b05253df798eeb34afff65d1bda06bee587",
-                            "status": "merged",
-                            "mergeCommit": "ccafbb74fb9db0e3a124ec502c57291677487e23",
-                            "note": "Archive was packed from the clean reviewed head. GitHub compare confirms that its merged commit has no file differences."
+                        "provenance": {
+                          "schema": "prologue-sdk-package-provenance-v1",
+                          "package": {
+                            "name": "@prologue/sdk",
+                            "version": "0.0.0-rc.1",
+                            "private": true,
+                            "license": null
+                          },
+                          "source": {
+                            "repository": "git+https://github.com/molis-ai/molis-prologue.git",
+                            "path": "packages/sdk",
+                            "commit": "86ad75e10295c151c65bd6ffe59d2981e66f2f06",
+                            "dirty": false,
+                            "dirtyPaths": [],
+                            "patches": [],
+                            "baseCommit": "ccafbb74fb9db0e3a124ec502c57291677487e23",
+                            "branch": "codex/memory-v0-committed-replay-20261104",
+                            "localOnly": true,
+                            "pushed": false,
+                            "note": "User authorized this exact local five-file commit and isolated adoption on 2026-11-04; not merged into upstream main. No PR #108 changes are included."
+                          },
+                          "artifact": {
+                            "file": "prologue-sdk-0.0.0-rc.1-memory-p0.tgz",
+                            "bytes": 1397694,
+                            "sha256": "325846d8c495ac450f4452bddd46674f7cf3622e5312cb894e0f6b9182df309a",
+                            "integrity": "sha512-ekkYMGIzX7teriOEFeMkpxPWtxy0KvHDO+/hhUcqgz33b87n5uYFybI5nm++Ybaa+rUVy2TYdrxgMc2Bzv2/kA=="
+                          },
+                          "build": {
+                            "node": "24.14.0",
+                            "pnpm": "11.9.0",
+                            "platform": "darwin",
+                            "architecture": "arm64",
+                            "steps": [
+                              "Check out clean local commit 86ad75e10295c151c65bd6ffe59d2981e66f2f06.",
+                              "Use fixed Node 24.14.0 and pnpm 11.9.0 with existing store /Users/oreal/Library/pnpm/store/v11.",
+                              "Under Molis machine-slot build: node node_modules/typescript/bin/tsc -p packages/sdk/tsconfig.build.json (the existing SDK build script).",
+                              "In packages/sdk: pnpm pack --pack-destination <isolated-directory>.",
+                              "Fresh isolated consumer: pnpm install --offline --store-dir /Users/oreal/Library/pnpm/store/v11; run original consumer.mjs and review-replay-race.mjs under machine-slot browser."
+                            ],
+                            "packedOn": "2026-11-04",
+                            "note": "818 archive files; no additions/removals compared with the previous package; only dist/memory/core/access.js and dist/memory/core/memory-mutations.js changed. Byte-identical to the independently reviewed r2 package. Fresh installed public Runtime/Node probes pass for setMeta/update TTL replay, no duplicate writes, current denial and observed deletion race. No remote CI, paid model, real Home or complete Molis product acceptance is claimed.",
+                            "consumerValidation": {
+                              "workspaceBuild": "pnpm build passed in the isolated Molis tree",
+                              "runner": "node scripts/run-tests.mjs",
+                              "options": [
+                                "--jobs",
+                                "1",
+                                "--browser-jobs",
+                                "1",
+                                "--retries",
+                                "0"
+                              ],
+                              "files": {
+                                "tests/memory-classification-edit.test.ts": "9/9 passed; original cross-TTL repair failure closed",
+                                "tests/memory-settings-cas.e2e.test.ts": "17/17 passed; production renderer/client and HTTP protocol fixture",
+                                "tests/memory-management-page-authority.test.ts": "1/1 passed; real isolated Node SDK storage"
+                              },
+                              "scope": "Local engineering and these observed test paths only; no full App or user acceptance."
+                            }
+                          },
+                          "previousArtifact": {
+                            "source": {
+                              "repository": "git+https://github.com/molis-ai/molis-prologue.git",
+                              "path": "packages/sdk",
+                              "commit": "1cc80b05253df798eeb34afff65d1bda06bee587",
+                              "dirty": false,
+                              "dirtyPaths": [],
+                              "patches": [],
+                              "candidateUpstream": {
+                                "pullRequest": "https://github.com/molis-ai/molis-prologue/pull/107",
+                                "head": "1cc80b05253df798eeb34afff65d1bda06bee587",
+                                "status": "merged",
+                                "mergeCommit": "ccafbb74fb9db0e3a124ec502c57291677487e23",
+                                "note": "Archive was packed from the clean reviewed head. GitHub compare confirms that its merged commit has no file differences."
+                              }
+                            },
+                            "artifact": {
+                              "file": "prologue-sdk-0.0.0-rc.1-memory-p0.tgz",
+                              "bytes": 1397575,
+                              "sha256": "6893801bb36df43630c0ea1cfe44eb08c2fcd0b57ae0b0abbffab42623ad5a78",
+                              "integrity": "sha512-LPbQWH3HFyVKlmSQnFb6wuKGBLuZS5zrqHX1SEMuBb6ila2gIDi1WPHcnPhcyn/yXj1zUV8mgCbKqViRnKmcfQ=="
+                            },
+                            "retrieval": {
+                              "molisCommit": "5a7e29ab81a8eedda1e0890da1a824522567f5bb",
+                              "path": "vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-memory-p0.tgz",
+                              "note": "Previous package and complete provenance remain retrievable from this Molis commit."
+                            }
                           }
                         },
-                        "artifact": {
-                          "file": "prologue-sdk-0.0.0-rc.1-memory-p0.tgz",
-                          "bytes": 1397575,
-                          "sha256": "6893801bb36df43630c0ea1cfe44eb08c2fcd0b57ae0b0abbffab42623ad5a78",
-                          "integrity": "sha512-LPbQWH3HFyVKlmSQnFb6wuKGBLuZS5zrqHX1SEMuBb6ila2gIDi1WPHcnPhcyn/yXj1zUV8mgCbKqViRnKmcfQ=="
-                        },
-                        "retrieval": {
-                          "molisCommit": "5a7e29ab81a8eedda1e0890da1a824522567f5bb",
-                          "path": "vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-memory-p0.tgz",
-                          "note": "Previous package and complete provenance remain retrievable from this Molis commit."
-                        }
+                        "localArchive": "/private/tmp/prologue-memory-v0-clean-local-86ad75e1-20261104/prologue-sdk-0.0.0-rc.1.tgz",
+                        "snapshot": "/private/tmp/molis-memory-v0-runtime-controls-adoption-before-20261104.tar",
+                        "note": "This previous local adoption was uncommitted in Molis; do not claim its bytes came from the Molis HEAD. The nested previous provenance retains #107 history."
                       }
-                    },
-                    "localArchive": "/private/tmp/prologue-memory-v0-clean-local-86ad75e1-20261104/prologue-sdk-0.0.0-rc.1.tgz",
-                    "snapshot": "/private/tmp/molis-memory-v0-runtime-controls-adoption-before-20261104.tar",
-                    "note": "This previous local adoption was uncommitted in Molis; do not claim its bytes came from the Molis HEAD. The nested previous provenance retains #107 history."
+                    }
+                  },
+                  "compatibility": {
+                    "storage": "indexed-v1 is explicit opt-in; caller must provide exclusive ownership and exact complete App Memory kinds. Default file layout remains unchanged. No old-library conversion.",
+                    "recovery": "purgeMemory returns exact storageFiles; inspection/verification and maintenance must use matching layout under existing authorization. No permission to erase an entire indexed DB from one record receipt."
                   }
                 }
               },
-              "compatibility": {
-                "storage": "indexed-v1 is explicit opt-in; caller must provide exclusive ownership and exact complete App Memory kinds. Default file layout remains unchanged. No old-library conversion.",
-                "recovery": "purgeMemory returns exact storageFiles; inspection/verification and maintenance must use matching layout under existing authorization. No permission to erase an entire indexed DB from one record receipt."
-              }
+              "localArchive": "/private/tmp/memory-v0-approved-delivery-20261106/previous-2a49-vendor/prologue-sdk-0.0.0-rc.1-memory-p0.tgz",
+              "snapshotDirectory": "/private/tmp/memory-v0-approved-delivery-20261106/previous-2a49-vendor",
+              "note": "旧2a49包及完整sidecar/README原字节保留；此前未入Molis Git，不伪造gitBlob。"
             }
-          },
-          "localArchive": "/private/tmp/memory-v0-approved-delivery-20261106/previous-2a49-vendor/prologue-sdk-0.0.0-rc.1-memory-p0.tgz",
-          "snapshotDirectory": "/private/tmp/memory-v0-approved-delivery-20261106/previous-2a49-vendor",
-          "note": "旧2a49包及完整sidecar/README原字节保留；此前未入Molis Git，不伪造gitBlob。"
+          }
         }
       }
     }

@@ -210,14 +210,14 @@ describe("the records of this repository", () => {
     assert.deepEqual(vendoredProvenanceProblems(repoRoot), []);
   });
 
-  test("the current Prologue package is the clean upstream main merge of Memory V0 (#109) consumed by agent-host", () => {
+  test("the current Prologue package is the clean upstream main after Memory V0 (#109) and its golden fixes (#110, #111), consumed by agent-host", () => {
     const provenance = json(`${folder}/${current}.provenance.json`);
     assert.equal(provenance.artifact.file, current);
     assert.equal(json("horizontal/agent-host/package.json").dependencies["@prologue/sdk"], `file:../../${folder}/${current}`);
-    // Built from the merge commit itself, which holds the former 1cc80b05 (#107) source.
-    assert.equal(provenance.source.commit, "314a27a73aa1674faa1c0a4d4dce7f137f97c37c");
-    assert.equal(provenance.source.candidateUpstream.pullRequest, "https://github.com/molis-ai/molis-prologue/pull/109");
-    assert.equal(provenance.source.candidateUpstream.head, "008e1b0f7dd25238c6a80ed975b9bfea83d98b5c");
+    // Built from upstream main at the #111 merge; its first parent is the #110 merge, which holds #109 and 1cc80b05 (#107).
+    assert.equal(provenance.source.commit, "1128126de14e9209152f7dc36d152991fb933aea");
+    assert.equal(provenance.source.candidateUpstream.pullRequest, "https://github.com/molis-ai/molis-prologue/pull/111");
+    assert.equal(provenance.source.candidateUpstream.head, "65bed33afbab177591159c6d0a733f8ee2924d47");
     assert.equal(provenance.source.candidateUpstream.status, "merged");
     assert.equal(provenance.source.candidateUpstream.mergeCommit, provenance.source.commit);
     assert.equal(provenance.source.inFlight, undefined);

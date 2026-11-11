@@ -1057,8 +1057,8 @@ export interface AgentMemoryRecallFact {
             body_reads: number | "unknown";
             records_scanned: number | "unknown";
             candidates_exposed: number;
-            elapsed_ms: number;
             complete: boolean;
+            elapsed_ms?: number;
         };
     }>;
     contexts?: Array<{

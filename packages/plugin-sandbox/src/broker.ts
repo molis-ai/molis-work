@@ -6,7 +6,7 @@ import { BACKGROUND_EXECUTIONS, type SandboxBackground } from './background.js';
 import { assertJson, SandboxError } from './schema.js';
 import { sandboxStatement, sandboxStatements, type SandboxDatabaseService } from './database.js';
 import { documentBatchJson, extractionJson, materialLocalUrl, materialReadDomains, materialRequest, materialSource, materialSourceUrl, materialUploads, originalPart, originalRecordKey, plainJson, sourceContentJson } from './materials.js';
-import { imageGenerationCall, type SandboxImageGeneration } from './image.js';
+import { imageGenerationCall, type SandboxImageGeneration, type SandboxImageHolder } from './image.js';
 import { availabilityJson, choicesJson, modelCall, modelResultJson, modelSelection, settingsJson, settingsSelection, type SandboxModel, type SandboxModelSettings } from './model.js';
 import { applyOwnerFileChanges, ownerFileChanges, ownerFileInfo, ownerFileList, ownerFilePath, ownerFileRead, type SandboxOwnerFiles } from './owner-files.js';
 import { BoundedQueue, RateBudget } from './queue.js';
@@ -75,9 +75,9 @@ export class SandboxBroker {
     for (const { execution } of this.executions.values()) execution.cancel();
     this.executions.clear();
   }
-  /** `connections`: the call's own (S-95), which takes the activation's place for this call; the Host's proxy alone supplies it. */
+  /** `connections`: the call's own (S-95), in the activation's place, from the Host's proxy alone; `images`: the runner call's held image result (BL-918). */
   invoke(operation: SandboxOperationContract, signal: AbortSignal, method: SandboxSdkMethod, args: SandboxJson[], guard?: () => Promise<void>, serviceTimeoutMs = this.limits.serviceTimeoutMs,
-    connections: PluginConnectionsClient | undefined = this.services.connections, projectReach?: object): Promise<SandboxJson> {
+    connections: PluginConnectionsClient | undefined = this.services.connections, projectReach?: object, images?: SandboxImageHolder): Promise<SandboxJson> {
     try { this.calls.consume(); assertJson(args); } catch (error) { return Promise.reject(error); }
     return this.queue.submit(async () => {
       signal.throwIfAborted();
@@ -93,7 +93,7 @@ export class SandboxBroker {
       const context: SandboxServiceContext = { identity: this.identity, signal: modelRequest?.signal ?? lifetime.signal, operationId: operation.id, beforeEffect, projectReach };
       try {
         await lifetime.wait(beforeEffect());
-        const result = await lifetime.wait(this.dispatch(context, operation, method, args, connections));
+        const result = await lifetime.wait(this.dispatch(context, operation, method, args, connections, images));
         await lifetime.wait(beforeEffect()); assertJson(result);
         if (Buffer.byteLength(JSON.stringify(result)) > this.limits.messageBytes / 2) throw new SandboxError('sandbox.response_too_large', 'Host service response exceeds channel limit');
         return result;
@@ -269,7 +269,7 @@ export class SandboxBroker {
     const { bound, display_name, state } = await connections.describe(slot, record);
     return { bound, ...(display_name === undefined ? {} : { display_name }), ...(state === undefined ? {} : { state }) };
   }
-  private async dispatch(context: SandboxServiceContext, operation: SandboxOperationContract, method: SandboxSdkMethod, args: SandboxJson[], connections: PluginConnectionsClient | undefined): Promise<SandboxJson> {
+  private async dispatch(context: SandboxServiceContext, operation: SandboxOperationContract, method: SandboxSdkMethod, args: SandboxJson[], connections: PluginConnectionsClient | undefined, images?: SandboxImageHolder): Promise<SandboxJson> {
     const guards = this.guards(operation, args), { permit, count, string, missing } = guards;
     if (method.startsWith('storage.')) {
       const write = method === 'storage.set' || method === 'storage.delete';
@@ -331,7 +331,7 @@ export class SandboxBroker {
       return plainJson(await this.services.projects!.exist(ids, { signal: context.signal }));
     }
     if (method.startsWith('model.')) return this.dispatchModel(context, operation, method, args, guards);
-    if (method.startsWith('imageGeneration.')) return imageGenerationCall(this.services.imageGeneration, context, operation, method, args, guards);
+    if (method.startsWith('imageGeneration.')) return imageGenerationCall(this.services.imageGeneration, images, context, operation, method, args, guards);
     if (method.startsWith('background.')) return this.dispatchBackground(context, operation, method, args, guards);
     if (method.startsWith('interaction.')) {
       // Drawing reads only what the plugin passes and writes nothing; the Host checks each drawing's shape, the channel that it is an object.

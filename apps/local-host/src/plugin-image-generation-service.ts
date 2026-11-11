@@ -1,7 +1,7 @@
 import type { PluginDefinition, PluginImageGenerationClient, PluginImageGenerationDeclaration, PluginImageGenerationRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createPluginImageGenerationClient, type PluginImageGenerationDispatch, type PluginImageGenerationPort } from "@molis-ai/molis-work-plugin-runtime";
 import { createExecutionLifetime } from "@molis-ai/molis-work-plugin-sdk";
-import { inferenceServiceUnavailableReason, isDispatchRefusal } from "@molis-ai/molis-work-service-agent-host";
+import { inferenceServiceUnavailableReason, isDispatchRefusal, type PrologueImageOutputLimits } from "@molis-ai/molis-work-service-agent-host";
 import { existsSync } from "node:fs";
 import { homeSqlitePath } from "@molis-ai/molis-work-storage";
 import type { PluginPlatformHome } from "./home-side.js";
@@ -21,7 +21,7 @@ export function pluginImageGenerationFor(home: PluginPlatformHome | null | undef
 }
 
 /** Connector owner manages bindings; agent-host owns every actual model dispatch. */
-export function createPluginImageGenerationPort(home: string, namespace: string): PluginImageGenerationPort {
+export function createPluginImageGenerationPort(home: string, namespace: string, output?: PrologueImageOutputLimits): PluginImageGenerationPort {
   return {
     connections: () => imageConnectionViews(home),
     inspect: target => imageConnectionSnapshot(home, namespace, target),
@@ -32,11 +32,11 @@ export function createPluginImageGenerationPort(home: string, namespace: string)
       store.bind({ scopeId: "home", pluginId: namespace, slotId: target.slot_id, serviceId: "image-api", connectionId });
     }),
     unbind: slotId => { if (existsSync(homeSqlitePath(home, "connectors"))) withConnectorConnections(home, store => store.unbind("home", namespace, slotId)); },
-    generate: (request, dispatch) => generate(home, namespace, request, dispatch),
+    generate: (request, dispatch) => generate(home, namespace, request, dispatch, output),
   };
 }
 
-async function generate(home: string, namespace: string, request: PluginImageGenerationRequest, dispatch: PluginImageGenerationDispatch) {
+async function generate(home: string, namespace: string, request: PluginImageGenerationRequest, dispatch: PluginImageGenerationDispatch, output: PrologueImageOutputLimits | undefined) {
   const target = { slot_id: request.slot_id, base_url: imageBaseUrl(request.base_url) };
   const snapshot = imageConnectionSnapshot(home, namespace, target);
   if (!snapshot.available || snapshot.revision !== request.expected_revision) throw imagePortErrors.image_connection_changed("生图连接已改变或不可用，请重新提交");
@@ -63,7 +63,7 @@ async function generate(home: string, namespace: string, request: PluginImageGen
           : `${target.base_url}/models/${encodeURIComponent(request.model)}:generateContent`;
         return inference.generateImages({ protocol: request.protocol, endpoint, model: request.model, prompt: request.prompt,
           ...(request.size ? { size: request.size } : {}), ...(request.aspect_ratio ? { aspect_ratio: request.aspect_ratio } : {}),
-          signal: lifetime.signal, beforeDispatch, timeout_ms: 180_000, credential_ref: `image-generation:${target.slot_id}`,
+          signal: lifetime.signal, beforeDispatch, timeout_ms: 180_000, credential_ref: `image-generation:${target.slot_id}`, ...(output ? { output } : {}),
           resolveCredential: () => { lifetime.assertActive(); current(); return pinned.connection_id
             ? withConnectorConnections(home, store => store.resolveToken(pinned.connection_id!, "image-api")) : ""; } });
       })();
@@ -79,6 +79,8 @@ async function generate(home: string, namespace: string, request: PluginImageGen
 }
 
 function providerFailure(error: unknown): Error {
+  // The caller's own cap refused the batch before anything was copied: the pictures exist but are not delivered here (BL-918).
+  if (typeof error === "object" && error !== null && "code" in error && error.code === "agent.inference.image_too_large") return imagePortErrors.image_too_large("图片超出这次能交付的张数或大小");
   const status = typeof error === "object" && error !== null && "status" in error ? error.status : undefined;
   if (typeof status === "number" && Number.isInteger(status) && status >= 400 && status <= 599) {
     return imagePortErrors.image_provider_failed(`厂商返回 HTTP ${status}，请检查参数、账号权限与用量后再手动重试`);

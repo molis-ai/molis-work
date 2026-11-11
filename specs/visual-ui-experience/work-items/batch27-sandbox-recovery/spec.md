@@ -15,7 +15,7 @@
 
 适用流程与合同。 [开工前检查](../../../post-anticorruption-roadmap/reference/development-workflow.md#4-开工前检查)、[开发](../../../post-anticorruption-roadmap/reference/development-workflow.md#8-开发)、[评审](../../../post-anticorruption-roadmap/reference/development-workflow.md#10-评审与合并)、[合同变更](../../../../docs/system/CONTRACT-CHANGES.md)、[插件开发 Skill](../../../../skills/molis-plugin-dev/SKILL.md)
 
-需求与接续。BL-910 已随 `c19f85c3c` 进入本基点。BL-701、367、803 沿现有 Runtime 合同，本稿复用现行安装授权和直接本人入口，消费 BL-367／第 06 批的实际资源释放等待。 [BL-915](../../../backlog/BL-915.md)、[BL-918](../../../backlog/BL-918.md)、[BL-628 §3.7](../../../archive/repository-anti-corruption/slices/bl628-sandboxed-home-plugins.md#37-卸载与数据清理)、[T-143 与原验收](../../../archive/repository-anti-corruption/slices/pg011-pg017-remaining.md#6-bl-491-模型设置与生图t-143)、[Runtime 合同](../batch27-runtime-contracts/spec.md)、[第 06 批](../../../post-anticorruption-roadmap/reference/batches/06.md)
+需求与接续。BL-910 已随 `c19f85c3c` 进入本基点。BL-701、367、803 沿现有 Runtime 合同，本稿复用现行安装授权和直接本人入口，消费 BL-367／第 06 批的实际资源释放等待。 [BL-915](../../../backlog/BL-915.md)、BL-918（已完成，待办文件已删，实现记录见下文）、[BL-628 §3.7](../../../archive/repository-anti-corruption/slices/bl628-sandboxed-home-plugins.md#37-卸载与数据清理)、[T-143 与原验收](../../../archive/repository-anti-corruption/slices/pg011-pg017-remaining.md#6-bl-491-模型设置与生图t-143)、[Runtime 合同](../batch27-runtime-contracts/spec.md)、[第 06 批](../../../post-anticorruption-roadmap/reference/batches/06.md)
 
 ## BL-915 · 依可信记录卸载
 
@@ -107,6 +107,17 @@ BL-628 §3.7 的原表写明「Home 库（S-91）」，不保留数据时「删�
 | B27-IMG-02 | 真签包 → 生产 Host/Seatbelt/broker/Prologue → 隔离 HTTPS 假厂商。真实 PNG/JPEG 1–2 MiB（含非整段尾）、4×2 MiB 对照独立原字节长度/摘要，插件只返回小验证值。每个批次确实只有一次供应商 POST，每段在半限以下，测最大报文/Host 和 worker 峰值，原小图 fixture 保持。未信任 CA、错 SAN 及错来源拒且 HTTP=0，保留既有计量策略证据。 |
 | B27-IMG-03 | 正面证明单 RPC dispose 后同一个 `runner.call` 可续读。旁路 raw frame 分别带另一调用、安装、项目的 ref（同名 operation 也拒），无声明/授权、未知字段、负数、非整数、越界、释放后读均断言拒绝本身。正面测同范围重复无 provider POST，恶意并发分片或并行 generate 受既有队列和未释放结果限额约束。 |
 | B27-IMG-04 | 在供应商回之前、描述符已回首段前、中段后及最终交付边界设置真实栅栏，分别取消、超时、撤权限/项目许可/发布者、切换或断开连接、停用、进程退出。每组至少测一处晚回包与半批失败；不交付后续结果，所有内存持有、connector registration 和 Prologue refs 释放，原件／ownerFiles／成果／持久业务及计量无新增，重试只由新的显式动作发起。 |
+
+### 实现记录（2026-11-11，第 27 批主会话）
+
+按上面的推荐做，作者 API 不变。合同：`SandboxImageDescriptor`、`SandboxImageRange`、`SandboxImagePart` 与两个内部方法 `imageGeneration.readRange`、`imageGeneration.releaseResult` 进 `platform/plugin-sandbox`，`SANDBOX_IMAGE_LIMITS` 定为 4 张、单张 4 MiB、合计 8 MiB、每段 256 KiB（公开 API 快照已刷新）。
+
+- 持有：`SandboxImageHolder`（`packages/plugin-sandbox/src/image.ts`）由 runner 为每个 `active` 调用新建，绑在该调用的 `controller.signal` 上；调用正常结束、插件报错、取消、超时、撤权、停止、进程退出都走这个 controller 的 abort，holder 同步清空。broker 的 `invoke` 多一个参数把它传进来，单个 RPC 的 lifetime 结束不影响它。结果号用 `randomUUID`，只在本调用内有效；只记得最近一个已释放的号，用来让重复释放成为空操作。
+- 每段的门：broker 再查 `generate` 效果与原地址的 `networkDomains`；`beforeEffect` 走 runner 的原调用者检查；宿主客户端在同一动作作用域里 `inspect`，授权或连接版本不对即丢弃整个结果。**采用了「只在续读时查版本」的简化**：连接在两段之间改变时不会主动回收，只保证下一段必拒、之后什么都不交付；没有接 `withConnectorRequest` 的租约。留给 C 审。
+- 限额先查后分配：holder 对宿主真实交回的 `Uint8Array` 查张数、单张、合计与 MIME 形状，worker 对描述符再查一遍再分配缓冲、逐段核 offset、长度、尺寸与解码后字节数；agent-host 适配器新增可选的 `output` 上限，只由沙箱的图片端口传入，先 inspect 全部资源、整批合格才分配，超限 `agent.inference.image_too_large`（宿主映射为 `host.image_too_large`，沙箱端口再转成 `sandbox.response_too_large`），资源在 `finally` 全部撤销；读块循环加了「多读」「未到长度就 done」的拒绝。原生图片客户端不传 `output`，行为不变。
+- 切换：第 ② 步（新传输、仍 360 KiB）与第 ③ 步（上限与 agent-host 预检）在同一提交落地，没有长期双解码；旧阶段的 360 KiB+1 拒绝由同一个校验器（holder 给 360 KiB 限额）在 B27-IMG-01 里保留。
+- 新错误码：`agent.inference.image_too_large`、`host.image_too_large`。
+- 证据：`tests/security-invariants-sandbox-image-ranges.test.ts`（B27-IMG-01、03、04，含真 Seatbelt runner 的续读、段间取消与停进程）、`tests/prologue-inference-native.test.ts`（适配器预检）、`tests/security-invariants-sandbox-home-signed-model.test.ts` 的 RAC-2655 trusted 分支（B27-IMG-02：真签包、生产宿主、Seatbelt、Prologue、隔离 HTTPS，1.5 MiB 与 4×(2 MiB−64 KiB) 的真 PNG，每批一次供应商 POST）、RAC-2633 改为新形状。未做：真实 JPEG、峰值 RSS 与最大报文的数字测量、撤项目许可或发布者的分组栅栏（这几种撤销都经同一个 `beforeEffect`／controller，单测覆盖了撤权与取消两种代表）。
 
 ## 开工前 15 项
 

@@ -15,7 +15,7 @@ import type { AgentRelease } from "@molis-ai/molis-work-plugin-builder";
 import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { PACKAGE_PLUGIN_ID, newPublisher, packageFiles, payloadOf, signedPackage } from "./fixtures/sandbox-package.js";
 import { fixture, mac, operate, operationsOf, person, ref, runtimeStore } from "./fixtures/home-sandbox.js";
-import { IMAGE_DOMAIN, IMAGE_PNG, signedImageProvider } from "./fixtures/home-signed-model-provider.js";
+import { IMAGE_DOMAIN, IMAGE_PNG, noisePng, signedImageProvider } from "./fixtures/home-signed-model-provider.js";
 import { openTestHome, serveTestHost } from "./fixtures/test-home.js";
 
 // BL-491 (PG-017; specs/archive/repository-anti-corruption/slices/pg011-pg017-remaining.md §6, S-60, S-66, S-91): a signed package installed in the Home asks for its model and
@@ -35,6 +35,11 @@ const CODE = `export const operations = {
       else if (cmd.op === 'settings.save') out = (await sdk.model.settings.save(cmd.choice)).selection ?? null;
       else if (cmd.op === 'image.inspect') out = await sdk.imageGeneration.inspect({ slot_id: 'main', base_url: cmd.url });
       else if (cmd.op === 'image.generate') out = await sdk.imageGeneration.generate({ slot_id: 'main', base_url: cmd.url, expected_revision: cmd.revision, protocol: 'openai-images', model: 'fixture-image', prompt: 'A small blue boat' });
+      else if (cmd.op === 'image.digest') {
+        // Large pictures stay inside the operation: what it returns is their sizes and a checksum (BL-918).
+        const result = await sdk.imageGeneration.generate({ slot_id: 'main', base_url: cmd.url, expected_revision: cmd.revision, protocol: 'openai-images', model: 'fixture-image', prompt: 'A small blue boat' });
+        out = { revision: result.revision, images: result.images.map(image => { const bytes = Buffer.from(image.base64, 'base64'); let sum = 0; for (const byte of bytes) sum = (sum * 31 + byte) >>> 0; return { length: bytes.length, sum }; }) };
+      }
       else if (cmd.op === 'image.connections') out = await sdk.imageGeneration.connections();
       else if (cmd.op === 'image.bind') { await sdk.imageGeneration.bind({ slot_id: 'main', base_url: cmd.url }, cmd.connection); out = 'bound'; }
     } catch (error) { out = { error: error.code ?? String(error) }; }
@@ -360,6 +365,14 @@ for (const certificate of ["untrusted", "wrong-san", "trusted"] as const) test(`
       assert.deepEqual(provider.tlsErrors, []);
       assert.deepEqual(await r.ask({ op: "image.generate", url: "https://unapproved.t143.example/v1", revision: state.revision }), { error: "sandbox.not_authorized" });
       assert.equal(provider.requests.length, 1, "unapproved origin is refused before sending");
+      // BL-918 B27-IMG-02: real pictures of 1–2 MiB (a last part that is not whole) and four of 2 MiB, read in parts and checked against the provider's own bytes.
+      const digest = (images: Buffer[]) => images.map(bytes => { let sum = 0; for (const byte of bytes) sum = (sum * 31 + byte) >>> 0; return { length: bytes.length, sum }; });
+      for (const images of [[noisePng(1.5 * 1024 * 1024 + 4321, 7)], [1, 2, 3, 4].map(seed => noisePng(2 * 1024 * 1024 - 64 * 1024, seed))]) {
+        provider.reply.images = images;
+        const sent = provider.requests.length;
+        assert.deepEqual(await r.ask({ op: "image.digest", url, revision: state.revision }), { revision: state.revision, images: digest(images) });
+        assert.equal(provider.requests.length, sent + 1, "one provider request per batch");
+      }
     } else {
       assert.ok(result.error, "the installed operation observed the production refusal");
       assert.equal(provider.requests.length, 0, "TLS refusal happens before HTTP");

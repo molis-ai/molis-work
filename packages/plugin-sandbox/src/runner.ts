@@ -9,6 +9,7 @@ import { createExecutionLifetime } from '@molis-ai/molis-work-plugin-sdk';
 import type { PluginConnectionsClient } from '@molis-ai/molis-work-contracts/platform/plugin-connections';
 import type { SandboxEffects, SandboxHostMessage, SandboxIdentity, SandboxJson, SandboxOperationContract, SandboxPluginContract, SandboxWorkerMessage } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { SandboxBroker, type SandboxServices } from './broker.js';
+import { SandboxImageHolder } from './image.js';
 import { modelDeadlines } from './model.js';
 import { BoundedQueue, RateBudget } from './queue.js';
 import { assertContract, assertEffects, assertJson, assertMatches, SandboxError } from './schema.js';
@@ -91,7 +92,7 @@ export async function createSandboxRunner(options: SandboxRunnerOptions): Promis
   const broker = new SandboxBroker(identity, grants, options.services, limits);
   const shutdownControl = new AbortController();
   let stopped: SandboxError | undefined, ready = false, buffer = Buffer.alloc(0), stderrBytes = 0;
-  let active: { id: string; operation: SandboxOperationContract; serviceTimeoutMs: number; connections?: PluginConnectionsClient; projectReach?: object; outcome: { uncertain?: SandboxError }; controller: AbortController; beforeEffect(): Promise<void>; reenter<T>(run: () => T): T; resolve: (v: SandboxJson) => void; reject: (e: unknown) => void; pendingSdk: Set<string> } | undefined;
+  let active: { id: string; operation: SandboxOperationContract; serviceTimeoutMs: number; connections?: PluginConnectionsClient; projectReach?: object; outcome: { uncertain?: SandboxError }; controller: AbortController; images: SandboxImageHolder; beforeEffect(): Promise<void>; reenter<T>(run: () => T): T; resolve: (v: SandboxJson) => void; reject: (e: unknown) => void; pendingSdk: Set<string> } | undefined;
   let readyResolve: () => void, readyReject: (e: unknown) => void;
   const started = new Promise<void>((resolve, reject) => { readyResolve = resolve; readyReject = reject; });
   let exitResolve: () => void;
@@ -130,7 +131,7 @@ export async function createSandboxRunner(options: SandboxRunnerOptions): Promis
       if (message.callId !== current.id || current.pendingSdk.has(message.id) || !Array.isArray(message.args) || typeof message.method !== 'string') throw new SandboxError('sandbox.protocol_error', 'Invalid SDK request');
       if (current.pendingSdk.size >= limits.sdkQueue) throw new SandboxError('sandbox.queue_full', 'Too many outstanding SDK requests');
       current.pendingSdk.add(message.id);
-      current.reenter(() => broker.invoke(current.operation, current.controller.signal, message.method, message.args, current.beforeEffect, current.serviceTimeoutMs, current.connections, current.projectReach)).then(
+      current.reenter(() => broker.invoke(current.operation, current.controller.signal, message.method, message.args, current.beforeEffect, current.serviceTimeoutMs, current.connections, current.projectReach, current.images)).then(
         result => { if (active === current && !stopped) send({ type: 'sdk-result', id: message.id, value: result }); },
         error => {
           if (error instanceof SandboxError && error.outcome === 'unknown') current.outcome.uncertain ??= error;
@@ -223,8 +224,8 @@ export async function createSandboxRunner(options: SandboxRunnerOptions): Promis
             await execution.wait(beforeEffect());
             const result = await execution.wait(new Promise<SandboxJson>((resolve, reject) => {
               if (stopped) { reject(stopped); return; }
-              const id = randomUUID(), controller = new AbortController();
-              active = { id, operation, serviceTimeoutMs, ...(control?.connections ? { connections: control.connections } : {}), projectReach: control?.projectReach, outcome, controller, beforeEffect, reenter, resolve, reject, pendingSdk: new Set() };
+              const id = randomUUID(), controller = new AbortController(), images = new SandboxImageHolder(controller.signal); // dropped with this call, however it ends (BL-918)
+              active = { id, operation, serviceTimeoutMs, ...(control?.connections ? { connections: control.connections } : {}), projectReach: control?.projectReach, outcome, controller, images, beforeEffect, reenter, resolve, reject, pendingSdk: new Set() };
               dispatched = true;
               try { send({ type: 'call', id, operationId, input: snapshot }); } catch (error) { shutdown(error instanceof SandboxError ? error : new SandboxError('sandbox.channel_error', 'Failed to start operation')); }
             }));

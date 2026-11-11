@@ -1,10 +1,12 @@
 // This file is copied alone to a .mjs file. No host modules or credentials enter the sandbox.
-import type { SandboxConnectionDescription, SandboxConnectionResponse, SandboxHostMessage, SandboxJson, SandboxModelAvailability, SandboxImageConnection, SandboxImageResult, SandboxImageState, SandboxModelChoice, SandboxModelResult, SandboxModelSettingsView, SandboxOperations, SandboxOriginalPart, SandboxSdk, SandboxSdkMethod, SandboxSqlRow } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
+import type { SandboxConnectionDescription, SandboxConnectionResponse, SandboxHostMessage, SandboxJson, SandboxModelAvailability, SandboxImageConnection, SandboxImageDescriptor, SandboxImagePart, SandboxImageResult, SandboxImageState, SandboxModelChoice, SandboxModelResult, SandboxModelSettingsView, SandboxOperations, SandboxOriginalPart, SandboxSdk, SandboxSdkMethod, SandboxSqlRow } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 
 const write = process.stdout.write.bind(process.stdout);
 /** The Host's cap for one original file, and the part the channel carries at a time (the broker holds the same two numbers). */
 const ORIGINAL_FILE_BYTES = 32 * 1024 * 1024;
 const ORIGINAL_PART_BYTES = 256 * 1024;
+/** The Host's caps for one image result (`SANDBOX_IMAGE_LIMITS`, which the broker enforces on the actual bytes); here they bound what is allocated. */
+const IMAGE_LIMITS = { max_images: 4, max_image_bytes: 4 * 1024 * 1024, max_bytes: 8 * 1024 * 1024, part_bytes: 256 * 1024 };
 const send = (value: unknown) => write(JSON.stringify(value) + '\n');
 const pending = new Map<string, { resolve: (value: SandboxJson) => void; reject: (error: Error) => void }>();
 let sequence = 0;
@@ -23,6 +25,27 @@ const rpc = (callId: string, method: SandboxSdkMethod, args: SandboxJson[]): Pro
   const id = `${callId}:${++sequence}`;
   return new Promise((resolve, reject) => { pending.set(id, { resolve, reject }); send({ type: 'sdk', id, callId, method, args }); });
 };
+const imageInvalid = (message: string) => Object.assign(new Error(message), { code: 'sandbox.host_service_error' });
+const whole = (value: unknown, min: number, max: number) => typeof value === 'number' && Number.isSafeInteger(value) && value >= min && value <= max;
+/** Each picture into a buffer of the size the Host announced (checked against the caps first), part by part, every part checked before it is copied. */
+async function readImages(held: SandboxImageDescriptor, read: (range: { result_id: string; image_index: number; offset: number; length: number }) => Promise<SandboxImagePart>): Promise<SandboxImageResult> {
+  if (!Array.isArray(held.images) || !held.images.length || held.images.length > IMAGE_LIMITS.max_images) throw imageInvalid('The image result has no pictures or too many');
+  let total = 0;
+  for (const image of held.images) if (!whole(image.byte_length, 1, IMAGE_LIMITS.max_image_bytes) || (total += image.byte_length) > IMAGE_LIMITS.max_bytes) throw imageInvalid('The image result is larger than the limits');
+  const images: SandboxImageResult['images'] = [];
+  for (const [index, image] of held.images.entries()) {
+    const bytes = Buffer.alloc(image.byte_length);
+    for (let offset = 0; offset < bytes.length;) {
+      const length = Math.min(IMAGE_LIMITS.part_bytes, bytes.length - offset);
+      const part = await read({ result_id: held.result_id, image_index: index, offset, length });
+      const data = typeof part.data_base64 === 'string' ? Buffer.from(part.data_base64, 'base64') : undefined;
+      if (part.offset !== offset || part.size !== bytes.length || !whole(part.byte_length, 1, length) || data?.length !== part.byte_length) throw imageInvalid('An image part does not match what was asked');
+      data.copy(bytes, offset); offset += data.length;
+    }
+    images.push({ base64: bytes.toString('base64'), ...(typeof image.mime === 'string' ? { mime: image.mime } : {}) });
+  }
+  return { images, revision: held.revision };
+}
 function sdk(callId: string): SandboxSdk {
   const invoke = (method: SandboxSdkMethod, args: SandboxJson[]) => rpc(callId, method, args);
   return {
@@ -98,7 +121,12 @@ function sdk(callId: string): SandboxSdk {
       inspect: target => answer<SandboxImageState>(invoke('imageGeneration.inspect', [json(target)])),
       bind: async (target, connectionId) => { await invoke('imageGeneration.bind', [json(target), connectionId]); },
       unbind: async slotId => { await invoke('imageGeneration.unbind', [slotId]); },
-      generate: request => answer<SandboxImageResult>(invoke('imageGeneration.generate', [json(request)])),
+      // The Host holds the pictures for this call and answers with their sizes; they are read here in parts and handed over whole, or not at all (BL-918).
+      generate: async request => {
+        const held = await answer<SandboxImageDescriptor>(invoke('imageGeneration.generate', [json(request)]));
+        try { return await readImages(held, range => answer<SandboxImagePart>(invoke('imageGeneration.readRange', [json(range)]))); }
+        finally { await invoke('imageGeneration.releaseResult', [{ result_id: held.result_id }]).catch(() => null); }
+      },
     },
     background: {
       start: (operation, input) => invoke('background.start', [operation, json(input)]) as Promise<string>,

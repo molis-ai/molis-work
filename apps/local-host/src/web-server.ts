@@ -254,7 +254,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
       installationDiagnostics:options.installationDiagnostics??(projectCount=>installationDiagnostics(homeDirectory,projectCount)),
     };
     return createSpaceWebServer(installation, createMolisWorkWebServer, platform.withCatalog,{
-    render:(token,request,url,message)=>runWithLocale(resolveWebLocale(request.headers.cookie,request.headers['accept-language']),()=>renderPersonalAccountEntry(token,platform.isDesktopShellRequest(request,url),message,{L,htmlLang,clientI18nScript},platform.nativeDesktopBootstrapScript)),
+    render:(token,request,url,message)=>runWithLocale(resolveWebLocale(request.headers.cookie,request.headers['accept-language']),()=>renderPersonalAccountEntry(token,platform.isDesktopShellRequest(request,url),message,{L,htmlLang,clientI18nScript},platform.nativeDesktopBootstrapScript,url.searchParams.has('accountLogin'))),
     asset:(request,response,url)=>runWithLocale(resolveWebLocale(request.headers.cookie,request.headers['accept-language']),()=>entryAssets.serveWorkbenchAsset(request,response,url.pathname)),
     });
   };

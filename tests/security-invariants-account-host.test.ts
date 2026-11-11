@@ -52,7 +52,7 @@ function identity(suffix = "first") {
   const session: SessionView = { loginSessionId: "session-" + suffix, applicationId: "molis-work-unified-local-app", clientId: "molis-work-unified-local",
     authenticatedAt: new Date(now).toISOString(), lastActiveAt: new Date(now).toISOString(), idleExpiresAt: new Date(now + 86400000).toISOString(),
     absoluteExpiresAt: new Date(now + 2 * 86400000).toISOString(), sessionRevision: 0 };
-  const user: UserView = { issuer: "http://127.0.0.1:8787", userId: "user-" + suffix, displayName: "Account " + suffix, avatarUrl: null, version: 0 };
+  const user: UserView = { issuer: "http://127.0.0.1:8787", userId: "user-" + suffix, displayName: "Account " + suffix, email: null, avatarUrl: null, version: 0 };
   const tokens = { accessToken: randomBytes(32).toString("base64url"), refreshToken: randomBytes(32).toString("base64url"),
     tokenType: "Bearer" as const, accessExpiresAt: new Date(now + 3600000).toISOString(), session };
   return { user, session, tokens };

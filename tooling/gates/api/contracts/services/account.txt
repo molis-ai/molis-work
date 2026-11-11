@@ -194,96 +194,112 @@ export type ProductReauthenticationRequest = ({
     readonly target: {
         readonly method: LoginMethodType;
     };
+    readonly useSession?: boolean;
 }) | ({
     readonly method: "EMAIL_PASSWORD";
     readonly operation: "REPLACE_METHOD";
     readonly target: {
         readonly bindingId: Id;
     };
+    readonly useSession?: boolean;
 }) | ({
     readonly method: "EMAIL_PASSWORD";
     readonly operation: "UNLINK_METHOD";
     readonly target: {
         readonly bindingId: Id;
     };
+    readonly useSession?: boolean;
 }) | ({
     readonly method: "EMAIL_PASSWORD";
     readonly operation: "CHANGE_PASSWORD";
     readonly target: {
         readonly kind: "PASSWORD";
     };
+    readonly useSession?: boolean;
 }) | ({
     readonly method: "PHONE_OTP";
     readonly operation: "BIND_METHOD";
     readonly target: {
         readonly method: LoginMethodType;
     };
+    readonly useSession?: boolean;
 }) | ({
     readonly method: "PHONE_OTP";
     readonly operation: "REPLACE_METHOD";
     readonly target: {
         readonly bindingId: Id;
     };
+    readonly useSession?: boolean;
 }) | ({
     readonly method: "PHONE_OTP";
     readonly operation: "UNLINK_METHOD";
     readonly target: {
         readonly bindingId: Id;
     };
+    readonly useSession?: boolean;
 }) | ({
     readonly method: "PHONE_OTP";
     readonly operation: "CHANGE_PASSWORD";
     readonly target: {
         readonly kind: "PASSWORD";
     };
+    readonly useSession?: boolean;
 }) | ({
     readonly method: "GOOGLE";
     readonly operation: "BIND_METHOD";
     readonly target: {
         readonly method: LoginMethodType;
     };
+    readonly useSession?: boolean;
 }) | ({
     readonly method: "GOOGLE";
     readonly operation: "REPLACE_METHOD";
     readonly target: {
         readonly bindingId: Id;
     };
+    readonly useSession?: boolean;
 }) | ({
     readonly method: "GOOGLE";
     readonly operation: "UNLINK_METHOD";
     readonly target: {
         readonly bindingId: Id;
     };
+    readonly useSession?: boolean;
 }) | ({
     readonly method: "GOOGLE";
     readonly operation: "CHANGE_PASSWORD";
     readonly target: {
         readonly kind: "PASSWORD";
     };
+    readonly useSession?: boolean;
 }) | ({
     readonly method: "GITHUB";
     readonly operation: "BIND_METHOD";
     readonly target: {
         readonly method: LoginMethodType;
     };
+    readonly useSession?: boolean;
 }) | ({
     readonly method: "GITHUB";
     readonly operation: "REPLACE_METHOD";
     readonly target: {
         readonly bindingId: Id;
     };
+    readonly useSession?: boolean;
 }) | ({
     readonly method: "GITHUB";
     readonly operation: "UNLINK_METHOD";
     readonly target: {
         readonly bindingId: Id;
     };
+    readonly useSession?: boolean;
 }) | ({
     readonly method: "GITHUB";
     readonly operation: "CHANGE_PASSWORD";
     readonly target: {
         readonly kind: "PASSWORD";
     };
+    readonly useSession?: boolean;
 });
 
 export type ProductTransactionRequest = ({
@@ -395,6 +411,10 @@ export type Subscription = {
     readonly status: "SCHEDULED" | "ACTIVE" | "EXPIRED" | "DISABLED";
 };
 
+export type TenantCreationPolicyView = {
+    readonly mode: "SELF_SERVICE" | "PLATFORM_ONLY";
+};
+
 export type TenantView = {
     readonly tenantId: Id;
     readonly name: DisplayName;
@@ -408,6 +428,7 @@ export type UserView = {
     readonly issuer: HttpUrl;
     readonly userId: Id;
     readonly displayName: DisplayName;
+    readonly email: (Email) | (null);
     readonly avatarUrl: ((HttpUrl) | (PngDataUrl)) | (null);
     readonly version: Version;
 };
@@ -446,6 +467,8 @@ type ClientEnvironmentConfig = ({
 
 type DisplayName = string;
 
+type Email = string;
+
 type HttpUrl = string;
 
 type Id = string;
@@ -462,7 +485,7 @@ type LoginMethodType = "EMAIL" | "PHONE" | "GOOGLE" | "GITHUB";
 
 type PlanVersionNumber = number;
 
-type PlatformCapability = "TENANT_CREATE" | "TENANT_READ" | "TENANT_STATUS" | "CATALOG_WRITE" | "SUBSCRIPTION_READ" | "SUBSCRIPTION_WRITE" | "AUDIT_READ";
+type PlatformCapability = "TENANT_CREATE" | "TENANT_READ" | "TENANT_STATUS" | "CATALOG_WRITE" | "SUBSCRIPTION_READ" | "SUBSCRIPTION_WRITE" | "AUDIT_READ" | "APPLICATION_READ" | "APPLICATION_WRITE" | "CLIENT_READ" | "CLIENT_WRITE" | "USER_READ" | "USER_STATUS" | "USER_EMAIL_WRITE" | "PLATFORM_PERMISSION_WRITE";
 
 type PngDataUrl = string;
 

@@ -63,7 +63,7 @@ try {
   authOrigin = await listen(authServer);
   const reserve = http.createServer(); origin = await listen(reserve); await stop(reserve);
   proxy = await getRustProxy({ AUTH_ORIGIN: authOrigin, PROVIDER_STATE_KEY: randomBytes(32).toString('base64url'), UNIFIED_ACCOUNT_CONFIG: JSON.stringify({ environmentId: 'unified-local', kind: 'LOCAL', authOrigin, deliveryMode: 'MOCK', providerMode: 'MOCK' }) });
-  await initializeLocalRuntime(proxy);
+  await initializeLocalRuntime(proxy,false);
   for (const file of ['unified-account-local-seed.sql', 'mock-provider-local-seed.sql']) for (const sql of readFileSync(resolve(source, 'worker', file), 'utf8')
     .replaceAll('http://127.0.0.1:4207', origin).replaceAll('http://127.0.0.1:8787', authOrigin).replace(/--[^\n]*/g, '').split(';').map(v => v.trim()).filter(Boolean)) await proxy.env.DB.prepare(sql).run();
   const config = { environmentId: 'unified-local', environmentKind: 'LOCAL', authOrigin, productOrigin: origin, clientId: 'molis-work-unified-local', applicationId: 'molis-work-unified-local-app', policyProfile: 'unified-account-v2', redirectAllowlist: [origin + '/account/callback'], providerMode: 'MOCK', deliveryMode: 'MOCK' };
@@ -94,9 +94,9 @@ try {
     assert.equal((await step(t,{step:'COMPLETE'})).operationReady,true);return t;
   }
   let methods=await api('/login-methods'), emailBinding=methods.loginMethods[0].bindingId;
-  let r=await reauth('UNLINK_METHOD',{bindingId:emailBinding});
-  await api('/login-methods/'+emailBinding+'/unlink',{reauthHandle:r.handle,expectedVersion:methods.version},409);
-  r=await reauth('BIND_METHOD',{method:'PHONE'});
+  await api('/reauthentications',{operation:'UNLINK_METHOD',target:{bindingId:emailBinding},method:'EMAIL_PASSWORD'},403);
+  assert.deepEqual(await api('/login-methods'),methods,'ordinary users cannot change the administrator-maintained email');
+  let r=await reauth('BIND_METHOD',{method:'PHONE'});
   await api('/auth/transactions',{purpose:'BIND',method:'EMAIL_CODE',reauthHandle:r.handle},403);
   let identity=await api('/auth/transactions',{purpose:'BIND',method:'PHONE_OTP',reauthHandle:r.handle});await verify(identity,phone);await step(identity,{step:'COMPLETE'});
   methods=await api('/login-methods/bind',{reauthHandle:r.handle,identityHandle:identity.handle,expectedVersion:methods.version});assert.equal(methods.loginMethods.length,2);

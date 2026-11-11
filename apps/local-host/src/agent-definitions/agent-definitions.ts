@@ -293,8 +293,11 @@ export class AgentDefinitions {
     const key = keyOf(ownerId, prompt.prompt_id), edited = this.override(key);
     const use = { key, version: prompt.version, user_revision: edited?.revision ?? null, caller };
     if (record) this.uses.record({ ...use, at: this.now().toISOString() });
+    // One use per read: the dispatch hook that calls this may be asked more than once (a retried dispatch).
+    let recorded = false;
+    const recordOnce = () => { if (recorded) return; recorded = true; this.uses.record({ ...use, at: this.now().toISOString() }); };
     return { body: edited ? edited.body : prompt.body, version: prompt.version, user_revision: edited?.revision ?? null,
-      ...(record ? {} : { record: () => this.uses.record({ ...use, at: this.now().toISOString() }) }) };
+      ...(record ? {} : { record: recordOnce }) };
   }
 
   /** What each owner registered and what of it is not in effect, for developers; plus calls known to bypass the register. */

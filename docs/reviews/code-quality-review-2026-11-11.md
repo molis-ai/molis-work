@@ -243,4 +243,4 @@
 
 ---
 
-附：本次复审的分报告与命令产物在 `/tmp/mw-review/reports/`（account-auth、storage-upgrade、scene-contracts、packs-ai、ui-input、anti-corruption）与 `/tmp/mw-review/lead/`（PR 进程记录、Full suite 审计、spec coverage 等）。
+附：本次复审的分报告与命令产物随本次会话交付，未入库（会话临时目录，不能作为仓库内的长期引用）。

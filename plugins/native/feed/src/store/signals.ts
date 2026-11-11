@@ -245,4 +245,3 @@ function optionalText(value: unknown): string | null {
   const result = text(value);
   return result || null;
 }
-

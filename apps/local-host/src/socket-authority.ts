@@ -8,7 +8,7 @@ export interface AuthoritySocket {
 }
 
 /** The request the authority reads: the headers the page session and the control token live in. */
-export interface AuthorityRequest {
+interface AuthorityRequest {
   readonly headers: IncomingMessage["headers"];
 }
 

@@ -286,4 +286,3 @@ function optionalText(value: unknown): string | null {
   const valueText = asText(value);
   return valueText || null;
 }
-

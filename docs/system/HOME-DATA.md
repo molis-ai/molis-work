@@ -261,7 +261,7 @@ server 库的表：`mw_server_identity`、`mw_members`、`mw_sessions`、`mw_pro
 | `config/uninstall.json` | `installer/uninstall.ts:20`：卸载进度收据 | JSON · `schema_version` = 1 | 临时 | purge 成功后删（`installer/uninstall.ts:190`）；普通卸载保留 |
 | `config/onboarding.json` | `apps/local-host/src/onboarding.ts:6`：首次引导状态，0600（`:99`） | JSON · `schema_version` = 1 | 必备份（很小） | purge |
 | `config/project-arrival.json` | `apps/local-host/src/project-arrival.ts:11`：最近打开的项目与到达状态，0600（`:66`） | JSON · `schema_version` = 1 | 必备份（很小） | purge |
-| `config/ui-locale.json` | `apps/local-host/src/ui-locale-memory.ts:13`：最后一次用的语言，给没有页面的工作（定时安排、续轮），不决定任何页面的显示；0600 | JSON · `schema_version` = 1（`format.ui.last-locale`）；低版本由升级过程升（`platform-upgrade-stores.ts`），高版本或读不了时按没有记录读取且不覆盖 | 必备份（很小） | purge |
+| `config/ui-locale.json` | `apps/local-host/src/ui-locale-memory.ts:13`：最后一次用的语言，给没有页面的工作（定时安排、续轮），不决定任何页面的显示；0600 | JSON · `schema_version` = 1（`format.ui.last-locale`）；低版本由升级过程升（`platform-upgrade-stores.ts`），高版本或读不了时按没有记录读取且不覆盖（升级链扫描仍会把读不了/更高版本/缺版本记为 unreadable/too_new/unversioned：不阻止打开，但这次不写当前标记、下次启动再扫） | 必备份（很小） | purge |
 | `config/plugin-publisher.json` | `apps/local-host/src/plugin-builder/publisher-identity.ts`：每 Home 的发布密钥引用、指纹和公钥；私钥只由既有 SecretStore 持有，初始化不固定信任 | JSON · 无私钥 | 与 feed 密文一同备份；已有元数据对应的密钥丢失、或二者不匹配时拒绝发布，不自动轮换 | 普通卸载/删项目保留；显式 Home purge 删除 |
 | `config/mcp-tools.json` | `apps/local-host/src/mcp-settings-store.ts`：MCP 客户端的动作授权与逐条 generation（ACA005） | JSON · `version` = 1 | 必备份（授权及其代次不能丢，也不能凭空恢复） | purge |
 | `config/external-mcp-tools.json`、`config/connector-mcp-tools.json` | `apps/local-host/src/external-mcp-actions.ts:10`、`apps/local-host/src/connector-mcp-actions.ts:12`：见过的工具清单 | JSON · 无版本 | 可重建；真实 Home 里还没有 | purge |

@@ -87,6 +87,7 @@ export class AccountRefreshPages {
     try { send({ type: this.preparation ? 'prepare' : 'changed', preparation: this.snapshot(page.lease) }); }
     catch (error) {
       page.listeners.delete(send);
+      if (!page.listeners.size) page.disconnectedAt = this.now();
       if (this.preparation?.required.has(pageId)) this.clear('cancelled', 'delivery-failed');
       throw error;
     }
@@ -210,9 +211,10 @@ export class AccountRefreshPages {
     this.preparation = null;
     diagnostics.publish({ event: type, reason, pageId: current.ownerPageId });
     for (const id of current.required) { const page = this.pages.get(id); if (page) this.emit(page, { type, reason, preparation: null }); }
-    // A page whose stream was already gone when the preparation failed cannot acknowledge a retry either.
-    // Drop it now (a reconnect clears the flag and joins again) instead of waiting for the next full timeout.
-    if (type === 'cancelled' && (reason === 'timeout' || reason === 'connection-lost')) {
+    // Only a preparation that timed out may have waited on a page whose stream never came back. A connection-lost
+    // cancellation keeps that page required for the immediate retry (a network blip must not skip its drafts):
+    // the next start's `crashed()` window decides it once the stream has been gone long enough.
+    if (type === 'cancelled' && reason === 'timeout') {
       for (const id of current.required) {
         const page = this.pages.get(id);
         if (page && page.subscribedAt !== undefined && page.listeners.size === 0) page.stale = true;

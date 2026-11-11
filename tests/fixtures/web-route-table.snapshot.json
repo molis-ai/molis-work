@@ -216,10 +216,12 @@
       "remove"
     ]
   },
-  "GET /api/skills/list": {
-    "status": 400,
+  "POST /api/skills/list": {
+    "status": 200,
     "type": "application/json",
-    "error": "请先选择一个 Molis Work 项目"
+    "keys": [
+      "skills"
+    ]
   },
   "POST /api/kit/list": {
     "status": 200,
@@ -229,11 +231,6 @@
       "issues",
       "packs"
     ]
-  },
-  "GET /api/personal/status": {
-    "status": 400,
-    "type": "application/json",
-    "error": "请先选择一个 Molis Work 项目"
   },
   "GET /api/board": {
     "status": 400,
@@ -553,10 +550,12 @@
     "code": "composer.source_unavailable",
     "error": "这个来源现在用不了：已停用、卸载或不再授权"
   },
-  "GET <project>/api/skills/list": {
-    "status": 404,
+  "POST <project>/api/skills/list": {
+    "status": 200,
     "type": "application/json",
-    "error": "页面或接口不存在"
+    "keys": [
+      "skills"
+    ]
   },
   "POST <project>/api/kit/list": {
     "status": 200,

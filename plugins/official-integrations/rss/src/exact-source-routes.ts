@@ -297,4 +297,3 @@ function normalizeCatalogUrl(value: string): string {
   }
   return url.toString();
 }
-

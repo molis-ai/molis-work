@@ -322,7 +322,7 @@
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | 页面发请求 | `apps/workbench/src/scripts/client/assistant-composer.ts`，经 `packages/ui-host/src/request-client.ts` | 输入框的 `+` 菜单打开、按 `query` 变化 → `POST` `/api/composer/sources`、`/api/composer/pick` | 页面会话凭据加一次性键；页面只带自己的请求，不带身份 | 助手把失败变成带 `code` 的 `Error`；页面忽略已过期的选取 | 无 |
 | 2 | 路由与绑定 | `apps/local-host/src/web-catalog-routes.ts`（没有项目时只列 Home 来源）、`apps/local-host/src/web-project-platform-routes.ts`（项目里列本项目来源）→ `apps/local-host/src/composer-sources-http.ts` | 路径加项目 → 绑定的动作客户端 | 项目由 Host 按路径给；`bindLocalWebActions` 按页面内置权限集与 Runtime grant 造调用者；插件页面没有进这个入口的路（页面授权只到它自己的路由） | 405 只收 `POST`；请求关闭时 `actions.cancelled`（`AbortController` 转成 `caller.signal`） | 无 |
-| 3 | 列来源 | `apps/local-host/src/composer-sources-http.ts` 的 `isSource`，按 `view.action.composer_source` 从动作目录挑；声明形状在 `packages/contracts/src/platform/composer.ts` | 目录 → 每个可用来源的 `capability_id`、`version`、`provider_id`、标题 | 只列此刻发现得到、对这个层（`plain`／`ai`）开放且被授权的来源；不读插件名 | 来源停用、卸载或不再授权就不列，不报错 | 无 |
+| 3 | 列来源 | `apps/local-host/src/composer-sources-http.ts` 的 `isSource`，按 `view.action.composer_source` 从动作目录挑；声明形状在 `packages/contracts/src/platform/composer.ts`；英文页的来源名与标题由同文件 `composerSourceWords` 从各安装的 Manifest `ui.translations` 取（`apps/local-host/src/web-catalog-routes.ts`、`apps/local-host/src/web-project-platform-routes.ts` 调它） | 目录 → 每个可用来源的 `capability_id`、`version`、`provider_id`、标题（英文页换成插件 `ui.translations` 里的词） | 只列此刻发现得到、对这个层（`plain`／`ai`）开放且被授权的来源；插件名只在英文页用来查 `ui.translations`（中文页不读），不按插件名开分支 | 来源停用、卸载或不再授权就不列，不报错 | 无 |
 | 4 | 选一项 | 同一文件：只调第 3 步列出的那一个精确能力 | 查询词、`limit`、当前对象（只在来源自己的 `subject_kinds` 内）→ 资料引用 | 调用者仍是页面这个人；来源不能借这次调用拿到别的东西 | 来源不在了 → `composer.source_unavailable`；来源返回不属于自己的资料 → 同一个码 | 无（只读；不写业务数据） |
 | 5 | 收下与显示 | 页面把 `MaterialRef` 放进这次输入，不落业务数据 | 资料引用 → 输入里的 `@` 项 | — | 页面重画时丢弃过期结果 | 无 |
 
@@ -332,11 +332,11 @@
 
 | # | 环节 | 归谁 | 输入 → 输出 | 身份与权限 | 失败时 | 事件与记录 |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 页面 | `apps/workbench/src/settings-kit.ts` 与 `apps/workbench/src/browser/kit/` | 打开能力包页 → `GET`／`POST` `/api/kit/*` | 页面会话凭据；页面不带身份 | JSON 错误按 kind 给状态 | 无 |
+| 1 | 页面 | `apps/workbench/src/settings-kit.ts` 与 `apps/workbench/src/browser/kit/`；宿主在 `apps/local-host/src/kit-settings-http.ts` | 打开能力包页 → `POST` `/api/kit/*`（个人空间）或 `POST` `/projects/<项目>/api/kit/*`（项目里），每条地址一个动作：`list`、`package-export`、`prompt-overrides/export`、`prompt-overrides/preview`、`prompt-overrides/confirm` | 页面会话凭据；页面不带身份 | JSON 错误按 kind 给状态 | 无 |
 | 2 | 动作 | `kit.catalog.list@1`，合同在 `packages/contracts/src/services/kit.ts`，提供方 `system.kit`，由 `apps/local-host/src/kit-actions.ts` 登记 | 空输入 → 包与条目 | 只给本人；服务按调用者自己的目录与权限收集 | 报告者不可用或超时变成一条 issue，不挡整页 | 成功的读取不留行；失败的读取按调用记录规则留一行 |
 | 3 | 收集 | `horizontal/kit/src/index.ts` 的 `gatherKit` | 一次发现 → 对每个上报者各调一次（并行、5 秒超时） | 用调用者自己的客户端；`KIT_SYSTEM_REPORTERS` 是信任边界：宿主登记的系统提供方才能替别人说来源和包 | 超时 `actions.timeout`；条目重复（`packages/contracts/src/services/kit.ts` 的 `kitErrors` 里 `report_invalid`） | 无（每次都重收，不存） |
 | 4 | 上报者 | `apps/local-host/src/kit-mcp-reports.ts` 与各主人：Skills、Agent 定义、Agent 工具、Characters、MCP、连接器、插件安装服务（报包头） | 主人的声明与账目 → `KitReport` | 由各自动作的受众决定能报到哪一层 | 单个主人失败只影响它的条目 | 无 |
-| 5 | 页面回执 | 页面画「包 → 条目」，包的开关状态从它自己的插件与条目读出 | 目录 → 界面 | 导出另走 `/api/plugin-trust/` 的安装预览，不在这一链 | — | 无 |
+| 5 | 页面回执 | 页面画「包 → 条目」，包的开关状态从它自己的插件与条目读出；导出与导入在 `apps/workbench/src/browser/kit/files.ts` | 目录 → 界面；导出一个文件：内容包走 `/api/kit/package-export`（`plugins.package.export@1`，提供方 `plugin-install`），提示词改写走 `/api/kit/prompt-overrides/export`，导回时 `/api/kit/prompt-overrides/preview` 与 `/api/kit/prompt-overrides/confirm` 逐条确认；内容包经 `sessionStorage` 的 `molis-work:kit-package` 交给插件设置页的安装评审（`apps/workbench/src/settings-plugins.ts` 读一次） | 导出的是签名内容包与本人自己的数据文件；装不装仍由插件设置页的安装评审决定，能力包页不另调 `/api/plugin-trust/` | — | 无 |
 
 **守住它的用例**：`tests/kit-catalog.test.ts`、`tests/kit-export.test.ts`、`tests/security-invariants-kit-catalog.test.ts`。
 
@@ -344,7 +344,7 @@
 
 | # | 环节 | 归谁 | 输入 → 输出 | 身份与权限 | 失败时 | 事件与记录 |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 桌面／浏览器进入 | `apps/workbench/src/arrival/shell.ts`、`apps/workbench/src/browser/personal-account.ts` | 原生会话票据 → `POST` `/api/personal/native-attach` | 票据由 Host 发出、一次一用；页面还没有身份 | 401「客户端登录凭据已失效」 | 无 |
+| 1 | 桌面／浏览器进入 | `apps/workbench/src/arrival/shell.ts`、`apps/workbench/src/browser/personal-account.ts` | 先读原生会话与浏览器会话（`/api/personal/status`、`/api/personal/status?browser=1`；后者走浏览器 cookie、不经桌面原生桥），两者身份不同才用一次性票据 `POST` `/api/personal/native-attach?ticket=…` | 原生票据由 Host 发出、一次一用；`browser=1` 只回答浏览器已有哪个页面会话，页面还没有身份 | 401「客户端登录凭据已失效」 | 无 |
 | 2 | 换页面会话 | `apps/local-host/src/personal-http.ts`（`createPersonalAccountHttp`、`createNativeWebAttachment`、`consumeNativeTicket`）、`apps/local-host/src/personal-web-sessions.ts`、`apps/local-host/src/personal-native-session.ts` | 票据 → `Set-Cookie` 页面会话 | 票据核过才给会话；会话决定后续请求的页面身份 | 403／401 按原答复 | 进程内的页面会话表 |
 | 3 | 登录、切换、登出 | `apps/local-host/src/personal-http.ts`、`apps/local-host/src/personal-auth.ts`、`apps/local-host/src/account-host.ts` | `/api/personal/login`、`switch`、`logout`、`space`、`status` → 状态或跳转 | 身份隔离由 `account-host.ts` 守：借用会话只许 BIND／REPLACE，借用的会话不能登出 | 已有账号操作在途 409；身份不一致 403 | 账号账本与会话表；不含业务数据 |
 | 4 | 页面过渡 | `apps/workbench/src/browser/account-transition.ts` | 当前页面会话与 meta → 能否切换／刷新 | 以页面会话为准；meta 或页面会话缺失时失败关闭，不静默 no-op | 不能确认就停在原页并提示 | 浏览器内状态 |

@@ -23,7 +23,7 @@ import { CODING_HISTORY_SUMMARY } from "./prompts.js";
 import { type Capabilities, type CodingActivation, savedDigestUsage, sessionState } from "./route-activation.js";
 import { codingActions, codingActionControl, type CodingBeforeWrite } from "./route-entry.js";
 import { skillSelection, mcpSelection, mcpSources, savedActions } from "./route-selections.js";
-import { automaticSkillMaterial } from "./skill-choices.js";
+import { automaticSkillMaterial, offeredSkillRead, withAutomaticSkillRead } from "./skill-choices.js";
 import type { CodingExecution } from "./routes.js";
 import { startDelegation } from "./routes-delegations.js";
 import { chosenEffort, text } from "./run-inputs.js";
@@ -190,8 +190,12 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
     if (!limitsCharacters(await codingActions(context, beforeWrite).invoke(agent.listRuntimes, []), record.runtime_id)) throw codingFailure("coding.server.character-unverified");
     characterTools = await execution.characters.actionTools(character, codingActionControl(beforeWrite));
   }
-  const action_tools = withKnowledgeTools(body.action_tools === undefined ? savedActions(context, record.session_id) : parseExactActionReferences(body.action_tools),
-    await codingActions(context, beforeWrite).invoke(agent.listActions, [record.runtime_id]), characterTools);
+  const offeredActions = await codingActions(context, beforeWrite).invoke(agent.listActions, [record.runtime_id]);
+  // SKP-10: list the automatic Skills and add the body read only when it is offered to agents now (otherwise the round names Skills
+  // it cannot open, and forcing the tool in would make the Host refuse the round); a Character restricting tools gets neither.
+  const automaticSkills = !characterTools && offeredSkillRead(offeredActions) && context.services?.actions
+    ? await automaticSkillMaterial(context.services.actions) : undefined;
+  const action_tools = withAutomaticSkillRead(withKnowledgeTools(body.action_tools === undefined ? savedActions(context, record.session_id) : parseExactActionReferences(body.action_tools), offeredActions, characterTools), offeredActions, automaticSkills !== undefined);
   const goal = await resolveGoalContext(context, record.session_id, record.goal_id ?? null, codingActionControl(beforeWrite));
   const text_materials = await resolveMaterials(context, materialSelection(body.materials ?? savedMaterials(context, record.session_id)), codingActionControl(beforeWrite));
   if (goal) text_materials.unshift(goal.material);
@@ -201,9 +205,6 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
   if (text_materials.length > 30) throw codingFailure("coding.server.materials-30");
   const catalog = await knowledgeCatalogMaterial(context.services?.actions, action_tools, `${record.title}\n${task}`, codingActionControl(beforeWrite));
   if (catalog) text_materials.push(catalog);
-  // The Skills set to 「自动」 for Coding, by name and description (SKP-10): the round reads a body when it needs one. Nothing is
-  // selected here — a `manual` Skill still needs the person to name it (the page's choice or the Host's delegation).
-  const automaticSkills = context.services?.actions ? await automaticSkillMaterial(context.services.actions) : undefined;
   if (automaticSkills) text_materials.push(automaticSkills);
   await beforeWrite(); beforeWrite.assert_current();
   const session = record.runtime_session_id ? { runtime_id: record.runtime_id, session_id: record.runtime_session_id }

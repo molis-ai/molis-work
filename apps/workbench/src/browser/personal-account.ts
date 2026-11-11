@@ -183,7 +183,7 @@ const init = () => {
       if (state.identity) {await cohort.connect(state.pageBinding);if (preparationRevision === cohort.revision) cohort.observe(state.preparation);}
       if (document.body.hasAttribute('data-account-entry') && state.identity && state.ready) { location.replace(destination); return; }
       const pageToken = document.querySelector<HTMLMetaElement>('meta[name="molis-work-page-session"]')?.content;
-      const changed = (state.identity && state.viewScope && pageToken && state.viewScope !== pageToken.split(".")[1]) || (loaded && space !== (state.space || 'local'));
+      const changed = (state.identity && state.viewScope && pageToken && state.viewScope !== pageSessionScope(pageToken)) || (loaded && space !== (state.space || 'local'));
       identity = state.identity; space = state.space || 'local'; configured = state.configured; loaded = true; paint();
       if(!changed)void syncConsent.update(space);
       if (changed) {

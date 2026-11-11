@@ -30,21 +30,29 @@ export type ComposerSourceWords = (provider: ActionProvider) => Readonly<Record<
  * The English names of this page's plugins, read once per request: the Home's installations and, with a project, the project's
  * (the same manifests the plugin directory shows). Only the page's language matters; the source's own title is a plugin word and
  * follows the plugin's `ui.translations`, as `SearchSourceKind.title` does (specs/unified-input-voice/implementation-plan.md §3.3).
+ * A Host that is not ready (its Home plugin host starting or closing, a project closing between the two reads) leaves the page's
+ * names as declared rather than failing the menu: the words are a translation, not a reason to refuse the sources.
  */
 export async function composerSourceWords(localHost: MolisWorkLocalHost, reference: LocalHostProjectReference | undefined): Promise<ComposerSourceWords> {
   if (pageLocale() !== "en") return () => undefined;
-  const words = new Map<string, Readonly<Record<string, string>>>();
-  const keep = (manifest: PluginManifest | undefined): void => {
-    if (manifest?.ui?.translations) words.set(manifest.plugin_id, manifest.ui.translations);
-  };
-  for (const record of localHost.homePlugins?.installations() ?? []) keep(localHost.homePlugins?.manifest(record.plugin_id));
-  if (reference) await localHost.withProject(reference, runtime => {
-    for (const record of pluginInstallRecords(runtime.store.db).list()) keep(installedPluginManifest(runtime.store.db, record.install_id)?.manifest);
-  });
-  return provider => provider.plugin_id ? words.get(provider.plugin_id) : undefined;
+  try {
+    const words = new Map<string, Readonly<Record<string, string>>>();
+    const keep = (manifest: PluginManifest | undefined): void => {
+      if (manifest?.ui?.translations) words.set(manifest.plugin_id, manifest.ui.translations);
+    };
+    for (const record of localHost.homePlugins?.installations() ?? []) keep(localHost.homePlugins?.manifest(record.plugin_id));
+    if (reference) await localHost.withProject(reference, runtime => {
+      for (const record of pluginInstallRecords(runtime.store.db).list()) keep(installedPluginManifest(runtime.store.db, record.install_id)?.manifest);
+    });
+    return provider => provider.plugin_id ? words.get(provider.plugin_id) : undefined;
+  } catch { return () => undefined; }
 }
 
-export async function handleComposerSourcesHttp(request: IncomingMessage, response: ServerResponse, url: URL, actions: (signal: AbortSignal) => BoundActionClient, words?: ComposerSourceWords): Promise<boolean> {
+/**
+ * `words` is read only when the page lists sources: a pick carries no names and must not pay for (or fail on) the manifests.
+ * It is a thunk so the route can hand it over without awaiting anything before the handler answers the request.
+ */
+export async function handleComposerSourcesHttp(request: IncomingMessage, response: ServerResponse, url: URL, actions: (signal: AbortSignal) => BoundActionClient, words?: () => Promise<ComposerSourceWords>): Promise<boolean> {
   if (url.pathname !== "/api/composer/sources" && url.pathname !== "/api/composer/pick") return false;
   if (request.method !== "POST") { sendJson(response, 405, { error: "请求方法不受支持" }); return true; }
   const left = new AbortController();
@@ -55,10 +63,12 @@ export async function handleComposerSourcesHttp(request: IncomingMessage, respon
     const body = await readBody(request), client = actions(left.signal);
     const layer = body.layer === "plain" ? "plain" : "ai";
     const directory = await client.discover(), listed = directory.filter((view) => isSource(view, layer));
-    // A source's provider and its own name are plugin words: in an English page they follow that plugin's `ui.translations`,
-    // else stay as declared. The picked items' titles are the person's own content and are never translated.
-    const word = (provider: ActionProvider, text: string) => pageLocale() === "en" ? words?.(provider)?.[text] ?? text : text;
     if (url.pathname === "/api/composer/sources") {
+      // A source's provider and its own name are plugin words: in an English page they follow that plugin's `ui.translations`,
+      // else stay as declared. The picked items' titles are the person's own content and are never translated. A Host whose
+      // manifests cannot be read right now falls back to the declared words (composerSourceWords handles that).
+      const lookup = words ? await words().catch(() => undefined) : undefined;
+      const word = (provider: ActionProvider, text: string) => pageLocale() === "en" ? lookup?.(provider)?.[text] ?? text : text;
       sendJson(response, 200, { sources: listed.map((view) => ({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id,
         provider: word(view.provider, view.provider.title), title: word(view.provider, view.action.composer_source!.title) })) });
       return true;

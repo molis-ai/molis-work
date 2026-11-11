@@ -86,4 +86,3 @@ function hasPinnedWebQuerySelector(
   );
   return provider && channel && definition;
 }
-

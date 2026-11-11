@@ -237,9 +237,9 @@ export const directoryRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
   { id: "search", handle: ({ request, response, url, localHost, hostReference }) =>
     handleSearchHttp(request, response, url, () => bindLocalWebActions(localHost, hostReference, LOCAL_OWNER_PERMISSIONS)) },
   // The unified input's `+` sources (S-composer-source-call): every plugin's `composer_source`, as the person, in this project.
-  { id: "composer-sources", handle: async ({ request, response, url, localHost, hostReference }) =>
+  { id: "composer-sources", handle: ({ request, response, url, localHost, hostReference }) =>
     handleComposerSourcesHttp(request, response, url, (signal) => bindLocalWebActions(localHost, hostReference, LOCAL_OWNER_PERMISSIONS, { signal }),
-      await composerSourceWords(localHost, hostReference)) },
+      () => composerSourceWords(localHost, hostReference)) },
   // Project knowledge's management page and side panel tab (specs/project-knowledge §8), as the person.
   { id: "knowledge", handle: ({ request, response, url, localHost, hostReference }) =>
     handleKnowledgeHttp(request, response, url, { localHost, projectRef: hostReference }) },

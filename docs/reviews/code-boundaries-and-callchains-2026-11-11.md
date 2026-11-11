@@ -10,7 +10,7 @@
 | --- | --- | --- |
 | **代码边界** | **清晰**。没有发现跨包/跨层执行路径或事实主人被破坏 | 用仓库自己的 `evaluateImportBoundary` 全量扫 66 包、3407 个源文件、19,220 个 import：0 违例；267 张表、31 个建表包，跨包读写 0；窗口内层间允许名单净收紧（server 组合边 2→1） |
 | **调用链** | **代码层面清晰、单一路径；文档与契约测试落后于实现** | 7 条主链逐环节核到 file:line（统一输入、能力包、技能冻结、证据合同、存储升级、账号、搜索/MCP）；新 HTTP 边界全部经 `ActionClient` 进动作服务，无绕过；但 `docs/system/CALL-CHAINS.md` 没登记 composer/kit/账号/证据四条新链，`tests/web-route-table.test.ts` 除 `directories` 外没有钉住新地址 |
-| **逻辑完整性** | **主路径扎实，但有 4 处"声称能走、实际走不通/走不稳"** | 取消/授权复查/幂等/CAS/回滚都有拒绝测试；新发现：助理「自动」技能正文模型读不到（P1）、账号崩溃标签页让切换/登出永久卡 30 秒（P1）、金样同一 commit 两次生成不一致（P1）、版本门禁对 211 处内联 `@version` 标记不生效（潜在 P1）；Coding「自动」技能沿用上一轮 P1 |
+| **逻辑完整性** | **主路径扎实，但有 4 处"声称能走、实际走不通/走不稳"** | 取消/授权复查/幂等/CAS/回滚都有拒绝测试；新发现：助理「自动」技能正文模型读不到（P1）、账号崩溃标签页让切换/登出永久卡 30 秒（P1）、金样同一 commit 两次生成不一致（P1）、版本门禁对内联 `@version` 标记不生效（全仓 format 标记 213 处，其中内联约 103 处）（潜在 P1）；Coding「自动」技能沿用上一轮 P1 |
 | **冗余/重复** | **窗口新增代码很干净；历史重复仍有，平台已有落点却没共用** | 11,360 个 ≥8 行函数体全量比对：跨文件完全相同 13 组，**窗口新增文件 0 组**；新增文件结构归一比对 0 组；窗口修改文件新增 1 处（3 个 socket 的授权绑定 8 行 ×3）；历史 6 组值得收口（parseJson×6 等）；38 个无引用导出候选；新增 TODO/空 catch 0 |
 
 **总体判断：** 用户问的四件事里，边界和调用链在代码层面都成立，问题主要不在"写越界了"，而在"新链没有进现行文档/契约测试"；逻辑完整性主路径很好，但有两个用户可见的自动技能断点、一个账号恢复死角，以及两个门禁覆盖缺口；冗余方面窗口内几乎没新增重复，旧账还在（且多数平台已有共用实现，是可低成本收口的）。
@@ -20,7 +20,7 @@
 - 6 个只读并行复审（账号、存储/升级、合同、能力包/证据、工作台/输入、跨仓静态）+ Lead 独立核验。
 - 跨仓静态：复用仓库自己的判定（`packages/test-kit/src/boundaries.ts` 的 `evaluateImportBoundary` 与三张名单）全量扫边界；`table-owners.mjs` 的 `scanTables`/`tableOwnerProblems` 扫表；TypeScript AST 扫重复函数体（完全相同 + 归一化结构）与无引用导出；`docs/system/CALL-CHAINS.md` 与代码逐符号对照。
 - 运行时验证：在仓库要求的 **Node 24.15.0** 下跑了 18 个定向测试文件（升级链、金样、库结构、技能目录、能力包、证据合同、统一输入、Web 路由表、本地 web 动作），结果见 §4.1。注意：用默认的 Node 24.14 跑会假红 3 个文件（见 §7），这些不是代码缺陷。
-- 复跑产物：`/tmp/mw-review/anti-corruption/round2/`（boundaries.json、tables.json、redundancy.json、health-gates-full.log）、`/tmp/mw-review/reports/round2-*.md`。
+- 复跑产物：boundaries/tables/redundancy 的 JSON 与运行日志随本次会话交付，未入库。
 
 ## 2. 代码边界
 
@@ -110,7 +110,7 @@
 - 建议：start 时把零监听页面视为 departed / 超时清除无监听页面 / 提供剔除 stale page 的恢复入口；补崩溃路径用例。
 
 **P1-3｜版本门禁对"内联 `@version` 标记"完全不生效（潜在，今天无已升版本）**
-- `scripts/gates/initial-versions.mjs:185-209` 的 `sourceVersionProblems` 只扫 `const <NAME>_VERSION` 声明；全仓 211 处 `/* @version format.* */` 中，写在对象属性/参数位置的内联标记（例：`home-restore-input.ts:124,127`、`workspace-git-worktrees.ts:130,172`、`native-plugin-release-artifact.ts:8,43`）不会被"升到 >1 必须有连续升级段 + 旧版本金样"检查覆盖。用仓库导出函数做只读探针：把 `format.connector.private-state` 写成内联 `2` → 无问题；写成 `const ..._VERSION = 2` → 报 expected 1。
+- `scripts/gates/initial-versions.mjs:185-209` 的 `sourceVersionProblems` 只扫 `const <NAME>_VERSION` 声明；全仓 213 处 `/* @version format.* */` 中（内联约 103 处），写在对象属性/参数位置的内联标记（例：`home-restore-input.ts:124,127`、`workspace-git-worktrees.ts:130,172`、`native-plugin-release-artifact.ts:8,43`）不会被"升到 >1 必须有连续升级段 + 旧版本金样"检查覆盖。用仓库导出函数做只读探针：把 `format.connector.private-state` 写成内联 `2` → 无问题；写成 `const ..._VERSION = 2` → 报 expected 1。
 - 影响：这些用户数据格式今天都还是 1，但门禁在"以后有人升版本"时不会拦；与"带版本文件改结构须升版本、附连续升级步骤"的硬约束不符。
 - 建议：`sourceVersionProblems` 改扫所有带 `@version` 标记的字面量（而不是只看 `*VERSION` 常量名）。
 
@@ -177,4 +177,4 @@
 
 ---
 
-附：分报告 `/tmp/mw-review/reports/round2-account-auth.md`、`round2-storage-upgrade.md`、`round2-scene-contracts.md`、`round2-packs-ai.md`、`round2-ui-input.md`、`round2-anti-corruption.md`；扫描脚本与原始数据在 `/tmp/mw-review/anti-corruption/round2/` 与 `/tmp/mw-review/lead/`。
+附：分报告与扫描原始数据随本次会话交付，未入库。

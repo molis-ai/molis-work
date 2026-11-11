@@ -139,8 +139,9 @@ export interface AgentStartAuthority {
   /** Current runtime grants, resolved by Host; selecting a tool grants nothing. */
   /** The trusted guard must run again at dispatch, including after the Host queue. */
   /**
-   * `roundSkills` is who this round's Skill reads are for and what the person named (`ActionSkillRound`): agent-host decides the
-   * consumer from the round's workspace, and the Host writes them onto every tool call's context. Host-written: no start request carries it.
+   * `roundSkills` is who this round's Skill reads are for and what the person named (`ActionSkillRound`). For a plugin-started round
+   * agent-host gives the consumer it derives from the role's workspace (`coding` for a writing role, `agent` otherwise); the Assistant's
+   * own authority sets `assistant` itself. Either way the Host writes them onto every tool call's context, and no start request carries it.
    */
   actions?(runtimeId: string, validate?: () => void | Promise<void>, session?: AgentSessionRef,
     roundSkills?: { readonly consumer: "assistant" | "coding" | "agent"; readonly named: readonly SkillRef[] }): Promise<AgentActionClient>;

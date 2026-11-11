@@ -1,6 +1,6 @@
 # Work 统一账号接入
 
-状态：安装登录与 Home 的 V2 账号统一已合入 main（2026-11-11，`ef06fed603`/#2013、`93eb5590ac`/#2021、`4d025ff4c6`/#2025；配套 Auth #5），最终候选的常规 CI 与 32 分片 Full suite 均通过，合并队列通过，证据见 [当前回归记录](v2-regression-20261110.md)。余项：未部署、不接真实存量与 V1 兼容（按设计不读取、不迁移）；真实渠道、Tauri 安装包端到端与真实账号验收仍待后续阶段，外部服务保持 mock；下文历史全量和 WORK 记录仅证明对应版本。
+状态：安装登录与 Home 的 V2 账号统一已合入 main（2026-11-11，`ef06fed603`/#2013、`93eb5590ac`/#2021、`4d025ff4c6`/#2025；配套 Auth #5），#2013 与 #2021 的常规 CI、32 分片 Full suite 与合并队列通过；#2025 与最终候选只跑了常规 CI 与合并队列，最终候选的 Full suite 与最终全量回归仍待补验，证据见 [当前回归记录](v2-regression-20261110.md)。余项：未部署、不接真实存量与 V1 兼容（按设计不读取、不迁移）；真实渠道、Tauri 安装包端到端与真实账号验收仍待后续阶段，外部服务保持 mock；下文历史全量和 WORK 记录仅证明对应版本。
 
 后续执行按 Auth 仓库 `docs/unified-account/implementation-plan.md` 第 11 节，T-01 至 T-07 状态以其交付台账为准。本仓库仍遵守 [AGENTS.md](../../AGENTS.md)、[需求开发流程](../post-anticorruption-roadmap/reference/development-workflow.md)和[并行开发规范](../../docs/system/PARALLEL-DEVELOPMENT.md)；当前先做集成收尾，代码与合同变化后须核对对应版本的验证证据。
 

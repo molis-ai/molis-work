@@ -16,7 +16,9 @@ export function resolveModelPrompt(homeDirectory: string | undefined, prompt: Mo
   if (typeof prompt === "string" || !homeDirectory) return modelPromptText(prompt);
   const definitions = agentDefinitionsFor(homeDirectory, builtinRegistrations);
   const read = definitions.instruction(prompt.instruction.owner_id, prompt.instruction.prompt_id, caller, false);
-  const record = () => read.record?.();
+  // The hook that calls this may be asked more than once (a retried dispatch): one prompt use, not one per dispatch attempt.
+  let recorded = false;
+  const record = () => { if (recorded) return; recorded = true; read.record?.(); };
   // A caller that dispatches a model call itself records the use then; every other caller reads the prompt for immediate use.
   if (options.onDispatch) options.onDispatch(record); else record();
   return composeInstructedPrompt(read.body, prompt.data);

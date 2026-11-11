@@ -77,4 +77,3 @@ export function optionalText(value: unknown): string | null {
   const valueText = text(value);
   return valueText || null;
 }
-

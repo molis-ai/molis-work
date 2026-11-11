@@ -317,4 +317,3 @@ export function mapFixedVersion(row: Row): FixedVersionRecord {
     archived_by: row.archived_by == null ? null : String(row.archived_by),
   };
 }
-

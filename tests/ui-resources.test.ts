@@ -117,7 +117,11 @@ test("FSS-34 the same Workbench build discovers and serves a language added only
       import { runInNewContext } from "node:vm";
       import { WEB_LOCALES, createWorkbenchLocale, renderWorkbenchDocument, workbenchLanguageResource, workbenchPlatformText } from "./dist/index.js";
       const word = "workbench.language.retry", escapedWord = process.argv[1];
-      const repeatedWords = { [word]: escapedWord, "workbench.settings-appearance.try-again": escapedWord };
+      const keyFragment = "repeatedkeyfragment1234567890";
+      const fragmentWords = Object.fromEntries(["language", "settings-appearance", "client-render", "context-onboarding", "fixture-one", "fixture-two"].map((group, index) => [
+        "workbench." + group + "." + keyFragment + "_" + keyFragment + "-" + keyFragment, "Fragment example " + index,
+      ]));
+      const repeatedWords = { [word]: escapedWord, "workbench.settings-appearance.try-again": escapedWord, ...fragmentWords };
       if (escapedWord) {
         // The registered reader has already validated the files. Exercise script escaping at the serialization boundary.
         const read = workbenchPlatformText.pack;
@@ -139,6 +143,7 @@ test("FSS-34 the same Workbench build discovers and serves a language added only
           assert.ok(!asset.body.includes(escapedWord));
           const literal = JSON.stringify(escapedWord).replaceAll("<", "\\u003c");
           assert.equal(asset.body.split(literal).length - 1, 1, "both groups share one escaped string");
+          assert.equal(asset.body.split(keyFragment).length - 1, 1, "the suffixes share a single copy of the repeated fragment");
         }
         const received = [];
         runInNewContext(asset.body, { molisWorkLanguageAsset: value => received.push(value) }, { filename: href });

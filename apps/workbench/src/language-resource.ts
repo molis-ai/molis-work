@@ -9,6 +9,9 @@ const built = new Map<UiLanguageTag, LanguageAsset>();
 let client: string | undefined;
 
 const languageScriptJson = (value: unknown): string => JSON.stringify(value).replaceAll("<", "\\u003c");
+const KEY_FRAGMENT = /[a-z0-9]{3,}/gu;
+// These are outside stable keys, exclude the separator, and need no JSON escaping.
+const KEY_FRAGMENT_MARKERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ!#$%&()*+,/:;=>?@^{}~";
 
 function sharedStringIndices(messages: UiLocalePack["messages"]): Map<string, number> {
   const counts = new Map<string, number>();
@@ -26,6 +29,17 @@ function sharedStringIndices(messages: UiLocalePack["messages"]): Map<string, nu
   return indices;
 }
 
+function keyFragmentMarkers(suffixGroups: readonly string[]): Map<string, string> {
+  const counts = new Map<string, number>();
+  for (const suffixes of suffixGroups) {
+    for (const [fragment] of suffixes.matchAll(KEY_FRAGMENT)) counts.set(fragment, (counts.get(fragment) ?? 0) + 1);
+  }
+  // A dictionary entry costs the fragment plus quotes, marker, colon, and a comma.
+  const candidates = Array.from(counts, ([fragment, count]) => ({ fragment, bytes: count * (fragment.length - 1) - (fragment.length + 7) }))
+    .filter(({ bytes }) => bytes > 0).sort((left, right) => right.bytes - left.bytes);
+  return new Map(candidates.slice(0, KEY_FRAGMENT_MARKERS.length).map(({ fragment }, index) => [fragment, KEY_FRAGMENT_MARKERS.charAt(index)]));
+}
+
 function languagePackScript(pack: UiLocalePack): string {
   const { messages, ...metadata } = pack;
   const shared = sharedStringIndices(messages);
@@ -40,17 +54,23 @@ function languagePackScript(pack: UiLocalePack): string {
     group.values.push(typeof message === "string" ? shared.get(message) ?? message : message);
   }
   // The locale pack validator excludes "|" from every stable key.
-  const rows = Array.from(groups, ([prefix, { suffixes, values }]) => [prefix, suffixes.join("|"), values]);
-  const payload = languageScriptJson({ catalog: WORKBENCH_LANGUAGES, pack: metadata, strings: [...shared.keys()], groups: rows });
+  const rows = Array.from(groups, ([prefix, { suffixes, values }]) => [prefix, suffixes.join("|"), values] as const);
+  const markers = keyFragmentMarkers(rows.map(([, suffixes]) => suffixes));
+  const fragments = Object.fromEntries(Array.from(markers, ([fragment, marker]) => [marker, fragment]));
+  const payload = languageScriptJson({
+    catalog: WORKBENCH_LANGUAGES, pack: metadata, strings: [...shared.keys()], fragments,
+    groups: rows.map(([prefix, suffixes, values]) => [prefix, suffixes.replace(KEY_FRAGMENT, fragment => markers.get(fragment) ?? fragment), values]),
+  });
   return `
 {
-  const { catalog, pack, strings, groups } = ${payload};
+  const { catalog, pack, strings, fragments, groups } = ${payload};
   const messages = Object.create(null);
   for (const [prefix, suffixes, values] of groups) {
     const keys = suffixes.split("|");
     for (let index = 0; index < keys.length; index++) {
+      const key = keys[index].replace(/[^a-z0-9_.-]/g, marker => fragments[marker]);
       const value = values[index];
-      messages[prefix + keys[index]] = typeof value === "number" ? strings[value] : value;
+      messages[prefix + key] = typeof value === "number" ? strings[value] : value;
     }
   }
   globalThis.molisWorkLanguageAsset({ catalog, pack: { ...pack, messages } });

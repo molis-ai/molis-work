@@ -79,7 +79,8 @@ export class LocalHost<Runtime> {
       handlers: [{ ...definition, handle: (caller, input) => {
         const scope = this.line.currentScope();
         if (!scope?.active || scope.entry.reference.project_id !== caller.project_id) throw new ActionError("actions.host_context_missing", "此能力需要 Host 的项目运行环境");
-        return handler(scope.runtime, input as Input, { ...(caller.signal ? { signal: caller.signal } : {}), ...(caller.host_plugin ? { plugin: caller.host_plugin, consumer: "plugin" as const } : {}), call_id: caller.call_id, beforeEffect: caller.beforeEffect,
+        return handler(scope.runtime, input as Input, { ...(caller.signal ? { signal: caller.signal } : {}), ...(caller.host_plugin ? { plugin: caller.host_plugin, consumer: "plugin" as const } : {}),
+          ...(caller.runtime_session_id ? { runtime_session_id: caller.runtime_session_id } : {}), call_id: caller.call_id, beforeEffect: caller.beforeEffect,
           assertAuthorityCurrent: () => { requireSynchronous(caller.assert_authority_current?.(), "最终授权检查必须同步完成"); } });
       } }],
     });

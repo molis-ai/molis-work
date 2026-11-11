@@ -66,6 +66,7 @@
     "action.agent.collaboration.revise": 1,
     "action.agent.command-output": 1,
     "action.agent.draft-text": 1,
+    "action.agent.evidence.check": 1,
     "action.agent.inputs.send": 1,
     "action.agent.inputs.withdraw": 1,
     "action.agent.mcp.control": 1,

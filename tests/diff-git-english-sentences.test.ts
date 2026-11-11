@@ -121,5 +121,5 @@ test("VUX-40: the Git surface's branch, upstream and status lines read in Englis
   const model = { route_prefix: "", view: view("## main...origin/main [ahead 2, behind 1]"), commit_message: "", primitives: { ...primitives("en"), text: en } };
   const drawn = withPageText("en", ["git"], () => renderGitChanges(model)).replace(/<[^>]*>/g, " ");
   assert.match(drawn, /origin\/main: 2 ahead · 1 behind/);
-  assert.match(readFileSync(new URL("../plugins/native/git/src/browser/list.ts", import.meta.url), "utf8"), /\[\(view\.head\), page\.U\(view\.upstream\)/);
+  assert.match(readFileSync(new URL("../plugins/native/git/src/browser/list.ts", import.meta.url), "utf8"), /\[view\.head, page\.U\(view\.upstream\), view\.message\]\.filter\(Boolean\)\.join\(" · "\)/u);
 });

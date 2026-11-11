@@ -19,9 +19,10 @@ test("RAC-543 every word the Coding page says has a stable key with both languag
   const calls = scan.calls.filter(call => call.file.startsWith(BROWSER + "/"));
   assert.ok(calls.some(call => call.file.startsWith(MAIN + "/")), "the actual scanner sees the main page's words");
   assert.deepEqual(calls.filter(call => /\p{Script=Han}/u.test(call.key)), [], "no Chinese key: every word the page says is a stable key");
-  // The only dynamic choices are words the Host's own table carries as data (a session's state label; a Skill's name and summary come from the catalog as data, 09).
-  const dynamic = new Set(scan.dynamicCalls.filter(call => call.file.startsWith(BROWSER + "/")).map(call => call.file));
-  assert.deepEqual([...dynamic].sort(), [join(MAIN, "mount-core.ts"), join(MAIN, "run-facts.ts")], "no other dynamic key choice hides in the page");
+  const dynamic = scan.dynamicCalls.filter(call => call.file.startsWith(BROWSER + "/"));
+  assert.deepEqual(dynamic, [], "Coding's phase and fact words now use literal stable keys");
+  assert.ok(calls.some(call => call.file === join(MAIN, "mount-core.ts") && call.key === "coding.phase.starting"));
+  assert.ok(calls.some(call => call.file === join(MAIN, "run-facts.ts") && call.key === "coding.facts.configuration"));
   assertPageWords("coding", calls.map(call => call.key));
   for (const role of ["planner", "reader", "reviewer", "coordinator", "writers", "builder", "writer", "coding-reader", "coding-reviewer", "coding-builder"]) {
     assertPageWords("coding", [`coding.role.${role}`]);

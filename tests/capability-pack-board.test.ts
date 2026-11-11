@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { withPageText } from "./fixtures/page-text.js";
+import { runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import {
   ANCHORED_MENU_CLIENT_SCRIPT, CAPABILITY_PACK_BOARD_STYLES, SKILL_PACK_BOARD_STYLES, renderCells, renderDetailTrail, renderIconCounts, renderItemGroup,
   renderMenuItem, renderNowBlock, renderPickRow, renderPrimitiveCatalog, renderStateRows, renderUsage,
@@ -49,11 +49,11 @@ test("CPK-01 CPK-04: cells, trail, counts, state rows and usage carry their name
 });
 
 test("CPK-01: the board has the eight sections, in order, with English for every word and tokens only", () => {
-  const board = withPageText("zh", [], () => renderPrimitiveCatalog());
+  const board = runWithLocale("zh", () => renderPrimitiveCatalog());
   const at = SECTIONS.map((id) => board.indexOf(`id="${id}"`));
   assert.ok(at.every((index, n) => index > 0 && (n === 0 || index > at[n - 1]!)), "every new part has its section, in order");
   assert.match(sectionOf(board, "sticky-detail"), /<div class="mw-list-detail" data-list-detail data-sticky-detail>/);
-  const english = withPageText("en", [], () => renderPrimitiveCatalog());
+  const english = runWithLocale("en", () => renderPrimitiveCatalog());
   assert.match(sectionOf(english, "item-group"), /Writing editor/);
   assert.match(sectionOf(english, "icon-counts"), /2 roles/);
   for (const id of SECTIONS) assert.deepEqual(sectionOf(english, id).replace(/<style>[\s\S]*?<\/style>/g, "").match(/[㐀-鿿]+/gu) ?? [], [], `no Chinese is left in ${id}`);

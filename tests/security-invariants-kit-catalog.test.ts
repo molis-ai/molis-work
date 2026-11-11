@@ -139,9 +139,10 @@ test("S-kit-catalog 9: listing the project's MCP reads the library's safe view a
     credential: "none", health: "connected", tools: [{ server: "srv", tool: "search", version: "1", configuration_version: 2, server_label: "Docs", description: "找文档" }], resources: [] } }],
   list: never("list"), save: never("save"), control: never("control"), validate: never("validate"), validateSources: never("validateSources"), tools: never("tools"), call: never("call"),
   live: () => true } as never;
-  const installations = async () => [{ record: { plugin_id: "io.molis.work.coding", install_id: "i9" }, manifest: { name: "Coding" }, scope: "project" }] as never;
+  const installations = async () => [{ record: { plugin_id: "io.molis.work.coding", install_id: "i9" }, manifest: { name: "Coding" }, scope: "project", readLocalePacks: () => null }] as never;
   const report = await agentMcpKitEntries(library, installations, { actor_id: "web-user", project_id: "p", audience: "user", permissions: [] });
   assert.deepEqual(report.entries.map(entry => [entry.kind === "mcp" && entry.ref.part, entry.pack]), [["server", "plugin:i9"], ["tool", "plugin:i9"]]);
+  assert.equal(report.entries[1]?.description, "找文档");
   assert.deepEqual(counted, []);
 });
 

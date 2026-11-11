@@ -12,7 +12,7 @@ if(!source.startsWith(UI_REQUEST_CLIENT_SCRIPT))throw new Error('Workbench reque
 const compact=(script, pooling)=>transformSync(poolClientLiterals(script,pooling),{
   loader:'js',target:'es2022',charset:'utf8',minifyWhitespace:true,minifyIdentifiers:true,minifySyntax:true,legalComments:'none',
 }).code;
-const body=compact(source.slice(UI_REQUEST_CLIENT_SCRIPT.length));
+const body=compact(source.slice(UI_REQUEST_CLIENT_SCRIPT.length),{byBytes:true});
 // Keep the account IIFE in the same asset, with its own short identifiers.
 writeFileSync(new URL('../dist/workbench-client.js',import.meta.url),UI_REQUEST_CLIENT_SCRIPT+body+compact(ACCOUNT_CLIENT_SCRIPT,{byBytes:true}));
 buildSync({entryPoints:['src/browser/language-entry.ts'],bundle:true,platform:'browser',format:'iife',target:'es2022',minify:true,charset:'utf8',outfile:'dist/language-client.js'});

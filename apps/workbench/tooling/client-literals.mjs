@@ -20,7 +20,8 @@ export function poolClientLiterals(source, { byBytes = false } = {}) {
       if(byBytes ? (rows.length-1)*Buffer.byteLength(literal)<=rows.length*2+5 : rows.length<3)continue;
       let name;do{name=`_molisTextPool${sequence++}`;}while(source.includes(name));
       declarations.push(`${name}=${literal}`);
-      for(const row of rows)edits.push({start:row.getStart(),end:row.end,text:name});
+      // Quotes separated the literal from adjacent tokens such as in and return.
+      for(const row of rows)edits.push({start:row.getStart(),end:row.end,text:` ${name} `});
     }
     if(!declarations.length)return;
     let position=node.body.getStart()+1;

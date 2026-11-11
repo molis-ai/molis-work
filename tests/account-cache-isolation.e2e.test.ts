@@ -111,6 +111,21 @@ test('WUA-32 logout clears account browser caches while preserving unrelated loc
     const second=await browser.page();await second.command('Page.enable');await second.viewport(1440,900);
     await second.command('Page.navigate',{url:origin+'/projects/personal/'});
     await second.wait("Boolean(window.molisWorkAccountTransition) && !document.body.hasAttribute('data-account-registering')");
+    const storageEvents=await second.evaluate(`new Promise(resolve=>{
+      const scope=document.querySelector('meta[name="molis-work-page-session"]').content.split('.')[1];
+      const key='molis-review-feedback:storage-event',seen=[];
+      const writer=document.createElement('iframe');document.body.append(writer);
+      const listener=event=>{
+        seen.push({key:event.key,trusted:event.isTrusted,value:event.newValue});
+        if(event.key!==key)return;
+        removeEventListener('storage',listener);writer.remove();resolve(seen);
+      };
+      addEventListener('storage',listener);
+      writer.contentWindow.localStorage.setItem('molis-account-cache:another-lease:'+key,'other');
+      writer.contentWindow.localStorage.setItem('molis-account-cache:'+encodeURIComponent(scope)+':'+key,'own');
+    })`);
+    assert.deepEqual(storageEvents,[{key:'molis-review-feedback:storage-event',trusted:true,value:'own'}],
+      'WUA-32: native cache events expose only this account logical keys and retain their trusted marker');
     await second.evaluate(`sessionStorage.setItem('molis-review-feedback:/api/agent/reviews:second','account-A-second')`);
     await page.command('Page.bringToFront');
     await page.evaluate(`(async()=>{

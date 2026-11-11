@@ -138,3 +138,11 @@ Work [PR #2013](https://github.com/molis-ai/molis-work/pull/2013) 首轮 CI 指�
 最终 CI 第二轮发现两项：返回路径安全测试仍按未分区物理键找缓存；加载几何测试在 820px 宽度真实回归。前者统一更新六个浏览器用例，按 Storage.key 的逻辑键枚举（在包装安装之前拦截 CacheStorage 的夹具则识别物理分区键），保留原隔离与拒绝断言。后者在干净主线 07840084 上同文件两项通过，候选失败，根因是目录首屏脚本未读账号分区布局；现与运行期共用 accountCachePrefix，避免加载后目录再次展开。
 
 修复后原始 load-geometry 两项及其余七个浏览器文件共 32 项全部通过（`/private/tmp/work-pr-final-fixes-tests.log`）；主线对比 `/private/tmp/account-pr-baseline-geometry.log`，候选失败 `/private/tmp/work-pr-load-geometry.log`。最终合并重复缓存拒绝表达式后缓存隔离再验通过。健康门禁通过，无新增豁免。资源对干净主线实测 52 项通过：workbench.js +6,718、plugin-frame.js +3,247，均低于原许可，未增加预算；`--base-sizes` 日志中的 fixture 为同一干净主线实际构建的测量值。第二轮全量失败后其余分片取消，不计通过；修复推送后重新跑全量。
+
+### 合并前完整回归收尾（2026-11-11）
+
+常规 CI 在 `49d0ac4de`、`3b0cf2d2e` 均通过；完整集成回归 `42881985536` 跑完 32 分片，31 通过、27 分片的 Frame 用例失败，未视为全绿。首屏单测补齐 querySelector 与账号分区夹具，7 项通过；助理发送测试原先在请求发出即断言成功效果，受控 200ms 响应延迟复现，等待既有 sending 状态结束后 3 项通过，保留文字清空与无新轮次断言。
+
+Frame 根因：缓存写入已分区，但原生 storage 事件仍暴露物理键。公共缓存 owner 现在将本 scope 的原生事件转为逻辑键，阻断其他 scope 与撤销后的事件，保留原生 isTrusted。夹具的独立原生 Window 写正确物理分区；Frame 3 项通过，WUA-32 真实同源 Window 事件隔离及退出实际清理通过。构建过程中还复现字符串池把 return 与变量名粘连的问题，替换时保留词法分隔，新增 minified return/typeof 回归；构建工具 2 项通过。
+
+日志：`/private/tmp/work-pr-storage-events-tests2.log`（Frame 通过；新其他账号夹具首次未纳入既有保留分区，随后修正）、`/private/tmp/work-pr-storage-events-isolation-final.log`（最终 WUA-32 通过）、`/private/tmp/work-pr-storage-events-health.log`（健康通过）。资源增量许可新增 84+188=272 字节，用户 2026-11-11 明确批准；最新完整 CI 仍须按最终提交核验。

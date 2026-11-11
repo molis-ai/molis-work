@@ -14,6 +14,13 @@ const owned = (key: string) => keys.has(key) || prefixes.some(prefix => key.star
 export function installAccountCache(scope: string): {clear(): Promise<void>; hasDrafts(): Promise<boolean>} {
   let revoked = false, clearing: Promise<void> | undefined;
   const prefix = accountCachePrefix(scope);
+  // Keep the native event (and isTrusted), exposing only this account's logical cache keys.
+  addEventListener('storage', event => {
+    const key = event.key;
+    if (!key?.startsWith('molis-account-cache:')) return;
+    if (revoked || !key.startsWith(prefix)) event.stopImmediatePropagation();
+    else Object.defineProperty(event, 'key', {value: key.slice(prefix.length)});
+  }, true);
   const set = Storage.prototype.setItem, get = Storage.prototype.getItem, remove = Storage.prototype.removeItem, keyAt = Storage.prototype.key;
   const physical = (key: string) => owned(key) ? prefix + key : key;
   Storage.prototype.setItem = function(key, value) { key=String(key);if (!revoked || !owned(key)) set.call(this, physical(key), value); };

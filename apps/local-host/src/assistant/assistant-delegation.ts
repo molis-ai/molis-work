@@ -136,6 +136,8 @@ export class AssistantDelegations {
       follow_up: async (workId, text) => {
         const child = own(workId), { graph_id, node_id } = child.delegated_by!, graphs = await this.#graphs();
         if (child.delegated_by?.taken_back_at) throw assistantErrors.invalid("用户已把这个子任务收回到这项工作，这部分由你在这里继续，不要再对它追加");
+        // Put away is the person's decision, and its execution session is archived with it: an agent does not undo that.
+        if (child.archived) throw assistantErrors.invalid("用户已把这个子任务收起，不要再对它追加；还需要它时告诉用户，由用户先恢复它");
         const steps = partSteps(await graphs.read(graph_id), child);
         if (open(steps).length || !child.session_id) throw assistantErrors.state("这个子任务还在做：先用 check-delegated-work 等它交回，再按验收标准追加");
         if (followUps(steps) >= DELEGATION_LIMITS.followUps) throw assistantErrors.limit(`已经追加过 ${DELEGATION_LIMITS.followUps} 次；仍达不到验收时停止它，并把实际情况告诉用户`);

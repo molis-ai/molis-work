@@ -174,10 +174,10 @@ test("what the person asks to keep is remembered in Prologue Memory, recalled on
     assert.ok(first.first.tools.some((tool: { name: string }) => tool.name === "remember"), "the round may remember");
     const frozen = (await adapter.readSession({ session_id: first.work.session_id! })).latest_run!.frozen;
     const system = typeof first.first.system === "string" ? first.first.system : first.first.system.map((block: { text: string }) => block.text).join("\n");
-    for (const [promptId, version] of [["assistant-base", 32], ["assistant-work", 3]] as const) {
+    for (const [promptId, version] of [["assistant-base", 1], ["assistant-work", 1]] as const) {
       const registered = homeAgentDefinitions(home).prompt(`${ASSISTANT_PLUGIN_ID}/${promptId}`);
-      assert.equal(registered.default_version, version, "the public prompt registry declares the updated version");
-      assert.equal(frozen.prompts.find(prompt => prompt.prompt_id === promptId)!.version, version, "the Run freezes the updated registered version");
+      assert.equal(registered.default_version, version, "the public prompt registry declares the current version (phase one edits in place: docs/system/CONTRACT-CHANGES.md §3)");
+      assert.equal(frozen.prompts.find(prompt => prompt.prompt_id === promptId)!.version, version, "the Run freezes the current registered version");
       assert.ok(system.includes(registered.default_body), "the dispatched request carries the complete registered body; this does not test model interpretation");
     }
     script.push(

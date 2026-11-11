@@ -3,6 +3,13 @@ import type { FeedSourceRunRecord } from "../projection.js";
 import { feedRunFailure, feedRunHttpStatus } from "../source-presentation.js";
 import type { FeedPage } from "./factory.js";
 
+/**
+ * After these the schedule may have been saved: the page lost the answer (`ui_host.*`), or the platform could not confirm
+ * the call's outcome (the same `actions.*` codes the SDK's action cards treat as unknown, W2-18-CARD-UNKNOWN-01).
+ */
+const SCHEDULE_MAY_HAVE_LANDED: ReadonlySet<string> = new Set(["ui_host.outcome_unknown", "ui_host.invalid_response",
+  "actions.outcome_unknown", "actions.output_invalid_after_effect", "actions.delivery_unknown", "actions.host_replaced"]);
+
 interface SourceAnswer { source: { source_id: string } }
 interface SyncAnswer { created?: number; deduped?: number; run?: FeedSourceRunRecord }
 
@@ -224,8 +231,8 @@ export function feedSources(page: FeedPage) {
       if (minutes) try { await page.api("/sources/" + encodeURIComponent(id) + "/schedule", "PUT", { mode: "interval", enabled: true, interval_minutes: minutes }); }
       catch (error) {
         check();
-        const code = error && typeof error === "object" && "code" in error ? error.code : null;
-        const uncertain = code === "actions.outcome_unknown" || code === "ui_host.outcome_unknown" || code === "ui_host.invalid_response";
+        const code = String(error && typeof error === "object" && "code" in error ? error.code : "");
+        const uncertain = SCHEDULE_MAY_HAVE_LANDED.has(code);
         status(form, error)?.prepend(L(uncertain ? "来源已添加。" : "来源已添加，拉取计划未保存。"), " ");
         return;
       }

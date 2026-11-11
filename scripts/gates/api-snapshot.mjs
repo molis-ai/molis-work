@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Public API snapshots (specs/archive/repository-anti-corruption §4.13, slice W1-04): what plugins and other callers can import
-// from the contracts package (every subpath of its package.json "exports") and from the plugin SDK, written down in
-// tooling/gates/api/<package>/<subpath>.txt. The health gate fails when the source and the committed snapshot differ, so
+// from the contracts package (every subpath of its package.json "exports") and from the plugin SDK, and the exact `./contract`
+// subpath of any other workspace package that declares one (a plugin's or Module's contract to its callers, BL-901), written down in
+// tooling/gates/api/<package>/<subpath>.txt (a workspace contract under its directory, e.g. plugins/native/feed/contract.txt). The health gate fails when the source and the committed snapshot differ, so
 // an export that is added, removed or changed is never silent: the author refreshes the snapshot ON PURPOSE with
 //
 //   node scripts/gates/api-snapshot.mjs --update        (pnpm api:update)
@@ -37,11 +38,47 @@ import path from "node:path";
 import { isMainScript } from "../script-paths.mjs";
 import ts from "typescript";
 
-/** The packages whose public surface is snapshotted: a package.json "exports" map pointing into dist/ from src/. */
+/**
+ * The packages whose whole public surface is snapshotted: a package.json "exports" map pointing into dist/ from src/. Every other
+ * workspace package of the root (pnpm-workspace.yaml) is snapshotted only at its exact `./contract` subpath, when it declares one
+ * (BL-901): the contract a plugin or Module gives its callers, not its implementation, registration or styles.
+ */
 export const API_PACKAGES = [
   { dir: "packages/contracts", slug: "contracts" },
   { dir: "packages/plugin-sdk", slug: "plugin-sdk" },
 ];
+const CONTRACT_SUBPATH = "./contract";
+
+/** The root's workspace package directories, from its pnpm-workspace.yaml `packages:` list (a trailing `*` is one level). */
+const workspaceDirectories = (root) => {
+  const file = path.join(root, "pnpm-workspace.yaml");
+  if (!existsSync(file)) return [];
+  const patterns = [];
+  let inList = false;
+  for (const line of readFileSync(file, "utf8").split(/\r?\n/)) {
+    if (/^packages:\s*$/.test(line)) { inList = true; continue; }
+    if (inList && /^\S/.test(line)) break;
+    const item = inList ? /^\s+-\s+['"]?([^'"#\s]+)['"]?/.exec(line) : null;
+    if (item) patterns.push(item[1]);
+  }
+  return patterns.flatMap((pattern) => {
+    if (!pattern.endsWith("/*")) return [pattern];
+    const parent = pattern.slice(0, -2);
+    return existsSync(path.join(root, parent)) ? readdirSync(path.join(root, parent), { withFileTypes: true }).filter((entry) => entry.isDirectory()).map((entry) => `${parent}/${entry.name}`).sort(byText) : [];
+  });
+};
+
+/** What is snapshotted in this root: the two whole packages, then each workspace package's `./contract`, found the same way for a test root. */
+const apiPackages = (root) => {
+  const whole = new Set(API_PACKAGES.map((pkg) => pkg.dir));
+  const contracts = workspaceDirectories(root).filter((dir) => !whole.has(dir)).flatMap((dir) => {
+    const manifest = path.join(root, dir, "package.json");
+    if (!existsSync(manifest)) return [];
+    try { return JSON.parse(readFileSync(manifest, "utf8")).exports?.[CONTRACT_SUBPATH] ? [{ dir, slug: dir, only: CONTRACT_SUBPATH }] : []; }
+    catch { return [{ dir, slug: dir, only: CONTRACT_SUBPATH }]; }
+  });
+  return [...API_PACKAGES, ...contracts];
+};
 export const API_DIRECTORY = "tooling/gates/api";
 export const API_REFRESH_COMMAND = "node scripts/gates/api-snapshot.mjs --update";
 
@@ -50,8 +87,8 @@ const HELPERS_MARKER = "// Declarations the exports above refer to, which no ent
 
 // ---- the entries: one per exported subpath ---------------------------------------------------------------------------
 const readEntries = (root) => {
-  const entries = [], problems = [];
-  for (const pkg of API_PACKAGES) {
+  const entries = [], problems = [], packages = apiPackages(root);
+  for (const pkg of packages) {
     const manifestPath = path.join(root, pkg.dir, "package.json");
     // A root without the package has nothing to snapshot (the scratch repositories of the gate tests). In this repository
     // the packages exist, so the snapshot files below are required.
@@ -60,6 +97,7 @@ const readEntries = (root) => {
     try { manifest = JSON.parse(readFileSync(manifestPath, "utf8")); } catch { problems.push(`${pkg.dir}/package.json is not valid JSON`); continue; }
     const before = entries.length;
     for (const [subpath, target] of Object.entries(manifest.exports ?? {})) {
+      if (pkg.only && subpath !== pkg.only) continue;
       const types = typeof target === "string" ? target : target?.types ?? target?.import;
       const match = typeof types === "string" ? /^\.\/dist\/([^*]+)\.(?:d\.ts|js)$/.exec(types) : null;
       if (!match || subpath.includes("*")) { problems.push(`${manifest.name}: export "${subpath}" is not a plain subpath pointing into ./dist/; the API snapshot cannot read it`); continue; }
@@ -70,7 +108,7 @@ const readEntries = (root) => {
     }
     if (entries.length === before && !problems.length) problems.push(`${manifest.name}: no exported subpath was found to snapshot`);
   }
-  return { entries, problems };
+  return { entries, problems, packages };
 };
 
 // ---- the declarations the compiler prints ----------------------------------------------------------------------------
@@ -136,7 +174,7 @@ const indexDeclarations = (text, rewrite, typeImportsOf) => {
  * `problems` is not empty when a package cannot be read; the snapshots are then not trustworthy.
  */
 export const buildApiSnapshots = (root) => {
-  const { entries, problems } = readEntries(root);
+  const { entries, problems, packages } = readEntries(root);
   const files = new Map();
   if (problems.length || !entries.length) return { files, problems };
 
@@ -186,7 +224,7 @@ export const buildApiSnapshots = (root) => {
   const exporters = new Map();
   for (const entry of entries) for (const { resolved } of entry.exports ?? []) exporters.set(resolved, [...(exporters.get(resolved) ?? []), entry]);
   const sourceRootOf = (pkg) => path.join(root, pkg.dir, "src") + path.sep;
-  const packageOfFile = (file) => API_PACKAGES.find((pkg) => file.startsWith(sourceRootOf(pkg)));
+  const packageOfFile = (file) => packages.find((pkg) => file.startsWith(sourceRootOf(pkg)));
 
   // What a file exports (resolved through re-exports), by name; used to tell whether some entry already carries a name.
   const moduleExports = new Map();
@@ -395,7 +433,7 @@ export const checkApiSnapshots = ({ root, git, mergeBase }) => {
   }
   for (const file of committed) if (!files.has(file)) differences.push(`${file}: no longer an exported subpath; the snapshot is stale`);
   if (differences.length) {
-    errors.push(`public API of the contracts or the plugin SDK changed without a snapshot update (${differences.length} file${differences.length === 1 ? "" : "s"}):\n  ${differences.slice(0, 12).join("\n  ")}${differences.length > 12 ? `\n  … ${differences.length - 12} more` : ""}\n`
+    errors.push(`public API of the contracts, the plugin SDK or a workspace ./contract changed without a snapshot update (${differences.length} file${differences.length === 1 ? "" : "s"}):\n  ${differences.slice(0, 12).join("\n  ")}${differences.length > 12 ? `\n  … ${differences.length - 12} more` : ""}\n`
       + `  If the change is intended, refresh the snapshots on purpose with \`${API_REFRESH_COMMAND}\` (or \`pnpm api:update\`), commit tooling/gates/api, and say in the PR what it means for plugins and other callers.`);
   }
 

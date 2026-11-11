@@ -43,6 +43,7 @@ function buildFeedModel(
       id: source.id,
       name: source.name,
       category_label: text.L(source.category_label),
+      limited: (source.limitations?.length ?? 0) > 0,
     })),
     connector_auth: {
       github: view.data.connector_auth?.github ?? { bound: false },

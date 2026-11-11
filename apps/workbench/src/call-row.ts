@@ -12,6 +12,8 @@ export interface CallRowView {
   matched_call_id?: string;
   capability_id: string;
   version: number;
+  /** `unknown` when the call ran against no definition this project can see; its title is then only the id it asked for. */
+  operation: "command" | "query" | "unknown";
   title: string;
   provider_title: string;
   actor_id: string;
@@ -50,7 +52,7 @@ export function renderCallRow(row: CallRowView, p: CallText, where?: { label: st
   const { L, escapeHtml: e } = p;
   const at = row.last_at ?? row.at;
   const localTime = (value: string) => e(new Date(value).toLocaleString(p.htmlLang()));
-  const title = row.title === row.capability_id ? L("未识别的操作") : L(row.title);
+  const title = row.operation === "unknown" ? L("未识别的操作") : L(row.title);
   const source = row.provider_title ? e(L(row.provider_title)) + " · " : "";
   const actor = row.audience === "mcp" || row.audience === "plugin" ? ` · ${e(row.actor_id)}` : "";
   return `<article data-call-row><header><strong>${e(title)}</strong><span${row.ok ? "" : ' class="is-unavailable"'}>${L(row.refused ? "未执行" : row.ok ? "成功" : "失败")}</span></header>`

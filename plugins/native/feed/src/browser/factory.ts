@@ -60,7 +60,8 @@ export function feedClient(host: FeedHost): void {
         check();
         const reason = molisWorkRequest.text(error);
         if (!reason) throw error;
-        throw new Error(host.translate("列表更新失败，当前输入已保留。") + " " + reason);
+        // Copying the failure's own fields (code, status, callId) keeps its diagnostic ID button beside the new sentence.
+        throw Object.assign(new Error(host.translate("列表更新失败，当前输入已保留。") + " " + reason), error);
       }).finally(() => reading--);
       check();
       if (sequence !== refreshSequence) { await activeRefresh; check(); return; }

@@ -81,13 +81,10 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       ? tabWorkspace?.openItem(plugin, id, title) : tabWorkspace?.openPluginRecord(plugin, id) });
     globalSearchPalette = (${GLOBAL_SEARCH_FACTORY_SCRIPT})({
       translate: L, itemTabs,
-      route, headers: () => molisWorkControlHeaders(), projectId: state.project?.project_id || document.body.dataset.projectId || "",
+      route, projectId: state.project?.project_id || document.body.dataset.projectId || "",
       openPluginRecord: (plugin, id) => tabWorkspace?.openPluginRecord(plugin, id),
       openPlugin: (plugin) => tabWorkspace?.openPlugin(plugin),
       askAssistant: (words) => assistantIsland?.ask(words),
-      setDirectory: (...args) => setDesktopDirectory(...args),
-      setWorkSurface: (...args) => setDesktopWorkSurface(...args),
-      selectGoal: (...args) => selectGoal(...args),
       setMobileView: (...args) => setMobileView(...args),
       noteSearchActivity: (...args) => noteSearchActivity(...args),
       openTabItem: (plugin, id, title, mode) => tabWorkspace?.openItem(plugin, id, title, undefined, mode),

@@ -201,7 +201,7 @@ function renderRow(row: AgentReviewRow, p: AgentReviewPrimitives): string {
   const history = ["done", "rejected", "cancelled", "expired"].includes(phase);
   const document = row.request.document;
   const documentReadable = readable(document);
-  const decidable = phase === "pending" && documentReadable;
+  const decidable = isDecidable(row);
   // The heading names the thing itself, so a history list reads without opening every row.
   const label = document.kind === "text-edit" ? document.target_path
     : document.kind === "command" && documentReadable ? [document.command, ...document.args].map(shellWord).join(" ")

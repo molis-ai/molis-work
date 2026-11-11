@@ -1,5 +1,5 @@
 import type { AssistantNotice, AssistantPendingReview } from "@molis-ai/molis-work-contracts/services/assistant";
-import { assistantCodeHtml, assistantEscape, assistantInlineHtml, assistantListHtml, assistantListLine, ASSISTANT_LIST_ITEM, type AssistantTextPorts } from "./assistant-text-parts.js";
+import { assistantCodeHtml, assistantEscape, assistantInlineHtml, assistantListHtml, assistantRepairListLine, ASSISTANT_LIST_ITEM, type AssistantTextPorts } from "./assistant-text-parts.js";
 
 /** Assistant-only Markdown projection, with the same block rules as its original browser renderer. */
 export function renderAssistantTextHtml(text: string, ports: AssistantTextPorts): string {
@@ -15,7 +15,7 @@ function blocks(text: string, ports: AssistantTextPorts): string {
   const isRule = (line: string) => /^\s*([-*_])(\s*\1){2,}\s*$/.test(line);
   const isTableAt = (at: number) => lines[at]!.includes("|") && at + 1 < lines.length && /^\s*\|?\s*:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)*\|?\s*$/.test(lines[at + 1]!);
   const cells = (line: string) => line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map(cell => cell.trim());
-  const startsBlock = (at: number) => openingFence.test(lines[at]!) || ASSISTANT_LIST_ITEM.test(assistantListLine(lines, at)) || /^#{1,6}\s/.test(lines[at]!) || /^\s*>/.test(lines[at]!) || isRule(lines[at]!) || isTableAt(at);
+  const startsBlock = (at: number) => openingFence.test(lines[at]!) || ASSISTANT_LIST_ITEM.test(assistantRepairListLine(lines, at)) || /^#{1,6}\s/.test(lines[at]!) || /^\s*>/.test(lines[at]!) || isRule(lines[at]!) || isTableAt(at);
   let index = 0, html = "";
   while (index < lines.length) {
     const line = lines[index]!;
@@ -54,7 +54,7 @@ function blocks(text: string, ports: AssistantTextPorts): string {
       while (index < lines.length && lines[index]!.includes("|") && lines[index]!.trim()) { html += `<tr>${cells(lines[index]!).map((value, at) => cell("td", value, at)).join("")}</tr>`; index += 1; }
       html += "</tbody></table></div>"; continue;
     }
-    if (ASSISTANT_LIST_ITEM.test(assistantListLine(lines, index))) { const list = assistantListHtml(lines, index, ports); html += list.html; index = list.end; continue; }
+    if (ASSISTANT_LIST_ITEM.test(assistantRepairListLine(lines, index))) { const list = assistantListHtml(lines, index, ports); html += list.html; index = list.end; continue; }
     const paragraph: string[] = [];
     while (index < lines.length && lines[index]!.trim() && (!paragraph.length || !startsBlock(index))) {
       paragraph.push(assistantInlineHtml(lines[index]!, ports)); index += 1;

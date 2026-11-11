@@ -53,7 +53,8 @@ export function inboxClient(host: InboxHost): void {
       check();
       const reason = molisWorkRequest.text(error);
       if (!reason) throw error;
-      throw new Error(L("列表更新失败，当前输入已保留。") + " " + reason);
+      // Copying the failure's own fields (code, status, callId) keeps its diagnostic ID button beside the new sentence.
+      throw Object.assign(new Error(L("列表更新失败，当前输入已保留。") + " " + reason), error);
     });
     check(); if (sequence !== refreshSequence) return;
     const next = new DOMParser().parseFromString(html, "text/html").querySelector<HTMLElement>("[data-ui-client-root]"); if (!next) throw new Error(L("无法更新 Inbox 列表"));

@@ -21,7 +21,7 @@ export const FEED_EN: Record<string, string> = {
   "全部消息": "All messages",
   "关注的内容，在这里汇集。": "Updates from the sources you follow.",
   "关键词": "Keyword",
-  "列表更新失败，当前输入已保留，请重试。": "Could not refresh the list. Your input is saved; please retry.",
+  "列表更新失败，当前输入已保留。": "Could not refresh the list. Your input is preserved.",
   "判断": "Evaluation",
   "匹配方式": "Match by",
   "告诉 Feed 什么值得关注，先看看会捕捉哪些消息。": "Describe what matters, then preview which messages match.",

@@ -94,6 +94,8 @@ export interface FeedUiCatalogSource {
   readonly id: string;
   readonly name: string;
   readonly category_label: string;
+  /** The catalog states a limitation (blocked on many networks, summaries only…); such a feed is never preselected. */
+  readonly limited: boolean;
 }
 
 export interface FeedUiConnectorStatus {
@@ -463,8 +465,8 @@ export function renderFeedOverlays(_model: FeedUiModel): string { return ""; }
 
 function renderFeedSetupPanel(model: FeedUiModel): string {
   const p = model.primitives;
-  // The catalog documents access restrictions for 36kr. Keep it available for an explicit choice.
-  const defaultSource = model.source_catalog.find((source) => source.id !== "36kr");
+  // Preselect the first feed the catalog states no limitation for; a limited one stays in place for an explicit choice.
+  const defaultSource = model.source_catalog.find((source) => !source.limited);
   const catalogOptions = (defaultSource ? "" : `<option value="" disabled selected>${p.text("选择订阅")}</option>`) + model.source_catalog.map((source) => `<option value="${p.escape(source.id)}"${source === defaultSource ? " selected" : ""}>${p.escape(`${source.category_label} · ${source.name}`)}</option>`).join("");
   const connectorLabel = (status: FeedUiConnectorStatus, kind: "github" | "gmail") => status.bound
     ? p.text(kind === "gmail" ? "凭据已保存" : "已连接") : p.text("未连接");

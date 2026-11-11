@@ -266,7 +266,7 @@ test("Workbench registers the Feed UI Contribution through the generic UI Host",
     contribution_id: FEED_UI_CONTRIBUTION_ID,
     surface: "workbench",
     model: model({
-      source_catalog: [{ id: "catalog-1", name: "Latent Space", category_label: "AI" }],
+      source_catalog: [{ id: "catalog-1", name: "Latent Space", category_label: "AI", limited: false }],
     }),
   });
   assert.match(catalogOverlays, /data-feed-choose-kind="rss"/);

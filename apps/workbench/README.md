@@ -80,6 +80,7 @@ node scripts/run-tests.mjs tests/workbench-ui-platform.test.ts
 - 负责：工作台界面的组合根：导航、插件选择、设置页、Functions 编辑器、Goal 终端（`src/terminal/`），以及进入工作台之前的页面——项目选择页与简介、开场与 Welcome、新建项目引导、更新页（`src/arrival/`、`src/context-onboarding-renderer.ts`、`src/scripts/context-onboarding.ts`）。
 - 不负责：业务 Store、Node 专用实现、Tauri 命令。
 - 公共工作台脚本由 `tooling/build-client.mjs` 在构建时生成：请求助手 bootstrap 保持原样在最前，其余程序在已有函数作用域内复用重复的表达式字符串，再经 esbuild 压缩空白、局部绑定名及等价语法；字面量值、指令序言、属性名、事件名和公开全局不变。字符串池的语义测试为 `node --test apps/workbench/tooling/client-literals.test.mjs`。运行时只读取生成的 dist 资源；修改后先构建再跑浏览器回归，页面资源预算只能下调。
+- 插件框架的 TypeScript 桥由 `tooling/build-client.mjs` 打包并复用同一字面量压缩，写入 `dist/plugin-frame-client.js`。`src/plugin-frame.ts` 将它和共用控件合成框架脚本。
 - 账号与空间菜单的浏览器入口在 `src/browser/personal-account.ts`，由 `tsconfig.browser.json` 独立做 DOM 类型检查；包的构建命令用 esbuild 先打包，再参与公共工作台脚本组合。服务器端 `src/scripts/personal-account.ts` 只读取构建资源，不再保存程序字符串。
 - 账号入口可用 Tab 到达、Enter/空格打开，未登录时焦点进入登录按钮；Esc 关闭后返回可见入口，若账号行所在的项目菜单已收起则返回其 summary。浏览器测试先等菜单真正可见，不把尚在 `content-visibility` 过渡中的节点当作能接收焦点；账号菜单改动后必跑：`node scripts/run-tests.mjs tests/personal-menu.e2e.test.ts`（PCSYNC-KBD-01）。
 - 公开入口：`@molis-ai/molis-work-app-workbench`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/app-host`。

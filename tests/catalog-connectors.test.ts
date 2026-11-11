@@ -6,8 +6,10 @@ import {
   CATALOG_CONNECTORS,
   catalogIntegrationManifest,
   catalogWhoami,
+  createCatalogIntegrationPlugin,
   createCatalogProvider,
 } from "@molis-ai/molis-work-integration-catalog";
+import { connectorText } from "./fixtures/connector-text.js";
 
 test("VG-21 every catalog connector provides the same two types it always did, now that the table holds their versions", () => {
   for (const spec of CATALOG_CONNECTORS) {
@@ -21,16 +23,19 @@ test("every catalog connector has a valid Integration Manifest and identity URL"
   for (const spec of CATALOG_CONNECTORS) {
     assert.equal(ids.has(spec.id), false, spec.id);
     ids.add(spec.id);
-    const parsed = parsePluginManifest(catalogIntegrationManifest(spec.id));
+    const definition = createCatalogIntegrationPlugin({ connectorId: spec.id, providerFor: () => { throw new Error("Only the declaration is needed"); } });
+    const parsed = parsePluginManifest(definition.manifest);
+    const text = connectorText(definition);
     assert.equal(parsed.kind, "integration");
     if (spec.id === "loom") assert.equal(spec.feed_available, false);
-    else assert.ok(spec.token_label.length > 0, spec.id);
-    assert.ok(spec.inbound.length > 0, spec.id);
+    else assert.ok(text(spec.token_label).trim().length > 0, spec.id);
+    assert.ok(text(spec.inbound).trim().length > 0, spec.id);
     assert.ok(spec.setup_links.length > 0, spec.id);
     const urls = new Set<string>();
     for (const link of spec.setup_links) {
-      assert.match(link.url, /^https:\/\//, `${spec.id}:${link.label}`);
-      assert.ok(link.label.trim().length > 0, spec.id);
+      const label = text(link.label);
+      assert.match(link.url, /^https:\/\//, `${spec.id}:${label}`);
+      assert.ok(label.trim().length > 0, spec.id);
       assert.equal(urls.has(link.url), false, `${spec.id} duplicate ${link.url}`);
       urls.add(link.url);
     }

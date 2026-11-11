@@ -7,13 +7,14 @@ import { join } from "node:path";
 import test from "node:test";
 import { startApiOAuth, completeApiOAuth, resolveApiOAuthToken, apiOAuthContext } from "../apps/local-host/src/connector-api-oauth.ts";
 import type { PluginOAuthMethodDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
-import { CATALOG_OAUTH_METHODS } from "@molis-ai/molis-work-integration-catalog";
-import { githubIntegrationManifest } from "@molis-ai/molis-work-integration-github";
-import { gmailIntegrationManifest } from "@molis-ai/molis-work-integration-gmail";
+import { CATALOG_OAUTH_METHODS, createCatalogIntegrationPlugin } from "@molis-ai/molis-work-integration-catalog";
+import { createGithubIntegrationPlugin, githubIntegrationManifest } from "@molis-ai/molis-work-integration-github";
+import { createGmailIntegrationPlugin, gmailIntegrationManifest } from "@molis-ai/molis-work-integration-gmail";
 import { API_OAUTH_PROVIDERS, apiOAuthProvider } from "../apps/local-host/cloudflare/providers.ts";
 import { oauthAuthorizationUrl, oauthClientAuth, oauthEndpoint, oauthMethodOption, oauthScope, oauthSecretRequired, resolveOAuthSettings } from "../apps/local-host/src/connector-oauth-declarations.ts";
 import { connectorProtocolSecrets } from "../apps/local-host/src/connector-protocol-store.ts";
 import { createOAuthBroker, type BrokerEnv } from "../apps/local-host/cloudflare/worker.ts";
+import { connectorText } from "./fixtures/connector-text.js";
 
 // Independent wire contracts, transcribed from the official references in
 // specs/archive/connector-experience/configuration-readiness.md; no production-derived expectations.
@@ -108,7 +109,10 @@ test("RAC-1080 the method option of every declared service is the one the platfo
   for (const [id, declaration] of Object.entries(DECLARED)) {
     const table = API_OAUTH_PROVIDERS[id]!;
     const before = { client_secret_required: !table.optionalSecret, fields: table.fields ?? [], note: table.note };
-    assert.deepEqual(JSON.parse(JSON.stringify(oauthMethodOption(declaration))), JSON.parse(JSON.stringify(before)), id);
+    const providerFor = () => { throw new Error("Only the declaration is needed"); };
+    const definition = id === "github" ? createGithubIntegrationPlugin({ providerFor }) : id === "gmail" ? createGmailIntegrationPlugin({ providerFor })
+      : createCatalogIntegrationPlugin({ connectorId: id, providerFor });
+    assert.deepEqual(JSON.parse(JSON.stringify(oauthMethodOption(declaration, connectorText(definition)))), JSON.parse(JSON.stringify(before)), id);
   }
 });
 for (const mode of ["direct", "broker"] as const) for (const c of contracts) test(`${mode}: ${c.id} exchange → stable account → persisted token → refresh`, async () => {

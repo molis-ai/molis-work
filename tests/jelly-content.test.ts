@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { openJellyStore } from "./fixtures/plugin-home-stores.js";
-import { applyJellyContentCommand, emptyJellyWorkspace, jellyHash, jellySourceHash } from "@molis-ai/molis-work-plugin-jelly";
+import { applyJellyContentCommand, emptyJellyWorkspace, jellyHash, jellySourceHash, validateJellyContent, validateJellyWorkspace } from "@molis-ai/molis-work-plugin-jelly";
 import { jellyMarkdownToBlocks, jellyBlocksToMarkdown, jellyBlocksToHtml, jellyHtmlToBlocks } from "@molis-ai/molis-work-plugin-jelly";
 import { decodeJellyImport } from "@molis-ai/molis-work-plugin-jelly";
 import type { JellyPlan } from "@molis-ai/molis-work-plugin-jelly/contract";
@@ -272,4 +272,72 @@ test("JLY-27-04: a redo after the note disappeared still exceeds its persisted h
   assert.ok(restored.notes[0].revision > high);
   assert.throws(() => store.execute({ type: "note.update", id: "note", patch: { title: "旧草稿" }, expected_note_revision: high }), { code: "jelly.conflict" });
   assert.deepEqual(store.read(), restored);
+});
+
+// A scoped write checks only the records a command says it touched (`JellyWorkspaceEdit`). The whole-library checks that run when
+// the library is next opened must accept every state such a write keeps, or the next read would refuse the person's own data.
+test("JLY-27-03: every command kind keeps a library that the whole-library checks accept", t => {
+  const store = openJellyStore(temporary(t));
+  t.after(() => store.close());
+  const kinds = new Set<string>();
+  const run = (command: { type: string; [key: string]: unknown }) => {
+    const state = store.execute(command);
+    kinds.add(command.type);
+    assert.doesNotThrow(() => { validateJellyWorkspace(state); validateJellyContent(state); }, command.type);
+    assert.deepEqual(store.read(), state, command.type);
+    return state;
+  };
+  const refused = (command: { type: string; [key: string]: unknown }) => {
+    const before = store.read();
+    assert.throws(() => store.execute(command), { code: /^jelly\./ }, command.type);
+    assert.deepEqual(store.read(), before, command.type);
+  };
+  run({ type: "category.create", category: { id: "work", name: "工作" } });
+  run({ type: "category.create", category: { id: "home", name: "家" } });
+  run({ type: "category.update", id: "home", patch: { name: "家里" } });
+  run({ type: "category.reorder", ids: store.read().categories.map(category => category.id).reverse() });
+  let state = run({ type: "note.create", id: "plan", category_id: "work", markdown: "- [ ] 写报告\n说明" });
+  const block = state.notes[0]!.blocks[0]!.id;
+  run({ type: "note.update", id: "plan", patch: { title: "计划" } });
+  run({ type: "note.import", id: "plan", source: "<p><b>附录</b></p>", format: "html", mode: "append" });
+  run({ type: "note.pin", id: "plan" });
+  run({ type: "item.create", item: { id: "trip", title: "出差", category_id: "work", ...schedule } });
+  run({ type: "item.create", item: { id: "call", title: "电话", start_date: "2026-09-22" } });
+  run({ type: "item.update", id: "trip", patch: { title: "出差（改）" } });
+  run({ type: "item.move", id: "trip", date: "2026-09-23" });
+  run({ type: "item.move_many", ids: ["trip", "call"], date: "2026-09-24" });
+  run({ type: "item.reorder", date: "2026-09-24", ids: ["call"] });
+  run({ type: "item.complete", id: "call", completed: true });
+  run({ type: "task.schedule", note_id: "plan", block_id: block, schedule });
+  run({ type: "task.complete", note_id: "plan", block_id: block, completed: true, completion_description: "已交" });
+  run({ type: "task.unlink", note_id: "plan", block_id: block });
+  run({ type: "series.create", series: { id: "weekly", title: "周会", category_id: "home", start_date: "2026-09-21", weekdays: [1], notes: "会前读材料" } });
+  run({ type: "relation.attach", owner_id: "weekly", original_date: "2026-09-28", note_id: "plan", role: "primary" });
+  run({ type: "relation.detach", owner_id: "weekly", original_date: "2026-09-28", note_id: "plan" });
+  run({ type: "relation.attach", owner_id: "weekly", original_date: "2026-10-05", note_id: "plan", role: "reference" });
+  run({ type: "relation.reset", owner_id: "weekly", original_date: "2026-10-05" });
+  run({ type: "series.update", id: "weekly", original_date: "2026-10-05", scope: "onlyThis", patch: { title: "周会（改）" } });
+  run({ type: "series.complete", id: "weekly", original_date: "2026-09-21", completed: true });
+  run({ type: "item.notes_to_note", owner_id: "weekly", mode: "new" });
+  run({ type: "series.delete", id: "weekly", original_date: "2026-09-21", scope: "onlyThis" });
+  run({ type: "category.delete", id: "work" });
+  run({ type: "item.delete", id: "call" });
+  run({ type: "note.archive", id: "plan" });
+  run({ type: "note.restore", id: "plan" });
+  run({ type: "note.archive", id: "plan" });
+  run({ type: "note.delete", id: "plan", confirmation_token: store.previewDelete("plan").confirmation_token });
+
+  // A write that would leave a record pointing at nothing is refused on the records it touched, before anything is stored.
+  refused({ type: "item.create", item: { id: "lost", title: "无分类", category_id: "missing", start_date: "2026-09-22" } });
+  refused({ type: "item.create", item: { id: "trip", title: "重复", start_date: "2026-09-22" } });
+  refused({ type: "note.create", id: "orphan", category_id: "missing", markdown: "无分类" });
+  refused({ type: "relation.attach", owner_id: "missing", original_date: "2026-09-22", note_id: "nothing", role: "primary" });
+  refused({ type: "category.update", id: "uncategorized", patch: { name: "改名" } });
+  state = store.read();
+  assert.doesNotThrow(() => { validateJellyWorkspace(state); validateJellyContent(state); });
+  const missing = ["category.create", "category.update", "category.reorder", "category.delete", "note.create", "note.update", "note.import", "note.pin",
+    "note.archive", "note.restore", "note.delete", "item.create", "item.update", "item.move", "item.move_many", "item.reorder", "item.complete",
+    "item.delete", "item.notes_to_note", "task.schedule", "task.complete", "task.unlink", "series.create", "series.update", "series.complete",
+    "series.delete", "relation.attach", "relation.detach", "relation.reset"].filter(kind => !kinds.has(kind));
+  assert.deepEqual(missing, [], "every scoped command kind is exercised");
 });

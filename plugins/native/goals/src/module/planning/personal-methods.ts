@@ -1,5 +1,6 @@
 import type { PlanningMethodPack, PlanningMethodPackInput } from "../../contract/goals.js";
-import { parseJson, type GoalsSqliteDatabase } from "../repository.js";
+import { storedJson } from "../../stored-json.js";
+import type { GoalsSqliteDatabase } from "../repository.js";
 import { normalizePlanningMethodPack } from "./method-packs.js";
 
 /** Personal scope shares Planning semantics, but never writes project method facts. */
@@ -7,9 +8,9 @@ export class PersonalPlanningMethods {
   constructor(private readonly db: GoalsSqliteDatabase) {}
 
   list(): PlanningMethodPack[] {
-    return (this.db.prepare("SELECT pack_json FROM personal_planning_method_packs ORDER BY method_id")
-      .all() as Array<{ pack_json?: unknown }>)
-      .map(row => parseJson<PlanningMethodPack | null>(row.pack_json, null))
+    return (this.db.prepare("SELECT pack_json, rowid AS stored_row FROM personal_planning_method_packs ORDER BY method_id")
+      .all() as Array<Record<string, unknown>>)
+      .map(row => storedJson<PlanningMethodPack | null>(row, "personal_planning_method_packs", "pack_json", null))
       .filter((pack): pack is PlanningMethodPack => pack != null);
   }
 

@@ -1,10 +1,17 @@
 # 第 27 批 Goals 记录读取错误
 
-状态：合同设计稿，用户已确认错误口径与定位可见范围，待公共合同台合审（2026-11-09）。产品实现和业务验收尚未开始。
+状态：已实现，2026-11-11 第 27 批（待公共 C 在整批最终头合审）。待办 BL-819、BL-821 随之删除。
+
+## 实现记录（2026-11-11）
+
+- **一处解码**：`plugins/native/goals/src/stored-json.ts` 的 `storedJson(row, 表, 列, 备用值)` 取代 Module 与 Governance 各一份的 `parseJson` 和 `rowJson`，`goals.storage.record_unreadable` 也只在这里声明一次（`command-error-codes.ts` 引用它，Governance 的重复声明删掉）。喂给它的每条 SELECT 投影 `rowid AS stored_row`（联表写 `t.rowid`）；没投影的语句第一次读就报 `TypeError`，所以现有的 Goals 用例都在替这一点把关，不必等到某一行坏了才发现。
+- **比设计多收的一处**：`goal_work_event_judgments.basis_json` 原来直接 `JSON.parse`，坏行抛出带原文片段的 `SyntaxError`；现在同样走 `storedJson`，报记录错误并带位置。
+- **BL-819**：`PersonalMethodsSnapshot.run` 收原调用的 `signal` 与 `assert_authority_current`。Home 读取失败时：已归类的取消原样抛；信号已中止抛信号的原因（平台入口中止时给的是 `actions.cancelled`）；然后对**所有**非取消的失败都再问一次原调用的授权，撤权的按原拒绝落码（设计只要求在转交详情前问；对 Home 不可用也问，撤权的调用就不会被说成「Home 没回应」）；之后才区分记录错误（原样透出）与 Home 不可用。
+- **断言的预期变化**：RAC-1495 原来断言错误详情里没有表名和列名（T-050 保留定位），按用户 2026-11-09 的决定改成断言详情正好是表、列、行号，并继续断言没有存的原文和方法 id。
 
 ## 目标与边界
 
-[27-4](../../../post-anticorruption-roadmap/reference/batches/27.md#batch-27-item-4) 的 [BL-819](../../../backlog/BL-819.md) 与 [BL-821](../../../backlog/BL-821.md)。本片归 E 轨 Goals，涉及跨出口的错误合同。实现写手和 C 轨评审待分配。本稿交付合同设计，后续实现和验收按第 27 批及原需求约定的完成程度执行。项目使用个人规划方法时，能区分 Goals 记录读坏、Home 不可用和调用取消。需要排查坏记录时，从 Goals 的错误详情取得最小定位信息，普通界面继续用现有的记录读取失败文案。
+[27-4](../../../post-anticorruption-roadmap/reference/batches/27.md#batch-27-item-4) 的 BL-819 与 BL-821。本片归 E 轨 Goals，涉及跨出口的错误合同。实现写手和 C 轨评审待分配。本稿交付合同设计，后续实现和验收按第 27 批及原需求约定的完成程度执行。项目使用个人规划方法时，能区分 Goals 记录读坏、Home 不可用和调用取消。需要排查坏记录时，从 Goals 的错误详情取得最小定位信息，普通界面继续用现有的记录读取失败文案。
 
 依据为 `4547c26b5`。T-025 的任务书在 `7d179e65d9`，实现 `9688a61b5` 让项目侧 Module 与 Governance 拒绝不可解析的文本，保留 SQL NULL 的既有备用值。T-050 的任务书在 `5d35b5150`，实现 `4ff81e60e` 将同一判定接入 Home 的个人方法列表和保存事务。T-050 的交接记录了同一个坏 Home 上的进程内实测，Home 列表报记录读坏，项目采用方法报 Home 不可用，项目快照仍正常。当前设计证据来自源码、原任务及用例，另有下文的内存 SQLite 探针。 [T-025](https://github.com/molis-ai/molis-work/pull/1359) · [T-050](https://github.com/molis-ai/molis-work/pull/1374)
 
@@ -68,7 +75,7 @@ BL-819 落在 `plugins/native/goals/src/runtime-ports.ts` 的加载拒绝分支�
 
 ## 验收与验证计划
 
-| 编号 | 可观察结果与拟验证入口 |
+| 编号 | 可观察结果与拟验证入口（实现后的证明见表后） |
 | --- | --- |
 | BGE-01 | 在隔离 Home 先用现行动作保存两个个人包并建项目，再只损坏一行的 JSON。真实 Home `personal.list` 与项目 `planning.read/apply` 分别断言已定的码和类别，项目快照仍可读。用真实设置 GET 与已有授权 MCP 动作对照其各自错误体，未授权 MCP 走原拒绝。采用 A 时基线的项目错误码和文案会使新断言失败。扩充 [Home 坏行测试](../../../../tests/goals-personal-methods-stored-json.test.ts) 和 [MCP 夹具](../../../../tests/goals-mcp-actions.test.ts) 所走的入口。 |
 | BGE-02 | 无 Home 的项目经现有 CLI 测试夹具的真实动作入口采用方法仍以 `goals.planning.personal_unavailable` 拒绝，业务行逐列相同，项目可读。在同一缺失依赖上验收，无需用假的加载失败模拟断线。沿用 [PG094-CLI-03](../../../../tests/cli-home-owner-entry.test.ts)。 |
@@ -78,7 +85,9 @@ BL-819 落在 `plugins/native/goals/src/runtime-ports.ts` 的加载拒绝分支�
 | BGE-06 | 现行的 SQL NULL 备用值及合法 JSON 保持原路径。用真实方法包仅改 `confidence` 为字符串，Home 列表仍由成功输出 schema 拒绝为 `actions.output_invalid`，项目嵌套仍走其他加载错误的映射。另核合法 JSON 文本 `null` 的现有过滤。形状检查只覆盖已有合同实际检查的边界。 [RAC-1268](../../../../tests/goals-stored-json.test.ts) · [方法成功 schema](../../../../plugins/native/goals/src/contract/goal-planning-action-schemas.ts) |
 | BGE-07 | 维护夹具恢复那一格的原值后，同一个 Host 的下一次调用读回两个方法和各自版本。原失败配置可沿原幂等键重试一次，成功产生一份业务结果，未损坏方法与既有项目副本保持原值。 [RAC-1497](../../../../tests/goals-personal-methods-stored-json.test.ts) · [打开项目即时读回](../../../../tests/goals-planning-actions.test.ts) |
 
-实现后用临时 Home、真实 Host 与公开动作入口，将编号写入对应测试名或注释。子分支经机器槽运行刚改的文件，整批统一 `pnpm build`，按 `node scripts/affected-tests.mjs` 与 Goals README 的必跑清单，经 `node scripts/machine-slot.mjs run browser --label "27-4 Goals errors tests" -- node scripts/run-tests.mjs --jobs 1 <文件…>` 复核。最终头验 `pnpm boundary:check`、`node scripts/check-health-gates.mjs --base origin/main` 和动作/API 快照，Full 由统筹在 CI 安排。设计阶段仅记录现有证据与验证计划。 [并行开发规则](../../../../docs/system/PARALLEL-DEVELOPMENT.md#51-子代理与并发的-agent)
+实现后的证明：BGE-01、BGE-04、BGE-07 在 `tests/goals-personal-methods-stored-json.test.ts`「BGE-01 BGE-04 BGE-07」一例（项目读、采用、快照与修复后读回，采用被拒后逐列比较项目的规划与事件配置表）；BGE-03 在同文件「BGE-03」一例（经 Host 的可用性检查在 Home 读取那一刻取消或撤权，取消得 `actions.cancelled`、撤权得 `actions.forbidden`，都不带位置；同一 Host 上仍有效的调用照常拿到记录错误）；BGE-05 在 `tests/goals-stored-json.test.ts`（RAC-1260/1262/1263/1265 断言精确详情，规则表两条读取路径都指到同一行；RAC-1269 断言详情不带业务键；「BGE-05」一例把源码里每一处 `storedJson` 的表与列对照项目库和 Home 库的实际结构）与 RAC-1495；BGE-02 沿用 PG094-CLI-03；BGE-06 沿用 RAC-1268。MCP 与设置 GET 的错误体对照、受控交错之外的网关断连，没有另写用例：错误体由 SDK 的 `actionErrorResponse` 与 MCP 的 `tool-error.ts` 原样序列化 `details`，本片没有改它们。
+
+原计划：实现后用临时 Home、真实 Host 与公开动作入口，将编号写入对应测试名或注释。子分支经机器槽运行刚改的文件，整批统一 `pnpm build`，按 `node scripts/affected-tests.mjs` 与 Goals README 的必跑清单，经 `node scripts/machine-slot.mjs run browser --label "27-4 Goals errors tests" -- node scripts/run-tests.mjs --jobs 1 <文件…>` 复核。最终头验 `pnpm boundary:check`、`node scripts/check-health-gates.mjs --base origin/main` 和动作/API 快照，Full 由统筹在 CI 安排。设计阶段仅记录现有证据与验证计划。 [并行开发规则](../../../../docs/system/PARALLEL-DEVELOPMENT.md#51-子代理与并发的-agent)
 
 ## 开工前检查
 

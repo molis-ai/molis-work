@@ -17,6 +17,40 @@ function command(item: ComposerCommand): BridgedCommand {
 }
 
 /**
+ * The page's own box and send, hidden, stand for the bar's. What the page writes into its box (typed, or set from script: a draft
+ * another device saved, a receipt clearing it, which fires no input event) goes to the bar, and the bar's text comes back into it
+ * (`mirror`). Putting the cursor in it (it cannot take focus, hidden) puts it in the bar's; pressing its send, by a click or by
+ * `.click()` from script on the hidden, often disabled button (which fires no click), asks the bar to send. `release` puts the
+ * page's own behaviour back and empties the box, as the composer itself does when it goes: the next mount's draft is its own.
+ */
+function standIn(root: HTMLElement, field: HTMLTextAreaElement | null, say: { text(text: string): void; focus(): void; send(): void }) {
+  let heard = field?.value ?? "", echo = false;
+  const mirror = (text: string) => {
+    if (!field || field.value === text) return;
+    echo = true; heard = text;
+    try { field.value = text; field.dispatchEvent(new Event("input", { bubbles: true })); } finally { echo = false; }
+  };
+  const typed = () => { if (!echo && field && field.value !== heard) { heard = field.value; say.text(heard); } };
+  field?.addEventListener("input", typed);
+  const value = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value");
+  if (field && value?.get && value.set) Object.defineProperty(field, "value", { configurable: true, get() { return value.get!.call(this); }, set(text: string) { value.set!.call(this, text); typed(); } });
+  if (field) field.focus = () => say.focus();
+  const pressed = (event: Event) => {
+    if (!(event.target instanceof Element) || !event.target.closest("[data-composer-send]")) return;
+    event.preventDefault(); event.stopImmediatePropagation(); say.send();
+  };
+  root.addEventListener("click", pressed, true);
+  const buttons = [...root.querySelectorAll<HTMLButtonElement>("[data-composer-send]")];
+  for (const button of buttons) button.click = () => say.send();
+  const release = () => {
+    field?.removeEventListener("input", typed); root.removeEventListener("click", pressed, true);
+    if (field) { Reflect.deleteProperty(field, "value"); field.value = ""; Reflect.deleteProperty(field, "focus"); }
+    for (const button of buttons) Reflect.deleteProperty(button, "click");
+  };
+  return { mirror, release };
+}
+
+/**
  * The page's side of the one input (composer-bridge.ts): `window.molisComposer` for an AI composer becomes a receiver of the bar
  * when the frame is in a workbench pane with one. The page keeps its handle and its options; the root it gave stays hidden, its
  * text box a copy of the bar's. Every other composer (a comment's, one in a side view) is drawn in the page as before.
@@ -36,7 +70,7 @@ export function childComposer(port: MessagePort, scope: FrameScope, bar: boolean
     const id = live = ++sequence, field = root.querySelector<HTMLTextAreaElement>(".mw-composer__input");
     const ai = options;
     const calls = new Map<number, AbortController>(), checks = new Map<number, () => Promise<"sent" | "not-sent" | "unknown">>();
-    let running = false, hold: string | null = null, materials: readonly ComposerMaterial[] = [], gone = false, last = "", queued = false, echo = false;
+    let running = false, hold: string | null = null, materials: readonly ComposerMaterial[] = [], gone = false, last = "", queued = false;
     root.dataset.composerRemote = "";
     // The box around the root (the page's conversation column): the bar stands over it.
     const column = () => {
@@ -68,29 +102,11 @@ export function childComposer(port: MessagePort, scope: FrameScope, bar: boolean
         if (text !== last) { last = text; send({ type: "composer-state", id, snapshot: now }); }
       });
     };
-    // The page's own text box, hidden: what the page writes into it goes to the bar, and the bar's text comes back into it.
-    let heard = field?.value ?? "";
-    const mirror = (text: string) => {
-      if (!field || field.value === text) return;
-      echo = true; heard = text;
-      try { field.value = text; field.dispatchEvent(new Event("input", { bubbles: true })); } finally { echo = false; }
-    };
-    const typed = () => { if (!echo && field && live === id && field.value !== heard) { heard = field.value; send({ type: "composer-text", id, text: heard }); } };
-    field?.addEventListener("input", typed);
-    // A page that sets its box from script (a draft another device saved, a receipt clearing it) fires no input event: the bar hears it too.
-    const value = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value");
-    if (field && value?.get && value.set) Object.defineProperty(field, "value", { configurable: true, get() { return value.get!.call(this); }, set(text: string) { value.set!.call(this, text); typed(); } });
-    // The page putting the cursor in its own box (it cannot take focus, hidden) puts it in the bar's, as the handle's focus does.
-    if (field) field.focus = () => send({ type: "composer-focus", id });
-    // A page that presses its own send (finishing a send the person began, after a way back from settings) asks the bar to.
-    const pressed = (event: Event) => {
-      if (!(event.target instanceof Element) || !event.target.closest("[data-composer-send]")) return;
-      event.preventDefault(); event.stopImmediatePropagation(); send({ type: "composer-send", id });
-    };
-    root.addEventListener("click", pressed, true);
-    // A hidden (often disabled) send button fires no click: pressing it from script asks the bar, as a click on it would.
-    const sendButtons = [...root.querySelectorAll<HTMLButtonElement>("[data-composer-send]")];
-    for (const button of sendButtons) button.click = () => send({ type: "composer-send", id });
+    const stand = standIn(root, field, {
+      text: text => { if (live === id) send({ type: "composer-text", id, text }); },
+      focus: () => send({ type: "composer-focus", id }), send: () => send({ type: "composer-send", id }),
+    });
+    const mirror = stand.mirror;
     const run = async <Op extends keyof ComposerCalls>(op: Op, arg: ComposerCalls[Op][0], signal: AbortSignal): Promise<ComposerCalls[Op][1]> => {
       const adapter = ai.draft && "adapter" in ai.draft ? ai.draft.adapter : null;
       switch (op) {
@@ -160,12 +176,9 @@ export function childComposer(port: MessagePort, scope: FrameScope, bar: boolean
     port.addEventListener("message", listen);
     const destroy = () => {
       if (gone) return;
-      gone = true; sizes.disconnect(); port.removeEventListener("message", listen); field?.removeEventListener("input", typed); root.removeEventListener("click", pressed, true);
+      gone = true; sizes.disconnect(); port.removeEventListener("message", listen); stand.release();
       for (const controller of calls.values()) controller.abort();
       calls.clear(); checks.clear();
-      // As the composer itself does when it goes: the box is empty for the next mount, whose draft is its own.
-      if (field) { Reflect.deleteProperty(field, "value"); field.value = ""; Reflect.deleteProperty(field, "focus"); }
-      for (const button of sendButtons) Reflect.deleteProperty(button, "click");
       if (live === id) send({ type: "composer-destroy", id });
     };
     scope.own(destroy); mounted.set(root, destroy);

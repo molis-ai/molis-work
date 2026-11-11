@@ -82,9 +82,10 @@ export function renderAppearanceSettingsDocument(
   nextPath: string,
   model?: AppearanceSettingsModel,
 ): string {
-  const locale = currentLocale();
+  const source = model?.current.snapshot.locale.source;
+  const preference = source === "system" || source === "default" ? "system" : currentLocale();
   const language = (value: WebLocalePreference, label: string, tag?: string) =>
-    `<a class="mw-toggle${locale === value ? " is-current" : ""}" href="${localeSwitchHref(value, nextPath)}" data-ui-language="${value}"${tag ? ` lang="${tag}"` : ""} aria-current="${locale === value}">${escapeHtml(label)}</a>`;
+    `<a class="mw-toggle${preference === value ? " is-current" : ""}" href="${localeSwitchHref(value, nextPath)}" data-ui-language="${value}"${tag ? ` lang="${tag}"` : ""} aria-current="${preference === value}">${escapeHtml(label)}</a>`;
   const options = (attribute: string, values: [string, string][]) => `<div class="mw-toggle-group settings-segmented" data-slot="toggle-group" role="group">${values.map(([value, label]) => `<button class="mw-toggle" type="button" ${attribute}="${value}" aria-pressed="false">${uiText(label)}</button>`).join("")}</div>`;
   const row = (title: string, description: string, control: string) => `<section class="settings-setting-row"><div class="setting-copy"><strong>${uiText(title)}</strong><span>${uiText(description)}</span></div><div class="setting-value" aria-label="${uiText(title)}">${control}</div></section>`;
   return `<section class="settings-document appearance-document" aria-labelledby="settings-title"><header class="settings-heading"><div class="settings-heading-title"><h1 id="settings-title">${uiText("workbench.settings-appearance.interface-language")}</h1>${renderHint({ id: "settings-hint-appearance", label: uiText.text("workbench.settings-appearance.how-applies"), text: uiText.text("workbench.settings-appearance.theme-density-terminal-colors-saved-device") })}</div></header>

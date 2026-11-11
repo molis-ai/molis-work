@@ -7,6 +7,7 @@ import { ASSISTANT_STORE_NAME, AssistantStore, homeAgentDefinitions, hostTextPro
 import { escapeHtml, format, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
+import { createProject } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { deferred } from "./fixtures/home-runtime.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
@@ -94,6 +95,75 @@ test("FSS-20 FSS-34 FSS-39 the settings language changes in place; rejected and 
     ["zh-CN", true, "Draft 原文 保存", ["zh", "en", "zh"]]);
   await evaluate("languageMode = 'ready'; document.querySelector('[data-ui-language-status] button').click()");
   await waitFor("document.documentElement.lang === 'en' && !document.querySelector('[data-ui-language-status]')");
+});
+
+test("FSS-33 FSS-35 the first Settings HTML marks the actual language preference", { timeout: 90_000 }, async t => {
+  const b = await openGoalBrowser(t, "empty", undefined, null);
+  assert.ok(b);
+  const standalone = "/settings/appearance";
+  const options = "[data-ui-language-options]", documents = new Map<string, string>();
+  await b.setViewport(1024, 900);
+  await b.command("Network.enable", {}, b.sessionId);
+  t.after(b.on("Network.responseReceived", ({ type, response, requestId }, session) => {
+    if (session !== b.sessionId || type !== "Document") return;
+    const { url, status } = response as { url: string; status: number };
+    const address = new URL(url);
+    if (address.origin === b.origin && status === 200) documents.set(address.pathname, String(requestId));
+  }));
+  let writes = 0;
+  const observe = (request: IncomingMessage) => { if (request.method === "POST" && request.url === "/api/ui/locale") writes += 1; };
+  b.server.on("request", observe);
+  t.after(() => { b.server.off("request", observe); });
+  const userAgent = await b.evaluate<string>("navigator.userAgent");
+  const useBrowserLanguages = (acceptLanguage: string) => b.command("Emulation.setUserAgentOverride", { userAgent, acceptLanguage }, b.sessionId);
+  const go = (path: string) => {
+    documents.delete(new URL(path, b.origin).pathname);
+    return b.navigate(() => b.command("Page.navigate", { url: b.origin + path }, b.sessionId));
+  };
+  const assertFirstPaint = async (path: string, tag: "zh" | "en", source: "system" | "default" | "explicit", preference: "system" | "zh") => {
+    await b.waitFor(`document.readyState === 'complete' && document.querySelector('${options}')?.checkVisibility()`);
+    const requestId = documents.get(path);
+    assert.ok(requestId, `the browser got a real document from ${path}`);
+    const { body, base64Encoded } = await b.command<{ body: string; base64Encoded: boolean }>("Network.getResponseBody", { requestId }, b.sessionId);
+    const html = base64Encoded ? Buffer.from(body, "base64").toString("utf8") : body;
+    const markup = /<div[^>]* data-ui-language-options>([\s\S]*?)<\/div>/u.exec(html)?.[1];
+    const environment = /<script[^>]* id="ui-environment"[^>]*>([^<]+)<\/script>/u.exec(html)?.[1];
+    assert.ok(markup && environment, path);
+    const locale = JSON.parse(environment).locale;
+    assert.deepEqual([locale.tag, locale.source], [tag, source]);
+    const selected = [...markup.matchAll(/<a([^>]+)>/gu)].map(([, attrs]) => [
+      /data-ui-language="([^"]+)"/u.exec(attrs!)?.[1], /aria-current="true"/u.test(attrs!), /class="[^"]*\bis-current\b/u.test(attrs!),
+    ]).filter(([, aria, css]) => aria || css);
+    assert.deepEqual(selected, [[preference, true, true]], `${source} selection in the first HTML for ${path}`);
+    const visible = await b.evaluate(`[document.documentElement.lang,
+      [...document.querySelectorAll('${options} [aria-current=true]')].map(link => link.dataset.uiLanguage),
+      [...document.querySelectorAll('${options} .is-current')].map(link => link.dataset.uiLanguage)]`);
+    assert.deepEqual(visible, [tag === "zh" ? "zh-CN" : "en", [preference], [preference]]);
+  };
+
+  await useBrowserLanguages("fr-CA,en-GB,zh-TW");
+  await go(standalone);
+  await assertFirstPaint(standalone, "en", "system", "system");
+  assert.equal(writes, 0);
+
+  await b.click(`${options} a[data-ui-language=zh]`);
+  await b.waitFor(`document.documentElement.lang === 'zh-CN' && document.querySelector('${options} a[data-ui-language=zh]')?.getAttribute('aria-current') === 'true'`);
+  documents.delete(standalone);
+  await b.reloadPage();
+  await assertFirstPaint(standalone, "zh", "explicit", "zh");
+
+  // A normal settings navigation opens inside a project once the Home has one.
+  const { project_id } = await createProject(b.web, "Language preference first paint");
+  const project = `/projects/${encodeURIComponent(project_id)}/`;
+  const projectAppearance = project + "?desktop=1&settings=appearance";
+  await go(projectAppearance);
+  await assertFirstPaint(project, "zh", "explicit", "zh");
+  await b.click(`${options} a[data-ui-language=system]`);
+  await b.waitFor(`document.documentElement.lang === 'en' && document.querySelector('${options} a[data-ui-language=system]')?.getAttribute('aria-current') === 'true'`);
+  await useBrowserLanguages("fr-FR,ja-JP");
+  await go(projectAppearance);
+  await assertFirstPaint(project, "zh", "default", "system");
+  assert.equal(writes, 2);
 });
 
 test("FSS-36 an open missed follow-up notice keeps its original label and time through both language changes", { timeout: 90_000 }, async t => {

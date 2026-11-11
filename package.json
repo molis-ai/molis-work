@@ -55,7 +55,7 @@
     "boundary:test": "pnpm --filter @molis-ai/molis-work-test-kit test && node --test tests/workbench-registration-boundaries.test.mjs tests/package-owners.test.mjs tests/project-sqlite-driver-boundary.test.mjs",
     "build:clean": "MOLIS_WORK_BUILD_CLEAN=1 pnpm build",
     "build:all": "pnpm build && pnpm boundary:check && pnpm workspace:build",
-    "build:pty-client": "esbuild apps/workbench/src/terminal-client.ts --bundle --format=iife --platform=browser --outfile=dist/web/pty-client.js --loader:.css=text",
+    "build:pty-client": "esbuild apps/workbench/src/terminal-client.ts --bundle --format=iife --platform=browser --minify-whitespace --outfile=dist/web/pty-client.js --loader:.css=text",
     "typecheck": "pnpm build:migrated-packages && tsc --noEmit -p tsconfig.json",
     "typecheck:all": "pnpm typecheck && pnpm boundary:check && pnpm workspace:typecheck",
     "test": "pnpm build && pnpm test:run",

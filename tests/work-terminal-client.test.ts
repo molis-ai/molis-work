@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
 import { createTerminalConnection, createTerminalPanels, type PanelRecord, type TerminalPanelsOptions } from "@molis-ai/molis-work-app-workbench/terminal";
+import { pageText } from "./fixtures/page-text.js";
 
 function installGlobals(t: TestContext, values: Record<string, unknown>) {
   for (const [key, value] of Object.entries(values)) {
@@ -34,7 +35,7 @@ test("Terminal channel authenticates once, shares in-flight connect, routes data
   const disconnected: string[] = [];
   let reconnects = 0;
   const connection = createTerminalConnection({
-    controlToken: () => "control-token", url: () => "ws://localhost/pty", text: (s) => s,
+    controlToken: () => "control-token", url: () => "ws://localhost/pty", text: pageText("zh"),
     onMessage: (m) => messages.push(m), onDisconnected: (e) => disconnected.push(e.message),
     reconnect: async () => { reconnects += 1; },
   });
@@ -66,7 +67,7 @@ test("Closed authentication handshake rejects pending connect and allows a fresh
   BrowserSocket.instances = [];
   installGlobals(t, { WebSocket: BrowserSocket });
   const connection = createTerminalConnection({
-    controlToken: () => "token", url: () => "ws://localhost/pty", text: (s) => s,
+    controlToken: () => "token", url: () => "ws://localhost/pty", text: pageText("zh"),
     onMessage() {}, onDisconnected() {}, reconnect: async () => {},
   });
   const first = connection.connect();

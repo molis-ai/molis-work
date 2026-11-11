@@ -16,7 +16,7 @@ export function createPageTerminal(render: TerminalRenderer): UiPageTerminal<HTM
   const attach = (panelId: string, size: { cols?: number; rows?: number }) => connection.send({ type: "spawn", panelId, ...size, attachOnly: true });
   const connection = createTerminalConnection({
     controlToken: () => document.querySelector('meta[name="molis-work-page-session"]')?.getAttribute("content") ?? "",
-    url: () => `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/pty`, text: value => value,
+    url: () => `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/pty`, text: key => globalThis.t.text(key),
     onDisconnected: () => emit({ type: "disconnected" }),
     reconnect: async () => {
       try { for (const [panelId, size] of attached) await attach(panelId, size); connection.resetReconnect(); }

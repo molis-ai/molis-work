@@ -25,6 +25,7 @@ interface Reads { readonly categories: readonly TaskGrantCategory[]; readonly su
 type Change = { readonly kind: "on" | "off" | "allow" | "remove" | "undo"; readonly row: Row; readonly categories: TaskGrantSetCategory[]; readonly undo?: (now: Reads["subject"]) => TaskGrantSetCategory[] };
 /** What the area's one line says now; `act` is its one button. */
 export type TaskGrantsLine = { readonly text: string; readonly act?: "undo" | "retry" | "read"; readonly tone?: "danger" };
+type LineText = Omit<TaskGrantsLine, "text"> & { readonly key: string; readonly args?: Record<string, string> };
 
 const nameOf = (ref: TaskGrantCategoryReference) => ref.provider_id + "\n" + (ref.group_id ?? "");
 const refOf = (ref: TaskGrantCategoryReference): TaskGrantSetCategory => ref.group_id === undefined ? { provider_id: ref.provider_id } : { provider_id: ref.provider_id, group_id: ref.group_id };
@@ -81,7 +82,7 @@ export function taskGrantsAreaHtml(t: Translate, owner: string, rows: readonly R
   const list = rows.length ? `<ul class="mw-items task-grants-area__rows">${rows.map(item).join("")}</ul>`
     : `<p class="task-grants-area__empty">${escape(t("workbench.task-grants-area.nothing-in-this-project-can-be-read"))}</p>`;
   // The line stays put (D2): a persistent status line, the design system's `mw-alert`, not a passing toast (DESIGN「Toasts」).
-  const act = line.act ? control(line.act, t(line.act === "undo" ? "撤销" : "重试"), "ghost") : "";
+  const act = line.act ? control(line.act, t(line.act === "undo" ? "workbench.task-grants-area.undo" : "common.control.retry"), "ghost") : "";
   return `<header class="mw-platform-area__head" data-framed-area-head><span class="mw-platform-area__kicker"><svg aria-hidden="true"><use href="#icon-shield"></use></svg>${escape(t("workbench.task-grants-area.molis-work-only-you-can-change-this"))}</span><span class="mw-platform-area__owner" title="${escape(owner)}">${escape(owner)}</span>`
     + `<p class="mw-platform-area__lead">${escape(t("workbench.task-grants-area.read-only-never-change-for-this-task"))}</p></header>`
     + `<div class="mw-platform-area__body" data-framed-scroll${busy ? ' aria-busy="true"' : ""}>${list}</div>`
@@ -92,16 +93,20 @@ export function taskGrantsAreaHtml(t: Translate, owner: string, rows: readonly R
  * What the line says after a write, by what the person did (§3.6); it offers undo when the change has one (turning a category on,
  * or taking back one that was granted). The 授权与放行 page has no switch, so it says the lines that point at one in its own words.
  */
-function doneLine(t: Translate, change: Change): TaskGrantsLine {
+function doneLine(change: Change): LineText {
   const { kind, row } = change, status = row.status;
-  return { text: t(kind === "undo" ? "已撤销刚才的改动" : kind === "on" ? "已允许读 {name}，下一次运行起能读到"
-    : kind === "allow" ? "已允许 {name} 的新读取能力；不想要就关掉这一类" : kind === "remove" ? "已移除 {name}，这一类已不再提供"
-    : status === "needs_confirmation" ? "已撤回 {name}；要再读它，重新打开开关，会按它现在的读取能力允许"
-    : status === "unavailable" ? "已撤回 {name}；它的插件回来之后，重新打开开关才能再读" : "已撤回 {name}，下一次运行起读不到", { name: row.title }),
+  return { key: kind === "undo" ? "workbench.task-grants-area.change-undone"
+    : kind === "on" ? "workbench.task-grants-area.name-allowed-the-next-run-can-read"
+    : kind === "allow" ? "workbench.task-grants-area.name-may-read-its-new-data"
+    : kind === "remove" ? "workbench.task-grants-page.name-removed-no-longer-offered"
+    : status === "needs_confirmation" ? "workbench.task-grants-area.name-withdrawn-turn-on-to-allow-current-data"
+    : status === "unavailable" ? "workbench.task-grants-area.name-withdrawn-turn-on-after-plugin-returns"
+    : "workbench.task-grants-area.name-withdrawn-the-next-run-cannot-read",
+  ...(kind !== "undo" ? { args: { name: row.title } } : {}),
   act: change.undo ? "undo" : undefined };
 }
 
-interface Entry { readonly id: number; readonly key: string; readonly area: FramedArea; reads: Reads | null; line: TaskGrantsLine; busy: boolean;
+interface Entry { readonly id: number; readonly key: string; readonly area: FramedArea; reads: Reads | null; line: LineText; busy: boolean;
   /** The last change, kept for its undo or for a retry after it failed. */ last: Change | null; drawn?: string;
   /** The page came back into view since this area last read: it reads once more, now or when what is under way ends (§3.6). */ stale?: boolean }
 
@@ -116,14 +121,15 @@ export function pageTaskGrants(port: MessagePort, scope: FrameScope, areas: Page
     { body: { key: entry.key, ...body }, headers: { "x-molis-context-page": pageId }, scope });
   // The line comes in again only when what it says changes, so a write's busy state does not make it flicker.
   const draw = (entry: Entry) => {
-    const fresh = entry.drawn !== undefined && entry.drawn !== entry.line.text;
-    entry.drawn = entry.line.text;
-    entry.area.redraw(taskGrantsAreaHtml(t, owner, entry.reads ? taskGrantRows(entry.reads) : [], entry.line, entry.busy, fresh));
+    const { key, args, ...line } = entry.line;
+    const text = t(key, args), fresh = entry.drawn !== undefined && entry.drawn !== text;
+    entry.drawn = text;
+    entry.area.redraw(taskGrantsAreaHtml(t, owner, entry.reads ? taskGrantRows(entry.reads) : [], { ...line, text }, entry.busy, fresh));
   };
   const close = (id: number) => { entries.get(id)?.area.close(); entries.delete(id); };
   scope.own(() => { for (const id of [...entries.keys()]) close(id); });
-  const idle = (): TaskGrantsLine => ({ text: t("workbench.task-grants-area.a-switch-takes-effect-at-once-the") });
-  const unread = (): TaskGrantsLine => ({ text: t("workbench.task-grants-area.cannot-read-what-this-task-may-read"), act: "read", tone: "danger" });
+  const idle = (): LineText => ({ key: "workbench.task-grants-area.a-switch-takes-effect-at-once-the" });
+  const unread = (): LineText => ({ key: "workbench.task-grants-area.cannot-read-what-this-task-may-read", act: "read", tone: "danger" });
 
   const read = async (entry: Entry) => {
     entry.reads = await request<Reads>(entry, { mode: "read" });
@@ -137,18 +143,18 @@ export function pageTaskGrants(port: MessagePort, scope: FrameScope, areas: Page
       const answer = await request<{ subject: Reads["subject"] }>(entry, { mode: "set", categories: change.categories, expected_revision: subject.revision });
       if (entries.get(entry.id) !== entry) return;
       entry.reads = { categories: entry.reads!.categories, subject: answer.subject };
-      entry.last = change.undo ? change : null; entry.line = doneLine(t, change);
+      entry.last = change.undo ? change : null; entry.line = doneLine(change);
       send({ type: "task-grants-changed", id: entry.id, state: summary(answer.subject) });
     } catch (error) {
       if (entries.get(entry.id) !== entry || !scope.alive) return;
       // Changed elsewhere (the same task open beside, or the grants page): read again, and the undo no longer applies.
       if ((error as { code?: string }).code === "actions.conflict") {
-        entry.last = null; entry.line = { text: t("workbench.task-grants-area.changed-elsewhere-refreshed") };
+        entry.last = null; entry.line = { key: "workbench.task-grants-area.changed-elsewhere-refreshed" };
         try { await read(entry); } catch { entry.line = unread(); }
       } else {
         // The switch goes back as it was; an undo that failed is spent (§3.6 「失败」).
         entry.last = change.kind === "undo" ? null : change;
-        entry.line = { text: t("workbench.task-grants-area.not-saved-the-permissions-are-as-they"), act: change.kind === "undo" ? undefined : "retry", tone: "danger" };
+        entry.line = { key: "workbench.task-grants-area.not-saved-the-permissions-are-as-they", act: change.kind === "undo" ? undefined : "retry", tone: "danger" };
       }
     } finally {
       if (entries.get(entry.id) === entry) { entry.busy = false; draw(entry); catchUp(entry); }
@@ -166,7 +172,7 @@ export function pageTaskGrants(port: MessagePort, scope: FrameScope, areas: Page
     // ①⑤⑥ are said nowhere: a scripted press, a press while a write is under way, a page that has moved on.
     if (refusal?.reason === "silent" || entry.busy || !scope.alive || entries.get(entry.id) !== entry || !entry.reads) { draw(entry); return; }
     if (refusal) {
-      entry.line = { text: t(refusal.reason === "moved" ? "刚移动过，请再拨一次" : "请先让这一块完整显示") };
+      entry.line = { key: refusal.reason === "moved" ? "workbench.task-grants-area.this-just-moved" : "workbench.task-grants-area.show-this-whole-area-first" };
       if (refusal.reason === "partial") {
         if (refusal.reveal) send({ type: "task-grants-reveal", id: entry.id });
         else control.closest("li")?.scrollIntoView({ block: "nearest" });

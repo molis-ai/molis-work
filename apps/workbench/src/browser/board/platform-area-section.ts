@@ -58,20 +58,20 @@ function line(width: number, said: TaskGrantsLine): HTMLElement {
 
 const put = (name: string, ...parts: HTMLElement[]) => document.querySelector(`[data-platform-area-specimen="${name}"]`)?.replaceChildren(...parts);
 put("wide", area(560, MIXED, idle));
-put("narrow", area(320, QUIET, { text: t("workbench.platform-area-section.name-allowed-the-next-run-can-read", { name: CATEGORIES[1]!.title }), act: "undo" }));
+put("narrow", area(320, QUIET, { text: t("workbench.task-grants-area.name-allowed-the-next-run-can-read", { name: CATEGORIES[1]!.title }), act: "undo" }));
 put("unready", area(560, QUIET, idle, { unready: true }));
 put("busy", area(560, QUIET, idle, { busy: true }));
 put("empty", area(560, { categories: [], subject: { revision: "", categories: [] } }, idle));
 const name = { name: CATEGORIES[0]!.title };
 const LINES: TaskGrantsLine[] = [
   idle,
-  { text: t("workbench.platform-area-section.name-withdrawn-the-next-run-cannot-read", name), act: "undo" },
-  { text: t("workbench.platform-area-section.name-may-read-its-new-data-turn", name) },
-  { text: t("workbench.platform-area-section.name-withdrawn-to-read-it-again-turn", name) },
-  { text: t("workbench.platform-area-section.change-undone") },
+  { text: t("workbench.task-grants-area.name-withdrawn-the-next-run-cannot-read", name), act: "undo" },
+  { text: t("workbench.task-grants-area.name-may-read-its-new-data", name) },
+  { text: t("workbench.task-grants-area.name-withdrawn-turn-on-to-allow-current-data", name) },
+  { text: t("workbench.task-grants-area.change-undone") },
   { text: t("workbench.platform-area-section.changed-elsewhere-refreshed") },
-  { text: t("workbench.platform-area-section.this-just-moved-please-switch-again") },
-  { text: t("workbench.platform-area-section.show-this-whole-area-first") },
+  { text: t("workbench.task-grants-area.this-just-moved") },
+  { text: t("workbench.task-grants-area.show-this-whole-area-first") },
   { text: t("workbench.platform-area-section.not-saved-the-permissions-are-as-they"), act: "retry", tone: "danger" },
   { text: t("workbench.platform-area-section.cannot-read-what-this-task-may-read"), act: "read", tone: "danger" },
 ];

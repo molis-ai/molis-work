@@ -248,6 +248,11 @@ test("FBR-07 FSS-35 the real Feed page reaches later messages and materials and 
   await child.waitFor("window.pagingHost && pagingPending===0 && document.querySelectorAll('[data-feed-entry-id]').length===200");
   await child.evaluate(`pagingHost.openView({surface:'workbench',id:${JSON.stringify(source.source_id)},intent:'open'})`);
   await child.waitFor(`document.querySelector('[data-feed-workbench]').dataset.selectedSource===${JSON.stringify(source.source_id)} && pagingPending===0 && document.querySelectorAll('[data-feed-entry-id]').length===200`);
+  await child.evaluate(`(() => {
+    const search=document.querySelector('[data-feed-search]'); search.value='Page message';
+    search.dispatchEvent(new Event('input',{bubbles:true}));
+  })()`);
+  await child.waitFor("pagingPending===0 && document.querySelectorAll('[data-feed-entry-id]').length===200");
   await child.click('[data-feed-page="200"]');
   await child.waitFor("document.querySelectorAll('[data-feed-entry-id]').length===5");
   assert.ok((await child.evaluate<string[]>("[...document.querySelectorAll('[data-feed-entry-id]')].map(row=>row.dataset.feedEntryId)")).includes(target.item_id));
@@ -257,7 +262,15 @@ test("FBR-07 FSS-35 the real Feed page reaches later messages and materials and 
   await child.waitFor("document.querySelector('.feed-materials')?.open === true");
   await child.click('[data-feed-material-page="200"]');
   await child.waitFor("document.querySelector('[data-feed-detail]')?.textContent.includes('Material 204')");
-  await child.evaluate("window.pagingSurface = pagingHost.root");
+  await child.evaluate(`(() => {
+    window.pagingSurface = pagingHost.root;
+    const search=document.querySelector('[data-feed-search]'); search.focus(); search.setSelectionRange(1, 5, 'backward');
+  })()`);
+  const searchState = `(() => {
+    const search=document.querySelector('[data-feed-search]');
+    return [document.activeElement===search, search.value, search.selectionStart, search.selectionEnd, search.selectionDirection];
+  })()`;
+  assert.deepEqual(await child.evaluate(searchState), [true, "Page message", 1, 5, "backward"]);
   const writes: string[] = [];
   const observe = ({ method, url }: import("node:http").IncomingMessage) => { if (method !== "GET" && url?.includes("/api/plugins/io.molis.work.feed/")) writes.push(`${method} ${url}`); };
   b.server.on("request", observe); t.after(() => { b.server.off("request", observe); });
@@ -277,12 +290,14 @@ test("FBR-07 FSS-35 the real Feed page reaches later messages and materials and 
       document.querySelector('.feed-materials')?.open,
       document.querySelector('[data-feed-detail]')?.textContent.includes('Material 204')
     ]`), [true, 5, target.item_id, previous, attachments, true, true]);
+    assert.deepEqual(await child.evaluate(searchState), [true, "Page message", 1, 5, "backward"]);
   }
   assert.deepEqual(writes, []);
   await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
   await child.waitFor("document.documentElement.scrollWidth <= innerWidth + 1");
   await child.click('[data-feed-material-page="0"]:not(:disabled)');
   await child.waitFor("document.querySelector('[data-feed-detail]')?.textContent.includes('Material 0')");
+  await command("Emulation.clearDeviceMetricsOverride", {}, sessionId);
   await child.click('[data-feed-page="0"]:not(:disabled)');
   await child.waitFor("document.querySelectorAll('[data-feed-entry-id]').length===200");
   await child.evaluate(`(() => {const search=document.querySelector('[data-feed-search]'); search.value='Page message 000';search.dispatchEvent(new Event('input',{bubbles:true}));})()`);

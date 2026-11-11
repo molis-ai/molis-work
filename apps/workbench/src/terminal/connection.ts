@@ -1,4 +1,3 @@
-import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 export type PtyServerMessage =
   | { type: "ready" }
   | { type: "spawned"; panelId?: string; attached?: boolean; started?: boolean; replay?: string }
@@ -30,7 +29,7 @@ export function createTerminalConnection(options: TerminalConnectionOptions) {
       const token = options.controlToken();
       if (!token) {
         socketReady = null;
-        reject(new Error(uiText.text("workbench.connection.could-not-connect-terminal")));
+        reject(new Error(options.text("workbench.connection.could-not-connect-terminal")));
         return;
       }
       const ws = new WebSocket(options.url());
@@ -61,15 +60,15 @@ export function createTerminalConnection(options: TerminalConnectionOptions) {
         }
         options.onMessage(value);
       });
-      ws.addEventListener("error", () => fail(new Error(uiText.text("workbench.connection.could-not-connect-terminal"))));
+      ws.addEventListener("error", () => fail(new Error(options.text("workbench.connection.could-not-connect-terminal"))));
       ws.addEventListener("close", () => {
         if (socket === ws) socket = null;
         socketReady = null;
         if (!settled) {
-          fail(new Error(uiText.text("workbench.connection.terminal-connection-dropped")));
+          fail(new Error(options.text("workbench.connection.terminal-connection-dropped")));
           return;
         }
-        options.onDisconnected(new Error(uiText.text("workbench.connection.terminal-connection-dropped")));
+        options.onDisconnected(new Error(options.text("workbench.connection.terminal-connection-dropped")));
         scheduleReconnect();
       });
     });

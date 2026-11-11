@@ -51,7 +51,13 @@ export function feedStage(page: FeedPage) {
         detail = new DOMParser().parseFromString(html, "text/html").querySelector(detailOf(id));
         if (!detail) throw new Error(uiText.text("feed.stage.item-detail-response-incomplete"));
         const materials = detail.querySelector<HTMLDetailsElement>(".feed-materials");
-        if (kept?.id === id && materials && kept.materialsOpen !== undefined) materials.open = kept.materialsOpen;
+        if (kept?.id === id && materials && kept.materialsOpen !== undefined) {
+          materials.open = kept.materialsOpen;
+          for (const expanded of kept.detail?.querySelectorAll<HTMLElement>("[data-feed-material-content][open]") ?? []) {
+            const contents = materials.querySelector<HTMLDetailsElement>(`[data-feed-material-content="${CSS.escape(expanded.dataset.feedMaterialContent!)}"]`);
+            if (contents) contents.open = true;
+          }
+        }
         slot.replaceChildren(detail); settle(detail);
         if (kept?.id === id) slot.scrollTop = kept.top;
         publish();

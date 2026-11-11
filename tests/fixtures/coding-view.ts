@@ -1,6 +1,5 @@
-import { withPageText } from "./page-text.js";
 import { CODING_PLUGIN_ID, CODING_UI_CONTRIBUTION_ID } from "@molis-ai/molis-work-plugin-coding";
-import { ensureProjectPlugins, projectPluginProblem, type ProjectPluginSurfacePorts } from "@molis-ai/molis-work-app-local-host";
+import { ensureProjectPlugins, projectPluginProblem, runWithLocale, type ProjectPluginSurfacePorts } from "@molis-ai/molis-work-app-local-host";
 
 /**
  * The Coding page as the project's running instance draws it, from the library as the Host opens it: the plugin's
@@ -22,5 +21,5 @@ export async function codingView(ports: ProjectPluginSurfacePorts): Promise<stri
   const contribution = record.platform.supervisor.contribution(CODING_PLUGIN_ID);
   const view = contribution?.kind === "app" ? contribution.views?.find(entry => entry.descriptor.contribution_id === CODING_UI_CONTRIBUTION_ID) : undefined;
   if (!view) return alert("Coding 页面未注册");
-  return withPageText("zh", ["coding"], () => view.render({ contribution_id: CODING_UI_CONTRIBUTION_ID, surface: "workbench", model: { route_prefix: "", primitives: { escape: ports.escapeHtml } } }));
+  return runWithLocale("zh", () => view.render({ contribution_id: CODING_UI_CONTRIBUTION_ID, surface: "workbench", model: { route_prefix: "", primitives: { escape: ports.escapeHtml } } }));
 }

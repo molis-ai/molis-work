@@ -23,7 +23,7 @@ export function startWorkTerminalClient() {
 
 function mountGoalTerminal(pane: HTMLElement) {
   const els = queryTerminalPane(pane);
-  const readText: TerminalTranslate = (window as Window & { readText?: TerminalTranslate }).readText ?? ((zh: string) => zh);
+  const readText: TerminalTranslate = (key, values) => globalThis.t.text(key, values);
   const routePrefix = document.body.dataset.routePrefix || "";
   const route = (pathname: string) => routePrefix + pathname;
   const request: TerminalRequest = (url, init) => molisWorkRequest(url, init);

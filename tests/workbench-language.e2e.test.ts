@@ -263,10 +263,10 @@ test("FSS-20 a late Feed document read leaves the committed language in the fram
     window.fetch = (input, init) => {
       const url = new URL(String(input?.url || input), location.href), response = fetchOriginal(input, init);
       if (url.pathname.endsWith('/api/plugins/io.molis.work.feed/view-revision')) return response.then(value => { feedChecks++; return value; });
-      if (url.pathname !== ${JSON.stringify(path)} || (init?.method || 'GET') !== 'GET' || new Headers(init?.headers).has('x-molis-work-ui-locale')) return response;
+      if (url.pathname !== ${JSON.stringify(path + "api/stage/feed")} || (init?.method || 'GET') !== 'GET') return response;
       const index = feedReads++;
-      return response.then(async value => {
-        const language = new DOMParser().parseFromString(await value.clone().text(), 'text/html').documentElement.lang;
+      return response.then(value => {
+        const language = value.headers.get('content-language');
         return new Promise(resolve => { feedReadReplies[index] = { language, release: () => resolve(value) }; });
       });
     };
@@ -291,7 +291,7 @@ test("FSS-20 a late Feed document read leaves the committed language in the fram
   const freshChecks = await b.evaluate<number>("feedChecks");
   await b.evaluate("feedReadReplies[1].release()");
   await b.waitFor(`feedChecks > ${freshChecks}`);
-  assert.equal(await b.evaluate("feedReads"), 2, "one prior read and one existing invalidation read");
+  assert.equal(await b.evaluate("feedReads"), 2, "one prior stage read and one language projection");
 });
 
 test("FSS-36 a Feed detail checks the language of its own response after a withdrawn switch", { timeout: 90_000 }, async t => {

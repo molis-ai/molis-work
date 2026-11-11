@@ -1,9 +1,9 @@
 {
-  "reason": "Feed 改为 owner 分页与按需材料读取，共用页面文档输入增加 632 字节，Feed 翻页、筛选和后页定位增加 1330 字节，窄屏保留分页操作增加 20 字节；复用现有控件与资源，无新增路径。",
+  "reason": "Feed 改为 owner 分页与按需材料读取，共用页面文档输入增加 632 字节，Feed 翻页、筛选和后页定位增加 1316 字节，窄屏保留分页操作增加 20 字节；复用现有控件与资源，无新增路径。",
   "review": "specs/feed-bounded-reads/spec.md FBR-07；2026-11-11 用户批准 Feed 分页和按需读取范围，以下实测增量随实现提交评审。",
   "assets": {
     "/assets/molis-work-plugin-frame.js": 632,
-    "/assets/molis-work-plugins/feed.js": 1330,
+    "/assets/molis-work-plugins/feed.js": 1316,
     "/assets/molis-work-plugins/feed.css": 20
   }
 }

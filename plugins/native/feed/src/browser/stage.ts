@@ -81,7 +81,7 @@ export function feedStage(page: FeedPage) {
     all("[data-feed-filter-option]").forEach(option => { const active = values[option.dataset.feedFilterOption!] === option.dataset.feedFilterValue; option.setAttribute("aria-checked", String(active)); option.tabIndex = active ? 0 : -1; });
     const activeCount = Number(source !== "all") + Number(provider !== "all") + Number(time !== "all") + Number(status !== "active") + Number(sort !== "newest"), badge = q("[data-feed-filter-badge]"), reset = q<HTMLButtonElement>("[data-feed-filter-reset]");
     if (badge) { badge.textContent = String(activeCount); badge.hidden = activeCount === 0; } if (reset) reset.disabled = activeCount === 0;
-    const clear = q("[data-feed-clear-filters]"); if (clear) clear.hidden = rows.length === 0 || !query && activeCount === 0 && quick === "all";
+    const clear = q("[data-feed-clear-filters]"); if (clear) clear.hidden = !query && activeCount === 0 && quick === "all";
     q("[data-feed-filter-trigger]")?.classList.toggle("is-active", activeCount > 0);
     if (q("[data-feed-list]") && host.scope.alive && host.scope.visible) try { sessionStorage.setItem(preferences, JSON.stringify({ quick, fields: { search: value("search", ""), "source-filter": source, "type-filter": provider, "time-filter": time, "status-filter": status, sort } })); } catch { /* Keep the current controls even when storage is unavailable. */ }
   };

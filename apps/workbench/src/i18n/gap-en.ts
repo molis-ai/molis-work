@@ -744,7 +744,6 @@ export const GAP_EN: Record<string, string> = {
   "执行时检查": "Checked when it runs",
   "无法读取这份副本，请重试。": "Could not read this copy. Please try again.",
   "{agent} 的执行能力将在运行时检查，登录与隔离范围尚未确认。": "{agent}'s execution will be checked when it runs; sign-in and isolation scope are not yet confirmed.",
-  "列表更新失败，当前输入已保留，请重试。": "Could not refresh the list. What you entered is kept; please try again.",
   "搜索范围": "Search scope",
   "本项目与个人": "Project and personal",
   "仅本项目": "This project",

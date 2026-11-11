@@ -58,7 +58,7 @@ export const goalsDeliverableActions = {
 
 /** The versions the person confirmed as the Goal's deliverables (never proposals). Synchronous: read inside a window. */
 export function confirmedGoalDeliverables(ledger: ContextLedgerApi, projectId: string, goalId: string): ArtifactReference[] {
-  return ledger.query.list({ actor_id: "", scope: { kind: "personal", id: projectId } }, { type: OUTPUT_ROLE.type })
+  return ledger.query.list({ actor_id: "", scope: { kind: "personal", id: projectId } }, { type: OUTPUT_ROLE.type, source: { module: "goals", id: goalId, version: null, scope: { kind: "personal", id: projectId } } })
     .filter(edge => edge.state === "active" && edge.source.module === "goals" && edge.source.id === goalId && edge.target.module === "artifacts" && edge.target.version != null)
     .map(edge => ({ artifact_id: edge.target.id, version: edge.target.version! }));
 }

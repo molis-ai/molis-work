@@ -28,6 +28,7 @@ async function evidenceProject(t: TestContext) {
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const composition = host.ensureAgentService(home, () => composeAgentHost({ localHost: host, homeDirectory: home, workspaceFor: () => null }));
   const unused = async (): Promise<never> => { throw new Error("Not used by this fixture"); };
+  const lookups = { commands: 0 };
   composition.agentHost.register({
     descriptor: { runtime_id: "fixture-evidence", display_name: "Evidence fixture", provider_version: "1", capabilities: emptyCapabilityMatrix() },
     async health() { return { ok: true, status: "ready", message: "ready" }; },
@@ -39,7 +40,7 @@ async function evidenceProject(t: TestContext) {
     },
     read: async (run: unknown) => ({ ref: run, command_outputs: [{ call_id: "c-pass" }, { call_id: "c-fail" }],
       activity: [{ call_id: "w1", name: "edit", state: "completed", sequence: 1 }, { call_id: "c-fail", name: "command", state: "completed", sequence: 2 }, { call_id: "c-pass", name: "command", state: "completed", sequence: 3 }] }) as never,
-    readCommandOutput: async (_session: unknown, output: { call_id: string }) => ({ ref: output, command: "node --test", exit_code: output.call_id === "c-pass" ? 0 : 1, stdout: "", stderr: "", truncated: false }) as never,
+    readCommandOutput: async (_session: unknown, output: { call_id: string }) => { lookups.commands += 1; return { ref: output, command: "node --test", exit_code: output.call_id === "c-pass" ? 0 : 1, stdout: "", stderr: "", truncated: false } as never; },
   } as AgentRuntimeAdapter);
   const store = new LocalProjectDatabase(project.database_path), library = openProjectVersionStores(store);
   t.after(async () => { store.close(); await host.close(); await rm(home, { recursive: true, force: true }); });
@@ -65,7 +66,7 @@ async function evidenceProject(t: TestContext) {
   const report = (client: typeof worker, goal_id: string, requirement_id: string, judgment: Record<string, unknown>) => client.invoke(goalsActions.report, { goal_id, idempotency_key: `report-${goal_id}-${key += 1}`,
     events: [{ type_id: "work", type_version: 1, title: "交付", fields: { body: "已交付" }, judgments: [{ requirement_id, verdict: "supports", ...judgment }] }] } as never);
   const state = async (goal_id: string, requirement_id: string) => (await worker.invoke(goalsActions.state, { goal_id })).requirements.find(item => item.requirement_id === requirement_id)!;
-  return { as, web, worker, reviewer, goal, report, state };
+  return { as, web, worker, reviewer, goal, report, state, lookups };
 }
 
 test("EVD-40: the reporter cannot say how far its own judgment is backed, and a basis must name a confirmed deliverable; a refused report saves nothing", async t => {
@@ -126,4 +127,20 @@ test("EVD-42: another session's review meets the requirement once the worker has
   assert.deepEqual([...await found(), (await state("reviewed", "r1")).current_report?.gap], ["self_reported", false, null, "evidence_unreadable"], "a session that could not be read");
   await report(as({ actor_id: "runtime:second", audit_actor_id: "runtime:second:session", runtime_session_id: "s-second-reviewer" }), "reviewed", "r1", { basis: basis(V1) });
   assert.deepEqual(await found(), ["peer_reviewed", true, "peer_reviewed"]);
+});
+
+test("EVD-18: a report repeated under its idempotency key is answered from its record: the evidence is not looked up again, and the same key with other content is still refused", async t => {
+  const { worker, goal, state, lookups } = await evidenceProject(t);
+  await goal("repeated", [{ id: "r1" }]);
+  const events = (body: string) => [{ type_id: "work", type_version: 1, title: "交付", fields: { body }, judgments: [{ requirement_id: "r1", verdict: "supports", basis: basis(V1, ["c-pass"]) }] }];
+  const first = await worker.invoke(goalsActions.report, { goal_id: "repeated", idempotency_key: "report-once", events: events("已交付") } as never);
+  assert.equal(first.replayed, false);
+  assert.equal((await state("repeated", "r1")).current_report?.tier, "machine_verified");
+  const asked = lookups.commands;
+  assert.ok(asked > 0, "the first report read the command's receipt");
+  const again = await worker.invoke(goalsActions.report, { goal_id: "repeated", idempotency_key: "report-once", events: events("已交付") } as never);
+  assert.equal(again.replayed, true);
+  await assert.rejects(worker.invoke(goalsActions.report, { goal_id: "repeated", idempotency_key: "report-once", events: events("另一份内容") } as never), { code: "goals.request.idempotency_key_reused" });
+  assert.equal(lookups.commands, asked, "neither repeat asked the platform about the commands again");
+  assert.equal((await state("repeated", "r1")).current_report?.tier, "machine_verified");
 });

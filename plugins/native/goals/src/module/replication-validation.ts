@@ -1,5 +1,6 @@
 import type { ProjectReplicaRows, ProjectReplicaRow } from '@molis-ai/molis-work-contracts/platform/sync-transport';
-import { goalEventBasisGaps, goalEventBasisTiers, goalRelationTypes, type GoalRelationRecord } from '../contract/goals.js';
+import { goalEventBasisGaps, goalEventBasisTiers, goalRelationTypes, type GoalEventJudgmentBasisInput, type GoalRelationRecord } from '../contract/goals.js';
+import { normalizeBasis } from './event-facts-validation.js';
 import { defineErrorCodes } from '@molis-ai/molis-work-contracts/platform/actions';
 import { validatePlanningGraph } from './planning/goal-graph.js';
 
@@ -53,7 +54,7 @@ function validateScope(row: ProjectReplicaRow, value: unknown, requirements: Map
 
 function invalid(): never { throw errors.replica_invalid('Goal 同步记录的关联无效'); }
 
-/** A judgment's tier, gap and basis as Goals itself writes them: nothing else may arrive as a replicated row (the columns carry no CHECK). */
+/** A judgment's tier, gap and basis (its whole shape) as Goals itself writes them: nothing else may arrive as a replicated row (the columns carry no CHECK). */
 function validateJudgmentTrust(row: ProjectReplicaRow): void {
   if (!(goalEventBasisTiers as readonly unknown[]).includes(row.tier)) invalid();
   if (row.gap != null && !(goalEventBasisGaps as readonly unknown[]).includes(row.gap)) invalid();
@@ -62,6 +63,6 @@ function validateJudgmentTrust(row: ProjectReplicaRow): void {
   if (row.basis_json == null) { if (row.tier !== 'self_reported') invalid(); return; }
   let basis: unknown;
   try { basis = JSON.parse(String(row.basis_json)); } catch { invalid(); }
-  const checked = (basis as { checked?: { artifact_id?: unknown; version?: unknown } } | null)?.checked;
-  if (typeof checked?.artifact_id !== 'string' || !checked.artifact_id || !Number.isSafeInteger(checked.version) || Number(checked.version) < 1) invalid();
+  // The same shape a report is held to when Goals saves it: an exact version, how it was checked, and references only, at most eight.
+  try { normalizeBasis(basis as GoalEventJudgmentBasisInput, String(row.requirement_id)); } catch { invalid(); }
 }

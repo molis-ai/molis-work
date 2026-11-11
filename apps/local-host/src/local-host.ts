@@ -13,9 +13,10 @@ import { ActionService, CapabilityRegistry, refuseCall, registeredActionMetadata
 import { projectCallCaller } from "./project-call-caller.js";
 import { ActionError, requireSynchronous, type SyncActionClient, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionReference,
   type ActionRegistryPort, type ActionProviderRegistration, type ActionView, type ActionSceneClient, type ActionSceneDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { hostBoundSession } from "@molis-ai/molis-work-plugin-sdk";
 import { dependencyCaller, verifiedCaller } from "./plugin-callers.js";
 import { HostAvailability } from "./local-host-availability.js";
-import { callSignal, hostAuthorityContext, hostBoundSession, snapshotCaller } from "./local-host-caller.js";
+import { callSignal, hostAuthorityContext, snapshotCaller } from "./local-host-caller.js";
 import { ProjectLine, normalizeReference } from "./local-host-project-line.js";
 import { createSceneClient, type SceneHost } from "./local-host-scenes.js";
 import { createSyncActionClient, type SyncClientHost } from "./local-host-sync-client.js";

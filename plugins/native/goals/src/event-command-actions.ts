@@ -52,16 +52,15 @@ export const goalsEventActions = {
     object({ ...base, reason: identifier }, [...required, "reason"]), object({ ...mutation, work_status: { const: "open" } })),
 } as const;
 
-/** What Goals worked out about a report's evidence before its window opened, kept beside the call's input and never inside it. */
-export const goalReportTrust = new WeakMap<object, NonNullable<ReportGoalEventsInput["trusted"]>>();
-
-const trustOf = (input: unknown) => (typeof input === "object" && input !== null ? goalReportTrust.get(input) : undefined);
+/** What Goals worked out about a report's evidence before its window opened. The plugin hands it to the handler itself, beside the call's input and never inside it. */
+export type GoalReportTrust = NonNullable<ReportGoalEventsInput["trusted"]>;
 
 export function createGoalsEventActionHandlers(events: GoalEventApplication, projectId: string): ActionHandlerBinding[] {
   return [
     { ...goalsEventActions.configure, handle: (caller, input) => events.configure({ ...input as BusinessInput<ConfigureGoalEventsApplicationInput>, project_id: projectId, ...goalActor(caller) }) },
-    // `trusted` is never the caller's: whatever the input held under that name is replaced by what Goals itself worked out for this very call.
-    { ...goalsEventActions.report, handle: (caller, input) => events.report({ ...input as BusinessInput<ReportGoalEventsInput>, project_id: projectId, ...goalActor(caller), trusted: trustOf(input) }) },
+    // `trusted` is never the caller's: whatever the input held under that name is replaced by what Goals itself worked out for this very
+    // call (the third argument, which only the plugin's own wrapper supplies; the platform calls a handler with two).
+    { ...goalsEventActions.report, handle: (caller, input, trusted?: GoalReportTrust) => events.report({ ...input as BusinessInput<ReportGoalEventsInput>, project_id: projectId, ...goalActor(caller), trusted }) },
     { ...goalsEventActions.progress, handle: (caller, input) => events.recordProgress({ ...input as BusinessInput<RecordGoalProgressSummaryInput>, project_id: projectId, ...goalActor(caller) }) },
     { ...goalsEventActions.concern, handle: (caller, input) => events.applyConcern({ ...input as BusinessInput<ApplyGoalConcernInput>, project_id: projectId, ...goalActor(caller) }) },
     { ...goalsEventActions.requestDecision, handle: (caller, input) => events.requestDecision({ ...input as BusinessInput<RequestGoalDecisionInput>, project_id: projectId, ...goalActor(caller) }) },

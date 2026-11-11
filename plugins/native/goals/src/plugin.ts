@@ -6,7 +6,8 @@ import type { GovernanceApplicationApi } from "./contract/governance-collaborati
 import type { PluginDefinition, PluginExecutionControl } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createGoalsActionHandlers, goalsActions } from "./actions.js";
 import { confirmedGoalDeliverables } from "./deliverable-actions.js";
-import { goalReportTrust, goalsEventActions } from "./event-command-actions.js";
+import { goalsEventActions, type GoalReportTrust } from "./event-command-actions.js";
+import { goalActor } from "./action-contract.js";
 import { assessGoalReport, type GoalEvidenceArtifact, type GoalEvidenceRunCheck } from "./evidence-check.js";
 import { createGoalsTerminalActionHandlers, goalsTerminalActions } from "./terminal-actions.js";
 import { readMolisWorkSnapshot } from "./snapshot-query.js";
@@ -125,9 +126,13 @@ export function createGoalsPlugin(): PluginDefinition {
       .filter(method => method.scope === "personal");
     let ready: Promise<void> = Promise.resolve();
     // What a call asks of other owners before its window opens (a window is synchronous). A report's cited evidence is looked up here.
-    const before = new Map<string, (caller: ActionExecutionContext, input: unknown) => Promise<void>>([[goalsEventActions.report.capability_id, async (caller, input) => {
-      if (typeof input !== "object" || input === null) return;
-      goalReportTrust.set(input, await assessGoalReport({
+    // What it worked out is handed to the handler as its third argument.
+    const before = new Map<string, (caller: ActionExecutionContext, input: unknown) => Promise<unknown>>([[goalsEventActions.report.capability_id, async (caller, input): Promise<GoalReportTrust | undefined> => {
+      if (typeof input !== "object" || input === null) return undefined;
+      // A report already recorded under this key is answered from its record (or refused as a reused key): its evidence is not looked up again.
+      const key = (input as { idempotency_key?: unknown }).idempotency_key;
+      if (typeof key === "string" && window.read(() => goals.events.reportRecorded(projectId, goalActor(caller).actor_id, key))) return undefined;
+      return assessGoalReport({
         deliverables: goalId => window.read(() => confirmedGoalDeliverables(ledgerApi, projectId, goalId)),
         selfSupportingSessions: (goalId, requirementId) => window.read(() => goals.events.selfSupportingSessions(projectId, goalId, requirementId)),
         readArtifact: async (as, reference) => (await directory.invoke<{ selected: GoalEvidenceArtifact | null }>(READ_ARTIFACT, { reference }, controlOf(as))).selected,
@@ -137,19 +142,22 @@ export function createGoalsPlugin(): PluginDefinition {
             throw error;
           }
         },
-      }, caller, input as Parameters<typeof assessGoalReport>[2]));
+      }, caller, input as Parameters<typeof assessGoalReport>[2]);
     }]]);
     const windowed = (binding: ActionHandlerBinding): ActionHandlerBinding => {
       if (SELF_WINDOWED.has(binding.capability_id)) return { ...binding, handle: async (caller, input) => { await ready; return binding.handle(caller, input); } };
       const definition = goalsManifest.actions!.find(entry => entry.capability_id === binding.capability_id && entry.version === binding.version);
       if (!definition) throw new ActionError("actions.unredeemed", `${binding.capability_id} 不在 Goals 的 Manifest 里`);
+      // Only a call with something prepared before its window gets a third argument; every other handler is called as the platform calls it.
+      const handle = (caller: ActionExecutionContext, input: unknown, prepared: unknown) => prepared === undefined
+        ? binding.handle(caller, input) : (binding.handle as (caller: ActionExecutionContext, input: unknown, prepared: unknown) => unknown)(caller, input, prepared);
       const run = definition.operation === "command"
-        ? (caller: ActionExecutionContext, input: unknown, packs: Parameters<PersonalMethodsSnapshot["within"]>[0]) =>
-          window.write(caller, () => personal.within(packs, () => binding.handle(caller, input)))
-        : async (caller: ActionExecutionContext, input: unknown, packs: Parameters<PersonalMethodsSnapshot["within"]>[0]) =>
-          window.read(() => personal.within(packs, () => binding.handle(caller, input)));
+        ? (caller: ActionExecutionContext, input: unknown, packs: Parameters<PersonalMethodsSnapshot["within"]>[0], prepared: unknown) =>
+          window.write(caller, () => personal.within(packs, () => handle(caller, input, prepared)))
+        : async (caller: ActionExecutionContext, input: unknown, packs: Parameters<PersonalMethodsSnapshot["within"]>[0], prepared: unknown) =>
+          window.read(() => personal.within(packs, () => handle(caller, input, prepared)));
       const prepare = before.get(binding.capability_id);
-      return { ...binding, handle: async (caller, input) => { await ready; await prepare?.(caller, input); return personal.run(() => loadPersonal(caller), packs => run(caller, input, packs)); } };
+      return { ...binding, handle: async (caller, input) => { await ready; const prepared = await prepare?.(caller, input); return personal.run(() => loadPersonal(caller), packs => run(caller, input, packs, prepared)); } };
     };
 
     // What drifted while the project was closed catches up once: the board of a library the platform made with its root row alone,

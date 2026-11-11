@@ -17,6 +17,9 @@ import type { GoalEventState } from "./event-state.js";
 import { eventActorKind } from "./event-state-write.js";
 import { requireWritableGoal } from "./goal-writable.js";
 
+/** The idempotency operation a report is recorded under. */
+export const REPORT_GOAL_EVENTS_OPERATION = "report_goal_events";
+
 /** Recording the work events and requirement judgments an agent reports on a Goal, with the progress summary that may ride along. */
 export class GoalEventReporting {
   constructor(
@@ -36,7 +39,7 @@ export class GoalEventReporting {
     });
     return this.context.repository.immediate(() => {
       const replay = this.context.replay<Omit<ReportGoalEventsRecordedResult, "replayed">>(
-        input.project_id, input.actor_id, "report_goal_events", input.idempotency_key, hash,
+        input.project_id, input.actor_id, REPORT_GOAL_EVENTS_OPERATION, input.idempotency_key, hash,
       );
       if (replay) return { ...replay, replayed: true };
 
@@ -109,7 +112,7 @@ export class GoalEventReporting {
         events: stored,
         observed_event_cursor: this.context.repository.eventCursor(goal.project_id),
       };
-      this.context.remember(goal.project_id, input.actor_id, "report_goal_events", input.idempotency_key, hash, outcome, at);
+      this.context.remember(goal.project_id, input.actor_id, REPORT_GOAL_EVENTS_OPERATION, input.idempotency_key, hash, outcome, at);
       return { ...outcome, replayed: false };
     });
   }

@@ -1,6 +1,6 @@
 # 防腐后路线书 · 执行目录
 
-状态：规划（2026-11-03 整理；统筹与排期维护：Claude（本机）统筹会话，2026-11-04 起（用户定，此前 Codex）；实施由各批主会话独立安排、派写手（[决定 26](reference/decisions.md#decision-26)），谁在做哪一项看[认领板 #1743](https://github.com/molis-ai/molis-work/issues/1743)）。01 已按最终 main 核准，当前交付是核账、归档和本人试用单；其余批次尚未由本批启动。
+状态：规划（2026-11-03 整理；统筹与排期维护：Claude（本机）统筹会话，2026-11-04 起（用户定，此前 Codex）；实施由各批主会话一个会话做完（[决定 26](reference/decisions.md#decision-26)、[决定 34](reference/decisions.md#decision-34)），谁在做哪一项看[认领板 #1743](https://github.com/molis-ai/molis-work/issues/1743)）。01 已按最终 main 核准，当前交付是核账、归档和本人试用单；其余批次尚未由本批启动。
 
 **当前入口：[01 主线核账](reference/batches/01.md#baseline-01) · [本人试用单](reference/acceptance-01.md)。** 01 已按主线核实并交单；实际试用、真实 Home 和后续批次另计。
 

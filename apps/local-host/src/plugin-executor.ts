@@ -9,6 +9,7 @@ import { removeSandboxOwnerFiles } from "./plugin-sandbox-owner-files.js";
 import type { PluginDependencyCheck } from "./plugin-actions-client.js";
 import { discardInstallationOwnerData, forgetInstallationRecords, forgetLeftoverInstallationBindings } from "./plugin-installation-cleanup.js";
 import { directoryForHome } from "./plugin-directory-service.js";
+import { awaitPluginStopHook, type PluginStopExecution } from "./plugin-stop-hook.js";
 
 export interface PluginHostExecutorOptions {
   project_id: string;
@@ -99,6 +100,8 @@ export interface PluginHostExecutorOptions {
 export class PluginHostExecutor implements PluginExecutor {
   private readonly sessions = new Map<string, HostSession>();
   private readonly stoppedCalls = new StoppedServiceCalls();
+  /** How each running activation was admitted (in process or sandboxed), captured at start: it decides how its stop is waited for (BL-367). */
+  private readonly executions = new Map<string, PluginStopExecution>();
   private options: PluginHostExecutorOptions;
 
   constructor(options: PluginHostExecutorOptions) {
@@ -157,10 +160,12 @@ export class PluginHostExecutor implements PluginExecutor {
   }
 
   async start(definition: PluginDefinition, context: PluginStartContext) {
+    const execution = definition.execution;
     const session = openHostSession(this.options, definition, context, this.stoppedCalls);
     try {
       const contribution = await session.starting(() => definition.start(session.context));
       this.sessions.set(context.install_id, session);
+      this.executions.set(context.install_id, execution);
       return { contribution };
     } catch (error) {
       session.dispose();
@@ -176,8 +181,9 @@ export class PluginHostExecutor implements PluginExecutor {
     this.options.events?.revoke(this.options.project_id, definition.manifest.plugin_id);
     this.options.hostEvents?.revoke(this.options.project_id, definition.manifest.plugin_id);
     try {
-      await definition.stop?.(session?.context ?? context);
+      await awaitPluginStopHook(definition, session?.context ?? context, "project", this.executions.get(context.install_id) ?? definition.execution);
     } finally {
+      this.executions.delete(context.install_id);
       session?.dispose();
       this.sessions.delete(context.install_id);
     }

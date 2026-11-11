@@ -5881,6 +5881,7 @@ export declare const pluginErrors: import("platform/action-errors").ErrorCodeRai
     readonly signature_invalid: "invalid";
     readonly signer_mismatch: "invalid";
     readonly state_invalid: "invalid";
+    readonly stop_timeout: "timeout";
     readonly storage_denied: "invalid";
     readonly storage_input_invalid: "invalid";
     readonly upgrade_required: "invalid";

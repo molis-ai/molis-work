@@ -38,6 +38,7 @@ import { pluginTerminalFor } from "./plugin-terminal-service.js";
 import { openPluginOwnerFiles } from "./plugin-owner-files.js";
 import { syncActivation, copyActivation } from "./sync-activation.js";
 import { servicesUntilStopped } from "./plugin-stopped-services.js";
+import { awaitPluginStopHook, type PluginStopExecution } from "./plugin-stop-hook.js";
 import { pluginTextFor } from "./plugin-host-services.js";
 import { realpathSync } from "node:fs";
 import { join } from "node:path";
@@ -45,7 +46,7 @@ import { withPluginWords } from "@molis-ai/molis-work-app-workbench";
 
 /** The Home service set deliberately contains no project Artifact, event, or wiring clients (`declaresProjectCoordination`, PG-025). */
 export class HomePluginExecutor implements PluginExecutor {
-  private readonly sessions = new Map<string, { context: PluginStartContext; revoke(): void; dispose(): void; partitions?: PartitionedPluginDatabase;
+  private readonly sessions = new Map<string, { context: PluginStartContext; execution: PluginStopExecution; revoke(): void; dispose(): void; partitions?: PartitionedPluginDatabase;
     background?: ReturnType<typeof pluginBackgroundFor> }>();
   /** Per installation, not per instance: a project deletion under way outlives a restart of the instance (`PartitionDeletions`). */
   private readonly partitionDeletions = new Map<string, PartitionDeletions>();
@@ -74,7 +75,7 @@ export class HomePluginExecutor implements PluginExecutor {
   async start(definition: PluginDefinition, context: PluginStartContext) {
     // Before anything is built: a package the sandbox cannot serve does not start here either (S-60).
     refuseUngivenSandboxServices(definition, context);
-    const manifest = definition.manifest;
+    const manifest = definition.manifest, execution = definition.execution;
     // A dual-instance plugin's Home half leaves these to its project half, and is still given none of their services here.
     if (!this.options.dualInstance(definition) && declaresProjectCoordination(manifest)) {
       throw pluginErrors.state_invalid("Home 级插件不给项目成果、端口和事件：需要它们的插件作双实例，由项目那一半拿这些服务（specs/archive/dual-instance-plugins）");
@@ -175,7 +176,7 @@ export class HomePluginExecutor implements PluginExecutor {
         assertCurrent: permission => permission ? authorize(permission) : assertActive() });
       const given = servicesUntilStopped(hosted, () => stopped, this.stoppedCalls);
       const contribution = await (background ? background.starting(() => definition.start(given)) : definition.start(given));
-      this.sessions.set(context.install_id, { context: given, revoke: () => { active = false; try { terminal?.dispose(); } finally { withdrawPages?.(); directory?.dispose(); background?.close(); withdrawCaller?.(); } }, dispose, partitions, background });
+      this.sessions.set(context.install_id, { context: given, execution, revoke: () => { active = false; try { terminal?.dispose(); } finally { withdrawPages?.(); directory?.dispose(); background?.close(); withdrawCaller?.(); } }, dispose, partitions, background });
       return { contribution };
     } catch (error) {
       try { dispose(); } catch (cleanup) { throw new AggregateError([error, cleanup], "Home 插件启动与服务释放失败"); }
@@ -186,7 +187,7 @@ export class HomePluginExecutor implements PluginExecutor {
   async stop(definition: PluginDefinition, context: PluginStartContext): Promise<void> {
     const session = this.sessions.get(context.install_id);
     session?.revoke();
-    try { await definition.stop?.(session?.context ?? context); }
+    try { await awaitPluginStopHook(definition, session?.context ?? context, "home", session ? session.execution : definition.execution); }
     finally { try { session?.dispose(); } finally { this.sessions.delete(context.install_id); } }
   }
 

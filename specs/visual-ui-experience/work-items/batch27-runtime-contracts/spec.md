@@ -6,7 +6,7 @@
 
 [27-4](../../../post-anticorruption-roadmap/reference/batches/27.md#batch-27-item-4) 的目标仍是交付、验收原有余项。本人能在「插件」里收回、恢复沙箱插件的一项权限，安装和数据都保留。本人直接从 Feed 升格时，Goals 确认来源和输入，其余调用者只能提议。插件的清理钩子失去响应时，宿主在规定时间内结束对它的等待，完成自身清理，停用、重启、卸载和关闭能继续。最终要在隔离 Home 走实际入口，带持久记录和拒绝证据。权限界面复用已有开关和确认，按第 27 批的界面要求核实成品和本人验收。工程、实操、本人验收分别记录。
 
-三项都属于横向能力和底层安全／可靠性，BL-701 还涉及工作台体验，BL-803 涉及 Feed／Goals 产品线。基点已有 02、07 提供的动作、安装及测试入口，日志衔接 [26-4](../../../post-anticorruption-roadmap/reference/batches/26.md#batch-26-item-4)。范围取自 [BL-701](../../../backlog/BL-701.md)、[BL-803](../../../backlog/BL-803.md)、[BL-367](../../../backlog/BL-367.md) 和 [需求清单](../../../post-anticorruption-roadmap/reference/requirements.md#section-3-8)。旧生成器的读取清理随 [46](../../../post-anticorruption-roadmap/reference/batches/46.md)，本机统计随 [74](../../../post-anticorruption-roadmap/reference/batches/74.md)，可选上报随 [SRV-8](../../../post-anticorruption-roadmap/reference/batches/srv-8.md)。
+三项都属于横向能力和底层安全／可靠性，BL-701 还涉及工作台体验，BL-803 涉及 Feed／Goals 产品线。基点已有 02、07 提供的动作、安装及测试入口，日志衔接 [26-4](../../../post-anticorruption-roadmap/reference/batches/26.md#batch-26-item-4)。范围取自 [BL-701](../../../backlog/BL-701.md)、[BL-803](../../../backlog/BL-803.md)、BL-367（已实现，待办已删） 和 [需求清单](../../../post-anticorruption-roadmap/reference/requirements.md#section-3-8)。旧生成器的读取清理随 [46](../../../post-anticorruption-roadmap/reference/batches/46.md)，本机统计随 [74](../../../post-anticorruption-roadmap/reference/batches/74.md)，可选上报随 [SRV-8](../../../post-anticorruption-roadmap/reference/batches/srv-8.md)。
 
 ## BL-701 沙箱插件的可选权限
 
@@ -113,6 +113,8 @@ Home 级委托仍从同一 Host 的实际调用项目出发，有无项目、项
 | B27-DELEGATE-04 | 控制真实升格的等待点，分别撤原入口授权、撤委托 grant、断线、停用／替换提供方，释放等待后验证新目标写或新 Feed 关联被拒、旧链失效，既有事务的幂等修复照常。只调用 `personAsked` 或给 handler 手塞字符串不能作为拒绝证据。 |
 
 ## BL-367 停止钩子的期限和记法
+
+**实现记录（2026-11-11，第 27 批）**：两个执行器的停止都经 `apps/local-host/src/plugin-stop-hook.ts` 的 `awaitPluginStopHook`。执行种类在 `start` 时从已接纳定义捕获（项目执行器存在按安装的表里，Home 执行器存进 session）。沙箱定义照旧等宿主自己的 stop；进程内的同步返回与同步抛错照原路径，异步的用 SDK `createExecutionLifetime` 计 2 秒（`PLUGIN_STOP_HOOK_MS`），只有这次计时器签发的 `plugin.stop_timeout`（新错误码，`kind: "timeout"`，只作日志的码，不抛给调用方）结束等待，写一行 `plugins/plugin_stop_timeout`（`code`、`plugin_id`、`install_id`、`installation_generation`、`scope`、`timeout_ms`），session 照常在执行器的 `finally` 里 dispose。证明在 `tests/plugin-stop-timeout.test.ts`：B27-STOP-01（Home 经 `/api/plugins/<id>/disable`，项目经真实 Runtime 与项目库；旧路由不答、旧服务按 BL-411 什么都不做）、B27-STOP-02（超时后重启开新激活，旧钩子迟到 resolve 或 reject 不动新激活、无未处理拒绝、无第二行）、B27-STOP-04（`state`、`last_error_code`、`recovery_count`，与按时返回、按时抛错两种对照）；每个卡住的用例都在 10 秒看门狗下跑，旧实现会在看门狗处失败。B27-STOP-03 的「关闭时一个卡住加一个正常」与真实沙箱 runner 的失败路径没有另写用例：关闭走同一个执行器 `stop`，沙箱分支没有改。作者文档在 `skills/molis-plugin-dev/host.md`。
 
 2026-11-09 关闭链交接：第 06 批候选 `8982fad38` 将项目 SQL 子进程的真实退出承诺接到 `project-statement-process.ts`、`plugin-project-library.ts`、`plugin-host-services.ts`、`plugin-executor.ts`，构造／启动失败与正常停止均等待资源释放后再交还 Home 租约。统筹已核该提交的实际差异；其 `tests/installed-plugin-host.test.ts` 用例「BSH-03 S-59 a real installed project SQL child exits before the Host releases the Home lease」延迟真实 PID 的终止信号，断言退出前租约仍忙、退出后 PID 消失且租约可取。该候选仍在第 06 批工作分支，本批尚未集成，也未重跑其用例；最终采用第 06 批完成头并保留这些等待，复核 S-59 的双方证据。下述 2 秒只限制作者钩子，不能包住 `session.dispose()`、库关闭或子进程退出。
 

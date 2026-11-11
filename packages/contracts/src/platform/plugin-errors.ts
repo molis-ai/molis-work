@@ -39,6 +39,8 @@ export const pluginErrors = defineErrorCodes("plugin", {
   signature_invalid: "invalid",
   signer_mismatch: "invalid",
   state_invalid: "invalid",
+  /** An in-process stop hook still pending when the Host stopped waiting (BL-367); a local diagnostic, never a lifecycle failure. */
+  stop_timeout: "timeout",
   storage_denied: "invalid",
   storage_input_invalid: "invalid",
   upgrade_required: "invalid",

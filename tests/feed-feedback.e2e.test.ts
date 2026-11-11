@@ -24,7 +24,8 @@ async function openFeed(t: TestContext, b: Browser) {
     window.molisWorkbenchPluginFactories = new Proxy({}, { set(target, key, value) {
       target[key] = key === "feed" ? host => {
         const read = host.view.readDocument, toast = host.showToast;
-        feedback.refresh = () => host.invalidateView();
+        // A change made elsewhere: the notice another view's invalidation delivers (a page's own invalidation is not sent back to it).
+        feedback.refresh = () => host.root.dispatchEvent(new CustomEvent('molis-work:select-item',{detail:{invalidate:true}}));
         host.view.readDocument = async (...args) => {
           feedback.reads++; feedback.pending++;
           try { return await read(...args); } finally { feedback.pending--; }

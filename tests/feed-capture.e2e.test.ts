@@ -51,7 +51,7 @@ test("RAC-2518 a late authoring create cannot revive an old source, and an expli
   assert.equal(feed.outRules.list(projectId).some(rule => rule.match.source_id === a.source_id), false);
   await child.evaluate("window.t403HoldCreate=false"); await select(a.source_id);
   const readsBeforeRestore = await child.evaluate<number>("t403Reads.total");
-  await child.evaluate("t403Host.invalidateView()");
+  await child.evaluate("t403Host.root.dispatchEvent(new CustomEvent('molis-work:select-item',{detail:{invalidate:true}}))");
   await child.waitFor(`t403Reads.total>${readsBeforeRestore} && t403Reads.pending===0`);
   assert.equal(await child.evaluate(`document.querySelector('${section(a.source_id)}').dataset.ruleMode`), "natural", "RAC-2518 a preserved composer restores its new parent section's mode after an actual refresh");
   await child.click(section(a.source_id) + ' [data-feed-rule-preview-run]');
@@ -117,7 +117,7 @@ test("RAC-2910 the actual Feed page obeys its Home Functions switch while requir
   const collected = await localHost.actionClient(reference).invoke(await localHost.localPersonContext(reference), feedContentActions.receive,
     { request_id: "switch-off-content", title: "可选管理关闭后收到的消息", body: "关闭 Functions 管理不阻止这段原文进入 Feed。" });
   assert.equal(feed.getFeedItem(projectId, collected.item_id).title, "可选管理关闭后收到的消息");
-  await child.evaluate("t403Host.invalidateView();t403Host.openView({surface:'workbench',id:'all',intent:'open'})");
+  await child.evaluate("t403Host.root.dispatchEvent(new CustomEvent('molis-work:select-item',{detail:{invalidate:true}}));t403Host.openView({surface:'workbench',id:'all',intent:'open'})");
   await child.waitFor(`document.querySelector('button[data-frame-asset=feed][data-frame-asset-id="${collected.item_id}"]') && t403Reads.pending===0`);
   await child.click(`button[data-frame-asset=feed][data-frame-asset-id="${collected.item_id}"]`);
   await child.waitFor(`document.querySelector('[data-feed-detail="${collected.item_id}"][data-feed-detail-read=read]')?.textContent.includes('关闭 Functions 管理不阻止这段原文进入 Feed。') && t403Reads.pending===0`);

@@ -165,7 +165,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
     clearTimeout(deadline); readyReject(new Error("View closed")); port.postMessage({ type: "dispose" }); port.close(); frame.remove();
     void molisWorkRequest(route("/api/host/plugin-pages/" + encodeURIComponent(grant.page_id)), { method: "DELETE", body: closing ? { closing } : {}, keepalive: true }).catch(() => { /* Host shutdown already revokes the activation. */ });
   });
-  let invalidated = false, shellRefreshed = false;
+  let invalidated = false, shellRefreshed = false, ownInvalidation = false;
   const visible = () => {
     if (frame.hidden) return false;
     for (let node: Element | null = root; node; node = node.ownerDocument.defaultView?.frameElement ?? null)
@@ -222,7 +222,9 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
     if (message.type === "frame-asset-layout") { assetLayout(message); return; }
     if (message.type === "connection-slot-cancel") { connectionSlot.cancel(message.id); return; }
     if (message.type === "connection-slot") { void connectionSlot(message); return; }
-    if (message.type === "view-invalidate") { if (scope.visible) host.invalidateView?.(root); return; }
+    // The page that changed something tells the other views; it refreshes itself (BL-131). The workbench dispatches the invalidation
+    // synchronously, so while it runs this page's own copy is the echo of its request and is not sent back: it would read the page twice.
+    if (message.type === "view-invalidate") { if (scope.visible) { ownInvalidation = true; try { host.invalidateView?.(root); } finally { ownInvalidation = false; } } return; }
     if (message.type === "view-open") {
       const value = message.selection;
       if (scope.visible && value && typeof value.surface === "string" && value.surface.length < 200
@@ -307,7 +309,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
       }
     } catch (error) { host.showToast?.(error instanceof Error ? error.message : String(error), true); }
   };
-  scope.listen(root, "molis-work:select-item", event => { const detail = (event as CustomEvent).detail; if (detail?.invalidate && !visible()) { invalidated = true; return; } port.postMessage({ type: "select", detail, itemTab: ownItemTab(root, pack) }); });
+  scope.listen(root, "molis-work:select-item", event => { const detail = (event as CustomEvent).detail; if (detail?.invalidate && ownInvalidation) return; if (detail?.invalidate && !visible()) { invalidated = true; return; } port.postMessage({ type: "select", detail, itemTab: ownItemTab(root, pack) }); });
   scope.observe(new MutationObserver(() => {
     if (root.dataset.expanded === "false" && childExpanded !== "false") port.postMessage({ type: "collapse" });
   }), root, { attributes: true, attributeFilter: ["data-expanded"] });

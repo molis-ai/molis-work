@@ -160,7 +160,7 @@ test("Feed creation recovers a failed schedule without duplicating the task", { 
     };
   }`);
   await click('[data-feed-source-register]');
-  await waitFor("document.querySelector('[data-feed-add-form]').dataset.createdSourceId && document.querySelector('[data-feed-add-error]').textContent.includes('任务已创建')");
+  await waitFor("document.querySelector('[data-feed-add-form]').dataset.createdSourceId && document.querySelector('[data-feed-add-error]').textContent.includes('来源已添加，拉取计划未保存')");
   const sourceId = await evaluate<string>("document.querySelector('[data-feed-add-form]').dataset.createdSourceId");
   assert.equal(createLocalFeedApplication(b.store.db).sources.get(DEMO_PROJECT_ID, sourceId).schedule.mode, "manual");
   await click('[data-feed-sources-dialog] header [data-feed-sources-close]');
@@ -239,7 +239,7 @@ test("Feed configuration cancels drafts and saves its schedule independently", {
     await b.waitFor('window.scheduleResponseReady===true');
     // Something else changes while the save is held, so the refresh it causes draws the page again.
     createLocalFeedSourceService(b.store.db, DEMO_PROJECT_ID).register({kind:"web_query",query:"保存期间到达的来源"});
-    await evaluate(`(()=>{const state=window.__scheduleBusy;state.oldButton=document.querySelector('${panel} [data-source-schedule-save]');state.hold=true;state.host.invalidateView();})()`);
+    await evaluate(`(()=>{const state=window.__scheduleBusy;state.oldButton=document.querySelector('${panel} [data-source-schedule-save]');state.hold=true;state.host.root.dispatchEvent(new CustomEvent('molis-work:select-item',{detail:{invalidate:true}}));})()`);
     await waitFor('window.__scheduleBusy.releaseRead');
     await evaluate('window.__scheduleBusy.releaseRead()');
     await waitFor(`!window.__scheduleBusy.oldButton.isConnected && document.querySelector('${panel} [data-source-schedule-save]')!==window.__scheduleBusy.oldButton`);
@@ -274,7 +274,7 @@ test("Feed configuration cancels drafts and saves its schedule independently", {
   assert.equal(await evaluate(`document.querySelector('${panel} [data-source-config-field=name]').value`),"保留中的名称");
   // The poll that follows a save (or any notice of a change already drawn) reads the same page. It leaves the panel alone:
   // the error just shown stays, and the controls under the pointer are not swapped out.
-  const asked = await evaluate<number>(`(()=>{const state=window.__scheduleBusy;state.panel=document.querySelector('${panel}');const asked=state.asked||0;state.host.invalidateView();return asked;})()`);
+  const asked = await evaluate<number>(`(()=>{const state=window.__scheduleBusy;state.panel=document.querySelector('${panel}');const asked=state.asked||0;state.host.root.dispatchEvent(new CustomEvent('molis-work:select-item',{detail:{invalidate:true}}));return asked;})()`);
   await waitFor(`window.__scheduleBusy.asked>${asked}&&window.__scheduleBusy.answered===window.__scheduleBusy.asked`);
   assert.deepEqual(await evaluate(`({same:document.querySelector('${panel}')===window.__scheduleBusy.panel,error:document.querySelector('${panel} [data-source-action-status]').textContent.includes('无法保存配置')})`),{same:true,error:true},"a refresh with nothing new keeps the panel and the error shown in it");
   await b.evaluate('window.restoreConfigFetch()');

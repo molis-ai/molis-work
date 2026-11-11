@@ -31,13 +31,6 @@ import { builtinMarketDirectory, mergePluginDirectories, runningPluginDirectory 
 /** The project settings page each path opens; `/settings` alone opens 常规. */
 const SETTINGS_SECTIONS = new Map((["workspaces", "guidance", "memory", "knowledge", "plugins", "kit", "grants", "rules", "planning", "general"] as const)
   .map(section => [`/settings/${section}` as string, section] as const)).set("/settings", "general");
-/** 第 08 批的「技能」并进了「能力包」(specs/capability-pack/spec.md 决定 3)：旧地址打开能力包，项目的与全局的都是。 */
-export function openedKit(request: IncomingMessage, response: ServerResponse, url: URL): boolean {
-  if (request.method !== "GET" || url.pathname !== "/settings/skills") return false;
-  response.writeHead(302, { location: `kit${url.search}`, "cache-control": "no-store" });
-  response.end();
-  return true;
-}
 const noInstalledStages = (error: unknown): [] => { hostLog.warn("plugins", "installed_stages_unavailable", error); return []; };
 async function projectSettingsRequirements(homeDirectory: string | undefined, store: LocalProjectDatabase, projectId: string, withCatalog: LocalWebCatalogRunner) {
   const installed = new Set(readPluginRuntimeRecords(store.db).filter(record => record.state !== "uninstalled").map(record => record.plugin_id));
@@ -98,7 +91,6 @@ export function createLocalGoalsReadHttp(ports: {
     readWebView: () => GoalsWebView | Promise<GoalsWebView>, controlToken: string, actions: BoundActionClient,
     goalsHere: () => Promise<boolean>, store: LocalProjectDatabase, homeDirectory?: string,
   ): Promise<boolean> {
-    if (openedKit(request, response, url)) return true;
     const open = SETTINGS_SECTIONS.get(url.pathname) ?? null;
     if (request.method === "GET" && open) {
       const view = await readWebView();

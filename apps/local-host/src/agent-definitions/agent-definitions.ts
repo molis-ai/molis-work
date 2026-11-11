@@ -320,7 +320,7 @@ export class AgentDefinitions {
 }
 
 /** Each prompt's uses, the newest `PROMPT_USES_KEPT` per key: what the 「提示词」 page shows and the AI kit counts. A use that fails to record never stops the call. */
-export class PromptUses {
+class PromptUses {
   constructor(private readonly db: DatabaseSync) {}
 
   record(use: AgentPromptUse): void {

@@ -203,7 +203,7 @@
 
 - 定义：一份按需读取的文字做法，有名称、适用说明和正文，可声明它会用到的工具；它不授予任何权限，权限仍来自动作授权。同一种东西有三处载体：
   1. 仓库的 `skills/<名>/SKILL.md`，给外部编码 Runtime 和插件创作台用（`goal-advance` 随安装发进用户的 Runtime，创作台挂载 `molis-plugin-dev` 的章节，见 `apps/local-host/src/plugin-builder/skill.ts`）。
-  2. 插件为 Agent 提供的 Skill：类型 `AgentSkillDeclaration` / `AgentSkillDefinition`（`skill_id`、`version`、`name`、`summary`、`tools`、`body`），Manifest 里有两个位置：`agent.skills` 是插件自己的 Agent 用的，`methods` 是提供给别的 Agent（助理、Character）用的；也可从项目目录安装（`agent.skills.discover`、`agent.skills.install`，只存文本，不执行包内脚本）。起跑时只接受精确的 id 与版本。
+  2. 插件为 Agent 提供的 Skill：类型 `AgentSkillDeclaration` / `AgentSkillDefinition`（`skill_id`、`version`、`name`、`summary`、`tools`、`body`），Manifest 里有两个位置：`agent.skills` 是插件自己的 Agent 用的，`methods` 是提供给别的 Agent（助理、Character）用的；别的来源（内容包、从本机导入）都进同一个技能目录（`system.skills`）。Coding 旧的项目目录安装（`agent.skills.discover`、`agent.skills.install`）已在第 09 批删掉。起跑时只接受精确的 id 与版本。
   3. Character 里导入的 Skill 快照（`import_snapshot.skills`），每轮选用其中几个。
 - 取舍：Prologue SDK、导入来源和代码类型都叫 Skill；只有界面和少数标识符（Manifest 的 `methods` 键、`assistant.methods.*`）叫「方法」，而「方法」在界面里还指规划方法、研究方法、连接方式。所以文档统一写 Skill，其余三个「方法」必须写全名。
 - 旧称：方法（指 Skill 时）、Method。

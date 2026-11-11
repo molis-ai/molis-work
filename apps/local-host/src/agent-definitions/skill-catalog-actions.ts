@@ -4,7 +4,7 @@ import { SKILLS_PROVIDER_ID, SKILLS_READ_PERMISSION, skillCatalogActions } from 
 import { SkillCatalog, type SkillCatalogPorts } from "./skill-catalog.js";
 
 /** The catalog's Skills as AI kit entries (specs/capability-pack/contract-design.md §4.8): only this provider reports Skills. */
-export const skillsKitReport = defineKitReportAction("skills.kit.report", /* @version action.skills.kit.report */ 1, "技能的能力包条目", [SKILLS_READ_PERMISSION]);
+const skillsKitReport = defineKitReportAction("skills.kit.report", /* @version action.skills.kit.report */ 1, "技能的能力包条目", [SKILLS_READ_PERMISSION]);
 
 export function skillCatalogProvider(ports: SkillCatalogPorts): ActionProviderRegistration {
   const catalog = new SkillCatalog(ports);

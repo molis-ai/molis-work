@@ -71,11 +71,9 @@ test("SKP-01 SKP-08 SKP-10: Skill installation and settings work through the act
   await page.wait("!document.querySelector('.skill-segments').disabled");
   assert.equal(homeAgentDefinitions(f.home).skills.settings(project.project_id)[0]?.state, "manual");
   await page.click("[data-plugin-trust-preview] .skill-toolbar .mw-btn--primary");
-  // 9-11: 08's Skill section is part of 「能力包」; its old address opens it.
+  // 9-11: 08's Skill section is part of 「能力包」.
   const document = await f.request(`/projects/${project.project_id}/settings/kit`);
   assert.match(await document.text(), /data-kit-settings/, "server renders the 能力包 section");
-  const old = await f.request(`/projects/${project.project_id}/settings/skills`);
-  assert.equal(old.redirected, true); assert.equal(new URL(old.url).pathname, `/projects/${project.project_id}/settings/kit`);
   const catalog = await f.request(`/projects/${project.project_id}/api/skills/list`, { method: "POST", body: {} });
   assert.match(await catalog.text(), /meeting-notes/, "HTTP catalog includes installed Skill");
   const skillRow = "[...document.querySelectorAll('.kit-detail [data-kit-act=item]')].find(node => node.textContent.includes('meeting-notes'))";

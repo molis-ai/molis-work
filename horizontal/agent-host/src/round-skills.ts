@@ -3,6 +3,7 @@ import { MAX_SKILL_BODY_CHARS, type AgentManifest, type AgentSkillDefinition } f
 import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import type { AgentRoundSkill } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { SKILL_BODY_READ_MAX_REFS, type SkillBodyReadResult, type SkillCatalogEntry } from "@molis-ai/molis-work-contracts/services/skills";
+import { skillRefKey } from "@molis-ai/molis-work-plugin-sdk/skill-ref";
 import { agentErrors } from "./errors.js";
 
 /**
@@ -19,10 +20,6 @@ export interface AgentRoundSkillCatalog {
 
 /** The parts of a `SkillRef` that name an installation: the starting plugin's own one, as the Host read it from the installation record. */
 export type AgentSkillSource = Pick<SkillRef, "source" | "install_id" | "installation_generation">;
-
-/** One key per exact reference, so two installations' Skills with the same `skill_id` never meet. */
-export const skillRefKey = (ref: SkillRef): string => JSON.stringify([ref.source.kind, ref.source.plugin_id, ref.source.plugin_version,
-  ref.source.publisher_signature, ref.install_id, ref.installation_generation, ref.skill_id, ref.version]);
 
 const sameSource = (ref: SkillRef, own: AgentSkillSource | undefined) => own !== undefined && ref.install_id === own.install_id
   && ref.installation_generation === own.installation_generation && ref.source.kind === own.source.kind && ref.source.plugin_id === own.source.plugin_id

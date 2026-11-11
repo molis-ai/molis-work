@@ -79,6 +79,17 @@ export async function pluginFrameBrowser(t: TestContext, browser: Browser, surfa
   const owner = `const owner = ${ownerFrame ? `document.querySelector(${JSON.stringify(ownerFrame)})` : "null"};
     const doc = owner ? owner.contentDocument : document;
     if (!doc) throw Error('Missing trusted owner document');`;
+  // Emulation set on the page does not reach a plugin frame: each frame is its own out-of-process target. Before every
+  // command into a frame, the frame takes the page's current prefers-reduced-motion, so a page held still also holds the
+  // frame still and a press and its release land on the same unmoved element (BL-1074). A page left as it is leaves its
+  // frames as they are, for tests about motion.
+  const heldStill = new Set<string>();
+  async function followPageMotion(session: string) {
+    const still = await browser.evaluate<boolean>("matchMedia('(prefers-reduced-motion: reduce)').matches");
+    if (still === heldStill.has(session)) return;
+    await browser.command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: still ? "reduce" : "" }] }, session);
+    if (still) heldStill.add(session); else heldStill.delete(session);
+  }
   async function context() {
     const object = await browser.command<{ result: { objectId?: string } }>("Runtime.evaluate", {
       expression: `(()=>{${owner}return doc.querySelector(${JSON.stringify(selector)});})()`, returnByValue: false,
@@ -89,6 +100,7 @@ export async function pluginFrameBrowser(t: TestContext, browser: Browser, surfa
     assert.ok(node.frameId, "frame owner must identify a real child");
     const current = contexts.get(node.frameId);
     assert.ok(current, `Missing child execution context: ${node.frameId}`);
+    await followPageMotion(current.session);
     return { ...current, frameId: node.frameId };
   }
   async function evaluate<T = unknown>(expression: string, timeoutMs?: number): Promise<T> {

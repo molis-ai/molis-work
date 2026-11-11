@@ -254,6 +254,12 @@ test('ASR-02/03 web login binds the installation account and stale browser cooki
   const post=(path:string)=>browser(path,{method:'POST',headers:{Origin:origin,'content-type':'application/json','x-molis-work-control-token':controlToken,'x-molis-work-idempotency-key':'account-flow-'+(++sequence)},body:'{}'});
   const status=async(query='')=>(await browser('/api/personal/status'+query)).json();
   try{
+    // WAS-11: an external top-level entry issues no credentials or login; only its same-origin follow-up may do so.
+    const external=await fetch(origin+'/',{headers:{'sec-fetch-site':'cross-site','sec-fetch-dest':'document'}});
+    assert.equal(external.status,200);assert.equal(external.headers.get('set-cookie'),null);
+    const entry=await external.text();assert.match(entry,/location\.replace\(location\.href\)/);assert.doesNotMatch(entry,/molis-work-page-session|molisWorkRequest/);
+    const crossWrite=await fetch(origin+'/api/personal/login',{method:'POST',headers:{Origin:'https://outside.invalid','content-type':'application/json','sec-fetch-site':'cross-site'},body:'{}'});
+    assert.equal(crossWrite.status,403);assert.equal(crossWrite.headers.get('set-cookie'),null);
     const start=await post('/api/personal/login?returnTo='+encodeURIComponent('/projects/demo?view=work#task'));
     assert.equal(start.status,200);
     const login=await start.json();assert.ok(login.loginAttempt);const preLoginCookie=cookie;

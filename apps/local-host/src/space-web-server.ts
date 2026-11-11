@@ -315,6 +315,12 @@ export function createSpaceWebServer(options:WebServerOptions,createCore:(option
         if(isStopping()){sendLocalWebJson(response,503,{error:'服务正在关闭。'});return;}
         const url=new URL(request.url??'/','http://localhost');
         if(refuseForeignRequest(request,response))return;
+        // External top-level links first enter this origin without any session or account action.
+        // The resulting same-origin navigation can then obtain the normal cookie-bound page proof.
+        if(accountEntry&&url.pathname==='/'&&request.method==='GET'&&request.headers['sec-fetch-site']==='cross-site'&&request.headers['sec-fetch-dest']==='document'&&request.headers.origin===undefined){
+          response.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-frame-options':'DENY','referrer-policy':'no-referrer'});
+          response.end('<!doctype html><meta charset="utf-8"><title>Molis Work</title><script>location.replace(location.href)</script><noscript><a href="/">Molis Work</a></noscript>');return;
+        }
         // CLI/MCP have no browser cookies. Only an already-open, authenticated
         // personal Host can be reached with its exact Home id and private token.
         const gatewayHome=request.headers['x-molis-work-home-id'];

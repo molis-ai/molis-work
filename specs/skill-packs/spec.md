@@ -1,6 +1,6 @@
 # 技能包与个人助理 / Coding 的装配
 
-状态：第 08 批基础能力已通过独立增量合审（评审台在 `44515f2ee` 审过；最终头 `2703ca8b1` 由独立 reviewer 增量复核）与最终验证头的 CI Full，并于 2026-11-08（PST）随 [#1984](https://github.com/molis-ai/molis-work/pull/1984) 合入 main `416ee8cef`；负责人 Codex（本机接续）。安装预览、启用和管理沿用 §9 定样；本批交合同、Runtime、安装、目录与设置、导入、界面和内容包，消费方归第 09 批，边界见 §11。整个需求的目标完成程度仍为**内部完整**：个人助理与 Coding 按同一份目录发现、选择、按精确版本使用，技能不授予权限；第 08 批工程验证不能替代第 09 批真实消费与本人验收。
+状态：第 08 批基础能力已通过独立增量合审（评审台在 `44515f2ee` 审过；最终头 `2703ca8b1` 由独立 reviewer 增量复核）与最终验证头的 CI Full，并于 2026-11-08（PST）随 [#1984](https://github.com/molis-ai/molis-work/pull/1984) 合入 main `416ee8cef`；负责人 Codex（本机接续）。安装预览、启用和管理沿用 §9 定样；本批交合同、Runtime、安装、目录与设置、导入、界面和内容包，消费方归第 09 批，边界见 §11。第 09 批消费方已随 #2015 合入、收尾 #2019 补做（2026-11-11）：助理与 Coding 读同一份目录、按精确版本冻结，SKP-02～07 与 SKP-10 的消费方一侧接入；SKP-10 的 Coding「自动」档 2026-11-11 审计整改补做（BL-coding-skill-auto 已补做并删除），SKP-09 的脚本执行一侧仍记 [BL-skill-scripts-sandbox](../backlog/BL-skill-scripts-sandbox.md)；SKP-12 的真实项目/卸载/业务事实与本人验收用户 2026-11-10 以「视作我通过了」免走验收（**未实际走查**，2026-11-11 追认范围）。整个需求的目标完成程度仍为**内部完整**：个人助理与 Coding 按同一份目录发现、选择、按精确版本使用，技能不授予权限；第 08 批工程验证不能替代第 09 批真实消费与本人验收。
 
 2026-10-19 改动记录：原稿的 `pack.json` 与宿主 `SkillPackRegistry` 是插件之外的第二条安装、信任和注册路径，违反 2026-10-18 用户定的「插件不分官方、个人、创作台生成还是第三方，待遇一样；缺什么补进平台，不给某个插件在宿主里开私路」（`AGENTS.md` 硬约束，`specs/archive/repository-anti-corruption/spec.md` §1 的 2026-10-18 各行），也与 [plugin-platform-v2](../plugin-platform-v2/spec.md) S1「内容包是一种只有内容的声明形态」不一致。现在技能包就是一个没有 runtime 的插件：技能写在 Manifest 的方法声明里（`AgentSkillDeclaration` 加字段），走同一条插件安装、信任、启用、卸载路径。验收编号 SKP-01～SKP-12 全部保留，其中 SKP-01、SKP-02、SKP-04、SKP-08 的措辞随新设计改了；没有整条删除的编号（原稿没有一条只对旧设计成立）。
 
@@ -241,7 +241,7 @@ argument_hint: "<周期，可选>"
 
 **不在本批的验收编号：**
 
-- **消费方，在第 09 批**：助理的 `methods()` 改读目录，`SignedAgentReference` 的方法引用改用 `SkillRef`（9-2）；助理交活时带 `SkillRef`（9-3）；Coding 读目录并删旧路（9-4，SKC-11）；agent-host 按 `SkillRef` 冻结、`tools` 的两道检查（9-5，SKC-13）；真实验证（9-6，SKP-12 与 ADH-23）。SKP-02～07、SKP-10 的消费方一侧（`/` 点名、AI 自动选用，9-2／9-4）、SKC-07 的消费方部分，以及 SKC-06 委派之后仍成立的部分，都随 09 验。
+- **消费方，在第 09 批**：助理的 `methods()` 改读目录，`SignedAgentReference` 的方法引用改用 `SkillRef`（9-2）；助理交活时带 `SkillRef`（9-3）；Coding 读目录并删旧路（9-4，SKC-11）；agent-host 按 `SkillRef` 冻结、`tools` 的两道检查（9-5，SKC-13）；真实验证（9-6，SKP-12 与 ADH-23）。SKP-02～07、SKP-10 的消费方一侧（`/` 点名、AI 自动选用，9-2／9-4）、SKC-07 的消费方部分，以及 SKC-06 委派之后仍成立的部分，都随 09 验。**2026-11-11 补记：** 第 09 批已合入（#2015 + 收尾 #2019），上述消费方接入完成；SKP-10 的 Coding「自动」档在 2026-11-11 审计整改补做（记 BL-coding-skill-auto），SKP-09 的脚本执行仍记 BL-skill-scripts-sandbox；SKP-12 的真实项目/卸载/业务事实按用户 2026-11-10「视作我通过了」（**未实际走查**）、2026-11-11 追认视作通过。
 - **SKP-09（`scripts/` 只在权限岛和沙箱里跑）**：本批只管声明一侧：`role: "script"`、`runs_scripts` 标注、只能按声明路径读，宿主不执行脚本。执行发生在会跑脚本的 Agent 里（Coding），随 09 的 9-4、9-5 验；09 第七节已加一行。第 09 批把执行一侧（9-5b）移出，记 [BL-skill-scripts-sandbox](../backlog/BL-skill-scripts-sandbox.md)。
 - **SKP-11（从对话生成技能包）**：在[第 42 批](../post-anticorruption-roadmap/reference/batches/42.md)。
 

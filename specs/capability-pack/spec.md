@@ -1,6 +1,6 @@
 # 能力包：AI 能力的统一声明与目录
 
-状态：已实现（[第 09 批](../post-anticorruption-roadmap/reference/batches/09.md)，PR #2015；能力包页用户 2026-11-10 验收通过）。2026-11-08 用户提出并定范围，在第 08 批技能包之上扩展。2026-11-09 用户更正模型：能力包是**装东西的对象**——页面先是能力包列表，一个包下面列它的技能、MCP、工具，以及搭配的角色，角色带着自己的提示词（§4.0）；定样选 A（列表＋包详情）。合同设计稿由第 09 批合同台出（9-8，[合同设计稿](contract-design.md)，第 4 稿已冻结，实现偏离记在其 §10）。名称已定（2026-11-08）：界面叫「能力包」，英文 AI kits，代码与动作 id 用 `kit`（§9）。决策见 §12。
+状态：已实现（[第 09 批](../post-anticorruption-roadmap/reference/batches/09.md)，PR #2015；能力包页用户 2026-11-10 验收通过）。2026-11-11 收尾（PR #2019：合并三份技能引用比对键、删旧地址 302、清旧方法路尾项）后按审计整改补了 CPK-10 的三方案比较正文、CPK-08 的收口与 BL 去处、CPK-02 的偏离记录（见合同设计稿 §10）。CPK-02 按用户 2026-11-11 裁定「版本不升，做代码修复」用现有持久数据补上：包上次升级来自 `plugin-packages/` 留存的签名包，连接带的 MCP 发现差异来自 `config/connector-mcp-tools.json` 的 `change`（都不改库结构、不升版本）；项目 MCP 服务器的发现差异随第 61 批 MCP M0。余项：CPK-11 的 `[人工]` 验收在仓库里只有 2026-11-10 本人确认的转述，没有一手记录。2026-11-08 用户提出并定范围，在第 08 批技能包之上扩展。2026-11-09 用户更正模型：能力包是**装东西的对象**——页面先是能力包列表，一个包下面列它的技能、MCP、工具，以及搭配的角色，角色带着自己的提示词（§4.0）；定样选 A（列表＋包详情）。合同设计稿由第 09 批合同台出（9-8，[合同设计稿](contract-design.md)，第 4 稿已冻结，实现偏离记在其 §10）。名称已定（2026-11-08）：界面叫「能力包」，英文 AI kits，代码与动作 id 用 `kit`（§9）。决策见 §12。
 
 ## 1. 问题
 
@@ -58,7 +58,7 @@
 - 每个主人登记一个**上报动作**，输入输出用能力包合同里的同一对类型（`input_type`／`output_type` 标记），返回自己的条目。
 - `kit.catalog.list@1` 用**调用方自己的动作客户端**，在动作目录里按这对类型找到上报者，逐个调用后合并。
 - 好处：主人只读自己的事实，各上报动作的 audience 照主人的规则写，能力包不会把只给本人或只给插件的数据转给 Agent；插件和宿主同等待遇，第三方插件以后也能上报自己的条目，宿主不按名字开分支；能力包本身不读连接器、MCP 库、Characters 和第 36 批的内部实现，不加重宿主耦合。
-- 9-8 合同稿比较了「宿主扩展 Agent 定义登记」「`horizontal/` 新包」「主人上报」三种，定为主人上报、汇总放 `horizontal/kit` 新包；汇总处还按登记盖来源与所属的包，并把条目拼成包（合同设计稿第 4.6 节）。
+- 9-8 合同稿比较了「宿主扩展 Agent 定义登记」「`horizontal/` 新包直接读主人内部」「主人上报」三种，比较正文在[合同设计稿](contract-design.md) §4.1 末（各自代价与否掉的理由也在那里），定为主人上报、汇总放 `horizontal/kit` 新包；汇总处还按登记盖来源与所属的包，并把条目拼成包（合同设计稿第 4.6 节）。
 
 ### 4.2 各类的主人与条目
 
@@ -131,26 +131,26 @@
 
 ## 8. 仓库收口
 
-第 09 批碰到的模块里，下面这些在本批删或改；删不了、不归本批的记 BL 或候选，写清主人和去处。删前按[系统性整理](../../docs/prompts/repository-systematic-review.md)第 11 节核对。
+第 09 批碰到的模块里，下面这些在本批删或改；删不了、不归本批的记 BL 或候选，写清主人和去处。删前按[系统性整理](../../docs/prompts/repository-systematic-review.md)第 11 节核对。**2026-11-11 按代码核对回填完成状态**（已删／已改的行写 PR 号；BL 与候选写具体批次去处）。
 
 | 收什么 | 本批怎么办 |
 | --- | --- |
-| Coding 旧方法路：`agent.skills.discover.v1`／`install.v1`、`molis-coding-method`、`routes-setup.ts` 的三个路由、`browser/settings/methods.ts` | 删（9-4、9-5；`molis-coding-method` 不认也不迁，用户 2026-11-06 定） |
-| 助理按「有可用动作」过滤方法 | 改成读目录（9-2） |
-| `SignedAgentReference` 的方法引用 | 换 `SkillRef`（9-1、9-2） |
-| 六种技能引用写法 | `AgentSkillRef`、`AssistantMethodSelection.method_id`、`SignedAgentReference` 的 method 在本批收成 `SkillRef`；`BuilderSkill`（创作台，随 BL-377 重做）、`CharacterImportSkill`（BL-957）记候选，写进两条 BL 的正文 |
-| `recordSignedUse` 用字符串切片重拼提示词键（重复了 `sandboxAgentBodyIdentity`） | 改成调同一个函数 |
-| 签名角色在 `roles()`、`methods()` 各出现一次 | 只留 `roles()` |
-| Agent Host 内部散着的工具名单（`GATEWAY_TOOLS`、`childRoleTools`、`STEP_TOOLS`、创作台 `TOOLS`）与 `assistant-present.ts` 的名字表 | 收成 Agent Host 的一处（§4.2）；`change-reversible` 不进技能工具的理由写进合同注释 |
-| `MANAGEMENT_GOAL_TOOL_NAMES` 与 `goal-tools.ts` 各写一遍；`docs/mcp.md` 漏了这三个 | 派生一处，补文档 |
-| Coding 设置页自己声明的 `McpServer` | 改用 `AgentMcpServerView` |
-| 设置里的重复视图：「提示词」「角色」「技能」、Coding 的方法页与 MCP 页、助理 `/` 菜单各列一份 | 收成能力包的聚合目录，哪些页并进来、哪些只留链接，按 9-11 的定样；第 08 批的「技能」一节怎么处理要尽早定 |
-| `UNREGISTERED_MODEL_CALLS`（已是空表，`/diagnostics` 还在传）、`AgentRoleSkillsDeclaration`（公开合同，SDK 还在校验）、`AgentSkillsCapability`（没有实现者）、`builtin-registrations.ts` 的转发 | 核过消费者再删；删公开合同的跑 `pnpm api:update`，按 `docs/system/CONTRACT-CHANGES.md` 写影响 |
+| Coding 旧方法路：`agent.skills.discover.v1`／`install.v1`、`molis-coding-method`、`routes-setup.ts` 的三个路由、`browser/settings/methods.ts` | **已删**（#2015，9-4、9-5）：代码与页面已搜不到旧标识；`routes-setup.ts` 仍在，装的是材料、动作、MCP、计划与 @ 文件这些路由，三个方法路由已删。`molis-coding-method` 不认也不迁，用户 2026-11-06 定 |
+| 助理按「有可用动作」过滤方法 | **已改**（#2015，9-2）：助理读共同目录，只有内容的包也能被列（`tests/assistant-methods.test.ts` 写明 expected change, not a looser check） |
+| `SignedAgentReference` 的方法引用 | **已改**（#2015，9-1、9-2）：`SignedAgentReference` 只剩 `kind: "role"`（`packages/contracts/src/services/agent-definitions.ts`） |
+| 六种技能引用写法 | **已完成收口**（#2015）：`AgentSkillRef`、`AssistantMethodSelection.method_id`、`SignedAgentReference` 的 method 收成 `SkillRef`；`BuilderSkill`（创作台，随 BL-377 重做）、`CharacterImportSkill`（BL-957）记候选，已写进两条 BL 的正文 |
+| `recordSignedUse` 用字符串切片重拼提示词键（重复了 `sandboxAgentBodyIdentity`） | **已改**：改用 SDK 的 `sandboxPromptId`，与 `sandboxAgentBodyIdentity` 同一处 |
+| 签名角色在 `roles()`、`methods()` 各出现一次 | **已改**：只留 `roles()`；`methods()` 只出技能 |
+| Agent Host 内部散着的工具名单（`GATEWAY_TOOLS`、`childRoleTools`、`STEP_TOOLS`、创作台 `TOOLS`）与 `assistant-present.ts` 的名字表 | **已改**（#2015，9-9）：全集收成 `horizontal/agent-host/src/tool-catalog.ts` 的 `AGENT_TOOLS` 一处，能力包的工具条目也从它派生；`assistant-present.ts` 的活动动词表只做呈现、键是全集里的名字。`change-reversible` 不进技能工具的理由写在 `packages/contracts/src/platform/plugin-agent.ts` 的注释 |
+| `MANAGEMENT_GOAL_TOOL_NAMES` 与 `goal-tools.ts` 各写一遍；`docs/mcp.md` 漏了这三个 | **已改**：只在 `apps/mcp/src/tool-dispatch.ts` 写一处，`tool-catalog.ts` 从它派生；`docs/mcp.md` 补了管理工具一节 |
+| Coding 设置页自己声明的 `McpServer` | **已改**：改用合同的 `AgentMcpServerView`（`plugins/native/coding/src/browser/settings/mcp.ts`） |
+| 设置里的重复视图：「提示词」「角色」「技能」、Coding 的方法页与 MCP 页、助理 `/` 菜单各列一份 | **已改**（#2015，9-11 按定样）：导航「技能」换成「能力包」、去掉全局「提示词」，技能页并进能力包，Coding 方法页删；角色、能力库、服务连接、对外接入、调用记录、AI 与执行工具、Coding MCP 页保留，从详情链过去 |
+| `UNREGISTERED_MODEL_CALLS`（已是空表，`/diagnostics` 还在传）、`AgentRoleSkillsDeclaration`（公开合同，SDK 还在校验）、`AgentSkillsCapability`（没有实现者）、`builtin-registrations.ts` 的转发 | **已删**（#2015；#2019 收尾核过）：公开合同随删、快照已刷，`/diagnostics` 不再传未登记模型调用；`builtin-registrations.ts` 只剩 `homeAgentDefinitions` 一个入口，`builtinRegistrations` 的转发已删 |
 | 两条「MCP 工具登记成动作」的流水线（`external-mcp-actions.ts`、`connector-mcp-actions.ts`）各写一遍 | **不在本批**：它们是 MCP 调用链，四份 JSON（`config/*-mcp-actions.json`、`*-mcp-tools.json`）存着动作版本，流程与对外授权按这些版本固定引用，合并要改带版本文件的结构。记 [BL-mcp-action-pipelines-merge](../backlog/BL-mcp-action-pipelines-merge.md)，主人连接器线，去处第 61 批第 1 项 |
 | 提示词版本写法三种（`@version` 标记、创作台 `"designer/1"`、章节摘要） | **不在本批**：创作台是用户批过的构建期例外，随 BL-377 重做；章节摘要连着 `pnpm studio:replay`。记候选，主人创作台（写进 [BL-377](../backlog/BL-377.md)） |
-| Goals 的规划方法库（`plugins/native/goals/methods/`，37 个，自有启用与个人副本） | **不在本批**：它是 Goals 的业务数据，要不要变成技能是产品决定。记 [BL-goals-methods-as-skills](../backlog/BL-goals-methods-as-skills.md)，主人 Goals |
+| Goals 的规划方法库（`plugins/native/goals/methods/`，37 个，自有启用与个人副本） | **不在本批**：它是 Goals 的业务数据，要不要变成技能是产品决定。记 [BL-goals-methods-as-skills](../backlog/BL-goals-methods-as-skills.md)，主人 Goals；去处**第 41 批（Skill 选用）**开工时一并交用户定，定了做随第 61 批第 1 项走第 08 批的共同目录 |
 | 安装器 `runtime-config-adapters.ts` 手写的命令名与路径、Shelf 的 `SHELF_ENGINES` | **不在本批**：外部工具登记表的余项，归第 22 批（BL-955） |
-| 运行时登记的 MCP 动作不在动作快照里 | **不在本批**：记 [BL-runtime-mcp-actions-snapshot](../backlog/BL-runtime-mcp-actions-snapshot.md)，主人 C1（动作合同快照），本批不改门禁 |
+| 运行时登记的 MCP 动作不在动作快照里 | **不在本批**：记 [BL-runtime-mcp-actions-snapshot](../backlog/BL-runtime-mcp-actions-snapshot.md)，主人 C1（动作合同快照）；去处**第 61 批第 1 项**，与流水线合并一起做（合并后快照只量一条流水线），本批不改门禁 |
 
 旧数据：一次清掉（用户 2026-11-09 定，现在没有用户）。Coding 的技能统一由能力包／共同目录管理：旧的发现、安装、存储（`molis-coding-method`）与旧形状全删；Coding 会话里存的 `methods:<会话>` 与助理历史材料里的旧方法形状，不管存量、不做读取兜底、不做迁移，也不做「请重新选择」提示。
 
@@ -194,15 +194,15 @@
 | 编号 | 用户可观察结果 |
 | --- | --- |
 | CPK-01 | 能力包先列出全部包（插件包、Molis Work 自带、你的角色）；打开一个包看到它的角色（各带提示词）、技能、MCP、工具；能按类别筛、能搜包和包里的东西；第 08 批的技能条目原样出现（字段与 `skills.catalog.list@1` 一致），状态、不可用原因与启用操作照第 08 批 |
-| CPK-02 | 每条能看出属于哪个包／插件／连接／服务器、哪个版本，并按 §4.2 显示这一类的升级差异；同一能力在能力包、助理、Coding 三处显示同一版本与来源 |
+| CPK-02 | 每条能看出属于哪个包／插件／连接／服务器、哪个版本，并按 §4.2 显示这一类的升级差异；同一能力在能力包、助理、Coding 三处显示同一版本与来源。包上次升级与连接带的 MCP 发现差异已实现（合同设计稿 §10；`tests/kit-catalog.test.ts`、`tests/connector-mcp.test.ts`）；项目 MCP 服务器的发现差异随第 61 批 MCP M0；证据见合同设计稿 §7 |
 | CPK-03 | 技能沿用三档；提示词、角色、工具、MCP 在能力包里只能看，改状态只给主人页面的去处；MCP 的三种「开」分开显示；代码里没有能力包自己的启用状态 |
 | CPK-04 | 每条显示能读到的用量并写清范围（「近期 N 次」「只有最近一次」「无记录」），工具只显示最近一次、不写内部说法；不把只保留近期的记录写成总数；能力包没有自己的用量表 |
 | CPK-05 | 助理与 Coding 从同一份目录拿到同一个 `SkillRef` 与正文（即 SKP-02、SKP-04、SKC-07）；助理交给 Coding 的技能进 Coding 的「本轮方法」和冻结记录 |
 | CPK-06 | 本机做的技能包导出后装回另一个 Home 还能用、版本对得上；第三方技能包不被换成本机签名；提示词改写导回时逐条确认、版本对不上的不套用；角色、工具、MCP 只带引用，导出文件里没有凭据与端点 |
 | CPK-07 | Agent 工具只有 Agent Host 一处全集，别处名单由它派生；角色 `host_tools` 里出现全集没有的名字时装配被拒；Agent Host 的全集与 SDK 的系统工具名单不一致时测试失败 |
-| CPK-08 | 收口表（§8）里本批要删的，代码里搜不到；记成 BL 或候选的，每条有主人与去处 |
+| CPK-08 | 收口表（§8）里本批要删的，代码里搜不到；记成 BL 或候选的，每条有主人与去处。证据：`tests/capability-pack-closeout.test.ts`（源码搜旧标识、BL 去处） |
 | CPK-09 | 拒绝：模型或页面伪造一个 `manual` 技能的引用读正文被拒（含委派到 Coding 之后）；列目录不触发 MCP 连接、工具调用或凭据刷新；Agent 与插件调 `kit.catalog.list@1` 被拒；条目里没有提示词正文、改写原文、凭据、密钥与原始路径；装包不改任何提示词；Agent 调导出导入被拒 |
-| CPK-10 | `docs/SSOT-MATRIX.md` 与 `docs/system/PACKAGE-BOUNDARIES.md` 写明能力包各类条目归谁、汇总放在哪、为什么（含 9-8 三种方案的比较）；作者手册有「怎么做能力包」一章；GLOSSARY 有词条 |
+| CPK-10 | `docs/SSOT-MATRIX.md` 与 `docs/system/PACKAGE-BOUNDARIES.md` 写明能力包各类条目归谁、汇总放在哪、为什么（含 9-8 三种方案的比较）；作者手册有「怎么做能力包」一章；GLOSSARY 有词条。三方案比较正文在[合同设计稿](contract-design.md) §4.1 末，由 `tests/capability-pack-closeout.test.ts` 钉住 |
 | CPK-11 | `[人工]` 用户在一个地方找到某个技能、提示词、角色、工具或 MCP，看懂它从哪来、干什么、在哪生效、用了多少，并能去改它 |
 | CPK-12 | 一个第三方插件按上报合同上报自己的条目，不改宿主代码就出现在它自己的包里；汇总时它只用调用方的权限，来源与所属的包由汇总处盖成它自己 |
 | CPK-13 | 角色点名的提示词挂在那个角色下；写了所属角色的直接调模型提示词挂在那个角色下；都没有的挂在包里的「个人助理」下，个人助理只有一个条目；写了不属于同一插件的角色时登记被拒 |

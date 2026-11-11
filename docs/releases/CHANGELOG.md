@@ -25,6 +25,8 @@
 
 ### 升级须知（需要动手）
 
+- **第 09 批：助理和 Coding 改用同一份技能目录，第三方工作执行方要接住 `run.start` 的 `skills`**（#2015 + 收尾 #2019，2026-11-11；阶段一不留兼容）：`run.start` 在同一版本上多一个 `skills`（`SkillRef` 数组，至多 20 项），把这一轮要用的技能交给执行方；第三方工作执行方要按引用读正文并按精确引用冻结，读不到就整轮拒绝、不悄悄换版本。读共同目录用插件自己的身份、要 `skills:read`：第三方执行方要在 Manifest 里声明并获授予，才能用目录给它的技能（本人在助理里点名、由宿主按调用绑定到冻结名单的那几项例外）；缺这项权限时目录读取被拒、这一轮不开。Manifest 角色的 `skills` 字段与 `AgentRoleSkillsDeclaration` 已删，写了旧字段的声明检查直接拒绝；角色不再自带技能表，技能写进 Manifest 的 `methods`（给别的 Agent 用）或 `agent.skills`（自己的 Agent 用）。SDK 新增 `/skill-ref` 子路径（`skillRefKey`，页面也能引）；`ActionCallContext` 多 `named_skills`、`skill_round`，冻结记录里的 `skills` 改成带 `ref`、`origin`、`name`、`tools`、`named` 并多 `reply_locale`。旧写法、旧版本引用都要改成现行形状，没有读取兼容。
+
 - **技能包方法声明与 SDK 出口（第 08 批）**：含 Manifest `methods` 的插件作者须为每项方法补齐 `description` 与 `applies_to`，再重新打包签名。旧三键方法声明的签名包会被明确拒绝，不做自动迁移。使用 SDK 的作者将 `ContentPackageSkill` 改为 `PackagedSkillBody`；原 `sandboxAgentBodyIdentity` 的角色用途改为 `sandboxRoleIdentity`，方法身份使用声明中的 `skill_id` 与 `version`，正文使用声明中的 `body` 路径。固定调用 `plugins.install.preview@1` 的调用方须接受新增的技能、需求及升级差异字段；输入现在支持 `bundle` 或 `bundled` 二选一。安装或导入技能后仍为关闭，需本人另行启用。
 
 - **MCP 独立客户端凭据（D0071，2026-11-08）**：更新后在设置中对已有 Runtime 重新执行接入，并重启其 MCP 连接。主控制令牌不再允许动作网关声明任意客户端身份；旧请求体 `client_id` 被拒绝。连接凭据只存安装 Home，不写入 Runtime 配置、不随快照恢复；恢复后重新接入。动作名称、版本、输入输出 schema 与 MCP 工具名不变。实验 Server 的本地 `authorize` 命令须提供 `--host-home DIR`，由管理员为该成员建立独立连接。

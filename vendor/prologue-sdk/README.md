@@ -1,5 +1,11 @@
 # Prologue SDK 构建来源
 
+当前唯一采用包为 `prologue-sdk-0.0.0-rc.1-memory-p0.tgz`，版本 `0.0.0-rc.1`，**1,427,973 字节**，SHA-256 `bb4faf36eb919e3c8d4be0d81bbe7f3e0a0ff16fe4075100434ab7a727f86af7`。来源为上游 main 的 [#112](https://github.com/molis-ai/molis-prologue/pull/112) 合并提交 `83bee7fc3baafd960024b2b759abda616d8a9de3`（tree `cc2d689534e3deb3b1d8caf7eae5e39f5f34319f`，父提交 `1128126d` 即上一份来源，与 #112 头 `b4197b50`）。#112 让 `MemoryAuthority` 可选 `authorizeEach`：一次调用对一页读取逐条答复，每条照旧过本地策略、Session 证明、生命周期与同步复核；没有这个方法时 Host 调用次序不变（BL-1072）。评审台审过最终头；远端 CI 因 GitHub 账单限制没有启动（重跑也没启动），用户自己合并，并在得知 CI 未跑后于 2026-11-12 批准换包。本地 `pnpm quality` 跑到 `cargo` 之前全过；本机没有 Rust 工具链，`crates/` 未改。
+
+Node 24.15.0（engines 写 24.14.0，本机没有，如实记录）/ pnpm 11.9.0，两个独立干净目录经 build 槽离线 frozen 安装、整体 build/pack，完整 tgz 逐字节相同，打包后源码树干净。824 个普通文件；相对上一份 `1128126d` 只变五个构建文件（`memory/core/access.{js,d.ts}`、`memory/core/memory-read.js`、`memory/core/recall-candidates.{js,d.ts}`），manifest 逐字不变。`1128126d` 包只在 #2020 分支上采用过，没有进 main，记在相邻 provenance 的 `previousArtifact`。这只是来源记录，不是性能、完整 App 或用户验收结果。
+
+## 上一份隔离采用：1128126d（保留原记录）
+
 当前唯一采用包为 `prologue-sdk-0.0.0-rc.1-memory-p0.tgz`，版本 `0.0.0-rc.1`，**1,425,250 字节**，SHA-256 `d37926c18b83701040ca7e61f3c34e6e4744a670ae7f22a0c19e771f2009588f`。来源为上游 main 的 [#111](https://github.com/molis-ai/molis-prologue/pull/111) 合并提交 `1128126de14e9209152f7dc36d152991fb933aea`（tree `4b46fffd9a42406be616e194b39ac250b964430b`，父提交 `8692cc61` 即 [#110](https://github.com/molis-ai/molis-prologue/pull/110) 的合并，与 `65bed33a`），包含上一份的 `314a27a7`（#109）与 Molis main 此前所用的 `1cc80b05`。包里的变化全部来自 #110：索引库在文件里写明格式版本 `user_version=1`，其它值一律拒绝；存下的 Run 和导出的 Session 不带实测召回耗时 `elapsedMs`，金样 Home 因此可以逐字节重放。#111 只改 SDK 测试，让测试不再写进本人的 `~/.prologue`，不进包。两个 PR 都经评审台审过最终头；远端 CI 因 GitHub 账单限制没有启动，用户 2026-11-11 定按本地门禁合并。本机没有 Rust 工具链，`crates/` 未改。
 
 Node 24.15.0（engines 写 24.14.0，本机没有，如实记录）/ pnpm 11.9.0，两个独立干净目录经 build 槽离线 frozen 安装、整体 build/pack，完整 tgz 逐字节相同，打包后源码树干净。824 个普通文件；相对上一份 `314a27a7` 只变五个构建文件（`node-indexed-records.js`、`event-validation.js`、`model/core/types.d.ts`、`session/core/export.{js,d.ts}`），manifest 逐字不变。`314a27a7` 包只在 #2020 分支上采用过，没有进 main，记在相邻 provenance 的 `previousArtifact`；替换掉的 Molis main 旧包（来源 `1cc80b05`）记在 `patch-history.json`。这只是来源记录，不是性能、完整 App 或用户验收结果。

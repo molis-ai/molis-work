@@ -585,7 +585,8 @@ test('studio in English: its controls, labels, phases and boards are English', {
     assert.deepEqual(await page.evaluate<string[]>(`[...document.querySelectorAll('[data-as-catalog-panel] .as-part')].map(b=>b.textContent+'|'+b.getAttribute('aria-label')).filter(x=>/\\p{Script=Han}/u.test(x))`), [], 'every catalog component, used or not');
     assert.deepEqual(await page.evaluate<string[]>(`(()=>{const out=[];for(const b of document.querySelectorAll('[data-as-catalog-panel] .as-part')){b.dispatchEvent(new PointerEvent('pointerover',{bubbles:true}));const tip=document.querySelector('[data-as-tip]');if(/\\p{Script=Han}/u.test(tip.innerText))out.push(tip.innerText);}return out;})()`), [], 'and its tip');
 
-    await page.wait(`document.querySelector('[data-as-phase]').textContent === 'Ready to try'`);
+    // The real browser and package gates can still be running after the frame's default wait.
+    await page.wait(`document.querySelector('[data-as-phase]').textContent === 'Ready to try'`, { timeoutMs: 75_000 });
     assert.match(await page.evaluate<string>(`document.querySelector('[data-as-visual-result]')?.textContent || ''`), /Layout check passed on wide and narrow screens.*Features verified; visuals not reviewed/u);
     revisionMode = 'acceptance';
     await page.fill('[data-as-input]', '用验收检查验证保留的内容'); await page.click('.as-send');

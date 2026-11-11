@@ -579,6 +579,7 @@ ${ASSISTANT_PAGE_MESSAGES_PART}
       else if (id === "retry" && last) { setWords(last.text); input.focus(); }
     } });
   const retitleReviews = () => {
+    proc.retitle(thread);
     for (const card of thread.querySelectorAll('[data-review]')) retitleReviewText(card);
     stepRow?.retitle();
     receipts.retitle();

@@ -93,13 +93,23 @@ export async function readOwnPageDocument(root: HTMLElement, route: (path: strin
     return html;
 }
 
+/** A parameterized page remains bound to the same owner before and after the read. */
+export async function readInputPageDocument(root: HTMLElement, route: (path: string) => string, pluginId: string, pageId: string,
+  input: Readonly<Record<string, string>>, scope?: FrameScope, signal?: AbortSignal): Promise<string> {
+  if (!root.dataset.pluginProducer || !root.dataset.pluginClient || !input || typeof input !== "object" || Array.isArray(input)
+    || Object.keys(input).length > 20 || Object.entries(input).some(([key, value]) => !/^[a-z][a-z0-9_]*$/.test(key) || key.length > 80 || typeof value !== "string" || value.length > 2000)) throw new Error("View unavailable");
+  await readOwnPageDocument(root, route, pluginId, pageId, scope, signal);
+  const html = await molisWorkRequest<string>(route("/api/stage/" + encodeURIComponent(root.dataset.pluginClient)) + "?" + new URLSearchParams(input), { as: "text", scope, signal });
+  await readOwnPageDocument(root, route, pluginId, pageId, scope, signal);
+  return html;
+}
+
 export async function readPageDocument(port: MessagePort, id: number, root: HTMLElement, route: (path: string) => string,
   pack: FramePack, pageId: string, scope: FrameScope, object?: { id: string; surface: string }, signal?: AbortSignal, input?: Readonly<Record<string, string>>): Promise<void> {
   try {
     let html: string;
     if (input !== undefined && (!input || typeof input !== "object" || Array.isArray(input) || Object.keys(input).length > 20
       || Object.entries(input).some(([key, value]) => !/^[a-z][a-z0-9_]*$/.test(key) || key.length > 80 || typeof value !== "string" || value.length > 2000))) throw new Error("View unavailable");
-    const params = new URLSearchParams(input);
 
     if (object !== undefined) {
       if (!root.dataset.pluginProducer || !root.dataset.pluginClient || !object || typeof object !== "object" || Array.isArray(object)
@@ -110,10 +120,7 @@ export async function readPageDocument(port: MessagePort, id: number, root: HTML
       // Re-read the exact producer after the fragment: a new half or installation cannot supply this old page's result.
       await readOwnPageDocument(root, route, pack.plugin_id, pageId, scope, signal);
     } else if (input !== undefined) {
-      if (!root.dataset.pluginProducer || !root.dataset.pluginClient) throw new Error("View unavailable");
-      await readOwnPageDocument(root, route, pack.plugin_id, pageId, scope, signal);
-      html = await molisWorkRequest<string>(route("/api/stage/" + encodeURIComponent(root.dataset.pluginClient)) + "?" + params.toString(), { as: "text", scope, signal });
-      await readOwnPageDocument(root, route, pack.plugin_id, pageId, scope, signal);
+      html = await readInputPageDocument(root, route, pack.plugin_id, pageId, input, scope, signal);
     } else {
       html = await readOwnPageDocument(root, route, pack.plugin_id, pageId, scope, signal);
     }

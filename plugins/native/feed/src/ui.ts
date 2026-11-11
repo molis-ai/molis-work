@@ -219,7 +219,9 @@ export function renderFeedDirectory(_model: FeedUiModel): string {
 
 export function renderFeedWorkbench(model: FeedUiModel): string {
   const p = model.primitives;
-  return `<section class="desktop-work-surface feed-workbench plugin-stage-shell" data-work-surface="feed" data-work-surface-label="Feed" data-feed-workbench data-feed-directory data-feed-preset="feed" data-feed-stage-shell data-feed-stage-directory="true" data-expanded="false" data-loaded="true" data-loaded-preset="feed"${model.active ? "" : " hidden"}>
+  const assetInput = (offset: number) => p.escape(JSON.stringify({ offset: String(offset), filter: JSON.stringify({ status: "all" }) }));
+  const assets = model.page ? ` data-frame-assets-input="${assetInput(0)}"${model.page.next_offset == null ? "" : ` data-frame-assets-next-input="${assetInput(model.page.next_offset)}"`}` : "";
+  return `<section${assets} class="desktop-work-surface feed-workbench plugin-stage-shell" data-work-surface="feed" data-work-surface-label="Feed" data-feed-workbench data-feed-directory data-feed-preset="feed" data-feed-stage-shell data-feed-stage-directory="true" data-expanded="false" data-loaded="true" data-loaded-preset="feed"${model.active ? "" : " hidden"}>
     ${model.error ? `<div class="feed-error-state" role="alert"><strong>${p.text("Feed 暂时无法载入")}</strong><p>${p.escape(model.error)}</p><button class="mw-btn mw-btn--secondary" type="button" data-retry-feed-detail>${p.text("重试")}</button></div>` : ""}
     ${renderFeedStageDirectory(model)}
     ${renderFeedSetupPanel(model)}

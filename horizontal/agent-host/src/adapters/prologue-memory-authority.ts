@@ -27,6 +27,8 @@ export interface PrologueMemoryOptions {
   };
   assertCurrent?(caller: AgentMemoryCaller, requests: Parameters<MemoryAuthority["authorize"]>[0]): boolean;
   authorize(caller: AgentMemoryCaller, requests: Parameters<MemoryAuthority["authorize"]>[0]): Promise<boolean>;
+  /** Read batches only: the same decision as `authorize([request])` for each request, in one call. */
+  authorizeEach?(caller: AgentMemoryCaller, requests: Parameters<MemoryAuthority["authorize"]>[0]): Promise<readonly boolean[]>;
   authorizeRecall(caller: AgentMemoryCaller, request: Parameters<NonNullable<MemoryAuthority["authorizeRecall"]>>[0]): ReturnType<NonNullable<MemoryAuthority["authorizeRecall"]>>;
   authorizeManagement(caller: AgentMemoryCaller, request: Parameters<NonNullable<MemoryAuthority["authorizeManagement"]>>[0]): ReturnType<NonNullable<MemoryAuthority["authorizeManagement"]>>;
   authorizePurgeInspection?(caller: AgentMemoryCaller, request: Parameters<NonNullable<MemoryAuthority["authorizePurgeInspection"]>>[0],
@@ -215,6 +217,15 @@ export function createPrologueMemoryAuthority(options: PrologueMemoryOptions | u
         }
         return options.authorize(caller, requests);
       },
+      ...(options?.authorizeEach ? { async authorizeEach(requests: Parameters<MemoryAuthority["authorize"]>[0]) {
+        const refuseAll = () => requests.map(() => false);
+        if (requests.length === 0) return [];
+        // Only reads are answered per request; anything with an effect keeps the whole-batch path and its effect checks.
+        if (requests.some(request => request.action !== "read" && request.action !== "manage-read")) return refuseAll();
+        const caller = await callerFor(requests[0]!.context);
+        if (!caller || requests.some(request => !isDeepStrictEqual(request.context, requests[0]!.context))) return refuseAll();
+        return options.authorizeEach!(caller, requests);
+      } } : {}),
       assertCurrent(requests) {
         sourceEffects.assertCurrent();
         if (requests.length === 0) return;

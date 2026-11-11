@@ -83,6 +83,28 @@ function inspection(caller: AgentMemoryCaller, request: Parameters<NonNullable<O
       selection: { session_ref: { ...request.selection.sessionRef, revision: 1 }, operation_id: request.selection.operationId } }) === true;
 }
 
+/** The person's live class switches, intersected with any restrictions frozen into this Session. */
+function classAllowed(caller: AgentMemoryCaller, prefs: MemoryPrefs, target: Target, mode: "explicit" | "task" | "resident" | "form") {
+  if (caller.session_id && !caller.class_restrictions && !(caller.person === true && caller.purpose === "management"
+    && caller.memory_session?.session.session_id === caller.session_id && caller.memory_session.current_scene === caller.current_scene)) return false;
+  const frozen = caller.class_restrictions?.[target.scope === "user" ? "personal" : "project"];
+  const context = { consumer: caller.consumer, current_scene: caller.current_scene! };
+  const allowed = (rows: MemoryPrefs["class_restrictions"] | NonNullable<typeof frozen>) => mode === "form"
+    ? memoryClassFormationAllowed(rows, context, target) : memoryClassReadAllowed(rows, context, target, mode);
+  return allowed(prefs.class_restrictions) && (!frozen || allowed(frozen));
+}
+
+const namespaceAllowed = (caller: AgentMemoryCaller, namespace?: string | null) => !namespace || caller.person === true || namespace === caller.plugin_id;
+
+function preferences(caller: AgentMemoryCaller, target: Target, owner: MemoryRuntimePolicyOwner, readMode: "explicit" | "task") {
+  const prefs = owner.prefsFor(target.scope === "user" ? "personal" : "project", target.scope === "user" ? null : caller.project_id);
+  const consumer = MEMORY_CONSUMERS.find(value => value === caller.consumer)!;
+  const access = consumerAccess(prefs, consumer, caller.plugin_id, readMode);
+  const plugin = caller.plugin_id ? consumerAccess(prefs, "plugin", caller.plugin_id, readMode) : null;
+  return { prefs, allowed: access.allowed && (!plugin || plugin.allowed)
+    && (!target.kind || (!access.kinds || access.kinds.some(kind => kind === target.kind)) && (!plugin?.kinds || plugin.kinds.some(kind => kind === target.kind))) };
+}
+
 /** SDK authority sees only trusted caller bindings and current owner facts, never model-supplied permissions. */
 export function memoryRuntimePolicy(ownerFor: () => MemoryRuntimePolicyOwner | undefined, extractor?: AgentMemoryExtractor): Options {
   const callerAllowed = (caller: AgentMemoryCaller) => caller.actor_id === LOCAL_PERSON_ACTOR_ID
@@ -103,32 +125,15 @@ export function memoryRuntimePolicy(ownerFor: () => MemoryRuntimePolicyOwner | u
     if (!state || caller.project_id && !state.deletion && await state.owner.projectExists(caller.project_id) !== true) return undefined;
     return state.owner.alive() ? state : undefined;
   };
-  const classAllowed = (caller: AgentMemoryCaller, prefs: MemoryPrefs, target: Target, mode: "explicit" | "task" | "resident" | "form") => {
-    if (caller.session_id && !caller.class_restrictions && !(caller.person === true && caller.purpose === "management"
-      && caller.memory_session?.session.session_id === caller.session_id && caller.memory_session.current_scene === caller.current_scene)) return false;
-    const frozen = caller.class_restrictions?.[target.scope === "user" ? "personal" : "project"];
-    const context = { consumer: caller.consumer, current_scene: caller.current_scene! };
-    const allowed = (rows: MemoryPrefs["class_restrictions"] | NonNullable<typeof frozen>) => mode === "form"
-      ? memoryClassFormationAllowed(rows, context, target) : memoryClassReadAllowed(rows, context, target, mode);
-    return allowed(prefs.class_restrictions) && (!frozen || allowed(frozen));
-  };
-  const namespaceAllowed = (caller: AgentMemoryCaller, namespace?: string | null) => !namespace || caller.person === true || namespace === caller.plugin_id;
-  const preferences = (caller: AgentMemoryCaller, target: Target, owner: MemoryRuntimePolicyOwner, readMode: "explicit" | "task") => {
-    const prefs = owner.prefsFor(target.scope === "user" ? "personal" : "project", target.scope === "user" ? null : caller.project_id);
-    const consumer = MEMORY_CONSUMERS.find(value => value === caller.consumer)!;
-    const access = consumerAccess(prefs, consumer, caller.plugin_id, readMode);
-    const plugin = caller.plugin_id ? consumerAccess(prefs, "plugin", caller.plugin_id, readMode) : null;
-    return { prefs, allowed: access.allowed && (!plugin || plugin.allowed)
-      && (!target.kind || (!access.kinds || access.kinds.some(kind => kind === target.kind)) && (!plugin?.kinds || plugin.kinds.some(kind => kind === target.kind))) };
-  };
   type State = { owner: MemoryRuntimePolicyOwner; deletion: boolean };
-  const decide = (caller: AgentMemoryCaller, requests: readonly Request[], state: State) => {
+  /** One forgetting read for the batch; `combine` says whether the batch is answered as a whole or request by request. */
+  const decide = <T>(caller: AgentMemoryCaller, state: State, combine: (one: (request: Request) => boolean) => T): T => {
     const facts = forgettingBatch(state.owner);
-    const allowed = requests.every(request => permitted(caller, request, state, facts.forgetting)
+    const answer = combine(request => permitted(caller, request, state, facts.forgetting)
       && (!request.before || scoped(caller, request.before, state) && namespaceAllowed(caller, request.before.namespace)));
-    // The decision is used only after this returns: a change during the batch refuses all of it, never half old, half new.
+    // The decision is used only after this returns: a change during the batch fails the whole call (`memory.conflict`), never half old, half new.
     facts.close();
-    return allowed;
+    return answer;
   };
   const permitted = (caller: AgentMemoryCaller, request: Request, state: State, forgetting: () => MemoryForgettingPhase) => {
     if (request.appId !== "io.molis.work" || !scoped(caller, request.target, state) || !namespaceAllowed(caller, request.target.namespace)) return false;
@@ -179,11 +184,17 @@ export function memoryRuntimePolicy(ownerFor: () => MemoryRuntimePolicyOwner | u
     ...(extractor ? { extractor } : {}),
     assertCurrent(caller, requests) {
       const state = currentFacts(caller);
-      return !!state && decide(caller, requests, state);
+      return !!state && decide(caller, state, one => requests.every(one));
     },
     async authorize(caller, requests) {
       const state = await current(caller);
-      return !!state && decide(caller, requests, state);
+      return !!state && decide(caller, state, one => requests.every(one));
+    },
+    /** Reads only: element i is what `authorize(caller, [requests[i]])` would answer. Anything with an effect is refused here. */
+    async authorizeEach(caller, requests) {
+      const state = await current(caller);
+      return state ? decide(caller, state, one => requests.map(request => (request.action === "read" || request.action === "manage-read") && one(request)))
+        : requests.map(() => false);
     },
     async authorizeRecall(caller, request) {
       const state = await current(caller);

@@ -228,3 +228,5 @@ Host-only disposeDispatch 与 L 的 SourceObservations 共用一份 activeRuns �
 现 Memory capability 可选提供 `previewSessionPurge` 与 `purgeSessionTarget`：只映射公开 SDK Session selection、完整 scope/owner/kind/id/version 和原 operation tuple，沿同一受控调用，不靠普通管理读授予 purge-inspection。inspection 同时核当前绑定、原持久 Session owner 与 App 固定计划；未装配明确不可用。Session lifecycle 的可选 `readOwner` 只读原 App index，不 create/open/restore/Run；正常管理仍走 read，仅全部独立决定已接受的固定清理继续可用此 owner 投影与当前业务/安装/本人/项目复核求交。缺失或坏 owner 不猜，需对账；SDK purge 的 void 返回只在确认成功时报告 completed，不据缺失推断 already-absent。
 
 Memory authority 桥仅转发 App 明确选择的 readInput: frozen；生产 memoryRuntimePolicy 采用它后，普通 list 的 owned read/manage-read 收深冻结且普通 prototype 的请求。默认调用方仍收独立 mutable 副本；Session/项目/角色及等待后的最终 current 全部保留，异常不退回可变输入重试。没有新的授权来源，SDK 仍只走公开入口。见现 Memory spec 的 WARM-APP-01。
+
+App 选择提供 `memory.authorizeEach` 时，桥在 SDK 的 Authority 上装同名可选方法（BL-1072）：只为读取（read/manage-read）而答，一次调用对每条请求各答一个是或否，第 i 条与单独 `authorize([第 i 条])` 的结论相同；空批答 `[]`，混入有副作用的动作、拿不到可信调用者或请求的调用者上下文不一致时全部答否（不抛错，SDK 只发同一上下文的读取，所以正常走不到）。App 一侧整批共用一次遗忘读取，批内遗忘事实变化时抛 `memory.conflict`，整次读取失败，不交付部分结论。获准条目仍由 SDK 合成一次同步 `assertCurrent` 复核。没有这个选项时 Authority 上没有该键，SDK 照旧逐条询问。

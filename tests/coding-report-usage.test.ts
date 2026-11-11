@@ -1,18 +1,20 @@
-import { pageText } from "./fixtures/page-text.js";
+import { pageText, withPageText } from "./fixtures/page-text.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  renderCodingReport,
-  renderCodingUsage,
+  renderCodingReport as drawCodingReport,
+  renderCodingUsage as drawCodingUsage,
   type CodingUiPrimitives,
 } from "@molis-ai/molis-work-plugin-coding";
+
+const renderCodingReport: typeof drawCodingReport = (...args) => withPageText("zh", ["coding"], () => drawCodingReport(...args));
+const renderCodingUsage: typeof drawCodingUsage = (...args) => withPageText("zh", ["coding"], () => drawCodingUsage(...args));
 
 // Coding's renderers word stable keys; the page words them through the shipped table (the default language, Chinese, here).
 const zh = pageText("zh", "coding");
 
 const p: CodingUiPrimitives = {
-  L: (text) => text,
   escape: (value) => String(value)
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"),
   icon: (name) => `<i data-icon="${name}"></i>`,

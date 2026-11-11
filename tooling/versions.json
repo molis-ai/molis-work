@@ -1177,7 +1177,7 @@
     "prompt.alchemist.format-correction": 2,
     "prompt.alchemist.reuse": 2,
     "prompt.alchemist.synthesis": 2,
-    "prompt.assistant-base": 3,
+    "prompt.assistant-base": 4,
     "prompt.assistant-compaction": 1,
     "prompt.assistant-delegated": 2,
     "prompt.assistant-ending-review": 1,

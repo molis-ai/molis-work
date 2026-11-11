@@ -145,6 +145,7 @@ test("FSS-71 a round from an English page is told English and from a Chinese pag
   assert.ok(!system.includes("forged"), "words in the body reach no prompt");
   const base = "You are the person's work assistant in Molis Work.";
   assert.ok(system.includes(base), "the running role uses its English body");
+  assert.match(system, /reply language for the entire newly written response and deliverable, including headings, lists and tables/u);
   assert.ok(system.indexOf(base) < system.indexOf(sayEnglish), "the language authority follows the base instructions");
   assert.equal(readUiLocale(home), "en", "sending is using the language");
   const onDisk = join(home, UI_LOCALE_RELATIVE_PATH);
@@ -301,7 +302,7 @@ test("FSS-71 a Home with no record gets the default language, and the base instr
   const sent = await a.service.send({ text: "hi", request_id: "req-default-1" }, {});
   await a.completed(sent.work.work_id, 1);
   assertToldOnly(a.requests[0], "zh", "a Home with no record");
-  assert.match(told(a.requests[0]), /回复语言见本轮说明/);
+  assert.match(told(a.requests[0]), /按本轮说明的回复语言写整份新内容，包括正文、标题、列表和表格/u);
   assert.doesNotMatch(told(a.requests[0]), /- 用用户使用的语言/, "the old sentence is gone");
 });
 

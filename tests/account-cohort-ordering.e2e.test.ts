@@ -16,7 +16,7 @@ for (const delivery of ['resolve','reject'] as const) test(`ASR-04 a delayed sta
     };
     window.fetch=(input,init)=>{
       const url=new URL(String(input),location.href);
-      if(url.pathname==='/api/personal/status')return Promise.resolve(Response.json({configured:true,identity:{userId:'alice',displayName:'Alice',emails:[]},accountGeneration:1,ready:true,space:'account'}));
+      if(url.pathname==='/api/personal/status')return Promise.resolve(Response.json({configured:true,identity:{userId:'alice',displayName:'Alice',emails:[]},pageBinding:'synthetic-page-binding',accountGeneration:1,ready:true,space:'account'}));
       if(url.pathname==='/api/personal/prepare'){
         const action=url.searchParams.get('action');
         if(action==='start'){
@@ -66,7 +66,7 @@ test('ASR-04 a current start failure still reports its original error and does n
     };
     window.fetch=(input,init)=>{
       const url=new URL(String(input),location.href);
-      if(url.pathname==='/api/personal/status')return Promise.resolve(Response.json({configured:true,identity:{userId:'alice',displayName:'Alice',emails:[]},accountGeneration:1,ready:true,space:'account'}));
+      if(url.pathname==='/api/personal/status')return Promise.resolve(Response.json({configured:true,identity:{userId:'alice',displayName:'Alice',emails:[]},pageBinding:'synthetic-page-binding',accountGeneration:1,ready:true,space:'account'}));
       if(url.pathname==='/api/personal/prepare' && url.searchParams.get('action')==='start')return Promise.reject(new Error('current start failed'));
       if(url.pathname==='/api/personal/prepare')return Promise.resolve(Response.json({preparation:null}));
       if(url.pathname==='/api/personal/switch'){probe.logins++;return Promise.resolve(Response.json({}));}

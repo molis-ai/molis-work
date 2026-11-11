@@ -129,7 +129,7 @@ test("VUX-39 the board's Assistant section drives the shipped island through sev
 
   // Nothing reached the Host and nothing the workbench remembers here changed: the island's memory stayed in the frame.
   assert.deepEqual(await inFrame("return w.performance.getEntriesByType('resource').map((e) => new URL(e.name).pathname).filter((p) => p.startsWith('/api/') || p.includes('/sample/'));"), []);
-  assert.deepEqual(await evaluate("Object.keys(localStorage).filter((key) => key.startsWith('molis.assistant.'))"), []);
+  assert.deepEqual(await evaluate("Array.from({length:localStorage.length},(_,index)=>localStorage.key(index)).filter(key=>key!==null).filter((key) => key.startsWith('molis.assistant.'))"), []);
 
   // A new work: where it would go is chosen before anything is sent.
   await choose("work", "new", "new");

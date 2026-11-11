@@ -1,6 +1,6 @@
 # Work 统一账号接入
 
-状态：WORK-01 至 WORK-09 已实现并完成对应本地隔离验证，已知未通过项和验证边界见文末（2026-11-05）。Auth 仓库 `docs/unified-account/delivery.md` 已按 AUTH-12 汇总交付；真实存量迁移仍待 D-09。中央业务规则不在本规范重复维护。
+状态：安装登录与 Home 的 V2 账号统一已实现；2026-11-10 最高／高／中账号专项验证及修复已推进，证据见 [当前回归记录](v2-regression-20261110.md)。最终 PR 全量回归仍未完成，不能声明全仓全绿；下文历史全量和 WORK 记录仅证明对应版本。不做 V1 兼容或真实存量迁移。
 
 后续执行按 Auth 仓库 `docs/unified-account/implementation-plan.md` 第 11 节，T-01 至 T-07 状态以其交付台账为准。本仓库仍遵守 [AGENTS.md](../../AGENTS.md)、[需求开发流程](../post-anticorruption-roadmap/reference/development-workflow.md)和[并行开发规范](../../docs/system/PARALLEL-DEVELOPMENT.md)；当前先做集成收尾，代码与合同变化后须核对对应版本的验证证据。
 
@@ -8,11 +8,11 @@ T-01 接续记录见文末；已整理提交并进入远端评审。K-06 及首�
 
 ## 本轮范围
 
-中央客户端、合同适配、可信配置、Host 安全入口，以及 SecretStore 持久会话、刷新协调、显式活动、重启恢复和两种退出。公开 DTO 来自固定 Auth 合同。中央身份与本地 actor 分离，未登录仍可本地使用。个人订阅、租户席位、权益事实留在 Auth。
+中央客户端、合同适配、可信配置、Host 安全入口，以及 SecretStore 持久会话、刷新协调、显式活动、重启恢复和两种退出。公开 DTO 来自固定 Auth 合同。中央身份与本地 actor 分离；安装级入口遵守 ASR 的登录准入，不创建匿名业务 Home。个人订阅、租户席位、权益事实留在 Auth。
 
 邮箱/手机注册登录、验证重发及找回密码在产品内完成；Google/GitHub 授权通过浏览器回到本机 Host，不开放浏览器安装 Token 的接口。管理操作已有固定合同映射，具体动作随相应功能接入。短信、邮件和第三方提供方继续使用 Auth mock，无支付、真实账号迁移或业务共享。
 
-项目选择器和工作台项目菜单分别保留 Personal 账号与空间入口，并提供独立的「Molis 账号」入口。前者管理 Personal 登录和空间切换，后者管理中央登录、个人资料与安全、订阅及租户。两者各用自己的会话和页面事件。首次欢迎、打开和更新页沿用现有入口规则。
+项目选择器和工作台账号入口使用同一安装级 V2 会话；安装菜单负责有未保存内容时的换号/退出准备，账号设置负责个人资料、安全、租户与订阅。Home 借用安装会话并始终检查自己的原账号租约，不保存第二份中央登录。
 
 ## 验收标准
 
@@ -26,6 +26,18 @@ T-01 接续记录见文末；已整理提交并进入远端评审。K-06 及首�
 - **WUA-07** 并发刷新只旋转一次；先持久销毁旧恢复材料，响应丢失、崩溃、持久失败及迟到完成都不得复活凭据。证明：`tests/account-session.test.ts`，安全不变量 S-unified-account-session。
 - **WUA-08** 显式活动遵循 30/90 天截止；背景读取/刷新不延期；离线只返回展示资料，不授予管理调用或权益。证明：`tests/account-session.test.ts`、`scripts/central-account.test.mjs`。
 - **WUA-09** 当前登录退出不影响其他独立登录；全局退出向 Auth 撤销全部产品；本地先持久清空，远端未确认须明确返回，同键可取回结果，中央撤销后受保护调用拒绝。证明：上述测试、`tests/security-invariants-account-host.test.ts`、真实 Auth 隔离联调。
+
+- **WUA-29** 未登录首页与退出后直接进入现有登录表单，登录完成在当前页进入工作台。刷新／重开只恢复同一匿名浏览器的在途请求，其他浏览器仍拒绝，过期入口重新开始。证明：`scripts/account-installation.test.mjs`、`tests/personal-http.test.ts`、`tests/account-reconnect.e2e.test.ts`。
+
+- **WUA-30** 建立新的登录会话时，即使用户 ID 相同也撤销旧账号租约与浏览器会话；准备期间的页面导航返回自动恢复的等待页，业务 API 仍拒绝。证明：`tests/personal-auth.test.ts`、`tests/space-surface-account-race.test.ts`、`scripts/account-installation.test.mjs`。
+
+- **WUA-31** 连续快速登录／切换／退出及换号中立即退出不留卡住的准备、旧事件连接或在途弹窗；迟到状态响应不取消后继登录，只有匹配当前请求的完成通知触发交接。尚不可操作的新载体页面等待父页准备结束后加入，已有参与者变化仍取消。证明：`scripts/account-rapid-cycle.test.mjs`、`tests/account-reconnect.e2e.test.ts`、`tests/account-refresh-pages.test.ts`。
+
+- **WUA-32** 账号浏览器内容按 Host 提供的租约 scope 隔离；退出清除本 scope 的 local/session/CacheStorage，拒绝旧页迟到写，保留无关设备数据。未提交浏览器草稿在退出前明确确认，取消保留、确认后清除。多窗口全部离开账号，等待中的动作在撤权后不能提交业务效果。证明：`tests/account-cache-isolation.e2e.test.ts`、`tests/account-inflight-effects.test.ts`、`tests/account-refresh-pages.test.ts`、`tests/ui-client-lifecycle.e2e.test.ts`。
+
+- **WUA-33** Auth 不可用时退出仍在本地失权，恢复后可重新登录；未完成登录跨 Host 重启、中央禁用和刷新／存储失败不得复活原账号。证明：`scripts/account-high.test.mjs`、`scripts/central-account.test.mjs`、`tests/account-session.test.ts`、`tests/account-cohort-ordering.e2e.test.ts`。
+
+- **WUA-34** 已完成登录请求重放被拒且不撤销现行身份；历史恢复同账号保留缓存，退出后恢复旧页或关闭整个 Chrome 再打开旧入口不复活账号；错误／过期验证码、重复提交与真实重发限流分别拒绝。证明：`scripts/account-medium.test.mjs`。
 
 ## WORK-02 验证记录
 
@@ -421,3 +433,71 @@ K-20 最终整体构建后，Workbench README 与动画/资源相关 22 文件 3
 - **T01-CALLBACK-02** 桌面系统浏览器与 Work WebView 不共用 Personal Cookie。只接受由可信桌面会话发起、仍属于当前 Home 和租约的待完成第三方回跳。Host 继续核验精确 URL、事务、state 和中央结果；错误 state、普通网页的无 Cookie 回跳、换出 Home 后或重放均拒绝。不通过回跳授予浏览器 Personal 会话。
 
 隔离联调以实际 Work 监听器、Club BFF、Auth WASM 和合成数据通过普通网页与桌面 WebView 两种入口。桌面模拟分别使用 WebView Cookie 与独立系统浏览器，核对正确回跳、伪造 state、重放和切换后的拒绝。两端登录返回同一 Auth 用户、各自独立会话；退出 Work 后 Club 仍登录。另用临时 Home 和 D1 验证资料、租户、订阅、席位、权限和旧数据保留。此处是候选验证，合入后仍需从 main 复验。
+
+
+## 2026-11-09 V2 全面统一（实现与本地验收）
+
+用户已批准一次完成 Auth 与 Work 的 V1→V2 统一，并要求完成后跑全量回归；未上线，不考虑 V1 的客户端、Token、Cookie、Team 或 VIEWER 兼容。自助创建租户默认开放，策略和平台权限由 Auth 持有。此任务是独立的账号迁移，不把历史防腐协调批次的验证记录当作本次证据。推送、PR 与部署仍未获授权。
+
+安装用 `MOLIS_WORK_ACCOUNT_CONFIG` 的固定客户端与加密 SecretStore 记录；新登录先在内存候选会话中完成 V2 身份验证，成功后持久接手。取消或失败保留原账号；新浏览器只能证明并附着现行用户，不能换号。原生能力、一次性附着票据、页面 cookie、Home 控制令牌和 A/B/A 的旧进程隔离继续沿用 ASR。全局退出与当前退出都经过同一页面准备协议，Home 不接受绕过准备的借用会话退出。同步服务通过 V2 查询用户与会话，仍使用原归属元组，不修改插件业务。
+
+- **V2U-01** 无 V1 账号请求；错误环境、客户端和已退役入口拒绝。证明：`tests/personal-auth.test.ts`、`tests/account-client.test.ts`，Auth `routes.test.ts`。
+- **V2U-04** 安装与 Home 使用同一 V2 当前身份；候选验证成功后才获得 Home，换号/取消/释放失败/原生与浏览器隔离不回退。证明：`tests/personal-http.test.ts`、`tests/personal-auth.test.ts`、`tests/space-surface-account-race.test.ts`、`tests/account-process-connection.test.ts`。
+- **V2U-06** 自助租户创建走同一动作目录；由中央决定创建策略及所有者，不由输入伪造、不附送商业权益。证明：Auth `tenant-creation.test.ts`，Work 中央管理映射与浏览器专项。
+- **V2U-07** Cookie、控制证明、当前租约、取消与退出均拒绝迟到结果，密钥/Token 不回传浏览器。证明：`tests/security-invariants-account-host.test.ts`、`tests/personal-auth.test.ts`、`tests/space-surface-account-race.test.ts`，Auth `web-session.test.ts`。
+
+本轮实际命令、最终源码核对、失败复验与基线对照见 [V2 回归记录](v2-regression-20261109.md)，不沿用历史通过结论。
+
+2026-11-09 首轮验证（追加清理前，服务凭据随后移除）：Auth 全量（合同 7、Rust 16、Worker/WASM/D1 111、Web 1、SDK 2）与最终构建通过，包含 Cookie/CSRF 原子轮换及中央会话失效后的恢复。真实页面 11 组验收通过，覆盖注册、自助租户、资料、再次验证、绑定、改密、应用/客户端管理、服务凭据、用户与授权、撤销后重新登录及退出；补修了旧双列样式影响新页面页头的问题，核对 1440/1024/390 截图。Work/Auth 安装联合验收通过同一 V2 会话、A/B/A、本地内容归属、重启、原生附着和旧 Cookie 拒绝；管理、租户与商业专项通过，提供方与投递为 mock。
+
+预检修正了测试夹具：重启用例使用独立 HTTP 连接；安装夹具按安装入口与 Home 分别选择控制令牌。全部原断言保留。修正后的账号 HTTP 11/11 和打包的新装/运行/重启/卸载/升级通过；依赖安装夹具的用例重新纳入最终全量。
+
+最终全量完整执行 1,879 个不同文件，固定 Node 24.15 / pnpm 11.9 / 专用 Chrome 156.0.8078.80 独立测试副本，626/627/626 三份、每份 `--jobs 1`；此前批次不累计。原始结果 1,866 文件通过、13 失败。按用例要求补齐 headless 引擎和 Rust/WASM 工具，并复验时序失败后，最终为 1,874 文件通过、5 失败；这 5 项均已在同提交的干净基线复现。不是全绿或发布完成。
+
+全量期间源码摘要保持不变。全量后仅补齐两处测试预期：无账号配置的动作扫描必须拒绝新的租户创建策略读取；V2 登录完成必须返回 JSON 成功，并继续断言迟到取消不能影响新账号。动作扫描 6/6、换号准备 12/12 通过，金样恢复/读取/重启断言也通过；金样仍有提示词使用记录的生成次数差异，干净基线的原慢时序夹具复现相同差异。没有放宽业务断言或为基线失败修改业务模块。
+
+页面资源审查：固定 Node 24.15 / pnpm 11.9，与真实 merge-base `e05887d142b849a70171be18bf5849e5587225f0` 构建相比，workbench.js 因两种退出范围转交净增 193 字节，其他资源未增加。使用本任务独立增量记录，未调整预算、门禁或复用历史批准，不涉及新增资源或超过 10 KB 的批准边界。
+
+
+### 2026-11-09 追加：删除无消费者的 V1 残留
+
+状态：Auth 删除服务凭据页面、中央/BFF 管理操作、SERVICE_READ/WRITE 能力及旧建库表，Work 同步中央合同原始字节、摘要、生成 DTO 与公开 API 快照。清理验收由 Auth 的现行方案持有，Work 在此记录消费端改动和验证证据。
+
+- 已移除的服务管理操作在 Work 端必须在网络请求之前拒绝；证据在 `tests/account-client.test.ts` 的原有固定操作与拒绝断言中。Auth 另验证旧请求拒绝、不写审计或业务记录，以及页面无服务凭据入口。
+- 全新临时 Auth 库不创建旧会话、Token、授权、成员、邀请或服务表。Auth schema 测试拥有此断言；本次不操作已有实验库、真实 Home 或主检出。
+- 中央能力收敛为 14 种，Work 快照、DTO、摘要与公开 API 一致；V2 用户会话、本机控制令牌及原生附着票据的拒绝边界保留。Work 账号相关 6 文件及专用 headless 3 文件已通过；修改后完整回归已执行全部 1,879 文件：原始 1,872 通过、7 失败；首次引导 14/14、插件方法运行时 11/11 原断言复验通过后，1,874 通过、5 个已知基线失败保留。冻结源码摘要完成后相同；证据见 [追加清理回归](v2-regression-20261109.md#追加清理后的完整回归)。首轮结果没有代替本轮验证。
+
+本次不实现本地外部依赖 mock 环境，不修改插件业务处理。
+
+
+### 2026-11-09 退出登录消息连接修复（ASR-09）
+
+状态：实现完成，账号专项验证通过。用户批准安全自动重连、页面生命周期、父窗口统一协调和中文提示；完整全量回归按用户要求留到最终提 PR 前。
+
+- ASR-09：消息流使用服务端页面登记绑定原账号租约；连接重试不得通过当前 Cookie 为旧页面取得新账号租约，A→B→A 也拒绝旧绑定。每 10 秒心跳，35 秒无消息重建连接，重试间隔从 500 毫秒退避到 10 秒。连接恢复发送当前完整准备状态；准备过程中失联仍取消当次操作，不静默略过草稿确认。
+- ASR-09：同源平台子文档向父文档登记保存、取消和释放回调，不再单独登记服务端页面或建立账号消息流；不改变不可信插件的隔离。子文档加入、离开会使正在进行的准备取消，子文档拒绝保存也拒绝父窗口退出。
+- ASR-09：已离开的页面保留至原账号租约撤销的离开标记，拒绝晚到状态请求重新登记；离开先于首次状态登记到达也不留下幽灵参与者。确实失联、无法确认已离开的文档仍保留草稿保护，不按超时默认为已保存。
+- ASR-09：连接诊断通过 Node `diagnostics_channel` 的 `molis-work.account-pages` 发布登记、连接、断开、离开与取消事件，只含页面 id，不含绑定值、Cookie、身份或业务正文。
+
+证据：`tests/account-refresh-pages.test.ts`、`tests/space-surface-account-race.test.ts` 验证绑定与迟到注销的拒绝；`tests/account-reconnect.e2e.test.ts` 驱动真实浏览器和本地 Host，只模拟中央 Auth，验证断连后原页面恢复、单窗口单消息连接、子页面保存和退出。
+
+
+ASR-09 验证结果（2026-11-09）：整体构建通过；11 个账号相关测试文件共 89 个用例均通过（初轮两个夹具按新协议修正：等待重连的新消息流、离开后使用不登记页面的安装状态查询；未删除或放宽安全断言）。最终对最后修改直接影响的 5 文件复核 36/36，包含嵌套页面成员变化取消准备、晚到保存不得恢复退出、子页面保存失败拒绝退出。8 个本轮核心文件 Biome lint 与 diff 空白检查通过。真实本地 Auth 8877 + Work 4307、预览测试账号的浏览器登录及点击退出通过：约 417 毫秒回到登录入口，账号状态为空，无错误提示。此次没有重跑完整全量回归；先前 1,879 文件的完整结果对应修复前源码，不能当作本次改动的全量证据。
+
+页面资源相较修复前的已构建版本：workbench.js +1,700 字节、plugin-frame.js +92 字节，无新增资源；体积记录已同步。预览继续使用原隔离 Home，额外订阅上述诊断通道写入本机预览日志，不记录凭据。最终提 PR 前再结合最新 main 运行全量及全部合并门禁。
+
+
+真实预览复核额外发现并修复 ASR-09 的退出后导航竞态：租约撤销通知到达早于退出响应时，发起页面先冻结业务，等待请求收尾再跳转，保证浏览器接收 Cookie 清理；已经在登录入口时，失效 Cookie 的 accountChanged 不再反复导航。原账号消息流在无效/缺失 Cookie 时收到明确 revoked，不无限重试 401。浏览器专项再次验证 Cookie 已清除、注入旧 Cookie 后入口仍稳定、子页面拒绝及晚到保存仍不越过退出准备。真实 Auth + Work 最终脚本退出码 0，登录入口稳定并成功采集截图；首次截图因刷新循环超时的诊断记录保留，不能视为首次即完整通过。
+
+最后的过期 Cookie 事件路由调整已整体构建；`tests/personal-http.test.ts` 11/11 与 `tests/space-surface-account-race.test.ts` 13/13 再次通过，两个路由文件 Biome 检查通过。预览已恢复，Auth 本轮未修改。
+
+
+### 2026-11-10 登录成功后直接返回工作台（ASR-10）
+
+状态：实现完成，专项验证通过；完整全量仍按用户要求留到最终提 PR 前。
+
+- ASR-10：安装登录窗口在认证成功后不再绘制账号展示弹窗、用户名表单或登录帮助；只显示简短进入提示。账号管理入口的已登录页面不受影响，邮箱、验证码和第三方登录共用此成功出口。
+- ASR-10：通过既有 `molis-work-account` BroadcastChannel 提示原窗口立即查询服务端；消息不携带身份、不授予登录。原窗口只有在服务端确认完成及环境就绪后进入工作台，并关闭登录窗口。没有自动关闭时 5 秒后显示可关闭提示；原有 3 秒查询保留为跨窗口通知不可达时的兜底。
+- ASR-10：通知到达时如果旧查询尚未结束，排队一次强制刷新，不丢到下一轮轮询。`tests/personal-menu.e2e.test.ts` 的 ASR-10 注释覆盖旧查询返回后必须重新确认，沿用身份、成功提示和停止轮询断言。
+
+验证：整体构建通过；`tests/personal-menu.e2e.test.ts`、`tests/account-cohort-ordering.e2e.test.ts`、`tests/client-script-undeclared.test.ts`、`tests/i18n.test.ts` 共 26/26。3 个本轮修改的源码/测试文件 Biome lint 与 diff 空白检查通过。真实 Auth 8877 + Work 4307 双窗口验证中禁用原窗口 3 秒轮询，仍由通知完成进入；成功节点无账号弹窗、无账号表单，登录窗口已关闭。单次本机测得成功后的衔接从修复前 2347 ms 降至 319 ms，不作为所有设备的性能保证。页面资源相对 ASR-09 增加 473 字节，无新增资源。

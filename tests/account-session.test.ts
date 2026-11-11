@@ -40,7 +40,7 @@ interface Call { path: string; headers: Headers; body: Record<string, unknown>; 
 function harness(store = new MemoryStore()) {
   let now = Date.now();
   let tokens = tokensAt(now);
-  const user: UserView = { issuer: config().authOrigin, userId: "user-aaaaaaaa", displayName: "Person", avatarUrl: null, version: 0 };
+  const user: UserView = { issuer: config().authOrigin, userId: "user-aaaaaaaa", displayName: "Person", email: null, avatarUrl: null, version: 0 };
   const calls: Call[] = [];
   let hook: (call: Call) => Promise<Response | undefined> = async () => undefined;
   const fetcher: typeof fetch = async (url, init) => {

@@ -142,6 +142,16 @@
         "displayName": {
           "$ref": "#/$defs/DisplayName"
         },
+        "email": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/Email"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "avatarUrl": {
           "oneOf": [
             {
@@ -167,6 +177,7 @@
         "issuer",
         "userId",
         "displayName",
+        "email",
         "avatarUrl",
         "version"
       ],
@@ -251,7 +262,15 @@
         "CATALOG_WRITE",
         "SUBSCRIPTION_READ",
         "SUBSCRIPTION_WRITE",
-        "AUDIT_READ"
+        "AUDIT_READ",
+        "APPLICATION_READ",
+        "APPLICATION_WRITE",
+        "CLIENT_READ",
+        "CLIENT_WRITE",
+        "USER_READ",
+        "USER_STATUS",
+        "USER_EMAIL_WRITE",
+        "PLATFORM_PERMISSION_WRITE"
       ]
     },
     "MeView": {
@@ -280,7 +299,7 @@
             "$ref": "#/$defs/PlatformCapability"
           },
           "minItems": 0,
-          "maxItems": 7
+          "maxItems": 15
         }
       },
       "required": [
@@ -679,6 +698,9 @@
                 "method"
               ],
               "additionalProperties": false
+            },
+            "useSession": {
+              "type": "boolean"
             }
           },
           "required": [
@@ -738,6 +760,9 @@
                 "bindingId"
               ],
               "additionalProperties": false
+            },
+            "useSession": {
+              "type": "boolean"
             }
           },
           "required": [
@@ -797,6 +822,9 @@
                 "bindingId"
               ],
               "additionalProperties": false
+            },
+            "useSession": {
+              "type": "boolean"
             }
           },
           "required": [
@@ -856,6 +884,9 @@
                 "kind"
               ],
               "additionalProperties": false
+            },
+            "useSession": {
+              "type": "boolean"
             }
           },
           "required": [
@@ -915,6 +946,9 @@
                 "method"
               ],
               "additionalProperties": false
+            },
+            "useSession": {
+              "type": "boolean"
             }
           },
           "required": [
@@ -974,6 +1008,9 @@
                 "bindingId"
               ],
               "additionalProperties": false
+            },
+            "useSession": {
+              "type": "boolean"
             }
           },
           "required": [
@@ -1033,6 +1070,9 @@
                 "bindingId"
               ],
               "additionalProperties": false
+            },
+            "useSession": {
+              "type": "boolean"
             }
           },
           "required": [
@@ -1092,6 +1132,9 @@
                 "kind"
               ],
               "additionalProperties": false
+            },
+            "useSession": {
+              "type": "boolean"
             }
           },
           "required": [
@@ -1151,6 +1194,9 @@
                 "method"
               ],
               "additionalProperties": false
+            },
+            "useSession": {
+              "type": "boolean"
             }
           },
           "required": [
@@ -1210,6 +1256,9 @@
                 "bindingId"
               ],
               "additionalProperties": false
+            },
+            "useSession": {
+              "type": "boolean"
             }
           },
           "required": [
@@ -1269,6 +1318,9 @@
                 "bindingId"
               ],
               "additionalProperties": false
+            },
+            "useSession": {
+              "type": "boolean"
             }
           },
           "required": [
@@ -1328,6 +1380,9 @@
                 "kind"
               ],
               "additionalProperties": false
+            },
+            "useSession": {
+              "type": "boolean"
             }
           },
           "required": [
@@ -1387,6 +1442,9 @@
                 "method"
               ],
               "additionalProperties": false
+            },
+            "useSession": {
+              "type": "boolean"
             }
           },
           "required": [
@@ -1446,6 +1504,9 @@
                 "bindingId"
               ],
               "additionalProperties": false
+            },
+            "useSession": {
+              "type": "boolean"
             }
           },
           "required": [
@@ -1505,6 +1566,9 @@
                 "bindingId"
               ],
               "additionalProperties": false
+            },
+            "useSession": {
+              "type": "boolean"
             }
           },
           "required": [
@@ -1564,6 +1628,9 @@
                 "kind"
               ],
               "additionalProperties": false
+            },
+            "useSession": {
+              "type": "boolean"
             }
           },
           "required": [
@@ -2018,6 +2085,9 @@
                 "method"
               ],
               "additionalProperties": false
+            },
+            "useSession": {
+              "type": "boolean"
             }
           },
           "required": [
@@ -2073,6 +2143,9 @@
                 "bindingId"
               ],
               "additionalProperties": false
+            },
+            "useSession": {
+              "type": "boolean"
             }
           },
           "required": [
@@ -2128,6 +2201,9 @@
                 "bindingId"
               ],
               "additionalProperties": false
+            },
+            "useSession": {
+              "type": "boolean"
             }
           },
           "required": [
@@ -2183,6 +2259,9 @@
                 "kind"
               ],
               "additionalProperties": false
+            },
+            "useSession": {
+              "type": "boolean"
             }
           },
           "required": [
@@ -2238,6 +2317,9 @@
                 "method"
               ],
               "additionalProperties": false
+            },
+            "useSession": {
+              "type": "boolean"
             }
           },
           "required": [
@@ -2293,6 +2375,9 @@
                 "bindingId"
               ],
               "additionalProperties": false
+            },
+            "useSession": {
+              "type": "boolean"
             }
           },
           "required": [
@@ -2348,6 +2433,9 @@
                 "bindingId"
               ],
               "additionalProperties": false
+            },
+            "useSession": {
+              "type": "boolean"
             }
           },
           "required": [
@@ -2403,6 +2491,9 @@
                 "kind"
               ],
               "additionalProperties": false
+            },
+            "useSession": {
+              "type": "boolean"
             }
           },
           "required": [
@@ -2458,6 +2549,9 @@
                 "method"
               ],
               "additionalProperties": false
+            },
+            "useSession": {
+              "type": "boolean"
             }
           },
           "required": [
@@ -2513,6 +2607,9 @@
                 "bindingId"
               ],
               "additionalProperties": false
+            },
+            "useSession": {
+              "type": "boolean"
             }
           },
           "required": [
@@ -2568,6 +2665,9 @@
                 "bindingId"
               ],
               "additionalProperties": false
+            },
+            "useSession": {
+              "type": "boolean"
             }
           },
           "required": [
@@ -2623,6 +2723,9 @@
                 "kind"
               ],
               "additionalProperties": false
+            },
+            "useSession": {
+              "type": "boolean"
             }
           },
           "required": [
@@ -2678,6 +2781,9 @@
                 "method"
               ],
               "additionalProperties": false
+            },
+            "useSession": {
+              "type": "boolean"
             }
           },
           "required": [
@@ -2733,6 +2839,9 @@
                 "bindingId"
               ],
               "additionalProperties": false
+            },
+            "useSession": {
+              "type": "boolean"
             }
           },
           "required": [
@@ -2788,6 +2897,9 @@
                 "bindingId"
               ],
               "additionalProperties": false
+            },
+            "useSession": {
+              "type": "boolean"
             }
           },
           "required": [
@@ -2843,6 +2955,9 @@
                 "kind"
               ],
               "additionalProperties": false
+            },
+            "useSession": {
+              "type": "boolean"
             }
           },
           "required": [
@@ -2881,14 +2996,19 @@
           "$ref": "#/$defs/Id"
         },
         "status": {
-          "const": "PENDING"
+          "type": "string",
+          "enum": [
+            "PENDING",
+            "VERIFIED"
+          ]
         },
         "nextStep": {
           "type": "string",
           "enum": [
             "REQUEST_CHALLENGE",
             "PASSWORD_LOGIN",
-            "START_PROVIDER"
+            "START_PROVIDER",
+            "COMPLETE"
           ]
         },
         "expiresAt": {
@@ -3734,6 +3854,553 @@
         "name",
         "ownerUserId",
         "reason"
+      ],
+      "additionalProperties": false
+    },
+    "PlatformApplication": {
+      "type": "object",
+      "properties": {
+        "applicationId": {
+          "$ref": "#/$defs/Id"
+        },
+        "name": {
+          "$ref": "#/$defs/DisplayName"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "ACTIVE",
+            "DISABLED"
+          ]
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        }
+      },
+      "required": [
+        "applicationId",
+        "name",
+        "status",
+        "version"
+      ],
+      "additionalProperties": false
+    },
+    "PlatformApplicationPage": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PlatformApplication"
+          },
+          "minItems": 0,
+          "maxItems": 100
+        },
+        "nextCursor": {
+          "oneOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2048
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false
+    },
+    "ApplicationCreateRequest": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/DisplayName"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "ApplicationUpdateRequest": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/DisplayName"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "ACTIVE",
+            "DISABLED"
+          ]
+        },
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        }
+      },
+      "required": [
+        "name",
+        "status",
+        "expectedVersion"
+      ],
+      "additionalProperties": false
+    },
+    "PlatformLoginClient": {
+      "type": "object",
+      "properties": {
+        "clientId": {
+          "$ref": "#/$defs/Id"
+        },
+        "applicationId": {
+          "$ref": "#/$defs/Id"
+        },
+        "clientType": {
+          "type": "string",
+          "enum": [
+            "WEB",
+            "MACOS",
+            "CLI"
+          ]
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "ACTIVE",
+            "DISABLED"
+          ]
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        },
+        "environmentId": {
+          "$ref": "#/$defs/Id"
+        },
+        "policyVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "allowedOrigins": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048,
+            "format": "http-origin"
+          },
+          "minItems": 1,
+          "maxItems": 32,
+          "uniqueItems": true
+        },
+        "redirectAllowlist": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/HttpUrl"
+          },
+          "minItems": 1,
+          "maxItems": 32,
+          "uniqueItems": true
+        },
+        "product": {
+          "oneOf": [
+            {
+              "type": "string",
+              "enum": [
+                "WORK",
+                "CLUB"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "clientId",
+        "applicationId",
+        "clientType",
+        "status",
+        "version",
+        "environmentId",
+        "policyVersion",
+        "allowedOrigins",
+        "redirectAllowlist",
+        "product"
+      ],
+      "additionalProperties": false
+    },
+    "PlatformLoginClientPage": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PlatformLoginClient"
+          },
+          "minItems": 0,
+          "maxItems": 100
+        },
+        "nextCursor": {
+          "oneOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2048
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false
+    },
+    "LoginClientCreateRequest": {
+      "type": "object",
+      "properties": {
+        "clientId": {
+          "$ref": "#/$defs/Id"
+        },
+        "clientType": {
+          "type": "string",
+          "enum": [
+            "WEB",
+            "MACOS",
+            "CLI"
+          ]
+        },
+        "environmentId": {
+          "$ref": "#/$defs/Id"
+        },
+        "allowedOrigins": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048,
+            "format": "http-origin"
+          },
+          "minItems": 1,
+          "maxItems": 32,
+          "uniqueItems": true
+        },
+        "redirectAllowlist": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/HttpUrl"
+          },
+          "minItems": 1,
+          "maxItems": 32,
+          "uniqueItems": true
+        },
+        "product": {
+          "type": "string",
+          "enum": [
+            "WORK",
+            "CLUB"
+          ]
+        }
+      },
+      "required": [
+        "clientId",
+        "clientType",
+        "environmentId",
+        "allowedOrigins",
+        "redirectAllowlist"
+      ],
+      "additionalProperties": false
+    },
+    "LoginClientUpdateRequest": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "ACTIVE",
+            "DISABLED"
+          ]
+        },
+        "allowedOrigins": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048,
+            "format": "http-origin"
+          },
+          "minItems": 1,
+          "maxItems": 32,
+          "uniqueItems": true
+        },
+        "redirectAllowlist": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/HttpUrl"
+          },
+          "minItems": 1,
+          "maxItems": 32,
+          "uniqueItems": true
+        },
+        "expectedPolicyVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        }
+      },
+      "required": [
+        "status",
+        "allowedOrigins",
+        "redirectAllowlist",
+        "expectedPolicyVersion",
+        "expectedVersion"
+      ],
+      "additionalProperties": false
+    },
+    "PlatformUser": {
+      "type": "object",
+      "properties": {
+        "userId": {
+          "$ref": "#/$defs/Id"
+        },
+        "displayName": {
+          "$ref": "#/$defs/DisplayName"
+        },
+        "email": {
+          "oneOf": [
+            {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 254,
+              "format": "email"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "ACTIVE",
+            "DISABLED"
+          ]
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        }
+      },
+      "required": [
+        "userId",
+        "displayName",
+        "email",
+        "status",
+        "version"
+      ],
+      "additionalProperties": false
+    },
+    "PlatformUserPage": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PlatformUser"
+          },
+          "minItems": 0,
+          "maxItems": 100
+        },
+        "nextCursor": {
+          "oneOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2048
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false
+    },
+    "UserEmailRequest": {
+      "type": "object",
+      "properties": {
+        "email": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 254,
+          "format": "email"
+        },
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        }
+      },
+      "required": [
+        "email",
+        "expectedVersion",
+        "reason"
+      ],
+      "additionalProperties": false
+    },
+    "UserStatusRequest": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "ACTIVE",
+            "DISABLED"
+          ]
+        },
+        "expectedVersion": {
+          "$ref": "#/$defs/Version"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        }
+      },
+      "required": [
+        "status",
+        "expectedVersion",
+        "reason"
+      ],
+      "additionalProperties": false
+    },
+    "PlatformPermission": {
+      "type": "object",
+      "properties": {
+        "userId": {
+          "$ref": "#/$defs/Id"
+        },
+        "capability": {
+          "$ref": "#/$defs/PlatformCapability"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "ACTIVE",
+            "REVOKED"
+          ]
+        },
+        "version": {
+          "$ref": "#/$defs/Version"
+        }
+      },
+      "required": [
+        "userId",
+        "capability",
+        "status",
+        "version"
+      ],
+      "additionalProperties": false
+    },
+    "PlatformPermissionPage": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PlatformPermission"
+          },
+          "minItems": 0,
+          "maxItems": 100
+        },
+        "nextCursor": {
+          "oneOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2048
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "items",
+        "nextCursor"
+      ],
+      "additionalProperties": false
+    },
+    "PlatformPermissionRequest": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "expectedVersion": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/Version"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        }
+      },
+      "required": [
+        "enabled",
+        "expectedVersion",
+        "reason"
+      ],
+      "additionalProperties": false
+    },
+    "SelfTenantCreateRequest": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/DisplayName"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "TenantCreationPolicyView": {
+      "type": "object",
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "SELF_SERVICE",
+            "PLATFORM_ONLY"
+          ]
+        }
+      },
+      "required": [
+        "mode"
       ],
       "additionalProperties": false
     },
@@ -5381,7 +6048,7 @@
                 "$ref": "#/$defs/PlatformCapability"
               },
               "minItems": 0,
-              "maxItems": 7
+              "maxItems": 15
             }
           },
           "required": [
@@ -5792,6 +6459,9 @@
                 "method"
               ],
               "additionalProperties": false
+            },
+            "useSession": {
+              "type": "boolean"
             }
           },
           "required": [
@@ -5821,6 +6491,9 @@
                 "bindingId"
               ],
               "additionalProperties": false
+            },
+            "useSession": {
+              "type": "boolean"
             }
           },
           "required": [
@@ -5850,6 +6523,9 @@
                 "bindingId"
               ],
               "additionalProperties": false
+            },
+            "useSession": {
+              "type": "boolean"
             }
           },
           "required": [
@@ -5879,6 +6555,9 @@
                 "kind"
               ],
               "additionalProperties": false
+            },
+            "useSession": {
+              "type": "boolean"
             }
           },
           "required": [
@@ -5908,6 +6587,9 @@
                 "method"
               ],
               "additionalProperties": false
+            },
+            "useSession": {
+              "type": "boolean"
             }
           },
           "required": [
@@ -5937,6 +6619,9 @@
                 "bindingId"
               ],
               "additionalProperties": false
+            },
+            "useSession": {
+              "type": "boolean"
             }
           },
           "required": [
@@ -5966,6 +6651,9 @@
                 "bindingId"
               ],
               "additionalProperties": false
+            },
+            "useSession": {
+              "type": "boolean"
             }
           },
           "required": [
@@ -5995,6 +6683,9 @@
                 "kind"
               ],
               "additionalProperties": false
+            },
+            "useSession": {
+              "type": "boolean"
             }
           },
           "required": [
@@ -6024,6 +6715,9 @@
                 "method"
               ],
               "additionalProperties": false
+            },
+            "useSession": {
+              "type": "boolean"
             }
           },
           "required": [
@@ -6053,6 +6747,9 @@
                 "bindingId"
               ],
               "additionalProperties": false
+            },
+            "useSession": {
+              "type": "boolean"
             }
           },
           "required": [
@@ -6082,6 +6779,9 @@
                 "bindingId"
               ],
               "additionalProperties": false
+            },
+            "useSession": {
+              "type": "boolean"
             }
           },
           "required": [
@@ -6111,6 +6811,9 @@
                 "kind"
               ],
               "additionalProperties": false
+            },
+            "useSession": {
+              "type": "boolean"
             }
           },
           "required": [
@@ -6140,6 +6843,9 @@
                 "method"
               ],
               "additionalProperties": false
+            },
+            "useSession": {
+              "type": "boolean"
             }
           },
           "required": [
@@ -6169,6 +6875,9 @@
                 "bindingId"
               ],
               "additionalProperties": false
+            },
+            "useSession": {
+              "type": "boolean"
             }
           },
           "required": [
@@ -6198,6 +6907,9 @@
                 "bindingId"
               ],
               "additionalProperties": false
+            },
+            "useSession": {
+              "type": "boolean"
             }
           },
           "required": [
@@ -6227,6 +6939,9 @@
                 "kind"
               ],
               "additionalProperties": false
+            },
+            "useSession": {
+              "type": "boolean"
             }
           },
           "required": [
@@ -8108,11 +8823,155 @@
       ],
       "additionalProperties": false
     },
+    "PlatformUserPageResponse": {
+      "type": "object",
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/PlatformUserPage"
+        },
+        "requestId": {
+          "$ref": "#/$defs/Id"
+        }
+      },
+      "required": [
+        "data",
+        "requestId"
+      ],
+      "additionalProperties": false
+    },
+    "PlatformUserResponse": {
+      "type": "object",
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/PlatformUser"
+        },
+        "requestId": {
+          "$ref": "#/$defs/Id"
+        }
+      },
+      "required": [
+        "data",
+        "requestId"
+      ],
+      "additionalProperties": false
+    },
+    "PlatformPermissionPageResponse": {
+      "type": "object",
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/PlatformPermissionPage"
+        },
+        "requestId": {
+          "$ref": "#/$defs/Id"
+        }
+      },
+      "required": [
+        "data",
+        "requestId"
+      ],
+      "additionalProperties": false
+    },
+    "PlatformPermissionResponse": {
+      "type": "object",
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/PlatformPermission"
+        },
+        "requestId": {
+          "$ref": "#/$defs/Id"
+        }
+      },
+      "required": [
+        "data",
+        "requestId"
+      ],
+      "additionalProperties": false
+    },
+    "PlatformApplicationPageResponse": {
+      "type": "object",
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/PlatformApplicationPage"
+        },
+        "requestId": {
+          "$ref": "#/$defs/Id"
+        }
+      },
+      "required": [
+        "data",
+        "requestId"
+      ],
+      "additionalProperties": false
+    },
+    "PlatformApplicationResponse": {
+      "type": "object",
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/PlatformApplication"
+        },
+        "requestId": {
+          "$ref": "#/$defs/Id"
+        }
+      },
+      "required": [
+        "data",
+        "requestId"
+      ],
+      "additionalProperties": false
+    },
+    "PlatformLoginClientPageResponse": {
+      "type": "object",
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/PlatformLoginClientPage"
+        },
+        "requestId": {
+          "$ref": "#/$defs/Id"
+        }
+      },
+      "required": [
+        "data",
+        "requestId"
+      ],
+      "additionalProperties": false
+    },
+    "PlatformLoginClientResponse": {
+      "type": "object",
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/PlatformLoginClient"
+        },
+        "requestId": {
+          "$ref": "#/$defs/Id"
+        }
+      },
+      "required": [
+        "data",
+        "requestId"
+      ],
+      "additionalProperties": false
+    },
     "MyTenantsPageResponse": {
       "type": "object",
       "properties": {
         "data": {
           "$ref": "#/$defs/MyTenantsPage"
+        },
+        "requestId": {
+          "$ref": "#/$defs/Id"
+        }
+      },
+      "required": [
+        "data",
+        "requestId"
+      ],
+      "additionalProperties": false
+    },
+    "TenantCreationPolicyViewResponse": {
+      "type": "object",
+      "properties": {
+        "data": {
+          "$ref": "#/$defs/TenantCreationPolicyView"
         },
         "requestId": {
           "$ref": "#/$defs/Id"

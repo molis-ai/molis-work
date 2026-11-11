@@ -6,17 +6,19 @@ import {sendLocalWebJson} from './web-http.js';
 /** The account owner's existing page cohort over HTTP; owns only its open event responses. */
 export function createPersonalPageHttp(refreshPages:AccountRefreshPages) {
   const streams=new Set<ServerResponse>();
-  function handle(request:IncomingMessage,response:ServerResponse,url:URL,service:PersonalAuth,authenticated:boolean):boolean {
+  function handle(request:IncomingMessage,response:ServerResponse,url:URL,service:PersonalAuth|null,authenticated:boolean):boolean {
     if(url.pathname!=='/api/personal/prepare'&&url.pathname!=='/api/personal/events')return false;
-    if(!service.identity()||!authenticated){sendLocalWebJson(response,401,{error:'请先连接当前账号。'});return true;}
+    const revoked=()=>{response.writeHead(200,{'content-type':'text/event-stream','cache-control':'no-store'});response.end('data: '+JSON.stringify({type:'revoked',preparation:null})+'\n\n');};
+    if(!service?.identity()||!authenticated){if(request.method==='GET'&&url.pathname==='/api/personal/events')revoked();else sendLocalWebJson(response,401,{error:'请先连接当前账号。'});return true;}
     const lease=service.accountLease(),page=url.searchParams.get('page')??'',id=url.searchParams.get('id')??'';
     if(request.method==='GET'&&url.pathname==='/api/personal/events'){
-      refreshPages.register(page,lease);
+      try { refreshPages.connection(page,lease,url.searchParams.get('binding')??''); }
+      catch { revoked();return true; }
       response.writeHead(200,{'content-type':'text/event-stream','cache-control':'no-store','connection':'keep-alive'});
       const send=(event:unknown)=>{if(!response.writableEnded)response.write('data: '+JSON.stringify(event)+'\n\n');if(event&&typeof event==='object'&&'type' in event&&event.type==='revoked')response.end();};
       streams.add(response);const unsubscribe=refreshPages.subscribe(page,send);
-      send({type:'preparation',preparation:refreshPages.snapshot(lease)});
-      response.once('close',()=>{streams.delete(response);unsubscribe();});return true;
+      const heartbeat=setInterval(()=>send({type:'heartbeat'}),10_000);heartbeat.unref();
+      response.once('close',()=>{clearInterval(heartbeat);streams.delete(response);unsubscribe();});return true;
     }
     if(request.method!=='POST'){sendLocalWebJson(response,405,{error:'不支持此操作。'});return true;}
     const action=url.searchParams.get('action');

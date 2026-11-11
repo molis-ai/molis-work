@@ -69,7 +69,7 @@ try {
   authOrigin = await listen(authServer);
   const reserve = http.createServer(); origin = await listen(reserve); await stop(reserve);
   proxy = await getRustProxy({ AUTH_ORIGIN: authOrigin, PROVIDER_STATE_KEY: randomBytes(32).toString('base64url'), UNIFIED_ACCOUNT_CONFIG: JSON.stringify({ environmentId: 'unified-local', kind: 'LOCAL', authOrigin, deliveryMode: 'MOCK', providerMode: 'MOCK' }) });
-  await initializeLocalRuntime(proxy);
+  await initializeLocalRuntime(proxy,false);
   for (const file of ['unified-account-local-seed.sql', 'mock-provider-local-seed.sql']) for (const sql of readFileSync(resolve(source, 'worker', file), 'utf8')
     .replaceAll('http://127.0.0.1:4207', origin).replaceAll('http://127.0.0.1:8787', authOrigin).replace(/--[^\n]*/g, '').split(';').map(v => v.trim()).filter(Boolean)) await proxy.env.DB.prepare(sql).run();
   const config = { environmentId: 'unified-local', environmentKind: 'LOCAL', authOrigin, productOrigin: origin, clientId: 'molis-work-unified-local', applicationId: 'molis-work-unified-local-app', policyProfile: 'unified-account-v2', redirectAllowlist: [origin + '/account/callback'], providerMode: 'MOCK', deliveryMode: 'MOCK' };
@@ -125,8 +125,9 @@ try {
     ]);
     assert.equal(returned.response.mimeType, 'text/plain');
     await page.wait("document.querySelector('.account-form')?.textContent.includes('退出登录')");
-    assert.equal((await api('/session')).state, 'AUTHENTICATED'); await clickText('退出登录'); await page.wait("document.querySelector('.account-message').textContent.includes('已退出')");
-    await clickText('返回登录'); await page.wait("document.querySelector('.account-form button[type=submit]')&&!document.querySelector('.account-form button[type=submit]').disabled");
+    assert.equal((await api('/session')).state, 'AUTHENTICATED');
+    // Reset only the core fixture; account-installation.test.mjs verifies the actual installation logout through Chrome.
+    await logout(); assert.equal((await api('/session')).state, 'ANONYMOUS'); await clickText('关闭'); await page.click('[data-unified-account-link]'); await page.wait("document.querySelector('.account-form button[type=submit]')&&!document.querySelector('.account-form button[type=submit]').disabled");
   }
   process.stdout.write('PASS WORK-04 Chrome: browser popup and desktop bridge to mock providers, real local callback and original dialog recovery, responsive screenshots\n');
 } catch (error) { if(page) { process.stderr.write(JSON.stringify(await page.evaluate('({url:location.href, text:document.body?.innerText?.slice(0,1200),state:document.readyState})').catch(()=>null))+'\n'); await page.screenshot('/private/tmp/work04-browser-failure.png').catch(()=>{}); } throw error; } finally { await browser?.close(); if (server) await stop(server); await host?.close(); await stop(authServer); await proxy?.dispose(); await rm(home, { recursive: true, force: true }); }

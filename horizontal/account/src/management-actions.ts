@@ -7,6 +7,8 @@ import schemas from "./upstream/schemas.json" with { type: "json" };
 
 /** Each management operation has one action and one frozen product route. No credential operations. */
 const declarations = [
+  ["getTenantCreationPolicy", "account.tenant-creation-policy.read", /* @version action.account.tenant-creation-policy.read */ 1, "读取租户创建策略"],
+  ["createMyTenant", "account.tenant.create", /* @version action.account.tenant.create */ 1, "创建租户"],
   ["listFeatures", "account.features.list", /* @version action.account.features.list */ 1, "读取功能目录"],
   ["checkEntitlements", "account.entitlements.check", /* @version action.account.entitlements.check */ 1, "查询当前权益"],
   ["listMyTenants", "account.tenants.list", /* @version action.account.tenants.list */ 1, "读取所属租户"],

@@ -32,7 +32,8 @@ async function syncFrameStorage(browser: NonNullable<Awaited<ReturnType<typeof o
       });
     };
     view.addEventListener('storage',done);
-    writer.contentWindow.localStorage.setItem(key,newValue);
+    const scope=view.document.querySelector('meta[name="molis-work-page-session"]')?.content.split('.')[1];
+    writer.contentWindow.localStorage.setItem((scope?'molis-account-cache:'+encodeURIComponent(scope)+':':'')+key,newValue);
   })`);
   assert.equal(receipt.trusted, true, "the browser delivers storage from another same-origin Window");
   assert.notEqual(receipt.newValue, receipt.oldValue, "the other Window really writes storage");

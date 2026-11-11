@@ -275,7 +275,15 @@ body.immersive-workbench .feed-workbench .feed-capture-rule-copy :is(strong,p,sm
   body.immersive-workbench .feed-workbench .feed-setup-panel .feed-capture-rule { align-items: stretch; flex-direction: column; gap: 12px; }
   .feed-setup-panel .feed-capture-rule-actions .mw-btn { min-height: 44px; }
 }
-/* A short Feed (a split pane, a low window) gives its height to the list: a tighter heading and cards, no count row. */
+@media (max-width: 760px) {
+  ${F} .feed-scope { min-height: 48px; }
+  ${F} .feed-source-nav { min-height: 52px; }
+  ${F} .feed-quick-filter .mw-toggle { min-height: 36px; }
+  ${F} .feed-search-row { height: 44px; }
+  ${F} .plugin-stage-list .feed-stage-entry .feed-entry-copy strong { font-size: 15px; }
+  ${F} .feed-stage-item-detail .feed-detail-actions > .mw-btn { min-height: 44px; }
+}
+/* A short Feed (a split pane, a low window) gives its height to the list: a tighter heading and cards, with pagination kept reachable. */
 @container feed-workbench (max-height: 560px) {
   ${F} .feed-column-head { padding-top: 12px; }
   ${F} .feed-column-title { padding-bottom: 8px; }
@@ -300,12 +308,5 @@ body.immersive-workbench .feed-workbench .feed-capture-rule-copy :is(strong,p,sm
   ${F} > .feed-column > .feed-stage-toolbar { gap: 4px; padding-block: 4px; }
   ${F} .plugin-stage-list .feed-stage-entry .feed-entry-preview { display: none; }
 }
-@media (max-width: 760px) {
-  ${F} .feed-scope { min-height: 48px; }
-  ${F} .feed-source-nav { min-height: 52px; }
-  ${F} .feed-quick-filter .mw-toggle { min-height: 36px; }
-  ${F} .feed-search-row { height: 44px; }
-  ${F} .plugin-stage-list .feed-stage-entry .feed-entry-copy strong { font-size: 15px; }
-  ${F} .feed-stage-item-detail .feed-detail-actions > .mw-btn { min-height: 44px; }
-}
+
 `;

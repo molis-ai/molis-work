@@ -42,4 +42,4 @@ D0195、D0205、D0229、D0238：页面分页、来源按需读取、后台同步
 
 ## 验收与交付
 
-逐编号测试及公开合同影响记录于[11月11日日评记录](../../docs/reviews/daily-quality/2026-11-11-feed-closure.md)。FBR-01～07均有测试引用；核心规模场景含407条消息、406份单项材料和405个重复收据引用。没有改真实Home。独立工作树 `/private/tmp/molis-1111-feed`、分支 `codex/daily-quality-1111-feed`；共享核心改动的CI Full尚未执行，因此保留本规范为待验收，不归档或标为已合入。
+逐编号测试及公开合同影响记录于[11月11日日评记录](../../docs/reviews/daily-quality/2026-11-11-feed-closure.md)。FBR-01～07均有测试引用；核心规模场景含407条消息、406份单项材料和405个重复收据引用。没有改真实Home。独立工作树 `/private/tmp/molis-1111-feed`、分支 `codex/daily-quality-1111-feed`；共享核心改动的CI Full已执行并持续修复发现的遗漏，最终头完整结果见PR task list，因此保留本规范为待验收，不归档或标为已合入。

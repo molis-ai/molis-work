@@ -123,7 +123,7 @@ test("FSS-74 native factory archives restore the same released prompts and metho
       assert.deepEqual(restored.instructions, current.instructions);
       assert.deepEqual(restored.agent_prompts, current.agent_prompts);
       assert.deepEqual(restored.agent_skills, current.agent_skills);
-      const bodies = [...restored.instructions ?? [], ...restored.agent_prompts ?? [], ...restored.agent_skills ?? []];
+      const bodies = [...(restored.instructions ?? []), ...(restored.agent_prompts ?? []), ...(restored.agent_skills ?? [])];
       assert.ok(bodies.some(prompt => prompt.body_by_locale?.en && prompt.body !== prompt.body_by_locale.en));
     });
   }

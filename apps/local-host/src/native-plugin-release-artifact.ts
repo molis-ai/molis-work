@@ -39,6 +39,13 @@ export function nativePluginReleaseArtifact<TFactory>(
         platform: "node",
         packages: "bundle",
         target: "node24",
+        // Bundled CommonJS can still require Node builtins. Resolve those inside the
+        // archived ESM module without consulting the current installation's packages.
+        banner: { js: `function require(id) {
+          const builtin = process.getBuiltinModule(id);
+          if (builtin === undefined) throw new Error("Native plugin release cannot load " + id);
+          return builtin;
+        }` },
       });
       const output = result.outputFiles[0]?.text;
       if (!output) throw new Error("Native 插件发行物构建没有输出代码");

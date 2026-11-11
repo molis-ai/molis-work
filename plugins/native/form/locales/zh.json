@@ -13,6 +13,7 @@
     "form.ai.open-settings": "打开模型设置",
     "form.ai.prompt-label": "题目或 AI 提示",
     "form.ai.prompt-placeholder": "例如：你最常用的工具是什么",
+    "form.artifacts.type-title": "问卷",
     "form.collect.hint": "开始在这台电脑上收集答卷；不会生成外网链接",
     "form.collect.off": "未开始收集",
     "form.collect.on": "正在这台电脑上收集",

@@ -13,6 +13,7 @@
     "pages.action.ok": "Confirm",
     "pages.action.retry": "Retry",
     "pages.ai.doc-changed": "The document changed. Generate again.",
+    "pages.artifacts.type-title": "Page",
     "pages.comments.annotation": "Original annotation",
     "pages.comments.assistant": "Assistant",
     "pages.comments.blank-block": "Empty block",

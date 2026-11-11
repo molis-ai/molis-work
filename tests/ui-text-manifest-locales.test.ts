@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { PLUGIN_LOCALE_LIMITS } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { defineArtifactPreviewAction } from "@molis-ai/molis-work-contracts/platform/actions";
 import { TEXT_REF_LIMITS } from "@molis-ai/molis-work-contracts/platform/ui";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { declarationManifest, manifestProblems } from "./fixtures/declaration-manifest.js";
@@ -103,4 +104,30 @@ test("FSS-52 a plugin_id longer than a text reference's owner is refused by its 
   assert.equal(longest.length, 200);
   assert.equal(parsePluginManifest(declarationManifest({ plugin_id: longest })).plugin_id, longest);
   assert.equal(manifestProblems(declarationManifest({ plugin_id: `${longest}a` })), "plugin_id 最长 200 个字符");
+});
+
+test("FSS-35 FSS-38 a produced Artifact type may name one short word from its own declared locales", () => {
+  const reference = { key: "declaration-rules.artifacts.type-title" };
+  const action = defineArtifactPreviewAction("declaration-rules.artifacts.preview", 1, "Preview", []);
+  const type = { artifact_type_id: "io.example.note", schema_version: 1, title: "Original label",
+    preview: { capability_id: action.capability_id, version: action.version } };
+  const withTitle = (title_text: unknown, title: unknown = type.title) =>
+    ({ actions: [action], artifacts: { produces: [{ ...type, title, title_text }], consumes: [] } });
+  assert.deepEqual(parsePluginManifest(withLocales(LOCALES, {}, withTitle(reference))).artifacts.produces,
+    [{ ...type, title_text: reference }]);
+  assert.deepEqual(parsePluginManifest(declarationManifest({ actions: [action], artifacts: { produces: [type], consumes: [] } })).artifacts.produces, [type]);
+  const refusal = /artifacts\.produces\[0\]\.title_text 只能写本插件在 ui\.locales 声明的无参 \{ key \}/u;
+  assert.match(manifestProblems(declarationManifest(withTitle(reference))), refusal);
+  assert.equal(manifestProblems(withLocales(LOCALES, {}, withTitle(reference, " "))), "成果类型 io.example.note@1 缺少显示名（title）");
+  for (const invalid of [
+    { key: "notes.artifacts.type-title" }, { key: "common.control.retry" }, { literal: "Original" },
+    { ...reference, owner: "io.molis.work.declaration-rules" }, { ...reference, args: [] }, { ...reference, fallback: "Original" }, null,
+  ]) assert.match(manifestProblems(withLocales(LOCALES, {}, withTitle(invalid))), refusal, JSON.stringify(invalid));
+  const inheritedKey = Object.assign(Object.create(reference), { args: undefined });
+  assert.match(manifestProblems(withLocales(LOCALES, {}, withTitle(inheritedKey))), refusal);
+  const wrongSlot = /title_text 只用于 artifacts\.produces/u;
+  const tagged = { ...type, title_text: reference };
+  assert.match(manifestProblems(withLocales(LOCALES, {}, { artifacts: { produces: [], consumes: [tagged] } })), wrongSlot);
+  assert.match(manifestProblems(withLocales(LOCALES, {}, { process_items: { produces: [tagged], consumes: [] } })), wrongSlot);
+  assert.match(manifestProblems(withLocales(LOCALES, {}, { process_items: { produces: [], consumes: [tagged] } })), wrongSlot);
 });

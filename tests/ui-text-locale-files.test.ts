@@ -4,12 +4,14 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { SANDBOX_PACKAGE_FILES, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { defineArtifactPreviewAction } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { SandboxPluginContract } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { PLUGIN_INSTALL_PERMISSIONS, pluginInstallActions, readSandboxPackage } from "@molis-ai/molis-work-app-local-host";
 import { packPluginProject, packSandboxProject, runPluginCli, validatePluginManifestFile } from "@molis-ai/molis-work-plugin-cli";
 import { assertPluginLocales, inspectPluginLocales, loadDevelopmentLocalePacks, parsePluginPackage, pluginLocaleFilePaths, pluginLocaleReader, signPluginPackage, verifyPluginPackageSignature } from "@molis-ai/molis-work-plugin-runtime";
-import { createTextReader, tryOwnedTextRef } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
+import { assertPluginLocales as validateAuthorLocales, createTextReader, tryOwnedTextRef } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { declarationManifest } from "./fixtures/declaration-manifest.js";
 import { newPublisher, packageFiles, payloadOf, signedPackage, type PackageFiles } from "./fixtures/sandbox-package.js";
 import { person, serveHomeRuntime } from "./fixtures/home-runtime.js";
@@ -29,6 +31,29 @@ const GOOD: Record<string, string> = {
 };
 const reader = (files: Record<string, string>) => (name: string) => files[name] ?? null;
 const codes = (manifest: PluginManifest, files: Record<string, string>) => inspectPluginLocales(manifest, reader(files)).map((problem) => problem.code);
+
+test("FSS-35 FSS-38 Artifact title words require a default short line and use the default when another language lacks it", () => {
+  const key = "notes.artifacts.type-title";
+  const action = defineArtifactPreviewAction("notes.artifacts.preview", 1, "Preview", []);
+  const manifest = parsePluginManifest(manifestOf({ actions: [action], artifacts: { produces: [
+    { artifact_type_id: "io.example.note", schema_version: 1, title: "Original note", title_text: { key }, preview: { capability_id: action.capability_id, version: action.version } },
+  ], consumes: [] } }));
+  assert.throws(() => validateAuthorLocales(manifest, reader(GOOD)), {
+    code: "plugin.package_invalid", message: /locales\/en\.json notes\.artifacts\.type-title.*默认语言不能缺词/u,
+  });
+  const withTitle = (value: unknown) => ({ ...GOOD, "locales/en.json": packText("en", { "notes.main.saved": "Saved {count}", [key]: value }) });
+  for (const invalid of ["{count} notes", { plural_arg: "count", forms: { one: "One note", other: "Several notes" } }, "x".repeat(81), "Two\nlines"]) {
+    assert.throws(() => validateAuthorLocales(manifest, reader(withTitle(invalid))), {
+      code: "plugin.package_invalid", message: /notes\.artifacts\.type-title/u,
+    });
+  }
+  const files = withTitle("Saved note");
+  assert.deepEqual(validateAuthorLocales(manifest, reader(files)).map(({ code, key, blocking }) => [code, key, blocking]),
+    [["ui.locale_missing_key", key, false]]);
+  const owner = pluginLocaleReader(manifest, reader(files))!;
+  const title = createTextReader({ locale: "zh", packs: [owner.pack("en")!, owner.pack("zh")!] });
+  assert.equal(title.text({ owner: PLUGIN_ID, key }), "Saved note");
+});
 
 test("FSS-53 a good set of files has nothing to say, and a Manifest without ui.locales reads nothing", () => {
   assert.deepEqual(inspectPluginLocales(manifestOf(), reader(GOOD)), []);
@@ -239,6 +264,13 @@ test("FSS-53 FSS-70 pack-sandbox signs the declared words and the Host refuses m
     code: "plugin.declaration_invalid", message: '"../zh.json"：沙箱包的格式里没有这个文件',
   });
   assert.throws(() => readSandboxPackage(payloadOf({ ...manifest, ui: { ...manifest.ui, locales: { ...LOCALES, default: "zh" } } }, files)), /清单不是沙箱插件/u);
+  const artifactPreview = defineArtifactPreviewAction("notes.artifacts.preview", 1, "Preview", []);
+  const altered = { ...manifest, actions: [...manifest.actions ?? [], artifactPreview], artifacts: { consumes: [], produces: [{
+    artifact_type_id: "io.example.note", schema_version: 1, title: "Original note", title_text: { key: "notes.main.title" },
+    preview: { capability_id: artifactPreview.capability_id, version: artifactPreview.version },
+  }] } };
+  const issued = signPluginPackage({ ...bundle, payload: payloadOf(altered, files) }, publisher.signer);
+  assert.throws(() => readSandboxPackage(verifyPluginPackageSignature(issued).bundle.payload), /清单不是沙箱插件/u);
 }));
 
 test("FSS-53 FSS-60 a real signed installation binds words to its authorized page and operation", { skip: process.platform !== "darwin", timeout: 120_000 }, async t => {

@@ -70,8 +70,10 @@ export class HomePluginHost {
     this.releaseRegistration = bindHomeRegistration(options.home, this, () => this.outsideBuild());
   }
 
-  ready(): Promise<HomePluginPlatform> {
+  /** With start disabled, read the current platform without starting or waiting for the Home plugin owner. */
+  ready({ start = true } = {}): Promise<HomePluginPlatform> {
     if (this.closed) return Promise.reject(new ActionError("actions.plugin_unavailable", "Home 插件宿主已关闭"));
+    if (!start) return this.platform ? Promise.resolve(this.platform) : Promise.reject(languagePreviewUnavailable());
     if (inLanguagePreview() && !this.opening) return Promise.reject(languagePreviewUnavailable());
     return this.opening ??= this.open();
   }

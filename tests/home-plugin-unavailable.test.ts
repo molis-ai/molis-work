@@ -11,6 +11,8 @@ test("D0304 D0308 Home plugin startup is unavailable before ready and preserves 
   const host = new HomePluginHost({ home, actorId: "local-owner", registry: actions, client: actions,
     entries: [{ create: () => { throw original; }, package_name: "unused-test-package", factory_export: "create" }] });
   t.after(async () => { await host.close(); await rm(home, { recursive: true, force: true }); });
+  installHostUiText();
+  await assert.rejects(runWithLocale("en", () => host.ready({ start: false })), { code: "actions.unavailable" });
   assert.throws(() => host.installations(), { code: "actions.plugin_unavailable" });
   await assert.rejects(host.ready(), error => error === original);
   assert.throws(() => host.installations(), error => error === original);

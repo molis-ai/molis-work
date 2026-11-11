@@ -58,7 +58,7 @@ export const pagesManifest: PluginManifest = {
   capabilities: { provides: [], consumes: ["goals.collection.read"] },
   actions: [...PAGES_ACTIONS, ...Object.values(pagesContentActions)],
   artifacts: {
-    produces: [{ artifact_type_id: PAGES_ARTIFACT_TYPE_ID, schema_version: PAGES_ARTIFACT_SCHEMA_VERSION, title: "文档",
+    produces: [{ artifact_type_id: PAGES_ARTIFACT_TYPE_ID, schema_version: PAGES_ARTIFACT_SCHEMA_VERSION, title: "文档", title_text: { key: "pages.artifacts.type-title" },
       preview: { capability_id: "pages.artifacts.preview", version: /* @version action.pages.artifacts.preview */ 1 }, pin: { capability_id: "pages.artifacts.pin", version: /* @version action.pages.artifacts.pin */ 1 },
       compare: { capability_id: "pages.artifacts.compare", version: /* @version action.pages.artifacts.compare */ 1 }, continue: { capability_id: "pages.artifacts.continue", version: /* @version action.pages.artifacts.continue */ 1 } }],
     // Pages also continues from imported files it can read (artifact-positioning A3, A4b).

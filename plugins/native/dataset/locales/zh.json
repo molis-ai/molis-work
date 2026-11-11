@@ -15,6 +15,7 @@
     "dataset.ai.prompt-placeholder": "例如：完成日期",
     "dataset.ai.suggest": "AI 拟列名加列",
     "dataset.ai.summary": "AI 辅助加列",
+    "dataset.artifacts.type-title": "数据表",
     "dataset.column.add": "加一列",
     "dataset.column.default-name": "列 {n}",
     "dataset.column.remove": "删列",

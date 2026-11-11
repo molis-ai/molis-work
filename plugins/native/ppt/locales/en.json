@@ -10,6 +10,7 @@
     "ppt.actions.model-unavailable-permission": "This caller is not allowed to use AI to organize an outline.",
     "ppt.actions.pages-unavailable": "Pages is unavailable.",
     "ppt.actions.pages-unreadable": "Could not read the Pages documents.",
+    "ppt.artifacts.type-title": "Presentation",
     "ppt.color.background": "Background",
     "ppt.color.primary": "Accent",
     "ppt.create.kind-title": "Presentation",

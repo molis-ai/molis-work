@@ -17,7 +17,8 @@ import { artifactTypeDeclarations, artifactContinuers, artifactReferrerActions, 
 import { renderFilePreviewHtml } from "@molis-ai/molis-work-design-system";
 import { importedDocumentFile, type ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { ActionProgressEvent, ArtifactCompareResult, ArtifactContinueResult, ArtifactReferrersResult, FileContent } from "@molis-ai/molis-work-contracts/platform/actions";
-import { readText } from "./web-locale.js";
+import { currentLocale, inLanguagePreview, readText } from "./web-locale.js";
+import type { ReadArtifactDisplay } from "./artifact-display-words.js";
 import { requestHeader, sendLocalWebJson } from "./web-http.js";
 import { readArtifactImportBody } from "./artifact-document-import.js";
 import { answerPluginRouteStream } from "./plugin-route-stream.js";
@@ -34,6 +35,7 @@ export interface ArtifactHttpContext {
   readonly ownerActions?: (permissions: readonly string[]) => BoundActionClient;
   /** Whether this project has a Goal to take a version as its input; a project without Goals (RAC-400) does not offer 「作为 Goal 的输入」. */
   readonly goalsAvailable?: () => Promise<boolean>;
+  readonly readArtifactDisplay: ReadArtifactDisplay;
   readonly controlToken: string;
   readonly desktopShell: boolean;
   readonly pageCsp: string;
@@ -43,10 +45,6 @@ function escape(value: string): string {
   return value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 }
 
-/** A type's name is its owner's own text, so the plugin that declares it translates it, whoever published it (artifact-positioning A4). */
-const typeTitle = (declaration: ArtifactTypeDeclaration): string => declaration.title;
-const typeTitlesOf = (declarations: ReadonlyMap<string, ArtifactTypeDeclaration>) => Object.fromEntries([...declarations].map(([type, declaration]) => [type, typeTitle(declaration)]));
-const typeTitleOf = (declarations: ReadonlyMap<string, ArtifactTypeDeclaration>, type: string): string => { const declaration = declarations.get(type); return declaration ? typeTitle(declaration) : type; };
 /** The platform's own pages and answers use the Workbench's current dictionary. */
 const primitives = { escape, text: (value: string) => escape(uiText.text(value)), formatDate: (value: string) => format.date(value, "datetime-with-seconds") };
 
@@ -54,7 +52,8 @@ const primitives = { escape, text: (value: string) => escape(uiText.text(value))
  * The owner's preview of a 成果 version (specs/artifact-positioning A4): the type's declared preview action turns the
  * version into a file, rendered read-only, with a way back to the pinned work object in its owner.
  */
-async function ownerPreview(artifact: ArtifactVersionRecord | null, declarations: ReadonlyMap<string, ArtifactTypeDeclaration>, context: ArtifactHttpContext) {
+async function ownerPreview(artifact: ArtifactVersionRecord | null, declarations: ReadonlyMap<string, ArtifactTypeDeclaration>,
+  pluginTitle: string | undefined, context: ArtifactHttpContext, languagePreview: boolean) {
   const declaration = artifact ? declarations.get(artifact.artifact_type_id) : undefined;
   // Only the type's declared owner previews it, and only versions that owner produced.
   if (!artifact || artifact.availability !== "available" || !declaration?.preview || !context.ownerActions
@@ -69,20 +68,22 @@ async function ownerPreview(artifact: ArtifactVersionRecord | null, declarations
     try { compared = (await context.ownerActions(declaration.compare.action.permissions).invoke(declaration.compare, { artifact }) as ArtifactCompareResult).state; }
     catch { compared = null; }
   }
-  const notice = artifact.origin.kind === "imported" ? "这是导入时保存的版本；原文后续修改不会自动同步。"
-    : compared === "changed" ? "原文已改，这里仍是第 {version} 版。" : compared === "moved" ? "原对象已移到别处，这里仍保留第 {version} 版。"
-      : compared === "missing" ? "原对象已经删除，这里仍保留第 {version} 版。" : undefined;
+  const version = { version: artifact.version };
+  const notice = artifact.origin.kind === "imported" ? uiText.text("workbench.browser-ui.imported-version-notice")
+    : compared === "changed" ? uiText.text("workbench.browser-ui.original-changed-notice", version)
+      : compared === "moved" ? uiText.text("workbench.browser-ui.original-moved-notice", version)
+        : compared === "missing" ? uiText.text("workbench.browser-ui.original-deleted-notice", version) : undefined;
   // A moved object is not in this project to open; only an object that is here gets the way back.
-  return { body_html: renderFilePreviewHtml(content, primitives), ...(notice ? { notice } : {}),
+  return { body_html: languagePreview ? "" : renderFilePreviewHtml(content, primitives), ...(notice ? { notice } : {}),
     source_href: pinned && compared !== "missing" && compared !== "moved" ? `${context.routePrefix}/?openPlugin=${encodeURIComponent(declaration.surface)}&openItem=${encodeURIComponent(pinned.id)}&openTitle=${encodeURIComponent(artifact.title)}` : "",
-    source_label: pinned ? `在${/^[\x20-\x7e]+$/u.test(declaration.plugin_title) ? ` ${declaration.plugin_title} ` : declaration.plugin_title}打开原对象` : "",
+    source_label: pinned ? uiText.text("workbench.browser-ui.open-original-in-plugin", { plugin: pluginTitle ?? artifact.producer_plugin_id }) : "",
     plugin_id: declaration.surface, item_id: pinned?.id ?? "" };
 }
 
-export function renderGoalArtifactContext(embeds: GoalArtifactEmbed[]): string {
+export async function renderGoalArtifactContext(embeds: GoalArtifactEmbed[], readArtifactDisplay: ReadArtifactDisplay): Promise<string> {
   // The containing Goal fragment applies its Project prefix once to every local link; types are named as their owners declare.
-  return artifactWorkbench.goalContext(embeds, { routePrefix: "", primitives,
-    typeTitles: typeTitlesOf(artifactTypeDeclarations()) });
+  const words = await readArtifactDisplay(embeds.flatMap(({ view }) => view.selected ? [view.selected] : []));
+  return artifactWorkbench.goalContext(embeds, { routePrefix: "", primitives, typeTitle: version => words(version)?.title });
 }
 
 /** The name the page sends with a raw original (percent-encoded UTF-8): one file name, no path. */
@@ -174,14 +175,15 @@ export function createLocalArtifactHttp() {
       if (pathname === "/api/artifacts/versions") {
         // What a Goal can hand in (A5): the latest available version of each 成果, named as its owner declares the type.
         const view = await context.actions.invoke(artifactsActions.browser, { reference: null });
-        const declarations = artifactTypeDeclarations(), latest = new Map<string, ArtifactVersionRecord>();
+        const latest = new Map<string, ArtifactVersionRecord>();
         for (const version of view.versions) {
           if (version.lifecycle_state !== "active" || version.availability !== "available") continue;
           const current = latest.get(version.artifact_id);
           if (!current || version.version > current.version) latest.set(version.artifact_id, version);
         }
-        sendLocalWebJson(response, 200, { versions: [...latest.values()].map(version => ({ reference: { artifact_id: version.artifact_id, version: version.version },
-          title: version.title, type_title: typeTitleOf(declarations, version.artifact_type_id), created_at: version.created_at })) });
+        const versions = [...latest.values()], words = await context.readArtifactDisplay(versions);
+        sendLocalWebJson(response, 200, { versions: versions.map(version => ({ reference: { artifact_id: version.artifact_id, version: version.version },
+          title: version.title, type_title: words(version)?.title ?? version.artifact_type_id, created_at: version.created_at })) });
         return true;
       }
       const route = matchArtifactBrowserRoute(pathname);
@@ -221,10 +223,13 @@ export function createLocalArtifactHttp() {
         response.end();
         return true;
       }
-      const declarations = artifactTypeDeclarations();
-      const presentation = await ownerPreview(view.selected, declarations, context);
+      const selected = view.selected;
+      const words = await context.readArtifactDisplay(selected ? [...view.versions, selected] : view.versions);
+      const fragment = requestHeader(request, "x-molis-work-fragment"), compact = fragment === "frame-block";
+      const languagePreview = fragment === "artifact-workbench" && inLanguagePreview();
+      const presentation = await ownerPreview(selected, artifactTypeDeclarations(), selected ? words(selected)?.pluginTitle : undefined, context, languagePreview);
       // 「从这一版继续」 (A4b): who declares it for this type; for an imported file, those whose `file` declaration reads it.
-      const selected = view.selected, file = importedDocumentFile(selected);
+      const file = importedDocumentFile(selected);
       const continuers = selected && selected.availability === "available" && selected.lifecycle_state !== "archived" ? (artifactContinuers().get(selected.artifact_type_id) ?? [])
         .filter(item => !file || continuerReadsFile(item, file)).map(item => ({ plugin_id: item.plugin_id, plugin_title: item.plugin_title })) : [];
       const reference = view.selected ? { artifact_id: view.selected.artifact_id, version: view.selected.version } : null;
@@ -237,12 +242,11 @@ export function createLocalArtifactHttp() {
       // 「交给插件作为输入」 (2026-10-04): the input ports of running plugins that take a usable version's type.
       const pluginInputs = reference && route.kind === "detail" && selected?.availability === "available" && selected.lifecycle_state !== "archived"
         ? (await context.actions.invoke(artifactsActions.pluginInputs, { reference }).catch(() => ({ inputs: [] }))).inputs : [];
-      const compact = requestHeader(request, "x-molis-work-fragment") === "frame-block";
       response.writeHead(view.requested && !view.selected ? 404 : 200, {
         "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "vary": "x-molis-work-fragment",
       });
       response.end(artifactWorkbench.fragments({ view, routePrefix: context.routePrefix, primitives, presentation, ...(links ? { links } : {}), ...(goalInput ? {} : { goalInput }), continuers, pluginInputs,
-        typeTitles: typeTitlesOf(declarations) }, compact ? "frame-block" : "detail"));
+        languagePreview, typeTitle: version => words(version)?.title }, compact ? "frame-block" : "detail", currentLocale()));
       return true;
     } catch (error) {
       // The status is the one of the failure's kind. This is the one edge where the Host translates a failure's message itself.

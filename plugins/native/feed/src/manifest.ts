@@ -38,7 +38,7 @@ export const feedManifest: PluginManifest = {
   capabilities: { provides: [], consumes: ["functions.authoring.create", "functions.authoring.list", "functions.authoring.get", "functions.authoring.update", "functions.authoring.preview", "functions.authoring.publish", GOAL_CONTRACT.capability_id, FEED_STAGE_INBOX_READ.capability_id, ...(feedItemActions.promote.action.required_actions ?? []).map(action => action.capability_id)] },
   actions: FEED_ACTIONS,
   demo_seed: { capability_id: feedDemoSeedAction.capability_id, version: feedDemoSeedAction.version },
-  artifacts: { produces: [{ artifact_type_id: FEED_CAPTURE_ARTIFACT_TYPE_ID, schema_version: FEED_CAPTURE_SCHEMA_VERSION, title: "捕获的消息",
+  artifacts: { produces: [{ artifact_type_id: FEED_CAPTURE_ARTIFACT_TYPE_ID, schema_version: FEED_CAPTURE_SCHEMA_VERSION, title: "捕获的消息", title_text: { key: "feed.artifacts.type-title" },
     preview: { capability_id: "feed.artifacts.preview", version: /* @version action.feed.artifacts.preview */ 1 } }], consumes: [] },
   requires: [],
   sync: feedSync,

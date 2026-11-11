@@ -798,6 +798,7 @@ export declare function withDevicePreferences(snapshot: UiEnvironmentSnapshot, d
 
 type DirectoryWordManifest = NameFields & {
     readonly ui?: Pick<PluginManifest["ui"], "locales" | "views">;
+    readonly artifacts?: Pick<PluginManifest["artifacts"], "produces">;
 };
 
 type Locale = string | undefined;

@@ -3509,6 +3509,9 @@ export interface PluginManifest {
             artifact_type_id: string;
             schema_version: number;
             title?: string;
+            title_text?: {
+                key: string;
+            };
             preview?: {
                 capability_id: string;
                 version: number;

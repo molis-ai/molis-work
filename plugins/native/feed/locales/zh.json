@@ -17,6 +17,7 @@
     "feed.add-source.unread-notifications": "未读通知",
     "feed.add-source.web-search": "网页搜索",
     "feed.add-source.youtube": "YouTube",
+    "feed.artifacts.type-title": "捕获的消息",
     "feed.directory.summary": "订阅来源，读消息，留下值得留的。",
     "feed.factory.could-not-refresh-feed": "无法更新 Feed 列表",
     "feed.factory.original-capture-rule-doesn-t-exist-may-have": "原捕捉规则不存在，可能已经删除。",

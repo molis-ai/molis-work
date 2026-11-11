@@ -17,6 +17,7 @@
     "feed.add-source.unread-notifications": "Unread notifications",
     "feed.add-source.web-search": "Web search",
     "feed.add-source.youtube": "YouTube",
+    "feed.artifacts.type-title": "Captured messages",
     "feed.directory.summary": "Follow sources, read updates, and save what matters.",
     "feed.factory.could-not-refresh-feed": "Could not refresh Feed",
     "feed.factory.original-capture-rule-doesn-t-exist-may-have": "The original capture rule doesn’t exist; it may have been deleted.",

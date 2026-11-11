@@ -13,6 +13,7 @@
     "pages.action.ok": "确定",
     "pages.action.retry": "重试",
     "pages.ai.doc-changed": "文档已改变，请重新生成",
+    "pages.artifacts.type-title": "文档",
     "pages.comments.annotation": "原批注",
     "pages.comments.assistant": "助理",
     "pages.comments.blank-block": "空白块",

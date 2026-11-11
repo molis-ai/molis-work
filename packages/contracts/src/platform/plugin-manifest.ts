@@ -155,6 +155,7 @@ export interface PluginManifest {
    * type names itself (`title`, e.g. 「文档」) and its preview action (A4): one of this Plugin's actions defined with
    * `defineArtifactPreviewAction`. A type whose work objects can be pinned on the spot (a Goal handing one in, A5) also
    * names its pin action, defined with `defineArtifactPinAction`.
+   * `title_text` may select a fixed line in this Plugin's language files for display. `title` stays the declaration's original.
    * A type pinned from a work object names its compare action (`defineArtifactCompareAction`): whether the version still
    * matches the object, for 「原文已改」 (A4b).
    * A plugin that can start new work from a version declares `continue` (`defineArtifactContinueAction`) on that type,
@@ -163,7 +164,7 @@ export interface PluginManifest {
    * continue from and no others (ac-artifacts A3, PG-079).
    */
   artifacts: {
-    produces: Array<{ artifact_type_id: string; schema_version: number; title?: string; preview?: { capability_id: string; version: number }; pin?: { capability_id: string; version: number }; compare?: { capability_id: string; version: number }; continue?: { capability_id: string; version: number } }>;
+    produces: Array<{ artifact_type_id: string; schema_version: number; title?: string; title_text?: { key: string }; preview?: { capability_id: string; version: number }; pin?: { capability_id: string; version: number }; compare?: { capability_id: string; version: number }; continue?: { capability_id: string; version: number } }>;
     consumes: Array<{ artifact_type_id: string; schema_version: number; continue?: { capability_id: string; version: number }; file?: ArtifactFileDeclaration }>;
     /** The kinds of link this Plugin writes between its own objects and exact 成果 versions; one Plugin owns a kind. */
     links?: ArtifactLinkDeclaration[];

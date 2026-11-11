@@ -10,6 +10,7 @@
     "ppt.actions.model-unavailable-permission": "当前调用方未获 AI 整理大纲的授权",
     "ppt.actions.pages-unavailable": "Pages 不可用",
     "ppt.actions.pages-unreadable": "读不到 Pages 文档",
+    "ppt.artifacts.type-title": "演示稿",
     "ppt.color.background": "背景",
     "ppt.color.primary": "主题色",
     "ppt.create.kind-title": "演示稿",

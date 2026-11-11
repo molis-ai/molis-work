@@ -56,7 +56,7 @@ export const formManifest: PluginManifest = {
     { route_id: "form.fillpage", method: "GET", path: "/forms/:id/fill-page" },
   ],
   artifacts: {
-    produces: [{ artifact_type_id: FORM_ARTIFACT_TYPE_ID, schema_version: FORM_ARTIFACT_SCHEMA_VERSION, title: "问卷",
+    produces: [{ artifact_type_id: FORM_ARTIFACT_TYPE_ID, schema_version: FORM_ARTIFACT_SCHEMA_VERSION, title: "问卷", title_text: { key: "form.artifacts.type-title" },
       preview: { capability_id: "form.artifacts.preview", version: /* @version action.form.artifacts.preview */ 1 }, pin: { capability_id: "form.artifacts.pin", version: /* @version action.form.artifacts.pin */ 1 },
       compare: { capability_id: "form.artifacts.compare", version: /* @version action.form.artifacts.compare */ 1 }, continue: { capability_id: "form.artifacts.continue", version: /* @version action.form.artifacts.continue */ 1 } }],
     consumes: [],

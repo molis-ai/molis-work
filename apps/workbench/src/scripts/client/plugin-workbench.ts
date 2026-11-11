@@ -300,6 +300,16 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
     const storedPath = sessionStorage.getItem(artifactKey);
     if (storedPath === route("/artifacts") || storedPath?.startsWith(route("/artifacts/"))) artifactPath = storedPath;
   } catch {}
+  const readArtifactFragment = async (path, signal) => {
+    const headers = {"x-molis-work-fragment":"artifact-workbench"};
+    const fallback = globalThis.t.text("workbench.plugin-workbench.could-not-load-artifacts");
+    const html = await molisWorkRequest(path,{as:"text",accept:[404],headers,signal,fallback});
+    const template = document.createElement("template"); template.innerHTML = html;
+    const directory = template.content.querySelector("[data-artifact-directory]");
+    const detail = template.content.querySelector("[data-artifact-detail]");
+    if (!directory || !detail?.dataset.artifactFragmentLanguage) throw new Error(fallback);
+    return { directory, detail };
+  };
   const loadArtifacts = async (path = artifactPath || route("/artifacts"), refresh = false) => {
     if (!refresh && !artifactRequest && artifactPath === path && detail.childElementCount && !detail.querySelector("[data-artifact-retry]")) {
       const selected = Boolean(detail.querySelector('[data-artifact-id]'));
@@ -312,16 +322,21 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
     }
     artifactRequest?.abort();
     const controller = new AbortController(); artifactRequest = controller;
+    delete detail.dataset.artifactFragmentPath;
     const message = document.createElement("p"); message.textContent = globalThis.t.text("workbench.plugin-workbench.loading-artifacts"); message.role = "status";
     detail.replaceChildren(message);
     try {
-      const html=await molisWorkRequest(path,{as:"text",accept:[404],headers:{"x-molis-work-fragment":"artifact-workbench"},signal:controller.signal,fallback:globalThis.t.text("workbench.plugin-workbench.could-not-load-artifacts")});
-      const template=document.createElement("template");template.innerHTML=html;
-      const nextDirectory = template.content.querySelector("[data-artifact-directory]");
-      const nextDetail = template.content.querySelector("[data-artifact-detail]");
-      if (!nextDirectory || !nextDetail) throw new Error(globalThis.t.text("workbench.plugin-workbench.could-not-load-artifacts"));
+      let next = await readArtifactFragment(path, controller.signal);
       if (controller !== artifactRequest) return;
-      directory.replaceChildren(...nextDirectory.childNodes); detail.replaceChildren(...nextDetail.childNodes);
+      const language = document.documentElement.dataset.uiLanguageTag;
+      if (language && next.detail.dataset.artifactFragmentLanguage !== language) {
+        next = await readArtifactFragment(path, controller.signal);
+        if (controller !== artifactRequest) return;
+        if (next.detail.dataset.artifactFragmentLanguage !== document.documentElement.dataset.uiLanguageTag) throw new Error(globalThis.t.text("workbench.language.window-failed"));
+      }
+      directory.replaceChildren(...next.directory.childNodes); detail.replaceChildren(...next.detail.childNodes);
+      detail.dataset.artifactFragmentPath = path;
+      detail.dataset.artifactFragmentLanguage = next.detail.dataset.artifactFragmentLanguage;
       artifactPath = path;
       const shell = document.querySelector("[data-artifact-stage-shell]");
       const workspace = document.querySelector("[data-artifact-stage-workspace]");

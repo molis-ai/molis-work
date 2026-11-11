@@ -15,6 +15,7 @@
     "dataset.ai.prompt-placeholder": "For example: Due date",
     "dataset.ai.suggest": "Suggest and add with AI",
     "dataset.ai.summary": "Add columns with AI",
+    "dataset.artifacts.type-title": "Dataset",
     "dataset.column.add": "Add column",
     "dataset.column.default-name": "Column {n}",
     "dataset.column.remove": "Remove column",

@@ -13,6 +13,7 @@
     "form.ai.open-settings": "Open model settings",
     "form.ai.prompt-label": "Question or AI prompt",
     "form.ai.prompt-placeholder": "For example: What tool do you use most?",
+    "form.artifacts.type-title": "Form",
     "form.collect.hint": "Start collecting responses on this computer; no public link is created",
     "form.collect.off": "Not collecting yet",
     "form.collect.on": "Collecting on this computer",

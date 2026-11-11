@@ -3,7 +3,7 @@ import type { IncomingMessage } from "node:http";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
-import { ASSISTANT_STORE_NAME, AssistantStore, homeAgentDefinitions, hostTextProblems, pluginPagesFor, projectDeletedHooksFor, runWithLocale } from "@molis-ai/molis-work-app-local-host";
+import { ASSISTANT_STORE_NAME, AssistantStore, homeAgentDefinitions, hostTextProblems, openProjectVersionStores, pluginPagesFor, projectDeletedHooksFor, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import { escapeHtml, format, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
@@ -12,7 +12,7 @@ import { openBoardBrowser } from "./fixtures/board-browser.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { deferred } from "./fixtures/home-runtime.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
-import { openPagesStore } from "./fixtures/plugin-home-stores.js";
+import { openPagesStore, openPptStore } from "./fixtures/plugin-home-stores.js";
 import { addProjectInputFolder } from "./fixtures/project-directories-http.js";
 import { renderAgentReviewRecovery, renderAgentReviewSurface } from "@molis-ai/molis-work-app-workbench";
 import type { AgentReviewRecoveryView, AgentReviewRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -401,6 +401,176 @@ async function chooseEnglishInSettings(t: TestContext, b: LanguageBrowser, targe
   await select(target);
   return select;
 }
+
+async function observeArtifactBodies(t: TestContext, b: LanguageBrowser, marker: string) {
+  // Observe the real HTML body of the regular opening and each language preparation, without changing what the client receives.
+  const observation = await b.command<{ identifier: string }>("Page.addScriptToEvaluateOnNewDocument", { source: `(() => {
+    const send = globalThis.fetch.bind(globalThis);
+    window.artifactResponses = [];
+    globalThis.fetch = (input, init) => {
+      const headers = new Headers(init?.headers);
+      if (headers.get('x-molis-work-fragment') !== 'artifact-workbench') return send(input, init);
+      headers.set('x-test-artifact-document', 'open');
+      return send(input, { ...init, headers }).then(async response => {
+        const html = await response.clone().text();
+        artifactResponses.push([headers.get('x-molis-work-ui-locale'), new TextEncoder().encode(html).byteLength, html.includes(${JSON.stringify(marker)}), html.includes('<pre translate="no">')]);
+        return response;
+      });
+    };
+  })()` }, b.sessionId);
+  t.after(async () => { await b.command("Page.removeScriptToEvaluateOnNewDocument", observation, b.sessionId).catch(() => undefined); });
+  return () => b.evaluate<Array<[string | null, number, boolean, boolean]>>("artifactResponses");
+}
+
+function observeArtifactReads(t: TestContext, b: LanguageBrowser, project: string, prefix: string) {
+  const calls = b.localHost?.callLog; assert.ok(calls);
+  const relevant = (capability: string) => capability.startsWith("artifacts.") || capability.includes(".artifacts.");
+  const diagnosticRows = () => calls.list(project).filter(row => relevant(row.capability_id));
+  const beforeDiagnostics = diagnosticRows();
+  const recorded = calls.record;
+  const previewActions: string[] = [], unexpected: string[] = [];
+  calls.record = (caller, action, outcome) => {
+    if (caller.read_only_effects && relevant(action.capability_id)) {
+      previewActions.push(action.capability_id);
+      if (action.operation !== "query" || !outcome.ok) unexpected.push(action.capability_id);
+    }
+    recorded.call(calls, caller, action, outcome);
+  };
+  t.after(() => { calls.record = recorded; });
+  const requests: Array<[string, string, string | null, string | null, boolean]> = [];
+  const track = (request: IncomingMessage) => {
+    if (request.url?.startsWith(prefix + "/artifacts") || request.url?.startsWith(prefix + "/api/artifacts") && request.method !== "GET") {
+      requests.push([request.method!, request.url, String(request.headers["x-molis-work-ui-locale"] ?? "") || null, String(request.headers["x-molis-work-fragment"] ?? "") || null, request.headers["x-test-artifact-document"] === "open"]);
+    }
+  };
+  b.server.on("request", track); t.after(() => { b.server.off("request", track); });
+  return { requests, previewActions, unexpected, diagnosticRows, beforeDiagnostics };
+}
+
+test("FSS-35 FSS-36 FSS-38 the open Artifact library retitles exact saved versions and preserves their contents", { timeout: 120_000 }, async t => {
+  const b = await openGoalBrowser(t, "seeded", undefined, null); assert.ok(b?.projectId);
+  const project = b.projectId, prefix = "/projects/" + project;
+  const visit = (path: string) => b.navigate(() => b.command("Page.navigate", { url: b.origin + prefix + path }, b.sessionId));
+  const pages = openPagesStore(b.homeDirectory), decks = openPptStore(b.homeDirectory);
+  const marker = "固定正文校验标记", excerpt = marker + " & <示例>";
+  const body = { type: "doc", content: Array.from({ length: 40 }, (_, index) => ({
+    type: "paragraph", content: [{ type: "text", text: String(index) + " " + (excerpt + " ").repeat(5) }],
+  })) };
+  const note = pages.create({ project_id: project, title: "文档", body });
+  const deck = decks.create({ project_id: project, title: "演示稿 · Original" });
+  t.after(() => { pages.close(); decks.close(); });
+  await b.setViewport(1440, 950);
+  const pageFrame = await pluginFrameBrowser(t, b, "pages"), deckFrame = await pluginFrameBrowser(t, b, "ppt");
+  await b.navigate(() => b.command("Page.navigate", {
+    url: b.origin + "/locale?lang=zh&next=" + encodeURIComponent(prefix + "/?openPlugin=pages&openItem=" + note.id),
+  }, b.sessionId));
+  await pageFrame.waitFor(`document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(excerpt)})`);
+  await pageFrame.click("[data-pages-artifact-bar]");
+  await pageFrame.waitFor("document.querySelector('[data-pages-artifact-bar]')?.textContent.includes('再存一个固定版本')");
+  await visit("/?openPlugin=ppt&openItem=" + deck.id);
+  await deckFrame.waitFor("document.querySelector('[data-ppt-artifact-bar]')?.getClientRects().length");
+  await deckFrame.click("[data-ppt-artifact-bar]");
+  await deckFrame.waitFor("document.querySelector('[data-ppt-artifact-bar]')?.textContent.includes('再存一个固定版本')");
+  const importText = "# 导入原文\n保留 & bytes\n";
+  const imported = await b.web.post<{ artifact_id: string; version: number }>(prefix + "/api/artifacts/import", { source: "file", filename: "原始文件.md", content: importText });
+  const saved = [pages.get(note.id, project), decks.get(deck.id, project)].map(value => {
+    assert.ok(value.artifact_id);
+    return { artifact_id: value.artifact_id, version: value.artifact_version };
+  });
+  const references = [...saved, imported];
+  const artifactPath = (ref: { artifact_id: string; version: number }) => "/artifacts/" + encodeURIComponent(ref.artifact_id) + "/versions/" + ref.version;
+  const store = openProjectVersionStores(b.store).artifacts.query;
+  const records = () => references.map(ref => store.getArtifactVersion(project, ref));
+  const before = records();
+  assert.deepEqual(before.map(item => item?.version), [1, 1, 1]);
+
+  const readBodies = await observeArtifactBodies(t, b, marker);
+  await visit(artifactPath(saved[0]!));
+  const detail = "document.querySelector('[data-artifact-detail]')", directory = "document.querySelector('[data-artifact-directory]')";
+  const preview = `${detail}.querySelector('[data-artifact-business-preview]')`, source = `${detail}.querySelector('a[data-workbench-item-plugin=pages]')`;
+  const title = `${detail}.querySelector('h1')`, input = `${detail}.querySelector('.artifact-raw input')`;
+  const kind = `${detail}.querySelector('.artifact-facts dd')`;
+  await b.waitFor(`${source} && ${preview}?.textContent.includes(${JSON.stringify(excerpt)})`);
+  await b.click("[data-artifact-detail] .artifact-raw summary");
+  await b.waitFor(`${input}?.checkVisibility()`);
+  await b.click("[data-artifact-detail] .artifact-raw input");
+  await b.evaluate(`void (()=>{const input=${input}; input.setSelectionRange(3,9,'backward');
+    window.savedArtifactDOM={body:document.body,directory:${directory}.firstElementChild,detail:${detail}.firstElementChild,preview:${preview},input,source:${source},
+      scroller:input.closest('.artifact-detail-content')};
+  })()`);
+  const retained = `[savedArtifactDOM.body===document.body,savedArtifactDOM.directory===${directory}.firstElementChild,
+    savedArtifactDOM.detail===${detail}.firstElementChild,savedArtifactDOM.preview===${preview},savedArtifactDOM.source===${source},
+    savedArtifactDOM.input===${input},document.activeElement===${input},${input}.closest('details').open,${input}.value,${input}.selectionStart,${input}.selectionEnd,
+    ${input}.selectionDirection,${preview}.innerHTML,${source}.href,savedArtifactDOM.scroller.scrollTop,${source}.dataset.workbenchItemId,${title}.textContent]`;
+  const stable = await b.evaluate(retained);
+  assert.deepEqual((stable as unknown[]).slice(0, 8), Array(8).fill(true));
+  assert.equal((stable as unknown[]).at(-1), "文档", "a title with the same characters as its type is original");
+  assert.equal((stable as unknown[]).at(-2), note.id);
+  assert.ok(Number((stable as unknown[]).at(-3)) > 0);
+  const labels = `Object.fromEntries([...document.querySelectorAll('[data-artifact-type-fold]')].map(node=>[node.dataset.artifactTypeFold,node.querySelector('summary strong').textContent]))`;
+  const titleOf = (language: "zh" | "en") => language === "en" ? ["Page", "Presentation", "Imported file"] : ["文档", "演示稿", "导入的文件"];
+  const verifyWords = async (language: "zh" | "en") => {
+    const expected = titleOf(language), button = language === "en" ? "Open original in Pages" : "在 Pages 打开原对象";
+    await b.waitFor(`document.documentElement.dataset.uiLanguageTag===${JSON.stringify(language)} && ${source}.textContent===${JSON.stringify(button)}`);
+    const types = before.map(record => record!.artifact_type_id);
+    const folds = await b.evaluate<Record<string, string>>(labels);
+    assert.deepEqual(types.map(type => folds[type]), expected);
+    assert.equal(await b.evaluate(`${kind}.textContent`), expected[0] + " · " + types[0] + " · Schema 1");
+    const index = await b.evaluate<{ versions: Array<{ reference: { artifact_id: string; version: number }; type_title: string }> }>(
+      `molisWorkRequest(${JSON.stringify(prefix + "/api/artifacts/versions")})`);
+    assert.deepEqual(references.map(ref => index.versions.find(row => row.reference.artifact_id === ref.artifact_id && row.reference.version === ref.version)?.type_title), expected);
+    assert.deepEqual(await b.evaluate(retained), stable);
+  };
+  await verifyWords("zh");
+  const { requests, previewActions, unexpected, diagnosticRows, beforeDiagnostics } = observeArtifactReads(t, b, project, prefix);
+  const select = await chooseEnglishInSettings(t, b);
+  await verifyWords("en");
+  await select("zh"); await verifyWords("zh");
+  const samePath = prefix + artifactPath(saved[0]!);
+  const languageReads = requests.filter(([, , tag]) => tag !== null);
+  const ordinary = requests.filter(([, , tag]) => tag === null);
+  const responses = await readBodies();
+  const regular = responses.filter(([tag]) => tag === null), variants = responses.filter(([tag]) => tag !== null);
+  t.diagnostic(JSON.stringify({ artifactReads: requests.map(([method, path, tag, fragment, owner]) => [method, path === samePath, tag, fragment, owner]),
+    artifactResponses: responses, hostArtifactQueries: previewActions.reduce<Record<string, number>>((counts, id) => (counts[id] = (counts[id] ?? 0) + 1, counts), {}) }));
+  assert.deepEqual(languageReads.map(([method, path, , fragment, owner]) => [method, path, fragment, owner]), Array(4).fill(["GET", samePath, "artifact-workbench", true]));
+  assert.deepEqual(languageReads.map(([, , tag]) => tag).sort(), ["en", "en", "zh", "zh"]);
+  assert.deepEqual(ordinary, [["GET", samePath, null, "artifact-workbench", false]], "the Settings window restores its cached selection once");
+  assert.deepEqual(variants.map(([tag]) => tag).sort(), ["en", "en", "zh", "zh"]);
+  assert.deepEqual(regular.map(([, , hasOriginal, hasRaw]) => [hasOriginal, hasRaw]), [[true, true]]);
+  assert.ok(variants.every(([, bytes, hasOriginal, hasRaw]) => bytes > 0 && bytes < regular[0]![1] && !hasOriginal && !hasRaw));
+  assert.ok(previewActions.length > 0);
+  assert.deepEqual(unexpected, []);
+  assert.deepEqual(diagnosticRows(), beforeDiagnostics);
+  const refused = await b.evaluate(`molisWorkRequest(${JSON.stringify(prefix + "/api/artifacts/versions")}, { as:"response", control:true, headers:{ "x-molis-work-ui-locale":"en" } }).then(value=>value.status)`);
+  assert.equal(refused, 403);
+  assert.deepEqual(records(), before);
+
+  await b.click("[data-directory-open=settings]");
+  const appearance = '[data-directory-panel=settings] [data-settings-section="appearance"]';
+  await b.waitFor(`!!document.querySelector(${JSON.stringify(appearance)})`);
+  await b.click(appearance);
+  const covered = "document.querySelector('[data-tab-workspace]')?.dataset.exclusive";
+  const shell = "document.querySelector('[data-artifact-stage-shell]')";
+  await b.waitFor(`${covered} && !${shell}.checkVisibility({visibilityProperty:true})`);
+  const readsBeforeCover = requests.length;
+  await select("en");
+  await b.waitFor("document.documentElement.dataset.uiLanguageTag==='en'");
+  assert.equal(requests.length, readsBeforeCover, "covered content sends no language reads");
+  await b.click("[data-cover-close]");
+  await b.waitFor(`${source}.textContent==='Open original in Pages'`);
+  assert.deepEqual((await b.evaluate<unknown[]>(retained)).slice(0, 6), Array(6).fill(true));
+  assert.deepEqual(requests.slice(readsBeforeCover).map(([method, path, tag]) => [method, path, tag]).sort(),
+    [["GET", samePath, "en"], ["GET", samePath, "zh"]]);
+
+  await b.click("[data-artifact-detail] a[data-workbench-item-plugin=pages]");
+  await pageFrame.waitFor(`document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(excerpt)})`);
+  await visit(artifactPath(imported));
+  await b.waitFor(`${detail}.querySelector('article')?.dataset.artifactId===${JSON.stringify(imported.artifact_id)}`);
+  const downloaded = await b.evaluate(`molisWorkRequest(${JSON.stringify(prefix + "/api" + artifactPath(imported) + "/file")},{ as:"text" })`);
+  assert.equal(downloaded, importText);
+  assert.deepEqual(records(), before);
+});
 
 test("FSS-35 FSS-36 the open Diff wait state changes language without replacing its comparison", { timeout: 90_000 }, async t => {
   const b = await openGoalBrowser(t, "seeded", undefined, null); assert.ok(b?.projectId);

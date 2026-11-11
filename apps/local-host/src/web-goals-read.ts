@@ -18,6 +18,7 @@ import { artifactsActions } from "@molis-ai/molis-work-module-artifacts";
 import { ActionError, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalProjectDatabase } from "./project-database.js";
 import { renderGoalArtifactContext } from "./artifact-library-http.js";
+import type { ReadArtifactDisplay } from "./artifact-display-words.js";
 import { lookingForArea, withSelectedEventDocument, type WebViewOptions, type GoalsWebView } from "./web-view.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import type { createLocalHostWorkbenchRenderer } from "./workbench-renderer.js";
@@ -136,12 +137,13 @@ export function createLocalGoalsReadHttp(ports: {
   }
   async function fragments(request: IncomingMessage, response: ServerResponse, url: URL,
     readWebView: () => GoalsWebView | Promise<GoalsWebView>, goalActions: BoundActionClient, actions: BoundActionClient,
+    readArtifactDisplay: ReadArtifactDisplay,
   ): Promise<boolean> {
     if (request.method !== "GET") return false;
     const match = matchPageRoute(url);
     const renderedGoalsRead = await renderGoalsReadRequest(request.method, match, async route => {
       const view = await readWebView();
-      return { view, selected: route.kind === "momentum" ? view : await withSelectedGoalDocument(view, route.goal_id, goalActions, actions, route.collection) };
+      return { view, selected: route.kind === "momentum" ? view : await withSelectedGoalDocument(view, route.goal_id, goalActions, actions, readArtifactDisplay, route.collection) };
     }, ({ view, selected }) => ({
       refresh: (goalId, collection) => renderWorkbenchRefreshDocument({
         body_html: declaredPageSurface(match!.plugin_id, match!.route_id, selected, { collection: selected, selection: collection, selected: null } satisfies GoalsStageData,
@@ -168,6 +170,7 @@ export function createLocalGoalsReadHttp(ports: {
   }
   async function page(request: IncomingMessage, response: ServerResponse, url: URL, options: WebViewOptions,
     homeDirectory: string | undefined, readWebView: () => GoalsWebView | Promise<GoalsWebView>, controlToken: string, _goalActions: BoundActionClient, artifactActions: BoundActionClient,
+    readArtifactDisplay: ReadArtifactDisplay,
     store?: LocalProjectDatabase,
     pluginServices?: Pick<ProjectPluginSurfacePorts, "dependencyCheck" | "actions" | "homeDirectory" | "artifacts" | "processItems" | "homePlugins">,
   ): Promise<boolean> {
@@ -187,7 +190,7 @@ export function createLocalGoalsReadHttp(ports: {
           const stage = view.stage_data?.goals as GoalsStageData | undefined;
           if (stage) {
             const decorated = stage.selected
-              ? await withGoalArtifactContext({ ...view, ...stage.collection }, stage.selected.goal_id, artifactActions, stage.selection)
+              ? await withGoalArtifactContext({ ...view, ...stage.collection }, stage.selected.goal_id, artifactActions, readArtifactDisplay, stage.selection)
               : { ...view, ...stage.collection };
             view = { ...view, stage_data: { ...view.stage_data, goals: { ...stage, collection: { ...stage.collection,
               snapshot: { ...stage.collection.snapshot, board: { ...stage.collection.snapshot.board, project_id: view.snapshot.board.project_id } },
@@ -229,6 +232,7 @@ async function withSelectedGoalDocument(
   goalId: string | undefined,
   goalActions: BoundActionClient,
   actions: BoundActionClient,
+  readArtifactDisplay: ReadArtifactDisplay,
   collection: "current" | "archive" | "trash" = "current",
 ): Promise<GoalsWebView> {
   const eventView = await withSelectedEventDocument(view, goalId, goalActions);
@@ -244,11 +248,11 @@ async function withSelectedGoalDocument(
   const decorate = (item: GoalsWebView["goals"][number]) => item.goal.goal_id === goalId
     ? { ...item, relations: relations.relations, policy_bindings: policyBindings, resolved_policy: resolved.policy } : item;
   return withGoalArtifactContext({ ...eventView, goals: eventView.goals.map(decorate), archived_goals: eventView.archived_goals.map(decorate),
-    trashed_goals: eventView.trashed_goals.map(decorate) }, goalId, actions, collection);
+    trashed_goals: eventView.trashed_goals.map(decorate) }, goalId, actions, readArtifactDisplay, collection);
 }
 
 async function withGoalArtifactContext(eventView: GoalsWebView, goalId: string, actions: BoundActionClient,
-  collection: "current" | "archive" | "trash"): Promise<GoalsWebView> {
+  readArtifactDisplay: ReadArtifactDisplay, collection: "current" | "archive" | "trash"): Promise<GoalsWebView> {
   let html: string | undefined, outputs = 0;
   let inputs: Array<{ artifact_id: string; version: number; title: string; state: "available" | "unavailable" | "archived" | "missing"; reason: string | null }> = [];
   if (collection !== "trash") try {
@@ -256,7 +260,7 @@ async function withGoalArtifactContext(eventView: GoalsWebView, goalId: string, 
     const { embeds } = await lookingForArea(() => actions.invoke(artifactsActions.goalEmbeds, { goal_id: goalId, supported_types: declaredArtifactTypes() }));
     // The card under 「完成要求」 is what the Goal hands in; its fixed inputs are listed with the rest of its inputs (五.1).
     const delivered = embeds.filter(embed => embed.relationship === "output");
-    html = renderGoalArtifactContext(delivered);
+    html = await renderGoalArtifactContext(delivered, readArtifactDisplay);
     // What the Goal hands in shows on its overview too (F6), not only under 「完成要求」.
     outputs = delivered.length;
     inputs = embeds.filter(embed => embed.relationship === "input" && embed.view.requested).map(embed => {

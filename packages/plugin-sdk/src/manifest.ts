@@ -122,6 +122,9 @@ export function parsePluginManifest(input: unknown): PluginManifest {
           || !Number.isSafeInteger(type.schema_version) || type.schema_version < 1) {
           invalid("类型必须声明 type ID 与正整数 schema_version");
         }
+        if ((field !== "artifacts" || key !== "produces") && Object.hasOwn(type, "title_text")) {
+          invalid("title_text 只用于 artifacts.produces");
+        }
       }
     }
   }

@@ -14,6 +14,7 @@ import { bindLocalWebAction, bindLocalWebActions, localWebActionContext } from "
 import { arriveAtProjectPage } from "./web-settings-arrival.js";
 import { bindPersonalPlanningWebActions } from "./personal-planning-actions.js";
 import { ARTIFACT_ACTION_PERMISSIONS } from "@molis-ai/molis-work-module-artifacts";
+import { readArtifactDisplayFor } from "./artifact-display-words.js";
 import { ALCHEMIST_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-alchemist";
 import { ActionError, bindActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { IncomingMessage, ServerResponse } from "node:http";
@@ -167,7 +168,7 @@ function projectRuntimeContext(context: ProjectRequestContext, runtime: MolisWor
   const pluginServices = projectPluginServices(context);
   const pluginPorts: ProjectPluginSurfacePorts = { ...pluginServices, routeCaller: () => localWebActionContext(localHost, hostReference, LOCAL_OWNER_PERMISSIONS), store, artifacts, processItems, projectId: options.projectId, routePrefix: projectRoutePrefix(options),
     actorId: LOCAL_PERSON_ACTOR_ID, escapeHtml: (value) => String(value) };
-  const withoutView = { ...context, store, homeActions, goalActions, pluginServices, pluginPorts };
+  const withoutView = { ...context, store, homeActions, goalActions, pluginServices, pluginPorts, readArtifactDisplay: readArtifactDisplayFor({ store, localHost, hostReference }) };
   return { ...withoutView, readWebView: projectWebView(withoutView) };
 }
 
@@ -248,7 +249,7 @@ const capsuleRoute: WebRoute<ProjectRuntimeContext> = { id: "capsule", handle: a
 /** Goals' and 成果's own HTTP and pages; the Goal page is tried last, before the 404. */
 const goalsAndArtifactRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
   { id: "project-reference", handle: context => handleLocalProjectReferenceHttp(context.request, context.response, context.url, asPerson(context, ARTIFACT_ACTION_PERMISSIONS)) },
-  { id: "artifacts", handle: ({ request, response, url, options, userActions, controlToken, composition, serverOptions, goalsHere }) => composition.handleArtifactNativePluginHttp(request, response, url.pathname, {
+  { id: "artifacts", handle: ({ request, response, url, options, userActions, controlToken, composition, serverOptions, goalsHere, readArtifactDisplay }) => composition.handleArtifactNativePluginHttp(request, response, url.pathname, {
     projectId: options.projectId, routePrefix: options.routePrefix ?? "",
     projectTitle: options.project?.display_name ?? "Molis Work",
     actions: userActions(ARTIFACT_ACTION_PERMISSIONS), controlToken,
@@ -257,11 +258,12 @@ const goalsAndArtifactRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
     // Each 成果 type's owner previews its own versions (A4): a plugin's preview runs on its installation's grants, not on the person's (V-21).
     ownerActions: permissions => userActions(permissions),
     goalsAvailable: goalsHere,
+    readArtifactDisplay,
     desktopShell: composition.isDesktopShellRequest(request, url), pageCsp: composition.PAGE_CSP,
   }) },
   { id: "goal-page", handle: context => context.composition.goalsReadHttp.page(context.request, context.response, context.url, context.options, context.serverOptions.homeDirectory,
     projectWebView(context, true), context.controlToken, context.goalActions,
-    asPerson(context, ARTIFACT_ACTION_PERMISSIONS), context.store,
+    asPerson(context, ARTIFACT_ACTION_PERMISSIONS), context.readArtifactDisplay, context.store,
     { ...context.pluginServices, artifacts: context.pluginPorts.artifacts, processItems: context.pluginPorts.processItems }) },
 ];
 
@@ -277,7 +279,7 @@ const PROJECT_RUNTIME_ROUTES: readonly WebRoute<ProjectRuntimeContext>[] = [
   ...planningRoutes,
   ...projectProbeRoutes,
   { id: "goal-fragments", handle: context => context.composition.goalsReadHttp.fragments(context.request, context.response, context.url, context.readWebView, context.goalActions,
-    asPerson(context, ARTIFACT_ACTION_PERMISSIONS)) },
+    asPerson(context, ARTIFACT_ACTION_PERMISSIONS), context.readArtifactDisplay) },
   agentReviewsRoute,
   boardRoute,
   ...directoryRoutes,

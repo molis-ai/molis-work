@@ -210,6 +210,15 @@ export interface MaterialsReadResult {
 /** The longest cursor: it carries the file's reference id. */
 export const MATERIALS_CURSOR_MAX = 24_000;
 
+/**
+ * What a fixed version of the materials service stands for, restored from the version alone (a Goal keeps only its id and version):
+ * the full reference, its title and digest, or nulls when the caller cannot read it, with no path.
+ */
+export interface MaterialsPinnedInput { versions: readonly ArtifactReference[] }
+export interface MaterialsPinnedResult { items: Array<{ version: ArtifactReference; ref: MaterialRef | null; title: string | null; read_revision: string | null }> }
+/** The most versions one `materials.pinned` reads. */
+export const MATERIALS_PINNED_MAX = 100;
+
 /** Where a person was last reading in this project: a folder of it and a path in it, never an absolute path. */
 export interface MaterialsPosition { workspace_id: string; path: readonly string[] }
 
@@ -267,6 +276,16 @@ export const materialsActions = {
       output_schema: shape({ position: nullable(shape({ workspace_id: { type: "string", minLength: 1 }, path: filePath })) }),
       output_type: "materials.position" },
   } as ActionDefinition<Record<string, never>, { position: MaterialsPosition | null }>,
+  pinned: {
+    capability_id: "materials.pinned",
+    version: /* @version action.materials.pinned */ 1,
+    operation: "query",
+    action: { title: "固定资料的出处", description: "按过程项的 id 与版本读回平台资料固定下来的快照或选区，给出它的完整引用、题名与摘要；读不了的（已不在、不是平台资料固定的、不是调用的人的）给空，不给路径；只读",
+      kind: "query", scope: "project", scheduling: "concurrent", audiences: ["user", "agent", "workflow", "mcp", "plugin"], subject_kinds: ["file"], ...materialsReading,
+      input_schema: shape({ versions: { type: "array", minItems: 1, maxItems: MATERIALS_PINNED_MAX, items: version } }),
+      output_schema: shape({ items: { type: "array", items: shape({ version, ref: nullable(MATERIAL_REF_SCHEMA), title: nullable({ type: "string" }), read_revision: nullable({ type: "string" }) }) } }),
+      output_type: "materials.pinned" },
+  } as ActionDefinition<MaterialsPinnedInput, MaterialsPinnedResult>,
 };
 
 /**

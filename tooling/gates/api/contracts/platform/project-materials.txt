@@ -4,6 +4,8 @@
 
 export declare const MATERIALS_CURSOR_MAX = 24000;
 
+export declare const MATERIALS_PINNED_MAX = 100;
+
 export declare const MATERIALS_PORTS: Readonly<{
     readonly files: "files";
     readonly before: "before";
@@ -124,6 +126,19 @@ export interface MaterialsOpenResult {
     path: readonly string[];
 }
 
+export interface MaterialsPinnedInput {
+    versions: readonly ArtifactReference[];
+}
+
+export interface MaterialsPinnedResult {
+    items: Array<{
+        version: ArtifactReference;
+        ref: MaterialRef | null;
+        title: string | null;
+        read_revision: string | null;
+    }>;
+}
+
 export type MaterialsPort = typeof MATERIALS_PORTS[keyof typeof MATERIALS_PORTS];
 
 export interface MaterialsPosition {
@@ -181,6 +196,7 @@ export declare const materialsActions: {
     position: ActionDefinition<Record<string, never>, {
         position: MaterialsPosition | null;
     }>;
+    pinned: ActionDefinition<MaterialsPinnedInput, MaterialsPinnedResult>;
 };
 
 export declare const materialsFileSource: {

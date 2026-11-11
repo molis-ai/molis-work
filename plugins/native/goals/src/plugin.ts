@@ -1,4 +1,5 @@
 import { syncBindings } from "./sync-binding.js";
+import { materialsActions, type MaterialsPinnedResult, type MaterialsReadResult } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import { setTimeout } from "node:timers/promises";
 import { ActionError, pinActionSubject, pinnableSubjectKinds, type ActionClient, type ActionExecutionContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { GovernanceApplicationApi } from "./contract/governance-collaboration.js";
@@ -20,9 +21,12 @@ import { PluginSqlite } from "./plugin-sqlite.js";
 import { attentionOver, journalOver, ledgerOver, PersonalMethodsSnapshot } from "./runtime-ports.js";
 
 const READ_ARTIFACT = { capability_id: "artifacts.read", version: /* @version action.artifacts.read */ 1 } as const;
+/** The platform's materials service: a reference read back (head), and what fixed versions stand for. */
+const READ_MATERIAL = { capability_id: materialsActions.read.capability_id, version: materialsActions.read.version } as const;
+const READ_PINNED = { capability_id: materialsActions.pinned.capability_id, version: materialsActions.pinned.version } as const;
 /** Their own windows: the artifact and the object's owner are asked outside any database window, and the rows written after. */
 const SELF_WINDOWED = new Set<string>(["goals.deliverables.add", "goals.deliverables.remove", "goals.deliverables.list", "goals.deliverables.pin", "goals.deliverables.candidates",
-  "goals.artifact_inputs.add", "goals.artifact_inputs.remove", "goals.artifact_inputs.list", "goals.artifact_inputs.pin",
+  "goals.artifact_inputs.add", "goals.artifact_inputs.remove", "goals.artifact_inputs.list", "goals.artifact_inputs.pin", "goals.inputs.bind", "goals.inputs.list",
   ...Object.values(goalsTerminalActions).map(definition => definition.capability_id)]);
 
 /** What of the call's authority another plugin's action is run under (the directory runs it as this caller, never as Goals). */
@@ -93,6 +97,9 @@ export function createGoalsPlugin(): PluginDefinition {
         readArtifact: async (caller, reference) => (await directory.invoke<{ selected: { title: string; artifact_type_id: string; availability: string; lifecycle_state: string } | null }>(READ_ARTIFACT, { reference }, controlOf(caller))).selected,
         pin: async (caller, subject) => (await pinActionSubject(clientFor(caller), caller, subject)).artifact,
         pinnableKinds: caller => pinnableSubjectKinds(clientFor(caller), caller) },
+      materials: {
+        readMaterial: (caller, ref) => directory.invoke<MaterialsReadResult>(READ_MATERIAL, { ref, mode: "head" }, controlOf(caller)),
+        pinned: (caller, versions) => directory.invoke<MaterialsPinnedResult>(READ_PINNED, { versions }, controlOf(caller)) },
       history: { snapshot, journalEvents: events },
       planning: { planning: goals.planning, baseMethods: () => resolvePlanningMethodPacks(personal.read()) },
       guidance: { commands: goals.commands, read: project => application.goalQueries.readProjectGuidance(project) },

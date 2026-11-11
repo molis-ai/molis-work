@@ -74,14 +74,12 @@ test("a document taken as a Goal's input 「固定这一版」 is pinned by Page
   const DEMO_PROJECT_ID = project.project_id;
   const databasePath = project.database_path;
   await seedDemoGoals(databasePath, DEMO_PROJECT_ID);
-  const store = new LocalProjectDatabase(databasePath);
-  const library = openProjectVersionStores(store);
   const origin = served.origin;
   const controlToken = served.controlToken;
   // Every request this test makes belongs to the project: its pages and its Runtime plugin routes are served under the project prefix.
   const projectOrigin = `${origin}/projects/${encodeURIComponent(DEMO_PROJECT_ID)}`;
   const fetchProject = (path: string, init?: RequestInit) => globalThis.fetch(path.startsWith(origin) ? projectOrigin + path.slice(origin.length) : path, init);
-  t.after(async () => { store.close(); });  const headers = () => ({ "content-type": "application/json", origin, "x-molis-work-control-token": controlToken, "x-molis-work-idempotency-key": randomUUID() });
+  const headers = () => ({ "content-type": "application/json", origin, "x-molis-work-control-token": controlToken, "x-molis-work-idempotency-key": randomUUID() });
   const created = await (await fetchProject(`${origin}/api/plugins/io.molis.work.pages/pages`, { method: "POST", headers: headers(), body: JSON.stringify({ title: "访谈纪要", markdown: "用户最在意交付时间" }) })).json() as { document: { id: string } };
 
   const pinned = await fetchProject(`${origin}/api/plugins/io.molis.work.goals/goals/V1/artifact-inputs`, { method: "POST", headers: headers(),
@@ -90,6 +88,10 @@ test("a document taken as a Goal's input 「固定这一版」 is pinned by Page
   const input = (await pinned.json() as { input: GoalDeliverable }).input;
   assert.deepEqual([input.title, input.reference.version, input.proposed], ["访谈纪要", 1, false]);
   // Pages fixed the document's content as a version in the 成果库; the Goal counts that version, not the live document.
+  // Read back only now: pinning needs the Host to hold the project file alone (N12 rollback journal), as it does in a Home.
+  const store = new LocalProjectDatabase(databasePath);
+  t.after(async () => { store.close(); });
+  const library = openProjectVersionStores(store);
   const version = library.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, input.reference);
   assert.equal(version?.origin.kind === "pinned" ? version.origin.subject.id : null, created.document.id);
   const page = await (await fetchProject(`${origin}/api/goals/V1/document`)).text();

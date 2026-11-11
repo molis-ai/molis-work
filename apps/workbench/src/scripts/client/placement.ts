@@ -371,6 +371,15 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
   };
   const takeAsInput = async (projectId, goalId, object, fixed) => {
     if (!fixed && object.kind !== "artifact") { await api("bind-goal", { object, project_id: projectId, goal_id: goalId }); return; }
+    // A file of the project's folders is fixed by the platform's materials service, as it is now, and bound by that exact version.
+    if (object.kind === "workspace_file") {
+      const base = "/projects/" + encodeURIComponent(projectId), ask = (path, body) => molisWorkRequest(base + path, { body, fallback: L("没有记下输入") }), at = object.id.indexOf(":");
+      const seen = (await ask("/api/materials/read", { ref: { subject: { kind: object.kind, id: object.id }, pin: { mode: "current", read_revision: "size:0" } }, mode: "head" })).read_revision;
+      if (!/^[0-9a-f]{64}$/.test(seen)) throw new Error(L("长文件只能固定选区"));
+      const { ref } = await ask("/api/materials/capture", { workspace_id: object.id.slice(0, at), path: object.id.slice(at + 1).split("/"), fingerprint: seen });
+      await ask("/api/plugins/io.molis.work.goals/goals/" + encodeURIComponent(goalId) + "/inputs", { action: "bind", ref });
+      return;
+    }
     let body = { subject: { kind: object.kind, id: object.id }, used: true };
     if (object.kind === "artifact") { const [artifact_id, version] = JSON.parse(object.id); body = { reference: { artifact_id, version }, used: true }; }
     await molisWorkRequest("/projects/"+encodeURIComponent(projectId)+"/api/plugins/io.molis.work.goals/goals/"+encodeURIComponent(goalId)+"/artifact-inputs",{body,fallback:L("没有记下输入")});

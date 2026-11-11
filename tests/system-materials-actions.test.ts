@@ -264,3 +264,34 @@ test("BSH-08 the side panel's reader reaches the materials service as the person
   assert.equal(m.processItems().length, before, "nothing fixed without the token");
   assert.equal((await fetch(`${m.f.origin}${prefix}/delete`, { headers: { origin: m.f.origin, "x-molis-work-control-token": m.f.controlToken } })).status !== 200, true);
 });
+
+test("BSH-08 a Goal takes a fixed version of a project-folder file by its exact reference: checked with the materials service, kept by id and version, read back as the reader", { timeout: 60_000 }, async t => {
+  const m = await materialsHome(t);
+  const prefix = `/projects/${m.project.project_id}`, goalId = "goal-materials";
+  await m.f.web.post(`${prefix}/api/plugins/io.molis.work.goals/goals`, { title: "资料目标", goal_id: goalId, idempotency_key: goalId });
+  const fixed = await m.f.web.post<MaterialsCaptureResult>(`${prefix}/api/materials/capture`, { workspace_id: m.output.workspace_id, path: ["notes.md"], fingerprint: sha("第一行\nsecond line 🙂\n") });
+  type Bound = { binding_id: string; subject: { kind: string; id: string }; title: string; snapshot_digest?: string | null; ref?: MaterialRef; readable?: boolean };
+  const bind = (body: object) => m.f.web.post<{ binding: Bound; replayed: boolean }>(`${prefix}/api/plugins/io.molis.work.goals/goals/${goalId}/inputs`, { action: "bind", ...body });
+  const first = await bind({ ref: fixed.ref });
+  assert.deepEqual([first.replayed, first.binding.subject, first.binding.title, first.binding.ref, first.binding.readable], [false, fixed.ref.subject, "notes.md", fixed.ref, true]);
+  assert.match(String(first.binding.snapshot_digest), /^sha256:[0-9a-f]{64}$/u, "the digest the materials service read");
+  const again = await bind({ ref: fixed.ref, title: "别的名字" });
+  assert.deepEqual([again.replayed, again.binding.binding_id], [true, first.binding.binding_id], "the same fixed version is bound once");
+
+  // Listed back as the reader: the full reference for one who may read the folder; only the opaque version, no path, for one who may not.
+  const list = (permissions: string[]) => m.call<{ bindings: Bound[] }>({ capability_id: "goals.inputs.list", version: 1 }, { goal_id: goalId }, person(permissions, m.project.project_id));
+  const shown = (await list([...reading, "goals:read"])).bindings.find(item => item.binding_id === first.binding.binding_id)!;
+  assert.deepEqual([shown.subject, shown.ref, shown.readable], [fixed.ref.subject, fixed.ref, true]);
+  const hidden = (await list(["goals:read"])).bindings.find(item => item.binding_id === first.binding.binding_id)!;
+  assert.deepEqual([hidden.subject.kind, hidden.readable, hidden.ref], ["material_snapshot", false, undefined]);
+  assert.ok(!hidden.subject.id.includes("notes.md") && !JSON.stringify(hidden).includes(m.folder), "no path in what is kept or shown without the read");
+
+  // A version the platform did not fix, and a live reference, are refused and nothing is bound.
+  const count = async () => (await list([...reading, "goals:read"])).bindings.length;
+  const before = await count();
+  await assert.rejects(bind({ ref: { subject: fixed.ref.subject, pin: { mode: "snapshot", version: { artifact_id: "forged", version: 1 } } } }),
+    (error: unknown) => (error as { code?: string }).code === "actions.subject_unavailable");
+  await assert.rejects(bind({ ref: { subject: fixed.ref.subject, pin: { mode: "current", read_revision: sha("第一行\nsecond line 🙂\n") } } }),
+    (error: unknown) => (error as { code?: string }).code === "actions.input_invalid");
+  assert.equal(await count(), before);
+});

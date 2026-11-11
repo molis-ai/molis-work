@@ -620,6 +620,7 @@
     "action.materials.files.entries": 1,
     "action.materials.open": 1,
     "action.materials.origins": 1,
+    "action.materials.pinned": 1,
     "action.materials.position": 1,
     "action.materials.read": 1,
     "action.materials.recent": 1,

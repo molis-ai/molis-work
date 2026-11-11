@@ -1,13 +1,13 @@
 import { createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { ActionError, bindActionHandler, fileContentOf, fileEntriesPage, retainActionAuthority, type ActionClient, type ActionExecutionContext, type ActionProviderRegistration,
   type FileEntry } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { ArtifactJsonValue, ArtifactsApplicationApi, FixedVersionRecord, ProcessItemsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import type { ArtifactJsonValue, ArtifactReference, ArtifactsApplicationApi, FixedVersionRecord, ProcessItemsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { projectDirectoryActions, type ProjectDirectories, type ProjectDirectory } from "@molis-ai/molis-work-contracts/modules/projects";
 import { FILE_SNAPSHOT_SCHEMA_VERSION, FILE_SNAPSHOT_TYPE, FILE_TEXT_SELECTION_SCHEMA_VERSION, FILE_TEXT_SELECTION_TYPE, FILES_COLLECTION_SCHEMA_VERSION, FILES_COLLECTION_TYPE,
   fileSnapshotFitsInline, parseFilePath, parseFileSnapshot, parseFileTextSelection, parseTextSelectionRange, resolveWorkspaceFileSubject, resolveWorkspaceId, workspaceFileSubjectId,
   workspaceReadActions, WORKSPACE_FILE_SUBJECT_KIND, WORKSPACE_SKIPPED_FOLDERS, type FileSnapshot, type FileTextSelection, type WorkspaceFileResult } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { MATERIALS_PORTS, MATERIALS_PROVIDER_ID, MATERIALS_SURFACE, materialsActions, materialsFileSource, SYSTEM_MATERIALS_PRODUCER_VERSION, SYSTEM_MATERIALS_SOURCE, type MaterialRef, type MaterialsCaptureInput,
-  type MaterialsPosition, type MaterialsReadResult, type MaterialsWorkspace } from "@molis-ai/molis-work-contracts/platform/project-materials";
+  type MaterialsPinnedResult, type MaterialsPosition, type MaterialsReadResult, type MaterialsWorkspace } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import { projectWorkspaceFiles, type ProjectCapabilityPorts } from "./project-capabilities.js";
 import type { WorkspaceWindowPosition, WorkspaceWindowResult } from "./workspace-files.js";
 import { assertMaterialRef } from "@molis-ai/molis-work-plugin-sdk/presentation";
@@ -196,7 +196,7 @@ function materialsReader({ projectId, ports, cursors, folders, read }: Materials
    * A pinned version read back exactly. A snapshot must be one this service wrote under its current signature; a fixed version is the
    * 成果库's, under its own rules. Either must be available, the caller's own, and name the same file as the reference.
    */
-  function pinnedOf(caller: ActionExecutionContext, record: FixedVersionRecord | null, subjectId: string, system: boolean) {
+  function pinnedOf(caller: ActionExecutionContext, record: FixedVersionRecord | null, subjectId: string | null, system: boolean) {
     if (!record || record.availability !== "available" || record.lifecycle_state !== "active") throw unavailable("这份固定的资料已不在，或已失效");
     const file = SNAPSHOT_TYPES.has(`${record.artifact_type_id}@${record.schema_version}`);
     if (system && (record.producer_plugin_id !== MATERIALS_PROVIDER_ID || record.producer_binding_signature !== SYSTEM_MATERIALS_SOURCE.signature || !file)) {
@@ -206,7 +206,7 @@ function materialsReader({ projectId, ports, cursors, folders, read }: Materials
     if (!file) return { record, content: null, selection: undefined };
     const selection = record.artifact_type_id === FILE_TEXT_SELECTION_TYPE;
     const content = selection ? parseFileTextSelection(record.payload) : parseFileSnapshot(record.payload);
-    if (workspaceFileSubjectId(content.workspace.workspace_id, content.path) !== subjectId) throw new ActionError("actions.subject_mismatch", "引用与固定的资料不是同一个文件");
+    if (subjectId !== null && workspaceFileSubjectId(content.workspace.workspace_id, content.path) !== subjectId) throw new ActionError("actions.subject_mismatch", "引用与固定的资料不是同一个文件");
     return { record, content, selection: selection ? { start: (content as FileTextSelection).start, end: (content as FileTextSelection).end } : undefined };
   }
 
@@ -245,7 +245,21 @@ function materialsReader({ projectId, ports, cursors, folders, read }: Materials
     return answer(`size:${window.size}`, { text: window.text, window: { start: window.start, cursor: cursors.seal({ ...claim, o: at.offset, u: at.utf16, obs: at.observed }),
       next_cursor: window.next ? cursors.seal({ ...claim, o: window.next.offset, u: window.next.utf16, obs: window.next.observed }) : null } });
   }
-  return readRef;
+  /** Versions this service fixed, restored from the version alone; what the caller cannot read is nulls, with no path. */
+  function pinned(caller: ActionExecutionContext, versions: readonly ArtifactReference[]): MaterialsPinnedResult {
+    return { items: versions.map(version => {
+      try {
+        const { record, content } = pinnedOf(caller, ports.processItems.query.getArtifactVersion(projectId, version), null, true);
+        if (!content) throw unavailable("这份固定的资料已不在，或已失效");
+        const subject = { kind: WORKSPACE_FILE_SUBJECT_KIND, id: workspaceFileSubjectId(content.workspace.workspace_id, content.path) };
+        return { version, ref: { subject, pin: { mode: "snapshot" as const, version } }, title: content.path.at(-1) ?? "资料", read_revision: record.content_digest };
+      } catch (error) {
+        if (!(error instanceof ActionError)) throw error;
+        return { version, ref: null, title: null, read_revision: null };
+      }
+    }) };
+  }
+  return { readRef, pinned };
 }
 
 /** A tree walk stops here: the side panel lists what a person browses, not a whole dependency cache. */
@@ -305,7 +319,7 @@ function materialsFiles({ ports, nested, folders, read }: MaterialsCore) {
 }
 
 export function systemMaterialsActionProvider(projectId: string, ports: SystemMaterialsPorts): ActionProviderRegistration {
-  const core = materialsCore(projectId, ports), capture = materialsCapture(core), readRef = materialsReader(core);
+  const core = materialsCore(projectId, ports), capture = materialsCapture(core), { readRef, pinned } = materialsReader(core);
   const { values, nested, folders, folderOf, read, handOn, switchFolder, commit } = core;
   // The latest open each person asked for: an earlier open that finishes later does not move their reading position back.
   const opens = new Map<string, number>();
@@ -339,6 +353,7 @@ export function systemMaterialsActionProvider(projectId: string, ports: SystemMa
         return answer;
       }),
       bindActionHandler(materialsActions.capture, (input, caller) => capture(nested(caller, materialsActions.capture), input)),
+      bindActionHandler(materialsActions.pinned, (input, caller) => pinned(nested(caller, materialsActions.pinned), input.versions)),
       bindActionHandler(materialsActions.read, (input, caller) => {
         assertMaterialRef(input.ref);
         return readRef(nested(caller, materialsActions.read), input.ref, input.mode === "text", input.cursor);

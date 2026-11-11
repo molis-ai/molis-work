@@ -205,6 +205,7 @@ materials.files.content	1	system.materials	query	query	project	read	concurrent	u
 materials.files.entries	1	system.materials	query	query	project	read	concurrent	user	workspace:read	workspace_file	molis.files.entries.window.v1	molis.files.entries.page.v1	09d161bb4729	fef9b910b93e	d83bffcb4e12
 materials.open	1	system.materials	command	operation	project	write	concurrent	agent,mcp,plugin,user,workflow	workspace:read	file,workspace	-	-	b42d6789fef9	e091de609c47	1cc35ff17bf8
 materials.origins	1	system.project-workspaces	query	query	project	read	concurrent	plugin,user	-	project	-	materials.origins	b7dcf77c7497	67090c79be73	-
+materials.pinned	1	system.materials	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	workspace:read	file	-	materials.pinned	8ef2d6deed20	3f854cdabb06	1cc35ff17bf8
 materials.position	1	system.materials	query	query	project	read	concurrent	plugin,user	workspace:read	project	-	materials.position	d746974fa9af	7c1f6f026187	1cc35ff17bf8
 materials.read	1	system.materials	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	workspace:read	file,workspace	-	materials.read	b8cb7710572f	03326f59a123	1cc35ff17bf8
 materials.recent	1	system.project-workspaces	query	query	project	read	concurrent	plugin,user	-	project	-	materials.recent	99334726611c	9b289878a1fd	-

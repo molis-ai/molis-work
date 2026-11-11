@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import test from "node:test";
 import { coding, CONTEXT, FIRST_WORDS, openCoding } from "./fixtures/coding-browser.js";
-import { CODING_COMPOSER, CODING_COMPOSER_STATUS, codingAdd } from "./fixtures/coding-composer.js";
+import { CODING_COMPOSER, CODING_COMPOSER_STATUS, CODING_OPEN, codingAdd } from "./fixtures/coding-composer.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
 // specs/ai-interaction-experience AC-05: what a person writes stays with the session it was written in. After「新会话」is
@@ -22,7 +22,7 @@ const confirmed = (id: string, words: string) => `patches.some(one=>one.path.end
 
 test("AC-05: while「新会话」is being made, the composer of the session shown takes and sends nothing; then the new session's box opens empty", { timeout: 90_000 }, async t => {
   const opened = await openCoding(t); if (!opened) return;
-  const { click, evaluate, waitFor, box, type, current, closed, trySend, sentWith, start, afterAStateRead } = opened;
+  const { click, evaluate, waitFor, box, type, current, closed, trySend, sentWith, start, afterAStateRead, owner } = opened;
   const first = await start();
 
   await evaluate("hold.what='create'");
@@ -30,25 +30,25 @@ test("AC-05: while「新会话」is being made, the composer of the session show
   await waitFor("hold.seen === 1 && typeof hold.release === 'function'");
   await afterAStateRead();
   assert.equal(await current(), first, "the new session is not made yet");
-  assert.equal(await evaluate<string>(`${box}.value`), FIRST_WORDS);
+  assert.equal(await owner.evaluate<string>(`${box}.value`), FIRST_WORDS);
   assert.deepEqual(await closed(), ALL_CLOSED, "what is chosen or typed now would land in the session before it");
   await trySend();
   assert.deepEqual(await sentWith(FIRST_WORDS), [], "nothing is sent while the composer is closed");
 
   await evaluate("hold.release()");
-  await waitFor(`!${box}.disabled`);
+  await owner.waitFor(CODING_OPEN);
   const second = await current();
   assert.notEqual(second, first);
-  assert.equal(await evaluate<string>(`${box}.value`), "", "the new session's box holds its own (empty) draft");
+  assert.equal(await owner.evaluate<string>(`${box}.value`), "", "the new session's box holds its own (empty) draft");
   assert.deepEqual(await sentWith(FIRST_WORDS), []);
   await type("乙会话的任务");
   await new Promise(resolve => setTimeout(resolve, 1000));
-  assert.equal(await evaluate<string>(`${box}.value`), "乙会话的任务", "what is typed once the box opens stays");
+  assert.equal(await owner.evaluate<string>(`${box}.value`), "乙会话的任务", "what is typed once the box opens stays");
 });
 
 test("AC-05: until a new session's first read lands, its composer stays closed and the words of the session before it are not sent into it; then the box holds its own draft", { timeout: 90_000 }, async t => {
   const opened = await openCoding(t); if (!opened) return;
-  const { click, evaluate, waitFor, box, type, current, closed, trySend, sentWith, start, afterAStateRead } = opened;
+  const { click, evaluate, waitFor, box, type, current, closed, trySend, sentWith, start, afterAStateRead, owner } = opened;
   const first = await start();
 
   await evaluate(`hold.except=${JSON.stringify(first)};hold.what='read'`);
@@ -58,24 +58,24 @@ test("AC-05: until a new session's first read lands, its composer stays closed a
   const second = await current();
   assert.notEqual(second, first);
   // The box still shows the first session's words: this is the moment they could have gone into the second one.
-  assert.equal(await evaluate<string>(`${box}.value`), FIRST_WORDS);
+  assert.equal(await owner.evaluate<string>(`${box}.value`), FIRST_WORDS);
   assert.deepEqual(await closed(), ALL_CLOSED, "the composer is closed while the new session's first read is on its way");
   await trySend();
   assert.deepEqual(await sentWith(FIRST_WORDS), [], "nothing carrying the first session's words is sent");
 
   await evaluate("hold.release()");
-  await waitFor(`!${box}.disabled`);
+  await owner.waitFor(CODING_OPEN);
   assert.equal(await current(), second);
-  assert.equal(await evaluate<string>(`${box}.value`), "", "the new session's box holds its own (empty) draft, not the other session's words");
+  assert.equal(await owner.evaluate<string>(`${box}.value`), "", "the new session's box holds its own (empty) draft, not the other session's words");
   assert.deepEqual(await sentWith(FIRST_WORDS), [], "the second session never received the first one's words");
   await type("乙会话的任务");
   await new Promise(resolve => setTimeout(resolve, 1000));
-  assert.equal(await evaluate<string>(`${box}.value`), "乙会话的任务", "what is typed once the box opens stays");
+  assert.equal(await owner.evaluate<string>(`${box}.value`), "乙会话的任务", "what is typed once the box opens stays");
 });
 
 test("AC-05: when a session's first read fails, the next read gives the box its draft and opens it", { timeout: 90_000 }, async t => {
   const opened = await openCoding(t); if (!opened) return;
-  const { click, evaluate, waitFor, box, closed, start } = opened;
+  const { click, evaluate, waitFor, box, closed, start, owner } = opened;
   const first = await start();
 
   await evaluate(`hold.except=${JSON.stringify(first)};hold.what='read';hold.fail=true;hold.next='read'`);
@@ -88,24 +88,24 @@ test("AC-05: when a session's first read fails, the next read gives the box its 
   await waitFor("hold.seen === 2 && typeof hold.release === 'function'", 15_000);
   assert.equal((await closed()).task, true);
   await evaluate("hold.release()");
-  await waitFor(`!${box}.disabled`, 15_000);
-  assert.equal(await evaluate<string>(`${box}.value`), "");
+  await owner.waitFor(CODING_OPEN, 15_000);
+  assert.equal(await owner.evaluate<string>(`${box}.value`), "");
 });
 
 test("AC-05: when「新会话」reuses the session shown, or making one fails, the composer opens again on the session shown", { timeout: 90_000 }, async t => {
   const opened = await openCoding(t); if (!opened) return;
-  const { click, evaluate, waitFor, box, type, current, closed } = opened;
+  const { click, evaluate, waitFor, box, type, current, closed, owner } = opened;
   const open = { task: false, intent: false, model: false };
   const someOpen = async () => { const { task, intent, model } = await closed(); return { task, intent, model }; };
   const made = () => evaluate<number>("posts.filter(one=>one.path.endsWith('/api/plugins/io.molis.work.coding/sessions')).length");
-  const settled = `!${box}.disabled && [...document.querySelectorAll('${coding} [data-coding-new]')].every(button=>!button.disabled)`;
+  const settled = async () => { await owner.waitFor(CODING_OPEN); await waitFor(`[...document.querySelectorAll('${coding} [data-coding-new]')].every(button=>!button.disabled)`); };
   await click(`${coding} [data-coding-new]`);
-  await waitFor(settled);
+  await settled();
   const first = await current(), makes = await made();
 
   // A session holding nothing is the one「新会话」gives back: nothing is made, and the composer is this session's again.
   await click(`${coding} [data-coding-new]`);
-  await waitFor(settled);
+  await settled();
   assert.equal(await current(), first);
   assert.equal(await made(), makes, "no session is made");
   assert.deepEqual(await someOpen(), open);
@@ -114,20 +114,20 @@ test("AC-05: when「新会话」reuses the session shown, or making one fails, t
   await evaluate("hold.what='create';hold.fail=true");
   await click(`${coding} [data-coding-new]`);
   await waitFor(`hold.seen === 1 && document.querySelector('${coding} [data-coding-status]')?.textContent.includes('建会话失败')`);
-  await waitFor(settled);
+  await settled();
   assert.equal(await current(), first, "making the session failed: the one shown stays");
-  assert.equal(await evaluate<string>(`${box}.value`), FIRST_WORDS, "with its words");
+  assert.equal(await owner.evaluate<string>(`${box}.value`), FIRST_WORDS, "with its words");
   assert.deepEqual(await someOpen(), open);
 });
 
 test("AC-05: a choice open in a dialog when「新会话」is pressed is closed unsaved, and until the new session's first read lands nothing that sets its next round is offered: the buttons by the box, the palette's ways of working, materials, methods, delegation, model and workspace", { timeout: 90_000 }, async t => {
   const opened = await openCoding(t); if (!opened) return;
-  const { evaluate, waitFor, box, type, current, start, afterAStateRead, shut, press, offered, nextRound, saved, stored } = opened;
+  const { evaluate, waitFor, box, type, current, start, afterAStateRead, shut, press, offered, nextRound, saved, stored, owner } = opened;
   const first = await start();
   const dialog = `document.querySelector('${coding} [data-coding-method-dialog]')`;
   const checks = `[...document.querySelectorAll('${coding} [data-coding-method-list] input[type=checkbox]:not(:disabled)')]`;
   const choose = async (n: number) => {
-    await evaluate(codingAdd("methods"));
+    await owner.evaluate(codingAdd("methods"));
     await waitFor(`${dialog}.open && ${checks}.length >= 2`);
     await evaluate(`(()=>{const node=${checks}[${n}];node.checked=true;node.dispatchEvent(new Event('change',{bubbles:true}));})()`);
   };
@@ -153,16 +153,16 @@ test("AC-05: a choice open in a dialog when「新会话」is pressed is closed u
   for (const name of DIALOGS) assert.equal(await evaluate<boolean>(`document.querySelector('${coding} [data-coding-${name}-dialog]').open`), false, `${name} dialog`);
   for (const moment of ["before a state read", "after one"]) {
     if (moment === "after one") await afterAStateRead();
-    assert.equal(await evaluate<string>(`${box}.value`), FIRST_WORDS, "the box still shows the first session's words");
+    assert.equal(await owner.evaluate<string>(`${box}.value`), FIRST_WORDS, "the box still shows the first session's words");
     assert.deepEqual(await shut(), CONTEXT.map(() => true), `workspace, goal, writers, materials, methods, MCP, capabilities, role and delegation wait for the first read (${moment})`);
     const early = await offered();
     assert.deepEqual(offeredOnce.filter(slash => early.includes(slash)), [], `the palette offers none of what sets the next round (${moment}): ${early.join(" ")}`);
   }
 
   await evaluate("hold.release()");
-  await waitFor(`!${box}.disabled`);
+  await owner.waitFor(CODING_OPEN);
   assert.equal(await current(), second);
-  assert.equal(await evaluate<string>(`${box}.value`), "", "the new session's box holds its own (empty) draft");
+  assert.equal(await owner.evaluate<string>(`${box}.value`), "", "the new session's box holds its own (empty) draft");
   assert.deepEqual(await shut(), CONTEXT.map(() => false));
   const later = await offered();
   assert.deepEqual(offeredOnce.filter(slash => !later.includes(slash)), [], `the palette offers them all again: ${later.join(" ")}`);
@@ -172,7 +172,7 @@ test("AC-05: a choice open in a dialog when「新会话」is pressed is closed u
 
 test("AC-05: review notes handed back to a session whose first read failed are refused and kept; the box takes them once it holds that session's own draft, never the words of the session shown before", { timeout: 120_000 }, async t => {
   const opened = await openCoding(t); if (!opened) return;
-  const { evaluate, waitFor, box, current, closed, start, saved, openItem } = opened;
+  const { evaluate, waitFor, box, current, closed, start, saved, openItem, owner } = opened;
   const SECOND_WORDS = "乙会话里写好的任务", TASK = "按审查意见修改 note.txt 第 1 行";
   const second = await start(SECOND_WORDS);
   await waitFor(confirmed(second, SECOND_WORDS));
@@ -199,7 +199,7 @@ test("AC-05: review notes handed back to a session whose first read failed are r
   await handBack();
   await waitFor(`${message}.textContent.includes('会话还在读取')`);
   assert.equal(await evaluate<number>(`document.querySelectorAll('${coding} [data-coding-feedback-list] textarea').length`), 1, "the note is kept");
-  assert.equal(await evaluate<string>(`${box}.value`), FIRST_WORDS, "the box is untouched");
+  assert.equal(await owner.evaluate<string>(`${box}.value`), FIRST_WORDS, "the box is untouched");
   assert.equal((await closed()).task, true);
   assert.deepEqual((await saved(second)).slice(earlier), [], "nothing was saved into the second session");
   assert.equal(await local(), null, "this window keeps no unconfirmed copy of its draft, and none of the first session's words");
@@ -207,39 +207,43 @@ test("AC-05: review notes handed back to a session whose first read failed are r
   // The next read is held, then lands: the box holds the second session's own draft.
   await waitFor("hold.seen === 2 && typeof hold.release === 'function'", 15_000);
   await evaluate("hold.release()");
-  await waitFor(`!${box}.disabled`);
-  assert.equal(await evaluate<string>(`${box}.value`), SECOND_WORDS);
+  await owner.waitFor(CODING_OPEN);
+  assert.equal(await owner.evaluate<string>(`${box}.value`), SECOND_WORDS);
   await handBack();
-  await waitFor(`${box}.value === ${JSON.stringify(SECOND_WORDS + "\n\n" + TASK)}`);
+  await owner.waitFor(`${box}.value === ${JSON.stringify(SECOND_WORDS + "\n\n" + TASK)}`);
   await waitFor(`patches.some(one=>one.path.endsWith('/sessions/'+${JSON.stringify(encodeURIComponent(second))}))`);
   assert.ok((await saved(second)).every(body => !String(body.draft ?? "").includes(FIRST_WORDS)), "the first session's words never reached the second one");
 });
 
 test("AC-05: switching to a session this window has not read yet shuts the box and what sets its next round at once, not at the next state read", { timeout: 90_000 }, async t => {
   const opened = await openCoding(t); if (!opened) return;
-  const { command, sessionId, evaluate, waitFor, box, start, shut } = opened;
+  const { command, sessionId, evaluate, waitFor, box, start, shut, owner } = opened;
   const SECOND_WORDS = "乙会话里写好的任务";
   const second = await start(SECOND_WORDS);
   await waitFor(confirmed(second, SECOND_WORDS));
   const first = await start();
 
   await evaluate(`hold.except=${JSON.stringify(first)};hold.what='read'`);
+  const reads = await evaluate<number>("stateReads");
   // In the same task as the switch: nothing has read the page's state since.
-  const states = await evaluate<{ shut: boolean[]; box: boolean }>(`(()=>{
+  const buttons = await evaluate<boolean[]>(`(()=>{
     document.querySelector('${coding}').dispatchEvent(new CustomEvent('molis-work:select-item',{detail:{itemId:${JSON.stringify(second)}}}));
-    const add=document.querySelector('${coding} ${CODING_COMPOSER} [data-composer-add]');
-    return {shut:['workspace','goal','writer-directories'].map(name=>document.querySelector('${coding} [data-coding-'+name+'-open]').disabled).concat(add.disabled),box:${box}.disabled};})()`);
-  assert.deepEqual(states, { shut: [true, true, true, true], box: true }, "the buttons above the box and ＋ (materials, methods, MCP, capabilities, role, delegation)");
+    return ['workspace','goal','writer-directories'].map(name=>document.querySelector('${coding} [data-coding-'+name+'-open]').disabled);})()`);
+  assert.deepEqual(buttons, [true, true, true], "the buttons above the conversation, in the same task as the switch");
+  // The bar's box and ＋ (materials, methods, MCP, capabilities, role, delegation) hear it over the frame bridge (one input), still
+  // before any read of the page's state: what shuts them is the switch, not the next state read.
+  await owner.waitFor(`document.querySelector(${JSON.stringify(CODING_COMPOSER + " [data-composer-add]")})?.disabled === true && ${box}.disabled`, 5_000);
+  assert.equal(await evaluate<number>("stateReads"), reads, "no state read came between the switch and the bar shutting");
   await waitFor("hold.seen === 1 && typeof hold.release === 'function'");
-  await evaluate(`document.querySelector('${coding} ${CODING_COMPOSER} [data-composer-add]').click()`);
-  assert.equal(await evaluate<boolean>(`!!document.querySelector('${coding} ${CODING_COMPOSER} [data-compose-menu]:not([hidden])')`), false, "＋ does not open before the first read");
-  assert.ok((await evaluate<string>(`document.querySelector('${coding} ${CODING_COMPOSER_STATUS}').textContent`)).includes("正在读取这个会话"), "the composer says why it waits");
+  await owner.evaluate(`document.querySelector('${CODING_COMPOSER} [data-composer-add]').click()`);
+  assert.equal(await owner.evaluate<boolean>(`!!document.querySelector('${CODING_COMPOSER} [data-compose-menu]:not([hidden])')`), false, "＋ does not open before the first read");
+  assert.ok((await owner.evaluate<string>(`document.querySelector('${CODING_COMPOSER_STATUS}').textContent`)).includes("正在读取这个会话"), "the composer says why it waits");
   // The composer as it looks meanwhile: the box, ＋, the controls and send greyed out, the reason in its status line.
   const evidence = reviewEvidenceUrl("coding-first-read/"); await mkdir(evidence, { recursive: true });
   await writeFile(new URL("attach-menu-before-first-read.png", evidence), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
 
   await evaluate("hold.release()");
-  await waitFor(`!${box}.disabled`);
-  assert.equal(await evaluate<string>(`${box}.value`), SECOND_WORDS);
+  await owner.waitFor(CODING_OPEN);
+  assert.equal(await owner.evaluate<string>(`${box}.value`), SECOND_WORDS);
   assert.deepEqual(await shut(), CONTEXT.map(() => false));
 });

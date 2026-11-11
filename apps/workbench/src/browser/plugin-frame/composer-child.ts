@@ -152,6 +152,8 @@ export function childComposer(port: MessagePort, scope: FrameScope, bar: boolean
       gone = true; sizes.disconnect(); port.removeEventListener("message", listen); field?.removeEventListener("input", typed); root.removeEventListener("click", pressed, true);
       for (const controller of calls.values()) controller.abort();
       calls.clear(); checks.clear();
+      // As the composer itself does when it goes: the box is empty for the next mount, whose draft is its own.
+      if (field) field.value = "";
       if (live === id) send({ type: "composer-destroy", id });
     };
     scope.own(destroy); mounted.set(root, destroy);

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { coding, openCoding } from "./fixtures/coding-browser.js";
-import { CODING_COMPOSER_STATUS } from "./fixtures/coding-composer.js";
+import { CODING_COMPOSER_STATUS, CODING_TAKEN } from "./fixtures/coding-composer.js";
 
 // specs/unified-input-voice K4 (implementation-plan.md §5, B's compromise in #1803 §6 item 10): Coding's composer keeps a session's
 // words in the session (`draft:<session_id>`, one PATCH with the next round's choices). This window's sessionStorage copy is only a
@@ -26,7 +26,7 @@ test("K4: a confirmed save leaves no window copy; words whose save failed come b
     ? Promise.resolve(new Response(JSON.stringify({ error: '写入失败（测试）' }), { status: 503, headers: { 'content-type': 'application/json' } })) : real(input, init); })()`);
   await type("这段还没写进会话");
   await waitFor(`sessionStorage.getItem(${key}) === '这段还没写进会话'`, 15_000);
-  await waitFor(`document.querySelector('${coding} ${CODING_COMPOSER_STATUS}')?.textContent.trim().length > 0`, 15_000);
+  await owner.waitFor(`document.querySelector('${CODING_COMPOSER_STATUS}')?.textContent.trim().length > 0`, 15_000);
   assert.equal(await server(), "先存进会话的一版", "the service still holds the last confirmed words");
 
   // A reload: the session's first read finds the unconfirmed words, puts them in the box and saves them again; once confirmed, the copy goes.
@@ -34,7 +34,7 @@ test("K4: a confirmed save leaves no window copy; words whose save failed come b
   await owner.click('[data-plugin-strip] [data-plugin-id="coding"]');
   await waitFor(`document.querySelector('${coding} [data-coding-session="${id}"]')`, 20_000);
   await click(`${coding} [data-coding-session="${id}"]`);
-  await waitFor(`${box}.value === '这段还没写进会话' && !${box}.disabled`, 20_000);
+  await owner.waitFor(`${CODING_TAKEN} && ${box}.value === '这段还没写进会话' && !${box}.disabled`, 20_000);
   for (let i = 0; i < 100 && await server() !== "这段还没写进会话"; i++) await new Promise(resolve => setTimeout(resolve, 100));
   assert.equal(await server(), "这段还没写进会话", "saved again on its own");
   await waitFor(`sessionStorage.getItem(${key}) === null`, 15_000);

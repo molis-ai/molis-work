@@ -100,41 +100,44 @@ export function pageComposer(port: MessagePort, scope: FrameScope, root: HTMLEle
   // The bar's text, as the page last heard it; sent again after anything that may have changed it without an input event.
   const down = () => { if (field && bound && field.value !== text) { text = field.value; post({ type: "composer-text", id, text }); } };
   const typed = (event: Event) => { if (event.target === field) down(); };
-  const call = <Op extends ComposerOp>(op: Op, arg: ComposerCalls[Op][0], signal?: AbortSignal) => new Promise<ComposerCalls[Op][1]>((resolve, reject) => {
-    const mine = id, number = ++sequence;
+  // Each mount's calls go to that mount only: a bar composer let go after the page mounted anew (another session) flushes its last
+  // edit into nothing, never into the next mount's draft.
+  const call = <Op extends ComposerOp>(mine: number, op: Op, arg: ComposerCalls[Op][0], signal?: AbortSignal) => new Promise<ComposerCalls[Op][1]>((resolve, reject) => {
+    const number = ++sequence;
+    if (mine !== id) { reject(new Error("View closed")); return; }
     if (signal?.aborted) { reject(signal.reason); return; }
     answers.set(number, { resolve: value => resolve(value as ComposerCalls[Op][1]), reject });
     signal?.addEventListener("abort", () => { if (answers.delete(number)) { post({ type: "composer-abort", id: mine, call: number }); reject(signal.reason); } }, { once: true });
     post({ type: "composer-call", id: mine, call: number, op, ...(arg === undefined ? {} : { arg }) });
   }).finally(() => setTimeout(down, 0));
-  const outcome = (value: BridgedOutcome): ComposerOutcome => value.state === "unknown"
-    ? { state: "unknown", check: () => call("check", value.check) }
+  const outcome = (mine: number, value: BridgedOutcome): ComposerOutcome => value.state === "unknown"
+    ? { state: "unknown", check: () => call(mine, "check", value.check) }
     : value.state === "failed" ? { state: "failed", message: short(value.message, 4000), ...(Array.isArray(value.unreadable) ? { unreadable: value.unreadable } : {}) }
     : { state: "sent", ...(value.receipt && typeof value.receipt === "object" ? { receipt: value.receipt as never } : {}) };
-  const act = (kind: "control" | "command" | "receiver", key: string, value?: string) => post({ type: "composer-act", id, act: kind, key, ...(value === undefined ? {} : { value }) });
-  const control = (item: ComposerSnapshot["controls"][number]): ComposerControl => item.kind === "select" ? { ...item, change: (value: string) => act("control", item.id, value) }
-    : item.kind === "toggle" ? { ...item, change: (on: boolean) => act("control", item.id, on ? "on" : "off") } : { ...item, run: () => act("control", item.id) };
+  const act = (mine: number, kind: "control" | "command" | "receiver", key: string, value?: string) => { if (mine === id) post({ type: "composer-act", id, act: kind, key, ...(value === undefined ? {} : { value }) }); };
   const options = (): ComposerOptions => {
-    const now = () => snapshot!;
-    const draft = { read: (signal: AbortSignal) => call("draft-read", undefined, signal).then(value => typeof value === "string" ? value : ""),
-      write: (value: string) => call("draft-write", value), sent: () => call("draft-sent", undefined) };
+    const now = () => snapshot!, mine = id;
+    const control = (item: ComposerSnapshot["controls"][number]): ComposerControl => item.kind === "select" ? { ...item, change: (value: string) => act(mine, "control", item.id, value) }
+      : item.kind === "toggle" ? { ...item, change: (on: boolean) => act(mine, "control", item.id, on ? "on" : "off") } : { ...item, run: () => act(mine, "control", item.id) };
+    const draft = { read: (signal: AbortSignal) => call(mine, "draft-read", undefined, signal).then(value => typeof value === "string" ? value : ""),
+      write: (value: string) => call(mine, "draft-write", value), sent: () => call(mine, "draft-sent", undefined) };
     const at = now();
     return {
       // A framed page lists no sources, in the bar as in its own box (S-composer-source-call item 5): what it asked is kept for the
       // batch that opens them to pages with their own review.
       kind: "ai", entry: at.entry, labels: at.labels as MwComposerAiLabels, sources: false, ...(at.voice ? { voice: at.voice } : {}),
       ...(at.submitKeys ? {} : { submitKeys: false as const }), ...(at.draft ? { draft: { adapter: draft } } : {}),
-      receiver: () => { const named = now().receiver; return named ? { ...named, icon: named.icon as PluginIconName | undefined, choose: (key: string) => act("receiver", key) } : null; }, delivery: () => now().delivery ?? { "next-boundary": { available: true }, interrupt: { available: true }, "after-run": { available: true } },
-      ...(at.stop ? { stop: (signal: AbortSignal) => call("stop", undefined, signal) } : {}),
-      pause: () => { const pause = now().pause; return pause ? { ...pause, run: (signal: AbortSignal) => call("pause", undefined, signal) } : null; },
+      receiver: () => { const named = now().receiver; return named ? { ...named, icon: named.icon as PluginIconName | undefined, choose: (key: string) => act(mine, "receiver", key) } : null; }, delivery: () => now().delivery ?? { "next-boundary": { available: true }, interrupt: { available: true }, "after-run": { available: true } },
+      ...(at.stop ? { stop: (signal: AbortSignal) => call(mine, "stop", undefined, signal) } : {}),
+      pause: () => { const pause = now().pause; return pause ? { ...pause, run: (signal: AbortSignal) => call(mine, "pause", undefined, signal) } : null; },
       get controls() { return now().controls.map(control); },
-      get commands() { return now().commands.map(command => ({ ...command, icon: command.icon as PluginIconName | undefined, run: () => act("command", command.slash) })); },
-      ...(at.mentions ? { mentions: (query: string, signal: AbortSignal) => call("mentions", query, signal).then(found => Array.isArray(found) ? found.slice(0, 50) : []) } : {}),
-      ...(at.attachments ? { attachments: { ...at.attachments, upload: (file: File, signal: AbortSignal) => call("upload", file, signal) } } : {}),
-      onMaterials: () => { if (bound) post({ type: "composer-materials", id, materials: [...bound.materials()] }); },
+      get commands() { return now().commands.map(command => ({ ...command, icon: command.icon as PluginIconName | undefined, run: () => act(mine, "command", command.slash) })); },
+      ...(at.mentions ? { mentions: (query: string, signal: AbortSignal) => call(mine, "mentions", query, signal).then(found => Array.isArray(found) ? found.slice(0, 50) : []) } : {}),
+      ...(at.attachments ? { attachments: { ...at.attachments, upload: (file: File, signal: AbortSignal) => call(mine, "upload", file, signal) } } : {}),
+      onMaterials: () => { if (bound && mine === id) post({ type: "composer-materials", id, materials: [...bound.materials()] }); },
       near: () => { const near = now().near; return near ? { ...near, plugin_id: pack.plugin_id } : null; },
       required: () => now().required,
-      submit: (input, signal) => call("submit", input, signal).then(outcome),
+      submit: (input, signal) => call(mine, "submit", input, signal).then(value => outcome(mine, value)),
     };
   };
   let named = false, placed = "";

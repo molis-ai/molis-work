@@ -136,10 +136,21 @@ export function freezeStudioUi(design: AgentDesign, supplied: unknown, languages
 export const studioLocaleFiles = (packs: readonly UiLocalePack[] = []): Record<string, string> =>
   Object.fromEntries(packs.map(pack => [`locales/${pack.locale}.json`, JSON.stringify(pack)]));
 
+/** Only the visible slots can hold word references. Plain drafts keep their authored words and schema data. */
+function hasStudioWordReferences(design: AgentDesign): boolean {
+  const isKey = (word: unknown) => isRecord(word) && Object.hasOwn(word, 'key');
+  return (design.contract?.pages ?? []).some(page => isKey(page.title) || page.regions.some(region => isKey(region.title)))
+    || (design.parts ?? []).some(part => PLUGIN_COMPONENT_WORD_KEYS.some(key => isKey(part.props?.[key]))
+      || (part.props?.columns ?? []).some(column => isKey(column.label) || Object.values(column.values ?? {}).some(isKey)));
+}
+
 /** Synced/local records carry the same bound words as a freshly accepted answer. Do not repair a partial persisted design. */
 export function validateFrozenStudioWords(design: AgentDesign): void {
-  const declared = design.contract.ui?.locales, raw = design.localePacks;
-  if (design.contract?.ui === undefined && raw === undefined) return;
+  const declared = design.contract?.ui?.locales, raw = design.localePacks;
+  if (design.contract?.ui === undefined && raw === undefined) {
+    if (hasStudioWordReferences(design)) throw new Error('The frozen Studio design has word references without language files.');
+    return;
+  }
   if (!declared || Object.keys(design.contract.ui!).length !== 1 || !Array.isArray(raw) || raw.length !== declared.available.length) throw new Error('The frozen Studio language files do not match the declaration.');
   const packs = raw.map(pack => {
     const checked = parseLocalePack(JSON.stringify(pack));

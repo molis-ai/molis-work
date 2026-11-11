@@ -7,8 +7,8 @@ export interface BuilderSavedState {format:/* @version format.builder.saved-stat
 const errors=defineErrorCodes('plugin_builder',{store_invalid:'invalid',store_limit:'too_large'});
 const invalid=():never=>{throw errors.store_invalid('创作数据格式版本无效，原内容已保留');};
 function wordsAreValid(design: AgentDesign | null | undefined): boolean {
- if (design?.localePacks === undefined && design?.contract?.ui === undefined) return true;
- try { validateFrozenStudioWords(design!); return true; } catch { return false; }
+ if (!design) return true;
+ try { validateFrozenStudioWords(design); return true; } catch { return false; }
 }
 const identity=(value:unknown):value is string=>typeof value==='string'&&!!value.trim()&&value.length<=200;
 const revision=(value:unknown):value is number=>Number.isSafeInteger(value)&&Number(value)>0;

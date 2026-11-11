@@ -191,12 +191,11 @@ async function saveWorkspace(page: Page, form: HTMLFormElement) {
 }
 
 function listenChoiceForms(page: Page) {
-  const { directory, lifetime, q, s } = page;
+  const { directory, lifetime, q } = page;
   lifetime.listen(document, "molis-work:knowledge-picked", event => {
     const picked = detailOf<KnowledgePicked>(event);
     if (picked) void takeMaterials(page, picked);
   });
-  lifetime.listen(q("[data-coding-method-dialog]"), "cancel", () => { s.methodDocumentTicket++; });
   const forms: [string, (page: Page, form: HTMLFormElement) => Promise<void>][] = [["[data-coding-mcp-form]", saveMcp], ["[data-coding-method-form]", saveMethods], ["[data-coding-workspace-form]", saveWorkspace]];
   for (const [selector, save] of forms) {
     const form = q<HTMLFormElement>(selector);

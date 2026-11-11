@@ -87,6 +87,7 @@ Run 的启动/读取/控制/等待、接续的等待。每一条只给插件、�
   - 原图输入经可信 Host 选定路径、Node Host intake 与 Session attachments；只读根不交给模型工具。支持 PNG/JPEG/GIF/WebP，单图 32 MiB、每次 50 张/128 MiB，共享资源总量仍限 128 MiB。完成/失败/取消撤销资源，关闭时等待实际清理。回归：`tests/prologue-inference-images.test.ts`。
   - 一个 Home 一个执行 owner；另一个进程得到 `agent.inference.home_in_use` 或 `agent.storage_busy`，经 `inferenceServiceUnavailableReason` 转成给人看的原因。
   - 派出前复核（`beforeDispatch`、凭据核对）拒绝时，调用方拿到复核自己抛的错误（`isDispatchRefusal` 为真），不得改写成模型或网络失败；SDK 侧对应 `EFFECT_NOT_AUTHORIZED`。
+  - Agent 工具全集只在 `src/tool-catalog.ts`（`AGENT_TOOLS`，第 09 批 9-9）：角色 `host_tools` 里每个名字都要在里面，不在就在可用性检查与开轮时以 `agent.role_tool_unknown` 拒绝、原因写出那个名字；宿主名到 SDK 名的映射（`prologueToolName`）和「免逐次询问」的运行时工具（条目的 `unasked`）都从条目读，SDK 不提供给角色的工具写在 `RUNTIME_TOOLS_NOT_OFFERED` 并说明原因。换 SDK 包时多了、少了、改名的工具由 `tests/agent-host-tool-catalog.test.ts`（CPK-07）拦下。
   - 角色必须是 Manifest 声明过的，能力必须 Runtime 真支持，目录必须宿主授权且 realpath 已核；`unsupported` 就是不能用，不降级不伪装。
   - 项目 MCP 配置由 SDK 保管；来源插件是来历，Host 共同动作允许助理在自己的授权下复用。启用的断线连接只在获准调用时重连，目录查询不启动进程；准备和实际派出都复核原工作区授权、配置版本及工具形状。`catalog()` 仅供 Host 管理列出项目归属，不赋予调用权限。`call` 的 Host 观察回调区分业务派出和结果，连接准备不算业务调用；SDK 的明确工具失败与结果未确认分别通知，原错误合同保留。回归：`tests/external-mcp-actions.test.ts`、`tests/external-mcp-dispatch.test.ts`、`tests/coding-mcp.test.ts`。
   - Runtime 不能自己扩权：批准一次性，拒绝与过期不能换个入口变成许可。

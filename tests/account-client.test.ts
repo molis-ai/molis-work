@@ -18,7 +18,7 @@ const reference = (): AccountCredentialReference => ({ secretRef: "account-refer
 const session = () => ({ loginSessionId: reference().sessionId, applicationId: config().applicationId, clientId: config().clientId,
   authenticatedAt: new Date().toISOString(), lastActiveAt: new Date().toISOString(), idleExpiresAt: new Date(Date.now() + 30 * 86400000).toISOString(),
   absoluteExpiresAt: new Date(Date.now() + 90 * 86400000).toISOString(), sessionRevision: 0 });
-const user = () => ({ issuer: config().authOrigin, userId: reference().userId, displayName: "Person", avatarUrl: null, version: 0 });
+const user = () => ({ issuer: config().authOrigin, userId: reference().userId, displayName: "Person", email: null, avatarUrl: null, version: 0 });
 const me = () => ({ user: user(), session: session(), loginMethods: [], passwordEnabled: false, platformCapabilities: [] });
 const json = (data: unknown) => Response.json({ requestId: "request-aaaaaaaa", data });
 function client(fetcher: typeof fetch, overrides: Partial<AccountServicePorts> = {}) {
@@ -79,7 +79,7 @@ test("WORK-01/UAS-01/11: current session and user are validated and only the saf
 test("WORK-01/UAS-11/26: unknown operations and injection fields never reach the transport", async () => {
   const service = client(async () => { assert.fail("invalid input must not be sent"); });
   for (const [id, input] of [
-    ["https://evil.example.test", {}], ["getMe", { url: "https://evil.example.test" }], ["getMe", { params: { userId: "user-attacker" } }],
+    ["https://evil.example.test", {}], ["listServiceClients", {}], ["createServiceClient", {}], ["rotateServiceClient", {}], ["disableServiceClient", {}], ["getMe", { url: "https://evil.example.test" }], ["getMe", { params: { userId: "user-attacker" } }],
     ["listMyTenants", { query: { subjectUserId: "user-attacker" } }], ["listMyTenants", { query: { limit: 101 } }],
     ["getTenant", { params: { tenantId: "../users/me" } }], ["getMe", { body: {} }],
     ["checkEntitlements", { body: { scope: { kind: "PERSONAL" }, featureIds: ["demo.shared"], subjectUserId: "user-attacker" } }],

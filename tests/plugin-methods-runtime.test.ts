@@ -18,6 +18,7 @@ import { ensureStorageSpace, readStorageSpace, openHomeSqliteDatabase } from "@m
 import { DEMO_PROJECT_ID, LocalProjectDatabase, createPluginPlatform, homeAgentDefinitions, homeStores, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { pagesManifest, pagesSkills } from "@molis-ai/molis-work-plugin-pages";
 import { pluginActions } from "./fixtures/plugin-actions.js";
+import { roleOf } from "./fixtures/assistant-roles.js";
 
 /**
  * W4-02 (decision #18): the methods a Runtime or installed plugin's Manifest declares take effect as a built-in Plugin's do. The Host
@@ -62,6 +63,9 @@ function withHome(run: (home: string) => Promise<void>) {
   };
 }
 
+/** The body one installation registered for a method, as the shared Skill catalog reads it; undefined when it registered none. */
+const registeredBody = (home: string, ownerId: string, installId: string, skillId: string, version?: number) => homeAgentDefinitions(home).installation(ownerId, installId)?.methods
+  ?.find(method => method.skill_id === skillId && (version === undefined || method.version === version))?.body;
 const listed = (home: string, ownerId = PLUGIN_ID) => homeAgentDefinitions(home).methods().filter(method => method.owner_id === ownerId)
   .map(method => `${method.skill_id}@${method.version}`);
 
@@ -75,8 +79,8 @@ test("W4-02-01 a Runtime plugin's methods are registered when it starts, exactly
       assert.deepEqual((await first.platform.start([{ definition: plugin.definition }])).running, [PLUGIN_ID]);
       assert.deepEqual(listed(home), ["triage@1"], "a body nobody declared is not registered either");
       const registry = homeAgentDefinitions(home);
-      assert.equal(registry.method(PLUGIN_ID, "triage", 1).body, "triage 第 1 版的做法");
-      assert.throws(() => registry.method(PLUGIN_ID, "handoff"), /没有登记这个方法版本/);
+      assert.equal(registeredBody(home, PLUGIN_ID, first.installId(), "triage", 1), "triage 第 1 版的做法");
+      assert.equal(registeredBody(home, PLUGIN_ID, first.installId(), "handoff"), undefined);
       const owner = registry.diagnostics().owners.find(row => row.owner_id === PLUGIN_ID);
       assert.equal(owner?.methods, 1);
       assert.ok(owner?.issues.some(issue => issue.text === "方法 handoff 声明了但包里没有正文，未登记"));
@@ -105,8 +109,8 @@ test("W4-02-02 disabling withdraws a plugin's methods and enabling brings them b
         bodies: [body("triage", 2, "第 2 版的做法"), body("handoff")] }).definition);
       assert.equal(upgraded.status, "running", upgraded.message ?? "");
       assert.deepEqual(listed(home).sort(), ["handoff@1", "triage@2"], "the new version's methods, not the old one's");
-      assert.equal(homeAgentDefinitions(home).method(PLUGIN_ID, "triage", 2).body, "第 2 版的做法");
-      assert.throws(() => homeAgentDefinitions(home).method(PLUGIN_ID, "triage", 1), /没有登记这个方法版本/);
+      assert.equal(registeredBody(home, PLUGIN_ID, project.installId(), "triage", 2), "第 2 版的做法");
+      assert.equal(registeredBody(home, PLUGIN_ID, project.installId(), "triage", 1), undefined);
       await project.platform.runtime.uninstall(project.installId());
       assert.deepEqual(listed(home), [], "uninstalled: withdrawn");
     } finally { project.store.close(); }
@@ -135,7 +139,7 @@ test("W4-02-04 RAC-192 RAC-194 a built-in plugin's methods come with its running
     try {
       assert.deepEqual((await pages.platform.start([{ definition: own.definition, trust: { level: "host" } }])).running, ["io.molis.work.pages"]);
       assert.equal(own.started(), 1);
-      assert.match(homeAgentDefinitions(home).method("io.molis.work.pages", "meeting-notes", 1).body, /待定问题/, "the body its definition ships");
+      assert.match(registeredBody(home, "io.molis.work.pages", pages.installId("io.molis.work.pages"), "meeting-notes", 1) ?? "", /待定问题/, "the body its definition ships");
     } finally { pages.store.close(); }
     // Plugin Builder's Agents and instructions are the platform's own (PG-051 Q2): a definition naming that owner does not start.
     const project = platformIn(home), shadow = probe({ pluginId: "io.molis.work.plugin-builder" });
@@ -329,7 +333,6 @@ test("RAC-196 PG-051 Q1 b a stopped installation's declaration comes back as not
       assert.deepEqual(promptsOf(restarted), ["probe-role:disabled"], "shown as not running before it starts");
       assert.deepEqual(homeAgentDefinitions(restarted).roles().filter(role => role.owner_id === AGENT_PROBE).map(role => role.role_id), ["checker"]);
       assert.deepEqual(listed(restarted, AGENT_PROBE), [], "its method is not offered to other Agents");
-      assert.throws(() => homeAgentDefinitions(restarted).method(AGENT_PROBE, "triage", 1), /没有登记这个方法版本/);
     } finally { rmSync(restarted, { recursive: true, force: true }); }
     // A new version replaces the remembered record whole: the earlier prompt is not kept beside the new one.
     const upgraded = platformIn(home);
@@ -365,28 +368,32 @@ test("RAC-2636/2641/2643 signed mixed registrations survive two projects, Home c
     const registry = homeAgentDefinitions(h.home);
     assert.equal(registry.roles().filter(item => item.owner_id === pluginId).length, 1);
     assert.equal(registry.prompts().filter(item => item.owner_id === pluginId).length, 2, "instructions and role prompt coexist after all lifecycle callbacks");
-    assert.equal(registry.methods().filter(item => item.owner_id === pluginId).length, 2, "role material and method are both offered");
+    // A signed role is listed once, as role material; the method is registered once and offered by the shared Skill catalog (09 §2.2).
+    assert.equal(registry.signedRoles().filter(item => item.owner_id === pluginId).length, 1, "role material is offered");
+    assert.equal(registry.methods().filter(item => item.owner_id === pluginId).length, 1, "the method is registered");
   };
   try {
     await install(a, initial); await install(b, initial); complete(PACKAGE_PLUGIN_ID);
-    const reg = homeAgentDefinitions(h.home), role = reg.methods().find(item => item.owner_id === PACKAGE_PLUGIN_ID && item.kind === "role")!;
+    const reg = homeAgentDefinitions(h.home), role = reg.signedRoles().find(item => item.owner_id === PACKAGE_PLUGIN_ID)!;
     const prompt = reg.prompts().find(item => item.default_ref?.entry_id === role.default_ref?.entry_id)!;
     reg.save(prompt.key, "我的角色修订", null, LOCAL_PERSON_ACTOR_ID);
     await control(a, "disable");
-    assert.equal((await consumer().service.reads.methods(null, { project_ref: a.reference })).some(item => item.plugin_id === PACKAGE_PLUGIN_ID), false);
-    const bOffered = (await consumer().service.reads.methods(null, { project_ref: b.reference })).filter(item => item.plugin_id === PACKAGE_PLUGIN_ID);
-    assert.equal(bOffered.length, 2, JSON.stringify({ registered: reg.methods().filter(item => item.owner_id === PACKAGE_PLUGIN_ID), providers: (await host.inspectActions(person(b.project_id), b.reference)).filter(item => item.provider.plugin_id === PACKAGE_PLUGIN_ID).map(item => ({ provider: item.provider, availability: item.availability })) }));
+    assert.equal((await consumer().service.reads.methods(null, { project_ref: a.reference })).some(roleOf(PACKAGE_PLUGIN_ID)), false);
+    // SKP-02 (expected change, not a looser check): role material is offered where its installation runs, not where its plugin has an available action.
+    const bOffered = (await consumer().service.reads.methods(null, { project_ref: b.reference })).filter(roleOf(PACKAGE_PLUGIN_ID));
+    assert.equal(bOffered.length, 1, JSON.stringify({ registered: reg.methods().filter(item => item.owner_id === PACKAGE_PLUGIN_ID), providers: (await host.inspectActions(person(b.project_id), b.reference)).filter(item => item.provider.plugin_id === PACKAGE_PLUGIN_ID).map(item => ({ provider: item.provider, availability: item.availability })) }));
     complete(PACKAGE_PLUGIN_ID);
     await control(b, "disable");
     assert.equal(reg.methods().some(item => item.owner_id === PACKAGE_PLUGIN_ID), false);
+    assert.equal(reg.signedRoles().some(item => item.owner_id === PACKAGE_PLUGIN_ID), false);
     assert.ok(reg.prompts().filter(item => item.owner_id === PACKAGE_PLUGIN_ID).every(item => item.source.kind === "plugin" && item.source.state === "disabled"));
     await control(a, "enable"); complete(PACKAGE_PLUGIN_ID);
     await install(a, signedAgentPackage(publisher, { version: "1.2.0", compatibleFrom: ["1.1.0"], bodies: { "agent/role.md": "新的默认角色" } }));
     complete(PACKAGE_PLUGIN_ID); assert.equal(reg.prompt(prompt.key).default_updated, true);
     await assert.rejects(install(a, signedAgentPackage(publisher, { version: "1.3.0", compatibleFrom: ["1.2.0"], broken: true, bodies: { "agent/role.md": "失败的新正文" } })));
     complete(PACKAGE_PLUGIN_ID);
-    const restored = reg.methods().find(item => item.owner_id === PACKAGE_PLUGIN_ID && item.kind === "role")!;
-    assert.equal(restored.default_ref!.source.plugin_version, "1.2.0"); assert.equal(reg.signedMaterial(restored.install_id!, restored.default_ref!).body, "我的角色修订");
+    const restored = reg.signedRoles().find(item => item.owner_id === PACKAGE_PLUGIN_ID)!;
+    assert.equal(restored.default_ref.source.plugin_version, "1.2.0"); assert.equal(reg.signedMaterial(restored.install_id, restored.default_ref).body, "我的角色修订");
     const homeId = "io.molis.work.example.signed-home-agent", homeBundle = signedAgentPackage(publisher, { pluginId: homeId, scope: "home", version: "1.1.0" });
     await install(a, homeBundle); complete(homeId);
     const homePrompt = reg.prompts().find(item => item.owner_id === homeId && item.kind === "agent")!;
@@ -406,30 +413,30 @@ test("RAC-2636/2641/2643 signed mixed registrations survive two projects, Home c
     const persisted = JSON.parse(cold.split("\n").find(line => line.startsWith('{"recovered":'))!);
     assert.equal(persisted.project.body, "我的角色修订"); assert.equal(persisted.project.default_ref.source.plugin_version, "1.2.0");
     assert.equal(persisted.home.body, "个人角色修订");
-    assert.equal(persisted.methods.filter((item: { owner_id: string }) => item.owner_id === PACKAGE_PLUGIN_ID || item.owner_id === homeId).length, 4);
+    assert.equal(persisted.methods.filter((item: { owner_id: string }) => item.owner_id === PACKAGE_PLUGIN_ID || item.owner_id === homeId).length, 2);
     host = new MolisWorkLocalHost({ homeDirectory: h.home, completeText: null });
     await host.inspectActions(person(a.project_id), a.reference); complete(PACKAGE_PLUGIN_ID); complete(homeId);
     const recovered = homeAgentDefinitions(h.home);
     assert.equal(recovered.prompt(prompt.key).body, "我的角色修订"); assert.equal(recovered.prompt(prompt.key).default_ref!.source.plugin_version, "1.2.0");
     assert.equal(recovered.prompt(homePrompt.key).body, "个人角色修订");
     settings = await serveTestHost(null, { home: h.home, host });
-    const oldSelection = (await consumer().service.reads.methods(null)).find(item => item.plugin_id === homeId && item.kind === "role")!;
-    assert.equal((await consumer().service.reads.readMethod(null, oldSelection.method_id, oldSelection)).body, "个人角色修订");
+    const oldSelection = (await consumer().service.reads.methods(null)).find(roleOf(homeId))!;
+    assert.equal((await consumer().service.reads.readRole(null, oldSelection)).body, "个人角色修订");
     await settings.web.post("/api/settings/plugin-permissions/disable", { plugin_id: homeId });
-    await assert.rejects(consumer().service.reads.readMethod(null, oldSelection.method_id, oldSelection));
+    await assert.rejects(consumer().service.reads.readRole(null, oldSelection));
     await settings.web.post("/api/settings/plugin-permissions/enable", { plugin_id: homeId }); complete(homeId);
     await settings.web.post("/api/settings/plugin-permissions/uninstall", { plugin_id: homeId, keep_data: true });
     assert.equal(recovered.prompts().some(item => item.owner_id === homeId), false);
     await install(a, homeBundle); complete(homeId);
-    await assert.rejects(consumer().service.reads.readMethod(null, oldSelection.method_id, oldSelection), /版本已变化/);
-    const current = (await consumer().service.reads.methods(null)).find(item => item.plugin_id === homeId && item.kind === "role")!;
-    assert.equal((await consumer().service.reads.readMethod(null, current.method_id, current)).body, "个人角色修订");
+    await assert.rejects(consumer().service.reads.readRole(null, oldSelection), /版本已变化/);
+    const current = (await consumer().service.reads.methods(null)).find(roleOf(homeId))!;
+    assert.equal((await consumer().service.reads.readRole(null, current)).body, "个人角色修订");
     const directory = new SandboxPackageStore(h.home).load(homeId, publisher.identity, "1.1.0").directory;
     await settings.close(); settings = undefined; await host.close();
     const stored = join(directory, "bundle.json"); chmodSync(stored, 0o600);
     const changed = JSON.parse(readFileSync(stored, "utf8")); changed.payload.files.find((item: { path: string }) => item.path === "agent/role.md").content_base64 = Buffer.from("被篡改的正文").toString("base64"); writeFileSync(stored, JSON.stringify(changed)); chmodSync(stored, 0o400);
     host = new MolisWorkLocalHost({ homeDirectory: h.home, completeText: null }); await host.inspectActions(person(a.project_id), a.reference);
-    assert.equal((await consumer().service.reads.methods(null)).some(item => item.plugin_id === homeId), false);
-    await assert.rejects(consumer().service.reads.readMethod(null, current.method_id, current));
+    assert.equal((await consumer().service.reads.methods(null)).some(roleOf(homeId)), false);
+    await assert.rejects(consumer().service.reads.readRole(null, current));
   } finally { await settings?.close(); await host.close(); }
 });

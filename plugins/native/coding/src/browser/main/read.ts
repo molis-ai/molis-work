@@ -105,7 +105,7 @@ function adoptSelections(page: Page, id: string, data: SessionData) {
     s.characterTitles.set(id, data.character_title || "");
     if (data.character_skill_ids !== undefined) s.characterSkills.set(id, data.character_skill_ids);
   }
-  if (!s.methodSelections.has(id)) s.methodSelections.set(id, data.methods || []);
+  if (!s.methodSelections.has(id)) s.methodSelections.set(id, data.skills || []);
   page.refs.inputEditor.observe(id, data);
 }
 

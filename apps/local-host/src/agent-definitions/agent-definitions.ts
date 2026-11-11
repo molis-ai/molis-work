@@ -2,6 +2,7 @@ import { rollbackPreservingError } from "@molis-ai/molis-work-storage";
 import path from "node:path";
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import { applySqliteBaseline, openBaselineHomeSqlite, openHomeSqliteDatabase, type SqliteBaseline, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
+import { sandboxPromptId } from "@molis-ai/molis-work-plugin-sdk";
 import { AgentDeclarations, notRunning } from "./agent-declarations.js";
 import { SKILL_TABLES_SQL, SkillSettingsStore } from "./skill-settings.js";
 import type { AgentManifest, AgentPromptText, AgentRoleExecution, AgentSkillDeclaration, AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
@@ -9,9 +10,9 @@ import { promptLayerOf } from "@molis-ai/molis-work-contracts/platform/plugin-ag
 import type { InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { hostLog } from "../host-log.js";
 import {
-  AGENT_PROMPT_MAX_CHARS,
+  AGENT_PROMPT_MAX_CHARS, agentDefinitionErrors,
   type AgentDefinitionRegistration, type AgentDefinitionSource, type AgentPromptRegistration, type AgentPromptRevision, type AgentPromptUse,
-  type AgentPromptView, type AgentRoleRegistration, type AgentRoleView, type AgentDefinitionsDiagnostics, type AgentUnregisteredCall,
+  type AgentPromptView, type AgentRoleRegistration, type AgentRoleView, type AgentDefinitionsDiagnostics,
   type AgentSkillRegistration, type AgentSkillView, type SignedAgentReference, type SignedAgentMaterial,
 } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 
@@ -19,7 +20,8 @@ import {
 type DatabaseSync = ReturnType<typeof openHomeSqliteDatabase>;
 
 const AGENT_DEFINITIONS_STORE = "agent-definitions";
-const USES_KEPT = 200;
+/** Uses kept per prompt: the AI kit says its counts are of this many recent rows. */
+export const PROMPT_USES_KEPT = 200;
 
 /**
  * The agent definitions store's one current schema (repository-anti-corruption §4.1), with the Skill settings and uses (specs/skill-packs/
@@ -40,6 +42,18 @@ CREATE INDEX prompt_uses_by_key ON prompt_uses(key, at);${SKILL_TABLES_SQL}`,
   upgrades: [{ from: 1, sql: SKILL_TABLES_SQL }] };
 
 const agentDefinitionsErrors = defineErrorCodes("agent_definitions", { not_found: "not_found", invalid: "invalid", conflict: "conflict" });
+
+/** A running signed package's role in one installation, with the signed default its material is read by. */
+export interface SignedRoleView {
+  install_id: string;
+  owner_id: string;
+  source: AgentDefinitionSource;
+  role_id: string;
+  version: number;
+  name: string;
+  purpose: string;
+  default_ref: SignedAgentReference;
+}
 
 interface Override { default_ref: string | null; key: string; revision: number; base_version: number; body: string; updated_at: string; actor_id: string }
 
@@ -62,10 +76,13 @@ export class AgentDefinitions {
   private readonly scopes = new Map<string, Map<string, AgentDefinitionRegistration>>();
   /** Each Skill's state in each scope and its uses: the catalog's two tables, in this store. */
   readonly skills: SkillSettingsStore;
+  /** Each prompt's recent uses, kept per key. */
+  readonly uses: PromptUses;
 
   constructor(private readonly db: DatabaseSync, private readonly now = () => new Date()) {
     applySqliteBaseline(db, AGENT_DEFINITIONS_STORE, AGENT_DEFINITIONS_BASELINE);
     this.skills = new SkillSettingsStore(db, now);
+    this.uses = new PromptUses(db);
   }
 
   /** Renew one declaration. Installed plugins supply a Host-owned scope so another installation cannot withdraw it. */
@@ -143,7 +160,7 @@ export class AgentDefinitions {
   private view(owner: AgentDefinitionRegistration, prompt: AgentPromptRegistration): AgentPromptView {
     const key = keyOf(owner.owner_id, prompt.prompt_id);
     const edited = this.override(key);
-    const used = this.db.prepare("SELECT * FROM prompt_uses WHERE key = ? ORDER BY at DESC LIMIT 1").get(key) as (Omit<AgentPromptUse, "source_ref"> & { source_ref: string | null }) | undefined;
+    const [used] = this.uses.list(key, 1);
     return {
       key, owner_id: owner.owner_id, source: structuredClone(owner.source), prompt_id: prompt.prompt_id, kind: prompt.kind,
       ...(prompt.layer ? { layer: prompt.layer } : {}), title: prompt.title, purpose: prompt.purpose, used_by: [...prompt.used_by],
@@ -152,7 +169,7 @@ export class AgentDefinitions {
       effective: edited ? "user" : "default", body: edited ? edited.body : prompt.body,
       ...(edited ? { user: { revision: edited.revision, base_version: edited.base_version, ...(edited.default_ref ? { default_ref: storedRef(edited.default_ref) } : {}), updated_at: edited.updated_at } } : {}),
       default_updated: Boolean(edited && (prompt.default_ref ? !sameRef(prompt.default_ref, storedRef(edited.default_ref)) : prompt.version > edited.base_version)),
-      ...(used ? { last_used: { ...(used.source_ref ? { source_ref: storedRef(used.source_ref) } : {}), at: used.at, version: used.version, user_revision: used.user_revision, caller: used.caller } } : {}),
+      ...(used ? { last_used: { ...(used.source_ref ? { source_ref: used.source_ref } : {}), at: used.at, version: used.version, user_revision: used.user_revision, caller: used.caller } } : {}),
     };
   }
 
@@ -165,39 +182,29 @@ export class AgentDefinitions {
     return this.view(owner, prompt);
   }
 
-  /** Methods owners offer to other Agents for business work; the body is read with `method`. A plugin that is not running offers none. */
+  /**
+   * Methods running owners declare for business work, one per declaring installation for a signed package's. Not a reference: who may
+   * read one, and its exact `SkillRef`, are the shared catalog's (`skills.catalog.list@1`), which reads the bodies with `installation`.
+   */
   methods(): AgentSkillView[] {
-    const native = [...this.owners.values()].filter(owner => offering(owner) && !(owner.source.kind === "plugin" && owner.source.publisher_signature)).flatMap(owner => (owner.methods ?? []).map(method => ({ key: keyOf(owner.owner_id, method.skill_id), owner_id: owner.owner_id,
-      source: structuredClone(owner.source), skill_id: method.skill_id, version: method.version, name: method.name, summary: method.summary, tools: [...method.tools] })));
-    return [...native, ...[...this.scopes.values()].flatMap(scopes => [...scopes].flatMap(([install_id, owner]): AgentSkillView[] => {
-      const source = owner.source;
-      if (!offering(owner) || source.kind !== "plugin" || !source.publisher_signature) return [];
-      const signedSource = { kind: "plugin" as const, plugin_id: source.plugin_id, plugin_version: source.plugin_version, publisher_signature: source.publisher_signature };
-      const entries = [...owner.roles.map(role => ({ skill_id: role.role_id, version: role.version, name: role.name, summary: role.purpose, tools: [] as string[], kind: "role" as const })),
-        ...(owner.methods ?? []).map(method => ({ ...method, kind: "method" as const }))];
-      return entries.map(entry => ({ key: `signed/${entry.skill_id}`, owner_id: owner.owner_id, source: structuredClone(source), skill_id: entry.skill_id,
-        version: entry.version, name: entry.name, summary: entry.summary, tools: [...entry.tools], kind: entry.kind, install_id,
-        default_ref: { source: signedSource, kind: entry.kind, entry_id: entry.skill_id } }));
-    }))];
+    const view = (owner: AgentDefinitionRegistration, method: AgentSkillRegistration, install_id?: string): AgentSkillView => ({ key: keyOf(owner.owner_id, method.skill_id),
+      owner_id: owner.owner_id, source: structuredClone(owner.source), skill_id: method.skill_id, version: method.version, name: method.name, summary: method.summary,
+      tools: [...method.tools], ...(install_id ? { install_id } : {}) });
+    const native = [...this.owners.values()].filter(owner => offering(owner) && !signedSourceOf(owner)).flatMap(owner => (owner.methods ?? []).map(method => view(owner, method)));
+    return [...native, ...signedScopes(this.scopes).flatMap(([install_id, owner]) => (owner.methods ?? []).map(method => view(owner, method, install_id)))];
   }
 
-  /** One registered method with its body, by owner, id and (when given) exact version. */
-  method(ownerId: string, skillId: string, version?: number): AgentSkillRegistration {
-    const owner = this.owners.get(ownerId), method = owner && offering(owner) ? owner.methods?.find(item => item.skill_id === skillId) : undefined;
-    if (!method || (version !== undefined && method.version !== version)) throw agentDefinitionsErrors.not_found("没有登记这个方法版本");
-    return structuredClone(method);
+  /** Each running signed package's roles, per installation: the role material a round may be handed (`signedMaterial`). */
+  signedRoles(): SignedRoleView[] {
+    return signedScopes(this.scopes).flatMap(([install_id, owner]) => owner.roles.map(role => ({ install_id, owner_id: owner.owner_id, source: structuredClone(owner.source),
+      role_id: role.role_id, version: role.version, name: role.name, purpose: role.purpose, default_ref: { source: signedSourceOf(owner)!, kind: "role" as const, entry_id: role.role_id } })));
   }
 
-  /** Read the selected installation, never the settings aggregation or a newer default. No use is recorded here. */
+  /** Read the selected installation's role, never the settings aggregation or a newer default. No use is recorded here. */
   signedMaterial(installId: string, ref: SignedAgentReference): SignedAgentMaterial {
     const owner = this.scopes.get(ref.source.plugin_id)?.get(installId), source = owner?.source;
     if (!owner || !offering(owner) || source?.kind !== "plugin" || source.plugin_version !== ref.source.plugin_version
       || source.publisher_signature !== ref.source.publisher_signature) throw agentDefinitionsErrors.not_found("签名正文来源已变化，请重新选择");
-    if (ref.kind === "method") {
-      const method = owner.methods?.find(item => item.skill_id === ref.entry_id);
-      if (!method) throw agentDefinitionsErrors.not_found("没有登记这个方法版本");
-      return { default_ref: structuredClone(ref), effective: "default", user_revision: null, body: method.body };
-    }
     const role = owner.roles.find(item => item.role_id === ref.entry_id);
     const prompt = role && owner.prompts.find(item => role.prompt_ids.includes(item.prompt_id) && sameRef(item.default_ref, ref));
     if (!prompt) throw agentDefinitionsErrors.not_found("没有登记这个角色资料版本");
@@ -207,9 +214,8 @@ export class AgentDefinitions {
 
   /** Called only after an accepted handoff; a later withdrawal does not erase the accepted historical fact. */
   recordSignedUse(material: SignedAgentMaterial, caller: string): void {
-    if (material.default_ref.kind !== "role") return;
     const ref = material.default_ref;
-    this.recordUse({ key: keyOf(ref.source.plugin_id, `prompt-${ref.entry_id.slice("role-".length)}`), source_ref: ref,
+    this.uses.record({ key: keyOf(ref.source.plugin_id, sandboxPromptId(ref.entry_id)), source_ref: ref,
       version: /* @version format.sandbox.agent-prompt */ 1, user_revision: material.user_revision, caller, at: this.now().toISOString() });
   }
 
@@ -265,7 +271,7 @@ export class AgentDefinitions {
     const owned = this.owners.get(ownerId)?.prompts.find(item => item.prompt_id === prompt.prompt_id);
     if (!owned) return prompt;
     const edited = this.override(key);
-    this.recordUse({ key, version: prompt.version, user_revision: edited?.revision ?? null, caller: `agent:${ownerId}`, at: this.now().toISOString() });
+    this.uses.record({ key, version: prompt.version, user_revision: edited?.revision ?? null, caller: `agent:${ownerId}`, at: this.now().toISOString() });
     return edited ? { ...prompt, body: edited.body, user_revision: edited.revision } : prompt;
   }
 
@@ -279,12 +285,12 @@ export class AgentDefinitions {
   instructionForDeclaration(ownerId: string, prompt: AgentPromptRegistration, caller: string): { body: string; version: number; user_revision: number | null } {
     if (prompt.kind !== "instruction") throw agentDefinitionsErrors.invalid("这段 Prompt 不是模型调用的指令");
     const key = keyOf(ownerId, prompt.prompt_id), edited = this.override(key);
-    this.recordUse({ key, version: prompt.version, user_revision: edited?.revision ?? null, caller, at: this.now().toISOString() });
+    this.uses.record({ key, version: prompt.version, user_revision: edited?.revision ?? null, caller, at: this.now().toISOString() });
     return { body: edited ? edited.body : prompt.body, version: prompt.version, user_revision: edited?.revision ?? null };
   }
 
   /** What each owner registered and what of it is not in effect, for developers; plus calls known to bypass the register. */
-  diagnostics(unregistered: readonly AgentUnregisteredCall[] = []): AgentDefinitionsDiagnostics {
+  diagnostics(): AgentDefinitionsDiagnostics {
     const used = new Set((this.db.prepare("SELECT DISTINCT key FROM prompt_uses").all() as Array<{ key: string }>).map(row => row.key));
     const owners = [...this.owners.values()].map(owner => {
       const views = owner.prompts.map(prompt => this.view(owner, prompt));
@@ -299,18 +305,7 @@ export class AgentDefinitions {
         instructions: views.filter(view => view.kind === "instruction").length, roles: owner.roles.length, ...(owner.methods?.length ? { methods: owner.methods.length } : {}),
         edited: views.filter(view => view.effective === "user").length, issues };
     });
-    return { owners, unregistered: unregistered.map(item => ({ ...item })) };
-  }
-
-  uses(key: string, limit = 20): AgentPromptUse[] {
-    return (this.db.prepare("SELECT * FROM prompt_uses WHERE key = ? ORDER BY at DESC LIMIT ?").all(key, limit) as unknown as Array<Omit<AgentPromptUse, "source_ref"> & { source_ref: string | null }>).map(({ source_ref, ...row }) => ({ ...row, ...(source_ref ? { source_ref: storedRef(source_ref) } : {}) }));
-  }
-
-  private recordUse(use: AgentPromptUse): void {
-    try {
-      this.db.prepare("INSERT INTO prompt_uses(key,at,version,user_revision,caller,source_ref) VALUES (?,?,?,?,?,?)").run(use.key, use.at, use.version, use.user_revision, use.caller, use.source_ref ? JSON.stringify(use.source_ref) : null);
-      this.db.prepare("DELETE FROM prompt_uses WHERE key = ? AND rowid NOT IN (SELECT rowid FROM prompt_uses WHERE key = ? ORDER BY at DESC LIMIT ?)").run(use.key, use.key, USES_KEPT);
-    } catch (error) { const [owner, prompt] = use.key.split("/"); hostLog.warn("agents", "prompt_use_unrecorded", error, { owner, prompt }); } // A use that fails to record never stops the call; written as owner and prompt, since a key has no `/`.
+    return { owners };
   }
 
   private nextRevision(key: string): number {
@@ -321,6 +316,28 @@ export class AgentDefinitions {
     if (this.db.isTransaction) { run(); return; }
     this.db.exec("BEGIN IMMEDIATE");
     try { run(); this.db.exec("COMMIT"); } catch (error) { rollbackPreservingError(error, () => this.db.exec("ROLLBACK")); throw error; }
+  }
+}
+
+/** Each prompt's uses, the newest `PROMPT_USES_KEPT` per key: what the 「提示词」 page shows and the AI kit counts. A use that fails to record never stops the call. */
+export class PromptUses {
+  constructor(private readonly db: DatabaseSync) {}
+
+  record(use: AgentPromptUse): void {
+    try {
+      this.db.prepare("INSERT INTO prompt_uses(key,at,version,user_revision,caller,source_ref) VALUES (?,?,?,?,?,?)").run(use.key, use.at, use.version, use.user_revision, use.caller, use.source_ref ? JSON.stringify(use.source_ref) : null);
+      this.db.prepare("DELETE FROM prompt_uses WHERE key = ? AND rowid NOT IN (SELECT rowid FROM prompt_uses WHERE key = ? ORDER BY at DESC LIMIT ?)").run(use.key, use.key, PROMPT_USES_KEPT);
+    } catch (error) { const [owner, prompt] = use.key.split("/"); hostLog.warn("agents", "prompt_use_unrecorded", error, { owner, prompt }); } // Written as owner and prompt, since a key has no `/`.
+  }
+
+  list(key: string, limit = 20): AgentPromptUse[] {
+    return (this.db.prepare("SELECT * FROM prompt_uses WHERE key = ? ORDER BY at DESC LIMIT ?").all(key, limit) as unknown as Array<Omit<AgentPromptUse, "source_ref"> & { source_ref: string | null }>).map(({ source_ref, ...row }) => ({ ...row, ...(source_ref ? { source_ref: storedRef(source_ref) } : {}) }));
+  }
+
+  /** How many uses each prompt has on record and the last one, by key: one read for a whole list. */
+  counts(): Map<string, { count: number; last_at: string }> {
+    const rows = this.db.prepare("SELECT key, COUNT(*) AS count, MAX(at) AS last_at FROM prompt_uses GROUP BY key").all() as Array<{ key: string; count: number; last_at: string }>;
+    return new Map(rows.map(row => [row.key, { count: Number(row.count), last_at: row.last_at }]));
   }
 }
 
@@ -369,6 +386,12 @@ const registries = new Map<string, AgentDefinitions>(), declarations = new Map<s
 
 /** Whether an owner's methods are offered: not while its plugin does not run (a remembered declaration, PG-051 RAC-196). */
 const offering = (owner: AgentDefinitionRegistration) => owner.source.kind !== "plugin" || owner.source.state !== "disabled";
+/** A signed package's source, as its role material names it; none for the system and an unsigned Plugin. */
+const signedSourceOf = ({ source }: AgentDefinitionRegistration): SignedAgentReference["source"] | undefined => source.kind === "plugin" && source.publisher_signature
+  ? { kind: "plugin", plugin_id: source.plugin_id, plugin_version: source.plugin_version, publisher_signature: source.publisher_signature } : undefined;
+/** Running signed installations across scopes, each with its install id. */
+const signedScopes = (scopes: ReadonlyMap<string, ReadonlyMap<string, AgentDefinitionRegistration>>): Array<[string, AgentDefinitionRegistration]> =>
+  [...scopes.values()].flatMap(scope => [...scope].filter(([, owner]) => offering(owner) && signedSourceOf(owner)));
 
 /** The Home's remembered installation declarations (PG-051 Q1 b), opened once. */
 export function agentDeclarationsFor(homeDirectory: string): AgentDeclarations {
@@ -413,11 +436,27 @@ export function withInstructions(registrations: readonly AgentDefinitionRegistra
   const merged = new Map(registrations.map(registration => [registration.owner_id, structuredClone(registration)]));
   for (const instruction of instructions) {
     const owner = merged.get(instruction.owner_id) ?? { owner_id: instruction.owner_id, source: sourceOf(instruction.owner_id), prompts: [], roles: [] };
-    owner.prompts.push({ prompt_id: instruction.prompt_id, version: instruction.version, kind: "instruction", title: instruction.title, purpose: instruction.purpose,
-      used_by: [...instruction.used_by], body: instruction.body });
+    owner.prompts.push(instructionRegistration(instruction));
     merged.set(instruction.owner_id, owner);
   }
   return [...merged.values()];
+}
+
+/** One instruction as its owner registers it, with the role it works for when it names one. */
+export function instructionRegistration(instruction: InstructionPrompt): AgentPromptRegistration {
+  return { prompt_id: instruction.prompt_id, version: instruction.version, kind: "instruction", title: instruction.title, purpose: instruction.purpose,
+    used_by: [...instruction.used_by], ...(instruction.role_id ? { role_id: instruction.role_id } : {}), body: instruction.body };
+}
+
+/**
+ * An instruction's `role_id` must be a role the same owner declares (specs/capability-pack/contract-design.md §4.2): otherwise the owner's
+ * whole registration is refused, wherever it registers — a plugin's (`pluginAgentRegistration`) or the Host's own (`builtinRegistrations`).
+ */
+export function assertInstructionRoles(registration: AgentDefinitionRegistration): void {
+  const roles = new Set(registration.roles.map(role => role.role_id));
+  const stray = registration.prompts.find(prompt => prompt.role_id !== undefined && !roles.has(prompt.role_id));
+  if (stray) throw agentDefinitionErrors.instruction_role_unknown(`指令 ${stray.prompt_id} 说它为角色 ${stray.role_id} 做事，但 ${registration.owner_id} 没有声明这个角色`,
+    { owner_id: registration.owner_id, prompt_id: stray.prompt_id, role_id: stray.role_id! });
 }
 
 /** This store in the Home's store registry (W4-11). */

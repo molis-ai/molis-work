@@ -12,6 +12,8 @@ export interface AccountAuthenticationSession {
   invoke(operationId: string, input: AccountOperationInput, control: AccountCallControl, proof?: { reference: string; value: string }): Promise<AccountEnvelope>;
 }
 export interface AccountSessionManager {
+  /** Trusted Host transport only; never exposed by browser, actions, plugins or MCP. */
+  accessToken(control: AccountCallControl): Promise<string>;
   authentication(control: AccountCallControl): Promise<AccountAuthenticationSession>;
   readSession(control: AccountCallControl): Promise<AccountView>;
   invoke(operationId: string, input: AccountOperationInput, control: AccountCallControl): Promise<AccountEnvelope>;

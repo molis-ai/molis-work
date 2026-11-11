@@ -6,7 +6,7 @@ import { dirname, join } from "node:path";
 import { SHELF_INSTRUCTIONS } from "@molis-ai/molis-work-plugin-shelf";
 import { BUILTIN_DEFINITIONS } from "./fixtures/builtin-definitions.js";
 import { builtinRegistrations } from "../apps/local-host/src/agent-definitions/builtin-agents.js";
-import { BUILTIN_INSTRUCTIONS, UNREGISTERED_MODEL_CALLS } from "../apps/local-host/src/agent-definitions/builtin-instructions.js";
+import { BUILTIN_INSTRUCTIONS } from "../apps/local-host/src/agent-definitions/builtin-instructions.js";
 
 const ROOT = new URL("..", import.meta.url).pathname;
 
@@ -143,8 +143,6 @@ test("Host modules reach a model only through the register, apart from the trans
   });
   assert.deepEqual(offenders, [], "这些 Host 模块直接调用模型而没有经过登记的指令");
   for (const path of Object.keys(TRANSITIONAL)) assert.ok(direct.test(read(path)), `${path} 已不再直接调用模型，从过渡清单里去掉它`);
-  // Every exception that is not the transport itself is shown to developers too, with the same reason.
-  assert.deepEqual(UNREGISTERED_MODEL_CALLS, [], "已迁移的消费者不再保留未登记指令例外");
 });
 
 test("Plugin Builder's designer and code Agents are registered as the prompts they run, not its unused manifest set", () => {

@@ -9,7 +9,7 @@ function account() {
 }
 const forbidden = { code: 'actions.forbidden' };
 
-test('ASR-04 a delayed cancellation for an older preparation cannot cancel a newer real OAuth attempt', async t => {
+test('ASR-04 V2U-07 a delayed cancellation for an older preparation cannot cancel a newer real V2 login attempt', async t => {
   const f=await accountRefreshFixture(t,accountProbeCore);
   try {
     await f.login('alice');
@@ -24,7 +24,7 @@ test('ASR-04 a delayed cancellation for an older preparation cannot cancel a new
     const unchanged=await f.status();
     assert.equal(unchanged.loginPending,true,'stale cancellation cannot revoke the new Auth transaction');
     assert.equal(unchanged.preparation.id,current,'stale cancellation cannot remove the new preparation');
-    assert.equal((await f.complete(next)).status,303);
+    assert.equal((await f.complete(next)).status,200);
     assert.equal((await f.status()).identity.userId,'carol','the newer real exchange can still complete');
   } finally { await f.close(); }
 });
@@ -158,4 +158,38 @@ for (const reason of ['cancel', 'leave', 'disconnect'] as const) test(`ASR-04 ${
   a.lease.assertCurrent();
   pages.register('new-page', a.lease);
   assert.equal(pages.start('new-page', a.lease, 'switch').ready, false, 'the same account remains usable after cancelling OAuth');
+});
+
+
+test('ASR-09 reconnect bindings survive a transport loss but refuse another lease and A-to-B-to-A', t => {
+  const pages = new AccountRefreshPages(), a = account(), b = account(), nextA = account();
+  t.after(() => pages.close());
+  const binding = pages.register('page', a.lease);
+  const disconnect = pages.subscribe('page', () => {});
+  disconnect();
+  pages.connection('page', a.lease, binding);
+  assert.throws(() => pages.connection('page', a.lease, 'forged'), forbidden);
+  assert.throws(() => pages.connection('page', b.lease, binding), forbidden);
+  a.controller.abort();
+  pages.register('page', b.lease);
+  assert.throws(() => pages.connection('page', b.lease, binding), forbidden);
+  b.controller.abort();
+  const next = pages.register('page', nextA.lease);
+  assert.notEqual(next, binding);
+  assert.throws(() => pages.connection('page', nextA.lease, binding), forbidden);
+  pages.connection('page', nextA.lease, next);
+});
+
+test('ASR-09 a late registration cannot resurrect a departed page or block the next logout', t => {
+  const pages = new AccountRefreshPages(), a = account(); t.after(() => pages.close());
+  pages.register('owner', a.lease);
+  pages.leave('not-yet-registered', a.lease);
+  assert.throws(() => pages.register('not-yet-registered', a.lease), forbidden);
+  const binding = pages.register('leaving', a.lease);
+  pages.leave('leaving', a.lease);
+  assert.throws(() => pages.register('leaving', a.lease), forbidden);
+  assert.throws(() => pages.connection('leaving', a.lease, binding), forbidden);
+  const preparation = pages.start('owner', a.lease, 'logout');
+  assert.equal(pages.acknowledge('owner', a.lease, preparation.id).ready, true);
+  pages.requirePrepared('owner', a.lease, preparation.id, 'logout');
 });

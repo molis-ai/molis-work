@@ -6,11 +6,11 @@
 
 `parseAccountEnvironment` 验证 ClientEnvironmentConfig 加 applicationId。Work 的产品地址必须为数字 loopback HTTP；LOCAL 的 Auth 同样为数字 loopback，TEST/PRODUCTION 的 Auth 为 HTTPS。回调必须精确为本产品 `/account/callback`，无通配、查询或片段。PRODUCTION 不接受 MOCK；缺失配置由 Host 表达未配置，不静默填写客户端或启用 mock。
 
-`src/upstream/` 固定 Auth 合同 1.1.0 的原始文件，`provenance.json` 记录实际字节摘要与来源状态。更新时从 Auth 同一版整体复制并复核共用夹具；公开 DTO 从对应 schemas.json 生成，不手工改业务枚举。请求与响应都检查同一份合同，结构通过不等于通过权限或商业规则。
+`src/upstream/` 固定 Auth 合同 1.2.0 的原始文件，`provenance.json` 记录实际字节摘要与来源状态。更新时从 Auth 同一版整体复制并复核共用夹具；公开 DTO 从对应 schemas.json 生成，不手工改业务枚举。请求与响应都检查同一份合同，结构通过不等于通过权限或商业规则。
 
 `node horizontal/account/scripts/check-contracts.mjs` 核对摘要及公开 DTO；同步 Auth 原始文件和 provenance 后，使用该命令的 `--write` 生成 DTO，再运行本包回归。来源是当前 Auth 已实现合同的字节快照，尚未把未提交工作描述为某个已发布版本。
 
-`createAccountSessionManager` 是同一 Home 的会话 owner。Host 注入同步、原子、加密的单记录 storage；会话记录按环境绑定并严格检查现行格式。默认无记录即匿名，`beginLogin` / `completeLogin` 只供可信 Host 认证编排调用，TokenSet 不进入公共 DTO 或浏览器写接口。每个登录 attempt 继承原调用权限与取消状态，新的匿名 attempt、退出及关闭会使旧结果失效。已有活动登录须先退出再换号。
+`createAccountSessionManager` 是其所属会话的 owner。安装级账号由 PersonalAuth 持有，Home 只借用稳定端口并检查原账号租约。Host 注入同步、原子、加密的单记录 storage；会话记录按环境绑定并严格检查现行格式。默认无记录即匿名，`beginLogin` / `completeLogin` 只供可信 Host 认证编排调用，TokenSet 不进入公共 DTO 或浏览器写接口。每个登录 attempt 继承原调用权限与取消状态，新的匿名 attempt、退出及关闭会使旧结果失效。已有活动登录须先退出再换号。
 
 恢复先在线复核中央身份；离线只返回用户展示缓存，不授权管理操作。显式 activity 才延长中央闲置期，读取、刷新及重启不产生用户活动。刷新在请求发出前将持久记录改为不含 Token 的 REFRESHING，进程崩溃、结果丢失或新 Token 保存失败均不重放已消费 refresh。并发调用共用一次刷新，单个调用取消不取消其他仍有效的调用；服务端提前返回 401 时只读身份查询最多恢复一次，管理写入不自动重试。
 
@@ -38,8 +38,8 @@ WORK-05 的再次验证、绑定/换绑/解绑和改密共用上述验证协议�
 
 租户与成员、交接及平台租户管理使用固定中央合同生成的同一动作目录；HTTP 不接收主体身份或任意上游路径。专项联调：`MOLIS_AUTH_SOURCE=/absolute/path/to/auth node scripts/account-tenants.test.mjs`，使用临时 Home/D1 和 Chrome，外部提供方为 mock。
 
-WORK-07 的订阅、席位与平台变更专项联调：构建后以 `MOLIS_AUTH_SOURCE=/absolute/path/to/auth node scripts/account-billing.test.mjs` 运行（按机器 browser 时段包裹）。使用真实 Auth/Host、临时 Home/D1 和 Chrome，外部服务 mock。平台库存只读合同为 Auth 1.1.0，席位写操作仍由租户管理角色授权。
+WORK-07 的订阅、席位与平台变更专项联调：构建后以 `MOLIS_AUTH_SOURCE=/absolute/path/to/auth node scripts/account-billing.test.mjs` 运行（按机器 browser 时段包裹）。使用真实 Auth/Host、临时 Home/D1 和 Chrome，外部服务 mock。平台库存及席位使用当前固定合同，席位写操作仍由租户管理角色授权。
 
 WORK-08：`account.features.list@1` 与 `account.entitlements.check@1` 是中央只读动作；后者虽为 HTTP POST，不要求中央写操作幂等键。权益展示复用 `scripts/account-billing.test.mjs`，不缓存离线授权。
 
-WORK-09：旧 personal 存储、native 凭据与 Cookie 不参与中央会话恢复，拒绝场景在上述 Host 安全测试。联合验收在 Club 检出运行 `MOLIS_AUTH_SOURCE=/absolute/path/to/auth MOLIS_WORK_SOURCE=/absolute/path/to/molis-work node scripts/test-account-cutover.mjs`，须先构建 Auth WASM 与 Work，并按机器 browser 时段执行；它使用真实 Host/Auth、临时 Home/D1 与外部 mock，覆盖换号、退租户、本地事实保留及回退。
+2026-11-08 改：安装登录与 Home 共用 V2，不再各有一套当前账号。V1 配置/存储不读取；已有原生证明和短时 Cookie 只负责本机附着，不能安装中央 Token。拒绝场景在上述 Host 安全测试。安装联合验收运行 `MOLIS_AUTH_SOURCE=/absolute/path/to/auth node scripts/account-installation.test.mjs`，须先构建 Auth WASM 与 Work，并按机器 browser 时段执行；使用真实 Host/Auth、临时 Home/D1 与外部 mock，覆盖 A/B/A、原生附着、旧 Cookie 拒绝、同一会话及重启后的本地事实归属。不运行旧双栈回退；Club 本轮未核对。

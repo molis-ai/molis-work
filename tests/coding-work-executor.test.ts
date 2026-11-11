@@ -203,19 +203,20 @@ test("W5-01-CODING-77..81 a round the Assistant starts is the page's round: same
   assert.deepEqual(read.runs.map(run => run.ref.run_id), [run_id]);
   assert.equal(read.recovery, null);
 
-  // W5-01-CODING-80: the round carries the session's own choices as the page's start sends them: its methods, and writer assignments
+  // W5-01-CODING-80: the round carries the session's own choices as the page's start sends them: its Skills, and writer assignments
   // only for parallel writers, so a session set up for them on the page and switched to another way still starts.
-  const chose = await invoke<{ session_id: string }>("session.open", { title: "按方法修改" });
-  await client.invoke(owner, find("coding.update-session"), { session_id: chose.session_id, methods: [{ skill_id: "coding-review-change", version: 1 }],
+  const chose = await invoke<{ session_id: string }>("session.open", { title: "按技能修改" });
+  const { skills } = await client.invoke(owner, find("coding.state"), {}) as { skills: Array<{ ref: { skill_id: string } }> };
+  await client.invoke(owner, find("coding.update-session"), { session_id: chose.session_id, skills: [skills.find(skill => skill.ref.skill_id === "coding-review-change")!.ref],
     configuration: { intent: "parallel", provider_id: "fixture", model_id: "fixture-model", workspace_id: f.workspaceId, writer_assignments: [{ worktree_id: "writer-1", task: "改登录" }] } });
   await invoke("session.update", { session_id: chose.session_id, mode: "edit" });
-  const second = await invoke<{ run_id: string }>("run.start", { session_id: chose.session_id, task: "按方法修改登录" });
+  const second = await invoke<{ run_id: string }>("run.start", { session_id: chose.session_id, task: "按技能修改登录" });
   let edited = await invoke<Session>("session.read", { session_id: chose.session_id });
   for (const end = Date.now() + 15_000; !["completed", "failed", "cancelled", "stopped"].includes(edited.runs[0]?.phase ?? ""); edited = await invoke<Session>("session.read", { session_id: chose.session_id })) {
     assert.ok(Date.now() < end, `the round ends: ${edited.runs[0]?.phase}`); await new Promise(resolve => setTimeout(resolve, 50));
   }
   assert.deepEqual(edited.runs.map(run => run.ref.run_id), [second.run_id]);
-  assert.deepEqual(edited.runs[0]!.frozen.skills.map(skill => [skill.skill_id, skill.version]), [["coding-review-change", 1]]);
+  assert.deepEqual(edited.runs[0]!.frozen.skills.map(skill => [skill.ref.skill_id, skill.ref.version]), [["coding-review-change", 1]]);
 
   // W5-01-CODING-81: a start that is refused leaves the session as it was: nothing chosen, so the page still asks.
   const unread = await invoke<{ session_id: string }>("session.open", { title: "材料读不到" });

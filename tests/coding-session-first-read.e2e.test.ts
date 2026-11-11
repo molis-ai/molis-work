@@ -139,8 +139,8 @@ test("AC-05: a choice open in a dialog when「新会话」is pressed is closed u
   await waitFor(`!${dialog}.open`);
   await evaluate("hold.slow=0");
   await new Promise(resolve => setTimeout(resolve, 600));
-  assert.equal(((await saved(first)).at(-1)!.methods as unknown[]).length, 1, "the first session's last save holds the method");
-  assert.equal(((await stored(first)).methods as unknown[]).length, 1, "the service holds the method");
+  assert.equal(((await saved(first)).at(-1)!.skills as unknown[]).length, 1, "the first session's last save holds the method");
+  assert.equal(((await stored(first)).skills as unknown[]).length, 1, "the service holds the method");
   await choose(1);
   const offeredOnce = await nextRound();
 
@@ -166,8 +166,8 @@ test("AC-05: a choice open in a dialog when「新会话」is pressed is closed u
   assert.deepEqual(await shut(), CONTEXT.map(() => false));
   const later = await offered();
   assert.deepEqual(offeredOnce.filter(slash => !later.includes(slash)), [], `the palette offers them all again: ${later.join(" ")}`);
-  assert.deepEqual((await stored(second)).methods, [], "the new session holds no method of the first one");
-  assert.ok((await saved(second)).every(body => !(body.methods as unknown[] | undefined)?.length && body.draft !== FIRST_WORDS), "nothing of the first session's was saved into the new one");
+  assert.deepEqual((await stored(second)).skills, [], "the new session holds no method of the first one");
+  assert.ok((await saved(second)).every(body => !(body.skills as unknown[] | undefined)?.length && body.draft !== FIRST_WORDS), "nothing of the first session's was saved into the new one");
 });
 
 test("AC-05: review notes handed back to a session whose first read failed are refused and kept; the box takes them once it holds that session's own draft, never the words of the session shown before", { timeout: 120_000 }, async t => {

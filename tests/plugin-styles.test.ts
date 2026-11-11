@@ -306,8 +306,8 @@ test("RAC-2590 the settings sheet carries none of Coding's styles: its settings 
   assert.ok(!settings.includes(scoped.trim()), "none of what coding.css brings is in the settings sheet");
   assert.ok(!settings.includes(shared.trim()), "nor the part of Coding's sheet that stays shared");
   for (const rule of [CODING_OWN_MARKER, ...CODING_SHARED_MARKERS]) assert.ok(!settings.includes(rule), `the settings sheet does not hold ${rule}`);
-  assert.doesNotMatch(settings, /\.coding-settings/u, "RAC-2848: the settings sheet no longer owns the four rules");
-  assert.match(codingSettingsHtml(), /<section[^>]+coding-settings[^>]*>\s*<style>[\s\S]*?\.coding-settings \.coding-method-body/u, "the real registered settings section carries the positive control");
+  assert.doesNotMatch(settings, /\.coding-settings/u, "RAC-2848: the settings sheet no longer owns its rules");
+  assert.match(codingSettingsHtml(), /<section[^>]+coding-settings[^>]*>\s*<style>[\s\S]*?\.coding-settings details/u, "the real registered settings section carries the positive control");
 });
 
 test("RAC-2591 Coding's rules reach the pages that use them: its own from coding.css, the rest from the workbench sheet, and its settings page links coding.css", () => {
@@ -326,12 +326,11 @@ test("RAC-2592 the workbench's page assets no longer name Coding's package or it
 });
 
 
-test("RAC-2848 Coding owns the unchanged four rules inside its registered settings section", () => {
+test("RAC-2848 Coding owns its settings rules inside its registered settings section (three since its method library went, 09)", () => {
   const coding = packs.find(pack => pack.project_plugin_id === "coding")!;
   const rules = [
     ".coding-settings details { margin-block: 12px; }",
     ".coding-settings summary { cursor: pointer; overflow-wrap: anywhere; }",
-    ".coding-settings .coding-method-body { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 28rem; overflow: auto; font-family: var(--font-mono); font-size: 12px; line-height: 1.65; padding: 12px; background: var(--nav-hover); }",
     ".coding-settings .mw-select { max-width: 100%; }",
   ];
   assert.equal(coding.settingsStylesheet, undefined);

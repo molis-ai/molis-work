@@ -16,7 +16,7 @@ import { GOALS_PLUGIN_ID, goalsActions, goalsManifest } from "@molis-ai/molis-wo
 import type { PluginProjectDatabaseRecord, PluginRuntimeDatabase } from "@molis-ai/molis-work-plugin-runtime";
 import { SCHEDULE_ACTIONS, SCHEDULE_PLUGIN_ID } from "@molis-ai/molis-work-plugin-schedule";
 import { ensureStorageSpace, personalStorageSpace, describeSqliteSchema } from "@molis-ai/molis-work-storage";
-import { codingView } from "./fixtures/coding-view.js";
+import { CODING_OPENED, CODING_UNAVAILABLE, codingView } from "./fixtures/coding-view.js";
 
 /**
  * PLIB-14 (S8; specs/archive/plugin-project-database/spec.md §2.3 and §2.4): Goals' tables in a project's library are Goals' own, declared in
@@ -153,7 +153,9 @@ for(const personal of [false,true]) for (const { change, sql, code } of cases) {
     assert.equal(open.homeGoals, true, "the independent Home instance remains available");
     assert.deepEqual([...open.plugins].sort(), [...OTHERS].sort(), "the other plugins' actions are");
     assert.deepEqual(open.goalsCall, { code: "actions.missing" }, "and a call to a Goals action is refused: there is nothing registered to answer it");
-    assert.doesNotMatch(await codingPanel(databasePath, projectId), /role="alert"/, "Coding opens while Goals is refused");
+    const panel = await codingPanel(databasePath, projectId);
+    assert.doesNotMatch(panel, CODING_UNAVAILABLE, "Coding opens while Goals is refused");
+    assert.match(panel, CODING_OPENED, "and draws its page");
     const developer = await developmentState(t);
     withDatabase(developer.databasePath, db => { db.exec(sql); });
     const developerBefore = library(developer.databasePath);

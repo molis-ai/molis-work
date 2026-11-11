@@ -13,7 +13,7 @@ import { FEED_ITEM_ACTIONS, FEED_PLUGIN_ID, FEED_SOURCE_ACTIONS } from "@molis-a
 import { SCHEDULE_ACTIONS, SCHEDULE_PLUGIN_ID, reminderActions, scheduledOperationActions } from "@molis-ai/molis-work-plugin-schedule";
 import { describeSqliteSchema } from "@molis-ai/molis-work-storage";
 import { scheduledOwnerPlugin } from "./fixtures/schedule-runtime.js";
-import { codingView } from "./fixtures/coding-view.js";
+import { CODING_OPENED, CODING_UNAVAILABLE, codingView } from "./fixtures/coding-view.js";
 
 /**
  * PLIB-04 (the Host half, L1b; specs/archive/plugin-project-database/spec.md §2.3): when the Host opens a project's library, a plugin
@@ -82,7 +82,9 @@ test("PLIB-04: a library this build made opens every plugin that declares tables
   const open = await pluginsInDirectory(home, projectId, databasePath);
   assert.deepEqual([...open.plugins].sort(), [...PLUGINS].sort());
   assert.equal(open.goals, true);
-  assert.doesNotMatch(await codingPanel(databasePath, projectId), /role="alert"/);
+  const panel = await codingPanel(databasePath, projectId);
+  assert.doesNotMatch(panel, CODING_UNAVAILABLE);
+  assert.match(panel, CODING_OPENED);
 });
 
 const cases = [
@@ -104,11 +106,13 @@ for (const { plugin, change, sql } of cases) {
 
     const panel = await codingPanel(databasePath, projectId);
     if (plugin === CODING_PLUGIN_ID) {
-      assert.match(panel, /role="alert"/, "the Coding page says it did not open");
+      assert.match(panel, CODING_UNAVAILABLE, "the Coding page says it did not open");
+      assert.doesNotMatch(panel, CODING_OPENED, "and draws nothing of itself");
       assert.match(panel, /io\.molis\.work\.coding/, "and names the plugin it refused");
       assert.match(panel, /的表和索引与声明不同/, "the reason is the platform's refusal, not a failure further on");
     } else {
-      assert.doesNotMatch(panel, /role="alert"/, "Coding opens while another plugin is refused");
+      assert.doesNotMatch(panel, CODING_UNAVAILABLE, "Coding opens while another plugin is refused");
+      assert.match(panel, CODING_OPENED, "and draws its page");
     }
 
     assert.deepEqual(library(databasePath), before, "the refusal repairs nothing, recreates nothing and records nothing");

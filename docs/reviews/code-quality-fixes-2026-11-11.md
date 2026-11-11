@@ -12,6 +12,10 @@
 - **冗余清理（F）**：三个 socket 的授权绑定收进 `socket-authority.ts`；SDK 新增 `parseJson` 并替换 artifacts/feed 的 5 处副本；SDK `/ui` 导出 `escapeAttribute`，design-system 复用；plugin-runtime 两处事件失败包装合并；宿主/RSS 的 `routeUnavailable` 与两个官方集成的 `liveFailure` 收进合同单一工厂；connector-store 减到 298 行并删其巨大单元例外；其余跨插件重复列为 BL 候选。
 - **Lead**：AGENTS SDK 共用工具清单补 `hostBoundSession`/`parseJson`/`escapeAttribute`；`CHECKLIST` 第 3 节补 `config/ui-locale.json`；`tooling/gates/README.md` 补 `@version` 标记扫描口径；修复构建中发现的 String.raw 模板反引号、嵌入函数注释反引号、import 常量与更新路由快照；更新 `BL-golden-prompt-uses-flaky` 的部分修复状态。
 
+## 与 main #2030 的合并说明（2026-11-11 晚）
+
+PR 期间 main 合入 #2030「合后审计整改——补做 Coding 自动档、能力包 CPK 收口与记录落档」，其中 Coding「自动」档技能与 Host 侧 `skill_round` 的传递由 main 独立补做（`plugins/native/coding/src/skill-tools.ts`、`roundActions`、composition 只对 `system.skills` 写 `skill_round` 等）。本分支合并 main 时**采用其实现**，删除了本分支与之重复的 `skill-choices.ts` helper、`index.ts` 导出和 `tests/coding-automatic-skills.test.ts`；本 PR 实际保留的 Skill/Agent 侧改动是：助理 authority 的 `skill_round`（consumer=assistant、named）、manual 技能不再给模型列死指针、`prompt_uses` 派发时幂等记录、技能导入签名链不要求先开 Runtime、`skillRefKey`/活动动词/父工具名单等（这些 main 的 #2030 未覆盖）。合并后 `tests/coding-auto-skills.test.ts`（main 的用例）与 `tests/agent-host-skill-reads.test.ts` / `tests/assistant-methods.test.ts` 均通过。
+
 ## 复查（2026-11-11 第四轮，交叉对抗）
 
 提交后做了一次独立交叉复查（不同组互审 + 全 diff 对抗扫描 + 重新跑门禁/快照/定向测试）。结论：**没有发现会把 main 弄坏的回归**；发现的都是「修复本身没闭合/文档与实现不一致/断言偏弱」之类，已在本工作树第二轮修正（尚未并入第一个 commit）：

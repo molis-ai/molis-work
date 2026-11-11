@@ -54,6 +54,11 @@ test("CPK-01 CPK-02 CPK-13: plugin packs, Molis Work's own and your characters; 
   const fromCatalog = skills.filter(skill => skill.pack.plugin_id === CONTENT_PLUGIN_ID);
   assert.deepEqual(entriesOf(kit, content, content.skills).map(row => row.kind === "skill" && row.skill), fromCatalog);
   assert.ok(entriesOf(kit, content, content.skills).every(row => row.source.kind === "plugin" && row.source.install_id === fromCatalog[0]!.ref.install_id && row.reporter.provider_id === "system.skills"));
+  // CPK-02, partial this round (contract-design §10): every entry says which version it is; no pack reports a last upgrade and no MCP
+  // entry a discovery difference, because the install record keeps no old version and no owner keeps a previous tool list yet.
+  assert.ok(kit.entries.every(row => row.version.label.length > 0), "every entry names its version");
+  assert.ok(kit.packs.every(pack => pack.upgraded === undefined), "no pack reports a last upgrade without an old version to show");
+  assert.ok(kit.entries.filter(row => row.kind === "mcp").every(row => row.version.change === undefined), "no MCP entry reports a discovery difference without a history to compare");
 });
 
 test("CPK-03 CPK-14: a pack has no switch; its state is read from its plugin and what it holds", { timeout: 120_000 }, async t => {

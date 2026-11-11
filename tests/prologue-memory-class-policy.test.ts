@@ -41,6 +41,8 @@ async function fixture(t: { after(fn: () => Promise<void>): void }) {
       undo: { prepare: (caller, request) => service.promotion.undo.prepare(caller, request),
         record: (caller, request) => service.promotion.undo.record(caller, request) } },
       callerForSession: async (owner, id) => { await beforeCaller(); return transformCaller(await policy.callerForSession(owner, id)); }, authorize: async (trusted, requests) => { authorized.push(structuredClone(trusted)); return policy.authorize(trusted, requests); },
+      // Read pages reach the App through authorizeEach (BL-1072): record those callers too.
+      authorizeEach: async (trusted, requests) => { authorized.push(structuredClone(trusted)); return policy.authorizeEach!(trusted, requests); },
       authorizeRecall: async (trusted, request) => { authorized.push(structuredClone(trusted)); return policy.authorizeRecall(trusted, request); } },
     modelConfiguration: async () => ({ protocol: "openai-compatible", endpoint: `http://127.0.0.1:${address.port}/v1/chat/completions`, model: "fixture", credential_ref: "fixture" }),
     resolveCredential: () => "test-only" });

@@ -6,10 +6,9 @@ import {
   CATALOG_CONNECTORS,
   catalogIntegrationManifest,
   catalogWhoami,
-  createCatalogIntegrationPlugin,
   createCatalogProvider,
 } from "@molis-ai/molis-work-integration-catalog";
-import { connectorText } from "./fixtures/connector-text.js";
+import { connectorDefinition, connectorText } from "./fixtures/connector-text.js";
 
 test("VG-21 every catalog connector provides the same two types it always did, now that the table holds their versions", () => {
   for (const spec of CATALOG_CONNECTORS) {
@@ -23,7 +22,7 @@ test("every catalog connector has a valid Integration Manifest and identity URL"
   for (const spec of CATALOG_CONNECTORS) {
     assert.equal(ids.has(spec.id), false, spec.id);
     ids.add(spec.id);
-    const definition = createCatalogIntegrationPlugin({ connectorId: spec.id, providerFor: () => { throw new Error("Only the declaration is needed"); } });
+    const definition = connectorDefinition(spec.id);
     const parsed = parsePluginManifest(definition.manifest);
     const text = connectorText(definition);
     assert.equal(parsed.kind, "integration");

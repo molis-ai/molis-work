@@ -22,7 +22,7 @@ import { connectorAuthorizationStatus, finishConnectorAuthorization } from "../a
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { connectorProtocolSecrets, withConnectorProtocols } from "../apps/local-host/dist/connector-protocol-store.js";
 import { connectorMcpCapabilityId, connectorMcpResourceCapabilityId, createConnectorMcpDirectory, type ConnectorMcpTool } from "../apps/local-host/dist/connector-mcp-actions.js";
-import { MolisWorkLocalHost, connectorDirectory, homeIntegrationRegistry, connectorSetupAction, connectorSetupExecuteAction, connectorSetupIntentAction, holdConnectorAuthorizationsForSession, connectorManagementActions, CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGEMENT_WRITE } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, connectorDirectory, homeIntegrationRegistry, connectorSetupAction, connectorSetupExecuteAction, connectorSetupIntentAction, holdConnectorAuthorizationsForSession, connectorManagementActions, CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGEMENT_WRITE, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import { createDesktopWebCore } from "@molis-ai/molis-work-app-desktop";
 import { isMcpToolCapability } from "../apps/local-host/dist/mcp-tool-actions.js";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -33,8 +33,9 @@ import { writeMcpActionGrant } from "../apps/local-host/dist/mcp-settings-store.
 import type { PluginDefinition, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginMcpMethodDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 import { definePollingIntegrationPlugin } from "@molis-ai/molis-work-plugin-sdk";
-import { CATALOG_CONNECTORS, officialMethodsFor } from "@molis-ai/molis-work-integration-catalog";
+import { CATALOG_CONNECTORS } from "@molis-ai/molis-work-integration-catalog";
 import { openTestHome } from "./fixtures/test-home.js";
+import { connectorDefinition, connectorText } from "./fixtures/connector-text.js";
 
 async function body(request: IncomingMessage): Promise<string> {
   const chunks: Buffer[] = [];
@@ -1289,19 +1290,26 @@ test("RAC2885 stable pins survive process restart while old pending and held gen
 test("RAC2878 remote configurations and complete MCP method options preserve the frozen original behavior and order", async () => {
   const temp = home(), restore = controlledConnectorEnvironment();
   try {
-    const registry = await homeIntegrationRegistry(temp), cards = connectorDirectory(registry);
+    const registry = await homeIntegrationRegistry(temp), cards = runWithLocale("zh", () => connectorDirectory(registry));
     assert.deepEqual(cards.map(row => row.connector_id),
       ["model-api", "typesafe", "image-api", "mcp-bearer", "github", "gmail", ...CATALOG_CONNECTORS.map(row => row.id)]);
     for (const [id, original] of Object.entries(ORIGINAL_MCP_SERVERS)) {
-      const actual = cards.find(row => row.connector_id === id)!.method_options!.find(method => method.kind === "mcp")!;
-      assert.deepEqual(cards.find(row => row.connector_id === id)!.method_options!.map(method => method.kind), officialMethodsFor(id).map(method => method.kind), id + " method order");
-      const oldPresentation = officialMethodsFor(id).find(method => method.kind === "mcp")!;
+      const options = cards.find(row => row.connector_id === id)!.method_options!;
+      const actual = options.find(method => method.kind === "mcp")!;
+      const definition = connectorDefinition(id), text = connectorText(definition);
+      const guides = definition.connectionText.guides[id];
+      assert.ok(guides, id);
+      assert.deepEqual(options.map(method => method.kind), guides.map(method => method.kind), id + " method order");
+      const guide = guides.find(method => method.kind === "mcp");
+      assert.ok(guide, id);
+      const links = guide.links.map(({ label, url }) => ({ label: text(label), url }));
+      const connectedNote = guide.connected_note === undefined ? "" : text(guide.connected_note);
       const authentication = original.auth === "none" ? "无需鉴权" : original.auth === "oauth" ? "OAuth" : original.auth === "bearer" ? "Bearer" : "OAuth 或 Bearer";
-      assert.deepEqual(actual, { ...oldPresentation, support: "in_app",
+      assert.deepEqual(actual, { kind: "mcp", links, support: "in_app",
         login_ready: !original.stdio && original.auth !== "none" && !original.endpoint.includes("{") && original.registration !== "manual",
         mcp: { endpoint: original.endpoint, client_registration: original.registration ?? "dynamic",
           note: "默认地址的认证方式：" + authentication + "。client_registration 仅描述 OAuth 客户端注册要求；Bearer 令牌在受保护表单填写。" },
-        note: oldPresentation.note.replace(/Molis Work 尚未[^。]*。?/gu, "") + " 在这里授权、发现工具并显式调用；服务商资格和许可仍需满足。" }, id);
+        note: [connectedNote, "在这里授权、发现工具并显式调用；服务商资格和许可仍需满足。"].filter(Boolean).join(" ") }, id);
       if (original.stdio) {
         assert.equal(registry.mcpOwner(id), undefined);
         continue;

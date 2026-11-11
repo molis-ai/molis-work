@@ -1,8 +1,20 @@
 import assert from "node:assert/strict";
-import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginDefinition, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginConnectionWord } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 import { createTextReader, ownedTextRef, pluginLocaleReader, type PluginLocaleRead } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { createCatalogIntegrationPlugin, type officialMethodsFor } from "@molis-ai/molis-work-integration-catalog";
+import { createGithubIntegrationPlugin } from "@molis-ai/molis-work-integration-github";
+import { createGmailIntegrationPlugin } from "@molis-ai/molis-work-integration-gmail";
 import { shippedPagePack } from "./page-text-packs.js";
+
+export function connectorDefinition(connectorId: string): PluginDefinition & {
+  connectionText: { readLocale: PluginLocaleRead; guides: Readonly<Record<string, ReturnType<typeof officialMethodsFor>>> };
+} {
+  const providerFor = () => { throw new Error("Only the declaration is needed"); };
+  if (connectorId === "github") return createGithubIntegrationPlugin({ providerFor });
+  if (connectorId === "gmail") return createGmailIntegrationPlugin({ providerFor });
+  return createCatalogIntegrationPlugin({ connectorId, providerFor });
+}
 
 export function connectorText(definition: { manifest: PluginManifest; connectionText: { readLocale: PluginLocaleRead } }) {
   const source = pluginLocaleReader(definition.manifest, definition.connectionText.readLocale);

@@ -23,7 +23,7 @@ import { HOST_PLUGIN_IDS } from './host-plugin-ids.js';
 import { assertUpgradeOf, upgradeRefusal } from './package-upgrade.js';
 import { installedPluginViews, jobViews, permissionViews, type InstalledPluginEntry } from './plugin-installed-view.js';
 import type { PermissionSwitchTarget } from './plugin-installed-view.js';
-import { sandboxRequestedPermissions } from '@molis-ai/molis-work-plugin-sdk';
+import { sandboxProjectedPermissions, sandboxRequestedPermissions } from '@molis-ai/molis-work-plugin-sdk';
 import { validateSandboxHomeSchema } from './plugin-sandbox-home-library.js';
 import { readBundledPackages } from './bundled-packages.js';
 
@@ -234,7 +234,7 @@ export class PluginInstallService {
     const view: PluginInstallPreviewResult = { preview_id, name: manifest.name, runtime_scope, ...(agent_bodies.length ? { agent_bodies } : {}), ...(skills.length ? { skills } : {}), ...(requires.length ? { requires } : {}),
       effects: pkg.permissions, publisher: { key_id, pinned_label: pin?.label ?? null },
       preview: { plugin_id: manifest.plugin_id, version: manifest.version, trust: 'pinned', publisher_signature: manifest.publisher.signature, publisher_pinned: pin !== undefined,
-        permissions: permissionViews(manifest, manifest.kind === 'app' ? sandboxRequestedPermissions(pkg.permissions) : undefined), declarations: declarationsNeedingConsent(manifest, () => undefined), jobs: jobViews(manifest) },
+        permissions: permissionViews(manifest, manifest.kind === 'app' ? sandboxRequestedPermissions(pkg.permissions) : undefined, sandboxProjectedPermissions(manifest, pkg.permissions)), declarations: declarationsNeedingConsent(manifest, () => undefined), jobs: jobViews(manifest) },
       ...manifest.kind === 'integration' ? { origins: (manifest.connection_services ?? []).flatMap(service => service.origins
         ? [{ service_id: service.service_id, title: service.title, origins: [...service.origins] }] : []) } : {} };
     const now = Date.now();

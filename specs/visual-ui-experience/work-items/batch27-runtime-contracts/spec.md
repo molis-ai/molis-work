@@ -1,14 +1,25 @@
 # 第 27 批插件权限、Goals 委托与停止期限
 
-状态：合同设计稿，用户已定权限接法与停止语义，待公共 C 合审（2026-11-09）。基点 `bfccbeb66`。本稿交三项开工检查和实施合同，未实施、未运行验收。
+状态：三项已在第 27 批实现（2026-11-11，各节开头的「实现记录」）；用户已定权限接法与停止语义（2026-11-09）。基点 `bfccbeb66`。本人验收与整批全量未做。
 
 ## 交付边界
 
 [27-4](../../../post-anticorruption-roadmap/reference/batches/27.md#batch-27-item-4) 的目标仍是交付、验收原有余项。本人能在「插件」里收回、恢复沙箱插件的一项权限，安装和数据都保留。本人直接从 Feed 升格时，Goals 确认来源和输入，其余调用者只能提议。插件的清理钩子失去响应时，宿主在规定时间内结束对它的等待，完成自身清理，停用、重启、卸载和关闭能继续。最终要在隔离 Home 走实际入口，带持久记录和拒绝证据。权限界面复用已有开关和确认，按第 27 批的界面要求核实成品和本人验收。工程、实操、本人验收分别记录。
 
-三项都属于横向能力和底层安全／可靠性，BL-701 还涉及工作台体验，BL-803 涉及 Feed／Goals 产品线。基点已有 02、07 提供的动作、安装及测试入口，日志衔接 [26-4](../../../post-anticorruption-roadmap/reference/batches/26.md#batch-26-item-4)。范围取自 [BL-701](../../../backlog/BL-701.md)、BL-803（已实现，待办已删）、BL-367（已实现，待办已删） 和 [需求清单](../../../post-anticorruption-roadmap/reference/requirements.md#section-3-8)。旧生成器的读取清理随 [46](../../../post-anticorruption-roadmap/reference/batches/46.md)，本机统计随 [74](../../../post-anticorruption-roadmap/reference/batches/74.md)，可选上报随 [SRV-8](../../../post-anticorruption-roadmap/reference/batches/srv-8.md)。
+三项都属于横向能力和底层安全／可靠性，BL-701 还涉及工作台体验，BL-803 涉及 Feed／Goals 产品线。基点已有 02、07 提供的动作、安装及测试入口，日志衔接 [26-4](../../../post-anticorruption-roadmap/reference/batches/26.md#batch-26-item-4)。范围取自 BL-701（已实现，待办已删）、BL-803（已实现，待办已删）、BL-367（已实现，待办已删） 和 [需求清单](../../../post-anticorruption-roadmap/reference/requirements.md#section-3-8)。旧生成器的读取清理随 [46](../../../post-anticorruption-roadmap/reference/batches/46.md)，本机统计随 [74](../../../post-anticorruption-roadmap/reference/batches/74.md)，可选上报随 [SRV-8](../../../post-anticorruption-roadmap/reference/batches/srv-8.md)。
 
 ## BL-701 沙箱插件的可选权限
+
+**实现记录（2026-11-11，第 27 批，按用户定的 A）**：
+
+- **SDK**（`packages/plugin-sdk/src/sandbox-manifest.ts`）：一张 `PROJECTED_ROWS` 表把 `networkDomains`、`secretRefs`、`capabilities`、`background`、`connections` 映射到 `network:request`、`secret:use`、`capabilities:call`、`background:start`、`connections:use`。`sandboxProjectedPermissions(manifest, effects)` 给签名 Manifest 里还没有的行（app 的 Manifest 已有 `connections:use`，所以只有集成会投影它），`sandboxOperationSwitches(effects)` 给一个操作要的开关，`sandboxRequestedPermissions` 把投影的名字算进「请求了」。签名 Manifest、`sandboxDerivedPermissions` 与包的严格重建都没动，摘要不变。四个新权限名在 `platform/plugin-trust` 有平台释义。
+- **Runtime**（`packages/plugin-runtime/src/index.ts`）：可选端口 `permissionDeclarations(definition)`，由 Home（`home-plugins.ts`）与项目（`plugin-platform.ts`）在构造时接入；`grantCeiling` 把它的行附在 Manifest 后面，用在安装、同版本兼容、`grant`、`regrant` 与版本切换的上限里。升级时，原定义投影过、目标 Manifest 没有的已持授权先去掉再比，所以目标不再请求的开关被丢下，而不是让升级被拒。
+- **宿主**（新文件 `apps/local-host/src/installed-permission-projection.ts`）：投影按「插件、发布者签名、版本」记在宿主建沙箱定义时（`installed-plugin-definition.ts`、`sandbox-integration.ts`），只对 `sandbox` 定义与记录给出，插件或请求都提交不了。`grantedEffects` 在建 runner 之前把开关关着的类别从 effects 里拿掉，broker 那一道门因此直接没有这类 effects；`assertOperationGranted` 在 `studio.call` 和后台运行里、插件代码之前核这次操作的开关，拒绝是 `actions.forbidden`（路由 403，`{ error, code }`，暴露的动作处理器转成 `ActionError`）；`operationGrantAvailability` 让动作目录把缺开关的操作标为不可用（`actions.plugin_permission`），曝光一侧每次现读当前记录，开关变了不用等重新登记。签名集成在交出来源连接前核 `connections:use`。列表与安装预览用同一份投影（`plugin-installed-view.ts`、`plugin-install-service.ts`）。
+- **和设计稿不同的三处**：① 预检只核新投影的开关，Manifest 原有的行照旧由宿主服务逐次检查，全核会改掉 RAC2865 一类「Manifest 权限关着时由服务在插件里面拒绝」的既有语义；② 投影按发行物身份记，而不是挂在定义对象上，因为 PLIB-10 那条路会把定义展开复制一份，挂在对象上的投影会丢；③ `connections` 不进 broker 的过滤：app 的 Manifest 本来就有 `connections:use` 行，由连接服务逐次查，集成在交出连接处查，过滤掉反而改了 RAC2868 的拒绝码。设置页没有改：`network:request`、`secret:use` 已落在页面原有的宽权限确认里（`/^(network|secret):/`），确认文字是行上平台给的释义；`capabilities:call`、`background:start` 单击生效。
+- **预期变化**：新装与已有安装里这四类开关都是关的，已经跑着的联网、目录能力、后台和来源拉取会停在开关处，要本人在「插件」里打开。为此改了一批既有用例的夹具，都是在安装后打开它要用的开关（`fixture.switchOn`、`runtime.regrant` 或伪造上下文的 `grants`），没有删或放宽断言。
+- **证明**：`tests/security-invariants-sandbox-permission-switches.test.ts`。B27-PERM-01：真实签名 Home 包，列表里默认关、未请求的不出现；关着时目录动作不可用且插件代码没跑，不需要开关的操作照常；经真实设置 HTTP 开、关、再开；安装 ID、摘要、签名、版本与数据不变；未请求的开关被拒；重启后仍关，重开后可用。B27-PERM-02 两例：插件自己的 `/call` 403 且代码没跑；网站开、密钥关时带密钥的操作被拒、纯网站的照常，只开密钥也到不了网站。B27-PERM-03：SDK 的投影与按操作的开关。B27-PERM-04：Runtime 上限认投影、没投影的被拒、升级丢掉不再请求的开关。集成的来源连接拒绝在 `tests/sandbox-integration.test.ts`。后台目标与签名资源沿用 `tests/security-invariants-sandbox-signed-background.test.ts`、`tests/security-invariants-sandbox-signed-resources.test.ts`，打开开关后原断言不变。
+- **没有另写用例的**：项目里的 app 与创作台生成的发行物走同一个 `installed.ts` 与同一个投影（`tests/agent-built-plugins-workflow.test.ts` SCOPE-1 现在要先开 `capabilities:call`）；B27-PERM-03 的「调用途中关权」沿用 S-94 的 RAC-942 与 RAC2874，关开关仍是同一个 `regrant` 撤掉原激活；真实浏览器里的宽权限确认沿用 RAC-959；计划派发与签名同发布者升级的真包路径没有单独的新用例。
+
 
 ### 基点和调用链
 

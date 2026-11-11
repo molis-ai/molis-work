@@ -171,6 +171,12 @@ const PLATFORM_PERMISSION_MEANINGS: Readonly<Record<string, string>> = {
   "model:invoke": "调用你配置的模型来生成内容，可能产生模型费用",
   "model:read": "查看有哪些模型、能不能用，不调用模型",
   "surface:browser": "在侧栏浏览器里打开它声明的网站",
+  // A sandboxed package's switches (BL-701): the targets are the exact ones approved at installation, named in its install preview.
+  "network:request": "访问这个插件安装时获准的网站；可以访问哪些网站，以安装时的批准为准",
+  "secret:use": "在已获准的请求中使用为这个插件保存的密钥，插件本身读不到密钥的值",
+  "capabilities:call": "调用安装时获准的那几项平台能力，不能借此调用别的动作",
+  "background:start": "在后台运行安装时获准的工作，不打开插件也会继续",
+  "connections:use": "通过你绑定的服务账号发请求",
   "network:": "连接到这个网站：",
   "secret:": "读取你存放的这项密钥：",
 };

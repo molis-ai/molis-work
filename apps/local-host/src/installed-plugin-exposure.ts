@@ -5,6 +5,7 @@ import { exposeInstalledPlugin, type InstalledPluginActions } from './plugin-bui
 import { installedVersion, type InstalledRelease } from './installed-release.js';
 import { withProjectReachInvocation } from './plugin-project-reach-subject.js';
 import { followInstalledActions } from './installed-action-registration.js';
+import { operationGrantAvailability } from './installed-permission-projection.js';
 
 interface ExposurePorts {
   actions: Parameters<typeof exposeInstalledPlugin>[0]; platform: Pick<PluginPlatform, 'runtime' | 'supervisor' | 'router'>;
@@ -35,7 +36,9 @@ export function installedPluginExposure(c: ExposurePorts) {
           await c.platform.router().dispatch({ method: 'POST', pathname: '/api/plugins/' + id + '/call', actor_id: context.actor_id, execution, body: { operation, input } })
           ?? { status: 409, body: { error: '这个插件当前没有运行（可能已停用）' } });
       },
-        () => current() ? { available: true } : { available: false, code: 'actions.plugin_unavailable', reason: '插件已停用或版本已变更' }, { install_id: record.install_id, installation_generation: record.installation_generation });
+        () => current() ? { available: true } : { available: false, code: 'actions.plugin_unavailable', reason: '插件已停用或版本已变更' }, { install_id: record.install_id, installation_generation: record.installation_generation },
+        // Read at each call: a permission switch restarts the activation but keeps this exposure (BL-701).
+        id => operationGrantAvailability(release.design.contract, id, c.recordFor(pluginId)?.grants ?? []) ?? { available: true });
       c.exposed.set(pluginId, exposure); c.changed();
       await c.catalog();
       exposure.assertReady();

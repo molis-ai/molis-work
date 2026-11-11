@@ -31,6 +31,7 @@ import { homeIntegrationRegistry } from "./builtin-integrations.js";
 import { createCallConnectionsPort } from "./connector-plugin-requests.js";
 import type { ProjectActions } from "./plugin-builder/catalog.js";
 import type { ProjectReachConsents } from "./plugin-project-reach-consent.js";
+import { projectedPermissionDeclarations } from "./installed-permission-projection.js";
 
 export interface HomePluginEntry {
   readonly scope: "home";
@@ -265,7 +266,7 @@ export class HomePluginHost {
     // The Home half of a dual-instance plugin offers only its share, and no project reaches it: its ports and events are the project half's.
     const ledger = new SqlitePluginConsentLedger(db);
     recordHostAlwaysOnAgreements(ledger, new Set(entries.map(entry => entry.definition.manifest.plugin_id)), new Date().toISOString());
-    const runtime = new PluginRuntime(repository, executor, { consents: ledger, scope: "home", hostIds: HOST_PLUGIN_IDS, inProcess: fixtureAdmission(pluginFixtureEntries(this.options.fixtures ?? []), this.options.installed), declarationOwners: declarationOwnersFor(this.options.home, { db, scope: { kind: "home" } }, (pluginId: string): PluginManifest | undefined => supervisor.manifest(pluginId), this.options.settingsVersionClaims), reservedRuleKeys: hostReservedRuleKeys,
+    const runtime = new PluginRuntime(repository, executor, { consents: ledger, scope: "home", permissionDeclarations: projectedPermissionDeclarations, hostIds: HOST_PLUGIN_IDS, inProcess: fixtureAdmission(pluginFixtureEntries(this.options.fixtures ?? []), this.options.installed), declarationOwners: declarationOwnersFor(this.options.home, { db, scope: { kind: "home" } }, (pluginId: string): PluginManifest | undefined => supervisor.manifest(pluginId), this.options.settingsVersionClaims), reservedRuleKeys: hostReservedRuleKeys,
       redemption: definition => identity.dualInstance(definition) ? { partial: true, outside_project: true } : {},
       actions: { registry: this.options.registry, providerId: (record, definition) => identity.providerFor(definition, record.install_id),
         register: (definition, contribution, record, registration) => registerInstalledActions(definition, contribution, record, registration,

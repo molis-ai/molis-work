@@ -1575,6 +1575,8 @@ test('SCOPE-1 UI-1 Home checks use the actual target, then physical signed downl
   await select(); await raw.fill('[data-plugin-trust-preview] input', 'My local publisher'); await raw.click('[data-plugin-trust-preview] .mw-btn--primary');
   await raw.wait(`document.querySelector('[data-plugin-trust-preview]').hidden`);
   assert.equal(f.host.homePlugins!.installation(pluginId)!.execution, 'sandbox');
+  // Its list reads a platform capability, a switch that starts off (BL-701): the person turns it on in Settings.
+  await (await f.host.homePlugins!.ready()).runtime.regrant(f.host.homePlugins!.installation(pluginId)!.install_id, 'capabilities:call', true);
   const installedRaw = await browser.page(), installed = await framedStudioPage(t, browser, installedRaw);
   await installed.command('Page.enable');
   await installed.command('Page.navigate', { url: f.origin + '/plugins/' + pluginId + '?frame=workbench' });

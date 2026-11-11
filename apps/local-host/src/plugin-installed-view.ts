@@ -1,5 +1,6 @@
 import { ACTION_ERROR_CODE } from "@molis-ai/molis-work-contracts/platform/actions";
-import { pluginErrors, type PluginInstanceRecord, type PluginManifest } from '@molis-ai/molis-work-contracts/platform/plugin';
+import { pluginErrors, type PluginInstanceRecord, type PluginManifest, type PluginPermissionDeclaration } from '@molis-ai/molis-work-contracts/platform/plugin';
+import { projectedPermissionsOf } from './installed-permission-projection.js';
 import { platformPermissionMeaning, type PluginInstalledPermissionView, type PluginInstalledView, type PluginJobView, type PluginPermissionView } from '@molis-ai/molis-work-contracts/platform/plugin-trust';
 import type { PluginConsentLedger } from '@molis-ai/molis-work-plugin-runtime';
 
@@ -17,13 +18,16 @@ export function assertPermissionSwitchTarget(record: PluginInstanceRecord, expec
   }
 }
 
-/** What a Manifest asks for, each with the plugin's reason and what the platform says the permission is. */
-export const permissionViews = (manifest: PluginManifest, requested?: readonly string[]): PluginPermissionView[] =>
-  manifest.permissions.map(item => ({ permission: item.permission, required: item.required, requested: requested === undefined || requested.includes(item.permission), reason: item.reason, meaning: platformPermissionMeaning(item.permission) }));
+/**
+ * What a Manifest asks for, each with the plugin's reason and what the platform says the permission is, and after them the switches the
+ * Host projected from a sandboxed package's verified release (`projected`, BL-701).
+ */
+export const permissionViews = (manifest: PluginManifest, requested?: readonly string[], projected: readonly PluginPermissionDeclaration[] = []): PluginPermissionView[] =>
+  [...manifest.permissions, ...projected].map(item => ({ permission: item.permission, required: item.required, requested: requested === undefined || requested.includes(item.permission), reason: item.reason, meaning: platformPermissionMeaning(item.permission) }));
 
 /** What an installation asked for and holds: the Manifest's permissions, each with whether this installation's grants include it (PG-002). */
-export const installedPermissionViews = (manifest: PluginManifest, grants: readonly string[], requested?: readonly string[]): PluginInstalledPermissionView[] =>
-  permissionViews(manifest, requested).map(view => ({ ...view, granted: grants.includes(view.permission) }));
+export const installedPermissionViews = (manifest: PluginManifest, grants: readonly string[], requested?: readonly string[], projected?: readonly PluginPermissionDeclaration[]): PluginInstalledPermissionView[] =>
+  permissionViews(manifest, requested, projected).map(view => ({ ...view, granted: grants.includes(view.permission) }));
 
 /** The background jobs a Manifest declares. */
 export const jobViews = (manifest: PluginManifest): PluginJobView[] =>
@@ -35,7 +39,7 @@ export function installedPluginViews(entries: readonly InstalledPluginEntry[], l
   return entries.map(({ record, manifest, recoveryError, requestedPermissions }) => ({
     install_id: record.install_id, plugin_id: record.plugin_id, name: manifest?.name ?? record.plugin_id, version: record.version, state: record.state,
     trust: record.publisher_trust, publisher_signature: record.publisher_signature, publisher_label: pins.get(record.publisher_signature)?.label ?? null,
-    manifest_available: manifest !== undefined, permissions: manifest ? installedPermissionViews(manifest, record.grants, requestedPermissions) : [], jobs: manifest ? jobViews(manifest) : [],
+    manifest_available: manifest !== undefined, permissions: manifest ? installedPermissionViews(manifest, record.grants, requestedPermissions, projectedPermissionsOf(record)) : [], jobs: manifest ? jobViews(manifest) : [],
     consents: ledger.consents(record.plugin_id), recovery_error: recoveryError ? (record.last_error_code && ACTION_ERROR_CODE.test(record.last_error_code) ? record.last_error_code : "plugin.package_invalid") : null,
   }));
 }

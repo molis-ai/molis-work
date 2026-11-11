@@ -226,6 +226,8 @@ test('studio: a request becomes a working, published plugin that the person can 
     // Its address opened directly (a link in a notice, say) opens the workbench on that plugin's stage, not a page of its own.
     const directPlugin = await fetch(origin + pluginHref, { redirect: 'manual' });
     assert.equal(directPlugin.status, 302); assert.equal(directPlugin.headers.get('location'), options.routePrefix + '/?openSurface=' + encodeURIComponent(stages[0]!.surface)); await directPlugin.text();
+    // Expanding a note (below) calls the model through a platform capability, a switch that starts off (BL-701): the person turns it on in Settings.
+    await legacy.platform.runtime.regrant(originalRecord.install_id, 'capabilities:call', true);
     const installedPage = await framedStudioPage(t, browser, await browser.page());
     await installedPage.command('Page.enable');
     await installedPage.command('Page.navigate', { url: origin + pluginHref + '?frame=workbench' });
@@ -560,6 +562,9 @@ test('upgrade consent saves the new secret and the upgraded plugin uses it on it
   await page.fill('.as-dialog [data-secret-header]', 'Authorization'); await page.fill('.as-dialog [data-secret-value]', secretValue); await page.click('.as-dialog button[value=ok]');
   await page.wait(`document.querySelector('[data-as-feed]')?.innerText.includes('已安装 v2')||document.querySelector('[role=alert]')`);
   assert.equal(await page.evaluate(`document.querySelector('[role=alert]')?.innerText||''`), ''); assert.equal(installed.installations()[0]!.version, 2);
+  // The upgrade's consent approves the site and the secret; using them is still the person's switch in Settings, off until turned on (BL-701).
+  const upgraded = installed.platform.runtime.list().find(record => record.plugin_id === pluginId)!.install_id;
+  for (const permission of ['network:request', 'secret:use']) await installed.platform.runtime.regrant(upgraded, permission, true);
   const called = await installed.platform.router().dispatch({ method: 'POST', pathname: '/api/plugins/' + pluginId + '/call', actor_id: 'web-user', execution: { beforeEffect: async () => {} }, body: { operation: 'fetch', input: null } });
   assert.equal(called?.status, 200, JSON.stringify(called?.body)); assert.equal((called!.body as { value: string }).value, 'received'); assert.equal(await received.promise, secretValue);
   assert.equal(fixtureConnections, 1); assert.equal(checkedResolutions, 1, 'the new connection still ran the production DNS/address/authority checks');

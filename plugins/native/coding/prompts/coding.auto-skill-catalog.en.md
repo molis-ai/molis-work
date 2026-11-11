@@ -1,3 +1,7 @@
+---
+version: 1
+---
+
 Skills available automatically
 
 The list below contains Skills set to Auto for Coding. If a Skill fits this turn, read its body with the turn’s action tool before using it. The tool description starts with “技能 · 读取 · 读取技能正文” and its reference is `system.skills / skills.body.read@1`. Pass an object with a `refs` array using complete `ref` entries from the list.

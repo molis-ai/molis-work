@@ -67,6 +67,7 @@ export function autoSkillMaterial(entries: readonly SkillCatalogEntry[], tools: 
     listed.push(row);
   }
   if (!listed.length) return null;
-  const [title, ...instructions] = agentBodyIn(catalogInstructions, locale).split("\n");
+  const markdown = agentBodyIn(catalogInstructions, locale).replace(/^---\nversion: \d+\n---\n\n/u, "");
+  const [title, ...instructions] = markdown.split("\n");
   return { material_id: "coding-auto-skills", title: title!, text: [...instructions, "", JSON.stringify(listed)].join("\n").trimStart() };
 }

@@ -1196,6 +1196,7 @@
     "prompt.coding-reviewer": 2,
     "prompt.coding-writer": 2,
     "prompt.coding-writers": 2,
+    "prompt.coding.auto-skill-catalog": 1,
     "prompt.coding.commit-draft": 2,
     "prompt.coding.history-summary": 1,
     "prompt.cognia-evidence": 2,
@@ -1439,6 +1440,16 @@
     "type.workspace.ref": 1
   },
   "carriers": [
+    {
+      "file": "plugins/native/coding/prompts/coding.auto-skill-catalog.md",
+      "key": "prompt.coding.auto-skill-catalog",
+      "pattern": "(^version: )\\d+()"
+    },
+    {
+      "file": "plugins/native/coding/prompts/coding.auto-skill-catalog.en.md",
+      "key": "prompt.coding.auto-skill-catalog",
+      "pattern": "(^version: )\\d+()"
+    },
     {
       "file": "apps/workbench/resources/languages.json",
       "key": "format.ui.languages",

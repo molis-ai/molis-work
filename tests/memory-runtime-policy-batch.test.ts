@@ -80,13 +80,13 @@ test("MEM-38 BL-1072 a batch that needs no forgetting check reads no forgetting 
   assert.deepEqual(counts, { phases: 0, checks: 0, closes: 0 });
 });
 
-const person_ = (operation_id: string): MemoryCaller => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, consumer: "ui", person: true,
+const managing = (operation_id: string): MemoryCaller => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, consumer: "ui", person: true,
   current_scene: "common", purpose: "management", operation_id });
 const mine = { scope: "personal" as const, owner: LOCAL_PERSON_ACTOR_ID };
 
 test("MEM-38 BL-1072 the real forgetting phase answers from its own read, and its closing check refuses once a forgetting is accepted", async t => {
   const f = await memoryServiceHome(t, { projects: ["project-a"] }), service = await f.open();
-  const kept = (await service.write(person_("keep"), { scope: "personal", text: "Answer in short bullet points", kind: "preference" })).memory!;
+  const kept = (await service.write(managing("keep"), { scope: "personal", text: "Answer in short bullet points", kind: "preference" })).memory!;
   const phase = service.forgettingPhase();
   assert.equal(phase.isForgotten(mine.scope, mine.owner, "memory", kept.memory_id), false);
   phase.assertCurrent();
@@ -97,7 +97,7 @@ test("MEM-38 BL-1072 the real forgetting phase answers from its own read, and it
   assert.equal(service.forgettingPhase().isForgotten(mine.scope, mine.owner, "memory", kept.memory_id), true);
 
   // Through the policy: a forgetting accepted between two checks of one batch refuses the whole batch, on the real re-read.
-  const other = (await service.write(person_("other"), { scope: "personal", text: "Name files in kebab case", kind: "preference" })).memory!;
+  const other = (await service.write(managing("other"), { scope: "personal", text: "Name files in kebab case", kind: "preference" })).memory!;
   let accepted = false;
   const { value } = owner();
   const policy = memoryRuntimePolicy(() => ({ ...value, forgettingPhase() {

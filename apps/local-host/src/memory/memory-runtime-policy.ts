@@ -29,6 +29,14 @@ export interface MemoryRuntimePolicyOwner {
 
 export type { MemoryForgettingPhase };
 
+/** A batch's single forgetting read, taken only when some request in it needs it. */
+function forgettingBatch(owner: MemoryRuntimePolicyOwner) {
+  let phase: MemoryForgettingPhase | undefined, uses = 0;
+  return { forgetting: () => { uses++; return phase ??= owner.forgettingPhase(); },
+    // One check rests on one read, exactly as before; only a decision drawn from several checks is re-read before it is used.
+    close: () => { if (uses > 1) phase!.assertCurrent(); } };
+}
+
 const CODING = "io.molis.work.coding";
 const SCENES = ["coding", "assistant", "common"] as const;
 const ACTIONS = ["save", "propose", "accept", "promote", "read", "manage-read", "delete"] as const;
@@ -114,15 +122,8 @@ export function memoryRuntimePolicy(ownerFor: () => MemoryRuntimePolicyOwner | u
       && (!target.kind || (!access.kinds || access.kinds.some(kind => kind === target.kind)) && (!plugin?.kinds || plugin.kinds.some(kind => kind === target.kind))) };
   };
   type State = { owner: MemoryRuntimePolicyOwner; deletion: boolean };
-  /** The batch's single forgetting read, taken only when some request in it needs it. */
-  const batch = (state: State) => {
-    let phase: MemoryForgettingPhase | undefined, uses = 0;
-    return { forgetting: () => { uses++; return phase ??= state.owner.forgettingPhase(); },
-      // One check rests on one read, exactly as before; only a decision drawn from several checks is re-read before it is used.
-      close: () => { if (uses > 1) phase!.assertCurrent(); } };
-  };
   const decide = (caller: AgentMemoryCaller, requests: readonly Request[], state: State) => {
-    const facts = batch(state);
+    const facts = forgettingBatch(state.owner);
     const allowed = requests.every(request => permitted(caller, request, state, facts.forgetting)
       && (!request.before || scoped(caller, request.before, state) && namespaceAllowed(caller, request.before.namespace)));
     // The decision is used only after this returns: a change during the batch refuses all of it, never half old, half new.

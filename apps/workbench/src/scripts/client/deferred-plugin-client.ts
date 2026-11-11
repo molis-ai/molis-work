@@ -6,7 +6,7 @@ import { deferredSurfaceClients } from "../../plugin-workbench.js";
  */
 export const DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT = `(host) => {
   const { translate: L } = host;
-  const failure = () => L('无法加载界面，请重试');
+  // Each failure says what went wrong (F-21); the toast carries it, and the button on the surface only offers to load it again.
   const packs = ${JSON.stringify(deferredSurfaceClients().map(({ id, plugin_id, bundle, assets, searchRow, recordRow }) => [id, plugin_id, bundle, assets, searchRow, recordRow]))}.map(([id, plugin_id, bundle, assets, searchRow, recordRow]) => ({ id, plugin_id, bundle, assets, searchRow, recordRow }));
   const scripts = new Map(), mounting = new WeakMap(), selections = new WeakMap();
   const scope = host.scope;
@@ -22,10 +22,10 @@ export const DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT = `(host) => {
         if (error) { script.remove(); scripts.delete(url); reject(error); } else resolve();
       };
       const abort = () => finish(scope.signal.reason);
-      const timer = scope.timeout(() => finish(new Error(failure())), 10_000);
+      const timer = scope.timeout(() => finish(new Error(L('插件界面 10 秒内没有就绪。'))), 10_000);
       scope.signal.addEventListener('abort', abort, { once: true });
       script.onload = () => finish();
-      script.onerror = () => finish(new Error(failure()));
+      script.onerror = () => finish(new Error(L('插件界面的程序没有从本机服务取到。')));
       document.head.append(script);
     });
     scripts.set(url, waiting); return waiting;
@@ -55,7 +55,7 @@ export const DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT = `(host) => {
           await load('/assets/molis-work-plugins/' + encodeURIComponent(pack.bundle) + '.js');
           if (!root.isConnected || scope.signal.aborted) return;
           const factory = globalThis.molisWorkbenchPluginFactories?.[pack.bundle];
-          if (!factory) throw new Error(failure());
+          if (!factory) throw new Error(L('插件界面的程序里缺少入口，重新安装或更新这个插件后再试。'));
           factory({ ...host, root });
         }
         root.removeAttribute('data-deferred-surface'); settle(root, 'ready');
@@ -66,7 +66,7 @@ export const DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT = `(host) => {
         settle(root, 'failed'); mounting.delete(root);
         const notice = document.createElement('div'); notice.style.cssText = 'position:absolute;right:12px;top:12px;z-index:30';
         const retry = document.createElement('button'); retry.type = 'button'; retry.className = 'mw-btn mw-btn--ghost';
-        retry.textContent = failure(); retry.dataset.uiClientRetry = 'true';
+        retry.textContent = L('重新加载'); retry.title = error?.message || ''; retry.dataset.uiClientRetry = 'true';
         retry.onclick = () => { notice.remove(); void prepare(root); }; notice.append(retry); root.prepend(notice);
         host.showToast?.(error.message, true);
       }

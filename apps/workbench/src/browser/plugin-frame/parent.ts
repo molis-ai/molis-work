@@ -159,7 +159,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
   let closing: Extract<FrameUp, {type: "on-closing"}>["action"] = null;
   let readyResolve!: () => void, readyReject!: (error: Error) => void;
   const ready = new Promise<void>((resolve, reject) => { readyResolve = resolve; readyReject = reject; });
-  const deadline = setTimeout(() => readyReject(new Error(host.translate("无法加载界面，请重试"))), 10000);
+  const deadline = setTimeout(() => readyReject(new Error(host.translate("插件界面 10 秒内没有就绪。"))), 10000);
   scope.own(() => {
     if (closing) collapsePage(root);
     clearTimeout(deadline); readyReject(new Error("View closed")); port.postMessage({ type: "dispose" }); port.close(); frame.remove();

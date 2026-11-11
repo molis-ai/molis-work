@@ -489,7 +489,7 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
       if (asset?.id && ["feed", "inbox", "artifact"].includes(asset.kind)) assets.set(asset.kind + ":" + asset.id, asset);
     });
     try { for (const asset of await (await host.frameAssets()).list(signal)) assets.set(asset.kind + ":" + asset.id, asset); }
-    catch { if (!signal.aborted) showToast(L("无法加载界面，请重试"), true); return; }
+    catch { if (!signal.aborted) showToast(L("读不到可以放进来的内容，请重试"), true); return; }
     if (signal.aborted || !isFrameTabActive() || curTab !== target || version !== receivingVersion) return;
     pickItems = [...assets.values()];
     pickQuery.value = ""; pickerKind.value = "all";

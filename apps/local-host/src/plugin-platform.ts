@@ -1,4 +1,5 @@
 import { PLUGIN_PRESENTATION_CAPABILITY } from '@molis-ai/molis-work-contracts/platform/ui';
+import { SYSTEM_OUTPUT_SOURCES } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import { openPluginInstallationDirectory } from "./plugin-installation-directory.js";
 import { installedArtifacts, supervisedArtifacts } from "./artifact-type-registry.js";
 import { declarationOwnersFor } from "./declaration-owners.js";
@@ -220,6 +221,8 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     lifecycle: supervisor,
     canReadCommitted: () => options.db.inTransaction !== true,
     repository: new SqlitePluginWiringRepository(options.db),
+    // The platform's materials service writes the snapshots, selections and folder it hands to plugins (Files retirement, §3).
+    systemSources: SYSTEM_OUTPUT_SOURCES,
     // A port carries a process item it recorded, or a 成果 it pinned and selected.
     artifacts: {
       read: (reference) => options.processItems.query.getArtifactVersion(options.project_id, reference)

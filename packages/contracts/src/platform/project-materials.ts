@@ -2,6 +2,9 @@ import type { ArtifactReference } from "../modules/artifacts.js";
 import type { DirectoryRole } from "../modules/projects.js";
 import type { ActionSchema } from "./actions.js";
 import type { ActionSubject } from "./action-subjects.js";
+import type { SystemOutputSource } from "./plugin-wiring.js";
+import { FILE_SNAPSHOT_SCHEMA_VERSION, FILE_SNAPSHOT_TYPE, FILE_TEXT_SELECTION_SCHEMA_VERSION, FILE_TEXT_SELECTION_TYPE, FILES_COLLECTION_SCHEMA_VERSION,
+  FILES_COLLECTION_TYPE } from "../modules/workspace-artifacts.js";
 
 /**
  * What the materials panel, the picker, "add to task", a citation and a provenance line all call one thing
@@ -122,3 +125,32 @@ export const MATERIAL_ORIGIN_SCHEMA: ActionSchema = {
 
 export const MATERIAL_ORIGIN_QUERY_SCHEMA: ActionSchema = { oneOf: [closed({ ref: MATERIAL_REF_SCHEMA }), closed({ subject })] };
 export const MATERIAL_ORIGIN_ANSWER_SCHEMA: ActionSchema = closed({ origin: { anyOf: [MATERIAL_ORIGIN_SCHEMA, { type: "null" }] } });
+
+/** The platform's materials service (Files retirement, specs/batch-06-shared-tools §3): a system provider of actions and of process items. */
+export const MATERIALS_PROVIDER_ID = "system.materials";
+
+/** Its four output ports: the folder being read, a fixed text before and after, and a fixed selection. `before` and `after` share one type. */
+export const MATERIALS_PORTS = Object.freeze({ files: "files", before: "before", after: "after", selection: "selection" } as const);
+export type MaterialsPort = typeof MATERIALS_PORTS[keyof typeof MATERIALS_PORTS];
+
+/** The one registration of the platform as a producer: what it may write and which ports it offers. */
+export const SYSTEM_MATERIALS_SOURCE: SystemOutputSource = Object.freeze({
+  plugin_id: MATERIALS_PROVIDER_ID,
+  name: "资料",
+  signature: "molis-work:system.materials",
+  process_items: Object.freeze([
+    Object.freeze({ artifact_type_id: FILES_COLLECTION_TYPE, schema_version: FILES_COLLECTION_SCHEMA_VERSION }),
+    Object.freeze({ artifact_type_id: FILE_SNAPSHOT_TYPE, schema_version: FILE_SNAPSHOT_SCHEMA_VERSION }),
+    Object.freeze({ artifact_type_id: FILE_TEXT_SELECTION_TYPE, schema_version: FILE_TEXT_SELECTION_SCHEMA_VERSION }),
+  ]),
+  outputs: Object.freeze([
+    Object.freeze({ port: MATERIALS_PORTS.files, artifact_type_id: FILES_COLLECTION_TYPE, schema_version: FILES_COLLECTION_SCHEMA_VERSION }),
+    Object.freeze({ port: MATERIALS_PORTS.before, artifact_type_id: FILE_SNAPSHOT_TYPE, schema_version: FILE_SNAPSHOT_SCHEMA_VERSION }),
+    Object.freeze({ port: MATERIALS_PORTS.after, artifact_type_id: FILE_SNAPSHOT_TYPE, schema_version: FILE_SNAPSHOT_SCHEMA_VERSION }),
+    Object.freeze({ port: MATERIALS_PORTS.selection, artifact_type_id: FILE_TEXT_SELECTION_TYPE, schema_version: FILE_TEXT_SELECTION_SCHEMA_VERSION }),
+  ]),
+});
+
+/** The platform producers a Manifest may name as a port's `default_source` and a binding may read from: today only the materials service. */
+export const SYSTEM_OUTPUT_SOURCES: readonly SystemOutputSource[] = Object.freeze([SYSTEM_MATERIALS_SOURCE]);
+export const systemOutputSource = (pluginId: string): SystemOutputSource | undefined => SYSTEM_OUTPUT_SOURCES.find(source => source.plugin_id === pluginId);

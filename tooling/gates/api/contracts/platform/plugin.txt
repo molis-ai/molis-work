@@ -5306,6 +5306,17 @@ export interface SyncTrackedTable {
     };
 }
 
+export interface SystemOutputSource {
+    readonly plugin_id: string;
+    readonly name: string;
+    readonly signature: string;
+    readonly process_items: readonly {
+        readonly artifact_type_id: string;
+        readonly schema_version: number;
+    }[];
+    readonly outputs: readonly PluginPortDeclaration[];
+}
+
 export declare const WORKFLOW_CONTENT_OUTPUT_VERSIONS: {
     readonly list: 1;
     readonly read: 1;

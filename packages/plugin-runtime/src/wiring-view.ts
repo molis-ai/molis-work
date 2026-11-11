@@ -7,29 +7,35 @@ import {
   type PluginWiringView,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 
+import type { SystemOutputSource } from "@molis-ai/molis-work-contracts/platform/plugin-wiring";
 import type { PluginHostLifecycle } from "./lifecycle.js";
 import type { PluginArtifactReaderPort } from "./wiring.js";
 import { resolvePortInput } from "./wiring-input.js";
 
 /** Every enabled plugin's output port that offers this type, except the consumer's own. */
 function candidatesFor(
-  input: { projectId: string; lifecycle: PluginHostLifecycle; repository: PluginWiringRepository },
+  input: { projectId: string; lifecycle: PluginHostLifecycle; repository: PluginWiringRepository; systemSources?: readonly SystemOutputSource[] },
   artifactTypeId: string,
   schemaVersion: number,
   excludePluginId: string,
 ): PluginInputSourceCandidate[] {
   const wanted = portTypeKey(artifactTypeId, schemaVersion);
   const candidates: PluginInputSourceCandidate[] = [];
-  for (const pluginId of input.lifecycle.enabledPluginIds()) {
+  // The platform's producers offer their outputs to every project, before the running plugins' (never listed among plugins).
+  const sources = [...(input.systemSources ?? []).map(source => ({ pluginId: source.plugin_id, name: source.name, outputs: source.outputs })),
+    ...input.lifecycle.enabledPluginIds().map(pluginId => {
+      const manifest = input.lifecycle.manifest(pluginId);
+      return { pluginId, name: manifest?.name ?? pluginId, outputs: manifest?.ports?.outputs ?? [] };
+    })];
+  for (const { pluginId, name, outputs } of sources) {
     if (pluginId === excludePluginId) continue;
-    const manifest = input.lifecycle.manifest(pluginId);
-    for (const output of manifest?.ports?.outputs ?? []) {
+    for (const output of outputs) {
       if (portTypeKey(output.artifact_type_id, output.schema_version) !== wanted) continue;
       const record = input.repository.getOutput(input.projectId, pluginId, output.port);
       candidates.push({
         source_plugin_id: pluginId,
         source_port: output.port,
-        title: `${manifest?.name ?? pluginId} · ${output.port}`,
+        title: `${name} · ${output.port}`,
         availability: record === null || record.artifact_id === null
           ? "waiting"
           : record.invalidated_reason !== null
@@ -48,6 +54,7 @@ export function buildWiringView(input: {
   repository: PluginWiringRepository;
   artifacts: PluginArtifactReaderPort;
   selectedGroup(pluginId: string): string | undefined;
+  systemSources?: readonly SystemOutputSource[];
 }): PluginWiringView {
   const { projectId, lifecycle, repository } = input;
   const plugins = lifecycle.enabledPluginIds()
@@ -61,7 +68,8 @@ export function buildWiringView(input: {
         const candidates = candidatesFor(input, port.artifact_type_id, port.schema_version, pluginId);
         const optional = port.optional === true || !required.has(port.port);
         const fixed = repository.getArtifactBinding(projectId, pluginId, port.port);
-        const resolved = resolvePortInput({ projectId, manifest, port: port.port, repository, artifacts: input.artifacts });
+        const resolved = resolvePortInput({ projectId, manifest, port: port.port, repository, artifacts: input.artifacts,
+          systemSource: id => input.systemSources?.find(source => source.plugin_id === id) });
         if (fixed) {
           const readable = resolved.record !== null;
           return {

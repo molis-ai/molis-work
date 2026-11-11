@@ -330,6 +330,7 @@ export const WORKSPACE_PACKAGES = [
   }),
   entry("modules/attention-resumption", "@molis-ai/molis-work-contracts/modules/attention-resumption", {
     maturity: "slice",
+    extraWorkspaceDependencies: ["@molis-ai/molis-work-plugin-sdk"],
     capabilities: [
       "attention.query.v1",
       "attention.command.v1"

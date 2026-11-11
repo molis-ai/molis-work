@@ -154,7 +154,10 @@ async function handlePluginSettings(withMolisWorkProjectCatalog: LocalWebCatalog
     sessionCurrent();
     abort.signal.throwIfAborted();
     const body = await readBody(request);
-    const candidate = { ...body, ...(typeof body.plugin_id === "string" ? { plugin_id: body.plugin_id.trim() } : {}), enabled: request.method === "POST" };
+    // The transport owns `enabled` (POST enables, DELETE removes): a client value is not an input, and the old envelope refused
+    // every field but `plugin_id`/`expected_revision`. The action schema alone would accept `enabled`, so refuse it here.
+    if (body !== null && typeof body === "object" && Object.hasOwn(body, "enabled")) throw new ActionError("actions.input_invalid", "项目插件成员请求无效");
+    const candidate = { ...body, ...(typeof body?.plugin_id === "string" ? { plugin_id: body.plugin_id.trim() } : {}), enabled: request.method === "POST" };
     if (!isSetProjectPluginInput(candidate)) throw new ActionError("actions.input_invalid", "项目插件成员请求无效");
     let projectId: string;
     try { projectId = decodeURIComponent(pluginMatch[1]); }

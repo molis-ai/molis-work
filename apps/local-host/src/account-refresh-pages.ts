@@ -23,7 +23,10 @@ const refused = () => new ActionError('actions.forbidden', '账号切换准备�
  * reconnect: EventSource backs off at most 10 s in `account-event-stream.ts`. Pages that never subscribed stay
  * required (a page opened before its stream finished connecting), and an immediate disconnect stays required
  * until the current preparation times out, so a live page that lost one connection can still save its drafts
- * (ASR-04). A crashed tab can delay one preparation and is then dropped instead of blocking every retry.
+ * (ASR-04). A crashed tab can delay one preparation and is then dropped instead of blocking every retry. A page that
+ * registered but never subscribed is kept required on purpose (a slow load must not lose drafts); a document that
+ * crashes before its stream opens can therefore cost one timeout per preparation until it is gone. That trade is
+ * deliberate: dropping on age alone would hurt a genuinely slow page more than one extra 30 s wait.
  */
 const CRASHED_AFTER_MS = 15_000;
 

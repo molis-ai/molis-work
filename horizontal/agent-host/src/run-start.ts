@@ -2,7 +2,7 @@ import { agentErrors } from "./errors.js";
 import { directoryInputOnly, type RunDirectories } from "@molis-ai/molis-work-contracts/modules/projects";
 import { assertChildRoleTools } from "./child-role-tools.js";
 import { isAgentTool } from "./tool-catalog.js";
-import { requireSynchronous, type ActionLocale, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { requireSynchronous, type ActionLocale, type ActionSkillRound, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { skillRefKey } from "@molis-ai/molis-work-plugin-sdk/skill-ref";
 import { currentCharacterMatches } from "./character-import.js";
 import type {
@@ -285,6 +285,8 @@ interface ActionSource {
   session: AgentSessionRef;
   validateCharacter: (() => void) | undefined;
   execution: AgentRoleExecution;
+  /** The round's frozen consumer and named list, for the Host's own `system.skills` calls the round's tools make (§2.3). */
+  skillRound: ActionSkillRound;
 }
 
 function assertActionsSupported(source: ActionSource): asserts source is ActionSource & { authority: Required<Pick<AgentStartAuthority, "actions">> } {
@@ -293,7 +295,7 @@ function assertActionsSupported(source: ActionSource): asserts source is ActionS
 
 async function grantedActions(source: ActionSource): Promise<AgentActionClient> {
   assertActionsSupported(source);
-  return source.authority.actions(source.runtimeId, source.validateCharacter, source.session);
+  return source.authority.actions(source.runtimeId, source.validateCharacter, source.session, source.skillRound);
 }
 
 /** The per-action tools the round picked, each found in the directory now, offered to the Agent, and within the role and Character. */

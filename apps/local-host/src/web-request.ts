@@ -41,7 +41,7 @@ import { handleAlchemistNativePluginHttp } from "./alchemist-native-plugin-http.
 import { handleLocalProjectReferenceHttp } from "./web-project-reference.js";
 import { redirectFunctionsPage, resolveWebRequest } from "./web-routing.js";
 import { handleHomePluginHttp, renderHomePluginStages } from "./home-plugin-http.js";
-import { builtinMarketDirectory, homePluginDirectory, mergePluginDirectories } from "./plugin-directory.js";
+import { pagePluginDirectory } from "./plugin-directory.js";
 import { dispatchWebRoutes, type WebRequestContext, type WebRoute } from "./web-route-table.js";
 import { assistantPortsFor, CATALOG_INDEX_ROUTES } from "./web-catalog-index-routes.js";
 import { homeRouteProjectPlugins, projectPluginServices, projectRequestContext, projectRoutePrefix, type ProjectRequestContext, type ProjectRuntimeContext } from "./web-project-context.js";
@@ -191,7 +191,7 @@ function projectWebView({ options, webViewCache, store, homeActions, localHost, 
       model: id => composition.workbenchRenderer.declaredStageModel(id, view) });
     return { ...view, plugin_stages: homeStages.html, plugin_panels: homeStages.panels, plugin_overlays: homeStages.overlays,
       plugin_stage_surfaces: homeStages.surfaces, ...(homeStages.page ? { page_stage: homeStages.page } : {}), unavailable_plugin_stages: homeStages.unavailable,
-      plugin_directory: mergePluginDirectories(await homePluginDirectory(localHost.homePlugins, serverOptions.homeDirectory), builtinMarketDirectory(serverOptions.homeDirectory)) };
+      plugin_directory: await pagePluginDirectory(localHost.homePlugins, serverOptions.homeDirectory) };
   };
 }
 

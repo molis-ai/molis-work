@@ -5,7 +5,7 @@ import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LocalProjectDatabase, MolisWorkLocalHost, composeAgentHost, molisWorkHostProjectReference, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
-import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentRuntimeAdapter } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { emptyCapabilityMatrix } from "@molis-ai/molis-work-service-agent-host";
@@ -33,7 +33,8 @@ async function evidenceProject(t: TestContext) {
     async health() { return { ok: true, status: "ready", message: "ready" }; },
     createSession: unused, start: unused, control: unused, observe() { throw new Error("Not used by this fixture"); },
     readSession: async (session: { runtime_id: string; session_id: string }) => {
-      if (session.session_id !== "s-worker") throw new Error("unknown session");
+      if (session.session_id === "s-broken") throw new Error("store unavailable");
+      if (session.session_id !== "s-worker") throw new ActionError("agent.session_unknown", "找不到这条会话");
       return { session, owner: { project_id, plugin_id: MAKER, install_id: "installed", actor_id: LOCAL_PERSON_ACTOR_ID }, title: "Worker", runs: [{ session_id: "s-worker", run_id: "r-made" }] } as never;
     },
     read: async (run: unknown) => ({ ref: run, command_outputs: [{ call_id: "c-pass" }, { call_id: "c-fail" }],
@@ -117,6 +118,12 @@ test("EVD-42: another session's review meets the requirement once the worker has
   // That first reviewer spoke on its own word, so it is one of the workers now; a third session is the review.
   await report(reviewer, "reviewed", "r1", { basis: basis(V1) });
   assert.deepEqual(await found(), ["self_reported", false, null]);
+  // An external client that names a session for itself is not a platform session, whatever session it names (review M5).
+  await report(as({ audience: "mcp", actor_id: "runtime:external", audit_actor_id: "runtime:external:s-external", runtime_session_id: "s-external" }), "reviewed", "r1", { basis: basis(V1) });
+  assert.deepEqual([...await found(), (await state("reviewed", "r1")).current_report?.gap], ["self_reported", false, null, "evidence_missing"], "an MCP client naming its own session");
+  // A session the platform could not read may be the worker's own: not answered, it is no review (review M2).
+  await report(as({ actor_id: "runtime:broken", audit_actor_id: "runtime:broken:session", runtime_session_id: "s-broken" }), "reviewed", "r1", { basis: basis(V1) });
+  assert.deepEqual([...await found(), (await state("reviewed", "r1")).current_report?.gap], ["self_reported", false, null, "evidence_unreadable"], "a session that could not be read");
   await report(as({ actor_id: "runtime:second", audit_actor_id: "runtime:second:session", runtime_session_id: "s-second-reviewer" }), "reviewed", "r1", { basis: basis(V1) });
   assert.deepEqual(await found(), ["peer_reviewed", true, "peer_reviewed"]);
 });

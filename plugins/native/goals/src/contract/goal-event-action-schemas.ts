@@ -74,7 +74,7 @@ const basis = nullable(object(basisFields));
 const tier = enumeration(goalEventBasisTiers), gap = enumeration([...goalEventBasisGaps, null]);
 export const judgment = object({ requirement_id: text, verdict, basis, tier, gap });
 const requirementReport = object({ event_id: text, actor_id: text, actor_kind: actorKind, verdict, received_at: text, journal_seq: count,
-  basis, tier, gap, independent_verification: boolean, substitutes_human_decision: { const: false } });
+  basis, tier, gap, substitutes_human_decision: { const: false } });
 const conclusion = object({ decision_id: text, actor_id: text, verdict: enumeration(goalEventUserConclusionVerdicts), received_at: text, journal_seq: count, checked: nullable(checked) });
 const requirement = object({ requirement_id: text, goal_id: text, statement: text,
   origin: object({ kind: enumeration(["goal_event_requirement", "imported_acceptance_criterion", "imported_human_approval", "create_input"]),

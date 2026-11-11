@@ -39,7 +39,6 @@ export function readCurrentGoalEventRequirements(
       basis: row.basis,
       tier: row.tier,
       gap: row.gap,
-      independent_verification: row.tier !== "self_reported",
       substitutes_human_decision: false,
     });
   }

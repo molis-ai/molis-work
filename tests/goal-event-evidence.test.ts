@@ -79,7 +79,7 @@ test("EVD-01: a basis the reporter wrote is still the reporter's own word and me
       const state = requirement(data.app, "own-word", id);
       assert.equal(state.currently_satisfied, false, id);
       assert.equal(state.satisfied_by, null, id);
-      assert.equal(state.current_report?.independent_verification, false, id);
+      assert.equal(state.current_report?.tier, "self_reported", id);
     }
     const held = tryComplete(data.app, "own-word", "close");
     assert.equal(held.completion_applied, false);
@@ -94,7 +94,7 @@ test("EVD-02: a report Goals found backed meets a requirement that does not ask 
     report(data.app, "backed", "rep", [{ requirement: "r-machine", basis: basisOf(V1, [{ kind: "command_receipt", run_id: "run-1", call_id: "call-1" }]), assessed: VERIFIED },
       { requirement: "r-peer", basis: basisOf(V1), assessed: REVIEWED }]);
     const machine = requirement(data.app, "backed", "r-machine"), peer = requirement(data.app, "backed", "r-peer");
-    assert.deepEqual([machine.currently_satisfied, machine.satisfied_by, machine.current_report?.tier, machine.current_report?.independent_verification], [true, "machine_verified", "machine_verified", true]);
+    assert.deepEqual([machine.currently_satisfied, machine.satisfied_by, machine.current_report?.tier], [true, "machine_verified", "machine_verified"]);
     assert.deepEqual([peer.currently_satisfied, peer.satisfied_by], [true, "peer_reviewed"]);
     // Neither is the person's decision, and neither is recorded as one.
     assert.equal(machine.user_conclusion, null);
@@ -160,6 +160,20 @@ test("EVD-05: the person's acceptance is about the version the report had checke
   } finally { close(data); }
 });
 
+test("EVD-08: an acceptance of a report that named no version does not cover a later report that names one; a later report that names none leaves it standing", () => {
+  const data = fixture();
+  try {
+    goalWith(data.app, "unversioned", [{ id: "r-named", human: true }, { id: "r-plain", human: true }]);
+    report(data.app, "unversioned", "rep-plain", [{ requirement: "r-named" }, { requirement: "r-plain" }]);
+    decide(data.app, "unversioned", "accept-plain", ["r-named", "r-plain"]);
+    for (const id of ["r-named", "r-plain"]) assert.deepEqual([requirement(data.app, "unversioned", id).satisfied_by, requirement(data.app, "unversioned", id).user_conclusion?.checked ?? null], ["user_accepted", null], id);
+    report(data.app, "unversioned", "rep-again", [{ requirement: "r-named", basis: basisOf(V1) }, { requirement: "r-plain" }]);
+    const named = requirement(data.app, "unversioned", "r-named"), plain = requirement(data.app, "unversioned", "r-plain");
+    assert.deepEqual([named.currently_satisfied, named.satisfied_by, named.conclusion_superseded], [false, null, true]);
+    assert.deepEqual([plain.currently_satisfied, plain.satisfied_by, plain.conclusion_superseded], [true, "user_accepted", false]);
+  } finally { close(data); }
+});
+
 test("EVD-06: every report is kept as it was found: a later one changes what is current, not what earlier ones said", () => {
   const data = fixture();
   try {
@@ -199,7 +213,8 @@ test("EVD-07: a basis that names no exact version, says nothing of how it was ch
 // ---- What Goals works out before a report is saved (`assessGoalReport`), over what the 成果库 and the platform answer. ----
 
 const RUN = "run-made-v1", SESSION = "session-worker";
-const callerOf = (session: string | undefined, signal?: AbortSignal) => ({ ...(session ? { runtime_session_id: session } : {}), ...(signal ? { signal } : {}) });
+const callerOf = (session: string | undefined, signal?: AbortSignal, who: { audience: string; delegated_audience?: string } = { audience: "agent" }) =>
+  ({ ...who, ...(session ? { runtime_session_id: session } : {}), ...(signal ? { signal } : {}) });
 interface World {
   deliverables?: Array<{ artifact_id: string; version: number }>;
   artifact?: { producer_plugin_id: string; origin: { kind: string; revision?: string } } | null | Error;
@@ -229,9 +244,9 @@ function portsOf(world: World): GoalEvidencePorts & { asked: string[] } {
   };
 }
 const receipt = (call_id: string, run_id = RUN) => ({ kind: "command_receipt" as const, run_id, call_id });
-async function assessed(world: World, basis: GoalEventJudgmentBasisInput, options: { session?: string | null; verdict?: "supports" | "contradicts" } = {}) {
+async function assessed(world: World, basis: GoalEventJudgmentBasisInput, options: { session?: string | null; verdict?: "supports" | "contradicts"; who?: { audience: string; delegated_audience?: string } } = {}) {
   const ports = portsOf(world), session = options.session === undefined ? SESSION : options.session ?? undefined;
-  const trusted = await assessGoalReport(ports, callerOf(session), { goal_id: "g", idempotency_key: "k",
+  const trusted = await assessGoalReport(ports, callerOf(session, undefined, options.who), { goal_id: "g", idempotency_key: "k",
     events: [{ type_id: "delivery", type_version: 1, title: "t", fields: {}, judgments: [{ requirement_id: "r", verdict: options.verdict ?? "supports", basis }] }] });
   return { trusted, assessment: trusted.assessments.get(goalEventAssessmentKey(0, "r")) ?? null, asked: ports.asked };
 }
@@ -286,6 +301,8 @@ test("EVD-13: a review counts only from another platform session than the worker
     ["the session that made the version", { runs: { [RUN]: { commands: {} } }, spoke: ["session-other"] }, { tier: "self_reported", gap: null }],
     ["a session that already reported it done on its own word", { spoke: [SESSION, "session-other"] }, { tier: "self_reported", gap: null }],
     ["nobody else has spoken", { spoke: [] }, { tier: "self_reported", gap: null }, "session-reviewer"],
+    // Nothing says who made such a version, so the caller may be its maker (review M4).
+    ["the version was not fixed from a round, though a worker has spoken", { spoke: ["session-other"], artifact: { producer_plugin_id: "io.molis.work.coding", origin: { kind: "imported" } } }, { tier: "self_reported", gap: null }],
     ["no platform session behind the call", { spoke: [SESSION] }, { tier: "self_reported", gap: "evidence_missing" }, null],
     ["the version cannot be read", { spoke: [SESSION], artifact: new Error("成果库读不到") }, { tier: "self_reported", gap: "evidence_unreadable" }, "session-reviewer"],
     ["the platform cannot say whose round made it", { spoke: [SESSION], runs: { [RUN]: new Error("宿主不可用") } }, { tier: "self_reported", gap: "evidence_unreadable" }, "session-reviewer"],
@@ -294,6 +311,27 @@ test("EVD-13: a review counts only from another platform session than the worker
     const { assessment } = await assessed(world, review, session === undefined ? {} : { session });
     assert.deepEqual(assessment, expected, what);
   }
+});
+
+test("EVD-15: a session an external client names for itself is no platform session: over MCP, or handed on by a plugin for it, the report stays its own word and its session is not kept", async () => {
+  for (const who of [{ audience: "mcp" }, { audience: "workflow", delegated_audience: "mcp" }, { audience: "workflow" }, { audience: "user" }]) {
+    const machine = await assessed({ runs: passed }, basisOf(V1, [receipt("call-test")]), { who });
+    assert.deepEqual([machine.assessment, machine.trusted.reporter_session, machine.asked], [{ tier: "self_reported", gap: "evidence_missing" }, null, []], JSON.stringify(who));
+    const review = await assessed({ spoke: [SESSION] }, basisOf(V1), { session: "session-reviewer", who });
+    assert.deepEqual(review.assessment, { tier: "self_reported", gap: "evidence_missing" }, JSON.stringify(who));
+  }
+  // An agent round a plugin hands the call on for keeps the session the Host bound it to.
+  const handed = await assessed({ runs: passed }, basisOf(V1, [receipt("call-test")]), { who: { audience: "workflow", delegated_audience: "agent" } });
+  assert.deepEqual(handed.assessment, { tier: "machine_verified", gap: null });
+});
+
+test("EVD-16: several requirements citing the same commands of the same round ask the platform once", async () => {
+  const ports = portsOf({ runs: { [RUN]: { commands: { "call-test": {}, "call-lint": {} } } } });
+  const judgment = (requirement_id: string, calls: string[]) => ({ requirement_id, verdict: "supports" as const, basis: basisOf(V1, calls.map(call => receipt(call))) });
+  const trusted = await assessGoalReport(ports, callerOf(SESSION), { goal_id: "g", idempotency_key: "k",
+    events: [{ type_id: "delivery", type_version: 1, title: "t", fields: {}, judgments: [judgment("r1", ["call-test", "call-lint"]), judgment("r2", ["call-lint", "call-test"]), judgment("r3", ["call-test"])] }] });
+  assert.deepEqual([...trusted.assessments.values()].map(item => item.tier), ["machine_verified", "machine_verified", "machine_verified"]);
+  assert.deepEqual(ports.asked, [`${RUN}:call-lint,call-test`, `${RUN}:call-test`]);
 });
 
 test("EVD-14: a cancelled call stops at the lookup instead of saving the report as unverified", async () => {

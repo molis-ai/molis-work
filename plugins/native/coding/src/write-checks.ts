@@ -14,19 +14,27 @@ export type CodingWriteCheck =
 
 const RECEIPT = ":diagnostics";
 
-/** A receipt never changes once it exists, so each is read once for as long as the plugin runs. */
-export function writeCheckCache() {
-  const settled = new Map<string, CodingWriteCheck>();
+/** How long a receipt that could not be read is left alone before it is asked for again. */
+const RETRY_UNREADABLE_MS = 30_000;
+
+/**
+ * A receipt never changes once it exists, so each is read once for as long as the plugin runs. One that could not be read is
+ * asked for again only after a while: a read replays the round it belongs to, and the timeline's long poll comes back every
+ * few seconds (BL-coding-write-check-batch-read is the one read per round this should become).
+ */
+export function writeCheckCache(now: () => number = Date.now) {
+  const settled = new Map<string, CodingWriteCheck>(), failed = new Map<string, number>();
   const one = async (session: string, ref: AgentCommandOutputRef, load: (ref: AgentCommandOutputRef) => Promise<AgentCommandOutput>): Promise<CodingWriteCheck> => {
     const key = `${session}:${ref.run_id}:${ref.call_id}`, known = settled.get(key), call_id = ref.call_id.slice(0, -RECEIPT.length);
     if (known) return known;
+    if (now() - (failed.get(key) ?? -Infinity) < RETRY_UNREADABLE_MS) return { call_id, unreadable: true };
     try {
       const receipt = await load(ref);
       const check: CodingWriteCheck = { call_id, checker: receipt.after_write_check?.display_name ?? null, version: receipt.after_write_check?.version ?? null,
         exit_code: receipt.exit_code, timed_out: receipt.timed_out === true || receipt.stop_reason === "timed-out", cancelled: receipt.cancelled === true || receipt.stop_reason === "cancelled" };
-      settled.set(key, check);
+      settled.set(key, check); failed.delete(key);
       return check;
-    } catch { return { call_id, unreadable: true }; }
+    } catch { failed.set(key, now()); return { call_id, unreadable: true }; }
   };
   return {
     /** The rounds with their writes' checks beside them: one receipt read per check, none for a round without any. */

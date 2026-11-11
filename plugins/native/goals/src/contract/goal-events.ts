@@ -532,7 +532,6 @@ export interface GoalEventRequirementReport {
   tier: GoalEventBasisTier;
   gap: GoalEventBasisGap | null;
   /** True for `machine_verified` and `peer_reviewed`; a report is never the person's decision either way. */
-  independent_verification: boolean;
   substitutes_human_decision: false;
 }
 

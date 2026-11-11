@@ -30,3 +30,12 @@ export function hostAuthorityContext(caller: ActionCallContext, current: () => b
     assertActive();
   } };
 }
+
+/**
+ * The session the Host itself bound the caller to: an agent round's, also when a plugin's running action hands the call on for it.
+ * An external Runtime client names its own session over MCP or the gateway and the Host does not verify it, so that one is not
+ * passed to a Host action as a bound session (S-agent-evidence-own-session).
+ */
+export function hostBoundSession(caller: ActionCallContext): string | undefined {
+  return (caller.delegated_audience ?? caller.audience) === "agent" ? caller.runtime_session_id : undefined;
+}

@@ -15,7 +15,7 @@ import { ActionError, requireSynchronous, type SyncActionClient, type ActionCall
   type ActionRegistryPort, type ActionProviderRegistration, type ActionView, type ActionSceneClient, type ActionSceneDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { dependencyCaller, verifiedCaller } from "./plugin-callers.js";
 import { HostAvailability } from "./local-host-availability.js";
-import { callSignal, hostAuthorityContext, snapshotCaller } from "./local-host-caller.js";
+import { callSignal, hostAuthorityContext, hostBoundSession, snapshotCaller } from "./local-host-caller.js";
 import { ProjectLine, normalizeReference } from "./local-host-project-line.js";
 import { createSceneClient, type SceneHost } from "./local-host-scenes.js";
 import { createSyncActionClient, type SyncClientHost } from "./local-host-sync-client.js";
@@ -80,7 +80,7 @@ export class LocalHost<Runtime> {
         const scope = this.line.currentScope();
         if (!scope?.active || scope.entry.reference.project_id !== caller.project_id) throw new ActionError("actions.host_context_missing", "此能力需要 Host 的项目运行环境");
         return handler(scope.runtime, input as Input, { ...(caller.signal ? { signal: caller.signal } : {}), ...(caller.host_plugin ? { plugin: caller.host_plugin, consumer: "plugin" as const } : {}),
-          ...(caller.runtime_session_id ? { runtime_session_id: caller.runtime_session_id } : {}), call_id: caller.call_id, beforeEffect: caller.beforeEffect,
+          ...(hostBoundSession(caller) ? { runtime_session_id: hostBoundSession(caller) } : {}), call_id: caller.call_id, beforeEffect: caller.beforeEffect,
           assertAuthorityCurrent: () => { requireSynchronous(caller.assert_authority_current?.(), "最终授权检查必须同步完成"); } });
       } }],
     });

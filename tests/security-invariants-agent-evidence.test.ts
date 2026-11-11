@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { LocalProjectDatabase, MolisWorkLocalHost, composeAgentHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { agentHostCapabilities as agent, type AgentRuntimeAdapter } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { emptyCapabilityMatrix } from "@molis-ai/molis-work-service-agent-host";
 import { callerPlugin, startPlugin } from "./fixtures/plugin-callers.js";
@@ -36,7 +36,9 @@ async function setup(t: TestContext, rounds: Record<string, Round>, sessionProje
     // Only "s1" exists: asked for any other session the Runtime knows none.
     readSession: async (session: { runtime_id: string; session_id: string }) => {
       seen.push(`session:${session.session_id}`);
-      if (session.session_id !== "s1") throw new Error("unknown session");
+      if (session.session_id === "s-unreadable") throw new Error("store unavailable");
+      // As the Prologue adapter says it of a session it cannot restore.
+      if (session.session_id !== "s1") throw new ActionError("agent.session_unknown", "找不到这条会话");
       return { session, owner: { project_id: sessionProject, plugin_id: OWNER_PLUGIN, install_id: "installed", actor_id: "web-user" }, title: "Evidence",
         runs: Object.keys(rounds).map(run_id => ({ session_id: "s1", run_id })) } as never;
     },
@@ -52,14 +54,14 @@ async function setup(t: TestContext, rounds: Record<string, Round>, sessionProje
   const plugin = callerPlugin("evidence-asker", "project", {}, [agent.checkEvidence.capability_id]);
   await startPlugin(localHost, reference, store, plugin, { actorId: "web-user" });
   t.after(async () => { composition.dispose(); store.close(); await localHost.closeProject(reference); await localHost.close(); await rm(directory, { recursive: true, force: true }); });
-  const caller = (audience: ActionCallContext["audience"], session?: string): ActionCallContext =>
-    ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: PROJECT, audience, permissions: [], ...(session ? { runtime_session_id: session } : {}) });
+  const caller = (audience: ActionCallContext["audience"], session?: string, delegated?: ActionCallContext["audience"]): ActionCallContext =>
+    ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: PROJECT, audience, permissions: [], ...(session ? { runtime_session_id: session } : {}), ...(delegated ? { delegated_by: OWNER_PLUGIN, delegated_audience: delegated } : {}) });
   const check = (as: ActionCallContext, run_id: string, command_call_ids: string[]) => localHost.actionClient(reference).invoke(as, agent.checkEvidence, { run_id, command_call_ids });
   return { check, caller, seen, plugin };
 }
 
 /** A session named in the input is not how the session is chosen: the schema has no such field. */
-const other_input = (check: (as: ActionCallContext, run_id: string, ids: string[]) => Promise<unknown>, caller: (audience: ActionCallContext["audience"], session?: string) => ActionCallContext) =>
+const other_input = (check: (as: ActionCallContext, run_id: string, ids: string[]) => Promise<unknown>, caller: (audience: ActionCallContext["audience"], session?: string, delegated?: ActionCallContext["audience"]) => ActionCallContext) =>
   check(caller("agent", "s1"), "r1", ["c-pass", "c-pass"]);
 
 const command = (call_id: string, sequence?: number): Activity => ({ call_id, name: "command", state: "completed", ...(sequence === undefined ? {} : { sequence }) });
@@ -84,8 +86,8 @@ test("EVD-30: a round's caller learns of its own session's commands how each end
     { call_id: "c-never-ran", recorded: false, exit_code: null, timed_out: false, cancelled: false, changed_after: true },
   ]);
   assert.doesNotMatch(JSON.stringify(answer), /SECRET OUTPUT|node --test/u);
-  // Asked about no command, it still says whether the round is the caller's own.
-  assert.deepEqual((await check(caller("workflow", "s1"), "r1", [])).commands, []);
+  // Asked about no command, it still says whether the round is the caller's own; so it does when a plugin hands the round's call on.
+  assert.deepEqual((await check(caller("workflow", "s1", "agent"), "r1", [])).commands, []);
 });
 
 test("EVD-31: a write, an edit or a recorded change of the turn after the command means the command did not see what was left", async t => {
@@ -96,9 +98,20 @@ test("EVD-31: a write, an edit or a recorded change of the turn after the comman
     "r-before": { command_outputs: [{ call_id: "c-pass" }], activity: [wrote("w1", 1), command("c-pass", 3)], turn_changes: [{ sequence: 2 }] },
     // Without the command's own place in the round nothing says what came after it.
     "r-unplaced": { command_outputs: [{ call_id: "c-pass" }], activity: [command("c-pass")] },
+    // A command, a background command and a child's work may each write a file; what they ran is not known (review M3).
+    "r-command": { command_outputs: [{ call_id: "c-pass" }], activity: [command("c-pass", 1), wrote("x1", 2, "completed", "run-command")] },
+    "r-background": { command_outputs: [{ call_id: "c-pass" }], activity: [command("c-pass", 1), wrote("x1", 2, "completed", "start-command")] },
+    "r-child": { command_outputs: [{ call_id: "c-pass" }], activity: [command("c-pass", 1), wrote("x1", 2, "completed", "dispatch-subagent")] },
+    // Reading, and a business capability (the report itself), change no file of the round's directory.
+    "r-read": { command_outputs: [{ call_id: "c-pass" }], activity: [command("c-pass", 1), wrote("x1", 2, "completed", "read"), wrote("x2", 3, "completed", "capability-change")] },
+    // The other cited commands are the check itself.
+    "r-two": { command_outputs: [{ call_id: "c-pass" }, { call_id: "c-fail" }], activity: [wrote("c-pass", 1, "completed", "run-command"), wrote("c-fail", 2, "completed", "run-command")] },
   });
   const changed = async (run: string) => (await check(caller("agent", "s1"), run, ["c-pass"])).commands[0]!.changed_after;
   assert.deepEqual(await Promise.all(["r-edit", "r-write", "r-change", "r-before", "r-unplaced"].map(changed)), [true, true, true, false, true]);
+  assert.deepEqual(await Promise.all(["r-command", "r-background", "r-child", "r-read"].map(changed)), [true, true, true, false]);
+  assert.deepEqual((await check(caller("agent", "s1"), "r-two", ["c-pass", "c-fail"])).commands.map(item => item.changed_after), [false, false]);
+  assert.equal((await check(caller("agent", "s1"), "r-two", ["c-pass"])).commands[0]!.changed_after, true, "a later command that is not cited counts");
 });
 
 test("EVD-32: refused without a session the Host bound the call to, for a plugin, for another session's round and for another project's session; the Runtime is asked nothing it need not be", async t => {
@@ -108,11 +121,17 @@ test("EVD-32: refused without a session the Host bound the call to, for a plugin
   for (const audience of ["agent", "workflow"] as const) await assert.rejects(check(caller(audience), "r1", ["c-pass"]), { code: "agent.session_unknown" }, `${audience} with no session`);
   for (const audience of ["user", "mcp"] as const) await assert.rejects(check(caller(audience, "s1"), "r1", ["c-pass"]), { code: "actions.forbidden" }, audience);
   await assert.rejects(plugin.actions(PROJECT).invoke(agent.checkEvidence, { run_id: "r1", command_call_ids: ["c-pass"] }), { code: "actions.dependency_missing" }, "a plugin: the action is not there for plugins at all");
+  // A session an external client names for itself is not one the Host bound: not over MCP handed on by a plugin, not a workflow's own (review M5).
+  for (const [audience, delegated] of [["workflow", "mcp"], ["workflow", "user"], ["workflow", undefined]] as const) {
+    await assert.rejects(check(caller(audience, "s1", delegated), "r1", ["c-pass"]), { code: "agent.session_unknown" }, `${audience} for ${delegated}`);
+  }
   assert.deepEqual(seen, [], "no refused caller reached the Runtime");
   // A round of another session, and a session the Runtime does not know: said the same way, with no receipt read.
   await assert.rejects(check(caller("agent", "s1"), "r-elsewhere", ["c-pass"]), { code: "agent.run_unknown" });
   await assert.rejects(check(caller("agent", "s-other"), "r1", ["c-pass"]), { code: "agent.run_unknown" });
   assert.ok(!seen.some(entry => entry.startsWith("receipt:") || entry.startsWith("run:")), JSON.stringify(seen));
+  // A session that could not be read is not answered as "not this session's round": that would read as another worker's (review M2).
+  await assert.rejects(check(caller("agent", "s-unreadable"), "r1", ["c-pass"]), { code: "agent.capability_unavailable" });
   // The input names no session and no identity, and at most eight commands.
   await assert.rejects(check(caller("agent", "s1"), "r1", Array.from({ length: 9 }, (_, index) => `c-${index}`)), { code: "actions.input_invalid" });
   await assert.rejects(other_input(check, caller), { code: "actions.input_invalid" });

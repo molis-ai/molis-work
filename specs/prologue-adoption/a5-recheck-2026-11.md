@@ -56,7 +56,7 @@
 | P6 旧路径退出与恢复验收（BL-308，PA-14、PA-15、PA-21） | `prologue-recovery.ts` 接了一部分；存量会话在隔离副本里维护成现行形状的演练没做；Coding 的两个存储键见第 13 项 | [31](../post-anticorruption-roadmap/reference/batches/31.md) 的「恢复、退出旧路径」；关窗、重启、休眠后不补跑不双唤醒（PA-21）和 [25-1](../post-anticorruption-roadmap/reference/batches/25.md#batch-25-item-1) 是同一组行为，25-1 做常驻与休眠时一起验 |
 | 给子代理转用户的话记成 `app` 而不是人（SAI-03） | `adapters/prologue-run.ts` 两处 `control.steer({ text, source: "app" })` | [57](../post-anticorruption-roadmap/reference/batches/57.md)「输入归属」 |
 | 子 Run 的写后检查（BL-302）、继续已结束的子代理、App 模式带子代理、LSP、Skill 自动选用 | 上游缺 | [31](../post-anticorruption-roadmap/reference/batches/31.md)「请 Prologue 补的清单」，范围等用户定 |
-| 执行证据（`createEvidenceLedger`、`EvidenceGap`）、会话目标（`SessionObjective`、`judgeObjective`） | 全仓没有引用 | 本批第 3 项的证据关联合同定怎样引用；见[批次文件](../post-anticorruption-roadmap/reference/batches/24.md#batch-24-item-3) |
+| 执行证据（`createEvidenceLedger`、`EvidenceGap`）、会话目标（`SessionObjective`、`judgeObjective`） | 全仓没有引用 | 本批第 3 项没有接：证据取自 agent-host 已有的命令回执与轮次活动（`agent.evidence.check@1`），接 `EvidenceLedger` 留给 31 批（BL-goal-evidence-limits ④）；见[批次文件](../post-anticorruption-roadmap/reference/batches/24.md#batch-24-item-3) |
 
 ## 4. 对 PA-12、PA-15 的结论
 

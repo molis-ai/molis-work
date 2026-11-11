@@ -15,8 +15,8 @@ export interface GoalEvidenceRunCheck {
   commands: ReadonlyArray<{ call_id: string; recorded: boolean; exit_code: number | null; timed_out: boolean; cancelled: boolean; changed_after: boolean }>;
 }
 
-/** What of the call the check itself reads: the session the Host bound it to, and its cancellation. The ports get the whole caller back. */
-export interface GoalEvidenceCaller { readonly runtime_session_id?: string; readonly signal?: AbortSignal }
+/** What of the call the check itself reads: its session and who is calling (a session counts only for an agent round), and its cancellation. The ports get the whole caller back. */
+export interface GoalEvidenceCaller { readonly runtime_session_id?: string; readonly audience?: string; readonly delegated_audience?: string; readonly signal?: AbortSignal }
 
 export interface GoalEvidencePorts<Caller extends GoalEvidenceCaller = GoalEvidenceCaller> {
   /** The Goal's confirmed deliverables, read in a window of their own. */
@@ -44,7 +44,8 @@ const sameVersion = (a: ArtifactReference, b: ArtifactReference) => a.artifact_i
  * established stays the reporter's own word, with what was missing; nothing here fails the report for lack of evidence.
  */
 export async function assessGoalReport<Caller extends GoalEvidenceCaller>(ports: GoalEvidencePorts<Caller>, caller: Caller, input: ReportEvents): Promise<NonNullable<ReportGoalEventsInput["trusted"]>> {
-  const session = caller.runtime_session_id ?? null, assessments = new Map<string, GoalEventJudgmentAssessment>();
+  // Only a session the Host bound: an external client's own naming of one is not a platform session (S-goal-evidence-tier).
+  const session = (caller.delegated_audience ?? caller.audience) === "agent" ? caller.runtime_session_id ?? null : null, assessments = new Map<string, GoalEventJudgmentAssessment>();
   const based = (input.events ?? []).flatMap((event, index) => (Array.isArray(event?.judgments) ? event.judgments : [])
     .flatMap(judgment => wellFormed(judgment?.basis) ? [{ index, requirement: judgment.requirement_id, verdict: judgment.verdict, basis: judgment.basis }] : []));
   if (!based.length) return { reporter_session: session, assessments };
@@ -60,9 +61,16 @@ export async function assessGoalReport<Caller extends GoalEvidenceCaller>(ports:
     if (!artifacts.has(key)) artifacts.set(key, ports.readArtifact(caller, reference).catch(error => rethrowStopped(caller, error, "unreadable" as const)));
     return artifacts.get(key)!;
   };
+  // One question to the platform per round and set of commands, however many requirements cite them.
+  const checks = new Map<string, Promise<GoalEvidenceRunCheck | "none" | "unreadable">>();
+  const check = (runId: string, callIds: readonly string[]) => {
+    const ids = [...new Set(callIds)].sort(), key = JSON.stringify([runId, ids]);
+    if (!checks.has(key)) checks.set(key, ports.checkRun(caller, runId, ids).catch(error => rethrowStopped(caller, error, "unreadable" as const)));
+    return checks.get(key)!;
+  };
   for (const { index, requirement, verdict, basis } of based) {
     if (verdict !== "supports") continue;
-    assessments.set(goalEventAssessmentKey(index, requirement), await assess(ports, caller, session, input.goal_id, requirement, basis, artifactOf));
+    assessments.set(goalEventAssessmentKey(index, requirement), await assess(ports, session, input.goal_id, requirement, basis, artifactOf, check));
   }
   return { reporter_session: session, assessments };
 }
@@ -81,19 +89,19 @@ function rethrowStopped<T>(caller: GoalEvidenceCaller, error: unknown, otherwise
   return otherwise;
 }
 
-async function assess<Caller extends GoalEvidenceCaller>(ports: GoalEvidencePorts<Caller>, caller: Caller, session: string | null, goalId: string, requirement: string,
-  basis: GoalEventJudgmentBasisInput, artifactOf: (reference: ArtifactReference) => Promise<GoalEvidenceArtifact | null | "unreadable">): Promise<GoalEventJudgmentAssessment> {
+async function assess<Caller extends GoalEvidenceCaller>(ports: GoalEvidencePorts<Caller>, session: string | null, goalId: string, requirement: string,
+  basis: GoalEventJudgmentBasisInput, artifactOf: (reference: ArtifactReference) => Promise<GoalEvidenceArtifact | null | "unreadable">,
+  check: (runId: string, callIds: readonly string[]) => Promise<GoalEvidenceRunCheck | "none" | "unreadable">): Promise<GoalEventJudgmentAssessment> {
   const receipts = (basis.evidence ?? []).flatMap(ref => ref.kind === "command_receipt" ? [ref] : []);
   // No platform session behind the call: nothing it cites can be looked up as its own, and it is nobody's reviewer.
   if (!session) return gap("evidence_missing");
   const artifact = await artifactOf(checkedOf(basis));
   if (artifact === "unreadable" || artifact === null) return gap("evidence_unreadable");
   const madeIn = artifact.origin.kind === "pinned" && typeof artifact.origin.revision === "string" ? artifact.origin.revision : null;
-  const check = (runId: string, callIds: readonly string[]) => ports.checkRun(caller, runId, callIds).catch(error => rethrowStopped(caller, error, "unreadable" as const));
   if (receipts.length) {
     // Every receipt must be of the round the version was fixed from; a command of another round says nothing about this version.
     if (!madeIn || receipts.some(ref => ref.run_id !== madeIn)) return gap("subject_mismatch");
-    const run = await check(madeIn, [...new Set(receipts.map(ref => ref.call_id))]);
+    const run = await check(madeIn, receipts.map(ref => ref.call_id));
     if (run === "unreadable") return gap("evidence_unreadable");
     if (run === "none") return gap("subject_mismatch");
     if (run.owner_plugin_id !== artifact.producer_plugin_id) return gap("subject_mismatch");
@@ -104,7 +112,9 @@ async function assess<Caller extends GoalEvidenceCaller>(ports: GoalEvidencePort
   }
   const selfSupporting = ports.selfSupportingSessions(goalId, requirement);
   if (selfSupporting.has(session)) return SELF;
-  const own = madeIn ? await check(madeIn, []) : "none";
+  // Not fixed from a round: nothing says who made it, so the caller may be its maker and its word stays its own.
+  if (!madeIn) return SELF;
+  const own = await check(madeIn, []);
   if (own === "unreadable") return gap("evidence_unreadable");
   // The round that made the version is in this caller's own session: its saying so again is its own word.
   if (own !== "none") return SELF;

@@ -1,8 +1,0 @@
-{
-  "reason": "第 24 批证据合同（24-3）：Coding 时间线在汇报行上显示证据等级与缺口（本人自述、机器核对、另一会话复查，以及缺证据、读不到、对象不符、核对未过）的文字与样式。对 ef06fed603b9f732b0e14f0d97132888bc9e786f 的真实 Host 构建实测；不新增资源。",
-  "review": "第 24 批 PR，主会话按 11.1 收尾检查核对；两个现有资源各自增长远小于 10 KB，按资源规则一次性放行。",
-  "assets": {
-    "/assets/molis-work-plugins/coding.js": 682,
-    "/assets/molis-work-plugins/coding.css": 97
-  }
-}

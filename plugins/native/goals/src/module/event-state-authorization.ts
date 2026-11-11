@@ -285,7 +285,7 @@ export function scopedRequirementCommitmentsMatch(
 
 /**
  * Whether a requirement is met now. Only a trusted conclusion of the person meets it, whether or not the requirement asks for their
- * decision: a report is the reporter's own word (`independent_verification: false`), and a requirement backed by nothing but the
+ * decision: a report is the reporter's own word (`tier: "self_reported"`), and a requirement backed by nothing but the
  * worker's own "supports" is not met (PWA-144; user decision 2026-11-04). Any report recorded after the conclusion that contradicts the
  * requirement, or says it is unknown, takes the conclusion back for good: a later "supports" from the worker does not bring it back,
  * and the person has to accept again (user decision 2026-11-05: withdrawn acceptance needs accepting again). The same holds for a
@@ -308,8 +308,10 @@ export function requirementSatisfaction(
   const conclusion = requirement.user_conclusion;
   const report = requirement.current_report;
   const checked = report?.basis?.checked ?? null;
-  const superseded = Boolean(conclusion?.checked && checked && report && report.journal_seq > conclusion.journal_seq
-    && (conclusion.checked.artifact_id !== checked.artifact_id || conclusion.checked.version !== checked.version));
+  // A decision that recorded no version was about whatever stood then: a later report that names a version is about something
+  // the person has not seen, exactly as one naming another version is.
+  const superseded = Boolean(conclusion && checked && report && report.journal_seq > conclusion.journal_seq
+    && (!conclusion.checked || conclusion.checked.artifact_id !== checked.artifact_id || conclusion.checked.version !== checked.version));
   if (conclusion?.verdict === "accepted" && !superseded
     && (lastWithdrawingReportSeq === null || lastWithdrawingReportSeq < conclusion.journal_seq)) {
     return { satisfied_by: "user_accepted", conclusion_superseded: false };

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import vm from "node:vm";
 import { UI_REQUEST_CLIENT_SCRIPT, createUiRequest, type UiFetchInit, type UiRequestPorts } from "@molis-ai/molis-work-ui-host";
+import { chinesePagePacks, pageTextScriptForPacks } from "./fixtures/page-text-packs.js";
 
 // S-03, the browser side (docs/system/SECURITY-INVARIANTS.md): the Host only accepts a change that carries the control token,
 // and the page puts that token on every change it sends. A page request helper that would send it to another site, because
@@ -107,6 +108,7 @@ test("S-03 the page program wires the same helper to the page's own origin", asy
     document: { documentElement: { dataset: {} }, querySelector: () => ({ content: "secret-control-token" }), createElement: () => ({}), addEventListener: () => {} },
     fetch: async (input: string) => { sent.push(input); return new Response("{}"); },
   });
+  vm.runInContext(pageTextScriptForPacks("zh", chinesePagePacks()), sandbox);
   vm.runInContext(UI_REQUEST_CLIENT_SCRIPT, sandbox);
   const outcome = await (vm.runInContext(`molisWorkRequest("https://evil.example/api/x", { body: {} }).then(() => "sent", error => error.code)`, sandbox) as Promise<string>);
   assert.equal(outcome, "ui_host.cross_origin");

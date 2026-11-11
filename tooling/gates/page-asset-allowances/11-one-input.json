@@ -1,11 +1,11 @@
 {
-  "reason": "统一输入「一个输入框」O1（用户 2026-11-10 定「甲」，specs/unified-input-voice/spec.md §10.2、UIV-19）：底栏输入框以前台工作区居中、与页面同宽，「发给」从框外一行改为脚条上的标签。对照 origin/main bac5d62b9 的独立构建、扣去第 11 批 11-composer.json 已许的部分实测：workbench.js +2104 B——新的 bar-column 程序（TypeScript，打包后并进 workbench.js，不是新资源）量前台窗格、右侧按钮组、Dock 至少要的宽（切换器、项目首页、一个常驻插件与「+N」）与底栏间距，给底栏前两列定宽；workbench.css 与 arrival.css 各 +2021 B、settings.css +1828 B——「发给」标签的样式（图标、名字、换收件人的叉）、场景控件靠右、静止一行改为框内五格（＋、发给、提示语、控件、发送），底栏在所有宽度静止一行（第二份一行规则，用只有底栏才有的短选择器以省字节）、触屏与手机上静止一行的输入框仍是 44px，与量出的列宽；composer.js +100 B——「发给」改在脚条时重画与动效跟着它。",
+  "reason": "统一输入「一个输入框」O1（用户 2026-11-10 定「甲」，specs/unified-input-voice/spec.md §10.2、UIV-19）：底栏输入框以前台工作区居中、与页面同宽，「发给」从框外一行改为脚条上的标签。对照 origin/main bac5d62b9 的独立构建、扣去第 11 批 11-composer.json 已许的部分实测：workbench.js +2104 B——新的 bar-column 程序（TypeScript，打包后并进 workbench.js，不是新资源）量前台窗格、右侧按钮组、Dock 至少要的宽（切换器、项目首页、一个常驻插件与「+N」）与底栏间距，给底栏前两列定宽；workbench.css 与 arrival.css 各 +2495 B、settings.css +2302 B——「发给」标签的样式（图标、名字、换收件人的叉）、场景控件靠右、静止一行改为框内五格（＋、发给、提示语、控件、发送），底栏在所有宽度静止一行（第二份一行规则，用只有底栏才有的短选择器以省字节）、触屏与手机上静止一行的输入框仍是 44px、底栏三段同一行高（--bar-row：Dock 托盘、个人托盘与静止的输入框同高同上下边，项目头像居中；--bar-gap 为上下留白），与量出的列宽；composer.js +100 B——「发给」改在脚条时重画与动效跟着它。",
   "review": "第 11 批主会话按隔离构建实测核对（2026-11-10，node scripts/gates/page-assets.mjs --base origin/main）；每项都在 10 KB 以内、没有新增资源；随 O1 的 PR 由评审台再核。",
   "assets": {
     "/assets/molis-work-workbench.js": 2104,
-    "/assets/molis-work-workbench.css": 2021,
-    "/assets/molis-work-arrival.css": 2021,
-    "/assets/molis-work-settings.css": 1828,
+    "/assets/molis-work-workbench.css": 2495,
+    "/assets/molis-work-arrival.css": 2495,
+    "/assets/molis-work-settings.css": 2302,
     "/assets/molis-work-composer.js": 100
   }
 }

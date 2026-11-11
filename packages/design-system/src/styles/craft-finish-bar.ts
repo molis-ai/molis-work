@@ -227,8 +227,12 @@ export const CRAFT_BAR_STYLES = `
      Controls sit straight on the desk; only the composer and the current Dock item are raised. */
   /* --dock-min is the bar at rest; the bar grows with the composer (its words, its strip), and the island writes the height it
      really has into --dock-h, the one value everything that sits above the bar reads (the panel, the side panel, popovers, toasts). */
-  ${SHELL} { --dock-min: 76px; --dock-h: var(--dock-min); --dock-btn: 38px; }
-  @media (max-height: 560px) and (min-width: 601px) { ${SHELL} { --dock-min: 52px; --dock-btn: 34px; } }
+  /* --bar-row is one height for the bar's three parts at rest (user 2026-11-10, one input): the Dock's tray (its buttons and
+     padding), the person's own tray and the composer's one row share it and its top and bottom edges, and the project's avatar is
+     centred on it; --bar-gap is what the bar leaves above and below. */
+  ${SHELL} { --bar-row: calc(var(--dock-btn) + 12px); --dock-min: calc(var(--bar-row) + 12px); --dock-h: var(--dock-min); --dock-btn: 38px;
+    --bar-gap: calc((var(--dock-min) - var(--bar-row)) / 2); }
+  @media (max-height: 560px) and (min-width: 601px) { ${SHELL} { --bar-row: calc(var(--dock-btn) + 6px); --dock-min: 52px; --dock-btn: 34px; } }
   ${WORKBENCH}[data-pane-embedded] .workbench-bar { display: none; }
   @media (min-width: 601px) {
     ${SHELL}, ${SHELL}:not([data-navigation-labels="false"]) { --plugin-rail-width: var(--sheet-inset); }
@@ -253,6 +257,8 @@ export const CRAFT_BAR_STYLES = `
   ${SHELL} .bar-start { justify-self: start; position: relative; display: flex; align-items: center; gap: 4px; min-width: 0; max-width: 100%; min-height: var(--dock-min); }
   ${SHELL} .bar-center { position: relative; min-width: 0; container: assistant-bar / inline-size; }
   html ${SHELL} .workbench-bar .bar-end { justify-self: stretch; position: relative; display: flex; align-items: center; justify-content: flex-end; gap: 8px; min-width: 0; min-height: var(--dock-min); }
+  /* Both trays at --bar-row with --bar-gap above and below, after the groups' own rules so this height is the one they take. */
+  @media (min-width: 601px) { html ${SHELL} .workbench-bar :is(.bar-start, .bar-end) { box-sizing: border-box; min-height: var(--bar-row); margin-block: var(--bar-gap); } }
 
   /* One Dock button everywhere in the bar: 38px, soft corners, neutral glyph; hover washes and lifts a hair,
      the current one becomes a small raised piece of the work surface with a copper point under it. */
@@ -337,7 +343,7 @@ export const CRAFT_BAR_STYLES = `
 
   /* The resident Assistant: the platform composer (unified-input K3) as wide as its column allows; the bar keeps its rest
      height and grows with it. */
-  ${SHELL} .bar-center > .assistant-composer { position: relative; padding-block: 8px; }
+  ${SHELL} .bar-center > .assistant-composer { position: relative; padding-block: var(--bar-gap); }
   ${SHELL} .assistant-composer > .mw-composer { width: 100%; }
   /* The receipt chip above the input (specs/ai-input-receipts §4.1; 2026-11-09 audit fix): shown only while a question waits, its words
      are what the next Send does and one click switches it. 44px to a finger, as every target. */
@@ -354,7 +360,7 @@ export const CRAFT_BAR_STYLES = `
   ${SHELL} .assistant-composer :is(.mw-compose__menu, .mw-composer__controls) { z-index: 60; }
   /* At rest the bar's input is one row at every size (user 2026-11-10, one input): ＋, who it goes to, the hint, the scene
      controls, send; writing grows it. Only the bar has this class, so the short scope. */${composerRestRules(".assistant-composer > .mw-composer[data-rest]")}
-  ${SHELL} .bar-center > .assistant-composer:has(> .mw-composer[data-rest]) { padding-block: 6px; }
+  @media (min-width: 601px) { ${SHELL} .assistant-composer > .mw-composer[data-rest] > .mw-composer__box { box-sizing: border-box; min-height: var(--bar-row); } }
   @media (max-width: 600px), (pointer: coarse) {${composerRestTouch(".assistant-composer > .mw-composer[data-rest]")} }
   /* The receiver's name opens its conversation (the island's click). */
   ${SHELL} .assistant-composer .mw-composer__to .mw-tag { cursor: pointer; }
@@ -363,8 +369,8 @@ export const CRAFT_BAR_STYLES = `
      it still grows with what is written, and its targets keep their size: the text row's top padding moves into the input, so the
      input itself stays the target (30px with a mouse, 44px to a finger). */
   @media (max-height: 560px) {
-    ${SHELL} .bar-center > .assistant-composer { padding-block: 4px; }
-    ${SHELL} .bar-center > .assistant-composer:has(> .mw-composer[data-rest]) { padding-block: 2px; }
+    ${SHELL} .bar-center > .assistant-composer { padding-block: 4px var(--bar-gap); }
+    ${SHELL} .bar-center > .assistant-composer:has(> .mw-composer[data-rest]) { padding-block: var(--bar-gap); }
     ${SHELL} .assistant-composer > .mw-composer:not([data-rest]) { gap: 2px; }
     ${SHELL} .assistant-composer > .mw-composer:not([data-rest]) .mw-composer__text { padding-top: 0; }
     ${SHELL} .assistant-composer > .mw-composer:not([data-rest]) .mw-composer__text > .mw-composer__input:not(#mw-composer) { box-sizing: border-box; min-height: 30px; padding-block: 6px 2px; }

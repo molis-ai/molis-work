@@ -379,7 +379,7 @@ test('RAC2875 actual background cancellation before COMMIT rolls back, explicit 
   for(const id of ['unknown','unknown-bg'])assert.equal(r.read('SELECT * FROM results WHERE id LIKE ?',[id+':%']).length,2,'no automatic replay');
 });
 
-test('RAC2877 the signed five-service composition reaches controlled TLS and materials, then keep/restore preserves facts and discard removes owner files under the existing Home-library policy',mac,async t=>{
+test('RAC2877 the signed five-service composition reaches controlled TLS and materials, then keep/restore preserves facts and discard removes owner files and the plugin-owned Home library',mac,async t=>{
   const tls=await signedResourceHttps(t),r=await backgroundRig(t);const pkg=signedBackgroundPackage();
   const installed=await r.h.install(pkg);assert.equal(installed.preview.runtime_scope,'home');await r.approve();
   const connection=withConnectorConnections(r.h.home,store=>store.createToken({serviceId:'github',displayName:'Background TLS',token:'dummy-t397-resource-credential'}));
@@ -391,6 +391,6 @@ test('RAC2877 the signed five-service composition reaches controlled TLS and mat
   const file=join(r.h.home,'plugin-files',r.record().install_id,'files','data','tls.txt');assert.equal(readFileSync(file,'utf8'),'done');
   await r.control('uninstall',true);await r.h.install(pkg);await r.approve();assert.equal((await r.status('tls')).state,'done');
   assert.equal(readFileSync(file,'utf8'),'done');await r.control('uninstall',false);assert.equal(existsSync(file),false);
-  // Current Home-library policy retains plugin-owned libraries on uninstall (PG-022); keep/discard controls private KV and owner files.
-  await r.h.install(pkg);await r.approve();assert.equal((await r.status('tls')).state,'done');
+  // Discarding the data takes the plugin's own Home library with it (BL-915 A, B27-UN-02): the reinstall starts from an empty one.
+  await r.h.install(pkg);await r.approve();assert.equal((await r.status('tls')).state,'missing');
 });

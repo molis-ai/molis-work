@@ -15,7 +15,7 @@ import { ProjectStatementProcess, type StatementLimits } from "./project-stateme
  * partitioned by project is refused by the ledger, as it is for every installed plugin.
  */
 export async function openSandboxHomeLibrary(home: string, owner: InstalledLibraryOwner, declaration: HomePluginDatabaseDeclaration, reserved: HomeStoreRegistry,
-  authorize: (permission: string) => void, instance: PluginInstance, limits: Partial<StatementLimits> = {}): Promise<{ statements: PluginProjectStatements; close(): void }> {
+  authorize: (permission: string) => void, instance: PluginInstance, limits: Partial<StatementLimits> = {}): Promise<{ statements: PluginProjectStatements; close(): void; exited(): Promise<void> }> {
   assertPluginHomeSchema(declaration.schema);
   authorize("storage:private");
   const path = homeSqlitePath(home, declaration.store_name);
@@ -32,7 +32,7 @@ export async function openSandboxHomeLibrary(home: string, owner: InstalledLibra
   } finally { preparation.dispose(); }
   let closed = false;
   const processes = new ProjectStatementProcess(path, null, limits);
-  return { statements: isolatedProjectStatements(processes, declaration, authorize, instance, () => closed), close() { closed = true; processes.dispose(); } };
+  return { statements: isolatedProjectStatements(processes, declaration, authorize, instance, () => closed), close() { closed = true; processes.dispose(); }, exited: () => processes.exited() };
 }
 
 /** Preview waits for bounded scratch execution, without touching the real Home or issuing an approval ticket. */

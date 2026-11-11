@@ -173,6 +173,29 @@ test("RAC2866 RAC2870 real signed Home databases persist and remain isolated; in
   assert.deepEqual(await r.query({ op: "db.read" }), [{ text: "one" }]);
 });
 
+test("B27-UN-02 S-94 keeping data keeps the plugin's own Home library; discarding removes its files, directory and ledger row only when the row and verified Manifest agree, and an unknown file keeps it", mac, async t => {
+  const r = await rig(t), publisher = newPublisher(), pkg = bundle(publisher), second = ID + ".second";
+  const store = "sbxdb-" + createHash("sha256").update(ID).digest("hex").slice(0, 32), dir = join(r.h.home, store);
+  const ledgerRow = () => { const ledger = new DatabaseSync(homeSqlitePath(r.h.home, "plugin-libraries"), { readOnly: true });
+    try { return ledger.prepare("SELECT store_name FROM plugin_home_libraries WHERE plugin_id=?").get(ID); } finally { ledger.close(); } };
+  await r.install(pkg); await r.approve(); await r.call({ op: "db.write", text: "one" });
+  await r.install(bundle(publisher, { id: second })); await r.approve(second); await r.call({ op: "db.write", text: "beside" }, second);
+  await r.control("uninstall", true);
+  assert.equal(existsSync(homeSqlitePath(r.h.home, store)), true); assert.equal(ledgerRow()?.store_name, store);
+  await r.install(pkg); await r.approve(); assert.deepEqual(await r.query({ op: "db.read" }), [{ text: "one" }]);
+  await r.control("uninstall", false);
+  assert.equal(existsSync(dir), false, "the library directory, its database and sidecars are gone"); assert.equal(ledgerRow(), undefined);
+  assert.deepEqual(await r.query({ op: "db.read" }, second), [{ text: "beside" }], "another plugin's library is untouched");
+  await r.install(pkg); await r.approve(); assert.deepEqual(await r.query({ op: "db.read" }), [], "a reinstall starts from an empty library");
+  await r.call({ op: "db.write", text: "two" });
+  const stray = join(dir, "notes.txt"); writeFileSync(stray, "not the Host's");
+  await r.control("uninstall", false);
+  assert.equal((await r.h.host.homePlugins!.ready()).runtime.list().some(row => row.plugin_id === ID && row.state !== "uninstalled"), false, "the uninstall itself finishes");
+  assert.equal(readFileSync(stray, "utf8"), "not the Host's"); assert.equal(existsSync(homeSqlitePath(r.h.home, store)), true); assert.equal(ledgerRow()?.store_name, store);
+  unlinkSync(stray); await r.install(pkg); await r.approve(); assert.deepEqual(await r.query({ op: "db.read" }), [{ text: "two" }], "a kept library is the same one");
+  await r.control("uninstall", false); assert.equal(existsSync(dir), false); assert.equal(ledgerRow(), undefined);
+});
+
 test("RAC2868 true signed slots use the person's existing service binding over controlled HTTPS, and materials read/fetch/local/original retain their real Host gates", mac, async t => {
   const tls = await signedResourceHttps(t), r = await rig(t), publisher = newPublisher();
   await r.install(bundle(publisher, { services: true })); await r.approve();

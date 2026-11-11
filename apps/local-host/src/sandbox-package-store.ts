@@ -9,7 +9,7 @@ import { createHash } from 'node:crypto';
 import { chmodSync, existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { readSnapshotFile } from "@molis-ai/molis-work-storage";
 import { join } from 'node:path';
-import { pluginErrors, SANDBOX_PACKAGE_FILES, type PluginPackageBundle } from '@molis-ai/molis-work-contracts/platform/plugin';
+import { pluginErrors, SANDBOX_PACKAGE_FILES, type PluginInstanceRecord, type PluginManifest, type PluginPackageBundle } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { pluginManifestDigest, verifyPluginPackageSignature } from '@molis-ai/molis-work-plugin-runtime';
 import { isContentPackage, isIntegrationPackage, readKeptPackage, type KeptPackage, type SandboxPackage } from './sandbox-package.js';
@@ -105,6 +105,16 @@ export class SandboxPackageStore {
     if (key_id !== keyId || manifest.plugin_id !== pluginId || manifest.version !== version)
       throw pluginErrors.signer_mismatch("留存发行包的身份与安装记录不符");
     return manifest;
+  }
+
+  /**
+   * The Manifest an installation was installed with: its kept, signed bundle's, and only when that Manifest's digest is the installation's.
+   * Undefined when the bundle is not there or does not verify: what owns a library is then unproven, and its library is kept (BL-915).
+   */
+  installedManifest(record: Pick<PluginInstanceRecord, 'plugin_id' | 'publisher_signature' | 'version' | 'manifest_digest'>): PluginManifest | undefined {
+    let manifest: PluginManifest | undefined;
+    try { manifest = this.snapshotManifest(record.plugin_id, record.publisher_signature, record.version); } catch { return undefined; }
+    return manifest && pluginManifestDigest(manifest) === record.manifest_digest ? manifest : undefined;
   }
 
   private read(pluginId: string, keyId: string, version: string) {

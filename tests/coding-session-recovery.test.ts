@@ -4,11 +4,15 @@ import type { PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-wor
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectDirectoryActions } from "@molis-ai/molis-work-contracts/modules/projects";
 import { skillCatalogActions } from "@molis-ai/molis-work-contracts/services/skills";
+import { installTextForTest } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { projectDirectories } from "./fixtures/plugin-actions.js";
 import { CODING_PROJECT_DATABASE, CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
 import { codingFixtureRoutes as codingRoutes } from "./fixtures/coding-surface.js";
 import { noEffect } from "./fixtures/coding-sessions.js";
 import { memoryPluginDatabase } from "./fixtures/plugin-database.js";
+import { chinesePagePacks } from "./fixtures/page-text-packs.js";
+
+test.before(t => t.after(installTextForTest({ locale: "zh", packs: chinesePagePacks("coding") })));
 
 test("one unreadable runtime history does not hide other sessions or lose its draft", async () => {
   const db = memoryPluginDatabase(CODING_PROJECT_DATABASE.schema, ["board"]);

@@ -118,7 +118,7 @@ test("packed SDK: drafts share their owning Runtime, have no tools and leave no 
     rememberUiLocale(otherHome, "en");
     const draft = draftText({ ...options, homeDirectory: otherHome }, named, { pluginId, beforeDispatch: () => { entered.resolve(); return held.promise; } });
     await entered.promise;
-    assert.equal(fresh.uses(key).length, 1, "preparation records no use while authorization is pending");
+    assert.equal(fresh.uses.list(key).length, 1, "preparation records no use while authorization is pending");
     rememberUiLocale(otherHome, "zh");
     fresh.save(key, "A later prompt edit", null, "owner");
     held.resolve(); await draft;
@@ -126,13 +126,13 @@ test("packed SDK: drafts share their owning Runtime, have no tools and leave no 
     assert.match(frozen, /Write a Git commit message/);
     assert.match(frozen, /Reply language for this round: English/);
     assert.doesNotMatch(frozen, /A later prompt edit|本轮回复语言：简体中文/);
-    assert.deepEqual(fresh.uses(key).map(use => [use.version, use.user_revision]), [[2, null], [2, null]]);
+    assert.deepEqual(fresh.uses.list(key).map(use => [use.version, use.user_revision]), [[2, null], [2, null]]);
 
     await draftText({ ...options, homeDirectory: otherHome }, { ...named, prompt: "coding.history-summary" }, { pluginId });
     const digest = JSON.stringify(bodies.at(-1).system);
     assert.match(digest, /用和材料相同的语言/, "the digest's version-one content is still present");
     assert.match(digest, /本轮回复语言：简体中文。给用户的回复/);
-    assert.equal(fresh.uses(`${pluginId}/coding.history-summary`)[0]!.version, 1);
+    assert.equal(fresh.uses.list(`${pluginId}/coding.history-summary`)[0]!.version, 1);
   } finally {
     await adapter.close(); server.closeAllConnections();
     await new Promise<void>(resolve => server.close(() => resolve())); await rm(home, { recursive: true, force: true });

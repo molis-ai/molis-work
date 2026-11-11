@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { NEXT_STEP, pluginInteraction, runWithLocale } from "@molis-ai/molis-work-app-local-host";
-import { CODING_NEXT_STEP, codingInteractionHtml, type CodingFollowUpRun } from "@molis-ai/molis-work-plugin-coding";
+import { installHostUiText, NEXT_STEP, pluginInteraction, registeredBuiltinText, runWithLocale, runWithRegisteredText } from "@molis-ai/molis-work-app-local-host";
+import { CODING_NEXT_STEP, codingInteractionHtml, codingManifest, type CodingFollowUpRun } from "@molis-ai/molis-work-plugin-coding";
 import type { ActionCard } from "@molis-ai/molis-work-plugin-sdk";
 import type { ActionLocale } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentPendingQuestion } from "@molis-ai/molis-work-contracts/services/agent-interaction";
@@ -21,8 +21,11 @@ const pick = { index: 0, prompt: "先修哪一个？", type: "choice" as const, 
 
 /** A round as Coding's route answers its page: Coding's round and cards, drawn by the platform in the page's language. */
 async function drawn(round: Run, cards: Card[] = [], locale: ActionLocale = "zh") {
+  installHostUiText();
+  const words = registeredBuiltinText(codingManifest);
+  assert.ok(words);
   const body: Drawn = { runs: [{ ...structuredClone(round), turns: [], cards: structuredClone(cards) }] };
-  return (await runWithLocale(locale, () => codingInteractionHtml(body, pluginInteraction, locale))).runs[0]!;
+  return (await runWithLocale(locale, () => runWithRegisteredText(words, () => codingInteractionHtml(body, pluginInteraction, locale)))).runs[0]!;
 }
 const codingStepRow = async (round: Run, cards: Card[] = [], locale: ActionLocale = "zh") => (await drawn(round, cards, locale)).next_html ?? "";
 const unescape = (value: string) => value.replace(/&quot;/g, '"').replace(/&#039;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&amp;/g, "&");

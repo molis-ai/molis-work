@@ -12,6 +12,17 @@ type Selection = readonly { memory_id: string; version: number }[];
 type Fixed = Pick<MemoryForgettingDecision, "selection_mode" | "memories" | "candidates" | "source_event_ids">;
 const compare = (left: string, right: string) => left < right ? -1 : left > right ? 1 : 0;
 
+/** One synchronous read of the forgetting facts for a batch of decisions. Never hold it across a wait. */
+export interface MemoryForgettingPhase {
+  isForgotten(scope: MemoryScope, owner: string, kind: "memory" | "memory-candidate", id: string): boolean;
+  /**
+   * Re-reads and throws `memory.conflict` when the facts changed or became unreadable since the phase began; the whole
+   * batch is then refused. That is not a Prologue error: a list read fails as a whole instead of falling back to one
+   * entry at a time, and a recall reports failed. Either way nothing is delivered on the old facts.
+   */
+  assertCurrent(): void;
+}
+
 /** A person's fixed deletion is durable before cleanup; the original SDK operations still own physical removal. */
 export class MemoryForgetting {
   constructor(private readonly ports: { ledger: MemoryLedgerPort; backend: MemoryBackendPort | null; operations: MemoryOperations;

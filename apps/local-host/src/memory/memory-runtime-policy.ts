@@ -4,6 +4,7 @@ import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/a
 import { ASSISTANT_INSTALL_ID, ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
 import { MEMORY_CONSUMERS, type MemoryPrefs, type MemoryScope, type MemorySessionPurgeTarget } from "@molis-ai/molis-work-contracts/services/memory";
 import { characterOwner, consumerAccess, memoryClassReadAllowed, memoryClassReadPossible, memoryClassFormationAllowed } from "@molis-ai/molis-work-service-memory";
+import type { MemoryForgettingPhase } from "@molis-ai/molis-work-service-memory";
 
 type Options = NonNullable<PrologueNodeAdapterOptions["memory"]>;
 type Request = Parameters<Options["authorize"]>[1][number];
@@ -26,11 +27,7 @@ export interface MemoryRuntimePolicyOwner {
   deletingProject(): string | undefined;
 }
 
-export interface MemoryForgettingPhase {
-  isForgotten(scope: MemoryScope, owner: string, kind: "memory" | "memory-candidate", id: string): boolean;
-  /** Throws when the facts changed or became unreadable since this phase began; the whole batch is then refused. */
-  assertCurrent(): void;
-}
+export type { MemoryForgettingPhase };
 
 const CODING = "io.molis.work.coding";
 const SCENES = ["coding", "assistant", "common"] as const;
@@ -119,8 +116,10 @@ export function memoryRuntimePolicy(ownerFor: () => MemoryRuntimePolicyOwner | u
   type State = { owner: MemoryRuntimePolicyOwner; deletion: boolean };
   /** The batch's single forgetting read, taken only when some request in it needs it. */
   const batch = (state: State) => {
-    let phase: MemoryForgettingPhase | undefined;
-    return { forgetting: () => phase ??= state.owner.forgettingPhase(), close: () => phase?.assertCurrent() };
+    let phase: MemoryForgettingPhase | undefined, uses = 0;
+    return { forgetting: () => { uses++; return phase ??= state.owner.forgettingPhase(); },
+      // One check rests on one read, exactly as before; only a decision drawn from several checks is re-read before it is used.
+      close: () => { if (uses > 1) phase!.assertCurrent(); } };
   };
   const decide = (caller: AgentMemoryCaller, requests: readonly Request[], state: State) => {
     const facts = batch(state);

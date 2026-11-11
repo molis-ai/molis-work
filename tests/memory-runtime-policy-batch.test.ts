@@ -2,8 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { AgentMemoryCaller } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import { defaultPrefs } from "@molis-ai/molis-work-service-memory";
+import { defaultPrefs, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
 import { memoryRuntimePolicy, type MemoryForgettingPhase, type MemoryRuntimePolicyOwner } from "@molis-ai/molis-work-app-local-host";
+import { memoryServiceHome } from "./fixtures/memory-service-home.js";
 
 // BL-1072: one forgetting read per policy batch instead of one per request, with a closing re-read that refuses the
 // whole batch when the facts changed. The per-request decision itself is unchanged.
@@ -45,6 +46,14 @@ test("MEM-38 BL-1072 a batch of 750 reads takes one forgetting phase and one clo
   assert.deepEqual(counts, { phases: 2, checks: 1500, closes: 2 }, "the synchronous recheck takes its own phase; nothing is reused across calls");
 });
 
+test("MEM-38 BL-1072 a single request reads the forgetting facts once, as before, with no closing re-read", async () => {
+  const { value, counts } = owner();
+  const policy = memoryRuntimePolicy(() => value);
+  assert.equal(await policy.authorize(reader, [read("m1")]), true);
+  assert.equal(policy.assertCurrent!(reader, [read("m1")]), true);
+  assert.deepEqual(counts, { phases: 2, checks: 2, closes: 0 }, "one check rests on one read; nothing is left to be half old, half new");
+});
+
 test("MEM-38 BL-1072 a forgotten target in the batch is still refused, and the batch is still closed", async () => {
   const { value, counts } = owner(new Set(["m10"]));
   const policy = memoryRuntimePolicy(() => value);
@@ -69,4 +78,37 @@ test("MEM-38 BL-1072 a batch that needs no forgetting check reads no forgetting 
   const policy = memoryRuntimePolicy(() => value);
   assert.equal(await policy.authorize(person, ids.slice(0, 20).map(manage)), true);
   assert.deepEqual(counts, { phases: 0, checks: 0, closes: 0 });
+});
+
+const person_ = (operation_id: string): MemoryCaller => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, consumer: "ui", person: true,
+  current_scene: "common", purpose: "management", operation_id });
+const mine = { scope: "personal" as const, owner: LOCAL_PERSON_ACTOR_ID };
+
+test("MEM-38 BL-1072 the real forgetting phase answers from its own read, and its closing check refuses once a forgetting is accepted", async t => {
+  const f = await memoryServiceHome(t, { projects: ["project-a"] }), service = await f.open();
+  const kept = (await service.write(person_("keep"), { scope: "personal", text: "Answer in short bullet points", kind: "preference" })).memory!;
+  const phase = service.forgettingPhase();
+  assert.equal(phase.isForgotten(mine.scope, mine.owner, "memory", kept.memory_id), false);
+  phase.assertCurrent();
+  f.ledger().forgetting.accept({ selection_mode: "exact-identities", ...mine, operation_id: "forget-during-phase", actor_id: LOCAL_PERSON_ACTOR_ID,
+    memories: [{ memory_id: kept.memory_id, version: kept.version }], candidates: [], source_event_ids: [] });
+  assert.equal(phase.isForgotten(mine.scope, mine.owner, "memory", kept.memory_id), false, "the phase still answers from the read it began with");
+  assert.throws(() => phase.assertCurrent(), { code: "memory.conflict" });
+  assert.equal(service.forgettingPhase().isForgotten(mine.scope, mine.owner, "memory", kept.memory_id), true);
+
+  // Through the policy: a forgetting accepted between two checks of one batch refuses the whole batch, on the real re-read.
+  const other = (await service.write(person_("other"), { scope: "personal", text: "Name files in kebab case", kind: "preference" })).memory!;
+  let accepted = false;
+  const { value } = owner();
+  const policy = memoryRuntimePolicy(() => ({ ...value, forgettingPhase() {
+    const real = service.forgettingPhase();
+    return { ...real, isForgotten: (...args) => {
+      const answer = real.isForgotten(...args);
+      if (!accepted) { accepted = true; f.ledger().forgetting.accept({ selection_mode: "exact-identities", ...mine, operation_id: "forget-mid-batch",
+        actor_id: LOCAL_PERSON_ACTOR_ID, memories: [{ memory_id: other.memory_id, version: other.version }], candidates: [], source_event_ids: [] }); }
+      return answer;
+    } };
+  } }));
+  await assert.rejects(policy.authorize(reader, [read("m1"), read("m2")]), { code: "memory.conflict" });
+  assert.equal(accepted, true);
 });

@@ -3,7 +3,7 @@ import { directoryInputOnly, type RunDirectories } from "@molis-ai/molis-work-co
 import { assertChildRoleTools } from "./child-role-tools.js";
 import { isAgentTool } from "./tool-catalog.js";
 import { requireSynchronous, type ActionLocale, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
-import { skillRefKey } from "./round-skills.js";
+import { skillRefKey } from "@molis-ai/molis-work-plugin-sdk/skill-ref";
 import { currentCharacterMatches } from "./character-import.js";
 import type {
   AgentManifest,

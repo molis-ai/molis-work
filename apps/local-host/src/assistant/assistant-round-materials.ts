@@ -47,7 +47,7 @@ function chunked(base: Pick<AgentTextMaterial, "title">, id: string, text: strin
     title: parts === 1 ? base.title : `${base.title}（${index + 1}/${parts}）`, text: text.slice(index * size, (index + 1) * size) }));
 }
 
-export type AssistantRoundMaterialsLinks = Pick<AssistantWorkReads, "workObjects" | "related" | "methods" | "readRole" | "readSkills"> & Pick<AssistantMemoryBridge, "memoryTools"> & { jobs: Pick<AssistantJobs, "material">; delegations: Pick<AssistantDelegations, "material"> };
+type AssistantRoundMaterialsLinks = Pick<AssistantWorkReads, "workObjects" | "related" | "methods" | "readRole" | "readSkills"> & Pick<AssistantMemoryBridge, "memoryTools"> & { jobs: Pick<AssistantJobs, "material">; delegations: Pick<AssistantDelegations, "material"> };
 
 /**
  * What a round is given and what the person brings: the round's situation as marked data, objects read again from

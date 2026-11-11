@@ -66,8 +66,8 @@
 | 原需求／来源 | 类型 | 对应批次 | 决策 |
 | --- | --- | --- | --- |
 | [unified-input-voice](../../unified-input-voice/spec.md) | 横向能力（输入组件）、产品线（助理、Coding、首页）、体验与效果 | [03](batches/03.md)、[10](batches/10.md)、[11](batches/11.md)、[53](batches/53.md) | 要决策：界面定样；助理对外用词 H4 在 10 开工前定；其余 10-27 已定 |
-| [skill-packs](../../skill-packs/spec.md) | 横向能力（技能包、合同） | [08](batches/08.md)、[09](batches/09.md)、[72](batches/72.md) | 直接做 |
-| [capability-pack](../../capability-pack/spec.md) | 横向能力（能力包：技能、提示词、角色、工具、MCP 的声明与目录） | [09](batches/09.md)；消费者 [61](batches/61.md)、[72](batches/72.md)、[74](batches/74.md) | 要决策：目录页定样；名称已定（界面「能力包」、代码 `kit`），其余直接做（2026-11-08 用户定） |
+| [skill-packs](../../skill-packs/spec.md) | 横向能力（技能包、合同） | [08](batches/08.md)、[09](batches/09.md)、[72](batches/72.md) | 直接做；08、09 已合入（09 = #2015），剩 72 的导入导出、本人验收（BL-skill-packs-acceptance）、Coding 的「自动」档（BL-coding-skill-auto）与脚本沙箱（BL-skill-scripts-sandbox） |
+| [capability-pack](../../capability-pack/spec.md) | 横向能力（能力包：技能、提示词、角色、工具、MCP 的声明与目录） | [09](batches/09.md)；消费者 [61](batches/61.md)、[72](batches/72.md)、[74](batches/74.md) | 已合入（第 09 批 #2015，2026-11-11；定样 A、名称「能力包」／`kit` 用户已定，能力包页用户 11-10 验收通过）；余项自组包（BL-kit-user-packs）等，见待办；消费者批次照旧 |
 | [work-brief](../../work-brief/spec.md) | 产品线（首页与简报）、横向能力（公共来源与呈现） | [15](batches/15.md)、[19](batches/19.md)、[37](batches/37.md)、[51](batches/51.md)、[63](batches/63.md) | 要决策：综合首页的界面定样 |
 | [观测和采集层](../../observation-collection/spec.md) | 横向能力（采集）、底层与架构 | [21](batches/21.md)、[28](batches/28.md)、[29](batches/29.md) | 直接做：合同按 C1 排队 |
 | [平台端到端效果评测](../../proactive-assistant/spec.md#14-molis-work-的端到端效果评测) | 横向能力（评测） | [21](batches/21.md)、[30](batches/30.md)、[62](batches/62.md)、[75](batches/75.md) | 直接做 |

@@ -3,6 +3,7 @@ import { parseExactActionReferences } from "@molis-ai/molis-work-contracts/platf
 import type { PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { AgentMcpToolRef, AgentMcpSourceRef } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-definitions";
+import { skillRefKey } from "@molis-ai/molis-work-plugin-sdk/skill-ref";
 import { SKILL_BODY_READ_MAX_REFS } from "@molis-ai/molis-work-contracts/services/skills";
 import { codingFailure } from "./words.js";
 
@@ -25,13 +26,12 @@ function skillRef(item: unknown): SkillRef {
   return { source: { kind, plugin_id, plugin_version, publisher_signature }, skill_id, version, install_id, installation_generation };
 }
 /** The whole reference, so two versions or two installations of one Skill are two choices. */
-export const skillKey = (ref: SkillRef) => JSON.stringify([ref.source.plugin_id, ref.source.plugin_version, ref.source.publisher_signature, ref.skill_id, ref.version, ref.install_id, ref.installation_generation]);
 /** The Skills a round or a session names: at most `SKILL_BODY_READ_MAX_REFS`, none twice. */
 export function skillSelection(value: unknown): SkillRef[] {
   if (!Array.isArray(value)) throw codingFailure("coding.server.skill-shape");
   if (value.length > SKILL_BODY_READ_MAX_REFS) throw codingFailure("coding.server.skill-count", { max: SKILL_BODY_READ_MAX_REFS });
   const refs = value.map(skillRef);
-  if (new Set(refs.map(skillKey)).size !== refs.length) throw codingFailure("coding.server.skill-repeat");
+  if (new Set(refs.map(skillRefKey)).size !== refs.length) throw codingFailure("coding.server.skill-repeat");
   return refs;
 }
 /** The session's own choice of Skills (`skills:<session>`), none when it has made none. */
@@ -46,8 +46,8 @@ export function savedSkills(context: PluginStartContext, id: string): SkillRef[]
 export function mergedSkills(delegated: readonly SkillRef[], saved: readonly SkillRef[]): SkillRef[] {
   const seen = new Set<string>(), merged: SkillRef[] = [];
   for (const ref of [...delegated, ...saved]) {
-    if (seen.has(skillKey(ref))) continue;
-    seen.add(skillKey(ref));
+    if (seen.has(skillRefKey(ref))) continue;
+    seen.add(skillRefKey(ref));
     merged.push(ref);
   }
   return merged;

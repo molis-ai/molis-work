@@ -1,0 +1,7 @@
+{
+  "reason": "第 09 批收尾检查：Coding 页面原来自写一份技能引用比对键（漏了 source.kind），改用插件 SDK 的同一份 skillRefKey（/skill-ref 子路径）。键里多比一个字段，Coding 页面脚本实测 +10 字节；不新增资源。",
+  "review": "第 09 批收尾 PR，主会话按 11.1 收尾检查核对；增长远小于 10 KB，按资源规则一次性放行。",
+  "assets": {
+    "/assets/molis-work-plugins/coding.js": 10
+  }
+}

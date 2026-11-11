@@ -36,7 +36,7 @@ test("ASC-58 a connection notice waits on the person, opens its service's connec
     const page = await browser.page();
     await page.command("Page.enable");
     const shots = join(REVIEW_EVIDENCE, "asc58-connection-notice"); await mkdir(shots, { recursive: true });
-    const texts = { zh: "服务连接「Work GitHub」的登录已失效，需要重新登录。", en: 'The sign-in for the service connection "Work GitHub" has expired. Sign in again.' };
+    const texts = { zh: "服务连接「Work GitHub」的登录已失效，需要重新登录。", en: 'The sign-in for the service connection “Work GitHub” has expired. Sign in again.' };
     for (const locale of ["en", "zh"] as const) {
       await Promise.all([browser.event("Page.loadEventFired"), page.command("Page.navigate", { url: f.origin + "/locale?lang=" + locale + "&next=" + encodeURIComponent(path) })]);
       await page.wait(`document.documentElement?.lang === '${locale === "zh" ? "zh-CN" : "en"}'`);
@@ -58,7 +58,7 @@ test("ASC-58 a connection notice waits on the person, opens its service's connec
     }
     // The page's own check: an address that is not a path of this origin under /settings/ gets no "打开".
     const shown = await page.evaluate<Array<[string, boolean]>>(`(() => {
-      const base = { notice_id: "", kind: "connection", work_id: "", work_title: "Work GitHub", text: "服务连接「{name}」的登录已失效，需要重新登录。", created_at: new Date().toISOString() };
+      const base = { notice_id: "", kind: "connection", work_id: "", work_title: "Work GitHub", text: { original: ${JSON.stringify(texts.zh)} }, created_at: new Date().toISOString() };
       const paths = ["https://evil.example/settings/connectors", "//evil.example/settings/connectors", "/projects/p1/", "javascript:alert(1)", 42, "/settings/connectors?connector=github"];
       document.dispatchEvent(new CustomEvent('molis-work:attention', { detail: { notices: paths.map((settings_path, index) => ({ ...base, notice_id: "n" + index, settings_path })) } }));
       return [...document.querySelectorAll('[data-assistant-notices] [data-notice-action=open]')].map(button => [button.dataset.noticeId, !button.hidden]);

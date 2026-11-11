@@ -230,6 +230,9 @@ export interface AgentDraftTextResult {
 }
 
 /** The parts of a session-message or background-command action's input (BL-364): a runtime, a session, a message or task id. */
+/** The class-restriction snapshot a Run carries (AgentMemoryClassPolicy): its own format and the class taxonomy it refers to. */
+const CLASS_POLICY_VERSION = /* @version format.memory.class-policy */ 1;
+const CLASS_TAXONOMY_VERSION = /* @version format.memory.class-taxonomy */ 1;
 const runtimeId = { type: "string", minLength: 1, maxLength: 200 } as const;
 const entryId = { type: "string", minLength: 1, maxLength: 500 } as const;
 const attachments = { type: "array", maxItems: 50, items: { type: "object", required: ["kind", "id"], additionalProperties: false,
@@ -344,7 +347,7 @@ const runRefOutput = { type: "object", required: ["run_id", "session_id"], addit
 const runViewOutput = { type: "object", required: ["ref", "phase", "frozen", "turns", "activity", "usage", "awaiting_input", "started_at", "ended_at"], additionalProperties: false, properties: {
   step_board: stepBoardOutput, step_board_error: { type: "string" }, ref: runRefOutput, phase: { enum: RUN_PHASES }, frozen: frozenOutput, turns: list(turnOutput), activity: list(activityOutput),
   command_outputs: { type: "array", items: { type: "object", required: ["call_id", "run_id"], properties: { call_id: { type: "string" }, run_id: { type: "string" } } } },
-  class_restrictions: shape(["policy_version", "taxonomy_version", "personal", "project"], { policy_version: { const: 2 }, taxonomy_version: { const: 1 },
+  class_restrictions: shape(["policy_version", "taxonomy_version", "personal", "project"], { policy_version: { const: CLASS_POLICY_VERSION }, taxonomy_version: { const: CLASS_TAXONOMY_VERSION },
     personal: memoryClassRestrictionsSchema, project: memoryClassRestrictionsSchema }), memory_scene: { enum: ["coding", "assistant", "common"] },
   usage: usageOutput, awaiting_input: list(questionOutput), stop_reason: { type: "string" }, original_input: object,
   memory_recalled: shape(["method", "omitted", "unavailable"], { method: { enum: ["pinned", "recall"] }, omitted: list(memoryRef), unavailable: strings }),

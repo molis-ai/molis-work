@@ -381,7 +381,7 @@ test("PG110-17 S-15 plugin callbacks cannot acquire an upstream Host-issued call
   const binding: ActionSceneBinding = { binding_id: "identity", scene_id: scene.scene_id, scene_version: 1, project_id: null,
     function: { capability_id: judge.capability_id, version: 1, provider_id: "identity-judgment" }, enabled: true, title: "Identity", revision: "1" };
   const runtimeMemory: NonNullable<ActionCallContext["runtime_memory"]> = { plugin_id: sender.id, current_scene: "common",
-    class_restrictions: { policy_version: 2, taxonomy_version: 1, personal: [],
+    class_restrictions: { policy_version: 1, taxonomy_version: 1, personal: [],
       project: [{ selector: { consumer: "agent", current_scene: "common", kind: "convention" }, read: "off", form: "off" }] } };
   const originalPolicy = structuredClone(runtimeMemory), protectedCallbacks = new Set<string>();
   let checkingPolicy = false, judgments = 0;

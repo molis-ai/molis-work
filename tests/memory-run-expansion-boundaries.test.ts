@@ -24,7 +24,7 @@ function canonical(request: Request): Array<{ memory: { id: string; scope: strin
     return texts.flatMap(text => text.split("\n").filter(line => line.startsWith('{"source":"memory-recall"')).map(line => JSON.parse(line)));
   });
 }
-const recipe: AgentRecalledMemory = { pinned: [], consumer: "agent", current_scene: "coding", class_restrictions: { policy_version: 2, taxonomy_version: 1, personal: [], project: [] },
+const recipe: AgentRecalledMemory = { pinned: [], consumer: "agent", current_scene: "coding", class_restrictions: { policy_version: 1, taxonomy_version: 1, personal: [], project: [] },
   scopes: [{ scope: "user", owner: LOCAL_PERSON_ACTOR_ID }], task: false, skip: true, budget_tokens: 800, budget_chars: 3000 };
 
 // These are adapter lifecycle checks, deliberately separate from the real Node/HTTP paths below.

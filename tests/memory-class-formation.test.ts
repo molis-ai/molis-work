@@ -7,6 +7,7 @@ import type { AgentMemoryExtractionRequest } from "@molis-ai/molis-work-contract
 import type { MemoryClassRestriction } from "@molis-ai/molis-work-contracts/services/memory";
 import { prologueMemoryBackend } from "@molis-ai/molis-work-app-local-host";
 import { MemoryService, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
+import { acquireStorageOwner } from "@molis-ai/molis-work-storage";
 import { memoryServiceHome, observeMemoryBackend, originalMemorySources } from "./fixtures/memory-service-home.js";
 
 const person: MemoryCaller = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "project-a", consumer: "ui", person: true };
@@ -143,14 +144,17 @@ for (const damage of ["missing", "corrupt"] as const) test(`an inaccessible but 
     const requireSdk = createRequire(new URL("../horizontal/agent-host/package.json", import.meta.url));
     const { createRuntime } = await import(requireSdk.resolve("@prologue/sdk"));
     const { createNodeHost } = await import(requireSdk.resolve("@prologue/sdk/node"));
-    const runtime = await createRuntime({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, host: createNodeHost({ storageRoot: join(env.home, "agent-runtime") }) });
+    // The indexed store opens only under the App's declared format and its exclusive owner, as production does (prologue-node.ts).
+    const owner = acquireStorageOwner(join(env.home, "agent-runtime"));
+    const runtime = await createRuntime({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, host: createNodeHost({ storageRoot: join(env.home, "agent-runtime"),
+      memoryStorageFormat: "indexed-v1", exclusiveOwner: true }) });
     try {
       const records = (await runtime.store.list({ kind: "memory-candidates" })).records; assert.equal(records.length, 1);
       const record = records[0]!;
       const body = JSON.parse(new TextDecoder().decode(await runtime.store.readSecure({ kind: "memory-candidates", id: record.id })));
       await runtime.store.commit({ kind: "memory-candidates", id: record.id, expectedVersion: record.version,
         metadata: record.metadata, secureBody: new TextEncoder().encode(JSON.stringify({ ...body, version: -1 })) });
-    } finally { await runtime.shutdown(); }
+    } finally { await runtime.shutdown(); owner.release(); }
     memory = await env.open();
   }
   for (let attempt = 0; attempt < 2; attempt++) {

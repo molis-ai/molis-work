@@ -51,7 +51,7 @@ export async function bindMemorySession(input: {
     if (kind === "coding") {
       if (!input.projectRef) throw memoryErrors.scope("编码会话需要原项目");
       if (!pinned) {
-        const choices = (await client.discover(caller)).filter(view => view.capability_id === "coding.sessions.binding.read" && view.version === 1
+        const choices = (await client.discover(caller)).filter(view => view.capability_id === "coding.sessions.binding.read" && view.version === /* @version action.coding.sessions.binding.read */ 1
           && view.provider.plugin_id === "io.molis.work.coding" && view.provider.project_id === project_id && view.availability.available);
         if (choices.length !== 1 || !choices[0]!.provider.plugin_install_id) throw memoryErrors.unavailable("当前编码会话主人不可用");
         pinned = choices[0]!;

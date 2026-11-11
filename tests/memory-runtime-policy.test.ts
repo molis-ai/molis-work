@@ -405,7 +405,7 @@ test("C1 only trusted management memory preflight inherits explicit access; ordi
   const row = { selector: { consumer: "assistant" as const, current_scene: "common" as const, kind: "convention" }, read: "explicit-only" as const, form: "inherit" as const };
   f.service.savePrefs({ ...person, consumer: "ui" }, "project", { class_restrictions: [row] });
   const caller: AgentMemoryCaller = { actor_id: person.actor_id, project_id: "a", consumer: "assistant", current_scene: "common", purpose: "management", run_explicit: true,
-    class_restrictions: { policy_version: 2, taxonomy_version: 1, personal: [], project: [row] } };
+    class_restrictions: { policy_version: 1, taxonomy_version: 1, personal: [], project: [row] } };
   type Request = Parameters<typeof f.options.authorize>[1][number];
   const request: Request = { appId: "io.molis.work", context: { consumer: "assistant", currentScene: "common", purpose: "management" }, action: "manage-read",
     target: { scope: "project", owner: "a", ref: { kind: "memory", id: entry.memory_id, revision: 1 }, version: entry.version, createdAtMs: 1, identityKnown: true,

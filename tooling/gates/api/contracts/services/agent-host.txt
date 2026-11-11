@@ -691,7 +691,7 @@ export interface AgentMemoryChange {
 }
 
 export interface AgentMemoryClassPolicy {
-    readonly policy_version: 2;
+    readonly policy_version: 1;
     readonly taxonomy_version: 1;
     readonly personal: readonly MemoryClassRestriction[];
     readonly project: readonly MemoryClassRestriction[];

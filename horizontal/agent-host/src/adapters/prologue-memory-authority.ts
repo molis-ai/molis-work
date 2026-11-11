@@ -129,7 +129,7 @@ export function createPrologueMemoryAuthority(options: PrologueMemoryOptions | u
   };
   const runCaller = (current: AgentMemoryCaller | undefined, frame: RunFrame): AgentMemoryCaller | undefined => {
     const memory = frame.attempt.memory_context, policy = memory?.class_restrictions;
-    if (!current || !memory || !policy || policy.policy_version !== 2 || policy.taxonomy_version !== 1
+    if (!current || !memory || !policy || policy.policy_version !== /* @version format.memory.class-policy */ 1 || policy.taxonomy_version !== /* @version format.memory.class-taxonomy */ 1
       || !isMemoryClassRestrictions(policy.personal) || !isMemoryClassRestrictions(policy.project)
       || memory.consumer !== current.consumer || memory.current_scene !== current.current_scene) return undefined;
     return { ...current, run_explicit: true, class_restrictions: structuredClone(policy),

@@ -25,7 +25,7 @@ export const memoryRestoreWritable = (path: string) => path === "memory/memory.d
 export function prepareHomeRestoreRetention(home: string, storageOwner: StorageOwner, control: HomeRestoreControl, inputs: HomeRestoreInputs):
   { readonly inputs: HomeRestoreInputs; readonly retention: MemoryRestoreRetention } {
   control.assertCurrent();
-  const current = freshMemoryHome(home, storageOwner) ? { format_version: 1 as const, decisions: [] } : inspectMemoryForgetting(home);
+  const current = freshMemoryHome(home, storageOwner) ? { format_version: /* @version format.memory.forgetting */ 1 as const, decisions: [] } : inspectMemoryForgetting(home);
   const path = MEMORY_FORGETTING_HOME_STORE.path, incoming = inputs.files.get(path);
   if (!incoming) throw invalidRestore();
   const bytes = incoming.source.kind === "archive" ? readSnapshotFile(incoming.source.path, incoming.size) : Buffer.from(incoming.source.bytes);

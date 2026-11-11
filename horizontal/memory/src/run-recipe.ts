@@ -30,7 +30,7 @@ export function memoryRunRecipe(caller: MemoryCaller, request: MemoryRecallReque
     ...(request.situation?.object_kind ? { object_kinds: [request.situation.object_kind] } : {}),
     ...(request.situation?.goal_id ? { goals: [request.situation.goal_id] } : {}) };
   const class_restrictions: AgentRecalledMemory["class_restrictions"] = {
-    policy_version: 2, taxonomy_version: 1,
+    policy_version: /* @version format.memory.class-policy */ 1, taxonomy_version: /* @version format.memory.class-taxonomy */ 1,
     personal: structuredClone(sources.preferences.prefsFor(caller.actor_id, "personal", null).class_restrictions),
     project: structuredClone(sources.preferences.prefsFor(caller.actor_id, "project", caller.project_id).class_restrictions),
   };

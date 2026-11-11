@@ -2,9 +2,9 @@
   "exceptions": {
     "class apps/local-host/src/project-host.ts#MolisWorkLocalHost": {
       "kind": "cohesive-unit",
-      "reason": "本地宿主的组合与门面：业务分别由 LocalHost、HomePluginHost、搜索与放置等 owner 实现，scene 授权只在此接线；按刚超出的行数抽类会增加转发层，不能改善实际职责边界。",
+      "reason": "本地宿主的组合与门面：业务分别由 LocalHost、HomePluginHost、搜索与放置等 owner 实现，scene 授权只在此接线；Memory V0 在同一装配根把既有 AgentHost 生命周期窄口与记忆会话绑定交给各自 owner，只增加接线，不新增写主人或执行链；按刚超出的行数抽类只会多一层转发。",
       "size": {
-        "lines": 322,
+        "lines": 327,
         "methods": 26
       }
     }

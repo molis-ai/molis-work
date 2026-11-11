@@ -13,7 +13,7 @@ export const MEMORY_SESSION_CLEAR_PREFIX = "memory-session-clear:";
 interface Group { scope: MemoryScope; owner: string; operation_id: string;
   memories: Array<{ memory_id: string; version: number }>; candidates: Array<{ candidate_id: string; version: number }> }
 export interface MemorySessionClearPlan {
-  version: 1; actor_id: string; operation_id: string; binding: MemorySessionBinding;
+  version: /* @version format.memory.session-clear-plan */ 1; actor_id: string; operation_id: string; binding: MemorySessionBinding;
   groups: Group[]; targets: MemorySessionPurgeTarget[]; started: boolean; complete: boolean; done: number;
 }
 const key = (item: Pick<MemorySessionPurgeTarget, "scope" | "owner" | "kind" | "id">) => JSON.stringify([item.scope, item.owner, item.kind, item.id]);
@@ -26,7 +26,7 @@ const fields = (value: object, allowed: readonly string[]) => Object.keys(value)
 export function isMemorySessionClearPlan(value: unknown): value is MemorySessionClearPlan {
   if (!value || typeof value !== "object") return false;
   const plan = value as MemorySessionClearPlan, binding = plan.binding;
-  if (!fields(plan, ["version", "actor_id", "operation_id", "binding", "groups", "targets", "started", "complete", "done"]) || plan.version !== 1
+  if (!fields(plan, ["version", "actor_id", "operation_id", "binding", "groups", "targets", "started", "complete", "done"]) || plan.version !== /* @version format.memory.session-clear-plan */ 1
     || !id(plan.actor_id) || !id(plan.operation_id) || !binding || !["coding", "assistant"].includes(binding.current_scene)
     || !binding.session || !id(binding.session.session_id) || binding.session.runtime_id !== "prologue" || !binding.target || !id(binding.target.id)
     || binding.target.kind !== binding.current_scene || !(binding.target.project_id === null || id(binding.target.project_id))
@@ -131,7 +131,7 @@ export class MemorySessionClear {
       if (item.kind === "memory") group.memories.push({ memory_id: item.id, version: item.version });
       else group.candidates.push({ candidate_id: item.id, version: item.version });
     }
-    const plan: MemorySessionClearPlan = { version: 1, actor_id: caller.actor_id, operation_id: preview_id, binding: structuredClone(binding),
+    const plan: MemorySessionClearPlan = { version: /* @version format.memory.session-clear-plan */ 1, actor_id: caller.actor_id, operation_id: preview_id, binding: structuredClone(binding),
       groups, targets, started: false, complete: false, done: 0 };
     this.ports.ledger.setMarker(caller.actor_id, MEMORY_SESSION_CLEAR_PREFIX + preview_id, plan, this.ports.now().toISOString());
     return { preview_id, memory_count: targets.filter(item => item.kind === "memory").length, candidate_count: targets.filter(item => item.kind === "memory-candidate").length };

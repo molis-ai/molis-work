@@ -21,6 +21,7 @@ function preserved(home: string) {
     ...value, ino: fs.lstatSync(join(home, path)).ino,
   }]));
 }
+const filesOf = (tree: ReturnType<typeof preserved>) => Object.fromEntries(Object.entries(tree).filter(([, state]) => "bytes" in state));
 const exactTree = (directory: string) => Object.fromEntries(Object.entries(homeStorageTree(directory)).map(([path, value]) =>
   [path, { ...value, ino: fs.lstatSync(join(directory, path)).ino }]));
 const originals = (directory: string) => fs.readdirSync(directory).filter(name => name.startsWith(".molis-home-restore-")).sort();
@@ -210,7 +211,14 @@ test("MEM-40: the current initializer never adopts a legacy-name-only Home", asy
   const before = preserved(f.home), beforeOriginals = originals(f.directory);
   assert.throws(() => new MolisWorkLocalHost({ homeDirectory: f.home, completeText: null }), { code: "memory.forgetting_invalid" });
   assert.equal(fs.existsSync(current), false);
-  assert.deepEqual(preserved(f.home), before); assertLedgerTwo(f.home, f.directory);
+  // The upgrade runs before this refusal and stamps a Home whose every store is current (UPG1-08, as in memory-initialization's
+  // RAC-105-A-07): that stamp is the only new entry, it says exactly that, and every file keeps its bytes, mode, mtime and inode.
+  const after = preserved(f.home), { "upgrade/state.json": stamp, ...afterFiles } = filesOf(after);
+  assert.ok(stamp, "every store is current, so the Home is stamped");
+  assert.deepEqual(Object.keys(JSON.parse(fs.readFileSync(join(f.home, "upgrade", "state.json"), "utf8"))).sort(), ["completed_at", "fingerprint", "home_identity", "schema_version"]);
+  assert.deepEqual(afterFiles, filesOf(before));
+  assert.deepEqual(Object.keys(after).filter(path => path !== "upgrade" && path !== "upgrade/state.json"), Object.keys(before), "no other entry is added or removed");
+  assertLedgerTwo(f.home, f.directory);
   assert.equal(fs.existsSync(join(f.root, ".molis-home-restore.json")), false);
   assert.deepEqual(originals(f.directory), beforeOriginals);
 });

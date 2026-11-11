@@ -45,10 +45,13 @@ test("two live Coding Runs expand explicit reads into their own Context, with bo
   };
   const action = { capability_id: memoryActions.list.capability_id, version: memoryActions.list.version, provider_id: MEMORY_PROVIDER_ID };
   await grantMcpAction(f.web, { clientId: "agent:prologue", projectId: null, action });
-  assert.equal((await f.call(f.other.project_id, "/api/workspaces", { workspace_path: f.directory, user_confirmed: true })).status, 201);
-  const listed = await f.call<{ workspaces: Array<{ workspace_id: string }> }>(f.other.project_id, "/api/project-settings/workspaces");
-  workspaces.B = listed.body.workspaces[0]!.workspace_id;
-  assert.equal((await f.call(f.other.project_id, "/api/project-settings/workspaces", { workspace_id: workspaces.B })).status, 200);
+  // Project B uses the same folder as its output, set the way the settings page sets it (as the fixture does for project A).
+  type Directories = { directories: Array<{ workspace_id: string; roles: string[] }>; revision: string };
+  const read = await f.call<Directories>(f.other.project_id, "/api/project-settings/directories");
+  const set = await f.call<Directories>(f.other.project_id, "/api/project-settings/directories",
+    { change: "set_output", input: { workspace_path: f.directory, expected_revision: read.body.revision } });
+  assert.equal(set.status, 200, JSON.stringify(set.body));
+  workspaces.B = set.body.directories.find(item => item.roles.includes("output"))!.workspace_id;
   const saved = {} as Record<"A" | "B", string>;
   for (const key of ["A", "B"] as const) {
     const value = await managerFor(key).invoke(memoryActions.write, { scope: "project", kind: "convention", text: `C1_SOURCE_${key}：${body[key]}` });

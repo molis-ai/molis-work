@@ -54,8 +54,8 @@ function decision(value: unknown): MemoryForgettingDecision {
 }
 function facts(value: unknown): MemoryForgettingFacts {
   const record = object(value, ["format_version", "decisions"]);
-  if (record.format_version !== 1) throw invalid();
-  return { format_version: 1, decisions: list(record.decisions, decision, operationKey) };
+  if (record.format_version !== /* @version format.memory.forgetting */ 1) throw invalid();
+  return { format_version: /* @version format.memory.forgetting */ 1, decisions: list(record.decisions, decision, operationKey) };
 }
 
 /** The sole decoder for this persisted boundary. Missing/partial data is never an empty list. */
@@ -78,7 +78,7 @@ export function mergeMemoryForgetting(current: MemoryForgettingFacts, incoming: 
     if (previous && !isDeepStrictEqual(previous, item)) throw conflict();
     if (!previous) selected.set(key, item);
   }
-  return { format_version: 1, decisions: [...selected.values()].sort((left, right) => compare(operationKey(left), operationKey(right))) };
+  return { format_version: /* @version format.memory.forgetting */ 1, decisions: [...selected.values()].sort((left, right) => compare(operationKey(left), operationKey(right))) };
 }
 
 /** Stable ordinary-file inspection is shared by startup, snapshots and offline restore. */
@@ -115,7 +115,7 @@ export function initializeMemoryForgetting(input: ForgettingOwner): void {
   current(input);
   if (readdirSync(input.homeDirectory).some(name => name !== "agent-runtime" && (name !== "storage-space.json" || readStorageSpace(input.homeDirectory) === null))
     || !hasOnlyStorageOwnerFiles(join(input.homeDirectory, "agent-runtime"), input.storageOwner)) throw invalid();
-  atomicWriteFileSync(filePath(input.homeDirectory), serializeMemoryForgetting({ format_version: 1, decisions: [] }), { mode: 0o600, durable: true });
+  atomicWriteFileSync(filePath(input.homeDirectory), serializeMemoryForgetting({ format_version: /* @version format.memory.forgetting */ 1, decisions: [] }), { mode: 0o600, durable: true });
   current(input);
 }
 
@@ -129,7 +129,7 @@ export function startMemoryForgettingGeneration(input: ForgettingOwner): void {
   try { lstatSync(filePath(input.homeDirectory)); }
   catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw invalid(); present = false; }
   if (present) { inspectMemoryForgetting(input.homeDirectory); return; }
-  atomicWriteFileSync(filePath(input.homeDirectory), serializeMemoryForgetting({ format_version: 1, decisions: [] }), { mode: 0o600, durable: true });
+  atomicWriteFileSync(filePath(input.homeDirectory), serializeMemoryForgetting({ format_version: /* @version format.memory.forgetting */ 1, decisions: [] }), { mode: 0o600, durable: true });
   current(input);
 }
 
@@ -160,7 +160,7 @@ export function openMemoryForgetting(input: ForgettingOwner): MemoryForgettingPo
       const previous = read(), old = previous.decisions.find(item => item.actor_id === selection.actor_id && item.operation_id === selection.operation_id);
       const next = decision({ ...selection, accepted_at: old?.accepted_at ?? new Date().toISOString() });
       if (old && !isDeepStrictEqual(old, next)) throw conflict();
-      const merged = old ? previous : mergeMemoryForgetting(previous, { format_version: 1, decisions: [next] });
+      const merged = old ? previous : mergeMemoryForgetting(previous, { format_version: /* @version format.memory.forgetting */ 1, decisions: [next] });
       current(input);
       // A same-operation retry also confirms durability after an earlier rename/dirsync uncertainty.
       // No SDK effect is permitted until this write and its original owner check both return.

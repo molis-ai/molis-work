@@ -90,9 +90,12 @@ for (const readAction of [memoryActions.list, memoryActions.recall]) test(`produ
   const withCatalog = host.ensureWebCatalog(home, openMolisWorkProjectCatalog).withCatalog;
   served = await serveTestHost(null, { home, host });
   const project = await served.createProject("Run memory action policy", ["coding"]);
-  await served.web.post(`/projects/${project.project_id}/api/workspaces`, { workspace_path: directory, user_confirmed: true });
-  const workspaces = await served.web.get<{ workspaces: Array<{ workspace_id: string }> }>(`/projects/${project.project_id}/api/project-settings/workspaces`);
-  assert.ok(workspaces.workspaces[0]);
+  // The run's folder is the project's output, set the way the settings page sets it.
+  type Directories = { directories: Array<{ workspace_id: string; roles: string[] }>; revision: string };
+  const folders = `/projects/${project.project_id}/api/project-settings/directories`, { revision } = await served.web.get<Directories>(folders);
+  const set = await served.web.post<Directories>(folders, { change: "set_output", input: { workspace_path: directory, expected_revision: revision } });
+  const output = set.directories.find(item => item.roles.includes("output"));
+  assert.ok(output);
   const action = { capability_id: readAction.capability_id, version: readAction.version, provider_id: MEMORY_PROVIDER_ID };
   await grantMcpAction(served.web, { clientId: "agent:prologue", projectId: null, action });
 
@@ -112,7 +115,7 @@ for (const readAction of [memoryActions.list, memoryActions.recall]) test(`produ
   const { session } = await served.web.post<{ session: { session_id: string } }>(`${coding}/sessions`, { title: "Memory action snapshot" });
   const web = served.web;
   const start = async () => (await web.post<{ run: AgentRunView }>(`${coding}/sessions/${session.session_id}/runs`, {
-    intent: "discuss", task: "请调用所选能力查看项目记忆。", workspace_id: workspaces.workspaces[0]!.workspace_id,
+    intent: "discuss", task: "请调用所选能力查看项目记忆。", workspace_id: output.workspace_id,
     action_tools: [action], provider_id: "fixture", model_id: "fixture-model",
   })).run;
   // Coding's real routes call the plugin-only readSession/readRun/wait Actions, including their strict output schemas.
@@ -157,7 +160,12 @@ for (const readAction of [memoryActions.list, memoryActions.recall]) test(`produ
   assert.deepEqual(nextView.class_restrictions?.project, []);
   assert.ok(JSON.stringify(requests[1]![0]).includes(SENTINEL), "the next reviewed Run uses its newly captured automatic read permission");
   assert.ok(nextView.activity.some(item => item.name === toolNames[1] && item.state === "completed"), "the new Run must execute the same granted action successfully");
-  assert.ok(JSON.stringify(toolResults(1)).includes(SENTINEL), "the newly authorized current public read Action returns the persisted memory");
+  // A Run's read tool answers with a bounded receipt and budget, never the body (spec「C1 独审后的合同收束」): the body reaches the model
+  // only through the Run's Context, which the next assertion checks.
+  const receipts = toolResults(1).map(block => JSON.parse(String(block.content)) as { receiptId?: unknown; outcome?: unknown });
+  assert.ok(receipts.length > 0 && receipts.every(receipt => typeof receipt.receiptId === "string" && (receipt.outcome === "queued" || receipt.outcome === "none")),
+    "the newly authorized read Action answers with its bounded receipt");
+  assert.ok(!JSON.stringify(toolResults(1)).includes(SENTINEL), "the read tool's answer carries no memory body");
   assert.ok(JSON.stringify(requests[1]).includes(SENTINEL), "the real next HTTP context carries the authorized memory");
   const after = await memory.invoke(memoryActions.list, { scope: "project" });
   assert.deepEqual(after.items.map(item => [item.memory_id, item.text, item.version]), before.items.map(item => [item.memory_id, item.text, item.version]), "reading neither replaces nor deletes the formal memory");

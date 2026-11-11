@@ -67,8 +67,8 @@ export interface AgentPinnedMemory { scope: "user" | "project" | "character"; ow
 
 /** App-owned reading recipe. Selection, current authorization and final token accounting belong to the SDK. */
 export interface AgentMemoryClassPolicy {
-  readonly policy_version: 2;
-  readonly taxonomy_version: 1;
+  readonly policy_version: /* @version format.memory.class-policy */ 1;
+  readonly taxonomy_version: /* @version format.memory.class-taxonomy */ 1;
   readonly personal: readonly MemoryClassRestriction[];
   readonly project: readonly MemoryClassRestriction[];
 }

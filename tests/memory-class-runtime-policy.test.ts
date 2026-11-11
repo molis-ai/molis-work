@@ -30,7 +30,7 @@ async function fixture(t: TestContext) {
 
 // MEM-CLASS-01 / MEM-24: policy is applied to canonical entries, independently by action.
 test("canonical read and form restrictions preserve personal management and original grants", async t => {
-  const f = await fixture(t); assert.equal(f.policy.policy.version, 2);
+  const f = await fixture(t); assert.equal(f.policy.policy.version, 1);
   f.set({ class_restrictions: [row("off", "inherit")] });
   assert.equal(await f.policy.authorize(caller, [request("read")]), false);
   assert.equal(await f.policy.authorize(caller, [request("propose")]), true);
@@ -59,7 +59,7 @@ test("automatic updates check both canonical before and target class", async t =
 // MEM-CLASS-02 / MEM-27: current restrictions and original Run restrictions are an intersection.
 test("current closure acts immediately and reopening does not relax the frozen Run", async t => {
   const f = await fixture(t);
-  const frozen = { ...caller, session_id: "session-a", class_restrictions: { policy_version: 2 as const, taxonomy_version: 1 as const,
+  const frozen = { ...caller, session_id: "session-a", class_restrictions: { policy_version: 1 as const, taxonomy_version: 1 as const,
     personal: [], project: [row("off", "off")] } };
   assert.equal(await f.policy.authorize(frozen, [request("read")]), false);
   assert.equal(await f.policy.authorize(frozen, [request("propose")]), false);
@@ -81,7 +81,7 @@ test("candidate context can form without formal reads and closed classes leave c
   const learning = { ...caller, purpose: "management" as const, source_use: "learning" as const,
     candidate_access: { purpose: "formation-receipt" as const, scope: pending.target.scope, owner: pending.target.owner,
       candidate_id: pending.target.ref.id, version: pending.target.version },
-    session_id: "original-run", class_restrictions: { policy_version: 2 as const, taxonomy_version: 1 as const,
+    session_id: "original-run", class_restrictions: { policy_version: 1 as const, taxonomy_version: 1 as const,
       personal: [], project: [row("off", "inherit")] } };
   const explicit = { ...learning, source_use: "explicit" as const };
   f.set({ class_restrictions: [row("off", "inherit")] });

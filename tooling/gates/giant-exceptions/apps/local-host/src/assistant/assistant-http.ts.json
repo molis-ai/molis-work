@@ -1,0 +1,9 @@
+{
+  "exceptions": {
+    "function apps/local-host/src/assistant/assistant-http.ts#assistantServiceFor": {
+      "kind": "cohesive-unit",
+      "reason": "助理服务的组合根：在一处把宿主端口、本人调用上下文（personContext 闭包）与各协作者接起来。Memory V0 让项目资料目录也用本人上下文和项目自己的动作客户端读取（多 4 行），必须共用同一个 personContext；把它挪出去要么复制上下文构造，要么多传一层闭包，都不改善职责边界。",
+      "size": 154
+    }
+  }
+}

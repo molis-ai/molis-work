@@ -80,7 +80,7 @@ test("MEM-CLASS-02: actual SDK Run retains its frozen restriction after reopenin
   f.service.savePrefs(person, "project", { class_restrictions: [] });
   const first = await f.run(frozen);
   assert.equal(first.phase, "completed", first.stop_reason);
-  assert.deepEqual(first.class_restrictions, { policy_version: 2, taxonomy_version: 1, personal: [], project: [restriction] });
+  assert.deepEqual(first.class_restrictions, { policy_version: 1, taxonomy_version: 1, personal: [], project: [restriction] });
   assert.equal(f.requests.length, 1); assert.doesNotMatch(f.requests[0]!, /FROZEN_CONVENTION/);
   assert.ok(f.authorized.some(item => item.purpose === "task" && item.class_restrictions?.project.length === 1), "the SDK authority saw the actual Run snapshot");
   const second = await f.run(await f.recipe());

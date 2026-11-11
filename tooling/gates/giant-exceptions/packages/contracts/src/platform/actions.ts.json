@@ -1,0 +1,9 @@
+{
+  "exceptions": {
+    "file packages/contracts/src/platform/actions.ts": {
+      "kind": "cohesive-unit",
+      "reason": "动作合同的唯一类型出口：ActionCallContext、执行上下文、绑定客户端与描述符在同一文件，宿主注入、永不进入业务输入的字段必须和它们的剥离规则写在一起。Memory V0 只加记忆会话、Run 选择、来源检查与主体状态捕获这几项宿主专用字段（约 20 行），拆开会让同一调用上下文的定义分散到多处。",
+      "size": 818
+    }
+  }
+}

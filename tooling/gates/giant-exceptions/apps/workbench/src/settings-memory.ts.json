@@ -1,0 +1,9 @@
+{
+  "exceptions": {
+    "file apps/workbench/src/settings-memory.ts": {
+      "kind": "cohesive-unit",
+      "reason": "个人、项目与本人会话复用同一管理页面与 binder，HTML 与 DOM 选择器成套；分页当前性、原 CAS 命令、确认与编辑历史、固定清理回执共享同一 root、reader 与 pendingCommands 生命周期。分类矩阵已独立成文件，再拆会分散同页失效与原请求恢复控制，不新增写主人。",
+      "size": 888
+    }
+  }
+}

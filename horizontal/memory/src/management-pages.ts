@@ -12,7 +12,7 @@ import { belongsToMemorySession } from "./classification.js";
 export interface MemoryPageLimits { defaultLimit: number; maxLimit: number; scanLimit: number }
 const DEFAULT_PAGE_LIMITS: MemoryPageLimits = { defaultLimit: 40, maxLimit: 100, scanLimit: 200 };
 interface PagePorts { backend: MemoryBackendPort; ledger: MemoryLedgerPort; scopes: MemoryScopeCommands; isForgotten: MemoryService["isForgotten"]; now(): Date; limits?: Partial<MemoryPageLimits> }
-interface Continuation { version: 1; binding: string; index: number; cursor?: string }
+interface Continuation { version: /* @version format.memory.page-cursor */ 1; binding: string; index: number; cursor?: string }
 
 /** One bounded page over current authorized owners; it never reads the full formal list. */
 export class MemoryManagementPages {
@@ -93,8 +93,8 @@ export class MemoryManagementPages {
       items.push({ ...projected, owner: where.owner, kind: kind as MemoryManagementKind, state: meta.state, state_reason: meta.state_reason,
         classification: entry.meta.classification ?? null, expired: isExpired(meta, now) });
     }
-    const next = result.exhausted ? { version: 1 as const, binding, index: position.index + 1 }
-      : { version: 1 as const, binding, index: position.index, cursor: result.cursor };
+    const next = result.exhausted ? { version: /* @version format.memory.page-cursor */ 1 as const, binding, index: position.index + 1 }
+      : { version: /* @version format.memory.page-cursor */ 1 as const, binding, index: position.index, cursor: result.cursor };
     const exhausted = result.exhausted && next.index === scopes.length;
     const total = scopes.length === 1 && suppliedCursor === undefined && !query && unclassified === undefined && !omitted
       ? result.total : { kind: "unknown" as const };
@@ -122,15 +122,15 @@ function pageFilter(input: MemoryPageRequest["filter"] = {}): NonNullable<Memory
 }
 
 function pagePosition(value: string | undefined, binding: string, scopes: number): Continuation {
-  if (value === undefined) return { version: 1, binding, index: 0 };
+  if (value === undefined) return { version: /* @version format.memory.page-cursor */ 1, binding, index: 0 };
   if (typeof value !== "string" || value.length > 65536) throw memoryErrors.invalid("分页游标超出限额");
   let parsed: unknown;
   try { parsed = JSON.parse(Buffer.from(value, "base64url").toString("utf8")); } catch { throw memoryErrors.invalid("分页游标无效"); }
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw memoryErrors.invalid("分页游标无效");
   const token = parsed as Partial<Continuation>;
-  if (token.version !== 1 || token.binding !== binding || !Number.isSafeInteger(token.index) || token.index === undefined || token.index < 0 || token.index >= scopes
+  if (token.version !== /* @version format.memory.page-cursor */ 1 || token.binding !== binding || !Number.isSafeInteger(token.index) || token.index === undefined || token.index < 0 || token.index >= scopes
     || token.cursor !== undefined && (typeof token.cursor !== "string" || !token.cursor)) throw memoryErrors.conflict("分页范围或筛选已改变，请重新查看第一页");
-  return { version: 1, binding, index: token.index, ...(token.cursor === undefined ? {} : { cursor: token.cursor }) };
+  return { version: /* @version format.memory.page-cursor */ 1, binding, index: token.index, ...(token.cursor === undefined ? {} : { cursor: token.cursor }) };
 }
 
 function pageCursor(value: Continuation): string {

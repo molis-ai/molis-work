@@ -30,7 +30,7 @@ function payloadOf(task: Pick<AgentScheduledTask, "key" | "session_id" | "payloa
   if (!body || !only(body, ["source_kind", "owner", "owner_action", "session_id", "run_id", "sources"]) || body.source_kind !== "plugin-run"
     || !owner || !only(owner, ownerKeys) || !ownerKeys.every(key => string(owner[key]))
     || !action || !only(action, ["capability_id", "version", "provider_id"]) || action.capability_id !== memoryLearningActions.run.capability_id
-    || action.version !== 1 || !string(action.provider_id) || !string(body.session_id) || !string(body.run_id) || body.session_id !== task.session_id
+    || action.version !== memoryLearningActions.run.version || !string(action.provider_id) || !string(body.session_id) || !string(body.run_id) || body.session_id !== task.session_id
     || !Array.isArray(body.sources) || !body.sources.length || body.sources.length > 6 || body.sources.some(raw => {
       const ref = object(raw); return !ref || !only(ref, ["event_id", "version"]) || typeof ref.event_id !== "string" || !ref.event_id || ref.event_id.length > 1000 || ref.version !== "1";
     })) throw memoryErrors.invalid("持久学习任务的原来源或安装引用无效");
@@ -69,7 +69,7 @@ export function pluginMemoryLearning(input: {
     const plugin = context.host_plugin, scope = currentPluginInvocation();
     if (context.audience !== "plugin" || !plugin || !plugin.project_id || !scope || scope.install_id !== plugin.install_id)
       throw memoryErrors.forbidden("自动学习只能由当前来源安装发起");
-    const definition = plugin.declaration.manifest.actions?.find(action => action.capability_id === memoryLearningActions.run.capability_id && action.version === 1);
+    const definition = plugin.declaration.manifest.actions?.find(action => action.capability_id === memoryLearningActions.run.capability_id && action.version === memoryLearningActions.run.version);
     if (!definition || definition.operation !== "command" || !definition.action.audiences?.includes("plugin"))
       throw memoryErrors.unavailable("来源插件没有装配学习主人");
     const platform = await platformFor({ project_id: plugin.project_id, plugin_id: plugin.plugin_id });
@@ -140,7 +140,7 @@ export function pluginMemoryLearning(input: {
     const payload = payloadOf(task), { owner } = payload, scope = currentPluginAction();
     if (request.session_id !== payload.session_id || request.run_id !== payload.run_id || !scope || scope.install_id !== owner.install_id
       || scope.installation_generation !== owner.installation_generation || scope.definition.capability_id !== memoryLearningActions.run.capability_id
-      || scope.definition.version !== 1) throw memoryErrors.forbidden("形成只能嵌套在本次当前来源主人调用内");
+      || scope.definition.version !== memoryLearningActions.run.version) throw memoryErrors.forbidden("形成只能嵌套在本次当前来源主人调用内");
     const assertCurrent = authority(context, owner), check = sourceCheck(context), original = await originals(payload);
     if (!original || !isDeepStrictEqual(payload.sources, original.sources.map(({ event_id, version }) => ({ event_id, version }))))
       throw memoryErrors.forbidden("学习任务的完整本人原件已不可核验");

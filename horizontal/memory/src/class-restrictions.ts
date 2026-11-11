@@ -51,7 +51,7 @@ export function callerClassAllowed(prefs: MemoryPrefs, caller: {
   const context = { consumer: caller.consumer, current_scene }, policy = caller.class_restrictions;
   const allowed = (rows: readonly MemoryClassRestriction[]) => mode === "form"
     ? memoryClassFormationAllowed(rows, context, target) : memoryClassReadAllowed(rows, context, target, mode);
-  return allowed(prefs.class_restrictions) && (!policy || policy.policy_version === 2 && policy.taxonomy_version === 1
+  return allowed(prefs.class_restrictions) && (!policy || policy.policy_version === /* @version format.memory.class-policy */ 1 && policy.taxonomy_version === /* @version format.memory.class-taxonomy */ 1
     && allowed(policy[scope === "personal" ? "personal" : "project"]));
 }
 

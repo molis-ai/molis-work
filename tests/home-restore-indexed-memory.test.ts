@@ -307,11 +307,14 @@ test(`MEM-40-I2: ${phase} keeps the original owner and cleanup capability until 
     if (sql === "COMMIT" && file(this) === join(f.root, "records.sqlite") && journal()?.phase === "publishing") committed.add(this);
     return result;
   });
+  // Only the SDK's own indexed connection: Molis's generic snapshot inspection opens the same file through the same node:sqlite class
+  // since the driver change (#1979), and its close is not what this invariant is about.
+  const fromSdk = () => /@prologue[\\/]sdk[\\/]dist[\\/]/u.test(new Error().stack ?? "");
   const closeFault = t.mock.method(DatabaseSync.prototype, "close", function(this: DatabaseSync) {
     const actual = file(this), current = journal();
-    const target = phase.startsWith("preflight") ? actual === join(f.snapshot, "data", "agent-runtime", "records.sqlite")
+    const target = fromSdk() && (phase.startsWith("preflight") ? actual === join(f.snapshot, "data", "agent-runtime", "records.sqlite")
       : actual === join(f.root, "records.sqlite") && current?.phase === (phase === "committed" ? "committed" : "publishing")
-        && (phase !== "publishing-purge" || committed.has(this));
+        && (phase !== "publishing-purge" || committed.has(this)));
     if (retained.has(this) || target && ++matches >= (phase === "preflight-read" ? 2 : 1)) {
       retained.add(this); throw new Error("injected before actual indexed native close");
     }

@@ -18,7 +18,7 @@ export interface MemoryForgettingDecision extends MemoryForgettingSelection {
 }
 
 export interface MemoryForgettingFacts {
-  readonly format_version: 1;
+  readonly format_version: /* @version format.memory.forgetting */ 1;
   readonly decisions: readonly MemoryForgettingDecision[];
 }
 

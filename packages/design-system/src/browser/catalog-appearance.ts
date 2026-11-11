@@ -45,10 +45,15 @@ function wireFade(): void {
   if (!stage || !now || !to || !back || !look) return;
   const root = document.documentElement;
   const fade = createLookFade();
+  const label = () => {
+    const words = globalThis.t.text;
+    const name = root.dataset.look === look ? words(stage.dataset.lookFadeName!) : stage.dataset.lookFadeSoft!;
+    now.textContent = words("workbench.catalog-appearance.using-name", { name });
+  };
   const show = (worn: boolean) => {
     if (worn) root.dataset.look = look;
     else delete root.dataset.look;
-    now.textContent = (worn ? stage.dataset.nowLook : stage.dataset.nowSoft) ?? "";
+    label();
     to.disabled = worn;
     back.disabled = !worn;
     (worn ? back : to).focus();
@@ -58,6 +63,7 @@ function wireFade(): void {
   };
   to.addEventListener("click", () => change(true));
   back.addEventListener("click", () => change(false));
+  document.addEventListener("molis-work:language-changed", label);
 }
 
 export function wireCatalogAppearance(): void {

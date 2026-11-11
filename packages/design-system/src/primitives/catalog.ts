@@ -66,8 +66,8 @@ function paletteSection(): string {
   </div>`);
 }
 
-function typefaceSection(): string {
-  return section("typeface", "workbench.env.font", `<div class="mw-catalog__specimens">
+function typefaceSection(say: Say): string {
+  return section("typeface", say("workbench.env.font"), `<div class="mw-catalog__specimens">
     ${specimen("字重角色", `<div class="mw-type-sample">
       <p class="mw-type-sample__display">今天的工作</p>
       <p class="mw-type-sample__title">打磨 Molis Work 的第一印象</p>
@@ -221,7 +221,7 @@ export function renderPrimitiveCatalog(options: { readonly plugins?: readonly Ca
   const say = options.say ?? t;
   const sections = `
     ${paletteSection()}
-    ${typefaceSection()}
+    ${typefaceSection(say)}
     ${lookSections(say)}
     ${iconSection()}
     ${micSection(say)}

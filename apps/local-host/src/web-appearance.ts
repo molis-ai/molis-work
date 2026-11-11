@@ -31,7 +31,8 @@ export function createWorkbenchAppearancePorts(owner: AppearanceOwner<WebLocale>
     choices() {
       const { skins, fonts } = installedAppearanceChoices();
       return { stylesheet: APPEARANCE_STYLESHEET_HREF, baseline: { skin: BASELINE_SKIN.ref, font: BASELINE_FONT.ref },
-        skins: skins.map(skin => ({ ...skin, name: label(skin.name) })), fonts: fonts.map(font => ({ ...font, name: label(font.name) })) };
+        skins: skins.map(skin => ({ ...skin, name: label(skin.name), name_ref: skin.name })),
+        fonts: fonts.map(font => ({ ...font, name: label(font.name), name_ref: font.name })) };
     },
   };
 }

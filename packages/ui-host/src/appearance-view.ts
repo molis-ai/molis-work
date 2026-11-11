@@ -1,4 +1,4 @@
-import type { UiAppearanceSelection, UiDefinitionRef, UiEnvironmentSnapshot } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { TextRef, UiAppearanceSelection, UiDefinitionRef, UiEnvironmentSnapshot } from "@molis-ai/molis-work-contracts/platform/ui";
 
 export interface WorkbenchAppearance {
   readonly snapshot: UiEnvironmentSnapshot;
@@ -7,7 +7,7 @@ export interface WorkbenchAppearance {
   readonly stylesheet: string | null;
 }
 
-interface NamedAppearance { readonly ref: UiDefinitionRef; readonly name: string }
+interface NamedAppearance { readonly ref: UiDefinitionRef; readonly name: string; readonly name_ref: TextRef }
 export interface WorkbenchAppearanceChoices {
   readonly baseline: { readonly skin: UiDefinitionRef; readonly font: UiDefinitionRef };
   readonly skins: readonly (NamedAppearance & { readonly recommended_font: UiDefinitionRef })[];

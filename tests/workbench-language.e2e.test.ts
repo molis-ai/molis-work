@@ -1146,10 +1146,18 @@ test("FSS-20 FSS-34 FSS-37 the catalog and capsule switch their existing documen
   await waitFor("typeof molisWorkSelectLocalLanguage === 'function' && document.querySelector('[data-board-lang=en]')");
   const first = await evaluate("document.documentElement.lang");
   assert.equal(first, "zh-CN");
+  await waitFor("document.readyState === 'complete' && document.querySelector('[data-look-fade-to]')");
+  await evaluate("document.querySelector('[data-look-fade-to]').click(); document.querySelector('[data-catalog-media-zoom]').click()");
+  await waitFor("document.querySelector('[data-look-fade-now]').textContent === '正在用 暖色草稿' && document.querySelector('[data-catalog-media-zoom]').textContent === '适应窗口'");
   await evaluate("window.catalogHeading = document.querySelector('h1'); document.querySelector('[data-board-lang=en]').click()");
   await waitFor("document.documentElement.lang === 'en'");
   assert.deepEqual(await evaluate("[catalogHeading === document.querySelector('h1'), catalogHeading.textContent.trim(), document.querySelector('[data-board-lang=en]').getAttribute('aria-pressed')]"),
     [true, "Molis Work Component catalog", "true"]);
+  assert.deepEqual(await evaluate(`[document.querySelector('#typeface h2').textContent, document.querySelector('[data-catalog-index] a[href="#typeface"]').textContent,
+    document.querySelector('[data-look-fade-now]').textContent, document.querySelector('[data-catalog-media-zoom]').textContent, document.documentElement.dataset.look]`),
+    ["Font", "Font", "Using Warm draft", "Fit to window", "warm"]);
+  await evaluate("document.querySelector('[data-look-fade-back]').click(); document.querySelector('[data-catalog-media-zoom]').click()");
+  await waitFor("document.querySelector('[data-look-fade-now]').textContent === 'Using Soft Workbench' && document.querySelector('[data-catalog-media-zoom]').textContent === 'Actual size'");
   assert.match(await evaluate<string>("document.cookie"), /molis_work_locale=zh/u);
 
   await b.navigate(() => command("Page.navigate", { url: origin + "/desktop/capsule?locale=zh" }, sessionId));

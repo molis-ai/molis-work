@@ -62,7 +62,8 @@ export function mountAppearancePicker(root: HTMLElement, initial: WorkbenchAppea
 
   function name(selection: UiAppearanceSelection): string {
     const selected = candidateProjection(current, choices, selection).snapshot;
-    return [skinChoice(choices, selected.skin.id)?.name, font(selected.font.scheme.id)?.name, selection.mono && font(selection.mono.id)?.name].filter(Boolean).join(" · ");
+    const names = [skinChoice(choices, selected.skin.id)?.name_ref, font(selected.font.scheme.id)?.name_ref, selection.mono && font(selection.mono.id)?.name_ref];
+    return names.flatMap(ref => ref ? [globalThis.say.text("literal" in ref ? ref : { ...ref, owner: "workbench" })] : []).join(" · ");
   }
 
   function draw(): void {

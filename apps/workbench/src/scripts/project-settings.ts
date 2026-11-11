@@ -79,7 +79,7 @@ export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
         const ready = () => !busy && (cleanupPending || (asks ? choice !== null : confirmation.checked));
         const label = () => cleanupPending ? globalThis.t.text("workbench.project-settings.retry-cleanup") : asks && choice === "delete" ? globalThis.t.text("workbench.project-settings.delete-project-files") : asks && choice === "keep" ? globalThis.t.text("workbench.project-settings.delete-project") : globalThis.t.text("workbench.project-settings.confirm-project-deletion");
         const paintWords = () => {
-          const summary = asks ? globalThis.t.text("workbench.project-settings.permanently-delete-project-s-goals-records-links-molis") : globalThis.t.text("workbench.project-settings-folds.permanently-delete-project-s-goals-records-connections-molis");
+          const summary = asks ? globalThis.t.text("workbench.project-settings.delete-project-data") : globalThis.t.text("workbench.project-settings-folds.delete-project-data");
           const action = busy ? globalThis.t.text("workbench.project-settings.deleting") : label();
           if (description.textContent !== summary) description.textContent = summary;
           if (submit.textContent !== action) submit.textContent = action;
@@ -183,7 +183,7 @@ export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
             });
             unsure = false;
             cleanupPending = result.deletion.cleanup_state !== "complete";
-            if (cleanupPending) throw new Error(globalThis.t.text("workbench.project-settings.project-has-been-removed-directory-but-local-data"));
+            if (cleanupPending) throw new Error(globalThis.t.text("workbench.project-settings.removed-project-data-pending"));
             busyNotice.hidden = true;
             if (result.kept_output_directory) { showKept(result.kept_output_directory); return; }
             location.assign(globalThis.molisWorkNavigationUrl(form.dataset.projectDirectoryHref));
@@ -229,10 +229,10 @@ export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
           const error = button.closest("section, details")?.querySelector("[data-demo-error]") || document.querySelector("[data-demo-error]");
           const toast = document.querySelector("[data-settings-toast]");
           const message = action === "create"
-            ? globalThis.t.text("workbench.project-settings.create-demo-project-that-clearly-marked-regenerable")
+            ? globalThis.t.text("workbench.project-settings.create-demo-description")
             : action === "reset"
-              ? globalThis.t.text("workbench.project-settings.rebuilding-demo-clears-every-change-does-not-touch")
-              : globalThis.t.text("workbench.project-settings.delete-regenerable-demo-user-projects-will-not-be");
+              ? globalThis.t.text("workbench.project-settings.rebuild-demo-description")
+              : globalThis.t.text("workbench.project-settings.delete-demo-description");
           if (!window.confirm(message)) return;
           disable(true);
           if (error) error.hidden = true;

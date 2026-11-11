@@ -445,6 +445,27 @@ test("FSS-02 FSS-17 FSS-20 the same appearance specimen works at three widths in
   }
 });
 
+test("FSS-20 FSS-35 switching language retitles the open Folio specimen", { timeout: 75_000 }, async t => {
+  const b = await openGoalBrowser(t, "user", undefined, null);
+  if (!b) return;
+  await b.setViewport(1440, 900);
+  await b.navigate(() => b.command("Page.navigate", { url: `${b.origin}/locale?lang=zh&next=%2Fsettings%2Fappearance` }, b.sessionId));
+  await b.waitFor(`document.querySelector(${JSON.stringify(candidate)})?.getClientRects().length`);
+  await b.click(candidate);
+  const title = `${proof}.querySelector('.mw-card__description').textContent`;
+  const label = `${proof}.querySelector('.mw-look-proof__canvas').parentElement.getAttribute('aria-label')`;
+  await b.waitFor(`${proof}.dataset.state === 'ready' && ${title}.includes('Folio 圆润')`);
+  await b.evaluate(`window.batch16Proof = ${proof}`);
+  await b.click('[data-ui-language="en"]');
+  await b.waitFor(`document.documentElement.lang === 'en' && ${title} === 'Trying: Folio · Folio Rounded'`);
+  assert.match(await b.evaluate<string>(label), /Folio Rounded/u);
+  assert.equal(await b.evaluate(`${proof} === batch16Proof && ${proof}.dataset.state === 'ready'`), true);
+  assert.equal(await b.evaluate(pageSkin), soft);
+  await b.click('[data-look-cancel]');
+  await b.click(candidate);
+  await b.waitFor(`${proof}.dataset.state === 'ready' && ${title} === 'Trying: Folio · Folio Rounded'`);
+});
+
 test("FSS-17 FSS-68 a trusted language click works during the live Folio fade", { timeout: 50_000 }, async t => {
   const b = await openGoalBrowser(t, "empty", undefined, null);
   assert.ok(b);

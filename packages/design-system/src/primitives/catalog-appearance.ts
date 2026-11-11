@@ -156,7 +156,7 @@ const FADE_LOOK = WARM_LOOK;
 export function lookFadeSection(say: Say): string {
   const now = (look: BoardLook) => say("workbench.catalog-appearance.using-name", { name: boardLook(say, look).name });
   // The look the page changes to is the one that differs most from the baseline in the page's own tones, so the change is seen.
-  const data = `data-look-fade-look="${FADE_LOOK.id}" data-now-soft="${escapeHtml(now(SOFT_LOOK))}" data-now-look="${escapeHtml(now(FADE_LOOK))}"`;
+  const data = `data-look-fade-look="${FADE_LOOK.id}" data-look-fade-name="${escapeHtml(FADE_LOOK.nameKey!)}" data-look-fade-soft="${escapeHtml(SOFT_LOOK.name)}"`;
   return section("look-fade", say("workbench.catalog-appearance.look-fade"), `<div class="mw-catalog__specimens">
     ${specimen(say("workbench.catalog-appearance.when-a-look-is-used-undone-or"), `<div class="mw-look-fade" data-look-fade ${data}>
       <p class="mw-look-fade__now" role="status" aria-live="polite" data-look-fade-now>${escapeHtml(now(SOFT_LOOK))}</p>

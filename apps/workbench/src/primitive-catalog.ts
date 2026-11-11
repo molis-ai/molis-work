@@ -182,7 +182,9 @@ const SPECIMEN_SCRIPT = `
   if (streams.length) play();
   // The media zoom: the button says what it does next, as a preview's own control would.
   const media = document.querySelector("[data-catalog-media]"), button = document.querySelector("[data-catalog-media-zoom]");
-  const zoom = media && window.molisMediaZoom?.(media, media.querySelector("img"), { onChange: (state) => { button.textContent = state === "fit" ? "原始尺寸" : "适应窗口"; } });
+  const paintZoom = (state) => { if (button) button.textContent = globalThis.t.text(state === "fit" ? "workbench.primitive-catalog.actual-size" : "workbench.primitive-catalog.fit-window"); };
+  const zoom = media && window.molisMediaZoom?.(media, media.querySelector("img"), { onChange: paintZoom });
+  document.addEventListener("molis-work:language-changed", () => { if (zoom) paintZoom(zoom.state()); });
   button?.addEventListener("click", () => { if (zoom) zoom.state() === "fit" ? zoom.actual() : zoom.fit(); });
 })();
 (() => {

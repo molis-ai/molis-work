@@ -72,7 +72,7 @@ const announce = (id: string, status: ReturnStatus | "ended" | "refused") => doc
 /** A trip a page asked for that did not open (no settings, no trips in this document): its `go()` is refused at once. */
 const refuse = (id: unknown) => { if (typeof id === "string" && id.length <= 64) announce(id, "refused"); };
 /** Said on the bar and in the toast when the place the person came from was closed. */
-const GONE = "workbench.settings-return.page-came-closed-what-set-up-kept";
+const GONE = "workbench.settings-return.source-closed";
 const IDLE: SettingsReturn = { open: detail => refuse((detail as Detail | null)?.return_id), refuse, link() {}, saved: async () => {}, start() {}, paint() {} };
 
 function sessionStore(): Storage | null {
@@ -126,9 +126,9 @@ function paintReturnBar(_L: SettingsReturnHost["translate"], kind: string | null
   bar.classList.toggle("mw-alert--info", state !== "ready");
   // "What you wrote is kept" only when the page said where its draft is.
   const kept = Boolean(trip.carry?.draft_key), model = trip.need.kind === "model";
-  const body = state === "gone" ? uiText.text(GONE) : state === "ready" ? uiText.text("workbench.settings-return.its-set-up-can-go-back-now")
-    : state === "look" ? uiText.text("workbench.settings-return.when-youre-done-press-go-back-return-where")
-    : (model ? uiText.text("workbench.settings-return.goes-back-once-model-set-up") : uiText.text("workbench.settings-return.goes-back-once-connected")) + (kept ? uiText.text("workbench.settings-return.what-wrote-kept") : "");
+  const body = state === "gone" ? uiText.text(GONE) : state === "ready" ? uiText.text("workbench.settings-return.ready")
+    : state === "look" ? uiText.text("workbench.settings-return.back-instruction")
+    : (model ? uiText.text("workbench.settings-return.waiting-model") : uiText.text("workbench.settings-return.waiting-connection")) + (kept ? uiText.text("workbench.settings-return.what-wrote-kept") : "");
   setText(bar.querySelector("[data-return-bar-title]"), view.name ? uiText.text("workbench.settings-return.name", { name: view.name }) : uiText.text("workbench.settings-return.previous-page"));
   setText(bar.querySelector("[data-return-bar-body]"), body);
   setText(bar.querySelector("[data-return-bar-back] [data-slot=button-label]"), state === "waiting" ? uiText.text("workbench.settings-return.go-back-now") : state === "gone" ? uiText.text("workbench.settings-return.close-settings") : uiText.text("workbench.settings-return.go-back"));
@@ -156,7 +156,7 @@ export function createSettingsReturn(host: SettingsReturnHost): SettingsReturn {
   const windowId = startReturnWindow(storage, Date.now(), returnLanding(location.search, location.origin), () => crypto.randomUUID());
   const workspace = () => host.tabWorkspace() || null;
   const coverKind = () => workspace()?.exclusive?.() || null;
-  const fallback = uiText.text("workbench.settings-return.try-again-moment"), read = (need: ReturnNeed) => readNeed(need, fallback);
+  const fallback = uiText.text("workbench.settings-return.try-again"), read = (need: ReturnNeed) => readNeed(need, fallback);
   const ready = new Set<string>();
   const owner = createReturnOwner({
     storage, window: windowId, project, now: () => Date.now(), newId: () => crypto.randomUUID(),
@@ -206,7 +206,7 @@ export function createSettingsReturn(host: SettingsReturnHost): SettingsReturn {
     owner.settle(trip.id, status);
     const name = nameOf(trip), model = trip.need.kind === "model";
     if (landed === "gone") host.showToast?.(uiText.text(GONE));
-    else if (status === "ready" && trip.need.kind !== "none") host.showToast?.(model ? (name ? uiText.text("workbench.settings-return.model-connected-back-name", { name }) : uiText.text("workbench.settings-return.model-connected-can-carry"))
+    else if (status === "ready" && trip.need.kind !== "none") host.showToast?.(model ? (name ? uiText.text("workbench.settings-return.model-connected-back-name", { name }) : uiText.text("workbench.settings-return.model-ready"))
       : name ? uiText.text("workbench.settings-return.connected-back-name", { name }) : uiText.text("workbench.settings-return.connected"));
   };
   function paint() {

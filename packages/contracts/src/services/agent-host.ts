@@ -3,13 +3,13 @@ import type { ContractDescriptor } from "../platform/package.js";
 import type { AgentRuntimeAdapter, AgentRuntimeDescriptor, AgentRuntimeCapabilityMatrix, AgentSessionRef, AgentRunRef } from "./agent-host-runtime.js";
 import type { AgentReviewQueueApi, AgentReviewRequest, AgentReviewReceipt } from "./agent-host-reviews.js";
 import type { ActionDefinition, ActionView } from "../platform/actions.js";
-import type { AgentCreateSessionInput, AgentSkillRef, AgentWorkingDirectory, AgentStartInput } from "./agent-host-start.js";
-import type { AgentSubagentView, AgentSkillCatalogEntry, AgentSkillCandidate, AgentMcpServerView, AgentMcpServerInput, AgentRecoveryReport, AgentCheckpoint } from "./agent-host-ports.js";
+import type { AgentCreateSessionInput, AgentStartInput } from "./agent-host-start.js";
+import type { AgentSubagentView, AgentMcpServerView, AgentMcpServerInput, AgentRecoveryReport, AgentCheckpoint } from "./agent-host-ports.js";
 export type {AgentSavedHistoryMessage,AgentSavedHistoryRun,AgentSavedHistoryView} from './agent-history.js';
 import type { AgentProjectWork, AgentProjectWorkOverlap, AgentSessionMessage, AgentPeopleMessageInput, AgentPeopleMessageAction, AgentMessageAttachment, AgentBackgroundTask } from "./agent-host-session.js";
 import type { AgentSessionView, AgentSessionStatus, AgentRunHandle, AgentRunView, AgentRunControl, AgentCommandOutputRef, AgentCommandOutput } from "./agent-host-run-view.js";
 import type { AgentCollaborationSessionView } from "./agent-collaboration.js";
-import type { AgentSkillDefinition } from "../platform/plugin-agent.js";
+import { SKILL_REFS_MAX, skillRefSchema } from "./skill-ref-schema.js";
 // Declared by domain in the agent-host-*.ts files beside this one (W5-09); this subpath exports all of them.
 export { AGENT_RUNTIME_CAPABILITIES, defaultAgentRuntime, hostsAgentSessions, isTerminalAgentPhase, resolveProjectRuntime } from "./agent-host-runtime.js";
 export type {
@@ -32,7 +32,8 @@ export type {
   AgentWorkspace,
   AgentTextMaterial,
   AgentImageMaterial,
-  AgentSkillRef,
+  AgentFrozenSkill,
+  AgentRoundSkill,
   AgentMcpToolRef,
   AgentMcpSourceRef,
   AgentReasoningEffort,
@@ -110,11 +111,7 @@ export type {
 export type {
   AgentCheckpoint,
   AgentCheckpointsCapability,
-  AgentSkillCatalogEntry,
   AgentSkillOwner,
-  AgentSkillCandidate,
-  AgentSkillLibrary,
-  AgentSkillsCapability,
   AgentMcpServerInput,
   AgentMcpServerView,
   AgentMcpLibrary,
@@ -322,7 +319,8 @@ const frozenOutput = shape(["role_id", "role_version", "execution", "model_id", 
   role_id: string, role_version: number, execution: { enum: ["read-only", "text-edit", "workspace-write", "operate"] }, model_id: string, budget: { type: ["object", "null"] },
   workspace: { enum: ["required", "none", "business"] }, directory: object, call_id: string,
   prompts: list(shape(["prompt_id", "version", "layer"], { prompt_id: string, version: number, layer: { enum: ["base", "role", "project", "task"] }, user_revision: number })),
-  skills: objects, mcp_tools: objects, mcp_sources: objects, host_tools: strings, action_tools: objects, character: object, character_skill_ids: strings, execution_plan: object, subagent_workspaces: objects,
+  skills: list(shape(["ref", "origin", "name", "tools", "named"], { ref: object, origin: { enum: ["own", "catalog"] }, name: string, tools: strings, named: { type: "boolean" } })),
+  reply_locale: { enum: ["zh", "en"] }, mcp_tools: objects, mcp_sources: objects, host_tools: strings, action_tools: objects, character: object, character_skill_ids: strings, execution_plan: object, subagent_workspaces: objects,
   directories: shape(["directories_revision", "output", "inputs", "execution"], { directories_revision: string, output: string, inputs: strings,
     execution: { anyOf: [shape(["kind"], { kind: { const: "output" } }), shape(["kind", "worktree_id"], { kind: { const: "worktree" }, worktree_id: string })] } }),
   text_materials: list({ anyOf: [
@@ -364,9 +362,6 @@ const runtimeOutput = { type: "object", required: ["runtime_id", "display_name",
   supports_action_tools: { type: "boolean" }, supports_workspace_none: { type: "boolean" }, supports_workspace_business: { type: "boolean" }, supports_character_limits: { type: "boolean" } } } as const;
 const actionViewOutput = { type: "object", required: ["capability_id", "version", "operation", "action", "provider", "availability"], additionalProperties: false, properties: {
   capability_id: { type: "string" }, version: { type: "integer" }, provider_id: { type: "string" }, operation: { enum: ["query", "command"] }, action: object, provider: object, availability: object } } as const;
-const skillProperties = { skill_id: { type: "string" }, version: { type: "integer" }, name: { type: "string" }, summary: { type: "string" }, tools: strings } as const;
-const skillEntryOutput = { type: "object", required: ["skill_id", "version", "name", "summary", "tools", "source", "enabled"], additionalProperties: false, properties: {
-  ...skillProperties, source: { enum: ["builtin", "installed"] }, enabled: { type: "boolean" } } } as const;
 const mcpServerOutput = { type: "object", required: ["id", "version", "label", "enabled", "transport", "timeout_ms", "credential", "health", "tools", "resources"], additionalProperties: false, properties: {
   id: { type: "string" }, version: { type: "integer" }, label: { type: "string" }, enabled: { type: "boolean" }, transport: { enum: ["stdio", "http"] }, timeout_ms: { type: "integer" },
   directory: object, executable: { type: "string" }, argv: strings, endpoint: { type: "string" }, credential: { enum: ["none", "present"] }, auth_connection_id: { type: "string" },
@@ -400,13 +395,12 @@ const startInput = { type: "object", required: ["session", "task", "role_id"], a
   ] } },
   image_materials: { type: "array", maxItems: 50, items: { type: "object", required: ["material_id", "title", "resource", "media_type"], additionalProperties: false, properties: { material_id: entryId, title: text(2000),
     resource: { type: "object", required: ["id", "revision"], additionalProperties: false, properties: { id: entryId, revision: count } }, media_type: entryId } } },
-  skills: { type: "array", maxItems: 200, items: { type: "object", required: ["skill_id", "version"], additionalProperties: false, properties: { skill_id: entryId, version: count } } },
+  skills: { type: "array", maxItems: SKILL_REFS_MAX, items: skillRefSchema },
   mcp_tools: { type: "array", maxItems: 500, items: { type: "object", required: ["server", "tool", "version", "configuration_version"], additionalProperties: false, properties: { ...mcpRef, tool: entryId, version: entryId } } },
   mcp_sources: { type: "array", maxItems: 200, items: { type: "object", required: ["server", "configuration_version"], additionalProperties: false, properties: mcpRef } },
   budget: { type: "object", additionalProperties: false, properties: { max_turns: count, max_output_tokens: count, max_total_tokens: count, max_duration_ms: { type: "integer", minimum: 1, maximum: 2_147_483_647 } } },
   workspace: workspaceKind, directory: directoryInput } } as const;
 /** Offered to plugins only, which reach them through `services.actions` once their Manifest consumes them; nothing else needed. */
-const skillRef = { type: "object", required: ["skill_id", "version"], additionalProperties: false, properties: { skill_id: entryId, version: count } } as const;
 const mcpServerInput = { type: "object", required: ["expected_version", "label", "enabled", "timeout_ms", "transport"], additionalProperties: false, properties: {
   id: entryId, expected_version: { type: "integer", minimum: 0 }, label: text(2000), enabled: { type: "boolean" }, timeout_ms: { type: "integer", minimum: 1, maximum: 3_600_000 },
   transport: { enum: ["stdio", "http"] }, directory: directoryInput, executable: text(4096), argv: { type: "array", maxItems: 200, items: text(32_768) }, endpoint: text(4096),
@@ -556,30 +550,6 @@ export const agentHostCapabilities = {
     action: { title: "不再等", description: "放下一项还在等的工作，并写明为什么。", kind: "operation", ...pluginOnly,
       input_schema: { type: "array", minItems: 3, maxItems: 3, items: [runtimeId, entryId, { type: "string", maxLength: 2000 }], additionalItems: false } },
   } as ActionDefinition<[runtimeId: string, workId: string, note: string], void>,
-  /** The calling plugin's method library on this Runtime (R8 rule 1: the library's owner is the caller). */
-  listSkills: {
-    capability_id: "agent.skills.list", version: /* @version action.agent.skills.list */ 1, operation: "query",
-    action: { title: "列出方法", description: "调用插件在这个运行时上的方法库：内置的与装进来的。", kind: "query", ...pluginOnly,
-      input_schema: { type: "array", minItems: 1, maxItems: 1, items: [runtimeId], additionalItems: false }, output_schema: { type: "array", items: skillEntryOutput } },
-  } as ActionDefinition<[runtimeId: string], AgentSkillCatalogEntry[]>,
-  readSkill: {
-    capability_id: "agent.skills.read", version: /* @version action.agent.skills.read */ 1, operation: "query",
-    action: { title: "读一个方法", description: "读调用插件方法库里的一个方法的正文。", kind: "query", ...pluginOnly,
-      input_schema: { type: "array", minItems: 2, maxItems: 2, items: [runtimeId, skillRef], additionalItems: false },
-      output_schema: { type: "object", required: ["skill_id", "version", "name", "summary", "tools", "body"], additionalProperties: false, properties: { ...skillProperties, body: { type: "string" } } } },
-  } as ActionDefinition<[runtimeId: string, ref: AgentSkillRef], AgentSkillDefinition>,
-  discoverSkills: {
-    capability_id: "agent.skills.discover", version: /* @version action.agent.skills.discover */ 1, operation: "query",
-    action: { title: "在工作区里找方法", description: "在调用插件授权的工作区里找能装的方法。", kind: "query", ...pluginOnly,
-      input_schema: { type: "array", minItems: 3, maxItems: 3, items: [runtimeId, directoryInput, text(4096)], additionalItems: false },
-      output_schema: { type: "array", items: { type: "object", required: ["candidate_id", "name", "summary", "source_label", "files", "body"], additionalProperties: false, properties: {
-        candidate_id: { type: "string" }, name: { type: "string" }, summary: { type: "string" }, source_label: { type: "string" }, files: strings, body: { type: "string" } } } } },
-  } as ActionDefinition<[runtimeId: string, directory: AgentWorkingDirectory, path: string], AgentSkillCandidate[]>,
-  installSkill: {
-    capability_id: "agent.skills.install", version: /* @version action.agent.skills.install */ 1, operation: "command",
-    action: { title: "装一个方法", description: "把找到的一个方法装进调用插件自己的方法库。", kind: "operation", ...pluginOnly,
-      input_schema: { type: "array", minItems: 2, maxItems: 2, items: [runtimeId, entryId], additionalItems: false }, output_schema: skillEntryOutput },
-  } as ActionDefinition<[runtimeId: string, candidateId: string], AgentSkillCatalogEntry>,
   /**
    * The calling plugin's MCP servers on this Runtime. Listing also brings the project's action directory up to what they offer now
    * (the Host's own bookkeeping, not a business record), after the call's last check.

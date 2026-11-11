@@ -7,7 +7,7 @@ import { nextHistoryMode } from "./history-digest.js";
 import { savedMaterials } from "./materials.js";
 import { type CodingActivation, selected, sessionState, savedBudget, savedDigestUsage, priorityOf } from "./route-activation.js";
 import { codingActions, codingActionControl, type CodingBeforeWrite } from "./route-entry.js";
-import { bodyOf, savedActions, methodSelection, mcpSelection, mcpSources } from "./route-selections.js";
+import { bodyOf, savedActions, savedSkills, mcpSelection, mcpSources } from "./route-selections.js";
 import { nextConfiguration, text } from "./run-inputs.js";
 import { codingRunForDisplay, codingSessionUsage, SESSION_PAGE, summariesFingerprint } from "./session-window.js";
 import { codingTaskBoardPlans, stepVerdictKey } from "./taskboard.js";
@@ -131,11 +131,10 @@ const ROUTES: RouteMaker[] = [
       const savedSources = context.services?.storage?.get(`mcp-sources:${record.session_id}`);
       const mcp_sources = typeof savedSources === "string" ? mcpSources(JSON.parse(savedSources)) : [];
       const materials = savedMaterials(context, record.session_id);
-      const savedMethods = context.services?.storage?.get(`methods:${record.session_id}`);
-      const methods = typeof savedMethods === "string" ? methodSelection(JSON.parse(savedMethods)) : [];
+      const skills = savedSkills(context, record.session_id);
       const question_drafts=savedInputs.question_drafts;
       const wait = await a.waits.openWaitOf(record).catch(() => undefined), queuedView = wait ? a.waits.waitView(wait) : null, priority = priorityOf(a, record.session_id);
-      if (!record.runtime_session_id) return { saved_history:codingSavedHistoryPage(execution,projectId,record.session_id,undefined,Number(request.query?.window??20)), session: { ...record, queued: queuedView, priority, goal_title: record.goal_id ? execution.goalTitles.known(record.goal_id) ?? null : null }, runs: [], draft, question_drafts,input_revision, materials, methods, configuration, action_tools, mcp_tools, mcp_sources, character, character_title, character_skill_ids: savedCharacterSkills(context, record.session_id), plan,plan_revision };
+      if (!record.runtime_session_id) return { saved_history:codingSavedHistoryPage(execution,projectId,record.session_id,undefined,Number(request.query?.window??20)), session: { ...record, queued: queuedView, priority, goal_title: record.goal_id ? execution.goalTitles.known(record.goal_id) ?? null : null }, runs: [], draft, question_drafts,input_revision, materials, skills, configuration, action_tools, mcp_tools, mcp_sources, character, character_title, character_skill_ids: savedCharacterSkills(context, record.session_id), plan,plan_revision };
       const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
       try {
         const snapshot = await codingActions(a.context, beforeWrite).invoke(agent.readSession, [session]);
@@ -154,7 +153,7 @@ const ROUTES: RouteMaker[] = [
         const state = snapshot.recovery ? "reconcile-required" : last ? sessionState(last) : "idle";
         const updated = { ...record, state };
         const compactRequested = context.services?.storage?.get(`compact-next:${record.session_id}`) === "1";
-        return { saved_history:codingSavedHistoryPage(execution,projectId,record.session_id,undefined,Number(request.query?.window??20)), session: { ...updated, queued: queuedView, queued_inputs: snapshot.queued_inputs, priority, checkpoint_busy: snapshot.checkpoint_busy === true, goal_title: updated.goal_id ? execution.goalTitles.known(updated.goal_id) ?? null : null }, runs: shown, subagents: await subagentGroups(a, beforeWrite, record.session_id, session, runs, execution.locale), taskboard_plans: codingTaskBoardPlans(context, record.session_id, runs), draft, question_drafts,input_revision, materials, methods, configuration, action_tools, mcp_tools, mcp_sources, character, character_title, character_skill_ids: savedCharacterSkills(context, record.session_id), plan,plan_revision, checkpoint_busy: snapshot.checkpoint_busy === true,
+        return { saved_history:codingSavedHistoryPage(execution,projectId,record.session_id,undefined,Number(request.query?.window??20)), session: { ...updated, queued: queuedView, queued_inputs: snapshot.queued_inputs, priority, checkpoint_busy: snapshot.checkpoint_busy === true, goal_title: updated.goal_id ? execution.goalTitles.known(updated.goal_id) ?? null : null }, runs: shown, subagents: await subagentGroups(a, beforeWrite, record.session_id, session, runs, execution.locale), taskboard_plans: codingTaskBoardPlans(context, record.session_id, runs), draft, question_drafts,input_revision, materials, skills, configuration, action_tools, mcp_tools, mcp_sources, character, character_title, character_skill_ids: savedCharacterSkills(context, record.session_id), plan,plan_revision, checkpoint_busy: snapshot.checkpoint_busy === true,
           run_count: snapshot.runs.length, runs_offset: offset,
           ...(size === undefined ? {} : { earlier_fingerprint: earlierFingerprint, ...(request.query?.earlier === earlierFingerprint ? {} : { earlier }) }),
           usage_total: codingSessionUsage([...earlier.map(summary => summary.usage), ...runs.map(run => run.usage)], savedDigestUsage(a, record.session_id)),
@@ -164,7 +163,7 @@ const ROUTES: RouteMaker[] = [
         // Never replace a lost runtime reference with a new session: that would
         // silently lose history and could repeat effects after a restart.
         const session = { ...record, state: "reconcile-required" as const };
-        return { session, runs: [], draft, question_drafts,input_revision, materials, methods, configuration, action_tools, mcp_tools,mcp_sources, character, character_title, character_skill_ids: savedCharacterSkills(context, record.session_id), plan,plan_revision, recovery_required: true,
+        return { session, runs: [], draft, question_drafts,input_revision, materials, skills, configuration, action_tools, mcp_tools,mcp_sources, character, character_title, character_skill_ids: savedCharacterSkills(context, record.session_id), plan,plan_revision, recovery_required: true,
           error: (error as { code?: string }).code === "agent.session_unknown"
             ? codingText(execution.locale)("coding.server.record-not-restored")
             : codingText(execution.locale)("coding.server.record-unreadable") };

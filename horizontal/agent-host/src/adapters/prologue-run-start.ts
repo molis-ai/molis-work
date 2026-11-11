@@ -2,6 +2,7 @@ import { agentErrors } from "../errors.js";
 import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentRunHandle, AgentRunRef, AgentRunView, AgentRuntimeDescriptor, AgentStartExecution, AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { STEP_TOOLS } from "../execution-plan.js";
+import { skillRefKey } from "../round-skills.js";
 import { freezeRunStart, validateRunAttachments } from "./prologue-frozen.js";
 import type { PrologueAdapterPorts, PrologueModelConfiguration, PrologueRuntimePort, PrologueStartInput } from "./prologue-ports.js";
 import { isEnded, type PrologueRunStore, type RunRecord, type SessionRecord } from "./prologue-run-store.js";
@@ -56,10 +57,9 @@ async function checkRoundStartable(context: RunStartContext, request: AgentStart
     throw agentErrors.capability_unavailable("这个 Runtime 尚未接通副作用审批，不能运行会写入的角色");
   }
 
-  if ((request.skills?.length ?? 0) !== (role.skills?.length ?? 0)
-    || role.skills?.some(skill => !request.skills?.some(ref => ref.skill_id === skill.skill_id && ref.version === skill.version))
-    || ((role.skills?.length ?? 0) > 0 && !runtime.inlineMethods)) {
-    throw agentErrors.capability_unavailable("方法未由宿主解析或当前运行时不能展开方法");
+  const requested = (request.skills ?? []).map(skillRefKey), frozen = (role.skills ?? []).map(skill => skillRefKey(skill.ref));
+  if (JSON.stringify(requested) !== JSON.stringify(frozen) || (frozen.length > 0 && !runtime.inlineMethods)) {
+    throw agentErrors.capability_unavailable("技能未由宿主解析或当前运行时不能展开技能");
   }
   if ((request.mcp_tools?.length || request.mcp_sources?.length) && descriptor.capabilities.mcp === "unsupported") throw agentErrors.capability_unavailable("此运行时尚未接通 MCP 审查");
   if (role.compaction && !runtime.compaction) throw agentErrors.capability_unavailable("上下文整理尚未接通");

@@ -68,7 +68,7 @@ Manifest、定义与 Runtime 拒绝共用 `ActionError`；作者捕获 SDK 导�
 
 Integration Manifest 用 `source_presentations` 声明纯展示；`definePollingIntegrationPlugin` 的 `presentSource(id, input)` 只收展示 id 与普通数据，不接收启动 context 或来源 binding。输入只含可选 cursor，返回只含可选 `scope_options`、`conditional_request`、`home_url`（可为 null），由同一 `checkedSourcePresentationInput` / `checkedSourcePresentation` 检查。沙箱展示固定 query、`effects: {}`，不取得拉取的连接效果。回归：`tests/integration-registry.test.ts`、`tests/sandbox-integration.test.ts`。
 
-签名 app 包的原始清单使用 `parsePluginPackageManifest` 校验：角色资料是 `{ name, purpose, body }`，方法就是 Manifest 的方法声明（`description`、`applies_to` 必填，另要求写 `body`、`tools` 为空）；验签后由 `sandboxAgentDeclarations` 唯一派生纯文字角色，方法按包写的原样带上，启动时用 `assertSandboxAgentDefinition` 核对同一限制。`sandboxRoleIdentity` 保留完整 plugin/name 身份；派生数字版本不代替签名包的完整版本。方法的正文与资源由 `readPackagedSkills`（`src/skill-files.ts`）读，内容包与沙箱包共用这一份。包内正文格式与上限见[插件开发手册](../../docs/platform/PLUGIN-DEVELOPMENT.md#沙箱包格式与安装)。这些文字只作为有来源的不可信材料，不授予执行权限。
+签名 app 包的原始清单使用 `parsePluginPackageManifest` 校验：角色资料是 `{ name, purpose, body }`，方法就是 Manifest 的方法声明（`description`、`applies_to` 必填，另要求写 `body`、`tools` 为空）；验签后由 `sandboxAgentDeclarations` 唯一派生纯文字角色，方法按包写的原样带上，启动时用 `assertSandboxAgentDefinition` 核对同一限制。`sandboxRoleIdentity` 保留完整 plugin/name 身份，角色带的提示词 id 由 `sandboxPromptId` 从角色 id 派生（宿主记用量时用同一个）；派生数字版本不代替签名包的完整版本。方法的正文与资源由 `readPackagedSkills`（`src/skill-files.ts`）读，内容包与沙箱包共用这一份。包内正文格式与上限见[插件开发手册](../../docs/platform/PLUGIN-DEVELOPMENT.md#沙箱包格式与安装)。这些文字只作为有来源的不可信材料，不授予执行权限。
 
 ## 富文本子路径 `/rich-text`
 

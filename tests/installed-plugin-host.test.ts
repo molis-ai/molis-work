@@ -27,7 +27,7 @@ import { SCHEDULE_OPERATION_WAKEUP, SCHEDULE_PLUGIN_ID } from '@molis-ai/molis-w
 import { pluginBindingScope } from '@molis-ai/molis-work-service-connector-host';
 import { callAs, callerPlugin, issuedCaller, registerProbe, startProjectPlugins } from './fixtures/plugin-callers.js';
 import { agentDefinitionsFor } from '../apps/local-host/dist/agent-definitions/agent-definitions.js';
-import { builtinRegistrations } from '../apps/local-host/dist/agent-definitions/builtin-registrations.js';
+import { builtinRegistrations } from '../apps/local-host/dist/agent-definitions/builtin-agents.js';
 import { PACKAGE_PLUGIN_ID, newPublisher, signedPackage } from './fixtures/sandbox-package.js';
 
 const mac = { skip: process.platform !== 'darwin', timeout: 30_000 };

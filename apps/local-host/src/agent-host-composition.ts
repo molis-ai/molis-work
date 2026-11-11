@@ -31,11 +31,16 @@ import { registerWorkspaceGitActions } from "./workspace-git-actions.js";
 import { registerWorkspaceGitWriters } from "./workspace-git-writers.js";
 import { createGitWorktreePort } from "./workspace-git-worktrees.js";
 import { draftText } from "./model-draft.js";
+import { SKILLS_READ_PERMISSION } from "@molis-ai/molis-work-contracts/services/skills";
 import { agentHostCapabilities, type AgentMcpLibrary, type AgentRuntimeDescriptor, type AgentSkillOwner, type AgentWriteCheckerStore } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { resolveConfiguredHome } from "./product-home.js";
 import { memoryForAgentRun } from "./memory/memory-host.js";
 import { assistantConnectionCheckers } from "./assistant/assistant-connection-authority.js";
 import { workAuthorityCheck } from "./agent-work-authority.js";
+import { currentNamedSkills, ownSkillSource, roundSkillCatalog } from "./agent-round-skills.js";
+import { pluginInstallRecords } from "./plugin-install-records.js";
+import { replyLanguage } from "./reply-language.js";
+import { lastUsedLocale } from "./ui-locale-memory.js";
 
 /**
  * Wires the Agent Host into a running Host.
@@ -259,6 +264,12 @@ async function preparePluginAgent(options: AgentHostCompositionOptions, caller: 
   return { authority, workspaces, output };
 }
 
+/** The language of the plugin action this round starts in, read only for that installation's own running call (as `currentOriginalInput`). */
+function currentCallLocale(caller: HostPluginCaller | undefined) {
+  const invocation = currentPluginInvocation();
+  return invocation && "definition" in invocation && invocation.install_id === caller?.install_id ? invocation.caller.locale : undefined;
+}
+
 function currentOriginalInput(caller: HostPluginCaller | undefined) {
   const invocation = currentPluginInvocation();
   return invocation && "definition" in invocation && invocation.install_id === caller?.install_id
@@ -283,6 +294,9 @@ async function startAuthority(
   const consumesCharacters = manifest?.artifacts?.consumes?.some(type => type.artifact_type_id === CHARACTER_ARTIFACT_TYPE && type.schema_version === /* @version type.character.definition */ 1);
   const original = currentOriginalInput(caller);
   const places = await runPlaces(options, runtime.project_id);
+  const reference = { project_id: runtime.project_id, storage_key: runtime.store.path };
+  const record = caller ? pluginInstallRecords(runtime.store.db).get(caller.install_id) ?? localHost.homePlugins?.installation(caller.install_id) ?? null : null;
+  const named = currentNamedSkills(caller);
   // The round's number: the call that starts it (agent.run.start), else a new one. The Runtime calls its tools later, in its own loop,
   // outside that call, so the number goes into every tool call's context instead of being read from the scope.
   const callId = currentCallId() ?? newCallId();
@@ -298,9 +312,18 @@ async function startAuthority(
     ...(places.output && options.prepareDirectory ? { prepareOutput: async () => { await options.prepareDirectory!(runtime.project_id, places.output!.workspace_id, "write"); } } : {}),
     prompts: declared?.prompts ?? [],
     skills: declared?.skills ?? [],
-    skill_owner: { project_id: runtime.project_id, plugin_id: pluginId },
+    // A round reads the shared catalog as the plugin that starts it, with its own grants (§3.1); only the Skills the Host's own delegation
+    // named are read as the person who named them. The named list is the one the Host bound to this call, never anything in its input.
+    ...(caller && record ? { skill_source: ownSkillSource(record), skillCatalog: roundSkillCatalog({ client: localHost.actionClient(reference),
+      plugin: { actor_id: caller.actor_id, actor_kind: "user", project_id: runtime.project_id, audience: "plugin", permissions: [...record.grants],
+        host_plugin: caller, plugin_install_id: caller.install_id, call_id: callId },
+      ...(named?.named.from === "host" ? { delegated: { refs: named.named.refs, person: { actor_id: named.person.actor_id, actor_kind: "user" as const,
+        project_id: runtime.project_id, audience: "user" as const, permissions: [SKILLS_READ_PERMISSION], call_id: callId } } } : {}),
+      named: named?.named.refs ?? [] }) } : {}),
+    mcp_owner: { project_id: runtime.project_id, plugin_id: pluginId },
+    // The language of the call this round starts in (the page's, or the one the Host settled for its delegation), else the one last used.
+    reply_language: replyLanguage(currentCallLocale(caller) ?? lastUsedLocale(homeDirectory ?? resolveConfiguredHome())),
     actions: async (runtimeId, validate, session) => {
-      const reference = { project_id: runtime.project_id, storage_key: runtime.store.path };
       // `actor_id` stays the grant's client id: `agent:<runtime>`, or the task grant subject the Host composed for a plugin's round, whose
       // catalog holds only the categories its provider offers a task now. The session is the one the Host checked against the Runtime's own
       // record when it started the round, never one read from the request or the tool input: it scopes what the tools write and who is

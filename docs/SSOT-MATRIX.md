@@ -123,6 +123,7 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 | `horizontal/runtime-host` | 本机终端（PTY）进程的启动、接入、写入、缩放、结束与有限回放 | PTY server host；Codex 会话适配器与路由已随 Sessions 下线删除，Sessions 重做见 BL-177；缺片：Sessions 重做（Codex 会话适配器已随 Sessions 下线删除）；后续：BL-177 | `slice` | WK2 已迁 Host/Adapter；WK3 已迁产品编排 | 横向服务：@yijunw0212 |
 | `horizontal/agent-host` | Agent Runtime 注册、能力矩阵、启动授权与副作用 Review 队列 | Prologue 为主执行引擎（文字/结构化/图片/判断推理、Agent 轮次、外部 MCP、任务板、子代理、检查点、后台命令与等待），没有第二个执行引擎（`claude` 命令行适配器已于 2026-10 删除，外部 Agent 运行时按口径暂缓）；同一 Home 只有一个执行归属（`.molis-runtime-owner.db` 锁）；审查队列；唯一直接依赖 `@prologue/sdk` 的包 | `production` | Plugin Platform v2；`docs/platform/PROLOGUE-AI.md` | 共享核心：@yijunw0212、@jingxusandra-gif |
 | `horizontal/account` | 中央账号协议与 Host 会话适配；身份和商业事实由 Auth 持有，本地身份与 Home 不变 | 固定中央客户端、可信环境、持久会话、邮箱/手机认证及 Google/GitHub 回跳；资料与商业管理页面待后续任务 | `slice` | `specs/unified-account/spec.md` | 横向服务：@yijunw0212 |
+| `horizontal/kit` | 能力包：现算这个范围里的能力包（插件包、自带、你的角色），给每条盖来源与所属的包、读出包状态 | `gatherKit`；系统动作 `kit.catalog.list` 由 Host 装配；条目由各主人的上报动作给，自己不存任何东西 | `production` | `specs/capability-pack/contract-design.md` | 横向服务：@yijunw0212 |
 | `horizontal/knowledge` | 项目资料：项目里所有 Agent 共用的资料查找与读取（卡片、分节、按节读原文、逐行查找），经系统搜索找、向对象主人读，用调用者的授权 | `KnowledgeService`；系统动作 `knowledge.list/search/outline/read/grep/glob` 由 Host 与系统搜索同处装配；不保存正文；内置 Agent 在项目里默认持有（可在对外接入撤销） | `production` | `specs/archive/project-knowledge/spec.md` | 横向服务：@yijunw0212 |
 | `horizontal/search` | 系统搜索：经动作目录发现插件的搜索来源、维护可重建索引、按调用者权限聚合结果 | `SearchService`；系统动作 `search.query/open/status/rebuild` 由 Host 装配；索引持久化在 storage 适配；不读插件私有库 | `production` | `specs/archive/system-search/spec.md` | 横向服务：@yijunw0212 |
 | `horizontal/memory` | 平台记忆：个人与项目记忆的开关与策略、确定性写入门、召回编排、候选、最近变动与撤销、界面信号计数 | `MemoryService`；系统动作 `memory.*` 由 Host 装配；正文、版本、删除与隔离在 Prologue Memory（经 Agent Host）；旁表在 storage 适配；不调用模型 | `production` | `specs/archive/memory-system/spec.md` | 横向服务：@yijunw0212 |
@@ -210,17 +211,32 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 | 当前范围的目录与读取 | apps/local-host 的 Agent definitions | system.skills 的四个动作，每次投影安装、声明与授权；manual 只认宿主冻结点名 |
 | 技能自动/仅手动状态、接受后的使用记录 | apps/local-host 的 Agent definitions | agent-definitions 库第 2 版的 skill_settings、skill_uses；项目与 home 分开，off 不留行；卸载删除状态、保留历史 |
 
-第 08 批提供目录与记账入口；助理/Coding 接入是第 09 批，下面旧消费配置在切换完成前仍按当前实现记载。
+助理和 Coding 都只读这一份目录（第 09 批）：Coding 旧的方法发现、安装和 Prologue 存储里的 `molis-coding-method` 已删，不迁移。
+
+技能目录是 Agent 定义登记的扩展，不是新建的 `horizontal/` 服务包：技能和提示词、角色同属插件声明给 Agent 的东西，同一份登记已经按安装、发布者签名和范围算出谁在用、谁停用，开关与用量也落在它的库里；另起一个服务包就要再读一遍安装与签名、再存一份状态，成了第二份事实。
+
+## 能力包
+
+| 责任 | Owner | 唯一事实源 |
+| --- | --- | --- |
+| 能力包怎样拼：三种包（插件安装、Molis Work 自带、你的角色）、给条目盖来源与所属的包、算包的状态 | `horizontal/kit` | 不存任何东西，每次由 `kit.catalog.list@1` 现算；不建注册表 |
+| 技能、提示词、插件角色条目 | apps/local-host 的 Agent definitions | 上报动作读同一份 Agent 定义登记 |
+| Character 条目 | `modules/characters` | 它自己的上报动作 |
+| 工具条目（全部 Agent 工具） | `horizontal/agent-host` | Agent Host 的工具全集，几个包声明同一个工具时各自列出；谁真能用由角色的工具名单决定 |
+| MCP 条目 | 项目 MCP：`horizontal/agent-host` 的 MCP 库；连接带的：连接器；对外的：对外接入 | 各自的上报动作 |
+| 包头（已安装、停用、已卸载、上次升级） | Plugin Runtime / Host 包存储 | 当前安装记录 |
+| 提示词改写的导出与导回 | apps/local-host 的 Agent definitions | 本人的改写；导出成 `molis.prompt-overrides` 文件，只给本人，逐条确认后写回同一份改写 |
+
+用户自己组的包、已卸载包的历史条目还没有做（[BL-kit-user-packs](../specs/backlog/BL-kit-user-packs.md)、[BL-kit-uninstalled-history](../specs/backlog/BL-kit-uninstalled-history.md)）。
 
 ## Agent Host 保存的人的配置
 
 | 责任 | Owner | 唯一事实源 |
 | --- | --- | --- |
 | 外部 MCP 服务器的配置（地址或命令、超时、启用；凭据只给引用） | `horizontal/agent-host` | Prologue Runtime 的存储，kind `molis-mcp`；宿主能力 `agent.mcp.*` |
-| Coding 当前消费的项目方法（09 批切换消费方后删除旧路） | `horizontal/agent-host` | Prologue Runtime 的存储，kind `molis-coding-method`；宿主能力 `agent.skills.*` |
 | 写后检查器：每个项目、每个已授权工作区一份，带版本 | `horizontal/agent-host` | Prologue Runtime 的存储，kind `molis-write-checkers`；动作 `agent.write_checkers.list`、`agent.write_checkers.save`，受众只有人（`specs/prologue-adoption/spec.md` §6.0p.2） |
 
-上表三类都由人保存，`agent-host` 只经 Prologue 的存储读写，不建自己的表。工作区授权本身归 Home 的项目目录（读法是 `projects.directories.get`），这里只引用它。
+上表两类都由人保存，`agent-host` 只经 Prologue 的存储读写，不建自己的表。工作区授权本身归 Home 的项目目录（读法是 `projects.directories.get`），这里只引用它。
 
 ## 图片生成插件
 

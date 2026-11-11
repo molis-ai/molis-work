@@ -17,6 +17,7 @@ import { HOME_EN } from "./home-en.js";
 import { FLOW_EN } from "./flow-en.js";
 import { MEMORY_EN } from "./memory-en.js";
 import { KNOWLEDGE_EN } from "./knowledge-en.js";
+import { KIT_EN } from "./kit-en.js";
 import { SHARED_WORDS_EN } from "./shared-words-en.js";
 import { PLUGIN_TRUST_EN } from "./plugin-trust-en.js";
 import { SERVICE_CONNECTION_EN } from "./service-connection-en.js";
@@ -28,7 +29,6 @@ import { TASK_GRANTS_PAGE_EN } from "./task-grants-page-en.js";
 export const EN: Record<string, string> = {
   ...IM_EN,
   "角色资料": "Role material",
-  "角色资料与方法": "Role materials and methods",
   "新增正文": "Body added",
   "正文已变化": "Body changed",
   "已移除正文": "Body removed",
@@ -3238,4 +3238,4 @@ Object.assign(EN, {
   "继续前必须打开「显式继续」并填写原因。": "Before continuing, open Resume explicitly and give a reason.",
   "这条 Goal 已从日常列表移除，但内容和历史仍然保留。": "This Goal was removed from the active list; its content and history remain.",
 });
-Object.assign(EN, SKILLS_EN, GAP_EN, ACCOUNT_EN, FLOW_EN, MEMORY_EN, KNOWLEDGE_EN, PLUGIN_TRUST_EN);
+Object.assign(EN, SKILLS_EN, GAP_EN, ACCOUNT_EN, FLOW_EN, MEMORY_EN, KNOWLEDGE_EN, PLUGIN_TRUST_EN, KIT_EN);

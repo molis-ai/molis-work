@@ -12,7 +12,7 @@ import { resetSecretStoreCache } from '@molis-ai/molis-work-storage';
 import { withConnectorConnections } from '@molis-ai/molis-work-app-local-host';
 import { createPluginModelGeneration } from '../apps/local-host/dist/plugin-builder/model.js';
 import { agentDefinitionsFor } from '../apps/local-host/dist/agent-definitions/agent-definitions.js';
-import { builtinRegistrations } from '../apps/local-host/dist/agent-definitions/builtin-registrations.js';
+import { builtinRegistrations } from '../apps/local-host/dist/agent-definitions/builtin-agents.js';
 import type { ModelGenerateInput } from '../apps/local-host/dist/plugin-builder/capabilities.js';
 import { registerPlatformCapabilities } from '../apps/local-host/dist/plugin-builder/catalog.js';
 
@@ -82,7 +82,7 @@ for (const stop of ['revoke', 'withdraw', 'cancel'] as const) test(`generated pr
     if (stop === 'withdraw') f.unregister();
     if (stop === 'cancel') controller.abort();
     release.resolve(); await rejected;
-    assert.equal(f.bodies.length, 0); assert.deepEqual(registry.uses(key), []);
+    assert.equal(f.bodies.length, 0); assert.deepEqual(registry.uses.list(key), []);
   } finally { release.resolve(); }
 });
 
@@ -139,7 +139,7 @@ test('generated named prompts send declared or user-edited instructions through 
   assert.doesNotMatch(JSON.stringify(f.bodies[1]), /BUILD_INSTRUCTION|SHIPPED_INSTRUCTION/);
   assert.match(JSON.stringify(f.bodies[1].messages.filter((item: any) => item.role === 'user')), /ONLY_THIS_MATERIAL/);
   assert.equal(f.bodies[1].tools?.length ?? 0, 0);
-  assert.equal(registry.uses(owner + '/summary')[0]?.user_revision, 1);
+  assert.equal(registry.uses.list(owner + '/summary')[0]?.user_revision, 1);
   await assert.rejects(f.invoke(undefined, { prompt: 'missing', input: 'data' }), /没有声明/);
   assert.equal(f.bodies.length, 2, 'undeclared prompts never dispatch a model');
 });

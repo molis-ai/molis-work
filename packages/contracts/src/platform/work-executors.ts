@@ -6,6 +6,8 @@ import type { AgentMcpServerView } from "../services/agent-host-ports.js";
 import type { AgentMcpToolRef } from "../services/agent-host-start.js";
 import type { AgentRunView } from "../services/agent-host-run-view.js";
 import type { AgentAnswerControl } from "../services/agent-interaction.js";
+import type { SkillRef } from "../services/agent-definitions.js";
+import { SKILL_REFS_MAX, skillRefSchema } from "../services/skill-ref-schema.js";
 import { AGENT_INPUT_KEY_PATTERN, AGENT_INPUT_SOURCES, AGENT_STEER_MODES, type AgentInputSend, type AgentSteerReceipt } from "../services/agent-inputs.js";
 
 /**
@@ -52,7 +54,17 @@ export interface WorkExecutorSession {
 }
 export interface WorkExecutorSessionUpdate { session_id: string; mode: string }
 /** A new round: the executor applies the session's own settings, else its defaults, and refuses in its own words when it cannot. */
-export interface WorkExecutorRunStart { session_id: string; task: string }
+export interface WorkExecutorRunStart {
+  session_id: string;
+  task: string;
+  /**
+   * Skills the delegating round hands this one, as exact references from the shared catalog (`skills.catalog.list@1`). What to load,
+   * not who named them: a `manual` Skill here is read only if the Host bound it in `ActionCallContext.named_skills` for this call. At
+   * most `SKILL_BODY_READ_MAX_REFS`. The executor adds the session's own saved choice (specs/capability-pack/contract-design.md §2.3),
+   * freezes the union or refuses the round; it never drops one silently or reads another version.
+   */
+  skills?: SkillRef[];
+}
 export interface WorkExecutorRunStarted { run_id: string }
 type RoundRef = { session_id: string; run_id: string };
 export type WorkExecutorRunControl = RoundRef & ({ kind: "stop" | "pause" | "resume" } | (AgentAnswerControl & { pending_revision: number })
@@ -114,7 +126,8 @@ export const WORK_EXECUTOR_PROTOCOL: Readonly<Record<WorkExecutorRole, WorkExecu
       runtime_session_id: nullable(id), recovery: nullable(closed({ message: words(2000) })), workspace_id: nullable(id),
       mcp_tools: list({ type: "object", required: ["server", "tool", "version", "configuration_version"] }) }, ["session_id", "title", "mode", "runs", "runtime_session_id", "recovery"])),
   "session.update": role("session.update", "command", inputSchemaFor<WorkExecutorSessionUpdate>()(closed({ session_id: id, mode: MODE })), closed({ session_id: id, mode: MODE })),
-  "run.start": role("run.start", "command", inputSchemaFor<WorkExecutorRunStart>()(closed({ session_id: id, task: words(100_000) })), closed({ run_id: id })),
+  "run.start": role("run.start", "command", inputSchemaFor<WorkExecutorRunStart>()(closed({ session_id: id, task: words(100_000),
+    skills: { type: "array", maxItems: SKILL_REFS_MAX, items: skillRefSchema } }, ["session_id", "task"])), closed({ run_id: id })),
   // A questionnaire answer's items are the Agent Host's answer shape; the executor checks them against the question it asked.
   // So its input is not held to `WorkExecutorRunControl` yet: the interface says more than `{ type: "object" }` does (N22 S0, specs/action-input-contracts §5.1).
   "run.control": role("run.control", "command", { oneOf: [

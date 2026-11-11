@@ -7,8 +7,8 @@ import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-def
 import { SKILL_EXCERPT_CHARS, SKILL_SETTINGS_LOCKED_REASONS, skillErrors, type SkillAvailability, type SkillBodyReadResult,
   type SkillCatalogEntry, type SkillCatalogListRequest, type SkillReadRefusal, type SkillResourceContent, type SkillSettingsSetRequest } from "@molis-ai/molis-work-contracts/services/skills";
 import type { AgentDefinitions } from "./agent-definitions.js";
-import type { SkillSetting } from "./skill-settings.js";
-import { currentSkillSelection } from "./skill-selection.js";
+import { USES_KEPT, type SkillSetting } from "./skill-settings.js";
+import type { KitReport } from "@molis-ai/molis-work-contracts/platform/kit-report";
 
 /** Ephemeral projection of the existing installation and Agent definition owners, never a second register. */
 export interface CatalogSkill {
@@ -33,8 +33,12 @@ export interface SkillCatalogPorts {
 
 const settingKey = (install: string, skill: string) => `${install}\0${skill}`;
 const scopeOf = (caller: ActionCallContext) => caller.project_id ?? "home";
+/**
+ * Which Skills apply is the round's consumer, which the Host writes on its own calls only (`ActionCallContext.skill_round`,
+ * specs/capability-pack/contract-design.md §2.3); the person's own view, which is no round, sees them all.
+ */
 const applicable = (skill: CatalogSkill, caller: ActionCallContext) => {
-  const consumer = currentSkillSelection(caller)?.consumer;
+  const consumer = caller.skill_round?.consumer;
   return (caller.audience === "user" && !consumer) || skill.declaration.applies_to === "both" || skill.declaration.applies_to === (consumer ?? "agent");
 };
 
@@ -72,10 +76,10 @@ export class SkillCatalog {
   private refusal(skill: CatalogSkill | undefined, ref: SkillRef, caller: ActionCallContext, setting: SkillSetting | undefined): SkillReadRefusal | undefined {
     if (!skill || !isDeepStrictEqual(skill.ref, ref)) return "not_current";
     try { skill.assertCurrent(); } catch { return "not_current"; }
-    if (!skill.availability.available && !(skill.availability.reason === "native_only" && currentSkillSelection(caller)?.engine === "local")) return skill.availability.reason;
+    if (!skill.availability.available && !(skill.availability.reason === "native_only" && caller.skill_round?.engine === "local")) return skill.availability.reason;
     if (!applicable(skill, caller)) return "not_applicable";
     if (!setting) return "off";
-    if (setting.state === "manual" && !currentSkillSelection(caller)?.named.some(named => isDeepStrictEqual(named, ref))) return "not_named";
+    if (setting.state === "manual" && !caller.skill_round?.named.some(named => isDeepStrictEqual(named, ref))) return "not_named";
     return undefined;
   }
 
@@ -106,12 +110,33 @@ export class SkillCatalog {
     });
   }
 
+  /**
+   * The AI kit's Skill entries (specs/capability-pack/contract-design.md §4.8): the person's own view of the catalog, each entry as
+   * `skills.catalog.list@1` gives it, in its installation's pack, with the uses on record. Who it comes from is the install record's.
+   */
+  async kitReport(caller: ActionCallContext): Promise<KitReport> {
+    const { skills } = await this.list(caller, {}), counts = this.ports.definitions.skills.useCounts();
+    const english = caller.locale === "en", forWhom = { assistant: english ? "Assistant" : "助理", coding: "Coding" } as const;
+    return { entries: skills.map(skill => {
+      const used = counts.get(settingKey(skill.ref.install_id, skill.ref.skill_id));
+      return { kind: "skill" as const, entry_id: settingKey(skill.ref.install_id, skill.ref.skill_id).replace("\0", "/"), name: skill.name, description: skill.description,
+        version: { label: english ? `v${skill.ref.version}` : `第 ${skill.ref.version} 版` },
+        declares: { tools: skill.tools.slice(0, 64), permissions: [], connector_categories: skill.connector_categories.slice(0, 64) }, scope: skill.pack.scope,
+        where: skill.applies_to === "both" ? [forWhom.assistant, forWhom.coding] : [forWhom[skill.applies_to]], availability: skill.availability.available
+          ? { available: true as const } : { available: false as const, reason: skill.availability.reason, ...(skill.availability.detail ? { detail: skill.availability.detail } : {}) },
+        usage: used ? { kind: "recent" as const, count: used.count, last_at: used.last_at, kept: { rows_per_key: USES_KEPT } } : { kind: "none" as const },
+        export: skill.pack.trust === "host" ? "reference" as const : "package" as const, skill,
+        source: { kind: "plugin" as const, plugin_id: skill.pack.plugin_id, title: skill.pack.title, version: skill.pack.version, install_id: skill.ref.install_id,
+          publisher_label: skill.pack.publisher_label, trust: skill.pack.trust }, pack: `plugin:${skill.ref.install_id}` };
+    }) };
+  }
+
   /** The trusted round owner calls this only with its acceptance receipt; reads alone never count as use. */
   async recordAcceptedUses(caller: ActionExecutionContext, receipt: { accepted: boolean; refs: readonly SkillRef[]; run_ref?: string }): Promise<void> {
     if (!receipt.accepted) return;
-    const selection = currentSkillSelection(caller);
-    // A round owner records its round's uses; a page view names a Skill for reading only and never records one.
-    if (!selection?.consumer) return;
+    const round = caller.skill_round;
+    // A round owner records its round's uses; a call that is no round of the Host's records none.
+    if (!round) return;
     const skills = await this.ports.withSkills(caller, skills => skills);
     await caller.beforeEffect();
     caller.assert_authority_current?.(); caller.signal?.throwIfAborted();
@@ -126,7 +151,7 @@ export class SkillCatalog {
       const skill = skills.find(value => isDeepStrictEqual(value.ref, ref));
       try { skill?.assertCurrent(); skill?.assertPublisher(live); } catch { continue; }
       if (this.refusal(skill, ref, caller, settings.get(id))) continue;
-      store.recordUse({ ref, name: skill!.declaration.name, scope_ref: scope, caller: selection.consumer,
+      store.recordUse({ ref, name: skill!.declaration.name, scope_ref: scope, caller: round.consumer,
         ...(receipt.run_ref ? { run_ref: receipt.run_ref } : {}), at: new Date().toISOString() });
     }
   }

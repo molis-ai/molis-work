@@ -1589,23 +1589,12 @@
   .mw-catalog [data-list-detail-narrow] { width: min(390px, 100%); padding: 12px; border-radius: var(--sk-r-item, 8px); box-shadow: inset 0 0 0 1px var(--line); }
   .mw-catalog [data-primitive="status-link"] .mw-catalog__row { display: grid; gap: 10px; justify-items: start; }
 
-.skill-settings { max-width: 1100px; }
 .skill-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-block: 16px; }
-.skill-toolbar input { flex: 1 1 180px; min-width: 0; width: auto; }
-.skill-toolbar select { flex: 0 1 auto; width: auto; max-width: 100%; }
-.skill-settings .mw-facts dd { white-space: pre-wrap; }
-.skill-full-text { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; }
-.skill-settings .mw-radio-group { display: grid; gap: 10px; border: 0; margin: 0; padding: 0; }
-.skill-settings .mw-check-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-height: 32px; }
-.skill-settings .mw-check-row small { flex: 1 1 100%; padding-left: 24px; }
 .skill-segments { display: flex; flex-wrap: wrap; gap: 4px; border: 0; padding: 0; margin: 8px 0; }
 .skill-segments label { display: flex; align-items: center; justify-content: center; gap: 6px; flex: 1; padding: 8px; background: var(--nav-hover); border-radius: 8px; }
 .skill-segments label:has(:checked) { background: var(--nav-active); }
-.skill-enable-row, .skill-import-row { padding-block: 12px; border-bottom: 1px solid var(--line); }
+.skill-enable-row { padding-block: 12px; border-bottom: 1px solid var(--line); }
 .skill-sr { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
-[data-sk-import-panel] { padding-block: 12px; margin-bottom: 20px; border-bottom: 1px solid var(--line); }
-[data-sk-import-panel] > select { margin-right: 8px; }
-.skill-settings .mw-items { padding: 0; list-style: none; }
 
   .local-directory-settings .local-directory-root { overflow-wrap: anywhere; white-space: break-spaces; }
 
@@ -6677,6 +6666,7 @@
   :where(a:not([class])):hover { color: var(--accent-strong, var(--accent)); }
   .mw-sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 
+
   .mw-btn {
     position: relative;
     display: inline-flex;
@@ -6798,6 +6788,7 @@
   .mw-btn[data-loading] > svg { display: none; }
   .mw-btn[data-loading]:has(> svg) > .mw-spinner { position: static; width: 14px; height: 14px; }
   @keyframes mw-loading-out { from { opacity: 1; visibility: visible; } to { opacity: 0; visibility: hidden; } }
+
 
   .mw-input, .mw-textarea, .mw-select {
     width: 100%;
@@ -9108,6 +9099,17 @@
      height and grows with it. */
   :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .bar-center > .assistant-composer { position: relative; padding-block: 8px; }
   :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .assistant-composer > .mw-composer { width: 100%; }
+  /* The receipt chip above the input (specs/ai-input-receipts §4.1; 2026-11-09 audit fix): shown only while a question waits, its words
+     are what the next Send does and one click switches it. 44px to a finger, as every target. */
+  :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .assistant-composer > .assistant-answer {
+    display: inline-flex; align-items: center; max-width: calc(100% - 12px); height: 28px; margin: 0 0 4px 6px; padding: 0 8px;
+    border: 0; border-radius: 7px; background: var(--nav-hover); color: var(--ink-soft);
+    font: inherit; font-size: 12px; font-weight: 500; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .assistant-composer > .assistant-answer[hidden] { display: none; }
+  :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .assistant-composer > .assistant-answer:hover { background: var(--nav-active); color: var(--ink); }
+  :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .assistant-composer > .assistant-answer:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
+  @media (max-width: 600px), (pointer: coarse) { :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .assistant-composer > .assistant-answer { height: 44px; } }
   /* Its menus (＋, @, the delivery ▾) rise over the open Assistant panel above the bar (z 50), as the island's menus did (z 60). */
   :is(body.immersive-workbench:not([data-pane-embedded]), .mw-catalog-bar-stage) .assistant-composer :is(.mw-compose__menu, .mw-composer__controls) { z-index: 60; }
   /* The receiver's name opens its conversation (the island's click). */

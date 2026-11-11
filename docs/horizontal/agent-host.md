@@ -22,13 +22,14 @@ adapter 不自己解析角色，也不发明 Prompt。
 启动之后还有一道复核：Runtime 返回的冻结权限若与 Manifest 不一致，该 Run **立刻取消**
 （`agent.role_execution_exceeded`）。一个声称自己拿到写权限的只读角色不能继续跑。
 
-## 显式选择的方法
+## 一轮用到的技能
 
-内置方法由插件 `agent.skills` 声明，正文来自 `agent_skills`。安装方法来自适配器的 `skillLibrary`，所有者由 Host 的 `skill_owner` 固定为项目/插件。目录与正文按同一所有者读取；起跑时只接受精确 id/version 引用，拒绝重复、失效、未装配或请求比角色更宽工具的方法。请求自带的角色/方法正文不能替换发布定义。
+技能有两处来：插件自己的 Agent 用的，由 `agent.skills` 声明、正文在 `agent_skills`；给别的 Agent 用的，来自宿主的技能目录（`system.skills`，插件 Manifest 的 `methods` 与内容包），一轮里只认精确的 `SkillRef`。Agent Host 不再有自己的技能库：Coding 旧的 `agent.skills.discover`、`agent.skills.install` 和 Prologue 存储里的 `molis-coding-method` 已在第 09 批删掉，不迁移。
 
-Prologue Node 用 SDK 的 SkillRegistry、prepareSkillIntent、fillSkillBody 准备有界文本方法，将正文固定到本轮指令，保留原任务和副作用审查。当前能力为 partial：内置和已安装方法可显式选择，安装管理已接通，模型自动调用和派生方法尚未接通。运行中选择变化只供下一轮，冻结结果必须与 Host 选择一致；已展开正文不代表任务已经执行或验收。
-
-安装使用 `agent.skills.discover` 与 `agent.skills.install`：发现只接受当前项目已授权根内的相对目录，通过 SDK reader 读取后返回完整候选快照；重新发现/重启后旧候选失效。安装复用 SDK 包扫描和 secureBody 存储，版本 1 不覆盖同名，原子 expectedVersion=0 阻止重复写入。安装只保存文本（工具声明为空），不执行包内脚本，也不自动选择或扩大本轮权限。
+- **开轮冻结**：宿主核对这一轮点名或自动选用的 `SkillRef`（安装、签名、范围、三档），按引用读出正文，交给 Agent Host 冻结进这一轮（`AgentRoundSkill`）；运行中目录变化只给下一轮。冻结记录只留引用、名字与说明，不留正文。
+- **工具只当说明**：自己的技能写的工具比角色宽，开轮被拒（`role_execution_exceeded`）；目录里的技能不比，登记给 Prologue 时只取「技能写的 ∩ 角色有的」（`adapters/prologue-methods.ts` 的 `inlineMethods`），所以技能永远不扩大角色的工具，vendored SDK 的越界检查也不会被触发。
+- **登记给 Prologue**：按正文、名字和工具的摘要登记成有界文本技能（SDK 的 `prepareSkillIntent`、`fillSkillBody`），两个安装里同名的技能、升级后正文变了的技能都不会合成一份。正文上限与合同的 `MAX_SKILL_BODY_CHARS` 在编译期锁成同一个数。
+- 技能 `scripts/` 里的脚本不执行（[BL-skill-scripts-sandbox](../../specs/backlog/BL-skill-scripts-sandbox.md)）；展开了正文不代表任务已经执行或验收。
 
 ## Review 队列：批准是一次性的
 

@@ -29,7 +29,9 @@
 | 判断规则 | 已发布、版本不可变的判断：给一段内容，返回选择、是非概率或分数 | 判断规则 | 判断函数、Function、Functions |
 | 消费场景 | 插件或系统里真正使用判断结果的位置 | 用途、消费场景 | 判断场景、去向、消费入口 |
 | 推荐选项 | 判断结果里「建议做什么」的一项 | 推荐动作 | 行为（behavior） |
-| Skill | 按需读取的文字做法，不授予任何权限 | 方法（Character 流程里写 Skills） | 方法（指这个时）、Method |
+| Skill | 按需读取的文字做法，不授予任何权限 | 技能（设置 › 能力包）；Coding 的选择框、助理仍写「方法」，Character 流程里写 Skills | 方法（指这个时）、Method |
+| 能力包（kit） | 做一类事要用的东西放在一起看：技能、MCP、工具，以及搭配的角色和角色的提示词。是现算的聚合视图，不存：一个插件的安装就是一个包，另有「Molis Work 自带」和「你的角色」两个；条目由各自的事实主人上报，`horizontal/kit` 只汇总、拼包（`kit.catalog.list@1`）。定义见 2.3 | 能力包（设置 › 能力包；英文 AI kits） | 技能包（那是只带技能的内容插件）、套件、方法库；`kit` 只用在代码、路由和键里 |
+| 提示词改写文件 | 本人对提示词的改写导出成的文件（`format: "molis.prompt-overrides"`），导回时逐条看过、版本对得上才套用；是用户自己的数据，不是包，从不安装，也不随内容包走 | 能力包「导入文件」里的「提示词改写」 | 把它算进内容包；「提示词包」 |
 | Skill 目录 | 一个范围（某个项目，或个人空间）里装着的全部 Skill，每项带精确引用 `SkillRef`、在这个范围的状态（关、自动、仅手动）和能不能用；归宿主的 Agent 定义登记，由 `system.skills` 的 `skills.catalog.list@1` 等动作读写（`packages/contracts/src/services/skills.ts`，`specs/skill-packs/contract-design.md` 第 8 节）。助理和 Coding 读同一份，不各存名单 | 设置里「技能」一节 | 共同目录（指它时；共同目录是动作目录的旧称，不指 Skill）、方法目录、平台方法目录 |
 | 规划方法 | Goals 里可选采用的规划方法包 | 规划方法 | 方法包（method pack） |
 | 研究方法 | 炼金术士里用户确认保存、可沿用的研究做法 | 研究方法 | playbook |
@@ -206,6 +208,15 @@
 - 取舍：Prologue SDK、导入来源和代码类型都叫 Skill；只有界面和少数标识符（Manifest 的 `methods` 键、`assistant.methods.*`）叫「方法」，而「方法」在界面里还指规划方法、研究方法、连接方式。所以文档统一写 Skill，其余三个「方法」必须写全名。
 - 旧称：方法（指 Skill 时）、Method。
 
+**能力包（kit）**
+
+- 定义：把做一类事要用的东西放在一起看的一个包：技能、MCP、工具，以及搭配的角色和角色的提示词。能力包只是聚合视图，不存任何东西，也没有注册表；每次读时由 `horizontal/kit` 按当前安装现算，界面在设置 › 能力包（`/settings/kit`，旧的 `/settings/skills` 跳到这里）。
+- 三种包：一个插件的安装（`plugin:<install_id>`，应用插件与只有声明的插件都是，插件本身就是一个包，Manifest 不加键）；Molis Work 自带（`system:builtin`：宿主内置的角色与提示词、个人助理和没有归属角色的提示词、全部 Agent 工具、对外的 Molis Work MCP）；你的角色（`system:characters`，你写的 Character）。用户自己组包还没有做（[BL-kit-user-packs](../../specs/backlog/BL-kit-user-packs.md)）。
+- 条目五类，各有各的主人：技能（插件声明与 Agent 定义登记）、提示词与插件角色（插件声明与 Agent 定义登记）、Character（`modules/characters`）、工具（Agent Host 的工具全集）、MCP（项目 MCP 归 Agent Host 的 MCP 库，连接带的归连接器，对外的归对外接入）。每个主人写一个上报动作，能力包按登记盖上来源与所属的包，不由上报者自称。
+- 能开关的只有技能（关、自动、仅手动，存在 Agent 定义登记）；其余条目在能力包里看，改去它自己的页面。包没有整包停用。
+- 导出导回：包导出成一个文件，内容包原样带签名，加上本人的提示词改写和角色、工具、MCP 的引用（只带名字和版本，不带配置、地址和凭据）。导回时各部分走各自的路：内容包走插件的安装确认，提示词改写逐条确认后套用（见「提示词改写文件」），引用只核对这里有没有。
+- 合同与设计：`specs/capability-pack/contract-design.md`；代码：`horizontal/kit`、`apps/local-host/src/kit-*.ts`、`apps/workbench/src/settings-kit.ts` 与 `src/browser/kit/`。
+
 **其余三种「方法」（必须写全名）**
 
 - 规划方法（planning method）：Goals 拥有、规划时可选采用的方法包（类型 `PlanningMethodPack` 在 `plugins/native/goals/src/contract/goals.ts`，解析与内置包在 `plugins/native/goals/src/module/planning/method-packs.ts`），按「项目 > 个人 > 内置冷启包」生效；内置包是 `plugins/native/goals/methods/` 下的 Markdown。
@@ -283,6 +294,7 @@
 | 消费场景 | `scene` |
 | 推荐选项 | `recommendation_option` |
 | Skill | `skill` |
+| 能力包 | `kit` |
 | 规划方法 | `planning_method` |
 | 研究方法 | `research_method` |
 | 连接方式 | `connection_method` |

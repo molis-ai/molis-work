@@ -221,7 +221,6 @@ export const EN: Record<string, string> = {
   "拆到上方": "Split up",
   "拆到下方": "Split down",
   "搜索项目内的内容": "Search this project",
-  "搜索个人内容": "Search personal content",
   "搜索": "Search",
   "搜索结果": "Search results",
   "没有匹配的内容": "No matching items",

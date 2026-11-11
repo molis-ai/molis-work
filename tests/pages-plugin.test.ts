@@ -658,7 +658,9 @@ test("编辑器内核是 IIFE，不是 tsc 的 ESM", () => {
   assert.match(source, /applyHeading/);
   assert.match(source, /headingLevelAt/);
   assert.match(source, /listKindAt/);
-  assert.match(source, /\\u5199\\u4EE3\\u7801/);
+  assert.match(source, /pages\.editor\.code["']/u);
+  assert.equal(pageText("zh", "pages")("pages.editor.code"), "写代码");
+  assert.equal(pageText("en", "pages")("pages.editor.code"), "Code");
   assert.match(PAGES_STYLES, /:is\(p, h1, h2, h3, code, pre\.pages-code\)\.is-empty::before/);
   assert.match(source, /data-pages-bookmark/);
   assert.match(source, /Mod-Alt-ArrowLeft/);

@@ -241,3 +241,25 @@ test("BSH-08 the side panel's folder source is the platform's: every project fol
   await assert.rejects(m.call(materialsFileSource.content, { subject: { kind: WORKSPACE_FILE_SUBJECT_KIND, id: workspaceFileSubjectId("another-folder", ["x.txt"]) } }),
     (error: unknown) => error instanceof ActionError && error.code === "actions.subject_unavailable");
 });
+
+test("BSH-08 the side panel's reader reaches the materials service as the person: open, read, quote, position; a write without the page's token is refused", { timeout: 60_000 }, async t => {
+  const m = await materialsHome(t);
+  const prefix = `/projects/${m.project.project_id}/api/materials`;
+  const text = "第一行\nsecond line 🙂\n";
+  const opened = await m.f.web.post<MaterialsOpenResult>(`${prefix}/open`, { workspace_id: m.output.workspace_id, path: ["notes.md"] });
+  assert.equal(opened.result.outcome, "text");
+  assert.deepEqual(await m.f.web.get(`${prefix}/position`), { position: { workspace_id: m.output.workspace_id, path: ["notes.md"] } });
+  const quoted = await m.f.web.post<MaterialsCaptureResult>(`${prefix}/capture`, { workspace_id: m.output.workspace_id, path: ["notes.md"], fingerprint: sha(text), start: 4, end: 15 });
+  assert.equal(quoted.port, null, "a quote names no port");
+  const back = await m.f.web.post<MaterialsReadResult>(`${prefix}/read`, { ref: quoted.ref, mode: "text" });
+  assert.equal(back.text, "second line");
+  // An action refuses as itself; the route passes the refusal on.
+  await assert.rejects(m.f.web.post(`${prefix}/capture`, { workspace_id: m.output.workspace_id, path: ["notes.md"], fingerprint: "0".repeat(64) }),
+    (error: unknown) => (error as { code?: string }).code === "actions.subject_changed", "a file seen otherwise is not fixed");
+  const before = m.processItems().length;
+  const forged = await fetch(`${m.f.origin}${prefix}/capture`, { method: "POST", headers: { origin: m.f.origin, "content-type": "application/json" },
+    body: JSON.stringify({ workspace_id: m.output.workspace_id, path: ["notes.md"], fingerprint: sha(text) }) });
+  assert.equal(forged.status, 403, await forged.text());
+  assert.equal(m.processItems().length, before, "nothing fixed without the token");
+  assert.equal((await fetch(`${m.f.origin}${prefix}/delete`, { headers: { origin: m.f.origin, "x-molis-work-control-token": m.f.controlToken } })).status !== 200, true);
+});

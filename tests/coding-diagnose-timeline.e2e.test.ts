@@ -21,7 +21,8 @@ const receipt = (ref: AgentCommandOutputRef, more: Partial<AgentCommandOutput> =
   ({ ref, command: 'node "--check" "a.js"', exit_code: 1, stdout: "", stderr: "SyntaxError", truncated: false, timed_out: false, cancelled: false, ...more });
 
 test("PA-35 Coding reads each write's check from its receipt, once, and never from the observation", async () => {
-  const cache = writeCheckCache(), read: string[] = [];
+  let clock = 0;
+  const cache = writeCheckCache(() => clock), read: string[] = [];
   let broken = true;
   const load = async (ref: AgentCommandOutputRef) => {
     read.push(ref.call_id);
@@ -38,8 +39,12 @@ test("PA-35 Coding reads each write's check from its receipt, once, and never fr
     { call_id: "w3", unreadable: true },
   ], "each fact is the receipt's; a receipt that cannot be read is said so, not reported as unchecked");
   assert.deepEqual(read, ["w1:diagnostics", "w2:diagnostics", "w3:diagnostics"], "only the checks' receipts are read");
-  // The page asks several times a second: a receipt already read is not read again, an unreadable one is tried again.
+  // The page asks several times a second: a receipt already read is not read again, and an unreadable one is left alone for a
+  // while (each read replays its round), then tried again.
   broken = false;
+  const [soon] = await cache.attach("s", [view], load);
+  assert.deepEqual([read.slice(3), soon!.write_checks[2]], [[], { call_id: "w3", unreadable: true }]);
+  clock += 30_000;
   const [again] = await cache.attach("s", [view], load);
   assert.deepEqual(read.slice(3), ["w3:diagnostics"]);
   assert.equal((again!.write_checks[2] as { checker?: string }).checker, "语法检查");
@@ -100,6 +105,22 @@ test("PA-35 the Coding timeline shows the checker and exit code on a checked wri
     const en = await draw("en", 1200);
     assert.deepEqual([en.w1, en.w2, en.w3, en.w5], ["语法检查 · exit 1", "Not checked", "慢检查 · Timed out", "Check result can't be read right now"]);
     await page.screenshot(join(review, "en-wide.png"));
+    // The same row at the two desk widths the walk-through asks for, and in the dark theme (review M10): it fits, and its words stay readable.
+    const fits = () => page.evaluate<boolean>(`document.documentElement.scrollWidth<=document.documentElement.clientWidth`);
+    const legible = () => page.evaluate<boolean>(`(()=>{const node=document.querySelector('.coding-tool[data-tool=w1] [data-coding-write-check]');
+      const lum=value=>{const [r,g,b]=value.match(/[\\d.]+/g).slice(0,3).map(Number);return 0.2126*r+0.7152*g+0.0722*b;};
+      return Math.abs(lum(getComputedStyle(node).color)-lum(getComputedStyle(document.body).backgroundColor))>=80;})()`);
+    for (const width of [1440, 1024]) {
+      assert.equal((await draw("zh", width)).w1, "语法检查 · exit 1");
+      assert.deepEqual([await fits(), await legible()], [true, true], `light, ${width}`);
+      await page.screenshot(join(review, `zh-${width}.png`));
+    }
+    await page.evaluate(`document.documentElement.dataset.resolvedTheme='dark'`);
+    for (const width of [1440, 1024, 390]) {
+      assert.equal((await draw("zh", width)).w3, "慢检查 · 超时");
+      assert.deepEqual([await fits(), await legible()], [true, true], `dark, ${width}`);
+      await page.screenshot(join(review, `zh-dark-${width}.png`));
+    }
   } finally { await browser.close(); rmSync(directory, { recursive: true, force: true }); }
 });
 

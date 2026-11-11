@@ -28,12 +28,12 @@
 | [ai-development-handbook](../../ai-development-handbook/spec.md) | 横向能力（AI 方法） | [01](batches/01.md)、[09](batches/09.md) | 要决策：BL-320 你验收；ADH-23／BL-321 已随 09 做完（2026-11-10 用户确认） |
 | 防腐线自己的四份：repository-anti-corruption、[plugin-project-database](../../archive/plugin-project-database/spec.md)、[dual-instance-plugins](../../archive/dual-instance-plugins/spec.md)、[plugin-project-partition](../../archive/plugin-project-partition/spec.md) | 底层与架构 | [01](batches/01.md) | 四份已归档，部分实现的余项仍在 BACKLOG |
 | BACKLOG「待你验收」BL-001～017、105、109、111、320、325、400、401、929、940 及本批新增本人项 | 跨线 | [01](batches/01.md) | 按条件试；已接受、已委托和须等真实 Home 的项目单列 |
-| [prologue-memory-strategy](../../prologue-memory-strategy/spec.md) | 横向能力（记忆）、底层与架构 | [24](batches/24.md)、[31](batches/31.md)、[63](batches/63.md) | 要决策：恢复授权前不启动（原暂停），见下 |
+| [prologue-memory-strategy](../../prologue-memory-strategy/spec.md) | 横向能力（记忆）、底层与架构 | [24](batches/24.md)、[31](batches/31.md)、[63](batches/63.md) | 暂停已于 2026-11-11 解除。P0 收口单独成批（以 #2020 为基线），P1 在 31，P2 按触发条件登记，63 只等 P0；换包、搬迁正文、真实 Home 仍逐项要你批，见下 |
 | 右栏选一段放进文稿（产品建议 F1；#712、#720） | 产品线（工作台）、横向能力（落点） | [01](batches/01.md) | 要决策：BL-952：真实材料和 QA-030 复验后再定下一个落点 |
 
 <a id="memory-paused"></a>
 
-**Memory 未完成且暂停。** [P0 形成、召回及 SDK 接入](../../prologue-memory-strategy/spec.md)不归入完成项；原负责人和暂停边界保留。对应 [24](batches/24.md)、[31](batches/31.md)、[63](batches/63.md)，恢复授权前不启动，独立工作继续。原 PR 状态在历史快照中，开工时再核。
+**Memory 未完成（暂停已于 2026-11-11 解除，[决定 36](decisions.md#decision-36)）。** [P0 形成、召回及 SDK 接入](../../prologue-memory-strategy/spec.md)不归入完成项。去向分三段：① P0 收口（BL-1071～BL-1077，含 MEM-41～44 的 BL-1075）单独成批，不占 01～89 的编号，以 Memory V0 草稿 PR [#2020](https://github.com/molis-ai/molis-work/pull/2020) 为起点，不在别的批次里重做它的内容；这一批收尾时产出 P1 的短合同（BL-memory-p1-contract）。② P1（SDK 有界历史与恢复、导出 v2、正文单一写主人：MEM-10、11、19，及 MEM-22、23、34、40 的 P1 部分）并入 [31](batches/31.md#batch-31-item-2)，前置是 P0 已合入 main、短合同已冻结。③ P2（语义／混合召回、规模与查询下推、去重、衰减、巩固）不排批，各登记一条待办并写明触发条件（BL-memory-p2-semantic-recall、BL-memory-p2-scale、BL-memory-p2-dedup、BL-memory-p2-decay、BL-memory-p2-consolidation），测到问题才做，都先等 P0 的质量与成本对照（BL-1073）。[63](batches/63.md) 的工作记忆只等 P0 合入，不等 P1、P2。换 `vendor/prologue-sdk`、搬迁记忆正文、动真实 Home 仍逐项要用户批。给 P2 补验收编号要改 Memory spec，等 #2020 合入后做。
 
 <a id="section-3-2"></a>
 
@@ -202,7 +202,7 @@
 | 翻译：BL-118、BL-455～457、BL-459～464、BL-545、BL-546、BL-567 | [16](batches/16.md)、[55](batches/55.md) | 直接做 |
 | 写后检查：BL-160、BL-171、BL-220、BL-390，以及 BL-302 | [24](batches/24.md)、[31](batches/31.md) | 直接做 |
 | Prologue 上游：BL-031、BL-137、BL-172、BL-173、BL-175、BL-176 | [31](batches/31.md)、[61](batches/61.md)；最近的实际换包窗口 | 直接做 |
-| 记忆误记与默认：BL-037、BL-093 | [24](batches/24.md)、[31](batches/31.md)；[Memory 原暂停](#memory-paused) | 直接做 |
+| 记忆误记与默认：BL-037、BL-093 | [24](batches/24.md)、[31](batches/31.md)；[Memory 去向](#memory-paused) | 直接做 |
 | 模型能力：BL-089、BL-104 | 沿“模型能力问题不打补丁”，不单独排 | 直接做 |
 | [术语表](../../../docs/system/GLOSSARY.md) §5～6 的 R-A／R-B／R-C 与文档旧称 | [02](batches/02.md)、[27](batches/27.md)；R-A 按所在包改；R-B1～8 不做，R-B9 存量随真实 Home 重建、不迁移 | 直接做 |
 | 助理对外用词（H4）：工作、工作简报、任务、受托工作、子工作 | [10](batches/10.md)；实施前定并写术语表 | 要决策：用词在 10 开工前定，写进术语表 |

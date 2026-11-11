@@ -14,7 +14,7 @@ import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import {
   homeStores,
-  DEMO_PROJECT_ID, LocalProjectDatabase, MolisWorkLocalHost, createPluginPlatform, molisWorkHostProjectReference, seedDemoBoard,
+  DEMO_PROJECT_ID, LocalProjectDatabase, MolisWorkLocalHost, createPluginPlatform, installHostUiText, molisWorkHostProjectReference, runWithLocale, seedDemoBoard,
   type HostCompleteText, type HostTextRequestOptions,
 } from "@molis-ai/molis-work-app-local-host";
 import { pluginActions } from "./fixtures/plugin-actions.js";
@@ -405,7 +405,8 @@ test("a call is the plugin's while it runs: stopped while the model answers, the
 
 test("availability is the model's: with no model set up it says so and complete sends nothing; a stopped plugin says it is stopped; a platform with a model says it is available", { timeout: 60_000 },
   withDirectory(async directory => {
-    await withoutEnvironmentModel(async () => {
+    installHostUiText();
+    await runWithLocale("zh", () => withoutEnvironmentModel(async () => {
       const model = standIn(), injection: { current: Injection } = { current: null }, item = platformIn(directory, injection), plugin = probe();
       try {
         await item.platform.start([{ definition: plugin.definition, ...GRANTED }]);
@@ -428,7 +429,7 @@ test("availability is the model's: with no model set up it says so and complete 
         assert.equal(client.availability().available, false);
         assert.equal((client.availability() as { code: string }).code, "actions.provider_stopped");
       } finally { item.store.close(); }
-    });
+    }));
   }));
 
 test("PG047-01 S-15 model:read reads and never sends: a plugin that holds only model:read is given services.model, lists the models and asks availability, and complete() is refused before anything is sent, whether its Manifest declares model:invoke too or not",

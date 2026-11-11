@@ -171,6 +171,10 @@ Assistant/Coding 跨主人回执与后续使用的本地接入已收束。人工
 - **改成逐条答复。** 用户 11-12 定直接改 Prologue，并选了「加逐条答复的可选方法」：`MemoryAuthority` 新增可选 `authorizeEach(requests)`，只为读取而问，一次调用对每条请求各答一个是或否，第 i 条为是当且仅当单独问它也会获准。每条照旧先过本地策略与生命周期，答复不是每条一个 boolean 就整次失败，Authority 出错也整次失败、不变成跳过；获准的条目合成一次同步复核，被拒的只去掉自己。没有这个方法的 Authority 行为不变。Prologue 分支 `claude/memory-recall-batch-authorization`（未推送），测试 `packages/sdk/test/memory-recall-page-authorization.live.test.ts`。Molis 一侧在本机分支 `claude/memory-authorize-each`：运行时策略的 `authorizeEach` 与 `authorize` 用同一个逐条判断，共用一次遗忘读取。
 - **省了多少。** 同样的诊断，两臂都临时换上改过的 SDK（跑完还原，与 vendored 包逐文件比对一致）：暖读中位数差值 55.8 → 39.7 ms（B2 77.4、B1 37.6），策略判断每轮约 7 ms。剩下的主要是两臂都有的磁盘写入与 SDK 扫描。仍开 CPU 采样，绝对值与正式测量不可比，不能据此说门已过。
 - **下一步。** 两边改动经评审台审过后，问用户是否推送、开 Prologue PR；合入后换 vendored SDK（要先问用户），再按冻结方法正式重测。BL-1072 不关闭。
+- **换包那一步的验收（BL-1072）。** 换包前 Molis 的桥接代码走不到，下面三项随换包一起补，缺一项不算换完：
+  - 桥接测试：空批答 `[]`；混入有副作用的动作、拿不到可信调用者、调用者上下文不一致时全部答否；App 没提供 `authorizeEach` 时 SDK 的 Authority 上没有这个键。
+  - 端到端：一页里有一条被拒时其余照常召回，可见集合与没有 `authorizeEach` 时相同，每页只问一次 Authority；管理列表同样；页内遗忘事实变化时整次失败，不交付旧正文。
+  - 在新包上重跑 S-13 的 `tests/prologue-memory-boundary.test.ts`。
 
 ## 1. 用户结果与责任边界
 

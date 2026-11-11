@@ -25,7 +25,7 @@ test("a pinned memory that writes a system or fence marker reaches the model wit
   let alive = true;
   let service!: MemoryService;
   let adapter: Awaited<ReturnType<typeof createPrologueNodeAdapter>> | undefined;
-  t.after(async () => { alive = false; await adapter?.close(); ledger.close(); await rm(root, { recursive: true, force: true }); });
+  t.after(async () => { alive = false; await adapter?.close(); ledger.close(); storageOwner.release(); await rm(root, { recursive: true, force: true }); });
   t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
     bodies.push(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array));
     const events: string[] = [], emit = (type: string, value: object) => events.push(`event: ${type}\ndata: ${JSON.stringify({ type, ...value })}\n\n`);

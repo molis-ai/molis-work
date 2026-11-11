@@ -16,13 +16,13 @@ import { createCodingPlugin } from "@molis-ai/molis-work-plugin-coding";
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 import { createDiffPlugin, DIFF_LABELS, type DiffView } from "@molis-ai/molis-work-plugin-diff";
 import { renderDiff } from "@molis-ai/molis-work-plugin-sdk/diff-view";
-import { icon } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { icon, installTextForTest } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { UiHost, UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { pluginActions, withFakeAgentHost } from "./fixtures/plugin-actions.js";
 
 const pause = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-import { pageText, pageTextScript, withPageText } from "./fixtures/page-text.js";
+import { pagePack, pageText, pageTextScript, withPageText } from "./fixtures/page-text.js";
 const readText = pageText("zh", "diff");
 async function until(predicate: () => boolean) {
   for (let n = 0; n < 150; n++) { if (predicate()) return; await pause(20); }
@@ -80,6 +80,8 @@ const companionHost = (name: string) => `root:document.querySelector('[data-comp
   return fixtureReviewShow(element,query.runIds.map(run_id=>({run_id})),query.sessionId,query.workspaceId,query,
     {lifetime:mountedScopes.get(element.closest('[data-companion]')),signal:options?.signal});
 }}`;
+const filesMarkup = () => withPageText("zh", ["files"], () => renderFilesBrowserDirectory() + renderFilesBrowserResult());
+const gitMarkup = () => withPageText("zh", ["git"], () => renderGitBrowserDirectory() + renderGitBrowserResult());
 const fixedMarkup = '<button data-companion-refresh><span class="mw-spinner" hidden></span>刷新</button><p data-companion-status></p><div data-companion-content></div>';
 const state = (name: string) => name === "files" ? { workspace: { workspace_id: "ws" } }
   : name === "git" ? { workspace: { workspace_id: "ws" }, selected: null, view: { phase: "ready", head: "current", conflicts: [], staged: [], changes: [] } }
@@ -92,7 +94,7 @@ test("GITREF-01 GITREF-03 Git refresh keeps current row identity and focus, upda
   });
   let revision = 1, current = view("ws", ["note.md"]);
   const gates: Array<{ entered(): void; response: Promise<ReturnType<typeof view>> }> = [];
-  const f = await fixture(t, `<section data-work-surface="git" data-companion="git">${renderGitBrowserDirectory(L)}${renderGitBrowserResult(L)}</section>`, `
+  const f = await fixture(t, `<section data-work-surface="git" data-companion="git">${gitMarkup()}</section>`, `
     const host={${companionHost("git")}};window.boot=()=>(${pageFactory("git")})(host);boot();
   `, path => {
     if (path.endsWith("/view-revision")) return { revision: String(revision) };
@@ -164,8 +166,11 @@ test("W2-18-DIFF-FILE-01: a real Coding frozen output selects distinct files and
   t.after(async () => { await platform.closeCoordination(); store.close(); await rm(directory, { recursive: true, force: true }); });
   assert.deepEqual(started.failed, []); assert.deepEqual(started.blocked, []);
   const dispatch = async (pathname: string, method: "GET" | "POST" = "GET", body?: unknown, query: Record<string, string> = {}) => {
-    const result = await platform.router().dispatch({ actor_id: "tester", method, pathname, body, query });
-    assert.equal(result?.status, 200, JSON.stringify(result?.body)); return result!.body;
+    const restore = installTextForTest({ locale: "zh", packs: [pagePack("coding", "zh"), pagePack("diff", "zh")] });
+    try {
+      const result = await platform.router().dispatch({ actor_id: "tester", method, pathname, body, query });
+      assert.equal(result?.status, 200, JSON.stringify(result?.body)); return result!.body;
+    } finally { restore(); }
   };
   const producer = "/api/plugins/io.molis.work.coding/sessions/coding-one/runs/run-one/changeset";
   const saved = await dispatch(producer, "POST") as { reference: { artifact_id: string; version: number } };
@@ -211,8 +216,8 @@ test("W2-18-DIFF-FILE-01: a real Coding frozen output selects distinct files and
 
 for (const name of ["files", "git", "diff", "text-stats"]) {
   test(`${name} owns visible queries and listeners across hide, detach and remount`, { timeout: 30_000 }, async t => {
-    const body = name === "files" ? renderFilesBrowserDirectory(L) + renderFilesBrowserResult(L)
-      : name === "git" ? renderGitBrowserDirectory(L) + renderGitBrowserResult(L) : fixedMarkup;
+    const body = name === "files" ? filesMarkup()
+      : name === "git" ? gitMarkup() : fixedMarkup;
     const f = await fixture(t, `<section data-work-surface="${name}" data-companion="${name}">${body}</section>`, `
       const host={${companionHost(name)}};
       window.root=host.root;window.boot=()=>(${pageFactory(name)})(host);boot();
@@ -313,7 +318,7 @@ test("Host reviews retain decisions across hiding without rendering stale result
 
 for (const name of ["files", "git"]) test(`${name} refreshes changed revisions, resumes after disconnect and stops while hidden`, { timeout: 30_000 }, async t => {
   let revision = 1;
-  const markup = name === "files" ? renderFilesBrowserDirectory(L) + renderFilesBrowserResult(L) : renderGitBrowserDirectory(L) + renderGitBrowserResult(L);
+  const markup = name === "files" ? filesMarkup() : gitMarkup();
   const f = await fixture(t, `<section data-work-surface="${name}" data-companion="${name}">${markup}</section>`, `
     const host={${companionHost(name)}};
     window.boot=()=>(${pageFactory(name)})(host);boot();
@@ -342,7 +347,7 @@ for (const name of ["files", "git"]) test(`${name} refreshes changed revisions, 
 
 test("SYS-50: a Git revision waits for the open difference, then refreshes without stranding its action", { timeout: 30_000 }, async t => {
   let revision = 1;
-  const f = await fixture(t, `<section data-work-surface="git" data-companion="git">${renderGitBrowserDirectory(L)}${renderGitBrowserResult(L)}</section>`, `
+  const f = await fixture(t, `<section data-work-surface="git" data-companion="git">${gitMarkup()}</section>`, `
     const host={${companionHost("git")}};
     window.boot=()=>(${pageFactory("git")})(host);boot();
   `, path => {
@@ -375,7 +380,7 @@ test("SYS-50: a Git revision waits for the open difference, then refreshes witho
 test("SSC-15 Git offers 「设为输出」 beside a refusal that the folder is only an input, and asks again once the Host made it the output", { timeout: 30_000 }, async t => {
   let prepared = 0;
   const refusal = (code: string, message: string) => Object.assign(new Error(message), { status: 403, code });
-  const f = await fixture(t, `<section data-work-surface="git" data-companion="git">${renderGitBrowserDirectory(L)}${renderGitBrowserResult(L)}</section>`, `
+  const f = await fixture(t, `<section data-work-surface="git" data-companion="git">${gitMarkup()}</section>`, `
     window.setOutputCalls=[];
     const host={${companionHost("git")},workspaces:{setOutput:id=>{setOutputCalls.push(id);return Promise.resolve();}}};
     window.boot=()=>(${pageFactory("git")})(host);boot();
@@ -416,7 +421,7 @@ test("SSC-15 Git offers 「设为输出」 beside a refusal that the folder is o
 
 test("T405-GIT-01 a late index decision cannot consume a preparing or pending commit review", { timeout: 30_000 }, async t => {
   let revision = 1, outcome = "pending";
-  const f = await fixture(t, `<section data-work-surface="git" data-companion="git">${renderGitBrowserDirectory(L)}${renderGitBrowserResult(L)}</section>`, `
+  const f = await fixture(t, `<section data-work-surface="git" data-companion="git">${gitMarkup()}</section>`, `
     window.shows=0;
     const host={${companionHost("git")},reviews:{show:async(element,query,options)=>{window.decide=options.onDecision;window.shows++;}}};
     window.boot=()=>(${pageFactory("git")})(host);boot();
@@ -459,7 +464,7 @@ test("T405-GIT-01 a late index decision cannot consume a preparing or pending co
 
 test("T405-GIT-02 a failed or hidden commit-result read preserves its identity and draft until its own success", { timeout: 30_000 }, async t => {
   let outcome = "pending", fail = false;
-  const f = await fixture(t, `<section data-work-surface="git" data-companion="git">${renderGitBrowserDirectory(L)}${renderGitBrowserResult(L)}</section>`, `
+  const f = await fixture(t, `<section data-work-surface="git" data-companion="git">${gitMarkup()}</section>`, `
     const host={${companionHost("git")},reviews:{show:async(element,query,options)=>{window.decide=options.onDecision;}}};
     window.boot=()=>(${pageFactory("git")})(host);boot();
   `, path => {
@@ -497,7 +502,7 @@ test("T405-GIT-02 a failed or hidden commit-result read preserves its identity a
 
 test("T405-GIT-03 a commit settled before its prepare response arrives is reconciled from its own record", { timeout: 30_000 }, async t => {
   let outcome = "pending", revision = 1;
-  const f = await fixture(t, `<section data-work-surface="git" data-companion="git">${renderGitBrowserDirectory(L)}${renderGitBrowserResult(L)}</section>`, `
+  const f = await fixture(t, `<section data-work-surface="git" data-companion="git">${gitMarkup()}</section>`, `
     const host={${companionHost("git")},reviews:{show:async(element,query,options)=>{
       window.decide=options.onDecision;
       if(window.holdNextShow){window.holdNextShow=false;window.showBlocked=true;await new Promise(resolve=>window.releaseShow=resolve);}
@@ -536,7 +541,7 @@ for (const phase of ["reading", "shown"]) test(`SYS-51: a late Git decision pres
   let reads = 0;
   const selected = (version: number) => ({ workspace_id: "ws", path: ["note.md"], side: version === 1 ? "worktree" : "index", revision: "r" + version,
     reference: { artifact_id: "fixed", version } });
-  const f = await fixture(t, `<section data-work-surface="git" data-companion="git">${renderGitBrowserDirectory(L)}${renderGitBrowserResult(L)}</section>`, `
+  const f = await fixture(t, `<section data-work-surface="git" data-companion="git">${gitMarkup()}</section>`, `
     const host={${companionHost("git")},reviews:{show:async(element,query,options)=>{window.decide=options.onDecision;}}};
     window.boot=()=>(${pageFactory("git")})(host);boot();
   `, path => {

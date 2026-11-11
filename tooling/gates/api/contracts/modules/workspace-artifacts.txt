@@ -331,6 +331,10 @@ export type WorkspaceGitResult = {
     tool: "ready" | "missing" | "unauthenticated" | "unsupported";
     host: string | null;
     message: string;
+    local_remote?: {
+        name: string;
+        url: string;
+    };
 } | {
     outcome: "conflict-file";
     path: string;

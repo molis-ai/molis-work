@@ -211,6 +211,19 @@ const toggle = (page: GitPage, button: HTMLElement, form: HTMLElement): void => 
   });
 };
 
+function pullRequestNote(support: PrSupportAnswer): string {
+  if (support.outcome !== "pr-support") return support.message;
+  switch (support.tool) {
+    case "ready": return uiText.text("git.host.pr-ready", { host: support.host ?? "" });
+    case "missing": return uiText.text("git.pr.support-missing");
+    case "unauthenticated": return uiText.text("git.host.pr-signin", { host: support.host ?? "" });
+    case "unsupported":
+      if (support.host !== null) return uiText.text("git.host.remote-elsewhere", { host: support.host });
+      if (support.local_remote) return uiText.text("git.host.remote-local", { remote: support.local_remote.name, url: support.local_remote.url });
+      return uiText.text("git.pr.support-no-remote");
+  }
+}
+
 /** The pull request form opens after asking what the repository can do about one. */
 function installPullRequest(page: GitPage): void {
   const { readText, s, message } = page;
@@ -220,6 +233,7 @@ function installPullRequest(page: GitPage): void {
   page.lifetime.listen(button, "click", async () => {
     if (form.hidden) return;
     const epoch = page.generation, note = s("[data-git-pr-support]"), create = s<HTMLButtonElement>("[data-git-pr-create]");
+    note.translate = true;
     note.textContent = uiText.text("git.pr.checking");
     create.disabled = true;
     const lines = message.value.trim().split("\n"), title = s<HTMLInputElement>("[data-git-pr-title]"), body = s<HTMLTextAreaElement>("[data-git-pr-body]");
@@ -228,9 +242,10 @@ function installPullRequest(page: GitPage): void {
     try {
       const support = await request<PrSupportAnswer>(page, inFolder("/pr-support", page.workspace));
       if (!active(page, epoch)) return;
-      note.textContent = (support.message);
-      create.disabled = support.tool !== "ready";
-    } catch (error) { if (active(page, epoch)) note.textContent = (messageOf(error)); }
+      note.translate = support.outcome === "pr-support";
+      note.textContent = pullRequestNote(support);
+      create.disabled = support.outcome !== "pr-support" || support.tool !== "ready";
+    } catch (error) { if (active(page, epoch)) { note.translate = false; note.textContent = messageOf(error); } }
   });
   page.lifetime.listen(s("[data-git-pr-create]"), "click", (event) => void prepare(page, {
     action: "pr-create", base: s<HTMLSelectElement>("[data-git-pr-base]").value, title: s<HTMLInputElement>("[data-git-pr-title]").value,

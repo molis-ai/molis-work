@@ -1,4 +1,5 @@
 import type { UiClientTranslate, UiPageReviews, UiPageWorkspaces } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { WorkspaceGitResult } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 
 export type Translate = UiClientTranslate;
 
@@ -116,7 +117,7 @@ export interface SourceSummary {
 }
 export interface SummaryAnswer { readonly summary: SourceSummary | null; readonly workspace: { readonly workspace_id: string }; readonly draft?: string; readonly message?: string }
 export interface ConflictAnswer { readonly outcome: string; readonly message?: string; readonly ours: string; readonly theirs: string; readonly conflicts: number; readonly text: string }
-export interface PrSupportAnswer { readonly message: string; readonly tool: string }
+export type PrSupportAnswer = Extract<WorkspaceGitResult, { message: string }>;
 
 /** What Git hands back to the bundle that mounts it. */
 export interface GitBrowser {

@@ -541,6 +541,16 @@ function executionLabel(execution: string, _p: Pick<CodingUiPrimitives, "text">)
   return uiText.text("coding.settings.execution.command");
 }
 
+function builtInMethodDisplay(method: NonNullable<typeof codingAgentManifest.skills>[number]) {
+  switch (method.skill_id) {
+    case "coding-review-change": return { ...method, name: uiText.text("coding.settings.method.review-change.name"), summary: uiText.text("coding.settings.method.review-change.summary") };
+    case "coding-diagnose-fix": return { ...method, name: uiText.text("coding.settings.method.diagnose-fix.name"), summary: uiText.text("coding.settings.method.diagnose-fix.summary") };
+    case "coding-implement-change": return { ...method, name: uiText.text("coding.settings.method.implement-change.name"), summary: uiText.text("coding.settings.method.implement-change.summary") };
+    case "coding-git-delivery": return { ...method, name: uiText.text("coding.settings.method.git-delivery.name"), summary: uiText.text("coding.settings.method.git-delivery.summary") };
+    default: return method;
+  }
+}
+
 /**
  * The page is drawn from the platform's settings context alone (its view declares no `settings_data`): the roles and the methods are
  * this plugin's own, from its Agent Manifest, and the runtimes, projects and the project the page was opened from are the Host's.
@@ -553,7 +563,7 @@ export function codingSettingsModel({ context, primitives }: SettingsPageModel):
       can_command: runtime.capabilities.command !== "unsupported",
       methods: runtime.capabilities.skills,
     })),
-    methods: codingAgentManifest.skills ?? [],
+    methods: (codingAgentManifest.skills ?? []).map(builtInMethodDisplay),
     projects: context.projects.map(project => ({ project_id: project.project_id, name: project.name })),
     project_name: context.project?.name,
     project_href: context.project?.href ?? null,

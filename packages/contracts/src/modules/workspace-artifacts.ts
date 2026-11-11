@@ -47,7 +47,9 @@ export type WorkspaceGitQuery = { workspace_id: string } & (
 export type WorkspaceGitResult =
   | { outcome: "status"; porcelain: string; head_commit: string | null }
   | WorkspaceGitSummary
-  | { outcome: "pr-support"; tool: "ready" | "missing" | "unauthenticated" | "unsupported"; host: string | null; message: string }
+  | { outcome: "pr-support"; tool: "ready" | "missing" | "unauthenticated" | "unsupported"; host: string | null; message: string;
+      /** The exact remote already described in message, present only when it is a local path. */
+      local_remote?: { name: string; url: string } }
   | { outcome: "conflict-file"; path: string; text: string; conflicts: number; ours: string; theirs: string; revision: string }
   | { outcome: "diff"; path: readonly string[]; previous_path?: readonly string[]; side: "index" | "worktree";
       before_exists: boolean; after_exists: boolean; before: string; after: string;

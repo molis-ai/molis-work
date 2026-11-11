@@ -40,6 +40,7 @@
     "files.reader.reload": "重读",
     "files.reader.reload-label": "重新读取当前文件",
     "files.reader.retry": "{message}。可点击重读重试。",
+    "files.reader.retry-after-sentence": "{message}可点击重读重试。",
     "files.reader.text-copied": "文件正文已复制。",
     "files.reader.text-label": "文件正文（只读，可选择片段）",
     "files.reader.too-large": "文件超过预览上限（{limit} 字节）",

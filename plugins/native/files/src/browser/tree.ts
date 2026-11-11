@@ -1,5 +1,4 @@
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
-import { said } from "./dom.js";
 import { active, request } from "./page.js";
 import type { FilesPage } from "./page.js";
 import type { DirectoryAnswer, DirectoryEntry, ReadOutcome } from "./types.js";
@@ -25,7 +24,7 @@ function entryRow(page: FilesPage, entry: DirectoryEntry): { li: HTMLLIElement; 
 
 /** Lists one folder into `container`; a folder expands in place the first time it is opened. */
 export async function list(page: FilesPage, path: readonly string[], container: HTMLElement, ticket: number, openFile: (path: string[]) => Promise<void>): Promise<void> {
-  const { readText, lifetime, result } = page, id = page.workspace;
+  const { lifetime, result } = page, id = page.workspace;
   const value = await request<DirectoryAnswer>(page, "/directory?workspace_id=" + encodeURIComponent(id) + "&path=" + encodeURIComponent(JSON.stringify(path)));
   if (!active(page, ticket)) return;
   if (value.result.outcome !== "directory") throw new Error(readErrors(page)[value.result.outcome] || uiText.text("files.directory.unreadable"));
@@ -42,7 +41,7 @@ export async function list(page: FilesPage, path: readonly string[], container: 
         if (!expanded || children.querySelector("ul")) return;
         button.disabled = true;
         try { await list(page, entry.path, children, ticket, openFile); }
-        catch (error) { if (active(page, ticket)) children.textContent = said(readText, messageOf(error)); }
+        catch (error) { if (active(page, ticket)) children.textContent = messageOf(error); }
         finally { if (lifetime.alive) button.disabled = false; }
       });
     } else if (entry.kind === "file") {

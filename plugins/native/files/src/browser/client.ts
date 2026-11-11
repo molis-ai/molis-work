@@ -1,5 +1,4 @@
 import { messageOf } from "@molis-ai/molis-work-plugin-sdk/browser";
-import { said } from "./dom.js";
 import { active, createPage, request } from "./page.js";
 import type { FilesPage } from "./page.js";
 import { capture, clearReader, companions, controls, copyAll, openFile } from "./reader.js";
@@ -37,13 +36,13 @@ async function browseFor(page: FilesPage, id: string, path: string[]): Promise<v
     if (state.resolved === page.workspace) openWanted(page);
     else await choose(page, state.resolved);
   } catch (error) {
-    if (ticket === page.generation) page.notice(said(page.readText, messageOf(error)));
+    if (ticket === page.generation) page.notice(messageOf(error));
   }
 }
 
 /** Browses one workspace: its top folder, then the file the person left open (or the one asked for), then the companions. */
 async function choose(page: FilesPage, id: string): Promise<void> {
-  const { readText, tree } = page, ticket = ++page.generation;
+  const { tree } = page, ticket = ++page.generation;
   page.workspace = id; clearReader(page); tree.replaceChildren(); page.notice(id ? uiText.text("files.directory.reading") : uiText.text("files.directory.choose-workspace"));
   try {
     if (!id || !active(page, ticket)) return;
@@ -58,7 +57,7 @@ async function choose(page: FilesPage, id: string): Promise<void> {
     if (!active(page, ticket)) return;
     await companions(page, ticket);
   } catch (error) {
-    if (active(page, ticket)) { clearReader(page); tree.replaceChildren(); page.notice(said(readText, messageOf(error))); }
+    if (active(page, ticket)) { clearReader(page); tree.replaceChildren(); page.notice(messageOf(error)); }
   }
 }
 
@@ -70,7 +69,7 @@ const loading = (page: FilesPage, on: boolean) => {
 
 /** Reads the folder the page browses (the project's output until it browses another) and shows it again. */
 async function load(page: FilesPage): Promise<void> {
-  const { readText, lifetime } = page;
+  const { lifetime } = page;
   if (!lifetime.visible || page.refresh.disabled) return;
   const serial = ++page.loadingTicket;
   loading(page, true); page.notice(uiText.text("files.directory.reading-workspace"));
@@ -79,7 +78,7 @@ async function load(page: FilesPage): Promise<void> {
     if (serial !== page.loadingTicket) return;
     await choose(page, state.workspace?.workspace_id ?? "");
   } catch (error) {
-    if (lifetime.visible && serial === page.loadingTicket) { page.workspace = ""; clearReader(page); page.tree.replaceChildren(); page.notice(said(readText, messageOf(error))); }
+    if (lifetime.visible && serial === page.loadingTicket) { page.workspace = ""; clearReader(page); page.tree.replaceChildren(); page.notice(messageOf(error)); }
   } finally {
     if (lifetime.alive && serial === page.loadingTicket) loading(page, false);
   }

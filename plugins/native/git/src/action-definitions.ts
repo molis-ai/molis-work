@@ -29,7 +29,8 @@ const summary = object({ outcome: { const: "summary" }, branch: nullable(text), 
   branches: { type: "array", items: text }, remotes: { type: "array", items: object({ name: text, url: text }) },
   staged: { type: "array", items: object({ path: text, status: text }) }, unstaged: count, conflicted: { type: "array", items: text }, merging: boolean, revision: id });
 const conflictFile = object({ outcome: { const: "conflict-file" }, path: text, text: { type: "string" }, conflicts: count, ours: text, theirs: text, revision: id });
-const prSupport = object({ outcome: { const: "pr-support" }, tool: { enum: ["ready", "missing", "unauthenticated", "unsupported"] }, host: nullable(text), message: text });
+const prSupport = object({ outcome: { const: "pr-support" }, tool: { enum: ["ready", "missing", "unauthenticated", "unsupported"] }, host: nullable(text), message: text,
+  local_remote: object({ name: text, url: text }) }, ["outcome", "tool", "host", "message"]);
 interface Workspace { workspace_id: string; name: string; handle: string }
 /** The project folder the page shows (page state); none names the project's output. */
 interface Named { workspace_id?: string }

@@ -201,6 +201,8 @@
     "git.pr.body": "Description",
     "git.pr.checking": "Checking the GitHub CLI…",
     "git.pr.draft": "As a draft",
+    "git.pr.support-missing": "GitHub CLI (gh) isn’t installed on this computer. Install it and sign in, then you can open a PR.",
+    "git.pr.support-no-remote": "This repository has no remote yet",
     "git.pr.title": "Title",
     "git.pr.toggle": "Open a PR…",
     "git.projection.choose-directory": "Choose a directory in project settings first",

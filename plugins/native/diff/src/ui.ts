@@ -7,7 +7,7 @@ import type {
 import { renderDiff, type DiffViewLabels, type DiffViewModel, type DiffViewPrimitives } from "@molis-ai/molis-work-plugin-sdk/diff-view";
 
 import { renderCompanionListStage, type CompanionStageModel } from "./companion-stage.js";
-import type { DiffInputGroup } from "./comparison.js";
+import { diffDisplayView, type DiffInputGroup } from "./comparison.js";
 
 export const DIFF_UI_CONTRIBUTION_ID = "io.molis.work.native.diff.ui.v1";
 
@@ -34,6 +34,10 @@ export const DIFF_LABELS: DiffViewLabels = {
 export type DiffUiPrimitives = DiffViewPrimitives;
 export type DiffUiModel = Omit<DiffViewModel<DiffInputGroup>, "labels">;
 
+export function renderDiffComparison(model: DiffUiModel): string {
+  return renderDiff({ ...model, view: diffDisplayView(model.view, model.primitives.text), labels: DIFF_LABELS });
+}
+
 export const diffUiDescriptor: UiContributionDeclaration = {
   contribution_id: DIFF_UI_CONTRIBUTION_ID,
   kind: "primary-page",
@@ -49,7 +53,7 @@ export const diffUiDescriptor: UiContributionDeclaration = {
 export const diffUiContribution: UiContribution<DiffUiModel | CompanionStageModel> = {
   descriptor: diffUiDescriptor,
   render(request: UiRenderRequest<DiffUiModel | CompanionStageModel>): string {
-    return request.surface === "workbench" ? renderDiffStage(request.model as CompanionStageModel) : renderDiff({ ...(request.model as DiffUiModel), labels: DIFF_LABELS });
+    return request.surface === "workbench" ? renderDiffStage(request.model as CompanionStageModel) : renderDiffComparison(request.model as DiffUiModel);
   },
 };
 

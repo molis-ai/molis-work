@@ -40,6 +40,7 @@
     "files.reader.reload": "Reload",
     "files.reader.reload-label": "Read this file again",
     "files.reader.retry": "{message}. Select Reload to try again.",
+    "files.reader.retry-after-sentence": "{message} Select Reload to try again.",
     "files.reader.text-copied": "File text copied.",
     "files.reader.text-label": "File text (read-only; you can select a passage)",
     "files.reader.too-large": "The file is over the preview limit ({limit} bytes)",

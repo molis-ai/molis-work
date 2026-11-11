@@ -13,6 +13,7 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { deferred } from "./fixtures/home-runtime.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { openPagesStore } from "./fixtures/plugin-home-stores.js";
+import { addProjectInputFolder } from "./fixtures/project-directories-http.js";
 import { renderAgentReviewRecovery, renderAgentReviewSurface } from "@molis-ai/molis-work-app-workbench";
 import type { AgentReviewRecoveryView, AgentReviewRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "@molis-ai/molis-work-ui-host";
@@ -400,6 +401,90 @@ async function chooseEnglishInSettings(t: TestContext, b: LanguageBrowser, targe
   await select(target);
   return select;
 }
+
+test("FSS-35 FSS-36 the open Diff wait state changes language without replacing its comparison", { timeout: 90_000 }, async t => {
+  const b = await openGoalBrowser(t, "seeded", undefined, null); assert.ok(b?.projectId);
+  const prefix = `/projects/${b.projectId}`, path = prefix + "/api/plugins/io.molis.work.diff/state?change_index=0";
+  const requests: string[] = [];
+  const observe = (request: IncomingMessage) => { if (request.url?.includes("/api/plugins/io.molis.work.diff/")) requests.push(`${request.method} ${request.url}`); };
+  b.server.on("request", observe); t.after(() => { b.server.off("request", observe); });
+  const child = await pluginFrameBrowser(t, b, "diff");
+  await b.navigate(() => b.command("Page.navigate", { url: b.origin + "/locale?lang=zh&next=" + encodeURIComponent(prefix + "/?openPlugin=diff") }, b.sessionId));
+  const empty = "document.querySelector('[data-companion=diff] .mw-empty')", refresh = "document.querySelector('[data-companion-refresh]')";
+  const message = `${empty}?.querySelector('strong').textContent`;
+  const zh = "先在文件阅读区固定“对比前”和“对比后”，这里会显示两份快照的差异", en = "Pin a before and an after in the file reader first, and the difference shows here";
+  await child.waitFor(`${message} === ${JSON.stringify(zh)}`);
+  await child.evaluate(`void (()=>{ window.diffOriginal = ${empty}; ${refresh}.focus(); })()`);
+  const select = await chooseEnglishInSettings(t, b);
+  for (const [locale, text] of [["en", en], ["zh-CN", zh]]) {
+    if (locale === "zh-CN") await select("zh");
+    await child.waitFor(`document.documentElement.lang === ${JSON.stringify(locale)} && ${message} === ${JSON.stringify(text)}`);
+    assert.deepEqual(await child.evaluate(`[diffOriginal === ${empty}, diffOriginal.dataset.phase, diffOriginal.dataset.group, document.activeElement === ${refresh}]`), [true, "waiting", "snapshots", true]);
+  }
+  assert.deepEqual(requests, Array(3).fill("GET " + path), "initial comparison and one existing read for each language change");
+});
+
+test("FSS-35 FSS-36 Coding settings localizes the four built-in v2 methods and retains the project draft and method", { timeout: 120_000 }, async t => {
+  const b = await openGoalBrowser(t, "seeded", undefined, null); assert.ok(b?.projectId);
+  const prefix = `/projects/${b.projectId}`, api = prefix + "/api/plugins/io.molis.work.coding";
+  const work = join(b.homeDirectory, "method-display-workspace");
+  const originalBody = "---\nname: local-method\ndescription: Project-owned method\n---\n保留正文 · Original\n";
+  await mkdir(join(work, "skills", "local-method"), { recursive: true });
+  await writeFile(join(work, "skills", "local-method", "SKILL.md"), originalBody);
+  const directory = await addProjectInputFolder(b.web, b.projectId, work);
+  await b.navigate(() => b.command("Page.navigate", { url: b.origin + "/locale?lang=zh&next=" + encodeURIComponent(prefix + "/") }, b.sessionId));
+  await b.click("[data-directory-open=settings]");
+  const codingSettings = '[data-directory-panel=settings] [data-settings-section="coding-settings"]';
+  await b.waitFor(`!!document.querySelector(${JSON.stringify(codingSettings)})`);
+  await b.click(codingSettings);
+  await b.waitFor("document.querySelector('[data-method-discover]')?.disabled === false");
+  const rows = `[...document.querySelectorAll('[data-coding-settings] .setting-copy')].filter(row => row.querySelector('strong')?.textContent.endsWith(' · v2'))`;
+  const displayed = `${rows}.map(row => [row.querySelector('strong').textContent, row.querySelector('span').textContent])`;
+  const methods = [
+    ["coding-review-change", "审查改动", "根据实际代码与需求查找问题，区分已证实风险和待核实项。", "Review changes", "Find problems against the actual code and requirements, separating confirmed risks from items still to verify."],
+    ["coding-diagnose-fix", "定位并修复问题", "先找到可复现原因，再做最小修复并检查失败与恢复。", "Find and fix a problem", "Find a reproducible cause first, then make the smallest fix and check both failure and recovery."],
+    ["coding-implement-change", "实现需求", "沿现有结构接通完整用户路径，核对差异与完成条件。", "Implement a requirement", "Connect the whole user path along the existing structure, checking the differences and when it is done."],
+    ["coding-git-delivery", "整理交付", "核对分支、改动和检查证据，按已有授权准备提交与交付。", "Prepare delivery", "Check the branch, changes and evidence from checks, and prepare the commit and delivery within the access already granted."],
+  ] as const;
+  const builtInRows = (locale: "zh" | "en") => methods.map(([, name, summary, english, purpose]) => locale === "zh" ? [name + " · v2", summary] : [english + " · v2", purpose]);
+  const compareBodies = async (locale: "zh" | "en") => {
+    const urls = methods.map(([id]) => api + "/methods/" + id + "/2");
+    const actual = await b.evaluate(`(async()=>{const result=[];for(const url of ${JSON.stringify(urls)}) {
+      const {method}=await molisWorkRequest(url); result.push([method.skill_id,method.version,method.name,method.summary,method.body]); } return result;})()`);
+    const expected = await Promise.all(methods.map(async ([id, name, summary]) => [id, 2, name, summary,
+      (await readFile(new URL(`../plugins/native/coding/methods/${id}${locale === "en" ? ".en" : ""}.md`, import.meta.url), "utf8")).trimEnd()]));
+    assert.deepEqual(actual, expected, `the method read returns the original ${locale} text and v2 declaration`);
+  };
+  assert.deepEqual(await b.evaluate(displayed), builtInRows("zh"));
+  await compareBodies("zh");
+  await b.evaluate(`void (()=>{const choice=document.querySelector('[data-method-workspace]');
+    choice.value=${JSON.stringify(directory.workspace_id)};
+    choice.dispatchEvent(new Event('change',{bubbles:true}));
+  })()`);
+  await b.click("[data-method-discover]");
+  await b.waitFor("document.querySelector('[data-method-candidates] summary')?.textContent.includes('local-method')");
+  await b.click("[data-method-candidates] summary"); await b.click("[data-method-candidates] button");
+  await b.waitFor("document.querySelector('[data-installed-methods] summary')?.textContent === 'local-method · v1'");
+  await b.click("[data-installed-methods] summary");
+  await b.waitFor(`document.querySelector('[data-installed-methods] pre')?.textContent === ${JSON.stringify(originalBody)}`);
+  await b.evaluate(`void (()=>{
+    window.methodRows = ${rows}; window.methodInput = document.querySelector('[data-method-path]');
+    window.installedMethod = document.querySelector('[data-installed-methods] details');
+    methodInput.value='草稿 · Draft'; methodInput.focus(); methodInput.setSelectionRange(1,5,'backward');
+  })()`);
+  const kept = `[methodRows.every((node,index)=>node===${rows}[index]), methodInput===document.querySelector('[data-method-path]'),
+    methodInput===document.activeElement,methodInput.value,methodInput.selectionStart,methodInput.selectionEnd,methodInput.selectionDirection,
+    installedMethod===document.querySelector('[data-installed-methods] details'),installedMethod.open,installedMethod.querySelector('summary').textContent,
+    installedMethod.querySelector('pre').textContent]`;
+  const expected = [true, true, true, "草稿 · Draft", 1, 5, "backward", true, true, "local-method · v1", originalBody];
+  const select = await chooseEnglishInSettings(t, b);
+  await b.waitFor(`document.documentElement.lang==='en' && JSON.stringify(${displayed})===${JSON.stringify(JSON.stringify(builtInRows("en")))}`);
+  assert.deepEqual(await b.evaluate(kept), expected);
+  await compareBodies("en");
+  await select("zh");
+  await b.waitFor(`document.documentElement.lang==='zh-CN' && JSON.stringify(${displayed})===${JSON.stringify(JSON.stringify(builtInRows("zh")))}`);
+  assert.deepEqual(await b.evaluate(kept), expected);
+});
 
 test("FSS-35 FSS-36 the real project deletion dialog retitles its data scope without reading the output again or deleting", { timeout: 120_000 }, async t => {
   const b = await openGoalBrowser(t, "seeded", undefined, null); if (!b?.projectId) return;

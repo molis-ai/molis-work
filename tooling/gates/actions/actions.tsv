@@ -237,7 +237,7 @@ form.submit	1	io.molis.work.form	io.molis.work.form	command	operation	project	wr
 form.update	1	io.molis.work.form	io.molis.work.form	command	operation	project	write	-	agent,mcp,user,workflow	form:read,form:write	form	-	-	37c0823d2f40	d43039f240f2	-
 git.conflict	1	io.molis.work.git	io.molis.work.git	query	query	project	read	-	agent,mcp,plugin,user,workflow	artifact:read,storage:private,workspace:read	git,workspace	-	-	db236a4fd826	cbdfeb77ac0e	a7fd75581995
 git.operations	1	io.molis.work.git	io.molis.work.git	query	query	project	read	-	agent,mcp,plugin,user,workflow	artifact:read,storage:private	git,workspace	-	-	07f86a337608	476e9ece3ed2	-
-git.pr-support	1	io.molis.work.git	io.molis.work.git	query	query	project	read	-	agent,mcp,plugin,user,workflow	artifact:read,storage:private,workspace:read	git,workspace	-	-	07f86a337608	6acbda275a13	a7fd75581995
+git.pr-support	1	io.molis.work.git	io.molis.work.git	query	query	project	read	-	agent,mcp,plugin,user,workflow	artifact:read,storage:private,workspace:read	git,workspace	-	-	07f86a337608	e45779a93682	a7fd75581995
 git.prepare-index	1	io.molis.work.git	io.molis.work.git	command	operation	project	write	-	agent,mcp,plugin,user,workflow	artifact:read,artifact:write,storage:private	git,workspace	-	-	f2b96d30b920	18a6c013818d	-
 git.prepare-operation	1	io.molis.work.git	io.molis.work.git	command	operation	project	write	-	agent,mcp,plugin,user,workflow	artifact:read,storage:private	git,workspace	-	-	2f5fb9f11bb7	18a6c013818d	-
 git.results	1	io.molis.work.git	io.molis.work.git	query	query	project	read	-	agent,mcp,plugin,user,workflow	artifact:read,storage:private	git,workspace	-	-	07f86a337608	76c7dc4f5711	-

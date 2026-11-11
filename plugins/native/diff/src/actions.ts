@@ -1,12 +1,11 @@
 import type { ActionCallContext, ActionDefinition, ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { DIFF_CHANGESET_SCHEMA_VERSION, DIFF_CHANGESET_TYPE, CODING_CHANGESET_TYPE, parseCodingChangeSet, type TextDiff } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
-import { compareSnapshots, compareChangeSet, compareRunChangeSet, emptyDiff, type DiffView } from "./comparison.js";
+import { chooseSnapshots, compareSnapshots, compareChangeSet, compareRunChangeSet, emptyDiff, type DiffView } from "./comparison.js";
 import { objectSchema as object, compareTexts } from "@molis-ai/molis-work-plugin-sdk";
-import { renderDiff } from "@molis-ai/molis-work-plugin-sdk/diff-view";
 import { t, escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { diffErrors } from "./errors.js";
-import { DIFF_LABELS } from "./ui.js";
+import { renderDiffComparison } from "./ui.js";
 
 const text = { type: "string" }, version = { type: "integer", minimum: 1 }, count = { type: "integer", minimum: 0 }, boolean = { type: "boolean" };
 const reference = object({ artifact_id: { type: "string", minLength: 1 }, version });
@@ -44,7 +43,7 @@ export function diffActionHandlers(context: PluginStartContext): ActionHandlerBi
 function stateFor(caller: ActionCallContext, view: DiffView): DiffState {
   // Pages draw it: the plugin's own page calls as the person, Coding's page consumes it as a plugin; models, workflows and MCP get the view only.
   if (caller.audience !== "user" && caller.audience !== "plugin") return { view };
-  return { view, html: renderDiff({ view, labels: DIFF_LABELS,
+  return { view, html: renderDiffComparison({ view,
     primitives: { escape: escapeHtml, text: t.text, icon: name => icon(name as Parameters<typeof icon>[0]) } }) };
 }
 function readState(context: PluginStartContext, input: DiffStateInput): DiffView {
@@ -73,7 +72,7 @@ function readState(context: PluginStartContext, input: DiffStateInput): DiffView
       return compareChangeSet({ content: record.payload, source_plugin_id: record.producer_plugin_id, content_version: record.version });
     } catch { throw diffErrors.invalid("Git 固定变更当前不可读，请重新选择原变更"); }
   }
-  if (inputs?.selectedGroup() !== "snapshots") return emptyDiff("snapshots", "请选择两份文件快照进行对比");
+  if (inputs?.selectedGroup() !== "snapshots") return chooseSnapshots();
   const records = [inputs.read("before"), inputs.read("after")];
   return compareSnapshots(records.filter(record => record?.availability === "available").map(record => ({
     content: record!.payload, source_plugin_id: record!.producer_plugin_id, content_version: record!.version,

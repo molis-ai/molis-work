@@ -17,5 +17,5 @@ export interface Host {
   openPlugin?(plugin: string): void;
 }
 
-/** The plugin's `/state`: its drawn HTML. */
-export interface StateAnswer { readonly html?: string }
+/** The plugin's `/state`: the comparison and its drawn HTML. */
+export interface StateAnswer { readonly view: unknown; readonly html?: string }

@@ -1,12 +1,9 @@
 import { required } from "./dom.js";
-import type { Current, FilesHost, FilesLifetime, Translate } from "./types.js";
-
-const uiText = globalThis.t;
+import type { Current, FilesHost, FilesLifetime } from "./types.js";
 
 /** Everything the Files client shares between its parts: the page's elements and what it is showing. */
 export interface FilesPage {
   readonly host: FilesHost;
-  readonly readText: Translate;
   readonly lifetime: FilesLifetime;
   readonly directory: HTMLElement;
   readonly result: HTMLElement;
@@ -38,7 +35,7 @@ export interface FilesPage {
 export function createPage(host: FilesHost, lifetime: FilesLifetime, directory: HTMLElement, result: HTMLElement): FilesPage {
   const q = <E extends HTMLElement = HTMLElement>(selector: string) => required<E>(result, selector);
   return {
-    host, readText: uiText.text, lifetime, directory, result, q,
+    host, lifetime, directory, result, q,
     tree: required(directory, "[data-files-tree]"),
     text: q<HTMLTextAreaElement>("[data-files-text]"),
     refresh: required<HTMLButtonElement>(directory, "[data-files-refresh]"),

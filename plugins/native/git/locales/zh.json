@@ -159,6 +159,8 @@
     "git.pr.body": "描述",
     "git.pr.checking": "正在检查 GitHub CLI…",
     "git.pr.draft": "作为草稿",
+    "git.pr.support-missing": "这台电脑没有安装 GitHub CLI（gh），装好并登录后即可建 PR",
+    "git.pr.support-no-remote": "这个仓库还没有远端",
     "git.pr.title": "标题",
     "git.pr.toggle": "建 PR…",
     "git.projection.choose-directory": "先在项目设置里选一个目录",

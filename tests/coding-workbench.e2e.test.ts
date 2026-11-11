@@ -76,12 +76,13 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   await capture("files-desktop");
   await command("Network.enable", {}, sessionId);
   await command("Network.setBlockedURLs", { urls: [prefix + "/api/plugins/io.molis.work.files/open"] }, sessionId);
-  await click(`${files} [data-files-tree] [title="note.txt"]`);
-  // The shared request helper says the failure in words (W3-10; no browser English such as "Failed to fetch").
-  await waitFor(`/连不上|不知道这次操作有没有完成/.test(document.querySelector('${files} [data-files-notice]').textContent) && !/fetch/i.test(document.querySelector('${files} [data-files-notice]').textContent)`);
-  assert.equal(await evaluate(`document.querySelector('${files} [data-files-text]').hidden && document.querySelector('${files} [data-files-copy]').disabled`), true);
-  assert.equal(await evaluate(`document.querySelector('${files} [data-files-reload]').disabled`), false, 'failed reads expose a working retry');
-  await command("Network.setBlockedURLs", { urls: [] }, sessionId);
+  try {
+    await click(`${files} [data-files-tree] [title="note.txt"]`);
+    // The shared request helper's localized failure is shown with Files' retry instruction (W3-10, FSS-36).
+    await waitFor(`document.querySelector('${files} [data-files-notice]').textContent === '不知道这次操作有没有完成，请刷新后核对。可点击重读重试。'`);
+    assert.equal(await evaluate(`document.querySelector('${files} [data-files-text]').hidden && document.querySelector('${files} [data-files-copy]').disabled`), true);
+    assert.equal(await evaluate(`document.querySelector('${files} [data-files-reload]').disabled`), false, 'failed reads expose a working retry');
+  } finally { await command("Network.setBlockedURLs", { urls: [] }, sessionId); }
   await click(`${files} [data-files-reload]`);
   await waitFor(`!document.querySelector('${files} [data-files-text]').hidden && document.querySelector('${files} [data-files-text]').value.startsWith('second')`);
   // Diff and Text Stats are laid out as plugin stages (E-14): the heading drawn by the stage, the page's actions at its right,
@@ -102,7 +103,7 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   await open("text-stats");
   await waitFor("document.querySelector('[data-companion=" + '"text-stats"' + "] [data-phase=ready]')");
   const statsStage = await stage("text-stats");
-  assert.match(statsStage.heading, /Text stats/); assert.deepEqual(statsStage.actions, ["刷新", "打开 Files"]);
+  assert.match(statsStage.heading, /Text Stats/); assert.deepEqual(statsStage.actions, ["刷新", "打开 Files"]);
   assert.ok(statsStage.inset >= 32 && statsStage.column <= 960 && statsStage.contentLeft >= 32, JSON.stringify(statsStage));
   await capture("stats-desktop");
   await writeFile(join(workspace, "note.txt"), "staged\n中文🙂\n");

@@ -1,7 +1,3 @@
-import type { UiClientTranslate } from "@molis-ai/molis-work-contracts/platform/ui";
-
-export type Translate = UiClientTranslate;
-
 /** The mounted root's lifetime (packages/ui-host client-lifecycle): what Files uses of it. */
 export interface FilesLifetime {
   readonly alive: boolean;

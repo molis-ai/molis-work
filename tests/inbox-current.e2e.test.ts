@@ -101,7 +101,8 @@ test("B27-FF05 Inbox keeps its selected item and the compose draft when a list r
     window.molisWorkbenchPluginFactories = new Proxy({}, { set(target, key, value) {
       target[key] = key === "inbox" ? host => {
         const read = host.view.readDocument, toast = host.showToast;
-        inboxFeedback.refresh = () => host.invalidateView();
+        // A change made elsewhere: the notice another view's invalidation delivers (a page's own invalidation is not sent back to it).
+        inboxFeedback.refresh = () => host.root.dispatchEvent(new CustomEvent('molis-work:select-item',{detail:{invalidate:true}}));
         host.view.readDocument = async (...args) => {
           inboxFeedback.reads++; inboxFeedback.pending++;
           try { return await read(...args); } finally { inboxFeedback.pending--; }

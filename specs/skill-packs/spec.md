@@ -242,7 +242,7 @@ argument_hint: "<周期，可选>"
 **不在本批的验收编号：**
 
 - **消费方，在第 09 批**：助理的 `methods()` 改读目录，`SignedAgentReference` 的方法引用改用 `SkillRef`（9-2）；助理交活时带 `SkillRef`（9-3）；Coding 读目录并删旧路（9-4，SKC-11）；agent-host 按 `SkillRef` 冻结、`tools` 的两道检查（9-5，SKC-13）；真实验证（9-6，SKP-12 与 ADH-23）。SKP-02～07、SKP-10 的消费方一侧（`/` 点名、AI 自动选用，9-2／9-4）、SKC-07 的消费方部分，以及 SKC-06 委派之后仍成立的部分，都随 09 验。
-- **SKP-09（`scripts/` 只在权限岛和沙箱里跑）**：本批只管声明一侧：`role: "script"`、`runs_scripts` 标注、只能按声明路径读，宿主不执行脚本。执行发生在会跑脚本的 Agent 里（Coding），随 09 的 9-4、9-5 验；09 第七节已加一行。
+- **SKP-09（`scripts/` 只在权限岛和沙箱里跑）**：本批只管声明一侧：`role: "script"`、`runs_scripts` 标注、只能按声明路径读，宿主不执行脚本。执行发生在会跑脚本的 Agent 里（Coding），随 09 的 9-4、9-5 验；09 第七节已加一行。第 09 批把执行一侧（9-5b）移出，记 [BL-skill-scripts-sandbox](../backlog/BL-skill-scripts-sandbox.md)。
 - **SKP-11（从对话生成技能包）**：在[第 42 批](../post-anticorruption-roadmap/reference/batches/42.md)。
 
 **C-3 与第 20 批的先后**：两者没有语义依赖：P-3b 只要 08 C-1，P-3c 只要 08 C-2；C-3 动 `plugin-package`，它们动 `plugin-manifest`／`blueprints`，只共用 `platform/plugin.txt` 这一份快照。用户 2026-11-07 定 C-3 先落（§9），[场景合同](../scene-and-page-contract/spec.md)第 10 节先后表、第 20 批文件和依赖表已照改。原定随 C-3 的 PR 一起改，按[第 8.4 节](../post-anticorruption-roadmap/reference/development-workflow.md#batch-grouping)第 7 步「影响别的批的决定要立刻入库」提前单开文档 PR。

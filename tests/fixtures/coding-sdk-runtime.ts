@@ -32,7 +32,7 @@ export async function codingSdkRuntime(t: TestContext, options: { modelEndpoint?
   const local = new LocalHost<null>({ runtimeFactory: { open: () => null, close: () => {} } }), reference = { project_id: DEMO_PROJECT_ID, storage_key: file };
   const service = { ...local.actionRegistry(reference), ...local.actionClient(reference), ...local.syncActionClient(reference) };
   registerAgentHostCapabilities({ register: (definition, handler) => local.registerAction(definition, handler) }, {
-    agentHost: () => agentHost, projectId: () => DEMO_PROJECT_ID, authority: () => ({ manifest: codingAgentManifest, prompts: codingPrompts, authorizedDirectories: [home], skill_owner: { project_id: DEMO_PROJECT_ID, plugin_id: "io.molis.work.coding" } }),
+    agentHost: () => agentHost, projectId: () => DEMO_PROJECT_ID, authority: () => ({ manifest: codingAgentManifest, prompts: codingPrompts, authorizedDirectories: [home], mcp_owner: { project_id: DEMO_PROJECT_ID, plugin_id: "io.molis.work.coding" } }),
   });
   local.registerAction(projectDirectoryActions.get, () => projectDirectories(DEMO_PROJECT_ID, [{ workspace_id: "work", canonical_path: home, display_name: "Fixture" }]));
   const privateStorage = new SqlitePluginPrivateStorage(store.db), artifacts = new ArtifactsModule({ db: store.db, homeOwner: "web-user", appendEvent: event => store.appendEvent(event), eventCursor: id => store.eventCursor(id) });

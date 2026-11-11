@@ -16,6 +16,8 @@ export const pluginErrors = defineErrorCodes("plugin", {
   event_type_missing: "invalid",
   event_type_undeclared: "invalid",
   executor_failed: "invalid",
+  /** A package that cannot be exported (`details.reason`: `host_build`, `not_content_package`, `package_missing`; capability-pack §4.9). */
+  export_unavailable: "not_found",
   grant_denied: "invalid",
   home_scope_unavailable: "invalid",
   id_namespace_conflict: "invalid",

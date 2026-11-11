@@ -19,7 +19,7 @@ const PROJECT_SETTINGS_SECTIONS = [
   { id: "memory", label: "记忆", icon: "bookmark" },
   { id: "knowledge", label: "项目资料", icon: "file" },
   { id: "plugins", label: "插件", icon: "package" },
-  { id: "skills", label: "技能", icon: "book" },
+  { id: "kit", label: "能力包", icon: "sparkles" },
   { id: "grants", label: "授权与放行", icon: "shield" },
 ] as const satisfies readonly { id: string; label: string; icon: PluginIconName }[];
 

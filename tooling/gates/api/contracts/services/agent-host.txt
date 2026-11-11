@@ -260,8 +260,17 @@ export interface AgentFrozenRole {
         prompt: AgentPromptText;
     };
     prompts: AgentPromptText[];
-    skills?: AgentSkillDefinition[];
+    skills?: AgentRoundSkill[];
+    reply_locale?: ActionLocale;
     host_tools: string[];
+}
+
+export interface AgentFrozenSkill {
+    ref: SkillRef;
+    origin: "own" | "catalog";
+    name: string;
+    tools: string[];
+    named: boolean;
 }
 
 export type AgentFrozenStart = AgentFrozenStartFields & AgentWorkspace & ActionCallOrigin;
@@ -1259,6 +1268,10 @@ export interface AgentRewindReviewDocument {
     }>;
 }
 
+export interface AgentRoundSkill extends AgentFrozenSkill {
+    body: string;
+}
+
 export interface AgentRunBudget {
     max_turns?: number;
     max_output_tokens?: number;
@@ -1370,8 +1383,6 @@ export interface AgentRuntimeAdapter {
     control(run: AgentRunRef, control: AgentRunControl): Promise<void>;
     readCommandOutput(session: AgentSessionRef, ref: AgentCommandOutputRef): Promise<AgentCommandOutput>;
     readonly checkpoints?: AgentCheckpointsCapability;
-    readonly skills?: AgentSkillsCapability;
-    readonly skillLibrary?: AgentSkillLibrary;
     readonly mcpLibrary?: AgentMcpLibrary;
     readonly subagents?: AgentSubagentsCapability;
 }
@@ -1558,39 +1569,9 @@ export interface AgentSessionView {
     queued_inputs?: import("@molis-ai/molis-work-contracts/services/agent-inputs").AgentQueuedInput[];
 }
 
-export interface AgentSkillCandidate {
-    candidate_id: string;
-    name: string;
-    summary: string;
-    source_label: string;
-    files: string[];
-    body: string;
-}
-
-export interface AgentSkillCatalogEntry extends AgentSkillDeclaration {
-    source: "builtin" | "installed";
-    enabled: boolean;
-}
-
-export interface AgentSkillLibrary {
-    list(owner: AgentSkillOwner): Promise<AgentSkillCatalogEntry[]>;
-    read(owner: AgentSkillOwner, ref: AgentSkillRef): Promise<AgentSkillDefinition>;
-    discover(owner: AgentSkillOwner, directory: AgentWorkingDirectory, path: string): Promise<AgentSkillCandidate[]>;
-    install(owner: AgentSkillOwner, candidateId: string): Promise<AgentSkillCatalogEntry>;
-}
-
 export interface AgentSkillOwner {
     project_id: string;
     plugin_id: string;
-}
-
-export interface AgentSkillRef {
-    skill_id: string;
-    version: number;
-}
-
-export interface AgentSkillsCapability {
-    catalog(session: AgentSessionRef): Promise<AgentSkillCatalogEntry[]>;
 }
 
 export interface AgentStartExecution extends ActionCallOrigin {
@@ -1972,10 +1953,6 @@ export declare const agentHostCapabilities: {
     readonly readBackground: ActionDefinition<[runtimeId: string, sessionId?: string], AgentBackgroundTask[]>;
     readonly stopBackground: ActionDefinition<[runtimeId: string, taskId: string], boolean>;
     readonly releaseProjectRound: ActionDefinition<[runtimeId: string, workId: string, note: string], void>;
-    readonly listSkills: ActionDefinition<[runtimeId: string], AgentSkillCatalogEntry[]>;
-    readonly readSkill: ActionDefinition<[runtimeId: string, ref: AgentSkillRef], AgentSkillDefinition>;
-    readonly discoverSkills: ActionDefinition<[runtimeId: string, directory: AgentWorkingDirectory, path: string], AgentSkillCandidate[]>;
-    readonly installSkill: ActionDefinition<[runtimeId: string, candidateId: string], AgentSkillCatalogEntry>;
     readonly listMcp: ActionDefinition<[runtimeId: string], AgentMcpServerView[]>;
     readonly saveMcp: ActionDefinition<[runtimeId: string, input: AgentMcpServerInput], AgentMcpServerView>;
     readonly controlMcp: ActionDefinition<[runtimeId: string, id: string, action: "connect" | "disconnect" | "cancel" | "remove"], void>;
@@ -2077,7 +2054,8 @@ interface AgentFrozenStartFields {
         layer: AgentPromptLayer;
         user_revision?: number;
     }>;
-    skills: AgentSkillDeclaration[];
+    skills: AgentFrozenSkill[];
+    reply_locale?: ActionLocale;
     mcp_tools: AgentMcpToolRef[];
     mcp_sources?: AgentMcpSourceRef[];
     host_tools: string[];
@@ -2137,7 +2115,7 @@ interface AgentStartInputFields {
     reasoning_effort?: AgentReasoningEffort;
     text_materials?: AgentTextMaterial[];
     image_materials?: AgentImageMaterial[];
-    skills?: AgentSkillRef[];
+    skills?: SkillRef[];
     mcp_tools?: AgentMcpToolRef[];
     mcp_sources?: AgentMcpSourceRef[];
     budget?: AgentRunBudget;

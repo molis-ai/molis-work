@@ -82,7 +82,8 @@ export function projectPluginEnablementRefresh(platform: PluginPlatform, home: s
   };
 }
 
-export interface ProjectPluginRefreshFailure {
+/** One switch a refresh could not finish; only `ProjectPluginRefreshResult` leaves this module. */
+interface ProjectPluginRefreshFailure {
   readonly plugin_id: string;
   readonly desired_enabled: boolean;
   readonly reason: string;

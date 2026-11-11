@@ -21,7 +21,7 @@ import { VISUAL_FOUNDATION_STYLES } from '@molis-ai/molis-work-design-system';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { agentDefinitionsFor } from '../apps/local-host/dist/agent-definitions/agent-definitions.js';
-import { builtinRegistrations } from '../apps/local-host/dist/agent-definitions/builtin-registrations.js';
+import { builtinRegistrations } from '../apps/local-host/dist/agent-definitions/builtin-agents.js';
 import { builderInstructions, builderPrompts, handleAgentStudioHttp, releaseAgentStudio } from '../apps/local-host/dist/plugin-builder/agent-surface.js';
 import { ensureInstalledPlugins, releaseInstalledPlugins } from '../apps/local-host/dist/installed-plugin-host.js';
 import { agentStudioFixture } from '../scripts/agent-studio-preview-fixture.mjs';
@@ -320,7 +320,7 @@ test('the designer runs the person’s edit from “Prompt 与 Character”, and
       assert.match(designer.instruction, /所有候选都用暖色。$/);
       assert.equal(designer.promptVersion, 'designer/1+user.1');
       assert.equal(build.runs.find(run => run.role === 'designer')?.promptVersion, 'designer/1+user.1', 'N31: the run persists the origin label and user revision that actually ran');
-      assert.equal(registry.uses('io.molis.work.plugin-builder/builder-designer')[0]?.user_revision, 1, 'the register records the use');
+      assert.equal(registry.uses.list('io.molis.work.plugin-builder/builder-designer')[0]?.user_revision, 1, 'the register records the use');
       registry.reset('io.molis.work.plugin-builder/builder-designer', 1, 'person');
       assert.deepEqual(builderPrompts(home)('designer', BUILDER_PROMPTS.designer), BUILDER_PROMPTS.designer, 'after “恢复默认” the shipped text runs again');
     } finally { await workflow.close(); }
@@ -363,7 +363,7 @@ test('experience, UI and screenshot review use the registered user prompts and r
       assert.ok(request, stage + ' must resolve the registered prompt');
       assert.ok(request.instruction.endsWith('已登记的用户修改：' + stage));
       assert.ok(build.runs.some(run => run.promptVersion === version));
-      assert.equal(registry.uses('io.molis.work.plugin-builder/builder-' + stage)[0]?.user_revision, 1);
+      assert.equal(registry.uses.list('io.molis.work.plugin-builder/builder-' + stage)[0]?.user_revision, 1);
     }
   } finally { await workflow.close(); rmSync(home, { recursive: true, force: true }); }
 });
@@ -1268,10 +1268,10 @@ test('the host reads the studio\'s two questions from the register: the default 
     const keys = ['io.molis.work.plugin-builder/choose.capability', 'io.molis.work.plugin-builder/choose.component'];
     for (const key of keys) { const view = definitions.prompt(key); assert.equal(view.kind, 'instruction'); assert.equal(view.source.title, '插件创作工作台'); }
     assert.equal(instruction(BUILDER_CHOOSE_CAPABILITY), CAPABILITY_WORDS);
-    assert.equal(definitions.uses(keys[0]!)[0]?.caller, 'plugin-builder', 'the question that was read is a recorded use');
+    assert.equal(definitions.uses.list(keys[0]!)[0]?.caller, 'plugin-builder', 'the question that was read is a recorded use');
     definitions.save(keys[1]!, '只看布局。', null, 'web-user');
     assert.equal(instruction(BUILDER_CHOOSE_COMPONENT), '只看布局。');
-    assert.equal(definitions.uses(keys[1]!)[0]?.user_revision, 1, 'and the use says it ran the person\'s version');
+    assert.equal(definitions.uses.list(keys[1]!)[0]?.user_revision, 1, 'and the use says it ran the person\'s version');
     assert.equal(instruction(BUILDER_CHOOSE_CAPABILITY), CAPABILITY_WORDS, 'the other question is still the default');
   } finally { rmSync(home, { recursive: true, force: true }); }
 });

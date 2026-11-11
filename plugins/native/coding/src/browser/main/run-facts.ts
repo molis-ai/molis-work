@@ -14,7 +14,7 @@ function factsOf(page: Page, run: RunView): { values: Fact[]; unused: string[] }
   const joiner = L("coding.list.joiner");
   if (f.subagent_workspaces?.length) values.push([L("coding.facts.subagent-dirs"), f.subagent_workspaces.map(item => item.directory.canonical_path).join(L("coding.list.semicolon"))]);
   values.push([L("coding.facts.role"), f.role_id + " · v" + f.role_version]);
-  if (f.skills.length) values.push([L("coding.facts.methods"), f.skills.map(method => L(method.name) + " · v" + method.version).join(joiner)]);
+  if (f.skills.length) values.push([L("coding.facts.methods"), f.skills.map(skill => L(skill.name) + " · v" + skill.ref.version).join(joiner)]);
   else unused.push(L("coding.attach.method"));
   if ((f.action_tools || []).length) values.push([L("coding.facts.actions"), (f.action_tools || []).map(ref => ref.capability_id + " · v" + ref.version + " · " + ref.provider_id).join(joiner)]);
   else unused.push(L("coding.attach.actions"));

@@ -25,7 +25,7 @@
 | [empty-goal-create](../../archive/empty-goal-create/spec.md)、[quiet-home-refresh](../../archive/quiet-home-refresh/spec.md)、[onboarding-intake-progress](../../archive/onboarding-intake-progress/spec.md)、[onboarding-model-link](../../archive/onboarding-model-link/spec.md)、[onboarding-folder-places](../../archive/onboarding-folder-places/spec.md) | 体验与效果、产品线（引导、Goals） | [01](batches/01.md) | 五项均已承接并归档；BL-946～950 分开试 |
 | [issue-home-v0](../../archive/issue-home-v0/spec.md) | 产品线（Issue 插件） | [01](batches/01.md) | BL-149 已随 #819 合入，已归档 |
 | [computer-use](../../computer-use/spec.md) | 产品线（助理） | [01](batches/01.md) | 要决策：BL-325 真机验收（你）；BL-326／327 留 Backlog |
-| [ai-development-handbook](../../ai-development-handbook/spec.md) | 横向能力（AI 方法） | [01](batches/01.md)、[09](batches/09.md) | 要决策：BL-320 你验收；ADH-23／BL-321 在 09 直接做 |
+| [ai-development-handbook](../../ai-development-handbook/spec.md) | 横向能力（AI 方法） | [01](batches/01.md)、[09](batches/09.md) | 要决策：BL-320 你验收；ADH-23／BL-321 已随 09 做完（2026-11-10 用户确认） |
 | 防腐线自己的四份：repository-anti-corruption、[plugin-project-database](../../archive/plugin-project-database/spec.md)、[dual-instance-plugins](../../archive/dual-instance-plugins/spec.md)、[plugin-project-partition](../../archive/plugin-project-partition/spec.md) | 底层与架构 | [01](batches/01.md) | 四份已归档，部分实现的余项仍在 BACKLOG |
 | BACKLOG「待你验收」BL-001～017、105、109、111、320、325、400、401、929、940 及本批新增本人项 | 跨线 | [01](batches/01.md) | 按条件试；已接受、已委托和须等真实 Home 的项目单列 |
 | [prologue-memory-strategy](../../prologue-memory-strategy/spec.md) | 横向能力（记忆）、底层与架构 | [24](batches/24.md)、[31](batches/31.md)、[63](batches/63.md) | 要决策：恢复授权前不启动（原暂停），见下 |

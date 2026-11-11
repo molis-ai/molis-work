@@ -40,7 +40,7 @@ async function heldRound(t: TestContext) {
   const session = await adapter.createSession({ ...owner, directory, title: "origins" });
   const handle = await adapter.start({ ...owner, directory, session, task: "改登录", role_id: "builder", execution_plan: plan,
     text_materials: [{ material_id: "plan", source_artifact_id: "plan-a", source_version: 1, title: plan.title, text: JSON.stringify(plan) }],
-    role: { role_id: "builder", version: 1, execution: "text-edit", prompts: [], host_tools: ["board-read", "board-report", "board-revise"] } } as never);
+    role: { role_id: "builder", version: 1, execution: "text-edit", prompts: [], host_tools: ["board-read", "board-report"] } } as never);
   // In this order: the held model answers, the round ends, then the runtime closes and its files go.
   t.after(async () => {
     release();

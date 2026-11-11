@@ -390,6 +390,16 @@ skillCatalog?: {
   - 定样示例的「目标推进」包装着对外 MCP。对外 MCP 的主人是对外接入，不是 Goals，所以按本表它在自带包里。
   - 示例的「日常助理」就是自带包。
 
+**为什么是主人上报（9-8 比较的三种放法）**：包不存、每次现算，汇总要读五类主人的事实。定「主人上报，汇总放 `horizontal/kit`」前比较过三种：
+
+| 放法 | 怎么做 | 代价 | 结论 |
+| --- | --- | --- | --- |
+| 宿主扩展 Agent 定义登记 | 把五类的汇总塞进宿主已有的 Agent 定义登记（`apps/local-host/src/agent-definitions/`），页面从它读 | 它只登记「插件声明的角色、提示词、技能」，不拥有工具全集（在 Agent Host 与 SDK）、MCP 视图（在 Agent Host 的库与连接器）、Character（`modules/characters`）、作用范围（第 36 批）。要它当聚合器：要么把别的主人的事实复制进宿主，两份维护、随升级漂移；要么在宿主枢纽文件里直接读各主人的内部实现，越权且加重宿主耦合。五类各有各的 audience 与范围规则，宿主还得重写一遍过滤 | 否掉 |
+| `horizontal/` 新包直接读各主人内部 | 新包代替主人读：直接读连接器、Agent Host 的 MCP 库、`modules/characters`、第 36 批的内部，汇总后出目录 | 守 `horizontal/` 的放置规矩，但跨包依赖别人的内部实现（或要新开一批只给这个包用的公开读口），事实主人变成汇总包；插件的私有数据它读不到，第三方插件无法参与；任一主人的读法变化都要改这个包 | 否掉 |
+| 主人上报，汇总放 `horizontal/kit` | 每个主人登记一个上报动作（合同用同一对 `input_type`／`output_type` 发现，第 4.6 节），只读自己的事实；`horizontal/kit` 用调用方自己的客户端逐个调，按登记盖来源与所属的包、拼成包 | 9-10 里每个主人多写一个上报动作，汇总处要拼包与盖章；打开一次要每个上报者调一次（第 4.7 节）；一个上报者失败时，它可能在的包只能显示「没读到」 | 选它：主人边界不动（SSOT 一个事实一个主人），能力包不读连接器与 MCP 库等内部实现，宿主只装配；插件与宿主同一条路，第三方插件以后也能上报自己的条目（CPK-12），audience 仍按主人的规则过滤 |
+
+- 与两个先例同构：`actions.usages.read`（`apps/local-host/src/action-usage-actions.ts`）与系统搜索 `horizontal/search`——都按合同类型找提供方、用调用方自己的客户端逐个调、由汇总处盖来源。放 `horizontal/` 而不是宿主，照用户 11-01 的放置规矩（第 10 节）。
+
 ### 4.2 角色与提示词怎样连
 
 用户 2026-11-09 定：没有归属角色的提示词**默认归个人助理**，因为默认都由个人助理执行。
@@ -635,7 +645,7 @@ export function defineKitReportAction(capabilityId: string, version: number, tit
   options?: { scope?: "project" | "home"; audiences?: ActionAudience[] }): ActionDefinition<KitReportInput, KitReport>;
 ```
 
-- 默认 `scope: "home"`、`audiences: ["user"]`、`kind: "query"`；不等模型，不声明 `concurrent`。
+- 默认 `scope: "home"`、`audiences: ["user"]`、`kind: "query"`；不等模型，但和 `kit.catalog.list@1` 一样声明 `scheduling: "concurrent"`（第 10 节）：项目线上串行会让一个慢的上报者挡住其他上报者；它只读、不提交，不需要 `beforeEffect`。
 - 输出 schema 封闭，派发处按它校验：多一个字段（比如 `body`），这个上报者的整份回答作废，进 `issues`。
 
 **汇总处盖章**：来源、包与信任不取自上报者，照 `action-usage-actions.ts` 的 `source`／`reporter`。
@@ -934,9 +944,9 @@ export function isAgentTool(name: string): boolean;
 | --- | --- | --- |
 | 1 | 事实主人 | 不新增事实，包不存、现算（第 4.1 节）。各类的主人：<ul><li>技能：插件声明与 Agent 定义登记（08）。</li><li>提示词、插件角色、提示词属于哪个角色：插件声明与 Agent 定义登记。</li><li>Character：`modules/characters`；作用范围与继承归 36。</li><li>工具全集：Agent Host。</li><li>MCP：项目 MCP 归 Agent Host 的 MCP 库，连接带的归连接器，对外的归对外接入。</li><li>包头（已安装、停用、已卸载、上次升级）：插件安装服务。</li></ul>能力包只汇总，`horizontal/kit` 不存任何东西；来源与所属的包由汇总处按登记盖章，不由上报者自称。用户自组包不做。两份新文件是用户自己的数据 |
 | 2 | 插件同等待遇 | <ul><li>插件本身就是包，内置、第三方、08 内容包一样。</li><li>上报者按合同类型发现，宿主不点名；第三方插件登记 `defineKitReportAction` 就进能力包（CPK-12）。</li><li>系统提供方表只管「谁能替别人说来源、说包」；插件给自己说的规则与内置插件一样。</li></ul> |
-| 3 | 能力注册 | <ul><li>各登记一次：`kit.catalog.list@1`、每个上报动作、`plugins.package.export@1`、三个提示词改写动作。</li><li>可信身份（项目、操作者）取自调用上下文。</li><li>只有汇总声明 `concurrent`：它等别的提供方，不提交。</li><li>「导出这个包」不加动作。</li></ul> |
+| 3 | 能力注册 | <ul><li>各登记一次：`kit.catalog.list@1`、每个上报动作、`plugins.package.export@1`、三个提示词改写动作。</li><li>可信身份（项目、操作者）取自调用上下文。</li><li>汇总与各上报动作都声明 `concurrent`（第 4.6、4.7 节，第 10 节）：汇总在等别的提供方；上报动作在项目线上也一样，串行会让一个慢的挡住其他。都不提交。</li><li>「导出这个包」不加动作。</li></ul> |
 | 4 | 合同 | 新增与改动：<ul><li>新增 `platform/kit-report.ts`、`services/kit.ts`；</li><li>`InstructionPrompt.role_id?`；</li><li>`services/agent-definitions.ts` 加动作；</li><li>宿主 `plugins.package.export@1`；</li><li>两种文件格式进 `tooling/versions.json`。</li></ul>刷新快照：`tooling/gates/api/`（新子路径 `services/kit`、`platform/actions`、`platform/model-prompts`，以及插件 SDK 的公开 API：SDK 在 `packages/plugin-sdk/src/index.ts` 转出 `InstructionPrompt`）与 `tooling/gates/actions/`（`host-actions.tsv` 新增几行）。`role_id` 是插件作者合同的改动，不是 Manifest 改动。阶段一，不留兼容；没人在等这份合同，随本批 PR，不单开 |
-| 5 | 放在哪个包 | <ul><li>汇总 `horizontal/kit`（第 4.1、4.6 节；放法比较见第 1 稿，结论不变）；宿主只在 `kit-actions.ts` 装配。</li><li>工具全集在 `horizontal/agent-host`，用合同的 `KitToolOrigin`。</li><li>新包要登记包清单、归属、README「开发要求」。</li></ul> |
+| 5 | 放在哪个包 | <ul><li>汇总 `horizontal/kit`（第 4.1、4.6 节；三种放法的比较见第 4.1 节末：宿主扩展 Agent 定义登记、`horizontal/` 新包直接读主人内部、主人上报，选主人上报）；宿主只在 `kit-actions.ts` 装配。</li><li>工具全集在 `horizontal/agent-host`，用合同的 `KitToolOrigin`。</li><li>新包要登记包清单、归属、README「开发要求」。</li></ul> |
 | 6 | 表与存储 | 不新增表，包不落库。用量读 `skill_uses`、`prompt_uses`、`character_runs`、动作调用记录；提示词改写预览存内存，只用一次 |
 | 7 | 兼容与迁移 | 不加。MCP 流水线合并移出本批 |
 | 8 | 安全边界 | 碰：新不变量 `S-kit-catalog`（第 4.11 节 13 条拒绝），`S-content-package` 加断言 |
@@ -973,31 +983,33 @@ export function isAgentTool(name: string): boolean;
 | 编号 | 片 | 证明它的测试或走查 |
 | --- | --- | --- |
 | CPK-01 | 9-10、9-11 | `tests/kit-catalog.test.ts`：<ul><li>能力包列表出插件包、自带包、你的角色；</li><li>包里分角色（带提示词）、技能、MCP、工具；</li><li>按类筛、能搜；</li><li>技能条目与 `skills.catalog.list@1` 逐字段一致。</li></ul>另有页面走查 |
-| CPK-02 | 9-10、9-2、9-4 | 同上。另外：<ul><li>同一技能在能力包、助理、Coding 三处的 `SkillRef` 与 `pack.version` 相等（`tests/skill-shared-catalog.test.ts`）；</li><li>来源与包盖章（`S-kit-catalog` 第 4、5 条）。</li></ul> |
+| CPK-02 | 9-10、9-2、9-4 | 同上。另外：<ul><li>同一技能在能力包、助理、Coding 三处的 `SkillRef` 与 `pack.version` 相等：`tests/kit-catalog.test.ts`（能力包技能条目与 `skills.catalog.list@1` 逐字段相同）、`tests/assistant-methods.test.ts`（助理读同一目录、同一 `SkillRef`）、`tests/security-invariants-skill-delegation.test.ts`（助理点名的同一 `SkillRef` 到 Coding 的一轮）；</li><li>来源与包盖章（`S-kit-catalog` 第 4、5 条）。</li><li>**已实现**（用户 2026-11-11 定「版本不升，做代码修复」）：包上次升级来自留存的签名包（`SandboxPackageStore.retainedVersions`，`tests/kit-catalog.test.ts`「CPK-02: a pack says which retained version it upgraded from」）；连接带的 MCP 发现差异来自 `config/connector-mcp-tools.json` 的 `change`（`tests/connector-mcp.test.ts`「CPK-02: a connection's listing counts what changed」）。项目 MCP 服务器的发现差异没有历史数据，随第 61 批 MCP M0（第 10 节）。</li></ul> |
 | CPK-03 | 9-10、9-11 | `tests/kit-catalog.test.ts`：<ul><li>只有技能条目有改状态的操作，其余只有 `manage`；</li><li>包没有开关字段，状态随插件停用、条目不可用而变；</li><li>MCP 三种「开」各一个字段；</li><li>代码里搜不到能力包自己的启用状态。</li></ul> |
 | CPK-04 | 9-10 | `tests/kit-catalog.test.ts`：<ul><li>`prompt_uses` 写满 200 行后，`usage.kind === "recent"`、`kept.rows_per_key === 200`；</li><li>工具是 `last_only` 或 `not_counted`；</li><li>没有能力包用量表（表主人门禁）。</li></ul> |
-| CPK-05 | 9-1～9-5 | <ul><li>`tests/skill-shared-catalog.test.ts`（SKP-02、SKP-04、SKC-07）。</li><li>`tests/coding-work-executor.test.ts` 新用例：助理点名的技能进 Coding 的冻结记录 `named: true`，与会话里存的选择合并（CHO-03）。</li></ul> |
+| CPK-05 | 9-1～9-5 | <ul><li>`tests/assistant-methods.test.ts`（SKP-02、SKP-04、SKC-07）、`tests/agent-host-skill-reads.test.ts`（SKC-07：一轮只读一次目录与正文）、`tests/security-invariants-skill-delegation.test.ts`（S-skill-delegation 2、CPK-05）。</li><li>助理点名的技能进 Coding 的冻结记录 `named: true`：`tests/security-invariants-skill-delegation.test.ts` 的 CPK-05 用例；`tests/coding-work-executor.test.ts` 的 CODING-80 只证会话里**已存的**技能选择冻结进轮，不是这一条。</li></ul> |
 | CPK-06 | 9-10 | `tests/kit-export.test.ts`：<ul><li>「导出这个包」的文件装回另一个临时 Home，内容包可用、版本相同；</li><li>第三方包导出字节与留存一致；</li><li>提示词改写 `base_mismatch` 不套用，逐条确认；</li><li>引用部分不含凭据与端点。</li></ul> |
 | CPK-07 | 9-9 | `tests/agent-host-tool-catalog.test.ts`；`host_tools` 未知名的拒绝用例 |
-| CPK-08 | 9-12 | 收口表逐行 `git grep` 结果写进 PR；BL 与候选每条带主人与去处 |
+| CPK-08 | 9-12 | `tests/capability-pack-closeout.test.ts`：在源码树里搜不到收口表要删的旧标识，记下的 BL 每条带具体批次去处；收口表逐行 `git grep` 结果写进 PR；BL 与候选每条带主人与去处 |
 | CPK-09 | 9-1、9-10 | `tests/security-invariants-skill-delegation.test.ts`（第 2.6 节 1～12）、`tests/security-invariants-kit-catalog.test.ts`（第 4.11 节 1～13） |
-| CPK-10 | 9-7、9-12 | 文档 diff：<ul><li>SSOT、`PACKAGE-BOUNDARIES.md`；</li><li>作者手册「怎么做能力包」：插件就是包、`role_id` 怎么写；</li><li>GLOSSARY：能力包与组件板 kit、Agent 工具与外部工具。</li></ul> |
+| CPK-10 | 9-7、9-12 | 文档 diff：<ul><li>SSOT、`PACKAGE-BOUNDARIES.md`；</li><li>作者手册「怎么做能力包」：插件就是包、`role_id` 怎么写；</li><li>GLOSSARY：能力包与组件板 kit、Agent 工具与外部工具；</li><li>三种放法的比较正文（第 4.1 节末；`tests/capability-pack-closeout.test.ts` 钉住它存在、第 6.1 节第 5 项引到它）。</li></ul> |
 | CPK-11 | 9-11 | `[人工]` 本人验收 |
 | CPK-12 | 9-10 | `tests/kit-catalog.test.ts`：样例插件（`examples/plugin-sample` 风格的测试夹具）登记上报动作，不改宿主就出现在它自己的包里；它只拿到调用方的权限，来源与包被盖成它自己 |
 | CPK-13 | 9-10 | `tests/kit-catalog.test.ts`：<ul><li>角色点名的提示词挂在这个角色下；</li><li>带 `role_id` 的指令提示词挂在那个角色下；</li><li>都没有的，挂在包里的「个人助理」一行下，条目只有一个；</li><li>`role_id` 不是同一主人的角色，登记被拒。</li></ul> |
 | CPK-14 | 9-10 | `tests/kit-catalog.test.ts`：<ul><li>插件停用后包是 `disabled`；</li><li>卸载、数据保留后是 `uninstalled`，只有包头；</li><li>一个技能缺连接时，包是 `attention`，`items` 指到它；</li><li>一个工具被两个包的角色点名时，`in_packs` 有两个，条目只有一个。</li></ul> |
-| SKP-02、SKP-04、SKC-07 | 9-2、9-4、9-5 | `tests/skill-shared-catalog.test.ts`；`tests/assistant-methods.test.ts`、`plugin-methods-runtime.test.ts` 的旧「按动作过滤」断言改成读目录（预期变化，PR 写明） |
+| SKP-02、SKP-04、SKC-07 | 9-2、9-4、9-5 | `tests/assistant-methods.test.ts`（助理读目录、同一 `SkillRef`）、`tests/agent-host-skill-reads.test.ts`（SKC-07：一轮只读一次目录与正文）、`tests/skill-catalog-runtime.test.ts`（SKC-05～09：三档设置、冻结命名与精确读取）；`tests/assistant-methods.test.ts`、`tests/plugin-methods-runtime.test.ts` 的旧「按动作过滤」断言改成读目录（预期变化，PR 写明） |
 | SKP-03 | 9-4 | `applies_to: "assistant"` 的技能不在 Coding 的菜单与目录读里 |
 | SKP-06、SKP-07、SKC-08 | 9-4、9-5 | `tests/agent-host-skill-reads.test.ts`：停用、撤销、卸载、世代变化后开轮被拒；`S-skill-delegation` 第 12 条 |
 | SKC-06 | 9-1 | `S-skill-delegation` 第 1、3～11 条；原 `security-invariants-skill-catalog` 用例改读新字段 |
 | SKC-11 | 9-4、9-5 | `git grep` 不到 `molis-coding-method`、`agent.skills.discover`、`agent.skills.install`、`AgentSkillLibrary` 和 Coding 方法页 |
 | SKC-13 | 9-5 | 第 3.2 节两层底线测试 |
 | SKP-09 | 9-5b（移出本批，见第 3.6 节结果） | 记进 BL-skill-scripts-sandbox，本批不验 |
-| CHO-03/04/05 | 9-3、9-4 | `tests/coding-work-executor.test.ts`：助理开始的一轮带方法与 MCP 到达；不可用原因随第 12 批项 1 |
+| CHO-03/04/05 | 9-3、9-4 | `tests/security-invariants-skill-delegation.test.ts`（S-skill-delegation 2、CPK-05）：助理点名的技能随开始的一轮到达 Coding 的冻结记录（技能一半）。`tests/coding-work-executor.test.ts` 的 CODING-80 只证会话里**已存的**技能选择冻结进轮，不证方法与 MCP 随助理开始的一轮到达；MCP 到达、助理与页面冻结等价没有用例（第 12 批核账 G7 记的缺口）；不可用原因随第 12 批项 1 |
 | SKP-12、ADH-23 | 9-6 | `[人工]`；隔离 Home 里用 MiniMax 的工程核对另记 |
 | 读取次数 | 9-5、9-2 | 第 3.4 节计数夹具 |
 
 CPK-13、CPK-14 是第 3 稿新加的，同一提交写进能力包需求 §11。
+
+2026-11-11 第 09 批审计整改：本表把三处原本写错的用例文件名换成实际断言的文件（同一技能在能力包、助理、Coding 三处各由哪份测试证），改正 CODING-80（只证会话里已存的技能冻结进轮）与 CHO-03 的对应，CPK-02 标「部分」（两类升级差异见第 10 节）；收口与三方案比较正文由 `tests/capability-pack-closeout.test.ts` 钉住。
 
 ## 8. 子分支拆法建议
 
@@ -1104,6 +1116,8 @@ CPK-13、CPK-14 是第 3 稿新加的，同一提交写进能力包需求 §11�
 | 项目 MCP 的资源也上报 | 只报服务器与工具，资源不单列 | 资源名常是带路径或地址的 URI，与「不带端点与路径」相冲；条目里不放（9-10） |
 | 上报者没有时限 | 每个上报者限 5 秒（`KIT_REPORT_TIMEOUT_MS`），上报动作与 `kit.catalog.list@1` 都声明 `scheduling: "concurrent"` | 不声明并行的动作在项目线上一个接一个跑，一个慢的上报者会挡住其他上报者；第 4.11 节第 13 条要求超时只影响它自己的包（9-10） |
 | `AgentDefinitions` 加 `useCounts()` | 提示词用量另成 `PromptUses`（`record`／`list`／`counts`），`AgentDefinitions.uses` 指向它 | 巨大单元只许变小：把用量这一件事拆出去，类不再是巨大单元，登记的例外删掉（9-10） |
+| 包头带上次升级（`KitReportedPack.upgraded`、`KitPack.upgraded`）：偏离记录原写「无数据主人」 | **已实现，不改存储也不升版本**：`pluginKitHeaders` 用 `SandboxPackageStore.retainedVersions()` 读 Home 里留存的签名包，取低于当前版本的最高留存版为 `from`、当前版本留存包的保存时间为 `at`（读不到时用 `record.updated_at`），只给 sandbox 且非 host trust 的安装；没有更低留存版就不给 `upgraded` | 安装记录只有当前 `version`，但留存包本来就在 `plugin-packages/`（卸载也留字节），「上次从哪版升来」据此能算出来，不必给记录加字段或写升级段；内置/宿主构建的包不在这里，所以不显示。用户 2026-11-11 定「版本不升，做代码修复」（9-10） |
+| MCP 显示最近一次发现的差异（`KitVersion.change.kind: "discovered"`）：偏离记录原写「连接 MCP 也无数据主人」 | **连接带的 MCP 已实现**：`config/connector-mcp-tools.json` 每项加可选 `change`（`added`／`removed`／`changed`／`at`；旧文件读作没有，列表没变不重写文件也不改 change），`remember` 每次发现时与上一份清单比较，`connectorsKitEntries` 把 change 挂到该连接的 server 条目（工具条目不挂）。**项目 MCP 服务器不做** | 连接器本来就每次发现覆盖写「最近一次清单」，加一个可选字段就能算出与上一次的差异，不改文件结构、不升版本。项目 MCP（Agent Host 的 MCP 库）只存安全视图、没有上一份清单，要历史数据与升级段，留第 61 批 MCP 策略 M0 |
 
 ## 11. 待决
 

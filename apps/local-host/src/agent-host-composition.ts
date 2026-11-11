@@ -31,7 +31,7 @@ import { registerWorkspaceGitActions } from "./workspace-git-actions.js";
 import { registerWorkspaceGitWriters } from "./workspace-git-writers.js";
 import { createGitWorktreePort } from "./workspace-git-worktrees.js";
 import { draftText } from "./model-draft.js";
-import { SKILLS_READ_PERMISSION } from "@molis-ai/molis-work-contracts/services/skills";
+import { SKILLS_PROVIDER_ID, SKILLS_READ_PERMISSION } from "@molis-ai/molis-work-contracts/services/skills";
 import { agentHostCapabilities, type AgentMcpLibrary, type AgentRuntimeDescriptor, type AgentSkillOwner, type AgentWriteCheckerStore } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { resolveConfiguredHome } from "./product-home.js";
 import { memoryForAgentRun } from "./memory/memory-host.js";
@@ -323,23 +323,27 @@ async function startAuthority(
     mcp_owner: { project_id: runtime.project_id, plugin_id: pluginId },
     // The language of the call this round starts in (the page's, or the one the Host settled for its delegation), else the one last used.
     reply_language: replyLanguage(currentCallLocale(caller) ?? lastUsedLocale(homeDirectory ?? resolveConfiguredHome())),
-    actions: async (runtimeId, validate, session, roundSkills) => {
+    actions: async (runtimeId, validate, session, skillRound) => {
       // `actor_id` stays the grant's client id: `agent:<runtime>`, or the task grant subject the Host composed for a plugin's round, whose
       // catalog holds only the categories its provider offers a task now. The session is the one the Host checked against the Runtime's own
       // record when it started the round, never one read from the request or the tool input: it scopes what the tools write and who is
       // recorded as author (`agent:<runtime>:<session>`, a task's round as well).
       const source = subject ? taskReadableHost(localHost) : localHost;
-      const current = (signal?: AbortSignal) => authorizeMcpActions(source, { actor_id: subject ?? `agent:${runtimeId}`, actor_kind: "runtime", call_id: callId,
-        project_id: runtime.project_id, audience: "agent", permissions: [], ...(session ? { runtime_session_id: session.session_id, audit_actor_id: `agent:${runtimeId}:${session.session_id}` } : {}),
-        // The round's Skill reads (`skill_round`, §2.3), written by the Host only: a tool call is part of this round, so it reads the
-        // catalog as this round would (SKP-10); nothing in a tool input can set it.
-        ...(roundSkills ? { skill_round: roundSkills } : {}), ...(signal ? { signal } : {}) }, homeDirectory, reference, async () => { caller?.assertActive(); await validate?.(); caller?.assertActive(); }, () => {
-          caller?.assertActive(); signal?.throwIfAborted();
-          if (localHost.lifecycle() !== "running") throw new ActionError("actions.host_closed", "能力所在运行环境已关闭");
-        });
+      // `skill_round` is the Host's word about this round (§2.3): the grant resolution gets it, so the round's own reads of `system.skills` need
+      // no separate 对外接入 grant (mcp-action-grants.ts), and the handler context gets it only on those calls. A tool call into any other
+      // plugin's action never carries it, and nothing in the tool input can set it (S-skill-delegation §2.6).
+      const current = async (signal?: AbortSignal, action?: ExactActionReference) => {
+        const authorized = await authorizeMcpActions(source, { actor_id: subject ?? `agent:${runtimeId}`, actor_kind: "runtime", call_id: callId,
+          project_id: runtime.project_id, audience: "agent", permissions: [], ...(skillRound ? { skill_round: structuredClone(skillRound) } : {}),
+          ...(session ? { runtime_session_id: session.session_id, audit_actor_id: `agent:${runtimeId}:${session.session_id}` } : {}), ...(signal ? { signal } : {}) }, homeDirectory, reference, async () => { caller?.assertActive(); await validate?.(); caller?.assertActive(); }, () => {
+            caller?.assertActive(); signal?.throwIfAborted();
+            if (localHost.lifecycle() !== "running") throw new ActionError("actions.host_closed", "能力所在运行环境已关闭");
+          });
+        return { ...authorized, context: action?.provider_id === SKILLS_PROVIDER_ID ? authorized.context : withoutSkillRound(authorized.context) };
+      };
       return {
         discover: async () => { const authorized = await current(); return authorized.service.discover(authorized.context); },
-        invoke: async (action, input, signal) => { const authorized = await current(signal); return authorized.service.invoke(authorized.context, action, input); },
+        invoke: async (action, input, signal) => { const authorized = await current(signal, action); return authorized.service.invoke(authorized.context, action, input); },
         check: async (action, input) => checkActionInput(await current(), action, input),
       };
     },
@@ -356,6 +360,14 @@ async function checkActionInput(authorized: { context: ActionCallContext; servic
   const view = (await authorized.service.discover(authorized.context)).find(row => row.capability_id === reference.capability_id && row.version === reference.version && row.provider.provider_id === reference.provider_id);
   if (!view) throw new ActionError("actions.missing", "The original Agent action is no longer accessible");
   assertActionInput(view.action.input_schema, input);
+}
+
+/** The round's `skill_round` stays on the Host's own `system.skills` calls: no other action's handler sees it (§2.6, S-skill-delegation). */
+function withoutSkillRound(context: ActionCallContext): ActionCallContext {
+  if (context.skill_round === undefined) return context;
+  const rest = { ...context };
+  delete rest.skill_round;
+  return rest;
 }
 
 /**

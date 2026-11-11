@@ -331,7 +331,7 @@ export const CODING_MESSAGES = {
   "coding.settings.runtime.write-command": { zh: "可读取、修改文件和运行命令；写入与命令经过宿主审查。", en: "Can read and edit files and run commands; writes and commands go through the host's review." },
   "coding.settings.runtime.write": { zh: "可读取和修改文件；写入经过宿主审查。", en: "Can read and edit files; writes go through the host's review." },
   "coding.settings.runtime.read-only": { zh: "只读：写入未接宿主审批", en: "Read-only: writes are not connected to the host's approval" },
-  "coding.settings.runtime.methods-partial": { zh: "方法：按共同目录显式选择，执行冻结正文；自动选择尚未接通。", en: "Methods: chosen explicitly from the shared catalog; runs use the frozen text; automatic choice is not connected yet." },
+  "coding.settings.runtime.methods-partial": { zh: "方法：本人选择或按「自动」档按条件提供，正文在轮内读取，冻结后不换版本。", en: "Methods: chosen by the person or offered from the auto tier when they apply; bodies are read in the round and frozen, never swapped for another version." },
   "coding.settings.runtime.methods-supported": { zh: "方法：运行时已接通", en: "Methods: connected in the runtime" },
   "coding.settings.runtime.methods-none": { zh: "方法：当前运行时不可用", en: "Methods: not available in this runtime" },
   "coding.settings.lede": { zh: "查看当前可用的执行方式与方法，在编码会话中选择本轮使用的配置。", en: "See the ways of running and the methods available now; choose what a turn uses in the coding session." },

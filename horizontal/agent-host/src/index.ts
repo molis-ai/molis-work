@@ -3,14 +3,13 @@ import { trustedOriginalInput } from "./original-inputs.js";
 import { agentErrors } from "./errors.js";
 import { parseAgentRunBudget } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { parseExactActionReferences, requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import { importedCharacterInstructions } from "./character-import.js";
 import type {
   AgentManifest,
   AgentPromptText,
   AgentSkillDefinition,
 } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
-import type { ActionLocale } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ActionLocale, ActionSkillRound } from "@molis-ai/molis-work-contracts/platform/actions";
 import { freezeRoundSkills, type AgentRoundSkillCatalog, type AgentSkillSource } from "./round-skills.js";
 import type {
   AgentActionClient,
@@ -139,12 +138,11 @@ export interface AgentStartAuthority {
   /** Current runtime grants, resolved by Host; selecting a tool grants nothing. */
   /** The trusted guard must run again at dispatch, including after the Host queue. */
   /**
-   * `roundSkills` is who this round's Skill reads are for and what the person named (`ActionSkillRound`). For a plugin-started round
-   * agent-host gives the consumer it derives from the role's workspace (`coding` for a writing role, `agent` otherwise); the Assistant's
-   * own authority sets `assistant` itself. Either way the Host writes them onto every tool call's context, and no start request carries it.
+   * The round's actions. `skillRound` is the round's frozen consumer and named list, written on the Host's own calls to `system.skills`
+   * for this round (`ActionCallContext.skill_round`, specs/capability-pack/contract-design.md §2.3) — `frozenActions`/`frozenGateway`
+   * hand it on, and the Host must not write it on any other action's call.
    */
-  actions?(runtimeId: string, validate?: () => void | Promise<void>, session?: AgentSessionRef,
-    roundSkills?: { readonly consumer: "assistant" | "coding" | "agent"; readonly named: readonly SkillRef[] }): Promise<AgentActionClient>;
+  actions?(runtimeId: string, validate?: () => void | Promise<void>, session?: AgentSessionRef, skillRound?: ActionSkillRound): Promise<AgentActionClient>;
   /** Host-bound source resolver; browser/plugin-supplied bodies are never authority. */
   resolveCharacter?(reference: ArtifactReference, actorId: string): AgentFrozenCharacter;
   /** The Plugin's own Agent block. A role outside it can never start. */
@@ -339,17 +337,16 @@ export class AgentHost implements AgentHostApi {
     // Freeze the role here, from the Plugin's own declarations, so the adapter
     // receives exactly what it is allowed to run instead of resolving it itself.
     // The round's Skills, in one catalog read (§3.4); who reads them is the round's consumer, set by its role's workspace (§2.3).
-    const skillConsumer = workspace === "required" ? "coding" : "agent";
     const skills = await freezeRoundSkills({ selected: request.skills ?? [], manifest: authority.manifest, own: authority.skills ?? [],
-      source: authority.skill_source, catalog: authority.skillCatalog, consumer: skillConsumer, hostTools,
+      source: authority.skill_source, catalog: authority.skillCatalog, consumer: workspace === "required" ? "coding" : "agent", hostTools,
       unsupported: adapter.descriptor.capabilities.skills === "unsupported" });
-    // The same consumer goes on the round's tool calls: a Skill the catalog lets this round read on its own (`auto`, `applies_to`
-    // matching the consumer) is readable while the model runs, not only while the round is frozen (SKP-10).
-    const roundSkills = { consumer: skillConsumer, named: authority.skillCatalog?.named ?? [] } as const;
     const actionRefs = parseExactActionReferences(request.action_tools ?? []);
     if (request.action_gateway && actionRefs.length) throw agentErrors.capability_unavailable("能力网关与逐项能力不能同时使用");
     assertMaySuggest(hostTools, execution);
-    const source = { adapter, runtimeId, authority, session: session.session, validateCharacter, execution, roundSkills };
+    // What the round's own tool calls to `system.skills` read as: the frozen consumer and named list (§2.3). Only the Host's calls carry it,
+    // and only where the composition asks for `system.skills`; a tool call into any other plugin's action never does (§2.6, S-skill-delegation).
+    const skillRound: ActionSkillRound = { consumer: workspace === "required" ? "coding" : "agent", named: structuredClone(authority.skillCatalog?.named ?? []) };
+    const source = { adapter, runtimeId, authority, session: session.session, validateCharacter, execution, skillRound };
     const actions = await frozenActions(source, actionRefs, character);
     const gateway = request.action_gateway ? await frozenGateway(source, workspace) : undefined;
     const { mcp, sources } = await frozenMcp(request, execution, character, hostTools, () => this.mcpLibrary(runtimeId, authority));

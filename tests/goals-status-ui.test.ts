@@ -5,7 +5,7 @@ import { icon, renderStateRing, t } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 const escapeHtml = (value: string) => value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 
-test("public status mounts prefer collection state, retain hooks and escape translated attributes", () => {
+test("public status mounts prefer collection state, retain hooks and escape status labels", () => {
   const renderer = goalsRenderers.status({ translate: t.text, escapeHtml, icon });
   for (const status of ["archived", "trashed"] as const) {
     const item = { status, display_status: "continue" as const };
@@ -20,8 +20,7 @@ test("public status mounts prefer collection state, retain hooks and escape tran
   // RING-05: an answer is needed; this is not a running or completed Goal. RING-08: the ring is as tall as its words, so it
   // carries no size of its own.
   assert.equal(renderer.visibleGoalStatusIcon({ status: "executing", display_status: "waiting_user" }), renderStateRing({ state: "answer" }));
-  const untrusted = goalsRenderers.status({ translate: () => 'Text "<unsafe>', escapeHtml, icon });
-  const html = untrusted.renderStatus("waiting_for_human");
+  const html = renderer.renderVisibleGoalStatus({ status: "executing", display_status: "waiting_user", status_label: 'Text "<unsafe>' });
   assert.match(html, /title="Text &quot;&lt;unsafe&gt;"/);
   assert.doesNotMatch(html, /<unsafe>/);
   assert.match(withGoalLocale("en", () => renderer.renderStatus("archived")), /Archived/);
@@ -46,7 +45,7 @@ test("factors contribution keeps owner content, live counts and accessible tab r
 });
 
 test("D0013 a cancelled goal keeps the cancelled state and shared visual mark", () => {
-  const renderer = goalsRenderers.status({ translate: L, escapeHtml, icon });
+  const renderer = goalsRenderers.status({ translate: t.text, escapeHtml, icon });
   const item = { status: "cancelled" as const, display_status: "cancelled" as const };
   assert.match(renderer.renderVisibleGoalStatus(item), /goal-status--cancelled/);
   assert.equal(renderer.visibleGoalStatusIcon(item), renderStateRing({ state: "cancelled" }));

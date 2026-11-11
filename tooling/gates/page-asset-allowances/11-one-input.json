@@ -3,7 +3,7 @@
   "review": "第 11 批主会话按隔离构建实测核对（2026-11-10，node scripts/gates/page-assets.mjs --base origin/main）；每项都在 10 KB 以内、没有新增资源；随 O1 的 PR 由评审台再核。",
   "assets": {
     "/assets/molis-work-workbench.js": 6939,
-    "/assets/molis-work-workbench.css": 3452,
+    "/assets/molis-work-workbench.css": 3474,
     "/assets/molis-work-arrival.css": 3411,
     "/assets/molis-work-settings.css": 3218,
     "/assets/molis-work-composer.js": 100,

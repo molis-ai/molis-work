@@ -4,6 +4,8 @@
 
 export declare const KNOWLEDGE_BRIEF_MAX_CHARS = 300;
 
+export declare const KNOWLEDGE_CARDS_SUBJECTS_MAX = 500;
+
 export declare const KNOWLEDGE_CARD_MAX_KEYWORDS = 10;
 
 export declare const KNOWLEDGE_CARD_STATES: readonly ["pending", "ready", "listed", "failed", "over_quota", "missing"];
@@ -131,6 +133,7 @@ export interface KnowledgeCardStorePort {
 
 export interface KnowledgeCardsRequest {
     states?: KnowledgeCardState[];
+    subjects?: ActionSubject[];
     limit?: number;
     offset?: number;
 }

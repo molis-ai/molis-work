@@ -190,7 +190,7 @@ export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
   const esc=(value)=>String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
   const icons={file:root.querySelector('[data-side-files-icon]')?.innerHTML||''};
   const cardBox=$('[data-side-files-card]');
-  let sources=[],entries=new Map(),loadedAt=0,loading=null,current=null,wide=false,states=new Map(),modelReady=true,found=null,searchTimer=0;
+  let sources=[],entries=new Map(),loading=null,current=null,wide=false,states=new Map(),modelReady=true,found=null,searchTimer=0;
   const get=(path)=>molisWorkRequest(host.route(path),{fallback:L('文件没有读到')});
   const post=(path,body)=>molisWorkRequest(host.route(path),{body,fallback:L('操作没有完成')});
   ${SIDE_FILE_SOURCES_CLIENT_SCRIPT}
@@ -198,25 +198,25 @@ export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
   const stateText=(item)=>!item?'':item.excluded?L('不给 Agent 用'):item.state==='pending'?(modelReady?L('整理中'):L('等待整理')):item.state==='failed'?L('整理失败'):item.state==='over_quota'?L('等额度'):item.changed?L('有新建议'):'';
   const stateOf=(kind,id)=>states.get(kind+'\u0000'+id);
   const sizeText=(bytes)=>bytes==null?'':bytes<1024?bytes+' B':bytes<1048576?(bytes/1024).toFixed(bytes<10240?1:0)+' KB':(bytes/1048576).toFixed(1)+' MB';
-  // While the project's sources are still being listed for the first time, the labels are read again shortly after.
-  let statesTimer=0;
-  const loadStates=async()=>{
-    clearTimeout(statesTimer);
-    const result=await get('/api/knowledge/states').catch(()=>null);
-    modelReady=result?.model_ready!==false;
-    states=new Map((result?.states||[]).map(item=>[item.kind+'\u0000'+item.id,item]));
-    if(result?.listing)statesTimer=setTimeout(()=>{if(list.isConnected)void loadStates().then(paint);},3000);
+  // Where the listed pieces stand, asked of project knowledge by their keys (materials-ui-contract §6): not every card of the project.
+  const loadStates=async(items,into)=>{
+    const subjects=items.map(item=>item.subject).filter(Boolean);
+    for(let at=0;at<subjects.length;at+=500){
+      const result=await post('/api/knowledge/states',{subjects:subjects.slice(at,at+500)}).catch(()=>null);
+      if(result)modelReady=result.model_ready!==false;
+      for(const item of result?.states||[])into.set(item.kind+'\u0000'+item.id,item);
+    }
+    return into;
   };
-  const load=async(force)=>{
+  const load=async()=>{
     if(loading)return loading;
-    if(!force&&Date.now()-loadedAt<30000&&sources.length)return;
     loading=(async()=>{
       list.setAttribute('aria-busy','true');
       try{
-        // Every source and its first page in one request (N52); the cards' states alongside.
-        const [read]=await Promise.all([readSideFileSources(get),loadStates()]);
+        // Every source and its first page in one request (N52), then the states of what it listed.
+        const read=await readSideFileSources(get);
+        states=await loadStates([...read.pages.values()].flatMap(held=>held.items),new Map());
         sources=read.sources;entries=read.pages;
-        loadedAt=Date.now();
       }catch(error){sources=[];list.innerHTML='<p class="side-files-note">'+esc(error.message)+'</p>';return;}
       finally{list.setAttribute('aria-busy','false');loading=null;}
       paint();
@@ -226,6 +226,8 @@ export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
   const more=async(sourceId)=>{
     const held=entries.get(sourceId);if(!held?.next)return;
     const page=(await get('/api/side/files/entries?source='+encodeURIComponent(sourceId)+'&cursor='+encodeURIComponent(held.next))).page;
+    if(entries.get(sourceId)!==held)return;
+    await loadStates(page.entries,states);
     if(entries.get(sourceId)!==held)return;
     entries.set(sourceId,{items:[...held.items,...page.entries],next:page.next_cursor,error:null});paint();
   };
@@ -336,7 +338,7 @@ export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
       else if(hit.dataset.surface)host.openRecord?.(hit.dataset.surface,hit.dataset.open,name);return;}
     const moreButton=target.closest('[data-side-files-more]');if(moreButton){void more(moreButton.dataset.sideFilesMore);return;}
     const action=target.closest('[data-side-files-action]')?.dataset.sideFilesAction;
-    if(action==='refresh'){void load(true);return;}
+    if(action==='refresh'){void load();return;}
     if(action==='back'){show(false);current=null;paint();list.querySelector('[data-side-file]')?.focus();return;}
     if(action==='open'&&openButton.dataset.surface){host.openRecord?.(openButton.dataset.surface,openButton.dataset.id,title.textContent||'');return;}
     if(action==='source'){const url=target.closest('[data-url]')?.dataset.url;if(url)document.dispatchEvent(new CustomEvent('molis:side-open',{detail:{tab:'browser',target:{url},focus:true}}));return;}
@@ -351,12 +353,12 @@ export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
   document.addEventListener('molis:side-shown',async event=>{
     if(event.detail?.tab!=='files'||event.detail?.open===false)return;
     const target=event.detail?.target;
-    if(target?.preview){openGiven(target.preview);void load(false);return;}
+    if(target?.preview){openGiven(target.preview);void load();return;}
     if(target?.subject){
-      const request=current={source:target.source||'',kind:target.subject.kind,id:target.subject.id};await load(false);if(current!==request)return;
+      const request=current={source:target.source||'',kind:target.subject.kind,id:target.subject.id};await load();if(current!==request)return;
       const source=target.source||sources.find(item=>item.kinds.some(kind=>kind.kind===target.subject.kind))?.id;
       if(source)void openFile(source,target.subject.kind,target.subject.id,target.entry||(target.title?{title:target.title,open:target.open||null}:null));
       else openGiven({title:target.title||L('文件'),problem:L('这个文件所在的插件没有向侧栏提供文件，或当前没有读取权限。'),open:target.open});
-    }else await load(false);
+    }else await load();
   });
 }`.replace(/^[ \t]*\/\/.*\n/gm, "");

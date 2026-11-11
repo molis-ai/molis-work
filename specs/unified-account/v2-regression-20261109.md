@@ -44,7 +44,7 @@ node scripts/run-tests.mjs --jobs 1 --shard 3/3
 - `tests/account-registration.e2e.test.ts`：基线 2/2、本分支复验 2/2；原始超时仍留在日志。
 - `tests/home-package-project-reach.e2e.test.ts`、`tests/plugin-trust-home-upgrade.e2e.test.ts`、`tests/plugin-trust-view.test.ts`：原用例强制独立 `chrome-headless-shell`。补齐三个浏览器环境变量，使用专用 headless 151.0.7922.34，分别 3/3、1/1、6/6 通过；没有放宽专用引擎检查。
 - `tests/native-checks.test.mjs`：原 PATH 选择了缺少 WASM 目标的 Homebrew Rust。复用实际已安装目标的 Rust 1.96.0 工具链后 36/36 通过，包含故意引入错误必须被拒绝的断言。
-- `tests/action-read-compatibility.test.ts`：补齐新动作的配置拒绝后 6/6；不是忽略动作或接受未知异常。
+- `tests/action-read-history.test.ts`：补齐新动作的配置拒绝后 6/6；不是忽略动作或接受未知异常。
 - `tests/account-refresh-pages.test.ts`：按现行 V2 完成响应更新后 12/12；继续验证旧准备的取消不能撤销新登录，新身份必须为 carol。
 
 ## Auth 与联合验收

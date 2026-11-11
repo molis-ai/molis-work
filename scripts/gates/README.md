@@ -136,7 +136,7 @@ W4-08 给记忆、放置、搜索加同类规则时，可以在同一个模块�
 
 处理器输入上的 `as`（`handlerInputCasts`）和定义处手写的输入类型（`handwrittenActionInputs`）。N22 迁移期间按文件、对照 merge-base 只许减少，N22-G 开绝对门禁时删掉（路线书决定 29）。它们读代码，不属于文档类，所以直接挂在入口的 `METRICS` 上（三行：import、注释、push），不经 `doc-gates.mjs`。口径和看不到的写法在 [tooling/gates/README.md](../../tooling/gates/README.md#按文件计数只许减少的项) 的那两行；用例是 `tests/health-gates-action-input-counts.test.ts`，CI 的 `tests/health-gates-*.test.ts` 那一步跑。
 
-删的时候删这个模块、入口那三行、这一节、那两行、`AGENTS.md` 那一条和这个测试文件。
+删的时候删这个模块、入口那三行、这一节、那两行和这个测试文件。
 
 ## 怎么加一条规则
 

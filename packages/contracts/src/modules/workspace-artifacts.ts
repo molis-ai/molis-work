@@ -669,7 +669,6 @@ export function mayHaveChangedFiles(outcome: GitResultOutcome): boolean {
  * the publisher's package to spell one, and so the two cannot drift apart.
  * Validators stay with the publisher: only it knows what its payload means.
  */
-export const WORKSPACE_SELECTED_EVENT = "io.molis.work.workspace.selected";
 export const CODING_RUN_UPDATED_EVENT = "io.molis.work.coding.run-updated";
 export const GIT_OPERATION_UPDATED_EVENT = "io.molis.work.git.operation-updated";
 export const GIT_FILE_CHANGED_EVENT = "io.molis.work.git.file-changed";

@@ -57,7 +57,7 @@ Workbench 不直接访问 SQLite、Module implementation、Node-only API 或 Tau
 登记只覆盖 DOM `CustomEvent`。页面里还有下面这些通道，没有登记，门禁也不看：
 
 - 外壳与 iframe 之间的 `postMessage`（`type` 如 `workbench-surface-focus`、`molis:side-open`、`molis:im-visibility`）；
-- `data-assistant-context` 属性：界面把自己的对象写在属性里，情境动作从那里读（常量 `ASSISTANT_CONTEXT_ATTRIBUTE`，在 `services/assistant` 合同里）；
+- `data-assistant-context` 属性：界面把自己的对象写在属性里，情境动作从那里读（属性值的形状是 `services/assistant` 合同里的 `AssistantSurfaceContext`）；
 - 传给插件客户端脚本的 `host` 对象（`translate`、`mountPluginClient` 等宿主能力）；
 - 存储键（`localStorage` 等）和浏览器自己的事件；
 - 跨标签页的 `BroadcastChannel`：目前只有一条，名字 `molis-work:model-ready`，由模型设置脚本（`apps/workbench/src/scripts/settings-models.ts`）在第一个能用的模型出现时发，开始使用页（`apps/workbench/src/scripts/context-onboarding.ts`）收；它是同名页面事件 `molis-work:model-ready` 的跨标签延伸，说明记在那个事件的登记项里。

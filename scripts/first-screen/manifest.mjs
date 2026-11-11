@@ -9,8 +9,13 @@ export const SSE_FIRST_EVENT = "sse-first-event";
 const PROJECT_PAGES = new Set(MEASURED_PAGES.slice(1));
 
 const localesOf = row => row.locale === "both" ? LOCALES : [row.locale];
-const isPath = (path, page) => typeof path === "string" && /^\/(?!\/)[^\s#\\]*$/.test(path)
+export const isFirstScreenPath = (path, page) => typeof path === "string" && /^\/(?!\/)[^\s#\\]*$/.test(path)
   && !/[<>]/.test(path.replaceAll("<project>", "")) && (!path.includes("<project>") || PROJECT_PAGES.has(page));
+
+export const workbenchLanguageEntry = locale => `/assets/locale/workbench.${locale}.<digest>.js`;
+// Only the exact content-addressed Workbench pack for this language has a logical approval name.
+export const firstScreenApprovalPath = (path, locale) =>
+  /^\/assets\/locale\/workbench\.(zh|en)\.[0-9a-f]{24}\.js$/u.exec(path)?.[1] === locale ? workbenchLanguageEntry(locale) : path;
 
 export const requestKey = (path, document, response = "finite") => document === undefined ? path : `${path} [${response} from ${document}]`;
 const rowKey = row => requestKey(row.entry, row.document ?? (row.response ? "<page>" : undefined), row.response);
@@ -30,7 +35,7 @@ export function readManifest(root, { optional = false } = {}) {
     if (!row || typeof row !== "object" || Array.isArray(row) || Object.keys(row).some(key => !["page", "locale", "entry", "owner", "introduced", "baseOnly", "document", "response"].includes(key))
       || !MEASURED_PAGES.includes(row.page) || ![...LOCALES, "both"].includes(row.locale)
       || typeof row.owner !== "string" || !/^[a-z0-9][a-z0-9-]*$/.test(row.owner)
-      || !isPath(row.entry, row.page) || Object.hasOwn(row, "document") && !isPath(row.document, row.page)
+      || !isFirstScreenPath(row.entry, row.page) || Object.hasOwn(row, "document") && !isFirstScreenPath(row.document, row.page)
       || Object.hasOwn(row, "response") && row.response !== SSE_FIRST_EVENT
       || Object.hasOwn(row, "introduced") && row.introduced !== true
       || Object.hasOwn(row, "baseOnly") && row.baseOnly !== true || row.introduced && row.baseOnly) {

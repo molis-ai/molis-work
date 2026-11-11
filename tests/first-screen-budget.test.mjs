@@ -233,6 +233,8 @@ const measured = () => Object.fromEntries(GATED_PAGES.flatMap(page => ["zh", "en
 ])));
 const permit = fields => ({ "task.json": JSON.stringify({ reason: "fixture", review: "test review", ...fields }) });
 const budget = (cold, warm) => ({ pages: { [pageKey]: { cold, warm } } });
+const entryApproval = (entry, fields = {}) => ({ pages: ["workbench-default"], locale: "zh", entry, change: "new", ...fields });
+const approve = (...entryApprovals) => ({ userApproval: "approval reference", entryApprovals });
 
 test("FSS-BG-01/02 a warm-only regression consumes only new allowance for that page and locale", () => {
   const base = measured(), candidate = measured();
@@ -255,9 +257,69 @@ test("FSS-BG-02 a new or >10,000 B entry requires approval even when page totals
   const failed = firstScreenProblems(base, candidate, {}, {});
   assert.match(failed.errors.join(), /\/new: new entry requires userApproval/);
   assert.match(failed.errors.join(), /\/unchanged: growth over 10 KB requires userApproval/);
-  assert.deepEqual(failed.draft.pages, { [pageKey]: { cold: 0, warm: 0 } });
-  assert.deepEqual(firstScreenProblems(base, candidate, permit({ ...budget(0, 0), userApproval: "approval reference" }), {}).errors, []);
+  assert.deepEqual(failed.draft.pages, {}, "an approval is independent of the page byte budget");
+  const pageOnly = firstScreenProblems(base, candidate, permit({ ...budget(0, 0), userApproval: "approval reference" }), {});
+  assert.deepEqual(pageOnly.errors, failed.errors);
+  const approvedNew = permit(approve(entryApproval("/new")));
+  assert.deepEqual(firstScreenProblems(base, candidate, approvedNew, {}).errors, [
+    "workbench-default/zh /unchanged: growth over 10 KB requires userApproval",
+  ]);
+  assert.deepEqual(firstScreenProblems(base, candidate, approvedNew, approvedNew).errors, failed.errors);
+  const approvedBoth = permit(approve(entryApproval("/new"), entryApproval("/unchanged", { change: "growth" })));
+  assert.deepEqual(firstScreenProblems(base, candidate, approvedBoth, {}).errors, []);
+  const wrongChange = permit(approve(entryApproval("/new"), entryApproval("/unchanged")));
+  assert.deepEqual(firstScreenProblems(base, candidate, wrongChange, {}).errors, firstScreenProblems(base, candidate, approvedNew, {}).errors);
   assert.match(firstScreenProblems(base, candidate, permit({ assets: { "/assets/new.css": 3 }, userApproval: "asset only" }), {}).errors.join(), /\/new: new entry requires/);
+});
+
+test("FSS-BG-02 an approval for one scoped request does not cover another source, mode, language, or page", () => {
+  const base = measured(), candidate = measured();
+  const top = "/projects/seed/";
+  const frame = "/projects/seed/side/issues/capture";
+  const request = "/api/events";
+  const approved = requestKey(request, frame, SSE_FIRST_EVENT);
+  const topStream = requestKey(request, top, SSE_FIRST_EVENT);
+  const finite = requestKey(request, frame);
+  for (const key of [pageKey, "workbench-default/en", "workbench-all-plugins/zh"]) {
+    candidate[key].path = top;
+    candidate[key].project = "seed";
+    candidate[key].entries = { "/": { cold: 200, warm: 200 }, [approved]: { cold: 1, warm: 1 } };
+    candidate[key].totals = { cold: 201, warm: 201 };
+  }
+  candidate[pageKey].entries[topStream] = { cold: 1, warm: 1 };
+  candidate[pageKey].entries[finite] = { cold: 1, warm: 1 };
+  candidate[pageKey].totals = { cold: 203, warm: 203 };
+  const allowance = permit(approve(entryApproval(request, { response: SSE_FIRST_EVENT, document: "/projects/<project>/side/issues/capture" })));
+  const result = firstScreenProblems(base, candidate, allowance, {});
+  assert.deepEqual(result.errors, [
+    `${pageKey} ${topStream}: new entry requires userApproval`,
+    `${pageKey} ${finite}: new entry requires userApproval`,
+    `workbench-default/en ${approved}: new entry requires userApproval`,
+    `workbench-all-plugins/zh ${approved}: new entry requires userApproval`,
+  ]);
+  assert.ok(result.approvalRows.includes(`${pageKey} ${approved} (new entry): task.json`));
+});
+
+test("FSS-BG-02 a startup pack approval matches a single content address for that owner and language", () => {
+  const base = measured(), candidate = measured();
+  const localeEntry = (owner, tag, digit) => `/assets/locale/${owner}.${tag}.${digit.repeat(24)}.js`;
+  const approved = localeEntry("workbench", "zh", "a");
+  const allowance = permit(approve(entryApproval("/assets/locale/workbench.zh.<digest>.js")));
+  const next = candidate[pageKey];
+  next.entries = { "/": { cold: 900, warm: 900 }, [approved]: { cold: 500, warm: 100 } };
+  next.totals = { cold: 1400, warm: 1000 };
+  assert.deepEqual(firstScreenProblems(base, candidate, allowance, {}).errors, []);
+  for (const path of [localeEntry("workbench", "en", "b"), localeEntry("other", "zh", "b"), `${approved}?other=1`]) {
+    next.entries[path] = { cold: 500, warm: 100 };
+    next.totals = { cold: 1900, warm: 1100 };
+    assert.deepEqual(firstScreenProblems(base, candidate, allowance, {}).errors, [`${pageKey} ${path}: new entry requires userApproval`]);
+    delete next.entries[path];
+  }
+  const duplicate = localeEntry("workbench", "zh", "b");
+  next.entries[duplicate] = { cold: 500, warm: 100 };
+  assert.deepEqual(firstScreenProblems(base, candidate, allowance, {}).errors, [
+    `${pageKey} ${duplicate}: multiple paths for /assets/locale/workbench.zh.<digest>.js`,
+  ]);
 });
 
 test("FSS-BG-02 page-only and combined allowances preserve old asset rejection and validate both categories", () => {
@@ -269,6 +331,9 @@ test("FSS-BG-02 page-only and combined allowances preserve old asset rejection a
     {}, { assets: {} }, { pages: {} }, budget(0, 0), budget(-1, 1), budget(1.5, 1), budget("2", 1),
     { ...budget(1, 0), other: 1 }, { assets: {}, ...budget(1, 0) },
     { pages: { [pageKey]: { cold: 1, extra: 1 } } }, { pages: { "workbench-demo/en": { cold: 1, warm: 1 } } },
+    { entryApprovals: [entryApproval("/new")] }, approve(), approve(entryApproval("/*", { pages: ["*"] })),
+    approve(entryApproval("/new", { response: "all-events" })), approve(entryApproval("/new", { extra: true })),
+    approve(entryApproval("/assets/locale/workbench.en.<digest>.js")), approve(entryApproval("/foo.<digest>.js")),
   ]) {
     assert.match(readNewAllowances(permit(invalid), {}).errors.join(), /invalid allowance/);
   }

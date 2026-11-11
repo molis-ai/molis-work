@@ -6,7 +6,7 @@ import { parseArgs } from "node:util";
 import { isMainScript } from "../script-paths.mjs";
 import { LOCALES, withFirstScreenHost } from "../first-screen/host.mjs";
 import { sampleFirstScreen } from "../first-screen/http.mjs";
-import { GATED_PAGES, MEASURED_PAGES, comparisonRows, currentRows, readManifest, registeredPaths, removedManifestRows } from "../first-screen/manifest.mjs";
+import { GATED_PAGES, MEASURED_PAGES, comparisonRows, currentRows, firstScreenApprovalPath, readManifest, registeredPaths, removedManifestRows, requestKey } from "../first-screen/manifest.mjs";
 import { allowanceFiles, git, withBuiltBaseline } from "./page-assets-baseline.mjs";
 import { VISITS, readNewAllowances } from "./page-assets-policy.mjs";
 
@@ -23,11 +23,27 @@ export async function measureFirstScreen(root, rows, signal) {
           entries[path] = { cold: sample.cold.wire, warm: sample.warm.wire };
           for (const visit of VISITS) totals[visit] += entries[path][visit];
         }
-        pages[`${page.id}/${locale}`] = { totals, entries };
+        pages[`${page.id}/${locale}`] = { totals, entries, path: page.path, project: page.project };
       }
     }
     return pages;
   });
+}
+
+function entryApprovals(records, page, locale, measured) {
+  const approvals = new Map();
+  const resolvePath = path => path === "<page>" ? measured.path ?? path
+    : measured.project ? path.replaceAll("<project>", measured.project) : path;
+  for (const [file, record] of records) {
+    for (const row of record.entryApprovals ?? []) {
+      if (!row.pages.includes(page) || (row.locale !== "both" && row.locale !== locale)) continue;
+      const source = row.document ?? (row.response ? "<page>" : undefined);
+      const path = requestKey(resolvePath(row.entry), source === undefined ? undefined : resolvePath(source), row.response);
+      const key = `${row.change} ${path}`;
+      approvals.set(key, [...(approvals.get(key) ?? []), file]);
+    }
+  }
+  return approvals;
 }
 
 export function firstScreenProblems(base, candidate, current, previous) {
@@ -40,16 +56,21 @@ export function firstScreenProblems(base, candidate, current, previous) {
       const old = base[key], next = candidate[key];
       if (!old || !next) { errors.push(`${key}: incomplete page measurement`); continue; }
       const pageAllowances = records.filter(([, record]) => Object.hasOwn(record.pages ?? {}, key));
-      const approvals = pageAllowances.filter(([, record]) => record.userApproval).map(([file]) => file);
-      let needsApproval = false;
+      const approvals = entryApprovals(records, page, locale, next);
+      const packs = new Set();
       for (const [path, size] of Object.entries(next.entries)) {
+        const approvalPath = firstScreenApprovalPath(path, locale);
+        if (approvalPath !== path) {
+          if (packs.has(approvalPath)) errors.push(`${key} ${path}: multiple paths for ${approvalPath}`);
+          packs.add(approvalPath);
+        }
         const before = old.entries[path];
         const large = before && VISITS.some(visit => size[visit] - before[visit] > 10_000);
         if (before && !large) continue;
         const reason = before ? "growth over 10 KB" : "new entry";
-        approvalRows.push(`${key} ${path} (${reason}): ${approvals.join(", ") || "missing userApproval"}`);
-        if (!approvals.length) {
-          needsApproval = true;
+        const matches = approvals.get(`${before ? "growth" : "new"} ${approvalPath}`);
+        approvalRows.push(`${key} ${path} (${reason}): ${matches?.join(", ") || "missing userApproval"}`);
+        if (!matches) {
           errors.push(`${key} ${path}: ${reason} requires userApproval`);
         }
       }
@@ -64,8 +85,7 @@ export function firstScreenProblems(base, candidate, current, previous) {
           needed[visit] = delta - allowed;
         }
       }
-      if (needsApproval || needed.cold || needed.warm) draft.pages[key] = needed;
-      if (needsApproval) draft.userApproval = "";
+      if (needed.cold || needed.warm) draft.pages[key] = needed;
     }
   }
   return { errors, approvalRows, draft };

@@ -250,7 +250,7 @@ pnpm --filter @molis-ai/molis-work-integration-github typecheck
 
 [首屏清单](../tooling/gates/first-screen.json)收录自动发现之外的隐藏文档和已知启动 GET。每行包含页面、语言（`zh`、`en`、`both`）、请求路径和负责人，项目标识写成 `<project>`。到达页、项目选择、新项目工作台、全部项目插件工作台分别记中英文冷、热总量；示例项目的增量只报告。受保护的 GET 用 `document` 指明同页已登记的来源文档，事件流加 `response: "sse-first-event"`；省略来源的流从顶层文档取证明。每轮按来源文档、路径和响应方式记一次真实 HTTP 响应字节，含头和编码后的响应体。采样使用本页临时的同源会话，凭据不写入报告；流累计到第一个完整数据事件，首帧前断开或超时均失败。热轮仍对可缓存且有 ETag 的有限响应实际发送条件请求。清单删行或缩小范围时，CI 摘要会列出差异，供评审对照浏览器报告。
 
-增长许可与页面资源共用目录。可写 `assets`、`pages` 或两者，`pages` 按页面及语言列上限，例如 `"pages": { "workbench-default/zh": { "cold": 120, "warm": 0 } }`。新增路径或单行净增超过 10,000 B 时，对应页面及语言须有带用户批准出处的新增许可，页总量缩小时也适用。冷、热均为 0 的页面项可以只记录批准出处，不提供额外增长额度。CI 会列出需审批的路径和对应许可文件。每次比较只消费基点尚未采用的许可。
+增长许可与页面资源共用目录。`assets` 约束静态资源，`pages` 约束页面及语言的总量净增，例如 `"pages": { "workbench-default/zh": { "cold": 120, "warm": 0 } }`。新增路径或单行净增超过 10,000 B 时，即使页总量缩小，也须在带 `userApproval` 的新许可中用 `entryApprovals` 列明这一项：`pages`（所涉页面数组）、`locale`、`entry`、`change`（`new` 或 `growth`），以及适用的 `response` 和 `document`。顶层文档可写 `<page>`，项目标识可写 `<project>`；工作台启动词包用对应语言的 `/assets/locale/workbench.<语言>.<digest>.js` 匹配一条内容定址路径。CI 会列出需审批的路径和对应许可文件。每次比较只消费基点尚未采用的许可。
 
 每批开工前由统筹通过独立浏览器做一次防漏核对。构建后运行：
 

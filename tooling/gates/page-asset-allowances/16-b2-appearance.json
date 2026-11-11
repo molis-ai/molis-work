@@ -16,6 +16,15 @@
     "/assets/molis-work-workbench.js": 18520,
     "/assets/ui-skin/folio-1.css": 40897
   },
+  "entryApprovals": [
+    { "pages": ["arrival-empty", "chooser", "workbench-default", "workbench-all-plugins"], "locale": "both", "entry": "/api/ui/appearance/events", "change": "new", "response": "sse-first-event" },
+    { "pages": ["arrival-empty", "chooser"], "locale": "both", "entry": "/api/ui/appearance/events", "change": "new", "response": "sse-first-event", "document": "/plugins/issues?side=capture" },
+    { "pages": ["workbench-default", "workbench-all-plugins"], "locale": "both", "entry": "/api/ui/appearance/events", "change": "new", "response": "sse-first-event", "document": "/projects/<project>/side/issues/capture" },
+    { "pages": ["arrival-empty", "chooser", "workbench-default", "workbench-all-plugins"], "locale": "both", "entry": "<page>", "change": "growth" },
+    { "pages": ["arrival-empty", "chooser"], "locale": "both", "entry": "/plugins/issues?side=capture", "change": "growth" },
+    { "pages": ["workbench-default", "workbench-all-plugins"], "locale": "both", "entry": "/projects/<project>/side/issues/capture", "change": "growth" },
+    { "pages": ["workbench-default", "workbench-all-plugins"], "locale": "both", "entry": "/assets/molis-work-workbench.js", "change": "growth" }
+  ],
   "pages": {
     "arrival-empty/zh": { "cold": 25759, "warm": 47698 },
     "arrival-empty/en": { "cold": 30129, "warm": 52068 },

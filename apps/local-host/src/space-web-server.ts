@@ -299,6 +299,7 @@ function respondAccountPreparation(response:ServerResponse,render?:()=>string):v
  */
 export function createSpaceWebServer(options:WebServerOptions,createCore:(options:WebServerOptions)=>SpaceWebSurface,withCatalog?:LocalWebCatalogRunner,accountEntry?:{
   render(token:string,request:IncomingMessage,url:URL,message?:string):string;
+  renderSameOriginEntry():string;
   asset(request:IncomingMessage,response:ServerResponse,url:URL):boolean;
 }):http.Server {
   let server:http.Server;
@@ -319,7 +320,7 @@ export function createSpaceWebServer(options:WebServerOptions,createCore:(option
         // The resulting same-origin navigation can then obtain the normal cookie-bound page proof.
         if(accountEntry&&url.pathname==='/'&&request.method==='GET'&&request.headers['sec-fetch-site']==='cross-site'&&request.headers['sec-fetch-dest']==='document'&&request.headers.origin===undefined){
           response.writeHead(200,{'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-frame-options':'DENY','referrer-policy':'no-referrer'});
-          response.end('<!doctype html><meta charset="utf-8"><title>Molis Work</title><script>location.replace(location.href)</script><noscript><a href="/">Molis Work</a></noscript>');return;
+          response.end(accountEntry.renderSameOriginEntry());return;
         }
         // CLI/MCP have no browser cookies. Only an already-open, authenticated
         // personal Host can be reached with its exact Home id and private token.

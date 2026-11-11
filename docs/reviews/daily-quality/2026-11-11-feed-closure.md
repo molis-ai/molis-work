@@ -80,3 +80,7 @@ Node 24.15.0、pnpm 11.9.0；使用本机缓存离线安装，整体构建通过
 `f5070e14a` 的 Full [43012919023](https://github.com/molis-ai/molis-work/actions/runs/43012919023) 第14分片在 `immersive-directory.e2e.test.ts` 发现空筛选页把“清除筛选”隐藏：旧逻辑用当前行数判断是否显示，服务端过滤后不再保有全部行。改为仅按筛选是否生效判断，原完整目录用例2/2通过。代码减少14 B，最终公共 frame +632 B、Feed JS +1316 B、CSS +20 B，总计1968 B。
 
 DRT-13 本机超时已在独立干净基线 `93eb5590a`（离线安装、整体构建、相同用例）复现，失败同在点击返回后等待 desktopSurface=feed；没有改断言或超时。PR 中保留这一限制。
+
+### 全部挂载位置补验
+
+补充真实浏览器发现来源目录/来源预览也被送到主区分页读取，返回了错误页面。现在只有 workbench 消息主区传分页输入并取主区根；source-directory/source-workbench 仍经同一公开 readDocument 读取自己的 owner 文档。RAC-2516/2517/2519 完整挂载、来源预览与 Inbox owner 用例通过；分栏过滤改为等待服务端结果后断言，未放宽结果断言。分栏4/4、Feed捕捉4/4通过；规则编辑1/1、低高度2/2、内部滚动1/1通过。延迟加载文件剩余“registered clients”在756×469点击Home被侧栏遮挡，与独立干净基线相同，不属于本次引入；原断言保留。最终资源为 frame +632 B、Feed JS +1410 B、CSS +20 B，总计2062 B；健康门禁通过。

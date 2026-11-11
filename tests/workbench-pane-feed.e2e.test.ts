@@ -72,6 +72,7 @@ test("Feed source navigation, independent nested panes, resize and restore", { t
   assert.equal(await evaluate("[...document.querySelectorAll('[data-tab-pane] [data-tab-strip]')].every(strip => !strip.hidden)"), true);
   const unfilteredCount = await secondPane.evaluate<string>("document.querySelector('[data-feed-result-count]').textContent");
   await firstPane.evaluate(`{ const field = document.querySelector('[data-feed-search]'); field.value = 'not found in this source'; field.dispatchEvent(new Event('input',{bubbles:true})); }`);
+  await firstPane.waitFor("document.querySelector('[data-feed-result-count]').textContent === '0 条消息'");
   assert.equal(await firstPane.evaluate(`document.querySelector('[data-feed-result-count]').textContent`), "0 条消息");
   assert.equal(await secondPane.evaluate("document.querySelector('[data-feed-result-count]').textContent"), unfilteredCount);
   await click('[data-layout-open]');

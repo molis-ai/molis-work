@@ -57,7 +57,7 @@ export function feedClient(host: FeedHost): void {
     const check = page.guard(), sequence = ++refreshSequence;
     const refresh = async () => {
       reading++;
-      const html = await host.view.readDocument({ input: stage.queryInput(), signal: page.signal() }).finally(() => reading--); check();
+      const html = await host.view.readDocument({ ...(host.mount?.surface === "workbench" ? { input: stage.queryInput() } : {}), signal: page.signal() }).finally(() => reading--); check();
       if (sequence !== refreshSequence) { await activeRefresh; check(); return; }
       // A notice that reads back what is already drawn (the poll after this page's own save) leaves the page alone:
       // redrawing it would only swap out the controls in use and the result a person was just shown.
@@ -65,7 +65,7 @@ export function feedClient(host: FeedHost): void {
       redraw = false;
       const controls = page.all<HTMLInputElement | HTMLSelectElement>("[data-feed-search]," + FILTER_FIELDS).map(field => ({ attr: [...field.attributes].find(attr => attr.name.startsWith("data-feed-"))!.name, value: field.value }));
       const filterOpen = page.q("[data-feed-filter-panel]")?.hidden === false;
-      const next = new DOMParser().parseFromString(html, "text/html").querySelector<HTMLElement>("[data-feed-workbench]");
+      const next = new DOMParser().parseFromString(html, "text/html").querySelector<HTMLElement>(host.mount?.surface === "workbench" ? "[data-feed-workbench]" : "[data-ui-client-root]");
       if (!next) throw new Error(host.translate("无法更新 Feed 列表"));
       // Preserve unsaved settings and the rule composer while authoritative rows/configuration are redrawn.
       for (const previous of page.all("[data-feed-task-config]")) {

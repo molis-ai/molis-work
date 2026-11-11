@@ -9,21 +9,43 @@ import { codingAgentManifest, codingPrompts } from "@molis-ai/molis-work-plugin-
 import { cogniaModelResponse, cogniaScriptedResponse } from "./fixtures/cognia-model-response.js";
 import type { AgentPendingQuestion, AgentQuestion } from "@molis-ai/molis-work-contracts/services/agent-interaction";
 import { questionAnswer } from "@molis-ai/molis-work-plugin-sdk";
+import { interactionFields, interactionReferences } from "@molis-ai/molis-work-design-system";
+import { chinesePagePacks, installPageClientText, pageTextForPacks } from "./fixtures/page-text-packs.js";
 
 // specs/ai-interaction-experience T2 (AC-28): a reference question names kinds; the person finds objects by name and picks.
 
-const say = (text: string, values?: Record<string, string | number>) => text.replace(/\{(\w+)\}/g, (whole, key: string) => values && key in values ? String(values[key]) : whole);
+const packs = chinesePagePacks();
+const say = pageTextForPacks("zh", packs);
 const reference = (overrides: Partial<AgentQuestion>): AgentQuestion => ({ index: 0, prompt: "关联的 Goal", type: "reference", required: true, options: [], multiple: false,
   allow_other: false, ref_kinds: ["goal"], ...overrides });
 const card = (questions: AgentQuestion[]): AgentPendingQuestion => ({ pending_id: "p1", kind: "questionnaire", prompt: "约复盘会", options: [], allows_free_text: false, questions });
 
-test("AC-28-2: a reference question is drawn as a search of its own kinds, listing no candidates", () => {
+test("AC-28-2: a reference question is drawn as a search of its own kinds, listing no candidates", async t => {
   const html = agentQuestionHtml(card([reference({}), reference({ index: 1, prompt: "参考资料", ref_kinds: ["cognia_material", "shelf_item"], multiple: true, max_count: 3 })]), say);
   assert.match(html, /data-ix-field="r0"[\s\S]*?data-ix-references data-ix-ref-source="goal" data-ix-ref-max="1"/, "one object by default");
   assert.match(html, /data-ix-field="r1"[\s\S]*?data-ix-ref-source="cognia_material,shelf_item" data-ix-multiple data-ix-ref-max="3"/, "the search asks for exactly the question's kinds");
   assert.match(html, /placeholder="输入名称搜索"/);
-  assert.match(html, /data-ix-ref-labels="[^"]*&quot;found&quot;:&quot;\{n\} 个结果&quot;/, "the count's placeholder is left for the client to fill");
+  assert.match(html, /data-ix-ref-status aria-live="polite"><\/p>/, "the result count is empty until the search runs");
   assert.doesNotMatch(html, /data-ix-ref-option/, "drawing the card searches nothing: candidates come only while the person types");
+
+  const labels = /data-ix-ref-labels="([^"]+)"/u.exec(html)?.[1]?.replaceAll("&quot;", '"');
+  assert.ok(labels);
+  t.after(installPageClientText("zh", packs));
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  const status = { textContent: "" };
+  const search = { id: "goal-search", value: "计划", matches: (selector: string) => selector === "[data-ix-ref-query]", closest: () => box };
+  const list = { hidden: true, replaceChildren() {} };
+  const row = { content: { firstElementChild: { cloneNode: () => ({ dataset: {}, firstElementChild: {}, lastElementChild: {} }) } } };
+  const nodes: Record<string, object> = { "[data-ix-ref-query]": search, "[role=listbox]": list, "[data-ix-ref-status]": status, "template[data-ix-ref-row]": row };
+  const box = { dataset: { ixRefLabels: labels, ixRefSource: "goal" }, querySelector: (selector: string) => nodes[selector] };
+  const client = interactionReferences({ references: async (source, query) => {
+    assert.deepEqual([source, query], ["goal", "计划"]);
+    return { items: [{ value: "goal g1", label: "计划一" }, { value: "goal g2", label: "计划二" }] };
+  } }, interactionFields(box as never), () => {});
+  assert.equal(client.input(search as never), true);
+  t.mock.timers.tick(250);
+  await Promise.resolve();
+  assert.equal(status.textContent, "2 个结果", "the browser announces the count in its selected language");
 });
 
 test("AC-28-3: a drafted pick is drawn again as a chip; the label is the person's draft only", () => {

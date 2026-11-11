@@ -8,7 +8,7 @@ export const BUILDER_PROMPTS = {
   experience: { version: /* @version prompt.plugin-builder.experience "experience/{version}" */ "experience/2", ...studioBody("plugin-builder.experience") },
   review: { version: /* @version prompt.plugin-builder.ui-review "ui-review/{version}" */ "ui-review/2", ...studioBody("plugin-builder.ui-review") },
   ui: { version: /* @version prompt.plugin-builder.ui "ui/{version}" */ "ui/2", ...studioBody("plugin-builder.ui") },
-  designer: { version: /* @version prompt.plugin-builder.designer "designer/{version}" */ "designer/2", ...studioBody("plugin-builder.designer") },
+  designer: { version: /* @version prompt.plugin-builder.designer "designer/{version}" */ "designer/3", ...studioBody("plugin-builder.designer") },
   implement: { version: /* @version prompt.plugin-builder.implement "implement/{version}" */ "implement/2", ...studioBody("plugin-builder.implement") },
   repair: { version: /* @version prompt.plugin-builder.repair "repair/{version}" */ "repair/2", ...studioBody("plugin-builder.repair") },
   revise: { version: /* @version prompt.plugin-builder.revise "revise/{version}" */ "revise/2", ...studioBody("plugin-builder.revise") },

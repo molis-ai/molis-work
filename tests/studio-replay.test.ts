@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test, { after } from "node:test";
 import { fileURLToPath } from "node:url";
-import { AgentBuilderWorkflow, type AgentBuilderPorts, type CatalogEntry } from "@molis-ai/molis-work-plugin-builder";
+import { AgentBuilderWorkflow, BUILDER_PROMPTS, expandDesign, freezeStudioUi, parseModelJson, validateAgentDesign, type AgentBuilderPorts, type CatalogEntry } from "@molis-ai/molis-work-plugin-builder";
 import { assertContract } from "@molis-ai/molis-work-plugin-sandbox";
 import type { PluginPrivateStorage } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { BuilderAgentRecord, BuilderAgentRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -13,6 +13,7 @@ import { entryDigest, entryFromRunRecord, loadCorpus, type ReplayEntry } from ".
 import { CATALOG_MISS, LIVE_ENTRY_IDS, builtinEntries, compare, parseBaseline, replayEntry, summarise } from "../scripts/studio-replay/replay.mjs";
 import { runSmoke } from "../scripts/studio-replay/smoke.mjs";
 import { standInAnswers } from "../scripts/studio-replay/stand-in.mjs";
+import { studioTestLanguages } from "./fixtures/studio-bilingual.js";
 
 // specs/archive/repository-anti-corruption §4.14 (W1-12): the studio Skill replay. Recorded designer answers go through the host's
 // design checks and are compared with a committed baseline; a generation smoke runs the same studio workflow against a real
@@ -84,6 +85,32 @@ test("the prompt example is replayed from the prompt itself, so a prompt edit th
   assert.equal(example!.id, "prompt-example");
   assert.equal(replayEntry(example!).pass, true);
   assert.equal(replayEntry({ ...example!, answer: example!.answer.slice(0, 200) }).pass, false);
+});
+
+test("FSS-74 both detail prompt examples freeze the actual UI slots and use the declared property in browser acceptance", () => {
+  const [example] = builtinEntries();
+  const bodies = { zh: BUILDER_PROMPTS.designer.text, en: BUILDER_PROMPTS.designer.body_by_locale.en! };
+  for (const [current, body] of Object.entries(bodies)) {
+    const sample = /^(\{"summary"[\s\S]+?)\n\n/mu.exec(body)?.[1];
+    assert.ok(sample, current);
+    const answer = parseModelJson(sample, true);
+    assert.ok(answer && typeof answer === "object" && "design" in answer);
+    const draft = answer.design;
+    assert.ok(draft && typeof draft === "object" && "uiText" in draft);
+    const design = expandDesign(answer, example!.base!, "io.molis.work.generated.prompt-example", "example", []);
+    const valid = validateAgentDesign(design, [], [], assertContract);
+    const frozen = freezeStudioUi(valid, draft.uiText, { ...studioTestLanguages, current });
+    assert.equal(frozen.contract.ui?.locales.default, current);
+    assert.equal(frozen.title, current === "en" ? "Quick notes" : "随手记");
+    assert.deepEqual(frozen.acceptance.find(check => check.id === "empty")?.steps, [
+      { action: "page", pageId: "home" },
+      { action: "expectWord", componentId: "notes", word: "emptyText" },
+    ]);
+    const empty = frozen.parts.find(part => part.id === "notes")?.props.emptyText;
+    assert.ok(empty && typeof empty === "object" && "key" in empty);
+    assert.deepEqual(frozen.localePacks?.map(pack => [pack.locale, pack.messages[empty.key]]),
+      [["zh", "还没有笔记"], ["en", "No notes yet"]]);
+  }
 });
 
 test("a refusal is grouped by its kind, not by the names and numbers in it", () => {

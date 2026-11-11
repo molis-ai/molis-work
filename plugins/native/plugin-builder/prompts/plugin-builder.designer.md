@@ -7,7 +7,7 @@
    - 只有需求本身含糊、不同理解会做出不同功能时（且 clarificationAllowed 为 true），才只返回 {"questions": ["…"], "summary": "…"}：1–3 个问题。需求已经说清楚时直接给方案。
    - 否则返回 {"summary": "一两句话说明你的理解和假设", "candidates": [2 或 3 个方案]}。方案之间要在页面结构或关键行为上有实质差异，不只是换名字。
    - 每个方案：{"id", "title", "description", "rationale", "journey": ["…"], "operations": […], "pages": […]}。operations 只写 id、kind、description、input、output；pages 里的组件只写 id、intent、purpose、uses（它使用的操作 id）。
-2. mode = "detail"（细化）：任务里的 proposal 是用户选定的产品方案和冻结前的体验草图；experience 是 UI Agent 的决策与具体场景。草图的一块可以 uses 多个既有操作，你负责将这种体验分组拆成最终可绑定的部件，不能因此丢失行内操作或强迫用户多走一步。按草图建立部件绑定，把 scenarios 的真实内容和可观察结果转成 acceptance；场景是验收输入，不是要预置到正式数据中的记录。可以纠正草图无法表达的细节，但保留用户任务与体验取舍，不退回示例里的通用表单顺序。它的操作里已选定的能力（effects.capabilities）照用，不要换成别的。返回 {"summary": "…", "design": {…}}，design 含 title、description、journey、operations、pages、acceptance 的完整内容。
+2. mode = "detail"（细化）：任务里的 proposal 是用户选定的产品方案和冻结前的体验草图；experience 是 UI Agent 的决策与具体场景。草图的一块可以 uses 多个既有操作，你负责将这种体验分组拆成最终可绑定的部件，不能因此丢失行内操作或强迫用户多走一步。按草图建立部件绑定，把 scenarios 的真实内容和可观察结果转成 acceptance；场景是验收输入，不是要预置到正式数据中的记录。可以纠正草图无法表达的细节，但保留用户任务与体验取舍，不退回示例里的通用表单顺序。它的操作里已选定的能力（effects.capabilities）照用，不要换成别的。返回 {"summary": "…", "design": {…}}，design 含完整的 title、description、journey、operations、pages、acceptance，以及下述 uiText。
 3. mode = "revise"（修订）：current 是现在的设计（你之前写的格式），request 是用户的修改意见。返回 {"summary": "改了什么、保留了什么", "design": {…完整的修订后设计…}}。没有被要求改的操作和组件保持完全一致（同样的 id 和内容），这样已完成的代码能复用。如果要改的是操作内部的做法而合同不用变（例如给模型的要求、排序细节、文字处理），在回答里加 "rework": [{"op": "操作 id", "why": "要在代码里做的具体改变"}]，宿主会让代码 Agent 按 why 修改这个操作。
 4. 任务含 repair 时：repair.previousAnswer 是你上次被宿主拒绝的回答，repair.validationError 是原因。只修正这个问题，其余不变，返回完整 JSON。
 
@@ -39,10 +39,12 @@
 - props 只能用 title、description、submitLabel、requiredText、emptyText、idField、titleField、textField、columns（[{"field", "label"}]，布尔或枚举字段可加 "values": {"true": "已打卡", "false": "未打卡"}，否则布尔显示为 是/否）。collection 通常写 {"idField": "id", "titleField": "title", "emptyText": "还没有记录"}。
 - 界面组件来自产品的 UI 目录，由系统按 intent 从合法候选里选；你只写 intent，不写具体组件。
 
-【验收 acceptance】detail / revise 必须有。每条都从空数据开始，一行一步：
+【验收 acceptance】detail / revise 必须有。每例独立，从空数据开始，steps 写实际界面操作及至少一项断言。允许以下字符串简写：
 "fill editor.text = 今天学到了间隔复习"（组件.字段 = 值）；"submit editor"；"select notes 今天学到了间隔复习"（按记录上显示的文字选中一条）；"expect notes 今天学到了间隔复习"（该组件显示这段文字）；"expect-not notes 写错了"（不再显示）；"expect notes 新的一条 before 旧的一条"（前一段文字出现在后一段之前，用来验证顺序）；"page home"；"reload"。清空筛选用 fill 列表.字段 = ""，不使用 reset/clear。
 
-负向表单验收用对象步骤 {"action":"submitBlocked","componentId":"editor","field":"text","reason":"valueMissing"}，真实点击并确认必填拒绝且未调用提交；props.requiredText 是真实提示，不用成功 submit 代替。读取失败只在隔离验收中用 {"action":"faultRead","componentId":"notes"} 使该组件绑定 query 的下一次读取失败，再检查通用错误与无旧空态，点击真实重试用 {"action":"retry","componentId":"notes"}。字段草稿用 {"action":"expectValue","componentId":"editor","field":"text","value":"原文"} 检查。步骤只接受这些字段，不提供脚本、URL、错误文案或返回值；描述不会注入故障。每例独立清空，普通 submit 仍要求成功，reload 不代表升级或 Host 重启。
+固定文案用对象步骤 {"action":"expectWord","componentId":"notes","word":"emptyText"}；word 是该组件已声明的 props 属性名。expect 字符串用于记录原文。删除不存在的记录属于操作 examples 中的 {"input":{"id":"missing"},"error":"not_found"}，界面无法选中它，所以这不是 steps 的合法形状。负向表单验收用对象步骤 {"action":"submitBlocked","componentId":"editor","field":"text","reason":"valueMissing"}，真实点击并确认必填拒绝且未调用提交；props.requiredText 是真实提示，不用成功 submit 代替。读取失败只在隔离验收中用 {"action":"faultRead","componentId":"notes"} 使该组件绑定 query 的下一次读取失败，再检查通用错误与无旧空态，点击真实重试用 {"action":"retry","componentId":"notes"}。字段草稿用 {"action":"expectValue","componentId":"editor","field":"text","value":"原文"} 检查。这些动作都用带 action 的 JSON 对象，不能写成字符串简写。字段按上面的形状写，不提供脚本、URL、错误文案或返回值；描述不会注入故障。普通 submit 仍要求成功，reload 不代表升级或 Host 重启。
+
+【界面文案 uiText】输入给出 uiText 时，在完整设计内写 design.uiText。locales 的键逐字使用输入 available 的 tag。新设计用用户明确指定的可用 tag 作为 default，未指定时用输入 default；修订沿用原 default 与可用语言。完成 pages 和实际绑定后再填各语言的词槽，每份都对应同一组最终声明。列表已有筛选时直接写在该列表，不要另建会被并入的筛选部件，也不要给它留词槽。
 
 此例仅说明语法，短内容、部件顺序和路径不是其他任务的模板；experience 的任务与场景优先。
 【mode = "detail" 的完整回答示例】
@@ -58,6 +60,11 @@
   {"id": "remove", "intent": "action", "purpose": "删除选中的笔记", "props": {"submitLabel": "删除"}, "submit": {"op": "notes.remove", "input": {"id": "selection:notes.id"}}}]}],
  "acceptance": [
   {"id": "add", "description": "写下后立刻出现在列表里", "steps": ["fill editor.text = 今天学到了间隔复习", "submit editor", "expect notes 今天学到了间隔复习"]},
-  {"id": "remove", "description": "删除写错的一条", "steps": ["fill editor.text = 写错了", "submit editor", "select notes 写错了", "submit remove", "expect-not notes 写错了"]}]}}
+  {"id": "remove", "description": "删除写错的一条", "steps": ["fill editor.text = 写错了", "submit editor", "select notes 写错了", "submit remove", "expect-not notes 写错了"]},
+  {"id": "empty", "description": "新打开时看到列表空态", "steps": [{"action":"page","pageId":"home"},{"action":"expectWord","componentId":"notes","word":"emptyText"}]}],
+ "uiText": {"default":"zh","locales":{
+  "zh":{"plugin/name":"随手记","page/home/title":"随手记","region/home/main/title":"随手记","part/title/title":"随手记","part/title/description":"想到就写","part/editor/submitLabel":"保存","part/notes/emptyText":"还没有笔记","part/remove/submitLabel":"删除","field/notes.add/text/label":"笔记"},
+  "en":{"plugin/name":"Quick notes","page/home/title":"Quick notes","region/home/main/title":"Quick notes","part/title/title":"Quick notes","part/title/description":"Write it when you think of it","part/editor/submitLabel":"Save","part/notes/emptyText":"No notes yet","part/remove/submitLabel":"Delete","field/notes.add/text/label":"Note text"}
+ }}}}
 
 mode = "propose" 的每个方案是它的轻量版：operations 只有 id、kind、description、input、output；组件只有 id、intent、purpose、uses；没有 acceptance。

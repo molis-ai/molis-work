@@ -328,13 +328,13 @@ test('the designer runs the person’s edit from “Prompt 与 Character”, and
       assert.equal(build.phase, 'choosing', studioBuildDiagnostic(build.error) ?? '');
       const designer = h.requests.find(request => request.role === 'designer')!;
       assert.match(designer.instruction, /所有候选都用暖色。$/);
-      assert.equal(designer.promptVersion, 'designer/2+user.1');
-      assert.equal(build.runs.find(run => run.role === 'designer')?.promptVersion, 'designer/2+user.1', 'N31: the run persists the origin label and user revision that actually ran');
+      assert.equal(designer.promptVersion, 'designer/3+user.1');
+      assert.equal(build.runs.find(run => run.role === 'designer')?.promptVersion, 'designer/3+user.1', 'N31: the run persists the origin label and user revision that actually ran');
       assert.equal(registry.uses.list('io.molis.work.plugin-builder/builder-designer')[0]?.user_revision, 1, 'the register records the use');
       registry.reset('io.molis.work.plugin-builder/builder-designer', 1, 'person');
       const shipped = BUILDER_PROMPTS.designer, read = builderPrompts(home);
-      assert.deepEqual(runWithLocale('zh', () => read('designer', shipped)), { version: 'designer/2', text: shipped.text }, 'after reset the shipped Chinese text runs again');
-      assert.deepEqual(runWithLocale('en', () => read('designer', shipped)), { version: 'designer/2', text: shipped.body_by_locale.en }, 'the same reset restores the shipped English text');
+      assert.deepEqual(runWithLocale('zh', () => read('designer', shipped)), { version: 'designer/3', text: shipped.text }, 'after reset the shipped Chinese text runs again');
+      assert.deepEqual(runWithLocale('en', () => read('designer', shipped)), { version: 'designer/3', text: shipped.body_by_locale.en }, 'the same reset restores the shipped English text');
     } finally { await workflow.close(); }
   } finally { rmSync(home, { recursive: true, force: true }); }
 });

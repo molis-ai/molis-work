@@ -105,3 +105,50 @@ test("UIV-21 UIV-22 UIV-23 S-composer-source-call item 5: a framed page's AI com
   await browser.evaluate(`(() => { const box = ${BOX}; box.value = ${JSON.stringify("")}; box.dispatchEvent(new Event('input', { bubbles: true })); })()`);
   assert.equal(assistantWords, "", "the Assistant's box started empty here");
 });
+
+// S-composer-source-call item 5 (refusals): what a framed page sends is rebuilt from the parts the bar knows. An icon that is not a
+// platform icon's name is left out, so markup put in one is never drawn in the workbench (it was, in the review of head 8fd0f3c20:
+// a command's icon went through `icon()` into the ＋ and `/` menus' HTML); a state with a field of the wrong shape is dropped whole,
+// and the bar stays the Assistant's and usable.
+test("S-composer-source-call item 5: a framed page's markup in an icon is never drawn in the bar, and a malformed state is dropped whole", { timeout: 180_000 }, async (t) => {
+  const browser = await openGoalBrowser(t, true);
+  if (!browser) return;
+  const errors: unknown[] = [];
+  t.after(browser.on("Runtime.exceptionThrown", (event, session) => { if (session === browser.sessionId) errors.push(event.exceptionDetails); }));
+  const child = await pluginFrameBrowser(t, browser, "lingguang");
+  await browser.navigate(() => browser.command("Page.navigate", { url: `${browser.origin}/projects/${browser.projectId}/` }, browser.sessionId));
+  await browser.waitFor("document.body.dataset.desktopSurface === 'home'");
+  await browser.click("[data-plugin-picker-popover] [data-plugin-id=lingguang]");
+  await child.waitFor("typeof window.molisComposer === 'function' && !document.querySelector('[data-work-surface=lingguang]').hidden");
+  const EVIL = 'x"></use></svg><img data-injected src=x onerror="globalThis.pwned=1"><svg><use href="#';
+  const mount = (extra: string) => child.evaluate(`(() => {
+    let root = document.querySelector('#probe');
+    if (!root) { root = document.createElement("div"); root.id = "probe"; root.innerHTML = ${JSON.stringify(renderComposer({ kind: "ai", labels: COMPOSER_AI_LABELS, placeholder: "写给探针…" }))}; document.body.prepend(root); }
+    globalThis.probe = window.molisComposer(root, { kind: "ai", entry: "probe", labels: ${JSON.stringify(COMPOSER_AI_LABELS)},
+      receiver: () => ({ label: "探针会话", icon: ${JSON.stringify(EVIL)} }),
+      commands: [{ slash: "probe", label: "探针命令", icon: ${JSON.stringify(EVIL)}, run: () => {} }, { slash: "plain", label: "普通命令", add: false, run: () => {} }],
+      submit: async () => ({ state: "sent" }), ${extra} });
+  })()`);
+
+  // Markup in an icon: the bar takes the page, the icons are left out, and opening ＋ and the \`/\` list draws no element of the page's.
+  await mount("");
+  await browser.waitFor(`${BAR}.dataset.receiver === 'page'`);
+  assert.deepEqual(await browser.evaluate("(() => { const options = globalThis.molisBarReceivers.front().options; return [options.receiver().icon ?? null, options.commands.map(one => one.icon ?? null)]; })()"),
+    [null, [null, null]], "an icon that is not a platform icon's name does not cross");
+  await browser.evaluate(`${BAR}.querySelector('[data-composer-add]').click()`);
+  await browser.waitFor(`[...${BAR}.querySelectorAll('[data-composer-command]')].some(row => row.textContent.includes('探针命令'))`);
+  await browser.evaluate(`(() => { const box = ${BOX}; box.focus(); box.value = '/'; box.dispatchEvent(new InputEvent('input', { bubbles: true, data: '/', inputType: 'insertText' })); })()`);
+  await browser.waitFor(`[...${BAR}.querySelectorAll('[data-composer-command]')].some(row => row.textContent.includes('普通命令'))`);
+  await new Promise(resolve => setTimeout(resolve, 300));
+  assert.deepEqual(await browser.evaluate("[document.querySelectorAll('[data-injected]').length, typeof globalThis.pwned]"), [0, "undefined"], "the page's markup is never drawn in the workbench");
+  await browser.evaluate(`(() => { const box = ${BOX}; box.value = ''; box.dispatchEvent(new Event('input', { bubbles: true })); box.blur(); })()`);
+
+  // A malformed state (a delivery with none of its three ways, a select whose options are not a list): dropped whole. The mount it
+  // replaced is let go, so the bar is the Assistant's again, draws without an error and takes words.
+  await mount(`delivery: () => ({}), controls: [{ kind: "select", id: "mode", label: "方式", value: "a", options: 1, change: () => {} }]`);
+  await browser.waitFor(`!${BAR}.dataset.receiver && globalThis.molisBarReceivers.front() === null`);
+  await browser.evaluate(`(() => { const box = ${BOX}; box.focus(); box.value = '还能写'; box.dispatchEvent(new InputEvent('input', { bubbles: true, data: '写', inputType: 'insertText' })); })()`);
+  assert.equal(await browser.evaluate(`${BOX}.value`), "还能写", "the bar still takes words");
+  assert.deepEqual(errors, [], "nothing the page sent made the workbench throw");
+  await browser.evaluate(`(() => { const box = ${BOX}; box.value = ''; box.dispatchEvent(new Event('input', { bubbles: true })); })()`);
+});

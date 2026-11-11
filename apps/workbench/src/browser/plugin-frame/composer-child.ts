@@ -66,6 +66,8 @@ export function childComposer(port: MessagePort, scope: FrameScope, bar: boolean
 
   window.molisComposer = (root, options) => {
     if (options.kind !== "ai" || options.draft && "conversation" in options.draft) return local(root, options);
+    // One AI receiver per frame: the bar follows the latest mount (`live`); an earlier one on another root stays mounted but no longer
+    // takes the bar.
     mounted.get(root)?.();
     const id = live = ++sequence, field = root.querySelector<HTMLTextAreaElement>(".mw-composer__input");
     const ai = options;

@@ -41,31 +41,103 @@ export const barTakes = (side: boolean, slot: string | undefined): boolean =>
 
 const ICONS = new Set<string>(PLUGIN_ICON_NAMES);
 const short = (value: unknown, limit: number) => typeof value === "string" ? value.slice(0, limit) : "";
+const MODES = ["next-boundary", "interrupt", "after-run"] as const;
+
+/*
+ * What a page sends is rebuilt here from the parts the bar knows, never spread: a field of the wrong type drops the whole state
+ * (S-composer-source-call item 5), so a page cannot slip markup or a shape the composer would throw on past the bar. An icon is
+ * only a platform icon's name; any other is left out (it is only a glyph).
+ */
+const want = (ok: boolean): void => { if (!ok) throw new Error("Malformed composer state"); };
+const text = (value: unknown, limit: number): string => { want(typeof value === "string"); return (value as string).slice(0, limit); };
+const maybe = (value: unknown, limit: number) => value === undefined ? undefined : text(value, limit);
+const flag = (value: unknown) => { want(value === undefined || typeof value === "boolean"); return value === true; };
+const icon = (value: unknown) => { want(value === undefined || typeof value === "string"); return typeof value === "string" && ICONS.has(value) ? { icon: value as PluginIconName } : {}; };
+const list = (value: unknown, limit: number): unknown[] => { want(Array.isArray(value)); return (value as unknown[]).slice(0, limit); };
+const record = (value: unknown): Record<string, unknown> => { want(Boolean(value) && typeof value === "object" && !Array.isArray(value)); return value as Record<string, unknown>; };
+const optional = <T>(key: string, value: T | undefined) => value === undefined ? {} : { [key]: value };
+
+function controlOf(raw: unknown): ComposerSnapshot["controls"][number] {
+  const item = record(raw), base = { id: text(item.id, 80), label: text(item.label, 200), ...(flag(item.disabled) ? { disabled: true } : {}) };
+  if (item.kind === "select") return { kind: "select", ...base, value: text(item.value, 400), options: list(item.options, 50).map(one => {
+    const option = record(one);
+    return { value: text(option.value, 400), label: text(option.label, 200), ...(flag(option.disabled) ? { disabled: true } : {}) };
+  }) };
+  if (item.kind === "toggle") { want(typeof item.on === "boolean"); return { kind: "toggle", ...base, on: item.on as boolean }; }
+  want(item.kind === "button");
+  return { kind: "button", ...base, ...optional("title", maybe(item.title, 200)) };
+}
+
+function commandOf(raw: unknown): ComposerSnapshot["commands"][number] {
+  const item = record(raw);
+  want(item.add === undefined || item.add === false);
+  return { slash: text(item.slash, 80), label: text(item.label, 200), ...optional("hint", maybe(item.hint, 400)),
+    ...(item.keywords === undefined ? {} : { keywords: list(item.keywords, 20).map(word => text(word, 80)) }), ...icon(item.icon), ...(item.add === false ? { add: false as const } : {}) };
+}
+
+function deliveryOf(raw: unknown): ComposerSnapshot["delivery"] {
+  if (raw === null) return null;
+  const item = record(raw), out: Record<string, { available: true } | { available: false; reason: string }> = {};
+  for (const mode of MODES) {
+    const one = record(item[mode]);
+    if (one.available === true) out[mode] = { available: true };
+    else { want(one.available === false); out[mode] = { available: false, reason: text(one.reason, 400) }; }
+  }
+  return out as ComposerSnapshot["delivery"];
+}
+
+function receiverOf(raw: unknown): ComposerSnapshot["receiver"] {
+  if (raw === null) return null;
+  const item = record(raw);
+  return { label: text(item.label, 200), ...icon(item.icon), ...optional("detail", maybe(item.detail, 100)),
+    ...(item.others === undefined ? {} : { others: list(item.others, 20).map(one => {
+      const other = record(one), id = text(other.id, 1000);
+      want(id.length > 0 && id.length <= 200);
+      return { id, label: text(other.label, 200), ...optional("detail", maybe(other.detail, 100)) };
+    }) }) };
+}
 
 /**
- * What the page says of itself is drawn by the bar's composer, which escapes every word; here it is only bounded and shaped, and
- * the page's object is always the frame's own plugin's (a page cannot name another owner's object for a source's `near`).
+ * What the page says of itself is drawn by the bar's composer, which escapes every word; here it is bounded and rebuilt, and the
+ * page's object is always the frame's own plugin's (a page cannot name another owner's object for a source's `near`).
  */
 function bounded(snapshot: ComposerSnapshot): ComposerSnapshot | null {
-  try { if (JSON.stringify(snapshot).length > 256 * 1024) return null; } catch { return null; }
-  if (!snapshot || typeof snapshot.entry !== "string" || !snapshot.labels || typeof snapshot.labels !== "object") return null;
-  const icon = (value: unknown) => typeof value === "string" && ICONS.has(value) ? { icon: value as PluginIconName } : {};
-  return {
-    ...snapshot,
-    labels: words(snapshot.labels),
-    placeholder: short(snapshot.placeholder, 400),
-    receiver: snapshot.receiver ? { label: short(snapshot.receiver.label, 200), ...icon(snapshot.receiver.icon), ...(typeof snapshot.receiver.detail === "string" ? { detail: short(snapshot.receiver.detail, 100) } : {}),
-      ...(Array.isArray(snapshot.receiver.others) ? { others: snapshot.receiver.others.slice(0, 20).filter(one => one && typeof one.id === "string" && one.id.length <= 200)
-        .map(one => ({ id: one.id, label: short(one.label, 200), ...(typeof one.detail === "string" ? { detail: short(one.detail, 100) } : {}) })) } : {}) } : null,
-    controls: Array.isArray(snapshot.controls) ? snapshot.controls.slice(0, 12) : [],
-    commands: Array.isArray(snapshot.commands) ? snapshot.commands.slice(0, 200).map(command => ({ ...command, ...icon(command.icon) })) : [],
-    column: snapshot.column && Number.isFinite(snapshot.column.left) && Number.isFinite(snapshot.column.width) && snapshot.column.width > 0 ? { left: snapshot.column.left, width: snapshot.column.width } : null,
-    near: snapshot.near && typeof snapshot.near.kind === "string" && typeof snapshot.near.id === "string" ? { kind: snapshot.near.kind, id: snapshot.near.id } : null,
-    required: snapshot.required === null ? null : short(snapshot.required, 400),
-    hold: snapshot.hold === null ? null : short(snapshot.hold, 400),
-    running: snapshot.running === true,
-  };
+  try {
+    if (JSON.stringify(snapshot).length > 256 * 1024) return null;
+    const raw = record(snapshot), pause = raw.pause === null ? null : record(raw.pause), attachments = raw.attachments === null ? null : record(raw.attachments);
+    const column = raw.column === null ? null : record(raw.column), near = raw.near === null ? null : record(raw.near);
+    want(typeof raw.stop === "boolean" && typeof raw.mentions === "boolean" && typeof raw.sources === "boolean" && typeof raw.submitKeys === "boolean" && typeof raw.draft === "boolean");
+    return {
+      entry: text(raw.entry, 80), labels: words(record(raw.labels)), placeholder: text(raw.placeholder, 400),
+      receiver: receiverOf(raw.receiver), delivery: deliveryOf(raw.delivery),
+      pause: pause ? { label: text(pause.label, 100), title: text(pause.title, 200), ...(flag(pause.busy) ? { busy: true } : {}) } : null,
+      stop: raw.stop as boolean, mentions: raw.mentions as boolean, sources: raw.sources as boolean, submitKeys: raw.submitKeys as boolean, draft: raw.draft as boolean,
+      controls: list(raw.controls, 12).map(controlOf), commands: list(raw.commands, 200).map(commandOf),
+      attachments: attachments ? { ...optional("accept", maybe(attachments.accept, 400)) } : null,
+      ...optional("voice", maybe(raw.voice, 80)),
+      column: column && Number.isFinite(column.left) && Number.isFinite(column.width) && (column.width as number) > 0 ? { left: column.left as number, width: column.width as number } : null,
+      near: near ? { kind: text(near.kind, 80), id: text(near.id, 200) } as ComposerSnapshot["near"] : null,
+      required: raw.required === null ? null : text(raw.required, 400),
+      hold: raw.hold === null ? null : text(raw.hold, 400),
+      running: raw.running === true,
+    };
+  } catch { return null; }
 }
+
+/** A page's `@` answer, kept only as the composer reads one: a title, a hint perhaps, and the words it puts in. */
+const mentionsOf = (found: unknown) => Array.isArray(found) ? found.slice(0, 50).flatMap(one => {
+  try { const item = record(one); return [{ title: text(item.title, 200), ...optional("hint", maybe(item.hint, 400)), insert: text(item.insert, 2000) }]; } catch { return []; }
+}) : [];
+
+/** A page's answer to a file it was given to read, as one of the two the composer knows; anything else did not go. */
+const uploadOf = (raw: unknown): ComposerCalls["upload"][1] => {
+  try {
+    const item = record(raw);
+    if (item.state === "attached") return { state: "attached", ref: text(item.ref, 400), title: text(item.title, 200) };
+    if (item.state === "failed") return { state: "failed", reason: text(item.reason, 400) };
+  } catch { /* falls through: the page's answer is not one the composer reads */ }
+  return { state: "failed", reason: "" };
+};
 
 /** Only words: a string each (a mode's three words too); anything else is left out, and the bar puts its own in its place. */
 function words(labels: unknown): ComposerSnapshot["labels"] {
@@ -110,10 +182,13 @@ export function pageComposer(port: MessagePort, scope: FrameScope, root: HTMLEle
     signal?.addEventListener("abort", () => { if (answers.delete(number)) { post({ type: "composer-abort", id: mine, call: number }); reject(signal.reason); } }, { once: true });
     post({ type: "composer-call", id: mine, call: number, op, ...(arg === undefined ? {} : { arg }) });
   }).finally(() => setTimeout(down, 0));
-  const outcome = (mine: number, value: BridgedOutcome): ComposerOutcome => value.state === "unknown"
-    ? { state: "unknown", check: () => call(mine, "check", value.check) }
-    : value.state === "failed" ? { state: "failed", message: short(value.message, 4000), ...(Array.isArray(value.unreadable) ? { unreadable: value.unreadable } : {}) }
-    : { state: "sent", ...(value.receipt && typeof value.receipt === "object" ? { receipt: value.receipt as never } : {}) };
+  const outcome = (mine: number, value: BridgedOutcome): ComposerOutcome => !value || typeof value !== "object" ? { state: "failed", message: "" }
+    : value.state === "unknown"
+    ? { state: "unknown", check: () => call(mine, "check", value.check).then(answer => answer === "sent" || answer === "not-sent" ? answer : "unknown") }
+    : value.state === "failed" ? { state: "failed", message: short(value.message, 4000), ...(Array.isArray(value.unreadable) ? { unreadable: value.unreadable.slice(0, 50)
+      .filter(one => one && Number.isInteger(one.index) && typeof one.reason === "string").map(one => ({ index: one.index, reason: short(one.reason, 400) })) } : {}) }
+    : value.state === "sent" ? { state: "sent", ...(value.receipt && typeof value.receipt === "object" ? { receipt: value.receipt as never } : {}) }
+    : { state: "failed", message: "" };
   const act = (mine: number, kind: "control" | "command" | "receiver", key: string, value?: string) => { if (mine === id) post({ type: "composer-act", id, act: kind, key, ...(value === undefined ? {} : { value }) }); };
   const options = (): ComposerOptions => {
     // A mount let go keeps drawing what it last showed (the bar may read it once more while it unmounts); its calls are refused.
@@ -135,8 +210,8 @@ export function pageComposer(port: MessagePort, scope: FrameScope, root: HTMLEle
       pause: () => { const pause = now().pause; return pause ? { ...pause, run: (signal: AbortSignal) => call(mine, "pause", undefined, signal) } : null; },
       get controls() { return now().controls.map(control); },
       get commands() { return now().commands.map(command => ({ ...command, icon: command.icon as PluginIconName | undefined, run: () => act(mine, "command", command.slash) })); },
-      ...(at.mentions ? { mentions: (query: string, signal: AbortSignal) => call(mine, "mentions", query, signal).then(found => Array.isArray(found) ? found.slice(0, 50) : []) } : {}),
-      ...(at.attachments ? { attachments: { ...at.attachments, upload: (file: File, signal: AbortSignal) => call(mine, "upload", file, signal) } } : {}),
+      ...(at.mentions ? { mentions: (query: string, signal: AbortSignal) => call(mine, "mentions", query, signal).then(mentionsOf) } : {}),
+      ...(at.attachments ? { attachments: { ...at.attachments, upload: (file: File, signal: AbortSignal) => call(mine, "upload", file, signal).then(uploadOf) } } : {}),
       onMaterials: () => { if (bound && mine === id) post({ type: "composer-materials", id, materials: [...bound.materials()] }); },
       near: () => { const near = now().near; return near ? { ...near, plugin_id: pack.plugin_id } : null; },
       required: () => now().required,

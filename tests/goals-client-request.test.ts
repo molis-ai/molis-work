@@ -8,11 +8,14 @@ import {
   PLANNING_SETTINGS_CLIENT_SCRIPT, PROJECT_RULES_CLIENT_SCRIPT,
 } from "@molis-ai/molis-work-plugin-goals";
 import { createUiRequest } from "@molis-ai/molis-work-ui-host";
+import { chinesePagePacks, installPageClientText, pageTextForPacks } from "./fixtures/page-text-packs.js";
 
 // PG094-09: the Goals clients send every request through the page's one request helper (`molisWorkRequest`), and what a
 // person sees stays as it was: a refusal shows the same copy, a Host that never answered says so in the platform's words.
 
 const ORIGIN = "http://127.0.0.1:4999";
+const packs = chinesePagePacks("goals");
+const readText = pageTextForPacks("zh", packs);
 interface Sent { url: string; method: string; headers: Record<string, string>; cache: string; body?: string; signal?: AbortSignal }
 type Answer = (sent: Sent) => Promise<Response>;
 
@@ -20,7 +23,7 @@ const helper = (answer: Answer) => {
   const sent: Sent[] = [];
   const request = createUiRequest({
     fetch: (url, init) => { const call = { url, ...init }; sent.push(call); return answer(call); },
-    origin: ORIGIN, token: () => "control-token", newKey: () => "one-time-key", readText: (text) => text,
+    origin: ORIGIN, token: () => "control-token", newKey: () => "one-time-key", readText,
   }, UI_HOST_CLIENT_CODES);
   return { request, sent };
 };
@@ -83,7 +86,8 @@ test("PG094-09: archiving a Goal is one write with the control token, and its fa
   assert.equal(lost.button.disabled, false);
 });
 
-test("PG094-09: a Goal document read keeps its one refusal copy, and an unreachable Host says so", async () => {
+test("PG094-09: a Goal document read keeps its one refusal copy, and an unreachable Host says so", async t => {
+  t.after(installPageClientText("zh", packs));
   // 07-1 S3: a read the Host answers 404 also tells the workbench the record is gone (molis-work:record-gone), so its tab is struck through.
   const gone: unknown[] = [];
   const fakeDocument = {

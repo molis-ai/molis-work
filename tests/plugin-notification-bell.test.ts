@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { icon } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { pagePack, pageText, withPageText } from "./fixtures/page-text.js";
+import { pagePack, pageText } from "./fixtures/page-text.js";
+import { runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import { renderImmersiveHeader } from "../apps/workbench/dist/immersive-shell.js";
 import { CLIENT_SCRIPT } from "@molis-ai/molis-work-app-workbench";
 import { PLUGIN_NOTIFICATIONS_FACTORY_SCRIPT } from "../apps/workbench/dist/scripts/client/plugin-notifications.js";
@@ -13,7 +14,7 @@ const primitives = { readText: pageText("zh"), escapeHtml: (value: unknown) => S
 // One place holds what needs the person: the dock's "需要你看看" bell. Plugin notifications waiting for a decision
 // join it instead of a second bell in the title bar (decision 2026-10-01, specs/post-merge-review §9).
 test("the title bar has no bell of its own", () => {
-  const header = withPageText("zh", [], () => renderImmersiveHeader(primitives, false));
+  const header = runWithLocale("zh", () => renderImmersiveHeader(primitives, false));
   assert.doesNotMatch(header, /data-plugin-notifications/);
   assert.doesNotMatch(header, /href="#icon-bell"/);
   assert.doesNotMatch(renderMolisWorkWorkbenchStylesheet(), /plugin-notifications-button/);
@@ -30,8 +31,10 @@ test("waiting plugin notifications reach the dock bell, which opens the market o
   assert.match(ASSISTANT_ISLAND_FACTORY_SCRIPT, /addEventListener\("molis-work:plugin-events", \(event\) => \{ pluginHeldSince = performance\.now\(\); pluginWaiting = /);
   assert.match(ASSISTANT_ISLAND_FACTORY_SCRIPT, /new CustomEvent\("molis-work:plugin-events-open"\)/);
   assert.match(ASSISTANT_ISLAND_FACTORY_SCRIPT, /\.length \+ pluginWaiting;/, "they count as something waiting for the person");
-  assert.equal(pageText("en")("workbench.assistant-notice.plugin-review", { count: 2 }), "Plugin notifications: 2 to review");
-  assert.equal(pageText("en")("workbench.assistant-notice.review"), "Check it");
+  const english = pageText("en");
+  assert.equal(english("workbench.assistant-notice.plugin-review", { count: 1 }), "1 plugin notification to check");
+  assert.equal(english("workbench.assistant-notice.plugin-review", { count: 2 }), "2 plugin notifications to check");
+  assert.equal(english("workbench.assistant-notice.review"), "Review");
   assert.equal(Object.hasOwn(pagePack("workbench", "zh").messages, "workbench.plugin-notification-bell.title"), false, "the title bar's label left with it");
 });
 

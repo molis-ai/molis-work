@@ -142,6 +142,12 @@ const pages: Record<string, Draw> = {
 // rows 提示词 and 技能 (Prompts, Skills; icons text and book) became one 能力包 / AI kits row (icon sparkles, `data-settings-section="kit"`),
 // and the settings links /settings/prompts, /settings/skills and the project's /settings/skills became /settings/kit — besides executable
 // scripts and dictionaries, which the hash leaves out. No Goals markup or JSON changed; the 34 were recorded with MOLIS_WORK_GOLDEN_RECORD=1.
+// Batch 11 (#2016, one input, UIV-19): all 66 pages drawn on independently built main ef06fed60 (each matched its record there) and on
+// this branch, compared token by token: the 16 page-* records (8 pages in two languages) differ only in the shell's bar — the receiver
+// moved from a row above the box into the foot after ＋ (`mw-composer__to` now after the box, its 发给： / Send to: in
+// `mw-composer__to-label`, the Assistant's sparkles icon before the name) and the bar is drawn ` data-bar-placing` (the input stays
+// unseen until bar-column.ts places it, VUX-31): +110 characters in each — besides executable scripts and dictionaries, which the hash
+// leaves out. No Goals markup or JSON changed; the 16 were recorded with MOLIS_WORK_GOLDEN_RECORD=1 and the other 50 did not change.
 const RECORDED = new URL("golden.json", GOLDEN);
 interface Recorded { sha256: string; length: number }
 const recorded: Record<string, Recorded> = record ? {} : JSON.parse(readFileSync(RECORDED, "utf8"));

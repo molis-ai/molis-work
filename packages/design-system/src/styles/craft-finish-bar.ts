@@ -365,6 +365,12 @@ export const CRAFT_BAR_STYLES = `
   /* At rest the bar's input is one row at every size (user 2026-11-10, one input): ＋, who it goes to, the hint, the scene
      controls, send; writing grows it. Only the bar has this class, so the short scope. */${composerRestRules(".assistant-composer > .mw-composer[data-rest]")}
   @media (min-width: 601px) { ${SHELL} .assistant-composer > .mw-composer[data-rest] > .mw-composer__box { box-sizing: border-box; min-height: var(--bar-row); } }
+  /* A fine pointer keeps the bar's sizes from 601px (touch-targets.ts): at rest the box's buttons follow --bar-row rather than the
+     narrow window's 44px controls, so in a short window the input is the Dock's height too and the work keeps those 8px. */
+  @media (min-width: 601px) and (max-width: 760px) and (pointer: fine) {
+    ${SHELL} .assistant-composer > .mw-composer[data-rest] > .mw-composer__box { --control-h: min(44px, calc(var(--bar-row) - 4px)); }
+    ${SHELL} .assistant-composer > .mw-composer[data-rest] > .mw-composer__box .mw-btn--primary { min-height: var(--control-h); }
+  }
   @media (max-width: 600px), (pointer: coarse) {${composerRestTouch(".assistant-composer > .mw-composer[data-rest]")} }
   /* The receiver's name opens its conversation (the island's click). At rest, one row, a long name (a session titled by its task)
      gives way to the hint beside it: about nine characters, the rest under the pointer. */

@@ -2,9 +2,10 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {runInNewContext} from 'node:vm';
 import {renderPersonalAccountEntry} from '@molis-ai/molis-work-app-workbench';
+import {withPageText} from './fixtures/page-text.js';
 
 async function openEntry(desktop:boolean, state:Record<string,unknown>, failAttach=false) {
-  const html=renderPersonalAccountEntry('test-page-token',desktop);
+  const html=withPageText('zh',[],()=>renderPersonalAccountEntry('test-page-token',desktop));
   const script=html.slice(html.lastIndexOf('(() => {'),html.lastIndexOf('</script>'));
   const calls:string[]=[], destinations:string[]=[],status={},retry={hidden:true};
   let finish!:()=>void;

@@ -34,7 +34,12 @@ export async function scheduleRuntimeFixture(t: TestContext, plugins: readonly s
   await prepare(); owner.context(project.project_id);
   const store = () => f.host.withProject(project.reference, runtime => runtime.store);
   const record = async () => new SqlitePluginRuntimeRepository((await store()).db).list().find(row => row.plugin_id === id)!;
-  const inbox = async () => createLocalFeedApplication((await store()).db).snapshot(project.project_id).feed_items.filter(item => item.source_id === "plugin-notifications:" + SCHEDULE_PLUGIN_ID);
+  const inbox = async () => {
+    const feed = createLocalFeedApplication((await store()).db);
+    // FBR-02: the directory carries metadata; delivery assertions read each notice's exact persisted body.
+    return feed.snapshot(project.project_id).feed_items.filter(item => item.source_id === "plugin-notifications:" + SCHEDULE_PLUGIN_ID)
+      .map(item => feed.getFeedItem(project.project_id, item.item_id));
+  };
   return { ...f, project, id, client, prepare, store, record, inbox, calls: owner.calls, execute: owner.execute,
     get sdk() { return owner.actions(project.project_id); },
     tick: async (at: string) => scheduleServiceFor((await store()).db).tick(new Date(Date.parse(at) + 1000)),

@@ -59,14 +59,13 @@ export async function syncResearchLibrary(ports: ResearchLibrarySyncPorts, sourc
     await beforeEffect();
     const { created, deduped } = await commit(() => {
       let created = 0, deduped = 0;
-      const existing = new Map(feed.snapshot(source.project_id).feed_items.filter(item => item.source_id === source.source_id).map(item => [item.external_id, item]));
       for (const entry of entries) {
         input.signal?.throwIfAborted();
         const current = feed.sources.get(source.project_id, source.source_id);
         if (!current.enabled) throw new Error("来源已暂停");
         const externalId = `${repository}:${researchSource}:${entry.id}`;
         // An unrelated repository commit does not change an immutable research package.
-        if (existing.get(externalId)?.materials.some(material => material.provenance.manifest_sha256 === entry.provenance.manifest_sha256)) { deduped++; continue; }
+        if (feed.reads.hasPackage(source.project_id, source.source_id, externalId, String(entry.provenance.manifest_sha256))) { deduped++; continue; }
         // Reaching here for a known package means its manifest changed (a package republished under the same id):
         // the item moves to the new version together with its material, so the two never mix versions.
         const ingested = feed.ingestItem({ source: current, externalId, refresh: true,

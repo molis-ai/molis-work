@@ -1,3 +1,4 @@
+import { releaseHistoryPages } from "./history-pages.js";
 import { feedDemoSeedAction, seedFeedDemo } from "./demo-seed.js";
 import { syncBindings } from "./sync-binding.js";
 import { ActionError, resolveActionSubject, type ActionClient, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -26,7 +27,7 @@ import { FEED_PROJECT_ACTIONS, GOAL_CONTRACT, SELF_COMMITTING, WAKE } from "./ru
 import { createRuntimePublicFeed } from "./runtime-source-pull.js";
 import { keepFeedWakeup } from "./runtime-wake.js";
 import { syncResearchLibrary } from "./research-library-sync.js";
-import { holdingsOfSnapshot, releaseHeldHistory, type FeedSourceHistory, type FeedSourceHistoryRelease } from "./source-history.js";
+import { type FeedSourceHistory, type FeedSourceHistoryRelease } from "./source-history.js";
 import type { FeedSourceProviders } from "./source-ports.js";
 import { createFeedNotificationHandlers } from "./notification-actions.js";
 import { readLinkedFeedContext } from "./linked-context.js";
@@ -127,7 +128,7 @@ export function createFeedPlugin(): PluginDefinition {
       },
       holdContent: async (source, contentRefs) => { await ledger(feedContentLedgerActions.hold, { source_id: source.source_id, content_refs: [...contentRefs] }); },
       // A release that fails throws before anything is committed: the source stays with what it holds, and deleting it again finishes.
-      releaseHistory: input => releaseHeldHistory(holdingsOfSnapshot(feed.snapshot(input.project_id), input.source_id), {
+      releaseHistory: input => releaseHistoryPages(feed, input.project_id, input.source_id, {
         reclaim: unreferenced => ledger<FeedContentRelease>(feedContentLedgerActions.reclaim, { source_id: input.source_id, unreferenced }),
         release: candidates => ledger<FeedContentRelease>(feedContentLedgerActions.release, { source_id: input.source_id, candidates }),
         forget: forget ? operationIds => forget(operationIds) : null }) }, projectId);

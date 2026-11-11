@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+### Feed 有界读取（2026-11-11，待 CI 验收）
+
+- `feed.snapshot@1`、`feed.stage.read@1` 改为每页最多 200 条元数据，输入为字符串 `offset` 和 JSON 字符串 `filter`，返回 `offset`、`next_offset`、来源汇总 `facets`；移除 `include_contents`。列表不含正文与材料，调用方使用 `feed.items.get@1` 读取一项完整内容，页面通过阅读器按页读取材料。固定引用须按 `next_offset` 继续读取，不能将第一页当完整集合。
+- 工作区内 `FeedQuery.list` 必须显式传分页，且只返回元数据；移除原无分页聚合入口。单项完整读取语义不变。
+- `feed.items.reader@1` 接受 `material_offset`，返回材料页位置与下一页。后台引用与检索操作按稳定键遍历，由 Feed 库去重；来源计数与筛选选项独立于当前消息页。
+- `UiPageView.readDocument` 可传 Manifest 已声明的字符串 `input`，通用舞台端口拒绝未声明参数和身份覆盖。权限、MCP 名称与动作版本沿阶段一现行合同更新；不含库结构变更或历史读取回退。
+
 ### 日评 A-1 合同说明（2026-11-09）
 
 - 已有Home库的只读查询保留完整空间归属核对；外来或缺失归属以 `storage.space_ownership_mismatch`（forbidden）拒绝，不创建描述符、表或业务记录。

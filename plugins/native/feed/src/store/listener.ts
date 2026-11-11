@@ -149,10 +149,15 @@ export function getListenerRunByOperationId(
 export function listListenerRuns(
   db: FeedSql,
   projectId: string,
+  page?: { source_id?: string; after_id?: string; limit: number; summaries?: boolean },
 ): ListenerRunRecord[] {
-  return (db.all(`
-    SELECT * FROM feed_source_runs WHERE project_id = ? ORDER BY started_at DESC, run_id
-  `, projectId) as Row[]).map(mapRun);
+  if (page?.summaries) return (db.all(`SELECT project_id,run_id,source_id,operation_id,phase,outcome,empty,error_code,
+    json_object('retry_after_at',json_extract(receipt_json,'$.retry_after_at')) AS receipt_json,
+    created_count,deduped_count,recovery_count,started_at,completed_at,updated_at FROM
+    (SELECT *,ROW_NUMBER() OVER (PARTITION BY source_id ORDER BY started_at DESC,run_id) AS position FROM feed_source_runs WHERE project_id = ?) WHERE position = 1`, projectId) as Row[]).map(mapRun);
+  if (page) return (db.all(`SELECT * FROM feed_source_runs WHERE project_id = ?${page.source_id ? " AND source_id = ?" : ""}${page.after_id ? " AND run_id > ?" : ""} ORDER BY run_id LIMIT ?`,
+    projectId, ...(page.source_id ? [page.source_id] : []), ...(page.after_id ? [page.after_id] : []), Math.min(200, Math.max(1, page.limit))) as Row[]).map(mapRun);
+  return (db.all("SELECT * FROM feed_source_runs WHERE project_id = ? ORDER BY started_at DESC, run_id", projectId) as Row[]).map(mapRun);
 }
 
 export function saveListenerRun(
@@ -253,8 +258,8 @@ export class ListenerHost implements ListenerHostApi {
     return getListenerRunByOperationId(this.db, projectId, operationId);
   }
 
-  listRuns(projectId: string): ListenerRunRecord[] {
-    return listListenerRuns(this.db, projectId);
+  listRuns(projectId: string, page?: { source_id?: string; after_id?: string; limit: number; summaries?: boolean }): ListenerRunRecord[] {
+    return listListenerRuns(this.db, projectId, page);
   }
 
   saveRun(run: ListenerRunRecord): ListenerRunRecord {

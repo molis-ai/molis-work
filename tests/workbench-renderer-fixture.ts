@@ -27,7 +27,7 @@ export const { renderMolisWorkProjectIndex, renderMolisWorkSettings, renderMolis
 function ownerStageFacts(view: MolisWorkWebView & { feed?: FeedSnapshot; feed_source_catalog?: FeedStageData["source_catalog"]; feed_connector_auth?: FeedStageData["connector_auth"] }): MolisWorkWebView {
   const facts = view.feed ?? { sources: [], feed_items: [], inbox_entries: [], runs: [], out_rules: [] };
   const { inbox_entries, ...snapshot } = facts;
-  const feed: FeedStageData = { snapshot, inbox_entries, source_catalog: view.feed_source_catalog ?? [],
+  const feed: FeedStageData = { snapshot: { ...snapshot, offset: 0, next_offset: null, facets: snapshot.feed_items.map(item => ({ source_id: item.source_id ?? "", label: item.source_label, count: 1 })) }, inbox_entries, source_catalog: view.feed_source_catalog ?? [],
     connector_auth: view.feed_connector_auth ?? { github: { bound: false }, gmail: { bound: false } },
     source_presentations: Object.fromEntries(facts.sources.flatMap(source => {
       const id = feedSourcePresentationId(source);

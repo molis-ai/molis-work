@@ -1,3 +1,5 @@
+import { FeedReads } from "./application-reads.js";
+import type { FeedItemPage } from "./contract/feed-page.js";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { inboxErrors, type AttentionEntryRecord, type AttentionReason as ModuleAttentionReason, type AttentionStatus as ModuleAttentionStatus, type AttentionSubjectType as ModuleAttentionSubjectType } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import type { FeedItemDisposition, FeedItemRecord, FeedMaterialRecord, FeedSnapshot, FeedSourceRecord, InboxEntryReason, InboxEntryRecord, InboxEntryStatus, InboxEntrySubjectType } from "./projection.js";
@@ -19,12 +21,14 @@ import { feedCaptureFailure, feedOutRuleMatches } from "./out-rules.js";
  * (with the judgments it queues) are here; sources and their runs, the capture rules, and what capture did are collaborators.
  */
 export class FeedApplication {
+  readonly reads: FeedReads;
   readonly sources: FeedSources;
   readonly outRules: FeedOutRules;
   readonly capture: FeedCapture;
   private readonly judgments: JudgmentQueue;
 
   constructor(private readonly ports: FeedApplicationPorts) {
+    this.reads = new FeedReads(ports);
     this.sources = new FeedSources(ports);
     this.outRules = new FeedOutRules(ports);
     this.capture = new FeedCapture(ports, {
@@ -40,15 +44,17 @@ export class FeedApplication {
     ports.subscribeInboxCreated(entry => this.judgments.queueEntry(entry));
   }
 
-  snapshot(projectId: string): FeedSnapshot {
+  snapshot(projectId: string, page: FeedItemPage = { limit: 200, offset: 0 }): FeedSnapshot {
+    return { ...this.directory(projectId, page), inbox_entries: this.listInboxEntries(projectId) };
+  }
+
+  directory(projectId: string, page: FeedItemPage): Omit<FeedSnapshot, "inbox_entries"> {
     const sources = this.ports.sources.query.list(projectId).map((source) => this.sources.record(source));
-    const feedItems = this.ports.feed.query.list(projectId).map(feedItemRecord);
-    const inboxEntries = this.listInboxEntries(projectId);
-    const runs = this.ports.listener.listRuns(projectId).map(sourceRunRecord);
+    const feedItems = this.reads.page(projectId, page);
+    const runs = this.ports.listener.listRuns(projectId, { limit: 200, summaries: true }).map(sourceRunRecord);
     return {
       sources,
       feed_items: feedItems,
-      inbox_entries: inboxEntries,
       runs,
       out_rules: this.ports.outRules?.list(projectId) ?? [],
     };

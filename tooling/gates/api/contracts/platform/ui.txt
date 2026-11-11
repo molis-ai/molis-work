@@ -786,6 +786,7 @@ export interface UiPageView<Element = unknown> {
             id: string;
             surface: string;
         };
+        input?: Readonly<Record<string, string>>;
         signal?: AbortSignal;
     }): Promise<string>;
     onClosing(action: {

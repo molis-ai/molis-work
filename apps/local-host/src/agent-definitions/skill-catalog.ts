@@ -44,6 +44,18 @@ const applicable = (skill: CatalogSkill, caller: ActionCallContext) => {
   return (caller.audience === "user" && !consumer) || skill.declaration.applies_to === "both" || skill.declaration.applies_to === (consumer ?? "agent");
 };
 
+/**
+ * Whether a catalog list may show one Skill (SKP-03, SKP-10). The person's view and a round's view keep the rules above; a plugin that is
+ * no round — a page listing what it could offer before one starts, so no `skill_round` — gets the class it asked for in `applies_to`, and
+ * only when it asked for one. That is directory metadata alone: reading a body or a resource still goes through `refusal` and `applicable`,
+ * so a round's own reads need the Host's frozen `skill_round` whatever this lists.
+ */
+const listable = (skill: CatalogSkill, caller: ActionCallContext, appliesTo: SkillCatalogListRequest["applies_to"]): boolean => {
+  if (appliesTo && skill.declaration.applies_to !== "both" && skill.declaration.applies_to !== appliesTo) return false;
+  if (caller.audience === "user") return true;
+  return (caller.audience === "plugin" && caller.skill_round === undefined && appliesTo !== undefined) || applicable(skill, caller);
+};
+
 function entry(skill: CatalogSkill, setting: SkillSetting | undefined): SkillCatalogEntry {
   const d = skill.declaration, resources = d.resources ?? [];
   const words = skill.display ?? d;
@@ -69,8 +81,7 @@ export class SkillCatalog {
   list(caller: ActionCallContext, input: SkillCatalogListRequest): Promise<{ skills: SkillCatalogEntry[] }> {
     return this.withSnapshot(caller, (skills, settings) => {
       const latest = this.ports.definitions.skills.latestUses(scopeOf(caller));
-      return { skills: skills.filter(skill => (!input.applies_to || skill.declaration.applies_to === "both" || skill.declaration.applies_to === input.applies_to)
-        && (caller.audience === "user" || applicable(skill, caller))).map(skill => entry(skill, settings.get(settingKey(skill.ref.install_id, skill.ref.skill_id))))
+      return { skills: skills.filter(skill => listable(skill, caller, input.applies_to)).map(skill => entry(skill, settings.get(settingKey(skill.ref.install_id, skill.ref.skill_id))))
         .map(row => { const used = latest.get(settingKey(row.ref.install_id, row.ref.skill_id)); return used ? { ...row, last_used: { at: used.at, caller: used.caller, ...(used.run_ref ? { run_ref: used.run_ref } : {}) } } : row; })
         .filter(row => (caller.audience === "user" || row.state !== "off") && (!input.states || input.states.includes(row.state))) };
     });

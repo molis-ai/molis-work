@@ -86,6 +86,19 @@ const doneText = (act: "off" | "allow" | "remove", row: Row) => uiText.text(act 
   : act === "remove" ? "workbench.task-grants-page.name-removed-no-longer-offered"
   : row.status === "granted" ? "workbench.task-grants-page.name-withdrawn-next-run-cannot-read" : "workbench.task-grants-page.name-withdrawn-read-again-turn-task-s-data", { name: row.title });
 
+function redrawGrantWords(list: HTMLElement, draw: () => void): void {
+  const focused = document.activeElement instanceof HTMLElement && list.contains(document.activeElement) ? document.activeElement : null;
+  const task = focused?.closest<HTMLElement>("[data-task-grants-task]")?.dataset.taskGrantsTask;
+  const category = focused?.closest<HTMLElement>("[data-task-grants-row]")?.dataset.taskGrantsRow;
+  const action = focused?.dataset.taskGrantsAct;
+  draw();
+  if (task === undefined) return;
+  const scope = list.querySelector(`[data-task-grants-task="${CSS.escape(task)}"]`);
+  const area = category === undefined ? scope : scope?.querySelector(`[data-task-grants-row="${CSS.escape(category)}"]`);
+  const replacement = action === undefined ? area?.querySelector("a") : area?.querySelector(`[data-task-grants-act="${CSS.escape(action)}"]`);
+  if (replacement instanceof HTMLElement) replacement.focus({ preventScroll: true });
+}
+
 export function bindTaskGrantsSettings(root: HTMLElement): void {
   if (root.dataset.taskGrantsBound === "1") { refreshSettingsLanguage.get(root)?.(); return; }
   root.dataset.taskGrantsBound = "1";
@@ -140,17 +153,7 @@ export function bindTaskGrantsSettings(root: HTMLElement): void {
         installations: listed.installations.map(install => ({ ...install, name: names.get(install.plugin_install_id) ?? install.name })) };
       drawnLanguage = language;
       languageWarning.remove();
-      const focused = document.activeElement instanceof HTMLElement && list.contains(document.activeElement) ? document.activeElement : null;
-      const task = focused?.closest<HTMLElement>("[data-task-grants-task]")?.dataset.taskGrantsTask;
-      const category = focused?.closest<HTMLElement>("[data-task-grants-row]")?.dataset.taskGrantsRow;
-      const action = focused?.dataset.taskGrantsAct;
-      draw();
-      if (task !== undefined && focused) {
-        const scope = list.querySelector(`[data-task-grants-task="${CSS.escape(task)}"]`);
-        const area = category === undefined ? scope : scope?.querySelector(`[data-task-grants-row="${CSS.escape(category)}"]`);
-        const replacement = action === undefined ? area?.querySelector("a") : area?.querySelector(`[data-task-grants-act="${CSS.escape(action)}"]`);
-        if (replacement instanceof HTMLElement) replacement.focus({ preventScroll: true });
-      }
+      redrawGrantWords(list, draw);
     } catch {
       if (!root.isConnected || turn !== languageTurn || language !== currentLanguage()) return;
       languageWarning.innerHTML = `<span>${escape(uiText.text("workbench.language.window-failed"))}</span>${button("workbench.language.retry", "mw-btn--secondary", "retry-language")}`;

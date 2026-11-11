@@ -210,7 +210,7 @@
 
 **能力包（kit）**
 
-- 定义：把做一类事要用的东西放在一起看的一个包：技能、MCP、工具，以及搭配的角色和角色的提示词。能力包只是聚合视图，不存任何东西，也没有注册表；每次读时由 `horizontal/kit` 按当前安装现算，界面在设置 › 能力包（`/settings/kit`，旧的 `/settings/skills` 跳到这里）。
+- 定义：把做一类事要用的东西放在一起看的一个包：技能、MCP、工具，以及搭配的角色和角色的提示词。能力包只是聚合视图，不存任何东西，也没有注册表；每次读时由 `horizontal/kit` 按当前安装现算，界面在设置 › 能力包（`/settings/kit`；旧地址 `/settings/skills` 已删，没有兼容跳转）。
 - 三种包：一个插件的安装（`plugin:<install_id>`，应用插件与只有声明的插件都是，插件本身就是一个包，Manifest 不加键）；Molis Work 自带（`system:builtin`：宿主内置的角色与提示词、个人助理和没有归属角色的提示词、全部 Agent 工具、对外的 Molis Work MCP）；你的角色（`system:characters`，你写的 Character）。用户自己组包还没有做（[BL-kit-user-packs](../../specs/backlog/BL-kit-user-packs.md)）。
 - 条目五类，各有各的主人：技能（插件声明与 Agent 定义登记）、提示词与插件角色（插件声明与 Agent 定义登记）、Character（`modules/characters`）、工具（Agent Host 的工具全集）、MCP（项目 MCP 归 Agent Host 的 MCP 库，连接带的归连接器，对外的归对外接入）。每个主人写一个上报动作，能力包按登记盖上来源与所属的包，不由上报者自称。
 - 能开关的只有技能（关、自动、仅手动，存在 Agent 定义登记）；其余条目在能力包里看，改去它自己的页面。包没有整包停用。

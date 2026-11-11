@@ -332,7 +332,7 @@ test("底栏：Assistant 常驻居中，回答在上方先写问题；插件从�
     return document.querySelector('[data-assistant-composer] [data-composer-receiver]')?.textContent === '助理' && !shown('[data-assistant-composer] .mw-composer__to [data-tag-remove]') && !document.querySelector('[data-assistant-composer] [data-composer-control]');})()`), "a new work goes to the Assistant and shows no default chooser");
   await click("[data-assistant-composer] [data-composer-add]");
   await waitFor("!document.querySelector('[data-assistant-composer] [data-compose-menu]').hidden && /添加文件/.test(document.querySelector('[data-assistant-composer] [data-compose-menu]').textContent)");
-  assert.ok(await evaluate("(()=>{const t=document.querySelector('[data-assistant-composer] [data-compose-menu]').textContent;return /用一个方法或能力/.test(t) && !/由谁来做|新工作放在/.test(t);})()"), "“+” adds things; it holds no choices about the work");
+  assert.ok(await evaluate("(()=>{const t=document.querySelector('[data-assistant-composer] [data-compose-menu]').textContent;return /用一个技能或能力/.test(t) && !/由谁来做|新工作放在/.test(t);})()"), "“+” adds things; it holds no choices about the work");
   assert.ok(await evaluate("!document.querySelector('[data-assistant-composer] [data-plugin-picker], [data-assistant-composer] [data-global-search-open]')"), "the composer holds neither the switcher nor search");
   await evaluate("document.querySelector('[data-assistant-composer] [data-compose-menu]').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))");
   await waitFor("document.querySelector('[data-assistant-composer] [data-compose-menu]').hidden");

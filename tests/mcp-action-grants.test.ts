@@ -230,3 +230,18 @@ test("PMAT-24 the built-in Agent holds project knowledge without a grant record,
   assert.deepEqual(resolveMcpActionContext(agent, [knowledge, reader("a")], { ...empty, action_grants: [revoked] }).allowed_actions?.map(item => item.capability_id), ["knowledge.read"],
     "the person turned the reader off in 对外接入");
 });
+
+test("SKP-10 a round's own system.skills reads are open to its tool calls only while the Host writes skill_round", () => {
+  const agent: ActionCallContext = { actor_id: "agent:prologue", project_id: "a", audience: "agent", permissions: [] };
+  const round = { ...agent, skill_round: { consumer: "coding" as const, named: [] } };
+  const skillView = (capabilityId: string, operation: "query" | "command", state: "query" | "operation"): ActionView => ({ ...view("project"), capability_id: capabilityId,
+    operation, provider: { provider_id: "system.skills", title: "技能", kind: "system" },
+    action: { ...view("project").action, kind: state, audiences: ["agent"], permissions: ["skills:read"] } });
+  const read = skillView("skills.body.read", "query", "query"), list = skillView("skills.catalog.list", "query", "query");
+  const write = skillView("skills.settings.set", "command", "operation");
+  const otherSystem: ActionView = { ...read, capability_id: "another.system.read", provider: { provider_id: "system.other", title: "Other", kind: "system" } };
+  assert.deepEqual([openByDefault(read, round), openByDefault(list, round)], [true, true], "the round's tool calls to system.skills are open; the catalog still checks consumer and named");
+  assert.deepEqual([openByDefault(read, agent), openByDefault(list, agent)], [false, false], "without the Host's round word nothing is open");
+  assert.equal(openByDefault(write, round), false, "a Skill's setting is not a round read and needs the person");
+  assert.equal(openByDefault(otherSystem, round), false, "skill_round opens only system.skills, not any other system provider");
+});

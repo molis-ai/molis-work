@@ -194,6 +194,7 @@ export function pageTaskGrants(port: MessagePort, scope: FrameScope, areas: Page
   const press = (entry: Entry, event: MouseEvent) => {
     const control = (event.target as Element).closest<HTMLElement>("[data-framed-control]");
     if (!control || !entry.area.surface.contains(control)) return;
+    const name = control.dataset.framedControl!, act = name.split(":", 1)[0];
     // A switch shows the answer, not the press: the browser does not flip it. A scripted click that cannot be cancelled flips it
     // anyway, so a refused press draws the area again from what the task holds (an area already closed is drawn to nothing seen).
     event.preventDefault();
@@ -201,7 +202,7 @@ export function pageTaskGrants(port: MessagePort, scope: FrameScope, areas: Page
     // ①⑤⑥ are said nowhere: a scripted press, a press while a write is under way, a page that has moved on.
     if (refusal?.reason === "silent" || entry.busy || !scope.alive || entries.get(entry.id) !== entry || !entry.reads) { draw(entry); return; }
     if (refusal) {
-      entry.line = { key: refusal.reason === "moved" ? "workbench.task-grants-area.this-just-moved" : "workbench.task-grants-area.show-this-whole-area-first" };
+      if (act !== "retry-language") entry.line = { key: refusal.reason === "moved" ? "workbench.task-grants-area.this-just-moved" : "workbench.task-grants-area.show-this-whole-area-first" };
       if (refusal.reason === "partial") {
         if (refusal.reveal) send({ type: "task-grants-reveal", id: entry.id });
         else control.closest("li")?.scrollIntoView({ block: "nearest" });
@@ -209,7 +210,7 @@ export function pageTaskGrants(port: MessagePort, scope: FrameScope, areas: Page
       draw(entry); return;
     }
     // A control's name is its act, then the category it is for: `switch:`, `allow:` or `remove:` and the row's name.
-    const name = control.dataset.framedControl!, act = name.split(":", 1)[0], subject = entry.reads.subject;
+    const subject = entry.reads.subject;
     if (act === "read") { void reread(entry); return; }
     if (act === "retry-language") { entry.stale = "language"; catchUp(entry); return; }
     if (act === "undo" || act === "retry") {

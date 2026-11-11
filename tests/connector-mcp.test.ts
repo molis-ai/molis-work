@@ -26,6 +26,7 @@ import { MolisWorkLocalHost, connectorDirectory, homeIntegrationRegistry, connec
 import { createDesktopWebCore } from "@molis-ai/molis-work-app-desktop";
 import { isMcpToolCapability } from "../apps/local-host/dist/mcp-tool-actions.js";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { KIT_READ_PERMISSION } from "@molis-ai/molis-work-contracts/services/kit";
 import { authorizeMcpActions } from "../apps/local-host/dist/mcp-action-client.js";
 import { createMcpActionGrant } from "../apps/local-host/dist/mcp-action-grants.js";
 import { writeMcpActionGrant } from "../apps/local-host/dist/mcp-settings-store.js";
@@ -1800,4 +1801,63 @@ test("RAC2885 Agent source withdrawal during an actual in-flight tool never deli
     assert.equal(outcomes.includes("succeeded"), false);
     assert.equal(registry.mcpOwner("notion"), undefined);
   } finally { remote.releaseCall(); await adapter?.close(); await remote.close(); rmSync(temp, { recursive: true, force: true }); }
+});
+
+test("CPK-02: a connection's listing counts what changed for the AI kit, keeps the last difference while nothing changes, and reads an older file", { timeout: 60_000 }, async () => {
+  const temp = home(), remote = await fixture();
+  const client = createConnectorMcpHost({ testServers: { figma: { endpoint: remote.endpoint, auth: "none" } } });
+  const localHost = new MolisWorkLocalHost({ homeDirectory: temp, completeText: null });
+  const directory = createConnectorMcpDirectory({ localHost, homeDirectory: temp, call: client.callMcpConnectionTool, read: client.readMcpConnectionResource });
+  const person: ActionCallContext = { actor_id: "web-user", project_id: null, audience: "user", permissions: ["mcp:external", KIT_READ_PERMISSION] };
+  const seenFile = join(temp, "config", "connector-mcp-tools.json");
+  type Seen = Record<string, { tools: Array<{ name: string; description: string; input_schema: Record<string, unknown> }>;
+    change?: { added: number; removed: number; changed: number; at: string } }>;
+  const seen = () => JSON.parse(readFileSync(seenFile, "utf8")) as Seen;
+  const counts = () => { const change = seen()[connectionId]!.change!; return { added: change.added, removed: change.removed, changed: change.changed }; };
+  const discovered = async () => {
+    const catalog = await localHost.homeActionClient().invoke(person, { capability_id: "kit.catalog.list", version: 1 }, {}) as {
+      entries: Array<{ kind: string; ref: Record<string, unknown>; version: { change?: { kind: string; added: number; removed: number; changed: number } } }> };
+    return catalog.entries.find(entry => entry.kind === "mcp" && entry.ref.part === "server" && entry.ref.server_id === connectionId)?.version.change;
+  };
+  let connectionId = "";
+  try {
+    const started = await client.startMcpConnection(temp, { serviceId: "figma", displayName: "Desktop Figma", origin: callbackOrigin });
+    if (!("tools" in started)) throw new Error("the Figma fixture connects and lists its tools");
+    connectionId = started.connectionId;
+    const tools = started.tools as ConnectorMcpTool[];
+    // The first listing says everything it found is new, and the kit shows that discovery.
+    directory.remember(connectionId, tools, started.resources);
+    assert.deepEqual(counts(), { added: tools.length, removed: 0, changed: 0 });
+    assert.match(seen()[connectionId]!.change!.at, /^\d{4}-\d{2}-\d{2}T/u, "the change says when it was seen");
+    assert.deepEqual(await discovered(), { kind: "discovered", added: tools.length, removed: 0, changed: 0 });
+
+    // A later listing adds one tool: its own change, and the kit's last discovery follows.
+    const added: ConnectorMcpTool = { name: "later-tool", description: "later", inputSchema: { type: "object", properties: {} } };
+    const listed = [...tools, added];
+    directory.remember(connectionId, listed);
+    assert.deepEqual(counts(), { added: 1, removed: 0, changed: 0 });
+    // Same name with another description or input shape is changed, not removed and added.
+    const [first, ...rest] = listed;
+    directory.remember(connectionId, [{ ...first!, description: `${first!.description ?? ""} (changed)` }, ...rest]);
+    assert.deepEqual(counts(), { added: 0, removed: 0, changed: 1 });
+    // A tool that is gone is removed.
+    directory.remember(connectionId, rest);
+    assert.deepEqual(counts(), { added: 0, removed: 1, changed: 0 });
+    assert.deepEqual(await discovered(), { kind: "discovered", added: 0, removed: 1, changed: 0 });
+
+    // The same listing again keeps the last difference and does not rewrite the cache.
+    const kept = readFileSync(seenFile, "utf8");
+    directory.remember(connectionId, rest);
+    assert.equal(readFileSync(seenFile, "utf8"), kept, "an unchanged listing does not rewrite the cache");
+    assert.deepEqual(await discovered(), { kind: "discovered", added: 0, removed: 1, changed: 0 }, "and the kit still shows the last discovery");
+
+    // A cache written before this field existed is still read: it says no difference, and an unchanged listing leaves it alone.
+    const older = seen(); delete older[connectionId]!.change; writeFileSync(seenFile, JSON.stringify(older, null, 2));
+    const before = readFileSync(seenFile, "utf8");
+    directory.remember(connectionId, rest);
+    assert.equal(readFileSync(seenFile, "utf8"), before, "an older cache is not rewritten for an unchanged listing");
+    assert.equal(await discovered(), undefined, "an older cache shows no discovery difference until the server changes something");
+  } finally {
+    directory.close(); await localHost.close(); await remote.close(); rmSync(temp, { recursive: true, force: true });
+  }
 });

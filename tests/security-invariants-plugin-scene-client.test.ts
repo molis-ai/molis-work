@@ -309,7 +309,9 @@ test("RAC-833 S-89 a caller revoked while the kernel reads a list receives no re
   const before = structuredClone([...env.main.state.bindings.values()]);
   for (const step of ["usages", "targets"] as const) {
     const who = caller(); revoke = who.revoke;
-    const result = await inAction(env, env.main, { step }, "look", who);
+    // The kernel also checks a query's caller before handing back its result, so the probe's own call is refused too.
+    await assert.rejects(inAction(env, env.main, { step }, "look", who), (error: { code?: string; message?: string }) => refused(error, "actions.forbidden", /the caller was revoked/));
+    const result = { value: env.main.state.value, error: env.main.state.error as { code?: string; message?: string } | undefined };
     assert.ok(refused(result.error, "actions.forbidden", /the caller was revoked/), `${step}: ${result.error?.code} ${result.error?.message}`);
     assert.equal(result.value, undefined, "the caller is checked again before the list can be returned");
   }

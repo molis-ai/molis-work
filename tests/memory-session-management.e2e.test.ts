@@ -180,12 +180,13 @@ async function openCoding(j: Journey, target: Target) {
 }
 async function openAssistant(j: Journey, currentProject: string | null, target: Target) {
   assert.equal(target.kind, "assistant"); await j.navigate(currentProject ? `/projects/${currentProject}/` : "/");
-  await j.page.wait("document.querySelector('[data-assistant-input]')");
-  // Empty Enter opens the existing work list; it never sends another model request.
-  await j.page.click("[data-assistant-input]");
+  await j.page.wait("document.querySelector('[data-assistant-composer] .mw-composer__input')");
+  // An empty send opens the existing work list; it never sends another model request. The unified composer (#1991, UIC-05)
+  // sends on ⌘↵ / Ctrl+↵; Enter alone is a new line.
+  await j.page.click("[data-assistant-composer] .mw-composer__input");
   const listAt = j.requests.length;
-  await j.page.command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 });
-  await j.page.command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 });
+  await j.page.command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 });
+  await j.page.command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, modifiers: 2 });
   await j.page.wait("document.querySelector('[data-assistant-panel]')?.checkVisibility()");
   if (await j.page.evaluate("document.querySelector('[data-assistant-works]').hidden")) await j.page.click("[data-assistant-works-toggle]");
   // Opening paints cached rows, then replaces them after the real /works read. Click the completed read's current row.

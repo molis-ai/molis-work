@@ -127,6 +127,26 @@ test("off keeps personal management and deletion but refuses new saves, candidat
   await f.reopen(); assert.deepEqual(await f.bound(caller).list("user", person.actor_id), []);
 });
 
+test("MEM-20 with form off the assistant still turns a memory off; turning it on again, editing and a consumer without its grant stay refused", async t => {
+  // The form switch governs adding and changing, not forgetting (user 2026-11-12): only a save that takes its target off passes it.
+  const f = await fixture(t), assistant: AgentMemoryCaller = { ...person, consumer: "assistant", person: false, purpose: "management" };
+  const memory = f.bound(assistant), prefs = (input: Parameters<MemoryService["savePrefs"]>[2]) => f.service.savePrefs({ ...person, consumer: "ui" }, "project", input);
+  const at = (entry: { memory_id: string; version: number }) => ({ scope: "project" as const, owner: "a", memory_id: entry.memory_id, expected_version: entry.version });
+  const [first, second, third] = [await f.save("form-off-disable"), await f.save("form-off-pause"), await f.save("form-off-edit")];
+  prefs({ form: false });
+  const disabled = await memory.disable({ ...at(first), operation_id: "off-disable", reason: "assistant" });
+  const paused = await memory.pause({ ...at(second), operation_id: "off-pause", reason: "assistant" });
+  assert.ok(disabled.disabled && paused.paused);
+  await assert.rejects(memory.resume({ ...at(disabled), operation_id: "off-resume" }), undefined, "turning it on again is not forgetting");
+  await assert.rejects(memory.update({ ...at(third), operation_id: "off-update", change: { text: "Rewritten convention" } }), undefined, "an edit still needs form");
+  prefs({ form: false, consumers: { assistant: false } });
+  await assert.rejects(memory.disable({ ...at(third), operation_id: "off-revoked", reason: "assistant" }), undefined, "the consumer's own grant still applies");
+  // The same refused calls pass once form and the grant are back: what refused them was the switch, nothing else.
+  prefs({ form: true, consumers: { assistant: true } });
+  assert.equal((await memory.resume({ ...at(disabled), operation_id: "on-resume" })).disabled, undefined);
+  assert.equal((await memory.update({ ...at(third), operation_id: "on-update", change: { text: "Rewritten convention" } })).text, "Rewritten convention");
+});
+
 test("mixed on/off scope queries remain admitted while canonical task reads use current consumer switches", async t => {
   const f = await fixture(t); await f.save("project");
   await f.bound().write({ scope: "user", owner: person.actor_id, text: "Private convention", origin: "person", operation_id: "personal", meta });

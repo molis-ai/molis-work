@@ -6,7 +6,7 @@ import test, { type TestContext } from "node:test";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { MemoryService, defaultPrefs, MEMORY_GATE_POLICY, MEMORY_GATE_VERSION, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
-import { openMemoryLedger } from "@molis-ai/molis-work-storage";
+import { acquireStorageOwner, initializeMemoryForgetting, openMemoryLedger } from "@molis-ai/molis-work-storage";
 import { prologueMemoryBackend } from "@molis-ai/molis-work-app-local-host";
 import { memoryRuntimePolicy, type MemoryRuntimePolicyOwner } from "@molis-ai/molis-work-app-local-host";
 
@@ -17,10 +17,14 @@ const caller = (operation_id: string, extra: Partial<MemoryCaller> = {}): Memory
 
 async function fixture(t: TestContext) {
   const home = await mkdtemp(join(tmpdir(), "molis-memory-new-classification-"));
+  // A current Home has its forgetting file before its ledger.
+  const storageOwner = acquireStorageOwner(join(home, "agent-runtime"));
+  try { initializeMemoryForgetting({ homeDirectory: home, storageOwner, assertCurrent() {} }); } finally { storageOwner.release(); }
   let ledger = openMemoryLedger({ homeDirectory: home });
   for (const key of ["personal", "project-default"]) ledger.savePrefs(LOCAL_PERSON_ACTOR_ID, key, defaultPrefs(key === "personal" ? "personal" : "project", "reviewed"));
   let service!: MemoryService, projectCheck: (() => Promise<boolean>) | undefined;
   const owner: MemoryRuntimePolicyOwner = { alive: () => true, prefsFor: (scope, project) => service.prefsFor(LOCAL_PERSON_ACTOR_ID, scope, project),
+    forgettingPhase: () => service.forgettingPhase(),
     owners: project => ledger.owners(project), candidateOwners: project => ledger.candidateOwners(project),
     projectExists: async id => projectCheck ? projectCheck() : id === "project-a", deletingProject: () => undefined };
   const options = memoryRuntimePolicy(() => owner);

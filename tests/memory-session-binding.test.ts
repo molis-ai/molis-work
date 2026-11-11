@@ -229,7 +229,7 @@ test(`bound single remove resumes ${failure} after reopening without forgotten r
 test("accepted bound removal is discoverable on its bound page and the reopened Home can globally continue only its explicit original request", { timeout: 60_000 }, async t => {
   const { codingProductHost } = await import("./fixtures/coding-product-host.js"), { cogniaModelResponse } = await import("./fixtures/cognia-model-response.js");
   const { ensureSystemAgentService, MolisWorkLocalHost, workspaceRefFor } = await import("@molis-ai/molis-work-app-local-host");
-  const { createDesktopWebHost, withMolisWorkProjectCatalog } = await import("@molis-ai/molis-work-app-desktop");
+  const { withMolisWorkProjectCatalog } = await import("@molis-ai/molis-work-app-desktop"), { createSingleHomeTestWebServer } = await import("./fixtures/local-web-core.js");
   const { inspectMemoryForgetting } = await import("@molis-ai/molis-work-storage"), { LocalHostHttpClient } = await import("@molis-ai/molis-work-test-kit/local-host-http");
   const f = await codingProductHost(t, () => cogniaModelResponse("已完成。"), { loopbackProvider: true }), project = f.project.project_id, coding = "/api/plugins/io.molis.work.coding";
   const created = await f.call<{ session: { session_id: string } }>(project, coding + "/sessions", { title: "Discover original removal after reopening" });
@@ -254,18 +254,24 @@ test("accepted bound removal is discoverable on its bound page and the reopened 
     workspacesFor: projectId => withMolisWorkProjectCatalog({ homeDirectory: f.home }, catalog => catalog.listWorkspaceDirectory(projectId)),
     workspaceFor: projectId => withMolisWorkProjectCatalog({ homeDirectory: f.home }, catalog => workspaceRefFor(catalog, projectId)) });
   host.configurePersonalPlanning(f.home, withMolisWorkProjectCatalog);
-  const token = crypto.randomUUID(), server = createDesktopWebHost({ ptyClientFilePath: () => join(f.home, "unused-pty-client.js") })({ homeDirectory: f.home, localHost: host, controlToken: token });
+  // The same single-Home web server as before the restart; the desktop entry would first ask for an account session (#2025), which is not what this checks.
+  const token = crypto.randomUUID(), server = createSingleHomeTestWebServer({ homeDirectory: f.home, localHost: host, controlToken: token });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   let closed = false;
   const close = async () => { if (closed) return; closed = true; server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); await host.close(); };
   t.after(close);
   try {
   const address = server.address(); assert.ok(address && typeof address !== "string"); const web = new LocalHostHttpClient({ origin: `http://127.0.0.1:${address.port}`, controlToken: token }), prefix = `/projects/${project}`;
-  const pending = await web.get<{ items: Array<{ kind: string; operation_id: string; request?: unknown }> }>(prefix + "/api/memory/operations?scope=project");
+  // Project API reads carry the control token, as the first half's calls do; a bare GET is page navigation and gets the page.
+  const read = async <T>(path: string): Promise<T> => {
+    const response = await fetch(web.origin + path, { headers: { accept: "application/json", origin: web.origin, "x-molis-work-control-token": token } });
+    assert.equal(response.status, 200, path); return await response.json() as T;
+  };
+  const pending = await read<{ items: Array<{ kind: string; operation_id: string; request?: unknown }> }>(prefix + "/api/memory/operations?scope=project");
   const item = pending.items.find(one => one.operation_id === body.operation_id)!; assert.equal(item.kind, "remove"); assert.deepEqual(item.request, { action: "remove", memory_id: memory.memory_id, expected_version: memory.version });
   const fixed = { ...(item.request as object), operation_id: item.operation_id };
   const continued = await web.post<{ memory: unknown }>(prefix + "/api/memory/change", fixed); assert.equal(continued.memory, null);
-  assert.equal((await web.get<{ items: unknown[] }>(prefix + "/api/memory/operations?scope=project")).items.length, 0);
+  assert.equal((await read<{ items: unknown[] }>(prefix + "/api/memory/operations?scope=project")).items.length, 0);
   assert.deepEqual((await web.post<{ memory: unknown }>(prefix + base + "/change", body)).memory, null);
   const { expected_version: _version, ...missing } = body;
   await assert.rejects(web.post(prefix + "/api/memory/change", missing));

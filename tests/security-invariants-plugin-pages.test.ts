@@ -736,5 +736,6 @@ test("A4-M S-47 memory settings retain only their two declared session navigatio
     "/projects/p1/settings/memory?memory_session_kind=coding&memory_session_id=session-1");
   assert.deepEqual(PROJECT_SETTINGS_QUERY_EXTRAS.memory?.split(" "), ["memory_session_kind", "memory_session_id"], "the project memory declaration adds exactly the same two navigation names");
   assert.deepEqual(GLOBAL_SETTINGS_QUERY_EXTRAS.memory?.split(" "), ["memory_session_kind", "memory_session_id"]);
-  assert.equal(openSettingsAddress("/settings/appearance?memory_session_kind=assistant&memory_session_id=work-1&evil=1"), "/settings/appearance");
+  // Another dialog page reads its own names only; the memory session names do not follow the person there.
+  assert.equal(openSettingsAddress("/settings/models?memory_session_kind=assistant&memory_session_id=work-1&evil=1"), "/settings/models");
 });

@@ -200,7 +200,10 @@ const recoveryHostProgram = `
 import { MolisWorkLocalHost, projectActionAvailability, ensureSystemAgentService } from "@molis-ai/molis-work-app-local-host";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import { createMolisWorkWebServer } from "./dist/web/server.js";
+import { join } from "node:path";
+import { createDesktopWebCore } from "@molis-ai/molis-work-app-desktop";
+// The single-Home web core the in-process fixtures use; the desktop entry would first ask for an account session (#2025).
+const createMolisWorkWebServer = createDesktopWebCore({ ptyClientFilePath: () => join(process.cwd(), "dist/web/pty-client.js") });
 const home = process.argv[1];
 let catalog;
 const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null,
@@ -272,7 +275,8 @@ test("B4 accepted deletion is discovered after leaving and a real Host process r
     const root = "[data-process-recovery]", row = `${root} [data-memory-id="${saved.memory_id}"]`;
     await page.click(row + " summary[aria-label^=更多操作]");
     await page.evaluate(`document.querySelectorAll('${row} .memory-menu button').forEach(button => { if (button.textContent === '删除') button.dataset.processRemove = ''; })`);
-    await page.click("[data-process-remove]"); await page.click("dialog.memory-confirm [data-memory-confirm-yes]");
+    await page.click("[data-process-remove]");
+    await page.wait("document.querySelector('dialog.memory-confirm [data-memory-confirm-yes]')"); await page.click("dialog.memory-confirm [data-memory-confirm-yes]");
     await page.wait(`document.querySelector('${root} [data-memory-retry]') && document.querySelector('${root} [data-memory-error]')?.textContent.includes('清理未完成')`);
     assert.equal(await host.count(project.project_id), 1, "accepted is not physical completion"); t.diagnostic("process 1 accepted and physically pending");
     assert.equal(String(await page.evaluate("document.body.textContent")).includes(text), false);
@@ -317,7 +321,8 @@ test("B4 category selection previews original versions, cancels with zero effect
     await page.wait("!document.querySelector('dialog.memory-confirm') && document.querySelector('[data-batch-test] [data-memory-list]')?.getAttribute('aria-busy') === 'false'");
     assert.ok((await client.invoke(memoryActions.page, { scope: "project" })).items.every(item => item.state === "active"));
     assert.equal((await client.invoke(memoryActions.operations, { scope: "project" })).items.some(item => item.kind === "batch"), false);
-    await page.click(root + ' [data-memory-batch-action="disable"]'); await page.click("dialog.memory-confirm [data-memory-confirm-yes]");
+    await page.click(root + ' [data-memory-batch-action="disable"]');
+    await page.wait("document.querySelector('dialog.memory-confirm [data-memory-confirm-yes]')"); await page.click("dialog.memory-confirm [data-memory-confirm-yes]");
     await page.wait("document.querySelector('[data-batch-test] [data-memory-batch-results]')?.textContent.includes('已完成') && document.querySelector('[data-batch-test] [data-memory-list]')?.getAttribute('aria-busy') === 'false'");
     const result = (await client.invoke(memoryActions.page, { scope: "project" })).items;
     assert.ok(result.filter(item => saved.slice(0, 2).some(one => one.memory_id === item.memory_id)).every(item => item.state === "disabled"));
@@ -351,6 +356,8 @@ for (const action of ["batch", "clear"] as const) test(`B4 ${action} physical fa
       await page.click(`${root} [data-memory-id="${saved.memory_id}"] [data-memory-select]`);
       await page.click(root + ' [data-memory-batch-action="remove"]');
     } else await page.click(root + " [data-memory-clear]");
+    // The ask opens only after the selection's preview is read back.
+    await page.wait("document.querySelector('dialog.memory-confirm [data-memory-confirm-yes]')");
     await page.click("dialog.memory-confirm [data-memory-confirm-yes]");
     await page.wait(`document.querySelector('${root} [data-memory-retry]') && document.querySelector('${root} [data-memory-error]')?.textContent.includes('清理未完成')`);
     assert.equal(await page.evaluate<string>(`document.querySelector('${root} [data-memory-retry-list] strong').textContent`), action === "batch" ? "遗忘选中项" : "清空记忆");

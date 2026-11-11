@@ -169,11 +169,16 @@ export function memoryRuntimePolicy(ownerFor: () => MemoryRuntimePolicyOwner | u
     if (request.action === "promote") return prefs.form && prefs.learn_from_work && prefs.auto
       && preferences(caller, request.target, state.owner, "explicit").allowed && formation();
     if (caller.person === true && caller.purpose === "management") return true;
-    if (!prefs.form || request.action === "accept" || !preferences(caller, request.target, state.owner, "explicit").allowed) return false;
+    // Turning a memory off (the SDK's pause or disable: a save whose target goes off) only narrows its use. The form switch and the
+    // class formation switch govern adding and changing, not forgetting; the consumer's own grant below still applies (user 2026-11-12).
+    const deactivating = request.action === "save" && request.target.ref.kind === "memory" && request.before !== undefined
+      && (request.target.disabled === true && request.before.disabled !== true
+        || request.target.paused === true && request.before.paused !== true && request.before.disabled !== true);
+    if (!prefs.form && !deactivating || request.action === "accept" || !preferences(caller, request.target, state.owner, "explicit").allowed) return false;
     // Plugins write only their own namespace; shared explicit statements are admitted by MemoryService's source gate.
     const pluginSave = request.action === "save" && caller.consumer === "plugin" && request.target.namespace === caller.plugin_id
       && request.target.source === "plugin" && request.target.approvedBy?.by === "policy" && request.target.approvedBy.policy === `plugin:${caller.plugin_id}`;
-    return (caller.consumer !== "plugin" || request.target.namespace === caller.plugin_id) && (pluginSave || formation());
+    return (caller.consumer !== "plugin" || request.target.namespace === caller.plugin_id) && (pluginSave || deactivating || formation());
   };
   return {
     readInput: "frozen",

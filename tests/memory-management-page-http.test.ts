@@ -79,10 +79,11 @@ test("HTTP duplicate saves return the six-kind formal item and all superseded Ac
     assert.equal(duplicate.status, 200, JSON.stringify(result)); assert.equal(result.outcome, "duplicate");
     assert.equal(result.memory!.memory_id, saved.memory!.memory_id); assert.equal(result.memory!.kind, kind); assert.equal(result.memory!.version, corrected.memory.version);
   }
-  const old = [ [memoryActions.recall, 1, {}], [memoryActions.list, 2, {}], [memoryActions.write, 2, { scope: "personal", text: "Old version must refuse" }],
-    [memoryActions.change, 2, { memory_id: "any", expected_version: 1, action: "disable" }], [memoryActions.history, 1, { memory_id: "any" }],
-    [memoryActions.accept, 2, { candidate_id: "any", expected_version: 1 }] ] as const;
-  for (const [definition, version, input] of old) await assert.rejects(client.invoke({ ...definition, version }, input));
+  // Versions restarted at one (unified start); any version other than the current one is refused, never routed to it.
+  const other = [ [memoryActions.recall, {}], [memoryActions.list, {}], [memoryActions.write, { scope: "personal", text: "Another version must refuse" }],
+    [memoryActions.change, { memory_id: "any", expected_version: 1, action: "disable" }], [memoryActions.history, { memory_id: "any" }],
+    [memoryActions.accept, { candidate_id: "any", expected_version: 1 }] ] as const;
+  for (const [definition, input] of other) await assert.rejects(client.invoke({ ...definition, version: definition.version + 1 }, input));
   assert.equal((await (await env.request("/api/memory/overview?scope=personal")).json() as MemoryPageResponse).items.length, 2);
 });
 

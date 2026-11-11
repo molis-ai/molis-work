@@ -139,7 +139,8 @@ test(`accepted fixed Session clear after public SDK purge validates the real ${o
   const { createRequire } = await import("node:module"), { join } = await import("node:path");
   const { codingProductHost } = await import("./fixtures/coding-product-host.js"), { cogniaModelResponse } = await import("./fixtures/cognia-model-response.js");
   const { ensureSystemAgentService, MolisWorkLocalHost, workspaceRefFor } = await import("@molis-ai/molis-work-app-local-host");
-  const { createDesktopWebHost, withMolisWorkProjectCatalog } = await import("@molis-ai/molis-work-app-desktop"), { LocalHostHttpClient } = await import("@molis-ai/molis-work-test-kit/local-host-http");
+  const { withMolisWorkProjectCatalog } = await import("@molis-ai/molis-work-app-desktop"), { LocalHostHttpClient } = await import("@molis-ai/molis-work-test-kit/local-host-http");
+  const { createSingleHomeTestWebServer } = await import("./fixtures/local-web-core.js");
   const { inspectMemoryForgetting } = await import("@molis-ai/molis-work-storage");
   const f = await codingProductHost(t, () => cogniaModelResponse("已完成。"), { loopbackProvider: true }), project = f.project.project_id, coding = "/api/plugins/io.molis.work.coding";
   const created = await f.call<{ session: { session_id: string } }>(project, coding + "/sessions", { title: "Retained owner purge continuation" });
@@ -161,7 +162,7 @@ test(`accepted fixed Session clear after public SDK purge validates the real ${o
   const requireSdk = createRequire(new URL("../horizontal/agent-host/package.json", import.meta.url));
   const { createRuntime } = await import(requireSdk.resolve("@prologue/sdk")), { createNodeHost } = await import(requireSdk.resolve("@prologue/sdk/node"));
   const { createHash } = await import("node:crypto");
-  const inspector = createNodeHost({ storageRoot: join(f.home, "agent-runtime") }), indexKind = `molis-agent-index-${createHash("sha256").update("io.molis.work").digest("hex").slice(0, 24)}`;
+  const inspector = createNodeHost({ storageRoot: join(f.home, "agent-runtime"), exclusiveOwner: true, memoryStorageFormat: "indexed-v1" }), indexKind = `molis-agent-index-${createHash("sha256").update("io.molis.work").digest("hex").slice(0, 24)}`;
   const indexTarget = { kind: indexKind, id: started.body.run.ref.session_id };
   const originalIndex = await inspector.storage.get(indexTarget); assert.ok(originalIndex);
   const originalIndexBytes: Uint8Array = (await inspector.storage.readSecure(indexTarget)).slice();
@@ -185,7 +186,8 @@ test(`accepted fixed Session clear after public SDK purge validates the real ${o
     workspacesFor: projectId => withMolisWorkProjectCatalog({ homeDirectory: f.home }, catalog => catalog.listWorkspaceDirectory(projectId)),
     workspaceFor: projectId => withMolisWorkProjectCatalog({ homeDirectory: f.home }, catalog => workspaceRefFor(catalog, projectId)) });
   host.configurePersonalPlanning(f.home, withMolisWorkProjectCatalog);
-  const token = crypto.randomUUID(), server = createDesktopWebHost({ ptyClientFilePath: () => join(f.home, "unused-pty-client.js") })({ homeDirectory: f.home, localHost: host, controlToken: token });
+  // The same single-Home web server as before the restart; the desktop entry would first ask for an account session (#2025), which is not what this checks.
+  const token = crypto.randomUUID(), server = createSingleHomeTestWebServer({ homeDirectory: f.home, localHost: host, controlToken: token });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve)); let closed = false;
   const close = async () => { if (closed) return; closed = true; server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); await host.close(); }; t.after(close);
   try {
@@ -198,7 +200,11 @@ test(`accepted fixed Session clear after public SDK purge validates the real ${o
     const create = adapter.createSession.bind(adapter), restore = lifecycle.unarchive.bind(lifecycle);
     t.mock.method(adapter, "createSession", (...args: Parameters<typeof create>) => { creates++; return create(...args); });
     t.mock.method(lifecycle, "unarchive", (...args: Parameters<typeof restore>) => { restores++; return restore(...args); });
-    await assert.rejects(web.get(prefix + base + "/overview?scope=project"));
+    // Read with the control token, as the calls before the restart do, so a refusal is the purged Session's and not a missing token's.
+    const overview = await fetch(web.origin + prefix + base + "/overview?scope=project", { headers: { accept: "application/json", origin: web.origin, "x-molis-work-control-token": token } });
+    const overviewBody = await overview.text();
+    assert.equal(overview.status, 409, overviewBody);
+    assert.deepEqual(JSON.parse(overviewBody), { error: "原执行会话不可核验，请核对原清理操作", code: "memory.conflict", details: { cleanup: "needs-reconcile" } });
     await assert.rejects(web.post(prefix + base + "/items", { scope: "project", text: "Must not revive a purged Session", kind: "preference", classification: { scenes: ["coding"], lifecycle: "session" }, operation_id: crypto.randomUUID() }));
     if (ownerFault === "original") {
       const done = await web.post<{ complete: boolean; items: Array<{ outcome: string; cleanup: string }> }>(prefix + base + "/clear/apply", { preview_id: preview.body.preview_id });
@@ -214,7 +220,7 @@ test(`accepted fixed Session clear after public SDK purge validates the real ${o
   } finally {
     await close();
     if (ownerFault !== "original") {
-      const verifier = await createRuntime({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, host: createNodeHost({ storageRoot: join(f.home, "agent-runtime") }) });
+      const verifier = await createRuntime({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, host: createNodeHost({ storageRoot: join(f.home, "agent-runtime"), exclusiveOwner: true, memoryStorageFormat: "indexed-v1" }) });
       try { assert.ok(memoryRecord); const row = await verifier.store.get({ kind: "memories", id: memoryRecord.id }); assert.equal(row.version, memoryRecord.version);
         assert.deepEqual(await verifier.store.readSecure({ kind: "memories", id: memoryRecord.id }), memoryBytes); }
       finally { await verifier.shutdown(); }

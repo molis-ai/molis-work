@@ -4,6 +4,17 @@ import { MemoryService, characterOwner, purgeProjectMemories, type MemoryCaller 
 import { prologueMemoryBackend } from "@molis-ai/molis-work-app-local-host";
 import { memoryServiceHome, observeMemoryBackend } from "./fixtures/memory-service-home.js";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { homeSqlitePath, MEMORY_LEDGER_STORE } from "@molis-ai/molis-work-storage";
+import { openTestSqlite } from "@molis-ai/molis-work-test-kit/sqlite";
+
+/** History rows physically kept in the ledger, whether or not an accepted forgetting decision hides them from reads. */
+function storedRevisions(home: string, memoryId: string): number {
+  const db = openTestSqlite(homeSqlitePath(home, MEMORY_LEDGER_STORE), { readonly: true });
+  try { return Number((db.prepare("SELECT COUNT(*) AS n FROM memory_revisions WHERE memory_id=?").get(memoryId) as { n: number }).n); } finally { db.close(); }
+}
+// Memory V0 (spec A2): once the forgetting decision is accepted, nothing it covers is read again, history included; a cleanup that then
+// fails reports "decision accepted, cleanup unfinished" (memory.unavailable) and continues under the original operation.
+const cleanupPending = { code: "memory.unavailable", message: /遗忘决定已接受，清理未完成/ };
 
 // D0170 / D0176 / D0181: the SDK and ledger are both closed and reopened, not just the service object.
 for (const mode of ["clear", "purge"] as const) test(`${mode}: completed project part and unknown Character receipt recover after restart with fixed decisions`, async t => {
@@ -42,10 +53,11 @@ for (const mode of ["clear", "purge"] as const) test(`${mode}: completed project
     assert.deepEqual(await run(), { removed: 1, complete: false, items: [
       { memory_id: first.memory_id, outcome: "completed" }, { memory_id: second.memory_id, outcome: "unknown" },
     ] });
-  } else await assert.rejects(run(), { code: "memory.conflict" });
+  } else await assert.rejects(run(), cleanupPending);
   assert.deepEqual(calls.map(call => call.scope), ["project", "character"]);
   assert.deepEqual(setup.ledger().revisions(first.memory_id), [], "a completed SDK deletion is not rolled back into the ledger");
-  assert.equal(setup.ledger().revisions(second.memory_id).length, 1, "an unknown receipt cannot erase history yet");
+  assert.deepEqual(setup.ledger().revisions(second.memory_id), [], "the accepted decision hides its history from reads at once");
+  assert.equal(storedRevisions(setup.home, second.memory_id), 1, "an unknown receipt cannot erase history yet");
   assert.ok(setup.ledger().owners(project).some(item => item.scope === "character" && item.owner === owner), "partial purge retains Character discovery for retry");
   await setup.close(); env = await open();
   const later = mode === "clear" ? await seed("seed-later", "project", "Prefer explicit owners") : undefined;
@@ -95,12 +107,12 @@ test("project purge retains candidate conflict and retries its original version 
   assert.ok(setup.ledger().candidateOwners("project-a").some(item => item.owner === owner), JSON.stringify({ candidate, notes: setup.ledger().candidates(who.actor_id) }));
   assert.equal((await env.backend.withCaller({ ...who, character }).candidates.list("character", owner)).length, 1);
   const run = () => purgeProjectMemories({ backend: env.backend, ledger: setup.ledger(), caller: who }, "project-a");
-  await assert.rejects(run(), { code: "memory.conflict" });
+  await assert.rejects(run(), cleanupPending);
   assert.deepEqual(setup.ledger().revisions(saved.memory!.memory_id), []);
   assert.ok(setup.ledger().candidateOwners("project-a").some(item => item.owner === owner), "Character candidate remains discoverable");
   assert.equal((await env.backend.withCaller({ ...who, character }).candidates.list("character", owner)).length, 1);
   await setup.close(); env = await open();
-  await assert.rejects(run(), { code: "memory.conflict" });
+  await assert.rejects(run(), cleanupPending);
   assert.deepEqual(calls[1], calls[0], "restart does not silently refresh the reserved candidate version");
   refuse = false;
   await run();

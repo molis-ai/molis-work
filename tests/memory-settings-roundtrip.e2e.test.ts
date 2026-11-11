@@ -70,7 +70,7 @@ async function journey(t: TestContext) {
   assert.match(String(began.suggestedFilename), /^molis-memory-personal-\d{4}-\d{2}-\d{2}\.json$/);
   const file = join(downloads, String(began.suggestedFilename));
   const pack = JSON.parse(await readFile(file, "utf8")) as MemoryExportPackage;
-  assert.equal(pack.format, "molis.memory"); assert.equal(pack.version, 2); assert.equal(pack.scope, "personal");
+  assert.equal(pack.format, "molis.memory"); assert.equal(pack.version, 1, "the current export format (versions restarted at one)"); assert.equal(pack.scope, "personal");
   assert.equal(pack.entries.length, source.length);
   for (const item of source) {
     const exported = pack.entries.find(one => one.text === item.text); assert.ok(exported);
@@ -104,7 +104,7 @@ async function assertImported(page: ChromePage, imported: MemoryManagementItem[]
 }
 
 // MEM-PAGE-03: production download -> actual downloaded file -> real HTTP/Host/SDK in another authorized scope.
-test("current v2 package downloads from personal settings, imports into project settings and skips a repeat without changing either original", { timeout: 180_000 }, async t => {
+test("current package downloads from personal settings, imports into project settings and skips a repeat without changing either original", { timeout: 180_000 }, async t => {
   const f = await journey(t);
   await upload(f.page, f.file);
   await f.page.wait("document.querySelector('[data-settings-toast]')?.textContent.includes('导入 2')"); await ready(f.page);
@@ -127,7 +127,7 @@ test("current v2 package downloads from personal settings, imports into project 
 });
 
 // MEM-PAGE-03: whole-file validation, committed-but-lost reply, original retry and real Home reopening.
-test("a damaged v2 package writes nothing and a committed import can retry its original request once without duplicate effects across Home reopen", { timeout: 180_000 }, async t => {
+test("a damaged current package writes nothing and a committed import can retry its original request once without duplicate effects across Home reopen", { timeout: 180_000 }, async t => {
   const f = await journey(t);
   const damaged = join(f.directory, "damaged-current-v2.json");
   await writeFile(damaged, JSON.stringify({ ...f.pack, entries: [...f.pack.entries.map(one => ({ ...one, text: one.text + "（损坏包不得写入）" })), { ...f.pack.entries[0], text: "" }] }));

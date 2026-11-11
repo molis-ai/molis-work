@@ -182,6 +182,9 @@ type C3ChildWire = { messages: Array<{ role: string; content: string | Array<{ t
 for (const indexed of [false, true]) test(`C3 real Node child exact caller survives reopen without opening a new entry; indexed=${indexed}`, { timeout: 40_000 }, async () => {
   const root = await mkdtemp(join(tmpdir(), "molis-c3-child-"));
   const requests: C3ChildWire[] = []; let parentCalls = 0, childCalls = 0;
+  // The child Character carries its role's declared version; read it from the manifest instead of fixing a number.
+  const childRole = codingAgentManifest.subagents!.roles.find(role => role.role_id === (indexed ? "coding-reviewer" : "coding-reader"))!;
+  const childCharacter = new RegExp(`molis-child-[a-z0-9-]+@${childRole.version}(?![0-9])`);
   const model = createServer(async (req, res) => {
     let raw = ""; for await (const chunk of req) raw += chunk;
     const body = JSON.parse(raw) as C3ChildWire; requests.push(body);
@@ -191,7 +194,7 @@ for (const indexed of [false, true]) test(`C3 real Node child exact caller survi
     else {
       parentCalls++;
       if (parentCalls === 1 || parentCalls === 2) {
-        const character = JSON.stringify(body.system).match(/molis-child-[a-z0-9-]+@4/)?.[0]; assert.ok(character);
+        const character = JSON.stringify(body.system).match(childCharacter)?.[0]; assert.ok(character);
         reply = response("", { name: "dispatch-subagent", input: { instruction: "EXACT_NEW_CHILD: inspect the source, no changes.", tools: ["read", "search"], character, idempotencyKey: "same-child", maxTurns: 2 } });
       } else if (parentCalls === 3) {
         const childRef = JSON.stringify(body.messages).match(/sub-[a-z0-9-]+/)?.[0]; assert.ok(childRef);

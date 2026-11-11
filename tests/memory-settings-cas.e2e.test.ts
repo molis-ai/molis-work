@@ -351,7 +351,8 @@ test("D0194/D0224 the confirm dialog returns focus: Escape to the row's more but
   await page.evaluate("document.querySelector('[data-memory-export]').focus()");
   f.overview.items = f.overview.items.filter(one => one.memory_id !== "active");
   first.release();
-  await page.wait("!document.querySelector('[data-memory-id=active]')");
+  // A removal in flight clears every displayed copy (B4), so "active is gone" holds at once; wait for the reread that brings the rest back.
+  await page.wait("!document.querySelector('[data-memory-id=active]') && document.querySelector('[data-memory-id=disabled]') && document.querySelector('[data-memory-list]')?.getAttribute('aria-busy') === 'false'");
   assert.equal(await page.evaluate("document.activeElement?.hasAttribute('data-memory-export')"), true, "focus the person moved stays put");
 
   // A confirmed delete repaints the list and takes the row's more button away: focus lands on the page's add button.

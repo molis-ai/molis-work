@@ -36,8 +36,9 @@ test("S-12 RAC-2915 RAC-2918 RAC-2917: recovery refuses foreign or unsafe journa
   const recover = () => recoverHomeRestore({ homeDirectory: f.home, inspectCatalog: inspectMolisWorkProjectCatalogSnapshot });
   const incoming = (path: string) => ({ path, mode: 0o600, size: 1, sha256: "0".repeat(64) });
   const mutations: Array<[string, (input: typeof base) => void]> = [
-    ["old journal version", value => { value.schema_version = 1; }],
-    ["future journal version", value => { value.schema_version = 3; }],
+    // The unified version start (#1837) made 1 the only journal version; there is no older one, so below and above it are both refused.
+    ["journal version below the first", value => { value.schema_version = 0; }],
+    ["future journal version", value => { value.schema_version = 2; }],
     ["another Home", value => { value.home_directory = f.area; }],
     ["foreign originals directory", value => { value.originals_directory = f.area; }],
     ["different operation directory", value => { value.operation_id = randomUUID(); }],

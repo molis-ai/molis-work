@@ -188,7 +188,8 @@ test("App renewal refuses Session memory even when its original Session is activ
     meta: { kind: "convention", source: "manual", classification: { scenes: ["coding"], lifecycle: "session" },
       session_ref: { kind: "session", id: session.session_id, revision: 1 }, expires_at_ms: START + 1000 } });
   f.advance(); const request = renewal(entry.memory_id, entry.version);
-  await assert.rejects(f.service.change(who, request), { code: "memory.invalid" });
+  // The App's own management entry carries no Session management binding, so the Session guard refuses before renewal is considered.
+  await assert.rejects(f.service.change(who, request), { code: "memory.forbidden", message: /只能在原业务会话中管理/ });
   await assert.rejects(f.service.change(caller("no-session"), request));
   assert.deepEqual((await f.raw(who).list("personal", who.actor_id))[0], entry);
   assert.deepEqual(f.ledger().revisions(entry.memory_id), []);

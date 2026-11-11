@@ -25,15 +25,15 @@
 | [empty-goal-create](../../archive/empty-goal-create/spec.md)、[quiet-home-refresh](../../archive/quiet-home-refresh/spec.md)、[onboarding-intake-progress](../../archive/onboarding-intake-progress/spec.md)、[onboarding-model-link](../../archive/onboarding-model-link/spec.md)、[onboarding-folder-places](../../archive/onboarding-folder-places/spec.md) | 体验与效果、产品线（引导、Goals） | [01](batches/01.md) | 五项均已承接并归档；BL-946～950 分开试 |
 | [issue-home-v0](../../archive/issue-home-v0/spec.md) | 产品线（Issue 插件） | [01](batches/01.md) | BL-149 已随 #819 合入，已归档 |
 | [computer-use](../../computer-use/spec.md) | 产品线（助理） | [01](batches/01.md) | 要决策：BL-325 真机验收（你）；BL-326／327 留 Backlog |
-| [ai-development-handbook](../../ai-development-handbook/spec.md) | 横向能力（AI 方法） | [01](batches/01.md)、[09](batches/09.md) | 要决策：BL-320 你验收；ADH-23／BL-321 在 09 直接做 |
+| [ai-development-handbook](../../ai-development-handbook/spec.md) | 横向能力（AI 方法） | [01](batches/01.md)、[09](batches/09.md) | 要决策：BL-320 你验收；ADH-23／BL-321 已随 09 做完（2026-11-10 用户确认） |
 | 防腐线自己的四份：repository-anti-corruption、[plugin-project-database](../../archive/plugin-project-database/spec.md)、[dual-instance-plugins](../../archive/dual-instance-plugins/spec.md)、[plugin-project-partition](../../archive/plugin-project-partition/spec.md) | 底层与架构 | [01](batches/01.md) | 四份已归档，部分实现的余项仍在 BACKLOG |
 | BACKLOG「待你验收」BL-001～017、105、109、111、320、325、400、401、929、940 及本批新增本人项 | 跨线 | [01](batches/01.md) | 按条件试；已接受、已委托和须等真实 Home 的项目单列 |
-| [prologue-memory-strategy](../../prologue-memory-strategy/spec.md) | 横向能力（记忆）、底层与架构 | [24](batches/24.md)、[31](batches/31.md)、[63](batches/63.md) | 要决策：恢复授权前不启动（原暂停），见下 |
+| [prologue-memory-strategy](../../prologue-memory-strategy/spec.md) | 横向能力（记忆）、底层与架构 | [24](batches/24.md)、[31](batches/31.md)、[63](batches/63.md) | 暂停已于 2026-11-11 解除。P0 收口单独成批（以 #2020 为基线），P1 在 31，P2 按触发条件登记，63 只等 P0；换包、搬迁正文、真实 Home 仍逐项要你批，见下 |
 | 右栏选一段放进文稿（产品建议 F1；#712、#720） | 产品线（工作台）、横向能力（落点） | [01](batches/01.md) | 要决策：BL-952：真实材料和 QA-030 复验后再定下一个落点 |
 
 <a id="memory-paused"></a>
 
-**Memory 未完成且暂停。** [P0 形成、召回及 SDK 接入](../../prologue-memory-strategy/spec.md)不归入完成项；原负责人和暂停边界保留。对应 [24](batches/24.md)、[31](batches/31.md)、[63](batches/63.md)，恢复授权前不启动，独立工作继续。原 PR 状态在历史快照中，开工时再核。
+**Memory 未完成（暂停已于 2026-11-11 解除，[决定 36](decisions.md#decision-36)）。** [P0 形成、召回及 SDK 接入](../../prologue-memory-strategy/spec.md)不归入完成项。去向分三段：① P0 收口（BL-1071～BL-1077，含 MEM-41～44 的 BL-1075）单独成批，不占 01～89 的编号，以 Memory V0 草稿 PR [#2020](https://github.com/molis-ai/molis-work/pull/2020) 为起点，不在别的批次里重做它的内容；这一批收尾时产出 P1 的短合同（BL-memory-p1-contract）。② P1（SDK 有界历史与恢复、导出 v2、正文单一写主人：MEM-10、11、19，及 MEM-22、23、34、40 的 P1 部分）并入 [31](batches/31.md#batch-31-item-2)，前置是 P0 已合入 main、短合同已冻结。③ P2（语义／混合召回、规模与查询下推、去重、衰减、巩固）不排批，各登记一条待办并写明触发条件（BL-memory-p2-semantic-recall、BL-memory-p2-scale、BL-memory-p2-dedup、BL-memory-p2-decay、BL-memory-p2-consolidation），测到问题才做，都先等 P0 的质量与成本对照（BL-1073）。[63](batches/63.md) 的工作记忆只等 P0 合入，不等 P1、P2。换 `vendor/prologue-sdk`、搬迁记忆正文、动真实 Home 仍逐项要用户批。给 P2 补验收编号要改 Memory spec，等 #2020 合入后做。
 
 <a id="section-3-2"></a>
 
@@ -43,7 +43,7 @@
 | --- | --- | --- | --- |
 | [visual-ui-experience](../../visual-ui-experience/spec.md)；VUX-16～18、VUX-33、VUX-35、VUX-51～59 | 体验与效果、横向能力（文案与按需帮助） | [03](batches/03.md)、[10](batches/10.md)、[16](batches/16.md)、[27](batches/27.md)、[40](batches/40.md)、[55](batches/55.md)、[56](batches/56.md)、[75](batches/75.md)、[82](batches/82.md) | 要决策：本人验收；新增文案与帮助的界面定样；性能缺口保留 |
 | [ai-input-receipts](../../ai-input-receipts/spec.md)；BL-314、BL-315、BL-316、BL-317、BL-319、BL-148、BL-162、BL-318 | 产品线（助理）、横向能力（回执） | [32](batches/32.md)、[52](batches/52.md)、[63](batches/63.md)、[88](batches/88.md) | 直接做；阶段 6 各场景写小 spec 时再定 |
-| [prologue-adoption](../../prologue-adoption/spec.md)；BL-309、BL-301、BL-302、BL-303、BL-307、BL-308、BL-306 | 横向能力（AI 运行时）、底层与架构 | [09](batches/09.md)、[24](batches/24.md)、[31](batches/31.md)、[61](batches/61.md)、[81](batches/81.md) | 直接做：按换包窗口 |
+| [prologue-adoption](../../prologue-adoption/spec.md)；BL-302、BL-307、BL-308、BL-306 | 横向能力（AI 运行时）、底层与架构 | [09](batches/09.md)、[24](batches/24.md)、[31](batches/31.md)、[61](batches/61.md)、[81](batches/81.md) | 直接做：按换包窗口 |
 | [ai-interaction-experience](../../ai-interaction-experience/spec.md)；BL-341、BL-343、BL-344、BL-345、BL-340、BL-342 | 产品线（助理、各插件）、横向能力（卡片撤销合同） | [11](batches/11.md)、[52](batches/52.md)、[65](batches/65.md) | 要决策：同排推荐看实物（BL-344）；其余按已定合同直接做 |
 | [context-program](../../context-program/spec.md) 及 [context-toolbar](../../context-toolbar/spec.md)、[quick-create](../../quick-create/spec.md)、[side-shelf](../../side-shelf/spec.md)；BL-330、BL-331、BL-332、BL-333、BL-174、BL-334、BL-335、BL-336、BL-337、BL-338、BL-339 | 产品线（工作台、各插件）、横向能力（落点、情境动作） | [45](batches/45.md)、[52](batches/52.md)、[54](batches/54.md)、[68](batches/68.md)、[88](batches/88.md) | 要决策：W4 起各片的界面定样 |
 | [assistant-service-connections](../../assistant-service-connections/spec.md)（产品建议 A3）；ASC-38～44、BL-060、BL-062、BL-180、BL-181、BL-690 | 横向能力（服务接入）、产品线（助理） | [13](batches/13.md)、[26](batches/26.md)、[60](batches/60.md)、[61](batches/61.md) | 要决策：正式 OAuth 与真实账号（你办），只挡对应服务 |
@@ -66,8 +66,8 @@
 | 原需求／来源 | 类型 | 对应批次 | 决策 |
 | --- | --- | --- | --- |
 | [unified-input-voice](../../unified-input-voice/spec.md) | 横向能力（输入组件）、产品线（助理、Coding、首页）、体验与效果 | [03](batches/03.md)、[10](batches/10.md)、[11](batches/11.md)、[53](batches/53.md) | 要决策：界面定样；助理对外用词 H4 在 10 开工前定；其余 10-27 已定 |
-| [skill-packs](../../skill-packs/spec.md) | 横向能力（技能包、合同） | [08](batches/08.md)、[09](batches/09.md)、[72](batches/72.md) | 直接做 |
-| [capability-pack](../../capability-pack/spec.md) | 横向能力（能力包：技能、提示词、角色、工具、MCP 的声明与目录） | [09](batches/09.md)；消费者 [61](batches/61.md)、[72](batches/72.md)、[74](batches/74.md) | 要决策：目录页定样；名称已定（界面「能力包」、代码 `kit`），其余直接做（2026-11-08 用户定） |
+| [skill-packs](../../skill-packs/spec.md) | 横向能力（技能包、合同） | [08](batches/08.md)、[09](batches/09.md)、[72](batches/72.md) | 直接做；08、09 已合入（09 = #2015），剩 72 的导入导出、本人验收（BL-skill-packs-acceptance）、Coding 的「自动」档（BL-coding-skill-auto）与脚本沙箱（BL-skill-scripts-sandbox） |
+| [capability-pack](../../capability-pack/spec.md) | 横向能力（能力包：技能、提示词、角色、工具、MCP 的声明与目录） | [09](batches/09.md)；消费者 [61](batches/61.md)、[72](batches/72.md)、[74](batches/74.md) | 已合入（第 09 批 #2015，2026-11-11；定样 A、名称「能力包」／`kit` 用户已定，能力包页用户 11-10 验收通过）；余项自组包（BL-kit-user-packs）等，见待办；消费者批次照旧 |
 | [work-brief](../../work-brief/spec.md) | 产品线（首页与简报）、横向能力（公共来源与呈现） | [15](batches/15.md)、[19](batches/19.md)、[37](batches/37.md)、[51](batches/51.md)、[63](batches/63.md) | 要决策：综合首页的界面定样 |
 | [观测和采集层](../../observation-collection/spec.md) | 横向能力（采集）、底层与架构 | [21](batches/21.md)、[28](batches/28.md)、[29](batches/29.md) | 直接做：合同按 C1 排队 |
 | [平台端到端效果评测](../../proactive-assistant/spec.md#14-molis-work-的端到端效果评测) | 横向能力（评测） | [21](batches/21.md)、[30](batches/30.md)、[62](batches/62.md)、[75](batches/75.md) | 直接做 |
@@ -200,9 +200,9 @@
 | 来源 | 对应批次／条件 | 决策 |
 | --- | --- | --- |
 | 翻译：BL-118、BL-455～457、BL-459～464、BL-545、BL-546、BL-567 | [16](batches/16.md)、[55](batches/55.md) | 直接做 |
-| 写后检查：BL-160、BL-171、BL-220、BL-390，以及 BL-301～303 | [24](batches/24.md)、[31](batches/31.md) | 直接做 |
+| 写后检查：BL-160、BL-171、BL-220、BL-390，以及 BL-302 | [24](batches/24.md)、[31](batches/31.md) | 直接做 |
 | Prologue 上游：BL-031、BL-137、BL-172、BL-173、BL-175、BL-176 | [31](batches/31.md)、[61](batches/61.md)；最近的实际换包窗口 | 直接做 |
-| 记忆误记与默认：BL-037、BL-093 | [24](batches/24.md)、[31](batches/31.md)；[Memory 原暂停](#memory-paused) | 直接做 |
+| 记忆误记与默认：BL-037、BL-093 | [24](batches/24.md)、[31](batches/31.md)；[Memory 去向](#memory-paused) | 直接做 |
 | 模型能力：BL-089、BL-104 | 沿“模型能力问题不打补丁”，不单独排 | 直接做 |
 | [术语表](../../../docs/system/GLOSSARY.md) §5～6 的 R-A／R-B／R-C 与文档旧称 | [02](batches/02.md)、[27](batches/27.md)；R-A 按所在包改；R-B1～8 不做，R-B9 存量随真实 Home 重建、不迁移 | 直接做 |
 | 助理对外用词（H4）：工作、工作简报、任务、受托工作、子工作 | [10](batches/10.md)；实施前定并写术语表 | 要决策：用词在 10 开工前定，写进术语表 |

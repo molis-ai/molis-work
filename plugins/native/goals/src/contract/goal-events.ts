@@ -177,9 +177,53 @@ export interface ConfigureGoalEventsResult {
   replayed: boolean;
 }
 
+/**
+ * What a judgment's basis points at, kept as a reference only: the record stays with its owner (the 成果库, the Agent Host) and is
+ * read there. A new kind of evidence is a new member here; nothing else changes (specs/proactive-assistant PWA-144).
+ */
+export const goalEventEvidenceKinds = ["artifact_version", "command_receipt"] as const;
+export type GoalEventEvidenceRef =
+  | { kind: "artifact_version"; artifact_id: string; version: number }
+  | { kind: "command_receipt"; run_id: string; call_id: string };
+export const GOAL_EVENT_EVIDENCE_MAX = 8;
+
+/** What the reporter says it checked and how: an exact version in the 成果库 (never "the latest"), two sentences for people, and references. */
+export interface GoalEventJudgmentBasisInput {
+  checked: { artifact_id: string; version: number };
+  method: string;
+  observed: string;
+  evidence?: GoalEventEvidenceRef[];
+}
+
+/**
+ * How far a judgment is backed, worked out by Goals when the report arrives and never taken from the reporter:
+ * `self_reported` is the reporter's own word; `machine_verified` is a command the platform itself ran in the round that made the
+ * checked version, which ended normally with nothing written after it; `peer_reviewed` is a session other than the one that did
+ * the work, known to the platform, saying it checked that version.
+ */
+export const goalEventBasisTiers = ["self_reported", "machine_verified", "peer_reviewed"] as const;
+export type GoalEventBasisTier = (typeof goalEventBasisTiers)[number];
+/** Why a basis that names evidence stayed the reporter's own word. */
+export const goalEventBasisGaps = ["evidence_missing", "evidence_unreadable", "subject_mismatch", "check_failed"] as const;
+export type GoalEventBasisGap = (typeof goalEventBasisGaps)[number];
+
+export interface GoalEventJudgmentBasis extends GoalEventJudgmentBasisInput {
+  evidence: GoalEventEvidenceRef[];
+}
+
 export interface GoalEventJudgmentInput {
   requirement_id: string;
   verdict: GoalEventJudgmentVerdict;
+  basis?: GoalEventJudgmentBasisInput;
+}
+
+/**
+ * What Goals found when it weighed one judgment's basis, before anything is written. Made only by Goals' own check of the call
+ * (`verifyReportEvidence`): no action input carries it, so a caller cannot state its own tier.
+ */
+export interface GoalEventJudgmentAssessment {
+  tier: GoalEventBasisTier;
+  gap: GoalEventBasisGap | null;
 }
 
 export interface ReportGoalWorkEventInput {
@@ -204,11 +248,23 @@ export interface ReportGoalEventsInput {
   idempotency_key: string;
   events: ReportGoalWorkEventInput[];
   progress?: GoalEventReportProgressInput;
+  /**
+   * Set by Goals' own action handler from the call, never by a caller: the session the Host bound the reporting round to, and what
+   * the check of each judgment's basis found, by event index and requirement. Absent means every judgment is the reporter's own word.
+   */
+  trusted?: { reporter_session: string | null; assessments: ReadonlyMap<string, GoalEventJudgmentAssessment> };
 }
+
+/** The key of one judgment in `ReportGoalEventsInput.trusted.assessments`. */
+export const goalEventAssessmentKey = (eventIndex: number, requirementId: string): string => `${eventIndex}:${requirementId}`;
 
 export interface GoalWorkEventJudgment {
   requirement_id: string;
   verdict: GoalEventJudgmentVerdict;
+  /** What the reporter said it checked; null for a judgment that names nothing. */
+  basis: GoalEventJudgmentBasis | null;
+  tier: GoalEventBasisTier;
+  gap: GoalEventBasisGap | null;
 }
 
 export interface GoalEventConfigurationPayload {
@@ -472,9 +528,16 @@ export interface GoalEventRequirementReport {
   verdict: GoalEventJudgmentVerdict;
   received_at: string;
   journal_seq: number;
-  independent_verification: false;
+  basis: GoalEventJudgmentBasis | null;
+  tier: GoalEventBasisTier;
+  gap: GoalEventBasisGap | null;
+  /** True for `machine_verified` and `peer_reviewed`; a report is never the person's decision either way. */
   substitutes_human_decision: false;
 }
+
+/** What stands behind a requirement that is met: the person's acceptance, or an independently verified report where none is asked. */
+export const goalEventSatisfactionGrounds = ["user_accepted", "machine_verified", "peer_reviewed"] as const;
+export type GoalEventSatisfactionGround = (typeof goalEventSatisfactionGrounds)[number];
 
 export interface GoalEventRequirementStatus {
   requirement_id: string;
@@ -493,6 +556,13 @@ export interface GoalEventRequirementStatus {
   current_report: GoalEventRequirementReport | null;
   user_conclusion: GoalEventUserConclusion | null;
   currently_satisfied: boolean;
+  /** What it is met by; null while it is not met. Execution, verification and the person's acceptance are never folded into one. */
+  satisfied_by: GoalEventSatisfactionGround | null;
+  /**
+   * True when the person's conclusion was about another version than the one the latest report checked: the conclusion no longer
+   * counts for this requirement until they decide again (user decision 2026-11-11: per requirement, by version).
+   */
+  conclusion_superseded: boolean;
 }
 
 export interface GoalEventLatestReportsQuery {
@@ -522,6 +592,8 @@ export interface GoalEventFactsApi {
   listLatestReports(projectId: string, goalId: string, query?: GoalEventLatestReportsQuery): GoalEventLatestReports;
   readEvent(projectId: string, goalId: string, eventId: string): GoalWorkEventRecord;
   readCurrentRequirements(projectId: string, goalId: string): GoalEventRequirementStatus[];
+  /** The platform sessions that reported the requirement done on their own word alone. */
+  selfSupportingSessions(projectId: string, goalId: string, requirementId: string): ReadonlySet<string>;
   /** Persisted createIntent channel; independent of timeline pagination. Null when no intent_created fact exists. */
   readIntentSourceKind(projectId: string, goalId: string): GoalIntentSourceKind | null;
   readObservedEventCursor(projectId: string): number;

@@ -1,4 +1,5 @@
-import { bindActionClient, ActionError, requireSynchronous, type ActionAvailability, type ActionAudience, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionReference, type ActionInvokeTransport, type HostOfferedOriginalFile, type HostOfferedOriginalInput } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-definitions";
+import { bindActionClient, ActionError, requireSynchronous, type ActionNamedSkills, type ActionAvailability, type ActionAudience, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionReference, type ActionInvokeTransport, type HostOfferedOriginalFile, type HostOfferedOriginalInput } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostPluginCaller, LocalHostProjectClient } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { pluginErrors, type PluginActionClient, type PluginExecutionControl, type PluginManifest, type PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ACTIONS_DELEGATE_PERMISSION, declaresActionDelegation, pluginActionDirectory } from "./plugin-action-delegation.js";
@@ -14,7 +15,7 @@ import { entryUserAction, type EntryMessage } from "./entry-user-action.js";
  * The controls this Host made for a route it dispatched inside a project, each with that project's action client and whether its request
  * has ended; a plugin cannot make one, so it cannot name a project.
  */
-const routedControls = new WeakMap<PluginExecutionControl, { readonly client: ActionClient; readonly caller?: ActionCallContext; ended: boolean; original_file?: HostOfferedOriginalFile; original_input?: Omit<HostOfferedOriginalInput, "action">; original_action?: ActionReference }>();
+const routedControls = new WeakMap<PluginExecutionControl, { readonly client: ActionClient; readonly caller?: ActionCallContext; ended: boolean; original_file?: HostOfferedOriginalFile; original_input?: Omit<HostOfferedOriginalInput, "action">; named_skills?: readonly SkillRef[]; original_action?: ActionReference }>();
 const ended = () => new ActionError("actions.cancelled", "这次请求已经结束，不能再在这个项目里调用");
 
 /**
@@ -31,6 +32,15 @@ export function offerRoutedOriginalFile(control: PluginExecutionControl, file: H
 export function offerRoutedOriginalInput(control: PluginExecutionControl, input: Omit<HostOfferedOriginalInput, "action">): void {
   const routed = routedControls.get(control);
   if (routed && !routed.ended) routed.original_input = Object.freeze({ ...input });
+}
+
+/**
+ * The protected HTTP entry alone offers the page's named Skills (§2.3), already narrowed to the routed installation's own; like the
+ * original text, they go only to the first own action the route calls, and a control the Host did not make takes nothing.
+ */
+export function offerRoutedNamedSkills(control: PluginExecutionControl, refs: readonly SkillRef[]): void {
+  const routed = routedControls.get(control);
+  if (routed && !routed.ended) routed.named_skills = Object.freeze(structuredClone([...refs]));
 }
 
 /**
@@ -73,19 +83,25 @@ export function projectRouteControl(control: Omit<PluginExecutionControl, "proje
  * any other control is not the Host's word and is not read: plugins pass their caller on as the control, and it names a project too.
  */
 function callScope(instanceProject: string | undefined, instanceClient: ActionClient, control: PluginExecutionControl | undefined)
-  : { project_id: string | null; client: ActionClient; caller?: ActionCallContext; original_file?: HostOfferedOriginalFile; originalInput?(action: ActionReference): HostOfferedOriginalInput | undefined } {
+  : { project_id: string | null; client: ActionClient; caller?: ActionCallContext; original_file?: HostOfferedOriginalFile; originalInput?(action: ActionReference): HostOfferedOriginalInput | undefined;
+    namedSkills?(action: ActionReference): readonly SkillRef[] | undefined } {
   const routed = control ? routedControls.get(control) : undefined;
   if (!routed) return { project_id: instanceProject ?? null, client: instanceClient };
   if (routed.ended) throw ended();
   if (instanceProject !== undefined && instanceProject !== control?.project_id) throw new ActionError("actions.forbidden", "调用所在的项目与插件实例不一致");
+  // Both envelopes bind to the first own action the route calls with either one present; every other call gets neither.
+  const bound = (action: ActionReference) => {
+    if (routed.ended) throw ended();
+    routed.original_action ??= Object.freeze({ ...action });
+    return JSON.stringify(routed.original_action) === JSON.stringify(action);
+  };
   return { project_id: control?.project_id ?? null, client: routed.client, caller: routed.caller, original_file: routed.original_file,
     originalInput: action => {
       if (routed.ended) throw ended();
-      if (!routed.original_input) return undefined;
-      routed.original_action ??= Object.freeze({ ...action });
-      if (JSON.stringify(routed.original_action) !== JSON.stringify(action)) return undefined;
-      return Object.freeze({ ...routed.original_input, action: routed.original_action });
-    } };
+      if (!routed.original_input || !bound(action)) return undefined;
+      return Object.freeze({ ...routed.original_input, action: routed.original_action! });
+    },
+    namedSkills: action => routed.named_skills && bound(action) ? routed.named_skills : undefined };
 }
 
 /**
@@ -157,11 +173,15 @@ export function pluginHostActions(context: PluginStartContext, manifest: PluginM
       validate_authority: assertAuthority, assert_authority_current: assertAuthority,
     };
   };
-  // An original file reaches only this installation's own actions, from the route that carried it.
-  const offered = (scope: Pick<ReturnType<typeof callScope>, "original_file" | "originalInput">, action?: ActionReference) => {
+  // An original file reaches only this installation's own actions, from the route that carried it; the original text and the named
+  // Skills only the exact own action they were bound to.
+  const offered = (scope: Pick<ReturnType<typeof callScope>, "original_file" | "originalInput" | "namedSkills">, action?: ActionReference) => {
     const input = action && scope.originalInput?.(action);
+    const refs = action && scope.namedSkills?.(action);
+    const named: ActionNamedSkills | undefined = action?.provider_id !== undefined && refs ? Object.freeze({ install_id: context.install_id,
+      action: Object.freeze({ capability_id: action.capability_id, version: action.version, provider_id: action.provider_id }), from: "page" as const, refs }) : undefined;
     return { ...(scope.original_file?.install_id === context.install_id ? { original_file: scope.original_file } : {}),
-      original_input: input?.install_id === context.install_id ? input : undefined };
+      original_input: input?.install_id === context.install_id ? input : undefined, named_skills: named };
   };
   const ownProvider = options.providerId ?? context.provider_id ?? context.install_id;
   // A command that returned passed every check of the call it was made in: from then on that call may keep a job (PG-038).

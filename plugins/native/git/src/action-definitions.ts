@@ -17,7 +17,7 @@ const readingRepository = <Input, Output>(definition: ActionDefinition<Input, Ou
 const listItem = object({ kind: { enum: ["staged", "changes", "conflicts"] }, path, orig_path: path, label: text, code: text }, ["kind", "path", "label", "code"]);
 const view = object({ phase: { enum: ["waiting", "loading", "ready", "not-a-repository", "unavailable", "error"] }, head: text, upstream: nullable(object({ name: text, ahead: integer, behind: integer })),
   staged: { type: "array", items: listItem }, changes: { type: "array", items: listItem }, conflicts: { type: "array", items: listItem }, message: text,
-  recovery: text, truncated: boolean, committable: boolean, selected: listItem }, ["phase", "head", "upstream", "staged", "changes", "conflicts", "message", "truncated", "committable"]);
+  reason: { const: "directory_not_created" }, recovery: text, truncated: boolean, committable: boolean, selected: listItem }, ["phase", "head", "upstream", "staged", "changes", "conflicts", "message", "truncated", "committable"]);
 const selected = object({ workspace_id: id, path, side: { enum: ["index", "worktree"] }, previous_path: path, revision: id, reference }, ["workspace_id", "path", "side", "revision", "reference"]);
 const diffResult = object({ outcome: { const: "diff" }, path, previous_path: path, side: { enum: ["index", "worktree"] }, before_exists: boolean, after_exists: boolean,
   before: text, after: text, before_mode: nullable(fileMode), after_mode: nullable(fileMode), revision: id }, ["outcome", "path", "side", "before_exists", "after_exists", "before", "after", "before_mode", "after_mode", "revision"]);

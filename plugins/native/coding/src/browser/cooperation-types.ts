@@ -72,6 +72,8 @@ export interface CooperationPorts extends Pick<PagePorts, "lifetime" | "translat
   readonly rounds: () => readonly RoundLine[];
   /** Puts the task in the composer. */
   readonly prefill: (text: string) => void;
+  /** What the composer holds now: the delegate dialog starts from it. */
+  readonly task: () => string;
   /** A taken delivery was attached to the session's materials: the page's selection follows. */
   readonly materialsChanged: () => Promise<void>;
   readonly openArtifact?: (reference: { readonly artifact_id: string }, title: string) => void;

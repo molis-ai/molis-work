@@ -1,5 +1,5 @@
 import { dateArg } from "@molis-ai/molis-work-plugin-sdk/ui";
-import type { AccountView, Invitation, OwnershipTransfer, TenantView } from "@molis-ai/molis-work-contracts/services/account";
+import type { AccountView, Invitation, OwnershipTransfer, TenantView, TenantCreationPolicyView } from "@molis-ai/molis-work-contracts/services/account";
 import type { AccountUi } from "./account-management.js";
 import { createTenantPanel, tenantRoleLabels } from "./account-tenant-panel.js";
 import { renderTenantMembers } from "./account-tenant-members.js";
@@ -16,11 +16,15 @@ export function openAccountTenants(ui: AccountUi, account: Extract<AccountView, 
   async function load() {
     const current = panel.begin('workbench.account.personal-and-tenants'); form.append(node('p', uiText.text("workbench.account-tenants.loading-tenant-status")));
     try {
-      const [tenants, invitations, transfers] = await Promise.all([panel.list<TenantView>('/tenants'), panel.list<Invitation>('/invitations'), panel.list<OwnershipTransfer>('/ownership-transfers')]);
+      const [tenants, invitations, transfers, policy] = await Promise.all([panel.list<TenantView>('/tenants'), panel.list<Invitation>('/invitations'), panel.list<OwnershipTransfer>('/ownership-transfers'), ui.request<TenantCreationPolicyView>('/tenant-creation-policy')]);
       if (!current()) return;
       form.replaceChildren(node('h3', uiText.text("workbench.account-tenants.personal-tenant-spaces")));
       const select = panel.select('workbench.account.current-space', 'accountScope', [['', uiText.text("workbench.account-tenants.personal-space")], ...tenants.map(t => [t.tenantId, t.name + ' · ' + uiText.text(t.status === 'DISABLED' ? "workbench.account-tenants.switched-off" : tenantRoleLabels[t.myRole])] as [string, string])]); select.required = false;
       select.onchange = () => { const tenant = tenants.find(t => t.tenantId === select.value); if (tenant) void perform(() => renderTenantMembers(panel, tenant, account.user.userId)); };
+      if(policy.mode==='SELF_SERVICE')button('workbench.account-tenants.create',()=>{
+        panel.begin('workbench.account-tenants.create');const name=ui.field('workbench.account.tenant-name','name','text','organization');name.maxLength=120;
+        panel.submit('workbench.account-tenants.create',()=>panel.change('/tenants',{name:name.value.trim()},'workbench.account-tenants.created'));button('common.control.back',()=>perform(load));
+      });
       button('workbench.account.personal-subscriptions', () => perform(() => renderSubscriptions(panel)));
       if (account.capabilities.some(c => c.startsWith('SUBSCRIPTION_') || c === 'AUDIT_READ')) button('workbench.account.platform-subscriptions', () => perform(() => renderPlatformSubscriptions(panel, account.capabilities)));
       button('workbench.account.refresh-tenants', () => perform(load)); button('workbench.account.back-account', finish);

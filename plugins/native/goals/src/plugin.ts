@@ -5,6 +5,9 @@ import { ActionError, pinActionSubject, pinnableSubjectKinds, type ActionClient,
 import type { GovernanceApplicationApi } from "./contract/governance-collaboration.js";
 import type { PluginDefinition, PluginExecutionControl } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createGoalsActionHandlers, goalsActions } from "./actions.js";
+import { confirmedGoalDeliverables } from "./deliverable-actions.js";
+import { goalReportTrust, goalsEventActions } from "./event-command-actions.js";
+import { assessGoalReport, type GoalEvidenceArtifact, type GoalEvidenceRunCheck } from "./evidence-check.js";
 import { createGoalsTerminalActionHandlers, goalsTerminalActions } from "./terminal-actions.js";
 import { readMolisWorkSnapshot } from "./snapshot-query.js";
 import { goalsRoutes } from "./http/index.js";
@@ -20,6 +23,7 @@ import { createGoalsApplication } from "./goals-application.js";
 import { PluginSqlite } from "./plugin-sqlite.js";
 import { attentionOver, journalOver, ledgerOver, PersonalMethodsSnapshot } from "./runtime-ports.js";
 
+const CHECK_EVIDENCE = { capability_id: "agent.evidence.check", version: /* @version action.agent.evidence.check */ 1 } as const;
 const READ_ARTIFACT = { capability_id: "artifacts.read", version: /* @version action.artifacts.read */ 1 } as const;
 /** Their own windows: the artifact and the object's owner are asked outside any database window, and the rows written after. */
 const SELF_WINDOWED = new Set<string>(["goals.deliverables.add", "goals.deliverables.remove", "goals.deliverables.list", "goals.deliverables.pin", "goals.deliverables.candidates",
@@ -59,7 +63,7 @@ export function createGoalsPlugin(): PluginDefinition {
       decisions: governanceModule.decisions, eventDecisions: governanceModule.eventDecisions };
     const inputs = new GoalInputBindings(sqlite, ledgerApi);
     const goals: GoalsModule = new GoalsModule(sqlite, journal, { validateRelationGraph: (project, input) => goals.planning.validateRelationAddition(project, input) },
-      { now: clock, personalPlanningMethodPacks: () => personal.read() });
+      { now: clock, personalPlanningMethodPacks: () => personal.read(), deliverables: (project, goalId) => confirmedGoalDeliverables(ledgerApi, project, goalId) });
     const application = createGoalsApplication({ goals: { commands: goals.commands, lifecycle: goals.lifecycle, planning: goals.planning, query: goals.query, events: goals.events },
       governance, attention: attentionPort, clock });
     // The board of a project is made when Goals first starts over its root row (the catch-up below), before anyone has asked for it, so a
@@ -120,6 +124,21 @@ export function createGoalsPlugin(): PluginDefinition {
     const loadPersonal = async (caller: ActionExecutionContext) => (await actions.invoke(personalPlanningActions.list, {}, controlOf(caller))).methods
       .filter(method => method.scope === "personal");
     let ready: Promise<void> = Promise.resolve();
+    // What a call asks of other owners before its window opens (a window is synchronous). A report's cited evidence is looked up here.
+    const before = new Map<string, (caller: ActionExecutionContext, input: unknown) => Promise<void>>([[goalsEventActions.report.capability_id, async (caller, input) => {
+      if (typeof input !== "object" || input === null) return;
+      goalReportTrust.set(input, await assessGoalReport({
+        deliverables: goalId => window.read(() => confirmedGoalDeliverables(ledgerApi, projectId, goalId)),
+        selfSupportingSessions: (goalId, requirementId) => window.read(() => goals.events.selfSupportingSessions(projectId, goalId, requirementId)),
+        readArtifact: async (as, reference) => (await directory.invoke<{ selected: GoalEvidenceArtifact | null }>(READ_ARTIFACT, { reference }, controlOf(as))).selected,
+        checkRun: async (as, run_id, command_call_ids) => {
+          try { return await directory.invoke<GoalEvidenceRunCheck>(CHECK_EVIDENCE, { run_id, command_call_ids }, controlOf(as)); } catch (error) {
+            if (error instanceof ActionError && error.code === "agent.run_unknown") return "none";
+            throw error;
+          }
+        },
+      }, caller, input as Parameters<typeof assessGoalReport>[2]));
+    }]]);
     const windowed = (binding: ActionHandlerBinding): ActionHandlerBinding => {
       if (SELF_WINDOWED.has(binding.capability_id)) return { ...binding, handle: async (caller, input) => { await ready; return binding.handle(caller, input); } };
       const definition = goalsManifest.actions!.find(entry => entry.capability_id === binding.capability_id && entry.version === binding.version);
@@ -129,7 +148,8 @@ export function createGoalsPlugin(): PluginDefinition {
           window.write(caller, () => personal.within(packs, () => binding.handle(caller, input)))
         : async (caller: ActionExecutionContext, input: unknown, packs: Parameters<PersonalMethodsSnapshot["within"]>[0]) =>
           window.read(() => personal.within(packs, () => binding.handle(caller, input)));
-      return { ...binding, handle: async (caller, input) => { await ready; return personal.run(() => loadPersonal(caller), packs => run(caller, input, packs)); } };
+      const prepare = before.get(binding.capability_id);
+      return { ...binding, handle: async (caller, input) => { await ready; await prepare?.(caller, input); return personal.run(() => loadPersonal(caller), packs => run(caller, input, packs)); } };
     };
 
     // What drifted while the project was closed catches up once: the board of a library the platform made with its root row alone,

@@ -1,4 +1,4 @@
-import { renderSkillSettings } from "./settings-skills.js";
+import { renderKitSettings } from "./settings-kit.js";
 import { renderModelSettingsDocument } from "./settings-models.js";
 import { ACCOUNT_REGISTRATION_BODY, NO_FAVICON_LINK } from "./document-shell.js";
 import { renderLanguageHead } from "./language-resource.js";
@@ -90,7 +90,7 @@ function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "",
         ? renderRuntimeSettings(view, primitives)
         : view.section === "assistant"
           ? renderAssistantSettings({ readText, projectId: contextProject?.project_id ?? null })
-        : view.section === "skills" ? renderSkillSettings(null)
+        : view.section === "kit" ? renderKitSettings({ projectId: null })
         : view.section === "prompts" ? renderPromptSettings({ readText, displayModel: view.agent_display_model })
         : view.section === "memory"
           ? renderMemorySettings({ readText, scope: "personal", projectId: null })

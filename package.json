@@ -33,6 +33,9 @@
     "LICENSE"
   ],
   "scripts": {
+    "dev": "node scripts/start-account-environment.mjs dev",
+    "start:test": "node scripts/start-account-environment.mjs test",
+    "start:prod": "node scripts/start-account-environment.mjs prod",
     "versions:generate": "node scripts/generate-versions.mjs --write",
     "versions:check": "node scripts/generate-versions.mjs --check",
     "web:personal": "node --env-file=.env.personal.local --import tsx apps/desktop/launchers/web/server.ts",
@@ -138,6 +141,7 @@
     "@molis-ai/molis-work-service-agent-host": "workspace:*",
     "@molis-ai/molis-work-service-appearance": "workspace:*",
     "@molis-ai/molis-work-service-connector-host": "workspace:*",
+    "@molis-ai/molis-work-service-kit": "workspace:*",
     "@molis-ai/molis-work-service-knowledge": "workspace:*",
     "@molis-ai/molis-work-service-memory": "workspace:*",
     "@molis-ai/molis-work-service-placement": "workspace:*",

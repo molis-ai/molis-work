@@ -1,5 +1,6 @@
 import type { LocalizedAgentBody } from "../platform/model-prompts.js";
 import type { ContractDescriptor } from "../platform/package.js";
+import { defineErrorCodes } from "../platform/actions.js";
 import type { AgentPromptLayer, AgentRoleExecution } from "../platform/plugin-agent.js";
 
 /**
@@ -19,10 +20,14 @@ export const servicesAgentDefinitionsContract = {
 /** Longest prompt the person may save. Long enough for any shipped prompt; short enough to stay a prompt. */
 export const AGENT_PROMPT_MAX_CHARS = 20_000;
 
-/** The exact signed default. A user edit is identified separately, never attributed to this signature. */
+/**
+ * The exact signed default of a role. A user edit is identified separately, never attributed to this signature. A method is a Skill and
+ * is named by `SkillRef` only (specs/capability-pack/contract-design.md §2.2); `kind` stays so stored `prompt_uses.source_ref` rows read
+ * as they were written.
+ */
 export interface SignedAgentReference {
   source: { kind: "plugin"; plugin_id: string; plugin_version: string; publisher_signature: string };
-  kind: "role" | "method";
+  kind: "role";
   entry_id: string;
 }
 
@@ -79,6 +84,8 @@ export interface AgentPromptRegistration extends LocalizedAgentBody {
   purpose: string;
   /** Which roles or features use it, as the person reads them. */
   used_by: string[];
+  /** An instruction's role (`InstructionPrompt.role_id`): one its owner declares, checked when the owner registers. Absent: the personal assistant's. */
+  role_id?: string;
   body: string;
 }
 
@@ -118,10 +125,12 @@ export interface AgentSkillRegistration extends LocalizedAgentBody {
   body: string;
 }
 
-/** A registered method as a round finds it: its owner, identity and when it applies (the body is read by id). */
+/**
+ * A registered method as its owner declared it. Who may read it, and its exact reference (`SkillRef`), are the shared catalog's
+ * (`skills.catalog.list@1`): this view names no second reference. A signed role is listed once, with the roles.
+ */
 export interface AgentSkillView {
-  kind?: "role" | "method";
-  default_ref?: SignedAgentReference;
+  /** The installation that registered it, for a signed package's. */
   install_id?: string;
   /** `<owner_id>/<skill_id>`. */
   key: string;
@@ -195,10 +204,7 @@ export interface AgentPromptUse {
   at: string;
 }
 
-/** A model call the Host knows reaches a model without a registered prompt, and why (a transitional exception). */
-export interface AgentUnregisteredCall { owner_id: string; title: string; reason: string }
-
-/** Developer diagnostics: what each owner registered, and what of it is not in effect or not registered, with why. */
+/** Developer diagnostics: what each owner registered, and what of it is not in effect, with why. */
 export interface AgentDefinitionsDiagnostics {
   owners: Array<{
     owner_id: string;
@@ -210,5 +216,26 @@ export interface AgentDefinitionsDiagnostics {
     edited: number;
     issues: Array<{ level: "warning" | "info"; text: string }>;
   }>;
-  unregistered: AgentUnregisteredCall[];
 }
+
+/** Most rows one prompt overrides file carries; a longer file is refused whole at preview (specs/capability-pack/contract-design.md §4.9). */
+export const PROMPT_OVERRIDES_FILE_MAX_ROWS = 200;
+
+/** The person's own edits of prompts, never a package and never installed. Also the `prompt_overrides` part of a kit pack file. */
+export interface PromptOverridesFile {
+  format: "molis.prompt-overrides";
+  format_version: /* @version format.agent-definitions.prompt-overrides */ 1;
+  exported_at: string;
+  /** At most `PROMPT_OVERRIDES_FILE_MAX_ROWS`; each `body` at most `AGENT_PROMPT_MAX_CHARS`. `title` is a reminder only. */
+  overrides: Array<{ owner_id: string; prompt_id: string; title: string; base_version: number; body: string }>;
+}
+
+/** The register's refusals its callers outside the Host see (specs/capability-pack/contract-design.md §4.2, §4.9, §4.11). */
+export const agentDefinitionErrors = defineErrorCodes("agent_definitions", {
+  /** A prompt overrides preview is unknown, already used, or another person's or another project's. */
+  overrides_preview_unknown: "not_found",
+  /** A confirmation names a preview row that is not `applicable`: the file's base is not the current default, or the prompt is gone. */
+  overrides_row_not_applicable: "conflict",
+  /** An instruction prompt's `role_id` is not a role its owner declares: the owner's registration is refused (`details`: owner, prompt, role). */
+  instruction_role_unknown: "invalid",
+});

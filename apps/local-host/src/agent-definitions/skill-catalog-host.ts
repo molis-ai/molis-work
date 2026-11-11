@@ -1,75 +1,36 @@
 import { agentBodyIn } from "@molis-ai/molis-work-contracts/platform/model-prompts";
-import { pluginTextReader, projectDirectoryWords } from "@molis-ai/molis-work-ui-host";
-import { pluginManifestDigest, type PluginHostLifecycle } from "@molis-ai/molis-work-plugin-runtime";
+import { projectDirectoryWords } from "@molis-ai/molis-work-ui-host";
+import { pluginManifestDigest } from "@molis-ai/molis-work-plugin-runtime";
 import { matchLocale } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { directoryWordResolver } from "../ui-text-provider.js";
 import { activeLocale, DEFAULT_WEB_LOCALE } from "../web-locale.js";
 import { skillDisplayWords } from "./skill-display-words.js";
 import { nativeSkill } from "../skill-portability.js";
 import { localPublisherKeyId } from "../plugin-builder/publisher-identity.js";
-import { isDeepStrictEqual } from "node:util";
-import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginPublisherPin } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import { skillErrors, type SkillAvailability } from "@molis-ai/molis-work-contracts/services/skills";
 import { HomeConsentLedger } from "../home-plugin-store.js";
-import { installedHomePlugins, installedPluginsInProject, type ProjectPluginHost } from "../project-plugin-ports.js";
-import { runningProjectPlatform } from "../project-plugins.js";
-import { pluginInstallRecords } from "../plugin-install-records.js";
 import { SandboxPackageStore } from "../sandbox-package-store.js";
 import { homeAgentDefinitions } from "./builtin-registrations.js";
 import { skillCatalogProvider } from "./skill-catalog-actions.js";
-import type { InstalledPluginEntry } from "../plugin-installed-view.js";
+import { scopeInstallations } from "../scope-installations.js";
+import type { ProjectPluginHost } from "../project-plugin-ports.js";
+import { isDeepStrictEqual } from "node:util";
 import type { CatalogSkill } from "./skill-catalog.js";
-
-/** Installation identity, including its current state, is rechecked after any asynchronous permission check. */
-function currentInstallation(record: PluginInstanceRecord, current: () => PluginInstanceRecord | null): () => void {
-  const identity = (value: PluginInstanceRecord) => [value.install_id, value.installation_generation, value.plugin_id, value.version,
-    value.publisher_signature, value.manifest_digest, value.state];
-  const expected = identity(record);
-  return () => {
-    const now = current();
-    if (!now || !isDeepStrictEqual(identity(now), expected)) throw skillErrors.read_refused("技能所在的安装已变化，请重新选择", { reason: "not_current" });
-  };
-}
-
-function runningSkillWords(record: PluginInstanceRecord, lifecycle: PluginHostLifecycle | undefined) {
-  const source = lifecycle?.activeInstance?.(record.plugin_id)?.source?.();
-  if (!source || source.activation.install_id !== record.install_id
-    || source.activation.installation_generation !== record.installation_generation
-    || source.manifest.version !== record.version || source.manifest.publisher.signature !== record.publisher_signature
-    || pluginManifestDigest(source.manifest) !== record.manifest_digest) return null;
-  return pluginTextReader(source.activation);
-}
 
 /** The catalog reads existing owners once per call: installations, verified packages, declarations, and scoped settings. */
 export function skillCatalogProviderFor(home: string, source: ProjectPluginHost) {
   const definitions = homeAgentDefinitions(home), packages = new SandboxPackageStore(home), ledger = new HomeConsentLedger(home);
   const publishers = () => new Map(ledger.publishers().map(pin => [pin.key_id, pin]));
   const withSkills = async <Result>(caller: ActionCallContext, use: (skills: readonly CatalogSkill[]) => Result): Promise<Result> => {
-    const reference = caller.project_id ? source.host.projects().find(project => project.project_id === caller.project_id) : undefined;
-    if (caller.project_id && !reference) throw new ActionError("actions.scope_mismatch", "技能目录需要当前项目");
-    const homeHost = source.homePlugins();
-    const homeRows = await installedHomePlugins(homeHost);
-    const homeSupervisor = (await homeHost?.ready())?.supervisor;
-    const projectRows = reference ? await installedPluginsInProject(source, reference.project_id) : [];
-    const projectScope = reference ? await source.host.withRuntime(reference, async runtime => {
-      const records = pluginInstallRecords(runtime.store.db);
-      const platform = await runningProjectPlatform(runtime.store, runtime.project_id);
-      return { supervisor: platform?.supervisor,
-        checks: new Map(projectRows.map(({ record }) => [record.install_id, currentInstallation(record, () => records.get(record.install_id))])) };
-    }) : null;
+    const { reference, installations } = await scopeInstallations(source, caller);
     const directory = await source.host.inspectActions(caller, reference);
     const localKey = localPublisherKeyId(home);
     // A publisher can be revoked during inspection while its installation still runs. Take one snapshot and use it synchronously.
     const pins = publishers();
-    // A project installation shadows the same identity's Home installation; two publishers remain distinct.
-    const installations = new Map<string, InstalledPluginEntry & { scope: "home" | "project" }>([
-      ...homeRows.map(row => [row.record.install_id, { ...row, scope: "home" as const }] as const),
-      ...projectRows.map(row => [row.record.install_id, { ...row, scope: "project" as const }] as const),
-    ]);
     const result: CatalogSkill[] = [];
-    for (const { record, manifest, scope, recoveryError } of installations.values()) {
+    for (const { record, manifest, scope, recoveryError, readLocalePacks, assertCurrent: assertInstallation } of installations) {
       if (!manifest?.methods?.length) continue;
       const pin = pins.get(record.publisher_signature);
       let availability: SkillAvailability = { available: true };
@@ -81,7 +42,7 @@ export function skillCatalogProviderFor(home: string, source: ProjectPluginHost)
       if (availability.available && missing) availability = { available: false, reason: "requires_unmet", detail: missing.reason };
       const registered = definitions.installation(record.plugin_id, record.install_id);
       let bodies = registered?.methods ?? [];
-      let reader = record.publisher_trust === "host" ? runningSkillWords(record, scope === "home" ? homeSupervisor : projectScope?.supervisor) : null;
+      let reader = record.publisher_trust === "host" ? readLocalePacks() : null;
       if (record.publisher_trust === "pinned") {
         try {
           const kept = packages.load(record.plugin_id, record.publisher_signature, record.version).packaged;
@@ -90,7 +51,6 @@ export function skillCatalogProviderFor(home: string, source: ProjectPluginHost)
             name: body.name, summary: body.purpose, tools: [], body: body.body }));
         } catch { availability = { available: false, reason: "resource_invalid" }; bodies = []; }
       }
-      const assertInstallation = scope === "home" ? currentInstallation(record, () => source.homePlugins()?.installation(record.install_id) ?? null) : projectScope!.checks.get(record.install_id)!;
       const locale = matchLocale(caller.locale ?? activeLocale(), manifest.ui.locales?.available ?? [], reader?.default ?? DEFAULT_WEB_LOCALE);
       const title = projectDirectoryWords({ ...manifest, ui: {} }, reader ? directoryWordResolver(reader, locale) : undefined).name;
       for (const declaration of manifest.methods) {

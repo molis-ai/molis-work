@@ -54,7 +54,8 @@ export type WorkspaceGitResult =
   | { outcome: "diff"; path: readonly string[]; previous_path?: readonly string[]; side: "index" | "worktree";
       before_exists: boolean; after_exists: boolean; before: string; after: string;
       before_mode: GitFileMode | null; after_mode: GitFileMode | null; revision: string }
-  | { outcome: "denied" | "not-a-repository" | "unavailable" | "changed" | "unsupported" | "binary" | "too-large" | "conflict" | "missing" | "error"; message: string };
+  | { outcome: "not-a-repository"; message: string; reason?: "directory_not_created" }
+  | { outcome: "denied" | "unavailable" | "changed" | "unsupported" | "binary" | "too-large" | "conflict" | "missing" | "error"; message: string };
 export interface WorkspaceGitSummary {
   outcome: "summary";
   /** Null on a detached HEAD. */

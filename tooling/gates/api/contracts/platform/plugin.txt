@@ -408,6 +408,8 @@ export interface ActionCallContext extends ActionCallOrigin {
         readonly provenance: "host_snapshot" | "client_reported";
     };
     readonly locale?: ActionLocale;
+    readonly named_skills?: import("platform/action-named-skills").ActionNamedSkills;
+    readonly skill_round?: import("platform/action-named-skills").ActionSkillRound;
     readonly audit_actor_id?: string;
     readonly delegated_by?: string;
     readonly delegated_audience?: ActionAudience;
@@ -575,6 +577,13 @@ export interface ActionMetadata {
         readonly version: number;
         readonly input: Readonly<Record<string, string | readonly [string]>>;
     };
+}
+
+export interface ActionNamedSkills {
+    readonly install_id: string;
+    readonly action: ExactActionReference;
+    readonly from: "page" | "host";
+    readonly refs: readonly SkillRef[];
 }
 
 export type ActionProgressEvent = Parameters<NonNullable<ActionCallContext["on_progress"]>>[0];
@@ -767,6 +776,12 @@ export interface ActionSceneView {
 
 export type ActionSchema = Readonly<Record<string, unknown>>;
 
+export interface ActionSkillRound {
+    readonly consumer: "assistant" | "coding" | "agent";
+    readonly named: readonly SkillRef[];
+    readonly engine?: "builtin" | "local";
+}
+
 export interface ActionSubject {
     kind: string;
     id: string;
@@ -865,16 +880,10 @@ export interface AgentRoleDeclaration {
     workspace?: "required" | "none" | "business";
     prompts?: string[];
     host_tools?: string[];
-    skills?: AgentRoleSkillsDeclaration;
     subagent_workspaces?: "required";
 }
 
 export type AgentRoleExecution = "read-only" | "text-edit" | "workspace-write" | "operate";
-
-export interface AgentRoleSkillsDeclaration {
-    allowed: string[];
-    default?: string[];
-}
 
 export interface AgentSkillDeclaration {
     skill_id: string;
@@ -5405,6 +5414,7 @@ export interface WorkExecutorRunControlResult {
 export interface WorkExecutorRunStart {
     session_id: string;
     task: string;
+    skills?: SkillRef[];
 }
 
 export interface WorkExecutorRunStarted {
@@ -5829,6 +5839,7 @@ export declare const pluginErrors: import("platform/action-errors").ErrorCodeRai
     readonly event_type_missing: "invalid";
     readonly event_type_undeclared: "invalid";
     readonly executor_failed: "invalid";
+    readonly export_unavailable: "not_found";
     readonly grant_denied: "invalid";
     readonly home_scope_unavailable: "invalid";
     readonly id_namespace_conflict: "invalid";

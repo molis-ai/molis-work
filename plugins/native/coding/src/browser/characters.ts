@@ -126,7 +126,6 @@ export function characterChoice(ports: CharacterPorts) {
         error.textContent = errorMessage(failure);
     }
   };
-  lifetime.listen(q('[data-coding-character-open]'), 'click', () => void open());
   lifetime.listen(closeButton, 'click', close);
   lifetime.listen(dialog, 'cancel', event => { event.preventDefault(); close(); });
   lifetime.listen(q('[data-coding-character-form]'), 'submit', async (event) => {
@@ -165,4 +164,6 @@ export function characterChoice(ports: CharacterPorts) {
       enabled.forEach(radio => radio.disabled = false);
     }
   });
+  /** Opens the choice for the session on show (the composer's ＋ and `/character`). */
+  return { open: () => void open() };
 }

@@ -1,3 +1,4 @@
+import {completeInstallationLogin} from './fixtures/installation-login.js';
 import { projectPluginRevision } from "@molis-ai/molis-work-test-kit/local-host-http";
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -8,7 +9,7 @@ import {join} from 'node:path';
 import {createDesktopWebHost} from '@molis-ai/molis-work-app-desktop';
 import {NATIVE_SESSION_FILE,NATIVE_SESSION_HEADER} from '@molis-ai/molis-work-app-local-host';
 import {resetSecretStoreCache} from '@molis-ai/molis-work-storage';
-import {createTrialAuthServer} from '../examples/personal-trial-tools/mock-auth.mjs';
+import {createTrialAuthServer,trialAccountConfig} from '../examples/personal-trial-tools/mock-auth.mjs';
 
 async function listen(server:Server,port=0){await new Promise<void>(resolve=>server.listen(port,'127.0.0.1',resolve));const a=server.address();assert.ok(a&&typeof a==='object');return 'http://127.0.0.1:'+a.port;}
 const close=(server:Server)=>new Promise<void>(resolve=>server.close(()=>resolve()));
@@ -18,18 +19,18 @@ test('PTR-02 local trial login creates a personal project, saves full text and a
  const root=mkdtempSync(join(tmpdir(),'personal-trial-flow-')),home=join(root,'home');
  const reserve=createServer(),origin=await listen(reserve),port=Number(new URL(origin).port);await close(reserve);
  let auth=createTrialAuthServer({webOrigin:origin,stateFile:join(root,'mock-auth.json')}),authOrigin=await listen(auth);
- const names=['MOLIS_WORK_AUTH_ORIGIN','MOLIS_WORK_AUTH_CLIENT_ID','MOLIS_WORK_AUTH_DESKTOP_CLIENT_ID','MOLIS_WORK_SYNC_ORIGIN','MOLIS_WORK_SYNC_LOCAL','MOLIS_WORK_CLOUD_ORIGIN','MOLIS_WORK_SECRET_BACKEND'];
+ const names=['MOLIS_WORK_ACCOUNT_CONFIG','MOLIS_WORK_SYNC_ORIGIN','MOLIS_WORK_SYNC_LOCAL','MOLIS_WORK_CLOUD_ORIGIN','MOLIS_WORK_SECRET_BACKEND'];
  const previous=names.map(name=>process.env[name]);names.forEach(name=>delete process.env[name]);
- Object.assign(process.env,{MOLIS_WORK_AUTH_ORIGIN:authOrigin,MOLIS_WORK_AUTH_CLIENT_ID:'molis-work-personal-trial',MOLIS_WORK_AUTH_DESKTOP_CLIENT_ID:'molis-work-personal-trial-desktop',MOLIS_WORK_SECRET_BACKEND:'file'});
+ Object.assign(process.env,{MOLIS_WORK_ACCOUNT_CONFIG:JSON.stringify(trialAccountConfig(authOrigin,origin)),MOLIS_WORK_SECRET_BACKEND:'file'});
  const factory=createDesktopWebHost({ptyClientFilePath:()=>'/unused-for-http-test'}),rootToken='synthetic-personal-trial-control-0123456789';
  let server=factory({homeDirectory:home,controlToken:rootToken}),token=rootToken,sequence=0;await listen(server,port);
  const proof=readFileSync(join(home,NATIVE_SESSION_FILE),'utf8');
- const request=(path:string,body?:unknown)=>fetch(origin+path,{method:body===undefined?'GET':'POST',headers:{Connection:'close',Origin:origin,[NATIVE_SESSION_HEADER]:proof,'content-type':'application/json','x-molis-work-control-token':token,'x-molis-work-idempotency-key':'trial-flow-'+(++sequence)},...(body===undefined?{}:{body:JSON.stringify(body)}),redirect:'manual'});
+ const request=(path:string,body?:unknown,extra:Record<string,string>={})=>fetch(origin+path,{method:body===undefined?'GET':'POST',headers:{Connection:'close',Origin:origin,[NATIVE_SESSION_HEADER]:proof,'content-type':'application/json','x-molis-work-control-token':token,'x-molis-work-idempotency-key':'trial-flow-'+(++sequence),...extra},...(body===undefined?{}:{body:JSON.stringify(body)}),redirect:'manual'});
  const json=async(path:string,body?:unknown)=>{const r=await request(path,body),value=await r.json();assert.ok(r.status<400,JSON.stringify({path,status:r.status,value}));return value;};
  try{
-  const login=await json('/api/personal/login',{}),redirect=await fetch(login.loginUrl,{redirect:'manual'});assert.equal(redirect.status,303);
-  const callback=await fetch(redirect.headers.get('location')!,{redirect:'manual'});assert.equal(callback.status,303);
-  const signed=await json('/api/personal/status?attempt='+login.loginAttempt);assert.equal(signed.identity.displayName,'个人试用用户（本机模拟）');
+  const login=await json('/api/personal/login',{});
+  const callback=await completeInstallationLogin((path,init)=>request(path,JSON.parse(String(init?.body)),Object.fromEntries(new Headers(init?.headers))),login.loginUrl);assert.equal(callback.status,200);
+  const signed=await json('/api/personal/status?attempt='+login.loginAttempt);assert.equal(signed.identity.userId,'local-personal-trial-user');
   const attach=(ticket:string,cookie='')=>fetch(origin+'/api/personal/native-attach?ticket='+encodeURIComponent(ticket),{method:'POST',headers:{Connection:'close',Cookie:cookie,Origin:origin,'content-type':'application/json','x-molis-work-control-token':rootToken,'x-molis-work-idempotency-key':'trial-attach-'+(++sequence)},body:'{}'});
   const firstAttachment=await attach(signed.browserSessionTicket);assert.equal(firstAttachment.status,200);
   const staleCookie=firstAttachment.headers.get('set-cookie')!.split(';')[0];await firstAttachment.json();

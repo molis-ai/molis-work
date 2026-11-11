@@ -14,9 +14,7 @@ export interface InstructionPrompt extends LocalizedAgentBody {
     readonly title: string;
     readonly purpose: string;
     readonly used_by: readonly string[];
-}
-
-export interface LocalizedAgentBody {
+    readonly role_id?: string;
     readonly body: string;
     readonly body_by_locale?: Readonly<Record<string, string>>;
 }

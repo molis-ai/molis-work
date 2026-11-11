@@ -1,7 +1,7 @@
 import type { AgentDefinitionRegistration, AgentDefinitionSource, AgentPromptView, AgentRoleView } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import type { PluginTextReader } from "@molis-ai/molis-work-ui-host";
-import { createTextReader, localeMessageArguments, textArgs, textKeyPrefix } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { workbenchPlatformText, type AgentDisplayModel as DisplayModel } from "../ui-text-provider.js";
+import { localeMessageArguments, textArgs, textKeyPrefix } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { workbenchDisplayReader, workbenchPlatformText, type AgentDisplayModel as DisplayModel } from "../ui-text-provider.js";
 
 interface DisplaySource { reader: PluginTextReader; namespace: string; source: AgentDefinitionSource }
 
@@ -50,9 +50,7 @@ function words(source: DisplaySource, kind: "role" | "prompt", id: string, origi
 }
 
 function roleComposition(locale = workbenchPlatformText.default) {
-  const { owner, default: fallback } = workbenchPlatformText;
-  const packs = [...new Set([locale, fallback])].flatMap(tag => workbenchPlatformText.pack(tag) ?? []);
-  const reader = createTextReader({ locale, packs });
+  const { owner } = workbenchPlatformText, reader = workbenchDisplayReader(locale);
   const separator = reader.text({ owner, key: "common.list.separator" });
   return (roles: readonly string[]) => reader.text({ owner,
     key: roles.length === 1 ? "workbench.settings-prompts.composes-role" : "workbench.settings-prompts.composes-roles",

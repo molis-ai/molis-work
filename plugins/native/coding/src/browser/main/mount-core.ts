@@ -4,6 +4,7 @@ import { codingTranscript } from "../transcript.js";
 import type { CodingHost } from "./host.js";
 import type { Page, Refs, State } from "./page.js";
 import { readCurrent } from "./read.js";
+import { retitleCodingComposer } from "./composer-mount.js";
 import { api, status } from "./request.js";
 import { mountResultsIndex } from "./results-index.js";
 
@@ -33,13 +34,13 @@ function emptyState(readText: Page["readText"]): Omit<State, "ports" | "follow" 
     actionSelections: new Map(), adoptedConfigurations: new Map(), allRuns: [], answeredQuestions: new Set(), artifactRows: [], artifactTicket: 0,
     boardAll: { key: "", id: "", value: null }, changeItem: "", characterSelections: new Map(), characterSkills: new Map(), characterTitles: new Map(),
     checkpointBusy: false, checkpointKey: "", checkpointLoading: false,
-    choosers: ["workspace", "goal", "writer-directories", "material", "method", "mcp", "actions", "character", "delegate"],
+    choiceDialogs: ["workspace", "goal", "writer-directories", "method", "mcp", "actions", "character", "delegate"], composerDrawn: "", composerSending: false,
     configurations: new Map(), creating: false, creatingCharacterSession: false, current: "", dialogueOffset: 0,
     directoryClaimed: false, directoryGroups: new Map(), directoryRows: new Map(), earlierFingerprint: "", earlierRuns: [],
     generation: 0, goalChoice: null, goalCursor: null, goalReading: 0, goalRows: [], goalSaving: false, goalTicket: 0,
-    indexSignature: "", indexTimer: 0, indexed: [], itemTicket: 0, lastData: null, lastRun: null, liveRun: "", liveTicket: 0, loading: false,
+    indexSignature: "", indexTimer: 0, intent: "discuss", intents: [], indexed: [], itemTicket: 0, lastData: null, lastRun: null, liveRun: "", liveTicket: 0, loading: false,
     materialSelections: new Map(), materialTicket: 0, mcpChoices: [], mcpSelections: new Map(), mcpSourceChoices: [], mcpSourceSelections: new Map(),
-    methodChoices: [], methodDocumentTicket: 0, methodSelections: new Map(), offeredApprovals: new Set(), offsets: new Map(),
+    methodChoices: [], methodSelections: new Map(), offeredApprovals: new Set(), offsets: new Map(),
     olderPlanEntries: [], olderSubagents: [], olderViews: new Map(), pageLoading: false, paintFrame: 0, phases: phaseWords(readText), planEntries: [], pollingTicks: 0,
     progressSaving: false, progressTicket: 0, progressView: null, questionDrafts: new Map(), queuedInputs: undefined, queuedKey: "",
     recovery: false, recoveryBusy: false, recoveryKey: "", recoveryLoading: false, renderedText: new WeakMap(),
@@ -70,7 +71,7 @@ export function createPage(host: CodingHost): Page | null {
     return found;
   };
   const s = emptyState(readText) as State, refs = {} as Refs;
-  const page: Page = { host, readText, root, directory, lifetime, q, turns: q("[data-coding-turns]"), input: q<HTMLTextAreaElement>("[data-coding-task]"), s, refs };
+  const page: Page = { host, readText, root, directory, lifetime, q, turns: q("[data-coding-turns]"), input: q<HTMLTextAreaElement>("[data-coding-input] .mw-composer__input"), s, refs };
   s.ports = { lifetime, translate: readText, q, api: (path, method, body, signal) => api(page, path, method, body, signal), current: () => s.current, status: (message, isError) => status(page, message, isError), refresh: () => readCurrent(page) };
   return page;
 }
@@ -80,6 +81,7 @@ export function mountFoundations(page: Page) {
   const { readText, lifetime, s, turns } = page;
   s.viewSignal = undefined;
   mountResultsIndex(page);
+  lifetime.listen(document, "molis-work:language-changed", () => retitleCodingComposer(page));
   const { timeline, turnChanges } = codingTranscript({ readText, lifetime, turns });
   page.refs.timeline = timeline;
   page.refs.turnChanges = turnChanges;

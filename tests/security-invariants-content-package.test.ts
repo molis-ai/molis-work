@@ -240,9 +240,9 @@ test("SKC-02 SKP-01 S-content-package in a real Host a content package installs 
     const record = await h.host.withProject(h.reference, runtime => new SqlitePluginRuntimeRepository(runtime.store.db).list().find(item => item.plugin_id === CONTENT_PLUGIN_ID));
     assert.deepEqual([record?.selected_entrypoint, record?.execution, record?.publisher_trust, record?.grants], ["", "sandbox", "pinned", []]);
     assert.deepEqual(await actions(), before, "no action, so no MCP tool either");
-    assert.deepEqual(skills().map(item => [item.kind, item.name]), [["method", "meeting-notes"]]);
+    assert.deepEqual(skills().map(item => item.name), ["meeting-notes"]);
     const skill = skills()[0]!;
-    assert.equal(homeAgentDefinitions(h.home).signedMaterial(skill.install_id!, skill.default_ref!).body, MEETING_NOTES.body, "registered from the verified package");
+    assert.equal(homeAgentDefinitions(h.home).installation(CONTENT_PLUGIN_ID, skill.install_id!)?.methods?.find(item => item.skill_id === skill.skill_id)?.body, MEETING_NOTES.body, "registered from the verified package");
 
     await h.control("disable", { plugin_id: CONTENT_PLUGIN_ID });
     assert.deepEqual(skills(), [], "a disabled plugin's Skills are not offered");

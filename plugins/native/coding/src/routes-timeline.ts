@@ -7,7 +7,7 @@ import { nextHistoryMode } from "./history-digest.js";
 import { savedMaterials } from "./materials.js";
 import { type CodingActivation, selected, sessionState, savedBudget, savedDigestUsage, priorityOf } from "./route-activation.js";
 import { codingActions, codingActionControl, type CodingBeforeWrite } from "./route-entry.js";
-import { bodyOf, savedActions, methodSelection, mcpSelection, mcpSources } from "./route-selections.js";
+import { bodyOf, savedActions, savedSkills, mcpSelection, mcpSources } from "./route-selections.js";
 import { nextConfiguration, text } from "./run-inputs.js";
 import { codingRunForDisplay, codingSessionUsage, SESSION_PAGE, summariesFingerprint } from "./session-window.js";
 import { codingTaskBoardPlans, stepVerdictKey } from "./taskboard.js";
@@ -131,11 +131,10 @@ const ROUTES: RouteMaker[] = [
       const savedSources = context.services?.storage?.get(`mcp-sources:${record.session_id}`);
       const mcp_sources = typeof savedSources === "string" ? mcpSources(JSON.parse(savedSources)) : [];
       const materials = savedMaterials(context, record.session_id);
-      const savedMethods = context.services?.storage?.get(`methods:${record.session_id}`);
-      const methods = typeof savedMethods === "string" ? methodSelection(JSON.parse(savedMethods)) : [];
+      const skills = savedSkills(context, record.session_id);
       const question_drafts=savedInputs.question_drafts;
       const wait = await a.waits.openWaitOf(record).catch(() => undefined), queuedView = wait ? a.waits.waitView(wait) : null, priority = priorityOf(a, record.session_id);
-      if (!record.runtime_session_id) return { saved_history:codingSavedHistoryPage(execution,projectId,record.session_id,undefined,Number(request.query?.window??20)), session: { ...record, queued: queuedView, priority, goal_title: record.goal_id ? execution.goalTitles.known(record.goal_id) ?? null : null }, runs: [], draft, question_drafts,input_revision, materials, methods, configuration, action_tools, mcp_tools, mcp_sources, character, character_title, character_skill_ids: savedCharacterSkills(context, record.session_id), plan,plan_revision };
+      if (!record.runtime_session_id) return { saved_history:codingSavedHistoryPage(execution,projectId,record.session_id,undefined,Number(request.query?.window??20)), session: { ...record, queued: queuedView, priority, goal_title: record.goal_id ? execution.goalTitles.known(record.goal_id) ?? null : null }, runs: [], draft, question_drafts,input_revision, materials, skills, configuration, action_tools, mcp_tools, mcp_sources, character, character_title, character_skill_ids: savedCharacterSkills(context, record.session_id), plan,plan_revision };
       const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
       try {
         const snapshot = await codingActions(a.context, beforeWrite).invoke(agent.readSession, [session]);
@@ -144,7 +143,7 @@ const ROUTES: RouteMaker[] = [
         const size = request.query?.window === undefined ? undefined : Number(request.query.window);
         if (size !== undefined && (!Number.isSafeInteger(size) || size < 1 || size > 50)) throw codingFailure("coding.server.page-size");
         const offset = size === undefined ? 0 : Math.max(0, snapshot.runs.length - size);
-        const runs = await runsWithCards(context, record, await Promise.all(snapshot.runs.slice(offset).map((run) => codingActions(a.context, beforeWrite).invoke(agent.readRun, [session, run]))), beforeWrite);
+        const runs = await a.writeChecks.attach(session.session_id, await runsWithCards(context, record, await Promise.all(snapshot.runs.slice(offset).map((run) => codingActions(a.context, beforeWrite).invoke(agent.readRun, [session, run]))), beforeWrite), ref => codingActions(a.context, beforeWrite).invoke(agent.readCommandOutput, [session, ref]));
         // A round the page already holds unchanged travels as its fingerprint alone.
         const known = new Set(String(request.query?.known ?? "").split(",").filter(Boolean));
         const shown = size === undefined ? runs : runs.map(run => { const display = codingRunForDisplay(run); return known.has(display.fingerprint) ? { ref: display.ref, fingerprint: display.fingerprint, unchanged: true } : display; });
@@ -154,7 +153,7 @@ const ROUTES: RouteMaker[] = [
         const state = snapshot.recovery ? "reconcile-required" : last ? sessionState(last) : "idle";
         const updated = { ...record, state };
         const compactRequested = context.services?.storage?.get(`compact-next:${record.session_id}`) === "1";
-        return { saved_history:codingSavedHistoryPage(execution,projectId,record.session_id,undefined,Number(request.query?.window??20)), session: { ...updated, queued: queuedView, queued_inputs: snapshot.queued_inputs, priority, checkpoint_busy: snapshot.checkpoint_busy === true, goal_title: updated.goal_id ? execution.goalTitles.known(updated.goal_id) ?? null : null }, runs: shown, subagents: await subagentGroups(a, beforeWrite, record.session_id, session, runs, execution.locale), taskboard_plans: codingTaskBoardPlans(context, record.session_id, runs), draft, question_drafts,input_revision, materials, methods, configuration, action_tools, mcp_tools, mcp_sources, character, character_title, character_skill_ids: savedCharacterSkills(context, record.session_id), plan,plan_revision, checkpoint_busy: snapshot.checkpoint_busy === true,
+        return { saved_history:codingSavedHistoryPage(execution,projectId,record.session_id,undefined,Number(request.query?.window??20)), session: { ...updated, queued: queuedView, queued_inputs: snapshot.queued_inputs, priority, checkpoint_busy: snapshot.checkpoint_busy === true, goal_title: updated.goal_id ? execution.goalTitles.known(updated.goal_id) ?? null : null }, runs: shown, subagents: await subagentGroups(a, beforeWrite, record.session_id, session, runs, execution.locale), taskboard_plans: codingTaskBoardPlans(context, record.session_id, runs), draft, question_drafts,input_revision, materials, skills, configuration, action_tools, mcp_tools, mcp_sources, character, character_title, character_skill_ids: savedCharacterSkills(context, record.session_id), plan,plan_revision, checkpoint_busy: snapshot.checkpoint_busy === true,
           run_count: snapshot.runs.length, runs_offset: offset,
           ...(size === undefined ? {} : { earlier_fingerprint: earlierFingerprint, ...(request.query?.earlier === earlierFingerprint ? {} : { earlier }) }),
           usage_total: codingSessionUsage([...earlier.map(summary => summary.usage), ...runs.map(run => run.usage)], savedDigestUsage(a, record.session_id)),
@@ -164,7 +163,7 @@ const ROUTES: RouteMaker[] = [
         // Never replace a lost runtime reference with a new session: that would
         // silently lose history and could repeat effects after a restart.
         const session = { ...record, state: "reconcile-required" as const };
-        return { session, runs: [], draft, question_drafts,input_revision, materials, methods, configuration, action_tools, mcp_tools,mcp_sources, character, character_title, character_skill_ids: savedCharacterSkills(context, record.session_id), plan,plan_revision, recovery_required: true,
+        return { session, runs: [], draft, question_drafts,input_revision, materials, skills, configuration, action_tools, mcp_tools,mcp_sources, character, character_title, character_skill_ids: savedCharacterSkills(context, record.session_id), plan,plan_revision, recovery_required: true,
           error: (error as { code?: string }).code === "agent.session_unknown"
             ? codingText("coding.server.record-not-restored")
             : codingText("coding.server.record-unreadable") };
@@ -181,7 +180,7 @@ const ROUTES: RouteMaker[] = [
       const since = typeof request.query?.since === "string" && request.query.since ? request.query.since : null;
       const wait = Math.min(Math.max(Math.trunc(Number(request.query?.timeout ?? 20_000)) || 0, 0), 25_000);
       const result = await codingActions(a.context, beforeWrite).invoke(agent.waitRun, [session, { session_id: session.session_id, run_id: text(request.params.runId, "coding.field.run", 200) }, since, wait]);
-      return { version: result.version, runs: (await runsWithCards(a.context, record, [result.view], beforeWrite)).map(codingRunForDisplay) };
+      return { version: result.version, runs: (await a.writeChecks.attach(session.session_id, await runsWithCards(a.context, record, [result.view], beforeWrite), ref => codingActions(a.context, beforeWrite).invoke(agent.readCommandOutput, [session, ref]))).map(codingRunForDisplay) };
     });
   },
   // Scrolling back reads earlier rounds a page at a time, with what the timeline shows beside them.
@@ -196,7 +195,7 @@ const ROUTES: RouteMaker[] = [
       const before = Number(request.query?.before ?? snapshot.runs.length), limit = Number(request.query?.limit ?? SESSION_PAGE);
       if (!Number.isSafeInteger(before) || before < 0 || before > snapshot.runs.length || !Number.isSafeInteger(limit) || limit < 1 || limit > 50) throw codingFailure("coding.server.read-range");
       const offset = Math.max(0, before - limit);
-      const runs = await runsWithCards(context, record, await Promise.all(snapshot.runs.slice(offset, before).map(ref => codingActions(a.context, beforeWrite).invoke(agent.readRun, [session, ref]))), beforeWrite);
+      const runs = await a.writeChecks.attach(session.session_id, await runsWithCards(context, record, await Promise.all(snapshot.runs.slice(offset, before).map(ref => codingActions(a.context, beforeWrite).invoke(agent.readRun, [session, ref]))), beforeWrite), ref => codingActions(a.context, beforeWrite).invoke(agent.readCommandOutput, [session, ref]));
       return { runs: runs.map(codingRunForDisplay), runs_offset: offset, run_count: snapshot.runs.length, subagents: await subagentGroups(a, beforeWrite, record.session_id, session, runs, execution.locale), taskboard_plans: codingTaskBoardPlans(context, record.session_id, runs) };
     });
   },

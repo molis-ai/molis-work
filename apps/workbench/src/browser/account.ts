@@ -7,7 +7,9 @@ const uiText = globalThis.t;
 interface AuthReply { handle: string; nextStep: string; challengeHandle: string; retryAfterSeconds: number; account?: AccountView; remoteRevocation?: string; status?: string; browserStartUrl?: string }
 ;(() => {
   const readText = uiText.text;
-  const request = <T = AuthReply>(path: string, body?: unknown, headers?: Record<string, string>, method?: "PATCH") => globalThis.molisWorkRequest('/api/account' + path, { control: true, ...(method ? { method } : {}), ...(body === undefined ? {} : { body }), ...(headers ? { headers } : {}) }).then(reply => (reply as { data: T }).data);
+  const loginNonce=new URL(location.href).searchParams.get('accountLogin');
+  const directEntry=!!loginNonce&&new URL(location.href).searchParams.get('accountEntry')==='1';
+  const request = <T = AuthReply>(path: string, body?: unknown, headers?: Record<string, string>, method?: "PATCH") => globalThis.molisWorkRequest('/api/account' + path, { control: true, ...(method ? { method } : {}), ...(body === undefined ? {} : { body }), ...((headers||loginNonce)?{headers:{...headers,...(loginNonce?{'X-Molis-Account-Login':loginNonce}:{})}}:{}) }).then(reply => (reply as { data: T }).data);
   let opened: HTMLDialogElement | null = null;
   const node = <K extends keyof HTMLElementTagNameMap>(tag: K, text = "", cls = "") => { const el = document.createElement(tag); if(text) el.textContent = text; if(cls) el.className = cls; return el; };
   document.addEventListener('click', event => {
@@ -16,8 +18,8 @@ interface AuthReply { handle: string; nextStep: string; challengeHandle: string;
     event.preventDefault(); if(opened) { opened.focus(); return; }
     const dialog = node('dialog', '', 'mw-dialog account-dialog'); opened = dialog;
     dialog.setAttribute('aria-labelledby','account-title');
-    const head = node('h2', uiText.text("workbench.account.molis-account")); head.id = 'account-title';
-    const close = node('button', uiText.text("common.control.close"), 'mw-btn mw-btn--ghost'); close.type = 'button'; close.onclick = () => dialog.close();
+    const head = node('h2', readText('workbench.account.molis-account')); head.id = 'account-title';
+    const close = node('button', readText('common.control.close'), 'mw-btn mw-btn--ghost'); close.hidden=directEntry; if(directEntry)dialog.addEventListener('cancel',event=>event.preventDefault()); close.type = 'button'; close.onclick = () => dialog.close();
     const modes = node('div', '', 'account-modes'), form = node('form', '', 'account-form'), message = node('p', '', 'account-message');
     message.setAttribute('role','status'); message.setAttribute('aria-live','polite');
     const help=node('details','','mw-disclosure'), summary=node('summary',uiText.text("workbench.account.cant-use-sign-methods"));
@@ -50,15 +52,26 @@ interface AuthReply { handle: string; nextStep: string; challengeHandle: string;
     function showAccount(account: Extract<AccountView, {state: "AUTHENTICATED" | "OFFLINE_CACHED"}>) {
       disposeManagement?.();disposeManagement=undefined;form.onsubmit=e=>e.preventDefault();
       transaction=null;challenge=null;clearInterval(timer);modes.replaceChildren();form.replaceChildren();
-      form.append(node('p',account.user?.displayName||uiText.text("workbench.account.signed")));
+      if(loginNonce && account.state==='AUTHENTICATED') {
+        dialog.close();
+        if(directEntry){location.replace(document.body.dataset.nativeDesktop==='true'?'/?desktop=1':'/');return;}
+        const status=node('main',readText('workbench.account.opening-workbench'),'arrival-stage');status.setAttribute('role','status');status.dataset.accountLoginComplete='';
+        document.body.replaceChildren(status);
+        if(typeof BroadcastChannel==='function'){const channel=new BroadcastChannel('molis-work-account');channel.postMessage({login:loginNonce});channel.close();}
+        setTimeout(()=>{status.textContent=readText('workbench.account.close-sign-in-window');},5000);
+        return;
+      }
+      form.append(node('p',account.user?.displayName||readText('workbench.account.signed')));
       if(account.state==='AUTHENTICATED') {
         const ui={form,dialog,message,readText,node,field,button,request,perform}, back=async()=>{const view=await request<AccountView>('/session');if(dialog.open&&(view.state==='AUTHENTICATED'||view.state==='OFFLINE_CACHED'))showAccount(view);};
-        button("workbench.account.profile-security",()=>{disposeManagement=openAccountManagement(ui,account.user,back);});
-        button("workbench.account.personal-tenant-spaces",()=>{disposeManagement=openAccountTenants(ui,account,back);});
+        if(!loginNonce)button('workbench.account.profile-security',()=>{disposeManagement=openAccountManagement(ui,account.user,back);});
+        if(!loginNonce)button('workbench.account.personal-tenant-spaces',()=>{disposeManagement=openAccountTenants(ui,account,back);});
       }
-      if(account.state==='OFFLINE_CACHED')message.textContent=uiText.text("workbench.account.offline-account-status-cannot-be-confirmed");
-      for(const [scope,label] of [['CURRENT_LOGIN',"workbench.account.sign-out"],['ALL_MOLIS_PRODUCTS',"workbench.account.sign-out-on-all-products-and-devices"]]) button(label!,()=>perform(async()=>{const result=await request('/logout',{scope},{'Idempotency-Key':crypto.randomUUID()});form.replaceChildren();document.querySelectorAll('[data-unified-account-name]').forEach(el=>el.textContent=uiText.text("workbench.account.molis-account"));message.textContent=result.remoteRevocation==='CONFIRMED'?uiText.text("workbench.account.signed-out"):uiText.text("workbench.account.signed-out-locally-remote-revocation-not-yet-confirmed");button("workbench.account.back-sign",()=>{dialog.addEventListener('close',()=>trigger!.click(),{once:true});dialog.close();});}));
-      document.querySelectorAll('[data-unified-account-name]').forEach(el=>el.textContent=account.user?.displayName||uiText.text("workbench.account.signed"));
+      if(account.state==='OFFLINE_CACHED')message.textContent=readText('workbench.account.offline-account-status-cannot-be-confirmed');
+      for(const [scope,label] of (loginNonce?[]:[['CURRENT_LOGIN','workbench.account.sign-out'],['ALL_MOLIS_PRODUCTS','workbench.account.sign-out-on-all-products-and-devices']])) {
+        const exit=button(label!,()=>dialog.close());exit.dataset.personalAction='logout';exit.dataset.accountLogoutScope=scope;
+      }
+      document.querySelectorAll('[data-unified-account-name]').forEach(el=>el.textContent=account.user?.displayName||readText('workbench.account.signed'));
     }
     const submitStep = (body: unknown) => request('/auth/transactions/'+transaction!.handle+'/submit',body);
     async function startProvider(provider: string) {
@@ -103,6 +116,7 @@ interface AuthReply { handle: string; nextStep: string; challengeHandle: string;
       buttons.push([modeButton, next]);
     }
     dialog.addEventListener('close',()=>{disposeManagement?.();cancel();clearInterval(timer);form.reset();dialog.remove();opened=null;(trigger.closest('details:not([open])')?.querySelector<HTMLElement>(':scope > summary') || trigger).focus();});
-    draw();void perform(async()=>{const account=await request<AccountView>('/session');if(!dialog.open)return;if(account.state==='AUTHENTICATED'||account.state==='OFFLINE_CACHED'){showAccount(account);if(account.state==='AUTHENTICATED'&&document.visibilityState==='visible')await request('/activity',{eventId:crypto.randomUUID(),kind:'OPEN'});}else if(account.state==='EXPIRED')message.textContent=uiText.text("workbench.account.session-expired-please-sign-again");});
+    draw();void perform(async()=>{const account=await request<AccountView>('/session');if(!dialog.open)return;if(account.state==='AUTHENTICATED'||account.state==='OFFLINE_CACHED'){showAccount(account);if(!loginNonce&&account.state==='AUTHENTICATED'&&document.visibilityState==='visible')await request('/activity',{eventId:crypto.randomUUID(),kind:'OPEN'});}else if(account.state==='EXPIRED')message.textContent=readText('workbench.account.session-expired-please-sign-again');});
   });
+  if(loginNonce)document.querySelector<HTMLElement>('[data-unified-account-link]')?.click();
 })();

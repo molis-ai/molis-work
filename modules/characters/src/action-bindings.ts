@@ -56,6 +56,7 @@ export function bindCharactersActions(actorId: string, handlersFor: (caller: Act
     own(a.execution, (h, input) => h.execution(input)),
     own(a.runnable, (h, input) => h.runnable(input)),
     own(a.usages, (h, input) => h.usages(input)),
+    own(a.kitReport, h => h.kitReport()),
     own(a.launch, (h, input, guard) => h.launch(input, { beforeStart: guard.beforeWrite, assert_current: guard.current })),
   ];
 }

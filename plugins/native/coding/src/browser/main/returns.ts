@@ -59,7 +59,7 @@ async function back(page: Page, outcome: UiReturnOutcome, send: () => Promise<vo
     void (async () => {
       if (s.current !== session) await select(page, session);
       if (s.current !== session) return;
-      if (!input.value.trim()) { input.value = words; window.molisFit?.(input); }
+      if (!input.value.trim()) { input.value = words; window.molisFit?.(input); input.dispatchEvent(new Event("input", { bubbles: true })); }
       await send();
     })().catch((error: unknown) => status(page, errorMessage(error), true));
   });

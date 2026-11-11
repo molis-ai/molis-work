@@ -46,6 +46,12 @@ class HostAccountSessions implements AccountSessionManager {
       }, fetch: this.fetcher,
     });
   }
+  async accessToken(control: AccountCallControl): Promise<string> {
+    const guarded = this.guard(control);
+    await this.verified(guarded);
+    checkAccountControl(guarded);
+    return this.active().tokens.accessToken;
+  }
   private track<T>(operation: () => Promise<T>): Promise<T> {
     const pending = operation(); this.pending.add(pending);
     void pending.finally(() => this.pending.delete(pending)).catch(() => { /* The original caller observes the rejection. */ });

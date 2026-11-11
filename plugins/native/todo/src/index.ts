@@ -10,7 +10,7 @@ export type { TodoAccess, TodoBatchChange, TodoCreateInput, TodoFields, TodoLink
 export { todoErrors } from "./error.js";
 export { todoActions, TODO_ACTIONS, TODO_ACTION_PERMISSIONS, createTodoActionHandlers, todoAccess } from "./actions.js";
 export type { TodoActionPorts, TodoListItem, TodoListResult } from "./actions.js";
-export { todoSearchActions, todoText } from "./search.js";
+export { todoPicks, todoSearchActions, todoText } from "./search.js";
 export { todoHomeEventsAction, todoHomeEvents } from "./home-events.js";
 export { TODO_INSTRUCTIONS, TODO_ORGANIZE_BASIC, TODO_ORGANIZE_ORGANIZER } from "./prompts.js";
 export { TODO_ORGANIZER_ROLE, todoAgentManifest, todoSkills, todoPrompts } from "./roles.js";

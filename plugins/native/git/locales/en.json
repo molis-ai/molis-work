@@ -207,6 +207,7 @@
     "git.pr.toggle": "Open a PR…",
     "git.projection.choose-directory": "Choose a directory in project settings first",
     "git.projection.directory-moved": "The directory may have moved or been removed. Choose it again.",
+    "git.projection.directory-not-created": "This folder hasn’t been made yet, so it isn’t a Git repository",
     "git.projection.initialize": "Run git init in this directory, or choose another one",
     "git.projection.loading": "Reading working tree status…",
     "git.projection.not-repository": "This directory is not a Git repository",

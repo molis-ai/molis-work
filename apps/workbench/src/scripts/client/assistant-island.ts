@@ -100,15 +100,19 @@ ${ASSISTANT_BROWSER_HANDBACK_PART}
   let presentation, stepRow;
   const setPanel = (open) => { if (!presentation?.show(open) && panel) panel.hidden = !open; };
 
-  /* ─── Where the next Send goes: the composer's receiver row, its controls and the placeholder ─── */
-  const paintAim = () => {
-    const work = getWork(); presentation?.syncWork(work); input.readOnly = !!work?.reply_target;
+  /* ─── Where the next Send goes: the composer's receiver tag, its controls and the placeholder ─── */
+  // \`sync\` false: only the words, for the composer about to be mounted on the Assistant again.
+  const paintAim = (sync = true) => {
+    const work = getWork(); presentation?.syncWork(work);
+    // A page in front takes the bar's input (O2): its words and placeholder are its own until the Assistant has the bar again.
+    if (island.dataset.receiver === "page") { if (sync) syncComposer(); return; }
+    input.readOnly = !!work?.reply_target;
     if (!executorsHere() && nextExec !== "assistant") nextExec = "assistant";
     // A page that knows what the person is looking at (the project list) may say so in the placeholder of a new work.
     const hint = !work && nextExec === "assistant" && host.placeholder ? host.placeholder(project) : "";
     input.placeholder = work?.reply_target ? readText("workbench.assistant-island.return-original-comment-continue") : work ? readText("workbench.assistant-island.add-answer-correct") : nextExec !== "assistant" && executorOffer(nextExec) ? readText("workbench.assistant-island.ask-name-do-something", { name: executorOffer(nextExec).title })
       : hint ? hint : searchKey() ? readText("workbench.assistant-island.ask-assistant-press-key-search", { key: searchKey() }) : readText("workbench.assistant-island.ask-assistant-do-something");
-    syncComposer();
+    if (sync) syncComposer();
   };
   keyless?.addEventListener?.("change", () => paintAim());
   const remember = () => store.set(scoped("current"), curId);

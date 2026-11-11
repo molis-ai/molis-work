@@ -223,7 +223,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
   <div class="app">
     <main class="immersive-workspace${parts?.workspace_classes?.length ? ` ${escapeHtml(parts.workspace_classes.join(" "))}` : ""}${directoryEmpty ? " is-plugin-directory-empty" : ""}" data-workspace data-mobile-view="document" data-workspace-mode="graph">
       ${renderImmersiveHeader(primitives, desktopShell, sideTabs)}
-      ${renderWorkbenchBar(primitives, {
+      ${renderWorkbenchBar(primitives, { placing: true,
         enabled: enabledPlugins,
         rail: renderPluginRail(primitives, enabledPlugins, directory, { developerMode: view.developer_mode, marksFromHost: Boolean(view.plugin_directory) }),
         projectChrome: renderWorkspaceChrome(primitives, projectTitlebarChrome.replace("<!-- project-menu-extra -->", renderPersonalMenuItems(primitives, !!appearance))),

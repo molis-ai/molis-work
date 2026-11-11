@@ -3,7 +3,7 @@
     "function plugins/native/coding/src/ui.ts#renderCodingWorkbench": {
       "kind": "cohesive-unit",
       "reason": "Coding 工作台的整页 HTML 模板：一个模板字符串（200 行返回体），只有几个取值助手，没有逻辑；页面模板按行拆只会把同一页的结构散开。",
-      "size": 209
+      "size": 196
     }
   }
 }

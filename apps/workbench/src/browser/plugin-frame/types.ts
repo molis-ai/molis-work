@@ -7,6 +7,7 @@ import type { UiClientMount, UiViewSelection, UiConnectionSlotChoice, UiFrameAss
 import type { frameAssets } from "./frame-assets.js";
 import type { AppearanceProjection } from "../appearance-view.js";
 import type { FrameLanguage, FrameLanguageUpdate, prepareFrameLanguages } from "./language.js";
+import type { BarReceiver, ComposerDown, ComposerUp } from "./composer-bridge.js";
 
 export type Translate = UiClientTranslate;
 export interface FrameScope extends UiClientScope {
@@ -53,6 +54,8 @@ export interface FrameConfig {
   stage: { title: string; description: string };
   shortcuts: string[];
   search?: string;
+  /** The page is in a workbench pane under the bar: its AI composer is a receiver of the bar's one input (composer-bridge.ts). */
+  bar: boolean;
   origin: string; bundle: string; assets: string[]; projectId: string; projectTitle: string; routePrefix: string; side: boolean; page: unknown;
   storage: Record<"localStorage" | "sessionStorage", Record<string, string>>;
 }
@@ -110,7 +113,7 @@ export type FrameUp =
   | { type: "embed-open"; id: number; target: { surface: string; itemId: string; title?: string } }
   | { type: "embed-layout"; id: number; box: {x: number; y: number; width: number; height: number} | null }
   | { type: "embed-close"; id: number }
-  | TaskGrantsUp | ConnectionNeedUp | ReturnUp
+  | TaskGrantsUp | ConnectionNeedUp | ReturnUp | ComposerUp
   | FrameRequest | ContextUp | PresentationMessage | { type: "ready" } | { type: "failed"; message: string }
   | { type: "interaction" } | { type: "modal"; open: boolean } | { type: "read-document"; id: number; object?: { id: string; surface: string } }
   | { type: "document-cancel"; id: number } | { type: "refresh-shell" }
@@ -136,7 +139,7 @@ export type FrameDown =
   | { type: "review-decided"; id: number; outcome: UiPageReviewOutcome }
   | { type: "workspace-result"; id: number; workspace?: { workspace_id: string }; error?: string; status?: number }
   | { type: "embedded"; id: number; error?: string }
-  | TaskGrantsDown | ConnectionNeedDown | ReturnDown
+  | TaskGrantsDown | ConnectionNeedDown | ReturnDown | ComposerDown
   | { type: "focus" } | FrameAnswer | ContextDown | { type: "state"; visible: boolean; theme: Record<string, string> }
   | { type: "environment"; snapshot: AppearanceProjection["snapshot"]; skin_href: string | null }
   | FrameLanguageUpdate
@@ -154,6 +157,12 @@ export type FrameDown =
 
 declare global {
   interface Window { molisPluginFrames: typeof globalThis.molisPluginFrames }
+  /** The bar's receivers (composer-parent.ts): the framed page in front that takes words, or none. */
+  var molisBarReceivers: { front(): BarReceiver | null } | undefined;
+  /** Set by the bar (the Dock island's composer): told when the receiver in front may have changed. */
+  var molisBarReceiverChanged: (() => void) | undefined;
+  /** Set by the bar's column (bar-column.ts): place the input again (the page in front, or its column, changed). */
+  var molisWorkBarPlace: (() => void) | undefined;
   var molisPlacement: { paintBar(slot: HTMLElement): Promise<void>; paintTargets(root: HTMLElement): void } | undefined;
   var molisFrameReviews: HostReviewFactory;
   var molisPageTerminal: UiPageTerminal;

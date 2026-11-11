@@ -322,7 +322,7 @@ ${BUTTON_STYLES}
     padding: 0 12px; border: 0; border-radius: 8px; background: transparent;
     color: var(--ink); font: inherit; font-size: 13px; text-align: left; cursor: pointer;
   }
-  .mw-menu__item:hover, .mw-menu__item:focus-visible { background: var(--nav-hover); outline: none; }
+  .mw-menu__item:hover, .mw-menu__item:focus-visible, .mw-menu__item[data-active] { background: var(--nav-hover); outline: none; } /* [data-active]: the row Enter takes where the caret stays in the input (the composer's / and @) */
   .mw-menu__item:active { background: var(--nav-press); }
   .mw-menu__item--danger { color: var(--red); }
   .mw-menu__item--danger:hover, .mw-menu__item--danger:focus-visible {

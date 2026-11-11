@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
+import { CODING_COMPOSER, CODING_OPEN } from "./fixtures/coding-composer.js";
 import { execFileSync } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import { delimiter, join } from "node:path";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { projectOutputOf, readProjectDirectories } from "./fixtures/project-directories-http.js";
 import { TEXT_WRAP_AUDIT, type TextWrapIssue } from "./fixtures/text-wrap-audit.js";
 
 // specs/visual-ui-experience VUX-40「中英文…不溢出、不混排」: a page shown in English says everything it says itself in English.
@@ -32,6 +34,9 @@ const HAN_IN = (selector: string) => `(() => {
 test("VUX-40: Goals statuses, Jelly's fixed category and the Files, Git, Diff and Text Stats pages speak English in English", { timeout: 240_000 }, async (t) => {
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
   const { navigate, command, sessionId, origin, projectId } = browser;
+  assert.ok(projectId);
+  const initialDirectories = await readProjectDirectories(browser.web, projectId);
+  assert.equal(initialDirectories.default_output_made, false);
   const views = Object.fromEntries(await Promise.all(["jelly", "files", "git", "diff", "text-stats", "coding"].map(async id => [id, await pluginFrameBrowser(t, browser, id)])));
   let active: Pick<typeof browser, "evaluate" | "waitFor"> = browser;
   const evaluate: typeof browser.evaluate = (...args) => active.evaluate(...args);
@@ -53,15 +58,22 @@ test("VUX-40: Goals statuses, Jelly's fixed category and the Files, Git, Diff an
   ];
   for (const [plugin, ready, selector, zh] of pages) {
     await open(plugin, ready);
+    if (plugin === "git") await waitFor("document.querySelector('[data-git-status]')?.textContent === '这个文件夹还没有建立，不是 Git 仓库'");
     assert.ok((await evaluate<string>(`[...document.querySelectorAll(${JSON.stringify(selector)})].map((el) => el.textContent).join(' ')`)).includes(zh), `${plugin} in Chinese says 「${zh}」`);
   }
   await navigate(() => command("Page.navigate", { url: `${origin}/locale?lang=en&next=%2F` }, sessionId));
   for (const [plugin, ready, selector] of pages) {
     await open(plugin, ready);
+    if (plugin === "git") await waitFor("document.querySelector('[data-git-status]')?.textContent === 'This folder hasn’t been made yet, so it isn’t a Git repository'");
     assert.deepEqual(await evaluate<string[]>(HAN_IN(selector)), [], `${plugin} in English`);
     // The English is longer: none of it runs out of its box.
     assert.deepEqual((await evaluate<TextWrapIssue[]>(TEXT_WRAP_AUDIT)).filter((issue) => issue.kind === "spill"), [], `${plugin} in English fits`);
   }
+  assert.equal((await readProjectDirectories(browser.web, projectId)).default_output_made, false, "viewing Git never creates the project’s default output");
+  await mkdir(projectOutputOf(initialDirectories).canonical_path, { recursive: true });
+  await open("git", "document.querySelector('[data-git-status]')?.textContent.includes('not a git repository')");
+  assert.match(await evaluate<string>("document.querySelector('[data-git-status]').textContent"), /not a git repository/i);
+  assert.doesNotMatch(await evaluate<string>("document.querySelector('[data-git-status]').textContent"), /hasn’t been made/u);
   await open("goals", pages[0]![1]);
   assert.ok((await evaluate<string>("[...document.querySelectorAll('.goal-status')].map((el) => el.textContent).join('|')")).includes("In progress"));
 });
@@ -204,15 +216,20 @@ test("VUX-40: the Coding page, its own script's words and Coding settings speak 
   // Coding's own script fills the page in English too: the session list, the composer's controls and the results column.
   await navigate(() => command("Page.navigate", { url: coding }, sessionId));
   active = views.coding!;
-  await waitFor("document.querySelector('[data-coding-workbench] [data-coding-model] option')", 30_000);
+  // Coding's page has started: its composer is mounted as a receiver of the bar (no session open, the bar stays the Assistant's).
+  await waitFor("Boolean(document.querySelector('[data-coding-input][data-composer-remote]'))", 30_000);
   assert.deepEqual(await evaluate(HAN_IN("[data-coding-workbench]")), [], "Coding with no session open, in English");
   assert.ok((await evaluate<string>("document.querySelector('[data-coding-workbench] .coding-start').textContent")).includes("Write code with an Agent"));
   // A fresh session: the welcome, the composer and its menus, the results column.
   await evaluate("document.querySelector('.coding-start [data-coding-new]').click()");
-  await waitFor("document.querySelector('[data-coding-welcome]') && !document.querySelector('[data-coding-task]').disabled", 30_000);
-  await evaluate("document.querySelector('[data-coding-attach-toggle]').click(); document.querySelector('[data-coding-results-open]').click()");
-  assert.deepEqual(await evaluate(HAN_IN("[data-coding-workbench]")), [], "a fresh Coding session, its menus and results, in English");
+  await waitFor("Boolean(document.querySelector('[data-coding-welcome]'))", 30_000);
+  // The composer is the workbench bar's (one input), in the session's own words: its ＋ menu is the bar's.
+  await browser.waitFor(CODING_OPEN, 30_000);
+  await browser.evaluate(`document.querySelector('${CODING_COMPOSER} [data-composer-add]').click()`);
+  await evaluate("document.querySelector('[data-coding-results-open]').click()");
+  assert.deepEqual(await evaluate(HAN_IN("[data-coding-workbench]")), [], "a fresh Coding session and its results, in English");
+  assert.deepEqual(await browser.evaluate(HAN_IN(CODING_COMPOSER)), [], "the bar's composer for the session and its ＋ menu, in English");
   // Words Coding's script writes itself, not the Host's markup.
-  assert.deepEqual(await evaluate("[document.querySelector('[data-coding-goal-label]').textContent, document.querySelector('[data-coding-send]').textContent]"), ["No goal for the next turn", "Send"]);
+  assert.deepEqual([await evaluate<string>("document.querySelector('[data-coding-goal-label]').textContent"), await browser.evaluate<string>(`document.querySelector('${CODING_COMPOSER} [data-composer-send]').textContent`)], ["No goal for the next turn", "Send"]);
   assert.deepEqual((await evaluate<TextWrapIssue[]>(TEXT_WRAP_AUDIT)).filter((issue) => issue.kind === "spill"), [], "Coding in English fits");
 });

@@ -55,9 +55,10 @@
     },
     "agent_definitions": {
       "paths": [
-        "apps/local-host/src/agent-definitions/"
+        "apps/local-host/src/agent-definitions/",
+        "packages/contracts/src/services/agent-definitions.ts"
       ],
-      "reason": "The Host's registry of Agent definitions and its HTTP edge: its codes already start with agent_definitions."
+      "reason": "The Host's registry of Agent definitions, its HTTP edge, and its contract, where the refusals callers outside the Host see are declared (specs/capability-pack/contract-design.md §4.11): its codes already start with agent_definitions."
     },
     "alchemist": {
       "paths": [
@@ -225,6 +226,16 @@
         "packages/kernel/"
       ],
       "reason": "The action kernel: kernel.* for its own failures (the runtime-identity code mcp.runtime_identity_missing becomes kernel.runtime_identity_missing)."
+    },
+    "kit": {
+      "paths": [
+        "apps/local-host/src/kit-actions.ts",
+        "apps/local-host/src/kit-mcp-reports.ts",
+        "horizontal/kit/",
+        "packages/contracts/src/platform/kit-report.ts",
+        "packages/contracts/src/services/kit.ts"
+      ],
+      "reason": "The AI kit (specs/capability-pack/contract-design.md §4, D-4): the report protocol, the kit.catalog.list contract, the gatherer (horizontal/kit/) and its Host wiring and reporters; its codes are kit.* like its action ids."
     },
     "knowledge": {
       "paths": [

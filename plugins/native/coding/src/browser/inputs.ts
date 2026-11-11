@@ -14,8 +14,9 @@ interface InputPorts {
 }
 export function codingInputs(ports: InputPorts) {
  const {lifetime,root,current,api,path,storageKey,localDraft,localQuestions,replace,note,status}=ports,states=new Map<string, InputState>();
- const local=(id: string)=>({draft:localDraft(id),question_drafts:localQuestions(id)});
- const notify=(text: string,bad?: boolean)=>status(text,bad);
+ // A window keeps only words the service has not confirmed (browser/draft.ts): keeping none, its words are the confirmed ones.
+ const local=(id: string)=>({draft:localDraft(id)??baseFor(id).base?.draft,question_drafts:localQuestions(id)});
+ const readText=ports.translate,notify=(text: string,bad?: boolean)=>status(text,bad);
  const copy=<T>(value: T): T=>structuredClone(value),shape=(value: Partial<InputValue>)=>JSON.stringify({draft:value.draft,question_drafts:value.question_drafts||{}});
  const saved=(value: InputSnapshot): InputBase=>({draft:value.draft||'',question_drafts:copy(value.question_drafts||{}),revision:value.input_revision});
  const valid=(value: unknown): value is InputBase=>!!value&&typeof value==="object"&&"revision" in value&&typeof value.revision==="number"&&"draft" in value&&"question_drafts" in value&&Number.isSafeInteger(value.revision)&&value.revision>=0&&typeof value.draft==='string'&&!!value.question_drafts&&typeof value.question_drafts==='object'&&!Array.isArray(value.question_drafts);
@@ -72,8 +73,8 @@ export function codingInputs(ports: InputPorts) {
  };
  lifetime.listen(root,'click',event=>{if(event.target instanceof Element&&event.target.closest('[data-coding-input-compare]'))void compare().catch(error=>{if(lifetime.alive)notify(errorMessage(error),true);});});
  return {
-  write,notice,premise:(id: string)=>baseFor(id).generation,
-  observe(id: string,value: InputSnapshot){const incoming=saved(value);if(!valid(incoming))throw new Error(uiText.text('coding.input.unreadable'));const state=baseFor(id),mine=local(id),base=state.base;
+  write,notice,premise:(id: string)=>baseFor(id).generation,confirmed:(id: string)=>baseFor(id).base?.draft,
+  observe(id: string,value: InputSnapshot){const incoming=saved(value);if(!valid(incoming))throw new Error(readText('coding.input.unreadable'));const state=baseFor(id),mine=local(id),base=state.base;
    if(base&&incoming.revision<base.revision)return;
    const pristine=base?shape(mine)===shape(base):mine.draft===undefined&&mine.question_drafts===undefined;
    if(pristine&&!ports.editing(id)||shape(mine)===shape(incoming)){remember(id,incoming,true);replace(id,copy(incoming));}

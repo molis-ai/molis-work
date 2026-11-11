@@ -91,6 +91,7 @@ export { renderMolisWorkCapabilitiesClientScript } from "./scripts/capabilities-
 export { writeCheckerFromFields, writeCheckerFieldsOf, writeCheckersAfter } from "./scripts/write-checkers.js";
 export { connectorSwitchLeft } from "./scripts/connector-replacement.js";
 export { renderMolisWorkKnowledgeClientScript } from "./settings-knowledge.js";
+export { renderMolisWorkKitClientScript } from "./settings-kit.js";
 export { renderCharacters, renderCharactersSettingsEntry } from "./characters/ui.js";
 export { renderMolisWorkCharactersClientScript } from "./characters/client-asset.js";
 
@@ -98,7 +99,7 @@ export { assistantTextHtml, assistantReviewHtml } from "./scripts/client/assista
 export { connectionNeedHtml, isConnectionLoginUrl, type ConnectionNeedView } from "./connection-need-card.js";
 
 export {PERSONAL_ACCOUNT_CLIENT_SCRIPT} from './scripts/personal-account.js';
-export {renderPersonalAccountEntry} from './arrival/shell.js';
+export {renderPersonalAccountEntry,renderAccountSameOriginEntry} from './arrival/shell.js';
 export { renderPluginFrameClientScript, renderPluginFrameSurface } from "./plugin-frame.js";
 export { renderPluginDocumentShell } from "./plugin-document-shell.js";
 export { renderPluginStoreUnavailablePage } from "./plugin-store-unavailable.js";

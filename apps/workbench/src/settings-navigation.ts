@@ -14,9 +14,9 @@ export interface WebProjectNavigation {
 }
 
 
-export type WebSettingsSection = "appearance" | "models" | "runtimes" | "assistant" | "characters" | "prompts" | "skills" | "memory" | "mcp" | "connectors" | "projects" | "diagnostics" | "directories" | "sync";
+export type WebSettingsSection = "appearance" | "models" | "runtimes" | "assistant" | "characters" | "prompts" | "kit" | "memory" | "mcp" | "connectors" | "projects" | "diagnostics" | "directories" | "sync";
 type SettingsNavigationActive = string;
-type ProjectSettingsNavigationActive = "general" | "workspaces" | "guidance" | "memory" | "knowledge" | "plugins" | "skills" | "grants" | "rules" | "planning";
+type ProjectSettingsNavigationActive = "general" | "workspaces" | "guidance" | "memory" | "knowledge" | "plugins" | "kit" | "grants" | "rules" | "planning";
 
 
 export interface SettingsNavigationPrimitives {
@@ -119,7 +119,7 @@ function renderProjectSettingsNavigation(
       <a href="${href(`${routePrefix}/settings/memory`)}"${current("memory")}>${icon("bookmark")}${uiText("workbench.settings-navigation.project-memory")}</a>
       <a href="${href(`${routePrefix}/settings/knowledge`)}"${current("knowledge")}>${icon("file")}${uiText("workbench.settings-navigation.project-knowledge")}</a>
       <a href="${href(`${routePrefix}/settings/plugins`)}"${current("plugins")}>${icon("package")}${uiText("workbench.settings-navigation.plugin")}</a>
-      <a href="${href(`${routePrefix}/settings/skills`)}"${current("skills")}>${icon("book")}${uiText("workbench.settings-skills.skills")}</a>
+      <a href="${href(`${routePrefix}/settings/kit`)}"${current("kit")}>${icon("sparkles")}${uiText("workbench.kit.title")}</a>
       <a href="${href(`${routePrefix}/settings/grants`)}"${current("grants")}>${icon("shield")}${uiText("workbench.settings-navigation.access-approvals")}</a>
     </div>
   </nav>`;

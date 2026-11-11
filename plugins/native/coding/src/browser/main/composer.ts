@@ -24,7 +24,9 @@ export async function startRound(page: Page, id: string, task: string | undefine
   // A round that carries a digest waits for the model to write it first; say so rather than look stuck.
   if (id === s.current && s.lastData?.next_history?.history === "digest") status(page, uiText.text("coding.digest.writing"));
   const started = await page.refs.inputReceipts.start<StartedRound | null>(id, {
-    ...extra, task, intent, provider_id, model_id, ...composerModels.effort(), workspace_id: selection.workspace_id, methods: selection.methods,
+    ...extra, task, intent, provider_id, model_id, ...composerModels.effort(), workspace_id: selection.workspace_id, skills: selection.skills,
+    // The naming envelope the Host takes off before Coding reads the request: resending the session's Skills names them (§2.3).
+    named_skills: selection.skills,
     ...(selection.action_tools === undefined ? {} : { action_tools: selection.action_tools }),
     mcp_tools: selection.mcp_tools, mcp_sources: selection.mcp_sources, materials: selection.materials, character: selection.character,
     character_skill_ids: s.characterSkills.get(id), ...(intent === "parallel" ? { writer_assignments: selection.writer_assignments } : {}),
@@ -38,7 +40,7 @@ export async function startRound(page: Page, id: string, task: string | undefine
 export function currentSelection(page: Page, id: string): RoundSelection {
   const { s } = page;
   return {
-    workspace_id: s.workspaceId, ...(s.worktree ? { worktree_id: s.worktree.worktree_id } : {}), methods: structuredClone(s.methodSelections.get(id) || []), mcp_tools: structuredClone(s.mcpSelections.get(id) || []),
+    workspace_id: s.workspaceId, ...(s.worktree ? { worktree_id: s.worktree.worktree_id } : {}), skills: structuredClone(s.methodSelections.get(id) || []), mcp_tools: structuredClone(s.mcpSelections.get(id) || []),
     mcp_sources: structuredClone(s.mcpSourceSelections.get(id) || []), materials: structuredClone(s.materialSelections.get(id) || []),
     character: structuredClone(s.characterSelections.get(id) ?? null), writer_assignments: [],
   };
@@ -46,14 +48,14 @@ export function currentSelection(page: Page, id: string): RoundSelection {
 
 /** Continues an unfinished round (the Host states what already happened) or asks a closed question again; the composer draft stays untouched. */
 export async function continueRound(page: Page, runId: string | null, reask?: { readonly run_id: string; readonly pending_id: string }) {
-  const { q, s } = page;
+  const { readText, refs, s } = page;
   if (s.sending || !s.current) return;
-  const id = s.current, modelValue = q<HTMLSelectElement>("[data-coding-model]").value;
+  const id = s.current, modelValue = refs.composerModels.value();
   s.sending = true;
   controls(page);
   try {
-    if (!s.state.models.some(model => JSON.stringify([model.provider_id, model.model_id]) === modelValue)) throw new Error(uiText.text("coding.model.choose-first"));
-    const chosen = q<HTMLSelectElement>("[data-coding-intent]").value;
+    if (!s.state.models.some(model => JSON.stringify([model.provider_id, model.model_id]) === modelValue)) throw new Error(readText("coding.model.choose-first"));
+    const chosen = s.intent;
     const next: ContinuationRead = reask || runId === null ? { intent: chosen } : await api<ContinuationRead>(page, sessionPath(id, runId) + "/continuation");
     if (s.current !== id) return;
     // A plan round continues on its own graph; everything else starts a fresh round with the Host's facts. The rest of a plan runs

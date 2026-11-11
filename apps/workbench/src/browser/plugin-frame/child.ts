@@ -32,6 +32,7 @@ import { frameAppearance } from "./appearance.js";
 import { frameLanguage } from "./language-child.js";
 import type { FrameStageWords } from "./language.js";
 import type { FrameConfig, FrameDown, FrameUp } from "./types.js";
+import { childComposer } from "./composer-child.js";
 
 function bindStorage(port: MessagePort, config: FrameConfig): void {
   for (const area of ["localStorage", "sessionStorage"] as const) {
@@ -73,6 +74,7 @@ export async function startChild(port: MessagePort, config: FrameConfig): Promis
   const ui = globalThis.molisFrameUi(), scope = ui.mountPluginClient(document.body);
   if (!scope) throw new Error("Cannot mount plugin document");
   const updateAppearance = frameAppearance(config.origin, config.appearance, scope);
+  childComposer(port, scope, config.bar);
   childIntake(port, scope);
   childContext(port, scope, root); ui.surfaceFocus({ surfaceOnly: true });
   globalThis.EventSource = pageEventSource(scope, config.origin);

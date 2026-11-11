@@ -5,7 +5,7 @@ import type { UiLocalePack, UiResourceRow, UiTextProvider } from "@molis-ai/moli
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { BASELINE_REGISTRY } from "@molis-ai/molis-work-design-system";
 import { pluginLocaleReader, type PluginLocaleReader } from "@molis-ai/molis-work-plugin-runtime";
-import { installUiText, localeMessageArguments, say, textKeyPrefix } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { createTextReader, installUiText, localeMessageArguments, say, textKeyPrefix } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { installCatalogTextScope, workbenchPlatformText, type MolisWorkSettingsView } from "@molis-ai/molis-work-app-workbench";
 import { pluginTextForOwner, pluginTextOwnerOfPrefix, registerPlatformText, type DirectoryWordResolver, type PluginTextReader } from "@molis-ai/molis-work-ui-host";
 import { hostLog } from "./host-log.js";
@@ -108,6 +108,13 @@ export function registeredBuiltinText(manifest: PluginManifest): PluginLocaleRea
   const reader = pluginLocaleReader(manifest, registeredPluginLocaleFiles(entry.package_name, manifest));
   registeredWords.set(manifest, reader);
   return reader;
+}
+
+/** Read the Workbench's own selected display words from its registered language files. */
+export function workbenchDisplayReader(locale = workbenchPlatformText.default) {
+  const { default: fallback } = workbenchPlatformText;
+  const packs = [...new Set([locale, fallback])].flatMap(tag => workbenchPlatformText.pack(tag) ?? []);
+  return createTextReader({ locale, packs });
 }
 
 /** A directory may draw an exact live owner, or use the same field's raw original if it no longer has that source. */

@@ -5,12 +5,13 @@ import { confirmedPlan } from "./plans.js";
 import { type Capabilities, type CodingActivation, selected } from "./route-activation.js";
 import { codingActions, codingActionControl, type CodingBeforeWrite } from "./route-entry.js";
 import { codingError, codingText } from "./words.js";
-import { bodyOf, methodSelection, mcpSelection, mcpSources, unlessMissing } from "./route-selections.js";
+import { bodyOf, skillSelection, mcpSelection, mcpSources, unlessMissing } from "./route-selections.js";
 import type { CodingExecution } from "./routes.js";
 import { nextConfiguration, runControl, text, codingBudgetSelection } from "./run-inputs.js";
 import { projectRuntime, requireProjectRuntime, runtimeDirectory, supports } from "./runtime-choice.js";
 import { DEFAULT_SESSION_TITLE, codingSessionTitleFrom } from "./session-title.js";
 import { roundAfterParkedAnswer, startRound } from "./start-round.js";
+import { codingSkillChoices } from "./skill-choices.js";
 import { codingInputPatch } from "./inputs.js";
 import type { CodingSessionRecord } from "./store.js";
 import { outputFolder, projectFolders } from "./project-folders.js";
@@ -50,11 +51,10 @@ const readState = async (a: CodingActivation, api: Capabilities, execution: Codi
   const { context } = a, actions = codingActions(context, beforeWrite);
   const directory = await runtimeDirectory(actions, api), { runtimes } = directory;
   const sessions = await readCodingSessions(a, execution, beforeWrite);
-  // The methods and MCP servers are the project's Runtime's, and only what its own capability matrix offers (PG-054).
+  // The MCP servers are the project's Runtime's, and only what its own capability matrix offers (PG-054).
   const { runtime: library } = projectRuntime(directory);
-  const methods = library && supports(library, "skills") ? await actions.invoke(agent.listSkills, [library.runtime_id]) : [];
   const mcp = library && supports(library, "mcp") ? await actions.invoke(agent.listMcp, [library.runtime_id]) : [];
-  return { sessions, methods, mcp, models: execution.models.list(),
+  return { sessions, skills: await codingSkillChoices(a, actions), mcp, models: execution.models.list(),
     // The Runtime a new session runs on; the page reads the role matrix of the open session's Runtime, or this one when none is open.
     project_runtime_id: library?.runtime_id ?? null,
     // Where the page's new rounds run unless the person picks another folder on the page: the project's output (SSC-17). Which folder
@@ -199,7 +199,7 @@ const ROUTES: RouteMaker[] = [
       const actionTools = body.action_tools === undefined ? undefined : parseExactActionReferences(body.action_tools);
       const sources = body.mcp_sources === undefined ? undefined : mcpSources(body.mcp_sources);
       const tools = body.mcp_tools === undefined ? undefined : mcpSelection(body.mcp_tools);
-      const methods = body.methods === undefined ? undefined : methodSelection(body.methods);
+      const skills = body.skills === undefined ? undefined : skillSelection(body.skills);
       const budget = body.budget === undefined ? undefined : codingBudgetSelection(body.budget);
       const title = body.title === undefined ? undefined : text(body.title, "coding.field.session-title");
       const savedInputs=inputPatch?await execution.sessions.inputs.write(beforeWrite,projectId,record.session_id,inputPatch.expected,inputPatch.value):null;
@@ -207,7 +207,7 @@ const ROUTES: RouteMaker[] = [
       if (configuration) context.services!.storage!.set(`configuration:${record.session_id}`, JSON.stringify(configuration));
       if (sources !== undefined) context.services!.storage!.set(`mcp-sources:${record.session_id}`,JSON.stringify(sources));
       if (tools !== undefined) context.services!.storage!.set(`mcp:${record.session_id}`, JSON.stringify(tools));
-      if (methods !== undefined) context.services!.storage!.set(`methods:${record.session_id}`, JSON.stringify(methods));
+      if (skills !== undefined) context.services!.storage!.set(`skills:${record.session_id}`, JSON.stringify(skills));
       if (character !== undefined) context.services!.storage!.set(`character:${record.session_id}`, JSON.stringify(character));
       if (characterSkills !== undefined) context.services!.storage!.set(`character-skills:${record.session_id}`, JSON.stringify(characterSkills));
       // The person's budget for this session: reaching it is reported, never enforced (the person's choice).

@@ -92,7 +92,8 @@ export async function refresh(page: GitPage): Promise<void> {
     await loadSource(page);
     if (!active(page, epoch)) return;
     const view = value.view;
-    notice.textContent = view.phase === "ready" ? [(view.head), page.U(view.upstream), view.message && (view.message)].filter(Boolean).join(" · ") : (view.message);
+    notice.textContent = view.phase === "ready" ? [view.head, page.U(view.upstream), view.message].filter(Boolean).join(" · ")
+      : view.reason === "directory_not_created" ? uiText.text("git.projection.directory-not-created") : view.message;
     paint(page, view);
     history.disabled = false;
   } catch (error) {

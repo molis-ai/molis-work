@@ -9,7 +9,7 @@ const ASSISTANT_GLYPHS: readonly PluginIconName[] = ["file", "note", "image", "z
 /**
  * The resident Assistant: its panel of works and the platform's composer (unified-input K3), drawn here as its first screen so
  * nothing moves when the island mounts it: who the next message goes to, the text, ＋ and send. Where to go lives at the bar's
- * left and search in the project menu (and ⌘K); the project list uses the same Dock. The bell sits on the receiver row.
+ * left and search in the project menu (and ⌘K); the project list uses the same Dock. Who the next message goes to is the tag beside ＋.
  */
 export function renderAssistantDock(primitives: { readText(value: string): string; icon(name: PluginIconName): string }): string {
   const { icon } = primitives;
@@ -77,7 +77,7 @@ export function renderAssistantDock(primitives: { readText(value: string): strin
       <div class="assistant-popover assistant-notices" id="assistant-notices" data-assistant-notices role="group" aria-label="${uiText("workbench.assistant-dock.needs-attention")}" hidden></div>
       <div class="assistant-composer" data-assistant-composer data-composer-next="${escapeHtml(add)}">
         <button class="assistant-answer" type="button" data-assistant-answer hidden></button>
-        ${renderComposer({ kind: "ai", labels: assistantComposerLabels(uiText.text, true), placeholder: uiText.text("workbench.assistant-dock.ask-assistant-do-something"), receiver: { label: uiText.text("workbench.assistant-dock.assistant"), open: true } })}
+        ${renderComposer({ kind: "ai", labels: assistantComposerLabels(uiText.text, true), placeholder: uiText.text("workbench.assistant-dock.ask-assistant-do-something"), receiver: { label: uiText.text("workbench.assistant-dock.assistant"), icon: "sparkles", open: true } })}
         <button class="assistant-attention" type="button" data-assistant-attention aria-haspopup="true" aria-expanded="false" aria-controls="assistant-notices" title="${uiText("workbench.assistant-dock.needs-attention")}" hidden>${icon("bell")}<span data-assistant-attention-count></span></button>
       </div>
     </div>`;

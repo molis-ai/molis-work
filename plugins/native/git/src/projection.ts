@@ -35,6 +35,7 @@ export interface GitProjectionInput {
   status: GitStatus | null;
   /** User-safe reason, for the phases that have one. */
   message?: string;
+  reason?: "directory_not_created";
   /** The row the user has selected, if any. */
   selected?: readonly string[];
 }
@@ -50,6 +51,7 @@ export interface GitView {
   changes: readonly GitListItem[];
   conflicts: readonly GitListItem[];
   message: string;
+  reason?: "directory_not_created";
   recovery?: string;
   truncated: boolean;
   /**
@@ -72,6 +74,7 @@ export function projectGit(input: GitProjectionInput): GitView {
       changes: [],
       conflicts: [],
       message: input.message ?? messageFor(input.phase),
+      ...(input.reason === undefined ? {} : { reason: input.reason }),
       ...(recoveryFor(input.phase) === undefined ? {} : { recovery: recoveryFor(input.phase)! }),
       truncated: false,
       committable: false,

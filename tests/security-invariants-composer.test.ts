@@ -137,7 +137,8 @@ test("S-composer-source-call item 1 near: a source gets only query, limit and th
   const { source, post } = await composerHome(t);
   const listed = await post("/api/composer/sources", { layer: "ai" });
   assert.equal(listed.status, 200, JSON.stringify(listed.body));
-  const [entry] = listed.body.sources as Array<Record<string, unknown>>;
+  // Built-in sources (Todo's) are listed too; this case is about the test plugin's own.
+  const entry = (listed.body.sources as Array<Record<string, unknown>>).find(one => one.capability_id === "composernotes.pick");
   assert.deepEqual(entry, { capability_id: "composernotes.pick", version: 1, provider_id: entry!.provider_id, provider: entry!.provider, title: "测试笔记" });
   const ask = (extra: Record<string, unknown>) => post("/api/composer/pick", { layer: "ai", capability_id: "composernotes.pick", version: 1, provider_id: entry!.provider_id, query: "访谈", limit: 5, ...extra });
   const found = await ask({ near: { kind: NOTE_KIND, id: "n3", plugin_id: source.id }, draft: "没发出的字", receiver: "Coding", materials: [{ kind: "attachment", ref: "x" }] });
@@ -152,7 +153,8 @@ test("S-composer-source-call item 1 near: a source gets only query, limit and th
 
 test("S-composer-source-call item 3: a source turned off is not listed, an open menu's next query is refused, a forged one too", async (t) => {
   const { source, post } = await composerHome(t);
-  const [entry] = (await post("/api/composer/sources", { layer: "plain" })).body.sources as Array<Record<string, unknown>>;
+  const notes = async () => ((await post("/api/composer/sources", { layer: "plain" })).body.sources as Array<Record<string, unknown>>).filter(one => one.capability_id === "composernotes.pick");
+  const [entry] = await notes();
   const pick = (over: Record<string, unknown> = {}) => post("/api/composer/pick", { layer: "plain", capability_id: "composernotes.pick", version: 1, provider_id: entry!.provider_id, query: "", limit: 5, ...over });
   assert.equal((await pick()).status, 200);
   for (const forged of [{ provider_id: "io.molis.work.example.other" }, { version: 2 }, { capability_id: "composernotes.read" }]) {
@@ -161,7 +163,7 @@ test("S-composer-source-call item 3: a source turned off is not listed, an open 
   }
   const calls = source.seen.length;
   source.off();
-  assert.deepEqual((await post("/api/composer/sources", { layer: "plain" })).body.sources, [], "off: not listed");
+  assert.deepEqual(await notes(), [], "off: not listed");
   const late = await pick();
   assert.deepEqual([late.status, late.body.code], [503, "composer.source_unavailable"], "the menu opened before is refused now");
   assert.equal(source.seen.length, calls, "the source is not called");
@@ -169,7 +171,8 @@ test("S-composer-source-call item 3: a source turned off is not listed, an open 
 
 test("S-composer-source-call N42–N56: a pick the page let go of is cancelled at its source; the next one runs as usual", async (t) => {
   const { source, post, f, project } = await composerHome(t);
-  const [entry] = (await post("/api/composer/sources", { layer: "plain" })).body.sources as Array<Record<string, unknown>>;
+  const notes = async () => ((await post("/api/composer/sources", { layer: "plain" })).body.sources as Array<Record<string, unknown>>).filter(one => one.capability_id === "composernotes.pick");
+  const [entry] = await notes();
   const body = { layer: "plain", capability_id: "composernotes.pick", version: 1, provider_id: entry!.provider_id, query: "访谈", limit: 5 };
   source.hold();
   const left = new AbortController();

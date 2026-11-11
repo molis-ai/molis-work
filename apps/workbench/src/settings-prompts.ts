@@ -246,12 +246,6 @@ globalThis.molisWorkBindPromptSettings = (container = document, context = null) 
         list.append(item);
       });
       diagnosticsBody.replaceChildren(list);
-      if (data.unregistered.length) {
-        diagnosticsBody.append(el("h3", "prompt-diagnostics-heading", globalThis.t.text("workbench.settings-prompts.model-calls-not-registered-yet")));
-        const rest = el("ul", "prompt-diagnostics-list");
-        data.unregistered.forEach((call) => { const item = el("li", "prompt-diagnostics-owner"); item.append(el("strong", "", call.title), el("span", "settings-muted", call.reason)); rest.append(item); });
-        diagnosticsBody.append(rest);
-      }
     } catch (failure) { delete diagnostics.dataset.loaded; diagnosticsBody.replaceChildren(problem(failure)); }
   };
   diagnostics.addEventListener("toggle", () => { if (diagnostics.open) loadDiagnostics(); });

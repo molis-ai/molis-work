@@ -249,10 +249,10 @@ globalThis.molisSkillUI?.preview(panel, shown.skills);
 if (shown.requires?.length) panel.append(group(readText("workbench.settings-plugins.required-capabilities"), "", shown.requires.map(item => row(item.capability_id, item.reason, readText(item.satisfied ? "workbench.settings-agent-diagnostics.present" : "workbench.settings-plugins.not-available")))));
 if (shown.origins?.length) panel.append(group(readText("workbench.settings-plugins.service-addresses-may-access"), "", shown.origins.map((service) => row(service.title, service.service_id, ...service.origins))));
 if (shown.agent_bodies && shown.agent_bodies.length) {
-const bodies = el("div", "plugin-trust-agent-bodies"); bodies.append(el("h4", "", globalThis.t.text("workbench.settings-plugins.role-materials-methods")));
+const bodies = el("div", "plugin-trust-agent-bodies"); bodies.append(el("h4", "", globalThis.t.text("workbench.settings-plugins.role-material")));
 shown.agent_bodies.forEach((item) => {
 const body = el("div", "plugin-trust-agent-body");
-body.append(el("strong", "", globalThis.t.text(item.kind === "role" ? "workbench.settings-plugins.role-material" : "workbench.settings-plugins.method") + "：" + item.name));
+body.append(el("strong", "", globalThis.t.text("workbench.assistant-composer.role-material-title", { name: item.name })));
 if (item.change) body.append(el("p", "settings-muted", readText({ added: "workbench.settings-plugins.body-added", changed: "workbench.settings-plugins.body-changed", removed: "workbench.settings-plugins.body-removed" }[item.change])));
 const excerpt = el("pre", "", item.excerpt); excerpt.style.whiteSpace = "pre-wrap"; excerpt.style.overflowWrap = "anywhere";
 body.append(excerpt);
@@ -304,6 +304,9 @@ pick.addEventListener("click", async () => { pick.disabled = true; try { review(
 for (const item of data.refused) box.append(el("p", "settings-form-error", item.file + " · " + item.message));
 }).catch(fail);
 load().catch(fail);
+// A content package 「能力包」's import handed over (browser/kit/files.ts): it goes through this same install review, read once.
+let handed = null; try { handed = sessionStorage.getItem("molis-work:kit-package"); sessionStorage.removeItem("molis-work:kit-package"); } catch { /* no storage here: nothing was handed */ }
+if (handed) (async () => { try { review(await api("/install/preview", { bundle: JSON.parse(handed) })); } catch (failure) { fail(failure, badPackage(failure)); } })();
 };
 globalThis.molisWorkBindPluginTrustSettings = (container = document) => {
 if (container.matches?.("[data-plugin-trust-settings]")) bind(container);

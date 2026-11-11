@@ -110,6 +110,8 @@ export const GOALS_EVENT_STATE_SQL = `
     verdict TEXT NOT NULL CHECK (verdict IN ('accepted', 'rejected')),
     received_at TEXT NOT NULL,
     journal_seq INTEGER NOT NULL,
+    checked_artifact_id TEXT,
+    checked_version INTEGER,
     PRIMARY KEY (project_id, goal_id, requirement_id, decision_id)
   );
   CREATE INDEX IF NOT EXISTS goal_event_requirement_conclusions_latest_idx

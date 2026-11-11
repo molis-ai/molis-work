@@ -257,6 +257,7 @@ function assertDeclarations(parsed: PluginManifest, ui: Record<string, unknown>)
   problems.push(...inspectAgentDeclaration(
     parsed.agent,
     (parsed.ports?.inputs ?? []).map((input) => input.port),
+    parsed.methods,
   ));
   problems.push(...inspectSkillDeclarations(parsed.methods));
   problems.push(...inspectViewDeclarations(parsed, ui));

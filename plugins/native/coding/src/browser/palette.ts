@@ -1,8 +1,22 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { el } from "./dom.js";
 import { keyLabel, matches } from "./matching.js";
-import type { Command } from "./slash-menu.js";
+import type { PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { PagePorts } from "./types.js";
+
+/** A command the composer's `/` (and ＋, for one that adds to the next round), the palette and the shortcuts offer. */
+export interface Command {
+  readonly slash: string;
+  readonly label: string;
+  readonly hint?: string;
+  readonly keywords?: readonly string[];
+  /** The shortcut, written `Mod+Alt+N`. */
+  readonly keys?: string;
+  readonly enabled?: boolean;
+  /** It sets what the next round is given (materials, a method, a Character…): offered in the composer's ＋ too, with this glyph. */
+  readonly adds?: PluginIconName;
+  readonly run: () => unknown;
+}
 
 /** A session the palette lists. */
 export interface SessionLine { readonly session_id: string; readonly title: string; readonly state_label?: string }

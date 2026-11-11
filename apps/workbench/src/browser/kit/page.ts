@@ -1,0 +1,168 @@
+import type { KitCatalog } from "@molis-ai/molis-work-contracts/services/kit";
+import { renderAlert, renderEmpty, renderSkeleton } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { act, button, esc, kitOf, readText, post, skillUi, updateKitWords, type Kit } from "./common.js";
+import { applyPicked, exportPack, handPackage, importPanel, readKitFile, type ExportPart } from "./files.js";
+import { packViews, type View } from "./view.js";
+
+// The 「能力包」 page (decided scheme A, docs/design/capability-pack/README.md): the pack list beside one pack; an entry of the pack opens
+// in the pack's place under a way back. One read of `kit.catalog.list` draws it all; the toolbar stays, everything under it is redrawn.
+
+export function mountKit(root: HTMLElement): () => void {
+  const project = root.dataset.project ?? "";
+  const $ = <T extends HTMLElement>(name: string) => root.querySelector<T>(`[data-kit-${name}]`)!;
+  const body = $("body"), notice = $("notice"), search = $<HTMLInputElement>("search"), kindSelect = $<HTMLSelectElement>("kind"), groupSelect = $<HTMLSelectElement>("group");
+  const pluginsHref = `/projects/${encodeURIComponent(project || "personal")}/settings/plugins`;
+  const view: View = { query: "", kind: "all", group: "all", detail: false };
+  let kit: Kit | undefined, failure: unknown, turn = 0, entering = false, requestedLanguage: string | undefined;
+
+  const say = (text: string, tone: "success" | "danger" = "success") => {
+    notice.hidden = false;
+    notice.innerHTML = renderAlert({ title: text, tone, role: tone === "danger" ? "alert" : "status" });
+  };
+
+  async function load(retitle = false): Promise<void> {
+    const mine = ++turn, language = document.documentElement.dataset.uiLanguageTag ?? document.documentElement.lang;
+    requestedLanguage = language;
+    failure = undefined;
+    try {
+      const catalog = await post<KitCatalog>(project, "list");
+      if (mine !== turn || !root.isConnected) return;
+      if (retitle && kit) {
+        const before = translatedView(kit, view.importing);
+        updateKitWords(kit, catalog);
+        globalThis.molisWorkRetitleRegion?.(body, before, translatedView(kit, view.importing));
+        return;
+      }
+      kit = kitOf(catalog);
+    } catch (cause) {
+      if (mine !== turn || !root.isConnected) return;
+      if (retitle && kit) { requestedLanguage = undefined; say((cause as Error)?.message || readText("workbench.kit.host-did-not-respond"), "danger"); return; }
+      failure = cause;
+    }
+    if (mine === turn && root.isConnected) draw();
+  }
+
+  function translatedView(source: Kit, importing: View["importing"]): string {
+    if (importing) return importPanel(source, project, importing);
+    const ids = [...body.querySelectorAll<HTMLElement>('[data-kit-act="pack"]')].map(row => row.dataset.kitV);
+    const packs = ids.flatMap(id => source.catalog.packs.find(pack => pack.pack_id === id) ?? []);
+    const result = kitMarkup(source, view, pluginsHref, packs, false), region = document.createElement("div");
+    region.innerHTML = result.html;
+    if (result.entry?.kind === "skill") {
+      const box = region.querySelector<HTMLElement>("[data-kit-skill]")!;
+      drawSkill(box, result.entry.skill, project, notice, () => {});
+    }
+    return region.innerHTML;
+  }
+
+  // ---------- drawing ----------
+  function draw(focus?: "detail" | "list" | "from" | "import"): void {
+    if (failure) {
+      body.innerHTML = renderEmpty({ icon: "alert", title: readText("workbench.kit.read-failed"), body: (failure as Error)?.message || readText("workbench.kit.host-did-not-respond"), className: "mw-empty--error",
+        action: `<div class="kit-chips">${button(readText("common.control.retry"), { icon: "refresh", attrs: act("retry") })}</div>` });
+      return;
+    }
+    if (!kit) {
+      body.innerHTML = `<p class="kit-summary" role="status">${esc(readText("workbench.kit.reading"))}</p><div class="mw-list-detail"><div class="mw-list-detail__body"><section class="mw-list-detail__list"><ul class="mw-items">${
+        Array.from({ length: 6 }, () => `<li class="mw-item">${renderSkeleton({ className: "mw-mark" })}${renderSkeleton()}</li>`).join("")}</ul></section></div></div>`;
+      return;
+    }
+    if (view.importing) {
+      body.innerHTML = importPanel(kit, project, view.importing);
+      if (focus === "import") root.querySelector<HTMLElement>("#kit-import-title")?.focus();
+      return;
+    }
+    const packs = packViews(kit, view, pluginsHref).shown();
+    if (packs.length && !packs.some(pack => pack.pack_id === view.pack)) { view.pack = packs[0]!.pack_id; view.item = undefined; }
+    const { entry, html } = kitMarkup(kit, view, pluginsHref, packs, entering);
+    body.innerHTML = html;
+    entering = false;
+    const skillBox = body.querySelector<HTMLElement>("[data-kit-skill]");
+    // A Skill's state redraws the page (its row's word changes too); the focus stays on the choice it was on.
+    // 08's own detail goes in after the way back, and what the kit adds stays last.
+    if (skillBox && entry?.kind === "skill") {
+      drawSkill(skillBox, entry.skill, project, notice, () => {
+        const kept = skillBox.contains(document.activeElement) && !document.activeElement?.closest(".mw-list-detail__trail, .kit-outer");
+        draw();
+        if (kept) body.querySelector<HTMLElement>("[data-kit-skill] input:checked")?.focus();
+      });
+    }
+    if (focus === "detail") body.querySelector<HTMLElement>(".kit-detail h3")?.focus();
+    if (focus === "list") body.querySelector<HTMLElement>(".mw-list-detail__list [aria-current='true']")?.focus();
+    if (focus === "from") (body.querySelector<HTMLElement>(`.kit-detail [data-kit-act="item"][data-kit-v="${CSS.escape(view.from ?? "")}"]`) ?? body.querySelector<HTMLElement>(".kit-detail h3"))?.focus();
+  }
+
+  // ---------- what the person does ----------
+  const open = (pack?: string, item?: string, from?: string) => { view.pack = pack ?? view.pack; view.item = item; view.from = from; view.detail = true; entering = true; };
+  async function run(name: string, value: string | undefined, origin: HTMLElement): Promise<void> {
+    if (name === "pack") { open(value); return draw("detail"); }
+    if (name === "item") { open(view.pack, value); return draw("detail"); }
+    if (name === "up") { const from = view.item; open(view.pack, undefined, from); return draw("from"); }
+    if (name === "unsel") { view.detail = false; return draw("list"); }
+    if (name === "only-na") { view.group = "na"; groupSelect.value = "na"; return draw(); }
+    if (name === "clear-q") { view.query = ""; search.value = ""; search.focus(); return draw(); }
+    if (name === "clear-k") { view.kind = "all"; kindSelect.value = "all"; return draw(); }
+    if (name === "clear-g") { view.group = "all"; groupSelect.value = "all"; return draw(); }
+    if (name === "retry") { kit = undefined; failure = undefined; draw(); return load(); }
+    if (name === "import") return $<HTMLInputElement>("file").click();
+    if (name === "import-local") { const panel = $("local-import"); return skillUi()?.importPanel(panel, project, load); }
+    if (name === "install") { location.href = `${pluginsHref}#plugin-trust-install-title`; return; }
+    if (name === "import-close") { view.importing = undefined; return draw(); }
+    if (name === "export") {
+      origin.closest<HTMLElement>("[popover]")?.hidePopover();
+      const pack = kit!.catalog.packs.find(candidate => candidate.pack_id === view.pack)!;
+      const file = await exportPack(project, kit!, pack, value as ExportPart);
+      return say(readText("workbench.kit.exported", { x: file }));
+    }
+    if (name === "import-apply" && view.importing) { (origin as HTMLButtonElement).disabled = true; await applyPicked(project, view.importing); return draw("import"); }
+    if (name === "import-package" && view.importing) {
+      if (handPackage(view.importing)) { location.href = pluginsHref; return; }
+      return say(readText("workbench.kit.package-not-retained"), "danger");
+    }
+  }
+
+  root.addEventListener("click", event => {
+    const origin = (event.target as Element).closest<HTMLElement>("[data-kit-act]");
+    if (!origin || !root.contains(origin) || (origin as HTMLButtonElement).disabled) return;
+    notice.hidden = true;
+    run(origin.dataset.kitAct!, origin.dataset.kitV, origin).catch(cause => say((cause as Error)?.message || String(cause), "danger"));
+  });
+  search.addEventListener("input", () => { view.query = search.value; draw(); });
+  kindSelect.addEventListener("change", () => { view.kind = kindSelect.value as View["kind"]; view.item = undefined; draw(); });
+  groupSelect.addEventListener("change", () => { view.group = groupSelect.value as View["group"]; draw(); });
+  root.addEventListener("change", event => {
+    const target = event.target as HTMLInputElement;
+    if (target.dataset.kitPick !== undefined && view.importing) {
+      if (target.checked) view.importing.picked.add(target.dataset.kitPick); else view.importing.picked.delete(target.dataset.kitPick);
+      return draw();
+    }
+    if (target.matches("[data-kit-file]") && target.files?.[0]) {
+      const chosen = target.files[0];
+      target.value = "";
+      readKitFile(project, chosen).then(importing => { view.importing = importing; draw("import"); }, cause => say((cause as Error)?.message || String(cause), "danger"));
+    }
+  });
+  draw();
+  void load();
+  return () => {
+    const language = document.documentElement.dataset.uiLanguageTag ?? document.documentElement.lang;
+    if (language !== requestedLanguage && root.getClientRects().length) void load(true);
+  };
+}
+
+function drawSkill(box: HTMLElement, skill: unknown, project: string, notice: HTMLElement, redraw: () => void): void {
+  const outer = box.querySelector(".kit-outer");
+  skillUi()?.detail(box, skill, project, { notice, redraw });
+  if (outer) box.append(outer);
+}
+
+function kitMarkup(kit: Kit, view: View, pluginsHref: string, packs: KitCatalog["packs"], entering: boolean) {
+  const { packRow, packDetail, itemDetail, summary, onlyBuiltin } = packViews(kit, view, pluginsHref);
+  const pack = packs.find(candidate => candidate.pack_id === view.pack);
+  const entry = pack && view.item ? kit.byKey.get(view.item) : undefined;
+  const clear = view.query ? button(readText("workbench.chooser.clear-search"), { icon: "x", attrs: act("clear-q") }) : view.kind !== "all" ? button(readText("workbench.kit.show-all-kinds"), { attrs: act("clear-k") }) : view.group !== "all" ? button(readText("workbench.kit.show-all-states"), { attrs: act("clear-g") }) : "";
+  const list = packs.length ? `<ul class="mw-items">${packs.map(packRow).join("")}</ul>` : `<p class="kit-inline-empty">${esc(readText("workbench.kit.no-matches"))}${clear}</p>`;
+  const right = pack ? (entry ? itemDetail(pack, entry) : packDetail(pack))
+    : renderEmpty({ icon: "search", title: readText("workbench.kit.no-matches"), body: readText("workbench.kit.try-other-search"), action: clear ? `<div class="kit-chips">${clear}</div>` : "" });
+  return { entry, html: `${summary(packs)}${onlyBuiltin()}<div class="mw-list-detail" data-sticky-detail${view.detail && pack ? " data-detail" : ""}><div class="mw-list-detail__body"><section class="mw-list-detail__list" aria-label="${esc(readText("workbench.kit.title"))}">${list}</section><section class="mw-list-detail__detail kit-detail${entering ? " is-entering" : ""}"${entry?.kind === "skill" ? " data-kit-skill" : ""} aria-label="${esc(readText(entry ? "workbench.kit.entry-detail" : "workbench.kit.title"))}">${right}</section></div></div>` };
+}

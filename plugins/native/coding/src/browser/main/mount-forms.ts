@@ -141,16 +141,18 @@ async function saveMethods(page: Page, form: HTMLFormElement) {
   const { input, lifetime, q, refs, s } = page, submit = submitOf(form);
   if (submit.disabled) return;
   submit.disabled = true;
-  const id = s.current, selection = structuredClone(s.methodChoices);
+  const id = s.current, selection = structuredClone(s.methodChoices), previous = s.methodSelections.get(id);
+  // Held before the save goes, as MCP's are: a typing save the composer sends meanwhile carries them, not the old ones.
+  s.methodSelections.set(id, selection);
   try {
-    await refs.draft.save(id, input.value, { methods: selection });
-    s.methodSelections.set(id, selection);
+    await refs.draft.saveChoices(id);
     q<HTMLDialogElement>("[data-coding-method-dialog]").close();
     controls(page);
     input.focus();
     status(page, uiText.text("coding.method.saved"));
   } catch (error) {
     if (!lifetime.alive) return;
+    s.methodSelections.set(id, previous || []);
     q("[data-coding-method-error]").textContent = errorMessage(error);
   } finally {
     submit.disabled = false;
@@ -190,12 +192,11 @@ async function saveWorkspace(page: Page, form: HTMLFormElement) {
 }
 
 function listenChoiceForms(page: Page) {
-  const { directory, lifetime, q, s } = page;
+  const { directory, lifetime, q } = page;
   lifetime.listen(document, "molis-work:knowledge-picked", event => {
     const picked = detailOf<KnowledgePicked>(event);
     if (picked) void takeMaterials(page, picked);
   });
-  lifetime.listen(q("[data-coding-method-dialog]"), "cancel", () => { s.methodDocumentTicket++; });
   const forms: [string, (page: Page, form: HTMLFormElement) => Promise<void>][] = [["[data-coding-mcp-form]", saveMcp], ["[data-coding-method-form]", saveMethods], ["[data-coding-workspace-form]", saveWorkspace]];
   for (const [selector, save] of forms) {
     const form = q<HTMLFormElement>(selector);

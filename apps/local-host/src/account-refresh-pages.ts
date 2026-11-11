@@ -1,3 +1,4 @@
+import { channel } from 'node:diagnostics_channel';
 import { randomUUID } from 'node:crypto';
 import { ActionError } from '@molis-ai/molis-work-contracts/platform/actions';
 import type { PersonalAccountLease } from './personal-auth.js';
@@ -5,9 +6,10 @@ import type { PersonalAccountLease } from './personal-auth.js';
 type Lease = Pick<PersonalAccountLease, 'signal' | 'assertCurrent'>;
 type Intent = 'switch' | 'logout';
 export interface AccountRefreshPreparation { id: string; ownerPageId: string; intent: Intent; ready: boolean }
-export interface AccountRefreshPageEvent { type: 'prepare' | 'changed' | 'cancelled' | 'revoked'; preparation: AccountRefreshPreparation | null }
-interface Page { lease: Lease; listeners: Set<(event: AccountRefreshPageEvent) => void>; abort(): void }
+export interface AccountRefreshPageEvent { type: 'prepare' | 'changed' | 'cancelled' | 'revoked'; preparation: AccountRefreshPreparation | null; reason?: string }
+interface Page { binding: string; departed: boolean; lease: Lease; listeners: Set<(event: AccountRefreshPageEvent) => void>; abort(): void }
 interface Preparation extends AccountRefreshPreparation { lease: Lease; required: Set<string>; acknowledged: Set<string>; committing: boolean; timer: NodeJS.Timeout }
+const diagnostics = channel('molis-work.account-pages');
 const refused = () => new ActionError('actions.forbidden', '账号切换准备已失效，请返回原页面重试');
 
 /** Ephemeral page coordination only. Identity and revocation remain the original account lease's facts. */
@@ -16,19 +18,20 @@ export class AccountRefreshPages {
   private preparation: Preparation | null = null;
   constructor(private readonly timeoutMs = 30_000, private readonly onCancel: () => void = () => {}) {}
 
-  register(pageId: string, lease: Lease): void {
+  register(pageId: string, lease: Lease): string {
     lease.assertCurrent();
     if (!pageId || pageId.length > 128) throw refused();
     const existing = this.pages.get(pageId);
-    if (existing?.lease.signal === lease.signal) return;
+    if (existing?.lease.signal === lease.signal) { if (existing.departed) throw refused(); return existing.binding; }
     if (this.preparation?.committing && this.preparation.lease.signal === lease.signal) throw refused();
     if (existing) this.remove(pageId, existing);
-    const page: Page = { lease, listeners: new Set(), abort: () => {
+    const page: Page = { binding: randomUUID(), departed: false, lease, listeners: new Set(), abort: () => {
       this.emit(page, { type: 'revoked', preparation: null });
       if (this.preparation?.lease.signal === lease.signal) this.clear('revoked');
       this.remove(pageId, page);
     } };
     this.pages.set(pageId, page);
+    diagnostics.publish({ event: 'registered', pageId });
     lease.signal.addEventListener('abort', page.abort, { once: true });
     const preparation = this.preparation;
     if (preparation?.lease.signal === lease.signal) {
@@ -36,23 +39,30 @@ export class AccountRefreshPages {
       preparation.ready = false;
       this.broadcast('prepare');
     }
+    return page.binding;
+  }
+
+  connection(pageId: string, lease: Lease, binding: string): void {
+    if (!binding || this.page(pageId, lease).binding !== binding) throw refused();
   }
 
   subscribe(pageId: string, send: (event: AccountRefreshPageEvent) => void): () => void {
     const page = this.pages.get(pageId);
-    if (!page) throw refused();
+    if (!page || page.departed) throw refused();
     page.lease.assertCurrent();
     page.listeners.add(send);
+    diagnostics.publish({ event: 'connected', pageId });
     try { send({ type: this.preparation ? 'prepare' : 'changed', preparation: this.snapshot(page.lease) }); }
     catch (error) {
       page.listeners.delete(send);
-      if (this.preparation?.required.has(pageId)) this.clear('cancelled');
+      if (this.preparation?.required.has(pageId)) this.clear('cancelled', 'delivery-failed');
       throw error;
     }
     return () => {
       page.listeners.delete(send);
+      diagnostics.publish({ event: 'disconnected', pageId });
       const preparation = this.preparation;
-      if (this.pages.get(pageId) === page && !page.listeners.size && preparation?.lease.signal === page.lease.signal && preparation.required.has(pageId)) this.clear('cancelled');
+      if (this.pages.get(pageId) === page && !page.listeners.size && preparation?.lease.signal === page.lease.signal && preparation.required.has(pageId)) this.clear('cancelled', 'connection-lost');
     };
   }
 
@@ -71,8 +81,8 @@ export class AccountRefreshPages {
       if (!current || current.intent !== intent) throw refused();
       return current;
     }
-    const required = new Set([...this.pages].filter(([, page]) => page.lease.signal === lease.signal).map(([id]) => id));
-    const timer = setTimeout(() => { if (!this.preparation?.committing) this.clear('cancelled'); }, this.timeoutMs);
+    const required = new Set([...this.pages].filter(([, page]) => page.lease.signal === lease.signal && !page.departed).map(([id]) => id));
+    const timer = setTimeout(() => { if (!this.preparation?.committing) this.clear('cancelled', 'timeout'); }, this.timeoutMs);
     timer.unref();
     this.preparation = { id: randomUUID(), ownerPageId: pageId, intent, ready: false, lease, required, acknowledged: new Set(), committing: false, timer };
     this.broadcast('prepare');
@@ -105,9 +115,16 @@ export class AccountRefreshPages {
   }
 
   leave(pageId: string, lease: Lease): void {
+    lease.assertCurrent();
+    const existing = this.pages.get(pageId);
+    if (existing?.lease.signal === lease.signal && existing.departed) return;
+    // pagehide can arrive before an in-flight initial status request registers this document.
+    if (!existing) this.register(pageId, lease);
     const page = this.page(pageId, lease);
-    if (this.preparation?.required.has(pageId)) this.clear('cancelled');
-    this.remove(pageId, page);
+    if (this.preparation?.required.has(pageId)) this.clear('cancelled', 'page-left');
+    page.departed = true;
+    page.listeners.clear();
+    diagnostics.publish({ event: 'left', pageId });
   }
 
   close(): void {
@@ -118,7 +135,7 @@ export class AccountRefreshPages {
   private page(pageId: string, lease: Lease): Page {
     lease.assertCurrent();
     const page = this.pages.get(pageId);
-    if (!page || page.lease.signal !== lease.signal) throw refused();
+    if (!page || page.departed || page.lease.signal !== lease.signal) throw refused();
     page.lease.assertCurrent();
     return page;
   }
@@ -141,16 +158,17 @@ export class AccountRefreshPages {
     const preparation = this.snapshot(current.lease);
     let delivered = true;
     for (const pageId of current.required) { const page = this.pages.get(pageId); if (page && !this.emit(page, { type, preparation })) delivered = false; }
-    if (!delivered) this.clear('cancelled');
+    if (!delivered) this.clear('cancelled', 'delivery-failed');
   }
-  private clear(type: 'cancelled' | 'revoked'): void {
+  private clear(type: 'cancelled' | 'revoked', reason: string = type): void {
     const current = this.preparation;
     if (!current) return;
     // Invalidate the original OAuth attempt before any old page is allowed to resume editing.
     if (type === 'cancelled' && current.committing) this.onCancel();
     clearTimeout(current.timer);
     this.preparation = null;
-    for (const id of current.required) { const page = this.pages.get(id); if (page) this.emit(page, { type, preparation: null }); }
+    diagnostics.publish({ event: type, reason, pageId: current.ownerPageId });
+    for (const id of current.required) { const page = this.pages.get(id); if (page) this.emit(page, { type, reason, preparation: null }); }
   }
   private remove(id: string, page: Page): void { page.lease.signal.removeEventListener('abort', page.abort); this.pages.delete(id); }
 }

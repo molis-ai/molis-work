@@ -3,9 +3,9 @@ import type { AgentDefinitionRegistration, AgentDefinitionSource } from "@molis-
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { comparePluginVersions } from "@molis-ai/molis-work-plugin-sdk";
 import { definitionOrigin } from "@molis-ai/molis-work-plugin-runtime";
-import { agentDeclarationsFor, agentDefinitionsFor, agentRegistration, declaredMethods } from "./agent-definitions/agent-definitions.js";
+import { agentDeclarationsFor, agentDefinitionsFor, agentRegistration, assertInstructionRoles, declaredMethods, instructionRegistration } from "./agent-definitions/agent-definitions.js";
 import { notRunning } from "./agent-definitions/agent-declarations.js";
-import { builtinRegistrations } from "./agent-definitions/builtin-registrations.js";
+import { builtinRegistrations } from "./agent-definitions/builtin-agents.js";
 import type { PluginPlatformHome } from "./home-side.js";
 import { registeredBuiltinText } from "./ui-text-provider.js";
 import { bindAgentDisplayWords } from "./agent-definitions/display-words.js";
@@ -104,9 +104,9 @@ export function pluginAgentRegistration(definition: PluginDefinition, source: Ag
       if (prompt) { prompt.default_ref = { source: signedSource, kind: "role", entry_id: role.role_id }; role.purpose = prompt.purpose; }
     }
   }
-  const registration = { owner_id: owner, source, prompts: [...declared.prompts, ...instructions.map(item => ({ prompt_id: item.prompt_id, version: item.version,
-    kind: "instruction" as const, title: item.title, purpose: item.purpose, used_by: [...item.used_by], body: item.body, ...(item.body_by_locale ? { body_by_locale: item.body_by_locale } : {}) }))], roles: declared.roles,
+  const registration: AgentDefinitionRegistration = { owner_id: owner, source, prompts: [...declared.prompts, ...instructions.map(instructionRegistration)], roles: declared.roles,
     ...(methods.length ? { methods } : {}), ...(notes.length ? { notes } : {}) };
+  assertInstructionRoles(registration);
   const reader = definition.execution !== "sandbox" && registeredBuiltinText(definitionOrigin(definition).manifest);
   return reader ? bindAgentDisplayWords(registration, reader) : registration;
 }

@@ -1,7 +1,7 @@
 import { composeInstructedPrompt, modelPromptText, type InstructionPrompt, type ModelPromptInput } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { agentDefinitionsFor } from "./agent-definitions.js";
 import { modelRoundLocale } from "../reply-language.js";
-import { builtinRegistrations } from "./builtin-registrations.js";
+import { builtinRegistrations } from "./builtin-agents.js";
 
 /** Resolve a named instruction in a Host-bound owner's namespace. */
 export function resolveInstructionPrompt(homeDirectory: string, ownerId: string, promptId: string, caller: string): string {

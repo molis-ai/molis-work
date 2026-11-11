@@ -33,11 +33,11 @@ async function recover(page: Page, target: HTMLButtonElement) {
 
 /** Previews rewinding to a checkpoint: a rewind is the person's own reviewed file change, not a round. */
 async function rewind(page: Page, target: HTMLButtonElement) {
-  const { lifetime, q, s } = page, id = s.current, ticket = s.generation;
+  const { lifetime, s } = page, id = s.current, ticket = s.generation;
   s.checkpointBusy = true;
   controls(page);
   try {
-    const chosen = q<HTMLSelectElement>("[data-coding-intent]").value, intent = ["edit", "execute"].includes(chosen) ? chosen : "edit";
+    const intent = ["edit", "execute"].includes(s.intent) ? s.intent : "edit";
     await api(page, sessionPath(id) + "/checkpoints/" + encodeURIComponent(target.dataset.codingRewind || "") + "/rewind", "POST", { intent });
     if (s.current === id && s.generation === ticket) {
       status(page, uiText.text("coding.checkpoints.preview-ready"));

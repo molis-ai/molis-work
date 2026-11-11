@@ -14,7 +14,7 @@ import { pluginPagesFor, pluginPageRequest } from "../plugin-page-authority.js";
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { join } from 'node:path';
 import { agentDefinitionsFor } from '../agent-definitions/agent-definitions.js';
-import { builtinRegistrations } from '../agent-definitions/builtin-registrations.js';
+import { builtinRegistrations } from '../agent-definitions/builtin-agents.js';
 import { registeredInstructionBody } from '../agent-definitions/instructions.js';
 import type { PluginPrivateStorage, PluginExecutionControl } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';

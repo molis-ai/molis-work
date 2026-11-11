@@ -77,7 +77,7 @@ test("packed SDK: drafts share their owning Runtime, have no tools and leave no 
     const definitions = homeAgentDefinitions(home), pluginId = "io.molis.work.coding";
     const named = { purpose: "整理材料", prompt: "coding.commit-draft", material: "UNTRUSTED_MATERIAL" };
     const key = `${pluginId}/${named.prompt}`;
-    assert.equal(definitions.uses(key).length, 0);
+    assert.equal(definitions.uses.list(key).length, 0);
     await assert.rejects(draftText(options, named), { code: "actions.host_context_missing" });
     await assert.rejects(draftText(options, { ...named, prompt: "missing" }, { pluginId }), { code: "agent_definitions.not_found" });
     await assert.rejects(draftText(options, named, { pluginId: "io.molis.work.jelly" }), { code: "agent_definitions.not_found" });
@@ -91,7 +91,7 @@ test("packed SDK: drafts share their owning Runtime, have no tools and leave no 
       if (stop === "cancel") controller.abort();
       release.resolve(); await rejected;
     }
-    assert.equal(definitions.uses(key).length, 0, "rejected calls do not record prompt use");
+    assert.equal(definitions.uses.list(key).length, 0, "rejected calls do not record prompt use");
     assert.equal(bodies.length, 2, "rejected calls do not dispatch a model");
 
     for (const prompt of CODING_INSTRUCTIONS) {
@@ -104,7 +104,7 @@ test("packed SDK: drafts share their owning Runtime, have no tools and leave no 
       assert.ok(JSON.stringify(bodies.at(-1).system).includes(edited));
       assert.doesNotMatch(JSON.stringify(bodies.at(-1).system), /UNTRUSTED_MATERIAL/);
       assert.match(JSON.stringify(bodies.at(-1).messages), /UNTRUSTED_MATERIAL/);
-      assert.deepEqual(definitions.uses(promptKey).map(use => [use.version, use.user_revision, use.caller]), [[prompt.version, 1, pluginId]]);
+      assert.deepEqual(definitions.uses.list(promptKey).map(use => [use.version, use.user_revision, use.caller]), [[prompt.version, 1, pluginId]]);
     }
     const otherHome = join(home, "another-home");
     running(otherHome);

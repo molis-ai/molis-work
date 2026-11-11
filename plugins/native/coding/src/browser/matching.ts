@@ -14,7 +14,8 @@ export function matches(needle: string, ...hay: unknown[]): boolean {
   });
 }
 
-const mac = () => /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+/** The person is on a Mac (the keys are written ⌘ there). */
+export const mac = () => /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 
 /** A shortcut as the platform writes it: `Mod+Alt+N` is ⌘⌥N on a Mac and Ctrl+Alt+N elsewhere. */
 export function keyLabel(keys: string): string {

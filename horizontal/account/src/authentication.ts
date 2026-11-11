@@ -52,6 +52,12 @@ export function createAccountAuthentication(config: AccountEnvironmentConfig, se
     async reauthenticate(input: unknown, control: AccountCallControl) { validAuthentication("ProductReauthenticationRequest", input); return management.create(input, control, true); },
     mutate: management.mutate,
     async get(handle: string, control: AccountCallControl) { return authenticationView(lookup(handle, control)); },
+    matchesCallback(url: URL, origin?: string): boolean {
+      const t = callbackAttempt(url);
+      if (!t || t.busy || t.finished) return false;
+      try { assertAccountProviderCallback(config, url, origin, t); assertAuthentication(t); return true; }
+      catch { return false; }
+    },
     matchesNativeCallback(url: URL, origin?: string): boolean {
       const t = callbackAttempt(url);
       if (!t || !nativeCallbacks.has(t) || t.busy || t.finished) return false;
@@ -102,6 +108,9 @@ export function createAccountAuthentication(config: AccountEnvironmentConfig, se
         sessions.cancelLogin(t.attempt); t.finished = true; return result.data;
       });
     },
-    close() { for (const t of pending.values()) discard(t); pending.clear(); current = undefined; },
+    close() { for (const t of pending.values()) {
+      discard(t);
+      if(t.attempt&&!t.finished)try{sessions.cancelLogin(t.attempt);}catch{ /* A consumed or superseded attempt is already fenced by its session owner. */ }
+    } pending.clear(); current = undefined; },
   };
 }

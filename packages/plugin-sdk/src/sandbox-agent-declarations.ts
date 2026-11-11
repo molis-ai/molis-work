@@ -65,7 +65,12 @@ export function parsePluginPackageManifest(input: unknown): PluginPackageManifes
 /** A role material's stable protocol ids keep its complete name; the display name is never used as a path or authorization. */
 export function sandboxRoleIdentity(pluginId: string, name: string): { entry_id: string; prompt_id: string } {
   const digest = createHash("sha256").update(JSON.stringify([pluginId, "role", name]), "utf8").digest("hex");
-  return { entry_id: `role-${digest}`, prompt_id: `prompt-${digest}` };
+  return { entry_id: `role-${digest}`, prompt_id: sandboxPromptId(`role-${digest}`) };
+}
+
+/** The id of the prompt a signed role material carries, derived from the role's entry id (the one place this pairing is written). */
+export function sandboxPromptId(entryId: string): string {
+  return `prompt-${entryId.slice("role-".length)}`;
 }
 
 /**

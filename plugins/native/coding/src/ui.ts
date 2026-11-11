@@ -9,7 +9,8 @@ import type {
   UiNestedContentModel,
   UiRenderRequest,
 } from "@molis-ai/molis-work-contracts/platform/ui";
-import { icon, renderButton, renderDirectoryHeading, renderDirectoryPanel, renderSidebar } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { icon, renderButton, renderComposer, renderDirectoryHeading, renderDirectoryPanel, renderSidebar } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { codingComposerLabels, codingIntentOptions } from "./composer-labels.js";
 import type { AgentRunUsage } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { CodingIdentityView } from "./identity.js";
 import { CODING_ROLE_IDS, codingAgentManifest } from "./roles.js";
@@ -31,7 +32,7 @@ export const CODING_SETTINGS_UI_CONTRIBUTION_ID = "io.molis.work.native.coding.s
 export const CODING_COMPANION_DIRECTORY_SLOT = "coding.companion-directory";
 export const CODING_COMPANION_RESULT_SLOT = "coding.companion-result";
 
-export type CodingUiSurface = "directory" | "workbench";
+export type CodingUiSurface = "workbench";
 
 /**
  * The five navigation faces the directory column switches between. Every face changes the directory column only:
@@ -72,7 +73,8 @@ export const codingUiDescriptor: UiContributionDeclaration = {
   navigation_id: "coding",
   label: "Coding",
   surfaces: [
-    { surface_id: "directory", target_slot_id: "workbench.directory", format: "declarative-html" },
+    // The session list is the page's own left column (its five faces follow the session on show); the workbench draws no second
+    // copy in its directory (one list, user 2026-11-10, specs/unified-input-voice §10.4).
     { surface_id: "workbench", target_slot_id: "workbench.main", format: "declarative-html" },
   ],
   slots: [
@@ -86,8 +88,6 @@ export const codingUiContribution: UiContribution<CodingUiModel> = {
   descriptor: codingUiDescriptor,
   render(request: UiRenderRequest<CodingUiModel>): string {
     switch (request.surface as CodingUiSurface) {
-      case "directory":
-        return renderCodingDirectory(request.model);
       case "workbench":
         return renderCodingWorkbench(request.model);
       default:
@@ -126,13 +126,13 @@ export function codingUiView(directory: () => readonly CodingSessionEntry[]): Ui
 
 export function renderCodingDirectory(model: CodingUiModel): string {
   const { primitives: p } = model;
-  const faces = CODING_DIRECTORY_FACES.map((face) => `<button type="button" class="mw-toggle coding-face" data-coding-face="${face.face}" aria-pressed="${face.face === model.face}" title="${p.escape(p.text(face.label))}" aria-label="${p.escape(p.text(face.label))}">${p.icon(face.icon)}</button>`).join("");
+  const faces = CODING_DIRECTORY_FACES.map((face) => `<button type="button" class="mw-toggle coding-face" data-coding-face="${face.face}" aria-pressed="${face.face === model.face}" title="${p.escape(uiText.text(face.label))}" aria-label="${p.escape(uiText.text(face.label))}">${p.icon(face.icon)}</button>`).join("");
   const filters = (["all", "running", "needs-you"] as const).map((filter) => `<button type="button" class="mw-toggle coding-filter" data-coding-filter="${filter}" aria-pressed="${filter === model.filter}">${p.escape(filterLabel(filter, p))}</button>`).join("");
   const groups = groupByGoal(filterSessions(model.sessions, model.filter))
     .map((group) => renderCodingSessionGroup(group.goal_id, group.goal_id === null ? uiText.text("coding.directory.no-goal") : group.title, group.entries, p))
     .join("");
   return renderSidebar({className:"coding-directory",attrs:{"data-coding-directory":"","data-coding-current-face":model.face},
-    body: renderDirectoryPanel({pluginId:"coding",embedded:true,label:faceLabel(model.face, p),listLabel:uiText.text("coding.directory.list"),listRole:"none",
+    body: renderDirectoryPanel({pluginId:"coding",embedded:true,label:faceLabel(model.face),listLabel:uiText.text("coding.directory.list"),listRole:"none",
       tools: renderButton({label:uiText.text("coding.directory.search-toggle"),icon:"search",iconOnly:true,variant:"ghost",attrs:{"data-coding-search-toggle":"","aria-expanded":false}}),
       body: `<nav class="coding-faces" aria-label="${p.escape(uiText.text("coding.directory.faces"))}">${faces}</nav>
       <div class="coding-query" data-coding-query hidden><label class="coding-search"><span class="mw-sr-only">${p.escape(uiText.text("coding.directory.search-title"))}</span><input class="mw-input" data-coding-search aria-label="${p.escape(uiText.text("coding.directory.search-sessions"))}" placeholder="${p.escape(uiText.text("coding.directory.search-sessions"))}"></label><div class="coding-filters mw-toggle-group" role="group" aria-label="${p.escape(uiText.text("coding.directory.filters"))}">${filters}</div></div>
@@ -168,7 +168,7 @@ export function renderCodingSessionRow(entry: CodingSessionEntry, p: CodingUiPri
   return `<a class="mw-dir-row mw-dir-row--meta coding-session-row" href="#session-${p.escape(encodeURIComponent(entry.session_id))}" data-coding-session="${id}" aria-current="false">`
     + `<span class="mw-dir-row__icon">${p.icon(CODING_DIRECTORY_FACES[0].icon)}</span><span class="mw-dir-row__copy"><span class="mw-dir-row__headline">`
     + `<strong class="coding-session-title" title="${p.escape(entry.title)}">${p.escape(entry.title)}</strong><time class="mw-dir-row__count coding-session-time" datetime="${p.escape(entry.updated_at)}">${p.escape(p.formatDate(entry.updated_at))}</time></span>`
-    + `<small class="coding-session-state" data-state="${p.escape(entry.state)}" data-mw-state="${mark.ring}">${p.escape(p.text(mark.label))}</small></span></a>`;
+    + `<small class="coding-session-state" data-state="${p.escape(entry.state)}" data-mw-state="${mark.ring}">${p.escape(uiText.text(mark.label))}</small></span></a>`;
 }
 
 /** A Goal's sessions under its heading (or the real group of sessions with no Goal). */
@@ -215,7 +215,7 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
       <header class="mw-form__header"><h2>${p.escape(uiText.text("coding.delegate.title"))}</h2></header>
       <section class="mw-form__body"><p>${p.escape(uiText.text("coding.delegate.note"))}</p>
       <label class="mw-field"><span>${p.escape(uiText.text("coding.delegate.title-label"))}</span><input class="mw-input" data-coding-delegate-title maxlength="80" placeholder="${p.escape(uiText.text("coding.delegate.title-placeholder"))}"></label>
-      <label class="mw-field"><span>${p.escape(uiText.text("coding.delegate.task-label"))}</span><textarea class="mw-textarea" rows="5" maxlength="20000" data-coding-delegate-task required></textarea></label>
+      <label class="mw-field"><span>${p.escape(uiText.text("coding.delegate.task-label"))}</span><textarea class="mw-textarea" rows="5" maxlength="20000" data-fit data-coding-delegate-task required></textarea></label>
       <fieldset class="mw-field coding-delegate-outputs"><legend>${p.escape(uiText.text("coding.delegate.outputs-legend"))}</legend><div data-coding-delegate-outputs></div>${renderButton({label:uiText.text("coding.delegate.pick"),variant:"secondary",attrs:{"data-coding-delegate-pick":""}})}</fieldset>
       <p data-coding-delegate-status role="status"></p></section>
       <footer class="mw-form__footer">${renderButton({label:uiText.text("coding.common.cancel"),variant:"secondary",attrs:{"data-coding-delegate-cancel":""}})}<button class="mw-btn mw-btn--primary" type="submit" data-coding-delegate-create>${p.escape(uiText.text("coding.delegate.create"))}</button></footer>
@@ -317,34 +317,21 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
         <button class="mw-btn coding-jump" type="button" data-coding-latest hidden>${p.icon("chevron-down")}<span>${p.escape(uiText.text("coding.dialogue.latest"))}</span></button>
         <p class="coding-status" data-coding-status role="status" aria-live="polite"></p>
         <div class="coding-queued" data-coding-queued role="status" hidden></div>
-        <form class="coding-composer mw-frame__footer" data-coding-composer><div data-coding-steps hidden></div>
+        <div class="coding-composer mw-frame__footer" data-coding-composer><div data-coding-steps hidden></div>
           <div class="coding-context mw-toolbar" data-coding-context hidden aria-label="${p.escape(uiText.text("coding.context.label"))}">
           ${renderButton({label:uiText.text("coding.context.workspace"),icon:"folder",variant:"ghost",attrs:{"data-coding-workspace-open":""}})}
           ${renderButton({label:uiText.text("coding.goal.link"),icon:"target",variant:"ghost",disabled:true,attrs:{"data-coding-goal-open":""}})}
           ${renderButton({label:uiText.text("coding.worktrees.title"),icon:"git-branch",variant:"ghost",attrs:{"data-coding-writer-directories-open":""}})}${renderButton({label:uiText.text("coding.context.open-beside"),icon:"columns",iconOnly:true,variant:"ghost",attrs:{"data-coding-open-beside":"",title:uiText.text("coding.context.open-beside-title")}})}${renderButton({label:uiText.text("coding.context.rename"),icon:"edit",iconOnly:true,variant:"ghost",attrs:{"data-coding-rename":"",hidden:true,title:uiText.text("coding.context.rename-title")}})}${renderButton({label:uiText.text("coding.context.archive"),variant:"ghost",attrs:{"data-coding-archive":"",hidden:true}})}<small data-coding-goal-label></small></div>
-          <div class="coding-composer-shell">
-            <label class="mw-sr-only" for="coding-task">${p.escape(uiText.text("coding.composer.task-label"))}</label>
-            <textarea class="mw-textarea" id="coding-task" data-coding-task data-fit rows="3" placeholder="${p.escape(uiText.text("coding.composer.placeholder"))}" aria-describedby="coding-slash-help" disabled></textarea>
-            <span class="mw-sr-only" id="coding-slash-help">${p.escape(uiText.text("coding.composer.slash-help"))}</span>
-            <div class="coding-slash" id="coding-slash-menu" data-coding-slash-menu role="listbox" aria-label="${p.escape(uiText.text("coding.slash.label"))}" hidden></div>
-            <div class="coding-composer-bar">
-              <div class="coding-composer-leading">
-                <div class="coding-attach"><button class="mw-btn mw-btn--ghost mw-btn--icon-only coding-attach-toggle" type="button" data-coding-attach-toggle aria-expanded="false" aria-haspopup="menu" aria-label="${p.escape(uiText.text("coding.attach.label"))}" title="${p.escape(uiText.text("coding.attach.title"))}">${p.icon("plus")}</button>
-                  <div class="coding-attach-menu" data-coding-attach-menu role="menu" hidden><div class="coding-composer-context" aria-label="${p.escape(uiText.text("coding.attach.menu"))}">${renderButton({label:uiText.text("coding.attach.material"),icon:"paperclip",variant:"ghost",attrs:{"data-coding-material-open":"","aria-label":uiText.text("coding.attach.material-label"),role:"menuitem"}})}${renderButton({label:uiText.text("coding.attach.character"),icon:"user",variant:"ghost",attrs:{"data-coding-character-open":"","aria-label":uiText.text("coding.character.title"),role:"menuitem"}})}${renderButton({label:uiText.text("coding.attach.method"),icon:"list",variant:"ghost",attrs:{"data-coding-method-open":"","aria-label":uiText.text("coding.method.title"),role:"menuitem"}})}${renderButton({label:uiText.text("coding.attach.actions"),icon:"workflow",variant:"ghost",attrs:{"data-coding-actions-open":"","aria-label":uiText.text("coding.actions.label"),role:"menuitem"}})}${renderButton({label:uiText.text("coding.attach.mcp"),icon:"network",variant:"ghost",attrs:{"data-coding-mcp-open":"","aria-label":uiText.text("coding.mcp.title"),role:"menuitem"}})}${renderButton({label:uiText.text("coding.delegate.title"),icon:"share",variant:"ghost",attrs:{"data-coding-delegate-open":"","aria-label":uiText.text("coding.attach.delegate-label"),role:"menuitem"}})}</div>
-                  ${renderButton({label:uiText.text("coding.attach.context"),icon:"tune",variant:"ghost",attrs:{"data-coding-context-toggle":"","aria-expanded":false,title:uiText.text("coding.attach.context"),role:"menuitem"}})}</div></div>
-                <select class="mw-select" data-coding-intent aria-label="${p.escape(uiText.text("coding.intent.label"))}"><option value="discuss">${p.escape(uiText.text("coding.intent.discuss"))}</option><option value="plan">${p.escape(uiText.text("coding.intent.plan"))}</option><option value="collaborate">${p.escape(uiText.text("coding.intent.collaborate"))}</option><option value="parallel" disabled>${p.escape(uiText.text("coding.intent.parallel"))}</option><option value="edit" disabled>${p.escape(uiText.text("coding.intent.edit-pending"))}</option><option value="execute" disabled>${p.escape(uiText.text("coding.intent.execute-pending"))}</option><option value="review">${p.escape(uiText.text("coding.intent.review"))}</option></select>
-                <select class="mw-select" data-coding-model aria-label="${p.escape(uiText.text("coding.model.label"))}"></select><span class="coding-effort" data-coding-effort-wrap hidden><select class="mw-select" data-coding-effort aria-label="${p.escape(uiText.text("coding.effort.label"))}" title="${p.escape(uiText.text("coding.effort.title"))}"><option value="">${p.escape(uiText.text("coding.effort.default"))}</option><option value="low">${p.escape(uiText.text("coding.effort.low"))}</option><option value="medium">${p.escape(uiText.text("coding.effort.medium"))}</option><option value="high">${p.escape(uiText.text("coding.effort.high"))}</option></select></span><button class="mw-btn mw-btn--ghost" type="button" data-coding-model-switch hidden>${p.escape(uiText.text("coding.model.switch"))}</button>
-              </div>
-              <div class="coding-composer-trailing"><div class="coding-meter" data-coding-meter hidden>
+          <div class="coding-input" data-coding-input>${renderComposer({ kind: "ai", labels: codingComposerLabels(uiText.text, true), placeholder: uiText.text("coding.composer.placeholder"), add: true,
+            disabled: { caption: uiText.text("coding.composer.notice"), reason: uiText.text("coding.composer.reading-session") },
+            controls: [{ kind: "select", id: "intent", label: uiText.text("coding.intent.label"), value: "discuss", options: codingIntentOptions(uiText.text, (intent) => !["parallel", "edit", "execute"].includes(intent)) },
+              { kind: "select", id: "model", label: uiText.text("coding.model.label"), value: "", options: [] }] })}</div>
+          <button type="button" class="mw-btn mw-btn--ghost coding-model-setup" data-coding-model-setup hidden>${p.escape(uiText.text("coding.model.open-settings"))}</button><div class="mw-field__hint" data-coding-input-status role="status" hidden></div>
+          <div class="coding-composer-footnote"><div class="coding-meter" data-coding-meter hidden>
                   <button class="mw-btn mw-btn--ghost coding-meter-toggle" type="button" data-coding-meter-toggle aria-expanded="false" aria-controls="coding-meter-panel" title="${p.escape(uiText.text("coding.meter.title"))}"><svg class="coding-meter-ring" viewBox="0 0 20 20" aria-hidden="true"><circle cx="10" cy="10" r="8"></circle><circle cx="10" cy="10" r="8" data-coding-meter-fill></circle></svg><span data-coding-meter-label>${p.escape(uiText.text("coding.meter.label"))}</span></button>
                   <div class="coding-meter-panel" id="coding-meter-panel" data-coding-meter-panel role="region" aria-label="${p.escape(uiText.text("coding.meter.title"))}" hidden></div>
-                </div>
-                <span data-coding-mode hidden><select class="mw-select" data-coding-send-mode aria-label="${p.escape(uiText.text("coding.send-mode.label"))}" title="${p.escape(uiText.text("coding.send-mode.title"))}"><option value="next-boundary">${p.escape(uiText.text("coding.send-mode.next-boundary"))}</option><option value="interrupt">${p.escape(uiText.text("coding.send-mode.interrupt"))}</option><option value="after-run">${p.escape(uiText.text("coding.send-mode.after-run"))}</option></select></span><button class="mw-btn mw-btn--ghost" type="button" data-coding-pause title="${p.escape(uiText.text("coding.run.pause-title"))}" hidden>${p.escape(uiText.text("coding.run.pause"))}</button><button class="mw-btn mw-btn--danger-outline" type="button" data-coding-stop title="${p.escape(uiText.text("coding.run.stop-title"))}" hidden>${p.escape(uiText.text("coding.run.stop"))}</button><button class="mw-btn mw-btn--primary" type="submit" data-coding-send disabled>${p.escape(uiText.text("coding.composer.send"))}</button>
-              </div>
-            </div>
-          </div>
-          <button type="button" class="mw-btn mw-btn--ghost coding-model-setup" data-coding-model-setup hidden>${p.escape(uiText.text("coding.model.open-settings"))}</button><div class="mw-field__hint" data-coding-input-status role="status" hidden></div><div class="coding-composer-footnote"><small data-coding-draft-status>${p.escape(uiText.text("coding.composer.draft-note"))}</small><small class="coding-model-note" data-coding-model-note hidden></small><span class="coding-composer-keys"><kbd class="mw-kbd" title="${p.escape(uiText.text("coding.keys.slash-title"))}">${p.escape(uiText.text("coding.keys.slash"))}</kbd><kbd class="mw-kbd" title="${p.escape(uiText.text("coding.keys.palette-title"))}">${p.escape(uiText.text("coding.keys.palette"))}</kbd><kbd class="mw-kbd" title="${p.escape(uiText.text("coding.keys.send-title"))}">⌘ / Ctrl ↵</kbd></span></div>
-        </form>
+                </div><small class="coding-model-note" data-coding-model-note hidden></small></div>
+        </div>
       </div>
       <aside class="coding-tools" data-coding-tools>
         <nav class="coding-tool-tabs mw-toolbar" aria-label="${p.escape(uiText.text("coding.results.tools"))}"><h3 class="coding-tools-title">${p.escape(uiText.text("coding.results.title"))}</h3>${tools}<button class="mw-btn mw-btn--ghost coding-results-close" type="button" data-coding-results-close aria-label="${p.escape(uiText.text("coding.results.back"))}" title="${p.escape(uiText.text("coding.results.back"))}">${p.icon("x")}</button></nav>
@@ -418,8 +405,8 @@ function renderToolPanel(tool: CodingToolAvailability, p: CodingUiPrimitives): s
   return `<div class="coding-tool-panel" data-coding-tool-panel="${tool.page}" hidden></div>`;
 }
 
-function faceLabel(face: CodingDirectoryFace, p: CodingUiPrimitives): string {
-  return p.text(CODING_DIRECTORY_FACES.find((entry) => entry.face === face)?.label ?? face);
+function faceLabel(face: CodingDirectoryFace): string {
+  return uiText.text(CODING_DIRECTORY_FACES.find((entry) => entry.face === face)?.label ?? face);
 }
 
 function filterLabel(filter: CodingDirectoryFilter, _p: CodingUiPrimitives): string {
@@ -440,7 +427,6 @@ export interface CodingSettingsModel {
   readonly roles: ReadonlyArray<{ role_id: string; name: string; execution: string }>;
   /** Runtimes the Host registered, with whether each can run a writing role. */
   readonly runtimes: ReadonlyArray<{ runtime_id: string; display_name: string; can_write: boolean; can_command?: boolean; methods?: string }>;
-  readonly methods?: ReadonlyArray<{ name: string; version: number; summary?: string }>;
   readonly project_href?: string | null;
   readonly project_name?: string;
   readonly projects?: ReadonlyArray<{ project_id: string; name: string }>;
@@ -476,7 +462,6 @@ export function renderCodingSettings(model: CodingSettingsModel): string {
   const runtimes = model.runtimes.length === 0
     ? `<p class="model-field-hint">${p.escape(uiText.text("coding.settings.no-runtimes"))}</p>`
     : model.runtimes.map((runtime) => `<div class="settings-setting-row"><div class="setting-copy"><strong>${p.escape(runtime.display_name)}</strong><span>${p.escape(runtime.can_write ? runtime.can_command ? uiText.text("coding.settings.runtime.write-command") : uiText.text("coding.settings.runtime.write") : uiText.text("coding.settings.runtime.read-only"))}</span><span>${p.escape(runtime.methods === "partial" ? uiText.text("coding.settings.runtime.methods-partial") : runtime.methods === "supported" ? uiText.text("coding.settings.runtime.methods-supported") : uiText.text("coding.settings.runtime.methods-none"))}</span></div></div>`).join("");
-  const methods = (model.methods ?? []).map(method => `<div class="settings-setting-row"><div class="setting-copy"><strong>${p.escape(method.name)} · v${method.version}</strong><span>${p.escape(method.summary ?? "")}</span></div></div>`).join("");
   return `<section class="settings-document coding-settings" data-coding-settings>
     <style>${CODING_SETTINGS_STYLES}</style>
     <header class="settings-heading"><div class="settings-heading-title"><h1>${p.escape("Coding")}</h1></div>
@@ -491,23 +476,8 @@ export function renderCodingSettings(model: CodingSettingsModel): string {
       <h2>${p.escape(uiText.text("coding.settings.runtimes"))}</h2>
       ${runtimes}
     </section>
-    <section class="settings-section" aria-label="${p.escape(uiText.text("coding.attach.method"))}">
-      <h2>${p.escape(uiText.text("coding.attach.method"))}</h2>
-      <p>${p.escape(uiText.text("coding.settings.methods-help"))}</p>
-      ${methods}
-      <h3>${p.escape(uiText.text("coding.settings.project-methods"))}</h3>
-      ${model.project_href ? `<div data-coding-method-library data-prefix="${p.escape(model.project_href)}">
-        <p>${p.escape(uiText.text("coding.settings.project-line", { name: model.project_name ?? uiText.text("coding.settings.current-project") }))} · <a href="/settings/coding-settings">${p.escape(uiText.text("coding.settings.switch-project"))}</a></p>
-        <p>${p.escape(uiText.text("coding.settings.methods-note"))}</p>
-        <form data-method-discovery-form class="mw-form-stack">
-          <label class="mw-field">${p.escape(uiText.text("coding.settings.granted-workspace"))}<select class="mw-select" data-method-workspace aria-label="${p.escape(uiText.text("coding.settings.method-workspace"))}"></select></label>
-          <label class="mw-field">${p.escape(uiText.text("coding.settings.relative-dir"))}<input class="mw-input" data-method-path aria-label="${p.escape(uiText.text("coding.settings.method-path"))}" value="skills" required maxlength="1000"></label>
-          <div>${renderButton({ label: uiText.text("coding.settings.discover"), type: "submit", disabled: true, attrs: { "data-method-discover": "" } })}</div>
-        </form>
-        <p data-method-library-status data-method-library-loading role="status">${p.escape(uiText.text("coding.settings.methods-loading"))}</p>
-        <div data-method-candidates></div>
-        <h3>${p.escape(uiText.text("coding.settings.installed"))}</h3><div data-installed-methods></div>
-      </div>
+    <section class="settings-section" aria-label="${p.escape(uiText.text("coding.settings.mcp.title"))}">
+      ${model.project_href ? `<p>${p.escape(uiText.text("coding.settings.project-line", { name: model.project_name ?? uiText.text("coding.settings.current-project") }))} · <a href="/settings/coding-settings">${p.escape(uiText.text("coding.settings.switch-project"))}</a></p>
       <section data-coding-mcp-settings data-prefix="${p.escape(model.project_href)}">
         <h2>${p.escape(uiText.text("coding.settings.mcp.title"))}</h2><p>${p.escape(uiText.text("coding.settings.mcp.note"))}</p>
         <div data-mcp-servers></div>
@@ -541,19 +511,9 @@ function executionLabel(execution: string, _p: Pick<CodingUiPrimitives, "text">)
   return uiText.text("coding.settings.execution.command");
 }
 
-function builtInMethodDisplay(method: NonNullable<typeof codingAgentManifest.skills>[number]) {
-  switch (method.skill_id) {
-    case "coding-review-change": return { ...method, name: uiText.text("coding.settings.method.review-change.name"), summary: uiText.text("coding.settings.method.review-change.summary") };
-    case "coding-diagnose-fix": return { ...method, name: uiText.text("coding.settings.method.diagnose-fix.name"), summary: uiText.text("coding.settings.method.diagnose-fix.summary") };
-    case "coding-implement-change": return { ...method, name: uiText.text("coding.settings.method.implement-change.name"), summary: uiText.text("coding.settings.method.implement-change.summary") };
-    case "coding-git-delivery": return { ...method, name: uiText.text("coding.settings.method.git-delivery.name"), summary: uiText.text("coding.settings.method.git-delivery.summary") };
-    default: return method;
-  }
-}
 
 /**
- * The page is drawn from the platform's settings context alone (its view declares no `settings_data`): the roles and the methods are
- * this plugin's own, from its Agent Manifest, and the runtimes, projects and the project the page was opened from are the Host's.
+ * The page is drawn from the platform's settings context alone (its view declares no `settings_data`): the roles are this plugin's own, from its Agent Manifest, and the runtimes, projects and the project the page was opened from are the Host's.
  */
 export function codingSettingsModel({ context, primitives }: SettingsPageModel): CodingSettingsModel {
   return {
@@ -563,7 +523,6 @@ export function codingSettingsModel({ context, primitives }: SettingsPageModel):
       can_command: runtime.capabilities.command !== "unsupported",
       methods: runtime.capabilities.skills,
     })),
-    methods: (codingAgentManifest.skills ?? []).map(builtInMethodDisplay),
     projects: context.projects.map(project => ({ project_id: project.project_id, name: project.name })),
     project_name: context.project?.name,
     project_href: context.project?.href ?? null,
@@ -715,6 +674,6 @@ export function renderCodingUsage(model: CodingUsageModel): string {
   const state = !hasKnown ? "unknown" : usage.unavailable_reason ? "partial" : "known";
   return `<div class="coding-usage" data-coding-usage="${state}">
     ${hasKnown ? "" : `<span class="mw-status" data-tone="idle">${p.icon("help-circle")}${p.escape(uiText.text("coding.usage.unknown"))}</span>`}
-    <span class="coding-usage-why">${p.escape(codingUsageSummary(usage, p.text))}</span>
+    <span class="coding-usage-why">${p.escape(codingUsageSummary(usage, uiText.text))}</span>
   </div>`;
 }

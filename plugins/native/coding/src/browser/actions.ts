@@ -35,6 +35,8 @@ export interface ActionPorts extends PagePorts {
   readonly make: <Tag extends keyof HTMLElementTagNameMap>(tag: Tag) => HTMLElementTagNameMap[Tag];
   readonly sessionPath: (id: string, runId?: string) => string;
   readonly readCurrent: () => Promise<void>;
+  /** The way of working the next round is set to: only running offers actions that change things. */
+  readonly intent: () => string;
 }
 
 /**
@@ -66,7 +68,7 @@ export function actionsClient(ports: ActionPorts) {
       const data = await api<{ actions: ActionView[] }>('/sessions/' + encodeURIComponent(id) + '/actions');
       if (request !== ticket || current() !== id || !dialog.open)
         return;
-      const canWrite = q<HTMLSelectElement>('[data-coding-intent]').value === 'execute';
+      const canWrite = ports.intent() === 'execute';
       const rows: ActionRow[] = data.actions.filter(view => view.action.audiences.includes('agent')).map(view => ({ ref: { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id },
         title: view.action.title, source: view.provider.title,
         available: view.availability.available && (canWrite || view.operation === 'query'),
@@ -99,7 +101,6 @@ export function actionsClient(ports: ActionPorts) {
         error.textContent = uiText.text('coding.actions.read-failed', { reason: errorMessage(failure) });
     }
   };
-  q('[data-coding-actions-open]').onclick = () => void open();
   q('[data-coding-actions-close]').onclick = close;
   lifetime.listen(dialog, 'cancel', event => { event.preventDefault(); close(); });
   q('[data-coding-actions-form]').onsubmit = async (event) => {
@@ -132,7 +133,8 @@ export function actionsClient(ports: ActionPorts) {
       enabled.forEach(input => input.disabled = false);
     }
   };
-  return { renderCards: cardRenderer(ports) };
+  /** `open` opens the choice for the session on show (the composer's ＋ and `/actions`). */
+  return { renderCards: cardRenderer(ports), open: () => void open() };
 }
 
 /** Draws the operation cards of one run in its block: a card whose html is unchanged stays (and keeps its edits), the others are made again and bound. */

@@ -3,6 +3,7 @@ import { workExecutorRoleOf, WORK_EXECUTOR_ROLES, type ActionDefinition, type Ac
   type WorkExecutorCalls, type WorkExecutorRole, type WorkExecutorRunControl, type WorkExecutorSession, type WorkExecutorState } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentMcpServerView, AgentMcpToolRef } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentInputSend, AgentSteerReceipt } from "@molis-ai/molis-work-contracts/services/agent-inputs";
+import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import type { AssistantExecutorOffer } from "@molis-ai/molis-work-contracts/services/assistant";
 import { assistantErrors } from "./assistant-errors.js";
 
@@ -12,8 +13,11 @@ export interface PersonActions {
   invoke(reference: ExactActionReference, input: unknown): Promise<unknown>;
 }
 
-/** What says whether the call still counts (a follow-up not removed since it fired), joined to the person's own checks at each call's final boundary. */
-export type ExecutorControl = Pick<ActionExecutionContext, "beforeEffect" | "assert_authority_current">;
+/**
+ * What says whether the call still counts (a follow-up not removed since it fired), joined to the person's own checks at each call's final
+ * boundary; and, for a dispatch, the delegating round's language, which picks the executor's reply language and nothing else (§2.4).
+ */
+export type ExecutorControl = Pick<ActionExecutionContext, "beforeEffect" | "assert_authority_current" | "locale">;
 /** A dispatch's control from its own check (a follow-up removed or edited since it fired stops): asked at each call's final check and at each effect inside the executor's action. */
 export const dispatchControl = (assertCurrent: () => void): ExecutorControl => ({ beforeEffect: async () => assertCurrent(), assert_authority_current: assertCurrent });
 
@@ -102,8 +106,13 @@ export class WorkExecutor {
   /** Change the session's next-round mode where the executor keeps it, so its page shows the same choice. */
   async setMode(sessionId: string, mode: string): Promise<void> { await this.call("session.update", { session_id: sessionId, mode }); }
 
-  /** A new round with the session's own settings, or the executor's defaults: it refuses in its own words when it cannot. */
-  async start(sessionId: string, task: string): Promise<string> { return (await this.call("run.start", { session_id: sessionId, task })).run_id; }
+  /**
+   * A new round with the session's own settings, or the executor's defaults: it refuses in its own words when it cannot. The Skills go
+   * by their exact references; whether a `manual` one was named is what the Host bound to this call, not this input (§2.3).
+   */
+  async start(sessionId: string, task: string, skills: readonly SkillRef[] = []): Promise<string> {
+    return (await this.call("run.start", { session_id: sessionId, task, ...(skills.length ? { skills: [...skills] } : {}) })).run_id;
+  }
 
   async control(sessionId: string, runId: string, control: ExecutorRunControl): Promise<void> {
     await this.call("run.control", { session_id: sessionId, run_id: runId, ...control } as WorkExecutorRunControl);

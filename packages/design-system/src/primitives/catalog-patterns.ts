@@ -27,9 +27,16 @@ export const ITEM_ROW_STYLES = `
   .mw-item small { flex: 1 1 0; min-width: 0; margin: 0; overflow: hidden; color: var(--muted); font-size: 12px; line-height: 1.5; text-overflow: ellipsis; white-space: nowrap; }
   .mw-item__end { display: flex; align-items: center; gap: 8px; flex: none; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }`;
 
-export const COMPOSER_PATTERN_STYLES = `
-  .mw-mark { display: inline-grid; place-items: center; width: 32px; height: 32px; flex: none; border-radius: var(--r-control); background: var(--paper); box-shadow: inset 0 0 0 1px var(--line); color: var(--ink-soft); }
-  .mw-mark svg { width: 16px; height: 16px; }
+/** The glyph square at an item row's start (`mw-mark`): in the composer's patterns and, alone, in the design kit. */
+export const MARK_STYLES = `
+  .mw-mark { display: inline-grid; place-items: center; width: 32px; height: 32px; flex: none; border-radius: var(--sk-r-slot, var(--r-control)); background: var(--sk-raised, var(--paper)); box-shadow: inset 0 0 0 1px var(--line); color: var(--ink-soft); }
+  .mw-mark svg { width: 16px; height: 16px; }`;
+
+/**
+ * The patterns the unified input's shell is built from (implementation-plan.md §3.6, K2): the button group's joined corners, the
+ * tag, the mark and the upload rows. Served in the workbench sheet with the composer (`COMPOSER_STYLES`); the board reads them too.
+ */
+export const COMPOSER_PATTERN_STYLES = `${MARK_STYLES}
   .mw-btn-group { display: inline-flex; gap: 1px; }
   ${joined()} { border-radius: 0; }
   ${joined(":first-child")} { border-start-start-radius: ${RADIUS}; border-end-start-radius: ${RADIUS}; }

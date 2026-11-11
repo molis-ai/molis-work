@@ -63,11 +63,11 @@ function drawPicks(_coop: Coop, dialog: Dialog) {
 
 /** Opens the dialog that hands a task to a new session, with the composer's text as the start. */
 function openDialog(coop: Coop, dialog: Dialog) {
-  const { q, current } = coop.ports;
+  const { current, task } = coop.ports;
   if (!current()) return;
   field<HTMLFormElement>(dialog, "form").reset();
   field(dialog, "[data-coding-delegate-status]").textContent = "";
-  field<HTMLTextAreaElement>(dialog, "[data-coding-delegate-task]").value = q<HTMLTextAreaElement>("[data-coding-task]").value.trim();
+  field<HTMLTextAreaElement>(dialog, "[data-coding-delegate-task]").value = task().trim();
   dialog.picks = [];
   dialog.ticket++;
   drawPicks(coop, dialog);

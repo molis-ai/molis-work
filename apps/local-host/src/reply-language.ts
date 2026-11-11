@@ -11,7 +11,7 @@ const REPLY_WORDS = new Map(WORKBENCH_LANGUAGES.languages.map(({ tag }) => {
   return [tag, body];
 }));
 
-/** What a round is told about the language to reply in (`AgentStartAuthority.reply_language`). */
+/** What a round is told about the language to reply in. */
 export function replyLanguagePrompt(locale: WebLocale): AgentPromptText {
   return { prompt_id: "reply-language", version: /* @version prompt.reply-language */ 1, body: REPLY_WORDS.get(locale) ?? REPLY_WORDS.get(DEFAULT_WEB_LOCALE)! };
 }
@@ -19,4 +19,9 @@ export function replyLanguagePrompt(locale: WebLocale): AgentPromptText {
 /** The current call's language, or this Home's most recent language when a round did not come from a page. */
 export function modelRoundLocale(home: string | undefined): WebLocale {
   return activeLocale() ?? (home ? lastUsedLocale(home) : DEFAULT_WEB_LOCALE);
+}
+
+/** A round's reply language as the Agent Host takes it (`AgentStartAuthority.reply_language`): the language, for its record, and the words. */
+export function replyLanguage(locale: WebLocale): { locale: WebLocale; prompt: AgentPromptText } {
+  return { locale, prompt: replyLanguagePrompt(locale) };
 }

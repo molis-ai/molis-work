@@ -69,6 +69,7 @@ export interface View {
   readonly changes: readonly ListItem[];
   readonly conflicts: readonly ListItem[];
   readonly message: string;
+  readonly reason?: "directory_not_created";
 }
 
 /** A diff that was read and kept (a fixed version in the diff plugin). */

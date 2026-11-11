@@ -1,4 +1,5 @@
 import { t as uiText } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { mountCodingComposer } from "./composer-mount.js";
 import { showSavedHistory, type SavedHistory } from "../saved-history.js";
 import { SESSION_WINDOW } from "../../session-window-sizes.js";
 import { errorMessage } from "../dom.js";
@@ -70,7 +71,7 @@ function adoptHeader(page: Page, id: string, data: SessionData) {
  * not saved yet; otherwise its next save would quietly put the old choice back.
  */
 function adoptConfiguration(page: Page, id: string, data: SessionData, fresh: boolean) {
-  const { q, s } = page, saved = jsonComparisonText(data.configuration ?? null), adopted = s.adoptedConfigurations.get(id);
+  const { s } = page, saved = jsonComparisonText(data.configuration ?? null), adopted = s.adoptedConfigurations.get(id);
   if (!s.configurations.has(id)) {
     s.configurations.set(id, data.configuration ?? undefined);
   } else if (adopted !== undefined && saved !== adopted && jsonComparisonText(s.configurations.get(id) ?? null) === adopted) {
@@ -85,8 +86,8 @@ function adoptConfiguration(page: Page, id: string, data: SessionData, fresh: bo
   if (!fresh) return;
   if (!s.configurations.get(id)) {
     const first = s.state.models[0];
-    q<HTMLSelectElement>("[data-coding-intent]").value = "discuss";
-    q<HTMLSelectElement>("[data-coding-model]").value = first ? JSON.stringify([first.provider_id, first.model_id]) : "";
+    s.intent = "discuss";
+    page.refs.composerModels.choose(first ? JSON.stringify([first.provider_id, first.model_id]) : "");
     s.workspaceId = s.state.workspace?.workspace_id || (s.state.workspaces?.length === 1 ? s.state.workspaces[0]!.workspace_id : "");
   }
   applyConfiguration(page);
@@ -105,7 +106,7 @@ function adoptSelections(page: Page, id: string, data: SessionData) {
     s.characterTitles.set(id, data.character_title || "");
     if (data.character_skill_ids !== undefined) s.characterSkills.set(id, data.character_skill_ids);
   }
-  if (!s.methodSelections.has(id)) s.methodSelections.set(id, data.methods || []);
+  if (!s.methodSelections.has(id)) s.methodSelections.set(id, data.skills || []);
   page.refs.inputEditor.observe(id, data);
 }
 
@@ -114,6 +115,9 @@ function claimDraft(page: Page, id: string, data: SessionData, fresh: boolean) {
   const { s, turns } = page, { draft } = page.refs;
   if (!fresh && draft.owns(id)) return;
   draft.claim(id, data.draft);
+  // The composer is this session's from here (until then it held the words of the one before, closed): what the last one's
+  // send or draft read brings back later lands only on that one.
+  mountCodingComposer(page, id);
   turns.replaceChildren();
   if (!s.offsets.has(id)) s.follow.resume();
 }

@@ -31,6 +31,7 @@ import { pageFrameAssets } from "./frame-assets.js";
 import type { FrameConfig, FrameHost, FramePack, FrameScope, FrameUp } from "./types.js";
 import { frameEnvironment } from "./appearance.js";
 import { forOpeningFrame, frameStageWords, openingFrameLanguage, openingFrameTemplate, pageLanguage, trackFrameLanguage } from "./language.js";
+import { barTakes, pageComposer } from "./composer-parent.js";
 
 function stored(prefix: string): FrameConfig["storage"] {
   const storage: FrameConfig["storage"] = { localStorage: {}, sessionStorage: {} };
@@ -245,6 +246,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
   };
   const connectionSlot = pageConnectionSlot(port, scope, frame, root, grant.page_id, route, uiText.text);
   const pickFile = pageFilePicker(port, scope, frame, grant.page_id, route, uiText.text);
+  const composer = pageComposer(port, scope, root, frame, pack, visible);
   port.onmessage = (event: MessageEvent<FrameUp>) => {
     const message = event.data;
     if (!scope.alive || !message || typeof message.type !== "string") return;
@@ -299,7 +301,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
     if (message.type === "terminal") { void terminal(message); return; }
     if (message.type === "context-key" || message.type === "context-report" || message.type === "context-taken" || message.type === "context-call" || message.type === "context-unreadable") { void contextMessage(message); return; }
     if (message.type === "native-files") { void handoffPageFiles(port, scope, grant.page_id, route, message); return; }
-    if (message.type === "native-file-pick") { void pickFile(message); return; }
+    if (message.type === "native-file-pick") { void pickFile(message); return; } else if (message.type.startsWith("composer-")) { composer(message as Extract<FrameUp, { type: `composer-${string}` }>); return; }
     if (["ui", "link", "refresh-shell"].includes(message.type) && (!root.isConnected || !visible())) return;
     if (message.type === "refresh-shell") {
       if (shellRefreshed) return;
@@ -357,7 +359,7 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
     mount: clientMount, subjectSurfaces: surfaces, search: location.search, origin: location.origin,
     pluginId: pack.plugin_id, bundle: pack.bundle, assets: pack.assets, surface: pack.id,
     searchRow: pack.searchRow, recordRow: pack.recordRow, itemTab: ownItemTab(root, pack),
-    nativeFiles: Boolean(nativeFileInvoke()), shortcuts: navigation.shortcuts, appearance: environment.initial, text: await openingFrameLanguage(route(""), grant, pack.plugin_id, businessScope).then(text => trackFrameLanguage({ route: route(""), id: grant.page_id, owner: pack.plugin_id, root, port, scope: businessScope }, text)),
+    nativeFiles: Boolean(nativeFileInvoke()), shortcuts: navigation.shortcuts, bar: barTakes(Boolean(host.side), mount?.target_slot_id), appearance: environment.initial, text: await openingFrameLanguage(route(""), grant, pack.plugin_id, businessScope).then(text => trackFrameLanguage({ route: route(""), id: grant.page_id, owner: pack.plugin_id, root, port, scope: businessScope }, text)),
     stage: frameStageWords(root, pack.id),
     projectId: host.projectId?.() ?? "", projectTitle: host.projectTitle?.() ?? "", routePrefix: route(""), side: Boolean(host.side), page: page ?? host.page?.() ?? null,
     storage,

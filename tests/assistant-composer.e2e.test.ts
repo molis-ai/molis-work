@@ -22,10 +22,12 @@ test("UIV-12 UIV-17 UIC-06 UIC-09 RC-03: the Assistant's composer names its rece
   await navigate(() => command("Page.navigate", { url: origin + "/" }, sessionId));
   await waitFor(`document.querySelector('.chooser')?.dataset.selected === ${JSON.stringify(projectId)}`);
   await waitFor("document.querySelector('[data-assistant-composer] .mw-composer__input')", 20_000);
+  // Delay the final send response: observing dispatch must not be mistaken for a completed send.
   await evaluate(`(() => { const real = window.fetch.bind(window); window.__sent = [];
     window.fetch = (input, init) => { const url = String(input && input.url || input);
       if (/\\/api\\/assistant\\/send$/.test(url) && init && init.body) window.__sent.push(JSON.parse(String(init.body)));
-      return real(input, init); }; })()`);
+      const response = real(input, init);
+      return window.__sent.length === 5 && /\\/api\\/assistant\\/send$/.test(url) ? response.then(async result => { await new Promise(resolve => setTimeout(resolve, 200)); return result; }) : response; }; })()`);
   const field = "document.querySelector('[data-assistant-composer] .mw-composer__input')";
   const to = () => evaluate<string>("document.querySelector('[data-assistant-composer] .mw-composer__to')?.textContent ?? ''");
   const sent = () => evaluate<Array<{ text: string; delivery?: string; work_id?: string }>>("window.__sent");
@@ -66,7 +68,7 @@ test("UIV-12 UIV-17 UIC-06 UIC-09 RC-03: the Assistant's composer names its rece
   await evaluate(`${field}.focus()`);
   await type("先把标题改短");
   await waitWork(browser, id, (view) => view.work.draft === "先把标题改短");
-  assert.equal(await evaluate<boolean>("Object.keys(localStorage).some((k) => String(localStorage.getItem(k)).includes('先把标题改短'))"), false, "no copy of the work's draft in the browser");
+  assert.equal(await evaluate<boolean>("Array.from({length:localStorage.length},(_,index)=>localStorage.key(index)).filter(key=>key!==null).some((k) => String(localStorage.getItem(k)).includes('先把标题改短'))"), false, "no copy of the work's draft in the browser");
 
   // While the turn runs the Send is 补充, with ▾ for the other two and Stop beside them.
   const running = await evaluate<{ send: string; stop: boolean }>(`(() => { const c = document.querySelector('[data-assistant-composer]');
@@ -123,6 +125,7 @@ test("UIV-12 UIV-17 UIC-06 UIC-09 RC-03: the Assistant's composer names its rece
   await key(CTRL | SHIFT);
   await waitFor("window.__sent.length === 5", 10_000);
   assert.equal((await sent())[4].delivery, "after-run", "idle, ⌘⇧↵ queues for the next turn");
+  await waitFor(settled, 15_000);
   assert.equal(await evaluate(`${field}.value`), "", "the queued words leave the box");
   assert.equal((await readWork(browser, id)).work.work_id, id);
   assert.equal((await readWork(browser, id)).rounds.length, 1, "queuing starts no round");

@@ -5,6 +5,7 @@ import { closedObjectSchema as object } from "../platform/closed-object-schema.j
 import { SKILL_APPLIES_TO, SKILL_LIMITS, SKILL_RESOURCE_FOLDERS, type SkillAppliesTo, type SkillResourceRole } from "../platform/plugin-agent.js";
 import { CHARACTER_IMPORT_LIMITS, CHARACTER_IMPORT_RUNTIMES, type CharacterImportRuntimeId } from "../modules/character-import.js";
 import type { SkillRef } from "./agent-definitions.js";
+import { SKILL_REFS_MAX, skillRefSchema as skillRef } from "./skill-ref-schema.js";
 
 /**
  * The Skill catalog (specs/skill-packs/contract-design.md §6–§8): every installed Skill a scope (a project, or the personal space)
@@ -32,8 +33,9 @@ export const SKILLS_PERMISSIONS = [SKILLS_READ_PERMISSION, SKILLS_MANAGE_PERMISS
  * Most references one `skills.body.read` takes (contract-design §4.2). A round freezes its Skills and reads their bodies in one
  * request, so they are checked against one call context (spec §10 item 9, N42–N44); batch 09's count test picks 20. Twenty bodies at
  * `MAX_SKILL_BODY_CHARS` are 400,000 characters, the most text the Host already reads back from one owner (`KNOWLEDGE_TEXT_MAX_CHARS`).
+ * It is also the most a work executor's `run.start` takes (`platform/actions`).
  */
-export const SKILL_BODY_READ_MAX_REFS = 20;
+export const SKILL_BODY_READ_MAX_REFS = SKILL_REFS_MAX;
 /** Most bytes one `skills.resource.read` returns: one declared file's own limit, so every declared resource is read whole. */
 export const SKILL_RESOURCE_READ_MAX_BYTES = SKILL_LIMITS.fileBytes;
 /** How many characters of a body the catalog and the install preview show as its opening (code points, as a person counts them). */
@@ -277,10 +279,6 @@ const state = { enum: [...SKILL_STATES] };
 const scope = { enum: [...SKILL_SCOPES] };
 const role = { enum: Object.keys(SKILL_RESOURCE_FOLDERS) };
 
-const skillRef = object({
-  source: object({ kind: { const: "plugin" }, plugin_id: id, plugin_version: id, publisher_signature: id }),
-  skill_id: id, version: skillVersion, install_id: id, installation_generation: id,
-});
 /** `SkillRef` (`services/agent-definitions`): nothing else, so a caller cannot slip a project, an actor or an installation of its own in. */
 export const SKILL_REF_SCHEMA: ActionSchema = skillRef;
 const resourceSummary = object({ path: text, role, bytes: count });

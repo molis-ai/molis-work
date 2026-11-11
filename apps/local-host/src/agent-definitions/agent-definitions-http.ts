@@ -1,7 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { dispatchNativePluginJsonHttp } from "../native-plugin-http.js";
 import type { AgentDefinitions } from "./agent-definitions.js";
-import { UNREGISTERED_MODEL_CALLS } from "./builtin-instructions.js";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { agentDisplayModel, displayAgentPrompt, displayAgentRole } from "./display-words.js";
 
@@ -26,8 +25,8 @@ export async function handleAgentDefinitionsHttp(request: IncomingMessage, respo
         const words = agentDisplayModel(definitions.registrations(), locale, "role");
         return { status: 200, body: { roles: definitions.roles().map(role => displayAgentRole(role, words)) } };
       }
-      if (method === "GET" && path === "/diagnostics") return { status: 200, body: definitions.diagnostics(UNREGISTERED_MODEL_CALLS) };
-      if (method === "GET" && path === "/prompt") return { status: 200, body: { prompt: displayAgentPrompt(definitions.prompt(key, locale), promptWords()), history: definitions.history(key), uses: definitions.uses(key) } };
+      if (method === "GET" && path === "/diagnostics") return { status: 200, body: definitions.diagnostics() };
+      if (method === "GET" && path === "/prompt") return { status: 200, body: { prompt: displayAgentPrompt(definitions.prompt(key, locale), promptWords()), history: definitions.history(key), uses: definitions.uses.list(key) } };
       const expected = body.expected_revision === null || body.expected_revision === undefined ? null : Number(body.expected_revision);
       if (method === "POST" && path === "/prompt") return { status: 200, body: { prompt: displayAgentPrompt(definitions.save(key, String(body.body ?? ""), expected, WEB_ACTOR, locale), promptWords()) } };
       if (method === "POST" && path === "/prompt/reset") return { status: 200, body: { prompt: displayAgentPrompt(definitions.reset(key, expected, WEB_ACTOR, locale), promptWords()) } };

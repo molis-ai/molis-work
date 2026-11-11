@@ -22,7 +22,7 @@ import { limitsCharacters } from "./runtime-choice.js";
 import { CODING_HISTORY_SUMMARY } from "./prompts.js";
 import { type Capabilities, type CodingActivation, savedDigestUsage, sessionState } from "./route-activation.js";
 import { codingActions, codingActionControl, type CodingBeforeWrite } from "./route-entry.js";
-import { methodSelection, mcpSelection, mcpSources, savedActions } from "./route-selections.js";
+import { skillSelection, mcpSelection, mcpSources, savedActions } from "./route-selections.js";
 import type { CodingExecution } from "./routes.js";
 import { startDelegation } from "./routes-delegations.js";
 import { chosenEffort, text } from "./run-inputs.js";
@@ -233,7 +233,7 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
     // What waits in the session comes in with the round: asked for the next round, or unread when its round ended (specs/ai-input-receipts §4.8).
     queued: "carry",
     budget: { max_turns: Math.max(60, plan ? 8 + plan.content.steps.length * 3 : 0) },
-    model_selection: { provider_id: model.provider_id, model_id: model.model_id }, ...(effort ? { reasoning_effort: effort } : {}), skills: methodSelection(body.methods ?? []), action_tools, mcp_tools: mcpSelection(body.mcp_tools ?? []), mcp_sources: mcpSources(body.mcp_sources ?? []) }]);
+    model_selection: { provider_id: model.provider_id, model_id: model.model_id }, ...(effort ? { reasoning_effort: effort } : {}), skills: skillSelection(body.skills ?? []), action_tools, mcp_tools: mcpSelection(body.mcp_tools ?? []), mcp_sources: mcpSources(body.mcp_sources ?? []) }]);
   const follower = follow(a, execution, record.session_id, session, workspace.workspace_id);
   let run, receipted = false;
   try { run = await start(history).catch(async error => {

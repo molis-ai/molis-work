@@ -33,6 +33,17 @@ export interface TimelineRun {
   step_board?: { terminal: boolean; nodes: Array<{ state: string }> };
   turns?: Array<{ kind: string; text: string; at?: string | null }>;
   turn_changes?: TimelineTurnChanges[];
+  /** The after-write checks whose receipts the round holds, by the write's call id; absent when the reader did not look. */
+  write_checks?: TimelineWriteCheck[];
+}
+/** One write's after-write check as its receipt has it (CodingWriteCheck); a receipt that could not be read says so. */
+export interface TimelineWriteCheck {
+  call_id: string;
+  checker?: string | null;
+  exit_code?: number | null;
+  timed_out?: boolean;
+  cancelled?: boolean;
+  unreadable?: boolean;
 }
 /** What one turn wrote, from the runtime's write receipts (AgentRunView.turn_changes). */
 export interface TimelineTurnChanges {
@@ -98,6 +109,20 @@ export function createCodingTimeline(words: TimelineWords) {
     if (code !== null) return code === 0 ? { tone: "ok", label: "exit 0" } : { tone: "failed", label: `exit ${code}` };
     return { tone: "ok", label: "" };
   };
+  /**
+   * A finished write says what the person's check of it came to, from the check's receipt alone: the checker and its exit
+   * code as they are (never "passed" or "failed"), or that no check ran. Nothing is said when the reader did not look.
+   */
+  const WRITES = new Set(["edit", "write"]);
+  const checkOf = (item: TimelineActivity, checks?: TimelineWriteCheck[]) => {
+    if (!checks || !WRITES.has(item.name) || item.state !== "completed") return "";
+    const check = checks.find(entry => entry.call_id === item.call_id);
+    if (!check) return uiText.text("coding.timeline.check.none");
+    if (check.unreadable) return uiText.text("coding.timeline.check.unreadable");
+    const how = check.timed_out ? uiText.text("coding.commands.timed-out") : check.cancelled ? uiText.text("coding.state.cancelled")
+      : typeof check.exit_code === "number" ? `exit ${check.exit_code}` : uiText.text("coding.commands.exit-unknown");
+    return uiText.text("coding.timeline.check.ran", { checker: check.checker || uiText.text("coding.timeline.check.unnamed"), result: how });
+  };
   const mark = (tone: string) => tone === "quiet" ? "" : '<span aria-hidden="true" data-mw-state="'
     + (tone === "running" ? "running" : tone === "waiting" ? "approval" : tone === "held" ? "waiting" : tone === "ok" ? "done" : tone === "failed" ? "failed" : tone === "retry" ? "stale" : "verify") + '"></span>';
   const lines = (text: string, limit: number) => {
@@ -105,7 +130,7 @@ export function createCodingTimeline(words: TimelineWords) {
     return all.length <= limit ? { text: all.join("\n"), hidden: 0 } : { text: all.slice(0, limit).join("\n"), hidden: all.length - limit };
   };
   /** A step's one line (operation, object, result) and what came back behind it: the refusal in words over the raw output. */
-  const drawRow = (item: TimelineActivity, ended: boolean, waiting: boolean, items: TimelineActivity[]) => {
+  const drawRow = (item: TimelineActivity, ended: boolean, waiting: boolean, items: TimelineActivity[], checks?: TimelineWriteCheck[]) => {
     const kind = kindOf(item), result = outcome(item, ended, waiting, items);
     // Reasoning is prose, so its row previews the first line as text rather than as a code target.
     const first = item.name === "reasoning" ? (item.output ?? "").trim().split("\n")[0]!.slice(0, 140) : "";
@@ -116,7 +141,8 @@ export function createCodingTimeline(words: TimelineWords) {
     const output = (item.output ?? "").trim(), shown = output ? lines(output, item.name === "reasoning" ? 120 : 24) : null;
     const hidden = (shown?.hidden ?? 0) + (item.output_hidden_lines ?? 0);
     const text = shown ? `${shown.text}${hidden ? `\n${uiText.text("coding.timeline.more-lines", { count: hidden })}` : ""}${item.output_truncated ? `\n${uiText.text("coding.timeline.truncated")}` : ""}` : "";
-    const head = `<span class="coding-tool-icon">${svg(kind.icon)}</span><span class="coding-tool-verb">${escape(kind.verb)}</span>${what}<span class="coding-tool-state" data-tone="${result.tone}">${mark(result.tone)}${result.label ? `<span>${escape(result.label)}</span>` : ""}</span>`;
+    const checked = checkOf(item, checks);
+    const head = `<span class="coding-tool-icon">${svg(kind.icon)}</span><span class="coding-tool-verb">${escape(kind.verb)}</span>${what}${checked ? `<span class="coding-tool-check" data-coding-write-check>${escape(checked)}</span>` : ""}<span class="coding-tool-state" data-tone="${result.tone}">${mark(result.tone)}${result.label ? `<span>${escape(result.label)}</span>` : ""}</span>`;
     return { head, text, hint: shown && item.state === "failed" ? hintFor(output) : "", tone: result.tone };
   };
   /** "Read 4 files · Ran 3 commands", or what is happening right now. */
@@ -145,8 +171,8 @@ export function createCodingTimeline(words: TimelineWords) {
   const put = (node: Element, value: string, write: (node: Element) => void) => { if (drawn.get(node) !== value) { drawn.set(node, value); write(node); } };
   /** A step keeps one node by call id and changes in place (line, tone, output in the same <pre>), so what the person opened
    * stays open, focused and scrolled; a step with nothing behind it is a plain line until something comes back. */
-  const placeRow = (known: Map<string, Element>, item: TimelineActivity, ended: boolean, waiting: boolean, items: TimelineActivity[]) => {
-    const row = drawRow(item, ended, waiting, items), fold = Boolean(row.text);
+  const placeRow = (known: Map<string, Element>, item: TimelineActivity, ended: boolean, waiting: boolean, items: TimelineActivity[], checks?: TimelineWriteCheck[]) => {
+    const row = drawRow(item, ended, waiting, items, checks), fold = Boolean(row.text);
     let node = known.get(item.call_id);
     if (!node || (node.tagName === "DETAILS") !== fold) {
       const fresh = document.createElement(fold ? "details" : "div"); fresh.className = "coding-tool"; fresh.dataset.tool = item.call_id; if (fold) remember(fresh, "tool:" + item.call_id);
@@ -160,13 +186,13 @@ export function createCodingTimeline(words: TimelineWords) {
   const renderGroup = (detail: Element, items: TimelineActivity[], run: TimelineRun, latest: boolean) => {
     const ended = TERMINAL.includes(run.phase), waiting = latest && run.phase === "awaiting-review";
     if (!detail.dataset.bound) { detail.dataset.bound = "true"; remember(detail, detail.dataset.codingActivity ?? ""); }
-    const signature = JSON.stringify([run.phase, latest, items.map(item => [item.call_id, item.state, item.target, (item.output ?? "").length, item.output_hidden_lines ?? 0])]);
+    const signature = JSON.stringify([run.phase, latest, items.map(item => [item.call_id, item.state, item.target, (item.output ?? "").length, item.output_hidden_lines ?? 0, checkOf(item, run.write_checks)])]);
     if (detail.dataset.signature === signature) return; detail.dataset.signature = signature;
     const summary = sumText(items, ended, waiting);
     const head = `<span class="coding-tools-summary${summary.live ? " is-live" : summary.waiting ? " is-waiting" : ""}">${summary.live ? '<span class="mw-spinner" aria-hidden="true"></span>' : summary.waiting ? '<span data-mw-state="waiting" aria-hidden="true"></span>' : ""}<span>${escape(summary.text)}</span></span>`;
     put(detail.querySelector(":scope > summary") ?? detail.insertBefore(document.createElement("summary"), detail.firstChild), head, node => { node.innerHTML = head; });
     let list = detail.querySelector(":scope > .coding-tool-list"); if (!list) { list = document.createElement("div"); list.className = "coding-tool-list"; detail.append(list); }
-    const known = rowsOf.get(detail) ?? new Map<string, Element>(), rows = items.map(item => placeRow(known, item, ended, waiting, items)); rowsOf.set(detail, known);
+    const known = rowsOf.get(detail) ?? new Map<string, Element>(), rows = items.map(item => placeRow(known, item, ended, waiting, items, run.write_checks)); rowsOf.set(detail, known);
     // New steps go after the ones standing; a node already in its place is never moved (moving it would drop its focus).
     rows.forEach((row, at) => { if (list.children[at] !== row) list.insertBefore(row, list.children[at] ?? null); });
     while (list.children.length > rows.length) list.lastElementChild.remove(); for (const [id, node] of known) if (!node.isConnected) known.delete(id);

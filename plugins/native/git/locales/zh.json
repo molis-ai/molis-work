@@ -165,6 +165,7 @@
     "git.pr.toggle": "建 PR…",
     "git.projection.choose-directory": "先在项目设置里选一个目录",
     "git.projection.directory-moved": "目录可能被移动或删除了，重新选一次",
+    "git.projection.directory-not-created": "这个文件夹还没有建立，不是 Git 仓库",
     "git.projection.initialize": "在这个目录里 git init，或者换一个目录",
     "git.projection.loading": "正在读取工作区状态…",
     "git.projection.not-repository": "这个目录不是 Git 仓库",

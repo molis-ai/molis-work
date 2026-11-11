@@ -1,16 +1,8 @@
-import { CHARACTER_IMPORT_RUNTIMES } from "@molis-ai/molis-work-contracts/modules/characters";
-import { externalTool } from "@molis-ai/molis-work-contracts/platform/external-tools";
-import { escapeHtml, t } from "@molis-ai/molis-work-plugin-sdk/ui";
-/** Skills occupy the existing settings shell; the catalog owns every displayed state. */
-export function renderSkillSettings(projectId: string | null): string {
-  return `<section class="settings-document skill-settings" data-skill-settings data-project="${escapeHtml(projectId ?? "")}" aria-labelledby="skills-heading">
-  <template data-sk-import-sources>${CHARACTER_IMPORT_RUNTIMES.map(id => `<option value="${id}">${externalTool(id).display_name}</option>`).join("")}</template>
-  <header class="settings-page-heading"><h1 id="skills-heading">${t("workbench.settings-skills.skills")}</h1><p>${t(projectId ? "workbench.settings-skills.choose-the-skills-available-in-this-project" : "workbench.settings-skills.choose-the-skills-available-in-your-personal-space")}</p></header>
-  <div class="skill-toolbar"><input class="mw-input" type="search" data-sk-search placeholder="${t("workbench.settings-skills.search-skills")}" aria-label="${t("workbench.settings-skills.search-skills")}"><select class="mw-select" data-sk-filter aria-label="${t("workbench.settings-skills.filter-skills")}"><option value="all">${t("common.generated.all")}</option><option value="on">${t("workbench.appearance-picker.use")}</option><option value="off">${t("workbench.settings-skills.off")}</option><option value="unavailable">${t("workbench.settings-skills.unavailable")}</option></select><button class="mw-btn mw-btn--secondary" data-sk-import>${t("workbench.characters.import-local")}</button><button class="mw-btn mw-btn--ghost" data-sk-refresh>${t("workbench.project-settings.refresh")}</button></div>
-  <p class="settings-muted" data-sk-count role="status"></p><div data-sk-notice role="status" hidden></div><div data-sk-error role="alert" hidden></div><div data-sk-import-panel hidden></div>
-  <div class="mw-list-detail" data-sk-catalog><div class="mw-list-detail__body"><section class="mw-list-detail__list" aria-label="${t("workbench.catalog-skill-packs.all-skills")}"><ul class="mw-items" data-sk-list></ul></section><section class="mw-list-detail__detail" data-sk-detail aria-label="${t("workbench.settings-skills.skill-details")}"></section></div></div></section>`;
-}
-
+/**
+ * 08's Skill parts (docs/design/skill-packs): the three states, the facts, a package's Skills in an install review, choosing their states
+ * after installing, importing from a local Agent, and one Skill's detail. The 「能力包」 page (settings-kit.ts) draws a Skill with
+ * `detail`; the plugin install review with `preview` and `enable`.
+ */
 export const SKILL_SETTINGS_CLIENT_SCRIPT = String.raw`
 (() => {
 const readText = globalThis.t.text, el = (tag, cls, text) => { const n = document.createElement(tag); n.className = cls || ""; if (text != null) n.textContent = text; return n; };
@@ -57,7 +49,7 @@ const footer = el("div", "skill-toolbar"); footer.append(button("workbench.setti
 };
 const importPanel = (panel, project, reload) => {
 panel.hidden = false; panel.replaceChildren(el("h2", "", readText("workbench.characters.import-local")));
-const source = el("select", "mw-select"); source.setAttribute("aria-label", readText("workbench.picker.source")); source.append(panel.closest("[data-skill-settings]").querySelector("[data-sk-import-sources]").content.cloneNode(true));
+const source = el("select", "mw-select"); source.setAttribute("aria-label", readText("workbench.picker.source")); source.append(panel.closest("[data-kit-settings]").querySelector("[data-sk-import-sources]").content.cloneNode(true));
 const stage = el("div"), fail = el("div"); fail.hidden = true;
 const close = () => { panel.hidden = true; panel.replaceChildren(); };
 const scan = button("workbench.settings-skills.find-skills", async () => { scan.disabled = true; fail.hidden = true;
@@ -74,45 +66,28 @@ catch (cause) { error(fail, cause, () => scan.click()); }
 } catch (cause) { error(fail, cause); } finally { scan.disabled = false; }
 }); panel.append(source, scan, button("common.control.cancel", close, "ghost"), stage, fail);
 };
-const bind = root => {
-if (root.dataset.skillsBound) return; root.dataset.skillsBound = "1"; const project = root.dataset.project, $ = name => root.querySelector("[data-sk-" + name + "]"); let skills = [], selected = null, generation = 0;
-const saved = (skill, was) => {
-const notice = $("notice"); notice.hidden = false; notice.className = "mw-alert"; notice.replaceChildren(el("p", "", readText("workbench.placement.saved")));
-const revision = skill.settings_revision, undo = button("workbench.context-bus.undo", async () => { undo.disabled = true; try { const next = await api(project, "set", { scope: project ? "project" : "home", install_id: skill.ref.install_id, skill_id: skill.ref.skill_id, state: was, expected_revision: revision }); Object.assign(skill, next); notice.hidden = true; draw(); } catch (cause) { error(notice, cause, load); } });
+// The page's own notice under the toolbar: 已保存, with 撤销 putting back the state it had.
+const saved = (notice, skill, project, was, redraw) => {
+notice.hidden = false; notice.className = "mw-alert"; notice.replaceChildren(el("p", "", readText("workbench.placement.saved")));
+const revision = skill.settings_revision, undo = button("workbench.context-bus.undo", async () => { undo.disabled = true; try { const next = await api(project, "set", { scope: project ? "project" : "home", install_id: skill.ref.install_id, skill_id: skill.ref.skill_id, state: was, expected_revision: revision }); Object.assign(skill, next); notice.hidden = true; redraw(); } catch (cause) { error(notice, cause, redraw); } });
 const actions = el("div", "mw-alert__actions"); actions.append(undo); notice.append(actions);
 };
-const show = (skill, focus = false) => {
-selected = key(skill); const detail = $("detail"); detail.replaceChildren();
-const back = button("workbench.catalog-skill-packs.all-skills", () => { $("catalog").removeAttribute("data-detail"); $("list").querySelector('[aria-current="true"]')?.focus(); }, "ghost"); back.classList.add("mw-list-detail__back");
+// One Skill as 08 drew it, into box; redraw after its state changed, the notice saying so with undo.
+const detail = (box, skill, project, { notice, redraw }) => {
 const header = el("header"), title = el("h3", "", skill.name); title.tabIndex = -1; header.append(title, el("p", "", skill.description), el("p", "settings-muted", skill.pack.title + " · " + skill.pack.version + " · " + skill.pack.publisher_label), el("p", "settings-muted", readText(skill.pack.scope === "home" ? "workbench.index.personal-space" : "workbench.settings-skills.current-project") + " · " + readText({ host: "workbench.settings-skills.included-with-the-app", pinned: "workbench.settings-skills.trusted-publisher", home_local: "workbench.settings-skills.this-computer" }[skill.pack.trust])));
 const failure = el("div"); failure.hidden = true;
-detail.append(back, header, stateControls(skill, project, (_, was, committed) => { failure.hidden = true; draw(); show(skill); if (committed) saved(skill, was); }, (cause, retry) => error(failure, cause, retry)), failure);
-if (!skill.availability.available) { const reason = el("div", "mw-alert"); reason.setAttribute("role", "status"); reason.append(el("p", "", readText(WHY[skill.availability.reason])), ...(skill.availability.detail ? [el("p", "settings-muted", skill.availability.detail)] : [])); if (skill.availability.reason === "connection_missing") { const connect = el("a", "mw-btn mw-btn--link", readText("workbench.settings-skills.manage-connections")); connect.href = "/capabilities/connections" + (project ? "?project=" + encodeURIComponent(project) : ""); reason.append(connect); } detail.append(reason); }
-detail.append(facts(skill));
+box.append(header, stateControls(skill, project, (_, was, committed) => { failure.hidden = true; redraw(); if (committed) saved(notice, skill, project, was, redraw); }, (cause, retry) => error(failure, cause, retry)), failure);
+if (!skill.availability.available) { const reason = el("div", "mw-alert"); reason.setAttribute("role", "status"); reason.append(el("p", "", readText(WHY[skill.availability.reason])), ...(skill.availability.detail ? [el("p", "settings-muted", skill.availability.detail)] : [])); if (skill.availability.reason === "connection_missing") { const connect = el("a", "mw-btn mw-btn--link", readText("workbench.settings-skills.manage-connections")); connect.href = "/capabilities/connections" + (project ? "?project=" + encodeURIComponent(project) : ""); reason.append(connect); } box.append(reason); }
+box.append(facts(skill));
 if (skill.state !== "off" && skill.availability.available) {
-const full = el("div"), open = button("workbench.settings-skills.read-full-text", async () => { open.disabled = true; try { const result = (await api(project, "body", { refs: [skill.ref] })).results[0]; if (!result.ok) throw new Error(readText("workbench.settings-skills.the-skill-version-or-setting-changed-refresh-the")); full.replaceChildren(el("pre", "skill-full-text", result.body)); } catch (cause) { error(full, cause, load); open.disabled = false; } }, "link"); open.dataset.skBody = ""; detail.append(open, full);
+const full = el("div"), open = button("workbench.settings-skills.read-full-text", async () => { open.disabled = true; try { const result = (await api(project, "body", { refs: [skill.ref] })).results[0]; if (!result.ok) throw new Error(readText("workbench.settings-skills.the-skill-version-or-setting-changed-refresh-the")); full.replaceChildren(el("pre", "skill-full-text", result.body)); } catch (cause) { error(full, cause, redraw); open.disabled = false; } }, "link"); open.dataset.skBody = ""; box.append(open, full);
 }
-if (skill.enabled) detail.append(el("p", "settings-muted", readText("workbench.settings-skills.enabled") + " · " + skill.enabled.at.slice(0,10) + " · " + skill.enabled.by + " · " + readText(skill.enabled.scope === "home" ? "workbench.index.personal-space" : "workbench.settings-skills.current-project")));
-if (skill.last_used) detail.append(el("p", "mw-list-detail__used", readText("workbench.settings-skills.last-used") + " · " + skill.last_used.at.slice(0,16).replace("T"," ") + " · " + readText(FOR[skill.last_used.caller])));
+if (skill.enabled) box.append(el("p", "settings-muted", readText("workbench.settings-skills.enabled") + " · " + skill.enabled.at.slice(0,10) + " · " + skill.enabled.by + " · " + readText(skill.enabled.scope === "home" ? "workbench.index.personal-space" : "workbench.settings-skills.current-project")));
+if (skill.last_used) box.append(el("p", "mw-list-detail__used", readText("workbench.settings-skills.last-used") + " · " + skill.last_used.at.slice(0,16).replace("T"," ") + " · " + readText(FOR[skill.last_used.caller])));
 const nextStep = { plugin_disabled: "workbench.home-plugin-page.enable-plugin", publisher_revoked: "workbench.settings-skills.uninstall-package", resource_invalid: "workbench.catalog-skill-packs.reinstall" };
-const link = el("a", "mw-btn mw-btn--link", readText(nextStep[skill.availability.reason] || "workbench.settings-skills.manage-package")); link.href = "/projects/" + encodeURIComponent(project || "personal") + "/settings/plugins"; detail.append(link);
-if (focus) { $("catalog").dataset.detail = ""; title.focus(); }
+const link = el("a", "mw-btn mw-btn--link", readText(nextStep[skill.availability.reason] || "workbench.settings-skills.manage-package")); link.href = "/projects/" + encodeURIComponent(project || "personal") + "/settings/plugins"; box.append(link);
+return title;
 };
-const draw = () => {
-const query = $("search").value.toLocaleLowerCase(), filter = $("filter").value;
-const rows = skills.filter(s => (s.name + s.description + s.pack.title).toLocaleLowerCase().includes(query) && (filter === "all" || filter === "on" && s.state !== "off" || filter === "off" && s.state === "off" || filter === "unavailable" && !s.availability.available));
-$("count").textContent = readText("workbench.settings-skills.count-count-skill-skills-enabled-enabled", { count: skills.length, enabled: skills.filter(s => s.state !== "off").length }); $("list").replaceChildren();
-if (!rows.length) { $("list").append(el("li", "settings-muted", readText(skills.length ? "workbench.settings-skills.no-matching-skills" : "workbench.catalog-skill-packs.no-skills-yet"))); $("detail").replaceChildren(); $("catalog").removeAttribute("data-detail"); return; }
-if (!rows.some(s => key(s) === selected)) selected = key(rows[0]);
-for (const s of rows) { const li = el("li", "mw-item mw-item--pick"), pick = el("button", "mw-item__pick"), words = el("span"); pick.type = "button"; pick.setAttribute("aria-current", String(key(s) === selected)); words.append(el("strong", "", s.name), el("small", "", s.pack.title)); words.title = s.pack.title; pick.append(el("span", "mw-mark", "✦"), words, el("span", "mw-item__end", readText(s.availability.available ? STATES[s.state] : s.availability.reason === "publisher_revoked" ? WHY.publisher_revoked : "workbench.settings-skills.unavailable"))); pick.addEventListener("click", () => { selected = key(s); draw(); show(s, true); }); li.append(pick); $("list").append(li); }
-show(rows.find(s => key(s) === selected));
-};
-const load = async () => { const turn = ++generation; $("error").hidden = true; try { const result = await api(project, "list"); if (turn !== generation) return; skills = result.skills; draw(); } catch (cause) { if (turn === generation) error($("error"), cause, load); } };
-$("search").addEventListener("input", draw); $("filter").addEventListener("change", draw); $("refresh").addEventListener("click", load); $("import").addEventListener("click", () => importPanel($("import-panel"), project, load)); load();
-};
-globalThis.molisSkillUI = { preview, enable, importPanel };
-const start = (container = document) => { if (container.matches?.("[data-skill-settings]")) bind(container); else container.querySelectorAll?.("[data-skill-settings]").forEach(bind); };
-document.addEventListener("molis-work:settings-embed", event => start(event.detail?.root || document));
-if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", () => start()); else start();
+globalThis.molisSkillUI = { preview, enable, importPanel, detail };
 })();
 `;

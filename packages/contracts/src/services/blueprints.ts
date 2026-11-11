@@ -11,6 +11,7 @@ import type { SandboxJson } from "../platform/plugin-sandbox.js";
 import { SETTINGS_CONSEQUENCES, SETTINGS_LAYERS, type SettingConsequence, type SettingLayer } from "../platform/settings.js";
 import { LOCALE_TAG } from "../platform/ui-text.js";
 
+/** The provider id the future `system.blueprints` service (batch 44) registers the eight actions under; declared here, not registered yet. */
 export const BLUEPRINTS_PROVIDER_ID = "system.blueprints";
 
 type DraftSource = Extract<BlueprintSource, { kind: "draft" }>;

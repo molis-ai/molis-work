@@ -606,7 +606,7 @@ function windowsOf(browser: Browser, scheme: "light" | "dark", touch: boolean) {
   const moreLabels = () => evaluate<string[]>(`(async () => {
     const attach = document.querySelector("[data-assistant-composer] [data-composer-add]"), more = document.querySelector("[data-assistant-composer] .mw-composer__start [data-compose-menu]");
     attach.click(); await new Promise((resolve) => setTimeout(resolve, 300));
-    const labels = [...more.querySelectorAll("[role=menuitem]")].map((row) => (row.querySelector("[id$='-label']") || row.querySelector("[data-slot=menu-item-label]")).textContent);
+    const labels = [...more.querySelectorAll("[role=menuitem]")].map((row) => [(row.querySelector("[id$='-label']") || row.querySelector("[data-slot=menu-item-label]")).textContent, row.querySelector(".mw-menu__shortcut")?.textContent].filter(Boolean).join(" "));
     attach.click();
     return labels;
   })()`);
@@ -1005,7 +1005,8 @@ for (const scheme of ["light", "dark"] as const) {
       // In a project the menu also offers the project-knowledge picker (PMAT-17; specs/project-knowledge/spec.md §9 and §14), as a `/` command.
       const labels = await w.moreLabels();
       assert.equal(labels[0], "添加文件或图片…", `${name} · 620: the "+" menu starts with files (${labels})`);
-      assert.ok(labels.includes("/资料 选择项目资料…"), `${name} · 620: and offers the project's material (${labels})`);
+      // Since batch 11 a command's row is its name, with the `/word` that finds it where a shortcut stands (composer-parts.ts).
+      assert.ok(labels.includes("选择项目资料… /资料"), `${name} · 620: and offers the project's material (${labels})`);
     }
   });
 }

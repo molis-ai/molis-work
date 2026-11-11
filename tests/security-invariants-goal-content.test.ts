@@ -110,3 +110,52 @@ test('S-115 PCSYNC-01/14 a complete Goal owner unit is validated before creating
   const restored=target!.withReplica(replica=>{assert.deepEqual(replica.conflicts(),[]);return replica.counts();});
   assert.deepEqual(restored,{pending:0,conflicts:0});
 });
+
+test('S-goal-evidence-tier EVD-43: a replicated judgment and conclusion carry only what Goals itself writes: an unknown tier or gap, a tier above the reporter\'s own word with no basis, a gap beside such a tier, an unreadable basis and half a checked version are refused',async t=>{
+  const root=mkdtempSync(join(tmpdir(),'goal-evidence-sync-'));
+  const homes=[join(root,'source'),join(root,'target')],space=personalStorageSpace('https://auth.example.test','work','alice');
+  homes.forEach(home=>ensureStorageSpace(home,space));
+  const authorize=()=>{};
+  const project=await withMolisWorkProjectCatalog({homeDirectory:homes[0]},catalog=>catalog.createProject({display_name:'Evidence',actor_id:'alice'}));
+  const id=project.project_id,checked={artifact_id:'artifact-report',version:1};
+  const database=new LocalProjectDatabase(project.database_path);
+  try{
+    const app=new GoalProjectApplication(database),who={project_id:id,goal_id:'goal',actor_id:'runtime:fixture',actor_kind:'runtime' as const};
+    app.initializeBoard({project_id:id,actor_id:'alice',idempotency_key:'fixture-board'});
+    app.goalEvents.createIntent({...who,title:'Portable Goal',outcome:'可检查的具体结果',idempotency_key:'intent'});
+    app.goalEvents.configure({...who,expected_version:0,idempotency_key:'cfg',types:[{type_id:'delivery',version:1,name:'交付',purpose:'可使用的结果',semantic_family:'delivery',source:{kind:'runtime',label:'当前 Goal'},
+      fields:[{field_id:'piece',name:'交付了什么',purpose:'结果',format:'text',required:true}]}]});
+    const state=app.goalEvents.readState(id,'goal');
+    app.goalEvents.setAgreement({...who,idempotency_key:'req',expected_config_version:state.config.version,expected_agreement_version:state.agreement.version,new_requirements:[{requirement_id:'r1',statement:'要求 r1'}]});
+    app.confirmedDeliverables.set('goal',[checked]);
+    app.goalEvents.report({...who,idempotency_key:'report',events:[{type_id:'delivery',type_version:1,title:'交付',fields:{piece:'入口'},
+      judgments:[{requirement_id:'r1',verdict:'supports',basis:{checked,method:'跑了测试',observed:'全部通过',evidence:[]}}]}],trusted:{reporter_session:'session-worker',assessments:new Map()}});
+  }finally{database.close();}
+  const runtimes=homes.map(home=>runtimeGoalSync(home,space.spaceId,'alice',authorize));t.after(async()=>{try{for(const runtime of runtimes)await runtime.close();}finally{rmSync(root,{recursive:true,force:true});}});
+  const [source,target]=runtimes.map(runtime=>runtime.registration);
+  await source!.refresh();await target!.refresh();
+  await runtimes[1]!.withCatalog({homeDirectory:homes[1]},catalog=>catalog.ensureSyncedProject({project_id:id,display_name:project.display_name,actor_id:'alice'},authorize));
+  await target!.refresh();
+  const next=source!.withReplica(replica=>replica.next());assert.ok(next);
+  const event={...next,revision:1};
+  type Unit={facts:Record<string,ProjectReplicaRows>};
+  const judgment=(wire:Unit)=>wire.facts.goals!.goal_work_event_judgments![0]!;
+  assert.deepEqual([judgment(goalWire(next.value) as Unit).tier,judgment(goalWire(next.value) as Unit).gap],['self_reported',null],'what Goals wrote');
+  const mutations:((wire:Unit)=>void)[]=[
+    wire=>{judgment(wire).tier='verified';},
+    wire=>{judgment(wire).tier=null;},
+    wire=>{judgment(wire).gap='whatever';},
+    wire=>{judgment(wire).tier='machine_verified';judgment(wire).gap='check_failed';},
+    wire=>{judgment(wire).tier='peer_reviewed';judgment(wire).basis_json=null;},
+    wire=>{judgment(wire).basis_json='{not json';},
+    wire=>{judgment(wire).basis_json=JSON.stringify({checked:{artifact_id:'artifact-report',version:0}});},
+  ];
+  for(const [index,mutate] of mutations.entries()){
+    const value=structuredClone(next.value);mutate(goalWire(value) as Unit);
+    target!.withReplica(replica=>replica.receive({...event,operationId:'invalid-'+index,revision:index+1,value}));
+    assert.equal(target!.withReplica(replica=>replica.conflicts().length),1,String(index));
+    assert.throws(()=>target!.withReplica(replica=>replica.resolve(event.key,'remote')),undefined,String(index));
+  }
+  await target!.prepare(event);target!.withReplica(replica=>{replica.receive({...event,revision:20});if(replica.conflicts().length)replica.resolve(event.key,'remote');});
+  assert.deepEqual(target!.withReplica(replica=>replica.counts()),{pending:0,conflicts:0},'the rows as Goals wrote them are taken');
+});

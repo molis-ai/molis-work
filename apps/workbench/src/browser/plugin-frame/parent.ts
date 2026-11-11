@@ -102,7 +102,11 @@ function ownItemTab(root: HTMLElement, pack: FramePack): FrameConfig["itemTab"] 
     ? { tabId: tab.dataset.tabId, itemId: tab.dataset.itemId } : null;
 }
 
-/** The trusted shell binds a real frame, channel and server authorization; child-supplied identity never selects them. */
+/**
+ * The trusted shell binds a real frame, channel and server authorization; child-supplied identity never selects them.
+ * A page's `invalidateView()` tells the other views; the page refreshes itself (BL-131). The workbench dispatches the invalidation
+ * synchronously, so while it runs this page's own copy is the echo of its request and is not sent back: it would read the page twice.
+ */
 export async function mountFrame(root: HTMLElement, host: FrameHost, pack: FramePack) {
   if (accountTransition().preparing) throw new Error("Account is switching");
   const route = host.route ?? (path => path), scope = host.mountPluginClient(root);
@@ -222,8 +226,6 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
     if (message.type === "frame-asset-layout") { assetLayout(message); return; }
     if (message.type === "connection-slot-cancel") { connectionSlot.cancel(message.id); return; }
     if (message.type === "connection-slot") { void connectionSlot(message); return; }
-    // The page that changed something tells the other views; it refreshes itself (BL-131). The workbench dispatches the invalidation
-    // synchronously, so while it runs this page's own copy is the echo of its request and is not sent back: it would read the page twice.
     if (message.type === "view-invalidate") { if (scope.visible) { ownInvalidation = true; try { host.invalidateView?.(root); } finally { ownInvalidation = false; } } return; }
     if (message.type === "view-open") {
       const value = message.selection;

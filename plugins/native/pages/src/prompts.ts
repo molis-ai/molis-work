@@ -1,8 +1,7 @@
-import { readFileSync } from "node:fs";
-import { readLocalizedMarkdown } from "@molis-ai/molis-work-plugin-sdk";
+import readNativeMarkdown from "./native-markdown.js";
 import { defineInstructionPrompt, type InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 
-const promptBody = (id: string) => readLocalizedMarkdown(new URL("../prompts/", import.meta.url), id, ["en"], file => readFileSync(file, "utf8"));
+const promptBody = (id: string) => readNativeMarkdown("prompts", id, ["en"]);
 
 
 const OWNER = "io.molis.work.pages";

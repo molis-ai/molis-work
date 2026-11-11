@@ -37,7 +37,7 @@
   ],
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
-    "build": "tsc -p tsconfig.json && tsc -p tsconfig.editor.json && tsc -p tsconfig.browser.json && esbuild src/editor-browser.ts --bundle --format=iife --platform=browser --global-name=MolisWorkPagesEditor --minify-whitespace --outfile=dist/pages-editor.js && esbuild src/browser/factory.ts --bundle --format=iife --platform=browser --minify --charset=utf8 '--banner:js=(host) => {' --footer:js=} --outfile=dist/pages-client.js",
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.editor.json && tsc -p tsconfig.browser.json && esbuild src/editor-browser.ts --bundle --format=iife --platform=browser --global-name=MolisWorkPagesEditor --minify-whitespace --outfile=dist/pages-editor.js && esbuild src/browser/factory.ts --bundle --format=iife --platform=browser --minify --charset=utf8 '--banner:js=(host) => {' --footer:js=} --outfile=dist/pages-client.js && node ../../../packages/plugin-sdk/tooling/build-native-markdown.mjs methods prompts",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc -p tsconfig.editor.json && tsc -p tsconfig.browser.json"
   },
   "dependencies": {

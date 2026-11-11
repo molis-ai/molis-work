@@ -1,8 +1,7 @@
-import { readFileSync } from "node:fs";
-import { readLocalizedMarkdown } from "@molis-ai/molis-work-plugin-sdk";
+import readNativeMarkdown from "./native-markdown.js";
 import type { AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 
-const methodBody = (id: string) => readLocalizedMarkdown(new URL("../methods/", import.meta.url), id, ["en"], file => readFileSync(file, "utf8"));
+const methodBody = (id: string) => readNativeMarkdown("methods", id, ["en"]);
 
 
 /** Authored product methods; exact versions are frozen by the Host at start. */

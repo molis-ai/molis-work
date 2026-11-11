@@ -26,6 +26,8 @@ async function fixture(t: TestContext, options: { each: boolean }) {
   const calls = { single: 0, each: [] as number[] };
   // When set, the first forgetting check of a policy call accepts this forgetting before answering: the facts change mid-call.
   let midCall: (() => void) | undefined;
+  // When set, runs once right after the policy has answered a page, before the SDK's later checks and final recheck.
+  let afterAnswer: (() => void) | undefined;
   const owner: MemoryRuntimePolicyOwner = { alive: () => true, prefsFor: (scope, project) => service.prefsFor(person.actor_id, scope, project),
     forgettingPhase: () => {
       const real = service.forgettingPhase();
@@ -38,7 +40,10 @@ async function fixture(t: TestContext, options: { each: boolean }) {
   const memory: Memory = { ...policy,
     async authorize(caller, requests) { if (isRead(requests) && requests.length === 1) calls.single++; return policy.authorize(caller, requests); },
     ...(options.each ? { async authorizeEach(caller: Parameters<typeof authorizeEach>[0], requests: readonly Request[]) {
-      calls.each.push(requests.length); return authorizeEach(caller, requests);
+      calls.each.push(requests.length);
+      const answer = await authorizeEach(caller, requests), change = afterAnswer;
+      afterAnswer = undefined; change?.();
+      return answer;
     } } : {}),
     promotion: { policy: "memory.write-gate", version: 1, decide: (caller, request) => service.promotion.decide(caller, request),
       undo: { prepare: (caller, request) => service.promotion.undo.prepare(caller, request), record: (caller, request) => service.promotion.undo.record(caller, request) } },
@@ -55,7 +60,8 @@ async function fixture(t: TestContext, options: { each: boolean }) {
   const reset = () => { calls.single = 0; calls.each.length = 0; };
   reset();
   let raced = 0;
-  return { bound, written, calls, forget, reset, raced: () => raced, raceWith: (change: () => void) => { midCall = () => { raced++; change(); }; } };
+  return { bound, written, calls, forget, reset, raced: () => raced, raceWith: (change: () => void) => { midCall = () => { raced++; change(); }; },
+    afterAnswer: (change: () => void) => { afterAnswer = () => { raced++; change(); }; } };
 }
 const recalled = async (f: Awaited<ReturnType<typeof fixture>>) =>
   (await f.bound.recall({ scope: "project", owner: "a", text: "amber" })).map(hit => hit.entry.memory_id).sort();
@@ -83,6 +89,18 @@ test("BL-1072 a forgetting accepted while the page is decided fails the whole re
   assert.equal(f.calls.single, 0, "the failure is the page's own, not a fallback to one entry at a time");
   assert.deepEqual(await recalled(f), f.written.filter((_, at) => at !== 4).map(entry => entry.memory_id).sort(),
     "the forgetting stands and the other entries are recalled again");
+});
+
+test("BL-1072 a forgetting accepted after the page is answered fails the final recheck; the page is decided again entry by entry and only that entry drops", async t => {
+  const f = await fixture(t, { each: true });
+  // The realistic race: the policy has answered the whole page, then the person forgets one entry before delivery.
+  f.afterAnswer(() => f.forget(f.written[4]!, "forget-after-answer"));
+  const result = await recalled(f);
+  assert.equal(f.raced(), 1, "the forgetting was accepted between the page's answer and its final recheck");
+  assert.deepEqual(result, f.written.filter((_, at) => at !== 4).map(entry => entry.memory_id).sort(),
+    "the recall succeeds without the forgotten entry; its old text is not delivered");
+  assert.deepEqual(f.calls.each, [6], "the page was answered once before the recheck refused it");
+  assert.equal(f.calls.single, 6, "the refused recheck sends the page back to one decision per entry, the forgotten one included");
 });
 
 test("BL-1072 a management list returns the same entries with or without authorizeEach", async t => {

@@ -1,4 +1,6 @@
 export const FEED_EN: Record<string, string> = {
+  "上一页": "Previous page",
+  "下一页": "Next page",
   '消息、材料与固定历史':'Messages, materials and fixed history',
   "来源描述与历史":"Source descriptions and history",
   "管理 AI 连接": "Manage AI connection",

@@ -1,3 +1,4 @@
+import { FEED_PAGE_INPUTS } from "./page-input.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { HOST_CONNECTION_CHANGED_EVENT } from "@molis-ai/molis-work-contracts/platform/plugin-events";
 import { CONNECTOR_REQUEST_SERVICES } from "@molis-ai/molis-work-contracts/services/connector-host";
@@ -77,12 +78,13 @@ export const feedManifest: PluginManifest = {
   events: { publishes: [], subscribes: [{ event_type_id: HOST_CONNECTION_CHANGED_EVENT, type_version: /* @version event.host.connection.changed */ 1 }] },
   background: { jobs: [feedWakeJob, feedReconcileJob], wakeups: [{ action: { capability_id: WAKE.capability_id, version: WAKE.version }, reason: WAKE.action.title }] },
   ui: {
+    page_routes: [{ route_id: "feed-stage", path: "/api/stage/feed", query: FEED_PAGE_INPUTS }],
     messages: FEED_MESSAGES,
     translations: FEED_EN,
     contributions: [FEED_UI_CONTRIBUTION_ID],
     views: [
       { view_id: "directory", slot: "navigator", title: "Feed", contribution_id: FEED_UI_CONTRIBUTION_ID, icon: "rss", hue: "brown", order: 40, rail: "core", pinned_default: true, accepts_objects: true,
-        stage_data: { action: feedQueryActions.stage.capability_id, object_action: feedQueryActions.reader.capability_id }, stage_surfaces: ["workbench", "source-workbench"] },
+        stage_data: { action: feedQueryActions.stage.capability_id, input: FEED_PAGE_INPUTS, object_action: feedQueryActions.reader.capability_id }, stage_surfaces: ["workbench", "source-workbench"] },
     ],
   },
 };

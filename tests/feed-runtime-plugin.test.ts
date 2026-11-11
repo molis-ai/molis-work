@@ -19,7 +19,7 @@ import { createEvidenceContentStore, createLazyFileSecretStore, homeStoreRegistr
 import { goalEntryActions, goalPluginActions } from "@molis-ai/molis-work-plugin-goals/contract";
 import { CONNECTOR_REQUEST_SERVICES } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
-import { createFeedContentLedger, createFeedContentLedgerHandlers, createFeedPlugin, createFeedWriter, FEED_HOME_DATABASE, FEED_PLUGIN_ID, feedCaptureScene, feedContentActions, feedContentLedgerActions, feedInboxActions, feedItemActions, feedNotificationActions, feedQueryActions, feedRuleActions, feedManifest, feedSceneBindingId, feedSourceActions, feedSubjectAction } from "@molis-ai/molis-work-plugin-feed";
+import { createFeedContentLedger, createFeedContentLedgerHandlers, createFeedPlugin, createFeedWriter, FEED_HOME_DATABASE, FEED_PLUGIN_ID, feedCaptureScene, feedContentActions, feedContentLedgerActions, feedInboxActions, feedItemActions, feedNotificationActions, feedQueryActions, feedRuleActions, feedManifest, feedSceneBindingId, feedSourceActions, feedSubjectAction, type FeedDirectorySnapshot } from "@molis-ai/molis-work-plugin-feed";
 import { artifactsActions, ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { inboxActions } from "@molis-ai/molis-work-plugin-inbox";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
@@ -193,7 +193,7 @@ test("RAC-506 a Runtime Feed's content action commits the source, the item and t
   assert.ok(count(`SELECT count(*) AS n FROM events WHERE object_type = '${FEED_OBJECT}' AND object_id = ? AND actor_id = ?`, written.item_id, OWNER) >= 1,
     "a journal event of the item recorded under the original caller");
   assert.equal(count(`SELECT count(*) AS n FROM events WHERE object_type = '${FEED_OBJECT}' AND object_id = ? AND actor_id = ?`, written.item_id, HOST_ACTOR), 0);
-  const snapshot = await client.invoke(caller(BODIES).context, feedQueryActions.snapshot, { include_contents: true }) as { feed_items: Array<{ item_id: string }> };
+  const snapshot = await client.invoke(caller(BODIES).context, feedQueryActions.snapshot, {}) as { feed_items: Array<{ item_id: string }> };
   assert.ok(snapshot.feed_items.some(item => item.item_id === written.item_id), "the read answers from the same tables");
   const read = await client.invoke(caller(BODIES).context, feedQueryActions.item, { item_id: written.item_id }) as { item: { item_id: string; revision: number } };
   const marked = await client.invoke(caller(WRITE).context, feedItemActions.read, { item_id: written.item_id }) as { item: { item_id: string } };
@@ -573,8 +573,8 @@ test("FI-C-04 an item synced from a research library is read by every read actio
   assert.ok(item.body?.includes(text), `the item carries the package's text: ${item.body}`);
   assert.deepEqual(item.materials.map(material => [material.content_ref?.startsWith("research:"), material.content_available, Boolean(material.preview?.includes(text))]), [[true, false, true]],
     "the material is the library's, as the sync recorded it");
-  const snapshot = await f.client.invoke(read(), feedQueryActions.snapshot, { include_contents: true }) as { feed_items: Array<{ item_id: string; body: string | null }> };
-  assert.ok(snapshot.feed_items.find(row => row.item_id === itemId)?.body?.includes(text));
+  const snapshot = await f.client.invoke(read(), feedQueryActions.snapshot, {}) as { feed_items: Array<{ item_id: string; body: string | null }> };
+  assert.equal(snapshot.feed_items.find(row => row.item_id === itemId)?.body, null, "FBR-02: directory pages never hydrate article bodies; the exact item/content readers above and below retain them");
   assert.ok((await f.client.invoke(read(), feedContentActions.read, { item_id: itemId }) as { body: string }).body.includes(text));
   assert.ok((await f.client.invoke(read(), feedSubjectAction, { subject_id: itemId })).content.includes(text));
   const preview = await f.client.invoke(read(), feedRuleActions.preview, { source_id: sourceId, contains: "verifiable" }) as { samples: Array<{ item_id: string; matched: boolean }> };
@@ -1587,7 +1587,7 @@ for (const { service, fault } of CURRENT_CONNECTOR_FAULTS) test(`RAC-2863 RAC-28
   };
   const positive = await source("positive control"), negative = await source("held response");
   await client.invoke(await person(), feedRuleActions.create, { name: "T396 capture", match: { contains: "Captured" }, admission: "inbox" });
-  const read = async () => ({ feed: await client.invoke(await person(), feedQueryActions.snapshot, { include_contents: true }),
+  const read = async () => ({ feed: await client.invoke(await person(), feedQueryActions.snapshot, {}),
     inbox: await client.invoke(await person(), inboxActions.list, {}), artifacts: await client.invoke(await person(), artifactsActions.browser, {}) });
   const before = await read(), entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
   let held = false;
@@ -1636,4 +1636,42 @@ for (const { service, fault } of CURRENT_CONNECTOR_FAULTS) test(`RAC-2863 RAC-28
     const visible = JSON.stringify([after, f.host.callLog!.list(project.project_id)]);
     for (const secret of [token, otherToken, account.credential_ref!, other.credential_ref!]) assert.equal(visible.includes(secret), false, "business outputs and call logs contain no credential");
   } finally { release.resolve(); await pending; }
+});
+
+test("FBR-01 FBR-02 FBR-04 FBR-05 owner pages include later data, facets and deduplicated receipt references", async t => {
+  const f = await syncing(t);
+  await f.client.invoke(caller(SYNC).context, feedSourceActions.sync, { source_id: f.sourceId, idempotency_key: "bounded-reads-sync" });
+  const feed = createLocalFeedApplication(f.store.db), source = feed.sources.get(DEMO_PROJECT_ID, f.sourceId);
+  f.store.db.transaction(() => {
+    for (let n = 0; n < 405; n++) feed.ingestItem({ source, externalId: `bounded-${n}`, title: `Bounded ${String(n).padStart(3, "0")}`, summary: "summary",
+      body: "body only for detail", occurredAt: "2026-11-11T00:00:00Z", attention: false });
+  })();
+  const prepared: string[] = [], prepare = f.store.db.prepare.bind(f.store.db);
+  f.store.db.prepare = <Params extends unknown[] = unknown[], Row = unknown>(sql: string) => {
+    prepared.push(sql); return prepare<Params, Row>(sql);
+  };
+  try { assert.ok(feed.sources.list(DEMO_PROJECT_ID).some(row => row.source_id === source.source_id)); }
+  finally { f.store.db.prepare = prepare; }
+  assert.ok(prepared.length > 0);
+  assert.ok(prepared.every(sql => !/feed_materials/u.test(sql) && (!/feed_items/u.test(sql)
+    || /^SELECT COUNT\(\*\) AS count FROM feed_items WHERE project_id = \? AND source_id = \?$/u.test(sql.trim().replace(/\s+/gu, " ")))),
+    "FBR-01 source reads retain their scalar count but never load item rows or materials");
+  const read = async (offset: number): Promise<FeedDirectorySnapshot> => await f.client.invoke(caller(BODIES).context, feedQueryActions.snapshot, { offset: String(offset), filter: JSON.stringify({ sort: "title" }) }) as FeedDirectorySnapshot;
+  const pages = await Promise.all([read(0), read(200), read(400)]);
+  assert.deepEqual(pages.map(page => page.feed_items.length), [200, 200, 7]);
+  assert.equal(new Set(pages.flatMap(page => page.feed_items.map(item => item.item_id))).size, 407);
+  assert.ok(pages.every(page => page.facets.reduce((sum, row) => sum + row.count, 0) === 407));
+  assert.ok(pages.flatMap(page => page.feed_items).every(item => item.body === null && item.materials.length === 0));
+  const searched = await f.client.invoke(caller(BODIES).context, feedQueryActions.snapshot, { filter: JSON.stringify({ search: "Bounded 404" }) }) as FeedDirectorySnapshot;
+  assert.equal(searched.feed_items[0]?.title, "Bounded 404");
+  assert.equal(searched.feed_items.length, 1);
+  const refs = Array.from({ length: 405 }, (_, n) => `molis-work-feed/sha256/${n.toString(16).padStart(64, "0")}`);
+  // A single large receipt is expanded and deduplicated inside the owner database, never loaded as a JS snapshot.
+  f.store.db.prepare("UPDATE feed_source_runs SET receipt_json = ? WHERE source_id = ?").run(JSON.stringify({ content_refs: [...refs, ...refs] }), source.source_id);
+  const refPages = [...feed.reads.history(DEMO_PROJECT_ID, source.source_id, "refs")];
+  assert.ok(refPages.every(page => page.length <= 200));
+  const expected = [...new Set([...refs, ...f.holds().map(row => row.content_ref)])].sort();
+  assert.deepEqual(refPages.flat(), expected);
+  assert.deepEqual([...feed.reads.history("foreign-project", source.source_id, "refs")], []);
+  assert.deepEqual([...feed.reads.history(DEMO_PROJECT_ID, "foreign-source", "refs")], []);
 });

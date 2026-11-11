@@ -75,7 +75,7 @@ export function createFeedRuleHandlers(feed: FeedApplication, projectId: string,
     return body();
   };
   const checkSource = (sourceId?: string) => {
-    if (sourceId?.trim() && !feed.snapshot(projectId).sources.some(source => source.source_id === sourceId.trim())) {
+    if (sourceId?.trim() && !feed.sources.list(projectId).some(source => source.source_id === sourceId.trim())) {
       throw feedErrors.invalid_transition("请选择当前项目的来源");
     }
   };
@@ -102,13 +102,11 @@ export function createFeedRuleHandlers(feed: FeedApplication, projectId: string,
     bind(feedRuleActions.delete, args => ({ rule: feed.outRules.delete(projectId, args.rule_id) })),
     bind(feedRuleActions.evaluate, (args, caller) => feed.evaluateItems(projectId, args.item_ids, retainActionAuthority(caller, feedRuleActions.evaluate, caller.beforeEffect))),
     bind(feedRuleActions.preview, async args => {
-      const snapshot = feed.snapshot(projectId);
-      if (!snapshot.sources.some(source => source.source_id === args.source_id)) throw feedErrors.invalid_transition("请选择当前项目的来源");
+      if (!feed.sources.list(projectId).some(source => source.source_id === args.source_id)) throw feedErrors.invalid_transition("请选择当前项目的来源");
       const rule: FeedOutRuleRecord = { project_id: projectId, rule_id: "preview", name: "preview", enabled: true,
         match: { source_id: args.source_id, contains: args.contains?.trim() ?? "" }, judgment: null, revision: "preview", admission: "suggest", created_at: "", updated_at: "" };
-      return { samples: await Promise.all(snapshot.feed_items.filter(item => item.source_id === args.source_id)
-        .sort((a, b) => b.source_updated_at.localeCompare(a.source_updated_at)).slice(0, 5).map(async item => {
-          const original = await hydrate(item);
+      return { samples: await Promise.all(feed.reads.page(projectId, { source_id: args.source_id, limit: 5, offset: 0 }).map(async item => {
+          const original = await hydrate(feed.getFeedItem(projectId, item.item_id));
           return { item_id: original.item_id, title: original.title, matched: feedOutRuleMatches(rule, original),
             input: [original.title, original.summary, original.body ?? ""].filter(Boolean).join("\n") };
         })) };

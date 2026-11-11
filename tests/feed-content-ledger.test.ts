@@ -151,12 +151,17 @@ const standIn = <T extends object>(members: Partial<Record<keyof T, unknown>>): 
 // batches, tries again a bounded number of times while the ledger does not answer, then at each change of a connection until it has worked.
 test("FI-C-07: the kept bodies are named in batches; a ledger that does not answer is tried a bounded number of times, then at each change until it works", async t => {
   const ref = (n: number) => "molis-work-feed/sha256/" + n.toString(16).padStart(64, "0");
-  const kept = Array.from({ length: FEED_CONTENT_LEDGER_BATCH + 1 }, (_, n) => ref(n + 1));
+  const kept = Array.from({ length: 201 }, (_, n) => ref(n + 1));
   const snapshot = { sources: [{ source_id: "s1" }, { source_id: "s2" }], runs: [{ source_id: "s2", operation_id: "op-1", receipt: { content_refs: [ref(0)] } }],
     feed_items: [{ source_id: "s1", materials: [...kept.map(content_ref => ({ content_ref })), { content_ref: "research:note-1" }] }] };
   let failing = Number.POSITIVE_INFINITY;
   const asked: string[] = [];
-  const ports: FeedReconcilePorts = { feed: standIn<FeedApplication>({ snapshot: () => snapshot }), projectId: "p1", connections: undefined, commit: async (_control, body) => body(),
+  const ports: FeedReconcilePorts = { feed: standIn<FeedApplication>({ sources: { list: () => snapshot.sources }, reads: {
+    *history(_project: string, sourceId: string) {
+      const refs = sourceId === "s1" ? snapshot.feed_items[0]!.materials.map(row => row.content_ref) : [ref(0)];
+      for (let offset = 0; offset < refs.length; offset += 200) yield refs.slice(offset, offset + 200);
+    },
+  } }), projectId: "p1", connections: undefined, commit: async (_control, body) => body(),
     hold: async (sourceId, refs) => {
       if (failing > 0) { failing -= 1; asked.push("refused"); throw new Error("the Home's ledger is unavailable"); }
       assert.ok(refs.every(each => each.startsWith("molis-work-feed/sha256/")), "only the ledger's own bodies are named");
@@ -181,7 +186,7 @@ test("FI-C-07: the kept bodies are named in batches; a ledger that does not answ
   failing = 0;
   watch.changed();
   await settle(7);
-  assert.deepEqual(asked.slice(4), [`s1:${FEED_CONTENT_LEDGER_BATCH}`, "s1:1", "s2:1"], "the ledger back, every kept body is named, in batches it takes");
+  assert.deepEqual(asked.slice(4), ["s1:200", "s1:1", "s2:1"], "the ledger back, every kept body is named, in batches it takes");
   watch.changed();
   await settle(7);
   assert.equal(asked.length, 7, "once named, a change names nothing again");
@@ -194,7 +199,7 @@ test("FI-C-07: the kept bodies are named in batches; a ledger that does not answ
   keepFeedReconcile(standIn<PluginBackgroundClient>({ keep: (_job: string, work: (control: PluginJobControl) => Promise<void>) => ({ done: work({ ...control, signal: again.signal }).catch(() => {}) }) }),
     ports, createConnectionWatch(), [1]);
   await settle(11);
-  assert.deepEqual(asked.slice(7), ["refused", `s1:${FEED_CONTENT_LEDGER_BATCH}`, "s1:1", "s2:1"], "a start the ledger first refuses names them on the next try");
+  assert.deepEqual(asked.slice(7), ["refused", "s1:200", "s1:1", "s2:1"], "a start the ledger first refuses names them on the next try");
 });
 
 test("RAC-494: a hold cannot enter while a release deletes files, so a body is written again or kept, never lost under a new holder", async t => {

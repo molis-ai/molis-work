@@ -35,9 +35,21 @@ export function informationActionProvider(home: string, projectId: string, clien
         if (!complete) throw textModelRequired();
         const nested = retainActionAuthority(caller, { ...informationActions.plan, provider_id: INFORMATION_PROVIDER_ID });
         // Feed's directory action returns the snapshot without `inbox_entries`; the Inbox list supplies them below.
-        const snapshot = await client.invoke(nested, feedSnapshot, {}) as Omit<InformationPlanSnapshot, "inbox_entries">;
+        type Page = Omit<InformationPlanSnapshot, "inbox_entries"> & { next_offset: number | null };
+        const snapshot = await client.invoke(nested, feedSnapshot, {}) as Page;
         const { entries } = await client.invoke(nested, inboxList, {}) as { entries: ReadonlyArray<InformationPlanEntry> };
-        return planInformationWork({ ...snapshot, inbox_entries: [...entries] }, projectId, input as { prompt: string }, complete,
+        // The planner uses twenty recent samples and twenty active Inbox entries. Resolve older Inbox titles through
+        // owner pages without retaining every Feed item or asking for their bodies/materials.
+        const wanted = new Set(entries.filter(entry => entry.subject_type === "feed_item" && ["open", "in_progress"].includes(entry.status)).slice(0, 20).map(entry => entry.subject_id));
+        const samples = snapshot.feed_items.slice(0, 20), kept = new Map(samples.map(item => [item.item_id, item]));
+        let page = snapshot;
+        for (;;) {
+          for (const item of page.feed_items) if (wanted.delete(item.item_id)) kept.set(item.item_id, item);
+          if (!wanted.size || page.next_offset === null) break;
+          await caller.beforeEffect();
+          page = await client.invoke(nested, feedSnapshot, { offset: String(page.next_offset) }) as Page;
+        }
+        return planInformationWork({ ...snapshot, feed_items: [...kept.values()], inbox_entries: [...entries] }, projectId, input as { prompt: string }, complete,
           { signal: caller.signal, beforeDispatch: caller.beforeEffect }, prompt => resolveModelPrompt(home, prompt, "system.information"));
       },
     }] };

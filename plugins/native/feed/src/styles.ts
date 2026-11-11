@@ -288,7 +288,7 @@ body.immersive-workbench .feed-workbench .feed-capture-rule-copy :is(strong,p,sm
   ${F} .plugin-stage-list .feed-stage-entry { padding: 8px 12px 12px; }
   ${F} .plugin-stage-list .feed-stage-entry .feed-stage-leading { margin-top: 4px; }
   ${F} .plugin-stage-list .feed-stage-entry .feed-entry-copy strong { -webkit-line-clamp: 1; }
-  ${F} .feed-column-foot { display: none; }
+  ${F} .feed-column-foot { padding-block: 6px; flex-wrap: wrap; }
   ${F} .feed-stage-detail > .feed-reader-bar[data-stage-back-only] { height: 44px; min-height: 44px; }
 }
 /* A very short pane (a split under a split) keeps every control, with tighter rows and one line per item:

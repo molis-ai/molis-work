@@ -19,7 +19,7 @@ export const feedSearchEntriesAction = defineSearchEntriesAction("feed.search.en
 
 export function createFeedContentHandlers(feed: FeedApplication, board: string, hydrate: FeedHydrate, readSubject?: (subject: ActionSubject, caller: ActionCallContext) => Promise<ActionSubjectContext>) {
   return [createFeedHomeEventsHandler(feed, board, hydrate, readSubject), feedArtifactPreviewHandler, ...bindWorkflowContentHandlers(feedContentActions, {
-    list: () => feed.snapshot(board).feed_items.slice().sort((a, b) => String(b.imported_at).localeCompare(String(a.imported_at)))
+    list: () => [...feed.reads.items(board)].sort((a, b) => String(b.imported_at).localeCompare(String(a.imported_at)))
       .map(item => ({ item_id: item.item_id, title: item.title, caption: item.source_label || item.source_kind || "Feed", at: item.imported_at })),
     read: async ({ item_id }): Promise<WorkflowPayload> => {
       const item = await hydrate(feed.getFeedItem(board, item_id));
@@ -38,13 +38,13 @@ export function createFeedContentHandlers(feed: FeedApplication, board: string, 
         .then(({ item }) => ({ plugin: "feed", item_id: item.item_id, title: item.title }));
     },
   }), bindSearchEntriesHandler(feedSearchEntriesAction, () => {
-    const snapshot = feed.snapshot(board);
-    const items = snapshot.feed_items.filter(item => item.disposition !== "archived").map((item): SearchEntry => {
+
+    const items = [...feed.reads.items(board)].filter(item => item.disposition !== "archived").map((item): SearchEntry => {
       const summary = searchText([item.summary, item.source_label, item.author, ...(item.tags ?? [])].filter(Boolean).join(" · "), 1000);
       return { subject: { kind: "feed_item", id: item.item_id }, revision: searchRevisionOf([String(item.revision), item.disposition, item.title, summary]), title: item.title,
         summary, updated_at: item.updated_at || item.imported_at, content: "summary", open: { surface: "feed", id: item.item_id } };
     });
-    const sources = snapshot.sources.filter(source => !isHandInSource(source.source_id)).map((source): SearchEntry => ({
+    const sources = feed.sources.list(board).filter(source => !isHandInSource(source.source_id)).map((source): SearchEntry => ({
       subject: { kind: "source", id: source.source_id }, revision: searchRevisionOf([source.updated_at, source.name, source.description ?? "", source.status]), title: source.name,
       summary: searchText(source.description, 600), updated_at: source.updated_at, content: "summary", open: { surface: "feed", id: source.source_id } }));
     return [...items, ...sources];
@@ -55,7 +55,7 @@ export function createFeedContentHandlers(feed: FeedApplication, board: string, 
       content: item.body || item.materials.map(material => material.content || material.preview).filter(Boolean).join("\n\n") || item.summary || "",
       goal_ids: item.linked_goal_id ? [item.linked_goal_id] : [] }, input as { offset?: number });
   } }, { ...feedSourceSubjectAction, handle: (_caller: unknown, input: unknown) => {
-    const source = feed.snapshot(board).sources.find(source => source.source_id === (input as { subject_id: string }).subject_id);
+    const source = feed.sources.list(board).find(source => source.source_id === (input as { subject_id: string }).subject_id);
     if (!source) throw new ActionError("actions.subject_unavailable", "来源已不存在");
     return subjectContext({ subject: { kind: "source", id: source.source_id }, revision: source.updated_at,
       title: source.name, content: [source.description, `状态：${source.status}`, source.last_error_code].filter(Boolean).join("\n"), goal_ids: [] });

@@ -67,7 +67,7 @@ export function childView(port: MessagePort, scope: FrameScope): UiPageView<HTML
     };
     const abort = () => { port.postMessage({ type: "document-cancel", id } satisfies FrameUp); finish(undefined, new DOMException("View changed", "AbortError")); };
     pending.set(id, { finish, cancel: abort }); query?.signal?.addEventListener("abort", abort, { once: true });
-    port.postMessage({ type: "read-document", id, ...(query?.object ? { object: query.object } : {}) } satisfies FrameUp);
+    port.postMessage({ type: "read-document", id, ...(query?.object ? { object: query.object } : {}), ...(query?.input ? { input: query.input } : {}) } satisfies FrameUp);
   }) };
 }
 
@@ -94,16 +94,25 @@ export async function readOwnPageDocument(root: HTMLElement, route: (path: strin
 }
 
 export async function readPageDocument(port: MessagePort, id: number, root: HTMLElement, route: (path: string) => string,
-  pack: FramePack, pageId: string, scope: FrameScope, object?: { id: string; surface: string }, signal?: AbortSignal): Promise<void> {
+  pack: FramePack, pageId: string, scope: FrameScope, object?: { id: string; surface: string }, signal?: AbortSignal, input?: Readonly<Record<string, string>>): Promise<void> {
   try {
     let html: string;
+    if (input !== undefined && (!input || typeof input !== "object" || Array.isArray(input) || Object.keys(input).length > 20
+      || Object.entries(input).some(([key, value]) => !/^[a-z][a-z0-9_]*$/.test(key) || key.length > 80 || typeof value !== "string" || value.length > 2000))) throw new Error("View unavailable");
+    const params = new URLSearchParams(input);
+
     if (object !== undefined) {
       if (!root.dataset.pluginProducer || !root.dataset.pluginClient || !object || typeof object !== "object" || Array.isArray(object)
         || Object.keys(object).some(key => !["id", "surface"].includes(key)) || typeof object.id !== "string" || !object.id || object.id.length > 256 || object.id.includes("/")
         || typeof object.surface !== "string" || !object.surface || object.surface.length > 200) throw new Error("View unavailable");
       await molisWorkRequest(route("/api/host/plugin-page-check"), { body: { object_surface: object.surface }, scope, signal, headers: { "x-molis-plugin-page": pageId } });
-      html = await molisWorkRequest<string>(route("/api/stage/" + encodeURIComponent(root.dataset.pluginClient) + "/objects/" + encodeURIComponent(object.id)) + "?surface=" + encodeURIComponent(object.surface), { as: "text", scope, signal });
+      html = await molisWorkRequest<string>(route("/api/stage/" + encodeURIComponent(root.dataset.pluginClient) + "/objects/" + encodeURIComponent(object.id)) + "?" + new URLSearchParams({ ...input, surface: object.surface }).toString(), { as: "text", scope, signal });
       // Re-read the exact producer after the fragment: a new half or installation cannot supply this old page's result.
+      await readOwnPageDocument(root, route, pack.plugin_id, pageId, scope, signal);
+    } else if (input !== undefined) {
+      if (!root.dataset.pluginProducer || !root.dataset.pluginClient) throw new Error("View unavailable");
+      await readOwnPageDocument(root, route, pack.plugin_id, pageId, scope, signal);
+      html = await molisWorkRequest<string>(route("/api/stage/" + encodeURIComponent(root.dataset.pluginClient)) + "?" + params.toString(), { as: "text", scope, signal });
       await readOwnPageDocument(root, route, pack.plugin_id, pageId, scope, signal);
     } else {
       html = await readOwnPageDocument(root, route, pack.plugin_id, pageId, scope, signal);

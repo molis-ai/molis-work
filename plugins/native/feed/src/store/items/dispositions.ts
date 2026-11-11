@@ -133,29 +133,22 @@ export class FeedDispositions {
     });
   }
 
-  deleteBySource(projectId: string, sourceId: string): string[] {
+  deleteBySource(projectId: string, sourceId: string): number {
     const { db } = this.records;
-    const itemIds = (db.all("SELECT item_id FROM feed_items WHERE project_id = ? AND source_id = ? ORDER BY item_id", projectId, sourceId) as Array<{ item_id: string }>).map((row) => row.item_id);
-    if (itemIds.length === 0) return [];
     return db.transaction(() => {
       const at = this.records.now().toISOString();
-      for (const itemId of itemIds) {
-        this.records.goalLinks.remove(projectId, itemId);
-        this.attention.commands.deleteSubject(projectId, "feed_item", itemId);
+      let removed = 0;
+      for (;;) {
+        const ids = db.all("SELECT item_id FROM feed_items WHERE project_id = ? AND source_id = ? ORDER BY item_id LIMIT 200", projectId, sourceId) as Array<{ item_id: string }>;
+        if (!ids.length) return removed;
+        for (const { item_id: itemId } of ids) {
+          this.records.goalLinks.remove(projectId, itemId);
+          this.attention.commands.deleteSubject(projectId, "feed_item", itemId);
+          db.run("DELETE FROM feed_items WHERE project_id = ? AND item_id = ?", projectId, itemId);
+          this.records.appendEvent(projectId, itemId, "feed_item.deleted", "feed_item.deleted", "来源本地历史已删除", { source_id: sourceId }, at);
+          removed++;
+        }
       }
-      db.run("DELETE FROM feed_items WHERE project_id = ? AND source_id = ?", projectId, sourceId);
-      for (const itemId of itemIds) {
-        this.records.appendEvent(
-          projectId,
-          itemId,
-          "feed_item.deleted",
-          "feed_item.deleted",
-          "来源本地历史已删除",
-          { source_id: sourceId },
-          at,
-        );
-      }
-      return itemIds;
     });
   }
 

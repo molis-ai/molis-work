@@ -52,6 +52,12 @@ Feed 是双实例插件：每个项目一个项目实例（`createFeedPlugin`）
 
 `createFeedExactRouteResolver` 只负责 Feed 的 catalog RSS、自定义 RSS 和 YouTube 来源。公共 web query 路由、SEL intent 装配与证据密文保存由 Host/Storage 提供；Feed 通过注入端口使用它们，继续拥有来源策略、游标和同步提交。
 
+## 有界读取
+
+页面列表经 `feed.snapshot` / `feed.stage.read` 每页最多 200 条，只读元数据；`offset` 为十进制字符串，`filter` 为筛选字段的 JSON 字符串（`item_id`、`source_id`、`search`、`status`、`unread`、`since`、`provider`、`source_label`、`sort`）。按 `next_offset` 取后页，`null` 表示结束。来源汇总与筛选选项覆盖整个集合，不随当前页截断。阅读器的 `material_offset` 单独控制材料页；明确请求一项完整内容的动作仍保持完整内容语义。
+
+来源管理直接调用来源 owner；后台保留引用和历史清理通过 Feed 自己的数据库分页去重，单次返回最多 200 个引用或操作编号，不聚合项目快照。公开搜索与工作流列表仍返回合同要求的完整元数据，不读取无关正文或材料。
+
 ## 本地开发
 
 以下命令在**仓库根目录**执行，使用 Node.js 24+ 与仓库配置的 pnpm。首次准备运行 `pnpm install --frozen-lockfile` 和 `pnpm build`；之后可单独检查此包。

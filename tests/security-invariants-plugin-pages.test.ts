@@ -272,6 +272,8 @@ test("RAC-2516 S-47 own object presentation checks exactly the selected declarat
   assert.equal((await check(granted, "detail")).status, 200);
   assert.equal((await check(granted, "foreign-surface")).status, 403);
   assert.equal((await f.request(prefix + `/api/stage/${probe.id}/objects/one?surface=detail`, { headers: { "x-molis-plugin-page": granted } })).status, 403);
+  // GAS-02: the text plugins keep about a Goal is the person's page's to read; a plugin page is refused it like any Host path it was not given.
+  assert.equal((await f.request(prefix + "/api/host/subject-context?kind=goal&id=one", { headers: { "x-molis-plugin-page": granted } })).status, 403);
   assert.equal(reads, 0, "a presentation check never executes the object reader");
   await grantHomeProbe(f.host, probe, probe.permissions.filter(permission => permission !== probe.permissions[1]));
   const limited = await open();
@@ -582,7 +584,7 @@ async function homeModelAddress(href: string): Promise<string> {
   const asked: string[] = [];
   const listeners = new Map<string, Listener[]>();
   const element = (): Record<string, unknown> => ({ dataset: {}, hidden: false, textContent: "", value: "", options: [], open: false,
-    querySelector: () => element(), querySelectorAll: () => [], addEventListener: () => {}, replaceChildren: () => {}, append: () => {},
+    querySelector: () => element(), querySelectorAll: () => [], addEventListener: () => {}, replaceChildren: () => {}, append: () => {}, prepend: () => {},
     removeAttribute: () => {}, setAttribute: () => {}, showModal: () => {}, close: () => {} });
   const dialog = element();
   const request = Object.assign((url: string) => { asked.push(url); return Promise.reject(new Error("captured")); }, { show: () => {} });
@@ -594,7 +596,7 @@ async function homeModelAddress(href: string): Promise<string> {
   };
   vm.runInNewContext(HOME_MODEL_SETTINGS_CLIENT_SCRIPT, {
     document, location: { origin: "http://127.0.0.1:4173", href: "http://127.0.0.1:4173/" }, URL, URLSearchParams, molisWorkRequest: request,
-    DOMParser: class {}, AbortController, setTimeout, clearTimeout,
+    DOMParser: class {}, AbortController, setTimeout, clearTimeout, requestAnimationFrame: () => 0,
   });
   const swallowed: unknown[] = [];
   const onRejection = (reason: unknown) => swallowed.push(reason);

@@ -995,6 +995,14 @@ export declare function stageRequestParams(input: readonly string[] | undefined,
 
 export { subjectContext } from "@molis-ai/molis-work-contracts/platform/actions";
 
+export declare function subjectContextAction(manifest: PluginManifest, kind: UiSubjectContextKind): ActionDefinition | undefined;
+
+export declare function subjectContextInput(kind: UiSubjectContextKind, id: string): Readonly<Record<string, string>>;
+
+export declare function subjectContextProblems(parsed: PluginManifest): string[];
+
+export declare function subjectContextText(answer: unknown): string | null;
+
 export declare function supportsMaterialExtension(extension: string): boolean;
 
 export declare function sweepActionCard<Card extends ActionCard>(card: Card, ports: Pick<ActionCardPorts<Card>, "store" | "readSubject" | "now" | "timeZone">): Promise<Card>;

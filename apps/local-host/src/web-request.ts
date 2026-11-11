@@ -32,9 +32,10 @@ import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import { ensureProjectPlugins } from "./project-plugins.js";
 import { homeStageHalves } from "./home-plugin-http.js";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
-import { readRuntimeStageData, runtimeStageOwner } from "./project-plugin-stages.js";
+import { readRuntimeStageData, runtimeStageOwner, shownRuntimeOwners, type RuntimeStageOwner } from "./project-plugin-stages.js";
 import type { InboxStageData } from "@molis-ai/molis-work-plugin-inbox";
 import { handlePluginStageFragmentHttp } from "./plugin-stage-fragment-http.js";
+import { handleSubjectContextHttp } from "./subject-context-http.js";
 import { declaredStageRequests } from "./project-stage-data.js";
 import { matchPageRoute } from "./page-routes.js";
 import { handleAlchemistNativePluginHttp } from "./alchemist-native-plugin-http.js";
@@ -182,7 +183,7 @@ function projectWebView({ options, webViewCache, store, homeActions, localHost, 
     view = { ...view, ...(pageMatch && !pageMatch.rejected ? { page_owner: pageMatch.plugin_id } : {}),
       ...(Object.keys(stage_request).length > 0 ? { stage_request } : {}) };
     const prepared = await readRuntimeStageData(await ensureProjectPlugins(pluginPorts), view.shown_plugins ?? [], await homeStageHalves(localHost.homePlugins),
-      (action, owner) => bindLocalWebAction(localHost, hostReference, action, { stage_read: { manifest: owner.entry.manifest, install_id: owner.install_id, installation_generation: owner.installation_generation, scope: owner.scope, assertCurrent: owner.assertCurrent, capturePermission: owner.capturePermission } }), stage_request);
+      (action, owner) => bindLocalWebAction(localHost, hostReference, action, { stage_read: ownerRead(owner) }), stage_request);
     view = { ...view, stage_data: prepared.data, plugin_stage_views: prepared.views };
     // Existing bootstrap consumer reads Inbox's own summary from its single stage answer, without another query.
     const inbox = view.stage_data?.inbox as InboxStageData | undefined;
@@ -194,6 +195,10 @@ function projectWebView({ options, webViewCache, store, homeActions, localHost, 
       plugin_directory: await pagePluginDirectory(localHost.homePlugins, serverOptions.homeDirectory) };
   };
 }
+
+/** The running owner a page read is bound for: the person's client then reaches only that owner's own declared reads (PG-060). */
+const ownerRead = (owner: RuntimeStageOwner) => ({ manifest: owner.entry.manifest, install_id: owner.install_id, installation_generation: owner.installation_generation,
+  scope: owner.scope, assertCurrent: owner.assertCurrent, capturePermission: owner.capturePermission });
 
 /** The person in this project, capped by one plugin's permissions and reaching each provider by its own authority (PG-008). */
 const asPerson = ({ localHost, hostReference }: ProjectRuntimeContext, permissions: readonly string[]) => bindLocalWebActions(localHost, hostReference, permissions);
@@ -212,12 +217,16 @@ const pageOwnerRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
     handlePluginStageFragmentHttp(request, response, url, { shown: () => shownPlugins(options.projectId),
       invalidateWebView: () => webViewCache.delete(options.databasePath), renderer: composition.workbenchRenderer,
       context: { route_prefix: options.routePrefix ?? "", project: options.project ?? null, demo: Boolean(options.demo) },
-      bind: (action, owner, signal) => bindLocalWebAction(localHost, hostReference, action, { signal, stage_read: { manifest: owner.entry.manifest, install_id: owner.install_id, installation_generation: owner.installation_generation, scope: owner.scope, assertCurrent: owner.assertCurrent, capturePermission: owner.capturePermission } }),
+      bind: (action, owner, signal) => bindLocalWebAction(localHost, hostReference, action, { signal, stage_read: ownerRead(owner) }),
       owner: async key => {
         const state = await ensureProjectPlugins(pluginPorts), home = await homeStageHalves(localHost.homePlugins);
         const entry = PLATFORM_PLUGIN_REGISTRATIONS.find(item => item.project_plugin_id === key) ?? home?.entries.find(item => item.project_plugin_id === key);
         return entry ? runtimeStageOwner(state, entry, home).owner : undefined;
       } }) },
+  { id: "subject-context", handle: ({ request, response, url, options, shownPlugins, localHost, hostReference, pluginPorts }) =>
+    handleSubjectContextHttp(request, response, url, {
+      owners: async () => shownRuntimeOwners(await ensureProjectPlugins(pluginPorts), await shownPlugins(options.projectId), await homeStageHalves(localHost.homePlugins)),
+      bind: (action, owner, signal) => bindLocalWebAction(localHost, hostReference, action, { signal, stage_read: ownerRead(owner) }) }) },
   homeDockRoute,
 
 ];

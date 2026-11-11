@@ -161,7 +161,7 @@ test("RAC-2562 Goals opens a Goal's terminal with a runtime recipe in the projec
   assert.equal(parent.status, 409);
   assert.match(await parent.text(), /goals\.terminal\.read_only/);
   assert.equal((await json(await api("/PARENT/terminals"))).body.read_only, true);
-  assert.equal((await api("/PARENT/advance-prompt")).status, 409);
+  assert.equal((await api("/PARENT/advance-prompt", { method: "POST", body: {} })).status, 409);
   const foreign = await api("/LEAF/terminals", { method: "POST", body: { runtime: "codex", workspace_id: other.workspace_id } });
   assert.equal(foreign.status, 403, await foreign.clone().text());
   for (const body of [{}, { runtime: "codex", command: "sh" }, { runtime: "codex", args: [] }, { runtime: "nope" }, { command: "sh", cwd: "/" },

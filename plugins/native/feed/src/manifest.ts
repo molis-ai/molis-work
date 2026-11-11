@@ -84,5 +84,7 @@ export const feedManifest: PluginManifest = {
       { view_id: "directory", slot: "navigator", title: "Feed", contribution_id: FEED_UI_CONTRIBUTION_ID, icon: "rss", hue: "brown", order: 40, rail: "core", pinned_default: true, accepts_objects: true,
         stage_data: { action: feedQueryActions.stage.capability_id, object_action: feedQueryActions.reader.capability_id }, stage_surfaces: ["workbench", "source-workbench"] },
     ],
+    // A Goal made from a message keeps that message's text; the person's page reads it for the prompt that advances the Goal (GAS-01).
+    subject_context: [{ subject_kind: "goal", action: feedQueryActions.linkedContext.capability_id }],
   },
 };

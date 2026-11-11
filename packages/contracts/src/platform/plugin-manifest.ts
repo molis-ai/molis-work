@@ -123,6 +123,35 @@ export interface PluginLocalesDeclaration {
 /** A bad list costs one message per entry, and a language is a file in the package: far more than any plugin translates into, so the author's mistake, not a real need. */
 export const PLUGIN_LOCALE_LIMITS = { available: 32 } as const;
 
+/** The kinds of object a plugin may give context text for in the person's page (GAS-01). */
+export const UI_SUBJECT_CONTEXT_KINDS = ["goal"] as const;
+export type UiSubjectContextKind = (typeof UI_SUBJECT_CONTEXT_KINDS)[number];
+/** The longest text one plugin gives for one object, in UTF-16 code units; the Host cuts a longer answer without splitting a character and marks the cut. */
+export const UI_SUBJECT_CONTEXT_LIMIT = 12_000;
+/** The most plugins whose text the person's page receives for one object, in the order the Host lists the project's plugins. */
+export const UI_SUBJECT_CONTEXT_PLUGINS = 4;
+
+/**
+ * Text a plugin keeps about an object another plugin owns (GAS-01), declared so that the person's own page can read it without the
+ * owner naming the plugin: Feed's original message of a Goal made from it, for the prompt that advances that Goal. `action` is the
+ * `capability_id` of one of the same Manifest's own actions, a query for the person (audience `user`) that only reads, with one
+ * version, under the same rule as `stage_data`. The Host calls it as the person in the project, with only that action's own
+ * permissions and with exactly `{ <subject_kind>_id }`, and takes `{ source_context: string }` or `null`; no Agent, workflow, MCP
+ * client or other plugin reaches it through this declaration. One declaration per kind.
+ */
+export interface UiSubjectContextDeclaration {
+  readonly subject_kind: UiSubjectContextKind;
+  readonly action: string;
+}
+
+/** Where the person's page reads it: `GET` with exactly `kind` and `id` in the query, under the project's route prefix. */
+export const SUBJECT_CONTEXT_PATH = "/api/host/subject-context";
+
+/** What the person's page receives for one object: each answering plugin's text, at most {@link UI_SUBJECT_CONTEXT_PLUGINS}. */
+export interface SubjectContextAnswer {
+  readonly contexts: ReadonlyArray<{ readonly plugin_id: string; readonly source_context: string }>;
+}
+
 export interface PluginManifest {
   /** Optional project demo initializer: own workflow command with an empty object input. Invoked after Runtime startup only for trusted regenerable_demo projects. */
   demo_seed?: { capability_id: string; version: number };
@@ -193,6 +222,8 @@ export interface PluginManifest {
     views?: UiViewDeclaration[];
     /** the GET pages of the project the Plugin answers, as data the Host matches (T-116). A view's `stage_data.input` names parameters declared here. */
     page_routes?: UiPageRouteDeclaration[];
+    /** text this Plugin gives about another owner's objects, read by the person's own page (GAS-01). */
+    subject_context?: UiSubjectContextDeclaration[];
     /**
      * the Plugin's UI words in both page languages, by stable key (`<owner>.<area>.<name>`, 2 to 5 lowercase segments).
      * Plain data in the Manifest, so a built-in and a third-party Plugin bring their words the same way; the Host reads

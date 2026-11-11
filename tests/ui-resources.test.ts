@@ -111,30 +111,68 @@ test("FSS-34 the same Workbench build discovers and serves a language added only
     const catalog = JSON.parse(readFileSync(catalogPath, "utf8"));
     const pack = JSON.parse(readFileSync(path.join(scratch, "resources/locales/en.json"), "utf8"));
     const descriptor = { tag: "en-GB", html_lang: "en-GB", intl: "en-GB", direction: "ltr", name: "English (UK)" };
-    const probe = () => JSON.parse(execFileSync(process.execPath, ["--input-type=module", "-e", `
+    const probe = (escapedWord = "") => JSON.parse(execFileSync(process.execPath, ["--input-type=module", "-e", String.raw`
+      import assert from "node:assert/strict";
+      import { readFileSync } from "node:fs";
+      import { runInNewContext } from "node:vm";
       import { WEB_LOCALES, createWorkbenchLocale, renderWorkbenchDocument, workbenchLanguageResource, workbenchPlatformText } from "./dist/index.js";
+      const word = "workbench.language.retry", escapedWord = process.argv[1];
+      if (escapedWord) {
+        // The registered reader has already validated the files. Exercise script escaping at the serialization boundary.
+        const read = workbenchPlatformText.pack;
+        workbenchPlatformText.pack = tag => {
+          const pack = read(tag);
+          return tag === "en-GB" && pack ? { ...pack, messages: { ...pack.messages, [word]: escapedWord } } : pack;
+        };
+      }
+      const catalog = JSON.parse(readFileSync("./resources/languages.json", "utf8"));
+      const assetFor = tag => {
+        const document = renderWorkbenchDocument({ lang: tag, title: "probe", body_html: "" });
+        const href = document.match(/data-ui-language-resource[^>]*src="([^"]+)/)?.[1];
+        assert.ok(href);
+        const asset = workbenchLanguageResource(href);
+        assert.equal(asset?.href, href);
+        const pack = JSON.parse(readFileSync("./resources/locales/" + tag + ".json", "utf8"));
+        if (escapedWord && tag === "en-GB") {
+          pack.messages[word] = escapedWord;
+          assert.ok(!asset.body.includes(escapedWord));
+          assert.ok(asset.body.includes(escapedWord.replaceAll("<", "\\u003c")));
+        }
+        const received = [];
+        runInNewContext(asset.body, { molisWorkLanguageAsset: value => received.push(value) }, { filename: href });
+        assert.equal(received.length, 1, tag);
+        assert.equal(Object.getPrototypeOf(received[0].pack.messages), null, tag);
+        assert.deepEqual(JSON.parse(JSON.stringify(received[0])), { catalog, pack }, tag);
+        return asset;
+      };
       const web = createWorkbenchLocale(() => "en-GB");
-      const href = renderWorkbenchDocument({ lang: "en-GB", title: "probe", body_html: "" }).match(/data-ui-language-resource[^>]*src="([^"]+)/)?.[1];
-      const asset = href && workbenchLanguageResource(href);
+      const { href } = assetFor("en-GB");
+      for (const tag of WEB_LOCALES) if (tag !== "en-GB") assetFor(tag);
       process.stdout.write(JSON.stringify({ languages: WEB_LOCALES, system: web.resolveWebLocaleChoice(undefined, "en-GB,en;q=0.8").tag,
         cookie: web.resolveWebLocaleChoice("molis_work_locale=en-GB", "zh").tag, rejected: web.resolveWebLocaleChoice("molis_work_locale=fr", "en").tag,
-        href, served: asset?.href === href, word: workbenchPlatformText.pack("en-GB")?.messages["workbench.language.retry"], html: web.htmlLang(),
+        href, served: workbenchLanguageResource(href)?.href === href, word: workbenchPlatformText.pack("en-GB")?.messages[word], html: web.htmlLang(),
         intl: web.dateTimeLocale() }));
-    `], { cwd: scratch, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }));
+    `, escapedWord], { cwd: scratch, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }));
     const text = "Try that again";
     writeFileSync(catalogPath, JSON.stringify({ ...catalog, languages: [...catalog.languages, descriptor] }));
     assert.throws(probe, /en-GB\.json/, "a declared platform language with no pack stops startup");
-    writeFileSync(packPath, JSON.stringify({ ...pack, locale: descriptor.tag, messages: { ...pack.messages, "workbench.language.retry": text } }));
+    const registeredPack = { ...pack, locale: descriptor.tag, direction: descriptor.direction, messages: { ...pack.messages, "workbench.language.retry": text } };
+    const escaped = "Try <again>";
+    writeFileSync(packPath, JSON.stringify({ ...registeredPack, messages: { ...registeredPack.messages, "workbench.language.retry": escaped } }));
+    assert.throws(probe, /workbench\.language\.retry/, "markup is still refused in a registered Workbench pack");
+    writeFileSync(packPath, JSON.stringify(registeredPack));
     const first = probe();
     assert.deepEqual(first, { languages: ["zh", "en", "en-GB"], system: "en-GB", cookie: "en-GB", rejected: "en", href: first.href,
       served: true, word: text, html: "en-GB", intl: "en-GB" });
     assert.match(first.href, /^\/assets\/locale\/workbench\.en-GB\.[a-f0-9]{24}\.js$/u);
+    assert.equal(probe(escaped).word, escaped);
     writeFileSync(catalogPath, JSON.stringify({ ...catalog, languages: [...catalog.languages, { ...descriptor, name: "British English" }] }));
-    assert.notEqual(probe().href, first.href, "a description-only change invalidates the exact asset");
-    writeFileSync(packPath, JSON.stringify({ ...pack, locale: descriptor.tag, messages: { ...pack.messages, "workbench.language.retry": "Retry the request" } }));
+    const renamed = probe();
+    assert.notEqual(renamed.href, first.href, "a description-only change invalidates the exact asset");
+    writeFileSync(packPath, JSON.stringify({ ...registeredPack, messages: { ...registeredPack.messages, "workbench.language.retry": "Retry the request" } }));
     const replaced = probe();
     assert.equal(replaced.word, "Retry the request");
-    assert.notEqual(replaced.href, first.href, "the same binary serves edited words after reopening");
+    assert.notEqual(replaced.href, renamed.href, "the same binary serves edited words after reopening");
     const hostSource = path.join(ROOT, "apps/local-host"), host = path.join(scratch, "host");
     for (const item of ["package.json", "dist", "prompts", "node_modules"]) cpSync(path.join(hostSource, item), path.join(host, item), { recursive: true });
     const workbench = path.join(host, "node_modules/@molis-ai/molis-work-app-workbench");
@@ -183,8 +221,8 @@ test("FSS-34 the same Workbench build discovers and serves a language added only
     assert.deepEqual(selected.language, language);
     assert.equal(selected.packs[0], "zh");
     assert.deepEqual(selected.packs.slice(1).sort(), ["en", "en-GB"]);
-    const messages = { ...pack.messages }; delete messages["workbench.language.retry"];
-    writeFileSync(packPath, JSON.stringify({ ...pack, locale: descriptor.tag, messages }));
+    const messages = { ...registeredPack.messages }; delete messages["workbench.language.retry"];
+    writeFileSync(packPath, JSON.stringify({ ...registeredPack, messages }));
     assert.throws(probe, /workbench\.language\.retry/, "an incomplete selected platform pack is refused");
   } finally { rmSync(scratch, { recursive: true, force: true }); }
 });

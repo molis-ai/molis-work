@@ -91,6 +91,12 @@ export function bindTaskGrantsSettings(root: HTMLElement): void {
   root.dataset.taskGrantsBound = "1";
   const project = root.dataset.project ?? "", endpoint = "/projects/" + encodeURIComponent(project) + "/api/settings/task-grants";
   const list = root.querySelector<HTMLElement>("[data-task-grants-list]")!;
+  const languageWarning = document.createElement("div");
+  languageWarning.className = "task-grants-page__state is-error";
+  languageWarning.setAttribute("role", "alert");
+  languageWarning.addEventListener("click", event => {
+    if ((event.target as Element).closest("button")) void retitle();
+  });
   const post: Post = body => molisWorkRequest(endpoint, { body, fallback: uiText.text("workbench.task-grants-page.that-did-not-finish") });
   let listed: Listed | null = null;
   const currentLanguage = () => document.documentElement.dataset.uiLanguageTag ?? document.documentElement.lang;
@@ -120,6 +126,7 @@ export function bindTaskGrantsSettings(root: HTMLElement): void {
 
   async function retitle(): Promise<void> {
     const language = currentLanguage();
+    if (language === drawnLanguage) languageWarning.remove();
     if (!listed || language === drawnLanguage || language === pendingLanguage) return;
     const turn = ++languageTurn;
     pendingLanguage = language;
@@ -132,6 +139,7 @@ export function bindTaskGrantsSettings(root: HTMLElement): void {
         subjects: listed.subjects.map(subject => ({ ...subject, categories: subject.categories.map(words) })),
         installations: listed.installations.map(install => ({ ...install, name: names.get(install.plugin_install_id) ?? install.name })) };
       drawnLanguage = language;
+      languageWarning.remove();
       const focused = document.activeElement instanceof HTMLElement && list.contains(document.activeElement) ? document.activeElement : null;
       const task = focused?.closest<HTMLElement>("[data-task-grants-task]")?.dataset.taskGrantsTask;
       const category = focused?.closest<HTMLElement>("[data-task-grants-row]")?.dataset.taskGrantsRow;
@@ -143,7 +151,11 @@ export function bindTaskGrantsSettings(root: HTMLElement): void {
         const replacement = action === undefined ? area?.querySelector("a") : area?.querySelector(`[data-task-grants-act="${CSS.escape(action)}"]`);
         if (replacement instanceof HTMLElement) replacement.focus({ preventScroll: true });
       }
-    } catch { if (root.isConnected && turn === languageTurn && language === currentLanguage()) toast(uiText.text("workbench.language.window-failed"), true); }
+    } catch {
+      if (!root.isConnected || turn !== languageTurn || language !== currentLanguage()) return;
+      languageWarning.innerHTML = `<span>${escape(uiText.text("workbench.language.window-failed"))}</span>${button("workbench.language.retry", "mw-btn--secondary", "retry-language")}`;
+      list.before(languageWarning);
+    }
     finally { if (turn === languageTurn) pendingLanguage = ""; }
   }
   refreshSettingsLanguage.set(root, () => { void retitle(); });

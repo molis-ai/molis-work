@@ -81,7 +81,7 @@ export function taskGrantRowHtml(t: Translate, row: Row, end: string): string {
 }
 
 /** The area's markup: the platform's header, one row per category, and the one line that says what just happened. */
-export function taskGrantsAreaHtml(t: Translate, owner: string, rows: readonly Row[], line: TaskGrantsLine, busy: boolean, fresh = false): string {
+export function taskGrantsAreaHtml(t: Translate, owner: string, rows: readonly Row[], line: TaskGrantsLine, busy: boolean, fresh = false, languageFailed = false): string {
   /** A small button by its control name (§3.3): a row's 允许 or 移除 (secondary), or the line's act (ghost). */
   const control = (name: string, label: string, variant = "secondary") =>
     `<button type="button" class="mw-btn mw-btn--sm mw-btn--${variant}" data-framed-control="${escape(name)}">${escape(label)}</button>`;
@@ -91,8 +91,9 @@ export function taskGrantsAreaHtml(t: Translate, owner: string, rows: readonly R
     : `<p class="task-grants-area__empty">${escape(t("workbench.task-grants-area.nothing-in-this-project-can-be-read"))}</p>`;
   // The line stays put (D2): a persistent status line, the design system's `mw-alert`, not a passing toast (DESIGN「Toasts」).
   const act = line.act ? control(line.act, t(line.act === "undo" ? "workbench.task-grants-area.undo" : "common.control.retry"), "ghost") : "";
+  const warning = languageFailed ? `<div class="mw-alert mw-alert--danger" role="alert"><span>${escape(t("workbench.language.window-failed"))}</span> ${control("retry-language", t("workbench.language.retry"), "ghost")}</div>` : "";
   return `<header class="mw-platform-area__head" data-framed-area-head><span class="mw-platform-area__kicker"><svg aria-hidden="true"><use href="#icon-shield"></use></svg>${escape(t("workbench.task-grants-area.molis-work-only-you-can-change-this"))}</span><span class="mw-platform-area__owner" title="${escape(owner)}">${escape(owner)}</span>`
-    + `<p class="mw-platform-area__lead">${escape(t("workbench.task-grants-area.read-only-never-change-for-this-task"))}</p></header>`
+    + `<p class="mw-platform-area__lead">${escape(t("workbench.task-grants-area.read-only-never-change-for-this-task"))}</p>${warning}</header>`
     + `<div class="mw-platform-area__body" data-framed-scroll${busy ? ' aria-busy="true"' : ""}>${list}</div>`
     + `<footer class="mw-platform-area__foot" data-framed-area-foot><div class="mw-alert${line.tone === "danger" ? " mw-alert--danger" : ""}${fresh ? " is-fresh" : ""}" role="status"><span title="${escape(line.text)}">${escape(line.text)}</span>${act}</div></footer>`;
 }
@@ -115,29 +116,44 @@ function doneLine(change: Change): LineText {
 }
 
 interface Entry { readonly id: number; readonly key: string; readonly area: FramedArea; reads: Reads | null; line: LineText; busy: boolean;
-  /** The last change, kept for its undo or for a retry after it failed. */ last: Change | null; drawn?: string;
+  /** The last change, kept for its undo or for a retry after it failed. */ last: Change | null; drawn?: string; languageFailed?: boolean;
   /** This area has another read due when it is visible and no operation is in progress. */ stale?: "visibility" | "language" }
 
+/** Replay the feedback only when its text changes, so a write's busy state does not make it flicker. */
+function drawTaskGrantEntry(entry: Entry, t: Translate, owner: string): void {
+  const rows = entry.reads ? taskGrantRows(entry.reads) : [];
+  const { key, category, name, ...line } = entry.line;
+  const title = category ? rows.find(row => row.name === category)?.title ?? name : name;
+  const text = t(key, title === undefined ? undefined : { name: title }), fresh = entry.drawn !== undefined && entry.drawn !== text;
+  entry.drawn = text;
+  entry.area.surface.setAttribute("aria-label", t("workbench.task-grants-area.molis-work-only-you-can-change-this") + " · " + owner);
+  entry.area.redraw(taskGrantsAreaHtml(t, owner, rows, { ...line, text }, entry.busy, fresh, entry.languageFailed));
+}
+
+/** A request from a hidden frame waits for visibility, unless the frame or its requested area closes first. */
+function waitForAreaVisibility(scope: FrameScope) {
+  const waiting = new Map<number, () => void>();
+  scope.own(() => { for (const end of [...waiting.values()]) end(); });
+  const wait = (id: number) => new Promise<boolean>(resolve => {
+    let stop: (() => void) | undefined;
+    const end = (shown: boolean) => { waiting.delete(id); queueMicrotask(() => stop?.()); resolve(shown); };
+    waiting.set(id, () => end(false));
+    stop = scope.whenVisible(() => end(true));
+  });
+  return { waiting, wait };
+}
+
 /**
- * The trusted half (§2–§3). `owner` is the installation's name as the shell lists it. Every write is the person's own `set`
+ * The trusted half (§2–§3). The owner name comes from the shell. Every write is the person's own `set`
  * through the Host's page route, which takes the installation and project from the page's authority, never from here.
  */
 export function pageTaskGrants(port: MessagePort, scope: FrameScope, areas: PageFramedAreas, pageId: string, route: (path: string) => string, t: Translate, ownerName: () => string) {
   const entries = new Map<number, Entry>(), pattern = new RegExp(TASK_GRANT_SUBJECT_KEY_PATTERN, "u");
+  const { waiting, wait } = waitForAreaVisibility(scope);
   const send = (message: TaskGrantsDown) => { if (scope.alive) port.postMessage(message); };
   const request = <T>(entry: Entry, body: Record<string, unknown>) => molisWorkRequest<T>(route("/api/host/plugin-page-task-grants"),
     { body: { key: entry.key, ...body }, headers: { "x-molis-context-page": pageId }, scope });
-  // The line comes in again only when what it says changes, so a write's busy state does not make it flicker.
-  const draw = (entry: Entry) => {
-    const rows = entry.reads ? taskGrantRows(entry.reads) : [];
-    const { key, category, name, ...line } = entry.line;
-    const title = category ? rows.find(row => row.name === category)?.title ?? name : name;
-    const text = t(key, title === undefined ? undefined : { name: title }), fresh = entry.drawn !== undefined && entry.drawn !== text;
-    entry.drawn = text;
-    const owner = ownerName();
-    entry.area.surface.setAttribute("aria-label", t("workbench.task-grants-area.molis-work-only-you-can-change-this") + " · " + owner);
-    entry.area.redraw(taskGrantsAreaHtml(t, owner, rows, { ...line, text }, entry.busy, fresh));
-  };
+  const draw = (entry: Entry) => drawTaskGrantEntry(entry, t, ownerName());
   const close = (id: number) => { entries.get(id)?.area.close(); entries.delete(id); };
   scope.own(() => { for (const id of [...entries.keys()]) close(id); });
   const idle = (): LineText => ({ key: "workbench.task-grants-area.a-switch-takes-effect-at-once-the" });
@@ -195,6 +211,7 @@ export function pageTaskGrants(port: MessagePort, scope: FrameScope, areas: Page
     // A control's name is its act, then the category it is for: `switch:`, `allow:` or `remove:` and the row's name.
     const name = control.dataset.framedControl!, act = name.split(":", 1)[0], subject = entry.reads.subject;
     if (act === "read") { void reread(entry); return; }
+    if (act === "retry-language") { entry.stale = "language"; catchUp(entry); return; }
     if (act === "undo" || act === "retry") {
       const last = entry.last; if (!last) return;
       void write(entry, act === "undo" && last.undo ? { kind: "undo", row: last.row, categories: last.undo(subject) } : taskGrantChange(last.kind as "on", last.row, subject));
@@ -218,8 +235,12 @@ export function pageTaskGrants(port: MessagePort, scope: FrameScope, areas: Page
         const words = taskGrantWords([...current.categories, ...current.subject.categories]);
         entry.reads = { categories: held.categories.map(words), subject: { ...held.subject, categories: held.subject.categories.map(words) } };
       } else { entry.reads = current; entry.line = idle(); }
+      entry.languageFailed = false;
+    } catch {
+      if (entries.get(entry.id) !== entry) return;
+      if (language === null) entry.line = unread();
+      else if (language === currentLanguage()) entry.languageFailed = true;
     }
-    catch { if (language === null && entries.get(entry.id) === entry) entry.line = unread(); }
     finally { if (entries.get(entry.id) === entry) { entry.busy = false; draw(entry); catchUp(entry); } }
   };
   /** The one read again a return into view asks for, once nothing is under way (for an area still open); none while hidden. */
@@ -234,15 +255,6 @@ export function pageTaskGrants(port: MessagePort, scope: FrameScope, areas: Page
     for (const entry of entries.values()) { entry.stale ??= "language"; catchUp(entry); }
   });
 
-  /** Opens asked for while the page is out of sight (a tab opened behind, say), by id: each draws once the page shows. */
-  const waiting = new Map<number, () => void>();
-  const untilVisible = (id: number) => new Promise<boolean>(resolve => {
-    let stop: (() => void) | undefined;
-    const end = (shown: boolean) => { waiting.delete(id); queueMicrotask(() => stop?.()); resolve(shown); };
-    waiting.set(id, () => end(false));
-    stop = scope.whenVisible(() => end(true));
-  });
-  scope.own(() => { for (const end of [...waiting.values()]) end(); });
   /** The page's area could not be shown: it is told so, with the one plain reason. */
   const unshown = (id: number) => send({ type: "task-grants-shown", id, error: TASK_GRANTS_UNAVAILABLE });
   const open = async (message: Extract<TaskGrantsUp, { type: "task-grants-open" }>) => {
@@ -251,7 +263,7 @@ export function pageTaskGrants(port: MessagePort, scope: FrameScope, areas: Page
       && !waiting.has(message.id) && typeof message.key === "string" && pattern.test(message.key);
     // A page out of sight is not refused: its area waits and is drawn when the page shows, so a plugin need not try again. A close
     // in the meantime ends the wait.
-    const visible = shaped && (scope.visible || await untilVisible(message.id));
+    const visible = shaped && (scope.visible || await wait(message.id));
     if (shaped && !visible) return;
     const valid = visible && scope.alive && scope.visible && !entries.has(message.id);
     const area = valid ? areas.open({ heights: TASK_GRANTS_AREA_HEIGHTS, onHeight: height => send({ type: "task-grants-size", id: message.id, height }) }) : null;

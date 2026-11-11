@@ -25,7 +25,14 @@ const OBSERVE = `(() => { if (window.top !== window) return;
   window.fetch = function (input, init) {
     const url = String(input instanceof Request ? input.url : input);
     window.tgaUrls.push(url);
-    if (url.includes("/api/host/plugin-page-task-grants")) { try { window.tgaKeys.push(JSON.parse(init.body).key); } catch { /* not a JSON body: not an area request */ } }
+    if (url.includes("/api/host/plugin-page-task-grants")) {
+      let body; try { body = JSON.parse(init.body); } catch { /* not a JSON body: not an area request */ }
+      if (body) window.tgaKeys.push(body.key);
+      if (body?.mode === "read" && window.tgaFailNextRead) {
+        window.tgaFailNextRead = false;
+        return Promise.resolve(new Response(null, { status: 503 }));
+      }
+    }
     return fetch.apply(this, arguments);
   };
 })();`;
@@ -166,8 +173,18 @@ test("TGA-21 TGA-22 FSS-35 Schedule keeps the open task's grants and its localiz
     categories: [{ provider_id: "io.molis.work.schedule", group_id: "reminders" },
       { provider_id: additional.provider_id, ...(additional.group_id ? { group_id: additional.group_id } : {}) }] });
   assert.notEqual(changed.revision, subject.revision);
+  const beforeRetry = await browser.evaluate<number>("tgaKeys.length");
+  await browser.evaluate("window.tgaFailNextRead = true");
   await choose("en");
+  const retry = AREA + ' [data-framed-control="retry-language"]';
+  await browser.waitFor(`document.querySelector(${JSON.stringify(retry)})?.textContent === 'Try again'`);
+  assert.equal(await browser.evaluate(`document.querySelector(${JSON.stringify(undo)})?.textContent`), "Undo");
+  assert.equal(await browser.evaluate(`${categoryWords}[0]`), "提醒");
+  await ready();
+  await press(retry);
   await browser.waitFor(`${status} === 'Reminders allowed; the next run can read it' && ${categoryWords}[0] === 'Reminders'`);
+  assert.deepEqual(await browser.evaluate(`tgaKeys.slice(${beforeRetry})`), [first, first], "one failed read and one user retry");
+  assert.equal(await browser.evaluate(`!!document.querySelector(${JSON.stringify(retry)})`), false);
   await ready();
   await press(undo);
   await browser.waitFor(`${status} === 'Changed elsewhere; refreshed'`);

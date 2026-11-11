@@ -166,10 +166,21 @@ test("FSS-35 cached task grant settings use the current language when reopened",
   })()`);
   await browser.waitFor("document.documentElement.dataset.uiLanguageTag === 'en'");
   assert.equal((await p.sent()).length, before, "the detached panel makes no additional grants request");
+  await browser.evaluate(`window.tgpAnswer = body => {
+    if (body.mode !== 'list') return null;
+    window.tgpAnswer = null;
+    return { status: 503, body: { code: 'actions.unavailable' } };
+  }`);
   await browser.click(nav("grants"));
+  const retry = '[data-task-grants-act="retry-language"]';
+  await browser.waitFor(`document.querySelector(${JSON.stringify(retry)})?.textContent === 'Try again'`);
+  assert.equal(await browser.evaluate(`(${row})?.querySelector('strong')?.textContent`), "提醒");
+  assert.deepEqual((await p.sent()).slice(before), [{ mode: "list" }]);
+  await p.press(retry);
   await browser.waitFor(`(${row})?.querySelector("strong")?.textContent === 'Reminders'`);
   assert.equal(await browser.evaluate("window.tgpCached === document.querySelector('[data-task-grants-settings]')"), true);
-  assert.deepEqual((await p.sent()).slice(before), [{ mode: "list" }]);
+  assert.deepEqual((await p.sent()).slice(before), [{ mode: "list" }, { mode: "list" }]);
+  assert.equal(await browser.evaluate(`!!document.querySelector(${JSON.stringify(retry)})`), false);
   assert.deepEqual(await p.rows(install + "\ndaily"), [{ name: rowName(reminders), status: "granted" }]);
 });
 

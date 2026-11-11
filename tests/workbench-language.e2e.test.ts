@@ -8,6 +8,7 @@ import { escapeHtml, format, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { createProject } from "@molis-ai/molis-work-test-kit/local-host-http";
+import { openBoardBrowser } from "./fixtures/board-browser.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { deferred } from "./fixtures/home-runtime.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
@@ -641,25 +642,6 @@ test("FSS-09 FSS-20 FSS-34 FSS-37 the live Issue frame reuses its own authorized
   })()`);
   assert.match(await child.evaluate<string>("issuedDraft.placeholder"), /遇到什么问题/u);
   // A trusted fixture uses HTML en and German Intl conventions. The current frame grant and the rest of the words are real.
-  const described = Promise.withResolvers<void>();
-  void described.promise.catch(() => undefined);
-  await b.command("Fetch.enable", { patterns: [{ urlPattern: "*/assets/locale/workbench.en.*.js", requestStage: "Response" }] }, b.sessionId);
-  t.after(b.on("Fetch.requestPaused", (event, session) => {
-    if (session !== b.sessionId) return;
-    void (async () => {
-      const requestId = String(event.requestId);
-      const result = await b.command<{ body: string; base64Encoded: boolean }>("Fetch.getResponseBody", { requestId }, session);
-      const source = result.base64Encoded ? Buffer.from(result.body, "base64").toString("utf8") : result.body;
-      const marker = "\nglobalThis.molisWorkLanguageAsset(", start = source.lastIndexOf(marker) + marker.length;
-      assert.ok(start >= marker.length);
-      const asset = JSON.parse(source.slice(start, source.lastIndexOf(");")));
-      asset.catalog.languages.find((row: { tag: string }) => row.tag === "en").intl = "de-DE";
-      const body = source.slice(0, start) + JSON.stringify(asset).replaceAll("<", "\\u003c") + ");";
-      await b.command("Fetch.fulfillRequest", { requestId, responseCode: 200, responseHeaders: [{ name: "content-type", value: "text/javascript; charset=utf-8" }],
-        body: Buffer.from(body).toString("base64") }, session);
-      described.resolve();
-    })().catch(described.reject);
-  }));
   await b.evaluate(`(() => {
     window.liveIssueFrame = document.querySelector('iframe[data-plugin-frame=issues]'); window.wordsRequests = [];
     const transport = window.molisWorkUiTransport;
@@ -676,9 +658,40 @@ test("FSS-09 FSS-20 FSS-34 FSS-37 the live Issue frame reuses its own authorized
       return transport?.(url, init);
     };
   })()`);
-  await chooseEnglishInSettings(t, b);
-  await b.waitFor("document.documentElement.lang === 'en'", 25000);
-  await described.promise;
+  const described = Promise.withResolvers<void>();
+  void described.promise.catch(() => undefined);
+  const stop = b.on("Fetch.requestPaused", (event, session) => {
+    if (session !== b.sessionId) return;
+    const requestId = String(event.requestId);
+    void (async () => {
+      const result = await b.command<{ body: string; base64Encoded: boolean }>("Fetch.getResponseBody", { requestId }, session);
+      const source = result.base64Encoded ? Buffer.from(result.body, "base64").toString("utf8") : result.body;
+      const body = `"use strict";
+        (() => {
+          const receive = globalThis.molisWorkLanguageAsset;
+          globalThis.molisWorkLanguageAsset = asset => {
+            globalThis.molisWorkLanguageAsset = receive;
+            asset.catalog.languages.find(row => row.tag === "en").intl = "de-DE";
+            receive(asset);
+          };
+        })();
+        ${source}`;
+      await b.command("Fetch.fulfillRequest", { requestId, responseCode: 200, responseHeaders: [{ name: "content-type", value: "text/javascript; charset=utf-8" }],
+        body: Buffer.from(body).toString("base64") }, session);
+      described.resolve();
+    })().catch(async error => {
+      await b.command("Fetch.failRequest", { requestId, errorReason: "Failed" }, session).catch(() => undefined);
+      described.reject(error);
+    });
+  });
+  try {
+    await b.command("Fetch.enable", { patterns: [{ urlPattern: "*/assets/locale/workbench.en.*.js", requestStage: "Response" }] }, b.sessionId);
+    await chooseEnglishInSettings(t, b);
+    await Promise.all([b.waitFor("document.documentElement.lang === 'en'", 25000), described.promise]);
+  } finally {
+    stop();
+    await b.command("Fetch.disable", {}, b.sessionId).catch(() => undefined);
+  }
   await child.waitFor("document.documentElement.lang === 'en' && issuedDraft.placeholder.startsWith('What went wrong')", 10000);
   assert.deepEqual(await b.evaluate("[liveIssueFrame === document.querySelector('iframe[data-plugin-frame=issues]'), wordsRequests]"), [true, [["en", 1]]]);
   assert.deepEqual(await child.evaluate("[issuedDraft === document.querySelector('[data-issue-composer] textarea'), document.activeElement === issuedDraft, issuedDraft.value, issuedDraft.selectionStart, issuedDraft.selectionEnd, issuedDraft.selectionDirection]"), [true, true, "Issue draft 原文", 1, 5, "backward"]);
@@ -790,7 +803,7 @@ test("FSS-20 FSS-37 the Workbench and its inline Goals share a language change w
 
 test("FSS-20 FSS-34 FSS-37 the catalog and capsule switch their existing documents without saving a Home preference", { timeout: 120_000 }, async t => {
   const problemsBefore = new Set(hostTextProblems());
-  const b = await openGoalBrowser(t, "seeded", undefined, null); if (!b) return;
+  const b = await openBoardBrowser(t, "seeded", undefined, null); if (!b) return;
   const { command, sessionId, origin, waitFor, evaluate } = b;
   await b.navigate(() => command("Page.navigate", { url: origin + "/locale?lang=zh&next=%2F__ui%2Fcatalog%3Flang%3Dzh" }, sessionId));
   await waitFor("typeof molisWorkSelectLocalLanguage === 'function' && document.querySelector('[data-board-lang=en]')");

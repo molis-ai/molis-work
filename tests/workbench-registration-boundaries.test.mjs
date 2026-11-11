@@ -42,11 +42,11 @@ test("DD2 UI guard rejects restored root implementations, bypassed mounts and le
   assert.match(checkProposalUiOwnership(...otherMount).join("\n"), /must bind and forward mountContributionsOf\(pluginId\)/);
   const otherOwner = replaced(8, "?.manifest.plugin_id ?? projectPluginId", "?.manifest.name ?? projectPluginId");
   assert.match(checkProposalUiOwnership(...otherOwner).join("\n"), /pluginId from this projectPluginId's Manifest/);
-  const lostPort = replaced(7, "return { ...drawing, L, goalsL: L", "return { L, goalsL: L");
+  const lostPort = replaced(7, "return { ...drawing,", "return {");
   assert.match(checkProposalUiOwnership(...lostPort).join("\n"), /this model's drawing/);
   const foreignDrawing = replaced(7, "const { drawing } = model;", "const { drawing } = otherModel;");
   assert.match(checkProposalUiOwnership(...foreignDrawing).join("\n"), /this model's drawing/);
-  const overwritten = replaced(7, "return { ...drawing, L, goalsL: L", "return { ...drawing, mount: otherMount, L, goalsL: L");
+  const overwritten = replaced(7, "return { ...drawing,", "return { ...drawing, mount: otherMount,");
   assert.match(checkProposalUiOwnership(...overwritten).join("\n"), /without replacing mount/);
   const bypassedPorts = replaced(7, "const page = createGoalsPage(ports);", "const page = createGoalsPage(otherPorts);");
   assert.match(checkProposalUiOwnership(...bypassedPorts).join("\n"), /actual stage render/);
@@ -121,14 +121,14 @@ test("RAC-566 a catalog or platform list written by hand is refused, by the gate
 });
 
 // RAC-2681: these two ports and the renderer factories remain in the Goals leaf modules.
-test("RAC-2681 Frame L and icon are function properties, not method signatures", () => {
+test("RAC-2681 Frame readText and icon are function properties, not method signatures", () => {
   const file = "plugins/native/goals/src/page/frame-stage.ts";
   const source = ts.createSourceFile(file, readFileSync(path.join(root, file), "utf8"), ts.ScriptTarget.Latest, true);
   const render = source.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === "renderGoalFrameStage");
   assert.ok(render);
   const ports = render.parameters[0].type;
   assert.ok(ports && ts.isTypeLiteralNode(ports));
-  for (const name of ["L", "icon"]) {
+  for (const name of ["readText", "icon"]) {
     const member = ports.members.find(node => node.name?.getText(source) === name);
     assert.ok(member && ts.isPropertySignature(member) && member.type && ts.isFunctionTypeNode(member.type), `${name} must be a function property`);
   }

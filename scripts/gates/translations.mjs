@@ -13,9 +13,12 @@ import { isMainScript } from "../script-paths.mjs";
 const HAN = /\p{Script=Han}/u;
 const PLATFORM_REGISTRY = "packages/design-system/resources/registry.json";
 const sdkRoot = fileURLToPath(new URL("../../packages/plugin-sdk/src/ui/", import.meta.url));
-const uiContract = fileURLToPath(new URL("../../packages/contracts/src/platform/ui.ts", import.meta.url));
+const contractSource = new URL("../../packages/contracts/src/platform/", import.meta.url);
 const sdkBundle = buildSync({ stdin: { contents: 'export { STABLE_KEY } from "./text-keys.ts"; export { parseLocalePack, inspectLocaleSet } from "./locale-pack.ts"; export { parseUiLanguageCatalog } from "./language-catalog.ts";', resolveDir: sdkRoot },
-  alias: { "@molis-ai/molis-work-contracts/platform/ui": uiContract }, bundle: true, format: "esm", platform: "node", write: false, logLevel: "silent" });
+  alias: {
+    "@molis-ai/molis-work-contracts/platform/ui": fileURLToPath(new URL("ui.ts", contractSource)),
+    "@molis-ai/molis-work-contracts/platform/actions": fileURLToPath(new URL("actions.ts", contractSource)),
+  }, bundle: true, format: "esm", platform: "node", write: false, logLevel: "silent" });
 const { STABLE_KEY, parseLocalePack, inspectLocaleSet, parseUiLanguageCatalog } = await import("data:text/javascript;base64," + Buffer.from(sdkBundle.outputFiles[0].contents).toString("base64"));
 
 export { STABLE_KEY };

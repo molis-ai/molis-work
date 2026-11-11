@@ -28,6 +28,8 @@ const PERSISTENT_CONSTANTS = new Map([
   ["modules/shelf/src/catalog-shape.ts#CATALOG_VERSION", "format.shelf.catalog"],
   ["apps/local-host/src/installer/home-contract.ts#SCHEMA_VERSION", "format.home.installation"],
   ["packages/storage/src/adapters/text-search-index.ts#SCHEMA_VERSION", "database.search.text-index"],
+  ["horizontal/appearance/src/state.ts#APPEARANCE_STATE_VERSION", "format.ui.appearance-state"],
+  ["horizontal/appearance/src/locale-memory.ts#SCHEMA_VERSION", "format.ui.last-locale"],
   // The six files §2.6 of the design puts in the chain and §11.1 did not name (the user agreed to them on 2026-11-07). The last is jelly/preferences.json.
   ["apps/local-host/src/onboarding.ts#ONBOARDING_SCHEMA_VERSION", "format.home.onboarding"],
   ["apps/local-host/src/project-arrival.ts#PROJECT_ARRIVAL_SCHEMA_VERSION", "format.project.arrival"],

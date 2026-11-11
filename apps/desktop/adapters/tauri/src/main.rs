@@ -1018,7 +1018,7 @@ fn main() {
             }
             Err(error) => {
               eprintln!("{error}");
-              let _ = window.eval(&bootstrap_view(Some(&error)));
+              let _ = window.eval(bootstrap_view(Some(&error)));
             }
           }
         }
@@ -1053,7 +1053,7 @@ fn main() {
           }
           PageLoadEvent::Finished => {
             traffic_lights::pin_from_handle(app);
-            let _ = window.eval(&bootstrap_view(None));
+            let _ = window.eval(bootstrap_view(None));
             if native_language_source(window.label(), Some(payload.url()))
               && window.url().is_ok_and(|current| &current == payload.url()) {
               if let Ok(mut language) = state.locale.lock() {

@@ -86,14 +86,24 @@ test("a standing request is kept by Prologue's durable queue: it runs once per d
     await assert.rejects(service.followUps.save({ work_id: sent.work.work_id, text: "x", at: "2026-09-01T00:00:00.000Z", label: "过去" }), /之后/);
 
     // The person is still in a round of this work when a time comes: this time is skipped, not queued behind it.
+    t.signal.throwIfAborted();
     let release!: () => void;
     hold = new Promise(resolve => { release = resolve; });
-    await service.send({ work_id: sent.work.work_id, text: "再补一句", request_id: "req-followups-2" }, {});
-    await until(async () => (await service.read(sent.work.work_id)).work.state === "running", "the person's round");
-    const soon = await service.followUps.save({ work_id: sent.work.work_id, text: "看一眼", at: new Date(Date.now() + 400).toISOString(), label: "一会儿看一眼" });
-    const skipped = await until(() => service.followUps.list(sent.work.work_id).find(item => item.followup_id === soon.followup_id && item.last) , "skipped");
-    assert.deepEqual([skipped.last!.outcome, skipped.last!.detail, skipped.enabled], ["skipped", "上一轮还没结束，这一次没有开始", false]);
-    hold = null; release();
+    const releaseRound = () => { hold = null; release(); };
+    t.signal.addEventListener("abort", releaseRound, { once: true });
+    try {
+      await service.send({ work_id: sent.work.work_id, text: "再补一句", request_id: "req-followups-2" }, {});
+      await until(async () => (await service.read(sent.work.work_id)).work.state === "running", "the person's round");
+      const soon = await service.followUps.save({ work_id: sent.work.work_id, text: "看一眼", at: new Date(Date.now() + 400).toISOString(), label: "一会儿看一眼" });
+      const skipped = await until(() => service.followUps.list(sent.work.work_id).find(item => item.followup_id === soon.followup_id && item.last), "skipped");
+      const last = skipped.last!;
+      assert.deepEqual([last.outcome, last.detail, skipped.enabled], ["skipped", { owner: "workbench", key: "workbench.assistant-followup.busy" }, false]);
+      assert.equal(savedText(last.detail, "zh"), "上一轮还没结束，这一次没有开始");
+      assert.equal(savedText(last.detail, "en"), "The previous round had not finished, so this round did not start.");
+    } finally {
+      t.signal.removeEventListener("abort", releaseRound);
+      releaseRound();
+    }
     const done = await until(async () => { const view = await service.read(sent.work.work_id); return view.work.state === "completed" ? view : undefined; }, "the person's round ends");
     assert.equal(done.rounds.length, 3, "only the person's own round ran");
 

@@ -85,6 +85,8 @@ Home 的兼容 `subject-offers` 引用有 36 次配置位置读取同时命中�
 
 **BCC-06。** 用 [原预算文件](../../tooling/gates/call-budget.json) 固定新增计数的上限。在真实项目简介 GET 的每个样本中，额外访问同一生产动作目录的 715 行，预算按 `3364 > 2649` 拒绝。独立反例在每个样本将同一个已解析 Goals id 交给生产 resolver 再解析一次，按 `1418 > 1417` 拒绝。两次反例各只有对应计数上升，响应和原六项预算照常通过。两处注入仅在临时探针里。
 
+**BCC-05 补（Files 退役 S4，2026-11-11）。** 平台资料服务的 8 个动作依赖 `projects.directories.get` 与 `projects.workspace.files.read`，两者在按 id 排序的目录里靠后，依赖查找的惰性扫描每次发现多读 459 行（每次 883 → 1342，六个代表请求全部超预算）。改为：`HostAvailability.views` 在投影本身逐行读取时顺带建依赖索引，依赖都在策略的 await 之后才查，届时投影已读完全部行，所以不再二次扫描；投影与依赖快照不是同一个数组时照旧惰性扫描。计数仍是真实返回目录上的全部下标访问（含建索引所用的那次读取），每次发现降到 722 行，预算按实测下调：简介 2649 → 2166、右侧 5298 → 4332、其余四项 883 → 722。曾试过在 Kernel 建目录时预先建索引，因为测量看不到建索引的访问、违反本节「不能用旧谓词归零代替」，已撤回。
+
 **BCC-07。** 项目内实际保存的混合启停绑定保持原顺序，首条拒绝和后续可用分支正确，菱形和真实动作／场景循环分别通过与拒绝。宽元数据展示无法补普通绑定的授权。绑定回调等待期间撤掉判断权威或换掉 provider，返回拒绝且原 binding revision 保持。真实配置回调等待期间重新注册场景，返回 `actions.provider_changed`。Home 事项推荐先核精确来源再核执行动作，替换插件的提供方后拒绝原绑定。见[依赖](../../tests/action-dependencies.test.ts)、[项目作用域](../../tests/action-service.test.ts)、[Home 推荐](../../tests/home-action-scenes.test.ts)和[配置](../../tests/functions-scene-configuration.test.ts)用例。
 
 **BCC-08。** 内置隐藏和嵌入过滤、Home 运行态身份、外装 Home 和未知项目 Runtime 的判定沿同一条 reach。真实外装 Home 插件的写入口在项目隐藏后拒绝此前已展示的引用；恢复显示后撤安装 grant，旧引用仍被拒，原存储读到空值。见[个人插件拒绝用例](../../tests/security-invariants-hidden-personal-plugin.test.ts)。

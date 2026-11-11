@@ -1,10 +1,10 @@
-import { defineFileContentAction, defineFileEntriesAction, fileContentOf, fileEntriesPage, type ActionDefinition, type ActionHandlerBinding, type FileEntry, type FileEntriesInput, type FileSourceKind } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ActionDefinition, ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createActionDefinition, bindOwnerPluginAction } from "@molis-ai/molis-work-plugin-sdk";
 import { object, id, integer, path, rootPath, workspace, fileResult, nullable, snapshot, publication } from "@molis-ai/molis-work-contracts/modules/workspace-action-schemas";
 import { projectDirectoryActions, type ProjectDirectories, type ProjectDirectory } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { parseFilePath, parseFileSnapshot, parseFileTextSelection, fileSnapshotFitsInline, resolveWorkspaceFileSubject, resolveWorkspaceId, workspaceFileSubjectId,
-  workspaceReadActions, WORKSPACE_FILE_SUBJECT_KIND, WORKSPACE_SKIPPED_FOLDERS, type WorkspaceFileResult, type FileSnapshot } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { parseFilePath, parseFileSnapshot, parseFileTextSelection, fileSnapshotFitsInline, resolveWorkspaceId,
+  workspaceReadActions, type WorkspaceFileResult, type FileSnapshot } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import type { ArtifactVersionResult } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { parseReadingPosition, serializeReadingPosition, READING_POSITION_KEY, type ReadingPosition } from "./position.js";
 import { filesErrors } from "./errors.js";
@@ -30,20 +30,7 @@ export const filesActions = {
   open: readingFolder(define<FileInput, FileRead & { path: readonly string[] }>("files.open", /* @version action.files.open */ 1, "打开文件", "有界读取当前工作区的文本，保存阅读位置并更新文件集合输出", object({ workspace_id: id, path }), object({ workspace, result: fileResult, path }))),
   capture: readingFolder(define<FileCaptureInput, { saved: ArtifactVersionResult; port: "before" | "after" | "selection"; snapshot: FileSnapshot }>("files.capture", /* @version action.files.capture */ 1, "固定文件快照", "重新读取并核对已查看的指纹，保存固定全文或选区；不改写原文件", object({ workspace_id: id, path, port: { enum: ["before", "after", "selection"] }, fingerprint: id, start: integer, end: integer }, ["workspace_id", "path", "port", "fingerprint"]), object({ saved: publication, port: { enum: ["before", "after", "selection"] }, snapshot }))),
 };
-/** Workspace files in the side panel (specs/archive/side-panel): listed through the same browsing grant, previewed as text. */
-const workspaceFileKinds: FileSourceKind[] = [{ kind: WORKSPACE_FILE_SUBJECT_KIND, title: "工作区文件", surface: "files" }];
-const filesSideActions = {
-  entries: readingFolder(defineFileEntriesAction("files.side.entries", /* @version action.files.side.entries */ 1, workspaceFileKinds, "工作区文件", ["artifact:read", "storage:private"])),
-  content: readingFolder(defineFileContentAction("files.side.content", /* @version action.files.side.content */ 1, workspaceFileKinds, "工作区文件", ["artifact:read", "storage:private"])),
-};
-export const FILES_ACTIONS = [...Object.values(filesActions), ...Object.values(filesSideActions)];
-/** A tree walk stops here: the side panel lists what a person browses, not a whole dependency cache. */
-const SIDE_MAX_FILES = 2000, SIDE_MAX_DEPTH = 8;
-const SIDE_SKIPPED = new Set<string>(WORKSPACE_SKIPPED_FOLDERS);
-const MEDIA: Record<string, string> = { md: "text/markdown", markdown: "text/markdown", txt: "text/plain", json: "application/json", ts: "text/typescript", tsx: "text/typescript",
-  js: "text/javascript", mjs: "text/javascript", css: "text/css", html: "text/html", yml: "application/yaml", yaml: "application/yaml", py: "text/x-python",
-  csv: "text/csv", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", svg: "image/svg+xml", pdf: "application/pdf" };
-const mediaOf = (name: string) => MEDIA[name.split(".").pop()?.toLowerCase() ?? ""] ?? "text/plain";
+export const FILES_ACTIONS = Object.values(filesActions);
 
 /** The folder of this project an id names on this device: one of its folders, or the one the person named for another device's (SSC-26). */
 const folderOf = (all: ProjectDirectories, id: string): ProjectDirectory | null => {
@@ -104,42 +91,6 @@ export function filesActionHandlers(context: PluginStartContext, folder = filesB
     if (result.outcome !== "text") throw filesErrors.invalid(result.outcome === "changed" ? "文件在读取时变化，请刷新" : "文件当前不可读取，无法固定快照");
   }
   return [
-    bindOwnerPluginAction(context, filesSideActions.entries, async (input: FileEntriesInput) => {
-      const current = await workspace();
-      const files: FileEntry[] = [];
-      const walk = async (dir: readonly string[], depth: number): Promise<void> => {
-        if (files.length >= SIDE_MAX_FILES) return;
-        const { result } = await read(current.workspace_id, dir, "directory");
-        if (result.outcome !== "directory") return;
-        for (const entry of result.entries) {
-          if (files.length >= SIDE_MAX_FILES) return;
-          if (entry.kind === "directory") { if (depth < SIDE_MAX_DEPTH && !SIDE_SKIPPED.has(entry.name) && !entry.name.startsWith(".")) await walk(entry.path, depth + 1); continue; }
-          if (entry.kind !== "file") continue;
-          const id = workspaceFileSubjectId(current.workspace_id, entry.path);
-          files.push({ subject: { kind: WORKSPACE_FILE_SUBJECT_KIND, id }, revision: id, title: entry.name, folder: [current.name, ...entry.path.slice(0, -1)],
-            media_type: mediaOf(entry.name), size: null, updated_at: null, open: { surface: "files", id } });
-        }
-      };
-      await walk([], 0);
-      return fileEntriesPage(files, input);
-    }, browsing),
-    bindOwnerPluginAction(context, filesSideActions.content, async input => {
-      // A file named by another device's folder reads from the folder the person named for it here (SSC-26).
-      const { all } = await folder.confirm();
-      const named = all ? resolveWorkspaceFileSubject({ id: String(input.subject?.id ?? "") }, all) : null;
-      if (!named) throw Object.assign(new Error("这个文件不在当前项目的文件夹里"), { code: "files.not_found" });
-      const path = named.path;
-      const title = path.at(-1) ?? "文件", media = mediaOf(title);
-      // Pictures and PDFs are shown as they are; everything else, SVG included, as text.
-      const whole = (media.startsWith("image/") && media !== "image/svg+xml") || media === "application/pdf";
-      const { result } = await read(named.workspace_id, path, whole ? "bytes" : "text");
-      if (result.outcome === "bytes") return fileContentOf({ subject: input.subject, revision: result.fingerprint, title, media_type: media, bytes: Uint8Array.from(atob(result.data), char => char.charCodeAt(0)) });
-      if (result.outcome === "text") return fileContentOf({ subject: input.subject, revision: result.fingerprint, title, media_type: media, text: result.text });
-      if (result.outcome === "missing") throw Object.assign(new Error("文件已不存在"), { code: "files.not_found" });
-      const why = result.outcome === "too-large" ? `文件太大（${Math.round(result.bytes / 1024)} KB），侧栏只预览 ${Math.round(result.limit / 1024)} KB 以内的文件。`
-        : result.outcome === "binary" ? "这是二进制文件，侧栏只预览文本。" : result.outcome === "denied" ? "这个路径不可读取。" : "这个文件现在不能预览。";
-      return fileContentOf({ subject: input.subject, revision: "unreadable", title, media_type: "text/plain", text: why });
-    }, browsing),
     bindOwnerPluginAction(context, filesActions.state, async (input, beforeWrite) => {
       const asked = typeof input?.workspace_id === "string" && input.workspace_id ? input.workspace_id : null;
       const { selected, named } = await folder.confirm(beforeWrite, asked);

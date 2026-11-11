@@ -7,7 +7,7 @@ import {
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import { writeNativePluginJsonResponse } from "./native-plugin-http.js";
 import { localWebActionContext } from "./local-web-actions.js";
-import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
+import { LOCAL_OWNER_PERMISSIONS, MATERIALS_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
 import { artifactTypeDeclarations } from "./artifact-type-registry.js";
 import { builtinPluginByManifestId } from "./plugin-registry.js";
@@ -56,7 +56,8 @@ export async function handleSideFilesHttp(request: IncomingMessage, response: Se
   try {
     if (route !== "sources" && !sourceKey) return unknownSource();
     if ((route === "content" || route === "raw") && (!kind || !id)) return missingPreview();
-    const caller = await localWebActionContext(ports.localHost, ports.reference, LOCAL_OWNER_PERMISSIONS);
+    // The panel lists the project's folders too, so it carries the folder read the materials service asks (BSH-08).
+    const caller = await localWebActionContext(ports.localHost, ports.reference, [...LOCAL_OWNER_PERMISSIONS, ...MATERIALS_OWNER_PERMISSIONS]);
     const client = ports.localHost.actionClient(ports.reference);
     const views = await client.discover(caller);
     const shown = await ports.shownPlugins?.();

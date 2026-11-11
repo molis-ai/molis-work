@@ -18,7 +18,7 @@
     "discoverScenes": 4,
     "projectPluginReads": 14,
     "sqliteOpens": 32,
-    "actionDirectoryRows": 2649,
+    "actionDirectoryRows": 2166,
     "sceneDirectoryRows": 4,
     "ownerResolutions": 1417,
     "shippedRegistrationRows": 805
@@ -30,7 +30,7 @@
     "discoverScenes": 6,
     "projectPluginReads": 30,
     "sqliteOpens": 71,
-    "actionDirectoryRows": 5298,
+    "actionDirectoryRows": 4332,
     "sceneDirectoryRows": 6,
     "ownerResolutions": 2841,
     "shippedRegistrationRows": 1656
@@ -42,7 +42,7 @@
     "discoverScenes": 1,
     "projectPluginReads": 3,
     "sqliteOpens": 9,
-    "actionDirectoryRows": 883,
+    "actionDirectoryRows": 722,
     "sceneDirectoryRows": 1,
     "ownerResolutions": 471,
     "shippedRegistrationRows": 230
@@ -54,7 +54,7 @@
     "discoverScenes": 1,
     "projectPluginReads": 4,
     "sqliteOpens": 10,
-    "actionDirectoryRows": 883,
+    "actionDirectoryRows": 722,
     "sceneDirectoryRows": 1,
     "ownerResolutions": 471,
     "shippedRegistrationRows": 207
@@ -66,7 +66,7 @@
     "discoverScenes": 1,
     "projectPluginReads": 6,
     "sqliteOpens": 12,
-    "actionDirectoryRows": 883,
+    "actionDirectoryRows": 722,
     "sceneDirectoryRows": 1,
     "ownerResolutions": 472,
     "shippedRegistrationRows": 322
@@ -78,7 +78,7 @@
     "discoverScenes": 1,
     "projectPluginReads": 6,
     "sqliteOpens": 12,
-    "actionDirectoryRows": 883,
+    "actionDirectoryRows": 722,
     "sceneDirectoryRows": 1,
     "ownerResolutions": 472,
     "shippedRegistrationRows": 322

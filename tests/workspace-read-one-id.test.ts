@@ -15,6 +15,7 @@ import { filesActions, filesManifest, FILES_ACTIONS } from "@molis-ai/molis-work
 import { gitActions, gitManifest, GIT_ACTIONS } from "@molis-ai/molis-work-plugin-git";
 import { codingManifest } from "@molis-ai/molis-work-plugin-coding";
 import { workspaceReadActions } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { materialsFileSource } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import type { ActionCallContext, ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { HOST_WORKSPACE_CHANGED_EVENT, type PluginDefinition, type PluginManifest, type PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { DEMO_PROJECT_ID, HOST_PROVIDER_ID, LocalProjectDatabase, MolisWorkLocalHost, PluginHostExecutor, molisWorkHostProjectReference, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
@@ -33,9 +34,7 @@ interface Reply {
 }
 
 const readFile = workspaceReadActions.file, readGit = workspaceReadActions.git;
-const sideEntries = FILES_ACTIONS.find(definition => definition.capability_id === "files.side.entries")!;
-const sideContent = FILES_ACTIONS.find(definition => definition.capability_id === "files.side.content")!;
-const WORKSPACE_FILE_KIND = sideEntries.action.file_source!.kinds[0]!.kind;
+const WORKSPACE_FILE_KIND = materialsFileSource.entries.action.file_source!.kinds[0]!.kind;
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]);
 
 test("a Runtime plugin reaches an action only when its Manifest consumes it: as the plugin audience, with its own grants, that exact action", async () => {
@@ -188,7 +187,7 @@ test("one read action serves everyone: the whole file is for plugins, and a call
     assert.deepEqual(registered.filter(id => /^projects\.workspace\.(file|files|git)\./u.test(id) && /read|inspect/u.test(id)).sort(), [readFile.capability_id, readGit.capability_id].sort());
 
     // What reads the folder declares the read as its dependency and the permission with it; the ones that do not, do not.
-    const reading = [filesActions.directory, filesActions.open, filesActions.capture, sideEntries, sideContent,
+    const reading = [filesActions.directory, filesActions.open, filesActions.capture,
       gitActions.state, gitActions.selectDiff, gitActions.summary, gitActions.prSupport, gitActions.conflict];
     const others = [...FILES_ACTIONS, ...GIT_ACTIONS].filter(definition => !reading.includes(definition as never));
     for (const definition of reading) {
@@ -200,6 +199,12 @@ test("one read action serves everyone: the whole file is for plugins, and a call
       assert.equal(definition.action.required_actions, undefined, definition.capability_id);
       assert.ok(!definition.action.permissions.includes("workspace:read"), definition.capability_id);
     }
+    // The side panel's folder source is the platform's: it reads through the same action and asks the same permission.
+    const sideSource = Object.values(materialsFileSource);
+    for (const definition of sideSource) {
+      assert.ok(definition.action.required_actions?.some(item => item.capability_id === readFile.capability_id && item.version === readFile.version), definition.capability_id);
+      assert.ok(definition.action.permissions.includes("workspace:read"), definition.capability_id);
+    }
     // The three plugins that call the reads list them, and hold the permission for them.
     for (const [manifest, ids] of [[filesManifest, [readFile.capability_id]], [gitManifest, [readGit.capability_id]], [codingManifest, [readFile.capability_id]]] as const) {
       for (const id of ids) assert.ok(manifest.capabilities.consumes.includes(id), `${manifest.plugin_id} consumes ${id}`);
@@ -208,9 +213,9 @@ test("one read action serves everyone: the whole file is for plugins, and a call
 
     // A caller without the permission neither sees nor runs them; with it they are available.
     const directory = await client.discover(person(everything));
-    for (const definition of reading) assert.equal(directory.find(row => row.capability_id === definition.capability_id)?.availability.available, true, definition.capability_id);
+    for (const definition of [...reading, ...sideSource]) assert.equal(directory.find(row => row.capability_id === definition.capability_id)?.availability.available, true, definition.capability_id);
     const without = await client.discover(person(everything.filter(permission => permission !== "workspace:read")));
-    for (const definition of reading) assert.equal(without.some(row => row.capability_id === definition.capability_id), false, definition.capability_id);
+    for (const definition of [...reading, ...sideSource]) assert.equal(without.some(row => row.capability_id === definition.capability_id), false, definition.capability_id);
     await assert.rejects(client.invoke(person(everything.filter(permission => permission !== "workspace:read")), filesActions.directory, { workspace_id: workspace.workspace_id, path: [] }), { code: "actions.forbidden" });
 
     // The plugin's own client is never the way around it: the dependents answer the person who holds the permission, with their own text.
@@ -259,7 +264,7 @@ test("Files, Git and Coding read the linked folder through the one action in a r
     const workspace = (await setProjectOutputFolder(directoriesWebOf(request), id, directory)).workspace_id;
     const plugin = (name: string, suffix: string) => `/projects/${id}/api/plugins/io.molis.work.${name}${suffix}`;
 
-    // Files: the side panel previews a picture in the linked folder whole, which only a plugin may ask the Host for.
+    // The side panel lists the project's folders and previews a picture whole: the platform's materials service, not a plugin, reads it.
     const sources = (await request(`/projects/${id}/api/side/files/sources`)).body.sources as Array<{ id: string; plugin_id: string; kinds: Array<{ kind: string }> }>;
     const source = sources.find(item => item.kinds.some(kind => kind.kind === WORKSPACE_FILE_KIND));
     assert.ok(source, JSON.stringify(sources));

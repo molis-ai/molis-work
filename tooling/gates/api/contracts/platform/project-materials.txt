@@ -181,4 +181,9 @@ export declare const materialsActions: {
     }>;
 };
 
+export declare const materialsFileSource: {
+    entries: ActionDefinition<import("platform/file-sources").FileEntriesInput, import("platform/file-sources").FileEntriesPage>;
+    content: ActionDefinition<import("platform/file-sources").FileContentInput, import("platform/file-sources").FileContent>;
+};
+
 export declare const systemOutputSource: (pluginId: string) => SystemOutputSource | undefined;

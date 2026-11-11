@@ -1,13 +1,14 @@
 import { createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
-import { ActionError, bindActionHandler, retainActionAuthority, type ActionClient, type ActionExecutionContext, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionHandler, fileContentOf, fileEntriesPage, retainActionAuthority, type ActionClient, type ActionExecutionContext, type ActionProviderRegistration,
+  type FileEntry } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ArtifactJsonValue, ArtifactsApplicationApi, FixedVersionRecord, ProcessItemsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { projectDirectoryActions, type ProjectDirectories, type ProjectDirectory } from "@molis-ai/molis-work-contracts/modules/projects";
 import { FILE_SNAPSHOT_SCHEMA_VERSION, FILE_SNAPSHOT_TYPE, FILE_TEXT_SELECTION_SCHEMA_VERSION, FILE_TEXT_SELECTION_TYPE, FILES_COLLECTION_SCHEMA_VERSION, FILES_COLLECTION_TYPE,
   fileSnapshotFitsInline, parseFilePath, parseFileSnapshot, parseFileTextSelection, parseTextSelectionRange, resolveWorkspaceFileSubject, resolveWorkspaceId, workspaceFileSubjectId,
-  workspaceReadActions, WORKSPACE_FILE_SUBJECT_KIND, type FileSnapshot, type FileTextSelection, type WorkspaceFileResult } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
-import { MATERIALS_PORTS, MATERIALS_PROVIDER_ID, materialsActions, SYSTEM_MATERIALS_PRODUCER_VERSION, SYSTEM_MATERIALS_SOURCE, type MaterialRef, type MaterialsCaptureInput,
+  workspaceReadActions, WORKSPACE_FILE_SUBJECT_KIND, WORKSPACE_SKIPPED_FOLDERS, type FileSnapshot, type FileTextSelection, type WorkspaceFileResult } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { MATERIALS_PORTS, MATERIALS_PROVIDER_ID, materialsActions, materialsFileSource, SYSTEM_MATERIALS_PRODUCER_VERSION, SYSTEM_MATERIALS_SOURCE, type MaterialRef, type MaterialsCaptureInput,
   type MaterialsPosition, type MaterialsReadResult, type MaterialsWorkspace } from "@molis-ai/molis-work-contracts/platform/project-materials";
-import { projectWorkspaceWindows, type ProjectCapabilityPorts } from "./project-capabilities.js";
+import { projectWorkspaceFiles, type ProjectCapabilityPorts } from "./project-capabilities.js";
 import type { WorkspaceWindowPosition, WorkspaceWindowResult } from "./workspace-files.js";
 import { assertMaterialRef } from "@molis-ai/molis-work-plugin-sdk/presentation";
 import { SqlitePluginPrivateStorage, type PluginInputGraph } from "@molis-ai/molis-work-plugin-runtime";
@@ -34,6 +35,8 @@ export interface SystemMaterialsPorts {
   wiring(): Promise<PluginInputGraph | null>;
   /** One window of a long text file in a folder this project grants; absent where the Host reads no folders. */
   windows?(query: { workspace_id: string; path: readonly string[] }, from: WorkspaceWindowPosition | null): Promise<WorkspaceWindowResult>;
+  /** A whole picture or PDF in a folder this project grants, for the side panel's preview; absent where the Host reads no folders. */
+  bytes?(query: { workspace_id: string; path: readonly string[] }): Promise<WorkspaceFileResult>;
 }
 
 /** Who a window cursor is for and where it reads next: the project, the person, the reference's id and the folder it resolved to. */
@@ -245,6 +248,61 @@ function materialsReader({ projectId, ports, cursors, folders, read }: Materials
   return readRef;
 }
 
+/** A tree walk stops here: the side panel lists what a person browses, not a whole dependency cache. */
+const LIST_MAX_FILES = 2000, LIST_MAX_DEPTH = 8;
+const SKIPPED = new Set<string>(WORKSPACE_SKIPPED_FOLDERS);
+const MEDIA: Record<string, string> = { md: "text/markdown", markdown: "text/markdown", txt: "text/plain", json: "application/json", ts: "text/typescript", tsx: "text/typescript",
+  js: "text/javascript", mjs: "text/javascript", css: "text/css", html: "text/html", yml: "application/yaml", yaml: "application/yaml", py: "text/x-python",
+  csv: "text/csv", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", svg: "image/svg+xml", pdf: "application/pdf" };
+const mediaOf = (name: string) => MEDIA[name.split(".").pop()?.toLowerCase() ?? ""] ?? "text/plain";
+
+/**
+ * The project's folders as a side panel file source (materials-ui-contract §6): every folder listed under its own name, and a file
+ * previewed in place, read under the caller's authority. Pictures and PDFs come whole, read by the Host from the folder the caller may read.
+ */
+function materialsFiles({ ports, nested, folders, read }: MaterialsCore) {
+  return [
+    bindActionHandler(materialsFileSource.entries, async (input, caller) => {
+      const call = nested(caller, materialsFileSource.entries), files: FileEntry[] = [];
+      const walk = async (folder: ProjectDirectory, dir: readonly string[], depth: number): Promise<void> => {
+        const result = files.length < LIST_MAX_FILES ? await read(call, folder.workspace_id, dir, "directory") : null;
+        if (result?.outcome !== "directory") return;
+        for (const entry of result.entries) {
+          if (files.length >= LIST_MAX_FILES) return;
+          if (entry.kind === "directory") { if (depth < LIST_MAX_DEPTH && !SKIPPED.has(entry.name) && !entry.name.startsWith(".")) await walk(folder, entry.path, depth + 1); continue; }
+          if (entry.kind !== "file") continue;
+          const id = workspaceFileSubjectId(folder.workspace_id, entry.path);
+          files.push({ subject: { kind: WORKSPACE_FILE_SUBJECT_KIND, id }, revision: id, title: entry.name, folder: [folder.display_name, ...entry.path.slice(0, -1)],
+            media_type: mediaOf(entry.name), size: null, updated_at: null, open: null });
+        }
+      };
+      for (const folder of (await folders(call)).directories) await walk(folder, [], 0);
+      return fileEntriesPage(files, input);
+    }),
+    bindActionHandler(materialsFileSource.content, async (input, caller) => {
+      const call = nested(caller, materialsFileSource.content);
+      // A file named by another device's folder reads from the folder the person named for it here (SSC-26).
+      const named = resolveWorkspaceFileSubject({ id: String(input.subject?.id ?? "") }, await folders(call));
+      if (!named) throw unavailable("这个文件不在当前项目的文件夹里");
+      const title = named.path.at(-1) ?? "文件", media = mediaOf(title);
+      // Pictures and PDFs are shown as they are; everything else, SVG included, as text.
+      const whole = (media.startsWith("image/") && media !== "image/svg+xml") || media === "application/pdf";
+      let result: WorkspaceFileResult;
+      if (whole) {
+        if (!ports.bytes) throw new ActionError("actions.service_unavailable", "这里不能预览整份文件");
+        await read(call, named.workspace_id, named.path.slice(0, -1), "directory");
+        result = await ports.bytes({ workspace_id: named.workspace_id, path: named.path });
+      } else result = await read(call, named.workspace_id, named.path, "text");
+      if (result.outcome === "bytes") return fileContentOf({ subject: input.subject, revision: result.fingerprint, title, media_type: media, bytes: Buffer.from(result.data, "base64") });
+      if (result.outcome === "text") return fileContentOf({ subject: input.subject, revision: result.fingerprint, title, media_type: media, text: result.text });
+      if (result.outcome === "missing") throw unavailable("文件已不存在");
+      const why = result.outcome === "too-large" ? `文件太大（${Math.round(result.bytes / 1024)} KB），侧栏只预览 ${Math.round(result.limit / 1024)} KB 以内的文件。`
+        : result.outcome === "binary" ? "这是二进制文件，侧栏只预览文本。" : result.outcome === "denied" ? "这个路径不可读取。" : "这个文件现在不能预览。";
+      return fileContentOf({ subject: input.subject, revision: "unreadable", title, media_type: "text/plain", text: why });
+    }),
+  ];
+}
+
 export function systemMaterialsActionProvider(projectId: string, ports: SystemMaterialsPorts): ActionProviderRegistration {
   const core = materialsCore(projectId, ports), capture = materialsCapture(core), readRef = materialsReader(core);
   const { values, nested, folders, folderOf, read, handOn, switchFolder, commit } = core;
@@ -252,7 +310,7 @@ export function systemMaterialsActionProvider(projectId: string, ports: SystemMa
   const opens = new Map<string, number>();
   let openSequence = 0;
   return { provider: { provider_id: MATERIALS_PROVIDER_ID, kind: "system", title: SYSTEM_MATERIALS_SOURCE.name, project_id: projectId },
-    definitions: Object.values(materialsActions), handlers: [
+    definitions: [...Object.values(materialsActions), ...Object.values(materialsFileSource)], handlers: [...materialsFiles(core),
       bindActionHandler(materialsActions.open, async (input, caller) => {
         const call = nested(caller, materialsActions.open), path = parseFilePath(input.path);
         const sequence = ++openSequence;
@@ -296,8 +354,8 @@ export function systemMaterialsActionProvider(projectId: string, ports: SystemMa
 
 /** The provider for one opened project: its database, version stores, the plugin platform running on it when one is, and its folders. */
 export function projectMaterialsProvider(runtime: MolisWorkProjectRuntime, client: ActionClient, folders: ProjectCapabilityPorts): ActionProviderRegistration {
-  const windows = projectWorkspaceWindows(folders);
-  return systemMaterialsActionProvider(runtime.project_id, { client, db: runtime.store.db, processItems: runtime.processItems, artifacts: runtime.artifacts,
-    privateValues: new SqlitePluginPrivateStorage(runtime.store.db), wiring: async () => (await runningProjectPlatform(runtime.store, runtime.project_id))?.wiring ?? null,
-    ...(windows ? { windows: (query, from) => windows(runtime.project_id, query, from) } : {}) });
+  const files = projectWorkspaceFiles(folders), id = runtime.project_id;
+  return systemMaterialsActionProvider(id, { client, db: runtime.store.db, processItems: runtime.processItems, artifacts: runtime.artifacts,
+    privateValues: new SqlitePluginPrivateStorage(runtime.store.db), wiring: async () => (await runningProjectPlatform(runtime.store, id))?.wiring ?? null,
+    ...(files ? { windows: (query, from) => files.window(id, query, from), bytes: query => files.read(id, { ...query, kind: "bytes" }) } : {}) });
 }

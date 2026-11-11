@@ -326,7 +326,9 @@ test("RAC-2531 BL-616 Files' factory takes nothing from the Host: with no folder
   const context: PluginStartContext = { install_id: "files-no-folder", installation_generation: "1", plugin_id: filesManifest.plugin_id, version: filesManifest.version,
     deployment: "local", grants: filesManifest.permissions.map(item => item.permission), project_id: "project", actor_id: "web-user", requireGrant: () => {}, services: {
       ui: { register: () => {}, unregister: () => {}, invalidate: () => {} },
-      actions: { availability: () => ({ available: true }), discover: async () => [], invokeQuery: async () => assert.fail("no query delegation"),
+      // Files' actions are commands: each confirms its own registration before it runs (`bindOwnerPluginAction`).
+      actions: { availability: () => ({ available: true }), discover: async () => [{ capability_id: "files.state", version: 1, availability: { available: true },
+        provider: { provider_id: filesManifest.plugin_id, plugin_install_id: "files-no-folder" } }] as never, invokeQuery: async () => assert.fail("no query delegation"),
         invoke: async <Input, Output>(definition: ActionReference, _input: Input) => { asked.push(definition.capability_id); return null as Output; } },
       storage: { get: () => null, set: () => assert.fail("nothing is remembered"), delete: () => false },
       outputs: { publish: () => assert.fail("no publish"), select: () => assert.fail("no select"), reference: () => null, retain: () => assert.fail("no retain"), read: () => null,
@@ -335,7 +337,7 @@ test("RAC-2531 BL-616 Files' factory takes nothing from the Host: with no folder
   const plugin = createFilesPlugin();
   assert.deepEqual(await plugin.health!(context), { ok: true, message: "插件已启动；目录按项目设置的输入与输出读取" });
   const contribution = await plugin.start(context);
-  const entries = contribution.actions!.find(binding => binding.capability_id === "files.side.entries")!;
-  await assert.rejects(async () => entries.handle({ actor_id: "web-user" } as never, {}), { code: "files.invalid" });
+  const state = contribution.actions!.find(binding => binding.capability_id === "files.state")!;
+  await assert.rejects(async () => state.handle({ actor_id: "web-user", beforeEffect: async () => {} } as never, {}), { code: "files.invalid" });
   assert.deepEqual(asked, [projectDirectoryActions.get.capability_id], "only the project's folders were asked; no file was read");
 });

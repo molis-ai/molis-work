@@ -21,21 +21,35 @@ export interface ProjectCapabilityPorts {
   prepareDirectory?: PrepareProjectDirectory;
 }
 
-/** Reads one window of a long text file in the project's folders, by the same folder authority the workspace read action uses. */
-export type ProjectWorkspaceWindows = (projectId: string, query: { workspace_id: string; path: readonly string[] }, from: WorkspaceWindowPosition | null) => Promise<WorkspaceWindowResult>;
+/** Reads in the project's folders by the same folder authority the workspace read action uses: a whole file or directory, or one window of a long text file. */
+export interface ProjectWorkspaceFiles {
+  read(projectId: string, query: WorkspaceFileQuery): Promise<WorkspaceFileResult>;
+  window(projectId: string, query: { workspace_id: string; path: readonly string[] }, from: WorkspaceWindowPosition | null): Promise<WorkspaceWindowResult>;
+}
 
 /**
- * The window reader the materials service reads long files with (materials-ui-contract §4). The caller's `workspace:read` and the folder's
- * place in the project are checked by the action that calls it; here, as for a whole read, only folders the port grants are read, and a
- * default output not made yet has no files.
+ * The folder reads the materials service lists, previews and reads long files with (materials-ui-contract §4, §6). The caller's
+ * `workspace:read` and the folder's place in the project are checked by the action that calls them; here, as for the workspace read
+ * action, only folders the port grants are read, and a default output not made yet has no files.
  */
-export function projectWorkspaceWindows(ports: ProjectCapabilityPorts): ProjectWorkspaceWindows | undefined {
+export function projectWorkspaceFiles(ports: ProjectCapabilityPorts): ProjectWorkspaceFiles | undefined {
   const { workspacesFor, workspaceFor, prepareDirectory } = ports;
   if (!workspacesFor && !workspaceFor) return undefined;
-  return async (projectId, query, from) => {
-    const granted = workspacesFor ? await workspacesFor(projectId) : [await workspaceFor!(projectId)].filter((item): item is ProjectWorkspaceRef => item !== null);
-    if (granted.some(item => item.workspace_id === query.workspace_id) && prepareDirectory && !(await prepareDirectory(projectId, query.workspace_id, "read")).exists) return { outcome: "missing" };
-    return readWorkspaceWindow(query, from, granted);
+  const granted = async (projectId: string, workspaceId: string) => {
+    const folders = workspacesFor ? await workspacesFor(projectId) : [await workspaceFor!(projectId)].filter((item): item is ProjectWorkspaceRef => item !== null);
+    const made = !folders.some(item => item.workspace_id === workspaceId) || !prepareDirectory || (await prepareDirectory(projectId, workspaceId, "read")).exists;
+    return { folders, made };
+  };
+  return {
+    async read(projectId, query) {
+      const { folders, made } = await granted(projectId, query.workspace_id);
+      if (!made) return query.kind === "directory" && query.path.length === 0 ? { outcome: "directory", entries: [], truncated: false } : { outcome: "missing" };
+      return readWorkspaceFile(query, folders);
+    },
+    async window(projectId, query, from) {
+      const { folders, made } = await granted(projectId, query.workspace_id);
+      return made ? readWorkspaceWindow(query, from, folders) : { outcome: "missing" };
+    },
   };
 }
 

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
@@ -8,8 +8,8 @@ import { runningProjectPlatform } from "@molis-ai/molis-work-app-local-host";
 import type { ProjectDirectories } from "@molis-ai/molis-work-contracts/modules/projects";
 import { FILE_SNAPSHOT_TYPE, FILE_TEXT_SELECTION_TYPE, FILES_COLLECTION_TYPE, workspaceFileSubjectId, workspaceReadActions,
   WORKSPACE_FILE_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
-import { ActionError, type ActionCallContext, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
-import { MATERIALS_PROVIDER_ID, materialsActions, SYSTEM_MATERIALS_SOURCE, type MaterialRef, type MaterialsCaptureResult, type MaterialsOpenResult,
+import { ActionError, type ActionCallContext, type ActionReference, type FileContent, type FileEntriesPage } from "@molis-ai/molis-work-contracts/platform/actions";
+import { MATERIALS_PROVIDER_ID, materialsActions, materialsFileSource, SYSTEM_MATERIALS_SOURCE, type MaterialRef, type MaterialsCaptureResult, type MaterialsOpenResult,
   type MaterialsReadResult } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import { PluginInputGraph } from "@molis-ai/molis-work-plugin-runtime";
 import { person } from "./fixtures/home-runtime.js";
@@ -206,4 +206,38 @@ test("BSH-05 a file longer than one read is read whole in windows that never cut
   await assert.rejects(m.call(materialsActions.read, { ref, mode: "text", cursor: next }), code("actions.subject_changed"));
   const again = await m.call<MaterialsReadResult>(materialsActions.read, { ref, mode: "text" });
   assert.equal(again.window!.start, 0, "reading from the start again works");
+});
+
+test("BSH-08 the side panel's folder source is the platform's: every project folder listed under its name, a file previewed in place, nothing without the read", { timeout: 60_000 }, async t => {
+  const m = await materialsHome(t);
+  const input = await realpath(await mkdtemp(join(tmpdir(), "materials-input-")));
+  t.after(() => rm(input, { recursive: true, force: true }));
+  await mkdir(join(input, "docs")); await mkdir(join(input, "node_modules")); await mkdir(join(input, ".cache"));
+  await writeFile(join(input, "docs", "brief.txt"), "简报\n"); await writeFile(join(input, "node_modules", "skip.js"), "x"); await writeFile(join(input, ".cache", "skip.txt"), "x");
+  const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]);
+  await writeFile(join(input, "chart.png"), png);
+  const settings = `/projects/${m.project.project_id}/api/project-settings/directories`;
+  const { revision } = await m.f.web.get<ProjectDirectories>(settings);
+  const added = await m.f.web.post<ProjectDirectories>(settings, { change: "add_input", input: { workspace_path: input, expected_revision: revision } });
+  const inputFolder = added.directories.find(row => !row.roles.includes("output"))!;
+
+  const page = await m.call<FileEntriesPage>(materialsFileSource.entries, { cursor: null, limit: 500 });
+  const listed = page.entries.map(entry => [...entry.folder, entry.title].join("/")).sort();
+  assert.deepEqual(listed, [`${inputFolder.display_name}/chart.png`, `${inputFolder.display_name}/docs/brief.txt`, `${m.output.display_name}/notes.md`].sort(),
+    "both folders, under their names; dependency caches and dot-folders are not walked");
+  assert.ok(page.entries.every(entry => entry.open === null && entry.subject.kind === WORKSPACE_FILE_SUBJECT_KIND), "previewed in place: no plugin page opens them");
+
+  const brief = page.entries.find(entry => entry.title === "brief.txt")!;
+  const text = await m.call<FileContent>(materialsFileSource.content, { subject: brief.subject });
+  assert.deepEqual([text.encoding, text.data, text.revision], ["utf8", "简报\n", sha("简报\n")]);
+  const chart = page.entries.find(entry => entry.title === "chart.png")!;
+  const picture = await m.call<FileContent>(materialsFileSource.content, { subject: chart.subject });
+  assert.deepEqual([picture.encoding, picture.media_type, Buffer.from(picture.data, "base64")], ["base64", "image/png", png]);
+
+  // Without the read permission neither the list nor a picture is reached; a file outside the project's folders is not found.
+  const without = person([], m.project.project_id);
+  await assert.rejects(m.call(materialsFileSource.entries, { cursor: null, limit: 500 }, without), (error: unknown) => error instanceof ActionError && error.code === "actions.forbidden");
+  await assert.rejects(m.call(materialsFileSource.content, { subject: chart.subject }, without), (error: unknown) => error instanceof ActionError && error.code === "actions.forbidden");
+  await assert.rejects(m.call(materialsFileSource.content, { subject: { kind: WORKSPACE_FILE_SUBJECT_KIND, id: workspaceFileSubjectId("another-folder", ["x.txt"]) } }),
+    (error: unknown) => error instanceof ActionError && error.code === "actions.subject_unavailable");
 });

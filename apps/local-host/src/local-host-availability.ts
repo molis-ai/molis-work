@@ -23,10 +23,15 @@ export class HostAvailability {
 
   async views(caller: ActionCallContext, views: ActionView[], dependencySnapshot?: readonly ActionView[]): Promise<ActionView[]> {
     const policy = await this.options.actionAvailability?.snapshotForDiscovery?.(caller) ?? this.options.actionAvailability;
-    const pass = dependencyDirectory(this.actionService, caller, dependencySnapshot);
-    return Promise.all(views.map(async view => ({ ...view,
-      availability: await this.resolve(caller, view, new Set(), policy, pass),
-    })));
+    // Projecting the views reads every row once; when they are the dependency snapshot too, those same reads index it. Every
+    // dependency is looked up after the policy's await, by when the projection has read them all, so the snapshot is not read again.
+    const seen = dependencySnapshot === views ? new Map<string, ActionView>() : undefined;
+    let read = 0;
+    const pass = dependencyDirectory(this.actionService, caller, dependencySnapshot, seen && (() => seen.size > 0 && read === views.length ? seen : undefined));
+    return Promise.all(views.map(async view => {
+      if (seen) { read++; const key = actionKey(view); if (!seen.has(key)) seen.set(key, view); }
+      return { ...view, availability: await this.resolve(caller, view, new Set(), policy, pass) };
+    }));
   }
 
   async resolve(caller: ActionCallContext, view: ActionView, ancestors: ReadonlySet<string> = new Set(), policy: ActionAvailabilityPolicy | undefined = this.options.actionAvailability, pass?: DiscoveryPass): Promise<ActionAvailability> {
@@ -92,15 +97,19 @@ export class HostAvailability {
   }
 }
 
+/** The identity a dependency names: the first row with it in the caller's directory answers it (as `actionDirectoryLookup`). */
+const actionKey = (reference: ActionReference) => `${reference.capability_id}@${reference.version}`;
+
 /** Share reference lookups only while projecting one caller's views, including the narrower dependency read for inspection. */
-function dependencyDirectory(service: ActionService, caller: ActionCallContext, snapshot?: readonly ActionView[]): DiscoveryPass {
+function dependencyDirectory(service: ActionService, caller: ActionCallContext, snapshot?: readonly ActionView[],
+  projected?: () => ReadonlyMap<string, ActionView> | undefined): DiscoveryPass {
   let actions = snapshot, first: ReturnType<typeof actionDirectoryLookup> | undefined;
   let scenes: ActionSceneView[] | undefined, choices: SubjectOfferChoiceView[] | undefined;
   let bindings: Promise<Map<string, ActionSceneUsage[]>> | undefined;
   const sceneMatches = new Map<string, ActionSceneView | undefined>();
   const directory = () => actions ??= service.discover(caller);
   return {
-    actions: () => first ??= actionDirectoryLookup(directory()),
+    actions: () => first ??= ((index = projected?.()) => index ? (reference: ActionReference) => index.get(actionKey(reference)) : actionDirectoryLookup(directory()))(),
     scene: reference => {
       const key = sceneKey(reference.scene_id, reference.version);
       if (!sceneMatches.has(key)) {

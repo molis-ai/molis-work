@@ -1235,6 +1235,8 @@
     "goals.workbench-stage.work-planning": "Work planning",
     "goals.workbench-stage.work-rules": "Work rules",
     "goals.capability-library.goals-list-v1.title": "Target directory",
-    "goals.capability-library.goals-policy-save-v1.title": "Save project rules"
+    "goals.capability-library.goals-policy-save-v1.title": "Save project rules",
+    "goals.read-group.goals.description": "Goal status, body, progress records, relationships, and materials",
+    "goals.read-group.goals.title": "Goals"
   }
 }

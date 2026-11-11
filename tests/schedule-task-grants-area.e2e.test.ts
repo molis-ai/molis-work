@@ -29,7 +29,7 @@ const OBSERVE = `(() => { if (window.top !== window) return;
   };
 })();`;
 
-test("TGA-21 TGA-22 Schedule places the platform's area in the open task's detail, closes it with the detail, and marks its list from the area's two flags without reading again", { timeout: 120_000 }, async t => {
+test("TGA-21 TGA-22 FSS-35 Schedule keeps the open task's grants and its localized feedback through a language change", { timeout: 120_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
   await browser.setViewport(1440, 960);
   const api = `/projects/${browser.projectId}/api/plugins/io.molis.work.schedule`;
@@ -37,7 +37,8 @@ test("TGA-21 TGA-22 Schedule places the platform's area in the open task's detai
   const first = await made("Morning brief"), second = await made("Evening review");
   const child = await pluginFrameBrowser(t, browser, "schedule");
   await pluginFrameInitScript(t, browser, OBSERVE);
-  await browser.navigate(() => browser.command("Page.navigate", { url: `${browser.origin}/projects/${browser.projectId}/?openPlugin=schedule` }, browser.sessionId));
+  const path = `/projects/${browser.projectId}/?openPlugin=schedule`;
+  await browser.navigate(() => browser.command("Page.navigate", { url: browser.origin + "/locale?lang=zh&next=" + encodeURIComponent(path) }, browser.sessionId));
   await browser.surfaceReady("schedule");
   const row = (id: string) => `[data-schedule-row][data-schedule-task-id="${id}"]`;
   const mark = (id: string) => child.evaluate<string>(`document.querySelector(${JSON.stringify(row(id) + " [data-schedule-kind-mark]")}).dataset.scheduleKindMark`);
@@ -120,11 +121,29 @@ test("TGA-21 TGA-22 Schedule places the platform's area in the open task's detai
   assert.equal(await mark(second), "files", "only the changed task's mark moves");
   assert.equal(await child.evaluate(`document.querySelector(${JSON.stringify(row(first) + " [data-schedule-row-reconfirm]")}).hidden`), true);
   assert.deepEqual((await browser.evaluate<Array<Record<string, unknown>>>("window.tgaDown")).filter(message => message.type === "task-grants-changed").map(message => message.state), [{ granted: true, attention: false }]);
+  const status = `document.querySelector(${JSON.stringify(AREA + " [role=status] > span")})?.textContent`;
+  const categoryWords = `[...document.querySelectorAll(${JSON.stringify(control + " strong, " + control + " small")})].map(node => node.textContent)`;
+  const undo = AREA + ' [data-framed-control="undo"]';
+  assert.equal(await browser.evaluate(status), "已允许读 提醒，下一次运行起能读到");
+  const choose = (tag: "zh" | "en") => browser.evaluate(`(() => {
+    const link=document.createElement('a'); link.dataset.uiLanguage=${JSON.stringify(tag)};
+    link.href='/locale?lang='+link.dataset.uiLanguage; document.body.append(link); link.click(); link.remove();
+  })()`);
+  const areaRequests = await browser.evaluate<number>("tgaKeys.length");
+  await choose("en");
+  await browser.waitFor(`${status} === 'Reminders allowed; the next run can read it'`);
+  assert.equal(await browser.evaluate(`document.querySelector(${JSON.stringify(undo)})?.textContent`), "Undo");
+  assert.deepEqual(await browser.evaluate(categoryWords), ["Reminders", "This project's reminders: what they say (including the text of reminders other plugins set), which plugin set them and when they are next due"]);
+  assert.deepEqual(await browser.evaluate(`tgaKeys.slice(${areaRequests})`), [first], "language reads the current task once");
+  assert.equal(await browser.evaluate(`document.querySelector(${JSON.stringify(control)}).dataset.status`), "granted");
   // Undo takes it back, and the mark with it.
   await ready();
-  await press(`${AREA} .mw-platform-area__foot .mw-btn`);
+  await press(undo);
   await browser.waitFor(`document.querySelector(${JSON.stringify(control)}).dataset.status === "off"`);
   await child.waitFor(`document.querySelector(${JSON.stringify(row(first) + " [data-schedule-kind-mark]")}).dataset.scheduleKindMark === "files"`);
+  assert.equal(await browser.evaluate(status), "Change undone");
+  await choose("zh");
+  await browser.waitFor(`${status} === '已撤销刚才的改动' && ${categoryWords}[0] === '提醒'`);
   await settle(300);
   assert.equal(await grantReads(), before, "TGA-22 the marks follow the area without another read of the grants");
 });

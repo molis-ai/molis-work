@@ -274,6 +274,8 @@
     "todo.capability-library.todo-placement-move-v1.title": "待办",
     "todo.capability-library.todo-reminders-acknowledge-v1.title": "知道了",
     "todo.capability-library.todo-reminders-due-v1.title": "到了时间的提醒",
-    "todo.capability-library.todo-reminders-window-v1.title": "到期提醒"
+    "todo.capability-library.todo-reminders-window-v1.title": "到期提醒",
+    "todo.read-group.todo.description": "待办事项、它们的日期与到期提醒",
+    "todo.read-group.todo.title": "待办"
   }
 }

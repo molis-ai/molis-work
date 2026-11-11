@@ -1,7 +1,7 @@
 import type { UiRequest } from "@molis-ai/molis-work-contracts/platform/ui";
-import type { TaskGrantListResult, TaskGrantSubject } from "@molis-ai/molis-work-contracts/services/agent-task-grants";
+import type { TaskGrantCategory, TaskGrantListResult, TaskGrantSubject } from "@molis-ai/molis-work-contracts/services/agent-task-grants";
 import { escapeHtml as escape } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { taskGrantChange, taskGrantRowHtml, taskGrantRows } from "./plugin-frame/task-grants-area.js";
+import { taskGrantCategoryName, taskGrantChange, taskGrantRowHtml, taskGrantRows } from "./plugin-frame/task-grants-area.js";
 
 const uiText = globalThis.t;
 
@@ -22,6 +22,7 @@ interface TitlesPage { entries: Title[]; next_cursor: string | null }
 type Post = <T>(body: Record<string, unknown>) => Promise<T>;
 
 const { molisWorkRequest } = globalThis as typeof globalThis & { molisWorkRequest: UiRequest };
+const refreshSettingsLanguage = new WeakMap<HTMLElement, () => void>();
 const subjectId = (subject: Pick<TaskGrantSubject, "plugin_install_id" | "key">) => subject.plugin_install_id + "\n" + subject.key;
 const button = (label: string, variant: string, act: string, about?: string) => {
   const text = escape(uiText.text(label));
@@ -96,6 +97,7 @@ export function bindTaskGrantsSettings(root: HTMLElement): void {
   const titles = new Map<string, Map<string, Title>>(), asked = new Map<string, Set<string>>(), busy = new Set<string>();
 
   async function load(): Promise<void> {
+    const language = document.documentElement.lang;
     list.setAttribute("aria-busy", "true");
     try {
       const next = await post<Listed>({ mode: "list" });
@@ -108,10 +110,41 @@ export function bindTaskGrantsSettings(root: HTMLElement): void {
         return readTitles(post, install.plugin_install_id, keys, found);
       }));
       listed = next; draw();
+      if (language !== document.documentElement.lang) void retitle();
     } catch {
       list.innerHTML = `<div class="task-grants-page__state is-error"><span>${escape(uiText.text("workbench.task-grants-page.cannot-read-background-tasks-permissions-right-now"))}</span>${button("common.control.retry", "mw-btn--secondary", "reload")}</div>`;
     } finally { list.removeAttribute("aria-busy"); }
   }
+
+  let languageTurn = 0;
+  async function retitle(): Promise<void> {
+    if (!listed) return;
+    const turn = ++languageTurn;
+    try {
+      const current = await post<Listed>({ mode: "list" });
+      if (!root.isConnected || !listed || turn !== languageTurn) return;
+      const words = new Map([...current.categories, ...current.subjects.flatMap(subject => subject.categories)]
+        .map(category => [taskGrantCategoryName(category), category]));
+      const retitleCategory = <T extends TaskGrantCategory>(category: T): T => {
+        const next = words.get(taskGrantCategoryName(category));
+        return next ? { ...category, title: next.title, description: next.description } : category;
+      };
+      listed = { ...listed, categories: listed.categories.map(retitleCategory),
+        subjects: listed.subjects.map(subject => ({ ...subject, categories: subject.categories.map(retitleCategory) })) };
+      const focused = document.activeElement instanceof HTMLElement && list.contains(document.activeElement) ? document.activeElement : null;
+      const task = focused?.closest<HTMLElement>("[data-task-grants-task]")?.dataset.taskGrantsTask;
+      const category = focused?.closest<HTMLElement>("[data-task-grants-row]")?.dataset.taskGrantsRow;
+      const action = focused?.dataset.taskGrantsAct;
+      draw();
+      if (task !== undefined && focused) {
+        const scope = list.querySelector(`[data-task-grants-task="${CSS.escape(task)}"]`);
+        const area = category === undefined ? scope : scope?.querySelector(`[data-task-grants-row="${CSS.escape(category)}"]`);
+        const replacement = action === undefined ? area?.querySelector("a") : area?.querySelector(`[data-task-grants-act="${CSS.escape(action)}"]`);
+        if (replacement instanceof HTMLElement) replacement.focus({ preventScroll: true });
+      }
+    } catch { if (root.isConnected && turn === languageTurn) toast(uiText.text("workbench.language.window-failed"), true); }
+  }
+  refreshSettingsLanguage.set(root, () => { void retitle(); });
 
   const installName = (install: Installation | undefined) => {
     const name = install?.name ?? install?.plugin_install_id ?? "";
@@ -204,6 +237,9 @@ const bindAll = (container: ParentNode) => {
 document.addEventListener("molis-work:settings-embed", event => {
   const root = (event as CustomEvent<{ root?: ParentNode }>).detail?.root;
   if (root) bindAll(root);
+});
+document.addEventListener("molis-work:language-changed", () => {
+  document.querySelectorAll<HTMLElement>("[data-task-grants-settings]").forEach(root => refreshSettingsLanguage.get(root)?.());
 });
 if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", () => bindAll(document));
 else bindAll(document);

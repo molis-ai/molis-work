@@ -123,6 +123,10 @@
     "schedule.agent-prompt.schedule-base.title": "Base constraints",
     "schedule.agent-prompt.schedule-reader.title": "Read-only runner",
     "schedule.agent-prompt.schedule-brief.title": "Read data and run",
-    "schedule.capability-library.schedule-tasks-create-v1.title": "New scheduled task"
+    "schedule.capability-library.schedule-tasks-create-v1.title": "New scheduled task",
+    "schedule.read-group.operations.description": "This project's scheduled tasks and reminders, and other plugins' scheduled operations with their original input",
+    "schedule.read-group.operations.title": "Scheduled operations",
+    "schedule.read-group.reminders.description": "This project's reminders: what they say (including the text of reminders other plugins set), which plugin set them and when they are next due",
+    "schedule.read-group.reminders.title": "Reminders"
   }
 }

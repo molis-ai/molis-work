@@ -292,6 +292,8 @@
     "todo.capability-library.todo-placement-move-v1.title": "Todo",
     "todo.capability-library.todo-reminders-acknowledge-v1.title": "Got it",
     "todo.capability-library.todo-reminders-due-v1.title": "Reminders due",
-    "todo.capability-library.todo-reminders-window-v1.title": "Due reminders"
+    "todo.capability-library.todo-reminders-window-v1.title": "Due reminders",
+    "todo.read-group.todo.description": "To-dos, their dates and due reminders",
+    "todo.read-group.todo.title": "Todo"
   }
 }

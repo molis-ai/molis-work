@@ -87,6 +87,8 @@
     "inbox.ui.view-original-message": "View original message",
     "inbox.ui.why-entered-inbox": "Why it entered Inbox",
     "inbox.ui.write-materials-pages": "Write from materials in Pages",
-    "inbox.capability-library.inbox-pages-generate-v1.title": "Create a document"
+    "inbox.capability-library.inbox-pages-generate-v1.title": "Create a document",
+    "inbox.read-group.inbox.description": "Items waiting in the Inbox and what they contain",
+    "inbox.read-group.inbox.title": "Inbox"
   }
 }

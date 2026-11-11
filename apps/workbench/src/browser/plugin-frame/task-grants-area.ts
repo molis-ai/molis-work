@@ -25,19 +25,19 @@ interface Reads { readonly categories: readonly TaskGrantCategory[]; readonly su
 type Change = { readonly kind: "on" | "off" | "allow" | "remove" | "undo"; readonly row: Row; readonly categories: TaskGrantSetCategory[]; readonly undo?: (now: Reads["subject"]) => TaskGrantSetCategory[] };
 /** What the area's one line says now; `act` is its one button. */
 export type TaskGrantsLine = { readonly text: string; readonly act?: "undo" | "retry" | "read"; readonly tone?: "danger" };
-type LineText = Omit<TaskGrantsLine, "text"> & { readonly key: string; readonly args?: Record<string, string> };
+type LineText = Omit<TaskGrantsLine, "text"> & { readonly key: string; readonly category?: string; readonly name?: string };
 
-const nameOf = (ref: TaskGrantCategoryReference) => ref.provider_id + "\n" + (ref.group_id ?? "");
+export const taskGrantCategoryName = (ref: TaskGrantCategoryReference) => ref.provider_id + "\n" + (ref.group_id ?? "");
 const refOf = (ref: TaskGrantCategoryReference): TaskGrantSetCategory => ref.group_id === undefined ? { provider_id: ref.provider_id } : { provider_id: ref.provider_id, group_id: ref.group_id };
 
 /** One row per category: what this project offers, then what the task holds that is no longer offered (unavailable or removed). */
 export function taskGrantRows(reads: Reads): Row[] {
-  const held = new Map(reads.subject.categories.map(category => [nameOf(category), category]));
-  const row = (category: TaskGrantCategory, status: Status): Row => ({ ref: refOf(category), name: nameOf(category), status,
+  const held = new Map(reads.subject.categories.map(category => [taskGrantCategoryName(category), category]));
+  const row = (category: TaskGrantCategory, status: Status): Row => ({ ref: refOf(category), name: taskGrantCategoryName(category), status,
     title: category.title, description: category.description });
-  const offered = reads.categories.map(category => row(category, held.get(nameOf(category))?.status ?? "off"));
+  const offered = reads.categories.map(category => row(category, held.get(taskGrantCategoryName(category))?.status ?? "off"));
   const seen = new Set(offered.map(item => item.name));
-  return [...offered, ...reads.subject.categories.filter(category => !seen.has(nameOf(category))).map(category => row(category, category.status))];
+  return [...offered, ...reads.subject.categories.filter(category => !seen.has(taskGrantCategoryName(category))).map(category => row(category, category.status))];
 }
 
 /**
@@ -46,11 +46,11 @@ export function taskGrantRows(reads: Reads): Row[] {
  * for turning a category on or turning a granted one off.
  */
 export function taskGrantChange(kind: "on" | "off" | "allow" | "remove", row: Row, subject: Reads["subject"]): Change {
-  const base = subject.categories.map(refOf), without = base.filter(item => nameOf(item) !== row.name);
-  if (kind === "on") return { kind, row, categories: [...without, refOf(row.ref)], undo: now => now.categories.map(refOf).filter(item => nameOf(item) !== row.name) };
-  if (kind === "allow") return { kind, row, categories: base.map(item => nameOf(item) === row.name ? { ...item, confirm: true } : item) };
+  const base = subject.categories.map(refOf), without = base.filter(item => taskGrantCategoryName(item) !== row.name);
+  if (kind === "on") return { kind, row, categories: [...without, refOf(row.ref)], undo: now => now.categories.map(refOf).filter(item => taskGrantCategoryName(item) !== row.name) };
+  if (kind === "allow") return { kind, row, categories: base.map(item => taskGrantCategoryName(item) === row.name ? { ...item, confirm: true } : item) };
   const undo = kind === "off" && row.status === "granted"
-    ? (now: Reads["subject"]) => [...now.categories.map(refOf).filter(item => nameOf(item) !== row.name), refOf(row.ref)] : undefined;
+    ? (now: Reads["subject"]) => [...now.categories.map(refOf).filter(item => taskGrantCategoryName(item) !== row.name), refOf(row.ref)] : undefined;
   return { kind, row, categories: without, ...(undo ? { undo } : {}) };
 }
 
@@ -102,13 +102,13 @@ function doneLine(change: Change): LineText {
     : status === "needs_confirmation" ? "workbench.task-grants-area.name-withdrawn-turn-on-to-allow-current-data"
     : status === "unavailable" ? "workbench.task-grants-area.name-withdrawn-turn-on-after-plugin-returns"
     : "workbench.task-grants-area.name-withdrawn-the-next-run-cannot-read",
-  ...(kind !== "undo" ? { args: { name: row.title } } : {}),
+  ...(kind !== "undo" ? { category: row.name, name: row.title } : {}),
   act: change.undo ? "undo" : undefined };
 }
 
 interface Entry { readonly id: number; readonly key: string; readonly area: FramedArea; reads: Reads | null; line: LineText; busy: boolean;
   /** The last change, kept for its undo or for a retry after it failed. */ last: Change | null; drawn?: string;
-  /** The page came back into view since this area last read: it reads once more, now or when what is under way ends (§3.6). */ stale?: boolean }
+  /** This area has another read due when it is visible and no operation is in progress. */ stale?: "visibility" | "language" }
 
 /**
  * The trusted half (§2–§3). `owner` is the installation's name as the shell lists it. Every write is the person's own `set`
@@ -121,10 +121,13 @@ export function pageTaskGrants(port: MessagePort, scope: FrameScope, areas: Page
     { body: { key: entry.key, ...body }, headers: { "x-molis-context-page": pageId }, scope });
   // The line comes in again only when what it says changes, so a write's busy state does not make it flicker.
   const draw = (entry: Entry) => {
-    const { key, args, ...line } = entry.line;
-    const text = t(key, args), fresh = entry.drawn !== undefined && entry.drawn !== text;
+    const rows = entry.reads ? taskGrantRows(entry.reads) : [];
+    const { key, category, name, ...line } = entry.line;
+    const title = category ? rows.find(row => row.name === category)?.title ?? name : name;
+    const text = t(key, title === undefined ? undefined : { name: title }), fresh = entry.drawn !== undefined && entry.drawn !== text;
     entry.drawn = text;
-    entry.area.redraw(taskGrantsAreaHtml(t, owner, entry.reads ? taskGrantRows(entry.reads) : [], { ...line, text }, entry.busy, fresh));
+    entry.area.surface.setAttribute("aria-label", t("workbench.task-grants-area.molis-work-only-you-can-change-this") + " · " + owner);
+    entry.area.redraw(taskGrantsAreaHtml(t, owner, rows, { ...line, text }, entry.busy, fresh));
   };
   const close = (id: number) => { entries.get(id)?.area.close(); entries.delete(id); };
   scope.own(() => { for (const id of [...entries.keys()]) close(id); });
@@ -194,8 +197,9 @@ export function pageTaskGrants(port: MessagePort, scope: FrameScope, areas: Page
     void write(entry, taskGrantChange(switched ? (row.status === "off" ? "on" : "off") : act as "allow" | "remove", row, subject));
   };
   const reread = async (entry: Entry) => {
-    entry.busy = true; entry.stale = false; draw(entry);
-    try { await read(entry); entry.line = idle(); }
+    const language = entry.stale === "language";
+    entry.busy = true; entry.stale = undefined; draw(entry);
+    try { await read(entry); if (!language) entry.line = idle(); }
     catch { if (entries.get(entry.id) === entry) entry.line = unread(); }
     finally { if (entries.get(entry.id) === entry) { entry.busy = false; draw(entry); catchUp(entry); } }
   };
@@ -203,7 +207,13 @@ export function pageTaskGrants(port: MessagePort, scope: FrameScope, areas: Page
   const catchUp = (entry: Entry) => { if (entry.stale && entry.reads && !entry.busy && scope.visible) void reread(entry); };
   // Back in view, each area reads once (§3.6): a read or a write under way may have started before what changed while it was hidden,
   // so it reads after that one ends. Every area here was opened in view, so this runs only after the page was hidden.
-  scope.whenVisible(() => { for (const entry of entries.values()) { entry.stale = true; catchUp(entry); } });
+  scope.whenVisible(() => { for (const entry of entries.values()) { entry.stale = "visibility"; catchUp(entry); } });
+  let language = document.documentElement.lang;
+  scope.listen(document, "molis-work:language-changed", () => {
+    if (language === document.documentElement.lang) return;
+    language = document.documentElement.lang;
+    for (const entry of entries.values()) { entry.stale ??= "language"; catchUp(entry); }
+  });
 
   /** Opens asked for while the page is out of sight (a tab opened behind, say), by id: each draws once the page shows. */
   const waiting = new Map<number, () => void>();
@@ -229,7 +239,6 @@ export function pageTaskGrants(port: MessagePort, scope: FrameScope, areas: Page
     if (!area) { if (Number.isSafeInteger(message.id) && !entries.has(message.id)) unshown(message.id); return; }
     const { surface, holder } = area;
     surface.className = "mw-platform-area";
-    surface.setAttribute("aria-label", t("workbench.task-grants-area.molis-work-only-you-can-change-this") + " · " + owner);
     surface.dataset.taskGrantsArea = "";
     // Shown again (its page back in view, a dialog closed, its frame wide enough again), the area fades in with the shared
     // `craft-fade-in` (DESIGN「Motion」), not its first reveal's `craft-rise`. It is marked as it hides, never while in sight.

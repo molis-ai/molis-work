@@ -4,12 +4,14 @@ import type { PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-
 import {
   agentTaskGrantActions, type TaskGrantClearRequest, type TaskGrantListRequest, type TaskGrantListResult, type TaskGrantSetCategory, type TaskGrantSetRequest, type TaskGrantSubject,
 } from "@molis-ai/molis-work-contracts/services/agent-task-grants";
+import { textKeyPrefix } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { createMcpActionGrant } from "./mcp-action-grants.js";
 import { actionGrantKey, readMcpToolPreference, removeMcpActionGrants, replaceMcpClientGrants, type McpActionGrant, type McpToolPreference } from "./mcp-settings-store.js";
 import { installedPluginEntries } from "./plugin-installation-directory.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
 import { categoryKey, namedCategory, offeredCategories, recordedCategories, subjectCategories, subjectRevision, taskReadableCatalog, type DeclarationOf, type ProviderDeclaration } from "./task-grant-categories.js";
 import { parseTaskGrantSubject, taskGrantSubjectId, TASK_GRANT_SUBJECT_PREFIX, type TaskGrantSubjectIdentity } from "./task-grant-subjects.js";
+import { directoryWordResolver, registeredBuiltinText } from "./ui-text-provider.js";
 
 /** The Host's own provider of the three task grant actions (`agent.task_grants.*`, services/agent-task-grants). */
 export const TASK_GRANTS_PROVIDER_ID = "system.task-grants";
@@ -48,8 +50,21 @@ export async function taskGrantDeclarations(host: Pick<Host, "withProject" | "ho
     const record = home?.installation(providerId);
     return record && provides(record, providerId) ? { manifest: home?.manifest(record.plugin_id) } : undefined;
   };
-  const declaration = (manifest: PluginManifest): ProviderDeclaration => ({ ...(manifest.summary?.trim() ? { description: manifest.summary } : {}),
-    ...(manifest.read_groups?.length ? { read_groups: manifest.read_groups } : {}) });
+  const declaration = (manifest: PluginManifest): ProviderDeclaration => {
+    const reader = registeredBuiltinText(manifest);
+    const resolve = reader && directoryWordResolver(reader);
+    return { description: manifest.summary?.trim() ? manifest.summary : undefined, read_groups: manifest.read_groups,
+      display: resolve ? group => {
+        const owner = manifest.plugin_id;
+        if (!group) return {
+          title: manifest.name_text && "key" in manifest.name_text ? resolve({ ...manifest.name_text, owner }, manifest.name) : undefined,
+          description: manifest.summary_text && "key" in manifest.summary_text ? resolve({ ...manifest.summary_text, owner }, manifest.summary ?? "") : undefined,
+        };
+        const key = textKeyPrefix(owner) + ".read-group." + group.group_id;
+        return { title: resolve({ owner, key: key + ".title" }, group.title),
+          description: resolve({ owner, key: key + ".description" }, group.description) };
+      } : undefined };
+  };
   return {
     of: provider => {
       const found = manifestOf(provider.provider_id);

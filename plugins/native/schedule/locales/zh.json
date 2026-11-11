@@ -123,6 +123,10 @@
     "schedule.agent-prompt.schedule-base.title": "基础约束",
     "schedule.agent-prompt.schedule-reader.title": "只读执行",
     "schedule.agent-prompt.schedule-brief.title": "读数据执行",
-    "schedule.capability-library.schedule-tasks-create-v1.title": "新建定时任务"
+    "schedule.capability-library.schedule-tasks-create-v1.title": "新建定时任务",
+    "schedule.read-group.operations.description": "本项目的定时任务、提醒，以及其他插件登记的定时操作和它们的原输入",
+    "schedule.read-group.operations.title": "定时操作",
+    "schedule.read-group.reminders.description": "本项目的提醒：内容（含其他插件登记的提醒的文字）、来自哪个插件和下一次时间",
+    "schedule.read-group.reminders.title": "提醒"
   }
 }

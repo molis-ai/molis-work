@@ -255,6 +255,10 @@
     "jelly.workspace.updated": "Workspace updated",
     "jelly.agent-prompt.jelly-decompose.title": "Break into activities",
     "jelly.agent-prompt.jelly-decompose.purpose": "Break original text into concrete activities that can be scheduled, asking questions when key facts are unclear",
-    "jelly.capability-library.jelly-note-create-v1.title": "New note"
+    "jelly.capability-library.jelly-note-create-v1.title": "New note",
+    "jelly.read-group.calendar.description": "Calendar items and progress",
+    "jelly.read-group.calendar.title": "Calendar",
+    "jelly.read-group.notes.description": "Full notes, search, and reading or exporting the whole Jelly workspace",
+    "jelly.read-group.notes.title": "Notes"
   }
 }

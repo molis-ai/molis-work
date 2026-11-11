@@ -255,6 +255,10 @@
     "jelly.workspace.updated": "工作区已更新",
     "jelly.agent-prompt.jelly-decompose.title": "拆成事项",
     "jelly.agent-prompt.jelly-decompose.purpose": "把一段原文拆成可以排进日历的具体事项，关键事实不明时提出问题",
-    "jelly.capability-library.jelly-note-create-v1.title": "新建笔记"
+    "jelly.capability-library.jelly-note-create-v1.title": "新建笔记",
+    "jelly.read-group.calendar.description": "日历事项与进展",
+    "jelly.read-group.calendar.title": "日历",
+    "jelly.read-group.notes.description": "笔记全文、搜索，以及整个 Jelly 工作区的读取与导出",
+    "jelly.read-group.notes.title": "笔记"
   }
 }

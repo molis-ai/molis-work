@@ -99,7 +99,7 @@ test('FSS-74 a frozen English design reaches G7 in its own frame and publishes t
     } };
   } };
   const previewLanguages = new Set<string>(), childDesignReads: string[] = [];
-  const server = studioServer(options, token, new Map(), { observe(request) {
+  const server = studioServer(options, token, new Map(), { locale: 'en', observe(request) {
     if (request.url?.includes('/studio/preview/') && request.url.includes('acceptance=')) previewLanguages.add(request.headers['accept-language'] ?? '');
     if (request.method === 'GET' && request.headers['x-molis-plugin-page'] && request.url?.includes('/studio/builds/')) childDesignReads.push(request.url);
   } });

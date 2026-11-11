@@ -141,6 +141,14 @@ export function renderPersonalAccountEntry(controlToken: string, desktop: boolea
         const start=async()=>{
           retry.hidden=true;
           try {
+            if(document.body.dataset.nativeDesktop==='true'){
+              const state=await molisWorkRequest('/api/personal/status');
+              if(state.identity && state.ready && state.browserSessionTicket){
+                await molisWorkRequest('/api/personal/native-attach?ticket='+encodeURIComponent(state.browserSessionTicket),{method:'POST',body:{}});
+                location.replace('/?desktop=1');
+                return;
+              }
+            }
             const result=await molisWorkRequest('/api/personal/login',{control:true,body:{}});
             const url=new URL(result.loginUrl,location.origin);
             url.searchParams.set('accountEntry','1');

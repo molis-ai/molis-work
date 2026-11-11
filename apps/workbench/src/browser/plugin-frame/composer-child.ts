@@ -76,6 +76,8 @@ export function childComposer(port: MessagePort, scope: FrameScope, bar: boolean
     };
     const typed = () => { if (!echo && field && live === id) send({ type: "composer-text", id, text: field.value }); };
     field?.addEventListener("input", typed);
+    // The page putting the cursor in its own box (it cannot take focus, hidden) puts it in the bar's, as the handle's focus does.
+    if (field) field.focus = () => send({ type: "composer-focus", id });
     // A page that presses its own send (finishing a send the person began, after a way back from settings) asks the bar to.
     const pressed = (event: Event) => {
       if (!(event.target instanceof Element) || !event.target.closest("[data-composer-send]")) return;
@@ -153,7 +155,7 @@ export function childComposer(port: MessagePort, scope: FrameScope, bar: boolean
       for (const controller of calls.values()) controller.abort();
       calls.clear(); checks.clear();
       // As the composer itself does when it goes: the box is empty for the next mount, whose draft is its own.
-      if (field) field.value = "";
+      if (field) { field.value = ""; Reflect.deleteProperty(field, "focus"); }
       if (live === id) send({ type: "composer-destroy", id });
     };
     scope.own(destroy); mounted.set(root, destroy);

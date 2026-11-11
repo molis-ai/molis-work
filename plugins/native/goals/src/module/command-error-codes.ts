@@ -1,4 +1,5 @@
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
+import { storedRecordErrors } from "../stored-json.js";
 
 const goals_board = defineErrorCodes("goals.board", {
   exists: "invalid",
@@ -71,10 +72,6 @@ const goals_request = defineErrorCodes("goals.request", {
   invalid: "invalid",
 });
 
-const goals_storage = defineErrorCodes("goals.storage", {
-  record_unreadable: "internal",
-});
-
 export const commandErrors = {
   "goals.board.exists": goals_board.exists,
   "goals.board.not_found": goals_board.not_found,
@@ -117,5 +114,5 @@ export const commandErrors = {
   "goals.relation.self_reference": goals_relation.self_reference,
   "goals.request.idempotency_key_reused": goals_request.idempotency_key_reused,
   "goals.request.invalid": goals_request.invalid,
-  "goals.storage.record_unreadable": goals_storage.record_unreadable,
+  "goals.storage.record_unreadable": storedRecordErrors.record_unreadable,
 } as const;

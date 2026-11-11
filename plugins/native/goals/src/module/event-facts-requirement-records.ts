@@ -3,7 +3,8 @@ import type {
   GoalEventRequirementBinding,
   GoalEventRequirementSource,
 } from "../contract/goals.js";
-import { rowJson, rowText, sqliteJson, type GoalsSqliteDatabase } from "./repository.js";
+import { storedJson } from "../stored-json.js";
+import { rowText, sqliteJson, type GoalsSqliteDatabase } from "./repository.js";
 
 type Row = Record<string, unknown>;
 
@@ -58,14 +59,14 @@ export class GoalEventRequirementRecords {
   }
 
   getExtraRequirement(requirementId: string): (GoalEventExtraRequirement & { project_id: string; goal_id: string }) | null {
-    const row = this.db.prepare("SELECT * FROM goal_event_requirements WHERE requirement_id = ?")
+    const row = this.db.prepare("SELECT *, rowid AS stored_row FROM goal_event_requirements WHERE requirement_id = ?")
       .get(requirementId) as Row | undefined;
     return row ? { ...mapRequirement(row), project_id: rowText(row.project_id), goal_id: rowText(row.goal_id) } : null;
   }
 
   listExtraRequirements(projectId: string, goalId: string): GoalEventExtraRequirement[] {
     return (this.db.prepare(`
-      SELECT * FROM goal_event_requirements WHERE project_id = ? AND goal_id = ? ORDER BY requirement_id
+      SELECT *, rowid AS stored_row FROM goal_event_requirements WHERE project_id = ? AND goal_id = ? ORDER BY requirement_id
     `).all(projectId, goalId) as Row[]).map(mapRequirement);
   }
 
@@ -108,7 +109,7 @@ export class GoalEventRequirementRecords {
 }
 
 function mapRequirement(row: Row): GoalEventExtraRequirement {
-  const source = row.source_json == null ? null : rowJson<GoalEventRequirementSource | null>(row.source_json, null);
+  const source = storedJson<GoalEventRequirementSource | null>(row, "goal_event_requirements", "source_json", null);
   return {
     requirement_id: rowText(row.requirement_id),
     statement: rowText(row.statement),

@@ -2,7 +2,8 @@ import type {
   GoalEventAdoptedPlanningRef,
   GoalEventTypeDefinition,
 } from "../contract/goals.js";
-import { rowJson, rowText, sqliteJson, type GoalsSqliteDatabase } from "./repository.js";
+import { storedJson } from "../stored-json.js";
+import { rowText, sqliteJson, type GoalsSqliteDatabase } from "./repository.js";
 
 type Row = Record<string, unknown>;
 
@@ -69,10 +70,10 @@ export class GoalEventConfigRecords {
 
   listAdoptedPlanning(projectId: string, goalId: string, version: number): GoalEventAdoptedPlanningRef[] {
     const row = this.db.prepare(`
-      SELECT adopted_planning_json FROM goal_event_config_versions
+      SELECT adopted_planning_json, rowid AS stored_row FROM goal_event_config_versions
       WHERE project_id = ? AND goal_id = ? AND version = ?
     `).get(projectId, goalId, version) as Row | undefined;
-    return row ? rowJson(row.adopted_planning_json, []) : [];
+    return row ? storedJson(row, "goal_event_config_versions", "adopted_planning_json", []) : [];
   }
 
   insertType(input: {
@@ -106,7 +107,7 @@ export class GoalEventConfigRecords {
 
   getType(projectId: string, goalId: string, typeId: string, version: number): GoalEventTypeDefinition | null {
     const row = this.db.prepare(`
-      SELECT * FROM goal_event_types
+      SELECT *, rowid AS stored_row FROM goal_event_types
       WHERE project_id = ? AND goal_id = ? AND type_id = ? AND type_version = ?
     `).get(projectId, goalId, typeId, version) as Row | undefined;
     return row ? mapType(row) : null;
@@ -114,7 +115,7 @@ export class GoalEventConfigRecords {
 
   latestType(projectId: string, goalId: string, typeId: string): GoalEventTypeDefinition | null {
     const row = this.db.prepare(`
-      SELECT * FROM goal_event_types
+      SELECT *, rowid AS stored_row FROM goal_event_types
       WHERE project_id = ? AND goal_id = ? AND type_id = ?
       ORDER BY type_version DESC LIMIT 1
     `).get(projectId, goalId, typeId) as Row | undefined;
@@ -123,7 +124,7 @@ export class GoalEventConfigRecords {
 
   listLatestTypes(projectId: string, goalId: string): GoalEventTypeDefinition[] {
     const rows = this.db.prepare(`
-      SELECT t.* FROM goal_event_types t
+      SELECT t.*, t.rowid AS stored_row FROM goal_event_types t
       JOIN (
         SELECT type_id, MAX(type_version) AS type_version
         FROM goal_event_types
@@ -152,7 +153,7 @@ function mapType(row: Row): GoalEventTypeDefinition {
     semantic_family: row.semantic_family == null
       ? undefined
       : rowText(row.semantic_family) as GoalEventTypeDefinition["semantic_family"],
-    source: rowJson(row.source_json, { kind: "local" as const }),
-    fields: rowJson(row.fields_json, []),
+    source: storedJson(row, "goal_event_types", "source_json", { kind: "local" as const }),
+    fields: storedJson(row, "goal_event_types", "fields_json", []),
   };
 }

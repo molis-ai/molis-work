@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
+import { CODING_COMPOSER, CODING_TAKEN } from "./fixtures/coding-composer.js";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
@@ -128,6 +129,8 @@ test("VUX-33: Coding reopens a turn with a large code block as text at once and 
   const workspace = join(homeDirectory, "code-scale");
   await mkdir(workspace, { recursive: true }); await writeFile(join(workspace, "note.txt"), "x\n");
   const fill = (selector: string, value: string) => evaluate(`(()=>{const node=document.querySelector(${JSON.stringify(selector)});node.value=${JSON.stringify(value)};node.dispatchEvent(new Event('input',{bubbles:true}));node.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+  // The box and its controls are the workbench bar's (one input): set in the top document.
+  const barFill = (selector: string, value: string) => browser.evaluate(`(()=>{const node=document.querySelector(${JSON.stringify(selector)});node.value=${JSON.stringify(value)};node.dispatchEvent(new Event('input',{bubbles:true}));node.dispatchEvent(new Event('change',{bubbles:true}));})()`);
   await command("Emulation.setDeviceMetricsOverride", { width: 1360, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await click(".navigator-project-settings");
@@ -144,12 +147,12 @@ test("VUX-33: Coding reopens a turn with a large code block as text at once and 
   await waitFor(`document.querySelector('[data-work-surface="coding"]')?.getBoundingClientRect().width > 100`);
   active = child;
   await click(`${coding} [data-coding-new]`);
-  await waitFor(`!document.querySelector('${coding} [data-coding-input] .mw-composer__input').disabled && document.querySelector('${coding} [data-coding-input] [data-composer-control=model]').options.length >= 1`);
-  await fill(`${coding} [data-coding-input] [data-composer-control=model]`, JSON.stringify(["local-only", "fixture-model"]));
-  await fill(`${coding} [data-coding-input] [data-composer-control=intent]`, "discuss");
-  await fill(`${coding} [data-coding-input] .mw-composer__input`, "写一大段代码");
-  await waitFor(`!document.querySelector('${coding} [data-coding-input] [data-composer-send]').disabled`);
-  await click(`${coding} [data-coding-input] [data-composer-send]`);
+  await browser.waitFor(`${CODING_TAKEN} && !document.querySelector('${CODING_COMPOSER} .mw-composer__input').disabled && document.querySelector('${CODING_COMPOSER} [data-composer-control=model]').options.length >= 1`);
+  await barFill(`${CODING_COMPOSER} [data-composer-control=model]`, JSON.stringify(["local-only", "fixture-model"]));
+  await barFill(`${CODING_COMPOSER} [data-composer-control=intent]`, "discuss");
+  await barFill(`${CODING_COMPOSER} .mw-composer__input`, "写一大段代码");
+  await browser.waitFor(`!document.querySelector('${CODING_COMPOSER} [data-composer-send]').disabled`);
+  await browser.click(`${CODING_COMPOSER} [data-composer-send]`);
   await waitFor(`[...document.querySelectorAll('${coding} [data-coding-turns] [data-kind="assistant"]')].some(node => node.textContent.includes('第一段'))`, 60_000);
   model.finish();
   await waitFor(`[...document.querySelectorAll('${coding} [data-coding-turns] [data-kind="assistant"]')].some(node => node.textContent.includes('写完了'))`, 60_000);

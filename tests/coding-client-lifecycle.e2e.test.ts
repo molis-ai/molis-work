@@ -12,7 +12,8 @@ test('Coding results index follows section visibility, jumps with focus, and rel
   const { command, sessionId, navigate, origin, projectId } = browser;
   const { evaluate, waitFor, click } = await pluginFrameBrowser(t, browser, "coding");
   await navigate(() => command('Page.navigate', { url: `${origin}/projects/${projectId}/?desktop=1&openPlugin=coding` }, sessionId));
-  await waitFor("document.querySelector('[data-coding-input] [data-composer-control=model] option')");
+  // Coding's page has started: its composer is mounted, as a receiver of the bar's one input (no session open, the bar stays the Assistant's).
+  await waitFor("Boolean(document.querySelector('[data-coding-input][data-composer-remote]'))");
   await evaluate(`(() => {
     window.indexRoot=document.querySelector('[data-coding-workbench]');
     window.indexTools=indexRoot.querySelector('[data-coding-tools]');
@@ -62,7 +63,7 @@ test("Coding stops hidden polling and releases every client listener before the 
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await click('[data-plugin-strip] [data-plugin-id="coding"]');
   await waitFor("codingRequests.some(request=>request.path.endsWith('/state'))");
-  await child.waitFor("document.querySelector('[data-coding-input] [data-composer-control=model] option')");
+  await child.waitFor("Boolean(document.querySelector('[data-coding-input][data-composer-remote]'))");
   await child.evaluate("window.codingRoot=document.querySelector('[data-coding-workbench]');window.codingParent=codingRoot.parentElement;window.lifecycleErrors=[];addEventListener('error',e=>lifecycleErrors.push(e.message));addEventListener('unhandledrejection',e=>lifecycleErrors.push(String(e.reason)))");
   // SYS-15-L1: hiding preserves the actual browsing context, while its polling stops.
   await evaluate("window.originalCodingFrame=document.querySelector('iframe[data-plugin-frame=coding]')");

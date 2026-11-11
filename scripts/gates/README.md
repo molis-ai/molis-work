@@ -16,7 +16,7 @@
 | 规则 | 模块 | 失败时说什么 | 怎么办 |
 | --- | --- | --- | --- |
 | 活文档里没有断链 | `doc-links.mjs` | `broken link: <文件>:<行>: link … points at …` | 改链接；文件已删就写成不带链接的文字并说明去向。`archive/`、`node_modules/`、`.impeccable/`、`dist/` 与根目录允许名单之外的条目（`outputs/`、`.zcode/`）不查；围栏代码块与行内代码里的不算链接；`http:`、`mailto:` 等外链不查；指向 `.md` 的 `#锚点` 按 GitHub 规则对标题查 |
-| `skills/`、`AGENTS.md`、`docs/system/CALL-CHAINS.md` 引用的路径与动作 id 存在 | `doc-citations.mjs` | `bad citation: … points at …` / `… is not an id the code defines` | 改文档；确属有意（计划中的文件、插件工程内的相对路径）写进 `tooling/gates/doc-citation-exceptions.json`，带理由，不再需要时门禁会要求删掉 |
+| `skills/`、`AGENTS.md`、`docs/system/CALL-CHAINS.md`、`docs/system/EXTENSION-POINTS.md` 引用的路径与动作 id 存在 | `doc-citations.mjs` | `bad citation: … points at …` / `… is not an id the code defines` | 改文档；确属有意（计划中的文件、插件工程内的相对路径）写进 `tooling/gates/doc-citation-exceptions.json`，带理由，不再需要时门禁会要求删掉 |
 | `specs/README.md` 索引与根目录分类 | `spec-index.mjs` | `spec index: …` | 根目录的 spec 目录都要在索引里出现一次：状态句以「状态：现行规范」开头的列在「现行规范」，其余在「在做的」；索引里不列归档的；`specs/` 根只放 `README.md`、`BACKLOG.md`、`archive/` 与 spec 目录 |
 | BACKLOG 没有完成行 | `backlog-rows.mjs` | `BACKLOG: … says it is done` | 做完就删行，在提交说明里写编号；编号不复用 |
 | BACKLOG 行形状不对 | `backlog-rows.mjs` | `<文件>:<行>: BL-… has n columns; a row has 8` / `… has no source` / `… has no owner` / `… has priority "…", which is not 高, 中 or 低` | 每行正好 8 列（单元格里用反斜杠转义的竖线不分列），来源、优先级、负责人不能空，优先级只写高、中、低。完成行在转义的竖线处分开、不分开各看一遍，所以「说明、转义竖线、已完成」这样的格子也算完成行 |

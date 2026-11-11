@@ -141,7 +141,7 @@ Text Stats 原来的 12 个文件是：上表的 `scripts/workspace-packages.mjs
 | 场景 | 现在 | 文件 |
 | --- | --- | --- |
 | 插件自己的设置页 | 0 | Manifest；图标取 `settings` 视图的 `icon`，没写或宿主不认识这个图标名时为 `settings`（W5-06 第 2b 片，宿主不再有图标表） |
-| 宿主自有的全局分区（以「记忆」为例） | 9 | `settings-sections.ts`（`HOST_SECTIONS`）、`settings-renderer.ts`、`settings-directory.ts`、`settings-navigation.ts`、`plugin-settings-catalog.ts`（`isHostGlobalSettingsSection`）、`scripts/client/settings-directory.ts`、`page-assets.ts`、`scripts/settings.ts`、`apps/local-host/src/web-goals-read.ts`（路由到分区） |
+| 宿主自有的全局分区（以「记忆」为例） | 9 | `settings-sections.ts`（`HOST_SECTIONS`）、`settings-renderer.ts`、`settings-directory.ts`、`settings-navigation.ts`、`plugin-settings-catalog.ts`（`isHostGlobalSettingsSection`）、`apps/workbench/src/scripts/client/settings-directory.ts`、`page-assets.ts`、`apps/workbench/src/scripts/settings.ts`、`apps/local-host/src/web-goals-read.ts`（路由到分区） |
 | 同时有项目版 | +2 = 11 | `project-settings-pages.ts`、`project-settings-folds.ts` |
 
 **目标：0 / 2。** 宿主分区由一张登记表产生（分区 id、名称、图标、分组、顺序、渲染函数、静态资源），再加分区自己的渲染文件。`settings-sections.ts` 的注释写「The one list of global settings categories」，但分区 id 实际散在 9 个文件里，这是名单与单一来源不符的地方。无切片，建议并入 W5-02（4.3 的 X-2）。
@@ -158,11 +158,11 @@ Text Stats 原来的 12 个文件是：上表的 `scripts/workspace-packages.mjs
 | 分组、默认固定 | 0 / 1 | 分组：`navigator`/`island` 视图的 `group`（`advance`、`make`、`personal`、`research`、`code`，W5-06 第 2b 片），宿主只管组名与顺序；骨干与扩展入口：`navigator` 视图的 `rail`（`core` 列在第一个标题下、按视图 `order` 排；`extend` 是 Dock 菜单与切换器头部的入口，不进工具列表）；默认固定：同一个视图的 `pinned_default: true`，工作台经 `dockDefaultPins()`、`extendPluginIds()`（`plugin-catalog.ts`）读，只采信项目选择的内置插件（W5-02 PR-D，PG-074） |
 | 设置页的数据 | 0（以前 `web-catalog.ts` 里 Shelf、Coding 各有一条分支） | `settings` 视图的 `settings_data: { action }`：本 Manifest 自己的、只读、面向用户（audience `user`）、只有一个版本的查询（SDK 检查）。宿主只有一条路：调这个动作，加上固定的平台上下文（`SettingsPageContext`：项目、打开设置的那个项目），一起交给贡献的 `render`（`SettingsPageModel`）；Agent 运行时列表另用 `settings_runtimes: true` 明确请求，不声明则不查询并给空集合，查询失败仍报错。目前只对内置设置贡献兑现，已安装 Runtime 插件的动态接线仍待补（W5-02 PR-D，PG-072） |
 | 舞台的数据 | 0（Schedule 已改；Feed、Inbox 在 `plugin-stage-fragment-http.ts`、`stage-renderers.ts` 里仍按名字，T-133 第 2 片收） | 打开舞台的视图的 `stage_data: { action }`，规则同 `settings_data`（SDK 检查，还要求写在打开舞台的那个视图上）。宿主按这个人、只带该动作自己的权限调用，结果是 `StagePageModel.data`；整页和 `GET /api/stage/<project_plugin_id>` 原地重画走同一条路（`apps/local-host/src/project-stage-data.ts`、`stage-renderers.ts` 的 `declaredStageFragment`）。只对内置目录兑现（T-133，PG-060） |
-| 新建入口、项目首页起点 | 0（W5-06 余项第 1 片以前是 3：`goal-inputs-html.ts`、`scripts/client/placement.ts`、`scripts/client/project-home.ts` 里各有一张手写的表，已删；服务端按 `creatableKinds`、`homeStarts` 把声明写进页面，客户端只读页面上的值） | 同一个视图的 `creates`（指向本 Manifest 里能新建的工作流内容站，默认标题为「未命名」加 `title`）与 `start`（`title`、`hint`，可选 `icon`），工作台经 `creatableKinds`、`homeStarts`（`plugin-catalog.ts`）读 |
+| 新建入口、项目首页起点 | 0（W5-06 余项第 1 片以前是 3：`goal-inputs-html.ts`、`apps/workbench/src/scripts/client/placement.ts`、`apps/workbench/src/scripts/client/project-home.ts` 里各有一张手写的表，已删；服务端按 `creatableKinds`、`homeStarts` 把声明写进页面，客户端只读页面上的值） | 同一个视图的 `creates`（指向本 Manifest 里能新建的工作流内容站，默认标题为「未命名」加 `title`）与 `start`（`title`、`hint`，可选 `icon`），工作台经 `creatableKinds`、`homeStarts`（`plugin-catalog.ts`）读 |
 | 侧栏标签 | 0 | `side` 视图，贡献的目标槽是 `workbench.side`；插件启用才出现 |
 
 **打开插件时落在哪里由声明决定**（W2'-2）：`?openPlugin=`、搜索命中的 `open.surface`、助理通知与放置卡片的 `open`、页面里各处的「打开某插件」都只说是哪个插件（和可选的条目 id），不说位置。工作台在一处（`apps/workbench/src/plugin-catalog.ts` 的 `sideOpenedPlugins`，页面一侧 `apps/workbench/src/scripts/client/plugin-place.ts`）按声明决定：界面有工作区界面（`workbench.main` 或 `workbench.directory`）的在工作区打开，和以前一样，即使它也有 `side` 视图；只有 `side` 视图的打开它的侧栏格，条目 id 原样交给那个视图（`molis-work:select-item`），工作台不解释。所以加一个只住在侧栏的插件不用改任何打开它的地方，存着的链接与 `open` 也不用迁移。
-| 标题栏 | 插件没有入口 | 标题栏的状态项（后台任务、插件通知铃铛）是宿主的。插件通过 `background_job` 声明（后台任务）或到期提醒、插件事件间接出现，不是自己的槽。新增一种宿主状态项要改 4–7 个文件：`immersive-shell.ts`、一个客户端脚本（如 `scripts/client/attention.ts`）、`scripts/client/initialization.ts`、`styles/immersive-navigation.ts`；进入流程页也要显示时再加 `arrival/shell.ts`、`arrival/chooser.ts`、`styles/arrival.ts` |
+| 标题栏 | 插件没有入口 | 标题栏的状态项（后台任务、插件通知铃铛）是宿主的。插件通过 `background_job` 声明（后台任务）或到期提醒、插件事件间接出现，不是自己的槽。新增一种宿主状态项要改 4–7 个文件：`immersive-shell.ts`、一个客户端脚本（如 `apps/workbench/src/scripts/client/attention.ts`）、`apps/workbench/src/scripts/client/initialization.ts`、`styles/immersive-navigation.ts`；进入流程页也要显示时再加 `arrival/shell.ts`、`arrival/chooser.ts`、`styles/arrival.ts` |
 
 **目标：0 / 0 / 0 / 2。** 分组、常驻、默认固定作为 Manifest 或目录的放置提示（W5-02 已把「shell placement hints」列入范围）；标题栏状态项做成声明加一个渲染入口。标题栏这一项无切片。
 
@@ -289,7 +289,7 @@ Text Stats 原来的 12 个文件是：上表的 `scripts/workspace-packages.mjs
 - 执行规则里的动作：沿用现有受众（`ActionAudience`，`packages/contracts/src/platform/actions.ts`，目前是 `user | agent | workflow | mcp | plugin`），不新增受众（新增要改这个联合并复核所有按受众分支的位置）；无人在场执行的授权语义要在设计稿里单独定。
 - 补什么：X-6「领域事件订阅口」（读项目库事件流、按声明订阅）；插件部分靠 3.1 的四片加 X-1；Module 部分靠 3.10 的目标。**再推演：6，另需 SSOT 文档一行** = Module 4 + 插件 1 + 订阅口 1。
 
-**F6 调用诊断**（合同包里的 `platform/observability` 占位子路径已在 W2-01 删除；`docs/platform/CONTRACTS-AND-OPERATIONS.md` 写明 `packages/observability` 尚未创建；路线 W3-01 的调用编号）。
+**F6 调用诊断**（合同包里的 `platform/observability` 占位子路径已在 W2-01 删除；[`docs/platform/CONTRACTS-AND-OPERATIONS.md`](../platform/CONTRACTS-AND-OPERATIONS.md) 写明独立的观测包还是计划、尚未创建；路线 W3-01 的调用编号）。
 
 - 现在（推演，约 13）：内核给每次调用编号（`packages/kernel/src/action-settlement.ts` 的 `bindCall`、`packages/contracts/src/platform/actions.ts` 的 `call_id`）2；六类入口各自带出编号：Web（`apps/local-host/src/web-server.ts`）、MCP（`apps/local-host/src/mcp-request-lifetime.ts`）、助理（`apps/local-host/src/assistant/assistant-authority.ts`）、Agent 工具（`apps/local-host/src/agent-host-composition.ts`）、CLI（`apps/local-host/src/cli-project.ts`）、调度（`apps/local-host/src/web-project-schedulers.ts`）6；调用记录 `apps/local-host/src/action-call-log.ts` 1；诊断界面：调用记录 `apps/local-host/src/web-capabilities.ts`、`apps/workbench/src/capabilities.ts`，「设置 › 诊断」按编号查找 `apps/local-host/src/web-call-diagnostics.ts`、`apps/workbench/src/settings-call-diagnostics.ts` 4。`apps/local-host/src` 里已经没有 `console.*` 调用，日志统一走 `hostLog`（`apps/local-host/src/host-log.ts`，W5-13）。
 - 补什么：W3-01（编号贯通）、W3-02（一个错误模型）；W5-13（结构化日志）在宿主里已铺好，见上一条。这些是一次性铺设，不是每个功能都付的成本。界面形态按用户 2026-10-08 的决定 #5（`specs/archive/repository-anti-corruption/spec.md` §1「调用编号是否上界面」，PR #312）：错误详情里显示可复制的短编号，「设置 › 诊断」按编号列出最近的调用。**再推演：3**（面板、导出路由、登记一项）。

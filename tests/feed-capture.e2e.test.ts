@@ -236,10 +236,12 @@ test("FBR-07 FSS-35 the real Feed page reaches later messages and materials and 
       .run(projectId, `page-material-${String(n).padStart(3, "0")}`, target.item_id, `Material ${n}`, "Bounded source", "Material preview", "2026-11-11T00:00:00Z", "2026-11-11T00:00:00Z");
   })();
   await pluginFrameInitScript(t, b, `window.molisWorkbenchPluginFactories=new Proxy({}, {set(target,key,value){target[key]=key==='feed'?host=>{
-    window.pagingHost=host; window.pagingPending=0; window.pagingReads=[];
+    window.pagingHost=host; window.pagingPending=0; window.pagingReads=[]; window.pagingTrace=[];
+    host.root.addEventListener('molis-work:select-item', event=>pagingTrace.push({selection:event.detail}));
     const read=host.view.readDocument;
     host.view.readDocument=async query=>{
       pagingReads.push([query?.input?.offset ?? null, query?.input?.material_offset ?? null]); pagingPending++;
+      pagingTrace.push({read:query?.input, lang:document.documentElement.dataset.uiLanguageTag});
       try {
         const html=await read(query);
         if (window.pagingHold && query?.input?.material_offset !== undefined) {
@@ -310,7 +312,9 @@ test("FBR-07 FSS-35 the real Feed page reaches later messages and materials and 
       await child.evaluate("window.pagingRelease()");
     }
     await child.waitFor(`document.documentElement.dataset.uiLanguageTag===${JSON.stringify(tag)} && pagingReads.length>${readCount} && pagingPending===0`);
-    assert.deepEqual(await child.evaluate(`pagingReads.slice(${readCount})`), [["200", null], [null, "200"]]);
+    const languageReads = await child.evaluate(`pagingReads.slice(${readCount})`);
+    if (JSON.stringify(languageReads) !== '[["200",null],[null,"200"]]') t.diagnostic(JSON.stringify(await child.evaluate("pagingTrace.slice(-12)")));
+    assert.deepEqual(languageReads, [["200", null], [null, "200"]]);
     assert.deepEqual(await child.evaluate(`[
       pagingSurface===pagingHost.root, document.querySelectorAll('[data-feed-entry-id]').length,
       document.querySelector('[data-feed-entry-id][aria-selected=true]')?.dataset.feedEntryId,

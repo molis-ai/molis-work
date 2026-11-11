@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT, UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { IMAGES_CLIENT_FACTORY_SCRIPT, imagesUiContribution } from "@molis-ai/molis-work-plugin-images";
 import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { pageText, pageTextScript, withPageText } from "./fixtures/page-text.js";
 import { openStudioChrome } from "./fixtures/plugin-builder-browser.js";
 
 async function chrome(t: TestContext) {
@@ -131,7 +132,7 @@ test("Images uses Host lifetime: hidden views stop polling, reopening refreshes,
   const page = await chrome(t); if (!page) return;
   let reads = 0, block = false, pending: ServerResponse | undefined, aborted = 0;
   const job = { id: "current", status: "running", prompt: "服务器上的当前记录", created_at: "2026-09-28T00:00:00Z", images: [], connection_name: "fixture", model: "fixture" };
-  const body = imagesUiContribution.render({ contribution_id: imagesUiContribution.descriptor.contribution_id, surface: "workbench", model: { primitives: { escape: escapeHtml, text: text => text } } });
+  const body = withPageText("zh", ["images"], () => imagesUiContribution.render({ contribution_id: imagesUiContribution.descriptor.contribution_id, surface: "workbench", model: { primitives: { escape: escapeHtml, text: pageText("zh", "images") } } }));
   const server = createServer((request, response) => {
     response.setHeader("content-type", request.url === "/" ? "text/html" : "application/json");
     if (request.url === "/api/plugins/io.molis.work.images/jobs") {
@@ -141,10 +142,11 @@ test("Images uses Host lifetime: hidden views stop polling, reopening refreshes,
     }
     if (request.url === "/api/plugins/io.molis.work.images/connections") { response.end(JSON.stringify({ connections: [], auth_connections: [] })); return; }
     response.end(`<!doctype html><section id="parent" hidden>${body}</section><script>
+      ${pageTextScript("zh", "images")}
       ${UI_REQUEST_CLIENT_SCRIPT}
       window.molisWorkControlHeaders = () => ({});
       window.mount = (${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})();
-      window.boot = () => (${IMAGES_CLIENT_FACTORY_SCRIPT})({ mountPluginClient: mount, translate: x => x, route: x => x, pluginRoute: path => '/api/plugins/io.molis.work.images' + path, pluginId: 'io.molis.work.images', projectId: () => 'project', loadMedia: (image, path) => { image.src = path; }, confirm: async () => true });
+      window.boot = () => (${IMAGES_CLIENT_FACTORY_SCRIPT})({ mountPluginClient: mount, translate: globalThis.t.text, route: x => x, pluginRoute: path => '/api/plugins/io.molis.work.images' + path, pluginId: 'io.molis.work.images', projectId: () => 'project', loadMedia: (image, path) => { image.src = path; }, confirm: async () => true });
       window.root = document.querySelector('[data-images=workbench]'); root.hidden = false; boot();
     </script>`);
   });

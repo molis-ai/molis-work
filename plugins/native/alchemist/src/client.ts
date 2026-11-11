@@ -20,7 +20,7 @@ const root=document.querySelector('[data-alchemist=workbench]');if(!root)return;
 const life=host.mountPluginClient(root);if(!life)return;let viewAbort;
 const readText=globalThis.t.text, $=(s,n=root)=>n.querySelector(s[0]==='['?s:'[data-alc-'+s+']'), enc=encodeURIComponent;
 const mainEl=$('content'),footer=$('footer'),side=$('side'),sheet=$('dialog'),form=$('form'),bodySlot=$('dialog-body'),submitBtn=$('submit');
-const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),tx=v=>esc(globalThis.t.text(v));
+const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),tx=v=>esc(readText(v));
 const button=(label,action,primary=false,attrs='')=>'<button type="button" class="mw-btn mw-btn--'+(primary?'primary':'ghost')+'" data-alc-action="'+action+'" '+attrs+'>'+tx(label)+'</button>';
 const muted=v=>'<p class="alc-muted">'+v+'</p>';
 const safeUrl=value=>{try{const url=new URL(value);return /^https?:$/.test(url.protocol)&&!url.username&&!url.password?esc(url.href):'#';}catch{return '#';}};

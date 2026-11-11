@@ -44,7 +44,7 @@ export function composeSection(say: (key: string) => string): string {
       + renderField({ label: "来源网址", error: "这不是有效的网址。", control: renderInput({ name: "compose-url", value: "example", invalid: true }) })
       + renderField({ label: "名称", hint: "显示在目录里。", control: renderInput({ name: "compose-name", value: "设计观察" }) })
       + renderField({ label: "说明", control: renderTextarea({ name: "compose-note", placeholder: "为什么关注这个来源" }) }),
-    footer: `${renderButton({ label: say("common.control.cancel"), variant: "secondary" })}${renderButton({ label: "common.control.save", variant: "primary" })}`,
+    footer: `${renderButton({ label: say("common.control.cancel"), variant: "secondary" })}${renderButton({ label: say("common.control.save"), variant: "primary" })}`,
     className: "mw-catalog-form",
   });
   const composeDialog = renderDialog({

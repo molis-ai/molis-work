@@ -596,6 +596,8 @@
     "coding.error.session-unreadable": "原会话暂不可读，请刷新后重试。",
     "coding.error.split-changed": "会话或主工作区已改变，请重新打开分工",
     "coding.error.worktree-changed": "会话已改变，请重新打开独立工作树",
+    "coding.executor.mode-edit": "修改",
+    "coding.executor.mode-execute": "执行",
     "coding.face.artifacts": "产物",
     "coding.face.files": "文件",
     "coding.face.files-unavailable": "文件面尚未装配，现阶段可使用会话、任务、目标和产物。",

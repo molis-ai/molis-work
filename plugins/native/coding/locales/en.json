@@ -620,6 +620,8 @@
     "coding.error.session-unreadable": "The original session cannot be read right now; refresh and try again.",
     "coding.error.split-changed": "The session or main workspace has changed; open the split again",
     "coding.error.worktree-changed": "The session has changed; open the separate worktrees again",
+    "coding.executor.mode-edit": "Edit",
+    "coding.executor.mode-execute": "Execute",
     "coding.face.artifacts": "Results",
     "coding.face.files": "Files",
     "coding.face.files-unavailable": "The Files face is not set up yet; Sessions, Tasks, Goals and Results work for now.",

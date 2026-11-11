@@ -132,6 +132,7 @@ export type ConnectionNeedTrip = (service_id: string, slot: { slot_id: string; r
 
 export function pageConnectionNeed(port: MessagePort, scope: FrameScope, areas: PageFramedAreas, pageId: string, route: (path: string) => string, translate: Translate, owner: string, trip: ConnectionNeedTrip) {
   const t: (text: string, values?: Record<string, string | number>) => string = sayNamed(translate);
+  const wordsFor = (target: UiConnectionNeedTarget) => sayNamed(translate, target.kind === "image");
   const entries = new Map<string, Entry>(), refused = new Set<string>();
   const send = (kind: string, id: number, more: object = {}) => { if (scope.alive) port.postMessage({ type: "connection-need-" + kind, id, ...more } as ConnectionNeedDown); };
   const ask = <T>(target: UiConnectionNeedTarget, body: Record<string, unknown>) => molisWorkRequest<T>(route("/api/host/plugin-page-connection"),
@@ -161,7 +162,7 @@ export function pageConnectionNeed(port: MessagePort, scope: FrameScope, areas: 
     settings: (path, body, method) => molisWorkRequest("/api/settings/connectors/" + path, { scope, ...(body === undefined ? {} : { body }), ...(method ? { method } : {}) }),
     settle: (entry, answer) => {
       const bound = answer.connection;
-      if (bound?.state === "connected") fold(entry, t("common.connection-need.name-connected-account", { name: entry.read!.service_title, account: bound.label }), { status: "connected", account: { label: bound.label } });
+      if (bound?.state === "connected") fold(entry, wordsFor(entry.target)("common.connection-need.name-connected-account", { name: entry.read!.service_title, account: bound.label }), { status: "connected", account: { label: bound.label } });
       else { entry.read = answer; entry.stage = startStage(entry); }
     },
     fail: (entry, note) => { entry.note = note || t("common.connection-need.not-connected-nothing-changed-here-can-try-again"); entry.danger = true; if (entry.stage === "running") entry.stage = startStage(entry); },
@@ -186,7 +187,7 @@ export function pageConnectionNeed(port: MessagePort, scope: FrameScope, areas: 
         const failure = error as { code?: string; message?: string; name?: string };
         if (!live(entry) || failure.name === "AbortError") return;
         if (failure.code === "connector.setup.unsupported") { entry.stage = "unsupported"; return; }
-        c.fail(entry, failure.code === "connector.check.rate_limited" ? t("common.connection-need.name-limiting-requests-right-now-so-key-wasn", { name: entry.read!.service_title }) : failure.message);
+        c.fail(entry, failure.code === "connector.check.rate_limited" ? wordsFor(entry.target)("common.connection-need.name-limiting-requests-right-now-so-key-wasn", { name: entry.read!.service_title }) : failure.message);
       } finally { if (live(entry)) { entry.busy = false; if (entry.stage !== "line") draw(entry); } }
     },
   };
@@ -250,7 +251,7 @@ export function pageConnectionNeed(port: MessagePort, scope: FrameScope, areas: 
     if (!area) { fail(); return; }
     area.surface.className = "mw-platform-area connection-need-area";
     area.surface.dataset.connectionNeedArea = "";
-    area.surface.setAttribute("aria-label", t("common.connection-need.connect-name-owner", { name: read.service_title, owner }));
+    area.surface.setAttribute("aria-label", wordsFor(target)("common.connection-need.connect-name-owner", { name: read.service_title, owner }));
     const entry: Entry = { id: message.id, key, target, area, heights, read, stage: "ask", accounts: [], note: "", danger: false, busy: false, answered: false };
     entries.set(key, entry);
     area.surface.addEventListener("click", event => press(entry, event));
@@ -278,8 +279,7 @@ export function childConnectionNeed(port: MessagePort, scope: FrameScope): Child
   const made = childNeeds.get(port);
   if (made) return made;
   let sequence = 0;
-  const named: (text: string, values?: Record<string, string | number>) => string = (text, values) => sayNamed(uiText.text)(text, values);
-  type Waiting = { element: HTMLElement; settle?: { resolve(outcome: UiConnectionNeedOutcome): void; reject(error: Error): void }; stop?: () => void };
+  type Waiting = { element: HTMLElement; image: boolean; settle?: { resolve(outcome: UiConnectionNeedOutcome): void; reject(error: Error): void }; stop?: () => void };
   const entries = new Map<number, Waiting>(), up = (message: ConnectionNeedUp) => port.postMessage(message);
   const close = (id: number, error: Error = closed()) => {
     const entry = entries.get(id); if (!entry) return;
@@ -296,7 +296,7 @@ export function childConnectionNeed(port: MessagePort, scope: FrameScope): Child
     if (kind === "size") element.style.height = Math.max(0, Number(said.height) || 0) + "px";
     else if (kind === "reveal") element.scrollIntoView({ block: "nearest" });
     // Shown: the place is reported again, since a report made while the shell was still reading the target had no card to go to.
-    else if (kind === "shown") { places.resend(message.id); element.setAttribute("role", "note"); element.setAttribute("aria-label", named("common.connection-need.name-needs-be-connected-here-connection-card-page", { name: String(said.service) })); }
+    else if (kind === "shown") { places.resend(message.id); element.setAttribute("role", "note"); element.setAttribute("aria-label", sayNamed(uiText.text, entry.image)("common.connection-need.name-needs-be-connected-here-connection-card-page", { name: String(said.service) })); }
     else if (kind !== "done") return;
     else if (said.error) close(message.id, said.error === "AbortError" ? closed() : new Error(CONNECTION_NEED_UNAVAILABLE));
     else if (said.outcome) { const settle = entry.settle, outcome = said.outcome; entry.settle = undefined; entry.stop?.(); settle?.resolve(outcome.status === "connected" ? { status: "connected", account: { label: String(outcome.account.label) } } : { status: "cancelled" }); }
@@ -309,7 +309,7 @@ export function childConnectionNeed(port: MessagePort, scope: FrameScope): Child
     for (const [id, entry] of entries) if (entry.element === place) close(id);
     const id = ++sequence;
     return new Promise((resolve, reject) => {
-      const entry: Waiting = { element: place, settle: { resolve, reject } };
+      const entry: Waiting = { element: place, image: target.kind === "image", settle: { resolve, reject } };
       entries.set(id, entry);
       if (signal) { const abort = () => close(id); signal.addEventListener("abort", abort, { once: true }); entry.stop = () => signal.removeEventListener("abort", abort); }
       up({ type: "connection-need-open", id, target });

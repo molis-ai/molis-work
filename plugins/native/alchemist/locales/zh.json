@@ -3,6 +3,11 @@
   "owner": "io.molis.work.alchemist",
   "locale": "zh",
   "messages": {
+    "alchemist.client-views.awaiting-decision": "待决策",
+    "alchemist.client-views.build-cost": "实现成本",
+    "alchemist.client-views.decision-recorded": "已决策",
+    "alchemist.client-views.market-space": "市场空间",
+    "alchemist.client-views.old-version": "旧版本",
     "alchemist.directory.summary": "写下方向，炼成可比较的卡再决定。",
     "alchemist.directory.name": "炼金术士",
     "alchemist.directory.view-directory": "炼金术士",

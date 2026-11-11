@@ -85,7 +85,7 @@ test("SHELF-LINK-01 SHELF-LINK-02 SHELF-LINK-03 a stored link, search hit and no
   assert.deepEqual(stored.open, { surface: "shelf", id: item.item_id, title: item.name, project_id: projectId }, "with the `open` it was stored with");
   const bell = "[data-assistant-attention]";
   await waitFor(`!document.querySelector(${JSON.stringify(bell)}).hidden && document.querySelector(${JSON.stringify(bell)}).checkVisibility()`, 30_000);
-  assert.match(String(await evaluate(`document.querySelector(${JSON.stringify(bell)}).getAttribute('aria-label')`)), /^等你处理 · \d+$/, "the bell counts the notices that wait");
+  assert.match(String(await evaluate(`document.querySelector(${JSON.stringify(bell)}).getAttribute('aria-label')`)), /^\d+ 件事等你处理$/u, "the bell counts the notices that wait");
   // The main area as it is before the notice is opened.
   const mainArea = `({ surface: document.body.dataset.desktopSurface ?? null, tabs: [...document.querySelectorAll('[data-titlebar-tabs] [data-tab-id]')].map((tab) => tab.textContent.trim() + ':' + String(tab.hasAttribute('aria-current'))),
     shelf: Boolean(document.querySelector('[data-work-surface=shelf], [data-titlebar-tabs] [data-plugin=shelf]')) })`;

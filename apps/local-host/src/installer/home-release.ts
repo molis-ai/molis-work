@@ -126,7 +126,7 @@ const execFileAsync = promisify(execFile);
 async function copyLoaderLibraries(binary: string, destinationBinary: string): Promise<void> {
   let listing = "";
   try {
-    listing = String((await execFileAsync("otool", ["-readText", binary])).stdout);
+    listing = String((await execFileAsync("otool", ["-L", binary])).stdout);
   } catch {
     return;
   }

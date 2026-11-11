@@ -86,8 +86,8 @@ test("PAGESCTX-05: real unsaved long drafts keep their context through the child
         return fetchOriginal(input, init);
       };
     })()`);
-    await pages.evaluate(`window.pagesInvalidated = false; document.querySelector('[data-pages=workbench]').addEventListener('molis-work:select-item', event => {
-      if (event.detail?.invalidate) window.pagesInvalidated = true;
+    await pages.evaluate(`window.pagesLocaleChanged = false; document.addEventListener('molis-work:language-changed', event => {
+      if (event.detail?.tag === 'en') window.pagesLocaleChanged = true;
     })`);
     await browser.click("[data-global-search-open]");
     await waitFor("document.querySelector('[data-global-search-dialog]').open");
@@ -99,7 +99,7 @@ test("PAGESCTX-05: real unsaved long drafts keep their context through the child
     await waitFor("typeof releasePendingPage === 'function'");
     await evaluate(`(() => { const link = document.createElement('a'); link.dataset.uiLanguage = 'en';
       link.href = '/locale?lang=en'; document.body.append(link); link.click(); link.remove(); })()`);
-    await pages.waitFor("document.documentElement.lang === 'en' && pagesInvalidated");
+    await pages.waitFor("document.documentElement.lang === 'en' && pagesLocaleChanged");
     assert.equal(await pages.evaluate("window.contextBudgetEditor.view.state.doc.textContent"), short, "the old page stays open until the requested document arrives");
     await evaluate("releasePendingPage()");
     await waitFor(`(${parent})?.object?.id===${JSON.stringify(waiting.id)}`);

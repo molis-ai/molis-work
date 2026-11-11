@@ -13,7 +13,7 @@ import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { ASSISTANT_INSTALL_ID, type AssistantHandover, type AssistantPageCardInput, type AssistantSendInput } from "@molis-ai/molis-work-contracts/services/assistant";
 import { dispatchNativePluginJsonHttp, type NativePluginJsonResult, writeNativePluginJsonResponse } from "../native-plugin-http.js";
-import { readText, pageLocale, type WebLocale } from "../web-locale.js";
+import { activeLocale, readText, pageLocale, type WebLocale } from "../web-locale.js";
 import { modelRoundLocale } from "../reply-language.js";
 import { lastUsedLocale, rememberUiLocale } from "../ui-locale-memory.js";
 import { bindLocalWebActions, localWebActionContext } from "../local-web-actions.js";
@@ -102,8 +102,9 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
   // working them out inspects every capability, so a list of works re-did it several times per work. Each call is still
   // checked against its current definition, availability and grant owner when it is dispatched.
   const contexts = new Map<string, { at: number; context: Promise<ActionCallContext> }>();
+  const personCacheKey = (reference: LocalHostProjectReference | undefined) => JSON.stringify([reference?.project_id ?? "", activeLocale()]);
   const personContext = (reference: LocalHostProjectReference | undefined): Promise<ActionCallContext> => {
-    const key = reference?.project_id ?? "", hit = contexts.get(key), now = Date.now();
+    const key = personCacheKey(reference), hit = contexts.get(key), now = Date.now();
     if (hit && now - hit.at < PERSON_CONTEXT_REUSE_MS) return hit.context;
     const context = localWebActionContext(ports.localHost, reference, LOCAL_OWNER_PERMISSIONS);
     contexts.set(key, { at: now, context });
@@ -114,7 +115,7 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
   const directories = new Map<string, { at: number; views: Promise<readonly ActionView[]> }>();
   const personClient = (reference: LocalHostProjectReference | undefined): PersonActions => {
     const client = reference ? ports.localHost.actionClient(reference) : ports.localHost.homeActionClient();
-    const key = reference?.project_id ?? "";
+    const key = personCacheKey(reference);
     return {
       discover: () => {
         const hit = directories.get(key), now = Date.now();

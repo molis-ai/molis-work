@@ -88,7 +88,15 @@ ${ASSISTANT_CHOOSERS_PART}
 ${ASSISTANT_BROWSER_HANDBACK_PART}
 
   const api=(path,method,body,route=host.route("/api/assistant"+path))=>molisWorkRequest(route,{method:method||"GET",body,fallback:globalThis.t.text("workbench.assistant-island.assistant-could-not-finish-right-now")});
-  const loadExecutors = () => project ? api("/executors").then((res) => { executors = res.executors || []; if (nextExec !== "assistant" && !executorOffer(nextExec)) nextExec = "assistant"; paintAim(); paintSum(); }).catch(() => { executors = []; }) : Promise.resolve();
+  let executorRequest = 0;
+  const loadExecutors = async () => {
+    if (!project) return;
+    const request = ++executorRequest, result = await api("/executors").catch(() => null);
+    if (!result || request !== executorRequest) return;
+    executors = result.executors || [];
+    if (nextExec !== "assistant" && !executorOffer(nextExec)) nextExec = "assistant";
+    paintAim(); paintSum();
+  };
   const executorsLoaded = loadExecutors();
   const el = ${ASSISTANT_ELEMENT_SCRIPT}, receipts = (${ASSISTANT_RECEIPTS_FACTORY_SCRIPT})({ readText, shared: host.receipts, chip: compose.querySelector("[data-assistant-answer]"), api, work: () => curId, reload: () => reload(),
     pact: (content, badge) => paintBlock(blocks.agreements, globalThis.t.text("workbench.assistant-island.what-ai-noted-agreed"), "list", content, badge) });
@@ -276,7 +284,7 @@ ${ASSISTANT_SIDE_PATH_PART}
       const failed = undoable.concat(unsettled).filter((one) => one.state === "failed").length, canUndo = undoable.filter((one) => one.state === "available").length, running = jobs.filter((job) => job.state === "running").length, missed = jobs.filter((job) => job.state === "failed").length;
       paintBlock(node, globalThis.t.text("workbench.assistant-island.output"), "package", list("results", [globalThis.t.text("workbench.assistant-island.saved-versions"), fixed], [globalThis.t.text("workbench.assistant-island.working-files"), made.filter((card) => !fixed.includes(card))]), String(made.length));
       paintBlock(blocks.changes, globalThis.t.text("workbench.assistant-island.changes"), "edit", list("changes", ["", changes], [globalThis.t.text("workbench.assistant-island.still-running-when-stopped"), stopped], [globalThis.t.text("workbench.assistant-island.kept-memory"), remembered]), failed ? failed + " " + globalThis.t.text("workbench.assistant-island.failed") : canUndo ? canUndo + " " + globalThis.t.text("workbench.assistant-island.can-be-undone-2") : String(changes.length + stopped.length + remembered.length), failed > 0);
-      paintBlock(blocks.background, globalThis.t.text("workbench.assistant-island.background-job"), "clock", list("background", ["", background]), missed ? missed + " " + globalThis.t.text("workbench.assistant-island.did-not-finish") : running ? running + " " + globalThis.t.text("workbench.assistant-island.running") : String(jobs.length), missed > 0);
+      paintBlock(blocks.background, globalThis.t.text("workbench.side-panel-tab.background-tasks"), "clock", list("background", ["", background]), missed ? missed + " " + globalThis.t.text("workbench.assistant-island.did-not-finish") : running ? running + " " + globalThis.t.text("workbench.assistant-island.running") : String(jobs.length), missed > 0);
     });
   };
 
@@ -591,6 +599,7 @@ ${ASSISTANT_PAGE_MESSAGES_PART}
     refreshComposerWords();
     paintAim();
     composer?.refresh();
+    void loadExecutors();
   };
   document.addEventListener("molis-work:language-changed", retitleReviews);
   presentation = (${ASSISTANT_STAGE_FACTORY})({island,panel,input,current:getWork,switchTo,showProblem:showError,readText,el});
@@ -668,5 +677,5 @@ ${ASSISTANT_PAGE_MESSAGES_PART}
       project = chosen; tabs = savedTabs(); nextScope = project ? "project" : "personal";
       void showWork(store.get(scoped("current")));
     },
-    dispose: () => { document.removeEventListener("molis-work:language-changed", retitleReviews); follower.stop(); retries.stop(); clearInterval(listTimer); cancelAnimationFrame(materialsFrame); watchers.forEach((watcher) => watcher.disconnect()); composer?.destroy(); } };
+    dispose: () => { executorRequest++; document.removeEventListener("molis-work:language-changed", retitleReviews); follower.stop(); retries.stop(); clearInterval(listTimer); cancelAnimationFrame(materialsFrame); watchers.forEach((watcher) => watcher.disconnect()); composer?.destroy(); } };
 }`;

@@ -375,19 +375,20 @@ test("DRT-10 going back from the connections page before connecting: back on the
   assert.equal(await browser.evaluate(`document.querySelector(${JSON.stringify(card)})?.dataset.status`), "done", "the card is not run again");
 });
 
-test("DRT-06 switching the language in the settings is a reload: the trip, its bar and the page's wait carry on", { timeout: 150_000 }, async t => {
+test("DRT-06 switching the language in settings keeps the trip, its bar and the page's wait", { timeout: 150_000 }, async t => {
   const at = await open(t, "single");
   if (!at) return;
   const { browser, standIn, source, go, arrived } = at;
   await go(source, { kind: "model" }, CARRY);
   await browser.waitFor("document.querySelector('[data-settings-return-bar]')?.dataset.returnBarState === 'waiting'", 15_000);
-  // The language switch is a link in the appearance settings (/locale?lang=…&next=…), followed as the person follows it.
+  // The language switch in the appearance settings updates the open document and its waiting return bar.
   await browser.evaluate("document.dispatchEvent(new CustomEvent('molis-work:open-settings-path', { detail: { href: location.origin + '/settings/appearance' } }))");
   await browser.waitFor("document.querySelector('a[href^=\"/locale?lang=en\"]')?.checkVisibility()", 15_000);
-  await browser.navigate(() => browser.evaluate("document.querySelector('a[href^=\"/locale?lang=en\"]').click()"));
+  await browser.evaluate("window.originalReturnBar = document.querySelector('[data-settings-return-bar]'); document.querySelector('a[data-ui-language=en]').click()");
   await browser.waitFor("document.documentElement.lang.startsWith('en') && document.body.dataset.desktopSurface === 'settings'", 20_000);
   await browser.waitFor("document.querySelector('[data-settings-return-bar]')?.dataset.returnBarState === 'waiting'", 15_000);
-  assert.match(await browser.evaluate<string>("document.querySelector('[data-return-bar-title]').textContent"), /^From /u);
+  await browser.waitFor("document.querySelector('[data-return-bar-title]')?.textContent.startsWith('From ')");
+  assert.equal(await browser.evaluate("window.originalReturnBar === document.querySelector('[data-settings-return-bar]')"), true, "the waiting bar remains mounted");
   await browser.evaluate("document.dispatchEvent(new CustomEvent('molis-work:open-settings-path', { detail: { href: location.origin + '/settings/models' } }))");
   await saveFirstModel(browser, standIn.baseUrl);
   await browser.waitFor("document.body.dataset.desktopSurface !== 'settings'", 20_000);

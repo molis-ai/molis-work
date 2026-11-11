@@ -127,7 +127,7 @@ test("PA-08: two sub-task results and the person's own round arriving together s
   await service.send({ work_id: parentId, text: "两段都交回了吧？我来接着核对", request_id: "req-together-person" }, {});
   await until(async () => (await service.read(parentId)).work.state === "completed" && rounds().length === 2, "the person's round");
   held.resolve();
-  await until(() => service.notices.notices(null).find(item => item.work_id === parentId && /没有自动接着做/.test(item.text)), "the held hand-back refused");
+  await until(() => service.notices.notices(null).find(item => item.work_id === parentId && "original" in item.text && item.text.label?.key === "workbench.assistant-notice.handoff-blocked"), "the held hand-back refused");
   assert.equal(await runs(), 2, "the parent Session gained one Run: the person's");
   assert.equal(rounds().length, 2);
   assert.equal(rounds()[1]!.written_by, undefined, "the person's round, not one the Host wrote");
@@ -195,7 +195,8 @@ test("a refused hand-back tells the person why; after a restart it is taken up o
   refusing = "这个项目的授权已撤回";
   release("开头");
   await until(async () => (await service.read(children[0]!.work_id)).work.state === "completed", "sub-task done");
-  const notice = await until(() => service.notices.notices(null).find(item => item.work_id === parentId && /子任务都已交回，但没有自动接着做：这个项目的授权已撤回/.test(item.text)), "the notice");
+  const notice = await until(() => service.notices.notices(null).find(item => item.work_id === parentId && "original" in item.text
+    && item.text.label?.key === "workbench.assistant-notice.handoff-blocked" && item.text.original === "这个项目的授权已撤回"), "the notice");
   assert.equal(notice.kind, "needs-decision");
   assert.equal(rounds().length, 1, "nothing started");
   assert.equal((await root()).continuation?.state, "eligible", "a refused start leaves the continuation where it was");

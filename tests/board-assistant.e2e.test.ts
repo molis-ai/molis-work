@@ -267,7 +267,7 @@ test("VUX-39 the board's Assistant shows delegated sub-tasks, the bell's notices
   const first = await bell();
   t.diagnostic("bell: " + JSON.stringify(first));
   assert.deepEqual(first.rows, ["「安排试用复盘」等你确认创建日程", "「整理上周的 Feed 摘要」没有完成：模型服务暂时不可用", "到时间了：订会议室"]);
-  assert.deepEqual(first.folds, ["有新结果 · 1", "按你的规则暂不提醒 · 1"]);
+  assert.deepEqual(first.folds, ["有 1 条新结果", "按你的规则暂缓 1 条"]);
   assert.equal(first.count, "等你 3");
   // 知道了 on the reminder settles it; the count follows.
   await inFrame("d.querySelector('[data-notice-id=n-room][data-notice-action=dismiss]').click();");

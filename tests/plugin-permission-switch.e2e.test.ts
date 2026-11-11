@@ -48,7 +48,7 @@ async function openPluginPage(t: TestContext, dual = false) {
     const url = request.url ?? "";
     if (request.method === "GET" && url.startsWith("/assets/")) {
       try {
-        const asset = await host.request(url, { authorized: false });
+        const asset = await host.request(url, { authorized: false, headers: { "accept-encoding": "identity" } });
         const bytes = Buffer.from(await asset.arrayBuffer());
         response.writeHead(asset.status, Object.fromEntries(asset.headers));
         response.end(bytes);
@@ -91,10 +91,20 @@ async function openPluginPage(t: TestContext, dual = false) {
   });
   harness = await ChromeHarness.start(directory, { executable });
   const page = await harness.page();
+  const scriptErrors: string[] = [];
+  t.after(harness.on("Runtime.exceptionThrown", params => {
+    const error = params.exceptionDetails as { text?: string; exception?: { description?: string } };
+    scriptErrors.push(error.exception?.description?.split("\n")[0] ?? error.text ?? "");
+  }));
   await page.command("Runtime.enable");
   await page.command("Page.navigate", { url: `http://127.0.0.1:${address.port}${prefix}/settings/plugins` });
-  await page.wait(`document.querySelectorAll('[data-plugin-trust-list] input[role=switch]').length === 2 && document.querySelectorAll('[data-plugin-trust-home] input[role=switch]').length === ${dual ? 2 : 1}`,
-    { describe: "document.querySelector('[data-plugin-trust-error]')?.textContent" });
+  try {
+    await page.wait(`document.querySelectorAll('[data-plugin-trust-list] input[role=switch]').length === 2 && document.querySelectorAll('[data-plugin-trust-home] input[role=switch]').length === ${dual ? 2 : 1}`,
+      { describe: "JSON.stringify({error:document.querySelector('[data-plugin-trust-error]')?.textContent, words:typeof globalThis.t, bound:document.querySelector('[data-plugin-trust-settings]')?.dataset.pluginTrustBound})" });
+  } catch (error) {
+    t.diagnostic(JSON.stringify(scriptErrors));
+    throw error;
+  }
   await page.evaluate("document.querySelectorAll('details.plugin-trust-item').forEach(item => { item.open = true; })");
   const switchOf = (permission: string) => `input[role=switch][aria-label="${permission}"]`;
   const checked = (permission: string) => page.evaluate<boolean>(`document.querySelector('${switchOf(permission)}').checked`);

@@ -151,7 +151,11 @@ test("RAC-2515 FULL16: revision updates and a hidden refresh retain the item tab
   const a = make("A"), b = make("B");
   await pluginFrameInitScript(t, browser, `
     window.t403Tagged=[];window.t403HiddenSignals=0;
-    addEventListener('message',event=>{if(event.source===parent&&event.data?.type==='molis:plugin-connect')window.t403InitialItem=event.data.config.itemTab;},true);
+    const listen=MessagePort.prototype.addEventListener;
+    MessagePort.prototype.addEventListener=function(type,listener,options){
+      if(type==='message')listen.call(this,type,event=>{if(event.data?.type==='molis:plugin-connect')window.t403InitialItem=event.data.config.itemTab;},{once:true});
+      return listen.call(this,type,listener,options);
+    };
     const descriptor=Object.getOwnPropertyDescriptor(MessagePort.prototype,'onmessage');
     Object.defineProperty(MessagePort.prototype,'onmessage',{...descriptor,set(handler){const port=this;descriptor.set.call(port,typeof handler!=='function'?handler:event=>{if(event.data?.type==='ui'&&event.data.name==='openItem')window.t403Tagged.push({tab:event.data.itemTabId,id:event.data.args[1]});handler.call(port,event);});}});
     let frameApi;Object.defineProperty(globalThis,'molisPluginFrames',{configurable:true,get:()=>frameApi,set(api){const mount=api.mount;api.mount=(root,host,pack)=>{if(pack.id==='feed'){const request=globalThis.molisWorkRequest;let pollingSignal,polls=0;globalThis.molisWorkRequest=Object.assign(async(...args)=>{const own=root.dataset.pluginSurface==='workbench'&&String(args[0]).endsWith('/io.molis.work.feed/view-revision')&&args[1]?.signal&&args[1].headers?.['x-molis-plugin-page']===root.dataset.pluginPage;if(own){if(pollingSignal!==args[1].signal){pollingSignal=args[1].signal;polls=0;}window.t403OwningPolls=++polls;window.t403PollingPage=root.dataset.pluginPage;}const value=await request(...args);if(own&&!args[1].signal.aborted)window.t403PolledRevision=value.revision;return value;},request);window.t403TrustedRefresh=()=>host.invalidateView(root);root.addEventListener('molis-work:select-item',event=>{if(event.detail?.invalidate&&!root.checkVisibility())window.t403HiddenSignals++;});}return mount(root,host,pack);};frameApi=api;}});
@@ -397,8 +401,12 @@ test("T405-FULL-16 FULL16-A FULL16-B: item navigation preserves the original Pag
     window.t405HeldItemIntents=[];window.t405TaggedCount=0;window.t405IntentBarriers=0;
     addEventListener('message',event=>{
       if(event.data?.type==='t405-record-intent-barrier')window.t405IntentBarriers++;
-      if(event.source===parent&&event.data?.type==='molis:plugin-connect')window.t405InitialItem=event.data.config.itemTab;
     },true);
+    const listen=MessagePort.prototype.addEventListener;
+    MessagePort.prototype.addEventListener=function(type,listener,options){
+      if(type==='message')listen.call(this,type,event=>{if(event.data?.type==='molis:plugin-connect')window.t405InitialItem=event.data.config.itemTab;},{once:true});
+      return listen.call(this,type,listener,options);
+    };
     const descriptor=Object.getOwnPropertyDescriptor(MessagePort.prototype,'onmessage');
     Object.defineProperty(MessagePort.prototype,'onmessage',{...descriptor,set(handler){
       const port=this;

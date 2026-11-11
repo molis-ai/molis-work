@@ -5,7 +5,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { INTERACTION_TEXTURE_STYLES } from "@molis-ai/molis-work-design-system";
+import { BASELINE_SKIN, INTERACTION_TEXTURE_STYLES, renderSkinScope } from "@molis-ai/molis-work-design-system";
 import {
   CLIPBOARD_LIMIT,
   SAMPLE_PDF_TEXT,
@@ -485,11 +485,12 @@ test("Shelf UI contribution paints stage folds and DropAgent command chrome", ()
   // PG-075 (#1303): no plugin has an identity colour of its own; Shelf's rail entry takes the neutral tint every plugin takes.
   assert.match(sheet, /\.plugin-rail \[data-plugin-id\][^{]*\{ --plugin-tint: var\(--ink-soft\); \}/);
   assert.doesNotMatch(sheet, /--plugin-shelf\b/);
-  assert.match(INTERACTION_TEXTURE_STYLES, /--content-accent: var\(--action\)/);
-  assert.match(INTERACTION_TEXTURE_STYLES, /--content-side: var\(--surface-soft\)/);
-  assert.match(INTERACTION_TEXTURE_STYLES, /--mark-clay: #B27460;/);
-  assert.match(INTERACTION_TEXTURE_STYLES, /data-resolved-theme="dark"[\s\S]*--hue-slate: #a6afd5;/);
-  assert.match(INTERACTION_TEXTURE_STYLES, /data-resolved-theme="dark"[\s\S]*--mark-clay: #D29C87;/);
+  const tokens = renderSkinScope(BASELINE_SKIN, true);
+  assert.match(tokens, /--content-accent: var\(--action\)/);
+  assert.match(tokens, /--content-side: var\(--surface-soft\)/);
+  assert.match(tokens, /--mark-clay: #B27460;/);
+  assert.match(tokens, /data-resolved-theme="dark"[\s\S]*--hue-slate: #a6afd5;/);
+  assert.match(tokens, /data-resolved-theme="dark"[\s\S]*--mark-clay: #D29C87;/);
 });
 
 test("Shelf declares its routes in its manifest, relative to the plugin's own prefix (Shelf S3: no Host table left)", () => {

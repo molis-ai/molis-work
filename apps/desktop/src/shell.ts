@@ -30,7 +30,9 @@ export const NATIVE_DESKTOP_BOOTSTRAP_SCRIPT = `(()=>{
     window.dispatchEvent(new CustomEvent("molis-shelf-notice",{detail:{message}}));
     const toast=document.querySelector("[data-settings-toast], [data-toast]");
     if(!toast||!globalThis.molisWorkRequest?.toast)return;
-    const display=message.split("\\n").map(line=>globalThis.t.text?.(line)??line).join("\\n");
+    // The native admission code emits this fixed warning alongside its untouched error text.
+    const originalWarning="副本已收下，但未能登记原件；后续处理将无法核对原件是否变化。";
+    const display=message.split("\\n").map(line=>line===originalWarning?(globalThis.t?.text("workbench.desktop-shelf.original-not-registered")??line):line).join("\\n");
     globalThis.molisWorkRequest.toast(toast,null,display,{ms:5000});
     if(partial===true){toast.setAttribute("data-mw-state","partial");toast.classList.remove("is-error");}
   };

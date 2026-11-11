@@ -5,6 +5,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { build } from 'esbuild';
+import { chinesePagePacks, pageTextScriptForPacks } from './fixtures/page-text-packs.js';
 import { PLUGIN_COMPONENT_STYLES, VISUAL_FOUNDATION_STYLES, PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT } from '@molis-ai/molis-work-design-system';
 import { AGENT_STUDIO_CLIENT_FACTORY_SCRIPT, AgentBuilderWorkflow, type AgentBuilderPorts, type AgentBuild } from '@molis-ai/molis-work-plugin-builder';
 import { assertContract } from '@molis-ai/molis-work-plugin-sandbox';
@@ -26,7 +27,7 @@ test('Builder diagnoses accepted reads with current selection, without another c
   const view = { contract, nodes: [notes, reader], connected: contract.operations.map(op => op.id) };
   const draft = { design: { contract }, nodes: view.nodes, connected: view.connected };
   let reads = 0, fail = false, hold = false, release: (() => void) | undefined, entered: (() => void) | undefined;
-  const html = '<!doctype html><meta charset="utf-8"><style>' + VISUAL_FOUNDATION_STYLES + PLUGIN_COMPONENT_STYLES + '</style><main data-studio-preview></main><script>' + compiled.outputFiles[0]!.text + '\n(' + AGENT_STUDIO_CLIENT_FACTORY_SCRIPT + ')({mountPluginClient:(' + UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT + ')(),mode:"preview",build:"probe",api:path=>path,components:options=>{globalThis.app=PluginUi.createPluginComponentClient(options);return app;}})</script>';
+  const html = '<!doctype html><meta charset="utf-8"><style>' + VISUAL_FOUNDATION_STYLES + PLUGIN_COMPONENT_STYLES + '</style><main data-studio-preview></main><script>' + pageTextScriptForPacks('zh', chinesePagePacks()) + compiled.outputFiles[0]!.text + '\n(' + AGENT_STUDIO_CLIENT_FACTORY_SCRIPT + ')({mountPluginClient:(' + UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT + ')(),mode:"preview",build:"probe",api:path=>path,components:options=>{globalThis.app=PluginUi.createPluginComponentClient(options);return app;}})</script>';
   const server = createServer(async (request, response) => {
     if (request.url === '/preview') { response.setHeader('content-type', 'text/html'); response.end(html); return; }
     response.setHeader('content-type', 'application/json');
@@ -92,7 +93,7 @@ test('RAC-2934 RAC-2935 G7 collects independent actual failures and stops on fai
     { id: 'disabled', description: '禁用按钮不能冒充原生拒绝', steps: [{ action: 'submitBlocked', componentId: 'editor', field: 'text', reason: 'valueMissing' }] },
   ];
   const draft = { design: { contract, acceptance }, nodes, connected: ['read'] };
-  const html = '<!doctype html><meta charset="utf-8"><style>' + VISUAL_FOUNDATION_STYLES + PLUGIN_COMPONENT_STYLES + '</style><main data-studio-preview></main><script>(' + AGENT_STUDIO_CLIENT_FACTORY_SCRIPT + ')({mountPluginClient:(' + UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT + ')(),mode:"preview",build:"probe",acceptance:"owned-test-trial",api:path=>path,components:(' + PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT + ')})</script>';
+  const html = '<!doctype html><meta charset="utf-8"><style>' + VISUAL_FOUNDATION_STYLES + PLUGIN_COMPONENT_STYLES + '</style><main data-studio-preview></main><script>' + pageTextScriptForPacks('zh', chinesePagePacks()) + '(' + AGENT_STUDIO_CLIENT_FACTORY_SCRIPT + ')({mountPluginClient:(' + UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT + ')(),mode:"preview",build:"probe",acceptance:"owned-test-trial",api:path=>path,components:(' + PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT + ')})</script>';
   let reads = 0, submits = 0;
   const server = createServer(async (request, response) => {
     if (request.url === '/preview') { response.setHeader('content-type', 'text/html'); response.end(html); return; }
@@ -140,7 +141,7 @@ test('RAC-2934 last-case real CDP loss blocks the batch and never requests model
   const answers = [PROPOSALS, JSON.stringify(full)];
   const requests: Array<{ role: string; task: string }> = [];
   let current: AgentBuild | undefined, captures = 0, empty = false;
-  const html = '<!doctype html><meta charset="utf-8"><style>' + VISUAL_FOUNDATION_STYLES + PLUGIN_COMPONENT_STYLES + '</style><main data-studio-preview></main><script>(' + AGENT_STUDIO_CLIENT_FACTORY_SCRIPT + ')({mountPluginClient:(' + UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT + ')(),mode:"preview",build:"probe",acceptance:"owned-test-trial",api:path=>path,components:(' + PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT + ')})</script>';
+  const html = '<!doctype html><meta charset="utf-8"><style>' + VISUAL_FOUNDATION_STYLES + PLUGIN_COMPONENT_STYLES + '</style><main data-studio-preview></main><script>' + pageTextScriptForPacks('zh', chinesePagePacks()) + '(' + AGENT_STUDIO_CLIENT_FACTORY_SCRIPT + ')({mountPluginClient:(' + UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT + ')(),mode:"preview",build:"probe",acceptance:"owned-test-trial",api:path=>path,components:(' + PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT + ')})</script>';
   const server = createServer((request, response) => {
     if (request.url === '/preview') { response.setHeader('content-type', 'text/html'); response.end(html); return; }
     response.setHeader('content-type', 'application/json');

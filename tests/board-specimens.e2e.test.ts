@@ -58,7 +58,7 @@ test("VUX-39 the board switches its own language, and its plugin rows are Shelf'
   t.diagnostic("shelf rows: " + JSON.stringify(shelf.rows));
   assert.deepEqual(shelf.rows.map(([name]) => name), ["whiteboard-photo.png", "first-use-notes-screenshot-import-wizard-step-one-2026-10-23-morning.png", "trial-recording-first-import.mp4", "interview-wang-yijun.m4a", "interview-transcript.md"]);
   assert.deepEqual(shelf.rows.map(([, kind]) => kind), ["image", "image", "file", "file", "markdown"], "the kinds Shelf gives these files (a recording and a voice note are files to it)");
-  assert.deepEqual([shelf.failed, shelf.folds, shelf.ext], [1, ["Material", "Results"], true]);
+  assert.deepEqual([shelf.failed, shelf.folds, shelf.ext], [1, ["Materials", "Results"], true]);
 
   // Diff: a round's three files with their counts; the long path stays inside its row; the first file's rows follow.
   const diff = await inFrame<{ files: Array<[string, string, string]>; inside: boolean; rows: number; phase: string }>(`const s = d.querySelector('[data-board-specimen=diff-files]');
@@ -96,8 +96,9 @@ test("VUX-39 the board switches its own language, and its plugin rows are Shelf'
   await waitFor(`(() => { const e = ${frame}.contentDocument.documentElement; return e.dataset.resolvedTheme === 'dark' && e.dataset.density === 'compact'; })()`);
   await evaluate("document.querySelector('[data-cond-params] [data-theme-option=light]').click(); document.querySelector('[data-cond-params] [data-density-option=standard]').click()");
 
-  // Back to Chinese: the switch reloads the board in the other language, where it was.
-  await navigate(() => evaluate("document.querySelector('[data-board-lang=zh]').click()"));
+  // Back to Chinese: the board changes its language in place, where it was.
+  await evaluate("window.boardLanguageSentinel = {}; document.querySelector('[data-board-lang=zh]').click()");
+  await waitFor("document.documentElement.lang === 'zh-CN' && Boolean(window.boardLanguageSentinel)", 20_000);
   await waitFor("document.readyState === 'complete' && new URL(location.href).searchParams.get('lang') === 'zh'", 20_000);
   assert.deepEqual(await evaluate("[document.documentElement.lang, document.querySelector('#plugin-rows h2').textContent, location.hash]"), ["zh-CN", "插件行视图", "#plugin-rows"]);
 });

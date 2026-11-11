@@ -199,8 +199,15 @@ const popoversScript = (floor: number) => `(async () => {
   window.fetch = (input, init) => /\\/api\\/attention\\b/.test(String(input?.url ?? input)) && !(init && init.method && init.method !== "GET")
     ? real(input, init).then(response => response.json()).then(body => new Response(JSON.stringify({ ...body, notices }), { status: 200, headers: { "content-type": "application/json" } }))
     : real(input, init);
-  document.dispatchEvent(new Event("visibilitychange"));
-  await wait(400);
+  await new Promise((resolve, reject) => {
+    const listen = event => {
+      if (!event.detail?.notices?.some(notice => notice.notice_id === "t1")) return;
+      clearTimeout(timer); document.removeEventListener("molis-work:attention", listen); resolve();
+    };
+    const timer = setTimeout(() => { document.removeEventListener("molis-work:attention", listen); reject(new Error("Test notices did not reach the bell")); }, 10000);
+    document.addEventListener("molis-work:attention", listen);
+    document.dispatchEvent(new CustomEvent("molis-work:attention-refresh"));
+  });
   const out = {};
   for (const [name, button, popover, present] of ${JSON.stringify(POPOVER_CONTENTS)}) {
     // A suggestion has no button: a plugin's page hands one over and it waits above the bar.

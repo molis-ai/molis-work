@@ -287,7 +287,7 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
         .filter(id => id !== pluginId);
       const came = targetProject === projectId ? "" : relation(also, removing ? "workbench.plugin-workbench.also-removed-list" : "workbench.plugin-workbench.also-added-list");
       const missing = removing ? "" : relation(clickedNeededBy.filter(id => !result.plugins.includes(id)), "workbench.plugin-workbench.plugins-that-depend-not-added-list");
-      const note = [came, missing].filter(Boolean).map(part => "；" + part).join("");
+      const note = [came, missing].filter(Boolean).map(part => readText("workbench.plugin-workbench.relation-note", { note: part })).join("");
       status.textContent = (removing ? globalThis.t.text("workbench.plugin-workbench.removed") : globalThis.t.text("workbench.plugin-workbench.added")) + " " + project.display_name + note;
     } catch (error) { molisWorkRequest.show(status,error); }
     finally { pending = false; selector.disabled = !projects?.length; filter(); if (marketDirty && retry.hidden) void loadMarket(); }

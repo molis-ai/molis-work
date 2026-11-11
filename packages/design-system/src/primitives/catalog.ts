@@ -232,13 +232,13 @@ export function renderPrimitiveCatalog(options: { readonly plugins?: readonly Ca
     ${choiceSection(say)}
     ${composeSection(say)}
     ${renderCatalogExamples(section)}
-    ${buttonSection()}
+    ${buttonSection(say)}
     ${buttonGroupSection()}
     ${fieldSection()}
     ${groupsSection()}
     ${advancedFieldSection()}
     ${tagInputSection()}
-    ${formSection()}
+    ${formSection(say)}
     ${dropZoneSection()}
     ${composerSection(say, options.delivery)}
     ${badgeSection()}
@@ -247,10 +247,10 @@ export function renderPrimitiveCatalog(options: { readonly plugins?: readonly Ca
     ${keepEditsSections(say)}
     ${separatorSection()}
     ${calendarSection()}
-    ${overlaySection()}
+    ${overlaySection(say)}
     ${menuSection()}
     ${menuDescSection(say, options.delivery)}
-    ${tabsSection()}
+    ${tabsSection(say)}
     ${directorySection()}
     ${rowsSection(say)}
     ${itemChoiceSection(say)}

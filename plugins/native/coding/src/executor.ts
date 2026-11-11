@@ -1,5 +1,6 @@
 import { outputFolder, projectFolders } from "./project-folders.js";
-import { defineErrorCodes, type WorkExecutorMode } from "@molis-ai/molis-work-contracts/platform/actions";
+import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
+import { t } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { PluginActionClient } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentHostCapabilities as agent, type AgentMcpToolRef, type AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentSteerReceipt } from "@molis-ai/molis-work-contracts/services/agent-inputs";
@@ -12,8 +13,13 @@ import { nextConfiguration } from "./run-inputs.js";
 import { projectRuntime, runtimeDirectory, supports } from "./runtime-choice.js";
 
 /** The ways a handed-over work may run: Coding's own that need nothing chosen first (collaborating and parallel writers are set up on the page). */
-export const CODING_EXECUTOR_MODES: readonly WorkExecutorMode[] = [{ id: "discuss", title: "讨论" }, { id: "plan", title: "规划" }, { id: "edit", title: "修改" },
-  { id: "execute", title: "执行" }, { id: "review", title: "评审" }];
+const CODING_EXECUTOR_MODES = [
+  { id: "discuss", key: "coding.intent.discuss" },
+  { id: "plan", key: "coding.intent.plan" },
+  { id: "edit", key: "coding.executor.mode-edit" },
+  { id: "execute", key: "coding.executor.mode-execute" },
+  { id: "review", key: "coding.intent.review" },
+] as const;
 const DEFAULT_MODE = "execute";
 /** The rounds a read brings when the caller names no window: as many as the Assistant shows. */
 const READ_WINDOW = 6;
@@ -80,7 +86,7 @@ export function codingExecutor(a: CodingActivation): void {
     const actions = codingActions(a.context, beforeWrite);
     const workspace = await currentWorkspace(api), workspaces = await unlessMissing(projectFolders(api), []);
     const { runtime } = projectRuntime(await runtimeDirectory(actions, api));
-    return { modes: [...CODING_EXECUTOR_MODES], default_mode: DEFAULT_MODE, images: false, workspace_id: workspace?.workspace_id ?? null,
+    return { modes: CODING_EXECUTOR_MODES.map(({ id, key }) => ({ id, title: t.text(key) })), default_mode: DEFAULT_MODE, images: false, workspace_id: workspace?.workspace_id ?? null,
       workspaces: workspaces.map(row => ({ workspace_id: row.workspace_id, path: row.canonical_path,
         name: (row.display_name || row.canonical_path.split("/").filter(Boolean).at(-1) || row.canonical_path).slice(0, 200) })),
       mcp: runtime && supports(runtime, "mcp") ? await actions.invoke(agent.listMcp, [runtime.runtime_id]) : [] };

@@ -2,6 +2,7 @@ import type { WebLocale } from "./i18n.js";
 import { readFileSync } from "node:fs";
 import { escapeHtml, icon, renderButton, renderComposer, t as uiText, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { assistantComposerLabels } from "./assistant-composer-labels.js";
+import { builtinPluginDirectory } from "./plugin-catalog.js";
 import {
   THEME_BOOTSTRAP_SCRIPT, VISUAL_FOUNDATION_CLIENT_SCRIPT, renderIconSprite, renderMenuGroup, renderMenuItem, renderProjectMonogram, renderToggleGroup,
 } from "@molis-ai/molis-work-design-system";
@@ -17,18 +18,26 @@ import {
 
 type Say = (text: string, values?: Record<string, string | number>) => string;
 
-interface Plugin { readonly name: string; readonly glyph: PluginIconName; readonly hue: string }
+type Plugin = { readonly glyph: PluginIconName; readonly hue: string }
+  & ({ readonly name: string } | { readonly nameKey: string } | { readonly catalog: true });
 /** Sample plugins with the glyph and hue their Manifests declare (the prototype's sample project). */
 const P = {
   goals: { name: "Goals", glyph: "target", hue: "blue" }, pages: { name: "Pages", glyph: "note", hue: "cyan" },
   coding: { name: "Coding", glyph: "code", hue: "purple" }, feed: { name: "Feed", glyph: "rss", hue: "brown" },
-  talk: { name: "讨论", glyph: "message", hue: "steel" }, lingguang: { name: "灵光", glyph: "idea", hue: "yellow" },
-  shelf: { name: "Shelf", glyph: "library", hue: "slate" }, materials: { name: "项目资料", glyph: "folder-tree", hue: "gray" },
-  tasks: { name: "后台任务", glyph: "activity", hue: "gray" }, jelly: { name: "Jelly", glyph: "calendar", hue: "mint" },
-  todo: { name: "待办", glyph: "list", hue: "green" }, cognia: { name: "Cognia", glyph: "book", hue: "blue" },
-  receipts: { name: "收据整理", glyph: "package", hue: "gray" },
+  talk: { nameKey: "workbench.side-panel-tab.discussion", glyph: "message", hue: "steel" }, lingguang: { catalog: true, glyph: "idea", hue: "yellow" },
+  shelf: { name: "Shelf", glyph: "library", hue: "slate" }, materials: { nameKey: "workbench.side-panel-tab.materials", glyph: "folder-tree", hue: "gray" },
+  tasks: { nameKey: "workbench.side-panel-tab.background-tasks", glyph: "activity", hue: "gray" }, jelly: { name: "Jelly", glyph: "calendar", hue: "mint" },
+  todo: { catalog: true, glyph: "list", hue: "green" }, cognia: { name: "Cognia", glyph: "book", hue: "blue" },
+  receipts: { nameKey: "workbench.navigation-specimens.receipts", glyph: "package", hue: "gray" },
 } as const satisfies Record<string, Plugin>;
 type PluginId = keyof typeof P;
+
+function pluginName(id: PluginId): string {
+  const plugin = P[id];
+  if ("name" in plugin) return plugin.name;
+  if ("nameKey" in plugin) return uiText.text(plugin.nameKey);
+  return builtinPluginDirectory().find(entry => entry.id === id)?.name ?? id;
+}
 
 const hueVars = (hue: string) => `--group-color:var(--hue-${hue});--group-fill:var(--hue-${hue}-fill)`;
 
@@ -47,7 +56,7 @@ function tab(_L: Say, o: TabOptions): string {
 
 /** A plugin's group: its head tab in the plugin's colour, a hairline, then its records a step lighter. */
 function group(readText: Say, id: PluginId, records: readonly (Omit<TabOptions, "glyph"> & { glyph?: PluginIconName })[], options: { headCurrent?: boolean; removed?: boolean; active?: boolean } = {}): string {
-  const plugin = P[id], name = plugin.name;
+  const plugin = P[id], name = pluginName(id);
   // A removed plugin says so in its head's name too: the tag beside it is inside the tablist, where a reader does not read it.
   const head = tab(readText, { label: name, glyph: plugin.glyph, head: true, current: options.headCurrent, ...(options.removed ? { readerLabel: `${name} · ${uiText.text("workbench.navigation-specimens.removed")}` } : {}) });
   const rows = records.map((record) => tab(readText, { glyph: plugin.glyph, ...record })).join("");
@@ -93,7 +102,7 @@ const find = (placeholder: string) => `<label class="mw-input-group tab-menu-fin
 
 function allTabsMenu(readText: Say, id: string, hidden = false): string {
   const r = sample(readText);
-  const section = (pid: PluginId, rows: readonly [string, boolean?][]) => renderMenuGroup({ label: `${(P[pid].name)} · ${rows.length === 1 ? uiText.text("workbench.navigation-specimens.value-1-tab") : uiText.text("workbench.navigation-specimens.n-n", { n: rows.length })}`, items: rows.map(([label, current]) => renderMenuItem({ label, iconName: P[pid].glyph, attrs: current ? { "aria-current": "true" } : {} })).join("") })
+  const section = (pid: PluginId, rows: readonly [string, boolean?][]) => renderMenuGroup({ label: `${pluginName(pid)} · ${rows.length === 1 ? uiText.text("workbench.navigation-specimens.value-1-tab") : uiText.text("workbench.navigation-specimens.n-n", { n: rows.length })}`, items: rows.map(([label, current]) => renderMenuItem({ label, iconName: P[pid].glyph, attrs: current ? { "aria-current": "true" } : {} })).join("") })
     .replace('class="mw-menu__label" aria-hidden="true">', `class="mw-menu__label" aria-hidden="true"><span class="tab-menu-dot" style="${hueVars(P[pid].hue)}"></span>`).replace('class="mw-menu__group"', `class="mw-menu__group" style="${hueVars(P[pid].hue)}"`);
   return `<div class="mw-menu tab-menu" id="${id}" data-nav-popover${hidden ? " hidden" : ""}>${find(uiText.text("workbench.navigation-specimens.find-tab"))}<div role="menu" aria-label="${escapeHtml(uiText.text("workbench.navigation-specimens.all-tabs"))}">`
     + section("goals", [["Goals"], [r.goal1, true], [r.goal2]]) + section("pages", [["Pages"], [r.doc1], [r.doc2]]) + section("coding", [["Coding"], [r.code1]]) + `</div></div>`;
@@ -104,7 +113,7 @@ function allTabsButton(_L: Say, controls: string, open: boolean, phoneOnly = fal
 }
 
 function plusRow(_readText: Say, pid: PluginId, where = "", warn = false): string {
-  const name = (P[pid].name), beside = `${uiText.text("workbench.navigation-specimens.open-beside")} · ${name}`;
+  const name = pluginName(pid), beside = `${uiText.text("workbench.navigation-specimens.open-beside")} · ${name}`;
   const item = `<button type="button" class="mw-menu__item" role="menuitem" style="${hueVars(P[pid].hue)}">${icon(P[pid].glyph)}<span data-slot="menu-item-label">${escapeHtml(name)}</span>`
     + `${warn ? `<span class="nav-warn-dot" aria-hidden="true"></span><span class="tab-menu-note">${escapeHtml(uiText.text("workbench.navigation-specimens.didn-t-start"))}</span>` : where ? `<span class="tab-menu-where">${escapeHtml(where)}</span>` : ""}</button>`;
   return `<div class="tab-menu-row">${item}${renderButton({ label: beside, icon: "columns", variant: "ghost", size: "sm", iconOnly: true, className: "tab-menu-beside", attrs: { title: `${beside} (⌥↵)`, tabindex: "-1" } })}</div>`;
@@ -141,7 +150,7 @@ function layoutButton(_L: Say, controls: string, open: boolean): string {
 function sideGlyphs(readText: Say, options: { current?: PluginId; grown?: PluginId; asTabs?: boolean } = {}): string {
   const ids: PluginId[] = ["talk", "lingguang", "shelf", "materials", "tasks"];
   const tabs = ids.map((id) => {
-    const name = (P[id].name), badge = id === "tasks" ? 2 : 0;
+    const name = pluginName(id), badge = id === "tasks" ? 2 : 0;
     return tab(readText, { label: name, glyph: P[id].glyph, head: true, glyphOnly: true, current: options.current === id, grown: options.grown === id, badge, readerLabel: badge ? `${name} · ${uiText.text("workbench.navigation-specimens.n-background-n-not-finished", { n: badge })}` : name });
   }).join("");
   return `<div class="tab-glyph-row" role="tablist" aria-label="${escapeHtml(uiText.text("workbench.navigation-specimens.tabs-right"))}" data-nav-glyph-row>${tabs}</div>`;
@@ -174,7 +183,7 @@ function titlebar(readText: Say, state: "ok" | "wrong"): string {
 }
 
 function dockPin(_readText: Say, id: PluginId | "home", options: { current?: boolean; warn?: boolean; fold?: boolean } = {}): string {
-  const name = id === "home" ? uiText.text("workbench.navigation-specimens.project-home") : (P[id].name), glyph = id === "home" ? "home" : P[id].glyph;
+  const name = id === "home" ? uiText.text("workbench.navigation-specimens.project-home") : pluginName(id), glyph = id === "home" ? "home" : P[id].glyph;
   const label = options.warn ? `${name} · ${uiText.text("workbench.navigation-specimens.didn-t-start")}` : name;
   return `<button type="button" class="dock-pin${id === "home" ? " is-fixed" : ""}" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}"${options.current ? ' aria-current="page"' : ""}${options.fold ? " data-fold" : ""}>${icon(glyph)}${options.warn ? '<span class="nav-warn-dot" aria-hidden="true"></span>' : ""}</button>`;
 }

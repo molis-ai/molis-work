@@ -200,11 +200,11 @@ knowledge.outline	1	system.knowledge	query	query	project	read	concurrent	agent,m
 knowledge.read	1	system.knowledge	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	knowledge:read	-	-	-	0503b82b3a62	5b425e35cc2d	-
 knowledge.receipts	1	system.knowledge	query	query	project	read	-	user	knowledge:manage	-	-	-	1ce2334483fc	c544c5812a1c	-
 knowledge.search	1	system.knowledge	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	knowledge:read	-	-	-	c67c4936298d	c4956f416fa3	-
-materials.capture	1	system.materials	command	operation	project	write	concurrent	agent,mcp,plugin,user,workflow	workspace:read	file,workspace	-	-	83f4920129c0	d010bc81b325	1cc35ff17bf8
+materials.capture	1	system.materials	command	operation	project	write	concurrent	agent,mcp,plugin,user,workflow	workspace:read	file,workspace	-	-	b382d3d61ebf	d010bc81b325	1cc35ff17bf8
 materials.open	1	system.materials	command	operation	project	write	concurrent	agent,mcp,plugin,user,workflow	workspace:read	file,workspace	-	-	b42d6789fef9	e091de609c47	1cc35ff17bf8
 materials.origins	1	system.project-workspaces	query	query	project	read	concurrent	plugin,user	-	project	-	materials.origins	b7dcf77c7497	67090c79be73	-
 materials.position	1	system.materials	query	query	project	read	concurrent	plugin,user	workspace:read	project	-	materials.position	d746974fa9af	7c1f6f026187	1cc35ff17bf8
-materials.read	1	system.materials	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	workspace:read	file,workspace	-	materials.read	d0a5a5310106	7c2ea2013191	1cc35ff17bf8
+materials.read	1	system.materials	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	workspace:read	file,workspace	-	materials.read	b8cb7710572f	03326f59a123	1cc35ff17bf8
 materials.recent	1	system.project-workspaces	query	query	project	read	concurrent	plugin,user	-	project	-	materials.recent	99334726611c	9b289878a1fd	-
 materials.recent.record	1	system.project-workspaces	command	operation	project	write	concurrent	plugin,user	-	project	-	-	da06221c9d32	99334726611c	-
 mcp.grants.usages	1	system.action-usages	query	query	home	read	concurrent	user	-	-	molis.action-usages.input.v1	molis.action-usages.output.v1	8fc50332e9ea	d6491f838975	-

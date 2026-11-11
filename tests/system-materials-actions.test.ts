@@ -159,3 +159,51 @@ test("BSH-05 materials.read refuses what is not this person's, not the platform'
   await assert.rejects(m.call(materialsActions.read, { ref: { subject: captured.ref.subject, pin: { mode: "snapshot", version: { artifact_id: "absent", version: 1 } } }, mode: "head" }),
     code("actions.subject_unavailable"));
 });
+
+test("BSH-05 a file longer than one read is read whole in windows that never cut a character, and any change ends the reading", { timeout: 60_000 }, async t => {
+  const m = await materialsHome(t);
+  // 3-byte and 4-byte characters at every offset, so window edges fall inside them; well over the 256 KiB window.
+  const line = "资料 🙂 abc\n", long = line.repeat(Math.ceil((600 * 1024) / Buffer.byteLength(line)));
+  await writeFile(join(m.folder, "long.md"), long);
+  const ref: MaterialRef = { subject: { kind: WORKSPACE_FILE_SUBJECT_KIND, id: workspaceFileSubjectId(m.output.workspace_id, ["long.md"]) }, pin: { mode: "current", read_revision: `size:${Buffer.byteLength(long)}` } };
+  const head = await m.call<MaterialsReadResult>(materialsActions.read, { ref, mode: "head" });
+  assert.deepEqual([head.read_revision, head.comparable, head.state], [`size:${Buffer.byteLength(long)}`, false, "ok"]);
+  const windows: MaterialsReadResult[] = [];
+  for (let cursor: string | undefined; ;) {
+    const window = await m.call<MaterialsReadResult>(materialsActions.read, { ref, mode: "text", ...(cursor ? { cursor } : {}) });
+    windows.push(window);
+    assert.ok(window.window && Buffer.byteLength(window.text!) <= 256 * 1024, "one window at most 256 KiB");
+    if (!window.window.next_cursor) break;
+    cursor = window.window.next_cursor;
+  }
+  assert.ok(windows.length >= 3);
+  assert.equal(windows.map(window => window.text).join(""), long, "the windows put together are the file, character for character");
+  let offset = 0;
+  for (const window of windows) { assert.equal(window.window!.start, offset, "each window says where in the file it starts (UTF-16)"); offset += window.text!.length; }
+
+  // A selection in the second window, fixed by naming that window: the owner reads it again and cuts the same text.
+  const second = windows[1]!.window!, start = second.start + 3, end = start + 7;
+  const fixed = await m.call<MaterialsCaptureResult>(materialsActions.capture, { workspace_id: m.output.workspace_id, path: ["long.md"], cursor: second.cursor, start, end });
+  assert.equal((await m.call<MaterialsReadResult>(materialsActions.read, { ref: fixed.ref, mode: "text" })).text, long.slice(start, end));
+  const code = (expected: string) => (error: unknown) => (error as ActionError).code === expected;
+  await assert.rejects(m.call(materialsActions.capture, { workspace_id: m.output.workspace_id, path: ["long.md"], cursor: second.cursor, start: 0, end: 4 }), code("actions.input_invalid"),
+    "a range outside the named window");
+  await assert.rejects(m.call(materialsActions.capture, { workspace_id: m.output.workspace_id, path: ["long.md"], fingerprint: "x".repeat(64) }), code("actions.input_too_large"),
+    "a long file is not fixed whole");
+
+  // A cursor is this person's, for this file, as signed: another person, a forged one and another file are refused.
+  const next = windows[0]!.window!.next_cursor!;
+  await assert.rejects(m.call(materialsActions.read, { ref, mode: "text", cursor: next }, { ...person(reading, m.project.project_id), actor_id: "someone-else" }), code("actions.input_invalid"));
+  const [body, tag] = next.split(".");
+  const moved = Buffer.from(JSON.stringify({ ...JSON.parse(Buffer.from(body!, "base64url").toString()), o: 0 })).toString("base64url");
+  await assert.rejects(m.call(materialsActions.read, { ref, mode: "text", cursor: `${moved}.${tag}` }), code("actions.input_invalid"));
+  await writeFile(join(m.folder, "other.md"), long);
+  const other: MaterialRef = { ...ref, subject: { kind: WORKSPACE_FILE_SUBJECT_KIND, id: workspaceFileSubjectId(m.output.workspace_id, ["other.md"]) } };
+  await assert.rejects(m.call(materialsActions.read, { ref: other, mode: "text", cursor: next }), code("actions.input_invalid"));
+
+  // The file changes between two windows (same size, rewritten): the next window is refused, never a mix of old and new.
+  await writeFile(join(m.folder, "long.md"), long.replaceAll("abc", "xyz"));
+  await assert.rejects(m.call(materialsActions.read, { ref, mode: "text", cursor: next }), code("actions.subject_changed"));
+  const again = await m.call<MaterialsReadResult>(materialsActions.read, { ref, mode: "text" });
+  assert.equal(again.window!.start, 0, "reading from the start again works");
+});

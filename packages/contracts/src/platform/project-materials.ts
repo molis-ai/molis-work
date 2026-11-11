@@ -169,10 +169,26 @@ export type MaterialsCapturePort = "before" | "after" | "selection";
  * Fix the text the caller has seen (its `fingerprint`), or a UTF-16 half-open range of it. With `port`, the version is also handed on
  * at that output in the same commit; without, only the reference is returned.
  */
-export interface MaterialsCaptureInput { workspace_id: string; path: readonly string[]; fingerprint: string; port?: MaterialsCapturePort; start?: number; end?: number }
+export interface MaterialsCaptureInput {
+  workspace_id: string; path: readonly string[];
+  /** What the caller saw of a file read whole (its fingerprint); a file read in windows names the window instead (`cursor`). */
+  fingerprint?: string;
+  /** The `window.cursor` of the window a selection of a long file falls in: the owner reads that window again and cuts from it. */
+  cursor?: string;
+  port?: MaterialsCapturePort; start?: number; end?: number;
+}
 export interface MaterialsCaptureResult { ref: MaterialRef; port: MaterialsCapturePort | null; snapshot: FileSnapshot | FileTextSelection }
-/** `head` checks the reference and says what it names now; `text` also returns its text, within the bounds of the owner's read. */
-export interface MaterialsReadInput { ref: MaterialRef; mode: "head" | "text" }
+/**
+ * `head` checks the reference and says what it names now; `text` also returns its text. A file too long for one read is read in windows:
+ * the first without `cursor`, each next with the `next_cursor` the last one gave.
+ */
+export interface MaterialsReadInput { ref: MaterialRef; mode: "head" | "text"; cursor?: string }
+/**
+ * One window of a long file: its text starts at UTF-16 offset `start` of the whole file. `cursor` names this window (to fix a selection in
+ * it), `next_cursor` the next one, null at the end. Both are the owner's, bound to this project, this person and this file as it was read:
+ * any change to the file, and a restarted Host, ends them; read from the start again.
+ */
+export interface MaterialsReadWindow { start: number; cursor: string; next_cursor: string | null }
 export interface MaterialsReadResult {
   /** The reference as its owner states it: the same material, nothing the caller wrote that the owner does not keep. */
   ref: MaterialRef;
@@ -187,7 +203,11 @@ export interface MaterialsReadResult {
   text?: string;
   /** A selection's UTF-16 half-open range in the file it was cut from, as its owner recorded it. */
   selection?: { start: number; end: number };
+  /** Only for a file read in windows. */
+  window?: MaterialsReadWindow;
 }
+/** The longest cursor: it carries the file's reference id. */
+export const MATERIALS_CURSOR_MAX = 24_000;
 
 /** Where a person was last reading in this project: a folder of it and a path in it, never an absolute path. */
 export interface MaterialsPosition { workspace_id: string; path: readonly string[] }
@@ -198,6 +218,7 @@ const materialsReading = { permissions: ["workspace:read"], required_actions: [
   { capability_id: "projects.directories.get", version: /* @version action.projects.directories.get */ 1 },
 ] };
 const capturePort = { enum: ["before", "after", "selection"] };
+const cursorShape = { type: "string", minLength: 1, maxLength: MATERIALS_CURSOR_MAX };
 
 /**
  * The platform's materials service (Files retirement, specs/batch-06-shared-tools §3 and materials-ui-contract §1, §5): open a file of the
@@ -219,8 +240,8 @@ export const materialsActions = {
     operation: "command",
     action: { title: "固定资料", description: "重新读取并核对看过的指纹，把全文或一段选区固定成过程项并返回它的引用；给了 port 时同一次提交交到这个输出；不改原文件",
       kind: "operation", scope: "project", scheduling: "concurrent", audiences: ["user", "agent", "workflow", "mcp", "plugin"], subject_kinds: ["workspace", "file"], ...materialsReading,
-      input_schema: shape({ workspace_id: { type: "string", minLength: 1 }, path: filePath, fingerprint: { type: "string", minLength: 1, maxLength: MATERIAL_REF_LIMITS.revision },
-        port: capturePort, start: offset, end: offset }, ["workspace_id", "path", "fingerprint"]),
+      input_schema: { ...shape({ workspace_id: { type: "string", minLength: 1 }, path: filePath, fingerprint: { type: "string", minLength: 1, maxLength: MATERIAL_REF_LIMITS.revision },
+        cursor: cursorShape, port: capturePort, start: offset, end: offset }, ["workspace_id", "path"]), oneOf: [{ required: ["fingerprint"] }, { required: ["cursor", "start", "end"] }] },
       output_schema: shape({ ref: MATERIAL_REF_SCHEMA, port: nullable(capturePort), snapshot: snapshotShape }) },
   } as ActionDefinition<MaterialsCaptureInput, MaterialsCaptureResult>,
   read: {
@@ -229,9 +250,10 @@ export const materialsActions = {
     operation: "query",
     action: { title: "读取资料引用", description: "按调用方此刻的授权读一份资料引用：head 只核对它现在指向什么，text 同时返回正文；读不了的拒绝，不交付内容",
       kind: "query", scope: "project", scheduling: "concurrent", audiences: ["user", "agent", "workflow", "mcp", "plugin"], subject_kinds: ["workspace", "file"], ...materialsReading,
-      input_schema: shape({ ref: MATERIAL_REF_SCHEMA, mode: { enum: ["head", "text"] } }),
+      input_schema: shape({ ref: MATERIAL_REF_SCHEMA, mode: { enum: ["head", "text"] }, cursor: cursorShape }, ["ref", "mode"]),
       output_schema: shape({ ref: MATERIAL_REF_SCHEMA, title: { type: "string" }, read_revision: { type: "string", minLength: 1 }, comparable: { type: "boolean" },
-        state: { enum: ["ok", "changed"] }, text: { type: "string" }, selection: shape({ start: offset, end: offset }) }, ["ref", "title", "read_revision", "comparable", "state"]),
+        state: { enum: ["ok", "changed"] }, text: { type: "string" }, selection: shape({ start: offset, end: offset }),
+        window: shape({ start: offset, cursor: cursorShape, next_cursor: nullable(cursorShape) }) }, ["ref", "title", "read_revision", "comparable", "state"]),
       output_type: "materials.read" },
   } as ActionDefinition<MaterialsReadInput, MaterialsReadResult>,
   position: {

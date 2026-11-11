@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { ActionError, bindActionHandler, retainActionAuthority, type ActionClient, type ActionExecutionContext, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ArtifactJsonValue, ArtifactsApplicationApi, FixedVersionRecord, ProcessItemsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { projectDirectoryActions, type ProjectDirectories, type ProjectDirectory } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -7,6 +7,8 @@ import { FILE_SNAPSHOT_SCHEMA_VERSION, FILE_SNAPSHOT_TYPE, FILE_TEXT_SELECTION_S
   workspaceReadActions, WORKSPACE_FILE_SUBJECT_KIND, type FileSnapshot, type FileTextSelection, type WorkspaceFileResult } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { MATERIALS_PORTS, MATERIALS_PROVIDER_ID, materialsActions, SYSTEM_MATERIALS_PRODUCER_VERSION, SYSTEM_MATERIALS_SOURCE, type MaterialRef, type MaterialsCaptureInput,
   type MaterialsPosition, type MaterialsReadResult, type MaterialsWorkspace } from "@molis-ai/molis-work-contracts/platform/project-materials";
+import { projectWorkspaceWindows, type ProjectCapabilityPorts } from "./project-capabilities.js";
+import type { WorkspaceWindowPosition, WorkspaceWindowResult } from "./workspace-files.js";
 import { assertMaterialRef } from "@molis-ai/molis-work-plugin-sdk/presentation";
 import { SqlitePluginPrivateStorage, type PluginInputGraph } from "@molis-ai/molis-work-plugin-runtime";
 import type { SqliteDatabase } from "@molis-ai/molis-work-storage";
@@ -30,6 +32,33 @@ export interface SystemMaterialsPorts {
   privateValues: Pick<SqlitePluginPrivateStorage, "forSystem">;
   /** The running plugin platform's wiring graph, or null when the project's plugins are not running (then nothing is handed on). */
   wiring(): Promise<PluginInputGraph | null>;
+  /** One window of a long text file in a folder this project grants; absent where the Host reads no folders. */
+  windows?(query: { workspace_id: string; path: readonly string[] }, from: WorkspaceWindowPosition | null): Promise<WorkspaceWindowResult>;
+}
+
+/** Who a window cursor is for and where it reads next: the project, the person, the reference's id and the folder it resolved to. */
+interface CursorClaim { p: string; a: string; s: string; w: string; o: number; u: number; obs: string }
+
+/**
+ * Window cursors, signed with a key only this provider holds and that dies with the Host: a cursor cannot be made, moved to another
+ * project, person or file, or kept past a restart. What it names is read again under the caller's authority each time.
+ */
+function windowCursors() {
+  const key = randomBytes(32), mac = (body: string) => createHmac("sha256", key).update(body).digest("base64url");
+  return {
+    seal: (claim: CursorClaim) => { const body = Buffer.from(JSON.stringify(claim)).toString("base64url"); return `${body}.${mac(body)}`; },
+    open(cursor: string, expected: Omit<CursorClaim, "o" | "u" | "obs">): WorkspaceWindowPosition {
+      const [body = "", tag = ""] = cursor.split(".");
+      const given = Buffer.from(tag), wanted = Buffer.from(mac(body));
+      let claim: Partial<CursorClaim> = {};
+      if (given.length === wanted.length && timingSafeEqual(given, wanted)) {
+        try { claim = JSON.parse(Buffer.from(body, "base64url").toString("utf8")) as Partial<CursorClaim>; } catch { claim = {}; }
+      }
+      if (claim.p !== expected.p || claim.a !== expected.a || claim.s !== expected.s || claim.w !== expected.w
+        || !Number.isSafeInteger(claim.o) || !Number.isSafeInteger(claim.u) || typeof claim.obs !== "string") throw invalid("这一段的位置已失效，请从头读取");
+      return { offset: claim.o!, utf16: claim.u!, observed: claim.obs };
+    },
+  };
 }
 
 const POSITION_KEY = "reading-position";
@@ -53,21 +82,19 @@ function parsePosition(raw: string | null): MaterialsPosition | null {
 }
 
 /** Why a text read gave no text, in the words the person sees. */
-function notText(result: WorkspaceFileResult): ActionError {
+function notText(result: WorkspaceFileResult | WorkspaceWindowResult): ActionError {
   switch (result.outcome) {
     case "missing": return unavailable("文件已不存在");
     case "denied": return new ActionError("actions.forbidden", "这个路径不可读取");
-    case "changed": return new ActionError("actions.subject_changed", "文件在读取时变化，请刷新");
+    case "changed": return new ActionError("actions.subject_changed", "文件已经变了，请从头重新读取");
     case "too-large": return new ActionError("actions.input_too_large", `文件太大（${Math.round(result.bytes / 1024)} KB），超过一次读取的 ${Math.round(result.limit / 1024)} KB`);
     default: return new ActionError("actions.subject_incompatible", "这个文件不是文本");
   }
 }
 
-export function systemMaterialsActionProvider(projectId: string, ports: SystemMaterialsPorts): ActionProviderRegistration {
-  const values = ports.privateValues.forSystem(MATERIALS_PROVIDER_ID);
-  // The latest open each person asked for: an earlier open that finishes later does not move their reading position back.
-  const opens = new Map<string, number>();
-  let openSequence = 0;
+/** What every step of the service shares: its stored values, its cursors, the caller's reads and the one write window. */
+function materialsCore(projectId: string, ports: SystemMaterialsPorts) {
+  const values = ports.privateValues.forSystem(MATERIALS_PROVIDER_ID), cursors = windowCursors();
   const nested = (caller: ActionExecutionContext, definition: { capability_id: string; version: number }) =>
     retainActionAuthority(caller, { capability_id: definition.capability_id, version: definition.version, provider_id: MATERIALS_PROVIDER_ID });
   const folders = (caller: ActionExecutionContext) => ports.client.invoke(caller, projectDirectoryActions.get, {}) as Promise<ProjectDirectories>;
@@ -100,6 +127,26 @@ export function systemMaterialsActionProvider(projectId: string, ports: SystemMa
   function commit<T>(caller: ActionExecutionContext, write: () => T): T {
     return ports.db.transaction(() => { caller.assert_authority_current?.(); return write(); }).immediate();
   }
+  return { projectId, ports, values, cursors, nested, folders, folderOf, read, handOn, switchFolder, commit };
+}
+type MaterialsCore = ReturnType<typeof materialsCore>;
+
+/** Fixing what the caller saw (BSH-05): read again, checked, recorded as the platform's process item, and handed on when a port is named. */
+function materialsCapture({ projectId, ports, cursors, folderOf, read, handOn, switchFolder, commit }: MaterialsCore) {
+  /** The text the caller saw: the whole file, checked against its fingerprint, or the window its cursor names, read again. */
+  async function seen(caller: ActionExecutionContext, folder: ProjectDirectory, path: readonly string[], input: MaterialsCaptureInput) {
+    if (input.cursor !== undefined) {
+      if (!ports.windows) throw new ActionError("actions.service_unavailable", "这里不能分段读取文件");
+      const from = cursors.open(input.cursor, { p: projectId, a: caller.actor_id, s: workspaceFileSubjectId(folder.workspace_id, path), w: folder.workspace_id });
+      const window = await ports.windows({ workspace_id: folder.workspace_id, path }, from);
+      if (window.outcome !== "window") throw notText(window);
+      return { text: window.text, start: window.start, whole: false };
+    }
+    const result = await read(caller, folder.workspace_id, path, "text");
+    if (result.outcome !== "text") throw notText(result);
+    if (input.fingerprint !== result.fingerprint) throw new ActionError("actions.subject_changed", "文件已改变，请刷新并查看后再固定快照");
+    return { text: result.text, start: 0, whole: true };
+  }
 
   async function capture(caller: ActionExecutionContext, input: MaterialsCaptureInput) {
     const path = parseFilePath(input.path);
@@ -107,15 +154,14 @@ export function systemMaterialsActionProvider(projectId: string, ports: SystemMa
     const ranged = input.start !== undefined || input.end !== undefined;
     if (port === MATERIALS_PORTS.selection ? !ranged : port !== null && ranged) throw invalid(port === MATERIALS_PORTS.selection ? "选区端口要给出选区范围" : "全文快照不带选区范围");
     const folder = await folderOf(caller, input.workspace_id);
-    const result = await read(caller, folder.workspace_id, path, "text");
-    if (result.outcome !== "text") throw notText(result);
-    if (input.fingerprint !== result.fingerprint) throw new ActionError("actions.subject_changed", "文件已改变，请刷新并查看后再固定快照");
-    const base = { workspace: { workspace_id: folder.workspace_id, name: folder.display_name }, path, text: result.text };
+    const text = await seen(caller, folder, path, input);
+    if (!ranged && !text.whole) throw invalid("长文件不能整份固定，可以固定其中一段选区");
+    const base = { workspace: { workspace_id: folder.workspace_id, name: folder.display_name }, path, text: text.text };
     let content: FileSnapshot | FileTextSelection = parseFileSnapshot(base);
     if (ranged) {
       const { start, end } = parseTextSelectionRange(input.start, input.end);
-      if (end > result.text.length) throw invalid("选区已经失效，请重新选择");
-      content = parseFileTextSelection({ ...base, start, end, text: result.text.slice(start, end) });
+      if (start < text.start || end > text.start + text.text.length) throw invalid("选区已经失效，请重新选择");
+      content = parseFileTextSelection({ ...base, start, end, text: text.text.slice(start - text.start, end - text.start) });
     }
     if (!fileSnapshotFitsInline(content)) throw new ActionError("actions.input_too_large", "内容超过 1 MiB 的固定上限，可以固定其中一段选区");
     const type = ranged ? { artifact_type_id: FILE_TEXT_SELECTION_TYPE, schema_version: FILE_TEXT_SELECTION_SCHEMA_VERSION }
@@ -138,7 +184,11 @@ export function systemMaterialsActionProvider(projectId: string, ports: SystemMa
       pin: { mode: "snapshot", version: { artifact_id: saved.artifact_id, version: saved.version } } };
     return { ref, port, snapshot: content };
   }
+  return capture;
+}
 
+/** Reading a reference back under the caller's current authority: a pinned version exactly, a current file whole or in windows. */
+function materialsReader({ projectId, ports, cursors, folders, read }: MaterialsCore) {
   /**
    * A pinned version read back exactly. A snapshot must be one this service wrote under its current signature; a fixed version is the
    * 成果库's, under its own rules. Either must be available, the caller's own, and name the same file as the reference.
@@ -157,7 +207,7 @@ export function systemMaterialsActionProvider(projectId: string, ports: SystemMa
     return { record, content, selection: selection ? { start: (content as FileTextSelection).start, end: (content as FileTextSelection).end } : undefined };
   }
 
-  async function readRef(caller: ActionExecutionContext, ref: MaterialRef, withText: boolean): Promise<MaterialsReadResult> {
+  async function readRef(caller: ActionExecutionContext, ref: MaterialRef, withText: boolean, cursor?: string): Promise<MaterialsReadResult> {
     const title = (path: readonly string[]) => path.at(-1) ?? "资料";
     if (ref.pin.mode === "snapshot" || ref.pin.mode === "fixed") {
       const system = ref.pin.mode === "snapshot", store = system ? ports.processItems : ports.artifacts;
@@ -171,15 +221,36 @@ export function systemMaterialsActionProvider(projectId: string, ports: SystemMa
     if (ref.subject.kind !== WORKSPACE_FILE_SUBJECT_KIND) throw new ActionError("actions.subject_incompatible", "这种资料请用它自己的阅读动作");
     const named = resolveWorkspaceFileSubject(ref.subject, await folders(caller));
     if (!named) throw unavailable("这个文件所在的文件夹已不在项目里");
-    const result = await read(caller, named.workspace_id, named.path, "text");
-    const revision = result.outcome === "text" || result.outcome === "binary" || (result.outcome === "unsupported" && "fingerprint" in result) ? result.fingerprint
-      : result.outcome === "too-large" && !withText ? `size:${result.bytes}` : null;
-    if (revision === null || (withText && result.outcome !== "text")) throw notText(result);
-    return { ref: { subject: ref.subject, pin: { mode: "current", read_revision: ref.pin.read_revision }, ...(ref.range ? { range: ref.range } : {}) },
-      title: title(named.path), read_revision: revision, comparable: !revision.startsWith("size:"), state: revision === ref.pin.read_revision ? "ok" : "changed",
-      ...(withText && result.outcome === "text" ? { text: result.text } : {}) };
+    const answer = (revision: string, extra: Partial<MaterialsReadResult>): MaterialsReadResult => ({
+      ref: { subject: ref.subject, pin: { mode: "current", read_revision: ref.pin.mode === "current" ? ref.pin.read_revision : revision }, ...(ref.range ? { range: ref.range } : {}) },
+      title: title(named.path), read_revision: revision, comparable: !revision.startsWith("size:"),
+      state: ref.pin.mode === "current" && revision === ref.pin.read_revision ? "ok" : "changed", ...extra });
+    const result = withText && cursor !== undefined ? null : await read(caller, named.workspace_id, named.path, "text");
+    if (result && result.outcome === "text") return answer(result.fingerprint, withText ? { text: result.text } : {});
+    if (result && result.outcome !== "too-large") {
+      if (!withText && "fingerprint" in result) return answer(result.fingerprint, {});
+      throw notText(result);
+    }
+    if (!withText) return answer(`size:${result!.outcome === "too-large" ? result!.bytes : 0}`, {});
+    // Too long for one read: in windows, each read again under the caller's authority and from the same file as the one before.
+    if (!ports.windows) throw notText(result!);
+    const claim = { p: projectId, a: caller.actor_id, s: workspaceFileSubjectId(named.workspace_id, named.path), w: named.workspace_id };
+    const from = cursor === undefined ? null : cursors.open(cursor, claim);
+    const window = await ports.windows({ workspace_id: named.workspace_id, path: named.path }, from);
+    if (window.outcome !== "window") throw notText(window);
+    const at = from ?? { offset: 0, utf16: 0, observed: window.observed };
+    return answer(`size:${window.size}`, { text: window.text, window: { start: window.start, cursor: cursors.seal({ ...claim, o: at.offset, u: at.utf16, obs: at.observed }),
+      next_cursor: window.next ? cursors.seal({ ...claim, o: window.next.offset, u: window.next.utf16, obs: window.next.observed }) : null } });
   }
+  return readRef;
+}
 
+export function systemMaterialsActionProvider(projectId: string, ports: SystemMaterialsPorts): ActionProviderRegistration {
+  const core = materialsCore(projectId, ports), capture = materialsCapture(core), readRef = materialsReader(core);
+  const { values, nested, folders, folderOf, read, handOn, switchFolder, commit } = core;
+  // The latest open each person asked for: an earlier open that finishes later does not move their reading position back.
+  const opens = new Map<string, number>();
+  let openSequence = 0;
   return { provider: { provider_id: MATERIALS_PROVIDER_ID, kind: "system", title: SYSTEM_MATERIALS_SOURCE.name, project_id: projectId },
     definitions: Object.values(materialsActions), handlers: [
       bindActionHandler(materialsActions.open, async (input, caller) => {
@@ -211,7 +282,7 @@ export function systemMaterialsActionProvider(projectId: string, ports: SystemMa
       bindActionHandler(materialsActions.capture, (input, caller) => capture(nested(caller, materialsActions.capture), input)),
       bindActionHandler(materialsActions.read, (input, caller) => {
         assertMaterialRef(input.ref);
-        return readRef(nested(caller, materialsActions.read), input.ref, input.mode === "text");
+        return readRef(nested(caller, materialsActions.read), input.ref, input.mode === "text", input.cursor);
       }),
       bindActionHandler(materialsActions.position, async (_input, caller) => {
         const position = parsePosition(values.get(positionKey(caller.actor_id)));
@@ -223,8 +294,10 @@ export function systemMaterialsActionProvider(projectId: string, ports: SystemMa
     ] };
 }
 
-/** The provider for one opened project: its database, version stores and the plugin platform running on it, when one is. */
-export function projectMaterialsProvider(runtime: MolisWorkProjectRuntime, client: ActionClient): ActionProviderRegistration {
+/** The provider for one opened project: its database, version stores, the plugin platform running on it when one is, and its folders. */
+export function projectMaterialsProvider(runtime: MolisWorkProjectRuntime, client: ActionClient, folders: ProjectCapabilityPorts): ActionProviderRegistration {
+  const windows = projectWorkspaceWindows(folders);
   return systemMaterialsActionProvider(runtime.project_id, { client, db: runtime.store.db, processItems: runtime.processItems, artifacts: runtime.artifacts,
-    privateValues: new SqlitePluginPrivateStorage(runtime.store.db), wiring: async () => (await runningProjectPlatform(runtime.store, runtime.project_id))?.wiring ?? null });
+    privateValues: new SqlitePluginPrivateStorage(runtime.store.db), wiring: async () => (await runningProjectPlatform(runtime.store, runtime.project_id))?.wiring ?? null,
+    ...(windows ? { windows: (query, from) => windows(runtime.project_id, query, from) } : {}) });
 }

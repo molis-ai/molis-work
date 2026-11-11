@@ -185,6 +185,8 @@ export class AgentDefinitions {
   /**
    * Methods running owners declare for business work, one per declaring installation for a signed package's. Not a reference: who may
    * read one, and its exact `SkillRef`, are the shared catalog's (`skills.catalog.list@1`), which reads the bodies with `installation`.
+   * Since 9-2 the Assistant and Coding read the catalog, so nothing in production calls this: it is the register's own read view,
+   * kept for tests and the development pages. A new consumer should read the catalog instead of adding one.
    */
   methods(): AgentSkillView[] {
     const view = (owner: AgentDefinitionRegistration, method: AgentSkillRegistration, install_id?: string): AgentSkillView => ({ key: keyOf(owner.owner_id, method.skill_id),
@@ -275,18 +277,24 @@ export class AgentDefinitions {
     return edited ? { ...prompt, body: edited.body, user_revision: edited.revision } : prompt;
   }
 
-  /** A direct model call's instructions, as registered and as the person left them. */
-  instruction(ownerId: string, promptId: string, caller: string): { body: string; version: number; user_revision: number | null } {
+  /** A direct model call's instructions, as registered and as the person left them. `record: false` hands back `record`. */
+  instruction(ownerId: string, promptId: string, caller: string, record = true): { body: string; version: number; user_revision: number | null; record?: () => void } {
     const { prompt } = this.registered(keyOf(ownerId, promptId));
-    return this.instructionForDeclaration(ownerId, prompt, caller);
+    return this.instructionForDeclaration(ownerId, prompt, caller, record);
   }
 
-  /** Host-selected release declaration, never a prompt body supplied by a model action's business input. */
-  instructionForDeclaration(ownerId: string, prompt: AgentPromptRegistration, caller: string): { body: string; version: number; user_revision: number | null } {
+  /**
+   * Host-selected release declaration, never a prompt body supplied by a model action's business input. With `record` false the caller
+   * calls the returned `record` once the call it was read for is dispatched: a call refused before dispatch is no use of the prompt,
+   * and recording it at read time made two runs over the same Home differ (the golden-home prompt uses).
+   */
+  instructionForDeclaration(ownerId: string, prompt: AgentPromptRegistration, caller: string, record = true): { body: string; version: number; user_revision: number | null; record?: () => void } {
     if (prompt.kind !== "instruction") throw agentDefinitionsErrors.invalid("这段 Prompt 不是模型调用的指令");
     const key = keyOf(ownerId, prompt.prompt_id), edited = this.override(key);
-    this.uses.record({ key, version: prompt.version, user_revision: edited?.revision ?? null, caller, at: this.now().toISOString() });
-    return { body: edited ? edited.body : prompt.body, version: prompt.version, user_revision: edited?.revision ?? null };
+    const use = { key, version: prompt.version, user_revision: edited?.revision ?? null, caller };
+    if (record) this.uses.record({ ...use, at: this.now().toISOString() });
+    return { body: edited ? edited.body : prompt.body, version: prompt.version, user_revision: edited?.revision ?? null,
+      ...(record ? {} : { record: () => this.uses.record({ ...use, at: this.now().toISOString() }) }) };
   }
 
   /** What each owner registered and what of it is not in effect, for developers; plus calls known to bypass the register. */

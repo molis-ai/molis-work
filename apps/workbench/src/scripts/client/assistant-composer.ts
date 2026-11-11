@@ -260,7 +260,6 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
     options.receiver = () => { const named = target.options.receiver?.(); return named ? { label: named.label, ...(named.icon ? { icon: named.icon } : {}), open: openSendTo } : null; };
     composer = window.molisComposer(compose, options);
     target.bind(composer, input);
-    keepGlyph(target);
   };
   const mountComposer = () => {
     island.removeAttribute("data-receiver"); paintAim(false);
@@ -310,7 +309,11 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
     .finally(() => { sending -= 1; syncComposer(); }); };
   // Files the side pane takes go where every file goes: onto the composer's strip, whose upload reads them; 待发送 names what
   // the strip carries (a read file as a picture or a file, a pick as the object it is), told again by the composer's onMaterials.
-  function addFiles(chosen) { if (!boundPage) composer?.attach(chosen); }
+  // While a page in front has the bar, its box is the page's and may take no files at all: say so instead of dropping them.
+  function addFiles(chosen) {
+    if (boundPage) { host.showToast?.(L("文件没有加进去：现在底栏发给这一页，它不收文件。回到助理再添加。"), true); return; }
+    composer?.attach(chosen);
+  }
   globalThis.molisBarReceiverChanged = () => syncComposer();
   stripPending = () => (composer && !boundPage ? composer.materials() : []).map((one) => ({ kind: one.kind === "attachment" ? (upload.material(one.ref) || {}).kind || "file" : "object", title: one.title }));
   function pickFile() { compose.querySelector("[data-composer-add]")?.click(); }
@@ -319,9 +322,17 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
      platform's menu, risen from the tag. What is in the box stays with the receiver it was written for (each keeps its own draft). */
   const sendToGlyphs = ${JSON.stringify({ sparkles: icon("sparkles"), check: icon("check") })};
   const glyphOf = (html) => { const shell = document.createElement("template"); shell.innerHTML = html; return shell.content.firstElementChild; };
-  const pageGlyphs = new WeakMap();
-  // The page's glyph as its tag drew it (the composer draws only platform icons), kept for when the bar is the Assistant's.
-  const keepGlyph = (page) => { const drawn = compose.querySelector(".mw-composer__to svg"); if (drawn) pageGlyphs.set(page, drawn.cloneNode(true)); };
+  /* A page's glyph in 「发给」 comes from the same rendered sprite the side pane draws from (data-assistant-glyphs, the platform
+     icons rendered once by SDK icon()): the page's icon name is checked by the frame bridge, so nothing the page wrote is drawn
+     and the composer's own DOM is not read. A name the sprite does not hold gets no mark; the row still names the page. */
+  const glyphSprite = island.querySelector("[data-assistant-glyphs]");
+  const pageGlyph = (name) => {
+    if (typeof name !== "string" || !/^[a-z0-9-]+$/.test(name) || !glyphSprite || !glyphSprite.content) return null;
+    const found = glyphSprite.content.querySelector('[data-glyph="' + name + '"]'), holder = el("span", "assistant-glyph-icon");
+    holder.setAttribute("aria-hidden", "true");
+    if (found && found.firstElementChild) holder.append(found.firstElementChild.cloneNode(true));
+    return holder.childElementCount ? holder : null;
+  };
   const sendTo = el("div", "mw-menu assistant-send-to"); sendTo.dataset.assistantSendTo = ""; sendTo.setAttribute("role", "menu"); sendTo.setAttribute("aria-label", L("发给"));
   if (typeof sendTo.showPopover === "function") sendTo.popover = "manual";
   island.append(sendTo);
@@ -351,7 +362,7 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
   const paintSendTo = () => {
     const page = globalThis.molisBarReceivers?.front() || null, named = page?.options.receiver?.() || null;
     if (!page || !named) return false;
-    const onPage = boundPage === page, mark = pageGlyphs.get(page) || null, spark = glyphOf(sendToGlyphs.sparkles);
+    const onPage = boundPage === page, mark = pageGlyph(named.icon), spark = glyphOf(sendToGlyphs.sparkles);
     const recent = works.filter((work) => !work.reply_target).sort((a, b) => String(b.updated_at || "").localeCompare(String(a.updated_at || ""))).slice(0, 3);
     const assistant = (id) => () => { declined = page; void switchTo(id); syncComposer(); };
     sendTo.replaceChildren(
@@ -370,7 +381,6 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
     if (sendToOpen()) { closeSendTo(true); return; }
     const tag = sendToTag();
     if (!tag || typeof sendTo.showPopover !== "function") return;
-    if (boundPage) keepGlyph(boundPage);
     if (!paintSendTo()) return;
     // Rises from the tag: its left edge under the tag's, as wide as the mockup's 300px, inside the window's 16px gutter.
     const box = tag.getBoundingClientRect(), width = Math.min(300, window.innerWidth - 32);

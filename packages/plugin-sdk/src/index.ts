@@ -327,7 +327,7 @@ export type { PluginInstallationClient, PluginInstallationProjects, PluginInstal
 export type { PluginNotificationClient, PluginNotificationDelivery, PluginNotificationDeliveryReceipt, PluginNotificationInput, PluginNotificationReceipt, PluginNotificationReceiverDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 export { PLUGIN_NOTIFICATION_DELIVERY_ACTOR } from "@molis-ai/molis-work-contracts/platform/plugin";
 export { arraySchema, nullableSchema, objectSchema } from "./action-schemas.js";
-export { canonicalJsonText, canonicalJsonValue, compareCodeUnits, isRecord } from "./json-value.js";
+export { canonicalJsonText, canonicalJsonValue, compareCodeUnits, isRecord, parseJson } from "./json-value.js";
 
 export { controlledConnectorFetch } from "./connector-call.js";
 

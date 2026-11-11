@@ -1,7 +1,8 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { WebSettingsProject } from "@molis-ai/molis-work-app-workbench";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
-import { projectCatalogErrors, type SetProjectPluginInput, type VersionedProjectPluginMembership } from "@molis-ai/molis-work-contracts/modules/projects";
+import { projectCatalogErrors, projectPluginActions, type SetProjectPluginInput, type VersionedProjectPluginMembership } from "@molis-ai/molis-work-contracts/modules/projects";
+import { compileActionSchema } from "@molis-ai/molis-work-kernel";
 import { type MolisWorkProjectCatalog, type MolisWorkProjectCatalogOptions } from "./project-catalog.js";
 import { sendLocalWebJson as sendJson, readLocalWebBody as readBody } from "./web-http.js";
 import { settingsProject, installationDiagnostics } from "./web-project-presentation.js";
@@ -17,6 +18,11 @@ import { hostErrors } from "./host-errors.js";
 
 export type LocalWebCatalogRunner = <T>(options: MolisWorkProjectCatalogOptions, operation: (catalog: MolisWorkProjectCatalog) => T | Promise<T>) => Promise<T>;
 export type SetProjectPluginFromWeb = (projectId: string, input: SetProjectPluginInput, signal: AbortSignal, sessionCurrent: () => void) => Promise<VersionedProjectPluginMembership>;
+
+// The wire shape of a membership change is the action's own input schema, so the transport keeps no second field list: it adds only
+// the value the URL carries (POST enables, DELETE removes) and refuses anything the action would refuse.
+const acceptsSetProjectPlugin = compileActionSchema(projectPluginActions.set.action.input_schema);
+const isSetProjectPluginInput = (value: unknown): value is SetProjectPluginInput => acceptsSetProjectPlugin(value);
 
 async function renameProjectFromHttp(request: IncomingMessage, response: ServerResponse, projectId: string, homeDirectory: string | undefined, withCatalog: LocalWebCatalogRunner): Promise<void> {
   const body = await readBody(request);
@@ -148,14 +154,12 @@ async function handlePluginSettings(withMolisWorkProjectCatalog: LocalWebCatalog
     sessionCurrent();
     abort.signal.throwIfAborted();
     const body = await readBody(request);
-    const pluginId = typeof body?.plugin_id === "string" ? body.plugin_id.trim() : "";
-    if (!pluginId || typeof body.expected_revision !== "string" || Object.keys(body).some(key => key !== "plugin_id" && key !== "expected_revision")) {
-      throw new ActionError("actions.input_invalid", "项目插件成员请求无效");
-    }
+    const candidate = { ...body, ...(typeof body.plugin_id === "string" ? { plugin_id: body.plugin_id.trim() } : {}), enabled: request.method === "POST" };
+    if (!isSetProjectPluginInput(candidate)) throw new ActionError("actions.input_invalid", "项目插件成员请求无效");
     let projectId: string;
     try { projectId = decodeURIComponent(pluginMatch[1]); }
     catch { throw hostErrors.request_path_invalid("项目地址无效"); }
-    const membership = await setProjectPlugin(projectId, { plugin_id: pluginId, enabled: request.method === "POST", expected_revision: body.expected_revision }, abort.signal, sessionCurrent);
+    const membership = await setProjectPlugin(projectId, candidate, abort.signal, sessionCurrent);
     sendJson(response, 200, { project_id: projectId, ...membership });
   } catch (error) {
     const failure = actionErrorResponse(error, { translate: L });

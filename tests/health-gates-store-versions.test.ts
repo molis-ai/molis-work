@@ -235,7 +235,7 @@ expectAfterOrigin("UPG1-i-store-08: a definition whose file is gone fails", () =
 }, 1, [/points at plugins\/native\/pages\/src\/database\.ts, which does not exist/]);
 expectAfterOrigin("UPG1-i-store-09: a plain version constant finds its steps anywhere in the file", () => {
   raiseTo(3, STEPS_TO_3, pointer(2, 3));
-  put(PAGES_FILE, 'export const PAGES_DATABASE = /* @version format.pages */ 3;\nexport const FILE = { path: "p.json", version: PAGES_DATABASE, upgrades: [{ from: 2, transform: (value: unknown) => value }] };\n');
+  put(PAGES_FILE, 'export const PAGES_DATABASE = 3;\nexport const FILE = { path: "p.json", version: PAGES_DATABASE, upgrades: [{ from: 2, transform: (value: unknown) => value }] };\n');
 }, 0);
 expectAfterOrigin("UPG1-i-store-09: a plain version constant with no upgrades in its file fails", () => {
   raiseTo(3, STEPS_TO_3, pointer(2, 3));

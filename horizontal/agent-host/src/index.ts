@@ -3,6 +3,7 @@ import { trustedOriginalInput } from "./original-inputs.js";
 import { agentErrors } from "./errors.js";
 import { parseAgentRunBudget } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { parseExactActionReferences, requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { SkillRef } from "@molis-ai/molis-work-contracts/services/agent-definitions";
 import { importedCharacterInstructions } from "./character-import.js";
 import type {
   AgentManifest,
@@ -137,7 +138,12 @@ export interface AgentStartAuthority {
   beforeDispatch?(): void | Promise<void>;
   /** Current runtime grants, resolved by Host; selecting a tool grants nothing. */
   /** The trusted guard must run again at dispatch, including after the Host queue. */
-  actions?(runtimeId: string, validate?: () => void | Promise<void>, session?: AgentSessionRef): Promise<AgentActionClient>;
+  /**
+   * `roundSkills` is who this round's Skill reads are for and what the person named (`ActionSkillRound`): agent-host decides the
+   * consumer from the round's workspace, and the Host writes them onto every tool call's context. Host-written: no start request carries it.
+   */
+  actions?(runtimeId: string, validate?: () => void | Promise<void>, session?: AgentSessionRef,
+    roundSkills?: { readonly consumer: "assistant" | "coding" | "agent"; readonly named: readonly SkillRef[] }): Promise<AgentActionClient>;
   /** Host-bound source resolver; browser/plugin-supplied bodies are never authority. */
   resolveCharacter?(reference: ArtifactReference, actorId: string): AgentFrozenCharacter;
   /** The Plugin's own Agent block. A role outside it can never start. */
@@ -332,13 +338,17 @@ export class AgentHost implements AgentHostApi {
     // Freeze the role here, from the Plugin's own declarations, so the adapter
     // receives exactly what it is allowed to run instead of resolving it itself.
     // The round's Skills, in one catalog read (§3.4); who reads them is the round's consumer, set by its role's workspace (§2.3).
+    const skillConsumer = workspace === "required" ? "coding" : "agent";
     const skills = await freezeRoundSkills({ selected: request.skills ?? [], manifest: authority.manifest, own: authority.skills ?? [],
-      source: authority.skill_source, catalog: authority.skillCatalog, consumer: workspace === "required" ? "coding" : "agent", hostTools,
+      source: authority.skill_source, catalog: authority.skillCatalog, consumer: skillConsumer, hostTools,
       unsupported: adapter.descriptor.capabilities.skills === "unsupported" });
+    // The same consumer goes on the round's tool calls: a Skill the catalog lets this round read on its own (`auto`, `applies_to`
+    // matching the consumer) is readable while the model runs, not only while the round is frozen (SKP-10).
+    const roundSkills = { consumer: skillConsumer, named: authority.skillCatalog?.named ?? [] } as const;
     const actionRefs = parseExactActionReferences(request.action_tools ?? []);
     if (request.action_gateway && actionRefs.length) throw agentErrors.capability_unavailable("能力网关与逐项能力不能同时使用");
     assertMaySuggest(hostTools, execution);
-    const source = { adapter, runtimeId, authority, session: session.session, validateCharacter, execution };
+    const source = { adapter, runtimeId, authority, session: session.session, validateCharacter, execution, roundSkills };
     const actions = await frozenActions(source, actionRefs, character);
     const gateway = request.action_gateway ? await frozenGateway(source, workspace) : undefined;
     const { mcp, sources } = await frozenMcp(request, execution, character, hostTools, () => this.mcpLibrary(runtimeId, authority));

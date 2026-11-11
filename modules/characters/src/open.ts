@@ -62,6 +62,9 @@ export function createCharactersReplicationBinding(homeDirectory: string, userId
   };
 }
 
+// This store keeps its own connection settings (busy timeout 3000, its own journal/WAL start and the replication init below) rather than
+// going through `openBaselineHomeSqlite`; the 2026-11-11 review lists that as a boundary note, not a fix here (same SQLite engine, same
+// process rule as every Home store; PLIB-08 holds).
 function openStore(homeDirectory: string, actorId: string): DatabaseSync {
   if (!actorId.trim() || actorId.length > 200) throw characterErrors.invalid("角色库缺少有效所有者");
   const directory = join(homeDirectory, CHARACTERS_HOME_STORE.path);

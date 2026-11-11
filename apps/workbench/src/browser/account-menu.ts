@@ -1,3 +1,5 @@
+import type { AccountIdentity } from '../account-identity.js';
+
 export function requiredElement(root: ParentNode, selector: string): HTMLElement {
   const element = root.querySelector<HTMLElement>(selector);
   if (!element) throw new Error('Missing account element: ' + selector);
@@ -42,7 +44,7 @@ function createAccountMenu(L: (text: string) => string) {
   return { menu, notice };
 }
 interface AccountMenuState {
-  identity: {displayName?: string; emails?: string[]} | null;
+  identity: AccountIdentity | null;
   space: string; configured: boolean; loaded: boolean; busy: boolean; preparing: boolean;
 }
 
@@ -63,13 +65,13 @@ export function createAccountMenuController(L: (text: string) => string, state: 
   };
   const paint = () => {
     const {identity,space,busy,configured} = state();
-    const name = identity?.displayName || identity?.emails?.[0] || L('未登录');
+    const name = identity?.displayName || L('未登录');
     document.querySelectorAll('[data-personal-name]').forEach(el => { el.textContent = name; });
     document.querySelectorAll('[data-personal-status]').forEach(el => { el.textContent = L(space === 'account' ? '个人空间' : '本地空间'); });
     document.querySelectorAll('[data-account-compact-label]').forEach(el => { el.textContent = L(identity ? '账号管理' : '登录'); });
     links.forEach(a => { a.title = identity ? name + ' · ' + L('切换账号') + ' / ' + L('退出登录') : L('登录 / 注册 molis AI'); a.setAttribute('aria-label', a.title); });
     requiredElement(menu,'[data-menu-name]').textContent = name;
-    requiredElement(menu,'[data-menu-email]').textContent = identity?.emails?.join(' · ') || L('登录后可管理你的 molis 账号');
+    requiredElement(menu,'[data-menu-email]').textContent = identity?.email || L('登录后可管理你的 molis 账号');
     requiredElement(menu,'[data-personal-action=login]').hidden = !!identity;
     requiredElement(menu,'[data-personal-action=switch]').hidden = !identity;
     requiredElement(menu,'[data-personal-action=logout]').hidden = !identity;

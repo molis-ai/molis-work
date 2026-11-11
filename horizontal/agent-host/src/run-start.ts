@@ -285,6 +285,8 @@ interface ActionSource {
   session: AgentSessionRef;
   validateCharacter: (() => void) | undefined;
   execution: AgentRoleExecution;
+  /** The round's Skill consumer and named list, written onto every tool call's caller (Host-written; absent, only the plugin's own Skills). */
+  roundSkills?: { readonly consumer: "assistant" | "coding" | "agent"; readonly named: readonly import("@molis-ai/molis-work-contracts/services/agent-definitions").SkillRef[] };
 }
 
 function assertActionsSupported(source: ActionSource): asserts source is ActionSource & { authority: Required<Pick<AgentStartAuthority, "actions">> } {
@@ -293,7 +295,7 @@ function assertActionsSupported(source: ActionSource): asserts source is ActionS
 
 async function grantedActions(source: ActionSource): Promise<AgentActionClient> {
   assertActionsSupported(source);
-  return source.authority.actions(source.runtimeId, source.validateCharacter, source.session);
+  return source.authority.actions(source.runtimeId, source.validateCharacter, source.session, source.roundSkills);
 }
 
 /** The per-action tools the round picked, each found in the directory now, offered to the Agent, and within the role and Character. */

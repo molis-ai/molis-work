@@ -91,6 +91,25 @@ export class SandboxPackageStore {
     return releases;
   }
 
+  /**
+   * Every retained release of one plugin, whoever signed it: the versions a new import of the same source counts up from. A preview is
+   * made before the person says which scope it goes to, and must not need this Home's publisher metadata to name the next version
+   * (a missing `plugin-publisher.json` is recovered at confirmation, and preview and confirmation must agree on the version).
+   */
+  releasesOf(pluginId: string): NonNullable<InstalledRelease['packaged']>[] {
+    const root = join(this.home, 'plugin-packages');
+    if (!existsSync(root)) return [];
+    const releases: NonNullable<InstalledRelease['packaged']>[] = [];
+    for (const name of readdirSync(root)) {
+      const path = join(root, name, BUNDLE_FILE);
+      const { payload } = JSON.parse(readSnapshotFile(path, 64 * 1024 * 1024).toString('utf8')) as PluginPackageBundle;
+      if (payload.manifest.plugin_id !== pluginId) continue;
+      const keyId = payload.manifest.publisher.signature;
+      releases.push(this.load(pluginId, keyId, payload.manifest.version).packaged!);
+    }
+    return releases;
+  }
+
   /** Reads an installed package back, checking it again: its signature, its form, and that it is the package the installation names. */
   /** Offline inspection reads only retained signed bytes and never imports the package or follows symlinks. */
   snapshotManifest(pluginId:string, keyId:string, version:string) {

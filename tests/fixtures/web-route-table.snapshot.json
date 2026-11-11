@@ -196,6 +196,45 @@
       "methods"
     ]
   },
+  "POST /api/composer/sources": {
+    "status": 200,
+    "type": "application/json",
+    "keys": [
+      "sources"
+    ]
+  },
+  "POST /api/composer/pick": {
+    "status": 503,
+    "type": "application/json",
+    "code": "composer.source_unavailable",
+    "error": "这个来源现在用不了：已停用、卸载或不再授权"
+  },
+  "POST /api/composer/drafts/sweep": {
+    "status": 200,
+    "type": "application/json",
+    "keys": [
+      "remove"
+    ]
+  },
+  "GET /api/skills/list": {
+    "status": 400,
+    "type": "application/json",
+    "error": "请先选择一个 Molis Work 项目"
+  },
+  "POST /api/kit/list": {
+    "status": 200,
+    "type": "application/json",
+    "keys": [
+      "entries",
+      "issues",
+      "packs"
+    ]
+  },
+  "GET /api/personal/status": {
+    "status": 400,
+    "type": "application/json",
+    "error": "请先选择一个 Molis Work 项目"
+  },
   "GET /api/board": {
     "status": 400,
     "type": "application/json",
@@ -499,6 +538,42 @@
     "keys": [
       "has_credential",
       "source"
+    ]
+  },
+  "POST <project>/api/composer/sources": {
+    "status": 200,
+    "type": "application/json",
+    "keys": [
+      "sources"
+    ]
+  },
+  "POST <project>/api/composer/pick": {
+    "status": 503,
+    "type": "application/json",
+    "code": "composer.source_unavailable",
+    "error": "这个来源现在用不了：已停用、卸载或不再授权"
+  },
+  "GET <project>/api/skills/list": {
+    "status": 404,
+    "type": "application/json",
+    "error": "页面或接口不存在"
+  },
+  "POST <project>/api/kit/list": {
+    "status": 200,
+    "type": "application/json",
+    "keys": [
+      "entries",
+      "issues",
+      "packs"
+    ]
+  },
+  "GET <project>/api/plugin-trust/overview": {
+    "status": 200,
+    "type": "application/json",
+    "keys": [
+      "home_managed_install_ids",
+      "plugins",
+      "publishers"
     ]
   },
   "GET <project>/api/plugins/io.molis.work.lingguang/sparks": {

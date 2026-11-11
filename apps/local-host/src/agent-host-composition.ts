@@ -323,14 +323,17 @@ async function startAuthority(
     mcp_owner: { project_id: runtime.project_id, plugin_id: pluginId },
     // The language of the call this round starts in (the page's, or the one the Host settled for its delegation), else the one last used.
     reply_language: replyLanguage(currentCallLocale(caller) ?? lastUsedLocale(homeDirectory ?? resolveConfiguredHome())),
-    actions: async (runtimeId, validate, session) => {
+    actions: async (runtimeId, validate, session, roundSkills) => {
       // `actor_id` stays the grant's client id: `agent:<runtime>`, or the task grant subject the Host composed for a plugin's round, whose
       // catalog holds only the categories its provider offers a task now. The session is the one the Host checked against the Runtime's own
       // record when it started the round, never one read from the request or the tool input: it scopes what the tools write and who is
       // recorded as author (`agent:<runtime>:<session>`, a task's round as well).
       const source = subject ? taskReadableHost(localHost) : localHost;
       const current = (signal?: AbortSignal) => authorizeMcpActions(source, { actor_id: subject ?? `agent:${runtimeId}`, actor_kind: "runtime", call_id: callId,
-        project_id: runtime.project_id, audience: "agent", permissions: [], ...(session ? { runtime_session_id: session.session_id, audit_actor_id: `agent:${runtimeId}:${session.session_id}` } : {}), ...(signal ? { signal } : {}) }, homeDirectory, reference, async () => { caller?.assertActive(); await validate?.(); caller?.assertActive(); }, () => {
+        project_id: runtime.project_id, audience: "agent", permissions: [], ...(session ? { runtime_session_id: session.session_id, audit_actor_id: `agent:${runtimeId}:${session.session_id}` } : {}),
+        // The round's Skill reads (`skill_round`, §2.3), written by the Host only: a tool call is part of this round, so it reads the
+        // catalog as this round would (SKP-10); nothing in a tool input can set it.
+        ...(roundSkills ? { skill_round: roundSkills } : {}), ...(signal ? { signal } : {}) }, homeDirectory, reference, async () => { caller?.assertActive(); await validate?.(); caller?.assertActive(); }, () => {
           caller?.assertActive(); signal?.throwIfAborted();
           if (localHost.lifecycle() !== "running") throw new ActionError("actions.host_closed", "能力所在运行环境已关闭");
         });

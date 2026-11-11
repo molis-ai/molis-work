@@ -349,6 +349,8 @@ export declare const dateArg: (at: string, style: TextDateStyle) => TextArgValue
 
 export declare const disclosureHeight: (details: string, body: string) => string;
 
+export declare function escapeAttribute(value: string | number | undefined): string;
+
 export declare const escapeHtml: (value: unknown) => string;
 
 export declare function fontFaceRules(font: UiResolvedFont, registry: UiResourceRegistry): UiFileResult<string>;

@@ -180,6 +180,7 @@ export { CODING_STEPS_CLIENT_FACTORY_SCRIPT } from "./steps-client.js";
 export type { CodingCharacterChoice } from "./characters.js";
 
 export { codingSkills } from "./skills.js";
+export { automaticSkillMaterial } from "./skill-choices.js";
 
 export { CODING_SETTINGS_CLIENT_SCRIPT } from "./settings-client.js";
 

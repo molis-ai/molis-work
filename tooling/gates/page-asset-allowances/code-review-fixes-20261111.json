@@ -1,0 +1,10 @@
+{
+  "reason": "审查修复批次（2026-11-11）：统一输入与助理输入框的页面收件人提示（新增一句 toast 文案）、发给图标改从助理岛自己的 glyph sprite 取、以及随之带入的构建增量；无新增资源、无单资源超过 10 KB。对照 origin/main 2630160877 的隔离构建实测（pnpm page-assets:check）。",
+  "review": "本批修复由 Lead 复审并按用户 2026-11-11「修全部问题、人工验收免掉」自审：四项增量均 < 10 KB、无新增资源，故按任务记一份增长许可；待后续界面走查时复核。",
+  "assets": {
+    "/assets/molis-work-arrival.css": 17,
+    "/assets/molis-work-plugin-frame.js": 159,
+    "/assets/molis-work-workbench.css": 17,
+    "/assets/molis-work-workbench.js": 454
+  }
+}

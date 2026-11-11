@@ -412,13 +412,6 @@ export declare const DOM_EVENTS: readonly [{
     readonly detail: "{ tab, target, open }";
     readonly summary: "A tab of the side panel is now shown (or the panel closed); the tab's owner loads what it was asked to show.";
 }, {
-    readonly name: "molis:side-toggle";
-    readonly kind: "request";
-    readonly owner: "side-panel";
-    readonly on: "document";
-    readonly detail: "{ tab? }";
-    readonly summary: "Close the panel if it shows that tab (or any tab), otherwise open it. Nothing in the tree dispatches it yet.";
-}, {
     readonly name: "molis:surface-focus";
     readonly kind: "request";
     readonly owner: "context-actions";

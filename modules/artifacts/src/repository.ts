@@ -9,6 +9,7 @@ import type {
   ArtifactVersionRecord,
   FixedVersionRecord,
 } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import { parseJson } from "@molis-ai/molis-work-plugin-sdk";
 import { announceVersionStoreWrite, type CommitWatchedDatabase } from "./committed.js";
 
 type Row = Record<string, unknown>;
@@ -317,11 +318,3 @@ export function mapFixedVersion(row: Row): FixedVersionRecord {
   };
 }
 
-function parseJson<T>(value: unknown, fallback: T): T {
-  if (typeof value !== "string") return fallback;
-  try {
-    return JSON.parse(value) as T;
-  } catch {
-    return fallback;
-  }
-}

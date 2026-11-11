@@ -102,3 +102,6 @@ export { renderPluginDocumentShell } from "./plugin-document-shell.js";
 export { renderPluginStoreUnavailablePage } from "./plugin-store-unavailable.js";
 export { renderPickerExtend, renderPluginMarket, renderPluginRail } from "./immersive-shell.js";
 export { artifactReferenceUiContribution, isProjectReference, artifactBrowserUiContribution } from "./artifacts/index.js";
+
+export { accountCacheOwner, ACCOUNT_CACHE_SCOPE_MISSING, type AccountCacheOwner } from './account-cache-owner.js';
+export { accountCachePrefix, pageSessionScope } from './account-cache-key.js';

@@ -3,6 +3,7 @@ import type {
   FeedItemRecord,
   FeedMaterialRecord,
 } from "../../contract/feed.js";
+import { parseJson } from "@molis-ai/molis-work-plugin-sdk";
 
 export type Row = Record<string, unknown>;
 
@@ -30,7 +31,7 @@ export function mapFeedMaterial(row: Row): FeedMaterialRecord {
     content_type: optionalText(row.content_type),
     character_count: row.character_count == null ? null : Number(row.character_count),
     captured_at: optionalText(row.captured_at),
-    provenance: json<Record<string, unknown>>(row.provenance_json, {}),
+    provenance: parseJson<Record<string, unknown>>(row.provenance_json, {}),
     selected_for_context: Number(row.selected_for_context ?? 0) === 1,
     imported_at: text(row.imported_at),
     updated_at: text(row.updated_at),
@@ -54,7 +55,7 @@ export function mapFeedItem(row: Row, materials: FeedMaterialRecord[], linkedGoa
     url: optionalText(row.url),
     origin_status: text(row.origin_status),
     priority: text(row.priority),
-    tags: json<string[]>(row.tags_json, []),
+    tags: parseJson<string[]>(row.tags_json, []),
     author: optionalText(row.author),
     disposition: text(row.disposition) as FeedItemDisposition,
     linked_goal_id: linkedGoalId,
@@ -77,11 +78,3 @@ export function optionalText(value: unknown): string | null {
   return valueText || null;
 }
 
-export function json<T>(value: unknown, fallback: T): T {
-  if (typeof value !== "string") return fallback;
-  try {
-    return JSON.parse(value) as T;
-  } catch {
-    return fallback;
-  }
-}

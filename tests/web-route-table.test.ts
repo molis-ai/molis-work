@@ -54,6 +54,14 @@ const HOME_PROBES: Probe[] = [
   { method: "GET", path: "/api/projects" },
   { method: "GET", path: "/api/search/status" },
   { method: "GET", path: "/api/settings/planning-methods" },
+  // The unified input's sources and draft sweep (specs/unified-input-voice §3.3/§3.4), the skill and kit pages, and the person's
+  // own status: the answers are pinned by their keys (or error code), so a moved handler shows up here.
+  { method: "POST", path: "/api/composer/sources", body: { layer: "ai" } },
+  { method: "POST", path: "/api/composer/pick", body: {} },
+  { method: "POST", path: "/api/composer/drafts/sweep", body: { keys: [] } },
+  { method: "GET", path: "/api/skills/list" },
+  { method: "POST", path: "/api/kit/list", body: {} },
+  { method: "GET", path: "/api/personal/status" },
   { method: "GET", path: "/api/board" },
   { method: "GET", path: "/api/board", bare: true },
   { method: "POST", path: "/api/assistant/works", body: {}, bare: true },
@@ -106,6 +114,12 @@ const PROJECT_PROBES: Probe[] = [
   { method: "GET", path: "/api/contextual/surfaces" },
   { method: "GET", path: "/api/functions" },
   { method: "GET", path: "/api/functions/settings" },
+  // The same unified-input and capability-pack routes inside a project, and the project's plugin management overview.
+  { method: "POST", path: "/api/composer/sources", body: { layer: "ai" } },
+  { method: "POST", path: "/api/composer/pick", body: {} },
+  { method: "GET", path: "/api/skills/list" },
+  { method: "POST", path: "/api/kit/list", body: {} },
+  { method: "GET", path: "/api/plugin-trust/overview" },
   { method: "GET", path: "/api/plugins/io.molis.work.lingguang/sparks" },
   { method: "GET", path: "/api/pages" },
   { method: "POST", path: "/api/pages/import/preview", body: {} },

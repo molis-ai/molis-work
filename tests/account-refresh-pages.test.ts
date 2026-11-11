@@ -193,3 +193,43 @@ test('ASR-09 a late registration cannot resurrect a departed page or block the n
   assert.equal(pages.acknowledge('owner', a.lease, preparation.id).ready, true);
   pages.requirePrepared('owner', a.lease, preparation.id, 'logout');
 });
+
+test('ASR-04 V2U-07 a page whose stream died without leave cannot block a retry after the preparation timeout', async t => {
+  const pages = new AccountRefreshPages(5), a = account(); t.after(() => pages.close());
+  pages.register('owner', a.lease); pages.register('crashed', a.lease);
+  const unsubscribe = pages.subscribe('crashed', () => {});
+  unsubscribe(); // the tab crashed: its stream closed and it never sends leave
+  const blocked = pages.start('owner', a.lease, 'switch');
+  assert.equal(pages.acknowledge('owner', a.lease, blocked.id).ready, false, 'a just-disconnected page still owes its acknowledgement');
+  await new Promise(resolve => setTimeout(resolve, 15)); // the preparation times out
+  assert.equal(pages.snapshot(a.lease), null);
+  const retry = pages.start('owner', a.lease, 'switch');
+  assert.equal(pages.acknowledge('owner', a.lease, retry.id).ready, true, 'the timed-out crashed page no longer blocks the retry');
+  assert.throws(() => pages.acknowledge('crashed', a.lease, retry.id), forbidden, 'a dropped page is not part of the new preparation');
+  a.lease.assertCurrent();
+});
+
+test('ASR-04 V2U-07 a stream gone past the reconnect window is not required at start', t => {
+  let now = 0;
+  const pages = new AccountRefreshPages(30_000, () => {}, () => now), a = account(); t.after(() => pages.close());
+  pages.register('owner', a.lease); pages.register('crashed', a.lease);
+  const unsubscribe = pages.subscribe('crashed', () => {});
+  unsubscribe();
+  now += 15_001; // colder than EventSource's 10 s maximum backoff: the document is gone
+  const current = pages.start('owner', a.lease, 'switch');
+  assert.equal(pages.acknowledge('owner', a.lease, current.id).ready, true, 'a long-dead stream cannot block a switch');
+  a.lease.assertCurrent();
+});
+
+test('ASR-04 V2U-07 a revived page rejoins the live preparation instead of being dropped for good', t => {
+  let now = 0;
+  const pages = new AccountRefreshPages(30_000, () => {}, () => now), a = account(); t.after(() => pages.close());
+  pages.register('owner', a.lease); pages.register('revived', a.lease);
+  const unsubscribe = pages.subscribe('revived', () => {});
+  unsubscribe(); now += 15_001;
+  const current = pages.start('owner', a.lease, 'switch');
+  pages.acknowledge('owner', a.lease, current.id);
+  pages.subscribe('revived', () => {}); // bfcache restore or a reconnect after the drop
+  assert.equal(pages.acknowledge('revived', a.lease, current.id).ready, true, 'a page that came back must acknowledge like every live participant');
+  pages.requirePrepared('owner', a.lease, current.id, 'switch');
+});

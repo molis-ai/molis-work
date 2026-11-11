@@ -106,12 +106,12 @@ function bounded(snapshot: ComposerSnapshot): ComposerSnapshot | null {
     if (JSON.stringify(snapshot).length > 256 * 1024) return null;
     const raw = record(snapshot), pause = raw.pause === null ? null : record(raw.pause), attachments = raw.attachments === null ? null : record(raw.attachments);
     const column = raw.column === null ? null : record(raw.column), near = raw.near === null ? null : record(raw.near);
-    want(typeof raw.stop === "boolean" && typeof raw.mentions === "boolean" && typeof raw.sources === "boolean" && typeof raw.submitKeys === "boolean" && typeof raw.draft === "boolean");
+    want(typeof raw.stop === "boolean" && typeof raw.mentions === "boolean" && typeof raw.submitKeys === "boolean" && typeof raw.draft === "boolean");
     return {
       entry: text(raw.entry, 80), labels: words(record(raw.labels)), placeholder: text(raw.placeholder, 400),
       receiver: receiverOf(raw.receiver), delivery: deliveryOf(raw.delivery),
       pause: pause ? { label: text(pause.label, 100), title: text(pause.title, 200), ...(flag(pause.busy) ? { busy: true } : {}) } : null,
-      stop: raw.stop as boolean, mentions: raw.mentions as boolean, sources: raw.sources as boolean, submitKeys: raw.submitKeys as boolean, draft: raw.draft as boolean,
+      stop: raw.stop as boolean, mentions: raw.mentions as boolean, submitKeys: raw.submitKeys as boolean, draft: raw.draft as boolean,
       controls: list(raw.controls, 12).map(controlOf), commands: list(raw.commands, 200).map(commandOf),
       attachments: attachments ? { ...optional("accept", maybe(attachments.accept, 400)) } : null,
       ...optional("voice", maybe(raw.voice, 80)),
@@ -158,7 +158,7 @@ function words(labels: unknown): ComposerSnapshot["labels"] {
 }
 
 /** The parts that decide what the composer is mounted with; a change mounts it anew rather than refreshing. */
-const shape = (snapshot: ComposerSnapshot) => JSON.stringify([snapshot.entry, snapshot.labels, snapshot.stop, snapshot.mentions, snapshot.attachments, snapshot.sources, snapshot.voice, snapshot.submitKeys, snapshot.draft]);
+const shape = (snapshot: ComposerSnapshot) => JSON.stringify([snapshot.entry, snapshot.labels, snapshot.stop, snapshot.mentions, snapshot.attachments, snapshot.voice, snapshot.submitKeys, snapshot.draft]);
 
 /**
  * The parent's side of the one input (composer-bridge.ts): the page's state becomes a receiver whose options the bar's composer

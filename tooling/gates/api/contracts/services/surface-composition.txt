@@ -93,6 +93,14 @@ export interface SurfaceSlot {
 
 export type SurfaceTask = (typeof SURFACE_TASKS)[number];
 
+export declare const servicesSurfaceCompositionContract: {
+    readonly contractId: "io.molis.work.service.surface-composition.v1";
+    readonly kind: "service";
+    readonly schemaVersion: 1;
+    readonly maturity: "contract-only";
+    readonly ssot: "specs/shared-sources-and-surfaces/spec.md";
+};
+
 export declare const surfaceCompositionActions: {
     compose: ActionDefinition<SurfaceRequest, SurfaceDescription>;
     correct: ActionDefinition<SurfaceCorrectionInput, SurfaceCorrectionResult>;

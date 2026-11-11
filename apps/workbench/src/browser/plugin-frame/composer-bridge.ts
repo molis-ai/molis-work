@@ -35,7 +35,8 @@ export interface ComposerSnapshot {
   commands: BridgedCommand[];
   mentions: boolean;
   attachments: { accept?: string } | null;
-  sources: boolean;
+  // No `sources`: a framed page's composer never lists sources (S-composer-source-call item 5), so the bar mounts it with
+  // `sources: false` itself; the page has nothing to report and the field used to be dropped here anyway (2026-11-11 review).
   /** The page's own object; its owner is always the frame's plugin, whatever the page says. */
   near: ActionSubject | null;
   voice?: string;

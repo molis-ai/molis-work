@@ -1,5 +1,6 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import type { VersionedFile, VersionedFileStep } from "@molis-ai/molis-work-storage";
 import { repeatingFailure } from "./host-log.js";
 import { resolveConfiguredHome } from "./product-home.js";
 import { isWebLocale, resolveWebLocale, type WebLocale } from "./web-locale.js";
@@ -11,6 +12,22 @@ import { isWebLocale, resolveWebLocale, type WebLocale } from "./web-locale.js";
  */
 export const UI_LOCALE_RELATIVE_PATH = path.join("config", "ui-locale.json");
 const SCHEMA_VERSION = /* @version format.ui.last-locale */ 1;
+
+/**
+ * The same file for the upgrade process (specs/upgrade-continuity/upgrade-chain-design.md §2.6, registered in
+ * `platform-upgrade-stores.ts`): a formatted file in the chain is the definition its owner exports, not a second reader. The runtime
+ * read and write below stay best-effort on purpose (a damaged record is replaced by the next choice; a newer one is untouched), which
+ * is this file's own promise; the chain only needs the version, the steps and a strict reading of the current format.
+ */
+const UPGRADES: readonly VersionedFileStep[] = [];
+export const UI_LOCALE_FILE: VersionedFile<{ readonly locale: WebLocale }> = {
+  version: SCHEMA_VERSION, field: "schema_version", upgrades: UPGRADES,
+  parse: (value) => {
+    const stored = value as { readonly schema_version?: unknown; readonly locale?: unknown } | null;
+    if (!stored || stored.schema_version !== SCHEMA_VERSION || !isWebLocale(stored.locale)) throw new Error("ui-locale.json is not a record of this version");
+    return { locale: stored.locale };
+  },
+};
 
 interface Remembered {
   readonly locale: WebLocale | null;

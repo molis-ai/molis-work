@@ -1,5 +1,6 @@
 import type { SearchIntentRouteResolverV1 } from "@adeptify/search-evidence-layer/intent";
 import { SearchError } from "@adeptify/search-evidence-layer";
+import { SEARCH_PROVIDER_UNAVAILABLE } from "@molis-ai/molis-work-contracts/services/search";
 
 interface RssExactCatalogEntry { sourceId: string; feedUrl: string; enabled: boolean }
 export interface RssExactSourceDefinitions {
@@ -14,7 +15,7 @@ export function createRssExactRouteResolver(definitions: RssExactSourceDefinitio
   return {
     async resolveExact(input) {
       if (input.input.kind !== "feed") {
-        throw routeUnavailable();
+        throw new SearchError(SEARCH_PROVIDER_UNAVAILABLE);
       }
       const feedUrl = normalizeCatalogUrl(input.input.url);
       if (definitions.youtube.acceptsUrl(feedUrl)) {
@@ -40,7 +41,7 @@ export function createRssExactRouteResolver(definitions: RssExactSourceDefinitio
           sourcePolicy: input.sourcePolicy,
         });
       }
-      throw routeUnavailable();
+      throw new SearchError(SEARCH_PROVIDER_UNAVAILABLE);
     },
   };
 }
@@ -70,7 +71,7 @@ function resolveExactCatalogRss(input: {
     || typeof requiredUrl.value !== "string"
     || normalizeCatalogUrl(requiredUrl.value) !== input.feedUrl
   ) {
-    throw routeUnavailable();
+    throw new SearchError(SEARCH_PROVIDER_UNAVAILABLE);
   }
   const requiredDef = required.find(
     (selector) =>
@@ -78,14 +79,14 @@ function resolveExactCatalogRss(input: {
       && selector.namespace === "app"
       && selector.value === input.source.sourceId,
   );
-  if (!requiredDef) throw routeUnavailable();
+  if (!requiredDef) throw new SearchError(SEARCH_PROVIDER_UNAVAILABLE);
 
   const allowedDomain = allowed.find(
     (selector) =>
       selector.kind === "domain"
       && (selector.value === domain || domain.endsWith(`.${selector.value}`)),
   );
-  if (!allowedDomain) throw routeUnavailable();
+  if (!allowedDomain) throw new SearchError(SEARCH_PROVIDER_UNAVAILABLE);
 
   const allowedDef = allowed.find(
     (selector) =>
@@ -93,7 +94,7 @@ function resolveExactCatalogRss(input: {
       && selector.namespace === "app"
       && selector.value === input.source.sourceId,
   );
-  if (!allowedDef) throw routeUnavailable();
+  if (!allowedDef) throw new SearchError(SEARCH_PROVIDER_UNAVAILABLE);
 
   const matchedSelectors = Object.freeze([
     Object.freeze({ kind: "url" as const, value: input.source.feedUrl }),
@@ -148,7 +149,7 @@ function resolveExactCustomRss(definition: RssExactSourceDefinitions["customRss"
     || typeof requiredUrl.value !== "string"
     || normalizeCatalogUrl(requiredUrl.value) !== input.feedUrl
   ) {
-    throw routeUnavailable();
+    throw new SearchError(SEARCH_PROVIDER_UNAVAILABLE);
   }
   const requiredDef = required.find(
     (selector) =>
@@ -156,14 +157,14 @@ function resolveExactCustomRss(definition: RssExactSourceDefinitions["customRss"
       selector.namespace === "app" &&
       selector.value === definition.id,
   );
-  if (!requiredDef) throw routeUnavailable();
+  if (!requiredDef) throw new SearchError(SEARCH_PROVIDER_UNAVAILABLE);
 
   const allowedDomain = allowed.find(
     (selector) =>
       selector.kind === "domain" &&
       (selector.value === domain || domain.endsWith(`.${selector.value}`)),
   );
-  if (!allowedDomain) throw routeUnavailable();
+  if (!allowedDomain) throw new SearchError(SEARCH_PROVIDER_UNAVAILABLE);
 
   const allowedDef = allowed.find(
     (selector) =>
@@ -171,7 +172,7 @@ function resolveExactCustomRss(definition: RssExactSourceDefinitions["customRss"
       selector.namespace === "app" &&
       selector.value === definition.id,
   );
-  if (!allowedDef) throw routeUnavailable();
+  if (!allowedDef) throw new SearchError(SEARCH_PROVIDER_UNAVAILABLE);
 
   const matchedSelectors = Object.freeze([
     Object.freeze({ kind: "url" as const, value: input.feedUrl }),
@@ -225,7 +226,7 @@ function resolveExactYouTubeChannel(definition: RssExactSourceDefinitions["youtu
     || typeof requiredUrl.value !== "string"
     || normalizeCatalogUrl(requiredUrl.value) !== input.feedUrl
   ) {
-    throw routeUnavailable();
+    throw new SearchError(SEARCH_PROVIDER_UNAVAILABLE);
   }
   const requiredDef = required.find(
     (selector) =>
@@ -233,7 +234,7 @@ function resolveExactYouTubeChannel(definition: RssExactSourceDefinitions["youtu
       selector.namespace === "app" &&
       selector.value === definition.id,
   );
-  if (!requiredDef) throw routeUnavailable();
+  if (!requiredDef) throw new SearchError(SEARCH_PROVIDER_UNAVAILABLE);
 
   const allowedDomain = allowed.find(
     (selector) =>
@@ -241,7 +242,7 @@ function resolveExactYouTubeChannel(definition: RssExactSourceDefinitions["youtu
       (selector.value === definition.host ||
         definition.host.endsWith(`.${selector.value}`)),
   );
-  if (!allowedDomain) throw routeUnavailable();
+  if (!allowedDomain) throw new SearchError(SEARCH_PROVIDER_UNAVAILABLE);
 
   const allowedDef = allowed.find(
     (selector) =>
@@ -249,7 +250,7 @@ function resolveExactYouTubeChannel(definition: RssExactSourceDefinitions["youtu
       selector.namespace === "app" &&
       selector.value === definition.id,
   );
-  if (!allowedDef) throw routeUnavailable();
+  if (!allowedDef) throw new SearchError(SEARCH_PROVIDER_UNAVAILABLE);
 
   const matchedSelectors = Object.freeze([
     Object.freeze({ kind: "url" as const, value: input.feedUrl }),
@@ -292,16 +293,8 @@ function normalizeCatalogUrl(value: string): string {
     || url.password
     || url.hash
   ) {
-    throw routeUnavailable();
+    throw new SearchError(SEARCH_PROVIDER_UNAVAILABLE);
   }
   return url.toString();
 }
 
-function routeUnavailable(): SearchError {
-  return new SearchError({
-    code: "provider_unavailable",
-    retryable: false,
-    sideEffectState: "none",
-    recoveryAction: "change_provider",
-  });
-}

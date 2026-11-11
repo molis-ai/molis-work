@@ -1,18 +1,41 @@
 import { ACTION_REFERENCE_SCHEMA, ACTION_SUBJECT_SCHEMA, inputSchemaFor,
   type ActionAudience, type ActionDefinition, type ActionSchema, type ActionSubject, type ExactActionReference, type InferActionInput,
 } from "../platform/actions.js";
+import { defineErrorCodes } from "../platform/action-errors.js";
 import { blueprintDraftSourceSchema } from "../platform/blueprint-source.js";
 import {
   ADOPTION_OUTCOMES, ADOPTION_REVISION_SCHEMA, BLUEPRINT_LIMITS, BLUEPRINT_PART_ORIGIN_SCHEMA, BLUEPRINT_SOURCE_SCHEMA,
   type AdoptionOutcome, type AdoptionRevision, type Blueprint, type BlueprintPartOrigin, type BlueprintProposal, type BlueprintSource,
 } from "../platform/blueprints.js";
 import { closedObjectSchema } from "../platform/closed-object-schema.js";
+import type { ContractDescriptor } from "../platform/package.js";
 import type { SandboxJson } from "../platform/plugin-sandbox.js";
 import { SETTINGS_CONSEQUENCES, SETTINGS_LAYERS, type SettingConsequence, type SettingLayer } from "../platform/settings.js";
 import { LOCALE_TAG } from "../platform/ui-text.js";
 
+/** The scene service's public contract (specs/scene-and-page-contract/spec.md §?): the draft, the adoption record and the eight actions declared here. The provider is batch 44's. */
+export const servicesBlueprintsContract = {
+  contractId: /* @version contract.io.molis.work.service.blueprints "io.molis.work.service.blueprints.v{version}" */ "io.molis.work.service.blueprints.v1",
+  kind: "service",
+  schemaVersion: /* @version contract.io.molis.work.service.blueprints */ 1,
+  maturity: "contract-only",
+  ssot: "specs/scene-and-page-contract/spec.md",
+} as const satisfies ContractDescriptor;
+
 /** The provider id the future `system.blueprints` service (batch 44) registers the eight actions under; declared here, not registered yet. */
 export const BLUEPRINTS_PROVIDER_ID = "system.blueprints";
+
+/**
+ * The scene owner's refusals (specs/scene-and-page-contract/spec.md, the error-model paragraph of section 13): a part whose owner does
+ * not declare it, a step whose owner revision moved, a dependency that is not installed, and a preview that expired before it was used.
+ * Declared once, so callers of the future `system.blueprints` provider (a workflow, a Skill, the interface) can tell them apart.
+ */
+export const blueprintsErrors = /* @__PURE__ */ defineErrorCodes("blueprints", {
+  part_unsupported: "invalid",
+  step_conflict: "conflict",
+  dependency_unmet: "unavailable",
+  preview_expired: "not_found",
+});
 
 type DraftSource = Extract<BlueprintSource, { kind: "draft" }>;
 export type BlueprintDraftSaveInput<Body = Blueprint> = { blueprint: Body } & (

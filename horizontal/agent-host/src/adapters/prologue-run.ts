@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import type { ExactRef, PackTool, Runtime } from "@prologue/sdk";
 import { BUSINESS_HOST_TOOLS } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
+import { AGENT_TOOLS } from "../tool-catalog.js";
 import { requireSynchronous, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { agentTextMaterialContent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentErrors } from "../errors.js";
@@ -161,8 +162,14 @@ async function roundChecks(deps: RunDeps, input: PrologueStartInput, index: Sess
 }
 
 /** What a parent that hands its children their own directories may hold: reading, dispatching, asking the person, the board,
- * the project's sessions and saying how it handles a supplement (receipts 3e-0b); no tool that writes or runs anything. */
-const WORKSPACE_PARENT_TOOLS: readonly string[] = ["read-file", "list", "search", "context-remaining", "dispatch-subagent", "await-subagents", "steer-subagent", "ask-user", "acknowledge-inputs", "board-read", "board-report", "session-send"];
+ * the project's sessions and saying how it handles a supplement (receipts 3e-0b); no tool that writes or runs anything.
+ * The names are read from the Agent Host's one tool set (`AGENT_TOOLS`), so this can never name a tool the set no longer has. */
+const WORKSPACE_PARENT_TOOL_NAMES: readonly string[] = ["read-file", "list", "search", "context-remaining", "dispatch-subagent", "await-subagents", "steer-subagent", "ask-user", "acknowledge-inputs", "board-read", "board-report", "session-send"];
+const WORKSPACE_PARENT_TOOLS: readonly string[] = WORKSPACE_PARENT_TOOL_NAMES.map(name => {
+  const entry = AGENT_TOOLS.find(tool => tool.name === name);
+  if (!entry) throw new Error(`workspace parent tool ${name} is not in AGENT_TOOLS`);
+  return entry.name;
+});
 
 /** The round's child directories and fixed child roles, each a published Character, and what the round is told of them. */
 async function childSetup(deps: RunDeps, input: PrologueStartInput) {

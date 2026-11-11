@@ -1,6 +1,7 @@
 import { PLUGIN_SLOTS_EN } from "./plugin-slots-en.js";
 /** English for workbench renderer labels that had no entry (connectors, MCP developer tools, Home, Feed judgment, Shelf). */
 export const RENDERER_GAP_EN: Record<string, string> = {
+  '文件没有加进去：现在底栏发给这一页，它不收文件。回到助理再添加。':'The file was not added: the bar is sending to this page, and it does not take files. Go back to the Assistant and add it there.',
   '草稿删除暂未开放，完整创作及文件已保留':'Draft deletion is not available yet; the full creation and files are retained',
   '永久清理暂未开放，保留内容仍计入云端容量。':'Permanent cleanup is not available yet. Retained content still counts toward cloud storage.',
   '变化字段':'Changed fields',

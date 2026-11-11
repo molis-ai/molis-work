@@ -869,6 +869,8 @@ export declare function pageRouteProblems(manifest: PluginManifest): string[];
 
 export declare function parseContentPackage(payload: unknown): ContentPackage;
 
+export declare function parseJson<T>(value: unknown, fallback: T): T;
+
 export declare function parsePluginManifest(input: unknown): PluginManifest;
 
 export declare function parsePluginPackageManifest(input: unknown): PluginPackageManifest;

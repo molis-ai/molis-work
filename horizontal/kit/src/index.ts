@@ -8,6 +8,8 @@ import {
 import { KIT_AGENT_DEFINITIONS_PROVIDER_ID, KIT_AGENT_MCP_PROVIDER_ID, KIT_AGENT_TOOLS_PROVIDER_ID, KIT_MCP_ACCESS_PROVIDER_ID, kitErrors,
   type KitCatalog, type KitPack, type KitPackState } from "@molis-ai/molis-work-contracts/services/kit";
 import { SKILLS_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/skills";
+import { CONNECTOR_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/connector-host";
+import { PLUGIN_INSTALL_PROVIDER_ID } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 // The AI kit's gatherer (specs/capability-pack/contract-design.md §4.6, §4.7): it finds the owners' reports in the caller's own
 // directory, calls each once, stamps where each entry comes from and which pack it is in, and reads every pack's state from what it
@@ -34,10 +36,9 @@ export const KIT_SYSTEM_REPORTERS: Readonly<Record<string, KitSystemReporter>> =
   [KIT_AGENT_TOOLS_PROVIDER_ID]: { kinds: ["tool"], sources: ["runtime", "system"], packs: ["system:builtin"] },
   [CHARACTER_PLUGIN_ID]: { kinds: ["role"], sources: ["character"], packs: ["system:characters"] },
   [KIT_AGENT_MCP_PROVIDER_ID]: { kinds: ["mcp"], sources: ["mcp_server"], packs: ["plugin"] },
-  // The Host's connections and its plugin install service (their ids are the Host's: apps/local-host).
-  "system.connectors": { kinds: ["mcp"], sources: ["mcp_server"], packs: ["plugin", "system:builtin"] },
+  [CONNECTOR_PROVIDER_ID]: { kinds: ["mcp"], sources: ["mcp_server"], packs: ["plugin", "system:builtin"] },
   [KIT_MCP_ACCESS_PROVIDER_ID]: { kinds: ["mcp"], sources: ["outbound"], packs: ["system:builtin"] },
-  "plugin-install": { kinds: [], sources: [], packs: [], headers: true },
+  [PLUGIN_INSTALL_PROVIDER_ID]: { kinds: [], sources: [], packs: [], headers: true },
 };
 
 /** How long one reporter may take before the gatherer goes on without it (§4.7). */

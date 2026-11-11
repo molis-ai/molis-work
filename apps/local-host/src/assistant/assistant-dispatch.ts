@@ -180,7 +180,11 @@ export class AssistantDispatch {
     if (work.executor.kind === "plugin") return this.executorDispatch(work, text, materials, context, mode, writtenBy, stillCurrent, intent, beforeStart, assertBeforeStart, handoff);
     const host = await this.ports.host();
     const adapter = host.adapter(RUNTIME);
-    let base = await this.ports.authority(work);
+    // The Skills the person chose for this round, by their exact references: the round's named list, so a `manual` one can be read
+    // (`skill_round.named`, specs/capability-pack/contract-design.md §2.3). A Skill the page sent without the person choosing it is not one.
+    const namedSkills = [...new Map(materials.flatMap(item => item.kind === "method" && item.method?.kind === "skill"
+      ? [[JSON.stringify(item.method.ref), item.method.ref] as const] : [])).values()];
+    let base = await this.ports.authority(work, undefined, namedSkills);
     const original_input = !work.delegated_by && !work.reply_target ? intent?.original_input : undefined;
     // A round no page gave a language to reads the last used one here, whichever entry started it, and never the language of the page its async chain began in.
     const replyLocale = intent?.reply_locale ?? this.ports.lastLocale?.();
@@ -197,7 +201,7 @@ export class AssistantDispatch {
         actor_id: this.actorId, title: work.title, workspace: "business", role_id: role }, authority);
       work = this.store.update(this.actorId, work.work_id, null, { session_id: session.session_id });
       // Action ownership includes the newly created session, also on the very first round.
-      base = await this.ports.authority(work); authority = startAuthority();
+      base = await this.ports.authority(work, undefined, namedSkills); authority = startAuthority();
     }
     assertSendCurrent(stillCurrent);
     const session = await adapter.readSession(sessionRef(work));

@@ -144,7 +144,11 @@ export function renderPersonalAccountEntry(controlToken: string, desktop: boolea
             if(document.body.dataset.nativeDesktop==='true'){
               const state=await molisWorkRequest('/api/personal/status');
               if(state.identity && state.ready && state.browserSessionTicket){
-                await molisWorkRequest('/api/personal/native-attach?ticket='+encodeURIComponent(state.browserSessionTicket),{method:'POST',body:{}});
+                // One protocol for both desktop entries: attach only when the WebView still lacks the same browser session.
+                const browser=await molisWorkRequest('/api/personal/status?browser=1');
+                if(browser.identity?.userId!==state.identity.userId || browser.identity?.applicationId!==state.identity.applicationId){
+                  await molisWorkRequest('/api/personal/native-attach?ticket='+encodeURIComponent(state.browserSessionTicket),{method:'POST',body:{}});
+                }
                 location.replace('/?desktop=1');
                 return;
               }

@@ -76,7 +76,7 @@ export const COMPOSER_STYLES = `${COMPOSER_PATTERN_STYLES}
     .mw-composer__status > .mw-status { margin-right: 8px; vertical-align: 1px; }
     .mw-composer__status .mw-btn--link { margin-left: 8px; vertical-align: baseline; }
     .mw-composer__more { display: block; }
-    .mw-composer__controls { position: absolute; bottom: calc(100% + 6px); left: 0; z-index: 5; display: none; flex-wrap: wrap; max-width: 100%; padding: 6px; border-radius: var(--r-card, 12px); background: var(--popover, var(--paper)); box-shadow: var(--lift-3); animation: craft-rise-from-bar 250ms var(--ease-quint); }
+    .mw-composer__controls { position: absolute; bottom: calc(100% + 6px); left: 0; z-index: 5; display: none; flex-wrap: wrap; max-width: 100%; padding: 6px; border-radius: var(--r-card, 12px); background: var(--popover, var(--paper)); box-shadow: var(--lift-3); animation: craft-rise-from-bar var(--dur-move, 250ms) var(--ease-quint); }
     .mw-composer__more:has(> [aria-expanded="true"]) + .mw-composer__controls { display: flex; }
   }
   @media (prefers-reduced-motion: reduce) { .mw-composer__box { transition: none; } .mw-composer__controls { animation: none; } }

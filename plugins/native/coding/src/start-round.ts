@@ -23,6 +23,7 @@ import { CODING_HISTORY_SUMMARY } from "./prompts.js";
 import { type Capabilities, type CodingActivation, savedDigestUsage, sessionState } from "./route-activation.js";
 import { codingActions, codingActionControl, type CodingBeforeWrite } from "./route-entry.js";
 import { skillSelection, mcpSelection, mcpSources, savedActions } from "./route-selections.js";
+import { automaticSkillMaterial } from "./skill-choices.js";
 import type { CodingExecution } from "./routes.js";
 import { startDelegation } from "./routes-delegations.js";
 import { chosenEffort, text } from "./run-inputs.js";
@@ -200,6 +201,10 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
   if (text_materials.length > 30) throw codingFailure("coding.server.materials-30");
   const catalog = await knowledgeCatalogMaterial(context.services?.actions, action_tools, `${record.title}\n${task}`, codingActionControl(beforeWrite));
   if (catalog) text_materials.push(catalog);
+  // The Skills set to 「自动」 for Coding, by name and description (SKP-10): the round reads a body when it needs one. Nothing is
+  // selected here — a `manual` Skill still needs the person to name it (the page's choice or the Host's delegation).
+  const automaticSkills = context.services?.actions ? await automaticSkillMaterial(context.services.actions) : undefined;
+  if (automaticSkills) text_materials.push(automaticSkills);
   await beforeWrite(); beforeWrite.assert_current();
   const session = record.runtime_session_id ? { runtime_id: record.runtime_id, session_id: record.runtime_session_id }
     : await codingActions(a.context, beforeWrite).invoke(agent.createSession, [record.runtime_id, { directory, title: record.title }]);

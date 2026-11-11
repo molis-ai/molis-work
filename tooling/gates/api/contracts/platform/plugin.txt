@@ -2638,6 +2638,8 @@ export declare const PLUGIN_CONTEXT_LEDGER_WRITE_PERMISSION = "context-ledger:wr
 
 export declare const PLUGIN_EVENT_PAYLOAD_MAX_BYTES = 16384;
 
+export declare const PLUGIN_INSTALL_PROVIDER_ID = "plugin-install";
+
 export declare const PLUGIN_JUDGMENTS_READ_PERMISSION = "judgments:read";
 
 export declare const PLUGIN_JUDGMENTS_WRITE_PERMISSION = "judgments:write";
@@ -5689,6 +5691,14 @@ export declare function findSubjectReader(views: readonly ActionView[], kind: st
 export declare function hostEventType(eventTypeId: string, typeVersion: number): HostEventType | undefined;
 
 export declare const inputSchemaFor: <I>() => <const S extends ActionSchema>(schema: S & InputMatches<I, S>) => ActionSchema;
+
+export declare function integrationLiveFailure(failure: IntegrationProviderFailure, message: string, options?: {
+    readonly action?: string;
+    readonly httpStatus?: number;
+    readonly retryAfterAt?: string;
+}): Extract<IntegrationProviderSyncResult, {
+    ok: false;
+}>;
 
 export declare function isActionErrorKind(value: unknown): value is ActionErrorKind;
 

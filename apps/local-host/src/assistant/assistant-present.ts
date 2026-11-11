@@ -1,3 +1,4 @@
+import { AGENT_TOOLS } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentRecoveryReport, AgentRunView, AgentToolActivity } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { failedStep } from "./activity-failure.js";
 import type { AssistantActivity, AssistantRecovery, AssistantWorkState, AssistantWorkObject, AssistantRoundDiagnostics } from "@molis-ai/molis-work-contracts/services/assistant";
@@ -112,17 +113,33 @@ export function stopInWords(reason: string, workBudget?: number): string {
  * The Agent tools' activity as the person reads it, keyed by a tool's name in the Agent Host's tool set or the runtime's own name for it
  * (`AGENT_TOOLS`; the side panel's browser tools are the runtime's, offered by the surface). Presenting stays here; the names are the set's.
  */
-export const TOOL_ACTIVITY_VERBS: Readonly<Record<string, string>> = { "find-capabilities": "lookup", "read-capability": "read", "change-capability": "change", "change-reversible": "change", "ask-user": "ask", "update-todo": "todo",
+const ACTIVITY_WORDS: Readonly<Record<string, string>> = { "find-capabilities": "lookup", "read-capability": "read", "change-capability": "change", "change-reversible": "change", "ask-user": "ask", "update-todo": "todo",
   "suggest-action": "suggest",
   // A professional Agent's own tools, as the person reads them: on files and commands, never a business capability.
   "read": "file-read", "read-file": "file-read", "list": "file-list", "search": "file-search", "edit": "file-change", "edit-file": "file-change",
   "write": "file-change", "run-command": "command", "command-output": "command-output", "await-commands": "command-output", "find-tools": "lookup-tools",
   // Sub-tasks handed to works of their own.
   "delegate-work": "delegate", "check-delegated-work": "delegate-check", "follow-up-delegated-work": "delegate-follow-up", "stop-delegated-work": "delegate-stop",
-  // The side panel's browser.
-  "surface-list": "browser-list", "surface-observe": "browser-look", "surface-act": "browser-act",
   // The person's memory.
   "remember": "memory-keep", "list-memories": "memory-list", "forget-memory": "memory-forget", "suggest-memory": "memory-suggest",
+};
+/**
+ * The side panel's browser tools: runtime tools the surface offers, not in a role's `host_tools`, so not in the Agent tool set.
+ * They are presentation-only here (the runtime names its own calls with them).
+ */
+const SURFACE_ACTIVITY_WORDS: Readonly<Record<string, string>> = { "surface-list": "browser-list", "surface-observe": "browser-look", "surface-act": "browser-act" };
+/**
+ * Activity verbs by tool name: the names come from the Agent Host's one tool set (`AGENT_TOOLS`), so a name the Host no longer has
+ * never gets a word here, and the runtime's own name for a tool starts from the set's name for it. A tool the set has but nobody wrote
+ * a word for falls back to its name; adding one is a display decision, not a second list of tools.
+ */
+export const TOOL_ACTIVITY_VERBS: Readonly<Record<string, string>> = {
+  ...Object.fromEntries(AGENT_TOOLS.flatMap((entry): Array<[string, string]> => {
+    const word = ACTIVITY_WORDS[entry.name] ?? (entry.runtime_name ? ACTIVITY_WORDS[entry.runtime_name] : undefined);
+    if (!word) return [];
+    return entry.runtime_name && entry.runtime_name !== entry.name ? [[entry.name, word], [entry.runtime_name, word]] : [[entry.name, word]];
+  })),
+  ...SURFACE_ACTIVITY_WORDS,
 };
 /** What the Host itself did to a round, shown as activity. */
 const HOST_ACTIVITY_VERBS: Readonly<Record<string, string>> = {

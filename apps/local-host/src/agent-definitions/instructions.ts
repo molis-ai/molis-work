@@ -11,10 +11,15 @@ export function resolveInstructionPrompt(homeDirectory: string, ownerId: string,
  * The text a model call sends: registered instructions as the person left them (their version, or the default),
  * then the call's data. A plain string passes through; the prompt-registration check keeps new ones from appearing.
  */
-export function resolveModelPrompt(homeDirectory: string | undefined, prompt: ModelPromptInput, caller: string): string {
+export function resolveModelPrompt(homeDirectory: string | undefined, prompt: ModelPromptInput, caller: string,
+  options: { onDispatch?(record: () => void): void } = {}): string {
   if (typeof prompt === "string" || !homeDirectory) return modelPromptText(prompt);
-  const body = resolveInstructionPrompt(homeDirectory, prompt.instruction.owner_id, prompt.instruction.prompt_id, caller);
-  return composeInstructedPrompt(body, prompt.data);
+  const definitions = agentDefinitionsFor(homeDirectory, builtinRegistrations);
+  const read = definitions.instruction(prompt.instruction.owner_id, prompt.instruction.prompt_id, caller, false);
+  const record = () => read.record?.();
+  // A caller that dispatches a model call itself records the use then; every other caller reads the prompt for immediate use.
+  if (options.onDispatch) options.onDispatch(record); else record();
+  return composeInstructedPrompt(read.body, prompt.data);
 }
 
 /** Just the instruction's text as the person left it (their version, or the default), for callers that place it themselves. */

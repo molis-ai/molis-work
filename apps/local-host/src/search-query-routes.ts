@@ -1,5 +1,6 @@
 import type { SearchIntentRouteResolverV1 } from "@adeptify/search-evidence-layer/intent";
 import { SearchError } from "@adeptify/search-evidence-layer";
+import { SEARCH_PROVIDER_UNAVAILABLE } from "@molis-ai/molis-work-contracts/services/search";
 
 const WEB_QUERY_PROVIDER_ID = "anysearch";
 const WEB_QUERY_DEFINITION_ID = "anysearch";
@@ -9,7 +10,7 @@ const ROUTE_MAX_MATERIALS = 20;
 /** Public query routing shared by Feed and research; identity and selectors remain Host-owned. */
 export function createWebQueryRouteResolver(): SearchIntentRouteResolverV1 {
   return { async resolveExact(input) {
-    if (input.input.kind !== "query") throw routeUnavailable();
+    if (input.input.kind !== "query") throw new SearchError(SEARCH_PROVIDER_UNAVAILABLE);
     return resolveExactWebQuery({ input: input.input, sourcePolicy: input.sourcePolicy });
   } };
 }
@@ -30,12 +31,12 @@ function resolveExactWebQuery(input: {
   };
 }): Awaited<ReturnType<SearchIntentRouteResolverV1["resolveExact"]>> {
   const query = input.input.query.trim();
-  if (query.length < 2) throw routeUnavailable();
+  if (query.length < 2) throw new SearchError(SEARCH_PROVIDER_UNAVAILABLE);
 
   const required = input.sourcePolicy.required ?? [];
   const allowed = input.sourcePolicy.allowed ?? [];
   if (!hasPinnedWebQuerySelector(required) || !hasPinnedWebQuerySelector(allowed)) {
-    throw routeUnavailable();
+    throw new SearchError(SEARCH_PROVIDER_UNAVAILABLE);
   }
 
   const matchedSelectors = Object.freeze([
@@ -86,11 +87,3 @@ function hasPinnedWebQuerySelector(
   return provider && channel && definition;
 }
 
-function routeUnavailable(): SearchError {
-  return new SearchError({
-    code: "provider_unavailable",
-    retryable: false,
-    sideEffectState: "none",
-    recoveryAction: "change_provider",
-  });
-}

@@ -210,7 +210,7 @@ test('ASR-02/10 PCSYNC-02/04/05/06 Host keeps manual runs separate and preserves
   }
 });
 
-test('web sessions expire, rotate identifiers, reject duplicate cookies and do not survive restart',()=>{
+test('web sessions expire, reject duplicate cookies and do not survive restart',()=>{
   let now=1000;const sessions=new PersonalWebSessions(()=>now);
   const config=trialAccountConfig('http://127.0.0.1:8787','http://127.0.0.1:4173');
   const auth=new PersonalAuth(config,{get:()=>null,put:()=>{},delete:()=>{},assertWritable:()=>{}});
@@ -218,7 +218,6 @@ test('web sessions expire, rotate identifiers, reject duplicate cookies and do n
   const before=sessions.cookie(a,true).split(';')[0];
   assert.equal(sessions.get(before),a);assert.match(sessions.cookie(a,true),/HttpOnly; SameSite=Lax; Max-Age=28800; Secure/);
   assert.equal(sessions.get(before+'; '+before),null);
-  sessions.rotate(a);assert.equal(sessions.get(before),null);
   assert.equal(sessions.get(sessions.cookie(b,false).split(';')[0]),b);
   assert.equal(new PersonalWebSessions().get(sessions.cookie(a,false).split(';')[0]),null);
   const current=sessions.cookie(a,false).split(';')[0];now+=8*60*60*1000;
@@ -309,7 +308,7 @@ test('account page works without cloud, never exposes credentials, and rejects c
     const account=await fetch(`${origin}/account`,{redirect:'manual'});assert.equal(account.status,303);
     const html=await(await fetch(origin)).text();assert.match(html,/data-account-entry/);assert.match(html,/api\/personal\/login/);assert.doesNotMatch(html,/data-account-link/);
     assert.doesNotMatch(html,/refresh_token|access_token/);
-    const status=await fetch(`${origin}/api/personal/status`);assert.deepEqual(await status.json(),{configured:false,identity:null,syncEnabled:false,accountChanged:false,ready:false,switching:false});
+    const status=await fetch(`${origin}/api/personal/status`);assert.deepEqual(await status.json(),{configured:false,identity:null,accountChanged:false,ready:false,switching:false});
     const rejected=await fetch(`${origin}/api/personal/login`,{method:'POST',headers:{Origin:'https://attacker.example','content-type':'application/json'},body:'{}'});
     assert.equal(rejected.status,403);
   }finally{
@@ -341,7 +340,7 @@ test('ASR-02 first launch shows the login entry and refuses an anonymous busines
     assert.match((await choice.json()).error,/不能切换匿名工作区/);
     const headers={};
     const status=await fetch(origin+'/api/personal/status',{headers});
-    assert.deepEqual(await status.json(),{configured:true,identity:null,syncEnabled:false,accountChanged:false,ready:false,switching:false});
+    assert.deepEqual(await status.json(),{configured:true,identity:null,accountChanged:false,ready:false,switching:false});
     const denied=await fetch(origin+'/api/settings/projects',{headers});assert.equal(denied.status,401,'anonymous installation control never reaches business data');
     const account=await fetch(origin+'/account',{headers,redirect:'manual'});assert.equal(account.headers.get('location'),'/');
     assert.equal(existsSync(join(home,'feed','secrets.key')),false,'onboarding and local account must not open credentials');

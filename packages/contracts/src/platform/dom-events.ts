@@ -180,8 +180,8 @@ export interface DomEventDeclaration {
 }
 
 /**
- * Every page event, in name order: 63 names at the time of listing, 159 dispatch sites and 147 listener sites on a page
- * prefix; one, `molis:side-toggle`, is only listened to so far. Who dispatches and who listens is not written down here:
+ * Every page event, in name order: 62 names at the time of listing, 159 dispatch sites and 149 listener sites on a page
+ * prefix. Who dispatches and who listens is not written down here:
  * `node scripts/gates/dom-events.mjs --report` computes both from the source, so it cannot go stale.
  */
 export const DOM_EVENTS = [
@@ -467,11 +467,6 @@ export const DOM_EVENTS = [
     name: "molis:side-shown", kind: "announcement", owner: "side-panel", on: "document",
     detail: "{ tab, target, open }",
     summary: "A tab of the side panel is now shown (or the panel closed); the tab's owner loads what it was asked to show.",
-  },
-  {
-    name: "molis:side-toggle", kind: "request", owner: "side-panel", on: "document",
-    detail: "{ tab? }",
-    summary: "Close the panel if it shows that tab (or any tab), otherwise open it. Nothing in the tree dispatches it yet.",
   },
   {
     name: "molis:surface-focus", kind: "request", owner: "context-actions", on: "element", bubbles: true,

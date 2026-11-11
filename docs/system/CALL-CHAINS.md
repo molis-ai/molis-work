@@ -7,7 +7,10 @@
 - **环节**：这一步做什么；**归谁**：代码在哪里，也就是出了问题找谁；
 - **输入 → 输出**；**身份与权限**；**失败时**：真实的错误码或状态；**事件与记录**：这一步留下的东西。
 
-文中引用的路径、能力 id、错误码都在代码里存在；行号不写，用符号名定位。「现状与缺口」里的编号 `#n` 指 [平台逻辑复查](../../specs/archive/repository-anti-corruption/spec.md#11-平台逻辑复查2026-10-07补第一步按-goal-收窄的范围)，`W3-01` 这类编号指 [路线](../../specs/archive/repository-anti-corruption/roadmap-2026-10-07.md) 里的切片。
+文中引用的路径、能力 id、错误码都在代码里存在；行号不写，用符号名定位。
+
+2026-11-11 补：§11 记四条横切链（统一输入、能力包、账号身份、证据合同）；§2–§9 的八条主链路与 §10 的例外登记不变。
+「现状与缺口」里的编号 `#n` 指 [平台逻辑复查](../../specs/archive/repository-anti-corruption/spec.md#11-平台逻辑复查2026-10-07补第一步按-goal-收窄的范围)，`W3-01` 这类编号指 [路线](../../specs/archive/repository-anti-corruption/roadmap-2026-10-07.md) 里的切片。
 
 ## 1. 先记住的五件事
 
@@ -39,8 +42,8 @@
 
 | # | 环节 | 归谁 | 输入 → 输出 | 身份与权限 | 失败时 | 事件与记录 |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 | 页面发请求 | 共用请求助手 `packages/ui-host/src/request-client.ts`（`UI_REQUEST_CLIENT_SCRIPT` 装出 `molisWorkRequest` 与只给头的 `molisWorkControlHeaders`），W3-10-1a 起装在设置、项目设置、引导、选择页、侧栏独立页和创作台页；W3-10-1b 起也是工作台主程序（`/assets/molis-work-workbench.js`）的第一段，设置一组、侧栏、设置目录、后台任务和插件通知经它请求；导航、Feed、插件挂载、助理底栏、放置、搜索仍是各自的 `fetch` 包装（W3-10-2～4），各插件客户端自带包装（W5-04 迁） | 用户操作 → JSON 请求；头带 `x-molis-work-control-token`（取自页面 meta）和每次新生成的 `x-molis-work-idempotency-key`。助手只发往本页同源，一律 `no-store`，只发一次不重试 | 页面只带控制令牌，不带身份 | 助手把失败变成带 `code`、`status`、`callId`（只读错误体里的 `call_id`）、`body` 的 `Error`，没有回答时读请求报 `ui_host.unreachable`、写请求报 `ui_host.outcome_unknown`；还没迁的页面读 `body.error` 显示，不显示调用标识 | 无 |
-| 2 | 本机入口与防重放 | `apps/local-host/src/web-server.ts` → `authorizeLocalWebRequest`（`apps/local-host/src/web-http.ts`） | 请求 → 放行或拒绝 | Host 必须是回环地址；写 API 还要求 Origin 与 Host 一致、令牌常量时间比对相等、一次性键 8 到 200 位 | 403「本地控制请求校验失败」（`host.request_refused`：Host、Origin、令牌哪一项没过都是这一个答复，不说是哪一项）；400 缺键；409 `request.in_flight`；409「这次操作已经提交」 | 进程内键表（上限 4096 条），成功后记 complete；同一处为这个请求打开调用编号的作用域（`web-server.ts`），请求里的所有调用共用这个编号 |
+| 1 | 页面发请求 | 共用请求助手 `packages/ui-host/src/request-client.ts`（`UI_REQUEST_CLIENT_SCRIPT` 装出 `molisWorkRequest` 与只给头的 `molisWorkControlHeaders`），W3-10-1a 起装在设置、项目设置、引导、选择页、侧栏独立页和创作台页；W3-10-1b 起也是工作台主程序（`/assets/molis-work-workbench.js`）的第一段，设置一组、侧栏、设置目录、后台任务和插件通知经它请求；导航、Feed、插件挂载、助理底栏、放置、搜索仍是各自的 `fetch` 包装（W3-10-2～4），各插件客户端自带包装（W5-04 迁） | 用户操作 → JSON 请求；头带 `x-molis-work-page-session`（取自页面 meta 的页面会话凭据）和每次新生成的 `x-molis-work-idempotency-key`；旧页面仍带 `x-molis-work-control-token`，助手把它留在控制头里，但页面会话已由前者承载。助手只发往本页同源，一律 `no-store`，只发一次不重试 | 页面只带页面会话凭据（或旧页面的控制令牌），不带身份 | 助手把失败变成带 `code`、`status`、`callId`（只读错误体里的 `call_id`）、`body` 的 `Error`，没有回答时读请求报 `ui_host.unreachable`、写请求报 `ui_host.outcome_unknown`；还没迁的页面读 `body.error` 显示，不显示调用标识 | 无 |
+| 2 | 本机入口与防重放 | `apps/local-host/src/web-server.ts` → `authorizeLocalWebRequest`（`apps/local-host/src/web-http.ts`） | 请求 → 放行或拒绝 | Host 必须是回环地址；写 API 还要求 Origin 与 Host 一致、页面会话凭据（`x-molis-work-page-session`，由 `apps/local-host/src/web-sessions.ts` 校验；旧页面的控制令牌同样接受）常量时间比对相等、一次性键 8 到 200 位；账号读取另要同源 Fetch Metadata 与 Origin／Referer（`apps/local-host/src/web-http.ts` 的 `authorizeAccountRead`） | 403「本地控制请求校验失败」（`host.request_refused`：Host、Origin、令牌哪一项没过都是这一个答复，不说是哪一项）；400 缺键；409 `request.in_flight`；409「这次操作已经提交」 | 进程内键表（上限 4096 条），成功后记 complete；同一处为这个请求打开调用编号的作用域（`web-server.ts`），请求里的所有调用共用这个编号 |
 | 3 | 项目解析 | `apps/local-host/src/web-routing.ts`（`resolveWebRequest`）、`apps/local-host/src/web-request.ts` | 路径 → 项目引用（`project_id` 加库路径） | 项目目录库（catalog） | 404「找不到这个 Molis Work 项目」；库文件不存在 404 | 无 |
 | 4 | 路由分发 | `apps/local-host/src/web-request.ts` 的路由表（`apps/local-host/src/web-route-table.ts` 逐条尝试）依次调各个 handle…Http 处理函数；旧路径插件走 `apps/local-host/src/` 下各自的 native-plugin-http 文件（例如 `apps/local-host/src/alchemist-native-plugin-http.ts`），Runtime 插件走 `apps/local-host/src/project-plugin-http.ts` 的 `handleProjectPluginHttp` 和 `PluginRouteRouter` | URL → 命中的路由表 | 项目由 Host 按路径绑定，query 和 body 不能覆盖 | 没命中就落到下一个处理器；Runtime 插件在本项目未启用时 403 `actions.plugin_disabled`（与动作层、Runtime 路由器是同一个码和同一句话） | 无 |
 | 5 | 插件路由表 | 插件包，例如 `plugins/native/inbox/src/routes.ts`、`plugins/native/inbox/src/route-handlers.ts` | HTTP 参数 → 动作输入；动作结果 → HTTP 响应 | 无新增身份，只持有 `BoundActionClient`；请求断开时 `AbortController` 取消 | 路由表不映射状态：Host 的入口（`apps/local-host/src/native-plugin-http.ts` 的 `dispatchNativePluginJsonHttp`，Runtime 插件的路由是 SDK 的 `bindPluginActionRoute`）按错误的 kind 给状态，响应体统一是 `{ error, code, details? }`（`packages/plugin-sdk/src/errors.ts` 的 `actionErrorResponse`）；读不出请求体也走这里（`actions.input_invalid`、`actions.input_too_large`） | 无 |
@@ -308,3 +311,54 @@
 - 插件创作台自己的 HTTP：`apps/local-host/src/plugin-builder/agent-surface.ts` 的 `handleAgentStudioHttp`，路径在 `/api/plugin-builder/studio/` 下，含保存密钥 `POST …/secrets`、`…/settings`、新建构建 `…/builds`、构建里的 `…/action`、`…/call`。
 - 首次引导里的整理旅程 `/api/onboarding/context/…`（`apps/local-host/src/web-context-onboarding.ts`）。
 - Agent 审批 `POST /api/agent/reviews/decide`、`/api/agent/reviews/recovery`（`apps/local-host/src/agent-review-http.ts`）和首页的 `POST /api/home/…`（`apps/local-host/src/home-dock-http.ts`）。
+
+## 11. 横切链（2026-11-11 补）
+
+§2–§9 的八条主链路与 §10 的例外登记不变；这里补四条后来长成、跨多条主链的链路：统一输入、能力包、账号身份、证据合同。格式同上：每个环节一行，写清归谁、输入输出、身份与权限、失败时、事件与记录。
+
+### 11.1 链 A：统一输入（composer）的 `+` 来源
+
+| # | 环节 | 归谁 | 输入 → 输出 | 身份与权限 | 失败时 | 事件与记录 |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | 页面发请求 | `apps/workbench/src/scripts/client/assistant-composer.ts`，经 `packages/ui-host/src/request-client.ts` | 输入框的 `+` 菜单打开、按 `query` 变化 → `POST` `/api/composer/sources`、`/api/composer/pick` | 页面会话凭据加一次性键；页面只带自己的请求，不带身份 | 助手把失败变成带 `code` 的 `Error`；页面忽略已过期的选取 | 无 |
+| 2 | 路由与绑定 | `apps/local-host/src/web-catalog-routes.ts`（没有项目时只列 Home 来源）、`apps/local-host/src/web-project-platform-routes.ts`（项目里列本项目来源）→ `apps/local-host/src/composer-sources-http.ts` | 路径加项目 → 绑定的动作客户端 | 项目由 Host 按路径给；`bindLocalWebActions` 按页面内置权限集与 Runtime grant 造调用者；插件页面没有进这个入口的路（页面授权只到它自己的路由） | 405 只收 `POST`；请求关闭时 `actions.cancelled`（`AbortController` 转成 `caller.signal`） | 无 |
+| 3 | 列来源 | `apps/local-host/src/composer-sources-http.ts` 的 `isSource`，按 `view.action.composer_source` 从动作目录挑；声明形状在 `packages/contracts/src/platform/composer.ts` | 目录 → 每个可用来源的 `capability_id`、`version`、`provider_id`、标题 | 只列此刻发现得到、对这个层（`plain`／`ai`）开放且被授权的来源；不读插件名 | 来源停用、卸载或不再授权就不列，不报错 | 无 |
+| 4 | 选一项 | 同一文件：只调第 3 步列出的那一个精确能力 | 查询词、`limit`、当前对象（只在来源自己的 `subject_kinds` 内）→ 资料引用 | 调用者仍是页面这个人；来源不能借这次调用拿到别的东西 | 来源不在了 → `composer.source_unavailable`；来源返回不属于自己的资料 → 同一个码 | 无（只读；不写业务数据） |
+| 5 | 收下与显示 | 页面把 `MaterialRef` 放进这次输入，不落业务数据 | 资料引用 → 输入里的 `@` 项 | — | 页面重画时丢弃过期结果 | 无 |
+
+**守住它的用例**：`tests/composer.e2e.test.ts`、`tests/assistant-composer.e2e.test.ts`、`tests/todo-composer-source.e2e.test.ts`、`tests/web-route-table.test.ts`。
+
+### 11.2 链 B：能力包（kit）
+
+| # | 环节 | 归谁 | 输入 → 输出 | 身份与权限 | 失败时 | 事件与记录 |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | 页面 | `apps/workbench/src/settings-kit.ts` 与 `apps/workbench/src/browser/kit/` | 打开能力包页 → `GET`／`POST` `/api/kit/*` | 页面会话凭据；页面不带身份 | JSON 错误按 kind 给状态 | 无 |
+| 2 | 动作 | `kit.catalog.list@1`，合同在 `packages/contracts/src/services/kit.ts`，提供方 `system.kit`，由 `apps/local-host/src/kit-actions.ts` 登记 | 空输入 → 包与条目 | 只给本人；服务按调用者自己的目录与权限收集 | 报告者不可用或超时变成一条 issue，不挡整页 | 成功的读取不留行；失败的读取按调用记录规则留一行 |
+| 3 | 收集 | `horizontal/kit/src/index.ts` 的 `gatherKit` | 一次发现 → 对每个上报者各调一次（并行、5 秒超时） | 用调用者自己的客户端；`KIT_SYSTEM_REPORTERS` 是信任边界：宿主登记的系统提供方才能替别人说来源和包 | 超时 `actions.timeout`；条目重复（`packages/contracts/src/services/kit.ts` 的 `kitErrors` 里 `report_invalid`） | 无（每次都重收，不存） |
+| 4 | 上报者 | `apps/local-host/src/kit-mcp-reports.ts` 与各主人：Skills、Agent 定义、Agent 工具、Characters、MCP、连接器、插件安装服务（报包头） | 主人的声明与账目 → `KitReport` | 由各自动作的受众决定能报到哪一层 | 单个主人失败只影响它的条目 | 无 |
+| 5 | 页面回执 | 页面画「包 → 条目」，包的开关状态从它自己的插件与条目读出 | 目录 → 界面 | 导出另走 `/api/plugin-trust/` 的安装预览，不在这一链 | — | 无 |
+
+**守住它的用例**：`tests/kit-catalog.test.ts`、`tests/kit-export.test.ts`、`tests/security-invariants-kit-catalog.test.ts`。
+
+### 11.3 链 C：账号身份与页面会话（`/api/personal`、`/api/account`、native attach）
+
+| # | 环节 | 归谁 | 输入 → 输出 | 身份与权限 | 失败时 | 事件与记录 |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | 桌面／浏览器进入 | `apps/workbench/src/arrival/shell.ts`、`apps/workbench/src/browser/personal-account.ts` | 原生会话票据 → `POST` `/api/personal/native-attach` | 票据由 Host 发出、一次一用；页面还没有身份 | 401「客户端登录凭据已失效」 | 无 |
+| 2 | 换页面会话 | `apps/local-host/src/personal-http.ts`（`createPersonalAccountHttp`、`createNativeWebAttachment`、`consumeNativeTicket`）、`apps/local-host/src/personal-web-sessions.ts`、`apps/local-host/src/personal-native-session.ts` | 票据 → `Set-Cookie` 页面会话 | 票据核过才给会话；会话决定后续请求的页面身份 | 403／401 按原答复 | 进程内的页面会话表 |
+| 3 | 登录、切换、登出 | `apps/local-host/src/personal-http.ts`、`apps/local-host/src/personal-auth.ts`、`apps/local-host/src/account-host.ts` | `/api/personal/login`、`switch`、`logout`、`space`、`status` → 状态或跳转 | 身份隔离由 `account-host.ts` 守：借用会话只许 BIND／REPLACE，借用的会话不能登出 | 已有账号操作在途 409；身份不一致 403 | 账号账本与会话表；不含业务数据 |
+| 4 | 页面过渡 | `apps/workbench/src/browser/account-transition.ts` | 当前页面会话与 meta → 能否切换／刷新 | 以页面会话为准；meta 或页面会话缺失时失败关闭，不静默 no-op | 不能确认就停在原页并提示 | 浏览器内状态 |
+| 5 | 缓存与刷新页 | `apps/local-host/src/account-refresh-pages.ts`、`apps/local-host/src/account-session-storage.ts` | 在途页面集合 → 切换前等它们离开（30 秒上限） | 只有本人能触发切换 | 超时只清准备状态，不丢会话 | 进程内记录 |
+
+**守住它的用例**：`tests/personal-http.test.ts`、`tests/security-invariants-account-host.test.ts`、`tests/desktop-account-entry.test.ts`、`tests/account-cache-isolation.e2e.test.ts`。
+
+### 11.4 链 D：证据合同（`agent.evidence.check@1`）
+
+| # | 环节 | 归谁 | 输入 → 输出 | 身份与权限 | 失败时 | 事件与记录 |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | 引用证据 | Goals 插件的要求报告（`plugins/native/goals/src/plugin.ts`，`plugins/native/goals/src/evidence-check.ts`） | `run_id` 加本会话一轮里被引用的命令 `call_id` → 由主人判定这条要求是否满足 | 调用者是 Agent 或 workflow；会话由 Host 绑定，不从输入读 | 主人自己的错误码 | Goals 自己的事件 |
+| 2 | 动作入口 | `agent.evidence.check@1`，合同在 `packages/contracts/src/services/agent-host.ts` | 上面两项 → 事实 | 受众只有 `agent`／`workflow`（`plugin: false`）；项目 scope，`scheduling: "concurrent"` | 未绑定会话、插件或本人调用 → 拒绝 | 读取；成功不留行 |
+| 3 | 核对范围 | `horizontal/agent-host/src/recovery-actions.ts` 的 `checkEvidence`：只认可信上下文里的 `runtime_session_id`，逐 Runtime 读这一轮 | 会话加 `run_id` → 这一轮的会话与 owner | 会话不属于调用者项目或这一轮不在这会话里就继续找；读失败单独保留，不当成「不是这轮」 | 找不到这一轮 `agent.run_unknown`；读不到会话 `agent.capability_unavailable` | 无 |
+| 4 | 给事实 | 同一处理器：读这一轮的命令回执与执行记录，给「有没有回执、退出码、超时／取消、之后有没有再改文件」 | 回执 → 事实，不返回输出、不再跑命令 | 返回前再 `beforeEffect()` 与权限尾检 | 没有回执的引用答 `recorded: false`，不写成成功 | 无 |
+
+**守住它的用例**：`tests/security-invariants-agent-evidence.test.ts`、`tests/goal-event-evidence.test.ts`。

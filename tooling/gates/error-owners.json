@@ -88,6 +88,12 @@
       ],
       "reason": "The attention and resumption module: its attention_* codes become attention.*. The public Attention contract declares these refusals; Inbox errors remain owned by Inbox."
     },
+    "blueprints": {
+      "paths": [
+        "packages/contracts/src/services/blueprints.ts"
+      ],
+      "reason": "The scene service contract declares blueprints.* once (part_unsupported, step_conflict, dependency_unmet, preview_expired), so the future system.blueprints provider, the interface and callers can tell the refusals apart; horizontal/blueprints/ joins when batch 44 creates the service."
+    },
     "browser": {
       "paths": [
         "apps/local-host/src/browser/"

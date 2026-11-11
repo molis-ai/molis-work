@@ -11,6 +11,7 @@ import { BROWSER_SITES_FILE } from "./browser/browser-surfaces.js";
 import { COMPUTER_RECORD_FILE, COMPUTER_RECORD_ID } from "./computer/computer-records.js";
 import { COMPUTER_SETTINGS_FILE } from "./computer/computer-settings.js";
 import { MCP_TOOL_PREFERENCE_FILE } from "./mcp-settings-store.js";
+import { UI_LOCALE_FILE } from "./ui-locale-memory.js";
 import { MODEL_PREFERENCE_FILE } from "./model-configuration.js";
 import { ONBOARDING_FILE } from "./onboarding.js";
 import { PROJECT_ARRIVAL_FILE } from "./project-arrival.js";
@@ -114,6 +115,7 @@ const platformFiles = (): readonly HomeUpgradeDescriptor[] => [
   { owner: "apps/local-host", pattern: join("config", "mcp-tools.json"), file: MCP_TOOL_PREFERENCE_FILE },
   { owner: "apps/local-host", pattern: join("config", "onboarding.json"), file: ONBOARDING_FILE },
   { owner: "apps/local-host", pattern: join("config", "project-arrival.json"), file: PROJECT_ARRIVAL_FILE },
+  { owner: "apps/local-host", pattern: join("config", "ui-locale.json"), file: UI_LOCALE_FILE },
   { owner: "apps/local-host", pattern: join("browser", "sites.json"), file: BROWSER_SITES_FILE },
   { owner: "apps/local-host", pattern: join("computer", "settings.json"), file: COMPUTER_SETTINGS_FILE },
   { owner: "apps/local-host", pattern: join("computer", "records", "*", "record.json"), file: COMPUTER_RECORD_FILE, paths: computerRecords },

@@ -314,9 +314,10 @@ test("latest related report updates only that requirement; human_decision stays 
 
     const oldEvent = data.module.events.readEvent(BOARD, GOAL, support.events[0]!.event_id);
     assert.deepEqual(oldEvent.judgments, [
-      { requirement_id: "choice-response", verdict: "supports" },
-      { requirement_id: "human-signoff", verdict: "supports" },
-      { requirement_id: "playable-scene", verdict: "supports" },
+      // A judgment with no basis is the reporter's own word (evidence contract, 2026-11-11).
+      { requirement_id: "choice-response", verdict: "supports", basis: null, tier: "self_reported", gap: null },
+      { requirement_id: "human-signoff", verdict: "supports", basis: null, tier: "self_reported", gap: null },
+      { requirement_id: "playable-scene", verdict: "supports", basis: null, tier: "self_reported", gap: null },
     ]);
   } finally {
     close(data);

@@ -35,6 +35,9 @@ export class GoalProjectApplication {
   readonly goalDecisionAttention: GoalsApplication["goalDecisionAttention"];
   readonly projectOpened: GoalsApplication["projectOpened"];
 
+  /** Each Goal's confirmed deliverables, as the plugin reads them from the Context Ledger; a test sets what the person confirmed. */
+  readonly confirmedDeliverables = new Map<string, Array<{ artifact_id: string; version: number }>>();
+
   constructor(
     readonly store: LocalProjectDatabase,
     private readonly clock: () => Date = () => new Date(),
@@ -52,7 +55,8 @@ export class GoalProjectApplication {
     let goalsModule!: GoalsModule;
     goalsModule = new GoalsModule(goalsSqlite(this.store.db), journal,
       { validateRelationGraph: (projectId, input) => goalsModule.planning.validateRelationAddition(projectId, input) },
-      { now: this.clock, personalPlanningMethodPacks: this.personalPlanningMethodPacks });
+      { now: this.clock, personalPlanningMethodPacks: this.personalPlanningMethodPacks,
+        deliverables: (_projectId, goalId) => this.confirmedDeliverables.get(goalId) ?? [] });
     this.goalsModule = goalsModule;
     this.goalAcknowledgements = goalsModule.acknowledgements;
     this.goals = { commands: goalsModule.commands, lifecycle: goalsModule.lifecycle, planning: goalsModule.planning };

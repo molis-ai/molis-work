@@ -70,7 +70,9 @@ export function completionUnmetReasons(input: {
     if (requirementOnlySelfReported(requirement)) {
       reasons.push({
         code: "goals.event_closure.requirement_self_reported",
-        message: `要求「${requirement.statement}」只有报告者自己说满足，需要你认可`,
+        message: requirement.conclusion_superseded
+          ? `要求「${requirement.statement}」你认可的是另一版，现在这一版只有报告者自己说满足，需要你再认可`
+          : `要求「${requirement.statement}」只有报告者自己说满足，需要你认可`,
         requirement_id: requirement.requirement_id,
       });
       continue;

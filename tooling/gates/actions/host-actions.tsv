@@ -61,6 +61,7 @@ agent.collaboration.read	1	platform	query	query	project	read	concurrent	plugin	-
 agent.collaboration.revise	1	platform	command	operation	project	write	concurrent	plugin	-	-	-	-	9f29e12ebc0a	516b9424763a	-
 agent.command-output	1	platform	query	query	project	read	-	plugin	-	-	-	-	cfefa0b15b83	7f480fe2c755	-
 agent.draft-text	1	platform	command	operation	project	write	concurrent	plugin	model:invoke	-	-	-	7cf8de6a3f00	139a601cb87e	613063238287
+agent.evidence.check	1	platform	query	query	project	read	concurrent	agent,workflow	-	-	-	-	d3a20a5da19e	00a24a761748	5e0374458cf9
 agent.inputs.send	1	platform	command	operation	project	write	concurrent	plugin	-	-	-	-	b6b41fbf8db7	fcdd65c576a7	-
 agent.inputs.withdraw	1	platform	command	operation	project	write	concurrent	plugin	-	-	-	-	197c6a2226e7	b7688d6d45cd	-
 agent.mcp.control	1	platform	command	operation	project	write	-	plugin	-	-	-	-	2b225db1a52e	-	-

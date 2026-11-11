@@ -318,6 +318,9 @@ export class GoalEventStateEffects {
           verdict: resolved.accepts_requirements || resolved.effects.some((effect) => effect.kind === "accept_requirements") ? "accepted" : "rejected",
           at: event.received_at,
           journalSeq: event.journal_seq,
+          // The person decides on what the requirement's report had checked: that version is kept on the conclusion.
+          checked: new Map(this.host.readCurrentRequirements(goal.project_id, goal.goal_id)
+            .flatMap((requirement) => requirement.current_report?.basis ? [[requirement.requirement_id, requirement.current_report.basis.checked] as const] : [])),
         });
       }
       if (this.records.owner.workStatus(goal.project_id, goal.goal_id) === "completed") {

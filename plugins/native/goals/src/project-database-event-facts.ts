@@ -91,6 +91,10 @@ export const GOALS_EVENT_FACTS_SQL = `
     event_id TEXT NOT NULL REFERENCES goal_work_events(event_id) ON DELETE CASCADE,
     requirement_id TEXT NOT NULL,
     verdict TEXT NOT NULL CHECK (verdict IN ('supports', 'contradicts', 'unknown')),
+    basis_json TEXT,
+    tier TEXT NOT NULL DEFAULT 'self_reported',
+    gap TEXT,
+    reporter_session TEXT,
     PRIMARY KEY (event_id, requirement_id)
   );
   CREATE INDEX IF NOT EXISTS goal_work_event_judgments_requirement_idx

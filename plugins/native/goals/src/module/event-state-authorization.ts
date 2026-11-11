@@ -290,20 +290,39 @@ export function scopedRequirementCommitmentsMatch(
  * requirement, or says it is unknown, takes the conclusion back for good: a later "supports" from the worker does not bring it back,
  * and the person has to accept again (user decision 2026-11-05: withdrawn acceptance needs accepting again). The same holds for a
  * requirement that asks for the person's decision. `lastWithdrawingReportSeq` is the journal position of the latest such report, if
- * any. Reports backed by checkable evidence wait for the evidence contract of batch 24-3 (BL-1036).
+ * any.
+ *
+ * Two things were added with the evidence contract (user decisions 2026-11-11). An acceptance is about the version the report had
+ * checked when the person decided: once a later report checks another version, the acceptance no longer counts for this requirement
+ * (`conclusion_superseded`) and other requirements keep theirs. And a "supports" that Goals itself found backed — by a command the
+ * platform ran on that very version, or by another worker's review — meets a requirement that does not ask for the person, as long as
+ * the version it checked is still a confirmed deliverable of the Goal and the person has not turned the requirement down.
+ * `deliverables` is the Goal's confirmed deliverables; null where the caller cannot read them, and then only the person's acceptance
+ * counts.
  */
-export function requirementCurrentlySatisfied(
-  requirement: Pick<GoalEventRequirementStatus, "user_conclusion">,
+export function requirementSatisfaction(
+  requirement: Pick<GoalEventRequirementStatus, "user_conclusion" | "current_report" | "human_decision_required">,
   lastWithdrawingReportSeq: number | null,
-): boolean {
+  deliverables: ReadonlyArray<{ artifact_id: string; version: number }> | null,
+): Pick<GoalEventRequirementStatus, "satisfied_by" | "conclusion_superseded"> {
   const conclusion = requirement.user_conclusion;
-  if (conclusion?.verdict !== "accepted") return false;
-  return lastWithdrawingReportSeq === null || lastWithdrawingReportSeq < conclusion.journal_seq;
+  const report = requirement.current_report;
+  const checked = report?.basis?.checked ?? null;
+  const superseded = Boolean(conclusion?.checked && checked && report && report.journal_seq > conclusion.journal_seq
+    && (conclusion.checked.artifact_id !== checked.artifact_id || conclusion.checked.version !== checked.version));
+  if (conclusion?.verdict === "accepted" && !superseded
+    && (lastWithdrawingReportSeq === null || lastWithdrawingReportSeq < conclusion.journal_seq)) {
+    return { satisfied_by: "user_accepted", conclusion_superseded: false };
+  }
+  const verified = report?.verdict === "supports" && report.tier !== "self_reported" && checked !== null
+    && !requirement.human_decision_required && (conclusion?.verdict !== "rejected" || superseded)
+    && Boolean(deliverables?.some((item) => item.artifact_id === checked.artifact_id && item.version === checked.version));
+  return { satisfied_by: verified && report ? (report.tier as "machine_verified" | "peer_reviewed") : null, conclusion_superseded: superseded };
 }
 
 /** Whether the person's current conclusion on the requirement turns it down. */
 export function requirementRejected(requirement: GoalEventRequirementStatus): boolean {
-  return requirement.user_conclusion?.verdict === "rejected";
+  return requirement.user_conclusion?.verdict === "rejected" && !requirement.conclusion_superseded;
 }
 
 /**

@@ -7,7 +7,7 @@ import type { AgentCreateSessionInput, AgentStartInput } from "./agent-host-star
 import type { AgentSubagentView, AgentMcpServerView, AgentMcpServerInput, AgentRecoveryReport, AgentCheckpoint } from "./agent-host-ports.js";
 export type {AgentSavedHistoryMessage,AgentSavedHistoryRun,AgentSavedHistoryView} from './agent-history.js';
 import type { AgentProjectWork, AgentProjectWorkOverlap, AgentSessionMessage, AgentPeopleMessageInput, AgentPeopleMessageAction, AgentMessageAttachment, AgentBackgroundTask } from "./agent-host-session.js";
-import type { AgentSessionView, AgentSessionStatus, AgentRunHandle, AgentRunView, AgentRunControl, AgentCommandOutputRef, AgentCommandOutput } from "./agent-host-run-view.js";
+import type { AgentSessionView, AgentSessionStatus, AgentRunHandle, AgentRunView, AgentRunControl, AgentCommandOutputRef, AgentCommandOutput, AgentEvidenceCheck, AgentEvidenceCheckRequest } from "./agent-host-run-view.js";
 import type { AgentCollaborationSessionView } from "./agent-collaboration.js";
 import { SKILL_REFS_MAX, skillRefSchema } from "./skill-ref-schema.js";
 // Declared by domain in the agent-host-*.ts files beside this one (W5-09); this subpath exports all of them.
@@ -81,6 +81,8 @@ export type {
   AgentRunUsage,
   AgentCommandOutputRef,
   AgentCommandOutput,
+  AgentEvidenceCheck,
+  AgentEvidenceCheckRequest,
   AgentTodoItem,
   AgentRunView,
   AgentRetryWait,
@@ -642,6 +644,23 @@ export const agentHostCapabilities = {
     [session: AgentSessionRef, ref: AgentCommandOutputRef],
     AgentCommandOutput
   >,
+  /**
+   * What the Host recorded of commands in one round of the caller's own session, as evidence another owner cites (a Goal's
+   * requirement report, specs/proactive-assistant PWA-144). The session is the one the Host bound the calling round to, never an
+   * input, so a round can only cite what its own session ran; a caller the Host bound to no session is refused. Facts only.
+   */
+  checkEvidence: {
+    capability_id: "agent.evidence.check", version: /* @version action.agent.evidence.check */ 1, operation: "query",
+    action: { title: "核对本会话的命令回执", description: "调用方自己会话里一轮跑过的几条命令：有没有回执、怎样结束、之后这一轮有没有再改文件。只给事实，不给输出，不会再跑它。", kind: "query",
+      scope: "project", audiences: ["agent", "workflow"], plugin: false, permissions: [], subject_kinds: [], scheduling: "concurrent",
+      input_schema: { type: "object", required: ["run_id", "command_call_ids"], additionalProperties: false, properties: {
+        run_id: entryId, command_call_ids: { type: "array", maxItems: 8, uniqueItems: true, items: entryId } } },
+      output_schema: { type: "object", required: ["owner_plugin_id", "run", "commands"], additionalProperties: false, properties: {
+        owner_plugin_id: { type: "string" },
+        run: { type: "object", required: ["session_id", "run_id"], additionalProperties: false, properties: { session_id: { type: "string" }, run_id: { type: "string" } } },
+        commands: { type: "array", items: { type: "object", required: ["call_id", "recorded", "exit_code", "timed_out", "cancelled", "changed_after"], additionalProperties: false, properties: {
+          call_id: { type: "string" }, recorded: { type: "boolean" }, exit_code: { type: ["integer", "null"] }, timed_out: { type: "boolean" }, cancelled: { type: "boolean" }, changed_after: { type: "boolean" } } } } } } },
+  } as ActionDefinition<AgentEvidenceCheckRequest, AgentEvidenceCheck>,
   inspectRecovery: {
     capability_id: "agent.session.recovery", version: /* @version action.agent.session.recovery */ 1, operation: "query",
     action: { title: "看会话中断后的情况", description: "自己会话里被中断的轮次：还在等什么、做过哪些操作、能不能收尾或回答。", kind: "query", ...pluginOnly,

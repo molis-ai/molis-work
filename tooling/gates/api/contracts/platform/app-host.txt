@@ -25,6 +25,7 @@ export interface HostCapabilityInvocation extends ActionCallOrigin {
     readonly signal?: AbortSignal;
     readonly plugin?: HostPluginCaller;
     readonly consumer?: "plugin";
+    readonly runtime_session_id?: string;
     beforeEffect(): Promise<void>;
     assertAuthorityCurrent(): void;
 }

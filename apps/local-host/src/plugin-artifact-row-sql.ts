@@ -2,7 +2,7 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HomePluginDatabaseDeclaration, PluginManifest, PluginSqlRow } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { sqliteRowAuthorizerCodes, type SqliteAuthorizer, type SqliteDatabase } from "@molis-ai/molis-work-storage";
 import type { ArtifactRootRow } from "./plugin-artifact-row-transaction.js";
-import type { ProjectArtifactRoot } from "./plugin-project-rows.js";
+import type { ProjectArtifactRoot } from "./plugin-artifact-root.js";
 import { pluginSyncLibraryManifest, pluginSyncNamespace } from "./plugin-sync-database.js";
 
 export const ARTIFACT_HOME_SCHEMA = "molis_home";

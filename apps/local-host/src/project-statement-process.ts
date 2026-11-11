@@ -95,12 +95,13 @@ export class ProjectStatementProcess {
     });
   }
 
-  async get(sql: string, parameters: readonly StatementValue[], limits: { readonly bytes: number }, signal?: AbortSignal): Promise<StatementRow | null> {
-    return await this.exclusive(async () => (await this.call({ op: "get", sql, parameters, bytes: limits.bytes }, this.limits.readMs, signal)).row ?? null);
+  /** `beforeSend` is asked once the read has its turn and again once a process it started is up: a call revoked while it waited sends nothing. */
+  async get(sql: string, parameters: readonly StatementValue[], limits: { readonly bytes: number }, signal?: AbortSignal, beforeSend?: () => void): Promise<StatementRow | null> {
+    return await this.exclusive(async () => (await this.call({ op: "get", sql, parameters, bytes: limits.bytes }, this.limits.readMs, signal, beforeSend)).row ?? null);
   }
 
-  async all(sql: string, parameters: readonly StatementValue[], limits: { readonly rows: number; readonly bytes: number }, signal?: AbortSignal): Promise<StatementRow[]> {
-    return await this.exclusive(async () => (await this.call({ op: "all", sql, parameters, rows: limits.rows, bytes: limits.bytes }, this.limits.readMs, signal)).rows ?? []);
+  async all(sql: string, parameters: readonly StatementValue[], limits: { readonly rows: number; readonly bytes: number }, signal?: AbortSignal, beforeSend?: () => void): Promise<StatementRow[]> {
+    return await this.exclusive(async () => (await this.call({ op: "all", sql, parameters, rows: limits.rows, bytes: limits.bytes }, this.limits.readMs, signal, beforeSend)).rows ?? []);
   }
 
   /** `body` runs between BEGIN IMMEDIATE and the COMMIT it asks for; any way out of it without that COMMIT rolls the transaction back. */
@@ -152,9 +153,11 @@ export class ProjectStatementProcess {
   }
 
   /** A standalone read may start a process; transaction steps must use the exact owner captured before BEGIN. */
-  private async call(request: Step, ms: number, signal?: AbortSignal): Promise<Answered> {
+  private async call(request: Step, ms: number, signal?: AbortSignal, beforeSend?: () => void): Promise<Answered> {
     signal?.throwIfAborted();
-    const child = this.child ?? await this.start();
+    beforeSend?.();
+    let child = this.child;
+    if (!child) { child = await this.start(); beforeSend?.(); }
     return this.callOn(child, request, Date.now() + ms, signal);
   }
 

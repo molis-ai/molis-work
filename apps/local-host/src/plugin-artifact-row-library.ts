@@ -6,7 +6,7 @@ import { listProjectRoots, projectDatabasePath } from "@molis-ai/molis-work-modu
 import { homeSqlitePath, readDatabaseSpace, readStorageSpace, snapshotFileStat, type SqliteDatabase } from "@molis-ai/molis-work-storage";
 import { ARTIFACT_HOME_SCHEMA, boundArtifactRootRow, type artifactRowReplication } from "./plugin-artifact-row-sql.js";
 import type { ArtifactRootStore } from "./plugin-artifact-row-transaction.js";
-import type { ProjectArtifactRoot } from "./plugin-project-rows.js";
+import type { ProjectArtifactRoot } from "./plugin-artifact-root.js";
 import type { ProjectLibrary } from "./plugin-project-library.js";
 import { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";
 import { assertArtifactLibraryReady } from "./artifact-row-storage-policy.js";

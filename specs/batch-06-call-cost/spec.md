@@ -111,6 +111,8 @@ BCC-03 的拒绝用例在旧构建上因缺来源仍准备一次上下文而失�
 
 下一片先让绑定和连接记录走同一个 owner 连接。现有 Kernel 同步目录 pass 可按真实 Home 与该 provider 的配置读上下文复用本轮可用性观察，确认足以消除重复后再判断是否需要跨请求缓存。读取新目录以及实际执行继续核当前连接、密封修订和凭据。改后用同夹具计实际开库，并以真实连接写入、换绑、清除和执行拒绝验失效。服务端广播发生在提交后且可迟到，不能作为唯一拒绝依据。
 
+**N45 实施（2026-11-11）。** 配置检查把 Functions 绑定与它指向的连接记录放进同一次连接库打开（`functionsCredentialConfigured` 用 `typeSafeBinding` 在已打开的库里读绑定），不另设缓存，执行仍核当前连接、密封修订和凭据。同一探针、同一真实绑定重测（三次一致）：项目首页连接库开库 41→21，简介 70→35，Inbox 判断每种状态 110→30（检查次数 55→30，受 N43／44 同次展示复用影响）；已绑定可用、停用不可用、换绑重新可用、断开不可用不变，`tests/connector-consumer-usages.test.ts`、`tests/connector-connections.test.ts` 通过。同一轮目录检查里仍按动作逐个问配置；要合成一次须由 Kernel 给出同步目录 pass 的上下文，本批不做，记在 BL-943 的后续里。
+
 ## N55 缓存基线与 Home 分隔
 
 同一隔离 HTTP 夹具以各三次真实请求量冷读、1 秒内复读、过期后重读和同批并发两次。下表为每组请求的六项计数，顺序与首片基线相同。两请求一列记总数。Node 24.15.0，测试侧固定时钟，不调用模型。脚本 `/private/tmp/molis06-n55-cache-baseline.test.mjs`，日志 `/private/tmp/molis06-n55-cache-baseline.log`。
@@ -125,3 +127,5 @@ BCC-03 的拒绝用例在旧构建上因缺来源仍准备一次上下文而失�
 真实两 Home 以同一合法项目 ID 建各自目录。A 有 Pages 和实际文档，B 经当前 Catalog owner 隐藏 Pages。B 冷读可用的 Pages 候选为 0，A 返回 17。紧接着 B 收到同样 17 个被误标可用的候选，过期后回到 0。全局 `directories` 用项目 scope 查找，两个 Home 的项目 ID 一样就命中同一结果。对 B 收到的候选 key 立即打真实 `prepare`，返回 HTTP 409 `contextual.unavailable`，此入口独立现查目录。两项对照各 1/1，零跳过。日志 `/private/tmp/molis06-n55-cross-home.log`、`/private/tmp/molis06-n55-cross-home-prepare.log`。
 
 **BCC-11（N55）。** 以相同实测比较缓存保留或缩减后的冷、热、过期与并发成本。不同 Home 的同一项目 ID 不共享结果。保留的复用只借用可信 Host、项目与当前本人权限内的展示读取，提交、停用或关闭后的下一次请求消费现行状态。拿同 Home 撤权前的旧候选和 brief 链接走实际 prepare、目标读取及写入口，断言原拒绝且无该次业务写入。区分界面一次加载、同轮在途合并与跨请求缓存，结论随实测落在本页。
+
+**N55 结论（2026-11-11）。** 跨 Home 共用的根因是 Contextual 候选的 3 秒目录只按项目 scope 作键；改为按 Home、项目与本人作键，三项计数不变（同一 Home 内的冷、热、过期、并发与上表相同），B 在 A 刚读过同一项目 ID 后仍为 0。`tests/contextual-directory-isolation.test.ts`（BCC-11）钉住冷、热、过期三步。简介的 5 秒结果本来按语言、Home 与项目作键，Assistant surface-kinds 按 Host 服务分开，判定服务按 Home 分开，均保留；实际 prepare、打开来源与执行继续现读（上表已证 prepare 独立拒绝）。三处复用均为跨请求的短时展示缓存，降低的是同一界面一次加载内的重复请求，量级见上表，保留。

@@ -1,5 +1,5 @@
 import { createPrologueTypeSafeProvider } from "./typesafe-prologue.js";
-import { selectedTypeSafeConnection, typeSafeCredential, typeSafeConfiguration } from "./typesafe-connection.js";
+import { selectedTypeSafeConnection, typeSafeBinding, typeSafeCredential, typeSafeConfiguration } from "./typesafe-connection.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import { peekSealedEntry, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
@@ -71,11 +71,12 @@ export interface FunctionsHostOptions {
 export function functionsCredentialConfigured(home: string, options: FunctionsHostOptions = {}): boolean {
   if ((options.env ?? process.env).TYPESAFE_API_KEY?.trim()) return true;
   if (options.credential) return !!options.credential()?.trim();
-  const selected = selectedTypeSafeConnection(home);
-  const ref = selected ? withConnectorConnections(home, store => {
-    const connection = store.get(selected.connection_id);
+  // The binding and the record it names are read in one opening of their owner's library (N45): one view, not two moments.
+  const ref = withConnectorConnections(home, store => {
+    const selected = typeSafeBinding(store);
+    const connection = selected ? store.get(selected.connection_id) : undefined;
     return connection && connection.service_id === "typesafe" && connection.enabled && !connection.disconnected_at ? connection.credential_ref : null;
-  }) : null;
+  });
   return !!ref && runWithMolisWorkHome(home, () => peekSealedEntry(ref) !== null);
 }
 

@@ -3,14 +3,6 @@ import { basename, dirname, join } from "node:path";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { listProjectRoots } from "@molis-ai/molis-work-module-projects";
 import { homeSqlitePath, readDatabaseSpace, snapshotFileStat, type SqliteDatabase, type StorageSpace } from "@molis-ai/molis-work-storage";
-import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
-
-export function artifactRowLibraryDeclarations() {
-  return PLATFORM_PLUGIN_REGISTRATIONS.flatMap(({ manifest }) => {
-    const library = manifest.databases?.home;
-    return library?.project_rows?.artifact_join ? [{ manifest, library }] : [];
-  });
-}
 
 function localDirectory(path: string): boolean {
   const found = lstatSync(path, { throwIfNoEntry: false });

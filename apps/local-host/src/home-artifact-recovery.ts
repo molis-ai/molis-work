@@ -7,7 +7,8 @@ import {
   type RollbackLibrary, type SqliteDatabase, type StorageOwner, type StorageSpace,
 } from "@molis-ai/molis-work-storage";
 import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
-import { artifactRollbackSidecars, artifactRowLibraryDeclarations, assertArtifactLibraryReady, assertArtifactProjectIdentity, recoveryRequired, wrongArtifactSpace } from "./artifact-row-storage-policy.js";
+import { artifactRowLibraryDeclarations } from "./artifact-row-library-declarations.js";
+import { artifactRollbackSidecars, assertArtifactLibraryReady, assertArtifactProjectIdentity, recoveryRequired, wrongArtifactSpace } from "./artifact-row-storage-policy.js";
 import { homeStores } from "./home-stores.js";
 import { projectDatabases } from "./platform-upgrade-stores.js";
 import { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";

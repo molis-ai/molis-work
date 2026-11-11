@@ -9,7 +9,7 @@ import { openReadOnlyHomeSqlite, openBaselineHomeSqlite } from "@molis-ai/molis-
 import type { PluginInstance } from "@molis-ai/molis-work-plugin-runtime";
 import { pluginDatabaseClient } from "./plugin-database-client.js";
 import { assertArtifactLibraryReady } from "./artifact-row-storage-policy.js";
-import { projectArtifactRoot } from "./plugin-project-rows.js";
+import { projectArtifactRoot } from "./plugin-artifact-root.js";
 import type { ArtifactHomeLibrary } from "./plugin-artifact-row-library.js";
 import { artifactRowReplication } from "./plugin-artifact-row-sql.js";
 

@@ -16,24 +16,24 @@
     "inspectActions": 0,
     "discover": 3,
     "discoverScenes": 4,
-    "projectPluginReads": 16,
-    "sqliteOpens": 34,
+    "projectPluginReads": 14,
+    "sqliteOpens": 32,
     "actionDirectoryRows": 2649,
     "sceneDirectoryRows": 4,
     "ownerResolutions": 1417,
-    "shippedRegistrationRows": 943
+    "shippedRegistrationRows": 805
   },
   "rightSide": {
     "prepareContext": 4,
     "inspectActions": 0,
     "discover": 6,
     "discoverScenes": 6,
-    "projectPluginReads": 44,
-    "sqliteOpens": 85,
+    "projectPluginReads": 30,
+    "sqliteOpens": 71,
     "actionDirectoryRows": 5298,
     "sceneDirectoryRows": 6,
     "ownerResolutions": 2841,
-    "shippedRegistrationRows": 2622
+    "shippedRegistrationRows": 1656
   },
   "contextual": {
     "prepareContext": 1,
@@ -124,11 +124,11 @@
     "inspectActions": 0,
     "discover": 6,
     "discoverScenes": 0,
-    "projectPluginReads": 70,
-    "sqliteOpens": 68,
+    "projectPluginReads": 66,
+    "sqliteOpens": 64,
     "actionDirectoryRows": 352,
     "sceneDirectoryRows": 0,
     "ownerResolutions": 230,
-    "shippedRegistrationRows": 5842
+    "shippedRegistrationRows": 5566
   }
 }

@@ -2,6 +2,7 @@ import { readOnlyAlwaysOnProjectPlugins } from "./always-on-plugins.js";
 import { requireSynchronous, type ActionReference, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginPageRequest } from "./plugin-page-authority.js";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
+import type { ProjectPluginMembership } from "@molis-ai/molis-work-contracts/modules/projects";
 import { PAGE_PLUGINS_WITHOUT_SELECTION } from "@molis-ai/molis-work-app-workbench";
 import type { GoalsWebView } from "./web-view.js";
 import { builtinPluginByManifestId, shownProjectPlugins } from "./plugin-registry.js";
@@ -67,14 +68,36 @@ export function projectRequestContext(context: WebRequestContext, options: Resol
     };
     // An explicitly served single-database fixture has the same declared default selection as its page, without a Catalog record.
     if (!options.project) return withExternal(PAGE_PLUGINS_WITHOUT_SELECTION, []);
-    return composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => {
-      const { plugins, hidden } = catalog.projectPluginMembership(projectId, directory);
-      return withExternal(plugins, hidden);
-    });
+    const { plugins, hidden } = await observeProjectPluginMembership(composition, homeDirectory, projectId, directory);
+    return withExternal(plugins, hidden);
   };
-  const goalsHere = async () => !options.project || await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory },
-    catalog => catalog.listProjectPlugins(options.projectId, directory).includes("goals"));
+  const goalsHere = async () => !options.project
+    || (await observeProjectPluginMembership(composition, homeDirectory, options.projectId, directory)).plugins.includes("goals");
   return { ...context, options, hostReference, userActions, shownPlugins, goalsHere };
+}
+
+/** Presentation reads still waiting for the catalog, per running catalog owner and project: one membership reading serves all of them. */
+const queuedMembership = new WeakMap<object, Map<string, Promise<ProjectPluginMembership>>>();
+
+/**
+ * The project's plugin membership for a page: the Goals branch and the shown list (N44). Reads that queue before one starts share it; the
+ * entry is dropped as that read begins, so a later request reads afresh and nothing finished is kept. Execution and routes read on their own.
+ */
+function observeProjectPluginMembership(composition: WebRequestContext["composition"], home: string | undefined, projectId: string,
+  directory: (() => readonly string[]) | undefined): Promise<ProjectPluginMembership> {
+  let queued = queuedMembership.get(composition);
+  if (!queued) queuedMembership.set(composition, queued = new Map());
+  const key = JSON.stringify([home ?? null, projectId]);
+  const waiting = queued.get(key);
+  if (waiting) return waiting;
+  let started = false, pending: Promise<ProjectPluginMembership> | undefined;
+  const drop = () => { if (pending && queued.get(key) === pending) queued.delete(key); };
+  pending = composition.withCatalog({ homeDirectory: home }, catalog => {
+    started = true; drop();
+    return catalog.projectPluginMembership(projectId, directory);
+  }).finally(() => drop());
+  if (!started) queued.set(key, pending);
+  return pending;
 }
 
 /**

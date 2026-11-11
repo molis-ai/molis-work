@@ -210,6 +210,15 @@ export function assertPluginActionCurrent(instance: PluginInstance): void {
 }
 
 /**
+ * Asked by a service right before it reads for a Plugin, and again before it hands back what a read in another process returned
+ * (BL-943, BCC-10): the original caller must still be current, as for a write, but a read-only call may read and the read does not count
+ * as the write's check. Outside every action and job the installation's live grants, which each service checks itself, decide alone.
+ */
+export function assertPluginReadCurrent(instance: PluginInstance): void {
+  assertCapturedPluginActionCurrent(currentPluginInvocation(), instance);
+}
+
+/**
  * A nested call retains the original invocation's authority; query-only narrowing travels separately to its dispatcher. The
  * provider outcomes this call uses are checked again here too (`holdPluginResult`), before anything based on them is committed.
  */

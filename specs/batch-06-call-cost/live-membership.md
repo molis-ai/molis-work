@@ -1,6 +1,6 @@
 # 06-3 N44 展示读取与 BL-943 逐操作授权
 
-状态：方案和改前实测已齐，等待 N43／46 写手交接（2026-11-10）。目标为功能可用。需求见[第 06 批](../post-anticorruption-roadmap/reference/batches/06.md#batch-06-item-3)和 [BL-943](../backlog/BL-943.md)。
+状态：已实施（2026-11-11，主会话），待整批合入。目标为功能可用。需求见[第 06 批](../post-anticorruption-roadmap/reference/batches/06.md#batch-06-item-3)和 [BL-943](../backlog/BL-943.md)。
 
 隔离 Home 同项目并发读两份 Goal 文档，BCC-04 三次中位数为 70 次项目插件目录读取、68 次 SQLite 开库。`projectWebView` 为 Goals 可见性和展示名单分别读目录，`projectPluginStages` 在展示路径等待项目插件刷新。动作准备、回调后发现和执行还有各自的当前授权读取。
 
@@ -25,3 +25,11 @@
 ## 开工前检查
 
 沿[主需求](spec.md#开工前检查)的 15 项。目录及成员由 Catalog／Projects 持有，安装、常开与原 caller 授权继续问各原 owner。所有插件走同一数据库服务，不新增能力、动作、公开合同、表、版本或兼容路径。只改隔离验证范围，保留成果及过程项、UI、文案、现有错误码。改动面集中在 Web 展示、Catalog 刷新与 Host 数据库客户及进程，避开同步切换写手边界；最终接回 #1999、#2000 和 #2004。共享同轮观察降低所有调用方的展示成本，直接调用和撤权路径保持逐操作可证。
+
+## 实施结果（2026-11-11）
+
+- **合并排队读。** `projectPluginEnablementRefresh` 仍串行；还在排队、没开始读的刷新由同一轮服务，读一开始就摘掉，完成或失败的结果不留给后续。页面的 Goals 分支与显示名单用同一次成员观察（`observeProjectPluginMembership`），同样只合并尚未开始的读，按 Catalog owner、Home 与项目分开。没有跨请求缓存，没有新增失效信号；执行、路由、回调后发现和 stage 读取照旧现读。
+- **实测（三次一致，Node 24.15.0，机器测试槽）。** 双 Goal 窗格项目插件目录读取 70→66、开库 68→64；右侧资料 30（原 44）、71（原 85）；简介 14（原 16）、32（原 34）。其余未变。剩余读取是每个请求自己的启用刷新（约 34 次）与每次动作的现读可用性（28 次），属于当前授权的一部分，本片不缓存；若以后要再降，须先有目录 owner 的提交代次（含常开库），见 BL-943。预算 `tooling/gates/call-budget.json` 已按实测下调。
+- **逐操作读检查（BCC-10）。** Runtime 新增 `assertPluginReadCurrent`：与写检查问同一个原调用（实例、取消、`assert_authority_current`、已持结果），但只读调用可以读，读也不算写检查。原生项目库与 Home 库的独立读、项目 journal 读每次执行前都问；沙箱的读在第一次检查、排到队后、语句进程刚起来之后各问一次，读回来交给插件前再问一次。不变量记为 [S-plugin-read-original-caller](../../docs/system/security-invariants/S-plugin-read-original-caller.md)。
+- **证据。** `tests/security-invariants-plugin-read-original-caller.test.ts`：真实 MCP 原调用在处理器中被撤精确授权，下一次原生读的匹配语句执行数为 0、不交结果、错误码 `mcp.action_revoked`，同安装另一获准 client 与同 client 另一动作照常读到；journal 读同样被拒；写在 `beforeEffect` 后被撤权不出现 BEGIN／COMMIT、目标行为 0。`tests/security-invariants-plugin-project-database.test.ts`「BCC-10 … sandboxed read」：排队中撤权的沙箱读没有发给语句进程（按 fork 出的子进程的 `send` 计数），不交结果。改前基线见上文两份 `/private/tmp/molis06-bl943-*` 日志（撤权后仍执行 1 次原生读并返回）。
+- **顺带修复（N12 回归）。** 本批 N12 让 `plugin-database.ts` 经 `plugin-project-rows.ts` 与 `artifact-row-storage-policy.ts` 引入整份内置插件登记，沙箱语句进程加载模块后常驻内存从 94 MB 升到 300 MB，超过 256 MB 上限，事务一开就被判 `statement_memory`（`PLIB-10` 两组用例在本批分支失败、合并基点通过）。把 `projectArtifactRoot` 移到不读登记的 `plugin-artifact-root.ts`，`artifactRowLibraryDeclarations` 移到 `artifact-row-library-declarations.ts`，进程回到 98 MB，相关用例通过。

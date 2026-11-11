@@ -21,11 +21,18 @@ export function installationSwitchedOff(platform: Pick<PluginPlatform, "runtime"
   return platform.runtime.list().some(record => record.plugin_id === pluginId && record.state === "uninstalled");
 }
 
-/** Serialize reads with activation changes, so an earlier enable cannot outlive a later disable. */
+/**
+ * Serialize reads with activation changes, so an earlier enable cannot outlive a later disable. Requests that queue while a round waits its
+ * turn share that round: it reads the catalog only after every one of them asked, so none consumes a reading older than its request (BCC-04).
+ * A round that has started reading is never joined, and a finished or failed one is never reused.
+ */
 export function projectPluginEnablementRefresh(platform: PluginPlatform, home: string | undefined, projectId: string): () => Promise<void> {
   let tail = Promise.resolve();
+  let queued: Promise<void> | undefined;
   return () => {
+    if (queued) return queued;
     const next = tail.then(async () => {
+      queued = undefined;
       const enabled = await projectPluginEnablement(home, projectId);
       if (!enabled) return;
       const active = new Set(platform.supervisor.enabledPluginIds());
@@ -42,7 +49,7 @@ export function projectPluginEnablementRefresh(platform: PluginPlatform, home: s
         } else if (wanted === true && !active.has(state.plugin_id) && !uninstalled(platform, state.plugin_id)) await platform.supervisor.enable(state.plugin_id);
       }
     });
-    tail = next.catch(() => {}); return next;
+    queued = next; tail = next.catch(() => {}); return next;
   };
 }
 

@@ -9,7 +9,8 @@ import fs from 'node:fs';
 import { existsSync } from "node:fs";
 import { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";
 import { openProjectPluginDatabases, type ProjectPluginDatabaseOutcome } from "./project-plugin-databases.js";
-import { artifactRowLibraryDeclarations, assertArtifactLibraryReady, assertArtifactProjectRoot } from "./artifact-row-storage-policy.js";
+import { artifactRowLibraryDeclarations } from "./artifact-row-library-declarations.js";
+import { assertArtifactLibraryReady, assertArtifactProjectRoot } from "./artifact-row-storage-policy.js";
 import { projectDatabases } from "./platform-upgrade-stores.js";
 import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
 

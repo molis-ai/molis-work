@@ -5,26 +5,27 @@ import { join } from "node:path";
 import test from "node:test";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { assistantTextModel } from "./fixtures/assistant-text-model.js";
+import { CODING_COMPOSER, CODING_OPEN } from "./fixtures/coding-composer.js";
 
 // specs/visual-ui-experience §composer-mentions (VUX-16): a composer's box and its main action stay where they are while a round
 // starts, runs and ends. The round's settings (way of working, model) give way first, shortened and read whole on hover,
 // so pause, stop and send sit together on the right and the bar does not wrap onto a second line when they appear. Coding's
-// composer is the platform's since unified-input-voice K4: a narrow one folds its settings behind 更多 (the composer's own rule)
-// instead of giving them a row, so its bar stays one row too.
+// composer is the platform's since unified-input-voice K4, and the bar's one input since §10.3: a narrow one folds its settings
+// behind 更多 (the composer's own rule) instead of giving them a row, so its bar stays one row too.
 
 const coding = "[data-coding-workbench]";
 type Geometry = { task: number[]; send: number[]; rows: number; outside: string[]; controls: string[]; cut: string[]; status: number; corner: number };
 const GEOMETRY = `(() => { const box = (node) => { const b = node.getBoundingClientRect(); return [b.x, b.y, b.width, b.height].map(Math.round); };
-  const shell = document.querySelector('${coding} [data-coding-input] .mw-composer').getBoundingClientRect();
-  const controls = [...document.querySelectorAll('${coding} [data-coding-input] .mw-composer__foot :is(button, a)')].filter((node) => node.getClientRects().length && !node.closest('[role=menu], [role=listbox], [hidden]'));
+  const shell = document.querySelector('${CODING_COMPOSER} .mw-composer').getBoundingClientRect();
+  const controls = [...document.querySelectorAll('${CODING_COMPOSER} .mw-composer__foot :is(button, a)')].filter((node) => node.getClientRects().length && !node.closest('[role=menu], [role=listbox], [hidden]'));
   const label = (node) => (node.getAttribute('aria-label') || node.textContent.trim()).slice(0, 24);
-  return { task: box(document.querySelector('${coding} [data-coding-input] .mw-composer__input')), send: box(document.querySelector('${coding} [data-coding-input] [data-composer-send]')),
+  return { task: box(document.querySelector('${CODING_COMPOSER} .mw-composer__input')), send: box(document.querySelector('${CODING_COMPOSER} [data-composer-send]')),
     rows: new Set(controls.map((node) => { const b = node.getBoundingClientRect(); return Math.round((b.top + b.bottom) / 2 / 8); })).size,
     outside: controls.filter((node) => { const b = node.getBoundingClientRect(); return b.left < shell.left - 0.5 || b.right > shell.right + 0.5; }).map(label),
     controls: controls.map(label),
     cut: controls.flatMap((node) => [...node.querySelectorAll('[data-mw-select-label]')]).filter((node) => node.scrollWidth > node.clientWidth + 1).map((node) => node.textContent),
-    status: Math.round(document.querySelector('${coding} [data-coding-input] .mw-composer__status')?.getBoundingClientRect().height ?? 0),
-    corner: Math.round([...document.querySelectorAll('${coding} [data-coding-input] .mw-composer__end button')].filter((node) => node.getClientRects().length).at(-1).getBoundingClientRect().right) }; })()`;
+    status: Math.round(document.querySelector('${CODING_COMPOSER} .mw-composer__status')?.getBoundingClientRect().height ?? 0),
+    corner: Math.round([...document.querySelectorAll('${CODING_COMPOSER} .mw-composer__end button')].filter((node) => node.getClientRects().length).at(-1).getBoundingClientRect().right) }; })()`;
 
 async function oneRound(t: test.TestContext, width: number, locale: "zh" | "en") {
   let model!: Awaited<ReturnType<typeof assistantTextModel>>;
@@ -56,32 +57,40 @@ async function oneRound(t: test.TestContext, width: number, locale: "zh" | "en")
   await waitFor(`document.querySelector('[data-work-surface="coding"]')?.getBoundingClientRect().width > 100`);
   active = child;
   await click(`${coding} [data-coding-new]`);
-  await waitFor(`!document.querySelector('${coding} [data-coding-input] .mw-composer__input').disabled && document.querySelector('${coding} [data-coding-input] [data-composer-control=model]').options.length >= 1`);
-  await fill(`${coding} [data-coding-input] [data-composer-control=model]`, JSON.stringify(["local-only", "fixture-model"]));
-  await fill(`${coding} [data-coding-input] [data-composer-control=intent]`, "discuss");
+  // Coding's composer is the bar's one input (unified-input-voice §10.3): what follows runs in the workbench, the turns in the frame.
+  const bar = { evaluate: browser.evaluate, waitFor: browser.waitFor, click: browser.click };
+  active = bar;
+  await waitFor(`${CODING_OPEN} && document.querySelector('${CODING_COMPOSER} [data-composer-control=model]').options.length >= 1`);
+  await fill(`${CODING_COMPOSER} [data-composer-control=model]`, JSON.stringify(["local-only", "fixture-model"]));
+  await fill(`${CODING_COMPOSER} [data-composer-control=intent]`, "discuss");
   await command("Emulation.setDeviceMetricsOverride", { width, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
-  await fill(`${coding} [data-coding-input] .mw-composer__input`, "写一段");
-  await waitFor(`!document.querySelector('${coding} [data-coding-input] [data-composer-send]').disabled`);
+  // Empty, the bar's composer is at rest (one row, user 2026-11-10, one input §10.2); words open it.
+  await waitFor(`document.querySelector('${CODING_COMPOSER} > .mw-composer').hasAttribute('data-rest')`);
+  await evaluate("document.fonts.ready.then(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))))");
+  const rest = await evaluate<Geometry>(GEOMETRY);
+  await fill(`${CODING_COMPOSER} .mw-composer__input`, "写一段");
+  await waitFor(`!document.querySelector('${CODING_COMPOSER} [data-composer-send]').disabled`);
   await evaluate("document.fonts.ready.then(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))))");
   const ready = await evaluate<Geometry>(GEOMETRY);
-  await click(`${coding} [data-coding-input] [data-composer-send]`);
-  await waitFor(`[...document.querySelectorAll('${coding} [data-coding-turns] [data-kind="assistant"]')].some(node => node.textContent.includes('第一段')) && document.querySelector('${coding} [data-coding-input] [data-composer-stop]')?.getClientRects().length > 0`, 60_000);
+  await click(`${CODING_COMPOSER} [data-composer-send]`);
+  await child.waitFor(`[...document.querySelectorAll('${coding} [data-coding-turns] [data-kind="assistant"]')].some(node => node.textContent.includes('第一段'))`, 60_000);
+  await waitFor(`document.querySelector('${CODING_COMPOSER} [data-composer-stop]')?.getClientRects().length > 0`, 60_000);
   const running = await evaluate<Geometry>(GEOMETRY);
-  return { browser: {...browser,...child}, model, ready, running, ended: async () => {
+  return { browser, model, rest, ready, running, ended: async () => {
     model.finish();
-    await waitFor(`!document.querySelector('${coding} [data-coding-input] [data-composer-stop]') && !document.querySelector('${coding} [data-coding-input] [data-compose-menu-toggle]')`, 60_000);
+    await waitFor(`!document.querySelector('${CODING_COMPOSER} [data-composer-stop]') && !document.querySelector('${CODING_COMPOSER} [data-compose-menu-toggle]')`, 60_000);
     return evaluate<Geometry>(GEOMETRY);
   } };
 }
 
 test("VUX-16: the box and send stay put through a round; pause and stop join send on one row; a shortened setting reads whole on hover", { timeout: 180_000 }, async (t) => {
   // The case needs a bar that is one row yet too short for everything it holds. The composer is wider than 480px here (below
-  // that its settings take their own row, the case below), and narrower than what the bar's items want, so the model's name has to
-  // be cut. At 1360 the composer is capped at 622px, which stopped being too short once the Coding send modes got their short
-  // names (补充 / 打断并改向 / 下一轮再做, H4): the bar fit whole and nothing gave way. At 1100 it is about 528px.
-  const round = await oneRound(t, 1100, "zh"); if (!round) return;
+  // that its settings fold behind 更多, the case below), and narrower than what the bar's items want, so the model's name has to
+  // be cut. Since one input (unified-input-voice §10.3) Coding's composer is the bar's, at most 680px over the page's column: at
+  // 1100 it fits whole and nothing gives way; at 900 it is about 520px.
+  const round = await oneRound(t, 900, "zh"); if (!round) return;
   const { browser: { evaluate, waitFor, command, sessionId }, ready, running } = round;
-  const shell = await evaluate<number>(`document.querySelector('${coding} [data-coding-input] .mw-composer').getBoundingClientRect().width`);
+  const shell = await evaluate<number>(`document.querySelector('${CODING_COMPOSER} .mw-composer').getBoundingClientRect().width`);
   assert.ok(shell > 480, `the composer is wide enough to keep one row, so the bar is crowded rather than wrapped: ${shell}px`);
   assert.equal(ready.rows, 1); assert.equal(running.rows, 1, `running, the bar is one row: ${running.controls.join(" | ")}`);
   assert.deepEqual(running.controls.slice(-4), ["暂停", "停止", "补充", "补充要求什么时候交给 AI"], "pause and stop sit with send (补充 and its ▾ while a round runs), on the right");
@@ -89,38 +98,40 @@ test("VUX-16: the box and send stay put through a round; pause and stop join sen
   assert.ok(running.cut.some((text) => text.includes("fixture-model")), `the model's name gives way first: ${JSON.stringify(running.cut)}`);
   assert.ok(!running.cut.some((text) => text === "讨论"), "the way of working stays whole");
   // The shortened model reads whole under the pointer, through the page's one tip.
-  const at = await round.browser.point(`${coding} [data-coding-input] .mw-select-picker:has([data-composer-control=model]) .mw-select-picker__trigger`);
+  const at = await evaluate<{ x: number; y: number }>(`(() => { const b = document.querySelector('${CODING_COMPOSER} .mw-select-picker:has([data-composer-control=model]) .mw-select-picker__trigger').getBoundingClientRect(); return { x: b.x + b.width / 2, y: b.y + b.height / 2 }; })()`);
   await command("Input.dispatchMouseEvent", {type:"mouseMoved", ...at}, sessionId);
   await waitFor("document.querySelector('.craft-tip[data-shown]')?.textContent.includes('fixture-model')", 5_000);
   // As in the Assistant's (K3 below): while the round runs the composer says so on its one status line under the words, and the bar
-  // grows upward by it; 补充 and ▾ keep send's corner. When the round ends the line goes: the box comes down by exactly that line,
-  // keeping its column and size, and send is back in the corner. (The first round's start is not the measure: a new session's
-  // composer sits higher until there are turns above it.)
+  // grows upward by it; the words keep their column and size, and 补充 and ▾ keep send's corner. When the round ends and the box is
+  // empty again, it is back at its rest row, where it started.
   const ended = await round.ended();
   assert.equal(ended.rows, 1);
   const right = (one: number[]) => one[0]! + one[2]!;
   assert.ok(running.status > 0, "while it runs the composer's status line says so");
-  assert.deepEqual([running.task[0], running.task[2], running.task[3]], [ended.task[0], ended.task[2], ended.task[3]], "the box keeps its column and size");
-  // Both are rounded from fractional pixels, so the drop and the line's height may differ by one.
-  assert.ok(Math.abs(ended.task[1]! - running.task[1]! - running.status) <= 1, `the box moves only by the status line: ${JSON.stringify({ running: running.task, ended: ended.task, status: running.status })}`);
-  assert.equal(running.corner, right(ended.send), "while it runs, 补充 and ▾ keep send's corner");
-  assert.equal(right(ended.send), right(ready.send), "send is in the same corner before and after the round");
+  assert.deepEqual([running.task[0], running.task[2], running.task[3]], [ready.task[0], ready.task[2], ready.task[3]], "while it runs the box keeps its column and size");
+  // Both are rounded from fractional pixels, so the rise and the line's height may differ by one.
+  assert.ok(Math.abs(ready.task[1]! - running.task[1]! - running.status) <= 1, `the box rises only by the status line: ${JSON.stringify({ ready: ready.task, running: running.task, status: running.status })}`);
+  assert.equal(running.corner, right(ready.send), "while it runs, 补充 and ▾ keep send's corner");
+  await waitFor(`document.querySelector('${CODING_COMPOSER} > .mw-composer').hasAttribute('data-rest')`);
+  // The tag beside ＋ now names the session by its task, so the words may start further in; their row, right edge and send are where they began.
+  const row = (one: Geometry) => [one.task[1], one.task[3], right(one.task), one.send];
+  assert.deepEqual(row(ended), row(round.rest), `the round over, the box is back at its rest row: ${JSON.stringify({ rest: round.rest, ended })}`);
 });
 
 test("VUX-16: a narrow composer folds its settings behind More, idle or running, and rests as one row when the round ends (English)", { timeout: 180_000 }, async (t) => {
   const round = await oneRound(t, 480, "en"); if (!round) return;
   const { browser: { evaluate }, ready, running } = round;
-  assert.ok(await evaluate<number>(`document.querySelector('${coding} [data-coding-input] .mw-composer').getBoundingClientRect().width`) <= 480, "the composer is narrow here");
+  assert.ok(await evaluate<number>(`document.querySelector('${CODING_COMPOSER} .mw-composer').getBoundingClientRect().width`) <= 480, "the composer is narrow here");
   assert.deepEqual([ready.rows, running.rows], [1, 1], `one row, the settings behind More, idle and running: ${running.controls.join(" | ")}`);
   assert.ok(!running.controls.some((label) => /^(Way of working|Model)/.test(label)), `the settings are folded: ${running.controls.join(" | ")}`);
   assert.deepEqual(running.controls.slice(-4), ["Pause", "Stop", "Add", "When added instructions reach the AI".slice(0, 24)], "the ▾ is named by its label (read here to 24 characters)");
   assert.deepEqual([ready.outside, running.outside], [[], []], "nothing leaves the composer");
   // While it runs the box keeps its rows. Once it ends with nothing written, a composer this narrow rests as one row inside its
-  // box (composer-styles.ts `composerRestRules`, user 2026-11-08): Coding's frame is the viewport its media query reads, so a narrow
-  // Coding composer is the phone's. It settles there in one row, the first letter typed opens it again.
+  // box (composer-styles.ts `composerRestRules`, user 2026-11-08): Coding's composer is the bar's (one input, §10.3), and the bar's
+  // rests as one row whatever its width. It settles there, the first letter typed opens it again.
   const ended = await round.ended();
   assert.equal(ended.rows, 1);
-  assert.equal(await evaluate(`document.querySelector('${coding} [data-coding-input] .mw-composer').hasAttribute('data-rest')`), true, "at rest once the round ended");
+  assert.equal(await evaluate(`document.querySelector('${CODING_COMPOSER} .mw-composer').hasAttribute('data-rest')`), true, "at rest once the round ended");
   assert.ok(ended.send[0]! + ended.send[2]! >= running.send[0]! + running.send[2]! - 8, `send stays at the bar's right end: ${JSON.stringify([running.send, ended.send])}`);
 });
 

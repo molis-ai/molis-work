@@ -633,7 +633,9 @@ export const agentHostCapabilities = {
       output_schema: { type: "object", required: ["ref", "command", "exit_code", "stdout", "stderr", "truncated"], additionalProperties: false, properties: {
         ref: { type: "object", required: ["call_id", "run_id"], additionalProperties: false, properties: { call_id: { type: "string" }, run_id: { type: "string" } } },
         command: { type: "string" }, exit_code: { type: ["number", "null"] }, stdout: { type: "string" }, stderr: { type: "string" }, truncated: { type: "boolean" },
-        timed_out: { type: "boolean" }, cancelled: { type: "boolean" }, stop_reason: { enum: ["cancelled", "timed-out"] } } },
+        timed_out: { type: "boolean" }, cancelled: { type: "boolean" }, stop_reason: { enum: ["cancelled", "timed-out"] },
+        after_write_check: { type: "object", required: ["checker_id", "display_name", "version"], additionalProperties: false, properties: {
+          checker_id: { type: "string" }, display_name: { type: "string" }, version: { type: "integer", minimum: 1 } } } } },
       input_schema: { type: "array", minItems: 2, maxItems: 2, additionalItems: false, items: [sessionRef,
         { type: "object", required: ["call_id", "run_id"], additionalProperties: false, properties: { call_id: entryId, run_id: entryId } }] } },
   } as ActionDefinition<

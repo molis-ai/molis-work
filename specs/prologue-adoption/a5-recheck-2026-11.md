@@ -23,7 +23,7 @@
 | 6 | 推理力度 | 已采用 | `prologue-frozen.ts`；`tests/prologue-model-controls.test.ts`、`tests/coding-model-controls.e2e.test.ts`（PA-24） | 不变 | — |
 | 7 | 运行中换模型 | 已采用，两个分支没有用例 | `prologue-model-switch.ts`；`tests/prologue-model-controls.test.ts` 覆盖下一边界生效、四种拒绝、停止时零请求、重启后冷读、从断点继续后重新解析模型与凭据 | 「接受之后撤权」「断点继续」两条已由 P3b 补 | 视觉、Runtime 不支持切换两个分支仍然造不出来（§5.6a），不算缺口，留记录 |
 | 8 | 逐轮变更 | 已采用 | `prologue-stream.ts` 的 `turn-changes` 投影；Coding `turn-changes-client.ts`；`tests/coding-timeline.e2e.test.ts` | 不变 | — |
-| 9 | 写后诊断（写后检查） | 部分 | A2-1（Prologue）、A2-2（#822：`adapters/prologue-after-write.ts`、审查卡、S-42）、A2-3（#805：项目设置里的检查器）都在 main；`tests/coding-diagnose-after-write.test.ts`、`tests/prologue-write-checkers.test.ts`、`tests/write-checkers-settings-http.test.ts`、`tests/write-checkers-settings.e2e.test.ts` | 10-14 是「未做」 | 时间线读回执（BL-301）与浏览器证据（BL-303）：**本批做**。子任务目录里的写入（BL-302）上游缺，去 [31](../post-anticorruption-roadmap/reference/batches/31.md)。BL-160、BL-171、BL-220 都在等真实用量或上游，原样保留 |
+| 9 | 写后诊断（写后检查） | 已采用 | A2-1（Prologue）、A2-2（#822：`adapters/prologue-after-write.ts`、审查卡、S-42）、A2-3（#805：项目设置里的检查器）都在 main；`tests/coding-diagnose-after-write.test.ts`、`tests/prologue-write-checkers.test.ts`、`tests/write-checkers-settings-http.test.ts`、`tests/write-checkers-settings.e2e.test.ts`；时间线读回执与审查卡的浏览器验收在第 24 批补上（原 BL-301、BL-303，`tests/coding-diagnose-timeline.e2e.test.ts`） | 10-14 是「未做」 | 子任务目录里的写入（BL-302）上游缺，去 [31](../post-anticorruption-roadmap/reference/batches/31.md)。BL-160、BL-171、BL-220 都在等真实用量或上游，原样保留 |
 | 10 | 文字增量、停止与错误 | 已采用 | 灵光的流式、Stop、断连取消；`tests/lingguang-plugin.e2e.test.ts` | 不变 | — |
 | 11 | 结构化生成 | 不在本线做 | `apps/local-host/src/alchemist-prologue.ts` 仍把 schema 写进提示词再解码 | 仍未做 | 2026-10-27 并入 BL-377（Alchemist 场景重做），见 BL-306；去 [81](../post-anticorruption-roadmap/reference/batches/81.md)。本线不再单列 |
 | 12 | 变化等待 | 已采用 | 助理 `assistant/assistant-wait.ts`；Schedule 的 `adapter.observe`；`tests/assistant-work-wait.test.ts`、`tests/schedule-task-runner.test.ts` | 协作视图的版本已随 P3 | — |
@@ -60,5 +60,5 @@
 
 ## 4. 对 PA-12、PA-15 的结论
 
-- **PA-12**（§4.1–4.5、§4.7 的各项仍成立）：工程证据齐，除第 9 项的时间线一半（本批补）和第 11 项（已移出本线）。真实模型的证据没有新增。
+- **PA-12**（§4.1–4.5、§4.7 的各项仍成立）：工程证据齐（第 9 项的时间线一半已在第 24 批补上），除第 11 项（已移出本线）。真实模型的证据没有新增。
 - **PA-15**（整线内部完整）：**还不能标**。差 P5、P6（第 3 节），以及两仓工程之外的真实动线和重启恢复记录。本文只是它要的「逐条对照」那一半。

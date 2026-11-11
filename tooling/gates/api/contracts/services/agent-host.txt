@@ -84,6 +84,11 @@ export interface AgentCommandOutput {
     timed_out?: boolean;
     cancelled?: boolean;
     stop_reason?: "cancelled" | "timed-out";
+    after_write_check?: {
+        checker_id: string;
+        display_name: string;
+        version: number;
+    };
 }
 
 export interface AgentCommandOutputRef {

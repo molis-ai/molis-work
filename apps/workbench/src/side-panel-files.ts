@@ -1,5 +1,6 @@
 import type { SidePanelPrimitives } from "./side-panel.js";
 import { FILE_PREVIEW_CLIENT_SCRIPT } from "@molis-ai/molis-work-design-system";
+import { SIDE_FILE_SOURCES_CLIENT_SCRIPT } from "./side-file-sources-client.js";
 
 /**
  * The 资料 tab of the side panel (specs/archive/side-panel P3, P8; specs/project-knowledge §8.1, formerly 文件). Lists the file
@@ -192,6 +193,7 @@ export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
   let sources=[],entries=new Map(),loadedAt=0,loading=null,current=null,wide=false,states=new Map(),modelReady=true,found=null,searchTimer=0;
   const get=(path)=>molisWorkRequest(host.route(path),{fallback:L('文件没有读到')});
   const post=(path,body)=>molisWorkRequest(host.route(path),{body,fallback:L('操作没有完成')});
+  ${SIDE_FILE_SOURCES_CLIENT_SCRIPT}
   // How far each piece's card is organized (project knowledge): only what needs the person's eye is shown on a row.
   const stateText=(item)=>!item?'':item.excluded?L('不给 Agent 用'):item.state==='pending'?(modelReady?L('整理中'):L('等待整理')):item.state==='failed'?L('整理失败'):item.state==='over_quota'?L('等额度'):item.changed?L('有新建议'):'';
   const stateOf=(kind,id)=>states.get(kind+'\u0000'+id);
@@ -211,13 +213,9 @@ export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
     loading=(async()=>{
       list.setAttribute('aria-busy','true');
       try{
-        sources=(await get('/api/side/files/sources')).sources||[];
-        await loadStates();
-        entries=new Map();
-        await Promise.all(sources.map(async source=>{
-          try{const page=(await get('/api/side/files/entries?source='+encodeURIComponent(source.id))).page;entries.set(source.id,{items:page.entries,next:page.next_cursor,error:null});}
-          catch(error){entries.set(source.id,{items:[],next:null,error:error.message});}
-        }));
+        // Every source and its first page in one request (N52); the cards' states alongside.
+        const [read]=await Promise.all([readSideFileSources(get),loadStates()]);
+        sources=read.sources;entries=read.pages;
         loadedAt=Date.now();
       }catch(error){sources=[];list.innerHTML='<p class="side-files-note">'+esc(error.message)+'</p>';return;}
       finally{list.setAttribute('aria-busy','false');loading=null;}

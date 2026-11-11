@@ -176,6 +176,11 @@ test("BCC-02 to BCC-06 · Host requests stay within budget and incomplete previe
       const result = await home.web.get<{ sources: Source[] }>(sourcesPath);
       assert.ok(result.sources.some(entry => entry.id === source.id));
     },
+    // BSH-13 (N52): every source's first page in one request, on one context and one discovery.
+    sideFileFirstPages: async () => {
+      const result = await home.web.get<{ sources: Array<Source & { state: string; page?: FileList["page"] }> }>(sourcesPath + "?first_pages=1");
+      assert.ok(result.sources.find(entry => entry.id === source.id)?.page?.entries.some(entry => entry.subject.id === file.subject.id));
+    },
     sideFileEntries: async () => {
       const result = await home.web.get<FileList>(entriesPath);
       assert.ok(result.page.entries.some(entry => entry.subject.id === file.subject.id));

@@ -277,6 +277,8 @@ Manifest 借用现行对象形状表达精确系统来源，例如 `default_sour
 
 N52 随 S4/S5 接同一公共界面：现有 `/sources` 响应合并可见来源的第一页、`next_cursor` 和来源状态，侧栏与 Goal 放置选择器共用；每个来源仍调用其已登记动作，不新增聚合动作或存储。首次读取共用上下文与发现，实际执行保持现行实时授权。源状态和部分失败在 HTTP 边界明确建模，分页、内容和当前引用身份沿原 owner；采用前按 BSH-13 真实验证。
 
+实施记录（2026-11-11）：合并的首屏走 `GET /api/side/files/sources?first_pages=1`（每个来源 `state` 为 `ready` 带 `page`、`failed` 带 `error`/`code`、`unavailable` 带 `reason` 且零调用）；不带参数的 `/sources` 照旧只列可读来源。没有直接改掉原响应，是因为原请求在[调用预算](../../tooling/gates/call-budget.json)里有自己的一行、只许下降；新请求另记一行 `sideFileFirstPages`（1 次上下文、2 次发现，第二次是带 `required_actions` 的动作实际执行时的依赖核对）。侧栏与 Goal「加输入」共用 `apps/workbench/src/side-file-sources-client.ts`。验收见 `tests/side-panel-platform.test.ts` 的 BSH-13 用例。
+
 ## 4. S3 公用 SDK 工具
 
 - **N13／N12⑤。** `/browser` 沿用浏览器安全的叶子入口，复用 `/ui` 的 HTML 转义与已存在请求基础 `molisWorkRequest`。仅提取实际共用的 `required`、错误消息／状态、abort 识别和 `pluginRequest(host, { fallback, codes })`。保持不同路由的已定项目参数、body、翻译回退、失败 code/status 与当前生命周期 `signal`，调用点负责附上实际的挂载／离开信号（Dataset BL-1033）。浏览器助手复用 Pages 已有文档内容 owner。search/body/start 的输入、权限、摘要和错误先比对，只有纯粹的适配相同才共享。页面专用控件与非同义辅助代码仍在各自插件。

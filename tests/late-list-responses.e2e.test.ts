@@ -296,7 +296,7 @@ test("VUX-31: the side panel's file list does not add a late page to the list th
     await evaluate("document.querySelector('[data-side-files-more]').click()"); const stale = await hold.next("cursor=");
     await importPieces(browser, 5, (n) => `新资料${n}`);
     await evaluate("document.querySelector('[data-side-files-action=refresh]').click()");
-    // Every other source answers the read again at once; only the late page is kept back.
+    // The list is read again in one request (N52); only the late page is kept back.
     for (const until = Date.now() + 20_000; await newRows() === 0; await pause(50)) {
       for (const one of hold.pending()) if (one !== stale) await hold.release(one);
       assert.ok(Date.now() < until, "the list was read again: " + JSON.stringify(hold.seen));

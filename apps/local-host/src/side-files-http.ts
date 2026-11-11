@@ -44,6 +44,25 @@ async function ownerPreview(subjectId: string, views: readonly ActionView[], inv
   try { return await invoke(view, { artifact }) as FileContent; } catch (error) { logPreviewFailure(error, artifact.artifact_type_id); return null; }
 }
 
+const described = (view: ActionView) => ({ id: sourceId(view), plugin_id: view.provider.plugin_id ?? view.provider.provider_id, title: view.action.title,
+  kinds: view.action.file_source!.kinds });
+const FIRST_PAGE = { cursor: null, limit: FILE_ENTRIES_PAGE_LIMIT };
+
+/**
+ * Every source this project shows, with its first page, in one answer (N52, specs/batch-06-shared-tools BSH-13): the side panel and a
+ * Goal's 「加输入」 read it in one request, on one call context and one discovery. Each source's page is still its own action's,
+ * run under the person's authority as it is now; one that fails says so without hiding the others, and one that cannot run here
+ * (it is listed but not set up) is reported and never called.
+ */
+async function firstPages(listed: readonly ActionView[], read: (view: ActionView) => Promise<unknown>) {
+  return Promise.all(listed.map(async view => {
+    if (!view.availability.available) return { ...described(view), state: "unavailable" as const, reason: view.availability.reason };
+    try { return { ...described(view), state: "ready" as const, page: await read(view) as FileEntriesPage }; } catch (error) {
+      return { ...described(view), state: "failed" as const, error: error instanceof Error ? error.message : String(error), code: (error as { code?: string })?.code ?? "" };
+    }
+  }));
+}
+
 export async function handleSideFilesHttp(request: IncomingMessage, response: ServerResponse, url: URL, ports: SideFilesPorts): Promise<boolean> {
   const route = /^\/api\/side\/files\/(sources|entries|content|raw)$/u.exec(url.pathname)?.[1];
   if (!route) return false;
@@ -66,12 +85,11 @@ export async function handleSideFilesHttp(request: IncomingMessage, response: Se
       const builtin = builtinPluginByManifestId(view.provider.plugin_id ?? view.provider.provider_id);
       return !!shown && !!builtin && !shown.has(builtin.project_plugin_id);
     };
-    const sources = views.filter(view => isFileEntriesSource(view.action) && view.action.file_source?.kinds.length && view.availability.available && !hiddenHere(view));
+    const listed = views.filter(view => isFileEntriesSource(view.action) && view.action.file_source?.kinds.length && !hiddenHere(view));
+    const sources = listed.filter(view => view.availability.available);
     if (route === "sources") {
-      json(200, { sources: sources.map(view => ({
-        id: sourceId(view), plugin_id: view.provider.plugin_id ?? view.provider.provider_id, title: view.action.title,
-        kinds: view.action.file_source!.kinds,
-      })) });
+      if (url.searchParams.get("first_pages") === "1") { json(200, { sources: await firstPages(listed, view => client.invoke(caller, referenceOf(view), FIRST_PAGE)) }); return true; }
+      json(200, { sources: sources.map(described) });
       return true;
     }
     const source = sources.find(view => sourceId(view) === sourceKey);

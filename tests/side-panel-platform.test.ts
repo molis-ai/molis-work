@@ -196,6 +196,68 @@ test("real Host: the file tab lists and previews plugin files through the action
   }
 });
 
+// BSH-13 (N52): the side panel and a Goal's 「加输入」 read every source's first page in one request. A source that fails says so and the
+// others still show; one listed but not set up here is reported and its action is never called; later pages stay on demand.
+test("BSH-13 one request answers every source's first page: a failing source does not hide the rest, and one not set up is never called", { timeout: 120_000 }, async () => {
+  const home = await mkdtemp(join(tmpdir(), "side-panel-first-pages-"));
+  const [a] = await withCatalog({ homeDirectory: home }, async catalog => [await catalog.createProject({ display_name: "首屏项目", actor_id: "owner" })]);
+  const ref = molisWorkHostProjectReference({ databasePath: a.database_path, projectId: a.project_id });
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  host.configurePersonalPlanning(home, withCatalog);
+  const token = resolveWebControlToken({ homeDirectory: home });
+  const server = createMolisWorkWebServer({ homeDirectory: home, localHost: host, controlToken: token });
+  let runtime: PluginRuntime | undefined;
+  const called = { good: 0, broken: 0, unset: 0 };
+  try {
+    await host.localPersonContext(ref);
+    await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address(); assert.ok(address && typeof address === "object");
+    const origin = `http://127.0.0.1:${address.port}`;
+    type Page = { entries: unknown[]; next_cursor: string | null };
+    type Listed = { id: string; kinds: Array<{ kind: string }>; state?: string; page?: Page; error?: string; reason?: string };
+    const get = async <Body>(path: string) => { const response = await fetch(`${origin}/projects/${a.project_id}${path}`); return { status: response.status, body: await response.json() as Body }; };
+    const repository = await host.withProject(ref, projectRuntime => new SqlitePluginRuntimeRepository(projectRuntime.store.db));
+    runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, actions: { registry: host.actionRegistry(ref), project_id: ref.project_id } });
+    for (const name of ["good", "broken", "unset"] as const) {
+      const sourceKinds = [{ kind: `${name}-file`, title: name, surface: name }];
+      const entries = defineFileEntriesAction(`${name}.files.entries`, 1, sourceKinds, `${name} 来源`, [`${name}:read`]);
+      const plugin = definePlugin({ manifest: { schema_version: 1, host_api_version: 1, plugin_id: `io.molis.work.example.${name}-files`, version: "1.0.0", name,
+        kind: "app", publisher: { publisher_id: "example", signature: `example-${name}` }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
+        permissions: [{ permission: `${name}:read`, required: false, reason: "读取文件" }], actions: [entries], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] } },
+        async start() { return { kind: "app", actions: [{ ...entries, ...bindFileEntriesHandler(entries, () => {
+          called[name]++;
+          if (name === "broken") throw new ActionError("actions.service_unavailable", "这个来源暂时读不到");
+          return Array.from({ length: 501 }, (_, n) => ({ subject: { kind: `${name}-file`, id: `f${n}` }, revision: "1", title: `第${n}份.txt`, folder: ["资料"], media_type: "text/plain", size: 1, updated_at: null, open: null }));
+        }), ...(name === "unset" ? { availability: () => ({ available: false as const, code: "actions.service_unavailable", reason: "还没有设置这个来源" }) } : {}) }] }; } });
+      const installId = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: [`${name}:read`] }).install.install_id;
+      await runtime.start(installId);
+    }
+
+    const answer = await get<{ sources: Listed[] }>("/api/side/files/sources?first_pages=1");
+    assert.equal(answer.status, 200, JSON.stringify(answer.body));
+    const byKind = (kind: string) => answer.body.sources.find(source => source.kinds.some(item => item.kind === kind));
+    const good = byKind("good-file"), broken = byKind("broken-file"), unset = byKind("unset-file");
+    assert.ok(good?.page?.next_cursor);
+    assert.equal(good?.state, "ready");
+    assert.equal(good.page.entries.length, 500, "the first page only; later pages are read on demand");
+    assert.deepEqual([broken?.state, broken?.error], ["failed", "这个来源暂时读不到"], "a failing source says why");
+    assert.deepEqual([unset?.state, unset?.reason, unset?.page], ["unavailable", "还没有设置这个来源", undefined], "listed but not set up: reported, nothing read");
+    assert.deepEqual(called, { good: 1, broken: 1, unset: 0 }, "each source asked once, the one not set up never");
+
+    // The plain list is unchanged: sources that can be read, nothing read from them.
+    const plain = (await get<{ sources: Listed[] }>("/api/side/files/sources")).body.sources;
+    assert.ok(plain.some(source => source.kinds.some(kind => kind.kind === "good-file")) && !plain.some(source => source.kinds.some(kind => kind.kind === "unset-file")));
+    assert.ok(plain.every(source => source.page === undefined));
+    const next = await get<{ page: Page }>(`/api/side/files/entries?source=${encodeURIComponent(good.id)}&cursor=${encodeURIComponent(good.page.next_cursor)}`);
+    assert.equal(next.body.page.entries.length, 1, "the next page, when asked for");
+    assert.deepEqual(called, { good: 2, broken: 1, unset: 0 });
+  } finally {
+    await new Promise<void>(resolve => server.listening ? server.close(() => resolve()) : resolve());
+    await host.close();
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
 test("a Plugin names the websites it uses in the side panel browser as exact origins, and the author's check prints them", async () => {
   const manifest = (permissions: unknown[]) => ({
     schema_version: 1, host_api_version: 1, plugin_id: "io.molis.work.example.sites", version: "1.0.0", name: "Sites", kind: "integration",

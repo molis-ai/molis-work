@@ -59,6 +59,18 @@
     "ownerResolutions": 471,
     "shippedRegistrationRows": 207
   },
+  "sideFileFirstPages": {
+    "prepareContext": 1,
+    "inspectActions": 0,
+    "discover": 2,
+    "discoverScenes": 1,
+    "projectPluginReads": 13,
+    "sqliteOpens": 26,
+    "actionDirectoryRows": 1954,
+    "sceneDirectoryRows": 1,
+    "ownerResolutions": 477,
+    "shippedRegistrationRows": 690
+  },
   "sideFileEntries": {
     "prepareContext": 1,
     "inspectActions": 0,

@@ -5,6 +5,7 @@
  * a plugin only declares its current object (`data-assistant-context`) and leaves a `data-placement-slot`.
  */
 import { pluginSearchRows } from "../../plugin-workbench.js";
+import { SIDE_FILE_SOURCES_CLIENT_SCRIPT } from "../../side-file-sources-client.js";
 
 export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
   const { translate: L, route, headers, openItem, openPluginRecord, itemTabs: ITEM_TABS } = host;
@@ -14,6 +15,7 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
   const hereTitle = () => here() === "personal" ? L("个人空间") : (host.projectTitle ? L("项目「{name}」", { name: host.projectTitle }) : L("当前项目"));
   const node = (tag, text, className) => { const value = document.createElement(tag); if (text !== undefined && text !== null) value.textContent = text; if (className) value.className = className; return value; };
   const ghost = (text) => { const value = node("button", text, "mw-btn mw-btn--ghost mw-btn--sm"); value.type = "button"; return value; };
+  ${SIDE_FILE_SOURCES_CLIENT_SCRIPT}
   const api=(path,body,page)=>molisWorkRequest(route("/api/placement/"+path),{body,...(page?{headers:{"x-molis-context-page":page}}:{}),fallback:L("暂时处理不了，请稍后重试")});
   let spaces = null;
   const loadSpaces = async () => { if (!spaces) spaces = (await api("spaces")).spaces || []; return spaces; };
@@ -378,9 +380,9 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
     const read=path=>molisWorkRequest(route(path),{fallback:L("读不到项目的内容")});
     const entries = [];
     try {
-      for (const source of (await read("/api/side/files/sources")).sources || []) {
-        try { for (const entry of ((await read("/api/side/files/entries?source=" + encodeURIComponent(source.id))).page || {}).entries || []) if (entry.subject) entries.push({ ...entry, group: source.title }); } catch {}
-      }
+      // The same one request as the side panel (N52): every source with its first page.
+      const { sources, pages } = await readSideFileSources(read);
+      for (const source of sources) for (const entry of pages.get(source.id).items) if (entry.subject) entries.push({ ...entry, group: source.title });
     } catch (error) { card(L("读不到项目的内容"), error, [], "error"); return; }
     if (!entries.length) { card(L("这里还没有可以作为输入的内容"), L("先为这个 Goal 新建一份，或在成果库里导入。"), [], "error"); return; }
     const rows = entries.slice(0, 80).map((entry, index) => choice("object", JSON.stringify(entry.subject), entry.title, entry.group, index === 0));

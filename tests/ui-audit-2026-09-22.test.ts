@@ -10,6 +10,7 @@ import { GLOBAL_SEARCH_FACTORY_SCRIPT, takeSearchHits } from "../apps/workbench/
 import { TAB_WORKSPACE_FACTORY_SCRIPT, placeLayoutMenu } from "../apps/workbench/src/scripts/client/tab-workspace.ts";
 import { pluginSearchRows } from "../apps/workbench/src/plugin-workbench.ts";
 import { MICRO_INTERACTION_CLIENT_SCRIPT } from "@molis-ai/molis-work-design-system";
+import { chinesePagePacks, pageTextForPacks, pageTextScriptForPacks, withPagePacks } from "./fixtures/page-text-packs.js";
 
 test("plugin list split keeps the embedded pane on its restored plugin", () => {
   const source = readFileSync(new URL("../apps/workbench/src/scripts/client/initialization.ts", import.meta.url), "utf8");
@@ -75,11 +76,12 @@ test("layout menu stays inside a short viewport and scrolls when it is taller", 
 });
 
 test("inbox rows stay in tab order and the detail title can use the detail width", () => {
-  const html = renderInboxWorkbench({ route_prefix: "/projects/ui-audit", filter: "active",
-    primitives: { escape: value => String(value ?? ""), icon: () => "", text: value => value, formatDate: value => value },
+  const packs = chinesePagePacks("inbox");
+  const html = withPagePacks("zh", packs, () => renderInboxWorkbench({ route_prefix: "/projects/ui-audit", filter: "active",
+    primitives: { escape: value => String(value ?? ""), icon: () => "", text: pageTextForPacks("zh", packs), formatDate: value => value },
     entries: ["first", "second"].map(id => ({ entry_id: id, revision: 1, subject_type: "feed_item", subject_id: id, reason: "manual", status: "open",
       kind_label: "Inbox", source_label: "Feed", title: id, reason_label: "Manual", relation_label: "Feed", next_action: "Read", status_label: "Open",
-      updated_at: "2026-09-22T00:00:00.000Z", available: true, open: null, attention_rank: 2, suggested_behavior_ids: [] })) });
+      updated_at: "2026-09-22T00:00:00.000Z", available: true, open: null, attention_rank: 2, suggested_behavior_ids: [] })) }));
   const rows = [...html.matchAll(/<button\b[^>]*data-inbox-row[^>]*>/g)].map(([tag]) => ({
     dataset: { inboxEntryId: tag.match(/data-inbox-entry-id="([^"]+)"/)![1]! },
     tabIndex: Number(tag.match(/tabindex="([^"]+)"/)?.[1] ?? 0),
@@ -90,12 +92,12 @@ test("inbox rows stay in tab order and the detail title can use the detail width
   // T403 moved selection into this registered owner. Execute that factory, rather than matching the retired helper name.
   const root = Object.assign(new EventTarget(), { dataset: {}, isConnected: true,
     querySelector: () => null, querySelectorAll: (selector: string) => selector === "[data-inbox-row]" ? rows : [] });
-  const factory = runInNewContext("(" + inboxRegistration.workbench!.clientFactory! + ")", {
-    AbortController, DOMException, CSS: { escape: (value: string) => value },
+  const factory = runInNewContext(pageTextScriptForPacks("zh", packs) + "\n(" + inboxRegistration.workbench!.clientFactory! + ")", {
+    AbortController, DOMException, document: { documentElement: {} }, CSS: { escape: (value: string) => value },
     sessionStorage: { getItem: () => null, setItem() {} }, molisWorkRequest: async () => ({ results: [] }),
   });
   factory({ root, scope: { alive: true, visible: true, assertCurrent() {}, own() {}, frame() {}, whenVisible(start: () => void) { start(); } },
-    translate: (value: string) => value, route: (path: string) => path, pluginRoute: (path: string) => path, showToast() {} });
+    route: (path: string) => path, pluginRoute: (path: string) => path, showToast() {} });
   root.dispatchEvent(new CustomEvent("molis-work:select-item", { detail: { itemId: "first" } }));
   assert.deepEqual(rows.map(row => row.attributes.get("aria-selected")), ["true", "false"], "the real owner selected the first row");
   assert.deepEqual(rows.map(row => row.tabIndex), [0, 0], "selection must not remove the other visible row from Tab navigation");

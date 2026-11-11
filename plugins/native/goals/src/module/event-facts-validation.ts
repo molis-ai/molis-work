@@ -4,6 +4,7 @@ import {
   goalDecisionMethods,
   goalEventFieldFormats,
   goalEventJudgmentVerdicts,
+  GOAL_EVENT_EVIDENCE_MAX,
   goalEventSemanticFamilies,
   goalEventTypeSourceKinds,
   type GoalEventAdoptedPlanningRef,
@@ -11,6 +12,9 @@ import {
   type GoalEventFieldDefinition,
   type GoalEventRequirementSource,
   type GoalEventJudgmentInput,
+  type GoalEventJudgmentBasis,
+  type GoalEventJudgmentBasisInput,
+  type GoalEventEvidenceRef,
   type GoalEventRequirementBinding,
   type GoalEventTypeDefinition,
   type GoalEventTypeDefinitionInput,
@@ -317,8 +321,28 @@ export function normalizeJudgments(judgments: GoalEventJudgmentInput[] | undefin
     if (!goalEventJudgmentVerdicts.includes(item.verdict)) {
       throw goalErrors["goals.event_report.invalid_verdict"](`要求判断无效: ${String(item.verdict)}`, { requirement_id: requirementId });
     }
-    return { requirement_id: requirementId, verdict: item.verdict };
+    const basis = item.basis == null ? undefined : normalizeBasis(item.basis, requirementId);
+    return { requirement_id: requirementId, verdict: item.verdict, ...(basis ? { basis } : {}) };
   });
+}
+
+/** A basis names an exact version and says in two short sentences how it was checked; its evidence is references only, at most eight. */
+function normalizeBasis(basis: GoalEventJudgmentBasisInput, requirementId: string): GoalEventJudgmentBasis {
+  const refuse = (message: string) => goalErrors["goals.event_report.invalid_basis"](message, { requirement_id: requirementId });
+  const exact = (value: unknown): value is { artifact_id: string; version: number } => typeof value === "object" && value !== null
+    && typeof (value as { artifact_id?: unknown }).artifact_id === "string" && (value as { artifact_id: string }).artifact_id.trim() !== ""
+    && Number.isSafeInteger((value as { version?: unknown }).version) && (value as { version: number }).version >= 1;
+  const said = (value: unknown) => typeof value === "string" && value.trim() !== "" && value.length <= 500;
+  if (typeof basis !== "object" || !exact(basis.checked)) throw refuse("依据必须写明所核的确切版本（成果编号和版本号），不接受「最新版」");
+  if (!said(basis.method) || !said(basis.observed)) throw refuse("依据必须写明检查方法和观察结果，各不超过 500 字");
+  const evidence = basis.evidence ?? [];
+  if (!Array.isArray(evidence) || evidence.length > GOAL_EVENT_EVIDENCE_MAX) throw refuse(`证据引用最多 ${GOAL_EVENT_EVIDENCE_MAX} 条`);
+  const refs = evidence.map((ref): GoalEventEvidenceRef => {
+    if (ref?.kind === "artifact_version" && exact(ref)) return { kind: ref.kind, artifact_id: ref.artifact_id.trim(), version: ref.version };
+    if (ref?.kind === "command_receipt" && said(ref.run_id) && said(ref.call_id)) return { kind: ref.kind, run_id: ref.run_id, call_id: ref.call_id };
+    throw refuse("证据引用只能是成果的确切版本，或某一轮里某条命令的回执");
+  });
+  return { checked: { artifact_id: basis.checked.artifact_id.trim(), version: basis.checked.version }, method: basis.method.trim(), observed: basis.observed.trim(), evidence: refs };
 }
 
 export function ownStringRecord(value: unknown): Record<string, string> {

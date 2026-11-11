@@ -101,6 +101,28 @@ export function isAgentTool(name: string): boolean {
   return BY_NAME.has(name);
 }
 
+/**
+ * The Runtime's names of the tools that can change a file of the round's directory: the Runtime's own writing tools (a command
+ * included: what it runs is not known) and handing work to a child. A business capability changes its owner's data, not these files.
+ */
+const FILE_WRITING_TOOLS: ReadonlySet<string> = new Set([
+  ...AGENT_TOOLS.filter(entry => entry.origin === "runtime" && entry.writes).flatMap(entry => [entry.name, entry.runtime_name ?? entry.name]),
+  "dispatch-subagent",
+]);
+
+/** Whether a tool call, by the name its activity carries, may have changed a file of the round's directory. */
+export function mayWriteFiles(name: string): boolean {
+  return FILE_WRITING_TOOLS.has(name);
+}
+
+/** The tools whose work goes on after the call returns: a background command, and a child handed a sub-task. */
+const OUTLASTING_TOOLS: ReadonlySet<string> = new Set(["start-command", "dispatch-subagent"]);
+
+/** Whether what a tool call started may still be writing files after later calls of the round, whenever it was made. */
+export function mayKeepWriting(name: string): boolean {
+  return OUTLASTING_TOOLS.has(name);
+}
+
 /** The entry for a role's tool name; none for a name outside the set. */
 export function agentTool(name: string): AgentToolEntry | undefined {
   return BY_NAME.get(name);

@@ -61,7 +61,7 @@
 | [22](reference/batches/22.md) | [Sessions 来源与历史合同](reference/batches/22.md#batch-22-item-1) |
 | [23](reference/batches/23.md) | [同步与团队共同设计 → SRV-1](reference/batches/23.md#batch-23-item-1) |
 | [24](reference/batches/24.md) | [Prologue 采用与任务能力核准](reference/batches/24.md#batch-24-item-1) |
-|  | [Memory P0 非上游余项](reference/batches/24.md#batch-24-item-2) |
+|  | [Memory P0 非上游余项](reference/batches/24.md#batch-24-item-2)（2026-11-11 移出本批：独立的 Memory V0 收口批，以 #2020 为基线；P1 在 [31](reference/batches/31.md#batch-31-item-2)，见 [Memory 去向](reference/requirements.md#memory-paused)） |
 |  | [逐项交付与证据关联合同](reference/batches/24.md#batch-24-item-3) |
 | [25](reference/batches/25.md) | [常驻、休眠与单 Home 执行恢复](reference/batches/25.md#batch-25-item-1) |
 |  | [按主人隔离升级失败 U3](reference/batches/25.md#batch-25-item-2) |

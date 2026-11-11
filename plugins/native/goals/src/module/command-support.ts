@@ -6,16 +6,20 @@ import { GoalsRepository } from "./repository.js";
 
 export interface GoalsCommandContextOptions {
   now?: () => Date;
+  /** The Goal's confirmed deliverables, read where they are kept. Without it, a verified report meets nothing: only the person's acceptance does. */
+  deliverables?: (projectId: string, goalId: string) => ReadonlyArray<{ artifact_id: string; version: number }>;
 }
 
 export class GoalsCommandContext {
   readonly now: () => Date;
+  readonly deliverables: GoalsCommandContextOptions["deliverables"];
 
   constructor(
     readonly repository: GoalsRepository,
     options: GoalsCommandContextOptions = {},
   ) {
     this.now = options.now ?? (() => new Date());
+    this.deliverables = options.deliverables;
   }
 
   requireGoalsLibrary(projectId: string): void {

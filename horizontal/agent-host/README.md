@@ -80,6 +80,7 @@ Run 的启动/读取/控制/等待、接续的等待。每一条只给插件、�
 - 不变量：
   - 目录 Action 的工具时限取提供方 `execution.timeout_ms` 与 Agent 入口上限中的较小者；完整声明参与冻结合同，不按能力名称猜测成本。
   - 仓库里唯一依赖 `@prologue/sdk` 的包。
+  - 证据核对（`agent.evidence.check@1`，`src/recovery-actions.ts`，安全不变量 S-agent-evidence-own-session）：给别的 owner（现在是 Goals 的逐项依据）问「某一轮跑过的几条命令」的唯一入口。只回答宿主给这次调用绑定的会话（`runtime_session_id`，不从输入读）里的轮次，没有绑定会话的调用和插件一律拒绝，别的会话或项目的轮次按找不到拒绝且不读回执；只给事实（有没有回执、退出码、超时、取消、之后这一轮有没有再写文件），不给命令文本和输出，不运行任何东西。读不到回执、没跑过、读不出先后位置的命令都不算「之后没改」。改这里跑 `tests/security-invariants-agent-evidence.test.ts`。
   - 前台 SDK 写入保留原调用控制到实际 Node storage commit；最终 checker 必须同步。只有初始 Run 持久记录提交后，drive 才脱离前台信号，派出仍核独立安装授权。Session 以 SDK 记录和 owner 索引都已提交为接受点；索引前拒绝时由 SDK 清理本次未接受 Session，清理失败明确报出。尚未接受的排队效果不会因包装函数返回而丢失原 checker。
   - thinking 与显式输出预算合成同一个 params；文档文本提取 finally 回收本次原件和派生资源，保留其他消费者持有的附件。
   - 每一轮的冻结记录带宿主给的调用编号（`frozen.call_id`）：来自启动权限 `AgentStartAuthority.call_id`，经 `AgentHost.start` 交给适配器；适配器不读请求体里的同名字段，所以插件塞的值不会成为一轮的编号。编号只写在这份冻结记录里，不交给 Prologue（用户 2026-10-10 决定）；它不是工具调用的 `call_id`。回归：`tests/agent-start-authority.test.ts`。

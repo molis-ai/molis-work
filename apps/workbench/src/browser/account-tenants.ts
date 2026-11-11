@@ -1,4 +1,4 @@
-import type { AccountView, Invitation, OwnershipTransfer, TenantView } from "@molis-ai/molis-work-contracts/services/account";
+import type { AccountView, Invitation, OwnershipTransfer, TenantView, TenantCreationPolicyView } from "@molis-ai/molis-work-contracts/services/account";
 import type { AccountUi } from "./account-management.js";
 import { createTenantPanel, tenantRoleLabels } from "./account-tenant-panel.js";
 import { renderTenantMembers } from "./account-tenant-members.js";
@@ -13,11 +13,15 @@ export function openAccountTenants(ui: AccountUi, account: Extract<AccountView, 
   async function load() {
     const current = panel.begin('个人与租户'); form.append(node('p', L('正在读取租户状态…')));
     try {
-      const [tenants, invitations, transfers] = await Promise.all([panel.list<TenantView>('/tenants'), panel.list<Invitation>('/invitations'), panel.list<OwnershipTransfer>('/ownership-transfers')]);
+      const [tenants, invitations, transfers, policy] = await Promise.all([panel.list<TenantView>('/tenants'), panel.list<Invitation>('/invitations'), panel.list<OwnershipTransfer>('/ownership-transfers'), ui.request<TenantCreationPolicyView>('/tenant-creation-policy')]);
       if (!current()) return;
       form.replaceChildren(node('h3', L('个人与租户')));
       const select = panel.select('当前空间', 'accountScope', [['', L('个人空间')], ...tenants.map(t => [t.tenantId, t.name + ' · ' + L(t.status === 'DISABLED' ? '已停用' : tenantRoleLabels[t.myRole])] as [string, string])]); select.required = false;
       select.onchange = () => { const tenant = tenants.find(t => t.tenantId === select.value); if (tenant) void perform(() => renderTenantMembers(panel, tenant, account.user.userId)); };
+      if(policy.mode==='SELF_SERVICE')button('创建租户',()=>{
+        panel.begin('创建租户');const name=ui.field('租户名称','name','text','organization');name.maxLength=120;
+        panel.submit('创建租户',()=>panel.change('/tenants',{name:name.value.trim()},'租户已创建。'));button('返回',()=>perform(load));
+      });
       button('个人订阅', () => perform(() => renderSubscriptions(panel)));
       if (account.capabilities.some(c => c.startsWith('SUBSCRIPTION_') || c === 'AUDIT_READ')) button('平台订阅管理', () => perform(() => renderPlatformSubscriptions(panel, account.capabilities)));
       button('刷新租户状态', () => perform(load)); button('返回账号', finish);

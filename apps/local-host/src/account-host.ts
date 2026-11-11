@@ -15,6 +15,7 @@ import { readLocalWebBody, requestHost, sendLocalWebJson } from "./web-http.js";
 /** Trusted startup inputs, never browser request fields. Default storage is the Home's SecretStore. */
 export interface AccountHostOptions {
   readonly environment: unknown;
+  readonly session?: AccountSessionManager;
   readonly storage?: AccountSessionStorage;
   readonly fetch?: typeof fetch;
 }
@@ -25,6 +26,7 @@ export interface AccountHostBinding {
   readonly storage: AccountSessionStorage | undefined;
   readonly fetch: typeof fetch | undefined;
   readonly assertAccountCurrent: (() => void) | undefined;
+  readonly borrowedSession?: AccountSessionManager;
   session(): AccountSessionManager;
   matchesNativeCallback(url: URL, origin?: string): boolean;
   manage(origin: string, operation: "profile" | "methods" | ActionDefinition, input: unknown, signal: AbortSignal): Promise<unknown>;
@@ -52,7 +54,7 @@ export function bindAccountHost(host: MolisWorkLocalHost, home: string, options?
   const storage = options?.storage, fetcher = options?.fetch, existing = accounts.get(host);
   if (existing) {
     if (existing.home !== home || existing.configuration !== configuration || existing.storage !== storage || existing.fetch !== fetcher
-      || existing.assertAccountCurrent !== assertAccountCurrent)
+      || existing.assertAccountCurrent !== assertAccountCurrent || existing.borrowedSession !== options?.session)
       throw accountErrors.invalid_configuration("Account configuration must match the owning Host");
     return existing;
   }
@@ -70,7 +72,7 @@ export function bindAccountHost(host: MolisWorkLocalHost, home: string, options?
       if (configuration === undefined) throw accountErrors.invalid_configuration("Account environment is not configured");
       const config = parseAccountEnvironment(configuration);
       productOrigin = config.productOrigin;
-      manager = createAccountSessionManager(config, { storage: storage ?? createHostAccountStorage(home, config), ...(fetcher ? { fetch: fetcher } : {}) });
+      manager = options?.session ?? createAccountSessionManager(config, { storage: storage ?? createHostAccountStorage(home, config), ...(fetcher ? { fetch: fetcher } : {}) });
       authentication = createAccountAuthentication(config, manager, fetcher);
     }
     return manager;
@@ -93,7 +95,7 @@ export function bindAccountHost(host: MolisWorkLocalHost, home: string, options?
     check();
     return result;
   })());
-  const binding: AccountHostBinding = { home, configuration, storage, fetch: fetcher, assertAccountCurrent, session, run, manage: (origin, operation, input, signal) => run(origin, signal, async (_owner, control) => {
+  const binding: AccountHostBinding = { borrowedSession: options?.session, home, configuration, storage, fetch: fetcher, assertAccountCurrent, session, run, manage: (origin, operation, input, signal) => run(origin, signal, async (_owner, control) => {
     const caller = await localWebActionContext(host, undefined, ACCOUNT_PERMISSIONS, control.signal);
     control.assertCurrent();
     const authority = withControlChecks(caller, {
@@ -101,7 +103,10 @@ export function bindAccountHost(host: MolisWorkLocalHost, home: string, options?
       assert_authority_current: control.assertCurrent,
     });
     return host.homeActionClient().invoke({ ...caller, ...authority }, typeof operation === "string" ? accountActions[operation] : operation, input);
-  }), authenticate: (origin, signal, operation) => run(origin, signal, (_owner, control) => operation(authentication!, control)), matchesNativeCallback: (url, origin) => {
+  }), authenticate: (origin, signal, operation) => run(origin, signal, (_owner, control) => operation(options?.session?{...authentication!,create:(input,guard)=>{
+    if(!input||typeof input!=="object"||!("purpose" in input)||!["BIND","REPLACE"].includes(String(input.purpose)))throw accountErrors.conflict("Use the installation account entry to sign in or switch accounts");
+    return authentication!.create(input,guard);
+  }}:authentication!, control)), matchesNativeCallback: (url, origin) => {
     if (!authentication) return false;
     try { assertCurrent(); return authentication.matchesNativeCallback(url, origin); }
     catch { return false; }
@@ -114,7 +119,7 @@ export function bindAccountHost(host: MolisWorkLocalHost, home: string, options?
       return { state: "ANONYMOUS" } as const;
     })());
   } };
-  retainHomeStorageResources(host, async () => { stop.abort(); authentication?.close(); await manager?.close(); await Promise.allSettled([...pending]); });
+  retainHomeStorageResources(host, async () => { stop.abort(); authentication?.close(); if (!options?.session) await manager?.close(); await Promise.allSettled([...pending]); });
   accounts.set(host, binding);
   return binding;
 }
@@ -133,6 +138,7 @@ export async function handleAccountHttp(request: IncomingMessage, response: Serv
   const read = url.pathname === "/api/account/session" && request.method === "GET";
   const activity = url.pathname === "/api/account/activity" && request.method === "POST";
   const logout = url.pathname === "/api/account/logout" && request.method === "POST";
+  if(logout&&account.borrowedSession)throw accountErrors.conflict("Use the installation account preparation protocol to sign out");
   if (!read && !activity && !logout && !profile && !methods && !managementRoute) throw accountErrors.not_found("Account operation is not available");
   if ((read || methods || (managementRoute && !managementRoute.write)) && (request.headers["transfer-encoding"] || (request.headers["content-length"] && request.headers["content-length"] !== "0")))
     throw accountErrors.invalid_request("Account session reads do not accept a body");

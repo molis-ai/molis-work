@@ -106,7 +106,6 @@ export const ROUND_CLICKS: readonly ClickRule[] = [
   ["[data-coding-nudge]", nudge],
   ["[data-coding-commit-round]", commitRound],
   ["[data-coding-method-close]", page => {
-    page.s.methodDocumentTicket++;
     page.q<HTMLDialogElement>("[data-coding-method-dialog]").close();
     page.refs.composer.focus();
   }],

@@ -32,6 +32,7 @@ export const unavailableInFixture: Record<string, string> = {
 const accountReadsRequiringConfiguration = new Set([
   "account.features.list@1",
   "account.login-methods.read@1",
+  "account.tenant-creation-policy.read@1",
   "account.tenants.list@1",
   "account.invitations.list@1",
   "account.ownership.list@1",

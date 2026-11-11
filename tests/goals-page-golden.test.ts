@@ -137,6 +137,11 @@ const pages: Record<string, Draw> = {
 // Main #2002 integration: all 66 preserved A-1 draws first reproduced their accepted hashes.
 // Derive only the hidden assistant-answer button and English To: → Send to: from that main change.
 // All 16 whole-page draws match the derived markup byte for byte; the other 50 remain identical.
+// Batch 09 (#2015, AI kits): all 66 pages drawn on independently built main bac5d62b9e (each matched its record there) and on this branch,
+// compared token by token: the 34 changed records (17 pages in two languages) differ only in the shell's settings navigation — the global
+// rows 提示词 and 技能 (Prompts, Skills; icons text and book) became one 能力包 / AI kits row (icon sparkles, `data-settings-section="kit"`),
+// and the settings links /settings/prompts, /settings/skills and the project's /settings/skills became /settings/kit — besides executable
+// scripts and dictionaries, which the hash leaves out. No Goals markup or JSON changed; the 34 were recorded with MOLIS_WORK_GOLDEN_RECORD=1.
 const RECORDED = new URL("golden.json", GOLDEN);
 interface Recorded { sha256: string; length: number }
 const recorded: Record<string, Recorded> = record ? {} : JSON.parse(readFileSync(RECORDED, "utf8"));

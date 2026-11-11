@@ -108,11 +108,16 @@ export const ASSISTANT_COMPOSER_PART = String.raw`  /* Starting points for what 
     // Each kind keeps the glyph Coding gives the same kind (its ＋), so a method or a capability looks the same wherever it is added.
     ...startersFor().map((starter) => ({ slash: L("开始"), icon: "sparkles", label: starter.label + (starter.kind ? " · " + starter.kind : ""), ...(starter.hint ? { hint: starter.hint } : {}),
       run: () => { if (useStarter(starter)) input.focus(); } })),
-    ...rows.methods.map((row) => {
-      const title = L(row.kind === "role" ? "角色资料：{name}" : "方法：{name}", { name: row.name });
-      return { slash: L(row.kind === "role" ? "角色资料" : "方法"), icon: row.kind === "role" ? "user" : "list", label: row.name + " · " + row.plugin_title, hint: row.summary || row.name, run: choose({ kind: "method", title,
-        method: { method_id: row.method_id, version: row.version, ...(row.default_ref ? { default_ref: row.default_ref, installation: row.installation } : {}) } },
-        (file) => file.method.method_id === row.method_id && file.method.installation?.install_id === row.installation?.install_id) };
+    /* A Skill is chosen by its exact reference from the shared catalog; a signed role by its default and installation. */
+    ...rows.methods.filter((row) => row.kind !== "skill" || row.skill.user_invocable).map((row) => {
+      if (row.kind === "skill") {
+        const skill = row.skill, same = (ref) => ref && ref.install_id === skill.ref.install_id && ref.skill_id === skill.ref.skill_id;
+        return { slash: L("方法"), icon: "list", label: skill.name + " · " + skill.pack.title, hint: skill.description || skill.name, run: choose({ kind: "method", title: L("方法：{name}", { name: skill.name }),
+          method: { kind: "skill", ref: skill.ref } }, (file) => same(file.method.ref)) };
+      }
+      return { slash: L("角色资料"), icon: "user", label: row.name + " · " + row.plugin_title, hint: row.summary || row.name, run: choose({ kind: "method", title: L("角色资料：{name}", { name: row.name }),
+        method: { kind: "role", method_id: row.method_id, version: row.version, default_ref: row.default_ref, installation: row.installation } },
+        (file) => file.method.method_id === row.method_id && file.method.installation?.install_id === row.installation.install_id) };
     }),
     ...rows.capabilities.map((row) => {
       const title = row.provider + " · " + row.title;

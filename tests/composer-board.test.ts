@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { PLUGIN_ICON_NAMES } from "@molis-ai/molis-work-plugin-sdk/ui";
-import { COMPOSER_BOARD_EN, KEEP_EDITS_BOARD_EN, LOOK_BOARD_EN, SKILL_PACK_BOARD_EN, listedIconNames, renderIconSprite, renderMenuItem, renderPrimitiveCatalog } from "@molis-ai/molis-work-design-system";
+import { CAPABILITY_PACK_BOARD_EN, COMPOSER_BOARD_EN, KEEP_EDITS_BOARD_EN, LOOK_BOARD_EN, SKILL_PACK_BOARD_EN, listedIconNames, renderIconSprite, renderMenuItem, renderPrimitiveCatalog } from "@molis-ai/molis-work-design-system";
 
 // The unified input's three new board parts (specs/unified-input-voice/implementation-plan.md §3.6, UIC-04): the multi-row
 // composer shell, the menu item's description line and the microphone glyph. K0c's renderComposer() and K2's client use these
@@ -48,7 +48,7 @@ test("UIC-04: the board has a composer section with every state on one attribute
   // Seen through the board's English: no specimen text is left without a translation (the board's dictionary also carries the
   // keep-edits and look sections' words, which go through the same translator; the few words the product already says are not
   // written twice).
-  const board: Record<string, string> = { ...COMPOSER_BOARD_EN, ...KEEP_EDITS_BOARD_EN, ...LOOK_BOARD_EN, ...SKILL_PACK_BOARD_EN };
+  const board: Record<string, string> = { ...COMPOSER_BOARD_EN, ...KEEP_EDITS_BOARD_EN, ...LOOK_BOARD_EN, ...SKILL_PACK_BOARD_EN, ...CAPABILITY_PACK_BOARD_EN };
   const english = renderPrimitiveCatalog({ say: (text, values = {}) => {
     assert.ok(text in board || /^(助理|发送|补充|停止|重试|失败|运行中|待确认|不可用|聚焦|让助理做点什么…|保存|取消|更多|移除|知道了|提示|没有找到|命令|浅色|深色|再试一次|进行中|内置|没通过检查|项目名称)$/.test(text), `English for ${text}`);
     return (board[text] ?? text).replace(/\{(\w+)\}/g, (whole, name: string) => String(values[name] ?? whole));

@@ -140,7 +140,6 @@ tests/coding-history-requirements.test.ts
 tests/coding-long-session.test.ts
 tests/coding-mcp-settings-client.test.ts
 tests/coding-mcp.test.ts
-tests/coding-method-install.test.ts
 tests/coding-net-change.test.ts
 tests/coding-plan-amend-http.test.ts
 tests/coding-plan-dependencies.test.ts
@@ -511,6 +510,7 @@ tests/host-ui-text.test.ts
 
 # Account session and Host refusal tests already run in the blocking security-invariants job (pnpm test:security).
 tests/account-client.test.ts
+tests/account-inflight-effects.test.ts
 
 # 2026-11-08 low A-1: D0215 / D0217 / D0232 (existing security cases remain in test:security)
 tests/goals-plugin-prefix-routes.test.ts

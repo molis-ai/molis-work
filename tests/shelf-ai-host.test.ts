@@ -16,7 +16,7 @@ import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { agentDefinitionsFor } from "../apps/local-host/dist/agent-definitions/agent-definitions.js";
 import { extractMaterial } from "../apps/local-host/dist/material-extraction.js";
-import { builtinRegistrations } from "../apps/local-host/dist/agent-definitions/builtin-registrations.js";
+import { builtinRegistrations } from "../apps/local-host/dist/agent-definitions/builtin-agents.js";
 import { openTestShelfStore } from "./shelf-direct-actions.js";
 
 type Request = { model: string; messages: any[] };
@@ -82,7 +82,7 @@ test("Shelf Action -> registered prompt override -> shared Prologue -> result an
   assert.equal(outcome.job.execution?.usage[0]?.cost.source, "unknown"); assert.equal(outcome.job.execution?.usage[0]?.cost.amount, undefined);
   const sent = JSON.stringify(f.requests[0]!.messages);
   assert.match(sent, /OVERRIDDEN_SHELF/); assert.match(sent, /周五交付/); assert.doesNotMatch(sent, /把完整结果写成文件|\/shelf\/files/);
-  assert.equal(definitions.uses(registered.key).length, 1);
+  assert.equal(definitions.uses.list(registered.key).length, 1);
   assert.match(openTestShelfStore(f.home).readFile(outcome.result!.item_id).bytes.toString(), /周五/);
   const saved = JSON.parse(readFileSync(join(f.home, "shelf", "catalog.json"), "utf8"));
   assert.deepEqual(saved.jobs[0].execution, JSON.parse(JSON.stringify(outcome.job.execution)));

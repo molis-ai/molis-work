@@ -42,5 +42,7 @@ function dropIssuedIdentity<C extends ActionCallContext>(view: C): C {
   Reflect.deleteProperty(view, "readable_project_ids");
   // Likewise the calling plugin's name: `pluginActionProvider` sets it from the issued caller after this, never from what the call carried.
   Reflect.deleteProperty(view, "calling_plugin_id");
+  // Who a round's Skill reads are for is the Host's word on its own calls to `system.skills` only (S-skill-delegation); a plugin's code never sees it.
+  Reflect.deleteProperty(view, "skill_round");
   return view;
 }

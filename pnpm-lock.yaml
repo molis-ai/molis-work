@@ -181,6 +181,9 @@ importers:
       '@molis-ai/molis-work-service-connector-host':
         specifier: workspace:*
         version: link:horizontal/connector-host
+      '@molis-ai/molis-work-service-kit':
+        specifier: workspace:*
+        version: link:horizontal/kit
       '@molis-ai/molis-work-service-knowledge':
         specifier: workspace:*
         version: link:horizontal/knowledge
@@ -449,6 +452,9 @@ importers:
       '@molis-ai/molis-work-service-connector-host':
         specifier: workspace:*
         version: link:../../horizontal/connector-host
+      '@molis-ai/molis-work-service-kit':
+        specifier: workspace:*
+        version: link:../../horizontal/kit
       '@molis-ai/molis-work-service-knowledge':
         specifier: workspace:*
         version: link:../../horizontal/knowledge
@@ -657,6 +663,12 @@ importers:
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../packages/plugin-sdk
+
+  horizontal/kit:
+    dependencies:
+      '@molis-ai/molis-work-contracts':
+        specifier: workspace:*
+        version: link:../../packages/contracts
 
   horizontal/knowledge:
     dependencies:

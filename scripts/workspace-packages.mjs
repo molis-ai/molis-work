@@ -209,6 +209,7 @@ export const WORKSPACE_PACKAGES = [
       "@molis-ai/molis-work-service-scheduler",
       "@molis-ai/molis-work-service-placement",
       "@molis-ai/molis-work-service-search",
+      "@molis-ai/molis-work-service-kit",
       "@molis-ai/molis-work-service-knowledge",
       "@molis-ai/molis-work-service-memory",
       "@molis-ai/molis-work-storage",
@@ -455,6 +456,12 @@ export const WORKSPACE_PACKAGES = [
     capabilities: [
       "search.query.v1",
       "search.index.v1"
+    ]
+  }),
+  entry("horizontal/kit", "@molis-ai/molis-work-contracts/services/kit", {
+    maturity: "production",
+    capabilities: [
+      "kit.catalog.v1"
     ]
   }),
   entry("horizontal/placement", "@molis-ai/molis-work-contracts/services/placement", {

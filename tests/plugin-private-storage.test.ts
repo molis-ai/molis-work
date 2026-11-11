@@ -292,16 +292,16 @@ test("persisted running state rehydrates a plugin contribution after process res
   const definition: PluginDefinition = { ...coding, start: context => coding.start({ ...context, services: { ...context.services!, project_database: library } }) };
   // Coding redeems its declared actions at start, so each process has its own action registry. Its Manifest requires goals:read and
   // goals:write (W3-07 PR-8) and model:read (C2, PG-047: it reads the model list through services.model) and the review kinds it starts
-  // (C5, PG-009: review:git-worktree, review:git-integration), so both installs grant every required permission; the Runtime
+  // (C5, PG-009: review:git-worktree, review:git-integration) and skills:read (09: it lists the shared Skill catalog), so both installs grant every required permission; the Runtime
   // still refuses a start without them.
   const { ActionService } = await import("@molis-ai/molis-work-kernel");
   const process = () => ({ actions: { registry: new ActionService(), project_id: "project-rehydrate" } });
   const first = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, ...process() });
-  const installed = first.install({ trust: { level: "unsigned" },definition,deployment:"local",grants:["artifact:read","artifact:write","goals:read","goals:write","knowledge:read","model:read","search:read","storage:private","workspace:read","review:git-worktree","review:git-integration"]});
+  const installed = first.install({ trust: { level: "unsigned" },definition,deployment:"local",grants:["artifact:read","artifact:write","goals:read","goals:write","knowledge:read","model:read","search:read","skills:read","storage:private","workspace:read","review:git-worktree","review:git-integration"]});
   await first.start(installed.install.install_id);
   // A new Runtime models a new process; the database still records running.
   const reopened = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, ...process() });
-  const replayedInstall = reopened.install({ trust: { level: "unsigned" },definition,deployment:"local",grants:["artifact:read","artifact:write","goals:read","goals:write","knowledge:read","model:read","search:read","storage:private","workspace:read","review:git-worktree","review:git-integration"]});
+  const replayedInstall = reopened.install({ trust: { level: "unsigned" },definition,deployment:"local",grants:["artifact:read","artifact:write","goals:read","goals:write","knowledge:read","model:read","search:read","skills:read","storage:private","workspace:read","review:git-worktree","review:git-integration"]});
   assert.equal(replayedInstall.replayed,true);
   assert.equal(reopened.contribution(installed.install.install_id),null);
   const started = await reopened.start(installed.install.install_id);

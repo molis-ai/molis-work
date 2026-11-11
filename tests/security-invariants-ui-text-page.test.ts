@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { AsyncLocalStorage } from "node:async_hooks";
 import test from "node:test";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
@@ -157,10 +158,17 @@ test("S-ui-text-page FSS-09 the Coding page cannot borrow a restarted embedded G
   const read = (...ids: string[]) => f.request(prefix + "/api/ui/locales?" + new URLSearchParams([["locale", "en"], ...ids.map(id => ["page", id])]), { authorized: false, headers });
   const old = await grant(), another = await grant();
   const catalog = await f.host.ensureWebCatalog(f.home, openMolisWorkProjectCatalog).withCatalog({ homeDirectory: f.home }, value => value);
-  const membership = t.mock.method(catalog, "projectPluginMembership");
+  const projectionRequest = new AsyncLocalStorage<boolean>(), pages = pluginPagesFor(f.home);
+  const projectWords = pages.withPageText.bind(pages), readMembership = catalog.projectPluginMembership.bind(catalog);
+  t.mock.method(pages, "withPageText", (...args: Parameters<typeof projectWords>) => projectionRequest.run(true, () => projectWords(...args)));
+  let membershipReads = 0;
+  t.mock.method(catalog, "projectPluginMembership", (...args: Parameters<typeof readMembership>) => {
+    if (projectionRequest.getStore()) membershipReads += 1;
+    return readMembership(...args);
+  });
   const first = await read(old, another);
   assert.equal(first.status, 200, await first.clone().text());
-  assert.equal(membership.mock.callCount(), 1, "both real page grants share one project membership read");
+  assert.equal(membershipReads, 1, "both real page grants share one project membership read");
   const projection = (await first.json()).owners.find((item: { owner: string }) => item.owner === "io.molis.work.git");
   assert.deepEqual(projection.embedded, [old, another]);
   assert.deepEqual(projection.pages, []);

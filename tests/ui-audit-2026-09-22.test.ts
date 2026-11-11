@@ -90,10 +90,11 @@ test("inbox rows stay in tab order and the detail title can use the detail width
   }));
   assert.deepEqual(rows.map(row => row.tabIndex), [0, 0], "both visible rows render as native tab stops");
   // T403 moved selection into this registered owner. Execute that factory, rather than matching the retired helper name.
-  const root = Object.assign(new EventTarget(), { dataset: {}, isConnected: true,
+  const document = Object.assign(new EventTarget(), { documentElement: {} });
+  const root = Object.assign(new EventTarget(), { dataset: {}, isConnected: true, ownerDocument: document,
     querySelector: () => null, querySelectorAll: (selector: string) => selector === "[data-inbox-row]" ? rows : [] });
   const factory = runInNewContext(pageTextScriptForPacks("zh", packs) + "\n(" + inboxRegistration.workbench!.clientFactory! + ")", {
-    AbortController, DOMException, document: { documentElement: {} }, CSS: { escape: (value: string) => value },
+    AbortController, DOMException, document, CSS: { escape: (value: string) => value },
     sessionStorage: { getItem: () => null, setItem() {} }, molisWorkRequest: async () => ({ results: [] }),
   });
   factory({ root, scope: { alive: true, visible: true, assertCurrent() {}, own() {}, frame() {}, whenVisible(start: () => void) { start(); } },

@@ -1,4 +1,5 @@
 /// <reference lib="dom" />
+import type { UiTextTool } from "@molis-ai/molis-work-contracts/platform/ui";
 import { createLookFade } from "../look-fade.js";
 // The board's look parts made to feel real (primitives/catalog-appearance.ts): choosing a look card, the card's menu letting go, and the fade when the whole
 // page changes look. Presentation only; nothing here is a product control, and nothing is stored: a reload is Soft Workbench again.
@@ -46,7 +47,7 @@ function wireFade(): void {
   const root = document.documentElement;
   const fade = createLookFade();
   const label = () => {
-    const words = globalThis.t.text;
+    const words = (globalThis as typeof globalThis & { t: UiTextTool }).t.text;
     const name = root.dataset.look === look ? words(stage.dataset.lookFadeName!) : stage.dataset.lookFadeSoft!;
     now.textContent = words("workbench.catalog-appearance.using-name", { name });
   };

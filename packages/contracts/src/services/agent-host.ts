@@ -654,7 +654,7 @@ export const agentHostCapabilities = {
     action: { title: "核对本会话的命令回执", description: "调用方自己会话里一轮跑过的几条命令：有没有回执、怎样结束、之后这一轮有没有再改文件。只给事实，不给输出，不会再跑它。", kind: "query",
       scope: "project", audiences: ["agent", "workflow"], plugin: false, permissions: [], subject_kinds: [], scheduling: "concurrent",
       input_schema: { type: "object", required: ["run_id", "command_call_ids"], additionalProperties: false, properties: {
-        run_id: entryId, command_call_ids: { type: "array", minItems: 1, maxItems: 8, uniqueItems: true, items: entryId } } },
+        run_id: entryId, command_call_ids: { type: "array", maxItems: 8, uniqueItems: true, items: entryId } } },
       output_schema: { type: "object", required: ["owner_plugin_id", "run", "commands"], additionalProperties: false, properties: {
         owner_plugin_id: { type: "string" },
         run: { type: "object", required: ["session_id", "run_id"], additionalProperties: false, properties: { session_id: { type: "string" }, run_id: { type: "string" } } },

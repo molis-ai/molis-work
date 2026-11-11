@@ -8,7 +8,7 @@ import type {
 import type { GoalsCommandContext } from "./command-support.js";
 import type { GoalEventFactsConfig } from "./event-facts-config.js";
 import type { GoalEventFactsRepository } from "./event-facts-repository.js";
-import { requirementCurrentlySatisfied } from "./event-state-authorization.js";
+import { requirementSatisfaction } from "./event-state-authorization.js";
 import { GoalEventStateRepository } from "./event-state-repository.js";
 
 export function readCurrentGoalEventRequirements(
@@ -36,7 +36,10 @@ export function readCurrentGoalEventRequirements(
       verdict: row.verdict,
       received_at: row.received_at,
       journal_seq: row.journal_seq,
-      independent_verification: false,
+      basis: row.basis,
+      tier: row.tier,
+      gap: row.gap,
+      independent_verification: row.tier !== "self_reported",
       substitutes_human_decision: false,
     });
   }
@@ -75,13 +78,13 @@ export function readCurrentGoalEventRequirements(
       human_decision_required: requirement.human_decision_required,
       current_report: report && report.journal_seq > requirement.support_valid_after_seq ? report : null,
       user_conclusion: conclusion && conclusion.journal_seq > requirement.support_valid_after_seq ? conclusion : null,
-      currently_satisfied: false,
     };
   });
-  return extras.map((item) => ({
-    ...item,
-    currently_satisfied: requirementCurrentlySatisfied(item, lastWithdrawing.get(item.requirement_id) ?? null),
-  }));
+  const deliverables = context.deliverables?.(projectId, goalId) ?? null;
+  return extras.map((item) => {
+    const satisfaction = requirementSatisfaction(item, lastWithdrawing.get(item.requirement_id) ?? null, deliverables);
+    return { ...item, currently_satisfied: satisfaction.satisfied_by !== null, ...satisfaction };
+  });
 }
 
 export function applyGoalEventAgreementChange(

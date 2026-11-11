@@ -1,3 +1,4 @@
+import { MATERIALS_PROVIDER_ID } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { FILE_SNAPSHOT_SCHEMA_VERSION, FILE_SNAPSHOT_TYPE } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 
@@ -46,7 +47,7 @@ export const textStatsManifest: PluginManifest = {
         port: TEXT_STATS_INPUT_PORT,
         artifact_type_id: FILE_SNAPSHOT_TYPE,
         schema_version: FILE_SNAPSHOT_SCHEMA_VERSION,
-        default_source: { plugin_id: "io.molis.work.files", port: "before" },
+        default_source: { plugin_id: MATERIALS_PROVIDER_ID, port: "before" },
       },
     ],
     outputs: [],

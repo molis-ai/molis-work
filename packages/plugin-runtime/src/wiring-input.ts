@@ -20,7 +20,7 @@ export function resolvePortInput(input: {
   repository: PluginWiringRepository;
   artifacts: PluginArtifactReaderPort;
   /** The platform's producers: a version on their output must be one they wrote, under the signature they hold now. */
-  systemSource?: (pluginId: string) => SystemOutputSource | undefined;
+  systemSources?: readonly SystemOutputSource[];
 }): { scope: string | null; record: FixedVersionRecord | null; reason?: PluginUpstreamUnavailableReason } {
   const { projectId, manifest, port, repository, artifacts } = input;
   let system: SystemOutputSource | undefined;
@@ -38,7 +38,7 @@ export function resolvePortInput(input: {
     if (output.invalidated_reason !== null) return unavailable("source_invalidated", output.invalidated_reason);
     reference = { artifact_id: output.artifact_id, version: output.version };
     scope = output.scope_key;
-    system = binding ? input.systemSource?.(binding.source_plugin_id) : undefined;
+    system = binding ? input.systemSources?.find(source => source.plugin_id === binding.source_plugin_id) : undefined;
   }
   const library = artifacts.library?.(reference) ?? null;
   const record = fixed ? library : library ?? artifacts.read(reference);

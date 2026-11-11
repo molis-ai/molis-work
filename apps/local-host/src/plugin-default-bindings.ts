@@ -1,6 +1,7 @@
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginConsentKind, PluginConsentRecord } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import { portTypeKey } from "@molis-ai/molis-work-contracts/platform/plugin-wiring";
+import { systemOutputSource } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import { consentStands, consentSubject } from "@molis-ai/molis-work-plugin-runtime";
 import type { PluginPlatform } from "./plugin-platform.js";
 
@@ -27,7 +28,7 @@ export function bindDeclaredDefaults(platform: PluginPlatform, projectId: string
   };
   // A source is a running plugin or one of the platform's producers (`system.materials`), each under the signature it holds now.
   const sourceOf = (pluginId: string) => {
-    const system = platform.wiring.systemSource(pluginId);
+    const system = systemOutputSource(pluginId);
     if (system) return { signature: system.signature, outputs: system.outputs };
     const manifest = platform.supervisor.manifest(pluginId);
     return manifest ? { signature: manifest.publisher.signature, outputs: manifest.ports?.outputs ?? [] } : undefined;

@@ -1,10 +1,11 @@
 import type { ArtifactReference } from "../modules/artifacts.js";
 import type { DirectoryRole } from "../modules/projects.js";
-import type { ActionSchema } from "./actions.js";
+import type { ActionDefinition, ActionSchema } from "./actions.js";
 import type { ActionSubject } from "./action-subjects.js";
 import type { SystemOutputSource } from "./plugin-wiring.js";
 import { FILE_SNAPSHOT_SCHEMA_VERSION, FILE_SNAPSHOT_TYPE, FILE_TEXT_SELECTION_SCHEMA_VERSION, FILE_TEXT_SELECTION_TYPE, FILES_COLLECTION_SCHEMA_VERSION,
-  FILES_COLLECTION_TYPE } from "../modules/workspace-artifacts.js";
+  FILES_COLLECTION_TYPE, workspaceReadActions, type FileSnapshot, type FileTextSelection, type WorkspaceFileResult } from "../modules/workspace-artifacts.js";
+import { fileResult, integer as offset, nullable, object as shape, path as filePath, snapshot as snapshotShape, workspace as workspaceShape } from "../modules/workspace-action-schemas.js";
 
 /**
  * What the materials panel, the picker, "add to task", a citation and a provenance line all call one thing
@@ -154,3 +155,93 @@ export const SYSTEM_MATERIALS_SOURCE: SystemOutputSource = Object.freeze({
 /** The platform producers a Manifest may name as a port's `default_source` and a binding may read from: today only the materials service. */
 export const SYSTEM_OUTPUT_SOURCES: readonly SystemOutputSource[] = Object.freeze([SYSTEM_MATERIALS_SOURCE]);
 export const systemOutputSource = (pluginId: string): SystemOutputSource | undefined => SYSTEM_OUTPUT_SOURCES.find(source => source.plugin_id === pluginId);
+
+/** The version the platform records as `producer_plugin_version` on what the materials service writes; its `signature` is what is checked. */
+export const SYSTEM_MATERIALS_PRODUCER_VERSION = "1";
+
+/** One of the project's folders as the materials service shows it; `handle` is the folder's id, never a path. */
+export interface MaterialsWorkspace { workspace_id: string; name: string; handle: string }
+export interface MaterialsOpenInput { workspace_id: string; path: readonly string[] }
+export interface MaterialsOpenResult { workspace: MaterialsWorkspace; result: WorkspaceFileResult; path: readonly string[] }
+/** The ports a capture may also hand its version to. */
+export type MaterialsCapturePort = "before" | "after" | "selection";
+/**
+ * Fix the text the caller has seen (its `fingerprint`), or a UTF-16 half-open range of it. With `port`, the version is also handed on
+ * at that output in the same commit; without, only the reference is returned.
+ */
+export interface MaterialsCaptureInput { workspace_id: string; path: readonly string[]; fingerprint: string; port?: MaterialsCapturePort; start?: number; end?: number }
+export interface MaterialsCaptureResult { ref: MaterialRef; port: MaterialsCapturePort | null; snapshot: FileSnapshot | FileTextSelection }
+/** `head` checks the reference and says what it names now; `text` also returns its text, within the bounds of the owner's read. */
+export interface MaterialsReadInput { ref: MaterialRef; mode: "head" | "text" }
+export interface MaterialsReadResult {
+  /** The reference as its owner states it: the same material, nothing the caller wrote that the owner does not keep. */
+  ref: MaterialRef;
+  title: string;
+  /** The revision read now; for a file, the sha256 of its bytes, or `size:<bytes>` when it was too large to read whole. */
+  read_revision: string;
+  /** False when `read_revision` cannot be compared with another (a size only). */
+  comparable: boolean;
+  /** `changed`: a `current` reference whose revision is not the one read now. Fixed and snapshot versions never change. */
+  state: "ok" | "changed";
+  /** Only with `mode: "text"`. */
+  text?: string;
+  /** A selection's UTF-16 half-open range in the file it was cut from, as its owner recorded it. */
+  selection?: { start: number; end: number };
+}
+
+/** Where a person was last reading in this project: a folder of it and a path in it, never an absolute path. */
+export interface MaterialsPosition { workspace_id: string; path: readonly string[] }
+
+// Reading a folder needs the one workspace read action and the project's folders; the callers hold `workspace:read` for it.
+const materialsReading = { permissions: ["workspace:read"], required_actions: [
+  { capability_id: workspaceReadActions.file.capability_id, version: workspaceReadActions.file.version },
+  { capability_id: "projects.directories.get", version: /* @version action.projects.directories.get */ 1 },
+] };
+const capturePort = { enum: ["before", "after", "selection"] };
+
+/**
+ * The platform's materials service (Files retirement, specs/batch-06-shared-tools §3 and materials-ui-contract §1, §5): open a file of the
+ * project's folders, fix what was seen as a process item, and read a reference back. Project, person and calling plugin come from the call.
+ */
+export const materialsActions = {
+  open: {
+    capability_id: "materials.open",
+    version: /* @version action.materials.open */ 1,
+    operation: "command",
+    action: { title: "打开资料", description: "有界读取项目文件夹里的一个文本文件，记下阅读位置；文件夹可列出时，同时把它作为文件集合交给接了「资料」输出的插件",
+      kind: "operation", scope: "project", scheduling: "concurrent", audiences: ["user", "agent", "workflow", "mcp", "plugin"], subject_kinds: ["workspace", "file"], ...materialsReading,
+      input_schema: shape({ workspace_id: { type: "string", minLength: 1 }, path: filePath }),
+      output_schema: shape({ workspace: workspaceShape, result: fileResult, path: filePath }) },
+  } as ActionDefinition<MaterialsOpenInput, MaterialsOpenResult>,
+  capture: {
+    capability_id: "materials.capture",
+    version: /* @version action.materials.capture */ 1,
+    operation: "command",
+    action: { title: "固定资料", description: "重新读取并核对看过的指纹，把全文或一段选区固定成过程项并返回它的引用；给了 port 时同一次提交交到这个输出；不改原文件",
+      kind: "operation", scope: "project", scheduling: "concurrent", audiences: ["user", "agent", "workflow", "mcp", "plugin"], subject_kinds: ["workspace", "file"], ...materialsReading,
+      input_schema: shape({ workspace_id: { type: "string", minLength: 1 }, path: filePath, fingerprint: { type: "string", minLength: 1, maxLength: MATERIAL_REF_LIMITS.revision },
+        port: capturePort, start: offset, end: offset }, ["workspace_id", "path", "fingerprint"]),
+      output_schema: shape({ ref: MATERIAL_REF_SCHEMA, port: nullable(capturePort), snapshot: snapshotShape }) },
+  } as ActionDefinition<MaterialsCaptureInput, MaterialsCaptureResult>,
+  read: {
+    capability_id: "materials.read",
+    version: /* @version action.materials.read */ 1,
+    operation: "query",
+    action: { title: "读取资料引用", description: "按调用方此刻的授权读一份资料引用：head 只核对它现在指向什么，text 同时返回正文；读不了的拒绝，不交付内容",
+      kind: "query", scope: "project", scheduling: "concurrent", audiences: ["user", "agent", "workflow", "mcp", "plugin"], subject_kinds: ["workspace", "file"], ...materialsReading,
+      input_schema: shape({ ref: MATERIAL_REF_SCHEMA, mode: { enum: ["head", "text"] } }),
+      output_schema: shape({ ref: MATERIAL_REF_SCHEMA, title: { type: "string" }, read_revision: { type: "string", minLength: 1 }, comparable: { type: "boolean" },
+        state: { enum: ["ok", "changed"] }, text: { type: "string" }, selection: shape({ start: offset, end: offset }) }, ["ref", "title", "read_revision", "comparable", "state"]),
+      output_type: "materials.read" },
+  } as ActionDefinition<MaterialsReadInput, MaterialsReadResult>,
+  position: {
+    capability_id: "materials.position",
+    version: /* @version action.materials.position */ 1,
+    operation: "query",
+    action: { title: "上次阅读位置", description: "读取调用的人在当前项目里上次打开的文件；那个文件夹已不在项目里时为空；只读",
+      kind: "query", scope: "project", scheduling: "concurrent", audiences: ["user", "plugin"], subject_kinds: ["project"], ...materialsReading,
+      input_schema: shape({}),
+      output_schema: shape({ position: nullable(shape({ workspace_id: { type: "string", minLength: 1 }, path: filePath })) }),
+      output_type: "materials.position" },
+  } as ActionDefinition<Record<string, never>, { position: MaterialsPosition | null }>,
+};

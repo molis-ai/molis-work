@@ -91,15 +91,83 @@ export interface MaterialRef {
     range?: MaterialRange;
 }
 
+export interface MaterialsCaptureInput {
+    workspace_id: string;
+    path: readonly string[];
+    fingerprint: string;
+    port?: MaterialsCapturePort;
+    start?: number;
+    end?: number;
+}
+
+export type MaterialsCapturePort = "before" | "after" | "selection";
+
+export interface MaterialsCaptureResult {
+    ref: MaterialRef;
+    port: MaterialsCapturePort | null;
+    snapshot: FileSnapshot | FileTextSelection;
+}
+
+export interface MaterialsOpenInput {
+    workspace_id: string;
+    path: readonly string[];
+}
+
+export interface MaterialsOpenResult {
+    workspace: MaterialsWorkspace;
+    result: WorkspaceFileResult;
+    path: readonly string[];
+}
+
 export type MaterialsPort = typeof MATERIALS_PORTS[keyof typeof MATERIALS_PORTS];
+
+export interface MaterialsPosition {
+    workspace_id: string;
+    path: readonly string[];
+}
+
+export interface MaterialsReadInput {
+    ref: MaterialRef;
+    mode: "head" | "text";
+}
+
+export interface MaterialsReadResult {
+    ref: MaterialRef;
+    title: string;
+    read_revision: string;
+    comparable: boolean;
+    state: "ok" | "changed";
+    text?: string;
+    selection?: {
+        start: number;
+        end: number;
+    };
+}
+
+export interface MaterialsWorkspace {
+    workspace_id: string;
+    name: string;
+    handle: string;
+}
 
 export interface RecentMaterial {
     ref: MaterialRef;
     origin: MaterialOrigin | null;
 }
 
+export declare const SYSTEM_MATERIALS_PRODUCER_VERSION = "1";
+
 export declare const SYSTEM_MATERIALS_SOURCE: SystemOutputSource;
 
 export declare const SYSTEM_OUTPUT_SOURCES: readonly SystemOutputSource[];
+
+export declare const materialsActions: {
+    open: ActionDefinition<MaterialsOpenInput, MaterialsOpenResult>;
+    capture: ActionDefinition<MaterialsCaptureInput, MaterialsCaptureResult>;
+    read: ActionDefinition<MaterialsReadInput, MaterialsReadResult>;
+    position: ActionDefinition<Record<string, never>, {
+        position: MaterialsPosition | null;
+    }>;
+};
 
 export declare const systemOutputSource: (pluginId: string) => SystemOutputSource | undefined;

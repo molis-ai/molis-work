@@ -54,6 +54,14 @@ function bindingId(pluginId: string, port: string): string {
  * Changing or losing an input revokes the old context before the consumer is
  * told, so a slow read cannot land after its authority is gone.
  */
+/**
+ * A source's output ports: the platform's from its one registration (`systemSources`, passed as `PluginInputGraph`'s `systemSources`:
+ * sources a binding may read from, never targets, never installed), a running plugin's from its Manifest.
+ */
+function outputsOf(systemSources: readonly SystemOutputSource[], pluginId: string, manifest: () => PluginManifest): readonly PluginPortDeclaration[] {
+  return systemSources.find(source => source.plugin_id === pluginId)?.outputs ?? manifest().ports?.outputs ?? [];
+}
+
 export class PluginInputGraph implements PluginWiringApi {
   readonly #projectId: string;
   readonly #lifecycle: PluginHostLifecycle;
@@ -75,9 +83,7 @@ export class PluginInputGraph implements PluginWiringApi {
     repository: PluginWiringRepository;
     artifacts: PluginArtifactReaderPort;
     now?: () => Date;
-    canReadCommitted?(): boolean;
-    /** The platform's own producers (`system.materials`): sources a binding may read from, never targets, never installed. */
-    systemSources?: readonly SystemOutputSource[];
+    canReadCommitted?(): boolean; systemSources?: readonly SystemOutputSource[];
   }) {
     this.#projectId = input.projectId;
     this.#lifecycle = input.lifecycle;
@@ -86,11 +92,6 @@ export class PluginInputGraph implements PluginWiringApi {
     this.#now = input.now ?? (() => new Date());
     this.#canReadCommitted = input.canReadCommitted ?? (() => true);
     this.#systemSources = input.systemSources ?? [];
-  }
-
-  /** The platform producer with this id, if it is one; a plugin id is never one. */
-  systemSource(pluginId: string): SystemOutputSource | undefined {
-    return this.#systemSources.find(source => source.plugin_id === pluginId);
   }
 
   observeFailures(listener: (failure: PluginInputFailure) => void): () => void {
@@ -103,7 +104,7 @@ export class PluginInputGraph implements PluginWiringApi {
   /** Validate a binding against both Manifests before it is ever persisted. */
   bind(input: PluginPortBindingInput): PluginPortBindingRecord {
     const target = this.#requireManifest(input.target_plugin_id);
-    const sourceOutputs = this.#requireOutputs(input.source_plugin_id);
+    const sourceOutputs = outputsOf(this.#systemSources, input.source_plugin_id, () => this.#requireManifest(input.source_plugin_id));
     const inputPort = (target.ports?.inputs ?? [])
       .find((port) => port.port === input.target_port);
     if (!inputPort) {
@@ -195,7 +196,7 @@ export class PluginInputGraph implements PluginWiringApi {
     reference: ArtifactReference;
     scope_key?: string | null;
   }): void {
-    if (!this.#requireOutputs(input.plugin_id).some((port) => port.port === input.port)) {
+    if (!outputsOf(this.#systemSources, input.plugin_id, () => this.#requireManifest(input.plugin_id)).some((port) => port.port === input.port)) {
       throw new PluginWiringError(
         "plugin.port_unknown",
         `${input.plugin_id} 没有输出端口 ${input.port}`,
@@ -232,7 +233,7 @@ export class PluginInputGraph implements PluginWiringApi {
   reference(pluginId: string, port: string): ArtifactReference | null {
     const manifest = this.#lifecycle.manifest(pluginId);
     if (!manifest) return null;
-    const { record } = resolvePortInput({ projectId: this.#projectId, manifest, port, repository: this.#repository, artifacts: this.#artifacts, systemSource: id => this.systemSource(id) });
+    const { record } = resolvePortInput({ projectId: this.#projectId, manifest, port, repository: this.#repository, artifacts: this.#artifacts, systemSources: this.#systemSources });
     return record ? { artifact_id: record.artifact_id, version: record.version } : null;
   }
 
@@ -358,11 +359,6 @@ export class PluginInputGraph implements PluginWiringApi {
     }
   }
 
-  /** A source's output ports: a running plugin's from its Manifest, the platform's from its one registration. */
-  #requireOutputs(pluginId: string): readonly PluginPortDeclaration[] {
-    return this.systemSource(pluginId)?.outputs ?? this.#requireManifest(pluginId).ports?.outputs ?? [];
-  }
-
   #requireManifest(pluginId: string): PluginManifest {
     const manifest = this.#lifecycle.manifest(pluginId);
     if (!manifest) {
@@ -404,7 +400,7 @@ export class PluginInputGraph implements PluginWiringApi {
     let unavailable: PluginUpstreamUnavailableReason | undefined;
 
     for (const port of required) {
-      const entry = resolvePortInput({ projectId: this.#projectId, manifest, port, repository: this.#repository, artifacts: this.#artifacts, systemSource: id => this.systemSource(id) });
+      const entry = resolvePortInput({ projectId: this.#projectId, manifest, port, repository: this.#repository, artifacts: this.#artifacts, systemSources: this.#systemSources });
       if (!entry.record) {
         missing.push(port);
         unavailable ??= entry.reason;

@@ -46,6 +46,7 @@ import { openProjectVersionStores, type ProjectVersionStores } from "./project-v
 import { LocalProjectDatabase } from "./project-database.js";
 import { registerProjectCapabilities, type PrepareProjectDirectory } from "./project-capabilities.js";
 import { releaseProjectPlugins } from "./project-plugins.js";
+import { projectMaterialsProvider } from "./system-materials-actions.js";
 import type { LocalHostProjectClient, LocalHostProjectReference, LocalHostStatus } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { ProjectDirectories, ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionProviderRegistration, type ActionRegistryPort, type ActionSceneClient } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -195,7 +196,7 @@ export class MolisWorkLocalHost {
                   .getArtifactVersion(reference.project_id, pin.version)?.availability === "available",
                 imported: version => runtime.artifacts.query.getArtifactVersion(reference.project_id, version)?.origin.kind === "imported",
               }, options.directoriesFor));
-            add(artifactActionProvider(runtime, options, this.actionClient(reference)));
+            add(artifactActionProvider(runtime, options, this.actionClient(reference))); add(projectMaterialsProvider(runtime, this.actionClient(reference)));
             if (options.homeDirectory) add(informationActionProvider(options.homeDirectory, reference.project_id, this.actionClient(reference), options.completeText));
             if (options.homeDirectory) add(charactersActionProvider(runtime, { ...options, homeDirectory: options.homeDirectory }, () => this.agents?.service.charactersCatalog(runtime)));
             if (options.homeDirectory) add(homeActionProvider(options.homeDirectory, reference.project_id,

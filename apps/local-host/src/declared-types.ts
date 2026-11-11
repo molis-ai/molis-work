@@ -1,4 +1,5 @@
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { systemOutputSource } from "@molis-ai/molis-work-contracts/platform/project-materials";
 import { readPluginReleaseManifest, readPluginRuntimeRecords } from "@molis-ai/molis-work-plugin-runtime";
 import { HOST_ARTIFACT_PRODUCERS, type InstalledArtifactView } from "./artifact-type-registry.js";
 import { builtinPluginByManifestId } from "./plugin-registry.js";
@@ -37,6 +38,10 @@ function shippedDeclaration(pluginId: string): Declares | undefined {
 export function projectTypeDeclared(db: Parameters<typeof readPluginRuntimeRecords>[0], restoring = false) {
   return (producer: { plugin_id: string }, type: { artifact_type_id: string; schema_version: number }, kind: "artifact" | "process_item"): string | null => {
     const store = kind === "artifact" ? "成果库" : "过程项";
+    // A platform producer (the materials service) is never installed: its one registration says what it writes, and it writes only process items.
+    const system = systemOutputSource(producer.plugin_id);
+    if (system) return kind === "process_item" && system.process_items.some(item => item.artifact_type_id === type.artifact_type_id && item.schema_version === type.schema_version)
+      ? null : `${system.name}（${producer.plugin_id}）没有登记写入${store}的 ${type.artifact_type_id}@${type.schema_version}`;
     const shipped = shippedDeclaration(producer.plugin_id), views = [...projectViews.get(db) ?? []];
     let installed: PluginManifest | undefined, known = false;
     try {

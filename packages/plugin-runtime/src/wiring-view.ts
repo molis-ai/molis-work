@@ -68,8 +68,7 @@ export function buildWiringView(input: {
         const candidates = candidatesFor(input, port.artifact_type_id, port.schema_version, pluginId);
         const optional = port.optional === true || !required.has(port.port);
         const fixed = repository.getArtifactBinding(projectId, pluginId, port.port);
-        const resolved = resolvePortInput({ projectId, manifest, port: port.port, repository, artifacts: input.artifacts,
-          systemSource: id => input.systemSources?.find(source => source.plugin_id === id) });
+        const resolved = resolvePortInput({ projectId, manifest, port: port.port, repository, artifacts: input.artifacts, systemSources: input.systemSources });
         if (fixed) {
           const readable = resolved.record !== null;
           return {

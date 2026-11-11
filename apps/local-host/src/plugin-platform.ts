@@ -220,9 +220,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     projectId: options.project_id,
     lifecycle: supervisor,
     canReadCommitted: () => options.db.inTransaction !== true,
-    repository: new SqlitePluginWiringRepository(options.db),
-    // The platform's materials service writes the snapshots, selections and folder it hands to plugins (Files retirement, §3).
-    systemSources: SYSTEM_OUTPUT_SOURCES,
+    repository: new SqlitePluginWiringRepository(options.db), systemSources: SYSTEM_OUTPUT_SOURCES, // and the platform's materials service
     // A port carries a process item it recorded, or a 成果 it pinned and selected.
     artifacts: {
       read: (reference) => options.processItems.query.getArtifactVersion(options.project_id, reference)

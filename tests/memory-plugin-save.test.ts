@@ -30,7 +30,7 @@ async function fixture(t: TestContext) {
   ledger.savePrefs(LOCAL_PERSON_ACTOR_ID, "project-default", prefs);
   const owner: MemoryRuntimePolicyOwner = { alive: () => true, prefsFor: (scope, project) => service.prefsFor(LOCAL_PERSON_ACTOR_ID, scope, project),
     owners: project => ledger.owners(project), candidateOwners: project => ledger.candidateOwners(project),
-    isForgotten: (...args) => service.isForgotten(...args),
+    forgettingPhase: () => service.forgettingPhase(),
     projectExists: async id => id === "project-a", deletingProject: () => undefined };
   let models = 0, writes = 0, updates = 0, proposals = 0, promotions = 0, settlements = 0;
   let beforeUpdate: ((request: Parameters<MemoryBackendPort["update"]>[0]) => Promise<void>) | undefined;

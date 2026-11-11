@@ -102,7 +102,7 @@ test("S-13 memory, page context and Feed, Jelly and Cognia materials reach the m
   const ledger = openMemoryLedger({ homeDirectory: home, storageOwner });
   let memory!: MemoryService, alive = true;
   const owner: MemoryRuntimePolicyOwner = { alive: () => alive,
-    isForgotten: (scope, id, kind, ref) => memory.isForgotten(scope, id, kind, ref),
+    forgettingPhase: () => memory.forgettingPhase(),
     prefsFor: (scope, id) => memory.prefsFor(LOCAL_PERSON_ACTOR_ID, scope, id),
     owners: id => ledger.owners(id), candidateOwners: id => ledger.candidateOwners(id),
     projectExists: async () => false, deletingProject: () => undefined };

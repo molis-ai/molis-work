@@ -27,7 +27,7 @@ async function fixture(t: TestContext, onAuthorize?: MemoryOptions["authorize"])
   let alive = true, registered = true, projectCheck: ((id: string) => Promise<boolean>) | undefined;
   let service!: MemoryService;
   const owner: MemoryRuntimePolicyOwner = { alive: () => alive,
-    isForgotten: (scope, owner, kind, id) => service.isForgotten(scope, owner, kind, id),
+    forgettingPhase: () => service.forgettingPhase(),
     prefsFor: (scope, project) => service.prefsFor(LOCAL_PERSON_ACTOR_ID, scope, project),
     owners: project => ledger.owners(project), candidateOwners: project => ledger.candidateOwners(project),
     projectExists: id => projectCheck ? projectCheck(id) : Promise.resolve(projects.has(id)), deletingProject: () => undefined };

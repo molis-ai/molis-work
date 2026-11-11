@@ -68,7 +68,7 @@ export async function memoryEvaluationEnvironment(model?: ModelPorts, options: {
     for (const [key, scope] of [["personal", "personal"], ["project-default", "project"]] as const)
       if (!ledger.prefs(EVALUATION_ACTOR, key)) ledger.savePrefs(EVALUATION_ACTOR, key, defaultPrefs(scope, "assisted"));
     const policy: MemoryRuntimePolicyOwner = { alive: () => alive,
-      isForgotten: (scope, owner, kind, id) => memory.isForgotten(scope, owner, kind, id),
+      forgettingPhase: () => memory.forgettingPhase(),
       prefsFor: (scope, id) => memory.prefsFor(EVALUATION_ACTOR, scope, id), owners: id => ledger!.owners(id), candidateOwners: id => ledger!.candidateOwners(id),
       projectExists: async id => ["project-a", "project-b"].includes(id), deletingProject: () => undefined };
     originals = await evaluationOriginals(home, () => adapter && alive ? { adapter, policy,

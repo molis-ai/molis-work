@@ -22,7 +22,7 @@ async function memoryHome(t: { after(fn: () => Promise<void> | void): void }, be
   const projects = new Set(["project-gone", "project-kept"]);
   let service!: MemoryService, alive = true;
   const owner: MemoryRuntimePolicyOwner = { alive: () => alive,
-    isForgotten: (scope, owner, kind, id) => service.isForgotten(scope, owner, kind, id),
+    forgettingPhase: () => service.forgettingPhase(),
     prefsFor: (scope, id) => service.prefsFor(LOCAL_PERSON_ACTOR_ID, scope, id),
     owners: id => ledger.owners(id), candidateOwners: id => ledger.candidateOwners(id),
     projectExists: async id => projects.has(id), deletingProject: () => undefined };

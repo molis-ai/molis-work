@@ -23,7 +23,7 @@ async function fixture(t: TestContext) {
   const home = await memoryServiceHome(t, { projects: ["project-a"] }), service = await home.open();
   let prefs = defaultPrefs("project");
   const policy = memoryRuntimePolicy(() => ({ alive: () => true,
-    isForgotten: (scope, owner, kind, id) => service.isForgotten(scope, owner, kind, id), prefsFor: () => prefs, owners: () => [], candidateOwners: () => [],
+    forgettingPhase: () => service.forgettingPhase(), prefsFor: () => prefs, owners: () => [], candidateOwners: () => [],
     projectExists: async id => id === "project-a", deletingProject: () => undefined }));
   return { policy, prefs: () => prefs, set: (next: Partial<MemoryPrefs>) => { prefs = { ...prefs, ...next }; } };
 }

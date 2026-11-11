@@ -308,7 +308,7 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
     policy: {
       alive: businessAlive,
       authorizeSessionPurge: (caller, target) => service.sessionClear.authorizePurge(caller, target),
-      isForgotten: (scope, owner, kind, id) => service.isForgotten(scope, owner, kind, id),
+      forgettingPhase: () => service.forgettingPhase(),
       prefsFor: (scope, projectId) => service.prefsFor(LOCAL_PERSON, scope, projectId),
       owners: projectId => ledger.owners(projectId),
       candidateOwners: projectId => ledger.candidateOwners(projectId),

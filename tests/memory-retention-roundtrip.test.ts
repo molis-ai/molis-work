@@ -23,7 +23,7 @@ async function fixture(t: TestContext) {
   let ledger = openMemoryLedger({ homeDirectory: home, storageOwner }), service!: MemoryService, beforeProject: (() => Promise<void>) | undefined;
   for (const key of ["personal", "project-default"]) ledger.savePrefs(LOCAL_PERSON_ACTOR_ID, key, defaultPrefs(key === "personal" ? "personal" : "project", "reviewed"));
   const owner: MemoryRuntimePolicyOwner = { alive: () => true, prefsFor: (scope, project) => service.prefsFor(LOCAL_PERSON_ACTOR_ID, scope, project),
-    isForgotten: (scope, owner, kind, id) => service.isForgotten(scope, owner, kind, id),
+    forgettingPhase: () => service.forgettingPhase(),
     owners: project => ledger.owners(project), candidateOwners: project => ledger.candidateOwners(project),
     projectExists: async id => { await beforeProject?.(); return id === "project-a"; }, deletingProject: () => undefined };
   let calls = 0;

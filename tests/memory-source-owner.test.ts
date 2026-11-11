@@ -71,7 +71,7 @@ async function sourceHome(t: test.TestContext, response: (turn: number) => Respo
   let afterSourceCheck: (() => void) | undefined;
   const policy: MemorySourceOwner["policy"] = { alive: () => alive,
     prefsFor: (scope, id) => service.prefsFor(actor, scope, id), owners: id => ledger.owners(id), candidateOwners: id => ledger.candidateOwners(id),
-    isForgotten: (scope, owner, kind, id) => service.isForgotten(scope, owner, kind, id),
+    forgettingPhase: () => service.forgettingPhase(),
     projectExists: async id => id === project || id === "second-project", deletingProject: () => undefined };
   const sources = memorySources(home, () => alive ? { adapter, policy, sessionAllowed: owner => installed(owner),
     sourceAllowed: (id, scope, owner, refs) => service.sourceAllowed(id, scope, owner, refs) } : undefined);

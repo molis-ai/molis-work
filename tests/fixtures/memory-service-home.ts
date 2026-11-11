@@ -86,7 +86,7 @@ export async function memoryServiceHome(t: Pick<TestContext, "after" | "mock">, 
   const owner: MemoryRuntimePolicyOwner = {
     authorizeSessionPurge: (caller, target) => service.sessionClear.authorizePurge(caller, target),
     alive: () => alive, prefsFor: (scope, id) => service.prefsFor(LOCAL_PERSON_ACTOR_ID, scope, id),
-    isForgotten: (scope, ownerId, kind, id) => service.isForgotten(scope, ownerId, kind, id),
+    forgettingPhase: () => service.forgettingPhase(),
     owners: id => ledger!.owners(id), candidateOwners: id => ledger!.candidateOwners(id),
     projectExists: async id => projects.has(id), deletingProject: () => undefined,
   };

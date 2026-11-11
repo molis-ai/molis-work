@@ -25,7 +25,7 @@ for (const change of ["unchanged", "remove", "class-off"] as const) test(`C1 act
   const person = { ...caller, consumer: "ui", person: true, purpose: "management" } as const;
   let service!: MemoryService, alive = true, expanding = false, recalledBoth = false, countA = 0, held = false, aId = "", bId = "";
   const policy = memoryRuntimePolicy(() => ({ alive: () => alive, prefsFor: (scope, project) => service.prefsFor(caller.actor_id, scope, project),
-    isForgotten: (scope, owner, kind, id) => service.isForgotten(scope, owner, kind, id), owners: project => ledger.owners(project),
+    forgettingPhase: () => service.forgettingPhase(), owners: project => ledger.owners(project),
     candidateOwners: project => ledger.candidateOwners(project), projectExists: async project => project === caller.project_id, deletingProject: () => undefined }));
   const server = createServer(async (req, res) => {
     let body = ""; for await (const chunk of req) body += chunk;

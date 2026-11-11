@@ -223,6 +223,11 @@ export class MemoryService {
   isForgotten(scope: MemoryScope, owner: string, kind: "memory" | "memory-candidate", id: string): boolean {
     return this.forgetting.hidden({ scope, owner }, kind, id);
   }
+  /** One synchronous read for a batch of decisions; `assertCurrent` re-reads and refuses a change. Never hold it across a wait. */
+  forgettingPhase(): { isForgotten(scope: MemoryScope, owner: string, kind: "memory" | "memory-candidate", id: string): boolean; assertCurrent(): void } {
+    const phase = this.forgetting.readPhase();
+    return { isForgotten: (scope, owner, kind, id) => phase.hidden({ scope, owner }, kind, id), assertCurrent: phase.assertCurrent };
+  }
   sourceAllowed(actor: string, scope: MemoryScope, owner: string, refs: readonly AgentMemorySourceRef[]): boolean {
     return this.promotions.sourceAllowed(actor, scope, owner, refs);
   }

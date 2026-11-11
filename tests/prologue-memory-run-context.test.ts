@@ -47,7 +47,7 @@ for (const strategy of ["keyword", "vector-fallback"] as const) test(`${strategy
   const ledger = openMemoryLedger({ homeDirectory: home });
   for (const key of ["personal", "project-default"]) ledger.savePrefs(caller.actor_id, key, defaultPrefs(key === "personal" ? "personal" : "project", "reviewed"));
   let alive = true, service!: MemoryService, failUsage = true;
-  const owner: MemoryRuntimePolicyOwner = { alive: () => alive, isForgotten: (scope, ownerId, kind, id) => service.isForgotten(scope, ownerId, kind, id), prefsFor: (scope, id) => service.prefsFor(caller.actor_id, scope, id),
+  const owner: MemoryRuntimePolicyOwner = { alive: () => alive, forgettingPhase: () => service.forgettingPhase(), prefsFor: (scope, id) => service.prefsFor(caller.actor_id, scope, id),
     owners: id => ledger.owners(id), candidateOwners: id => ledger.candidateOwners(id),
     projectExists: async id => id === project, deletingProject: () => undefined };
   const memory = memoryRuntimePolicy(() => owner), matrix = memory.policy.matrix;

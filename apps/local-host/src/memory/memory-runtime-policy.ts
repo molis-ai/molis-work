@@ -12,7 +12,11 @@ type Target = Pick<Request["target"], "scope" | "owner" | "namespace" | "kind" |
 /** Current facts of the already-open Memory owner. No second ledger or cached grant. */
 export interface MemoryRuntimePolicyOwner {
   alive(): boolean;
-  isForgotten(scope: MemoryScope, owner: string, kind: "memory" | "memory-candidate", id: string): boolean;
+  /**
+   * One synchronous read of the forgetting facts for one policy decision over a batch: every request is judged against it, and
+   * `assertCurrent()` re-reads them before the decision is returned. Never kept across an `await` or reused by the next batch.
+   */
+  forgettingPhase(): MemoryForgettingPhase;
   prefsFor(scope: MemoryScope, projectId: string | null): MemoryPrefs;
   owners(projectId: string): readonly { scope: MemoryScope; owner: string; subject: string | null }[];
   candidateOwners(projectId: string): readonly { scope: MemoryScope; owner: string }[];
@@ -20,6 +24,12 @@ export interface MemoryRuntimePolicyOwner {
   projectExists(projectId: string): Promise<boolean | null>;
   /** Present only during the trusted project-deletion hook, never from an Action's input. */
   deletingProject(): string | undefined;
+}
+
+export interface MemoryForgettingPhase {
+  isForgotten(scope: MemoryScope, owner: string, kind: "memory" | "memory-candidate", id: string): boolean;
+  /** Throws when the facts changed or became unreadable since this phase began; the whole batch is then refused. */
+  assertCurrent(): void;
 }
 
 const CODING = "io.molis.work.coding";
@@ -106,12 +116,26 @@ export function memoryRuntimePolicy(ownerFor: () => MemoryRuntimePolicyOwner | u
     return { prefs, allowed: access.allowed && (!plugin || plugin.allowed)
       && (!target.kind || (!access.kinds || access.kinds.some(kind => kind === target.kind)) && (!plugin?.kinds || plugin.kinds.some(kind => kind === target.kind))) };
   };
-  const permitted = (caller: AgentMemoryCaller, request: Request, state: { owner: MemoryRuntimePolicyOwner; deletion: boolean }) => {
+  type State = { owner: MemoryRuntimePolicyOwner; deletion: boolean };
+  /** The batch's single forgetting read, taken only when some request in it needs it. */
+  const batch = (state: State) => {
+    let phase: MemoryForgettingPhase | undefined;
+    return { forgetting: () => phase ??= state.owner.forgettingPhase(), close: () => phase?.assertCurrent() };
+  };
+  const decide = (caller: AgentMemoryCaller, requests: readonly Request[], state: State) => {
+    const facts = batch(state);
+    const allowed = requests.every(request => permitted(caller, request, state, facts.forgetting)
+      && (!request.before || scoped(caller, request.before, state) && namespaceAllowed(caller, request.before.namespace)));
+    // The decision is used only after this returns: a change during the batch refuses all of it, never half old, half new.
+    facts.close();
+    return allowed;
+  };
+  const permitted = (caller: AgentMemoryCaller, request: Request, state: State, forgetting: () => MemoryForgettingPhase) => {
     if (request.appId !== "io.molis.work" || !scoped(caller, request.target, state) || !namespaceAllowed(caller, request.target.namespace)) return false;
     // Management reads are needed by the SDK's existing delete preflight; public App management reads filter these identities.
     // No accepted target can enter model use or a new mutation while physical cleanup is pending.
     if (request.action !== "delete" && !(request.action === "manage-read" && caller.person === true && caller.purpose === "management")
-      && state.owner.isForgotten(request.target.scope === "user" ? "personal" : request.target.scope as MemoryScope,
+      && forgetting().isForgotten(request.target.scope === "user" ? "personal" : request.target.scope as MemoryScope,
         request.target.owner, request.target.ref.kind, request.target.ref.id)) return false;
     if (state.deletion) return request.action === "manage-read" || request.action === "delete";
     if (request.action === "manage-read" || request.action === "delete") {
@@ -155,13 +179,11 @@ export function memoryRuntimePolicy(ownerFor: () => MemoryRuntimePolicyOwner | u
     ...(extractor ? { extractor } : {}),
     assertCurrent(caller, requests) {
       const state = currentFacts(caller);
-      return !!state && requests.every(request => permitted(caller, request, state)
-        && (!request.before || scoped(caller, request.before, state) && namespaceAllowed(caller, request.before.namespace)));
+      return !!state && decide(caller, requests, state);
     },
     async authorize(caller, requests) {
       const state = await current(caller);
-      return !!state && requests.every(request => permitted(caller, request, state)
-        && (!request.before || scoped(caller, request.before, state) && namespaceAllowed(caller, request.before.namespace)));
+      return !!state && decide(caller, requests, state);
     },
     async authorizeRecall(caller, request) {
       const state = await current(caller);

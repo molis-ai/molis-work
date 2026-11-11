@@ -257,7 +257,7 @@ async function queuedLearning(t: test.TestContext) {
   // Queue invalidation below is injected through its existing Host ports. This real policy owner keeps the
   // declared scratch project available for independent persisted-state inspection after that invocation ends.
   const policyOwner = {
-    isForgotten: (scope: Parameters<MemoryService["isForgotten"]>[0], owner: string, kind: Parameters<MemoryService["isForgotten"]>[2], id: string) => service.isForgotten(scope, owner, kind, id),
+    forgettingPhase: () => service.forgettingPhase(),
     alive: () => memoryAlive, prefsFor: (scope: Parameters<MemoryService["prefsFor"]>[1], owner: string | null) => service.prefsFor(LOCAL_PERSON_ACTOR_ID, scope, owner),
     owners: (project: string) => ledger.owners(project), candidateOwners: (project: string) => ledger.candidateOwners(project),
     projectExists: async (project: string) => project === "project-q4", deletingProject: () => undefined,

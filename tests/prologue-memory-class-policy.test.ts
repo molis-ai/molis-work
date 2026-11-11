@@ -32,7 +32,7 @@ async function fixture(t: { after(fn: () => Promise<void>): void }) {
   for (const key of ["personal", "project-default"]) ledger.savePrefs(caller.actor_id, key, defaultPrefs(key === "personal" ? "personal" : "project", "reviewed"));
   let alive = true, service!: MemoryService, beforeCaller: () => Promise<void> = async () => {};
   let transformCaller: (trusted: AgentMemoryCaller | undefined) => AgentMemoryCaller | undefined = trusted => trusted;
-  const policy = memoryRuntimePolicy(() => ({ alive: () => alive, isForgotten: (scope, owner, kind, id) => service.isForgotten(scope, owner, kind, id), prefsFor: (scope, project) => service.prefsFor(caller.actor_id, scope, project),
+  const policy = memoryRuntimePolicy(() => ({ alive: () => alive, forgettingPhase: () => service.forgettingPhase(), prefsFor: (scope, project) => service.prefsFor(caller.actor_id, scope, project),
     owners: project => ledger.owners(project), candidateOwners: project => ledger.candidateOwners(project),
     projectExists: async project => project === caller.project_id, deletingProject: () => undefined }));
   const open = () => createPrologueNodeAdapter({ app: { appId: "io.molis.work", appVersion: "1.0.0" }, storageRoot: join(home, "agent-runtime"), storageOwner,

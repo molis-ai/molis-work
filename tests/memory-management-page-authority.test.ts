@@ -19,7 +19,7 @@ test("SDK management scope and diagnostic permission are checked again before a 
   let adapter: Awaited<ReturnType<typeof createPrologueNodeAdapter>> | undefined;
   t.after(async () => { await adapter?.close(); ledger.close(); storageOwner.release(); await rm(home, { recursive: true, force: true }); });
   const owner: MemoryRuntimePolicyOwner = { alive: () => alive, prefsFor: (scope, project) => service.prefsFor(person.actor_id, scope, project),
-    isForgotten: (scope, ownerId, kind, id) => service.isForgotten(scope, ownerId, kind, id),
+    forgettingPhase: () => service.forgettingPhase(),
     owners: project => ledger.owners(project), candidateOwners: project => ledger.candidateOwners(project),
     projectExists: async id => ["a", "b"].includes(id), deletingProject: () => undefined };
   const policy = memoryRuntimePolicy(() => owner);

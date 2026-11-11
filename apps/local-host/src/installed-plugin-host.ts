@@ -186,7 +186,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
     else registerGeneratedPrompts(homeDirectory, generatedRegistration(release, releases.versions(release.buildId), state, installedVersion(release)), promptScope(record.install_id));
   };
   const stops = publisherStops({ standing, platform, recoveryErrors, withdraw: id => { withdraw(id); declared.release(id); }, records });
-  const lifecycleContext: InstalledLifecycleContext = { platform, storage, privateStorage, secrets, recoveryErrors, closed: () => closed, trusted: standing.trusted, recordFor, releaseFor, approvedFor, definition, expose, withdraw, registerPrompts,
+  const lifecycleContext: InstalledLifecycleContext = { platform, project_id: projectId, storage, privateStorage, secrets, recoveryErrors, closed: () => closed, trusted: standing.trusted, recordFor, releaseFor, approvedFor, definition, expose, withdraw, registerPrompts,
     async forget(pluginId, installId) {
       unregisterGeneratedPrompts(homeDirectory, pluginId, promptScope(installId)); declared.release(pluginId);
       forgetPluginAgentDefinitions(pluginHomeFor(homeDirectory), installId);

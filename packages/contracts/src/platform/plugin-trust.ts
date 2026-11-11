@@ -167,6 +167,25 @@ export interface PluginUninstallTarget {
   readonly manifest_digest: string;
 }
 
+/** What an uninstall kept that it would otherwise have taken off (BL-915): the plugin's own Home library, its files, its bindings or declared rules. */
+export type PluginRetainedKind = "home_library" | "owner_files" | "network_credential" | "installation_binding" | "task_grant" | "declared_rule";
+/** Why it was kept: what owns it could not be proven, something else still holds it, or the Home could not be read all the way through to tell. */
+export type PluginRetainedReason = "ownership_unverified" | "other_holder" | "inventory_unavailable";
+
+/** One kind of thing an uninstall kept, and why; `label` only where its owner has a name that is safe to show. No path, reference or secret. */
+export interface PluginRetainedItem {
+  readonly kind: PluginRetainedKind;
+  readonly reason: PluginRetainedReason;
+  readonly label?: string;
+}
+
+/** What an uninstall answers: the installation is off; `retained` only when something stayed behind (absent when nothing did). */
+export interface PluginUninstallResult {
+  readonly plugin_id: string;
+  readonly state: string;
+  readonly retained?: readonly PluginRetainedItem[];
+}
+
 /** A background job a Manifest declares (`background.jobs`). */
 export interface PluginJobView {
   readonly job_id: string;

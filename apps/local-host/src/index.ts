@@ -271,6 +271,7 @@ export { handleAgentReviewHttp, handleUnscopedAgentReviews, type AgentReviewHttp
 export { captureRuntimeStageOwner, renderProjectRuntimeStages, type ProjectPluginSurfacePorts } from "./project-plugin-stages.js";
 export { handleProjectPluginHttp, type ProjectPluginHttpPorts } from "./project-plugin-http.js";
 export { handlePluginTrustHttp } from "./plugin-trust-http.js";
+export { collectRetained } from "./uninstall-retained.js";
 export { ensureProjectPlugins, projectPluginProblem, releaseProjectPlugins, runningProjectPlatform } from "./project-plugins.js";
 export { announceConnectionChanged } from "./connection-change-events.js";
 export { builtinMarketDirectory, homePluginDirectory, mergePluginDirectories, runningPluginDirectory, type DirectorySource } from "./plugin-directory.js";

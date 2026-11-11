@@ -16,6 +16,7 @@ import { discardInstallationOwnerData, forgetInstallationRecords, forgetLeftover
 import { homeLibraryFor } from "./plugin-database-entries.js";
 import { openSandboxHomeLibrary } from "./plugin-sandbox-home-library.js";
 import { SandboxPackageStore } from "./sandbox-package-store.js";
+import { noteRetained } from "./uninstall-retained.js";
 import { openInstalledPluginLibrary, removeInstalledPluginLibrary } from "./installed-plugin-libraries.js";
 import { pluginSyncDatabaseDeclaration } from "./plugin-sync-database.js";
 import { beginPartitionClearing, openPartitionedPluginDatabase, partitionDeletions, type PartitionDeletions, type PartitionedPluginDatabase } from "./plugin-database-partitions.js";
@@ -235,7 +236,8 @@ export class HomePluginExecutor implements PluginExecutor {
       // Its own library goes too, once its statement process has exited, and only the one the ledger and its verified Manifest agree on (BL-915 A).
       await this.libraryExits.get(record.install_id); this.libraryExits.delete(record.install_id);
       const manifest = new SandboxPackageStore(this.options.home).installedManifest(record), declared = manifest?.databases?.home;
-      removeInstalledPluginLibrary(this.options.home, record, manifest && declared ? pluginSyncDatabaseDeclaration(manifest, declared) : undefined, pluginHomeFor(this.options.home).stores);
+      const kept = removeInstalledPluginLibrary(this.options.home, record, manifest && declared ? pluginSyncDatabaseDeclaration(manifest, declared) : undefined, pluginHomeFor(this.options.home).stores);
+      if (kept) noteRetained(null, record.install_id, { kind: "home_library", reason: kept.reason });
     }
     forgetInstallationRecords({ home: { directory: this.options.home }, project_id: null }, record);
   }

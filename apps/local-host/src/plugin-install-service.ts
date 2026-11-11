@@ -27,6 +27,7 @@ import type { PermissionSwitchTarget } from './plugin-installed-view.js';
 import { sandboxProjectedPermissions, sandboxRequestedPermissions } from '@molis-ai/molis-work-plugin-sdk';
 import { validateSandboxHomeSchema } from './plugin-sandbox-home-library.js';
 import { readBundledPackages } from './bundled-packages.js';
+import type { PackageControlOutcome } from './uninstall-retained.js';
 
 /** A preview waits this long for its confirmation, and at most this many wait at once. */
 const PREVIEW_TTL_MS = 15 * 60_000;
@@ -50,14 +51,14 @@ export interface PluginInstallPorts {
   /** Whether some provider offers this action in the project now: what the preview says of each of a package's `requires`. A Host without it previews no package that requires any. */
   offers?(projectId: string, reference: { capability_id: string; version: number }): boolean;
   /** Switches one installation of a signed package off or on, or takes it off; answers the state it is in afterwards. */
-  control(projectId: string, pluginId: string, action: 'disable' | 'enable' | 'uninstall', input: { keep_data: boolean; target?: PluginUninstallTarget; assertCurrent?: () => void }): Promise<string>;
+  control(projectId: string, pluginId: string, action: 'disable' | 'enable' | 'uninstall', input: { keep_data: boolean; target?: PluginUninstallTarget; assertCurrent?: () => void }): Promise<PackageControlOutcome>;
   /** Switches one optional permission of an installation in the project and restarts it on the new grants (`PluginRuntime.regrant`); a Host that cannot leaves it out. */
   regrant?(projectId: string, installId: string, permission: string, granted: boolean, expected?: PermissionSwitchTarget): Promise<void>;
   /** The same two for the plugins that run as the Home's own instance (BL-700); a Host without a Home leaves them out. */
   homeInstalled?(): Promise<InstalledPluginEntry[]>;
   homeRegrant?(installId: string, permission: string, granted: boolean, expected?: PermissionSwitchTarget): Promise<void>;
   /** Switches a signed package installed in the Home off or on, or takes it off (BL-715); answers its state afterwards. A Host without a Home leaves it out. */
-  homeControl?(pluginId: string, action: 'disable' | 'enable' | 'uninstall', input: { keep_data: boolean; target?: PluginUninstallTarget; assertCurrent?: () => void }): Promise<string>;
+  homeControl?(pluginId: string, action: 'disable' | 'enable' | 'uninstall', input: { keep_data: boolean; target?: PluginUninstallTarget; assertCurrent?: () => void }): Promise<PackageControlOutcome>;
   /** The release's folder of the packages it ships uninstalled (`bundledPackagesDirectory`); a Host without one ships none. */
   bundledDirectory?: string;
   now?(): string;
@@ -328,12 +329,12 @@ export class PluginInstallService {
   }
 
   /** Switches a signed-package installation of the project off or on, or takes it off (BL-623); a plugin that did not come from a signed package is not touched here. */
-  async control(action: 'disable' | 'enable' | 'uninstall', input: { plugin_id: string; keep_data: boolean; target?: PluginUninstallTarget }, who: { project_id: string }, caller?: InstallAuthority): Promise<string> {
+  async control(action: 'disable' | 'enable' | 'uninstall', input: { plugin_id: string; keep_data: boolean; target?: PluginUninstallTarget }, who: { project_id: string }, caller?: InstallAuthority): Promise<PackageControlOutcome> {
     return this.ports.control(who.project_id, input.plugin_id, action, { keep_data: input.keep_data, ...input.target ? { target: input.target } : {}, assertCurrent: () => assertInstallAuthority(caller) });
   }
 
   /** The same for a signed package installed in the Home, from the Host settings door (BL-715). */
-  async controlHome(action: 'disable' | 'enable' | 'uninstall', input: { plugin_id: string; keep_data: boolean; target?: PluginUninstallTarget }, caller?: InstallAuthority): Promise<string> {
+  async controlHome(action: 'disable' | 'enable' | 'uninstall', input: { plugin_id: string; keep_data: boolean; target?: PluginUninstallTarget }, caller?: InstallAuthority): Promise<PackageControlOutcome> {
     const { homeControl } = this.ports;
     if (!homeControl) throw pluginErrors.state_invalid('这个宿主没有个人空间');
     return homeControl(input.plugin_id, action, { keep_data: input.keep_data, ...input.target ? { target: input.target } : {}, assertCurrent: () => assertInstallAuthority(caller) });

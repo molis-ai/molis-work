@@ -257,14 +257,14 @@ plugins.consents.revoke	1	plugin-consents	command	operation	home	write	-	user	pl
 plugins.home.installed.disable	1	plugin-install	command	operation	home	write	-	user	plugin-install:write	-	-	-	52c1f91a2943	ed1bbfdbc8a1	-
 plugins.home.installed.enable	1	plugin-install	command	operation	home	write	-	user	plugin-install:write	-	-	-	52c1f91a2943	ed1bbfdbc8a1	-
 plugins.home.installed.list	1	plugin-install	query	query	home	read	-	user	plugin-install:read	-	-	-	99334726611c	8f6677d24904	-
-plugins.home.installed.uninstall	1	plugin-install	command	operation	home	write	-	user	plugin-install:write	-	-	-	cff98cd7383f	ed1bbfdbc8a1	-
+plugins.home.installed.uninstall	1	plugin-install	command	operation	home	write	-	user	plugin-install:write	-	-	-	cff98cd7383f	57ec6c573f4d	-
 plugins.home.permissions.set	1	plugin-install	command	operation	home	write	-	user	plugin-install:write	-	-	-	a84e21e82492	5f69cd6b08ba	-
 plugins.install.confirm	1	plugin-install	command	operation	project	write	-	user	plugin-install:write	-	-	-	1ac5b8aa902d	d14b3d6b0630	-
 plugins.install.preview	1	plugin-install	command	operation	project	write	-	user	plugin-install:write	-	-	-	750c5d5fd01c	2fe6c1aede47	-
 plugins.installed.disable	1	plugin-install	command	operation	project	write	-	user	plugin-install:write	-	-	-	52c1f91a2943	ed1bbfdbc8a1	-
 plugins.installed.enable	1	plugin-install	command	operation	project	write	-	user	plugin-install:write	-	-	-	52c1f91a2943	ed1bbfdbc8a1	-
 plugins.installed.list	1	plugin-install	query	query	project	read	-	user	plugin-install:read	-	-	-	99334726611c	8f6677d24904	-
-plugins.installed.uninstall	1	plugin-install	command	operation	project	write	-	user	plugin-install:write	-	-	-	cff98cd7383f	ed1bbfdbc8a1	-
+plugins.installed.uninstall	1	plugin-install	command	operation	project	write	-	user	plugin-install:write	-	-	-	cff98cd7383f	57ec6c573f4d	-
 plugins.kit.report	1	plugin-install	query	query	home	read	concurrent	user	plugin-install:read	-	molis.kit-report.input.v1	molis.kit-report.output.v1	d746974fa9af	d4b668a16eb1	-
 plugins.local_packages.sign	1	plugin-install	command	operation	home	write	-	user	plugin-install:write	-	-	-	797f765e3f76	5fc8c3bb5a54	-
 plugins.package.export	1	plugin-install	query	query	project	read	-	user	plugin-install:read	-	-	-	1e875863ae1a	d2e1b1bb4d5d	-

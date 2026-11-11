@@ -71,7 +71,7 @@ for (const damage of ["missing", "altered"] as const) {
     assert.equal((await r.row())?.state, listed.state);
 
     const removed = await r.uninstall({ keep_data: false, target });
-    assert.deepEqual([removed.plugin_id, removed.state], [PACKAGE_PLUGIN_ID, "uninstalled"]);
+    assert.deepEqual(removed, { plugin_id: PACKAGE_PLUGIN_ID, state: "uninstalled" }, "it has no library or binding to keep, so nothing is reported");
     assert.equal(await r.row(), undefined, "gone from the list");
     assert.deepEqual(valuesOf(r.h.home, installId), [], "its private data went as the person chose");
     assert.equal(r.h.host.homePlugins!.hasPackage(PACKAGE_PLUGIN_ID), false);

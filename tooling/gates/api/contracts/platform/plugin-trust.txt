@@ -94,6 +94,16 @@ export interface PluginPublisherPin {
     readonly revoked_at: string | null;
 }
 
+export interface PluginRetainedItem {
+    readonly kind: PluginRetainedKind;
+    readonly reason: PluginRetainedReason;
+    readonly label?: string;
+}
+
+export type PluginRetainedKind = "home_library" | "owner_files" | "network_credential" | "installation_binding" | "task_grant" | "declared_rule";
+
+export type PluginRetainedReason = "ownership_unverified" | "other_holder" | "inventory_unavailable";
+
 export type PluginTrust = {
     readonly level: "host";
 } | {
@@ -104,6 +114,12 @@ export type PluginTrust = {
 };
 
 export type PluginTrustLevel = "host" | "pinned" | "unsigned";
+
+export interface PluginUninstallResult {
+    readonly plugin_id: string;
+    readonly state: string;
+    readonly retained?: readonly PluginRetainedItem[];
+}
 
 export interface PluginUninstallTarget {
     readonly install_id: string;

@@ -8,6 +8,7 @@ import { installedIdentities, pluginHeldElsewhere, type InstallScope } from "./p
 import { forgetSandboxImageBindings } from "./sandbox-image-generation.js";
 import { removeSandboxOwnerFiles, type SandboxOwnerFilesScope } from "./plugin-sandbox-owner-files.js";
 import { HomeConsentLedger } from "./home-plugin-store.js";
+import { noteRetained } from "./uninstall-retained.js";
 
 /**
  * An installation's authorization in this project (or its Home-level activation): original-file registrations, and in a project the
@@ -37,6 +38,10 @@ export function forgetInstallationConnections(home: string, installId: string, s
   if (scope.kind === "project") forgetInstallationProjectBindings(home, installId, scope.project_id);
   const installed = installedIdentities(home, { scope, install_id: installId });
   if (installed && !installed.has(installId)) forgetInstallationBindings(home, installId);
+  // Kept: said so to the person taking it off (BL-915), only when it has any binding to keep.
+  else if (installationIdsWithBindings(home).includes(installId)) {
+    noteRetained(scope.kind === "project" ? scope.project_id : null, installId, { kind: "installation_binding", reason: installed ? "other_holder" : "inventory_unavailable" });
+  }
 }
 
 /**
@@ -74,6 +79,7 @@ export function forgetOrphanedInstallationBindings(home: string): void {
 function forgetInstallationRules(home: string, record: PluginInstanceRecord, projectId: string | null): void {
   const forgotten = forgetDeclaredRulesIn(home, record.plugin_id, projectId, pluginHeldElsewhere(home, record.plugin_id, { scope: projectId === null ? { kind: "home" } : { kind: "project", project_id: projectId }, install_id: record.install_id }));
   if (forgotten && (forgotten.removed.length || forgotten.kept.length || forgotten.bindings)) hostLog.debug("functions", "declared_rules_forgotten", { plugin_id: record.plugin_id, project_id: projectId, ...forgotten });
+  if (forgotten?.kept.length) noteRetained(projectId, record.install_id, { kind: "declared_rule", reason: "other_holder" });
 }
 
 /** The synchronous install boundary: verify the KV owner is available before touching files, then finish the person's non-retaining cleanup. */

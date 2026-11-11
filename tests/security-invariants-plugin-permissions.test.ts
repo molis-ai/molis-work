@@ -31,7 +31,7 @@ function fixture() {
   const calls: unknown[][] = [];
   const service = new PluginInstallService({ ledger: new MemoryPluginConsentLedger(), packages: new SandboxPackageStore("/nonexistent"), now: () => AT, installInProject: async () => undefined, installInHome: async () => undefined,
     installed: async () => [{ record: ordinary, manifest }], regrant: async (...args) => { calls.push(args); },
-    homeControl: async (...args) => { calls.push(args); return "disabled"; } });
+    homeControl: async (...args) => { calls.push(args); return { state: "disabled" }; } });
   const actions = new ActionService();
   actions.registerProvider(pluginInstallProvider(service));
   const caller = (extra: Partial<ActionCallContext> = {}): ActionCallContext => ({ actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: "project-one", permissions: PLUGIN_INSTALL_PERMISSIONS, ...extra });

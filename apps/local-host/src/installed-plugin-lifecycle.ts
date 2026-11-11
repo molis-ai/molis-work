@@ -7,7 +7,8 @@
 import { ActionError } from '@molis-ai/molis-work-contracts/platform/actions';
 import { pluginErrors, type PluginDefinition, type PluginInstanceRecord, type PluginPrivateStorage } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxEffects } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
-import type { PluginUninstallTarget } from '@molis-ai/molis-work-contracts/platform/plugin-trust';
+import type { PluginRetainedItem, PluginUninstallTarget } from '@molis-ai/molis-work-contracts/platform/plugin-trust';
+import { collectRetained } from './uninstall-retained.js';
 import type { AgentBuilderPorts } from './installed-plugin-host.js';
 import type { InstalledRelease } from './installed-release.js';
 import { assertUpgradeOf } from './package-upgrade.js';
@@ -34,6 +35,8 @@ export const covered = (next: SandboxEffects, approved: SandboxEffects) =>
 
 export interface InstalledLifecycleContext {
   platform: InstalledPluginPlatform;
+  /** The place installations come off here: the project, or the Home (null); what an uninstall's owners note what they kept under (BL-915). */
+  project_id: string | null;
   /** The project's own store, where approvals live. */
   storage: PluginPrivateStorage;
   privateStorage: SqlitePluginPrivateStorage;
@@ -211,9 +214,9 @@ async function cleanUpInstallation(c: InstalledLifecycleContext, pluginId: strin
 
 /** Plugin Runtime writes the tombstone (`plugin.uninstall_cleanup_pending` until the clean-up is done) and runs the Host's clean-up under the installation's lock. */
 async function removeInstallation(c: InstalledLifecycleContext, pluginId: string, record: PluginInstanceRecord, keepData: boolean | undefined,
-  target?: PluginUninstallTarget, assertCurrent?: () => void): Promise<void> {
-  await c.platform.runtime.uninstall(record.install_id, { ...keepData === undefined ? {} : { retain_private_data: keepData }, ...target ? { expected: target } : {},
-    cleanup: updated => cleanUpInstallation(c, pluginId, updated), ...assertCurrent ? { assertCurrent } : {} });
+  target?: PluginUninstallTarget, assertCurrent?: () => void): Promise<PluginRetainedItem[]> {
+  return await collectRetained(c.project_id, record.install_id, async () => { await c.platform.runtime.uninstall(record.install_id, { ...keepData === undefined ? {} : { retain_private_data: keepData }, ...target ? { expected: target } : {},
+    cleanup: updated => cleanUpInstallation(c, pluginId, updated), ...assertCurrent ? { assertCurrent } : {} }); });
 }
 
 /**
@@ -221,8 +224,9 @@ async function removeInstallation(c: InstalledLifecycleContext, pluginId: string
  * altered comes off like any other. The row is the one the person's request names (`target`), and still that row under the lock: an installation
  * that has been reinstalled or upgraded since is not touched (`plugin.install_replaced`). An uninstall whose clean-up did not finish is retried
  * with its first data choice (`keepData` undefined, or the same); a finished one answers as it is. A standing 常开 agreement refuses first.
+ * Answers what its owners kept that they would otherwise have taken off, and why; nothing for a replay.
  */
-export async function uninstallInstalledRecord(c: InstalledLifecycleContext, pluginId: string, input: { keepData?: boolean; target?: PluginUninstallTarget; assertCurrent?: () => void }): Promise<void> {
+export async function uninstallInstalledRecord(c: InstalledLifecycleContext, pluginId: string, input: { keepData?: boolean; target?: PluginUninstallTarget; assertCurrent?: () => void }): Promise<PluginRetainedItem[]> {
   if (c.closed()) throw new Error('安装运行入口已关闭');
   const { target } = input, live = c.recordFor(pluginId, true);
   // The same request again after it finished: the tombstone it named, answered as it is by the Runtime, nothing withdrawn or cleaned twice.
@@ -232,10 +236,10 @@ export async function uninstallInstalledRecord(c: InstalledLifecycleContext, plu
   if (target && (target.install_id !== record.install_id || target.installation_generation !== record.installation_generation || target.version !== record.version || target.manifest_digest !== record.manifest_digest)) {
     throw pluginErrors.install_replaced('要卸载的已不是这次安装：它已经被重装或升级，请刷新后再试');
   }
-  if (!live) { await removeInstallation(c, pluginId, record, undefined, target, input.assertCurrent); return; }
+  if (!live) return await removeInstallation(c, pluginId, record, undefined, target, input.assertCurrent);
   const refusal = leaveRefusal(c.platform.consents ?? undefined, record, '卸载');
   if (refusal) throw refusal;
   input.assertCurrent?.();
   c.withdraw(pluginId); c.platform.supervisor.revoke(pluginId);
-  await removeInstallation(c, pluginId, record, record.state === 'uninstalled' ? input.keepData : input.keepData === true, target, input.assertCurrent);
+  return await removeInstallation(c, pluginId, record, record.state === 'uninstalled' ? input.keepData : input.keepData === true, target, input.assertCurrent);
 }

@@ -32,7 +32,7 @@ import { createCallConnectionsPort } from "./connector-plugin-requests.js";
 import type { ProjectActions } from "./plugin-builder/catalog.js";
 import type { ProjectReachConsents } from "./plugin-project-reach-consent.js";
 import { projectedPermissionDeclarations } from "./installed-permission-projection.js";
-import type { PluginUninstallTarget } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
+import type { PluginRetainedItem, PluginUninstallTarget } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 
 export interface HomePluginEntry {
   readonly scope: "home";
@@ -130,12 +130,12 @@ export class HomePluginHost {
     await installed.refreshPublicActions();
   }
   /** Switches an installed package off or on, or removes it (keeping its data or not): the install lifecycle a project's packages have. */
-  async packageAction(pluginId: string, action: "enable" | "disable" | "uninstall", input: { keepData?: boolean; target?: PluginUninstallTarget; assertCurrent?: () => void } = {}): Promise<void> {
+  async packageAction(pluginId: string, action: "enable" | "disable" | "uninstall", input: { keepData?: boolean; target?: PluginUninstallTarget; assertCurrent?: () => void } = {}): Promise<readonly PluginRetainedItem[]> {
     await this.ready();
     const installed = this.installed;
     if (!installed || this.closed) throw new ActionError("actions.missing", "这个 Home 插件不是装进来的包");
     // Taken off from its trusted row alone (BL-915): its package, gone or altered as it may be, is not read; the row is found and checked there.
-    if (action === "uninstall") { await installed.uninstall(pluginId, input); await installed.refreshPublicActions(); return; }
+    if (action === "uninstall") { const retained = await installed.uninstall(pluginId, input); await installed.refreshPublicActions(); return retained; }
     const record = installed.recordFor(pluginId);
     if (!record) throw new ActionError("actions.missing", "这个 Home 插件不是装进来的包");
     // Read back without asking whether the publisher is still trusted: the lifecycle refuses to enable a revoked one.
@@ -143,6 +143,7 @@ export class HomePluginHost {
     if (!release) throw new Error(installed.recoveryErrors.get(pluginId) ?? "找不到已安装版本 " + record.version + " 的发布记录");
     await installed.lifecycle(action, release, input);
     await installed.refreshPublicActions();
+    return [];
   }
   /** Stops the installed packages whose publisher the person took back since this last looked (S-87), their data kept. */
   async reconcilePublishers(): Promise<void> { await this.installed?.reconcilePublishers(); }

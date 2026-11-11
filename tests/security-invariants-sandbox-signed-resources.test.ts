@@ -183,17 +183,25 @@ test("B27-UN-02 S-94 keeping data keeps the plugin's own Home library; discardin
   await r.control("uninstall", true);
   assert.equal(existsSync(homeSqlitePath(r.h.home, store)), true); assert.equal(ledgerRow()?.store_name, store);
   await r.install(pkg); await r.approve(); assert.deepEqual(await r.query({ op: "db.read" }), [{ text: "one" }]);
-  await r.control("uninstall", false);
+  assert.deepEqual(await r.control("uninstall", false), { plugin_id: ID, state: "uninstalled" }, "nothing stayed behind, so nothing is reported");
   assert.equal(existsSync(dir), false, "the library directory, its database and sidecars are gone"); assert.equal(ledgerRow(), undefined);
   assert.deepEqual(await r.query({ op: "db.read" }, second), [{ text: "beside" }], "another plugin's library is untouched");
   await r.install(pkg); await r.approve(); assert.deepEqual(await r.query({ op: "db.read" }), [], "a reinstall starts from an empty library");
   await r.call({ op: "db.write", text: "two" });
   const stray = join(dir, "notes.txt"); writeFileSync(stray, "not the Host's");
-  await r.control("uninstall", false);
+  assert.deepEqual(await r.control("uninstall", false), { plugin_id: ID, state: "uninstalled", retained: [{ kind: "home_library", reason: "ownership_unverified" }] });
   assert.equal((await r.h.host.homePlugins!.ready()).runtime.list().some(row => row.plugin_id === ID && row.state !== "uninstalled"), false, "the uninstall itself finishes");
   assert.equal(readFileSync(stray, "utf8"), "not the Host's"); assert.equal(existsSync(homeSqlitePath(r.h.home, store)), true); assert.equal(ledgerRow()?.store_name, store);
   unlinkSync(stray); await r.install(pkg); await r.approve(); assert.deepEqual(await r.query({ op: "db.read" }), [{ text: "two" }], "a kept library is the same one");
   await r.control("uninstall", false); assert.equal(existsSync(dir), false); assert.equal(ledgerRow(), undefined);
+  // With its kept package gone, nothing proves which library the installation owned: it is kept and said so, and the uninstall still finishes.
+  await r.install(pkg); await r.approve(); await r.call({ op: "db.write", text: "three" });
+  const { publisher_signature, version } = r.record();
+  rmSync(join(r.h.home, "plugin-packages", createHash("sha256").update(JSON.stringify([ID, publisher_signature, version])).digest("hex").slice(0, 32)), { recursive: true });
+  await r.reopen();
+  assert.deepEqual(await r.control("uninstall", false), { plugin_id: ID, state: "uninstalled", retained: [{ kind: "home_library", reason: "ownership_unverified" }] });
+  assert.equal(existsSync(homeSqlitePath(r.h.home, store)), true); assert.equal(ledgerRow()?.store_name, store);
+  assert.deepEqual(await r.query({ op: "db.read" }, second), [{ text: "beside" }]);
 });
 
 test("RAC2868 true signed slots use the person's existing service binding over controlled HTTPS, and materials read/fetch/local/original retain their real Host gates", mac, async t => {

@@ -84,6 +84,9 @@ export function childComposer(port: MessagePort, scope: FrameScope, bar: boolean
       event.preventDefault(); event.stopImmediatePropagation(); send({ type: "composer-send", id });
     };
     root.addEventListener("click", pressed, true);
+    // A hidden (often disabled) send button fires no click: pressing it from script asks the bar, as a click on it would.
+    const sendButtons = [...root.querySelectorAll<HTMLButtonElement>("[data-composer-send]")];
+    for (const button of sendButtons) button.click = () => send({ type: "composer-send", id });
     const run = async <Op extends keyof ComposerCalls>(op: Op, arg: ComposerCalls[Op][0], signal: AbortSignal): Promise<ComposerCalls[Op][1]> => {
       const adapter = ai.draft && "adapter" in ai.draft ? ai.draft.adapter : null;
       switch (op) {
@@ -126,6 +129,8 @@ export function childComposer(port: MessagePort, scope: FrameScope, bar: boolean
       if (!message || message.id !== id || gone) return;
       if (message.type === "composer-text") { mirror(message.text); return; }
       if (message.type === "composer-materials") { materials = message.materials; ai.onMaterials?.(); return; }
+      // The bar's input width: a page lines its conversation up with it through this one variable (§10.4).
+      if (message.type === "composer-column") { if (Number.isFinite(message.width) && message.width > 0) document.documentElement.style.setProperty("--mw-bar-column", Math.round(message.width) + "px"); return; }
       if (message.type === "composer-abort") { calls.get(message.call)?.abort(); calls.delete(message.call); return; }
       if (message.type === "composer-act") {
         if (message.act === "command") ai.commands?.find(item => item.slash === message.key)?.run();
@@ -156,6 +161,7 @@ export function childComposer(port: MessagePort, scope: FrameScope, bar: boolean
       calls.clear(); checks.clear();
       // As the composer itself does when it goes: the box is empty for the next mount, whose draft is its own.
       if (field) { field.value = ""; Reflect.deleteProperty(field, "focus"); }
+      for (const button of sendButtons) Reflect.deleteProperty(button, "click");
       if (live === id) send({ type: "composer-destroy", id });
     };
     scope.own(destroy); mounted.set(root, destroy);

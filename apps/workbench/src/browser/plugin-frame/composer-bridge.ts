@@ -83,7 +83,9 @@ export type ComposerDown =
   /** A control changed, a command chosen, or (`receiver`) another of the page's receivers picked in 「发给」, by the id the page gave. */
   | { type: "composer-act"; id: number; act: "control" | "command" | "receiver"; key: string; value?: string }
   | { type: "composer-text"; id: number; text: string }
-  | { type: "composer-materials"; id: number; materials: ComposerMaterial[] };
+  | { type: "composer-materials"; id: number; materials: ComposerMaterial[] }
+  /** How wide the bar's input stands over the page, so its conversation column can stand as wide (`--mw-bar-column` on the page). */
+  | { type: "composer-column"; id: number; width: number };
 
 /** A receiver the bar can take: the framed page in front, as the bar's registry (`molisBarReceivers`) lists it. */
 export interface BarReceiver {

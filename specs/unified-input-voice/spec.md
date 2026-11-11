@@ -247,7 +247,7 @@ O3 动手时看清了两张列表的区别：工作台侧栏那张是 Coding 在
 
 - Coding 页里的会话列表照旧是这一页唯一的左栏；`codingUiDescriptor` 不再登记 `directory` 视图，工作台侧栏不再为 Coding 画静态的那份（`plugins/native/coding/src/ui.ts`）。
 - 窄屏与手机上（760px 以下）打开会话时列表让位，回到列表用 Coding 页自己的「返回」（`.coding-directory-back`），不另做入口；工作台侧栏收起不影响这张列表。
-- 底栏的框对齐的是会话的对话栏（列表右边那一块），不是整个窗格：页面在快照里报它的 `column`，底栏按它定位（`bar-column.ts`）。
+- 底栏的框对齐的是会话的对话栏（列表右边那一块），不是整个窗格：页面在快照里报它的 `column`，底栏按它定位（`bar-column.ts`）。窗口窄时底栏的框会比 680px 窄（要给 Dock 与右侧按钮留位），这时页面的对话栏跟着它：底栏发给页面期间，框架桥把框的实际宽度送下去（`composer-column`），页面上成为 CSS 变量 `--mw-bar-column`，Coding 的阅读宽度 `--coding-reading` 取它（没有时 680px），两边仍是同一条左右边。
 - 没开会话时（目录、新建页）Coding 不收字，底栏是助理的；`receiver()` 只在有会话在看时给出名字。
 - **O4「发给」**（按定样稿的菜单）：发给标签点开平台菜单，三组——「这一页」（当前收件人，打勾，小字是页面给的 `detail`，Coding 写「Coding 会话」）、「助理」（新对话「问助理，不进这个会话」，与最近 3 项工作）、「别的会话」（页面在 `receiver().others` 里给的，Coding 给最近 5 个，挑中经 `choose(id)` 像点列表那一行一样打开）。选助理后这一页不再占底栏，直到再选这一页或前台换了页面；助理此时的发给标签也打开这份菜单，好回到页面。SDK 的 `receiver()` 因此多了可选的 `detail`、`others`、`choose`（公开 API 快照随这一步刷新）；框架桥只带名字与 id，页面只收到它自己列过的 id。实现在 `apps/workbench/src/scripts/client/assistant-composer.ts`（菜单）与 `composer-parent.ts`、`composer-child.ts`（桥）。
 

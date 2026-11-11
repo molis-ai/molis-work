@@ -20,7 +20,7 @@ export const CODING_STYLES = `
 [data-coding-subagents] textarea { width:100%; resize:vertical; }
 .coding-plan-after { color:var(--muted); font-size:12px; }
 .coding-material pre { max-height:14rem; max-width:100%; overflow:auto; white-space:pre; font-size:12px; }
-[data-coding-workbench] { container: molis-coding / inline-size; --coding-reading: 680px; } /* the reading column, as wide as the bar's input over it (one input, specs/unified-input-voice §10.2) */
+[data-coding-workbench] { container: molis-coding / inline-size; --coding-reading: var(--mw-bar-column, 680px); } /* the reading column, as wide as the bar's input over it (one input, specs/unified-input-voice §10.4): the bar says its width, 680px at most */
 .coding-layout { display:grid; grid-template-columns:240px minmax(0,1fr); height:100%; min-height:0; }
 .coding-layout .coding-stage { min-width:0; }
 .coding-directory-back { display:none; }

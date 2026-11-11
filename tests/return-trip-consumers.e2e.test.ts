@@ -12,6 +12,7 @@ import { saveFirstModel, standInKey } from "./fixtures/first-model-browser.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { startModelStandIn } from "./fixtures/model-stand-in.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
+import { CODING_COMPOSER } from "./fixtures/coding-composer.js";
 import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
 
 type Owner = NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>;
@@ -44,15 +45,20 @@ test("DRT-20 Coding: back from the model settings, the prompt is the composer's 
   await saveFirstModel(owner, standIn.baseUrl);
   await owner.waitFor("document.body.dataset.desktopSurface === 'coding'", 20_000);
   await waitFor("document.querySelectorAll('[data-coding-resume]').length === 1", 20_000);
-  /** The prompt against the input under it: the composer's first row, the same left edge and width. */
-  const place = () => evaluate<{ first: boolean; left: number; width: number }>(`(() => {
-    const prompt = document.querySelector('[data-coding-resume]').getBoundingClientRect(), input = document.querySelector('[data-coding-input] .mw-composer').getBoundingClientRect();
-    return { first: document.querySelector('[data-coding-composer]').firstElementChild?.matches('[data-coding-resume]') === true,
-      left: Math.round(prompt.left - input.left), width: Math.round(prompt.width - input.width) };
-  })()`);
+  /** The prompt against the input under it, the workbench bar's (one input): the page's last row over it, the same left edge and width. */
+  const place = async () => {
+    const page = await evaluate<{ first: boolean; left: number; width: number }>(`(() => { const prompt = document.querySelector('[data-coding-resume]').getBoundingClientRect();
+      return { first: document.querySelector('[data-coding-composer]').firstElementChild?.matches('[data-coding-resume]') === true, left: prompt.left, width: prompt.width }; })()`);
+    const bar = await owner.evaluate<{ frame: number; left: number; width: number; phone: boolean }>(`(() => { const input = document.querySelector('${CODING_COMPOSER} .mw-composer').getBoundingClientRect();
+      return { frame: document.querySelector('iframe[data-plugin-frame=coding]').getBoundingClientRect().left, left: input.left, width: input.width, phone: innerWidth < 761 }; })()`);
+    return { first: page.first, left: Math.round(bar.frame + page.left - bar.left), width: Math.round(page.width - bar.width), phone: bar.phone };
+  };
   await shootWidths(owner, "coding-resume", async () => {
     await new Promise(resolve => setTimeout(resolve, 200));
-    assert.deepEqual(await place(), { first: true, left: 0, width: 0 });
+    const { phone, ...at } = await place();
+    // On a phone the bar keeps its own layout (8px in from the window, the page its 16px gutter): the prompt stands centred inside
+    // the input's edges, 8px in on each side. Wider, the same left edge and width.
+    assert.deepEqual(at, phone ? { first: true, left: 8, width: -16 } : { first: true, left: 0, width: 0 });
   });
   await owner.setViewport(1440, 960);
   assert.deepEqual(await sentWith(words), [], "nothing is sent before the person says so");

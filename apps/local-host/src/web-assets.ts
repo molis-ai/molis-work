@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import fs from "node:fs";
 import { createRequire } from "node:module";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { constants, gzipSync } from "node:zlib";
 import { workbenchLanguageResource, type WorkbenchRenderer } from "@molis-ai/molis-work-app-workbench";
 import { BASELINE_REGISTRY, baselinePackageFile, COMPOSER_CLIENT_SCRIPT } from "@molis-ai/molis-work-design-system";
 import { appearanceSheet } from "./appearance-sheet.js";
@@ -11,8 +12,36 @@ import { sendLocalWebJson as sendJson } from "./web-http.js";
 import { currentLocale } from "./web-locale.js";
 
 const requireAsset = createRequire(import.meta.url);
+type LanguageAsset = NonNullable<ReturnType<typeof workbenchLanguageResource>>;
+const compressedLanguageAssets = new WeakMap<LanguageAsset, { body: Buffer; etag: string }>();
 
 export const APPEARANCE_STYLESHEET_HREF = "/assets/ui-skin/folio-1.css";
+
+function preferredLanguageEncoding(accepted: string | undefined): "gzip" | "identity" | null {
+  const weights = new Map<string, number>();
+  for (const entry of (accepted ?? "").split(",")) {
+    const match = /^[\t ]*(gzip|identity|\*)(?:[\t ]*;[\t ]*q=(0(?:\.[0-9]{0,3})?|1(?:\.0{0,3})?))?[\t ]*$/iu.exec(entry);
+    if (!match) continue;
+    const coding = match[1]!.toLowerCase();
+    // A repeated coding cannot override an explicit opt-out.
+    weights.set(coding, Math.min(weights.get(coding) ?? 1, Number(match[2] ?? "1")));
+  }
+  const wildcard = weights.get("*"), identity = weights.get("identity");
+  const gzip = weights.get("gzip") ?? wildcard ?? 0;
+  // An unlisted identity is the fallback, unless the wildcard explicitly excludes it.
+  if (gzip > 0 && (identity === undefined || gzip >= identity)) return "gzip";
+  return (identity ?? (wildcard === 0 ? 0 : 1)) > 0 ? "identity" : null;
+}
+
+function gzipLanguageAsset(language: LanguageAsset): { body: Buffer; etag: string } {
+  let asset = compressedLanguageAssets.get(language);
+  if (!asset) {
+    const body = gzipSync(language.body, { level: constants.Z_BEST_SPEED });
+    asset = { body, etag: `"${createHash("sha256").update(body).digest("base64url")}"` };
+    compressedLanguageAssets.set(language, asset);
+  }
+  return asset;
+}
 
 function bundledAppearanceFile(route: string): { body: string | Buffer; contentType: string } | null {
   switch (route) {
@@ -79,10 +108,17 @@ export function createLocalWebAssets(ports: {
     if (request.method !== "GET" && request.method !== "HEAD") return false;
     const language = workbenchLanguageResource(pathname);
     if (language) {
+      const vary = "Accept-Encoding";
+      const encoding = preferredLanguageEncoding(request.headers["accept-encoding"]);
+      if (encoding === null) { response.writeHead(406, { vary }); response.end(); return true; }
+      const asset = encoding === "gzip" ? gzipLanguageAsset(language) : language;
+      const status = request.headers["if-none-match"] === asset.etag ? 304 : 200;
       const headers = { "content-type": "text/javascript; charset=utf-8", "cache-control": "private, max-age=31536000, immutable",
-        etag: language.etag, "x-content-type-options": "nosniff" };
-      const status = request.headers["if-none-match"] === language.etag ? 304 : 200;
-      response.writeHead(status, headers); response.end(status === 200 && request.method === "GET" ? language.body : undefined);
+        etag: asset.etag, "x-content-type-options": "nosniff", vary,
+        ...(status === 200 && encoding === "gzip" ? { "content-encoding": "gzip" } : {}),
+        ...(status === 200 ? { "content-length": Buffer.byteLength(asset.body) } : {}),
+      };
+      response.writeHead(status, headers); response.end(status === 200 && request.method === "GET" ? asset.body : undefined);
       return true;
     }
     const key = pathname.endsWith(".woff2") ? pathname : currentLocale() + ":" + pathname;

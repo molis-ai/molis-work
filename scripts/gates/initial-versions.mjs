@@ -238,7 +238,7 @@ export function versionOriginProblems({ files, read }, { readBase, chains = new 
 
 // What a running Host registers, from this repository's build, on a throwaway Home.
 const builtDeclarations = () => withIsolatedHome(async home => {
-  const { builtinRegistrations } = await import("../../apps/local-host/dist/agent-definitions/builtin-registrations.js");
+  const { builtinRegistrations } = await import("../../apps/local-host/dist/agent-definitions/builtin-agents.js");
   const { manifests } = await loadManifests();
   const { hostViews } = await collectHost(home);
   return { manifests, hostViews, registrations: builtinRegistrations() };

@@ -11,9 +11,10 @@ type Status = "applicable" | "base_mismatch" | "prompt_missing" | "same";
 interface PreviewRow { row_id: string; owner_id: string; prompt_id: string; title: string; base_version: number; default_version: number | null; status: Status; diff: DiffView }
 interface Held { actor_id: string; project_id: string | null; expires: number; rows: Map<string, { key: string; body: string; base_version: number; revision: number | null; status: Status }> }
 const PREVIEW_TTL_MS = 30 * 60 * 1000;
+const FORMAT_VERSION = /* @version format.agent-definitions.prompt-overrides */ 1;
 const id = { type: "string", minLength: 1, maxLength: 200 } as const;
 const file = { type: "object", additionalProperties: false, required: ["format", "format_version", "exported_at", "overrides"], properties: {
-  format: { const: "molis.prompt-overrides" }, format_version: { const: /* @version format.agent-definitions.prompt-overrides */ 1 }, exported_at: { type: "string", maxLength: 64 },
+  format: { const: "molis.prompt-overrides" }, format_version: { const: FORMAT_VERSION }, exported_at: { type: "string", maxLength: 64 },
   overrides: { type: "array", maxItems: PROMPT_OVERRIDES_FILE_MAX_ROWS, items: { type: "object", additionalProperties: false, required: ["owner_id", "prompt_id", "title", "base_version", "body"], properties: {
     owner_id: id, prompt_id: id, title: { type: "string", maxLength: 200 }, base_version: { type: "integer", minimum: 1 }, body: { type: "string", minLength: 1, maxLength: AGENT_PROMPT_MAX_CHARS } } } } } } as const;
 const meta = { audiences: ["user"], subject_kinds: [], scope: "project", permissions: [] } as const;
@@ -46,7 +47,7 @@ export function promptOverrideHandlers(definitions: () => AgentDefinitions, now 
   return [
     bindActionHandler(promptOverrideActions.export, input => {
       const wanted = input.keys && new Set(input.keys);
-      return { format: "molis.prompt-overrides", format_version: /* @version format.agent-definitions.prompt-overrides */ 1, exported_at: new Date(now()).toISOString(),
+      return { format: "molis.prompt-overrides", format_version: FORMAT_VERSION, exported_at: new Date(now()).toISOString(),
         overrides: definitions().prompts().filter(view => view.user && (!wanted || wanted.has(view.key))).slice(0, PROMPT_OVERRIDES_FILE_MAX_ROWS)
           .map(view => ({ owner_id: view.owner_id, prompt_id: view.prompt_id, title: view.title.slice(0, 200), base_version: view.user!.base_version, body: view.body })) };
     }),

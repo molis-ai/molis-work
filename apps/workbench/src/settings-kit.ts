@@ -34,4 +34,4 @@ let client: string | null = null;
 export function renderMolisWorkKitClientScript(): string {
   return client ??= `${ANCHORED_MENU_CLIENT_SCRIPT}\n${readFileSync(new URL("./kit-client.js", import.meta.url), "utf8").trim()}`;
 }
-export const KIT_SETTINGS_LOADER_SCRIPT = readFileSync(new URL("./kit-loader.js", import.meta.url), "utf8").trim();
+export const KIT_SETTINGS_LOADER_SCRIPT = readFileSync(new URL("../dist/kit-loader.js", import.meta.url), "utf8").trim();

@@ -1016,10 +1016,16 @@
     "reason": "官方集成的发布者签名串，安装信任按整串比较，名字里的 v1 不被解析；各 Manifest 里写的是同一串。"
   },
   {
-    "file": "horizontal/agent-host/src/adapters/prologue-adapter-capabilities.ts",
-    "name": "provider_version",
+    "file": "horizontal/agent-host/src/tool-catalog.ts",
+    "name": "version",
     "values": { "0.0.0-rc.1": 1 },
-    "reason": "调用方没有给版本时的占位值，Prologue 只校验格式，不读取也不比较，不是自有版本。"
+    "reason": "vendored Prologue SDK 的包版本（vendor/prologue-sdk）：能力包里标运行时工具的来源，也是调用方没给版本时 provider_version 的占位值（Prologue 只校验格式）；随换包改，不是自有版本。"
+  },
+  {
+    "file": "horizontal/agent-host/src/adapters/prologue-methods.ts",
+    "name": "version",
+    "values": { "1": 1 },
+    "reason": "交给 Prologue 登记一轮技能时的注册版本：注册 id 取正文、名字与工具的哈希，内容一变就是新 id，所以恒为 1；技能自己的版本在 SkillRef 里。"
   },
   {
     "file": "modules/projects/src/catalog-upgrade.ts",

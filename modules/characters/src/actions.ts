@@ -61,7 +61,7 @@ export const charactersActions = {
   /** Where a capability sits in this person's Character scopes; the capability library reads it next to other owners' references. */
   usages: defineActionUsagesAction("characters.usages", /* @version action.characters.usages */ 1, "角色里的使用位置", []),
   /** The person's Characters as AI kit roles, in the 「你的角色」 pack (specs/capability-pack/contract-design.md §4.8). */
-  kitReport: defineKitReportAction("characters.kit.report", /* @version action.characters.kit.report */ 1, "角色的能力包条目", []),
+  kitReport: defineKitReportAction("characters.kit.report", /* @version action.characters.kit.report */ 1, "角色的能力包条目", [], { scope: "project" }),
   /** Sessions cleanup SC-2: the run is Characters' own record and the terminal is reached by its panel alone, without a Session. */
   launch: define<CharacterLaunchInput, { run: CharacterNativeRun; spawn: { panelId: string; attachOnly: boolean } }>("launch", /* @version action.characters.launch */ 1, "用本机 Agent 运行角色", "在所选工作目录启动本机 Agent 执行任务", "command",
     { type: "object", properties: { reference, workspace_id: { type: "string" }, task: { type: "string" }, request_id: { type: "string" } },

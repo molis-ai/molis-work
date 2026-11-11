@@ -3,6 +3,7 @@ import test from "node:test";
 import type { PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectDirectoryActions } from "@molis-ai/molis-work-contracts/modules/projects";
+import { skillCatalogActions } from "@molis-ai/molis-work-contracts/services/skills";
 import { projectDirectories } from "./fixtures/plugin-actions.js";
 import { CODING_PROJECT_DATABASE, CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
 import { codingFixtureRoutes as codingRoutes } from "./fixtures/coding-surface.js";
@@ -17,10 +18,11 @@ test("one unreadable runtime history does not hide other sessions or lose its dr
   await sessions.setRuntimeSession(noEffect, "board", "broken", "sdk-broken", at);
   await sessions.setState(noEffect, "board", "broken", "done", at);
   const draft='不要丢掉未提交的要求';await sessions.inputs.write(noEffect,'board','broken',0,{draft});
-  // The Agent Host's actions answer an empty list here and the project has no folders, but the broken session's history cannot be read.
+  // The Agent Host's actions answer an empty list here, the catalog has no Skills and the project has no folders, but the broken session's history cannot be read.
   const answer = { invoke: async (definition: { capability_id: string }) => {
     if (definition.capability_id === agent.readSession.capability_id) throw new Error("SESSION_HISTORY_UNAVAILABLE");
     if (definition.capability_id === projectDirectoryActions.get.capability_id) return projectDirectories("board", []);
+    if (definition.capability_id === skillCatalogActions.list.capability_id) return { skills: [] };
     return [];
   } };
   const context = { project_id: "board", plugin_id: "io.molis.work.coding", services: {

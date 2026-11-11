@@ -86,7 +86,8 @@ test("Character declaration cannot name undeclared roles or imply latest-version
 test("a selected method cannot restore a tool removed by the Character", async () => {
   const f = fixture(), method = { skill_id: "needs-search", version: 1, name: "Search method", tools: ["search"] };
   f.authority.manifest.skills = [method]; f.authority.skills = [{ ...method, body: "Search the repository." }];
-  f.request.skills = [{ skill_id: method.skill_id, version: 1 }];
+  const source = { source: { kind: "plugin" as const, plugin_id: "caller", plugin_version: "1.0.0", publisher_signature: "fixture" }, install_id: "i", installation_generation: "g1" };
+  f.authority.skill_source = source; f.request.skills = [{ ...source, skill_id: method.skill_id, version: 1 }];
   await assert.rejects(f.host.start("probe", f.request, f.authority), /未开放的工具/);
   assert.equal(f.captured.length, 0);
 });

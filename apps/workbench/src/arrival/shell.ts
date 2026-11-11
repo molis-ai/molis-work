@@ -152,3 +152,8 @@ export function renderPersonalAccountEntry(controlToken: string, desktop: boolea
         retry.onclick=()=>void open();void open();
       })();`}</script>`});
 }
+
+/** Credential-free document for external entry; the next navigation uses the normal session rules. */
+export function renderAccountSameOriginEntry(): string {
+  return '<!doctype html><meta charset="utf-8"><title>Molis Work</title><script>location.replace(location.href)</script><noscript><a href="/">Molis Work</a></noscript>';
+}

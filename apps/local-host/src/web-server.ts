@@ -1,5 +1,5 @@
 import { WebSessions, webPageToken, withWebSessionRequest } from "./web-sessions.js";
-import { renderPersonalAccountEntry } from "@molis-ai/molis-work-app-workbench";
+import { renderPersonalAccountEntry, renderAccountSameOriginEntry } from "@molis-ai/molis-work-app-workbench";
 import { createLocalWebAssets } from "./web-assets.js";
 import { createLocalHostWorkbenchRenderer } from "./workbench-renderer.js";
 import { createSpaceWebServer, type SpaceWebSurface } from "./space-web-server.js";
@@ -254,6 +254,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
       installationDiagnostics:options.installationDiagnostics??(projectCount=>installationDiagnostics(homeDirectory,projectCount)),
     };
     return createSpaceWebServer(installation, createMolisWorkWebServer, platform.withCatalog,{
+    renderSameOriginEntry:renderAccountSameOriginEntry,
     render:(token,request,url,message)=>runWithLocale(resolveWebLocale(request.headers.cookie,request.headers['accept-language']),()=>renderPersonalAccountEntry(token,platform.isDesktopShellRequest(request,url),message,{L,htmlLang,clientI18nScript},platform.nativeDesktopBootstrapScript,url.searchParams.has('accountLogin'))),
     asset:(request,response,url)=>runWithLocale(resolveWebLocale(request.headers.cookie,request.headers['accept-language']),()=>entryAssets.serveWorkbenchAsset(request,response,url.pathname)),
     });

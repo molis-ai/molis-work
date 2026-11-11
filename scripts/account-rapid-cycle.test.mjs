@@ -15,7 +15,7 @@ const source=process.env.MOLIS_AUTH_SOURCE;assert.ok(source&&isAbsolute(source))
 const {getRustProxy,initializeLocalRuntime}=await import(pathToFileURL(resolve(source,'worker/scripts/local-runtime.mjs')).href);
 const home=mkdtempSync(join(tmpdir(),'v2-rapid-cycle-')),rootToken=randomBytes(32).toString('hex'),evidence=resolve('.impeccable/qa/review/account-rapid-cycle-v2');mkdirSync(evidence,{recursive:true});
 process.env.MOLIS_WORK_SECRET_BACKEND='file';
-let proxy,server,browser,page,origin,authOrigin,cookie='',control=rootToken;
+let proxy,server,browser,page,origin,authOrigin,externalServer,cookie='',control=rootToken;
 const authServer=http.createServer(async(req,res)=>{try{const chunks=[];for await(const c of req)chunks.push(c);const r=await proxy.fetch(new Request(authOrigin+req.url,{method:req.method,headers:req.headers,...(['GET','HEAD'].includes(req.method)?{}:{body:Buffer.concat(chunks)})}));res.writeHead(r.status,Object.fromEntries(r.headers));res.end(Buffer.from(await r.arrayBuffer()));}catch{res.writeHead(500).end();}});
 const listen=async(s,port=0)=>{await new Promise(r=>s.listen(port,'127.0.0.1',r));return 'http://127.0.0.1:'+s.address().port;};
 const close=async s=>{s.closeAllConnections();await new Promise((resolve,reject)=>s.close(e=>e?reject(e):resolve()));};
@@ -65,6 +65,13 @@ try{
  const boot=()=>createDesktopWebHost({ptyClientFilePath:()=>resolve('dist/web/pty-client.js')})({homeDirectory:home,controlToken:rootToken});server=boot();server.prependListener('request',(req,res)=>{if(req.url?.startsWith('/api/personal/events')){streams.add(res);res.once('close',()=>streams.delete(res));}});await listen(server,Number(new URL(origin).port));
  browser=await ChromeHarness.start(join(home,'chrome'));assert.ok(browser);page=await browser.page();await page.command('Page.enable');await page.command('Network.enable');await page.command('Page.addScriptToEvaluateOnNewDocument',{source:`(()=>{const original=fetch;window.fetch=async(...args)=>{if(String(args[0]).includes('action=cancel')||String(args[0]).includes('login-cancel'))(window.rapidCancels??=[]).push(new Error('cancel request').stack);const r=await original(...args);if(!r.ok)window.qaFailure={path:new URL(args[0],location.href).pathname,status:r.status,step:args[1]?.body?JSON.parse(args[1].body).step:undefined,body:await r.clone().json().catch(()=>null)};return r;};})()`});await page.viewport(1440,900);
 
+ // WAS-11: a real cross-site hyperlink must reach the same login form without a 403 or exposing credentials on the first navigation.
+ externalServer=http.createServer((_req,res)=>res.end('<!doctype html><a id="work" href="'+origin+'/">Open Work</a>'));
+ const externalOrigin=(await listen(externalServer)).replace('127.0.0.1','localhost');
+ let externalEntry=false;
+ server.prependListener('request',(req,res)=>{if(req.url==='/'&&req.headers['sec-fetch-site']==='cross-site'){externalEntry=true;res.once('finish',()=>assert.equal(res.getHeader('set-cookie'),undefined));}});
+ await page.command('Page.navigate',{url:externalOrigin});await page.wait("Boolean(document.querySelector('#work'))");const entered=navigation(page,url=>url.origin===origin&&url.searchParams.get('accountEntry')==='1');await page.click('#work');await entered;
+ await page.wait("Boolean(document.querySelector('.account-dialog input[name=address]'))");assert.ok(externalEntry,'the browser actually sent a cross-site document navigation');assert.equal(await page.evaluate('window.qaFailure??null'),null);
  const phones=['+8613800000711','+8613800000712'];
  for(let round=0;round<rounds;round++){
    const started=Date.now();await signIn(phones[round%2]);await switchAccount(phones[(round+1)%2]);await signOut();completed++;
@@ -82,4 +89,4 @@ try{
  assert.equal(new Set(users.values()).size,2);assert.equal(pageEvents.filter(e=>e.event==='cancelled').length,interruptions,'only explicitly interrupted switches may cancel preparation');
  process.stdout.write(JSON.stringify({result:'PASS',rounds:completed,interruptions,actions:(completed+interruptions)*3,checks:['real UI login/switch/logout','two-account project isolation','stale cookies and tokens refused','no stuck preparation','popup closed']})+'\n');
 }catch(error){if(activePopup){process.stderr.write(String(await activePopup.evaluate('document.body.innerText').catch(()=>''))+'\n');process.stderr.write(JSON.stringify(await activePopup.evaluate('window.qaFailure').catch(()=>null))+'\n');}process.stderr.write(JSON.stringify({stage,completed,pageEvents})+'\n');if(page){process.stderr.write(JSON.stringify(await page.evaluate('window.rapidCancels').catch(()=>null))+'\n');process.stderr.write(String(await page.evaluate('document.body.innerText').catch(()=>''))+'\n');process.stderr.write(JSON.stringify(await page.evaluate('window.qaFailure').catch(()=>null))+'\n');await page.screenshot(join(evidence,'failure.png')).catch(()=>undefined);}throw error;}
-finally{await browser?.close();if(server)await close(server);await close(authServer);await proxy?.dispose();rmSync(home,{recursive:true,force:true});}
+finally{await browser?.close();if(externalServer)await close(externalServer);if(server)await close(server);await close(authServer);await proxy?.dispose();rmSync(home,{recursive:true,force:true});}

@@ -154,3 +154,13 @@ Frame 根因：缓存写入已分区，但原生 storage 事件仍暴露物理�
 - 整体构建后对照 f1e618f3a 的 CI 实测产物（artifact 13825848326）：53 个资源，workbench +6,846 字节（许可 6,878），plugin-frame +3,371 字节（许可 3,446），无新增资源，不增加许可。
 - 配套 Auth PR #5 已在全部检查通过后合并，合并提交 21b60baea72b7912c4af2602daf70ef251192b2f。Work 最终提交的全量/CI 结果以 PR #2013 的检查清单和链接记录为准。
 - 局部 lock 复用后，账号菜单 5 项、缓存隔离 1 项通过，健康门禁与密钥扫描通过。主线新加入的 RAC-2516/RAC-2518 原生拖拽本机连续失败（dragend 超时 / 未截获原生拖拽），其余 Frame 两项均通过；正在独立干净主线比对，失败未计为通过。
+
+### 2026-11-11 合并后：外部链接首次登录 403（WAS-11）
+
+- 用户 Chrome 从外部打开 4207，首次导航实际携带 `Sec-Fetch-Site: cross-site`。WebSessions 正确拒绝跨站签发，但原安装入口仍渲染空页面证明并自动调用登录，导致会话读取和登录请求 403。
+- 根安装入口对跨站顶层 GET document 返回无凭据、无账号操作的同源导航文档，后续同源导航按原规则签发 cookie 与 CSRF 证明。跨站 API、iframe、Origin、账号 nonce/绑定与旧凭据拒绝不变；不修改 WebSessions 签发规则。
+- 实际用户 Chrome 已使用 dev 测试账号进入工作台。33 项定向测试通过：personal-http 11、account-host 安全 17、web-sessions 安全 5。新增 HTTP 断言确认首跳无 Set-Cookie/页面证明/账号请求且跨站写入 403。
+- `scripts/account-rapid-cycle.test.mjs` 新增 localhost 外部页面到 127.0.0.1 的真实超链接，断言浏览器实际发送 cross-site 首跳且无凭据签发；1 轮登录/换号/退出 + 1 轮换号中退出共 6 动作通过，保留双账号隔离、旧 cookie/token 拒绝和准备状态恢复断言。首次测试驱动遗漏等待导航，出现 context destroyed；补齐导航事件等待后通过，未放宽断言。
+- 临时布尔诊断已从构建产物移除；没有记录密码或凭据。修复已提交 PR #2021，最终提交补跑 CI 与全量。
+
+- PR 首轮 CI 的单页门禁指出路由内直接生成了导航 HTML。现归位到 Workbench 已有 arrival/shell 渲染模块，由账号入口端口调用；未修改门禁名单或放宽断言。旧提交全量已取消，后续以最终提交运行结果为准。

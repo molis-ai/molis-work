@@ -149,8 +149,7 @@ export function lookProofSection(say: Say): string {
 }
 
 /**
- * Putting a look to use changes the whole page: `<html data-look>` wears it, and the page fades from the old picture to the new over `--dur-move` on
- * `--ease-quint` (browser/catalog-appearance.ts starts the View Transition; styles are in catalog-appearance-styles.ts). A page that asks for less motion changes at once.
+ * Putting a look to use changes the whole page at once. The shared fade in look-fade.ts lets the old page colour fade over the new look.
  */
 const FADE_LOOK = WARM_LOOK;
 

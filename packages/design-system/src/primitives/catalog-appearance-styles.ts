@@ -80,9 +80,7 @@ export const APPEARANCE_PARTS_STYLES = `
   .mw-catalog .mw-look-narrow .mw-look-proof.mw-card { width: 100%; }
   .mw-catalog #look-proof .mw-catalog__specimens { grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr)); align-items: start; }
 
-  /* 3 · The fade. When the look changes, the page does not jump: the old picture gives way to the new over the move clock, on the move curve. A page that
-     asks for less motion changes at once (the script does not start the transition, and this rule is a second guard). */
-  ::view-transition-old(root), ::view-transition-new(root) { animation-duration: var(--dur-move); animation-timing-function: var(--ease-quint); }
+  /* 3 · The fade specimen. */
   .mw-look-fade { display: grid; gap: 12px; justify-items: start; min-width: 0; max-width: 520px; }
   .mw-look-fade__now { margin: 0; color: var(--ink); font-size: 13px; line-height: 20px; overflow-wrap: anywhere; }
   .mw-look-fade__clock { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: 0; color: var(--muted); font-size: 12px; line-height: 18px; }
@@ -92,7 +90,6 @@ export const APPEARANCE_PARTS_STYLES = `
   @media (prefers-reduced-motion: reduce) {
     .mw-look-card__pick, .mw-look-proof__canvas { transition: none; }
     .mw-look-card__pick:active { transform: none; }
-    ::view-transition-group(root), ::view-transition-old(root), ::view-transition-new(root) { animation: none; }
   }
   @media (max-width: 760px), (pointer: coarse) {
     .mw-look-card__more > .mw-btn { top: 8px; right: 8px; width: 44px; min-width: 44px; min-height: 44px; }

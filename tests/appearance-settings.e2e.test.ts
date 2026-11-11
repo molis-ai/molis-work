@@ -444,3 +444,39 @@ test("FSS-02 FSS-17 FSS-20 the same appearance specimen works at three widths in
     await b.waitFor(`${proof}.dataset.state === 'idle'`);
   }
 });
+
+test("FSS-17 FSS-68 a trusted language click works during the live Folio fade", { timeout: 50_000 }, async t => {
+  const b = await openGoalBrowser(t, "empty", undefined, null);
+  assert.ok(b);
+  const english = "a[data-ui-language=en]";
+  await b.setViewport(1024, 900);
+  await b.command("Emulation.setEmulatedMedia", { features: [
+    { name: "prefers-reduced-motion", value: "no-preference" }, { name: "prefers-color-scheme", value: "light" },
+  ] }, b.sessionId);
+  await b.navigate(() => b.command("Page.navigate", { url: b.origin + "/locale?lang=zh&next=%2Fsettings%2Fappearance" }, b.sessionId));
+  await b.waitFor(`typeof molisWorkLookFade === 'function' && typeof molisWorkRequest === 'function'
+    && document.querySelector('[data-appearance-settings]') && document.querySelector(${JSON.stringify(english)})`);
+  assert.deepEqual(await b.evaluate(`[document.documentElement.lang, ${pageSkin}, ${choice}]`), ["zh-CN", soft, "0"]);
+  await b.evaluate(`(() => {
+    const link = document.querySelector(${JSON.stringify(english)});
+    window.beforeLookFade = { body: document.body, settings: document.querySelector('[data-appearance-settings]'), link };
+    link.addEventListener('click', event => {
+      const fade = document.getAnimations().find(animation => animation.id === 'mw-look-fade');
+      window.lookFadeClick = { trusted: event.isTrusted, animation: fade?.playState ?? null, skin: ${pageSkin} };
+    }, { once: true });
+    document.documentElement.removeAttribute('data-craft-still');
+    link.scrollIntoView({ block: 'center', behavior: 'instant' });
+  })()`);
+  const body = { request_id: randomUUID(), expected_revision: 0, choice: { kind: "selection", selection: {
+    skin: { id: "folio", revision: 1 }, font: { policy: "pinned", scheme: { id: "system-sans", revision: 1 } }, mono: null,
+  } } };
+  await b.evaluate(`molisWorkRequest('/api/ui/appearance', { body: ${JSON.stringify(body)} })`);
+  await b.waitFor(`${pageSkin} === '${folio}' && ${choice} === '1'`);
+  await b.click(english);
+  assert.deepEqual(await b.evaluate("window.lookFadeClick"), { trusted: true, animation: "running", skin: folio });
+  await b.waitFor(`document.documentElement.lang === 'en' && document.querySelector(${JSON.stringify(english)})?.getAttribute('aria-current') === 'true'`);
+  assert.deepEqual(await b.evaluate(`[location.pathname, document.body === beforeLookFade.body,
+    document.querySelector('[data-appearance-settings]') === beforeLookFade.settings, document.querySelector(${JSON.stringify(english)}) === beforeLookFade.link,
+    ${pageSkin}, document.documentElement.dataset.uiFont, ${choice}]`),
+  ["/settings/appearance", true, true, true, folio, "system-sans@1", "1"]);
+});

@@ -34,10 +34,7 @@ function wireCards(): void {
 }
 
 /**
- * The fade. The whole page wears the look (`<html data-look>`), and the change is a View Transition: the old picture gives way to the new over `--dur-move` on
- * `--ease-quint` (the board's rule), and the words, the buttons and the page change together inside it. A page that asks for less motion, a page under
- * automation (`html[data-craft-still]`, the finish layer's own sign, set when the browser says it is driven), a hidden tab and a browser without the API
- * change at once.
+ * The page, words and focus change together. The shared fade lets the old page colour fade over the live controls.
  */
 function wireFade(): void {
   const stage = document.querySelector<HTMLElement>("[data-look-fade]");

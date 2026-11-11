@@ -33,6 +33,10 @@ function watch(): void {
 
 globalThis.molisBarReceivers = { front };
 
+/** The bar takes a page's AI composer only for a page shown under it: not a side view, a directory, or a pane of its own document. */
+export const barTakes = (side: boolean, slot: string | undefined): boolean =>
+  typeof globalThis.molisBarReceiverChanged === "function" && !document.body.hasAttribute("data-pane-embedded") && !side && slot !== "workbench.directory";
+
 /* ─── One framed page's receiver ─── */
 
 const ICONS = new Set<string>(PLUGIN_ICON_NAMES);

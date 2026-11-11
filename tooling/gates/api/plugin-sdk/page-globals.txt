@@ -115,6 +115,9 @@ export type ComposerOptions = ComposerCommonOptions & ({
     receiver?: () => {
         label: string;
         icon?: PluginIconName;
+        detail?: string;
+        others?: ComposerReceiverChoice[];
+        choose?: (id: string) => void;
         open?: () => void;
         reset?: () => void;
         resetLabel?: string;
@@ -144,6 +147,12 @@ export interface ComposerPause {
     title: string;
     busy?: boolean;
     run(signal: AbortSignal): Promise<void>;
+}
+
+export interface ComposerReceiverChoice {
+    id: string;
+    label: string;
+    detail?: string;
 }
 
 export interface ComposerSubmission {

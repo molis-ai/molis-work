@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { pluginMarketCards, pluginWorkbenchClientAsset, railEntries } from "@molis-ai/molis-work-app-workbench";
+import { deferredSurfaceClients, pluginMarketCards, pluginWorkbenchClientAsset, railEntries } from "@molis-ai/molis-work-app-workbench";
 import {
   TODO_ACTION_PERMISSIONS,
   TODO_CLIENT_FACTORY_SCRIPT,
@@ -45,7 +45,9 @@ test("RAC-131 a project's page mounts the Todo stage once, from the Home runtime
   assert.doesNotThrow(() => new Function(script));
   assert.doesNotThrow(() => new Function("return " + TODO_CLIENT_FACTORY_SCRIPT));
   // The page's script only knows Todo is there; Todo's own client loads when its surface opens (#150).
-  assert.match(script, /\["todo","io\.molis\.work\.todo"/);
+  const registration = deferredSurfaceClients().find(row => row.id === "todo");
+  assert.equal(registration?.plugin_id, "io.molis.work.todo");
+  assert.equal(registration.bundle, "todo");
   const client = pluginWorkbenchClientAsset("todo");
   assert.ok(client, "Todo's client is served on its own");
   assert.doesNotThrow(() => new Function(client));

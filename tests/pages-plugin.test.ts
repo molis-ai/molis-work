@@ -11,7 +11,7 @@ import test from "node:test";
 
 import { placeFloating, scrollShouldFollow } from "@molis-ai/molis-work-plugin-sdk/browser";
 import {
-  pluginMarketCards, pluginWorkbenchClientAsset, railEntries,
+  deferredSurfaceClients, pluginMarketCards, pluginWorkbenchClientAsset, railEntries,
 } from "@molis-ai/molis-work-app-workbench";
 import {
   PAGES_CLIENT_FACTORY_SCRIPT,
@@ -571,7 +571,10 @@ test("工作台 HTML 挂上 Pages 舞台和编辑器内核脚本", () => {
   assert.match(html, /data-pages-confirm/);
   // The editor kernel loads with Pages' own client when its surface opens, not with every page (#150).
   assert.doesNotMatch(html, /molis-work-pages-editor\.js/);
-  assert.match(renderMolisWorkWorkbenchClientScript(), /\["pages","io\.molis\.work\.pages","pages",\["\/assets\/molis-work-pages-editor\.js"\]/);
+  const client = deferredSurfaceClients().find(row => row.id === "pages");
+  assert.equal(client?.plugin_id, "io.molis.work.pages");
+  assert.equal(client.bundle, "pages");
+  assert.ok(client.assets.includes("/assets/molis-work-pages-editor.js"));
   assert.ok(pluginWorkbenchClientAsset("pages"), "Pages' client is served on its own");
   const contents = pluginDocuments(owner).join("\n");
   const pages = contents.slice(contents.indexOf('data-pages="workbench"'), contents.indexOf("data-pages-confirm"));

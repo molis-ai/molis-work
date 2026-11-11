@@ -8,6 +8,7 @@ import { renderPickerExtend, renderPluginMarket } from "../apps/workbench/dist/i
 import { builtinPluginDirectory } from "@molis-ai/molis-work-app-workbench";
 import { PLUGIN_WORKBENCH_FACTORY_SCRIPT } from "../apps/workbench/dist/scripts/client/plugin-workbench.js";
 import { renderMolisWorkWorkbenchClientScript } from "./workbench-renderer-fixture.js";
+import { pageText } from "./fixtures/page-text.js";
 
 test("plugin market is a catalog directory, not a centered landing form", () => {
   const html = renderPluginMarket({ L: (value) => value, escapeHtml: String, icon });
@@ -65,7 +66,10 @@ test("plugin market client script stays valid JavaScript inside the workbench bu
   const script = renderMolisWorkWorkbenchClientScript();
   assert.match(PLUGIN_WORKBENCH_FACTORY_SCRIPT, /hidePopover/);
   assert.match(PLUGIN_WORKBENCH_FACTORY_SCRIPT, /marketMembership/);
-  assert.match(PLUGIN_WORKBENCH_FACTORY_SCRIPT, /移除/);
+  const remove = "workbench.plugin-workbench.remove";
+  assert.ok(PLUGIN_WORKBENCH_FACTORY_SCRIPT.includes(JSON.stringify(remove)));
+  assert.equal(pageText("zh")(remove), "移除");
+  assert.equal(pageText("en")(remove), "Remove");
   assert.match(PLUGIN_WORKBENCH_FACTORY_SCRIPT, /api\/plugins\/runtime\/updates/);
   assert.match(PLUGIN_WORKBENCH_FACTORY_SCRIPT, /api\/plugins\/"\s*\+\s*encodeURIComponent\(pluginId\)\s*\+\s*"\/upgrade/);
   assert.match(script, /data-market-scope/);

@@ -425,7 +425,7 @@ test("final interaction texture keeps Light and Dark type readable on distinct s
   assert.match(TYPEFACE_STYLES, /font-family: "Noto Sans SC"/);
   // Soft Workbench (DESIGN.md → Typography): weights are roles (400/500/600), never forced globally.
   assert.doesNotMatch(TYPEFACE_STYLES, /font-weight: 400 !important/);
-  assert.match(TYPEFACE_STYLES, /--weight-body: 400; --weight-control: 500; --weight-title: 600;/);
+  assert.match(TYPEFACE_STYLES, /--weight-body: 400;[^}]*--weight-control: 500;[^}]*--weight-title: 600;/);
   assert.match(TYPEFACE_STYLES, /font-synthesis-weight: none/);
   assert.doesNotMatch(TYPEFACE_STYLES, /--font-quote|QUOTE_FONT|immersive-home blockquote/);
   assert.equal(existsSync(interVariableFontFilePath()), true);

@@ -71,7 +71,7 @@ test("AC-25: a step's id is the selector of the control it presses, and the row 
 test("PG062-12: the row is in the page's language — Coding's follow-ups in Coding's own words, the rest in the platform's", async () => {
   const html = await codingStepRow(run("reconcile-required", { activity: [wrote("a")] }), [], "en");
   assert.deepEqual(ids(html), [CODING_NEXT_STEP.recover("run-1"), CODING_NEXT_STEP.changes("run-1")]);
-  for (const words of ["Check and continue", "This turn&#039;s results need checking", "View changes", "Files this turn changed"]) assert.ok(html.includes(words), words);
+  for (const words of ["Check and continue", "This turn’s results need checking", "View changes", "Files this turn changed"]) assert.ok(html.includes(words), words);
   assert.doesNotMatch(html.replace(/<[^>]*>/g, ""), /[一-鿿]/u, "nothing in the English row is Chinese");
 });
 
